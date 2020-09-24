@@ -74,14 +74,25 @@ class Type;
   /// This is the base class for unary cast operator classes.
   class SCEVCastExpr : public SCEV {
   protected:
-    const SCEV *Op;
+    std::array<const SCEV *, 1> Operands;
     Type *Ty;
 
     SCEVCastExpr(const FoldingSetNodeIDRef ID,
                  unsigned SCEVTy, const SCEV *op, Type *ty);
 
   public:
-    const SCEV *getOperand() const { return Op; }
+    const SCEV *getOperand() const { return Operands[0]; }
+    const SCEV *getOperand(unsigned i) const {
+      assert(i == 0 && "Operand index out of range!");
+      return Operands[0];
+    }
+    using op_iterator = std::array<const SCEV *, 1>::const_iterator;
+    using op_range = iterator_range<op_iterator>;
+
+    op_range operands() const {
+      return make_range(Operands.begin(), Operands.end());
+    }
+    size_t getNumOperands() const { return 1; }
     Type *getType() const { return Ty; }
 
     /// Methods for support type inquiry through isa, cast, and dyn_cast:
@@ -222,17 +233,21 @@ class Type;
   class SCEVAddExpr : public SCEVCommutativeExpr {
     friend class ScalarEvolution;
 
-    SCEVAddExpr(const FoldingSetNodeIDRef ID,
-                const SCEV *const *O, size_t N)
-      : SCEVCommutativeExpr(ID, scAddExpr, O, N) {}
+    Type *Ty;
+
+    SCEVAddExpr(const FoldingSetNodeIDRef ID, const SCEV *const *O, size_t N)
+        : SCEVCommutativeExpr(ID, scAddExpr, O, N) {
+      auto *FirstPointerTypedOp = find_if(operands(), [](const SCEV *Op) {
+        return Op->getType()->isPointerTy();
+      });
+      if (FirstPointerTypedOp != operands().end())
+        Ty = (*FirstPointerTypedOp)->getType();
+      else
+        Ty = getOperand(0)->getType();
+    }
 
   public:
-    Type *getType() const {
-      // Use the type of the last operand, which is likely to be a pointer
-      // type, if there is one. This doesn't usually matter, but it can help
-      // reduce casts when the expressions are expanded.
-      return getOperand(getNumOperands() - 1)->getType();
-    }
+    Type *getType() const { return Ty; }
 
     /// Methods for support type inquiry through isa, cast, and dyn_cast:
     static bool classof(const SCEV *S) {
@@ -259,16 +274,28 @@ class Type;
   class SCEVUDivExpr : public SCEV {
     friend class ScalarEvolution;
 
-    const SCEV *LHS;
-    const SCEV *RHS;
+    std::array<const SCEV *, 2> Operands;
 
     SCEVUDivExpr(const FoldingSetNodeIDRef ID, const SCEV *lhs, const SCEV *rhs)
-        : SCEV(ID, scUDivExpr, computeExpressionSize({lhs, rhs})), LHS(lhs),
-          RHS(rhs) {}
+        : SCEV(ID, scUDivExpr, computeExpressionSize({lhs, rhs})) {
+        Operands[0] = lhs;
+        Operands[1] = rhs;
+      }
 
   public:
-    const SCEV *getLHS() const { return LHS; }
-    const SCEV *getRHS() const { return RHS; }
+    const SCEV *getLHS() const { return Operands[0]; }
+    const SCEV *getRHS() const { return Operands[1]; }
+    size_t getNumOperands() const { return 2; }
+    const SCEV *getOperand(unsigned i) const {
+      assert((i == 0 || i == 1) && "Operand index out of range!");
+      return i == 0 ? getLHS() : getRHS();
+    }
+
+    using op_iterator = std::array<const SCEV *, 2>::const_iterator;
+    using op_range = iterator_range<op_iterator>;
+    op_range operands() const {
+      return make_range(Operands.begin(), Operands.end());
+    }
 
     Type *getType() const {
       // In most cases the types of LHS and RHS will be the same, but in some

@@ -12,9 +12,6 @@
 #include <memory>
 #include <vector>
 
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Path.h"
-
 #include "lldb/Breakpoint/BreakpointIDList.h"
 #include "lldb/Breakpoint/BreakpointLocation.h"
 #include "lldb/Core/Debugger.h"
@@ -40,8 +37,8 @@
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/StructuredData.h"
-
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Path.h"
 
 // Define these constants from POSIX mman.h rather than include the file so
 // that they will be correct even when compiled on Linux.
@@ -88,7 +85,7 @@ PlatformProperties::PlatformProperties() {
     return;
 
   llvm::SmallString<64> user_home_dir;
-  if (!llvm::sys::path::home_directory(user_home_dir))
+  if (!FileSystem::Instance().GetHomeDirectory(user_home_dir))
     return;
 
   module_cache_dir = FileSpec(user_home_dir.c_str());
@@ -1154,10 +1151,10 @@ Platform::DebugProcess(ProcessLaunchInfo &launch_info, Debugger &debugger,
         process_sp->SetShouldDetach(false);
 
         // If we didn't have any file actions, the pseudo terminal might have
-        // been used where the slave side was given as the file to open for
+        // been used where the secondary side was given as the file to open for
         // stdin/out/err after we have already opened the master so we can
         // read/write stdin/out/err.
-        int pty_fd = launch_info.GetPTY().ReleaseMasterFileDescriptor();
+        int pty_fd = launch_info.GetPTY().ReleasePrimaryFileDescriptor();
         if (pty_fd != PseudoTerminal::invalid_fd) {
           process_sp->SetSTDIOFileDescriptor(pty_fd);
         }
@@ -1322,7 +1319,23 @@ MmapArgList Platform::GetMmapArgumentList(const ArchSpec &arch, addr_t addr,
 }
 
 lldb_private::Status Platform::RunShellCommand(
-    const char *command, // Shouldn't be nullptr
+    llvm::StringRef command,
+    const FileSpec &
+        working_dir, // Pass empty FileSpec to use the current working directory
+    int *status_ptr, // Pass nullptr if you don't want the process exit status
+    int *signo_ptr, // Pass nullptr if you don't want the signal that caused the
+                    // process to exit
+    std::string
+        *command_output, // Pass nullptr if you don't want the command output
+    const Timeout<std::micro> &timeout) {
+  return RunShellCommand(llvm::StringRef(), command, working_dir, status_ptr,
+                         signo_ptr, command_output, timeout);
+}
+
+lldb_private::Status Platform::RunShellCommand(
+    llvm::StringRef shell,   // Pass empty if you want to use the default
+                             // shell interpreter
+    llvm::StringRef command, // Shouldn't be empty
     const FileSpec &
         working_dir, // Pass empty FileSpec to use the current working directory
     int *status_ptr, // Pass nullptr if you don't want the process exit status
@@ -1332,8 +1345,8 @@ lldb_private::Status Platform::RunShellCommand(
         *command_output, // Pass nullptr if you don't want the command output
     const Timeout<std::micro> &timeout) {
   if (IsHost())
-    return Host::RunShellCommand(command, working_dir, status_ptr, signo_ptr,
-                                 command_output, timeout);
+    return Host::RunShellCommand(shell, command, working_dir, status_ptr,
+                                 signo_ptr, command_output, timeout);
   else
     return Status("unimplemented");
 }
@@ -1774,9 +1787,23 @@ Status Platform::UnloadImage(lldb_private::Process *process,
 
 lldb::ProcessSP Platform::ConnectProcess(llvm::StringRef connect_url,
                                          llvm::StringRef plugin_name,
-                                         lldb_private::Debugger &debugger,
-                                         lldb_private::Target *target,
-                                         lldb_private::Status &error) {
+                                         Debugger &debugger, Target *target,
+                                         Status &error) {
+  return DoConnectProcess(connect_url, plugin_name, debugger, nullptr, target,
+                          error);
+}
+
+lldb::ProcessSP Platform::ConnectProcessSynchronous(
+    llvm::StringRef connect_url, llvm::StringRef plugin_name,
+    Debugger &debugger, Stream &stream, Target *target, Status &error) {
+  return DoConnectProcess(connect_url, plugin_name, debugger, &stream, target,
+                          error);
+}
+
+lldb::ProcessSP Platform::DoConnectProcess(llvm::StringRef connect_url,
+                                           llvm::StringRef plugin_name,
+                                           Debugger &debugger, Stream *stream,
+                                           Target *target, Status &error) {
   error.Clear();
 
   if (!target) {
@@ -1803,12 +1830,34 @@ lldb::ProcessSP Platform::ConnectProcess(llvm::StringRef connect_url,
 
   lldb::ProcessSP process_sp =
       target->CreateProcess(debugger.GetListener(), plugin_name, nullptr);
+
   if (!process_sp)
     return nullptr;
 
-  error = process_sp->ConnectRemote(&debugger.GetOutputStream(), connect_url);
-  if (error.Fail())
+  // If this private method is called with a stream we are synchronous.
+  const bool synchronous = stream != nullptr;
+
+  ListenerSP listener_sp(
+      Listener::MakeListener("lldb.Process.ConnectProcess.hijack"));
+  if (synchronous)
+    process_sp->HijackProcessEvents(listener_sp);
+
+  error = process_sp->ConnectRemote(connect_url);
+  if (error.Fail()) {
+    if (synchronous)
+      process_sp->RestoreProcessEvents();
     return nullptr;
+  }
+
+  if (synchronous) {
+    EventSP event_sp;
+    process_sp->WaitForProcessToStop(llvm::None, &event_sp, true, listener_sp,
+                                     nullptr);
+    process_sp->RestoreProcessEvents();
+    bool pop_process_io_handler = false;
+    Process::HandleProcessStateChangedEvent(event_sp, stream,
+                                            pop_process_io_handler);
+  }
 
   return process_sp;
 }
@@ -1822,6 +1871,7 @@ size_t Platform::ConnectToWaitingProcesses(lldb_private::Debugger &debugger,
 size_t Platform::GetSoftwareBreakpointTrapOpcode(Target &target,
                                                  BreakpointSite *bp_site) {
   ArchSpec arch = target.GetArchitecture();
+  assert(arch.IsValid());
   const uint8_t *trap_opcode = nullptr;
   size_t trap_opcode_size = 0;
 
@@ -1918,8 +1968,7 @@ size_t Platform::GetSoftwareBreakpointTrapOpcode(Target &target,
   } break;
 
   default:
-    llvm_unreachable(
-        "Unhandled architecture in Platform::GetSoftwareBreakpointTrapOpcode");
+    return 0;
   }
 
   assert(bp_site);

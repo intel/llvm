@@ -541,7 +541,8 @@ size_t ObjectFileELF::GetModuleSpecifications(
                       __FUNCTION__, file.GetPath().c_str());
           }
 
-          data_sp = MapFileData(file, -1, file_offset);
+          if (data_sp->GetByteSize() < length)
+            data_sp = MapFileData(file, -1, file_offset);
           if (data_sp)
             data.SetData(data_sp);
           // In case there is header extension in the section #0, the header we
@@ -580,8 +581,7 @@ size_t ObjectFileELF::GetModuleSpecifications(
                   func_cat,
                   "Calculating module crc32 %s with size %" PRIu64 " KiB",
                   file.GetLastPathComponent().AsCString(),
-                  (FileSystem::Instance().GetByteSize(file) - file_offset) /
-                      1024);
+                  (length - file_offset) / 1024);
 
               // For core files - which usually don't happen to have a
               // gnu_debuglink, and are pretty bulky - calculating whole
@@ -903,7 +903,7 @@ size_t ObjectFileELF::ParseDependentModules() {
   if (m_filespec_up)
     return m_filespec_up->GetSize();
 
-  m_filespec_up.reset(new FileSpecList());
+  m_filespec_up = std::make_unique<FileSpecList>();
 
   if (!ParseSectionHeaders())
     return 0;
@@ -1239,7 +1239,7 @@ void ObjectFileELF::ParseARMAttributes(DataExtractor &data, uint64_t length,
   lldb::offset_t Offset = 0;
 
   uint8_t FormatVersion = data.GetU8(&Offset);
-  if (FormatVersion != llvm::ARMBuildAttrs::Format_Version)
+  if (FormatVersion != llvm::ELFAttrs::Format_Version)
     return;
 
   Offset = Offset + sizeof(uint32_t); // Section Length
@@ -2717,7 +2717,7 @@ Symtab *ObjectFileELF::GetSymtab() {
     Section *symtab =
         section_list->FindSectionByType(eSectionTypeELFSymbolTable, true).get();
     if (symtab) {
-      m_symtab_up.reset(new Symtab(symtab->GetObjectFile()));
+      m_symtab_up = std::make_unique<Symtab>(symtab->GetObjectFile());
       symbol_id += ParseSymbolTable(m_symtab_up.get(), symbol_id, symtab);
     }
 
@@ -2734,7 +2734,7 @@ Symtab *ObjectFileELF::GetSymtab() {
               .get();
       if (dynsym) {
         if (!m_symtab_up)
-          m_symtab_up.reset(new Symtab(dynsym->GetObjectFile()));
+          m_symtab_up = std::make_unique<Symtab>(dynsym->GetObjectFile());
         symbol_id += ParseSymbolTable(m_symtab_up.get(), symbol_id, dynsym);
       }
     }
@@ -2761,7 +2761,8 @@ Symtab *ObjectFileELF::GetSymtab() {
         assert(reloc_header);
 
         if (m_symtab_up == nullptr)
-          m_symtab_up.reset(new Symtab(reloc_section->GetObjectFile()));
+          m_symtab_up =
+              std::make_unique<Symtab>(reloc_section->GetObjectFile());
 
         ParseTrampolineSymbols(m_symtab_up.get(), symbol_id, reloc_header,
                                reloc_id);
@@ -2771,17 +2772,17 @@ Symtab *ObjectFileELF::GetSymtab() {
     if (DWARFCallFrameInfo *eh_frame =
             GetModule()->GetUnwindTable().GetEHFrameInfo()) {
       if (m_symtab_up == nullptr)
-        m_symtab_up.reset(new Symtab(this));
+        m_symtab_up = std::make_unique<Symtab>(this);
       ParseUnwindSymbols(m_symtab_up.get(), eh_frame);
     }
 
     // If we still don't have any symtab then create an empty instance to avoid
     // do the section lookup next time.
     if (m_symtab_up == nullptr)
-      m_symtab_up.reset(new Symtab(this));
+      m_symtab_up = std::make_unique<Symtab>(this);
 
     // In the event that there's no symbol entry for the entry point we'll
-    // artifically create one. We delegate to the symtab object the figuring
+    // artificially create one. We delegate to the symtab object the figuring
     // out of the proper size, this will usually make it span til the next
     // symbol it finds in the section. This means that if there are missing
     // symbols the entry point might span beyond its function definition.
@@ -2878,7 +2879,7 @@ void ObjectFileELF::ParseUnwindSymbols(Symtab *symbol_table,
     return;
 
   // First we save the new symbols into a separate list and add them to the
-  // symbol table after we colleced all symbols we want to add. This is
+  // symbol table after we collected all symbols we want to add. This is
   // neccessary because adding a new symbol invalidates the internal index of
   // the symtab what causing the next lookup to be slow because it have to
   // recalculate the index first.
@@ -2957,7 +2958,8 @@ void ObjectFileELF::Dump(Stream *s) {
   s->EOL();
   SectionList *section_list = GetSectionList();
   if (section_list)
-    section_list->Dump(s, nullptr, true, UINT32_MAX);
+    section_list->Dump(s->AsRawOstream(), s->GetIndentLevel(), nullptr, true,
+                       UINT32_MAX);
   Symtab *symtab = GetSymtab();
   if (symtab)
     symtab->Dump(s, nullptr, eSortOrderNone);

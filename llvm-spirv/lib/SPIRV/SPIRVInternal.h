@@ -188,6 +188,8 @@ enum SPIRAddressSpace {
   SPIRAS_Constant,
   SPIRAS_Local,
   SPIRAS_Generic,
+  SPIRAS_GlobalDevice,
+  SPIRAS_GlobalHost,
   SPIRAS_Input,
   SPIRAS_Output,
   SPIRAS_Count,
@@ -200,6 +202,8 @@ template <> inline void SPIRVMap<SPIRAddressSpace, std::string>::init() {
   add(SPIRAS_Local, "Local");
   add(SPIRAS_Generic, "Generic");
   add(SPIRAS_Input, "Input");
+  add(SPIRAS_GlobalDevice, "GlobalDevice");
+  add(SPIRAS_GlobalHost, "GlobalHost");
 }
 typedef SPIRVMap<SPIRAddressSpace, SPIRVStorageClassKind>
     SPIRAddrSpaceCapitalizedNameMap;
@@ -212,6 +216,8 @@ inline void SPIRVMap<SPIRAddressSpace, SPIRVStorageClassKind>::init() {
   add(SPIRAS_Local, StorageClassWorkgroup);
   add(SPIRAS_Generic, StorageClassGeneric);
   add(SPIRAS_Input, StorageClassInput);
+  add(SPIRAS_GlobalDevice, StorageClassDeviceOnlyINTEL);
+  add(SPIRAS_GlobalHost, StorageClassHostOnlyINTEL);
 }
 typedef SPIRVMap<SPIRAddressSpace, SPIRVStorageClassKind> SPIRSPIRVAddrSpaceMap;
 
@@ -322,6 +328,13 @@ const static char WriteOnly[] = "write_only";
 const static char ReadWrite[] = "read_write";
 } // namespace kAccessQualName
 
+namespace kAccessQualPostfix {
+const static char ReadOnly[] = "_ro";
+const static char WriteOnly[] = "_wo";
+const static char ReadWrite[] = "_rw";
+const static char Type[] = "_t";
+} // namespace kAccessQualPostfix
+
 namespace kMangledName {
 const static char Sampler[] = "11ocl_sampler";
 const static char AtomicPrefixIncoming[] = "U7_Atomic";
@@ -330,6 +343,8 @@ const static char AtomicPrefixInternal[] = "atomic_";
 
 namespace kSPIRVName {
 const static char GroupPrefix[] = "group_";
+const static char GroupNonUniformPrefix[] = "group_non_uniform_";
+const static char ClusteredPrefix[] = "clustered_";
 const static char Prefix[] = "__spirv_";
 const static char Postfix[] = "__";
 const static char ImageQuerySize[] = "ImageQuerySize";
@@ -874,7 +889,13 @@ std::string mapOCLTypeNameToSPIRV(StringRef Name, StringRef Acc = "");
 bool hasAccessQualifiedName(StringRef TyName);
 
 /// Get access qualifier from the type name.
-StringRef getAccessQualifier(StringRef TyName);
+SPIRVAccessQualifierKind getAccessQualifier(StringRef TyName);
+
+/// Get access qualifier from the type name.
+StringRef getAccessQualifierPostfix(SPIRVAccessQualifierKind Access);
+
+/// Get access qualifier from the type name.
+StringRef getAccessQualifierFullName(StringRef TyName);
 
 bool eraseUselessFunctions(Module *M);
 

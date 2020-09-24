@@ -14,6 +14,7 @@ class TestInterruptThreadNames(TestBase):
 
     @skipUnlessDarwin
     @add_test_categories(['pyapi'])
+    @skipIfReproducer # While loop with non fixed number of iterations.
     def test_with_python_api(self):
         """Test that we get thread names when interrupting a process."""
         self.build()
@@ -22,7 +23,7 @@ class TestInterruptThreadNames(TestBase):
         target = self.dbg.CreateTarget(exe)
         self.assertTrue(target, VALID_TARGET)
 
-        launch_info = lldb.SBLaunchInfo(None)
+        launch_info = target.GetLaunchInfo()
         error = lldb.SBError()
         self.dbg.SetAsync(True)
         process = target.Launch(launch_info, error)

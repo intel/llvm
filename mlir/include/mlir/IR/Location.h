@@ -42,10 +42,7 @@ public:
   using Attribute::Attribute;
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast.
-  static bool classof(Attribute attr) {
-    return attr.getKind() >= StandardAttributes::FIRST_LOCATION_ATTR &&
-           attr.getKind() <= StandardAttributes::LAST_LOCATION_ATTR;
-  }
+  static bool classof(Attribute attr);
 };
 
 /// This class defines the main interface for locations in MLIR and acts as a
@@ -120,11 +117,6 @@ public:
 
   /// The caller's location.
   Location getCaller() const;
-
-  /// Methods for support type inquiry through isa, cast, and dyn_cast.
-  static bool kindof(unsigned kind) {
-    return kind == StandardAttributes::CallSiteLocation;
-  }
 };
 
 /// Represents a location derived from a file/line/column location.  The column
@@ -146,11 +138,6 @@ public:
 
   unsigned getLine() const;
   unsigned getColumn() const;
-
-  /// Methods for support type inquiry through isa, cast, and dyn_cast.
-  static bool kindof(unsigned kind) {
-    return kind == StandardAttributes::FileLineColLocation;
-  }
 };
 
 /// Represents a value composed of multiple source constructs, with an optional
@@ -174,11 +161,6 @@ public:
   /// Returns the optional metadata attached to this fused location. Given that
   /// it is optional, the return value may be a null node.
   Attribute getMetadata() const;
-
-  /// Methods for support type inquiry through isa, cast, and dyn_cast.
-  static bool kindof(unsigned kind) {
-    return kind == StandardAttributes::FusedLocation;
-  }
 };
 
 /// Represents an identity name attached to a child location.
@@ -199,26 +181,17 @@ public:
 
   /// Return the child location.
   Location getChildLoc() const;
-
-  /// Methods for support type inquiry through isa, cast, and dyn_cast.
-  static bool kindof(unsigned kind) {
-    return kind == StandardAttributes::NameLocation;
-  }
 };
 
 /// Represents an unknown location.  This is always a singleton for a given
 /// MLIRContext.
-class UnknownLoc : public Attribute::AttrBase<UnknownLoc, LocationAttr> {
+class UnknownLoc
+    : public Attribute::AttrBase<UnknownLoc, LocationAttr, AttributeStorage> {
 public:
   using Base::Base;
 
   /// Get an instance of the UnknownLoc.
   static Location get(MLIRContext *context);
-
-  /// Methods for support type inquiry through isa, cast, and dyn_cast.
-  static bool kindof(unsigned kind) {
-    return kind == StandardAttributes::UnknownLocation;
-  }
 };
 
 /// Represents a location that is external to MLIR. Contains a pointer to some
@@ -237,7 +210,7 @@ public:
   template <typename T>
   static Location get(T underlyingLocation, MLIRContext *context) {
     return get(reinterpret_cast<uintptr_t>(underlyingLocation),
-               ClassID::getID<T>(), UnknownLoc::get(context));
+               TypeID::get<T>(), UnknownLoc::get(context));
   }
 
   /// Returns an instance of opaque location which contains a given pointer to
@@ -245,7 +218,7 @@ public:
   template <typename T>
   static Location get(T underlyingLocation, Location fallbackLocation) {
     return get(reinterpret_cast<uintptr_t>(underlyingLocation),
-               ClassID::getID<T>(), fallbackLocation);
+               TypeID::get<T>(), fallbackLocation);
   }
 
   /// Returns a pointer to some data structure that opaque location stores.
@@ -270,25 +243,20 @@ public:
   /// to an object of particular type.
   template <typename T> static bool isa(Location location) {
     auto opaque_loc = location.dyn_cast<OpaqueLoc>();
-    return opaque_loc && opaque_loc.getClassId() == ClassID::getID<T>();
+    return opaque_loc && opaque_loc.getUnderlyingTypeID() == TypeID::get<T>();
   }
 
   /// Returns a pointer to the corresponding object.
   uintptr_t getUnderlyingLocation() const;
 
-  /// Returns a ClassID* that represents the underlying objects c++ type.
-  ClassID *getClassId() const;
+  /// Returns a TypeID that represents the underlying objects c++ type.
+  TypeID getUnderlyingTypeID() const;
 
   /// Returns a fallback location.
   Location getFallbackLocation() const;
 
-  /// Methods for support type inquiry through isa, cast, and dyn_cast.
-  static bool kindof(unsigned kind) {
-    return kind == StandardAttributes::OpaqueLocation;
-  }
-
 private:
-  static Location get(uintptr_t underlyingLocation, ClassID *classID,
+  static Location get(uintptr_t underlyingLocation, TypeID typeID,
                       Location fallbackLocation);
 };
 

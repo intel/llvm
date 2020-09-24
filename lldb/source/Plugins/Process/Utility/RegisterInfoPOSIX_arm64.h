@@ -9,12 +9,25 @@
 #ifndef LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_REGISTERINFOPOSIX_ARM64_H
 #define LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_REGISTERINFOPOSIX_ARM64_H
 
-#include "RegisterInfoInterface.h"
+#include "RegisterInfoAndSetInterface.h"
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/lldb-private.h"
+#include <map>
 
-class RegisterInfoPOSIX_arm64 : public lldb_private::RegisterInfoInterface {
+enum class SVEState { Unknown, Disabled, FPSIMD, Full };
+
+class RegisterInfoPOSIX_arm64
+    : public lldb_private::RegisterInfoAndSetInterface {
 public:
+  enum { GPRegSet = 0, FPRegSet, SVERegSet };
+
+  // AArch64 Register set FP/SIMD feature configuration
+  enum {
+    eVectorQuadwordAArch64,
+    eVectorQuadwordAArch64SVE,
+    eVectorQuadwordAArch64SVEMax = 256
+  };
+
   // based on RegisterContextDarwin_arm64.h
   struct GPR {
     uint64_t x[29]; // x0-x28
@@ -57,11 +70,46 @@ public:
 
   size_t GetGPRSize() const override;
 
+  size_t GetFPRSize() const override;
+
   const lldb_private::RegisterInfo *GetRegisterInfo() const override;
 
   uint32_t GetRegisterCount() const override;
 
+  const lldb_private::RegisterSet *
+  GetRegisterSet(size_t reg_set) const override;
+
+  size_t GetRegisterSetCount() const override;
+
+  size_t GetRegisterSetFromRegisterIndex(uint32_t reg_index) const override;
+
+  uint32_t ConfigureVectorRegisterInfos(uint32_t mode);
+
+  bool VectorSizeIsValid(uint32_t vq) {
+    if (vq >= eVectorQuadwordAArch64 && vq <= eVectorQuadwordAArch64SVEMax)
+      return true;
+    return false;
+  }
+
+  bool IsSVEEnabled() const { return m_vector_reg_vq > eVectorQuadwordAArch64; }
+
+  bool IsSVEZReg(unsigned reg) const;
+  bool IsSVEPReg(unsigned reg) const;
+  bool IsSVERegVG(unsigned reg) const;
+
+  uint32_t GetRegNumSVEZ0() const;
+  uint32_t GetRegNumSVEFFR() const;
+  uint32_t GetRegNumFPCR() const;
+  uint32_t GetRegNumFPSR() const;
+
 private:
+  typedef std::map<uint32_t, std::vector<lldb_private::RegisterInfo>>
+      per_vq_register_infos;
+
+  per_vq_register_infos m_per_vq_reg_infos;
+
+  uint32_t m_vector_reg_vq = eVectorQuadwordAArch64;
+
   const lldb_private::RegisterInfo *m_register_info_p;
   uint32_t m_register_info_count;
 };

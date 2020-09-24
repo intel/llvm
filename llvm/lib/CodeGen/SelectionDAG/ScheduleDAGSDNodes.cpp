@@ -31,6 +31,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Target/TargetMachine.h"
 using namespace llvm;
 
 #define DEBUG_TYPE "pre-RA-sched"
@@ -124,8 +125,7 @@ static void CheckForPhysRegDependency(SDNode *Def, SDNode *User, unsigned Op,
     PhysReg = Reg;
   } else if (Def->isMachineOpcode()) {
     const MCInstrDesc &II = TII->get(Def->getMachineOpcode());
-    if (ResNo >= II.getNumDefs() &&
-        II.ImplicitDefs[ResNo - II.getNumDefs()] == Reg)
+    if (ResNo >= II.getNumDefs() && II.hasImplicitDefOfPhysReg(Reg))
       PhysReg = Reg;
   }
 
@@ -474,6 +474,7 @@ void ScheduleDAGSDNodes::AddSchedEdges() {
 
       for (unsigned i = 0, e = N->getNumOperands(); i != e; ++i) {
         SDNode *OpN = N->getOperand(i).getNode();
+        unsigned DefIdx = N->getOperand(i).getResNo();
         if (isPassiveNode(OpN)) continue;   // Not scheduled.
         SUnit *OpSU = &SUnits[OpN->getNodeId()];
         assert(OpSU && "Node has no SUnit!");
@@ -508,7 +509,7 @@ void ScheduleDAGSDNodes::AddSchedEdges() {
         Dep.setLatency(OpLatency);
         if (!isChain && !UnitLatencies) {
           computeOperandLatency(OpN, N, i, Dep);
-          ST.adjustSchedDependency(OpSU, SU, Dep);
+          ST.adjustSchedDependency(OpSU, DefIdx, SU, i, Dep);
         }
 
         if (!SU->addPred(Dep) && !Dep.isCtrl() && OpSU->NumRegDefsLeft > 1) {
@@ -734,7 +735,7 @@ void ScheduleDAGSDNodes::VerifyScheduledSequence(bool isBottomUp) {
 static void
 ProcessSDDbgValues(SDNode *N, SelectionDAG *DAG, InstrEmitter &Emitter,
                    SmallVectorImpl<std::pair<unsigned, MachineInstr*> > &Orders,
-                   DenseMap<SDValue, unsigned> &VRBaseMap, unsigned Order) {
+                   DenseMap<SDValue, Register> &VRBaseMap, unsigned Order) {
   if (!N->getHasDebugValue())
     return;
 
@@ -761,9 +762,9 @@ ProcessSDDbgValues(SDNode *N, SelectionDAG *DAG, InstrEmitter &Emitter,
 // instructions in the right order.
 static void
 ProcessSourceNode(SDNode *N, SelectionDAG *DAG, InstrEmitter &Emitter,
-                  DenseMap<SDValue, unsigned> &VRBaseMap,
+                  DenseMap<SDValue, Register> &VRBaseMap,
                   SmallVectorImpl<std::pair<unsigned, MachineInstr *>> &Orders,
-                  SmallSet<unsigned, 8> &Seen, MachineInstr *NewInsn) {
+                  SmallSet<Register, 8> &Seen, MachineInstr *NewInsn) {
   unsigned Order = N->getIROrder();
   if (!Order || Seen.count(Order)) {
     // Process any valid SDDbgValues even if node does not have any order
@@ -787,17 +788,17 @@ ProcessSourceNode(SDNode *N, SelectionDAG *DAG, InstrEmitter &Emitter,
 }
 
 void ScheduleDAGSDNodes::
-EmitPhysRegCopy(SUnit *SU, DenseMap<SUnit*, unsigned> &VRBaseMap,
+EmitPhysRegCopy(SUnit *SU, DenseMap<SUnit*, Register> &VRBaseMap,
                 MachineBasicBlock::iterator InsertPos) {
   for (SUnit::const_pred_iterator I = SU->Preds.begin(), E = SU->Preds.end();
        I != E; ++I) {
     if (I->isCtrl()) continue;  // ignore chain preds
     if (I->getSUnit()->CopyDstRC) {
       // Copy to physical register.
-      DenseMap<SUnit*, unsigned>::iterator VRI = VRBaseMap.find(I->getSUnit());
+      DenseMap<SUnit*, Register>::iterator VRI = VRBaseMap.find(I->getSUnit());
       assert(VRI != VRBaseMap.end() && "Node emitted out of order - late");
       // Find the destination physical register.
-      unsigned Reg = 0;
+      Register Reg;
       for (SUnit::const_succ_iterator II = SU->Succs.begin(),
              EE = SU->Succs.end(); II != EE; ++II) {
         if (II->isCtrl()) continue;  // ignore chain preds
@@ -829,17 +830,17 @@ EmitPhysRegCopy(SUnit *SU, DenseMap<SUnit*, unsigned> &VRBaseMap,
 MachineBasicBlock *ScheduleDAGSDNodes::
 EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
   InstrEmitter Emitter(BB, InsertPos);
-  DenseMap<SDValue, unsigned> VRBaseMap;
-  DenseMap<SUnit*, unsigned> CopyVRBaseMap;
+  DenseMap<SDValue, Register> VRBaseMap;
+  DenseMap<SUnit*, Register> CopyVRBaseMap;
   SmallVector<std::pair<unsigned, MachineInstr*>, 32> Orders;
-  SmallSet<unsigned, 8> Seen;
+  SmallSet<Register, 8> Seen;
   bool HasDbg = DAG->hasDebugValues();
 
   // Emit a node, and determine where its first instruction is for debuginfo.
   // Zero, one, or multiple instructions can be created when emitting a node.
   auto EmitNode =
       [&](SDNode *Node, bool IsClone, bool IsCloned,
-          DenseMap<SDValue, unsigned> &VRBaseMap) -> MachineInstr * {
+          DenseMap<SDValue, Register> &VRBaseMap) -> MachineInstr * {
     // Fetch instruction prior to this, or end() if nonexistant.
     auto GetPrevInsn = [&](MachineBasicBlock::iterator I) {
       if (I == BB->begin())
@@ -869,6 +870,10 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
     if (MI->isCandidateForCallSiteEntry() &&
         DAG->getTarget().Options.EmitCallSiteInfo)
       MF.addCallArgsForwardingRegs(MI, DAG->getSDCallSiteInfo(Node));
+
+    if (DAG->getNoMergeSiteInfo(Node)) {
+      MI->setFlag(MachineInstr::MIFlag::NoMerge);
+    }
 
     return MI;
   };
@@ -1027,71 +1032,30 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
     }
   }
 
-  // Split after an INLINEASM_BR block with outputs. This allows us to keep the
-  // copy to/from register instructions from being between two terminator
-  // instructions, which causes the machine instruction verifier agita.
-  auto TI = llvm::find_if(*BB, [](const MachineInstr &MI){
-    return MI.getOpcode() == TargetOpcode::INLINEASM_BR;
-  });
-  auto SplicePt = TI != BB->end() ? std::next(TI) : BB->end();
-  if (TI != BB->end() && SplicePt != BB->end() &&
-      TI->getOpcode() == TargetOpcode::INLINEASM_BR &&
-      SplicePt->getOpcode() == TargetOpcode::COPY) {
-    MachineBasicBlock *FallThrough = BB->getFallThrough();
-    if (!FallThrough)
-      for (const MachineOperand &MO : BB->back().operands())
-        if (MO.isMBB()) {
-          FallThrough = MO.getMBB();
-          break;
-        }
-    assert(FallThrough && "Cannot find default dest block for callbr!");
-
-    MachineBasicBlock *CopyBB = MF.CreateMachineBasicBlock(BB->getBasicBlock());
-    MachineFunction::iterator BBI(*BB);
-    MF.insert(++BBI, CopyBB);
-
-    CopyBB->splice(CopyBB->begin(), BB, SplicePt, BB->end());
-    CopyBB->setInlineAsmBrDefaultTarget();
-
-    CopyBB->addSuccessor(FallThrough, BranchProbability::getOne());
-    BB->addSuccessor(CopyBB, BranchProbability::getOne());
-
-    // Mark all physical registers defined in the original block as being live
-    // on entry to the copy block.
-    for (const auto &MI : *CopyBB)
-      for (const MachineOperand &MO : MI.operands())
-        if (MO.isReg()) {
-          Register reg = MO.getReg();
-          if (Register::isPhysicalRegister(reg)) {
-            CopyBB->addLiveIn(reg);
-            break;
-          }
-        }
-
-    // Bit of a hack: The copy block we created here exists only because we want
-    // the CFG to work with the current system. However, the successors to the
-    // block with the INLINEASM_BR instruction expect values to come from *that*
-    // block, not this usurper block. Thus we steal its successors and add them
-    // to the copy so that everyone is happy.
-    for (auto *Succ : BB->successors())
-      if (Succ != CopyBB && !CopyBB->isSuccessor(Succ))
-        CopyBB->addSuccessor(Succ, BranchProbability::getZero());
-
-    for (auto *Succ : CopyBB->successors())
-      if (BB->isSuccessor(Succ))
-        BB->removeSuccessor(Succ);
-
-    CopyBB->normalizeSuccProbs();
-    BB->normalizeSuccProbs();
-
-    BB->transferInlineAsmBrIndirectTargets(CopyBB);
-
-    InsertPos = CopyBB->end();
-    return CopyBB;
-  }
-
   InsertPos = Emitter.getInsertPos();
-  return Emitter.getBlock();
+  // In some cases, DBG_VALUEs might be inserted after the first terminator,
+  // which results in an invalid MBB. If that happens, move the DBG_VALUEs
+  // before the first terminator.
+  MachineBasicBlock *InsertBB = Emitter.getBlock();
+  auto FirstTerm = InsertBB->getFirstTerminator();
+  if (FirstTerm != InsertBB->end()) {
+    assert(!FirstTerm->isDebugValue() &&
+           "first terminator cannot be a debug value");
+    for (MachineInstr &MI : make_early_inc_range(
+             make_range(std::next(FirstTerm), InsertBB->end()))) {
+      if (!MI.isDebugValue())
+        continue;
+
+      if (&MI == InsertPos)
+        InsertPos = std::prev(InsertPos->getIterator());
+
+      // The DBG_VALUE was referencing a value produced by a terminator. By
+      // moving the DBG_VALUE, the referenced value also needs invalidating.
+      MI.getOperand(0).ChangeToRegister(0, false);
+      MI.moveBefore(&*FirstTerm);
+    }
+  }
+  return InsertBB;
 }
 
 /// Return the basic block label.

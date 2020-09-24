@@ -8,6 +8,9 @@
 
 // <memory>
 
+// Check that the following member types of allocator<void> are provided
+// regardless of the Standard when we request them from libc++.
+
 // template <>
 // class allocator<void>
 // {
@@ -19,10 +22,8 @@
 //     template <class _Up> struct rebind {typedef allocator<_Up> other;};
 // };
 
-// MODULES_DEFINES: _LIBCPP_ENABLE_CXX20_REMOVED_ALLOCATOR_MEMBERS
-// MODULES_DEFINES: _LIBCPP_DISABLE_DEPRECATION_WARNINGS
-#define _LIBCPP_ENABLE_CXX20_REMOVED_ALLOCATOR_MEMBERS
-#define _LIBCPP_DISABLE_DEPRECATION_WARNINGS
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_ENABLE_CXX20_REMOVED_ALLOCATOR_MEMBERS
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
 
 #include <memory>
 #include <type_traits>

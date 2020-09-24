@@ -1,5 +1,5 @@
 ; RUN: llvm-as %s -o %t.bc
-; RUN: not --crash llvm-spirv %t.bc -o %t.spv 2>&1 | FileCheck %s
+; RUN: not llvm-spirv %t.bc -o %t.spv 2>&1 | FileCheck %s
 
 ; CHECK: InvalidBitWidth: Invalid bit width in input: 128
 

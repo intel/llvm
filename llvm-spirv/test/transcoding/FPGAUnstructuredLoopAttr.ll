@@ -21,7 +21,7 @@
 ; CHECK-SPIRV: 2 Branch [[FOR]]
 ; CHECK-SPIRV: 2 Label [[FOR]]
 ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
-; LoopControlMaxConcurrencyINTEL = 0x20000 (131072)
+; LoopControlMaxConcurrencyINTELMask = 0x20000 (131072)
 ; CHECK-SPIRV: 3 LoopControlINTEL 131072 2
 ; CHECK-SPIRV-NEXT: 2 Branch [[FOR]]
 
@@ -30,7 +30,7 @@
 ; CHECK-SPIRV: 2 Branch [[WHILE]]
 ; CHECK-SPIRV: 2 Label [[WHILE]]
 ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
-; LoopControlInitiationIntervalINTEL = 0x10000 (65536)
+; LoopControlInitiationIntervalINTELMask = 0x10000 (65536)
 ; CHECK-SPIRV: 3 LoopControlINTEL 65536 2
 ; CHECK-SPIRV-NEXT: 2 Branch [[WHILE]]
 

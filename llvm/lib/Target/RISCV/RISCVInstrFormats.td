@@ -49,6 +49,41 @@ def InstFormatCB     : InstFormat<15>;
 def InstFormatCJ     : InstFormat<16>;
 def InstFormatOther  : InstFormat<17>;
 
+class RISCVVConstraint<bits<4> val> {
+  bits<4> Value = val;
+}
+def NoConstraint  : RISCVVConstraint<0b0000>;
+def VS2Constraint : RISCVVConstraint<0b0001>;
+def VS1Constraint : RISCVVConstraint<0b0010>;
+def VMConstraint  : RISCVVConstraint<0b0100>;
+def OneInput      : RISCVVConstraint<0b1000>;
+
+def WidenV       : RISCVVConstraint<!or(VS2Constraint.Value,
+                                        VS1Constraint.Value,
+                                        VMConstraint.Value)>;
+def WidenW       : RISCVVConstraint<!or(VS1Constraint.Value,
+                                        VMConstraint.Value)>;
+def WidenCvt     : RISCVVConstraint<!or(VS2Constraint.Value,
+                                        VMConstraint.Value,
+                                        OneInput.Value)>;
+def Narrow       : RISCVVConstraint<!or(VS2Constraint.Value,
+                                        VMConstraint.Value)>;
+def NarrowCvt    : RISCVVConstraint<!or(VS2Constraint.Value,
+                                        VMConstraint.Value,
+                                        OneInput.Value)>;
+def Vmadc        : RISCVVConstraint<!or(VS2Constraint.Value,
+                                        VS1Constraint.Value)>;
+def Iota         : RISCVVConstraint<!or(VS2Constraint.Value,
+                                        VMConstraint.Value,
+                                        OneInput.Value)>;
+def SlideUp      : RISCVVConstraint<!or(VS2Constraint.Value,
+                                        VMConstraint.Value)>;
+def Vrgather     : RISCVVConstraint<!or(VS2Constraint.Value,
+                                        VS1Constraint.Value,
+                                        VMConstraint.Value)>;
+def Vcompress    : RISCVVConstraint<!or(VS2Constraint.Value,
+                                        VS1Constraint.Value)>;
+
 // The following opcode names match those given in Table 19.1 in the
 // RISC-V User-level ISA specification ("RISC-V base opcode map").
 class RISCVOpcode<bits<7> val> {
@@ -71,6 +106,7 @@ def OPC_MSUB      : RISCVOpcode<0b1000111>;
 def OPC_NMSUB     : RISCVOpcode<0b1001011>;
 def OPC_NMADD     : RISCVOpcode<0b1001111>;
 def OPC_OP_FP     : RISCVOpcode<0b1010011>;
+def OPC_OP_V      : RISCVOpcode<0b1010111>;
 def OPC_BRANCH    : RISCVOpcode<0b1100011>;
 def OPC_JALR      : RISCVOpcode<0b1100111>;
 def OPC_JAL       : RISCVOpcode<0b1101111>;
@@ -99,6 +135,10 @@ class RVInst<dag outs, dag ins, string opcodestr, string argstr,
   let Pattern = pattern;
 
   let TSFlags{4-0} = format.Value;
+
+  // Defaults
+  RISCVVConstraint RVVConstraint = NoConstraint;
+  let TSFlags{8-5} = RVVConstraint.Value;
 }
 
 // Pseudo instructions

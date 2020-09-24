@@ -29,15 +29,16 @@ using namespace llvm;
 using namespace llvm::ELF;
 using namespace llvm::dwarf;
 using namespace llvm::object;
+using namespace lld;
+using namespace lld::elf;
 
-namespace lld {
-namespace elf {
 namespace {
 class EhReader {
 public:
   EhReader(InputSectionBase *s, ArrayRef<uint8_t> d) : isec(s), d(d) {}
   size_t readEhRecordSize();
   uint8_t getFdeEncoding();
+  bool hasLSDA();
 
 private:
   template <class P> void failOn(const P *loc, const Twine &msg) {
@@ -50,13 +51,14 @@ private:
   StringRef readString();
   void skipLeb128();
   void skipAugP();
+  StringRef getAugmentation();
 
   InputSectionBase *isec;
   ArrayRef<uint8_t> d;
 };
 }
 
-size_t readEhRecordSize(InputSectionBase *s, size_t off) {
+size_t elf::readEhRecordSize(InputSectionBase *s, size_t off) {
   return EhReader(s, s->data().slice(off)).readEhRecordSize();
 }
 
@@ -148,11 +150,15 @@ void EhReader::skipAugP() {
   d = d.slice(size);
 }
 
-uint8_t getFdeEncoding(EhSectionPiece *p) {
+uint8_t elf::getFdeEncoding(EhSectionPiece *p) {
   return EhReader(p->sec, p->data()).getFdeEncoding();
 }
 
-uint8_t EhReader::getFdeEncoding() {
+bool elf::hasLSDA(const EhSectionPiece &p) {
+  return EhReader(p.sec, p.data()).hasLSDA();
+}
+
+StringRef EhReader::getAugmentation() {
   skipBytes(8);
   int version = readByte();
   if (version != 1 && version != 3)
@@ -171,29 +177,42 @@ uint8_t EhReader::getFdeEncoding() {
     readByte();
   else
     skipLeb128();
+  return aug;
+}
 
+uint8_t EhReader::getFdeEncoding() {
   // We only care about an 'R' value, but other records may precede an 'R'
   // record. Unfortunately records are not in TLV (type-length-value) format,
   // so we need to teach the linker how to skip records for each type.
+  StringRef aug = getAugmentation();
   for (char c : aug) {
     if (c == 'R')
       return readByte();
-    if (c == 'z') {
+    if (c == 'z')
       skipLeb128();
-      continue;
-    }
-    if (c == 'P') {
-      skipAugP();
-      continue;
-    }
-    if (c == 'L') {
+    else if (c == 'L')
       readByte();
-      continue;
-    }
-    failOn(aug.data(), "unknown .eh_frame augmentation string: " + aug);
+    else if (c == 'P')
+      skipAugP();
+    else if (c != 'S')
+      failOn(aug.data(), "unknown .eh_frame augmentation string: " + aug);
   }
   return DW_EH_PE_absptr;
 }
 
-} // namespace elf
-} // namespace lld
+bool EhReader::hasLSDA() {
+  StringRef aug = getAugmentation();
+  for (char c : aug) {
+    if (c == 'L')
+      return true;
+    if (c == 'z')
+      skipLeb128();
+    else if (c == 'P')
+      skipAugP();
+    else if (c == 'R')
+      readByte();
+    else if (c != 'S')
+      failOn(aug.data(), "unknown .eh_frame augmentation string: " + aug);
+  }
+  return false;
+}

@@ -13,8 +13,8 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/SValBuilder.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/AnalysisManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/APSIntType.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/ExprEngine.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramState.h"
-#include "clang/StaticAnalyzer/Core/PathSensitive/SubEngine.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SValVisitor.h"
 
 using namespace clang;
@@ -86,7 +86,7 @@ SVal SimpleSValBuilder::evalCastFromNonLoc(NonLoc val, QualType castTy) {
     return makeLocAsInteger(LI->getLoc(), castSize);
   }
 
-  if (const SymExpr *se = val.getAsSymbolicExpression()) {
+  if (SymbolRef se = val.getAsSymbol()) {
     QualType T = Context.getCanonicalType(se->getType());
     // If types are the same or both are integers, ignore the cast.
     // FIXME: Remove this hack when we support symbolic truncation/extension.
@@ -652,6 +652,11 @@ SVal SimpleSValBuilder::evalBinOpNN(ProgramStateRef state,
         if (LHSValue == 0)
           return evalCastFromNonLoc(lhs, resultTy);
         return makeSymExprValNN(op, InputLHS, InputRHS, resultTy);
+      case BO_Rem:
+        // 0 % x == 0
+        if (LHSValue == 0)
+          return makeZeroVal(resultTy);
+        LLVM_FALLTHROUGH;
       default:
         return makeSymExprValNN(op, InputLHS, InputRHS, resultTy);
       }
@@ -1101,19 +1106,28 @@ SVal SimpleSValBuilder::evalBinOpLL(ProgramStateRef state,
 }
 
 SVal SimpleSValBuilder::evalBinOpLN(ProgramStateRef state,
-                                  BinaryOperator::Opcode op,
-                                  Loc lhs, NonLoc rhs, QualType resultTy) {
+                                    BinaryOperator::Opcode op, Loc lhs,
+                                    NonLoc rhs, QualType resultTy) {
   if (op >= BO_PtrMemD && op <= BO_PtrMemI) {
     if (auto PTMSV = rhs.getAs<nonloc::PointerToMember>()) {
       if (PTMSV->isNullMemberPointer())
         return UndefinedVal();
-      if (const FieldDecl *FD = PTMSV->getDeclAs<FieldDecl>()) {
+
+      auto getFieldLValue = [&](const auto *FD) -> SVal {
         SVal Result = lhs;
 
         for (const auto &I : *PTMSV)
           Result = StateMgr.getStoreManager().evalDerivedToBase(
-              Result, I->getType(),I->isVirtual());
+              Result, I->getType(), I->isVirtual());
+
         return state->getLValue(FD, Result);
+      };
+
+      if (const auto *FD = PTMSV->getDeclAs<FieldDecl>()) {
+        return getFieldLValue(FD);
+      }
+      if (const auto *FD = PTMSV->getDeclAs<IndirectFieldDecl>()) {
+        return getFieldLValue(FD);
       }
     }
 

@@ -54,13 +54,6 @@ class FPR<bits<5> num, string n> : PPCReg<n> {
   let HWEncoding{4-0} = num;
 }
 
-// QFPR - One of the 32 256-bit floating-point vector registers (used for QPX)
-class QFPR<FPR SubReg, string n> : PPCReg<n> {
-  let HWEncoding = SubReg.HWEncoding;
-  let SubRegs = [SubReg];
-  let SubRegIndices = [sub_64];
-}
-
 // VF - One of the 32 64-bit floating-point subregisters of the vector
 // registers (used by VSX).
 class VF<bits<5> num, string n> : PPCReg<n> {
@@ -132,12 +125,6 @@ foreach Index = 0-31 in {
                  DwarfRegNum<[!add(Index, 77), !add(Index, 77)]>;
 }
 
-// QPX Floating-point registers
-foreach Index = 0-31 in {
-  def QF#Index : QFPR<!cast<FPR>("F"#Index), "q"#Index>,
-                 DwarfRegNum<[!add(Index, 32), !add(Index, 32)]>;
-}
-
 // Vector registers
 foreach Index = 0-31 in {
   def V#Index : VR<!cast<VF>("VF"#Index), "v"#Index>,
@@ -156,7 +143,7 @@ foreach Index = 32-63 in {
   def VSX#Index : VSXReg<Index, "vs"#Index>;
 }
 
-// The reprsentation of r0 when treated as the constant 0.
+// The representation of r0 when treated as the constant 0.
 def ZERO  : GPR<0, "0">,    DwarfRegAlias<R0>;
 def ZERO8 : GP8<ZERO, "0">, DwarfRegAlias<X0>;
 
@@ -342,16 +329,6 @@ def SPILLTOVSRRC : RegisterClass<"PPC", [i64, f64], 64, (add G8RC, (sub VSFRC,
 
 // Register class for single precision scalars in VSX registers
 def VSSRC : RegisterClass<"PPC", [f32], 32, (add VSFRC)>;
-
-// For QPX
-def QFRC : RegisterClass<"PPC", [v4f64], 256, (add (sequence "QF%u", 0, 13),
-                                                (sequence "QF%u", 31, 14))>;
-def QSRC : RegisterClass<"PPC", [v4f32], 128, (add QFRC)>;
-def QBRC : RegisterClass<"PPC", [v4i1], 256, (add QFRC)> {
-  // These are actually stored as floating-point values where a positive
-  // number is true and anything else (including NaN) is false.
-  let Size = 256;
-}
 
 def CRBITRC : RegisterClass<"PPC", [i1], 32,
   (add CR2LT, CR2GT, CR2EQ, CR2UN,

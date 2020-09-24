@@ -1,11 +1,14 @@
 ; RUN: llvm-as < %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv -spirv-mem2reg=false
+; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=x86_64-linux-gnu %t.ll -filetype=obj -o %t
 ; RUN: llvm-dwarfdump %t | FileCheck %s
 
 ; Reconstruct this via clang and -O2.
+
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
 ; static void foo() {
 ;   struct X { int a; int b; } xyz;
 ; }
@@ -55,5 +58,3 @@ attributes #0 = { nounwind readnone uwtable "less-precise-fpmad"="false" "no-fra
 !19 = !{i32 2, !"Debug Info Version", i32 3}
 !20 = !{!"clang version 3.5.0 (trunk 209255) (llvm/trunk 209253)"}
 !21 = !DILocation(line: 13, scope: !4)
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

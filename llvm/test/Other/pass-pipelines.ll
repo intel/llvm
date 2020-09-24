@@ -3,15 +3,15 @@
 ; legacy pass manager doesn't introduce unexpected structural changes in the
 ; pass pipeline.
 ;
-; RUN: opt -disable-output -disable-verify -debug-pass=Structure \
+; RUN: opt -enable-new-pm=0 -disable-output -disable-verify -debug-pass=Structure \
 ; RUN:     -O2 %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefix=CHECK-O2
 ; RUN: llvm-profdata merge %S/Inputs/pass-pipelines.proftext -o %t.profdata
-; RUN: opt -disable-output -disable-verify -debug-pass=Structure \
+; RUN: opt -enable-new-pm=0 -disable-output -disable-verify -debug-pass=Structure \
 ; RUN:     -pgo-kind=pgo-instr-use-pipeline -profile-file='%t.profdata' \
 ; RUN:     -O2 %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefix=CHECK-O2 --check-prefix=PGOUSE
-; RUN: opt -disable-output -disable-verify -debug-pass=Structure \
+; RUN: opt -enable-new-pm=0 -disable-output -disable-verify -debug-pass=Structure \
 ; RUN:     -pgo-kind=pgo-instr-use-pipeline -profile-file='%t.profdata' \
 ; RUN:     -hot-cold-split \
 ; RUN:     -O2 %s 2>&1 \
@@ -46,7 +46,6 @@
 ; CHECK-O2-NEXT: Call Graph SCC Pass Manager
 ; CHECK-O2-NEXT: Remove unused exception handling info
 ; CHECK-O2-NEXT: Function Integration/Inlining
-; CHECK-O2-NEXT: Deduce and propagate attributes (CGSCC pass)
 ; CHECK-O2-NEXT: OpenMP specific optimizations
 ; CHECK-O2-NEXT: Deduce function attributes
 ; Next up is the main function pass pipeline. It shouldn't be split up and

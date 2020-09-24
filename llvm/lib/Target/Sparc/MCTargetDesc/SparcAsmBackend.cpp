@@ -15,6 +15,7 @@
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCValue.h"
+#include "llvm/Support/EndianStream.h"
 #include "llvm/Support/TargetRegistry.h"
 
 using namespace llvm;
@@ -254,12 +255,6 @@ namespace {
       }
     }
 
-    bool mayNeedRelaxation(const MCInst &Inst,
-                           const MCSubtargetInfo &STI) const override {
-      // FIXME.
-      return false;
-    }
-
     /// fixupNeedsRelaxation - Target specific predicate for whether a given
     /// fixup requires the associated instruction to be relaxed.
     bool fixupNeedsRelaxation(const MCFixup &Fixup,
@@ -270,8 +265,8 @@ namespace {
       llvm_unreachable("fixupNeedsRelaxation() unimplemented");
       return false;
     }
-    void relaxInstruction(const MCInst &Inst, const MCSubtargetInfo &STI,
-                          MCInst &Res) const override {
+    void relaxInstruction(MCInst &Inst,
+                          const MCSubtargetInfo &STI) const override {
       // FIXME.
       llvm_unreachable("relaxInstruction() unimplemented");
     }

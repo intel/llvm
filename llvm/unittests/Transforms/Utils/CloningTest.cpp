@@ -9,6 +9,7 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/DomTreeUpdater.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/AsmParser/Parser.h"
@@ -657,6 +658,114 @@ static int GetDICompileUnitCount(const Module& M) {
     return LLVM_DBG_CU->getNumOperands();
   }
   return 0;
+}
+
+TEST(CloneFunction, CloneEmptyFunction) {
+  StringRef ImplAssembly = R"(
+    define void @foo() {
+      ret void
+    }
+    declare void @bar()
+  )";
+
+  LLVMContext Context;
+  SMDiagnostic Error;
+
+  auto ImplModule = parseAssemblyString(ImplAssembly, Error, Context);
+  EXPECT_TRUE(ImplModule != nullptr);
+  auto *ImplFunction = ImplModule->getFunction("foo");
+  EXPECT_TRUE(ImplFunction != nullptr);
+  auto *DeclFunction = ImplModule->getFunction("bar");
+  EXPECT_TRUE(DeclFunction != nullptr);
+
+  ValueToValueMapTy VMap;
+  SmallVector<ReturnInst *, 8> Returns;
+  ClonedCodeInfo CCI;
+  CloneFunctionInto(ImplFunction, DeclFunction, VMap, true, Returns, "", &CCI);
+
+  EXPECT_FALSE(verifyModule(*ImplModule, &errs()));
+  EXPECT_FALSE(CCI.ContainsCalls);
+  EXPECT_FALSE(CCI.ContainsDynamicAllocas);
+}
+
+TEST(CloneFunction, CloneFunctionWithInalloca) {
+  StringRef ImplAssembly = R"(
+    declare void @a(i32* inalloca)
+    define void @foo() {
+      %a = alloca inalloca i32
+      call void @a(i32* inalloca %a)
+      ret void
+    }
+    declare void @bar()
+  )";
+
+  LLVMContext Context;
+  SMDiagnostic Error;
+
+  auto ImplModule = parseAssemblyString(ImplAssembly, Error, Context);
+  EXPECT_TRUE(ImplModule != nullptr);
+  auto *ImplFunction = ImplModule->getFunction("foo");
+  EXPECT_TRUE(ImplFunction != nullptr);
+  auto *DeclFunction = ImplModule->getFunction("bar");
+  EXPECT_TRUE(DeclFunction != nullptr);
+
+  ValueToValueMapTy VMap;
+  SmallVector<ReturnInst *, 8> Returns;
+  ClonedCodeInfo CCI;
+  CloneFunctionInto(DeclFunction, ImplFunction, VMap, true, Returns, "", &CCI);
+
+  EXPECT_FALSE(verifyModule(*ImplModule, &errs()));
+  EXPECT_TRUE(CCI.ContainsCalls);
+  EXPECT_TRUE(CCI.ContainsDynamicAllocas);
+}
+
+TEST(CloneFunction, CloneFunctionWithSubprograms) {
+  // Tests that the debug info is duplicated correctly when a DISubprogram
+  // happens to be one of the operands of the DISubprogram that is being cloned.
+  // In general, operands of "test" that are distinct should be duplicated,
+  // but in this case "my_operator" should not be duplicated. If it is
+  // duplicated, the metadata in the llvm.dbg.declare could end up with
+  // different duplicates.
+  StringRef ImplAssembly = R"(
+    declare void @llvm.dbg.declare(metadata, metadata, metadata)
+
+    define void @test() !dbg !5 {
+      call void @llvm.dbg.declare(metadata i8* undef, metadata !4, metadata !DIExpression()), !dbg !6
+      ret void
+    }
+
+    declare void @cloned()
+
+    !llvm.dbg.cu = !{!0}
+    !llvm.module.flags = !{!2}
+    !0 = distinct !DICompileUnit(language: DW_LANG_C99, file: !1)
+    !1 = !DIFile(filename: "test.cpp",  directory: "")
+    !2 = !{i32 1, !"Debug Info Version", i32 3}
+    !3 = distinct !DISubprogram(name: "my_operator", scope: !1, unit: !0, retainedNodes: !{!4})
+    !4 = !DILocalVariable(name: "awaitables", scope: !3)
+    !5 = distinct !DISubprogram(name: "test", scope: !3, unit: !0)
+    !6 = !DILocation(line: 55, column: 15, scope: !3, inlinedAt: !7)
+    !7 = distinct !DILocation(line: 73, column: 14, scope: !5)
+  )";
+
+  LLVMContext Context;
+  SMDiagnostic Error;
+
+  auto ImplModule = parseAssemblyString(ImplAssembly, Error, Context);
+  EXPECT_TRUE(ImplModule != nullptr);
+  auto *OldFunc = ImplModule->getFunction("test");
+  EXPECT_TRUE(OldFunc != nullptr);
+  auto *NewFunc = ImplModule->getFunction("cloned");
+  EXPECT_TRUE(NewFunc != nullptr);
+
+  ValueToValueMapTy VMap;
+  SmallVector<ReturnInst *, 8> Returns;
+  ClonedCodeInfo CCI;
+  CloneFunctionInto(NewFunc, OldFunc, VMap, true, Returns, "", &CCI);
+
+  // This fails if the scopes in the llvm.dbg.declare variable and location
+  // aren't the same.
+  EXPECT_FALSE(verifyModule(*ImplModule, &errs()));
 }
 
 TEST(CloneFunction, CloneFunctionToDifferentModule) {

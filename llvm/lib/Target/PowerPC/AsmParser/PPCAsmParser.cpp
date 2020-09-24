@@ -492,21 +492,6 @@ public:
     Inst.addOperand(MCOperand::createReg(VSSRegs[getVSReg()]));
   }
 
-  void addRegQFRCOperands(MCInst &Inst, unsigned N) const {
-    assert(N == 1 && "Invalid number of operands!");
-    Inst.addOperand(MCOperand::createReg(QFRegs[getReg()]));
-  }
-
-  void addRegQSRCOperands(MCInst &Inst, unsigned N) const {
-    assert(N == 1 && "Invalid number of operands!");
-    Inst.addOperand(MCOperand::createReg(QFRegs[getReg()]));
-  }
-
-  void addRegQBRCOperands(MCInst &Inst, unsigned N) const {
-    assert(N == 1 && "Invalid number of operands!");
-    Inst.addOperand(MCOperand::createReg(QFRegs[getReg()]));
-  }
-
   void addRegSPE4RCOperands(MCInst &Inst, unsigned N) const {
     assert(N == 1 && "Invalid number of operands!");
     Inst.addOperand(MCOperand::createReg(RRegs[getReg()]));
@@ -666,7 +651,8 @@ public:
       return CreateImm(CE->getValue(), S, E, IsPPC64);
 
     if (const MCSymbolRefExpr *SRE = dyn_cast<MCSymbolRefExpr>(Val))
-      if (SRE->getKind() == MCSymbolRefExpr::VK_PPC_TLS)
+      if (SRE->getKind() == MCSymbolRefExpr::VK_PPC_TLS ||
+          SRE->getKind() == MCSymbolRefExpr::VK_PPC_TLS_PCREL)
         return CreateTLSReg(SRE, S, E, IsPPC64);
 
     if (const PPCMCExpr *TE = dyn_cast<PPCMCExpr>(Val)) {
@@ -1207,9 +1193,6 @@ bool PPCAsmParser::MatchRegisterName(unsigned &RegNo, int64_t &IntVal) {
     } else if (Name.startswith_lower("v") &&
                !Name.substr(1).getAsInteger(10, IntVal) && IntVal < 32) {
       RegNo = VRegs[IntVal];
-    } else if (Name.startswith_lower("q") &&
-               !Name.substr(1).getAsInteger(10, IntVal) && IntVal < 32) {
-      RegNo = QFRegs[IntVal];
     } else if (Name.startswith_lower("cr") &&
                !Name.substr(2).getAsInteger(10, IntVal) && IntVal < 8) {
       RegNo = CRRegs[IntVal];
@@ -1731,10 +1714,10 @@ bool PPCAsmParser::ParseDirectiveMachine(SMLoc L) {
   if (parseToken(AsmToken::EndOfStatement))
     return addErrorSuffix(" in '.machine' directive");
 
-  PPCTargetStreamer &TStreamer =
-      *static_cast<PPCTargetStreamer *>(
-           getParser().getStreamer().getTargetStreamer());
-  TStreamer.emitMachine(CPU);
+  PPCTargetStreamer *TStreamer = static_cast<PPCTargetStreamer *>(
+      getParser().getStreamer().getTargetStreamer());
+  if (TStreamer != nullptr)
+    TStreamer->emitMachine(CPU);
 
   return false;
 }
@@ -1773,10 +1756,10 @@ bool PPCAsmParser::ParseDirectiveAbiVersion(SMLoc L) {
       parseToken(AsmToken::EndOfStatement))
     return addErrorSuffix(" in '.abiversion' directive");
 
-  PPCTargetStreamer &TStreamer =
-      *static_cast<PPCTargetStreamer *>(
-           getParser().getStreamer().getTargetStreamer());
-  TStreamer.emitAbiVersion(AbiVersion);
+  PPCTargetStreamer *TStreamer = static_cast<PPCTargetStreamer *>(
+      getParser().getStreamer().getTargetStreamer());
+  if (TStreamer != nullptr)
+    TStreamer->emitAbiVersion(AbiVersion);
 
   return false;
 }
@@ -1796,10 +1779,10 @@ bool PPCAsmParser::ParseDirectiveLocalEntry(SMLoc L) {
       parseToken(AsmToken::EndOfStatement))
     return addErrorSuffix(" in '.localentry' directive");
 
-  PPCTargetStreamer &TStreamer =
-      *static_cast<PPCTargetStreamer *>(
-           getParser().getStreamer().getTargetStreamer());
-  TStreamer.emitLocalEntry(Sym, Expr);
+  PPCTargetStreamer *TStreamer = static_cast<PPCTargetStreamer *>(
+      getParser().getStreamer().getTargetStreamer());
+  if (TStreamer != nullptr)
+    TStreamer->emitLocalEntry(Sym, Expr);
 
   return false;
 }

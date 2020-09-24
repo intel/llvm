@@ -15,7 +15,10 @@ target triple = "nvptx64-nvidia-cuda-sycldevice"
 define internal void @wobble(%struct.baz* %arg, %struct.spam* byval(%struct.spam) %arg1) !work_group_scope !0 {
 ; CHECK:    [[TMP10:%.*]] = bitcast %struct.spam* [[ARG1:%.*]] to i8*
 ; CHECK:    call void @llvm.memcpy.p3i8.p0i8.i64(i8 addrspace(3)* align 16 bitcast (%struct.spam addrspace(3)* @[[SHADOW]] to i8 addrspace(3)*), i8* [[TMP10]], i64 32, i1 false)
-; CHECK:    call void @widget(%struct.spam* addrspacecast (%struct.spam addrspace(3)* @[[SHADOW]] to %struct.spam*), %struct.quux* byval(%struct.quux) [[TMP2:%.*]])
+; CHECK:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #0
+; CHECK:    [[TMP11:%.*]] = bitcast %struct.spam* %arg1 to i8*
+; CHECK:    call void @llvm.memcpy.p0i8.p3i8.i64(i8* [[TMP11:%.*]], i8 addrspace(3)* align 16 bitcast (%struct.spam addrspace(3)* @[[SHADOW]] to i8
+; CHECK:    call void @widget(%struct.spam* %arg1, %struct.quux* byval(%struct.quux) [[TMP2:%.*]])
 ;
 bb:
   %tmp = alloca %struct.baz*

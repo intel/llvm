@@ -20,10 +20,10 @@
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/CodeGen/FunctionLoweringInfo.h"
 #include "llvm/CodeGen/GlobalISel/CSEMIRBuilder.h"
-#include "llvm/CodeGen/GlobalISel/Types.h"
-#include "llvm/CodeGen/SwiftErrorValueTracking.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
+#include "llvm/CodeGen/SwiftErrorValueTracking.h"
 #include "llvm/CodeGen/SwitchLoweringUtils.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/Support/Allocator.h"
@@ -38,7 +38,6 @@ class CallInst;
 class CallLowering;
 class Constant;
 class DataLayout;
-class FunctionLoweringInfo;
 class Instruction;
 class MachineBasicBlock;
 class MachineFunction;
@@ -202,6 +201,10 @@ private:
   /// \return true if the materialization succeeded.
   bool translate(const Constant &C, Register Reg);
 
+  // Translate U as a copy of V.
+  bool translateCopy(const User &U, const Value &V,
+                     MachineIRBuilder &MIRBuilder);
+
   /// Translate an LLVM bitcast into generic IR. Either a COPY or a G_BITCAST is
   /// emitted.
   bool translateBitCast(const User &U, MachineIRBuilder &MIRBuilder);
@@ -214,12 +217,14 @@ private:
 
   /// Translate an LLVM string intrinsic (memcpy, memset, ...).
   bool translateMemFunc(const CallInst &CI, MachineIRBuilder &MIRBuilder,
-                        Intrinsic::ID ID);
+                        unsigned Opcode);
 
   void getStackGuard(Register DstReg, MachineIRBuilder &MIRBuilder);
 
   bool translateOverflowIntrinsic(const CallInst &CI, unsigned Op,
                                   MachineIRBuilder &MIRBuilder);
+  bool translateFixedPointIntrinsic(unsigned Op, const CallInst &CI,
+                                    MachineIRBuilder &MIRBuilder);
 
   /// Helper function for translateSimpleIntrinsic.
   /// \return The generic opcode for \p IntrinsicID if \p IntrinsicID is a
@@ -232,10 +237,13 @@ private:
   bool translateSimpleIntrinsic(const CallInst &CI, Intrinsic::ID ID,
                                 MachineIRBuilder &MIRBuilder);
 
+  bool translateConstrainedFPIntrinsic(const ConstrainedFPIntrinsic &FPI,
+                                       MachineIRBuilder &MIRBuilder);
+
   bool translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
                                MachineIRBuilder &MIRBuilder);
 
-  bool translateInlineAsm(const CallInst &CI, MachineIRBuilder &MIRBuilder);
+  bool translateInlineAsm(const CallBase &CB, MachineIRBuilder &MIRBuilder);
 
   /// Returns true if the value should be split into multiple LLTs.
   /// If \p Offsets is given then the split type's offsets will be stored in it.
@@ -244,8 +252,7 @@ private:
                     SmallVectorImpl<uint64_t> *Offsets = nullptr);
 
   /// Common code for translating normal calls or invokes.
-  bool translateCallSite(const ImmutableCallSite &CS,
-                         MachineIRBuilder &MIRBuilder);
+  bool translateCallBase(const CallBase &CB, MachineIRBuilder &MIRBuilder);
 
   /// Translate call instruction.
   /// \pre \p U is a call instruction.
@@ -282,6 +289,11 @@ private:
   /// MachineBasicBlocks for the function have been created.
   void finishPendingPhis();
 
+  /// Translate \p Inst into a unary operation \p Opcode.
+  /// \pre \p U is a unary operation.
+  bool translateUnaryOp(unsigned Opcode, const User &U,
+                        MachineIRBuilder &MIRBuilder);
+
   /// Translate \p Inst into a binary operation \p Opcode.
   /// \pre \p U is a binary operation.
   bool translateBinaryOp(unsigned Opcode, const User &U,
@@ -300,25 +312,37 @@ private:
   void emitSwitchCase(SwitchCG::CaseBlock &CB, MachineBasicBlock *SwitchBB,
                       MachineIRBuilder &MIB);
 
-  bool lowerJumpTableWorkItem(SwitchCG::SwitchWorkListItem W,
-                              MachineBasicBlock *SwitchMBB,
-                              MachineBasicBlock *CurMBB,
-                              MachineBasicBlock *DefaultMBB,
-                              MachineIRBuilder &MIB,
-                              MachineFunction::iterator BBI,
-                              BranchProbability UnhandledProbs,
-                              SwitchCG::CaseClusterIt I,
-                              MachineBasicBlock *Fallthrough,
-                              bool FallthroughUnreachable);
+  /// Generate for for the BitTest header block, which precedes each sequence of
+  /// BitTestCases.
+  void emitBitTestHeader(SwitchCG::BitTestBlock &BTB,
+                         MachineBasicBlock *SwitchMBB);
+  /// Generate code to produces one "bit test" for a given BitTestCase \p B.
+  void emitBitTestCase(SwitchCG::BitTestBlock &BB, MachineBasicBlock *NextMBB,
+                       BranchProbability BranchProbToNext, Register Reg,
+                       SwitchCG::BitTestCase &B, MachineBasicBlock *SwitchBB);
 
-  bool lowerSwitchRangeWorkItem(SwitchCG::CaseClusterIt I,
-                                Value *Cond,
+  bool lowerJumpTableWorkItem(
+      SwitchCG::SwitchWorkListItem W, MachineBasicBlock *SwitchMBB,
+      MachineBasicBlock *CurMBB, MachineBasicBlock *DefaultMBB,
+      MachineIRBuilder &MIB, MachineFunction::iterator BBI,
+      BranchProbability UnhandledProbs, SwitchCG::CaseClusterIt I,
+      MachineBasicBlock *Fallthrough, bool FallthroughUnreachable);
+
+  bool lowerSwitchRangeWorkItem(SwitchCG::CaseClusterIt I, Value *Cond,
                                 MachineBasicBlock *Fallthrough,
                                 bool FallthroughUnreachable,
                                 BranchProbability UnhandledProbs,
                                 MachineBasicBlock *CurMBB,
                                 MachineIRBuilder &MIB,
                                 MachineBasicBlock *SwitchMBB);
+
+  bool lowerBitTestWorkItem(
+      SwitchCG::SwitchWorkListItem W, MachineBasicBlock *SwitchMBB,
+      MachineBasicBlock *CurMBB, MachineBasicBlock *DefaultMBB,
+      MachineIRBuilder &MIB, MachineFunction::iterator BBI,
+      BranchProbability DefaultProb, BranchProbability UnhandledProbs,
+      SwitchCG::CaseClusterIt I, MachineBasicBlock *Fallthrough,
+      bool FallthroughUnreachable);
 
   bool lowerSwitchWorkItem(SwitchCG::SwitchWorkListItem W, Value *Cond,
                            MachineBasicBlock *SwitchMBB,
@@ -345,8 +369,6 @@ private:
   /// this to succeed.
   /// \pre \p U is a return instruction.
   bool translateRet(const User &U, MachineIRBuilder &MIRBuilder);
-
-  bool translateFSub(const User &U, MachineIRBuilder &MIRBuilder);
 
   bool translateFNeg(const User &U, MachineIRBuilder &MIRBuilder);
 
@@ -432,6 +454,9 @@ private:
   bool translateFAdd(const User &U, MachineIRBuilder &MIRBuilder) {
     return translateBinaryOp(TargetOpcode::G_FADD, U, MIRBuilder);
   }
+  bool translateFSub(const User &U, MachineIRBuilder &MIRBuilder) {
+    return translateBinaryOp(TargetOpcode::G_FSUB, U, MIRBuilder);
+  }
   bool translateFMul(const User &U, MachineIRBuilder &MIRBuilder) {
     return translateBinaryOp(TargetOpcode::G_FMUL, U, MIRBuilder);
   }
@@ -453,6 +478,7 @@ private:
   bool translateAtomicCmpXchg(const User &U, MachineIRBuilder &MIRBuilder);
   bool translateAtomicRMW(const User &U, MachineIRBuilder &MIRBuilder);
   bool translateFence(const User &U, MachineIRBuilder &MIRBuilder);
+  bool translateFreeze(const User &U, MachineIRBuilder &MIRBuilder);
 
   // Stubs to keep the compiler happy while we implement the rest of the
   // translation.
@@ -481,9 +507,6 @@ private:
     return false;
   }
   bool translateUserOp2(const User &U, MachineIRBuilder &MIRBuilder) {
-    return false;
-  }
-  bool translateFreeze(const User &U, MachineIRBuilder &MIRBuilder) {
     return false;
   }
 
@@ -582,7 +605,7 @@ private:
   /// Get the alignment of the given memory operation instruction. This will
   /// either be the explicitly specified value or the ABI-required alignment for
   /// the type being accessed (according to the Module's DataLayout).
-  unsigned getMemOpAlignment(const Instruction &I);
+  Align getMemOpAlign(const Instruction &I);
 
   /// Get the MachineBasicBlock that represents \p BB. Specifically, the block
   /// returned will be the head of the translated block (suitable for branch

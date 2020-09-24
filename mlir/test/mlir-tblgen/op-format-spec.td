@@ -1,4 +1,4 @@
-// RUN: mlir-tblgen -gen-op-decls -asmformat-error-is-fatal=false -I %S/../../include %s 2>&1 | FileCheck %s --dump-input-on-failure
+// RUN: mlir-tblgen -gen-op-decls -asmformat-error-is-fatal=false -I %S/../../include %s -o=%t 2>&1 | FileCheck %s
 
 // This file contains tests for the specification of the declarative op format.
 
@@ -19,7 +19,7 @@ class TestFormat_Op<string name, string fmt, list<OpTrait> traits = []>
 //===----------------------------------------------------------------------===//
 // attr-dict
 
-// CHECK: error: format missing 'attr-dict' directive
+// CHECK: error: 'attr-dict' directive not found
 def DirectiveAttrDictInvalidA : TestFormat_Op<"attrdict_invalid_a", [{
 }]>;
 // CHECK: error: 'attr-dict' directive has already been seen
@@ -41,6 +41,49 @@ def DirectiveAttrDictValidA : TestFormat_Op<"attrdict_valid_a", [{
 def DirectiveAttrDictValidB : TestFormat_Op<"attrdict_valid_b", [{
   attr-dict-with-keyword
 }]>;
+
+//===----------------------------------------------------------------------===//
+// custom
+
+// CHECK: error: expected '<' before custom directive name
+def DirectiveCustomInvalidA : TestFormat_Op<"custom_invalid_a", [{
+  custom(
+}]>;
+// CHECK: error: expected custom directive name identifier
+def DirectiveCustomInvalidB : TestFormat_Op<"custom_invalid_b", [{
+  custom<>
+}]>;
+// CHECK: error: expected '>' after custom directive name
+def DirectiveCustomInvalidC : TestFormat_Op<"custom_invalid_c", [{
+  custom<MyDirective(
+}]>;
+// CHECK: error: expected '(' before custom directive parameters
+def DirectiveCustomInvalidD : TestFormat_Op<"custom_invalid_d", [{
+  custom<MyDirective>)
+}]>;
+// CHECK: error: only variables and types may be used as parameters to a custom directive
+def DirectiveCustomInvalidE : TestFormat_Op<"custom_invalid_e", [{
+  custom<MyDirective>(operands)
+}]>;
+// CHECK: error: expected ')' after custom directive parameters
+def DirectiveCustomInvalidF : TestFormat_Op<"custom_invalid_f", [{
+  custom<MyDirective>($operand<
+}]>, Arguments<(ins I64:$operand)>;
+// CHECK: error: type directives within a custom directive may only refer to variables
+def DirectiveCustomInvalidH : TestFormat_Op<"custom_invalid_h", [{
+  custom<MyDirective>(type(operands))
+}]>;
+
+// CHECK-NOT: error
+def DirectiveCustomValidA : TestFormat_Op<"custom_valid_a", [{
+  custom<MyDirective>($operand) attr-dict
+}]>, Arguments<(ins Optional<I64>:$operand)>;
+def DirectiveCustomValidB : TestFormat_Op<"custom_valid_b", [{
+  custom<MyDirective>($operand, type($operand), type($result)) attr-dict
+}]>, Arguments<(ins I64:$operand)>, Results<(outs I64:$result)>;
+def DirectiveCustomValidC : TestFormat_Op<"custom_valid_c", [{
+  custom<MyDirective>($attr) attr-dict
+}]>, Arguments<(ins I64Attr:$attr)>;
 
 //===----------------------------------------------------------------------===//
 // functional-type
@@ -88,6 +131,28 @@ def DirectiveOperandsInvalidB : TestFormat_Op<"operands_invalid_b", [{
 // CHECK-NOT: error:
 def DirectiveOperandsValid : TestFormat_Op<"operands_valid", [{
   operands attr-dict
+}]>;
+
+//===----------------------------------------------------------------------===//
+// regions
+
+// CHECK: error: 'regions' directive creates overlap in format
+def DirectiveRegionsInvalidA : TestFormat_Op<"regions_invalid_a", [{
+  regions regions attr-dict
+}]>;
+// CHECK: error: 'regions' directive creates overlap in format
+def DirectiveRegionsInvalidB : TestFormat_Op<"regions_invalid_b", [{
+  $region regions attr-dict
+}]> {
+  let regions = (region AnyRegion:$region);
+}
+// CHECK: error: 'regions' is only valid as a top-level directive
+def DirectiveRegionsInvalidC : TestFormat_Op<"regions_invalid_c", [{
+  type(regions)
+}]>;
+// CHECK-NOT: error:
+def DirectiveRegionsValid : TestFormat_Op<"regions_valid", [{
+  regions attr-dict
 }]>;
 
 //===----------------------------------------------------------------------===//
@@ -206,10 +271,10 @@ def OptionalInvalidB : TestFormat_Op<"optional_invalid_b", [{
 def OptionalInvalidC : TestFormat_Op<"optional_invalid_c", [{
   ($attr)? attr-dict
 }]>, Arguments<(ins OptionalAttr<I64Attr>:$attr)>;
-// CHECK: error: first element of an operand group must be a literal or operand
+// CHECK: error: first element of an operand group must be an attribute, literal, operand, or region
 def OptionalInvalidD : TestFormat_Op<"optional_invalid_d", [{
-  ($attr^)? attr-dict
-}]>, Arguments<(ins OptionalAttr<I64Attr>:$attr)>;
+  (type($operand) $operand^)? attr-dict
+}]>, Arguments<(ins Optional<I64>:$operand)>;
 // CHECK: error: type directive can only refer to variables within the optional group
 def OptionalInvalidE : TestFormat_Op<"optional_invalid_e", [{
   (`,` $attr^ type(operands))? attr-dict
@@ -222,7 +287,7 @@ def OptionalInvalidF : TestFormat_Op<"optional_invalid_f", [{
 def OptionalInvalidG : TestFormat_Op<"optional_invalid_g", [{
   ($attr^) attr-dict
 }]>, Arguments<(ins I64Attr:$attr)>;
-// CHECK: error: only variadic operands can be used within an optional group
+// CHECK: error: only variable length operands can be used within an optional group
 def OptionalInvalidH : TestFormat_Op<"optional_invalid_h", [{
   ($arg^) attr-dict
 }]>, Arguments<(ins I64:$arg)>;
@@ -238,12 +303,16 @@ def OptionalInvalidJ : TestFormat_Op<"optional_invalid_j", [{
 def OptionalInvalidK : TestFormat_Op<"optional_invalid_k", [{
   ($arg^)
 }]>, Arguments<(ins Variadic<I64>:$arg)>;
+// CHECK: error: only variables can be used to anchor an optional group
+def OptionalInvalidL : TestFormat_Op<"optional_invalid_l", [{
+  (custom<MyDirective>($arg)^)?
+}]>, Arguments<(ins I64:$arg)>;
 
 //===----------------------------------------------------------------------===//
 // Variables
 //===----------------------------------------------------------------------===//
 
-// CHECK: error: expected variable to refer to a argument, result, or successor
+// CHECK: error: expected variable to refer to an argument, region, result, or successor
 def VariableInvalidA : TestFormat_Op<"variable_invalid_a", [{
   $unknown_arg attr-dict
 }]>;
@@ -275,31 +344,93 @@ def VariableInvalidG : TestFormat_Op<"variable_invalid_g", [{
 }]> {
   let successors = (successor AnySuccessor:$successor);
 }
+// CHECK: error: format ambiguity caused by `:` literal found after attribute `attr` which does not have a buildable type
+def VariableInvalidH : TestFormat_Op<"variable_invalid_h", [{
+  $attr `:` attr-dict
+}]>, Arguments<(ins ElementsAttr:$attr)>;
+// CHECK: error: format ambiguity caused by `:` literal found after attribute `attr` which does not have a buildable type
+def VariableInvalidI : TestFormat_Op<"variable_invalid_i", [{
+  (`foo` $attr^)? `:` attr-dict
+}]>, Arguments<(ins OptionalAttr<ElementsAttr>:$attr)>;
+// CHECK: error: region 'region' is already bound
+def VariableInvalidJ : TestFormat_Op<"variable_invalid_j", [{
+  $region $region attr-dict
+}]> {
+  let regions = (region AnyRegion:$region);
+}
+// CHECK: error: region 'region' is already bound
+def VariableInvalidK : TestFormat_Op<"variable_invalid_K", [{
+  regions $region attr-dict
+}]> {
+  let regions = (region AnyRegion:$region);
+}
+// CHECK: error: regions can only be used at the top level
+def VariableInvalidL : TestFormat_Op<"variable_invalid_l", [{
+  type($region)
+}]> {
+  let regions = (region AnyRegion:$region);
+}
+// CHECK: error: region #0, named 'region', not found
+def VariableInvalidM : TestFormat_Op<"variable_invalid_m", [{
+  attr-dict
+}]> {
+  let regions = (region AnyRegion:$region);
+}
+// CHECK-NOT: error:
+def VariableValidA : TestFormat_Op<"variable_valid_a", [{
+  $attr `:` attr-dict
+}]>, Arguments<(ins OptionalAttr<I1Attr>:$attr)>;
+def VariableValidB : TestFormat_Op<"variable_valid_b", [{
+  (`foo` $attr^)? `:` attr-dict
+}]>, Arguments<(ins OptionalAttr<I1Attr>:$attr)>;
 
 //===----------------------------------------------------------------------===//
 // Coverage Checks
 //===----------------------------------------------------------------------===//
 
-// CHECK: error: format missing instance of result #0('result') type
+// CHECK: error: type of result #0, named 'result', is not buildable and a buildable type cannot be inferred
+// CHECK: note: suggest adding a type constraint to the operation or adding a 'type($result)' directive to the custom assembly format
 def ZCoverageInvalidA : TestFormat_Op<"variable_invalid_a", [{
   attr-dict
 }]>, Arguments<(ins AnyMemRef:$operand)>, Results<(outs AnyMemRef:$result)>;
-// CHECK: error: format missing instance of operand #0('operand')
+// CHECK: error: operand #0, named 'operand', not found
+// CHECK: note: suggest adding a '$operand' directive to the custom assembly format
 def ZCoverageInvalidB : TestFormat_Op<"variable_invalid_b", [{
   type($result) attr-dict
 }]>, Arguments<(ins AnyMemRef:$operand)>, Results<(outs AnyMemRef:$result)>;
-// CHECK: error: format missing instance of operand #0('operand') type
+// CHECK: error: type of operand #0, named 'operand', is not buildable and a buildable type cannot be inferred
+// CHECK: note: suggest adding a type constraint to the operation or adding a 'type($operand)' directive to the custom assembly format
 def ZCoverageInvalidC : TestFormat_Op<"variable_invalid_c", [{
   $operand type($result) attr-dict
 }]>, Arguments<(ins AnyMemRef:$operand)>, Results<(outs AnyMemRef:$result)>;
-// CHECK: error: format missing instance of operand #0('operand') type
+// CHECK: error: type of operand #0, named 'operand', is not buildable and a buildable type cannot be inferred
+// CHECK: note: suggest adding a type constraint to the operation or adding a 'type($operand)' directive to the custom assembly format
 def ZCoverageInvalidD : TestFormat_Op<"variable_invalid_d", [{
   operands attr-dict
 }]>, Arguments<(ins Variadic<I64>:$operand)>;
-// CHECK: error: format missing instance of result #0('result') type
+// CHECK: error: type of result #0, named 'result', is not buildable and a buildable type cannot be inferred
+// CHECK: note: suggest adding a type constraint to the operation or adding a 'type($result)' directive to the custom assembly format
 def ZCoverageInvalidE : TestFormat_Op<"variable_invalid_e", [{
   attr-dict
 }]>, Results<(outs Variadic<I64>:$result)>;
+// CHECK: error: successor #0, named 'successor', not found
+// CHECK: note: suggest adding a '$successor' directive to the custom assembly format
+def ZCoverageInvalidF : TestFormat_Op<"variable_invalid_f", [{
+	 attr-dict
+}]> {
+  let successors = (successor AnySuccessor:$successor);
+}
+// CHECK: error: type of operand #0, named 'operand', is not buildable and a buildable type cannot be inferred
+// CHECK: note: suggest adding a type constraint to the operation or adding a 'type($operand)' directive to the custom assembly format
+def ZCoverageInvalidG : TestFormat_Op<"variable_invalid_g", [{
+  operands attr-dict
+}]>, Arguments<(ins Optional<I64>:$operand)>;
+// CHECK: error: type of result #0, named 'result', is not buildable and a buildable type cannot be inferred
+// CHECK: note: suggest adding a type constraint to the operation or adding a 'type($result)' directive to the custom assembly format
+def ZCoverageInvalidH : TestFormat_Op<"variable_invalid_h", [{
+  attr-dict
+}]>, Results<(outs Optional<I64>:$result)>;
+
 // CHECK-NOT: error
 def ZCoverageValidA : TestFormat_Op<"variable_valid_a", [{
   $operand type($operand) type($result) attr-dict

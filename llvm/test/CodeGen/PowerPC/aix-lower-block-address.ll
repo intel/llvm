@@ -15,16 +15,16 @@
 ; RUN: --check-prefix=64LARGE-MIR %s
 
 ; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc-ibm-aix-xcoff \
-; RUN: -code-model=small < %s | FileCheck --check-prefixes=32SMALL-ASM,CHECK %s
+; RUN: -code-model=small < %s | FileCheck --check-prefixes=32SMALL-ASM,SMALL-ASM %s
 
 ; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc-ibm-aix-xcoff \
-; RUN: -code-model=large < %s | FileCheck --check-prefixes=32LARGE-ASM,CHECK %s
+; RUN: -code-model=large < %s | FileCheck --check-prefixes=32LARGE-ASM,LARGE-ASM %s
 
 ; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc64-ibm-aix-xcoff \
-; RUN: -code-model=small < %s | FileCheck --check-prefixes=64SMALL-ASM,CHECK %s
+; RUN: -code-model=small < %s | FileCheck --check-prefixes=64SMALL-ASM,SMALL-ASM %s
 
 ; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc64-ibm-aix-xcoff \
-; RUN: -code-model=large < %s | FileCheck --check-prefixes=64LARGE-ASM,CHECK %s
+; RUN: -code-model=large < %s | FileCheck --check-prefixes=64LARGE-ASM,LARGE-ASM %s
 
 define void @foo() {
 entry:
@@ -48,25 +48,28 @@ __here:
 
 ; 32SMALL-ASM-LABEL: foo
 ; 32SMALL-ASM: .foo:
-; 32SMALL-ASM: Ltmp0:
-; 32SMALL-ASM: 	       lwz [[REG1:[0-9]+]], LC0(2)
+; 32SMALL-ASM: L..tmp0:
+; 32SMALL-ASM: 	       lwz [[REG1:[0-9]+]], L..C0(2)
 
 ; 32LARGE-ASM-LABEL: foo
 ; 32LARGE-ASM: .foo:
-; 32LARGE-ASM: Ltmp0:
-; 32LARGE-ASM:         addis [[REG1:[0-9]+]], LC0@u(2)
-; 32LARGE-ASM:         lwz [[REG2:[0-9]+]], LC0@l([[REG1]])
+; 32LARGE-ASM: L..tmp0:
+; 32LARGE-ASM:         addis [[REG1:[0-9]+]], L..C0@u(2)
+; 32LARGE-ASM:         lwz [[REG2:[0-9]+]], L..C0@l([[REG1]])
 
 ; 64SMALL-ASM-LABEL: foo
 ; 64SMALL-ASM: .foo:
-; 64SMALL-ASM: Ltmp0:
-; 64SMALL-ASM:         ld [[REG1:[0-9]+]], LC0(2)
+; 64SMALL-ASM: L..tmp0:
+; 64SMALL-ASM:         ld [[REG1:[0-9]+]], L..C0(2)
 
 ; 64LARGE-ASM-LABEL: foo
 ; 64LARGE-ASM: .foo:
-; 64LARGE-ASM: Ltmp0:
-; 64LARGE-ASM:         addis [[REG1:[0-9]+]], LC0@u(2)
-; 64LARGE-ASM:         ld [[REG2:[0-9]+]], LC0@l([[REG1]])
+; 64LARGE-ASM: L..tmp0:
+; 64LARGE-ASM:         addis [[REG1:[0-9]+]], L..C0@u(2)
+; 64LARGE-ASM:         ld [[REG2:[0-9]+]], L..C0@l([[REG1]])
 
-; CHECK: .toc
-; CHECK: .tc Ltmp0[TC],Ltmp0
+; SMALL-ASM: .toc
+; SMALL-ASM: .tc L..tmp0[TC],L..tmp0
+
+; LARGE-ASM: .toc
+; LARGE-ASM: .tc L..tmp0[TE],L..tmp0

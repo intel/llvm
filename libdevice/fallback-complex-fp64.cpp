@@ -8,8 +8,13 @@
 
 #include "device_complex.h"
 #include "device_math.h"
+
+#ifdef __SPIR__
 #include <cmath>
 
+// To support fallback device libraries on-demand loading, please update the
+// DeviceLibFuncMap in llvm/tools/sycl-post-link/sycl-post-link.cpp if you add
+// or remove any item in this file.
 DEVICE_EXTERN_C
 double __devicelib_creal(double __complex__ z) { return __real__(z); }
 
@@ -423,3 +428,4 @@ double __complex__ __devicelib_catan(double __complex__ z) {
       __devicelib_catanh(CMPLX(-__devicelib_cimag(z), __devicelib_creal(z)));
   return CMPLX(__devicelib_cimag(w), -__devicelib_creal(w));
 }
+#endif // __SPIR__

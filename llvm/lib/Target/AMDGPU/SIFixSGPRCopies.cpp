@@ -154,8 +154,7 @@ static bool hasVectorOperands(const MachineInstr &MI,
                               const SIRegisterInfo *TRI) {
   const MachineRegisterInfo &MRI = MI.getParent()->getParent()->getRegInfo();
   for (unsigned i = 0, e = MI.getNumOperands(); i != e; ++i) {
-    if (!MI.getOperand(i).isReg() ||
-        !Register::isVirtualRegister(MI.getOperand(i).getReg()))
+    if (!MI.getOperand(i).isReg() || !MI.getOperand(i).getReg().isVirtual())
       continue;
 
     if (TRI->hasVectorRegisters(MRI.getRegClass(MI.getOperand(i).getReg())))
@@ -171,14 +170,14 @@ getCopyRegClasses(const MachineInstr &Copy,
   Register DstReg = Copy.getOperand(0).getReg();
   Register SrcReg = Copy.getOperand(1).getReg();
 
-  const TargetRegisterClass *SrcRC = Register::isVirtualRegister(SrcReg)
+  const TargetRegisterClass *SrcRC = SrcReg.isVirtual()
                                          ? MRI.getRegClass(SrcReg)
                                          : TRI.getPhysRegClass(SrcReg);
 
   // We don't really care about the subregister here.
   // SrcRC = TRI.getSubRegClass(SrcRC, Copy.getOperand(1).getSubReg());
 
-  const TargetRegisterClass *DstRC = Register::isVirtualRegister(DstReg)
+  const TargetRegisterClass *DstRC = DstReg.isVirtual()
                                          ? MRI.getRegClass(DstReg)
                                          : TRI.getPhysRegClass(DstReg);
 
@@ -206,8 +205,7 @@ static bool tryChangeVGPRtoSGPRinCopy(MachineInstr &MI,
   auto &Src = MI.getOperand(1);
   Register DstReg = MI.getOperand(0).getReg();
   Register SrcReg = Src.getReg();
-  if (!Register::isVirtualRegister(SrcReg) ||
-      !Register::isVirtualRegister(DstReg))
+  if (!SrcReg.isVirtual() || !DstReg.isVirtual())
     return false;
 
   for (const auto &MO : MRI.reg_nodbg_operands(DstReg)) {
@@ -255,7 +253,7 @@ static bool foldVGPRCopyIntoRegSequence(MachineInstr &MI,
     return false;
 
   // It is illegal to have vreg inputs to a physreg defining reg_sequence.
-  if (Register::isPhysicalRegister(CopyUse.getOperand(0).getReg()))
+  if (CopyUse.getOperand(0).getReg().isPhysical())
     return false;
 
   const TargetRegisterClass *SrcRC, *DstRC;
@@ -598,8 +596,6 @@ bool SIFixSGPRCopies::runOnMachineFunction(MachineFunction &MF) {
   TII = ST.getInstrInfo();
   MDT = &getAnalysis<MachineDominatorTree>();
 
-  SmallVector<MachineInstr *, 16> Worklist;
-
   for (MachineFunction::iterator BI = MF.begin(), BE = MF.end();
                                                   BI != BE; ++BI) {
     MachineBasicBlock &MBB = *BI;
@@ -619,7 +615,7 @@ bool SIFixSGPRCopies::runOnMachineFunction(MachineFunction &MF) {
         const TargetRegisterClass *SrcRC, *DstRC;
         std::tie(SrcRC, DstRC) = getCopyRegClasses(MI, *TRI, *MRI);
 
-        if (!Register::isVirtualRegister(DstReg)) {
+        if (!DstReg.isVirtual()) {
           // If the destination register is a physical register there isn't
           // really much we can do to fix this.
           // Some special instructions use M0 as an input. Some even only use
@@ -639,7 +635,7 @@ bool SIFixSGPRCopies::runOnMachineFunction(MachineFunction &MF) {
 
         if (isVGPRToSGPRCopy(SrcRC, DstRC, *TRI)) {
           Register SrcReg = MI.getOperand(1).getReg();
-          if (!Register::isVirtualRegister(SrcReg)) {
+          if (!SrcReg.isVirtual()) {
             TII->moveToVALU(MI, MDT);
             break;
           }
@@ -721,7 +717,7 @@ bool SIFixSGPRCopies::runOnMachineFunction(MachineFunction &MF) {
           // that can't be resolved in later operand folding pass
           bool Resolved = false;
           for (MachineOperand *MO : {&Src0, &Src1}) {
-            if (Register::isVirtualRegister(MO->getReg())) {
+            if (MO->getReg().isVirtual()) {
               MachineInstr *DefMI = MRI->getVRegDef(MO->getReg());
               if (DefMI && TII->isFoldableCopy(*DefMI)) {
                 const MachineOperand &Def = DefMI->getOperand(0);
@@ -766,11 +762,12 @@ void SIFixSGPRCopies::processPHINode(MachineInstr &MI) {
   bool AllAGPRUses = true;
   SetVector<const MachineInstr *> worklist;
   SmallSet<const MachineInstr *, 4> Visited;
+  SetVector<MachineInstr *> PHIOperands;
   worklist.insert(&MI);
   Visited.insert(&MI);
   while (!worklist.empty()) {
     const MachineInstr *Instr = worklist.pop_back_val();
-    unsigned Reg = Instr->getOperand(0).getReg();
+    Register Reg = Instr->getOperand(0).getReg();
     for (const auto &Use : MRI->use_operands(Reg)) {
       const MachineInstr *UseMI = Use.getParent();
       AllAGPRUses &= (UseMI->isCopy() &&
@@ -810,15 +807,20 @@ void SIFixSGPRCopies::processPHINode(MachineInstr &MI) {
   if (AllAGPRUses && numVGPRUses && !TRI->hasAGPRs(RC0)) {
     LLVM_DEBUG(dbgs() << "Moving PHI to AGPR: " << MI);
     MRI->setRegClass(PHIRes, TRI->getEquivalentAGPRClass(RC0));
+    for (unsigned I = 1, N = MI.getNumOperands(); I != N; I += 2) {
+      MachineInstr *DefMI = MRI->getVRegDef(MI.getOperand(I).getReg());
+      if (DefMI && DefMI->isPHI())
+        PHIOperands.insert(DefMI);
+    }
   }
 
   bool hasVGPRInput = false;
   for (unsigned i = 1; i < MI.getNumOperands(); i += 2) {
-    unsigned InputReg = MI.getOperand(i).getReg();
+    Register InputReg = MI.getOperand(i).getReg();
     MachineInstr *Def = MRI->getVRegDef(InputReg);
     if (TRI->isVectorRegister(*MRI, InputReg)) {
       if (Def->isCopy()) {
-        unsigned SrcReg = Def->getOperand(1).getReg();
+        Register SrcReg = Def->getOperand(1).getReg();
         const TargetRegisterClass *RC =
           TRI->getRegClassForReg(*MRI, SrcReg);
         if (TRI->isSGPRClass(RC))
@@ -829,8 +831,22 @@ void SIFixSGPRCopies::processPHINode(MachineInstr &MI) {
     }
     else if (Def->isCopy() &&
       TRI->isVectorRegister(*MRI, Def->getOperand(1).getReg())) {
-      hasVGPRInput = true;
-      break;
+      Register SrcReg = Def->getOperand(1).getReg();
+      MachineInstr *SrcDef = MRI->getVRegDef(SrcReg);
+      unsigned SMovOp;
+      int64_t Imm;
+      if (!isSafeToFoldImmIntoCopy(Def, SrcDef, TII, SMovOp, Imm)) {
+        hasVGPRInput = true;
+        break;
+      } else {
+        // Formally, if we did not do this right away
+        // it would be done on the next iteration of the
+        // runOnMachineFunction main loop. But why not if we can?
+        MachineFunction *MF = MI.getParent()->getParent();
+        Def->getOperand(1).ChangeToImmediate(Imm);
+        Def->addImplicitDefUseOperands(*MF);
+        Def->setDesc(TII->get(SMovOp));
+      }
     }
   }
 
@@ -845,4 +861,8 @@ void SIFixSGPRCopies::processPHINode(MachineInstr &MI) {
     TII->legalizeOperands(MI, MDT);
   }
 
+  // Propagate register class back to PHI operands which are PHI themselves.
+  while (!PHIOperands.empty()) {
+    processPHINode(*PHIOperands.pop_back_val());
+  }
 }

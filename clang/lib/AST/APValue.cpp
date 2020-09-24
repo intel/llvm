@@ -304,6 +304,25 @@ APValue::APValue(const APValue &RHS) : Kind(None) {
   }
 }
 
+APValue::APValue(APValue &&RHS) : Kind(RHS.Kind), Data(RHS.Data) {
+  RHS.Kind = None;
+}
+
+APValue &APValue::operator=(const APValue &RHS) {
+  if (this != &RHS)
+    *this = APValue(RHS);
+  return *this;
+}
+
+APValue &APValue::operator=(APValue &&RHS) {
+  if (Kind != None && Kind != Indeterminate)
+    DestroyDataAndMakeUninit();
+  Kind = RHS.Kind;
+  Data = RHS.Data;
+  RHS.Kind = None;
+  return *this;
+}
+
 void APValue::DestroyDataAndMakeUninit() {
   if (Kind == Int)
     ((APSInt*)(char*)Data.buffer)->~APSInt();
@@ -372,15 +391,7 @@ bool APValue::needsCleanup() const {
 
 void APValue::swap(APValue &RHS) {
   std::swap(Kind, RHS.Kind);
-  char TmpData[DataSize];
-  memcpy(TmpData, Data.buffer, DataSize);
-  memcpy(Data.buffer, RHS.Data.buffer, DataSize);
-  memcpy(RHS.Data.buffer, TmpData, DataSize);
-}
-
-LLVM_DUMP_METHOD void APValue::dump() const {
-  dump(llvm::errs());
-  llvm::errs() << '\n';
+  std::swap(Data, RHS.Data);
 }
 
 static double GetApproxValue(const llvm::APFloat &F) {
@@ -391,87 +402,15 @@ static double GetApproxValue(const llvm::APFloat &F) {
   return V.convertToDouble();
 }
 
-void APValue::dump(raw_ostream &OS) const {
-  switch (getKind()) {
-  case None:
-    OS << "None";
-    return;
-  case Indeterminate:
-    OS << "Indeterminate";
-    return;
-  case Int:
-    OS << "Int: " << getInt();
-    return;
-  case Float:
-    OS << "Float: " << GetApproxValue(getFloat());
-    return;
-  case FixedPoint:
-    OS << "FixedPoint : " << getFixedPoint();
-    return;
-  case Vector:
-    OS << "Vector: ";
-    getVectorElt(0).dump(OS);
-    for (unsigned i = 1; i != getVectorLength(); ++i) {
-      OS << ", ";
-      getVectorElt(i).dump(OS);
-    }
-    return;
-  case ComplexInt:
-    OS << "ComplexInt: " << getComplexIntReal() << ", " << getComplexIntImag();
-    return;
-  case ComplexFloat:
-    OS << "ComplexFloat: " << GetApproxValue(getComplexFloatReal())
-       << ", " << GetApproxValue(getComplexFloatImag());
-    return;
-  case LValue:
-    OS << "LValue: <todo>";
-    return;
-  case Array:
-    OS << "Array: ";
-    for (unsigned I = 0, N = getArrayInitializedElts(); I != N; ++I) {
-      getArrayInitializedElt(I).dump(OS);
-      if (I != getArraySize() - 1) OS << ", ";
-    }
-    if (hasArrayFiller()) {
-      OS << getArraySize() - getArrayInitializedElts() << " x ";
-      getArrayFiller().dump(OS);
-    }
-    return;
-  case Struct:
-    OS << "Struct ";
-    if (unsigned N = getStructNumBases()) {
-      OS << " bases: ";
-      getStructBase(0).dump(OS);
-      for (unsigned I = 1; I != N; ++I) {
-        OS << ", ";
-        getStructBase(I).dump(OS);
-      }
-    }
-    if (unsigned N = getStructNumFields()) {
-      OS << " fields: ";
-      getStructField(0).dump(OS);
-      for (unsigned I = 1; I != N; ++I) {
-        OS << ", ";
-        getStructField(I).dump(OS);
-      }
-    }
-    return;
-  case Union:
-    OS << "Union: ";
-    getUnionValue().dump(OS);
-    return;
-  case MemberPointer:
-    OS << "MemberPointer: <todo>";
-    return;
-  case AddrLabelDiff:
-    OS << "AddrLabelDiff: <todo>";
-    return;
-  }
-  llvm_unreachable("Unknown APValue kind!");
-}
-
 void APValue::printPretty(raw_ostream &Out, const ASTContext &Ctx,
                           QualType Ty) const {
+  // There are no objects of type 'void', but values of this type can be
+  // returned from functions.
+  if (Ty->isVoidType()) {
+    Out << "void()";
+    return;
+  }
+
   switch (getKind()) {
   case APValue::None:
     Out << "<out of lifetime>";

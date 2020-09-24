@@ -13,7 +13,7 @@
 
 #ifndef LLVM_CODEGEN_FUNCTIONLOWERINGINFO_H
 #define LLVM_CODEGEN_FUNCTIONLOWERINGINFO_H
-#include "llvm/ADT/APInt.h"
+
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/IndexedMap.h"
@@ -67,7 +67,7 @@ public:
 
   /// DemoteRegister - if CanLowerReturn is false, DemoteRegister is a vreg
   /// allocated to hold a pointer to the hidden sret parameter.
-  unsigned DemoteRegister;
+  Register DemoteRegister;
 
   /// MBBMap - A mapping from LLVM basic blocks to their machine code entry.
   DenseMap<const BasicBlock*, MachineBasicBlock *> MBBMap;
@@ -75,29 +75,49 @@ public:
   /// ValueMap - Since we emit code for the function a basic block at a time,
   /// we must remember which virtual registers hold the values for
   /// cross-basic-block values.
-  DenseMap<const Value *, unsigned> ValueMap;
+  DenseMap<const Value *, Register> ValueMap;
 
   /// VirtReg2Value map is needed by the Divergence Analysis driven
   /// instruction selection. It is reverted ValueMap. It is computed
   /// in lazy style - on demand. It is used to get the Value corresponding
   /// to the live in virtual register and is called from the
   /// TargetLowerinInfo::isSDNodeSourceOfDivergence.
-  DenseMap<unsigned, const Value*> VirtReg2Value;
+  DenseMap<Register, const Value*> VirtReg2Value;
 
   /// This method is called from TargetLowerinInfo::isSDNodeSourceOfDivergence
   /// to get the Value corresponding to the live-in virtual register.
-  const Value * getValueFromVirtualReg(unsigned Vreg);
+  const Value *getValueFromVirtualReg(Register Vreg);
 
   /// Track virtual registers created for exception pointers.
-  DenseMap<const Value *, unsigned> CatchPadExceptionPointers;
+  DenseMap<const Value *, Register> CatchPadExceptionPointers;
 
-  /// Keep track of frame indices allocated for statepoints as they could be
-  /// used across basic block boundaries (e.g. for an invoke).  For each
-  /// gc.statepoint instruction, maps uniqued llvm IR values to the slots they
-  /// were spilled in.  If a value is mapped to None it means we visited the
-  /// value but didn't spill it (because it was a constant, for instance). 
-  using StatepointSpillMapTy = DenseMap<const Value *, Optional<int>>;
-  DenseMap<const Instruction *, StatepointSpillMapTy> StatepointSpillMaps;
+  /// Helper object to track which of three possible relocation mechanisms are
+  /// used for a particular value being relocated over a statepoint.
+  struct StatepointRelocationRecord {
+    enum RelocType {
+      // Value did not need to be relocated and can be used directly.
+      NoRelocate,
+      // Value was spilled to stack and needs filled at the gc.relocate.
+      Spill,
+      // Value was lowered to tied def and gc.relocate should be replaced with
+      // copy from vreg.
+      VReg,
+    } type = NoRelocate;
+    // Payload contains either frame index of the stack slot in which the value
+    // was spilled, or virtual register which contains the re-definition.
+    union payload_t {
+      payload_t() : FI(-1) {}
+      int FI;
+      Register Reg;
+    } payload;
+  };
+
+  /// Keep track of each value which was relocated and the strategy used to
+  /// relocate that value.  This information is required when visiting
+  /// gc.relocates which may appear in following blocks.
+  using StatepointSpillMapTy =
+    DenseMap<const Value *, StatepointRelocationRecord>;
+  DenseMap<const Instruction *, StatepointSpillMapTy> StatepointRelocationMaps;
 
   /// StaticAllocaMap - Keep track of frame indices for fixed sized allocas in
   /// the entry block.  This allows the allocas to be efficiently referenced
@@ -116,9 +136,9 @@ public:
   BitVector DescribedArgs;
 
   /// RegFixups - Registers which need to be replaced after isel is done.
-  DenseMap<unsigned, unsigned> RegFixups;
+  DenseMap<Register, Register> RegFixups;
 
-  DenseSet<unsigned> RegsWithFixups;
+  DenseSet<Register> RegsWithFixups;
 
   /// StatepointStackSlots - A list of temporary stack slots (frame indices)
   /// used to spill values at a statepoint.  We store them here to enable
@@ -176,17 +196,17 @@ public:
     return ValueMap.count(V);
   }
 
-  unsigned CreateReg(MVT VT, bool isDivergent = false);
+  Register CreateReg(MVT VT, bool isDivergent = false);
 
-  unsigned CreateRegs(const Value *V);
+  Register CreateRegs(const Value *V);
 
-  unsigned CreateRegs(Type *Ty, bool isDivergent = false);
+  Register CreateRegs(Type *Ty, bool isDivergent = false);
 
-  unsigned InitializeRegForValue(const Value *V) {
+  Register InitializeRegForValue(const Value *V) {
     // Tokens never live in vregs.
     if (V->getType()->isTokenTy())
       return 0;
-    unsigned &R = ValueMap[V];
+    Register &R = ValueMap[V];
     assert(R == 0 && "Already initialized this value register!");
     assert(VirtReg2Value.empty());
     return R = CreateRegs(V);
@@ -194,7 +214,7 @@ public:
 
   /// GetLiveOutRegInfo - Gets LiveOutInfo for a register, returning NULL if the
   /// register is a PHI destination and the PHI's LiveOutInfo is not valid.
-  const LiveOutInfo *GetLiveOutRegInfo(unsigned Reg) {
+  const LiveOutInfo *GetLiveOutRegInfo(Register Reg) {
     if (!LiveOutRegInfo.inBounds(Reg))
       return nullptr;
 
@@ -210,10 +230,10 @@ public:
   /// the register's LiveOutInfo is for a smaller bit width, it is extended to
   /// the larger bit width by zero extension. The bit width must be no smaller
   /// than the LiveOutInfo's existing bit width.
-  const LiveOutInfo *GetLiveOutRegInfo(unsigned Reg, unsigned BitWidth);
+  const LiveOutInfo *GetLiveOutRegInfo(Register Reg, unsigned BitWidth);
 
   /// AddLiveOutRegInfo - Adds LiveOutInfo for a register.
-  void AddLiveOutRegInfo(unsigned Reg, unsigned NumSignBits,
+  void AddLiveOutRegInfo(Register Reg, unsigned NumSignBits,
                          const KnownBits &Known) {
     // Only install this information if it tells us something.
     if (NumSignBits == 1 && Known.isUnknown())
@@ -234,11 +254,11 @@ public:
   /// called when a block is visited before all of its predecessors.
   void InvalidatePHILiveOutRegInfo(const PHINode *PN) {
     // PHIs with no uses have no ValueMap entry.
-    DenseMap<const Value*, unsigned>::const_iterator It = ValueMap.find(PN);
+    DenseMap<const Value*, Register>::const_iterator It = ValueMap.find(PN);
     if (It == ValueMap.end())
       return;
 
-    unsigned Reg = It->second;
+    Register Reg = It->second;
     if (Reg == 0)
       return;
 
@@ -253,12 +273,10 @@ public:
   /// getArgumentFrameIndex - Get frame index for the byval argument.
   int getArgumentFrameIndex(const Argument *A);
 
-  unsigned getCatchPadExceptionPointerVReg(const Value *CPI,
+  Register getCatchPadExceptionPointerVReg(const Value *CPI,
                                            const TargetRegisterClass *RC);
 
 private:
-  void addSEHHandlersForLPads(ArrayRef<const LandingPadInst *> LPads);
-
   /// LiveOutRegInfo - Information about live out vregs.
   IndexedMap<LiveOutInfo, VirtReg2IndexFunctor> LiveOutRegInfo;
 };

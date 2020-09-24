@@ -7,11 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include <spirv/spirv.h>
-#include <math/clc_pow.h>
-#include "config.h"
-#include "../../lib/clcmacro.h"
-#include "../../lib/math/math.h"
 
+#include <clcmacro.h>
+#include <config.h>
+#include <math/clc_pow.h>
+#include <math/math.h>
 
 #define __CLC_BODY <pow.inc>
 #include <clc/math/gentype.inc>

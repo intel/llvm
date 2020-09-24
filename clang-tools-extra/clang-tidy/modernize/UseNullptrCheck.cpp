@@ -41,10 +41,12 @@ StatementMatcher makeCastSequenceMatcher() {
       unless(hasImplicitDestinationType(qualType(substTemplateTypeParmType()))),
       unless(hasSourceExpression(hasType(sugaredNullptrType()))));
 
-  return castExpr(anyOf(ImplicitCastToNull,
-                        explicitCastExpr(hasDescendant(ImplicitCastToNull))),
-                  unless(hasAncestor(explicitCastExpr())))
-      .bind(CastSequence);
+  return traverse(
+      ast_type_traits::TK_AsIs,
+      castExpr(anyOf(ImplicitCastToNull,
+                     explicitCastExpr(hasDescendant(ImplicitCastToNull))),
+               unless(hasAncestor(explicitCastExpr())))
+          .bind(CastSequence));
 }
 
 bool isReplaceableRange(SourceLocation StartLoc, SourceLocation EndLoc,
@@ -307,7 +309,7 @@ private:
   /// SourceLocation pointing within the definition of another macro.
   bool getMacroAndArgLocations(SourceLocation Loc, SourceLocation &ArgLoc,
                                SourceLocation &MacroLoc) {
-    assert(Loc.isMacroID() && "Only reasonble to call this on macros");
+    assert(Loc.isMacroID() && "Only reasonable to call this on macros");
 
     ArgLoc = Loc;
 

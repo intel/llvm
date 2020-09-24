@@ -97,6 +97,8 @@ StringRef AMDGPUTargetStreamer::getArchNameFromElfMach(unsigned ElfMach) {
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1010: AK = GK_GFX1010; break;
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1011: AK = GK_GFX1011; break;
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1012: AK = GK_GFX1012; break;
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1030: AK = GK_GFX1030; break;
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1031: AK = GK_GFX1031; break;
   case ELF::EF_AMDGPU_MACH_NONE:           AK = GK_NONE;    break;
   }
 
@@ -148,6 +150,8 @@ unsigned AMDGPUTargetStreamer::getElfMach(StringRef GPU) {
   case GK_GFX1010: return ELF::EF_AMDGPU_MACH_AMDGCN_GFX1010;
   case GK_GFX1011: return ELF::EF_AMDGPU_MACH_AMDGCN_GFX1011;
   case GK_GFX1012: return ELF::EF_AMDGPU_MACH_AMDGCN_GFX1012;
+  case GK_GFX1030: return ELF::EF_AMDGPU_MACH_AMDGCN_GFX1030;
+  case GK_GFX1031: return ELF::EF_AMDGPU_MACH_AMDGCN_GFX1031;
   case GK_NONE:    return ELF::EF_AMDGPU_MACH_NONE;
   }
 
@@ -164,10 +168,15 @@ AMDGPUTargetAsmStreamer::AMDGPUTargetAsmStreamer(MCStreamer &S,
 
 // A hook for emitting stuff at the end.
 // We use it for emitting the accumulated PAL metadata as directives.
+// The PAL metadata is reset after it is emitted.
 void AMDGPUTargetAsmStreamer::finish() {
   std::string S;
   getPALMetadata()->toString(S);
   OS << S;
+
+  // Reset the pal metadata so its data will not affect a compilation that
+  // reuses this object.
+  getPALMetadata()->reset();
 }
 
 void AMDGPUTargetAsmStreamer::EmitDirectiveAMDGCNTarget(StringRef Target) {
@@ -210,9 +219,9 @@ void AMDGPUTargetAsmStreamer::EmitAMDGPUSymbolType(StringRef SymbolName,
 }
 
 void AMDGPUTargetAsmStreamer::emitAMDGPULDS(MCSymbol *Symbol, unsigned Size,
-                                            unsigned Align) {
-  OS << "\t.amdgpu_lds " << Symbol->getName() << ", " << Size << ", " << Align
-     << '\n';
+                                            Align Alignment) {
+  OS << "\t.amdgpu_lds " << Symbol->getName() << ", " << Size << ", "
+     << Alignment.value() << '\n';
 }
 
 bool AMDGPUTargetAsmStreamer::EmitISAVersion(StringRef IsaVersionString) {
@@ -393,9 +402,9 @@ void AMDGPUTargetAsmStreamer::EmitAmdhsaKernelDescriptor(
 // AMDGPUTargetELFStreamer
 //===----------------------------------------------------------------------===//
 
-AMDGPUTargetELFStreamer::AMDGPUTargetELFStreamer(
-    MCStreamer &S, const MCSubtargetInfo &STI)
-    : AMDGPUTargetStreamer(S), Streamer(S) {
+AMDGPUTargetELFStreamer::AMDGPUTargetELFStreamer(MCStreamer &S,
+                                                 const MCSubtargetInfo &STI)
+    : AMDGPUTargetStreamer(S), Streamer(S), Os(STI.getTargetTriple().getOS()) {
   MCAssembler &MCA = getStreamer().getAssembler();
   unsigned EFlags = MCA.getELFHeaderEFlags();
 
@@ -419,6 +428,7 @@ MCELFStreamer &AMDGPUTargetELFStreamer::getStreamer() {
 
 // A hook for emitting stuff at the end.
 // We use it for emitting the accumulated PAL metadata as a .note record.
+// The PAL metadata is reset after it is emitted.
 void AMDGPUTargetELFStreamer::finish() {
   std::string Blob;
   const char *Vendor = getPALMetadata()->getVendor();
@@ -428,6 +438,10 @@ void AMDGPUTargetELFStreamer::finish() {
     return;
   EmitNote(Vendor, MCConstantExpr::create(Blob.size(), getContext()), Type,
            [&](MCELFStreamer &OS) { OS.emitBytes(Blob); });
+
+  // Reset the pal metadata so its data will not affect a compilation that
+  // reuses this object.
+  getPALMetadata()->reset();
 }
 
 void AMDGPUTargetELFStreamer::EmitNote(
@@ -438,9 +452,15 @@ void AMDGPUTargetELFStreamer::EmitNote(
 
   auto NameSZ = Name.size() + 1;
 
+  unsigned NoteFlags = 0;
+  // TODO Apparently, this is currently needed for OpenCL as mentioned in
+  // https://reviews.llvm.org/D74995
+  if (Os == Triple::AMDHSA)
+    NoteFlags = ELF::SHF_ALLOC;
+
   S.PushSection();
-  S.SwitchSection(Context.getELFSection(
-    ElfNote::SectionName, ELF::SHT_NOTE, ELF::SHF_ALLOC));
+  S.SwitchSection(
+      Context.getELFSection(ElfNote::SectionName, ELF::SHT_NOTE, NoteFlags));
   S.emitInt32(NameSZ);                                        // namesz
   S.emitValue(DescSZ, 4);                                     // descz
   S.emitInt32(NoteType);                                      // type
@@ -507,9 +527,7 @@ void AMDGPUTargetELFStreamer::EmitAMDGPUSymbolType(StringRef SymbolName,
 }
 
 void AMDGPUTargetELFStreamer::emitAMDGPULDS(MCSymbol *Symbol, unsigned Size,
-                                            unsigned Align) {
-  assert(isPowerOf2_32(Align));
-
+                                            Align Alignment) {
   MCSymbolELF *SymbolELF = cast<MCSymbolELF>(Symbol);
   SymbolELF->setType(ELF::STT_OBJECT);
 
@@ -518,7 +536,7 @@ void AMDGPUTargetELFStreamer::emitAMDGPULDS(MCSymbol *Symbol, unsigned Size,
     SymbolELF->setExternal(true);
   }
 
-  if (SymbolELF->declareCommon(Size, Align, true)) {
+  if (SymbolELF->declareCommon(Size, Alignment.value(), true)) {
     report_fatal_error("Symbol: " + Symbol->getName() +
                        " redeclared as different type");
   }

@@ -76,15 +76,16 @@ public:
     return Align ? Align->value() : 0;
   }
 
+  /// Returns the alignment of the given variable or function.
+  ///
+  /// Note that for functions this is the alignment of the code, not the
+  /// alignment of a function pointer.
   MaybeAlign getAlign() const {
     unsigned Data = getGlobalValueSubClassData();
     unsigned AlignmentData = Data & AlignmentMask;
     return decodeMaybeAlign(AlignmentData);
   }
 
-  /// FIXME: Remove this setter once the migration to MaybeAlign is over.
-  LLVM_ATTRIBUTE_DEPRECATED(void setAlignment(unsigned Align),
-                            "Please use `void setAlignment(MaybeAlign Align)`");
   void setAlignment(MaybeAlign Align);
 
   unsigned getGlobalObjectSubClassData() const {
@@ -185,6 +186,13 @@ public:
   void addTypeMetadata(unsigned Offset, Metadata *TypeID);
   void setVCallVisibilityMetadata(VCallVisibility Visibility);
   VCallVisibility getVCallVisibility() const;
+
+  /// Returns true if the alignment of the value can be unilaterally
+  /// increased.
+  ///
+  /// Note that for functions this is the alignment of the code, not the
+  /// alignment of a function pointer.
+  bool canIncreaseAlignment() const;
 
 protected:
   void copyAttributesFrom(const GlobalObject *Src);

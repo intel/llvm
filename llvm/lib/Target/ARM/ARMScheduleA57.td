@@ -96,7 +96,7 @@ def CortexA57Model : SchedMachineModel {
   let FullInstRWOverlapCheck = 0;
 
   let UnsupportedFeatures = [HasV8_1MMainline, HasMVEInt, HasMVEFloat,
-                             HasFPRegsV8_1M];
+                             HasFPRegsV8_1M, HasFP16FML, HasMatMulInt8, HasBF16];
 }
 
 //===----------------------------------------------------------------------===//
@@ -1201,7 +1201,7 @@ def : InstRW<[A57Write_5cyc_1V], (instregex
 // --- 3.16 ASIMD Miscellaneous Instructions ---
 
 // ASIMD bitwise insert
-def : InstRW<[A57Write_3cyc_1V], (instregex "VBIF", "VBIT", "VBSL")>;
+def : InstRW<[A57Write_3cyc_1V], (instregex "VBIF", "VBIT", "VBSL", "VBSP")>;
 
 // ASIMD count
 def : InstRW<[A57Write_3cyc_1V], (instregex "VCLS", "VCLZ", "VCNT")>;

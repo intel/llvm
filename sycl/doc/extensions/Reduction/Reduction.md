@@ -22,9 +22,21 @@ unspecified reduction(accessor<T>& var, BinaryOperation combiner);
 
 template <class T, class BinaryOperation>
 unspecified reduction(accessor<T>& var, const T& identity, BinaryOperation combiner);
+
+template <class T, class BinaryOperation>
+unspecified reduction(T* var, BinaryOperation combiner);
+
+template <class T, class BinaryOperation>
+unspecified reduction(T* var, const T& identity, BinaryOperation combiner);
+
+template <class T, class Extent, class BinaryOperation>
+unspecified reduction(span<T, Extent> var, BinaryOperation combiner);
+
+template <class T, class Extent, class BinaryOperation>
+unspecified reduction(span<T, Extent> var, const T& identity, BinaryOperation combiner);
 ```
 
-The exact behavior of a reduction is specific to an implementation; the only interface exposed to the user is the pair of functions above, which construct an unspecified `reduction` object encapsulating the reduction variable, an optional operator identity and the reduction operator.  For user-defined binary operations, an implementation should issue a compile-time warning if an identity is not specified and this is known to negatively impact performance (e.g. as a result of the implementation choosing a different reduction algorithm).  For standard binary operations (e.g. `std::plus`) on arithmetic types, the implementation must determine the correct identity automatically in order to avoid performance penalties.
+The exact behavior of a reduction is specific to an implementation; the only interface exposed to the user is the set of functions above, which construct an unspecified `reduction` object encapsulating the reduction variable, an optional operator identity and the reduction operator.  For user-defined binary operations, an implementation should issue a compile-time warning if an identity is not specified and this is known to negatively impact performance (e.g. as a result of the implementation choosing a different reduction algorithm).  For standard binary operations (e.g. `std::plus`) on arithmetic types, the implementation must determine the correct identity automatically in order to avoid performance penalties.
 
 The dimensionality of the `accessor` passed to the `reduction` function specifies the dimensionality of the reduction variable: a 0-dimensional `accessor` represents a scalar reduction, and any other dimensionality represents an array reduction.  Specifying an array reduction of size N is functionally equivalent to specifying N independent scalar reductions.  The access mode of the accessor determines whether the reduction variable's original value is included in the reduction (i.e. for `access::mode::read_write` it is included, and for `access::mode::discard_write` it is not).  Multiple reductions aliasing the same output results in undefined behavior.
 
@@ -33,22 +45,27 @@ The dimensionality of the `accessor` passed to the `reduction` function specifie
 # `reducer` Objects
 
 ```c++
-template <class T, class BinaryOperation, /* implementation-defined */>
+// Exposition only
+template <class T, class BinaryOperation, int Dimensions, /* implementation-defined */>
 class reducer
 {
     // forbid reducer objects from being copied
-    reducer(const reducer<T,BinaryOperation>&) = delete;
-    reducer<T,BinaryOperation>& operator(const reducer<T,BinaryOperation>&) = delete;
+    reducer(const reducer<T,BinaryOperation,Dimensions>&) = delete;
+    reducer<T,BinaryOperation,Dimensions>& operator(const reducer<T,BinaryOperation,Dimensions>&) = delete;
 
     // combine partial result with reducer
+    // only available if Dimensions == 0
     void combine(const T& partial);
+
+    // only available if Dimensions > 1
+    unspecified &operator[](size_t index) const;
 
     // get identity of the associated reduction (if known)
     T identity() const;
 };
 
 // other operators should be made available for standard functors
-template <typename T> auto& operator+=(reducer<T,std::plus<T>>&, const T&);
+template <typename T> auto& operator+=(reducer<T,std::plus<T>,0>&, const T&);
 ```
 
 The `reducer` class is not user-constructible, and can only be constructed by an implementation given a `reduction` object.  The `combine` function uses the specified `BinaryOperation` to combine the `partial` result with the value held (or referenced) by an instance of `reducer`, and is the only way to update the reducer value for user-supplied combination functions.  Other convenience operators should be defined for standard combination functions (e.g. `+=` for `std::plus`).

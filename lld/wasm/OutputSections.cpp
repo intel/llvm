@@ -12,9 +12,9 @@
 #include "OutputSegment.h"
 #include "WriterUtils.h"
 #include "lld/Common/ErrorHandler.h"
-#include "lld/Common/Threads.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/LEB128.h"
+#include "llvm/Support/Parallel.h"
 
 #define DEBUG_TYPE "lld"
 
@@ -152,6 +152,7 @@ void DataSection::finalizeContents() {
         initExpr.Opcode = WASM_OPCODE_GLOBAL_GET;
         initExpr.Value.Global = WasmSym::memoryBase->getGlobalIndex();
       } else {
+        // FIXME(wvo): I64?
         initExpr.Opcode = WASM_OPCODE_I32_CONST;
         initExpr.Value.Int32 = segment->startVA;
       }

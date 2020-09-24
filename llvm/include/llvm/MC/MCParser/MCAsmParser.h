@@ -168,6 +168,17 @@ public:
   virtual void setParsingMSInlineAsm(bool V) = 0;
   virtual bool isParsingMSInlineAsm() = 0;
 
+  virtual bool isParsingMasm() const { return false; }
+
+  virtual bool lookUpField(StringRef Name, StringRef &Type,
+                           unsigned &Offset) const {
+    return true;
+  }
+  virtual bool lookUpField(StringRef Base, StringRef Member, StringRef &Type,
+                           unsigned &Offset) const {
+    return true;
+  }
+
   /// Parse MS-style inline assembly.
   virtual bool parseMSInlineAsm(
       void *AsmLoc, std::string &AsmString, unsigned &NumOutputs,

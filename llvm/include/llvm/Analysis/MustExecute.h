@@ -24,12 +24,9 @@
 #define LLVM_ANALYSIS_MUSTEXECUTE_H
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/Analysis/EHPersonalities.h"
 #include "llvm/Analysis/InstructionPrecedenceTracking.h"
-#include "llvm/Analysis/LoopInfo.h"
-#include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/Dominators.h"
-#include "llvm/IR/Instruction.h"
 
 namespace llvm {
 
@@ -37,15 +34,17 @@ namespace {
 template <typename T> using GetterTy = std::function<T *(const Function &F)>;
 }
 
-class Instruction;
+class BasicBlock;
 class DominatorTree;
-class PostDominatorTree;
+class Instruction;
 class Loop;
+class LoopInfo;
+class PostDominatorTree;
 
 /// Captures loop safety information.
 /// It keep information for loop blocks may throw exception or otherwise
-/// exit abnormaly on any iteration of the loop which might actually execute
-/// at runtime.  The primary way to consume this infromation is via
+/// exit abnormally on any iteration of the loop which might actually execute
+/// at runtime.  The primary way to consume this information is via
 /// isGuaranteedToExecute below, but some callers bailout or fallback to
 /// alternate reasoning if a loop contains any implicit control flow.
 /// NOTE: LoopSafetyInfo contains cached information regarding loops and their
@@ -112,19 +111,15 @@ class SimpleLoopSafetyInfo: public LoopSafetyInfo {
   bool HeaderMayThrow = false; // Same as previous, but specific to loop header
 
 public:
-  virtual bool blockMayThrow(const BasicBlock *BB) const;
+  bool blockMayThrow(const BasicBlock *BB) const override;
 
-  virtual bool anyBlockMayThrow() const;
+  bool anyBlockMayThrow() const override;
 
-  virtual void computeLoopSafetyInfo(const Loop *CurLoop);
+  void computeLoopSafetyInfo(const Loop *CurLoop) override;
 
-  virtual bool isGuaranteedToExecute(const Instruction &Inst,
-                                     const DominatorTree *DT,
-                                     const Loop *CurLoop) const;
-
-  SimpleLoopSafetyInfo() : LoopSafetyInfo() {};
-
-  virtual ~SimpleLoopSafetyInfo() {};
+  bool isGuaranteedToExecute(const Instruction &Inst,
+                             const DominatorTree *DT,
+                             const Loop *CurLoop) const override;
 };
 
 /// This implementation of LoopSafetyInfo use ImplicitControlFlowTracking to
@@ -141,15 +136,15 @@ class ICFLoopSafetyInfo: public LoopSafetyInfo {
   mutable MemoryWriteTracking MW;
 
 public:
-  virtual bool blockMayThrow(const BasicBlock *BB) const;
+  bool blockMayThrow(const BasicBlock *BB) const override;
 
-  virtual bool anyBlockMayThrow() const;
+  bool anyBlockMayThrow() const override;
 
-  virtual void computeLoopSafetyInfo(const Loop *CurLoop);
+  void computeLoopSafetyInfo(const Loop *CurLoop) override;
 
-  virtual bool isGuaranteedToExecute(const Instruction &Inst,
-                                     const DominatorTree *DT,
-                                     const Loop *CurLoop) const;
+  bool isGuaranteedToExecute(const Instruction &Inst,
+                             const DominatorTree *DT,
+                             const Loop *CurLoop) const override;
 
   /// Returns true if we could not execute a memory-modifying instruction before
   /// we enter \p BB under assumption that \p CurLoop is entered.
@@ -170,10 +165,6 @@ public:
   /// from its block. It will make all cache updates to keep it correct after
   /// this removal.
   void removeInstruction(const Instruction *Inst);
-
-  ICFLoopSafetyInfo(DominatorTree *DT) : LoopSafetyInfo(), ICF(DT), MW(DT) {};
-
-  virtual ~ICFLoopSafetyInfo() {};
 };
 
 bool mayContainIrreducibleControl(const Function &F, const LoopInfo *LI);
@@ -420,11 +411,6 @@ struct MustBeExecutedContextExplorer {
         ExploreCFGBackward(ExploreCFGBackward), LIGetter(LIGetter),
         DTGetter(DTGetter), PDTGetter(PDTGetter), EndIterator(*this, nullptr) {}
 
-  /// Clean up the dynamically allocated iterators.
-  ~MustBeExecutedContextExplorer() {
-    DeleteContainerSeconds(InstructionIteratorMap);
-  }
-
   /// Iterator-based interface. \see MustBeExecutedIterator.
   ///{
   using iterator = MustBeExecutedIterator;
@@ -432,15 +418,15 @@ struct MustBeExecutedContextExplorer {
 
   /// Return an iterator to explore the context around \p PP.
   iterator &begin(const Instruction *PP) {
-    auto *&It = InstructionIteratorMap[PP];
+    auto &It = InstructionIteratorMap[PP];
     if (!It)
-      It = new iterator(*this, PP);
+      It.reset(new iterator(*this, PP));
     return *It;
   }
 
   /// Return an iterator to explore the cached context around \p PP.
   const_iterator &begin(const Instruction *PP) const {
-    return *InstructionIteratorMap.lookup(PP);
+    return *InstructionIteratorMap.find(PP)->second;
   }
 
   /// Return an universal end iterator.
@@ -468,8 +454,8 @@ struct MustBeExecutedContextExplorer {
   /// This method will evaluate \p Pred and return
   /// true if \p Pred holds in every instruction.
   bool checkForAllContext(const Instruction *PP,
-                          const function_ref<bool(const Instruction *)> &Pred) {
-    for (auto EIt = begin(PP), EEnd = end(PP); EIt != EEnd; EIt++)
+                          function_ref<bool(const Instruction *)> Pred) {
+    for (auto EIt = begin(PP), EEnd = end(PP); EIt != EEnd; ++EIt)
       if (!Pred(*EIt))
         return false;
     return true;
@@ -548,7 +534,7 @@ private:
   DenseMap<const Function*, Optional<bool>> IrreducibleControlMap;
 
   /// Map from instructions to associated must be executed iterators.
-  DenseMap<const Instruction *, MustBeExecutedIterator *>
+  DenseMap<const Instruction *, std::unique_ptr<MustBeExecutedIterator>>
       InstructionIteratorMap;
 
   /// A unique end iterator.

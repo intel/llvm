@@ -9,16 +9,17 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
+#include <CL/sycl/ONEAPI/sub_group.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/id.hpp>
-#include <CL/sycl/intel/sub_group.hpp>
 #include <CL/sycl/item.hpp>
 #include <CL/sycl/nd_range.hpp>
 #include <CL/sycl/range.hpp>
 
+#include <cstddef>
 #include <stdexcept>
 #include <type_traits>
 
@@ -27,40 +28,68 @@ namespace sycl {
 namespace detail {
 class Builder;
 }
+
+/// Identifies an instance of the function object executing at each point in an
+/// nd_range.
+///
+/// \ingroup sycl_api
 template <int dimensions = 1> class nd_item {
 public:
   nd_item() = delete;
 
   id<dimensions> get_global_id() const { return globalItem.get_id(); }
 
-  size_t get_global_id(int dimension) const {
-    return globalItem.get_id(dimension);
+  size_t ALWAYS_INLINE get_global_id(int dimension) const {
+    size_t Id = globalItem.get_id(dimension);
+    __SYCL_ASSUME_INT(Id);
+    return Id;
   }
 
-  size_t get_global_linear_id() const { return globalItem.get_linear_id(); }
+  size_t ALWAYS_INLINE get_global_linear_id() const {
+    size_t Id = globalItem.get_linear_id();
+    __SYCL_ASSUME_INT(Id);
+    return Id;
+  }
 
   id<dimensions> get_local_id() const { return localItem.get_id(); }
 
-  size_t get_local_id(int dimension) const {
-    return localItem.get_id(dimension);
+  size_t ALWAYS_INLINE get_local_id(int dimension) const {
+    size_t Id = localItem.get_id(dimension);
+    __SYCL_ASSUME_INT(Id);
+    return Id;
   }
 
-  size_t get_local_linear_id() const { return localItem.get_linear_id(); }
+  size_t get_local_linear_id() const {
+    size_t Id = localItem.get_linear_id();
+    __SYCL_ASSUME_INT(Id);
+    return Id;
+  }
 
   group<dimensions> get_group() const { return Group; }
 
-  intel::sub_group get_sub_group() const { return intel::sub_group(); }
+  ONEAPI::sub_group get_sub_group() const { return ONEAPI::sub_group(); }
 
-  size_t get_group(int dimension) const { return Group[dimension]; }
+  size_t ALWAYS_INLINE get_group(int dimension) const {
+    size_t Size = Group[dimension];
+    __SYCL_ASSUME_INT(Size);
+    return Size;
+  }
 
-  size_t get_group_linear_id() const { return Group.get_linear_id(); }
+  size_t ALWAYS_INLINE get_group_linear_id() const {
+    size_t Id = Group.get_linear_id();
+    __SYCL_ASSUME_INT(Id);
+    return Id;
+  }
 
   range<dimensions> get_group_range() const {
     return Group.get_global_range() / Group.get_local_range();
   }
 
-  size_t get_group_range(int dimension) const {
-    return Group.get_global_range(dimension) / Group.get_local_range(dimension);
+  size_t ALWAYS_INLINE get_group_range(int dimension) const {
+    size_t Range =
+        Group.get_global_range(dimension) / Group.get_local_range(dimension);
+    __SYCL_ASSUME_INT(Range);
+    return Range;
   }
 
   range<dimensions> get_global_range() const { return globalItem.get_range(); }
@@ -98,42 +127,40 @@ public:
                                         accessMode == access::mode::read_write,
                                     access::fence_space>::type accessSpace =
                 access::fence_space::global_and_local) const {
+    (void)accessSpace;
     Group.mem_fence();
   }
 
-  template<typename dataT>
+  template <typename dataT>
   device_event async_work_group_copy(local_ptr<dataT> dest,
                                      global_ptr<dataT> src,
                                      size_t numElements) const {
     return Group.async_work_group_copy(dest, src, numElements);
   }
 
-  template<typename dataT>
+  template <typename dataT>
   device_event async_work_group_copy(global_ptr<dataT> dest,
                                      local_ptr<dataT> src,
                                      size_t numElements) const {
     return Group.async_work_group_copy(dest, src, numElements);
   }
 
-  template<typename dataT>
+  template <typename dataT>
   device_event async_work_group_copy(local_ptr<dataT> dest,
-                                     global_ptr<dataT> src,
-                                     size_t numElements,
+                                     global_ptr<dataT> src, size_t numElements,
                                      size_t srcStride) const {
 
     return Group.async_work_group_copy(dest, src, numElements, srcStride);
   }
 
-  template<typename dataT>
+  template <typename dataT>
   device_event async_work_group_copy(global_ptr<dataT> dest,
-                                     local_ptr<dataT> src,
-                                     size_t numElements,
+                                     local_ptr<dataT> src, size_t numElements,
                                      size_t destStride) const {
     return Group.async_work_group_copy(dest, src, numElements, destStride);
   }
 
-  template<typename... eventTN>
-  void wait_for(eventTN... events) const {
+  template <typename... eventTN> void wait_for(eventTN... events) const {
     Group.wait_for(events...);
   }
 
@@ -161,9 +188,24 @@ protected:
       : globalItem(GL), localItem(L), Group(GR) {}
 
 private:
-  item<dimensions, false> localItem;
   item<dimensions, true> globalItem;
+  item<dimensions, false> localItem;
   group<dimensions> Group;
 };
+
+namespace detail {
+template <int Dims> nd_item<Dims> store_nd_item(const nd_item<Dims> *nd_i) {
+  return get_or_store(nd_i);
+}
+} // namespace detail
+
+template <int Dims> nd_item<Dims> this_nd_item() {
+#ifdef __SYCL_DEVICE_ONLY__
+  return detail::Builder::getElement(detail::declptr<nd_item<Dims>>());
+#else
+  return detail::store_nd_item<Dims>(nullptr);
+#endif
+}
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

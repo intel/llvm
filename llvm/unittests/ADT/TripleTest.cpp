@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/Triple.h"
+#include "llvm/Support/VersionTuple.h"
 #include "gtest/gtest.h"
 
 using namespace llvm;
@@ -110,41 +111,6 @@ TEST(TripleTest, ParsedIDs) {
   EXPECT_EQ(Triple::Linux, T.getOS());
   EXPECT_EQ(Triple::Musl, T.getEnvironment());
 
-  T = Triple("powerpc-bgp-linux");
-  EXPECT_EQ(Triple::ppc, T.getArch());
-  EXPECT_EQ(Triple::BGP, T.getVendor());
-  EXPECT_EQ(Triple::Linux, T.getOS());
-  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
-
-  T = Triple("powerpc-bgp-cnk");
-  EXPECT_EQ(Triple::ppc, T.getArch());
-  EXPECT_EQ(Triple::BGP, T.getVendor());
-  EXPECT_EQ(Triple::CNK, T.getOS());
-  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
-
-  T = Triple("ppc-bgp-linux");
-  EXPECT_EQ(Triple::ppc, T.getArch());
-  EXPECT_EQ(Triple::BGP, T.getVendor());
-  EXPECT_EQ(Triple::Linux, T.getOS());
-  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
-
-  T = Triple("ppc32-bgp-linux");
-  EXPECT_EQ(Triple::ppc, T.getArch());
-  EXPECT_EQ(Triple::BGP, T.getVendor());
-  EXPECT_EQ(Triple::Linux, T.getOS());
-  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
-
-  T = Triple("powerpc64-bgq-linux");
-  EXPECT_EQ(Triple::ppc64, T.getArch());
-  EXPECT_EQ(Triple::BGQ, T.getVendor());
-  EXPECT_EQ(Triple::Linux, T.getOS());
-  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
-
-  T = Triple("ppc64-bgq-linux");
-  EXPECT_EQ(Triple::ppc64, T.getArch());
-  EXPECT_EQ(Triple::BGQ, T.getVendor());
-  EXPECT_EQ(Triple::Linux, T.getOS());
-
   T = Triple("powerpc-ibm-aix");
   EXPECT_EQ(Triple::ppc, T.getArch());
   EXPECT_EQ(Triple::IBM, T.getVendor());
@@ -168,6 +134,18 @@ TEST(TripleTest, ParsedIDs) {
   EXPECT_EQ(Triple::PPCSubArch_spe, T.getSubArch());
   EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
   EXPECT_EQ(Triple::FreeBSD, T.getOS());
+  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
+
+  T = Triple("s390x-ibm-zos");
+  EXPECT_EQ(Triple::systemz, T.getArch());
+  EXPECT_EQ(Triple::IBM, T.getVendor());
+  EXPECT_EQ(Triple::ZOS, T.getOS());
+  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
+
+  T = Triple("systemz-ibm-zos");
+  EXPECT_EQ(Triple::systemz, T.getArch());
+  EXPECT_EQ(Triple::IBM, T.getVendor());
+  EXPECT_EQ(Triple::ZOS, T.getOS());
   EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
 
   T = Triple("arm-none-none-eabi");
@@ -321,6 +299,18 @@ TEST(TripleTest, ParsedIDs) {
 
   T = Triple("ve-unknown-linux");
   EXPECT_EQ(Triple::ve, T.getArch());
+  EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
+  EXPECT_EQ(Triple::Linux, T.getOS());
+  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
+
+  T = Triple("csky-unknown-unknown");
+  EXPECT_EQ(Triple::csky, T.getArch());
+  EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
+  EXPECT_EQ(Triple::UnknownOS, T.getOS());
+  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
+
+  T = Triple("csky-unknown-linux");
+  EXPECT_EQ(Triple::csky, T.getArch());
   EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
   EXPECT_EQ(Triple::Linux, T.getOS());
   EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
@@ -904,6 +894,12 @@ TEST(TripleTest, BitWidthPredicates) {
   EXPECT_FALSE(T.isArch32Bit());
   EXPECT_TRUE(T.isArch64Bit());
   EXPECT_TRUE(T.isRISCV());
+
+  T.setArch(Triple::csky);
+  EXPECT_FALSE(T.isArch16Bit());
+  EXPECT_TRUE(T.isArch32Bit());
+  EXPECT_FALSE(T.isArch64Bit());
+  EXPECT_TRUE(T.isCSKY());
 }
 
 TEST(TripleTest, BitWidthArchVariants) {
@@ -1002,6 +998,10 @@ TEST(TripleTest, BitWidthArchVariants) {
   T.setArch(Triple::riscv64);
   EXPECT_EQ(Triple::riscv32, T.get32BitArchVariant().getArch());
   EXPECT_EQ(Triple::riscv64, T.get64BitArchVariant().getArch());
+
+  T.setArch(Triple::csky);
+  EXPECT_EQ(Triple::csky, T.get32BitArchVariant().getArch());
+  EXPECT_EQ(Triple::UnknownArch, T.get64BitArchVariant().getArch());
 
   T.setArch(Triple::thumbeb);
   EXPECT_EQ(Triple::thumbeb, T.get32BitArchVariant().getArch());
@@ -1156,6 +1156,10 @@ TEST(TripleTest, EndianArchVariants) {
   T.setArch(Triple::le64);
   EXPECT_EQ(Triple::UnknownArch, T.getBigEndianArchVariant().getArch());
   EXPECT_EQ(Triple::le64, T.getLittleEndianArchVariant().getArch());
+
+  T.setArch(Triple::csky);
+  EXPECT_EQ(Triple::UnknownArch, T.getBigEndianArchVariant().getArch());
+  EXPECT_EQ(Triple::csky, T.getLittleEndianArchVariant().getArch());
 }
 
 TEST(TripleTest, getOSVersion) {
@@ -1222,6 +1226,44 @@ TEST(TripleTest, getOSVersion) {
   EXPECT_EQ((unsigned)0, Minor);
   EXPECT_EQ((unsigned)0, Micro);
 
+  T = Triple("x86_64-apple-macos11.0");
+  EXPECT_TRUE(T.isMacOSX());
+  EXPECT_FALSE(T.isiOS());
+  EXPECT_FALSE(T.isArch16Bit());
+  EXPECT_FALSE(T.isArch32Bit());
+  EXPECT_TRUE(T.isArch64Bit());
+  T.getMacOSXVersion(Major, Minor, Micro);
+  EXPECT_EQ((unsigned)11, Major);
+  EXPECT_EQ((unsigned)0, Minor);
+  EXPECT_EQ((unsigned)0, Micro);
+
+  T = Triple("arm64-apple-macosx11.5.8");
+  EXPECT_TRUE(T.isMacOSX());
+  EXPECT_FALSE(T.isiOS());
+  EXPECT_FALSE(T.isArch16Bit());
+  EXPECT_FALSE(T.isArch32Bit());
+  EXPECT_TRUE(T.isArch64Bit());
+  T.getMacOSXVersion(Major, Minor, Micro);
+  EXPECT_EQ((unsigned)11, Major);
+  EXPECT_EQ((unsigned)5, Minor);
+  EXPECT_EQ((unsigned)8, Micro);
+
+  // 10.16 forms a valid triple, even though it's not
+  // a version of a macOS.
+  T = Triple("x86_64-apple-macos10.16");
+  EXPECT_TRUE(T.isMacOSX());
+  T.getMacOSXVersion(Major, Minor, Micro);
+  EXPECT_EQ((unsigned)10, Major);
+  EXPECT_EQ((unsigned)16, Minor);
+  EXPECT_EQ((unsigned)0, Micro);
+
+  T = Triple("x86_64-apple-darwin20");
+  EXPECT_TRUE(T.isMacOSX());
+  T.getMacOSXVersion(Major, Minor, Micro);
+  EXPECT_EQ((unsigned)11, Major);
+  EXPECT_EQ((unsigned)0, Minor);
+  EXPECT_EQ((unsigned)0, Micro);
+
   T = Triple("armv7-apple-ios");
   EXPECT_FALSE(T.isMacOSX());
   EXPECT_TRUE(T.isiOS());
@@ -1273,6 +1315,27 @@ TEST(TripleTest, getOSVersion) {
   EXPECT_FALSE(T.isSimulatorEnvironment());
 }
 
+TEST(TripleTest, isMacOSVersionLT) {
+  Triple T = Triple("x86_64-apple-macos11");
+  EXPECT_TRUE(T.isMacOSXVersionLT(11, 1, 0));
+  EXPECT_FALSE(T.isMacOSXVersionLT(10, 15, 0));
+
+  T = Triple("x86_64-apple-darwin20");
+  EXPECT_TRUE(T.isMacOSXVersionLT(11, 1, 0));
+  EXPECT_FALSE(T.isMacOSXVersionLT(11, 0, 0));
+  EXPECT_FALSE(T.isMacOSXVersionLT(10, 15, 0));
+}
+
+TEST(TripleTest, CanonicalizeOSVersion) {
+  EXPECT_EQ(VersionTuple(10, 15, 4),
+            Triple::getCanonicalVersionForOS(Triple::MacOSX,
+                                             VersionTuple(10, 15, 4)));
+  EXPECT_EQ(VersionTuple(11, 0), Triple::getCanonicalVersionForOS(
+                                     Triple::MacOSX, VersionTuple(10, 16)));
+  EXPECT_EQ(VersionTuple(20),
+            Triple::getCanonicalVersionForOS(Triple::Darwin, VersionTuple(20)));
+}
+
 TEST(TripleTest, FileFormat) {
   EXPECT_EQ(Triple::ELF, Triple("i686-unknown-linux-gnu").getObjectFormat());
   EXPECT_EQ(Triple::ELF, Triple("i686-unknown-freebsd").getObjectFormat());
@@ -1288,6 +1351,15 @@ TEST(TripleTest, FileFormat) {
 
   EXPECT_EQ(Triple::ELF, Triple("i686-pc-windows-msvc-elf").getObjectFormat());
   EXPECT_EQ(Triple::ELF, Triple("i686-pc-cygwin-elf").getObjectFormat());
+
+  EXPECT_EQ(Triple::ELF, Triple("systemz-ibm-linux").getObjectFormat());
+  EXPECT_EQ(Triple::ELF, Triple("systemz-ibm-unknown").getObjectFormat());
+
+  EXPECT_EQ(Triple::GOFF, Triple("s390x-ibm-zos").getObjectFormat());
+  EXPECT_EQ(Triple::GOFF, Triple("systemz-ibm-zos").getObjectFormat());
+  EXPECT_EQ(Triple::GOFF, Triple("s390x-ibm-zos-goff").getObjectFormat());
+  EXPECT_EQ(Triple::GOFF, Triple("s390x-unknown-zos-goff").getObjectFormat());
+  EXPECT_EQ(Triple::GOFF, Triple("s390x---goff").getObjectFormat());
 
   EXPECT_EQ(Triple::Wasm, Triple("wasm32-unknown-unknown").getObjectFormat());
   EXPECT_EQ(Triple::Wasm, Triple("wasm64-unknown-unknown").getObjectFormat());
@@ -1314,6 +1386,9 @@ TEST(TripleTest, FileFormat) {
   EXPECT_EQ(Triple::XCOFF, Triple("powerpc---xcoff").getObjectFormat());
   EXPECT_EQ(Triple::XCOFF, Triple("powerpc64---xcoff").getObjectFormat());
 
+  EXPECT_EQ(Triple::ELF, Triple("csky-unknown-unknown").getObjectFormat());
+  EXPECT_EQ(Triple::ELF, Triple("csky-unknown-linux").getObjectFormat());
+
   Triple MSVCNormalized(Triple::normalize("i686-pc-windows-msvc-elf"));
   EXPECT_EQ(Triple::ELF, MSVCNormalized.getObjectFormat());
 
@@ -1335,6 +1410,9 @@ TEST(TripleTest, FileFormat) {
 
   T.setObjectFormat(Triple::XCOFF);
   EXPECT_EQ(Triple::XCOFF, T.getObjectFormat());
+
+  T.setObjectFormat(Triple::GOFF);
+  EXPECT_EQ(Triple::GOFF, T.getObjectFormat());
 }
 
 TEST(TripleTest, NormalizeWindows) {

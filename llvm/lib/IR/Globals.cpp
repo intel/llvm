@@ -65,6 +65,7 @@ Value *GlobalValue::handleOperandChangeImpl(Value *From, Value *To) {
 void GlobalValue::copyAttributesFrom(const GlobalValue *Src) {
   setVisibility(Src->getVisibility());
   setUnnamedAddr(Src->getUnnamedAddr());
+  setThreadLocalMode(Src->getThreadLocalMode());
   setDLLStorageClass(Src->getDLLStorageClass());
   setDSOLocal(Src->isDSOLocal());
   setPartition(Src->getPartition());
@@ -101,18 +102,11 @@ bool GlobalValue::isInterposable() const {
          !isDSOLocal();
 }
 
-unsigned GlobalValue::getAlignment() const {
-  if (auto *GA = dyn_cast<GlobalAlias>(this)) {
-    // In general we cannot compute this at the IR level, but we try.
-    if (const GlobalObject *GO = GA->getBaseObject())
-      return GO->getAlignment();
-
-    // FIXME: we should also be able to handle:
-    // Alias = Global + Offset
-    // Alias = Absolute
-    return 0;
-  }
-  return cast<GlobalObject>(this)->getAlignment();
+bool GlobalValue::canBenefitFromLocalAlias() const {
+  // See AsmPrinter::getSymbolPreferLocal().
+  return hasDefaultVisibility() &&
+         GlobalObject::isExternalLinkage(getLinkage()) && !isDeclaration() &&
+         !isa<GlobalIFunc>(this) && !hasComdat();
 }
 
 unsigned GlobalValue::getAddressSpace() const {
@@ -120,12 +114,8 @@ unsigned GlobalValue::getAddressSpace() const {
   return PtrTy->getAddressSpace();
 }
 
-void GlobalObject::setAlignment(unsigned Align) {
-  setAlignment(MaybeAlign(Align));
-}
-
 void GlobalObject::setAlignment(MaybeAlign Align) {
-  assert((!Align || Align <= MaximumAlignment) &&
+  assert((!Align || *Align <= MaximumAlignment) &&
          "Alignment is greater than MaximumAlignment!");
   unsigned AlignmentData = encode(Align);
   unsigned OldData = getGlobalValueSubClassData();
@@ -249,7 +239,7 @@ bool GlobalValue::isDeclaration() const {
   return false;
 }
 
-bool GlobalValue::canIncreaseAlignment() const {
+bool GlobalObject::canIncreaseAlignment() const {
   // Firstly, can only increase the alignment of a global if it
   // is a strong definition.
   if (!isStrongDefinitionForLinker())
@@ -417,7 +407,6 @@ void GlobalVariable::setInitializer(Constant *InitVal) {
 /// from the GlobalVariable Src to this one.
 void GlobalVariable::copyAttributesFrom(const GlobalVariable *Src) {
   GlobalObject::copyAttributesFrom(Src);
-  setThreadLocalMode(Src->getThreadLocalMode());
   setExternallyInitialized(Src->isExternallyInitialized());
   setAttributes(Src->getAttributes());
 }

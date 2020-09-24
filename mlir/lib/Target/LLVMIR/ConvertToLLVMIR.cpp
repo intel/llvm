@@ -21,16 +21,26 @@
 
 using namespace mlir;
 
-std::unique_ptr<llvm::Module> mlir::translateModuleToLLVMIR(ModuleOp m) {
-  return LLVM::ModuleTranslation::translateModule<>(m);
+std::unique_ptr<llvm::Module>
+mlir::translateModuleToLLVMIR(ModuleOp m, llvm::LLVMContext &llvmContext,
+                              StringRef name) {
+  return LLVM::ModuleTranslation::translateModule<>(m, llvmContext, name);
 }
 
-static TranslateFromMLIRRegistration
-    registration("mlir-to-llvmir", [](ModuleOp module, raw_ostream &output) {
-      auto llvmModule = LLVM::ModuleTranslation::translateModule<>(module);
-      if (!llvmModule)
-        return failure();
+namespace mlir {
+void registerToLLVMIRTranslation() {
+  TranslateFromMLIRRegistration registration(
+      "mlir-to-llvmir",
+      [](ModuleOp module, raw_ostream &output) {
+        llvm::LLVMContext llvmContext;
+        auto llvmModule = LLVM::ModuleTranslation::translateModule<>(
+            module, llvmContext, "LLVMDialectModule");
+        if (!llvmModule)
+          return failure();
 
-      llvmModule->print(output, nullptr);
-      return success();
-    });
+        llvmModule->print(output, nullptr);
+        return success();
+      },
+      [](DialectRegistry &registry) { registry.insert<LLVM::LLVMDialect>(); });
+}
+} // namespace mlir

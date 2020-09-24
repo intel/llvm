@@ -25,9 +25,9 @@ AppleObjCTypeEncodingParser::AppleObjCTypeEncodingParser(
     ObjCLanguageRuntime &runtime)
     : ObjCLanguageRuntime::EncodingToType(), m_runtime(runtime) {
   if (!m_scratch_ast_ctx_up)
-    m_scratch_ast_ctx_up.reset(new TypeSystemClang(
+    m_scratch_ast_ctx_up = std::make_unique<TypeSystemClang>(
         "AppleObjCTypeEncodingParser ASTContext",
-        runtime.GetProcess()->GetTarget().GetArchitecture().GetTriple()));
+        runtime.GetProcess()->GetTarget().GetArchitecture().GetTriple());
 }
 
 std::string AppleObjCTypeEncodingParser::ReadStructName(StringLexer &type) {
@@ -124,7 +124,8 @@ clang::QualType AppleObjCTypeEncodingParser::BuildAggregate(
     return clang::QualType(); // This is where we bail out.  Sorry!
 
   CompilerType union_type(ast_ctx.CreateRecordType(
-      nullptr, lldb::eAccessPublic, name, kind, lldb::eLanguageTypeC));
+      nullptr, OptionalClangModuleID(), lldb::eAccessPublic, name, kind,
+      lldb::eLanguageTypeC));
   if (union_type) {
     TypeSystemClang::StartTagDeclarationDefinition(union_type);
 

@@ -8,6 +8,10 @@
 
 ; RUN: llvm-objdump -D %t.o | FileCheck --check-prefix=32-DIS %s
 
+; RUN: llc -verify-machineinstrs -mtriple powerpc-ibm-aix-xcoff \
+; RUN:     -mcpu=pwr4 -mattr=-altivec < %s | \
+; RUN:   FileCheck %s
+
 ; RUN: not --crash llc -verify-machineinstrs -mtriple powerpc64-ibm-aix-xcoff \
 ; RUN: -mcpu=pwr4 -mattr=-altivec -filetype=obj < %s 2>&1 | FileCheck \
 ; RUN: --check-prefix=64-CHECK %s
@@ -34,6 +38,8 @@ declare void @llvm.memcpy.p0i8.p0i8.i32(i8* nocapture writeonly, i8* nocapture r
 ; 1. The symbol table for .o file to verify .memcpy is a defined external label.
 ; 2. There is no relocation associated with the call, since callee is defined.
 ; 3. Branch instruction in raw data is branching back to the right callee location.
+
+; CHECK-NOT: .extern .memcpy
 
 ; 32-SYM:      Symbol {{[{][[:space:]] *}}Index: [[#Index:]]{{[[:space:]] *}}Name: .memcpy 
 ; 32-SYM-NEXT:    Value (RelocatableAddress): 0x0
@@ -68,7 +74,7 @@ declare void @llvm.memcpy.p0i8.p0i8.i32(i8* nocapture writeonly, i8* nocapture r
 ; 32-REL-NEXT:  }
 ; 32-REL-NEXT:  Relocation {
 ; 32-REL-NEXT:    Virtual Address: 0x38
-; 32-REL-NEXT:    Symbol: TOC (14)
+; 32-REL-NEXT:    Symbol: TOC (10)
 ; 32-REL-NEXT:    IsSigned: No
 ; 32-REL-NEXT:    FixupBitValue: 0
 ; 32-REL-NEXT:    Length: 32
@@ -84,7 +90,7 @@ declare void @llvm.memcpy.p0i8.p0i8.i32(i8* nocapture writeonly, i8* nocapture r
 ; 32-REL-NEXT:  }
 ; 32-REL-NEXT:  Relocation {
 ; 32-REL-NEXT:    Virtual Address: 0x44
-; 32-REL-NEXT:    Symbol: TOC (14)
+; 32-REL-NEXT:    Symbol: TOC (10)
 ; 32-REL-NEXT:    IsSigned: No
 ; 32-REL-NEXT:    FixupBitValue: 0
 ; 32-REL-NEXT:    Length: 32
@@ -105,7 +111,7 @@ declare void @llvm.memcpy.p0i8.p0i8.i32(i8* nocapture writeonly, i8* nocapture r
 ; 32-DIS-NEXT:       10: 7c 08 02 a6                   mflr 0
 ; 32-DIS-NEXT:       14: 90 01 00 08                   stw 0, 8(1)
 ; 32-DIS-NEXT:       18: 94 21 ff c0                   stwu 1, -64(1)
-; 32-DIS-NEXT:       1c: 4b ff ff e5                   bl .-28
+; 32-DIS-NEXT:       1c: 4b ff ff e5                   bl 0x0
 ; 32-DIS-NEXT:       20: 60 00 00 00                   nop
 ; 32-DIS-NEXT:       24: 38 21 00 40                   addi 1, 1, 64
 ; 32-DIS-NEXT:       28: 80 01 00 08                   lwz 0, 8(1)

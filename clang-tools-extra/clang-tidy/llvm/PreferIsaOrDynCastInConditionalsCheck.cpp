@@ -10,6 +10,7 @@
 #include "PreferIsaOrDynCastInConditionalsCheck.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include "clang/Lex/Lexer.h"
 
 using namespace clang::ast_matchers;
 
@@ -41,26 +42,27 @@ void PreferIsaOrDynCastInConditionalsCheck::registerMatchers(
 
   auto CallExpression =
       callExpr(
-          allOf(unless(isMacroID()), unless(cxxMemberCallExpr()),
-                allOf(callee(namedDecl(anyOf(hasName("isa"), hasName("cast"),
-                                             hasName("cast_or_null"),
-                                             hasName("dyn_cast"),
-                                             hasName("dyn_cast_or_null")))
-                                 .bind("func")),
-                      hasArgument(0, anyOf(declRefExpr().bind("arg"),
-                                           cxxMemberCallExpr().bind("arg"))))))
+          allOf(
+              unless(isMacroID()), unless(cxxMemberCallExpr()),
+              allOf(callee(namedDecl(hasAnyName("isa", "cast", "cast_or_null",
+                                                "dyn_cast", "dyn_cast_or_null"))
+                               .bind("func")),
+                    hasArgument(0, anyOf(declRefExpr().bind("arg"),
+                                         cxxMemberCallExpr().bind("arg"))))))
           .bind("rhs");
 
   Finder->addMatcher(
-      stmt(anyOf(ifStmt(Any), whileStmt(Any), doStmt(Condition),
-                 binaryOperator(
-                     allOf(unless(isExpansionInFileMatching(
-                               "llvm/include/llvm/Support/Casting.h")),
-                           hasOperatorName("&&"),
-                           hasLHS(implicitCastExpr().bind("lhs")),
-                           hasRHS(anyOf(implicitCastExpr(has(CallExpression)),
-                                        CallExpression))))
-                     .bind("and"))),
+      traverse(ast_type_traits::TK_AsIs,
+               stmt(anyOf(
+                   ifStmt(Any), whileStmt(Any), doStmt(Condition),
+                   binaryOperator(
+                       allOf(unless(isExpansionInFileMatching(
+                                 "llvm/include/llvm/Support/Casting.h")),
+                             hasOperatorName("&&"),
+                             hasLHS(implicitCastExpr().bind("lhs")),
+                             hasRHS(anyOf(implicitCastExpr(has(CallExpression)),
+                                          CallExpression))))
+                       .bind("and")))),
       this);
 }
 

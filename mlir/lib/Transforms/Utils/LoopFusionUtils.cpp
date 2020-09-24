@@ -38,10 +38,10 @@ using namespace mlir;
 static void getLoadAndStoreMemRefAccesses(Operation *opA,
                                           DenseMap<Value, bool> &values) {
   opA->walk([&](Operation *op) {
-    if (auto loadOp = dyn_cast<AffineLoadOp>(op)) {
+    if (auto loadOp = dyn_cast<AffineReadOpInterface>(op)) {
       if (values.count(loadOp.getMemRef()) == 0)
         values[loadOp.getMemRef()] = false;
-    } else if (auto storeOp = dyn_cast<AffineStoreOp>(op)) {
+    } else if (auto storeOp = dyn_cast<AffineWriteOpInterface>(op)) {
       values[storeOp.getMemRef()] = true;
     }
   });
@@ -52,10 +52,10 @@ static void getLoadAndStoreMemRefAccesses(Operation *opA,
 // Returns false otherwise.
 static bool isDependentLoadOrStoreOp(Operation *op,
                                      DenseMap<Value, bool> &values) {
-  if (auto loadOp = dyn_cast<AffineLoadOp>(op)) {
+  if (auto loadOp = dyn_cast<AffineReadOpInterface>(op)) {
     return values.count(loadOp.getMemRef()) > 0 &&
            values[loadOp.getMemRef()] == true;
-  } else if (auto storeOp = dyn_cast<AffineStoreOp>(op)) {
+  } else if (auto storeOp = dyn_cast<AffineWriteOpInterface>(op)) {
     return values.count(storeOp.getMemRef()) > 0;
   }
   return false;
@@ -105,7 +105,7 @@ static Operation *getLastDependentOpInRange(Operation *opA, Operation *opB) {
        it != Block::reverse_iterator(opA); ++it) {
     Operation *opX = &(*it);
     opX->walk([&](Operation *op) {
-      if (isa<AffineLoadOp>(op) || isa<AffineStoreOp>(op)) {
+      if (isa<AffineReadOpInterface, AffineWriteOpInterface>(op)) {
         if (isDependentLoadOrStoreOp(op, values)) {
           lastDepOp = opX;
           return WalkResult::interrupt();
@@ -113,7 +113,7 @@ static Operation *getLastDependentOpInRange(Operation *opA, Operation *opB) {
         return WalkResult::advance();
       }
       for (auto value : op->getResults()) {
-        for (auto user : value.getUsers()) {
+        for (Operation *user : value.getUsers()) {
           SmallVector<AffineForOp, 4> loops;
           // Check if any loop in loop nest surrounding 'user' is 'opB'.
           getLoopIVs(*user, &loops);
@@ -164,7 +164,7 @@ static Operation *getFusedLoopNestInsertionPoint(AffineForOp srcForOp,
         return nullptr;
     }
     // Return insertion point in valid range closest to 'opB'.
-    // TODO(andydavis) Consider other insertion points in valid range.
+    // TODO: Consider other insertion points in valid range.
     return firstDepOpA;
   }
   // No dependences from 'opA' to operation in range ('opA', 'opB'), return
@@ -179,7 +179,7 @@ gatherLoadsAndStores(AffineForOp forOp,
                      SmallVectorImpl<Operation *> &loadAndStoreOps) {
   bool hasIfOp = false;
   forOp.walk([&](Operation *op) {
-    if (isa<AffineLoadOp>(op) || isa<AffineStoreOp>(op))
+    if (isa<AffineReadOpInterface, AffineWriteOpInterface>(op))
       loadAndStoreOps.push_back(op);
     else if (isa<AffineIfOp>(op))
       hasIfOp = true;
@@ -187,7 +187,7 @@ gatherLoadsAndStores(AffineForOp forOp,
   return !hasIfOp;
 }
 
-// TODO(andydavis) Prevent fusion of loop nests with side-effecting operations.
+// TODO: Prevent fusion of loop nests with side-effecting operations.
 FusionResult mlir::canFuseLoops(AffineForOp srcForOp, AffineForOp dstForOp,
                                 unsigned dstLoopDepth,
                                 ComputationSliceState *srcSlice) {
@@ -294,7 +294,7 @@ bool mlir::getLoopNestStats(AffineForOp forOpRoot, LoopNestStats *stats) {
     unsigned count = 0;
     stats->opCountMap[childForOp] = 0;
     for (auto &op : *forOp.getBody()) {
-      if (!isa<AffineForOp>(op) && !isa<AffineIfOp>(op))
+      if (!isa<AffineForOp, AffineIfOp>(op))
         ++count;
     }
     stats->opCountMap[childForOp] = count;
@@ -361,7 +361,7 @@ static int64_t getComputeCostHelper(
   return tripCount * opCount;
 }
 
-// TODO(andydavis,b/126426796): extend this to handle multiple result maps.
+// TODO: extend this to handle multiple result maps.
 static Optional<uint64_t> getConstDifference(AffineMap lbMap, AffineMap ubMap) {
   assert(lbMap.getNumResults() == 1 && "expected single result bound map");
   assert(ubMap.getNumResults() == 1 && "expected single result bound map");
@@ -391,7 +391,7 @@ static uint64_t getSliceIterationCount(
 // nest surrounding represented by slice loop bounds in 'slice'.
 // Returns true on success, false otherwise (if a non-constant trip count
 // was encountered).
-// TODO(andydavis) Make this work with non-unit step loops.
+// TODO: Make this work with non-unit step loops.
 static bool buildSliceTripCountMap(
     ComputationSliceState *slice,
     llvm::SmallDenseMap<Operation *, uint64_t, 8> *tripCountMap) {
@@ -457,14 +457,14 @@ bool mlir::getFusionComputeCost(AffineForOp srcForOp, LoopNestStats &srcStats,
   auto *insertPointParent = slice->insertPoint->getParentOp();
 
   // The store and loads to this memref will disappear.
-  // TODO(andydavis) Add load coalescing to memref data flow opt pass.
+  // TODO: Add load coalescing to memref data flow opt pass.
   if (storeLoadFwdGuaranteed) {
     // Subtract from operation count the loads/store we expect load/store
     // forwarding to remove.
     unsigned storeCount = 0;
     llvm::SmallDenseSet<Value, 4> storeMemrefs;
     srcForOp.walk([&](Operation *op) {
-      if (auto storeOp = dyn_cast<AffineStoreOp>(op)) {
+      if (auto storeOp = dyn_cast<AffineWriteOpInterface>(op)) {
         storeMemrefs.insert(storeOp.getMemRef());
         ++storeCount;
       }
@@ -476,7 +476,7 @@ bool mlir::getFusionComputeCost(AffineForOp srcForOp, LoopNestStats &srcStats,
     // 'insertPointParent'.
     for (auto value : storeMemrefs) {
       for (auto *user : value.getUsers()) {
-        if (auto loadOp = dyn_cast<AffineLoadOp>(user)) {
+        if (auto loadOp = dyn_cast<AffineReadOpInterface>(user)) {
           SmallVector<AffineForOp, 4> loops;
           // Check if any loop in loop nest surrounding 'user' is
           // 'insertPointParent'.

@@ -57,13 +57,14 @@ struct PrintingPolicy {
         SuppressLifetimeQualifiers(false), SuppressTypedefs(false),
         SuppressTemplateArgsInCXXConstructors(false), Bool(LO.Bool),
         Restrict(LO.C99), Alignof(LO.CPlusPlus11), UnderscoreAlignof(LO.C11),
-        UseVoidForZeroParams(!LO.CPlusPlus), TerseOutput(false),
+        UseVoidForZeroParams(!LO.CPlusPlus),
+        SplitTemplateClosers(!LO.CPlusPlus11), TerseOutput(false),
         PolishForDeclaration(false), Half(LO.Half),
         MSWChar(LO.MicrosoftExt && !LO.WChar), IncludeNewlines(true),
         MSVCFormatting(false), ConstantsAsWritten(false),
         SuppressImplicitBase(false), FullyQualifiedName(false),
-        PrintCanonicalTypes(false), SuppressDefinition(false),
-        SuppressDefaultTemplateArguments (false) {}
+        SuppressDefinition(false), SuppressDefaultTemplateArguments(false),
+        PrintCanonicalTypes(false), PrintInjectedClassNameWithArguments(true) {}
 
   /// Adjust this printing policy for cases where it's known that we're
   /// printing C++ code (for instance, if AST dumping reaches a C++-only
@@ -206,6 +207,10 @@ struct PrintingPolicy {
   /// with zero parameters.
   unsigned UseVoidForZeroParams : 1;
 
+  /// Whether nested templates must be closed like 'a\<b\<c\> \>' rather than
+  /// 'a\<b\<c\>\>'.
+  unsigned SplitTemplateClosers : 1;
+
   /// Provide a 'terse' output.
   ///
   /// For example, in this mode we don't print function bodies, class members,
@@ -259,9 +264,6 @@ struct PrintingPolicy {
   /// This is the opposite of SuppressScope and thus overrules it.
   unsigned FullyQualifiedName : 1;
 
-  /// Whether to print types as written or canonically.
-  unsigned PrintCanonicalTypes : 1;
-
   /// When true does not print definition of a type. E.g.
   ///   \code
   ///   template<typename T> class C0 : public C1 {...}
@@ -281,6 +283,14 @@ struct PrintingPolicy {
   ///   template<typename T> class A
   ///   \endcode
   unsigned SuppressDefaultTemplateArguments : 1;
+
+  /// Whether to print types as written or canonically.
+  unsigned PrintCanonicalTypes : 1;
+
+  /// Whether to print an InjectedClassNameType with template arguments or as
+  /// written. When a template argument is unnamed, printing it results in
+  /// invalid C++ code.
+  unsigned PrintInjectedClassNameWithArguments : 1;
 
   /// Callbacks to use to allow the behavior of printing to be customized.
   const PrintingCallbacks *Callbacks = nullptr;

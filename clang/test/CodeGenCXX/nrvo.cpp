@@ -85,8 +85,6 @@ X test2(bool B) {
   // %lpad: landing pad for ctor of 'y', dtor of 'y'
   // CHECK-EH:      [[CAUGHTVAL:%.*]] = landingpad { i8*, i32 }
   // CHECK-EH-NEXT:   cleanup
-  // CHECK-EH-NEXT: extractvalue { i8*, i32 } [[CAUGHTVAL]], 0
-  // CHECK-EH-NEXT: extractvalue { i8*, i32 } [[CAUGHTVAL]], 1
   // CHECK-EH-NEXT: br label
   // -> %eh.cleanup
 
@@ -183,7 +181,7 @@ X test6() {
   // CHECK-NEXT: [[PTR:%.*]] = getelementptr inbounds %class.X, %class.X* [[A]], i32 0, i32 0
   // CHECK-NEXT: call void @llvm.lifetime.start.p0i8(i64 1, i8* nonnull [[PTR]])
   // CHECK-NEXT: call {{.*}} @_ZN1XC1Ev([[X]]* nonnull [[A]])
-  // CHECK-NEXT: call {{.*}} @_ZN1XC1ERKS_([[X]]* {{%.*}}, [[X]]* nonnull dereferenceable({{[0-9]+}}) [[A]])
+  // CHECK-NEXT: call {{.*}} @_ZN1XC1ERKS_([[X]]* {{%.*}}, [[X]]* nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) [[A]])
   // CHECK-NEXT: call {{.*}} @_ZN1XD1Ev([[X]]* nonnull [[A]])
   // CHECK-NEXT: call void @llvm.lifetime.end.p0i8(i64 1, i8* nonnull [[PTR]])
   // CHECK-NEXT: ret void

@@ -294,13 +294,6 @@ private:
       }
     }
 
-    // Try to merge a CSharp property declaration like `{ get; private set }`.
-    if (Style.isCSharp()) {
-      unsigned CSPA = tryMergeCSharpPropertyAccessor(I, E, Limit);
-      if (CSPA > 0)
-        return CSPA;
-    }
-
     // Try to merge a function block with left brace unwrapped
     if (TheLine->Last->is(TT_FunctionLBrace) &&
         TheLine->First != TheLine->Last) {
@@ -316,7 +309,8 @@ private:
     // Try to merge a control statement block with left brace wrapped
     if (I[1]->First->is(tok::l_brace) &&
         (TheLine->First->isOneOf(tok::kw_if, tok::kw_while, tok::kw_for,
-                                 tok::kw_switch, tok::kw_try, tok::kw_do) ||
+                                 tok::kw_switch, tok::kw_try, tok::kw_do,
+                                 TT_ForEachMacro) ||
          (TheLine->First->is(tok::r_brace) && TheLine->First->Next &&
           TheLine->First->Next->isOneOf(tok::kw_else, tok::kw_catch))) &&
         Style.BraceWrapping.AfterControlStatement ==
@@ -348,21 +342,6 @@ private:
               TheLine->Last->TotalLength <= Style.ColumnLimit)
                  ? 1
                  : 0;
-    }
-    // Try to merge either empty or one-line block if is precedeed by control
-    // statement token
-    if (TheLine->First->is(tok::l_brace) && TheLine->First == TheLine->Last &&
-        I != AnnotatedLines.begin() &&
-        I[-1]->First->isOneOf(tok::kw_if, tok::kw_while, tok::kw_for)) {
-      unsigned MergedLines = 0;
-      if (Style.AllowShortBlocksOnASingleLine != FormatStyle::SBS_Never) {
-        MergedLines = tryMergeSimpleBlock(I - 1, E, Limit);
-        // If we managed to merge the block, discard the first merged line
-        // since we are merging starting from I.
-        if (MergedLines > 0)
-          --MergedLines;
-      }
-      return MergedLines;
     }
     // Don't merge block with left brace wrapped after ObjC special blocks
     if (TheLine->First->is(tok::l_brace) && I != AnnotatedLines.begin() &&
@@ -428,64 +407,6 @@ private:
       return tryMergeSimplePPDirective(I, E, Limit);
     }
     return 0;
-  }
-
-  // true for lines of the form [access-modifier] {get,set} [;]
-  bool isMergeablePropertyAccessor(const AnnotatedLine *Line) {
-    auto *Tok = Line->First;
-    if (!Tok)
-      return false;
-
-    if (Tok->isOneOf(tok::kw_public, tok::kw_protected, tok::kw_private,
-                     Keywords.kw_internal))
-      Tok = Tok->Next;
-
-    if (!Tok || (Tok->TokenText != "get" && Tok->TokenText != "set"))
-      return false;
-
-    if (!Tok->Next || Tok->Next->is(tok::semi))
-      return true;
-
-    return false;
-  }
-
-  unsigned tryMergeCSharpPropertyAccessor(
-      SmallVectorImpl<AnnotatedLine *>::const_iterator I,
-      SmallVectorImpl<AnnotatedLine *>::const_iterator E, unsigned /*Limit*/) {
-
-    auto CurrentLine = I;
-    // Does line start with `{`
-    if (!(*CurrentLine)->Last || (*CurrentLine)->Last->isNot(TT_FunctionLBrace))
-      return 0;
-    ++CurrentLine;
-
-    unsigned MergedLines = 0;
-    bool HasGetOrSet = false;
-    while (CurrentLine != E) {
-      bool LineIsGetOrSet = isMergeablePropertyAccessor(*CurrentLine);
-      HasGetOrSet = HasGetOrSet || LineIsGetOrSet;
-      if (LineIsGetOrSet) {
-        ++CurrentLine;
-        ++MergedLines;
-        continue;
-      }
-      auto *Tok = (*CurrentLine)->First;
-      if (Tok && Tok->is(tok::r_brace)) {
-        ++CurrentLine;
-        ++MergedLines;
-        // See if the next line is a default value so that we can merge `{ get;
-        // set } = 0`
-        if (CurrentLine != E && (*CurrentLine)->First &&
-            (*CurrentLine)->First->is(tok::equal)) {
-          ++MergedLines;
-        }
-        break;
-      }
-      // Not a '}' or a get/set line so do not merege lines.
-      return 0;
-    }
-
-    return HasGetOrSet ? MergedLines : 0;
   }
 
   unsigned
@@ -686,7 +607,7 @@ private:
         if (I[1]->Last->is(TT_LineComment))
           return 0;
         do {
-          if (Tok->is(tok::l_brace) && Tok->BlockKind != BK_BracedInit)
+          if (Tok->is(tok::l_brace) && Tok->isNot(BK_BracedInit))
             return 0;
           Tok = Tok->Next;
         } while (Tok);
@@ -847,8 +768,8 @@ protected:
                       unsigned &Penalty) {
     const FormatToken *LBrace = State.NextToken->getPreviousNonComment();
     FormatToken &Previous = *State.NextToken->Previous;
-    if (!LBrace || LBrace->isNot(tok::l_brace) ||
-        LBrace->BlockKind != BK_Block || Previous.Children.size() == 0)
+    if (!LBrace || LBrace->isNot(tok::l_brace) || LBrace->isNot(BK_Block) ||
+        Previous.Children.size() == 0)
       // The previous token does not open a block. Nothing to do. We don't
       // assert so that we can simply call this function for all tokens.
       return true;
@@ -888,7 +809,8 @@ protected:
     if (!DryRun) {
       Whitespaces->replaceWhitespace(
           *Child->First, /*Newlines=*/0, /*Spaces=*/1,
-          /*StartOfTokenColumn=*/State.Column, State.Line->InPPDirective);
+          /*StartOfTokenColumn=*/State.Column, /*IsAligned=*/false,
+          State.Line->InPPDirective);
     }
     Penalty +=
         formatLine(*Child, State.Column + 1, /*FirstStartColumn=*/0, DryRun);
@@ -1058,7 +980,7 @@ private:
         // State already examined with lower penalty.
         continue;
 
-      FormatDecision LastFormat = Node->State.NextToken->Decision;
+      FormatDecision LastFormat = Node->State.NextToken->getDecision();
       if (LastFormat == FD_Unformatted || LastFormat == FD_Continue)
         addNextStateToQueue(Penalty, Node, /*NewLine=*/false, &Count, &Queue);
       if (LastFormat == FD_Unformatted || LastFormat == FD_Break)
@@ -1309,7 +1231,8 @@ void UnwrappedLineFormatter::formatFirstToken(
 
   // If in Whitemsmiths mode, indent start and end of blocks
   if (Style.BreakBeforeBraces == FormatStyle::BS_Whitesmiths) {
-    if (RootToken.isOneOf(tok::l_brace, tok::r_brace, tok::kw_case))
+    if (RootToken.isOneOf(tok::l_brace, tok::r_brace, tok::kw_case,
+                          tok::kw_default))
       Indent += Style.IndentWidth;
   }
 
@@ -1320,6 +1243,7 @@ void UnwrappedLineFormatter::formatFirstToken(
     Indent = 0;
 
   Whitespaces->replaceWhitespace(RootToken, Newlines, Indent, Indent,
+                                 /*IsAligned=*/false,
                                  Line.InPPDirective &&
                                      !RootToken.HasUnescapedNewline);
 }

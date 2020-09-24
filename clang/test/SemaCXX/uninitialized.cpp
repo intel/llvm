@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsyntax-only -Wall -Wuninitialized -Wno-unused-value -Wno-unused-lambda-capture -std=c++1z -verify %s
+// RUN: %clang_cc1 -fsyntax-only -Wall -Wuninitialized -Wno-unused-value -Wno-unused-lambda-capture -Wno-uninitialized-const-reference -std=c++1z -verify %s
 
 // definitions for std::move
 namespace std {
@@ -1302,6 +1302,20 @@ namespace init_list {
       d2{ num, d2.a },
       d3{ d3.b, num } // expected-warning{{uninitialized}}
     {}
+  };
+  
+  struct E {
+    E();
+    E foo();
+    E* operator->();
+  };
+
+  struct F { F(E); };
+
+  struct EFComposed {
+    F f;
+    E e;
+    EFComposed() : f{ e->foo() }, e() {} // expected-warning{{uninitialized}}
   };
 }
 

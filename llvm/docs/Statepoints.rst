@@ -434,6 +434,8 @@ removed by the backend during dead machine instruction elimination.
 Intrinsics
 ===========
 
+.. _gc_statepoint:
+
 'llvm.experimental.gc.statepoint' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -447,9 +449,7 @@ Syntax:
                        func_type <target>, 
                        i64 <#call args>, i64 <flags>,
                        ... (call parameters),
-                       i64 <# transition args>, ... (transition parameters),
-                       i64 <# deopt args>, ... (deopt parameters),
-                       ... (gc parameters))
+                       i64 0, i64 0)
 
 Overview:
 """""""""
@@ -513,27 +513,11 @@ instruction.  The number of arguments must exactly match what is
 specified in '# call args'.  The types must match the signature of
 'target'.
 
-The 'transition parameters' arguments contain an arbitrary list of
-Values which need to be passed to GC transition code. They will be
-lowered and passed as operands to the appropriate GC_TRANSITION nodes
-in the selection DAG. It is assumed that these arguments must be
-available before and after (but not necessarily during) the execution
-of the callee. The '# transition args' field indicates how many operands
-are to be interpreted as 'transition parameters'.
-
-The 'deopt parameters' arguments contain an arbitrary list of Values
-which is meaningful to the runtime.  The runtime may read any of these
-values, but is assumed not to modify them.  If the garbage collector
-might need to modify one of these values, it must also be listed in
-the 'gc pointer' argument list.  The '# deopt args' field indicates
-how many operands are to be interpreted as 'deopt parameters'.
-
-The 'gc parameters' arguments contain every pointer to a garbage
-collector object which potentially needs to be updated by the garbage
-collector.  Note that the argument list must explicitly contain a base
-pointer for every derived pointer listed.  The order of arguments is
-unimportant.  Unlike the other variable length parameter sets, this
-list is not length prefixed.
+The 'call parameter' attributes must be followed by two 'i64 0' constants.
+These were originally the length prefixes for 'gc transition parameter' and
+'deopt parameter' arguments, but the role of these parameter sets have been
+entirely replaced with the corresponding operand bundles.  In a future
+revision, these now redundant arguments will be removed.
 
 Semantics:
 """"""""""
@@ -614,21 +598,25 @@ safepoint sequence of which this ``gc.relocation`` is a part.
 Despite the typing of this as a generic token, *only* the value defined 
 by a ``gc.statepoint`` is legal here.
 
-The second argument is an index into the statepoints list of arguments
-which specifies the allocation for the pointer being relocated.
-This index must land within the 'gc parameter' section of the
-statepoint's argument list.  The associated value must be within the
-object with which the pointer being relocated is associated. The optimizer
-is free to change *which* interior derived pointer is reported, provided that
-it does not replace an actual base pointer with another interior derived 
-pointer.  Collectors are allowed to rely on the base pointer operand 
-remaining an actual base pointer if so constructed.
+The second and third arguments are both indices into operands of their
+corresponding statepoint.  If the statepoint has a :ref:`gc-live <ob_gc_live>`
+operand bundle, then both arguments are indices into the operand bundle's
+operands. If there is no "gc-live" bundle, then the index is into the
+statepoint's list of arguments.  This index must land within the 'gc
+parameter' section of the statepoint's argument list.  Use of the "gc-live"
+form is recommended.
 
-The third argument is an index into the statepoint's list of arguments
-which specify the (potentially) derived pointer being relocated.  It
-is legal for this index to be the same as the second argument
-if-and-only-if a base pointer is being relocated. This index must land
-within the 'gc parameter' section of the statepoint's argument list.
+The second argument is an index which specifies the allocation for the pointer
+being relocated. The associated value must be within the object with which the
+pointer being relocated is associated. The optimizer is free to change *which*
+interior derived pointer is reported, provided that it does not replace an
+actual base pointer with another interior derived pointer. Collectors are
+allowed to rely on the base pointer operand remaining an actual base pointer if
+so constructed.
+
+The third argument is an index which specify the (potentially) derived pointer
+being relocated.  It is legal for this index to be the same as the second
+argument if-and-only-if a base pointer is being relocated.
 
 Semantics:
 """"""""""
@@ -671,13 +659,12 @@ Each statepoint generates the following Locations:
   these identifiers.
 * Constant which describes the flags passed to the statepoint intrinsic
 * Constant which describes number of following deopt *Locations* (not
-  operands)
-* Variable number of Locations, one for each deopt parameter listed in
-  the IR statepoint (same number as described by previous Constant).  At 
-  the moment, only deopt parameters with a bitwidth of 64 bits or less 
-  are supported.  Values of a type larger than 64 bits can be specified 
-  and reported only if a) the value is constant at the call site, and b) 
-  the constant can be represented with less than 64 bits (assuming zero 
+  operands).  Will be 0 if no "deopt" bundle is provided.
+* Variable number of Locations, one for each deopt parameter listed in the
+  "deopt" operand bundle.  At the moment, only deopt parameters with a bitwidth
+  of 64 bits or less are supported.  Values of a type larger than 64 bits can be
+  specified and reported only if a) the value is constant at the call site, and
+  b) the constant can be represented with less than 64 bits (assuming zero 
   extension to the original bitwidth).
 * Variable number of relocation records, each of which consists of 
   exactly two Locations.  Relocation records are described in detail
@@ -767,7 +754,7 @@ relocation sequence, including all required ``gc.relocates``.
 
 Note that by default, this pass only runs for the "statepoint-example" or 
 "core-clr" gc strategies.  You will need to add your custom strategy to this 
-whitelist or use one of the predefined ones. 
+list or use one of the predefined ones. 
 
 As an example, given this code:
 

@@ -69,13 +69,17 @@ protected:
                         MacroBuilder &Builder) const override;
 
 private:
-  static void setSIMDLevel(llvm::StringMap<bool> &Features, SIMDEnum Level);
+  static void setSIMDLevel(llvm::StringMap<bool> &Features, SIMDEnum Level,
+                           bool Enabled);
 
   bool
   initFeatureMap(llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags,
                  StringRef CPU,
                  const std::vector<std::string> &FeaturesVec) const override;
   bool hasFeature(StringRef Feature) const final;
+
+  void setFeatureEnabled(llvm::StringMap<bool> &Features, StringRef Name,
+                         bool Enabled) const final;
 
   bool handleTargetFeatures(std::vector<std::string> &Features,
                             DiagnosticsEngine &Diags) final;
@@ -130,7 +134,12 @@ private:
       return CCCR_Warning;
     }
   }
+
+  bool hasExtIntType() const override { return true; }
+
+  bool hasProtectedVisibility() const override { return false; }
 };
+
 class LLVM_LIBRARY_VISIBILITY WebAssembly32TargetInfo
     : public WebAssemblyTargetInfo {
 public:

@@ -155,8 +155,8 @@ CodeGenFunction::EmitCXXMemberDataPointerAddress(const Expr *E, Address base,
                                                  memberPtr, memberPtrType);
 
   QualType memberType = memberPtrType->getPointeeType();
-  CharUnits memberAlign = getNaturalTypeAlignment(memberType, BaseInfo,
-                                                  TBAAInfo);
+  CharUnits memberAlign =
+      CGM.getNaturalTypeAlignment(memberType, BaseInfo, TBAAInfo);
   memberAlign =
     CGM.getDynamicOffsetAlignment(base.getAlignment(),
                             memberPtrType->getClass()->getAsCXXRecordDecl(),
@@ -253,8 +253,13 @@ ApplyNonVirtualAndVirtualOffset(CodeGenFunction &CGF, Address addr,
   // Compute the offset from the static and dynamic components.
   llvm::Value *baseOffset;
   if (!nonVirtualOffset.isZero()) {
-    baseOffset = llvm::ConstantInt::get(CGF.PtrDiffTy,
-                                        nonVirtualOffset.getQuantity());
+    llvm::Type *OffsetType =
+        (CGF.CGM.getTarget().getCXXABI().isItaniumFamily() &&
+         CGF.CGM.getItaniumVTableContext().isRelativeLayout())
+            ? CGF.Int32Ty
+            : CGF.PtrDiffTy;
+    baseOffset =
+        llvm::ConstantInt::get(OffsetType, nonVirtualOffset.getQuantity());
     if (virtualOffset) {
       baseOffset = CGF.Builder.CreateAdd(virtualOffset, baseOffset);
     }
@@ -747,7 +752,7 @@ bool CodeGenFunction::IsConstructorDelegationValid(
     //    parameters
     //  - etc.
     // If we ever add any of the above cases, remember that:
-    //  - function-try-blocks will always blacklist this optimization
+    //  - function-try-blocks will always exclude this optimization
     //  - we need to perform the constructor prologue and cleanup in
     //    EmitConstructorBody.
 
@@ -2145,7 +2150,7 @@ void CodeGenFunction::EmitCXXConstructorCall(const CXXConstructorDecl *D,
 
     QualType SrcTy = D->getParamDecl(0)->getType().getNonReferenceType();
     Address Src(Args[1].getRValue(*this).getScalarVal(),
-                getNaturalTypeAlignment(SrcTy));
+                CGM.getNaturalTypeAlignment(SrcTy));
     LValue SrcLVal = MakeAddrLValue(Src, SrcTy);
     QualType DestTy = getContext().getTypeDeclType(ClassDecl);
     LValue DestLVal = MakeAddrLValue(This, DestTy);
@@ -2165,7 +2170,7 @@ void CodeGenFunction::EmitCXXConstructorCall(const CXXConstructorDecl *D,
   }
 
   // Insert any ABI-specific implicit constructor arguments.
-  CGCXXABI::AddedStructorArgs ExtraArgs =
+  CGCXXABI::AddedStructorArgCounts ExtraArgs =
       CGM.getCXXABI().addImplicitConstructorArgs(*this, D, Type, ForVirtualBase,
                                                  Delegating, Args);
 
@@ -2174,7 +2179,7 @@ void CodeGenFunction::EmitCXXConstructorCall(const CXXConstructorDecl *D,
   const CGFunctionInfo &Info = CGM.getTypes().arrangeCXXConstructorCall(
       Args, D, Type, ExtraArgs.Prefix, ExtraArgs.Suffix, PassPrototypeArgs);
   CGCallee Callee = CGCallee::forDirect(CalleePtr, GlobalDecl(D, Type));
-  EmitCall(Info, Callee, ReturnValueSlot(), Args);
+  EmitCall(Info, Callee, ReturnValueSlot(), Args, nullptr, Loc);
 
   // Generate vtable assumptions if we're constructing a complete object
   // with a vtable.  We don't do this for base subobjects for two reasons:

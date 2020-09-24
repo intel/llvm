@@ -467,10 +467,12 @@ private:
     unsigned Register2;
   };
   std::vector<char> Values;
+  std::string Comment;
 
-  MCCFIInstruction(OpType Op, MCSymbol *L, unsigned R, int O, StringRef V)
+  MCCFIInstruction(OpType Op, MCSymbol *L, unsigned R, int O, StringRef V,
+                   StringRef Comment = "")
       : Operation(Op), Label(L), Register(R), Offset(O),
-        Values(V.begin(), V.end()) {
+        Values(V.begin(), V.end()), Comment(Comment) {
     assert(Op != OpRegister);
   }
 
@@ -482,9 +484,9 @@ private:
 public:
   /// .cfi_def_cfa defines a rule for computing CFA as: take address from
   /// Register and add Offset to it.
-  static MCCFIInstruction createDefCfa(MCSymbol *L, unsigned Register,
-                                       int Offset) {
-    return MCCFIInstruction(OpDefCfa, L, Register, -Offset, "");
+  static MCCFIInstruction cfiDefCfa(MCSymbol *L, unsigned Register,
+                                    int Offset) {
+    return MCCFIInstruction(OpDefCfa, L, Register, Offset, "");
   }
 
   /// .cfi_def_cfa_register modifies a rule for computing CFA. From now
@@ -496,8 +498,8 @@ public:
   /// .cfi_def_cfa_offset modifies a rule for computing CFA. Register
   /// remains the same, but offset is new. Note that it is the absolute offset
   /// that will be added to a defined register to the compute CFA address.
-  static MCCFIInstruction createDefCfaOffset(MCSymbol *L, int Offset) {
-    return MCCFIInstruction(OpDefCfaOffset, L, 0, -Offset, "");
+  static MCCFIInstruction cfiDefCfaOffset(MCSymbol *L, int Offset) {
+    return MCCFIInstruction(OpDefCfaOffset, L, 0, Offset, "");
   }
 
   /// .cfi_adjust_cfa_offset Same as .cfi_def_cfa_offset, but
@@ -570,8 +572,9 @@ public:
 
   /// .cfi_escape Allows the user to add arbitrary bytes to the unwind
   /// info.
-  static MCCFIInstruction createEscape(MCSymbol *L, StringRef Vals) {
-    return MCCFIInstruction(OpEscape, L, 0, 0, Vals);
+  static MCCFIInstruction createEscape(MCSymbol *L, StringRef Vals,
+                                       StringRef Comment = "") {
+    return MCCFIInstruction(OpEscape, L, 0, 0, Vals, Comment);
   }
 
   /// A special wrapper for .cfi_escape that indicates GNU_ARGS_SIZE
@@ -605,6 +608,10 @@ public:
   StringRef getValues() const {
     assert(Operation == OpEscape);
     return StringRef(&Values[0], Values.size());
+  }
+
+  StringRef getComment() const {
+    return Comment;
   }
 };
 

@@ -490,4 +490,132 @@ TEST(STLExtrasTest, partition_point) {
   EXPECT_EQ(V.end(), partition_point(V, [](unsigned X) { return X < 50; }));
 }
 
+TEST(STLExtrasTest, hasSingleElement) {
+  const std::vector<int> V0 = {}, V1 = {1}, V2 = {1, 2};
+  const std::vector<int> V10(10);
+
+  EXPECT_EQ(hasSingleElement(V0), false);
+  EXPECT_EQ(hasSingleElement(V1), true);
+  EXPECT_EQ(hasSingleElement(V2), false);
+  EXPECT_EQ(hasSingleElement(V10), false);
+}
+
+TEST(STLExtrasTest, hasNItems) {
+  const std::list<int> V0 = {}, V1 = {1}, V2 = {1, 2};
+  const std::list<int> V3 = {1, 3, 5};
+
+  EXPECT_TRUE(hasNItems(V0, 0));
+  EXPECT_FALSE(hasNItems(V0, 2));
+  EXPECT_TRUE(hasNItems(V1, 1));
+  EXPECT_FALSE(hasNItems(V1, 2));
+
+  EXPECT_TRUE(hasNItems(V3.begin(), V3.end(), 3, [](int x) { return x < 10; }));
+  EXPECT_TRUE(hasNItems(V3.begin(), V3.end(), 0, [](int x) { return x > 10; }));
+  EXPECT_TRUE(hasNItems(V3.begin(), V3.end(), 2, [](int x) { return x < 5; }));
+}
+
+TEST(STLExtras, hasNItemsOrMore) {
+  const std::list<int> V0 = {}, V1 = {1}, V2 = {1, 2};
+  const std::list<int> V3 = {1, 3, 5};
+
+  EXPECT_TRUE(hasNItemsOrMore(V1, 1));
+  EXPECT_FALSE(hasNItemsOrMore(V1, 2));
+
+  EXPECT_TRUE(hasNItemsOrMore(V2, 1));
+  EXPECT_TRUE(hasNItemsOrMore(V2, 2));
+  EXPECT_FALSE(hasNItemsOrMore(V2, 3));
+
+  EXPECT_TRUE(hasNItemsOrMore(V3, 3));
+  EXPECT_FALSE(hasNItemsOrMore(V3, 4));
+
+  EXPECT_TRUE(
+      hasNItemsOrMore(V3.begin(), V3.end(), 3, [](int x) { return x < 10; }));
+  EXPECT_FALSE(
+      hasNItemsOrMore(V3.begin(), V3.end(), 3, [](int x) { return x > 10; }));
+  EXPECT_TRUE(
+      hasNItemsOrMore(V3.begin(), V3.end(), 2, [](int x) { return x < 5; }));
+}
+
+TEST(STLExtras, hasNItemsOrLess) {
+  const std::list<int> V0 = {}, V1 = {1}, V2 = {1, 2};
+  const std::list<int> V3 = {1, 3, 5};
+
+  EXPECT_TRUE(hasNItemsOrLess(V0, 0));
+  EXPECT_TRUE(hasNItemsOrLess(V0, 1));
+  EXPECT_TRUE(hasNItemsOrLess(V0, 2));
+
+  EXPECT_FALSE(hasNItemsOrLess(V1, 0));
+  EXPECT_TRUE(hasNItemsOrLess(V1, 1));
+  EXPECT_TRUE(hasNItemsOrLess(V1, 2));
+
+  EXPECT_FALSE(hasNItemsOrLess(V2, 0));
+  EXPECT_FALSE(hasNItemsOrLess(V2, 1));
+  EXPECT_TRUE(hasNItemsOrLess(V2, 2));
+  EXPECT_TRUE(hasNItemsOrLess(V2, 3));
+
+  EXPECT_FALSE(hasNItemsOrLess(V3, 0));
+  EXPECT_FALSE(hasNItemsOrLess(V3, 1));
+  EXPECT_FALSE(hasNItemsOrLess(V3, 2));
+  EXPECT_TRUE(hasNItemsOrLess(V3, 3));
+  EXPECT_TRUE(hasNItemsOrLess(V3, 4));
+
+  EXPECT_TRUE(
+      hasNItemsOrLess(V3.begin(), V3.end(), 1, [](int x) { return x == 1; }));
+  EXPECT_TRUE(
+      hasNItemsOrLess(V3.begin(), V3.end(), 2, [](int x) { return x < 5; }));
+  EXPECT_TRUE(
+      hasNItemsOrLess(V3.begin(), V3.end(), 5, [](int x) { return x < 5; }));
+  EXPECT_FALSE(
+      hasNItemsOrLess(V3.begin(), V3.end(), 2, [](int x) { return x < 10; }));
+}
+
+TEST(STLExtras, MoveRange) {
+  class Foo {
+    bool A;
+
+  public:
+    Foo() : A(true) {}
+    Foo(const Foo &) = delete;
+    Foo(Foo &&Other) : A(Other.A) { Other.A = false; }
+    Foo &operator=(const Foo &) = delete;
+    Foo &operator=(Foo &&Other) {
+      if (this != &Other) {
+        A = Other.A;
+        Other.A = false;
+      }
+      return *this;
+    }
+    operator bool() const { return A; }
+  };
+  SmallVector<Foo, 4U> V1, V2, V3, V4;
+  auto HasVal = [](const Foo &Item) { return static_cast<bool>(Item); };
+  auto Build = [&] {
+    SmallVector<Foo, 4U> Foos;
+    Foos.resize(4U);
+    return Foos;
+  };
+
+  V1.resize(4U);
+  EXPECT_TRUE(llvm::all_of(V1, HasVal));
+
+  llvm::move(V1, std::back_inserter(V2));
+
+  // Ensure input container is same size, but its contents were moved out.
+  EXPECT_EQ(V1.size(), 4U);
+  EXPECT_TRUE(llvm::none_of(V1, HasVal));
+
+  // Ensure output container has the contents of the input container.
+  EXPECT_EQ(V2.size(), 4U);
+  EXPECT_TRUE(llvm::all_of(V2, HasVal));
+
+  llvm::move(std::move(V2), std::back_inserter(V3));
+
+  EXPECT_TRUE(llvm::none_of(V2, HasVal));
+  EXPECT_EQ(V3.size(), 4U);
+  EXPECT_TRUE(llvm::all_of(V3, HasVal));
+
+  llvm::move(Build(), std::back_inserter(V4));
+  EXPECT_EQ(V4.size(), 4U);
+  EXPECT_TRUE(llvm::all_of(V4, HasVal));
+}
 } // namespace

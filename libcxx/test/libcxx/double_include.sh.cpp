@@ -9,10 +9,15 @@
 
 // Test that we can include each header in two TU's and link them together.
 
-// RUN: %cxx -c %s -o %t.first.o %flags %compile_flags
-// RUN: %cxx -c %s -o %t.second.o -DWITH_MAIN %flags %compile_flags
-// RUN: %cxx -o %t.exe %t.first.o %t.second.o %flags %link_flags
-// RUN: %run
+// RUN: %{cxx} -c %s -o %t.first.o %{flags} %{compile_flags}
+// RUN: %{cxx} -c %s -o %t.second.o -DWITH_MAIN %{flags} %{compile_flags}
+// RUN: %{cxx} -o %t.exe %t.first.o %t.second.o %{flags} %{link_flags}
+// RUN: %{run}
+
+// GCC 5 pretends it supports C++17 features, but some features like static_assert
+// without a message are not actually supported. This causes some headers to fail
+// when included.
+// UNSUPPORTED: gcc-5 && c++17
 
 // Prevent <ext/hash_map> from generating deprecated warnings for this test.
 #if defined(__DEPRECATED)
@@ -48,6 +53,7 @@
 #include <compare>
 #include <complex>
 #include <complex.h>
+#include <concepts>
 #include <condition_variable>
 #include <csetjmp>
 #include <csignal>
@@ -96,6 +102,7 @@
 #include <mutex>
 #endif
 #include <new>
+#include <numbers>
 #include <numeric>
 #include <optional>
 #include <ostream>

@@ -1,4 +1,4 @@
-//===------------------ Unittests for mmap and munmap ---------------------===//
+//===-- Unittests for mmap and munmap -------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,7 +11,7 @@
 #include "src/errno/llvmlibc_errno.h"
 #include "src/sys/mman/mmap.h"
 #include "src/sys/mman/munmap.h"
-#include "utils/UnitTest/ErrnoSetterMatcher.h"
+#include "test/ErrnoSetterMatcher.h"
 #include "utils/UnitTest/Test.h"
 
 using __llvm_libc::testing::ErrnoSetterMatcher::Fails;

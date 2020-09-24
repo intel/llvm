@@ -116,24 +116,17 @@ class PPCFunctionInfo : public MachineFunctionInfo {
   /// If any of CR[2-4] need to be saved in the prologue and restored in the
   /// epilogue then they are added to this array. This is used for the
   /// 64-bit SVR4 ABI.
-  SmallVector<unsigned, 3> MustSaveCRs;
-
-  /// Hold onto our MachineFunction context.
-  MachineFunction &MF;
+  SmallVector<Register, 3> MustSaveCRs;
 
   /// Whether this uses the PIC Base register or not.
   bool UsesPICBase = false;
 
-  /// True if this function has a subset of CSRs that is handled explicitly via
-  /// copies
-  bool IsSplitCSR = false;
-
   /// We keep track attributes for each live-in virtual registers
   /// to use SExt/ZExt flags in later optimization.
-  std::vector<std::pair<unsigned, ISD::ArgFlagsTy>> LiveInAttrs;
+  std::vector<std::pair<Register, ISD::ArgFlagsTy>> LiveInAttrs;
 
 public:
-  explicit PPCFunctionInfo(MachineFunction &MF);
+  explicit PPCFunctionInfo(const MachineFunction &MF);
 
   int getFramePointerSaveIndex() const { return FramePointerSaveIndex; }
   void setFramePointerSaveIndex(int Idx) { FramePointerSaveIndex = Idx; }
@@ -207,36 +200,33 @@ public:
   void setVarArgsNumFPR(unsigned Num) { VarArgsNumFPR = Num; }
 
   /// This function associates attributes for each live-in virtual register.
-  void addLiveInAttr(unsigned VReg, ISD::ArgFlagsTy Flags) {
+  void addLiveInAttr(Register VReg, ISD::ArgFlagsTy Flags) {
     LiveInAttrs.push_back(std::make_pair(VReg, Flags));
   }
 
   /// This function returns true if the specified vreg is
   /// a live-in register and sign-extended.
-  bool isLiveInSExt(unsigned VReg) const;
+  bool isLiveInSExt(Register VReg) const;
 
   /// This function returns true if the specified vreg is
   /// a live-in register and zero-extended.
-  bool isLiveInZExt(unsigned VReg) const;
+  bool isLiveInZExt(Register VReg) const;
 
   int getCRSpillFrameIndex() const { return CRSpillFrameIndex; }
   void setCRSpillFrameIndex(int idx) { CRSpillFrameIndex = idx; }
 
-  const SmallVectorImpl<unsigned> &
+  const SmallVectorImpl<Register> &
     getMustSaveCRs() const { return MustSaveCRs; }
-  void addMustSaveCR(unsigned Reg) { MustSaveCRs.push_back(Reg); }
+  void addMustSaveCR(Register Reg) { MustSaveCRs.push_back(Reg); }
 
   void setUsesPICBase(bool uses) { UsesPICBase = uses; }
   bool usesPICBase() const { return UsesPICBase; }
 
-  bool isSplitCSR() const { return IsSplitCSR; }
-  void setIsSplitCSR(bool s) { IsSplitCSR = s; }
+  MCSymbol *getPICOffsetSymbol(MachineFunction &MF) const;
 
-  MCSymbol *getPICOffsetSymbol() const;
-
-  MCSymbol *getGlobalEPSymbol() const;
-  MCSymbol *getLocalEPSymbol() const;
-  MCSymbol *getTOCOffsetSymbol() const;
+  MCSymbol *getGlobalEPSymbol(MachineFunction &MF) const;
+  MCSymbol *getLocalEPSymbol(MachineFunction &MF) const;
+  MCSymbol *getTOCOffsetSymbol(MachineFunction &MF) const;
 };
 
 } // end namespace llvm

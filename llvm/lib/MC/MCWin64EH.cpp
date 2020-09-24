@@ -280,6 +280,9 @@ ARM64CountOfUnwindCodes(const std::vector<WinEH::Instruction> &Insns) {
     case Win64EH::UOP_AllocLarge:
       Count += 4;
       break;
+    case Win64EH::UOP_SaveR19R20X:
+      Count += 1;
+      break;
     case Win64EH::UOP_SaveFPLRX:
       Count += 1;
       break;
@@ -296,6 +299,9 @@ ARM64CountOfUnwindCodes(const std::vector<WinEH::Instruction> &Insns) {
       Count += 2;
       break;
     case Win64EH::UOP_SaveRegX:
+      Count += 2;
+      break;
+    case Win64EH::UOP_SaveLRPair:
       Count += 2;
       break;
     case Win64EH::UOP_SaveFReg:
@@ -320,6 +326,21 @@ ARM64CountOfUnwindCodes(const std::vector<WinEH::Instruction> &Insns) {
       Count += 1;
       break;
     case Win64EH::UOP_End:
+      Count += 1;
+      break;
+    case Win64EH::UOP_SaveNext:
+      Count += 1;
+      break;
+    case Win64EH::UOP_TrapFrame:
+      Count += 1;
+      break;
+    case Win64EH::UOP_PushMachFrame:
+      Count += 1;
+      break;
+    case Win64EH::UOP_Context:
+      Count += 1;
+      break;
+    case Win64EH::UOP_ClearUnwoundToCall:
       Count += 1;
       break;
     }
@@ -375,6 +396,11 @@ static void ARM64EmitUnwindCode(MCStreamer &streamer, const MCSymbol *begin,
     b = 0xE3;
     streamer.emitInt8(b);
     break;
+  case Win64EH::UOP_SaveR19R20X:
+    b = 0x20;
+    b |= (inst.Offset >> 3) & 0x1F;
+    streamer.emitInt8(b);
+    break;
   case Win64EH::UOP_SaveFPLRX:
     b = 0x80;
     b |= ((inst.Offset - 1) >> 3) & 0x3F;
@@ -417,6 +443,16 @@ static void ARM64EmitUnwindCode(MCStreamer &streamer, const MCSymbol *begin,
     b = ((reg & 0x3) << 6) | ((inst.Offset >> 3) - 1);
     streamer.emitInt8(b);
     break;
+  case Win64EH::UOP_SaveLRPair:
+    assert(inst.Register >= 19 && "Saved reg must be >= 19");
+    reg = inst.Register - 19;
+    assert((reg % 2) == 0 && "Saved reg must be 19+2*X");
+    reg /= 2;
+    b = 0xD6 | ((reg & 0x7) >> 2);
+    streamer.emitInt8(b);
+    b = ((reg & 0x3) << 6) | (inst.Offset >> 3);
+    streamer.emitInt8(b);
+    break;
   case Win64EH::UOP_SaveFReg:
     assert(inst.Register >= 8 && "Saved dreg must be >= 8");
     reg = inst.Register - 8;
@@ -451,6 +487,26 @@ static void ARM64EmitUnwindCode(MCStreamer &streamer, const MCSymbol *begin,
     break;
   case Win64EH::UOP_End:
     b = 0xE4;
+    streamer.emitInt8(b);
+    break;
+  case Win64EH::UOP_SaveNext:
+    b = 0xE6;
+    streamer.emitInt8(b);
+    break;
+  case Win64EH::UOP_TrapFrame:
+    b = 0xE8;
+    streamer.emitInt8(b);
+    break;
+  case Win64EH::UOP_PushMachFrame:
+    b = 0xE9;
+    streamer.emitInt8(b);
+    break;
+  case Win64EH::UOP_Context:
+    b = 0xEA;
+    streamer.emitInt8(b);
+    break;
+  case Win64EH::UOP_ClearUnwoundToCall:
+    b = 0xEC;
     streamer.emitInt8(b);
     break;
   }
@@ -494,6 +550,27 @@ static void ARM64EmitUnwindInfo(MCStreamer &streamer, WinEH::FrameInfo *info) {
   // If this UNWIND_INFO already has a symbol, it's already been emitted.
   if (info->Symbol)
     return;
+  // If there's no unwind info here (not even a terminating UOP_End), the
+  // unwind info is considered bogus and skipped. If this was done in
+  // response to an explicit .seh_handlerdata, the associated trailing
+  // handler data is left orphaned in the xdata section.
+  if (info->empty()) {
+    info->EmitAttempted = true;
+    return;
+  }
+  if (info->EmitAttempted) {
+    // If we tried to emit unwind info before (due to an explicit
+    // .seh_handlerdata directive), but skipped it (because there was no
+    // valid information to emit at the time), and it later got valid unwind
+    // opcodes, we can't emit it here, because the trailing handler data
+    // was already emitted elsewhere in the xdata section.
+    streamer.getContext().reportError(
+        SMLoc(), "Earlier .seh_handlerdata for " + info->Function->getName() +
+                     " skipped due to no unwind info at the time "
+                     "(.seh_handlerdata too early?), but the function later "
+                     "did get unwind info that can't be emitted");
+    return;
+  }
 
   MCContext &context = streamer.getContext();
   MCSymbol *Label = context.createTempSymbol();
@@ -504,9 +581,7 @@ static void ARM64EmitUnwindInfo(MCStreamer &streamer, WinEH::FrameInfo *info) {
 
   int64_t RawFuncLength;
   if (!info->FuncletOrFuncEnd) {
-    // FIXME: This is very wrong; we emit SEH data which covers zero bytes
-    // of code. But otherwise test/MC/AArch64/seh.s crashes.
-    RawFuncLength = 0;
+    report_fatal_error("FuncletOrFuncEnd not set");
   } else {
     // FIXME: GetAbsDifference tries to compute the length of the function
     // immediately, before the whole file is emitted, but in general
@@ -657,21 +732,40 @@ static void ARM64EmitRuntimeFunction(MCStreamer &streamer,
 void llvm::Win64EH::ARM64UnwindEmitter::Emit(MCStreamer &Streamer) const {
   // Emit the unwind info structs first.
   for (const auto &CFI : Streamer.getWinFrameInfos()) {
+    WinEH::FrameInfo *Info = CFI.get();
+    if (Info->empty())
+      continue;
     MCSection *XData = Streamer.getAssociatedXDataSection(CFI->TextSection);
     Streamer.SwitchSection(XData);
-    ARM64EmitUnwindInfo(Streamer, CFI.get());
+    ARM64EmitUnwindInfo(Streamer, Info);
   }
 
   // Now emit RUNTIME_FUNCTION entries.
   for (const auto &CFI : Streamer.getWinFrameInfos()) {
+    WinEH::FrameInfo *Info = CFI.get();
+    // ARM64EmitUnwindInfo above clears the info struct, so we can't check
+    // empty here. But if a Symbol is set, we should create the corresponding
+    // pdata entry.
+    if (!Info->Symbol)
+      continue;
     MCSection *PData = Streamer.getAssociatedPDataSection(CFI->TextSection);
     Streamer.SwitchSection(PData);
-    ARM64EmitRuntimeFunction(Streamer, CFI.get());
+    ARM64EmitRuntimeFunction(Streamer, Info);
   }
 }
 
 void llvm::Win64EH::ARM64UnwindEmitter::EmitUnwindInfo(
     MCStreamer &Streamer, WinEH::FrameInfo *info) const {
+  // Called if there's an .seh_handlerdata directive before the end of the
+  // function. This forces writing the xdata record already here - and
+  // in this case, the function isn't actually ended already, but the xdata
+  // record needs to know the function length. In these cases, if the funclet
+  // end hasn't been marked yet, the xdata function length won't cover the
+  // whole function, only up to this point.
+  if (!info->FuncletOrFuncEnd) {
+    Streamer.SwitchSection(info->TextSection);
+    info->FuncletOrFuncEnd = Streamer.emitCFILabel();
+  }
   // Switch sections (the static function above is meant to be called from
   // here and from Emit().
   MCSection *XData = Streamer.getAssociatedXDataSection(info->TextSection);

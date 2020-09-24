@@ -4,7 +4,6 @@
 // I386: "-disable-free"
 // I386: "-mrelocation-model" "static"
 // I386: "-mframe-pointer=all"
-// I386: "-masm-verbose"
 // I386: "-munwind-tables"
 // I386: "-Os"
 // I386: "-fvisibility"
@@ -167,12 +166,6 @@
 // PPCPWR8: clang
 // PPCPWR8: "-cc1"
 // PPCPWR8: "-target-cpu" "pwr8"
-
-// RUN: %clang -target powerpc64-unknown-linux-gnu \
-// RUN: -### -S %s -mcpu=a2q 2>&1 | FileCheck -check-prefix=PPCA2Q %s
-// PPCA2Q: clang
-// PPCA2Q: "-cc1"
-// PPCA2Q: "-target-cpu" "a2q"
 
 // RUN: %clang -target powerpc64-unknown-linux-gnu \
 // RUN: -### -S %s -mcpu=630 2>&1 | FileCheck -check-prefix=PPC630 %s

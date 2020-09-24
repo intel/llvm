@@ -100,7 +100,7 @@ auto fac(int n) {
 auto fac_2(int n) { // expected-note {{declared here}}
   if (n > 2)
     return n * fac_2(n-1); // expected-error {{cannot be used before it is defined}}
-  return n;
+  return n; // expected-error {{cannot initialize return object of type 'auto'}}
 }
 
 auto void_ret() {}
@@ -619,4 +619,12 @@ namespace PR33222 {
   template<> auto B<char[2]>::q() { return (int*)0; } // expected-error {{return type}}
   // FIXME: suppress this follow-on error: expected-error@-1 {{cannot initialize}}
   template<> int B<char[3]>::q() { return 0; } // expected-error {{return type}}
+}
+
+namespace PR46637 {
+  using A = auto () -> auto; // expected-error {{'auto' not allowed in type alias}}
+  using B = auto (*)() -> auto; // expected-error {{'auto' not allowed in type alias}}
+  template<auto (*)() -> auto> struct X {}; // expected-error {{'auto' not allowed in template parameter until C++17}}
+  template<typename T> struct Y { T x; };
+  Y<auto() -> auto> y; // expected-error {{'auto' not allowed in template argument}}
 }

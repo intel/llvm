@@ -33,6 +33,7 @@
 #include "llvm/Analysis/EHPersonalities.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/InlineAsm.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/CommandLine.h"
@@ -115,8 +116,7 @@ namespace {
 /// return value. We do this late so we do not disrupt the dataflow analysis in
 /// ObjCARCOpt.
 bool ObjCARCContract::optimizeRetainCall(Function &F, Instruction *Retain) {
-  ImmutableCallSite CS(GetArgRCIdentityRoot(Retain));
-  const Instruction *Call = CS.getInstruction();
+  const auto *Call = dyn_cast<CallBase>(GetArgRCIdentityRoot(Retain));
   if (!Call)
     return false;
   if (Call->getParent() != Retain->getParent())
@@ -530,6 +530,7 @@ bool ObjCARCContract::tryToPeepholeInstruction(
     return true;
   case ARCInstKind::IntrinsicUser:
     // Remove calls to @llvm.objc.clang.arc.use(...).
+    Changed = true;
     Inst->eraseFromParent();
     return true;
   default:

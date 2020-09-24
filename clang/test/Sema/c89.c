@@ -45,7 +45,7 @@ void test8(int, x);  /* expected-warning {{declaration specifier missing, defaul
 
 typedef int sometype;
 int a(sometype, y) {return 0;}  /* expected-warning {{declaration specifier missing, defaulting to 'int'}} \
-                                   expected-error {{parameter name omitted}}*/
+                                   expected-warning {{omitting the parameter name in a function definition is a C2x extension}}*/
 
 
 
@@ -65,7 +65,7 @@ void test10 (int x[*]); /* expected-warning {{variable length arrays are a C99 f
 void test11 (int x[static 4]); /* expected-warning {{static array size is a C99 feature}} */
 
 void test12 (int x[const 4]) { /* expected-warning {{qualifier in array size is a C99 feature}} */
-  int Y[x[1]]; /* expected-warning {{variable length arrays are a C99 feature}} */
+  int Y[x[1]]; /* expected-warning {{variable length arrays are a C99 feature}} expected-note {{parameter 'x'}} */
 }
 
 /* PR4074 */

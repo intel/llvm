@@ -59,6 +59,7 @@ bool CSEConfigFull::shouldCSEOpc(unsigned Opc) {
   case TargetOpcode::G_UNMERGE_VALUES:
   case TargetOpcode::G_TRUNC:
   case TargetOpcode::G_PTR_ADD:
+  case TargetOpcode::G_EXTRACT:
     return true;
   }
   return false;
@@ -217,9 +218,6 @@ void GISelCSEInfo::handleRecordedInsts() {
 }
 
 bool GISelCSEInfo::shouldCSE(unsigned Opc) const {
-  // Only GISel opcodes are CSEable
-  if (!isPreISelGenericOpcode(Opc))
-    return false;
   assert(CSEOpt.get() && "CSEConfig not set");
   return CSEOpt->shouldCSEOpc(Opc);
 }
@@ -345,13 +343,13 @@ GISelInstProfileBuilder::addNodeIDImmediate(int64_t Imm) const {
 }
 
 const GISelInstProfileBuilder &
-GISelInstProfileBuilder::addNodeIDRegNum(unsigned Reg) const {
+GISelInstProfileBuilder::addNodeIDRegNum(Register Reg) const {
   ID.AddInteger(Reg);
   return *this;
 }
 
 const GISelInstProfileBuilder &
-GISelInstProfileBuilder::addNodeIDRegType(const unsigned Reg) const {
+GISelInstProfileBuilder::addNodeIDRegType(const Register Reg) const {
   addNodeIDMachineOperand(MachineOperand::CreateReg(Reg, false));
   return *this;
 }
@@ -369,21 +367,30 @@ GISelInstProfileBuilder::addNodeIDFlag(unsigned Flag) const {
   return *this;
 }
 
+const GISelInstProfileBuilder &
+GISelInstProfileBuilder::addNodeIDReg(Register Reg) const {
+  LLT Ty = MRI.getType(Reg);
+  if (Ty.isValid())
+    addNodeIDRegType(Ty);
+
+  if (const RegClassOrRegBank &RCOrRB = MRI.getRegClassOrRegBank(Reg)) {
+    if (const auto *RB = RCOrRB.dyn_cast<const RegisterBank *>())
+      addNodeIDRegType(RB);
+    else if (const auto *RC = RCOrRB.dyn_cast<const TargetRegisterClass *>())
+      addNodeIDRegType(RC);
+  }
+  return *this;
+}
+
 const GISelInstProfileBuilder &GISelInstProfileBuilder::addNodeIDMachineOperand(
     const MachineOperand &MO) const {
   if (MO.isReg()) {
     Register Reg = MO.getReg();
     if (!MO.isDef())
       addNodeIDRegNum(Reg);
-    LLT Ty = MRI.getType(Reg);
-    if (Ty.isValid())
-      addNodeIDRegType(Ty);
-    auto *RB = MRI.getRegBankOrNull(Reg);
-    if (RB)
-      addNodeIDRegType(RB);
-    auto *RC = MRI.getRegClassOrNull(Reg);
-    if (RC)
-      addNodeIDRegType(RC);
+
+    // Profile the register properties.
+    addNodeIDReg(Reg);
     assert(!MO.isImplicit() && "Unhandled case");
   } else if (MO.isImm())
     ID.AddInteger(MO.getImm());

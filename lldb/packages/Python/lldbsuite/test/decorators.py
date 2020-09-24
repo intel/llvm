@@ -19,7 +19,6 @@ import lldb
 from . import configuration
 from . import test_categories
 from . import lldbtest_config
-from lldbsuite.test_event.event_builder import EventBuilder
 from lldbsuite.support import funcutils
 from lldbsuite.test import lldbplatform
 from lldbsuite.test import lldbplatformutil
@@ -86,7 +85,10 @@ def _match_decorator_property(expected, actual):
         return expected == actual
 
 
-def expectedFailure(expected_fn, bugnumber=None):
+def expectedFailure(func, bugnumber=None):
+    return unittest2.expectedFailure(func)
+
+def expectedFailureIfFn(expected_fn, bugnumber=None):
     def expectedFailure_impl(func):
         if isinstance(func, type) and issubclass(func, unittest2.TestCase):
             raise Exception(
@@ -94,16 +96,8 @@ def expectedFailure(expected_fn, bugnumber=None):
 
         @wraps(func)
         def wrapper(*args, **kwargs):
-            self = args[0]
-            if funcutils.requires_self(expected_fn):
-                xfail_reason = expected_fn(self)
-            else:
-                xfail_reason = expected_fn()
+            xfail_reason = expected_fn(*args, **kwargs)
             if xfail_reason is not None:
-                if configuration.results_formatter_object is not None:
-                    # Mark this test as expected to fail.
-                    configuration.results_formatter_object.handle_event(
-                        EventBuilder.event_for_mark_test_expected_failure(self))
                 xfail_func = unittest2.expectedFailure(func)
                 xfail_func(*args, **kwargs)
             else:
@@ -137,7 +131,7 @@ def skipTestIfFn(expected_fn, bugnumber=None):
             if reason is not None:
                 self.skipTest(reason)
             else:
-                func(*args, **kwargs)
+                return func(*args, **kwargs)
         return wrapper
 
     # Some decorators can be called both with no arguments (e.g. @expectedFailureWindows)
@@ -239,7 +233,7 @@ def _decorateTest(mode,
     if mode == DecorateMode.Skip:
         return skipTestIfFn(fn, bugnumber)
     elif mode == DecorateMode.Xfail:
-        return expectedFailure(fn, bugnumber)
+        return expectedFailureIfFn(fn, bugnumber)
     else:
         return None
 
@@ -411,14 +405,15 @@ def expectedFailureOS(
         debug_info=debug_info)
 
 
-def expectedFailureDarwin(bugnumber=None, compilers=None, debug_info=None):
+def expectedFailureDarwin(bugnumber=None, compilers=None, debug_info=None, archs=None):
     # For legacy reasons, we support both "darwin" and "macosx" as OS X
     # triples.
     return expectedFailureOS(
         lldbplatform.darwin_all,
         bugnumber,
         compilers,
-        debug_info=debug_info)
+        debug_info=debug_info,
+        archs=archs)
 
 
 def expectedFailureAndroid(bugnumber=None, api_levels=None, archs=None):
@@ -431,7 +426,7 @@ def expectedFailureAndroid(bugnumber=None, api_levels=None, archs=None):
         arch - A sequence of architecture names specifying the architectures
             for which a test is expected to fail. None means all architectures.
     """
-    return expectedFailure(
+    return expectedFailureIfFn(
         _skip_for_android(
             "xfailing on android",
             api_levels,
@@ -444,21 +439,11 @@ def expectedFailureNetBSD(bugnumber=None):
         ['netbsd'],
         bugnumber)
 
-# Flakey tests get two chances to run. If they fail the first time round, the result formatter
-# makes sure it is run one more time.
-
-
+# TODO: This decorator does not do anything. Remove it.
 def expectedFlakey(expected_fn, bugnumber=None):
     def expectedFailure_impl(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            self = args[0]
-            if expected_fn(self):
-                # Send event marking test as explicitly eligible for rerunning.
-                if configuration.results_formatter_object is not None:
-                    # Mark this test as rerunnable.
-                    configuration.results_formatter_object.handle_event(
-                        EventBuilder.event_for_mark_test_rerun_eligible(self))
             func(*args, **kwargs)
         return wrapper
     # Some decorators can be called both with no arguments (e.g. @expectedFailureWindows)
@@ -516,9 +501,7 @@ def skipIfOutOfTreeDebugserver(func):
 
 def skipIfRemote(func):
     """Decorate the item to skip tests if testing remotely."""
-    def is_remote():
-        return "skip on remote platform" if lldb.remote_platform else None
-    return skipTestIfFn(is_remote)(func)
+    return unittest2.skipIf(lldb.remote_platform, "skip on remote platform")(func)
 
 
 def skipIfNoSBHeaders(func):
@@ -527,10 +510,9 @@ def skipIfNoSBHeaders(func):
         if lldb.remote_platform:
             return "skip because SBHeaders tests make no sense remotely"
 
-        if lldbplatformutil.getHostPlatform() == 'darwin':
+        if lldbplatformutil.getHostPlatform() == 'darwin' and configuration.lldb_framework_path:
             header = os.path.join(
-                os.environ["LLDB_LIB_DIR"],
-                'LLDB.framework',
+                configuration.lldb_framework_path,
                 'Versions',
                 'Current',
                 'Headers',
@@ -550,6 +532,15 @@ def skipIfNoSBHeaders(func):
 
     return skipTestIfFn(are_sb_headers_missing)(func)
 
+
+def skipIfRosetta(bugnumber):
+    """Skip a test when running the testsuite on macOS under the Rosetta translation layer."""
+    def is_running_rosetta(self):
+        if lldbplatformutil.getPlatform() in ['darwin', 'macosx']:
+            if (platform.uname()[5] == "arm") and (self.getArchitecture() == "x86_64"):
+                return "skipped under Rosetta"
+        return None
+    return skipTestIfFn(is_running_rosetta)
 
 def skipIfiOSSimulator(func):
     """Decorate the item to skip tests that should be skipped on the iOS Simulator."""
@@ -719,6 +710,9 @@ def skipUnlessThreadSanitizer(func):
     """Decorate the item to skip test unless Clang -fsanitize=thread is supported."""
 
     def is_compiler_clang_with_thread_sanitizer(self):
+        if is_running_under_asan():
+            return "Thread sanitizer tests are disabled when runing under ASAN"
+
         compiler_path = self.getCompiler()
         compiler = os.path.basename(compiler_path)
         if not compiler.startswith("clang"):
@@ -742,6 +736,9 @@ def skipUnlessUndefinedBehaviorSanitizer(func):
     """Decorate the item to skip test unless -fsanitize=undefined is supported."""
 
     def is_compiler_clang_with_ubsan(self):
+        if is_running_under_asan():
+            return "Undefined behavior sanitizer tests are disabled when runing under ASAN"
+
         # Write out a temp file which exhibits UB.
         inputf = tempfile.NamedTemporaryFile(suffix='.c', mode='w')
         inputf.write('int main() { int x = 0; return x / x; }\n')
@@ -785,10 +782,21 @@ def skipUnlessUndefinedBehaviorSanitizer(func):
 
     return skipTestIfFn(is_compiler_clang_with_ubsan)(func)
 
+def is_running_under_asan():
+    if ('ASAN_OPTIONS' in os.environ):
+        return "ASAN unsupported"
+    return None
+
 def skipUnlessAddressSanitizer(func):
     """Decorate the item to skip test unless Clang -fsanitize=thread is supported."""
 
     def is_compiler_with_address_sanitizer(self):
+        # Also don't run tests that use address sanitizer inside an
+        # address-sanitized LLDB. The tests don't support that
+        # configuration.
+        if is_running_under_asan():
+            return "Address sanitizer tests are disabled when runing under ASAN"
+
         compiler_path = self.getCompiler()
         compiler = os.path.basename(compiler_path)
         f = tempfile.NamedTemporaryFile()
@@ -802,6 +810,10 @@ def skipUnlessAddressSanitizer(func):
             return "Compiler cannot compile with -fsanitize=address"
         return None
     return skipTestIfFn(is_compiler_with_address_sanitizer)(func)
+
+def skipIfAsan(func):
+    """Skip this test if the environment is set up to run LLDB *itself* under ASAN."""
+    return skipTestIfFn(is_running_under_asan)(func)
 
 def _get_bool_config_skip_if_decorator(key):
     config = lldb.SBDebugger.GetBuildConfiguration()
@@ -847,10 +859,8 @@ def skipUnlessFeature(feature):
                 return "%s is not supported on this system." % feature
     return skipTestIfFn(is_feature_enabled)
 
-def skipIfAsan(func):
-    """Skip this test if the environment is set up to run LLDB itself under ASAN."""
-    def is_asan():
-        if ('ASAN_OPTIONS' in os.environ):
-            return "ASAN unsupported"
-        return None
-    return skipTestIfFn(is_asan)(func)
+def skipIfReproducer(func):
+    """Skip this test if the environment is set up to run LLDB with reproducers."""
+    return unittest2.skipIf(
+        configuration.capture_path or configuration.replay_path,
+        "reproducers unsupported")(func)

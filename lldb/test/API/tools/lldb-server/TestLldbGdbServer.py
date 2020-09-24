@@ -10,9 +10,6 @@ gdb remote packet functional areas.  For now it contains
 the initial set of tests implemented.
 """
 
-from __future__ import division, print_function
-
-
 import unittest2
 import gdbremote_testcase
 import lldbgdbserverutils
@@ -645,7 +642,7 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.run_process_then_stop(run_seconds=1)
 
         # Wait at most x seconds for 3 threads to be present.
-        threads = self.wait_for_thread_count(3, timeout_seconds=self._WAIT_TIMEOUT)
+        threads = self.wait_for_thread_count(3)
         self.assertEqual(len(threads), 3)
 
         # verify we can $H to each thead, and $qC matches the thread we set.
@@ -726,7 +723,7 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         # context = self.run_process_then_stop(run_seconds=1)
 
         # Wait at most x seconds for all threads to be present.
-        # threads = self.wait_for_thread_count(NUM_THREADS, timeout_seconds=5)
+        # threads = self.wait_for_thread_count(NUM_THREADS)
         # self.assertEquals(len(threads), NUM_THREADS)
 
         signaled_tids = {}
@@ -742,7 +739,7 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
                                                             2: "thread_id"}}],
                                              True)
 
-            context = self.expect_gdbremote_sequence(timeout_seconds=self._DEFAULT_TIMEOUT)
+            context = self.expect_gdbremote_sequence()
             self.assertIsNotNone(context)
             signo = context.get("signo")
             self.assertEqual(int(signo, 16), segfault_signo)
@@ -778,8 +775,7 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
                 True)
 
             # Run the sequence.
-            context = self.expect_gdbremote_sequence(
-                timeout_seconds=self._DEFAULT_TIMEOUT)
+            context = self.expect_gdbremote_sequence()
             self.assertIsNotNone(context)
 
             # Ensure the stop signal is the signal we delivered.
@@ -811,7 +807,7 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
             post_handle_thread_id = int(post_handle_thread_id, 16)
             self.assertEqual(post_handle_thread_id, print_thread_id)
 
-    @unittest2.expectedFailure()
+    @expectedFailure
     @debugserver_test
     @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
     def test_Hc_then_Csignal_signals_correct_thread_launch_debugserver(self):
@@ -1442,7 +1438,7 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         # Write flipped bit pattern of existing value to each register.
         (successful_writes, failed_writes) = self.flip_all_bits_in_each_register_value(
             gpr_reg_infos, endian)
-        # print("successful writes: {}, failed writes: {}".format(successful_writes, failed_writes))
+        self.trace("successful writes: {}, failed writes: {}".format(successful_writes, failed_writes))
         self.assertTrue(successful_writes > 0)
 
     # Note: as of this moment, a hefty number of the GPR writes are failing with E32 (everything except rax-rdx, rdi, rsi, rbp).
@@ -1494,7 +1490,7 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.assertIsNotNone(context)
 
         # Wait for 3 threads to be present.
-        threads = self.wait_for_thread_count(3, timeout_seconds=self._WAIT_TIMEOUT)
+        threads = self.wait_for_thread_count(3)
         self.assertEqual(len(threads), 3)
 
         expected_reg_values = []

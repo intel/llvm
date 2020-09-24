@@ -406,7 +406,7 @@ ProgramStateRef ObjCDeallocChecker::evalAssume(ProgramStateRef State, SVal Cond,
   if (State->get<UnreleasedIvarMap>().isEmpty())
     return State;
 
-  auto *CondBSE = dyn_cast_or_null<BinarySymExpr>(Cond.getAsSymExpr());
+  auto *CondBSE = dyn_cast_or_null<BinarySymExpr>(Cond.getAsSymbol());
   if (!CondBSE)
     return State;
 
@@ -1088,7 +1088,8 @@ void ento::registerObjCDeallocChecker(CheckerManager &Mgr) {
   Mgr.registerChecker<ObjCDeallocChecker>();
 }
 
-bool ento::shouldRegisterObjCDeallocChecker(const LangOptions &LO) {
+bool ento::shouldRegisterObjCDeallocChecker(const CheckerManager &mgr) {
   // These checker only makes sense under MRR.
+  const LangOptions &LO = mgr.getLangOpts();
   return LO.getGC() != LangOptions::GCOnly && !LO.ObjCAutoRefCount;
 }

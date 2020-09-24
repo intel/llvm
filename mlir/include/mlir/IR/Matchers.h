@@ -72,7 +72,7 @@ template <typename AttrT> struct constant_op_binder {
     SmallVector<OpFoldResult, 1> foldedOp;
     LogicalResult result = op->fold(/*operands=*/llvm::None, foldedOp);
     (void)result;
-    assert(succeeded(result) && "expected constant to be foldable");
+    assert(succeeded(result) && "expected ConstantLike op to be foldable");
 
     if (auto attr = foldedOp.front().get<Attribute>().dyn_cast<AttrT>()) {
       if (bind_value)
@@ -97,9 +97,9 @@ struct constant_int_op_binder {
       return false;
     auto type = op->getResult(0).getType();
 
-    if (type.isa<IntegerType>() || type.isa<IndexType>())
+    if (type.isa<IntegerType, IndexType>())
       return attr_value_binder<IntegerAttr>(bind_value).match(attr);
-    if (type.isa<VectorType>() || type.isa<RankedTensorType>()) {
+    if (type.isa<VectorType, RankedTensorType>()) {
       if (auto splatAttr = attr.dyn_cast<SplatElementsAttr>()) {
         return attr_value_binder<IntegerAttr>(bind_value)
             .match(splatAttr.getSplatValue());
@@ -140,18 +140,20 @@ using has_operation_or_value_matcher_t =
 
 /// Statically switch to a Value matcher.
 template <typename MatcherClass>
-typename std::enable_if_t<is_detected<detail::has_operation_or_value_matcher_t,
-                                      MatcherClass, Value>::value,
-                          bool>
+typename std::enable_if_t<
+    llvm::is_detected<detail::has_operation_or_value_matcher_t, MatcherClass,
+                      Value>::value,
+    bool>
 matchOperandOrValueAtIndex(Operation *op, unsigned idx, MatcherClass &matcher) {
   return matcher.match(op->getOperand(idx));
 }
 
 /// Statically switch to an Operation matcher.
 template <typename MatcherClass>
-typename std::enable_if_t<is_detected<detail::has_operation_or_value_matcher_t,
-                                      MatcherClass, Operation *>::value,
-                          bool>
+typename std::enable_if_t<
+    llvm::is_detected<detail::has_operation_or_value_matcher_t, MatcherClass,
+                      Operation *>::value,
+    bool>
 matchOperandOrValueAtIndex(Operation *op, unsigned idx, MatcherClass &matcher) {
   if (auto defOp = op->getOperand(idx).getDefiningOp())
     return matcher.match(defOp);

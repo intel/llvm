@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // test quick_exit and at_quick_exit
 
@@ -17,7 +17,7 @@ void f() {}
 
 int main(int, char**)
 {
-#ifdef _LIBCPP_HAS_QUICK_EXIT
+#ifdef TEST_HAS_QUICK_EXIT
     std::at_quick_exit(f);
     std::quick_exit(0);
 #endif

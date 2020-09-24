@@ -14,22 +14,23 @@
 #include "Target.h"
 #include "lld/Common/Memory.h"
 #include "lld/Common/Strings.h"
-#include "lld/Common/Threads.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/Support/Compression.h"
 #include "llvm/Support/MD5.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Support/Parallel.h"
 #include "llvm/Support/SHA1.h"
 #include <regex>
+#include <unordered_set>
 
 using namespace llvm;
 using namespace llvm::dwarf;
 using namespace llvm::object;
 using namespace llvm::support::endian;
 using namespace llvm::ELF;
+using namespace lld;
+using namespace lld::elf;
 
-namespace lld {
-namespace elf {
 uint8_t *Out::bufferStart;
 uint8_t Out::first;
 PhdrEntry *Out::tlsPhdr;
@@ -39,7 +40,7 @@ OutputSection *Out::preinitArray;
 OutputSection *Out::initArray;
 OutputSection *Out::finiArray;
 
-std::vector<OutputSection *> outputSections;
+std::vector<OutputSection *> elf::outputSections;
 
 uint32_t OutputSection::getPhdrFlags() const {
   uint32_t ret = 0;
@@ -77,10 +78,14 @@ OutputSection::OutputSection(StringRef name, uint32_t type, uint64_t flags)
 // to be allocated for nobits sections. Other ones don't require
 // any special treatment on top of progbits, so there doesn't
 // seem to be a harm in merging them.
+//
+// NOTE: clang since rL252300 emits SHT_X86_64_UNWIND .eh_frame sections. Allow
+// them to be merged into SHT_PROGBITS .eh_frame (GNU as .cfi_*).
 static bool canMergeToProgbits(unsigned type) {
   return type == SHT_NOBITS || type == SHT_PROGBITS || type == SHT_INIT_ARRAY ||
          type == SHT_PREINIT_ARRAY || type == SHT_FINI_ARRAY ||
-         type == SHT_NOTE;
+         type == SHT_NOTE ||
+         (type == SHT_X86_64_UNWIND && config->emachine == EM_X86_64);
 }
 
 // Record that isec will be placed in the OutputSection. isec does not become
@@ -114,8 +119,7 @@ void OutputSection::commitSection(InputSection *isec) {
     flags = isec->flags;
   } else {
     // Otherwise, check if new type or flags are compatible with existing ones.
-    unsigned mask = SHF_TLS | SHF_LINK_ORDER;
-    if ((flags & mask) != (isec->flags & mask))
+    if ((flags ^ isec->flags) & SHF_TLS)
       error("incompatible section flags for " + name + "\n>>> " + toString(isec) +
             ": 0x" + utohexstr(isec->flags) + "\n>>> output section " + name +
             ": 0x" + utohexstr(flags));
@@ -226,7 +230,7 @@ static void sortByOrder(MutableArrayRef<InputSection *> in,
     in[i] = v[i].second;
 }
 
-uint64_t getHeaderSize() {
+uint64_t elf::getHeaderSize() {
   if (config->oFormatBinary)
     return 0;
   return Out::elfHeader->size + Out::programHeaders->size;
@@ -241,6 +245,25 @@ void OutputSection::sort(llvm::function_ref<int(InputSectionBase *s)> order) {
   for (BaseCommand *b : sectionCommands)
     if (auto *isd = dyn_cast<InputSectionDescription>(b))
       sortByOrder(isd->sections, order);
+}
+
+static void nopInstrFill(uint8_t *buf, size_t size) {
+  if (size == 0)
+    return;
+  unsigned i = 0;
+  if (size == 0)
+    return;
+  std::vector<std::vector<uint8_t>> nopFiller = *target->nopInstrs;
+  unsigned num = size / nopFiller.back().size();
+  for (unsigned c = 0; c < num; ++c) {
+    memcpy(buf + i, nopFiller.back().data(), nopFiller.back().size());
+    i += nopFiller.back().size();
+  }
+  unsigned remaining = size - i;
+  if (!remaining)
+    return;
+  assert(nopFiller[remaining - 1].size() == remaining);
+  memcpy(buf + i, nopFiller[remaining - 1].data(), remaining);
 }
 
 // Fill [Buf, Buf + Size) with Filler.
@@ -331,7 +354,11 @@ template <class ELFT> void OutputSection::writeTo(uint8_t *buf) {
         end = buf + size;
       else
         end = buf + sections[i + 1]->outSecOff;
-      fill(start, end - start, filler);
+      if (isec->nopFiller) {
+        assert(target->nopInstrs);
+        nopInstrFill(start, end - start);
+      } else
+        fill(start, end - start, filler);
     }
   });
 
@@ -354,6 +381,15 @@ static void finalizeShtGroup(OutputSection *os,
   // provides signature of the section group.
   ArrayRef<Symbol *> symbols = section->file->getSymbols();
   os->info = in.symTab->getSymbolIndex(symbols[section->info]);
+
+  // Some group members may be combined or discarded, so we need to compute the
+  // new size. The content will be rewritten in InputSection::copyShtGroup.
+  std::unordered_set<uint32_t> seen;
+  ArrayRef<InputSectionBase *> sections = section->file->getSections();
+  for (const uint32_t &idx : section->getDataAs<uint32_t>().slice(1))
+    if (OutputSection *osec = sections[read32(&idx)]->getOutputSection())
+      seen.insert(osec->sectionIndex);
+  os->size = (1 + seen.size()) * sizeof(uint32_t);
 }
 
 void OutputSection::finalize() {
@@ -366,8 +402,9 @@ void OutputSection::finalize() {
     // all InputSections in the OutputSection have the same dependency.
     if (auto *ex = dyn_cast<ARMExidxSyntheticSection>(first))
       link = ex->getLinkOrderDep()->getParent()->sectionIndex;
-    else if (auto *d = first->getLinkOrderDep())
-      link = d->getParent()->sectionIndex;
+    else if (first->flags & SHF_LINK_ORDER)
+      if (auto *d = first->getLinkOrderDep())
+        link = d->getParent()->sectionIndex;
   }
 
   if (type == SHT_GROUP) {
@@ -455,7 +492,7 @@ void OutputSection::sortCtorsDtors() {
 // If an input string is in the form of "foo.N" where N is a number,
 // return N. Otherwise, returns 65536, which is one greater than the
 // lowest priority.
-int getPriority(StringRef s) {
+int elf::getPriority(StringRef s) {
   size_t pos = s.rfind('.');
   if (pos == StringRef::npos)
     return 65536;
@@ -465,7 +502,7 @@ int getPriority(StringRef s) {
   return v;
 }
 
-InputSection *getFirstInputSection(const OutputSection *os) {
+InputSection *elf::getFirstInputSection(const OutputSection *os) {
   for (BaseCommand *base : os->sectionCommands)
     if (auto *isd = dyn_cast<InputSectionDescription>(base))
       if (!isd->sections.empty())
@@ -473,7 +510,7 @@ InputSection *getFirstInputSection(const OutputSection *os) {
   return nullptr;
 }
 
-std::vector<InputSection *> getInputSections(const OutputSection *os) {
+std::vector<InputSection *> elf::getInputSections(const OutputSection *os) {
   std::vector<InputSection *> ret;
   for (BaseCommand *base : os->sectionCommands)
     if (auto *isd = dyn_cast<InputSectionDescription>(base))
@@ -514,6 +551,3 @@ template void OutputSection::maybeCompress<ELF32LE>();
 template void OutputSection::maybeCompress<ELF32BE>();
 template void OutputSection::maybeCompress<ELF64LE>();
 template void OutputSection::maybeCompress<ELF64BE>();
-
-} // namespace elf
-} // namespace lld

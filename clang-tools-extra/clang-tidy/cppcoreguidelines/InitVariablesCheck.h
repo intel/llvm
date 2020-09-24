@@ -24,14 +24,14 @@ namespace cppcoreguidelines {
 class InitVariablesCheck : public ClangTidyCheck {
 public:
   InitVariablesCheck(StringRef Name, ClangTidyContext *Context);
+  void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
   void registerPPCallbacks(const SourceManager &SM, Preprocessor *PP,
                            Preprocessor *ModuleExpanderPP) override;
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 
 private:
-  std::unique_ptr<clang::tidy::utils::IncludeInserter> IncludeInserter;
-  const utils::IncludeSorter::IncludeStyle IncludeStyle;
+  utils::IncludeInserter IncludeInserter;
   const std::string MathHeader;
 };
 

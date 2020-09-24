@@ -31,15 +31,15 @@ class SuspendedThreadsListMac : public SuspendedThreadsList {
  public:
   SuspendedThreadsListMac() : threads_(1024) {}
 
-  tid_t GetThreadID(uptr index) const;
+  tid_t GetThreadID(uptr index) const override;
   thread_t GetThread(uptr index) const;
-  uptr ThreadCount() const;
+  uptr ThreadCount() const override;
   bool ContainsThread(thread_t thread) const;
   void Append(thread_t thread);
 
   PtraceRegistersStatus GetRegistersAndSP(uptr index, uptr *buffer,
-                                          uptr *sp) const;
-  uptr RegisterCount() const;
+                                          uptr *sp) const override;
+  uptr RegisterCount() const override;
 
  private:
   InternalMmapVector<SuspendedThreadInfo> threads_;
@@ -160,7 +160,11 @@ PtraceRegistersStatus SuspendedThreadsListMac::GetRegistersAndSP(
   }
 
   internal_memcpy(buffer, &regs, sizeof(regs));
+#if defined(__aarch64__) && defined(arm_thread_state64_get_sp)
+  *sp = arm_thread_state64_get_sp(regs);
+#else
   *sp = regs.SP_REG;
+#endif
 
   // On x86_64 and aarch64, we must account for the stack redzone, which is 128
   // bytes.

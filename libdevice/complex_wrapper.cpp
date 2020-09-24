@@ -6,8 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "device.h"
 #include "device_complex.h"
+
+#ifdef __SPIR__
 
 DEVICE_EXTERN_C
 float cimagf(float __complex__ z) { return __devicelib_cimagf(z); }
@@ -98,3 +99,4 @@ DEVICE_EXTERN_C
 float __complex__ __divsc3(float __a, float __b, float __c, float __d) {
   return __devicelib___divsc3(__a, __b, __c, __d);
 }
+#endif // __SPIR__

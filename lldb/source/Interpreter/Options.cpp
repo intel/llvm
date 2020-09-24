@@ -798,7 +798,8 @@ void Options::HandleOptionArgumentCompletion(
               interpreter.GetDebugger().GetSelectedTarget();
           // Search filters require a target...
           if (target_sp)
-            filter_up.reset(new SearchFilterByModule(target_sp, module_spec));
+            filter_up =
+                std::make_unique<SearchFilterByModule>(target_sp, module_spec);
         }
         break;
       }
@@ -1307,7 +1308,7 @@ llvm::Expected<Args> Options::Parse(const Args &args,
                               &long_options_index);
 
     if (val == ':') {
-      error.SetErrorStringWithFormat("last option requires an argument");
+      error.SetErrorString("last option requires an argument");
       break;
     }
 
@@ -1316,7 +1317,7 @@ llvm::Expected<Args> Options::Parse(const Args &args,
 
     // Did we get an error?
     if (val == '?') {
-      error.SetErrorStringWithFormat("unknown or ambiguous option");
+      error.SetErrorString("unknown or ambiguous option");
       break;
     }
     // The option auto-set itself

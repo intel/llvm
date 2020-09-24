@@ -78,8 +78,7 @@ convertToFloat4(vec<T, 4> Coords) {
 // ptr.
 template <typename T>
 detail::enable_if_t<std::is_integral<T>::value, size_t>
-getImageOffset(const T &Coords, const id<3> ImgPitch,
-               const uint8_t ElementSize) {
+getImageOffset(const T &Coords, const id<3>, const uint8_t ElementSize) {
   return Coords * ElementSize;
 }
 
@@ -197,9 +196,6 @@ vec<T, 4> readPixel(T *Ptr, const image_channel_order ChannelOrder,
     Pixel.y() = Ptr[2]; // g
     Pixel.x() = Ptr[3]; // r
     break;
-  default:
-    throw cl::sycl::invalid_parameter_error("Unhandled image channel order",
-                                            PI_INVALID_VALUE);
   }
 
   return Pixel;
@@ -270,9 +266,6 @@ void writePixel(const vec<T, 4> Pixel, T *Ptr,
     Ptr[2] = Pixel.y(); // g
     Ptr[3] = Pixel.x(); // r
     break;
-  default:
-    throw cl::sycl::invalid_parameter_error("Unhandled image channel order",
-                                            PI_INVALID_VALUE);
   }
 }
 
@@ -414,8 +407,6 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
   case image_channel_type::fp32:
     RetData = PixelData.template convert<cl_float>();
     break;
-  default:
-    break;
   }
 }
 
@@ -423,12 +414,26 @@ template <typename ChannelType>
 void convertReadData(const vec<ChannelType, 4> PixelData,
                      const image_channel_type ImageChannelType,
                      vec<cl_half, 4> &RetData) {
-
+  vec<cl_float, 4> RetDataFloat;
   switch (ImageChannelType) {
   case image_channel_type::snorm_int8:
+    //  max(-1.0f, (half)c / 127.0f)
+    RetDataFloat = (PixelData.template convert<cl_float>()) / 127.0f;
+    RetDataFloat = cl::sycl::fmax(RetDataFloat, -1);
+    break;
   case image_channel_type::snorm_int16:
+    // max(-1.0f, (half)c / 32767.0f)
+    RetDataFloat = (PixelData.template convert<cl_float>()) / 32767.0f;
+    RetDataFloat = cl::sycl::fmax(RetDataFloat, -1);
+    break;
   case image_channel_type::unorm_int8:
+    // (half)c / 255.0f
+    RetDataFloat = (PixelData.template convert<cl_float>()) / 255.0f;
+    break;
   case image_channel_type::unorm_int16:
+    // (half)c / 65535.0f
+    RetDataFloat = (PixelData.template convert<cl_float>()) / 65535.0f;
+    break;
   case image_channel_type::unorm_short_565:
   case image_channel_type::unorm_short_555:
   case image_channel_type::unorm_int_101010:
@@ -452,15 +457,14 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
         PI_INVALID_VALUE);
   case image_channel_type::fp16:
     RetData = PixelData.template convert<cl_half>();
-    break;
+    return;
   case image_channel_type::fp32:
     throw cl::sycl::invalid_parameter_error(
         "Datatype to read - cl_half4 is incompatible with the "
         "image_channel_type of the image.",
         PI_INVALID_VALUE);
-  default:
-    break;
   }
+  RetData = RetDataFloat.template convert<cl_half>();
 }
 
 // Converts data to write into appropriate datatype based on the channel of the
@@ -620,8 +624,6 @@ convertWriteData(const vec<cl_float, 4> WriteData,
     return WriteData.convert<ChannelType>();
   case image_channel_type::fp32:
     return WriteData.convert<ChannelType>();
-  default:
-    break;
   }
 }
 
@@ -629,12 +631,20 @@ template <typename ChannelType>
 vec<ChannelType, 4>
 convertWriteData(const vec<cl_half, 4> WriteData,
                  const image_channel_type ImageChannelType) {
-
+  vec<cl_float, 4> WriteDataFloat = WriteData.convert<cl_float>();
   switch (ImageChannelType) {
   case image_channel_type::snorm_int8:
+    // convert_char_sat_rte(h * 127.0f)
+    return processFloatDataToPixel<ChannelType>(WriteDataFloat, 127.0f);
   case image_channel_type::snorm_int16:
+    // convert_short_sat_rte(h * 32767.0f)
+    return processFloatDataToPixel<ChannelType>(WriteDataFloat, 32767.0f);
   case image_channel_type::unorm_int8:
+    // convert_uchar_sat_rte(h * 255.0f)
+    return processFloatDataToPixel<ChannelType>(WriteDataFloat, 255.0f);
   case image_channel_type::unorm_int16:
+    // convert_ushort_sat_rte(h * 65535.0f)
+    return processFloatDataToPixel<ChannelType>(WriteDataFloat, 65535.0f);
   case image_channel_type::unorm_short_565:
   case image_channel_type::unorm_short_555:
   case image_channel_type::unorm_int_101010:
@@ -663,8 +673,6 @@ convertWriteData(const vec<cl_half, 4> WriteData,
         "Datatype of data to write - cl_float4 is incompatible with the "
         "image_channel_type of the image.",
         PI_INVALID_VALUE);
-  default:
-    break;
   }
 }
 
@@ -994,10 +1002,13 @@ DataT ReadPixelDataLinearFiltMode(const cl_int8 CoordValues,
 //     ImgChannelType.
 //   Convert to DataT as per conversion rules in section 8.3 in OpenCL Spec.
 //
-// TODO:
-// Extend support for Step2 and Step3 for Linear Filtering Mode.
-// Extend support to find out of bounds Coordinates and return appropriate
-// value based on Addressing Mode.
+// TODO: Add additional check for half datatype read.
+// Based on OpenCL spec 2.0:
+// "The read_imageh calls that take integer coordinates must use a sampler with
+// filter mode set to CLK_FILTER_NEAREST, normalized coordinates set to
+// CLK_NORMALIZED_COORDS_FALSE and addressing mode set to
+// CLK_ADDRESS_CLAMP_TO_EDGE, CLK_ADDRESS_CLAMP or CLK_ADDRESS_NONE; otherwise
+// the values returned are undefined."
 
 template <typename CoordT, typename DataT>
 DataT imageReadSamplerHostImpl(const CoordT &Coords, const sampler &Smpl,

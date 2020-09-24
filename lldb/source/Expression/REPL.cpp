@@ -216,7 +216,7 @@ void REPL::IOHandlerInputComplete(IOHandler &io_handler, std::string &code) {
           ci.SetPromptOnQuit(false);
 
         // Execute the command
-        CommandReturnObject result;
+        CommandReturnObject result(debugger.GetUseColor());
         result.SetImmediateOutputStream(output_sp);
         result.SetImmediateErrorStream(error_sp);
         ci.HandleCommand(code.c_str(), eLazyBoolNo, result);
@@ -388,6 +388,11 @@ void REPL::IOHandlerInputComplete(IOHandler &io_handler, std::string &code) {
             error_sp->Printf("error: stopped for debug -- %s\n",
                              error.AsCString());
             break;
+          case lldb::eExpressionThreadVanished:
+            // Shoulnd't happen???
+            error_sp->Printf("error: expression thread vanished -- %s\n",
+                             error.AsCString());
+            break;
           }
         }
 
@@ -452,6 +457,10 @@ void REPL::IOHandlerComplete(IOHandler &io_handler,
     debugger.GetCommandInterpreter().HandleCompletion(sub_request);
     StringList matches, descriptions;
     sub_result.GetMatches(matches);
+    // Prepend command prefix that was excluded in the completion request.
+    if (request.GetCursorIndex() == 0)
+      for (auto &match : matches)
+        match.insert(0, 1, ':');
     sub_result.GetDescriptions(descriptions);
     request.AddCompletions(matches, descriptions);
     return;

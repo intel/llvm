@@ -102,7 +102,7 @@ namespace PtrMem {
   static_assert(!is_same<Ab, Abce>, ""); // expected-error {{undeclared}} expected-error {{must be a type}}
   static_assert(!is_same<Ab, Abde>, ""); // expected-error {{undeclared}} expected-error {{must be a type}}
   static_assert(!is_same<Abce, Abde>, ""); // expected-error 2{{undeclared}} expected-error {{must be a type}}
-  static_assert(is_same<Abce, A<int B::*, (int B::*)(int C::*)&E::e>, ""); // expected-error {{undeclared}} expected-error {{not supported}}
+  static_assert(is_same<Abce, A<int B::*, (int B::*)(int C::*)&E::e>>, ""); // expected-error {{undeclared}} expected-error {{not supported}}
 
   using Ae = A<int E::*, e>;
   using Ae = A<int E::*, &E::e>;
@@ -111,7 +111,7 @@ namespace PtrMem {
   static_assert(!is_same<Ae, Aecb>, ""); // expected-error {{undeclared}} expected-error {{must be a type}}
   static_assert(!is_same<Ae, Aedb>, ""); // expected-error {{undeclared}} expected-error {{must be a type}}
   static_assert(!is_same<Aecb, Aedb>, ""); // expected-error 2{{undeclared}} expected-error {{must be a type}}
-  static_assert(is_same<Aecb, A<int E::*, (int E::*)(int C::*)&B::b>, ""); // expected-error {{undeclared}} expected-error {{not supported}}
+  static_assert(is_same<Aecb, A<int E::*, (int E::*)(int C::*)&B::b>>, ""); // expected-error {{undeclared}} expected-error {{not supported}}
 
   using An = A<int E::*, nullptr>;
   using A0 = A<int E::*, (int E::*)0>;
@@ -447,4 +447,15 @@ namespace PR42108 {
     // directly. It's unclear whether that's the intent.
     A<T{}>(); // expected-error {{non-type template argument is not a constant expression}} expected-note 2{{temporary}}
   }
+}
+
+namespace PR46637 {
+  template<auto (*f)() -> auto> struct X { // expected-note {{here}}
+    auto call() { return f(); }
+  };
+  X<nullptr> x; // expected-error {{incompatible initializer}}
+
+  void *f();
+  X<f> y;
+  int n = y.call(); // expected-error {{cannot initialize a variable of type 'int' with an rvalue of type 'void *'}}
 }

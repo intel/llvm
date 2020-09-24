@@ -1,4 +1,5 @@
-; RUN: opt -scalar-evolution-max-arith-depth=0 -scalar-evolution-max-cast-depth=0 -analyze -scalar-evolution < %s | FileCheck %s
+; RUN: opt -scalar-evolution-max-arith-depth=0 -scalar-evolution-max-cast-depth=0 -analyze -enable-new-pm=0 -scalar-evolution < %s | FileCheck %s
+; RUN: opt -scalar-evolution-max-arith-depth=0 -scalar-evolution-max-cast-depth=0 -disable-output "-passes=print<scalar-evolution>" < %s 2>&1 | FileCheck %s
 
 ; Check that depth set to 0 prevents getAddExpr and getMulExpr from making
 ; transformations in SCEV. We expect the result to be very straightforward.
@@ -124,5 +125,19 @@ loop2:
 
 exit:
   %trunc2 = trunc i64 %iv2.inc to i32
+  ret void
+}
+
+; Check that all constant SCEVs are folded regardless depth limit.
+define void @test_mul_const(i32 %a) {
+; CHECK-LABEL:  @test_mul_const
+; CHECK:          %test3 = mul i32 %test2, 3
+; CHECK-NEXT:     -->  (9 + (3 * (3 * %a)))
+; CHECK:          %test4 = mul i32 3, 3
+; CHECK-NEXT:     -->  9 U: [9,10) S: [9,10)
+  %test = mul i32 3, %a
+  %test2 = add i32 3, %test
+  %test3 = mul i32 %test2, 3
+  %test4 = mul i32 3, 3
   ret void
 }

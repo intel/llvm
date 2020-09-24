@@ -113,6 +113,7 @@ std::pair<Symbol *, bool> SymbolTable::insertName(StringRef name) {
   sym->isUsedInRegularObj = false;
   sym->canInline = true;
   sym->traced = trace;
+  sym->forceExport = false;
   symVector.emplace_back(sym);
   return {sym, true};
 }
@@ -138,7 +139,7 @@ static void reportTypeError(const Symbol *existing, const InputFile *file,
 }
 
 // Check the type of new symbol matches that of the symbol is replacing.
-// Returns true if the function types match, false is there is a singature
+// Returns true if the function types match, false is there is a signature
 // mismatch.
 static bool signatureMatches(FunctionSymbol *existing,
                              const WasmSignature *newSig) {
@@ -210,7 +211,7 @@ DefinedFunction *SymbolTable::addSyntheticFunction(StringRef name,
 // exported via the --export flag.  Otherwise we don't add the symbol and return
 // nullptr.
 DefinedData *SymbolTable::addOptionalDataSymbol(StringRef name,
-                                                uint32_t value) {
+                                                uint64_t value) {
   Symbol *s = find(name);
   if (!s && (config->exportAll || config->exportedSymbols.count(name) != 0))
     s = insertName(name).first;
@@ -279,7 +280,7 @@ Symbol *SymbolTable::addDefinedFunction(StringRef name, uint32_t flags,
   std::tie(s, wasInserted) = insert(name, file);
 
   auto replaceSym = [&](Symbol *sym) {
-    // If the new defined function doesn't have signture (i.e. bitcode
+    // If the new defined function doesn't have signature (i.e. bitcode
     // functions) but the old symbol does, then preserve the old signature
     const WasmSignature *oldSig = s->getSignature();
     auto* newSym = replaceSymbol<DefinedFunction>(sym, name, flags, file, function);
@@ -326,7 +327,7 @@ Symbol *SymbolTable::addDefinedFunction(StringRef name, uint32_t flags,
 
 Symbol *SymbolTable::addDefinedData(StringRef name, uint32_t flags,
                                     InputFile *file, InputSegment *segment,
-                                    uint32_t address, uint32_t size) {
+                                    uint64_t address, uint64_t size) {
   LLVM_DEBUG(dbgs() << "addDefinedData:" << name << " addr:" << address
                     << "\n");
   Symbol *s;
@@ -457,11 +458,16 @@ Symbol *SymbolTable::addUndefinedFunction(StringRef name,
                                      file, sig, isCalledDirectly);
   };
 
-  if (wasInserted)
+  if (wasInserted) {
     replaceSym();
-  else if (auto *lazy = dyn_cast<LazySymbol>(s))
-    lazy->fetch();
-  else {
+  } else if (auto *lazy = dyn_cast<LazySymbol>(s)) {
+    if ((flags & WASM_SYMBOL_BINDING_MASK) == WASM_SYMBOL_BINDING_WEAK) {
+      lazy->setWeak();
+      lazy->signature = sig;
+    } else {
+      lazy->fetch();
+    }
+  } else {
     auto existingFunction = dyn_cast<FunctionSymbol>(s);
     if (!existingFunction) {
       reportTypeError(s, file, WASM_SYMBOL_TYPE_FUNCTION);
@@ -498,12 +504,16 @@ Symbol *SymbolTable::addUndefinedData(StringRef name, uint32_t flags,
   if (s->traced)
     printTraceSymbolUndefined(name, file);
 
-  if (wasInserted)
+  if (wasInserted) {
     replaceSymbol<UndefinedData>(s, name, flags, file);
-  else if (auto *lazy = dyn_cast<LazySymbol>(s))
-    lazy->fetch();
-  else if (s->isDefined())
+  } else if (auto *lazy = dyn_cast<LazySymbol>(s)) {
+    if ((flags & WASM_SYMBOL_BINDING_MASK) == WASM_SYMBOL_BINDING_WEAK)
+      lazy->setWeak();
+    else
+      lazy->fetch();
+  } else if (s->isDefined()) {
     checkDataType(s, file);
+  }
   return s;
 }
 
@@ -598,6 +608,11 @@ bool SymbolTable::getFunctionVariant(Symbol* sym, const WasmSignature *sig,
     // Create a new variant;
     LLVM_DEBUG(dbgs() << "added new variant\n");
     variant = reinterpret_cast<Symbol *>(make<SymbolUnion>());
+    variant->isUsedInRegularObj =
+        !file || file->kind() == InputFile::ObjectKind;
+    variant->canInline = true;
+    variant->traced = false;
+    variant->forceExport = false;
     variants.push_back(variant);
   } else {
     LLVM_DEBUG(dbgs() << "variant already exists: " << toString(*variant) << "\n");
@@ -642,8 +657,10 @@ InputFunction *SymbolTable::replaceWithUnreachable(Symbol *sym,
   auto *func = make<SyntheticFunction>(sig, sym->getName(), debugName);
   func->setBody(unreachableFn);
   syntheticFunctions.emplace_back(func);
-  replaceSymbol<DefinedFunction>(sym, sym->getName(), sym->flags, nullptr,
-                                 func);
+  // Mark new symbols as local. For relocatable output we don't want them
+  // to be exported outside the object file.
+  replaceSymbol<DefinedFunction>(sym, debugName, WASM_SYMBOL_BINDING_LOCAL,
+                                 nullptr, func);
   return func;
 }
 

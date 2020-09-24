@@ -36,11 +36,11 @@ define <8 x i32> @test15_undef(<8 x i32> %a, <8 x i32> %b) {
 ; SSE-SLOW-LABEL: test15_undef:
 ; SSE-SLOW:       # %bb.0:
 ; SSE-SLOW-NEXT:    movd %xmm0, %eax
-; SSE-SLOW-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[1,1,2,3]
+; SSE-SLOW-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[1,1,1,1]
 ; SSE-SLOW-NEXT:    movd %xmm0, %ecx
 ; SSE-SLOW-NEXT:    addl %eax, %ecx
 ; SSE-SLOW-NEXT:    movd %xmm3, %eax
-; SSE-SLOW-NEXT:    pshufd {{.*#+}} xmm0 = xmm3[1,1,2,3]
+; SSE-SLOW-NEXT:    pshufd {{.*#+}} xmm0 = xmm3[1,1,1,1]
 ; SSE-SLOW-NEXT:    movd %xmm0, %edx
 ; SSE-SLOW-NEXT:    addl %eax, %edx
 ; SSE-SLOW-NEXT:    movd %ecx, %xmm0
@@ -50,9 +50,9 @@ define <8 x i32> @test15_undef(<8 x i32> %a, <8 x i32> %b) {
 ;
 ; SSE-FAST-LABEL: test15_undef:
 ; SSE-FAST:       # %bb.0:
+; SSE-FAST-NEXT:    movdqa %xmm3, %xmm1
 ; SSE-FAST-NEXT:    phaddd %xmm0, %xmm0
-; SSE-FAST-NEXT:    phaddd %xmm3, %xmm3
-; SSE-FAST-NEXT:    pshufd {{.*#+}} xmm1 = xmm3[0,1,0,1]
+; SSE-FAST-NEXT:    phaddd %xmm3, %xmm1
 ; SSE-FAST-NEXT:    retq
 ;
 ; AVX1-SLOW-LABEL: test15_undef:
@@ -75,7 +75,6 @@ define <8 x i32> @test15_undef(<8 x i32> %a, <8 x i32> %b) {
 ; AVX1-FAST-NEXT:    vphaddd %xmm0, %xmm0, %xmm0
 ; AVX1-FAST-NEXT:    vextractf128 $1, %ymm1, %xmm1
 ; AVX1-FAST-NEXT:    vphaddd %xmm1, %xmm1, %xmm1
-; AVX1-FAST-NEXT:    vpshufd {{.*#+}} xmm1 = xmm1[0,1,0,1]
 ; AVX1-FAST-NEXT:    vinsertf128 $1, %xmm1, %ymm0, %ymm0
 ; AVX1-FAST-NEXT:    retq
 ;

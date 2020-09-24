@@ -26,7 +26,6 @@
 #include "lld/Common/ErrorHandler.h"
 #include "lld/Common/Memory.h"
 #include "lld/Common/Strings.h"
-#include "lld/Common/Threads.h"
 #include "lld/Common/Version.h"
 #include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/StringExtras.h"
@@ -37,6 +36,7 @@
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/MD5.h"
+#include "llvm/Support/Parallel.h"
 #include "llvm/Support/TimeProfiler.h"
 #include <cstdlib>
 #include <thread>
@@ -46,13 +46,13 @@ using namespace llvm::dwarf;
 using namespace llvm::ELF;
 using namespace llvm::object;
 using namespace llvm::support;
+using namespace lld;
+using namespace lld::elf;
 
 using llvm::support::endian::read32le;
 using llvm::support::endian::write32le;
 using llvm::support::endian::write64le;
 
-namespace lld {
-namespace elf {
 constexpr size_t MergeNoTailSection::numShards;
 
 static uint64_t readUint(uint8_t *buf) {
@@ -83,7 +83,7 @@ static ArrayRef<uint8_t> getVersion() {
 // With this feature, you can identify LLD-generated binaries easily
 // by "readelf --string-dump .comment <file>".
 // The returned object is a mergeable string section.
-MergeInputSection *createCommentSection() {
+MergeInputSection *elf::createCommentSection() {
   return make<MergeInputSection>(SHF_MERGE | SHF_STRINGS, SHT_PROGBITS, 1,
                                  getVersion(), ".comment");
 }
@@ -139,7 +139,7 @@ MipsAbiFlagsSection<ELFT> *MipsAbiFlagsSection<ELFT>::create() {
     flags.ases |= s->ases;
     flags.flags1 |= s->flags1;
     flags.flags2 |= s->flags2;
-    flags.fp_abi = getMipsFpAbiFlag(flags.fp_abi, s->fp_abi, filename);
+    flags.fp_abi = elf::getMipsFpAbiFlag(flags.fp_abi, s->fp_abi, filename);
   };
 
   if (create)
@@ -253,7 +253,7 @@ MipsReginfoSection<ELFT> *MipsReginfoSection<ELFT>::create() {
   return make<MipsReginfoSection<ELFT>>(reginfo);
 }
 
-InputSection *createInterpSection() {
+InputSection *elf::createInterpSection() {
   // StringSaver guarantees that the returned string ends with '\0'.
   StringRef s = saver.save(config->dynamicLinker);
   ArrayRef<uint8_t> contents = {(const uint8_t *)s.data(), s.size() + 1};
@@ -262,8 +262,8 @@ InputSection *createInterpSection() {
                             ".interp");
 }
 
-Defined *addSyntheticLocal(StringRef name, uint8_t type, uint64_t value,
-                           uint64_t size, InputSectionBase &section) {
+Defined *elf::addSyntheticLocal(StringRef name, uint8_t type, uint64_t value,
+                                uint64_t size, InputSectionBase &section) {
   auto *s = make<Defined>(section.file, name, STB_LOCAL, STV_DEFAULT, type,
                           value, size, &section);
   if (in.symTab)
@@ -370,10 +370,10 @@ CieRecord *EhFrameSection::addCie(EhSectionPiece &cie, ArrayRef<RelTy> rels) {
   return rec;
 }
 
-// There is one FDE per function. Returns true if a given FDE
-// points to a live function.
+// There is one FDE per function. Returns a non-null pointer to the function
+// symbol if the given FDE points to a live function.
 template <class ELFT, class RelTy>
-bool EhFrameSection::isFdeLive(EhSectionPiece &fde, ArrayRef<RelTy> rels) {
+Defined *EhFrameSection::isFdeLive(EhSectionPiece &fde, ArrayRef<RelTy> rels) {
   auto *sec = cast<EhInputSection>(fde.sec);
   unsigned firstRelI = fde.firstRelocation;
 
@@ -383,7 +383,7 @@ bool EhFrameSection::isFdeLive(EhSectionPiece &fde, ArrayRef<RelTy> rels) {
   // corresponding FDEs, which results in creating bad .eh_frame sections.
   // To deal with that, we ignore such FDEs.
   if (firstRelI == (unsigned)-1)
-    return false;
+    return nullptr;
 
   const RelTy &rel = rels[firstRelI];
   Symbol &b = sec->template getFile<ELFT>()->getRelocTargetSym(rel);
@@ -391,9 +391,9 @@ bool EhFrameSection::isFdeLive(EhSectionPiece &fde, ArrayRef<RelTy> rels) {
   // FDEs for garbage-collected or merged-by-ICF sections, or sections in
   // another partition, are dead.
   if (auto *d = dyn_cast<Defined>(&b))
-    if (SectionBase *sec = d->section)
-      return sec->partition == partition;
-  return false;
+    if (d->section && d->section->partition == partition)
+      return d;
+  return nullptr;
 }
 
 // .eh_frame is a sequence of CIE or FDE records. In general, there
@@ -445,6 +445,51 @@ void EhFrameSection::addSection(EhInputSection *sec) {
 
   for (auto *ds : sec->dependentSections)
     dependentSections.push_back(ds);
+}
+
+// Used by ICF<ELFT>::handleLSDA(). This function is very similar to
+// EhFrameSection::addRecords().
+template <class ELFT, class RelTy>
+void EhFrameSection::iterateFDEWithLSDAAux(
+    EhInputSection &sec, ArrayRef<RelTy> rels, DenseSet<size_t> &ciesWithLSDA,
+    llvm::function_ref<void(InputSection &)> fn) {
+  for (EhSectionPiece &piece : sec.pieces) {
+    // Skip ZERO terminator.
+    if (piece.size == 4)
+      continue;
+
+    size_t offset = piece.inputOff;
+    uint32_t id =
+        endian::read32<ELFT::TargetEndianness>(piece.data().data() + 4);
+    if (id == 0) {
+      if (hasLSDA(piece))
+        ciesWithLSDA.insert(offset);
+      continue;
+    }
+    uint32_t cieOffset = offset + 4 - id;
+    if (ciesWithLSDA.count(cieOffset) == 0)
+      continue;
+
+    // The CIE has a LSDA argument. Call fn with d's section.
+    if (Defined *d = isFdeLive<ELFT>(piece, rels))
+      if (auto *s = dyn_cast_or_null<InputSection>(d->section))
+        fn(*s);
+  }
+}
+
+template <class ELFT>
+void EhFrameSection::iterateFDEWithLSDA(
+    llvm::function_ref<void(InputSection &)> fn) {
+  DenseSet<size_t> ciesWithLSDA;
+  for (EhInputSection *sec : sections) {
+    ciesWithLSDA.clear();
+    if (sec->areRelocsRela)
+      iterateFDEWithLSDAAux<ELFT>(*sec, sec->template relas<ELFT>(),
+                                  ciesWithLSDA, fn);
+    else
+      iterateFDEWithLSDAAux<ELFT>(*sec, sec->template rels<ELFT>(),
+                                  ciesWithLSDA, fn);
+  }
 }
 
 static void writeCieFde(uint8_t *buf, ArrayRef<uint8_t> d) {
@@ -651,11 +696,8 @@ bool GotSection::isNeeded() const {
 }
 
 void GotSection::writeTo(uint8_t *buf) {
-  // Buf points to the start of this section's buffer,
-  // whereas InputSectionBase::relocateAlloc() expects its argument
-  // to point to the start of the output section.
   target->writeGotHeader(buf);
-  relocateAlloc(buf - outSecOff, buf - outSecOff + size);
+  relocateAlloc(buf, buf + size);
 }
 
 static uint64_t getMipsPageAddr(uint64_t addr) {
@@ -1275,7 +1317,7 @@ static uint64_t addPltRelSz() {
 
 // Add remaining entries to complete .dynamic contents.
 template <class ELFT> void DynamicSection<ELFT>::finalizeContents() {
-  Partition &part = getPartition();
+  elf::Partition &part = getPartition();
   bool isMain = part.name.empty();
 
   for (StringRef s : config->filterList)
@@ -1317,6 +1359,8 @@ template <class ELFT> void DynamicSection<ELFT>::finalizeContents() {
     dtFlags1 |= DF_1_NODELETE;
   if (config->zNodlopen)
     dtFlags1 |= DF_1_NOOPEN;
+  if (config->pie)
+    dtFlags1 |= DF_1_PIE;
   if (config->zNow) {
     dtFlags |= DF_BIND_NOW;
     dtFlags1 |= DF_1_NOW;
@@ -2151,7 +2195,7 @@ template <class ELFT> void SymbolTableSection<ELFT>::writeTo(uint8_t *buf) {
       eSym->st_size = sym->getSize();
 
     // st_value is usually an address of a symbol, but that has a
-    // special meaining for uninstantiated common symbols (this can
+    // special meaning for uninstantiated common symbols (this can
     // occur if -r is given).
     if (BssSection *commonSec = getCommonSec(ent.sym))
       eSym->st_value = commonSec->alignment;
@@ -2250,7 +2294,7 @@ size_t SymtabShndxSection::getSize() const {
 // DSOs. That means resolving all dynamic symbols takes O(m)*O(n)
 // where m is the number of DSOs and n is the number of dynamic
 // symbols. For modern large programs, both m and n are large.  So
-// making each step faster by using hash tables substiantially
+// making each step faster by using hash tables substantially
 // improves time to load programs.
 //
 // (Note that this is not the only way to design the shared library.
@@ -2651,15 +2695,6 @@ void GdbIndexSection::initOutputSize() {
   }
 }
 
-static std::vector<InputSection *> getDebugInfoSections() {
-  std::vector<InputSection *> ret;
-  for (InputSectionBase *s : inputSections)
-    if (InputSection *isec = dyn_cast<InputSection>(s))
-      if (isec->name == ".debug_info")
-        ret.push_back(isec);
-  return ret;
-}
-
 static std::vector<GdbIndexSection::CuEntry> readCuList(DWARFContext &dwarf) {
   std::vector<GdbIndexSection::CuEntry> ret;
   for (std::unique_ptr<DWARFUnit> &cu : dwarf.compile_units())
@@ -2703,12 +2738,16 @@ template <class ELFT>
 static std::vector<GdbIndexSection::NameAttrEntry>
 readPubNamesAndTypes(const LLDDwarfObj<ELFT> &obj,
                      const std::vector<GdbIndexSection::CuEntry> &cus) {
-  const DWARFSection &pubNames = obj.getGnuPubnamesSection();
-  const DWARFSection &pubTypes = obj.getGnuPubtypesSection();
+  const LLDDWARFSection &pubNames = obj.getGnuPubnamesSection();
+  const LLDDWARFSection &pubTypes = obj.getGnuPubtypesSection();
 
   std::vector<GdbIndexSection::NameAttrEntry> ret;
-  for (const DWARFSection *pub : {&pubNames, &pubTypes}) {
-    DWARFDebugPubTable table(obj, *pub, config->isLE, true);
+  for (const LLDDWARFSection *pub : {&pubNames, &pubTypes}) {
+    DWARFDataExtractor data(obj, *pub, config->isLE, config->wordsize);
+    DWARFDebugPubTable table;
+    table.extract(data, /*GnuStyle=*/true, [&](Error e) {
+      warn(toString(pub->sec) + ": " + toString(std::move(e)));
+    });
     for (const DWARFDebugPubTable::Set &set : table.getData()) {
       // The value written into the constant pool is kind << 24 | cuIndex. As we
       // don't know how many compilation units precede this object to compute
@@ -2746,11 +2785,11 @@ createSymbols(ArrayRef<std::vector<GdbIndexSection::NameAttrEntry>> nameAttrs,
   // The number of symbols we will handle in this function is of the order
   // of millions for very large executables, so we use multi-threading to
   // speed it up.
-  size_t numShards = 32;
-  size_t concurrency = 1;
-  if (threadsEnabled)
-    concurrency = std::min<size_t>(
-        hardware_concurrency().compute_thread_count(), numShards);
+  constexpr size_t numShards = 32;
+  size_t concurrency = PowerOf2Floor(
+      std::min<size_t>(hardware_concurrency(parallel::strategy.ThreadsRequested)
+                           .compute_thread_count(),
+                       numShards));
 
   // A sharded map to uniquify symbols by name.
   std::vector<DenseMap<CachedHashStringRef, size_t>> map(numShards);
@@ -2809,30 +2848,40 @@ createSymbols(ArrayRef<std::vector<GdbIndexSection::NameAttrEntry>> nameAttrs,
 
 // Returns a newly-created .gdb_index section.
 template <class ELFT> GdbIndexSection *GdbIndexSection::create() {
-  std::vector<InputSection *> sections = getDebugInfoSections();
-
-  // .debug_gnu_pub{names,types} are useless in executables.
-  // They are present in input object files solely for creating
-  // a .gdb_index. So we can remove them from the output.
-  for (InputSectionBase *s : inputSections)
+  // Collect InputFiles with .debug_info. See the comment in
+  // LLDDwarfObj<ELFT>::LLDDwarfObj. If we do lightweight parsing in the future,
+  // note that isec->data() may uncompress the full content, which should be
+  // parallelized.
+  SetVector<InputFile *> files;
+  for (InputSectionBase *s : inputSections) {
+    InputSection *isec = dyn_cast<InputSection>(s);
+    if (!isec)
+      continue;
+    // .debug_gnu_pub{names,types} are useless in executables.
+    // They are present in input object files solely for creating
+    // a .gdb_index. So we can remove them from the output.
     if (s->name == ".debug_gnu_pubnames" || s->name == ".debug_gnu_pubtypes")
       s->markDead();
+    else if (isec->name == ".debug_info")
+      files.insert(isec->file);
+  }
 
-  std::vector<GdbChunk> chunks(sections.size());
-  std::vector<std::vector<NameAttrEntry>> nameAttrs(sections.size());
+  std::vector<GdbChunk> chunks(files.size());
+  std::vector<std::vector<NameAttrEntry>> nameAttrs(files.size());
 
-  parallelForEachN(0, sections.size(), [&](size_t i) {
+  parallelForEachN(0, files.size(), [&](size_t i) {
     // To keep memory usage low, we don't want to keep cached DWARFContext, so
     // avoid getDwarf() here.
-    ObjFile<ELFT> *file = sections[i]->getFile<ELFT>();
+    ObjFile<ELFT> *file = cast<ObjFile<ELFT>>(files[i]);
     DWARFContext dwarf(std::make_unique<LLDDwarfObj<ELFT>>(file));
+    auto &dobj = static_cast<const LLDDwarfObj<ELFT> &>(dwarf.getDWARFObj());
 
-    chunks[i].sec = sections[i];
+    // If the are multiple compile units .debug_info (very rare ld -r --unique),
+    // this only picks the last one. Other address ranges are lost.
+    chunks[i].sec = dobj.getInfoSection();
     chunks[i].compilationUnits = readCuList(dwarf);
-    chunks[i].addressAreas = readAddressAreas(dwarf, sections[i]);
-    nameAttrs[i] = readPubNamesAndTypes<ELFT>(
-        static_cast<const LLDDwarfObj<ELFT> &>(dwarf.getDWARFObj()),
-        chunks[i].compilationUnits);
+    chunks[i].addressAreas = readAddressAreas(dwarf, chunks[i].sec);
+    nameAttrs[i] = readPubNamesAndTypes<ELFT>(dobj, chunks[i].compilationUnits);
   });
 
   auto *ret = make<GdbIndexSection>();
@@ -3049,7 +3098,7 @@ bool VersionTableSection::isNeeded() const {
          (getPartition().verDef || getPartition().verNeed->isNeeded());
 }
 
-void addVerneed(Symbol *ss) {
+void elf::addVerneed(Symbol *ss) {
   auto &file = cast<SharedFile>(*ss->file);
   if (ss->verdefIndex == VER_NDX_GLOBAL) {
     ss->versionId = VER_NDX_GLOBAL;
@@ -3193,10 +3242,10 @@ void MergeNoTailSection::finalizeContents() {
 
   // Concurrency level. Must be a power of 2 to avoid expensive modulo
   // operations in the following tight loop.
-  size_t concurrency = 1;
-  if (threadsEnabled)
-    concurrency = std::min<size_t>(
-        hardware_concurrency().compute_thread_count(), numShards);
+  size_t concurrency = PowerOf2Floor(
+      std::min<size_t>(hardware_concurrency(parallel::strategy.ThreadsRequested)
+                           .compute_thread_count(),
+                       numShards));
 
   // Add section pieces to the builders.
   parallelForEachN(0, concurrency, [&](size_t threadId) {
@@ -3232,16 +3281,16 @@ void MergeNoTailSection::finalizeContents() {
   });
 }
 
-MergeSyntheticSection *createMergeSynthetic(StringRef name, uint32_t type,
-                                            uint64_t flags,
-                                            uint32_t alignment) {
+MergeSyntheticSection *elf::createMergeSynthetic(StringRef name, uint32_t type,
+                                                 uint64_t flags,
+                                                 uint32_t alignment) {
   bool shouldTailMerge = (flags & SHF_STRINGS) && config->optimize >= 2;
   if (shouldTailMerge)
     return make<MergeTailSection>(name, type, flags, alignment);
   return make<MergeNoTailSection>(name, type, flags, alignment);
 }
 
-template <class ELFT> void splitSections() {
+template <class ELFT> void elf::splitSections() {
   llvm::TimeTraceScope timeScope("Split sections");
   // splitIntoPieces needs to be called on each MergeInputSection
   // before calling finalizeContents().
@@ -3263,7 +3312,7 @@ ARMExidxSyntheticSection::ARMExidxSyntheticSection()
 
 static InputSection *findExidxSection(InputSection *isec) {
   for (InputSection *d : isec->dependentSections)
-    if (d->type == SHT_ARM_EXIDX)
+    if (d->type == SHT_ARM_EXIDX && d->isLive())
       return d;
   return nullptr;
 }
@@ -3276,8 +3325,13 @@ static bool isValidExidxSectionDep(InputSection *isec) {
 bool ARMExidxSyntheticSection::addSection(InputSection *isec) {
   if (isec->type == SHT_ARM_EXIDX) {
     if (InputSection *dep = isec->getLinkOrderDep())
-      if (isValidExidxSectionDep(dep))
+      if (isValidExidxSectionDep(dep)) {
         exidxSections.push_back(isec);
+        // Every exidxSection is 8 bytes, we need an estimate of
+        // size before assignAddresses can be called. Final size
+        // will only be known after finalize is called.
+        size += 8;
+      }
     return true;
   }
 
@@ -3358,19 +3412,30 @@ void ARMExidxSyntheticSection::finalizeContents() {
   // ICF may remove executable InputSections and their dependent .ARM.exidx
   // section that we recorded earlier.
   auto isDiscarded = [](const InputSection *isec) { return !isec->isLive(); };
-  llvm::erase_if(executableSections, isDiscarded);
   llvm::erase_if(exidxSections, isDiscarded);
+  // We need to remove discarded InputSections and InputSections without
+  // .ARM.exidx sections that if we generated the .ARM.exidx it would be out
+  // of range.
+  auto isDiscardedOrOutOfRange = [this](InputSection *isec) {
+    if (!isec->isLive())
+      return true;
+    if (findExidxSection(isec))
+      return false;
+    int64_t off = static_cast<int64_t>(isec->getVA() - getVA());
+    return off != llvm::SignExtend64(off, 31);
+  };
+  llvm::erase_if(executableSections, isDiscardedOrOutOfRange);
 
   // Sort the executable sections that may or may not have associated
   // .ARM.exidx sections by order of ascending address. This requires the
-  // relative positions of InputSections to be known.
+  // relative positions of InputSections and OutputSections to be known.
   auto compareByFilePosition = [](const InputSection *a,
                                   const InputSection *b) {
     OutputSection *aOut = a->getParent();
     OutputSection *bOut = b->getParent();
 
     if (aOut != bOut)
-      return aOut->sectionIndex < bOut->sectionIndex;
+      return aOut->addr < bOut->addr;
     return a->outSecOff < b->outSecOff;
   };
   llvm::stable_sort(executableSections, compareByFilePosition);
@@ -3430,7 +3495,7 @@ void ARMExidxSyntheticSection::writeTo(uint8_t *buf) {
     assert(isec->getParent() != nullptr);
     if (InputSection *d = findExidxSection(isec)) {
       memcpy(buf + offset, d->data().data(), d->data().size());
-      d->relocateAlloc(buf, buf + d->getSize());
+      d->relocateAlloc(buf + d->outSecOff, buf + d->outSecOff + d->getSize());
       offset += d->getSize();
     } else {
       // A Linker generated CANTUNWIND section.
@@ -3460,8 +3525,8 @@ bool ARMExidxSyntheticSection::classof(const SectionBase *d) {
 }
 
 ThunkSection::ThunkSection(OutputSection *os, uint64_t off)
-    : SyntheticSection(SHF_ALLOC | SHF_EXECINSTR, SHT_PROGBITS, 4,
-                       ".text.thunk") {
+    : SyntheticSection(SHF_ALLOC | SHF_EXECINSTR, SHT_PROGBITS,
+                       config->emachine == EM_PPC64 ? 16 : 4, ".text.thunk") {
   this->parent = os;
   this->outSecOff = off;
 }
@@ -3611,7 +3676,7 @@ static uint8_t getAbiVersion() {
   return 0;
 }
 
-template <typename ELFT> void writeEhdr(uint8_t *buf, Partition &part) {
+template <typename ELFT> void elf::writeEhdr(uint8_t *buf, Partition &part) {
   // For executable segments, the trap instructions are written before writing
   // the header. Setting Elf header bytes to zero ensures that any unused bytes
   // in header are zero-cleared, instead of having trap instructions.
@@ -3637,7 +3702,7 @@ template <typename ELFT> void writeEhdr(uint8_t *buf, Partition &part) {
   }
 }
 
-template <typename ELFT> void writePhdrs(uint8_t *buf, Partition &part) {
+template <typename ELFT> void elf::writePhdrs(uint8_t *buf, Partition &part) {
   // Write the program header table.
   auto *hBuf = reinterpret_cast<typename ELFT::Phdr *>(buf);
   for (PhdrEntry *p : part.phdrs) {
@@ -3712,85 +3777,91 @@ void PartitionIndexSection::writeTo(uint8_t *buf) {
   }
 }
 
-InStruct in;
+InStruct elf::in;
 
-std::vector<Partition> partitions;
-Partition *mainPart;
+std::vector<Partition> elf::partitions;
+Partition *elf::mainPart;
 
 template GdbIndexSection *GdbIndexSection::create<ELF32LE>();
 template GdbIndexSection *GdbIndexSection::create<ELF32BE>();
 template GdbIndexSection *GdbIndexSection::create<ELF64LE>();
 template GdbIndexSection *GdbIndexSection::create<ELF64BE>();
 
-template void splitSections<ELF32LE>();
-template void splitSections<ELF32BE>();
-template void splitSections<ELF64LE>();
-template void splitSections<ELF64BE>();
+template void elf::splitSections<ELF32LE>();
+template void elf::splitSections<ELF32BE>();
+template void elf::splitSections<ELF64LE>();
+template void elf::splitSections<ELF64BE>();
 
-template class MipsAbiFlagsSection<ELF32LE>;
-template class MipsAbiFlagsSection<ELF32BE>;
-template class MipsAbiFlagsSection<ELF64LE>;
-template class MipsAbiFlagsSection<ELF64BE>;
+template class elf::MipsAbiFlagsSection<ELF32LE>;
+template class elf::MipsAbiFlagsSection<ELF32BE>;
+template class elf::MipsAbiFlagsSection<ELF64LE>;
+template class elf::MipsAbiFlagsSection<ELF64BE>;
 
-template class MipsOptionsSection<ELF32LE>;
-template class MipsOptionsSection<ELF32BE>;
-template class MipsOptionsSection<ELF64LE>;
-template class MipsOptionsSection<ELF64BE>;
+template class elf::MipsOptionsSection<ELF32LE>;
+template class elf::MipsOptionsSection<ELF32BE>;
+template class elf::MipsOptionsSection<ELF64LE>;
+template class elf::MipsOptionsSection<ELF64BE>;
 
-template class MipsReginfoSection<ELF32LE>;
-template class MipsReginfoSection<ELF32BE>;
-template class MipsReginfoSection<ELF64LE>;
-template class MipsReginfoSection<ELF64BE>;
+template void EhFrameSection::iterateFDEWithLSDA<ELF32LE>(
+    function_ref<void(InputSection &)>);
+template void EhFrameSection::iterateFDEWithLSDA<ELF32BE>(
+    function_ref<void(InputSection &)>);
+template void EhFrameSection::iterateFDEWithLSDA<ELF64LE>(
+    function_ref<void(InputSection &)>);
+template void EhFrameSection::iterateFDEWithLSDA<ELF64BE>(
+    function_ref<void(InputSection &)>);
 
-template class DynamicSection<ELF32LE>;
-template class DynamicSection<ELF32BE>;
-template class DynamicSection<ELF64LE>;
-template class DynamicSection<ELF64BE>;
+template class elf::MipsReginfoSection<ELF32LE>;
+template class elf::MipsReginfoSection<ELF32BE>;
+template class elf::MipsReginfoSection<ELF64LE>;
+template class elf::MipsReginfoSection<ELF64BE>;
 
-template class RelocationSection<ELF32LE>;
-template class RelocationSection<ELF32BE>;
-template class RelocationSection<ELF64LE>;
-template class RelocationSection<ELF64BE>;
+template class elf::DynamicSection<ELF32LE>;
+template class elf::DynamicSection<ELF32BE>;
+template class elf::DynamicSection<ELF64LE>;
+template class elf::DynamicSection<ELF64BE>;
 
-template class AndroidPackedRelocationSection<ELF32LE>;
-template class AndroidPackedRelocationSection<ELF32BE>;
-template class AndroidPackedRelocationSection<ELF64LE>;
-template class AndroidPackedRelocationSection<ELF64BE>;
+template class elf::RelocationSection<ELF32LE>;
+template class elf::RelocationSection<ELF32BE>;
+template class elf::RelocationSection<ELF64LE>;
+template class elf::RelocationSection<ELF64BE>;
 
-template class RelrSection<ELF32LE>;
-template class RelrSection<ELF32BE>;
-template class RelrSection<ELF64LE>;
-template class RelrSection<ELF64BE>;
+template class elf::AndroidPackedRelocationSection<ELF32LE>;
+template class elf::AndroidPackedRelocationSection<ELF32BE>;
+template class elf::AndroidPackedRelocationSection<ELF64LE>;
+template class elf::AndroidPackedRelocationSection<ELF64BE>;
 
-template class SymbolTableSection<ELF32LE>;
-template class SymbolTableSection<ELF32BE>;
-template class SymbolTableSection<ELF64LE>;
-template class SymbolTableSection<ELF64BE>;
+template class elf::RelrSection<ELF32LE>;
+template class elf::RelrSection<ELF32BE>;
+template class elf::RelrSection<ELF64LE>;
+template class elf::RelrSection<ELF64BE>;
 
-template class VersionNeedSection<ELF32LE>;
-template class VersionNeedSection<ELF32BE>;
-template class VersionNeedSection<ELF64LE>;
-template class VersionNeedSection<ELF64BE>;
+template class elf::SymbolTableSection<ELF32LE>;
+template class elf::SymbolTableSection<ELF32BE>;
+template class elf::SymbolTableSection<ELF64LE>;
+template class elf::SymbolTableSection<ELF64BE>;
 
-template void writeEhdr<ELF32LE>(uint8_t *Buf, Partition &Part);
-template void writeEhdr<ELF32BE>(uint8_t *Buf, Partition &Part);
-template void writeEhdr<ELF64LE>(uint8_t *Buf, Partition &Part);
-template void writeEhdr<ELF64BE>(uint8_t *Buf, Partition &Part);
+template class elf::VersionNeedSection<ELF32LE>;
+template class elf::VersionNeedSection<ELF32BE>;
+template class elf::VersionNeedSection<ELF64LE>;
+template class elf::VersionNeedSection<ELF64BE>;
 
-template void writePhdrs<ELF32LE>(uint8_t *Buf, Partition &Part);
-template void writePhdrs<ELF32BE>(uint8_t *Buf, Partition &Part);
-template void writePhdrs<ELF64LE>(uint8_t *Buf, Partition &Part);
-template void writePhdrs<ELF64BE>(uint8_t *Buf, Partition &Part);
+template void elf::writeEhdr<ELF32LE>(uint8_t *Buf, Partition &Part);
+template void elf::writeEhdr<ELF32BE>(uint8_t *Buf, Partition &Part);
+template void elf::writeEhdr<ELF64LE>(uint8_t *Buf, Partition &Part);
+template void elf::writeEhdr<ELF64BE>(uint8_t *Buf, Partition &Part);
 
-template class PartitionElfHeaderSection<ELF32LE>;
-template class PartitionElfHeaderSection<ELF32BE>;
-template class PartitionElfHeaderSection<ELF64LE>;
-template class PartitionElfHeaderSection<ELF64BE>;
+template void elf::writePhdrs<ELF32LE>(uint8_t *Buf, Partition &Part);
+template void elf::writePhdrs<ELF32BE>(uint8_t *Buf, Partition &Part);
+template void elf::writePhdrs<ELF64LE>(uint8_t *Buf, Partition &Part);
+template void elf::writePhdrs<ELF64BE>(uint8_t *Buf, Partition &Part);
 
-template class PartitionProgramHeadersSection<ELF32LE>;
-template class PartitionProgramHeadersSection<ELF32BE>;
-template class PartitionProgramHeadersSection<ELF64LE>;
-template class PartitionProgramHeadersSection<ELF64BE>;
+template class elf::PartitionElfHeaderSection<ELF32LE>;
+template class elf::PartitionElfHeaderSection<ELF32BE>;
+template class elf::PartitionElfHeaderSection<ELF64LE>;
+template class elf::PartitionElfHeaderSection<ELF64BE>;
 
-} // namespace elf
-} // namespace lld
+template class elf::PartitionProgramHeadersSection<ELF32LE>;
+template class elf::PartitionProgramHeadersSection<ELF32BE>;
+template class elf::PartitionProgramHeadersSection<ELF64LE>;
+template class elf::PartitionProgramHeadersSection<ELF64BE>;

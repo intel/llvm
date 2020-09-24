@@ -12,6 +12,7 @@
 #include "ELF/ELFConfig.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitmaskEnum.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
@@ -177,6 +178,12 @@ struct CopyConfig {
   std::vector<StringRef> DumpSection;
   std::vector<StringRef> SymbolsToAdd;
   std::vector<StringRef> RPathToAdd;
+  DenseMap<StringRef, StringRef> RPathsToUpdate;
+  DenseMap<StringRef, StringRef> InstallNamesToUpdate;
+  DenseSet<StringRef> RPathsToRemove;
+
+  // install-name-tool's id option
+  Optional<StringRef> SharedLibId;
 
   // Section matchers
   NameMatcher KeepSection;
@@ -219,6 +226,7 @@ struct CopyConfig {
   bool StripDebug = false;
   bool StripNonAlloc = false;
   bool StripSections = false;
+  bool StripSwiftSymbols = false;
   bool StripUnneeded = false;
   bool Weaken = false;
   bool DecompressDebugSections = false;

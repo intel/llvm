@@ -21,7 +21,7 @@ entry:
 ; CHECK: br label %while.body
 
 ; CHECK-REGDEC: [[REM:%[^ ]+]] = phi i32 [ [[COUNT]], %while.body.preheader ], [ [[LOOP_DEC:%[^ ]+]], %while.body ]
-; CHECK-REGDEC: [[LOOP_DEC]] = call i32 @llvm.loop.decrement.reg.i32.i32.i32(i32 [[REM]], i32 1)
+; CHECK-REGDEC: [[LOOP_DEC]] = call i32 @llvm.loop.decrement.reg.i32(i32 [[REM]], i32 1)
 ; CHECK-REGDEC: [[CMP:%[^ ]+]] = icmp ne i32 [[LOOP_DEC]], 0
 ; CHECK-REGDEC: br i1 [[CMP]], label %while.body, label %while.end
 
@@ -47,7 +47,7 @@ while.end:
 ; CHECK: br label %while.body
 
 ; CHECK-REGDEC: [[REM:%[^ ]+]] = phi i32 [ [[COUNT]], %while.body.preheader ], [ [[LOOP_DEC:%[^ ]+]], %while.body ]
-; CHECK-REGDEC: [[LOOP_DEC]] = call i32 @llvm.loop.decrement.reg.i32.i32.i32(i32 [[REM]], i32 1)
+; CHECK-REGDEC: [[LOOP_DEC]] = call i32 @llvm.loop.decrement.reg.i32(i32 [[REM]], i32 1)
 ; CHECK-REGDEC: [[CMP:%[^ ]+]] = icmp ne i32 [[LOOP_DEC]], 0
 ; CHECK-REGDEC: br i1 [[CMP]], label %while.body, label %while.end
 
@@ -76,23 +76,19 @@ while.end:
 ; CHECK-GUARD:   br i1 %cmp4, label %while.end, label %while.body.preheader
 ; CHECK-GUARD: while.body.preheader:
 ; CHECK-GUARD:   [[ADD:%[^ ]+]] = add i32 %i, 1
-; CHECK-GUARD:   [[SEL:%[^ ]+]] = icmp slt i32 %N, %i
-; CHECK-GUARD:   [[MIN:%[^ ]+]] = select i1 [[SEL]], i32 %N, i32 %i
-; CHECK-GUARD:   [[COUNT:%[^ ]+]] = sub i32 [[ADD]], [[MIN]]
+; CHECK-GUARD:   [[COUNT:%[^ ]+]] = sub i32 [[ADD]], %N
 ; CHECK-GUARD:   call void @llvm.set.loop.iterations.i32(i32 [[COUNT]])
 ; CHECK-GUARD:   br label %while.body
 
 ; CHECK-LABEL: while_gte
 ; CHECK: while.body.preheader:
 ; CHECK: [[ADD:%[^ ]+]] = add i32 %i, 1
-; CHECK: [[SEL:%[^ ]+]] = icmp slt i32 %N, %i
-; CHECK: [[MIN:%[^ ]+]] = select i1 [[SEL]], i32 %N, i32 %i
-; CHECK: [[COUNT:%[^ ]+]] = sub i32 [[ADD]], [[MIN]]
+; CHECK: [[COUNT:%[^ ]+]] = sub i32 [[ADD]], %N
 ; CHECK: call void @llvm.set.loop.iterations.i32(i32 [[COUNT]])
 ; CHECK: br label %while.body
 
 ; CHECK-REGDEC: [[REM:%[^ ]+]] = phi i32 [ [[COUNT]], %while.body.preheader ], [ [[LOOP_DEC:%[^ ]+]], %while.body ]
-; CHECK-REGDEC: [[LOOP_DEC]] = call i32 @llvm.loop.decrement.reg.i32.i32.i32(i32 [[REM]], i32 1)
+; CHECK-REGDEC: [[LOOP_DEC]] = call i32 @llvm.loop.decrement.reg.i32(i32 [[REM]], i32 1)
 ; CHECK-REGDEC: [[CMP:%[^ ]+]] = icmp ne i32 [[LOOP_DEC]], 0
 ; CHECK-REGDEC: br i1 [[CMP]], label %while.body, label %while.end
 
@@ -200,7 +196,7 @@ while.end:
 ; CHECK-DEC: [[LOOP_DEC:%[^ ]+]] = call i1 @llvm.loop.decrement.i32(i32 1)
 
 ; CHECK-REGDEC: [[REM:%[^ ]+]] = phi i32 [ %N, %while.cond1.preheader.us ], [ [[LOOP_DEC:%[^ ]+]], %while.body3.us ]
-; CHECK-REGDEC: [[LOOP_DEC]] = call i32 @llvm.loop.decrement.reg.i32.i32.i32(i32 [[REM]], i32 1)
+; CHECK-REGDEC: [[LOOP_DEC]] = call i32 @llvm.loop.decrement.reg.i32(i32 [[REM]], i32 1)
 ; CHECK-REGDEC: [[CMP:%[^ ]+]] = icmp ne i32 [[LOOP_DEC]], 0
 ; CHECK-REGDEC: br i1 [[CMP]], label %while.body3.us, label %while.cond1.while.end_crit_edge.us
 

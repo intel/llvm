@@ -13,13 +13,17 @@ int main() {
                                                  cl::sycl::range<1>(1));
     cl::sycl::queue Queue;
     Queue.submit([&](cl::sycl::handler &cgh) {
-      auto In = InBuf.get_access<cl::sycl::access::mode::write>(cgh);
-      auto Out = OutBuf.get_access<cl::sycl::access::mode::read>(cgh);
+      auto In = InBuf.get_access<cl::sycl::access::mode::read>(cgh);
+      auto Out = OutBuf.get_access<cl::sycl::access::mode::write>(cgh);
       cgh.single_task<class as_op>(
           [=]() { Out[0] = In[0].as<res_vec_type>(); });
     });
   }
-  std::cout << res.s0() << " " << res.s1() << " " << res.s2() << " " << res.s3()
-            << std::endl;
+
+  if (res.s0() != 513 || res.s1() != 1027 || res.s2() != 1541 || res.s3() != 2055) {
+    std::cerr << "Incorrect result" << std::endl;
+    return 1;
+  }
+
   return 0;
 }

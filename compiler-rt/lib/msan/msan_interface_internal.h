@@ -46,6 +46,12 @@ using __sanitizer::u32;
 using __sanitizer::u16;
 using __sanitizer::u8;
 
+// Versions of the above which take Origin as a parameter
+SANITIZER_INTERFACE_ATTRIBUTE
+void __msan_warning_with_origin(u32 origin);
+SANITIZER_INTERFACE_ATTRIBUTE __attribute__((noreturn)) void
+__msan_warning_with_origin_noreturn(u32 origin);
+
 SANITIZER_INTERFACE_ATTRIBUTE
 void __msan_maybe_warning_1(u8 s, u32 o);
 SANITIZER_INTERFACE_ATTRIBUTE
@@ -181,6 +187,12 @@ void __msan_scoped_disable_interceptor_checks();
 
 SANITIZER_INTERFACE_ATTRIBUTE
 void __msan_scoped_enable_interceptor_checks();
+
+SANITIZER_INTERFACE_ATTRIBUTE
+void __msan_start_switch_fiber(const void *bottom, uptr size);
+
+SANITIZER_INTERFACE_ATTRIBUTE
+void __msan_finish_switch_fiber(const void **bottom_old, uptr *size_old);
 }  // extern "C"
 
 #endif  // MSAN_INTERFACE_INTERNAL_H

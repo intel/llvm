@@ -61,7 +61,7 @@ private:
                     raw_ostream &O);
   void printSMRDOffset8(const MCInst *MI, unsigned OpNo,
                        const MCSubtargetInfo &STI, raw_ostream &O);
-  void printSMRDOffset20(const MCInst *MI, unsigned OpNo,
+  void printSMEMOffset(const MCInst *MI, unsigned OpNo,
                        const MCSubtargetInfo &STI, raw_ostream &O);
   void printSMRDLiteralOffset(const MCInst *MI, unsigned OpNo,
                               const MCSubtargetInfo &STI, raw_ostream &O);
@@ -99,12 +99,16 @@ private:
                   const MCSubtargetInfo &STI, raw_ostream &O);
   void printFORMAT(const MCInst *MI, unsigned OpNo,
                    const MCSubtargetInfo &STI, raw_ostream &O);
+  void printSymbolicFormat(const MCInst *MI,
+                           const MCSubtargetInfo &STI, raw_ostream &O);
 
   void printRegOperand(unsigned RegNo, raw_ostream &O);
   void printVOPDst(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
                    raw_ostream &O);
   void printVINTRPDst(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
                       raw_ostream &O);
+  void printImmediateInt16(uint32_t Imm, const MCSubtargetInfo &STI,
+                           raw_ostream &O);
   void printImmediate16(uint32_t Imm, const MCSubtargetInfo &STI,
                         raw_ostream &O);
   void printImmediateV216(uint32_t Imm, const MCSubtargetInfo &STI,
@@ -115,6 +119,10 @@ private:
                         raw_ostream &O);
   void printOperand(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
                     raw_ostream &O);
+  void printOperand(const MCInst *MI, uint64_t /*Address*/, unsigned OpNum,
+                    const MCSubtargetInfo &STI, raw_ostream &O) {
+    printOperand(MI, OpNum, STI, O);
+  }
   void printOperandAndFPInputMods(const MCInst *MI, unsigned OpNo,
                                   const MCSubtargetInfo &STI, raw_ostream &O);
   void printOperandAndIntInputMods(const MCInst *MI, unsigned OpNo,

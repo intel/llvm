@@ -28,6 +28,7 @@
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSectionMachO.h"
 #include "llvm/MC/MCStreamer.h"
+#include "llvm/MC/MCSymbolXCOFF.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/FormattedStream.h"
@@ -137,7 +138,7 @@ public:
   /// @name MCStreamer Interface
   /// @{
 
-  void ChangeSection(MCSection *Section, const MCExpr *Subsection) override;
+  void changeSection(MCSection *Section, const MCExpr *Subsection) override;
 
   void emitELFSymverDirective(StringRef AliasName,
                               const MCSymbol *Aliasee) override;
@@ -171,6 +172,12 @@ public:
   void emitXCOFFLocalCommonSymbol(MCSymbol *LabelSym, uint64_t Size,
                                   MCSymbol *CsectSym,
                                   unsigned ByteAlign) override;
+  void emitXCOFFSymbolLinkageWithVisibility(MCSymbol *Symbol,
+                                            MCSymbolAttr Linakge,
+                                            MCSymbolAttr Visibility) override;
+  void emitXCOFFRenameDirective(const MCSymbol *Name,
+                                StringRef Rename) override;
+
   void emitELFSize(MCSymbol *Symbol, const MCExpr *Value) override;
   void emitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
                         unsigned ByteAlignment) override;
@@ -254,12 +261,12 @@ public:
   bool EmitCVInlineSiteIdDirective(unsigned FunctionId, unsigned IAFunc,
                                    unsigned IAFile, unsigned IALine,
                                    unsigned IACol, SMLoc Loc) override;
-  void EmitCVLocDirective(unsigned FunctionId, unsigned FileNo, unsigned Line,
+  void emitCVLocDirective(unsigned FunctionId, unsigned FileNo, unsigned Line,
                           unsigned Column, bool PrologueEnd, bool IsStmt,
                           StringRef FileName, SMLoc Loc) override;
-  void EmitCVLinetableDirective(unsigned FunctionId, const MCSymbol *FnStart,
+  void emitCVLinetableDirective(unsigned FunctionId, const MCSymbol *FnStart,
                                 const MCSymbol *FnEnd) override;
-  void EmitCVInlineLinetableDirective(unsigned PrimaryFunctionId,
+  void emitCVInlineLinetableDirective(unsigned PrimaryFunctionId,
                                       unsigned SourceFileId,
                                       unsigned SourceLineNum,
                                       const MCSymbol *FnStartSym,
@@ -268,25 +275,25 @@ public:
   void PrintCVDefRangePrefix(
       ArrayRef<std::pair<const MCSymbol *, const MCSymbol *>> Ranges);
 
-  void EmitCVDefRangeDirective(
+  void emitCVDefRangeDirective(
       ArrayRef<std::pair<const MCSymbol *, const MCSymbol *>> Ranges,
       codeview::DefRangeRegisterRelHeader DRHdr) override;
 
-  void EmitCVDefRangeDirective(
+  void emitCVDefRangeDirective(
       ArrayRef<std::pair<const MCSymbol *, const MCSymbol *>> Ranges,
       codeview::DefRangeSubfieldRegisterHeader DRHdr) override;
 
-  void EmitCVDefRangeDirective(
+  void emitCVDefRangeDirective(
       ArrayRef<std::pair<const MCSymbol *, const MCSymbol *>> Ranges,
       codeview::DefRangeRegisterHeader DRHdr) override;
 
-  void EmitCVDefRangeDirective(
+  void emitCVDefRangeDirective(
       ArrayRef<std::pair<const MCSymbol *, const MCSymbol *>> Ranges,
       codeview::DefRangeFramePointerRelHeader DRHdr) override;
 
-  void EmitCVStringTableDirective() override;
-  void EmitCVFileChecksumsDirective() override;
-  void EmitCVFileChecksumOffsetDirective(unsigned FileNo) override;
+  void emitCVStringTableDirective() override;
+  void emitCVFileChecksumsDirective() override;
+  void emitCVFileChecksumOffsetDirective(unsigned FileNo) override;
   void EmitCVFPOData(const MCSymbol *ProcSym, SMLoc L) override;
 
   void emitIdent(StringRef IdentString) override;
@@ -342,9 +349,9 @@ public:
   void emitBundleLock(bool AlignToEnd) override;
   void emitBundleUnlock() override;
 
-  bool emitRelocDirective(const MCExpr &Offset, StringRef Name,
-                          const MCExpr *Expr, SMLoc Loc,
-                          const MCSubtargetInfo &STI) override;
+  Optional<std::pair<bool, std::string>>
+  emitRelocDirective(const MCExpr &Offset, StringRef Name, const MCExpr *Expr,
+                     SMLoc Loc, const MCSubtargetInfo &STI) override;
 
   void emitAddrsig() override;
   void emitAddrsigSym(const MCSymbol *Sym) override;
@@ -354,7 +361,7 @@ public:
   /// hasRawTextSupport() predicate.
   void emitRawTextImpl(StringRef String) override;
 
-  void FinishImpl() override;
+  void finishImpl() override;
 };
 
 } // end anonymous namespace.
@@ -446,7 +453,7 @@ void MCAsmStreamer::emitExplicitComments() {
   ExplicitCommentToEmit.clear();
 }
 
-void MCAsmStreamer::ChangeSection(MCSection *Section,
+void MCAsmStreamer::changeSection(MCSection *Section,
                                   const MCExpr *Subsection) {
   assert(Section && "Cannot switch to a null section!");
   if (MCTargetStreamer *TS = getTargetStreamer()) {
@@ -573,6 +580,7 @@ static const char *getPlatformName(MachO::PlatformType Type) {
   case MachO::PLATFORM_IOSSIMULATOR:     return "iossimulator";
   case MachO::PLATFORM_TVOSSIMULATOR:    return "tvossimulator";
   case MachO::PLATFORM_WATCHOSSIMULATOR: return "watchossimulator";
+  case MachO::PLATFORM_DRIVERKIT:        return "driverkit";
   }
   llvm_unreachable("Invalid Mach-O platform type");
 }
@@ -675,6 +683,9 @@ bool MCAsmStreamer::emitSymbolAttribute(MCSymbol *Symbol,
     break;
   case MCSA_Protected:      OS << "\t.protected\t";       break;
   case MCSA_Reference:      OS << "\t.reference\t";       break;
+  case MCSA_Extern:
+    OS << "\t.extern\t";
+    break;
   case MCSA_Weak:           OS << MAI->getWeakDirective(); break;
   case MCSA_WeakDefinition:
     OS << "\t.weak_definition\t";
@@ -786,6 +797,72 @@ void MCAsmStreamer::emitXCOFFLocalCommonSymbol(MCSymbol *LabelSym,
   OS << ',' << Log2_32(ByteAlignment);
 
   EmitEOL();
+
+  // Print symbol's rename (original name contains invalid character(s)) if
+  // there is one.
+  MCSymbolXCOFF *XSym = cast<MCSymbolXCOFF>(CsectSym);
+  if (XSym->hasRename())
+    emitXCOFFRenameDirective(XSym, XSym->getSymbolTableName());
+}
+
+void MCAsmStreamer::emitXCOFFSymbolLinkageWithVisibility(
+    MCSymbol *Symbol, MCSymbolAttr Linkage, MCSymbolAttr Visibility) {
+
+  switch (Linkage) {
+  case MCSA_Global:
+    OS << MAI->getGlobalDirective();
+    break;
+  case MCSA_Weak:
+    OS << MAI->getWeakDirective();
+    break;
+  case MCSA_Extern:
+    OS << "\t.extern\t";
+    break;
+  case MCSA_LGlobal:
+    OS << "\t.lglobl\t";
+    break;
+  default:
+    report_fatal_error("unhandled linkage type");
+  }
+
+  Symbol->print(OS, MAI);
+
+  switch (Visibility) {
+  case MCSA_Invalid:
+    // Nothing to do.
+    break;
+  case MCSA_Hidden:
+    OS << ",hidden";
+    break;
+  case MCSA_Protected:
+    OS << ",protected";
+    break;
+  default:
+    report_fatal_error("unexpected value for Visibility type");
+  }
+  EmitEOL();
+
+  // Print symbol's rename (original name contains invalid character(s)) if
+  // there is one.
+  if (cast<MCSymbolXCOFF>(Symbol)->hasRename())
+    emitXCOFFRenameDirective(Symbol,
+                             cast<MCSymbolXCOFF>(Symbol)->getSymbolTableName());
+}
+
+void MCAsmStreamer::emitXCOFFRenameDirective(const MCSymbol *Name,
+                                             StringRef Rename) {
+  OS << "\t.rename\t";
+  Name->print(OS, MAI);
+  const char DQ = '"';
+  OS << ',' << DQ;
+  for (char C : Rename) {
+    // To escape a double quote character, the character should be doubled.
+    if (C == DQ)
+      OS << DQ;
+    OS << C;
+  }
+  OS << DQ;
+  EmitEOL();
 }
 
 void MCAsmStreamer::emitELFSize(MCSymbol *Symbol, const MCExpr *Value) {
@@ -810,6 +887,13 @@ void MCAsmStreamer::emitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
       OS << ',' << Log2_32(ByteAlignment);
   }
   EmitEOL();
+
+  // Print symbol's rename (original name contains invalid character(s)) if
+  // there is one.
+  MCSymbolXCOFF *XSym = dyn_cast<MCSymbolXCOFF>(Symbol);
+  if (XSym && XSym->hasRename())
+    emitXCOFFRenameDirective(XSym, XSym->getSymbolTableName());
+
 }
 
 void MCAsmStreamer::emitLocalCommonSymbol(MCSymbol *Symbol, uint64_t Size,
@@ -848,7 +932,7 @@ void MCAsmStreamer::emitZerofill(MCSection *Section, MCSymbol *Symbol,
   // This is a mach-o specific directive.
 
   const MCSectionMachO *MOSection = ((const MCSectionMachO*)Section);
-  OS << MOSection->getSegmentName() << "," << MOSection->getSectionName();
+  OS << MOSection->getSegmentName() << "," << MOSection->getName();
 
   if (Symbol) {
     OS << ',';
@@ -1399,7 +1483,7 @@ bool MCAsmStreamer::EmitCVInlineSiteIdDirective(unsigned FunctionId,
                                                  IALine, IACol, Loc);
 }
 
-void MCAsmStreamer::EmitCVLocDirective(unsigned FunctionId, unsigned FileNo,
+void MCAsmStreamer::emitCVLocDirective(unsigned FunctionId, unsigned FileNo,
                                        unsigned Line, unsigned Column,
                                        bool PrologueEnd, bool IsStmt,
                                        StringRef FileName, SMLoc Loc) {
@@ -1423,7 +1507,7 @@ void MCAsmStreamer::EmitCVLocDirective(unsigned FunctionId, unsigned FileNo,
   EmitEOL();
 }
 
-void MCAsmStreamer::EmitCVLinetableDirective(unsigned FunctionId,
+void MCAsmStreamer::emitCVLinetableDirective(unsigned FunctionId,
                                              const MCSymbol *FnStart,
                                              const MCSymbol *FnEnd) {
   OS << "\t.cv_linetable\t" << FunctionId << ", ";
@@ -1431,10 +1515,10 @@ void MCAsmStreamer::EmitCVLinetableDirective(unsigned FunctionId,
   OS << ", ";
   FnEnd->print(OS, MAI);
   EmitEOL();
-  this->MCStreamer::EmitCVLinetableDirective(FunctionId, FnStart, FnEnd);
+  this->MCStreamer::emitCVLinetableDirective(FunctionId, FnStart, FnEnd);
 }
 
-void MCAsmStreamer::EmitCVInlineLinetableDirective(unsigned PrimaryFunctionId,
+void MCAsmStreamer::emitCVInlineLinetableDirective(unsigned PrimaryFunctionId,
                                                    unsigned SourceFileId,
                                                    unsigned SourceLineNum,
                                                    const MCSymbol *FnStartSym,
@@ -1445,7 +1529,7 @@ void MCAsmStreamer::EmitCVInlineLinetableDirective(unsigned PrimaryFunctionId,
   OS << ' ';
   FnEndSym->print(OS, MAI);
   EmitEOL();
-  this->MCStreamer::EmitCVInlineLinetableDirective(
+  this->MCStreamer::emitCVInlineLinetableDirective(
       PrimaryFunctionId, SourceFileId, SourceLineNum, FnStartSym, FnEndSym);
 }
 
@@ -1460,7 +1544,7 @@ void MCAsmStreamer::PrintCVDefRangePrefix(
   }
 }
 
-void MCAsmStreamer::EmitCVDefRangeDirective(
+void MCAsmStreamer::emitCVDefRangeDirective(
     ArrayRef<std::pair<const MCSymbol *, const MCSymbol *>> Ranges,
     codeview::DefRangeRegisterRelHeader DRHdr) {
   PrintCVDefRangePrefix(Ranges);
@@ -1470,7 +1554,7 @@ void MCAsmStreamer::EmitCVDefRangeDirective(
   EmitEOL();
 }
 
-void MCAsmStreamer::EmitCVDefRangeDirective(
+void MCAsmStreamer::emitCVDefRangeDirective(
     ArrayRef<std::pair<const MCSymbol *, const MCSymbol *>> Ranges,
     codeview::DefRangeSubfieldRegisterHeader DRHdr) {
   PrintCVDefRangePrefix(Ranges);
@@ -1479,7 +1563,7 @@ void MCAsmStreamer::EmitCVDefRangeDirective(
   EmitEOL();
 }
 
-void MCAsmStreamer::EmitCVDefRangeDirective(
+void MCAsmStreamer::emitCVDefRangeDirective(
     ArrayRef<std::pair<const MCSymbol *, const MCSymbol *>> Ranges,
     codeview::DefRangeRegisterHeader DRHdr) {
   PrintCVDefRangePrefix(Ranges);
@@ -1488,7 +1572,7 @@ void MCAsmStreamer::EmitCVDefRangeDirective(
   EmitEOL();
 }
 
-void MCAsmStreamer::EmitCVDefRangeDirective(
+void MCAsmStreamer::emitCVDefRangeDirective(
     ArrayRef<std::pair<const MCSymbol *, const MCSymbol *>> Ranges,
     codeview::DefRangeFramePointerRelHeader DRHdr) {
   PrintCVDefRangePrefix(Ranges);
@@ -1497,17 +1581,17 @@ void MCAsmStreamer::EmitCVDefRangeDirective(
   EmitEOL();
 }
 
-void MCAsmStreamer::EmitCVStringTableDirective() {
+void MCAsmStreamer::emitCVStringTableDirective() {
   OS << "\t.cv_stringtable";
   EmitEOL();
 }
 
-void MCAsmStreamer::EmitCVFileChecksumsDirective() {
+void MCAsmStreamer::emitCVFileChecksumsDirective() {
   OS << "\t.cv_filechecksums";
   EmitEOL();
 }
 
-void MCAsmStreamer::EmitCVFileChecksumOffsetDirective(unsigned FileNo) {
+void MCAsmStreamer::emitCVFileChecksumOffsetDirective(unsigned FileNo) {
   OS << "\t.cv_filechecksumoffset\t" << FileNo;
   EmitEOL();
 }
@@ -1738,8 +1822,11 @@ void MCAsmStreamer::EmitWinCFIEndProc(SMLoc Loc) {
   EmitEOL();
 }
 
-// TODO: Implement
 void MCAsmStreamer::EmitWinCFIFuncletOrFuncEnd(SMLoc Loc) {
+  MCStreamer::EmitWinCFIFuncletOrFuncEnd(Loc);
+
+  OS << "\t.seh_endfunclet";
+  EmitEOL();
 }
 
 void MCAsmStreamer::EmitWinCFIStartChained(SMLoc Loc) {
@@ -1997,9 +2084,10 @@ void MCAsmStreamer::emitBundleUnlock() {
   EmitEOL();
 }
 
-bool MCAsmStreamer::emitRelocDirective(const MCExpr &Offset, StringRef Name,
-                                       const MCExpr *Expr, SMLoc,
-                                       const MCSubtargetInfo &STI) {
+Optional<std::pair<bool, std::string>>
+MCAsmStreamer::emitRelocDirective(const MCExpr &Offset, StringRef Name,
+                                  const MCExpr *Expr, SMLoc,
+                                  const MCSubtargetInfo &STI) {
   OS << "\t.reloc ";
   Offset.print(OS, MAI);
   OS << ", " << Name;
@@ -2008,7 +2096,7 @@ bool MCAsmStreamer::emitRelocDirective(const MCExpr &Offset, StringRef Name,
     Expr->print(OS, MAI);
   }
   EmitEOL();
-  return false;
+  return None;
 }
 
 void MCAsmStreamer::emitAddrsig() {
@@ -2032,7 +2120,7 @@ void MCAsmStreamer::emitRawTextImpl(StringRef String) {
   EmitEOL();
 }
 
-void MCAsmStreamer::FinishImpl() {
+void MCAsmStreamer::finishImpl() {
   // If we are generating dwarf for assembly source files dump out the sections.
   if (getContext().getGenDwarfForAssembly())
     MCGenDwarfInfo::Emit(this);

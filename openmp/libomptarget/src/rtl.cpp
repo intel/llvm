@@ -23,10 +23,13 @@
 
 // List of all plugins that can support offloading.
 static const char *RTLNames[] = {
-    /* PowerPC target */ "libomptarget.rtl.ppc64.so",
-    /* x86_64 target  */ "libomptarget.rtl.x86_64.so",
-    /* CUDA target    */ "libomptarget.rtl.cuda.so",
-    /* AArch64 target */ "libomptarget.rtl.aarch64.so"};
+    /* PowerPC target       */ "libomptarget.rtl.ppc64.so",
+    /* x86_64 target        */ "libomptarget.rtl.x86_64.so",
+    /* CUDA target          */ "libomptarget.rtl.cuda.so",
+    /* AArch64 target       */ "libomptarget.rtl.aarch64.so",
+    /* SX-Aurora VE target  */ "libomptarget.rtl.ve.so",
+    /* AMDGPU target        */ "libomptarget.rtl.amdgpu.so",
+};
 
 RTLsTy *RTLs;
 std::mutex *RTLsMtx;
@@ -58,12 +61,6 @@ __attribute__((destructor(101))) void deinit() {
 }
 
 void RTLsTy::LoadRTLs() {
-#ifdef OMPTARGET_DEBUG
-  if (char *envStr = getenv("LIBOMPTARGET_DEBUG")) {
-    DebugLevel = std::stoi(envStr);
-  }
-#endif // OMPTARGET_DEBUG
-
   // Parse environment variable OMP_TARGET_OFFLOAD (if set)
   TargetOffloadPolicy = (kmp_target_offload_kind_t) __kmpc_get_target_offload();
   if (TargetOffloadPolicy == tgt_disabled) {
@@ -96,40 +93,55 @@ void RTLsTy::LoadRTLs() {
     R.RTLName = Name;
 #endif
 
-    if (!(*((void**) &R.is_valid_binary) = dlsym(
-              dynlib_handle, "__tgt_rtl_is_valid_binary")))
+    if (!(*((void **)&R.is_valid_binary) =
+              dlsym(dynlib_handle, "__tgt_rtl_is_valid_binary")))
       continue;
-    if (!(*((void**) &R.number_of_devices) = dlsym(
-              dynlib_handle, "__tgt_rtl_number_of_devices")))
+    if (!(*((void **)&R.number_of_devices) =
+              dlsym(dynlib_handle, "__tgt_rtl_number_of_devices")))
       continue;
-    if (!(*((void**) &R.init_device) = dlsym(
-              dynlib_handle, "__tgt_rtl_init_device")))
+    if (!(*((void **)&R.init_device) =
+              dlsym(dynlib_handle, "__tgt_rtl_init_device")))
       continue;
-    if (!(*((void**) &R.load_binary) = dlsym(
-              dynlib_handle, "__tgt_rtl_load_binary")))
+    if (!(*((void **)&R.load_binary) =
+              dlsym(dynlib_handle, "__tgt_rtl_load_binary")))
       continue;
-    if (!(*((void**) &R.data_alloc) = dlsym(
-              dynlib_handle, "__tgt_rtl_data_alloc")))
+    if (!(*((void **)&R.data_alloc) =
+              dlsym(dynlib_handle, "__tgt_rtl_data_alloc")))
       continue;
-    if (!(*((void**) &R.data_submit) = dlsym(
-              dynlib_handle, "__tgt_rtl_data_submit")))
+    if (!(*((void **)&R.data_submit) =
+              dlsym(dynlib_handle, "__tgt_rtl_data_submit")))
       continue;
-    if (!(*((void**) &R.data_retrieve) = dlsym(
-              dynlib_handle, "__tgt_rtl_data_retrieve")))
+    if (!(*((void **)&R.data_retrieve) =
+              dlsym(dynlib_handle, "__tgt_rtl_data_retrieve")))
       continue;
-    if (!(*((void**) &R.data_delete) = dlsym(
-              dynlib_handle, "__tgt_rtl_data_delete")))
+    if (!(*((void **)&R.data_delete) =
+              dlsym(dynlib_handle, "__tgt_rtl_data_delete")))
       continue;
-    if (!(*((void**) &R.run_region) = dlsym(
-              dynlib_handle, "__tgt_rtl_run_target_region")))
+    if (!(*((void **)&R.run_region) =
+              dlsym(dynlib_handle, "__tgt_rtl_run_target_region")))
       continue;
-    if (!(*((void**) &R.run_team_region) = dlsym(
-              dynlib_handle, "__tgt_rtl_run_target_team_region")))
+    if (!(*((void **)&R.run_team_region) =
+              dlsym(dynlib_handle, "__tgt_rtl_run_target_team_region")))
       continue;
 
     // Optional functions
-    *((void**) &R.init_requires) = dlsym(
-        dynlib_handle, "__tgt_rtl_init_requires");
+    *((void **)&R.init_requires) =
+        dlsym(dynlib_handle, "__tgt_rtl_init_requires");
+    *((void **)&R.data_submit_async) =
+        dlsym(dynlib_handle, "__tgt_rtl_data_submit_async");
+    *((void **)&R.data_retrieve_async) =
+        dlsym(dynlib_handle, "__tgt_rtl_data_retrieve_async");
+    *((void **)&R.run_region_async) =
+        dlsym(dynlib_handle, "__tgt_rtl_run_target_region_async");
+    *((void **)&R.run_team_region_async) =
+        dlsym(dynlib_handle, "__tgt_rtl_run_target_team_region_async");
+    *((void **)&R.synchronize) = dlsym(dynlib_handle, "__tgt_rtl_synchronize");
+    *((void **)&R.data_exchange) =
+        dlsym(dynlib_handle, "__tgt_rtl_data_exchange");
+    *((void **)&R.data_exchange_async) =
+        dlsym(dynlib_handle, "__tgt_rtl_data_exchange_async");
+    *((void **)&R.is_data_exchangable) =
+        dlsym(dynlib_handle, "__tgt_rtl_is_data_exchangable");
 
     // No devices are supported by this RTL?
     if (!(R.NumberOfDevices = R.number_of_devices())) {
@@ -137,8 +149,8 @@ void RTLsTy::LoadRTLs() {
       continue;
     }
 
-    DP("Registering RTL %s supporting %d devices!\n",
-        R.RTLName.c_str(), R.NumberOfDevices);
+    DP("Registering RTL %s supporting %d devices!\n", R.RTLName.c_str(),
+       R.NumberOfDevices);
 
     // The RTL is valid! Will save the information in the RTLs list.
     AllRTLs.push_back(R);
@@ -246,7 +258,7 @@ void RTLsTy::RegisterRequires(int64_t flags) {
 
   // TODO: insert any other missing checks
 
-  DP("New requires flags %ld compatible with existing %ld!\n",
+  DP("New requires flags %" PRId64 " compatible with existing %" PRId64 "!\n",
      flags, RequiresFlags);
 }
 
@@ -371,8 +383,8 @@ void RTLsTy::UnregisterLib(__tgt_bin_desc *desc) {
         Device.PendingGlobalsMtx.lock();
         if (Device.PendingCtorsDtors[desc].PendingCtors.empty()) {
           for (auto &dtor : Device.PendingCtorsDtors[desc].PendingDtors) {
-            int rc = target(Device.DeviceID, dtor, 0, NULL, NULL, NULL, NULL, 1,
-                1, true /*team*/);
+            int rc = target(Device.DeviceID, dtor, 0, NULL, NULL, NULL, NULL,
+                NULL, 1, 1, true /*team*/);
             if (rc != OFFLOAD_SUCCESS) {
               DP("Running destructor " DPxMOD " failed.\n", DPxPTR(dtor));
             }

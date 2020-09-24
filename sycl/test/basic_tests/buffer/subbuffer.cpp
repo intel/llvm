@@ -1,6 +1,3 @@
-// XFAIL: cuda
-// TODO: Fix CUDA implementation.
-//
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
@@ -112,12 +109,12 @@ void check1DSubBuffer(cl::sycl::queue &q) {
     assert(false && "Exception was caught");
   }
 
-  for (int i = offset; i < subbuf_size; ++i)
-    assert(vec[i] == (i > 34 ? i * 10 : i * -10) &&
+  for (int i = offset; i < offset + subbuf_size; ++i)
+    assert(vec[i] == (i < offset + offset_inside_subbuf ? i * 10 : i * -10) &&
            "Invalid result in 1d sub buffer");
 
   for (int i = 0; i < subbuf_size; ++i)
-    assert(vec2[i] == (i < 3 ? (32 + i) : (32 + i) * -1) &&
+    assert(vec2[i] == (i < 3 ? (offset + i) : (offset + i) * -1) &&
            "Invalid result in 1d sub buffer");
 }
 

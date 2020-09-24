@@ -47,8 +47,11 @@ NVPTXMCAsmInfo::NVPTXMCAsmInfo(const Triple &TheTriple,
   AscizDirective = nullptr; // not supported
   SupportsQuotedNames = false;
   SupportsExtendedDwarfLocDirective = false;
+  SupportsSignedData = false;
 
   // @TODO: Can we just disable this?
   WeakDirective = "\t// .weak\t";
   GlobalDirective = "\t// .globl\t";
+
+  UseIntegratedAssembler = false;
 }

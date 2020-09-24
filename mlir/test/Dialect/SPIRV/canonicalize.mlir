@@ -11,8 +11,8 @@ func @combine_full_access_chain() -> f32 {
   // CHECK-NEXT: spv.Load "Function" %[[PTR]]
   %c0 = spv.constant 0: i32
   %0 = spv.Variable : !spv.ptr<!spv.struct<!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>>, Function>
-  %1 = spv.AccessChain %0[%c0] : !spv.ptr<!spv.struct<!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>>, Function>
-  %2 = spv.AccessChain %1[%c0, %c0] : !spv.ptr<!spv.array<4x!spv.array<4xf32>>, Function>
+  %1 = spv.AccessChain %0[%c0] : !spv.ptr<!spv.struct<!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>>, Function>, i32
+  %2 = spv.AccessChain %1[%c0, %c0] : !spv.ptr<!spv.array<4x!spv.array<4xf32>>, Function>, i32, i32
   %3 = spv.Load "Function" %2 : f32
   spv.ReturnValue %3 : f32
 }
@@ -28,9 +28,9 @@ func @combine_access_chain_multi_use() -> !spv.array<4xf32> {
   // CHECK-NEXT: spv.Load "Function" %[[PTR_1]]
   %c0 = spv.constant 0: i32
   %0 = spv.Variable : !spv.ptr<!spv.struct<!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>>, Function>
-  %1 = spv.AccessChain %0[%c0] : !spv.ptr<!spv.struct<!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>>, Function>
-  %2 = spv.AccessChain %1[%c0] : !spv.ptr<!spv.array<4x!spv.array<4xf32>>, Function>
-  %3 = spv.AccessChain %2[%c0] : !spv.ptr<!spv.array<4xf32>, Function>
+  %1 = spv.AccessChain %0[%c0] : !spv.ptr<!spv.struct<!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>>, Function>, i32
+  %2 = spv.AccessChain %1[%c0] : !spv.ptr<!spv.array<4x!spv.array<4xf32>>, Function>, i32
+  %3 = spv.AccessChain %2[%c0] : !spv.ptr<!spv.array<4xf32>, Function>, i32
   %4 = spv.Load "Function" %2 : !spv.array<4xf32>
   %5 = spv.Load "Function" %3 : f32
   spv.ReturnValue %4: !spv.array<4xf32>
@@ -49,8 +49,8 @@ func @dont_combine_access_chain_without_common_base() -> !spv.array<4xi32> {
   %c1 = spv.constant 1: i32
   %0 = spv.Variable : !spv.ptr<!spv.struct<!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>>, Function>
   %1 = spv.Variable : !spv.ptr<!spv.struct<!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>>, Function>
-  %2 = spv.AccessChain %0[%c1] : !spv.ptr<!spv.struct<!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>>, Function>
-  %3 = spv.AccessChain %1[%c1] : !spv.ptr<!spv.struct<!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>>, Function>
+  %2 = spv.AccessChain %0[%c1] : !spv.ptr<!spv.struct<!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>>, Function>, i32
+  %3 = spv.AccessChain %1[%c1] : !spv.ptr<!spv.struct<!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>>, Function>, i32
   %4 = spv.Load "Function" %2 : !spv.array<4xi32>
   %5 = spv.Load "Function" %3 : !spv.array<4xi32>
   spv.ReturnValue %4 : !spv.array<4xi32>
@@ -141,7 +141,7 @@ func @extract_from_not_constant() -> i32 {
 // spv.constant
 //===----------------------------------------------------------------------===//
 
-// TODO(antiagainst): test constants in different blocks
+// TODO: test constants in different blocks
 
 func @deduplicate_scalar_constant() -> (i32, i32) {
   // CHECK: %[[CST:.*]] = spv.constant 42 : i32
@@ -273,7 +273,7 @@ func @const_fold_scalar_imul_flow() -> (i32, i32, i32) {
   %c1 = spv.constant 2 : i32
   %c2 = spv.constant 4 : i32
   %c3 = spv.constant 4294967295 : i32  // 2^32 - 1 : 0xffff ffff
-  %c4 = spv.constant -2147483649 : i32 // -2^31 - 1: 0x7fff ffff
+  %c4 = spv.constant 2147483647 : i32  // 2^31 - 1 : 0x7fff ffff
 
   // (0xffff ffff << 1) = 0x1 ffff fffe -> 0xffff fffe
   // CHECK: %[[CST2:.*]] = spv.constant -2
@@ -331,7 +331,7 @@ func @const_fold_scalar_isub_flow() -> (i32, i32, i32, i32) {
   %c1 = spv.constant 0 : i32
   %c2 = spv.constant 1 : i32
   %c3 = spv.constant 4294967295 : i32  // 2^32 - 1 : 0xffff ffff
-  %c4 = spv.constant -2147483649 : i32 // -2^31 - 1: 0x7fff ffff
+  %c4 = spv.constant 2147483647 : i32  // 2^31     : 0x7fff ffff
   %c5 = spv.constant -1 : i32          //          : 0xffff ffff
   %c6 = spv.constant -2 : i32          //          : 0xffff fffe
 
@@ -559,15 +559,18 @@ func @cannot_canonicalize_selection_op_0(%cond: i1) -> () {
 
   // CHECK: spv.selection {
   spv.selection {
+    // CHECK: spv.BranchConditional
+    // CHECK-SAME: ^bb1(%[[DST_VAR_0]], %[[SRC_VALUE_0]]
+    // CHECK-SAME: ^bb1(%[[DST_VAR_1]], %[[SRC_VALUE_1]]
     spv.BranchConditional %cond, ^then, ^else
 
   ^then:
-    // CHECK: spv.Store "Function" %[[DST_VAR_0]], %[[SRC_VALUE_0]] ["Aligned", 8] : vector<3xi32>
+    // CHECK: ^bb1(%[[ARG0:.*]]: !spv.ptr<vector<3xi32>, Function>, %[[ARG1:.*]]: vector<3xi32>):
+    // CHECK: spv.Store "Function" %[[ARG0]], %[[ARG1]] ["Aligned", 8] : vector<3xi32>
     spv.Store "Function" %3, %1 ["Aligned", 8]:  vector<3xi32>
     spv.Branch ^merge
 
   ^else:
-    // CHECK: spv.Store "Function" %[[DST_VAR_1]], %[[SRC_VALUE_1]] ["Aligned", 8] : vector<3xi32>
     spv.Store "Function" %4, %2 ["Aligned", 8] : vector<3xi32>
     spv.Branch ^merge
 

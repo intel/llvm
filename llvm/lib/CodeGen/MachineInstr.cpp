@@ -147,6 +147,10 @@ MachineInstr::MachineInstr(MachineFunction &MF, const MachineInstr &MI)
   setFlags(MI.Flags);
 }
 
+void MachineInstr::moveBefore(MachineInstr *MovePos) {
+  MovePos->getParent()->splice(MovePos, getParent(), getIterator());
+}
+
 /// getRegInfo - If this instruction is embedded into a MachineFunction,
 /// return the MachineRegisterInfo object for the current function, otherwise
 /// return null.
@@ -834,9 +838,24 @@ const DILabel *MachineInstr::getDebugLabel() const {
   return cast<DILabel>(getOperand(0).getMetadata());
 }
 
+const MachineOperand &MachineInstr::getDebugVariableOp() const {
+  assert(isDebugValue() && "not a DBG_VALUE");
+  return getOperand(2);
+}
+
+MachineOperand &MachineInstr::getDebugVariableOp() {
+  assert(isDebugValue() && "not a DBG_VALUE");
+  return getOperand(2);
+}
+
 const DILocalVariable *MachineInstr::getDebugVariable() const {
   assert(isDebugValue() && "not a DBG_VALUE");
   return cast<DILocalVariable>(getOperand(2).getMetadata());
+}
+
+MachineOperand &MachineInstr::getDebugExpressionOp() {
+  assert(isDebugValue() && "not a DBG_VALUE");
+  return getOperand(3);
 }
 
 const DIExpression *MachineInstr::getDebugExpression() const {
@@ -1198,7 +1217,7 @@ bool MachineInstr::isSafeToMove(AAResults *AA, bool &SawStore) const {
 
   // See if this instruction does a load.  If so, we have to guarantee that the
   // loaded value doesn't change between the load and the its intended
-  // destination. The check for isInvariantLoad gives the targe the chance to
+  // destination. The check for isInvariantLoad gives the target the chance to
   // classify the load as always returning a constant, e.g. a constant pool
   // load.
   if (mayLoad() && !isDereferenceableInvariantLoad(AA))
@@ -1218,6 +1237,10 @@ bool MachineInstr::mayAlias(AAResults *AA, const MachineInstr &Other,
   // If neither instruction stores to memory, they can't alias in any
   // meaningful way, even if they read from the same address.
   if (!mayStore() && !Other.mayStore())
+    return false;
+
+  // Both instructions must be memory operations to be able to alias.
+  if (!mayLoadOrStore() || !Other.mayLoadOrStore())
     return false;
 
   // Let the target decide if memory accesses cannot possibly overlap.
@@ -1591,6 +1614,8 @@ void MachineInstr::print(raw_ostream &OS, ModuleSlotTracker &MST,
     OS << "exact ";
   if (getFlag(MachineInstr::NoFPExcept))
     OS << "nofpexcept ";
+  if (getFlag(MachineInstr::NoMerge))
+    OS << "nomerge ";
 
   // Print the opcode name.
   if (TII)
@@ -1669,15 +1694,8 @@ void MachineInstr::print(raw_ostream &OS, ModuleSlotTracker &MST,
       // Pretty print the inline asm operand descriptor.
       OS << '$' << AsmOpCount++;
       unsigned Flag = MO.getImm();
-      switch (InlineAsm::getKind(Flag)) {
-      case InlineAsm::Kind_RegUse:             OS << ":[reguse"; break;
-      case InlineAsm::Kind_RegDef:             OS << ":[regdef"; break;
-      case InlineAsm::Kind_RegDefEarlyClobber: OS << ":[regdef-ec"; break;
-      case InlineAsm::Kind_Clobber:            OS << ":[clobber"; break;
-      case InlineAsm::Kind_Imm:                OS << ":[imm"; break;
-      case InlineAsm::Kind_Mem:                OS << ":[mem"; break;
-      default: OS << ":[??" << InlineAsm::getKind(Flag); break;
-      }
+      OS << ":[";
+      OS << InlineAsm::getKindName(InlineAsm::getKind(Flag));
 
       unsigned RCID = 0;
       if (!InlineAsm::isImmKind(Flag) && !InlineAsm::isMemKind(Flag) &&
@@ -1690,29 +1708,7 @@ void MachineInstr::print(raw_ostream &OS, ModuleSlotTracker &MST,
 
       if (InlineAsm::isMemKind(Flag)) {
         unsigned MCID = InlineAsm::getMemoryConstraintID(Flag);
-        switch (MCID) {
-        case InlineAsm::Constraint_es: OS << ":es"; break;
-        case InlineAsm::Constraint_i:  OS << ":i"; break;
-        case InlineAsm::Constraint_m:  OS << ":m"; break;
-        case InlineAsm::Constraint_o:  OS << ":o"; break;
-        case InlineAsm::Constraint_v:  OS << ":v"; break;
-        case InlineAsm::Constraint_Q:  OS << ":Q"; break;
-        case InlineAsm::Constraint_R:  OS << ":R"; break;
-        case InlineAsm::Constraint_S:  OS << ":S"; break;
-        case InlineAsm::Constraint_T:  OS << ":T"; break;
-        case InlineAsm::Constraint_Um: OS << ":Um"; break;
-        case InlineAsm::Constraint_Un: OS << ":Un"; break;
-        case InlineAsm::Constraint_Uq: OS << ":Uq"; break;
-        case InlineAsm::Constraint_Us: OS << ":Us"; break;
-        case InlineAsm::Constraint_Ut: OS << ":Ut"; break;
-        case InlineAsm::Constraint_Uv: OS << ":Uv"; break;
-        case InlineAsm::Constraint_Uy: OS << ":Uy"; break;
-        case InlineAsm::Constraint_X:  OS << ":X"; break;
-        case InlineAsm::Constraint_Z:  OS << ":Z"; break;
-        case InlineAsm::Constraint_ZC: OS << ":ZC"; break;
-        case InlineAsm::Constraint_Zy: OS << ":Zy"; break;
-        default: OS << ":?"; break;
-        }
+        OS << ":" << InlineAsm::getMemConstraintName(MCID);
       }
 
       unsigned TiedTo = 0;
@@ -1809,12 +1805,12 @@ void MachineInstr::print(raw_ostream &OS, ModuleSlotTracker &MST,
   }
 
   // Print extra comments for DEBUG_VALUE.
-  if (isDebugValue() && getOperand(e - 2).isMetadata()) {
+  if (isDebugValue() && getDebugVariableOp().isMetadata()) {
     if (!HaveSemi) {
       OS << ";";
       HaveSemi = true;
     }
-    auto *DV = cast<DILocalVariable>(getOperand(e - 2).getMetadata());
+    auto *DV = getDebugVariable();
     OS << " line no:" <<  DV->getLine();
     if (isIndirectDebugValue())
       OS << " indirect";
@@ -2120,7 +2116,8 @@ static const DIExpression *computeExprForSpill(const MachineInstr &MI) {
 
   const DIExpression *Expr = MI.getDebugExpression();
   if (MI.isIndirectDebugValue()) {
-    assert(MI.getOperand(1).getImm() == 0 && "DBG_VALUE with nonzero offset");
+    assert(MI.getDebugOffset().getImm() == 0 &&
+           "DBG_VALUE with nonzero offset");
     Expr = DIExpression::prepend(Expr, DIExpression::DerefBefore);
   }
   return Expr;
@@ -2140,9 +2137,9 @@ MachineInstr *llvm::buildDbgValueForSpill(MachineBasicBlock &BB,
 
 void llvm::updateDbgValueForSpill(MachineInstr &Orig, int FrameIndex) {
   const DIExpression *Expr = computeExprForSpill(Orig);
-  Orig.getOperand(0).ChangeToFrameIndex(FrameIndex);
-  Orig.getOperand(1).ChangeToImmediate(0U);
-  Orig.getOperand(3).setMetadata(Expr);
+  Orig.getDebugOperand(0).ChangeToFrameIndex(FrameIndex);
+  Orig.getDebugOffset().ChangeToImmediate(0U);
+  Orig.getDebugExpressionOp().setMetadata(Expr);
 }
 
 void MachineInstr::collectDebugValues(
@@ -2156,8 +2153,7 @@ void MachineInstr::collectDebugValues(
        DI != DE; ++DI) {
     if (!DI->isDebugValue())
       return;
-    if (DI->getOperand(0).isReg() &&
-        DI->getOperand(0).getReg() == MI.getOperand(0).getReg())
+    if (DI->getDebugOperandForReg(MI.getOperand(0).getReg()))
       DbgValues.push_back(&*DI);
   }
 }
@@ -2169,21 +2165,20 @@ void MachineInstr::changeDebugValuesDefReg(Register Reg) {
   if (!getOperand(0).isReg())
     return;
 
-  unsigned DefReg = getOperand(0).getReg();
+  Register DefReg = getOperand(0).getReg();
   auto *MRI = getRegInfo();
   for (auto &MO : MRI->use_operands(DefReg)) {
     auto *DI = MO.getParent();
     if (!DI->isDebugValue())
       continue;
-    if (DI->getOperand(0).isReg() &&
-        DI->getOperand(0).getReg() == DefReg){
+    if (DI->getDebugOperandForReg(DefReg)) {
       DbgValues.push_back(DI);
     }
   }
 
   // Propagate Reg to debug value instructions.
   for (auto *DBI : DbgValues)
-    DBI->getOperand(0).setReg(Reg);
+    DBI->getDebugOperandForReg(DefReg)->setReg(Reg);
 }
 
 using MMOList = SmallVector<const MachineMemOperand *, 2>;

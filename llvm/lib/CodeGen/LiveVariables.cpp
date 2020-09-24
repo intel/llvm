@@ -89,10 +89,9 @@ LiveVariables::VarInfo &LiveVariables::getVarInfo(unsigned RegIdx) {
   return VirtRegInfo[RegIdx];
 }
 
-void LiveVariables::MarkVirtRegAliveInBlock(VarInfo& VRInfo,
-                                            MachineBasicBlock *DefBlock,
-                                            MachineBasicBlock *MBB,
-                                    std::vector<MachineBasicBlock*> &WorkList) {
+void LiveVariables::MarkVirtRegAliveInBlock(
+    VarInfo &VRInfo, MachineBasicBlock *DefBlock, MachineBasicBlock *MBB,
+    SmallVectorImpl<MachineBasicBlock *> &WorkList) {
   unsigned BBNum = MBB->getNumber();
 
   // Check to see if this basic block is one of the killing blocks.  If so,
@@ -118,7 +117,7 @@ void LiveVariables::MarkVirtRegAliveInBlock(VarInfo& VRInfo,
 void LiveVariables::MarkVirtRegAliveInBlock(VarInfo &VRInfo,
                                             MachineBasicBlock *DefBlock,
                                             MachineBasicBlock *MBB) {
-  std::vector<MachineBasicBlock*> WorkList;
+  SmallVector<MachineBasicBlock *, 16> WorkList;
   MarkVirtRegAliveInBlock(VRInfo, DefBlock, MBB, WorkList);
 
   while (!WorkList.empty()) {
@@ -828,7 +827,8 @@ void LiveVariables::addNewBlock(MachineBasicBlock *BB,
          BBE = SuccBB->end();
        BBI != BBE && BBI->isPHI(); ++BBI) {
     for (unsigned i = 1, e = BBI->getNumOperands(); i != e; i += 2)
-      if (BBI->getOperand(i + 1).getMBB() == BB)
+      if (BBI->getOperand(i + 1).getMBB() == BB &&
+          BBI->getOperand(i).readsReg())
         getVarInfo(BBI->getOperand(i).getReg())
           .AliveBlocks.set(NumNew);
   }

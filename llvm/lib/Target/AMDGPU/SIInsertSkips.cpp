@@ -57,18 +57,19 @@ private:
   unsigned SkipThreshold = 0;
   MachineDominatorTree *MDT = nullptr;
 
+  MachineBasicBlock *EarlyExitBlock = nullptr;
+
   bool shouldSkip(const MachineBasicBlock &From,
                   const MachineBasicBlock &To) const;
 
   bool dominatesAllReachable(MachineBasicBlock &MBB);
+  void createEarlyExitBlock(MachineBasicBlock &MBB);
   void skipIfDead(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
                   DebugLoc DL);
 
   bool kill(MachineInstr &MI);
 
   bool skipMaskBranch(MachineInstr &MI, MachineBasicBlock &MBB);
-
-  bool optimizeVccBranch(MachineInstr &MI) const;
 
 public:
   static char ID;
@@ -163,17 +164,39 @@ bool SIInsertSkips::dominatesAllReachable(MachineBasicBlock &MBB) {
   return true;
 }
 
+static void generatePsEndPgm(MachineBasicBlock &MBB,
+                             MachineBasicBlock::iterator I, DebugLoc DL,
+                             const SIInstrInfo *TII) {
+  // Generate "null export; s_endpgm".
+  BuildMI(MBB, I, DL, TII->get(AMDGPU::EXP_DONE))
+      .addImm(0x09) // V_008DFC_SQ_EXP_NULL
+      .addReg(AMDGPU::VGPR0, RegState::Undef)
+      .addReg(AMDGPU::VGPR0, RegState::Undef)
+      .addReg(AMDGPU::VGPR0, RegState::Undef)
+      .addReg(AMDGPU::VGPR0, RegState::Undef)
+      .addImm(1)  // vm
+      .addImm(0)  // compr
+      .addImm(0); // en
+  BuildMI(MBB, I, DL, TII->get(AMDGPU::S_ENDPGM)).addImm(0);
+}
+
+void SIInsertSkips::createEarlyExitBlock(MachineBasicBlock &MBB) {
+  MachineFunction *MF = MBB.getParent();
+  DebugLoc DL;
+
+  assert(!EarlyExitBlock);
+  EarlyExitBlock = MF->CreateMachineBasicBlock();
+  MF->insert(MF->end(), EarlyExitBlock);
+
+  generatePsEndPgm(*EarlyExitBlock, EarlyExitBlock->end(), DL, TII);
+}
+
 /// Insert an "if exec=0 { null export; s_endpgm }" sequence before the given
 /// iterator. Only applies to pixel shaders.
 void SIInsertSkips::skipIfDead(MachineBasicBlock &MBB,
                                MachineBasicBlock::iterator I, DebugLoc DL) {
   MachineFunction *MF = MBB.getParent();
   assert(MF->getFunction().getCallingConv() == CallingConv::AMDGPU_PS);
-
-  // Currently, SI_KILL_*_TERMINATOR is expected to occur only as the last
-  // terminator of a basic block. If this ever changes, we need to optionally
-  // split MBB here.
-  assert(I == MBB.end());
 
   // It is possible for an SI_KILL_*_TERMINATOR to sit at the bottom of a
   // basic block that has no further successors (e.g., there was an
@@ -188,34 +211,49 @@ void SIInsertSkips::skipIfDead(MachineBasicBlock &MBB,
   // In this case, we write the "null_export; s_endpgm" skip code in the
   // already-existing basic block.
   auto NextBBI = std::next(MBB.getIterator());
-  bool NoSuccessor = llvm::find(MBB.successors(), &*NextBBI) == MBB.succ_end();
-  MachineBasicBlock *SkipBB;
+  bool NoSuccessor = I == MBB.end() &&
+                     llvm::find(MBB.successors(), &*NextBBI) == MBB.succ_end();
 
   if (NoSuccessor) {
-    SkipBB = &MBB;
+    generatePsEndPgm(MBB, I, DL, TII);
   } else {
-    // Create a new basic block that will contain the "null export; s_endpgm"
-    // and set up the branching to go around it.
-    SkipBB = MF->CreateMachineBasicBlock();
-    MF->insert(NextBBI, SkipBB);
+    if (!EarlyExitBlock) {
+      createEarlyExitBlock(MBB);
+      // Update next block pointer to reflect any new blocks
+      NextBBI = std::next(MBB.getIterator());
+    }
 
-    BuildMI(&MBB, DL, TII->get(AMDGPU::S_CBRANCH_EXECNZ)).addMBB(&*NextBBI);
-    MBB.addSuccessor(SkipBB);
+    auto BranchMI = BuildMI(MBB, I, DL, TII->get(AMDGPU::S_CBRANCH_EXECZ))
+                        .addMBB(EarlyExitBlock);
 
-    MDT->addNewBlock(SkipBB, &MBB);
+    // Split the block if the branch will not come at the end.
+    auto Next = std::next(BranchMI->getIterator());
+    if (Next != MBB.end() && !Next->isTerminator()) {
+      MachineBasicBlock *SplitBB =
+          MF->CreateMachineBasicBlock(MBB.getBasicBlock());
+      MF->insert(NextBBI, SplitBB);
+      SplitBB->splice(SplitBB->begin(), &MBB, I, MBB.end());
+      SplitBB->transferSuccessorsAndUpdatePHIs(&MBB);
+      // FIXME: the expectation is that this will be used near the beginning
+      //        of a block so just assume all registers are still live.
+      for (auto LiveIn : MBB.liveins())
+        SplitBB->addLiveIn(LiveIn);
+      MBB.addSuccessor(SplitBB);
+
+      // Update dominator tree
+      using DomTreeT = DomTreeBase<MachineBasicBlock>;
+      SmallVector<DomTreeT::UpdateType, 16> DTUpdates;
+      for (MachineBasicBlock *Succ : SplitBB->successors()) {
+        DTUpdates.push_back({DomTreeT::Insert, SplitBB, Succ});
+        DTUpdates.push_back({DomTreeT::Delete, &MBB, Succ});
+      }
+      DTUpdates.push_back({DomTreeT::Insert, &MBB, SplitBB});
+      MDT->getBase().applyUpdates(DTUpdates);
+    }
+
+    MBB.addSuccessor(EarlyExitBlock);
+    MDT->getBase().insertEdge(&MBB, EarlyExitBlock);
   }
-
-  // Generate "null export; s_endpgm".
-  BuildMI(SkipBB, DL, TII->get(AMDGPU::EXP_DONE))
-      .addImm(0x09) // V_008DFC_SQ_EXP_NULL
-      .addReg(AMDGPU::VGPR0, RegState::Undef)
-      .addReg(AMDGPU::VGPR0, RegState::Undef)
-      .addReg(AMDGPU::VGPR0, RegState::Undef)
-      .addReg(AMDGPU::VGPR0, RegState::Undef)
-      .addImm(1)  // vm
-      .addImm(0)  // compr
-      .addImm(0); // en
-  BuildMI(SkipBB, DL, TII->get(AMDGPU::S_ENDPGM)).addImm(0);
 }
 
 /// Translate a SI_KILL_*_TERMINATOR into exec-manipulating instructions.
@@ -361,98 +399,6 @@ bool SIInsertSkips::skipMaskBranch(MachineInstr &MI,
   return true;
 }
 
-bool SIInsertSkips::optimizeVccBranch(MachineInstr &MI) const {
-  // Match:
-  // sreg = -1
-  // vcc = S_AND_B64 exec, sreg
-  // S_CBRANCH_VCC[N]Z
-  // =>
-  // S_CBRANCH_EXEC[N]Z
-  bool Changed = false;
-  MachineBasicBlock &MBB = *MI.getParent();
-  const GCNSubtarget &ST = MBB.getParent()->getSubtarget<GCNSubtarget>();
-  const bool IsWave32 = ST.isWave32();
-  const unsigned CondReg = TRI->getVCC();
-  const unsigned ExecReg = IsWave32 ? AMDGPU::EXEC_LO : AMDGPU::EXEC;
-  const unsigned And = IsWave32 ? AMDGPU::S_AND_B32 : AMDGPU::S_AND_B64;
-
-  MachineBasicBlock::reverse_iterator A = MI.getReverseIterator(),
-                                      E = MBB.rend();
-  bool ReadsCond = false;
-  unsigned Threshold = 5;
-  for (++A ; A != E ; ++A) {
-    if (!--Threshold)
-      return false;
-    if (A->modifiesRegister(ExecReg, TRI))
-      return false;
-    if (A->modifiesRegister(CondReg, TRI)) {
-      if (!A->definesRegister(CondReg, TRI) || A->getOpcode() != And)
-        return false;
-      break;
-    }
-    ReadsCond |= A->readsRegister(CondReg, TRI);
-  }
-  if (A == E)
-    return false;
-
-  MachineOperand &Op1 = A->getOperand(1);
-  MachineOperand &Op2 = A->getOperand(2);
-  if (Op1.getReg() != ExecReg && Op2.isReg() && Op2.getReg() == ExecReg) {
-    TII->commuteInstruction(*A);
-    Changed = true;
-  }
-  if (Op1.getReg() != ExecReg)
-    return Changed;
-  if (Op2.isImm() && Op2.getImm() != -1)
-    return Changed;
-
-  unsigned SReg = AMDGPU::NoRegister;
-  if (Op2.isReg()) {
-    SReg = Op2.getReg();
-    auto M = std::next(A);
-    bool ReadsSreg = false;
-    for ( ; M != E ; ++M) {
-      if (M->definesRegister(SReg, TRI))
-        break;
-      if (M->modifiesRegister(SReg, TRI))
-        return Changed;
-      ReadsSreg |= M->readsRegister(SReg, TRI);
-    }
-    if (M == E ||
-        !M->isMoveImmediate() ||
-        !M->getOperand(1).isImm() ||
-        M->getOperand(1).getImm() != -1)
-      return Changed;
-    // First if sreg is only used in and instruction fold the immediate
-    // into that and.
-    if (!ReadsSreg && Op2.isKill()) {
-      A->getOperand(2).ChangeToImmediate(-1);
-      M->eraseFromParent();
-    }
-  }
-
-  if (!ReadsCond && A->registerDefIsDead(AMDGPU::SCC) &&
-      MI.killsRegister(CondReg, TRI))
-    A->eraseFromParent();
-
-  bool IsVCCZ = MI.getOpcode() == AMDGPU::S_CBRANCH_VCCZ;
-  if (SReg == ExecReg) {
-    if (IsVCCZ) {
-      MI.eraseFromParent();
-      return true;
-    }
-    MI.setDesc(TII->get(AMDGPU::S_BRANCH));
-  } else {
-    MI.setDesc(TII->get(IsVCCZ ? AMDGPU::S_CBRANCH_EXECZ
-                               : AMDGPU::S_CBRANCH_EXECNZ));
-  }
-
-  MI.RemoveOperand(MI.findRegisterUseOperandIdx(CondReg, false /*Kill*/, TRI));
-  MI.addImplicitDefUseOperands(*MBB.getParent());
-
-  return true;
-}
-
 bool SIInsertSkips::runOnMachineFunction(MachineFunction &MF) {
   const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
   TII = ST.getInstrInfo();
@@ -460,7 +406,6 @@ bool SIInsertSkips::runOnMachineFunction(MachineFunction &MF) {
   MDT = &getAnalysis<MachineDominatorTree>();
   SkipThreshold = SkipThresholdFlag;
 
-  MachineBasicBlock *EmptyMBBAtEnd = nullptr;
   SmallVector<MachineInstr *, 4> KillInstrs;
   bool MadeChange = false;
 
@@ -511,32 +456,13 @@ bool SIInsertSkips::runOnMachineFunction(MachineFunction &MF) {
         break;
       }
 
-      case AMDGPU::SI_RETURN_TO_EPILOG:
-        // FIXME: Should move somewhere else
-        assert(!MF.getInfo<SIMachineFunctionInfo>()->returnsVoid());
-
-        // Graphics shaders returning non-void shouldn't contain S_ENDPGM,
-        // because external bytecode will be appended at the end.
-        if (&MBB != &MF.back() || &MI != &MBB.back()) {
-          // SI_RETURN_TO_EPILOG is not the last instruction. Add an empty block at
-          // the end and jump there.
-          if (!EmptyMBBAtEnd) {
-            EmptyMBBAtEnd = MF.CreateMachineBasicBlock();
-            MF.insert(MF.end(), EmptyMBBAtEnd);
-          }
-
-          MBB.addSuccessor(EmptyMBBAtEnd);
-          BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(AMDGPU::S_BRANCH))
-            .addMBB(EmptyMBBAtEnd);
+      case AMDGPU::SI_KILL_CLEANUP:
+        if (MF.getFunction().getCallingConv() == CallingConv::AMDGPU_PS &&
+            dominatesAllReachable(MBB)) {
+          KillInstrs.push_back(&MI);
+        } else {
           MI.eraseFromParent();
-
-          MDT->getBase().insertEdge(&MBB, EmptyMBBAtEnd);
         }
-        break;
-
-      case AMDGPU::S_CBRANCH_VCCZ:
-      case AMDGPU::S_CBRANCH_VCCNZ:
-        MadeChange |= optimizeVccBranch(MI);
         break;
 
       default:
@@ -551,6 +477,7 @@ bool SIInsertSkips::runOnMachineFunction(MachineFunction &MF) {
     Kill->eraseFromParent();
   }
   KillInstrs.clear();
+  EarlyExitBlock = nullptr;
 
   return MadeChange;
 }

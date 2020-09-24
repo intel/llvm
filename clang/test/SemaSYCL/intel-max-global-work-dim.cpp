@@ -1,15 +1,16 @@
-// RUN: %clang %s -fsyntax-only -fsycl-device-only -DTRIGGER_ERROR -Xclang -verify
-// RUN: %clang %s -fsyntax-only -Xclang -ast-dump -fsycl-device-only | FileCheck %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-host -fsyntax-only -verify %s
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl -fsycl-is-device -Wno-sycl-2017-compat -triple spir64 -DTRIGGER_ERROR -verify
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl -fsycl-is-device -Wno-sycl-2017-compat -triple spir64 | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-host -Wno-sycl-2017-compat -fsyntax-only -verify %s
 
 #ifndef __SYCL_DEVICE_ONLY__
 struct FuncObj {
   [[intelfpga::max_global_work_dim(1)]] // expected-no-diagnostics
-  void operator()() {}
+  void
+  operator()() const {}
 };
 
 template <typename name, typename Func>
-void kernel(Func kernelFunc) {
+void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 
@@ -20,68 +21,67 @@ void foo() {
 
 #else // __SYCL_DEVICE_ONLY__
 
-[[intelfpga::max_global_work_dim(2)]] // expected-warning{{'max_global_work_dim' attribute ignored}}
-void func_ignore() {}
+[[intelfpga::max_global_work_dim(2)]] void func_do_not_ignore() {}
 
 struct FuncObj {
-  [[intelfpga::max_global_work_dim(1)]]
-  void operator()() {}
+  [[intelfpga::max_global_work_dim(1)]] void operator()() const {}
 };
 
 struct TRIFuncObjGood1 {
   [[intelfpga::max_global_work_dim(0)]]
   [[intelfpga::max_work_group_size(1, 1, 1)]]
-  [[cl::reqd_work_group_size(1, 1, 1)]]
-  void operator()() {}
+  [[cl::reqd_work_group_size(1, 1, 1)]] void
+  operator()() const {}
 };
 
 struct TRIFuncObjGood2 {
   [[intelfpga::max_global_work_dim(3)]]
   [[intelfpga::max_work_group_size(8, 1, 1)]]
-  [[cl::reqd_work_group_size(4, 1, 1)]]
-  void operator()() {}
+  [[cl::reqd_work_group_size(4, 1, 1)]] void
+  operator()() const {}
 };
 
 #ifdef TRIGGER_ERROR
 struct TRIFuncObjBad {
   [[intelfpga::max_global_work_dim(0)]]
   [[intelfpga::max_work_group_size(8, 8, 8)]] // expected-error{{'max_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
-  [[cl::reqd_work_group_size(4, 4, 4)]] // expected-error{{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
-  void operator()() {}
+  [[cl::reqd_work_group_size(4, 4, 4)]]       // expected-error{{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
+  void
+  operator()() const {}
 };
 #endif // TRIGGER_ERROR
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 
 int main() {
-  // CHECK-LABEL: FunctionDecl {{.*}} _ZTSZ4mainE12test_kernel1
+  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel1
   // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}} 1
   kernel<class test_kernel1>(
       FuncObj());
 
-  // CHECK-LABEL: FunctionDecl {{.*}} _ZTSZ4mainE12test_kernel2
+  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
   // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}} 2
   kernel<class test_kernel2>(
       []() [[intelfpga::max_global_work_dim(2)]] {});
 
-  // CHECK-LABEL: FunctionDecl {{.*}} _ZTSZ4mainE12test_kernel3
-  // CHECK-NOT:   SYCLIntelMaxGlobalWorkDimAttr {{.*}}
+  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
+  // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
   kernel<class test_kernel3>(
-      []() {func_ignore();});
+      []() { func_do_not_ignore(); });
 
   kernel<class test_kernel4>(
       TRIFuncObjGood1());
-  // CHECK-LABEL: FunctionDecl {{.*}} _ZTSZ4mainE12test_kernel4
+  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4
   // CHECK:       ReqdWorkGroupSizeAttr {{.*}} 1 1 1
   // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}} 1 1 1
   // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}} 0
 
   kernel<class test_kernel5>(
       TRIFuncObjGood2());
-  // CHECK-LABEL: FunctionDecl {{.*}} _ZTSZ4mainE12test_kernel5
+  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel5
   // CHECK:       ReqdWorkGroupSizeAttr {{.*}} 1 1 4
   // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}} 1 1 8
   // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}} 3

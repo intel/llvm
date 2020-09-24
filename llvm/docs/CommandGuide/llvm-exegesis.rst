@@ -192,18 +192,34 @@ OPTIONS
 
 .. option:: -mode=[latency|uops|inverse_throughput|analysis]
 
- Specify the run mode. Note that if you pick `analysis` mode, you also need
- to specify at least one of the `-analysis-clusters-output-file=` and
- `-analysis-inconsistencies-output-file=`.
+ Specify the run mode. Note that some modes have additional requirements and options.
 
-.. option:: -repetition-mode=[duplicate|loop]
+ `latency` mode can be  make use of either RDTSC or LBR.
+ `latency[LBR]` is only available on X86 (at least `Skylake`).
+ To run in `latency` mode, a positive value must be specified for `x86-lbr-sample-period` and `--repetition-mode=loop`.
+
+ In `analysis` mode, you also need to specify at least one of the
+ `-analysis-clusters-output-file=` and `-analysis-inconsistencies-output-file=`.
+
+.. option:: -x86-lbr-sample-period=<nBranches/sample>
+
+  Specify the LBR sampling period - how many branches before we take a sample.
+  When a positive value is specified for this option and when the mode is `latency`,
+  we will use LBRs for measuring.
+  On choosing the "right" sampling period, a small value is preferred, but throttling
+  could occur if the sampling is too frequent. A prime number should be used to
+  avoid consistently skipping certain blocks.
+  
+.. option:: -repetition-mode=[duplicate|loop|min]
 
  Specify the repetition mode. `duplicate` will create a large, straight line
  basic block with `num-repetitions` copies of the snippet. `loop` will wrap
  the snippet in a loop which will be run `num-repetitions` times. The `loop`
  mode tends to better hide the effects of the CPU frontend on architectures
  that cache decoded instructions, but consumes a register for counting
- iterations.
+ iterations. If performing an analysis over many opcodes, it may be best
+ to instead use the `min` mode, which will run each other mode, and produce
+ the minimal measured result.
 
 .. option:: -num-repetitions=<Number of repetitions>
 

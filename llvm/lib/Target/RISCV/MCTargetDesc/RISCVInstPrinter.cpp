@@ -73,7 +73,7 @@ void RISCVInstPrinter::printInst(const MCInst *MI, uint64_t Address,
     Res = uncompressInst(UncompressedMI, *MI, MRI, STI);
   if (Res)
     NewMI = const_cast<MCInst *>(&UncompressedMI);
-  if (NoAliases || !printAliasInstr(NewMI, STI, O))
+  if (NoAliases || !printAliasInstr(NewMI, Address, STI, O))
     printInstruction(NewMI, Address, STI, O);
   printAnnotation(O, Annot);
 }
@@ -148,6 +148,57 @@ void RISCVInstPrinter::printAtomicMemOp(const MCInst *MI, unsigned OpNo,
   printRegName(O, MO.getReg());
   O << ")";
   return;
+}
+
+void RISCVInstPrinter::printVTypeI(const MCInst *MI, unsigned OpNo,
+                                   const MCSubtargetInfo &STI, raw_ostream &O) {
+  unsigned Imm = MI->getOperand(OpNo).getImm();
+  unsigned Sew = (Imm >> 2) & 0x7;
+  unsigned Lmul = Imm & 0x3;
+  bool Fractional = (Imm >> 5) & 0x1;
+
+  Sew = 0x1 << (Sew + 3);
+  O << "e" << Sew;
+  if (Fractional) {
+    Lmul = 4 - Lmul;
+    Lmul = 0x1 << Lmul;
+    O << ",mf" << Lmul;
+  } else {
+    Lmul = 0x1 << Lmul;
+    O << ",m" << Lmul;
+  }
+  bool TailAgnostic = Imm & 0x40;
+  bool MaskedoffAgnostic = Imm & 0x80;
+  if (TailAgnostic)
+    O << ",ta";
+  else
+    O << ",tu";
+  if (MaskedoffAgnostic)
+    O << ",ma";
+  else
+    O << ",mu";
+}
+
+void RISCVInstPrinter::printVMaskReg(const MCInst *MI, unsigned OpNo,
+                                     const MCSubtargetInfo &STI,
+                                     raw_ostream &O) {
+  const MCOperand &MO = MI->getOperand(OpNo);
+
+  assert(MO.isReg() && "printVMaskReg can only print register operands");
+  if (MO.getReg() == RISCV::NoRegister)
+    return;
+  O << ", ";
+  printRegName(O, MO.getReg());
+  O << ".t";
+}
+
+void RISCVInstPrinter::printSImm5Plus1(const MCInst *MI, unsigned OpNo,
+                                       const MCSubtargetInfo &STI,
+                                       raw_ostream &O) {
+  const MCOperand &MO = MI->getOperand(OpNo);
+
+  assert(MO.isImm() && "printSImm5Plus1 can only print constant operands");
+  O << MO.getImm() + 1;
 }
 
 const char *RISCVInstPrinter::getRegisterName(unsigned RegNo) {

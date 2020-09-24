@@ -762,13 +762,21 @@ static bool isEmptyXXStructor(GlobalVariable *GV) {
   return InitList->getNumOperands() == 0;
 }
 
-bool NVPTXAsmPrinter::doInitialization(Module &M) {
+void NVPTXAsmPrinter::emitStartOfAsmFile(Module &M) {
   // Construct a default subtarget off of the TargetMachine defaults. The
   // rest of NVPTX isn't friendly to change subtargets per function and
   // so the default TargetMachine will have all of the options.
   const NVPTXTargetMachine &NTM = static_cast<const NVPTXTargetMachine &>(TM);
   const auto* STI = static_cast<const NVPTXSubtarget*>(NTM.getSubtargetImpl());
+  SmallString<128> Str1;
+  raw_svector_ostream OS1(Str1);
 
+  // Emit header before any dwarf directives are emitted below.
+  emitHeader(M, OS1, *STI);
+  OutStreamer->emitRawText(OS1.str());
+}
+
+bool NVPTXAsmPrinter::doInitialization(Module &M) {
   if (M.alias_size()) {
     report_fatal_error("Module has aliases, which NVPTX does not support.");
     return true; // error
@@ -784,25 +792,8 @@ bool NVPTXAsmPrinter::doInitialization(Module &M) {
     return true;  // error
   }
 
-  SmallString<128> Str1;
-  raw_svector_ostream OS1(Str1);
-
   // We need to call the parent's one explicitly.
   bool Result = AsmPrinter::doInitialization(M);
-
-  // Emit header before any dwarf directives are emitted below.
-  emitHeader(M, OS1, *STI);
-  OutStreamer->emitRawText(OS1.str());
-
-  // Emit module-level inline asm if it exists.
-  if (!M.getModuleInlineAsm().empty()) {
-    OutStreamer->AddComment("Start of file scope inline assembly");
-    OutStreamer->AddBlankLine();
-    OutStreamer->emitRawText(StringRef(M.getModuleInlineAsm()));
-    OutStreamer->AddBlankLine();
-    OutStreamer->AddComment("End of file scope inline assembly");
-    OutStreamer->AddBlankLine();
-  }
 
   GlobalsEmitted = false;
 
@@ -1184,7 +1175,7 @@ void NVPTXAsmPrinter::printModuleLevelGV(const GlobalVariable *GVar,
     case Type::IntegerTyID: // Integers larger than 64 bits
     case Type::StructTyID:
     case Type::ArrayTyID:
-    case Type::VectorTyID:
+    case Type::FixedVectorTyID:
       ElementSize = DL.getTypeStoreSize(ETy);
       // Ptx allows variable initilization only for constant and
       // global state spaces.
@@ -1358,7 +1349,7 @@ void NVPTXAsmPrinter::emitPTXGlobalVariable(const GlobalVariable *GVar,
   switch (ETy->getTypeID()) {
   case Type::StructTyID:
   case Type::ArrayTyID:
-  case Type::VectorTyID:
+  case Type::FixedVectorTyID:
     ElementSize = DL.getTypeStoreSize(ETy);
     O << " .b8 ";
     getSymbol(GVar)->print(O, MAI);
@@ -1892,7 +1883,7 @@ void NVPTXAsmPrinter::bufferLEByte(const Constant *CPV, int Bytes,
   }
 
   case Type::ArrayTyID:
-  case Type::VectorTyID:
+  case Type::FixedVectorTyID:
   case Type::StructTyID: {
     if (isa<ConstantAggregate>(CPV) || isa<ConstantDataSequential>(CPV)) {
       int ElementSize = DL.getTypeAllocSize(CPV->getType());

@@ -36,7 +36,7 @@ class ValueObjectSynthetic : public ValueObject {
 public:
   ~ValueObjectSynthetic() override;
 
-  uint64_t GetByteSize() override;
+  llvm::Optional<uint64_t> GetByteSize() override;
 
   ConstString GetTypeName() override;
 
@@ -66,7 +66,7 @@ public:
 
   bool IsSynthetic() override { return true; }
 
-  void CalculateSyntheticValue(bool use_synthetic) override {}
+  void CalculateSyntheticValue() override {}
 
   bool IsDynamic() override {
     return ((m_parent != nullptr) ? m_parent->IsDynamic() : false);
@@ -164,7 +164,8 @@ private:
 
   void CopyValueData(ValueObject *source);
 
-  DISALLOW_COPY_AND_ASSIGN(ValueObjectSynthetic);
+  ValueObjectSynthetic(const ValueObjectSynthetic &) = delete;
+  const ValueObjectSynthetic &operator=(const ValueObjectSynthetic &) = delete;
 };
 
 } // namespace lldb_private

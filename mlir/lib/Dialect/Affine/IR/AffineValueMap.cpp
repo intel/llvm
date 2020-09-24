@@ -51,8 +51,9 @@ void AffineValueMap::difference(const AffineValueMap &a,
     diffExprs.push_back(normalizer.getAffineMap().getResult(i) -
                         bMap.getResult(i));
 
-  auto diffMap = AffineMap::get(normalizer.getNumDims(),
-                                normalizer.getNumSymbols(), diffExprs);
+  auto diffMap =
+      AffineMap::get(normalizer.getNumDims(), normalizer.getNumSymbols(),
+                     diffExprs, aMap.getContext());
   canonicalizeMapAndOperands(&diffMap, &bOperands);
   diffMap = simplifyAffineMap(diffMap);
   res->reset(diffMap, bOperands);
@@ -84,7 +85,7 @@ bool AffineValueMap::isFunctionOf(unsigned idx, Value value) const {
     return false;
   }
   auto expr = const_cast<AffineValueMap *>(this)->getAffineMap().getResult(idx);
-  // TODO(ntv): this is better implemented on a flattened representation.
+  // TODO: this is better implemented on a flattened representation.
   // At least for now it is conservative.
   return expr.isFunctionOfDim(index);
 }

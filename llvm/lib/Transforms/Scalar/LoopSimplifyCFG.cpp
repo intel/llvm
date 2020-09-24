@@ -23,6 +23,7 @@
 #include "llvm/Analysis/DomTreeUpdater.h"
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/LoopInfo.h"
+#include "llvm/Analysis/LoopIterator.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/MemorySSA.h"
 #include "llvm/Analysis/MemorySSAUpdater.h"
@@ -30,6 +31,7 @@
 #include "llvm/Analysis/ScalarEvolutionAliasAnalysis.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/Dominators.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/Scalar.h"
@@ -364,15 +366,20 @@ private:
 
     unsigned DummyIdx = 1;
     for (BasicBlock *BB : DeadExitBlocks) {
-      SmallVector<Instruction *, 4> DeadPhis;
+      // Eliminate all Phis and LandingPads from dead exits.
+      // TODO: Consider removing all instructions in this dead block.
+      SmallVector<Instruction *, 4> DeadInstructions;
       for (auto &PN : BB->phis())
-        DeadPhis.push_back(&PN);
+        DeadInstructions.push_back(&PN);
 
-      // Eliminate all Phis from dead exits.
-      for (Instruction *PN : DeadPhis) {
-        PN->replaceAllUsesWith(UndefValue::get(PN->getType()));
-        PN->eraseFromParent();
+      if (auto *LandingPad = dyn_cast<LandingPadInst>(BB->getFirstNonPHI()))
+        DeadInstructions.emplace_back(LandingPad);
+
+      for (Instruction *I : DeadInstructions) {
+        I->replaceAllUsesWith(UndefValue::get(I->getType()));
+        I->eraseFromParent();
       }
+
       assert(DummyIdx != 0 && "Too many dead exits!");
       DummySwitch->addCase(Builder.getInt32(DummyIdx++), BB);
       DTUpdates.push_back({DominatorTree::Insert, Preheader, BB});

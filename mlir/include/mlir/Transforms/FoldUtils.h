@@ -17,29 +17,12 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/DialectInterface.h"
+#include "mlir/Interfaces/FoldInterfaces.h"
 
 namespace mlir {
 class Operation;
 class Value;
 
-//===--------------------------------------------------------------------===//
-// Operation Folding Interface
-//===--------------------------------------------------------------------===//
-
-/// This class defines a dialect interface used to assist the operation folder.
-/// It provides hooks for materializing and folding operations.
-class OpFolderDialectInterface
-    : public DialectInterface::Base<OpFolderDialectInterface> {
-public:
-  OpFolderDialectInterface(Dialect *dialect) : Base(dialect) {}
-
-  /// Registered hook to check if the given region, which is attached to an
-  /// operation that is *not* isolated from above, should be used when
-  /// materializing constants. The folder will generally materialize constants
-  /// into the top-level isolated region, this allows for materializing into a
-  /// lower level ancestor region if it is more profitable/correct.
-  virtual bool shouldMaterializeInto(Region *region) const { return false; }
-};
 
 //===--------------------------------------------------------------------===//
 // OperationFolder
@@ -56,11 +39,12 @@ public:
   /// folded results, and returns success. `preReplaceAction` is invoked on `op`
   /// before it is replaced. 'processGeneratedConstants' is invoked for any new
   /// operations generated when folding. If the op was completely folded it is
-  /// erased.
+  /// erased. If it is just updated in place, `inPlaceUpdate` is set to true.
   LogicalResult
   tryToFold(Operation *op,
             function_ref<void(Operation *)> processGeneratedConstants = nullptr,
-            function_ref<void(Operation *)> preReplaceAction = nullptr);
+            function_ref<void(Operation *)> preReplaceAction = nullptr,
+            bool *inPlaceUpdate = nullptr);
 
   /// Notifies that the given constant `op` should be remove from this
   /// OperationFolder's internal bookkeeping.
@@ -76,14 +60,14 @@ public:
   void create(OpBuilder &builder, SmallVectorImpl<Value> &results,
               Location location, Args &&... args) {
     // The op needs to be inserted only if the fold (below) fails, or the number
-    // of results of the op is zero (which is treated as an in-place
-    // fold). Using create methods of the builder will insert the op, so not
-    // using it here.
+    // of results produced by the successful folding is zero (which is treated
+    // as an in-place fold). Using create methods of the builder will insert the
+    // op, so not using it here.
     OperationState state(location, OpTy::getOperationName());
-    OpTy::build(&builder, state, std::forward<Args>(args)...);
+    OpTy::build(builder, state, std::forward<Args>(args)...);
     Operation *op = Operation::create(state);
 
-    if (failed(tryToFold(builder, op, results)) || op->getNumResults() == 0) {
+    if (failed(tryToFold(builder, op, results)) || results.empty()) {
       builder.insert(op);
       results.assign(op->result_begin(), op->result_end());
       return;
@@ -118,6 +102,11 @@ public:
   /// Clear out any constants cached inside of the folder.
   void clear();
 
+  /// Get or create a constant using the given builder. On success this returns
+  /// the constant operation, nullptr otherwise.
+  Value getOrCreateConstant(OpBuilder &builder, Dialect *dialect,
+                            Attribute value, Type type, Location loc);
+
 private:
   /// This map keeps track of uniqued constants by dialect, attribute, and type.
   /// A constant operation materializes an attribute with a type. Dialects may
@@ -147,7 +136,7 @@ private:
   DenseMap<Operation *, SmallVector<Dialect *, 2>> referencedDialects;
 
   /// A collection of dialect folder interfaces.
-  DialectInterfaceCollection<OpFolderDialectInterface> interfaces;
+  DialectInterfaceCollection<DialectFoldInterface> interfaces;
 };
 
 } // end namespace mlir

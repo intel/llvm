@@ -137,7 +137,7 @@ public:
     }
 
     if (m_use_synthetic) {
-      ValueObjectSP synthetic_sp = value_sp->GetSyntheticValue(m_use_synthetic);
+      ValueObjectSP synthetic_sp = value_sp->GetSyntheticValue();
       if (synthetic_sp)
         value_sp = synthetic_sp;
     }
@@ -333,7 +333,7 @@ size_t SBValue::GetByteSize() {
   ValueLocker locker;
   lldb::ValueObjectSP value_sp(GetSP(locker));
   if (value_sp) {
-    result = value_sp->GetByteSize();
+    result = value_sp->GetByteSize().getValueOr(0);
   }
 
   return result;

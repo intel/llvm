@@ -13,8 +13,22 @@
 
 #include "VulkanRuntime.h"
 
-#include "llvm/Support/Format.h"
 #include <chrono>
+#include <cstring>
+// TODO: It's generally bad to access stdout/stderr in a library.
+// Figure out a better way for error reporting.
+#include <iomanip>
+#include <iostream>
+
+inline void emitVulkanError(const char *api, VkResult error) {
+  std::cerr << " failed with error code " << error << " when executing " << api;
+}
+
+#define RETURN_ON_VULKAN_ERROR(result, api)                                    \
+  if ((result) != VK_SUCCESS) {                                                \
+    emitVulkanError(api, (result));                                            \
+    return failure();                                                          \
+  }
 
 using namespace mlir;
 
@@ -32,7 +46,7 @@ void VulkanRuntime::setResourceData(
     const VulkanHostMemoryBuffer &hostMemBuffer) {
   resourceData[desIndex][bindIndex] = hostMemBuffer;
   resourceStorageClassData[desIndex][bindIndex] =
-      spirv::StorageClass::StorageBuffer;
+      SPIRVStorageClass::StorageBuffer;
 }
 
 void VulkanRuntime::setEntryPoint(const char *entryPointName) {
@@ -49,33 +63,27 @@ void VulkanRuntime::setShaderModule(uint8_t *shader, uint32_t size) {
 }
 
 LogicalResult VulkanRuntime::mapStorageClassToDescriptorType(
-    spirv::StorageClass storageClass, VkDescriptorType &descriptorType) {
+    SPIRVStorageClass storageClass, VkDescriptorType &descriptorType) {
   switch (storageClass) {
-  case spirv::StorageClass::StorageBuffer:
+  case SPIRVStorageClass::StorageBuffer:
     descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     break;
-  case spirv::StorageClass::Uniform:
+  case SPIRVStorageClass::Uniform:
     descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     break;
-  default:
-    llvm::errs() << "unsupported storage class";
-    return failure();
   }
   return success();
 }
 
 LogicalResult VulkanRuntime::mapStorageClassToBufferUsageFlag(
-    spirv::StorageClass storageClass, VkBufferUsageFlagBits &bufferUsage) {
+    SPIRVStorageClass storageClass, VkBufferUsageFlagBits &bufferUsage) {
   switch (storageClass) {
-  case spirv::StorageClass::StorageBuffer:
+  case SPIRVStorageClass::StorageBuffer:
     bufferUsage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
     break;
-  case spirv::StorageClass::Uniform:
+  case SPIRVStorageClass::Uniform:
     bufferUsage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
     break;
-  default:
-    llvm::errs() << "unsupported storage class";
-    return failure();
   }
   return success();
 }
@@ -87,8 +95,7 @@ LogicalResult VulkanRuntime::countDeviceMemorySize() {
       if (resourceDataBindingPair.second.size) {
         memorySize += resourceDataBindingPair.second.size;
       } else {
-        llvm::errs()
-            << "expected buffer size greater than zero for resource data";
+        std::cerr << "expected buffer size greater than zero for resource data";
         return failure();
       }
     }
@@ -98,11 +105,11 @@ LogicalResult VulkanRuntime::countDeviceMemorySize() {
 
 LogicalResult VulkanRuntime::initRuntime() {
   if (!resourceData.size()) {
-    llvm::errs() << "Vulkan runtime needs at least one resource";
+    std::cerr << "Vulkan runtime needs at least one resource";
     return failure();
   }
   if (!binarySize || !binary) {
-    llvm::errs() << "binary shader size must be greater than zero";
+    std::cerr << "binary shader size must be greater than zero";
     return failure();
   }
   if (failed(countDeviceMemorySize())) {
@@ -130,7 +137,7 @@ LogicalResult VulkanRuntime::destroy() {
   vkDestroyDescriptorPool(device, descriptorPool, nullptr);
   vkDestroyPipeline(device, pipeline, nullptr);
   vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-  for (auto &descriptorSetLayout: descriptorSetLayouts) {
+  for (auto &descriptorSetLayout : descriptorSetLayouts) {
     vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
   }
   vkDestroyShaderModule(device, shaderModule, nullptr);
@@ -138,10 +145,12 @@ LogicalResult VulkanRuntime::destroy() {
   // For each descriptor set.
   for (auto &deviceMemoryBufferMapPair : deviceMemoryBufferMap) {
     auto &deviceMemoryBuffers = deviceMemoryBufferMapPair.second;
-    // For each descirptor binding.
+    // For each descriptor binding.
     for (auto &memoryBuffer : deviceMemoryBuffers) {
       vkFreeMemory(device, memoryBuffer.deviceMemory, nullptr);
-      vkDestroyBuffer(device, memoryBuffer.buffer, nullptr);
+      vkFreeMemory(device, memoryBuffer.hostMemory, nullptr);
+      vkDestroyBuffer(device, memoryBuffer.hostBuffer, nullptr);
+      vkDestroyBuffer(device, memoryBuffer.deviceBuffer, nullptr);
     }
   }
 
@@ -174,6 +183,9 @@ LogicalResult VulkanRuntime::run() {
   // Get working queue.
   vkGetDeviceQueue(device, queueFamilyIndex, 0, &queue);
 
+  if (failed(copyResource(/*deviceToHost=*/false)))
+    return failure();
+
   auto submitStart = std::chrono::high_resolution_clock::now();
   // Submit command buffer into the queue.
   if (failed(submitCommandBuffersToQueue()))
@@ -199,12 +211,12 @@ LogicalResult VulkanRuntime::run() {
             VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT),
         "vkGetQueryPoolResults");
     float microsec = (timestamps[1] - timestamps[0]) * timestampPeriod / 1000;
-    llvm::outs() << "Compute shader execution time: "
-                 << llvm::format("%0.3fus\n", microsec);
+    std::cout << "Compute shader execution time: " << std::setprecision(3)
+              << microsec << "us\n";
   }
 
-  llvm::outs() << "Command buffer submit time: " << submitDuration.count()
-               << "us\nWait idle time: " << execDuration.count() << "us\n";
+  std::cout << "Command buffer submit time: " << submitDuration.count()
+            << "us\nWait idle time: " << execDuration.count() << "us\n";
 
   return success();
 }
@@ -240,7 +252,7 @@ LogicalResult VulkanRuntime::createDevice() {
       vkEnumeratePhysicalDevices(instance, &physicalDeviceCount, 0),
       "vkEnumeratePhysicalDevices");
 
-  llvm::SmallVector<VkPhysicalDevice, 1> physicalDevices(physicalDeviceCount);
+  std::vector<VkPhysicalDevice> physicalDevices(physicalDeviceCount);
   RETURN_ON_VULKAN_ERROR(vkEnumeratePhysicalDevices(instance,
                                                     &physicalDeviceCount,
                                                     physicalDevices.data()),
@@ -249,19 +261,19 @@ LogicalResult VulkanRuntime::createDevice() {
   RETURN_ON_VULKAN_ERROR(physicalDeviceCount ? VK_SUCCESS : VK_INCOMPLETE,
                          "physicalDeviceCount");
 
-  // TODO(denis0x0D): find the best device.
+  // TODO: find the best device.
   physicalDevice = physicalDevices.front();
   if (failed(getBestComputeQueue()))
     return failure();
 
-  const float queuePrioritory = 1.0f;
+  const float queuePriority = 1.0f;
   VkDeviceQueueCreateInfo deviceQueueCreateInfo = {};
   deviceQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
   deviceQueueCreateInfo.pNext = nullptr;
   deviceQueueCreateInfo.flags = 0;
   deviceQueueCreateInfo.queueFamilyIndex = queueFamilyIndex;
   deviceQueueCreateInfo.queueCount = 1;
-  deviceQueueCreateInfo.pQueuePriorities = &queuePrioritory;
+  deviceQueueCreateInfo.pQueuePriorities = &queuePriority;
 
   // Structure specifying parameters of a newly created device.
   VkDeviceCreateInfo deviceCreateInfo = {};
@@ -297,13 +309,28 @@ LogicalResult VulkanRuntime::createDevice() {
          properties.memoryTypes[i].propertyFlags) &&
         (memorySize <=
          properties.memoryHeaps[properties.memoryTypes[i].heapIndex].size)) {
-      memoryTypeIndex = i;
+      hostMemoryTypeIndex = i;
       break;
     }
   }
 
-  RETURN_ON_VULKAN_ERROR(memoryTypeIndex == VK_MAX_MEMORY_TYPES ? VK_INCOMPLETE
-                                                                : VK_SUCCESS,
+  // Find memory type memory type with VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT to be
+  // used on the device. This will allow better performance access for GPU with
+  // on device memory.
+  for (uint32_t i = 0, e = properties.memoryTypeCount; i < e; ++i) {
+    if ((VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT &
+         properties.memoryTypes[i].propertyFlags) &&
+        (memorySize <=
+         properties.memoryHeaps[properties.memoryTypes[i].heapIndex].size)) {
+      deviceMemoryTypeIndex = i;
+      break;
+    }
+  }
+
+  RETURN_ON_VULKAN_ERROR((hostMemoryTypeIndex == VK_MAX_MEMORY_TYPES ||
+                          deviceMemoryTypeIndex == VK_MAX_MEMORY_TYPES)
+                             ? VK_INCOMPLETE
+                             : VK_SUCCESS,
                          "invalid memoryTypeIndex");
   return success();
 }
@@ -313,7 +340,7 @@ LogicalResult VulkanRuntime::getBestComputeQueue() {
   vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice,
                                            &queueFamilyPropertiesCount, 0);
 
-  SmallVector<VkQueueFamilyProperties, 1> familyProperties(
+  std::vector<VkQueueFamilyProperties> familyProperties(
       queueFamilyPropertiesCount);
   vkGetPhysicalDeviceQueueFamilyProperties(
       physicalDevice, &queueFamilyPropertiesCount, familyProperties.data());
@@ -339,14 +366,14 @@ LogicalResult VulkanRuntime::getBestComputeQueue() {
     }
   }
 
-  llvm::errs() << "cannot find valid queue";
+  std::cerr << "cannot find valid queue";
   return failure();
 }
 
 LogicalResult VulkanRuntime::createMemoryBuffers() {
   // For each descriptor set.
   for (const auto &resourceDataMapPair : resourceData) {
-    llvm::SmallVector<VulkanDeviceMemoryBuffer, 1> deviceMemoryBuffers;
+    std::vector<VulkanDeviceMemoryBuffer> deviceMemoryBuffers;
     const auto descriptorSetIndex = resourceDataMapPair.first;
     const auto &resourceDataMap = resourceDataMapPair.second;
 
@@ -362,8 +389,8 @@ LogicalResult VulkanRuntime::createMemoryBuffers() {
       const auto resourceStorageClassMapIt =
           resourceStorageClassData.find(descriptorSetIndex);
       if (resourceStorageClassMapIt == resourceStorageClassData.end()) {
-        llvm::errs()
-            << "cannot find storge class for resource in descriptor set: "
+        std::cerr
+            << "cannot find storage class for resource in descriptor set: "
             << descriptorSetIndex;
         return failure();
       }
@@ -373,7 +400,7 @@ LogicalResult VulkanRuntime::createMemoryBuffers() {
       const auto resourceStorageClassIt =
           resourceStorageClassMap.find(resourceDataBindingPair.first);
       if (resourceStorageClassIt == resourceStorageClassMap.end()) {
-        llvm::errs()
+        std::cerr
             << "cannot find storage class for resource with descriptor index: "
             << resourceDataBindingPair.first;
         return failure();
@@ -384,37 +411,41 @@ LogicalResult VulkanRuntime::createMemoryBuffers() {
                                                  descriptorType)) ||
           failed(mapStorageClassToBufferUsageFlag(resourceStorageClassBinding,
                                                   bufferUsage))) {
-        llvm::errs() << "storage class for resource with descriptor binding: "
-                     << resourceDataBindingPair.first
-                     << " in the descriptor set: " << descriptorSetIndex
-                     << " is not supported ";
+        std::cerr << "storage class for resource with descriptor binding: "
+                  << resourceDataBindingPair.first
+                  << " in the descriptor set: " << descriptorSetIndex
+                  << " is not supported ";
         return failure();
       }
 
       // Set descriptor type for the specific device memory buffer.
       memoryBuffer.descriptorType = descriptorType;
       const auto bufferSize = resourceDataBindingPair.second.size;
-
+      memoryBuffer.bufferSize = bufferSize;
       // Specify memory allocation info.
       VkMemoryAllocateInfo memoryAllocateInfo = {};
       memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
       memoryAllocateInfo.pNext = nullptr;
       memoryAllocateInfo.allocationSize = bufferSize;
-      memoryAllocateInfo.memoryTypeIndex = memoryTypeIndex;
+      memoryAllocateInfo.memoryTypeIndex = hostMemoryTypeIndex;
 
       // Allocate device memory.
+      RETURN_ON_VULKAN_ERROR(vkAllocateMemory(device, &memoryAllocateInfo, 0,
+                                              &memoryBuffer.hostMemory),
+                             "vkAllocateMemory");
+      memoryAllocateInfo.memoryTypeIndex = deviceMemoryTypeIndex;
       RETURN_ON_VULKAN_ERROR(vkAllocateMemory(device, &memoryAllocateInfo, 0,
                                               &memoryBuffer.deviceMemory),
                              "vkAllocateMemory");
       void *payload;
-      RETURN_ON_VULKAN_ERROR(vkMapMemory(device, memoryBuffer.deviceMemory, 0,
+      RETURN_ON_VULKAN_ERROR(vkMapMemory(device, memoryBuffer.hostMemory, 0,
                                          bufferSize, 0,
                                          reinterpret_cast<void **>(&payload)),
                              "vkMapMemory");
 
       // Copy host memory into the mapped area.
       std::memcpy(payload, resourceDataBindingPair.second.ptr, bufferSize);
-      vkUnmapMemory(device, memoryBuffer.deviceMemory);
+      vkUnmapMemory(device, memoryBuffer.hostMemory);
 
       VkBufferCreateInfo bufferCreateInfo = {};
       bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -425,17 +456,24 @@ LogicalResult VulkanRuntime::createMemoryBuffers() {
       bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
       bufferCreateInfo.queueFamilyIndexCount = 1;
       bufferCreateInfo.pQueueFamilyIndices = &queueFamilyIndex;
-      RETURN_ON_VULKAN_ERROR(
-          vkCreateBuffer(device, &bufferCreateInfo, 0, &memoryBuffer.buffer),
-          "vkCreateBuffer");
+      RETURN_ON_VULKAN_ERROR(vkCreateBuffer(device, &bufferCreateInfo, 0,
+                                            &memoryBuffer.hostBuffer),
+                             "vkCreateBuffer");
+      RETURN_ON_VULKAN_ERROR(vkCreateBuffer(device, &bufferCreateInfo, 0,
+                                            &memoryBuffer.deviceBuffer),
+                             "vkCreateBuffer");
 
       // Bind buffer and device memory.
-      RETURN_ON_VULKAN_ERROR(vkBindBufferMemory(device, memoryBuffer.buffer,
+      RETURN_ON_VULKAN_ERROR(vkBindBufferMemory(device, memoryBuffer.hostBuffer,
+                                                memoryBuffer.hostMemory, 0),
+                             "vkBindBufferMemory");
+      RETURN_ON_VULKAN_ERROR(vkBindBufferMemory(device,
+                                                memoryBuffer.deviceBuffer,
                                                 memoryBuffer.deviceMemory, 0),
                              "vkBindBufferMemory");
 
       // Update buffer info.
-      memoryBuffer.bufferInfo.buffer = memoryBuffer.buffer;
+      memoryBuffer.bufferInfo.buffer = memoryBuffer.deviceBuffer;
       memoryBuffer.bufferInfo.offset = 0;
       memoryBuffer.bufferInfo.range = VK_WHOLE_SIZE;
       deviceMemoryBuffers.push_back(memoryBuffer);
@@ -444,6 +482,66 @@ LogicalResult VulkanRuntime::createMemoryBuffers() {
     // Associate device memory buffers with a descriptor set.
     deviceMemoryBufferMap[descriptorSetIndex] = deviceMemoryBuffers;
   }
+  return success();
+}
+
+LogicalResult VulkanRuntime::copyResource(bool deviceToHost) {
+  VkCommandBufferAllocateInfo commandBufferAllocateInfo = {
+      VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+      NULL,
+      commandPool,
+      VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+      1,
+  };
+  VkCommandBuffer commandBuffer;
+  RETURN_ON_VULKAN_ERROR(vkAllocateCommandBuffers(device,
+                                                  &commandBufferAllocateInfo,
+                                                  &commandBuffer),
+                         "vkAllocateCommandBuffers");
+
+  VkCommandBufferBeginInfo commandBufferBeginInfo = {
+      VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+      NULL,
+      0,
+      NULL,
+  };
+  RETURN_ON_VULKAN_ERROR(
+      vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo),
+      "vkBeginCommandBuffer");
+
+  for (const auto &deviceMemoryBufferMapPair : deviceMemoryBufferMap) {
+    std::vector<VkDescriptorSetLayoutBinding> descriptorSetLayoutBindings;
+    const auto &deviceMemoryBuffers = deviceMemoryBufferMapPair.second;
+    for (const auto &memBuffer : deviceMemoryBuffers) {
+      VkBufferCopy copy = {0, 0, memBuffer.bufferSize};
+      if (deviceToHost)
+        vkCmdCopyBuffer(commandBuffer, memBuffer.deviceBuffer,
+                        memBuffer.hostBuffer, 1, &copy);
+      else
+        vkCmdCopyBuffer(commandBuffer, memBuffer.hostBuffer,
+                        memBuffer.deviceBuffer, 1, &copy);
+    }
+  }
+
+  RETURN_ON_VULKAN_ERROR(vkEndCommandBuffer(commandBuffer),
+                         "vkEndCommandBuffer");
+  VkSubmitInfo submitInfo = {
+      VK_STRUCTURE_TYPE_SUBMIT_INFO,
+      NULL,
+      0,
+      NULL,
+      NULL,
+      1,
+      &commandBuffer,
+      0,
+      NULL,
+  };
+  submitInfo.pCommandBuffers = &commandBuffer;
+  RETURN_ON_VULKAN_ERROR(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE),
+                         "vkQueueSubmit");
+  RETURN_ON_VULKAN_ERROR(vkQueueWaitIdle(queue), "vkQueueWaitIdle");
+
+  vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
   return success();
 }
 
@@ -464,7 +562,7 @@ LogicalResult VulkanRuntime::createShaderModule() {
 
 void VulkanRuntime::initDescriptorSetLayoutBindingMap() {
   for (const auto &deviceMemoryBufferMapPair : deviceMemoryBufferMap) {
-    SmallVector<VkDescriptorSetLayoutBinding, 1> descriptorSetLayoutBindings;
+    std::vector<VkDescriptorSetLayoutBinding> descriptorSetLayoutBindings;
     const auto &deviceMemoryBuffers = deviceMemoryBufferMapPair.second;
     const auto descriptorSetIndex = deviceMemoryBufferMapPair.first;
 
@@ -495,8 +593,8 @@ LogicalResult VulkanRuntime::createDescriptorSetLayout() {
         descriptorSetLayoutBindingMap.find(descriptorSetIndex);
 
     if (descriptorSetLayoutBindingIt == descriptorSetLayoutBindingMap.end()) {
-      llvm::errs() << "cannot find layout bindings for the set with number: "
-                   << descriptorSetIndex;
+      std::cerr << "cannot find layout bindings for the set with number: "
+                << descriptorSetIndex;
       return failure();
     }
 
@@ -573,7 +671,7 @@ LogicalResult VulkanRuntime::createComputePipeline() {
 }
 
 LogicalResult VulkanRuntime::createDescriptorPool() {
-  llvm::SmallVector<VkDescriptorPoolSize, 1> descriptorPoolSizes;
+  std::vector<VkDescriptorPoolSize> descriptorPoolSizes;
   for (const auto &descriptorSetInfo : descriptorSetInfoPool) {
     // For each descriptor set populate descriptor pool size.
     VkDescriptorPoolSize descriptorPoolSize = {};
@@ -599,7 +697,7 @@ LogicalResult VulkanRuntime::createDescriptorPool() {
 
 LogicalResult VulkanRuntime::allocateDescriptorSets() {
   VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
-  // Size of desciptor sets and descriptor layout sets is the same.
+  // Size of descriptor sets and descriptor layout sets is the same.
   descriptorSets.resize(descriptorSetLayouts.size());
   descriptorSetAllocateInfo.sType =
       VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -616,7 +714,7 @@ LogicalResult VulkanRuntime::allocateDescriptorSets() {
 
 LogicalResult VulkanRuntime::setWriteDescriptors() {
   if (descriptorSets.size() != descriptorSetInfoPool.size()) {
-    llvm::errs() << "Each descriptor set must have descriptor set information";
+    std::cerr << "Each descriptor set must have descriptor set information";
     return failure();
   }
   // For each descriptor set.
@@ -631,7 +729,7 @@ LogicalResult VulkanRuntime::setWriteDescriptors() {
       VkWriteDescriptorSet wSet = {};
       wSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
       wSet.pNext = nullptr;
-      // Descirptor set.
+      // Descriptor set.
       wSet.dstSet = *descriptorSetIt;
       wSet.dstBinding = memoryBuffer.bindingIndex;
       wSet.dstArrayElement = 0;
@@ -721,7 +819,7 @@ LogicalResult VulkanRuntime::createComputeCommandBuffer() {
                           descriptorSets.data(), 0, 0);
   // Get a timestamp before invoking the compute shader.
   if (queryPool != VK_NULL_HANDLE)
-    vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+    vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                         queryPool, 0);
   vkCmdDispatch(commandBuffer, numWorkGroups.x, numWorkGroups.y,
                 numWorkGroups.z);
@@ -755,6 +853,9 @@ LogicalResult VulkanRuntime::submitCommandBuffersToQueue() {
 }
 
 LogicalResult VulkanRuntime::updateHostMemoryBuffers() {
+  // First copy back the data to the staging buffer.
+  copyResource(/*deviceToHost=*/true);
+
   // For each descriptor set.
   for (auto &resourceDataMapPair : resourceData) {
     auto &resourceDataMap = resourceDataMapPair.second;
@@ -767,12 +868,12 @@ LogicalResult VulkanRuntime::updateHostMemoryBuffers() {
         auto &hostMemoryBuffer =
             resourceDataMap[deviceMemoryBuffer.bindingIndex];
         RETURN_ON_VULKAN_ERROR(vkMapMemory(device,
-                                           deviceMemoryBuffer.deviceMemory, 0,
+                                           deviceMemoryBuffer.hostMemory, 0,
                                            hostMemoryBuffer.size, 0,
                                            reinterpret_cast<void **>(&payload)),
                                "vkMapMemory");
         std::memcpy(hostMemoryBuffer.ptr, payload, hostMemoryBuffer.size);
-        vkUnmapMemory(device, deviceMemoryBuffer.deviceMemory);
+        vkUnmapMemory(device, deviceMemoryBuffer.hostMemory);
       }
     }
   }

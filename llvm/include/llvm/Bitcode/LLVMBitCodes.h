@@ -85,7 +85,7 @@ enum ModuleCodes {
   MODULE_CODE_ASM = 4,         // ASM:         [strchr x N]
   MODULE_CODE_SECTIONNAME = 5, // SECTIONNAME: [strchr x N]
 
-  // FIXME: Remove DEPLIB in 4.0.
+  // Deprecated, but still needed to read old bitcode files.
   MODULE_CODE_DEPLIB = 6, // DEPLIB:      [strchr x N]
 
   // GLOBALVAR: [pointer type, isconst, initid,
@@ -121,7 +121,7 @@ enum ModuleCodes {
 
 /// PARAMATTR blocks have code for defining a parameter attribute set.
 enum AttributeCodes {
-  // FIXME: Remove `PARAMATTR_CODE_ENTRY_OLD' in 4.0
+  // Deprecated, but still needed to read old bitcode files.
   PARAMATTR_CODE_ENTRY_OLD = 1, // ENTRY: [paramidx0, attr0,
                                 //         paramidx1, attr1...]
   PARAMATTR_CODE_ENTRY = 2,     // ENTRY: [attrgrp0, attrgrp1, ...]
@@ -166,7 +166,9 @@ enum TypeCodes {
 
   TYPE_CODE_FUNCTION = 21, // FUNCTION: [vararg, retty, paramty x N]
 
-  TYPE_CODE_TOKEN = 22 // TOKEN
+  TYPE_CODE_TOKEN = 22, // TOKEN
+
+  TYPE_CODE_BFLOAT = 23 // BRAIN FLOATING POINT
 };
 
 enum OperandBundleTagCode {
@@ -288,6 +290,11 @@ enum GlobalValueSummarySymtabCodes {
   //                                        numrefs, numrefs x valueid,
   //                                        n x (valueid, offset)]
   FS_PERMODULE_VTABLE_GLOBALVAR_INIT_REFS = 23,
+  // The total number of basic blocks in the module.
+  FS_BLOCK_COUNT = 24,
+  // Range information for accessed offsets for every argument.
+  // [n x (paramno, range, numcalls, numcalls x (callee_guid, paramno, range))]
+  FS_PARAM_ACCESS = 25,
 };
 
 enum MetadataCodes {
@@ -331,7 +338,10 @@ enum MetadataCodes {
   METADATA_INDEX_OFFSET = 38,           // [offset]
   METADATA_INDEX = 39,                  // [bitpos]
   METADATA_LABEL = 40,                  // [distinct, scope, name, file, line]
-  METADATA_COMMON_BLOCK = 44,     // [distinct, scope, name, variable,...]
+  METADATA_STRING_TYPE = 41,            // [distinct, name, size, align,...]
+  // Codes 42 and 43 are reserved for support for Fortran array specific debug
+  // info.
+  METADATA_COMMON_BLOCK = 44 // [distinct, scope, name, variable,...]
 };
 
 // The constants block (CONSTANTS_BLOCK_ID) describes emission for each
@@ -633,6 +643,11 @@ enum AttributeKindCodes {
   ATTR_KIND_NOFREE = 62,
   ATTR_KIND_NOSYNC = 63,
   ATTR_KIND_SANITIZE_MEMTAG = 64,
+  ATTR_KIND_PREALLOCATED = 65,
+  ATTR_KIND_NO_MERGE = 66,
+  ATTR_KIND_NULL_POINTER_IS_VALID = 67,
+  ATTR_KIND_NOUNDEF = 68,
+  ATTR_KIND_BYREF = 69,
 };
 
 enum ComdatSelectionKindCodes {

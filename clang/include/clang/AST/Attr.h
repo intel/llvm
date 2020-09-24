@@ -16,10 +16,11 @@
 #include "clang/AST/ASTFwd.h"
 #include "clang/AST/AttrIterator.h"
 #include "clang/AST/Decl.h"
-#include "clang/AST/OpenMPClause.h"
+#include "clang/AST/Expr.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/AttrKinds.h"
 #include "clang/Basic/AttributeCommonInfo.h"
+#include "clang/Basic/LangOptions.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/OpenMPKinds.h"
 #include "clang/Basic/Sanitizers.h"
@@ -40,6 +41,7 @@ class Expr;
 class QualType;
 class FunctionDecl;
 class TypeSourceInfo;
+class OMPTraitInfo;
 
 /// Attr - This represents one attribute.
 class Attr : public AttributeCommonInfo {
@@ -333,11 +335,17 @@ static_assert(sizeof(ParamIdx) == sizeof(ParamIdx::SerialType),
 struct ParsedTargetAttr {
   std::vector<std::string> Features;
   StringRef Architecture;
+  StringRef Tune;
   StringRef BranchProtection;
   bool DuplicateArchitecture = false;
+  bool DuplicateTune = false;
   bool operator ==(const ParsedTargetAttr &Other) const {
     return DuplicateArchitecture == Other.DuplicateArchitecture &&
-           Architecture == Other.Architecture && Features == Other.Features;
+           DuplicateTune == Other.DuplicateTune &&
+           Architecture == Other.Architecture &&
+           Tune == Other.Tune &&
+           BranchProtection == Other.BranchProtection &&
+           Features == Other.Features;
   }
 };
 

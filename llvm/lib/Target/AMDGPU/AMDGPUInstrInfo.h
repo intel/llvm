@@ -52,8 +52,16 @@ struct ImageDimIntrinsicInfo {
   unsigned Intr;
   unsigned BaseOpcode;
   MIMGDim Dim;
+  unsigned GradientStart;
+  unsigned CoordStart;
+  unsigned VAddrEnd;
+  unsigned GradientTyArg;
+  unsigned CoordTyArg;
 };
 const ImageDimIntrinsicInfo *getImageDimIntrinsicInfo(unsigned Intr);
+
+const ImageDimIntrinsicInfo *getImageDimInstrinsicByBaseOpcode(unsigned BaseOpcode,
+                                                               unsigned Dim);
 
 } // end AMDGPU namespace
 } // End llvm namespace

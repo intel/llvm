@@ -8,24 +8,15 @@
 
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/BlockAndValueMapping.h"
-#include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Dialect.h"
-#include "mlir/IR/Function.h"
-#include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/TypeUtilities.h"
-#include "llvm/Support/CommandLine.h"
+#include "mlir/Interfaces/FoldInterfaces.h"
 #include <numeric>
 
 using namespace mlir;
-
-static llvm::cl::opt<bool> printOpOnDiagnostic(
-    "mlir-print-op-on-diagnostic",
-    llvm::cl::desc("When a diagnostic is emitted on an operation, also print "
-                   "the operation as an attached note"));
 
 OpAsmParser::~OpAsmParser() {}
 
@@ -48,11 +39,22 @@ StringRef OperationName::getDialect() const {
   return getStringRef().split('.').first;
 }
 
-/// Return the name of this operation.  This always succeeds.
+/// Return the operation name with dialect name stripped, if it has one.
+StringRef OperationName::stripDialect() const {
+  auto splitName = getStringRef().split(".");
+  return splitName.second.empty() ? splitName.first : splitName.second;
+}
+
+/// Return the name of this operation. This always succeeds.
 StringRef OperationName::getStringRef() const {
+  return getIdentifier().strref();
+}
+
+/// Return the name of this operation as an identifier. This always succeeds.
+Identifier OperationName::getIdentifier() const {
   if (auto *op = representation.dyn_cast<const AbstractOperation *>())
     return op->name;
-  return representation.get<Identifier>().strref();
+  return representation.get<Identifier>();
 }
 
 const AbstractOperation *OperationName::getAbstractOperation() const {
@@ -72,88 +74,89 @@ Operation *Operation::create(Location location, OperationName name,
                              ArrayRef<Type> resultTypes,
                              ArrayRef<Value> operands,
                              ArrayRef<NamedAttribute> attributes,
-                             ArrayRef<Block *> successors, unsigned numRegions,
-                             bool resizableOperandList) {
+                             ArrayRef<Block *> successors,
+                             unsigned numRegions) {
   return create(location, name, resultTypes, operands,
-                NamedAttributeList(attributes), successors, numRegions,
-                resizableOperandList);
+                MutableDictionaryAttr(attributes), successors, numRegions);
 }
 
 /// Create a new Operation from operation state.
 Operation *Operation::create(const OperationState &state) {
   return Operation::create(state.location, state.name, state.types,
-                           state.operands, NamedAttributeList(state.attributes),
-                           state.successors, state.regions,
-                           state.resizableOperandList);
+                           state.operands, state.attributes, state.successors,
+                           state.regions);
 }
 
 /// Create a new Operation with the specific fields.
 Operation *Operation::create(Location location, OperationName name,
                              ArrayRef<Type> resultTypes,
                              ArrayRef<Value> operands,
-                             NamedAttributeList attributes,
-                             ArrayRef<Block *> successors, RegionRange regions,
-                             bool resizableOperandList) {
+                             MutableDictionaryAttr attributes,
+                             ArrayRef<Block *> successors,
+                             RegionRange regions) {
   unsigned numRegions = regions.size();
   Operation *op = create(location, name, resultTypes, operands, attributes,
-                         successors, numRegions, resizableOperandList);
+                         successors, numRegions);
   for (unsigned i = 0; i < numRegions; ++i)
     if (regions[i])
       op->getRegion(i).takeBody(*regions[i]);
   return op;
 }
 
-/// Overload of create that takes an existing NamedAttributeList to avoid
+/// Overload of create that takes an existing MutableDictionaryAttr to avoid
 /// unnecessarily uniquing a list of attributes.
 Operation *Operation::create(Location location, OperationName name,
                              ArrayRef<Type> resultTypes,
                              ArrayRef<Value> operands,
-                             NamedAttributeList attributes,
-                             ArrayRef<Block *> successors, unsigned numRegions,
-                             bool resizableOperandList) {
+                             MutableDictionaryAttr attributes,
+                             ArrayRef<Block *> successors,
+                             unsigned numRegions) {
   // We only need to allocate additional memory for a subset of results.
   unsigned numTrailingResults = OpResult::getNumTrailing(resultTypes.size());
+  unsigned numInlineResults = OpResult::getNumInline(resultTypes.size());
   unsigned numSuccessors = successors.size();
   unsigned numOperands = operands.size();
 
+  // If the operation is known to have no operands, don't allocate an operand
+  // storage.
+  bool needsOperandStorage = true;
+  if (operands.empty()) {
+    if (const AbstractOperation *abstractOp = name.getAbstractOperation())
+      needsOperandStorage = !abstractOp->hasTrait<OpTrait::ZeroOperands>();
+  }
+
   // Compute the byte size for the operation and the operand storage.
-  auto byteSize = totalSizeToAlloc<detail::TrailingOpResult, BlockOperand,
-                                   Region, detail::OperandStorage>(
-      numTrailingResults, numSuccessors, numRegions,
-      /*detail::OperandStorage*/ 1);
-  byteSize += llvm::alignTo(detail::OperandStorage::additionalAllocSize(
-                                numOperands, resizableOperandList),
-                            alignof(Operation));
+  auto byteSize =
+      totalSizeToAlloc<detail::InLineOpResult, detail::TrailingOpResult,
+                       BlockOperand, Region, detail::OperandStorage>(
+          numInlineResults, numTrailingResults, numSuccessors, numRegions,
+          needsOperandStorage ? 1 : 0);
+  byteSize +=
+      llvm::alignTo(detail::OperandStorage::additionalAllocSize(numOperands),
+                    alignof(Operation));
   void *rawMem = malloc(byteSize);
 
   // Create the new Operation.
-  auto op = ::new (rawMem) Operation(location, name, resultTypes, numSuccessors,
-                                     numRegions, attributes);
+  Operation *op =
+      ::new (rawMem) Operation(location, name, resultTypes, numSuccessors,
+                               numRegions, attributes, needsOperandStorage);
 
   assert((numSuccessors == 0 || !op->isKnownNonTerminator()) &&
          "unexpected successors in a non-terminator operation");
 
-  // Initialize the trailing results.
-  if (LLVM_UNLIKELY(numTrailingResults > 0)) {
-    // We initialize the trailing results with their result number. This makes
-    // 'getResultNumber' checks much more efficient. The main purpose for these
-    // results is to give an anchor to the main operation anyways, so this is
-    // purely an optimization.
-    auto *trailingResultIt = op->getTrailingObjects<detail::TrailingOpResult>();
-    for (unsigned i = 0; i != numTrailingResults; ++i, ++trailingResultIt)
-      trailingResultIt->trailingResultNumber = i;
-  }
+  // Initialize the results.
+  for (unsigned i = 0; i < numInlineResults; ++i)
+    new (op->getInlineResult(i)) detail::InLineOpResult();
+  for (unsigned i = 0; i < numTrailingResults; ++i)
+    new (op->getTrailingResult(i)) detail::TrailingOpResult(i);
 
   // Initialize the regions.
   for (unsigned i = 0; i != numRegions; ++i)
     new (&op->getRegion(i)) Region(op);
 
   // Initialize the operands.
-  new (&op->getOperandStorage())
-      detail::OperandStorage(numOperands, resizableOperandList);
-  auto opOperands = op->getOpOperands();
-  for (unsigned i = 0; i != numOperands; ++i)
-    new (&opOperands[i]) OpOperand(op, operands[i]);
+  if (needsOperandStorage)
+    new (&op->getOperandStorage()) detail::OperandStorage(op, operands);
 
   // Initialize the successors.
   auto blockOperands = op->getBlockOperands();
@@ -165,9 +168,12 @@ Operation *Operation::create(Location location, OperationName name,
 
 Operation::Operation(Location location, OperationName name,
                      ArrayRef<Type> resultTypes, unsigned numSuccessors,
-                     unsigned numRegions, const NamedAttributeList &attributes)
+                     unsigned numRegions,
+                     const MutableDictionaryAttr &attributes,
+                     bool hasOperandStorage)
     : location(location), numSuccs(numSuccessors), numRegions(numRegions),
-      hasSingleResult(false), name(name), attrs(attributes) {
+      hasOperandStorage(hasOperandStorage), hasSingleResult(false), name(name),
+      attrs(attributes) {
   if (!resultTypes.empty()) {
     // If there is a single result it is stored in-place, otherwise use a tuple.
     hasSingleResult = resultTypes.size() == 1;
@@ -183,8 +189,9 @@ Operation::Operation(Location location, OperationName name,
 Operation::~Operation() {
   assert(block == nullptr && "operation destroyed but still in a block");
 
-  // Explicitly run the destructors for the operands and results.
-  getOperandStorage().~OperandStorage();
+  // Explicitly run the destructors for the operands.
+  if (hasOperandStorage)
+    getOperandStorage().~OperandStorage();
 
   // Explicitly run the destructors for the successors.
   for (auto &successor : getBlockOperands())
@@ -212,7 +219,7 @@ Dialect *Operation::getDialect() {
 
   // If this operation hasn't been registered or doesn't have abstract
   // operation, try looking up the dialect name in the context.
-  return getContext()->getRegisteredDialect(getName().getDialect());
+  return getContext()->getLoadedDialect(getName().getDialect());
 }
 
 Region *Operation::getParentRegion() {
@@ -242,10 +249,30 @@ void Operation::replaceUsesOfWith(Value from, Value to) {
 }
 
 /// Replace the current operands of this operation with the ones provided in
-/// 'operands'. If the operands list is not resizable, the size of 'operands'
-/// must be less than or equal to the current number of operands.
+/// 'operands'.
 void Operation::setOperands(ValueRange operands) {
-  getOperandStorage().setOperands(this, operands);
+  if (LLVM_LIKELY(hasOperandStorage))
+    return getOperandStorage().setOperands(this, operands);
+  assert(operands.empty() && "setting operands without an operand storage");
+}
+
+/// Replace the operands beginning at 'start' and ending at 'start' + 'length'
+/// with the ones provided in 'operands'. 'operands' may be smaller or larger
+/// than the range pointed to by 'start'+'length'.
+void Operation::setOperands(unsigned start, unsigned length,
+                            ValueRange operands) {
+  assert((start + length) <= getNumOperands() &&
+         "invalid operand range specified");
+  if (LLVM_LIKELY(hasOperandStorage))
+    return getOperandStorage().setOperands(this, start, length, operands);
+  assert(operands.empty() && "setting operands without an operand storage");
+}
+
+/// Insert the given operands into the operand list at the given 'index'.
+void Operation::insertOperands(unsigned index, ValueRange operands) {
+  if (LLVM_LIKELY(hasOperandStorage))
+    return setOperands(index, /*length=*/0, operands);
+  assert(operands.empty() && "inserting operands without an operand storage");
 }
 
 //===----------------------------------------------------------------------===//
@@ -256,10 +283,10 @@ void Operation::setOperands(ValueRange operands) {
 /// any diagnostic handlers that may be listening.
 InFlightDiagnostic Operation::emitError(const Twine &message) {
   InFlightDiagnostic diag = mlir::emitError(getLoc(), message);
-  if (printOpOnDiagnostic) {
+  if (getContext()->shouldPrintOpOnDiagnostic()) {
     // Print out the operation explicitly here so that we can print the generic
     // form.
-    // TODO(riverriddle) It would be nice if we could instead provide the
+    // TODO: It would be nice if we could instead provide the
     // specific printing flags when adding the operation as an argument to the
     // diagnostic.
     std::string printedOp;
@@ -276,7 +303,7 @@ InFlightDiagnostic Operation::emitError(const Twine &message) {
 /// handlers that may be listening.
 InFlightDiagnostic Operation::emitWarning(const Twine &message) {
   InFlightDiagnostic diag = mlir::emitWarning(getLoc(), message);
-  if (printOpOnDiagnostic)
+  if (getContext()->shouldPrintOpOnDiagnostic())
     diag.attachNote(getLoc()) << "see current operation: " << *this;
   return diag;
 }
@@ -285,7 +312,7 @@ InFlightDiagnostic Operation::emitWarning(const Twine &message) {
 /// handlers that may be listening.
 InFlightDiagnostic Operation::emitRemark(const Twine &message) {
   InFlightDiagnostic diag = mlir::emitRemark(getLoc(), message);
-  if (printOpOnDiagnostic)
+  if (getContext()->shouldPrintOpOnDiagnostic())
     diag.attachNote(getLoc()) << "see current operation: " << *this;
   return diag;
 }
@@ -417,24 +444,24 @@ Block *llvm::ilist_traits<::mlir::Operation>::getContainingBlock() {
   return reinterpret_cast<Block *>(reinterpret_cast<char *>(Anchor) - Offset);
 }
 
-/// This is a trait method invoked when a operation is added to a block.  We
+/// This is a trait method invoked when an operation is added to a block.  We
 /// keep the block pointer up to date.
 void llvm::ilist_traits<::mlir::Operation>::addNodeToList(Operation *op) {
-  assert(!op->getBlock() && "already in a operation block!");
+  assert(!op->getBlock() && "already in an operation block!");
   op->block = getContainingBlock();
 
   // Invalidate the order on the operation.
   op->orderIndex = Operation::kInvalidOrderIdx;
 }
 
-/// This is a trait method invoked when a operation is removed from a block.
+/// This is a trait method invoked when an operation is removed from a block.
 /// We keep the block pointer up to date.
 void llvm::ilist_traits<::mlir::Operation>::removeNodeFromList(Operation *op) {
-  assert(op->block && "not already in a operation block!");
+  assert(op->block && "not already in an operation block!");
   op->block = nullptr;
 }
 
-/// This is a trait method invoked when a operation is moved from one block
+/// This is a trait method invoked when an operation is moved from one block
 /// to another.  We keep the block pointer up to date.
 void llvm::ilist_traits<::mlir::Operation>::transferNodesFromList(
     ilist_traits<Operation> &otherList, op_iterator first, op_iterator last) {
@@ -475,6 +502,20 @@ void Operation::moveBefore(Block *block,
                            llvm::iplist<Operation>::iterator iterator) {
   block->getOperations().splice(iterator, getBlock()->getOperations(),
                                 getIterator());
+}
+
+/// Unlink this operation from its current block and insert it right after
+/// `existingOp` which may be in the same or another block in the same function.
+void Operation::moveAfter(Operation *existingOp) {
+  moveAfter(existingOp->getBlock(), existingOp->getIterator());
+}
+
+/// Unlink this operation from its current block and insert it right after
+/// `iterator` in the specified block.
+void Operation::moveAfter(Block *block,
+                          llvm::iplist<Operation>::iterator iterator) {
+  assert(iterator != block->end() && "cannot move after end of block");
+  moveBefore(&*std::next(iterator));
 }
 
 /// This drops all operand uses from this operation, which is an essential
@@ -535,11 +576,11 @@ LogicalResult Operation::fold(ArrayRef<Attribute> operands,
   if (!dialect)
     return failure();
 
-  SmallVector<Attribute, 8> constants;
-  if (failed(dialect->constantFoldHook(this, operands, constants)))
+  auto *interface = dialect->getRegisteredInterface<DialectFoldInterface>();
+  if (!interface)
     return failure();
-  results.assign(constants.begin(), constants.end());
-  return success();
+
+  return interface->fold(this, operands, results);
 }
 
 /// Emit an error with the op name prefixed, like "'dim' op " which is
@@ -571,8 +612,7 @@ Operation *Operation::cloneWithoutRegions(BlockAndValueMapping &mapper) {
 
   // Create the new operation.
   auto *newOp = Operation::create(getLoc(), getName(), getResultTypes(),
-                                  operands, attrs, successors, getNumRegions(),
-                                  hasResizableOperandsList());
+                                  operands, attrs, successors, getNumRegions());
 
   // Remember the mapping of any results.
   for (unsigned i = 0, e = getNumResults(); i != e; ++i)
@@ -716,6 +756,32 @@ LogicalResult OpTrait::impl::verifySameTypeOperands(Operation *op) {
   for (auto opType : llvm::drop_begin(op->getOperandTypes(), 1))
     if (opType != type)
       return op->emitOpError() << "requires all operands to have the same type";
+  return success();
+}
+
+LogicalResult OpTrait::impl::verifyZeroRegion(Operation *op) {
+  if (op->getNumRegions() != 0)
+    return op->emitOpError() << "requires zero regions";
+  return success();
+}
+
+LogicalResult OpTrait::impl::verifyOneRegion(Operation *op) {
+  if (op->getNumRegions() != 1)
+    return op->emitOpError() << "requires one region";
+  return success();
+}
+
+LogicalResult OpTrait::impl::verifyNRegions(Operation *op,
+                                            unsigned numRegions) {
+  if (op->getNumRegions() != numRegions)
+    return op->emitOpError() << "expected " << numRegions << " regions";
+  return success();
+}
+
+LogicalResult OpTrait::impl::verifyAtLeastNRegions(Operation *op,
+                                                   unsigned numRegions) {
+  if (op->getNumRegions() < numRegions)
+    return op->emitOpError() << "expected " << numRegions << " or more regions";
   return success();
 }
 
@@ -957,6 +1023,22 @@ LogicalResult OpTrait::impl::verifyResultSizeAttr(Operation *op,
   return verifyValueSizeAttr(op, attrName, /*isOperand=*/false);
 }
 
+LogicalResult OpTrait::impl::verifyNoRegionArguments(Operation *op) {
+  for (Region &region : op->getRegions()) {
+    if (region.empty())
+      continue;
+
+    if (region.getNumArguments() != 0) {
+      if (op->getNumRegions() > 1)
+        return op->emitOpError("region #")
+               << region.getRegionNumber() << " should have no arguments";
+      else
+        return op->emitOpError("region should have no arguments");
+    }
+  }
+  return success();
+}
+
 //===----------------------------------------------------------------------===//
 // BinaryOp implementation
 //===----------------------------------------------------------------------===//
@@ -964,7 +1046,7 @@ LogicalResult OpTrait::impl::verifyResultSizeAttr(Operation *op,
 // These functions are out-of-line implementations of the methods in BinaryOp,
 // which avoids them being template instantiated/duplicated.
 
-void impl::buildBinaryOp(Builder *builder, OperationState &result, Value lhs,
+void impl::buildBinaryOp(OpBuilder &builder, OperationState &result, Value lhs,
                          Value rhs) {
   assert(lhs.getType() == rhs.getType());
   result.addOperands({lhs, rhs});
@@ -1005,7 +1087,7 @@ void impl::printOneResultOp(Operation *op, OpAsmPrinter &p) {
 // CastOp implementation
 //===----------------------------------------------------------------------===//
 
-void impl::buildCastOp(Builder *builder, OperationState &result, Value source,
+void impl::buildCastOp(OpBuilder &builder, OperationState &result, Value source,
                        Type destType) {
   result.addOperands(source);
   result.addTypes(destType);
@@ -1045,14 +1127,60 @@ Value impl::foldCastOp(Operation *op) {
 /// is empty, insert a new block first. `buildTerminatorOp` should return the
 /// terminator operation to insert.
 void impl::ensureRegionTerminator(
-    Region &region, Location loc,
-    function_ref<Operation *()> buildTerminatorOp) {
+    Region &region, OpBuilder &builder, Location loc,
+    function_ref<Operation *(OpBuilder &, Location)> buildTerminatorOp) {
+  OpBuilder::InsertionGuard guard(builder);
   if (region.empty())
-    region.push_back(new Block);
+    builder.createBlock(&region);
 
   Block &block = region.back();
   if (!block.empty() && block.back().isKnownTerminator())
     return;
 
-  block.push_back(buildTerminatorOp());
+  builder.setInsertionPointToEnd(&block);
+  builder.insert(buildTerminatorOp(builder, loc));
+}
+
+/// Create a simple OpBuilder and forward to the OpBuilder version of this
+/// function.
+void impl::ensureRegionTerminator(
+    Region &region, Builder &builder, Location loc,
+    function_ref<Operation *(OpBuilder &, Location)> buildTerminatorOp) {
+  OpBuilder opBuilder(builder.getContext());
+  ensureRegionTerminator(region, opBuilder, loc, buildTerminatorOp);
+}
+
+//===----------------------------------------------------------------------===//
+// UseIterator
+//===----------------------------------------------------------------------===//
+
+Operation::UseIterator::UseIterator(Operation *op, bool end)
+    : op(op), res(end ? op->result_end() : op->result_begin()) {
+  // Only initialize current use if there are results/can be uses.
+  if (op->getNumResults())
+    skipOverResultsWithNoUsers();
+}
+
+Operation::UseIterator &Operation::UseIterator::operator++() {
+  // We increment over uses, if we reach the last use then move to next
+  // result.
+  if (use != (*res).use_end())
+    ++use;
+  if (use == (*res).use_end()) {
+    ++res;
+    skipOverResultsWithNoUsers();
+  }
+  return *this;
+}
+
+void Operation::UseIterator::skipOverResultsWithNoUsers() {
+  while (res != op->result_end() && (*res).use_empty())
+    ++res;
+
+  // If we are at the last result, then set use to first use of
+  // first result (sentinel value used for end).
+  if (res == op->result_end())
+    use = {};
+  else
+    use = (*res).use_begin();
 }

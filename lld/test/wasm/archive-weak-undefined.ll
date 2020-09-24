@@ -1,12 +1,16 @@
-; Test that weak undefined symbols do not fetch members from archive files.
+;; Test that weak undefined symbols do not fetch members from archive files.
 ; RUN: llc -filetype=obj %s -o %t.o
-; RUN: llc -filetype=obj %S/Inputs/ret32.ll -o %t.ret32.o
-; RUN: llc -filetype=obj %S/Inputs/hello.ll -o %t.hello.o
+; RUN: llvm-mc -filetype=obj -triple=wasm32-unknown-unknown %p/Inputs/ret32.s -o %t.ret32.o
+; RUN: llvm-mc -filetype=obj -triple=wasm32-unknown-unknown %p/Inputs/hello.s -o %t.hello.o
 ; RUN: rm -f %t.a
 ; RUN: llvm-ar rcs %t.a %t.ret32.o %t.hello.o
 
 ; RUN: wasm-ld %t.o %t.a -o %t.wasm
 ; RUN: obj2yaml %t.wasm | FileCheck %s
+
+;; Also test with the library symbols being read first
+; RUN: wasm-ld %t.a %t.o -o %t2.wasm
+; RUN: obj2yaml %t2.wasm | FileCheck %s
 
 ; RUN: wasm-ld -u hello_str %t.o %t.a -o %t2.wasm
 ; RUN: obj2yaml %t2.wasm | FileCheck %s -check-prefix=CHECK-DATA

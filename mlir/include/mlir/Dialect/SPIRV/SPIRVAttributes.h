@@ -13,6 +13,7 @@
 #ifndef MLIR_DIALECT_SPIRV_SPIRVATTRIBUTES_H
 #define MLIR_DIALECT_SPIRV_SPIRVATTRIBUTES_H
 
+#include "mlir/Dialect/SPIRV/SPIRVTypes.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/Support/LLVM.h"
 
@@ -26,17 +27,43 @@ enum class Extension;
 enum class Version : uint32_t;
 
 namespace detail {
+struct InterfaceVarABIAttributeStorage;
 struct TargetEnvAttributeStorage;
 struct VerCapExtAttributeStorage;
 } // namespace detail
 
-/// SPIR-V dialect-specific attribute kinds.
-namespace AttrKind {
-enum Kind {
-  TargetEnv = Attribute::FIRST_SPIRV_ATTR, /// Target environment
-  VerCapExt, /// (version, extension, capability) triple
+/// An attribute that specifies the information regarding the interface
+/// variable: descriptor set, binding, storage class.
+class InterfaceVarABIAttr
+    : public Attribute::AttrBase<InterfaceVarABIAttr, Attribute,
+                                 detail::InterfaceVarABIAttributeStorage> {
+public:
+  using Base::Base;
+
+  /// Gets a InterfaceVarABIAttr.
+  static InterfaceVarABIAttr get(uint32_t descirptorSet, uint32_t binding,
+                                 Optional<StorageClass> storageClass,
+                                 MLIRContext *context);
+  static InterfaceVarABIAttr get(IntegerAttr descriptorSet, IntegerAttr binding,
+                                 IntegerAttr storageClass);
+
+  /// Returns the attribute kind's name (without the 'spv.' prefix).
+  static StringRef getKindName();
+
+  /// Returns descriptor set.
+  uint32_t getDescriptorSet();
+
+  /// Returns binding.
+  uint32_t getBinding();
+
+  /// Returns `spirv::StorageClass`.
+  Optional<StorageClass> getStorageClass();
+
+  static LogicalResult verifyConstructionInvariants(Location loc,
+                                                    IntegerAttr descriptorSet,
+                                                    IntegerAttr binding,
+                                                    IntegerAttr storageClass);
 };
-} // namespace AttrKind
 
 /// An attribute that specifies the SPIR-V (version, capabilities, extensions)
 /// triple.
@@ -83,8 +110,6 @@ public:
   /// Returns the capabilities as an integer array attribute.
   ArrayAttr getCapabilitiesAttr();
 
-  static bool kindof(unsigned kind) { return kind == AttrKind::VerCapExt; }
-
   static LogicalResult verifyConstructionInvariants(Location loc,
                                                     IntegerAttr version,
                                                     ArrayAttr capabilities,
@@ -92,7 +117,7 @@ public:
 };
 
 /// An attribute that specifies the target version, allowed extensions and
-/// capabilities, and resource limits. These information describles a SPIR-V
+/// capabilities, and resource limits. These information describes a SPIR-V
 /// target environment.
 class TargetEnvAttr
     : public Attribute::AttrBase<TargetEnvAttr, Attribute,
@@ -124,8 +149,6 @@ public:
 
   /// Returns the target resource limits.
   ResourceLimitsAttr getResourceLimits();
-
-  static bool kindof(unsigned kind) { return kind == AttrKind::TargetEnv; }
 
   static LogicalResult verifyConstructionInvariants(Location loc,
                                                     VerCapExtAttr triple,

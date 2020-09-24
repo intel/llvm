@@ -235,12 +235,12 @@ class RegisterCommandsTestCase(TestBase):
         error = lldb.SBError()
         reg_value_fstat_initial = value.GetValueAsUnsigned(error, 0)
 
-        self.assertTrue(error.Success(), "reading a value for fstat")
+        self.assertSuccess(error, "reading a value for fstat")
         value = currentFrame.FindValue("ftag", lldb.eValueTypeRegister)
         error = lldb.SBError()
         reg_value_ftag_initial = value.GetValueAsUnsigned(error, 0)
 
-        self.assertTrue(error.Success(), "reading a value for ftag")
+        self.assertSuccess(error, "reading a value for ftag")
         fstat_top_pointer_initial = (reg_value_fstat_initial & 0x3800) >> 11
 
         # Execute 'si' aka 'thread step-inst' instruction 5 times and with
@@ -284,15 +284,16 @@ class RegisterCommandsTestCase(TestBase):
 
         # Launch the process, stop at the entry point.
         error = lldb.SBError()
+        flags = target.GetLaunchInfo().GetLaunchFlags()
         process = target.Launch(
                 lldb.SBListener(),
                 None, None, # argv, envp
                 None, None, None, # stdin/out/err
                 self.get_process_working_directory(),
-                0, # launch flags
-                True, # stop at entry
+                flags, # launch flags
+                True,  # stop at entry
                 error)
-        self.assertTrue(error.Success(), "Launch succeeds. Error is :" + str(error))
+        self.assertSuccess(error, "Launch succeeds")
 
         self.assertTrue(
             process.GetState() == lldb.eStateStopped,
@@ -457,7 +458,6 @@ class RegisterCommandsTestCase(TestBase):
 
         # Spawn a new process
         pid = self.spawnSubprocess(exe, ['wait_for_attach']).pid
-        self.addTearDownHook(self.cleanupSubprocesses)
 
         if self.TraceOn():
             print("pid of spawned process: %d" % pid)

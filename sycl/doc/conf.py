@@ -26,7 +26,7 @@ author = 'Intel Corporation'
 
 # -- General configuration ---------------------------------------------------
 
-master_doc = 'contents'
+master_doc = 'index'
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
@@ -53,6 +53,7 @@ source_parsers = {'.md': 'recommonmark.parser.CommonMarkParser'}
 
 def on_missing_reference(app, env, node, contnode):
     if node['reftype'] == 'any':
+        contnode['refuri'] = "https://github.com/intel/llvm/tree/sycl/sycl/doc/" + contnode['refuri']
         return contnode
     else:
         return None

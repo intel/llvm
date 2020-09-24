@@ -23,7 +23,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "WebAssembly.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
@@ -73,11 +72,11 @@ static void findUses(Value *V, Function &F,
     else if (auto *A = dyn_cast<GlobalAlias>(U.getUser()))
       findUses(A, F, Uses, ConstantBCs);
     else if (U.get()->getType() != F.getType()) {
-      CallSite CS(U.getUser());
-      if (!CS)
+      CallBase *CB = dyn_cast<CallBase>(U.getUser());
+      if (!CB)
         // Skip uses that aren't immediately called
         continue;
-      Value *Callee = CS.getCalledValue();
+      Value *Callee = CB->getCalledOperand();
       if (Callee != V)
         // Skip calls where the function isn't the callee
         continue;
@@ -308,7 +307,7 @@ bool FixFunctionBitcasts::runOnModule(Module &M) {
   if (CallMain) {
     Main->setName("__original_main");
     auto *MainWrapper =
-        cast<Function>(CallMain->getCalledValue()->stripPointerCasts());
+        cast<Function>(CallMain->getCalledOperand()->stripPointerCasts());
     delete CallMain;
     if (Main->isDeclaration()) {
       // The wrapper is not needed in this case as we don't need to export

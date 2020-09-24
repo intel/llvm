@@ -47,6 +47,10 @@ using namespace llvm::AMDGPU;
 #define DEBUG_TYPE "si-memory-legalizer"
 #define PASS_NAME "SI Memory Legalizer"
 
+static cl::opt<bool> AmdgcnSkipCacheInvalidations(
+    "amdgcn-skip-cache-invalidations", cl::init(false), cl::Hidden,
+    cl::desc("Use this to skip inserting cache invalidating instructions."));
+
 namespace {
 
 LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
@@ -253,6 +257,9 @@ protected:
   const SIInstrInfo *TII = nullptr;
 
   IsaVersion IV;
+
+  /// Whether to insert cache invalidating instructions.
+  bool InsertCacheInv;
 
   SICacheControl(const GCNSubtarget &ST);
 
@@ -650,6 +657,7 @@ Optional<SIMemOpInfo> SIMemOpAccess::getAtomicCmpxchgOrRmwInfo(
 SICacheControl::SICacheControl(const GCNSubtarget &ST) {
   TII = ST.getInstrInfo();
   IV = getIsaVersion(ST.getCPU());
+  InsertCacheInv = !AmdgcnSkipCacheInvalidations;
 }
 
 /* static */
@@ -714,6 +722,9 @@ bool SIGfx6CacheControl::insertCacheInvalidate(MachineBasicBlock::iterator &MI,
                                                SIAtomicScope Scope,
                                                SIAtomicAddrSpace AddrSpace,
                                                Position Pos) const {
+  if (!InsertCacheInv)
+    return false;
+
   bool Changed = false;
 
   MachineBasicBlock &MBB = *MI->getParent();
@@ -852,6 +863,9 @@ bool SIGfx7CacheControl::insertCacheInvalidate(MachineBasicBlock::iterator &MI,
                                                SIAtomicScope Scope,
                                                SIAtomicAddrSpace AddrSpace,
                                                Position Pos) const {
+  if (!InsertCacheInv)
+    return false;
+
   bool Changed = false;
 
   MachineBasicBlock &MBB = *MI->getParent();
@@ -954,6 +968,9 @@ bool SIGfx10CacheControl::insertCacheInvalidate(MachineBasicBlock::iterator &MI,
                                                 SIAtomicScope Scope,
                                                 SIAtomicAddrSpace AddrSpace,
                                                 Position Pos) const {
+  if (!InsertCacheInv)
+    return false;
+
   bool Changed = false;
 
   MachineBasicBlock &MBB = *MI->getParent();

@@ -1,35 +1,35 @@
 #include <clc/clc.h>
-#include <spirv/spirv.h>
+#include <core/clc_core.h>
 
-#define __CLC_MUL_HI_IMPL(BGENTYPE, GENTYPE, GENSIZE) \
-    _CLC_OVERLOAD _CLC_DEF GENTYPE mul_hi(GENTYPE x, GENTYPE y){ \
-        return __spirv_ocl_u_mul_hi(x, y); \
-    } \
+#define __CLC_MUL_HI_IMPL(BGENTYPE, GENTYPE, GENSIZE)                          \
+  _CLC_OVERLOAD _CLC_DEF GENTYPE mul_hi(GENTYPE x, GENTYPE y) {                \
+    return __clc_mul_hi(x, y);                                                 \
+  }
 
 _CLC_OVERLOAD _CLC_DEF long mul_hi(long x, long y){
-    return __spirv_ocl_u_mul_hi(x, y);
+  return __clc_mul_hi(x, y);
 }
 
 _CLC_OVERLOAD _CLC_DEF ulong mul_hi(ulong x, ulong y){
-    return __spirv_ocl_u_mul_hi(x, y);
+  return __clc_mul_hi(x, y);
 }
 
-#define __CLC_MUL_HI_VEC(GENTYPE) \
-    _CLC_OVERLOAD _CLC_DEF GENTYPE##2 mul_hi(GENTYPE##2 x, GENTYPE##2 y){ \
-        return __spirv_ocl_u_mul_hi(x, y); \
-    } \
-    _CLC_OVERLOAD _CLC_DEF GENTYPE##3 mul_hi(GENTYPE##3 x, GENTYPE##3 y){ \
-        return __spirv_ocl_u_mul_hi(x, y); \
-    } \
-    _CLC_OVERLOAD _CLC_DEF GENTYPE##4 mul_hi(GENTYPE##4 x, GENTYPE##4 y){ \
-        return __spirv_ocl_u_mul_hi(x, y); \
-    } \
-    _CLC_OVERLOAD _CLC_DEF GENTYPE##8 mul_hi(GENTYPE##8 x, GENTYPE##8 y){ \
-        return __spirv_ocl_u_mul_hi(x, y); \
-    } \
-    _CLC_OVERLOAD _CLC_DEF GENTYPE##16 mul_hi(GENTYPE##16 x, GENTYPE##16 y){ \
-        return __spirv_ocl_u_mul_hi(x, y); \
-    } \
+#define __CLC_MUL_HI_VEC(GENTYPE)                                              \
+  _CLC_OVERLOAD _CLC_DEF GENTYPE##2 mul_hi(GENTYPE##2 x, GENTYPE##2 y) {       \
+    return __clc_mul_hi(x, y);                                                 \
+  }                                                                            \
+  _CLC_OVERLOAD _CLC_DEF GENTYPE##3 mul_hi(GENTYPE##3 x, GENTYPE##3 y) {       \
+    return __clc_mul_hi(x, y);                                                 \
+  }                                                                            \
+  _CLC_OVERLOAD _CLC_DEF GENTYPE##4 mul_hi(GENTYPE##4 x, GENTYPE##4 y) {       \
+    return __clc_mul_hi(x, y);                                                 \
+  }                                                                            \
+  _CLC_OVERLOAD _CLC_DEF GENTYPE##8 mul_hi(GENTYPE##8 x, GENTYPE##8 y) {       \
+    return __clc_mul_hi(x, y);                                                 \
+  }                                                                            \
+  _CLC_OVERLOAD _CLC_DEF GENTYPE##16 mul_hi(GENTYPE##16 x, GENTYPE##16 y) {    \
+    return __clc_mul_hi(x, y);                                                 \
+  }
 
 #define __CLC_MUL_HI_DEC_IMPL(BTYPE, TYPE, BITS) \
     __CLC_MUL_HI_IMPL(BTYPE, TYPE, BITS) \

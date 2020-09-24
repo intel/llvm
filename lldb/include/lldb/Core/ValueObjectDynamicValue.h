@@ -34,7 +34,7 @@ class ValueObjectDynamicValue : public ValueObject {
 public:
   ~ValueObjectDynamicValue() override;
 
-  uint64_t GetByteSize() override;
+  llvm::Optional<uint64_t> GetByteSize() override;
 
   ConstString GetTypeName() override;
 
@@ -127,7 +127,9 @@ private:
   ValueObjectDynamicValue(ValueObject &parent,
                           lldb::DynamicValueType use_dynamic);
 
-  DISALLOW_COPY_AND_ASSIGN(ValueObjectDynamicValue);
+  ValueObjectDynamicValue(const ValueObjectDynamicValue &) = delete;
+  const ValueObjectDynamicValue &
+  operator=(const ValueObjectDynamicValue &) = delete;
 };
 
 } // namespace lldb_private

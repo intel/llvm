@@ -1,11 +1,8 @@
 # Note: debugserver is a Darwin-only implementation of a remote debugging
 # server. It is not intended to be used on other platforms. The tests are here
-# because using the LLDB Host API is convienent and allows testing of both parts
+# because using the LLDB Host API is convenient and allows testing of both parts
 # of the debugserver communication path. If you are looking for a non-darwin
 # remote debugging server, please use lldb-server.
-
-include_directories(${LLDB_SOURCE_DIR}/tools/debugserver/source
-                    ${LLDB_SOURCE_DIR}/tools/debugserver/source/MacOSX)
 
 add_lldb_unittest(debugserverTests
   JSONTest.cpp
@@ -15,11 +12,16 @@ add_lldb_unittest(debugserverTests
   LINK_LIBS
     lldbDebugserverCommon
     lldbHost
+    LLVMTestingSupport
   LINK_COMPONENTS
     Support
   )
 
-if(IOS)
+target_include_directories(debugserverTests PRIVATE
+  ${LLDB_SOURCE_DIR}/tools/debugserver/source
+  ${LLDB_SOURCE_DIR}/tools/debugserver/source/MacOSX)
+
+if(APPLE_EMBEDDED)
   set_property(TARGET debugserverTests APPEND PROPERTY COMPILE_DEFINITIONS
       WITH_LOCKDOWN
       WITH_FBS

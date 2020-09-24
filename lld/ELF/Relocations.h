@@ -24,6 +24,7 @@ class SectionBase;
 
 // Represents a relocation type, such as R_X86_64_PC32 or R_ARM_THM_CALL.
 using RelType = uint32_t;
+using JumpModType = uint32_t;
 
 // List of target-independent relocation types. Relocations read
 // from files are converted to these types so that the main code
@@ -95,6 +96,7 @@ enum RelExpr {
   R_PPC64_CALL_PLT,
   R_PPC64_RELAX_TOC,
   R_PPC64_TOCBASE,
+  R_PPC64_RELAX_GOT_PC,
   R_RISCV_ADD,
   R_RISCV_PC_INDIRECT,
 };
@@ -106,6 +108,15 @@ struct Relocation {
   uint64_t offset;
   int64_t addend;
   Symbol *sym;
+};
+
+// Manipulate jump instructions with these modifiers.  These are used to relax
+// jump instruction opcodes at basic block boundaries and are particularly
+// useful when basic block sections are enabled.
+struct JumpInstrMod {
+  JumpModType original;
+  uint64_t offset;
+  unsigned size;
 };
 
 // This function writes undefined symbol diagnostics to an internal buffer.

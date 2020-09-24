@@ -33,12 +33,13 @@ public:
   virtual ~SymbolVendorMacOSX();
 
   // PluginInterface protocol
-  virtual lldb_private::ConstString GetPluginName();
+  lldb_private::ConstString GetPluginName() override;
 
-  virtual uint32_t GetPluginVersion();
+  uint32_t GetPluginVersion() override;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(SymbolVendorMacOSX);
+  SymbolVendorMacOSX(const SymbolVendorMacOSX &) = delete;
+  const SymbolVendorMacOSX &operator=(const SymbolVendorMacOSX &) = delete;
 };
 
 #endif // LLDB_SOURCE_PLUGINS_SYMBOLVENDOR_MACOSX_SYMBOLVENDORMACOSX_H

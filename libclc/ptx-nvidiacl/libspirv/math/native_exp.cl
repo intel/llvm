@@ -7,10 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include <spirv/spirv.h>
+
 #include "../../include/libdevice.h"
-#include "../../../generic/lib/clcmacro.h"
+#include <clcmacro.h>
 
 #define __CLC_FUNCTION __spirv_ocl_native_exp
 #define __CLC_BUILTIN __nv_fast_exp
+#define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, f)
 #define __FLOAT_ONLY
-#include "unary_builtin.inc"
+#include <math/unary_builtin.inc>

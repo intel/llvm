@@ -8,10 +8,12 @@ add_llvm_library(LLVMSPIRVLib
   OCL21ToSPIRV.cpp
   OCLTypeToSPIRV.cpp
   OCLUtil.cpp
+  VectorComputeUtil.cpp
   SPIRVLowerBool.cpp
   SPIRVLowerConstExpr.cpp
   SPIRVLowerMemmove.cpp
   SPIRVLowerOCLBlocks.cpp
+  SPIRVLowerSaddWithOverflow.cpp
   SPIRVLowerSPIRBlocks.cpp
   SPIRVReader.cpp
   SPIRVRegularizeLLVM.cpp
@@ -37,6 +39,8 @@ add_llvm_library(LLVMSPIRVLib
     Analysis
     BitWriter
     Core
+    IRReader
+    Linker
     Support
     TransformUtils
   DEPENDS

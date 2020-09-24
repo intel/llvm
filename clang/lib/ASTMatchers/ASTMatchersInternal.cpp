@@ -29,6 +29,8 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ManagedStatic.h"
+#include "llvm/Support/Regex.h"
+#include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
@@ -67,6 +69,30 @@ bool OptionallyVariadicOperator(const DynTypedNode &DynNode,
                                 ASTMatchFinder *Finder,
                                 BoundNodesTreeBuilder *Builder,
                                 ArrayRef<DynTypedMatcher> InnerMatchers);
+
+bool matchesAnyBase(const CXXRecordDecl &Node,
+                    const Matcher<CXXBaseSpecifier> &BaseSpecMatcher,
+                    ASTMatchFinder *Finder, BoundNodesTreeBuilder *Builder) {
+  if (!Node.hasDefinition())
+    return false;
+
+  CXXBasePaths Paths;
+  Paths.setOrigin(&Node);
+
+  const auto basePredicate =
+      [Finder, Builder, &BaseSpecMatcher](const CXXBaseSpecifier *BaseSpec,
+                                          CXXBasePath &IgnoredParam) {
+        BoundNodesTreeBuilder Result(*Builder);
+        if (BaseSpecMatcher.matches(*BaseSpec, Finder, Builder)) {
+          *Builder = std::move(Result);
+          return true;
+        }
+        return false;
+      };
+
+  return Node.lookupInBases(basePredicate, Paths,
+                            /*LookupInDependent =*/true);
+}
 
 void BoundNodesTreeBuilder::visitMatches(Visitor *ResultVisitor) {
   if (Bindings.empty())
@@ -136,6 +162,31 @@ public:
   }
 };
 
+/// A matcher that specifies a particular \c TraversalKind.
+///
+/// The kind provided to the constructor overrides any kind that may be
+/// specified by the `InnerMatcher`.
+class DynTraversalMatcherImpl : public DynMatcherInterface {
+public:
+  explicit DynTraversalMatcherImpl(
+      clang::TraversalKind TK,
+      IntrusiveRefCntPtr<DynMatcherInterface> InnerMatcher)
+      : TK(TK), InnerMatcher(std::move(InnerMatcher)) {}
+
+  bool dynMatches(const DynTypedNode &DynNode, ASTMatchFinder *Finder,
+                  BoundNodesTreeBuilder *Builder) const override {
+    return this->InnerMatcher->dynMatches(DynNode, Finder, Builder);
+  }
+
+  llvm::Optional<clang::TraversalKind> TraversalKind() const override {
+    return TK;
+  }
+
+private:
+  clang::TraversalKind TK;
+  IntrusiveRefCntPtr<DynMatcherInterface> InnerMatcher;
+};
+
 } // namespace
 
 static llvm::ManagedStatic<TrueMatcherImpl> TrueMatcherInstance;
@@ -201,6 +252,14 @@ DynTypedMatcher::constructRestrictedWrapper(const DynTypedMatcher &InnerMatcher,
                                             ASTNodeKind RestrictKind) {
   DynTypedMatcher Copy = InnerMatcher;
   Copy.RestrictKind = RestrictKind;
+  return Copy;
+}
+
+DynTypedMatcher
+DynTypedMatcher::withTraversalKind(ast_type_traits::TraversalKind TK) {
+  auto Copy = *this;
+  Copy.Implementation =
+      new DynTraversalMatcherImpl(TK, std::move(Copy.Implementation));
   return Copy;
 }
 
@@ -625,6 +684,19 @@ getExpansionLocOfMacro(StringRef MacroName, SourceLocation Loc,
   return llvm::None;
 }
 
+std::shared_ptr<llvm::Regex> createAndVerifyRegex(StringRef Regex,
+                                                  llvm::Regex::RegexFlags Flags,
+                                                  StringRef MatcherID) {
+  assert(!Regex.empty() && "Empty regex string");
+  auto SharedRegex = std::make_shared<llvm::Regex>(Regex, Flags);
+  std::string Error;
+  if (!SharedRegex->isValid(Error)) {
+    llvm::WithColor::error()
+        << "building matcher '" << MatcherID << "': " << Error << "\n";
+    llvm::WithColor::note() << " input was '" << Regex << "'\n";
+  }
+  return SharedRegex;
+}
 } // end namespace internal
 
 const internal::VariadicDynCastAllOfMatcher<Stmt, ObjCAutoreleasePoolStmt>
@@ -662,11 +734,15 @@ const internal::VariadicDynCastAllOfMatcher<Decl, AccessSpecDecl>
     accessSpecDecl;
 const internal::VariadicAllOfMatcher<CXXCtorInitializer> cxxCtorInitializer;
 const internal::VariadicAllOfMatcher<TemplateArgument> templateArgument;
+const internal::VariadicAllOfMatcher<TemplateArgumentLoc> templateArgumentLoc;
 const internal::VariadicAllOfMatcher<TemplateName> templateName;
 const internal::VariadicDynCastAllOfMatcher<Decl, NonTypeTemplateParmDecl>
     nonTypeTemplateParmDecl;
 const internal::VariadicDynCastAllOfMatcher<Decl, TemplateTypeParmDecl>
     templateTypeParmDecl;
+const internal::VariadicDynCastAllOfMatcher<Decl, TemplateTemplateParmDecl>
+    templateTemplateParmDecl;
+
 const internal::VariadicAllOfMatcher<QualType> qualType;
 const internal::VariadicAllOfMatcher<Type> type;
 const internal::VariadicAllOfMatcher<TypeLoc> typeLoc;
@@ -804,6 +880,8 @@ const internal::VariadicDynCastAllOfMatcher<Stmt, IntegerLiteral>
     integerLiteral;
 const internal::VariadicDynCastAllOfMatcher<Stmt, FloatingLiteral> floatLiteral;
 const internal::VariadicDynCastAllOfMatcher<Stmt, ImaginaryLiteral> imaginaryLiteral;
+const internal::VariadicDynCastAllOfMatcher<Stmt, FixedPointLiteral>
+    fixedPointLiteral;
 const internal::VariadicDynCastAllOfMatcher<Stmt, UserDefinedLiteral>
     userDefinedLiteral;
 const internal::VariadicDynCastAllOfMatcher<Stmt, CompoundLiteralExpr>

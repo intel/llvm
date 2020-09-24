@@ -83,6 +83,7 @@
 #include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
 #include "llvm/InitializePasses.h"
+#include "llvm/MC/SectionKind.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
@@ -463,7 +464,7 @@ bool GlobalMerge::doMerge(const SmallVectorImpl<GlobalVariable *> &Globals,
       Type *Ty = Globals[j]->getValueType();
 
       // Make sure we use the same alignment AsmPrinter would use.
-      Align Alignment(DL.getPreferredAlignment(Globals[j]));
+      Align Alignment = DL.getPreferredAlign(Globals[j]);
       unsigned Padding = alignTo(MergedSize, Alignment) - MergedSize;
       MergedSize += Padding;
       MergedSize += DL.getTypeAllocSize(Ty);

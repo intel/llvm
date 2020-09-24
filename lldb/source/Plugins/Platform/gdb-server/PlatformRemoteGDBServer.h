@@ -12,8 +12,9 @@
 
 #include <string>
 
-#include "Plugins/Process/gdb-remote/GDBRemoteCommunicationClient.h"
 #include "Plugins/Process/Utility/GDBRemoteSignals.h"
+#include "Plugins/Process/gdb-remote/GDBRemoteCommunicationClient.h"
+#include "Plugins/Process/gdb-remote/GDBRemoteCommunicationReplayServer.h"
 #include "lldb/Target/Platform.h"
 
 namespace lldb_private {
@@ -126,6 +127,9 @@ public:
 
   lldb::user_id_t GetFileSize(const FileSpec &file_spec) override;
 
+  void AutoCompleteDiskFileOrDirectory(CompletionRequest &request,
+                                       bool only_dir) override;
+
   Status PutFile(const FileSpec &source, const FileSpec &destination,
                  uint32_t uid = UINT32_MAX, uint32_t gid = UINT32_MAX) override;
 
@@ -136,7 +140,7 @@ public:
   Status Unlink(const FileSpec &path) override;
 
   Status RunShellCommand(
-      const char *command,         // Shouldn't be NULL
+      llvm::StringRef shell, llvm::StringRef command,
       const FileSpec &working_dir, // Pass empty FileSpec to use the current
                                    // working directory
       int *status_ptr, // Pass NULL if you don't want the process exit status
@@ -164,6 +168,7 @@ public:
 
 protected:
   process_gdb_remote::GDBRemoteCommunicationClient m_gdb_client;
+  process_gdb_remote::GDBRemoteCommunicationReplayServer m_gdb_replay_server;
   std::string m_platform_description; // After we connect we can get a more
                                       // complete description of what we are
                                       // connected to
@@ -192,7 +197,9 @@ private:
   llvm::Optional<std::string> DoGetUserName(UserIDResolver::id_t uid) override;
   llvm::Optional<std::string> DoGetGroupName(UserIDResolver::id_t uid) override;
 
-  DISALLOW_COPY_AND_ASSIGN(PlatformRemoteGDBServer);
+  PlatformRemoteGDBServer(const PlatformRemoteGDBServer &) = delete;
+  const PlatformRemoteGDBServer &
+  operator=(const PlatformRemoteGDBServer &) = delete;
 };
 
 } // namespace platform_gdb_server

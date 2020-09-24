@@ -224,7 +224,7 @@ class RegisterClass<string namespace, list<ValueType> regTypes, int alignment,
   list<ValueType> RegTypes = regTypes;
 
   // Size - Specify the spill size in bits of the registers.  A default value of
-  // zero lets tablgen pick an appropriate size.
+  // zero lets tablegen pick an appropriate size.
   int Size = 0;
 
   // Alignment - Specify the alignment required of the registers when they are
@@ -703,7 +703,7 @@ class Requires<list<Predicate> preds> {
 /// ops definition - This is just a simple marker used to identify the operand
 /// list for an instruction. outs and ins are identical both syntactically and
 /// semantically; they are used to define def operands and use operands to
-/// improve readibility. This should be used like this:
+/// improve readability. This should be used like this:
 ///     (outs R32:$dst), (ins R32:$src1, R32:$src2) or something similar.
 def ops;
 def outs;
@@ -1017,10 +1017,10 @@ def INLINEASM_BR : StandardPseudoInstruction {
   let OutOperandList = (outs);
   let InOperandList = (ins variable_ops);
   let AsmString = "";
-  let hasSideEffects = 0;  // Note side effect is encoded in an operand.
-  let isTerminator = 1;
-  let isBranch = 1;
-  let isIndirectBranch = 1;
+  // Unlike INLINEASM, this is always treated as having side-effects.
+  let hasSideEffects = 1;
+  // Despite potentially branching, this instruction is intentionally _not_
+  // marked as a terminator or a branch.
 }
 def CFI_INSTRUCTION : StandardPseudoInstruction {
   let OutOperandList = (outs);
@@ -1157,7 +1157,7 @@ def PATCHPOINT : StandardPseudoInstruction {
   let usesCustomInserter = 1;
 }
 def STATEPOINT : StandardPseudoInstruction {
-  let OutOperandList = (outs);
+  let OutOperandList = (outs variable_ops);
   let InOperandList = (ins variable_ops);
   let usesCustomInserter = 1;
   let mayLoad = 1;
@@ -1172,6 +1172,18 @@ def LOAD_STACK_GUARD : StandardPseudoInstruction {
   bit isReMaterializable = 1;
   let hasSideEffects = 0;
   bit isPseudo = 1;
+}
+def PREALLOCATED_SETUP : StandardPseudoInstruction {
+  let OutOperandList = (outs);
+  let InOperandList = (ins i32imm:$a);
+  let usesCustomInserter = 1;
+  let hasSideEffects = 1;
+}
+def PREALLOCATED_ARG : StandardPseudoInstruction {
+  let OutOperandList = (outs ptr_rc:$loc);
+  let InOperandList = (ins i32imm:$a, i32imm:$b);
+  let usesCustomInserter = 1;
+  let hasSideEffects = 1;
 }
 def LOCAL_ESCAPE : StandardPseudoInstruction {
   // This instruction is really just a label. It has to be part of the chain so
@@ -1546,7 +1558,8 @@ class ComplexDeprecationPredicate<string dep> {
 // by the scheduler.  Each Processor definition requires corresponding
 // instruction itineraries.
 //
-class Processor<string n, ProcessorItineraries pi, list<SubtargetFeature> f> {
+class Processor<string n, ProcessorItineraries pi, list<SubtargetFeature> f,
+                list<SubtargetFeature> tunef = []> {
   // Name - Chip set name.  Used by command line (-mcpu=) to determine the
   // appropriate target chip.
   //
@@ -1562,6 +1575,12 @@ class Processor<string n, ProcessorItineraries pi, list<SubtargetFeature> f> {
 
   // Features - list of
   list<SubtargetFeature> Features = f;
+
+  // TuneFeatures - list of features for tuning for this CPU. If the target
+  // supports -mtune, this should contain the list of features used to make
+  // microarchitectural optimization decisions for a given processor.  While
+  // Features should contain the architectural features for the processor.
+  list<SubtargetFeature> TuneFeatures = tunef;
 }
 
 // ProcessorModel allows subtargets to specify the more general
@@ -1570,8 +1589,9 @@ class Processor<string n, ProcessorItineraries pi, list<SubtargetFeature> f> {
 //
 // Although this class always passes NoItineraries to the Processor
 // class, the SchedMachineModel may still define valid Itineraries.
-class ProcessorModel<string n, SchedMachineModel m, list<SubtargetFeature> f>
-  : Processor<n, NoItineraries, f> {
+class ProcessorModel<string n, SchedMachineModel m, list<SubtargetFeature> f,
+                     list<SubtargetFeature> tunef = []>
+  : Processor<n, NoItineraries, f, tunef> {
   let SchedModel = m;
 }
 

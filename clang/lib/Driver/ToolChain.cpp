@@ -230,9 +230,12 @@ ToolChain::getTargetAndModeFromProgramName(StringRef PN) {
 StringRef ToolChain::getDefaultUniversalArchName() const {
   // In universal driver terms, the arch name accepted by -arch isn't exactly
   // the same as the ones that appear in the triple. Roughly speaking, this is
-  // an inverse of the darwin::getArchTypeForDarwinArchName() function, but the
-  // only interesting special case is powerpc.
+  // an inverse of the darwin::getArchTypeForDarwinArchName() function.
   switch (Triple.getArch()) {
+  case llvm::Triple::aarch64:
+    return "arm64";
+  case llvm::Triple::aarch64_32:
+    return "arm64_32";
   case llvm::Triple::ppc:
     return "ppc";
   case llvm::Triple::ppc64:
@@ -276,6 +279,10 @@ Tool *ToolChain::buildBackendCompiler() const {
   llvm_unreachable("Backend Compilation is not supported by this toolchain");
 }
 
+Tool *ToolChain::buildStaticLibTool() const {
+  llvm_unreachable("Creating static lib is not supported by this toolchain");
+}
+
 Tool *ToolChain::getAssemble() const {
   if (!Assemble)
     Assemble.reset(buildAssembler());
@@ -292,6 +299,12 @@ Tool *ToolChain::getLink() const {
   if (!Link)
     Link.reset(buildLinker());
   return Link.get();
+}
+
+Tool *ToolChain::getStaticLibTool() const {
+  if (!StaticLibTool)
+    StaticLibTool.reset(buildStaticLibTool());
+  return StaticLibTool.get();
 }
 
 Tool *ToolChain::getIfsMerge() const {
@@ -358,6 +371,9 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
 
   case Action::LinkJobClass:
     return getLink();
+
+  case Action::StaticLibJobClass:
+    return getStaticLibTool();
 
   case Action::InputClass:
   case Action::BindArchClass:
@@ -448,8 +464,9 @@ std::string ToolChain::getCompilerRTPath() const {
   return std::string(Path.str());
 }
 
-std::string ToolChain::getCompilerRT(const ArgList &Args, StringRef Component,
-                                     FileType Type) const {
+std::string ToolChain::getCompilerRTBasename(const ArgList &Args,
+                                             StringRef Component, FileType Type,
+                                             bool AddArch) const {
   const llvm::Triple &TT = getTriple();
   bool IsITANMSVCWindows =
       TT.isWindowsMSVCEnvironment() || TT.isWindowsItaniumEnvironment();
@@ -471,18 +488,32 @@ std::string ToolChain::getCompilerRT(const ArgList &Args, StringRef Component,
     break;
   }
 
+  std::string ArchAndEnv;
+  if (AddArch) {
+    StringRef Arch = getArchNameForCompilerRTLib(*this, Args);
+    const char *Env = TT.isAndroid() ? "-android" : "";
+    ArchAndEnv = ("-" + Arch + Env).str();
+  }
+  return (Prefix + Twine("clang_rt.") + Component + ArchAndEnv + Suffix).str();
+}
+
+std::string ToolChain::getCompilerRT(const ArgList &Args, StringRef Component,
+                                     FileType Type) const {
+  // Check for runtime files in the new layout without the architecture first.
+  std::string CRTBasename =
+      getCompilerRTBasename(Args, Component, Type, /*AddArch=*/false);
   for (const auto &LibPath : getLibraryPaths()) {
     SmallString<128> P(LibPath);
-    llvm::sys::path::append(P, Prefix + Twine("clang_rt.") + Component + Suffix);
+    llvm::sys::path::append(P, CRTBasename);
     if (getVFS().exists(P))
       return std::string(P.str());
   }
 
-  StringRef Arch = getArchNameForCompilerRTLib(*this, Args);
-  const char *Env = TT.isAndroid() ? "-android" : "";
+  // Fall back to the old expected compiler-rt name if the new one does not
+  // exist.
+  CRTBasename = getCompilerRTBasename(Args, Component, Type, /*AddArch=*/true);
   SmallString<128> Path(getCompilerRTPath());
-  llvm::sys::path::append(Path, Prefix + Twine("clang_rt.") + Component + "-" +
-                                    Arch + Env + Suffix);
+  llvm::sys::path::append(Path, CRTBasename);
   return std::string(Path.str());
 }
 
@@ -540,24 +571,20 @@ bool ToolChain::needsProfileRT(const ArgList &Args) {
   if (Args.hasArg(options::OPT_noprofilelib))
     return false;
 
-  if (needsGCovInstrumentation(Args) ||
-      Args.hasArg(options::OPT_fprofile_generate) ||
-      Args.hasArg(options::OPT_fprofile_generate_EQ) ||
-      Args.hasArg(options::OPT_fcs_profile_generate) ||
-      Args.hasArg(options::OPT_fcs_profile_generate_EQ) ||
-      Args.hasArg(options::OPT_fprofile_instr_generate) ||
-      Args.hasArg(options::OPT_fprofile_instr_generate_EQ) ||
-      Args.hasArg(options::OPT_fcreate_profile) ||
-      Args.hasArg(options::OPT_forder_file_instrumentation))
-    return true;
-
-  return false;
+  return Args.hasArg(options::OPT_fprofile_generate) ||
+         Args.hasArg(options::OPT_fprofile_generate_EQ) ||
+         Args.hasArg(options::OPT_fcs_profile_generate) ||
+         Args.hasArg(options::OPT_fcs_profile_generate_EQ) ||
+         Args.hasArg(options::OPT_fprofile_instr_generate) ||
+         Args.hasArg(options::OPT_fprofile_instr_generate_EQ) ||
+         Args.hasArg(options::OPT_fcreate_profile) ||
+         Args.hasArg(options::OPT_forder_file_instrumentation);
 }
 
 bool ToolChain::needsGCovInstrumentation(const llvm::opt::ArgList &Args) {
-  return Args.hasFlag(options::OPT_fprofile_arcs, options::OPT_fno_profile_arcs,
-                      false) ||
-         Args.hasArg(options::OPT_coverage);
+  return Args.hasArg(options::OPT_coverage) ||
+         Args.hasFlag(options::OPT_fprofile_arcs, options::OPT_fno_profile_arcs,
+                      false);
 }
 
 Tool *ToolChain::SelectTool(const JobAction &JA) const {
@@ -578,18 +605,47 @@ std::string ToolChain::GetProgramPath(const char *Name) const {
 }
 
 std::string ToolChain::GetLinkerPath() const {
+  // Get -fuse-ld= first to prevent -Wunused-command-line-argument. -fuse-ld= is
+  // considered as the linker flavor, e.g. "bfd", "gold", or "lld".
   const Arg* A = Args.getLastArg(options::OPT_fuse_ld_EQ);
   StringRef UseLinker = A ? A->getValue() : CLANG_DEFAULT_LINKER;
+
+  // --ld-path= takes precedence over -fuse-ld= and specifies the executable
+  // name. -B, COMPILER_PATH and PATH and consulted if the value does not
+  // contain a path component separator.
+  if (const Arg *A = Args.getLastArg(options::OPT_ld_path_EQ)) {
+    std::string Path(A->getValue());
+    if (!Path.empty()) {
+      if (llvm::sys::path::parent_path(Path).empty())
+        Path = GetProgramPath(A->getValue());
+      if (llvm::sys::fs::can_execute(Path))
+        return std::string(Path);
+    }
+    getDriver().Diag(diag::err_drv_invalid_linker_name) << A->getAsString(Args);
+    return GetProgramPath(getDefaultLinker());
+  }
+  // If we're passed -fuse-ld= with no argument, or with the argument ld,
+  // then use whatever the default system linker is.
+  if (UseLinker.empty() || UseLinker == "ld") {
+    const char *DefaultLinker = getDefaultLinker();
+    if (llvm::sys::path::is_absolute(DefaultLinker))
+      return std::string(DefaultLinker);
+    else
+      return GetProgramPath(DefaultLinker);
+  }
+
+  // Extending -fuse-ld= to an absolute or relative path is unexpected. Checking
+  // for the linker flavor is brittle. In addition, prepending "ld." or "ld64."
+  // to a relative path is surprising. This is more complex due to priorities
+  // among -B, COMPILER_PATH and PATH. --ld-path= should be used instead.
+  if (UseLinker.find('/') != StringRef::npos)
+    getDriver().Diag(diag::warn_drv_use_ld_non_word);
 
   if (llvm::sys::path::is_absolute(UseLinker)) {
     // If we're passed what looks like an absolute path, don't attempt to
     // second-guess that.
     if (llvm::sys::fs::can_execute(UseLinker))
       return std::string(UseLinker);
-  } else if (UseLinker.empty() || UseLinker == "ld") {
-    // If we're passed -fuse-ld= with no argument, or with the argument ld,
-    // then use whatever the default system linker is.
-    return GetProgramPath(getDefaultLinker());
   } else {
     llvm::SmallString<8> LinkerName;
     if (Triple.isOSDarwin())
@@ -607,6 +663,11 @@ std::string ToolChain::GetLinkerPath() const {
     getDriver().Diag(diag::err_drv_invalid_linker_name) << A->getAsString(Args);
 
   return GetProgramPath(getDefaultLinker());
+}
+
+std::string ToolChain::GetStaticLibToolPath() const {
+  // TODO: Add support for static lib archiving on Windows
+  return GetProgramPath("llvm-ar");
 }
 
 types::ID ToolChain::LookupTypeForExtension(StringRef Ext) const {
@@ -657,9 +718,7 @@ bool ToolChain::isThreadModelSupported(const StringRef Model) const {
     return Triple.getArch() == llvm::Triple::arm ||
            Triple.getArch() == llvm::Triple::armeb ||
            Triple.getArch() == llvm::Triple::thumb ||
-           Triple.getArch() == llvm::Triple::thumbeb ||
-           Triple.getArch() == llvm::Triple::wasm32 ||
-           Triple.getArch() == llvm::Triple::wasm64;
+           Triple.getArch() == llvm::Triple::thumbeb || Triple.isWasm();
   } else if (Model == "posix")
     return true;
 
@@ -794,6 +853,10 @@ std::string ToolChain::ComputeEffectiveClangTriple(const ArgList &Args,
   return ComputeLLVMTriple(Args, InputType);
 }
 
+std::string ToolChain::computeSysRoot() const {
+  return D.SysRoot;
+}
+
 void ToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
                                           ArgStringList &CC1Args) const {
   // Each toolchain should provide the appropriate include flags.
@@ -807,7 +870,8 @@ void ToolChain::addClangWarningOptions(ArgStringList &CC1Args) const {}
 
 void ToolChain::addProfileRTLibs(const llvm::opt::ArgList &Args,
                                  llvm::opt::ArgStringList &CmdArgs) const {
-  if (!needsProfileRT(Args)) return;
+  if (!needsProfileRT(Args) && !needsGCovInstrumentation(Args))
+    return;
 
   CmdArgs.push_back(getCompilerRTArgString(Args, "profile"));
 }
@@ -1010,32 +1074,31 @@ SanitizerMask ToolChain::getSupportedSanitizers() const {
   // Return sanitizers which don't require runtime support and are not
   // platform dependent.
 
-  SanitizerMask Res = (SanitizerKind::Undefined & ~SanitizerKind::Vptr &
-                       ~SanitizerKind::Function) |
-                      (SanitizerKind::CFI & ~SanitizerKind::CFIICall) |
-                      SanitizerKind::CFICastStrict |
-                      SanitizerKind::FloatDivideByZero |
-                      SanitizerKind::UnsignedIntegerOverflow |
-                      SanitizerKind::ImplicitConversion |
-                      SanitizerKind::Nullability | SanitizerKind::LocalBounds;
+  SanitizerMask Res =
+      (SanitizerKind::Undefined & ~SanitizerKind::Vptr &
+       ~SanitizerKind::Function) |
+      (SanitizerKind::CFI & ~SanitizerKind::CFIICall) |
+      SanitizerKind::CFICastStrict | SanitizerKind::FloatDivideByZero |
+      SanitizerKind::UnsignedIntegerOverflow |
+      SanitizerKind::UnsignedShiftBase | SanitizerKind::ImplicitConversion |
+      SanitizerKind::Nullability | SanitizerKind::LocalBounds;
   if (getTriple().getArch() == llvm::Triple::x86 ||
       getTriple().getArch() == llvm::Triple::x86_64 ||
-      getTriple().getArch() == llvm::Triple::arm ||
-      getTriple().getArch() == llvm::Triple::aarch64 ||
-      getTriple().getArch() == llvm::Triple::wasm32 ||
-      getTriple().getArch() == llvm::Triple::wasm64)
+      getTriple().getArch() == llvm::Triple::arm || getTriple().isWasm() ||
+      getTriple().isAArch64())
     Res |= SanitizerKind::CFIICall;
-  if (getTriple().getArch() == llvm::Triple::x86_64 ||
-      getTriple().getArch() == llvm::Triple::aarch64)
+  if (getTriple().getArch() == llvm::Triple::x86_64 || getTriple().isAArch64())
     Res |= SanitizerKind::ShadowCallStack;
-  if (getTriple().getArch() == llvm::Triple::aarch64 ||
-      getTriple().getArch() == llvm::Triple::aarch64_be)
+  if (getTriple().isAArch64())
     Res |= SanitizerKind::MemTag;
   return Res;
 }
 
 void ToolChain::AddCudaIncludeArgs(const ArgList &DriverArgs,
                                    ArgStringList &CC1Args) const {}
+
+void ToolChain::AddHIPIncludeArgs(const ArgList &DriverArgs,
+                                  ArgStringList &CC1Args) const {}
 
 void ToolChain::AddIAMCUIncludeArgs(const ArgList &DriverArgs,
                                     ArgStringList &CC1Args) const {}
@@ -1192,6 +1255,10 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
         continue;
       }
     }
+
+    if (!XOffloadTargetArg)
+      continue;
+
     XOffloadTargetArg->setBaseArg(A);
     A = XOffloadTargetArg.release();
     AllocatedArgs.push_back(A);

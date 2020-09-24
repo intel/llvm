@@ -6,9 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-//hadd = (x+y)>>1
-//This can be simplified to x>>1 + y>>1 + (1 if both x and y have the 1s bit set)
-//This saves us having to do any checks for overflow in the addition sum
-_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_u_hadd(__CLC_GENTYPE x, __CLC_GENTYPE y) {
-    return (x>>(__CLC_GENTYPE)1)+(y>>(__CLC_GENTYPE)1)+(x&y&(__CLC_GENTYPE)1);
+#ifdef __CLC_GEN_S
+#define DECL __spirv_ocl_s_hadd
+#else
+#define DECL __spirv_ocl_u_hadd
+#endif
+
+_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE DECL(__CLC_GENTYPE x, __CLC_GENTYPE y) {
+  return __clc_hadd(x, y);
 }
+
+#undef DECL

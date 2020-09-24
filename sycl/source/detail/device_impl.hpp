@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/sycl/aspects.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/device_info.hpp>
@@ -27,11 +28,6 @@ namespace detail {
 class platform_impl;
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
 
-// TODO: SYCL BE generalization will change this to something better.
-// For now this saves us from unwanted implicit casts.
-struct _device_interop_handle_t;
-using device_interop_handle_t = _device_interop_handle_t *;
-
 // TODO: Make code thread-safe
 class device_impl {
 public:
@@ -39,7 +35,7 @@ public:
   device_impl();
 
   /// Constructs a SYCL device instance using the provided raw device handle.
-  explicit device_impl(device_interop_handle_t, const plugin &Plugin);
+  explicit device_impl(pi_native_handle, const plugin &Plugin);
 
   /// Constructs a SYCL device instance using the provided
   /// PI device instance.
@@ -104,6 +100,11 @@ public:
   bool is_accelerator() const {
     return (!is_host() && (MType == PI_DEVICE_TYPE_ACC));
   }
+
+  /// Return device type
+  ///
+  /// \return the type of the device
+  RT::PiDeviceType get_device_type() const { return MType; }
 
   /// Get associated SYCL platform
   ///
@@ -203,10 +204,27 @@ public:
   bool
   is_affinity_supported(info::partition_affinity_domain AffinityDomain) const;
 
+  /// Gets the native handle of the SYCL device.
+  ///
+  /// \return a native handle.
+  pi_native_handle getNative() const;
+
+  /// Indicates if the SYCL device has the given feature.
+  ///
+  /// \param Aspect is one of the values in Table 4.20 of the SYCL 2020
+  /// Provisional Spec.
+  //
+  /// \return true if the SYCL device has the given feature.
+  bool has(aspect Aspect) const;
+
+  /// Gets the single instance of the Host Device
+  ///
+  /// \return the host device_impl singleton
+  static std::shared_ptr<device_impl> getHostDeviceImpl();
+
 private:
-  explicit device_impl(device_interop_handle_t InteropDevice,
-                       RT::PiDevice Device, PlatformImplPtr Platform,
-                       const plugin &Plugin);
+  explicit device_impl(pi_native_handle InteropDevice, RT::PiDevice Device,
+                       PlatformImplPtr Platform, const plugin &Plugin);
   RT::PiDevice MDevice = 0;
   RT::PiDeviceType MType;
   bool MIsRootDevice = false;

@@ -44,6 +44,11 @@ cl::opt<unsigned>
            cl::desc("Read specified document from input (default = 1)"),
            cl::cat(Cat));
 
+static cl::opt<uint64_t> MaxSize(
+    "max-size", cl::init(10 * 1024 * 1024),
+    cl::desc(
+        "Sets the maximum allowed output size (0 means no limit) [ELF only]"));
+
 cl::opt<std::string> OutputFilename("o", cl::desc("Output filename"),
                                     cl::value_desc("filename"), cl::init("-"),
                                     cl::Prefix, cl::cat(Cat));
@@ -70,10 +75,22 @@ static Optional<std::string> preprocess(StringRef Buf,
     if (Buf.startswith("[[")) {
       size_t I = Buf.find_first_of("[]", 2);
       if (Buf.substr(I).startswith("]]")) {
-        StringRef Macro = Buf.substr(2, I - 2);
+        StringRef MacroExpr = Buf.substr(2, I - 2);
+        StringRef Macro;
+        StringRef Default;
+        std::tie(Macro, Default) = MacroExpr.split('=');
+
+        // When the -D option is requested, we use the provided value.
+        // Otherwise we use a default macro value if present.
         auto It = Defines.find(Macro);
-        if (It != Defines.end()) {
-          Preprocessed += It->second;
+        Optional<StringRef> Value;
+        if (It != Defines.end())
+          Value = It->second;
+        else if (!Default.empty() || MacroExpr.endswith("="))
+          Value = Default;
+
+        if (Value) {
+          Preprocessed += *Value;
           Buf = Buf.substr(I + 2);
           continue;
         }
@@ -115,7 +132,9 @@ int main(int argc, char **argv) {
   if (!Buffer)
     return 1;
   yaml::Input YIn(*Buffer);
-  if (!convertYAML(YIn, Out->os(), ErrHandler, DocNum))
+
+  if (!convertYAML(YIn, Out->os(), ErrHandler, DocNum,
+                   MaxSize == 0 ? UINT64_MAX : MaxSize))
     return 1;
 
   Out->keep();

@@ -22,10 +22,10 @@
 
 #include <spirv/spirv.h>
 
-#include "config.h"
 #include "tables.h"
-#include "../../lib/math/math.h"
-#include "../../lib/clcmacro.h"
+#include <clcmacro.h>
+#include <config.h>
+#include <math/math.h>
 
 //    Algorithm:
 //

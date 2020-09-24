@@ -403,13 +403,15 @@ class InstTemplate<AddrMode am, int sz, IndexMode im,
   bit isUnaryDataProc = 0;
   bit canXformTo16Bit = 0;
   // The instruction is a 16-bit flag setting Thumb instruction. Used
-  // by the parser to determine whether to require the 'S' suffix on the
-  // mnemonic (when not in an IT block) or preclude it (when in an IT block).
+  // by the parser and if-converter to determine whether to require the 'S'
+  // suffix on the mnemonic (when not in an IT block) or preclude it (when
+  // in an IT block).
   bit thumbArithFlagSetting = 0;
 
   bit validForTailPredication = 0;
   bit retainsPreviousHalfElement = 0;
   bit horizontalReduction = 0;
+  bit doubleWidthResult = 0;
 
   // If this is a pseudo instruction, mark it isCodeGenOnly.
   let isCodeGenOnly = !eq(!cast<string>(f), "Pseudo");
@@ -425,6 +427,7 @@ class InstTemplate<AddrMode am, int sz, IndexMode im,
   let TSFlags{20}    = validForTailPredication;
   let TSFlags{21}    = retainsPreviousHalfElement;
   let TSFlags{22}    = horizontalReduction;
+  let TSFlags{23}    = doubleWidthResult;
 
   let Constraints = cstr;
   let Itinerary = itin;
@@ -1125,6 +1128,9 @@ class Thumb2DSPPat<dag pattern, dag result> : Pat<pattern, result> {
 }
 class Thumb2DSPMulPat<dag pattern, dag result> : Pat<pattern, result> {
   list<Predicate> Predicates = [IsThumb2, UseMulOps, HasDSP];
+}
+class FPRegs16Pat<dag pattern, dag result> : Pat<pattern, result> {
+  list<Predicate> Predicates = [HasFPRegs16];
 }
 class FP16Pat<dag pattern, dag result> : Pat<pattern, result> {
   list<Predicate> Predicates = [HasFP16];

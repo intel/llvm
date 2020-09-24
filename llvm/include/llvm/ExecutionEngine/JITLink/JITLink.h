@@ -248,8 +248,8 @@ public:
   bool edges_empty() const { return Edges.empty(); }
 
   /// Remove the edge pointed to by the given iterator.
-  /// Invalidates all iterators that point to or past the given one.
-  void removeEdge(const_edge_iterator I) { Edges.erase(I); }
+  /// Returns an iterator to the new next element.
+  edge_iterator removeEdge(edge_iterator I) { return Edges.erase(I); }
 
 private:
   static constexpr uint64_t MaxAlignmentOffset = (1ULL << 57) - 1;
@@ -352,7 +352,8 @@ private:
                                   JITTargetAddress Size, bool IsCallable,
                                   bool IsLive) {
     assert(SymStorage && "Storage cannot be null");
-    assert(Offset < Base.getSize() && "Symbol offset is outside block");
+    assert((Offset + Size) <= Base.getSize() &&
+           "Symbol extends past end of block");
     auto *Sym = reinterpret_cast<Symbol *>(SymStorage);
     new (Sym) Symbol(Base, Offset, StringRef(), Size, Linkage::Strong,
                      Scope::Local, IsLive, IsCallable);
@@ -364,7 +365,8 @@ private:
                                    JITTargetAddress Size, Linkage L, Scope S,
                                    bool IsLive, bool IsCallable) {
     assert(SymStorage && "Storage cannot be null");
-    assert(Offset < Base.getSize() && "Symbol offset is outside block");
+    assert((Offset + Size) <= Base.getSize() &&
+           "Symbol extends past end of block");
     assert(!Name.empty() && "Name cannot be empty");
     auto *Sym = reinterpret_cast<Symbol *>(SymStorage);
     new (Sym) Symbol(Base, Offset, Name, Size, L, S, IsLive, IsCallable);
@@ -392,6 +394,10 @@ public:
            "Anonymous symbol has non-local scope");
     return Name;
   }
+
+  /// Rename this symbol. The client is responsible for updating scope and
+  /// linkage if this name-change requires it.
+  void setName(StringRef Name) { this->Name = Name; }
 
   /// Returns true if this Symbol has content (potentially) defined within this
   /// object file (i.e. is anything but an external or absolute symbol).
@@ -957,7 +963,7 @@ public:
       Section &Sec = Sym.getBlock().getSection();
       Sec.removeSymbol(Sym);
     }
-    Sym.makeExternal(createAddressable(false));
+    Sym.makeExternal(createAddressable(0, false));
     ExternalSymbols.insert(&Sym);
   }
 
@@ -1277,7 +1283,11 @@ public:
   /// their final memory locations in the target process. At this point the
   /// LinkGraph can be inspected to build a symbol table, however the block
   /// content will not generally have been copied to the target location yet.
-  virtual void notifyResolved(LinkGraph &G) = 0;
+  ///
+  /// If the client detects an error in the LinkGraph state (e.g. unexpected or
+  /// missing symbols) they may return an error here. The error will be
+  /// propagated to notifyFailed and the linker will bail out.
+  virtual Error notifyResolved(LinkGraph &G) = 0;
 
   /// Called by JITLink to notify the context that the object has been
   /// finalized (i.e. emitted to memory and memory permissions set). If all of

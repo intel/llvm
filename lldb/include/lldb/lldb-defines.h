@@ -95,6 +95,7 @@
 #define LLDB_INVALID_SIGNAL_NUMBER INT32_MAX
 #define LLDB_INVALID_OFFSET UINT64_MAX // Must match max of lldb::offset_t
 #define LLDB_INVALID_LINE_NUMBER UINT32_MAX
+#define LLDB_INVALID_COLUMN_NUMBER 0
 #define LLDB_INVALID_QUEUE_ID 0
 
 /// CPU Type definitions
@@ -119,6 +120,7 @@
 #define LLDB_OPT_SET_9 (1U << 8)
 #define LLDB_OPT_SET_10 (1U << 9)
 #define LLDB_OPT_SET_11 (1U << 10)
+#define LLDB_OPT_SET_12 (1U << 11)
 #define LLDB_OPT_SET_FROM_TO(A, B)                                             \
   (((1U << (B)) - 1) ^ (((1U << (A)) - 1) >> 1))
 
@@ -132,16 +134,5 @@
 #endif
 
 #define UNUSED_IF_ASSERT_DISABLED(x) ((void)(x))
-
-#if defined(__cplusplus)
-
-/// \def DISALLOW_COPY_AND_ASSIGN(TypeName)
-///     Macro definition for easily disallowing copy constructor and
-///     assignment operators in C++ classes.
-#define DISALLOW_COPY_AND_ASSIGN(TypeName)                                     \
-  TypeName(const TypeName &) = delete;                                         \
-  const TypeName &operator=(const TypeName &) = delete
-
-#endif // #if defined(__cplusplus)
 
 #endif // LLDB_LLDB_DEFINES_H

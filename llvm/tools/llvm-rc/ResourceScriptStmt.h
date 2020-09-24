@@ -289,7 +289,9 @@ public:
       : RCResource(Flags),
         OptStatements(std::make_unique<OptionalStmtList>(std::move(Stmts))) {}
 
-  virtual Error applyStmts(Visitor *V) const { return OptStatements->visit(V); }
+  Error applyStmts(Visitor *V) const override {
+    return OptStatements->visit(V);
+  }
 };
 
 // LANGUAGE statement. It can occur both as a top-level statement (in such
@@ -581,12 +583,12 @@ public:
 // Ref: msdn.microsoft.com/en-us/library/windows/desktop/aa381050(v=vs.85).aspx
 class StringTableResource : public OptStatementsRCResource {
 public:
-  std::vector<std::pair<uint32_t, StringRef>> Table;
+  std::vector<std::pair<uint32_t, std::vector<StringRef>>> Table;
 
   StringTableResource(OptionalStmtList &&List, uint16_t Flags)
       : OptStatementsRCResource(std::move(List), Flags) {}
-  void addString(uint32_t ID, StringRef String) {
-    Table.emplace_back(ID, String);
+  void addStrings(uint32_t ID, std::vector<StringRef> &&Strings) {
+    Table.emplace_back(ID, Strings);
   }
   raw_ostream &log(raw_ostream &) const override;
   Twine getResourceTypeName() const override { return "STRINGTABLE"; }

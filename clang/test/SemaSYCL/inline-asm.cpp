@@ -1,9 +1,6 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify %s -DLINUX_ASM
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify %s -DLINUX_ASM -DSPIR_CHECK -triple spir64-unknown-unknown-sycldevice
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify -triple x86_64-windows -fasm-blocks %s
-
-// Invalid output constraint diagnistic is duplicated
-// XFAIL:*
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -Wno-sycl-2017-compat -verify %s -DLINUX_ASM
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -Wno-sycl-2017-compat -verify %s -DLINUX_ASM -DSPIR_CHECK -triple spir64-unknown-unknown-sycldevice
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -Wno-sycl-2017-compat -verify -triple x86_64-windows -fasm-blocks %s
 
 #ifndef SPIR_CHECK
 //expected-no-diagnostics
@@ -25,7 +22,7 @@ static __inline unsigned int
 asm_func_2(unsigned int __leaf, unsigned long __d[]) {
   unsigned int __result;
 #ifdef SPIR_CHECK
-  //expected-error@+2 {{invalid output constraint '=a' in asm}}
+  //expected-error@+2 2{{invalid output constraint '=a' in asm}}
   __asm__("enclu"
           : "=a"(__result), "=b"(__d[0]), "=c"(__d[1]), "=d"(__d[2])
           : "a"(__leaf), "b"(__d[0]), "c"(__d[1]), "d"(__d[2])
@@ -53,7 +50,7 @@ void bar() {
 }
 
 template <typename Name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
 #ifdef LINUX_ASM
   __asm__("int3");
@@ -61,7 +58,7 @@ __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
 #ifdef SPIR_CHECK
   unsigned int i = 3;
   unsigned long d[4];
-  //expected-note@+1 {{called by 'kernel_single_task'}}
+  //expected-note@+1 2{{called by 'kernel_single_task}}
   asm_func_2(i, d);
 #endif // SPIR_CHECK
 #else

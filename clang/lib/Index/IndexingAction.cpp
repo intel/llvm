@@ -131,6 +131,21 @@ std::unique_ptr<ASTConsumer> index::createIndexingASTConsumer(
                                             ShouldSkipFunctionBody);
 }
 
+std::unique_ptr<ASTConsumer> clang::index::createIndexingASTConsumer(
+    std::shared_ptr<IndexDataConsumer> DataConsumer,
+    const IndexingOptions &Opts, std::shared_ptr<Preprocessor> PP) {
+  std::function<bool(const Decl *)> ShouldSkipFunctionBody = [](const Decl *) {
+    return false;
+  };
+  if (Opts.ShouldTraverseDecl)
+    ShouldSkipFunctionBody =
+        [ShouldTraverseDecl(Opts.ShouldTraverseDecl)](const Decl *D) {
+          return !ShouldTraverseDecl(D);
+        };
+  return createIndexingASTConsumer(std::move(DataConsumer), Opts, std::move(PP),
+                                   std::move(ShouldSkipFunctionBody));
+}
+
 std::unique_ptr<FrontendAction>
 index::createIndexingAction(std::shared_ptr<IndexDataConsumer> DataConsumer,
                             const IndexingOptions &Opts) {
@@ -150,11 +165,20 @@ static void indexTranslationUnit(ASTUnit &Unit, IndexingContext &IndexCtx) {
 static void indexPreprocessorMacros(const Preprocessor &PP,
                                     IndexDataConsumer &DataConsumer) {
   for (const auto &M : PP.macros())
-    if (MacroDirective *MD = M.second.getLatest())
+    if (MacroDirective *MD = M.second.getLatest()) {
+      auto *MI = MD->getMacroInfo();
+      // When using modules, it may happen that we find #undef of a macro that
+      // was defined in another module. In such case, MI may be nullptr, since
+      // we only look for macro definitions in the current TU. In that case,
+      // there is nothing to index.
+      if (!MI)
+        continue;
+
       DataConsumer.handleMacroOccurrence(
           M.first, MD->getMacroInfo(),
           static_cast<unsigned>(index::SymbolRole::Definition),
           MD->getLocation());
+    }
 }
 
 void index::indexASTUnit(ASTUnit &Unit, IndexDataConsumer &DataConsumer,

@@ -15,6 +15,7 @@
 #include "lldb/API/SBBlock.h"
 #include "lldb/API/SBBreakpoint.h"
 #include "lldb/API/SBCommandInterpreter.h"
+#include "lldb/API/SBCommandInterpreterRunOptions.h"
 #include "lldb/API/SBData.h"
 #include "lldb/API/SBDebugger.h"
 #include "lldb/API/SBDeclaration.h"
@@ -29,6 +30,33 @@ using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::repro;
 
+SBReplayOptions::SBReplayOptions()
+    : m_opaque_up(std::make_unique<ReplayOptions>()){}
+
+SBReplayOptions::SBReplayOptions(const SBReplayOptions &rhs)
+    : m_opaque_up(std::make_unique<ReplayOptions>(*rhs.m_opaque_up)) {}
+
+SBReplayOptions::~SBReplayOptions() = default;
+
+SBReplayOptions &SBReplayOptions::operator=(const SBReplayOptions &rhs) {
+  if (this == &rhs)
+    return *this;
+  *m_opaque_up = *rhs.m_opaque_up;
+  return *this;
+}
+
+void SBReplayOptions::SetVerify(bool verify) { m_opaque_up->verify = verify; }
+
+bool SBReplayOptions::GetVerify() const { return m_opaque_up->verify; }
+
+void SBReplayOptions::SetCheckVersion(bool check) {
+  m_opaque_up->check_version = check;
+}
+
+bool SBReplayOptions::GetCheckVersion() const {
+  return m_opaque_up->check_version;
+}
+
 SBRegistry::SBRegistry() {
   Registry &R = *this;
 
@@ -40,14 +68,15 @@ SBRegistry::SBRegistry() {
   RegisterMethods<SBBreakpointLocation>(R);
   RegisterMethods<SBBreakpointName>(R);
   RegisterMethods<SBBroadcaster>(R);
+  RegisterMethods<SBCommandInterpreter>(R);
   RegisterMethods<SBCommandInterpreterRunOptions>(R);
   RegisterMethods<SBCommandReturnObject>(R);
   RegisterMethods<SBCommunication>(R);
   RegisterMethods<SBCompileUnit>(R);
   RegisterMethods<SBData>(R);
-  RegisterMethods<SBInputReader>(R);
   RegisterMethods<SBDebugger>(R);
   RegisterMethods<SBDeclaration>(R);
+  RegisterMethods<SBEnvironment>(R);
   RegisterMethods<SBError>(R);
   RegisterMethods<SBEvent>(R);
   RegisterMethods<SBExecutionContext>(R);
@@ -58,6 +87,7 @@ SBRegistry::SBRegistry() {
   RegisterMethods<SBFrame>(R);
   RegisterMethods<SBFunction>(R);
   RegisterMethods<SBHostOS>(R);
+  RegisterMethods<SBInputReader>(R);
   RegisterMethods<SBInstruction>(R);
   RegisterMethods<SBInstructionList>(R);
   RegisterMethods<SBLanguageRuntime>(R);
@@ -68,9 +98,9 @@ SBRegistry::SBRegistry() {
   RegisterMethods<SBMemoryRegionInfoList>(R);
   RegisterMethods<SBModule>(R);
   RegisterMethods<SBModuleSpec>(R);
+  RegisterMethods<SBPlatform>(R);
   RegisterMethods<SBPlatformConnectOptions>(R);
   RegisterMethods<SBPlatformShellCommand>(R);
-  RegisterMethods<SBPlatform>(R);
   RegisterMethods<SBProcess>(R);
   RegisterMethods<SBProcessInfo>(R);
   RegisterMethods<SBQueue>(R);
@@ -95,8 +125,8 @@ SBRegistry::SBRegistry() {
   RegisterMethods<SBTypeFilter>(R);
   RegisterMethods<SBTypeFormat>(R);
   RegisterMethods<SBTypeNameSpecifier>(R);
-  RegisterMethods<SBTypeSummaryOptions>(R);
   RegisterMethods<SBTypeSummary>(R);
+  RegisterMethods<SBTypeSummaryOptions>(R);
   RegisterMethods<SBTypeSynthetic>(R);
   RegisterMethods<SBUnixSignals>(R);
   RegisterMethods<SBValue>(R);
@@ -111,6 +141,12 @@ const char *SBReproducer::Capture() {
     error = llvm::toString(std::move(e));
     return error.c_str();
   }
+
+  if (auto *g = lldb_private::repro::Reproducer::Instance().GetGenerator()) {
+    auto &p = g->GetOrCreate<SBProvider>();
+    InstrumentationData::Initialize(p.GetSerializer(), p.GetRegistry());
+  }
+
   return nullptr;
 }
 
@@ -121,14 +157,51 @@ const char *SBReproducer::Capture(const char *path) {
     error = llvm::toString(std::move(e));
     return error.c_str();
   }
+
+  if (auto *g = lldb_private::repro::Reproducer::Instance().GetGenerator()) {
+    auto &p = g->GetOrCreate<SBProvider>();
+    InstrumentationData::Initialize(p.GetSerializer(), p.GetRegistry());
+  }
+
+  return nullptr;
+}
+
+const char *SBReproducer::PassiveReplay(const char *path) {
+  static std::string error;
+  if (auto e = Reproducer::Initialize(ReproducerMode::PassiveReplay,
+                                      FileSpec(path))) {
+    error = llvm::toString(std::move(e));
+    return error.c_str();
+  }
+
+  if (auto *l = lldb_private::repro::Reproducer::Instance().GetLoader()) {
+    FileSpec file = l->GetFile<SBProvider::Info>();
+    auto error_or_file = llvm::MemoryBuffer::getFile(file.GetPath());
+    if (!error_or_file) {
+      error =
+          "unable to read SB API data: " + error_or_file.getError().message();
+      return error.c_str();
+    }
+    static ReplayData r(std::move(*error_or_file));
+    InstrumentationData::Initialize(r.GetDeserializer(), r.GetRegistry());
+  }
+
   return nullptr;
 }
 
 const char *SBReproducer::Replay(const char *path) {
-  return SBReproducer::Replay(path, false);
+  SBReplayOptions options;
+  return SBReproducer::Replay(path, options);
 }
 
 const char *SBReproducer::Replay(const char *path, bool skip_version_check) {
+  SBReplayOptions options;
+  options.SetCheckVersion(!skip_version_check);
+  return SBReproducer::Replay(path, options);
+}
+
+const char *SBReproducer::Replay(const char *path,
+                                 const SBReplayOptions &options) {
   static std::string error;
   if (auto e = Reproducer::Initialize(ReproducerMode::Replay, FileSpec(path))) {
     error = llvm::toString(std::move(e));
@@ -141,7 +214,7 @@ const char *SBReproducer::Replay(const char *path, bool skip_version_check) {
     return error.c_str();
   }
 
-  if (!skip_version_check) {
+  if (options.GetCheckVersion()) {
     llvm::Expected<std::string> version = loader->LoadBuffer<VersionProvider>();
     if (!version) {
       error = llvm::toString(version.takeError());
@@ -153,6 +226,30 @@ const char *SBReproducer::Replay(const char *path, bool skip_version_check) {
       error.append(*version);
       error.append("reproducer replayed with:\n");
       error.append(lldb_private::GetVersion());
+      return error.c_str();
+    }
+  }
+
+  if (options.GetVerify()) {
+    bool verification_failed = false;
+    llvm::raw_string_ostream os(error);
+    auto error_callback = [&](llvm::StringRef error) {
+      verification_failed = true;
+      os << "\nerror: " << error;
+    };
+
+    auto warning_callback = [&](llvm::StringRef warning) {
+      verification_failed = true;
+      os << "\nwarning: " << warning;
+    };
+
+    auto note_callback = [&](llvm::StringRef warning) {};
+
+    Verifier verifier(loader);
+    verifier.Verify(error_callback, warning_callback, note_callback);
+
+    if (verification_failed) {
+      os.flush();
       return error.c_str();
     }
   }
@@ -192,6 +289,15 @@ const char *SBReproducer::GetPath() {
   auto &r = Reproducer::Instance();
   path = r.GetReproducerPath().GetCString();
   return path.c_str();
+}
+
+void SBReproducer::SetWorkingDirectory(const char *path) {
+  if (auto *g = lldb_private::repro::Reproducer::Instance().GetGenerator()) {
+    auto &wp = g->GetOrCreate<repro::WorkingDirectoryProvider>();
+    wp.SetDirectory(path);
+    auto &fp = g->GetOrCreate<repro::FileProvider>();
+    fp.RecordInterestingDirectory(wp.GetDirectory());
+  }
 }
 
 char lldb_private::repro::SBProvider::ID = 0;

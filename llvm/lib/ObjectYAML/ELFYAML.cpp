@@ -26,6 +26,14 @@ namespace llvm {
 
 ELFYAML::Chunk::~Chunk() = default;
 
+namespace ELFYAML {
+unsigned Object::getMachine() const {
+  if (Header.Machine)
+    return *Header.Machine;
+  return llvm::ELF::EM_NONE;
+}
+} // namespace ELFYAML
+
 namespace yaml {
 
 void ScalarEnumerationTraits<ELFYAML::ELF_ET>::enumeration(
@@ -221,6 +229,8 @@ void ScalarEnumerationTraits<ELFYAML::ELF_EM>::enumeration(
   ECase(EM_RISCV);
   ECase(EM_LANAI);
   ECase(EM_BPF);
+  ECase(EM_VE);
+  ECase(EM_CSKY);
 #undef ECase
   IO.enumFallback<Hex16>(Value);
 }
@@ -284,7 +294,7 @@ void ScalarBitSetTraits<ELFYAML::ELF_EF>::bitset(IO &IO,
   assert(Object && "The IO context is not initialized");
 #define BCase(X) IO.bitSetCase(Value, #X, ELF::X)
 #define BCaseMask(X, M) IO.maskedBitSetCase(Value, #X, ELF::X, ELF::M)
-  switch (Object->Header.Machine) {
+  switch (Object->getMachine()) {
   case ELF::EM_ARM:
     BCase(EF_ARM_SOFT_FLOAT);
     BCase(EF_ARM_VFP_FLOAT);
@@ -428,13 +438,13 @@ void ScalarBitSetTraits<ELFYAML::ELF_EF>::bitset(IO &IO,
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1010, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1011, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1012, EF_AMDGPU_MACH);
+    BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1030, EF_AMDGPU_MACH);
+    BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1031, EF_AMDGPU_MACH);
     BCase(EF_AMDGPU_XNACK);
     BCase(EF_AMDGPU_SRAM_ECC);
     break;
-  case ELF::EM_X86_64:
-    break;
   default:
-    llvm_unreachable("Unsupported architecture");
+    break;
   }
 #undef BCase
 #undef BCaseMask
@@ -480,7 +490,7 @@ void ScalarEnumerationTraits<ELFYAML::ELF_SHT>::enumeration(
   ECase(SHT_GNU_verdef);
   ECase(SHT_GNU_verneed);
   ECase(SHT_GNU_versym);
-  switch (Object->Header.Machine) {
+  switch (Object->getMachine()) {
   case ELF::EM_ARM:
     ECase(SHT_ARM_EXIDX);
     ECase(SHT_ARM_PREEMPTMAP);
@@ -499,6 +509,9 @@ void ScalarEnumerationTraits<ELFYAML::ELF_SHT>::enumeration(
     ECase(SHT_MIPS_OPTIONS);
     ECase(SHT_MIPS_DWARF);
     ECase(SHT_MIPS_ABIFLAGS);
+    break;
+  case ELF::EM_RISCV:
+    ECase(SHT_RISCV_ATTRIBUTES);
     break;
   default:
     // Nothing to do.
@@ -532,7 +545,7 @@ void ScalarBitSetTraits<ELFYAML::ELF_SHF>::bitset(IO &IO,
   BCase(SHF_GROUP);
   BCase(SHF_TLS);
   BCase(SHF_COMPRESSED);
-  switch (Object->Header.Machine) {
+  switch (Object->getMachine()) {
   case ELF::EM_ARM:
     BCase(SHF_ARM_PURECODE);
     break;
@@ -624,7 +637,7 @@ void ScalarEnumerationTraits<ELFYAML::ELF_REL>::enumeration(
   const auto *Object = static_cast<ELFYAML::Object *>(IO.getContext());
   assert(Object && "The IO context is not initialized");
 #define ELF_RELOC(X, Y) IO.enumCase(Value, #X, ELF::X);
-  switch (Object->Header.Machine) {
+  switch (Object->getMachine()) {
   case ELF::EM_X86_64:
 #include "llvm/BinaryFormat/ELFRelocs/x86_64.def"
     break;
@@ -659,6 +672,12 @@ void ScalarEnumerationTraits<ELFYAML::ELF_REL>::enumeration(
   case ELF::EM_BPF:
 #include "llvm/BinaryFormat/ELFRelocs/BPF.def"
     break;
+  case ELF::EM_VE:
+#include "llvm/BinaryFormat/ELFRelocs/VE.def"
+    break;
+  case ELF::EM_CSKY:
+#include "llvm/BinaryFormat/ELFRelocs/CSKY.def"
+    break;
   case ELF::EM_PPC64:
 #include "llvm/BinaryFormat/ELFRelocs/PowerPC64.def"
     break;
@@ -686,7 +705,7 @@ void ScalarEnumerationTraits<ELFYAML::ELF_DYNTAG>::enumeration(
 
 #define STRINGIFY(X) (#X)
 #define DYNAMIC_TAG(X, Y) IO.enumCase(Value, STRINGIFY(DT_##X), ELF::DT_##X);
-  switch (Object->Header.Machine) {
+  switch (Object->getMachine()) {
   case ELF::EM_AARCH64:
 #undef AARCH64_DYNAMIC_TAG
 #define AARCH64_DYNAMIC_TAG(name, value) DYNAMIC_TAG(name, value)
@@ -815,6 +834,8 @@ void ScalarBitSetTraits<ELFYAML::MIPS_AFL_ASE>::bitset(
   BCase(MIPS16);
   BCase(MICROMIPS);
   BCase(XPA);
+  BCase(CRC);
+  BCase(GINV);
 #undef BCase
 }
 
@@ -825,6 +846,28 @@ void ScalarBitSetTraits<ELFYAML::MIPS_AFL_FLAGS1>::bitset(
 #undef BCase
 }
 
+void MappingTraits<ELFYAML::SectionHeader>::mapping(
+    IO &IO, ELFYAML::SectionHeader &SHdr) {
+  IO.mapRequired("Name", SHdr.Name);
+}
+
+void MappingTraits<ELFYAML::SectionHeaderTable>::mapping(
+    IO &IO, ELFYAML::SectionHeaderTable &SectionHeader) {
+  IO.mapOptional("Sections", SectionHeader.Sections);
+  IO.mapOptional("Excluded", SectionHeader.Excluded);
+  IO.mapOptional("NoHeaders", SectionHeader.NoHeaders);
+}
+
+StringRef MappingTraits<ELFYAML::SectionHeaderTable>::validate(
+    IO &IO, ELFYAML::SectionHeaderTable &SecHdrTable) {
+  if (SecHdrTable.NoHeaders && (SecHdrTable.Sections || SecHdrTable.Excluded))
+    return "NoHeaders can't be used together with Sections/Excluded";
+  if (!SecHdrTable.NoHeaders && !SecHdrTable.Sections && !SecHdrTable.Excluded)
+    return "SectionHeaderTable can't be empty. Use 'NoHeaders' key to drop the "
+           "section header table";
+  return StringRef();
+}
+
 void MappingTraits<ELFYAML::FileHeader>::mapping(IO &IO,
                                                  ELFYAML::FileHeader &FileHdr) {
   IO.mapRequired("Class", FileHdr.Class);
@@ -832,14 +875,20 @@ void MappingTraits<ELFYAML::FileHeader>::mapping(IO &IO,
   IO.mapOptional("OSABI", FileHdr.OSABI, ELFYAML::ELF_ELFOSABI(0));
   IO.mapOptional("ABIVersion", FileHdr.ABIVersion, Hex8(0));
   IO.mapRequired("Type", FileHdr.Type);
-  IO.mapRequired("Machine", FileHdr.Machine);
+  IO.mapOptional("Machine", FileHdr.Machine);
   IO.mapOptional("Flags", FileHdr.Flags, ELFYAML::ELF_EF(0));
   IO.mapOptional("Entry", FileHdr.Entry, Hex64(0));
 
-  IO.mapOptional("SHEntSize", FileHdr.SHEntSize);
-  IO.mapOptional("SHOff", FileHdr.SHOff);
-  IO.mapOptional("SHNum", FileHdr.SHNum);
-  IO.mapOptional("SHStrNdx", FileHdr.SHStrNdx);
+  // obj2yaml does not dump these fields.
+  assert(!IO.outputting() ||
+         (!FileHdr.EPhOff && !FileHdr.EPhEntSize && !FileHdr.EPhNum));
+  IO.mapOptional("EPhOff", FileHdr.EPhOff);
+  IO.mapOptional("EPhEntSize", FileHdr.EPhEntSize);
+  IO.mapOptional("EPhNum", FileHdr.EPhNum);
+  IO.mapOptional("EShEntSize", FileHdr.EShEntSize);
+  IO.mapOptional("EShOff", FileHdr.EShOff);
+  IO.mapOptional("EShNum", FileHdr.EShNum);
+  IO.mapOptional("EShStrNdx", FileHdr.EShStrNdx);
 }
 
 void MappingTraits<ELFYAML::ProgramHeader>::mapping(
@@ -899,7 +948,7 @@ struct NormalizedOther {
     std::vector<StOtherPiece> Ret;
     const auto *Object = static_cast<ELFYAML::Object *>(YamlIO.getContext());
     for (std::pair<StringRef, uint8_t> &P :
-         getFlags(Object->Header.Machine).takeVector()) {
+         getFlags(Object->getMachine()).takeVector()) {
       uint8_t FlagValue = P.second;
       if ((*Original & FlagValue) != FlagValue)
         continue;
@@ -918,7 +967,7 @@ struct NormalizedOther {
 
   uint8_t toValue(StringRef Name) {
     const auto *Object = static_cast<ELFYAML::Object *>(YamlIO.getContext());
-    MapVector<StringRef, uint8_t> Flags = getFlags(Object->Header.Machine);
+    MapVector<StringRef, uint8_t> Flags = getFlags(Object->getMachine());
 
     auto It = Flags.find(Name);
     if (It != Flags.end())
@@ -1049,17 +1098,20 @@ static void commonSectionMapping(IO &IO, ELFYAML::Section &Section) {
   IO.mapOptional("Link", Section.Link, StringRef());
   IO.mapOptional("AddressAlign", Section.AddressAlign, Hex64(0));
   IO.mapOptional("EntSize", Section.EntSize);
+  IO.mapOptional("Offset", Section.Offset);
 
   // obj2yaml does not dump these fields. They are expected to be empty when we
   // are producing YAML, because yaml2obj sets appropriate values for them
   // automatically when they are not explicitly defined.
   assert(!IO.outputting() ||
          (!Section.ShOffset.hasValue() && !Section.ShSize.hasValue() &&
-          !Section.ShName.hasValue() && !Section.ShFlags.hasValue()));
+          !Section.ShName.hasValue() && !Section.ShFlags.hasValue() &&
+          !Section.ShType.hasValue()));
   IO.mapOptional("ShName", Section.ShName);
   IO.mapOptional("ShOffset", Section.ShOffset);
   IO.mapOptional("ShSize", Section.ShSize);
   IO.mapOptional("ShFlags", Section.ShFlags);
+  IO.mapOptional("ShType", Section.ShType);
 }
 
 static void sectionMapping(IO &IO, ELFYAML::DynamicSection &Section) {
@@ -1071,6 +1123,17 @@ static void sectionMapping(IO &IO, ELFYAML::DynamicSection &Section) {
 static void sectionMapping(IO &IO, ELFYAML::RawContentSection &Section) {
   commonSectionMapping(IO, Section);
   IO.mapOptional("Content", Section.Content);
+
+  // We also support reading a content as array of bytes using the ContentArray
+  // key. obj2yaml never prints this field.
+  assert(!IO.outputting() || !Section.ContentBuf.hasValue());
+  IO.mapOptional("ContentArray", Section.ContentBuf);
+  if (Section.ContentBuf) {
+    if (Section.Content)
+      IO.setError("Content and ContentArray can't be used together");
+    Section.Content = yaml::BinaryRef(*Section.ContentBuf);
+  }
+
   IO.mapOptional("Size", Section.Size);
   IO.mapOptional("Info", Section.Info);
 }
@@ -1088,6 +1151,13 @@ static void sectionMapping(IO &IO, ELFYAML::HashSection &Section) {
   IO.mapOptional("Bucket", Section.Bucket);
   IO.mapOptional("Chain", Section.Chain);
   IO.mapOptional("Size", Section.Size);
+
+  // obj2yaml does not dump these fields. They can be used to override nchain
+  // and nbucket values for creating broken sections.
+  assert(!IO.outputting() ||
+         (!Section.NBucket.hasValue() && !Section.NChain.hasValue()));
+  IO.mapOptional("NChain", Section.NChain);
+  IO.mapOptional("NBucket", Section.NBucket);
 }
 
 static void sectionMapping(IO &IO, ELFYAML::NoteSection &Section) {
@@ -1163,6 +1233,7 @@ static void sectionMapping(IO &IO, ELFYAML::AddrsigSection &Section) {
 static void fillMapping(IO &IO, ELFYAML::Fill &Fill) {
   IO.mapOptional("Name", Fill.Name, StringRef());
   IO.mapOptional("Pattern", Fill.Pattern);
+  IO.mapOptional("Offset", Fill.Offset);
   IO.mapRequired("Size", Fill.Size);
 }
 
@@ -1603,7 +1674,7 @@ void MappingTraits<ELFYAML::Relocation>::mapping(IO &IO,
   IO.mapOptional("Offset", Rel.Offset, (Hex64)0);
   IO.mapOptional("Symbol", Rel.Symbol);
 
-  if (Object->Header.Machine == ELFYAML::ELF_EM(ELF::EM_MIPS) &&
+  if (Object->getMachine() == ELFYAML::ELF_EM(ELF::EM_MIPS) &&
       Object->Header.Class == ELFYAML::ELF_ELFCLASS(ELF::ELFCLASS64)) {
     MappingNormalization<NormalizedMips64RelType, ELFYAML::ELF_REL> Key(
         IO, Rel.Type);
@@ -1622,10 +1693,18 @@ void MappingTraits<ELFYAML::Object>::mapping(IO &IO, ELFYAML::Object &Object) {
   IO.setContext(&Object);
   IO.mapTag("!ELF", true);
   IO.mapRequired("FileHeader", Object.Header);
+  IO.mapOptional("SectionHeaderTable", Object.SectionHeaders);
   IO.mapOptional("ProgramHeaders", Object.ProgramHeaders);
   IO.mapOptional("Sections", Object.Chunks);
   IO.mapOptional("Symbols", Object.Symbols);
   IO.mapOptional("DynamicSymbols", Object.DynamicSymbols);
+  IO.mapOptional("DWARF", Object.DWARF);
+  if (Object.DWARF) {
+    Object.DWARF->IsLittleEndian =
+        Object.Header.Data == ELFYAML::ELF_ELFDATA(ELF::ELFDATA2LSB);
+    Object.DWARF->Is64BitAddrSize =
+        Object.Header.Class == ELFYAML::ELF_ELFCLASS(ELF::ELFCLASS64);
+  }
   IO.setContext(nullptr);
 }
 

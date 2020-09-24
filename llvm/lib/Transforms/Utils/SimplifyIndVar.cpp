@@ -17,7 +17,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/LoopInfo.h"
-#include "llvm/Analysis/ScalarEvolutionExpander.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRBuilder.h"
@@ -27,6 +26,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/Local.h"
+#include "llvm/Transforms/Utils/ScalarEvolutionExpander.h"
 
 using namespace llvm;
 
@@ -657,7 +657,7 @@ static Instruction *GetLoopInvariantInsertPosition(Loop *L, Instruction *Hint) {
   return Hint;
 }
 
-/// Replace the UseInst with a constant if possible.
+/// Replace the UseInst with a loop invariant expression if it is safe.
 bool SimplifyIndvar::replaceIVUserWithLoopInvariant(Instruction *I) {
   if (!SE->isSCEVable(I->getType()))
     return false;
@@ -673,6 +673,13 @@ bool SimplifyIndvar::replaceIVUserWithLoopInvariant(Instruction *I) {
     return false;
 
   auto *IP = GetLoopInvariantInsertPosition(L, I);
+
+  if (!isSafeToExpandAt(S, IP, *SE)) {
+    LLVM_DEBUG(dbgs() << "INDVARS: Can not replace IV user: " << *I
+                      << " with non-speculable loop invariant: " << *S << '\n');
+    return false;
+  }
+
   auto *Invariant = Rewriter.expandCodeFor(S, I->getType(), IP);
 
   I->replaceAllUsesWith(Invariant);

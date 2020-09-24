@@ -104,7 +104,7 @@ private:
       "basic_ios",
       "future",
       "optional",
-      "packaged_task"
+      "packaged_task",
       "promise",
       "shared_future",
       "shared_lock",
@@ -580,7 +580,7 @@ void MoveChecker::explainObject(llvm::raw_ostream &OS, const MemRegion *MR,
   if (const auto DR =
           dyn_cast_or_null<DeclRegion>(unwrapRValueReferenceIndirection(MR))) {
     const auto *RegionDecl = cast<NamedDecl>(DR->getDecl());
-    OS << " '" << RegionDecl->getNameAsString() << "'";
+    OS << " '" << RegionDecl->getDeclName() << "'";
   }
 
   ObjectKind OK = classifyObject(MR, RD);
@@ -757,6 +757,6 @@ void ento::registerMoveChecker(CheckerManager &mgr) {
       mgr.getAnalyzerOptions().getCheckerStringOption(chk, "WarnOn"), mgr);
 }
 
-bool ento::shouldRegisterMoveChecker(const LangOptions &LO) {
+bool ento::shouldRegisterMoveChecker(const CheckerManager &mgr) {
   return true;
 }

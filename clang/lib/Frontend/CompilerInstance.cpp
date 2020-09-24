@@ -815,17 +815,15 @@ std::unique_ptr<llvm::raw_pwrite_stream> CompilerInstance::createOutputFile(
 // Initialization Utilities
 
 bool CompilerInstance::InitializeSourceManager(const FrontendInputFile &Input){
-  return InitializeSourceManager(
-      Input, getDiagnostics(), getFileManager(), getSourceManager(),
-      hasPreprocessor() ? &getPreprocessor().getHeaderSearchInfo() : nullptr,
-      getDependencyOutputOpts(), getFrontendOpts());
+  return InitializeSourceManager(Input, getDiagnostics(), getFileManager(),
+                                 getSourceManager());
 }
 
 // static
-bool CompilerInstance::InitializeSourceManager(
-    const FrontendInputFile &Input, DiagnosticsEngine &Diags,
-    FileManager &FileMgr, SourceManager &SourceMgr, HeaderSearch *HS,
-    DependencyOutputOptions &DepOpts, const FrontendOptions &Opts) {
+bool CompilerInstance::InitializeSourceManager(const FrontendInputFile &Input,
+                                               DiagnosticsEngine &Diags,
+                                               FileManager &FileMgr,
+                                               SourceManager &SourceMgr) {
   SrcMgr::CharacteristicKind Kind =
       Input.getKind().getFormat() == InputKind::ModuleMap
           ? Input.isSystem() ? SrcMgr::C_System_ModuleMap
@@ -935,6 +933,19 @@ bool CompilerInstance::ExecuteAction(FrontendAction &Act) {
     setAuxTarget(TargetInfo::CreateTargetInfo(getDiagnostics(), TO));
   }
 
+  if (!getTarget().hasStrictFP() && !getLangOpts().ExpStrictFP) {
+    if (getLangOpts().getFPRoundingMode() !=
+        llvm::RoundingMode::NearestTiesToEven) {
+      getDiagnostics().Report(diag::warn_fe_backend_unsupported_fp_rounding);
+      getLangOpts().setFPRoundingMode(llvm::RoundingMode::NearestTiesToEven);
+    }
+    if (getLangOpts().getFPExceptionMode() != LangOptions::FPE_Ignore) {
+      getDiagnostics().Report(diag::warn_fe_backend_unsupported_fp_exceptions);
+      getLangOpts().setFPExceptionMode(LangOptions::FPE_Ignore);
+    }
+    // FIXME: can we disable FEnvAccess?
+  }
+
   // Inform the target of the language options.
   //
   // FIXME: We shouldn't need to do this, the target should be immutable once
@@ -944,8 +955,10 @@ bool CompilerInstance::ExecuteAction(FrontendAction &Act) {
   // Adjust target options based on codegen options.
   getTarget().adjustTargetOptions(getCodeGenOpts(), getTargetOpts());
 
-  if (auto *Aux = getAuxTarget())
+  if (auto *Aux = getAuxTarget()) {
+    Aux->adjust(getLangOpts());
     getTarget().setAuxTarget(Aux);
+  }
 
   // rewriter project will change target built-in bool type from its default.
   if (getFrontendOpts().ProgramAction == frontend::RewriteObjC)
@@ -1576,7 +1589,7 @@ bool CompilerInstance::loadModuleFile(StringRef FileName) {
           Stack.push_back(M);
           while (!Stack.empty()) {
             Module *Current = Stack.pop_back_val();
-            if (Current->IsMissingRequirement) continue;
+            if (Current->IsUnimportable) continue;
             Current->IsAvailable = true;
             Stack.insert(Stack.end(),
                          Current->submodule_begin(), Current->submodule_end());

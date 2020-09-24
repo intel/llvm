@@ -77,7 +77,7 @@ define amdgpu_kernel void @v_test_canonicalize_fabs_var_f16(half addrspace(1)* %
 define amdgpu_kernel void @v_test_canonicalize_fneg_fabs_var_f16(half addrspace(1)* %out) #1 {
   %val = load half, half addrspace(1)* %out
   %val.fabs = call half @llvm.fabs.f16(half %val)
-  %val.fabs.fneg = fsub half -0.0, %val.fabs
+  %val.fabs.fneg = fneg half %val.fabs
   %canonicalized = call half @llvm.canonicalize.f16(half %val.fabs.fneg)
   store half %canonicalized, half addrspace(1)* %out
   ret void
@@ -91,25 +91,28 @@ define amdgpu_kernel void @v_test_canonicalize_fneg_fabs_var_f16(half addrspace(
 ; CI: v_mul_f32_e32 {{v[0-9]+}}, 1.0, {{v[0-9]+}}
 define amdgpu_kernel void @v_test_canonicalize_fneg_var_f16(half addrspace(1)* %out) #1 {
   %val = load half, half addrspace(1)* %out
-  %val.fneg = fsub half -0.0, %val
+  %val.fneg = fneg half %val
   %canonicalized = call half @llvm.canonicalize.f16(half %val.fneg)
   store half %canonicalized, half addrspace(1)* %out
   ret void
 }
 
 ; GCN-LABEL: {{^}}v_test_no_denormals_canonicalize_fneg_var_f16:
-; GFX89: v_mul_f16_e32 [[REG:v[0-9]+]], -1.0, v{{[0-9]+}}
+; VI: v_mul_f16_e32 [[REG:v[0-9]+]], -1.0, v{{[0-9]+}}
+; GFX9: v_max_f16_e64 [[REG:v[0-9]+]], -v{{[0-9]+}}, -v{{[0-9]+}}
 ; GFX89: {{flat|global}}_store_short v{{\[[0-9]+:[0-9]+\]}}, [[REG]]
 define amdgpu_kernel void @v_test_no_denormals_canonicalize_fneg_var_f16(half addrspace(1)* %out) #2 {
   %val = load half, half addrspace(1)* %out
-  %val.fneg = fsub half -0.0, %val
+  %val.fneg = fneg half %val
   %canonicalized = call half @llvm.canonicalize.f16(half %val.fneg)
   store half %canonicalized, half addrspace(1)* %out
   ret void
 }
 
 ; GCN-LABEL: {{^}}v_test_no_denormals_canonicalize_fneg_fabs_var_f16:
-; GFX89: v_mul_f16_e64 [[REG:v[0-9]+]], -1.0, |v{{[0-9]+}}|
+; VI: v_mul_f16_e64 [[REG:v[0-9]+]], -1.0, |v{{[0-9]+}}|
+; GFX9: v_max_f16_e64 [[REG:v[0-9]+]], -|v{{[0-9]+}}|, -|v{{[0-9]+}}|
+
 ; GFX89: {{flat|global}}_store_short v{{\[[0-9]+:[0-9]+\]}}, [[REG]]
 
 ; CI: v_cvt_f32_f16_e64 {{v[0-9]+}}, -|{{v[0-9]+}}|
@@ -117,7 +120,7 @@ define amdgpu_kernel void @v_test_no_denormals_canonicalize_fneg_var_f16(half ad
 define amdgpu_kernel void @v_test_no_denormals_canonicalize_fneg_fabs_var_f16(half addrspace(1)* %out) #2 {
   %val = load half, half addrspace(1)* %out
   %val.fabs = call half @llvm.fabs.f16(half %val)
-  %val.fabs.fneg = fsub half -0.0, %val.fabs
+  %val.fabs.fneg = fneg half %val.fabs
   %canonicalized = call half @llvm.canonicalize.f16(half %val.fabs.fneg)
   store half %canonicalized, half addrspace(1)* %out
   ret void
@@ -320,7 +323,7 @@ define amdgpu_kernel void @v_test_canonicalize_fneg_fabs_var_v2f16(<2 x half> ad
   %gep = getelementptr <2 x half>, <2 x half> addrspace(1)* %out, i32 %tid
   %val = load <2 x half>, <2 x half> addrspace(1)* %gep
   %val.fabs = call <2 x half> @llvm.fabs.v2f16(<2 x half> %val)
-  %val.fabs.fneg = fsub <2 x half> <half -0.0, half -0.0>, %val.fabs
+  %val.fabs.fneg = fneg <2 x half> %val.fabs
   %canonicalized = call <2 x half> @llvm.canonicalize.v2f16(<2 x half> %val.fabs.fneg)
   store <2 x half> %canonicalized, <2 x half> addrspace(1)* %out
   ret void
@@ -337,7 +340,7 @@ define amdgpu_kernel void @v_test_canonicalize_fneg_var_v2f16(<2 x half> addrspa
   %tid = call i32 @llvm.amdgcn.workitem.id.x()
   %gep = getelementptr <2 x half>, <2 x half> addrspace(1)* %out, i32 %tid
   %val = load <2 x half>, <2 x half> addrspace(1)* %gep
-  %fneg.val = fsub <2 x half> <half -0.0, half -0.0>, %val
+  %fneg.val = fneg <2 x half> %val
   %canonicalized = call <2 x half> @llvm.canonicalize.v2f16(<2 x half> %fneg.val)
   store <2 x half> %canonicalized, <2 x half> addrspace(1)* %out
   ret void
@@ -739,6 +742,6 @@ define <4 x half> @v_test_canonicalize_reg_undef_reg_reg_v4f16(half %val0, half 
 }
 
 attributes #0 = { nounwind readnone }
-attributes #1 = { nounwind }
-attributes #2 = { nounwind "target-features"="-fp64-fp16-denormals" }
-attributes #3 = { nounwind "target-features"="+fp64-fp16-denormals" }
+attributes #1 = { nounwind "denormal-fp-math-f32"="preserve-sign,preserve-sign" }
+attributes #2 = { nounwind "denormal-fp-math"="preserve-sign,preserve-sign" }
+attributes #3 = { nounwind "denormal-fp-math-f32"="preserve-sign,preserve-sign" }

@@ -21,6 +21,7 @@ namespace mlir {
 
 class AffineCondition;
 class AffineForOp;
+class AffineIfOp;
 class AffineMap;
 class AffineValueMap;
 class IntegerSet;
@@ -98,7 +99,6 @@ public:
 
   /// Create a flat affine constraint system from an AffineValueMap or a list of
   /// these. The constructed system will only include equalities.
-  // TODO(bondhugula)
   explicit FlatAffineConstraints(const AffineValueMap &avm);
   explicit FlatAffineConstraints(ArrayRef<const AffineValueMap *> avmRef);
 
@@ -126,18 +126,32 @@ public:
   /// intersection with no simplification of any sort attempted.
   void append(const FlatAffineConstraints &other);
 
-  // Checks for emptiness by performing variable elimination on all identifiers,
-  // running the GCD test on each equality constraint, and checking for invalid
-  // constraints.
-  // Returns true if the GCD test fails for any equality, or if any invalid
-  // constraints are discovered on any row. Returns false otherwise.
+  /// Checks for emptiness by performing variable elimination on all
+  /// identifiers, running the GCD test on each equality constraint, and
+  /// checking for invalid constraints. Returns true if the GCD test fails for
+  /// any equality, or if any invalid constraints are discovered on any row.
+  /// Returns false otherwise.
   bool isEmpty() const;
 
-  // Runs the GCD test on all equality constraints. Returns 'true' if this test
-  // fails on any equality. Returns 'false' otherwise.
-  // This test can be used to disprove the existence of a solution. If it
-  // returns true, no integer solution to the equality constraints can exist.
+  /// Runs the GCD test on all equality constraints. Returns 'true' if this test
+  /// fails on any equality. Returns 'false' otherwise.
+  /// This test can be used to disprove the existence of a solution. If it
+  /// returns true, no integer solution to the equality constraints can exist.
   bool isEmptyByGCDTest() const;
+
+  /// Runs the GCD test heuristic. If it proves inconclusive, falls back to
+  /// generalized basis reduction if the set is bounded.
+  ///
+  /// Returns true if the set of constraints is found to have no solution,
+  /// false if a solution exists or all tests were inconclusive.
+  bool isIntegerEmpty() const;
+
+  /// Find a sample point satisfying the constraints. This uses a branch and
+  /// bound algorithm with generalized basis reduction, which always works if
+  /// the set is bounded. This should not be called for unbounded sets.
+  ///
+  /// Returns such a point if one exists, or an empty Optional otherwise.
+  Optional<SmallVector<int64_t, 8>> findIntegerSample() const;
 
   // Clones this object.
   std::unique_ptr<FlatAffineConstraints> clone() const;
@@ -199,8 +213,17 @@ public:
   /// 'affine.for' operation are added as trailing identifiers (either
   /// dimensional or symbolic depending on whether the operand is a valid
   /// symbol).
-  //  TODO(bondhugula): add support for non-unit strides.
+  //  TODO: add support for non-unit strides.
   LogicalResult addAffineForOpDomain(AffineForOp forOp);
+
+  /// Adds constraints imposed by the `affine.if` operation. These constraints
+  /// are collected from the IntegerSet attached to the given `affine.if`
+  /// instance argument (`ifOp`). It is asserted that:
+  /// 1) The IntegerSet of the given `affine.if` instance should not contain
+  /// semi-affine expressions,
+  /// 2) The columns of the constraint system created from `ifOp` should match
+  /// the columns in the current one regarding numbers and values.
+  void addAffineIfOpDomain(AffineIfOp ifOp);
 
   /// Adds a lower or an upper bound for the identifier at the specified
   /// position with constraints being drawn from the specified bound map and
@@ -209,6 +232,21 @@ public:
   LogicalResult addLowerOrUpperBound(unsigned pos, AffineMap boundMap,
                                      ValueRange operands, bool eq,
                                      bool lower = true);
+
+  /// Returns the bound for the identifier at `pos` from the inequality at
+  /// `ineqPos` as a 1-d affine value map (affine map + operands). The returned
+  /// affine value map can either be a lower bound or an upper bound depending
+  /// on the sign of atIneq(ineqPos, pos). Asserts if the row at `ineqPos` does
+  /// not involve the `pos`th identifier.
+  void getIneqAsAffineValueMap(unsigned pos, unsigned ineqPos,
+                               AffineValueMap &vmap,
+                               MLIRContext *context) const;
+
+  /// Returns the constraint system as an integer set. Returns a null integer
+  /// set if the system has no constraints, or if an integer set couldn't be
+  /// constructed as a result of a local variable's explicit representation not
+  /// being known and such a local variable appearing in any of the constraints.
+  IntegerSet getAsIntegerSet(MLIRContext *context) const;
 
   /// Computes the lower and upper bounds of the first 'num' dimensional
   /// identifiers (starting at 'offset') as an affine map of the remaining
@@ -306,8 +344,8 @@ public:
   /// Projects out (aka eliminates) 'num' identifiers starting at position
   /// 'pos'. The resulting constraint system is the shadow along the dimensions
   /// that still exist. This method may not always be integer exact.
-  // TODO(bondhugula): deal with integer exactness when necessary - can return a
-  // value to mark exactness for example.
+  // TODO: deal with integer exactness when necessary - can return a value to
+  // mark exactness for example.
   void projectOut(unsigned pos, unsigned num);
   inline void projectOut(unsigned pos) { return projectOut(pos, 1); }
 
@@ -446,15 +484,17 @@ public:
   /// affine expressions involving only the symbolic identifiers. `lb` and
   /// `ub` (along with the `boundFloorDivisor`) are set to represent the lower
   /// and upper bound associated with the constant difference: `lb`, `ub` have
-  /// the coefficients, and boundFloorDivisor, their divisor.
+  /// the coefficients, and boundFloorDivisor, their divisor. `minLbPos` and
+  /// `minUbPos` if non-null are set to the position of the constant lower bound
+  /// and upper bound respectively (to the same if they are from an equality).
   /// Ex: if the lower bound is [(s0 + s2 - 1) floordiv 32] for a system with
-  /// three symbolic identifiers, *lb = [1, 0, 1], boundDivisor = 32. See
-  /// comments at function definition for examples.
-  Optional<int64_t>
-  getConstantBoundOnDimSize(unsigned pos,
-                            SmallVectorImpl<int64_t> *lb = nullptr,
-                            int64_t *boundFloorDivisor = nullptr,
-                            SmallVectorImpl<int64_t> *ub = nullptr) const;
+  /// three symbolic identifiers, *lb = [1, 0, 1], lbDivisor = 32. See comments
+  /// at function definition for examples.
+  Optional<int64_t> getConstantBoundOnDimSize(
+      unsigned pos, SmallVectorImpl<int64_t> *lb = nullptr,
+      int64_t *boundFloorDivisor = nullptr,
+      SmallVectorImpl<int64_t> *ub = nullptr, unsigned *minLbPos = nullptr,
+      unsigned *minUbPos = nullptr) const;
 
   /// Returns the constant lower bound for the pos^th identifier if there is
   /// one; None otherwise.
@@ -464,17 +504,31 @@ public:
   /// one; None otherwise.
   Optional<int64_t> getConstantUpperBound(unsigned pos) const;
 
-  /// Gets the lower and upper bound of the pos^th identifier treating
-  /// [0, offset) U [offset + num, symStartPos) as dimensions and
-  /// [symStartPos, getNumDimAndSymbolIds) as symbols. The returned
-  /// multi-dimensional maps in the pair represent the max and min of
-  /// potentially multiple affine expressions. The upper bound is exclusive.
-  /// 'localExprs' holds pre-computed AffineExpr's for all local identifiers in
-  /// the system.
+  /// Gets the lower and upper bound of the `offset` + `pos`th identifier
+  /// treating [0, offset) U [offset + num, symStartPos) as dimensions and
+  /// [symStartPos, getNumDimAndSymbolIds) as symbols, and `pos` lies in
+  /// [0, num). The multi-dimensional maps in the returned pair represent the
+  /// max and min of potentially multiple affine expressions. The upper bound is
+  /// exclusive. `localExprs` holds pre-computed AffineExpr's for all local
+  /// identifiers in the system.
   std::pair<AffineMap, AffineMap>
   getLowerAndUpperBound(unsigned pos, unsigned offset, unsigned num,
                         unsigned symStartPos, ArrayRef<AffineExpr> localExprs,
                         MLIRContext *context) const;
+
+  /// Gather positions of all lower and upper bounds of the identifier at `pos`,
+  /// and optionally any equalities on it. In addition, the bounds are to be
+  /// independent of identifiers in position range [`offset`, `offset` + `num`).
+  void
+  getLowerAndUpperBoundIndices(unsigned pos,
+                               SmallVectorImpl<unsigned> *lbIndices,
+                               SmallVectorImpl<unsigned> *ubIndices,
+                               SmallVectorImpl<unsigned> *eqIndices = nullptr,
+                               unsigned offset = 0, unsigned num = 0) const;
+
+  /// Removes constraints that are independent of (i.e., do not have a
+  /// coefficient for) for identifiers in the range [pos, pos + num).
+  void removeIndependentConstraints(unsigned pos, unsigned num);
 
   /// Returns true if the set can be trivially detected as being
   /// hyper-rectangular on the specified contiguous set of identifiers.
@@ -484,12 +538,20 @@ public:
   /// that can be detected as redundant as a result of differing only in their
   /// constant term part. A constraint of the form <non-negative constant> >= 0
   /// is considered trivially true. This method is a linear time method on the
-  /// constraints, does a single scan, and updates in place.
+  /// constraints, does a single scan, and updates in place. It also normalizes
+  /// constraints by their GCD and performs GCD tightening on inequalities.
   void removeTrivialRedundancy();
 
   /// A more expensive check to detect redundant inequalities thatn
   /// removeTrivialRedundancy.
   void removeRedundantInequalities();
+
+  /// Removes redundant constraints using Simplex. Although the algorithm can
+  /// theoretically take exponential time in the worst case (rare), it is known
+  /// to perform much better in the average case. If V is the number of vertices
+  /// in the polytope and C is the number of constraints, the algorithm takes
+  /// O(VC) time.
+  void removeRedundantConstraints();
 
   // Removes all equalities and inequalities.
   void clearConstraints();

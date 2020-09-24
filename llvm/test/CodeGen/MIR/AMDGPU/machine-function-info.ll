@@ -11,10 +11,13 @@
 ; CHECK-NEXT: explicitKernArgSize: 128
 ; CHECK-NEXT: maxKernArgAlign: 64
 ; CHECK-NEXT: ldsSize: 0
+; CHECK-NEXT: dynLDSAlign: 1
 ; CHECK-NEXT: isEntryFunction: true
 ; CHECK-NEXT: noSignedZerosFPMath: false
 ; CHECK-NEXT: memoryBound: false
 ; CHECK-NEXT: waveLimiter: false
+; CHECK-NEXT: hasSpilledSGPRs: false
+; CHECK-NEXT: hasSpilledVGPRs: false
 ; CHECK-NEXT: scratchRSrcReg:  '$sgpr96_sgpr97_sgpr98_sgpr99'
 ; CHECK-NEXT: frameOffsetReg:  '$fp_reg'
 ; CHECK-NEXT: stackPtrOffsetReg: '$sgpr32'
@@ -27,8 +30,8 @@
 ; CHECK-NEXT: mode:
 ; CHECK-NEXT: ieee: true
 ; CHECK-NEXT: dx10-clamp: true
-; CHECK-NEXT: fp32-input-denormals: false
-; CHECK-NEXT: fp32-output-denormals: false
+; CHECK-NEXT: fp32-input-denormals: true
+; CHECK-NEXT: fp32-output-denormals: true
 ; CHECK-NEXT: fp64-fp16-input-denormals: true
 ; CHECK-NEXT: fp64-fp16-output-denormals: true
 ; CHECK-NEXT: highBitsOf32BitAddress: 0
@@ -44,10 +47,13 @@ define amdgpu_kernel void @kernel(i32 %arg0, i64 %arg1, <16 x i32> %arg2) {
 ; CHECK-NEXT: explicitKernArgSize: 0
 ; CHECK-NEXT: maxKernArgAlign: 1
 ; CHECK-NEXT: ldsSize: 0
+; CHECK-NEXT: dynLDSAlign: 1
 ; CHECK-NEXT: isEntryFunction: true
 ; CHECK-NEXT: noSignedZerosFPMath: false
 ; CHECK-NEXT: memoryBound: false
 ; CHECK-NEXT: waveLimiter: false
+; CHECK-NEXT: hasSpilledSGPRs: false
+; CHECK-NEXT: hasSpilledVGPRs: false
 ; CHECK-NEXT: scratchRSrcReg:  '$sgpr96_sgpr97_sgpr98_sgpr99'
 ; CHECK-NEXT: frameOffsetReg:  '$fp_reg'
 ; CHECK-NEXT: stackPtrOffsetReg: '$sgpr32'
@@ -57,8 +63,8 @@ define amdgpu_kernel void @kernel(i32 %arg0, i64 %arg1, <16 x i32> %arg2) {
 ; CHECK-NEXT: mode:
 ; CHECK-NEXT: ieee: false
 ; CHECK-NEXT: dx10-clamp: true
-; CHECK-NEXT: fp32-input-denormals: false
-; CHECK-NEXT: fp32-output-denormals: false
+; CHECK-NEXT: fp32-input-denormals: true
+; CHECK-NEXT: fp32-output-denormals: true
 ; CHECK-NEXT: fp64-fp16-input-denormals: true
 ; CHECK-NEXT: fp64-fp16-output-denormals: true
 ; CHECK-NEXT: highBitsOf32BitAddress: 0
@@ -72,10 +78,13 @@ define amdgpu_ps void @ps_shader(i32 %arg0, i32 inreg %arg1) {
 ; CHECK-NEXT: explicitKernArgSize: 0
 ; CHECK-NEXT: maxKernArgAlign: 1
 ; CHECK-NEXT: ldsSize: 0
+; CHECK-NEXT: dynLDSAlign: 1
 ; CHECK-NEXT: isEntryFunction: false
 ; CHECK-NEXT: noSignedZerosFPMath: false
 ; CHECK-NEXT: memoryBound: false
 ; CHECK-NEXT: waveLimiter: false
+; CHECK-NEXT: hasSpilledSGPRs: false
+; CHECK-NEXT: hasSpilledVGPRs: false
 ; CHECK-NEXT: scratchRSrcReg: '$sgpr0_sgpr1_sgpr2_sgpr3'
 ; CHECK-NEXT: frameOffsetReg: '$sgpr33'
 ; CHECK-NEXT: stackPtrOffsetReg: '$sgpr32'
@@ -84,8 +93,8 @@ define amdgpu_ps void @ps_shader(i32 %arg0, i32 inreg %arg1) {
 ; CHECK-NEXT: mode:
 ; CHECK-NEXT: ieee: true
 ; CHECK-NEXT: dx10-clamp: true
-; CHECK-NEXT: fp32-input-denormals: false
-; CHECK-NEXT: fp32-output-denormals: false
+; CHECK-NEXT: fp32-input-denormals: true
+; CHECK-NEXT: fp32-output-denormals: true
 ; CHECK-NEXT: fp64-fp16-input-denormals: true
 ; CHECK-NEXT: fp64-fp16-output-denormals: true
 ; CHECK-NEXT: highBitsOf32BitAddress: 0
@@ -99,10 +108,13 @@ define void @function() {
 ; CHECK-NEXT: explicitKernArgSize: 0
 ; CHECK-NEXT: maxKernArgAlign: 1
 ; CHECK-NEXT: ldsSize: 0
+; CHECK-NEXT: dynLDSAlign: 1
 ; CHECK-NEXT: isEntryFunction: false
 ; CHECK-NEXT: noSignedZerosFPMath: true
 ; CHECK-NEXT: memoryBound: false
 ; CHECK-NEXT: waveLimiter: false
+; CHECK-NEXT: hasSpilledSGPRs: false
+; CHECK-NEXT: hasSpilledVGPRs: false
 ; CHECK-NEXT: scratchRSrcReg: '$sgpr0_sgpr1_sgpr2_sgpr3'
 ; CHECK-NEXT: frameOffsetReg: '$sgpr33'
 ; CHECK-NEXT: stackPtrOffsetReg: '$sgpr32'
@@ -111,8 +123,8 @@ define void @function() {
 ; CHECK-NEXT: mode:
 ; CHECK-NEXT: ieee: true
 ; CHECK-NEXT: dx10-clamp: true
-; CHECK-NEXT: fp32-input-denormals: false
-; CHECK-NEXT: fp32-output-denormals: false
+; CHECK-NEXT: fp32-input-denormals: true
+; CHECK-NEXT: fp32-output-denormals: true
 ; CHECK-NEXT: fp64-fp16-input-denormals: true
 ; CHECK-NEXT: fp64-fp16-output-denormals: true
 ; CHECK-NEXT: highBitsOf32BitAddress: 0
@@ -125,8 +137,8 @@ define void @function_nsz() #0 {
 ; CHECK: mode:
 ; CHECK-NEXT: ieee: true
 ; CHECK-NEXT: dx10-clamp: false
-; CHECK-NEXT: fp32-input-denormals: false
-; CHECK-NEXT: fp32-output-denormals: false
+; CHECK-NEXT: fp32-input-denormals: true
+; CHECK-NEXT: fp32-output-denormals: true
 ; CHECK-NEXT: fp64-fp16-input-denormals: true
 ; CHECK-NEXT: fp64-fp16-output-denormals: true
 define void @function_dx10_clamp_off() #1 {
@@ -137,8 +149,8 @@ define void @function_dx10_clamp_off() #1 {
 ; CHECK: mode:
 ; CHECK-NEXT: ieee: false
 ; CHECK-NEXT: dx10-clamp: true
-; CHECK-NEXT: fp32-input-denormals: false
-; CHECK-NEXT: fp32-output-denormals: false
+; CHECK-NEXT: fp32-input-denormals: true
+; CHECK-NEXT: fp32-output-denormals: true
 ; CHECK-NEXT: fp64-fp16-input-denormals: true
 ; CHECK-NEXT: fp64-fp16-output-denormals: true
 define void @function_ieee_off() #2 {
@@ -149,8 +161,8 @@ define void @function_ieee_off() #2 {
 ; CHECK: mode:
 ; CHECK-NEXT: ieee: false
 ; CHECK-NEXT: dx10-clamp: false
-; CHECK-NEXT: fp32-input-denormals: false
-; CHECK-NEXT: fp32-output-denormals: false
+; CHECK-NEXT: fp32-input-denormals: true
+; CHECK-NEXT: fp32-output-denormals: true
 ; CHECK-NEXT: fp64-fp16-input-denormals: true
 ; CHECK-NEXT: fp64-fp16-output-denormals: true
 define void @function_ieee_off_dx10_clamp_off() #3 {

@@ -151,6 +151,42 @@ define void @test_abi_exts_call(i8* %addr) {
   ret void
 }
 
+; CHECK-LABEL: name: test_zext_in_callee
+; CHECK: bb.1 (%ir-block.0):
+; CHECK:   liveins: $x0
+; CHECK:   [[COPY:%[0-9]+]]:_(p0) = COPY $x0
+; CHECK:   [[LOAD:%[0-9]+]]:_(s8) = G_LOAD [[COPY]](p0) :: (load 1 from %ir.addr)
+; CHECK:   ADJCALLSTACKDOWN 0, 0, implicit-def $sp, implicit $sp
+; CHECK:   [[ZEXT:%[0-9]+]]:_(s32) = G_ZEXT [[LOAD]](s8)
+; CHECK:   $w0 = COPY [[ZEXT]](s32)
+; CHECK:   BL @has_zext_param, csr_aarch64_aapcs, implicit-def $lr, implicit $sp, implicit $w0
+; CHECK:   ADJCALLSTACKUP 0, 0, implicit-def $sp, implicit $sp
+; CHECK:   RET_ReallyLR
+declare void @has_zext_param(i8 zeroext)
+define void @test_zext_in_callee(i8* %addr) {
+  %val = load i8, i8* %addr
+  call void @has_zext_param(i8 %val)
+  ret void
+}
+
+; CHECK-LABEL: name: test_sext_in_callee
+; CHECK: bb.1 (%ir-block.0):
+; CHECK:   liveins: $x0
+; CHECK:   [[COPY:%[0-9]+]]:_(p0) = COPY $x0
+; CHECK:   [[LOAD:%[0-9]+]]:_(s8) = G_LOAD [[COPY]](p0) :: (load 1 from %ir.addr)
+; CHECK:   ADJCALLSTACKDOWN 0, 0, implicit-def $sp, implicit $sp
+; CHECK:   [[SEXT:%[0-9]+]]:_(s32) = G_SEXT [[LOAD]](s8)
+; CHECK:   $w0 = COPY [[SEXT]](s32)
+; CHECK:   BL @has_sext_param, csr_aarch64_aapcs, implicit-def $lr, implicit $sp, implicit $w0
+; CHECK:   ADJCALLSTACKUP 0, 0, implicit-def $sp, implicit $sp
+; CHECK:   RET_ReallyLR
+declare void @has_sext_param(i8 signext)
+define void @test_sext_in_callee(i8* %addr) {
+  %val = load i8, i8* %addr
+  call void @has_sext_param(i8 %val)
+  ret void
+}
+
 ; CHECK-LABEL: name: test_abi_sext_ret
 ; CHECK: [[VAL:%[0-9]+]]:_(s8) = G_LOAD
 ; CHECK: [[SVAL:%[0-9]+]]:_(s32) = G_SEXT [[VAL]](s8)
@@ -193,18 +229,15 @@ define void @test_stack_slots([8 x i64], i64 %lhs, i64 %rhs, i64* %addr) {
 ; CHECK-LABEL: name: test_call_stack
 ; CHECK: [[C42:%[0-9]+]]:_(s64) = G_CONSTANT i64 42
 ; CHECK: [[C12:%[0-9]+]]:_(s64) = G_CONSTANT i64 12
-; CHECK: [[ZERO:%[0-9]+]]:_(s64) = G_CONSTANT i64 0
-; CHECK: [[PTR:%[0-9]+]]:_(p0) = G_INTTOPTR [[ZERO]]
+; CHECK: [[PTR:%[0-9]+]]:_(p0) = G_CONSTANT i64 0
 ; CHECK: ADJCALLSTACKDOWN 24, 0, implicit-def $sp, implicit $sp
 ; CHECK: [[SP:%[0-9]+]]:_(p0) = COPY $sp
 ; CHECK: [[C42_OFFS:%[0-9]+]]:_(s64) = G_CONSTANT i64 0
 ; CHECK: [[C42_LOC:%[0-9]+]]:_(p0) = G_PTR_ADD [[SP]], [[C42_OFFS]](s64)
 ; CHECK: G_STORE [[C42]](s64), [[C42_LOC]](p0) :: (store 8 into stack, align 1)
-; CHECK: [[SP:%[0-9]+]]:_(p0) = COPY $sp
 ; CHECK: [[C12_OFFS:%[0-9]+]]:_(s64) = G_CONSTANT i64 8
 ; CHECK: [[C12_LOC:%[0-9]+]]:_(p0) = G_PTR_ADD [[SP]], [[C12_OFFS]](s64)
 ; CHECK: G_STORE [[C12]](s64), [[C12_LOC]](p0) :: (store 8 into stack + 8, align 1)
-; CHECK: [[SP:%[0-9]+]]:_(p0) = COPY $sp
 ; CHECK: [[PTR_OFFS:%[0-9]+]]:_(s64) = G_CONSTANT i64 16
 ; CHECK: [[PTR_LOC:%[0-9]+]]:_(p0) = G_PTR_ADD [[SP]], [[PTR_OFFS]](s64)
 ; CHECK: G_STORE [[PTR]](p0), [[PTR_LOC]](p0) :: (store 8 into stack + 16, align 1)
@@ -256,7 +289,6 @@ define void @take_128bit_struct([2 x i64]* %ptr, [2 x i64] %in) {
 ; CHECK: [[CST2:%[0-9]+]]:_(s64) = G_CONSTANT i64 0
 ; CHECK: [[GEP2:%[0-9]+]]:_(p0) = G_PTR_ADD [[SP]], [[CST2]](s64)
 ; CHECK: G_STORE [[LO]](s64), [[GEP2]](p0) :: (store 8 into stack, align 1)
-; CHECK: [[SP:%[0-9]+]]:_(p0) = COPY $sp
 ; CHECK: [[GEP3:%[0-9]+]]:_(p0) = G_PTR_ADD [[SP]], [[CST]](s64)
 ; CHECK: G_STORE [[HI]](s64), [[GEP3]](p0) :: (store 8 into stack + 8, align 1)
 define void @test_split_struct([2 x i64]* %ptr) {
@@ -281,5 +313,47 @@ define void @take_split_struct([2 x i64]* %ptr, i64, i64, i64,
                                i64, i64, i64,
                                [2 x i64] %in) {
   store [2 x i64] %in, [2 x i64]* %ptr
+  ret void
+}
+
+%size0type = type { }
+declare %size0type @func.returns.size0.struct()
+
+; CHECK-LABEL: name: call_returns_size0_struct
+; CHECK: bb.1
+; CHECK-NEXT: ADJCALLSTACKDOWN
+; CHECK-NEXT: BL
+; CHECK-NEXT: ADJCALLSTACKUP
+; CHECK-NEXT: RET_ReallyLR
+define void @call_returns_size0_struct() {
+  ; FIXME: Why is this valid IR?
+  %call = call %size0type @func.returns.size0.struct()
+  ret void
+}
+
+declare [0 x i8] @func.returns.size0.array()
+
+; CHECK-LABEL: name: call_returns_size0_array
+; CHECK: bb.1
+; CHECK-NEXT: ADJCALLSTACKDOWN
+; CHECK-NEXT: BL
+; CHECK-NEXT: ADJCALLSTACKUP
+; CHECK-NEXT: RET_ReallyLR
+define void @call_returns_size0_array() {
+  ; FIXME: Why is this valid IR?
+  %call = call [0 x i8] @func.returns.size0.array()
+  ret void
+}
+
+declare [1 x %size0type] @func.returns.array.size0.struct()
+; CHECK-LABEL: name: call_returns_array_size0_struct
+; CHECK: bb.1
+; CHECK-NEXT: ADJCALLSTACKDOWN
+; CHECK-NEXT: BL
+; CHECK-NEXT: ADJCALLSTACKUP
+; CHECK-NEXT: RET_ReallyLR
+define void @call_returns_array_size0_struct() {
+  ; FIXME: Why is this valid IR?
+  %call = call [1 x %size0type] @func.returns.array.size0.struct()
   ret void
 }

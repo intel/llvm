@@ -28,7 +28,7 @@
 
 #if defined(__linux__) || defined(__FreeBSD__) ||                              \
     defined(__FreeBSD_kernel__) || defined(__APPLE__) ||                       \
-    defined(__NetBSD__) || defined(__OpenBSD__)
+    defined(__NetBSD__) || defined(__OpenBSD__) || defined(__EMSCRIPTEN__)
 #if !defined(__ANDROID__)
 #include <spawn.h>
 #endif
@@ -60,6 +60,7 @@
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Predicate.h"
+#include "lldb/Utility/ReproducerProvider.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/lldb-private-forward.h"
 #include "llvm/ADT/SmallString.h"
@@ -466,14 +467,24 @@ MonitorShellCommand(std::shared_ptr<ShellInfo> shell_info, lldb::pid_t pid,
   return true;
 }
 
-Status Host::RunShellCommand(const char *command, const FileSpec &working_dir,
-                             int *status_ptr, int *signo_ptr,
-                             std::string *command_output_ptr,
+Status Host::RunShellCommand(llvm::StringRef command,
+                             const FileSpec &working_dir, int *status_ptr,
+                             int *signo_ptr, std::string *command_output_ptr,
                              const Timeout<std::micro> &timeout,
-                             bool run_in_default_shell,
-                             bool hide_stderr) {
-  return RunShellCommand(Args(command), working_dir, status_ptr, signo_ptr,
-                         command_output_ptr, timeout, run_in_default_shell,
+                             bool run_in_shell, bool hide_stderr) {
+  return RunShellCommand(llvm::StringRef(), Args(command), working_dir,
+                         status_ptr, signo_ptr, command_output_ptr, timeout,
+                         run_in_shell, hide_stderr);
+}
+
+Status Host::RunShellCommand(llvm::StringRef shell_path,
+                             llvm::StringRef command,
+                             const FileSpec &working_dir, int *status_ptr,
+                             int *signo_ptr, std::string *command_output_ptr,
+                             const Timeout<std::micro> &timeout,
+                             bool run_in_shell, bool hide_stderr) {
+  return RunShellCommand(shell_path, Args(command), working_dir, status_ptr,
+                         signo_ptr, command_output_ptr, timeout, run_in_shell,
                          hide_stderr);
 }
 
@@ -481,14 +492,27 @@ Status Host::RunShellCommand(const Args &args, const FileSpec &working_dir,
                              int *status_ptr, int *signo_ptr,
                              std::string *command_output_ptr,
                              const Timeout<std::micro> &timeout,
-                             bool run_in_default_shell,
-                             bool hide_stderr) {
+                             bool run_in_shell, bool hide_stderr) {
+  return RunShellCommand(llvm::StringRef(), args, working_dir, status_ptr,
+                         signo_ptr, command_output_ptr, timeout, run_in_shell,
+                         hide_stderr);
+}
+
+Status Host::RunShellCommand(llvm::StringRef shell_path, const Args &args,
+                             const FileSpec &working_dir, int *status_ptr,
+                             int *signo_ptr, std::string *command_output_ptr,
+                             const Timeout<std::micro> &timeout,
+                             bool run_in_shell, bool hide_stderr) {
   Status error;
   ProcessLaunchInfo launch_info;
   launch_info.SetArchitecture(HostInfo::GetArchitecture());
-  if (run_in_default_shell) {
+  if (run_in_shell) {
     // Run the command in a shell
-    launch_info.SetShell(HostInfo::GetDefaultShell());
+    FileSpec shell = HostInfo::GetDefaultShell();
+    if (!shell_path.empty())
+      shell.SetPath(shell_path);
+
+    launch_info.SetShell(shell);
     launch_info.GetArguments().AppendArguments(args);
     const bool localhost = true;
     const bool will_debug = false;
@@ -500,6 +524,8 @@ Status Host::RunShellCommand(const Args &args, const FileSpec &working_dir,
     const bool first_arg_is_executable = true;
     launch_info.SetArguments(args, first_arg_is_executable);
   }
+
+  launch_info.GetEnvironment() = Host::GetEnvironment();
 
   if (working_dir)
     launch_info.SetWorkingDirectory(working_dir);
@@ -519,7 +545,7 @@ Status Host::RunShellCommand(const Args &args, const FileSpec &working_dir,
     }
   }
 
-  FileSpec output_file_spec(output_file_path.c_str());
+  FileSpec output_file_spec(output_file_path.str());
   // Set up file descriptors.
   launch_info.AppendSuppressFileAction(STDIN_FILENO, true, false);
   if (output_file_spec)

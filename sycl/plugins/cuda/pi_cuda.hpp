@@ -176,51 +176,166 @@ private:
   std::vector<deleter_data> extended_deleters_;
 };
 
-/// PI Mem mapping to a CUDA memory allocation
-///
+/// PI Mem mapping to CUDA memory allocations, both data and texture/surface.
+/// \brief Represents non-SVM allocations on the CUDA backend.
+/// Keeps tracks of all mapped regions used for Map/Unmap calls.
+/// Only one region can be active at the same time per allocation.
 struct _pi_mem {
-  using native_type = CUdeviceptr;
+
+  // TODO: Move as much shared data up as possible
   using pi_context = _pi_context *;
 
+  // Context where the memory object is accessibles
   pi_context context_;
-  pi_mem parent_;
-  native_type ptr_;
 
-  void *hostPtr_;
-  size_t size_;
-  size_t mapOffset_;
-  void *mapPtr_;
-  cl_map_flags mapFlags_;
+  /// Reference counting of the handler
   std::atomic_uint32_t refCount_;
-  enum class alloc_mode { classic, use_host_ptr } allocMode_;
+  enum class mem_type { buffer, surface } mem_type_;
 
-  _pi_mem(pi_context ctxt, pi_mem parent, alloc_mode mode, CUdeviceptr ptr, void *host_ptr,
-          size_t size)
-      : context_{ctxt}, parent_{parent}, ptr_{ptr}, hostPtr_{host_ptr}, size_{size}, 
-        mapOffset_{0}, mapPtr_{nullptr}, mapFlags_{CL_MAP_WRITE}, refCount_{1}, allocMode_{mode} {
-      if (is_sub_buffer()) {
-        cuda_piMemRetain(parent_);
-      } else {
-	      cuda_piContextRetain(context_);
+  /// A PI Memory object represents either plain memory allocations ("Buffers"
+  /// in OpenCL) or typed allocations ("Images" in OpenCL).
+  /// In CUDA their API handlers are different. Whereas "Buffers" are allocated
+  /// as pointer-like structs, "Images" are stored in Textures or Surfaces
+  /// This union allows implementation to use either from the same handler.
+  union mem_ {
+    // Handler for plain, pointer-based CUDA allocations
+    struct buffer_mem_ {
+      using native_type = CUdeviceptr;
+
+      // If this allocation is a sub-buffer (i.e., a view on an existing
+      // allocation), this is the pointer to the parent handler structure
+      pi_mem parent_;
+      // CUDA handler for the pointer
+      native_type ptr_;
+
+      /// Pointer associated with this device on the host
+      void *hostPtr_;
+      /// Size of the allocation in bytes
+      size_t size_;
+      /// Offset of the active mapped region.
+      size_t mapOffset_;
+      /// Pointer to the active mapped region, if any
+      void *mapPtr_;
+      /// Original flags for the mapped region
+      cl_map_flags mapFlags_;
+
+      /** alloc_mode
+       * classic: Just a normal buffer allocated on the device via cuda malloc
+       * use_host_ptr: Use an address on the host for the device
+       * copy_in: The data for the device comes from the host but the host
+       pointer is not available later for re-use
+       * alloc_host_ptr: Uses pinned-memory allocation
+      */
+      enum class alloc_mode {
+        classic,
+        use_host_ptr,
+        copy_in,
+        alloc_host_ptr
+      } allocMode_;
+
+      native_type get() const noexcept { return ptr_; }
+
+      size_t get_size() const noexcept { return size_; }
+
+      void *get_map_ptr() const noexcept { return mapPtr_; }
+
+      size_t get_map_offset(void *ptr) const noexcept { return mapOffset_; }
+
+      /// Returns a pointer to data visible on the host that contains
+      /// the data on the device associated with this allocation.
+      /// The offset is used to index into the CUDA allocation.
+      ///
+      void *map_to_ptr(size_t offset, cl_map_flags flags) noexcept {
+        assert(mapPtr_ == nullptr);
+        mapOffset_ = offset;
+        mapFlags_ = flags;
+        if (hostPtr_) {
+          mapPtr_ = static_cast<char *>(hostPtr_) + offset;
+        } else {
+          // TODO: Allocate only what is needed based on the offset
+          mapPtr_ = static_cast<void *>(malloc(this->get_size()));
+        }
+        return mapPtr_;
       }
-	};
 
-   ~_pi_mem() { 
-     if (is_sub_buffer()) {
-       cuda_piMemRelease(parent_);
-     } else {
-      cuda_piContextRelease(context_); 
-     }
-   }
+      /// Detach the allocation from the host memory.
+      void unmap(void *ptr) noexcept {
+        assert(mapPtr_ != nullptr);
 
-   /// \TODO: Adapt once images are supported.
-   bool is_buffer() const noexcept { return true; }
+        if (mapPtr_ != hostPtr_) {
+          free(mapPtr_);
+        }
+        mapPtr_ = nullptr;
+        mapOffset_ = 0;
+      }
 
-   bool is_sub_buffer() const noexcept {
-     return (is_buffer() && (parent_ != nullptr));
-   }
+      cl_map_flags get_map_flags() const noexcept {
+        assert(mapPtr_ != nullptr);
+        return mapFlags_;
+      }
+    } buffer_mem_;
 
-  native_type get() const noexcept { return ptr_; }
+    // Handler data for surface object (i.e. Images)
+    struct surface_mem_ {
+      CUarray array_;
+      CUsurfObject surfObj_;
+      pi_mem_type imageType_;
+
+      CUarray get_array() const noexcept { return array_; }
+
+      CUsurfObject get_surface() const noexcept { return surfObj_; }
+
+      pi_mem_type get_image_type() const noexcept { return imageType_; }
+    } surface_mem_;
+  } mem_;
+
+  /// Constructs the PI MEM handler for a non-typed allocation ("buffer")
+  _pi_mem(pi_context ctxt, pi_mem parent, mem_::buffer_mem_::alloc_mode mode,
+          CUdeviceptr ptr, void *host_ptr, size_t size)
+      : context_{ctxt}, refCount_{1}, mem_type_{mem_type::buffer} {
+    mem_.buffer_mem_.ptr_ = ptr;
+    mem_.buffer_mem_.parent_ = parent;
+    mem_.buffer_mem_.hostPtr_ = host_ptr;
+    mem_.buffer_mem_.size_ = size;
+    mem_.buffer_mem_.mapOffset_ = 0;
+    mem_.buffer_mem_.mapPtr_ = nullptr;
+    mem_.buffer_mem_.mapFlags_ = CL_MAP_WRITE;
+    mem_.buffer_mem_.allocMode_ = mode;
+    if (is_sub_buffer()) {
+      cuda_piMemRetain(mem_.buffer_mem_.parent_);
+    } else {
+      cuda_piContextRetain(context_);
+    }
+  };
+
+  /// Constructs the PI allocation for an Image object (surface in CUDA)
+  _pi_mem(pi_context ctxt, CUarray array, CUsurfObject surf,
+          pi_mem_type image_type, void *host_ptr)
+      : context_{ctxt}, refCount_{1}, mem_type_{mem_type::surface} {
+    mem_.surface_mem_.array_ = array;
+    mem_.surface_mem_.surfObj_ = surf;
+    mem_.surface_mem_.imageType_ = image_type;
+    cuda_piContextRetain(context_);
+  }
+
+  ~_pi_mem() {
+    if (mem_type_ == mem_type::buffer) {
+      if (is_sub_buffer()) {
+        cuda_piMemRelease(mem_.buffer_mem_.parent_);
+        return;
+      }
+    }
+    cuda_piContextRelease(context_);
+  }
+
+  // TODO: Move as many shared funcs up as possible
+  bool is_buffer() const noexcept { return mem_type_ == mem_type::buffer; }
+
+  bool is_sub_buffer() const noexcept {
+    return (is_buffer() && (mem_.buffer_mem_.parent_ != nullptr));
+  }
+
+  bool is_image() const noexcept { return mem_type_ == mem_type::surface; }
 
   pi_context get_context() const noexcept { return context_; }
 
@@ -229,40 +344,6 @@ struct _pi_mem {
   pi_uint32 decrement_reference_count() noexcept { return --refCount_; }
 
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
-
-  size_t get_size() const noexcept { return size_; }
-
-  void *get_map_ptr() const noexcept { return mapPtr_; }
-
-  size_t get_map_offset(void *ptr) const noexcept { return mapOffset_; }
-
-  void *map_to_ptr(size_t offset, cl_map_flags flags) noexcept {
-    assert(mapPtr_ == nullptr);
-    mapOffset_ = offset;
-    mapFlags_ = flags;
-    if (hostPtr_) {
-      mapPtr_ = static_cast<char *>(hostPtr_) + offset;
-    } else {
-      // TODO: Allocate only what is needed based on the offset
-      mapPtr_ = static_cast<void *>(malloc(this->get_size()));
-    }
-    return mapPtr_;
-  }
-
-  void unmap(void *ptr) noexcept {
-    assert(mapPtr_ != nullptr);
-
-    if (mapPtr_ != hostPtr_) {
-      free(mapPtr_);
-    }
-    mapPtr_ = nullptr;
-    mapOffset_ = 0;
-  }
-
-  cl_map_flags get_map_flags() const noexcept {
-    assert(mapPtr_ != nullptr);
-    return mapFlags_;
-  }
 };
 
 /// PI queue mapping on to CUstream objects.
@@ -275,11 +356,12 @@ struct _pi_queue {
   _pi_device *device_;
   pi_queue_properties properties_;
   std::atomic_uint32_t refCount_;
+  std::atomic_uint32_t eventCount_;
 
   _pi_queue(CUstream stream, _pi_context *context, _pi_device *device,
             pi_queue_properties properties)
       : stream_{stream}, context_{context}, device_{device},
-        properties_{properties}, refCount_{1} {
+        properties_{properties}, refCount_{1}, eventCount_{0} {
     cuda_piContextRetain(context_);
     cuda_piDeviceRetain(device_);
   }
@@ -289,7 +371,7 @@ struct _pi_queue {
     cuda_piDeviceRelease(device_);
   }
 
-  native_type get() const { return stream_; };
+  native_type get() const noexcept { return stream_; };
 
   _pi_context *get_context() const { return context_; };
 
@@ -298,41 +380,12 @@ struct _pi_queue {
   pi_uint32 decrement_reference_count() noexcept { return --refCount_; }
 
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
+
+  pi_uint32 get_next_event_id() noexcept { return ++eventCount_; }
 };
 
 typedef void (*pfn_notify)(pi_event event, pi_int32 eventCommandStatus,
                            void *userData);
-
-class event_callback {
-public:
-  void trigger_callback(pi_event event, pi_int32 currentEventStatus) const {
-
-    auto validParameters = callback_ && event;
-
-    // As a pi_event_status value approaches 0, it gets closer to completion.
-    // If the calling pi_event's status is less than or equal to the event
-    // status the user is interested in, invoke the callback anyway. The event
-    // will have passed through that state anyway.
-    auto validStatus = currentEventStatus <= observedEventStatus_;
-
-    if (validParameters && validStatus) {
-
-      callback_(event, currentEventStatus, userData_);
-    }
-  }
-
-  event_callback(pi_event_status status, pfn_notify callback, void *userData)
-      : observedEventStatus_{status}, callback_{callback}, userData_{userData} {
-  }
-
-  pi_event_status get_status() const noexcept { return observedEventStatus_; }
-
-private:
-  pi_event_status observedEventStatus_;
-  pfn_notify callback_;
-  void *userData_;
-};
-
 /// PI Event mapping to CUevent
 ///
 class _pi_event {
@@ -347,41 +400,6 @@ public:
 
   native_type get() const noexcept { return evEnd_; };
 
-  pi_result set_event_complete() noexcept {
-
-    if (isCompleted_) {
-      return PI_INVALID_OPERATION;
-    }
-
-    isRecorded_ = true;
-    isCompleted_ = true;
-
-    trigger_callback(get_execution_status());
-
-    return PI_SUCCESS;
-  }
-
-  void trigger_callback(pi_int32 status) {
-
-    std::vector<event_callback> callbacks;
-
-    // Here we move all callbacks into local variable before we call them.
-    // This is a defensive maneuver; if any of the callbacks attempt to
-    // add additional callbacks, we will end up in a bad spot. Our mutex
-    // will be locked twice and the vector will be modified as it is being
-    // iterated over! By moving everything locally, we can call all of these
-    // callbacks and let them modify the original vector without much worry.
-
-    {
-      std::lock_guard<std::mutex> lock(mutex_);
-      event_callbacks_.swap(callbacks);
-    }
-
-    for (auto &event_callback : callbacks) {
-      event_callback.trigger_callback(this, status);
-    }
-  }
-
   pi_queue get_queue() const noexcept { return queue_; }
 
   pi_command_type get_command_type() const noexcept { return commandType_; }
@@ -390,9 +408,9 @@ public:
 
   bool is_recorded() const noexcept { return isRecorded_; }
 
-  bool is_completed() const noexcept { return isCompleted_; }
-
   bool is_started() const noexcept { return isStarted_; }
+
+  bool is_completed() const noexcept { return isCompleted_; };
 
   pi_int32 get_execution_status() const noexcept {
 
@@ -406,27 +424,13 @@ public:
     return PI_EVENT_COMPLETE;
   }
 
-  void set_event_callback(const event_callback &callback) {
-    auto current_status = get_execution_status();
-    if (current_status <= callback.get_status()) {
-      callback.trigger_callback(this, current_status);
-    } else {
-      std::lock_guard<std::mutex> lock(mutex_);
-      event_callbacks_.emplace_back(callback);
-    }
-  }
-
   pi_context get_context() const noexcept { return context_; };
-
-  bool is_user_event() const noexcept {
-    return get_command_type() == PI_COMMAND_TYPE_USER;
-  }
-
-  bool is_native_event() const noexcept { return !is_user_event(); }
 
   pi_uint32 increment_reference_count() { return ++refCount_; }
 
   pi_uint32 decrement_reference_count() { return --refCount_; }
+
+  pi_uint32 get_event_id() const noexcept { return eventId_; }
 
   // Returns the counter time when the associated command(s) were enqueued
   //
@@ -440,16 +444,12 @@ public:
   //
   pi_uint64 get_end_time() const;
 
-  // make a user event. CUDA has no concept of user events, so this
-  // functionality is implemented by the CUDA PI implementation.
-  static pi_event make_user(pi_context context) {
-    return new _pi_event(PI_COMMAND_TYPE_USER, context, nullptr);
-  }
-
   // construct a native CUDA. This maps closely to the underlying CUDA event.
   static pi_event make_native(pi_command_type type, pi_queue queue) {
     return new _pi_event(type, queue->get_context(), queue);
   }
+
+  pi_result release();
 
   ~_pi_event();
 
@@ -462,13 +462,16 @@ private:
 
   std::atomic_uint32_t refCount_; // Event reference count.
 
-  std::atomic_bool isCompleted_; // Atomic bool used by user events. Can be
-                                 // used to wait for a user event's completion.
+  bool isCompleted_; // Signifies whether the operations have completed
+                     //
 
   bool isRecorded_; // Signifies wether a native CUDA event has been recorded
                     // yet.
-  bool isStarted_; // Signifies wether the operation associated with the
-                   // PI event has started or not
+  bool isStarted_;  // Signifies wether the operation associated with the
+                    // PI event has started or not
+                    //
+
+  pi_uint32 eventId_; // Queue identifier of the event.
 
   native_type evEnd_; // CUDA event handle. If this _pi_event represents a user
                       // event, this will be nullptr.
@@ -484,12 +487,6 @@ private:
   pi_context context_; // pi_context associated with the event. If this is a
                        // native event, this will be the same context associated
                        // with the queue_ member.
-
-  std::mutex mutex_; // Protect access to event_callbacks_. TODO: There might be
-                     // a lock-free data structure we can use here.
-  std::vector<event_callback>
-      event_callbacks_; // Callbacks that can be triggered when an event's state
-                        // changes.
 };
 
 /// Implementation of PI Program on CUDA Module object
@@ -497,8 +494,8 @@ private:
 struct _pi_program {
   using native_type = CUmodule;
   native_type module_;
-  const char *source_;
-  size_t sourceLength_;
+  const char *binary_;
+  size_t binarySizeInBytes_;
   std::atomic_uint32_t refCount_;
   _pi_context *context_;
 
@@ -511,13 +508,13 @@ struct _pi_program {
   _pi_program(pi_context ctxt);
   ~_pi_program();
 
-  pi_result create_from_source(const char *source, size_t length);
+  pi_result set_binary(const char *binary, size_t binarySizeInBytes);
 
   pi_result build_program(const char* build_options);
 
   pi_context get_context() const { return context_; };
 
-  native_type get() const { return module_; };
+  native_type get() const noexcept { return module_; };
 
   pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
 
@@ -546,6 +543,7 @@ struct _pi_kernel {
   using native_type = CUfunction;
 
   native_type function_;
+  native_type functionWithOffsetParam_;
   std::string name_;
   pi_context context_;
   pi_program program_;
@@ -568,14 +566,23 @@ struct _pi_kernel {
     args_index_t indices_;
     args_size_t offsetPerIndex_;
 
+    std::uint32_t implicitOffsetArgs_[3] = {0, 0, 0};
+
+    arguments() {
+      // Place the implicit offset index at the end of the indicies collection
+      indices_.emplace_back(&implicitOffsetArgs_);
+    }
+
     /// Adds an argument to the kernel.
     /// If the argument existed before, it is replaced.
     /// Otherwise, it is added.
     /// Gaps are filled with empty arguments.
+    /// Implicit offset argument is kept at the back of the indices collection.
     void add_arg(size_t index, size_t size, const void *arg,
                  size_t localSize = 0) {
-      if (index + 1 > indices_.size()) {
-        indices_.resize(index + 1);
+      if (index + 2 > indices_.size()) {
+        // Move implicit offset argument index with the end
+        indices_.resize(index + 2, indices_.back());
         // Ensure enough space for the new argument
         paramSizes_.resize(index + 1);
         offsetPerIndex_.resize(index + 1);
@@ -595,6 +602,11 @@ struct _pi_kernel {
       add_arg(index, sizeof(size_t), (const void *)&(localOffset), size);
     }
 
+    void set_implicit_offset(size_t size, std::uint32_t *implicitOffset) {
+      assert(size == sizeof(std::uint32_t) * 3);
+      std::memcpy(implicitOffsetArgs_, implicitOffset, size);
+    }
+
     void clear_local_size() {
       std::fill(std::begin(offsetPerIndex_), std::end(offsetPerIndex_), 0);
     }
@@ -607,13 +619,17 @@ struct _pi_kernel {
     }
   } args_;
 
-  _pi_kernel(CUfunction func, const char *name, pi_program program,
-             pi_context ctxt)
-      : function_{func}, name_{name}, context_{ctxt}, program_{program},
-        refCount_{1} {
+  _pi_kernel(CUfunction func, CUfunction funcWithOffsetParam, const char *name,
+             pi_program program, pi_context ctxt)
+      : function_{func}, functionWithOffsetParam_{funcWithOffsetParam},
+        name_{name}, context_{ctxt}, program_{program}, refCount_{1} {
     cuda_piProgramRetain(program_);
     cuda_piContextRetain(context_);
   }
+
+  _pi_kernel(CUfunction func, const char *name, pi_program program,
+             pi_context ctxt)
+      : _pi_kernel{func, nullptr, name, program, ctxt} {}
 
   ~_pi_kernel()
   {
@@ -631,15 +647,23 @@ struct _pi_kernel {
 
   native_type get() const noexcept { return function_; };
 
+  native_type get_with_offset_parameter() const noexcept {
+    return functionWithOffsetParam_;
+  };
+
+  bool has_with_offset_parameter() const noexcept {
+    return functionWithOffsetParam_ != nullptr;
+  }
+
   pi_context get_context() const noexcept { return context_; };
 
   const char *get_name() const noexcept { return name_.c_str(); }
 
-  /// Returns the number of arguments.
+  /// Returns the number of arguments, excluding the implicit global offset.
   /// Note this only returns the current known number of arguments, not the
   /// real one required by the kernel, since this cannot be queried from
   /// the CUDA Driver API
-  pi_uint32 get_num_args() const noexcept { return args_.indices_.size(); }
+  pi_uint32 get_num_args() const noexcept { return args_.indices_.size() - 1; }
 
   void set_kernel_arg(int index, size_t size, const void *arg) {
     args_.add_arg(index, size, arg);
@@ -649,6 +673,10 @@ struct _pi_kernel {
     args_.add_local_arg(index, size);
   }
 
+  void set_implicit_offset_arg(size_t size, std::uint32_t *implicitOffset) {
+    args_.set_implicit_offset(size, implicitOffset);
+  }
+
   arguments::args_index_t get_arg_indices() const {
     return args_.get_indices();
   }
@@ -656,6 +684,26 @@ struct _pi_kernel {
   pi_uint32 get_local_size() const noexcept { return args_.get_local_size(); }
 
   void clear_local_size() { args_.clear_local_size(); }
+};
+
+/// Implementation of samplers for CUDA
+///
+/// Sampler property layout:
+/// | 31 30 ... 6 5 |      4 3 2      |     1      |         0        |
+/// |      N/A      | addressing mode | fiter mode | normalize coords |
+struct _pi_sampler {
+  std::atomic_uint32_t refCount_;
+  pi_uint32 props_;
+  pi_context context_;
+
+  _pi_sampler(pi_context context)
+      : refCount_(1), props_(0), context_(context) {}
+
+  pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
+
+  pi_uint32 decrement_reference_count() noexcept { return --refCount_; }
+
+  pi_uint32 get_reference_count() const noexcept { return refCount_; }
 };
 
 // -------------------------------------------------------------

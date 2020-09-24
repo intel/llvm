@@ -215,6 +215,8 @@ bool Sema::CodeSynthesisContext::isInstantiationRecord() const {
   case ParameterMappingSubstitution:
   case ConstraintNormalization:
   case RewritingOperatorAsSpaceship:
+  case InitializingStructuredBinding:
+  case MarkingClassDllexported:
     return false;
 
   // This function should never be called when Kind's value is Memoization.
@@ -760,6 +762,18 @@ void Sema::PrintInstantiationStack() {
                    diag::note_rewriting_operator_as_spaceship);
       break;
 
+    case CodeSynthesisContext::InitializingStructuredBinding:
+      Diags.Report(Active->PointOfInstantiation,
+                   diag::note_in_binding_decl_init)
+          << cast<BindingDecl>(Active->Entity);
+      break;
+
+    case CodeSynthesisContext::MarkingClassDllexported:
+      Diags.Report(Active->PointOfInstantiation,
+                   diag::note_due_to_dllexported_class)
+          << cast<CXXRecordDecl>(Active->Entity) << !getLangOpts().CPlusPlus11;
+      break;
+
     case CodeSynthesisContext::Memoization:
       break;
 
@@ -861,6 +875,8 @@ Optional<TemplateDeductionInfo *> Sema::isSFINAEContext() const {
     case CodeSynthesisContext::DeclaringImplicitEqualityComparison:
     case CodeSynthesisContext::DefiningSynthesizedFunction:
     case CodeSynthesisContext::RewritingOperatorAsSpaceship:
+    case CodeSynthesisContext::InitializingStructuredBinding:
+    case CodeSynthesisContext::MarkingClassDllexported:
       // This happens in a context unrelated to template instantiation, so
       // there is no SFINAE.
       return None;
@@ -1363,6 +1379,19 @@ TemplateName TemplateInstantiator::TransformTemplateName(
 
       TemplateArgument Arg = TemplateArgs(TTP->getDepth(), TTP->getPosition());
 
+      if (TemplateArgs.isRewrite()) {
+        // We're rewriting the template parameter as a reference to another
+        // template parameter.
+        if (Arg.getKind() == TemplateArgument::Pack) {
+          assert(Arg.pack_size() == 1 && Arg.pack_begin()->isPackExpansion() &&
+                 "unexpected pack arguments in template rewrite");
+          Arg = Arg.pack_begin()->getPackExpansionPattern();
+        }
+        assert(Arg.getKind() == TemplateArgument::Template &&
+               "unexpected nontype template argument kind in template rewrite");
+        return Arg.getAsTemplate();
+      }
+
       if (TTP->isParameterPack()) {
         assert(Arg.getKind() == TemplateArgument::Pack &&
                "Missing argument pack");
@@ -1459,19 +1488,18 @@ TemplateInstantiator::TransformTemplateParmRefExpr(DeclRefExpr *E,
 
   TemplateArgument Arg = TemplateArgs(NTTP->getDepth(), NTTP->getPosition());
 
-  if (TemplateArgs.getNumLevels() != TemplateArgs.getNumSubstitutedLevels()) {
-    // We're performing a partial substitution, so the substituted argument
-    // could be dependent. As a result we can't create a SubstNonType*Expr
-    // node now, since that represents a fully-substituted argument.
-    // FIXME: We should have some AST representation for this.
+  if (TemplateArgs.isRewrite()) {
+    // We're rewriting the template parameter as a reference to another
+    // template parameter.
     if (Arg.getKind() == TemplateArgument::Pack) {
-      // FIXME: This won't work for alias templates.
       assert(Arg.pack_size() == 1 && Arg.pack_begin()->isPackExpansion() &&
-             "unexpected pack arguments in partial substitution");
+             "unexpected pack arguments in template rewrite");
       Arg = Arg.pack_begin()->getPackExpansionPattern();
     }
     assert(Arg.getKind() == TemplateArgument::Expression &&
-           "unexpected nontype template argument kind in partial substitution");
+           "unexpected nontype template argument kind in template rewrite");
+    // FIXME: This can lead to the same subexpression appearing multiple times
+    // in a complete expression.
     return Arg.getAsExpr();
   }
 
@@ -1845,6 +1873,24 @@ TemplateInstantiator::TransformTemplateTypeParmType(TypeLocBuilder &TLB,
     }
 
     TemplateArgument Arg = TemplateArgs(T->getDepth(), T->getIndex());
+
+    if (TemplateArgs.isRewrite()) {
+      // We're rewriting the template parameter as a reference to another
+      // template parameter.
+      if (Arg.getKind() == TemplateArgument::Pack) {
+        assert(Arg.pack_size() == 1 && Arg.pack_begin()->isPackExpansion() &&
+               "unexpected pack arguments in template rewrite");
+        Arg = Arg.pack_begin()->getPackExpansionPattern();
+      }
+      assert(Arg.getKind() == TemplateArgument::Type &&
+             "unexpected nontype template argument kind in template rewrite");
+      QualType NewT = Arg.getAsType();
+      assert(isa<TemplateTypeParmType>(NewT) &&
+             "type parm not rewritten to type parm");
+      auto NewTL = TLB.push<TemplateTypeParmTypeLoc>(NewT);
+      NewTL.setNameLoc(TL.getNameLoc());
+      return NewT;
+    }
 
     if (T->isParameterPack()) {
       assert(Arg.getKind() == TemplateArgument::Pack &&
@@ -2460,7 +2506,7 @@ ParmVarDecl *Sema::SubstParmVarDecl(ParmVarDecl *OldParm,
     UnparsedDefaultArgInstantiations[OldParm].push_back(NewParm);
   } else if (Expr *Arg = OldParm->getDefaultArg()) {
     FunctionDecl *OwningFunc = cast<FunctionDecl>(OldParm->getDeclContext());
-    if (OwningFunc->isLexicallyWithinFunctionOrMethod()) {
+    if (OwningFunc->isInLocalScopeForInstantiation()) {
       // Instantiate default arguments for methods of local classes (DR1484)
       // and non-defining declarations.
       Sema::ContextRAII SavedContext(*this, OwningFunc);
@@ -2469,7 +2515,12 @@ ParmVarDecl *Sema::SubstParmVarDecl(ParmVarDecl *OldParm,
       if (NewArg.isUsable()) {
         // It would be nice if we still had this.
         SourceLocation EqualLoc = NewArg.get()->getBeginLoc();
-        SetParamDefaultArgument(NewParm, NewArg.get(), EqualLoc);
+        ExprResult Result =
+            ConvertParamDefaultArgument(NewParm, NewArg.get(), EqualLoc);
+        if (Result.isInvalid())
+          return nullptr;
+
+        SetParamDefaultArgument(NewParm, Result.getAs<Expr>(), EqualLoc);
       }
     } else {
       // FIXME: if we non-lazily instantiated non-dependent default args for
@@ -3638,6 +3689,12 @@ LocalInstantiationScope::findInstantiationOf(const Decl *D) {
   if (isa<EnumDecl>(D))
     return nullptr;
 
+  // Materialized typedefs/type alias for implicit deduction guides may require
+  // instantiation.
+  if (isa<TypedefNameDecl>(D) &&
+      isa<CXXDeductionGuideDecl>(D->getDeclContext()))
+    return nullptr;
+
   // If we didn't find the decl, then we either have a sema bug, or we have a
   // forward reference to a label declaration.  Return null to indicate that
   // we have an uninstantiated label.
@@ -3687,6 +3744,13 @@ void LocalInstantiationScope::MakeInstantiatedLocalArgPack(const Decl *D) {
   DeclArgumentPack *Pack = new DeclArgumentPack;
   Stored = Pack;
   ArgumentPacks.push_back(Pack);
+}
+
+bool LocalInstantiationScope::isLocalPackExpansion(const Decl *D) {
+  for (DeclArgumentPack *Pack : ArgumentPacks)
+    if (std::find(Pack->begin(), Pack->end(), D) != Pack->end())
+      return true;
+  return false;
 }
 
 void LocalInstantiationScope::SetPartiallySubstitutedPack(NamedDecl *Pack,

@@ -35,8 +35,36 @@ using namespace clang;
 using namespace CodeGen;
 using namespace llvm::coverage;
 
+CoverageSourceInfo *
+CoverageMappingModuleGen::setUpCoverageCallbacks(Preprocessor &PP) {
+  CoverageSourceInfo *CoverageInfo = new CoverageSourceInfo();
+  PP.addPPCallbacks(std::unique_ptr<PPCallbacks>(CoverageInfo));
+  PP.addCommentHandler(CoverageInfo);
+  PP.setPreprocessToken(true);
+  PP.setTokenWatcher([CoverageInfo](clang::Token Tok) {
+    // Update previous token location.
+    CoverageInfo->PrevTokLoc = Tok.getLocation();
+    if (Tok.getKind() != clang::tok::eod)
+      CoverageInfo->updateNextTokLoc(Tok.getLocation());
+  });
+  return CoverageInfo;
+}
+
 void CoverageSourceInfo::SourceRangeSkipped(SourceRange Range, SourceLocation) {
-  SkippedRanges.push_back(Range);
+  SkippedRanges.push_back({Range});
+}
+
+bool CoverageSourceInfo::HandleComment(Preprocessor &PP, SourceRange Range) {
+  SkippedRanges.push_back({Range, PrevTokLoc});
+  AfterComment = true;
+  return false;
+}
+
+void CoverageSourceInfo::updateNextTokLoc(SourceLocation Loc) {
+  if (AfterComment) {
+    SkippedRanges.back().NextTokLoc = Loc;
+    AfterComment = false;
+  }
 }
 
 namespace {
@@ -274,8 +302,38 @@ public:
     return None;
   }
 
+  /// This shrinks the skipped range if it spans a line that contains a
+  /// non-comment token. If shrinking the skipped range would make it empty,
+  /// this returns None.
+  Optional<SpellingRegion> adjustSkippedRange(SourceManager &SM,
+                                              SourceLocation LocStart,
+                                              SourceLocation LocEnd,
+                                              SourceLocation PrevTokLoc,
+                                              SourceLocation NextTokLoc) {
+    SpellingRegion SR{SM, LocStart, LocEnd};
+    // If Range begin location is invalid, it's not a comment region.
+    if (PrevTokLoc.isInvalid())
+      return SR;
+    unsigned PrevTokLine = SM.getSpellingLineNumber(PrevTokLoc);
+    unsigned NextTokLine = SM.getSpellingLineNumber(NextTokLoc);
+    SpellingRegion newSR(SR);
+    if (SM.isWrittenInSameFile(LocStart, PrevTokLoc) &&
+        SR.LineStart == PrevTokLine) {
+      newSR.LineStart = SR.LineStart + 1;
+      newSR.ColumnStart = 1;
+    }
+    if (SM.isWrittenInSameFile(LocEnd, NextTokLoc) &&
+        SR.LineEnd == NextTokLine) {
+      newSR.LineEnd = SR.LineEnd - 1;
+      newSR.ColumnEnd = SR.ColumnStart + 1;
+    }
+    if (newSR.isInSourceOrder())
+      return newSR;
+    return None;
+  }
+
   /// Gather all the regions that were skipped by the preprocessor
-  /// using the constructs like #if.
+  /// using the constructs like #if or comments.
   void gatherSkippedRegions() {
     /// An array of the minimum lineStarts and the maximum lineEnds
     /// for mapping regions from the appropriate source files.
@@ -291,18 +349,23 @@ public:
     }
 
     auto SkippedRanges = CVM.getSourceInfo().getSkippedRanges();
-    for (const auto &I : SkippedRanges) {
-      auto LocStart = I.getBegin();
-      auto LocEnd = I.getEnd();
+    for (auto &I : SkippedRanges) {
+      SourceRange Range = I.Range;
+      auto LocStart = Range.getBegin();
+      auto LocEnd = Range.getEnd();
       assert(SM.isWrittenInSameFile(LocStart, LocEnd) &&
              "region spans multiple files");
 
       auto CovFileID = getCoverageFileID(LocStart);
       if (!CovFileID)
         continue;
-      SpellingRegion SR{SM, LocStart, LocEnd};
+      Optional<SpellingRegion> SR =
+          adjustSkippedRange(SM, LocStart, LocEnd, I.PrevTokLoc, I.NextTokLoc);
+      if (!SR.hasValue())
+        continue;
       auto Region = CounterMappingRegion::makeSkipped(
-          *CovFileID, SR.LineStart, SR.ColumnStart, SR.LineEnd, SR.ColumnEnd);
+          *CovFileID, SR->LineStart, SR->ColumnStart, SR->LineEnd,
+          SR->ColumnEnd);
       // Make sure that we only collect the regions that are inside
       // the source code of this function.
       if (Region.LineStart >= FileLineRanges[*CovFileID].first &&
@@ -905,6 +968,18 @@ struct CounterCoverageMappingBuilder
     extendRegion(S);
     if (S->getRetValue())
       Visit(S->getRetValue());
+    terminateRegion(S);
+  }
+
+  void VisitCoroutineBodyStmt(const CoroutineBodyStmt *S) {
+    extendRegion(S);
+    Visit(S->getBody());
+  }
+
+  void VisitCoreturnStmt(const CoreturnStmt *S) {
+    extendRegion(S);
+    if (S->getOperand())
+      Visit(S->getOperand());
     terminateRegion(S);
   }
 

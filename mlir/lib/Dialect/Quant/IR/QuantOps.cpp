@@ -23,8 +23,7 @@ using namespace mlir;
 using namespace mlir::quant;
 using namespace mlir::quant::detail;
 
-QuantizationDialect::QuantizationDialect(MLIRContext *context)
-    : Dialect(/*name=*/"quant", context) {
+void QuantizationDialect::initialize() {
   addTypes<AnyQuantizedType, UniformQuantizedType,
            UniformQuantizedPerAxisType>();
   addOperations<
@@ -36,7 +35,7 @@ QuantizationDialect::QuantizationDialect(MLIRContext *context)
 OpFoldResult StorageCastOp::fold(ArrayRef<Attribute> operands) {
   // Matches x -> [scast -> scast] -> y, replacing the second scast with the
   // value of x if the casts invert each other.
-  auto srcScastOp = dyn_cast_or_null<StorageCastOp>(arg().getDefiningOp());
+  auto srcScastOp = arg().getDefiningOp<StorageCastOp>();
   if (!srcScastOp || srcScastOp.arg().getType() != getType())
     return OpFoldResult();
   return srcScastOp.arg();
@@ -46,7 +45,7 @@ OpFoldResult StorageCastOp::fold(ArrayRef<Attribute> operands) {
 static bool isValidQuantizationSpec(Attribute quantSpec, Type expressed) {
   if (auto typeAttr = quantSpec.dyn_cast<TypeAttr>()) {
     Type spec = typeAttr.getValue();
-    if (spec.isa<TensorType>() || spec.isa<VectorType>())
+    if (spec.isa<TensorType, VectorType>())
       return false;
 
     // The spec should be either a quantized type which is compatible to the

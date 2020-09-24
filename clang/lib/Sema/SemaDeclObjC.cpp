@@ -938,8 +938,7 @@ static bool checkTypeParamListConsistency(Sema &S,
 
       // Override the new type parameter's bound type with the previous type,
       // so that it's consistent.
-      newTypeParam->setTypeSourceInfo(
-        S.Context.getTrivialTypeSourceInfo(prevTypeParam->getUnderlyingType()));
+      S.Context.adjustObjCTypeParamBoundType(prevTypeParam, newTypeParam);
       continue;
     }
 
@@ -966,8 +965,7 @@ static bool checkTypeParamListConsistency(Sema &S,
     }
 
     // Update the new type parameter's bound to match the previous one.
-    newTypeParam->setTypeSourceInfo(
-      S.Context.getTrivialTypeSourceInfo(prevTypeParam->getUnderlyingType()));
+    S.Context.adjustObjCTypeParamBoundType(prevTypeParam, newTypeParam);
   }
 
   return false;
@@ -1274,7 +1272,8 @@ Decl *Sema::ActOnStartProtocolInterface(
 
 static bool NestedProtocolHasNoDefinition(ObjCProtocolDecl *PDecl,
                                           ObjCProtocolDecl *&UndefinedProtocol) {
-  if (!PDecl->hasDefinition() || PDecl->getDefinition()->isHidden()) {
+  if (!PDecl->hasDefinition() ||
+      !PDecl->getDefinition()->isUnconditionallyVisible()) {
     UndefinedProtocol = PDecl;
     return true;
   }
@@ -2123,7 +2122,12 @@ void Sema::CheckImplementationIvars(ObjCImplementationDecl *ImpDecl,
     // Add ivar's to class's DeclContext.
     for (unsigned i = 0, e = numIvars; i != e; ++i) {
       ivars[i]->setLexicalDeclContext(ImpDecl);
-      IDecl->makeDeclVisibleInContext(ivars[i]);
+      // In a 'fragile' runtime the ivar was added to the implicit
+      // ObjCInterfaceDecl while in a 'non-fragile' runtime the ivar is
+      // only in the ObjCImplementationDecl. In the non-fragile case the ivar
+      // therefore also needs to be propagated to the ObjCInterfaceDecl.
+      if (!LangOpts.ObjCRuntime.isFragile())
+        IDecl->makeDeclVisibleInContext(ivars[i]);
       ImpDecl->addDecl(ivars[i]);
     }
 
@@ -2361,7 +2365,7 @@ static bool CheckMethodOverrideReturn(Sema &S,
                      : diag::warn_conflicting_ret_types;
 
   // Mismatches between ObjC pointers go into a different warning
-  // category, and sometimes they're even completely whitelisted.
+  // category, and sometimes they're even completely explicitly allowed.
   if (const ObjCObjectPointerType *ImplPtrTy =
           MethodImpl->getReturnType()->getAs<ObjCObjectPointerType>()) {
     if (const ObjCObjectPointerType *IfacePtrTy =
@@ -2445,7 +2449,7 @@ static bool CheckMethodOverrideParam(Sema &S,
                      : diag::warn_conflicting_param_types;
 
   // Mismatches between ObjC pointers go into a different warning
-  // category, and sometimes they're even completely whitelisted.
+  // category, and sometimes they're even completely explicitly allowed..
   if (const ObjCObjectPointerType *ImplPtrTy =
         ImplTy->getAs<ObjCObjectPointerType>()) {
     if (const ObjCObjectPointerType *IfacePtrTy =
@@ -3237,7 +3241,7 @@ bool Sema::MatchTwoMethodDeclarations(const ObjCMethodDecl *left,
     return false;
 
   // If either is hidden, it is not considered to match.
-  if (left->isHidden() || right->isHidden())
+  if (!left->isUnconditionallyVisible() || !right->isUnconditionallyVisible())
     return false;
 
   if (left->isDirectMethod() != right->isDirectMethod())
@@ -3496,7 +3500,7 @@ bool Sema::CollectMultipleMethodsInGlobalPool(
   ObjCMethodList &MethList = InstanceFirst ? Pos->second.first :
                              Pos->second.second;
   for (ObjCMethodList *M = &MethList; M; M = M->getNext())
-    if (M->getMethod() && !M->getMethod()->isHidden()) {
+    if (M->getMethod() && M->getMethod()->isUnconditionallyVisible()) {
       if (FilterMethodsByTypeBound(M->getMethod(), TypeBound))
         Methods.push_back(M->getMethod());
     }
@@ -3512,7 +3516,7 @@ bool Sema::CollectMultipleMethodsInGlobalPool(
   ObjCMethodList &MethList2 = InstanceFirst ? Pos->second.second :
                               Pos->second.first;
   for (ObjCMethodList *M = &MethList2; M; M = M->getNext())
-    if (M->getMethod() && !M->getMethod()->isHidden()) {
+    if (M->getMethod() && M->getMethod()->isUnconditionallyVisible()) {
       if (FilterMethodsByTypeBound(M->getMethod(), TypeBound))
         Methods.push_back(M->getMethod());
     }
@@ -3559,7 +3563,7 @@ ObjCMethodDecl *Sema::LookupMethodInGlobalPool(Selector Sel, SourceRange R,
   ObjCMethodList &MethList = instance ? Pos->second.first : Pos->second.second;
   SmallVector<ObjCMethodDecl *, 4> Methods;
   for (ObjCMethodList *M = &MethList; M; M = M->getNext()) {
-    if (M->getMethod() && !M->getMethod()->isHidden())
+    if (M->getMethod() && M->getMethod()->isUnconditionallyVisible())
       return M->getMethod();
   }
   return nullptr;
@@ -3923,15 +3927,11 @@ Decl *Sema::ActOnAtEnd(Scope *S, SourceRange AtEnd, ArrayRef<Decl *> allMethods,
   if (auto *OID = dyn_cast<ObjCImplementationDecl>(CurContext)) {
     for (auto PropImpl : OID->property_impls()) {
       if (auto *Getter = PropImpl->getGetterMethodDecl())
-        if (Getter->isSynthesizedAccessorStub()) {
-          OID->makeDeclVisibleInContext(Getter);
+        if (Getter->isSynthesizedAccessorStub())
           OID->addDecl(Getter);
-        }
       if (auto *Setter = PropImpl->getSetterMethodDecl())
-        if (Setter->isSynthesizedAccessorStub()) {
-          OID->makeDeclVisibleInContext(Setter);
+        if (Setter->isSynthesizedAccessorStub())
           OID->addDecl(Setter);
-        }
     }
   }
 

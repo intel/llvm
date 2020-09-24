@@ -32,13 +32,8 @@ int main() {
   /* Check info::device parameters. */
   Device.get_info<info::device::sub_group_independent_forward_progress>();
   Device.get_info<info::device::max_num_sub_groups>();
-  /* sub_group_sizes can be quared only of cl_intel_required_subgroup_size
-   * extention is supported by device*/
-  if (Device.has_extension("cl_intel_required_subgroup_size"))
-    Device.get_info<info::device::sub_group_sizes>();
 
   try {
-    size_t max_sg_num = get_sg_size(Device);
     size_t max_wg_size = Device.get_info<info::device::max_work_group_size>();
     program Prog(Queue.get_context());
     /* TODO: replace with pure SYCL code when fixed problem with consumption
@@ -55,25 +50,27 @@ int main() {
                            "kernel_sg(global double* a, global double* b, "
                            "global double* c) {*a=*b+*c; }\n");
     kernel Kernel = Prog.get_kernel("kernel_sg");
-    size_t Res = 0;
-    for (auto r : {range<3>(3, 4, 5), range<3>(1, 1, 1), range<3>(4, 2, 1),
-                   range<3>(32, 3, 4), range<3>(7, 9, 11)}) {
-      Res = Kernel.get_sub_group_info<
-          info::kernel_sub_group::max_sub_group_size_for_ndrange>(Device, r);
-      exit_if_not_equal(Res, min(r.size(), max_sg_num),
-                        "max_sub_group_size_for_ndrange");
-      Res = Kernel.get_sub_group_info<
-          info::kernel_sub_group::sub_group_count_for_ndrange>(Device, r);
-      exit_if_not_equal<size_t>(
-          Res, r.size() / max_sg_num + (r.size() % max_sg_num ? 1 : 0),
-          "sub_group_count_for_ndrange");
+    uint32_t Res = 0;
+
+    /* sub_group_sizes can be quared only of cl_intel_required_subgroup_size
+     * extention is supported by device*/
+    if (Device.has_extension("cl_intel_required_subgroup_size")) {
+      auto sg_sizes = Device.get_info<info::device::sub_group_sizes>();
+      for (auto r : {range<3>(3, 4, 5), range<3>(1, 1, 1), range<3>(4, 2, 1),
+                     range<3>(32, 3, 4), range<3>(7, 9, 11)}) {
+        Res = Kernel.get_sub_group_info<
+            info::kernel_sub_group::max_sub_group_size>(Device, r);
+        bool Expected =
+            std::find(sg_sizes.begin(), sg_sizes.end(), Res) != sg_sizes.end();
+        exit_if_not_equal<bool>(Expected, true, "max_sub_group_size");
+      }
     }
 
     Res = Kernel.get_sub_group_info<
         info::kernel_sub_group::compile_num_sub_groups>(Device);
 
     /* Sub-group size is not specified in kernel or IL*/
-    exit_if_not_equal<size_t>(Res, 0, "compile_num_sub_groups");
+    exit_if_not_equal<uint32_t>(Res, 0, "compile_num_sub_groups");
 
     // According to specification, this kernel query requires `cl_khr_subgroups`
     // or `cl_intel_subgroups`
@@ -84,32 +81,9 @@ int main() {
           info::kernel_sub_group::compile_sub_group_size>(Device);
 
       /* Required sub-group size is not specified in kernel or IL*/
-      exit_if_not_equal<size_t>(Res, 0, "compile_sub_group_size");
+      exit_if_not_equal<uint32_t>(Res, 0, "compile_sub_group_size");
     }
 
-    /* Check work-group sizea which can accommodate the requested number of
-     * sub-groups*/
-    for (auto s : {(size_t)200, (size_t)1, (size_t)3, (size_t)5, (size_t)7,
-                   (size_t)13, max_sg_num, max_sg_num + 1}) {
-      range<3> ResRange = Kernel.get_sub_group_info<
-          info::kernel_sub_group::local_size_for_sub_group_count>(Device, s);
-      if (s * max_sg_num <= max_wg_size) {
-        exit_if_not_equal<size_t>(ResRange[0], s * max_sg_num,
-                                  "local_size_for_sub_group_count[0]");
-        exit_if_not_equal<size_t>(ResRange[1], 1,
-                                  "local_size_for_sub_group_count[1]");
-        exit_if_not_equal<size_t>(ResRange[2], 1,
-                                  "local_size_for_sub_group_count[2]");
-
-      } else {
-        exit_if_not_equal<size_t>(ResRange[0], 0,
-                                  "local_size_for_sub_group_count[0]");
-        exit_if_not_equal<size_t>(ResRange[1], 0,
-                                  "local_size_for_sub_group_count[1]");
-        exit_if_not_equal<size_t>(ResRange[2], 0,
-                                  "local_size_for_sub_group_count[2]");
-      }
-    }
   } catch (exception e) {
     std::cout << "SYCL exception caught: " << e.what();
     return 1;

@@ -2,14 +2,7 @@
 //
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
-// XFAIL: *
-//==----------- spec_const_aot.cpp -----------------------------------------==//
 //
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
 // The test checks that the specialization constant feature works with ahead
 // of time compilation.
 
@@ -39,10 +32,11 @@ int main(int argc, char **argv) {
     }
   });
 
-  std::cout << "Running on " << q.get_device().get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << q.get_device().get_info<info::device::name>()
+            << "\n";
   cl::sycl::program prog(q.get_context());
 
-  cl::sycl::experimental::spec_constant<int32_t, MyInt32Const> i32 =
+  cl::sycl::ONEAPI::experimental::spec_constant<int32_t, MyInt32Const> i32 =
       prog.set_spec_constant<MyInt32Const>(10);
 
   prog.build_with_kernel_type<Kernel>();
@@ -53,11 +47,8 @@ int main(int argc, char **argv) {
 
     q.submit([&](cl::sycl::handler &cgh) {
       auto acc = buf.get_access<cl::sycl::access::mode::write>(cgh);
-      cgh.single_task<Kernel>(
-          prog.get_kernel<Kernel>(),
-          [=]() {
-            acc[0] = i32.get();
-          });
+      cgh.single_task<Kernel>(prog.get_kernel<Kernel>(),
+                              [=]() { acc[0] = i32.get(); });
     });
   }
   bool passed = true;

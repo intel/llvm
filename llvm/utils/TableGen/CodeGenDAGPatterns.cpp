@@ -999,9 +999,9 @@ std::string TreePredicateFn::getPredCode() const {
 
     int64_t MinAlign = getMinAlignment();
     if (MinAlign > 0) {
-      Code += "if (cast<MemSDNode>(N)->getAlignment() < ";
+      Code += "if (cast<MemSDNode>(N)->getAlign() < Align(";
       Code += utostr(MinAlign);
-      Code += ")\nreturn false;\n";
+      Code += "))\nreturn false;\n";
     }
 
     Record *MemoryVT = getMemoryVT();
@@ -3589,6 +3589,9 @@ static bool hasNullFragReference(DagInit *DI) {
   if (Operator->getName() == "null_frag") return true;
   // If any of the arguments reference the null fragment, return true.
   for (unsigned i = 0, e = DI->getNumArgs(); i != e; ++i) {
+    if (auto Arg = dyn_cast<DefInit>(DI->getArg(i)))
+      if (Arg->getDef()->getName() == "null_frag")
+        return true;
     DagInit *Arg = dyn_cast<DagInit>(DI->getArg(i));
     if (Arg && hasNullFragReference(Arg))
       return true;

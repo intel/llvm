@@ -1,4 +1,4 @@
-//===---------- Implementation of PublicAPICommand --------------*- C++ -*-===//
+//===-- Implementation of PublicAPICommand ----------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,13 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef LLVM_LIBC_UTILS_HDRGEN_PUBLICAPICOMMAND_H
+#define LLVM_LIBC_UTILS_HDRGEN_PUBLICAPICOMMAND_H
+
 #include "Command.h"
 
 #include "llvm/ADT/StringRef.h"
-
-#include <string>
-#include <unordered_map>
-#include <unordered_set>
+#include "llvm/TableGen/Error.h"
+#include "llvm/TableGen/Record.h"
 
 namespace llvm {
 
@@ -34,3 +35,5 @@ public:
 };
 
 } // namespace llvm_libc
+
+#endif // LLVM_LIBC_UTILS_HDRGEN_PUBLICAPICOMMAND_H

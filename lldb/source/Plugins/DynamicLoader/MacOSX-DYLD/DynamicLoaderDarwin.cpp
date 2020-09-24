@@ -16,6 +16,7 @@
 #include "lldb/Core/Section.h"
 #include "lldb/Expression/DiagnosticManager.h"
 #include "lldb/Host/FileSystem.h"
+#include "lldb/Host/HostInfo.h"
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Target/ABI.h"
@@ -123,19 +124,39 @@ ModuleSP DynamicLoaderDarwin::FindTargetModuleForImageInfo(
       module_sp.reset();
   }
 
-  if (!module_sp) {
-    if (can_create) {
-      // We'll call Target::ModulesDidLoad after all the modules have been
-      // added to the target, don't let it be called for every one.
-      module_sp = target.GetOrCreateModule(module_spec, false /* notify */);
-      if (!module_sp || module_sp->GetObjectFile() == nullptr)
-        module_sp = m_process->ReadModuleFromMemory(image_info.file_spec,
-                                                    image_info.address);
+  if (module_sp || !can_create)
+    return module_sp;
 
-      if (did_create_ptr)
-        *did_create_ptr = (bool)module_sp;
+  if (HostInfo::GetArchitecture().IsCompatibleMatch(target.GetArchitecture())) {
+    // When debugging on the host, we are most likely using the same shared
+    // cache as our inferior. The dylibs from the shared cache might not
+    // exist on the filesystem, so let's use the images in our own memory
+    // to create the modules.
+    // Check if the requested image is in our shared cache.
+    SharedCacheImageInfo image_info =
+        HostInfo::GetSharedCacheImageInfo(module_spec.GetFileSpec().GetPath());
+
+    // If we found it and it has the correct UUID, let's proceed with
+    // creating a module from the memory contents.
+    if (image_info.uuid &&
+        (!module_spec.GetUUID() || module_spec.GetUUID() == image_info.uuid)) {
+      ModuleSpec shared_cache_spec(module_spec.GetFileSpec(), image_info.uuid,
+                                   image_info.data_sp);
+      module_sp =
+          target.GetOrCreateModule(shared_cache_spec, false /* notify */);
     }
   }
+  // We'll call Target::ModulesDidLoad after all the modules have been
+  // added to the target, don't let it be called for every one.
+  if (!module_sp)
+    module_sp = target.GetOrCreateModule(module_spec, false /* notify */);
+  if (!module_sp || module_sp->GetObjectFile() == nullptr)
+    module_sp = m_process->ReadModuleFromMemory(image_info.file_spec,
+                                                image_info.address);
+
+  if (did_create_ptr)
+    *did_create_ptr = (bool)module_sp;
+
   return module_sp;
 }
 
@@ -556,7 +577,8 @@ void DynamicLoaderDarwin::UpdateSpecialBinariesFromNewImageInfos(
     }
   }
 
-  if (exe_idx != UINT32_MAX) {
+  // Set the target executable if we haven't found one so far.
+  if (exe_idx != UINT32_MAX && !target.GetExecutableModule()) {
     const bool can_create = true;
     ModuleSP exe_module_sp(FindTargetModuleForImageInfo(image_infos[exe_idx],
                                                         can_create, nullptr));
@@ -681,19 +703,17 @@ bool DynamicLoaderDarwin::AddModulesUsingImageInfos(
         loaded_module_list.AppendIfNeeded(image_module_sp);
       }
 
-      // macCataylst support:
-      // Update the module's platform with the DYLD info.
+      // To support macCatalyst and legacy iOS simulator,
+      // update the module's platform with the DYLD info.
       ArchSpec dyld_spec = image_infos[idx].GetArchitecture();
-      if (dyld_spec.GetTriple().getOS() == llvm::Triple::IOS &&
-          dyld_spec.GetTriple().getEnvironment() == llvm::Triple::MacABI) {
+      auto &dyld_triple = dyld_spec.GetTriple();
+      if ((dyld_triple.getEnvironment() == llvm::Triple::MacABI &&
+           dyld_triple.getOS() == llvm::Triple::IOS) ||
+          (dyld_triple.getEnvironment() == llvm::Triple::Simulator &&
+           (dyld_triple.getOS() == llvm::Triple::IOS ||
+            dyld_triple.getOS() == llvm::Triple::TvOS ||
+            dyld_triple.getOS() == llvm::Triple::WatchOS)))
         image_module_sp->MergeArchitecture(dyld_spec);
-        const auto &target_triple = target.GetArchitecture().GetTriple();
-        // If dyld reports the process as being loaded as MACCATALYST,
-        // force-update the target's architecture to MACCATALYST.
-        if (!(target_triple.getOS() == llvm::Triple::IOS &&
-              target_triple.getEnvironment() == llvm::Triple::MacABI))
-          target.SetArchitecture(dyld_spec);
-      }
     }
   }
 
@@ -755,12 +775,22 @@ lldb_private::ArchSpec DynamicLoaderDarwin::ImageInfo::GetArchitecture() const {
   // Update the module's platform with the DYLD info.
   lldb_private::ArchSpec arch_spec(lldb_private::eArchTypeMachO, header.cputype,
                                    header.cpusubtype);
-  if (os_type == llvm::Triple::IOS && os_env == llvm::Triple::MacABI) {
-    llvm::Triple triple(llvm::Twine("x86_64-apple-ios") + min_version_os_sdk +
-                        "-macabi");
+  if (os_env == llvm::Triple::MacABI && os_type == llvm::Triple::IOS) {
+    llvm::Triple triple(llvm::Twine(arch_spec.GetArchitectureName()) +
+                        "-apple-ios" + min_version_os_sdk + "-macabi");
     ArchSpec maccatalyst_spec(triple);
     if (arch_spec.IsCompatibleMatch(maccatalyst_spec))
       arch_spec.MergeFrom(maccatalyst_spec);
+  }
+  if (os_env == llvm::Triple::Simulator &&
+      (os_type == llvm::Triple::IOS || os_type == llvm::Triple::TvOS ||
+       os_type == llvm::Triple::WatchOS)) {
+    llvm::Triple triple(llvm::Twine(arch_spec.GetArchitectureName()) +
+                        "-apple-" + llvm::Triple::getOSTypeName(os_type) +
+                        min_version_os_sdk + "-simulator");
+    ArchSpec sim_spec(triple);
+    if (arch_spec.IsCompatibleMatch(sim_spec))
+      arch_spec.MergeFrom(sim_spec);
   }
   return arch_spec;
 }

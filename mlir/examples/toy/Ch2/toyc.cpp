@@ -15,9 +15,10 @@
 #include "toy/Parser.h"
 #include <memory>
 
-#include "mlir/Analysis/Verifier.h"
+#include "mlir/IR/AsmState.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Module.h"
+#include "mlir/IR/Verifier.h"
 #include "mlir/Parser.h"
 
 #include "llvm/ADT/StringRef.h"
@@ -67,10 +68,9 @@ std::unique_ptr<toy::ModuleAST> parseInputFile(llvm::StringRef filename) {
 }
 
 int dumpMLIR() {
-  // Register our Dialect with MLIR.
-  mlir::registerDialect<mlir::toy::ToyDialect>();
-
-  mlir::MLIRContext context;
+  mlir::MLIRContext context(/*loadAllDialects=*/false);
+  // Load our Dialect in this MLIR Context.
+  context.getOrLoadDialect<mlir::toy::ToyDialect>();
 
   // Handle '.toy' input to the compiler.
   if (inputType != InputType::MLIR &&
@@ -122,6 +122,9 @@ int dumpAST() {
 }
 
 int main(int argc, char **argv) {
+  // Register any command line options.
+  mlir::registerAsmPrinterCLOptions();
+  mlir::registerMLIRContextCLOptions();
   cl::ParseCommandLineOptions(argc, argv, "toy compiler\n");
 
   switch (emitAction) {

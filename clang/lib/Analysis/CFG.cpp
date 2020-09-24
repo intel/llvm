@@ -223,8 +223,6 @@ private:
 ///
 class LocalScope {
 public:
-  friend class const_iterator;
-
   using AutomaticVarsTy = BumpVector<VarDecl *>;
 
   /// const_iterator - Iterates local scope backwards and jumps to previous
@@ -2839,11 +2837,30 @@ CFGBlock *CFGBuilder::VisitDeclStmt(DeclStmt *DS) {
 /// DeclStmts and initializers in them.
 CFGBlock *CFGBuilder::VisitDeclSubExpr(DeclStmt *DS) {
   assert(DS->isSingleDecl() && "Can handle single declarations only.");
+
+  if (const auto *TND = dyn_cast<TypedefNameDecl>(DS->getSingleDecl())) {
+    // If we encounter a VLA, process its size expressions.
+    const Type *T = TND->getUnderlyingType().getTypePtr();
+    if (!T->isVariablyModifiedType())
+      return Block;
+
+    autoCreateBlock();
+    appendStmt(Block, DS);
+
+    CFGBlock *LastBlock = Block;
+    for (const VariableArrayType *VA = FindVA(T); VA != nullptr;
+         VA = FindVA(VA->getElementType().getTypePtr())) {
+      if (CFGBlock *NewBlock = addStmt(VA->getSizeExpr()))
+        LastBlock = NewBlock;
+    }
+    return LastBlock;
+  }
+
   VarDecl *VD = dyn_cast<VarDecl>(DS->getSingleDecl());
 
   if (!VD) {
-    // Of everything that can be declared in a DeclStmt, only VarDecls impact
-    // runtime semantics.
+    // Of everything that can be declared in a DeclStmt, only VarDecls and the
+    // exceptions above impact runtime semantics.
     return Block;
   }
 
@@ -2905,6 +2922,8 @@ CFGBlock *CFGBuilder::VisitDeclSubExpr(DeclStmt *DS) {
   }
 
   // If the type of VD is a VLA, then we must process its size expressions.
+  // FIXME: This does not find the VLA if it is embedded in other types,
+  // like here: `int (*p_vla)[x];`
   for (const VariableArrayType* VA = FindVA(VD->getType().getTypePtr());
        VA != nullptr; VA = FindVA(VA->getElementType().getTypePtr())) {
     if (CFGBlock *newBlock = addStmt(VA->getSizeExpr()))
@@ -3997,6 +4016,11 @@ CFGBlock *CFGBuilder::VisitUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr *E,
   }
 
   // VLA types have expressions that must be evaluated.
+  // Evaluation is done only for `sizeof`.
+
+  if (E->getKind() != UETT_SizeOf)
+    return Block;
+
   CFGBlock *lastBlock = Block;
 
   if (E->isArgumentType()) {
@@ -4749,11 +4773,11 @@ CFGBlock *CFGBuilder::VisitChildrenForTemporaryDtors(Stmt *E,
 CFGBlock *CFGBuilder::VisitBinaryOperatorForTemporaryDtors(
     BinaryOperator *E, bool ExternallyDestructed, TempDtorContext &Context) {
   if (E->isCommaOp()) {
-    // For comma operator LHS expression is visited
-    // before RHS expression. For destructors visit them in reverse order.
-    CFGBlock *RHSBlock = VisitForTemporaryDtors(E->getRHS(), ExternallyDestructed, Context);
+    // For the comma operator, the LHS expression is evaluated before the RHS
+    // expression, so prepend temporary destructors for the LHS first.
     CFGBlock *LHSBlock = VisitForTemporaryDtors(E->getLHS(), false, Context);
-    return LHSBlock ? LHSBlock : RHSBlock;
+    CFGBlock *RHSBlock = VisitForTemporaryDtors(E->getRHS(), ExternallyDestructed, Context);
+    return RHSBlock ? RHSBlock : LHSBlock;
   }
 
   if (E->isLogicalOp()) {
@@ -4774,19 +4798,15 @@ CFGBlock *CFGBuilder::VisitBinaryOperatorForTemporaryDtors(
   }
 
   if (E->isAssignmentOp()) {
-    // For assignment operator (=) LHS expression is visited
-    // before RHS expression. For destructors visit them in reverse order.
+    // For assignment operators, the RHS expression is evaluated before the LHS
+    // expression, so prepend temporary destructors for the RHS first.
     CFGBlock *RHSBlock = VisitForTemporaryDtors(E->getRHS(), false, Context);
     CFGBlock *LHSBlock = VisitForTemporaryDtors(E->getLHS(), false, Context);
     return LHSBlock ? LHSBlock : RHSBlock;
   }
 
-  // For any other binary operator RHS expression is visited before
-  // LHS expression (order of children). For destructors visit them in reverse
-  // order.
-  CFGBlock *LHSBlock = VisitForTemporaryDtors(E->getLHS(), false, Context);
-  CFGBlock *RHSBlock = VisitForTemporaryDtors(E->getRHS(), false, Context);
-  return RHSBlock ? RHSBlock : LHSBlock;
+  // Any other operator is visited normally.
+  return VisitChildrenForTemporaryDtors(E, ExternallyDestructed, Context);
 }
 
 CFGBlock *CFGBuilder::VisitCXXBindTemporaryExprForTemporaryDtors(
@@ -4893,14 +4913,13 @@ CFGBlock *CFGBuilder::VisitOMPExecutableDirective(OMPExecutableDirective *D,
       B = R;
   }
   // Visit associated structured block if any.
-  if (!D->isStandaloneDirective())
-    if (CapturedStmt *CS = D->getInnermostCapturedStmt()) {
-      Stmt *S = CS->getCapturedStmt();
-      if (!isa<CompoundStmt>(S))
-        addLocalScopeAndDtors(S);
-      if (CFGBlock *R = addStmt(S))
-        B = R;
-    }
+  if (!D->isStandaloneDirective()) {
+    Stmt *S = D->getRawStmt();
+    if (!isa<CompoundStmt>(S))
+      addLocalScopeAndDtors(S);
+    if (CFGBlock *R = addStmt(S))
+      B = R;
+  }
 
   return B;
 }

@@ -16,14 +16,15 @@
 #include "WebAssemblyISelLowering.h"
 #include "WebAssemblySubtarget.h"
 #include "llvm/CodeGen/Analysis.h"
+#include "llvm/Target/TargetMachine.h"
 using namespace llvm;
 
 WebAssemblyFunctionInfo::~WebAssemblyFunctionInfo() = default; // anchor.
 
-void WebAssemblyFunctionInfo::initWARegs() {
+void WebAssemblyFunctionInfo::initWARegs(MachineRegisterInfo &MRI) {
   assert(WARegs.empty());
   unsigned Reg = UnusedReg;
-  WARegs.resize(MF.getRegInfo().getNumVirtRegs(), Reg);
+  WARegs.resize(MRI.getNumVirtRegs(), Reg);
 }
 
 void llvm::computeLegalValueVTs(const Function &F, const TargetMachine &TM,

@@ -9,15 +9,12 @@
 #ifndef MLIR_PASS_PASSINSTRUMENTATION_H_
 #define MLIR_PASS_PASSINSTRUMENTATION_H_
 
+#include "mlir/IR/Identifier.h"
 #include "mlir/Support/LLVM.h"
-#include "mlir/Support/STLExtras.h"
-#include "llvm/ADT/DenseMapInfo.h"
-#include "llvm/ADT/StringRef.h"
+#include "mlir/Support/TypeID.h"
 
 namespace mlir {
-using AnalysisID = ClassID;
 class Operation;
-class OperationName;
 class Pass;
 
 namespace detail {
@@ -46,13 +43,13 @@ public:
   /// A callback to run before a pass pipeline is executed. This function takes
   /// the name of the operation type being operated on, and information related
   /// to the parent that spawned this pipeline.
-  virtual void runBeforePipeline(const OperationName &name,
+  virtual void runBeforePipeline(Identifier name,
                                  const PipelineParentInfo &parentInfo) {}
 
   /// A callback to run after a pass pipeline has executed. This function takes
   /// the name of the operation type being operated on, and information related
   /// to the parent that spawned this pipeline.
-  virtual void runAfterPipeline(const OperationName &name,
+  virtual void runAfterPipeline(Identifier name,
                                 const PipelineParentInfo &parentInfo) {}
 
   /// A callback to run before a pass is executed. This function takes a pointer
@@ -72,16 +69,14 @@ public:
   virtual void runAfterPassFailed(Pass *pass, Operation *op) {}
 
   /// A callback to run before an analysis is computed. This function takes the
-  /// name of the analysis to be computed, its AnalysisID, as well as the
+  /// name of the analysis to be computed, its TypeID, as well as the
   /// current operation being analyzed.
-  virtual void runBeforeAnalysis(StringRef name, AnalysisID *id,
-                                 Operation *op) {}
+  virtual void runBeforeAnalysis(StringRef name, TypeID id, Operation *op) {}
 
   /// A callback to run before an analysis is computed. This function takes the
-  /// name of the analysis that was computed, its AnalysisID, as well as the
+  /// name of the analysis that was computed, its TypeID, as well as the
   /// current operation being analyzed.
-  virtual void runAfterAnalysis(StringRef name, AnalysisID *id, Operation *op) {
-  }
+  virtual void runAfterAnalysis(StringRef name, TypeID id, Operation *op) {}
 };
 
 /// This class holds a collection of PassInstrumentation objects, and invokes
@@ -95,12 +90,12 @@ public:
 
   /// See PassInstrumentation::runBeforePipeline for details.
   void
-  runBeforePipeline(const OperationName &name,
+  runBeforePipeline(Identifier name,
                     const PassInstrumentation::PipelineParentInfo &parentInfo);
 
   /// See PassInstrumentation::runAfterPipeline for details.
   void
-  runAfterPipeline(const OperationName &name,
+  runAfterPipeline(Identifier name,
                    const PassInstrumentation::PipelineParentInfo &parentInfo);
 
   /// See PassInstrumentation::runBeforePass for details.
@@ -113,10 +108,10 @@ public:
   void runAfterPassFailed(Pass *pass, Operation *op);
 
   /// See PassInstrumentation::runBeforeAnalysis for details.
-  void runBeforeAnalysis(StringRef name, AnalysisID *id, Operation *op);
+  void runBeforeAnalysis(StringRef name, TypeID id, Operation *op);
 
   /// See PassInstrumentation::runAfterAnalysis for details.
-  void runAfterAnalysis(StringRef name, AnalysisID *id, Operation *op);
+  void runAfterAnalysis(StringRef name, TypeID id, Operation *op);
 
   /// Add the given instrumentation to the collection.
   void addInstrumentation(std::unique_ptr<PassInstrumentation> pi);

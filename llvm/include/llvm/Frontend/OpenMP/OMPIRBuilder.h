@@ -156,6 +156,7 @@ public:
   /// Generator for '#omp parallel'
   ///
   /// \param Loc The insert and source location description.
+  /// \param AllocaIP The insertion points to be used for alloca instructions.
   /// \param BodyGenCB Callback that will generate the region code.
   /// \param PrivCB Callback to copy a given variable (think copy constructor).
   /// \param FiniCB Callback to finalize variable copies.
@@ -166,10 +167,11 @@ public:
   ///
   /// \returns The insertion position *after* the parallel.
   IRBuilder<>::InsertPoint
-  CreateParallel(const LocationDescription &Loc, BodyGenCallbackTy BodyGenCB,
-                 PrivatizeCallbackTy PrivCB, FinalizeCallbackTy FiniCB,
-                 Value *IfCondition, Value *NumThreads,
-                 omp::ProcBindKind ProcBind, bool IsCancellable);
+  CreateParallel(const LocationDescription &Loc, InsertPointTy AllocaIP,
+                 BodyGenCallbackTy BodyGenCB, PrivatizeCallbackTy PrivCB,
+                 FinalizeCallbackTy FiniCB, Value *IfCondition,
+                 Value *NumThreads, omp::ProcBindKind ProcBind,
+                 bool IsCancellable);
 
   /// Generator for '#omp flush'
   ///
@@ -199,7 +201,10 @@ public:
   }
 
   /// Return the function declaration for the runtime function with \p FnID.
-  Function *getOrCreateRuntimeFunction(omp::RuntimeFunction FnID);
+  FunctionCallee getOrCreateRuntimeFunction(Module &M,
+                                            omp::RuntimeFunction FnID);
+
+  Function *getOrCreateRuntimeFunctionPtr(omp::RuntimeFunction FnID);
 
   /// Return the (LLVM-IR) string describing the source location \p LocStr.
   Constant *getOrCreateSrcLocStr(StringRef LocStr);
@@ -207,12 +212,19 @@ public:
   /// Return the (LLVM-IR) string describing the default source location.
   Constant *getOrCreateDefaultSrcLocStr();
 
+  /// Return the (LLVM-IR) string describing the source location identified by
+  /// the arguments.
+  Constant *getOrCreateSrcLocStr(StringRef FunctionName, StringRef FileName,
+                                 unsigned Line, unsigned Column);
+
   /// Return the (LLVM-IR) string describing the source location \p Loc.
   Constant *getOrCreateSrcLocStr(const LocationDescription &Loc);
 
   /// Return an ident_t* encoding the source location \p SrcLocStr and \p Flags.
+  /// TODO: Create a enum class for the Reserve2Flags
   Value *getOrCreateIdent(Constant *SrcLocStr,
-                          omp::IdentFlag Flags = omp::IdentFlag(0));
+                          omp::IdentFlag Flags = omp::IdentFlag(0),
+                          unsigned Reserve2Flags = 0);
 
   /// Generate control flow and cleanup for cancellation.
   ///
@@ -277,14 +289,19 @@ public:
   StringMap<Constant *> SrcLocStrMap;
 
   /// Map to remember existing ident_t*.
-  DenseMap<std::pair<Constant *, uint64_t>, GlobalVariable *> IdentMap;
+  DenseMap<std::pair<Constant *, uint64_t>, Value *> IdentMap;
 
   /// Helper that contains information about regions we need to outline
   /// during finalization.
   struct OutlineInfo {
-    SmallVector<BasicBlock *, 32> Blocks;
     using PostOutlineCBTy = std::function<void(Function &)>;
     PostOutlineCBTy PostOutlineCB;
+    BasicBlock *EntryBB, *ExitBB;
+
+    /// Collect all blocks in between EntryBB and ExitBB in both the given
+    /// vector and set.
+    void collectBlocks(SmallPtrSetImpl<BasicBlock *> &BlockSet,
+                       SmallVectorImpl<BasicBlock *> &BlockVector);
   };
 
   /// Collection of regions that need to be outlined during finalization.
@@ -301,6 +318,32 @@ public:
   StringMap<AssertingVH<Constant>, BumpPtrAllocator> InternalVars;
 
 public:
+  /// Generator for __kmpc_copyprivate
+  ///
+  /// \param Loc The source location description.
+  /// \param BufSize Number of elements in the buffer.
+  /// \param CpyBuf List of pointers to data to be copied.
+  /// \param CpyFn function to call for copying data.
+  /// \param DidIt flag variable; 1 for 'single' thread, 0 otherwise.
+  ///
+  /// \return The insertion position *after* the CopyPrivate call.
+
+  InsertPointTy CreateCopyPrivate(const LocationDescription &Loc,
+                                  llvm::Value *BufSize, llvm::Value *CpyBuf,
+                                  llvm::Value *CpyFn, llvm::Value *DidIt);
+
+  /// Generator for '#omp single'
+  ///
+  /// \param Loc The source location description.
+  /// \param BodyGenCB Callback that will generate the region code.
+  /// \param FiniCB Callback to finalize variable copies.
+  /// \param DidIt Local variable used as a flag to indicate 'single' thread
+  ///
+  /// \returns The insertion position *after* the single call.
+  InsertPointTy CreateSingle(const LocationDescription &Loc,
+                             BodyGenCallbackTy BodyGenCB,
+                             FinalizeCallbackTy FiniCB, llvm::Value *DidIt);
+
   /// Generator for '#omp master'
   ///
   /// \param Loc The insert and source location description.
@@ -312,7 +355,7 @@ public:
                              BodyGenCallbackTy BodyGenCB,
                              FinalizeCallbackTy FiniCB);
 
-  /// Generator for '#omp master'
+  /// Generator for '#omp critical'
   ///
   /// \param Loc The insert and source location description.
   /// \param BodyGenCB Callback that will generate the region body code.
@@ -326,7 +369,83 @@ public:
                                FinalizeCallbackTy FiniCB,
                                StringRef CriticalName, Value *HintInst);
 
+  /// Generate conditional branch and relevant BasicBlocks through which private
+  /// threads copy the 'copyin' variables from Master copy to threadprivate
+  /// copies.
+  ///
+  /// \param IP insertion block for copyin conditional
+  /// \param MasterVarPtr a pointer to the master variable
+  /// \param PrivateVarPtr a pointer to the threadprivate variable
+  /// \param IntPtrTy Pointer size type
+  /// \param BranchtoEnd Create a branch between the copyin.not.master blocks
+  //				 and copy.in.end block
+  ///
+  /// \returns The insertion point where copying operation to be emitted.
+  InsertPointTy CreateCopyinClauseBlocks(InsertPointTy IP, Value *MasterAddr,
+                                         Value *PrivateAddr,
+                                         llvm::IntegerType *IntPtrTy,
+                                         bool BranchtoEnd = true);
+
+  /// Create a runtime call for kmpc_Alloc
+  ///
+  /// \param Loc The insert and source location description.
+  /// \param Size Size of allocated memory space
+  /// \param Allocator Allocator information instruction
+  /// \param Name Name of call Instruction for OMP_alloc
+  ///
+  /// \returns CallInst to the OMP_Alloc call
+  CallInst *CreateOMPAlloc(const LocationDescription &Loc, Value *Size,
+                           Value *Allocator, std::string Name = "");
+
+  /// Create a runtime call for kmpc_free
+  ///
+  /// \param Loc The insert and source location description.
+  /// \param Addr Address of memory space to be freed
+  /// \param Allocator Allocator information instruction
+  /// \param Name Name of call Instruction for OMP_Free
+  ///
+  /// \returns CallInst to the OMP_Free call
+  CallInst *CreateOMPFree(const LocationDescription &Loc, Value *Addr,
+                          Value *Allocator, std::string Name = "");
+
+  /// Create a runtime call for kmpc_threadprivate_cached
+  ///
+  /// \param Loc The insert and source location description.
+  /// \param Pointer pointer to data to be cached
+  /// \param Size size of data to be cached
+  /// \param Name Name of call Instruction for callinst
+  ///
+  /// \returns CallInst to the thread private cache call.
+  CallInst *CreateCachedThreadPrivate(const LocationDescription &Loc,
+                                      llvm::Value *Pointer,
+                                      llvm::ConstantInt *Size,
+                                      const llvm::Twine &Name = Twine(""));
+
+  /// Declarations for LLVM-IR types (simple, array, function and structure) are
+  /// generated below. Their names are defined and used in OpenMPKinds.def. Here
+  /// we provide the declarations, the initializeTypes function will provide the
+  /// values.
+  ///
+  ///{
+#define OMP_TYPE(VarName, InitValue) Type *VarName = nullptr;
+#define OMP_ARRAY_TYPE(VarName, ElemTy, ArraySize)                             \
+  ArrayType *VarName##Ty = nullptr;                                            \
+  PointerType *VarName##PtrTy = nullptr;
+#define OMP_FUNCTION_TYPE(VarName, IsVarArg, ReturnType, ...)                  \
+  FunctionType *VarName = nullptr;                                             \
+  PointerType *VarName##Ptr = nullptr;
+#define OMP_STRUCT_TYPE(VarName, StrName, ...)                                 \
+  StructType *VarName = nullptr;                                               \
+  PointerType *VarName##Ptr = nullptr;
+#include "llvm/Frontend/OpenMP/OMPKinds.def"
+
+  ///}
+
 private:
+  /// Create all simple and struct types exposed by the runtime and remember
+  /// the llvm::PointerTypes of them for easy access later.
+  void initializeTypes(Module &M);
+
   /// Common interface for generating entry calls for OMP Directives.
   /// if the directive has a region/body, It will set the insertion
   /// point to the body
@@ -384,7 +503,7 @@ private:
   /// \param Parts different parts of the final name that needs separation
   /// \param FirstSeparator First separator used between the initial two
   ///        parts of the name.
-  /// \param Separator separator used between all of the rest consecutinve
+  /// \param Separator separator used between all of the rest consecutive
   ///        parts of the name
   static std::string getNameWithSeparators(ArrayRef<StringRef> Parts,
                                            StringRef FirstSeparator,

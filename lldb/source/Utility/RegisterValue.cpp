@@ -728,7 +728,8 @@ const void *RegisterValue::GetBytes() const {
   case eTypeFloat:
   case eTypeDouble:
   case eTypeLongDouble:
-    return m_scalar.GetBytes();
+    m_scalar.GetBytes(buffer.bytes);
+    return buffer.bytes;
   case eTypeBytes:
     return buffer.bytes;
   }
@@ -810,7 +811,7 @@ bool RegisterValue::operator==(const RegisterValue &rhs) const {
       if (buffer.length != rhs.buffer.length)
         return false;
       else {
-        uint8_t length = buffer.length;
+        uint16_t length = buffer.length;
         if (length > kMaxRegisterByteSize)
           length = kMaxRegisterByteSize;
         return memcmp(buffer.bytes, rhs.buffer.bytes, length) == 0;

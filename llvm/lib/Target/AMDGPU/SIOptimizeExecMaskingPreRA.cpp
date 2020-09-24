@@ -71,9 +71,33 @@ FunctionPass *llvm::createSIOptimizeExecMaskingPreRAPass() {
 static bool isFullExecCopy(const MachineInstr& MI, const GCNSubtarget& ST) {
   unsigned Exec = ST.isWave32() ? AMDGPU::EXEC_LO : AMDGPU::EXEC;
 
-  if (MI.isCopy() && MI.getOperand(1).getReg() == Exec) {
-    assert(MI.isFullCopy());
+  if (MI.isFullCopy() && MI.getOperand(1).getReg() == Exec)
     return true;
+
+  return false;
+}
+
+// See if there is a def between \p AndIdx and \p SelIdx that needs to live
+// beyond \p AndIdx.
+static bool isDefBetween(const LiveRange &LR, SlotIndex AndIdx,
+                         SlotIndex SelIdx) {
+  LiveQueryResult AndLRQ = LR.Query(AndIdx);
+  return (!AndLRQ.isKill() && AndLRQ.valueIn() != LR.Query(SelIdx).valueOut());
+}
+
+// FIXME: Why do we bother trying to handle physical registers here?
+static bool isDefBetween(const SIRegisterInfo &TRI,
+                         LiveIntervals *LIS, Register Reg,
+                         const MachineInstr &Sel, const MachineInstr &And) {
+  SlotIndex AndIdx = LIS->getInstructionIndex(And);
+  SlotIndex SelIdx = LIS->getInstructionIndex(Sel);
+
+  if (Reg.isVirtual())
+    return isDefBetween(LIS->getInterval(Reg), AndIdx, SelIdx);
+
+  for (MCRegUnitIterator UI(Reg, &TRI); UI.isValid(); ++UI) {
+    if (isDefBetween(LIS->getRegUnit(*UI), AndIdx, SelIdx))
+      return true;
   }
 
   return false;
@@ -160,16 +184,27 @@ static unsigned optimizeVcndVcmpPair(MachineBasicBlock &MBB,
       Op1->getImm() != 0 || Op2->getImm() != 1)
     return AMDGPU::NoRegister;
 
+  Register CCReg = CC->getReg();
+
+  // If there was a def between the select and the and, we would need to move it
+  // to fold this.
+  if (isDefBetween(*TRI, LIS, CCReg, *Sel, *And))
+    return AMDGPU::NoRegister;
+
   LLVM_DEBUG(dbgs() << "Folding sequence:\n\t" << *Sel << '\t' << *Cmp << '\t'
                     << *And);
 
-  Register CCReg = CC->getReg();
   LIS->RemoveMachineInstrFromMaps(*And);
   MachineInstr *Andn2 =
       BuildMI(MBB, *And, And->getDebugLoc(), TII->get(Andn2Opc),
               And->getOperand(0).getReg())
           .addReg(ExecReg)
           .addReg(CCReg, getUndefRegState(CC->isUndef()), CC->getSubReg());
+  MachineOperand &AndSCC = And->getOperand(3);
+  assert(AndSCC.getReg() == AMDGPU::SCC);
+  MachineOperand &Andn2SCC = Andn2->getOperand(3);
+  assert(Andn2SCC.getReg() == AMDGPU::SCC);
+  Andn2SCC.setIsDead(AndSCC.isDead());
   And->eraseFromParent();
   LIS->InsertMachineInstrInMaps(*Andn2);
 
@@ -177,7 +212,7 @@ static unsigned optimizeVcndVcmpPair(MachineBasicBlock &MBB,
 
   // Try to remove compare. Cmp value should not used in between of cmp
   // and s_and_b64 if VCC or just unused if any other register.
-  if ((Register::isVirtualRegister(CmpReg) && MRI.use_nodbg_empty(CmpReg)) ||
+  if ((CmpReg.isVirtual() && MRI.use_nodbg_empty(CmpReg)) ||
       (CmpReg == CondReg &&
        std::none_of(std::next(Cmp->getIterator()), Andn2->getIterator(),
                     [&](const MachineInstr &MI) {
@@ -189,7 +224,7 @@ static unsigned optimizeVcndVcmpPair(MachineBasicBlock &MBB,
     Cmp->eraseFromParent();
 
     // Try to remove v_cndmask_b32.
-    if (Register::isVirtualRegister(SelReg) && MRI.use_nodbg_empty(SelReg)) {
+    if (SelReg.isVirtual() && MRI.use_nodbg_empty(SelReg)) {
       LLVM_DEBUG(dbgs() << "Erasing: " << *Sel << '\n');
 
       LIS->RemoveMachineInstrFromMaps(*Sel);
@@ -211,7 +246,7 @@ bool SIOptimizeExecMaskingPreRA::runOnMachineFunction(MachineFunction &MF) {
 
   MachineRegisterInfo &MRI = MF.getRegInfo();
   LiveIntervals *LIS = &getAnalysis<LiveIntervals>();
-  DenseSet<unsigned> RecalcRegs({AMDGPU::EXEC_LO, AMDGPU::EXEC_HI});
+  DenseSet<Register> RecalcRegs({AMDGPU::EXEC_LO, AMDGPU::EXEC_HI});
   unsigned Exec = ST.isWave32() ? AMDGPU::EXEC_LO : AMDGPU::EXEC;
   bool Changed = false;
 
@@ -317,7 +352,7 @@ bool SIOptimizeExecMaskingPreRA::runOnMachineFunction(MachineFunction &MF) {
 
   if (Changed) {
     for (auto Reg : RecalcRegs) {
-      if (Register::isVirtualRegister(Reg)) {
+      if (Reg.isVirtual()) {
         LIS->removeInterval(Reg);
         if (!MRI.reg_empty(Reg))
           LIS->createAndComputeVirtRegInterval(Reg);

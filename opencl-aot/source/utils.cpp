@@ -140,14 +140,18 @@ std::string getOpenCLErrorNameByErrorCode(cl_int CLErr) {
     return "CL_INVALID_LINKER_OPTIONS";
   case CL_INVALID_DEVICE_PARTITION_COUNT:
     return "CL_INVALID_DEVICE_PARTITION_COUNT";
+#ifdef CL_VERSION_2_0
   case CL_INVALID_PIPE_SIZE:
     return "CL_INVALID_PIPE_SIZE";
   case CL_INVALID_DEVICE_QUEUE:
     return "CL_INVALID_DEVICE_QUEUE";
+#endif
+#ifdef CL_VERSION_2_2
   case CL_INVALID_SPEC_ID:
     return "CL_INVALID_SPEC_ID";
   case CL_MAX_SIZE_RESTRICTION_EXCEEDED:
     return "CL_MAX_SIZE_RESTRICTION_EXCEEDED";
+#endif
   default:
     return "Unknown error code";
   }
@@ -178,18 +182,24 @@ getOpenCLPlatform(DeviceType Type) {
   cl_int CLErr(CL_SUCCESS);
   std::string PlatformName;
 
-  const cl_uint MaxPlatformsCount = 10;
-  std::array<cl_platform_id, MaxPlatformsCount> Platforms{};
-
   cl_uint PlatformsCount = 0;
-  CLErr =
-      clGetPlatformIDs(MaxPlatformsCount, Platforms.data(), &PlatformsCount);
+  CLErr = clGetPlatformIDs(0, nullptr, &PlatformsCount);
+  if (clFailed(CLErr)) {
+    return std::make_tuple(
+        nullptr, "",
+        formatCLError("Failed to retrieve OpenCL platform count", CLErr),
+        CLErr);
+  }
+
+  std::vector<cl_platform_id> Platforms(PlatformsCount);
+  CLErr = clGetPlatformIDs(PlatformsCount, Platforms.data(), nullptr);
   if (clFailed(CLErr)) {
     return std::make_tuple(
         nullptr, "",
         formatCLError("Failed to retrieve OpenCL platform IDs", CLErr), CLErr);
   }
 
+  std::string ErrorMessage;
   for (const auto &Platform : Platforms) {
     size_t PlatformNameLength = 0;
     CLErr = clGetPlatformInfo(Platform, CL_PLATFORM_NAME, 0, nullptr,
@@ -221,24 +231,36 @@ getOpenCLPlatform(DeviceType Type) {
         std::find(SupportedPlatformNames.begin(), SupportedPlatformNames.end(),
                   PlatformNameOnLoopIteration);
     if (Result != SupportedPlatformNames.end()) {
-      PlatformId = Platform;
-      PlatformName = PlatformNameOnLoopIteration;
-      break;
+      tie(std::ignore, ErrorMessage, CLErr) = getOpenCLDevice(Platform, Type);
+      if (!clFailed(CLErr)) {
+        PlatformId = Platform;
+        PlatformName = PlatformNameOnLoopIteration;
+        break;
+      }
     }
   }
 
-  std::string ErrorMessage;
-  if (PlatformId == nullptr) {
-    ErrorMessage += "OpenCL platform ID is empty\n";
+  std::string SupportedPlatforms;
+  for (const auto &Platform : DeviceTypesToSupportedPlatformNames[Type]) {
+    SupportedPlatforms += "  " + Platform + '\n';
   }
-  if (PlatformName.empty()) {
-    ErrorMessage += "OpenCL platform name is empty\n";
-  }
-  if (!ErrorMessage.empty()) {
-    ErrorMessage += "Failed to find any of these OpenCL platforms:\n";
-    for (const auto &SupportedPlatformName :
-         DeviceTypesToSupportedPlatformNames[Type]) {
-      ErrorMessage += "  " + SupportedPlatformName + '\n';
+  if (clFailed(CLErr)) {
+    std::map<DeviceType, std::string> DeviceTypeToDeviceTypeName{
+        {cpu, "CPU"}, {gpu, "GPU"}, {fpga_fast_emu, "FPGA Fast Emu"}};
+    ErrorMessage += "Failed to find OpenCL " +
+                    DeviceTypeToDeviceTypeName[Type] +
+                    " device in these OpenCL platforms:\n" + SupportedPlatforms;
+  } else {
+    if (PlatformId == nullptr) {
+      ErrorMessage += "OpenCL platform ID is empty\n";
+    }
+    if (PlatformName.empty()) {
+      ErrorMessage += "OpenCL platform name is empty\n";
+    }
+    if (!ErrorMessage.empty()) {
+      ErrorMessage += "Failed to find any of these OpenCL platforms:\n" +
+                      SupportedPlatforms;
+      CLErr = OPENCL_AOT_PLATFORM_NOT_FOUND;
     }
   }
 

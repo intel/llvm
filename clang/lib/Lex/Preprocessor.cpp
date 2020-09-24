@@ -119,7 +119,7 @@ Preprocessor::Preprocessor(std::shared_ptr<PreprocessorOptions> PPOpts,
   // a macro. They get unpoisoned where it is allowed.
   (Ident__VA_ARGS__ = getIdentifierInfo("__VA_ARGS__"))->setIsPoisoned();
   SetPoisonReason(Ident__VA_ARGS__,diag::ext_pp_bad_vaargs_use);
-  if (getLangOpts().CPlusPlus2a) {
+  if (getLangOpts().CPlusPlus20) {
     (Ident__VA_OPT__ = getIdentifierInfo("__VA_OPT__"))->setIsPoisoned();
     SetPoisonReason(Ident__VA_OPT__,diag::ext_pp_bad_vaopt_use);
   } else {
@@ -771,9 +771,13 @@ static diag::kind getFutureCompatDiagKind(const IdentifierInfo &II,
     return llvm::StringSwitch<diag::kind>(II.getName())
 #define CXX11_KEYWORD(NAME, FLAGS)                                             \
         .Case(#NAME, diag::warn_cxx11_keyword)
-#define CXX2A_KEYWORD(NAME, FLAGS)                                             \
-        .Case(#NAME, diag::warn_cxx2a_keyword)
+#define CXX20_KEYWORD(NAME, FLAGS)                                             \
+        .Case(#NAME, diag::warn_cxx20_keyword)
 #include "clang/Basic/TokenKinds.def"
+        // char8_t is not modeled as a CXX20_KEYWORD because it's not
+        // unconditionally enabled in C++20 mode. (It can be disabled
+        // by -fno-char8_t.)
+        .Case("char8_t", diag::warn_cxx20_keyword)
         ;
 
   llvm_unreachable(
@@ -965,8 +969,10 @@ void Preprocessor::Lex(Token &Result) {
   LastTokenWasAt = Result.is(tok::at);
   --LexLevel;
 
-  if (LexLevel == 0 && !Result.getFlag(Token::IsReinjected)) {
-    ++TokenCount;
+  if ((LexLevel == 0 || PreprocessToken) &&
+      !Result.getFlag(Token::IsReinjected)) {
+    if (LexLevel == 0)
+      ++TokenCount;
     if (OnToken)
       OnToken(Result);
   }
@@ -1366,7 +1372,9 @@ bool Preprocessor::parseSimpleIntegerLiteral(Token &Tok, uint64_t &Value) {
   StringRef Spelling = getSpelling(Tok, IntegerBuffer, &NumberInvalid);
   if (NumberInvalid)
     return false;
-  NumericLiteralParser Literal(Spelling, Tok.getLocation(), *this);
+  NumericLiteralParser Literal(Spelling, Tok.getLocation(), getSourceManager(),
+                               getLangOpts(), getTargetInfo(),
+                               getDiagnostics());
   if (Literal.hadError || !Literal.isIntegerLiteral() || Literal.hasUDSuffix())
     return false;
   llvm::APInt APVal(64, 0);

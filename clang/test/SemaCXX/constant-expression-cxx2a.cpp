@@ -950,6 +950,20 @@ namespace dynamic_alloc {
     p = new ((std::align_val_t)n) char[n];
     p = new char(n);
   }
+
+  namespace PR47143 {
+    constexpr char *f(int n) {
+      return new char[n]();
+    }
+    const char *p = f(3);
+    constexpr bool test() {
+      char *p = f(3);
+      bool result = !p[0] && !p[1] && !p[2];
+      delete [] p;
+      return result;
+    }
+    static_assert(test());
+  }
 }
 
 struct placement_new_arg {};
@@ -1380,4 +1394,24 @@ namespace PR45133 {
   constinit V v1 = X<1>(); // expected-error {{constant init}} expected-note {{constinit}} expected-note {{in call}}
   constinit V v2 = X<2>();
   constinit V v3 = X<3>(); // expected-error {{constant init}} expected-note {{constinit}} expected-note {{in call}}
+}
+
+namespace PR45350 {
+  int q;
+  struct V { int n; int *p = &n; constexpr ~V() { *p = *p * 10 + n; }};
+  constexpr int f(int n) {
+    int k = 0;
+    V *p = new V[n];
+    for (int i = 0; i != n; ++i) {
+      if (p[i].p != &p[i].n) return -1;
+      p[i].n = i;
+      p[i].p = &k;
+    }
+    delete[] p;
+    return k;
+  }
+  // [expr.delete]p6:
+  //   In the case of an array, the elements will be destroyed in order of
+  //   decreasing address
+  static_assert(f(6) == 543210);
 }

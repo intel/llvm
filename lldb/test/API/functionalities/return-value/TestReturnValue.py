@@ -19,7 +19,7 @@ class ReturnValueTestCase(TestBase):
             "aarch64" and self.getPlatform() == "linux")
 
     def affected_by_pr44132(self):
-        return (self.getArchitecture() == "aarch64" and self.getPlatform() == "linux")
+        return ((self.getArchitecture() == "aarch64" or self.getArchitecture() == 'arm') and self.getPlatform() == "linux")
 
     # ABIMacOSX_arm can't fetch simple values inside a structure
     def affected_by_radar_34562999(self):
@@ -165,7 +165,7 @@ class ReturnValueTestCase(TestBase):
         archs=["i386"])
     @expectedFailureAll(compiler=["gcc"], archs=["x86_64", "i386"])
     @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr24778")
-    @skipIfDarwinEmbedded # <rdar://problem/33976032> ABIMacOSX_arm64 doesn't get structs this big correctly
+    @expectedFailureDarwin(archs=["arm64"]) # <rdar://problem/33976032> ABIMacOSX_arm64 doesn't get structs this big correctly
     def test_vector_values(self):
         self.build()
         exe = self.getBuildArtifact("a.out")

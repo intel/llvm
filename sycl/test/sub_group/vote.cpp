@@ -21,9 +21,6 @@ using namespace cl::sycl;
 
 void check(queue Queue, const int G, const int L, const int D, const int R) {
   try {
-    int max_sg =
-        Queue.get_device().get_info<info::device::max_num_sub_groups>();
-    int num_sg = (L) / max_sg + ((L) % max_sg ? 1 : 0);
     range<1> GRange(G), LRange(L);
     nd_range<1> NdRange(GRange, LRange);
     buffer<int, 1> sganybuf(G);
@@ -52,7 +49,7 @@ void check(queue Queue, const int G, const int L, const int D, const int R) {
       auto sganyacc = sganybuf.get_access<access::mode::read_write>(cgh);
       auto sgallacc = sgallbuf.get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<class subgr>(NdRange, [=](nd_item<1> NdItem) {
-        intel::sub_group SG = NdItem.get_sub_group();
+        ONEAPI::sub_group SG = NdItem.get_sub_group();
         /* Set to 1 if any local ID in subgroup devided by D has remainder R */
         if (any_of(SG, SG.get_local_id().get(0) % D == R)) {
           sganyacc[NdItem.get_global_id()] = 1;
@@ -82,8 +79,8 @@ int main() {
     std::cout << "Skipping test\n";
     return 0;
   }
-  check(Queue, 240, 80, 9, 8);
-  check(Queue, 24, 12, 9, 10);
-  check(Queue, 1024, 256, 9, 8);
+  check(Queue, 240, 80, 3, 1);
+  check(Queue, 24, 12, 3, 4);
+  check(Queue, 1024, 256, 3, 1);
   std::cout << "Test passed." << std::endl;
 }

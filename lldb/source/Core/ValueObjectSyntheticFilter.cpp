@@ -46,14 +46,16 @@ public:
 
 ValueObjectSynthetic::ValueObjectSynthetic(ValueObject &parent,
                                            lldb::SyntheticChildrenSP filter)
-    : ValueObject(parent), m_synth_sp(filter), m_children_byindex(),
+    : ValueObject(parent), m_synth_sp(std::move(filter)), m_children_byindex(),
       m_name_toindex(), m_synthetic_children_cache(),
       m_synthetic_children_count(UINT32_MAX),
       m_parent_type_name(parent.GetTypeName()),
       m_might_have_children(eLazyBoolCalculate),
       m_provides_value(eLazyBoolCalculate) {
   SetName(parent.GetName());
-  CopyValueData(m_parent);
+  // Copying the data of an incomplete type won't work as it has no byte size.
+  if (m_parent->GetCompilerType().IsCompleteType())
+    CopyValueData(m_parent);
   CreateSynthFilter();
 }
 
@@ -119,7 +121,9 @@ bool ValueObjectSynthetic::MightHaveChildren() {
   return (m_might_have_children != eLazyBoolNo);
 }
 
-uint64_t ValueObjectSynthetic::GetByteSize() { return m_parent->GetByteSize(); }
+llvm::Optional<uint64_t> ValueObjectSynthetic::GetByteSize() {
+  return m_parent->GetByteSize();
+}
 
 lldb::ValueType ValueObjectSynthetic::GetValueType() const {
   return m_parent->GetValueType();
@@ -219,7 +223,9 @@ bool ValueObjectSynthetic::UpdateValue() {
               GetName().AsCString());
 
     m_provides_value = eLazyBoolNo;
-    CopyValueData(m_parent);
+    // Copying the data of an incomplete type won't work as it has no byte size.
+    if (m_parent->GetCompilerType().IsCompleteType())
+      CopyValueData(m_parent);
   }
 
   SetValueIsValid(true);

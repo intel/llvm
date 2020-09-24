@@ -45,6 +45,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Instrumentation.h"
+#include "llvm/Transforms/Instrumentation/AddressSanitizerCommon.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
@@ -96,6 +97,10 @@ static cl::opt<bool> ClInstrumentAtomics(
     cl::desc("instrument atomic instructions (rmw, cmpxchg)"), cl::Hidden,
     cl::init(true));
 
+static cl::opt<bool> ClInstrumentByval("hwasan-instrument-byval",
+                                       cl::desc("instrument byval arguments"),
+                                       cl::Hidden, cl::init(true));
+
 static cl::opt<bool> ClRecover(
     "hwasan-recover",
     cl::desc("Enable recovery mode (continue-after-error)."),
@@ -119,7 +124,7 @@ static cl::opt<bool> ClGenerateTagsWithCalls(
     cl::init(false));
 
 static cl::opt<bool> ClGlobals("hwasan-globals", cl::desc("Instrument globals"),
-                               cl::Hidden, cl::init(false));
+                               cl::Hidden, cl::init(false), cl::ZeroOrMore);
 
 static cl::opt<int> ClMatchAllTag(
     "hwasan-match-all-tag",
@@ -198,6 +203,7 @@ public:
 
   bool sanitizeFunction(Function &F);
   void initializeModule();
+  void createHwasanCtorComdat();
 
   void initializeCallbacks(Module &M);
 
@@ -211,10 +217,10 @@ public:
                                  unsigned AccessSizeIndex,
                                  Instruction *InsertBefore);
   void instrumentMemIntrinsic(MemIntrinsic *MI);
-  bool instrumentMemAccess(Instruction *I);
-  Value *isInterestingMemoryAccess(Instruction *I, bool *IsWrite,
-                                   uint64_t *TypeSize, unsigned *Alignment,
-                                   Value **MaybeMask);
+  bool instrumentMemAccess(InterestingMemoryOperand &O);
+  bool ignoreAccess(Value *Ptr);
+  void getInterestingMemoryOperands(
+      Instruction *I, SmallVectorImpl<InterestingMemoryOperand> &Interesting);
 
   bool isInterestingAlloca(const AllocaInst &AI);
   bool tagAlloca(IRBuilder<> &IRB, AllocaInst *AI, Value *Tag, size_t Size);
@@ -300,7 +306,10 @@ public:
 
   explicit HWAddressSanitizerLegacyPass(bool CompileKernel = false,
                                         bool Recover = false)
-      : FunctionPass(ID), CompileKernel(CompileKernel), Recover(Recover) {}
+      : FunctionPass(ID), CompileKernel(CompileKernel), Recover(Recover) {
+    initializeHWAddressSanitizerLegacyPassPass(
+        *PassRegistry::getPassRegistry());
+  }
 
   StringRef getPassName() const override { return "HWAddressSanitizer"; }
 
@@ -357,6 +366,106 @@ PreservedAnalyses HWAddressSanitizerPass::run(Module &M,
   return PreservedAnalyses::all();
 }
 
+void HWAddressSanitizer::createHwasanCtorComdat() {
+  std::tie(HwasanCtorFunction, std::ignore) =
+      getOrCreateSanitizerCtorAndInitFunctions(
+          M, kHwasanModuleCtorName, kHwasanInitName,
+          /*InitArgTypes=*/{},
+          /*InitArgs=*/{},
+          // This callback is invoked when the functions are created the first
+          // time. Hook them into the global ctors list in that case:
+          [&](Function *Ctor, FunctionCallee) {
+            Comdat *CtorComdat = M.getOrInsertComdat(kHwasanModuleCtorName);
+            Ctor->setComdat(CtorComdat);
+            appendToGlobalCtors(M, Ctor, 0, Ctor);
+          });
+
+  // Create a note that contains pointers to the list of global
+  // descriptors. Adding a note to the output file will cause the linker to
+  // create a PT_NOTE program header pointing to the note that we can use to
+  // find the descriptor list starting from the program headers. A function
+  // provided by the runtime initializes the shadow memory for the globals by
+  // accessing the descriptor list via the note. The dynamic loader needs to
+  // call this function whenever a library is loaded.
+  //
+  // The reason why we use a note for this instead of a more conventional
+  // approach of having a global constructor pass a descriptor list pointer to
+  // the runtime is because of an order of initialization problem. With
+  // constructors we can encounter the following problematic scenario:
+  //
+  // 1) library A depends on library B and also interposes one of B's symbols
+  // 2) B's constructors are called before A's (as required for correctness)
+  // 3) during construction, B accesses one of its "own" globals (actually
+  //    interposed by A) and triggers a HWASAN failure due to the initialization
+  //    for A not having happened yet
+  //
+  // Even without interposition it is possible to run into similar situations in
+  // cases where two libraries mutually depend on each other.
+  //
+  // We only need one note per binary, so put everything for the note in a
+  // comdat. This needs to be a comdat with an .init_array section to prevent
+  // newer versions of lld from discarding the note.
+  //
+  // Create the note even if we aren't instrumenting globals. This ensures that
+  // binaries linked from object files with both instrumented and
+  // non-instrumented globals will end up with a note, even if a comdat from an
+  // object file with non-instrumented globals is selected. The note is harmless
+  // if the runtime doesn't support it, since it will just be ignored.
+  Comdat *NoteComdat = M.getOrInsertComdat(kHwasanModuleCtorName);
+
+  Type *Int8Arr0Ty = ArrayType::get(Int8Ty, 0);
+  auto Start =
+      new GlobalVariable(M, Int8Arr0Ty, true, GlobalVariable::ExternalLinkage,
+                         nullptr, "__start_hwasan_globals");
+  Start->setVisibility(GlobalValue::HiddenVisibility);
+  Start->setDSOLocal(true);
+  auto Stop =
+      new GlobalVariable(M, Int8Arr0Ty, true, GlobalVariable::ExternalLinkage,
+                         nullptr, "__stop_hwasan_globals");
+  Stop->setVisibility(GlobalValue::HiddenVisibility);
+  Stop->setDSOLocal(true);
+
+  // Null-terminated so actually 8 bytes, which are required in order to align
+  // the note properly.
+  auto *Name = ConstantDataArray::get(*C, "LLVM\0\0\0");
+
+  auto *NoteTy = StructType::get(Int32Ty, Int32Ty, Int32Ty, Name->getType(),
+                                 Int32Ty, Int32Ty);
+  auto *Note =
+      new GlobalVariable(M, NoteTy, /*isConstantGlobal=*/true,
+                         GlobalValue::PrivateLinkage, nullptr, kHwasanNoteName);
+  Note->setSection(".note.hwasan.globals");
+  Note->setComdat(NoteComdat);
+  Note->setAlignment(Align(4));
+  Note->setDSOLocal(true);
+
+  // The pointers in the note need to be relative so that the note ends up being
+  // placed in rodata, which is the standard location for notes.
+  auto CreateRelPtr = [&](Constant *Ptr) {
+    return ConstantExpr::getTrunc(
+        ConstantExpr::getSub(ConstantExpr::getPtrToInt(Ptr, Int64Ty),
+                             ConstantExpr::getPtrToInt(Note, Int64Ty)),
+        Int32Ty);
+  };
+  Note->setInitializer(ConstantStruct::getAnon(
+      {ConstantInt::get(Int32Ty, 8),                           // n_namesz
+       ConstantInt::get(Int32Ty, 8),                           // n_descsz
+       ConstantInt::get(Int32Ty, ELF::NT_LLVM_HWASAN_GLOBALS), // n_type
+       Name, CreateRelPtr(Start), CreateRelPtr(Stop)}));
+  appendToCompilerUsed(M, Note);
+
+  // Create a zero-length global in hwasan_globals so that the linker will
+  // always create start and stop symbols.
+  auto Dummy = new GlobalVariable(
+      M, Int8Arr0Ty, /*isConstantGlobal*/ true, GlobalVariable::PrivateLinkage,
+      Constant::getNullValue(Int8Arr0Ty), "hwasan.dummy.global");
+  Dummy->setSection("hwasan_globals");
+  Dummy->setComdat(NoteComdat);
+  Dummy->setMetadata(LLVMContext::MD_associated,
+                     MDNode::get(*C, ValueAsMetadata::get(Note)));
+  appendToCompilerUsed(M, Dummy);
+}
+
 /// Module-level initialization.
 ///
 /// inserts a call to __hwasan_init to the module's constructor list.
@@ -392,19 +501,7 @@ void HWAddressSanitizer::initializeModule() {
                               : !NewRuntime;
 
   if (!CompileKernel) {
-    std::tie(HwasanCtorFunction, std::ignore) =
-        getOrCreateSanitizerCtorAndInitFunctions(
-            M, kHwasanModuleCtorName, kHwasanInitName,
-            /*InitArgTypes=*/{},
-            /*InitArgs=*/{},
-            // This callback is invoked when the functions are created the first
-            // time. Hook them into the global ctors list in that case:
-            [&](Function *Ctor, FunctionCallee) {
-              Comdat *CtorComdat = M.getOrInsertComdat(kHwasanModuleCtorName);
-              Ctor->setComdat(CtorComdat);
-              appendToGlobalCtors(M, Ctor, 0, Ctor);
-            });
-
+    createHwasanCtorComdat();
     bool InstrumentGlobals =
         ClGlobals.getNumOccurrences() ? ClGlobals : NewRuntime;
     if (InstrumentGlobals)
@@ -500,62 +597,62 @@ Value *HWAddressSanitizer::getDynamicShadowNonTls(IRBuilder<> &IRB) {
   }
 }
 
-Value *HWAddressSanitizer::isInterestingMemoryAccess(Instruction *I,
-                                                     bool *IsWrite,
-                                                     uint64_t *TypeSize,
-                                                     unsigned *Alignment,
-                                                     Value **MaybeMask) {
+bool HWAddressSanitizer::ignoreAccess(Value *Ptr) {
+  // Do not instrument acesses from different address spaces; we cannot deal
+  // with them.
+  Type *PtrTy = cast<PointerType>(Ptr->getType()->getScalarType());
+  if (PtrTy->getPointerAddressSpace() != 0)
+    return true;
+
+  // Ignore swifterror addresses.
+  // swifterror memory addresses are mem2reg promoted by instruction
+  // selection. As such they cannot have regular uses like an instrumentation
+  // function and it makes no sense to track them as memory.
+  if (Ptr->isSwiftError())
+    return true;
+
+  return false;
+}
+
+void HWAddressSanitizer::getInterestingMemoryOperands(
+    Instruction *I, SmallVectorImpl<InterestingMemoryOperand> &Interesting) {
   // Skip memory accesses inserted by another instrumentation.
-  if (I->hasMetadata("nosanitize")) return nullptr;
+  if (I->hasMetadata("nosanitize"))
+    return;
 
   // Do not instrument the load fetching the dynamic shadow address.
   if (LocalDynamicShadow == I)
-    return nullptr;
+    return;
 
-  Value *PtrOperand = nullptr;
-  const DataLayout &DL = I->getModule()->getDataLayout();
   if (LoadInst *LI = dyn_cast<LoadInst>(I)) {
-    if (!ClInstrumentReads) return nullptr;
-    *IsWrite = false;
-    *TypeSize = DL.getTypeStoreSizeInBits(LI->getType());
-    *Alignment = LI->getAlignment();
-    PtrOperand = LI->getPointerOperand();
+    if (!ClInstrumentReads || ignoreAccess(LI->getPointerOperand()))
+      return;
+    Interesting.emplace_back(I, LI->getPointerOperandIndex(), false,
+                             LI->getType(), LI->getAlign());
   } else if (StoreInst *SI = dyn_cast<StoreInst>(I)) {
-    if (!ClInstrumentWrites) return nullptr;
-    *IsWrite = true;
-    *TypeSize = DL.getTypeStoreSizeInBits(SI->getValueOperand()->getType());
-    *Alignment = SI->getAlignment();
-    PtrOperand = SI->getPointerOperand();
+    if (!ClInstrumentWrites || ignoreAccess(SI->getPointerOperand()))
+      return;
+    Interesting.emplace_back(I, SI->getPointerOperandIndex(), true,
+                             SI->getValueOperand()->getType(), SI->getAlign());
   } else if (AtomicRMWInst *RMW = dyn_cast<AtomicRMWInst>(I)) {
-    if (!ClInstrumentAtomics) return nullptr;
-    *IsWrite = true;
-    *TypeSize = DL.getTypeStoreSizeInBits(RMW->getValOperand()->getType());
-    *Alignment = 0;
-    PtrOperand = RMW->getPointerOperand();
+    if (!ClInstrumentAtomics || ignoreAccess(RMW->getPointerOperand()))
+      return;
+    Interesting.emplace_back(I, RMW->getPointerOperandIndex(), true,
+                             RMW->getValOperand()->getType(), None);
   } else if (AtomicCmpXchgInst *XCHG = dyn_cast<AtomicCmpXchgInst>(I)) {
-    if (!ClInstrumentAtomics) return nullptr;
-    *IsWrite = true;
-    *TypeSize = DL.getTypeStoreSizeInBits(XCHG->getCompareOperand()->getType());
-    *Alignment = 0;
-    PtrOperand = XCHG->getPointerOperand();
+    if (!ClInstrumentAtomics || ignoreAccess(XCHG->getPointerOperand()))
+      return;
+    Interesting.emplace_back(I, XCHG->getPointerOperandIndex(), true,
+                             XCHG->getCompareOperand()->getType(), None);
+  } else if (auto CI = dyn_cast<CallInst>(I)) {
+    for (unsigned ArgNo = 0; ArgNo < CI->getNumArgOperands(); ArgNo++) {
+      if (!ClInstrumentByval || !CI->isByValArgument(ArgNo) ||
+          ignoreAccess(CI->getArgOperand(ArgNo)))
+        continue;
+      Type *Ty = CI->getParamByValType(ArgNo);
+      Interesting.emplace_back(I, ArgNo, false, Ty, Align(1));
+    }
   }
-
-  if (PtrOperand) {
-    // Do not instrument accesses from different address spaces; we cannot deal
-    // with them.
-    Type *PtrTy = cast<PointerType>(PtrOperand->getType()->getScalarType());
-    if (PtrTy->getPointerAddressSpace() != 0)
-      return nullptr;
-
-    // Ignore swifterror addresses.
-    // swifterror memory addresses are mem2reg promoted by instruction
-    // selection. As such they cannot have regular uses like an instrumentation
-    // function and it makes no sense to track them as memory.
-    if (PtrOperand->isSwiftError())
-      return nullptr;
-  }
-
-  return PtrOperand;
 }
 
 static unsigned getPointerOperandIndex(Instruction *I) {
@@ -713,45 +810,32 @@ void HWAddressSanitizer::instrumentMemIntrinsic(MemIntrinsic *MI) {
   MI->eraseFromParent();
 }
 
-bool HWAddressSanitizer::instrumentMemAccess(Instruction *I) {
-  LLVM_DEBUG(dbgs() << "Instrumenting: " << *I << "\n");
-  bool IsWrite = false;
-  unsigned Alignment = 0;
-  uint64_t TypeSize = 0;
-  Value *MaybeMask = nullptr;
+bool HWAddressSanitizer::instrumentMemAccess(InterestingMemoryOperand &O) {
+  Value *Addr = O.getPtr();
 
-  if (ClInstrumentMemIntrinsics && isa<MemIntrinsic>(I)) {
-    instrumentMemIntrinsic(cast<MemIntrinsic>(I));
-    return true;
-  }
+  LLVM_DEBUG(dbgs() << "Instrumenting: " << O.getInsn() << "\n");
 
-  Value *Addr =
-      isInterestingMemoryAccess(I, &IsWrite, &TypeSize, &Alignment, &MaybeMask);
-
-  if (!Addr)
-    return false;
-
-  if (MaybeMask)
+  if (O.MaybeMask)
     return false; //FIXME
 
-  IRBuilder<> IRB(I);
-  if (isPowerOf2_64(TypeSize) &&
-      (TypeSize / 8 <= (1UL << (kNumberOfAccessSizes - 1))) &&
-      (Alignment >= (1UL << Mapping.Scale) || Alignment == 0 ||
-       Alignment >= TypeSize / 8)) {
-    size_t AccessSizeIndex = TypeSizeToSizeIndex(TypeSize);
+  IRBuilder<> IRB(O.getInsn());
+  if (isPowerOf2_64(O.TypeSize) &&
+      (O.TypeSize / 8 <= (1ULL << (kNumberOfAccessSizes - 1))) &&
+      (!O.Alignment || *O.Alignment >= (1ULL << Mapping.Scale) ||
+       *O.Alignment >= O.TypeSize / 8)) {
+    size_t AccessSizeIndex = TypeSizeToSizeIndex(O.TypeSize);
     if (ClInstrumentWithCalls) {
-      IRB.CreateCall(HwasanMemoryAccessCallback[IsWrite][AccessSizeIndex],
+      IRB.CreateCall(HwasanMemoryAccessCallback[O.IsWrite][AccessSizeIndex],
                      IRB.CreatePointerCast(Addr, IntptrTy));
     } else {
-      instrumentMemAccessInline(Addr, IsWrite, AccessSizeIndex, I);
+      instrumentMemAccessInline(Addr, O.IsWrite, AccessSizeIndex, O.getInsn());
     }
   } else {
-    IRB.CreateCall(HwasanMemoryAccessCallbackSized[IsWrite],
+    IRB.CreateCall(HwasanMemoryAccessCallbackSized[O.IsWrite],
                    {IRB.CreatePointerCast(Addr, IntptrTy),
-                    ConstantInt::get(IntptrTy, TypeSize / 8)});
+                    ConstantInt::get(IntptrTy, O.TypeSize / 8)});
   }
-  untagPointerOperand(I, Addr);
+  untagPointerOperand(O.getInsn(), Addr);
 
   return true;
 }
@@ -1089,7 +1173,8 @@ bool HWAddressSanitizer::sanitizeFunction(Function &F) {
 
   LLVM_DEBUG(dbgs() << "Function: " << F.getName() << "\n");
 
-  SmallVector<Instruction*, 16> ToInstrument;
+  SmallVector<InterestingMemoryOperand, 16> OperandsToInstrument;
+  SmallVector<MemIntrinsic *, 16> IntrinToInstrument;
   SmallVector<AllocaInst*, 8> AllocasToInstrument;
   SmallVector<Instruction*, 8> RetVec;
   SmallVector<Instruction*, 8> LandingPadVec;
@@ -1115,31 +1200,31 @@ bool HWAddressSanitizer::sanitizeFunction(Function &F) {
       if (InstrumentLandingPads && isa<LandingPadInst>(Inst))
         LandingPadVec.push_back(&Inst);
 
-      Value *MaybeMask = nullptr;
-      bool IsWrite;
-      unsigned Alignment;
-      uint64_t TypeSize;
-      Value *Addr = isInterestingMemoryAccess(&Inst, &IsWrite, &TypeSize,
-                                              &Alignment, &MaybeMask);
-      if (Addr || isa<MemIntrinsic>(Inst))
-        ToInstrument.push_back(&Inst);
+      getInterestingMemoryOperands(&Inst, OperandsToInstrument);
+
+      if (MemIntrinsic *MI = dyn_cast<MemIntrinsic>(&Inst))
+        IntrinToInstrument.push_back(MI);
     }
   }
 
   initializeCallbacks(*F.getParent());
 
+  bool Changed = false;
+
   if (!LandingPadVec.empty())
-    instrumentLandingPads(LandingPadVec);
+    Changed |= instrumentLandingPads(LandingPadVec);
 
   if (AllocasToInstrument.empty() && F.hasPersonalityFn() &&
       F.getPersonalityFn()->getName() == kHwasanPersonalityThunkName) {
     // __hwasan_personality_thunk is a no-op for functions without an
     // instrumented stack, so we can drop it.
     F.setPersonalityFn(nullptr);
+    Changed = true;
   }
 
-  if (AllocasToInstrument.empty() && ToInstrument.empty())
-    return false;
+  if (AllocasToInstrument.empty() && OperandsToInstrument.empty() &&
+      IntrinToInstrument.empty())
+    return Changed;
 
   assert(!LocalDynamicShadow);
 
@@ -1149,14 +1234,11 @@ bool HWAddressSanitizer::sanitizeFunction(Function &F) {
                /*WithFrameRecord*/ ClRecordStackHistory &&
                    !AllocasToInstrument.empty());
 
-  bool Changed = false;
   if (!AllocasToInstrument.empty()) {
     Value *StackTag =
         ClGenerateTagsWithCalls ? nullptr : getStackBaseTag(EntryIRB);
-    Changed |= instrumentStack(AllocasToInstrument, AllocaDbgMap, RetVec,
-                               StackTag);
+    instrumentStack(AllocasToInstrument, AllocaDbgMap, RetVec, StackTag);
   }
-
   // Pad and align each of the allocas that we instrumented to stop small
   // uninteresting allocas from hiding in instrumented alloca's padding and so
   // that we have enough space to store real tags for short granules.
@@ -1165,7 +1247,7 @@ bool HWAddressSanitizer::sanitizeFunction(Function &F) {
     uint64_t Size = getAllocaSizeInBytes(*AI);
     uint64_t AlignedSize = alignTo(Size, Mapping.getObjectAlignment());
     AI->setAlignment(
-        MaybeAlign(std::max(AI->getAlignment(), Mapping.getObjectAlignment())));
+        Align(std::max(AI->getAlignment(), Mapping.getObjectAlignment())));
     if (Size != AlignedSize) {
       Type *AllocatedType = AI->getAllocatedType();
       if (AI->isArrayAllocation()) {
@@ -1178,7 +1260,7 @@ bool HWAddressSanitizer::sanitizeFunction(Function &F) {
       auto *NewAI = new AllocaInst(
           TypeWithPadding, AI->getType()->getAddressSpace(), nullptr, "", AI);
       NewAI->takeName(AI);
-      NewAI->setAlignment(MaybeAlign(AI->getAlignment()));
+      NewAI->setAlignment(AI->getAlign());
       NewAI->setUsedWithInAlloca(AI->isUsedWithInAlloca());
       NewAI->setSwiftError(AI->isSwiftError());
       NewAI->copyMetadata(*AI);
@@ -1216,13 +1298,18 @@ bool HWAddressSanitizer::sanitizeFunction(Function &F) {
     }
   }
 
-  for (auto Inst : ToInstrument)
-    Changed |= instrumentMemAccess(Inst);
+  for (auto &Operand : OperandsToInstrument)
+    instrumentMemAccess(Operand);
+
+  if (ClInstrumentMemIntrinsics && !IntrinToInstrument.empty()) {
+    for (auto Inst : IntrinToInstrument)
+      instrumentMemIntrinsic(cast<MemIntrinsic>(Inst));
+  }
 
   LocalDynamicShadow = nullptr;
   StackBaseTag = nullptr;
 
-  return Changed;
+  return true;
 }
 
 void HWAddressSanitizer::instrumentGlobal(GlobalVariable *GV, uint8_t Tag) {
@@ -1302,85 +1389,6 @@ void HWAddressSanitizer::instrumentGlobal(GlobalVariable *GV, uint8_t Tag) {
 }
 
 void HWAddressSanitizer::instrumentGlobals() {
-  // Start by creating a note that contains pointers to the list of global
-  // descriptors. Adding a note to the output file will cause the linker to
-  // create a PT_NOTE program header pointing to the note that we can use to
-  // find the descriptor list starting from the program headers. A function
-  // provided by the runtime initializes the shadow memory for the globals by
-  // accessing the descriptor list via the note. The dynamic loader needs to
-  // call this function whenever a library is loaded.
-  //
-  // The reason why we use a note for this instead of a more conventional
-  // approach of having a global constructor pass a descriptor list pointer to
-  // the runtime is because of an order of initialization problem. With
-  // constructors we can encounter the following problematic scenario:
-  //
-  // 1) library A depends on library B and also interposes one of B's symbols
-  // 2) B's constructors are called before A's (as required for correctness)
-  // 3) during construction, B accesses one of its "own" globals (actually
-  //    interposed by A) and triggers a HWASAN failure due to the initialization
-  //    for A not having happened yet
-  //
-  // Even without interposition it is possible to run into similar situations in
-  // cases where two libraries mutually depend on each other.
-  //
-  // We only need one note per binary, so put everything for the note in a
-  // comdat. This need to be a comdat with an .init_array section to prevent
-  // newer versions of lld from discarding the note.
-  Comdat *NoteComdat = M.getOrInsertComdat(kHwasanModuleCtorName);
-
-  Type *Int8Arr0Ty = ArrayType::get(Int8Ty, 0);
-  auto Start =
-      new GlobalVariable(M, Int8Arr0Ty, true, GlobalVariable::ExternalLinkage,
-                         nullptr, "__start_hwasan_globals");
-  Start->setVisibility(GlobalValue::HiddenVisibility);
-  Start->setDSOLocal(true);
-  auto Stop =
-      new GlobalVariable(M, Int8Arr0Ty, true, GlobalVariable::ExternalLinkage,
-                         nullptr, "__stop_hwasan_globals");
-  Stop->setVisibility(GlobalValue::HiddenVisibility);
-  Stop->setDSOLocal(true);
-
-  // Null-terminated so actually 8 bytes, which are required in order to align
-  // the note properly.
-  auto *Name = ConstantDataArray::get(*C, "LLVM\0\0\0");
-
-  auto *NoteTy = StructType::get(Int32Ty, Int32Ty, Int32Ty, Name->getType(),
-                                 Int32Ty, Int32Ty);
-  auto *Note =
-      new GlobalVariable(M, NoteTy, /*isConstantGlobal=*/true,
-                         GlobalValue::PrivateLinkage, nullptr, kHwasanNoteName);
-  Note->setSection(".note.hwasan.globals");
-  Note->setComdat(NoteComdat);
-  Note->setAlignment(Align(4));
-  Note->setDSOLocal(true);
-
-  // The pointers in the note need to be relative so that the note ends up being
-  // placed in rodata, which is the standard location for notes.
-  auto CreateRelPtr = [&](Constant *Ptr) {
-    return ConstantExpr::getTrunc(
-        ConstantExpr::getSub(ConstantExpr::getPtrToInt(Ptr, Int64Ty),
-                             ConstantExpr::getPtrToInt(Note, Int64Ty)),
-        Int32Ty);
-  };
-  Note->setInitializer(ConstantStruct::getAnon(
-      {ConstantInt::get(Int32Ty, 8),                           // n_namesz
-       ConstantInt::get(Int32Ty, 8),                           // n_descsz
-       ConstantInt::get(Int32Ty, ELF::NT_LLVM_HWASAN_GLOBALS), // n_type
-       Name, CreateRelPtr(Start), CreateRelPtr(Stop)}));
-  appendToCompilerUsed(M, Note);
-
-  // Create a zero-length global in hwasan_globals so that the linker will
-  // always create start and stop symbols.
-  auto Dummy = new GlobalVariable(
-      M, Int8Arr0Ty, /*isConstantGlobal*/ true, GlobalVariable::PrivateLinkage,
-      Constant::getNullValue(Int8Arr0Ty), "hwasan.dummy.global");
-  Dummy->setSection("hwasan_globals");
-  Dummy->setComdat(NoteComdat);
-  Dummy->setMetadata(LLVMContext::MD_associated,
-                     MDNode::get(*C, ValueAsMetadata::get(Note)));
-  appendToCompilerUsed(M, Dummy);
-
   std::vector<GlobalVariable *> Globals;
   for (GlobalVariable &GV : M.globals()) {
     if (GV.isDeclarationForLinker() || GV.getName().startswith("llvm.") ||

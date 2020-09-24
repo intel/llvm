@@ -55,6 +55,8 @@ const char *Action::getClassName(ActionClass AC) {
     return "backend-compiler";
   case FileTableTformJobClass:
     return "file-table-tform";
+  case StaticLibJobClass:
+    return "static-lib-linker";
   }
 
   llvm_unreachable("invalid class");
@@ -495,3 +497,8 @@ void FileTableTformJobAction::addReplaceColumnTform(StringRef From,
                                                     StringRef To) {
   Tforms.emplace_back(Tform(Tform::REPLACE, {From, To}));
 }
+
+void StaticLibJobAction::anchor() {}
+
+StaticLibJobAction::StaticLibJobAction(ActionList &Inputs, types::ID Type)
+    : JobAction(StaticLibJobClass, Inputs, Type) {}

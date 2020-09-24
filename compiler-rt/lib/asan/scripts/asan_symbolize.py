@@ -17,7 +17,7 @@ various parts of this script (see `--plugins`). This is useful for situations
 where it is necessary to handle site-specific quirks (e.g. binaries with debug
 symbols only accessible via a remote service) without having to modify the
 script itself.
-  
+
 """
 import argparse
 import bisect
@@ -89,10 +89,9 @@ class LLVMSymbolizer(Symbolizer):
 
   def open_llvm_symbolizer(self):
     cmd = [self.symbolizer_path,
-           '--use-symbol-table=true',
-           '--demangle=%s' % demangle,
+           ('--demangle' if demangle else '--no-demangle'),
            '--functions=linkage',
-           '--inlining=true',
+           '--inlines',
            '--default-arch=%s' % self.default_arch]
     if self.system == 'Darwin':
       for hint in self.dsym_hints:
@@ -275,11 +274,14 @@ class DarwinSymbolizer(Symbolizer):
       atos_line = self.atos.readline()
     # A well-formed atos response looks like this:
     #   foo(type1, type2) (in object.name) (filename.cc:80)
+    # NOTE:
+    #   * For C functions atos omits parentheses and argument types.
+    #   * For C++ functions the function name (i.e., `foo` above) may contain
+    #     templates which may contain parentheses.
     match = re.match('^(.*) \(in (.*)\) \((.*:\d*)\)$', atos_line)
     logging.debug('atos_line: %s', atos_line)
     if match:
       function_name = match.group(1)
-      function_name = re.sub('\(.*?\)', '', function_name)
       file_name = fix_filename(match.group(3))
       return ['%s in %s %s' % (addr, function_name, file_name)]
     else:

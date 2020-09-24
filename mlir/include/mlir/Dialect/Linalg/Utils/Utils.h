@@ -9,16 +9,24 @@
 #ifndef MLIR_DIALECT_LINALG_UTILS_H_
 #define MLIR_DIALECT_LINALG_UTILS_H_
 
+#include "mlir/Dialect/Affine/EDSC/Intrinsics.h"
+#include "mlir/Dialect/Linalg/EDSC/Builders.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
-#include "mlir/Dialect/LoopOps/LoopOps.h"
+#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 
 #include "llvm/ADT/SetVector.h"
 
+using mlir::edsc::intrinsics::AffineIndexedValue;
+using mlir::edsc::intrinsics::StdIndexedValue;
+
 namespace mlir {
 class AffineExpr;
+class AffineForOp;
 class AffineMap;
 class OperationFolder;
+class PatternRewriter;
 
 namespace linalg {
 class LinalgDependenceGraph;
@@ -48,6 +56,15 @@ struct RegionMatcher {
   static Optional<BinaryOpKind> matchAsScalarBinaryOp(GenericOp op);
 };
 
+/// Checks if an iterator_type attribute is parallel.
+bool isParallelIteratorType(Attribute attr);
+
+/// Checks if an iterator_type attribute is parallel.
+bool isReductionIteratorType(Attribute attr);
+
+/// Checks if an iterator_type attribute is parallel.
+bool isWindowIteratorType(Attribute attr);
+
 /// Checks whether the specific `producer` is the last write to exactly the
 /// whole `consumedView`. This checks structural dominance, that the dependence
 /// is a RAW without any interleaved write to any piece of `consumedView`.
@@ -71,11 +88,11 @@ Optional<FusionInfo> fuseProducerOf(OpBuilder &b, LinalgOp consumer,
                                     const LinalgDependenceGraph &graph,
                                     OperationFolder *folder = nullptr);
 
-/// Fuse linalg operation on tensors, where the result of the producer is used
-/// as the operand of the consumer at position `consumerIdx`.
-Optional<LinalgOp> fuseTensorOps(OpBuilder &b, LinalgOp producer,
-                                 LinalgOp consumer, unsigned consumerIdx,
-                                 OperationFolder *folder = nullptr);
+/// Fuse linalg operation on tensors, with the producer of the operand at
+/// position `consumerIdx` of the consumer.
+Operation *fuseTensorOps(PatternRewriter &rewriter, Operation *consumer,
+                         unsigned consumerIdx,
+                         OperationFolder *folder = nullptr);
 
 /// Returns the linearized list of all view dimensions in a linalgOp. Applying
 /// the inverse, concatenated loopToOperandRangeMaps to this list allows the
@@ -84,10 +101,31 @@ template <typename ConcreteOp>
 SmallVector<Value, 8> getViewSizes(OpBuilder &builder, ConcreteOp linalgOp) {
   auto loc = linalgOp.getLoc();
   SmallVector<Value, 8> res;
+  SmallVector<unsigned, 4> ranks;
   for (auto v : linalgOp.getInputsAndOutputBuffers()) {
     MemRefType t = v.getType().template cast<MemRefType>();
+    ranks.push_back(t.getRank());
     for (unsigned i = 0; i < t.getRank(); ++i)
       res.push_back(builder.create<DimOp>(loc, v, i));
+  }
+
+  auto attr = linalgOp.template getAttrOfType<IntegerAttr>("symbol_source");
+  if (attr) {
+    // Find the correct position for inserting values for symbols.
+    unsigned numSymb = ranks[attr.getInt()], symbolsPos = 0;
+    for (unsigned idx = 0; idx < attr.getInt(); idx++)
+      symbolsPos += ranks[idx];
+
+    // Append the end of the value list that corresponds to the
+    // values mapping to symbols. Since inside concatinated map symbols are
+    // repeated we have to repeat the sizes as well.
+
+    // Reserve is mandatory to avoid a potential undefined behavior with
+    // pushing back to smallvector from itself.
+    res.reserve(res.size() + ranks.size() * numSymb);
+    for (unsigned idx = 0, s = ranks.size(); idx < s; ++idx)
+      for (unsigned idx2 = 0; idx2 < numSymb; ++idx2)
+        res.push_back(res[symbolsPos + idx2]);
   }
   return res;
 }
@@ -97,86 +135,8 @@ SmallVector<Value, 8> getViewSizes(OpBuilder &builder, ConcreteOp linalgOp) {
 /// `createAndFold` builder method. If `folder` is null, the regular `create`
 /// method is called.
 SmallVector<Value, 4> applyMapToValues(OpBuilder &b, Location loc,
-                                       AffineMap map, ArrayRef<Value> values,
+                                       AffineMap map, ValueRange values,
                                        OperationFolder *folder = nullptr);
-
-struct TiledLinalgOp {
-  LinalgOp op;
-  SmallVector<Operation *, 8> loops;
-};
-
-/// Performs standalone tiling of a single LinalgOp by `tileSizes`.
-/// and permute the loop nest according to `permutation`
-/// The permutation is expressed as a list of integers that specify
-/// the new ordering of the loop nest. The length of `permutation`
-/// must be equal to the length of `tileSizes`.
-/// E.g. the permutation `(i,j,k) -> (j,k,i)` will be expressed with
-/// `permutation = [1,2,0]`. All values in `permutation` must be
-/// integers, in the range 0..`tileSizes.size()` without duplications
-/// (i.e. `[1,1,2]` is an invalid permutation). An empty list
-/// states for the identity permutation.
-/// Returns a struct containing the tiled loops in the specified order
-/// and the cloned op if successful, llvm::None otherwise.
-/// When non-null, the optional pointer `folder` is used to call into the
-/// `createAndFold` builder method. If `folder` is null, the regular `create`
-/// method is called.
-Optional<TiledLinalgOp> tileLinalgOp(OpBuilder &b, LinalgOp op,
-                                     ArrayRef<Value> tileSizes,
-                                     ArrayRef<unsigned> permutation = {},
-                                     OperationFolder *folder = nullptr);
-Optional<TiledLinalgOp> tileLinalgOpToParallelLoops(
-    OpBuilder &b, LinalgOp op, ArrayRef<Value> tileSizes,
-    ArrayRef<unsigned> permutation = {}, OperationFolder *folder = nullptr);
-
-/// Performs standalone tiling of a single LinalgOp by constant `tileSizes`.
-/// and permute the loop nest according to `permutation`
-/// The permutation is expressed as a list of integers that specify
-/// the new ordering of the loop nest. The length of `permutation`
-/// must be equal to the length of `tileSizes`.
-/// E.g. the permutation `(i,j,k) -> (j,k,i)` will be expressed with
-/// `permutation = [1,2,0]`. All values in `permutation` must be
-/// integers, in the range 0..`tileSizes.size()` without duplications
-/// (i.e. `[1,1,2]` is an invalid permutation). An empty list
-/// states for the identity permutation.
-/// Returns a struct containing the tiled loops in the specified order
-/// and the cloned op if successful, llvm::None otherwise.
-/// When non-null, the optional pointer `folder` is used to call into the
-/// `createAndFold` builder method. If `folder` is null, the regular `create`
-/// method is called.
-Optional<TiledLinalgOp> tileLinalgOp(OpBuilder &b, LinalgOp op,
-                                     ArrayRef<int64_t> tileSizes,
-                                     ArrayRef<unsigned> permutation = {},
-                                     OperationFolder *folder = nullptr);
-Optional<TiledLinalgOp> tileLinalgOpToParallelLoops(
-    OpBuilder &b, LinalgOp op, ArrayRef<int64_t> tileSizes,
-    ArrayRef<unsigned> permutation = {}, OperationFolder *folder = nullptr);
-
-template <typename... Args>
-Optional<TiledLinalgOp> tileLinalgOperation(OpBuilder &b, Operation *op,
-                                            Args... args) {
-  return tileLinalgOp(b, cast<LinalgOp>(op), args...);
-}
-
-struct PromotionInfo {
-  Value buffer;
-  Value fullLocalView;
-  Value partialLocalView;
-};
-
-/// Promotes the `subViews` into a new buffer allocated at the insertion point
-/// `b`. For now, promotion occurs in 3 steps:
-///   1. Create a new buffer for a full tile (i.e. not clipped at the boundary).
-///   2. Take a full view on the buffer and `linalg.fill` it with zeros (use
-///      float zero for now).
-///   3. Take a partial slice of the full view in step 2. and copy into it.
-/// Infers statically sized buffers from subViews unless `dynamicBuffers` is
-/// true.
-///
-/// Returns a list of PromotionInfo which hold the promoted buffer and the
-/// full and partial views indexing into the buffer.
-SmallVector<PromotionInfo, 8>
-promoteSubViews(OpBuilder &b, Location loc, ArrayRef<Value> subViews,
-                bool dynamicBuffers = false, OperationFolder *folder = nullptr);
 
 /// Returns all the operands of `linalgOp` that are not views.
 /// Asserts that these operands are value types to allow transformations like
@@ -196,15 +156,89 @@ void applyPermutationToVector(SmallVector<T, N> &inVec,
   inVec = auxVec;
 }
 
-/// Prepares the SubView promotion later performed by `promoteSubViews`
-/// (where most of the transformation happens). It arranges the new
-/// operands for `LinalgOp op` and deallocates the new buffer(s)
-/// It is the entry point for declarative transformation
-/// Returns the cloned `LinalgOp` with the new operands
-LinalgOp promoteSubViewOperands(OpBuilder &b, LinalgOp op,
-                                llvm::SetVector<Value> subViews,
-                                bool dynamicBuffers = false,
-                                OperationFolder *folder = nullptr);
+/// Scheme used to distribute loops to processors.
+enum class DistributionMethod {
+  /// Cyclic distribution where no assumption is made about the dynamic
+  /// relationship between number of processors and number of iterations of the
+  /// distributed loop. Distributes the following loop
+  ///
+  /// scf.parallel (%iv) = (%lb) to (%ub) step (%step)
+  ///
+  /// to
+  ///
+  /// scf.parallel(%iv)= (%lb + %procId * %step) to (%ub) step (%step * %nprocs)
+  Cyclic = 0,
+
+  /// Cyclic distribtuion where the number of processors can be assumed to be
+  /// more than or equal to the number of iterations of the distributed loop. In
+  /// such cases, a simple in-bounds check is enough (instead of materializing a
+  /// loop). Distributes the following loop
+  ///
+  /// scf.parallel (%iv) = (%lb) to (%ub) step (%step)
+  ///
+  /// to
+  ///
+  /// %iv = %lb + %procId * %step
+  /// %cond = cmpi "slt", %iv, %ub
+  /// scf.if %cond {
+  ///   ...
+  /// }
+  CyclicNumProcsGeNumIters = 1,
+
+  /// Cyclic distribtuion where the number of processors can be assumed to be
+  ///  equal to the number of iterations of the distributed loop. In such cases,
+  ///  no bounds check is needed. Distributes the following loop
+  ///
+  /// scf.parallel (%iv) = (%lb) to (%ub) step (%step)
+  ///
+  /// to
+  ///
+  /// %iv = %lb + %procId * %step
+  CyclicNumProcsEqNumIters = 2
+};
+
+/// Callback function type used to get processor ID, and number of processors
+/// used for distribution for all parallel loops generated.
+struct ProcInfo {
+  Value procId;
+  Value nprocs;
+};
+using ProcInfoCallBackFn = std::function<SmallVector<ProcInfo, 2>(
+    OpBuilder &b, Location loc, ArrayRef<SubViewOp::Range> parallelLoopRanges)>;
+
+/// Options that allow distribution of loops generated in Linalg transforms to
+/// processors while generating the loops.
+struct LinalgLoopDistributionOptions {
+  /// Callback function that returns the Values for processor ID (`procId`), and
+  /// number of processors (`nprocs`) used to execute the parallel loops. The
+  /// number of `{procId, nprocs}` pairs returned must be equal to the number of
+  /// `parallelLoopRanges` passed into the callback, which in-turn is same as
+  /// the number of parallel loops for which the `distributionMethod` is
+  /// specified below.
+  ProcInfoCallBackFn procInfo;
+  /// Specification of how to distribute the `scf.parallel` loops that are
+  /// generated. As the `scf.parallel` loop is generated, the elements of this
+  /// vector is used (from left to right) and the specified distribution is
+  /// applied. If the vector is less than the number of `scf.parallel` loops
+  /// generated, then no distribution is applied.
+  SmallVector<DistributionMethod, 0> distributionMethod = {};
+};
+
+/// Utility class used to generate nested loops with ranges described by
+/// `loopRanges` and loop type described by the `iteratorTypes`. `bodyBuilderFn`
+/// is used to generate the body of the innermost loop. It is passed a range
+/// of loop induction variables.
+template <typename LoopTy>
+struct GenerateLoopNest {
+  using IndexedValueTy =
+      typename std::conditional<std::is_same<LoopTy, AffineForOp>::value,
+                                AffineIndexedValue, StdIndexedValue>::type;
+
+  static void doit(ArrayRef<SubViewOp::Range> loopRanges,
+                   ArrayRef<Attribute> iteratorTypes,
+                   function_ref<void(ValueRange)> bodyBuilderFn,
+                   Optional<LinalgLoopDistributionOptions> = None);
+};
 
 } // namespace linalg
 } // namespace mlir

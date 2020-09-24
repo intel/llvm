@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/info/info_desc.hpp>
@@ -23,6 +24,10 @@ namespace detail {
 class event_impl;
 }
 
+/// An event object can be used to synchronize memory transfers, enqueues of
+/// kernels and signaling barriers.
+///
+/// \ingroup sycl_api
 class __SYCL_EXPORT event {
 public:
   /// Constructs a ready SYCL event.
@@ -53,7 +58,7 @@ public:
   /// Returns a valid OpenCL event interoperability handle.
   ///
   /// \return a valid instance of OpenCL cl_event.
-  cl_event get();
+  cl_event get() const;
 
   /// Checks if this event is a SYCL host event.
   ///
@@ -113,8 +118,18 @@ public:
   typename info::param_traits<info::event_profiling, param>::return_type
   get_profiling_info() const;
 
+  /// Gets the native handle of the SYCL event.
+  ///
+  /// \return a native handle, the type of which defined by the backend.
+  template <backend BackendName>
+  auto get_native() const -> typename interop<BackendName, event>::type {
+    return static_cast<typename interop<BackendName, event>::type>(getNative());
+  }
+
 private:
   event(shared_ptr_class<detail::event_impl> EventImpl);
+
+  pi_native_handle getNative() const;
 
   shared_ptr_class<detail::event_impl> impl;
 

@@ -56,6 +56,7 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/LoopPassManager.h"
 #include "llvm/Transforms/Utils.h"
+#include "llvm/Transforms/Utils/LoopPeel.h"
 #include "llvm/Transforms/Utils/LoopSimplify.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
 #include "llvm/Transforms/Utils/SizeOpts.h"
@@ -81,6 +82,12 @@ cl::opt<bool> llvm::ForgetSCEVInLoopUnroll(
 static cl::opt<unsigned>
     UnrollThreshold("unroll-threshold", cl::Hidden,
                     cl::desc("The cost threshold for loop unrolling"));
+
+static cl::opt<unsigned>
+    UnrollOptSizeThreshold(
+      "unroll-optsize-threshold", cl::init(0), cl::Hidden,
+      cl::desc("The cost threshold for loop unrolling when optimizing for "
+               "size"));
 
 static cl::opt<unsigned> UnrollPartialThreshold(
     "unroll-partial-threshold", cl::Hidden,
@@ -115,10 +122,6 @@ static cl::opt<unsigned> UnrollFullMaxCount(
     cl::desc(
         "Set the max unroll count for full unrolling, for testing purposes"));
 
-static cl::opt<unsigned> UnrollPeelCount(
-    "unroll-peel-count", cl::Hidden,
-    cl::desc("Set the unroll peeling count, for testing purposes"));
-
 static cl::opt<bool>
     UnrollAllowPartial("unroll-allow-partial", cl::Hidden,
                        cl::desc("Allows loops to be partially unrolled until "
@@ -148,15 +151,6 @@ static cl::opt<unsigned> FlatLoopTripCountThreshold(
     cl::desc("If the runtime tripcount for the loop is lower than the "
              "threshold, the loop is considered as flat and will be less "
              "aggressively unrolled."));
-
-static cl::opt<bool>
-    UnrollAllowPeeling("unroll-allow-peeling", cl::init(true), cl::Hidden,
-                       cl::desc("Allows loops to be peeled when the dynamic "
-                                "trip count is known to be low."));
-
-static cl::opt<bool> UnrollAllowLoopNestsPeeling(
-    "unroll-allow-loop-nests-peeling", cl::init(false), cl::Hidden,
-    cl::desc("Allows loop nests to be peeled."));
 
 static cl::opt<bool> UnrollUnrollRemainder(
   "unroll-remainder", cl::Hidden,
@@ -193,20 +187,17 @@ TargetTransformInfo::UnrollingPreferences llvm::gatherUnrollingPreferences(
     BlockFrequencyInfo *BFI, ProfileSummaryInfo *PSI, int OptLevel,
     Optional<unsigned> UserThreshold, Optional<unsigned> UserCount,
     Optional<bool> UserAllowPartial, Optional<bool> UserRuntime,
-    Optional<bool> UserUpperBound, Optional<bool> UserAllowPeeling,
-    Optional<bool> UserAllowProfileBasedPeeling,
-    Optional<unsigned> UserFullUnrollMaxCount) {
+    Optional<bool> UserUpperBound, Optional<unsigned> UserFullUnrollMaxCount) {
   TargetTransformInfo::UnrollingPreferences UP;
 
   // Set up the defaults
   UP.Threshold =
       OptLevel > 2 ? UnrollThresholdAggressive : UnrollThresholdDefault;
   UP.MaxPercentThresholdBoost = 400;
-  UP.OptSizeThreshold = 0;
+  UP.OptSizeThreshold = UnrollOptSizeThreshold;
   UP.PartialThreshold = 150;
-  UP.PartialOptSizeThreshold = 0;
+  UP.PartialOptSizeThreshold = UnrollOptSizeThreshold;
   UP.Count = 0;
-  UP.PeelCount = 0;
   UP.DefaultUnrollRuntimeCount = 8;
   UP.MaxCount = std::numeric_limits<unsigned>::max();
   UP.FullUnrollMaxCount = std::numeric_limits<unsigned>::max();
@@ -218,11 +209,9 @@ TargetTransformInfo::UnrollingPreferences llvm::gatherUnrollingPreferences(
   UP.AllowExpensiveTripCount = false;
   UP.Force = false;
   UP.UpperBound = false;
-  UP.AllowPeeling = true;
-  UP.AllowLoopNestsPeeling = false;
   UP.UnrollAndJam = false;
-  UP.PeelProfiledIterations = true;
   UP.UnrollAndJamInnerLoopThreshold = 60;
+  UP.MaxIterationsCountToAnalyze = UnrollMaxIterationsCountToAnalyze;
 
   // Override with any target specific settings
   TTI.getUnrollingPreferences(L, SE, UP);
@@ -248,8 +237,6 @@ TargetTransformInfo::UnrollingPreferences llvm::gatherUnrollingPreferences(
     UP.MaxCount = UnrollMaxCount;
   if (UnrollFullMaxCount.getNumOccurrences() > 0)
     UP.FullUnrollMaxCount = UnrollFullMaxCount;
-  if (UnrollPeelCount.getNumOccurrences() > 0)
-    UP.PeelCount = UnrollPeelCount;
   if (UnrollAllowPartial.getNumOccurrences() > 0)
     UP.Partial = UnrollAllowPartial;
   if (UnrollAllowRemainder.getNumOccurrences() > 0)
@@ -258,12 +245,10 @@ TargetTransformInfo::UnrollingPreferences llvm::gatherUnrollingPreferences(
     UP.Runtime = UnrollRuntime;
   if (UnrollMaxUpperBound == 0)
     UP.UpperBound = false;
-  if (UnrollAllowPeeling.getNumOccurrences() > 0)
-    UP.AllowPeeling = UnrollAllowPeeling;
-  if (UnrollAllowLoopNestsPeeling.getNumOccurrences() > 0)
-    UP.AllowLoopNestsPeeling = UnrollAllowLoopNestsPeeling;
   if (UnrollUnrollRemainder.getNumOccurrences() > 0)
     UP.UnrollRemainder = UnrollUnrollRemainder;
+  if (UnrollMaxIterationsCountToAnalyze.getNumOccurrences() > 0)
+    UP.MaxIterationsCountToAnalyze = UnrollMaxIterationsCountToAnalyze;
 
   // Apply user values provided by argument
   if (UserThreshold.hasValue()) {
@@ -278,10 +263,6 @@ TargetTransformInfo::UnrollingPreferences llvm::gatherUnrollingPreferences(
     UP.Runtime = *UserRuntime;
   if (UserUpperBound.hasValue())
     UP.UpperBound = *UserUpperBound;
-  if (UserAllowPeeling.hasValue())
-    UP.AllowPeeling = *UserAllowPeeling;
-  if (UserAllowProfileBasedPeeling.hasValue())
-    UP.PeelProfiledIterations = *UserAllowProfileBasedPeeling;
   if (UserFullUnrollMaxCount.hasValue())
     UP.FullUnrollMaxCount = *UserFullUnrollMaxCount;
 
@@ -353,11 +334,12 @@ struct EstimatedUnrollCost {
 static Optional<EstimatedUnrollCost> analyzeLoopUnrollCost(
     const Loop *L, unsigned TripCount, DominatorTree &DT, ScalarEvolution &SE,
     const SmallPtrSetImpl<const Value *> &EphValues,
-    const TargetTransformInfo &TTI, unsigned MaxUnrolledLoopSize) {
+    const TargetTransformInfo &TTI, unsigned MaxUnrolledLoopSize,
+    unsigned MaxIterationsCountToAnalyze) {
   // We want to be able to scale offsets by the trip count and add more offsets
   // to them without checking for overflows, and we already don't want to
   // analyze *massive* trip counts, so we force the max to be reasonably small.
-  assert(UnrollMaxIterationsCountToAnalyze <
+  assert(MaxIterationsCountToAnalyze <
              (unsigned)(std::numeric_limits<int>::max() / 2) &&
          "The unroll iterations max is too large!");
 
@@ -367,8 +349,7 @@ static Optional<EstimatedUnrollCost> analyzeLoopUnrollCost(
     return None;
 
   // Don't simulate loops with a big or unknown tripcount
-  if (!UnrollMaxIterationsCountToAnalyze || !TripCount ||
-      TripCount > UnrollMaxIterationsCountToAnalyze)
+  if (!TripCount || TripCount > MaxIterationsCountToAnalyze)
     return None;
 
   SmallSetVector<BasicBlock *, 16> BBWorklist;
@@ -406,6 +387,10 @@ static Optional<EstimatedUnrollCost> analyzeLoopUnrollCost(
     assert(CostWorklist.empty() && "Must start with an empty cost list");
     assert(PHIUsedList.empty() && "Must start with an empty phi used list");
     CostWorklist.push_back(&RootI);
+    TargetTransformInfo::TargetCostKind CostKind =
+      RootI.getFunction()->hasMinSize() ?
+      TargetTransformInfo::TCK_CodeSize :
+      TargetTransformInfo::TCK_SizeAndLatency;
     for (;; --Iteration) {
       do {
         Instruction *I = CostWorklist.pop_back_val();
@@ -446,7 +431,7 @@ static Optional<EstimatedUnrollCost> analyzeLoopUnrollCost(
 
         // First accumulate the cost of this instruction.
         if (!Cost.IsFree) {
-          UnrolledCost += TTI.getUserCost(I);
+          UnrolledCost += TTI.getUserCost(I, CostKind);
           LLVM_DEBUG(dbgs() << "Adding cost of instruction (iteration "
                             << Iteration << "): ");
           LLVM_DEBUG(I->dump());
@@ -486,6 +471,9 @@ static Optional<EstimatedUnrollCost> analyzeLoopUnrollCost(
 
   LLVM_DEBUG(dbgs() << "Starting LoopUnroll profitability analysis...\n");
 
+  TargetTransformInfo::TargetCostKind CostKind =
+    L->getHeader()->getParent()->hasMinSize() ?
+    TargetTransformInfo::TCK_CodeSize : TargetTransformInfo::TCK_SizeAndLatency;
   // Simulate execution of each iteration of the loop counting instructions,
   // which would be simplified.
   // Since the same load will take different values on different iterations,
@@ -539,7 +527,7 @@ static Optional<EstimatedUnrollCost> analyzeLoopUnrollCost(
 
         // Track this instruction's expected baseline cost when executing the
         // rolled loop form.
-        RolledDynamicCost += TTI.getUserCost(&I);
+        RolledDynamicCost += TTI.getUserCost(&I, CostKind);
 
         // Visit the instruction to analyze its loop cost after unrolling,
         // and if the visitor returns true, mark the instruction as free after
@@ -758,7 +746,8 @@ bool llvm::computeUnrollCount(
     ScalarEvolution &SE, const SmallPtrSetImpl<const Value *> &EphValues,
     OptimizationRemarkEmitter *ORE, unsigned &TripCount, unsigned MaxTripCount,
     bool MaxOrZero, unsigned &TripMultiple, unsigned LoopSize,
-    TargetTransformInfo::UnrollingPreferences &UP, bool &UseUpperBound) {
+    TargetTransformInfo::UnrollingPreferences &UP,
+    TargetTransformInfo::PeelingPreferences &PP, bool &UseUpperBound) {
 
   // Check for explicit Count.
   // 1st priority is unroll count set by "unroll-count" option.
@@ -845,7 +834,8 @@ bool llvm::computeUnrollCount(
       // To check that, run additional analysis on the loop.
       if (Optional<EstimatedUnrollCost> Cost = analyzeLoopUnrollCost(
               L, FullUnrollTripCount, DT, SE, EphValues, TTI,
-              UP.Threshold * UP.MaxPercentThresholdBoost / 100)) {
+              UP.Threshold * UP.MaxPercentThresholdBoost / 100,
+              UP.MaxIterationsCountToAnalyze)) {
         unsigned Boost =
             getFullUnrollBoostingFactor(*Cost, UP.MaxPercentThresholdBoost);
         if (Cost->UnrolledCost < UP.Threshold * Boost / 100) {
@@ -859,8 +849,8 @@ bool llvm::computeUnrollCount(
   }
 
   // 4th priority is loop peeling.
-  computePeelCount(L, LoopSize, UP, TripCount, SE);
-  if (UP.PeelCount) {
+  computePeelCount(L, LoopSize, PP, TripCount, SE, UP.Threshold);
+  if (PP.PeelCount) {
     UP.Runtime = false;
     UP.Count = 1;
     return ExplicitUnroll;
@@ -1063,8 +1053,9 @@ static LoopUnrollResult tryToUnrollLoop(
   TargetTransformInfo::UnrollingPreferences UP = gatherUnrollingPreferences(
       L, SE, TTI, BFI, PSI, OptLevel, ProvidedThreshold, ProvidedCount,
       ProvidedAllowPartial, ProvidedRuntime, ProvidedUpperBound,
-      ProvidedAllowPeeling, ProvidedAllowProfileBasedPeeling,
       ProvidedFullUnrollMaxCount);
+  TargetTransformInfo::PeelingPreferences PP = gatherPeelingPreferences(
+      L, SE, TTI, ProvidedAllowPeeling, ProvidedAllowProfileBasedPeeling, true);
 
   // Exit early if unrolling is disabled. For OptForSize, we pick the loop size
   // as threshold later on.
@@ -1138,7 +1129,7 @@ static LoopUnrollResult tryToUnrollLoop(
   bool UseUpperBound = false;
   bool IsCountSetExplicitly = computeUnrollCount(
       L, TTI, DT, LI, SE, EphValues, &ORE, TripCount, MaxTripCount, MaxOrZero,
-      TripMultiple, LoopSize, UP, UseUpperBound);
+      TripMultiple, LoopSize, UP, PP, UseUpperBound);
   if (!UP.Count)
     return LoopUnrollResult::Unmodified;
   // Unroll factor (Count) must be less or equal to TripCount.
@@ -1153,7 +1144,7 @@ static LoopUnrollResult tryToUnrollLoop(
   LoopUnrollResult UnrollResult = UnrollLoop(
       L,
       {UP.Count, TripCount, UP.Force, UP.Runtime, UP.AllowExpensiveTripCount,
-       UseUpperBound, MaxOrZero, TripMultiple, UP.PeelCount, UP.UnrollRemainder,
+       UseUpperBound, MaxOrZero, TripMultiple, PP.PeelCount, UP.UnrollRemainder,
        ForgetAllSCEV},
       LI, &SE, &DT, &AC, &TTI, &ORE, PreserveLCSSA, &RemainderLoop);
   if (UnrollResult == LoopUnrollResult::Unmodified)
@@ -1185,7 +1176,7 @@ static LoopUnrollResult tryToUnrollLoop(
   // If the loop was peeled, we already "used up" the profile information
   // we had, so we don't want to unroll or peel again.
   if (UnrollResult != LoopUnrollResult::FullyUnrolled &&
-      (IsCountSetExplicitly || (UP.PeelProfiledIterations && UP.PeelCount)))
+      (IsCountSetExplicitly || (PP.PeelProfiledIterations && PP.PeelCount)))
     L->setLoopAlreadyUnrolled();
 
   return UnrollResult;
@@ -1409,10 +1400,9 @@ PreservedAnalyses LoopUnrollPass::run(Function &F,
   if (auto *LAMProxy = AM.getCachedResult<LoopAnalysisManagerFunctionProxy>(F))
     LAM = &LAMProxy->getManager();
 
-  const ModuleAnalysisManager &MAM =
-      AM.getResult<ModuleAnalysisManagerFunctionProxy>(F).getManager();
+  auto &MAMProxy = AM.getResult<ModuleAnalysisManagerFunctionProxy>(F);
   ProfileSummaryInfo *PSI =
-      MAM.getCachedResult<ProfileSummaryAnalysis>(*F.getParent());
+      MAMProxy.getCachedResult<ProfileSummaryAnalysis>(*F.getParent());
   auto *BFI = (PSI && PSI->hasProfileSummary()) ?
       &AM.getResult<BlockFrequencyAnalysis>(F) : nullptr;
 

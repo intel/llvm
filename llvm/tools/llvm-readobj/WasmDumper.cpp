@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Error.h"
 #include "ObjDumper.h"
 #include "llvm-readobj.h"
 #include "llvm/Object/Wasm.h"
@@ -93,18 +92,8 @@ void WasmDumper::printRelocation(const SectionRef &Section,
   if (SI != Obj->symbol_end())
     SymName = unwrapOrError(Obj->getFileName(), SI->getName());
 
-  bool HasAddend = false;
-  switch (RelocType) {
-  case wasm::R_WASM_MEMORY_ADDR_LEB:
-  case wasm::R_WASM_MEMORY_ADDR_SLEB:
-  case wasm::R_WASM_MEMORY_ADDR_I32:
-  case wasm::R_WASM_FUNCTION_OFFSET_I32:
-  case wasm::R_WASM_SECTION_OFFSET_I32:
-    HasAddend = true;
-    break;
-  default:
-    break;
-  }
+  bool HasAddend = wasm::relocTypeHasAddend(static_cast<uint32_t>(RelocType));
+
   if (opts::ExpandRelocs) {
     DictScope Group(W, "Relocation");
     W.printNumber("Type", RelocTypeName, RelocType);
@@ -192,6 +181,10 @@ void WasmDumper::printSectionHeaders() {
         W.printNumber("Size", static_cast<uint64_t>(Seg.Content.size()));
         if (Seg.Offset.Opcode == wasm::WASM_OPCODE_I32_CONST)
           W.printNumber("Offset", Seg.Offset.Value.Int32);
+        else if (Seg.Offset.Opcode == wasm::WASM_OPCODE_I64_CONST)
+          W.printNumber("Offset", Seg.Offset.Value.Int64);
+        else
+          llvm_unreachable("unknown init expr opcode");
       }
       break;
     }
@@ -247,14 +240,9 @@ void WasmDumper::printSymbol(const SymbolRef &Sym) {
 
 namespace llvm {
 
-std::error_code createWasmDumper(const object::ObjectFile *Obj,
-                                 ScopedPrinter &Writer,
-                                 std::unique_ptr<ObjDumper> &Result) {
-  const auto *WasmObj = dyn_cast<WasmObjectFile>(Obj);
-  assert(WasmObj && "createWasmDumper called with non-wasm object");
-
-  Result.reset(new WasmDumper(WasmObj, Writer));
-  return readobj_error::success;
+std::unique_ptr<ObjDumper> createWasmDumper(const object::WasmObjectFile &Obj,
+                                            ScopedPrinter &Writer) {
+  return std::make_unique<WasmDumper>(&Obj, Writer);
 }
 
 } // namespace llvm

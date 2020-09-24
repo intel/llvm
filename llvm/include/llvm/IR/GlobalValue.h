@@ -185,7 +185,6 @@ public:
 
   GlobalValue(const GlobalValue &) = delete;
 
-  unsigned getAlignment() const;
   unsigned getAddressSpace() const;
 
   enum class UnnamedAddr {
@@ -427,6 +426,7 @@ public:
   /// inlining across interposable call edges, since the callee can be
   /// replaced with something arbitrary.
   bool isInterposable() const;
+  bool canBenefitFromLocalAlias() const;
 
   bool hasExternalLinkage() const { return isExternalLinkage(getLinkage()); }
   bool hasAvailableExternallyLinkage() const {
@@ -547,10 +547,6 @@ public:
   bool isStrongDefinitionForLinker() const {
     return !(isDeclarationForLinker() || isWeakForLinker());
   }
-
-  // Returns true if the alignment of the value can be unilaterally
-  // increased.
-  bool canIncreaseAlignment() const;
 
   const GlobalObject *getBaseObject() const;
   GlobalObject *getBaseObject() {

@@ -12,6 +12,7 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Tooling/Refactoring/AtomicChange.h"
 #include "llvm/Support/Error.h"
+#include <map>
 #include <utility>
 #include <vector>
 
@@ -31,42 +32,39 @@ void Transformer::run(const MatchFinder::MatchResult &Result) {
 
   transformer::RewriteRule::Case Case =
       transformer::detail::findSelectedCase(Result, Rule);
-  auto Transformations = transformer::detail::translateEdits(Result, Case.Edits);
+  auto Transformations = Case.Edits(Result);
   if (!Transformations) {
     Consumer(Transformations.takeError());
     return;
   }
 
-  if (Transformations->empty()) {
-    // No rewrite applied (but no error encountered either).
-    transformer::detail::getRuleMatchLoc(Result).print(
-        llvm::errs() << "note: skipping match at loc ", *Result.SourceManager);
-    llvm::errs() << "\n";
+  if (Transformations->empty())
     return;
-  }
 
-  // Record the results in the AtomicChange, anchored at the location of the
-  // first change.
-  AtomicChange AC(*Result.SourceManager,
-                  (*Transformations)[0].Range.getBegin());
+  // Group the transformations, by file, into AtomicChanges, each anchored by
+  // the location of the first change in that file.
+  std::map<FileID, AtomicChange> ChangesByFileID;
   for (const auto &T : *Transformations) {
-    if (auto Err = AC.replace(*Result.SourceManager, T.Range, T.Replacement)) {
-      Consumer(std::move(Err));
-      return;
+    auto ID = Result.SourceManager->getFileID(T.Range.getBegin());
+    auto Iter = ChangesByFileID
+                    .emplace(ID, AtomicChange(*Result.SourceManager,
+                                              T.Range.getBegin(), T.Metadata))
+                    .first;
+    auto &AC = Iter->second;
+    switch (T.Kind) {
+    case transformer::EditKind::Range:
+      if (auto Err =
+              AC.replace(*Result.SourceManager, T.Range, T.Replacement)) {
+        Consumer(std::move(Err));
+        return;
+      }
+      break;
+    case transformer::EditKind::AddInclude:
+      AC.addHeader(T.Replacement);
+      break;
     }
   }
 
-  for (const auto &I : Case.AddedIncludes) {
-    auto &Header = I.first;
-    switch (I.second) {
-    case transformer::IncludeFormat::Quoted:
-      AC.addHeader(Header);
-      break;
-    case transformer::IncludeFormat::Angled:
-      AC.addHeader((llvm::Twine("<") + Header + ">").str());
-      break;
-    }
-  }
-
-  Consumer(std::move(AC));
+  for (auto &IDChangePair : ChangesByFileID)
+    Consumer(std::move(IDChangePair.second));
 }

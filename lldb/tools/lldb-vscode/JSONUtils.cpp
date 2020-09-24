@@ -7,8 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include <algorithm>
+#include <iomanip>
+#include <sstream>
 
+#include "llvm/ADT/Optional.h"
 #include "llvm/Support/FormatAdapters.h"
+#include "llvm/Support/Path.h"
+#include "llvm/Support/ScopedPrinter.h"
 
 #include "lldb/API/SBBreakpoint.h"
 #include "lldb/API/SBBreakpointLocation.h"
@@ -38,8 +43,8 @@ llvm::StringRef GetAsString(const llvm::json::Value &value) {
 
 // Gets a string from a JSON object using the key, or returns an empty string.
 llvm::StringRef GetString(const llvm::json::Object &obj, llvm::StringRef key) {
-  if (auto value = obj.getString(key))
-    return GetAsString(*value);
+  if (llvm::Optional<llvm::StringRef> value = obj.getString(key))
+    return *value;
   return llvm::StringRef();
 }
 
@@ -111,13 +116,9 @@ std::vector<std::string> GetStrings(const llvm::json::Object *obj,
       strs.push_back(value.getAsString()->str());
       break;
     case llvm::json::Value::Number:
-    case llvm::json::Value::Boolean: {
-      std::string s;
-      llvm::raw_string_ostream strm(s);
-      strm << value;
-      strs.push_back(strm.str());
+    case llvm::json::Value::Boolean:
+      strs.push_back(llvm::to_string(value));
       break;
-    }
     case llvm::json::Value::Null:
     case llvm::json::Value::Object:
     case llvm::json::Value::Array:
@@ -281,7 +282,9 @@ llvm::json::Value CreateScope(const llvm::StringRef name,
 //   },
 //   "required": [ "verified" ]
 // }
-llvm::json::Value CreateBreakpoint(lldb::SBBreakpoint &bp) {
+llvm::json::Value CreateBreakpoint(lldb::SBBreakpoint &bp,
+                                   llvm::Optional<llvm::StringRef> request_path,
+                                   llvm::Optional<uint32_t> request_line) {
   // Each breakpoint location is treated as a separate breakpoint for VS code.
   // They don't have the notion of a single breakpoint with multiple locations.
   llvm::json::Object object;
@@ -300,7 +303,7 @@ llvm::json::Value CreateBreakpoint(lldb::SBBreakpoint &bp) {
   // that is at least loaded in the current process.
   lldb::SBBreakpointLocation bp_loc;
   const auto num_locs = bp.GetNumLocations();
-  for (size_t i=0; i<num_locs; ++i) {
+  for (size_t i = 0; i < num_locs; ++i) {
     bp_loc = bp.GetLocationAtIndex(i);
     if (bp_loc.IsResolved())
       break;
@@ -309,6 +312,10 @@ llvm::json::Value CreateBreakpoint(lldb::SBBreakpoint &bp) {
   if (!bp_loc.IsResolved())
     bp_loc = bp.GetLocationAtIndex(0);
   auto bp_addr = bp_loc.GetAddress();
+
+  if (request_path)
+    object.try_emplace("source", CreateSource(*request_path));
+
   if (bp_addr.IsValid()) {
     auto line_entry = bp_addr.GetLineEntry();
     const auto line = line_entry.GetLine();
@@ -316,11 +323,101 @@ llvm::json::Value CreateBreakpoint(lldb::SBBreakpoint &bp) {
       object.try_emplace("line", line);
     object.try_emplace("source", CreateSource(line_entry));
   }
+  // We try to add request_line as a fallback
+  if (request_line)
+    object.try_emplace("line", *request_line);
   return llvm::json::Value(std::move(object));
 }
 
-void AppendBreakpoint(lldb::SBBreakpoint &bp, llvm::json::Array &breakpoints) {
-  breakpoints.emplace_back(CreateBreakpoint(bp));
+static uint64_t GetDebugInfoSizeInSection(lldb::SBSection section) {
+  uint64_t debug_info_size = 0;
+  llvm::StringRef section_name(section.GetName());
+  if (section_name.startswith(".debug") || section_name.startswith("__debug") ||
+      section_name.startswith(".apple") || section_name.startswith("__apple"))
+    debug_info_size += section.GetFileByteSize();
+  size_t num_sub_sections = section.GetNumSubSections();
+  for (size_t i = 0; i < num_sub_sections; i++) {
+    debug_info_size +=
+        GetDebugInfoSizeInSection(section.GetSubSectionAtIndex(i));
+  }
+  return debug_info_size;
+}
+
+static uint64_t GetDebugInfoSize(lldb::SBModule module) {
+  uint64_t debug_info_size = 0;
+  size_t num_sections = module.GetNumSections();
+  for (size_t i = 0; i < num_sections; i++) {
+    debug_info_size += GetDebugInfoSizeInSection(module.GetSectionAtIndex(i));
+  }
+  return debug_info_size;
+}
+
+static std::string ConvertDebugInfoSizeToString(uint64_t debug_info) {
+  std::ostringstream oss;
+  oss << std::fixed << std::setprecision(1);
+  if (debug_info < 1024) {
+    oss << debug_info << "B";
+  } else if (debug_info < 1024 * 1024) {
+    double kb = double(debug_info) / 1024.0;
+    oss << kb << "KB";
+  } else if (debug_info < 1024 * 1024 * 1024) {
+    double mb = double(debug_info) / (1024.0 * 1024.0);
+    oss << mb << "MB";
+  } else {
+    double gb = double(debug_info) / (1024.0 * 1024.0 * 1024.0);
+    oss << gb << "GB";
+  }
+  return oss.str();
+}
+llvm::json::Value CreateModule(lldb::SBModule &module) {
+  llvm::json::Object object;
+  if (!module.IsValid())
+    return llvm::json::Value(std::move(object));
+  const char *uuid = module.GetUUIDString();
+  object.try_emplace("id", uuid ? std::string(uuid) : std::string(""));
+  object.try_emplace("name", std::string(module.GetFileSpec().GetFilename()));
+  char module_path_arr[PATH_MAX];
+  module.GetFileSpec().GetPath(module_path_arr, sizeof(module_path_arr));
+  std::string module_path(module_path_arr);
+  object.try_emplace("path", module_path);
+  if (module.GetNumCompileUnits() > 0) {
+    std::string symbol_str = "Symbols loaded.";
+    std::string debug_info_size;
+    uint64_t debug_info = GetDebugInfoSize(module);
+    if (debug_info > 0) {
+      debug_info_size = ConvertDebugInfoSizeToString(debug_info);
+    }
+    object.try_emplace("symbolStatus", symbol_str);
+    object.try_emplace("debugInfoSize", debug_info_size);
+    char symbol_path_arr[PATH_MAX];
+    module.GetSymbolFileSpec().GetPath(symbol_path_arr,
+                                       sizeof(symbol_path_arr));
+    std::string symbol_path(symbol_path_arr);
+    object.try_emplace("symbolFilePath", symbol_path);
+  } else {
+    object.try_emplace("symbolStatus", "Symbols not found.");
+  }
+  std::string loaded_addr = std::to_string(
+      module.GetObjectFileHeaderAddress().GetLoadAddress(g_vsc.target));
+  object.try_emplace("addressRange", loaded_addr);
+  std::string version_str;
+  uint32_t version_nums[3];
+  uint32_t num_versions =
+      module.GetVersion(version_nums, sizeof(version_nums) / sizeof(uint32_t));
+  for (uint32_t i = 0; i < num_versions; ++i) {
+    if (!version_str.empty())
+      version_str += ".";
+    version_str += std::to_string(version_nums[i]);
+  }
+  if (!version_str.empty())
+    object.try_emplace("version", version_str);
+  return llvm::json::Value(std::move(object));
+}
+
+void AppendBreakpoint(lldb::SBBreakpoint &bp, llvm::json::Array &breakpoints,
+                      llvm::Optional<llvm::StringRef> request_path,
+                      llvm::Optional<uint32_t> request_line) {
+  breakpoints.emplace_back(CreateBreakpoint(bp, request_path, request_line));
 }
 
 // "Event": {
@@ -479,6 +576,14 @@ llvm::json::Value CreateSource(lldb::SBLineEntry &line_entry) {
     }
   }
   return llvm::json::Value(std::move(object));
+}
+
+llvm::json::Value CreateSource(llvm::StringRef source_path) {
+  llvm::json::Object source;
+  llvm::StringRef name = llvm::sys::path::filename(source_path);
+  EmplaceSafeString(source, "name", name);
+  EmplaceSafeString(source, "path", source_path);
+  return llvm::json::Value(std::move(source));
 }
 
 llvm::json::Value CreateSource(lldb::SBFrame &frame, int64_t &disasm_line) {
@@ -881,6 +986,15 @@ llvm::json::Value CreateVariable(lldb::SBValue v, int64_t variablesReference,
   const char *evaluateName = evaluateStream.GetData();
   if (evaluateName && evaluateName[0])
     EmplaceSafeString(object, "evaluateName", std::string(evaluateName));
+  return llvm::json::Value(std::move(object));
+}
+
+llvm::json::Value CreateCompileUnit(lldb::SBCompileUnit unit) {
+  llvm::json::Object object;
+  char unit_path_arr[PATH_MAX];
+  unit.GetFileSpec().GetPath(unit_path_arr, sizeof(unit_path_arr));
+  std::string unit_path(unit_path_arr);
+  object.try_emplace("compileUnitPath", unit_path);
   return llvm::json::Value(std::move(object));
 }
 

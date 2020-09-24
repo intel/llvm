@@ -17,9 +17,11 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_UNITTESTS_CLANGD_TESTTU_H
 #define LLVM_CLANG_TOOLS_EXTRA_UNITTESTS_CLANGD_TESTTU_H
 
+#include "Compiler.h"
 #include "ParsedAST.h"
-#include "Path.h"
+#include "TestFS.h"
 #include "index/Index.h"
+#include "support/Path.h"
 #include "llvm/ADT/StringMap.h"
 #include "gtest/gtest.h"
 #include <string>
@@ -54,7 +56,7 @@ struct TestTU {
   llvm::StringMap<std::string> AdditionalFiles;
 
   // Extra arguments for the compiler invocation.
-  std::vector<const char *> ExtraArgs;
+  std::vector<std::string> ExtraArgs;
 
   llvm::Optional<std::string> ClangTidyChecks;
   llvm::Optional<std::string> ClangTidyWarningsAsErrors;
@@ -64,10 +66,23 @@ struct TestTU {
   // Simulate a header guard of the header (using an #import directive).
   bool ImplicitHeaderGuard = true;
 
+  // Whether to use overlay the TestFS over the real filesystem. This is
+  // required for use of implicit modules.where the module file is written to
+  // disk and later read back.
+  // FIXME: Change the way reading/writing modules work to allow us to keep them
+  // in memory across multiple clang invocations, at least in tests, to
+  // eliminate the need for real file system here.
+  // Please avoid using this for things other than implicit modules. The plan is
+  // to eliminate this option some day.
+  bool OverlayRealFileSystemForModules = false;
+
   // By default, build() will report Error diagnostics as GTest errors.
   // Suppress this behavior by adding an 'error-ok' comment to the code.
   ParsedAST build() const;
+  std::shared_ptr<const PreambleData> preamble() const;
+  ParseInputs inputs(MockFS &FS) const;
   SymbolSlab headerSymbols() const;
+  RefSlab headerRefs() const;
   std::unique_ptr<SymbolIndex> index() const;
 };
 

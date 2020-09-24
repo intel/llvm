@@ -185,13 +185,12 @@ GCNHazardRecognizer::getHazardType(SUnit *SU, int Stalls) {
   if (SIInstrInfo::isMAI(*MI) && checkMAIHazards(MI) > 0)
     return NoopHazard;
 
-  if (MI->mayLoadOrStore() && checkMAILdStHazards(MI) > 0)
+  if ((SIInstrInfo::isVMEM(*MI) ||
+       SIInstrInfo::isFLAT(*MI) ||
+       SIInstrInfo::isDS(*MI)) && checkMAILdStHazards(MI) > 0)
     return NoopHazard;
 
   if (MI->isInlineAsm() && checkInlineAsmHazards(MI) > 0)
-    return NoopHazard;
-
-  if (checkAnyInstHazards(MI) > 0)
     return NoopHazard;
 
   return NoHazard;
@@ -228,11 +227,6 @@ void GCNHazardRecognizer::processBundle() {
   CurrCycleInstr = nullptr;
 }
 
-unsigned GCNHazardRecognizer::PreEmitNoops(SUnit *SU) {
-  IsHazardRecognizerMode = false;
-  return PreEmitNoopsCommon(SU->getInstr());
-}
-
 unsigned GCNHazardRecognizer::PreEmitNoops(MachineInstr *MI) {
   IsHazardRecognizerMode = true;
   CurrCycleInstr = MI;
@@ -246,7 +240,7 @@ unsigned GCNHazardRecognizer::PreEmitNoopsCommon(MachineInstr *MI) {
   if (MI->isBundle())
     return 0;
 
-  int WaitStates = std::max(0, checkAnyInstHazards(MI));
+  int WaitStates = 0;
 
   if (SIInstrInfo::isSMRD(*MI))
     return std::max(WaitStates, checkSMRDHazards(MI));
@@ -296,7 +290,9 @@ unsigned GCNHazardRecognizer::PreEmitNoopsCommon(MachineInstr *MI) {
   if (SIInstrInfo::isMAI(*MI))
     return std::max(WaitStates, checkMAIHazards(MI));
 
-  if (MI->mayLoadOrStore())
+  if (SIInstrInfo::isVMEM(*MI) ||
+      SIInstrInfo::isFLAT(*MI) ||
+      SIInstrInfo::isDS(*MI))
     return std::max(WaitStates, checkMAILdStHazards(MI));
 
   return WaitStates;
@@ -486,6 +482,14 @@ void GCNHazardRecognizer::addClauseInst(const MachineInstr &MI) {
   addRegsToSet(TRI, MI.uses(), ClauseUses);
 }
 
+static bool breaksSMEMSoftClause(MachineInstr *MI) {
+  return !SIInstrInfo::isSMRD(*MI);
+}
+
+static bool breaksVMEMSoftClause(MachineInstr *MI) {
+  return !SIInstrInfo::isVMEM(*MI) && !SIInstrInfo::isFLAT(*MI);
+}
+
 int GCNHazardRecognizer::checkSoftClauseHazards(MachineInstr *MEM) {
   // SMEM soft clause are only present on VI+, and only matter if xnack is
   // enabled.
@@ -512,7 +516,7 @@ int GCNHazardRecognizer::checkSoftClauseHazards(MachineInstr *MEM) {
     if (!MI)
       break;
 
-    if (IsSMRD != SIInstrInfo::isSMRD(*MI))
+    if (IsSMRD ? breaksSMEMSoftClause(MI) : breaksVMEMSoftClause(MI))
       break;
 
     addClauseInst(*MI);
@@ -715,8 +719,9 @@ int GCNHazardRecognizer::createsVALUHazard(const MachineInstr &MI) {
   return -1;
 }
 
-int GCNHazardRecognizer::checkVALUHazardsHelper(const MachineOperand &Def,
-						const MachineRegisterInfo &MRI) {
+int
+GCNHazardRecognizer::checkVALUHazardsHelper(const MachineOperand &Def,
+                                            const MachineRegisterInfo &MRI) {
   // Helper to check for the hazard where VMEM instructions that store more than
   // 8 bytes can have there store data over written by the next instruction.
   const SIRegisterInfo *TRI = ST.getRegisterInfo();
@@ -818,34 +823,6 @@ int GCNHazardRecognizer::checkRFEHazards(MachineInstr *RFE) {
   return RFEWaitStates - WaitStatesNeeded;
 }
 
-int GCNHazardRecognizer::checkAnyInstHazards(MachineInstr *MI) {
-  if (MI->isDebugInstr())
-    return 0;
-
-  const SIRegisterInfo *TRI = ST.getRegisterInfo();
-  if (!ST.hasSMovFedHazard())
-    return 0;
-
-  // Check for any instruction reading an SGPR after a write from
-  // s_mov_fed_b32.
-  int MovFedWaitStates = 1;
-  int WaitStatesNeeded = 0;
-
-  for (const MachineOperand &Use : MI->uses()) {
-    if (!Use.isReg() || TRI->isVGPR(MF.getRegInfo(), Use.getReg()))
-      continue;
-    auto IsHazardFn = [] (MachineInstr *MI) {
-      return MI->getOpcode() == AMDGPU::S_MOV_FED_B32;
-    };
-    int WaitStatesNeededForUse =
-        MovFedWaitStates - getWaitStatesSinceDef(Use.getReg(), IsHazardFn,
-                                                 MovFedWaitStates);
-    WaitStatesNeeded = std::max(WaitStatesNeeded, WaitStatesNeededForUse);
-  }
-
-  return WaitStatesNeeded;
-}
-
 int GCNHazardRecognizer::checkReadM0Hazards(MachineInstr *MI) {
   const SIInstrInfo *TII = ST.getInstrInfo();
   const int SMovRelWaitStates = 1;
@@ -927,10 +904,12 @@ bool GCNHazardRecognizer::fixVMEMtoScalarWriteHazards(MachineInstr *MI) {
     return false;
   };
 
-  auto IsExpiredFn = [] (MachineInstr *MI, int) {
+  auto IsExpiredFn = [](MachineInstr *MI, int) {
     return MI && (SIInstrInfo::isVALU(*MI) ||
                   (MI->getOpcode() == AMDGPU::S_WAITCNT &&
-                   !MI->getOperand(0).getImm()));
+                   !MI->getOperand(0).getImm()) ||
+                  (MI->getOpcode() == AMDGPU::S_WAITCNT_DEPCTR &&
+                   MI->getOperand(0).getImm() == 0xffe3));
   };
 
   if (::getWaitStatesSince(IsHazardFn, MI, IsExpiredFn) ==
@@ -938,7 +917,9 @@ bool GCNHazardRecognizer::fixVMEMtoScalarWriteHazards(MachineInstr *MI) {
     return false;
 
   const SIInstrInfo *TII = ST.getInstrInfo();
-  BuildMI(*MI->getParent(), MI, MI->getDebugLoc(), TII->get(AMDGPU::V_NOP_e32));
+  BuildMI(*MI->getParent(), MI, MI->getDebugLoc(),
+          TII->get(AMDGPU::S_WAITCNT_DEPCTR))
+      .addImm(0xffe3);
   return true;
 }
 
@@ -1406,4 +1387,28 @@ int GCNHazardRecognizer::checkMAILdStHazards(MachineInstr *MI) {
   }
 
   return WaitStatesNeeded;
+}
+
+bool GCNHazardRecognizer::ShouldPreferAnother(SUnit *SU) {
+  if (!SU->isInstr())
+    return false;
+
+  MachineInstr *MAI = nullptr;
+  auto IsMFMAFn = [&MAI] (MachineInstr *MI) {
+    MAI = nullptr;
+    if (SIInstrInfo::isMAI(*MI) &&
+        MI->getOpcode() != AMDGPU::V_ACCVGPR_WRITE_B32 &&
+        MI->getOpcode() != AMDGPU::V_ACCVGPR_READ_B32)
+      MAI = MI;
+    return MAI != nullptr;
+  };
+
+  MachineInstr *MI = SU->getInstr();
+  if (IsMFMAFn(MI)) {
+    int W = getWaitStatesSince(IsMFMAFn, 16);
+    if (MAI)
+      return W < (int)TSchedModel.computeInstrLatency(MAI);
+  }
+
+  return false;
 }

@@ -14,8 +14,6 @@
 #define LLVM_CODEGEN_TARGETFRAMELOWERING_H
 
 #include "llvm/CodeGen/MachineBasicBlock.h"
-#include "llvm/ADT/StringSwitch.h"
-#include <utility>
 #include <vector>
 
 namespace llvm {
@@ -136,6 +134,12 @@ public:
   /// was called).
   virtual unsigned getStackAlignmentSkew(const MachineFunction &MF) const;
 
+  /// This method returns whether or not it is safe for an object with the
+  /// given stack id to be bundled into the local area.
+  virtual bool isStackIdSafeForLocalArea(unsigned StackId) const {
+    return true;
+  }
+
   /// getOffsetOfLocalArea - This method returns the offset of the local area
   /// from the stack pointer on entrance to a function.
   ///
@@ -203,6 +207,17 @@ public:
                             MachineBasicBlock &MBB) const = 0;
   virtual void emitEpilogue(MachineFunction &MF,
                             MachineBasicBlock &MBB) const = 0;
+
+  /// With basic block sections, emit callee saved frame moves for basic blocks
+  /// that are in a different section.
+  virtual void
+  emitCalleeSavedFrameMoves(MachineBasicBlock &MBB,
+                            MachineBasicBlock::iterator MBBI) const {}
+
+  virtual void emitCalleeSavedFrameMoves(MachineBasicBlock &MBB,
+                                         MachineBasicBlock::iterator MBBI,
+                                         const DebugLoc &DL,
+                                         bool IsPrologue) const {}
 
   /// Replace a StackProbe stub (if any) with the actual probe code inline
   virtual void inlineStackProbe(MachineFunction &MF,
@@ -283,7 +298,7 @@ public:
   /// and offset used to reference a frame index location. The offset is
   /// returned directly, and the base register is returned via FrameReg.
   virtual int getFrameIndexReference(const MachineFunction &MF, int FI,
-                                     unsigned &FrameReg) const;
+                                     Register &FrameReg) const;
 
   /// Same as \c getFrameIndexReference, except that the stack pointer (as
   /// opposed to the frame pointer) will be the preferred value for \p
@@ -292,7 +307,7 @@ public:
   /// offset is only guaranteed to be valid with respect to the value of SP at
   /// the end of the prologue.
   virtual int getFrameIndexReferencePreferSP(const MachineFunction &MF, int FI,
-                                             unsigned &FrameReg,
+                                             Register &FrameReg,
                                              bool IgnoreSPUpdates) const {
     // Always safe to dispatch to getFrameIndexReference.
     return getFrameIndexReference(MF, FI, FrameReg);
@@ -305,7 +320,7 @@ public:
                                        int FI) const {
     // By default, dispatch to getFrameIndexReference. Interested targets can
     // override this.
-    unsigned FrameReg;
+    Register FrameReg;
     return getFrameIndexReference(MF, FI, FrameReg);
   }
 
@@ -427,7 +442,7 @@ public:
 
   /// Return initial CFA register value i.e. the one valid at the beginning of
   /// the function (before any stack operations).
-  virtual unsigned getInitialCFARegister(const MachineFunction &MF) const;
+  virtual Register getInitialCFARegister(const MachineFunction &MF) const;
 
   /// Return the frame base information to be encoded in the DWARF subprogram
   /// debug info.

@@ -5,7 +5,7 @@ define <8 x float> @cvt_v8i8_v8f32(<8 x i8> %src) {
 ; CHECK-LABEL: cvt_v8i8_v8f32:
 ; CHECK:       ## %bb.0:
 ; CHECK-NEXT:    vpmovsxbd %xmm0, %xmm1
-; CHECK-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[1,1,2,3]
+; CHECK-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[1,1,1,1]
 ; CHECK-NEXT:    vpmovsxbd %xmm0, %xmm0
 ; CHECK-NEXT:    vinsertf128 $1, %xmm0, %ymm1, %ymm0
 ; CHECK-NEXT:    vcvtdq2ps %ymm0, %ymm0
@@ -18,7 +18,7 @@ define <8 x float> @cvt_v8i16_v8f32(<8 x i16> %src) {
 ; CHECK-LABEL: cvt_v8i16_v8f32:
 ; CHECK:       ## %bb.0:
 ; CHECK-NEXT:    vpmovsxwd %xmm0, %xmm1
-; CHECK-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[2,3,0,1]
+; CHECK-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[2,3,2,3]
 ; CHECK-NEXT:    vpmovsxwd %xmm0, %xmm0
 ; CHECK-NEXT:    vinsertf128 $1, %xmm0, %ymm1, %ymm0
 ; CHECK-NEXT:    vcvtdq2ps %ymm0, %ymm0
@@ -51,7 +51,7 @@ define <8 x float> @cvt_v8u8_v8f32(<8 x i8> %src) {
 ; CHECK-LABEL: cvt_v8u8_v8f32:
 ; CHECK:       ## %bb.0:
 ; CHECK-NEXT:    vpmovzxbd {{.*#+}} xmm1 = xmm0[0],zero,zero,zero,xmm0[1],zero,zero,zero,xmm0[2],zero,zero,zero,xmm0[3],zero,zero,zero
-; CHECK-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[1,1,2,3]
+; CHECK-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[1,1,1,1]
 ; CHECK-NEXT:    vpmovzxbd {{.*#+}} xmm0 = xmm0[0],zero,zero,zero,xmm0[1],zero,zero,zero,xmm0[2],zero,zero,zero,xmm0[3],zero,zero,zero
 ; CHECK-NEXT:    vinsertf128 $1, %xmm0, %ymm1, %ymm0
 ; CHECK-NEXT:    vcvtdq2ps %ymm0, %ymm0
@@ -122,7 +122,8 @@ define <4 x i8> @cvt_v4f32_v4i8(<4 x float> %src) {
 ; CHECK-LABEL: cvt_v4f32_v4i8:
 ; CHECK:       ## %bb.0:
 ; CHECK-NEXT:    vcvttps2dq %xmm0, %xmm0
-; CHECK-NEXT:    vpshufb {{.*#+}} xmm0 = xmm0[0,4,8,12,u,u,u,u,u,u,u,u,u,u,u,u]
+; CHECK-NEXT:    vpackssdw %xmm0, %xmm0, %xmm0
+; CHECK-NEXT:    vpacksswb %xmm0, %xmm0, %xmm0
 ; CHECK-NEXT:    retl
   %res = fptosi <4 x float> %src to <4 x i8>
   ret <4 x i8> %res
@@ -167,7 +168,8 @@ define <4 x i8> @cvt_v4f32_v4u8(<4 x float> %src) {
 ; CHECK-LABEL: cvt_v4f32_v4u8:
 ; CHECK:       ## %bb.0:
 ; CHECK-NEXT:    vcvttps2dq %xmm0, %xmm0
-; CHECK-NEXT:    vpshufb {{.*#+}} xmm0 = xmm0[0,4,8,12,u,u,u,u,u,u,u,u,u,u,u,u]
+; CHECK-NEXT:    vpackusdw %xmm0, %xmm0, %xmm0
+; CHECK-NEXT:    vpackuswb %xmm0, %xmm0, %xmm0
 ; CHECK-NEXT:    retl
   %res = fptoui <4 x float> %src to <4 x i8>
   ret <4 x i8> %res

@@ -34,7 +34,7 @@ namespace lldb_private {
 // this file's objects directly
 
 class FormatManager : public IFormatChangeListener {
-  typedef FormatMap<ConstString, TypeSummaryImpl> NamedSummariesMap;
+  typedef FormattersContainer<TypeSummaryImpl> NamedSummariesMap;
   typedef TypeCategoryMap::MapType::iterator CategoryMapIterator;
 
 public:
@@ -144,13 +144,6 @@ public:
 
   static const char *GetFormatAsCString(lldb::Format format);
 
-  // if the user tries to add formatters for, say, "struct Foo" those will not
-  // match any type because of the way we strip qualifiers from typenames this
-  // method looks for the case where the user is adding a
-  // "class","struct","enum" or "union" Foo and strips the unnecessary
-  // qualifier
-  static ConstString GetValidTypeName(ConstString type);
-
   // when DataExtractor dumps a vectorOfT, it uses a predefined format for each
   // item this method returns it, or eFormatInvalid if vector_format is not a
   // vectorOf
@@ -170,7 +163,6 @@ public:
   GetPossibleMatches(ValueObject &valobj, lldb::DynamicValueType use_dynamic) {
     FormattersMatchVector matches;
     GetPossibleMatches(valobj, valobj.GetCompilerType(),
-                       lldb_private::eFormatterChoiceCriterionDirectChoice,
                        use_dynamic, matches, false, false, false, true);
     return matches;
   }
@@ -184,7 +176,7 @@ public:
 
 private:
   static void GetPossibleMatches(ValueObject &valobj,
-                                 CompilerType compiler_type, uint32_t reason,
+                                 CompilerType compiler_type,
                                  lldb::DynamicValueType use_dynamic,
                                  FormattersMatchVector &entries,
                                  bool did_strip_ptr, bool did_strip_ref,

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Tooling/Transformer/Stencil.h"
+#include "clang/AST/ASTTypeTraits.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Tooling/FixIt.h"
 #include "clang/Tooling/Tooling.h"
@@ -60,7 +61,8 @@ static llvm::Optional<TestMatch> matchStmt(StringRef StatementCode,
     return llvm::None;
   }
   ASTContext &Context = AstUnit->getASTContext();
-  auto Matches = ast_matchers::match(wrapMatcher(Matcher), Context);
+  auto Matches = ast_matchers::match(
+      traverse(ast_type_traits::TK_AsIs, wrapMatcher(Matcher)), Context);
   // We expect a single, exact match for the statement.
   if (Matches.size() != 1) {
     ADD_FAILURE() << "Wrong number of matches: " << Matches.size();
@@ -178,12 +180,12 @@ TEST_F(StencilTest, SelectionOp) {
 
 TEST_F(StencilTest, IfBoundOpBound) {
   StringRef Id = "id";
-  testExpr(Id, "3;", ifBound(Id, text("5"), text("7")), "5");
+  testExpr(Id, "3;", ifBound(Id, cat("5"), cat("7")), "5");
 }
 
 TEST_F(StencilTest, IfBoundOpUnbound) {
   StringRef Id = "id";
-  testExpr(Id, "3;", ifBound("other", text("5"), text("7")), "7");
+  testExpr(Id, "3;", ifBound("other", cat("5"), cat("7")), "7");
 }
 
 TEST_F(StencilTest, ExpressionOpNoParens) {
@@ -291,7 +293,7 @@ TEST_F(StencilTest, AccessOpValueExplicitText) {
     x;
   )cc";
   StringRef Id = "id";
-  testExpr(Id, Snippet, access(Id, text("field")), "x.field");
+  testExpr(Id, Snippet, access(Id, cat("field")), "x.field");
 }
 
 TEST_F(StencilTest, AccessOpValueAddress) {
@@ -333,9 +335,10 @@ TEST_F(StencilTest, AccessOpExplicitThis) {
       int foo() { return this->x; }
     };
   )cc";
-  auto StmtMatch =
-      matchStmt(Snippet, returnStmt(hasReturnValue(ignoringImplicit(memberExpr(
-                             hasObjectExpression(expr().bind("obj")))))));
+  auto StmtMatch = matchStmt(
+      Snippet, traverse(ast_type_traits::TK_AsIs,
+                        returnStmt(hasReturnValue(ignoringImplicit(memberExpr(
+                            hasObjectExpression(expr().bind("obj"))))))));
   ASSERT_TRUE(StmtMatch);
   const Stencil Stencil = access("obj", "field");
   EXPECT_THAT_EXPECTED(Stencil->eval(StmtMatch->Result),
@@ -371,6 +374,48 @@ TEST_F(StencilTest, RunOp) {
   testExpr(Id, "3;", run(SimpleFn), "Bound");
 }
 
+TEST_F(StencilTest, CatOfMacroRangeSucceeds) {
+  StringRef Snippet = R"cpp(
+#define MACRO 3.77
+  double foo(double d);
+  foo(MACRO);)cpp";
+
+  auto StmtMatch =
+      matchStmt(Snippet, callExpr(callee(functionDecl(hasName("foo"))),
+                                  argumentCountIs(1),
+                                  hasArgument(0, expr().bind("arg"))));
+  ASSERT_TRUE(StmtMatch);
+  Stencil S = cat(node("arg"));
+  EXPECT_THAT_EXPECTED(S->eval(StmtMatch->Result), HasValue("MACRO"));
+}
+
+TEST_F(StencilTest, CatOfMacroArgRangeSucceeds) {
+  StringRef Snippet = R"cpp(
+#define MACRO(a, b) a + b
+  MACRO(2, 3);)cpp";
+
+  auto StmtMatch =
+      matchStmt(Snippet, binaryOperator(hasRHS(expr().bind("rhs"))));
+  ASSERT_TRUE(StmtMatch);
+  Stencil S = cat(node("rhs"));
+  EXPECT_THAT_EXPECTED(S->eval(StmtMatch->Result), HasValue("3"));
+}
+
+TEST_F(StencilTest, CatOfMacroArgSubRangeSucceeds) {
+  StringRef Snippet = R"cpp(
+#define MACRO(a, b) a + b
+  int foo(int);
+  MACRO(2, foo(3));)cpp";
+
+  auto StmtMatch = matchStmt(
+      Snippet, binaryOperator(hasRHS(callExpr(
+                   callee(functionDecl(hasName("foo"))), argumentCountIs(1),
+                   hasArgument(0, expr().bind("arg"))))));
+  ASSERT_TRUE(StmtMatch);
+  Stencil S = cat(node("arg"));
+  EXPECT_THAT_EXPECTED(S->eval(StmtMatch->Result), HasValue("3"));
+}
+
 TEST_F(StencilTest, CatOfInvalidRangeFails) {
   StringRef Snippet = R"cpp(
 #define MACRO (3.77)
@@ -383,7 +428,12 @@ TEST_F(StencilTest, CatOfInvalidRangeFails) {
                                   hasArgument(0, expr().bind("arg"))));
   ASSERT_TRUE(StmtMatch);
   Stencil S = cat(node("arg"));
-  EXPECT_THAT_EXPECTED(S->eval(StmtMatch->Result), Failed<StringError>());
+  Expected<std::string> Result = S->eval(StmtMatch->Result);
+  ASSERT_THAT_EXPECTED(Result, Failed<StringError>());
+  llvm::handleAllErrors(Result.takeError(), [](const llvm::StringError &E) {
+    EXPECT_THAT(E.getMessage(), AllOf(HasSubstr("selected range"),
+                                      HasSubstr("macro expansion")));
+  });
 }
 
 TEST(StencilToStringTest, RawTextOp) {
@@ -434,7 +484,7 @@ TEST(StencilToStringTest, AccessOpText) {
 }
 
 TEST(StencilToStringTest, AccessOpSelector) {
-  auto S = access("Id", selection(name("otherId")));
+  auto S = access("Id", cat(name("otherId")));
   StringRef Expected = R"repr(access("Id", selection(...)))repr";
   EXPECT_EQ(S->toString(), Expected);
 }
@@ -446,7 +496,7 @@ TEST(StencilToStringTest, AccessOpStencil) {
 }
 
 TEST(StencilToStringTest, IfBoundOp) {
-  auto S = ifBound("Id", text("trueText"), access("exprId", "memberData"));
+  auto S = ifBound("Id", cat("trueText"), access("exprId", "memberData"));
   StringRef Expected =
       R"repr(ifBound("Id", "trueText", access("exprId", "memberData")))repr";
   EXPECT_EQ(S->toString(), Expected);
@@ -460,7 +510,7 @@ TEST(StencilToStringTest, RunOp) {
 
 TEST(StencilToStringTest, Sequence) {
   auto S = cat("foo", access("x", "m()"), "bar",
-               ifBound("x", text("t"), access("e", "f")));
+               ifBound("x", cat("t"), access("e", "f")));
   StringRef Expected = R"repr(seq("foo", access("x", "m()"), "bar", )repr"
                        R"repr(ifBound("x", "t", access("e", "f"))))repr";
   EXPECT_EQ(S->toString(), Expected);
@@ -479,8 +529,8 @@ TEST(StencilToStringTest, SequenceSingle) {
 }
 
 TEST(StencilToStringTest, SequenceFromVector) {
-  auto S = catVector({text("foo"), access("x", "m()"), text("bar"),
-                      ifBound("x", text("t"), access("e", "f"))});
+  auto S = catVector({cat("foo"), access("x", "m()"), cat("bar"),
+                      ifBound("x", cat("t"), access("e", "f"))});
   StringRef Expected = R"repr(seq("foo", access("x", "m()"), "bar", )repr"
                        R"repr(ifBound("x", "t", access("e", "f"))))repr";
   EXPECT_EQ(S->toString(), Expected);

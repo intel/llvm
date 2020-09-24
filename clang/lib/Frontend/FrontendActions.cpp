@@ -79,7 +79,8 @@ ASTDumpAction::CreateASTConsumer(CompilerInstance &CI, StringRef InFile) {
   const FrontendOptions &Opts = CI.getFrontendOpts();
   return CreateASTDumper(nullptr /*Dump to stdout.*/, Opts.ASTDumpFilter,
                          Opts.ASTDumpDecls, Opts.ASTDumpAll,
-                         Opts.ASTDumpLookups, Opts.ASTDumpFormat);
+                         Opts.ASTDumpLookups, Opts.ASTDumpDeclTypes,
+                         Opts.ASTDumpFormat);
 }
 
 std::unique_ptr<ASTConsumer>
@@ -434,6 +435,10 @@ private:
       return "RequirementInstantiation";
     case CodeSynthesisContext::NestedRequirementConstraintsCheck:
       return "NestedRequirementConstraintsCheck";
+    case CodeSynthesisContext::InitializingStructuredBinding:
+      return "InitializingStructuredBinding";
+    case CodeSynthesisContext::MarkingClassDllexported:
+      return "MarkingClassDllexported";
     }
     return "";
   }
@@ -556,6 +561,7 @@ namespace {
       Out.indent(2) << "Target options:\n";
       Out.indent(4) << "  Triple: " << TargetOpts.Triple << "\n";
       Out.indent(4) << "  CPU: " << TargetOpts.CPU << "\n";
+      Out.indent(4) << "  TuneCPU: " << TargetOpts.TuneCPU << "\n";
       Out.indent(4) << "  ABI: " << TargetOpts.ABI << "\n";
 
       if (!TargetOpts.FeaturesAsWritten.empty()) {

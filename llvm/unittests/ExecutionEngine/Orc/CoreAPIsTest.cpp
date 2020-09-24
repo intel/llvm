@@ -91,6 +91,80 @@ TEST_F(CoreAPIsStandardTest, EmptyLookup) {
   EXPECT_TRUE(OnCompletionRun) << "OnCompletion was not run for empty query";
 }
 
+TEST_F(CoreAPIsStandardTest, ResolveUnrequestedSymbol) {
+  // Test that all symbols in a MaterializationUnit materialize corretly when
+  // only a subset of symbols is looked up.
+  // The aim here is to ensure that we're not relying on the query to set up
+  // state needed to materialize the unrequested symbols.
+
+  cantFail(JD.define(std::make_unique<SimpleMaterializationUnit>(
+      SymbolFlagsMap({{Foo, FooSym.getFlags()}, {Bar, BarSym.getFlags()}}),
+      [this](MaterializationResponsibility R) {
+        cantFail(R.notifyResolved({{Foo, FooSym}, {Bar, BarSym}}));
+        cantFail(R.notifyEmitted());
+      })));
+
+  auto Result =
+      cantFail(ES.lookup(makeJITDylibSearchOrder(&JD), SymbolLookupSet({Foo})));
+  EXPECT_EQ(Result.size(), 1U) << "Unexpected number of results";
+  EXPECT_TRUE(Result.count(Foo)) << "Expected result for \"Foo\"";
+}
+
+TEST_F(CoreAPIsStandardTest, MaterializationSideEffctsOnlyBasic) {
+  // Test that basic materialization-side-effects-only symbols work as expected:
+  // that they can be emitted without being resolved, that queries for them
+  // don't return until they're emitted, and that they don't appear in query
+  // results.
+
+  Optional<MaterializationResponsibility> FooR;
+  Optional<SymbolMap> Result;
+
+  cantFail(JD.define(std::make_unique<SimpleMaterializationUnit>(
+      SymbolFlagsMap(
+          {{Foo, JITSymbolFlags::Exported |
+                     JITSymbolFlags::MaterializationSideEffectsOnly}}),
+      [&](MaterializationResponsibility R) { FooR.emplace(std::move(R)); })));
+
+  ES.lookup(
+      LookupKind::Static, makeJITDylibSearchOrder(&JD),
+      SymbolLookupSet({Foo}, SymbolLookupFlags::WeaklyReferencedSymbol),
+      SymbolState::Ready,
+      [&](Expected<SymbolMap> LookupResult) {
+        if (LookupResult)
+          Result = std::move(*LookupResult);
+        else
+          ADD_FAILURE() << "Unexpected lookup error: "
+                        << toString(LookupResult.takeError());
+      },
+      NoDependenciesToRegister);
+
+  EXPECT_FALSE(Result) << "Lookup returned unexpectedly";
+  EXPECT_TRUE(FooR) << "Lookup failed to trigger materialization";
+  EXPECT_THAT_ERROR(FooR->notifyEmitted(), Succeeded())
+      << "Emission of materialization-side-effects-only symbol failed";
+
+  EXPECT_TRUE(Result) << "Lookup failed to return";
+  EXPECT_TRUE(Result->empty()) << "Lookup result contained unexpected value";
+}
+
+TEST_F(CoreAPIsStandardTest, MaterializationSideEffectsOnlyFailuresPersist) {
+  // Test that when a MaterializationSideEffectsOnly symbol is failed it
+  // remains in the failure state rather than vanishing.
+
+  cantFail(JD.define(std::make_unique<SimpleMaterializationUnit>(
+      SymbolFlagsMap(
+          {{Foo, JITSymbolFlags::Exported |
+                     JITSymbolFlags::MaterializationSideEffectsOnly}}),
+      [&](MaterializationResponsibility R) { R.failMaterialization(); })));
+
+  EXPECT_THAT_EXPECTED(
+      ES.lookup(makeJITDylibSearchOrder(&JD), SymbolLookupSet({Foo})),
+      Failed());
+  EXPECT_THAT_EXPECTED(
+      ES.lookup(makeJITDylibSearchOrder(&JD), SymbolLookupSet({Foo})),
+      Failed());
+}
+
 TEST_F(CoreAPIsStandardTest, RemoveSymbolsTest) {
   // Test that:
   // (1) Missing symbols generate a SymbolsNotFound error.
@@ -952,12 +1026,12 @@ TEST_F(CoreAPIsStandardTest, TestBasicWeakSymbolMaterialization) {
 
 TEST_F(CoreAPIsStandardTest, DefineMaterializingSymbol) {
   bool ExpectNoMoreMaterialization = false;
-  ES.setDispatchMaterialization(
-      [&](JITDylib &JD, std::unique_ptr<MaterializationUnit> MU) {
-        if (ExpectNoMoreMaterialization)
-          ADD_FAILURE() << "Unexpected materialization";
-        MU->doMaterialize(JD);
-      });
+  ES.setDispatchMaterialization([&](std::unique_ptr<MaterializationUnit> MU,
+                                    MaterializationResponsibility MR) {
+    if (ExpectNoMoreMaterialization)
+      ADD_FAILURE() << "Unexpected materialization";
+    MU->materialize(std::move(MR));
+  });
 
   auto MU = std::make_unique<SimpleMaterializationUnit>(
       SymbolFlagsMap({{Foo, FooSym.getFlags()}}),
@@ -988,7 +1062,7 @@ TEST_F(CoreAPIsStandardTest, GeneratorTest) {
     TestGenerator(SymbolMap Symbols) : Symbols(std::move(Symbols)) {}
     Error tryToGenerate(LookupKind K, JITDylib &JD,
                         JITDylibLookupFlags JDLookupFlags,
-                        const SymbolLookupSet &Names) {
+                        const SymbolLookupSet &Names) override {
       SymbolMap NewDefs;
 
       for (const auto &KV : Names) {
@@ -1130,11 +1204,15 @@ TEST_F(CoreAPIsStandardTest, TestLookupWithThreadedMaterialization) {
 #if LLVM_ENABLE_THREADS
 
   std::thread MaterializationThread;
-  ES.setDispatchMaterialization(
-      [&](JITDylib &JD, std::unique_ptr<MaterializationUnit> MU) {
-        MaterializationThread =
-            std::thread([MU = std::move(MU), &JD] { MU->doMaterialize(JD); });
-      });
+  ES.setDispatchMaterialization([&](std::unique_ptr<MaterializationUnit> MU,
+                                    MaterializationResponsibility MR) {
+    auto SharedMR =
+        std::make_shared<MaterializationResponsibility>(std::move(MR));
+    MaterializationThread =
+        std::thread([MU = std::move(MU), MR = std::move(SharedMR)] {
+          MU->materialize(std::move(*MR));
+        });
+  });
 
   cantFail(JD.define(absoluteSymbols({{Foo, FooSym}})));
 
@@ -1263,6 +1341,112 @@ TEST_F(CoreAPIsStandardTest, TestMaterializeWeakSymbol) {
   // No dependencies registered, can't fail:
   cantFail(FooResponsibility->notifyResolved(SymbolMap({{Foo, FooSym}})));
   cantFail(FooResponsibility->notifyEmitted());
+}
+
+static bool linkOrdersEqual(const std::vector<std::shared_ptr<JITDylib>> &LHS,
+                            ArrayRef<JITDylib *> RHS) {
+  if (LHS.size() != RHS.size())
+    return false;
+  auto *RHSE = RHS.begin();
+  for (auto &LHSE : LHS)
+    if (LHSE.get() != *RHSE)
+      return false;
+    else
+      ++RHSE;
+  return true;
+}
+
+TEST(JITDylibTest, GetDFSLinkOrderTree) {
+  // Test that DFS ordering behaves as expected when the linkage relationships
+  // form a tree.
+
+  ExecutionSession ES;
+
+  auto &LibA = ES.createBareJITDylib("A");
+  auto &LibB = ES.createBareJITDylib("B");
+  auto &LibC = ES.createBareJITDylib("C");
+  auto &LibD = ES.createBareJITDylib("D");
+  auto &LibE = ES.createBareJITDylib("E");
+  auto &LibF = ES.createBareJITDylib("F");
+
+  // Linkage relationships:
+  // A --- B -- D
+  //  \      \- E
+  //    \- C -- F
+  LibA.setLinkOrder(makeJITDylibSearchOrder({&LibB, &LibC}));
+  LibB.setLinkOrder(makeJITDylibSearchOrder({&LibD, &LibE}));
+  LibC.setLinkOrder(makeJITDylibSearchOrder({&LibF}));
+
+  auto DFSOrderFromB = JITDylib::getDFSLinkOrder({LibB.shared_from_this()});
+  EXPECT_TRUE(linkOrdersEqual(DFSOrderFromB, {&LibB, &LibD, &LibE}))
+      << "Incorrect DFS link order for LibB";
+
+  auto DFSOrderFromA = JITDylib::getDFSLinkOrder({LibA.shared_from_this()});
+  EXPECT_TRUE(linkOrdersEqual(DFSOrderFromA,
+                              {&LibA, &LibB, &LibD, &LibE, &LibC, &LibF}))
+      << "Incorrect DFS link order for libA";
+
+  auto DFSOrderFromAB = JITDylib::getDFSLinkOrder(
+      {LibA.shared_from_this(), LibB.shared_from_this()});
+  EXPECT_TRUE(linkOrdersEqual(DFSOrderFromAB,
+                              {&LibA, &LibB, &LibD, &LibE, &LibC, &LibF}))
+      << "Incorrect DFS link order for { libA, libB }";
+
+  auto DFSOrderFromBA = JITDylib::getDFSLinkOrder(
+      {LibB.shared_from_this(), LibA.shared_from_this()});
+  EXPECT_TRUE(linkOrdersEqual(DFSOrderFromBA,
+                              {&LibB, &LibD, &LibE, &LibA, &LibC, &LibF}))
+      << "Incorrect DFS link order for { libB, libA }";
+}
+
+TEST(JITDylibTest, GetDFSLinkOrderDiamond) {
+  // Test that DFS ordering behaves as expected when the linkage relationships
+  // contain a diamond.
+
+  ExecutionSession ES;
+  auto &LibA = ES.createBareJITDylib("A");
+  auto &LibB = ES.createBareJITDylib("B");
+  auto &LibC = ES.createBareJITDylib("C");
+  auto &LibD = ES.createBareJITDylib("D");
+
+  // Linkage relationships:
+  // A -- B --- D
+  //  \-- C --/
+  LibA.setLinkOrder(makeJITDylibSearchOrder({&LibB, &LibC}));
+  LibB.setLinkOrder(makeJITDylibSearchOrder({&LibD}));
+  LibC.setLinkOrder(makeJITDylibSearchOrder({&LibD}));
+
+  auto DFSOrderFromA = JITDylib::getDFSLinkOrder({LibA.shared_from_this()});
+  EXPECT_TRUE(linkOrdersEqual(DFSOrderFromA, {&LibA, &LibB, &LibD, &LibC}))
+      << "Incorrect DFS link order for libA";
+}
+
+TEST(JITDylibTest, GetDFSLinkOrderCycle) {
+  // Test that DFS ordering behaves as expected when the linkage relationships
+  // contain a cycle.
+
+  ExecutionSession ES;
+  auto &LibA = ES.createBareJITDylib("A");
+  auto &LibB = ES.createBareJITDylib("B");
+  auto &LibC = ES.createBareJITDylib("C");
+
+  // Linkage relationships:
+  // A -- B --- C -- A
+  LibA.setLinkOrder(makeJITDylibSearchOrder({&LibB}));
+  LibB.setLinkOrder(makeJITDylibSearchOrder({&LibC}));
+  LibC.setLinkOrder(makeJITDylibSearchOrder({&LibA}));
+
+  auto DFSOrderFromA = JITDylib::getDFSLinkOrder({LibA.shared_from_this()});
+  EXPECT_TRUE(linkOrdersEqual(DFSOrderFromA, {&LibA, &LibB, &LibC}))
+      << "Incorrect DFS link order for libA";
+
+  auto DFSOrderFromB = JITDylib::getDFSLinkOrder({LibB.shared_from_this()});
+  EXPECT_TRUE(linkOrdersEqual(DFSOrderFromB, {&LibB, &LibC, &LibA}))
+      << "Incorrect DFS link order for libB";
+
+  auto DFSOrderFromC = JITDylib::getDFSLinkOrder({LibC.shared_from_this()});
+  EXPECT_TRUE(linkOrdersEqual(DFSOrderFromC, {&LibC, &LibA, &LibB}))
+      << "Incorrect DFS link order for libC";
 }
 
 } // namespace

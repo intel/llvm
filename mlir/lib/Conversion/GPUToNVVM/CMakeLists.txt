@@ -2,16 +2,14 @@ set(LLVM_TARGET_DEFINITIONS GPUToNVVM.td)
 mlir_tablegen(GPUToNVVM.cpp.inc -gen-rewriters)
 add_public_tablegen_target(MLIRGPUToNVVMIncGen)
 
-add_mlir_conversion_library(MLIRGPUtoNVVMTransforms
+add_mlir_conversion_library(MLIRGPUToNVVMTransforms
   LowerGpuOpsToNVVMOps.cpp
 
   DEPENDS
+  MLIRConversionPassIncGen
   MLIRGPUToNVVMIncGen
-  )
 
-target_link_libraries(MLIRGPUtoNVVMTransforms
-  PUBLIC
-  LLVMSupport
+  LINK_LIBS PUBLIC
   MLIRGPU
   MLIRLLVMIR
   MLIRNVVMIR

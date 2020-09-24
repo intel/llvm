@@ -1,4 +1,4 @@
-//===------------------ Base class for libc unittests -----------*- C++ -*-===//
+//===-- Base class for libc unittests ---------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -25,7 +25,7 @@ class RunContext;
 // a TRUE or FALSE condition. That is because, C library funtions do not
 // return boolean values, but use integral return values to indicate true or
 // false conditions. Hence, it is more appropriate to use the other comparison
-// condtions for such cases.
+// conditions for such cases.
 enum TestCondition {
   Cond_None,
   Cond_EQ,
@@ -78,7 +78,7 @@ protected:
   // |Cond| on mismatched |LHS| and |RHS| types can potentially succeed because
   // of type promotion.
   template <typename ValType,
-            cpp::EnableIfType<cpp::IsIntegral<ValType>::Value, ValType> = 0>
+            cpp::EnableIfType<cpp::IsIntegral<ValType>::Value, int> = 0>
   static bool test(RunContext &Ctx, TestCondition Cond, ValType LHS,
                    ValType RHS, const char *LHSStr, const char *RHSStr,
                    const char *File, unsigned long Line) {

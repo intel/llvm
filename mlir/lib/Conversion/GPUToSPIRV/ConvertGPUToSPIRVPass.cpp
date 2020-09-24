@@ -10,16 +10,17 @@
 // into a spv.module operation
 //
 //===----------------------------------------------------------------------===//
+
 #include "mlir/Conversion/GPUToSPIRV/ConvertGPUToSPIRVPass.h"
+#include "../PassDetail.h"
 #include "mlir/Conversion/GPUToSPIRV/ConvertGPUToSPIRV.h"
+#include "mlir/Conversion/SCFToSPIRV/SCFToSPIRV.h"
 #include "mlir/Conversion/StandardToSPIRV/ConvertStandardToSPIRV.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
-#include "mlir/Dialect/LoopOps/LoopOps.h"
+#include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/SPIRV/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/SPIRVLowering.h"
 #include "mlir/Dialect/SPIRV/SPIRVOps.h"
-#include "mlir/Pass/Pass.h"
-#include "mlir/Pass/PassRegistry.h"
 
 using namespace mlir;
 
@@ -33,14 +34,14 @@ namespace {
 /// replace it).
 ///
 /// 2) Lower the body of the spirv::ModuleOp.
-struct GPUToSPIRVPass : public ModulePass<GPUToSPIRVPass> {
-  void runOnModule() override;
+struct GPUToSPIRVPass : public ConvertGPUToSPIRVBase<GPUToSPIRVPass> {
+  void runOnOperation() override;
 };
 } // namespace
 
-void GPUToSPIRVPass::runOnModule() {
+void GPUToSPIRVPass::runOnOperation() {
   MLIRContext *context = &getContext();
-  ModuleOp module = getModule();
+  ModuleOp module = getOperation();
 
   SmallVector<Operation *, 1> kernelModules;
   OpBuilder builder(context);
@@ -57,19 +58,16 @@ void GPUToSPIRVPass::runOnModule() {
       spirv::SPIRVConversionTarget::get(targetAttr);
 
   SPIRVTypeConverter typeConverter(targetAttr);
+  ScfToSPIRVContext scfContext;
   OwningRewritePatternList patterns;
   populateGPUToSPIRVPatterns(context, typeConverter, patterns);
+  populateSCFToSPIRVPatterns(context, typeConverter,scfContext, patterns);
   populateStandardToSPIRVPatterns(context, typeConverter, patterns);
 
-  if (failed(applyFullConversion(kernelModules, *target, patterns,
-                                 &typeConverter))) {
+  if (failed(applyFullConversion(kernelModules, *target, patterns)))
     return signalPassFailure();
-  }
 }
 
-std::unique_ptr<OpPassBase<ModuleOp>> mlir::createConvertGPUToSPIRVPass() {
+std::unique_ptr<OperationPass<ModuleOp>> mlir::createConvertGPUToSPIRVPass() {
   return std::make_unique<GPUToSPIRVPass>();
 }
-
-static PassRegistration<GPUToSPIRVPass>
-    pass("convert-gpu-to-spirv", "Convert GPU dialect to SPIR-V dialect");

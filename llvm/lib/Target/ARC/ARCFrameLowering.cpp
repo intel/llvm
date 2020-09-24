@@ -196,7 +196,7 @@ void ARCFrameLowering::emitPrologue(MachineFunction &MF,
   // .cfi_offset fp, -StackSize
   // .cfi_offset blink, -StackSize+4
   unsigned CFIIndex = MF.addFrameInst(
-      MCCFIInstruction::createDefCfaOffset(nullptr, -MFI.getStackSize()));
+      MCCFIInstruction::cfiDefCfaOffset(nullptr, MFI.getStackSize()));
   BuildMI(MBB, MBBI, dl, TII->get(TargetOpcode::CFI_INSTRUCTION))
       .addCFIIndex(CFIIndex)
       .setMIFlags(MachineInstr::FrameSetup);
@@ -439,8 +439,8 @@ void ARCFrameLowering::processFunctionBeforeFrameFinalized(
   LLVM_DEBUG(dbgs() << "Current stack size: " << MFI.getStackSize() << "\n");
   const TargetRegisterClass *RC = &ARC::GPR32RegClass;
   if (MFI.hasStackObjects()) {
-    int RegScavFI = MFI.CreateStackObject(
-        RegInfo->getSpillSize(*RC), RegInfo->getSpillAlignment(*RC), false);
+    int RegScavFI = MFI.CreateStackObject(RegInfo->getSpillSize(*RC),
+                                          RegInfo->getSpillAlign(*RC), false);
     RS->addScavengingFrameIndex(RegScavFI);
     LLVM_DEBUG(dbgs() << "Created scavenging index RegScavFI=" << RegScavFI
                       << "\n");

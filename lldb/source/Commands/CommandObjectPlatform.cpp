@@ -11,7 +11,6 @@
 #include "lldb/Core/Module.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Host/OptionParser.h"
-#include "lldb/Host/StringConvert.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandOptionValidators.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
@@ -133,7 +132,8 @@ public:
   uint32_t m_permissions;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(OptionPermissions);
+  OptionPermissions(const OptionPermissions &) = delete;
+  const OptionPermissions &operator=(const OptionPermissions &) = delete;
 };
 
 // "platform select <platform-name>"
@@ -392,7 +392,8 @@ public:
                             "or for a platform by name.",
                             "platform settings", 0),
         m_options(),
-        m_option_working_dir(LLDB_OPT_SET_1, false, "working-dir", 'w', 0,
+        m_option_working_dir(LLDB_OPT_SET_1, false, "working-dir", 'w',
+                             CommandCompletions::eRemoteDiskDirectoryCompletion,
                              eArgTypePath,
                              "The working directory for the platform.") {
     m_options.Append(&m_option_working_dir, LLDB_OPT_SET_ALL, LLDB_OPT_SET_1);
@@ -421,7 +422,6 @@ protected:
     return &m_options;
   }
 
-protected:
   OptionGroupOptions m_options;
   OptionGroupFile m_option_working_dir;
 };
@@ -486,6 +486,15 @@ public:
 
   ~CommandObjectPlatformFOpen() override = default;
 
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    if (request.GetCursorIndex() == 0)
+      CommandCompletions::InvokeCommonCompletionCallbacks(
+          GetCommandInterpreter(),
+          CommandCompletions::eRemoteDiskFileCompletion, request, nullptr);
+  }
+
   bool DoExecute(Args &args, CommandReturnObject &result) override {
     PlatformSP platform_sp(
         GetDebugger().GetPlatformList().GetSelectedPlatform());
@@ -546,8 +555,13 @@ public:
     if (platform_sp) {
       std::string cmd_line;
       args.GetCommandString(cmd_line);
-      const lldb::user_id_t fd =
-          StringConvert::ToUInt64(cmd_line.c_str(), UINT64_MAX);
+      lldb::user_id_t fd;
+      if (!llvm::to_integer(cmd_line, fd)) {
+        result.AppendErrorWithFormatv("'{0}' is not a valid file descriptor.\n",
+                                      cmd_line);
+        result.SetStatus(eReturnStatusFailed);
+        return result.Succeeded();
+      }
       Status error;
       bool success = platform_sp->CloseFile(fd, error);
       if (success) {
@@ -586,8 +600,13 @@ public:
     if (platform_sp) {
       std::string cmd_line;
       args.GetCommandString(cmd_line);
-      const lldb::user_id_t fd =
-          StringConvert::ToUInt64(cmd_line.c_str(), UINT64_MAX);
+      lldb::user_id_t fd;
+      if (!llvm::to_integer(cmd_line, fd)) {
+        result.AppendErrorWithFormatv("'{0}' is not a valid file descriptor.\n",
+                                      cmd_line);
+        result.SetStatus(eReturnStatusFailed);
+        return result.Succeeded();
+      }
       std::string buffer(m_options.m_count, 0);
       Status error;
       uint32_t retcode = platform_sp->ReadFile(
@@ -674,8 +693,13 @@ public:
       std::string cmd_line;
       args.GetCommandString(cmd_line);
       Status error;
-      const lldb::user_id_t fd =
-          StringConvert::ToUInt64(cmd_line.c_str(), UINT64_MAX);
+      lldb::user_id_t fd;
+      if (!llvm::to_integer(cmd_line, fd)) {
+        result.AppendErrorWithFormatv("'{0}' is not a valid file descriptor.",
+                                      cmd_line);
+        result.SetStatus(eReturnStatusFailed);
+        return result.Succeeded();
+      }
       uint32_t retcode =
           platform_sp->WriteFile(fd, m_options.m_offset, &m_options.m_data[0],
                                  m_options.m_data.size(), error);
@@ -758,7 +782,9 @@ public:
 
 private:
   // For CommandObjectPlatform only
-  DISALLOW_COPY_AND_ASSIGN(CommandObjectPlatformFile);
+  CommandObjectPlatformFile(const CommandObjectPlatformFile &) = delete;
+  const CommandObjectPlatformFile &
+  operator=(const CommandObjectPlatformFile &) = delete;
 };
 
 // "platform get-file remote-file-path host-file-path"
@@ -800,6 +826,19 @@ public:
   }
 
   ~CommandObjectPlatformGetFile() override = default;
+
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    if (request.GetCursorIndex() == 0)
+      CommandCompletions::InvokeCommonCompletionCallbacks(
+          GetCommandInterpreter(),
+          CommandCompletions::eRemoteDiskFileCompletion, request, nullptr);
+    else if (request.GetCursorIndex() == 1)
+      CommandCompletions::InvokeCommonCompletionCallbacks(
+          GetCommandInterpreter(), CommandCompletions::eDiskFileCompletion,
+          request, nullptr);
+  }
 
   bool DoExecute(Args &args, CommandReturnObject &result) override {
     // If the number of arguments is incorrect, issue an error message.
@@ -866,6 +905,17 @@ public:
 
   ~CommandObjectPlatformGetSize() override = default;
 
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    if (request.GetCursorIndex() != 0)
+      return;
+
+    CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), CommandCompletions::eRemoteDiskFileCompletion,
+        request, nullptr);
+  }
+
   bool DoExecute(Args &args, CommandReturnObject &result) override {
     // If the number of arguments is incorrect, issue an error message.
     if (args.GetArgumentCount() != 1) {
@@ -910,6 +960,19 @@ public:
   }
 
   ~CommandObjectPlatformPutFile() override = default;
+
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    if (request.GetCursorIndex() == 0)
+      CommandCompletions::InvokeCommonCompletionCallbacks(
+          GetCommandInterpreter(), CommandCompletions::eDiskFileCompletion,
+          request, nullptr);
+    else if (request.GetCursorIndex() == 1)
+      CommandCompletions::InvokeCommonCompletionCallbacks(
+          GetCommandInterpreter(),
+          CommandCompletions::eRemoteDiskFileCompletion, request, nullptr);
+  }
 
   bool DoExecute(Args &args, CommandReturnObject &result) override {
     const char *src = args.GetArgumentAtIndex(0);
@@ -1020,7 +1083,6 @@ protected:
     return result.Succeeded();
   }
 
-protected:
   ProcessLaunchCommandOptions m_options;
 };
 
@@ -1316,6 +1378,14 @@ public:
 
   ~CommandObjectPlatformProcessInfo() override = default;
 
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), CommandCompletions::eProcessIDCompletion,
+        request, nullptr);
+  }
+
 protected:
   bool DoExecute(Args &args, CommandReturnObject &result) override {
     Target *target = GetDebugger().GetSelectedTarget().get();
@@ -1432,46 +1502,6 @@ public:
       return llvm::makeArrayRef(g_platform_process_attach_options);
     }
 
-    void HandleOptionArgumentCompletion(
-        CompletionRequest &request, OptionElementVector &opt_element_vector,
-        int opt_element_index, CommandInterpreter &interpreter) override {
-      int opt_arg_pos = opt_element_vector[opt_element_index].opt_arg_pos;
-      int opt_defs_index = opt_element_vector[opt_element_index].opt_defs_index;
-
-      // We are only completing the name option for now...
-
-      // Are we in the name?
-      if (GetDefinitions()[opt_defs_index].short_option != 'n')
-        return;
-
-      // Look to see if there is a -P argument provided, and if so use that
-      // plugin, otherwise use the default plugin.
-
-      const char *partial_name = nullptr;
-      partial_name = request.GetParsedLine().GetArgumentAtIndex(opt_arg_pos);
-
-      PlatformSP platform_sp(interpreter.GetPlatform(true));
-      if (!platform_sp)
-        return;
-
-      ProcessInstanceInfoList process_infos;
-      ProcessInstanceInfoMatch match_info;
-      if (partial_name) {
-        match_info.GetProcessInfo().GetExecutableFile().SetFile(
-            partial_name, FileSpec::Style::native);
-        match_info.SetNameMatchType(NameMatch::StartsWith);
-      }
-      platform_sp->FindProcesses(match_info, process_infos);
-      const uint32_t num_matches = process_infos.size();
-      if (num_matches == 0)
-        return;
-
-      for (uint32_t i = 0; i < num_matches; ++i) {
-        request.AddCompletion(process_infos[i].GetNameAsStringRef());
-      }
-      return;
-    }
-
     // Options table: Required for subclasses of Options.
 
     static OptionDefinition g_option_table[];
@@ -1541,7 +1571,9 @@ public:
 
 private:
   // For CommandObjectPlatform only
-  DISALLOW_COPY_AND_ASSIGN(CommandObjectPlatformProcess);
+  CommandObjectPlatformProcess(const CommandObjectPlatformProcess &) = delete;
+  const CommandObjectPlatformProcess &
+  operator=(const CommandObjectPlatformProcess &) = delete;
 };
 
 // "platform shell"
@@ -1567,6 +1599,9 @@ public:
       const char short_option = (char)GetDefinitions()[option_idx].short_option;
 
       switch (short_option) {
+      case 'h':
+        m_use_host_platform = true;
+        break;
       case 't':
         uint32_t timeout_sec;
         if (option_arg.getAsInteger(10, timeout_sec))
@@ -1574,8 +1609,18 @@ public:
               "could not convert \"%s\" to a numeric value.",
               option_arg.str().c_str());
         else
-          timeout = std::chrono::seconds(timeout_sec);
+          m_timeout = std::chrono::seconds(timeout_sec);
         break;
+      case 's': {
+        if (option_arg.empty()) {
+          error.SetErrorStringWithFormat(
+              "missing shell interpreter path for option -i|--interpreter.");
+          return error;
+        }
+
+        m_shell_interpreter = option_arg.str();
+        break;
+      }
       default:
         llvm_unreachable("Unimplemented option");
       }
@@ -1583,9 +1628,15 @@ public:
       return error;
     }
 
-    void OptionParsingStarting(ExecutionContext *execution_context) override {}
+    void OptionParsingStarting(ExecutionContext *execution_context) override {
+      m_timeout.reset();
+      m_use_host_platform = false;
+      m_shell_interpreter.clear();
+    }
 
-    Timeout<std::micro> timeout = std::chrono::seconds(10);
+    Timeout<std::micro> m_timeout = std::chrono::seconds(10);
+    bool m_use_host_platform;
+    std::string m_shell_interpreter;
   };
 
   CommandObjectPlatformShell(CommandInterpreter &interpreter)
@@ -1609,23 +1660,34 @@ public:
       return true;
     }
 
+    const bool is_alias = !raw_command_line.contains("platform");
     OptionsWithRaw args(raw_command_line);
-    const char *expr = args.GetRawPart().c_str();
 
     if (args.HasArgs())
       if (!ParseOptions(args.GetArgs(), result))
         return false;
 
+    if (args.GetRawPart().empty()) {
+      result.GetOutputStream().Printf("%s <shell-command>\n",
+                                      is_alias ? "shell" : "platform shell");
+      return false;
+    }
+
+    llvm::StringRef cmd = args.GetRawPart();
+
     PlatformSP platform_sp(
-        GetDebugger().GetPlatformList().GetSelectedPlatform());
+        m_options.m_use_host_platform
+            ? Platform::GetHostPlatform()
+            : GetDebugger().GetPlatformList().GetSelectedPlatform());
     Status error;
     if (platform_sp) {
       FileSpec working_dir{};
       std::string output;
       int status = -1;
       int signo = -1;
-      error = (platform_sp->RunShellCommand(expr, working_dir, &status, &signo,
-                                            &output, m_options.timeout));
+      error = (platform_sp->RunShellCommand(m_options.m_shell_interpreter, cmd,
+                                            working_dir, &status, &signo,
+                                            &output, m_options.m_timeout));
       if (!output.empty())
         result.GetOutputStream().PutCString(output);
       if (status > 0) {
@@ -1672,6 +1734,16 @@ public:
             "platform target-install <local-thing> <remote-sandbox>", 0) {}
 
   ~CommandObjectPlatformInstall() override = default;
+
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    if (request.GetCursorIndex())
+      return;
+    CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), CommandCompletions::eDiskFileCompletion,
+        request, nullptr);
+  }
 
   bool DoExecute(Args &args, CommandReturnObject &result) override {
     if (args.GetArgumentCount() != 2) {

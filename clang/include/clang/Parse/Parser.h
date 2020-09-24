@@ -13,7 +13,6 @@
 #ifndef LLVM_CLANG_PARSE_PARSER_H
 #define LLVM_CLANG_PARSE_PARSER_H
 
-#include "clang/AST/OpenMPClause.h"
 #include "clang/AST/Availability.h"
 #include "clang/Basic/BitmaskEnum.h"
 #include "clang/Basic/OpenMPKinds.h"
@@ -24,6 +23,7 @@
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Frontend/OpenMP/OMPContext.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/SaveAndRestore.h"
@@ -49,6 +49,10 @@ namespace clang {
   class OMPClause;
   class ObjCTypeParamList;
   class ObjCTypeParameter;
+  struct OMPTraitProperty;
+  struct OMPTraitSelector;
+  struct OMPTraitSet;
+  class OMPTraitInfo;
 
 /// Parser - This implements a parser for the C family of languages.  After
 /// parsing units of the grammar, productions are invoked to handle whatever has
@@ -178,6 +182,7 @@ class Parser : public CodeCompletionHandler {
   std::unique_ptr<PragmaHandler> PCSectionHandler;
   std::unique_ptr<PragmaHandler> MSCommentHandler;
   std::unique_ptr<PragmaHandler> MSDetectMismatchHandler;
+  std::unique_ptr<PragmaHandler> FloatControlHandler;
   std::unique_ptr<PragmaHandler> MSPointersToMembers;
   std::unique_ptr<PragmaHandler> MSVtorDisp;
   std::unique_ptr<PragmaHandler> MSInitSeg;
@@ -197,7 +202,8 @@ class Parser : public CodeCompletionHandler {
   std::unique_ptr<PragmaHandler> UnrollAndJamHintHandler;
   std::unique_ptr<PragmaHandler> NoUnrollAndJamHintHandler;
   std::unique_ptr<PragmaHandler> FPHandler;
-  std::unique_ptr<PragmaHandler> STDCFENVHandler;
+  std::unique_ptr<PragmaHandler> STDCFenvAccessHandler;
+  std::unique_ptr<PragmaHandler> STDCFenvRoundHandler;
   std::unique_ptr<PragmaHandler> STDCCXLIMITHandler;
   std::unique_ptr<PragmaHandler> STDCUnknownHandler;
   std::unique_ptr<PragmaHandler> AttributePragmaHandler;
@@ -236,6 +242,9 @@ class Parser : public CodeCompletionHandler {
   /// The "depth" of the template parameters currently being parsed.
   unsigned TemplateParameterDepth;
 
+  /// Current kind of OpenMP clause
+  OpenMPClauseKind OMPClauseKind = llvm::omp::OMPC_unknown;
+
   /// RAII class that manages the template parameter depth.
   class TemplateParameterDepthRAII {
     unsigned &Depth;
@@ -271,6 +280,22 @@ class Parser : public CodeCompletionHandler {
   /// Gathers and cleans up TemplateIdAnnotations when parsing of a
   /// top-level declaration is finished.
   SmallVector<TemplateIdAnnotation *, 16> TemplateIds;
+
+  void MaybeDestroyTemplateIds() {
+    if (!TemplateIds.empty() &&
+        (Tok.is(tok::eof) || !PP.mightHavePendingAnnotationTokens()))
+      DestroyTemplateIds();
+  }
+  void DestroyTemplateIds();
+
+  /// RAII object to destroy TemplateIdAnnotations where possible, from a
+  /// likely-good position during parsing.
+  struct DestroyTemplateIdAnnotationsRAIIObj {
+    Parser &Self;
+
+    DestroyTemplateIdAnnotationsRAIIObj(Parser &Self) : Self(Self) {}
+    ~DestroyTemplateIdAnnotationsRAIIObj() { Self.MaybeDestroyTemplateIds(); }
+  };
 
   /// Identifiers which have been declared within a tentative parse.
   SmallVector<IdentifierInfo *, 8> TentativelyDeclaredIdentifiers;
@@ -721,6 +746,14 @@ private:
   /// #pragma STDC FENV_ACCESS...
   void HandlePragmaFEnvAccess();
 
+  /// Handle the annotation token produced for
+  /// #pragma STDC FENV_ROUND...
+  void HandlePragmaFEnvRound();
+
+  /// Handle the annotation token produced for
+  /// #pragma float_control
+  void HandlePragmaFloatControl();
+
   /// \brief Handle the annotation token produced for
   /// #pragma clang fp ...
   void HandlePragmaFP();
@@ -763,13 +796,17 @@ public:
   }
 
   /// getTypeAnnotation - Read a parsed type out of an annotation token.
-  static ParsedType getTypeAnnotation(const Token &Tok) {
+  static TypeResult getTypeAnnotation(const Token &Tok) {
+    if (!Tok.getAnnotationValue())
+      return TypeError();
     return ParsedType::getFromOpaquePtr(Tok.getAnnotationValue());
   }
 
 private:
-  static void setTypeAnnotation(Token &Tok, ParsedType T) {
-    Tok.setAnnotationValue(T.getAsOpaquePtr());
+  static void setTypeAnnotation(Token &Tok, TypeResult T) {
+    assert((T.isInvalid() || T.get()) &&
+           "produced a valid-but-null type annotation?");
+    Tok.setAnnotationValue(T.isInvalid() ? nullptr : T.get().getAsOpaquePtr());
   }
 
   static NamedDecl *getNonTypeAnnotation(const Token &Tok) {
@@ -1013,6 +1050,25 @@ private:
   /// was successful.
   bool expectIdentifier();
 
+  /// Kinds of compound pseudo-tokens formed by a sequence of two real tokens.
+  enum class CompoundToken {
+    /// A '(' '{' beginning a statement-expression.
+    StmtExprBegin,
+    /// A '}' ')' ending a statement-expression.
+    StmtExprEnd,
+    /// A '[' '[' beginning a C++11 or C2x attribute.
+    AttrBegin,
+    /// A ']' ']' ending a C++11 or C2x attribute.
+    AttrEnd,
+    /// A '::' '*' forming a C++ pointer-to-member declaration.
+    MemberPtr,
+  };
+
+  /// Check that a compound operator was written in a "sensible" way, and warn
+  /// if not.
+  void checkCompoundToken(SourceLocation FirstTokLoc,
+                          tok::TokenKind FirstTokKind, CompoundToken Op);
+
 public:
   //===--------------------------------------------------------------------===//
   // Scope manipulation
@@ -1059,11 +1115,39 @@ public:
     }
   };
 
+  /// Introduces zero or more scopes for parsing. The scopes will all be exited
+  /// when the object is destroyed.
+  class MultiParseScope {
+    Parser &Self;
+    unsigned NumScopes = 0;
+
+    MultiParseScope(const MultiParseScope&) = delete;
+
+  public:
+    MultiParseScope(Parser &Self) : Self(Self) {}
+    void Enter(unsigned ScopeFlags) {
+      Self.EnterScope(ScopeFlags);
+      ++NumScopes;
+    }
+    void Exit() {
+      while (NumScopes) {
+        Self.ExitScope();
+        --NumScopes;
+      }
+    }
+    ~MultiParseScope() {
+      Exit();
+    }
+  };
+
   /// EnterScope - Start a new scope.
   void EnterScope(unsigned ScopeFlags);
 
   /// ExitScope - Pop a scope off the scope stack.
   void ExitScope();
+
+  /// Re-enter the template scopes for a declaration that might be a template.
+  unsigned ReenterTemplateScopes(MultiParseScope &S, Decl *D);
 
 private:
   /// RAII object used to modify the scope flags for the current scope.
@@ -1249,13 +1333,7 @@ private:
     Decl *D;
     CachedTokens Toks;
 
-    /// Whether this member function had an associated template
-    /// scope. When true, D is a template declaration.
-    /// otherwise, it is a member function declaration.
-    bool TemplateScope;
-
-    explicit LexedMethod(Parser* P, Decl *MD)
-      : Self(P), D(MD), TemplateScope(false) {}
+    explicit LexedMethod(Parser *P, Decl *MD) : Self(P), D(MD) {}
 
     void ParseLexedMethodDefs() override;
   };
@@ -1285,8 +1363,7 @@ private:
   /// argument (C++ [class.mem]p2).
   struct LateParsedMethodDeclaration : public LateParsedDeclaration {
     explicit LateParsedMethodDeclaration(Parser *P, Decl *M)
-      : Self(P), Method(M), TemplateScope(false),
-        ExceptionSpecTokens(nullptr) {}
+        : Self(P), Method(M), ExceptionSpecTokens(nullptr) {}
 
     void ParseLexedMethodDeclarations() override;
 
@@ -1294,11 +1371,6 @@ private:
 
     /// Method - The method declaration.
     Decl *Method;
-
-    /// Whether this member function had an associated template
-    /// scope. When true, D is a template declaration.
-    /// otherwise, it is a member function declaration.
-    bool TemplateScope;
 
     /// DefaultArgs - Contains the parameters of the function and
     /// their default arguments. At least one of the parameters will
@@ -1344,17 +1416,12 @@ private:
   /// parsed after the corresponding top-level class is complete.
   struct ParsingClass {
     ParsingClass(Decl *TagOrTemplate, bool TopLevelClass, bool IsInterface)
-      : TopLevelClass(TopLevelClass), TemplateScope(false),
-        IsInterface(IsInterface), TagOrTemplate(TagOrTemplate) { }
+        : TopLevelClass(TopLevelClass), IsInterface(IsInterface),
+          TagOrTemplate(TagOrTemplate) {}
 
     /// Whether this is a "top-level" class, meaning that it is
     /// not nested within another class.
     bool TopLevelClass : 1;
-
-    /// Whether this class had an associated template
-    /// scope. When true, TagOrTemplate is a template declaration;
-    /// otherwise, it is a tag declaration.
-    bool TemplateScope : 1;
 
     /// Whether this class is an __interface.
     bool IsInterface : 1;
@@ -1454,11 +1521,14 @@ private:
     SourceRange getSourceRange() const LLVM_READONLY;
   };
 
+  // In ParseCXXInlineMethods.cpp.
+  struct ReenterTemplateScopeRAII;
+  struct ReenterClassScopeRAII;
+
   void LexTemplateFunctionForLateParsing(CachedTokens &Toks);
   void ParseLateTemplatedFuncDef(LateParsedTemplate &LPT);
 
   static void LateTemplateParserCallback(void *P, LateParsedTemplate &LPT);
-  static void LateTemplateParserCleanupCallback(void *P);
 
   Sema::ParsingClassState
   PushParsingClass(Decl *TagOrTemplate, bool TopLevelClass, bool IsInterface);
@@ -2025,8 +2095,9 @@ private:
   StmtResult ParseCompoundStatementBody(bool isStmtExpr = false);
   bool ParseParenExprOrCondition(StmtResult *InitStmt,
                                  Sema::ConditionResult &CondResult,
-                                 SourceLocation Loc,
-                                 Sema::ConditionKind CK);
+                                 SourceLocation Loc, Sema::ConditionKind CK,
+                                 SourceLocation *LParenLoc = nullptr,
+                                 SourceLocation *RParenLoc = nullptr);
   StmtResult ParseIfStatement(SourceLocation *TrailingElseLoc);
   StmtResult ParseSwitchStatement(SourceLocation *TrailingElseLoc);
   StmtResult ParseWhileStatement(SourceLocation *TrailingElseLoc);
@@ -2153,6 +2224,68 @@ private:
     llvm_unreachable("Missing DeclSpecContext case");
   }
 
+  /// Whether a defining-type-specifier is permitted in a given context.
+  enum class AllowDefiningTypeSpec {
+    /// The grammar doesn't allow a defining-type-specifier here, and we must
+    /// not parse one (eg, because a '{' could mean something else).
+    No,
+    /// The grammar doesn't allow a defining-type-specifier here, but we permit
+    /// one for error recovery purposes. Sema will reject.
+    NoButErrorRecovery,
+    /// The grammar allows a defining-type-specifier here, even though it's
+    /// always invalid. Sema will reject.
+    YesButInvalid,
+    /// The grammar allows a defining-type-specifier here, and one can be valid.
+    Yes
+  };
+
+  /// Is this a context in which we are parsing defining-type-specifiers (and
+  /// so permit class and enum definitions in addition to non-defining class and
+  /// enum elaborated-type-specifiers)?
+  static AllowDefiningTypeSpec
+  isDefiningTypeSpecifierContext(DeclSpecContext DSC) {
+    switch (DSC) {
+    case DeclSpecContext::DSC_normal:
+    case DeclSpecContext::DSC_class:
+    case DeclSpecContext::DSC_top_level:
+    case DeclSpecContext::DSC_alias_declaration:
+    case DeclSpecContext::DSC_objc_method_result:
+      return AllowDefiningTypeSpec::Yes;
+
+    case DeclSpecContext::DSC_condition:
+    case DeclSpecContext::DSC_template_param:
+      return AllowDefiningTypeSpec::YesButInvalid;
+
+    case DeclSpecContext::DSC_template_type_arg:
+    case DeclSpecContext::DSC_type_specifier:
+      return AllowDefiningTypeSpec::NoButErrorRecovery;
+
+    case DeclSpecContext::DSC_trailing:
+      return AllowDefiningTypeSpec::No;
+    }
+    llvm_unreachable("Missing DeclSpecContext case");
+  }
+
+  /// Is this a context in which an opaque-enum-declaration can appear?
+  static bool isOpaqueEnumDeclarationContext(DeclSpecContext DSC) {
+    switch (DSC) {
+    case DeclSpecContext::DSC_normal:
+    case DeclSpecContext::DSC_class:
+    case DeclSpecContext::DSC_top_level:
+      return true;
+
+    case DeclSpecContext::DSC_alias_declaration:
+    case DeclSpecContext::DSC_objc_method_result:
+    case DeclSpecContext::DSC_condition:
+    case DeclSpecContext::DSC_template_param:
+    case DeclSpecContext::DSC_template_type_arg:
+    case DeclSpecContext::DSC_type_specifier:
+    case DeclSpecContext::DSC_trailing:
+      return false;
+    }
+    llvm_unreachable("Missing DeclSpecContext case");
+  }
+
   /// Is this a context in which we can perform class template argument
   /// deduction?
   static bool isClassTemplateDeductionContext(DeclSpecContext DSC) {
@@ -2243,7 +2376,7 @@ private:
                           AccessSpecifier AS, DeclSpecContext DSC);
   void ParseEnumBody(SourceLocation StartLoc, Decl *TagDecl);
   void ParseStructUnionBody(SourceLocation StartLoc, DeclSpec::TST TagType,
-                            Decl *TagDecl);
+                            RecordDecl *TagDecl);
 
   void ParseStructDeclaration(
       ParsingDeclSpec &DS,
@@ -2380,17 +2513,14 @@ private:
     True, False, Ambiguous, Error
   };
 
-  /// Based only on the given token kind, determine whether we know that
-  /// we're at the start of an expression or a type-specifier-seq (which may
-  /// be an expression, in C++).
+  /// Determine whether we could have an enum-base.
   ///
-  /// This routine does not attempt to resolve any of the trick cases, e.g.,
-  /// those involving lookup of identifiers.
+  /// \p AllowSemi If \c true, then allow a ';' after the enum-base; otherwise
+  /// only consider this to be an enum-base if the next token is a '{'.
   ///
-  /// \returns \c TPR_true if this token starts an expression, \c TPR_false if
-  /// this token starts a type-specifier-seq, or \c TPR_ambiguous if it cannot
-  /// tell.
-  TPResult isExpressionOrTypeSpecifierSimple(tok::TokenKind Kind);
+  /// \return \c false if this cannot possibly be an enum base; \c true
+  /// otherwise.
+  bool isEnumBase(bool AllowSemi);
 
   /// isCXXDeclarationSpecifier - Returns TPResult::True if it is a
   /// declaration specifier, TPResult::False if it is not,
@@ -2575,13 +2705,15 @@ private:
       D.takeAttributes(attrs, endLoc);
     }
   }
-  void MaybeParseCXX11Attributes(ParsedAttributes &attrs,
+  bool MaybeParseCXX11Attributes(ParsedAttributes &attrs,
                                  SourceLocation *endLoc = nullptr) {
     if (standardAttributesAllowed() && isCXX11AttributeSpecifier()) {
       ParsedAttributesWithRange attrsWithRange(AttrFactory);
       ParseCXX11Attributes(attrsWithRange, endLoc);
       attrs.takeAllFrom(attrsWithRange);
+      return true;
     }
+    return false;
   }
   void MaybeParseCXX11Attributes(ParsedAttributesWithRange &attrs,
                                  SourceLocation *endLoc = nullptr,
@@ -2706,6 +2838,7 @@ private:
                                 SourceLocation &EllipsisLoc);
   void ParseAlignmentSpecifier(ParsedAttributes &Attrs,
                                SourceLocation *endLoc = nullptr);
+  ExprResult ParseExtIntegerArgument();
 
   VirtSpecifiers::Specifier isCXX11VirtSpecifier(const Token &Tok) const;
   VirtSpecifiers::Specifier isCXX11VirtSpecifier() const {
@@ -2940,45 +3073,66 @@ private:
 
   /// Parse a property kind into \p TIProperty for the selector set \p Set and
   /// selector \p Selector.
-  void parseOMPTraitPropertyKind(OMPTraitInfo::OMPTraitProperty &TIProperty,
+  void parseOMPTraitPropertyKind(OMPTraitProperty &TIProperty,
                                  llvm::omp::TraitSet Set,
                                  llvm::omp::TraitSelector Selector,
                                  llvm::StringMap<SourceLocation> &Seen);
 
   /// Parse a selector kind into \p TISelector for the selector set \p Set.
-  void parseOMPTraitSelectorKind(OMPTraitInfo::OMPTraitSelector &TISelector,
+  void parseOMPTraitSelectorKind(OMPTraitSelector &TISelector,
                                  llvm::omp::TraitSet Set,
                                  llvm::StringMap<SourceLocation> &Seen);
 
   /// Parse a selector set kind into \p TISet.
-  void parseOMPTraitSetKind(OMPTraitInfo::OMPTraitSet &TISet,
+  void parseOMPTraitSetKind(OMPTraitSet &TISet,
                             llvm::StringMap<SourceLocation> &Seen);
 
   /// Parses an OpenMP context property.
-  void parseOMPContextProperty(OMPTraitInfo::OMPTraitSelector &TISelector,
+  void parseOMPContextProperty(OMPTraitSelector &TISelector,
                                llvm::omp::TraitSet Set,
                                llvm::StringMap<SourceLocation> &Seen);
 
   /// Parses an OpenMP context selector.
-  void parseOMPContextSelector(OMPTraitInfo::OMPTraitSelector &TISelector,
+  void parseOMPContextSelector(OMPTraitSelector &TISelector,
                                llvm::omp::TraitSet Set,
                                llvm::StringMap<SourceLocation> &SeenSelectors);
 
   /// Parses an OpenMP context selector set.
-  void parseOMPContextSelectorSet(OMPTraitInfo::OMPTraitSet &TISet,
+  void parseOMPContextSelectorSet(OMPTraitSet &TISet,
                                   llvm::StringMap<SourceLocation> &SeenSets);
 
   /// Parses OpenMP context selectors.
   bool parseOMPContextSelectors(SourceLocation Loc, OMPTraitInfo &TI);
 
+  /// Parse a `match` clause for an '#pragma omp declare variant'. Return true
+  /// if there was an error.
+  bool parseOMPDeclareVariantMatchClause(SourceLocation Loc, OMPTraitInfo &TI);
+
   /// Parse clauses for '#pragma omp declare variant'.
   void ParseOMPDeclareVariantClauses(DeclGroupPtrTy Ptr, CachedTokens &Toks,
                                      SourceLocation Loc);
+
   /// Parse clauses for '#pragma omp declare target'.
   DeclGroupPtrTy ParseOMPDeclareTargetClauses();
   /// Parse '#pragma omp end declare target'.
   void ParseOMPEndDeclareTargetDirective(OpenMPDirectiveKind DKind,
                                          SourceLocation Loc);
+
+  /// Skip tokens until a `annot_pragma_openmp_end` was found. Emit a warning if
+  /// it is not the current token.
+  void skipUntilPragmaOpenMPEnd(OpenMPDirectiveKind DKind);
+
+  /// Check the \p FoundKind against the \p ExpectedKind, if not issue an error
+  /// that the "end" matching the "begin" directive of kind \p BeginKind was not
+  /// found. Finally, if the expected kind was found or if \p SkipUntilOpenMPEnd
+  /// is set, skip ahead using the helper `skipUntilPragmaOpenMPEnd`.
+  void parseOMPEndDirective(OpenMPDirectiveKind BeginKind,
+                            OpenMPDirectiveKind ExpectedKind,
+                            OpenMPDirectiveKind FoundKind,
+                            SourceLocation MatchingLoc,
+                            SourceLocation FoundLoc,
+                            bool SkipUntilOpenMPEnd);
+
   /// Parses declarative OpenMP directives.
   DeclGroupPtrTy ParseOpenMPDeclarativeDirectiveWithExtDecl(
       AccessSpecifier &AS, ParsedAttributesWithRange &Attrs,
@@ -2996,6 +3150,10 @@ private:
   TypeResult parseOpenMPDeclareMapperVarDecl(SourceRange &Range,
                                              DeclarationName &Name,
                                              AccessSpecifier AS = AS_none);
+
+  /// Tries to parse cast part of OpenMP array shaping operation:
+  /// '[' expression ']' { '[' expression ']' } ')'.
+  bool tryParseOpenMPArrayShapingCastPart();
 
   /// Parses simple list of variables.
   ///
@@ -3065,6 +3223,16 @@ private:
   OMPClause *ParseOpenMPVarListClause(OpenMPDirectiveKind DKind,
                                       OpenMPClauseKind Kind, bool ParseOnly);
 
+  /// Parses and creates OpenMP 5.0 iterators expression:
+  /// <iterators> = 'iterator' '(' { [ <iterator-type> ] identifier =
+  /// <range-specification> }+ ')'
+  ExprResult ParseOpenMPIteratorsExpr();
+
+  /// Parses allocators and traits in the context of the uses_allocator clause.
+  /// Expected format:
+  /// '(' { <allocator> [ '(' <allocator_traits> ')' ] }+ ')'
+  OMPClause *ParseOpenMPUsesAllocatorClause(OpenMPDirectiveKind DKind);
+
 public:
   /// Parses simple expression in parens for single-expression clauses of OpenMP
   /// constructs.
@@ -3074,17 +3242,20 @@ public:
 
   /// Data used for parsing list of variables in OpenMP clauses.
   struct OpenMPVarListDataTy {
-    Expr *TailExpr = nullptr;
+    Expr *DepModOrTailExpr = nullptr;
     SourceLocation ColonLoc;
     SourceLocation RLoc;
     CXXScopeSpec ReductionOrMapperIdScopeSpec;
     DeclarationNameInfo ReductionOrMapperId;
     int ExtraModifier = -1; ///< Additional modifier for linear, map, depend or
                             ///< lastprivate clause.
-    SmallVector<OpenMPMapModifierKind, OMPMapClause::NumberOfModifiers>
+    SmallVector<OpenMPMapModifierKind, NumberOfOMPMapClauseModifiers>
     MapTypeModifiers;
-    SmallVector<SourceLocation, OMPMapClause::NumberOfModifiers>
+    SmallVector<SourceLocation, NumberOfOMPMapClauseModifiers>
     MapTypeModifiersLoc;
+    SmallVector<OpenMPMotionModifierKind, NumberOfOMPMotionModifiers>
+        MotionModifiers;
+    SmallVector<SourceLocation, NumberOfOMPMotionModifiers> MotionModifiersLoc;
     bool IsMapTypeImplicit = false;
     SourceLocation ExtraModifierLoc;
   };
@@ -3123,7 +3294,7 @@ private:
       DeclaratorContext Context, const ParsedTemplateInfo &TemplateInfo,
       ParsingDeclRAIIObject &DiagsFromParams, SourceLocation &DeclEnd,
       ParsedAttributes &AccessAttrs, AccessSpecifier AS = AS_none);
-  bool ParseTemplateParameters(unsigned Depth,
+  bool ParseTemplateParameters(MultiParseScope &TemplateScopes, unsigned Depth,
                                SmallVectorImpl<NamedDecl *> &TemplateParams,
                                SourceLocation &LAngleLoc,
                                SourceLocation &RAngleLoc);
@@ -3147,7 +3318,8 @@ private:
   // C++ 14.3: Template arguments [temp.arg]
   typedef SmallVector<ParsedTemplateArgument, 16> TemplateArgList;
 
-  bool ParseGreaterThanInTemplateList(SourceLocation &RAngleLoc,
+  bool ParseGreaterThanInTemplateList(SourceLocation LAngleLoc,
+                                      SourceLocation &RAngleLoc,
                                       bool ConsumeLastToken,
                                       bool ObjCGenericList);
   bool ParseTemplateIdAfterTemplateName(bool ConsumeLastToken,

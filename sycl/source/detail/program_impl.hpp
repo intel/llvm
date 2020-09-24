@@ -12,14 +12,17 @@
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/program.hpp>
+#include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <detail/spec_constant_impl.hpp>
 
 #include <algorithm>
 #include <cassert>
 #include <fstream>
 #include <memory>
+#include <mutex>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -30,11 +33,6 @@ class kernel;
 namespace detail {
 
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
-
-// TODO: SYCL BE generalization will change this to something better.
-// For now this saves us from unwanted implicit casts.
-struct _program_interop_handle_t;
-using program_interop_handle_t = _program_interop_handle_t *;
 
 class program_impl {
 public:
@@ -47,7 +45,7 @@ public:
   /// with the context.
   ///
   /// \param Context is a pointer to SYCL context impl.
-  explicit program_impl(ContextImplPtr Context);
+  explicit program_impl(ContextImplPtr Context, const property_list &PropList);
 
   /// Constructs an instance of SYCL program for the provided DeviceList.
   ///
@@ -57,7 +55,8 @@ public:
   ///
   /// \param Context is a pointer to SYCL context impl.
   /// \param DeviceList is a list of SYCL devices.
-  program_impl(ContextImplPtr Context, vector_class<device> DeviceList);
+  program_impl(ContextImplPtr Context, vector_class<device> DeviceList,
+               const property_list &PropList);
 
   /// Constructs an instance of SYCL program by linking together each SYCL
   /// program instance in ProgramList.
@@ -74,7 +73,7 @@ public:
   /// \param ProgramList is a list of program_impl instances.
   /// \param LinkOptions is a string containing valid OpenCL link options.
   program_impl(vector_class<shared_ptr_class<program_impl>> ProgramList,
-               string_class LinkOptions = "");
+               string_class LinkOptions, const property_list &PropList);
 
   /// Constructs a program instance from an interop raw BE program handle.
   /// TODO: BE generalization will change that to something better.
@@ -89,7 +88,7 @@ public:
   /// \param Context is a pointer to SYCL context impl.
   /// \param InteropProgram is an instance of plugin interface interoperability
   /// program.
-  program_impl(ContextImplPtr Context, program_interop_handle_t InteropProgram);
+  program_impl(ContextImplPtr Context, pi_native_handle InteropProgram);
 
   /// Constructs a program instance from plugin interface interoperability
   /// kernel.
@@ -99,6 +98,23 @@ public:
   program_impl(ContextImplPtr Context, RT::PiKernel Kernel);
 
   ~program_impl();
+
+  /// Checks if this program_impl has a property of type propertyT.
+  ///
+  /// \return true if this program_impl has a property of type propertyT.
+  template <typename propertyT> bool has_property() const {
+    return MPropList.has_property<propertyT>();
+  }
+
+  /// Gets the specified property of this program_impl.
+  ///
+  /// Throws invalid_object_error if this program_impl does not have a property
+  /// of type propertyT.
+  ///
+  /// \return a copy of the property of type propertyT.
+  template <typename propertyT> propertyT get_property() const {
+    return MPropList.get_property<propertyT>();
+  }
 
   /// Returns a valid cl_program instance.
   ///
@@ -243,7 +259,7 @@ public:
     return createSyclObjFromImpl<context>(MContext);
   }
 
-  // \return the Plugin associated withh the context of this program.
+  /// \return the Plugin associated with the context of this program.
   const plugin &getPlugin() const {
     assert(!is_host() && "Plugin is not available for Host.");
     return MContext->getPlugin();
@@ -296,6 +312,17 @@ public:
   void set_spec_constant_impl(const char *Name, const void *ValAddr,
                               size_t ValSize);
 
+  /// Takes current values of specialization constants and "injects" them into
+  /// the underlying native program program via specialization constant
+  /// managemment PI APIs. The native program passed as non-null argument
+  /// overrides the MProgram native program field.
+  /// \param Img device binary image corresponding to this program, used to
+  ///        resolve spec constant name to SPIR-V integer ID
+  /// \param NativePrg if not null, used as the flush target, otherwise MProgram
+  ///        is used
+  void flush_spec_constants(const RTDeviceBinaryImage &Img,
+                            RT::PiProgram NativePrg = nullptr) const;
+
   /// Returns the OS module handle this program belongs to. A program belongs to
   /// an OS module if it was built from device image(s) belonging to that
   /// module.
@@ -303,9 +330,22 @@ public:
   ///      modules. May need a special fake handle for the resulting program.
   OSModuleHandle getOSModuleHandle() const { return MProgramModuleHandle; }
 
+  void stableSerializeSpecConstRegistry(SerializedObj &Dst) const {
+    detail::stableSerializeSpecConstRegistry(SpecConstRegistry, Dst);
+  }
+
+  /// Tells whether a specialization constant has been set for this program.
+  bool hasSetSpecConstants() const { return !SpecConstRegistry.empty(); }
+
+  /// \return true if caching is allowed for this program.
+  bool is_cacheable() const { return MProgramAndKernelCachingAllowed; }
+
+  /// Returns the native plugin handle.
+  pi_native_handle getNative() const;
+
 private:
   // Deligating Constructor used in Implementation.
-  program_impl(ContextImplPtr Context, program_interop_handle_t InteropProgram,
+  program_impl(ContextImplPtr Context, pi_native_handle InteropProgram,
                RT::PiProgram Program);
   /// Checks feature support for specific devices.
   ///
@@ -328,8 +368,12 @@ private:
   ///
   /// \param Module is an OS handle to user code module.
   /// \param KernelName is a name of kernel to be created.
-  void create_pi_program_with_kernel_name(OSModuleHandle Module,
-                                          const string_class &KernelName);
+  /// \param JITCompilationIsRequired If JITCompilationIsRequired is true
+  ///        add a check that kernel is compiled, otherwise don't add the check.
+  void
+  create_pi_program_with_kernel_name(OSModuleHandle Module,
+                                     const string_class &KernelName,
+                                     bool JITCompilationIsRequired = false);
 
   /// Creates an OpenCL program from OpenCL C source code.
   ///
@@ -348,9 +392,6 @@ private:
 
   /// \return a vector of devices managed by the plugin.
   vector_class<RT::PiDevice> get_pi_devices() const;
-
-  /// \return true if caching is allowed for this program.
-  bool is_cacheable() const { return MProgramAndKernelCachingAllowed; }
 
   /// \param Options is a string containing OpenCL C build options.
   /// \return true if caching is allowed for this program and build options.
@@ -385,13 +426,21 @@ private:
 
   RT::PiProgram MProgram = nullptr;
   program_state MState = program_state::none;
+  std::mutex MMutex;
   ContextImplPtr MContext;
   bool MLinkable = false;
   vector_class<device> MDevices;
+  property_list MPropList;
   string_class MCompileOptions;
   string_class MLinkOptions;
   string_class MBuildOptions;
   OSModuleHandle MProgramModuleHandle = OSUtil::ExeModuleHandle;
+
+  // Keeps specialization constant map for this program. Spec constant name
+  // resolution to actual SPIR-V integer ID happens at build time, where the
+  // device binary image is available. Access is guarded by this context's
+  // program cache lock.
+  SpecConstRegistryT SpecConstRegistry;
 
   /// Only allow kernel caching for programs constructed with context only (or
   /// device list and context) and built with build_with_kernel_type with

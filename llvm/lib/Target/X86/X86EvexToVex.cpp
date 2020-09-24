@@ -237,11 +237,9 @@ bool EvexToVexInstPass::CompressEvexToVexImpl(MachineInstr &MI) const {
   // Make sure the tables are sorted.
   static std::atomic<bool> TableChecked(false);
   if (!TableChecked.load(std::memory_order_relaxed)) {
-    assert(std::is_sorted(std::begin(X86EvexToVex128CompressTable),
-                          std::end(X86EvexToVex128CompressTable)) &&
+    assert(llvm::is_sorted(X86EvexToVex128CompressTable) &&
            "X86EvexToVex128CompressTable is not sorted!");
-    assert(std::is_sorted(std::begin(X86EvexToVex256CompressTable),
-                          std::end(X86EvexToVex256CompressTable)) &&
+    assert(llvm::is_sorted(X86EvexToVex256CompressTable) &&
            "X86EvexToVex256CompressTable is not sorted!");
     TableChecked.store(true, std::memory_order_relaxed);
   }
@@ -252,7 +250,7 @@ bool EvexToVexInstPass::CompressEvexToVexImpl(MachineInstr &MI) const {
     (Desc.TSFlags & X86II::VEX_L) ? makeArrayRef(X86EvexToVex256CompressTable)
                                   : makeArrayRef(X86EvexToVex128CompressTable);
 
-  auto I = llvm::lower_bound(Table, MI.getOpcode());
+  const auto *I = llvm::lower_bound(Table, MI.getOpcode());
   if (I == Table.end() || I->EvexOpcode != MI.getOpcode())
     return false;
 

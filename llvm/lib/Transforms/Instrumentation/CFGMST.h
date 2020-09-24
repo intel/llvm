@@ -28,6 +28,8 @@
 
 #define DEBUG_TYPE "cfgmst"
 
+using namespace llvm;
+
 namespace llvm {
 
 /// An union-find based Minimum Spanning Tree for CFG
@@ -100,8 +102,11 @@ public:
 
     const BasicBlock *Entry = &(F.getEntryBlock());
     uint64_t EntryWeight = (BFI != nullptr ? BFI->getEntryFreq() : 2);
+    // If we want to instrument the entry count, lower the weight to 0.
+    if (InstrumentFuncEntry)
+      EntryWeight = 0;
     Edge *EntryIncoming = nullptr, *EntryOutgoing = nullptr,
-        *ExitOutgoing = nullptr, *ExitIncoming = nullptr;
+         *ExitOutgoing = nullptr, *ExitIncoming = nullptr;
     uint64_t MaxEntryOutWeight = 0, MaxExitOutWeight = 0, MaxExitInWeight = 0;
 
     // Add a fake edge to the entry.
@@ -135,6 +140,8 @@ public:
           }
           if (BPI != nullptr)
             Weight = BPI->getEdgeProbability(&*BB, TargetBB).scale(scaleFactor);
+          if (Weight == 0)
+            Weight++;
           auto *E = &addEdge(&*BB, TargetBB, Weight);
           E->IsCritical = Critical;
           LLVM_DEBUG(dbgs() << "  Edge: from " << BB->getName() << " to "
@@ -271,13 +278,21 @@ public:
   BranchProbabilityInfo *BPI;
   BlockFrequencyInfo *BFI;
 
+  // If function entry will be always instrumented.
+  bool InstrumentFuncEntry;
+
 public:
-  CFGMST(Function &Func, BranchProbabilityInfo *BPI_ = nullptr,
+  CFGMST(Function &Func, bool InstrumentFuncEntry_,
+         BranchProbabilityInfo *BPI_ = nullptr,
          BlockFrequencyInfo *BFI_ = nullptr)
-      : F(Func), BPI(BPI_), BFI(BFI_) {
+      : F(Func), BPI(BPI_), BFI(BFI_),
+        InstrumentFuncEntry(InstrumentFuncEntry_) {
     buildEdges();
     sortEdgesByWeight();
     computeMinimumSpanningTree();
+    if (AllEdges.size() > 1 && InstrumentFuncEntry)
+      std::iter_swap(std::move(AllEdges.begin()),
+                     std::move(AllEdges.begin() + AllEdges.size() - 1));
   }
 };
 

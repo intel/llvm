@@ -35,10 +35,6 @@ using namespace llvm;
 static cl::opt<bool> UseSubRegLiveness("ppc-track-subreg-liveness",
 cl::desc("Enable subregister liveness tracking for PPC"), cl::Hidden);
 
-static cl::opt<bool> QPXStackUnaligned("qpx-stack-unaligned",
-  cl::desc("Even when QPX is enabled the stack is not 32-byte aligned"),
-  cl::Hidden);
-
 static cl::opt<bool>
     EnableMachinePipeliner("ppc-enable-pipeliner",
                            cl::desc("Enable Machine Pipeliner for PPC"),
@@ -53,7 +49,7 @@ PPCSubtarget &PPCSubtarget::initializeSubtargetDependencies(StringRef CPU,
 
 PPCSubtarget::PPCSubtarget(const Triple &TT, const std::string &CPU,
                            const std::string &FS, const PPCTargetMachine &TM)
-    : PPCGenSubtargetInfo(TT, CPU, FS), TargetTriple(TT),
+    : PPCGenSubtargetInfo(TT, CPU, /*TuneCPU*/ CPU, FS), TargetTriple(TT),
       IsPPC64(TargetTriple.getArch() == Triple::ppc64 ||
               TargetTriple.getArch() == Triple::ppc64le),
       TM(TM), FrameLowering(initializeSubtargetDependencies(CPU, FS)),
@@ -70,7 +66,6 @@ void PPCSubtarget::initializeEnvironment() {
   HasAltivec = false;
   HasSPE = false;
   HasFPU = false;
-  HasQPX = false;
   HasVSX = false;
   NeedsTwoConstNR = false;
   HasP8Vector = false;
@@ -78,6 +73,8 @@ void PPCSubtarget::initializeEnvironment() {
   HasP8Crypto = false;
   HasP9Vector = false;
   HasP9Altivec = false;
+  HasMMA = false;
+  HasP10Vector = false;
   HasPrefixInstrs = false;
   HasPCRelativeMemops = false;
   HasFCPSGN = false;
@@ -108,18 +105,20 @@ void PPCSubtarget::initializeEnvironment() {
   HasInvariantFunctionDescriptors = false;
   HasPartwordAtomics = false;
   HasDirectMove = false;
-  IsQPXStackUnaligned = false;
   HasHTM = false;
   HasFloat128 = false;
   HasFusion = false;
   HasAddiLoadFusion = false;
   HasAddisLoadFusion = false;
   IsISA3_0 = false;
+  IsISA3_1 = false;
   UseLongCalls = false;
   SecurePlt = false;
   VectorsUseTwoUnits = false;
   UsePPCPreRASchedStrategy = false;
   UsePPCPostRASchedStrategy = false;
+  PairedVectorMemops = false;
+  PredictableSelectIsExpensive = false;
 
   HasPOPCNTD = POPCNTD_Unavailable;
 }
@@ -141,7 +140,7 @@ void PPCSubtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
   InstrItins = getInstrItineraryForCPU(CPUName);
 
   // Parse features string.
-  ParseSubtargetFeatures(CPUName, FS);
+  ParseSubtargetFeatures(CPUName, /*TuneCPU*/ CPUName, FS);
 
   // If the user requested use of 64-bit regs, but the cpu selected doesn't
   // support it, ignore.
@@ -155,7 +154,7 @@ void PPCSubtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
 
   if (HasSPE && IsPPC64)
     report_fatal_error( "SPE is only supported for 32-bit targets.\n", false);
-  if (HasSPE && (HasAltivec || HasQPX || HasVSX || HasFPU))
+  if (HasSPE && (HasAltivec || HasVSX || HasFPU))
     report_fatal_error(
         "SPE and traditional floating point cannot both be enabled.\n", false);
 
@@ -163,10 +162,6 @@ void PPCSubtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
   if (!HasSPE)
     HasFPU = true;
 
-  // QPX requires a 32-byte aligned stack. Note that we need to do this if
-  // we're compiling for a BG/Q system regardless of whether or not QPX
-  // is enabled because external functions will assume this alignment.
-  IsQPXStackUnaligned = QPXStackUnaligned;
   StackAlignment = getPlatformStackAlignment();
 
   // Determine endianness.
@@ -177,7 +172,7 @@ void PPCSubtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
 bool PPCSubtarget::enableMachineScheduler() const { return true; }
 
 bool PPCSubtarget::enableMachinePipeliner() const {
-  return (CPUDirective == PPC::DIR_PWR9) && EnableMachinePipeliner;
+  return getSchedModel().hasInstrSchedModel() && EnableMachinePipeliner;
 }
 
 bool PPCSubtarget::useDFAforSMS() const { return false; }
@@ -227,3 +222,8 @@ bool PPCSubtarget::isGVIndirectSymbol(const GlobalValue *GV) const {
 
 bool PPCSubtarget::isELFv2ABI() const { return TM.isELFv2ABI(); }
 bool PPCSubtarget::isPPC64() const { return TM.isPPC64(); }
+
+bool PPCSubtarget::isUsingPCRelativeCalls() const {
+  return isPPC64() && hasPCRelativeMemops() && isELFv2ABI() &&
+         CodeModel::Medium == getTargetMachine().getCodeModel();
+}

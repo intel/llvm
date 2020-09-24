@@ -385,6 +385,7 @@ CommandObjectExpression::GetEvalOptions(const Target &target) {
     auto_apply_fixits = m_command_options.auto_apply_fixits == eLazyBoolYes;
 
   options.SetAutoApplyFixIts(auto_apply_fixits);
+  options.SetRetriesWithFixIts(target.GetNumberOfRetriesWithFixits());
 
   if (m_command_options.top_level)
     options.SetExecutionPolicy(eExecutionPolicyTopLevel);
@@ -499,7 +500,8 @@ void CommandObjectExpression::IOHandlerInputComplete(IOHandler &io_handler,
   StreamFileSP output_sp = io_handler.GetOutputStreamFileSP();
   StreamFileSP error_sp = io_handler.GetErrorStreamFileSP();
 
-  CommandReturnObject return_obj;
+  CommandReturnObject return_obj(
+      GetCommandInterpreter().GetDebugger().GetUseColor());
   EvaluateExpression(line.c_str(), *output_sp, *error_sp, return_obj);
   if (output_sp)
     output_sp->Flush();

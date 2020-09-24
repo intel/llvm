@@ -326,7 +326,8 @@ void SymbolFileBreakpad::AddSymbols(Symtab &symtab) {
   }
 
   const SectionList &list = *module.GetSectionList();
-  llvm::DenseMap<addr_t, Symbol> symbols;
+  llvm::DenseSet<addr_t> found_symbol_addresses;
+  std::vector<Symbol> symbols;
   auto add_symbol = [&](addr_t address, llvm::Optional<addr_t> size,
                         llvm::StringRef name) {
     address += base;
@@ -338,8 +339,12 @@ void SymbolFileBreakpad::AddSymbols(Symtab &symtab) {
                name, address);
       return;
     }
-    symbols.try_emplace(
-        address, /*symID*/ 0, Mangled(name), eSymbolTypeCode,
+    // Keep track of what addresses were already added so far and only add
+    // the symbol with the first address.
+    if (!found_symbol_addresses.insert(address).second)
+      return;
+    symbols.emplace_back(
+        /*symID*/ 0, Mangled(name), eSymbolTypeCode,
         /*is_global*/ true, /*is_debug*/ false,
         /*is_trampoline*/ false, /*is_artificial*/ false,
         AddressRange(section_sp, address - section_sp->GetFileAddress(),
@@ -359,8 +364,8 @@ void SymbolFileBreakpad::AddSymbols(Symtab &symtab) {
       LLDB_LOG(log, "Failed to parse: {0}. Skipping record.", line);
   }
 
-  for (auto &KV : symbols)
-    symtab.AddSymbol(std::move(KV.second));
+  for (Symbol &symbol : symbols)
+    symtab.AddSymbol(std::move(symbol));
   symtab.CalculateSymbolSizes();
 }
 
@@ -408,20 +413,25 @@ GetRule(llvm::StringRef &unwind_rules) {
 }
 
 static const RegisterInfo *
-ResolveRegister(const SymbolFile::RegisterInfoResolver &resolver,
+ResolveRegister(const llvm::Triple &triple,
+                const SymbolFile::RegisterInfoResolver &resolver,
                 llvm::StringRef name) {
-  if (name.consume_front("$"))
-    return resolver.ResolveName(name);
-
-  return nullptr;
+  if (triple.isX86() || triple.isMIPS()) {
+    // X86 and MIPS registers have '$' in front of their register names. Arm and
+    // AArch64 don't.
+    if (!name.consume_front("$"))
+      return nullptr;
+  }
+  return resolver.ResolveName(name);
 }
 
 static const RegisterInfo *
-ResolveRegisterOrRA(const SymbolFile::RegisterInfoResolver &resolver,
+ResolveRegisterOrRA(const llvm::Triple &triple,
+                    const SymbolFile::RegisterInfoResolver &resolver,
                     llvm::StringRef name) {
   if (name == ".ra")
     return resolver.ResolveNumber(eRegisterKindGeneric, LLDB_REGNUM_GENERIC_PC);
-  return ResolveRegister(resolver, name);
+  return ResolveRegister(triple, resolver, name);
 }
 
 llvm::ArrayRef<uint8_t> SymbolFileBreakpad::SaveAsDWARF(postfix::Node &node) {
@@ -440,6 +450,7 @@ bool SymbolFileBreakpad::ParseCFIUnwindRow(llvm::StringRef unwind_rules,
   Log *log = GetLogIfAllCategoriesSet(LIBLLDB_LOG_SYMBOLS);
 
   llvm::BumpPtrAllocator node_alloc;
+  llvm::Triple triple = m_objfile_sp->GetArchitecture().GetTriple();
   while (auto rule = GetRule(unwind_rules)) {
     node_alloc.Reset();
     llvm::StringRef lhs = rule->first;
@@ -455,7 +466,8 @@ bool SymbolFileBreakpad::ParseCFIUnwindRow(llvm::StringRef unwind_rules,
           if (name == ".cfa" && lhs != ".cfa")
             return postfix::MakeNode<postfix::InitialValueNode>(node_alloc);
 
-          if (const RegisterInfo *info = ResolveRegister(resolver, name)) {
+          if (const RegisterInfo *info =
+                  ResolveRegister(triple, resolver, name)) {
             return postfix::MakeNode<postfix::RegisterNode>(
                 node_alloc, info->kinds[eRegisterKindLLDB]);
           }
@@ -470,7 +482,8 @@ bool SymbolFileBreakpad::ParseCFIUnwindRow(llvm::StringRef unwind_rules,
     llvm::ArrayRef<uint8_t> saved = SaveAsDWARF(*rhs);
     if (lhs == ".cfa") {
       row.GetCFAValue().SetIsDWARFExpression(saved.data(), saved.size());
-    } else if (const RegisterInfo *info = ResolveRegisterOrRA(resolver, lhs)) {
+    } else if (const RegisterInfo *info =
+                   ResolveRegisterOrRA(triple, resolver, lhs)) {
       UnwindPlan::Row::RegisterLocation loc;
       loc.SetIsDWARFExpression(saved.data(), saved.size());
       row.SetRegisterInfo(info->kinds[eRegisterKindLLDB], loc);
@@ -574,6 +587,7 @@ SymbolFileBreakpad::ParseWinUnwindPlan(const Bookmark &bookmark,
     return nullptr;
   }
   auto it = program.begin();
+  llvm::Triple triple = m_objfile_sp->GetArchitecture().GetTriple();
   const auto &symbol_resolver =
       [&](postfix::SymbolNode &symbol) -> postfix::Node * {
     llvm::StringRef name = symbol.GetName();
@@ -581,7 +595,7 @@ SymbolFileBreakpad::ParseWinUnwindPlan(const Bookmark &bookmark,
       if (rule.first == name)
         return rule.second;
     }
-    if (const RegisterInfo *info = ResolveRegister(resolver, name))
+    if (const RegisterInfo *info = ResolveRegister(triple, resolver, name))
       return postfix::MakeNode<postfix::RegisterNode>(
           node_alloc, info->kinds[eRegisterKindLLDB]);
     return nullptr;
@@ -611,7 +625,7 @@ SymbolFileBreakpad::ParseWinUnwindPlan(const Bookmark &bookmark,
 
   // Now process the rest of the assignments.
   for (++it; it != program.end(); ++it) {
-    const RegisterInfo *info = ResolveRegister(resolver, it->first);
+    const RegisterInfo *info = ResolveRegister(triple, resolver, it->first);
     // It is not an error if the resolution fails because the program may
     // contain temporary variables.
     if (!info)

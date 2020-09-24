@@ -362,6 +362,8 @@ MemoryDependenceResults::getInvariantGroupPointerDependency(LoadInst *LI,
 MemDepResult MemoryDependenceResults::getSimplePointerDependencyFrom(
     const MemoryLocation &MemLoc, bool isLoad, BasicBlock::iterator ScanIt,
     BasicBlock *BB, Instruction *QueryInst, unsigned *Limit) {
+  // We can batch AA queries, because IR does not change during a MemDep query.
+  BatchAAResults BatchAA(AA);
   bool isInvariantLoad = false;
 
   unsigned DefaultLimit = getDefaultBlockScanLimit();
@@ -406,8 +408,6 @@ MemDepResult MemoryDependenceResults::getSimplePointerDependencyFrom(
       isInvariantLoad = true;
   }
 
-  const DataLayout &DL = BB->getModule()->getDataLayout();
-
   // Return "true" if and only if the instruction I is either a non-simple
   // load or a non-simple store.
   auto isNonSimpleLoadOrStore = [](Instruction *I) -> bool {
@@ -447,7 +447,7 @@ MemDepResult MemoryDependenceResults::getSimplePointerDependencyFrom(
         // pointer, not on query pointers that are indexed off of them.  It'd
         // be nice to handle that at some point (the right approach is to use
         // GetPointerBaseWithConstantOffset).
-        if (AA.isMustAlias(MemoryLocation(II->getArgOperand(1)), MemLoc))
+        if (BatchAA.isMustAlias(MemoryLocation(II->getArgOperand(1)), MemLoc))
           return MemDepResult::getDef(II);
         continue;
       }
@@ -487,7 +487,7 @@ MemDepResult MemoryDependenceResults::getSimplePointerDependencyFrom(
       MemoryLocation LoadLoc = MemoryLocation::get(LI);
 
       // If we found a pointer, check if it could be the same as our pointer.
-      AliasResult R = AA.alias(LoadLoc, MemLoc);
+      AliasResult R = BatchAA.alias(LoadLoc, MemLoc);
 
       if (isLoad) {
         if (R == NoAlias)
@@ -518,7 +518,7 @@ MemDepResult MemoryDependenceResults::getSimplePointerDependencyFrom(
         continue;
 
       // Stores don't alias loads from read-only memory.
-      if (AA.pointsToConstantMemory(LoadLoc))
+      if (BatchAA.pointsToConstantMemory(LoadLoc))
         continue;
 
       // Stores depend on may/must aliased loads.
@@ -549,7 +549,7 @@ MemDepResult MemoryDependenceResults::getSimplePointerDependencyFrom(
       // If alias analysis can tell that this store is guaranteed to not modify
       // the query pointer, ignore it.  Use getModRefInfo to handle cases where
       // the query pointer points to constant memory etc.
-      if (!isModOrRefSet(AA.getModRefInfo(SI, MemLoc)))
+      if (!isModOrRefSet(BatchAA.getModRefInfo(SI, MemLoc)))
         continue;
 
       // Ok, this store might clobber the query pointer.  Check to see if it is
@@ -558,7 +558,7 @@ MemDepResult MemoryDependenceResults::getSimplePointerDependencyFrom(
       MemoryLocation StoreLoc = MemoryLocation::get(SI);
 
       // If we found a pointer, check if it could be the same as our pointer.
-      AliasResult R = AA.alias(StoreLoc, MemLoc);
+      AliasResult R = BatchAA.alias(StoreLoc, MemLoc);
 
       if (R == NoAlias)
         continue;
@@ -576,8 +576,8 @@ MemDepResult MemoryDependenceResults::getSimplePointerDependencyFrom(
     // looking for a clobber in many cases; that's an alias property and is
     // handled by BasicAA.
     if (isa<AllocaInst>(Inst) || isNoAliasFn(Inst, &TLI)) {
-      const Value *AccessPtr = GetUnderlyingObject(MemLoc.Ptr, DL);
-      if (AccessPtr == Inst || AA.isMustAlias(Inst, AccessPtr))
+      const Value *AccessPtr = getUnderlyingObject(MemLoc.Ptr);
+      if (AccessPtr == Inst || BatchAA.isMustAlias(Inst, AccessPtr))
         return MemDepResult::getDef(Inst);
     }
 
@@ -594,9 +594,10 @@ MemDepResult MemoryDependenceResults::getSimplePointerDependencyFrom(
         continue;
 
     // See if this instruction (e.g. a call or vaarg) mod/ref's the pointer.
-    ModRefInfo MR = AA.getModRefInfo(Inst, MemLoc);
+    ModRefInfo MR = BatchAA.getModRefInfo(Inst, MemLoc);
     // If necessary, perform additional analysis.
     if (isModAndRefSet(MR))
+      // TODO: Support callCapturesBefore() on BatchAAResults.
       MR = AA.callCapturesBefore(Inst, MemLoc, &DT);
     switch (clearMust(MR)) {
     case ModRefInfo::NoModRef:
@@ -1518,15 +1519,25 @@ void MemoryDependenceResults::removeInstruction(Instruction *RemInst) {
     LocalDeps.erase(LocalDepEntry);
   }
 
-  // If we have any cached pointer dependencies on this instruction, remove
-  // them.  If the instruction has non-pointer type, then it can't be a pointer
-  // base.
+  // If we have any cached dependencies on this instruction, remove
+  // them.
 
-  // Remove it from both the load info and the store info.  The instruction
-  // can't be in either of these maps if it is non-pointer.
+  // If the instruction is a pointer, remove it from both the load info and the
+  // store info.
   if (RemInst->getType()->isPointerTy()) {
     RemoveCachedNonLocalPointerDependencies(ValueIsLoadPair(RemInst, false));
     RemoveCachedNonLocalPointerDependencies(ValueIsLoadPair(RemInst, true));
+  } else {
+    // Otherwise, if the instructions is in the map directly, it must be a load.
+    // Remove it.
+    auto toRemoveIt = NonLocalDefsCache.find(RemInst);
+    if (toRemoveIt != NonLocalDefsCache.end()) {
+      assert(isa<LoadInst>(RemInst) &&
+             "only load instructions should be added directly");
+      const Instruction *DepV = toRemoveIt->second.getResult().getInst();
+      ReverseNonLocalDefsCache.find(DepV)->second.erase(RemInst);
+      NonLocalDefsCache.erase(toRemoveIt);
+    }
   }
 
   // Loop over all of the things that depend on the instruction we're removing.

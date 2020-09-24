@@ -14,14 +14,15 @@
 #ifndef LLVM_TARGET_TARGETOPTIONS_H
 #define LLVM_TARGET_TARGETOPTIONS_H
 
+#include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/MC/MCTargetOptions.h"
 
 #include <memory>
 
 namespace llvm {
+  struct fltSemantics;
   class MachineFunction;
   class MemoryBuffer;
-  class Module;
 
   namespace FloatABI {
     enum ABIType {
@@ -57,15 +58,6 @@ namespace llvm {
     };
   }
 
-  namespace FPDenormal {
-    enum DenormalMode {
-      IEEE,           // IEEE 754 denormal numbers
-      PreserveSign,   // the sign of a flushed-to-zero number is preserved in
-                      // the sign of 0
-      PositiveZero    // denormals are flushed to positive zero
-    };
-  }
-
   enum class BasicBlockSection {
     All,    // Use Basic Block Sections for all basic blocks.  A section
             // for every basic block can significantly bloat object file sizes.
@@ -75,6 +67,9 @@ namespace llvm {
     Labels, // Do not use Basic Block Sections but label basic blocks.  This
             // is useful when associating profile counts from virtual addresses
             // to basic blocks.
+    Preset, // Similar to list but the blocks are identified by passes which
+            // seek to use Basic Block Sections, e.g. MachineFunctionSplitter.
+            // This option cannot be set via the command line.
     None    // Do not use Basic Block Sections.
   };
 
@@ -121,26 +116,23 @@ namespace llvm {
   class TargetOptions {
   public:
     TargetOptions()
-        : PrintMachineCode(false), UnsafeFPMath(false), NoInfsFPMath(false),
-          NoNaNsFPMath(false), NoTrappingFPMath(true),
-          NoSignedZerosFPMath(false),
+        : UnsafeFPMath(false), NoInfsFPMath(false), NoNaNsFPMath(false),
+          NoTrappingFPMath(true), NoSignedZerosFPMath(false),
           HonorSignDependentRoundingFPMathOption(false), NoZerosInBSS(false),
           GuaranteedTailCallOpt(false), StackSymbolOrdering(true),
           EnableFastISel(false), EnableGlobalISel(false), UseInitArray(false),
           DisableIntegratedAS(false), RelaxELFRelocations(false),
           FunctionSections(false), DataSections(false),
-          UniqueSectionNames(true), UniqueBBSectionNames(false),
+          UniqueSectionNames(true), UniqueBasicBlockSectionNames(false),
           TrapUnreachable(false), NoTrapAfterNoreturn(false), TLSSize(0),
           EmulatedTLS(false), ExplicitEmulatedTLS(false), EnableIPRA(false),
           EmitStackSizeSection(false), EnableMachineOutliner(false),
-          SupportsDefaultOutlining(false), EmitAddrsig(false),
-          EmitCallSiteInfo(false), SupportsDebugEntryValues(false),
-          EnableDebugEntryValues(false), ForceDwarfFrameSection(false) {}
-
-    /// PrintMachineCode - This flag is enabled when the -print-machineinstrs
-    /// option is specified on the command line, and should enable debugging
-    /// output from the code generator.
-    unsigned PrintMachineCode : 1;
+          EnableMachineFunctionSplitter(false), SupportsDefaultOutlining(false),
+          EmitAddrsig(false), EmitCallSiteInfo(false),
+          SupportsDebugEntryValues(false), EnableDebugEntryValues(false),
+          ValueTrackingVariableLocations(false), ForceDwarfFrameSection(false),
+          XRayOmitFunctionIndex(false),
+          FPDenormalMode(DenormalMode::IEEE, DenormalMode::IEEE) {}
 
     /// DisableFramePointerElim - This returns true if frame pointer elimination
     /// optimization should be disabled for the given machine function.
@@ -241,7 +233,7 @@ namespace llvm {
     unsigned UniqueSectionNames : 1;
 
     /// Use unique names for basic block sections.
-    unsigned UniqueBBSectionNames : 1;
+    unsigned UniqueBasicBlockSectionNames : 1;
 
     /// Emit target-specific trap instruction for 'unreachable' IR instructions.
     unsigned TrapUnreachable : 1;
@@ -268,6 +260,9 @@ namespace llvm {
 
     /// Enables the MachineOutliner pass.
     unsigned EnableMachineOutliner : 1;
+
+    /// Enables the MachineFunctionSplitter pass.
+    unsigned EnableMachineFunctionSplitter : 1;
 
     /// Set if the target supports default outlining behaviour.
     unsigned SupportsDefaultOutlining : 1;
@@ -297,8 +292,16 @@ namespace llvm {
     /// production.
     bool ShouldEmitDebugEntryValues() const;
 
+    // When set to true, use experimental new debug variable location tracking,
+    // which seeks to follow the values of variables rather than their location,
+    // post isel.
+    unsigned ValueTrackingVariableLocations : 1;
+
     /// Emit DWARF debug frame section.
     unsigned ForceDwarfFrameSection : 1;
+
+    /// Emit XRay Function Index section
+    unsigned XRayOmitFunctionIndex : 1;
 
     /// FloatABIType - This setting is set by -float-abi=xxx option is specfied
     /// on the command line. This setting may either be Default, Soft, or Hard.
@@ -336,9 +339,32 @@ namespace llvm {
     /// Which debugger to tune for.
     DebuggerKind DebuggerTuning = DebuggerKind::Default;
 
-    /// FPDenormalMode - This flags specificies which denormal numbers the code
-    /// is permitted to require.
-    FPDenormal::DenormalMode FPDenormalMode = FPDenormal::IEEE;
+  private:
+    /// Flushing mode to assume in default FP environment.
+    DenormalMode FPDenormalMode;
+
+    /// Flushing mode to assume in default FP environment, for float/vector of
+    /// float.
+    DenormalMode FP32DenormalMode;
+
+  public:
+    void setFPDenormalMode(DenormalMode Mode) {
+      FPDenormalMode = Mode;
+    }
+
+    void setFP32DenormalMode(DenormalMode Mode) {
+      FP32DenormalMode = Mode;
+    }
+
+    DenormalMode getRawFPDenormalMode() const {
+      return FPDenormalMode;
+    }
+
+    DenormalMode getRawFP32DenormalMode() const {
+      return FP32DenormalMode;
+    }
+
+    DenormalMode getDenormalMode(const fltSemantics &FPType) const;
 
     /// What exception model to use
     ExceptionHandling ExceptionModel = ExceptionHandling::None;

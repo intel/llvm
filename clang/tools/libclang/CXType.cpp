@@ -68,7 +68,11 @@ static CXTypeKind GetBuiltinTypeKind(const BuiltinType *BT) {
     BTCASE(ObjCSel);
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) BTCASE(Id);
 #include "clang/Basic/OpenCLImageTypes.def"
-#undef IMAGE_TYPE
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  BTCASE(Sampled##Id);
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
+#include "clang/Basic/OpenCLImageTypes.def"
 #define EXT_OPAQUE_TYPE(ExtType, Id, Ext) BTCASE(Id);
 #include "clang/Basic/OpenCLExtensionTypes.def"
     BTCASE(OCLSampler);
@@ -115,6 +119,7 @@ static CXTypeKind GetTypeKind(QualType T) {
     TKCASE(Elaborated);
     TKCASE(Pipe);
     TKCASE(Attributed);
+    TKCASE(Atomic);
     default:
       return CXType_Unexposed;
   }
@@ -607,7 +612,13 @@ CXString clang_getTypeKindSpelling(enum CXTypeKind K) {
     TKIND(Elaborated);
     TKIND(Pipe);
     TKIND(Attributed);
+    TKIND(BFloat16);
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) TKIND(Id);
+#include "clang/Basic/OpenCLImageTypes.def"
+#undef IMAGE_TYPE
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) TKIND(Sampled##Id);
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
 #include "clang/Basic/OpenCLImageTypes.def"
 #undef IMAGE_TYPE
 #define EXT_OPAQUE_TYPE(ExtTYpe, Id, Ext) TKIND(Id);
@@ -616,6 +627,7 @@ CXString clang_getTypeKindSpelling(enum CXTypeKind K) {
     TKIND(OCLEvent);
     TKIND(OCLQueue);
     TKIND(OCLReserveID);
+    TKIND(Atomic);
   }
 #undef TKIND
   return cxstring::createRef(s);
@@ -1317,4 +1329,14 @@ enum CXTypeNullabilityKind clang_Type_getNullability(CXType CT) {
     }
   }
   return CXTypeNullability_Invalid;
+}
+
+CXType clang_Type_getValueType(CXType CT) {
+  QualType T = GetQualType(CT);
+
+  if (T.isNull() || !T->isAtomicType())
+      return MakeCXType(QualType(), GetTU(CT));
+
+  const auto *AT = T->castAs<AtomicType>();
+  return MakeCXType(AT->getValueType(), GetTU(CT));
 }

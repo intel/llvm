@@ -10,21 +10,18 @@
 #include <CL/sycl/device_selector.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/stream_impl.hpp>
 
+#include <chrono>
 #include <memory>
 #include <mutex>
 #include <set>
+#include <thread>
 #include <vector>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-
-EventImplPtr addHostAccessorToSchedulerInstance(Requirement *Req,
-                                                const bool destructor) {
-  return cl::sycl::detail::Scheduler::getInstance().
-                                              addHostAccessor(Req, destructor);
-}
 
 void Scheduler::waitForRecordToFinish(MemObjRecord *Record) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -69,35 +66,54 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record) {
 
 EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
                               QueueImplPtr Queue) {
-  Command *NewCmd = nullptr;
+  EventImplPtr NewEvent = nullptr;
   const bool IsKernel = CommandGroup->getType() == CG::KERNEL;
+  vector_class<StreamImplPtr> Streams;
   {
-    std::lock_guard<std::mutex> Lock(MGraphLock);
+    std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
+    lockSharedTimedMutex(Lock);
 
+    Command *NewCmd = nullptr;
     switch (CommandGroup->getType()) {
     case CG::UPDATE_HOST:
       NewCmd = MGraphBuilder.addCGUpdateHost(std::move(CommandGroup),
                                              DefaultHostQueue);
       break;
+    case CG::CODEPLAY_HOST_TASK:
+      NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), DefaultHostQueue);
+      break;
     default:
       NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), std::move(Queue));
     }
-
-    // TODO: Check if lazy mode.
-    EnqueueResultT Res;
-    bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res);
-    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-      throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+    NewEvent = NewCmd->getEvent();
   }
 
-  if (IsKernel)
-    ((ExecCGCommand *)NewCmd)->flushStreams();
+  {
+    std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
 
-  return NewCmd->getEvent();
+    Command *NewCmd = static_cast<Command *>(NewEvent->getCommand());
+    if (NewCmd) {
+      // TODO: Check if lazy mode.
+      EnqueueResultT Res;
+      bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res);
+      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+        throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+
+      if (IsKernel)
+        Streams = ((ExecCGCommand *)NewCmd)->getStreams();
+    }
+  }
+
+  for (auto StreamImplPtr : Streams) {
+    StreamImplPtr->flush();
+  }
+
+  return NewEvent;
 }
 
 EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
-  std::lock_guard<std::mutex> lock(MGraphLock);
+  std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
+  lockSharedTimedMutex(Lock);
   Command *NewCmd = MGraphBuilder.addCopyBack(Req);
   // Command was not creted because there were no operations with
   // buffer.
@@ -121,51 +137,72 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
 // else that has no priority set, or has a priority higher than 2000).
 Scheduler Scheduler::instance __attribute__((init_priority(2000)));
 #else
-#pragma warning(disable:4073)
+#pragma warning(disable : 4073)
 #pragma init_seg(lib)
 Scheduler Scheduler::instance;
 #endif
 
-Scheduler &Scheduler::getInstance() {
-  return instance;
-}
+Scheduler &Scheduler::getInstance() { return instance; }
 
 std::vector<EventImplPtr> Scheduler::getWaitList(EventImplPtr Event) {
-  std::lock_guard<std::mutex> lock(MGraphLock);
+  std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
   return GraphProcessor::getWaitList(std::move(Event));
 }
 
 void Scheduler::waitForEvent(EventImplPtr Event) {
+  std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
   GraphProcessor::waitForEvent(std::move(Event));
 }
 
 void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
-  std::lock_guard<std::mutex> lock(MGraphLock);
-  Command *FinishedCmd = static_cast<Command *>(FinishedEvent->getCommand());
-  // The command might have been cleaned up (and set to nullptr) by another
-  // thread
-  if (FinishedCmd)
-    MGraphBuilder.cleanupFinishedCommands(FinishedCmd);
+  // Avoiding deadlock situation, where one thread is in the process of
+  // enqueueing (with a locked mutex) a currently blocked task that waits for
+  // another thread which is stuck at attempting cleanup.
+  std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::try_to_lock);
+  if (Lock.owns_lock()) {
+    Command *FinishedCmd = static_cast<Command *>(FinishedEvent->getCommand());
+    // The command might have been cleaned up (and set to nullptr) by another
+    // thread
+    if (FinishedCmd)
+      MGraphBuilder.cleanupFinishedCommands(FinishedCmd);
+  }
 }
 
 void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
-  std::lock_guard<std::mutex> lock(MGraphLock);
+  MemObjRecord *Record = nullptr;
+  std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
 
-  MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);
-  if (!Record)
-    // No operations were performed on the mem object
-    return;
-  waitForRecordToFinish(Record);
-  MGraphBuilder.decrementLeafCountersForRecord(Record);
-  MGraphBuilder.cleanupCommandsForRecord(Record);
-  MGraphBuilder.removeRecordForMemObj(MemObj);
+  {
+    lockSharedTimedMutex(Lock);
+
+    Record = MGraphBuilder.getMemObjRecord(MemObj);
+    if (!Record)
+      // No operations were performed on the mem object
+      return;
+
+    Lock.unlock();
+  }
+
+  {
+    // This only needs a shared mutex as it only involves enqueueing and
+    // awaiting for events
+    std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
+    waitForRecordToFinish(Record);
+  }
+
+  {
+    lockSharedTimedMutex(Lock);
+    MGraphBuilder.decrementLeafCountersForRecord(Record);
+    MGraphBuilder.cleanupCommandsForRecord(Record);
+    MGraphBuilder.removeRecordForMemObj(MemObj);
+  }
 }
 
-EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
-                                        const bool destructor) {
-  std::lock_guard<std::mutex> lock(MGraphLock);
+EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
+  std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
+  lockSharedTimedMutex(Lock);
 
-  Command *NewCmd = MGraphBuilder.addHostAccessor(Req, destructor);
+  Command *NewCmd = MGraphBuilder.addHostAccessor(Req);
 
   if (!NewCmd)
     return nullptr;
@@ -177,9 +214,21 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req,
 }
 
 void Scheduler::releaseHostAccessor(Requirement *Req) {
-  Req->MBlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
-  MemObjRecord* Record = Req->MSYCLMemObj->MRecord.get();
-  auto EnqueueLeaves = [](CircularBuffer<Command *> &Leaves) {
+  Command *const BlockedCmd = Req->MBlockedCmd;
+
+  std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
+
+  assert(BlockedCmd && "Can't find appropriate command to unblock");
+
+  BlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+
+  enqueueLeavesOfReqUnlocked(Req);
+}
+
+// static
+void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req) {
+  MemObjRecord *Record = Req->MSYCLMemObj->MRecord.get();
+  auto EnqueueLeaves = [](LeavesCollection &Leaves) {
     for (Command *Cmd : Leaves) {
       EnqueueResultT Res;
       bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res);
@@ -191,11 +240,51 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
   EnqueueLeaves(Record->MWriteLeaves);
 }
 
+void Scheduler::allocateStreamBuffers(stream_impl *Impl,
+                                      size_t StreamBufferSize,
+                                      size_t FlushBufferSize) {
+  std::lock_guard<std::mutex> lock(StreamBuffersPoolMutex);
+  StreamBuffersPool.insert(
+      {Impl, StreamBuffers(StreamBufferSize, FlushBufferSize)});
+}
+
+void Scheduler::deallocateStreamBuffers(stream_impl *Impl) {
+  std::lock_guard<std::mutex> lock(StreamBuffersPoolMutex);
+  StreamBuffersPool.erase(Impl);
+}
+
 Scheduler::Scheduler() {
   sycl::device HostDevice;
-  DefaultHostQueue = QueueImplPtr(new queue_impl(
-      detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
-          QueueOrder::Ordered, /*PropList=*/{}));
+  DefaultHostQueue = QueueImplPtr(
+      new queue_impl(detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
+                     /*PropList=*/{}));
+}
+
+void Scheduler::lockSharedTimedMutex(
+    std::unique_lock<std::shared_timed_mutex> &Lock) {
+#ifdef _WIN32
+  // Avoiding deadlock situation for MSVC. std::shared_timed_mutex specification
+  // does not specify a priority for shared and exclusive accesses. It will be a
+  // deadlock in MSVC's std::shared_timed_mutex implementation, if exclusive
+  // access occurs after shared access.
+  // TODO: after switching to C++17, change std::shared_timed_mutex to
+  // std::shared_mutex and use std::lock_guard here both for Windows and Linux.
+  while (!Lock.owns_lock()) {
+    Lock.try_lock_for(std::chrono::milliseconds(10));
+    // Without yield while loop acts like endless while loop and occupies the
+    // whole CPU when multiple command groups are created in multiple host
+    // threads
+    std::this_thread::yield();
+  }
+#else
+  // It is a deadlock on UNIX in implementation of lock and lock_shared, if
+  // try_lock in the loop above will be executed, so using a single lock here
+  Lock.lock();
+#endif // _WIN32
+}
+
+MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
+  return Req->MSYCLMemObj->MRecord.get();
 }
 
 } // namespace detail

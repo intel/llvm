@@ -24,7 +24,6 @@
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/StandardTypes.h"
-#include "mlir/Support/STLExtras.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/MapVector.h"
@@ -34,6 +33,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/SaveAndRestore.h"
@@ -63,50 +63,66 @@ OpAsmPrinter::~OpAsmPrinter() {}
 // OpPrintingFlags
 //===----------------------------------------------------------------------===//
 
-static llvm::cl::opt<int> printElementsAttrWithHexIfLarger(
-    "mlir-print-elementsattrs-with-hex-if-larger",
-    llvm::cl::desc(
-        "Print DenseElementsAttrs with a hex string that have "
-        "more elements than the given upper limit (use -1 to disable)"),
-    llvm::cl::init(100));
+namespace {
+/// This struct contains command line options that can be used to initialize
+/// various bits of the AsmPrinter. This uses a struct wrapper to avoid the need
+/// for global command line options.
+struct AsmPrinterOptions {
+  llvm::cl::opt<int64_t> printElementsAttrWithHexIfLarger{
+      "mlir-print-elementsattrs-with-hex-if-larger",
+      llvm::cl::desc(
+          "Print DenseElementsAttrs with a hex string that have "
+          "more elements than the given upper limit (use -1 to disable)")};
 
-static llvm::cl::opt<unsigned> elideElementsAttrIfLarger(
-    "mlir-elide-elementsattrs-if-larger",
-    llvm::cl::desc("Elide ElementsAttrs with \"...\" that have "
-                   "more elements than the given upper limit"));
+  llvm::cl::opt<unsigned> elideElementsAttrIfLarger{
+      "mlir-elide-elementsattrs-if-larger",
+      llvm::cl::desc("Elide ElementsAttrs with \"...\" that have "
+                     "more elements than the given upper limit")};
 
-static llvm::cl::opt<bool>
-    printDebugInfoOpt("mlir-print-debuginfo",
-                      llvm::cl::desc("Print debug info in MLIR output"),
-                      llvm::cl::init(false));
+  llvm::cl::opt<bool> printDebugInfoOpt{
+      "mlir-print-debuginfo", llvm::cl::init(false),
+      llvm::cl::desc("Print debug info in MLIR output")};
 
-static llvm::cl::opt<bool> printPrettyDebugInfoOpt(
-    "mlir-pretty-debuginfo",
-    llvm::cl::desc("Print pretty debug info in MLIR output"),
-    llvm::cl::init(false));
+  llvm::cl::opt<bool> printPrettyDebugInfoOpt{
+      "mlir-pretty-debuginfo", llvm::cl::init(false),
+      llvm::cl::desc("Print pretty debug info in MLIR output")};
 
-// Use the generic op output form in the operation printer even if the custom
-// form is defined.
-static llvm::cl::opt<bool>
-    printGenericOpFormOpt("mlir-print-op-generic",
-                          llvm::cl::desc("Print the generic op form"),
-                          llvm::cl::init(false), llvm::cl::Hidden);
+  // Use the generic op output form in the operation printer even if the custom
+  // form is defined.
+  llvm::cl::opt<bool> printGenericOpFormOpt{
+      "mlir-print-op-generic", llvm::cl::init(false),
+      llvm::cl::desc("Print the generic op form"), llvm::cl::Hidden};
 
-static llvm::cl::opt<bool> printLocalScopeOpt(
-    "mlir-print-local-scope",
-    llvm::cl::desc("Print assuming in local scope by default"),
-    llvm::cl::init(false), llvm::cl::Hidden);
+  llvm::cl::opt<bool> printLocalScopeOpt{
+      "mlir-print-local-scope", llvm::cl::init(false),
+      llvm::cl::desc("Print assuming in local scope by default"),
+      llvm::cl::Hidden};
+};
+} // end anonymous namespace
+
+static llvm::ManagedStatic<AsmPrinterOptions> clOptions;
+
+/// Register a set of useful command-line options that can be used to configure
+/// various flags within the AsmPrinter.
+void mlir::registerAsmPrinterCLOptions() {
+  // Make sure that the options struct has been initialized.
+  *clOptions;
+}
 
 /// Initialize the printing flags with default supplied by the cl::opts above.
 OpPrintingFlags::OpPrintingFlags()
-    : elementsAttrElementLimit(
-          elideElementsAttrIfLarger.getNumOccurrences()
-              ? Optional<int64_t>(elideElementsAttrIfLarger)
-              : Optional<int64_t>()),
-      printDebugInfoFlag(printDebugInfoOpt),
-      printDebugInfoPrettyFormFlag(printPrettyDebugInfoOpt),
-      printGenericOpFormFlag(printGenericOpFormOpt),
-      printLocalScope(printLocalScopeOpt) {}
+    : printDebugInfoFlag(false), printDebugInfoPrettyFormFlag(false),
+      printGenericOpFormFlag(false), printLocalScope(false) {
+  // Initialize based upon command line options, if they are available.
+  if (!clOptions.isConstructed())
+    return;
+  if (clOptions->elideElementsAttrIfLarger.getNumOccurrences())
+    elementsAttrElementLimit = clOptions->elideElementsAttrIfLarger;
+  printDebugInfoFlag = clOptions->printDebugInfoOpt;
+  printDebugInfoPrettyFormFlag = clOptions->printPrettyDebugInfoOpt;
+  printGenericOpFormFlag = clOptions->printGenericOpFormOpt;
+  printLocalScope = clOptions->printLocalScopeOpt;
+}
 
 /// Enable the elision of large elements attributes, by printing a '...'
 /// instead of the element data, when the number of elements is greater than
@@ -146,6 +162,11 @@ bool OpPrintingFlags::shouldElideElementsAttr(ElementsAttr attr) const {
          *elementsAttrElementLimit < int64_t(attr.getNumElements());
 }
 
+/// Return the size limit for printing large ElementsAttr.
+Optional<int64_t> OpPrintingFlags::getLargeElementsAttrLimit() const {
+  return elementsAttrElementLimit;
+}
+
 /// Return if debug information should be printed.
 bool OpPrintingFlags::shouldPrintDebugInfo() const {
   return printDebugInfoFlag;
@@ -163,6 +184,23 @@ bool OpPrintingFlags::shouldPrintGenericOpForm() const {
 
 /// Return if the printer should use local scope when dumping the IR.
 bool OpPrintingFlags::shouldUseLocalScope() const { return printLocalScope; }
+
+/// Returns true if an ElementsAttr with the given number of elements should be
+/// printed with hex.
+static bool shouldPrintElementsAttrWithHex(int64_t numElements) {
+  // Check to see if a command line option was provided for the limit.
+  if (clOptions.isConstructed()) {
+    if (clOptions->printElementsAttrWithHexIfLarger.getNumOccurrences()) {
+      // -1 is used to disable hex printing.
+      if (clOptions->printElementsAttrWithHexIfLarger == -1)
+        return false;
+      return numElements > clOptions->printElementsAttrWithHexIfLarger;
+    }
+  }
+
+  // Otherwise, default to printing with hex if the number of elements is >100.
+  return numElements > 100;
+}
 
 //===----------------------------------------------------------------------===//
 // NewLineCounter
@@ -233,7 +271,7 @@ private:
   /// Mapping between attribute kind and a pair comprised of a base alias name
   /// and a unique list of attributes belonging to this kind sorted by location
   /// seen in the module.
-  llvm::MapVector<unsigned, std::pair<StringRef, std::vector<Attribute>>>
+  llvm::MapVector<TypeID, std::pair<StringRef, std::vector<Attribute>>>
       attrKindToAlias;
 
   /// Set of types known to be used within the module.
@@ -247,7 +285,7 @@ private:
 // Utility to generate a function to register a symbol alias.
 static bool canRegisterAlias(StringRef name, llvm::StringSet<> &usedAliases) {
   assert(!name.empty() && "expected alias name to be non-empty");
-  // TODO(riverriddle) Assert that the provided alias name can be lexed as
+  // TODO: Assert that the provided alias name can be lexed as
   // an identifier.
 
   // Check that the alias doesn't contain a '.' character and the name is not
@@ -263,13 +301,13 @@ void AliasState::initialize(
   llvm::StringSet<> usedAliases;
 
   // Collect the set of aliases from each dialect.
-  SmallVector<std::pair<unsigned, StringRef>, 8> attributeKindAliases;
+  SmallVector<std::pair<TypeID, StringRef>, 8> attributeKindAliases;
   SmallVector<std::pair<Attribute, StringRef>, 8> attributeAliases;
   SmallVector<std::pair<Type, StringRef>, 16> typeAliases;
 
   // AffineMap/Integer set have specific kind aliases.
-  attributeKindAliases.emplace_back(StandardAttributes::AffineMap, "map");
-  attributeKindAliases.emplace_back(StandardAttributes::IntegerSet, "set");
+  attributeKindAliases.emplace_back(AffineMapAttr::getTypeID(), "map");
+  attributeKindAliases.emplace_back(IntegerSetAttr::getTypeID(), "set");
 
   for (auto &interface : interfaces) {
     interface.getAttributeKindAliases(attributeKindAliases);
@@ -279,7 +317,7 @@ void AliasState::initialize(
 
   // Setup the attribute kind aliases.
   StringRef alias;
-  unsigned attrKind;
+  TypeID attrKind;
   for (auto &attrAliasPair : attributeKindAliases) {
     std::tie(attrKind, alias) = attrAliasPair;
     assert(!alias.empty() && "expected non-empty alias string");
@@ -382,7 +420,7 @@ void AliasState::recordAttributeReference(Attribute attr) {
     return;
 
   // If this attribute kind has an alias, then record one for this attribute.
-  auto alias = attrKindToAlias.find(static_cast<unsigned>(attr.getKind()));
+  auto alias = attrKindToAlias.find(attr.getTypeID());
   if (alias == attrKindToAlias.end())
     return;
   std::pair<StringRef, int> attrAlias(alias->second.first,
@@ -394,7 +432,7 @@ void AliasState::recordAttributeReference(Attribute attr) {
 /// Record a reference to the given type.
 void AliasState::recordTypeReference(Type ty) { usedTypes.insert(ty); }
 
-// TODO Support visiting other types/operations when implemented.
+// TODO: Support visiting other types/operations when implemented.
 void AliasState::visitType(Type type) {
   recordTypeReference(type);
 
@@ -582,7 +620,7 @@ unsigned SSANameState::getBlockID(Block *block) {
 
 void SSANameState::shadowRegionArgs(Region &region, ValueRange namesToUse) {
   assert(!region.empty() && "cannot shadow arguments of an empty region");
-  assert(region.front().getNumArguments() == namesToUse.size() &&
+  assert(region.getNumArguments() == namesToUse.size() &&
          "incorrect number of names passed in");
   assert(region.getParentOp()->isKnownIsolatedFromAbove() &&
          "only KnownIsolatedFromAbove ops can shadow names");
@@ -592,7 +630,7 @@ void SSANameState::shadowRegionArgs(Region &region, ValueRange namesToUse) {
     auto nameToUse = namesToUse[i];
     if (nameToUse == nullptr)
       continue;
-    auto nameToReplace = region.front().getArgument(i);
+    auto nameToReplace = region.getArgument(i);
 
     nameStr.clear();
     llvm::raw_svector_ostream nameStream(nameStr);
@@ -895,10 +933,10 @@ public:
 
   template <typename Container, typename UnaryFunctor>
   inline void interleaveComma(const Container &c, UnaryFunctor each_fn) const {
-    mlir::interleaveComma(c, os, each_fn);
+    llvm::interleaveComma(c, os, each_fn);
   }
 
-  /// This enum descripes the different kinds of elision for the type of an
+  /// This enum describes the different kinds of elision for the type of an
   /// attribute when printing it.
   enum class AttrTypeElision {
     /// The type must not be elided,
@@ -935,6 +973,14 @@ protected:
   /// Print a dense elements attribute. If 'allowHex' is true, a hex string is
   /// used instead of individual elements when the elements attr is large.
   void printDenseElementsAttr(DenseElementsAttr attr, bool allowHex);
+
+  /// Print a dense string elements attribute.
+  void printDenseStringElementsAttr(DenseStringElementsAttr attr);
+
+  /// Print a dense elements attribute. If 'allowHex' is true, a hex string is
+  /// used instead of individual elements when the elements attr is large.
+  void printDenseIntOrFPElementsAttr(DenseIntOrFPElementsAttr attr,
+                                     bool allowHex);
 
   void printDialectAttribute(Attribute attr);
   void printDialectType(Type type);
@@ -974,76 +1020,67 @@ void ModulePrinter::printTrailingLocation(Location loc) {
 }
 
 void ModulePrinter::printLocationInternal(LocationAttr loc, bool pretty) {
-  switch (loc.getKind()) {
-  case StandardAttributes::OpaqueLocation:
-    printLocationInternal(loc.cast<OpaqueLoc>().getFallbackLocation(), pretty);
-    break;
-  case StandardAttributes::UnknownLocation:
-    if (pretty)
-      os << "[unknown]";
-    else
-      os << "unknown";
-    break;
-  case StandardAttributes::FileLineColLocation: {
-    auto fileLoc = loc.cast<FileLineColLoc>();
-    auto mayQuote = pretty ? "" : "\"";
-    os << mayQuote << fileLoc.getFilename() << mayQuote << ':'
-       << fileLoc.getLine() << ':' << fileLoc.getColumn();
-    break;
-  }
-  case StandardAttributes::NameLocation: {
-    auto nameLoc = loc.cast<NameLoc>();
-    os << '\"' << nameLoc.getName() << '\"';
+  TypeSwitch<LocationAttr>(loc)
+      .Case<OpaqueLoc>([&](OpaqueLoc loc) {
+        printLocationInternal(loc.getFallbackLocation(), pretty);
+      })
+      .Case<UnknownLoc>([&](UnknownLoc loc) {
+        if (pretty)
+          os << "[unknown]";
+        else
+          os << "unknown";
+      })
+      .Case<FileLineColLoc>([&](FileLineColLoc loc) {
+        StringRef mayQuote = pretty ? "" : "\"";
+        os << mayQuote << loc.getFilename() << mayQuote << ':' << loc.getLine()
+           << ':' << loc.getColumn();
+      })
+      .Case<NameLoc>([&](NameLoc loc) {
+        os << '\"' << loc.getName() << '\"';
 
-    // Print the child if it isn't unknown.
-    auto childLoc = nameLoc.getChildLoc();
-    if (!childLoc.isa<UnknownLoc>()) {
-      os << '(';
-      printLocationInternal(childLoc, pretty);
-      os << ')';
-    }
-    break;
-  }
-  case StandardAttributes::CallSiteLocation: {
-    auto callLocation = loc.cast<CallSiteLoc>();
-    auto caller = callLocation.getCaller();
-    auto callee = callLocation.getCallee();
-    if (!pretty)
-      os << "callsite(";
-    printLocationInternal(callee, pretty);
-    if (pretty) {
-      if (callee.isa<NameLoc>()) {
-        if (caller.isa<FileLineColLoc>()) {
-          os << " at ";
-        } else {
-          os << newLine << " at ";
+        // Print the child if it isn't unknown.
+        auto childLoc = loc.getChildLoc();
+        if (!childLoc.isa<UnknownLoc>()) {
+          os << '(';
+          printLocationInternal(childLoc, pretty);
+          os << ')';
         }
-      } else {
-        os << newLine << " at ";
-      }
-    } else {
-      os << " at ";
-    }
-    printLocationInternal(caller, pretty);
-    if (!pretty)
-      os << ")";
-    break;
-  }
-  case StandardAttributes::FusedLocation: {
-    auto fusedLoc = loc.cast<FusedLoc>();
-    if (!pretty)
-      os << "fused";
-    if (auto metadata = fusedLoc.getMetadata())
-      os << '<' << metadata << '>';
-    os << '[';
-    interleave(
-        fusedLoc.getLocations(),
-        [&](Location loc) { printLocationInternal(loc, pretty); },
-        [&]() { os << ", "; });
-    os << ']';
-    break;
-  }
-  }
+      })
+      .Case<CallSiteLoc>([&](CallSiteLoc loc) {
+        Location caller = loc.getCaller();
+        Location callee = loc.getCallee();
+        if (!pretty)
+          os << "callsite(";
+        printLocationInternal(callee, pretty);
+        if (pretty) {
+          if (callee.isa<NameLoc>()) {
+            if (caller.isa<FileLineColLoc>()) {
+              os << " at ";
+            } else {
+              os << newLine << " at ";
+            }
+          } else {
+            os << newLine << " at ";
+          }
+        } else {
+          os << " at ";
+        }
+        printLocationInternal(caller, pretty);
+        if (!pretty)
+          os << ")";
+      })
+      .Case<FusedLoc>([&](FusedLoc loc) {
+        if (!pretty)
+          os << "fused";
+        if (Attribute metadata = loc.getMetadata())
+          os << '<' << metadata << '>';
+        os << '[';
+        interleave(
+            loc.getLocations(),
+            [&](Location loc) { printLocationInternal(loc, pretty); },
+            [&]() { os << ", "; });
+        os << ']';
+      });
 }
 
 /// Print a floating point value in a way that the parser will be able to
@@ -1106,8 +1143,8 @@ void ModulePrinter::printLocation(LocationAttr loc) {
   }
 }
 
-/// Returns if the given dialect symbol data is simple enough to print in the
-/// pretty form, i.e. without the enclosing "".
+/// Returns true if the given dialect symbol data is simple enough to print in
+/// the pretty form, i.e. without the enclosing "".
 static bool isDialectSymbolSimpleEnoughForPrettyForm(StringRef symName) {
   // The name must start with an identifier.
   if (symName.empty() || !isalpha(symName.front()))
@@ -1196,7 +1233,7 @@ static void printDialectSymbol(raw_ostream &os, StringRef symPrefix,
   os << "<\"" << symString << "\">";
 }
 
-/// Returns if the given string can be represented as a bare identifier.
+/// Returns true if the given string can be represented as a bare identifier.
 static bool isBareIdentifier(StringRef name) {
   assert(!name.empty() && "invalid name");
 
@@ -1260,135 +1297,128 @@ void ModulePrinter::printAttribute(Attribute attr,
   }
 
   auto attrType = attr.getType();
-  switch (attr.getKind()) {
-  default:
-    return printDialectAttribute(attr);
-
-  case StandardAttributes::Opaque: {
-    auto opaqueAttr = attr.cast<OpaqueAttr>();
+  if (auto opaqueAttr = attr.dyn_cast<OpaqueAttr>()) {
     printDialectSymbol(os, "#", opaqueAttr.getDialectNamespace(),
                        opaqueAttr.getAttrData());
-    break;
-  }
-  case StandardAttributes::Unit:
+  } else if (attr.isa<UnitAttr>()) {
     os << "unit";
-    break;
-  case StandardAttributes::Bool:
-    os << (attr.cast<BoolAttr>().getValue() ? "true" : "false");
-
-    // BoolAttr always elides the type.
     return;
-  case StandardAttributes::Dictionary:
+  } else if (auto dictAttr = attr.dyn_cast<DictionaryAttr>()) {
     os << '{';
-    interleaveComma(attr.cast<DictionaryAttr>().getValue(),
+    interleaveComma(dictAttr.getValue(),
                     [&](NamedAttribute attr) { printNamedAttribute(attr); });
     os << '}';
-    break;
-  case StandardAttributes::Integer: {
-    auto intAttr = attr.cast<IntegerAttr>();
-    // Print all signed/signless integer attributes as signed unless i1.
-    bool isSigned =
-        attrType.isIndex() || (!attrType.isUnsignedInteger() &&
-                               attrType.getIntOrFloatBitWidth() != 1);
-    intAttr.getValue().print(os, isSigned);
+
+  } else if (auto intAttr = attr.dyn_cast<IntegerAttr>()) {
+    if (attrType.isSignlessInteger(1)) {
+      os << (intAttr.getValue().getBoolValue() ? "true" : "false");
+
+      // Boolean integer attributes always elides the type.
+      return;
+    }
+
+    // Only print attributes as unsigned if they are explicitly unsigned or are
+    // signless 1-bit values.  Indexes, signed values, and multi-bit signless
+    // values print as signed.
+    bool isUnsigned =
+        attrType.isUnsignedInteger() || attrType.isSignlessInteger(1);
+    intAttr.getValue().print(os, !isUnsigned);
 
     // IntegerAttr elides the type if I64.
     if (typeElision == AttrTypeElision::May && attrType.isSignlessInteger(64))
       return;
-    break;
-  }
-  case StandardAttributes::Float: {
-    auto floatAttr = attr.cast<FloatAttr>();
+
+  } else if (auto floatAttr = attr.dyn_cast<FloatAttr>()) {
     printFloatValue(floatAttr.getValue(), os);
 
     // FloatAttr elides the type if F64.
     if (typeElision == AttrTypeElision::May && attrType.isF64())
       return;
-    break;
-  }
-  case StandardAttributes::String:
+
+  } else if (auto strAttr = attr.dyn_cast<StringAttr>()) {
     os << '"';
-    printEscapedString(attr.cast<StringAttr>().getValue(), os);
+    printEscapedString(strAttr.getValue(), os);
     os << '"';
-    break;
-  case StandardAttributes::Array:
+
+  } else if (auto arrayAttr = attr.dyn_cast<ArrayAttr>()) {
     os << '[';
-    interleaveComma(attr.cast<ArrayAttr>().getValue(), [&](Attribute attr) {
+    interleaveComma(arrayAttr.getValue(), [&](Attribute attr) {
       printAttribute(attr, AttrTypeElision::May);
     });
     os << ']';
-    break;
-  case StandardAttributes::AffineMap:
+
+  } else if (auto affineMapAttr = attr.dyn_cast<AffineMapAttr>()) {
     os << "affine_map<";
-    attr.cast<AffineMapAttr>().getValue().print(os);
+    affineMapAttr.getValue().print(os);
     os << '>';
 
     // AffineMap always elides the type.
     return;
-  case StandardAttributes::IntegerSet:
+
+  } else if (auto integerSetAttr = attr.dyn_cast<IntegerSetAttr>()) {
     os << "affine_set<";
-    attr.cast<IntegerSetAttr>().getValue().print(os);
+    integerSetAttr.getValue().print(os);
     os << '>';
 
     // IntegerSet always elides the type.
     return;
-  case StandardAttributes::Type:
-    printType(attr.cast<TypeAttr>().getValue());
-    break;
-  case StandardAttributes::SymbolRef: {
-    auto refAttr = attr.dyn_cast<SymbolRefAttr>();
+
+  } else if (auto typeAttr = attr.dyn_cast<TypeAttr>()) {
+    printType(typeAttr.getValue());
+
+  } else if (auto refAttr = attr.dyn_cast<SymbolRefAttr>()) {
     printSymbolReference(refAttr.getRootReference(), os);
     for (FlatSymbolRefAttr nestedRef : refAttr.getNestedReferences()) {
       os << "::";
       printSymbolReference(nestedRef.getValue(), os);
     }
-    break;
-  }
-  case StandardAttributes::OpaqueElements: {
-    auto eltsAttr = attr.cast<OpaqueElementsAttr>();
-    if (printerFlags.shouldElideElementsAttr(eltsAttr)) {
-      printElidedElementsAttr(os);
-      break;
-    }
-    os << "opaque<\"" << eltsAttr.getDialect()->getNamespace() << "\", ";
-    os << '"' << "0x" << llvm::toHex(eltsAttr.getValue()) << "\">";
-    break;
-  }
-  case StandardAttributes::DenseElements: {
-    auto eltsAttr = attr.cast<DenseElementsAttr>();
-    if (printerFlags.shouldElideElementsAttr(eltsAttr)) {
-      printElidedElementsAttr(os);
-      break;
-    }
-    os << "dense<";
-    printDenseElementsAttr(eltsAttr, /*allowHex=*/true);
-    os << '>';
-    break;
-  }
-  case StandardAttributes::SparseElements: {
-    auto elementsAttr = attr.cast<SparseElementsAttr>();
-    if (printerFlags.shouldElideElementsAttr(elementsAttr.getIndices()) ||
-        printerFlags.shouldElideElementsAttr(elementsAttr.getValues())) {
-      printElidedElementsAttr(os);
-      break;
-    }
-    os << "sparse<";
-    printDenseElementsAttr(elementsAttr.getIndices(), /*allowHex=*/false);
-    os << ", ";
-    printDenseElementsAttr(elementsAttr.getValues(), /*allowHex=*/true);
-    os << '>';
-    break;
-  }
 
-  // Location attributes.
-  case StandardAttributes::CallSiteLocation:
-  case StandardAttributes::FileLineColLocation:
-  case StandardAttributes::FusedLocation:
-  case StandardAttributes::NameLocation:
-  case StandardAttributes::OpaqueLocation:
-  case StandardAttributes::UnknownLocation:
-    printLocation(attr.cast<LocationAttr>());
-    break;
+  } else if (auto opaqueAttr = attr.dyn_cast<OpaqueElementsAttr>()) {
+    if (printerFlags.shouldElideElementsAttr(opaqueAttr)) {
+      printElidedElementsAttr(os);
+    } else {
+      os << "opaque<\"" << opaqueAttr.getDialect()->getNamespace() << "\", ";
+      os << '"' << "0x" << llvm::toHex(opaqueAttr.getValue()) << "\">";
+    }
+
+  } else if (auto intOrFpEltAttr = attr.dyn_cast<DenseIntOrFPElementsAttr>()) {
+    if (printerFlags.shouldElideElementsAttr(intOrFpEltAttr)) {
+      printElidedElementsAttr(os);
+    } else {
+      os << "dense<";
+      printDenseIntOrFPElementsAttr(intOrFpEltAttr, /*allowHex=*/true);
+      os << '>';
+    }
+
+  } else if (auto strEltAttr = attr.dyn_cast<DenseStringElementsAttr>()) {
+    if (printerFlags.shouldElideElementsAttr(strEltAttr)) {
+      printElidedElementsAttr(os);
+    } else {
+      os << "dense<";
+      printDenseStringElementsAttr(strEltAttr);
+      os << '>';
+    }
+
+  } else if (auto sparseEltAttr = attr.dyn_cast<SparseElementsAttr>()) {
+    if (printerFlags.shouldElideElementsAttr(sparseEltAttr.getIndices()) ||
+        printerFlags.shouldElideElementsAttr(sparseEltAttr.getValues())) {
+      printElidedElementsAttr(os);
+    } else {
+      os << "sparse<";
+      DenseIntElementsAttr indices = sparseEltAttr.getIndices();
+      if (indices.getNumElements() != 0) {
+        printDenseIntOrFPElementsAttr(indices, /*allowHex=*/false);
+        os << ", ";
+        printDenseElementsAttr(sparseEltAttr.getValues(), /*allowHex=*/true);
+      }
+      os << '>';
+    }
+
+  } else if (auto locAttr = attr.dyn_cast<LocationAttr>()) {
+    printLocation(locAttr);
+
+  } else {
+    return printDialectAttribute(attr);
   }
 
   // Don't print the type if we must elide it, or if it is a None type.
@@ -1398,71 +1428,39 @@ void ModulePrinter::printAttribute(Attribute attr,
   }
 }
 
-/// Print the integer element of the given DenseElementsAttr at 'index'.
-static void printDenseIntElement(DenseElementsAttr attr, raw_ostream &os,
-                                 unsigned index, bool isSigned) {
-  APInt value = *std::next(attr.int_value_begin(), index);
+/// Print the integer element of a DenseElementsAttr.
+static void printDenseIntElement(const APInt &value, raw_ostream &os,
+                                 bool isSigned) {
   if (value.getBitWidth() == 1)
     os << (value.getBoolValue() ? "true" : "false");
   else
     value.print(os, isSigned);
 }
 
-/// Print the float element of the given DenseElementsAttr at 'index'.
-static void printDenseFloatElement(DenseElementsAttr attr, raw_ostream &os,
-                                   unsigned index, bool isSigned) {
-  assert(isSigned && "floating point values are always signed");
-  APFloat value = *std::next(attr.float_value_begin(), index);
-  printFloatValue(value, os);
-}
-
-void ModulePrinter::printDenseElementsAttr(DenseElementsAttr attr,
-                                           bool allowHex) {
-  auto type = attr.getType();
-  auto shape = type.getShape();
-  auto rank = type.getRank();
-  bool isSigned = !type.getElementType().isUnsignedInteger();
-
-  // The function used to print elements of this attribute.
-  auto printEltFn = type.getElementType().isa<IntegerType>()
-                        ? printDenseIntElement
-                        : printDenseFloatElement;
-
+static void
+printDenseElementsAttrImpl(bool isSplat, ShapedType type, raw_ostream &os,
+                           function_ref<void(unsigned)> printEltFn) {
   // Special case for 0-d and splat tensors.
-  if (attr.isSplat()) {
-    printEltFn(attr, os, 0, isSigned);
-    return;
-  }
+  if (isSplat)
+    return printEltFn(0);
 
   // Special case for degenerate tensors.
   auto numElements = type.getNumElements();
-  if (numElements == 0) {
-    for (int i = 0; i < rank; ++i)
-      os << '[';
-    for (int i = 0; i < rank; ++i)
-      os << ']';
+  if (numElements == 0)
     return;
-  }
-
-  // Check to see if we should format this attribute as a hex string.
-  if (allowHex && printElementsAttrWithHexIfLarger != -1 &&
-      numElements > printElementsAttrWithHexIfLarger) {
-    ArrayRef<char> rawData = attr.getRawData();
-    os << '"' << "0x" << llvm::toHex(StringRef(rawData.data(), rawData.size()))
-       << "\"";
-    return;
-  }
 
   // We use a mixed-radix counter to iterate through the shape. When we bump a
   // non-least-significant digit, we emit a close bracket. When we next emit an
   // element we re-open all closed brackets.
 
   // The mixed-radix counter, with radices in 'shape'.
+  int64_t rank = type.getRank();
   SmallVector<unsigned, 4> counter(rank, 0);
   // The number of brackets that have been opened and not closed.
   unsigned openBrackets = 0;
 
-  auto bumpCounter = [&]() {
+  auto shape = type.getShape();
+  auto bumpCounter = [&] {
     // Bump the least significant digit.
     ++counter[rank - 1];
     // Iterate backwards bubbling back the increment.
@@ -1482,14 +1480,93 @@ void ModulePrinter::printDenseElementsAttr(DenseElementsAttr attr,
     while (openBrackets++ < rank)
       os << '[';
     openBrackets = rank;
-    printEltFn(attr, os, idx, isSigned);
+    printEltFn(idx);
     bumpCounter();
   }
   while (openBrackets-- > 0)
     os << ']';
 }
 
+void ModulePrinter::printDenseElementsAttr(DenseElementsAttr attr,
+                                           bool allowHex) {
+  if (auto stringAttr = attr.dyn_cast<DenseStringElementsAttr>())
+    return printDenseStringElementsAttr(stringAttr);
+
+  printDenseIntOrFPElementsAttr(attr.cast<DenseIntOrFPElementsAttr>(),
+                                allowHex);
+}
+
+void ModulePrinter::printDenseIntOrFPElementsAttr(DenseIntOrFPElementsAttr attr,
+                                                  bool allowHex) {
+  auto type = attr.getType();
+  auto elementType = type.getElementType();
+
+  // Check to see if we should format this attribute as a hex string.
+  auto numElements = type.getNumElements();
+  if (!attr.isSplat() && allowHex &&
+      shouldPrintElementsAttrWithHex(numElements)) {
+    ArrayRef<char> rawData = attr.getRawData();
+    os << '"' << "0x" << llvm::toHex(StringRef(rawData.data(), rawData.size()))
+       << "\"";
+    return;
+  }
+
+  if (ComplexType complexTy = elementType.dyn_cast<ComplexType>()) {
+    Type complexElementType = complexTy.getElementType();
+    // Note: The if and else below had a common lambda function which invoked
+    // printDenseElementsAttrImpl. This lambda was hitting a bug in gcc 9.1,9.2
+    // and hence was replaced.
+    if (complexElementType.isa<IntegerType>()) {
+      bool isSigned = !complexElementType.isUnsignedInteger();
+      printDenseElementsAttrImpl(attr.isSplat(), type, os, [&](unsigned index) {
+        auto complexValue = *(attr.getComplexIntValues().begin() + index);
+        os << "(";
+        printDenseIntElement(complexValue.real(), os, isSigned);
+        os << ",";
+        printDenseIntElement(complexValue.imag(), os, isSigned);
+        os << ")";
+      });
+    } else {
+      printDenseElementsAttrImpl(attr.isSplat(), type, os, [&](unsigned index) {
+        auto complexValue = *(attr.getComplexFloatValues().begin() + index);
+        os << "(";
+        printFloatValue(complexValue.real(), os);
+        os << ",";
+        printFloatValue(complexValue.imag(), os);
+        os << ")";
+      });
+    }
+  } else if (elementType.isIntOrIndex()) {
+    bool isSigned = !elementType.isUnsignedInteger();
+    auto intValues = attr.getIntValues();
+    printDenseElementsAttrImpl(attr.isSplat(), type, os, [&](unsigned index) {
+      printDenseIntElement(*(intValues.begin() + index), os, isSigned);
+    });
+  } else {
+    assert(elementType.isa<FloatType>() && "unexpected element type");
+    auto floatValues = attr.getFloatValues();
+    printDenseElementsAttrImpl(attr.isSplat(), type, os, [&](unsigned index) {
+      printFloatValue(*(floatValues.begin() + index), os);
+    });
+  }
+}
+
+void ModulePrinter::printDenseStringElementsAttr(DenseStringElementsAttr attr) {
+  ArrayRef<StringRef> data = attr.getRawStringData();
+  auto printFn = [&](unsigned index) {
+    os << "\"";
+    printEscapedString(data[index], os);
+    os << "\"";
+  };
+  printDenseElementsAttrImpl(attr.isSplat(), attr.getType(), os, printFn);
+}
+
 void ModulePrinter::printType(Type type) {
+  if (!type) {
+    os << "<<NULL TYPE>>";
+    return;
+  }
+
   // Check for an alias for this type.
   if (state) {
     StringRef alias = state->getAliasState().getTypeAlias(type);
@@ -1499,128 +1576,98 @@ void ModulePrinter::printType(Type type) {
     }
   }
 
-  switch (type.getKind()) {
-  default:
-    return printDialectType(type);
-
-  case Type::Kind::Opaque: {
-    auto opaqueTy = type.cast<OpaqueType>();
-    printDialectSymbol(os, "!", opaqueTy.getDialectNamespace(),
-                       opaqueTy.getTypeData());
-    return;
-  }
-  case StandardTypes::Index:
-    os << "index";
-    return;
-  case StandardTypes::BF16:
-    os << "bf16";
-    return;
-  case StandardTypes::F16:
-    os << "f16";
-    return;
-  case StandardTypes::F32:
-    os << "f32";
-    return;
-  case StandardTypes::F64:
-    os << "f64";
-    return;
-
-  case StandardTypes::Integer: {
-    auto integer = type.cast<IntegerType>();
-    if (integer.isSigned())
-      os << 's';
-    else if (integer.isUnsigned())
-      os << 'u';
-    os << 'i' << integer.getWidth();
-    return;
-  }
-  case Type::Kind::Function: {
-    auto func = type.cast<FunctionType>();
-    os << '(';
-    interleaveComma(func.getInputs(), [&](Type type) { printType(type); });
-    os << ") -> ";
-    auto results = func.getResults();
-    if (results.size() == 1 && !results[0].isa<FunctionType>())
-      os << results[0];
-    else {
-      os << '(';
-      interleaveComma(results, [&](Type type) { printType(type); });
-      os << ')';
-    }
-    return;
-  }
-  case StandardTypes::Vector: {
-    auto v = type.cast<VectorType>();
-    os << "vector<";
-    for (auto dim : v.getShape())
-      os << dim << 'x';
-    os << v.getElementType() << '>';
-    return;
-  }
-  case StandardTypes::RankedTensor: {
-    auto v = type.cast<RankedTensorType>();
-    os << "tensor<";
-    for (auto dim : v.getShape()) {
-      if (dim < 0)
-        os << '?';
-      else
-        os << dim;
-      os << 'x';
-    }
-    os << v.getElementType() << '>';
-    return;
-  }
-  case StandardTypes::UnrankedTensor: {
-    auto v = type.cast<UnrankedTensorType>();
-    os << "tensor<*x";
-    printType(v.getElementType());
-    os << '>';
-    return;
-  }
-  case StandardTypes::MemRef: {
-    auto v = type.cast<MemRefType>();
-    os << "memref<";
-    for (auto dim : v.getShape()) {
-      if (dim < 0)
-        os << '?';
-      else
-        os << dim;
-      os << 'x';
-    }
-    printType(v.getElementType());
-    for (auto map : v.getAffineMaps()) {
-      os << ", ";
-      printAttribute(AffineMapAttr::get(map));
-    }
-    // Only print the memory space if it is the non-default one.
-    if (v.getMemorySpace())
-      os << ", " << v.getMemorySpace();
-    os << '>';
-    return;
-  }
-  case StandardTypes::UnrankedMemRef: {
-    auto v = type.cast<UnrankedMemRefType>();
-    os << "memref<*x";
-    printType(v.getElementType());
-    os << '>';
-    return;
-  }
-  case StandardTypes::Complex:
-    os << "complex<";
-    printType(type.cast<ComplexType>().getElementType());
-    os << '>';
-    return;
-  case StandardTypes::Tuple: {
-    auto tuple = type.cast<TupleType>();
-    os << "tuple<";
-    interleaveComma(tuple.getTypes(), [&](Type type) { printType(type); });
-    os << '>';
-    return;
-  }
-  case StandardTypes::None:
-    os << "none";
-    return;
-  }
+  TypeSwitch<Type>(type)
+      .Case<OpaqueType>([&](OpaqueType opaqueTy) {
+        printDialectSymbol(os, "!", opaqueTy.getDialectNamespace(),
+                           opaqueTy.getTypeData());
+      })
+      .Case<IndexType>([&](Type) { os << "index"; })
+      .Case<BFloat16Type>([&](Type) { os << "bf16"; })
+      .Case<Float16Type>([&](Type) { os << "f16"; })
+      .Case<Float32Type>([&](Type) { os << "f32"; })
+      .Case<Float64Type>([&](Type) { os << "f64"; })
+      .Case<IntegerType>([&](IntegerType integerTy) {
+        if (integerTy.isSigned())
+          os << 's';
+        else if (integerTy.isUnsigned())
+          os << 'u';
+        os << 'i' << integerTy.getWidth();
+      })
+      .Case<FunctionType>([&](FunctionType funcTy) {
+        os << '(';
+        interleaveComma(funcTy.getInputs(), [&](Type ty) { printType(ty); });
+        os << ") -> ";
+        ArrayRef<Type> results = funcTy.getResults();
+        if (results.size() == 1 && !results[0].isa<FunctionType>()) {
+          os << results[0];
+        } else {
+          os << '(';
+          interleaveComma(results, [&](Type ty) { printType(ty); });
+          os << ')';
+        }
+      })
+      .Case<VectorType>([&](VectorType vectorTy) {
+        os << "vector<";
+        for (int64_t dim : vectorTy.getShape())
+          os << dim << 'x';
+        os << vectorTy.getElementType() << '>';
+      })
+      .Case<RankedTensorType>([&](RankedTensorType tensorTy) {
+        os << "tensor<";
+        for (int64_t dim : tensorTy.getShape()) {
+          if (ShapedType::isDynamic(dim))
+            os << '?';
+          else
+            os << dim;
+          os << 'x';
+        }
+        os << tensorTy.getElementType() << '>';
+      })
+      .Case<UnrankedTensorType>([&](UnrankedTensorType tensorTy) {
+        os << "tensor<*x";
+        printType(tensorTy.getElementType());
+        os << '>';
+      })
+      .Case<MemRefType>([&](MemRefType memrefTy) {
+        os << "memref<";
+        for (int64_t dim : memrefTy.getShape()) {
+          if (ShapedType::isDynamic(dim))
+            os << '?';
+          else
+            os << dim;
+          os << 'x';
+        }
+        printType(memrefTy.getElementType());
+        for (auto map : memrefTy.getAffineMaps()) {
+          os << ", ";
+          printAttribute(AffineMapAttr::get(map));
+        }
+        // Only print the memory space if it is the non-default one.
+        if (memrefTy.getMemorySpace())
+          os << ", " << memrefTy.getMemorySpace();
+        os << '>';
+      })
+      .Case<UnrankedMemRefType>([&](UnrankedMemRefType memrefTy) {
+        os << "memref<*x";
+        printType(memrefTy.getElementType());
+        // Only print the memory space if it is the non-default one.
+        if (memrefTy.getMemorySpace())
+          os << ", " << memrefTy.getMemorySpace();
+        os << '>';
+      })
+      .Case<ComplexType>([&](ComplexType complexTy) {
+        os << "complex<";
+        printType(complexTy.getElementType());
+        os << '>';
+      })
+      .Case<TupleType>([&](TupleType tupleTy) {
+        os << "tuple<";
+        interleaveComma(tupleTy.getTypes(),
+                        [&](Type type) { printType(type); });
+        os << '>';
+      })
+      .Case<NoneType>([&](Type) { os << "none"; })
+      .Default([&](Type type) { return printDialectType(type); });
 }
 
 void ModulePrinter::printOptionalAttrDict(ArrayRef<NamedAttribute> attrs,
@@ -2025,7 +2072,7 @@ public:
     state->getSSANameState().shadowRegionArgs(region, namesToUse);
   }
 
-  /// Print the given affine map with the smybol and dimension operands printed
+  /// Print the given affine map with the symbol and dimension operands printed
   /// inline with the map.
   void printAffineMapOfSSAIds(AffineMapAttr mapAttr,
                               ValueRange operands) override;
@@ -2165,11 +2212,11 @@ void OperationPrinter::print(Block *block, bool printBlockArgs,
 
     // Print out some context information about the predecessors of this block.
     if (!block->getParent()) {
-      os << "\t// block is not in a region!";
+      os << "  // block is not in a region!";
     } else if (block->hasNoPredecessors()) {
-      os << "\t// no predecessors";
+      os << "  // no predecessors";
     } else if (auto *pred = block->getSinglePredecessor()) {
-      os << "\t// pred: ";
+      os << "  // pred: ";
       printBlockName(pred);
     } else {
       // We want to print the predecessors in increasing numeric order, not in
@@ -2179,7 +2226,7 @@ void OperationPrinter::print(Block *block, bool printBlockArgs,
         predIDs.push_back({state->getSSANameState().getBlockID(pred), pred});
       llvm::array_pod_sort(predIDs.begin(), predIDs.end());
 
-      os << "\t// " << predIDs.size() << " preds: ";
+      os << "  // " << predIDs.size() << " preds: ";
 
       interleaveComma(predIDs, [&](std::pair<unsigned, Block *> pred) {
         printBlockName(pred.second);
@@ -2284,8 +2331,8 @@ void IntegerSet::dump() const {
 }
 
 void AffineExpr::print(raw_ostream &os) const {
-  if (expr == nullptr) {
-    os << "null affine expr";
+  if (!expr) {
+    os << "<<NULL AFFINE EXPR>>";
     return;
   }
   ModulePrinter(os).printAffineExpr(*this);
@@ -2297,8 +2344,8 @@ void AffineExpr::dump() const {
 }
 
 void AffineMap::print(raw_ostream &os) const {
-  if (map == nullptr) {
-    os << "null affine map";
+  if (!map) {
+    os << "<<NULL AFFINE MAP>>";
     return;
   }
   ModulePrinter(os).printAffineMap(*this);
@@ -2330,7 +2377,7 @@ void Value::dump() {
 }
 
 void Value::printAsOperand(raw_ostream &os, AsmState &state) {
-  // TODO(riverriddle) This doesn't necessarily capture all potential cases.
+  // TODO: This doesn't necessarily capture all potential cases.
   // Currently, region arguments can be shadowed when printing the main
   // operation. If the IR hasn't been printed, this will produce the old SSA
   // name and not the shadowed name.
@@ -2339,23 +2386,23 @@ void Value::printAsOperand(raw_ostream &os, AsmState &state) {
 }
 
 void Operation::print(raw_ostream &os, OpPrintingFlags flags) {
-  // Handle top-level operations or local printing.
-  if (!getParent() || flags.shouldUseLocalScope()) {
-    AsmState state(this);
-    OperationPrinter(os, flags, state.getImpl()).print(this);
-    return;
-  }
+  // Find the operation to number from based upon the provided flags.
+  Operation *printedOp = this;
+  bool shouldUseLocalScope = flags.shouldUseLocalScope();
+  do {
+    // If we are printing local scope, stop at the first operation that is
+    // isolated from above.
+    if (shouldUseLocalScope && printedOp->isKnownIsolatedFromAbove())
+      break;
 
-  Operation *parentOp = getParentOp();
-  if (!parentOp) {
-    os << "<<UNLINKED OPERATION>>\n";
-    return;
-  }
-  // Get the top-level op.
-  while (auto *nextOp = parentOp->getParentOp())
-    parentOp = nextOp;
+    // Otherwise, traverse up to the next parent.
+    Operation *parentOp = printedOp->getParentOp();
+    if (!parentOp)
+      break;
+    printedOp = parentOp;
+  } while (true);
 
-  AsmState state(parentOp);
+  AsmState state(printedOp);
   print(os, state, flags);
 }
 void Operation::print(raw_ostream &os, AsmState &state, OpPrintingFlags flags) {
@@ -2393,10 +2440,6 @@ void Block::printAsOperand(raw_ostream &os, bool printType) {
     os << "<<UNLINKED BLOCK>>\n";
     return;
   }
-  // Get the top-level op.
-  while (auto *nextOp = parentOp->getParentOp())
-    parentOp = nextOp;
-
   AsmState state(parentOp);
   printAsOperand(os, state);
 }

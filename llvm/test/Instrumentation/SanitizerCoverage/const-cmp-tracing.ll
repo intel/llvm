@@ -1,5 +1,5 @@
 ; Test -sanitizer-coverage-trace-compares=1
-; RUN: opt < %s -sancov -sanitizer-coverage-level=1 -sanitizer-coverage-trace-compares=1  -S | FileCheck %s
+; RUN: opt < %s -sancov -sanitizer-coverage-level=1 -sanitizer-coverage-trace-compares=1  -S -enable-new-pm=0 | FileCheck %s
 ; RUN: opt < %s -passes='module(sancov-module)' -sanitizer-coverage-level=1 -sanitizer-coverage-trace-compares=1  -S | FileCheck %s
 
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64"
@@ -25,7 +25,7 @@ entry:
 ; compare (const, const) - should not be instrumented
   icmp slt i32 1, 0
 ; CHECK-NOT: call void @__sanitizer_cov_trace
-; CHECK icmp slt i32 1, 0
+; CHECK: icmp slt i32 1, 0
 
 ; compare variables of byte size
   %x = trunc i32 %a to i8

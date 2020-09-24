@@ -1,0 +1,210 @@
+= SYCL_INTEL_free_function_queries
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Introduction
+IMPORTANT: This specification is a draft.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
+
+NOTE: This document is better viewed when rendered as html with asciidoctor.  GitHub does not render image icons.
+
+This document describes an extension that adds features for SYCL work items and groups to be available globally.
+
+
+== Name Strings
+
++SYCL_INTEL_free_function_queries+
+
+== Notice
+
+Copyright (c) 2020 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products.
+
+== Version
+
+Built On: {docdate} +
+Revision: 1
+
+== Contact
+Ruslan Arutyunyan, Intel (ruslan 'dot' arutyunyan 'at' intel 'dot' com)
+
+John Pennycook, Intel (john 'dot' pennycook 'at' intel 'dot' com)
+
+== Dependencies
+
+This extension is written against the SYCL 2020 Provisional specification, Revision 1.
+
+== Overview
+
+The extension allows to get `id`, `item`, `nd_item`, `group`, `sub_group` instances globally
+
+== Modifications of SYCL 2020 provisional specification
+
+=== Changes in 4.10.1.3 (id class)
+
+==== Changes in synopsis
+
+===== Add the following free function
+
+[source,c++,multiptr,linenums]
+----
+template <int dimensions>
+id<dimensions> this_id();
+----
+
+===== Add the table with free functions description
+
+|===
+a|
+[source,c++,multiptr,linenums]
+----
+template <int dimensions>
+id<dimensions> this_id();
+---- a|
+Returns the `id` instance representing the current work item in a `range`. The prerequisites:
+
+* `dimensions` value passed to `this_id` function shall match `dimensions` value passed to the `range` when the `parallel_for` is called
+
+* shall only be invoked within the `parallel_for` with `range` or `nd_range` as the argument.
+
+If prerequisites are not fulfilled the behavior is undefined
+|===
+
+=== Changes in 4.10.1.4 (item class)
+
+==== Changes in synopsis
+
+===== Add the following free function
+
+[source,c++,multiptr,linenums]
+----
+template <int dimensions>
+item<dimensions> this_item();
+----
+
+===== Add the table with free functions description
+
+|===
+a|
+[source,c++,multiptr,linenums]
+----
+template <int dimensions>
+item<dimensions> this_item();
+---- a|
+Returns the `item` instance representing the current work item in a `range`. The prerequisites:
+
+* `dimensions` value passed to `this_item` function shall match `dimensions` value passed to the `range` when the `parallel_for` is called
+
+* shall only be invoked within the `parallel_for` with `range` or `nd_range` as the argument
+
+If prerequisites are not fulfilled the behavior is undefined
+|===
+
+=== Changes in 4.10.1.5 (nd_item class)
+
+==== Changes in synopsis
+
+===== Add the following free function
+
+[source,c++,multiptr,linenums]
+----
+template <int dimensions>
+nd_item<dimensions> this_nd_item();
+----
+
+===== Add the table with free functions description
+
+|===
+a|
+[source,c++,multiptr,linenums]
+----
+template <int dimensions>
+nd_item<dimensions> this_nd_item();
+---- a|
+Returns the `nd_item` instance representing the current work item in a `nd_range`. The prerequisites:
+
+* `dimensions` value passed to `this_nd_item` function shall match `dimensions` value passed to the `nd_range` when the `parallel_for` is called
+
+* shall only be invoked within the `parallel_for` with `nd_range` as the argument
+
+If prerequisites are not fulfilled the behavior is undefined
+|===
+
+=== Changes in 4.10.1.7 (group class)
+
+==== Changes in synopsis
+
+===== Add the following free function
+
+[source,c++,multiptr,linenums]
+----
+template <int dimensions>
+group<dimensions> this_group();
+----
+
+===== Add the table with free functions description
+
+|===
+a|
+[source,c++,multiptr,linenums]
+----
+template <int dimensions>
+group<dimensions> this_group();
+---- a|
+Returns the `group` instance representing the particular work-group within the parallel execution. The prerequisites:
+
+* `dimensions` value passed to `this_group` function shall match `dimensions` value passed to the `range` when the `parallel_for` is called
+
+* shall only be called from within the `parallel_for` with `nd_range` as the argument
+
+If prerequisites are not fulfilled the behavior is undefined
+|===
+
+=== Changes in 4.10.1.8 (sub_group class)
+
+==== Changes in synopsis
+
+===== Add the following free function
+
+[source,c++,multiptr,linenums]
+----
+sub_group this_sub_group();
+----
+
+===== Add the table with free functions description
+
+|===
+a|
+[source,c++,multiptr,linenums]
+----
+sub_group this_sub_group();
+---- a|
+Returns the `sub_group` instance representing the particular `sub-group` within the parallel execution. The prerequisites:
+
+* shall only be called from within the `parallel_for` with `nd_range` as the argument
+
+If prerequisites are not fulfilled the behavior is undefined
+|===

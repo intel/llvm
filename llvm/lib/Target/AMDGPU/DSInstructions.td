@@ -1,4 +1,4 @@
-//===-- DSInstructions.td - DS Instruction Defintions ---------------------===//
+//===-- DSInstructions.td - DS Instruction Definitions --------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -388,7 +388,12 @@ defm DS_MAX_U32       : DS_1A1D_NORET_mc<"ds_max_u32">;
 defm DS_AND_B32       : DS_1A1D_NORET_mc<"ds_and_b32">;
 defm DS_OR_B32        : DS_1A1D_NORET_mc<"ds_or_b32">;
 defm DS_XOR_B32       : DS_1A1D_NORET_mc<"ds_xor_b32">;
+
+let SubtargetPredicate = HasLDSFPAtomics in {
 defm DS_ADD_F32       : DS_1A1D_NORET_mc<"ds_add_f32">;
+}
+
+// FIXME: Are these really present pre-gfx8?
 defm DS_MIN_F32       : DS_1A1D_NORET_mc<"ds_min_f32">;
 defm DS_MAX_F32       : DS_1A1D_NORET_mc<"ds_max_f32">;
 
@@ -443,7 +448,10 @@ defm DS_MIN_F64       : DS_1A1D_NORET_mc<"ds_min_f64", VReg_64>;
 defm DS_MAX_F64       : DS_1A1D_NORET_mc<"ds_max_f64", VReg_64>;
 
 defm DS_ADD_RTN_U32   : DS_1A1D_RET_mc<"ds_add_rtn_u32", VGPR_32, "ds_add_u32">;
+
+let SubtargetPredicate = HasLDSFPAtomics in {
 defm DS_ADD_RTN_F32   : DS_1A1D_RET_mc<"ds_add_rtn_f32", VGPR_32, "ds_add_f32">;
+}
 defm DS_SUB_RTN_U32   : DS_1A1D_RET_mc<"ds_sub_rtn_u32", VGPR_32, "ds_sub_u32">;
 defm DS_RSUB_RTN_U32  : DS_1A1D_RET_mc<"ds_rsub_rtn_u32", VGPR_32, "ds_rsub_u32">;
 defm DS_INC_RTN_U32   : DS_1A1D_RET_mc<"ds_inc_rtn_u32", VGPR_32, "ds_inc_u32">;
@@ -497,6 +505,7 @@ def DS_GWS_SEMA_P     : DS_GWS_0D<"ds_gws_sema_p">;
 def DS_GWS_BARRIER    : DS_GWS_1D<"ds_gws_barrier">;
 }
 
+let SubtargetPredicate = HasDsSrc2Insts in {
 def DS_ADD_SRC2_U32   : DS_1A<"ds_add_src2_u32">;
 def DS_SUB_SRC2_U32   : DS_1A<"ds_sub_src2_u32">;
 def DS_RSUB_SRC2_U32  : DS_1A<"ds_rsub_src2_u32">;
@@ -529,6 +538,7 @@ def DS_MAX_SRC2_F64   : DS_1A<"ds_max_src2_f64">;
 
 def DS_WRITE_SRC2_B32 : DS_1A<"ds_write_src2_b32">;
 def DS_WRITE_SRC2_B64 : DS_1A<"ds_write_src2_b64">;
+} // End SubtargetPredicate = HasDsSrc2Insts
 
 let Uses = [EXEC], mayLoad = 0, mayStore = 0, isConvergent = 1 in {
 def DS_SWIZZLE_B32 : DS_1A_RET <"ds_swizzle_b32", VGPR_32, 0, SwizzleImm>;
@@ -609,9 +619,11 @@ def DS_BPERMUTE_B32 : DS_1A1D_PERMUTE <"ds_bpermute_b32",
                                        int_amdgcn_ds_bpermute>;
 }
 
-def DS_ADD_SRC2_F32 : DS_1A<"ds_add_src2_f32">;
-
 } // let SubtargetPredicate = isGFX8Plus
+
+let SubtargetPredicate = HasLDSFPAtomics, OtherPredicates = [HasDsSrc2Insts] in {
+def DS_ADD_SRC2_F32 : DS_1A<"ds_add_src2_f32">;
+}
 
 //===----------------------------------------------------------------------===//
 // DS Patterns
@@ -668,7 +680,29 @@ foreach vt = VReg_64.RegTypes in {
 defm : DSReadPat_mc <DS_READ_B64, vt, "load_align8_local">;
 }
 
-defm : DSReadPat_mc <DS_READ_B128, v4i32, "load_align16_local">;
+let SubtargetPredicate = isGFX7GFX8 in {
+
+foreach vt = VReg_96.RegTypes in {
+defm : DSReadPat_mc <DS_READ_B96, vt, "load_align16_local">;
+}
+
+foreach vt = VReg_128.RegTypes in {
+defm : DSReadPat_mc <DS_READ_B128, vt, "load_align16_local">;
+}
+
+}
+
+let SubtargetPredicate = isGFX9Plus in {
+
+foreach vt = VReg_96.RegTypes in {
+defm : DSReadPat_mc <DS_READ_B96, vt, "load_local">;
+}
+
+foreach vt = VReg_128.RegTypes in {
+defm : DSReadPat_mc <DS_READ_B128, vt, "load_local">;
+}
+
+}
 
 } // End AddedComplexity = 100
 
@@ -707,7 +741,7 @@ multiclass DSWritePat_mc <DS_Pseudo inst, ValueType vt, string frag> {
 // normal store.
 class DSAtomicWritePat <DS_Pseudo inst, ValueType vt, PatFrag frag> : GCNPat <
   (frag (DS1Addr1Offset i32:$ptr, i16:$offset), vt:$value),
-  (inst $ptr, $value, offset:$offset, (i1 0))
+  (inst $ptr, getVregSrcForVT<vt>.ret:$value, offset:$offset, (i1 0))
 >;
 
 multiclass DSAtomicWritePat_mc <DS_Pseudo inst, ValueType vt, string frag> {
@@ -749,6 +783,18 @@ class DS64Bit4ByteAlignedWritePat<DS_Pseudo inst, ValueType vt, PatFrag frag> : 
               (i1 0))
 >;
 
+class DS128Bit8ByteAlignedReadPat<DS_Pseudo inst, ValueType vt, PatFrag frag> : GCNPat <
+  (vt:$value (frag (DS128Bit8ByteAligned i32:$ptr, i8:$offset0, i8:$offset1))),
+  (inst $ptr, $offset0, $offset1, (i1 0))
+>;
+
+class DS128Bit8ByteAlignedWritePat<DS_Pseudo inst, ValueType vt, PatFrag frag> : GCNPat<
+  (frag vt:$value, (DS128Bit8ByteAligned i32:$ptr, i8:$offset0, i8:$offset1)),
+  (inst $ptr, (i64 (EXTRACT_SUBREG VReg_128:$value, sub0_sub1)),
+              (i64 (EXTRACT_SUBREG VReg_128:$value, sub2_sub3)), $offset0, $offset1,
+              (i1 0))
+>;
+
 multiclass DS64Bit4ByteAlignedPat_mc<ValueType vt> {
   let OtherPredicates = [LDSRequiresM0Init, isGFX7Plus] in {
     def : DS64Bit4ByteAlignedReadPat<DS_READ2_B32, vt, load_local_m0>;
@@ -761,10 +807,26 @@ multiclass DS64Bit4ByteAlignedPat_mc<ValueType vt> {
   }
 }
 
+multiclass DS128Bit8ByteAlignedPat_mc<ValueType vt> {
+  let OtherPredicates = [LDSRequiresM0Init, isGFX7Plus] in {
+    def : DS128Bit8ByteAlignedReadPat<DS_READ2_B64, vt, load_local_m0>;
+    def : DS128Bit8ByteAlignedWritePat<DS_WRITE2_B64, vt, store_local_m0>;
+  }
+
+  let OtherPredicates = [NotLDSRequiresM0Init] in {
+    def : DS128Bit8ByteAlignedReadPat<DS_READ2_B64_gfx9, vt, load_local>;
+    def : DS128Bit8ByteAlignedWritePat<DS_WRITE2_B64_gfx9, vt, store_local>;
+  }
+}
+
 // v2i32 loads are split into i32 loads on SI during lowering, due to a bug
 // related to bounds checking.
 foreach vt = VReg_64.RegTypes in {
 defm : DS64Bit4ByteAlignedPat_mc<vt>;
+}
+
+foreach vt = VReg_128.RegTypes in {
+defm : DS128Bit8ByteAlignedPat_mc<vt>;
 }
 
 let AddedComplexity = 100 in {
@@ -773,7 +835,29 @@ foreach vt = VReg_64.RegTypes in {
 defm : DSWritePat_mc <DS_WRITE_B64, vt, "store_align8_local">;
 }
 
-defm : DSWritePat_mc <DS_WRITE_B128, v4i32, "store_align16_local">;
+let SubtargetPredicate = isGFX7GFX8 in {
+
+foreach vt = VReg_96.RegTypes in {
+defm : DSWritePat_mc <DS_WRITE_B96, vt, "store_align16_local">;
+}
+
+foreach vt = VReg_128.RegTypes in {
+defm : DSWritePat_mc <DS_WRITE_B128, vt, "store_align16_local">;
+}
+
+}
+
+let SubtargetPredicate = isGFX9Plus in {
+
+foreach vt = VReg_96.RegTypes in {
+defm : DSWritePat_mc <DS_WRITE_B96, vt, "store_local">;
+}
+
+foreach vt = VReg_128.RegTypes in {
+defm : DSWritePat_mc <DS_WRITE_B128, vt, "store_local">;
+}
+
+}
 
 } // End AddedComplexity = 100
 class DSAtomicRetPat<DS_Pseudo inst, ValueType vt, PatFrag frag, bit gds=0> : GCNPat <
@@ -830,9 +914,12 @@ defm : DSAtomicRetPat_mc<DS_MAX_RTN_I32, i32, "atomic_load_max">;
 defm : DSAtomicRetPat_mc<DS_MIN_RTN_U32, i32, "atomic_load_umin">;
 defm : DSAtomicRetPat_mc<DS_MAX_RTN_U32, i32, "atomic_load_umax">;
 defm : DSAtomicCmpXChg_mc<DS_CMPST_RTN_B32, i32, "atomic_cmp_swap">;
+
+let SubtargetPredicate = HasLDSFPAtomics in {
 defm : DSAtomicRetPat_mc<DS_MIN_RTN_F32, f32, "atomic_load_fmin">;
 defm : DSAtomicRetPat_mc<DS_MAX_RTN_F32, f32, "atomic_load_fmax">;
 defm : DSAtomicRetPat_mc<DS_ADD_RTN_F32, f32, "atomic_load_fadd">;
+}
 
 // 64-bit atomics.
 defm : DSAtomicRetPat_mc<DS_WRXCHG_RTN_B64, i64, "atomic_swap">;

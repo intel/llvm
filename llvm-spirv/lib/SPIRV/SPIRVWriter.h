@@ -80,6 +80,13 @@ public:
 
   static char ID;
 
+  // This enum sets the mode used to translate the value which is
+  // a function, that is necessary for a convenient function pointers handling.
+  // By default transValue uses 'Decl' mode, which means every function
+  // we meet during the translation should result in its declaration generated.
+  // In 'Pointer' mode we generate OpConstFunctionPointerINTEL constant instead.
+  enum class FuncTransMode { Decl, Pointer };
+
   SPIRVType *transType(Type *T);
   SPIRVType *transSPIRVOpaqueType(Type *T);
 
@@ -96,6 +103,7 @@ public:
   bool transSourceLanguage();
   bool transExtension();
   bool transBuiltinSet();
+  bool isKnownIntrinsic(Intrinsic::ID Id);
   SPIRVValue *transIntrinsicInst(IntrinsicInst *Intrinsic, SPIRVBasicBlock *BB);
   SPIRVValue *transCallInst(CallInst *Call, SPIRVBasicBlock *BB);
   SPIRVValue *transDirectCallInst(CallInst *Call, SPIRVBasicBlock *BB);
@@ -105,6 +113,7 @@ public:
   bool transDecoration(Value *V, SPIRVValue *BV);
   SPIRVWord transFunctionControlMask(Function *);
   SPIRVFunction *transFunctionDecl(Function *F);
+  void transVectorComputeMetadata(Function *F);
   bool transGlobalVariables();
 
   Op transBoolOpCode(SPIRVValue *Opn, Op OC);
@@ -112,13 +121,20 @@ public:
   // Returns true if succeeds.
   bool translate();
   bool transExecutionMode();
+  void transFPContract();
   SPIRVValue *transConstant(Value *V);
   SPIRVValue *transValue(Value *V, SPIRVBasicBlock *BB,
-                         bool CreateForward = true);
+                         bool CreateForward = true,
+                         FuncTransMode FuncTrans = FuncTransMode::Decl);
   void transGlobalAnnotation(GlobalVariable *V);
-  SPIRVValue *transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
-                                          bool CreateForward = true);
+  SPIRVValue *
+  transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
+                              bool CreateForward = true,
+                              FuncTransMode FuncTrans = FuncTransMode::Decl);
   void transGlobalIOPipeStorage(GlobalVariable *V, MDNode *IO);
+
+  static SPIRVInstruction *applyRoundingModeConstraint(Value *V,
+                                                       SPIRVInstruction *I);
 
   typedef DenseMap<Type *, SPIRVType *> LLVMToSPIRVTypeMap;
   typedef DenseMap<Value *, SPIRVValue *> LLVMToSPIRVValueMap;
@@ -135,6 +151,12 @@ private:
   SPIRVWord SrcLangVer;
   std::unique_ptr<LLVMToSPIRVDbgTran> DbgTran;
   std::unique_ptr<CallGraph> CG;
+
+  enum class FPContract { UNDEF, DISABLED, ENABLED };
+  DenseMap<Function *, FPContract> FPContractMap;
+  FPContract getFPContract(Function *F);
+  bool joinFPContract(Function *F, FPContract C);
+  void fpContractUpdateRecursive(Function *F, FPContract FPC);
 
   SPIRVType *mapType(Type *T, SPIRVType *BT);
   SPIRVValue *mapValue(Value *V, SPIRVValue *BV);
@@ -165,8 +187,9 @@ private:
                                SPIRVExtInstSetKind *BuiltinSet = nullptr,
                                SPIRVWord *EntryPoint = nullptr,
                                SmallVectorImpl<std::string> *Dec = nullptr);
-  bool oclIsKernel(Function *F);
-  bool transOCLKernelMetadata();
+  bool isKernel(Function *F);
+  bool transMetadata();
+  bool transOCLMetadata();
   SPIRVInstruction *transBuiltinToInst(StringRef DemangledName, CallInst *CI,
                                        SPIRVBasicBlock *BB);
   SPIRVValue *transBuiltinToConstant(StringRef DemangledName, CallInst *CI);

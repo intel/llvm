@@ -20,7 +20,7 @@ namespace dr301 { // dr301: yes
              (void(*)(S, S))operator+<S>;
     bool b = (void(*)(S, S))operator- <
              (void(*)(S, S))operator-;
-    bool c = (void(*)(S, S))operator+ <
+    bool c = (void(*)(S, S))operator+ < // expected-note {{to match this '<'}}
              (void(*)(S, S))operator-; // expected-error {{expected '>'}}
   }
 
@@ -123,7 +123,7 @@ namespace dr305 { // dr305: no
     template<typename T> using T2 = T;
   };
   void k(Z *z) {
-    z->~T1<int>(); // expected-error {{no member named 'T1' in 'dr305::Z'}} expected-error +{{}}
+    z->~T1<int>(); // expected-error {{no member named 'T1' in 'dr305::Z'}}
     z->~T2<int>(); // expected-error {{no member named '~int'}}
     z->~T2<Z>();
   }
@@ -429,8 +429,8 @@ namespace dr330 { // dr330: 7
 
 namespace dr331 { // dr331: yes
   struct A {
-    A(volatile A&); // expected-note {{candidate}}
-  } const a, b(a); // expected-error {{no matching constructor}}
+    A(volatile A&); // expected-note 2{{candidate}}
+  } const a, b(a); // expected-error 2{{no matching constructor}}
 }
 
 namespace dr332 { // dr332: dup 577
@@ -895,7 +895,7 @@ namespace dr367 { // dr367: yes
   // array as being a VLA!
   int a[true ? throw 0 : 4]; // expected-error 2{{variable length array}}
   int b[true ? 4 : throw 0];
-  int c[true ? *new int : 4]; // expected-error 2{{variable length array}}
+  int c[true ? *new int : 4]; // expected-error 2{{variable length array}} expected-note {{read of uninitialized}}
   int d[true ? 4 : *new int];
 #if __cplusplus < 201103L
   // expected-error@-4 {{variable length array}} expected-error@-4 {{constant expression}}

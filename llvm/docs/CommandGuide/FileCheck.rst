@@ -39,14 +39,30 @@ and from the command line.
  match.  By default, these patterns are prefixed with "``CHECK:``".
  If you'd like to use a different prefix (e.g. because the same input
  file is checking multiple different tool or options), the
- :option:`--check-prefix` argument allows you to specify one or more
- prefixes to match. Multiple prefixes are useful for tests which might
- change for different run options, but most lines remain the same.
+ :option:`--check-prefix` argument allows you to specify (without the trailing
+ "``:``") one or more prefixes to match. Multiple prefixes are useful for tests
+ which might change for different run options, but most lines remain the same.
+
+ FileCheck does not permit duplicate prefixes, even if one is a check prefix
+ and one is a comment prefix (see :option:`--comment-prefixes` below).
 
 .. option:: --check-prefixes prefix1,prefix2,...
 
  An alias of :option:`--check-prefix` that allows multiple prefixes to be
  specified as a comma separated list.
+
+.. option:: --comment-prefixes prefix1,prefix2,...
+
+ By default, FileCheck ignores any occurrence in ``match-filename`` of any check
+ prefix if it is preceded on the same line by "``COM:``" or "``RUN:``". See the
+ section `The "COM:" directive`_ for usage details.
+
+ These default comment prefixes can be overridden by
+ :option:`--comment-prefixes` if they are not appropriate for your testing
+ environment. However, doing so is not recommended in LLVM's LIT-based test
+ suites, which should be easier to maintain if they all follow a consistent
+ comment style. In that case, consider proposing a change to the default
+ comment prefixes instead.
 
 .. option:: --input-file filename
 
@@ -87,16 +103,37 @@ and from the command line.
   -verify``. With this option FileCheck will verify that input does not contain
   warnings not covered by any ``CHECK:`` patterns.
 
-.. option:: --dump-input <mode>
+.. option:: --dump-input <value>
 
   Dump input to stderr, adding annotations representing currently enabled
-  diagnostics.  Do this either 'always', on 'fail', or 'never'.  Specify 'help'
-  to explain the dump format and quit.
+  diagnostics.  When there are multiple occurrences of this option, the
+  ``<value>`` that appears earliest in the list below has precedence.  The
+  default is ``fail``.
 
-.. option:: --dump-input-on-failure
+  * ``help``   - Explain input dump and quit
+  * ``always`` - Always dump input
+  * ``fail``   - Dump input on failure
+  * ``never``  - Never dump input
 
-  When the check fails, dump all of the original input.  This option is
-  deprecated in favor of `--dump-input=fail`.
+.. option:: --dump-input-context <N>
+
+  In the dump requested by ``--dump-input``, print ``<N>`` input lines before
+  and ``<N>`` input lines after any lines specified by ``--dump-input-filter``.
+  When there are multiple occurrences of this option, the largest specified
+  ``<N>`` has precedence.  The default is 5.
+
+.. option:: --dump-input-filter <value>
+
+  In the dump requested by ``--dump-input``, print only input lines of kind
+  ``<value>`` plus any context specified by ``--dump-input-context``.  When
+  there are multiple occurrences of this option, the ``<value>`` that appears
+  earliest in the list below has precedence.  The default is ``error`` when
+  ``--dump-input=fail``, and it's ``all`` when ``--dump-input=always``.
+
+  * ``all``             - All input lines
+  * ``annotation-full`` - Input lines with annotations
+  * ``annotation``      - Input lines with starting points of annotations
+  * ``error``           - Input lines with starting points of error annotations
 
 .. option:: --enable-var-scope
 
@@ -126,15 +163,15 @@ and from the command line.
 
 .. option:: -v
 
-  Print good directive pattern matches.  However, if ``-input-dump=fail`` or
-  ``-input-dump=always``, add those matches as input annotations instead.
+  Print good directive pattern matches.  However, if ``-dump-input=fail`` or
+  ``-dump-input=always``, add those matches as input annotations instead.
 
 .. option:: -vv
 
   Print information helpful in diagnosing internal FileCheck issues, such as
   discarded overlapping ``CHECK-DAG:`` matches, implicit EOF pattern matches,
   and ``CHECK-NOT:`` patterns that do not have matches.  Implies ``-v``.
-  However, if ``-input-dump=fail`` or ``-input-dump=always``, just add that
+  However, if ``-dump-input=fail`` or ``-dump-input=always``, just add that
   information as input annotations instead.
 
 .. option:: --allow-deprecated-dag-overlap
@@ -143,6 +180,10 @@ and from the command line.
   directives.  This option is deprecated and is only provided for convenience
   as old tests are migrated to the new non-overlapping ``CHECK-DAG:``
   implementation.
+
+.. option:: --allow-empty
+
+  Allow checking empty input. By default, empty input is rejected.
 
 .. option:: --color
 
@@ -236,6 +277,57 @@ circumstances, for example, testing different architectural variants with
 In this case, we're testing that we get the expected code generation with
 both 32-bit and 64-bit code generation.
 
+The "COM:" directive
+~~~~~~~~~~~~~~~~~~~~
+
+Sometimes you want to disable a FileCheck directive without removing it
+entirely, or you want to write comments that mention a directive by name. The
+"``COM:``" directive makes it easy to do this. For example, you might have:
+
+.. code-block:: llvm
+
+   ; X32: pinsrd_1:
+   ; X32:    pinsrd $1, 4(%esp), %xmm0
+
+   ; COM: FIXME: X64 isn't working correctly yet for this part of codegen, but
+   ; COM: X64 will have something similar to X32:
+   ; COM:
+   ; COM:   X64: pinsrd_1:
+   ; COM:   X64:    pinsrd $1, %edi, %xmm0
+
+Without "``COM:``", you would need to use some combination of rewording and
+directive syntax mangling to prevent FileCheck from recognizing the commented
+occurrences of "``X32:``" and "``X64:``" above as directives. Moreover,
+FileCheck diagnostics have been proposed that might complain about the above
+occurrences of "``X64``" that don't have the trailing "``:``" because they look
+like directive typos. Dodging all these problems can be tedious for a test
+author, and directive syntax mangling can make the purpose of test code unclear.
+"``COM:``" avoids all these problems.
+
+A few important usage notes:
+
+* "``COM:``" within another directive's pattern does *not* comment out the
+  remainder of the pattern. For example:
+
+  .. code-block:: llvm
+
+     ; X32: pinsrd $1, 4(%esp), %xmm0 COM: This is part of the X32 pattern!
+
+  If you need to temporarily comment out part of a directive's pattern, move it
+  to another line. The reason is that FileCheck parses "``COM:``" in the same
+  manner as any other directive: only the first directive on the line is
+  recognized as a directive.
+
+* For the sake of LIT, FileCheck treats "``RUN:``" just like "``COM:``". If this
+  is not suitable for your test environment, see :option:`--comment-prefixes`.
+
+* FileCheck does not recognize "``COM``", "``RUN``", or any user-defined comment
+  prefix as a comment directive if it's combined with one of the usual check
+  directive suffixes, such as "``-NEXT:``" or "``-NOT:``", discussed below.
+  FileCheck treats such a combination as plain text instead. If it needs to act
+  as a comment directive for your test environment, define it as such with
+  :option:`--comment-prefixes`.
+
 The "CHECK-NEXT:" directive
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -291,8 +383,57 @@ For example, the following works like you'd expect:
    ; CHECK-SAME:              scope: ![[SCOPE:[0-9]+]]
 
 "``CHECK-SAME:``" directives reject the input if there are any newlines between
-it and the previous directive.  A "``CHECK-SAME:``" cannot be the first
-directive in a file.
+it and the previous directive.
+
+"``CHECK-SAME:``" is also useful to avoid writing matchers for irrelevant
+fields. For example, suppose you're writing a test which parses a tool that
+generates output like this:
+
+.. code-block:: text
+
+   Name: foo
+   Field1: ...
+   Field2: ...
+   Field3: ...
+   Value: 1
+
+   Name: bar
+   Field1: ...
+   Field2: ...
+   Field3: ...
+   Value: 2
+
+   Name: baz
+   Field1: ...
+   Field2: ...
+   Field3: ...
+   Value: 1
+
+To write a test that verifies ``foo`` has the value ``1``, you might first
+write this:
+
+.. code-block:: text
+
+   CHECK: Name: foo
+   CHECK: Value: 1{{$}}
+
+However, this would be a bad test: if the value for ``foo`` changes, the test
+would still pass because the "``CHECK: Value: 1``" line would match the value
+from ``baz``. To fix this, you could add ``CHECK-NEXT`` matchers for every
+``FieldN:`` line, but that would be verbose, and need to be updated when
+``Field4`` is added. A more succint way to write the test using the
+"``CHECK-SAME:``" matcher would be as follows:
+
+.. code-block:: text
+
+   CHECK:      Name: foo
+   CHECK:      Value:
+   CHECK-SAME:        {{ 1$}}
+
+This verifies that the *next* time "``Value:``" appears in the output, it has
+the value ``1``.
+
+Note: a "``CHECK-SAME:``" cannot be the first directive in a file.
 
 The "CHECK-EMPTY:" directive
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -589,34 +730,66 @@ numeric expression constraint based on those variables via a numeric
 substitution. This allows ``CHECK:`` directives to verify a numeric relation
 between two numbers, such as the need for consecutive registers to be used.
 
-The syntax to define a numeric variable is ``[[#%<fmtspec>,<NUMVAR>:]]`` where:
+The syntax to capture a numeric value is
+``[[#%<fmtspec>,<NUMVAR>:]]`` where:
 
-* ``%<fmtspec>`` is an optional scanf-style matching format specifier to
-  indicate what number format to match (e.g. hex number).  Currently accepted
-  format specifiers are ``%u``, ``%x`` and ``%X``.  If absent, the format
-  specifier defaults to ``%u``.
+* ``%<fmtspec>,`` is an optional format specifier to indicate what number
+  format to match and the minimum number of digits to expect.
 
-* ``<NUMVAR>`` is the name of the numeric variable to define to the matching
-  value.
+* ``<NUMVAR>:`` is an optional definition of variable ``<NUMVAR>`` from the
+  captured value.
+
+The syntax of ``<fmtspec>`` is: ``.<precision><conversion specifier>`` where:
+
+* ``.<precision>`` is an optional printf-style precision specifier in which
+  ``<precision>`` indicates the minimum number of digits that the value matched
+  must have, expecting leading zeros if needed.
+
+* ``<conversion specifier>`` is an optional scanf-style conversion specifier
+  to indicate what number format to match (e.g. hex number).  Currently
+  accepted format specifiers are ``%u``, ``%d``, ``%x`` and ``%X``.  If absent,
+  the format specifier defaults to ``%u``.
+
 
 For example:
 
 .. code-block:: llvm
 
-    ; CHECK: mov r[[#REG:]], 0x[[#%X,IMM:]]
+    ; CHECK: mov r[[#REG:]], 0x[[#%.8X,ADDR:]]
 
-would match ``mov r5, 0xF0F0`` and set ``REG`` to the value ``5`` and ``IMM``
-to the value ``0xF0F0``.
+would match ``mov r5, 0x0000FEFE`` and set ``REG`` to the value ``5`` and
+``ADDR`` to the value ``0xFEFE``. Note that due to the precision it would fail
+to match ``mov r5, 0xFEFE``.
 
-The syntax of a numeric substitution is ``[[#%<fmtspec>,<expr>]]`` where:
+As a result of the numeric variable definition being optional, it is possible
+to only check that a numeric value is present in a given format. This can be
+useful when the value itself is not useful, for instance:
 
-* ``%<fmtspec>`` is the same matching format specifier as for defining numeric
-  variables but acting as a printf-style format to indicate how a numeric
-  expression value should be matched against.  If absent, the format specifier
-  is inferred from the matching format of the numeric variable(s) used by the
-  expression constraint if any, and defaults to ``%u`` if no numeric variable
-  is used.  In case of conflict between matching formats of several numeric
-  variables the format specifier is mandatory.
+.. code-block:: gas
+
+    ; CHECK-NOT: mov r0, r[[#]]
+
+to check that a value is synthesized rather than moved around.
+
+
+The syntax of a numeric substitution is
+``[[#%<fmtspec>, <constraint> <expr>]]`` where:
+
+* ``<fmtspec>`` is the same format specifier as for defining a variable but
+  in this context indicating how a numeric expression value should be matched
+  against. If absent, both components of the format specifier are inferred from
+  the matching format of the numeric variable(s) used by the expression
+  constraint if any, and defaults to ``%u`` if no numeric variable is used,
+  denoting that the value should be unsigned with no leading zeros. In case of
+  conflict between format specifiers of several numeric variables, the
+  conversion specifier becomes mandatory but the precision specifier remains
+  optional.
+
+* ``<constraint>`` is the constraint describing how the value to match must
+  relate to the value of the numeric expression. The only currently accepted
+  constraint is ``==`` for an exact match and is the default if
+  ``<constraint>`` is not provided. No matching constraint must be specified
+  when the ``<expr>`` is empty.
 
 * ``<expr>`` is an expression. An expression is in turn recursively defined
   as:
@@ -624,9 +797,29 @@ The syntax of a numeric substitution is ``[[#%<fmtspec>,<expr>]]`` where:
   * a numeric operand, or
   * an expression followed by an operator and a numeric operand.
 
-  A numeric operand is a previously defined numeric variable, or an integer
-  literal. The supported operators are ``+`` and ``-``. Spaces are accepted
-  before, after and between any of these elements.
+  A numeric operand is a previously defined numeric variable, an integer
+  literal, or a function. Spaces are accepted before, after and between any of
+  these elements. Numeric operands have 64-bit precision. Overflow and underflow
+  are rejected. There is no support for operator precedence, but parentheses
+  can be used to change the evaluation order.
+
+The supported operators are:
+
+  * ``+`` - Returns the sum of its two operands.
+  * ``-`` - Returns the difference of its two operands.
+
+The syntax of a function call is ``<name>(<arguments>)`` where:
+
+* ``name`` is a predefined string literal. Accepted values are:
+
+  * add - Returns the sum of its two operands.
+  * div - Returns the quotient of its two operands.
+  * max - Returns the largest of its two operands.
+  * min - Returns the smallest of its two operands.
+  * mul - Returns the product of its two operands.
+  * sub - Returns the difference of its two operands.
+
+* ``<arguments>`` is a comma separated list of expressions.
 
 For example:
 
@@ -634,7 +827,8 @@ For example:
 
     ; CHECK: load r[[#REG:]], [r0]
     ; CHECK: load r[[#REG+1]], [r1]
-    ; CHECK: Loading from 0x[[#%x,ADDR:] to 0x[[#ADDR + 7]]
+    ; CHECK: Loading from 0x[[#%x,ADDR:]]
+    ; CHECK-SAME: to 0x[[#ADDR + 7]]
 
 The above example would match the text:
 
@@ -655,22 +849,14 @@ but would not match the text:
 Due to ``7`` being unequal to ``5 + 1`` and ``a0463443`` being unequal to
 ``a0463440 + 7``.
 
-The syntax also supports an empty expression, equivalent to writing {{[0-9]+}},
-for cases where the input must contain a numeric value but the value itself
-does not matter:
-
-.. code-block:: gas
-
-    ; CHECK-NOT: mov r0, r[[#]]
-
-to check that a value is synthesized rather than moved around.
 
 A numeric variable can also be defined to the result of a numeric expression,
-in which case the numeric expression is checked and if verified the variable is
-assigned to the value. The unified syntax for both defining numeric variables
-and checking a numeric expression is thus ``[[#%<fmtspec>,<NUMVAR>: <expr>]]``
-with each element as described previously. One can use this syntax to make a
-testcase more self-describing by using variables instead of values:
+in which case the numeric expression constraint is checked and if verified the
+variable is assigned to the value. The unified syntax for both checking a
+numeric expression and capturing its value into a numeric variable is thus
+``[[#%<fmtspec>,<NUMVAR>: <constraint> <expr>]]`` with each element as
+described previously. One can use this syntax to make a testcase more
+self-describing by using variables instead of values:
 
 .. code-block:: gas
 
@@ -737,5 +923,5 @@ matches output of the form (from llvm-dwarfdump):
        DW_AT_location [DW_FORM_sec_offset]   (0x00000233)
        DW_AT_name [DW_FORM_strp]  ( .debug_str[0x000000c9] = "intd")
 
-letting us set the :program:`FileCheck` variable ``DLOC`` to the desired value 
+letting us set the :program:`FileCheck` variable ``DLOC`` to the desired value
 ``0x00000233``, extracted from the line immediately preceding "``intd``".

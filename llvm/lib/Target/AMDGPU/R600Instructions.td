@@ -353,8 +353,8 @@ class LoadVtxId1 <PatFrag load> : PatFrag <
   const MemSDNode *LD = cast<MemSDNode>(N);
   return LD->getAddressSpace() == AMDGPUAS::GLOBAL_ADDRESS ||
          (LD->getAddressSpace() == AMDGPUAS::CONSTANT_ADDRESS &&
-           !isa<GlobalValue>(GetUnderlyingObject(
-           LD->getMemOperand()->getValue(), CurDAG->getDataLayout())));
+           !isa<GlobalValue>(getUnderlyingObject(
+           LD->getMemOperand()->getValue())));
 }]>;
 
 def vtx_id1_az_extloadi8 : LoadVtxId1 <az_extloadi8>;
@@ -365,8 +365,8 @@ class LoadVtxId2 <PatFrag load> : PatFrag <
   (ops node:$ptr), (load node:$ptr), [{
   const MemSDNode *LD = cast<MemSDNode>(N);
   return LD->getAddressSpace() == AMDGPUAS::CONSTANT_ADDRESS &&
-         isa<GlobalValue>(GetUnderlyingObject(
-         LD->getMemOperand()->getValue(), CurDAG->getDataLayout()));
+         isa<GlobalValue>(getUnderlyingObject(
+         LD->getMemOperand()->getValue()));
 }]>;
 
 def vtx_id2_az_extloadi8 : LoadVtxId2 <az_extloadi8>;
@@ -1006,7 +1006,7 @@ class MULADD_Common <bits<5> inst> : R600_3OP <
 
 class MULADD_IEEE_Common <bits<5> inst> : R600_3OP <
   inst, "MULADD_IEEE",
-  [(set f32:$dst, (fmad f32:$src0, f32:$src1, f32:$src2))]
+  [(set f32:$dst, (any_fmad f32:$src0, f32:$src1, f32:$src2))]
 >;
 
 class FMA_Common <bits<5> inst> : R600_3OP <

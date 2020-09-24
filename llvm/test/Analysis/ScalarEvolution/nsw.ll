@@ -1,4 +1,5 @@
-; RUN: opt < %s -analyze -scalar-evolution | FileCheck %s
+; RUN: opt < %s -analyze -enable-new-pm=0 -scalar-evolution | FileCheck %s
+; RUN: opt < %s -disable-output "-passes=print<scalar-evolution>" 2>&1 | FileCheck %s
 
 ; The addrecs in this loop are analyzable only by using nsw information.
 
@@ -223,8 +224,10 @@ leave:
   ret void
 }
 
-define void @bad_postinc_nsw_b(i32 %n) {
-; CHECK-LABEL: Classifying expressions for: @bad_postinc_nsw_b
+; Unlike @bad_postinc_nsw_a(), the SCEV expression of %iv.inc has <nsw> flag
+; because poison can be propagated through 'and %iv.inc, 0'.
+define void @postinc_poison_prop_through_and(i32 %n) {
+; CHECK-LABEL: Classifying expressions for: @postinc_poison_prop_through_and
 entry:
   br label %loop
 
@@ -233,7 +236,7 @@ loop:
   %iv.inc = add nsw i32 %iv, 7
   %iv.inc.and = and i32 %iv.inc, 0
 ; CHECK:    %iv.inc = add nsw i32 %iv, 7
-; CHECK-NEXT:  -->  {7,+,7}<nuw><%loop>
+; CHECK-NEXT:  -->  {7,+,7}<nuw><nsw><%loop>
   %becond = icmp ult i32 %iv.inc.and, %n
   br i1 %becond, label %loop, label %leave
 

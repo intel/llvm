@@ -21,13 +21,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/Operator.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Operator.h"
 #include "llvm/IR/PatternMatch.h"
 
 #include "llvm/Support/raw_ostream.h"
@@ -104,7 +104,7 @@ Value *InstrProfIncrementInst::getStep() const {
   return ConstantInt::get(Type::getInt64Ty(Context), 1);
 }
 
-Optional<fp::RoundingMode> ConstrainedFPIntrinsic::getRoundingMode() const {
+Optional<RoundingMode> ConstrainedFPIntrinsic::getRoundingMode() const {
   unsigned NumOperands = getNumArgOperands();
   Metadata *MD =
       cast<MetadataAsValue>(getArgOperand(NumOperands - 2))->getMetadata();
@@ -123,48 +123,46 @@ ConstrainedFPIntrinsic::getExceptionBehavior() const {
   return StrToExceptionBehavior(cast<MDString>(MD)->getString());
 }
 
-FCmpInst::Predicate
-ConstrainedFPCmpIntrinsic::getPredicate() const {
-  Metadata *MD =
-      cast<MetadataAsValue>(getArgOperand(2))->getMetadata();
+FCmpInst::Predicate ConstrainedFPCmpIntrinsic::getPredicate() const {
+  Metadata *MD = cast<MetadataAsValue>(getArgOperand(2))->getMetadata();
   if (!MD || !isa<MDString>(MD))
     return FCmpInst::BAD_FCMP_PREDICATE;
   return StringSwitch<FCmpInst::Predicate>(cast<MDString>(MD)->getString())
-           .Case("oeq", FCmpInst::FCMP_OEQ)
-           .Case("ogt", FCmpInst::FCMP_OGT)
-           .Case("oge", FCmpInst::FCMP_OGE)
-           .Case("olt", FCmpInst::FCMP_OLT)
-           .Case("ole", FCmpInst::FCMP_OLE)
-           .Case("one", FCmpInst::FCMP_ONE)
-           .Case("ord", FCmpInst::FCMP_ORD)
-           .Case("uno", FCmpInst::FCMP_UNO)
-           .Case("ueq", FCmpInst::FCMP_UEQ)
-           .Case("ugt", FCmpInst::FCMP_UGT)
-           .Case("uge", FCmpInst::FCMP_UGE)
-           .Case("ult", FCmpInst::FCMP_ULT)
-           .Case("ule", FCmpInst::FCMP_ULE)
-           .Case("une", FCmpInst::FCMP_UNE)
-           .Default(FCmpInst::BAD_FCMP_PREDICATE);
+      .Case("oeq", FCmpInst::FCMP_OEQ)
+      .Case("ogt", FCmpInst::FCMP_OGT)
+      .Case("oge", FCmpInst::FCMP_OGE)
+      .Case("olt", FCmpInst::FCMP_OLT)
+      .Case("ole", FCmpInst::FCMP_OLE)
+      .Case("one", FCmpInst::FCMP_ONE)
+      .Case("ord", FCmpInst::FCMP_ORD)
+      .Case("uno", FCmpInst::FCMP_UNO)
+      .Case("ueq", FCmpInst::FCMP_UEQ)
+      .Case("ugt", FCmpInst::FCMP_UGT)
+      .Case("uge", FCmpInst::FCMP_UGE)
+      .Case("ult", FCmpInst::FCMP_ULT)
+      .Case("ule", FCmpInst::FCMP_ULE)
+      .Case("une", FCmpInst::FCMP_UNE)
+      .Default(FCmpInst::BAD_FCMP_PREDICATE);
 }
 
 bool ConstrainedFPIntrinsic::isUnaryOp() const {
   switch (getIntrinsicID()) {
-    default:
-      return false;
+  default:
+    return false;
 #define INSTRUCTION(NAME, NARG, ROUND_MODE, INTRINSIC)                         \
-    case Intrinsic::INTRINSIC:                                                 \
-      return NARG == 1;
+  case Intrinsic::INTRINSIC:                                                   \
+    return NARG == 1;
 #include "llvm/IR/ConstrainedOps.def"
   }
 }
 
 bool ConstrainedFPIntrinsic::isTernaryOp() const {
   switch (getIntrinsicID()) {
-    default:
-      return false;
+  default:
+    return false;
 #define INSTRUCTION(NAME, NARG, ROUND_MODE, INTRINSIC)                         \
-    case Intrinsic::INTRINSIC:                                                 \
-      return NARG == 3;
+  case Intrinsic::INTRINSIC:                                                   \
+    return NARG == 3;
 #include "llvm/IR/ConstrainedOps.def"
   }
 }
@@ -282,8 +280,8 @@ bool VPIntrinsic::canIgnoreVectorLengthParam() const {
   // the operation. This function returns true when this is detected statically
   // in the IR.
 
-  // Check whether "W == vscale * EC.Min"
-  if (EC.Scalable) {
+  // Check whether "W == vscale * EC.getKnownMinValue()"
+  if (EC.isScalable()) {
     // Undig the DL
     auto ParMod = this->getModule();
     if (!ParMod)
@@ -291,15 +289,10 @@ bool VPIntrinsic::canIgnoreVectorLengthParam() const {
     const auto &DL = ParMod->getDataLayout();
 
     // Compare vscale patterns
-    uint64_t ParamFactor;
-    if (EC.Min > 1 &&
-        match(VLParam, m_c_BinOp(m_ConstantInt(ParamFactor), m_VScale(DL)))) {
-      return ParamFactor >= EC.Min;
-    }
-    if (match(VLParam, m_VScale(DL))) {
-      return ParamFactor;
-    }
-    return false;
+    uint64_t VScaleFactor;
+    if (match(VLParam, m_c_Mul(m_ConstantInt(VScaleFactor), m_VScale(DL))))
+      return VScaleFactor >= EC.getKnownMinValue();
+    return (EC.getKnownMinValue() == 1) && match(VLParam, m_VScale(DL));
   }
 
   // standard SIMD operation
@@ -308,7 +301,7 @@ bool VPIntrinsic::canIgnoreVectorLengthParam() const {
     return false;
 
   uint64_t VLNum = VLConst->getZExtValue();
-  if (VLNum >= EC.Min)
+  if (VLNum >= EC.getKnownMinValue())
     return true;
 
   return false;
@@ -316,34 +309,34 @@ bool VPIntrinsic::canIgnoreVectorLengthParam() const {
 
 Instruction::BinaryOps BinaryOpIntrinsic::getBinaryOp() const {
   switch (getIntrinsicID()) {
-    case Intrinsic::uadd_with_overflow:
-    case Intrinsic::sadd_with_overflow:
-    case Intrinsic::uadd_sat:
-    case Intrinsic::sadd_sat:
-      return Instruction::Add;
-    case Intrinsic::usub_with_overflow:
-    case Intrinsic::ssub_with_overflow:
-    case Intrinsic::usub_sat:
-    case Intrinsic::ssub_sat:
-      return Instruction::Sub;
-    case Intrinsic::umul_with_overflow:
-    case Intrinsic::smul_with_overflow:
-      return Instruction::Mul;
-    default:
-      llvm_unreachable("Invalid intrinsic");
+  case Intrinsic::uadd_with_overflow:
+  case Intrinsic::sadd_with_overflow:
+  case Intrinsic::uadd_sat:
+  case Intrinsic::sadd_sat:
+    return Instruction::Add;
+  case Intrinsic::usub_with_overflow:
+  case Intrinsic::ssub_with_overflow:
+  case Intrinsic::usub_sat:
+  case Intrinsic::ssub_sat:
+    return Instruction::Sub;
+  case Intrinsic::umul_with_overflow:
+  case Intrinsic::smul_with_overflow:
+    return Instruction::Mul;
+  default:
+    llvm_unreachable("Invalid intrinsic");
   }
 }
 
 bool BinaryOpIntrinsic::isSigned() const {
   switch (getIntrinsicID()) {
-    case Intrinsic::sadd_with_overflow:
-    case Intrinsic::ssub_with_overflow:
-    case Intrinsic::smul_with_overflow:
-    case Intrinsic::sadd_sat:
-    case Intrinsic::ssub_sat:
-      return true;
-    default:
-      return false;
+  case Intrinsic::sadd_with_overflow:
+  case Intrinsic::ssub_with_overflow:
+  case Intrinsic::smul_with_overflow:
+  case Intrinsic::sadd_sat:
+  case Intrinsic::ssub_sat:
+    return true;
+  default:
+    return false;
   }
 }
 

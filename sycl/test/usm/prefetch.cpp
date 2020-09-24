@@ -64,28 +64,6 @@ int main() {
         assert(dest[i] == i * 3);
       }
     }
-
-    // Test ordered_queue::prefetch
-    {
-      ordered_queue oq([](exception_list el) {
-        for (auto &e : el)
-          throw e;
-      });
-      event init_prefetch = oq.prefetch(src, sizeof(float) * count);
-
-      oq.submit([&](handler &cgh) {
-        cgh.depends_on(init_prefetch);
-        cgh.single_task<class double_dest4>([=]() {
-          for (int i = 0; i < count; i++)
-            dest[i] = 4 * src[i];
-        });
-      });
-      oq.wait_and_throw();
-
-      for (int i = 0; i < count; i++) {
-        assert(dest[i] == i * 4);
-      }
-    }
   }
   return 0;
 }

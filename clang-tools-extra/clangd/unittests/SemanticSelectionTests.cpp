@@ -17,14 +17,41 @@
 #include "TestTU.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/Error.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include <vector>
+
 namespace clang {
 namespace clangd {
 namespace {
+
+using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
+using ::testing::UnorderedElementsAreArray;
+
+// front() is SR.range, back() is outermost range.
+std::vector<Range> gatherRanges(const SelectionRange &SR) {
+  std::vector<Range> Ranges;
+  for (const SelectionRange *S = &SR; S; S = S->parent.get())
+    Ranges.push_back(S->range);
+  return Ranges;
+}
+
+std::vector<Range>
+gatherFoldingRanges(llvm::ArrayRef<FoldingRange> FoldingRanges) {
+  std::vector<Range> Ranges;
+  Range NextRange;
+  for (const auto &R : FoldingRanges) {
+    NextRange.start.line = R.startLine;
+    NextRange.start.character = R.startCharacter;
+    NextRange.end.line = R.endLine;
+    NextRange.end.character = R.endCharacter;
+    Ranges.push_back(NextRange);
+  }
+  return Ranges;
+}
 
 TEST(SemanticSelection, All) {
   const char *Tests[] = {
@@ -78,7 +105,7 @@ TEST(SemanticSelection, All) {
         }]]]]
        )cpp",
       // Empty file.
-      "^",
+      "[[^]]",
       // FIXME: We should get the whole DeclStmt as a range.
       R"cpp( // Single statement in TU.
         [[int v = [[1^00]]]];
@@ -89,7 +116,7 @@ TEST(SemanticSelection, All) {
       // FIXME: No node found associated to the position.
       R"cpp( // Cursor in between spaces.
         void func() {
-          int v = 100 + ^  100;
+          int v = 100 + [[^]]  100;
         }
       )cpp",
       // Structs.
@@ -109,16 +136,16 @@ TEST(SemanticSelection, All) {
       )cpp",
       R"cpp( // Inside struct.
         struct A { static int a(); };
-        [[struct B { 
+        [[struct B {
           [[static int b() [[{
             [[return [[[[1^1]] + 2]]]];
           }]]]]
         }]];
       )cpp",
       // Namespaces.
-      R"cpp( 
-        [[namespace nsa { 
-          [[namespace nsb { 
+      R"cpp(
+        [[namespace nsa {
+          [[namespace nsb {
             static int ccc();
             [[void func() [[{
               // int x = nsa::nsb::ccc();
@@ -133,14 +160,14 @@ TEST(SemanticSelection, All) {
   for (const char *Test : Tests) {
     auto T = Annotations(Test);
     auto AST = TestTU::withCode(T.code()).build();
-    EXPECT_THAT(llvm::cantFail(getSemanticRanges(AST, T.point())),
+    EXPECT_THAT(gatherRanges(llvm::cantFail(getSemanticRanges(AST, T.point()))),
                 ElementsAreArray(T.ranges()))
         << Test;
   }
 }
 
-TEST(SemanticSelection, RunViaClangDServer) {
-  MockFSProvider FS;
+TEST(SemanticSelection, RunViaClangdServer) {
+  MockFS FS;
   MockCompilationDatabase CDB;
   ClangdServer Server(CDB, FS, ClangdServer::optsForTest());
 
@@ -157,16 +184,56 @@ TEST(SemanticSelection, RunViaClangDServer) {
     // inp = HASH(foo(inp));
     [[inp = [[HASH([[foo([[in^p]])]])]]]];
   }]]]]
+  $empty[[^]]
   )cpp";
   Annotations SourceAnnotations(SourceContents);
   FS.Files[FooCpp] = std::string(SourceAnnotations.code());
   Server.addDocument(FooCpp, SourceAnnotations.code());
 
-  auto Ranges = runSemanticRanges(Server, FooCpp, SourceAnnotations.point());
+  auto Ranges = runSemanticRanges(Server, FooCpp, SourceAnnotations.points());
   ASSERT_TRUE(bool(Ranges))
       << "getSemanticRange returned an error: " << Ranges.takeError();
-  EXPECT_THAT(*Ranges, ElementsAreArray(SourceAnnotations.ranges()));
+  ASSERT_EQ(Ranges->size(), SourceAnnotations.points().size());
+  EXPECT_THAT(gatherRanges(Ranges->front()),
+              ElementsAreArray(SourceAnnotations.ranges()));
+  EXPECT_THAT(gatherRanges(Ranges->back()),
+              ElementsAre(SourceAnnotations.range("empty")));
 }
+
+TEST(FoldingRanges, All) {
+  const char *Tests[] = {
+      R"cpp(
+        [[int global_variable]];
+
+        [[void func() {
+          int v = 100;
+        }]]
+      )cpp",
+      R"cpp(
+        [[class Foo {
+        public:
+          [[Foo() {
+            int X = 1;
+          }]]
+
+        private:
+          [[int getBar() {
+            return 42;
+          }]]
+
+          [[void getFooBar() { }]]
+        }]];
+      )cpp",
+  };
+  for (const char *Test : Tests) {
+    auto T = Annotations(Test);
+    auto AST = TestTU::withCode(T.code()).build();
+    EXPECT_THAT(gatherFoldingRanges(llvm::cantFail(getFoldingRanges(AST))),
+                UnorderedElementsAreArray(T.ranges()))
+        << Test;
+  }
+}
+
 } // namespace
 } // namespace clangd
 } // namespace clang

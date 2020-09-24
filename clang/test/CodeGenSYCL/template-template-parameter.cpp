@@ -1,7 +1,7 @@
-// RUN: %clang -I %S/Inputs -fsycl-device-only -Xclang -fsycl-int-header=%t.h %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-int-header=%t.h %s
 // RUN: FileCheck -input-file=%t.h %s
 
-#include <sycl.hpp>
+#include "Inputs/sycl.hpp"
 
 using namespace cl::sycl;
 
@@ -32,13 +32,13 @@ template <class Y> void enqueue2() {
 template <typename T> class Bar3;
 // CHECK: template <typename T> class Bar3;
 template <template <typename> class> class Baz3;
-// CHECK: template <template <typename> class > class Baz3;
+// CHECK: template <template <typename> class> class Baz3;
 template <template <template <typename> class> class T> class Foo3;
-// CHECK: template <template <template <typename> class > class T> class Foo3;
+// CHECK: template <template <template <typename> class> class T> class Foo3;
 template <typename T , typename... Args> class Mist3;
 // CHECK: template <typename T, typename ...Args> class Mist3;
 template <typename T, template <typename, typename...> class, typename... Args> class Ice3;
-// CHECK: template <typename T, template <typename, typename ...> class , typename ...Args> class Ice3;
+// CHECK: template <typename T, template <typename, typename ...> class, typename ...Args> class Ice3;
 
 int main() {
   enqueue<Foo1>();

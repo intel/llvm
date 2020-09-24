@@ -17,10 +17,6 @@
 #include "llvm/Support/TypeName.h"
 
 namespace mlir {
-/// A special type used by analyses to provide an address that identifies a
-/// particular analysis set or a concrete analysis type.
-using AnalysisID = ClassID;
-
 //===----------------------------------------------------------------------===//
 // Analysis Preservation and Concept Modeling
 //===----------------------------------------------------------------------===//
@@ -28,43 +24,43 @@ using AnalysisID = ClassID;
 namespace detail {
 /// A utility class to represent the analyses that are known to be preserved.
 class PreservedAnalyses {
+  /// A type used to represent all potential analyses.
+  struct AllAnalysesType;
+
 public:
   /// Mark all analyses as preserved.
-  void preserveAll() { preservedIDs.insert(&allAnalysesID); }
+  void preserveAll() { preservedIDs.insert(TypeID::get<AllAnalysesType>()); }
 
   /// Returns true if all analyses were marked preserved.
-  bool isAll() const { return preservedIDs.count(&allAnalysesID); }
+  bool isAll() const {
+    return preservedIDs.count(TypeID::get<AllAnalysesType>());
+  }
 
   /// Returns true if no analyses were marked preserved.
   bool isNone() const { return preservedIDs.empty(); }
 
   /// Preserve the given analyses.
   template <typename AnalysisT> void preserve() {
-    preserve(AnalysisID::getID<AnalysisT>());
+    preserve(TypeID::get<AnalysisT>());
   }
   template <typename AnalysisT, typename AnalysisT2, typename... OtherAnalysesT>
   void preserve() {
     preserve<AnalysisT>();
     preserve<AnalysisT2, OtherAnalysesT...>();
   }
-  void preserve(const AnalysisID *id) { preservedIDs.insert(id); }
+  void preserve(TypeID id) { preservedIDs.insert(id); }
 
-  /// Returns if the given analysis has been marked as preserved. Note that this
-  /// simply checks for the presence of a given analysis ID and should not be
-  /// used as a general preservation checker.
+  /// Returns true if the given analysis has been marked as preserved. Note that
+  /// this simply checks for the presence of a given analysis ID and should not
+  /// be used as a general preservation checker.
   template <typename AnalysisT> bool isPreserved() const {
-    return isPreserved(AnalysisID::getID<AnalysisT>());
+    return isPreserved(TypeID::get<AnalysisT>());
   }
-  bool isPreserved(const AnalysisID *id) const {
-    return preservedIDs.count(id);
-  }
+  bool isPreserved(TypeID id) const { return preservedIDs.count(id); }
 
 private:
-  /// An identifier used to represent all potential analyses.
-  constexpr static AnalysisID allAnalysesID = {};
-
   /// The set of analyses that are known to be preserved.
-  SmallPtrSet<const void *, 2> preservedIDs;
+  SmallPtrSet<TypeID, 2> preservedIDs;
 };
 
 namespace analysis_impl {
@@ -75,13 +71,13 @@ using has_is_invalidated = decltype(std::declval<T &>().isInvalidated(
 
 /// Implementation of 'isInvalidated' if the analysis provides a definition.
 template <typename AnalysisT>
-std::enable_if_t<is_detected<has_is_invalidated, AnalysisT>::value, bool>
+std::enable_if_t<llvm::is_detected<has_is_invalidated, AnalysisT>::value, bool>
 isInvalidated(AnalysisT &analysis, const PreservedAnalyses &pa) {
   return analysis.isInvalidated(pa);
 }
 /// Default implementation of 'isInvalidated'.
 template <typename AnalysisT>
-std::enable_if_t<!is_detected<has_is_invalidated, AnalysisT>::value, bool>
+std::enable_if_t<!llvm::is_detected<has_is_invalidated, AnalysisT>::value, bool>
 isInvalidated(AnalysisT &analysis, const PreservedAnalyses &pa) {
   return !pa.isPreserved<AnalysisT>();
 }
@@ -118,8 +114,7 @@ template <typename AnalysisT> struct AnalysisModel : public AnalysisConcept {
 /// computation, caching, and invalidation of analyses takes place here.
 class AnalysisMap {
   /// A mapping between an analysis id and an existing analysis instance.
-  using ConceptMap =
-      DenseMap<const AnalysisID *, std::unique_ptr<AnalysisConcept>>;
+  using ConceptMap = DenseMap<TypeID, std::unique_ptr<AnalysisConcept>>;
 
   /// Utility to return the name of the given analysis class.
   template <typename AnalysisT> static StringRef getAnalysisName() {
@@ -133,31 +128,24 @@ public:
   explicit AnalysisMap(Operation *ir) : ir(ir) {}
 
   /// Get an analysis for the current IR unit, computing it if necessary.
-  template <typename AnalysisT> AnalysisT &getAnalysis(PassInstrumentor *pi) {
-    auto *id = AnalysisID::getID<AnalysisT>();
+  template <typename AnalysisT>
+  AnalysisT &getAnalysis(PassInstrumentor *pi) {
+    return getAnalysisImpl<AnalysisT, Operation *>(pi, ir);
+  }
 
-    typename ConceptMap::iterator it;
-    bool wasInserted;
-    std::tie(it, wasInserted) = analyses.try_emplace(id);
-
-    // If we don't have a cached analysis for this function, compute it directly
-    // and add it to the cache.
-    if (wasInserted) {
-      if (pi)
-        pi->runBeforeAnalysis(getAnalysisName<AnalysisT>(), id, ir);
-
-      it->second = std::make_unique<AnalysisModel<AnalysisT>>(ir);
-
-      if (pi)
-        pi->runAfterAnalysis(getAnalysisName<AnalysisT>(), id, ir);
-    }
-    return static_cast<AnalysisModel<AnalysisT> &>(*it->second).analysis;
+  /// Get an analysis for the current IR unit assuming it's of specific derived
+  /// operation type.
+  template <typename AnalysisT, typename OpT>
+  typename std::enable_if<std::is_constructible<AnalysisT, OpT>::value,
+                          AnalysisT &>::type
+  getAnalysis(PassInstrumentor *pi) {
+    return getAnalysisImpl<AnalysisT, OpT>(pi, cast<OpT>(ir));
   }
 
   /// Get a cached analysis instance if one exists, otherwise return null.
   template <typename AnalysisT>
   Optional<std::reference_wrapper<AnalysisT>> getCachedAnalysis() const {
-    auto res = analyses.find(AnalysisID::getID<AnalysisT>());
+    auto res = analyses.find(TypeID::get<AnalysisT>());
     if (res == analyses.end())
       return llvm::None;
     return {static_cast<AnalysisModel<AnalysisT> &>(*res->second).analysis};
@@ -181,6 +169,28 @@ public:
   }
 
 private:
+  template <typename AnalysisT, typename OpT>
+  AnalysisT &getAnalysisImpl(PassInstrumentor *pi, OpT op) {
+    TypeID id = TypeID::get<AnalysisT>();
+
+    typename ConceptMap::iterator it;
+    bool wasInserted;
+    std::tie(it, wasInserted) = analyses.try_emplace(id);
+
+    // If we don't have a cached analysis for this function, compute it directly
+    // and add it to the cache.
+    if (wasInserted) {
+      if (pi)
+        pi->runBeforeAnalysis(getAnalysisName<AnalysisT>(), id, ir);
+
+      it->second = std::make_unique<AnalysisModel<AnalysisT>>(op);
+
+      if (pi)
+        pi->runAfterAnalysis(getAnalysisName<AnalysisT>(), id, ir);
+    }
+    return static_cast<AnalysisModel<AnalysisT> &>(*it->second).analysis;
+  }
+
   Operation *ir;
   ConceptMap analyses;
 };
@@ -221,8 +231,8 @@ class AnalysisManager {
 public:
   using PreservedAnalyses = detail::PreservedAnalyses;
 
-  // Query for a cached analysis on the given parent operation. The analysis may
-  // not exist and if it does it may be out-of-date.
+  /// Query for a cached analysis on the given parent operation. The analysis
+  /// may not exist and if it does it may be out-of-date.
   template <typename AnalysisT>
   Optional<std::reference_wrapper<AnalysisT>>
   getCachedParentAnalysis(Operation *parentOp) const {
@@ -235,20 +245,34 @@ public:
     return None;
   }
 
-  // Query for the given analysis for the current operation.
+  /// Query for the given analysis for the current operation.
   template <typename AnalysisT> AnalysisT &getAnalysis() {
     return impl->analyses.getAnalysis<AnalysisT>(getPassInstrumentor());
   }
 
-  // Query for a cached entry of the given analysis on the current operation.
+  /// Query for the given analysis for the current operation of a specific
+  /// derived operation type.
+  template <typename AnalysisT, typename OpT>
+  AnalysisT &getAnalysis() {
+    return impl->analyses.getAnalysis<AnalysisT, OpT>(getPassInstrumentor());
+  }
+
+  /// Query for a cached entry of the given analysis on the current operation.
   template <typename AnalysisT>
   Optional<std::reference_wrapper<AnalysisT>> getCachedAnalysis() const {
     return impl->analyses.getCachedAnalysis<AnalysisT>();
   }
 
-  /// Query for a analysis of a child operation, constructing it if necessary.
+  /// Query for an analysis of a child operation, constructing it if necessary.
   template <typename AnalysisT> AnalysisT &getChildAnalysis(Operation *op) {
-    return slice(op).template getAnalysis<AnalysisT>();
+    return nest(op).template getAnalysis<AnalysisT>();
+  }
+
+  /// Query for an analysis of a child operation of a specifc derived operation
+  /// type, constructing it if necessary.
+  template <typename AnalysisT, typename OpT>
+  AnalysisT &getChildAnalysis(OpT child) {
+    return nest(child).template getAnalysis<AnalysisT, OpT>();
   }
 
   /// Query for a cached analysis of a child operation, or return null.
@@ -263,7 +287,7 @@ public:
   }
 
   /// Get an analysis manager for the given child operation.
-  AnalysisManager slice(Operation *op);
+  AnalysisManager nest(Operation *op);
 
   /// Invalidate any non preserved analyses,
   void invalidate(const PreservedAnalyses &pa) { impl->invalidate(pa); }

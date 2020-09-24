@@ -1,5 +1,5 @@
 ; RUN: llvm-as < %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv -spirv-mem2reg=false
+; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=%triple -filetype=obj -o %t.o %t.ll
@@ -23,8 +23,7 @@
 ; CHECK:       DW_TAG_inlined_subroutine
 ; CHECK-NEXT:    DW_AT_abstract_origin {{.*}} "bar"
 ; CHECK:         DW_TAG_formal_parameter
-; CHECK-NEXT:      DW_AT_location [DW_FORM_data4]	(
-; CHECK-NEXT:        {{.*}}, {{.*}}: DW_OP_consts +0)
+; CHECK-NEXT:      DW_AT_const_value [DW_FORM_sdata]   (0)
 ; CHECK-NEXT:      DW_AT_abstract_origin {{.*}} "a"
 
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"

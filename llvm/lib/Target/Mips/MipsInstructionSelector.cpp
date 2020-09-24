@@ -393,7 +393,7 @@ bool MipsInstructionSelector::select(MachineInstr &I) {
             .addUse(DestAddress)
             .addJumpTableIndex(I.getOperand(1).getIndex(), MipsII::MO_ABS_LO)
             .addMemOperand(MF.getMachineMemOperand(
-                MachinePointerInfo(), MachineMemOperand::MOLoad, 4, 4));
+                MachinePointerInfo(), MachineMemOperand::MOLoad, 4, Align(4)));
     if (!constrainSelectedInstRegOperands(*LW, TII, TRI, RBI))
       return false;
 
@@ -404,7 +404,7 @@ bool MipsInstructionSelector::select(MachineInstr &I) {
                                .addDef(Dest)
                                .addUse(DestTmp)
                                .addUse(MF.getInfo<MipsFunctionInfo>()
-                                           ->getGlobalBaseRegForGlobalISel());
+                                           ->getGlobalBaseRegForGlobalISel(MF));
       if (!constrainSelectedInstRegOperands(*ADDu, TII, TRI, RBI))
         return false;
     }
@@ -462,7 +462,7 @@ bool MipsInstructionSelector::select(MachineInstr &I) {
     }
 
     // Unaligned memory access
-    if (MMO->getSize() > MMO->getAlignment() &&
+    if (MMO->getAlign() < MMO->getSize() &&
         !STI.systemSupportsUnalignedAccess()) {
       if (MMO->getSize() != 4 || !isRegInGprb(I.getOperand(0).getReg(), MRI))
         return false;
@@ -669,7 +669,7 @@ bool MipsInstructionSelector::select(MachineInstr &I) {
       MachineInstr *LWGOT = BuildMI(MBB, I, I.getDebugLoc(), TII.get(Mips::LW))
                                 .addDef(I.getOperand(0).getReg())
                                 .addReg(MF.getInfo<MipsFunctionInfo>()
-                                            ->getGlobalBaseRegForGlobalISel())
+                                            ->getGlobalBaseRegForGlobalISel(MF))
                                 .addGlobalAddress(GVal);
       // Global Values that don't have local linkage are handled differently
       // when they are part of call sequence. MipsCallLowering::lowerCall
@@ -681,7 +681,7 @@ bool MipsInstructionSelector::select(MachineInstr &I) {
         LWGOT->getOperand(2).setTargetFlags(MipsII::MO_GOT);
       LWGOT->addMemOperand(
           MF, MF.getMachineMemOperand(MachinePointerInfo::getGOT(MF),
-                                      MachineMemOperand::MOLoad, 4, 4));
+                                      MachineMemOperand::MOLoad, 4, Align(4)));
       if (!constrainSelectedInstRegOperands(*LWGOT, TII, TRI, RBI))
         return false;
 
@@ -725,11 +725,11 @@ bool MipsInstructionSelector::select(MachineInstr &I) {
       MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(Mips::LW))
                .addDef(I.getOperand(0).getReg())
                .addReg(MF.getInfo<MipsFunctionInfo>()
-                           ->getGlobalBaseRegForGlobalISel())
+                           ->getGlobalBaseRegForGlobalISel(MF))
                .addJumpTableIndex(I.getOperand(1).getIndex(), MipsII::MO_GOT)
-               .addMemOperand(
-                   MF.getMachineMemOperand(MachinePointerInfo::getGOT(MF),
-                                           MachineMemOperand::MOLoad, 4, 4));
+               .addMemOperand(MF.getMachineMemOperand(
+                   MachinePointerInfo::getGOT(MF), MachineMemOperand::MOLoad, 4,
+                   Align(4)));
     } else {
       MI =
           BuildMI(MBB, I, I.getDebugLoc(), TII.get(Mips::LUi))

@@ -48,7 +48,7 @@ void AVRInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
 
   // Not all AVR devices support the 16-bit `MOVW` instruction.
   if (AVR::DREGSRegClass.contains(DestReg, SrcReg)) {
-    if (STI.hasMOVW()) {
+    if (STI.hasMOVW() && AVR::DREGSMOVWRegClass.contains(DestReg, SrcReg)) {
       BuildMI(MBB, MI, DL, get(AVR::MOVWRdRr), DestReg)
           .addReg(SrcReg, getKillRegState(KillSrc));
     } else {
@@ -138,7 +138,7 @@ void AVRInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
   MachineMemOperand *MMO = MF.getMachineMemOperand(
       MachinePointerInfo::getFixedStack(MF, FrameIndex),
       MachineMemOperand::MOStore, MFI.getObjectSize(FrameIndex),
-      MFI.getObjectAlignment(FrameIndex));
+      MFI.getObjectAlign(FrameIndex));
 
   unsigned Opcode = 0;
   if (TRI->isTypeLegalForClass(*RC, MVT::i8)) {
@@ -172,7 +172,7 @@ void AVRInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
   MachineMemOperand *MMO = MF.getMachineMemOperand(
       MachinePointerInfo::getFixedStack(MF, FrameIndex),
       MachineMemOperand::MOLoad, MFI.getObjectSize(FrameIndex),
-      MFI.getObjectAlignment(FrameIndex));
+      MFI.getObjectAlign(FrameIndex));
 
   unsigned Opcode = 0;
   if (TRI->isTypeLegalForClass(*RC, MVT::i8)) {

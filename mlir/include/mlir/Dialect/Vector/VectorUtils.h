@@ -1,4 +1,4 @@
-//===- VectorUtils.h - VectorOps Utilities ------------------*- C++ -*-=======//
+//===- VectorUtils.h - Vector Utilities -------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -26,15 +26,28 @@ class Operation;
 class Value;
 class VectorType;
 
+/// Return the number of elements of basis, `0` if empty.
+int64_t computeMaxLinearIndex(ArrayRef<int64_t> basis);
+
+/// Given a shape with sizes greater than 0 along all dimensions,
+/// return the distance, in number of elements, between a slice in a dimension
+/// and the next slice in the same dimension.
+///   e.g. shape[3, 4, 5] -> linearization_basis[20, 5, 1]
+SmallVector<int64_t, 8> computeStrides(ArrayRef<int64_t> shape);
+
 /// Given the shape and sizes of a vector, returns the corresponding
 /// strides for each dimension.
+/// TODO: needs better doc of how it is used.
 SmallVector<int64_t, 4> computeStrides(ArrayRef<int64_t> shape,
                                        ArrayRef<int64_t> sizes);
 
-/// Given the slice strides together with a linear index in the dimension
+/// Computes and returns the linearized index of 'offsets' w.r.t. 'basis'.
+int64_t linearize(ArrayRef<int64_t> offsets, ArrayRef<int64_t> basis);
+
+/// Given the strides together with a linear index in the dimension
 /// space, returns the vector-space offsets in each dimension for a
 /// de-linearized index.
-SmallVector<int64_t, 4> delinearize(ArrayRef<int64_t> sliceStrides,
+SmallVector<int64_t, 4> delinearize(ArrayRef<int64_t> strides,
                                     int64_t linearIndex);
 
 /// Given the target sizes of a vector, together with vector-space offsets,
@@ -140,6 +153,12 @@ AffineMap
 makePermutationMap(Operation *op, ArrayRef<Value> indices,
                    const DenseMap<Operation *, unsigned> &loopToVectorDim);
 
+/// Build the default minor identity map suitable for a vector transfer. This
+/// also handles the case memref<... x vector<...>> -> vector<...> in which the
+/// rank of the identity map must take the vector element type into account.
+AffineMap getTransferMinorIdentityMap(MemRefType memRefType,
+                                      VectorType vectorType);
+
 namespace matcher {
 
 /// Matches vector.transfer_read, vector.transfer_write and ops that return a
@@ -147,9 +166,9 @@ namespace matcher {
 /// over other smaller vector types in the function and avoids interfering with
 /// operations on those.
 /// This is a first approximation, it can easily be extended in the future.
-/// TODO(ntv): this could all be much simpler if we added a bit that a vector
-/// type to mark that a vector is a strict super-vector but it still does not
-/// warrant adding even 1 extra bit in the IR for now.
+/// TODO: this could all be much simpler if we added a bit that a vector type to
+/// mark that a vector is a strict super-vector but it still does not warrant
+/// adding even 1 extra bit in the IR for now.
 bool operatesOnSuperVectorsOf(Operation &op, VectorType subVectorType);
 
 } // end namespace matcher

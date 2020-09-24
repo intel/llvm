@@ -2,9 +2,7 @@
 ; RUN: llc -amdgpu-fixed-function-abi -mtriple=amdgcn-amd-amdhsa -mcpu=gfx900 -enable-ipra=0 -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX9 %s
 
 ; GCN-LABEL: {{^}}use_dispatch_ptr:
-; GCN: v_mov_b32_e32 v[[LO:[0-9]+]], s4
-; GCN: v_mov_b32_e32 v[[HI:[0-9]+]], s5
-; GCN: {{flat|global}}_load_dword v{{[0-9]+}}, v{{\[}}[[LO]]:[[HI]]{{\]}}
+; GCN: s_load_dword s{{[0-9]+}}, s[4:5]
 define hidden void @use_dispatch_ptr() #1 {
   %dispatch_ptr = call noalias i8 addrspace(4)* @llvm.amdgcn.dispatch.ptr() #0
   %header_ptr = bitcast i8 addrspace(4)* %dispatch_ptr to i32 addrspace(4)*
@@ -13,9 +11,7 @@ define hidden void @use_dispatch_ptr() #1 {
 }
 
 ; GCN-LABEL: {{^}}use_queue_ptr:
-; GCN: v_mov_b32_e32 v[[LO:[0-9]+]], s6
-; GCN: v_mov_b32_e32 v[[HI:[0-9]+]], s7
-; GCN: {{flat|global}}_load_dword v{{[0-9]+}}, v{{\[}}[[LO]]:[[HI]]{{\]}}
+; GCN: s_load_dword s{{[0-9]+}}, s[6:7]
 define hidden void @use_queue_ptr() #1 {
   %queue_ptr = call noalias i8 addrspace(4)* @llvm.amdgcn.queue.ptr() #0
   %header_ptr = bitcast i8 addrspace(4)* %queue_ptr to i32 addrspace(4)*
@@ -34,9 +30,7 @@ define hidden void @use_kernarg_segment_ptr() #1 {
 }
 
 ; GCN-LABEL: {{^}}use_implicitarg_ptr:
-; GCN: v_mov_b32_e32 v[[LO:[0-9]+]], s8
-; GCN: v_mov_b32_e32 v[[HI:[0-9]+]], s9
-; GCN: {{flat|global}}_load_dword v{{[0-9]+}}, v{{\[}}[[LO]]:[[HI]]{{\]}}
+; GCN: s_load_dword s{{[0-9]+}}, s[8:9]
 define hidden void @use_implicitarg_ptr() #1 {
   %implicit.arg.ptr = call noalias i8 addrspace(4)* @llvm.amdgcn.implicitarg.ptr() #0
   %header_ptr = bitcast i8 addrspace(4)* %implicit.arg.ptr to i32 addrspace(4)*
@@ -144,7 +138,7 @@ define hidden void @use_workgroup_id_yz() #1 {
 ; GCN-NOT: s12
 ; GCN-NOT: s13
 ; GCN-NOT: s14
-; GCN: v_readlane_b32 s4, v32, 0
+; GCN: v_readlane_b32 s4, v40, 0
 define hidden void @func_indirect_use_workgroup_id_x() #1 {
   call void @use_workgroup_id_x()
   ret void
@@ -152,7 +146,7 @@ define hidden void @func_indirect_use_workgroup_id_x() #1 {
 
 ; GCN-LABEL: {{^}}func_indirect_use_workgroup_id_y:
 ; GCN-NOT: s4
-; GCN: v_readlane_b32 s4, v32, 0
+; GCN: v_readlane_b32 s4, v40, 0
 define hidden void @func_indirect_use_workgroup_id_y() #1 {
   call void @use_workgroup_id_y()
   ret void
@@ -160,7 +154,7 @@ define hidden void @func_indirect_use_workgroup_id_y() #1 {
 
 ; GCN-LABEL: {{^}}func_indirect_use_workgroup_id_z:
 ; GCN-NOT: s4
-; GCN: v_readlane_b32 s4, v32, 0
+; GCN: v_readlane_b32 s4, v40, 0
 define hidden void @func_indirect_use_workgroup_id_z() #1 {
   call void @use_workgroup_id_z()
   ret void
@@ -198,15 +192,9 @@ define hidden void @other_arg_use_workgroup_id_z(i32 %arg0) #1 {
 
 ; GCN-LABEL: {{^}}use_every_sgpr_input:
 ; GCN: buffer_store_dword v{{[0-9]+}}, off, s[0:3], s32{{$}}
-; GCN: v_mov_b32_e32 v[[LO:[0-9]+]], s4
-; GCN: v_mov_b32_e32 v[[HI:[0-9]+]], s5
-; GCN: {{flat|global}}_load_dword v{{[0-9]+}}, v{{\[}}[[LO]]:[[HI]]{{\]}}
-; GCN: v_mov_b32_e32 v[[LO:[0-9]+]], s6
-; GCN: v_mov_b32_e32 v[[HI:[0-9]+]], s7
-; GCN: {{flat|global}}_load_dword v{{[0-9]+}}, v{{\[}}[[LO]]:[[HI]]{{\]}}
-; GCN: v_mov_b32_e32 v[[LO:[0-9]+]], s8
-; GCN: v_mov_b32_e32 v[[HI:[0-9]+]], s9
-; GCN: {{flat|global}}_load_dword v{{[0-9]+}}, v{{\[}}[[LO]]:[[HI]]{{\]}}
+; GCN: s_load_dword s{{[0-9]+}}, s[4:5]
+; GCN: s_load_dword s{{[0-9]+}}, s[6:7]
+; GCN: s_load_dword s{{[0-9]+}}, s[8:9]
 ; GCN: ; use s[10:11]
 ; GCN: ; use s12
 ; GCN: ; use s13

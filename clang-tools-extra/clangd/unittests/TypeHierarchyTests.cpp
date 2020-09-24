@@ -454,7 +454,9 @@ TEST(TypeHierarchy, DeriveFromImplicitSpec) {
   template <typename T>
   struct Parent {};
 
-  struct Child : Parent<int> {};
+  struct Child1 : Parent<int> {};
+
+  struct Child2 : Parent<char> {};
 
   Parent<int> Fo^o;
   )cpp");
@@ -468,8 +470,10 @@ TEST(TypeHierarchy, DeriveFromImplicitSpec) {
       testPath(TU.Filename));
   ASSERT_TRUE(bool(Result));
   EXPECT_THAT(*Result,
-              AllOf(WithName("Parent<int>"), WithKind(SymbolKind::Struct),
-                    Children(AllOf(WithName("Child"),
+              AllOf(WithName("Parent"), WithKind(SymbolKind::Struct),
+                    Children(AllOf(WithName("Child1"),
+                                   WithKind(SymbolKind::Struct), Children()),
+                             AllOf(WithName("Child2"),
                                    WithKind(SymbolKind::Struct), Children()))));
 }
 
@@ -491,8 +495,8 @@ TEST(TypeHierarchy, DeriveFromPartialSpec) {
       AST, Source.points()[0], 2, TypeHierarchyDirection::Children, Index.get(),
       testPath(TU.Filename));
   ASSERT_TRUE(bool(Result));
-  EXPECT_THAT(*Result, AllOf(WithName("Parent<int>"),
-                             WithKind(SymbolKind::Struct), Children()));
+  EXPECT_THAT(*Result, AllOf(WithName("Parent"), WithKind(SymbolKind::Struct),
+                             Children()));
 }
 
 TEST(TypeHierarchy, DeriveFromTemplate) {
@@ -510,17 +514,44 @@ TEST(TypeHierarchy, DeriveFromTemplate) {
   auto AST = TU.build();
   auto Index = TU.index();
 
-  // FIXME: We'd like this to return the implicit specialization Child<int>,
-  //        but currently libIndex does not expose relationships between
-  //        implicit specializations.
+  // FIXME: We'd like this to show the implicit specializations Parent<int>
+  //        and Child<int>, but currently libIndex does not expose relationships
+  //        between implicit specializations.
   llvm::Optional<TypeHierarchyItem> Result = getTypeHierarchy(
       AST, Source.points()[0], 2, TypeHierarchyDirection::Children, Index.get(),
       testPath(TU.Filename));
   ASSERT_TRUE(bool(Result));
   EXPECT_THAT(*Result,
-              AllOf(WithName("Parent<int>"), WithKind(SymbolKind::Struct),
+              AllOf(WithName("Parent"), WithKind(SymbolKind::Struct),
                     Children(AllOf(WithName("Child"),
                                    WithKind(SymbolKind::Struct), Children()))));
+}
+
+TEST(TypeHierarchy, Preamble) {
+  Annotations SourceAnnotations(R"cpp(
+struct Ch^ild : Parent {
+  int b;
+};)cpp");
+
+  Annotations HeaderInPreambleAnnotations(R"cpp(
+struct [[Parent]] {
+  int a;
+};)cpp");
+
+  TestTU TU = TestTU::withCode(SourceAnnotations.code());
+  TU.HeaderCode = HeaderInPreambleAnnotations.code().str();
+  auto AST = TU.build();
+
+  llvm::Optional<TypeHierarchyItem> Result = getTypeHierarchy(
+      AST, SourceAnnotations.point(), 1, TypeHierarchyDirection::Parents);
+
+  ASSERT_TRUE(Result);
+  EXPECT_THAT(
+      *Result,
+      AllOf(WithName("Child"),
+            Parents(AllOf(WithName("Parent"),
+                          SelectionRangeIs(HeaderInPreambleAnnotations.range()),
+                          Parents()))));
 }
 
 SymbolID findSymbolIDByName(SymbolIndex *Index, llvm::StringRef Name,

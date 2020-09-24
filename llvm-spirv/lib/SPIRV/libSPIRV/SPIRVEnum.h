@@ -56,10 +56,6 @@ typedef uint32_t SPIRVId;
 
 inline bool isValidId(SPIRVId Id) { return Id != SPIRVID_INVALID && Id != 0; }
 
-inline SPIRVWord mkWord(unsigned WordCount, Op OpCode) {
-  return (WordCount << 16) | OpCode;
-}
-
 const static unsigned KSpirvMemOrderSemanticMask = 0x1F;
 
 enum SPIRVGeneratorKind {
@@ -74,6 +70,7 @@ enum SPIRVInstructionSchemaKind {
 enum SPIRVExtInstSetKind {
   SPIRVEIS_OpenCL,
   SPIRVEIS_Debug,
+  SPIRVEIS_OpenCL_DebugInfo_100,
   SPIRVEIS_Count,
 };
 
@@ -124,6 +121,7 @@ template <> inline void SPIRVMap<ExtensionID, std::string>::init() {
 template <> inline void SPIRVMap<SPIRVExtInstSetKind, std::string>::init() {
   add(SPIRVEIS_OpenCL, "OpenCL.std");
   add(SPIRVEIS_Debug, "SPIRV.debug");
+  add(SPIRVEIS_OpenCL_DebugInfo_100, "OpenCL.DebugInfo.100");
 }
 typedef SPIRVMap<SPIRVExtInstSetKind, std::string> SPIRVBuiltinSetNameMap;
 
@@ -237,6 +235,23 @@ template <> inline void SPIRVMap<SPIRVExecutionModeKind, SPIRVCapVec>::init() {
   ADD_VEC_INIT(ExecutionModeOutputTriangleStrip, {CapabilityGeometry});
   ADD_VEC_INIT(ExecutionModeVecTypeHint, {CapabilityKernel});
   ADD_VEC_INIT(ExecutionModeContractionOff, {CapabilityKernel});
+  ADD_VEC_INIT(ExecutionModeSubgroupSize, {CapabilitySubgroupDispatch});
+  ADD_VEC_INIT(ExecutionModeDenormPreserve, {CapabilityDenormPreserve});
+  ADD_VEC_INIT(ExecutionModeDenormFlushToZero, {CapabilityDenormFlushToZero});
+  ADD_VEC_INIT(ExecutionModeSignedZeroInfNanPreserve,
+               {CapabilitySignedZeroInfNanPreserve});
+  ADD_VEC_INIT(ExecutionModeRoundingModeRTE, {CapabilityRoundingModeRTE});
+  ADD_VEC_INIT(ExecutionModeRoundingModeRTZ, {CapabilityRoundingModeRTZ});
+  ADD_VEC_INIT(ExecutionModeRoundingModeRTPINTEL,
+               {CapabilityRoundToInfinityINTEL});
+  ADD_VEC_INIT(ExecutionModeRoundingModeRTNINTEL,
+               {CapabilityRoundToInfinityINTEL});
+  ADD_VEC_INIT(ExecutionModeFloatingPointModeALTINTEL,
+               {CapabilityFloatingPointModeINTEL});
+  ADD_VEC_INIT(ExecutionModeFloatingPointModeIEEEINTEL,
+               {CapabilityFloatingPointModeINTEL});
+  ADD_VEC_INIT(ExecutionModeSharedLocalMemorySizeINTEL,
+               {CapabilityVectorComputeINTEL});
 }
 
 template <> inline void SPIRVMap<SPIRVMemoryModelKind, SPIRVCapVec>::init() {
@@ -248,10 +263,13 @@ template <> inline void SPIRVMap<SPIRVMemoryModelKind, SPIRVCapVec>::init() {
 template <> inline void SPIRVMap<SPIRVStorageClassKind, SPIRVCapVec>::init() {
   ADD_VEC_INIT(StorageClassUniform, {CapabilityShader});
   ADD_VEC_INIT(StorageClassOutput, {CapabilityShader});
-  ADD_VEC_INIT(StorageClassPrivate, {CapabilityShader});
+  ADD_VEC_INIT(StorageClassPrivate,
+               {CapabilityShader, CapabilityVectorComputeINTEL});
   ADD_VEC_INIT(StorageClassGeneric, {CapabilityGenericPointer});
   ADD_VEC_INIT(StorageClassPushConstant, {CapabilityShader});
   ADD_VEC_INIT(StorageClassAtomicCounter, {CapabilityAtomicStorage});
+  ADD_VEC_INIT(StorageClassDeviceOnlyINTEL, {CapabilityUSMStorageClassesINTEL});
+  ADD_VEC_INIT(StorageClassHostOnlyINTEL, {CapabilityUSMStorageClassesINTEL});
 }
 
 template <> inline void SPIRVMap<SPIRVImageDimKind, SPIRVCapVec>::init() {
@@ -369,6 +387,31 @@ template <> inline void SPIRVMap<Decoration, SPIRVCapVec>::init() {
                {CapabilityIndirectReferencesINTEL});
   ADD_VEC_INIT(DecorationIOPipeStorageINTEL, {CapabilityIOPipeINTEL});
   ADD_VEC_INIT(DecorationSideEffectsINTEL, {CapabilityAsmINTEL});
+  ADD_VEC_INIT(DecorationVectorComputeFunctionINTEL,
+               {CapabilityVectorComputeINTEL});
+  ADD_VEC_INIT(DecorationVectorComputeVariableINTEL,
+               {CapabilityVectorComputeINTEL});
+  ADD_VEC_INIT(DecorationGlobalVariableOffsetINTEL,
+               {CapabilityVectorComputeINTEL});
+  ADD_VEC_INIT(DecorationFuncParamIOKind, {CapabilityVectorComputeINTEL});
+  ADD_VEC_INIT(DecorationStackCallINTEL, {CapabilityVectorComputeINTEL});
+  ADD_VEC_INIT(DecorationSIMTCallINTEL, {CapabilityVectorComputeINTEL});
+  ADD_VEC_INIT(DecorationFuncParamKindINTEL, {CapabilityVectorComputeINTEL});
+  ADD_VEC_INIT(DecorationFuncParamDescINTEL, {CapabilityVectorComputeINTEL});
+  ADD_VEC_INIT(DecorationBurstCoalesceINTEL,
+               {CapabilityFPGAMemoryAccessesINTEL});
+  ADD_VEC_INIT(DecorationCacheSizeINTEL, {CapabilityFPGAMemoryAccessesINTEL});
+  ADD_VEC_INIT(DecorationDontStaticallyCoalesceINTEL,
+               {CapabilityFPGAMemoryAccessesINTEL});
+  ADD_VEC_INIT(DecorationPrefetchINTEL, {CapabilityFPGAMemoryAccessesINTEL});
+  ADD_VEC_INIT(DecorationBufferLocationINTEL,
+               {CapabilityFPGABufferLocationINTEL});
+  ADD_VEC_INIT(DecorationFunctionRoundingModeINTEL,
+               {CapabilityFunctionFloatControlINTEL});
+  ADD_VEC_INIT(DecorationFunctionDenormModeINTEL,
+               {CapabilityFunctionFloatControlINTEL});
+  ADD_VEC_INIT(DecorationFunctionFloatingPointModeINTEL,
+               {CapabilityFunctionFloatControlINTEL});
 }
 
 template <> inline void SPIRVMap<BuiltIn, SPIRVCapVec>::init() {
@@ -407,6 +450,11 @@ template <> inline void SPIRVMap<BuiltIn, SPIRVCapVec>::init() {
   ADD_VEC_INIT(BuiltInNumEnqueuedSubgroups, {CapabilityKernel});
   ADD_VEC_INIT(BuiltInSubgroupId, {CapabilityKernel});
   ADD_VEC_INIT(BuiltInSubgroupLocalInvocationId, {CapabilityKernel});
+  ADD_VEC_INIT(BuiltInSubgroupEqMask, {CapabilityGroupNonUniformBallot});
+  ADD_VEC_INIT(BuiltInSubgroupGeMask, {CapabilityGroupNonUniformBallot});
+  ADD_VEC_INIT(BuiltInSubgroupGtMask, {CapabilityGroupNonUniformBallot});
+  ADD_VEC_INIT(BuiltInSubgroupLeMask, {CapabilityGroupNonUniformBallot});
+  ADD_VEC_INIT(BuiltInSubgroupLtMask, {CapabilityGroupNonUniformBallot});
   ADD_VEC_INIT(BuiltInVertexIndex, {CapabilityShader});
   ADD_VEC_INIT(BuiltInInstanceIndex, {CapabilityShader});
 }

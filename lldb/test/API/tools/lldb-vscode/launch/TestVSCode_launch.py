@@ -294,8 +294,9 @@ class TestVSCode_launch(lldbvscode_testcase.VSCodeTestCaseBase):
     @skipIfRemote
     def test_commands(self):
         '''
-            Tests the "initCommands", "preRunCommands", "stopCommands" and
-            "exitCommands" that can be passed during launch.
+            Tests the "initCommands", "preRunCommands", "stopCommands",
+            "terminateCommands" and "exitCommands" that can be passed during
+            launch.
 
             "initCommands" are a list of LLDB commands that get executed
             before the targt is created.
@@ -305,17 +306,21 @@ class TestVSCode_launch(lldbvscode_testcase.VSCodeTestCaseBase):
             time the program stops.
             "exitCommands" are a list of LLDB commands that get executed when
             the process exits
+            "terminateCommands" are a list of LLDB commands that get executed when
+            the debugger session terminates.
         '''
         program = self.getBuildArtifact("a.out")
         initCommands = ['target list', 'platform list']
         preRunCommands = ['image list a.out', 'image dump sections a.out']
         stopCommands = ['frame variable', 'bt']
         exitCommands = ['expr 2+3', 'expr 3+4']
+        terminateCommands = ['expr 4+2']
         self.build_and_launch(program,
                               initCommands=initCommands,
                               preRunCommands=preRunCommands,
                               stopCommands=stopCommands,
-                              exitCommands=exitCommands)
+                              exitCommands=exitCommands,
+                              terminateCommands=terminateCommands)
 
         # Get output from the console. This should contain both the
         # "initCommands" and the "preRunCommands".
@@ -330,7 +335,7 @@ class TestVSCode_launch(lldbvscode_testcase.VSCodeTestCaseBase):
         second_line = line_number(source, '// breakpoint 2')
         lines = [first_line, second_line]
 
-        # Set 2 breakoints so we can verify that "stopCommands" get run as the
+        # Set 2 breakpoints so we can verify that "stopCommands" get run as the
         # breakpoints get hit
         breakpoint_ids = self.set_source_breakpoints(source, lines)
         self.assertEquals(len(breakpoint_ids), len(lines),
@@ -354,8 +359,10 @@ class TestVSCode_launch(lldbvscode_testcase.VSCodeTestCaseBase):
         self.continue_to_exit()
         # Get output from the console. This should contain both the
         # "exitCommands" that were run after the second breakpoint was hit
-        output = self.get_console(timeout=1.0)
+        # and the "terminateCommands" due to the debugging session ending
+        output = self.collect_console(duration=1.0)
         self.verify_commands('exitCommands', output, exitCommands)
+        self.verify_commands('terminateCommands', output, terminateCommands)
 
     @skipIfWindows
     @skipIfRemote
@@ -369,7 +376,7 @@ class TestVSCode_launch(lldbvscode_testcase.VSCodeTestCaseBase):
         source = 'main.c'
         first_line = line_number(source, '// breakpoint 1')
         second_line = line_number(source, '// breakpoint 2')
-        # Set target binary and 2 breakoints
+        # Set target binary and 2 breakpoints
         # then we can varify the "launchCommands" get run
         # also we can verify that "stopCommands" get run as the
         # breakpoints get hit
@@ -420,3 +427,25 @@ class TestVSCode_launch(lldbvscode_testcase.VSCodeTestCaseBase):
         # "exitCommands" that were run after the second breakpoint was hit
         output = self.get_console(timeout=1.0)
         self.verify_commands('exitCommands', output, exitCommands)
+
+    @skipIfWindows
+    @skipIfNetBSD # Hangs on NetBSD as well
+    @skipIfDarwin
+    @skipIf(archs=["arm", "aarch64"]) # Example of a flaky run http://lab.llvm.org:8011/builders/lldb-aarch64-ubuntu/builds/5540/steps/test/logs/stdio
+    def test_terminate_commands(self):
+        '''
+            Tests that the "terminateCommands", that can be passed during
+            launch, are run when the debugger is disconnected.
+        '''
+        self.build_and_create_debug_adaptor()
+        program = self.getBuildArtifact("a.out")
+        
+        terminateCommands = ['expr 4+2']
+        self.launch(program=program,
+                    terminateCommands=terminateCommands)
+        self.get_console()
+        # Once it's disconnected the console should contain the
+        # "terminateCommands"
+        self.vscode.request_disconnect(terminateDebuggee=True)
+        output = self.collect_console(duration=1.0)
+        self.verify_commands('terminateCommands', output, terminateCommands)

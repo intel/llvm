@@ -12,7 +12,7 @@
 define <2 x double> @test2elt(i64 %a.coerce) local_unnamed_addr #0 {
 ; CHECK-P8-LABEL: test2elt:
 ; CHECK-P8:       # %bb.0: # %entry
-; CHECK-P8-NEXT:    mtvsrd f0, r3
+; CHECK-P8-NEXT:    mtfprd f0, r3
 ; CHECK-P8-NEXT:    xxswapd v2, vs0
 ; CHECK-P8-NEXT:    xxmrglw v2, v2, v2
 ; CHECK-P8-NEXT:    xvcvuxwdp v2, v2
@@ -20,7 +20,7 @@ define <2 x double> @test2elt(i64 %a.coerce) local_unnamed_addr #0 {
 ;
 ; CHECK-P9-LABEL: test2elt:
 ; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    mtvsrd f0, r3
+; CHECK-P9-NEXT:    mtfprd f0, r3
 ; CHECK-P9-NEXT:    xxswapd v2, vs0
 ; CHECK-P9-NEXT:    xxmrglw v2, v2, v2
 ; CHECK-P9-NEXT:    xvcvuxwdp v2, v2
@@ -28,7 +28,7 @@ define <2 x double> @test2elt(i64 %a.coerce) local_unnamed_addr #0 {
 ;
 ; CHECK-BE-LABEL: test2elt:
 ; CHECK-BE:       # %bb.0: # %entry
-; CHECK-BE-NEXT:    mtvsrd f0, r3
+; CHECK-BE-NEXT:    mtfprd f0, r3
 ; CHECK-BE-NEXT:    xxmrghw v2, vs0, vs0
 ; CHECK-BE-NEXT:    xvcvuxwdp v2, v2
 ; CHECK-BE-NEXT:    blr
@@ -106,8 +106,8 @@ define void @test8elt(<8 x double>* noalias nocapture sret %agg.result, <8 x i32
 ; CHECK-P9-LABEL: test8elt:
 ; CHECK-P9:       # %bb.0: # %entry
 ; CHECK-P9-NEXT:    lxv vs1, 0(r4)
-; CHECK-P9-NEXT:    xxmrglw v2, vs1, vs1
 ; CHECK-P9-NEXT:    lxv vs0, 16(r4)
+; CHECK-P9-NEXT:    xxmrglw v2, vs1, vs1
 ; CHECK-P9-NEXT:    xvcvuxwdp vs2, v2
 ; CHECK-P9-NEXT:    xxmrghw v2, vs1, vs1
 ; CHECK-P9-NEXT:    xvcvuxwdp vs1, v2
@@ -124,8 +124,8 @@ define void @test8elt(<8 x double>* noalias nocapture sret %agg.result, <8 x i32
 ; CHECK-BE-LABEL: test8elt:
 ; CHECK-BE:       # %bb.0: # %entry
 ; CHECK-BE-NEXT:    lxv vs1, 0(r4)
-; CHECK-BE-NEXT:    xxmrghw v2, vs1, vs1
 ; CHECK-BE-NEXT:    lxv vs0, 16(r4)
+; CHECK-BE-NEXT:    xxmrghw v2, vs1, vs1
 ; CHECK-BE-NEXT:    xvcvuxwdp vs2, v2
 ; CHECK-BE-NEXT:    xxmrglw v2, vs1, vs1
 ; CHECK-BE-NEXT:    xvcvuxwdp vs1, v2
@@ -196,12 +196,12 @@ define void @test16elt(<16 x double>* noalias nocapture sret %agg.result, <16 x 
 ; CHECK-P9-LABEL: test16elt:
 ; CHECK-P9:       # %bb.0: # %entry
 ; CHECK-P9-NEXT:    lxv vs0, 0(r4)
-; CHECK-P9-NEXT:    xxmrglw v2, vs0, vs0
 ; CHECK-P9-NEXT:    lxv vs2, 16(r4)
+; CHECK-P9-NEXT:    lxv vs5, 32(r4)
 ; CHECK-P9-NEXT:    lxv vs4, 48(r4)
+; CHECK-P9-NEXT:    xxmrglw v2, vs0, vs0
 ; CHECK-P9-NEXT:    xvcvuxwdp vs1, v2
 ; CHECK-P9-NEXT:    xxmrghw v2, vs0, vs0
-; CHECK-P9-NEXT:    lxv vs5, 32(r4)
 ; CHECK-P9-NEXT:    xvcvuxwdp vs0, v2
 ; CHECK-P9-NEXT:    xxmrglw v2, vs2, vs2
 ; CHECK-P9-NEXT:    xvcvuxwdp vs3, v2
@@ -228,12 +228,12 @@ define void @test16elt(<16 x double>* noalias nocapture sret %agg.result, <16 x 
 ; CHECK-BE-LABEL: test16elt:
 ; CHECK-BE:       # %bb.0: # %entry
 ; CHECK-BE-NEXT:    lxv vs0, 0(r4)
-; CHECK-BE-NEXT:    xxmrghw v2, vs0, vs0
 ; CHECK-BE-NEXT:    lxv vs2, 16(r4)
+; CHECK-BE-NEXT:    lxv vs5, 32(r4)
 ; CHECK-BE-NEXT:    lxv vs4, 48(r4)
+; CHECK-BE-NEXT:    xxmrghw v2, vs0, vs0
 ; CHECK-BE-NEXT:    xvcvuxwdp vs1, v2
 ; CHECK-BE-NEXT:    xxmrglw v2, vs0, vs0
-; CHECK-BE-NEXT:    lxv vs5, 32(r4)
 ; CHECK-BE-NEXT:    xvcvuxwdp vs0, v2
 ; CHECK-BE-NEXT:    xxmrghw v2, vs2, vs2
 ; CHECK-BE-NEXT:    xvcvuxwdp vs3, v2
@@ -266,7 +266,7 @@ entry:
 define <2 x double> @test2elt_signed(i64 %a.coerce) local_unnamed_addr #0 {
 ; CHECK-P8-LABEL: test2elt_signed:
 ; CHECK-P8:       # %bb.0: # %entry
-; CHECK-P8-NEXT:    mtvsrd f0, r3
+; CHECK-P8-NEXT:    mtfprd f0, r3
 ; CHECK-P8-NEXT:    xxswapd v2, vs0
 ; CHECK-P8-NEXT:    xxmrglw v2, v2, v2
 ; CHECK-P8-NEXT:    xvcvsxwdp v2, v2
@@ -274,7 +274,7 @@ define <2 x double> @test2elt_signed(i64 %a.coerce) local_unnamed_addr #0 {
 ;
 ; CHECK-P9-LABEL: test2elt_signed:
 ; CHECK-P9:       # %bb.0: # %entry
-; CHECK-P9-NEXT:    mtvsrd f0, r3
+; CHECK-P9-NEXT:    mtfprd f0, r3
 ; CHECK-P9-NEXT:    xxswapd v2, vs0
 ; CHECK-P9-NEXT:    xxmrglw v2, v2, v2
 ; CHECK-P9-NEXT:    xvcvsxwdp v2, v2
@@ -282,7 +282,7 @@ define <2 x double> @test2elt_signed(i64 %a.coerce) local_unnamed_addr #0 {
 ;
 ; CHECK-BE-LABEL: test2elt_signed:
 ; CHECK-BE:       # %bb.0: # %entry
-; CHECK-BE-NEXT:    mtvsrd f0, r3
+; CHECK-BE-NEXT:    mtfprd f0, r3
 ; CHECK-BE-NEXT:    xxmrghw v2, vs0, vs0
 ; CHECK-BE-NEXT:    xvcvsxwdp v2, v2
 ; CHECK-BE-NEXT:    blr
@@ -360,8 +360,8 @@ define void @test8elt_signed(<8 x double>* noalias nocapture sret %agg.result, <
 ; CHECK-P9-LABEL: test8elt_signed:
 ; CHECK-P9:       # %bb.0: # %entry
 ; CHECK-P9-NEXT:    lxv vs1, 0(r4)
-; CHECK-P9-NEXT:    xxmrglw v2, vs1, vs1
 ; CHECK-P9-NEXT:    lxv vs0, 16(r4)
+; CHECK-P9-NEXT:    xxmrglw v2, vs1, vs1
 ; CHECK-P9-NEXT:    xvcvsxwdp vs2, v2
 ; CHECK-P9-NEXT:    xxmrghw v2, vs1, vs1
 ; CHECK-P9-NEXT:    xvcvsxwdp vs1, v2
@@ -378,8 +378,8 @@ define void @test8elt_signed(<8 x double>* noalias nocapture sret %agg.result, <
 ; CHECK-BE-LABEL: test8elt_signed:
 ; CHECK-BE:       # %bb.0: # %entry
 ; CHECK-BE-NEXT:    lxv vs1, 0(r4)
-; CHECK-BE-NEXT:    xxmrghw v2, vs1, vs1
 ; CHECK-BE-NEXT:    lxv vs0, 16(r4)
+; CHECK-BE-NEXT:    xxmrghw v2, vs1, vs1
 ; CHECK-BE-NEXT:    xvcvsxwdp vs2, v2
 ; CHECK-BE-NEXT:    xxmrglw v2, vs1, vs1
 ; CHECK-BE-NEXT:    xvcvsxwdp vs1, v2
@@ -450,12 +450,12 @@ define void @test16elt_signed(<16 x double>* noalias nocapture sret %agg.result,
 ; CHECK-P9-LABEL: test16elt_signed:
 ; CHECK-P9:       # %bb.0: # %entry
 ; CHECK-P9-NEXT:    lxv vs0, 0(r4)
-; CHECK-P9-NEXT:    xxmrglw v2, vs0, vs0
 ; CHECK-P9-NEXT:    lxv vs2, 16(r4)
+; CHECK-P9-NEXT:    lxv vs5, 32(r4)
 ; CHECK-P9-NEXT:    lxv vs4, 48(r4)
+; CHECK-P9-NEXT:    xxmrglw v2, vs0, vs0
 ; CHECK-P9-NEXT:    xvcvsxwdp vs1, v2
 ; CHECK-P9-NEXT:    xxmrghw v2, vs0, vs0
-; CHECK-P9-NEXT:    lxv vs5, 32(r4)
 ; CHECK-P9-NEXT:    xvcvsxwdp vs0, v2
 ; CHECK-P9-NEXT:    xxmrglw v2, vs2, vs2
 ; CHECK-P9-NEXT:    xvcvsxwdp vs3, v2
@@ -482,12 +482,12 @@ define void @test16elt_signed(<16 x double>* noalias nocapture sret %agg.result,
 ; CHECK-BE-LABEL: test16elt_signed:
 ; CHECK-BE:       # %bb.0: # %entry
 ; CHECK-BE-NEXT:    lxv vs0, 0(r4)
-; CHECK-BE-NEXT:    xxmrghw v2, vs0, vs0
 ; CHECK-BE-NEXT:    lxv vs2, 16(r4)
+; CHECK-BE-NEXT:    lxv vs5, 32(r4)
 ; CHECK-BE-NEXT:    lxv vs4, 48(r4)
+; CHECK-BE-NEXT:    xxmrghw v2, vs0, vs0
 ; CHECK-BE-NEXT:    xvcvsxwdp vs1, v2
 ; CHECK-BE-NEXT:    xxmrglw v2, vs0, vs0
-; CHECK-BE-NEXT:    lxv vs5, 32(r4)
 ; CHECK-BE-NEXT:    xvcvsxwdp vs0, v2
 ; CHECK-BE-NEXT:    xxmrghw v2, vs2, vs2
 ; CHECK-BE-NEXT:    xvcvsxwdp vs3, v2

@@ -7,11 +7,13 @@
 //===----------------------------------------------------------------------===//
 #include "SourceCode.h"
 
-#include "Context.h"
 #include "FuzzyMatch.h"
-#include "Logger.h"
+#include "Preamble.h"
 #include "Protocol.h"
 #include "refactor/Tweak.h"
+#include "support/Context.h"
+#include "support/Logger.h"
+#include "support/Threading.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
@@ -54,8 +56,14 @@ namespace clangd {
 // Iterates over unicode codepoints in the (UTF-8) string. For each,
 // invokes CB(UTF-8 length, UTF-16 length), and breaks if it returns true.
 // Returns true if CB returned true, false if we hit the end of string.
+//
+// If the string is not valid UTF-8, we log this error and "decode" the
+// text in some arbitrary way. This is pretty sad, but this tends to happen deep
+// within indexing of headers where clang misdetected the encoding, and
+// propagating the error all the way back up is (probably?) not be worth it.
 template <typename Callback>
 static bool iterateCodepoints(llvm::StringRef U8, const Callback &CB) {
+  bool LoggedInvalid = false;
   // A codepoint takes two UTF-16 code unit if it's astral (outside BMP).
   // Astral codepoints are encoded as 4 bytes in UTF-8, starting with 11110xxx.
   for (size_t I = 0; I < U8.size();) {
@@ -69,9 +77,20 @@ static bool iterateCodepoints(llvm::StringRef U8, const Callback &CB) {
     // This convenient property of UTF-8 holds for all non-ASCII characters.
     size_t UTF8Length = llvm::countLeadingOnes(C);
     // 0xxx is ASCII, handled above. 10xxx is a trailing byte, invalid here.
-    // 11111xxx is not valid UTF-8 at all. Assert because it's probably our bug.
-    assert((UTF8Length >= 2 && UTF8Length <= 4) &&
-           "Invalid UTF-8, or transcoding bug?");
+    // 11111xxx is not valid UTF-8 at all, maybe some ISO-8859-*.
+    if (LLVM_UNLIKELY(UTF8Length < 2 || UTF8Length > 4)) {
+      if (!LoggedInvalid) {
+        elog("File has invalid UTF-8 near offset {0}: {1}", I, llvm::toHex(U8));
+        LoggedInvalid = true;
+      }
+      // We can't give a correct result, but avoid returning something wild.
+      // Pretend this is a valid ASCII byte, for lack of better options.
+      // (Too late to get ISO-8859-* right, we've skipped some bytes already).
+      if (CB(1, 1))
+        return true;
+      ++I;
+      continue;
+    }
     I += UTF8Length; // Skip over all trailing bytes.
     // A codepoint takes two UTF-16 code unit if it's astral (outside BMP).
     // Astral codepoints are encoded as 4 bytes in UTF-8 (11110xxx ...)
@@ -238,26 +257,6 @@ bool isValidFileRange(const SourceManager &Mgr, SourceRange R) {
   std::tie(EndFID, EndOffset) = Mgr.getDecomposedLoc(R.getEnd());
 
   return BeginFID.isValid() && BeginFID == EndFID && BeginOffset <= EndOffset;
-}
-
-bool halfOpenRangeContains(const SourceManager &Mgr, SourceRange R,
-                           SourceLocation L) {
-  assert(isValidFileRange(Mgr, R));
-
-  FileID BeginFID;
-  size_t BeginOffset = 0;
-  std::tie(BeginFID, BeginOffset) = Mgr.getDecomposedLoc(R.getBegin());
-  size_t EndOffset = Mgr.getFileOffset(R.getEnd());
-
-  FileID LFid;
-  size_t LOffset;
-  std::tie(LFid, LOffset) = Mgr.getDecomposedLoc(L);
-  return BeginFID == LFid && BeginOffset <= LOffset && LOffset < EndOffset;
-}
-
-bool halfOpenRangeTouches(const SourceManager &Mgr, SourceRange R,
-                          SourceLocation L) {
-  return L == R.getEnd() || halfOpenRangeContains(Mgr, R, L);
 }
 
 SourceLocation includeHashLoc(FileID IncludedFile, const SourceManager &SM) {
@@ -558,11 +557,6 @@ TextEdit toTextEdit(const FixItHint &FixIt, const SourceManager &M,
   return Result;
 }
 
-bool isRangeConsecutive(const Range &Left, const Range &Right) {
-  return Left.end.line == Right.start.line &&
-         Left.end.character == Right.start.character;
-}
-
 FileDigest digest(llvm::StringRef Content) {
   uint64_t Hash{llvm::xxHash64(Content)};
   FileDigest Result;
@@ -583,13 +577,14 @@ llvm::Optional<FileDigest> digestFile(const SourceManager &SM, FileID FID) {
 
 format::FormatStyle getFormatStyleForFile(llvm::StringRef File,
                                           llvm::StringRef Content,
-                                          llvm::vfs::FileSystem *FS) {
+                                          const ThreadsafeFS &TFS) {
   auto Style = format::getStyle(format::DefaultFormatStyle, File,
-                                format::DefaultFallbackStyle, Content, FS);
+                                format::DefaultFallbackStyle, Content,
+                                TFS.view(/*CWD=*/llvm::None).get());
   if (!Style) {
     log("getStyle() failed for file {0}: {1}. Fallback is LLVM style.", File,
         Style.takeError());
-    Style = format::getLLVMStyle();
+    return format::getLLVMStyle();
   }
   return *Style;
 }
@@ -880,6 +875,96 @@ llvm::StringSet<> collectWords(llvm::StringRef Content) {
   return Result;
 }
 
+static bool isLikelyIdentifier(llvm::StringRef Word, llvm::StringRef Before,
+                               llvm::StringRef After) {
+  // `foo` is an identifier.
+  if (Before.endswith("`") && After.startswith("`"))
+    return true;
+  // In foo::bar, both foo and bar are identifiers.
+  if (Before.endswith("::") || After.startswith("::"))
+    return true;
+  // Doxygen tags like \c foo indicate identifiers.
+  // Don't search too far back.
+  // This duplicates clang's doxygen parser, revisit if it gets complicated.
+  Before = Before.take_back(100); // Don't search too far back.
+  auto Pos = Before.find_last_of("\\@");
+  if (Pos != llvm::StringRef::npos) {
+    llvm::StringRef Tag = Before.substr(Pos + 1).rtrim(' ');
+    if (Tag == "p" || Tag == "c" || Tag == "class" || Tag == "tparam" ||
+        Tag == "param" || Tag == "param[in]" || Tag == "param[out]" ||
+        Tag == "param[in,out]" || Tag == "retval" || Tag == "throw" ||
+        Tag == "throws" || Tag == "link")
+      return true;
+  }
+
+  // Word contains underscore.
+  // This handles things like snake_case and MACRO_CASE.
+  if (Word.contains('_')) {
+    return true;
+  }
+  // Word contains capital letter other than at beginning.
+  // This handles things like lowerCamel and UpperCamel.
+  // The check for also containing a lowercase letter is to rule out
+  // initialisms like "HTTP".
+  bool HasLower = Word.find_if(clang::isLowercase) != StringRef::npos;
+  bool HasUpper = Word.substr(1).find_if(clang::isUppercase) != StringRef::npos;
+  if (HasLower && HasUpper) {
+    return true;
+  }
+  // FIXME: consider mid-sentence Capitalization?
+  return false;
+}
+
+llvm::Optional<SpelledWord> SpelledWord::touching(SourceLocation SpelledLoc,
+                                                  const syntax::TokenBuffer &TB,
+                                                  const LangOptions &LangOpts) {
+  const auto &SM = TB.sourceManager();
+  auto Touching = syntax::spelledTokensTouching(SpelledLoc, TB);
+  for (const auto &T : Touching) {
+    // If the token is an identifier or a keyword, don't use any heuristics.
+    if (tok::isAnyIdentifier(T.kind()) || tok::getKeywordSpelling(T.kind())) {
+      SpelledWord Result;
+      Result.Location = T.location();
+      Result.Text = T.text(SM);
+      Result.LikelyIdentifier = tok::isAnyIdentifier(T.kind());
+      Result.PartOfSpelledToken = &T;
+      Result.SpelledToken = &T;
+      auto Expanded =
+          TB.expandedTokens(SM.getMacroArgExpandedLocation(T.location()));
+      if (Expanded.size() == 1 && Expanded.front().text(SM) == Result.Text)
+        Result.ExpandedToken = &Expanded.front();
+      return Result;
+    }
+  }
+  FileID File;
+  unsigned Offset;
+  std::tie(File, Offset) = SM.getDecomposedLoc(SpelledLoc);
+  bool Invalid = false;
+  llvm::StringRef Code = SM.getBufferData(File, &Invalid);
+  if (Invalid)
+    return llvm::None;
+  unsigned B = Offset, E = Offset;
+  while (B > 0 && isIdentifierBody(Code[B - 1]))
+    --B;
+  while (E < Code.size() && isIdentifierBody(Code[E]))
+    ++E;
+  if (B == E)
+    return llvm::None;
+
+  SpelledWord Result;
+  Result.Location = SM.getComposedLoc(File, B);
+  Result.Text = Code.slice(B, E);
+  Result.LikelyIdentifier =
+      isLikelyIdentifier(Result.Text, Code.substr(0, B), Code.substr(E)) &&
+      // should not be a keyword
+      tok::isAnyIdentifier(
+          IdentifierTable(LangOpts).get(Result.Text).getTokenID());
+  for (const auto &T : Touching)
+    if (T.location() <= Result.Location)
+      Result.PartOfSpelledToken = &T;
+  return Result;
+}
+
 llvm::Optional<DefinedMacro> locateMacroAt(const syntax::Token &SpelledTok,
                                            Preprocessor &PP) {
   SourceLocation Loc = SpelledTok.location();
@@ -896,7 +981,9 @@ llvm::Optional<DefinedMacro> locateMacroAt(const syntax::Token &SpelledTok,
     Loc = Loc.getLocWithOffset(-1);
   MacroDefinition MacroDef = PP.getMacroDefinitionAtLoc(IdentifierInfo, Loc);
   if (auto *MI = MacroDef.getMacroInfo())
-    return DefinedMacro{IdentifierInfo->getName(), MI};
+    return DefinedMacro{
+        IdentifierInfo->getName(), MI,
+        translatePreamblePatchLocation(MI->getDefinitionLoc(), SM)};
   return None;
 }
 

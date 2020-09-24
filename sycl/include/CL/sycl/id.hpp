@@ -10,6 +10,7 @@
 
 #include <CL/sycl/detail/array.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/range.hpp>
 
@@ -18,6 +19,9 @@ namespace sycl {
 template <int dimensions> class range;
 template <int dimensions, bool with_offset> class item;
 
+/// A unique identifier of an item in an index space.
+///
+/// \ingroup sycl_api
 template <int dimensions = 1> class id : public detail::array<dimensions> {
 private:
   using base = detail::array<dimensions>;
@@ -34,7 +38,7 @@ private:
   class __private_class;
 
   template <typename N, typename T>
-  using EnableIfIntegral  = detail::enable_if_t<std::is_integral<N>::value, T>;
+  using EnableIfIntegral = detail::enable_if_t<std::is_integral<N>::value, T>;
   template <bool B, typename T>
   using EnableIfT = detail::conditional_t<B, T, __private_class>;
 #endif // __SYCL_DISABLE_ID_TO_INT_CONV__
@@ -96,15 +100,19 @@ public:
    * conversion:
    * int a = id<1>(value); */
 
-  operator EnableIfT<(dimensions == 1), size_t>() const {
-    return this->common_array[0];
+  ALWAYS_INLINE operator EnableIfT<(dimensions == 1), size_t>() const {
+    size_t Result = this->common_array[0];
+    __SYCL_ASSUME_INT(Result);
+    return Result;
   }
 #endif // __SYCL_DISABLE_ID_TO_INT_CONV__
 
 // OP is: ==, !=
 #ifndef __SYCL_DISABLE_ID_TO_INT_CONV__
   using detail::array<dimensions>::operator==;
+#if __cpp_impl_three_way_comparison < 201907
   using detail::array<dimensions>::operator!=;
+#endif
 
   /* Enable operators with integral types.
    * Template operators take precedence than type conversion. In the case of
@@ -113,14 +121,14 @@ public:
    * will be "id op size_t"*/
 #define __SYCL_GEN_OPT(op)                                                     \
   template <typename T>                                                        \
-  EnableIfIntegral <T, bool> operator op(const T &rhs) const {                 \
+  EnableIfIntegral<T, bool> operator op(const T &rhs) const {                  \
     if (this->common_array[0] != rhs)                                          \
       return false op true;                                                    \
     return true op true;                                                       \
   }                                                                            \
   template <typename T>                                                        \
-  friend EnableIfIntegral <T, bool> operator op(const T &lhs,                  \
-                                           const id<dimensions> &rhs) {        \
+  friend EnableIfIntegral<T, bool> operator op(const T &lhs,                   \
+                                               const id<dimensions> &rhs) {    \
     if (lhs != rhs.common_array[0])                                            \
       return false op true;                                                    \
     return true op true;                                                       \
@@ -148,7 +156,7 @@ public:
 #define __SYCL_GEN_OPT(op)                                                     \
   __SYCL_GEN_OPT_BASE(op)                                                      \
   template <typename T>                                                        \
-  EnableIfIntegral <T, id<dimensions>> operator op(const T &rhs) const {       \
+  EnableIfIntegral<T, id<dimensions>> operator op(const T &rhs) const {        \
     id<dimensions> result;                                                     \
     for (int i = 0; i < dimensions; ++i) {                                     \
       result.common_array[i] = this->common_array[i] op rhs;                   \
@@ -156,7 +164,7 @@ public:
     return result;                                                             \
   }                                                                            \
   template <typename T>                                                        \
-  friend EnableIfIntegral <T, id<dimensions>> operator op(                     \
+  friend EnableIfIntegral<T, id<dimensions>> operator op(                      \
       const T &lhs, const id<dimensions> &rhs) {                               \
     id<dimensions> result;                                                     \
     for (int i = 0; i < dimensions; ++i) {                                     \
@@ -251,6 +259,20 @@ id(size_t)->id<1>;
 id(size_t, size_t)->id<2>;
 id(size_t, size_t, size_t)->id<3>;
 #endif
+
+namespace detail {
+template <int Dims> id<Dims> store_id(const id<Dims> *i) {
+  return get_or_store(i);
+}
+} // namespace detail
+
+template <int Dims> id<Dims> this_id() {
+#ifdef __SYCL_DEVICE_ONLY__
+  return detail::Builder::getElement(detail::declptr<id<Dims>>());
+#else
+  return detail::store_id<Dims>(nullptr);
+#endif
+}
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

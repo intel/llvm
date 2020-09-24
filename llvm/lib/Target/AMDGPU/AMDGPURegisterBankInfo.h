@@ -39,7 +39,7 @@ protected:
 #define GET_TARGET_REGBANK_CLASS
 #include "AMDGPUGenRegisterBank.inc"
 };
-class AMDGPURegisterBankInfo : public AMDGPUGenRegisterBankInfo {
+class AMDGPURegisterBankInfo final : public AMDGPUGenRegisterBankInfo {
 public:
   const GCNSubtarget &Subtarget;
   const SIRegisterInfo *TRI;
@@ -69,12 +69,15 @@ public:
 
   void constrainOpWithReadfirstlane(MachineInstr &MI, MachineRegisterInfo &MRI,
                                     unsigned OpIdx) const;
-  bool applyMappingWideLoad(MachineInstr &MI,
-                            const AMDGPURegisterBankInfo::OperandsMapper &OpdMapper,
-                            MachineRegisterInfo &MRI) const;
+  bool applyMappingDynStackAlloc(MachineInstr &MI,
+                                 const OperandsMapper &OpdMapper,
+                                 MachineRegisterInfo &MRI) const;
+  bool applyMappingLoad(MachineInstr &MI,
+                        const OperandsMapper &OpdMapper,
+                        MachineRegisterInfo &MRI) const;
   bool
   applyMappingImage(MachineInstr &MI,
-                    const AMDGPURegisterBankInfo::OperandsMapper &OpdMapper,
+                    const OperandsMapper &OpdMapper,
                     MachineRegisterInfo &MRI, int RSrcIdx) const;
   bool applyMappingSBufferLoad(const OperandsMapper &OpdMapper) const;
 
@@ -102,7 +105,6 @@ public:
   getInstrMappingForLoad(const MachineInstr &MI) const;
 
   unsigned getRegBankID(Register Reg, const MachineRegisterInfo &MRI,
-                        const TargetRegisterInfo &TRI,
                         unsigned Default = AMDGPU::VGPRRegBankID) const;
 
   // Return a value mapping for an operand that is required to be an SGPR.
@@ -147,6 +149,9 @@ public:
   getInstrAlternativeMappingsIntrinsicWSideEffects(
       const MachineInstr &MI, const MachineRegisterInfo &MRI) const;
 
+  unsigned getMappingType(const MachineRegisterInfo &MRI,
+                          const MachineInstr &MI) const;
+
   bool isSALUMapping(const MachineInstr &MI) const;
 
   const InstructionMapping &getDefaultMappingSOP(const MachineInstr &MI) const;
@@ -175,6 +180,15 @@ public:
 
   const InstructionMapping &
   getInstrMapping(const MachineInstr &MI) const override;
+
+private:
+
+  bool foldExtractEltToCmpSelect(MachineInstr &MI,
+                                 MachineRegisterInfo &MRI,
+                                 const OperandsMapper &OpdMapper) const;
+  bool foldInsertEltToCmpSelect(MachineInstr &MI,
+                                MachineRegisterInfo &MRI,
+                                const OperandsMapper &OpdMapper) const;
 };
 } // End llvm namespace.
 #endif

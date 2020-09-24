@@ -12,6 +12,7 @@
 #include "DWARFDIE.h"
 #include "DWARFDebugInfoEntry.h"
 #include "lldb/lldb-enumerations.h"
+#include "lldb/Utility/XcodeSDK.h"
 #include "llvm/Support/RWMutex.h"
 #include <atomic>
 
@@ -97,7 +98,8 @@ public:
     bool m_clear_dies = false;
     ScopedExtractDIEs(DWARFUnit &cu);
     ~ScopedExtractDIEs();
-    DISALLOW_COPY_AND_ASSIGN(ScopedExtractDIEs);
+    ScopedExtractDIEs(const ScopedExtractDIEs &) = delete;
+    const ScopedExtractDIEs &operator=(const ScopedExtractDIEs &) = delete;
     ScopedExtractDIEs(ScopedExtractDIEs &&rhs);
     ScopedExtractDIEs &operator=(ScopedExtractDIEs &&rhs);
   };
@@ -235,7 +237,9 @@ public:
   llvm::Optional<uint64_t> GetRnglistOffset(uint32_t Index) const {
     if (!m_rnglist_table)
       return llvm::None;
-    if (llvm::Optional<uint64_t> off = m_rnglist_table->getOffsetEntry(Index))
+    if (llvm::Optional<uint64_t> off = m_rnglist_table->getOffsetEntry(
+            m_dwarf.GetDWARFContext().getOrLoadRngListsData().GetAsLLVM(),
+            Index))
       return *off + m_ranges_base;
     return llvm::None;
   }
@@ -244,7 +248,8 @@ public:
     if (!m_loclist_table_header)
       return llvm::None;
 
-    llvm::Optional<uint64_t> Offset =  m_loclist_table_header->getOffsetEntry(Index);
+    llvm::Optional<uint64_t> Offset = m_loclist_table_header->getOffsetEntry(
+        m_dwarf.GetDWARFContext().getOrLoadLocListsData().GetAsLLVM(), Index);
     if (!Offset)
       return llvm::None;
     return *Offset + m_loclists_base;
@@ -341,7 +346,8 @@ private:
   void ComputeCompDirAndGuessPathStyle();
   void ComputeAbsolutePath();
 
-  DISALLOW_COPY_AND_ASSIGN(DWARFUnit);
+  DWARFUnit(const DWARFUnit &) = delete;
+  const DWARFUnit &operator=(const DWARFUnit &) = delete;
 };
 
 #endif // LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFUNIT_H

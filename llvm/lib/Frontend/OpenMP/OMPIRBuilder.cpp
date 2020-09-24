@@ -31,7 +31,6 @@
 
 using namespace llvm;
 using namespace omp;
-using namespace types;
 
 static cl::opt<bool>
     OptimisticAttributes("openmp-ir-builder-optimistic-attributes", cl::Hidden,
@@ -59,13 +58,17 @@ void OpenMPIRBuilder::addAttributes(omp::RuntimeFunction FnID, Function &Fn) {
   }
 }
 
-Function *OpenMPIRBuilder::getOrCreateRuntimeFunction(RuntimeFunction FnID) {
+FunctionCallee
+OpenMPIRBuilder::getOrCreateRuntimeFunction(Module &M, RuntimeFunction FnID) {
+  FunctionType *FnTy = nullptr;
   Function *Fn = nullptr;
 
   // Try to find the declation in the module first.
   switch (FnID) {
 #define OMP_RTL(Enum, Str, IsVarArg, ReturnType, ...)                          \
   case Enum:                                                                   \
+    FnTy = FunctionType::get(ReturnType, ArrayRef<Type *>{__VA_ARGS__},        \
+                             IsVarArg);                                        \
     Fn = M.getFunction(Str);                                                   \
     break;
 #include "llvm/Frontend/OpenMP/OMPKinds.def"
@@ -74,33 +77,66 @@ Function *OpenMPIRBuilder::getOrCreateRuntimeFunction(RuntimeFunction FnID) {
   if (!Fn) {
     // Create a new declaration if we need one.
     switch (FnID) {
-#define OMP_RTL(Enum, Str, IsVarArg, ReturnType, ...)                          \
+#define OMP_RTL(Enum, Str, ...)                                                \
   case Enum:                                                                   \
-    Fn = Function::Create(FunctionType::get(ReturnType,                        \
-                                            ArrayRef<Type *>{__VA_ARGS__},     \
-                                            IsVarArg),                         \
-                          GlobalValue::ExternalLinkage, Str, M);               \
+    Fn = Function::Create(FnTy, GlobalValue::ExternalLinkage, Str, M);         \
     break;
 #include "llvm/Frontend/OpenMP/OMPKinds.def"
     }
 
+    // Add information if the runtime function takes a callback function
+    if (FnID == OMPRTL___kmpc_fork_call || FnID == OMPRTL___kmpc_fork_teams) {
+      if (!Fn->hasMetadata(LLVMContext::MD_callback)) {
+        LLVMContext &Ctx = Fn->getContext();
+        MDBuilder MDB(Ctx);
+        // Annotate the callback behavior of the runtime function:
+        //  - The callback callee is argument number 2 (microtask).
+        //  - The first two arguments of the callback callee are unknown (-1).
+        //  - All variadic arguments to the runtime function are passed to the
+        //    callback callee.
+        Fn->addMetadata(
+            LLVMContext::MD_callback,
+            *MDNode::get(Ctx, {MDB.createCallbackEncoding(
+                                  2, {-1, -1}, /* VarArgsArePassed */ true)}));
+      }
+    }
+
+    LLVM_DEBUG(dbgs() << "Created OpenMP runtime function " << Fn->getName()
+                      << " with type " << *Fn->getFunctionType() << "\n");
     addAttributes(FnID, *Fn);
+
+  } else {
+    LLVM_DEBUG(dbgs() << "Found OpenMP runtime function " << Fn->getName()
+                      << " with type " << *Fn->getFunctionType() << "\n");
   }
 
   assert(Fn && "Failed to create OpenMP runtime function");
+
+  // Cast the function to the expected type if necessary
+  Constant *C = ConstantExpr::getBitCast(Fn, FnTy->getPointerTo());
+  return {FnTy, C};
+}
+
+Function *OpenMPIRBuilder::getOrCreateRuntimeFunctionPtr(RuntimeFunction FnID) {
+  FunctionCallee RTLFn = getOrCreateRuntimeFunction(M, FnID);
+  auto *Fn = dyn_cast<llvm::Function>(RTLFn.getCallee());
+  assert(Fn && "Failed to create OpenMP runtime function pointer");
   return Fn;
 }
 
 void OpenMPIRBuilder::initialize() { initializeTypes(M); }
 
 void OpenMPIRBuilder::finalize() {
+  SmallPtrSet<BasicBlock *, 32> ParallelRegionBlockSet;
+  SmallVector<BasicBlock *, 32> Blocks;
   for (OutlineInfo &OI : OutlineInfos) {
-    assert(!OI.Blocks.empty() &&
-           "Outlined regions should have at least a single block!");
-    BasicBlock *RegEntryBB = OI.Blocks.front();
-    Function *OuterFn = RegEntryBB->getParent();
+    ParallelRegionBlockSet.clear();
+    Blocks.clear();
+    OI.collectBlocks(ParallelRegionBlockSet, Blocks);
+
+    Function *OuterFn = OI.EntryBB->getParent();
     CodeExtractorAnalysisCache CEAC(*OuterFn);
-    CodeExtractor Extractor(OI.Blocks, /* DominatorTree */ nullptr,
+    CodeExtractor Extractor(Blocks, /* DominatorTree */ nullptr,
                             /* AggregateArgs */ false,
                             /* BlockFrequencyInfo */ nullptr,
                             /* BranchProbabilityInfo */ nullptr,
@@ -110,6 +146,8 @@ void OpenMPIRBuilder::finalize() {
                             /* Suffix */ ".omp_par");
 
     LLVM_DEBUG(dbgs() << "Before     outlining: " << *OuterFn << "\n");
+    LLVM_DEBUG(dbgs() << "Entry " << OI.EntryBB->getName()
+                      << " Exit: " << OI.ExitBB->getName() << "\n");
     assert(Extractor.isEligible() &&
            "Expected OpenMP outlining to be possible!");
 
@@ -129,12 +167,12 @@ void OpenMPIRBuilder::finalize() {
     // made our own entry block after all.
     {
       BasicBlock &ArtificialEntry = OutlinedFn->getEntryBlock();
-      assert(ArtificialEntry.getUniqueSuccessor() == RegEntryBB);
-      assert(RegEntryBB->getUniquePredecessor() == &ArtificialEntry);
-      RegEntryBB->moveBefore(&ArtificialEntry);
+      assert(ArtificialEntry.getUniqueSuccessor() == OI.EntryBB);
+      assert(OI.EntryBB->getUniquePredecessor() == &ArtificialEntry);
+      OI.EntryBB->moveBefore(&ArtificialEntry);
       ArtificialEntry.eraseFromParent();
     }
-    assert(&OutlinedFn->getEntryBlock() == RegEntryBB);
+    assert(&OutlinedFn->getEntryBlock() == OI.EntryBB);
     assert(OutlinedFn && OutlinedFn->getNumUses() == 1);
 
     // Run a user callback, e.g. to add attributes.
@@ -147,16 +185,18 @@ void OpenMPIRBuilder::finalize() {
 }
 
 Value *OpenMPIRBuilder::getOrCreateIdent(Constant *SrcLocStr,
-                                         IdentFlag LocFlags) {
+                                         IdentFlag LocFlags,
+                                         unsigned Reserve2Flags) {
   // Enable "C-mode".
   LocFlags |= OMP_IDENT_FLAG_KMPC;
 
-  GlobalVariable *&DefaultIdent = IdentMap[{SrcLocStr, uint64_t(LocFlags)}];
-  if (!DefaultIdent) {
+  Value *&Ident =
+      IdentMap[{SrcLocStr, uint64_t(LocFlags) << 31 | Reserve2Flags}];
+  if (!Ident) {
     Constant *I32Null = ConstantInt::getNullValue(Int32);
-    Constant *IdentData[] = {I32Null,
-                             ConstantInt::get(Int32, uint64_t(LocFlags)),
-                             I32Null, I32Null, SrcLocStr};
+    Constant *IdentData[] = {
+        I32Null, ConstantInt::get(Int32, uint32_t(LocFlags)),
+        ConstantInt::get(Int32, Reserve2Flags), I32Null, SrcLocStr};
     Constant *Initializer = ConstantStruct::get(
         cast<StructType>(IdentPtr->getPointerElementType()), IdentData);
 
@@ -165,15 +205,16 @@ Value *OpenMPIRBuilder::getOrCreateIdent(Constant *SrcLocStr,
     for (GlobalVariable &GV : M.getGlobalList())
       if (GV.getType() == IdentPtr && GV.hasInitializer())
         if (GV.getInitializer() == Initializer)
-          return DefaultIdent = &GV;
+          return Ident = &GV;
 
-    DefaultIdent = new GlobalVariable(M, IdentPtr->getPointerElementType(),
-                                      /* isConstant = */ false,
-                                      GlobalValue::PrivateLinkage, Initializer);
-    DefaultIdent->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
-    DefaultIdent->setAlignment(Align(8));
+    auto *GV = new GlobalVariable(M, IdentPtr->getPointerElementType(),
+                                  /* isConstant = */ true,
+                                  GlobalValue::PrivateLinkage, Initializer);
+    GV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
+    GV->setAlignment(Align(8));
+    Ident = GV;
   }
-  return DefaultIdent;
+  return Ident;
 }
 
 Constant *OpenMPIRBuilder::getOrCreateSrcLocStr(StringRef LocStr) {
@@ -189,9 +230,28 @@ Constant *OpenMPIRBuilder::getOrCreateSrcLocStr(StringRef LocStr) {
           GV.getInitializer() == Initializer)
         return SrcLocStr = ConstantExpr::getPointerCast(&GV, Int8Ptr);
 
-    SrcLocStr = Builder.CreateGlobalStringPtr(LocStr);
+    SrcLocStr = Builder.CreateGlobalStringPtr(LocStr, /* Name */ "",
+                                              /* AddressSpace */ 0, &M);
   }
   return SrcLocStr;
+}
+
+Constant *OpenMPIRBuilder::getOrCreateSrcLocStr(StringRef FunctionName,
+                                                StringRef FileName,
+                                                unsigned Line,
+                                                unsigned Column) {
+  SmallString<128> Buffer;
+  Buffer.push_back(';');
+  Buffer.append(FileName);
+  Buffer.push_back(';');
+  Buffer.append(FunctionName);
+  Buffer.push_back(';');
+  Buffer.append(std::to_string(Line));
+  Buffer.push_back(';');
+  Buffer.append(std::to_string(Column));
+  Buffer.push_back(';');
+  Buffer.push_back(';');
+  return getOrCreateSrcLocStr(Buffer.str());
 }
 
 Constant *OpenMPIRBuilder::getOrCreateDefaultSrcLocStr() {
@@ -203,22 +263,20 @@ OpenMPIRBuilder::getOrCreateSrcLocStr(const LocationDescription &Loc) {
   DILocation *DIL = Loc.DL.get();
   if (!DIL)
     return getOrCreateDefaultSrcLocStr();
-  StringRef Filename =
-      !DIL->getFilename().empty() ? DIL->getFilename() : M.getName();
+  StringRef FileName = M.getName();
+  if (DIFile *DIF = DIL->getFile())
+    if (Optional<StringRef> Source = DIF->getSource())
+      FileName = *Source;
   StringRef Function = DIL->getScope()->getSubprogram()->getName();
   Function =
       !Function.empty() ? Function : Loc.IP.getBlock()->getParent()->getName();
-  std::string LineStr = std::to_string(DIL->getLine());
-  std::string ColumnStr = std::to_string(DIL->getColumn());
-  std::stringstream SrcLocStr;
-  SrcLocStr << ";" << Filename.data() << ";" << Function.data() << ";"
-            << LineStr << ";" << ColumnStr << ";;";
-  return getOrCreateSrcLocStr(SrcLocStr.str());
+  return getOrCreateSrcLocStr(Function, FileName, DIL->getLine(),
+                              DIL->getColumn());
 }
 
 Value *OpenMPIRBuilder::getOrCreateThreadID(Value *Ident) {
   return Builder.CreateCall(
-      getOrCreateRuntimeFunction(OMPRTL___kmpc_global_thread_num), Ident,
+      getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_global_thread_num), Ident,
       "omp_global_thread_num");
 }
 
@@ -265,10 +323,11 @@ OpenMPIRBuilder::emitBarrierImpl(const LocationDescription &Loc, Directive Kind,
   bool UseCancelBarrier =
       !ForceSimpleCall && isLastFinalizationInfoCancellable(OMPD_parallel);
 
-  Value *Result = Builder.CreateCall(
-      getOrCreateRuntimeFunction(UseCancelBarrier ? OMPRTL___kmpc_cancel_barrier
-                                                  : OMPRTL___kmpc_barrier),
-      Args);
+  Value *Result =
+      Builder.CreateCall(getOrCreateRuntimeFunctionPtr(
+                             UseCancelBarrier ? OMPRTL___kmpc_cancel_barrier
+                                              : OMPRTL___kmpc_barrier),
+                         Args);
 
   if (UseCancelBarrier && CheckCancelFlag)
     emitCancelationCheckImpl(Result, OMPD_parallel);
@@ -306,7 +365,7 @@ OpenMPIRBuilder::CreateCancel(const LocationDescription &Loc,
   Value *Ident = getOrCreateIdent(SrcLocStr);
   Value *Args[] = {Ident, getOrCreateThreadID(Ident), CancelKind};
   Value *Result = Builder.CreateCall(
-      getOrCreateRuntimeFunction(OMPRTL___kmpc_cancel), Args);
+      getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_cancel), Args);
 
   // The actual cancel logic is shared with others, e.g., cancel_barriers.
   emitCancelationCheckImpl(Result, CanceledDirective);
@@ -355,9 +414,10 @@ void OpenMPIRBuilder::emitCancelationCheckImpl(
 }
 
 IRBuilder<>::InsertPoint OpenMPIRBuilder::CreateParallel(
-    const LocationDescription &Loc, BodyGenCallbackTy BodyGenCB,
-    PrivatizeCallbackTy PrivCB, FinalizeCallbackTy FiniCB, Value *IfCondition,
-    Value *NumThreads, omp::ProcBindKind ProcBind, bool IsCancellable) {
+    const LocationDescription &Loc, InsertPointTy OuterAllocaIP,
+    BodyGenCallbackTy BodyGenCB, PrivatizeCallbackTy PrivCB,
+    FinalizeCallbackTy FiniCB, Value *IfCondition, Value *NumThreads,
+    omp::ProcBindKind ProcBind, bool IsCancellable) {
   if (!updateToLocation(Loc))
     return Loc.IP;
 
@@ -371,7 +431,7 @@ IRBuilder<>::InsertPoint OpenMPIRBuilder::CreateParallel(
         Ident, ThreadID,
         Builder.CreateIntCast(NumThreads, Int32, /*isSigned*/ false)};
     Builder.CreateCall(
-        getOrCreateRuntimeFunction(OMPRTL___kmpc_push_num_threads), Args);
+        getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_push_num_threads), Args);
   }
 
   if (ProcBind != OMP_PROC_BIND_default) {
@@ -379,8 +439,8 @@ IRBuilder<>::InsertPoint OpenMPIRBuilder::CreateParallel(
     Value *Args[] = {
         Ident, ThreadID,
         ConstantInt::get(Int32, unsigned(ProcBind), /*isSigned=*/true)};
-    Builder.CreateCall(getOrCreateRuntimeFunction(OMPRTL___kmpc_push_proc_bind),
-                       Args);
+    Builder.CreateCall(
+        getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_push_proc_bind), Args);
   }
 
   BasicBlock *InsertBB = Builder.GetInsertBlock();
@@ -390,7 +450,9 @@ IRBuilder<>::InsertPoint OpenMPIRBuilder::CreateParallel(
   // we want to delete at the end.
   SmallVector<Instruction *, 4> ToBeDeleted;
 
-  Builder.SetInsertPoint(OuterFn->getEntryBlock().getFirstNonPHI());
+  // Change the location to the outer alloca insertion point to create and
+  // initialize the allocas we pass into the parallel region.
+  Builder.restoreIP(OuterAllocaIP);
   AllocaInst *TIDAddr = Builder.CreateAlloca(Int32, nullptr, "tid.addr");
   AllocaInst *ZeroAddr = Builder.CreateAlloca(Int32, nullptr, "zero.addr");
 
@@ -442,9 +504,9 @@ IRBuilder<>::InsertPoint OpenMPIRBuilder::CreateParallel(
 
   // Generate the privatization allocas in the block that will become the entry
   // of the outlined function.
-  InsertPointTy AllocaIP(PRegEntryBB,
-                         PRegEntryBB->getTerminator()->getIterator());
-  Builder.restoreIP(AllocaIP);
+  Builder.SetInsertPoint(PRegEntryBB->getTerminator());
+  InsertPointTy InnerAllocaIP = Builder.saveIP();
+
   AllocaInst *PrivTIDAddr =
       Builder.CreateAlloca(Int32, nullptr, "tid.addr.local");
   Instruction *PrivTID = Builder.CreateLoad(PrivTIDAddr, "tid");
@@ -473,11 +535,11 @@ IRBuilder<>::InsertPoint OpenMPIRBuilder::CreateParallel(
   // Let the caller create the body.
   assert(BodyGenCB && "Expected body generation callback!");
   InsertPointTy CodeGenIP(PRegBodyBB, PRegBodyBB->begin());
-  BodyGenCB(AllocaIP, CodeGenIP, *PRegPreFiniBB);
+  BodyGenCB(InnerAllocaIP, CodeGenIP, *PRegPreFiniBB);
 
   LLVM_DEBUG(dbgs() << "After  body codegen: " << *OuterFn << "\n");
 
-  FunctionCallee RTLFn = getOrCreateRuntimeFunction(OMPRTL___kmpc_fork_call);
+  FunctionCallee RTLFn = getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_fork_call);
   if (auto *F = dyn_cast<llvm::Function>(RTLFn.getCallee())) {
     if (!F->hasMetadata(llvm::LLVMContext::MD_callback)) {
       llvm::LLVMContext &Ctx = F->getContext();
@@ -546,7 +608,7 @@ IRBuilder<>::InsertPoint OpenMPIRBuilder::CreateParallel(
       // Build calls __kmpc_serialized_parallel(&Ident, GTid);
       Value *SerializedParallelCallArgs[] = {Ident, ThreadID};
       Builder.CreateCall(
-          getOrCreateRuntimeFunction(OMPRTL___kmpc_serialized_parallel),
+          getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_serialized_parallel),
           SerializedParallelCallArgs);
 
       // OutlinedFn(&GTid, &zero, CapturedStruct);
@@ -556,7 +618,7 @@ IRBuilder<>::InsertPoint OpenMPIRBuilder::CreateParallel(
       // __kmpc_end_serialized_parallel(&Ident, GTid);
       Value *EndArgs[] = {Ident, ThreadID};
       Builder.CreateCall(
-          getOrCreateRuntimeFunction(OMPRTL___kmpc_end_serialized_parallel),
+          getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_end_serialized_parallel),
           EndArgs);
 
       LLVM_DEBUG(dbgs() << "With serialized parallel region: "
@@ -576,27 +638,16 @@ IRBuilder<>::InsertPoint OpenMPIRBuilder::CreateParallel(
          "Unexpected finalization stack state!");
 
   Instruction *PRegPreFiniTI = PRegPreFiniBB->getTerminator();
-  assert(PRegPreFiniTI->getNumSuccessors() == 1 &&
-         PRegPreFiniTI->getSuccessor(0) == PRegExitBB &&
-         "Unexpected CFG structure!");
 
   InsertPointTy PreFiniIP(PRegPreFiniBB, PRegPreFiniTI->getIterator());
   FiniCB(PreFiniIP);
 
-  SmallPtrSet<BasicBlock *, 32> ParallelRegionBlockSet;
-  SmallVector<BasicBlock *, 32> Worklist;
-  ParallelRegionBlockSet.insert(PRegEntryBB);
-  ParallelRegionBlockSet.insert(PRegExitBB);
+  OI.EntryBB = PRegEntryBB;
+  OI.ExitBB = PRegExitBB;
 
-  // Collect all blocks in-between PRegEntryBB and PRegExitBB.
-  Worklist.push_back(PRegEntryBB);
-  while (!Worklist.empty()) {
-    BasicBlock *BB = Worklist.pop_back_val();
-    OI.Blocks.push_back(BB);
-    for (BasicBlock *SuccBB : successors(BB))
-      if (ParallelRegionBlockSet.insert(SuccBB).second)
-        Worklist.push_back(SuccBB);
-  }
+  SmallPtrSet<BasicBlock *, 32> ParallelRegionBlockSet;
+  SmallVector<BasicBlock *, 32> Blocks;
+  OI.collectBlocks(ParallelRegionBlockSet, Blocks);
 
   // Ensure a single exit node for the outlined region by creating one.
   // We might have multiple incoming edges to the exit now due to finalizations,
@@ -604,10 +655,10 @@ IRBuilder<>::InsertPoint OpenMPIRBuilder::CreateParallel(
   BasicBlock *PRegOutlinedExitBB = PRegExitBB;
   PRegExitBB = SplitBlock(PRegExitBB, &*PRegExitBB->getFirstInsertionPt());
   PRegOutlinedExitBB->setName("omp.par.outlined.exit");
-  OI.Blocks.push_back(PRegOutlinedExitBB);
+  Blocks.push_back(PRegOutlinedExitBB);
 
   CodeExtractorAnalysisCache CEAC(*OuterFn);
-  CodeExtractor Extractor(OI.Blocks, /* DominatorTree */ nullptr,
+  CodeExtractor Extractor(Blocks, /* DominatorTree */ nullptr,
                           /* AggregateArgs */ false,
                           /* BlockFrequencyInfo */ nullptr,
                           /* BranchProbabilityInfo */ nullptr,
@@ -625,7 +676,7 @@ IRBuilder<>::InsertPoint OpenMPIRBuilder::CreateParallel(
   LLVM_DEBUG(dbgs() << "Before privatization: " << *OuterFn << "\n");
 
   FunctionCallee TIDRTLFn =
-      getOrCreateRuntimeFunction(OMPRTL___kmpc_global_thread_num);
+      getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_global_thread_num);
 
   auto PrivHelper = [&](Value &V) {
     if (&V == TIDAddr || &V == ZeroAddr)
@@ -643,7 +694,7 @@ IRBuilder<>::InsertPoint OpenMPIRBuilder::CreateParallel(
       ReplacementValue = PrivTID;
     } else {
       Builder.restoreIP(
-          PrivCB(AllocaIP, Builder.saveIP(), V, ReplacementValue));
+          PrivCB(InnerAllocaIP, Builder.saveIP(), V, ReplacementValue));
       assert(ReplacementValue &&
              "Expected copy/create callback to set replacement value!");
       if (ReplacementValue == &V)
@@ -658,12 +709,16 @@ IRBuilder<>::InsertPoint OpenMPIRBuilder::CreateParallel(
     LLVM_DEBUG(dbgs() << "Captured input: " << *Input << "\n");
     PrivHelper(*Input);
   }
+  LLVM_DEBUG({
+    for (Value *Output : Outputs)
+      LLVM_DEBUG(dbgs() << "Captured output: " << *Output << "\n");
+  });
   assert(Outputs.empty() &&
          "OpenMP outlining should not produce live-out values!");
 
   LLVM_DEBUG(dbgs() << "After  privatization: " << *OuterFn << "\n");
   LLVM_DEBUG({
-    for (auto *BB : OI.Blocks)
+    for (auto *BB : Blocks)
       dbgs() << " PBR: " << BB->getName() << "\n";
   });
 
@@ -681,7 +736,7 @@ void OpenMPIRBuilder::emitFlush(const LocationDescription &Loc) {
   Constant *SrcLocStr = getOrCreateSrcLocStr(Loc);
   Value *Args[] = {getOrCreateIdent(SrcLocStr)};
 
-  Builder.CreateCall(getOrCreateRuntimeFunction(OMPRTL___kmpc_flush), Args);
+  Builder.CreateCall(getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_flush), Args);
 }
 
 void OpenMPIRBuilder::CreateFlush(const LocationDescription &Loc) {
@@ -698,7 +753,7 @@ void OpenMPIRBuilder::emitTaskwaitImpl(const LocationDescription &Loc) {
   Value *Args[] = {Ident, getOrCreateThreadID(Ident)};
 
   // Ignore return result until untied tasks are supported.
-  Builder.CreateCall(getOrCreateRuntimeFunction(OMPRTL___kmpc_omp_taskwait),
+  Builder.CreateCall(getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_omp_taskwait),
                      Args);
 }
 
@@ -715,7 +770,7 @@ void OpenMPIRBuilder::emitTaskyieldImpl(const LocationDescription &Loc) {
   Constant *I32Null = ConstantInt::getNullValue(Int32);
   Value *Args[] = {Ident, getOrCreateThreadID(Ident), I32Null};
 
-  Builder.CreateCall(getOrCreateRuntimeFunction(OMPRTL___kmpc_omp_taskyield),
+  Builder.CreateCall(getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_omp_taskyield),
                      Args);
 }
 
@@ -739,11 +794,67 @@ OpenMPIRBuilder::CreateMaster(const LocationDescription &Loc,
   Value *ThreadId = getOrCreateThreadID(Ident);
   Value *Args[] = {Ident, ThreadId};
 
-  Function *EntryRTLFn = getOrCreateRuntimeFunction(OMPRTL___kmpc_master);
+  Function *EntryRTLFn = getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_master);
   Instruction *EntryCall = Builder.CreateCall(EntryRTLFn, Args);
 
-  Function *ExitRTLFn = getOrCreateRuntimeFunction(OMPRTL___kmpc_end_master);
+  Function *ExitRTLFn = getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_end_master);
   Instruction *ExitCall = Builder.CreateCall(ExitRTLFn, Args);
+
+  return EmitOMPInlinedRegion(OMPD, EntryCall, ExitCall, BodyGenCB, FiniCB,
+                              /*Conditional*/ true, /*hasFinalize*/ true);
+}
+
+OpenMPIRBuilder::InsertPointTy
+OpenMPIRBuilder::CreateCopyPrivate(const LocationDescription &Loc,
+                                   llvm::Value *BufSize, llvm::Value *CpyBuf,
+                                   llvm::Value *CpyFn, llvm::Value *DidIt) {
+  if (!updateToLocation(Loc))
+    return Loc.IP;
+
+  Constant *SrcLocStr = getOrCreateSrcLocStr(Loc);
+  Value *Ident = getOrCreateIdent(SrcLocStr);
+  Value *ThreadId = getOrCreateThreadID(Ident);
+
+  llvm::Value *DidItLD = Builder.CreateLoad(DidIt);
+
+  Value *Args[] = {Ident, ThreadId, BufSize, CpyBuf, CpyFn, DidItLD};
+
+  Function *Fn = getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_copyprivate);
+  Builder.CreateCall(Fn, Args);
+
+  return Builder.saveIP();
+}
+
+OpenMPIRBuilder::InsertPointTy
+OpenMPIRBuilder::CreateSingle(const LocationDescription &Loc,
+                              BodyGenCallbackTy BodyGenCB,
+                              FinalizeCallbackTy FiniCB, llvm::Value *DidIt) {
+
+  if (!updateToLocation(Loc))
+    return Loc.IP;
+
+  // If needed (i.e. not null), initialize `DidIt` with 0
+  if (DidIt) {
+    Builder.CreateStore(Builder.getInt32(0), DidIt);
+  }
+
+  Directive OMPD = Directive::OMPD_single;
+  Constant *SrcLocStr = getOrCreateSrcLocStr(Loc);
+  Value *Ident = getOrCreateIdent(SrcLocStr);
+  Value *ThreadId = getOrCreateThreadID(Ident);
+  Value *Args[] = {Ident, ThreadId};
+
+  Function *EntryRTLFn = getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_single);
+  Instruction *EntryCall = Builder.CreateCall(EntryRTLFn, Args);
+
+  Function *ExitRTLFn = getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_end_single);
+  Instruction *ExitCall = Builder.CreateCall(ExitRTLFn, Args);
+
+  // generates the following:
+  // if (__kmpc_single()) {
+  //		.... single region ...
+  // 		__kmpc_end_single
+  // }
 
   return EmitOMPInlinedRegion(OMPD, EntryCall, ExitCall, BodyGenCB, FiniCB,
                               /*Conditional*/ true, /*hasFinalize*/ true);
@@ -768,13 +879,14 @@ OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::CreateCritical(
   if (HintInst) {
     // Add Hint to entry Args and create call
     EnterArgs.push_back(HintInst);
-    RTFn = getOrCreateRuntimeFunction(OMPRTL___kmpc_critical_with_hint);
+    RTFn = getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_critical_with_hint);
   } else {
-    RTFn = getOrCreateRuntimeFunction(OMPRTL___kmpc_critical);
+    RTFn = getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_critical);
   }
   Instruction *EntryCall = Builder.CreateCall(RTFn, EnterArgs);
 
-  Function *ExitRTLFn = getOrCreateRuntimeFunction(OMPRTL___kmpc_end_critical);
+  Function *ExitRTLFn =
+      getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_end_critical);
   Instruction *ExitCall = Builder.CreateCall(ExitRTLFn, Args);
 
   return EmitOMPInlinedRegion(OMPD, EntryCall, ExitCall, BodyGenCB, FiniCB,
@@ -912,6 +1024,105 @@ OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::emitCommonDirectiveExit(
                                   ExitCall->getIterator());
 }
 
+OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::CreateCopyinClauseBlocks(
+    InsertPointTy IP, Value *MasterAddr, Value *PrivateAddr,
+    llvm::IntegerType *IntPtrTy, bool BranchtoEnd) {
+  if (!IP.isSet())
+    return IP;
+
+  IRBuilder<>::InsertPointGuard IPG(Builder);
+
+  // creates the following CFG structure
+  //	   OMP_Entry : (MasterAddr != PrivateAddr)?
+  //       F     T
+  //       |      \
+  //       |     copin.not.master
+  //       |      /
+  //       v     /
+  //   copyin.not.master.end
+  //		     |
+  //         v
+  //   OMP.Entry.Next
+
+  BasicBlock *OMP_Entry = IP.getBlock();
+  Function *CurFn = OMP_Entry->getParent();
+  BasicBlock *CopyBegin =
+      BasicBlock::Create(M.getContext(), "copyin.not.master", CurFn);
+  BasicBlock *CopyEnd = nullptr;
+
+  // If entry block is terminated, split to preserve the branch to following
+  // basic block (i.e. OMP.Entry.Next), otherwise, leave everything as is.
+  if (isa_and_nonnull<BranchInst>(OMP_Entry->getTerminator())) {
+    CopyEnd = OMP_Entry->splitBasicBlock(OMP_Entry->getTerminator(),
+                                         "copyin.not.master.end");
+    OMP_Entry->getTerminator()->eraseFromParent();
+  } else {
+    CopyEnd =
+        BasicBlock::Create(M.getContext(), "copyin.not.master.end", CurFn);
+  }
+
+  Builder.SetInsertPoint(OMP_Entry);
+  Value *MasterPtr = Builder.CreatePtrToInt(MasterAddr, IntPtrTy);
+  Value *PrivatePtr = Builder.CreatePtrToInt(PrivateAddr, IntPtrTy);
+  Value *cmp = Builder.CreateICmpNE(MasterPtr, PrivatePtr);
+  Builder.CreateCondBr(cmp, CopyBegin, CopyEnd);
+
+  Builder.SetInsertPoint(CopyBegin);
+  if (BranchtoEnd)
+    Builder.SetInsertPoint(Builder.CreateBr(CopyEnd));
+
+  return Builder.saveIP();
+}
+
+CallInst *OpenMPIRBuilder::CreateOMPAlloc(const LocationDescription &Loc,
+                                          Value *Size, Value *Allocator,
+                                          std::string Name) {
+  IRBuilder<>::InsertPointGuard IPG(Builder);
+  Builder.restoreIP(Loc.IP);
+
+  Constant *SrcLocStr = getOrCreateSrcLocStr(Loc);
+  Value *Ident = getOrCreateIdent(SrcLocStr);
+  Value *ThreadId = getOrCreateThreadID(Ident);
+  Value *Args[] = {ThreadId, Size, Allocator};
+
+  Function *Fn = getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_alloc);
+
+  return Builder.CreateCall(Fn, Args, Name);
+}
+
+CallInst *OpenMPIRBuilder::CreateOMPFree(const LocationDescription &Loc,
+                                         Value *Addr, Value *Allocator,
+                                         std::string Name) {
+  IRBuilder<>::InsertPointGuard IPG(Builder);
+  Builder.restoreIP(Loc.IP);
+
+  Constant *SrcLocStr = getOrCreateSrcLocStr(Loc);
+  Value *Ident = getOrCreateIdent(SrcLocStr);
+  Value *ThreadId = getOrCreateThreadID(Ident);
+  Value *Args[] = {ThreadId, Addr, Allocator};
+  Function *Fn = getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_free);
+  return Builder.CreateCall(Fn, Args, Name);
+}
+
+CallInst *OpenMPIRBuilder::CreateCachedThreadPrivate(
+    const LocationDescription &Loc, llvm::Value *Pointer,
+    llvm::ConstantInt *Size, const llvm::Twine &Name) {
+  IRBuilder<>::InsertPointGuard IPG(Builder);
+  Builder.restoreIP(Loc.IP);
+
+  Constant *SrcLocStr = getOrCreateSrcLocStr(Loc);
+  Value *Ident = getOrCreateIdent(SrcLocStr);
+  Value *ThreadId = getOrCreateThreadID(Ident);
+  Constant *ThreadPrivateCache =
+      getOrCreateOMPInternalVariable(Int8PtrPtr, Name);
+  llvm::Value *Args[] = {Ident, ThreadId, Pointer, Size, ThreadPrivateCache};
+
+  Function *Fn =
+  		getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_threadprivate_cached);
+
+  return Builder.CreateCall(Fn, Args);
+}
+
 std::string OpenMPIRBuilder::getNameWithSeparators(ArrayRef<StringRef> Parts,
                                                    StringRef FirstSeparator,
                                                    StringRef Separator) {
@@ -959,4 +1170,42 @@ Value *OpenMPIRBuilder::getOMPCriticalRegionLock(StringRef CriticalName) {
   std::string Prefix = Twine("gomp_critical_user_", CriticalName).str();
   std::string Name = getNameWithSeparators({Prefix, "var"}, ".", ".");
   return getOrCreateOMPInternalVariable(KmpCriticalNameTy, Name);
+}
+
+// Create all simple and struct types exposed by the runtime and remember
+// the llvm::PointerTypes of them for easy access later.
+void OpenMPIRBuilder::initializeTypes(Module &M) {
+  LLVMContext &Ctx = M.getContext();
+  StructType *T;
+#define OMP_TYPE(VarName, InitValue) VarName = InitValue;
+#define OMP_ARRAY_TYPE(VarName, ElemTy, ArraySize)                             \
+  VarName##Ty = ArrayType::get(ElemTy, ArraySize);                             \
+  VarName##PtrTy = PointerType::getUnqual(VarName##Ty);
+#define OMP_FUNCTION_TYPE(VarName, IsVarArg, ReturnType, ...)                  \
+  VarName = FunctionType::get(ReturnType, {__VA_ARGS__}, IsVarArg);            \
+  VarName##Ptr = PointerType::getUnqual(VarName);
+#define OMP_STRUCT_TYPE(VarName, StructName, ...)                              \
+  T = M.getTypeByName(StructName);                                             \
+  if (!T)                                                                      \
+    T = StructType::create(Ctx, {__VA_ARGS__}, StructName);                    \
+  VarName = T;                                                                 \
+  VarName##Ptr = PointerType::getUnqual(T);
+#include "llvm/Frontend/OpenMP/OMPKinds.def"
+}
+
+void OpenMPIRBuilder::OutlineInfo::collectBlocks(
+    SmallPtrSetImpl<BasicBlock *> &BlockSet,
+    SmallVectorImpl<BasicBlock *> &BlockVector) {
+  SmallVector<BasicBlock *, 32> Worklist;
+  BlockSet.insert(EntryBB);
+  BlockSet.insert(ExitBB);
+
+  Worklist.push_back(EntryBB);
+  while (!Worklist.empty()) {
+    BasicBlock *BB = Worklist.pop_back_val();
+    BlockVector.push_back(BB);
+    for (BasicBlock *SuccBB : successors(BB))
+      if (BlockSet.insert(SuccBB).second)
+        Worklist.push_back(SuccBB);
+  }
 }

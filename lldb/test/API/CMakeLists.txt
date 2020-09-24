@@ -1,6 +1,6 @@
 function(add_python_test_target name test_script args comment)
   set(PYTHON_TEST_COMMAND
-    ${PYTHON_EXECUTABLE}
+    ${Python3_EXECUTABLE}
     ${test_script}
     ${args}
     )
@@ -13,10 +13,10 @@ function(add_python_test_target name test_script args comment)
   add_dependencies(${name} lldb-test-deps)
 endfunction()
 
-# The default architecture with which to compile test executables is the default LLVM target
-# architecture, which itself defaults to the host architecture.
-string(TOLOWER "${LLVM_TARGET_ARCH}" LLDB_DEFAULT_TEST_ARCH)
-if( LLDB_DEFAULT_TEST_ARCH STREQUAL "host" )
+# The default architecture with which to compile test executables is the
+# default LLVM target architecture, which itself defaults to the host
+# architecture.
+if(NOT LLDB_DEFAULT_TEST_ARCH)
   string(REGEX MATCH "^[^-]*" LLDB_DEFAULT_TEST_ARCH ${LLVM_HOST_TRIPLE})
 endif ()
 
@@ -49,6 +49,7 @@ set(LLDB_DEFAULT_TEST_EXECUTABLE "${LLVM_RUNTIME_OUTPUT_INTDIR}/lldb${CMAKE_EXEC
 # Set the paths to default llvm tools.
 set(LLDB_DEFAULT_TEST_DSYMUTIL "${LLVM_BINARY_DIR}/${CMAKE_CFG_INTDIR}/bin/dsymutil${CMAKE_EXECUTABLE_SUFFIX}")
 set(LLDB_DEFAULT_TEST_FILECHECK "${LLVM_BINARY_DIR}/${CMAKE_CFG_INTDIR}/bin/FileCheck${CMAKE_EXECUTABLE_SUFFIX}")
+set(LLDB_DEFAULT_TEST_YAML2OBJ "${LLVM_BINARY_DIR}/${CMAKE_CFG_INTDIR}/bin/yaml2obj${CMAKE_EXECUTABLE_SUFFIX}")
 
 if (TARGET clang)
   set(LLDB_DEFAULT_TEST_COMPILER "${LLVM_BINARY_DIR}/${CMAKE_CFG_INTDIR}/bin/clang${CMAKE_EXECUTABLE_SUFFIX}")
@@ -60,15 +61,13 @@ set(LLDB_TEST_EXECUTABLE "${LLDB_DEFAULT_TEST_EXECUTABLE}" CACHE PATH "lldb exec
 set(LLDB_TEST_COMPILER "${LLDB_DEFAULT_TEST_COMPILER}" CACHE PATH "C Compiler to use for building LLDB test inferiors")
 set(LLDB_TEST_DSYMUTIL "${LLDB_DEFAULT_TEST_DSYMUTIL}" CACHE PATH "dsymutil used for generating dSYM bundles")
 set(LLDB_TEST_FILECHECK "${LLDB_DEFAULT_TEST_FILECHECK}" CACHE PATH "FileCheck used for testing purposes")
+set(LLDB_TEST_YAML2OBJ "${LLDB_DEFAULT_TEST_YAML2OBJ}" CACHE PATH "yaml2obj used for testing purposes")
 
 if ("${LLDB_TEST_COMPILER}" STREQUAL "")
   message(FATAL_ERROR "LLDB test compiler not specified. Tests will not run.")
 endif()
 
 if ( CMAKE_SYSTEM_NAME MATCHES "Windows" )
-  # All tests are currently flaky on Windows, so rerun them all once when they fail.
-  set(LLDB_TEST_COMMON_ARGS ${LLDB_TEST_COMMON_ARGS} --rerun-all-issues)
-
   set(LLDB_TEST_DEBUG_TEST_CRASHES
     0
     CACHE BOOL "(Windows only) Enables debugging of tests in the test suite by showing the crash dialog when lldb crashes")
@@ -99,7 +98,7 @@ endif()
 
 if(CMAKE_HOST_APPLE)
   if(LLDB_BUILD_FRAMEWORK)
-    list(APPEND LLDB_TEST_COMMON_ARGS --framework ${LLDB_FRAMEWORK_ABSOLUTE_BUILD_DIR}/LLDB.framework)
+    set(LLDB_FRAMEWORK_DIR ${LLDB_FRAMEWORK_ABSOLUTE_BUILD_DIR}/LLDB.framework)
   endif()
 
   # Use the same identity for testing
@@ -145,6 +144,7 @@ if(LLDB_BUILT_STANDALONE)
   string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_TEST_COMPILER "${LLDB_TEST_COMPILER}")
   string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_TEST_DSYMUTIL "${LLDB_TEST_DSYMUTIL}")
   string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_TEST_FILECHECK "${LLDB_TEST_FILECHECK}")
+  string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_TEST_YAML2OBJ "${LLDB_TEST_YAML2OBJ}")
 
   # Remaining ones must be paths to the provided LLVM build-tree.
   if(LLVM_CONFIGURATION_TYPES)
@@ -172,6 +172,7 @@ string(REPLACE ${CMAKE_CFG_INTDIR} ${dotest_args_replacement} LLDB_TEST_EXECUTAB
 string(REPLACE ${CMAKE_CFG_INTDIR} ${dotest_args_replacement} LLDB_TEST_COMPILER "${LLDB_TEST_COMPILER}")
 string(REPLACE ${CMAKE_CFG_INTDIR} ${dotest_args_replacement} LLDB_TEST_DSYMUTIL "${LLDB_TEST_DSYMUTIL}")
 string(REPLACE ${CMAKE_CFG_INTDIR} ${dotest_args_replacement} LLDB_TEST_FILECHECK "${LLDB_TEST_FILECHECK}")
+string(REPLACE ${CMAKE_CFG_INTDIR} ${dotest_args_replacement} LLDB_TEST_YAML2OBJ "${LLDB_TEST_YAML2OBJ}")
 
 # Configure the API test suite.
 configure_lit_site_cfg(

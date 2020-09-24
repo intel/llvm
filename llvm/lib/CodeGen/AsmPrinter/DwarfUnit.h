@@ -27,7 +27,6 @@
 
 namespace llvm {
 
-class MachineLocation;
 class MachineOperand;
 class ConstantInt;
 class ConstantFP;
@@ -87,8 +86,6 @@ public:
   MCSymbol *getEndLabel() const { return EndLabel; }
   uint16_t getLanguage() const { return CUNode->getSourceLanguage(); }
   const DICompileUnit *getCUNode() const { return CUNode; }
-
-  uint16_t getDwarfVersion() const { return DD->getDwarfVersion(); }
 
   /// Return true if this compile unit has something to write out.
   bool hasContent() const { return getUnitDie().hasChildren(); }
@@ -285,10 +282,6 @@ public:
                                       const MCSymbol *Label,
                                       const MCSymbol *Sec);
 
-  /// If the \p File has an MD5 checksum, return it as an MD5Result
-  /// allocated in the MCContext.
-  Optional<MD5::MD5Result> getMD5AsBytes(const DIFile *File) const;
-
   /// Get context owner's DIE.
   DIE *createTypeDIE(const DICompositeType *Ty);
 
@@ -307,6 +300,7 @@ protected:
 
 private:
   void constructTypeDIE(DIE &Buffer, const DIBasicType *BTy);
+  void constructTypeDIE(DIE &Buffer, const DIStringType *BTy);
   void constructTypeDIE(DIE &Buffer, const DIDerivedType *DTy);
   void constructTypeDIE(DIE &Buffer, const DISubroutineType *CTy);
   void constructSubrangeDIE(DIE &Buffer, const DISubrange *SR, DIE *IndexTy);

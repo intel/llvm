@@ -8,9 +8,9 @@
 
 #include "PHIEliminationUtils.h"
 #include "llvm/ADT/SmallPtrSet.h"
-#include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+
 using namespace llvm;
 
 // findCopyInsertPoint - Find a safe place in MBB to insert a copy from SrcReg
@@ -26,8 +26,9 @@ llvm::findPHICopyInsertPoint(MachineBasicBlock* MBB, MachineBasicBlock* SuccMBB,
 
   // Usually, we just want to insert the copy before the first terminator
   // instruction. However, for the edge going to a landing pad, we must insert
-  // the copy before the call/invoke instruction.
-  if (!SuccMBB->isEHPad())
+  // the copy before the call/invoke instruction. Similarly for an INLINEASM_BR
+  // going to an indirect target.
+  if (!SuccMBB->isEHPad() && !SuccMBB->isInlineAsmBrIndirectTarget())
     return MBB->getFirstTerminator();
 
   // Discover any defs/uses in this basic block.

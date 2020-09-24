@@ -290,9 +290,8 @@ static MCAsmInfo *createHexagonMCAsmInfo(const MCRegisterInfo &MRI,
   MCAsmInfo *MAI = new HexagonMCAsmInfo(TT);
 
   // VirtualFP = (R30 + #0).
-  MCCFIInstruction Inst =
-      MCCFIInstruction::createDefCfa(nullptr,
-          MRI.getDwarfRegNum(Hexagon::R30, true), 0);
+  MCCFIInstruction Inst = MCCFIInstruction::cfiDefCfa(
+      nullptr, MRI.getDwarfRegNum(Hexagon::R30, true), 0);
   MAI->addInitialFrameState(Inst);
 
   return MAI;
@@ -469,7 +468,8 @@ MCSubtargetInfo *Hexagon_MC::createHexagonMCSubtargetInfo(const Triple &TT,
   StringRef CPUName = Features.first;
   StringRef ArchFS = Features.second;
 
-  MCSubtargetInfo *X = createHexagonMCSubtargetInfoImpl(TT, CPUName, ArchFS);
+  MCSubtargetInfo *X = createHexagonMCSubtargetInfoImpl(
+      TT, CPUName, /*TuneCPU*/ CPUName, ArchFS);
   if (X != nullptr && (CPUName == "hexagonv67t"))
     addArchSubtarget(X, ArchFS);
 

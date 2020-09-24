@@ -10,6 +10,8 @@
 
 #include "device.h"
 
+#ifdef __SPIR__
+
 // TODO: This needs to be more robust.
 // clang doesn't recognize the c11 CMPLX macro, but it does have
 //   its own syntax extension for initializing a complex as a struct.
@@ -163,4 +165,5 @@ double __complex__ __devicelib___divdc3(double a, double b, double c, double d);
 
 DEVICE_EXTERN_C
 float __complex__ __devicelib___divsc3(float a, float b, float c, float d);
+#endif // __SPIR__
 #endif // __LIBDEVICE_DEVICE_COMPLEX_H_

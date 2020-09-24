@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "scudo/interface.h"
 #include "tests/scudo_unit_test.h"
 
 #include <errno.h>
@@ -188,14 +189,6 @@ TEST(ScudoWrappersCTest, Realloc) {
   }
 }
 
-#ifndef M_DECAY_TIME
-#define M_DECAY_TIME -100
-#endif
-
-#ifndef M_PURGE
-#define M_PURGE -101
-#endif
-
 #if !SCUDO_FUCHSIA
 TEST(ScudoWrappersCTest, MallOpt) {
   errno = 0;
@@ -209,6 +202,12 @@ TEST(ScudoWrappersCTest, MallOpt) {
   EXPECT_EQ(mallopt(M_DECAY_TIME, 0), 1);
   EXPECT_EQ(mallopt(M_DECAY_TIME, 1), 1);
   EXPECT_EQ(mallopt(M_DECAY_TIME, 0), 1);
+
+  if (SCUDO_ANDROID) {
+    EXPECT_EQ(mallopt(M_CACHE_COUNT_MAX, 100), 1);
+    EXPECT_EQ(mallopt(M_CACHE_SIZE_MAX, 1024 * 1024 * 2), 1);
+    EXPECT_EQ(mallopt(M_TSDS_COUNT_MAX, 10), 1);
+  }
 }
 #endif
 
@@ -372,6 +371,7 @@ TEST(ScudoWrappersCTest, Fork) {
 
 static pthread_mutex_t Mutex;
 static pthread_cond_t Conditional = PTHREAD_COND_INITIALIZER;
+static bool Ready;
 
 static void *enableMalloc(void *Unused) {
   // Initialize the allocator for this thread.
@@ -382,6 +382,7 @@ static void *enableMalloc(void *Unused) {
 
   // Signal the main thread we are ready.
   pthread_mutex_lock(&Mutex);
+  Ready = true;
   pthread_cond_signal(&Conditional);
   pthread_mutex_unlock(&Mutex);
 
@@ -394,11 +395,13 @@ static void *enableMalloc(void *Unused) {
 
 TEST(ScudoWrappersCTest, DisableForkEnable) {
   pthread_t ThreadId;
+  Ready = false;
   EXPECT_EQ(pthread_create(&ThreadId, nullptr, &enableMalloc, nullptr), 0);
 
   // Wait for the thread to be warmed up.
   pthread_mutex_lock(&Mutex);
-  pthread_cond_wait(&Conditional, &Mutex);
+  while (!Ready)
+    pthread_cond_wait(&Conditional, &Mutex);
   pthread_mutex_unlock(&Mutex);
 
   // Disable the allocator and fork. fork should succeed after malloc_enable.

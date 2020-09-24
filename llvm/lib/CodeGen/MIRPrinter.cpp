@@ -79,6 +79,9 @@ static cl::opt<bool> SimplifyMIR(
     "simplify-mir", cl::Hidden,
     cl::desc("Leave out unnecessary information when printing MIR"));
 
+static cl::opt<bool> PrintLocations("mir-debug-loc", cl::Hidden, cl::init(true),
+                                    cl::desc("Print MIR debug-locations"));
+
 namespace {
 
 /// This structure describes how to print out stack object references.
@@ -198,7 +201,7 @@ void MIRPrinter::print(const MachineFunction &MF) {
 
   yaml::MachineFunction YamlMF;
   YamlMF.Name = MF.getName();
-  YamlMF.Alignment = MF.getAlignment().value();
+  YamlMF.Alignment = MF.getAlignment();
   YamlMF.ExposesReturnsTwice = MF.exposesReturnsTwice();
   YamlMF.HasWinCFI = MF.hasWinCFI();
 
@@ -373,7 +376,7 @@ void MIRPrinter::convertStackObjects(yaml::MachineFunction &YMF,
                           : yaml::FixedMachineStackObject::DefaultType;
     YamlObject.Offset = MFI.getObjectOffset(I);
     YamlObject.Size = MFI.getObjectSize(I);
-    YamlObject.Alignment = MFI.getObjectAlignment(I);
+    YamlObject.Alignment = MFI.getObjectAlign(I);
     YamlObject.StackID = (TargetStackID::Value)MFI.getStackID(I);
     YamlObject.IsImmutable = MFI.isImmutableObjectIndex(I);
     YamlObject.IsAliased = MFI.isAliasedObjectIndex(I);
@@ -400,7 +403,7 @@ void MIRPrinter::convertStackObjects(yaml::MachineFunction &YMF,
                                 : yaml::MachineStackObject::DefaultType;
     YamlObject.Offset = MFI.getObjectOffset(I);
     YamlObject.Size = MFI.getObjectSize(I);
-    YamlObject.Alignment = MFI.getObjectAlignment(I);
+    YamlObject.Alignment = MFI.getObjectAlign(I);
     YamlObject.StackID = (TargetStackID::Value)MFI.getStackID(I);
 
     YMF.StackObjects.push_back(YamlObject);
@@ -514,7 +517,7 @@ void MIRPrinter::convert(yaml::MachineFunction &MF,
     yaml::MachineConstantPoolValue YamlConstant;
     YamlConstant.ID = ID++;
     YamlConstant.Value = StrOS.str();
-    YamlConstant.Alignment = Constant.getAlignment();
+    YamlConstant.Alignment = Constant.getAlign();
     YamlConstant.IsTargetSpecific = Constant.isMachineConstantPoolEntry();
 
     MF.Constants.push_back(YamlConstant);
@@ -605,64 +608,10 @@ bool MIPrinter::canPredictSuccessors(const MachineBasicBlock &MBB) const {
 
 void MIPrinter::print(const MachineBasicBlock &MBB) {
   assert(MBB.getNumber() >= 0 && "Invalid MBB number");
-  OS << "bb." << MBB.getNumber();
-  bool HasAttributes = false;
-  if (const auto *BB = MBB.getBasicBlock()) {
-    if (BB->hasName()) {
-      OS << "." << BB->getName();
-    } else {
-      HasAttributes = true;
-      OS << " (";
-      int Slot = MST.getLocalSlot(BB);
-      if (Slot == -1)
-        OS << "<ir-block badref>";
-      else
-        OS << (Twine("%ir-block.") + Twine(Slot)).str();
-    }
-  }
-  if (MBB.hasAddressTaken()) {
-    OS << (HasAttributes ? ", " : " (");
-    OS << "address-taken";
-    HasAttributes = true;
-  }
-  if (MBB.isEHPad()) {
-    OS << (HasAttributes ? ", " : " (");
-    OS << "landing-pad";
-    HasAttributes = true;
-  }
-  if (MBB.isEHFuncletEntry()) {
-    OS << (HasAttributes ? ", " : " (");
-    OS << "ehfunclet-entry";
-    HasAttributes = true;
-  }
-  if (MBB.getAlignment() != Align(1)) {
-    OS << (HasAttributes ? ", " : " (");
-    OS << "align " << MBB.getAlignment().value();
-    HasAttributes = true;
-  }
-  if (MBB.getSectionType() != MBBS_None) {
-    OS << (HasAttributes ? ", " : " (");
-    OS << "bbsections ";
-    switch (MBB.getSectionType()) {
-    case MBBS_Entry:
-      OS << "Entry";
-      break;
-    case MBBS_Exception:
-      OS << "Exception";
-      break;
-    case MBBS_Cold:
-      OS << "Cold";
-      break;
-    case MBBS_Unique:
-      OS << "Unique";
-      break;
-    default:
-      llvm_unreachable("No such section type");
-    }
-    HasAttributes = true;
-  }
-  if (HasAttributes)
-    OS << ")";
+  MBB.printName(OS,
+                MachineBasicBlock::PrintNameIr |
+                    MachineBasicBlock::PrintNameAttributes,
+                &MST);
   OS << ":\n";
 
   bool HasLineAttributes = false;
@@ -781,6 +730,8 @@ void MIPrinter::print(const MachineInstr &MI) {
     OS << "exact ";
   if (MI.getFlag(MachineInstr::NoFPExcept))
     OS << "nofpexcept ";
+  if (MI.getFlag(MachineInstr::NoMerge))
+    OS << "nomerge ";
 
   OS << TII->getName(MI.getOpcode());
   if (I < E)
@@ -819,11 +770,13 @@ void MIPrinter::print(const MachineInstr &MI) {
     NeedComma = true;
   }
 
-  if (const DebugLoc &DL = MI.getDebugLoc()) {
-    if (NeedComma)
-      OS << ',';
-    OS << " debug-location ";
-    DL->printAsOperand(OS, MST);
+  if (PrintLocations) {
+    if (const DebugLoc &DL = MI.getDebugLoc()) {
+      if (NeedComma)
+        OS << ',';
+      OS << " debug-location ";
+      DL->printAsOperand(OS, MST);
+    }
   }
 
   if (!MI.memoperands_empty()) {
@@ -861,7 +814,7 @@ void MIPrinter::print(const MachineInstr &MI, unsigned OpIdx,
                       bool ShouldPrintRegisterTies, LLT TypeToPrint,
                       bool PrintDef) {
   const MachineOperand &Op = MI.getOperand(OpIdx);
-  std::string MOComment = TII->createMIROperandComment(MI, Op, OpIdx);
+  std::string MOComment = TII->createMIROperandComment(MI, Op, OpIdx, TRI);
 
   switch (Op.getType()) {
   case MachineOperand::MO_Immediate:

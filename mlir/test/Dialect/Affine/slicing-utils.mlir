@@ -1,6 +1,6 @@
-// RUN: mlir-opt %s -affine-super-vectorizer-test -forward-slicing=true 2>&1 | FileCheck %s --check-prefix=FWD
-// RUN: mlir-opt %s -affine-super-vectorizer-test -backward-slicing=true 2>&1 | FileCheck %s --check-prefix=BWD
-// RUN: mlir-opt %s -affine-super-vectorizer-test -slicing=true 2>&1 | FileCheck %s --check-prefix=FWDBWD
+// RUN: mlir-opt -allow-unregistered-dialect %s -affine-super-vectorizer-test -forward-slicing=true 2>&1 | FileCheck %s --check-prefix=FWD
+// RUN: mlir-opt -allow-unregistered-dialect %s -affine-super-vectorizer-test -backward-slicing=true 2>&1 | FileCheck %s --check-prefix=BWD
+// RUN: mlir-opt -allow-unregistered-dialect %s -affine-super-vectorizer-test -slicing=true 2>&1 | FileCheck %s --check-prefix=FWDBWD
 
 ///   1       2      3      4
 ///   |_______|      |______|
@@ -229,7 +229,7 @@ func @slicing_test_2() {
       // BWD: matched: %[[b:.*]] {{.*}} backward static slice:
       // BWD: affine.for {{.*}}
 
-      // affine.for appears in the body of loop.for
+      // affine.for appears in the body of scf.for
       // BWD: affine.for {{.*}}
 
       // affine.for appears as a proper op in the backward slice
@@ -239,10 +239,10 @@ func @slicing_test_2() {
       // BWD: matched: %[[c:.*]] {{.*}} backward static slice:
       // BWD: affine.for {{.*}}
 
-      // affine.for appears in the body of loop.for
+      // affine.for appears in the body of scf.for
       // BWD-NEXT: affine.for {{.*}}
 
-      // affine.for only appears in the body of loop.for
+      // affine.for only appears in the body of scf.for
       // BWD-NOT: affine.for {{.*}}
       %c = "slicing-test-op"(%i0): (index) -> index
     }
@@ -257,9 +257,9 @@ func @slicing_test_3() {
   %f = constant 1.0 : f32
   %c = "slicing-test-op"(%f): (f32) -> index
   // FWD: matched: {{.*}} (f32) -> index forward static slice:
-  // FWD: loop.for {{.*}}
+  // FWD: scf.for {{.*}}
   // FWD: matched: {{.*}} (index, index) -> index forward static slice:
-  loop.for %i2 = %c to %c step %c {
+  scf.for %i2 = %c to %c step %c {
     %d = "slicing-test-op"(%c, %i2): (index, index) -> index
   }
   return
@@ -272,6 +272,17 @@ func @slicing_test_function_argument(%arg0: index) -> index {
   // BWD: matched: {{.*}} (index, index) -> index backward static slice:
   %0 = "slicing-test-op"(%arg0, %arg0): (index, index) -> index
   return %0 : index
+}
+
+// FWD-LABEL: slicing_test_multiple_return
+// BWD-LABEL: slicing_test_multiple_return
+// FWDBWD-LABEL: slicing_test_multiple_return
+func @slicing_test_multiple_return(%arg0: index) -> (index, index) {
+  // BWD: matched: {{.*}} (index, index) -> (index, index) backward static slice:
+  // FWD: matched: %{{.*}}:2 = "slicing-test-op"(%arg0, %arg0) : (index, index) -> (index, index) forward static slice:
+  // FWD: return %{{.*}}#0, %{{.*}}#1 : index, index
+  %0:2 = "slicing-test-op"(%arg0, %arg0): (index, index) -> (index, index)
+  return %0#0, %0#1 : index, index
 }
 
 // This test dumps 2 sets of outputs: first the test outputs themselves followed

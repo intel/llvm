@@ -62,9 +62,9 @@ using namespace llvm;
 using namespace llvm::ELF;
 using namespace llvm::object;
 using namespace llvm::support::endian;
+using namespace lld;
+using namespace lld::elf;
 
-namespace lld {
-namespace elf {
 static Optional<std::string> getLinkerScriptLocation(const Symbol &sym) {
   for (BaseCommand *base : script->sectionCommands)
     if (auto *cmd = dyn_cast<SymbolAssignment>(base))
@@ -96,8 +96,8 @@ static std::string getLocation(InputSectionBase &s, const Symbol &sym,
   return msg + s.getObjMsg(off);
 }
 
-void reportRangeError(uint8_t *loc, const Relocation &rel, const Twine &v,
-                      int64_t min, uint64_t max) {
+void elf::reportRangeError(uint8_t *loc, const Relocation &rel, const Twine &v,
+                           int64_t min, uint64_t max) {
   ErrorPlace errPlace = getErrorPlace(loc);
   std::string hint;
   if (rel.sym && !rel.sym->isLocal())
@@ -197,9 +197,9 @@ handleTlsRelocation(RelType type, Symbol &sym, InputSectionBase &c,
     return 1;
   }
 
-  bool canRelax = config->emachine != EM_ARM &&
-                  config->emachine != EM_HEXAGON &&
-                  config->emachine != EM_RISCV;
+  bool toExecRelax = !config->shared && config->emachine != EM_ARM &&
+                     config->emachine != EM_HEXAGON &&
+                     config->emachine != EM_RISCV;
 
   // If we are producing an executable and the symbol is non-preemptable, it
   // must be defined and the code sequence can be relaxed to use Local-Exec.
@@ -217,7 +217,7 @@ handleTlsRelocation(RelType type, Symbol &sym, InputSectionBase &c,
   if (oneof<R_TLSLD_GOT, R_TLSLD_GOTPLT, R_TLSLD_PC, R_TLSLD_HINT>(
           expr)) {
     // Local-Dynamic relocs can be relaxed to Local-Exec.
-    if (canRelax && !config->shared) {
+    if (toExecRelax) {
       c.relocations.push_back(
           {target->adjustRelaxExpr(type, nullptr, R_RELAX_TLS_LD_TO_LE), type,
            offset, addend, &sym});
@@ -238,7 +238,7 @@ handleTlsRelocation(RelType type, Symbol &sym, InputSectionBase &c,
   }
 
   // Local-Dynamic relocs can be relaxed to Local-Exec.
-  if (expr == R_DTPREL && !config->shared) {
+  if (expr == R_DTPREL && toExecRelax) {
     c.relocations.push_back(
         {target->adjustRelaxExpr(type, nullptr, R_RELAX_TLS_LD_TO_LE), type,
          offset, addend, &sym});
@@ -260,7 +260,7 @@ handleTlsRelocation(RelType type, Symbol &sym, InputSectionBase &c,
 
   if (oneof<R_AARCH64_TLSDESC_PAGE, R_TLSDESC, R_TLSDESC_CALL, R_TLSDESC_PC,
             R_TLSGD_GOT, R_TLSGD_GOTPLT, R_TLSGD_PC>(expr)) {
-    if (!canRelax || config->shared) {
+    if (!toExecRelax) {
       if (in.got->addDynTlsEntry(sym)) {
         uint64_t off = in.got->getGlobalDynOffset(sym);
 
@@ -308,7 +308,7 @@ handleTlsRelocation(RelType type, Symbol &sym, InputSectionBase &c,
   // defined.
   if (oneof<R_GOT, R_GOTPLT, R_GOT_PC, R_AARCH64_GOT_PAGE_PC, R_GOT_OFF,
             R_TLSIE_HINT>(expr) &&
-      canRelax && isLocalInExecutable) {
+      toExecRelax && isLocalInExecutable) {
     c.relocations.push_back({R_RELAX_TLS_IE_TO_LE, type, offset, addend, &sym});
     return 1;
   }
@@ -376,7 +376,7 @@ static bool needsGot(RelExpr expr) {
 static bool isRelExpr(RelExpr expr) {
   return oneof<R_PC, R_GOTREL, R_GOTPLTREL, R_MIPS_GOTREL, R_PPC64_CALL,
                R_PPC64_RELAX_TOC, R_AARCH64_PAGE_PC, R_RELAX_GOT_PC,
-               R_RISCV_PC_INDIRECT>(expr);
+               R_RISCV_PC_INDIRECT, R_PPC64_RELAX_GOT_PC>(expr);
 }
 
 // Returns true if a given relocation can be computed at link-time.
@@ -870,7 +870,7 @@ static void reportUndefinedSymbol(const UndefinedDiag &undef,
   if (msg.empty())
     msg = "undefined " + visibility() + "symbol: " + toString(sym);
 
-  const size_t maxUndefReferences = 10;
+  const size_t maxUndefReferences = 3;
   size_t i = 0;
   for (UndefinedDiag::Loc l : undef.locs) {
     if (i >= maxUndefReferences)
@@ -901,8 +901,9 @@ static void reportUndefinedSymbol(const UndefinedDiag &undef,
   }
 
   if (sym.getName().startswith("_ZTV"))
-    msg += "\nthe vtable symbol may be undefined because the class is missing "
-           "its key function (see https://lld.llvm.org/missingkeyfunction)";
+    msg +=
+        "\n>>> the vtable symbol may be undefined because the class is missing "
+        "its key function (see https://lld.llvm.org/missingkeyfunction)";
 
   if (undef.isWarning)
     warn(msg);
@@ -910,7 +911,7 @@ static void reportUndefinedSymbol(const UndefinedDiag &undef,
     error(msg);
 }
 
-template <class ELFT> void reportUndefinedSymbols() {
+template <class ELFT> void elf::reportUndefinedSymbols() {
   // Find the first "undefined symbol" diagnostic for each diagnostic, and
   // collect all "referenced from" lines at the first diagnostic.
   DenseMap<Symbol *, UndefinedDiag *> firstRef;
@@ -1262,7 +1263,7 @@ static void processRelocAux(InputSectionBase &sec, RelExpr expr, RelType type,
 
 template <class ELFT, class RelTy>
 static void scanReloc(InputSectionBase &sec, OffsetGetter &getOffset, RelTy *&i,
-                      RelTy *end) {
+                      RelTy *start, RelTy *end) {
   const RelTy &rel = *i;
   uint32_t symIndex = rel.getSymbol(config->isMips64EL);
   Symbol &sym = sec.getFile<ELFT>()->getSymbol(symIndex);
@@ -1293,17 +1294,6 @@ static void scanReloc(InputSectionBase &sec, OffsetGetter &getOffset, RelTy *&i,
   if (expr == R_NONE)
     return;
 
-  // We can separate the small code model relocations into 2 categories:
-  // 1) Those that access the compiler generated .toc sections.
-  // 2) Those that access the linker allocated got entries.
-  // lld allocates got entries to symbols on demand. Since we don't try to sort
-  // the got entries in any way, we don't have to track which objects have
-  // got-based small code model relocs. The .toc sections get placed after the
-  // end of the linker allocated .got section and we do sort those so sections
-  // addressed with small code model relocations come first.
-  if (config->emachine == EM_PPC64 && isPPC64SmallCodeModelTocReloc(type))
-    sec.file->ppc64SmallCodeModelTocRelocs = true;
-
   if (sym.isGnuIFunc() && !config->zText && config->warnIfuncTextrel) {
     warn("using ifunc symbols when text relocations are allowed may produce "
          "a binary that will segfault, if the object file is linked with "
@@ -1316,6 +1306,47 @@ static void scanReloc(InputSectionBase &sec, OffsetGetter &getOffset, RelTy *&i,
 
   // Read an addend.
   int64_t addend = computeAddend<ELFT>(rel, end, sec, expr, sym.isLocal());
+
+  if (config->emachine == EM_PPC64) {
+    // For a call to __tls_get_addr, the instruction needs to be relocated by
+    // two relocations, R_PPC64_TLSGD/R_PPC64_TLSLD and R_PPC64_REL24[_NOTOC].
+    // R_PPC64_TLSGD/R_PPC64_TLSLD should precede R_PPC64_REL24[_NOTOC].
+    if ((type == R_PPC64_REL24 || type == R_PPC64_REL24_NOTOC) &&
+        sym.getName() == "__tls_get_addr") {
+      bool err = i - start < 2;
+      if (!err) {
+        // Subtract 2 to get the previous iterator because we have already done
+        // ++i above. This is now safe because we know that i-1 is not the
+        // start.
+        const RelTy &prevRel = *(i - 2);
+        RelType prevType = prevRel.getType(config->isMips64EL);
+        err = prevRel.r_offset != rel.r_offset ||
+              (prevType != R_PPC64_TLSGD && prevType != R_PPC64_TLSLD);
+      }
+
+      if (err)
+        errorOrWarn("call to __tls_get_addr is missing a "
+                    "R_PPC64_TLSGD/R_PPC64_TLSLD relocation" +
+                    getLocation(sec, sym, offset));
+    }
+
+    // We can separate the small code model relocations into 2 categories:
+    // 1) Those that access the compiler generated .toc sections.
+    // 2) Those that access the linker allocated got entries.
+    // lld allocates got entries to symbols on demand. Since we don't try to
+    // sort the got entries in any way, we don't have to track which objects
+    // have got-based small code model relocs. The .toc sections get placed
+    // after the end of the linker allocated .got section and we do sort those
+    // so sections addressed with small code model relocations come first.
+    if (isPPC64SmallCodeModelTocReloc(type))
+      sec.file->ppc64SmallCodeModelTocRelocs = true;
+
+    // Record the TOC entry (.toc + addend) as not relaxable. See the comment in
+    // InputSectionBase::relocateAlloc().
+    if (type == R_PPC64_TOC16_LO && sym.isSection() && isa<Defined>(sym) &&
+        cast<Defined>(sym).section->name == ".toc")
+      ppc64noTocRelax.insert({&sym, addend});
+  }
 
   // Relax relocations.
   //
@@ -1333,6 +1364,12 @@ static void scanReloc(InputSectionBase &sec, OffsetGetter &getOffset, RelTy *&i,
       // stub type. It should be ignored if optimized to R_PC.
       if (config->emachine == EM_PPC && expr == R_PPC32_PLTREL)
         addend &= ~0x8000;
+      // R_HEX_GD_PLT_B22_PCREL (call a@GDPLT) is transformed into
+      // call __tls_get_addr even if the symbol is non-preemptible.
+      if (!(config->emachine == EM_HEXAGON &&
+           (type == R_HEX_GD_PLT_B22_PCREL ||
+            type == R_HEX_GD_PLT_B22_PCREL_X ||
+            type == R_HEX_GD_PLT_B32_PCREL_X)))
       expr = fromPlt(expr);
     }
   }
@@ -1487,7 +1524,7 @@ static void scanRelocs(InputSectionBase &sec, ArrayRef<RelTy> rels) {
   sec.relocations.reserve(rels.size());
 
   for (auto i = rels.begin(), end = rels.end(); i != end;)
-    scanReloc<ELFT>(sec, getOffset, i, end);
+    scanReloc<ELFT>(sec, getOffset, i, rels.begin(), end);
 
   // Sort relocations by offset for more efficient searching for
   // R_RISCV_PCREL_HI20 and R_PPC64_ADDR64.
@@ -1499,7 +1536,7 @@ static void scanRelocs(InputSectionBase &sec, ArrayRef<RelTy> rels) {
                       });
 }
 
-template <class ELFT> void scanRelocations(InputSectionBase &s) {
+template <class ELFT> void elf::scanRelocations(InputSectionBase &s) {
   if (s.areRelocsRela)
     scanRelocs<ELFT>(s, s.relas<ELFT>());
   else
@@ -1984,7 +2021,7 @@ bool ThunkCreator::createThunks(ArrayRef<OutputSection *> outputSections) {
 // hexagonNeedsTLSSymbol scans for relocations would require a call to
 // __tls_get_addr.
 // hexagonTLSSymbolUpdate rebinds the relocation to __tls_get_addr.
-bool hexagonNeedsTLSSymbol(ArrayRef<OutputSection *> outputSections) {
+bool elf::hexagonNeedsTLSSymbol(ArrayRef<OutputSection *> outputSections) {
   bool needTlsSymbol = false;
   forEachInputSectionDescription(
       outputSections, [&](OutputSection *os, InputSectionDescription *isd) {
@@ -1998,7 +2035,7 @@ bool hexagonNeedsTLSSymbol(ArrayRef<OutputSection *> outputSections) {
   return needTlsSymbol;
 }
 
-void hexagonTLSSymbolUpdate(ArrayRef<OutputSection *> outputSections) {
+void elf::hexagonTLSSymbolUpdate(ArrayRef<OutputSection *> outputSections) {
   Symbol *sym = symtab->find("__tls_get_addr");
   if (!sym)
     return;
@@ -2018,14 +2055,11 @@ void hexagonTLSSymbolUpdate(ArrayRef<OutputSection *> outputSections) {
       });
 }
 
-template void scanRelocations<ELF32LE>(InputSectionBase &);
-template void scanRelocations<ELF32BE>(InputSectionBase &);
-template void scanRelocations<ELF64LE>(InputSectionBase &);
-template void scanRelocations<ELF64BE>(InputSectionBase &);
-template void reportUndefinedSymbols<ELF32LE>();
-template void reportUndefinedSymbols<ELF32BE>();
-template void reportUndefinedSymbols<ELF64LE>();
-template void reportUndefinedSymbols<ELF64BE>();
-
-} // namespace elf
-} // namespace lld
+template void elf::scanRelocations<ELF32LE>(InputSectionBase &);
+template void elf::scanRelocations<ELF32BE>(InputSectionBase &);
+template void elf::scanRelocations<ELF64LE>(InputSectionBase &);
+template void elf::scanRelocations<ELF64BE>(InputSectionBase &);
+template void elf::reportUndefinedSymbols<ELF32LE>();
+template void elf::reportUndefinedSymbols<ELF32BE>();
+template void elf::reportUndefinedSymbols<ELF64LE>();
+template void elf::reportUndefinedSymbols<ELF64BE>();

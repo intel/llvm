@@ -7,19 +7,30 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+
+#include <CL/sycl/ONEAPI/accessor_property_list.hpp>
 #include <CL/sycl/detail/buffer_impl.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/stl_type_traits.hpp>
 #include <CL/sycl/exception.hpp>
+#include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
-
-// TODO: 4.3.4 Properties
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+
 class handler;
 class queue;
 template <int dimensions> class range;
 
+/// Defines a shared array that can be used by kernels in queues.
+///
+/// Buffers can be 1-, 2-, and 3-dimensional. They have to be accessed using
+/// accessor classes.
+///
+/// \sa sycl_api_acc
+///
+/// \ingroup sycl_api
 template <typename T, int dimensions = 1,
           typename AllocatorT = cl::sycl::buffer_allocator,
           typename = typename std::enable_if<(dimensions > 0) &&
@@ -162,8 +173,8 @@ public:
          const property_list &propList = {})
       : Range(range<1>(container.size())) {
     impl = std::make_shared<detail::buffer_impl>(
-        container.data(), container.data() + container.size(),
-        get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
+        container.data(), get_count() * sizeof(T),
+        detail::getNextPowerOfTwo(sizeof(T)), propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
   }
@@ -237,37 +248,65 @@ public:
 
   template <access::mode Mode,
             access::target Target = access::target::global_buffer>
-  accessor<T, dimensions, Mode, Target, access::placeholder::false_t>
+  accessor<T, dimensions, Mode, Target, access::placeholder::false_t,
+           ONEAPI::accessor_property_list<>>
   get_access(handler &CommandGroupHandler) {
-    return accessor<T, dimensions, Mode, Target, access::placeholder::false_t>(
-        *this, CommandGroupHandler);
+    return accessor<T, dimensions, Mode, Target, access::placeholder::false_t,
+                    ONEAPI::accessor_property_list<>>(*this,
+                                                      CommandGroupHandler);
   }
 
   template <access::mode mode>
   accessor<T, dimensions, mode, access::target::host_buffer,
-           access::placeholder::false_t>
+           access::placeholder::false_t, ONEAPI::accessor_property_list<>>
   get_access() {
     return accessor<T, dimensions, mode, access::target::host_buffer,
-                    access::placeholder::false_t>(*this);
+                    access::placeholder::false_t,
+                    ONEAPI::accessor_property_list<>>(*this);
   }
 
   template <access::mode mode,
             access::target target = access::target::global_buffer>
-  accessor<T, dimensions, mode, target, access::placeholder::false_t>
+  accessor<T, dimensions, mode, target, access::placeholder::false_t,
+           ONEAPI::accessor_property_list<>>
   get_access(handler &commandGroupHandler, range<dimensions> accessRange,
              id<dimensions> accessOffset = {}) {
-    return accessor<T, dimensions, mode, target, access::placeholder::false_t>(
+    return accessor<T, dimensions, mode, target, access::placeholder::false_t,
+                    ONEAPI::accessor_property_list<>>(
         *this, commandGroupHandler, accessRange, accessOffset);
   }
 
   template <access::mode mode>
   accessor<T, dimensions, mode, access::target::host_buffer,
-           access::placeholder::false_t>
+           access::placeholder::false_t, ONEAPI::accessor_property_list<>>
   get_access(range<dimensions> accessRange, id<dimensions> accessOffset = {}) {
     return accessor<T, dimensions, mode, access::target::host_buffer,
-                    access::placeholder::false_t>(*this, accessRange,
-                                                  accessOffset);
+                    access::placeholder::false_t,
+                    ONEAPI::accessor_property_list<>>(*this, accessRange,
+                                                      accessOffset);
   }
+
+#if __cplusplus > 201402L
+
+  template <typename... Ts> auto get_access(Ts... args) {
+    return accessor{*this, args...};
+  }
+
+  template <typename... Ts>
+  auto get_access(handler &commandGroupHandler, Ts... args) {
+    return accessor{*this, commandGroupHandler, args...};
+  }
+
+  template <typename... Ts> auto get_host_access(Ts... args) {
+    return host_accessor{*this, args...};
+  }
+
+  template <typename... Ts>
+  auto get_host_access(handler &commandGroupHandler, Ts... args) {
+    return host_accessor{*this, commandGroupHandler, args...};
+  }
+
+#endif
 
   template <typename Destination = std::nullptr_t>
   void set_final_data(Destination finalData = nullptr) {
@@ -307,7 +346,7 @@ private:
   template <typename A, int dims, typename C, typename Enable>
   friend class buffer;
   template <typename DataT, int dims, access::mode mode, access::target target,
-            access::placeholder isPlaceholder>
+            access::placeholder isPlaceholder, typename PropertyListT>
   friend class accessor;
   range<dimensions> Range;
   // Offset field specifies the origin of the sub buffer inside the parent
@@ -337,8 +376,7 @@ private:
     return outOfBounds;
   }
 
-  bool isContiguousRegion(const id<1> &offset, const range<1> &newRange,
-                          const range<1> &parentRange) {
+  bool isContiguousRegion(const id<1> &, const range<1> &, const range<1> &) {
     // 1D sub buffer always has contiguous region
     return true;
   }

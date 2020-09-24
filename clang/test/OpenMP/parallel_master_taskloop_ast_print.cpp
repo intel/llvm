@@ -1,10 +1,10 @@
-// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=50 -ast-print %s | FileCheck %s
-// RUN: %clang_cc1 -fopenmp -fopenmp-version=50 -x c++ -std=c++11 -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp -fopenmp-version=50 -std=c++11 -include-pch %t -fsyntax-only -verify %s -ast-print | FileCheck %s
+// RUN: %clang_cc1 -verify -fopenmp -ast-print %s | FileCheck %s
+// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp -std=c++11 -include-pch %t -fsyntax-only -verify %s -ast-print | FileCheck %s
 
-// RUN: %clang_cc1 -verify -fopenmp-simd -fopenmp-version=50 -ast-print %s | FileCheck %s
-// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=50 -x c++ -std=c++11 -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=50 -std=c++11 -include-pch %t -fsyntax-only -verify %s -ast-print | FileCheck %s
+// RUN: %clang_cc1 -verify -fopenmp-simd -ast-print %s | FileCheck %s
+// RUN: %clang_cc1 -fopenmp-simd -x c++ -std=c++11 -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp-simd -std=c++11 -include-pch %t -fsyntax-only -verify %s -ast-print | FileCheck %s
 // expected-no-diagnostics
 
 #ifndef HEADER
@@ -18,9 +18,9 @@ T tmain(T argc) {
   static T a;
 // CHECK: static T a;
 #pragma omp taskgroup allocate(d) task_reduction(+: d)
-#pragma omp parallel master taskloop if(taskloop: argc > N) default(shared) untied priority(N) grainsize(N) reduction(+:g) allocate(g)
+#pragma omp parallel master taskloop if(taskloop: argc > N) default(shared) untied priority(N) grainsize(N) reduction(+:g) allocate(g) reduction(task,^:c)
   // CHECK-NEXT: #pragma omp taskgroup allocate(d) task_reduction(+: d)
-  // CHECK-NEXT: #pragma omp parallel master taskloop if(taskloop: argc > N) default(shared) untied priority(N) grainsize(N) reduction(+: g) allocate(g){{$}}
+  // CHECK-NEXT: #pragma omp parallel master taskloop if(taskloop: argc > N) default(shared) untied priority(N) grainsize(N) reduction(+: g) allocate(g) reduction(task, ^: c){{$}}
   for (int i = 0; i < 2; ++i)
     a = 2;
 // CHECK-NEXT: for (int i = 0; i < 2; ++i)

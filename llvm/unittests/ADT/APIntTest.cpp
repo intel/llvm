@@ -1783,8 +1783,9 @@ TEST(APIntTest, isShiftedMask) {
   }
 }
 
-// Test that self-move works, but only when we're using MSVC.
-#if defined(_MSC_VER)
+// Test that self-move works with EXPENSIVE_CHECKS. It calls std::shuffle which
+// does self-move on some platforms.
+#ifdef EXPENSIVE_CHECKS
 #if defined(__clang__)
 // Disable the pragma warning from versions of Clang without -Wself-move
 #pragma clang diagnostic push
@@ -1813,7 +1814,7 @@ TEST(APIntTest, SelfMoveAssignment) {
 #pragma clang diagnostic pop
 #pragma clang diagnostic pop
 #endif
-#endif // _MSC_VER
+#endif // EXPENSIVE_CHECKS
 
 TEST(APIntTest, byteSwap) {
   EXPECT_EQ(0x00000000, APInt(16, 0x0000).byteSwap());
@@ -2099,6 +2100,14 @@ TEST(APIntTest, getBitsSetWithWrap) {
   EXPECT_EQ(0u, i127hi1lo1wrap.countTrailingZeros());
   EXPECT_EQ(1u, i127hi1lo1wrap.countTrailingOnes());
   EXPECT_EQ(2u, i127hi1lo1wrap.countPopulation());
+
+  APInt i32hiequallowrap = APInt::getBitsSetWithWrap(32, 10, 10);
+  EXPECT_EQ(32u, i32hiequallowrap.countLeadingOnes());
+  EXPECT_EQ(0u, i32hiequallowrap.countLeadingZeros());
+  EXPECT_EQ(32u, i32hiequallowrap.getActiveBits());
+  EXPECT_EQ(0u, i32hiequallowrap.countTrailingZeros());
+  EXPECT_EQ(32u, i32hiequallowrap.countTrailingOnes());
+  EXPECT_EQ(32u, i32hiequallowrap.countPopulation());
 }
 
 TEST(APIntTest, getHighBitsSet) {

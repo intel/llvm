@@ -358,7 +358,7 @@ public:
   virtual bool CanProvideValue();
 
   // Subclasses must implement the functions below.
-  virtual uint64_t GetByteSize() = 0;
+  virtual llvm::Optional<uint64_t> GetByteSize() = 0;
 
   virtual lldb::ValueType GetValueType() const = 0;
 
@@ -575,7 +575,7 @@ public:
 
   virtual lldb::ValueObjectSP GetNonSyntheticValue();
 
-  lldb::ValueObjectSP GetSyntheticValue(bool use_synthetic = true);
+  lldb::ValueObjectSP GetSyntheticValue();
 
   virtual bool HasSyntheticValue();
 
@@ -702,12 +702,12 @@ public:
   }
 
   void SetSummaryFormat(lldb::TypeSummaryImplSP format) {
-    m_type_summary_sp = format;
+    m_type_summary_sp = std::move(format);
     ClearUserVisibleData(eClearUserVisibleDataItemsSummary);
   }
 
   void SetValueFormat(lldb::TypeFormatImplSP format) {
-    m_type_format_sp = format;
+    m_type_format_sp = std::move(format);
     ClearUserVisibleData(eClearUserVisibleDataItemsValue);
   }
 
@@ -926,7 +926,7 @@ protected:
 
   virtual bool HasDynamicValueTypeInfo() { return false; }
 
-  virtual void CalculateSyntheticValue(bool use_synthetic = true);
+  virtual void CalculateSyntheticValue();
 
   // Should only be called by ValueObject::GetChildAtIndex() Returns a
   // ValueObject managed by this ValueObject's manager.
@@ -963,9 +963,14 @@ protected:
 
   void SetPreferredDisplayLanguageIfNeeded(lldb::LanguageType);
 
+protected:
+  virtual void DoUpdateChildrenAddressType(ValueObject &valobj) { return; };
+
 private:
   virtual CompilerType MaybeCalculateCompleteType();
-  void UpdateChildrenAddressType();
+  void UpdateChildrenAddressType() {
+    GetRoot()->DoUpdateChildrenAddressType(*this);
+  }
 
   lldb::ValueObjectSP GetValueForExpressionPath_Impl(
       llvm::StringRef expression_cstr,
@@ -974,7 +979,8 @@ private:
       const GetValueForExpressionPathOptions &options,
       ExpressionPathAftermath *final_task_on_target);
 
-  DISALLOW_COPY_AND_ASSIGN(ValueObject);
+  ValueObject(const ValueObject &) = delete;
+  const ValueObject &operator=(const ValueObject &) = delete;
 };
 
 // A value object manager class that is seeded with the static variable value

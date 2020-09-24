@@ -27,6 +27,11 @@ class GICombineGroup<list<GICombine> rules> : GICombine {
   let Rules = rules;
 }
 
+class GICombinerHelperArg<string type, string name> {
+  string Type = type;
+  string Name = name;
+}
+
 // Declares a combiner helper class
 class GICombinerHelper<string classname, list<GICombine> rules>
     : GICombineGroup<rules> {
@@ -35,6 +40,12 @@ class GICombinerHelper<string classname, list<GICombine> rules>
   // The name of a run-time compiler option that will be generated to disable
   // specific rules within this combiner.
   string DisableRuleOption = ?;
+  // The state class to inherit from (if any). The generated helper will inherit
+  // from this class and will forward arguments to its constructors.
+  string StateClass = "";
+  // Any additional arguments that should be appended to the tryCombine*().
+  list<GICombinerHelperArg> AdditionalArguments =
+      [GICombinerHelperArg<"CombinerHelper &", "Helper">];
 }
 class GICombineRule<dag defs, dag match, dag apply> : GICombine {
   /// Defines the external interface of the match rule. This includes:
@@ -74,6 +85,7 @@ class GIDefMatchData<string type> : GIDefKind {
 
 def extending_load_matchdata : GIDefMatchData<"PreferredTuple">;
 def indexed_load_store_matchdata : GIDefMatchData<"IndexedLoadStoreMatchInfo">;
+def instruction_steps_matchdata: GIDefMatchData<"InstructionStepsMatchInfo">;
 
 /// The operator at the root of a GICombineRule.Match dag.
 def match;
@@ -114,6 +126,19 @@ def extending_loads : GICombineRule<
   (apply [{ Helper.applyCombineExtendingLoads(*${root}, ${matchinfo}); }])>;
 def combines_for_extload: GICombineGroup<[extending_loads]>;
 
+def sext_trunc_sextload : GICombineRule<
+  (defs root:$d),
+  (match (wip_match_opcode G_SEXT_INREG):$d,
+         [{ return Helper.matchSextTruncSextLoad(*${d}); }]),
+  (apply [{ Helper.applySextTruncSextLoad(*${d}); }])>;
+
+def sext_inreg_of_load_matchdata : GIDefMatchData<"std::tuple<Register, unsigned>">;
+def sext_inreg_of_load : GICombineRule<
+  (defs root:$root, sext_inreg_of_load_matchdata:$matchinfo),
+  (match (wip_match_opcode G_SEXT_INREG):$root,
+         [{ return Helper.matchSextInRegOfLoad(*${root}, ${matchinfo}); }]),
+  (apply [{ return Helper.applySextInRegOfLoad(*${root}, ${matchinfo}); }])>;
+
 def combine_indexed_load_store : GICombineRule<
   (defs root:$root, indexed_load_store_matchdata:$matchinfo),
   (match (wip_match_opcode G_LOAD, G_SEXTLOAD, G_ZEXTLOAD, G_STORE):$root,
@@ -141,6 +166,14 @@ def mul_to_shl : GICombineRule<
   (match (G_MUL $d, $op1, $op2):$mi,
          [{ return Helper.matchCombineMulToShl(*${mi}, ${matchinfo}); }]),
   (apply [{ Helper.applyCombineMulToShl(*${mi}, ${matchinfo}); }])>;
+
+// shl ([asz]ext x), y => zext (shl x, y), if shift does not overflow int
+def reduce_shl_of_extend_matchdata : GIDefMatchData<"RegisterImmPair">;
+def reduce_shl_of_extend : GICombineRule<
+  (defs root:$dst, reduce_shl_of_extend_matchdata:$matchinfo),
+  (match (G_SHL $dst, $src0, $src1):$mi,
+         [{ return Helper.matchCombineShlOfExtend(*${mi}, ${matchinfo}); }]),
+  (apply [{ Helper.applyCombineShlOfExtend(*${mi}, ${matchinfo}); }])>;
 
 // [us]itofp(undef) = 0, because the result value is bounded.
 def undef_to_fp_zero : GICombineRule<
@@ -192,16 +225,188 @@ def select_same_val: GICombineRule<
   (apply [{ return Helper.replaceSingleDefInstWithOperand(*${root}, 2); }])
 >;
 
+// Fold (undef ? x : y) -> y
+def select_undef_cmp: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_SELECT):$root,
+    [{ return Helper.matchUndefSelectCmp(*${root}); }]),
+  (apply [{ return Helper.replaceSingleDefInstWithOperand(*${root}, 2); }])
+>;
+
+// Fold (true ? x : y) -> x
+// Fold (false ? x : y) -> y
+def select_constant_cmp_matchdata : GIDefMatchData<"unsigned">;
+def select_constant_cmp: GICombineRule<
+  (defs root:$root, select_constant_cmp_matchdata:$matchinfo),
+  (match (wip_match_opcode G_SELECT):$root,
+    [{ return Helper.matchConstantSelectCmp(*${root}, ${matchinfo}); }]),
+  (apply [{ return Helper.replaceSingleDefInstWithOperand(*${root}, ${matchinfo}); }])
+>;
+
+// Fold x op 0 -> x
+def right_identity_zero: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_SUB, G_ADD, G_OR, G_XOR, G_SHL, G_ASHR, G_LSHR):$root,
+    [{ return Helper.matchConstantOp(${root}->getOperand(2), 0); }]),
+  (apply [{ return Helper.replaceSingleDefInstWithOperand(*${root}, 1); }])
+>;
+
+// Fold (x op x) - > x
+def binop_same_val: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_AND, G_OR):$root,
+    [{ return Helper.matchBinOpSameVal(*${root}); }]),
+  (apply [{ return Helper.replaceSingleDefInstWithOperand(*${root}, 1); }])
+>;
+
+// Fold (0 op x) - > 0
+def binop_left_to_zero: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_SDIV, G_UDIV, G_SREM, G_UREM):$root,
+    [{ return Helper.matchOperandIsZero(*${root}, 1); }]),
+  (apply [{ return Helper.replaceSingleDefInstWithOperand(*${root}, 1); }])
+>;
+
+// Fold (x op 0) - > 0
+def binop_right_to_zero: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_MUL):$root,
+    [{ return Helper.matchOperandIsZero(*${root}, 2); }]),
+  (apply [{ return Helper.replaceSingleDefInstWithOperand(*${root}, 2); }])
+>;
+
+// Erase stores of undef values.
+def erase_undef_store : GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_STORE):$root,
+    [{ return Helper.matchUndefStore(*${root}); }]),
+  (apply [{ return Helper.eraseInst(*${root}); }])
+>;
+
+def simplify_add_to_sub_matchinfo: GIDefMatchData<"std::tuple<Register, Register>">;
+def simplify_add_to_sub: GICombineRule <
+  (defs root:$root, simplify_add_to_sub_matchinfo:$info),
+  (match (wip_match_opcode G_ADD):$root,
+    [{ return Helper.matchSimplifyAddToSub(*${root}, ${info}); }]),
+  (apply [{ return Helper.applySimplifyAddToSub(*${root}, ${info});}])
+>;
+
+// Fold int2ptr(ptr2int(x)) -> x
+def p2i_to_i2p_matchinfo: GIDefMatchData<"Register">;
+def p2i_to_i2p: GICombineRule<
+  (defs root:$root, p2i_to_i2p_matchinfo:$info),
+  (match (wip_match_opcode G_INTTOPTR):$root,
+    [{ return Helper.matchCombineI2PToP2I(*${root}, ${info}); }]),
+  (apply [{ return Helper.applyCombineI2PToP2I(*${root}, ${info}); }])
+>;
+
+// Fold ptr2int(int2ptr(x)) -> x
+def i2p_to_p2i_matchinfo: GIDefMatchData<"Register">;
+def i2p_to_p2i: GICombineRule<
+  (defs root:$root, i2p_to_p2i_matchinfo:$info),
+  (match (wip_match_opcode G_PTRTOINT):$root,
+    [{ return Helper.matchCombineP2IToI2P(*${root}, ${info}); }]),
+  (apply [{ return Helper.applyCombineP2IToI2P(*${root}, ${info}); }])
+>;
+
+// Fold add ptrtoint(x), y -> ptrtoint (ptr_add x), y
+def add_p2i_to_ptradd_matchinfo : GIDefMatchData<"std::pair<Register, bool>">;
+def add_p2i_to_ptradd : GICombineRule<
+  (defs root:$root, add_p2i_to_ptradd_matchinfo:$info),
+  (match (wip_match_opcode G_ADD):$root,
+    [{ return Helper.matchCombineAddP2IToPtrAdd(*${root}, ${info}); }]),
+  (apply [{ return Helper.applyCombineAddP2IToPtrAdd(*${root}, ${info}); }])
+>;
+
+
+// Simplify: (logic_op (op x...), (op y...)) -> (op (logic_op x, y))
+def hoist_logic_op_with_same_opcode_hands: GICombineRule <
+  (defs root:$root, instruction_steps_matchdata:$info),
+  (match (wip_match_opcode G_AND, G_OR, G_XOR):$root,
+    [{ return Helper.matchHoistLogicOpWithSameOpcodeHands(*${root}, ${info}); }]),
+  (apply [{ return Helper.applyBuildInstructionSteps(*${root}, ${info});}])
+>;
+
+// Fold ashr (shl x, C), C -> sext_inreg (C)
+def shl_ashr_to_sext_inreg_matchinfo : GIDefMatchData<"std::tuple<Register, int64_t>">;
+def shl_ashr_to_sext_inreg : GICombineRule<
+  (defs root:$root, shl_ashr_to_sext_inreg_matchinfo:$info),
+  (match (wip_match_opcode G_ASHR): $root,
+    [{ return Helper.matchAshrShlToSextInreg(*${root}, ${info}); }]),
+  (apply [{ return Helper.applyAshShlToSextInreg(*${root}, ${info});}])
+>;
+// Fold (x & mask) -> x when (x & mask) is known to equal x.
+def and_trivial_mask_matchinfo : GIDefMatchData<"Register">;
+def and_trivial_mask: GICombineRule <
+  (defs root:$root, and_trivial_mask_matchinfo:$matchinfo),
+  (match (wip_match_opcode G_AND):$root,
+         [{ return Helper.matchAndWithTrivialMask(*${root}, ${matchinfo}); }]),
+  (apply [{ return Helper.replaceSingleDefInstWithReg(*${root}, ${matchinfo}); }])
+>;
+
+// If the input is already sign extended, just drop the extension.
+// sext_inreg x, K ->
+//   if computeNumSignBits(x) >= (x.getScalarSizeInBits() - K + 1)
+def redundant_sext_inreg: GICombineRule <
+  (defs root:$root),
+  (match (wip_match_opcode G_SEXT_INREG):$root,
+         [{ return Helper.matchRedundantSExtInReg(*${root}); }]),
+     (apply [{ return Helper.replaceSingleDefInstWithOperand(*${root}, 1); }])
+>;
+
+// Fold (anyext (trunc x)) -> x if the source type is same as
+// the destination type.
+def anyext_trunc_fold_matchinfo : GIDefMatchData<"Register">;
+def anyext_trunc_fold: GICombineRule <
+  (defs root:$root, anyext_trunc_fold_matchinfo:$matchinfo),
+  (match (wip_match_opcode G_ANYEXT):$root,
+         [{ return Helper.matchCombineAnyExtTrunc(*${root}, ${matchinfo}); }]),
+  (apply [{ return Helper.applyCombineAnyExtTrunc(*${root}, ${matchinfo}); }])
+>;
+
+// Fold ([asz]ext ([asz]ext x)) -> ([asz]ext x).
+def ext_ext_fold_matchinfo : GIDefMatchData<"std::tuple<Register, unsigned>">;
+def ext_ext_fold: GICombineRule <
+  (defs root:$root, ext_ext_fold_matchinfo:$matchinfo),
+  (match (wip_match_opcode G_ANYEXT, G_SEXT, G_ZEXT):$root,
+         [{ return Helper.matchCombineExtOfExt(*${root}, ${matchinfo}); }]),
+  (apply [{ return Helper.applyCombineExtOfExt(*${root}, ${matchinfo}); }])
+>;
+
+def not_cmp_fold_matchinfo : GIDefMatchData<"SmallVector<Register, 4>">;
+def not_cmp_fold : GICombineRule<
+  (defs root:$d, not_cmp_fold_matchinfo:$info),
+  (match (wip_match_opcode G_XOR): $d,
+  [{ return Helper.matchNotCmp(*${d}, ${info}); }]),
+  (apply [{ return Helper.applyNotCmp(*${d}, ${info}); }])
+>;
+
 // FIXME: These should use the custom predicate feature once it lands.
 def undef_combines : GICombineGroup<[undef_to_fp_zero, undef_to_int_zero,
                                      undef_to_negative_one,
                                      propagate_undef_any_op,
                                      propagate_undef_all_ops,
-                                     propagate_undef_shuffle_mask]>;
+                                     propagate_undef_shuffle_mask,
+                                     erase_undef_store]>;
 
-def identity_combines : GICombineGroup<[select_same_val]>;
+def identity_combines : GICombineGroup<[select_same_val, right_identity_zero,
+                                        binop_same_val, binop_left_to_zero,
+                                        binop_right_to_zero, p2i_to_i2p,
+                                        i2p_to_p2i, anyext_trunc_fold]>;
 
-def trivial_combines : GICombineGroup<[copy_prop, mul_to_shl]>;
+def known_bits_simplifications : GICombineGroup<[
+  and_trivial_mask, redundant_sext_inreg]>;
+
+def width_reduction_combines : GICombineGroup<[reduce_shl_of_extend]>;
+
+def select_combines : GICombineGroup<[select_undef_cmp, select_constant_cmp]>;
+
+def trivial_combines : GICombineGroup<[copy_prop, mul_to_shl, add_p2i_to_ptradd]>;
 def all_combines : GICombineGroup<[trivial_combines, ptr_add_immed_chain,
     combines_for_extload, combine_indexed_load_store, undef_combines,
-    identity_combines]>;
+    identity_combines, simplify_add_to_sub,
+    hoist_logic_op_with_same_opcode_hands,
+    shl_ashr_to_sext_inreg, sext_inreg_of_load,
+    width_reduction_combines, select_combines,
+    known_bits_simplifications, ext_ext_fold,
+    not_cmp_fold]>;

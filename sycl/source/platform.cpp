@@ -16,12 +16,12 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-platform::platform() : impl(std::make_shared<detail::platform_impl>()) {}
+platform::platform() : impl(detail::platform_impl::getHostPlatformImpl()) {}
 
 platform::platform(cl_platform_id PlatformId)
     : impl(std::make_shared<detail::platform_impl>(
           detail::pi::cast<detail::RT::PiPlatform>(PlatformId),
-          RT::GlobalPlugin)) {}
+          RT::getPlugin<backend::opencl>())) {}
 
 platform::platform(const device_selector &dev_selector) {
   *this = dev_selector.select_device().get_platform();
@@ -43,11 +43,17 @@ vector_class<platform> platform::get_platforms() {
   return detail::platform_impl::get_platforms();
 }
 
+backend platform::get_backend() const noexcept { return impl->get_backend(); }
+
 template <info::platform param>
 typename info::param_traits<info::platform, param>::return_type
 platform::get_info() const {
   return impl->get_info<param>();
 }
+
+pi_native_handle platform::getNative() const { return impl->getNative(); }
+
+bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
   template __SYCL_EXPORT ret_type                                              \

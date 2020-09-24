@@ -23,18 +23,20 @@ namespace performance {
 MoveConstructorInitCheck::MoveConstructorInitCheck(StringRef Name,
                                                    ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      IncludeStyle(utils::IncludeSorter::parseIncludeStyle(
-          Options.getLocalOrGlobal("IncludeStyle", "llvm"))) {}
+      Inserter(Options.getLocalOrGlobal("IncludeStyle",
+                                        utils::IncludeSorter::IS_LLVM)) {}
 
 void MoveConstructorInitCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
-      cxxConstructorDecl(
-          unless(isImplicit()), isMoveConstructor(),
-          hasAnyConstructorInitializer(
-              cxxCtorInitializer(
-                  withInitializer(cxxConstructExpr(hasDeclaration(
-                      cxxConstructorDecl(isCopyConstructor()).bind("ctor")))))
-                  .bind("move-init"))),
+      traverse(ast_type_traits::TK_AsIs,
+               cxxConstructorDecl(
+                   unless(isImplicit()), isMoveConstructor(),
+                   hasAnyConstructorInitializer(
+                       cxxCtorInitializer(
+                           withInitializer(cxxConstructExpr(hasDeclaration(
+                               cxxConstructorDecl(isCopyConstructor())
+                                   .bind("ctor")))))
+                           .bind("move-init")))),
       this);
 }
 
@@ -88,14 +90,11 @@ void MoveConstructorInitCheck::check(const MatchFinder::MatchResult &Result) {
 
 void MoveConstructorInitCheck::registerPPCallbacks(
     const SourceManager &SM, Preprocessor *PP, Preprocessor *ModuleExpanderPP) {
-  Inserter = std::make_unique<utils::IncludeInserter>(SM, getLangOpts(),
-                                                       IncludeStyle);
-  PP->addPPCallbacks(Inserter->CreatePPCallbacks());
+  Inserter.registerPreprocessor(PP);
 }
 
 void MoveConstructorInitCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "IncludeStyle",
-                utils::IncludeSorter::toString(IncludeStyle));
+  Options.store(Opts, "IncludeStyle", Inserter.getStyle());
 }
 
 } // namespace performance

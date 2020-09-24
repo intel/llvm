@@ -9,6 +9,7 @@
 #ifndef LLD_COFF_CONFIG_H
 #define LLD_COFF_CONFIG_H
 
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Object/COFF.h"
@@ -29,6 +30,7 @@ class DefinedRelative;
 class StringChunk;
 class Symbol;
 class InputFile;
+class SectionChunk;
 
 // Short aliases.
 static const auto AMD64 = llvm::COFF::IMAGE_FILE_MACHINE_AMD64;
@@ -110,6 +112,7 @@ struct Configuration {
   bool showSummary = false;
   unsigned debugTypes = static_cast<unsigned>(DebugType::None);
   std::vector<std::string> natvisFiles;
+  llvm::StringMap<std::string> namedStreams;
   llvm::SmallString<128> pdbAltPath;
   llvm::SmallString<128> pdbPath;
   llvm::SmallString<128> pdbSourcePath;
@@ -139,12 +142,13 @@ struct Configuration {
   bool safeSEH = false;
   Symbol *sehTable = nullptr;
   Symbol *sehCount = nullptr;
+  bool noSEH = false;
 
   // Used for /opt:lldlto=N
   unsigned ltoo = 2;
 
   // Used for /opt:lldltojobs=N
-  unsigned thinLTOJobs = 0;
+  std::string thinLTOJobs;
   // Used for /opt:lldltopartitions=N
   unsigned ltoPartitions = 1;
 
@@ -199,6 +203,15 @@ struct Configuration {
   // Used for /lto-obj-path:
   llvm::StringRef ltoObjPath;
 
+  // Used for /call-graph-ordering-file:
+  llvm::MapVector<std::pair<const SectionChunk *, const SectionChunk *>,
+                  uint64_t>
+      callGraphProfile;
+  bool callGraphProfileSort = false;
+
+  // Used for /print-symbol-order:
+  StringRef printSymbolOrder;
+
   uint64_t align = 4096;
   uint64_t imageBase = -1;
   uint64_t fileAlign = 512;
@@ -234,6 +247,8 @@ struct Configuration {
   bool swaprunNet = false;
   bool thinLTOEmitImportsFiles;
   bool thinLTOIndexOnly;
+  bool autoImport = false;
+  bool pseudoRelocs = false;
 };
 
 extern Configuration *config;

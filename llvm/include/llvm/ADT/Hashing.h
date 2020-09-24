@@ -52,6 +52,7 @@
 #include <cassert>
 #include <cstring>
 #include <string>
+#include <tuple>
 #include <utility>
 
 namespace llvm {
@@ -112,6 +113,10 @@ template <typename T> hash_code hash_value(const T *ptr);
 template <typename T, typename U>
 hash_code hash_value(const std::pair<T, U> &arg);
 
+/// Compute a hash_code for a tuple.
+template <typename... Ts>
+hash_code hash_value(const std::tuple<Ts...> &arg);
+
 /// Compute a hash_code for a standard string.
 template <typename T>
 hash_code hash_value(const std::basic_string<T> &arg);
@@ -157,10 +162,10 @@ inline uint32_t fetch32(const char *p) {
 }
 
 /// Some primes between 2^63 and 2^64 for various uses.
-static const uint64_t k0 = 0xc3a5c85c97cb3127ULL;
-static const uint64_t k1 = 0xb492b66fbe98f273ULL;
-static const uint64_t k2 = 0x9ae16a3b2f90404fULL;
-static const uint64_t k3 = 0xc949d7c7509e6557ULL;
+static constexpr uint64_t k0 = 0xc3a5c85c97cb3127ULL;
+static constexpr uint64_t k1 = 0xb492b66fbe98f273ULL;
+static constexpr uint64_t k2 = 0x9ae16a3b2f90404fULL;
+static constexpr uint64_t k3 = 0xc949d7c7509e6557ULL;
 
 /// Bitwise right rotate.
 /// Normally this will compile to a single instruction, especially if the
@@ -643,6 +648,26 @@ template <typename T> hash_code hash_value(const T *ptr) {
 template <typename T, typename U>
 hash_code hash_value(const std::pair<T, U> &arg) {
   return hash_combine(arg.first, arg.second);
+}
+
+// Implementation details for the hash_value overload for std::tuple<...>(...).
+namespace hashing {
+namespace detail {
+
+template <typename... Ts, std::size_t... Indices>
+hash_code hash_value_tuple_helper(const std::tuple<Ts...> &arg,
+                                  std::index_sequence<Indices...> indices) {
+  return hash_combine(std::get<Indices>(arg)...);
+}
+
+} // namespace detail
+} // namespace hashing
+
+template <typename... Ts>
+hash_code hash_value(const std::tuple<Ts...> &arg) {
+  // TODO: Use std::apply when LLVM starts using C++17.
+  return ::llvm::hashing::detail::hash_value_tuple_helper(
+      arg, typename std::index_sequence_for<Ts...>());
 }
 
 // Declared and documented above, but defined here so that any of the hashing

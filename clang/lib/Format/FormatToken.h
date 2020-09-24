@@ -29,6 +29,7 @@ namespace format {
   TYPE(ArrayInitializerLSquare)                                                \
   TYPE(ArraySubscriptLSquare)                                                  \
   TYPE(AttributeColon)                                                         \
+  TYPE(AttributeMacro)                                                         \
   TYPE(AttributeParen)                                                         \
   TYPE(AttributeSquare)                                                        \
   TYPE(BinaryOperator)                                                         \
@@ -100,8 +101,10 @@ namespace format {
   TYPE(TrailingAnnotation)                                                     \
   TYPE(TrailingReturnArrow)                                                    \
   TYPE(TrailingUnaryOperator)                                                  \
+  TYPE(TypeDeclarationParen)                                                   \
   TYPE(TypenameMacro)                                                          \
   TYPE(UnaryOperator)                                                          \
+  TYPE(UntouchableMacroFunc)                                                   \
   TYPE(CSharpStringLiteral)                                                    \
   TYPE(CSharpNamedArgumentColon)                                               \
   TYPE(CSharpNullable)                                                         \
@@ -113,6 +116,8 @@ namespace format {
   TYPE(CSharpGenericTypeConstraintComma)                                       \
   TYPE(Unknown)
 
+/// Determines the semantic type of a syntactic token, e.g. whether "<" is a
+/// template opener or binary operator.
 enum TokenType {
 #define TYPE(X) TT_##X,
   LIST_TOKEN_TYPES
@@ -137,23 +142,140 @@ class AnnotatedLine;
 /// A wrapper around a \c Token storing information about the
 /// whitespace characters preceding it.
 struct FormatToken {
-  FormatToken() {}
+  FormatToken()
+      : HasUnescapedNewline(false), IsMultiline(false), IsFirst(false),
+        MustBreakBefore(false), MustBreakAlignBefore(false),
+        IsUnterminatedLiteral(false), CanBreakBefore(false),
+        ClosesTemplateDeclaration(false), StartsBinaryExpression(false),
+        EndsBinaryExpression(false), PartOfMultiVariableDeclStmt(false),
+        ContinuesLineCommentSection(false), Finalized(false),
+        BlockKind(BK_Unknown), Type(TT_Unknown), Decision(FD_Unformatted),
+        PackingKind(PPK_Inconclusive) {}
 
   /// The \c Token.
   Token Tok;
+
+  /// The raw text of the token.
+  ///
+  /// Contains the raw token text without leading whitespace and without leading
+  /// escaped newlines.
+  StringRef TokenText;
+
+  /// A token can have a special role that can carry extra information
+  /// about the token's formatting.
+  std::unique_ptr<TokenRole> Role;
+
+  /// The range of the whitespace immediately preceding the \c Token.
+  SourceRange WhitespaceRange;
+
+  /// Whether there is at least one unescaped newline before the \c
+  /// Token.
+  unsigned HasUnescapedNewline : 1;
+
+  /// Whether the token text contains newlines (escaped or not).
+  unsigned IsMultiline : 1;
+
+  /// Indicates that this is the first token of the file.
+  unsigned IsFirst : 1;
+
+  /// Whether there must be a line break before this token.
+  ///
+  /// This happens for example when a preprocessor directive ended directly
+  /// before the token.
+  unsigned MustBreakBefore : 1;
+
+  /// Whether to not align across this token
+  ///
+  /// This happens for example when a preprocessor directive ended directly
+  /// before the token, but very rarely otherwise.
+  unsigned MustBreakAlignBefore : 1;
+
+  /// Set to \c true if this token is an unterminated literal.
+  unsigned IsUnterminatedLiteral : 1;
+
+  /// \c true if it is allowed to break before this token.
+  unsigned CanBreakBefore : 1;
+
+  /// \c true if this is the ">" of "template<..>".
+  unsigned ClosesTemplateDeclaration : 1;
+
+  /// \c true if this token starts a binary expression, i.e. has at least
+  /// one fake l_paren with a precedence greater than prec::Unknown.
+  unsigned StartsBinaryExpression : 1;
+  /// \c true if this token ends a binary expression.
+  unsigned EndsBinaryExpression : 1;
+
+  /// Is this token part of a \c DeclStmt defining multiple variables?
+  ///
+  /// Only set if \c Type == \c TT_StartOfName.
+  unsigned PartOfMultiVariableDeclStmt : 1;
+
+  /// Does this line comment continue a line comment section?
+  ///
+  /// Only set to true if \c Type == \c TT_LineComment.
+  unsigned ContinuesLineCommentSection : 1;
+
+  /// If \c true, this token has been fully formatted (indented and
+  /// potentially re-formatted inside), and we do not allow further formatting
+  /// changes.
+  unsigned Finalized : 1;
+
+private:
+  /// Contains the kind of block if this token is a brace.
+  unsigned BlockKind : 2;
+
+public:
+  BraceBlockKind getBlockKind() const {
+    return static_cast<BraceBlockKind>(BlockKind);
+  }
+  void setBlockKind(BraceBlockKind BBK) {
+    BlockKind = BBK;
+    assert(getBlockKind() == BBK && "BraceBlockKind overflow!");
+  }
+
+private:
+  unsigned Type : 8;
+
+public:
+  /// Returns the token's type, e.g. whether "<" is a template opener or
+  /// binary operator.
+  TokenType getType() const { return static_cast<TokenType>(Type); }
+  void setType(TokenType T) {
+    Type = T;
+    assert(getType() == T && "TokenType overflow!");
+  }
+
+private:
+  /// Stores the formatting decision for the token once it was made.
+  unsigned Decision : 2;
+
+public:
+  FormatDecision getDecision() const {
+    return static_cast<FormatDecision>(Decision);
+  }
+  void setDecision(FormatDecision D) {
+    Decision = D;
+    assert(getDecision() == D && "FormatDecision overflow!");
+  }
+
+private:
+  /// If this is an opening parenthesis, how are the parameters packed?
+  unsigned PackingKind : 2;
+
+public:
+  ParameterPackingKind getPackingKind() const {
+    return static_cast<ParameterPackingKind>(PackingKind);
+  }
+  void setPackingKind(ParameterPackingKind K) {
+    PackingKind = K;
+    assert(getPackingKind() == K && "ParameterPackingKind overflow!");
+  }
 
   /// The number of newlines immediately before the \c Token.
   ///
   /// This can be used to determine what the user wrote in the original code
   /// and thereby e.g. leave an empty line between two function definitions.
   unsigned NewlinesBefore = 0;
-
-  /// Whether there is at least one unescaped newline before the \c
-  /// Token.
-  bool HasUnescapedNewline = false;
-
-  /// The range of the whitespace immediately preceding the \c Token.
-  SourceRange WhitespaceRange;
 
   /// The offset just past the last '\n' in this token's leading
   /// whitespace (relative to \c WhiteSpaceStart). 0 if there is no '\n'.
@@ -168,40 +290,8 @@ struct FormatToken {
   /// token.
   unsigned LastLineColumnWidth = 0;
 
-  /// Whether the token text contains newlines (escaped or not).
-  bool IsMultiline = false;
-
-  /// Indicates that this is the first token of the file.
-  bool IsFirst = false;
-
-  /// Whether there must be a line break before this token.
-  ///
-  /// This happens for example when a preprocessor directive ended directly
-  /// before the token.
-  bool MustBreakBefore = false;
-
-  /// The raw text of the token.
-  ///
-  /// Contains the raw token text without leading whitespace and without leading
-  /// escaped newlines.
-  StringRef TokenText;
-
-  /// Set to \c true if this token is an unterminated literal.
-  bool IsUnterminatedLiteral = 0;
-
-  /// Contains the kind of block if this token is a brace.
-  BraceBlockKind BlockKind = BK_Unknown;
-
-  TokenType Type = TT_Unknown;
-
   /// The number of spaces that should be inserted before this token.
   unsigned SpacesRequiredBefore = 0;
-
-  /// \c true if it is allowed to break before this token.
-  bool CanBreakBefore = false;
-
-  /// \c true if this is the ">" of "template<..>".
-  bool ClosesTemplateDeclaration = false;
 
   /// Number of parameters, if this is "(", "[" or "<".
   unsigned ParameterCount = 0;
@@ -213,13 +303,6 @@ struct FormatToken {
   /// If this is a bracket ("<", "(", "[" or "{"), contains the kind of
   /// the surrounding bracket.
   tok::TokenKind ParentBracket = tok::unknown;
-
-  /// A token can have a special role that can carry extra information
-  /// about the token's formatting.
-  std::unique_ptr<TokenRole> Role;
-
-  /// If this is an opening parenthesis, how are the parameters packed?
-  ParameterPackingKind PackingKind = PPK_Inconclusive;
 
   /// The total length of the unwrapped line up to and including this
   /// token.
@@ -274,12 +357,6 @@ struct FormatToken {
   /// Insert this many fake ) after this token for correct indentation.
   unsigned FakeRParens = 0;
 
-  /// \c true if this token starts a binary expression, i.e. has at least
-  /// one fake l_paren with a precedence greater than prec::Unknown.
-  bool StartsBinaryExpression = false;
-  /// \c true if this token ends a binary expression.
-  bool EndsBinaryExpression = false;
-
   /// If this is an operator (or "."/"->") in a sequence of operators
   /// with the same precedence, contains the 0-based operator index.
   unsigned OperatorIndex = 0;
@@ -287,16 +364,6 @@ struct FormatToken {
   /// If this is an operator (or "."/"->") in a sequence of operators
   /// with the same precedence, points to the next operator.
   FormatToken *NextOperator = nullptr;
-
-  /// Is this token part of a \c DeclStmt defining multiple variables?
-  ///
-  /// Only set if \c Type == \c TT_StartOfName.
-  bool PartOfMultiVariableDeclStmt = false;
-
-  /// Does this line comment continue a line comment section?
-  ///
-  /// Only set to true if \c Type == \c TT_LineComment.
-  bool ContinuesLineCommentSection = false;
 
   /// If this is a bracket, this points to the matching one.
   FormatToken *MatchingParen = nullptr;
@@ -311,16 +378,8 @@ struct FormatToken {
   /// in it.
   SmallVector<AnnotatedLine *, 1> Children;
 
-  /// Stores the formatting decision for the token once it was made.
-  FormatDecision Decision = FD_Unformatted;
-
-  /// If \c true, this token has been fully formatted (indented and
-  /// potentially re-formatted inside), and we do not allow further formatting
-  /// changes.
-  bool Finalized = false;
-
   bool is(tok::TokenKind Kind) const { return Tok.is(Kind); }
-  bool is(TokenType TT) const { return Type == TT; }
+  bool is(TokenType TT) const { return getType() == TT; }
   bool is(const IdentifierInfo *II) const {
     return II && II == Tok.getIdentifierInfo();
   }
@@ -328,6 +387,9 @@ struct FormatToken {
     return Tok.getIdentifierInfo() &&
            Tok.getIdentifierInfo()->getPPKeywordID() == Kind;
   }
+  bool is(BraceBlockKind BBK) const { return getBlockKind() == BBK; }
+  bool is(ParameterPackingKind PPK) const { return getPackingKind() == PPK; }
+
   template <typename A, typename B> bool isOneOf(A K1, B K2) const {
     return is(K1) || is(K2);
   }
@@ -343,7 +405,7 @@ struct FormatToken {
   }
 
   bool closesScopeAfterBlock() const {
-    if (BlockKind == BK_Block)
+    if (getBlockKind() == BK_Block)
       return true;
     if (closesScope())
       return Previous->closesScopeAfterBlock();
@@ -377,6 +439,13 @@ struct FormatToken {
   bool isAccessSpecifier(bool ColonRequired = true) const {
     return isOneOf(tok::kw_public, tok::kw_protected, tok::kw_private) &&
            (!ColonRequired || (Next && Next->is(tok::colon)));
+  }
+
+  bool canBePointerOrReferenceQualifier() const {
+    return isOneOf(tok::kw_const, tok::kw_restrict, tok::kw_volatile,
+                   tok::kw___attribute, tok::kw__Nonnull, tok::kw__Nullable,
+                   tok::kw__Null_unspecified, tok::kw___ptr32, tok::kw___ptr64,
+                   TT_AttributeMacro);
   }
 
   /// Determine whether the token is a simple-type-specifier.
@@ -457,7 +526,9 @@ struct FormatToken {
     case tok::kw_decltype:
     case tok::kw_noexcept:
     case tok::kw_static_assert:
+    case tok::kw__Atomic:
     case tok::kw___attribute:
+    case tok::kw___underlying_type:
       return true;
     default:
       return false;
@@ -513,13 +584,13 @@ struct FormatToken {
   /// list that should be indented with a block indent.
   bool opensBlockOrBlockTypeList(const FormatStyle &Style) const {
     // C# Does not indent object initialisers as continuations.
-    if (is(tok::l_brace) && BlockKind == BK_BracedInit && Style.isCSharp())
+    if (is(tok::l_brace) && getBlockKind() == BK_BracedInit && Style.isCSharp())
       return true;
     if (is(TT_TemplateString) && opensScope())
       return true;
     return is(TT_ArrayInitializerLSquare) || is(TT_ProtoExtensionLSquare) ||
            (is(tok::l_brace) &&
-            (BlockKind == BK_Block || is(TT_DictLiteral) ||
+            (getBlockKind() == BK_Block || is(TT_DictLiteral) ||
              (!Style.Cpp11BracedListStyle && NestingLevel == 0))) ||
            (is(tok::less) && (Style.Language == FormatStyle::LK_Proto ||
                               Style.Language == FormatStyle::LK_TextProto));
@@ -909,10 +980,72 @@ struct AdditionalKeywords {
 
   /// Returns \c true if \p Tok is a true JavaScript identifier, returns
   /// \c false if it is a keyword or a pseudo keyword.
-  bool IsJavaScriptIdentifier(const FormatToken &Tok) const {
-    return Tok.is(tok::identifier) &&
-           JsExtraKeywords.find(Tok.Tok.getIdentifierInfo()) ==
-               JsExtraKeywords.end();
+  /// If \c AcceptIdentifierName is true, returns true not only for keywords,
+  // but also for IdentifierName tokens (aka pseudo-keywords), such as
+  // ``yield``.
+  bool IsJavaScriptIdentifier(const FormatToken &Tok,
+                              bool AcceptIdentifierName = true) const {
+    // Based on the list of JavaScript & TypeScript keywords here:
+    // https://github.com/microsoft/TypeScript/blob/master/src/compiler/scanner.ts#L74
+    switch (Tok.Tok.getKind()) {
+    case tok::kw_break:
+    case tok::kw_case:
+    case tok::kw_catch:
+    case tok::kw_class:
+    case tok::kw_continue:
+    case tok::kw_const:
+    case tok::kw_default:
+    case tok::kw_delete:
+    case tok::kw_do:
+    case tok::kw_else:
+    case tok::kw_enum:
+    case tok::kw_export:
+    case tok::kw_false:
+    case tok::kw_for:
+    case tok::kw_if:
+    case tok::kw_import:
+    case tok::kw_module:
+    case tok::kw_new:
+    case tok::kw_private:
+    case tok::kw_protected:
+    case tok::kw_public:
+    case tok::kw_return:
+    case tok::kw_static:
+    case tok::kw_switch:
+    case tok::kw_this:
+    case tok::kw_throw:
+    case tok::kw_true:
+    case tok::kw_try:
+    case tok::kw_typeof:
+    case tok::kw_void:
+    case tok::kw_while:
+      // These are JS keywords that are lexed by LLVM/clang as keywords.
+      return false;
+    case tok::identifier: {
+      // For identifiers, make sure they are true identifiers, excluding the
+      // JavaScript pseudo-keywords (not lexed by LLVM/clang as keywords).
+      bool IsPseudoKeyword =
+          JsExtraKeywords.find(Tok.Tok.getIdentifierInfo()) !=
+          JsExtraKeywords.end();
+      return AcceptIdentifierName || !IsPseudoKeyword;
+    }
+    default:
+      // Other keywords are handled in the switch below, to avoid problems due
+      // to duplicate case labels when using the #include trick.
+      break;
+    }
+
+    switch (Tok.Tok.getKind()) {
+      // Handle C++ keywords not included above: these are all JS identifiers.
+#define KEYWORD(X, Y) case tok::kw_##X:
+#include "clang/Basic/TokenKinds.def"
+      // #undef KEYWORD is not needed -- it's #undef-ed at the end of
+      // TokenKinds.def
+      return true;
+    default:
+      // All other tokens (punctuation etc) are not JS identifiers.
+      return false;
+    }
   }
 
   /// Returns \c true if \p Tok is a C# keyword, returns

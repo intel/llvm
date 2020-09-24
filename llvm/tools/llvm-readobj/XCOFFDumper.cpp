@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Error.h"
 #include "ObjDumper.h"
 #include "llvm-readobj.h"
 #include "llvm/Object/XCOFFObjectFile.h"
@@ -22,11 +21,6 @@ using namespace object;
 namespace {
 
 class XCOFFDumper : public ObjDumper {
-  enum {
-    SymbolTypeMask = 0x07,
-    SymbolAlignmentMask = 0xF8,
-    SymbolAlignmentBitOffset = 3
-  };
 
 public:
   XCOFFDumper(const XCOFFObjectFile &Obj, ScopedPrinter &Writer)
@@ -211,17 +205,15 @@ void XCOFFDumper::printCsectAuxEnt32(const XCOFFCsectAuxEnt32 *AuxEntPtr) {
   DictScope SymDs(W, "CSECT Auxiliary Entry");
   W.printNumber("Index",
                 Obj.getSymbolIndex(reinterpret_cast<uintptr_t>(AuxEntPtr)));
-  if ((AuxEntPtr->SymbolAlignmentAndType & SymbolTypeMask) == XCOFF::XTY_LD)
+  if (AuxEntPtr->isLabel())
     W.printNumber("ContainingCsectSymbolIndex", AuxEntPtr->SectionOrLength);
   else
     W.printNumber("SectionLen", AuxEntPtr->SectionOrLength);
   W.printHex("ParameterHashIndex", AuxEntPtr->ParameterHashIndex);
   W.printHex("TypeChkSectNum", AuxEntPtr->TypeChkSectNum);
   // Print out symbol alignment and type.
-  W.printNumber("SymbolAlignmentLog2",
-                (AuxEntPtr->SymbolAlignmentAndType & SymbolAlignmentMask) >>
-                    SymbolAlignmentBitOffset);
-  W.printEnum("SymbolType", AuxEntPtr->SymbolAlignmentAndType & SymbolTypeMask,
+  W.printNumber("SymbolAlignmentLog2", AuxEntPtr->getAlignmentLog2());
+  W.printEnum("SymbolType", AuxEntPtr->getSymbolType(),
               makeArrayRef(CsectSymbolTypeClass));
   W.printEnum("StorageMappingClass",
               static_cast<uint8_t>(AuxEntPtr->StorageMappingClass),
@@ -522,14 +514,8 @@ void XCOFFDumper::printSectionHeaders(ArrayRef<T> Sections) {
 }
 
 namespace llvm {
-std::error_code createXCOFFDumper(const object::ObjectFile *Obj,
-                                  ScopedPrinter &Writer,
-                                  std::unique_ptr<ObjDumper> &Result) {
-  const XCOFFObjectFile *XObj = dyn_cast<XCOFFObjectFile>(Obj);
-  if (!XObj)
-    return readobj_error::unsupported_obj_file_format;
-
-  Result.reset(new XCOFFDumper(*XObj, Writer));
-  return readobj_error::success;
+std::unique_ptr<ObjDumper>
+createXCOFFDumper(const object::XCOFFObjectFile &XObj, ScopedPrinter &Writer) {
+  return std::make_unique<XCOFFDumper>(XObj, Writer);
 }
 } // namespace llvm

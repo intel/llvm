@@ -486,8 +486,10 @@ TEST(PreferredTypeTest, NoCrashOnInvalidTypes) {
   StringRef Code = R"cpp(
     auto x = decltype(&1)(^);
     auto y = new decltype(&1)(^);
+    // GNU decimal type extension is not supported in clang.
+    auto z = new _Decimal128(^);
   )cpp";
-  EXPECT_THAT(collectPreferredTypes(Code),
-              Each("decltype(<recovery-expr>(1))"));
+  EXPECT_THAT(collectPreferredTypes(Code), Each("NULL TYPE"));
 }
+
 } // namespace

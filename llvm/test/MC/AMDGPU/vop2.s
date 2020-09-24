@@ -3,10 +3,10 @@
 // RUN: not llvm-mc -arch=amdgcn -mcpu=bonaire -show-encoding %s | FileCheck %s --check-prefix=GCN --check-prefix=SICI
 // RUN: not llvm-mc -arch=amdgcn -mcpu=tonga -show-encoding %s | FileCheck %s --check-prefix=GCN --check-prefix=CIVI --check-prefix=VI
 
-// RUN: not llvm-mc -arch=amdgcn -show-encoding %s 2>&1 | FileCheck %s --check-prefix=NOSICI
-// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti -show-encoding %s 2>&1 | FileCheck %s --check-prefix=NOSICI
-// RUN: not llvm-mc -arch=amdgcn -mcpu=bonaire -show-encoding %s 2>&1 | FileCheck %s --check-prefix=NOSICI
-// RUN: not llvm-mc -arch=amdgcn -mcpu=tonga -show-encoding %s 2>&1 | FileCheck %s -check-prefix=NOVI
+// RUN: not llvm-mc -arch=amdgcn %s 2>&1 | FileCheck %s --check-prefix=NOSICI --implicit-check-not=error:
+// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti %s 2>&1 | FileCheck %s --check-prefix=NOSICI --implicit-check-not=error:
+// RUN: not llvm-mc -arch=amdgcn -mcpu=bonaire %s 2>&1 | FileCheck %s --check-prefix=NOSICI --implicit-check-not=error:
+// RUN: not llvm-mc -arch=amdgcn -mcpu=tonga %s 2>&1 | FileCheck %s -check-prefix=NOVI --implicit-check-not=error:
 
 //===----------------------------------------------------------------------===//
 // Generic Checks for floating-point instructions (These have modifiers).
@@ -435,15 +435,30 @@ v_madak_f16 v1, v2, v3, 64.0
 // VI:     v_add_u16_e32 v1, v2, v3 ; encoding: [0x02,0x07,0x02,0x4c]
 v_add_u16_e32 v1, v2, v3
 
+// NOSICI: error: invalid operand for instruction
+// NOSICI: v_add_u16 v1, v2, v3 clamp
+// VI:     v_add_u16_e64 v1, v2, v3 clamp  ; encoding: [0x01,0x80,0x26,0xd1,0x02,0x07,0x02,0x00]
+v_add_u16 v1, v2, v3 clamp
+
 // NOSICI: error: instruction not supported on this GPU
 // NOSICI: v_sub_u16_e32 v1, v2, v3
 // VI:     v_sub_u16_e32 v1, v2, v3 ; encoding: [0x02,0x07,0x02,0x4e]
 v_sub_u16_e32 v1, v2, v3
 
+// NOSICI: error: invalid operand for instruction
+// NOSICI: v_sub_u16 v1, v2, v3 clamp
+// VI:     v_sub_u16_e64 v1, v2, v3 clamp  ; encoding: [0x01,0x80,0x27,0xd1,0x02,0x07,0x02,0x00]
+v_sub_u16 v1, v2, v3 clamp
+
 // NOSICI: error: instruction not supported on this GPU
 // NOSICI: v_subrev_u16_e32 v1, v2, v3
 // VI:     v_subrev_u16_e32 v1, v2, v3 ; encoding: [0x02,0x07,0x02,0x50]
 v_subrev_u16_e32 v1, v2, v3
+
+// NOSICI: error: invalid operand for instruction
+// NOSICI: v_subrev_u16 v1, v2, v3 clamp
+// VI:     v_subrev_u16_e64 v1, v2, v3 clamp ; encoding: [0x01,0x80,0x28,0xd1,0x02,0x07,0x02,0x00]
+v_subrev_u16 v1, v2, v3 clamp
 
 // NOSICI: error: instruction not supported on this GPU
 // NOSICI: v_mul_lo_u16_e32 v1, v2, v3

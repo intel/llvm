@@ -9,6 +9,7 @@
 #include <CL/sycl/device.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/force_device.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/platform_info.hpp>
 
@@ -20,9 +21,76 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+using PlatformImplPtr = std::shared_ptr<platform_impl>;
+
+PlatformImplPtr platform_impl::getHostPlatformImpl() {
+  static PlatformImplPtr HostImpl = std::make_shared<platform_impl>();
+
+  return HostImpl;
+}
+
+PlatformImplPtr platform_impl::getOrMakePlatformImpl(RT::PiPlatform PiPlatform,
+                                                     const plugin &Plugin) {
+  static std::vector<PlatformImplPtr> PlatformCache;
+  static std::mutex PlatformMapMutex;
+
+  PlatformImplPtr Result;
+  {
+    const std::lock_guard<std::mutex> Guard(PlatformMapMutex);
+
+    // If we've already seen this platform, return the impl
+    for (const auto &PlatImpl : PlatformCache) {
+      if (PlatImpl->getHandleRef() == PiPlatform)
+        return PlatImpl;
+    }
+
+    // Otherwise make the impl
+    Result = std::make_shared<platform_impl>(PiPlatform, Plugin);
+    PlatformCache.emplace_back(Result);
+  }
+
+  return Result;
+}
+
+PlatformImplPtr platform_impl::getPlatformFromPiDevice(RT::PiDevice PiDevice,
+                                                       const plugin &Plugin) {
+  RT::PiPlatform Plt = nullptr; // TODO catch an exception and put it to list
+  // of asynchronous exceptions
+  Plugin.call<PiApiKind::piDeviceGetInfo>(PiDevice, PI_DEVICE_INFO_PLATFORM,
+                                          sizeof(Plt), &Plt, nullptr);
+  return getOrMakePlatformImpl(Plt, Plugin);
+}
+
+static bool IsBannedPlatform(platform Platform) {
+  // The NVIDIA OpenCL platform is currently not compatible with DPC++
+  // since it is only 1.2 but gets selected by default in many systems
+  // There is also no support on the PTX backend for OpenCL consumption,
+  // and there have been some internal reports.
+  // To avoid problems on default users and deployment of DPC++ on platforms
+  // where CUDA is available, the OpenCL support is disabled.
+  //
+  auto IsNVIDIAOpenCL = [](platform Platform) {
+    if (Platform.is_host())
+      return false;
+
+    const bool HasCUDA = Platform.get_info<info::platform::name>().find(
+                             "NVIDIA CUDA") != std::string::npos;
+    const auto Backend =
+        detail::getSyclObjImpl(Platform)->getPlugin().getBackend();
+    const bool IsCUDAOCL = (HasCUDA && Backend == backend::opencl);
+    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL) && IsCUDAOCL) {
+      std::cout << "SYCL_PI_TRACE[all]: "
+                << "NVIDIA CUDA OpenCL platform found but is not compatible."
+                << std::endl;
+    }
+    return IsCUDAOCL;
+  };
+  return IsNVIDIAOpenCL(Platform);
+}
+
 vector_class<platform> platform_impl::get_platforms() {
   vector_class<platform> Platforms;
-  vector_class<plugin> Plugins = RT::initialize();
+  const vector_class<plugin> &Plugins = RT::initialize();
 
   info::device_type ForcedType = detail::get_forced_type();
   for (unsigned int i = 0; i < Plugins.size(); i++) {
@@ -37,9 +105,10 @@ vector_class<platform> platform_impl::get_platforms() {
 
       for (const auto &PiPlatform : PiPlatforms) {
         platform Platform = detail::createSyclObjFromImpl<platform>(
-            std::make_shared<platform_impl>(PiPlatform, Plugins[i]));
+            getOrMakePlatformImpl(PiPlatform, Plugins[i]));
         // Skip platforms which do not contain requested device types
-        if (!Platform.get_devices(ForcedType).empty())
+        if (!Platform.get_devices(ForcedType).empty() &&
+            !IsBannedPlatform(Platform))
           Platforms.push_back(Platform);
       }
     }
@@ -54,7 +123,6 @@ vector_class<platform> platform_impl::get_platforms() {
 struct DevDescT {
   const char *devName = nullptr;
   int devNameSize = 0;
-
   const char *devDriverVer = nullptr;
   int devDriverVerSize = 0;
 
@@ -98,6 +166,9 @@ static std::vector<DevDescT> getAllowListDesc() {
       valuePtr = &decDescs.back().devDriverVer;
       size = &decDescs.back().devDriverVerSize;
       str += sizeof(driverVerStr) - 1;
+    } else {
+      throw sycl::runtime_error("Unrecognized key in device allowlist",
+                                PI_INVALID_VALUE);
     }
 
     if (':' != *str)
@@ -196,12 +267,30 @@ static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
   PiDevices.resize(InsertIDx);
 }
 
+std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
+    RT::PiDevice PiDevice, const std::shared_ptr<platform_impl> &PlatformImpl) {
+  const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
+
+  // If we've already seen this device, return the impl
+  for (const std::shared_ptr<device_impl> &Device : MDeviceCache) {
+    if (Device->getHandleRef() == PiDevice)
+      return Device;
+  }
+
+  // Otherwise make the impl
+  std::shared_ptr<device_impl> Result =
+      std::make_shared<device_impl>(PiDevice, PlatformImpl);
+  MDeviceCache.emplace_back(Result);
+
+  return Result;
+}
+
 vector_class<device>
 platform_impl::get_devices(info::device_type DeviceType) const {
   vector_class<device> Res;
   if (is_host() && (DeviceType == info::device_type::host ||
                     DeviceType == info::device_type::all)) {
-    Res.resize(1); // default device constructor creates host device
+    Res.push_back(device());
   }
 
   // If any DeviceType other than host was requested for host platform,
@@ -228,12 +317,13 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
     filterAllowList(PiDevices, MPlatform, this->getPlugin());
 
-  std::transform(PiDevices.begin(), PiDevices.end(), std::back_inserter(Res),
-                 [this](const RT::PiDevice &PiDevice) -> device {
-                   return detail::createSyclObjFromImpl<device>(
-                       std::make_shared<device_impl>(
-                           PiDevice, std::make_shared<platform_impl>(*this)));
-                 });
+  PlatformImplPtr PlatformImpl = getOrMakePlatformImpl(MPlatform, *MPlugin);
+  std::transform(
+      PiDevices.begin(), PiDevices.end(), std::back_inserter(Res),
+      [this, PlatformImpl](const RT::PiDevice &PiDevice) -> device {
+        return detail::createSyclObjFromImpl<device>(
+            PlatformImpl->getOrMakeDeviceImpl(PiDevice, PlatformImpl));
+      });
 
   return Res;
 }
@@ -248,6 +338,13 @@ bool platform_impl::has_extension(const string_class &ExtensionName) const {
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }
 
+pi_native_handle platform_impl::getNative() const {
+  const auto &Plugin = getPlugin();
+  pi_native_handle Handle;
+  Plugin.call<PiApiKind::piextPlatformGetNativeHandle>(getHandleRef(), &Handle);
+  return Handle;
+}
+
 template <info::platform param>
 typename info::param_traits<info::platform, param>::return_type
 platform_impl::get_info() const {
@@ -257,6 +354,16 @@ platform_impl::get_info() const {
   return get_platform_info<
       typename info::param_traits<info::platform, param>::return_type,
       param>::get(this->getHandleRef(), getPlugin());
+}
+
+// All devices on the platform must have the given aspect.
+bool platform_impl::has(aspect Aspect) const {
+  for (const auto &dev : get_devices()) {
+    if (dev.has(Aspect) == false) {
+      return false;
+    }
+  }
+  return true;
 }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \

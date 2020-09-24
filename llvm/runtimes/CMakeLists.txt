@@ -7,7 +7,7 @@
 # Setting CMake minimum required version should be at the very top of the file
 # if this is the entry point.
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-  cmake_minimum_required(VERSION 3.4.3)
+  cmake_minimum_required(VERSION 3.13.4)
   project(Runtimes C CXX ASM)
 endif()
 
@@ -56,7 +56,7 @@ if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_SOURCE_DIR})
     set_property(GLOBAL APPEND PROPERTY SUB_COMPONENTS ${name})
   endfunction()
 
-  cmake_minimum_required(VERSION 3.4.3)
+  cmake_minimum_required(VERSION 3.13.4)
   project(Runtimes C CXX ASM)
 
   find_package(LLVM PATHS "${LLVM_BINARY_DIR}" NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
@@ -222,6 +222,8 @@ else() # if this is included from LLVM's CMake
   if (LLVM_EXTERNAL_LIBCXX_SOURCE_DIR AND "libcxx" IN_LIST LLVM_ENABLE_RUNTIMES)
     # This looks wrong, but libcxx's build actually wants the header dir to be
     # the root build dir, not the include directory.
+    set(LIBCXX_BINARY_DIR ${LLVM_BINARY_DIR})
+    set(LIBCXX_SOURCE_DIR ${LLVM_EXTERNAL_LIBCXX_SOURCE_DIR})
     set(LIBCXX_HEADER_DIR ${LLVM_BINARY_DIR})
     set(CXX_HEADER_TARGET runtime-libcxx-headers)
     add_subdirectory(${LLVM_EXTERNAL_LIBCXX_SOURCE_DIR}/include ${CXX_HEADER_TARGET})
@@ -230,6 +232,34 @@ else() # if this is included from LLVM's CMake
   if(NOT LLVM_BUILD_RUNTIMES)
     set(EXTRA_ARGS EXCLUDE_FROM_ALL)
   endif()
+
+  function(check_apple_target triple builtin_or_runtime)
+    set(error "\
+compiler-rt for Darwin builds for all platforms and architectures using a \
+single configuration. Specify only a single darwin triple (e.g. x86_64-apple-darwin) \
+in your targets list (and not a triple for a specific platform such as macos). \
+You can use variables such as COMPILER_RT_ENABLE_IOS and DARWIN_ios_ARCHS to \
+control the specific platforms and architectures to build.")
+
+    set(seen_property ${builtin_or_runtime}_darwin_triple_seen)
+    string(REPLACE "-" ";" triple_components ${triple})
+    foreach(component ${triple_components})
+      string(TOLOWER "${component}" component_lower)
+      if(component_lower MATCHES "^darwin")
+        get_property(darwin_triple_seen GLOBAL PROPERTY ${seen_property})
+        if(darwin_triple_seen)
+          message(FATAL_ERROR "${error}")
+        endif()
+        set_property(GLOBAL PROPERTY ${seen_property} YES)
+        if(NOT RUNTIMES_BUILD_ALLOW_DARWIN)
+          message(FATAL_ERROR "\
+${error} Set RUNTIMES_BUILD_ALLOW_DARWIN to allow a single darwin triple.")
+        endif()
+      elseif(component_lower MATCHES "^ios|^macos|^tvos|^watchos")
+        message(FATAL_ERROR "${error}")
+      endif()
+    endforeach()
+  endfunction()
 
   function(builtin_default_target compiler_rt_path)
     cmake_parse_arguments(ARG "" "" "DEPENDS" ${ARGN})
@@ -245,6 +275,7 @@ else() # if this is included from LLVM's CMake
                                         -DCMAKE_ASM_COMPILER_TARGET=${TARGET_TRIPLE}
                                         -DCMAKE_C_COMPILER_WORKS=ON
                                         -DCMAKE_ASM_COMPILER_WORKS=ON
+                                        ${BUILTINS_CMAKE_ARGS}
                              PASSTHROUGH_PREFIXES COMPILER_RT
                              USE_TOOLCHAIN
                              ${EXTRA_ARGS})
@@ -253,13 +284,7 @@ else() # if this is included from LLVM's CMake
   function(builtin_register_target compiler_rt_path target)
     cmake_parse_arguments(ARG "" "" "DEPENDS" ${ARGN})
 
-    string(REPLACE "-" ";" builtin_target_list ${target})
-    foreach(item ${builtin_target_list})
-      string(TOLOWER "${item}" item_lower)
-      if(item_lower MATCHES "darwin")
-        message(FATAL_ERROR "LLVM_BUILTIN_TARGETS isn't implemented for Darwin platform!")
-      endif()
-    endforeach()
+    check_apple_target(${target} builtin)
 
     get_cmake_property(variableNames VARIABLES)
     foreach(variableName ${variableNames})
@@ -284,7 +309,6 @@ else() # if this is included from LLVM's CMake
                                         -DCMAKE_ASM_COMPILER_WORKS=ON
                                         -DCOMPILER_RT_DEFAULT_TARGET_ONLY=ON
                                         ${${target}_extra_args}
-                             TOOLCHAIN_TOOLS clang lld llvm-ar llvm-lipo llvm-ranlib llvm-nm llvm-objcopy llvm-objdump llvm-strip
                              USE_TOOLCHAIN
                              ${EXTRA_ARGS})
   endfunction()
@@ -395,6 +419,7 @@ else() # if this is included from LLVM's CMake
                                         -DCMAKE_C_COMPILER_WORKS=ON
                                         -DCMAKE_CXX_COMPILER_WORKS=ON
                                         -DCMAKE_ASM_COMPILER_WORKS=ON
+                                        ${RUNTIMES_CMAKE_ARGS}
                              PASSTHROUGH_PREFIXES LLVM_ENABLE_RUNTIMES
                                                   ${ARG_PREFIXES}
                              EXTRA_TARGETS ${extra_targets}
@@ -409,9 +434,11 @@ else() # if this is included from LLVM's CMake
   # runtime_register_target(target)
   #   Utility function to register external runtime target.
   function(runtime_register_target name target)
-    cmake_parse_arguments(ARG "" "" "DEPENDS" ${ARGN})
+    cmake_parse_arguments(ARG "" "" "DEPENDS;CMAKE_ARGS" ${ARGN})
     include(${LLVM_BINARY_DIR}/runtimes/${name}/Components.cmake OPTIONAL)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${LLVM_BINARY_DIR}/runtimes/${name}/Components.cmake)
+
+    check_apple_target(${target} runtime)
 
     set(${name}_deps ${ARG_DEPENDS})
     if(NOT name STREQUAL target)
@@ -453,6 +480,7 @@ else() # if this is included from LLVM's CMake
       set(test_targets "${test_targets}" PARENT_SCOPE)
     endif()
 
+    set(${name}_extra_args ${ARG_CMAKE_ARGS})
     get_cmake_property(variableNames VARIABLES)
     foreach(variableName ${variableNames})
       string(FIND "${variableName}" "RUNTIMES_${target}_" out)
@@ -462,14 +490,16 @@ else() # if this is included from LLVM's CMake
         list(APPEND ${name}_extra_args "-D${new_name}=${new_value}")
       endif()
     endforeach()
-    foreach(variableName ${variableNames})
-      string(FIND "${variableName}" "RUNTIMES_${name}_" out)
-      if("${out}" EQUAL 0)
-        string(REPLACE "RUNTIMES_${name}_" "" new_name ${variableName})
-        string(REPLACE ";" "|" new_value "${${variableName}}")
-        list(APPEND ${name}_extra_args "-D${new_name}=${new_value}")
-      endif()
-    endforeach()
+    if(NOT "${name}" STREQUAL "${target}")
+      foreach(variableName ${variableNames})
+        string(FIND "${variableName}" "RUNTIMES_${name}_" out)
+        if("${out}" EQUAL 0)
+          string(REPLACE "RUNTIMES_${name}_" "" new_name ${variableName})
+          string(REPLACE ";" "|" new_value "${${variableName}}")
+          list(APPEND ${name}_extra_args "-D${new_name}=${new_value}")
+        endif()
+      endforeach()
+    endif()
 
     if(NOT RUNTIMES_${name}_LLVM_ENABLE_RUNTIMES AND NOT RUNTIMES_${target}_LLVM_ENABLE_RUNTIMES)
       string(REPLACE ";" "|" LLVM_ENABLE_RUNTIMES_PASSTHROUGH "${LLVM_ENABLE_RUNTIMES}")
@@ -498,7 +528,6 @@ else() # if this is included from LLVM's CMake
                                         -DCOMPILER_RT_DEFAULT_TARGET_ONLY=ON
                                         -DLLVM_RUNTIMES_TARGET=${name}
                                         ${${name}_extra_args}
-                             TOOLCHAIN_TOOLS clang lld llvm-ar llvm-lipo llvm-ranlib llvm-nm llvm-objcopy llvm-objdump llvm-strip
                              EXTRA_TARGETS ${${name}_extra_targets}
                                            ${${name}_test_targets}
                              USE_TOOLCHAIN

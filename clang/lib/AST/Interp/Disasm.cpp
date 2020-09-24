@@ -16,6 +16,7 @@
 #include "Program.h"
 #include "clang/AST/DeclCXX.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/Support/Format.h"
 
 using namespace clang;
 using namespace clang::interp;
@@ -25,10 +26,10 @@ LLVM_DUMP_METHOD void Function::dump() const { dump(llvm::errs()); }
 LLVM_DUMP_METHOD void Function::dump(llvm::raw_ostream &OS) const {
   if (F) {
     if (auto *Cons = dyn_cast<CXXConstructorDecl>(F)) {
-      const std::string &Name = Cons->getParent()->getNameAsString();
+      DeclarationName Name = Cons->getParent()->getDeclName();
       OS << Name << "::" << Name << ":\n";
     } else {
-      OS << F->getNameAsString() << ":\n";
+      OS << F->getDeclName() << ":\n";
     }
   } else {
     OS << "<<expr>>\n";

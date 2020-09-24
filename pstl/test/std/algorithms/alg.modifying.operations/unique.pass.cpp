@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // Test for unique
 #include "support/pstl_test_config.h"
@@ -151,6 +151,12 @@ main()
                                  });
 
     test_algo_basic_single<int32_t>(run_for_rnd_fw<test_non_const<int32_t>>());
+
+    test<MemoryChecker>(
+        [](std::size_t idx){ return MemoryChecker{std::int32_t(idx / 3)}; },
+        [](const MemoryChecker& val1, const MemoryChecker& val2){ return val1.value() == val2.value(); });
+    EXPECT_FALSE(MemoryChecker::alive_objects() < 0, "wrong effect from unique: number of ctors calls < num of dtors calls");
+    EXPECT_FALSE(MemoryChecker::alive_objects() > 0, "wrong effect from unique: number of ctors calls > num of dtors calls");
 
     std::cout << done() << std::endl;
     return 0;

@@ -30,15 +30,11 @@ static const unsigned NVPTXAddrSpaceMap[] = {
     0, // opencl_private
     // FIXME: generic has to be added to the target
     0, // opencl_generic
+    1, // opencl_global_device
+    1, // opencl_global_host
     1, // cuda_device
     4, // cuda_constant
     3, // cuda_shared
-    1, // sycl_global
-    3, // sycl_local
-    4, // sycl_constant
-    0, // sycl_private
-    // FIXME: generic has to be added to the target
-    0, // sycl_generic
     0, // ptr32_sptr
     0, // ptr32_uptr
     0  // ptr64
@@ -50,8 +46,8 @@ static const int NVPTXDWARFAddrSpaceMap[] = {
     -1, // Default, opencl_private or opencl_generic - not defined
     5,  // opencl_global
     -1,
-    8,  // opencl_local or cuda_shared
-    4,  // opencl_constant or cuda_constant
+    8, // opencl_local or cuda_shared
+    4, // opencl_constant or cuda_constant
 };
 
 class LLVM_LIBRARY_VISIBILITY NVPTXTargetInfo : public TargetInfo {
@@ -147,6 +143,8 @@ public:
     // FIXME: maybe we should have a way to control this ?
     Opts.support("cl_khr_int64_base_atomics");
     Opts.support("cl_khr_int64_extended_atomics");
+    Opts.support("cl_khr_fp16");
+    Opts.support("cl_khr_3d_image_writes");
   }
 
   /// \returns If a target requires an address within a target specific address
@@ -172,6 +170,8 @@ public:
       return HostTarget->checkCallingConvention(CC);
     return CCCR_Warning;
   }
+
+  bool hasExtIntType() const override { return true; }
 };
 } // namespace targets
 } // namespace clang

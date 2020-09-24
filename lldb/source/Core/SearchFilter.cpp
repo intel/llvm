@@ -89,7 +89,7 @@ SearchFilterSP SearchFilter::CreateFromStructuredData(
   bool success = filter_dict.GetValueForKeyAsString(
       GetSerializationSubclassKey(), subclass_name);
   if (!success) {
-    error.SetErrorStringWithFormat("Filter data missing subclass key");
+    error.SetErrorString("Filter data missing subclass key");
     return result_sp;
   }
 
@@ -417,12 +417,6 @@ bool SearchFilterByModule::AddressPasses(Address &address) {
   return true;
 }
 
-bool SearchFilterByModule::CompUnitPasses(FileSpec &fileSpec) { return true; }
-
-bool SearchFilterByModule::CompUnitPasses(CompileUnit &compUnit) {
-  return true;
-}
-
 void SearchFilterByModule::Search(Searcher &searcher) {
   if (!m_target_sp)
     return;
@@ -540,14 +534,6 @@ bool SearchFilterByModuleList::ModulePasses(const FileSpec &spec) {
 
 bool SearchFilterByModuleList::AddressPasses(Address &address) {
   // FIXME: Not yet implemented
-  return true;
-}
-
-bool SearchFilterByModuleList::CompUnitPasses(FileSpec &fileSpec) {
-  return true;
-}
-
-bool SearchFilterByModuleList::CompUnitPasses(CompileUnit &compUnit) {
   return true;
 }
 

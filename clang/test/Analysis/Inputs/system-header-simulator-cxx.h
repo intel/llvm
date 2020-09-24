@@ -60,6 +60,11 @@ template <typename T, typename Ptr, typename Ref> struct __vector_iterator {
   __vector_iterator<T, Ptr, Ref> operator+(difference_type n) {
     return ptr + n;
   }
+  friend __vector_iterator<T, Ptr, Ref> operator+(
+      difference_type n,
+      const __vector_iterator<T, Ptr, Ref> &iter) {
+    return n + iter.ptr;
+  }
   __vector_iterator<T, Ptr, Ref> operator-(difference_type n) {
     return ptr - n;
   }
@@ -117,6 +122,11 @@ template <typename T, typename Ptr, typename Ref> struct __deque_iterator {
   }
   __deque_iterator<T, Ptr, Ref> operator+(difference_type n) {
     return ptr + n;
+  }
+  friend __deque_iterator<T, Ptr, Ref> operator+(
+      difference_type n,
+      const __deque_iterator<T, Ptr, Ref> &iter) {
+    return n + iter.ptr;
   }
   __deque_iterator<T, Ptr, Ref> operator-(difference_type n) {
     return ptr - n;
@@ -608,8 +618,9 @@ namespace std {
   };
 
   struct nothrow_t {};
-
   extern const nothrow_t nothrow;
+
+  enum class align_val_t : size_t {};
 
   // libc++'s implementation
   template <class _E>
@@ -942,19 +953,32 @@ next(ForwardIterator it,
 
 #if __cplusplus >= 201103L
 namespace std {
-  template <typename T> // TODO: Implement the stub for deleter.
-  class unique_ptr {
-  public:
-    unique_ptr(const unique_ptr &) = delete;
-    unique_ptr(unique_ptr &&);
+template <typename T> // TODO: Implement the stub for deleter.
+class unique_ptr {
+public:
+  unique_ptr() noexcept {}
+  unique_ptr(T *) noexcept {}
+  unique_ptr(const unique_ptr &) noexcept = delete;
+  unique_ptr(unique_ptr &&) noexcept;
 
-    T *get() const;
+  T *get() const noexcept;
+  T *release() noexcept;
+  void reset(T *p = nullptr) noexcept;
+  void swap(unique_ptr<T> &p) noexcept;
 
-    typename std::add_lvalue_reference<T>::type operator*() const;
-    T *operator->() const;
-    operator bool() const;
-  };
+  typename std::add_lvalue_reference<T>::type operator*() const;
+  T *operator->() const noexcept;
+  operator bool() const noexcept;
+  unique_ptr<T> &operator=(unique_ptr<T> &&p) noexcept;
+  unique_ptr<T> &operator=(nullptr_t) noexcept;
+};
+
+// TODO :: Once the deleter parameter is added update with additional template parameter.
+template <typename T>
+void swap(unique_ptr<T> &x, unique_ptr<T> &y) noexcept {
+  x.swap(y);
 }
+} // namespace std
 #endif
 
 #ifdef TEST_INLINABLE_ALLOCATORS
@@ -967,10 +991,33 @@ void* operator new[](std::size_t size, const std::nothrow_t&) throw() { return s
 void operator delete(void* ptr, const std::nothrow_t&) throw() { std::free(ptr); }
 void operator delete[](void* ptr, const std::nothrow_t&) throw() { std::free(ptr); }
 #else
-void* operator new(std::size_t, const std::nothrow_t&) throw();
-void* operator new[](std::size_t, const std::nothrow_t&) throw();
-void operator delete(void*, const std::nothrow_t&) throw();
-void operator delete[](void*, const std::nothrow_t&) throw();
+// C++20 standard draft 17.6.1, from "Header <new> synopsis", but with throw()
+// instead of noexcept:
+
+void *operator new(std::size_t size);
+void *operator new(std::size_t size, std::align_val_t alignment);
+void *operator new(std::size_t size, const std::nothrow_t &) throw();
+void *operator new(std::size_t size, std::align_val_t alignment,
+                   const std::nothrow_t &) throw();
+void operator delete(void *ptr) throw();
+void operator delete(void *ptr, std::size_t size) throw();
+void operator delete(void *ptr, std::align_val_t alignment) throw();
+void operator delete(void *ptr, std::size_t size, std::align_val_t alignment) throw();
+void operator delete(void *ptr, const std::nothrow_t &)throw();
+void operator delete(void *ptr, std::align_val_t alignment,
+                     const std::nothrow_t &)throw();
+void *operator new[](std::size_t size);
+void *operator new[](std::size_t size, std::align_val_t alignment);
+void *operator new[](std::size_t size, const std::nothrow_t &) throw();
+void *operator new[](std::size_t size, std::align_val_t alignment,
+                     const std::nothrow_t &) throw();
+void operator delete[](void *ptr) throw();
+void operator delete[](void *ptr, std::size_t size) throw();
+void operator delete[](void *ptr, std::align_val_t alignment) throw();
+void operator delete[](void *ptr, std::size_t size, std::align_val_t alignment) throw();
+void operator delete[](void *ptr, const std::nothrow_t &) throw();
+void operator delete[](void *ptr, std::align_val_t alignment,
+                       const std::nothrow_t &) throw();
 #endif
 
 void* operator new (std::size_t size, void* ptr) throw() { return ptr; };
@@ -1087,4 +1134,9 @@ public:
   operator()( ForwardIt2 first, ForwardIt2 last ) const;
 };
 
-}
+template <typename> class packaged_task;
+template <typename Ret, typename... Args> class packaged_task<Ret(Args...)> {
+  // TODO: Add some actual implementation.
+};
+
+} // namespace std

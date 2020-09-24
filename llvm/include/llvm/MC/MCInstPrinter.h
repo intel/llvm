@@ -18,6 +18,7 @@ class MCAsmInfo;
 class MCInst;
 class MCOperand;
 class MCInstrInfo;
+class MCInstrAnalysis;
 class MCRegisterInfo;
 class MCSubtargetInfo;
 class raw_ostream;
@@ -48,6 +49,7 @@ protected:
   const MCAsmInfo &MAI;
   const MCInstrInfo &MII;
   const MCRegisterInfo &MRI;
+  const MCInstrAnalysis *MIA = nullptr;
 
   /// True if we are printing marked up assembly.
   bool UseMarkup = false;
@@ -57,6 +59,14 @@ protected:
 
   /// Which style to use for printing hexadecimal values.
   HexStyle::Style PrintHexStyle = HexStyle::C;
+
+  /// If true, a branch immediate (e.g. bl 4) will be printed as a hexadecimal
+  /// address (e.g. bl 0x20004). This is useful for a stream disassembler
+  /// (llvm-objdump -d).
+  bool PrintBranchImmAsAddress = false;
+
+  /// If true, symbolize branch target and memory reference operands.
+  bool SymbolizeOperands = false;
 
   /// Utility function for printing annotations.
   void printAnnotation(raw_ostream &OS, StringRef Annot);
@@ -79,6 +89,12 @@ public:
   void setCommentStream(raw_ostream &OS) { CommentStream = &OS; }
 
   /// Print the specified MCInst to the specified raw_ostream.
+  ///
+  /// \p Address the address of current instruction on most targets, used to
+  /// print a PC relative immediate as the target address. On targets where a PC
+  /// relative immediate is relative to the next instruction and the length of a
+  /// MCInst is difficult to measure (e.g. x86), this is the address of the next
+  /// instruction. If Address is 0, the immediate will be printed.
   virtual void printInst(const MCInst *MI, uint64_t Address, StringRef Annot,
                          const MCSubtargetInfo &STI, raw_ostream &OS) = 0;
 
@@ -99,6 +115,13 @@ public:
   void setPrintImmHex(bool Value) { PrintImmHex = Value; }
 
   void setPrintHexStyle(HexStyle::Style Value) { PrintHexStyle = Value; }
+
+  void setPrintBranchImmAsAddress(bool Value) {
+    PrintBranchImmAsAddress = Value;
+  }
+
+  void setSymbolizeOperands(bool Value) { SymbolizeOperands = Value; }
+  void setMCInstrAnalysis(const MCInstrAnalysis *Value) { MIA = Value; }
 
   /// Utility function to print immediates in decimal or hex.
   format_object<int64_t> formatImm(int64_t Value) const {

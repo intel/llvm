@@ -70,6 +70,15 @@ typedef ::testing::Types<DenseSet<unsigned, TestDenseSetInfo>,
     DenseSetTestTypes;
 TYPED_TEST_CASE(DenseSetTest, DenseSetTestTypes);
 
+TYPED_TEST(DenseSetTest, Constructor) {
+  constexpr unsigned a[] = {1, 2, 4};
+  TypeParam set(std::begin(a), std::end(a));
+  EXPECT_EQ(3u, set.size());
+  EXPECT_EQ(1u, set.count(1));
+  EXPECT_EQ(1u, set.count(2));
+  EXPECT_EQ(1u, set.count(4));
+}
+
 TYPED_TEST(DenseSetTest, InitializerList) {
   TypeParam set({1, 2, 1, 4});
   EXPECT_EQ(3u, set.size());
@@ -218,7 +227,7 @@ TEST(DenseSetCustomTest, ConstTest) {
   Map.insert(B);
   EXPECT_EQ(Map.count(B), 1u);
   EXPECT_EQ(Map.count(C), 1u);
-  EXPECT_NE(Map.find(B), Map.end());
-  EXPECT_NE(Map.find(C), Map.end());
+  EXPECT_TRUE(Map.contains(B));
+  EXPECT_TRUE(Map.contains(C));
 }
 }

@@ -23,7 +23,7 @@
 #include <clc/clc.h>
 #include <spirv/spirv.h>
 
-#include "../clcmacro.h"
+#include <clcmacro.h>
 
 _CLC_OVERLOAD _CLC_DEF float cos(float x)
 {

@@ -55,7 +55,7 @@
   ; Function Attrs: nounwind
   declare void @llvm.stackprotector(i8*, i8**) #1
 
-  attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="ppc64le" "target-features"="+altivec,+bpermd,+crypto,+direct-move,+extdiv,+htm,+power8-vector,+vsx,-power9-vector,-qpx" "unsafe-fp-math"="false" "use-soft-float"="false" }
+  attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="ppc64le" "target-features"="+altivec,+bpermd,+crypto,+direct-move,+extdiv,+htm,+power8-vector,+vsx,-power9-vector" "unsafe-fp-math"="false" "use-soft-float"="false" }
   attributes #1 = { nounwind }
 
   !llvm.module.flags = !{!0, !1}
@@ -208,7 +208,7 @@ body:             |
     $x3 = COPY %15
     $x12 = COPY %3
     MTCTR8 %3, implicit-def $ctr8
-    BCTRL8_LDinto_toc 24, $x1, csr_svr464_altivec, implicit-def dead $lr8, implicit-def dead $x2, implicit $ctr8, implicit $rm, implicit $x3, implicit $x12, implicit $x2, implicit-def $r1
+    BCTRL8_LDinto_toc 24, $x1, csr_ppc64_altivec, implicit-def dead $lr8, implicit-def dead $x2, implicit $ctr8, implicit $rm, implicit $x3, implicit $x12, implicit $x2, implicit-def $r1
     ADJCALLSTACKUP 32, 0, implicit-def dead $r1, implicit $r1
 
   bb.5.for.inc:

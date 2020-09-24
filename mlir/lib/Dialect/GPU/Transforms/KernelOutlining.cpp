@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "PassDetail.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/GPU/Passes.h"
 #include "mlir/Dialect/GPU/Utils.h"
@@ -17,7 +18,6 @@
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/SymbolTable.h"
-#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/RegionUtils.h"
 
 using namespace mlir;
@@ -54,7 +54,7 @@ static void injectGpuIndexOperations(Location loc, Region &launchFuncOpBody,
 }
 
 static bool isSinkingBeneficiary(Operation *op) {
-  return isa<ConstantOp>(op) || isa<DimOp>(op);
+  return isa<ConstantOp, DimOp>(op);
 }
 
 LogicalResult mlir::sinkOperationsIntoLaunchOp(gpu::LaunchOp launchOp) {
@@ -156,14 +156,14 @@ static gpu::GPUFuncOp outlineKernelFuncImpl(gpu::LaunchOp launchOp,
     map.map(operand.value(), entryBlock.getArgument(operand.index()));
 
   // Clone the region of the gpu.launch operation into the gpu.func operation.
-  // TODO(ravishankarm): If cloneInto can be modified such that if a mapping for
+  // TODO: If cloneInto can be modified such that if a mapping for
   // a block exists, that block will be used to clone operations into (at the
   // end of the block), instead of creating a new block, this would be much
   // cleaner.
   launchOpBody.cloneInto(&outlinedFuncBody, map);
 
-  // Branch from enty of the gpu.func operation to the block that is cloned from
-  // the entry block of the gpu.launch operation.
+  // Branch from entry of the gpu.func operation to the block that is cloned
+  // from the entry block of the gpu.launch operation.
   Block &launchOpEntry = launchOpBody.front();
   Block *clonedLaunchOpEntry = map.lookup(&launchOpEntry);
   builder.setInsertionPointToEnd(&entryBlock);
@@ -205,7 +205,6 @@ static void convertToLaunchFuncOp(gpu::LaunchOp launchOp,
 }
 
 namespace {
-
 /// Pass that moves the kernel of each LaunchOp into its separate nested module.
 ///
 /// This pass moves the kernel code of each LaunchOp into a function created
@@ -215,12 +214,13 @@ namespace {
 /// The gpu.modules are intended to be compiled to a cubin blob independently in
 /// a separate pass. The external functions can then be annotated with the
 /// symbol of the cubin accessor function.
-class GpuKernelOutliningPass : public ModulePass<GpuKernelOutliningPass> {
+class GpuKernelOutliningPass
+    : public GpuKernelOutliningBase<GpuKernelOutliningPass> {
 public:
-  void runOnModule() override {
-    SymbolTable symbolTable(getModule());
+  void runOnOperation() override {
+    SymbolTable symbolTable(getOperation());
     bool modified = false;
-    for (auto func : getModule().getOps<FuncOp>()) {
+    for (auto func : getOperation().getOps<FuncOp>()) {
       // Insert just after the function.
       Block::iterator insertPt(func.getOperation()->getNextNode());
       auto funcWalkResult = func.walk([&](gpu::LaunchOp op) {
@@ -252,8 +252,8 @@ public:
     // If any new module was inserted in this module, annotate this module as
     // a container module.
     if (modified)
-      getModule().setAttr(gpu::GPUDialect::getContainerModuleAttrName(),
-                          UnitAttr::get(&getContext()));
+      getOperation().setAttr(gpu::GPUDialect::getContainerModuleAttrName(),
+                             UnitAttr::get(&getContext()));
   }
 
 private:
@@ -264,11 +264,11 @@ private:
     // a SymbolTable by the caller. SymbolTable needs to be refactored to
     // prevent manual building of Ops with symbols in code using SymbolTables
     // and then this needs to use the OpBuilder.
-    auto context = getModule().getContext();
-    Builder builder(context);
+    auto context = getOperation().getContext();
+    OpBuilder builder(context);
     OperationState state(kernelFunc.getLoc(),
                          gpu::GPUModuleOp::getOperationName());
-    gpu::GPUModuleOp::build(&builder, state, kernelFunc.getName());
+    gpu::GPUModuleOp::build(builder, state, kernelFunc.getName());
     auto kernelModule = cast<gpu::GPUModuleOp>(Operation::create(state));
     SymbolTable symbolTable(kernelModule);
     symbolTable.insert(kernelFunc);
@@ -297,10 +297,6 @@ private:
 
 } // namespace
 
-std::unique_ptr<OpPassBase<ModuleOp>> mlir::createGpuKernelOutliningPass() {
+std::unique_ptr<OperationPass<ModuleOp>> mlir::createGpuKernelOutliningPass() {
   return std::make_unique<GpuKernelOutliningPass>();
 }
-
-static PassRegistration<GpuKernelOutliningPass>
-    pass("gpu-kernel-outlining",
-         "Outline gpu.launch bodies to kernel functions.");

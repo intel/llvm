@@ -78,8 +78,8 @@ struct property_base {
 
 class property_list {
 public:
-  template <typename... propertyTN>
-  property_list(propertyTN... props) {}
+  template <typename... propertiesTN>
+  property_list(propertiesTN... props){};
 
   template <typename propertyT>
   bool has_property() const { return true; }
@@ -93,6 +93,20 @@ public:
 
   bool operator!=(const property_list &rhs) const { return false; }
 };
+
+namespace INTEL {
+namespace property {
+// Compile time known accessor property
+struct buffer_location {
+  template <int> class instance {};
+};
+} // namespace property
+} // namespace INTEL
+
+namespace ONEAPI {
+template <typename... properties>
+class accessor_property_list {};
+} // namespace ONEAPI
 
 template <int dim>
 struct id {
@@ -127,7 +141,8 @@ struct _ImplT {
 
 template <typename dataT, int dimensions, access::mode accessmode,
           access::target accessTarget = access::target::global_buffer,
-          access::placeholder isPlaceholder = access::placeholder::false_t>
+          access::placeholder isPlaceholder = access::placeholder::false_t,
+          typename propertyListT = ONEAPI::accessor_property_list<>>
 class accessor {
 
 public:
@@ -242,6 +257,7 @@ struct get_kernel_name_t<auto_name, Type> {
   using name = Type;
 };
 
+namespace ONEAPI {
 namespace experimental {
 template <typename T, typename ID = T>
 class spec_constant {
@@ -257,29 +273,30 @@ public:
   }
 };
 } // namespace experimental
+} // namespace ONEAPI
 
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 template <typename KernelName = auto_name, typename KernelType>
-ATTR_SYCL_KERNEL void kernel_single_task(KernelType kernelFunc) {
+ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc) {
   kernelFunc();
 }
 
 template <typename KernelName, typename KernelType, int Dims>
 ATTR_SYCL_KERNEL void
-kernel_parallel_for(KernelType KernelFunc) {
+kernel_parallel_for(const KernelType &KernelFunc) {
   KernelFunc(id<Dims>());
 }
 
 template <typename KernelName, typename KernelType, int Dims>
 ATTR_SYCL_KERNEL void
-kernel_parallel_for_work_group(KernelType KernelFunc) {
+kernel_parallel_for_work_group(const KernelType &KernelFunc) {
   KernelFunc(group<Dims>());
 }
 
 class handler {
 public:
   template <typename KernelName = auto_name, typename KernelType, int Dims>
-  void parallel_for(range<Dims> numWorkItems, KernelType kernelFunc) {
+  void parallel_for(range<Dims> numWorkItems, const KernelType &kernelFunc) {
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for<NameT, KernelType, Dims>(kernelFunc);
@@ -289,7 +306,7 @@ public:
   }
 
   template <typename KernelName = auto_name, typename KernelType, int Dims>
-  void parallel_for_work_group(range<Dims> numWorkGroups, range<Dims> WorkGroupSize, KernelType kernelFunc) {
+  void parallel_for_work_group(range<Dims> numWorkGroups, range<Dims> WorkGroupSize, const KernelType &kernelFunc) {
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for_work_group<NameT, KernelType, Dims>(kernelFunc);
@@ -300,7 +317,7 @@ public:
   }
 
   template <typename KernelName = auto_name, typename KernelType>
-  void single_task(KernelType kernelFunc) {
+  void single_task(const KernelType &kernelFunc) {
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_single_task<NameT>(kernelFunc);
@@ -416,7 +433,8 @@ template <int dimensions = 1, typename AllocatorT = int>
 class image {
 public:
   image(image_channel_order Order, image_channel_type Type,
-        const range<dimensions> &Range, const property_list &PropList = {}) {}
+        const range<dimensions> &Range,
+        const property_list &PropList = {}) {}
 
   /* -- common interface members -- */
 

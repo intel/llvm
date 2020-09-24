@@ -169,7 +169,7 @@ public:
     if (S) {
       S->printJson(Out, Helper, PP, /*AddQuotes=*/true);
     } else {
-      Out << '\"' << I->getAnyMember()->getNameAsString() << '\"';
+      Out << '\"' << I->getAnyMember()->getDeclName() << '\"';
     }
   }
 
@@ -1210,7 +1210,6 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
 
   switch (S->getStmtClass()) {
     // C++, OpenMP and ARC stuff we don't support yet.
-    case Expr::ObjCIndirectCopyRestoreExprClass:
     case Stmt::CXXDependentScopeMemberExprClass:
     case Stmt::CXXTryStmtClass:
     case Stmt::CXXTypeidExprClass:
@@ -1413,6 +1412,8 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
     case Stmt::SubstNonTypeTemplateParmExprClass:
     case Stmt::CXXNullPtrLiteralExprClass:
     case Stmt::OMPArraySectionExprClass:
+    case Stmt::OMPArrayShapingExprClass:
+    case Stmt::OMPIteratorExprClass:
     case Stmt::TypeTraitExprClass: {
       Bldr.takeNodes(Pred);
       ExplodedNodeSet preVisit;
@@ -1511,6 +1512,10 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
       Bldr.takeNodes(Pred);
       VisitArraySubscriptExpr(cast<ArraySubscriptExpr>(S), Pred, Dst);
       Bldr.addNodes(Dst);
+      break;
+
+    case Stmt::MatrixSubscriptExprClass:
+      llvm_unreachable("Support for MatrixSubscriptExpr is not implemented.");
       break;
 
     case Stmt::GCCAsmStmtClass:
@@ -1647,8 +1652,10 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
       ExplodedNodeSet PreVisit;
       const auto *CDE = cast<CXXDeleteExpr>(S);
       getCheckerManager().runCheckersForPreStmt(PreVisit, Pred, S, *this);
+      ExplodedNodeSet PostVisit;
+      getCheckerManager().runCheckersForPostStmt(PostVisit, PreVisit, S, *this);
 
-      for (const auto i : PreVisit)
+      for (const auto i : PostVisit)
         VisitCXXDeleteExpr(CDE, i, Dst);
 
       Bldr.addNodes(Dst);
@@ -1714,7 +1721,8 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
     case Stmt::CXXConstCastExprClass:
     case Stmt::CXXFunctionalCastExprClass:
     case Stmt::BuiltinBitCastExprClass:
-    case Stmt::ObjCBridgedCastExprClass: {
+    case Stmt::ObjCBridgedCastExprClass:
+    case Stmt::CXXAddrspaceCastExprClass: {
       Bldr.takeNodes(Pred);
       const auto *C = cast<CastExpr>(S);
       ExplodedNodeSet dstExpr;
@@ -1858,6 +1866,21 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
                           state->BindExpr(S, Pred->getLocationContext(),
                                                    UnknownVal()));
 
+      Bldr.addNodes(Dst);
+      break;
+    }
+
+    case Expr::ObjCIndirectCopyRestoreExprClass: {
+      // ObjCIndirectCopyRestoreExpr implies passing a temporary for
+      // correctness of lifetime management.  Due to limited analysis
+      // of ARC, this is implemented as direct arg passing.
+      Bldr.takeNodes(Pred);
+      ProgramStateRef state = Pred->getState();
+      const auto *OIE = cast<ObjCIndirectCopyRestoreExpr>(S);
+      const Expr *E = OIE->getSubExpr();
+      SVal V = state->getSVal(E, Pred->getLocationContext());
+      Bldr.generateNode(S, Pred,
+              state->BindExpr(S, Pred->getLocationContext(), V));
       Bldr.addNodes(Dst);
       break;
     }
@@ -2507,16 +2530,8 @@ void ExprEngine::VisitCommonDeclRefExpr(const Expr *Ex, const NamedDecl *D,
     return;
   }
   if (isa<FieldDecl>(D) || isa<IndirectFieldDecl>(D)) {
-    // FIXME: Compute lvalue of field pointers-to-member.
-    // Right now we just use a non-null void pointer, so that it gives proper
-    // results in boolean contexts.
-    // FIXME: Maybe delegate this to the surrounding operator&.
-    // Note how this expression is lvalue, however pointer-to-member is NonLoc.
-    SVal V = svalBuilder.conjureSymbolVal(Ex, LCtx, getContext().VoidPtrTy,
-                                          currBldrCtx->blockCount());
-    state = state->assume(V.castAs<DefinedOrUnknownSVal>(), true);
-    Bldr.generateNode(Ex, Pred, state->BindExpr(Ex, LCtx, V), nullptr,
-                      ProgramPoint::PostLValueKind);
+    // Delegate all work related to pointer to members to the surrounding
+    // operator&.
     return;
   }
   if (isa<BindingDecl>(D)) {
@@ -3139,8 +3154,9 @@ void ExprEngine::ViewGraph(bool trim) {
 #ifndef NDEBUG
   std::string Filename = DumpGraph(trim);
   llvm::DisplayGraph(Filename, false, llvm::GraphProgram::DOT);
-#endif
+#else
   llvm::errs() << "Warning: viewing graph requires assertions" << "\n";
+#endif
 }
 
 
@@ -3148,8 +3164,9 @@ void ExprEngine::ViewGraph(ArrayRef<const ExplodedNode*> Nodes) {
 #ifndef NDEBUG
   std::string Filename = DumpGraph(Nodes);
   llvm::DisplayGraph(Filename, false, llvm::GraphProgram::DOT);
-#endif
+#else
   llvm::errs() << "Warning: viewing graph requires assertions" << "\n";
+#endif
 }
 
 std::string ExprEngine::DumpGraph(bool trim, StringRef Filename) {
@@ -3173,9 +3190,10 @@ std::string ExprEngine::DumpGraph(bool trim, StringRef Filename) {
                             /*Title=*/"Exploded Graph",
                             /*Filename=*/std::string(Filename));
   }
-#endif
+#else
   llvm::errs() << "Warning: dumping graph requires assertions" << "\n";
   return "";
+#endif
 }
 
 std::string ExprEngine::DumpGraph(ArrayRef<const ExplodedNode*> Nodes,
@@ -3185,18 +3203,22 @@ std::string ExprEngine::DumpGraph(ArrayRef<const ExplodedNode*> Nodes,
 
   if (!TrimmedG.get()) {
     llvm::errs() << "warning: Trimmed ExplodedGraph is empty.\n";
+    return "";
   } else {
     return llvm::WriteGraph(TrimmedG.get(), "TrimmedExprEngine",
                             /*ShortNames=*/false,
                             /*Title=*/"Trimmed Exploded Graph",
                             /*Filename=*/std::string(Filename));
   }
-#endif
+#else
   llvm::errs() << "Warning: dumping graph requires assertions" << "\n";
   return "";
+#endif
 }
 
 void *ProgramStateTrait<ReplayWithoutInlining>::GDMIndex() {
   static int index = 0;
   return &index;
 }
+
+void ExprEngine::anchor() { }

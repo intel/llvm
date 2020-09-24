@@ -1225,10 +1225,12 @@ static DecodeStatus DecodeGPRPairRegisterClass(MCInst &Inst, unsigned RegNo,
                                    uint64_t Address, const void *Decoder) {
   DecodeStatus S = MCDisassembler::Success;
 
+  // According to the Arm ARM RegNo = 14 is undefined, but we return fail
+  // rather than SoftFail as there is no GPRPair table entry for index 7.
   if (RegNo > 13)
     return MCDisassembler::Fail;
 
-  if ((RegNo & 1) || RegNo == 0xe)
+  if (RegNo & 1)
      S = MCDisassembler::SoftFail;
 
   unsigned RegisterPair = GPRPairDecoderTable[RegNo/2];
@@ -4527,12 +4529,14 @@ static DecodeStatus DecodeCoprocessor(MCInst &Inst, unsigned Val,
 static DecodeStatus
 DecodeThumbTableBranch(MCInst &Inst, unsigned Insn,
                        uint64_t Address, const void *Decoder) {
+  const FeatureBitset &FeatureBits =
+    ((const MCDisassembler*)Decoder)->getSubtargetInfo().getFeatureBits();
   DecodeStatus S = MCDisassembler::Success;
 
   unsigned Rn = fieldFromInstruction(Insn, 16, 4);
   unsigned Rm = fieldFromInstruction(Insn, 0, 4);
 
-  if (Rn == ARM::SP) S = MCDisassembler::SoftFail;
+  if (Rn == 13 && !FeatureBits[ARM::HasV8Ops]) S = MCDisassembler::SoftFail;
   if (!Check(S, DecodeGPRRegisterClass(Inst, Rn, Address, Decoder)))
     return MCDisassembler::Fail;
   if (!Check(S, DecoderGPRRegisterClass(Inst, Rm, Address, Decoder)))

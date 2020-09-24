@@ -3976,14 +3976,30 @@ define <2 x i64> @constrained_vector_fptosi_v2i64_v2f32() #0 {
 ; CHECK-NEXT:    punpcklqdq {{.*#+}} xmm0 = xmm0[0],xmm1[0]
 ; CHECK-NEXT:    retq
 ;
-; AVX-LABEL: constrained_vector_fptosi_v2i64_v2f32:
-; AVX:       # %bb.0: # %entry
-; AVX-NEXT:    vcvttss2si {{.*}}(%rip), %rax
-; AVX-NEXT:    vmovq %rax, %xmm0
-; AVX-NEXT:    vcvttss2si {{.*}}(%rip), %rax
-; AVX-NEXT:    vmovq %rax, %xmm1
-; AVX-NEXT:    vpunpcklqdq {{.*#+}} xmm0 = xmm1[0],xmm0[0]
-; AVX-NEXT:    retq
+; AVX1-LABEL: constrained_vector_fptosi_v2i64_v2f32:
+; AVX1:       # %bb.0: # %entry
+; AVX1-NEXT:    vcvttss2si {{.*}}(%rip), %rax
+; AVX1-NEXT:    vmovq %rax, %xmm0
+; AVX1-NEXT:    vcvttss2si {{.*}}(%rip), %rax
+; AVX1-NEXT:    vmovq %rax, %xmm1
+; AVX1-NEXT:    vpunpcklqdq {{.*#+}} xmm0 = xmm1[0],xmm0[0]
+; AVX1-NEXT:    retq
+;
+; AVX512F-LABEL: constrained_vector_fptosi_v2i64_v2f32:
+; AVX512F:       # %bb.0: # %entry
+; AVX512F-NEXT:    vcvttss2si {{.*}}(%rip), %rax
+; AVX512F-NEXT:    vmovq %rax, %xmm0
+; AVX512F-NEXT:    vcvttss2si {{.*}}(%rip), %rax
+; AVX512F-NEXT:    vmovq %rax, %xmm1
+; AVX512F-NEXT:    vpunpcklqdq {{.*#+}} xmm0 = xmm1[0],xmm0[0]
+; AVX512F-NEXT:    retq
+;
+; AVX512DQ-LABEL: constrained_vector_fptosi_v2i64_v2f32:
+; AVX512DQ:       # %bb.0: # %entry
+; AVX512DQ-NEXT:    vcvttps2qq {{.*}}(%rip), %zmm0
+; AVX512DQ-NEXT:    # kill: def $xmm0 killed $xmm0 killed $zmm0
+; AVX512DQ-NEXT:    vzeroupper
+; AVX512DQ-NEXT:    retq
 entry:
   %result = call <2 x i64> @llvm.experimental.constrained.fptosi.v2i64.v2f32(
                                 <2 x float><float 42.0, float 43.0>,
@@ -4588,14 +4604,21 @@ define <2 x i64> @constrained_vector_fptoui_v2i64_v2f32() #0 {
 ; AVX1-NEXT:    vpunpcklqdq {{.*#+}} xmm0 = xmm0[0],xmm2[0]
 ; AVX1-NEXT:    retq
 ;
-; AVX512-LABEL: constrained_vector_fptoui_v2i64_v2f32:
-; AVX512:       # %bb.0: # %entry
-; AVX512-NEXT:    vcvttss2usi {{.*}}(%rip), %rax
-; AVX512-NEXT:    vmovq %rax, %xmm0
-; AVX512-NEXT:    vcvttss2usi {{.*}}(%rip), %rax
-; AVX512-NEXT:    vmovq %rax, %xmm1
-; AVX512-NEXT:    vpunpcklqdq {{.*#+}} xmm0 = xmm1[0],xmm0[0]
-; AVX512-NEXT:    retq
+; AVX512F-LABEL: constrained_vector_fptoui_v2i64_v2f32:
+; AVX512F:       # %bb.0: # %entry
+; AVX512F-NEXT:    vcvttss2usi {{.*}}(%rip), %rax
+; AVX512F-NEXT:    vmovq %rax, %xmm0
+; AVX512F-NEXT:    vcvttss2usi {{.*}}(%rip), %rax
+; AVX512F-NEXT:    vmovq %rax, %xmm1
+; AVX512F-NEXT:    vpunpcklqdq {{.*#+}} xmm0 = xmm1[0],xmm0[0]
+; AVX512F-NEXT:    retq
+;
+; AVX512DQ-LABEL: constrained_vector_fptoui_v2i64_v2f32:
+; AVX512DQ:       # %bb.0: # %entry
+; AVX512DQ-NEXT:    vcvttps2uqq {{.*}}(%rip), %zmm0
+; AVX512DQ-NEXT:    # kill: def $xmm0 killed $xmm0 killed $zmm0
+; AVX512DQ-NEXT:    vzeroupper
+; AVX512DQ-NEXT:    retq
 entry:
   %result = call <2 x i64> @llvm.experimental.constrained.fptoui.v2i64.v2f32(
                                 <2 x float><float 42.0, float 43.0>,
@@ -6273,7 +6296,7 @@ define <2 x double> @constrained_vector_sitofp_v2f64_v2i64(<2 x i64> %x) #0 {
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    movq %xmm0, %rax
 ; CHECK-NEXT:    cvtsi2sd %rax, %xmm1
-; CHECK-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[2,3,0,1]
+; CHECK-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[2,3,2,3]
 ; CHECK-NEXT:    movq %xmm0, %rax
 ; CHECK-NEXT:    xorps %xmm0, %xmm0
 ; CHECK-NEXT:    cvtsi2sd %rax, %xmm0
@@ -6319,7 +6342,7 @@ define <2 x float> @constrained_vector_sitofp_v2f32_v2i64(<2 x i64> %x) #0 {
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    movq %xmm0, %rax
 ; CHECK-NEXT:    cvtsi2ss %rax, %xmm1
-; CHECK-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[2,3,0,1]
+; CHECK-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[2,3,2,3]
 ; CHECK-NEXT:    movq %xmm0, %rax
 ; CHECK-NEXT:    xorps %xmm0, %xmm0
 ; CHECK-NEXT:    cvtsi2ss %rax, %xmm0
@@ -6348,11 +6371,11 @@ define <3 x double> @constrained_vector_sitofp_v3f64_v3i32(<3 x i32> %x) #0 {
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    movd %xmm0, %eax
 ; CHECK-NEXT:    cvtsi2sd %eax, %xmm2
-; CHECK-NEXT:    pshufd {{.*#+}} xmm1 = xmm0[1,1,2,3]
+; CHECK-NEXT:    pshufd {{.*#+}} xmm1 = xmm0[1,1,1,1]
 ; CHECK-NEXT:    movd %xmm1, %eax
 ; CHECK-NEXT:    xorps %xmm1, %xmm1
 ; CHECK-NEXT:    cvtsi2sd %eax, %xmm1
-; CHECK-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[2,3,0,1]
+; CHECK-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[2,3,2,3]
 ; CHECK-NEXT:    movd %xmm0, %eax
 ; CHECK-NEXT:    xorps %xmm0, %xmm0
 ; CHECK-NEXT:    cvtsi2sd %eax, %xmm0
@@ -6386,12 +6409,12 @@ define <3 x float> @constrained_vector_sitofp_v3f32_v3i32(<3 x i32> %x) #0 {
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    movd %xmm0, %eax
 ; CHECK-NEXT:    cvtsi2ss %eax, %xmm1
-; CHECK-NEXT:    pshufd {{.*#+}} xmm2 = xmm0[1,1,2,3]
+; CHECK-NEXT:    pshufd {{.*#+}} xmm2 = xmm0[1,1,1,1]
 ; CHECK-NEXT:    movd %xmm2, %eax
 ; CHECK-NEXT:    xorps %xmm2, %xmm2
 ; CHECK-NEXT:    cvtsi2ss %eax, %xmm2
 ; CHECK-NEXT:    unpcklps {{.*#+}} xmm1 = xmm1[0],xmm2[0],xmm1[1],xmm2[1]
-; CHECK-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[2,3,0,1]
+; CHECK-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[2,3,2,3]
 ; CHECK-NEXT:    movd %xmm0, %eax
 ; CHECK-NEXT:    xorps %xmm0, %xmm0
 ; CHECK-NEXT:    cvtsi2ss %eax, %xmm0
@@ -6512,7 +6535,7 @@ define <4 x double> @constrained_vector_sitofp_v4f64_v4i32(<4 x i32> %x) #0 {
 ; CHECK-LABEL: constrained_vector_sitofp_v4f64_v4i32:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    cvtdq2pd %xmm0, %xmm2
-; CHECK-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[2,3,0,1]
+; CHECK-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[2,3,2,3]
 ; CHECK-NEXT:    cvtdq2pd %xmm0, %xmm1
 ; CHECK-NEXT:    movaps %xmm2, %xmm0
 ; CHECK-NEXT:    retq
@@ -6552,14 +6575,14 @@ define <4 x double> @constrained_vector_sitofp_v4f64_v4i64(<4 x i64> %x) #0 {
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    movq %xmm0, %rax
 ; CHECK-NEXT:    cvtsi2sd %rax, %xmm2
-; CHECK-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[2,3,0,1]
+; CHECK-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[2,3,2,3]
 ; CHECK-NEXT:    movq %xmm0, %rax
 ; CHECK-NEXT:    xorps %xmm0, %xmm0
 ; CHECK-NEXT:    cvtsi2sd %rax, %xmm0
 ; CHECK-NEXT:    unpcklpd {{.*#+}} xmm2 = xmm2[0],xmm0[0]
 ; CHECK-NEXT:    movq %xmm1, %rax
 ; CHECK-NEXT:    cvtsi2sd %rax, %xmm3
-; CHECK-NEXT:    pshufd {{.*#+}} xmm0 = xmm1[2,3,0,1]
+; CHECK-NEXT:    pshufd {{.*#+}} xmm0 = xmm1[2,3,2,3]
 ; CHECK-NEXT:    movq %xmm0, %rax
 ; CHECK-NEXT:    xorps %xmm0, %xmm0
 ; CHECK-NEXT:    cvtsi2sd %rax, %xmm0
@@ -6619,7 +6642,7 @@ define <4 x float> @constrained_vector_sitofp_v4f32_v4i64(<4 x i64> %x) #0 {
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    movq %xmm1, %rax
 ; CHECK-NEXT:    cvtsi2ss %rax, %xmm2
-; CHECK-NEXT:    pshufd {{.*#+}} xmm1 = xmm1[2,3,0,1]
+; CHECK-NEXT:    pshufd {{.*#+}} xmm1 = xmm1[2,3,2,3]
 ; CHECK-NEXT:    movq %xmm1, %rax
 ; CHECK-NEXT:    xorps %xmm1, %xmm1
 ; CHECK-NEXT:    cvtsi2ss %rax, %xmm1
@@ -6627,7 +6650,7 @@ define <4 x float> @constrained_vector_sitofp_v4f32_v4i64(<4 x i64> %x) #0 {
 ; CHECK-NEXT:    movq %xmm0, %rax
 ; CHECK-NEXT:    xorps %xmm1, %xmm1
 ; CHECK-NEXT:    cvtsi2ss %rax, %xmm1
-; CHECK-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[2,3,0,1]
+; CHECK-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[2,3,2,3]
 ; CHECK-NEXT:    movq %xmm0, %rax
 ; CHECK-NEXT:    xorps %xmm0, %xmm0
 ; CHECK-NEXT:    cvtsi2ss %rax, %xmm0
@@ -6947,7 +6970,7 @@ define <2 x float> @constrained_vector_uitofp_v2f32_v2i64(<2 x i64> %x) #0 {
 ; CHECK-NEXT:  # %bb.1:
 ; CHECK-NEXT:    addss %xmm0, %xmm0
 ; CHECK-NEXT:  .LBB174_2: # %entry
-; CHECK-NEXT:    pshufd {{.*#+}} xmm1 = xmm1[2,3,0,1]
+; CHECK-NEXT:    pshufd {{.*#+}} xmm1 = xmm1[2,3,2,3]
 ; CHECK-NEXT:    movq %xmm1, %rax
 ; CHECK-NEXT:    movq %rax, %rcx
 ; CHECK-NEXT:    shrq %rcx
@@ -7004,11 +7027,11 @@ define <3 x double> @constrained_vector_uitofp_v3f64_v3i32(<3 x i32> %x) #0 {
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    movd %xmm0, %eax
 ; CHECK-NEXT:    cvtsi2sd %rax, %xmm2
-; CHECK-NEXT:    pshufd {{.*#+}} xmm1 = xmm0[1,1,2,3]
+; CHECK-NEXT:    pshufd {{.*#+}} xmm1 = xmm0[1,1,1,1]
 ; CHECK-NEXT:    movd %xmm1, %eax
 ; CHECK-NEXT:    xorps %xmm1, %xmm1
 ; CHECK-NEXT:    cvtsi2sd %rax, %xmm1
-; CHECK-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[2,3,0,1]
+; CHECK-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[2,3,2,3]
 ; CHECK-NEXT:    movd %xmm0, %eax
 ; CHECK-NEXT:    xorps %xmm0, %xmm0
 ; CHECK-NEXT:    cvtsi2sd %rax, %xmm0
@@ -7054,12 +7077,12 @@ define <3 x float> @constrained_vector_uitofp_v3f32_v3i32(<3 x i32> %x) #0 {
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    movd %xmm0, %eax
 ; CHECK-NEXT:    cvtsi2ss %rax, %xmm1
-; CHECK-NEXT:    pshufd {{.*#+}} xmm2 = xmm0[1,1,2,3]
+; CHECK-NEXT:    pshufd {{.*#+}} xmm2 = xmm0[1,1,1,1]
 ; CHECK-NEXT:    movd %xmm2, %eax
 ; CHECK-NEXT:    xorps %xmm2, %xmm2
 ; CHECK-NEXT:    cvtsi2ss %rax, %xmm2
 ; CHECK-NEXT:    unpcklps {{.*#+}} xmm1 = xmm1[0],xmm2[0],xmm1[1],xmm2[1]
-; CHECK-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[2,3,0,1]
+; CHECK-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[2,3,2,3]
 ; CHECK-NEXT:    movd %xmm0, %eax
 ; CHECK-NEXT:    xorps %xmm0, %xmm0
 ; CHECK-NEXT:    cvtsi2ss %rax, %xmm0
@@ -7134,7 +7157,7 @@ define <3 x double> @constrained_vector_uitofp_v3f64_v3i64(<3 x i64> %x) #0 {
 ; AVX1-NEXT:    vsubpd %xmm3, %xmm2, %xmm2
 ; AVX1-NEXT:    vpermilpd {{.*#+}} xmm4 = xmm2[1,0]
 ; AVX1-NEXT:    vaddpd %xmm2, %xmm4, %xmm2
-; AVX1-NEXT:    vpermilps {{.*#+}} xmm4 = xmm0[2,3,0,1]
+; AVX1-NEXT:    vpermilps {{.*#+}} xmm4 = xmm0[2,3,2,3]
 ; AVX1-NEXT:    vunpcklps {{.*#+}} xmm4 = xmm4[0],xmm1[0],xmm4[1],xmm1[1]
 ; AVX1-NEXT:    vsubpd %xmm3, %xmm4, %xmm4
 ; AVX1-NEXT:    vpermilpd {{.*#+}} xmm5 = xmm4[1,0]
@@ -7435,7 +7458,7 @@ define <4 x float> @constrained_vector_uitofp_v4f32_v4i64(<4 x i64> %x) #0 {
 ; CHECK-NEXT:  # %bb.1:
 ; CHECK-NEXT:    addss %xmm2, %xmm2
 ; CHECK-NEXT:  .LBB182_2: # %entry
-; CHECK-NEXT:    pshufd {{.*#+}} xmm1 = xmm1[2,3,0,1]
+; CHECK-NEXT:    pshufd {{.*#+}} xmm1 = xmm1[2,3,2,3]
 ; CHECK-NEXT:    movq %xmm1, %rax
 ; CHECK-NEXT:    movq %rax, %rcx
 ; CHECK-NEXT:    shrq %rcx
@@ -7464,7 +7487,7 @@ define <4 x float> @constrained_vector_uitofp_v4f32_v4i64(<4 x i64> %x) #0 {
 ; CHECK-NEXT:    addss %xmm1, %xmm1
 ; CHECK-NEXT:  .LBB182_6: # %entry
 ; CHECK-NEXT:    unpcklps {{.*#+}} xmm2 = xmm2[0],xmm3[0],xmm2[1],xmm3[1]
-; CHECK-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[2,3,0,1]
+; CHECK-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[2,3,2,3]
 ; CHECK-NEXT:    movq %xmm0, %rax
 ; CHECK-NEXT:    movq %rax, %rcx
 ; CHECK-NEXT:    shrq %rcx

@@ -1,11 +1,12 @@
+// TODO: Enable compilation w/o -fno-sycl-early-optimizations option.
+// See https://github.com/intel/llvm/issues/2264 for more details.
+// XFAIL: gpu && (level_zero || opencl) && linux
+
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out | FileCheck %s
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 // RUN: %GPU_RUN_ON_LINUX_PLACEHOLDER %t.out %GPU_CHECK_ON_LINUX_PLACEHOLDER
 // RUN: %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER
-
-// TODO: ptxas fatal   : Unresolved extern function '_Z18__spirv_SignBitSetf'
-// XFAIL: cuda
 
 //==------------------ stream.cpp - SYCL stream basic test -----------------==//
 //
@@ -280,8 +281,35 @@ int main() {
           range<1>(2), [=](id<1> i) { Out << "aaaaaaaaa" << endl; });
     });
     Queue.wait();
-  }
 // CHECK-NEXT: aaaaaaaaa
+
+    // Use a big statement size to verify the stream internal implementation can create
+    // a big enough flush buffer in global memory to handle this case.
+    range<1> global = 16;
+    range<1> local = 16;
+    Queue.submit([&](handler &cgh) {
+      stream ostream(198, 8192, cgh);
+      cgh.parallel_for<class test_stream>(nd_range<1>(global, local), [=](nd_item<1> it) {
+        ostream << "global id " << it.get_global_id(0) << stream_manipulator::endl;
+      });
+    });
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+    // CHECK: global id {{[0-9]+}}
+  }
 
   return 0;
 }

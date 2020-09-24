@@ -181,7 +181,8 @@ void AsmPrinter::emitDwarfStringOffset(DwarfStringPoolEntry S) const {
 }
 
 void AsmPrinter::emitDwarfOffset(const MCSymbol *Label, uint64_t Offset) const {
-  emitLabelPlusOffset(Label, Offset, MAI->getCodePointerSize());
+  // TODO: Support DWARF64
+  emitLabelPlusOffset(Label, Offset, 4);
 }
 
 void AsmPrinter::emitCallSiteOffset(const MCSymbol *Hi, const MCSymbol *Lo,
@@ -240,6 +241,7 @@ void AsmPrinter::emitCFIInstruction(const MCCFIInstruction &Inst) const {
     OutStreamer->emitCFIGnuArgsSize(Inst.getOffset());
     break;
   case MCCFIInstruction::OpEscape:
+    OutStreamer->AddComment(Inst.getComment());
     OutStreamer->emitCFIEscape(Inst.getValues());
     break;
   case MCCFIInstruction::OpRestore:

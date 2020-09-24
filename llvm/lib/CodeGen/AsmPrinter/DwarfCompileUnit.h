@@ -22,7 +22,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/CodeGen/DbgEntityHistoryCalculator.h"
-#include "llvm/CodeGen/DIE.h"
 #include "llvm/CodeGen/LexicalScopes.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/Support/Casting.h"
@@ -34,6 +33,9 @@
 namespace llvm {
 
 class AsmPrinter;
+class DIE;
+class DIELoc;
+class DIEValueList;
 class DwarfFile;
 class GlobalVariable;
 class MCExpr;
@@ -47,15 +49,15 @@ class DwarfCompileUnit final : public DwarfUnit {
   unsigned UniqueID;
   bool HasRangeLists = false;
 
-  /// The attribute index of DW_AT_stmt_list in the compile unit DIE, avoiding
-  /// the need to search for it in applyStmtList.
-  DIE::value_iterator StmtListValue;
+  /// The start of the unit line section, this is also
+  /// reused in appyStmtList.
+  MCSymbol *LineTableStartSym;
 
   /// Skeleton unit associated with this unit.
   DwarfCompileUnit *Skeleton = nullptr;
 
   /// The start of the unit within its section.
-  MCSymbol *LabelBegin;
+  MCSymbol *LabelBegin = nullptr;
 
   /// The start of the unit macro info within macro section.
   MCSymbol *MacroLabelBegin;
@@ -122,6 +124,9 @@ public:
 
   /// Apply the DW_AT_stmt_list from this compile unit to the specified DIE.
   void applyStmtList(DIE &D);
+
+  /// Get line table start symbol for this unit.
+  MCSymbol *getLineTableStartSym() const { return LineTableStartSym; }
 
   /// A pair of GlobalVariable and DIExpression.
   struct GlobalExpr {
@@ -294,7 +299,7 @@ public:
   void addAddrTableBase();
 
   MCSymbol *getLabelBegin() const {
-    assert(getSection());
+    assert(LabelBegin && "LabelBegin is not initialized");
     return LabelBegin;
   }
 

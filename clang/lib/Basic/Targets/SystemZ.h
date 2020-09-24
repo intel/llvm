@@ -48,6 +48,7 @@ public:
     MinGlobalAlign = 16;
     resetDataLayout("E-m:e-i1:8:16-i8:8:16-i64:64-f128:64-a:8:16-n32:64");
     MaxAtomicPromoteWidth = MaxAtomicInlineWidth = 64;
+    HasStrictFP = true;
   }
 
   void getTargetDefines(const LangOptions &Opts,
@@ -63,6 +64,10 @@ public:
   }
 
   ArrayRef<TargetInfo::AddlRegName> getGCCAddlRegNames() const override;
+
+  bool isSPRegName(StringRef RegName) const override {
+    return RegName.equals("r15");
+  }
 
   bool validateAsmConstraint(const char *&Name,
                              TargetInfo::ConstraintInfo &info) const override;
@@ -150,6 +155,12 @@ public:
   }
 
   const char *getLongDoubleMangling() const override { return "g"; }
+
+  bool hasExtIntType() const override { return true; }
+
+  int getEHDataRegisterNumber(unsigned RegNo) const override {
+    return RegNo < 4 ? 6 + RegNo : -1;
+  }
 };
 } // namespace targets
 } // namespace clang

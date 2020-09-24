@@ -4,8 +4,6 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
 // RUN: %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER
 
-// XFAIL: cuda
-
 //==------- scalar_vec_access.cpp - SYCL scalar access to vec test ---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

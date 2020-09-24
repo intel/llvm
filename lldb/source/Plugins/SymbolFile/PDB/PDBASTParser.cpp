@@ -409,9 +409,9 @@ lldb::TypeSP PDBASTParser::CreateLLDBTypeFromPDBType(const PDBSymbol &type) {
       metadata.SetUserID(type.getSymIndexId());
       metadata.SetIsDynamicCXXType(false);
 
-      clang_type =
-          m_ast.CreateRecordType(decl_context, access, name, tag_type_kind,
-                                 lldb::eLanguageTypeC_plus_plus, &metadata);
+      clang_type = m_ast.CreateRecordType(
+          decl_context, OptionalClangModuleID(), access, name, tag_type_kind,
+          lldb::eLanguageTypeC_plus_plus, &metadata);
       assert(clang_type.IsValid());
 
       auto record_decl =
@@ -497,7 +497,8 @@ lldb::TypeSP PDBASTParser::CreateLLDBTypeFromPDBType(const PDBSymbol &type) {
       // Class). Set it false for now.
       bool isScoped = false;
 
-      ast_enum = m_ast.CreateEnumerationType(name.c_str(), decl_context, decl,
+      ast_enum = m_ast.CreateEnumerationType(name.c_str(), decl_context,
+                                             OptionalClangModuleID(), decl,
                                              builtin_type, isScoped);
 
       auto enum_decl = TypeSystemClang::GetAsEnumDecl(ast_enum);
@@ -550,7 +551,7 @@ lldb::TypeSP PDBASTParser::CreateLLDBTypeFromPDBType(const PDBSymbol &type) {
       CompilerType target_ast_type = target_type->GetFullCompilerType();
 
       ast_typedef = m_ast.CreateTypedefType(
-          target_ast_type, name.c_str(), m_ast.CreateDeclContext(decl_ctx));
+          target_ast_type, name.c_str(), m_ast.CreateDeclContext(decl_ctx), 0);
       if (!ast_typedef)
         return nullptr;
 
@@ -901,7 +902,7 @@ PDBASTParser::GetDeclForSymbol(const llvm::pdb::PDBSymbol &symbol) {
         return nullptr;
 
       decl = m_ast.CreateVariableDeclaration(
-          decl_context, name.c_str(),
+          decl_context, OptionalClangModuleID(), name.c_str(),
           ClangUtil::GetQualType(type->GetLayoutCompilerType()));
     }
 
@@ -927,8 +928,8 @@ PDBASTParser::GetDeclForSymbol(const llvm::pdb::PDBSymbol &symbol) {
                                     : clang::StorageClass::SC_None;
 
     auto decl = m_ast.CreateFunctionDeclaration(
-        decl_context, name.c_str(), type->GetForwardCompilerType(), storage,
-        func->hasInlineAttribute());
+        decl_context, OptionalClangModuleID(), name,
+        type->GetForwardCompilerType(), storage, func->hasInlineAttribute());
 
     std::vector<clang::ParmVarDecl *> params;
     if (std::unique_ptr<PDBSymbolTypeFunctionSig> sig = func->getSignature()) {
@@ -941,8 +942,8 @@ PDBASTParser::GetDeclForSymbol(const llvm::pdb::PDBSymbol &symbol) {
             continue;
 
           clang::ParmVarDecl *param = m_ast.CreateParameterDeclaration(
-              decl, nullptr, arg_type->GetForwardCompilerType(),
-              clang::SC_None, true);
+              decl, OptionalClangModuleID(), nullptr,
+              arg_type->GetForwardCompilerType(), clang::SC_None, true);
           if (param)
             params.push_back(param);
         }
@@ -1056,8 +1057,8 @@ clang::DeclContext *PDBASTParser::GetDeclContextContainingSymbol(
           IsAnonymousNamespaceName(namespace_name) ? nullptr
                                                    : namespace_name.data();
       clang::NamespaceDecl *namespace_decl =
-          m_ast.GetUniqueNamespaceDeclaration(namespace_name_c_str,
-                                              curr_context);
+          m_ast.GetUniqueNamespaceDeclaration(
+              namespace_name_c_str, curr_context, OptionalClangModuleID());
 
       m_parent_to_namespaces[curr_context].insert(namespace_decl);
       m_namespaces.insert(namespace_decl);
@@ -1263,6 +1264,52 @@ void PDBASTParser::AddRecordMembers(
           record_type, member_name.c_str(), member_comp_type, access);
       if (!decl)
         continue;
+
+      // Static constant members may be a const[expr] declaration.
+      // Query the symbol's value as the variable initializer if valid.
+      if (member_comp_type.IsConst()) {
+        auto value = member->getValue();
+        clang::QualType qual_type = decl->getType();
+        unsigned type_width = m_ast.getASTContext().getIntWidth(qual_type);
+        unsigned constant_width = value.getBitWidth();
+
+        if (qual_type->isIntegralOrEnumerationType()) {
+          if (type_width >= constant_width) {
+            TypeSystemClang::SetIntegerInitializerForVariable(
+                decl, value.toAPSInt().extOrTrunc(type_width));
+          } else {
+            LLDB_LOG(GetLogIfAllCategoriesSet(LIBLLDB_LOG_AST),
+                     "Class '{0}' has a member '{1}' of type '{2}' ({3} bits) "
+                     "which resolves to a wider constant value ({4} bits). "
+                     "Ignoring constant.",
+                     record_type.GetTypeName(), member_name,
+                     member_comp_type.GetTypeName(), type_width,
+                     constant_width);
+          }
+        } else {
+          switch (member_comp_type.GetBasicTypeEnumeration()) {
+          case lldb::eBasicTypeFloat:
+          case lldb::eBasicTypeDouble:
+          case lldb::eBasicTypeLongDouble:
+            if (type_width == constant_width) {
+              TypeSystemClang::SetFloatingInitializerForVariable(
+                  decl, value.toAPFloat());
+              decl->setConstexpr(true);
+            } else {
+              LLDB_LOG(GetLogIfAllCategoriesSet(LIBLLDB_LOG_AST),
+                       "Class '{0}' has a member '{1}' of type '{2}' ({3} "
+                       "bits) which resolves to a constant value of mismatched "
+                       "width ({4} bits). Ignoring constant.",
+                       record_type.GetTypeName(), member_name,
+                       member_comp_type.GetTypeName(), type_width,
+                       constant_width);
+            }
+            break;
+          default:
+            break;
+          }
+        }
+      }
 
       m_uid_to_decl[member->getSymIndexId()] = decl;
 

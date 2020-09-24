@@ -42,6 +42,10 @@ template <typename T> void test_copy_acc_acc();
 template <typename T> void test_update_host();
 template <typename T> void test_2D_copy_acc_acc();
 template <typename T> void test_3D_copy_acc_acc();
+template <typename T>
+void test_0D1D_copy_acc_acc();
+template <typename T>
+void test_0D1D_copy_acc_acc_atomic();
 template <typename T> void test_1D2D_copy_acc_acc();
 template <typename T> void test_1D3D_copy_acc_acc();
 template <typename T> void test_2D1D_copy_acc_acc();
@@ -134,6 +138,19 @@ int main() {
     test_3D_copy_acc_acc<point<int>>();
     test_3D_copy_acc_acc<point<int>>();
     test_3D_copy_acc_acc<point<float>>();
+  }
+
+  // handler.copy(acc, acc) 0D to/from 1D
+  {
+    test_0D1D_copy_acc_acc<int>();
+    test_0D1D_copy_acc_acc<point<int>>();
+    test_0D1D_copy_acc_acc<point<float>>();
+  }
+
+  // handler.copy(acc, acc) 0D to/from 1D where one/both acc are atomic
+  {
+    test_0D1D_copy_acc_acc_atomic<int>();
+    test_0D1D_copy_acc_acc_atomic<float>();
   }
 
   // handler.copy(acc, acc) 1D to 2D
@@ -230,6 +247,34 @@ template <typename T> void test_copy_ptr_acc() {
   for (size_t I = 0; I < Size; ++I) {
     assert(Data[I] == Values[I]);
   }
+
+  // Check copy from 'const void *' memory to accessor.
+  {
+    buffer<T, 1> Buffer(Size);
+    queue Queue;
+    Queue.submit([&](handler &Cgh) {
+      auto Acc = Buffer.template get_access<access::mode::discard_write>(Cgh);
+      Cgh.copy(reinterpret_cast<const void *>(Values), Acc);
+    });
+
+    auto Acc = Buffer.template get_access<access::mode::read>();
+    for (int I = 0; I < Size; ++I)
+      assert(Acc[I] == Values[I]);
+  }
+
+  // Check copy from memory to 0-dimensional accessor.
+  T SrcValue = 99;
+  T DstValue = 0;
+  {
+    buffer<T, 1> DstBuf(&DstValue, range<1>(1));
+    queue Queue;
+    Queue.submit([&](handler &Cgh) {
+      accessor<T, 0, access::mode::discard_write, access::target::global_buffer>
+          DstAcc(DstBuf, Cgh);
+      Cgh.copy(&SrcValue, DstAcc);
+    });
+  }
+  assert(DstValue == 99);
 }
 
 template <typename T> void test_copy_acc_ptr() {
@@ -251,6 +296,53 @@ template <typename T> void test_copy_acc_ptr() {
   for (size_t I = 0; I < Size; ++I) {
     assert(Data[I] == Values[I]);
   }
+
+  // Check copy from 'const T' accessor to 'void *' memory.
+  {
+    buffer<const T, 1> Buffer(reinterpret_cast<const T *>(Data), range<1>(Size));
+    T Dst[Size] = {0};
+    queue Queue;
+    Queue.submit([&](handler &Cgh) {
+      auto Acc = Buffer.template get_access<access::mode::read>(Cgh);
+      Cgh.copy(Acc, reinterpret_cast<void *>(Dst));
+    });
+    Queue.wait();
+
+    for (int I = 0; I < Size; ++I)
+      assert(Dst[I] == Data[I]);
+  }
+
+  // Check copy from 0-dimensional accessor to memory
+  T SrcValue = 99;
+  T DstValue = 0;
+  {
+    buffer<T, 1> SrcBuf(&SrcValue, range<1>(1));
+    queue Queue;
+    Queue.submit([&](handler &Cgh) {
+      accessor<T, 0, access::mode::read, access::target::global_buffer>
+          SrcAcc(SrcBuf, Cgh);
+      Cgh.copy(SrcAcc, &DstValue);
+    });
+  }
+  assert(DstValue == 99);
+
+  // Check copy from 0-dimensional placeholder accessor to memory
+  SrcValue = 77;
+  DstValue = 0;
+  {
+    buffer<T, 1> SrcBuf(&SrcValue, range<1>(1));
+    accessor<T, 0, access::mode::read, access::target::global_buffer,
+             access::placeholder::true_t>
+        SrcAcc(SrcBuf);
+    {
+      queue Queue;
+      Queue.submit([&](handler &Cgh) {
+        Cgh.require(SrcAcc);
+        Cgh.copy(SrcAcc, &DstValue);
+      });
+    }
+  }
+  assert(DstValue == 77);
 }
 
 template <typename T> void test_copy_shared_ptr_acc() {
@@ -427,6 +519,113 @@ template <typename T> void test_3D_copy_acc_acc() {
       }
     }
   }
+}
+
+template <typename T>
+void test_0D1D_copy_acc_acc() {
+  // Copy 1 element from 0-dim accessor to 1-dim accessor
+  T Src(1), Dst(0);
+  {
+    buffer<T, 1> BufferFrom(&Src, range<1>(1));
+    buffer<T, 1> BufferTo(&Dst, range<1>(1));
+    queue Queue;
+    Queue.submit([&](handler &Cgh) {
+      accessor<T, 0, access::mode::read, access::target::global_buffer>
+          AccessorFrom(BufferFrom, Cgh);
+      accessor<T, 1, access::mode::write, access::target::global_buffer>
+          AccessorTo(BufferTo, Cgh);
+      Cgh.copy(AccessorFrom, AccessorTo);
+    });
+  }
+  assert(Dst == 1);
+
+  // Copy 1 element from 1-dim accessor to 0-dim accessor
+  Src = T(3);
+  Dst = T(0);
+  {
+    buffer<T, 1> BufferFrom(&Src, range<1>(1));
+    buffer<T, 1> BufferTo(&Dst, range<1>(1));
+    queue Queue;
+    Queue.submit([&](handler &Cgh) {
+      accessor<T, 1, access::mode::read, access::target::global_buffer>
+          AccessorFrom(BufferFrom, Cgh);
+      accessor<T, 0, access::mode::write, access::target::global_buffer>
+          AccessorTo(BufferTo, Cgh);
+      Cgh.copy(AccessorFrom, AccessorTo);
+    });
+  }
+  assert(Dst == 3);
+
+  // Copy 1 element from 0-dim accessor to 0-dim accessor
+  Src = T(7);
+  Dst = T(0);
+  {
+    buffer<T, 1> BufferFrom(&Src, range<1>(1));
+    buffer<T, 1> BufferTo(&Dst, range<1>(1));
+    queue Queue;
+    Queue.submit([&](handler &Cgh) {
+      accessor<T, 0, access::mode::read, access::target::global_buffer>
+          AccessorFrom(BufferFrom, Cgh);
+      accessor<T, 0, access::mode::write, access::target::global_buffer>
+          AccessorTo(BufferTo, Cgh);
+      Cgh.copy(AccessorFrom, AccessorTo);
+    });
+  }
+  assert(Dst == 7);
+}
+
+template <typename T>
+void test_0D1D_copy_acc_acc_atomic() {
+  // Copy 1 element from 0-dim ATOMIC accessor to 1-dim accessor
+  T Src = T(1);
+  T Dst = T(0);
+  {
+    buffer<T, 1> BufferFrom(&Src, range<1>(1));
+    buffer<T, 1> BufferTo(&Dst, range<1>(1));
+    queue Queue;
+    Queue.submit([&](handler &Cgh) {
+      accessor<T, 0, access::mode::atomic, access::target::global_buffer>
+          AccessorFrom(BufferFrom, Cgh);
+      accessor<T, 1, access::mode::write, access::target::global_buffer>
+          AccessorTo(BufferTo, Cgh);
+      Cgh.copy(AccessorFrom, AccessorTo);
+    });
+  }
+  assert(Dst == 1);
+
+  // Copy 1 element from 1-dim ATOMIC accessor to 0-dim accessor
+  Src = T(3);
+  Dst = T(0);
+  {
+    buffer<T, 1> BufferFrom(&Src, range<1>(1));
+    buffer<T, 1> BufferTo(&Dst, range<1>(1));
+    queue Queue;
+    Queue.submit([&](handler &Cgh) {
+      accessor<T, 1, access::mode::atomic, access::target::global_buffer>
+          AccessorFrom(BufferFrom, Cgh);
+      accessor<T, 0, access::mode::write, access::target::global_buffer>
+          AccessorTo(BufferTo, Cgh);
+      Cgh.copy(AccessorFrom, AccessorTo);
+    });
+  }
+  assert(Dst == 3);
+
+  // Copy 1 element from 0-dim ATOMIC accessor to 0-dim ATOMIC accessor
+  Src = T(7);
+  Dst = T(0);
+  {
+    buffer<T, 1> BufferFrom(&Src, range<1>(1));
+    buffer<T, 1> BufferTo(&Dst, range<1>(1));
+    queue Queue;
+    Queue.submit([&](handler &Cgh) {
+      accessor<T, 0, access::mode::atomic, access::target::global_buffer>
+          AccessorFrom(BufferFrom, Cgh);
+      accessor<T, 0, access::mode::atomic, access::target::global_buffer>
+          AccessorTo(BufferTo, Cgh);
+      Cgh.copy(AccessorFrom, AccessorTo);
+    });
+  }
+  assert(Dst == 7);
 }
 
 template <typename T> void test_1D2D_copy_acc_acc() {

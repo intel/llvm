@@ -50,6 +50,7 @@ enum class ErrorCode {
 
   // Defined by the protocol.
   RequestCancelled = -32800,
+  ContentModified = -32801,
 };
 // Models an LSP error as an llvm::Error.
 class LSPError : public llvm::ErrorInfo<LSPError> {
@@ -429,12 +430,21 @@ struct ClientCapabilities {
   /// textDocument.completion.completionItemKind.valueSet
   llvm::Optional<CompletionItemKindBitset> CompletionItemKinds;
 
+  /// The documentation format that should be used for textDocument/completion.
+  /// textDocument.completion.completionItem.documentationFormat
+  MarkupKind CompletionDocumentationFormat = MarkupKind::PlainText;
+
   /// Client supports CodeAction return value for textDocument/codeAction.
   /// textDocument.codeAction.codeActionLiteralSupport.
   bool CodeActionStructure = false;
 
+  /// Client advertises support for the semanticTokens feature.
+  /// We support the textDocument/semanticTokens request in any case.
+  /// textDocument.semanticTokens
+  bool SemanticTokens = false;
   /// Client supports Theia semantic highlighting extension.
   /// https://github.com/microsoft/vscode-languageserver-node/pull/367
+  /// This will be ignored if the client also supports semanticTokens.
   /// textDocument.semanticHighlightingCapabilities.semanticHighlighting
   /// FIXME: drop this support once clients support LSP 3.16 Semantic Tokens.
   bool TheiaSemanticHighlighting = false;
@@ -647,6 +657,12 @@ struct DidCloseTextDocumentParams {
   TextDocumentIdentifier textDocument;
 };
 bool fromJSON(const llvm::json::Value &, DidCloseTextDocumentParams &);
+
+struct DidSaveTextDocumentParams {
+  /// The document that was saved.
+  TextDocumentIdentifier textDocument;
+};
+bool fromJSON(const llvm::json::Value &, DidSaveTextDocumentParams &);
 
 struct TextDocumentContentChangeEvent {
   /// The range of the document that changed.
@@ -1093,7 +1109,7 @@ struct CompletionItem {
   std::string detail;
 
   /// A human-readable string that represents a doc-comment.
-  std::string documentation;
+  llvm::Optional<MarkupContent> documentation;
 
   /// A string that should be used when comparing this item with other items.
   /// When `falsy` the label is used.
@@ -1340,7 +1356,77 @@ struct FileStatus {
   std::string state;
   // FIXME: add detail messages.
 };
-llvm::json::Value toJSON(const FileStatus &FStatus);
+llvm::json::Value toJSON(const FileStatus &);
+
+/// Specifies a single semantic token in the document.
+/// This struct is not part of LSP, which just encodes lists of tokens as
+/// arrays of numbers directly.
+struct SemanticToken {
+  /// token line number, relative to the previous token
+  unsigned deltaLine = 0;
+  /// token start character, relative to the previous token
+  /// (relative to 0 or the previous token's start if they are on the same line)
+  unsigned deltaStart = 0;
+  /// the length of the token. A token cannot be multiline
+  unsigned length = 0;
+  /// will be looked up in `SemanticTokensLegend.tokenTypes`
+  unsigned tokenType = 0;
+  /// each set bit will be looked up in `SemanticTokensLegend.tokenModifiers`
+  unsigned tokenModifiers = 0;
+};
+bool operator==(const SemanticToken &, const SemanticToken &);
+
+/// A versioned set of tokens.
+struct SemanticTokens {
+  // An optional result id. If provided and clients support delta updating
+  // the client will include the result id in the next semantic token request.
+  // A server can then instead of computing all semantic tokens again simply
+  // send a delta.
+  std::string resultId;
+
+  /// The actual tokens.
+  std::vector<SemanticToken> tokens; // encoded as a flat integer array.
+};
+llvm::json::Value toJSON(const SemanticTokens &);
+
+/// Body of textDocument/semanticTokens/full request.
+struct SemanticTokensParams {
+  /// The text document.
+  TextDocumentIdentifier textDocument;
+};
+bool fromJSON(const llvm::json::Value &, SemanticTokensParams &);
+
+/// Body of textDocument/semanticTokens/full/delta request.
+/// Requests the changes in semantic tokens since a previous response.
+struct SemanticTokensDeltaParams {
+  /// The text document.
+  TextDocumentIdentifier textDocument;
+  /// The previous result id.
+  std::string previousResultId;
+};
+bool fromJSON(const llvm::json::Value &Params, SemanticTokensDeltaParams &R);
+
+/// Describes a a replacement of a contiguous range of semanticTokens.
+struct SemanticTokensEdit {
+  // LSP specifies `start` and `deleteCount` which are relative to the array
+  // encoding of the previous tokens.
+  // We use token counts instead, and translate when serializing this struct.
+  unsigned startToken = 0;
+  unsigned deleteTokens = 0;
+  std::vector<SemanticToken> tokens; // encoded as a flat integer array
+};
+llvm::json::Value toJSON(const SemanticTokensEdit &);
+
+/// This models LSP SemanticTokensDelta | SemanticTokens, which is the result of
+/// textDocument/semanticTokens/full/delta.
+struct SemanticTokensOrDelta {
+  std::string resultId;
+  /// Set if we computed edits relative to a previous set of tokens.
+  llvm::Optional<std::vector<SemanticTokensEdit>> edits;
+  /// Set if we computed a fresh set of tokens.
+  llvm::Optional<std::vector<SemanticToken>> tokens; // encoded as integer array
+};
+llvm::json::Value toJSON(const SemanticTokensOrDelta &);
 
 /// Represents a semantic highlighting information that has to be applied on a
 /// specific line of the text document.
@@ -1423,6 +1509,23 @@ struct DocumentLink {
   }
 };
 llvm::json::Value toJSON(const DocumentLink &DocumentLink);
+
+// FIXME(kirillbobyrev): Add FoldingRangeClientCapabilities so we can support
+// per-line-folding editors.
+struct FoldingRangeParams {
+  TextDocumentIdentifier textDocument;
+};
+bool fromJSON(const llvm::json::Value &, FoldingRangeParams &);
+
+/// Stores information about a region of code that can be folded.
+struct FoldingRange {
+  unsigned startLine = 0;
+  unsigned startCharacter;
+  unsigned endLine = 0;
+  unsigned endCharacter;
+  llvm::Optional<std::string> kind;
+};
+llvm::json::Value toJSON(const FoldingRange &Range);
 
 } // namespace clangd
 } // namespace clang

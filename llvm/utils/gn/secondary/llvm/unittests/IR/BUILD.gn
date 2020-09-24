@@ -11,6 +11,7 @@ unittest("IRTests") {
     "//llvm/lib/Transforms/Utils",
   ]
   sources = [
+    "AbstractCallSiteTest.cpp",
     "AsmWriterTest.cpp",
     "AttributesTest.cpp",
     "BasicBlockTest.cpp",
@@ -20,13 +21,13 @@ unittest("IRTests") {
     "DataLayoutTest.cpp",
     "DebugInfoTest.cpp",
     "DebugTypeODRUniquingTest.cpp",
+    "DemandedBitsTest.cpp",
     "DominatorTreeBatchUpdatesTest.cpp",
     "DominatorTreeTest.cpp",
     "FunctionTest.cpp",
     "IRBuilderTest.cpp",
     "InstructionsTest.cpp",
     "IntrinsicsTest.cpp",
-    "KnowledgeRetentionTest.cpp",
     "LegacyPassManagerTest.cpp",
     "MDBuilderTest.cpp",
     "ManglerTest.cpp",
@@ -45,6 +46,5 @@ unittest("IRTests") {
     "ValueTest.cpp",
     "VectorTypesTest.cpp",
     "VerifierTest.cpp",
-    "WaymarkTest.cpp",
   ]
 }

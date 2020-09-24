@@ -152,9 +152,11 @@ Convert a pointer to an integer.
 G_BITCAST
 ^^^^^^^^^
 
-Reinterpret a value as a new type. This is usually done without changing any
-bits but this is not always the case due a sublety in the definition of the
-:ref:`LLVM-IR Bitcast Instruction <i_bitcast>`.
+Reinterpret a value as a new type. This is usually done without
+changing any bits but this is not always the case due a subtlety in the
+definition of the :ref:`LLVM-IR Bitcast Instruction <i_bitcast>`. It
+is allowed to bitcast between pointers with the same size, but
+different address spaces.
 
 .. code-block:: none
 
@@ -243,10 +245,10 @@ These each perform their respective integer arithmetic on a scalar.
 
   %2:_(s32) = G_ADD %0:_(s32), %1:_(s32)
 
-G_SADDSAT, G_UADDSAT, G_SSUBSAT, G_USUBSAT
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+G_SADDSAT, G_UADDSAT, G_SSUBSAT, G_USUBSAT, G_SSHLSAT, G_USHLSAT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Signed and unsigned addition and subtraction with saturation.
+Signed and unsigned addition, subtraction and left shift with saturation.
 
 .. code-block:: none
 
@@ -287,14 +289,16 @@ typically bytes but this may vary between targets.
   There are currently no in-tree targets that use this with addressable units
   not equal to 8 bit.
 
-G_PTR_MASK
+G_PTRMASK
 ^^^^^^^^^^
 
-Zero the least significant N bits of a pointer.
+Zero out an arbitrary mask of bits of a pointer. The mask type must be
+an integer, and the number of vector elements must match for all
+operands. This corresponds to `i_intr_llvm_ptrmask`.
 
 .. code-block:: none
 
-  %1:_(p0) = G_PTR_MASK %0, 3
+  %2:_(p0) = G_PTRMASK %0, %1
 
 G_SMIN, G_SMAX, G_UMIN, G_UMAX
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -304,6 +308,16 @@ Take the minimum/maximum of two values.
 .. code-block:: none
 
   %5:_(s32) = G_SMIN %6, %2
+
+G_ABS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Take the absolute value of a signed integer. The absolute value of the minimum
+negative value (e.g. the 8-bit value `0x80`) is defined to be itself.
+
+.. code-block:: none
+
+  %1:_(s32) = G_ABS %0
 
 G_UADDO, G_SADDO, G_USUBO, G_SSUBO, G_SMULO, G_UMULO
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -565,7 +579,11 @@ Same as G_INDEXED_LOAD except that the load performed is zero-extending, as with
 G_STORE
 ^^^^^^^
 
-Generic store. Expects a MachineMemOperand in addition to explicit operands.
+Generic store. Expects a MachineMemOperand in addition to explicit
+operands. If the stored value size is greater than the memory size,
+the high bits are implicitly truncated. If this is a vector store, the
+high elements are discarded (i.e. this does not function as a per-lane
+vector, truncating store)
 
 G_INDEXED_STORE
 ^^^^^^^^^^^^^^^
@@ -672,12 +690,9 @@ Other Operations
 G_DYN_STACKALLOC
 ^^^^^^^^^^^^^^^^
 
-Dynamically realign the stack pointer to the specified alignment
+Dynamically realigns the stack pointer to the specified size and alignment.
+An alignment value of `0` or `1` mean no specific alignment.
 
 .. code-block:: none
 
   %8:_(p0) = G_DYN_STACKALLOC %7(s64), 32
-
-.. caution::
-
-  What does it mean for the immediate to be 0? It happens in the tests

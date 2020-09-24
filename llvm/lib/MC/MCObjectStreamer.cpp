@@ -18,6 +18,7 @@
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCSection.h"
 #include "llvm/MC/MCSymbol.h"
+#include "llvm/MC/MCValue.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/SourceMgr.h"
 using namespace llvm;
@@ -59,12 +60,8 @@ void MCObjectStreamer::addPendingLabel(MCSymbol* S) {
     CurSection->addPendingLabel(S, CurSubsectionIdx);
 
     // Add this Section to the list of PendingLabelSections.
-    auto SecIt = std::find(PendingLabelSections.begin(),
-                           PendingLabelSections.end(), CurSection);
-    if (SecIt == PendingLabelSections.end())
-      PendingLabelSections.push_back(CurSection);
-  }
-  else
+    PendingLabelSections.insert(CurSection);
+  } else
     // There is no Section / Subsection for this label yet.
     PendingLabels.push_back(S);
 }
@@ -171,7 +168,7 @@ void MCObjectStreamer::reset() {
   MCStreamer::reset();
 }
 
-void MCObjectStreamer::EmitFrames(MCAsmBackend *MAB) {
+void MCObjectStreamer::emitFrames(MCAsmBackend *MAB) {
   if (!getNumFrameInfos())
     return;
 
@@ -191,13 +188,13 @@ MCFragment *MCObjectStreamer::getCurrentFragment() const {
   return nullptr;
 }
 
-static bool CanReuseDataFragment(const MCDataFragment &F,
+static bool canReuseDataFragment(const MCDataFragment &F,
                                  const MCAssembler &Assembler,
                                  const MCSubtargetInfo *STI) {
   if (!F.hasInstructions())
     return true;
   // When bundling is enabled, we don't want to add data to a fragment that
-  // already has instructions (see MCELFStreamer::EmitInstToData for details)
+  // already has instructions (see MCELFStreamer::emitInstToData for details)
   if (Assembler.isBundlingEnabled())
     return Assembler.getRelaxAll();
   // If the subtarget is changed mid fragment we start a new fragment to record
@@ -208,7 +205,7 @@ static bool CanReuseDataFragment(const MCDataFragment &F,
 MCDataFragment *
 MCObjectStreamer::getOrCreateDataFragment(const MCSubtargetInfo *STI) {
   MCDataFragment *F = dyn_cast_or_null<MCDataFragment>(getCurrentFragment());
-  if (!F || !CanReuseDataFragment(*F, *Assembler, STI)) {
+  if (!F || !canReuseDataFragment(*F, *Assembler, STI)) {
     F = new MCDataFragment();
     insert(F);
   }
@@ -332,7 +329,7 @@ void MCObjectStreamer::emitWeakReference(MCSymbol *Alias,
   report_fatal_error("This file format doesn't support weak aliases.");
 }
 
-void MCObjectStreamer::ChangeSection(MCSection *Section,
+void MCObjectStreamer::changeSection(MCSection *Section,
                                      const MCExpr *Subsection) {
   changeSectionImpl(Section, Subsection);
 }
@@ -367,6 +364,13 @@ bool MCObjectStreamer::mayHaveInstructions(MCSection &Sec) const {
 
 void MCObjectStreamer::emitInstruction(const MCInst &Inst,
                                        const MCSubtargetInfo &STI) {
+  const MCSection &Sec = *getCurrentSectionOnly();
+  if (Sec.isVirtualSection()) {
+    getContext().reportError(Inst.getLoc(), Twine(Sec.getVirtualSectionKind()) +
+                                                " section '" + Sec.getName() +
+                                                "' cannot have instructions");
+    return;
+  }
   getAssembler().getBackend().emitInstructionBegin(*this, Inst);
   emitInstructionImpl(Inst, STI);
   getAssembler().getBackend().emitInstructionEnd(*this, Inst);
@@ -385,8 +389,10 @@ void MCObjectStreamer::emitInstructionImpl(const MCInst &Inst,
 
   // If this instruction doesn't need relaxation, just emit it as data.
   MCAssembler &Assembler = getAssembler();
-  if (!Assembler.getBackend().mayNeedRelaxation(Inst, STI)) {
-    EmitInstToData(Inst, STI);
+  MCAsmBackend &Backend = Assembler.getBackend();
+  if (!(Backend.mayNeedRelaxation(Inst, STI) ||
+        Backend.allowEnhancedRelaxation())) {
+    emitInstToData(Inst, STI);
     return;
   }
 
@@ -397,19 +403,18 @@ void MCObjectStreamer::emitInstructionImpl(const MCInst &Inst,
   //   fragment.
   if (Assembler.getRelaxAll() ||
       (Assembler.isBundlingEnabled() && Sec->isBundleLocked())) {
-    MCInst Relaxed;
-    getAssembler().getBackend().relaxInstruction(Inst, STI, Relaxed);
-    while (getAssembler().getBackend().mayNeedRelaxation(Relaxed, STI))
-      getAssembler().getBackend().relaxInstruction(Relaxed, STI, Relaxed);
-    EmitInstToData(Relaxed, STI);
+    MCInst Relaxed = Inst;
+    while (Backend.mayNeedRelaxation(Relaxed, STI))
+      Backend.relaxInstruction(Relaxed, STI);
+    emitInstToData(Relaxed, STI);
     return;
   }
 
   // Otherwise emit to a separate fragment.
-  EmitInstToFragment(Inst, STI);
+  emitInstToFragment(Inst, STI);
 }
 
-void MCObjectStreamer::EmitInstToFragment(const MCInst &Inst,
+void MCObjectStreamer::emitInstToFragment(const MCInst &Inst,
                                           const MCSubtargetInfo &STI) {
   if (getAssembler().getRelaxAll() && getAssembler().isBundlingEnabled())
     llvm_unreachable("All instructions should have already been relaxed");
@@ -511,7 +516,7 @@ void MCObjectStreamer::emitDwarfAdvanceFrameAddr(const MCSymbol *LastLabel,
   insert(new MCDwarfCallFrameFragment(*AddrDelta));
 }
 
-void MCObjectStreamer::EmitCVLocDirective(unsigned FunctionId, unsigned FileNo,
+void MCObjectStreamer::emitCVLocDirective(unsigned FunctionId, unsigned FileNo,
                                           unsigned Line, unsigned Column,
                                           bool PrologueEnd, bool IsStmt,
                                           StringRef FileName, SMLoc Loc) {
@@ -527,25 +532,25 @@ void MCObjectStreamer::EmitCVLocDirective(unsigned FunctionId, unsigned FileNo,
                                           IsStmt);
 }
 
-void MCObjectStreamer::EmitCVLinetableDirective(unsigned FunctionId,
+void MCObjectStreamer::emitCVLinetableDirective(unsigned FunctionId,
                                                 const MCSymbol *Begin,
                                                 const MCSymbol *End) {
   getContext().getCVContext().emitLineTableForFunction(*this, FunctionId, Begin,
                                                        End);
-  this->MCStreamer::EmitCVLinetableDirective(FunctionId, Begin, End);
+  this->MCStreamer::emitCVLinetableDirective(FunctionId, Begin, End);
 }
 
-void MCObjectStreamer::EmitCVInlineLinetableDirective(
+void MCObjectStreamer::emitCVInlineLinetableDirective(
     unsigned PrimaryFunctionId, unsigned SourceFileId, unsigned SourceLineNum,
     const MCSymbol *FnStartSym, const MCSymbol *FnEndSym) {
   getContext().getCVContext().emitInlineLineTableForFunction(
       *this, PrimaryFunctionId, SourceFileId, SourceLineNum, FnStartSym,
       FnEndSym);
-  this->MCStreamer::EmitCVInlineLinetableDirective(
+  this->MCStreamer::emitCVInlineLinetableDirective(
       PrimaryFunctionId, SourceFileId, SourceLineNum, FnStartSym, FnEndSym);
 }
 
-void MCObjectStreamer::EmitCVDefRangeDirective(
+void MCObjectStreamer::emitCVDefRangeDirective(
     ArrayRef<std::pair<const MCSymbol *, const MCSymbol *>> Ranges,
     StringRef FixedSizePortion) {
   MCFragment *Frag =
@@ -553,17 +558,17 @@ void MCObjectStreamer::EmitCVDefRangeDirective(
   // Attach labels that were pending before we created the defrange fragment to
   // the beginning of the new fragment.
   flushPendingLabels(Frag, 0);
-  this->MCStreamer::EmitCVDefRangeDirective(Ranges, FixedSizePortion);
+  this->MCStreamer::emitCVDefRangeDirective(Ranges, FixedSizePortion);
 }
 
-void MCObjectStreamer::EmitCVStringTableDirective() {
+void MCObjectStreamer::emitCVStringTableDirective() {
   getContext().getCVContext().emitStringTable(*this);
 }
-void MCObjectStreamer::EmitCVFileChecksumsDirective() {
+void MCObjectStreamer::emitCVFileChecksumsDirective() {
   getContext().getCVContext().emitFileChecksums(*this);
 }
 
-void MCObjectStreamer::EmitCVFileChecksumOffsetDirective(unsigned FileNo) {
+void MCObjectStreamer::emitCVFileChecksumOffsetDirective(unsigned FileNo) {
   getContext().getCVContext().emitFileChecksumOffset(*this, FileNo);
 }
 
@@ -660,12 +665,75 @@ void MCObjectStreamer::emitGPRel64Value(const MCExpr *Value) {
   DF->getContents().resize(DF->getContents().size() + 8, 0);
 }
 
-bool MCObjectStreamer::emitRelocDirective(const MCExpr &Offset, StringRef Name,
-                                          const MCExpr *Expr, SMLoc Loc,
-                                          const MCSubtargetInfo &STI) {
+static Optional<std::pair<bool, std::string>>
+getOffsetAndDataFragment(const MCSymbol &Symbol, uint32_t &RelocOffset,
+                         MCDataFragment *&DF) {
+  if (Symbol.isVariable()) {
+    const MCExpr *SymbolExpr = Symbol.getVariableValue();
+    MCValue OffsetVal;
+    if(!SymbolExpr->evaluateAsRelocatable(OffsetVal, nullptr, nullptr))
+      return std::make_pair(false,
+                            std::string("symbol in .reloc offset is not "
+                                        "relocatable"));
+    if (OffsetVal.isAbsolute()) {
+      RelocOffset = OffsetVal.getConstant();
+      MCFragment *Fragment = Symbol.getFragment();
+      // FIXME Support symbols with no DF. For example:
+      // .reloc .data, ENUM_VALUE, <some expr>
+      if (!Fragment || Fragment->getKind() != MCFragment::FT_Data)
+        return std::make_pair(false,
+                              std::string("symbol in offset has no data "
+                                          "fragment"));
+      DF = cast<MCDataFragment>(Fragment);
+      return None;
+    }
+
+    if (OffsetVal.getSymB())
+      return std::make_pair(false,
+                            std::string(".reloc symbol offset is not "
+                                        "representable"));
+
+    const MCSymbolRefExpr &SRE = cast<MCSymbolRefExpr>(*OffsetVal.getSymA());
+    if (!SRE.getSymbol().isDefined())
+      return std::make_pair(false,
+                            std::string("symbol used in the .reloc offset is "
+                                        "not defined"));
+
+    if (SRE.getSymbol().isVariable())
+      return std::make_pair(false,
+                            std::string("symbol used in the .reloc offset is "
+                                        "variable"));
+
+    MCFragment *Fragment = SRE.getSymbol().getFragment();
+    // FIXME Support symbols with no DF. For example:
+    // .reloc .data, ENUM_VALUE, <some expr>
+    if (!Fragment || Fragment->getKind() != MCFragment::FT_Data)
+      return std::make_pair(false,
+                            std::string("symbol in offset has no data "
+                                        "fragment"));
+    RelocOffset = SRE.getSymbol().getOffset() + OffsetVal.getConstant();
+    DF = cast<MCDataFragment>(Fragment);
+  } else {
+    RelocOffset = Symbol.getOffset();
+    MCFragment *Fragment = Symbol.getFragment();
+    // FIXME Support symbols with no DF. For example:
+    // .reloc .data, ENUM_VALUE, <some expr>
+    if (!Fragment || Fragment->getKind() != MCFragment::FT_Data)
+      return std::make_pair(false,
+                            std::string("symbol in offset has no data "
+                                        "fragment"));
+    DF = cast<MCDataFragment>(Fragment);
+  }
+  return None;
+}
+
+Optional<std::pair<bool, std::string>>
+MCObjectStreamer::emitRelocDirective(const MCExpr &Offset, StringRef Name,
+                                     const MCExpr *Expr, SMLoc Loc,
+                                     const MCSubtargetInfo &STI) {
   Optional<MCFixupKind> MaybeKind = Assembler->getBackend().getFixupKind(Name);
   if (!MaybeKind.hasValue())
-    return true;
+    return std::make_pair(true, std::string("unknown relocation name"));
 
   MCFixupKind Kind = *MaybeKind;
 
@@ -676,27 +744,40 @@ bool MCObjectStreamer::emitRelocDirective(const MCExpr &Offset, StringRef Name,
   MCDataFragment *DF = getOrCreateDataFragment(&STI);
   flushPendingLabels(DF, DF->getContents().size());
 
-  int64_t OffsetValue;
-  if (Offset.evaluateAsAbsolute(OffsetValue)) {
-    if (OffsetValue < 0)
-      llvm_unreachable(".reloc offset is negative");
-    DF->getFixups().push_back(MCFixup::create(OffsetValue, Expr, Kind, Loc));
-    return false;
+  MCValue OffsetVal;
+  if (!Offset.evaluateAsRelocatable(OffsetVal, nullptr, nullptr))
+    return std::make_pair(false,
+                          std::string(".reloc offset is not relocatable"));
+  if (OffsetVal.isAbsolute()) {
+    if (OffsetVal.getConstant() < 0)
+      return std::make_pair(false, std::string(".reloc offset is negative"));
+    DF->getFixups().push_back(
+        MCFixup::create(OffsetVal.getConstant(), Expr, Kind, Loc));
+    return None;
   }
+  if (OffsetVal.getSymB())
+    return std::make_pair(false,
+                          std::string(".reloc offset is not representable"));
 
-  if (Offset.getKind() != llvm::MCExpr::SymbolRef)
-    llvm_unreachable(".reloc offset is not absolute nor a label");
+  const MCSymbolRefExpr &SRE = cast<MCSymbolRefExpr>(*OffsetVal.getSymA());
+  const MCSymbol &Symbol = SRE.getSymbol();
+  if (Symbol.isDefined()) {
+    uint32_t SymbolOffset = 0;
+    Optional<std::pair<bool, std::string>> Error;
+    Error = getOffsetAndDataFragment(Symbol, SymbolOffset, DF);
 
-  const MCSymbolRefExpr &SRE = cast<MCSymbolRefExpr>(Offset);
-  if (SRE.getSymbol().isDefined()) {
-    DF->getFixups().push_back(MCFixup::create(SRE.getSymbol().getOffset(),
-                                              Expr, Kind, Loc));
-    return false;
+    if (Error != None)
+      return Error;
+
+    DF->getFixups().push_back(
+        MCFixup::create(SymbolOffset + OffsetVal.getConstant(),
+                        Expr, Kind, Loc));
+    return None;
   }
 
   PendingFixups.emplace_back(&SRE.getSymbol(), DF,
-                                         MCFixup::create(-1, Expr, Kind, Loc));
-  return false;
+                             MCFixup::create(-1, Expr, Kind, Loc));
+  return None;
 }
 
 void MCObjectStreamer::emitFill(const MCExpr &NumBytes, uint64_t FillValue,
@@ -738,6 +819,16 @@ void MCObjectStreamer::emitFill(const MCExpr &NumValues, int64_t Size,
   insert(new MCFillFragment(Expr, Size, NumValues, Loc));
 }
 
+void MCObjectStreamer::emitNops(int64_t NumBytes, int64_t ControlledNopLength,
+                                SMLoc Loc) {
+  // Emit an NOP fragment.
+  MCDataFragment *DF = getOrCreateDataFragment();
+  flushPendingLabels(DF, DF->getContents().size());
+
+  assert(getCurrentSectionOnly() && "need a section");
+  insert(new MCNopsFragment(NumBytes, ControlledNopLength, Loc));
+}
+
 void MCObjectStreamer::emitFileDirective(StringRef Filename) {
   getAssembler().addFileName(Filename);
 }
@@ -751,7 +842,7 @@ void MCObjectStreamer::emitAddrsigSym(const MCSymbol *Sym) {
   getAssembler().getWriter().addAddrsigSymbol(Sym);
 }
 
-void MCObjectStreamer::FinishImpl() {
+void MCObjectStreamer::finishImpl() {
   getContext().RemapDebugPaths();
 
   // If we are generating dwarf for assembly source files dump out the sections.

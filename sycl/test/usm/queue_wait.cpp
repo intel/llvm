@@ -21,7 +21,6 @@ using namespace cl::sycl;
 int main() {
   const std::size_t Size = 32;
   queue Q;
-  std::cout << Q.is_host() << std::endl;
   device Dev = Q.get_device();
   context Ctx = Q.get_context();
   if (!(Dev.get_info<info::device::usm_device_allocations>() &&
@@ -38,11 +37,30 @@ int main() {
   Q.memcpy(HostArr, DevArr, Size);
   Q.wait();
 
+  try {
+    Q.memset(nullptr, 42, Size);
+    Q.wait_and_throw();
+    assert(false && "Expected to have an exception throw instead of assert");
+  } catch (runtime_error e) {
+  }
+  try {
+    Q.memcpy(nullptr, DevArr, Size);
+    Q.wait_and_throw();
+    assert(false && "Expected to have an exception throw instead of assert");
+  } catch (runtime_error e) {
+  }
+
+  Q.memset(nullptr, 42, 0);
+  Q.wait();
+  Q.memcpy(nullptr, DevArr, 0);
+  Q.wait();
+
   for (std::size_t i = 0; i < Size; ++i)
     assert(HostArr[i] == 42);
 
   free(DevArr, Ctx);
   free(HostArr, Ctx);
 
+  std::cout << "Passed\n";
   return 0;
 }

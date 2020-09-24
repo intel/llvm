@@ -1,4 +1,4 @@
-//===----------------- Implementation header for strcpy -------------------===//
+//===-- Implementation header for strcpy ------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,7 +13,7 @@
 
 namespace __llvm_libc {
 
-char *strcpy(char *dest, const char *src);
+char *strcpy(char *__restrict dest, const char *__restrict src);
 
 } // namespace __llvm_libc
 

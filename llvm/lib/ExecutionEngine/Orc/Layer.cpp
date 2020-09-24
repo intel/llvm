@@ -81,11 +81,16 @@ IRMaterializationUnit::IRMaterializationUnit(
 
     // If we need an init symbol for this module then create one.
     if (!llvm::empty(getStaticInitGVs(M))) {
-      std::string InitSymbolName;
-      raw_string_ostream(InitSymbolName)
-          << "$." << M.getModuleIdentifier() << ".__inits";
-      InitSymbol = ES.intern(InitSymbolName);
-      SymbolFlags[InitSymbol] = JITSymbolFlags();
+      size_t Counter = 0;
+
+      do {
+        std::string InitSymbolName;
+        raw_string_ostream(InitSymbolName)
+            << "$." << M.getModuleIdentifier() << ".__inits." << Counter++;
+        InitSymbol = ES.intern(InitSymbolName);
+      } while (SymbolFlags.count(InitSymbol));
+
+      SymbolFlags[InitSymbol] = JITSymbolFlags::MaterializationSideEffectsOnly;
     }
   });
 }

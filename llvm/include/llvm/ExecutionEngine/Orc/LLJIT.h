@@ -29,6 +29,7 @@ namespace orc {
 
 class LLJITBuilderState;
 class LLLazyJITBuilderState;
+class TargetProcessControl;
 
 /// A pre-fabricated ORC JIT stack that can serve as an alternative to MCJIT.
 ///
@@ -85,8 +86,21 @@ public:
     return ES->createJITDylib(std::move(Name));
   }
 
-  /// Convenience method for defining an absolute symbol.
-  Error defineAbsolute(StringRef Name, JITEvaluatedSymbol Address);
+  /// A convenience method for defining MUs in LLJIT's Main JITDylib. This can
+  /// be useful for succinctly defining absolute symbols, aliases and
+  /// re-exports.
+  template <typename MUType>
+  Error define(std::unique_ptr<MUType> &&MU) {
+    return Main->define(std::move(MU));
+  }
+
+  /// A convenience method for defining MUs in LLJIT's Main JITDylib. This can
+  /// be usedful for succinctly defining absolute symbols, aliases and
+  /// re-exports.
+  template <typename MUType>
+  Error define(std::unique_ptr<MUType> &MU) {
+    return Main->define(MU);
+  }
 
   /// Adds an IR module to the given JITDylib.
   Error addIRModule(JITDylib &JD, ThreadSafeModule TSM);
@@ -107,7 +121,14 @@ public:
   /// Look up a symbol in JITDylib JD by the symbol's linker-mangled name (to
   /// look up symbols based on their IR name use the lookup function instead).
   Expected<JITEvaluatedSymbol> lookupLinkerMangled(JITDylib &JD,
-                                                   StringRef Name);
+                                                   SymbolStringPtr Name);
+
+  /// Look up a symbol in JITDylib JD by the symbol's linker-mangled name (to
+  /// look up symbols based on their IR name use the lookup function instead).
+  Expected<JITEvaluatedSymbol> lookupLinkerMangled(JITDylib &JD,
+                                                   StringRef Name) {
+    return lookupLinkerMangled(JD, ES->intern(Name));
+  }
 
   /// Look up a symbol in the main JITDylib by the symbol's linker-mangled name
   /// (to look up symbols based on their IR name use the lookup function
@@ -166,6 +187,14 @@ public:
   /// Returns a reference to the IR compile layer.
   IRCompileLayer &getIRCompileLayer() { return *CompileLayer; }
 
+  /// Returns a linker-mangled version of UnmangledName.
+  std::string mangle(StringRef UnmangledName) const;
+
+  /// Returns an interned, linker-mangled version of UnmangledName.
+  SymbolStringPtr mangleAndIntern(StringRef UnmangledName) const {
+    return ES->intern(mangle(UnmangledName));
+  }
+
 protected:
   static std::unique_ptr<ObjectLayer>
   createObjectLinkingLayer(LLJITBuilderState &S, ExecutionSession &ES);
@@ -175,8 +204,6 @@ protected:
 
   /// Create an LLJIT instance with a single compile thread.
   LLJIT(LLJITBuilderState &S, Error &Err);
-
-  std::string mangle(StringRef UnmangledName);
 
   Error applyDataLayout(Module &M);
 
@@ -210,6 +237,9 @@ public:
   setPartitionFunction(CompileOnDemandLayer::PartitionFunction Partition) {
     CODLayer->setPartitionFunction(std::move(Partition));
   }
+
+  /// Returns a reference to the on-demand layer.
+  CompileOnDemandLayer &getCompileOnDemandLayer() { return *CODLayer; }
 
   /// Add a module to be lazily compiled to JITDylib JD.
   Error addLazyIRModule(JITDylib &JD, ThreadSafeModule M);
@@ -246,6 +276,7 @@ public:
   CompileFunctionCreator CreateCompileFunction;
   PlatformSetupFunction SetUpPlatform;
   unsigned NumCompileThreads = 0;
+  TargetProcessControl *TPC = nullptr;
 
   /// Called prior to JIT class construcion to fix up defaults.
   Error prepareForConstruction();
@@ -325,6 +356,17 @@ public:
   /// a zero argument.
   SetterImpl &setNumCompileThreads(unsigned NumCompileThreads) {
     impl().NumCompileThreads = NumCompileThreads;
+    return impl();
+  }
+
+  /// Set a TargetProcessControl object.
+  ///
+  /// If the platform uses ObjectLinkingLayer by default and no
+  /// ObjectLinkingLayerCreator has been set then the TargetProcessControl
+  /// object will be used to supply the memory manager for the
+  /// ObjectLinkingLayer.
+  SetterImpl &setTargetProcessControl(TargetProcessControl &TPC) {
+    impl().TPC = &TPC;
     return impl();
   }
 

@@ -11,7 +11,6 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
-#include <detail/force_device.hpp>
 #include <detail/platform_info.hpp>
 #include <detail/plugin.hpp>
 
@@ -73,14 +72,6 @@ public:
   /// \return true if this SYCL platform is a host platform.
   bool is_host() const { return MHostPlatform; };
 
-  bool is_cuda() const {
-    const string_class CUDA_PLATFORM_STRING = "NVIDIA CUDA";
-    const string_class PlatformName =
-        get_platform_info<string_class, info::platform::name>::get(MPlatform,
-                                                                   getPlugin());
-    return PlatformName == CUDA_PLATFORM_STRING;
-  }
-
   /// \return an instance of OpenCL cl_platform_id.
   cl_platform_id get() const {
     if (is_host())
@@ -114,17 +105,98 @@ public:
   /// \return a vector of all available SYCL platforms.
   static vector_class<platform> get_platforms();
 
+  // \return the Backend associated with this platform.
+  backend get_backend() const noexcept {
+    backend Result;
+    if (is_host())
+      Result = backend::host;
+    else {
+      Result = getPlugin().getBackend();
+    }
+
+    return Result;
+  }
+
   // \return the Plugin associated with this platform.
   const plugin &getPlugin() const {
     assert(!MHostPlatform && "Plugin is not available for Host.");
     return *MPlugin;
   }
 
+  /// Sets the platform implementation to use another plugin.
+  ///
+  /// \param PluginPtr is a pointer to a plugin instance
+  void setPlugin(std::shared_ptr<plugin> PluginPtr) {
+    assert(!MHostPlatform && "Plugin is not available for Host");
+    MPlugin = std::move(PluginPtr);
+  }
+
+  /// Gets the native handle of the SYCL platform.
+  ///
+  /// \return a native handle.
+  pi_native_handle getNative() const;
+
+  /// Indicates if all of the SYCL devices on this platform have the
+  /// given feature.
+  ///
+  /// \param Aspect is one of the values in Table 4.20 of the SYCL 2020
+  /// Provisional Spec.
+  ///
+  /// \return true all of the SYCL devices on this platform have the
+  /// given feature.
+  bool has(aspect Aspect) const;
+
+  /// Queries the device_impl cache to either return a shared_ptr
+  /// for the device_impl corresponding to the PiDevice or add
+  /// a new entry to the cache
+  ///
+  /// \param PiDevice is the PiDevice whose impl is requested
+  ///
+  /// \param PlatormImpl is the Platform for that Device
+  ///
+  /// \return a shared_ptr<device_impl> corresponding to the device
+  std::shared_ptr<device_impl>
+  getOrMakeDeviceImpl(RT::PiDevice PiDevice,
+                      const std::shared_ptr<platform_impl> &PlatformImpl);
+
+  /// Static functions that help maintain platform uniquess and
+  /// equality of comparison
+
+  /// Returns the host platform impl
+  ///
+  /// \return the host platform impl
+  static std::shared_ptr<platform_impl> getHostPlatformImpl();
+
+  /// Queries the cache to see if the specified PiPlatform has been seen
+  /// before.  If so, return the cached platform_impl, otherwise create a new
+  /// one and cache it.
+  ///
+  /// \param PiPlatform is the PI Platform handle representing the platform
+  /// \param Plugin is the PI plugin providing the backend for the platform
+  /// \return the platform_impl representing the PI platform
+  static std::shared_ptr<platform_impl>
+  getOrMakePlatformImpl(RT::PiPlatform PiPlatform, const plugin &Plugin);
+
+  /// Queries the cache for the specified platform based on an input device.
+  /// If found, returns the the cached platform_impl, otherwise creates a new
+  /// one and caches it.
+  ///
+  /// \param PiDevice is the PI device handle for the device whose platform is
+  /// desired
+  /// \param Plugin is the PI plugin providing the backend for the device and
+  /// platform
+  /// \return the platform_impl that contains the input device
+  static std::shared_ptr<platform_impl>
+  getPlatformFromPiDevice(RT::PiDevice PiDevice, const plugin &Plugin);
+
 private:
   bool MHostPlatform = false;
   RT::PiPlatform MPlatform = 0;
   std::shared_ptr<plugin> MPlugin;
+  std::vector<std::shared_ptr<device_impl>> MDeviceCache;
+  std::mutex MDeviceMapMutex;
 };
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

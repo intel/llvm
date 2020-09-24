@@ -11,40 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Support/KnownBits.h"
+#include "KnownBitsTest.h"
 #include "gtest/gtest.h"
 
 using namespace llvm;
 
 namespace {
-
-template<typename FnTy>
-void ForeachKnownBits(unsigned Bits, FnTy Fn) {
-  unsigned Max = 1 << Bits;
-  KnownBits Known(Bits);
-  for (unsigned Zero = 0; Zero < Max; ++Zero) {
-    for (unsigned One = 0; One < Max; ++One) {
-      Known.Zero = Zero;
-      Known.One = One;
-      if (Known.hasConflict())
-        continue;
-
-      Fn(Known);
-    }
-  }
-}
-
-template<typename FnTy>
-void ForeachNumInKnownBits(const KnownBits &Known, FnTy Fn) {
-  unsigned Bits = Known.getBitWidth();
-  unsigned Max = 1 << Bits;
-  for (unsigned N = 0; N < Max; ++N) {
-    APInt Num(Bits, N);
-    if ((Num & Known.Zero) != 0 || (~Num & Known.One) != 0)
-      continue;
-
-    Fn(Num);
-  }
-}
 
 TEST(KnownBitsTest, AddCarryExhaustive) {
   unsigned Bits = 4;
@@ -125,6 +97,85 @@ static void TestAddSubExhaustive(bool IsAdd) {
 TEST(KnownBitsTest, AddSubExhaustive) {
   TestAddSubExhaustive(true);
   TestAddSubExhaustive(false);
+}
+
+TEST(KnownBitsTest, BinaryExhaustive) {
+  unsigned Bits = 4;
+  ForeachKnownBits(Bits, [&](const KnownBits &Known1) {
+    ForeachKnownBits(Bits, [&](const KnownBits &Known2) {
+      KnownBits KnownAnd(Bits);
+      KnownAnd.Zero.setAllBits();
+      KnownAnd.One.setAllBits();
+      KnownBits KnownOr(KnownAnd);
+      KnownBits KnownXor(KnownAnd);
+      KnownBits KnownUMax(KnownAnd);
+      KnownBits KnownUMin(KnownAnd);
+      KnownBits KnownSMax(KnownAnd);
+      KnownBits KnownSMin(KnownAnd);
+
+      ForeachNumInKnownBits(Known1, [&](const APInt &N1) {
+        ForeachNumInKnownBits(Known2, [&](const APInt &N2) {
+          APInt Res;
+
+          Res = N1 & N2;
+          KnownAnd.One &= Res;
+          KnownAnd.Zero &= ~Res;
+
+          Res = N1 | N2;
+          KnownOr.One &= Res;
+          KnownOr.Zero &= ~Res;
+
+          Res = N1 ^ N2;
+          KnownXor.One &= Res;
+          KnownXor.Zero &= ~Res;
+
+          Res = APIntOps::umax(N1, N2);
+          KnownUMax.One &= Res;
+          KnownUMax.Zero &= ~Res;
+
+          Res = APIntOps::umin(N1, N2);
+          KnownUMin.One &= Res;
+          KnownUMin.Zero &= ~Res;
+
+          Res = APIntOps::smax(N1, N2);
+          KnownSMax.One &= Res;
+          KnownSMax.Zero &= ~Res;
+
+          Res = APIntOps::smin(N1, N2);
+          KnownSMin.One &= Res;
+          KnownSMin.Zero &= ~Res;
+        });
+      });
+
+      KnownBits ComputedAnd = Known1 & Known2;
+      EXPECT_EQ(KnownAnd.Zero, ComputedAnd.Zero);
+      EXPECT_EQ(KnownAnd.One, ComputedAnd.One);
+
+      KnownBits ComputedOr = Known1 | Known2;
+      EXPECT_EQ(KnownOr.Zero, ComputedOr.Zero);
+      EXPECT_EQ(KnownOr.One, ComputedOr.One);
+
+      KnownBits ComputedXor = Known1 ^ Known2;
+      EXPECT_EQ(KnownXor.Zero, ComputedXor.Zero);
+      EXPECT_EQ(KnownXor.One, ComputedXor.One);
+
+      KnownBits ComputedUMax = KnownBits::umax(Known1, Known2);
+      EXPECT_EQ(KnownUMax.Zero, ComputedUMax.Zero);
+      EXPECT_EQ(KnownUMax.One, ComputedUMax.One);
+
+      KnownBits ComputedUMin = KnownBits::umin(Known1, Known2);
+      EXPECT_EQ(KnownUMin.Zero, ComputedUMin.Zero);
+      EXPECT_EQ(KnownUMin.One, ComputedUMin.One);
+
+      KnownBits ComputedSMax = KnownBits::smax(Known1, Known2);
+      EXPECT_EQ(KnownSMax.Zero, ComputedSMax.Zero);
+      EXPECT_EQ(KnownSMax.One, ComputedSMax.One);
+
+      KnownBits ComputedSMin = KnownBits::smin(Known1, Known2);
+      EXPECT_EQ(KnownSMin.Zero, ComputedSMin.Zero);
+      EXPECT_EQ(KnownSMin.One, ComputedSMin.One);
+    });
+  });
 }
 
 TEST(KnownBitsTest, GetMinMaxVal) {

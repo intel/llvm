@@ -20,8 +20,8 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/ELF.h"
-#include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCAsmBackend.h"
+#include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCDwarf.h"
@@ -30,6 +30,7 @@
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCRegisterInfo.h"
+#include "llvm/MC/MCSectionXCOFF.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCSymbol.h"
@@ -77,7 +78,7 @@ static MCRegisterInfo *createPPCMCRegisterInfo(const Triple &TT) {
 
 static MCSubtargetInfo *createPPCMCSubtargetInfo(const Triple &TT,
                                                  StringRef CPU, StringRef FS) {
-  return createPPCMCSubtargetInfoImpl(TT, CPU, FS);
+  return createPPCMCSubtargetInfoImpl(TT, CPU, /*TuneCPU*/ CPU, FS);
 }
 
 static MCAsmInfo *createPPCMCAsmInfo(const MCRegisterInfo &MRI,
@@ -95,7 +96,7 @@ static MCAsmInfo *createPPCMCAsmInfo(const MCRegisterInfo &MRI,
   // Initial state of the frame pointer is R1.
   unsigned Reg = isPPC64 ? PPC::X1 : PPC::R1;
   MCCFIInstruction Inst =
-      MCCFIInstruction::createDefCfa(nullptr, MRI.getDwarfRegNum(Reg, true), 0);
+      MCCFIInstruction::cfiDefCfa(nullptr, MRI.getDwarfRegNum(Reg, true), 0);
   MAI->addInitialFrameState(Inst);
 
   return MAI;
@@ -120,14 +121,18 @@ public:
       : PPCTargetStreamer(S), OS(OS) {}
 
   void emitTCEntry(const MCSymbol &S) override {
-    const MCAsmInfo *MAI = Streamer.getContext().getAsmInfo();
-    OS << "\t.tc ";
-    OS << (MAI->getSymbolsHaveSMC()
-               ? cast<MCSymbolXCOFF>(S).getUnqualifiedName()
-               : S.getName());
-    OS << "[TC],";
-    OS << S.getName();
-    OS << '\n';
+    if (const MCSymbolXCOFF *XSym = dyn_cast<MCSymbolXCOFF>(&S)) {
+      MCSymbolXCOFF *TCSym =
+          cast<MCSectionXCOFF>(Streamer.getCurrentSectionOnly())
+              ->getQualNameSymbol();
+      OS << "\t.tc " << TCSym->getName() << "," << XSym->getName() << '\n';
+
+      if (TCSym->hasRename())
+        Streamer.emitXCOFFRenameDirective(TCSym, TCSym->getSymbolTableName());
+      return;
+    }
+
+    OS << "\t.tc " << S.getName() << "[TC]," << S.getName() << '\n';
   }
 
   void emitMachine(StringRef CPU) override {
@@ -179,13 +184,9 @@ public:
   void emitLocalEntry(MCSymbolELF *S, const MCExpr *LocalOffset) override {
     MCAssembler &MCA = getStreamer().getAssembler();
 
-    int64_t Res;
-    if (!LocalOffset->evaluateAsAbsolute(Res, MCA))
-      report_fatal_error(".localentry expression must be absolute.");
-
-    unsigned Encoded = ELF::encodePPC64LocalEntryOffset(Res);
-    if (Res != ELF::decodePPC64LocalEntryOffset(Encoded))
-      report_fatal_error(".localentry expression cannot be encoded.");
+    // encodePPC64LocalEntryOffset will report an error if it cannot
+    // encode LocalOffset.
+    unsigned Encoded = encodePPC64LocalEntryOffset(LocalOffset);
 
     unsigned Other = S->getOther();
     Other &= ~ELF::STO_PPC64_LOCAL_MASK;
@@ -214,6 +215,10 @@ public:
     for (auto *Sym : UpdateOther)
       if (Sym->isVariable())
         copyLocalEntry(Sym, Sym->getVariableValue());
+
+    // Clear the set of symbols that needs to be updated so the streamer can
+    // be reused without issues.
+    UpdateOther.clear();
   }
 
 private:
@@ -229,6 +234,31 @@ private:
     Other |= RhsSym.getOther() & ELF::STO_PPC64_LOCAL_MASK;
     D->setOther(Other);
     return true;
+  }
+
+  unsigned encodePPC64LocalEntryOffset(const MCExpr *LocalOffset) {
+    MCAssembler &MCA = getStreamer().getAssembler();
+    int64_t Offset;
+    if (!LocalOffset->evaluateAsAbsolute(Offset, MCA))
+      MCA.getContext().reportFatalError(
+          LocalOffset->getLoc(), ".localentry expression must be absolute.");
+
+    switch (Offset) {
+    default:
+      MCA.getContext().reportFatalError(
+          LocalOffset->getLoc(),
+          ".localentry expression is not a valid power of 2.");
+    case 0:
+      return 0;
+    case 1:
+      return 1 << ELF::STO_PPC64_LOCAL_BIT;
+    case 4:
+    case 8:
+    case 16:
+    case 32:
+    case 64:
+      return (int)Log2(Offset) << (int)ELF::STO_PPC64_LOCAL_BIT;
+    }
   }
 };
 

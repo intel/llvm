@@ -1,4 +1,3 @@
-
 //==-- get_device_count_by_type.cpp - Get device count by type -------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -7,16 +6,23 @@
 //
 //===----------------------------------------------------------------------===//
 
+// Suppress a compiler warning about undefined CL_TARGET_OPENCL_VERSION
+// and define all symbols up to OpenCL 2.2
+#ifndef CL_TARGET_OPENCL_VERSION
+#define CL_TARGET_OPENCL_VERSION 220
+#endif
+
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
+#include <level_zero/zet_api.h>
 
 #ifdef USE_PI_CUDA
 #include <cuda.h>
-// #include <cuda_device_runtime_api.h>
 #endif // USE_PI_CUDA
 
 #include <algorithm>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -26,7 +32,7 @@ static const std::string help =
     "   Help\n"
     "   Example: ./get_device_count_by_type cpu opencl\n"
     "   Supported device types: cpu/gpu/accelerator/default/all\n"
-    "   Supported backends: PI_CUDA/PI_OPENCL \n"
+    "   Supported backends: PI_CUDA/PI_OPENCL/PI_LEVEL_ZERO \n"
     "   Output format: <number_of_devices>:<additional_Information>";
 
 // Return the string with all characters translated to lower case.
@@ -36,52 +42,41 @@ std::string lowerString(const std::string &str) {
   return result;
 }
 
-const char *deviceTypeToString(cl_device_type deviceType) {
-  const char *str = "unknown";
+static const char *deviceTypeToString(cl_device_type deviceType) {
   switch (deviceType) {
   case CL_DEVICE_TYPE_CPU:
-    str = "cpu";
-    break;
+    return "cpu";
   case CL_DEVICE_TYPE_GPU:
-    str = "gpu";
-    break;
+    return "gpu";
   case CL_DEVICE_TYPE_ACCELERATOR:
-    str = "accelerator";
-    break;
+    return "accelerator";
   case CL_DEVICE_TYPE_CUSTOM:
-    str = "custom";
-    break;
+    return "custom";
   case CL_DEVICE_TYPE_DEFAULT:
-    str = "default";
-    break;
+    return "default";
   case CL_DEVICE_TYPE_ALL:
-    str = "all";
-    break;
-  default:
-    // str already set to express unknown device type.
-    break;
+    return "all";
   }
 
-  return str;
+  return "unknown";
 }
 
 static bool queryOpenCL(cl_device_type deviceType, cl_uint &deviceCount,
                         std::string &msg) {
   deviceCount = 0u;
-  cl_int iRet = CL_SUCCESS;
-  cl_uint platformCount = 0;
 
-  iRet = clGetPlatformIDs(0, nullptr, &platformCount);
+  cl_uint platformCount = 0;
+  cl_int iRet = clGetPlatformIDs(0, nullptr, &platformCount);
   if (iRet != CL_SUCCESS) {
     if (iRet == CL_PLATFORM_NOT_FOUND_KHR) {
-      msg = "ERROR: OpenCL error runtime not found";
-    } else {
-      std::stringstream stream;
-      stream << "ERROR: OpenCL error calling clGetPlatformIDs " << iRet
-             << std::endl;
-      msg = stream.str();
+      msg = "OpenCL error runtime not found";
+      return true;
     }
-    return false;
+    std::stringstream stream;
+    stream << "ERROR: OpenCL error calling clGetPlatformIDs " << iRet
+           << std::endl;
+    msg = stream.str();
+    return true;
   }
 
   std::vector<cl_platform_id> platforms(platformCount);
@@ -91,28 +86,82 @@ static bool queryOpenCL(cl_device_type deviceType, cl_uint &deviceCount,
     stream << "ERROR: OpenCL error calling clGetPlatformIDs " << iRet
            << std::endl;
     msg = stream.str();
-    return false;
+    return true;
   }
 
   for (cl_uint i = 0; i < platformCount; i++) {
+    const size_t MAX_PLATFORM_VENDOR = 100u;
+    char info[MAX_PLATFORM_VENDOR];
+    // get platform attribute value
+    clGetPlatformInfo(platforms[i], CL_PLATFORM_VENDOR, MAX_PLATFORM_VENDOR,
+                      info, NULL);
+    const auto IsNVIDIAOpenCL = strstr(info, "NVIDIA") != NULL;
+    if (IsNVIDIAOpenCL) {
+      // Ignore NVIDIA OpenCL platform for testing
+      continue;
+    }
+
     cl_uint deviceCountPart = 0;
     iRet =
         clGetDeviceIDs(platforms[i], deviceType, 0, nullptr, &deviceCountPart);
     if (iRet == CL_SUCCESS || iRet == CL_DEVICE_NOT_FOUND) {
       deviceCount += deviceCountPart;
-    } else {
-      deviceCount = 0u;
-      std::stringstream stream;
-      stream << "ERROR: OpenCL error calling clGetDeviceIDs " << iRet
-             << std::endl;
-      msg = stream.str();
-      return false;
     }
   }
 
   msg = "opencl ";
   msg += deviceTypeToString(deviceType);
   return true;
+}
+
+static bool queryLevelZero(cl_device_type deviceType, cl_uint &deviceCount,
+                           std::string &msg) {
+  deviceCount = 0u;
+  ze_result_t zeResult = zeInit(ZE_INIT_FLAG_GPU_ONLY);
+  if (zeResult != ZE_RESULT_SUCCESS) {
+    msg = "ERROR: Level Zero initialization error";
+    return true;
+  }
+
+  uint32_t zeDriverCount = 0;
+  zeResult = zeDriverGet(&zeDriverCount, nullptr);
+  if (zeResult != ZE_RESULT_SUCCESS) {
+    msg = "ERROR: Level Zero error querying driver count";
+    return true;
+  }
+
+  if (zeDriverCount == 0) {
+    msg = "ERROR: Level Zero no driver found";
+    return true;
+  }
+
+  ze_driver_handle_t zeDriver;
+  zeResult = zeDriverGet(&zeDriverCount, &zeDriver);
+  if (zeResult != ZE_RESULT_SUCCESS) {
+    msg = "ERROR: Level Zero error querying driver";
+    return true;
+  }
+
+  switch (deviceType) {
+  case CL_DEVICE_TYPE_DEFAULT: // Fall through.
+  case CL_DEVICE_TYPE_ALL:     // Fall through.
+  case CL_DEVICE_TYPE_GPU: {
+    uint32_t zeDeviceCount = 0;
+    zeResult = zeDeviceGet(zeDriver, &zeDeviceCount, nullptr);
+    if (zeResult != ZE_RESULT_SUCCESS) {
+      msg = "ERROR: Level Zero error querying device count";
+      return true;
+    }
+    deviceCount = static_cast<cl_uint>(zeDeviceCount);
+    msg = "level zero ";
+    msg += deviceTypeToString(deviceType);
+    return true;
+  } break;
+  default:
+    msg = "WARNING: Level Zero unsupported device type ";
+    msg += deviceTypeToString(deviceType);
+    return true;
+  }
 }
 
 static bool queryCUDA(cl_device_type deviceType, cl_uint &deviceCount,
@@ -210,10 +259,12 @@ int main(int argc, char *argv[]) {
 
   if (backend == "opencl" || backend == "pi_opencl") {
     querySuccess = queryOpenCL(deviceType, deviceCount, msg);
+  } else if (backend == "level_zero" || backend == "pi_level_zero") {
+    querySuccess = queryLevelZero(deviceType, deviceCount, msg);
   } else if (backend == "cuda" || backend == "pi_cuda") {
     querySuccess = queryCUDA(deviceType, deviceCount, msg);
   } else {
-    msg + "ERROR: Unknown backend " + backend + "\n" + help + "\n";
+    msg = "ERROR: Unknown backend " + backend + "\n" + help + "\n";
   }
 
   std::cout << deviceCount << ":" << msg << std::endl;

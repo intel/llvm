@@ -52,19 +52,34 @@ struct get_platform_info<vector_class<string_class>,
 
 // Host platform information methods
 template <info::platform param>
-typename info::param_traits<info::platform, param>::return_type
+inline typename info::param_traits<info::platform, param>::return_type
 get_platform_info_host() = delete;
 
-template <> string_class get_platform_info_host<info::platform::profile>();
-
-template <> string_class get_platform_info_host<info::platform::version>();
-
-template <> string_class get_platform_info_host<info::platform::name>();
-
-template <> string_class get_platform_info_host<info::platform::vendor>();
+template <>
+inline string_class get_platform_info_host<info::platform::profile>() {
+  return "FULL PROFILE";
+}
 
 template <>
-vector_class<string_class> get_platform_info_host<info::platform::extensions>();
+inline string_class get_platform_info_host<info::platform::version>() {
+  return "1.2";
+}
+
+template <> inline string_class get_platform_info_host<info::platform::name>() {
+  return "SYCL host platform";
+}
+
+template <>
+inline string_class get_platform_info_host<info::platform::vendor>() {
+  return "";
+}
+
+template <>
+inline vector_class<string_class>
+get_platform_info_host<info::platform::extensions>() {
+  // TODO update when appropriate
+  return {};
+}
 
 } // namespace detail
 } // namespace sycl

@@ -18,7 +18,7 @@ using namespace mlir;
 using namespace detail;
 
 /// Static mapping of all of the registered passes.
-static llvm::ManagedStatic<DenseMap<const PassID *, PassInfo>> passRegistry;
+static llvm::ManagedStatic<DenseMap<TypeID, PassInfo>> passRegistry;
 
 /// Static mapping of all of the registered pass pipelines.
 static llvm::ManagedStatic<llvm::StringMap<PassPipelineInfo>>
@@ -86,7 +86,7 @@ void mlir::registerPassPipeline(
 // PassInfo
 //===----------------------------------------------------------------------===//
 
-PassInfo::PassInfo(StringRef arg, StringRef description, const PassID *passID,
+PassInfo::PassInfo(StringRef arg, StringRef description, TypeID passID,
                    const PassAllocatorFunction &allocator)
     : PassRegistryEntry(
           arg, description, buildDefaultRegistryFn(allocator),
@@ -96,16 +96,15 @@ PassInfo::PassInfo(StringRef arg, StringRef description, const PassID *passID,
           }) {}
 
 void mlir::registerPass(StringRef arg, StringRef description,
-                        const PassID *passID,
                         const PassAllocatorFunction &function) {
+  // TODO: We should use the 'arg' as the lookup key instead of the pass id.
+  TypeID passID = function()->getTypeID();
   PassInfo passInfo(arg, description, passID, function);
-  bool inserted = passRegistry->try_emplace(passID, passInfo).second;
-  assert(inserted && "Pass registered multiple times");
-  (void)inserted;
+  passRegistry->try_emplace(passID, passInfo);
 }
 
 /// Returns the pass info for the specified pass class or null if unknown.
-const PassInfo *mlir::Pass::lookupPassInfo(const PassID *passID) {
+const PassInfo *mlir::Pass::lookupPassInfo(TypeID passID) {
   auto it = passRegistry->find(passID);
   if (it == passRegistry->end())
     return nullptr;
@@ -129,7 +128,7 @@ void detail::PassOptions::copyOptionValuesFrom(const PassOptions &other) {
 }
 
 LogicalResult detail::PassOptions::parseFromString(StringRef options) {
-  // TODO(parkers): Handle escaping strings.
+  // TODO: Handle escaping strings.
   // NOTE: `options` is modified in place to always refer to the unprocessed
   // part of the string.
   while (!options.empty()) {
@@ -185,7 +184,7 @@ void detail::PassOptions::print(raw_ostream &os) {
 
   // Interleave the options with ' '.
   os << '{';
-  interleave(
+  llvm::interleave(
       orderedOps, os, [&](OptionBase *option) { option->print(os); }, " ");
   os << '}';
 }
@@ -200,7 +199,7 @@ void detail::PassOptions::printHelp(size_t indent, size_t descIndent) const {
   };
   llvm::array_pod_sort(orderedOps.begin(), orderedOps.end(), compareOptionArgs);
   for (OptionBase *option : orderedOps) {
-    // TODO(riverriddle) printOptionInfo assumes a specific indent and will
+    // TODO: printOptionInfo assumes a specific indent and will
     // print options with values with incorrect indentation. We should add
     // support to llvm::cl::Option for passing in a base indent to use when
     // printing.
@@ -329,7 +328,7 @@ LogicalResult TextualPipeline::parsePipelineText(StringRef text,
       // Skip over everything until the closing '}' and store as options.
       size_t close = text.find('}');
 
-      // TODO(parkers): Handle skipping over quoted sub-strings.
+      // TODO: Handle skipping over quoted sub-strings.
       if (close == StringRef::npos) {
         return errorHandler(
             /*rawLoc=*/text.data() - 1,

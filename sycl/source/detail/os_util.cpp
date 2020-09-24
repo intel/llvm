@@ -59,7 +59,7 @@ struct ModuleInfo {
 constexpr OSModuleHandle OSUtil::ExeModuleHandle;
 constexpr OSModuleHandle OSUtil::DummyModuleHandle;
 
-static int callback(struct dl_phdr_info *Info, size_t Size, void *Data) {
+static int callback(struct dl_phdr_info *Info, size_t, void *Data) {
   auto Base = reinterpret_cast<unsigned char *>(Info->dlpi_addr);
   auto MI = reinterpret_cast<ModuleInfo *>(Data);
   auto TestAddr = reinterpret_cast<const unsigned char *>(MI->VirtAddr);
@@ -200,10 +200,10 @@ std::string OSUtil::getCurrentDSODir() {
   char Path[MAX_PATH];
   Path[0] = '\0';
   Path[sizeof(Path) - 1] = '\0';
+  auto Handle = getOSModuleHandle(&getCurrentDSODir);
   DWORD Ret = GetModuleFileNameA(
-    reinterpret_cast<HMODULE>(getOSModuleHandle(&getCurrentDSODir)),
-    reinterpret_cast<LPSTR>(&Path),
-    sizeof(Path));
+      reinterpret_cast<HMODULE>(OSUtil::ExeModuleHandle == Handle ? 0 : Handle),
+      reinterpret_cast<LPSTR>(&Path), sizeof(Path));
   assert(Ret < sizeof(Path) && "Path is longer than PATH_MAX?");
   assert(Ret > 0 && "GetModuleFileNameA failed");
   (void)Ret;

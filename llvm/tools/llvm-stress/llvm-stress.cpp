@@ -38,8 +38,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/ManagedStatic.h"
-#include "llvm/Support/PrettyStackTrace.h"
+#include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
@@ -238,7 +237,7 @@ protected:
         return ConstantFP::getAllOnesValue(Tp);
       return ConstantFP::getNullValue(Tp);
     } else if (Tp->isVectorTy()) {
-      VectorType *VTp = cast<VectorType>(Tp);
+      auto *VTp = cast<FixedVectorType>(Tp);
 
       std::vector<Constant*> TempValues;
       TempValues.reserve(VTp->getNumElements());
@@ -300,7 +299,7 @@ protected:
 
     if (len != (unsigned)-1)
       width = len;
-    return VectorType::get(Ty, width);
+    return FixedVectorType::get(Ty, width);
   }
 
   /// Pick a random scalar type.
@@ -343,7 +342,9 @@ struct LoadModifier: public Modifier {
   void Act() override {
     // Try to use predefined pointers. If non-exist, use undef pointer value;
     Value *Ptr = getRandomPointerValue();
-    Value *V = new LoadInst(Ptr, "L", BB->getTerminator());
+    PointerType *Tp = cast<PointerType>(Ptr->getType());
+    Value *V = new LoadInst(Tp->getElementType(), Ptr, "L",
+                            BB->getTerminator());
     PT->push_back(V);
   }
 };
@@ -481,10 +482,13 @@ struct ExtractElementModifier: public Modifier {
 
   void Act() override {
     Value *Val0 = getRandomVectorValue();
-    Value *V = ExtractElementInst::Create(Val0,
-             ConstantInt::get(Type::getInt32Ty(BB->getContext()),
-             getRandom() % cast<VectorType>(Val0->getType())->getNumElements()),
-             "E", BB->getTerminator());
+    Value *V = ExtractElementInst::Create(
+        Val0,
+        ConstantInt::get(
+            Type::getInt32Ty(BB->getContext()),
+            getRandom() %
+                cast<FixedVectorType>(Val0->getType())->getNumElements()),
+        "E", BB->getTerminator());
     return PT->push_back(V);
   }
 };
@@ -497,7 +501,7 @@ struct ShuffModifier: public Modifier {
     Value *Val0 = getRandomVectorValue();
     Value *Val1 = getRandomValue(Val0->getType());
 
-    unsigned Width = cast<VectorType>(Val0->getType())->getNumElements();
+    unsigned Width = cast<FixedVectorType>(Val0->getType())->getNumElements();
     std::vector<Constant*> Idxs;
 
     Type *I32 = Type::getInt32Ty(BB->getContext());
@@ -525,10 +529,13 @@ struct InsertElementModifier: public Modifier {
     Value *Val0 = getRandomVectorValue();
     Value *Val1 = getRandomValue(Val0->getType()->getScalarType());
 
-    Value *V = InsertElementInst::Create(Val0, Val1,
-              ConstantInt::get(Type::getInt32Ty(BB->getContext()),
-              getRandom() % cast<VectorType>(Val0->getType())->getNumElements()),
-              "I",  BB->getTerminator());
+    Value *V = InsertElementInst::Create(
+        Val0, Val1,
+        ConstantInt::get(
+            Type::getInt32Ty(BB->getContext()),
+            getRandom() %
+                cast<FixedVectorType>(Val0->getType())->getNumElements()),
+        "I", BB->getTerminator());
     return PT->push_back(V);
   }
 };
@@ -544,7 +551,7 @@ struct CastModifier: public Modifier {
 
     // Handle vector casts vectors.
     if (VTy->isVectorTy()) {
-      VectorType *VecTy = cast<VectorType>(VTy);
+      auto *VecTy = cast<FixedVectorType>(VTy);
       DestTy = pickVectorType(VecTy->getNumElements());
     }
 
@@ -626,9 +633,10 @@ struct SelectModifier: public Modifier {
 
     // If the value type is a vector, and we allow vector select, then in 50%
     // of the cases generate a vector select.
-    if (Val0->getType()->isVectorTy() && (getRandom() % 1)) {
-      unsigned NumElem = cast<VectorType>(Val0->getType())->getNumElements();
-      CondTy = VectorType::get(CondTy, NumElem);
+    if (isa<FixedVectorType>(Val0->getType()) && (getRandom() % 1)) {
+      unsigned NumElem =
+          cast<FixedVectorType>(Val0->getType())->getNumElements();
+      CondTy = FixedVectorType::get(CondTy, NumElem);
     }
 
     Value *Cond = getRandomValue(CondTy);
@@ -730,10 +738,8 @@ static void IntroduceControlFlow(Function *F, Random &R) {
 int main(int argc, char **argv) {
   using namespace llvm;
 
-  // Init LLVM, call llvm_shutdown() on exit, parse args, etc.
-  PrettyStackTraceProgram X(argc, argv);
+  InitLLVM X(argc, argv);
   cl::ParseCommandLineOptions(argc, argv, "llvm codegen stress-tester\n");
-  llvm_shutdown_obj Y;
 
   auto M = std::make_unique<Module>("/tmp/autogen.bc", Context);
   Function *F = GenEmptyFunction(M.get());

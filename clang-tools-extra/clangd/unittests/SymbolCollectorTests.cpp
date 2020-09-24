@@ -542,6 +542,96 @@ TEST_F(SymbolCollectorTest, ObjCPropertyImpl) {
   //        Figure out why it's platform-dependent.
 }
 
+TEST_F(SymbolCollectorTest, ObjCLocations) {
+  Annotations Header(R"(
+    // Declared in header, defined in main.
+    @interface $dogdecl[[Dog]]
+    @end
+    @interface $fluffydecl[[Dog]] (Fluffy)
+    @end
+  )");
+  Annotations Main(R"(
+    @interface Dog ()
+    @end
+    @implementation $dogdef[[Dog]]
+    @end
+    @implementation $fluffydef[[Dog]] (Fluffy)
+    @end
+    // Category with no declaration (only implementation).
+    @implementation $ruff[[Dog]] (Ruff)
+    @end
+    // Implicitly defined interface.
+    @implementation $catdog[[CatDog]]
+    @end
+  )");
+  runSymbolCollector(Header.code(), Main.code(),
+                     {"-xobjective-c++", "-Wno-objc-root-class"});
+  EXPECT_THAT(Symbols,
+              UnorderedElementsAre(
+                  AllOf(QName("Dog"), DeclRange(Header.range("dogdecl")),
+                        DefRange(Main.range("dogdef"))),
+                  AllOf(QName("Fluffy"), DeclRange(Header.range("fluffydecl")),
+                        DefRange(Main.range("fluffydef"))),
+                  AllOf(QName("CatDog"), DeclRange(Main.range("catdog")),
+                        DefRange(Main.range("catdog"))),
+                  AllOf(QName("Ruff"), DeclRange(Main.range("ruff")),
+                        DefRange(Main.range("ruff")))));
+}
+
+TEST_F(SymbolCollectorTest, ObjCForwardDecls) {
+  Annotations Header(R"(
+    // Forward declared in header, declared and defined in main.
+    @protocol Barker;
+    @class Dog;
+    // Never fully declared so Clang latches onto this decl.
+    @class $catdogdecl[[CatDog]];
+  )");
+  Annotations Main(R"(
+    @protocol $barkerdecl[[Barker]]
+    - (void)woof;
+    @end
+    @interface $dogdecl[[Dog]]<Barker>
+    - (void)woof;
+    @end
+    @implementation $dogdef[[Dog]]
+    - (void)woof {}
+    @end
+    @implementation $catdogdef[[CatDog]]
+    @end
+  )");
+  runSymbolCollector(Header.code(), Main.code(),
+                     {"-xobjective-c++", "-Wno-objc-root-class"});
+  EXPECT_THAT(Symbols,
+              UnorderedElementsAre(
+                  AllOf(QName("CatDog"), DeclRange(Header.range("catdogdecl")),
+                        DefRange(Main.range("catdogdef"))),
+                  AllOf(QName("Dog"), DeclRange(Main.range("dogdecl")),
+                        DefRange(Main.range("dogdef"))),
+                  AllOf(QName("Barker"), DeclRange(Main.range("barkerdecl"))),
+                  QName("Barker::woof"), QName("Dog::woof")));
+}
+
+TEST_F(SymbolCollectorTest, ObjCClassExtensions) {
+  Annotations Header(R"(
+    @interface $catdecl[[Cat]]
+    @end
+  )");
+  Annotations Main(R"(
+    @interface Cat ()
+    - (void)meow;
+    @end
+    @interface Cat ()
+    - (void)pur;
+    @end
+  )");
+  runSymbolCollector(Header.code(), Main.code(),
+                     {"-xobjective-c++", "-Wno-objc-root-class"});
+  EXPECT_THAT(Symbols,
+              UnorderedElementsAre(
+                  AllOf(QName("Cat"), DeclRange(Header.range("catdecl"))),
+                  QName("Cat::meow"), QName("Cat::pur")));
+}
+
 TEST_F(SymbolCollectorTest, Locations) {
   Annotations Header(R"cpp(
     // Declared in header, defined in main.
@@ -624,13 +714,28 @@ TEST_F(SymbolCollectorTest, Refs) {
   EXPECT_THAT(Refs, Not(Contains(Pair(findSymbol(Symbols, "NS").ID, _))));
   EXPECT_THAT(Refs, Contains(Pair(findSymbol(Symbols, "MACRO").ID,
                                   HaveRanges(Main.ranges("macro")))));
-  // Symbols *only* in the main file (a, b, c, FUNC) had no refs collected.
+  // - (a, b) externally visible and should have refs.
+  // - (c, FUNC) externally invisible and had no refs collected.
   auto MainSymbols =
       TestTU::withHeaderCode(SymbolsOnlyInMainCode.code()).headerSymbols();
-  EXPECT_THAT(Refs, Not(Contains(Pair(findSymbol(MainSymbols, "a").ID, _))));
-  EXPECT_THAT(Refs, Not(Contains(Pair(findSymbol(MainSymbols, "b").ID, _))));
+  EXPECT_THAT(Refs, Contains(Pair(findSymbol(MainSymbols, "a").ID, _)));
+  EXPECT_THAT(Refs, Contains(Pair(findSymbol(MainSymbols, "b").ID, _)));
   EXPECT_THAT(Refs, Not(Contains(Pair(findSymbol(MainSymbols, "c").ID, _))));
   EXPECT_THAT(Refs, Not(Contains(Pair(findSymbol(MainSymbols, "FUNC").ID, _))));
+
+  // Run the collector again with CollectMainFileRefs = true.
+  // We need to recreate InMemoryFileSystem because runSymbolCollector()
+  // calls MemoryBuffer::getMemBuffer(), which makes the buffers unusable
+  // after runSymbolCollector() exits.
+  InMemoryFileSystem = new llvm::vfs::InMemoryFileSystem();
+  CollectorOpts.CollectMainFileRefs = true;
+  runSymbolCollector(Header.code(),
+                     (Main.code() + SymbolsOnlyInMainCode.code()).str());
+  EXPECT_THAT(Refs, Contains(Pair(findSymbol(Symbols, "a").ID, _)));
+  EXPECT_THAT(Refs, Contains(Pair(findSymbol(Symbols, "b").ID, _)));
+  EXPECT_THAT(Refs, Contains(Pair(findSymbol(Symbols, "c").ID, _)));
+  // However, references to main-file macros are not collected.
+  EXPECT_THAT(Refs, Not(Contains(Pair(findSymbol(Symbols, "FUNC").ID, _))));
 }
 
 TEST_F(SymbolCollectorTest, MacroRefInHeader) {
@@ -816,13 +921,18 @@ TEST_F(SymbolCollectorTest, HeaderAsMainFile) {
     $Foo[[Foo]] fo;
   }
   )");
-  // The main file is normal .cpp file, we shouldn't collect any refs of symbols
-  // which are not declared in the preamble.
+  // We should collect refs to main-file symbols in all cases:
+
+  // 1. The main file is normal .cpp file.
   TestFileName = testPath("foo.cpp");
   runSymbolCollector("", Header.code());
-  EXPECT_THAT(Refs, UnorderedElementsAre());
+  EXPECT_THAT(Refs,
+              UnorderedElementsAre(Pair(findSymbol(Symbols, "Foo").ID,
+                                        HaveRanges(Header.ranges("Foo"))),
+                                   Pair(findSymbol(Symbols, "Func").ID,
+                                        HaveRanges(Header.ranges("Func")))));
 
-  // Run the .h file as main file, we should collect the refs.
+  // 2. Run the .h file as main file.
   TestFileName = testPath("foo.h");
   runSymbolCollector("", Header.code(),
                      /*ExtraArgs=*/{"-xobjective-c++-header"});
@@ -833,8 +943,7 @@ TEST_F(SymbolCollectorTest, HeaderAsMainFile) {
                                    Pair(findSymbol(Symbols, "Func").ID,
                                         HaveRanges(Header.ranges("Func")))));
 
-  // Run the .hh file as main file (without "-x c++-header"), we should collect
-  // the refs as well.
+  // 3. Run the .hh file as main file (without "-x c++-header").
   TestFileName = testPath("foo.hh");
   runSymbolCollector("", Header.code());
   EXPECT_THAT(Symbols, UnorderedElementsAre(QName("Foo"), QName("Func")));
@@ -1402,6 +1511,9 @@ TEST_F(SymbolCollectorTest, Origin) {
   runSymbolCollector("class Foo {};", /*Main=*/"");
   EXPECT_THAT(Symbols, UnorderedElementsAre(
                            Field(&Symbol::Origin, SymbolOrigin::Static)));
+  runSymbolCollector("#define FOO", /*Main=*/"");
+  EXPECT_THAT(Symbols, UnorderedElementsAre(
+                           Field(&Symbol::Origin, SymbolOrigin::Static)));
 }
 
 TEST_F(SymbolCollectorTest, CollectMacros) {
@@ -1488,6 +1600,52 @@ TEST_F(SymbolCollectorTest, InvalidSourceLoc) {
         __attribute__((__externally_visible__));)";
   runSymbolCollector(Header, /**/ "");
   EXPECT_THAT(Symbols, Contains(QName("operator delete")));
+}
+
+TEST_F(SymbolCollectorTest, BadUTF8) {
+  // Extracted from boost/spirit/home/support/char_encoding/iso8859_1.hpp
+  // This looks like UTF-8 and fools clang, but has high-ISO-8859-1 comments.
+  const char *Header = "int PUNCT = 0;\n"
+                       "int types[] = { /* \xa1 */PUNCT };";
+  CollectorOpts.RefFilter = RefKind::All;
+  CollectorOpts.RefsInHeaders = true;
+  runSymbolCollector(Header, "");
+  EXPECT_THAT(Symbols, Contains(QName("types")));
+  EXPECT_THAT(Symbols, Contains(QName("PUNCT")));
+  // Reference is stored, although offset within line is not reliable.
+  EXPECT_THAT(Refs, Contains(Pair(findSymbol(Symbols, "PUNCT").ID, _)));
+}
+
+TEST_F(SymbolCollectorTest, MacrosInHeaders) {
+  CollectorOpts.CollectMacro = true;
+  TestFileName = testPath("test.h");
+  runSymbolCollector("", "#define X");
+  EXPECT_THAT(Symbols,
+              UnorderedElementsAre(AllOf(QName("X"), ForCodeCompletion(true))));
+}
+
+// Regression test for a crash-bug we used to have.
+TEST_F(SymbolCollectorTest, UndefOfModuleMacro) {
+  auto TU = TestTU::withCode(R"cpp(#include "bar.h")cpp");
+  TU.AdditionalFiles["bar.h"] = R"cpp(
+    #include "foo.h"
+    #undef X
+    )cpp";
+  TU.AdditionalFiles["foo.h"] = "#define X 1";
+  TU.AdditionalFiles["module.map"] = R"cpp(
+    module foo {
+     header "foo.h"
+     export *
+   }
+   )cpp";
+  TU.ExtraArgs.push_back("-fmodules");
+  TU.ExtraArgs.push_back("-fmodule-map-file=" + testPath("module.map"));
+  TU.OverlayRealFileSystemForModules = true;
+
+  TU.build();
+  // We mostly care about not crashing, but verify that we didn't insert garbage
+  // about X too.
+  EXPECT_THAT(TU.headerSymbols(), Not(Contains(QName("X"))));
 }
 
 } // namespace

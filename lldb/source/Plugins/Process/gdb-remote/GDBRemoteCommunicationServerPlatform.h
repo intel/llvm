@@ -81,6 +81,8 @@ protected:
 
   PacketResult Handle_qKillSpawnedProcess(StringExtractorGDBRemote &packet);
 
+  PacketResult Handle_qPathComplete(StringExtractorGDBRemote &packet);
+
   PacketResult Handle_qProcessInfo(StringExtractorGDBRemote &packet);
 
   PacketResult Handle_qGetWorkingDir(StringExtractorGDBRemote &packet);
@@ -100,7 +102,10 @@ private:
 
   static FileSpec GetDomainSocketPath(const char *prefix);
 
-  DISALLOW_COPY_AND_ASSIGN(GDBRemoteCommunicationServerPlatform);
+  GDBRemoteCommunicationServerPlatform(
+      const GDBRemoteCommunicationServerPlatform &) = delete;
+  const GDBRemoteCommunicationServerPlatform &
+  operator=(const GDBRemoteCommunicationServerPlatform &) = delete;
 };
 
 } // namespace process_gdb_remote

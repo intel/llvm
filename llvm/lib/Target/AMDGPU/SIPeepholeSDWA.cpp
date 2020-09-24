@@ -10,11 +10,11 @@
 ///
 /// E.g. original:
 ///   V_LSHRREV_B32_e32 %0, 16, %1
-///   V_ADD_I32_e32 %2, %0, %3
+///   V_ADD_CO_U32_e32 %2, %0, %3
 ///   V_LSHLREV_B32_e32 %4, 16, %2
 ///
 /// Replace:
-///   V_ADD_I32_sdwa %4, %1, %3
+///   V_ADD_CO_U32_sdwa %4, %1, %3
 ///       dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:WORD_1 src1_sel:DWORD
 ///
 //===----------------------------------------------------------------------===//
@@ -570,8 +570,7 @@ SIPeepholeSDWA::matchSDWAOperand(MachineInstr &MI) {
 
     MachineOperand *Src1 = TII->getNamedOperand(MI, AMDGPU::OpName::src1);
     MachineOperand *Dst = TII->getNamedOperand(MI, AMDGPU::OpName::vdst);
-    if (Register::isPhysicalRegister(Src1->getReg()) ||
-        Register::isPhysicalRegister(Dst->getReg()))
+    if (Src1->getReg().isPhysical() || Dst->getReg().isPhysical())
       break;
 
     if (Opcode == AMDGPU::V_LSHLREV_B32_e32 ||
@@ -609,8 +608,7 @@ SIPeepholeSDWA::matchSDWAOperand(MachineInstr &MI) {
     MachineOperand *Src1 = TII->getNamedOperand(MI, AMDGPU::OpName::src1);
     MachineOperand *Dst = TII->getNamedOperand(MI, AMDGPU::OpName::vdst);
 
-    if (Register::isPhysicalRegister(Src1->getReg()) ||
-        Register::isPhysicalRegister(Dst->getReg()))
+    if (Src1->getReg().isPhysical() || Dst->getReg().isPhysical())
       break;
 
     if (Opcode == AMDGPU::V_LSHLREV_B16_e32 ||
@@ -673,8 +671,7 @@ SIPeepholeSDWA::matchSDWAOperand(MachineInstr &MI) {
     MachineOperand *Src0 = TII->getNamedOperand(MI, AMDGPU::OpName::src0);
     MachineOperand *Dst = TII->getNamedOperand(MI, AMDGPU::OpName::vdst);
 
-    if (Register::isPhysicalRegister(Src0->getReg()) ||
-        Register::isPhysicalRegister(Dst->getReg()))
+    if (Src0->getReg().isPhysical() || Dst->getReg().isPhysical())
       break;
 
     return std::make_unique<SDWASrcOperand>(
@@ -702,8 +699,7 @@ SIPeepholeSDWA::matchSDWAOperand(MachineInstr &MI) {
 
     MachineOperand *Dst = TII->getNamedOperand(MI, AMDGPU::OpName::vdst);
 
-    if (Register::isPhysicalRegister(ValSrc->getReg()) ||
-        Register::isPhysicalRegister(Dst->getReg()))
+    if (ValSrc->getReg().isPhysical() || Dst->getReg().isPhysical())
       break;
 
     return std::make_unique<SDWASrcOperand>(
@@ -863,19 +859,19 @@ void SIPeepholeSDWA::matchSDWAOperands(MachineBasicBlock &MBB) {
 }
 
 // Convert the V_ADDC_U32_e64 into V_ADDC_U32_e32, and
-// V_ADD_I32_e64 into V_ADD_I32_e32. This allows isConvertibleToSDWA
-// to perform its transformation on V_ADD_I32_e32 into V_ADD_I32_sdwa.
+// V_ADD_CO_U32_e64 into V_ADD_CO_U32_e32. This allows isConvertibleToSDWA
+// to perform its transformation on V_ADD_CO_U32_e32 into V_ADD_CO_U32_sdwa.
 //
 // We are transforming from a VOP3 into a VOP2 form of the instruction.
 //   %19:vgpr_32 = V_AND_B32_e32 255,
 //       killed %16:vgpr_32, implicit $exec
-//   %47:vgpr_32, %49:sreg_64_xexec = V_ADD_I32_e64
+//   %47:vgpr_32, %49:sreg_64_xexec = V_ADD_CO_U32_e64
 //       %26.sub0:vreg_64, %19:vgpr_32, implicit $exec
 //  %48:vgpr_32, dead %50:sreg_64_xexec = V_ADDC_U32_e64
 //       %26.sub1:vreg_64, %54:vgpr_32, killed %49:sreg_64_xexec, implicit $exec
 //
 // becomes
-//   %47:vgpr_32 = V_ADD_I32_sdwa
+//   %47:vgpr_32 = V_ADD_CO_U32_sdwa
 //       0, %26.sub0:vreg_64, 0, killed %16:vgpr_32, 0, 6, 0, 6, 0,
 //       implicit-def $vcc, implicit $exec
 //  %48:vgpr_32 = V_ADDC_U32_e32
@@ -883,8 +879,8 @@ void SIPeepholeSDWA::matchSDWAOperands(MachineBasicBlock &MBB) {
 void SIPeepholeSDWA::pseudoOpConvertToVOP2(MachineInstr &MI,
                                            const GCNSubtarget &ST) const {
   int Opc = MI.getOpcode();
-  assert((Opc == AMDGPU::V_ADD_I32_e64 || Opc == AMDGPU::V_SUB_I32_e64) &&
-         "Currently only handles V_ADD_I32_e64 or V_SUB_I32_e64");
+  assert((Opc == AMDGPU::V_ADD_CO_U32_e64 || Opc == AMDGPU::V_SUB_CO_U32_e64) &&
+         "Currently only handles V_ADD_CO_U32_e64 or V_SUB_CO_U32_e64");
 
   // Can the candidate MI be shrunk?
   if (!TII->canShrink(MI, *MRI))
@@ -922,18 +918,24 @@ void SIPeepholeSDWA::pseudoOpConvertToVOP2(MachineInstr &MI,
     if (I->modifiesRegister(AMDGPU::VCC, TRI))
       return;
   }
+
   // Make the two new e32 instruction variants.
   // Replace MI with V_{SUB|ADD}_I32_e32
-  auto NewMI = BuildMI(MBB, MI, MI.getDebugLoc(), TII->get(Opc));
-  NewMI.add(*TII->getNamedOperand(MI, AMDGPU::OpName::vdst));
-  NewMI.add(*TII->getNamedOperand(MI, AMDGPU::OpName::src0));
-  NewMI.add(*TII->getNamedOperand(MI, AMDGPU::OpName::src1));
+  BuildMI(MBB, MI, MI.getDebugLoc(), TII->get(Opc))
+    .add(*TII->getNamedOperand(MI, AMDGPU::OpName::vdst))
+    .add(*TII->getNamedOperand(MI, AMDGPU::OpName::src0))
+    .add(*TII->getNamedOperand(MI, AMDGPU::OpName::src1))
+    .setMIFlags(MI.getFlags());
+
   MI.eraseFromParent();
+
   // Replace MISucc with V_{SUBB|ADDC}_U32_e32
-  auto NewInst = BuildMI(MBB, MISucc, MISucc.getDebugLoc(), TII->get(SuccOpc));
-  NewInst.add(*TII->getNamedOperand(MISucc, AMDGPU::OpName::vdst));
-  NewInst.add(*TII->getNamedOperand(MISucc, AMDGPU::OpName::src0));
-  NewInst.add(*TII->getNamedOperand(MISucc, AMDGPU::OpName::src1));
+  BuildMI(MBB, MISucc, MISucc.getDebugLoc(), TII->get(SuccOpc))
+    .add(*TII->getNamedOperand(MISucc, AMDGPU::OpName::vdst))
+    .add(*TII->getNamedOperand(MISucc, AMDGPU::OpName::src0))
+    .add(*TII->getNamedOperand(MISucc, AMDGPU::OpName::src1))
+    .setMIFlags(MISucc.getFlags());
+
   MISucc.eraseFromParent();
 }
 
@@ -986,6 +988,16 @@ bool SIPeepholeSDWA::isConvertibleToSDWA(MachineInstr &MI,
   if (Opc == AMDGPU::V_CNDMASK_B32_e32)
     return false;
 
+  if (MachineOperand *Src0 = TII->getNamedOperand(MI, AMDGPU::OpName::src0)) {
+    if (!Src0->isReg() && !Src0->isImm())
+      return false;
+  }
+
+  if (MachineOperand *Src1 = TII->getNamedOperand(MI, AMDGPU::OpName::src1)) {
+    if (!Src1->isReg() && !Src1->isImm())
+      return false;
+  }
+
   return true;
 }
 
@@ -1010,7 +1022,8 @@ bool SIPeepholeSDWA::convertToSDWA(MachineInstr &MI,
 
   // Create SDWA version of instruction MI and initialize its operands
   MachineInstrBuilder SDWAInst =
-    BuildMI(*MI.getParent(), MI, MI.getDebugLoc(), SDWADesc);
+    BuildMI(*MI.getParent(), MI, MI.getDebugLoc(), SDWADesc)
+    .setMIFlags(MI.getFlags());
 
   // Copy dst, if it is present in original then should also be present in SDWA
   MachineOperand *Dst = TII->getNamedOperand(MI, AMDGPU::OpName::vdst);
@@ -1228,8 +1241,8 @@ bool SIPeepholeSDWA::runOnMachineFunction(MachineFunction &MF) {
         const auto &Operand = OperandPair.second;
         MachineInstr *PotentialMI = Operand->potentialToConvert(TII);
         if (PotentialMI &&
-           (PotentialMI->getOpcode() == AMDGPU::V_ADD_I32_e64 ||
-            PotentialMI->getOpcode() == AMDGPU::V_SUB_I32_e64))
+           (PotentialMI->getOpcode() == AMDGPU::V_ADD_CO_U32_e64 ||
+            PotentialMI->getOpcode() == AMDGPU::V_SUB_CO_U32_e64))
           pseudoOpConvertToVOP2(*PotentialMI, ST);
       }
       SDWAOperands.clear();

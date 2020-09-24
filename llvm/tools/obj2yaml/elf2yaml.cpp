@@ -6,10 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Error.h"
+#include "obj2yaml.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/Twine.h"
+#include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/Object/ELFObjectFile.h"
+#include "llvm/ObjectYAML/DWARFYAML.h"
 #include "llvm/ObjectYAML/ELFYAML.h"
 #include "llvm/Support/DataExtractor.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -49,7 +52,14 @@ class ELFDumper {
   Expected<StringRef> getSymbolName(uint32_t SymtabNdx, uint32_t SymbolNdx);
 
   const object::ELFFile<ELFT> &Obj;
+  std::unique_ptr<DWARFContext> DWARFCtx;
   ArrayRef<Elf_Word> ShndxTable;
+
+  Expected<std::vector<ELFYAML::ProgramHeader>>
+  dumpProgramHeaders(ArrayRef<std::unique_ptr<ELFYAML::Chunk>> Sections);
+
+  Optional<DWARFYAML::Data>
+  dumpDWARFSections(std::vector<std::unique_ptr<ELFYAML::Chunk>> &Sections);
 
   Error dumpSymbols(const Elf_Shdr *Symtab,
                     std::vector<ELFYAML::Symbol> &Symbols);
@@ -88,17 +98,23 @@ class ELFDumper {
   Expected<ELFYAML::MipsABIFlags *> dumpMipsABIFlags(const Elf_Shdr *Shdr);
   Expected<ELFYAML::StackSizesSection *>
   dumpStackSizesSection(const Elf_Shdr *Shdr);
+  Expected<ELFYAML::RawContentSection *>
+  dumpPlaceholderSection(const Elf_Shdr *Shdr);
+
+  bool shouldPrintSection(const ELFYAML::Section &S, const Elf_Shdr &SHdr,
+                          Optional<DWARFYAML::Data> DWARF);
 
 public:
-  ELFDumper(const object::ELFFile<ELFT> &O);
+  ELFDumper(const object::ELFFile<ELFT> &O, std::unique_ptr<DWARFContext> DCtx);
   Expected<ELFYAML::Object *> dump();
 };
 
 }
 
 template <class ELFT>
-ELFDumper<ELFT>::ELFDumper(const object::ELFFile<ELFT> &O)
-    : Obj(O) {}
+ELFDumper<ELFT>::ELFDumper(const object::ELFFile<ELFT> &O,
+                           std::unique_ptr<DWARFContext> DCtx)
+    : Obj(O), DWARFCtx(std::move(DCtx)) {}
 
 template <class ELFT>
 Expected<StringRef>
@@ -112,11 +128,17 @@ ELFDumper<ELFT>::getUniquedSectionName(const Elf_Shdr *Sec) {
   if (!NameOrErr)
     return NameOrErr;
   StringRef Name = *NameOrErr;
+  // In some specific cases we might have more than one section without a
+  // name (sh_name == 0). It normally doesn't happen, but when we have this case
+  // it doesn't make sense to uniquify their names and add noise to the output.
+  if (Name.empty())
+    return "";
+
   std::string &Ret = SectionNames[SecIndex];
 
   auto It = UsedSectionNames.insert({Name, 0});
   if (!It.second)
-    Ret = (Name + " [" + Twine(++It.first->second) + "]").str();
+    Ret = ELFYAML::appendUniqueSuffix(Name, Twine(++It.first->second));
   else
     Ret = std::string(Name);
   return Ret;
@@ -148,7 +170,7 @@ ELFDumper<ELFT>::getUniquedSymbolName(const Elf_Sym *Sym, StringRef StrTable,
     auto It = UsedSymbolNames.insert({Name, 0});
     if (!It.second)
       SymbolNames[Index] =
-          (Name + " [" + Twine(++It.first->second) + "]").str();
+          ELFYAML::appendUniqueSuffix(Name, Twine(++It.first->second));
     else
       SymbolNames[Index] = std::string(Name);
     return SymbolNames[Index];
@@ -157,18 +179,68 @@ ELFDumper<ELFT>::getUniquedSymbolName(const Elf_Sym *Sym, StringRef StrTable,
   return Name;
 }
 
+template <class ELFT>
+bool ELFDumper<ELFT>::shouldPrintSection(const ELFYAML::Section &S,
+                                         const Elf_Shdr &SHdr,
+                                         Optional<DWARFYAML::Data> DWARF) {
+  // We only print the SHT_NULL section at index 0 when it
+  // has at least one non-null field, because yaml2obj
+  // normally creates the zero section at index 0 implicitly.
+  if (S.Type == ELF::SHT_NULL && (&SHdr == &Sections[0])) {
+    const uint8_t *Begin = reinterpret_cast<const uint8_t *>(&SHdr);
+    const uint8_t *End = Begin + sizeof(Elf_Shdr);
+    return std::find_if(Begin, End, [](uint8_t V) { return V != 0; }) != End;
+  }
+
+  // Normally we use "DWARF:" to describe contents of DWARF sections. Sometimes
+  // the content of DWARF sections can be successfully parsed into the "DWARF:"
+  // entry but their section headers may have special flags, entry size, address
+  // alignment, etc. We will preserve the header for them under such
+  // circumstances.
+  StringRef SecName = S.Name.substr(1);
+  if (DWARF && DWARF->getNonEmptySectionNames().count(SecName)) {
+    if (const ELFYAML::RawContentSection *RawSec =
+            dyn_cast<const ELFYAML::RawContentSection>(&S)) {
+      if (RawSec->Type != ELF::SHT_PROGBITS || !RawSec->Link.empty() ||
+          RawSec->Info || RawSec->AddressAlign != 1 || RawSec->Address ||
+          RawSec->EntSize)
+        return true;
+
+      ELFYAML::ELF_SHF ShFlags = RawSec->Flags.getValueOr(ELFYAML::ELF_SHF(0));
+
+      if (SecName == "debug_str")
+        return ShFlags != ELFYAML::ELF_SHF(ELF::SHF_MERGE | ELF::SHF_STRINGS);
+
+      return ShFlags != 0;
+    }
+  }
+
+  // Normally we use "Symbols:" and "DynamicSymbols:" to describe contents of
+  // symbol tables. We also build and emit corresponding string tables
+  // implicitly. But sometimes it is important to preserve positions and virtual
+  // addresses of allocatable sections, e.g. for creating program headers.
+  // Generally we are trying to reduce noise in the YAML output. Because
+  // of that we do not print non-allocatable versions of such sections and
+  // assume they are placed at the end.
+  if (S.Type == ELF::SHT_STRTAB || S.Type == ELF::SHT_SYMTAB ||
+      S.Type == ELF::SHT_DYNSYM)
+    return S.Flags.getValueOr(ELFYAML::ELF_SHF(0)) & ELF::SHF_ALLOC;
+
+  return true;
+}
+
 template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
   auto Y = std::make_unique<ELFYAML::Object>();
 
-  // Dump header. We do not dump SHEntSize, SHOff, SHNum and SHStrNdx fields.
-  // When not explicitly set, the values are set by yaml2obj automatically
-  // and there is no need to dump them here.
+  // Dump header. We do not dump EPh* and ESh* fields. When not explicitly set,
+  // the values are set by yaml2obj automatically and there is no need to dump
+  // them here.
   Y->Header.Class = ELFYAML::ELF_ELFCLASS(Obj.getHeader()->getFileClass());
   Y->Header.Data = ELFYAML::ELF_ELFDATA(Obj.getHeader()->getDataEncoding());
   Y->Header.OSABI = Obj.getHeader()->e_ident[ELF::EI_OSABI];
   Y->Header.ABIVersion = Obj.getHeader()->e_ident[ELF::EI_ABIVERSION];
   Y->Header.Type = Obj.getHeader()->e_type;
-  Y->Header.Machine = Obj.getHeader()->e_machine;
+  Y->Header.Machine = ELFYAML::ELF_EM(Obj.getHeader()->e_machine);
   Y->Header.Flags = Obj.getHeader()->e_flags;
   Y->Header.Entry = Obj.getHeader()->e_entry;
 
@@ -194,8 +266,9 @@ template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
       // ABI allows us to have one SHT_SYMTAB_SHNDX for each symbol table.
       // We only support having the SHT_SYMTAB_SHNDX for SHT_SYMTAB now.
       if (SymTabShndx)
-        return createStringError(obj2yaml_error::not_implemented,
-                                 "multiple SHT_SYMTAB_SHNDX sections are not supported");
+        return createStringError(
+            errc::not_supported,
+            "multiple SHT_SYMTAB_SHNDX sections are not supported");
       SymTabShndx = &Sec;
     }
   }
@@ -206,7 +279,7 @@ template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
     if (!SymTab ||
         SymTabShndx->sh_link != (unsigned)(SymTab - Sections.begin()))
       return createStringError(
-          obj2yaml_error::not_implemented,
+          errc::not_supported,
           "only SHT_SYMTAB_SHNDX associated with SHT_SYMTAB are supported");
 
     auto TableOrErr = Obj.getSHNDXTable(*SymTabShndx);
@@ -227,13 +300,144 @@ template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
       return std::move(E);
   }
 
-  if (Expected<std::vector<std::unique_ptr<ELFYAML::Chunk>>> ChunksOrErr =
-          dumpSections())
-    Y->Chunks = std::move(*ChunksOrErr);
-  else
+  // We dump all sections first. It is simple and allows us to verify that all
+  // sections are valid and also to generalize the code. But we are not going to
+  // keep all of them in the final output (see comments for
+  // 'shouldPrintSection()'). Undesired chunks will be removed later.
+  Expected<std::vector<std::unique_ptr<ELFYAML::Chunk>>> ChunksOrErr =
+      dumpSections();
+  if (!ChunksOrErr)
     return ChunksOrErr.takeError();
+  std::vector<std::unique_ptr<ELFYAML::Chunk>> Chunks = std::move(*ChunksOrErr);
 
+  // Dump program headers.
+  Expected<std::vector<ELFYAML::ProgramHeader>> PhdrsOrErr =
+      dumpProgramHeaders(Chunks);
+  if (!PhdrsOrErr)
+    return PhdrsOrErr.takeError();
+  Y->ProgramHeaders = std::move(*PhdrsOrErr);
+
+  // Dump DWARF sections.
+  Y->DWARF = dumpDWARFSections(Chunks);
+
+  llvm::erase_if(Chunks, [this, &Y](const std::unique_ptr<ELFYAML::Chunk> &C) {
+    const ELFYAML::Section &S = cast<ELFYAML::Section>(*C.get());
+    return !shouldPrintSection(S, Sections[S.OriginalSecNdx], Y->DWARF);
+  });
+
+  Y->Chunks = std::move(Chunks);
   return Y.release();
+}
+
+template <class ELFT>
+static bool isInSegment(const ELFYAML::Section &Sec,
+                        const typename ELFT::Shdr &SHdr,
+                        const typename ELFT::Phdr &Phdr) {
+  if (Sec.Type == ELF::SHT_NULL)
+    return false;
+
+  // A section is within a segment when its location in a file is within the
+  // [p_offset, p_offset + p_filesz] region.
+  bool FileOffsetsMatch =
+      SHdr.sh_offset >= Phdr.p_offset &&
+      (SHdr.sh_offset + SHdr.sh_size <= Phdr.p_offset + Phdr.p_filesz);
+
+  bool VirtualAddressesMatch = SHdr.sh_addr >= Phdr.p_vaddr &&
+                               SHdr.sh_addr <= Phdr.p_vaddr + Phdr.p_memsz;
+
+  if (FileOffsetsMatch) {
+    // An empty section on the edges of a program header can be outside of the
+    // virtual address space of the segment. This means it is not included in
+    // the segment and we should ignore it.
+    if (SHdr.sh_size == 0 && (SHdr.sh_offset == Phdr.p_offset ||
+                              SHdr.sh_offset == Phdr.p_offset + Phdr.p_filesz))
+      return VirtualAddressesMatch;
+    return true;
+  }
+
+  // SHT_NOBITS sections usually occupy no physical space in a file. Such
+  // sections belong to a segment when they reside in the segment's virtual
+  // address space.
+  if (Sec.Type != ELF::SHT_NOBITS)
+    return false;
+  return VirtualAddressesMatch;
+}
+
+template <class ELFT>
+Expected<std::vector<ELFYAML::ProgramHeader>>
+ELFDumper<ELFT>::dumpProgramHeaders(
+    ArrayRef<std::unique_ptr<ELFYAML::Chunk>> Chunks) {
+  std::vector<ELFYAML::ProgramHeader> Ret;
+  Expected<typename ELFT::PhdrRange> PhdrsOrErr = Obj.program_headers();
+  if (!PhdrsOrErr)
+    return PhdrsOrErr.takeError();
+
+  for (const typename ELFT::Phdr &Phdr : *PhdrsOrErr) {
+    ELFYAML::ProgramHeader PH;
+    PH.Type = Phdr.p_type;
+    PH.Flags = Phdr.p_flags;
+    PH.VAddr = Phdr.p_vaddr;
+    PH.PAddr = Phdr.p_paddr;
+
+    // yaml2obj sets the alignment of a segment to 1 by default.
+    // We do not print the default alignment to reduce noise in the output.
+    if (Phdr.p_align != 1)
+      PH.Align = static_cast<llvm::yaml::Hex64>(Phdr.p_align);
+
+    // Here we match sections with segments.
+    // It is not possible to have a non-Section chunk, because
+    // obj2yaml does not create Fill chunks.
+    for (const std::unique_ptr<ELFYAML::Chunk> &C : Chunks) {
+      ELFYAML::Section &S = cast<ELFYAML::Section>(*C.get());
+      if (isInSegment<ELFT>(S, Sections[S.OriginalSecNdx], Phdr))
+        PH.Sections.push_back({S.Name});
+    }
+
+    Ret.push_back(PH);
+  }
+
+  return Ret;
+}
+
+template <class ELFT>
+Optional<DWARFYAML::Data> ELFDumper<ELFT>::dumpDWARFSections(
+    std::vector<std::unique_ptr<ELFYAML::Chunk>> &Sections) {
+  DWARFYAML::Data DWARF;
+  for (std::unique_ptr<ELFYAML::Chunk> &C : Sections) {
+    if (!C->Name.startswith(".debug_"))
+      continue;
+
+    if (ELFYAML::RawContentSection *RawSec =
+            dyn_cast<ELFYAML::RawContentSection>(C.get())) {
+      Error Err = Error::success();
+      cantFail(std::move(Err));
+
+      if (RawSec->Name == ".debug_aranges")
+        Err = dumpDebugARanges(*DWARFCtx.get(), DWARF);
+      else if (RawSec->Name == ".debug_str")
+        dumpDebugStrings(*DWARFCtx.get(), DWARF);
+
+      // If the DWARF section cannot be successfully parsed, emit raw content
+      // instead of an entry in the DWARF section of the YAML.
+      if (Err)
+        consumeError(std::move(Err));
+      else
+        RawSec->Content.reset();
+    }
+  }
+
+  if (DWARF.getNonEmptySectionNames().empty())
+    return None;
+  return DWARF;
+}
+
+template <class ELFT>
+Expected<ELFYAML::RawContentSection *>
+ELFDumper<ELFT>::dumpPlaceholderSection(const Elf_Shdr *Shdr) {
+  auto S = std::make_unique<ELFYAML::RawContentSection>();
+  if (Error E = dumpCommonSection(Shdr, *S.get()))
+    return std::move(E);
+  return S.release();
 }
 
 template <class ELFT>
@@ -288,6 +492,13 @@ ELFDumper<ELFT>::dumpSections() {
     case ELF::SHT_LLVM_CALL_GRAPH_PROFILE:
       return
           [this](const Elf_Shdr *S) { return dumpCallGraphProfileSection(S); };
+    case ELF::SHT_STRTAB:
+    case ELF::SHT_SYMTAB:
+    case ELF::SHT_DYNSYM:
+      // The contents of these sections are described by other parts of the YAML
+      // file. But we still want to dump them, because their properties can be
+      // important. See comments for 'shouldPrintSection()' for more details.
+      return [this](const Elf_Shdr *S) { return dumpPlaceholderSection(S); };
     default:
       return nullptr;
     }
@@ -301,37 +512,6 @@ ELFDumper<ELFT>::dumpSections() {
       if (Error E = Add(DumpFn(&Sec)))
         return std::move(E);
       continue;
-    }
-
-    if (Sec.sh_type == ELF::SHT_STRTAB || Sec.sh_type == ELF::SHT_SYMTAB ||
-        Sec.sh_type == ELF::SHT_DYNSYM) {
-      // The contents of these sections are described by other parts of the YAML
-      // file. We still dump them so that their positions in the section header
-      // table are correctly recorded. We only dump allocatable section because
-      // their positions and addresses are important, e.g. for creating program
-      // headers. Some sections, like .symtab or .strtab normally are not
-      // allocatable and do not have virtual addresses. We want to avoid noise
-      // in the YAML output and assume that they are placed at the end.
-      if (Sec.sh_flags & ELF::SHF_ALLOC) {
-        auto S = std::make_unique<ELFYAML::RawContentSection>();
-        if (Error E = dumpCommonSection(&Sec, *S.get()))
-          return std::move(E);
-        if (Error E = Add(S.release()))
-          return std::move(E);
-      }
-      continue;
-    }
-
-    if (Sec.sh_type == ELF::SHT_NULL) {
-      // We only dump the SHT_NULL section at index 0 when it
-      // has at least one non-null field, because yaml2obj
-      // normally creates the zero section at index 0 implicitly.
-      if (&Sec == &Sections[0]) {
-        const uint8_t *Begin = reinterpret_cast<const uint8_t *>(&Sec);
-        const uint8_t *End = Begin + sizeof(Elf_Shdr);
-        if (std::find_if(Begin, End, [](uint8_t V) { return V != 0; }) == End)
-          continue;
-      }
     }
 
     // Recognize some special SHT_PROGBITS sections by name.
@@ -454,7 +634,8 @@ Error ELFDumper<ELFT>::dumpRelocation(const RelT *Rel, const Elf_Shdr *SymTab,
 }
 
 template <class ELFT>
-static unsigned getDefaultShEntSize(ELFYAML::ELF_SHT SecType) {
+static unsigned getDefaultShEntSize(ELFYAML::ELF_SHT SecType,
+                                    StringRef SecName) {
   switch (SecType) {
   case ELF::SHT_REL:
     return sizeof(typename ELFT::Rel);
@@ -465,6 +646,8 @@ static unsigned getDefaultShEntSize(ELFYAML::ELF_SHT SecType) {
   case ELF::SHT_DYNAMIC:
     return sizeof(typename ELFT::Dyn);
   default:
+    if (SecName == ".debug_str")
+      return 1;
     return 0;
   }
 }
@@ -481,13 +664,15 @@ Error ELFDumper<ELFT>::dumpCommonSection(const Elf_Shdr *Shdr,
     S.Address = static_cast<uint64_t>(Shdr->sh_addr);
   S.AddressAlign = Shdr->sh_addralign;
 
-  if (Shdr->sh_entsize != getDefaultShEntSize<ELFT>(S.Type))
-    S.EntSize = static_cast<llvm::yaml::Hex64>(Shdr->sh_entsize);
+  S.OriginalSecNdx = Shdr - &Sections[0];
 
   auto NameOrErr = getUniquedSectionName(Shdr);
   if (!NameOrErr)
     return NameOrErr.takeError();
   S.Name = NameOrErr.get();
+
+  if (Shdr->sh_entsize != getDefaultShEntSize<ELFT>(S.Type, S.Name))
+    S.EntSize = static_cast<llvm::yaml::Hex64>(Shdr->sh_entsize);
 
   if (Shdr->sh_link != ELF::SHN_UNDEF) {
     auto LinkSection = Obj.getSection(Shdr->sh_link);
@@ -1184,8 +1369,9 @@ ELFDumper<ELFT>::dumpMipsABIFlags(const Elf_Shdr *Shdr) {
 }
 
 template <class ELFT>
-static Error elf2yaml(raw_ostream &Out, const object::ELFFile<ELFT> &Obj) {
-  ELFDumper<ELFT> Dumper(Obj);
+static Error elf2yaml(raw_ostream &Out, const object::ELFFile<ELFT> &Obj,
+                      std::unique_ptr<DWARFContext> DWARFCtx) {
+  ELFDumper<ELFT> Dumper(Obj, std::move(DWARFCtx));
   Expected<ELFYAML::Object *> YAMLOrErr = Dumper.dump();
   if (!YAMLOrErr)
     return YAMLOrErr.takeError();
@@ -1198,17 +1384,18 @@ static Error elf2yaml(raw_ostream &Out, const object::ELFFile<ELFT> &Obj) {
 }
 
 Error elf2yaml(raw_ostream &Out, const object::ObjectFile &Obj) {
+  std::unique_ptr<DWARFContext> DWARFCtx = DWARFContext::create(Obj);
   if (const auto *ELFObj = dyn_cast<object::ELF32LEObjectFile>(&Obj))
-    return elf2yaml(Out, *ELFObj->getELFFile());
+    return elf2yaml(Out, *ELFObj->getELFFile(), std::move(DWARFCtx));
 
   if (const auto *ELFObj = dyn_cast<object::ELF32BEObjectFile>(&Obj))
-    return elf2yaml(Out, *ELFObj->getELFFile());
+    return elf2yaml(Out, *ELFObj->getELFFile(), std::move(DWARFCtx));
 
   if (const auto *ELFObj = dyn_cast<object::ELF64LEObjectFile>(&Obj))
-    return elf2yaml(Out, *ELFObj->getELFFile());
+    return elf2yaml(Out, *ELFObj->getELFFile(), std::move(DWARFCtx));
 
   if (const auto *ELFObj = dyn_cast<object::ELF64BEObjectFile>(&Obj))
-    return elf2yaml(Out, *ELFObj->getELFFile());
+    return elf2yaml(Out, *ELFObj->getELFFile(), std::move(DWARFCtx));
 
   llvm_unreachable("unknown ELF file format");
 }

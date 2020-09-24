@@ -58,6 +58,9 @@ class WebAssemblyFastISel final : public FastISel {
       int FI;
     } Base;
 
+    // Whether the base has been determined yet
+    bool IsBaseSet = false;
+
     int64_t Offset = 0;
 
     const GlobalValue *GV = nullptr;
@@ -74,8 +77,9 @@ class WebAssemblyFastISel final : public FastISel {
     bool isFIBase() const { return Kind == FrameIndexBase; }
     void setReg(unsigned Reg) {
       assert(isRegBase() && "Invalid base register access!");
-      assert(Base.Reg == 0 && "Overwriting non-zero register");
+      assert(!IsBaseSet && "Base cannot be reset");
       Base.Reg = Reg;
+      IsBaseSet = true;
     }
     unsigned getReg() const {
       assert(isRegBase() && "Invalid base register access!");
@@ -83,8 +87,9 @@ class WebAssemblyFastISel final : public FastISel {
     }
     void setFI(unsigned FI) {
       assert(isFIBase() && "Invalid base frame index access!");
-      assert(Base.FI == 0 && "Overwriting non-zero frame index");
+      assert(!IsBaseSet && "Base cannot be reset");
       Base.FI = FI;
+      IsBaseSet = true;
     }
     unsigned getFI() const {
       assert(isFIBase() && "Invalid base frame index access!");
@@ -98,13 +103,7 @@ class WebAssemblyFastISel final : public FastISel {
     int64_t getOffset() const { return Offset; }
     void setGlobalValue(const GlobalValue *G) { GV = G; }
     const GlobalValue *getGlobalValue() const { return GV; }
-    bool isSet() const {
-      if (isRegBase()) {
-        return Base.Reg != 0;
-      } else {
-        return Base.FI != 0;
-      }
-    }
+    bool isSet() const { return IsBaseSet; }
   };
 
   /// Keep a pointer to the WebAssemblySubtarget around so that we can make the
@@ -761,7 +760,7 @@ bool WebAssemblyFastISel::selectCall(const Instruction *I) {
     return false;
 
   bool IsDirect = Func != nullptr;
-  if (!IsDirect && isa<ConstantExpr>(Call->getCalledValue()))
+  if (!IsDirect && isa<ConstantExpr>(Call->getCalledOperand()))
     return false;
 
   FunctionType *FuncTy = Call->getFunctionType();
@@ -847,7 +846,7 @@ bool WebAssemblyFastISel::selectCall(const Instruction *I) {
 
   unsigned CalleeReg = 0;
   if (!IsDirect) {
-    CalleeReg = getRegForValue(Call->getCalledValue());
+    CalleeReg = getRegForValue(Call->getCalledOperand());
     if (!CalleeReg)
       return false;
   }
@@ -1160,30 +1159,31 @@ bool WebAssemblyFastISel::selectLoad(const Instruction *I) {
 
   unsigned Opc;
   const TargetRegisterClass *RC;
+  bool A64 = Subtarget->hasAddr64();
   switch (getSimpleType(Load->getType())) {
   case MVT::i1:
   case MVT::i8:
-    Opc = WebAssembly::LOAD8_U_I32;
+    Opc = A64 ? WebAssembly::LOAD8_U_I32_A64 : WebAssembly::LOAD8_U_I32_A32;
     RC = &WebAssembly::I32RegClass;
     break;
   case MVT::i16:
-    Opc = WebAssembly::LOAD16_U_I32;
+    Opc = A64 ? WebAssembly::LOAD16_U_I32_A64 : WebAssembly::LOAD16_U_I32_A32;
     RC = &WebAssembly::I32RegClass;
     break;
   case MVT::i32:
-    Opc = WebAssembly::LOAD_I32;
+    Opc = A64 ? WebAssembly::LOAD_I32_A64 : WebAssembly::LOAD_I32_A32;
     RC = &WebAssembly::I32RegClass;
     break;
   case MVT::i64:
-    Opc = WebAssembly::LOAD_I64;
+    Opc = A64 ? WebAssembly::LOAD_I64_A64 : WebAssembly::LOAD_I64_A32;
     RC = &WebAssembly::I64RegClass;
     break;
   case MVT::f32:
-    Opc = WebAssembly::LOAD_F32;
+    Opc = A64 ? WebAssembly::LOAD_F32_A64 : WebAssembly::LOAD_F32_A32;
     RC = &WebAssembly::F32RegClass;
     break;
   case MVT::f64:
-    Opc = WebAssembly::LOAD_F64;
+    Opc = A64 ? WebAssembly::LOAD_F64_A64 : WebAssembly::LOAD_F64_A32;
     RC = &WebAssembly::F64RegClass;
     break;
   default:
@@ -1216,27 +1216,28 @@ bool WebAssemblyFastISel::selectStore(const Instruction *I) {
 
   unsigned Opc;
   bool VTIsi1 = false;
+  bool A64 = Subtarget->hasAddr64();
   switch (getSimpleType(Store->getValueOperand()->getType())) {
   case MVT::i1:
     VTIsi1 = true;
     LLVM_FALLTHROUGH;
   case MVT::i8:
-    Opc = WebAssembly::STORE8_I32;
+    Opc = A64 ? WebAssembly::STORE8_I32_A64 : WebAssembly::STORE8_I32_A32;
     break;
   case MVT::i16:
-    Opc = WebAssembly::STORE16_I32;
+    Opc = A64 ? WebAssembly::STORE16_I32_A64 : WebAssembly::STORE16_I32_A32;
     break;
   case MVT::i32:
-    Opc = WebAssembly::STORE_I32;
+    Opc = A64 ? WebAssembly::STORE_I32_A64 : WebAssembly::STORE_I32_A32;
     break;
   case MVT::i64:
-    Opc = WebAssembly::STORE_I64;
+    Opc = A64 ? WebAssembly::STORE_I64_A64 : WebAssembly::STORE_I64_A32;
     break;
   case MVT::f32:
-    Opc = WebAssembly::STORE_F32;
+    Opc = A64 ? WebAssembly::STORE_F32_A64 : WebAssembly::STORE_F32_A32;
     break;
   case MVT::f64:
-    Opc = WebAssembly::STORE_F64;
+    Opc = A64 ? WebAssembly::STORE_F64_A64 : WebAssembly::STORE_F64_A32;
     break;
   default:
     return false;

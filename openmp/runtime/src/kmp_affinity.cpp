@@ -577,11 +577,17 @@ static int __kmp_affinity_create_hwloc_map(AddrUnsPair **address2os,
     // Hack to try and infer the machine topology using only the data
     // available from cpuid on the current thread, and __kmp_xproc.
     KMP_ASSERT(__kmp_affinity_type == affinity_none);
-
-    nCoresPerPkg = __kmp_hwloc_get_nobjs_under_obj(
-        hwloc_get_obj_by_type(tp, HWLOC_OBJ_PACKAGE, 0), HWLOC_OBJ_CORE);
-    __kmp_nThreadsPerCore = __kmp_hwloc_get_nobjs_under_obj(
-        hwloc_get_obj_by_type(tp, HWLOC_OBJ_CORE, 0), HWLOC_OBJ_PU);
+    // hwloc only guarantees existance of PU object, so check PACKAGE and CORE
+    hwloc_obj_t o = hwloc_get_obj_by_type(tp, HWLOC_OBJ_PACKAGE, 0);
+    if (o != NULL)
+      nCoresPerPkg = __kmp_hwloc_get_nobjs_under_obj(o, HWLOC_OBJ_CORE);
+    else
+      nCoresPerPkg = 1; // no PACKAGE found
+    o = hwloc_get_obj_by_type(tp, HWLOC_OBJ_CORE, 0);
+    if (o != NULL)
+      __kmp_nThreadsPerCore = __kmp_hwloc_get_nobjs_under_obj(o, HWLOC_OBJ_PU);
+    else
+      __kmp_nThreadsPerCore = 1; // no CORE found
     __kmp_ncores = __kmp_xproc / __kmp_nThreadsPerCore;
     nPackages = (__kmp_xproc + nCoresPerPkg - 1) / nCoresPerPkg;
     if (__kmp_affinity_verbose) {
@@ -601,7 +607,7 @@ static int __kmp_affinity_create_hwloc_map(AddrUnsPair **address2os,
 
   int depth = 3;
   int levels[5] = {0, 1, 2, 3, 4}; // package, [node,] [tile,] core, thread
-  int labels[3] = {0}; // package [,node] [,tile] - head of lables array
+  int labels[3] = {0}; // package [,node] [,tile] - head of labels array
   if (__kmp_numa_detected)
     ++depth;
   if (__kmp_tile_depth)
@@ -828,7 +834,7 @@ static int __kmp_affinity_create_hwloc_map(AddrUnsPair **address2os,
   }
 
   int depth_full = depth; // number of levels before compressing
-  // Find any levels with radiix 1, and remove them from the map
+  // Find any levels with radix 1, and remove them from the map
   // (except for the package level).
   depth = __kmp_affinity_remove_radix_one_levels(retval, nActiveThreads, depth,
                                                  levels);
@@ -918,7 +924,7 @@ static int __kmp_affinity_create_flat_map(AddrUnsPair **address2os,
     return 0;
   }
 
-  // Contruct the data structure to be returned.
+  // Construct the data structure to be returned.
   *address2os =
       (AddrUnsPair *)__kmp_allocate(sizeof(**address2os) * __kmp_avail_proc);
   int avail_ct = 0;
@@ -967,7 +973,7 @@ static int __kmp_affinity_create_proc_group_map(AddrUnsPair **address2os,
     return -1;
   }
 
-  // Contruct the data structure to be returned.
+  // Construct the data structure to be returned.
   *address2os =
       (AddrUnsPair *)__kmp_allocate(sizeof(**address2os) * __kmp_avail_proc);
   KMP_DEBUG_ASSERT(__kmp_pu_os_idx == NULL);
@@ -1849,7 +1855,7 @@ static int __kmp_affinity_create_x2apicid_map(AddrUnsPair **address2os,
     return 0;
   }
 
-  // Find any levels with radiix 1, and remove them from the map
+  // Find any levels with radix 1, and remove them from the map
   // (except for the package level).
   int new_depth = 0;
   for (level = 0; level < depth; level++) {
@@ -1968,7 +1974,8 @@ static void __kmp_dispatch_set_hierarchy_values() {
   __kmp_hier_max_units[kmp_hier_layer_e::LAYER_THREAD + 1] =
       nPackages * nCoresPerPkg * __kmp_nThreadsPerCore;
   __kmp_hier_max_units[kmp_hier_layer_e::LAYER_L1 + 1] = __kmp_ncores;
-#if KMP_ARCH_X86_64 && (KMP_OS_LINUX || KMP_OS_FREEBSD || KMP_OS_WINDOWS)
+#if KMP_ARCH_X86_64 && (KMP_OS_LINUX || KMP_OS_FREEBSD || KMP_OS_WINDOWS) && \
+    KMP_MIC_SUPPORTED
   if (__kmp_mic_type >= mic3)
     __kmp_hier_max_units[kmp_hier_layer_e::LAYER_L2 + 1] = __kmp_ncores / 2;
   else
@@ -1982,7 +1989,8 @@ static void __kmp_dispatch_set_hierarchy_values() {
   __kmp_hier_threads_per[kmp_hier_layer_e::LAYER_THREAD + 1] = 1;
   __kmp_hier_threads_per[kmp_hier_layer_e::LAYER_L1 + 1] =
       __kmp_nThreadsPerCore;
-#if KMP_ARCH_X86_64 && (KMP_OS_LINUX || KMP_OS_FREEBSD || KMP_OS_WINDOWS)
+#if KMP_ARCH_X86_64 && (KMP_OS_LINUX || KMP_OS_FREEBSD || KMP_OS_WINDOWS) && \
+    KMP_MIC_SUPPORTED
   if (__kmp_mic_type >= mic3)
     __kmp_hier_threads_per[kmp_hier_layer_e::LAYER_L2 + 1] =
         2 * __kmp_nThreadsPerCore;
@@ -4328,7 +4336,7 @@ static void __kmp_aux_affinity_initialize(void) {
   }
 #endif // KMP_USE_HWLOC
 
-// If the user has specified that a paricular topology discovery method is to be
+// If the user has specified that a particular topology discovery method is to be
 // used, then we abort if that method fails. The exception is group affinity,
 // which might have been implicitly set.
 
@@ -4647,7 +4655,7 @@ static void __kmp_aux_affinity_initialize(void) {
 #undef KMP_EXIT_AFF_NONE
 
 void __kmp_affinity_initialize(void) {
-  // Much of the code above was written assumming that if a machine was not
+  // Much of the code above was written assuming that if a machine was not
   // affinity capable, then __kmp_affinity_type == affinity_none.  We now
   // explicitly represent this as __kmp_affinity_type == affinity_disabled.
   // There are too many checks for __kmp_affinity_type == affinity_none
@@ -4713,7 +4721,7 @@ void __kmp_affinity_set_init_mask(int gtid, int isa_root) {
     KMP_CPU_ZERO(th->th.th_affin_mask);
   }
 
-  // Copy the thread mask to the kmp_info_t strucuture. If
+  // Copy the thread mask to the kmp_info_t structure. If
   // __kmp_affinity_type == affinity_none, copy the "full" mask, i.e. one that
   // has all of the OS proc ids set, or if __kmp_affinity_respect_mask is set,
   // then the full mask is the same as the mask of the initialization thread.
@@ -4823,7 +4831,7 @@ void __kmp_affinity_set_place(int gtid) {
                (th->th.th_new_place >= th->th.th_last_place));
   }
 
-  // Copy the thread mask to the kmp_info_t strucuture,
+  // Copy the thread mask to the kmp_info_t structure,
   // and set this thread's affinity.
   kmp_affin_mask_t *mask =
       KMP_CPU_INDEX(__kmp_affinity_masks, th->th.th_new_place);

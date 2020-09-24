@@ -31,16 +31,6 @@ using namespace llvm;
 
 #define DEBUG_TYPE "wasm-explicit-locals"
 
-// A command-line option to disable this pass, and keep implicit locals
-// for the purpose of testing with lit/llc ONLY.
-// This produces output which is not valid WebAssembly, and is not supported
-// by assemblers/disassemblers and other MC based tools.
-static cl::opt<bool> WasmDisableExplicitLocals(
-    "wasm-disable-explicit-locals", cl::Hidden,
-    cl::desc("WebAssembly: output implicit locals in"
-             " instruction output for test purposes only."),
-    cl::init(false));
-
 namespace {
 class WebAssemblyExplicitLocals final : public MachineFunctionPass {
   StringRef getPassName() const override {
@@ -211,10 +201,6 @@ bool WebAssemblyExplicitLocals::runOnMachineFunction(MachineFunction &MF) {
                        "********** Function: "
                     << MF.getName() << '\n');
 
-  // Disable this pass if directed to do so.
-  if (WasmDisableExplicitLocals)
-    return false;
-
   bool Changed = false;
   MachineRegisterInfo &MRI = MF.getRegInfo();
   WebAssemblyFunctionInfo &MFI = *MF.getInfo<WebAssemblyFunctionInfo>();
@@ -280,7 +266,7 @@ bool WebAssemblyExplicitLocals::runOnMachineFunction(MachineFunction &MF) {
           BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(Opc), NewReg)
               .addImm(LocalId);
           MI.getOperand(2).setReg(NewReg);
-          MFI.stackifyVReg(NewReg);
+          MFI.stackifyVReg(MRI, NewReg);
         }
 
         // Replace the TEE with a LOCAL_TEE.
@@ -313,6 +299,8 @@ bool WebAssemblyExplicitLocals::runOnMachineFunction(MachineFunction &MF) {
                     .addReg(NewReg);
             // After the drop instruction, this reg operand will not be used
             Drop->getOperand(0).setIsKill();
+            if (MFI.isFrameBaseVirtual() && OldReg == MFI.getFrameBaseVreg())
+              MFI.clearFrameBaseVreg();
           } else {
             unsigned LocalId = getLocalId(Reg2Local, MFI, CurLocal, OldReg);
             unsigned Opc = getLocalSetOpcode(RC);
@@ -328,7 +316,7 @@ bool WebAssemblyExplicitLocals::runOnMachineFunction(MachineFunction &MF) {
           // yet.
           Def.setReg(NewReg);
           Def.setIsDead(false);
-          MFI.stackifyVReg(NewReg);
+          MFI.stackifyVReg(MRI, NewReg);
           Changed = true;
         }
       }
@@ -380,7 +368,7 @@ bool WebAssemblyExplicitLocals::runOnMachineFunction(MachineFunction &MF) {
             BuildMI(MBB, InsertPt, MI.getDebugLoc(), TII->get(Opc), NewReg)
                 .addImm(LocalId);
         MO.setReg(NewReg);
-        MFI.stackifyVReg(NewReg);
+        MFI.stackifyVReg(MRI, NewReg);
         Changed = true;
       }
 

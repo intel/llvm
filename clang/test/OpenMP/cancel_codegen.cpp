@@ -10,13 +10,26 @@
 // RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=45 -x c++ -std=c++11 -triple x86_64-apple-darwin13.4.0 -emit-pch -o %t %s
 // RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=45 -std=c++11 -include-pch %t -fsyntax-only -verify %s -triple x86_64-apple-darwin13.4.0 -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY0 %s
 // SIMD-ONLY0-NOT: {{__kmpc|__tgt}}
+
+// RUN: %clang_cc1 -verify -fopenmp -triple x86_64-apple-darwin13.4.0 -emit-llvm -o - %s | FileCheck %s --check-prefixes=ALL,CHECK
+// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple x86_64-apple-darwin13.4.0 -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp -std=c++11 -include-pch %t -fsyntax-only -verify %s -triple x86_64-apple-darwin13.4.0 -emit-llvm -o - | FileCheck %s --check-prefixes=ALL,CHECK
+
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-enable-irbuilder -triple x86_64-apple-darwin13.4.0 -emit-llvm -o - %s | FileCheck %s --check-prefixes=ALL,IRBUILDER
+// RUN: %clang_cc1 -fopenmp -fopenmp-enable-irbuilder -x c++ -std=c++11 -triple x86_64-apple-darwin13.4.0 -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp -fopenmp-enable-irbuilder -std=c++11 -include-pch %t -fsyntax-only -verify %s -triple x86_64-apple-darwin13.4.0 -emit-llvm -o - | FileCheck %s --check-prefixes=ALL,IRBUILDER
+
+// RUN: %clang_cc1 -verify -fopenmp-simd -triple x86_64-apple-darwin13.4.0 -emit-llvm -o - %s | FileCheck --check-prefix SIMD-ONLY0 %s
+// RUN: %clang_cc1 -fopenmp-simd -x c++ -std=c++11 -triple x86_64-apple-darwin13.4.0 -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp-simd -std=c++11 -include-pch %t -fsyntax-only -verify %s -triple x86_64-apple-darwin13.4.0 -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY0 %s
+// SIMD-ONLY0-NOT: {{__kmpc|__tgt}}
+
 // expected-no-diagnostics
 #ifndef HEADER
 #define HEADER
 
 float flag;
 int main (int argc, char **argv) {
-// ALL: [[GTID:%.+]] = call i32 @__kmpc_global_thread_num(
 #pragma omp parallel
 {
 #pragma omp cancel parallel if(flag)
@@ -42,14 +55,14 @@ int main (int argc, char **argv) {
   }
 }
 // ALL: call void @__kmpc_for_static_init_4(
-// ALL: [[RES:%.+]] = call i32 @__kmpc_cancel(%struct.ident_t* {{[^,]+}}, i32 [[GTID]], i32 3)
+// ALL: [[RES:%.+]] = call i32 @__kmpc_cancel(%struct.ident_t* {{[^,]+}}, i32 [[GTID:%.*]], i32 3)
 // ALL: [[CMP:%.+]] = icmp ne i32 [[RES]], 0
 // ALL: br i1 [[CMP]], label %[[EXIT:[^,].+]], label %[[CONTINUE:.+]]
 // ALL: [[EXIT]]
 // ALL: br label
 // ALL: [[CONTINUE]]
 // ALL: br label
-// ALL: [[RES:%.+]] = call i32 @__kmpc_cancel(%struct.ident_t* {{[^,]+}}, i32 [[GTID]], i32 3)
+// ALL: [[RES:%.+]] = call i32 @__kmpc_cancel(%struct.ident_t* {{[^,]+}}, i32 [[GTID:%.*]], i32 3)
 // ALL: [[CMP:%.+]] = icmp ne i32 [[RES]], 0
 // ALL: br i1 [[CMP]], label %[[EXIT:[^,].+]], label %[[CONTINUE:.+]]
 // ALL: [[EXIT]]
@@ -66,7 +79,7 @@ for (int i = 0; i < argc; ++i) {
 // ALL: [[BOOL:%.+]] = fcmp une float [[FLAG]], 0.000000e+00
 // ALL: br i1 [[BOOL]], label %[[THEN:[^,]+]], label %[[ELSE:[^,]+]]
 // ALL: [[THEN]]
-// ALL: [[RES:%.+]] = call i32 @__kmpc_cancel(%struct.ident_t* {{[^,]+}}, i32 [[GTID]], i32 2)
+// ALL: [[RES:%.+]] = call i32 @__kmpc_cancel(%struct.ident_t* {{[^,]+}}, i32 [[GTID:%.*]], i32 2)
 // ALL: [[CMP:%.+]] = icmp ne i32 [[RES]], 0
 // ALL: br i1 [[CMP]], label %[[EXIT:[^,].+]], label %[[CONTINUE:.+]]
 // ALL: [[EXIT]]
@@ -148,7 +161,7 @@ for (int i = 0; i < argc; ++i) {
 // CHECK: br label
 // CHECK: [[CONTINUE]]
 // CHECK: br label
-// CHECK: [[RES:%.+]] = call i32 @__kmpc_cancel(%struct.ident_t* {{[^,]+}}, i32 [[GTID]], i32 3)
+// CHECK: [[RES:%.+]] = call i32 @__kmpc_cancel(%struct.ident_t* {{[^,]+}}, i32 [[GTID:%.*]], i32 3)
 // CHECK: [[CMP:%.+]] = icmp ne i32 [[RES]], 0
 // CHECK: br i1 [[CMP]], label %[[EXIT:[^,].+]], label %[[CONTINUE:.+]]
 // CHECK: [[EXIT]]
@@ -175,7 +188,7 @@ for (int i = 0; i < argc; ++i) {
 
 // IRBUILDER: define internal void @main
 
-// IRBUILDER: [[RETURN:omp.par.exit[^:]*]]
+// IRBUILDER: [[RETURN:omp.par.outlined.exit[^:]*]]
 // IRBUILDER-NEXT: ret void
 // IRBUILDER: [[FLAG:%.+]] = load float, float* @{{.+}},
 
@@ -192,10 +205,8 @@ for (int i = 0; i < argc; ++i) {
 // IRBUILDER: [[CMP:%.+]] = icmp eq i32 [[RES]], 0
 // IRBUILDER: br i1 [[CMP]], label %[[CONTINUE:[^,].+]], label %[[EXIT:.+]]
 // IRBUILDER: [[EXIT]]
-// IRBUILDER: br label %[[EXIT2:.+]]
-// IRBUILDER: [[CONTINUE]]
-// IRBUILDER: br label %[[ELSE:.+]]
-// IRBUILDER: [[EXIT2]]
 // IRBUILDER: br label %[[RETURN]]
+// IRBUILDER: [[CONTINUE]]
+// IRBUILDER: br label %[[ELSE2:.+]]
 
 #endif

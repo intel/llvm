@@ -246,7 +246,7 @@ func @bar() {
 }
 ```
 
-### Calling Convention for `memref`
+### Calling Convention for Ranked `memref`
 
 Function _arguments_ of `memref` type, ranked or unranked, are _expanded_ into a
 list of arguments of non-aggregate types that the memref descriptor defined
@@ -317,7 +317,9 @@ llvm.func @bar() {
 
 ```
 
-For **unranked** memrefs, the list of function arguments always contains two
+### Calling Convention for Unranked `memref`
+
+For unranked memrefs, the list of function arguments always contains two
 elements, same as the unranked memref descriptor: an integer rank, and a
 type-erased (`!llvm<"i8*">`) pointer to the ranked memref descriptor. Note that
 while the _calling convention_ does not require stack allocation, _casting_ to
@@ -369,17 +371,33 @@ llvm.func @bar() {
 }
 ```
 
+**Lifetime.** The second element of the unranked memref descriptor points to
+some memory in which the ranked memref descriptor is stored. By convention, this
+memory is allocated on stack and has the lifetime of the function. (*Note:* due
+to function-length lifetime, creation of multiple unranked memref descriptors,
+e.g., in a loop, may lead to stack overflows.) If an unranked descriptor has to
+be returned from a function, the ranked descriptor it points to is copied into
+dynamically allocated memory, and the pointer in the unranked descriptor is
+updated accordingly. The allocation happens immediately before returning. It is
+the responsibility of the caller to free the dynamically allocated memory. The
+default conversion of `std.call` and `std.call_indirect` copies the ranked
+descriptor to newly allocated memory on the caller's stack. Thus, the convention
+of the ranked memref descriptor pointed to by an unranked memref descriptor
+being stored on stack is respected.
+
 *This convention may or may not apply if the conversion of MemRef types is
 overridden by the user.*
 
 ### C-compatible wrapper emission
 
-In practical cases, it may be desirable to have externally-facing functions
-with a single attribute corresponding to a MemRef argument. When interfacing
-with LLVM IR produced from C, the code needs to respect the corresponding
-calling convention. The conversion to the LLVM dialect provides an option to
-generate wrapper functions that take memref descriptors as pointers-to-struct
-compatible with data types produced by Clang when compiling C sources.
+In practical cases, it may be desirable to have externally-facing functions with
+a single attribute corresponding to a MemRef argument. When interfacing with
+LLVM IR produced from C, the code needs to respect the corresponding calling
+convention. The conversion to the LLVM dialect provides an option to generate
+wrapper functions that take memref descriptors as pointers-to-struct compatible
+with data types produced by Clang when compiling C sources. The generation of
+such wrapper functions can additionally be controlled at a function granularity
+by setting the `llvm.emit_c_interface` unit attribute.
 
 More specifically, a memref argument is converted into a pointer-to-struct
 argument of type `{T*, T*, i64, i64[N], i64[N]}*` in the wrapper function, where
@@ -394,7 +412,7 @@ struct MemRefDescriptor {
   T *aligned;
   intptr_t offset;
   intptr_t sizes[N];
-  intptr_t stides[N];
+  intptr_t strides[N];
 };
 ```
 

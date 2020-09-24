@@ -1,12 +1,16 @@
-add_llvm_library(MLIRSPIRVTestPasses
+# Exclude tests from libMLIR.so
+add_mlir_library(MLIRSPIRVTestPasses
   TestAvailability.cpp
+  TestEntryPointAbi.cpp
+
+  EXCLUDE_FROM_LIBMLIR
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/SPIRV
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/IR
-  )
 
-target_link_libraries(MLIRSPIRVTestPasses PRIVATE
+  LINK_LIBS PUBLIC
+  MLIRGPU
   MLIRIR
   MLIRPass
   MLIRSPIRV

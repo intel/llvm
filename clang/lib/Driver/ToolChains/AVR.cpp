@@ -79,8 +79,6 @@ AVRToolChain::AVRToolChain(const Driver &D, const llvm::Triple &Triple,
 
         getFilePaths().push_back(LibcRoot + std::string("/lib/") +
                                  std::string(*FamilyName));
-        getFilePaths().push_back(LibcRoot + std::string("/lib/") +
-                                 std::string(*FamilyName));
         getFilePaths().push_back(GCCRoot + std::string("/") +
                                  std::string(*FamilyName));
 
@@ -144,8 +142,9 @@ void AVR::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(Args.MakeArgString(std::string("-m") + *FamilyName));
   }
 
-  C.addCommand(std::make_unique<Command>(JA, *this, Args.MakeArgString(Linker),
-                                          CmdArgs, Inputs));
+  C.addCommand(
+      std::make_unique<Command>(JA, *this, ResponseFileSupport::AtFileCurCP(),
+                                Args.MakeArgString(Linker), CmdArgs, Inputs));
 }
 
 llvm::Optional<std::string> AVRToolChain::findAVRLibcInstallation() const {

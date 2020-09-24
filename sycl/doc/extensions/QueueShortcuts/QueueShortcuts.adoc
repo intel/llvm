@@ -19,3 +19,6 @@ Note: These simplifications do not depend on queue order properties.  They apply
 include::queue.hpp[]
 ----
 
+Overloads 4-12 shall support generic lambda as the kernel argument. For overloads 4-9 the generic argument is the `item` with the same dimensions that `range` argument has. For overloads 10-12 the generic argument is the `nd_item` with the same dimensions that `nd_range` argument has.
+
+Overloads 4-6 shall support number or `braced-init-list` as the `range` argument.

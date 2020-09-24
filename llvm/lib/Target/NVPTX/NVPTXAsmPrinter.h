@@ -32,7 +32,7 @@
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
-#include "llvm/PassAnalysisSupport.h"
+#include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -200,6 +200,7 @@ private:
   const Function *F;
   std::string CurrentFnName;
 
+  void emitStartOfAsmFile(Module &M) override;
   void emitBasicBlockStart(const MachineBasicBlock &MBB) override;
   void emitFunctionEntryLabel() override;
   void emitFunctionBodyStart() override;

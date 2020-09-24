@@ -540,6 +540,11 @@ public:
   /// GCC goes to extra lengths here to be a bit more robust.
   std::string GetTemporaryPath(StringRef Prefix, StringRef Suffix) const;
 
+  /// GetUniquePath = Return the pathname of a unique file to use
+  /// as part of compilation. The file will have the given base name (BaseName)
+  /// and extension (Ext).
+  std::string GetUniquePath(StringRef BaseName, StringRef Ext) const;
+
   /// GetTemporaryDirectory - Return the pathname of a temporary directory to
   /// use as part of compilation; the directory will have the given prefix.
   std::string GetTemporaryDirectory(StringRef Prefix) const;
@@ -554,6 +559,9 @@ public:
   /// ShouldUseFlangCompiler - Should the flang compiler be used to
   /// handle this action.
   bool ShouldUseFlangCompiler(const JobAction &JA) const;
+
+  /// ShouldEmitStaticLibrary - Should the linker emit a static library.
+  bool ShouldEmitStaticLibrary(const llvm::opt::ArgList &Args) const;
 
   /// Returns true if we are performing any kind of LTO.
   bool isUsingLTO() const { return LTOMode != LTOK_None; }
@@ -630,6 +638,9 @@ private:
   bool checkForOffloadStaticLib(Compilation &C,
                                 llvm::opt::DerivedArgList &Args) const;
 
+  /// Track filename used for the FPGA dependency info.
+  mutable llvm::StringMap<const std::string> FPGATempDepFiles;
+
 public:
   /// GetReleaseVersion - Parse (([0-9]+)(.([0-9]+)(.([0-9]+)?))?)? and
   /// return the grouped values as integers. Numbers which are not
@@ -650,9 +661,22 @@ public:
   static bool GetReleaseVersion(StringRef Str,
                                 MutableArrayRef<unsigned> Digits);
   /// Compute the default -fmodule-cache-path.
-  static void getDefaultModuleCachePath(SmallVectorImpl<char> &Result);
+  /// \return True if the system provides a default cache directory.
+  static bool getDefaultModuleCachePath(SmallVectorImpl<char> &Result);
 
   bool getOffloadStaticLibSeen() const { return OffloadStaticLibSeen; };
+
+  /// addFPGATempDepFile - Add a file to be added to the bundling step of
+  /// an FPGA object.
+  void addFPGATempDepFile(const std::string &DepName,
+                          const std::string &FileName) const {
+    FPGATempDepFiles.insert({FileName, DepName});
+  }
+  /// getFPGATempDepFile - Get a file to be added to the bundling step of
+  /// an FPGA object.
+  const std::string getFPGATempDepFile(const std::string &FileName) const {
+    return FPGATempDepFiles[FileName];
+  }
 };
 
 /// \return True if the last defined optimization level is -Ofast.

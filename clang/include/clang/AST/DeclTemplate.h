@@ -77,7 +77,7 @@ class TemplateParameterList final
 
   /// The number of template parameters in this template
   /// parameter list.
-  unsigned NumParams : 30;
+  unsigned NumParams : 29;
 
   /// Whether this template parameter list contains an unexpanded parameter
   /// pack.
@@ -204,10 +204,6 @@ public:
              bool OmitTemplateKW = false) const;
   void print(raw_ostream &Out, const ASTContext &Context,
              const PrintingPolicy &Policy, bool OmitTemplateKW = false) const;
-
-public:
-  // FIXME: workaround for MSVC 2013; remove when no longer needed
-  using FixedSizeStorageOwner = TrailingObjects::FixedSizeStorageOwner;
 };
 
 /// Stores a list of template parameters and the associated

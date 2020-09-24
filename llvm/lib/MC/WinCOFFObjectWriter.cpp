@@ -34,7 +34,7 @@
 #include "llvm/MC/StringTableBuilder.h"
 #include "llvm/Support/CRC.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/Endian.h"
+#include "llvm/Support/EndianStream.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/MathExtras.h"
@@ -153,6 +153,8 @@ public:
   bool EmitAddrsigSection = false;
   MCSectionCOFF *AddrsigSection;
   std::vector<const MCSymbol *> AddrsigSyms;
+
+  MCSectionCOFF *CGProfileSection = nullptr;
 
   WinCOFFObjectWriter(std::unique_ptr<MCWinCOFFObjectTargetWriter> MOTW,
                       raw_pwrite_stream &OS);
@@ -298,8 +300,8 @@ static uint32_t getAlignment(const MCSectionCOFF &Sec) {
 /// This function takes a section data object from the assembler
 /// and creates the associated COFF section staging object.
 void WinCOFFObjectWriter::defineSection(const MCSectionCOFF &MCSec) {
-  COFFSection *Section = createSection(MCSec.getSectionName());
-  COFFSymbol *Symbol = createSymbol(MCSec.getSectionName());
+  COFFSection *Section = createSection(MCSec.getName());
+  COFFSymbol *Symbol = createSymbol(MCSec.getName());
   Section->Symbol = Symbol;
   Symbol->Section = Section;
   Symbol->Data.StorageClass = COFF::IMAGE_SYM_CLASS_STATIC;
@@ -373,6 +375,7 @@ void WinCOFFObjectWriter::DefineSymbol(const MCSymbol &MCSym,
   COFFSymbol *Local = nullptr;
   if (cast<MCSymbolCOFF>(MCSym).isWeakExternal()) {
     Sym->Data.StorageClass = COFF::IMAGE_SYM_CLASS_WEAK_EXTERNAL;
+    Sym->Section = nullptr;
 
     COFFSymbol *WeakDefault = getLinkedSymbol(MCSym);
     if (!WeakDefault) {
@@ -672,6 +675,13 @@ void WinCOFFObjectWriter::executePostLayoutBinding(MCAssembler &Asm,
         ".llvm_addrsig", COFF::IMAGE_SCN_LNK_REMOVE,
         SectionKind::getMetadata());
     Asm.registerSection(*AddrsigSection);
+  }
+
+  if (!Asm.CGProfile.empty()) {
+    CGProfileSection = Asm.getContext().getCOFFSection(
+        ".llvm.call-graph-profile", COFF::IMAGE_SCN_LNK_REMOVE,
+        SectionKind::getMetadata());
+    Asm.registerSection(*CGProfileSection);
   }
 
   // "Define" each section & symbol. This creates section & symbol
@@ -1063,7 +1073,7 @@ uint64_t WinCOFFObjectWriter::writeObject(MCAssembler &Asm,
     // without a section.
     if (!AssocMCSym->isInSection()) {
       Asm.getContext().reportError(
-          SMLoc(), Twine("cannot make section ") + MCSec.getSectionName() +
+          SMLoc(), Twine("cannot make section ") + MCSec.getName() +
                        Twine(" associative with sectionless symbol ") +
                        AssocMCSym->getName());
       continue;
@@ -1096,6 +1106,20 @@ uint64_t WinCOFFObjectWriter::writeObject(MCAssembler &Asm,
              "Section must already have been defined in "
              "executePostLayoutBinding!");
       encodeULEB128(SectionMap[TargetSection]->Symbol->getIndex(), OS);
+    }
+  }
+
+  // Create the contents of the .llvm.call-graph-profile section.
+  if (CGProfileSection) {
+    auto *Frag = new MCDataFragment(CGProfileSection);
+    Frag->setLayoutOrder(0);
+    raw_svector_ostream OS(Frag->getContents());
+    for (const MCAssembler::CGProfileEntry &CGPE : Asm.CGProfile) {
+      uint32_t FromIndex = CGPE.From->getSymbol().getIndex();
+      uint32_t ToIndex = CGPE.To->getSymbol().getIndex();
+      support::endian::write(OS, FromIndex, W.Endian);
+      support::endian::write(OS, ToIndex, W.Endian);
+      support::endian::write(OS, CGPE.Count, W.Endian);
     }
   }
 

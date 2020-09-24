@@ -224,6 +224,41 @@ let Class = DependentSizedExtVectorType in {
   }]>;
 }
 
+let Class = MatrixType in {
+  def : Property<"elementType", QualType> {
+    let Read = [{ node->getElementType() }];
+  }
+}
+
+let Class = ConstantMatrixType in {
+  def : Property<"numRows", UInt32> {
+    let Read = [{ node->getNumRows() }];
+  }
+  def : Property<"numColumns", UInt32> {
+    let Read = [{ node->getNumColumns() }];
+  }
+
+  def : Creator<[{
+    return ctx.getConstantMatrixType(elementType, numRows, numColumns);
+  }]>;
+}
+
+let Class = DependentSizedMatrixType in {
+  def : Property<"rows", ExprRef> {
+    let Read = [{ node->getRowExpr() }];
+  }
+  def : Property<"columns", ExprRef> {
+    let Read = [{ node->getColumnExpr() }];
+  }
+  def : Property<"attributeLoc", SourceLocation> {
+    let Read = [{ node->getAttributeLoc() }];
+  }
+
+  def : Creator<[{
+    return ctx.getDependentSizedMatrixType(elementType, rows, columns, attributeLoc);
+  }]>;
+}
+
 let Class = FunctionType in {
   def : Property<"returnType", QualType> {
     let Read = [{ node->getReturnType() }];
@@ -687,7 +722,8 @@ let Class = PackExpansionType in {
   }
 
   def : Creator<[{
-    return ctx.getPackExpansionType(pattern, numExpansions);
+    return ctx.getPackExpansionType(pattern, numExpansions,
+                                    /*ExpectPackInType*/false);
   }]>;
 }
 
@@ -715,6 +751,12 @@ let Class = BuiltinType in {
       switch (kind) {
 #define IMAGE_TYPE(IMGTYPE, ID, SINGLETON_ID, ACCESS, SUFFIX) \
       case BuiltinType::ID: return ctx.SINGLETON_ID;
+#include "clang/Basic/OpenCLImageTypes.def"
+
+#define IMAGE_TYPE(IMGTYPE, ID, SINGLETON_ID, ACCESS, SUFFIX) \
+      case BuiltinType::Sampled##ID: return ctx.Sampled##SINGLETON_ID;
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
 #include "clang/Basic/OpenCLImageTypes.def"
 
 #define EXT_OPAQUE_TYPE(EXTTYPE, ID, EXT) \
@@ -831,5 +873,30 @@ let Class = PipeType in {
 
   def : Creator<[{
     return ctx.getPipeType(elementType, isReadOnly);
+  }]>;
+}
+
+let Class = ExtIntType in {
+  def : Property<"isUnsigned", Bool> {
+    let Read = [{ node->isUnsigned() }];
+  }
+  def : Property <"numBits", UInt32> {
+    let Read = [{ node->getNumBits() }];
+  }
+
+  def : Creator<[{
+    return ctx.getExtIntType(isUnsigned, numBits);
+  }]>;
+}
+
+let Class = DependentExtIntType in {
+  def : Property<"isUnsigned", Bool> {
+    let Read = [{ node->isUnsigned() }];
+  }
+  def : Property <"numBitsExpr", ExprRef> {
+    let Read = [{ node->getNumBitsExpr() }];
+  }
+  def : Creator<[{
+    return ctx.getDependentExtIntType(isUnsigned, numBitsExpr);
   }]>;
 }

@@ -136,6 +136,10 @@ typedef unsigned int kmp_hwloc_depth_t;
 #include "ompt-internal.h"
 #endif
 
+#ifndef UNLIKELY
+#define UNLIKELY(x) (x)
+#endif
+
 // Affinity format function
 #include "kmp_str.h"
 
@@ -1112,9 +1116,6 @@ extern kmp_uint64 __kmp_now_nsec();
 #if KMP_OS_WINDOWS
 #define KMP_INIT_WAIT 64U /* initial number of spin-tests   */
 #define KMP_NEXT_WAIT 32U /* susequent number of spin-tests */
-#elif KMP_OS_CNK
-#define KMP_INIT_WAIT 16U /* initial number of spin-tests   */
-#define KMP_NEXT_WAIT 8U /* susequent number of spin-tests */
 #elif KMP_OS_LINUX
 #define KMP_INIT_WAIT 1024U /* initial number of spin-tests   */
 #define KMP_NEXT_WAIT 512U /* susequent number of spin-tests */
@@ -1548,7 +1549,7 @@ typedef struct KMP_ALIGN_CACHE dispatch_private_info32 {
   kmp_int32 tc;
   kmp_int32 static_steal_counter; /* for static_steal only; maybe better to put
                                      after ub */
-
+  kmp_lock_t *th_steal_lock; // lock used for chunk stealing
   // KMP_ALIGN( 16 ) ensures ( if the KMP_ALIGN macro is turned on )
   //    a) parm3 is properly aligned and
   //    b) all parm1-4 are in the same cache line.
@@ -1581,7 +1582,7 @@ typedef struct KMP_ALIGN_CACHE dispatch_private_info64 {
   kmp_int64 tc; /* trip count (number of iterations) */
   kmp_int64 static_steal_counter; /* for static_steal only; maybe better to put
                                      after ub */
-
+  kmp_lock_t *th_steal_lock; // lock used for chunk stealing
   /* parm[1-4] are used in different ways by different scheduling algorithms */
 
   // KMP_ALIGN( 32 ) ensures ( if the KMP_ALIGN macro is turned on )
@@ -1722,11 +1723,7 @@ typedef struct kmp_disp {
   kmp_int32 th_disp_index;
   kmp_int32 th_doacross_buf_idx; // thread's doacross buffer index
   volatile kmp_uint32 *th_doacross_flags; // pointer to shared array of flags
-  union { // we can use union here because doacross cannot be used in
-    // nonmonotonic loops
-    kmp_int64 *th_doacross_info; // info on loop bounds
-    kmp_lock_t *th_steal_lock; // lock used for chunk stealing (8-byte variable)
-  };
+  kmp_int64 *th_doacross_info; // info on loop bounds
 #if KMP_USE_INTERNODE_ALIGNMENT
   char more_padding[INTERNODE_CACHE_LINE];
 #endif
@@ -2435,10 +2432,10 @@ typedef struct KMP_ALIGN_CACHE kmp_base_info {
   int th_teams_level; /* save initial level of teams construct */
 /* it is 0 on device but may be any on host */
 
-/* The blocktime info is copied from the team struct to the thread sruct */
-/* at the start of a barrier, and the values stored in the team are used */
-/* at points in the code where the team struct is no longer guaranteed   */
-/* to exist (from the POV of worker threads).                            */
+/* The blocktime info is copied from the team struct to the thread struct */
+/* at the start of a barrier, and the values stored in the team are used  */
+/* at points in the code where the team struct is no longer guaranteed    */
+/* to exist (from the POV of worker threads).                             */
 #if KMP_USE_MONITOR
   int th_team_bt_intervals;
   int th_team_bt_set;
@@ -3082,6 +3079,11 @@ static inline kmp_team_t *__kmp_team_from_gtid(int gtid) {
   return __kmp_threads[gtid]->th.th_team;
 }
 
+static inline void __kmp_assert_valid_gtid(kmp_int32 gtid) {
+  if (UNLIKELY(gtid < 0 || gtid >= __kmp_threads_capacity))
+    KMP_FATAL(ThreadIdentInvalid);
+}
+
 /* ------------------------------------------------------------------------- */
 
 extern kmp_global_t __kmp_global; /* global status */
@@ -3463,13 +3465,7 @@ enum fork_context_e {
 extern int __kmp_fork_call(ident_t *loc, int gtid,
                            enum fork_context_e fork_context, kmp_int32 argc,
                            microtask_t microtask, launch_t invoker,
-/* TODO: revert workaround for Intel(R) 64 tracker #96 */
-#if (KMP_ARCH_ARM || KMP_ARCH_X86_64 || KMP_ARCH_AARCH64) && KMP_OS_LINUX
-                           va_list *ap
-#else
-                           va_list ap
-#endif
-                           );
+                           kmp_va_list ap);
 
 extern void __kmp_join_call(ident_t *loc, int gtid
 #if OMPT_SUPPORT

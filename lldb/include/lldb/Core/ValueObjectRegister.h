@@ -36,7 +36,7 @@ public:
                                     lldb::RegisterContextSP &reg_ctx_sp,
                                     uint32_t set_idx);
 
-  uint64_t GetByteSize() override;
+  llvm::Optional<uint64_t> GetByteSize() override;
 
   lldb::ValueType GetValueType() const override {
     return lldb::eValueTypeRegisterSet;
@@ -73,7 +73,9 @@ private:
                          lldb::RegisterContextSP &reg_ctx_sp, uint32_t set_idx);
 
   // For ValueObject only
-  DISALLOW_COPY_AND_ASSIGN(ValueObjectRegisterSet);
+  ValueObjectRegisterSet(const ValueObjectRegisterSet &) = delete;
+  const ValueObjectRegisterSet &
+  operator=(const ValueObjectRegisterSet &) = delete;
 };
 
 class ValueObjectRegister : public ValueObject {
@@ -84,7 +86,7 @@ public:
                                     lldb::RegisterContextSP &reg_ctx_sp,
                                     uint32_t reg_num);
 
-  uint64_t GetByteSize() override;
+  llvm::Optional<uint64_t> GetByteSize() override;
 
   lldb::ValueType GetValueType() const override {
     return lldb::eValueTypeRegister;
@@ -128,7 +130,8 @@ private:
                       lldb::RegisterContextSP &reg_ctx_sp, uint32_t reg_num);
 
   // For ValueObject only
-  DISALLOW_COPY_AND_ASSIGN(ValueObjectRegister);
+  ValueObjectRegister(const ValueObjectRegister &) = delete;
+  const ValueObjectRegister &operator=(const ValueObjectRegister &) = delete;
 };
 
 } // namespace lldb_private

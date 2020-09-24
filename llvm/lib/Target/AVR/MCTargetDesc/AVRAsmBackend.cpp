@@ -13,12 +13,12 @@
 #include "MCTargetDesc/AVRAsmBackend.h"
 #include "MCTargetDesc/AVRFixupKinds.h"
 #include "MCTargetDesc/AVRMCTargetDesc.h"
-
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCDirectives.h"
 #include "llvm/MC/MCELFObjectWriter.h"
+#include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCFixupKindInfo.h"
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCSubtargetInfo.h"
@@ -91,8 +91,6 @@ static void adjustRelativeBranch(unsigned Size, const MCFixup &Fixup,
   // one.
   signed_width(Size + 1, Value, std::string("branch target"), Fixup, Ctx);
 
-  Value -= 2;
-
   // Rightshifts the value by one.
   AVR::fixups::adjustBranchTarget(Value);
 }
@@ -139,6 +137,18 @@ static void fixup_13_pcrel(unsigned Size, const MCFixup &Fixup, uint64_t &Value,
 
   // Because the value may be negative, we must mask out the sign bits
   Value &= 0xfff;
+}
+
+/// 6-bit fixup for the immediate operand of the STD/LDD family of
+/// instructions.
+///
+/// Resolves to:
+/// 10q0 qq10 0000 1qqq
+static void fixup_6(const MCFixup &Fixup, uint64_t &Value,
+                    MCContext *Ctx = nullptr) {
+  unsigned_width(6, Value, std::string("immediate"), Fixup, Ctx);
+
+  Value = ((Value & 0x20) << 8) | ((Value & 0x18) << 7) | (Value & 0x07);
 }
 
 /// 6-bit fixup for the immediate operand of the ADIW family of
@@ -237,27 +247,6 @@ void AVRAsmBackend::adjustFixupValue(const MCFixup &Fixup,
   uint64_t Size = AVRAsmBackend::getFixupKindInfo(Fixup.getKind()).TargetSize;
 
   unsigned Kind = Fixup.getKind();
-
-  // Parsed LLVM-generated temporary labels are already
-  // adjusted for instruction size, but normal labels aren't.
-  //
-  // To handle both cases, we simply un-adjust the temporary label
-  // case so it acts like all other labels.
-  if (const MCSymbolRefExpr *A = Target.getSymA()) {
-    if (A->getSymbol().isTemporary()) {
-      switch (Kind) {
-      case FK_Data_1:
-      case FK_Data_2:
-      case FK_Data_4:
-      case FK_Data_8:
-        // Don't shift value for absolute addresses.
-        break;
-      default:
-        Value += 2;
-      }
-    }
-  }
-
   switch (Kind) {
   default:
     llvm_unreachable("unhandled fixup");
@@ -336,6 +325,9 @@ void AVRAsmBackend::adjustFixupValue(const MCFixup &Fixup,
     Value &= 0xffff;
     break;
 
+  case AVR::fixup_6:
+    adjust::fixup_6(Fixup, Value, Ctx);
+    break;
   case AVR::fixup_6_adiw:
     adjust::fixup_6_adiw(Fixup, Value, Ctx);
     break;

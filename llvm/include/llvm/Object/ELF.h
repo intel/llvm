@@ -48,6 +48,13 @@ static inline Error createError(const Twine &Err) {
   return make_error<StringError>(Err, object_error::parse_failed);
 }
 
+enum PPCInstrMasks : uint64_t {
+  PADDI_R12_NO_DISP = 0x0610000039800000,
+  PLD_R12_NO_DISP = 0x04100000E5800000,
+  MTCTR_R12 = 0x7D8903A6,
+  BCTR = 0x4E800420,
+};
+
 template <class ELFT> class ELFFile;
 
 template <class ELFT>
@@ -61,6 +68,17 @@ std::string getSecIndexForError(const ELFFile<ELFT> *Obj,
   // our code should have called 'sections()' and reported a proper error on
   // failure.
   llvm::consumeError(TableOrErr.takeError());
+  return "[unknown index]";
+}
+
+template <class ELFT>
+std::string getPhdrIndexForError(const ELFFile<ELFT> *Obj,
+                                 const typename ELFT::Phdr *Phdr) {
+  auto Headers = Obj->program_headers();
+  if (Headers)
+    return ("[index " + Twine(Phdr - &Headers->front()) + "]").str();
+  // See comment in the getSecIndexForError() above.
+  llvm::consumeError(Headers.takeError());
   return "[unknown index]";
 }
 
@@ -185,7 +203,7 @@ public:
     return getSectionContentsAsArray<Elf_Relr>(Sec);
   }
 
-  Expected<std::vector<Elf_Rela>> decode_relrs(Elf_Relr_Range relrs) const;
+  std::vector<Elf_Rel> decode_relrs(Elf_Relr_Range relrs) const;
 
   Expected<std::vector<Elf_Rela>> android_relas(const Elf_Shdr *Sec) const;
 
@@ -194,16 +212,18 @@ public:
     if (getHeader()->e_phnum && getHeader()->e_phentsize != sizeof(Elf_Phdr))
       return createError("invalid e_phentsize: " +
                          Twine(getHeader()->e_phentsize));
-    if (getHeader()->e_phoff +
-            (getHeader()->e_phnum * getHeader()->e_phentsize) >
-        getBufSize())
+
+    uint64_t HeadersSize =
+        (uint64_t)getHeader()->e_phnum * getHeader()->e_phentsize;
+    uint64_t PhOff = getHeader()->e_phoff;
+    if (PhOff + HeadersSize < PhOff || PhOff + HeadersSize > getBufSize())
       return createError("program headers are longer than binary of size " +
                          Twine(getBufSize()) + ": e_phoff = 0x" +
                          Twine::utohexstr(getHeader()->e_phoff) +
                          ", e_phnum = " + Twine(getHeader()->e_phnum) +
                          ", e_phentsize = " + Twine(getHeader()->e_phentsize));
-    auto *Begin =
-        reinterpret_cast<const Elf_Phdr *>(base() + getHeader()->e_phoff);
+
+    auto *Begin = reinterpret_cast<const Elf_Phdr *>(base() + PhOff);
     return makeArrayRef(Begin, Begin + getHeader()->e_phnum);
   }
 
@@ -299,6 +319,7 @@ public:
   template <typename T>
   Expected<ArrayRef<T>> getSectionContentsAsArray(const Elf_Shdr *Sec) const;
   Expected<ArrayRef<uint8_t>> getSectionContents(const Elf_Shdr *Sec) const;
+  Expected<ArrayRef<uint8_t>> getSegmentContents(const Elf_Phdr *Phdr) const;
 };
 
 using ELF32LEFile = ELFFile<ELF32LE>;
@@ -424,6 +445,26 @@ ELFFile<ELFT>::getSectionContentsAsArray(const Elf_Shdr *Sec) const {
 
 template <class ELFT>
 Expected<ArrayRef<uint8_t>>
+ELFFile<ELFT>::getSegmentContents(const Elf_Phdr *Phdr) const {
+  uintX_t Offset = Phdr->p_offset;
+  uintX_t Size = Phdr->p_filesz;
+
+  if (std::numeric_limits<uintX_t>::max() - Offset < Size)
+    return createError("program header " + getPhdrIndexForError(this, Phdr) +
+                       " has a p_offset (0x" + Twine::utohexstr(Offset) +
+                       ") + p_filesz (0x" + Twine::utohexstr(Size) +
+                       ") that cannot be represented");
+  if (Offset + Size > Buf.size())
+    return createError("program header  " + getPhdrIndexForError(this, Phdr) +
+                       " has a p_offset (0x" + Twine::utohexstr(Offset) +
+                       ") + p_filesz (0x" + Twine::utohexstr(Size) +
+                       ") that is greater than the file size (0x" +
+                       Twine::utohexstr(Buf.size()) + ")");
+  return makeArrayRef(base() + Offset, Size);
+}
+
+template <class ELFT>
+Expected<ArrayRef<uint8_t>>
 ELFFile<ELFT>::getSectionContents(const Elf_Shdr *Sec) const {
   return getSectionContentsAsArray<uint8_t>(Sec);
 }
@@ -484,8 +525,17 @@ Expected<StringRef>
 ELFFile<ELFT>::getSectionStringTable(Elf_Shdr_Range Sections,
                                      WarningHandler WarnHandler) const {
   uint32_t Index = getHeader()->e_shstrndx;
-  if (Index == ELF::SHN_XINDEX)
+  if (Index == ELF::SHN_XINDEX) {
+    // If the section name string table section index is greater than
+    // or equal to SHN_LORESERVE, then the actual index of the section name
+    // string table section is contained in the sh_link field of the section
+    // header at index 0.
+    if (Sections.empty())
+      return createError(
+          "e_shstrndx == SHN_XINDEX, but the section header table is empty");
+
     Index = Sections[0].sh_link;
+  }
 
   if (!Index) // no section string table.
     return "";

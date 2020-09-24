@@ -7,16 +7,18 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/device_binary_image.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/spec_constant_impl.hpp>
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/spec_constant_impl.hpp>
 
+#include <cstdint>
 #include <map>
+#include <memory>
 #include <unordered_map>
 #include <vector>
 
@@ -41,74 +43,56 @@ namespace detail {
 class context_impl;
 using ContextImplPtr = std::shared_ptr<context_impl>;
 class program_impl;
-
-enum DeviceLibExt {
-  cl_intel_devicelib_assert = 0,
+// DeviceLibExt is shared between sycl runtime and sycl-post-link tool.
+// If any update is made here, need to sync with DeviceLibExt definition
+// in llvm/tools/sycl-post-link/sycl-post-link.cpp
+enum class DeviceLibExt : std::uint32_t {
+  cl_intel_devicelib_assert,
   cl_intel_devicelib_math,
   cl_intel_devicelib_math_fp64,
   cl_intel_devicelib_complex,
   cl_intel_devicelib_complex_fp64
 };
 
-// SYCL RT wrapper over PI binary image.
-class RTDeviceBinaryImage : public pi::DeviceBinaryImage {
-public:
-  RTDeviceBinaryImage(OSModuleHandle ModuleHandle)
-      : pi::DeviceBinaryImage(), ModuleHandle(ModuleHandle) {}
-  RTDeviceBinaryImage(pi_device_binary Bin, OSModuleHandle ModuleHandle)
-      : pi::DeviceBinaryImage(Bin), ModuleHandle(ModuleHandle) {}
-  OSModuleHandle getOSModuleHandle() const { return ModuleHandle; }
-
-  ~RTDeviceBinaryImage() override {}
-
-  bool supportsSpecConstants() const {
-    return getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV;
-  }
-
-  const pi_device_binary_struct &getRawData() const { return *get(); }
-
-  void print() const override {
-    pi::DeviceBinaryImage::print();
-    std::cerr << "    OSModuleHandle=" << ModuleHandle << "\n";
-  }
-
-protected:
-  OSModuleHandle ModuleHandle;
-};
-
-// Dynamically allocated device binary image, which de-allocates its binary data
-// in destructor.
-class DynRTDeviceBinaryImage : public RTDeviceBinaryImage {
-public:
-  DynRTDeviceBinaryImage(std::unique_ptr<char[]> &&DataPtr, size_t DataSize,
-                         OSModuleHandle M);
-  ~DynRTDeviceBinaryImage() override;
-
-  void print() const override {
-    RTDeviceBinaryImage::print();
-    std::cerr << "    DYNAMICALLY CREATED\n";
-  }
-
-protected:
-  std::unique_ptr<char[]> Data;
-};
-
 // Provides single loading and building OpenCL programs with unique contexts
 // that is necessary for no interoperability cases with lambda.
 class ProgramManager {
 public:
+  // TODO use a custom dynamic bitset instead to make initialization simpler.
+  using KernelArgMask = std::vector<bool>;
+
   // Returns the single instance of the program manager for the entire
   // process. Can only be called after staticInit is done.
   static ProgramManager &getInstance();
   RTDeviceBinaryImage &getDeviceImage(OSModuleHandle M,
                                       const string_class &KernelName,
-                                      const context &Context);
+                                      const context &Context,
+                                      const device &Device,
+                                      bool JITCompilationIsRequired = false);
   RT::PiProgram createPIProgram(const RTDeviceBinaryImage &Img,
-                                const context &Context);
+                                const context &Context, const device &Device);
+  /// Builds or retrieves from cache a program defining the kernel with given
+  /// name.
+  /// \param M idenfies the OS module the kernel comes from (multiple OS modules
+  ///          may have kernels with the same name)
+  /// \param Context the context to build the program with
+  /// \param Device the device for which the program is built
+  /// \param KernelName the kernel's name
+  /// \param Prg provides build context information, such as
+  ///        current specialization constants settings; can be nullptr.
+  ///        Passing as a raw pointer is OK, since it is not captured anywhere
+  ///        once the function returns.
+  /// \param JITCompilationIsRequired If JITCompilationIsRequired is true
+  ///        add a check that kernel is compiled, otherwise don't add the check.
   RT::PiProgram getBuiltPIProgram(OSModuleHandle M, const context &Context,
-                                  const string_class &KernelName);
-  RT::PiKernel getOrCreateKernel(OSModuleHandle M, const context &Context,
-                                 const string_class &KernelName);
+                                  const device &Device,
+                                  const string_class &KernelName,
+                                  const program_impl *Prg = nullptr,
+                                  bool JITCompilationIsRequired = false);
+  std::pair<RT::PiKernel, std::mutex *>
+  getOrCreateKernel(OSModuleHandle M, const context &Context,
+                    const device &Device, const string_class &KernelName,
+                    const program_impl *Prg);
   RT::PiProgram getPiProgramFromPiKernel(RT::PiKernel Kernel,
                                          const ContextImplPtr Context);
 
@@ -117,12 +101,38 @@ public:
   static string_class getProgramBuildLog(const RT::PiProgram &Program,
                                          const ContextImplPtr Context);
 
-  spec_constant_impl &resolveSpecConstant(const program_impl *P,
-                                          const char *Name);
+  /// Resolves given program to a device binary image and requests the program
+  /// to flush constants the image depends on.
+  /// \param Prg the program object to get spec constant settings from.
+  ///        Passing program_impl by raw reference is OK, since it is not
+  ///        captured anywhere once the function returns.
+  /// \param Device the device assosiated with the native program
+  /// \param NativePrg the native program, target for spec constant setting; if
+  ///        not null then overrides the native program in Prg
+  /// \param Img A source of the information about which constants need
+  ///        setting and symboling->integer spec constnant ID mapping. If not
+  ///        null, overrides native program->binary image binding maintained by
+  ///        the program manager.
+  void flushSpecConstants(const program_impl &Prg, pi::PiDevice Device,
+                          pi::PiProgram NativePrg = nullptr,
+                          const RTDeviceBinaryImage *Img = nullptr);
+  uint32_t getDeviceLibReqMask(const RTDeviceBinaryImage &Img);
 
-  // Takes current values of specialization constants and "injects" them into
-  // the program via specialization constant managemment PI APIs
-  void flushSpecConstants(pi::PiProgram Prg, context_impl &Ctx);
+  /// Returns the mask for eliminated kernel arguments for the requested kernel
+  /// within the native program.
+  /// \param M identifies the OS module the kernel comes from (multiple OS
+  ///        modules may have kernels with the same name).
+  /// \param Context the context associated with the kernel.
+  /// \param Device the device associated with the context.
+  /// \param NativePrg the PI program associated with the kernel.
+  /// \param KernelName the name of the kernel.
+  /// \param KnownProgram indicates whether the PI program is guaranteed to
+  ///        be known to program manager (built with its API) or not (not
+  ///        cacheable or constructed with interoperability).
+  KernelArgMask
+  getEliminatedKernelArgMask(OSModuleHandle M, const context &Context,
+                             const device &Device, pi::PiProgram NativePrg,
+                             const string_class &KernelName, bool KnownProgram);
 
 private:
   ProgramManager();
@@ -131,15 +141,17 @@ private:
   ProgramManager &operator=(ProgramManager const &) = delete;
 
   RTDeviceBinaryImage &getDeviceImage(OSModuleHandle M, KernelSetId KSId,
-                                      const context &Context);
+                                      const context &Context,
+                                      const device &Device,
+                                      bool JITCompilationIsRequired = false);
   using ProgramPtr = unique_ptr_class<remove_pointer_t<RT::PiProgram>,
                                       decltype(&::piProgramRelease)>;
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
                    const string_class &CompileOptions,
-                   const string_class &LinkOptions,
-                   const std::vector<RT::PiDevice> &Devices,
-                   std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms,
-                   bool LinkDeviceLibs = false);
+                   const string_class &LinkOptions, const RT::PiDevice &Device,
+                   std::map<std::pair<DeviceLibExt, RT::PiDevice>,
+                            RT::PiProgram> &CachedLibPrograms,
+                   uint32_t DeviceLibReqMask);
   /// Provides a new kernel set id for grouping kernel names together
   KernelSetId getNextKernelSetId() const;
   /// Returns the kernel set associated with the kernel, handles some special
@@ -148,9 +160,6 @@ private:
                              const string_class &KernelName) const;
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, KernelSetId KSId) const;
-
-  void populateSpecConstRegistryImpl(const RTDeviceBinaryImage &Img);
-  void populateSpecConstRegistry();
 
   /// The three maps below are used during kernel resolution. Any kernel is
   /// identified by its name and the OS module it's coming from, allowing
@@ -187,35 +196,32 @@ private:
   /// Access must be guarded by the \ref Sync::getGlobalLock()
   std::unordered_map<OSModuleHandle, KernelSetId> m_OSModuleKernelSets;
 
-  // Maps specialization constant symbolic name to its integer ID.
-  // NOTE: a key in this map is a pointer into some existing device binary image
-  // and it is invalidated once the encompassing OS module gets unloaded.
-  using SpecConstMapTy =
-      std::unordered_map<const char *, spec_constant_impl, HashCStr, CmpCStr>;
-
-  // Keeps specialization constant map for each operating system module.
-  // The base approach is that there is a global name->id spec constant map for
-  // each OS module. This map is populated from the name->id pairs found in
-  // device binary image upon registration at startup for this OS module.
-  // If multiple images beloning to the same OS module have a specialization
-  // constant with the same name, its corresponding numeric id must also match.
-  // It is modified (populated) once at startup, so no locks are necessary.
-  std::unordered_map<OSModuleHandle, SpecConstMapTy> SpecConstRegistry;
-
   // Keeps track of pi_program to image correspondence. Needed for:
   // - knowing which specialization constants are used in the program and
-  //   injecting their current values before compiling the SPIRV; the binary
+  //   injecting their current values before compiling the SPIR-V; the binary
   //   image object has info about all spec constants used in the module
+  // - finding kernel argument masks for kernels associated with each
+  //   pi_program
   // NOTE: using RTDeviceBinaryImage raw pointers is OK, since they are not
   // referenced from outside SYCL runtime and RTDeviceBinaryImage object
   // lifetime matches program manager's one.
   // NOTE: keys in the map can be invalid (reference count went to zero and
   // the underlying program disposed of), so the map can't be used in any way
   // other than binary image lookup with known live PiProgram as the key.
-  // NOTE: access is synchronized via the same lock as program cache
+  // NOTE: access is synchronized via the MNativeProgramsMutex
   std::unordered_map<pi::PiProgram, const RTDeviceBinaryImage *> NativePrograms;
 
-  /// True iff a SPIRV file has been specified with an environment variable
+  /// Protects NativePrograms that can be changed by class' methods.
+  std::mutex MNativeProgramsMutex;
+
+  using KernelNameToArgMaskMap =
+      std::unordered_map<string_class, KernelArgMask>;
+  /// Maps binary image and kernel name pairs to kernel argument masks which
+  /// specify which arguments were eliminated during device code optimization.
+  std::unordered_map<const RTDeviceBinaryImage *, KernelNameToArgMaskMap>
+      m_EliminatedKernelArgMasks;
+
+  /// True iff a SPIR-V file has been specified with an environment variable
   bool m_UseSpvFile = false;
 };
 } // namespace detail

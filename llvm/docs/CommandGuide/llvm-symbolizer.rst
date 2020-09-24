@@ -147,6 +147,28 @@ Example 4 - CODE and DATA prefixes:
   bar
   6295592 4
 
+Example 5 - path-style options:
+
+This example uses the same source file as above, but the source file's
+full path is /tmp/foo/test.cpp and is compiled as follows. The first case
+shows the default absolute path, the second --basenames, and the third
+shows --relativenames.
+
+.. code-block:: console
+
+  $ pwd
+  /tmp
+  $ clang -g foo/test.cpp -o test.elf
+  $ llvm-symbolizer --obj=test.elf 0x4004a0
+  main
+  /tmp/foo/test.cpp:15:0
+  $ llvm-symbolizer --obj=test.elf 0x4004a0 --basenames
+  main
+  test.cpp:15:0
+  $ llvm-symbolizer --obj=test.elf 0x4004a0 --relativenames
+  main
+  foo/test.cpp:15:0
+
 OPTIONS
 -------
 
@@ -158,8 +180,15 @@ OPTIONS
 
 .. option:: --basenames, -s
 
-  Strip directories when printing the file path.
+  Print just the file's name without any directories, instead of the
+  absolute path.
 
+.. option:: --relativenames
+
+  Print the file's path relative to the compilation directory, instead
+  of the absolute path. If the command-line to the compiler included
+  the full path, this will be the same as the default.
+  
 .. _llvm-symbolizer-opt-C:
 
 .. option:: --demangle, -C
@@ -191,16 +220,16 @@ OPTIONS
 
   Show help and usage for this command.
 
-.. option:: --help-list
-
-  Show help and usage for this command without grouping the options into categories.
-
 .. _llvm-symbolizer-opt-i:
 
 .. option:: --inlining, --inlines, -i
 
   If a source code location is in an inlined function, prints all the inlined
-  frames. Defaults to true.
+  frames. This is the default.
+
+.. option:: --no-inlines
+
+  Don't print inlined frames.
 
 .. option:: --no-demangle
 
@@ -238,17 +267,17 @@ OPTIONS
 
     foo() at /tmp/test.cpp:6:3
 
-    $ llvm-symbolizer --output-style=LLVM --obj=inlined.elf 0x4004be 0x400486 -p -i=0
+    $ llvm-symbolizer --output-style=LLVM --obj=inlined.elf 0x4004be 0x400486 -p --no-inlines
     main at /tmp/test.cpp:11:18
 
     foo() at /tmp/test.cpp:6:3
 
-    $ llvm-symbolizer --output-style=GNU --obj=inlined.elf 0x4004be 0x400486 -p -i=0
+    $ llvm-symbolizer --output-style=GNU --obj=inlined.elf 0x4004be 0x400486 -p --no-inlines
     baz() at /tmp/test.cpp:11
     foo() at /tmp/test.cpp:6
 
     $ clang -g -fdebug-info-for-profiling test.cpp -o profiling.elf
-    $ llvm-symbolizer --output-style=GNU --obj=profiling.elf 0x401167 -p -i=0
+    $ llvm-symbolizer --output-style=GNU --obj=profiling.elf 0x401167 -p --no-inlines
     main at /tmp/test.cpp:15 (discriminator 2)
 
 .. option:: --pretty-print, -p
@@ -317,7 +346,7 @@ OPTIONS
       Line: 15
       Column: 0
 
-.. option:: --version
+.. option:: --version, -v
 
   Print version information for the tool.
 

@@ -34,12 +34,22 @@ VERegisterInfo::VERegisterInfo() : VEGenRegisterInfo(VE::SX10) {}
 
 const MCPhysReg *
 VERegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
-  return CSR_SaveList;
+  switch (MF->getFunction().getCallingConv()) {
+  default:
+    return CSR_SaveList;
+  case CallingConv::PreserveAll:
+    return CSR_preserve_all_SaveList;
+  }
 }
 
 const uint32_t *VERegisterInfo::getCallPreservedMask(const MachineFunction &MF,
                                                      CallingConv::ID CC) const {
-  return CSR_RegMask;
+  switch (CC) {
+  default:
+    return CSR_RegMask;
+  case CallingConv::PreserveAll:
+    return CSR_preserve_all_RegMask;
+  }
 }
 
 const uint32_t *VERegisterInfo::getNoPreservedMask() const {
@@ -75,7 +85,7 @@ BitVector VERegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   return Reserved;
 }
 
-bool VERegisterInfo::isConstantPhysReg(unsigned PhysReg) const { return false; }
+bool VERegisterInfo::isConstantPhysReg(MCRegister PhysReg) const { return false; }
 
 const TargetRegisterClass *
 VERegisterInfo::getPointerRegClass(const MachineFunction &MF,
@@ -85,12 +95,12 @@ VERegisterInfo::getPointerRegClass(const MachineFunction &MF,
 
 static void replaceFI(MachineFunction &MF, MachineBasicBlock::iterator II,
                       MachineInstr &MI, const DebugLoc &dl,
-                      unsigned FIOperandNum, int Offset, unsigned FramePtr) {
+                      unsigned FIOperandNum, int Offset, Register FrameReg) {
   // Replace frame index with a frame pointer reference directly.
   // VE has 32 bit offset field, so no need to expand a target instruction.
   // Directly encode it.
-  MI.getOperand(FIOperandNum).ChangeToRegister(FramePtr, false);
-  MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset);
+  MI.getOperand(FIOperandNum).ChangeToRegister(FrameReg, false);
+  MI.getOperand(FIOperandNum + 2).ChangeToImmediate(Offset);
 }
 
 void VERegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
@@ -104,11 +114,43 @@ void VERegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   MachineFunction &MF = *MI.getParent()->getParent();
   const VEFrameLowering *TFI = getFrameLowering(MF);
 
-  unsigned FrameReg;
+  Register FrameReg;
   int Offset;
   Offset = TFI->getFrameIndexReference(MF, FrameIndex, FrameReg);
 
-  Offset += MI.getOperand(FIOperandNum + 1).getImm();
+  Offset += MI.getOperand(FIOperandNum + 2).getImm();
+
+  if (MI.getOpcode() == VE::STQrii) {
+    const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
+    Register SrcReg = MI.getOperand(3).getReg();
+    Register SrcHiReg = getSubReg(SrcReg, VE::sub_even);
+    Register SrcLoReg = getSubReg(SrcReg, VE::sub_odd);
+    // VE stores HiReg to 8(addr) and LoReg to 0(addr)
+    MachineInstr *StMI = BuildMI(*MI.getParent(), II, dl, TII.get(VE::STrii))
+                             .addReg(FrameReg)
+                             .addImm(0)
+                             .addImm(0)
+                             .addReg(SrcLoReg);
+    replaceFI(MF, II, *StMI, dl, 0, Offset, FrameReg);
+    MI.setDesc(TII.get(VE::STrii));
+    MI.getOperand(3).setReg(SrcHiReg);
+    Offset += 8;
+  } else if (MI.getOpcode() == VE::LDQrii) {
+    const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
+    Register DestReg = MI.getOperand(0).getReg();
+    Register DestHiReg = getSubReg(DestReg, VE::sub_even);
+    Register DestLoReg = getSubReg(DestReg, VE::sub_odd);
+    // VE loads HiReg from 8(addr) and LoReg from 0(addr)
+    MachineInstr *StMI =
+        BuildMI(*MI.getParent(), II, dl, TII.get(VE::LDrii), DestLoReg)
+            .addReg(FrameReg)
+            .addImm(0)
+            .addImm(0);
+    replaceFI(MF, II, *StMI, dl, 1, Offset, FrameReg);
+    MI.setDesc(TII.get(VE::LDrii));
+    MI.getOperand(0).setReg(DestHiReg);
+    Offset += 8;
+  }
 
   replaceFI(MF, II, MI, dl, FIOperandNum, Offset, FrameReg);
 }

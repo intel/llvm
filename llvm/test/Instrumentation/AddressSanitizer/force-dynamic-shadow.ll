@@ -1,7 +1,9 @@
 ; Test -asan-force-dynamic-shadow flag.
 ;
-; RUN: opt -asan -asan-module -S -asan-force-dynamic-shadow=1 < %s | FileCheck %s --check-prefixes=CHECK,CHECK-FDS
-; RUN: opt -asan -asan-module -S -asan-force-dynamic-shadow=0 < %s | FileCheck %s --check-prefixes=CHECK,CHECK-NDS
+; RUN: opt -asan -asan-module -enable-new-pm=0 -S -asan-force-dynamic-shadow=1 < %s | FileCheck %s --check-prefixes=CHECK,CHECK-FDS
+; RUN: opt -passes='asan-pipeline' -S -asan-force-dynamic-shadow=1 < %s | FileCheck %s --check-prefixes=CHECK,CHECK-FDS
+; RUN: opt -asan -asan-module -enable-new-pm=0 -S -asan-force-dynamic-shadow=0 < %s | FileCheck %s --check-prefixes=CHECK,CHECK-NDS
+; RUN: opt -passes='asan-pipeline' -S -asan-force-dynamic-shadow=0 < %s | FileCheck %s --check-prefixes=CHECK,CHECK-NDS
 
 target triple = "x86_64-unknown-linux-gnu"
 
@@ -14,7 +16,7 @@ define i32 @test_load(i32* %a) sanitize_address {
 ; CHECK-NDS-NOT: __asan_shadow_memory_dynamic_address
 
 ; Shadow address is loaded and added into the whole offset computation.
-; CHECK-FDS add i64 %{{.*}}, %[[SHADOW] ]
+; CHECK-FDS: add i64 %{{.*}}, %[[SHADOW]]
 
 entry:
   %tmp1 = load i32, i32* %a, align 4

@@ -38,7 +38,6 @@ void llvm::initializeScalarOpts(PassRegistry &Registry) {
   initializeAlignmentFromAssumptionsPass(Registry);
   initializeCallSiteSplittingLegacyPassPass(Registry);
   initializeConstantHoistingLegacyPassPass(Registry);
-  initializeConstantPropagationPass(Registry);
   initializeCorrelatedValuePropagationPass(Registry);
   initializeDCELegacyPassPass(Registry);
   initializeDeadInstEliminationPass(Registry);
@@ -83,6 +82,7 @@ void llvm::initializeScalarOpts(PassRegistry &Registry) {
   initializeLowerExpectIntrinsicPass(Registry);
   initializeLowerGuardIntrinsicLegacyPassPass(Registry);
   initializeLowerMatrixIntrinsicsLegacyPassPass(Registry);
+  initializeLowerMatrixIntrinsicsMinimalLegacyPassPass(Registry);
   initializeLowerWidenableConditionLegacyPassPass(Registry);
   initializeMemCpyOptLegacyPassPass(Registry);
   initializeMergeICmpsLegacyPassPass(Registry);
@@ -109,7 +109,7 @@ void llvm::initializeScalarOpts(PassRegistry &Registry) {
   initializeLoopDistributeLegacyPass(Registry);
   initializeLoopLoadEliminationPass(Registry);
   initializeLoopSimplifyCFGLegacyPassPass(Registry);
-  initializeLoopVersioningPassPass(Registry);
+  initializeLoopVersioningLegacyPassPass(Registry);
   initializeEntryExitInstrumenterPass(Registry);
   initializePostInlineEntryExitInstrumenterPass(Registry);
 }
@@ -139,7 +139,7 @@ void LLVMAddAlignmentFromAssumptionsPass(LLVMPassManagerRef PM) {
 }
 
 void LLVMAddCFGSimplificationPass(LLVMPassManagerRef PM) {
-  unwrap(PM)->add(createCFGSimplificationPass(1, false, false, true));
+  unwrap(PM)->add(createCFGSimplificationPass());
 }
 
 void LLVMAddDeadStoreEliminationPass(LLVMPassManagerRef PM) {
@@ -164,6 +164,10 @@ void LLVMAddMergedLoadStoreMotionPass(LLVMPassManagerRef PM) {
 
 void LLVMAddIndVarSimplifyPass(LLVMPassManagerRef PM) {
   unwrap(PM)->add(createIndVarSimplifyPass());
+}
+
+void LLVMAddInstructionSimplifyPass(LLVMPassManagerRef PM) {
+  unwrap(PM)->add(createInstSimplifyLegacyPass());
 }
 
 void LLVMAddJumpThreadingPass(LLVMPassManagerRef PM) {
@@ -245,10 +249,6 @@ void LLVMAddSimplifyLibCallsPass(LLVMPassManagerRef PM) {
 
 void LLVMAddTailCallEliminationPass(LLVMPassManagerRef PM) {
   unwrap(PM)->add(createTailCallEliminationPass());
-}
-
-void LLVMAddConstantPropagationPass(LLVMPassManagerRef PM) {
-  unwrap(PM)->add(createConstantPropagationPass());
 }
 
 void LLVMAddDemoteMemoryToRegisterPass(LLVMPassManagerRef PM) {

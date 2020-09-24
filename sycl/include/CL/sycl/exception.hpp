@@ -25,11 +25,12 @@ class context;
 
 // Derive from std::exception so uncaught exceptions are printed in c++ default
 // exception handler.
+/// \ingroup sycl_api
 class __SYCL_EXPORT exception : public std::exception {
 public:
   exception() = default;
 
-  const char *what() const noexcept final;
+  const char *what() const noexcept final override;
 
   bool has_context() const;
 

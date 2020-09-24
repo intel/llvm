@@ -3229,9 +3229,19 @@ TEST(MemorySanitizer, dlopenFailed) {
 #if !defined(__FreeBSD__) && !defined(__NetBSD__)
 TEST(MemorySanitizer, sched_getaffinity) {
   cpu_set_t mask;
-  int res = sched_getaffinity(getpid(), sizeof(mask), &mask);
-  ASSERT_EQ(0, res);
-  EXPECT_NOT_POISONED(mask);
+  if (sched_getaffinity(getpid(), sizeof(mask), &mask) == 0)
+    EXPECT_NOT_POISONED(mask);
+  else {
+    // The call to sched_getaffinity() may have failed because the Affinity
+    // mask is too small for the number of CPUs on the system (i.e. the
+    // system has more than 1024 CPUs). Allocate a mask large enough for
+    // twice as many CPUs.
+    cpu_set_t *DynAffinity;
+    DynAffinity = CPU_ALLOC(2048);
+    int res = sched_getaffinity(getpid(), CPU_ALLOC_SIZE(2048), DynAffinity);
+    ASSERT_EQ(0, res);
+    EXPECT_NOT_POISONED(*DynAffinity);
+  }
 }
 #endif
 
@@ -3275,11 +3285,9 @@ static void *SmallStackThread_threadfn(void* data) {
 }
 
 #ifdef PTHREAD_STACK_MIN
-# define SMALLSTACKSIZE    PTHREAD_STACK_MIN
-# define SMALLPRESTACKSIZE PTHREAD_STACK_MIN
+constexpr int kThreadStackMin = PTHREAD_STACK_MIN;
 #else
-# define SMALLSTACKSIZE    64 * 1024
-# define SMALLPRESTACKSIZE 16 * 1024
+constexpr int kThreadStackMin = 0;
 #endif
 
 TEST(MemorySanitizer, SmallStackThread) {
@@ -3289,7 +3297,7 @@ TEST(MemorySanitizer, SmallStackThread) {
   int res;
   res = pthread_attr_init(&attr);
   ASSERT_EQ(0, res);
-  res = pthread_attr_setstacksize(&attr, SMALLSTACKSIZE);
+  res = pthread_attr_setstacksize(&attr, std::max(kThreadStackMin, 64 * 1024));
   ASSERT_EQ(0, res);
   res = pthread_create(&t, &attr, SmallStackThread_threadfn, NULL);
   ASSERT_EQ(0, res);
@@ -3306,7 +3314,7 @@ TEST(MemorySanitizer, SmallPreAllocatedStackThread) {
   res = pthread_attr_init(&attr);
   ASSERT_EQ(0, res);
   void *stack;
-  const size_t kStackSize = SMALLPRESTACKSIZE;
+  const size_t kStackSize = std::max(kThreadStackMin, 32 * 1024);
   res = posix_memalign(&stack, 4096, kStackSize);
   ASSERT_EQ(0, res);
   res = pthread_attr_setstack(&attr, stack, kStackSize);

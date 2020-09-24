@@ -29,12 +29,14 @@ def CallOpInterface : OpInterface<"CallOpInterface"> {
     indirect calls to other operations `call_indirect %foo`. An operation that
     uses this interface, must *not* also provide the `CallableOpInterface`.
   }];
+  let cppNamespace = "::mlir";
 
   let methods = [
     InterfaceMethod<[{
         Returns the callee of this call-like operation. A `callee` is either a
         reference to a symbol, via SymbolRefAttr, or a reference to a defined
-        SSA value.
+        SSA value. If the reference is an SSA value, the SSA value corresponds
+        to a region of a lambda-like operation.
       }],
       "CallInterfaceCallable", "getCallableForCallee"
     >,
@@ -50,9 +52,9 @@ def CallOpInterface : OpInterface<"CallOpInterface"> {
       }],
       "Operation *", "resolveCallable", (ins), [{
         // If the callable isn't a value, lookup the symbol reference.
-        CallInterfaceCallable callable = op.getCallableForCallee();
+        CallInterfaceCallable callable = $_op.getCallableForCallee();
         if (auto symbolRef = callable.dyn_cast<SymbolRefAttr>())
-          return SymbolTable::lookupNearestSymbolFrom(op, symbolRef);
+          return SymbolTable::lookupNearestSymbolFrom($_op, symbolRef);
         return callable.get<Value>().getDefiningOp();
       }]
     >,
@@ -69,6 +71,7 @@ def CallableOpInterface : OpInterface<"CallableOpInterface"> {
     `%foo = dialect.create_function(...)`. These operations may only contain a
     single region, or subroutine.
   }];
+  let cppNamespace = "::mlir";
 
   let methods = [
     InterfaceMethod<[{

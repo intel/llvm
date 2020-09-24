@@ -54,8 +54,8 @@ define amdgpu_kernel void @lshr_i64_32(i64 addrspace(1)* %out, i64 addrspace(1)*
 ; after 64-bit shift is split.
 
 ; GCN-LABEL: {{^}}lshr_and_i64_35:
-; GCN: v_mov_b32_e32 v[[ZERO:[0-9]+]], 0{{$}}
-; GCN: buffer_load_dword v[[LO:[0-9]+]]
+; GCN-DAG: v_mov_b32_e32 v[[ZERO:[0-9]+]], 0{{$}}
+; GCN-DAG: buffer_load_dword v[[LO:[0-9]+]]
 ; GCN: v_bfe_u32 v[[BFE:[0-9]+]], v[[LO]], 8, 23
 ; GCN: buffer_store_dwordx2 v{{\[}}[[BFE]]:[[ZERO]]{{\]}}
 define amdgpu_kernel void @lshr_and_i64_35(i64 addrspace(1)* %out, i64 addrspace(1)* %in) {
@@ -304,12 +304,10 @@ bb:
 }
 
 ; GCN-LABEL: {{^}}trunc_shl_vec_vec:
-; GCN-DAG: v_lshlrev_b32_e32 v{{[0-9]+}}, 3, v{{[0-9]+}}
-; GCN-DAG: v_lshlrev_b32_e32 v{{[0-9]+}}, 4, v{{[0-9]+}}
-; GCN-DAG: v_lshlrev_b32_e32 v{{[0-9]+}}, 5, v{{[0-9]+}}
-; GCN-DAG: v_lshlrev_b32_e32 v{{[0-9]+}}, 6, v{{[0-9]+}}
-; GCN-NOT: v_lshl_b64
-; GCN-NOT: v_lshlrev_b64
+; GCN-DAG: v_lshl_b64 v[{{[0-9:]+}}], v[{{[0-9:]+}}], 3
+; GCN-DAG: v_lshl_b64 v[{{[0-9:]+}}], v[{{[0-9:]+}}], 4
+; GCN-DAG: v_lshl_b64 v[{{[0-9:]+}}], v[{{[0-9:]+}}], 5
+; GCN-DAG: v_lshl_b64 v[{{[0-9:]+}}], v[{{[0-9:]+}}], 6
 define amdgpu_kernel void @trunc_shl_vec_vec(<4 x i64> addrspace(1)* %arg) {
 bb:
   %v = load <4 x i64>, <4 x i64> addrspace(1)* %arg, align 32

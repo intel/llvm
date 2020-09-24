@@ -61,6 +61,17 @@ T foo() {
       foo();
     }
   }
+  #pragma omp for ordered
+  for (int i = 0; i < 10; ++i) {
+    #pragma omp ordered // expected-note {{previous 'ordered' directive used here}}
+    {
+      foo();
+    }
+    #pragma omp ordered // expected-error {{exactly one 'ordered' directive must appear in the loop body of an enclosing directive}}
+    {
+      foo();
+    }
+  }
   #pragma omp ordered simd simd // expected-error {{directive '#pragma omp ordered' cannot contain more than one 'simd' clause}}
   {
     foo();
@@ -79,7 +90,18 @@ T foo() {
       foo();
     }
   }
-  #pragma omp for simd
+  #pragma omp simd
+  for (int i = 0; i < 10; ++i) {
+#pragma omp ordered simd // expected-note {{previous 'ordered' directive used here}}
+    {
+      foo();
+    }
+#pragma omp ordered simd // expected-error {{exactly one 'ordered' directive must appear in the loop body of an enclosing directive}}
+    {
+      foo();
+    }
+  }
+#pragma omp for simd
   for (int i = 0; i < 10; ++i) {
     #pragma omp ordered // expected-error {{OpenMP constructs may not be nested inside a simd region}}
     {
@@ -137,7 +159,7 @@ T foo() {
 #pragma omp ordered depend(sink : i, j)
 #pragma omp ordered depend(sink : j, i) // expected-error {{expected 'i' loop iteration variable}} expected-error {{expected 'j' loop iteration variable}}
 #pragma omp ordered depend(sink : i, j, k) // expected-error {{unexpected expression: number of expressions is larger than the number of associated loops}}
-#pragma omp ordered depend(sink : i+foo(), j/4) // expected-error {{expression is not an integral constant expression}} expected-error {{expected '+' or '-' operation}}
+#pragma omp ordered depend(sink : i+foo(), j/4) // expected-error {{integral constant expression}} expected-error {{expected '+' or '-' operation}}
 #if __cplusplus >= 201103L
 // expected-note@-2 {{non-constexpr function 'foo' cannot be used in a constant expression}}
 #endif
@@ -274,7 +296,7 @@ int k;
 #pragma omp ordered depend(sink : i, j) allocate(i) // expected-error {{unexpected OpenMP clause 'allocate' in directive '#pragma omp ordered'}}
 #pragma omp ordered depend(sink : j, i) // expected-error {{expected 'i' loop iteration variable}} expected-error {{expected 'j' loop iteration variable}}
 #pragma omp ordered depend(sink : i, j, k) // expected-error {{unexpected expression: number of expressions is larger than the number of associated loops}}
-#pragma omp ordered depend(sink : i+foo(), j/4) // expected-error {{expression is not an integral constant expression}} expected-error {{expected '+' or '-' operation}}
+#pragma omp ordered depend(sink : i+foo(), j/4) // expected-error {{integral constant expression}} expected-error {{expected '+' or '-' operation}}
 #if __cplusplus >= 201103L
 // expected-note@-2 {{non-constexpr function 'foo' cannot be used in a constant expression}}
 #endif

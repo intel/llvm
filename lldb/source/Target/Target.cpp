@@ -45,6 +45,7 @@
 #include "lldb/Target/Process.h"
 #include "lldb/Target/SectionLoadList.h"
 #include "lldb/Target/StackFrame.h"
+#include "lldb/Target/StackFrameRecognizer.h"
 #include "lldb/Target/SystemRuntime.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Target/ThreadSpec.h"
@@ -94,6 +95,8 @@ Target::Target(Debugger &debugger, const ArchSpec &target_arch,
       m_source_manager_up(), m_stop_hooks(), m_stop_hook_next_id(0),
       m_valid(true), m_suppress_stop_hooks(false),
       m_is_dummy_target(is_dummy_target),
+      m_frame_recognizer_manager_up(
+          std::make_unique<StackFrameRecognizerManager>()),
       m_stats_storage(static_cast<int>(StatisticKind::StatisticMax))
 
 {
@@ -143,6 +146,9 @@ void Target::PrimeFromDummyTarget(Target *target) {
     BreakpointName *new_bp_name = new BreakpointName(*bp_name_entry.second);
     AddBreakpointName(new_bp_name);
   }
+
+  m_frame_recognizer_manager_up = std::make_unique<StackFrameRecognizerManager>(
+      *target->m_frame_recognizer_manager_up);
 }
 
 void Target::Dump(Stream *s, lldb::DescriptionLevel description_level) {
@@ -2401,21 +2407,13 @@ lldb::addr_t Target::GetPersistentSymbol(ConstString name) {
 
 llvm::Expected<lldb_private::Address> Target::GetEntryPointAddress() {
   Module *exe_module = GetExecutableModulePointer();
-  llvm::Error error = llvm::Error::success();
-  assert(!error); // Check the success value when assertions are enabled.
 
-  if (!exe_module || !exe_module->GetObjectFile()) {
-    error = llvm::make_error<llvm::StringError>("No primary executable found",
-                                                llvm::inconvertibleErrorCode());
-  } else {
+  // Try to find the entry point address in the primary executable.
+  const bool has_primary_executable = exe_module && exe_module->GetObjectFile();
+  if (has_primary_executable) {
     Address entry_addr = exe_module->GetObjectFile()->GetEntryPointAddress();
     if (entry_addr.IsValid())
       return entry_addr;
-
-    error = llvm::make_error<llvm::StringError>(
-        "Could not find entry point address for executable module \"" +
-            exe_module->GetFileSpec().GetFilename().GetStringRef() + "\"",
-        llvm::inconvertibleErrorCode());
   }
 
   const ModuleList &modules = GetImages();
@@ -2426,14 +2424,21 @@ llvm::Expected<lldb_private::Address> Target::GetEntryPointAddress() {
       continue;
 
     Address entry_addr = module_sp->GetObjectFile()->GetEntryPointAddress();
-    if (entry_addr.IsValid()) {
-      // Discard the error.
-      llvm::consumeError(std::move(error));
+    if (entry_addr.IsValid())
       return entry_addr;
-    }
   }
 
-  return std::move(error);
+  // We haven't found the entry point address. Return an appropriate error.
+  if (!has_primary_executable)
+    return llvm::make_error<llvm::StringError>(
+        "No primary executable found and could not find entry point address in "
+        "any executable module",
+        llvm::inconvertibleErrorCode());
+
+  return llvm::make_error<llvm::StringError>(
+      "Could not find entry point address for primary executable module \"" +
+          exe_module->GetFileSpec().GetFilename().GetStringRef() + "\"",
+      llvm::inconvertibleErrorCode());
 }
 
 lldb::addr_t Target::GetCallableLoadAddress(lldb::addr_t load_addr,
@@ -2458,7 +2463,7 @@ lldb::addr_t Target::GetBreakableLoadAddress(lldb::addr_t addr) {
 
 SourceManager &Target::GetSourceManager() {
   if (!m_source_manager_up)
-    m_source_manager_up.reset(new SourceManager(shared_from_this()));
+    m_source_manager_up = std::make_unique<SourceManager>(shared_from_this());
   return *m_source_manager_up;
 }
 
@@ -2556,7 +2561,7 @@ void Target::RunStopHooks() {
   if (!any_active_hooks)
     return;
 
-  CommandReturnObject result;
+  CommandReturnObject result(m_debugger.GetUseColor());
 
   std::vector<ExecutionContext> exc_ctx_with_reasons;
   std::vector<SymbolContext> sym_ctx_with_reasons;
@@ -2890,76 +2895,71 @@ Status Target::Launch(ProcessLaunchInfo &launch_info, Stream *stream) {
       error = m_process_sp->Launch(launch_info);
   }
 
-  if (!m_process_sp) {
-    if (error.Success())
-      error.SetErrorString("failed to launch or debug process");
+  if (!m_process_sp && error.Success())
+    error.SetErrorString("failed to launch or debug process");
+
+  if (!error.Success())
     return error;
+
+  auto at_exit =
+      llvm::make_scope_exit([&]() { m_process_sp->RestoreProcessEvents(); });
+
+  if (!synchronous_execution &&
+      launch_info.GetFlags().Test(eLaunchFlagStopAtEntry))
+    return error;
+
+  ListenerSP hijack_listener_sp(launch_info.GetHijackListener());
+  if (!hijack_listener_sp) {
+    hijack_listener_sp = Listener::MakeListener("lldb.Target.Launch.hijack");
+    launch_info.SetHijackListener(hijack_listener_sp);
+    m_process_sp->HijackProcessEvents(hijack_listener_sp);
   }
 
-  if (error.Success()) {
-    if (synchronous_execution ||
-        !launch_info.GetFlags().Test(eLaunchFlagStopAtEntry)) {
-      ListenerSP hijack_listener_sp(launch_info.GetHijackListener());
-      if (!hijack_listener_sp) {
-        hijack_listener_sp =
-            Listener::MakeListener("lldb.Target.Launch.hijack");
-        launch_info.SetHijackListener(hijack_listener_sp);
-        m_process_sp->HijackProcessEvents(hijack_listener_sp);
-      }
-
-      StateType state = m_process_sp->WaitForProcessToStop(
-          llvm::None, nullptr, false, hijack_listener_sp, nullptr);
-
-      if (state == eStateStopped) {
-        if (!launch_info.GetFlags().Test(eLaunchFlagStopAtEntry)) {
-          if (synchronous_execution) {
-            // Now we have handled the stop-from-attach, and we are just
-            // switching to a synchronous resume.  So we should switch to the
-            // SyncResume hijacker.
-            m_process_sp->RestoreProcessEvents();
-            m_process_sp->ResumeSynchronous(stream);
-          } else {
-            m_process_sp->RestoreProcessEvents();
-            error = m_process_sp->PrivateResume();
-          }
-          if (!error.Success()) {
-            Status error2;
-            error2.SetErrorStringWithFormat(
-                "process resume at entry point failed: %s", error.AsCString());
-            error = error2;
-          }
-        }
-      } else if (state == eStateExited) {
-        bool with_shell = !!launch_info.GetShell();
-        const int exit_status = m_process_sp->GetExitStatus();
-        const char *exit_desc = m_process_sp->GetExitDescription();
-#define LAUNCH_SHELL_MESSAGE                                                   \
-  "\n'r' and 'run' are aliases that default to launching through a "           \
-  "shell.\nTry launching without going through a shell by using 'process "     \
-  "launch'."
-        if (exit_desc && exit_desc[0]) {
-          if (with_shell)
-            error.SetErrorStringWithFormat(
-                "process exited with status %i (%s)" LAUNCH_SHELL_MESSAGE,
-                exit_status, exit_desc);
-          else
-            error.SetErrorStringWithFormat("process exited with status %i (%s)",
-                                           exit_status, exit_desc);
-        } else {
-          if (with_shell)
-            error.SetErrorStringWithFormat(
-                "process exited with status %i" LAUNCH_SHELL_MESSAGE,
-                exit_status);
-          else
-            error.SetErrorStringWithFormat("process exited with status %i",
-                                           exit_status);
-        }
-      } else {
-        error.SetErrorStringWithFormat(
-            "initial process state wasn't stopped: %s", StateAsCString(state));
-      }
+  switch (m_process_sp->WaitForProcessToStop(llvm::None, nullptr, false,
+                                             hijack_listener_sp, nullptr)) {
+  case eStateStopped: {
+    if (launch_info.GetFlags().Test(eLaunchFlagStopAtEntry))
+      break;
+    if (synchronous_execution) {
+      // Now we have handled the stop-from-attach, and we are just
+      // switching to a synchronous resume.  So we should switch to the
+      // SyncResume hijacker.
+      m_process_sp->RestoreProcessEvents();
+      m_process_sp->ResumeSynchronous(stream);
+    } else {
+      m_process_sp->RestoreProcessEvents();
+      error = m_process_sp->PrivateResume();
     }
-    m_process_sp->RestoreProcessEvents();
+    if (!error.Success()) {
+      Status error2;
+      error2.SetErrorStringWithFormat(
+          "process resume at entry point failed: %s", error.AsCString());
+      error = error2;
+    }
+  } break;
+  case eStateExited: {
+    bool with_shell = !!launch_info.GetShell();
+    const int exit_status = m_process_sp->GetExitStatus();
+    const char *exit_desc = m_process_sp->GetExitDescription();
+    std::string desc;
+    if (exit_desc && exit_desc[0])
+      desc = " (" + std::string(exit_desc) + ')';
+    if (with_shell)
+      error.SetErrorStringWithFormat(
+          "process exited with status %i%s\n"
+          "'r' and 'run' are aliases that default to launching through a "
+          "shell.\n"
+          "Try launching without going through a shell by using "
+          "'process launch'.",
+          exit_status, desc.c_str());
+    else
+      error.SetErrorStringWithFormat("process exited with status %i%s",
+                                     exit_status, desc.c_str());
+  } break;
+  default:
+    error.SetErrorStringWithFormat("initial process state wasn't stopped: %s",
+                                   StateAsCString(state));
+    break;
   }
   return error;
 }
@@ -3137,7 +3137,7 @@ Target::StopHook::StopHook(const StopHook &rhs)
       m_thread_spec_up(), m_active(rhs.m_active),
       m_auto_continue(rhs.m_auto_continue) {
   if (rhs.m_thread_spec_up)
-    m_thread_spec_up.reset(new ThreadSpec(*rhs.m_thread_spec_up));
+    m_thread_spec_up = std::make_unique<ThreadSpec>(*rhs.m_thread_spec_up);
 }
 
 Target::StopHook::~StopHook() = default;
@@ -3373,11 +3373,11 @@ public:
 };
 
 // TargetProperties
-#define LLDB_PROPERTIES_experimental
+#define LLDB_PROPERTIES_target_experimental
 #include "TargetProperties.inc"
 
 enum {
-#define LLDB_PROPERTIES_experimental
+#define LLDB_PROPERTIES_target_experimental
 #include "TargetPropertiesEnum.inc"
 };
 
@@ -3391,7 +3391,7 @@ public:
 TargetExperimentalProperties::TargetExperimentalProperties()
     : Properties(OptionValuePropertiesSP(
           new TargetExperimentalOptionValueProperties())) {
-  m_collection_sp->Initialize(g_experimental_properties);
+  m_collection_sp->Initialize(g_target_experimental_properties);
 }
 
 // TargetProperties
@@ -3425,9 +3425,12 @@ TargetProperties::TargetProperties(Target *target)
     m_collection_sp->SetValueChangedCallback(
         ePropertyDisableASLR, [this] { DisableASLRValueChangedCallback(); });
     m_collection_sp->SetValueChangedCallback(
+        ePropertyInheritTCC, [this] { InheritTCCValueChangedCallback(); });
+    m_collection_sp->SetValueChangedCallback(
         ePropertyDisableSTDIO, [this] { DisableSTDIOValueChangedCallback(); });
 
-    m_experimental_properties_up.reset(new TargetExperimentalProperties());
+    m_experimental_properties_up =
+        std::make_unique<TargetExperimentalProperties>();
     m_collection_sp->AppendProperty(
         ConstString(Properties::GetExperimentalSettingsName()),
         ConstString("Experimental settings - setting these won't produce "
@@ -3437,7 +3440,8 @@ TargetProperties::TargetProperties(Target *target)
     m_collection_sp =
         std::make_shared<TargetOptionValueProperties>(ConstString("target"));
     m_collection_sp->Initialize(g_target_properties);
-    m_experimental_properties_up.reset(new TargetExperimentalProperties());
+    m_experimental_properties_up =
+        std::make_unique<TargetExperimentalProperties>();
     m_collection_sp->AppendProperty(
         ConstString(Properties::GetExperimentalSettingsName()),
         ConstString("Experimental settings - setting these won't produce "
@@ -3460,6 +3464,7 @@ void TargetProperties::UpdateLaunchInfoFromProperties() {
   ErrorPathValueChangedCallback();
   DetachOnErrorValueChangedCallback();
   DisableASLRValueChangedCallback();
+  InheritTCCValueChangedCallback();
   DisableSTDIOValueChangedCallback();
 }
 
@@ -3539,6 +3544,17 @@ bool TargetProperties::GetDisableASLR() const {
 
 void TargetProperties::SetDisableASLR(bool b) {
   const uint32_t idx = ePropertyDisableASLR;
+  m_collection_sp->SetPropertyAtIndexAsBoolean(nullptr, idx, b);
+}
+
+bool TargetProperties::GetInheritTCC() const {
+  const uint32_t idx = ePropertyInheritTCC;
+  return m_collection_sp->GetPropertyAtIndexAsBoolean(
+      nullptr, idx, g_target_properties[idx].default_uint_value != 0);
+}
+
+void TargetProperties::SetInheritTCC(bool b) {
+  const uint32_t idx = ePropertyInheritTCC;
   m_collection_sp->SetPropertyAtIndexAsBoolean(nullptr, idx, b);
 }
 
@@ -3710,6 +3726,12 @@ bool TargetProperties::GetEnableAutoApplyFixIts() const {
   const uint32_t idx = ePropertyAutoApplyFixIts;
   return m_collection_sp->GetPropertyAtIndexAsBoolean(
       nullptr, idx, g_target_properties[idx].default_uint_value != 0);
+}
+
+uint64_t TargetProperties::GetNumberOfRetriesWithFixits() const {
+  const uint32_t idx = ePropertyRetriesWithFixIts;
+  return m_collection_sp->GetPropertyAtIndexAsUInt64(
+      nullptr, idx, g_target_properties[idx].default_uint_value);
 }
 
 bool TargetProperties::GetEnableNotifyAboutFixIts() const {
@@ -3927,6 +3949,8 @@ void TargetProperties::SetProcessLaunchInfo(
   }
   SetDetachOnError(launch_info.GetFlags().Test(lldb::eLaunchFlagDetachOnError));
   SetDisableASLR(launch_info.GetFlags().Test(lldb::eLaunchFlagDisableASLR));
+  SetInheritTCC(
+      launch_info.GetFlags().Test(lldb::eLaunchFlagInheritTCCFromParent));
   SetDisableSTDIO(launch_info.GetFlags().Test(lldb::eLaunchFlagDisableSTDIO));
 }
 
@@ -3990,6 +4014,13 @@ void TargetProperties::DisableASLRValueChangedCallback() {
     m_launch_info.GetFlags().Clear(lldb::eLaunchFlagDisableASLR);
 }
 
+void TargetProperties::InheritTCCValueChangedCallback() {
+  if (GetInheritTCC())
+    m_launch_info.GetFlags().Set(lldb::eLaunchFlagInheritTCCFromParent);
+  else
+    m_launch_info.GetFlags().Clear(lldb::eLaunchFlagInheritTCCFromParent);
+}
+
 void TargetProperties::DisableSTDIOValueChangedCallback() {
   if (GetDisableSTDIO())
     m_launch_info.GetFlags().Set(lldb::eLaunchFlagDisableSTDIO);
@@ -4050,7 +4081,7 @@ Target::TargetEventData::GetModuleListFromEvent(const Event *event_ptr) {
   return module_list;
 }
 
-std::recursive_mutex &Target::GetAPIMutex() { 
+std::recursive_mutex &Target::GetAPIMutex() {
   if (GetProcessSP() && GetProcessSP()->CurrentThreadIsPrivateStateThread())
     return m_private_mutex;
   else

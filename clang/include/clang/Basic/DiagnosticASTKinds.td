@@ -54,6 +54,9 @@ def note_constexpr_nonliteral : Note<
 def note_constexpr_non_global : Note<
   "%select{pointer|reference}0 to %select{|subobject of }1"
   "%select{temporary|%3}2 is not a constant expression">;
+def note_constexpr_not_static : Note<
+  "address of non-static constexpr variable %0 may differ on each invocation "
+  "of the enclosing function; add 'static' to give it a constant address">;
 def note_constexpr_dynamic_alloc : Note<
   "%select{pointer|reference}0 to %select{|subobject of }1"
   "heap-allocated object is not a constant expression">;
@@ -101,8 +104,16 @@ def note_constexpr_null_subobject : Note<
   "access array element of|perform pointer arithmetic on|"
   "access real component of|"
   "access imaginary component of}0 null pointer">;
+def note_constexpr_function_param_value_unknown : Note<
+  "function parameter %0 with unknown value cannot be used in a constant "
+  "expression">;
+def note_constexpr_var_init_unknown : Note<
+  "initializer of %0 is unknown">;
 def note_constexpr_var_init_non_constant : Note<
   "initializer of %0 is not a constant expression">;
+def note_constexpr_var_init_weak : Note<
+  "initializer of weak variable %0 is not considered constant because "
+  "it may be different at runtime">;
 def note_constexpr_typeid_polymorphic : Note<
   "typeid applied to expression of polymorphic type %0 is "
   "not allowed in a constant expression in C++ standards before C++20">;
@@ -159,6 +170,9 @@ def note_constexpr_access_mutable : Note<
   "mutable member %1 is not allowed in a constant expression">;
 def note_constexpr_ltor_non_const_int : Note<
   "read of non-const variable %0 is not allowed in a constant expression">;
+def note_constexpr_ltor_non_integral : Note<
+  "read of variable %0 of non-integral, non-enumeration type %1 "
+  "is not allowed in a constant expression">;
 def note_constexpr_ltor_non_constexpr : Note<
   "read of non-constexpr variable %0 is not allowed in a constant expression">;
 def note_constexpr_ltor_incomplete_type : Note<
@@ -244,6 +258,12 @@ def note_constexpr_unsupported_unsized_array : Note<
 def note_constexpr_unsized_array_indexed : Note<
   "indexing of array without known bound is not allowed "
   "in a constant expression">;
+def note_constexpr_memcmp_unsupported : Note<
+  "constant evaluation of %0 between arrays of types %1 and %2 "
+  "is not supported; only arrays of narrow character types can be compared">;
+def note_constexpr_memchr_unsupported : Note<
+  "constant evaluation of %0 on array of type %1 "
+  "is not supported; only arrays of narrow character types can be searched">;
 def note_constexpr_memcpy_null : Note<
   "%select{source|destination}2 of "
   "'%select{%select{memcpy|wmemcpy}1|%select{memmove|wmemmove}1}0' "
@@ -278,6 +298,8 @@ def note_constexpr_bit_cast_invalid_subtype : Note<
 def note_constexpr_bit_cast_indet_dest : Note<
   "indeterminate value can only initialize an object of type 'unsigned char'"
   "%select{, 'char',|}1 or 'std::byte'; %0 is invalid">;
+def note_constexpr_bit_cast_unrepresentable_value : Note<
+  "value %1 cannot be represented in type %0">;
 def note_constexpr_pseudo_destructor : Note<
   "pseudo-destructor call is not permitted in constant expressions "
   "until C++20">;
@@ -332,12 +354,17 @@ def note_constexpr_delete_base_nonvirt_dtor : Note<
 def note_constexpr_memory_leak : Note<
   "allocation performed here was not deallocated"
   "%plural{0:|: (along with %0 other memory leak%s0)}0">;
+def note_constexpr_unsupported_layout : Note<
+  "type %0 has unexpected layout">;
 def err_experimental_clang_interp_failed : Error<
   "the experimental clang interpreter failed to evaluate an expression">;
 
 def warn_integer_constant_overflow : Warning<
   "overflow in expression; result is %0 with type %1">,
   InGroup<DiagGroup<"integer-overflow">>;
+def warn_fixedpoint_constant_overflow : Warning<
+  "overflow in expression; result is %0 with type %1">,
+  InGroup<DiagGroup<"fixed-point-overflow">>;
 
 // This is a temporary diagnostic, and shall be removed once our
 // implementation is complete, and like the preceding constexpr notes belongs

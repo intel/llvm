@@ -13,15 +13,21 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Utils/LoopVersioning.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/LoopAccessAnalysis.h"
 #include "llvm/Analysis/LoopInfo.h"
-#include "llvm/Analysis/ScalarEvolutionExpander.h"
+#include "llvm/Analysis/MemorySSA.h"
+#include "llvm/Analysis/ScalarEvolution.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/MDBuilder.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/ScalarEvolutionExpander.h"
 
 using namespace llvm;
 
@@ -44,9 +50,8 @@ LoopVersioning::LoopVersioning(const LoopAccessInfo &LAI, Loop *L, LoopInfo *LI,
   }
 }
 
-void LoopVersioning::setAliasChecks(
-    SmallVector<RuntimePointerChecking::PointerCheck, 4> Checks) {
-  AliasChecks = std::move(Checks);
+void LoopVersioning::setAliasChecks(ArrayRef<RuntimePointerCheck> Checks) {
+  AliasChecks = {Checks.begin(), Checks.end()};
 }
 
 void LoopVersioning::setSCEVChecks(SCEVUnionPredicate Check) {
@@ -62,8 +67,10 @@ void LoopVersioning::versionLoop(
 
   // Add the memcheck in the original preheader (this is empty initially).
   BasicBlock *RuntimeCheckBB = VersionedLoop->getLoopPreheader();
+  const auto &RtPtrChecking = *LAI.getRuntimePointerChecking();
   std::tie(FirstCheckInst, MemRuntimeCheck) =
-      LAI.addRuntimeChecks(RuntimeCheckBB->getTerminator(), AliasChecks);
+      addRuntimeChecks(RuntimeCheckBB->getTerminator(), VersionedLoop,
+                       AliasChecks, RtPtrChecking.getSE());
 
   const SCEVUnionPredicate &Pred = LAI.getPSE().getUnionPredicate();
   SCEVExpander Exp(*SE, RuntimeCheckBB->getModule()->getDataLayout(),
@@ -194,8 +201,7 @@ void LoopVersioning::prepareNoAliasMetadata() {
 
   // Go through the checks and for each pointer group, collect the scopes for
   // each non-aliasing pointer group.
-  DenseMap<const RuntimePointerChecking::CheckingPtrGroup *,
-           SmallVector<Metadata *, 4>>
+  DenseMap<const RuntimeCheckingPtrGroup *, SmallVector<Metadata *, 4>>
       GroupToNonAliasingScopes;
 
   for (const auto &Check : AliasChecks)
@@ -252,47 +258,55 @@ void LoopVersioning::annotateInstWithNoAlias(Instruction *VersionedInst,
 }
 
 namespace {
+bool runImpl(LoopInfo *LI, function_ref<const LoopAccessInfo &(Loop &)> GetLAA,
+             DominatorTree *DT, ScalarEvolution *SE) {
+  // Build up a worklist of inner-loops to version. This is necessary as the
+  // act of versioning a loop creates new loops and can invalidate iterators
+  // across the loops.
+  SmallVector<Loop *, 8> Worklist;
+
+  for (Loop *TopLevelLoop : *LI)
+    for (Loop *L : depth_first(TopLevelLoop))
+      // We only handle inner-most loops.
+      if (L->empty())
+        Worklist.push_back(L);
+
+  // Now walk the identified inner loops.
+  bool Changed = false;
+  for (Loop *L : Worklist) {
+    const LoopAccessInfo &LAI = GetLAA(*L);
+    if (L->isLoopSimplifyForm() && !LAI.hasConvergentOp() &&
+        (LAI.getNumRuntimePointerChecks() ||
+         !LAI.getPSE().getUnionPredicate().isAlwaysTrue())) {
+      LoopVersioning LVer(LAI, L, LI, DT, SE);
+      LVer.versionLoop();
+      LVer.annotateLoopWithNoAlias();
+      Changed = true;
+    }
+  }
+
+  return Changed;
+}
+
 /// Also expose this is a pass.  Currently this is only used for
 /// unit-testing.  It adds all memchecks necessary to remove all may-aliasing
 /// array accesses from the loop.
-class LoopVersioningPass : public FunctionPass {
+class LoopVersioningLegacyPass : public FunctionPass {
 public:
-  LoopVersioningPass() : FunctionPass(ID) {
-    initializeLoopVersioningPassPass(*PassRegistry::getPassRegistry());
+  LoopVersioningLegacyPass() : FunctionPass(ID) {
+    initializeLoopVersioningLegacyPassPass(*PassRegistry::getPassRegistry());
   }
 
   bool runOnFunction(Function &F) override {
     auto *LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
-    auto *LAA = &getAnalysis<LoopAccessLegacyAnalysis>();
+    auto GetLAA = [&](Loop &L) -> const LoopAccessInfo & {
+      return getAnalysis<LoopAccessLegacyAnalysis>().getInfo(&L);
+    };
+
     auto *DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
     auto *SE = &getAnalysis<ScalarEvolutionWrapperPass>().getSE();
 
-    // Build up a worklist of inner-loops to version. This is necessary as the
-    // act of versioning a loop creates new loops and can invalidate iterators
-    // across the loops.
-    SmallVector<Loop *, 8> Worklist;
-
-    for (Loop *TopLevelLoop : *LI)
-      for (Loop *L : depth_first(TopLevelLoop))
-        // We only handle inner-most loops.
-        if (L->empty())
-          Worklist.push_back(L);
-
-    // Now walk the identified inner loops.
-    bool Changed = false;
-    for (Loop *L : Worklist) {
-      const LoopAccessInfo &LAI = LAA->getInfo(L);
-      if (L->isLoopSimplifyForm() && !LAI.hasConvergentOp() &&
-          (LAI.getNumRuntimePointerChecks() ||
-           !LAI.getPSE().getUnionPredicate().isAlwaysTrue())) {
-        LoopVersioning LVer(LAI, L, LI, DT, SE);
-        LVer.versionLoop();
-        LVer.annotateLoopWithNoAlias();
-        Changed = true;
-      }
-    }
-
-    return Changed;
+    return runImpl(LI, GetLAA, DT, SE);
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
@@ -311,18 +325,44 @@ public:
 #define LVER_OPTION "loop-versioning"
 #define DEBUG_TYPE LVER_OPTION
 
-char LoopVersioningPass::ID;
+char LoopVersioningLegacyPass::ID;
 static const char LVer_name[] = "Loop Versioning";
 
-INITIALIZE_PASS_BEGIN(LoopVersioningPass, LVER_OPTION, LVer_name, false, false)
+INITIALIZE_PASS_BEGIN(LoopVersioningLegacyPass, LVER_OPTION, LVer_name, false,
+                      false)
 INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(LoopAccessLegacyAnalysis)
 INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(ScalarEvolutionWrapperPass)
-INITIALIZE_PASS_END(LoopVersioningPass, LVER_OPTION, LVer_name, false, false)
+INITIALIZE_PASS_END(LoopVersioningLegacyPass, LVER_OPTION, LVer_name, false,
+                    false)
 
 namespace llvm {
-FunctionPass *createLoopVersioningPass() {
-  return new LoopVersioningPass();
+FunctionPass *createLoopVersioningLegacyPass() {
+  return new LoopVersioningLegacyPass();
 }
+
+PreservedAnalyses LoopVersioningPass::run(Function &F,
+                                          FunctionAnalysisManager &AM) {
+  auto &SE = AM.getResult<ScalarEvolutionAnalysis>(F);
+  auto &LI = AM.getResult<LoopAnalysis>(F);
+  auto &TTI = AM.getResult<TargetIRAnalysis>(F);
+  auto &DT = AM.getResult<DominatorTreeAnalysis>(F);
+  auto &TLI = AM.getResult<TargetLibraryAnalysis>(F);
+  auto &AA = AM.getResult<AAManager>(F);
+  auto &AC = AM.getResult<AssumptionAnalysis>(F);
+  MemorySSA *MSSA = EnableMSSALoopDependency
+                        ? &AM.getResult<MemorySSAAnalysis>(F).getMSSA()
+                        : nullptr;
+
+  auto &LAM = AM.getResult<LoopAnalysisManagerFunctionProxy>(F).getManager();
+  auto GetLAA = [&](Loop &L) -> const LoopAccessInfo & {
+    LoopStandardAnalysisResults AR = {AA, AC, DT, LI, SE, TLI, TTI, MSSA};
+    return LAM.getResult<LoopAccessAnalysis>(L, AR);
+  };
+
+  if (runImpl(&LI, GetLAA, &DT, &SE))
+    return PreservedAnalyses::none();
+  return PreservedAnalyses::all();
 }
+} // namespace llvm

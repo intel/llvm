@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -Wno-sycl-2017-compat -verify %s
 extern "C" float  sinf(float);
 extern "C" float  cosf(float);
 extern "C" float  logf(float);
@@ -6,7 +6,7 @@ extern "C" double sin(double);
 extern "C" double cos(double);
 extern "C" double log(double);
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 

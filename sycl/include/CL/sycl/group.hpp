@@ -56,6 +56,7 @@ public:
     // in the group:
     Val.reset(new T[G.get_local_range().size()]);
 #endif // __SYCL_DEVICE_ONLY__
+    (void)G;
   }
 
   // Access the instance for the current work-item
@@ -66,6 +67,7 @@ public:
     size_t Ind = Id.get_physical_local().get_linear_id();
     return Val.get()[Ind];
 #else
+    (void)Id;
     return Val;
 #endif // __SYCL_DEVICE_ONLY__
   }
@@ -82,6 +84,10 @@ private:
 #endif // #ifdef __SYCL_DEVICE_ONLY__
 };
 
+/// Encapsulates all functionality required to represent a particular work-group
+/// within a parallel execution.
+///
+/// \ingroup sycl_api
 template <int Dimensions = 1> class group {
 public:
 #ifndef __DISABLE_SYCL_INTEL_GROUP_ALGORITHMS__
@@ -257,11 +263,11 @@ public:
                      access::fence_space>::type accessSpace =
                      access::fence_space::global_and_local) const {
     uint32_t flags = detail::getSPIRVMemorySemanticsMask(accessSpace);
-    // TODO: currently, there is no good way in SPIRV to set the memory
+    // TODO: currently, there is no good way in SPIR-V to set the memory
     // barrier only for load operations or only for store operations.
     // The full read-and-write barrier is used and the template parameter
-    // 'accessMode' is ignored for now. Either SPIRV or SYCL spec may be
-    // changed to address this discrepancy between SPIRV and SYCL,
+    // 'accessMode' is ignored for now. Either SPIR-V or SYCL spec may be
+    // changed to address this discrepancy between SPIR-V and SYCL,
     // or if we decide that 'accessMode' is the important feature then
     // we can fix this later, for example, by using OpenCL 1.2 functions
     // read_mem_fence() and write_mem_fence().
@@ -369,6 +375,20 @@ protected:
                   "inconsistent group constructor arguments");
   }
 };
+
+namespace detail {
+template <int Dims> group<Dims> store_group(const group<Dims> *g) {
+  return get_or_store(g);
+}
+} // namespace detail
+
+template <int Dims> group<Dims> this_group() {
+#ifdef __SYCL_DEVICE_ONLY__
+  return detail::Builder::getElement(detail::declptr<group<Dims>>());
+#else
+  return detail::store_group<Dims>(nullptr);
+#endif
+}
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

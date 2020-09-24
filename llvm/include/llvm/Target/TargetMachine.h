@@ -241,12 +241,12 @@ public:
     Options.SupportsDebugEntryValues = Enable;
   }
 
-  bool shouldPrintMachineCode() const { return Options.PrintMachineCode; }
-
   bool getUniqueSectionNames() const { return Options.UniqueSectionNames; }
 
   /// Return true if unique basic block section names must be generated.
-  bool getUniqueBBSectionNames() const { return Options.UniqueBBSectionNames; }
+  bool getUniqueBasicBlockSectionNames() const {
+    return Options.UniqueBasicBlockSectionNames;
+  }
 
   /// Return true if data objects should be emitted into their own section,
   /// corresponds to -fdata-sections.
@@ -261,7 +261,7 @@ public:
   }
 
   /// If basic blocks should be emitted into their own section,
-  /// corresponding to -fbasicblock-sections.
+  /// corresponding to -fbasic-block-sections.
   llvm::BasicBlockSection getBBSectionsType() const {
     return Options.BBSections;
   }
@@ -269,6 +269,11 @@ public:
   /// Get the list of functions and basic block ids that need unique sections.
   const MemoryBuffer *getBBSectionsFuncListBuf() const {
     return Options.BBSectionsFuncListBuf.get();
+  }
+
+  /// Returns true if a cast between SrcAS and DestAS is a noop.
+  virtual bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const {
+    return false;
   }
 
   /// Get a \c TargetIRAnalysis appropriate for the target.

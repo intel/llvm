@@ -60,6 +60,59 @@ TEST(RangeVerifier, WrongRange) {
   EXPECT_FALSE(Verifier.match("int i;", varDecl()));
 }
 
+class WhileParenLocationVerifier : public MatchVerifier<WhileStmt> {
+  unsigned ExpectLParenLine = 0, ExpectLParenColumn = 0;
+  unsigned ExpectRParenLine = 0, ExpectRParenColumn = 0;
+
+public:
+  void expectLocations(unsigned LParenLine, unsigned LParenColumn,
+                       unsigned RParenLine, unsigned RParenColumn) {
+    ExpectLParenLine = LParenLine;
+    ExpectLParenColumn = LParenColumn;
+    ExpectRParenLine = RParenLine;
+    ExpectRParenColumn = RParenColumn;
+  }
+
+protected:
+  void verify(const MatchFinder::MatchResult &Result,
+              const WhileStmt &Node) override {
+    SourceLocation LParenLoc = Node.getLParenLoc();
+    SourceLocation RParenLoc = Node.getRParenLoc();
+    unsigned LParenLine =
+        Result.SourceManager->getSpellingLineNumber(LParenLoc);
+    unsigned LParenColumn =
+        Result.SourceManager->getSpellingColumnNumber(LParenLoc);
+    unsigned RParenLine =
+        Result.SourceManager->getSpellingLineNumber(RParenLoc);
+    unsigned RParenColumn =
+        Result.SourceManager->getSpellingColumnNumber(RParenLoc);
+
+    if (LParenLine != ExpectLParenLine || LParenColumn != ExpectLParenColumn ||
+        RParenLine != ExpectRParenLine || RParenColumn != ExpectRParenColumn) {
+      std::string MsgStr;
+      llvm::raw_string_ostream Msg(MsgStr);
+      Msg << "Expected LParen Location <" << ExpectLParenLine << ":"
+          << ExpectLParenColumn << ">, found <";
+      LParenLoc.print(Msg, *Result.SourceManager);
+      Msg << ">\n";
+
+      Msg << "Expected RParen Location <" << ExpectRParenLine << ":"
+          << ExpectRParenColumn << ">, found <";
+      RParenLoc.print(Msg, *Result.SourceManager);
+      Msg << ">";
+
+      this->setFailure(Msg.str());
+    }
+  }
+};
+
+TEST(LocationVerifier, WhileParenLoc) {
+  WhileParenLocationVerifier Verifier;
+  Verifier.expectLocations(1, 17, 1, 38);
+  EXPECT_TRUE(Verifier.match("void f() { while(true/*some comment*/) {} }",
+                             whileStmt()));
+}
+
 class LabelDeclRangeVerifier : public RangeVerifier<LabelStmt> {
 protected:
   SourceRange getRange(const LabelStmt &Node) override {
@@ -82,13 +135,13 @@ TEST(LabelStmt, Range) {
 TEST(ParmVarDecl, KNRLocation) {
   LocationVerifier<ParmVarDecl> Verifier;
   Verifier.expectLocation(1, 8);
-  EXPECT_TRUE(Verifier.match("void f(i) {}", varDecl(), Lang_C));
+  EXPECT_TRUE(Verifier.match("void f(i) {}", varDecl(), Lang_C99));
 }
 
 TEST(ParmVarDecl, KNRRange) {
   RangeVerifier<ParmVarDecl> Verifier;
   Verifier.expectRange(1, 8, 1, 8);
-  EXPECT_TRUE(Verifier.match("void f(i) {}", varDecl(), Lang_C));
+  EXPECT_TRUE(Verifier.match("void f(i) {}", varDecl(), Lang_C99));
 }
 
 TEST(CXXNewExpr, ArrayRange) {
@@ -622,16 +675,16 @@ TEST(FriendDecl, InstantiationSourceRange) {
       friendDecl(hasParent(cxxRecordDecl(isTemplateInstantiation())))));
 }
 
-TEST(ObjCMessageExpr, CXXConstructExprRange) {
-  RangeVerifier<CXXConstructExpr> Verifier;
+TEST(ObjCMessageExpr, ParenExprRange) {
+  RangeVerifier<ParenExpr> Verifier;
   Verifier.expectRange(5, 25, 5, 27);
-  EXPECT_TRUE(Verifier.match(
-      "struct A { int a; };\n"
-      "@interface B {}\n"
-      "+ (void) f1: (A)arg;\n"
-      "@end\n"
-      "void f2() { A a; [B f1: (a)]; }\n",
-      cxxConstructExpr(), Lang_OBJCXX));
+  EXPECT_TRUE(Verifier.match("struct A { int a; };\n"
+                             "@interface B {}\n"
+                             "+ (void) f1: (A)arg;\n"
+                             "@end\n"
+                             "void f2() { A a; [B f1: (a)]; }\n",
+                             traverse(ast_type_traits::TK_AsIs, parenExpr()),
+                             Lang_OBJCXX));
 }
 
 TEST(FunctionDecl, FunctionDeclWithThrowSpecification) {
@@ -814,7 +867,7 @@ TEST(FunctionDecl, ExceptionSpecifications) {
   std::vector<std::string> Args;
   Args.push_back("-fms-extensions");
   EXPECT_TRUE(Verifier.match("void f() throw(...);\n", loc(functionType()),
-                             Args, Lang_CXX));
+                             Args, Lang_CXX03));
 
   Verifier.expectRange(1, 10, 1, 10);
   EXPECT_TRUE(

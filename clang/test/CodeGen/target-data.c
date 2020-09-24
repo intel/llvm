@@ -14,6 +14,10 @@
 // RUN:     FileCheck --check-prefix=I686-CYGWIN %s
 // I686-CYGWIN: target datalayout = "e-m:x-p:32:32-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:32-n8:16:32-a:0:32-S32"
 
+// RUN: %clang_cc1 -triple i686-pc-macho -emit-llvm -o - %s | \
+// RUN:     FileCheck --check-prefix=I686-MACHO %s
+// I686-MACHO: target datalayout = "e-m:o-p:32:32-p270:32:32-p271:32:32-p272:64:64-f64:32:64-f80:32-n8:16:32-S128"
+
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown -emit-llvm -o - %s | \
 // RUN:     FileCheck --check-prefix=X86_64 %s
 // X86_64: target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
@@ -126,6 +130,10 @@
 // RUN: FileCheck %s -check-prefix=PPC64-FREEBSD
 // PPC64-FREEBSD: target datalayout = "E-m:e-i64:64-n32:64"
 
+// RUN: %clang_cc1 -triple powerpc64le-freebsd -o - -emit-llvm %s | \
+// RUN: FileCheck %s -check-prefix=PPC64LE-FREEBSD
+// PPC64LE-FREEBSD: target datalayout = "e-m:e-i64:64-n32:64"
+
 // RUN: %clang_cc1 -triple powerpc64-linux -o - -emit-llvm %s | \
 // RUN: FileCheck %s -check-prefix=PPC64-LINUX
 // PPC64-LINUX: target datalayout = "E-m:e-i64:64-n32:64"
@@ -237,16 +245,20 @@
 
 // RUN: %clang_cc1 -triple spir-unknown -o - -emit-llvm %s | \
 // RUN: FileCheck %s -check-prefix=SPIR
-// SPIR: target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
+// SPIR: target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 
 // RUN: %clang_cc1 -triple spir64-unknown -o - -emit-llvm %s | \
 // RUN: FileCheck %s -check-prefix=SPIR64
-// SPIR64: target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
+// SPIR64: target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 
 // RUN: %clang_cc1 -triple bpfel -o - -emit-llvm %s | \
 // RUN: FileCheck %s -check-prefix=BPFEL
-// BPFEL: target datalayout = "e-m:e-p:64:64-i64:64-n32:64-S128"
+// BPFEL: target datalayout = "e-m:e-p:64:64-i64:64-i128:128-n32:64-S128"
 
 // RUN: %clang_cc1 -triple bpfeb -o - -emit-llvm %s | \
 // RUN: FileCheck %s -check-prefix=BPFEB
-// BPFEB: target datalayout = "E-m:e-p:64:64-i64:64-n32:64-S128"
+// BPFEB: target datalayout = "E-m:e-p:64:64-i64:64-i128:128-n32:64-S128"
+
+// RUN: %clang_cc1 -triple ve -o - -emit-llvm %s | \
+// RUN: FileCheck %s -check-prefix=VE
+// VE: target datalayout = "e-m:e-i64:64-n32:64-S128"

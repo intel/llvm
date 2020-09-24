@@ -9,8 +9,8 @@
 #include <spirv/spirv.h>
 
 #include "sincos_helpers.h"
-#include "../../lib/math/math.h"
-#include "../../lib/clcmacro.h"
+#include <clcmacro.h>
+#include <math/math.h>
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_sin(float x)
 {
@@ -57,7 +57,8 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_sin(double x) {
     int2 s = as_int2(regn & 1 ? sc.hi : sc.lo);
     s.hi ^= ((regn > 1) << 31) ^ ((x < 0.0) << 31);
 
-    return  __spirv_IsInf(x) | __spirv_IsNan(x) ? as_double(QNANBITPATT_DP64) : as_double(s);
+    return __spirv_IsInf(x) || __spirv_IsNan(x) ? as_double(QNANBITPATT_DP64)
+                                                : as_double(s);
 }
 
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_sin, double);

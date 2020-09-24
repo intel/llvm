@@ -36,7 +36,7 @@ public:
       Layer.ReturnObjectBuffer(std::move(ObjBuffer));
   }
 
-  JITLinkMemoryManager &getMemoryManager() override { return *Layer.MemMgr; }
+  JITLinkMemoryManager &getMemoryManager() override { return Layer.MemMgr; }
 
   MemoryBufferRef getObjectBuffer() const override {
     return ObjBuffer->getMemBufferRef();
@@ -50,9 +50,9 @@ public:
   void lookup(const LookupMap &Symbols,
               std::unique_ptr<JITLinkAsyncLookupContinuation> LC) override {
 
-    JITDylibSearchOrder SearchOrder;
-    MR.getTargetJITDylib().withSearchOrderDo(
-        [&](const JITDylibSearchOrder &O) { SearchOrder = O; });
+    JITDylibSearchOrder LinkOrder;
+    MR.getTargetJITDylib().withLinkOrderDo(
+        [&](const JITDylibSearchOrder &LO) { LinkOrder = LO; });
 
     auto &ES = Layer.getExecutionSession();
 
@@ -71,9 +71,8 @@ public:
     }
 
     // OnResolve -- De-intern the symbols and pass the result to the linker.
-    auto OnResolve = [this, LookupContinuation = std::move(LC)](
-                         Expected<SymbolMap> Result) mutable {
-      auto Main = Layer.getExecutionSession().intern("_main");
+    auto OnResolve = [LookupContinuation =
+                          std::move(LC)](Expected<SymbolMap> Result) mutable {
       if (!Result)
         LookupContinuation->run(Result.takeError());
       else {
@@ -90,14 +89,14 @@ public:
       MR.addDependencies(KV.first, InternalDeps);
     }
 
-    ES.lookup(LookupKind::Static, SearchOrder, std::move(LookupSet),
+    ES.lookup(LookupKind::Static, LinkOrder, std::move(LookupSet),
               SymbolState::Resolved, std::move(OnResolve),
               [this](const SymbolDependenceMap &Deps) {
                 registerDependencies(Deps);
               });
   }
 
-  void notifyResolved(LinkGraph &G) override {
+  Error notifyResolved(LinkGraph &G) override {
     auto &ES = Layer.getExecutionSession();
 
     SymbolFlagsMap ExtraSymbolsToClaim;
@@ -143,47 +142,56 @@ public:
 
     if (!ExtraSymbolsToClaim.empty())
       if (auto Err = MR.defineMaterializing(ExtraSymbolsToClaim))
-        return notifyFailed(std::move(Err));
-
-    if (const auto &InitSym = MR.getInitializerSymbol())
-      InternedResult[InitSym] = JITEvaluatedSymbol();
+        return Err;
 
     {
+
       // Check that InternedResult matches up with MR.getSymbols().
       // This guards against faulty transformations / compilers / object caches.
 
-      if (InternedResult.size() > MR.getSymbols().size()) {
-        SymbolNameVector ExtraSymbols;
+      // First check that there aren't any missing symbols.
+      size_t NumMaterializationSideEffectsOnlySymbols = 0;
+      SymbolNameVector ExtraSymbols;
+      SymbolNameVector MissingSymbols;
+      for (auto &KV : MR.getSymbols()) {
+
+        // If this is a materialization-side-effects only symbol then bump
+        // the counter and make sure it's *not* defined, otherwise make
+        // sure that it is defined.
+        if (KV.second.hasMaterializationSideEffectsOnly()) {
+          ++NumMaterializationSideEffectsOnlySymbols;
+          if (InternedResult.count(KV.first))
+            ExtraSymbols.push_back(KV.first);
+          continue;
+        } else if (!InternedResult.count(KV.first))
+          MissingSymbols.push_back(KV.first);
+      }
+
+      // If there were missing symbols then report the error.
+      if (!MissingSymbols.empty())
+        return make_error<MissingSymbolDefinitions>(G.getName(),
+                                                    std::move(MissingSymbols));
+
+      // If there are more definitions than expected, add them to the
+      // ExtraSymbols vector.
+      if (InternedResult.size() >
+          MR.getSymbols().size() - NumMaterializationSideEffectsOnlySymbols) {
         for (auto &KV : InternedResult)
           if (!MR.getSymbols().count(KV.first))
             ExtraSymbols.push_back(KV.first);
-        ES.reportError(
-          make_error<UnexpectedSymbolDefinitions>(G.getName(),
-                                                  std::move(ExtraSymbols)));
-        MR.failMaterialization();
-        return;
       }
 
-      SymbolNameVector MissingSymbols;
-      for (auto &KV : MR.getSymbols())
-        if (!InternedResult.count(KV.first))
-          MissingSymbols.push_back(KV.first);
-
-      if (!MissingSymbols.empty()) {
-        ES.reportError(
-          make_error<MissingSymbolDefinitions>(G.getName(),
-                                               std::move(MissingSymbols)));
-        MR.failMaterialization();
-        return;
-      }
+      // If there were extra definitions then report the error.
+      if (!ExtraSymbols.empty())
+        return make_error<UnexpectedSymbolDefinitions>(G.getName(),
+                                                       std::move(ExtraSymbols));
     }
 
-    if (auto Err = MR.notifyResolved(InternedResult)) {
-      Layer.getExecutionSession().reportError(std::move(Err));
-      MR.failMaterialization();
-      return;
-    }
+    if (auto Err = MR.notifyResolved(InternedResult))
+      return Err;
+
     Layer.notifyLoaded(MR);
+    return Error::success();
   }
 
   void notifyFinalized(
@@ -431,9 +439,13 @@ private:
 
 ObjectLinkingLayer::Plugin::~Plugin() {}
 
+ObjectLinkingLayer::ObjectLinkingLayer(ExecutionSession &ES,
+                                       JITLinkMemoryManager &MemMgr)
+    : ObjectLayer(ES), MemMgr(MemMgr) {}
+
 ObjectLinkingLayer::ObjectLinkingLayer(
     ExecutionSession &ES, std::unique_ptr<JITLinkMemoryManager> MemMgr)
-    : ObjectLayer(ES), MemMgr(std::move(MemMgr)) {}
+    : ObjectLayer(ES), MemMgr(*MemMgr), MemMgrOwnership(std::move(MemMgr)) {}
 
 ObjectLinkingLayer::~ObjectLinkingLayer() {
   if (auto Err = removeAllModules())
@@ -523,8 +535,8 @@ Error ObjectLinkingLayer::removeAllModules() {
 }
 
 EHFrameRegistrationPlugin::EHFrameRegistrationPlugin(
-    EHFrameRegistrar &Registrar)
-    : Registrar(Registrar) {}
+    std::unique_ptr<EHFrameRegistrar> Registrar)
+    : Registrar(std::move(Registrar)) {}
 
 void EHFrameRegistrationPlugin::modifyPassConfig(
     MaterializationResponsibility &MR, const Triple &TT,
@@ -559,7 +571,7 @@ Error EHFrameRegistrationPlugin::notifyEmitted(
   else
     UntrackedEHFrameRanges.push_back(EHFrameRange);
 
-  return Registrar.registerEHFrames(EHFrameRange.Addr, EHFrameRange.Size);
+  return Registrar->registerEHFrames(EHFrameRange.Addr, EHFrameRange.Size);
 }
 
 Error EHFrameRegistrationPlugin::notifyRemovingModule(VModuleKey K) {
@@ -574,7 +586,7 @@ Error EHFrameRegistrationPlugin::notifyRemovingModule(VModuleKey K) {
 
   TrackedEHFrameRanges.erase(EHFrameRangeItr);
 
-  return Registrar.deregisterEHFrames(EHFrameRange.Addr, EHFrameRange.Size);
+  return Registrar->deregisterEHFrames(EHFrameRange.Addr, EHFrameRange.Size);
 }
 
 Error EHFrameRegistrationPlugin::notifyRemovingAllModules() {
@@ -595,9 +607,8 @@ Error EHFrameRegistrationPlugin::notifyRemovingAllModules() {
     auto EHFrameRange = EHFrameRanges.back();
     assert(EHFrameRange.Addr && "Untracked eh-frame range must not be null");
     EHFrameRanges.pop_back();
-    Err = joinErrors(std::move(Err),
-                     Registrar.deregisterEHFrames(EHFrameRange.Addr,
-                                                  EHFrameRange.Size));
+    Err = joinErrors(std::move(Err), Registrar->deregisterEHFrames(
+                                         EHFrameRange.Addr, EHFrameRange.Size));
   }
 
   return Err;

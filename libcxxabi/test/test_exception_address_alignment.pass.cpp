@@ -6,13 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: libcxxabi-no-exceptions
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: no-exceptions
+// UNSUPPORTED: c++03
 
-// The system unwind.h on OS X provides an incorrectly aligned _Unwind_Exception
-// type. That causes these tests to fail. This XFAIL is my best attempt at
-// working around this failure.
-// XFAIL: darwin && libcxxabi-has-system-unwinder
+// The <unwind.h> header provided in the SDK of older Xcodes used to provide
+// an incorrectly aligned _Unwind_Exception type. That causes these tests to
+// fail with those SDKs.
+// FIXME: We mark the test as unsupported on Apple until we have a Lit feature
+//        representing the SDK version.
+// UNSUPPORTED: darwin
 
 // Test that the address of the exception object is properly aligned as required
 // by the relevant ABI

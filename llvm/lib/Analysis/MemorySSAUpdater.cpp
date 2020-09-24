@@ -10,11 +10,13 @@
 //
 //===----------------------------------------------------------------===//
 #include "llvm/Analysis/MemorySSAUpdater.h"
+#include "llvm/Analysis/LoopIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Analysis/IteratedDominanceFrontier.h"
 #include "llvm/Analysis/MemorySSA.h"
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/GlobalVariable.h"
@@ -317,8 +319,7 @@ void MemorySSAUpdater::insertDef(MemoryDef *MD, bool RenameUses) {
   bool DefBeforeSameBlock = false;
   if (DefBefore->getBlock() == MD->getBlock() &&
       !(isa<MemoryPhi>(DefBefore) &&
-        std::find(InsertedPHIs.begin(), InsertedPHIs.end(), DefBefore) !=
-            InsertedPHIs.end()))
+        llvm::is_contained(InsertedPHIs, DefBefore)))
     DefBeforeSameBlock = true;
 
   // There is a def before us, which means we can replace any store/phi uses
@@ -542,6 +543,20 @@ void MemorySSAUpdater::removeDuplicatePhiEdgesBetween(const BasicBlock *From,
   }
 }
 
+/// If all arguments of a MemoryPHI are defined by the same incoming
+/// argument, return that argument.
+static MemoryAccess *onlySingleValue(MemoryPhi *MP) {
+  MemoryAccess *MA = nullptr;
+
+  for (auto &Arg : MP->operands()) {
+    if (!MA)
+      MA = cast<MemoryAccess>(Arg);
+    else if (MA != Arg)
+      return nullptr;
+  }
+  return MA;
+}
+
 static MemoryAccess *getNewDefiningAccessForClone(MemoryAccess *MA,
                                                   const ValueToValueMapTy &VMap,
                                                   PhiToDefMap &MPhiMap,
@@ -698,6 +713,10 @@ void MemorySSAUpdater::updateForClonedLoop(const LoopBlocksRPO &LoopBlocks,
           NewPhi->addIncoming(IncPhi, IncBB);
       }
     }
+    if (auto *SingleAccess = onlySingleValue(NewPhi)) {
+      MPhiMap[Phi] = SingleAccess;
+      removeMemoryAccess(NewPhi);
+    }
   };
 
   auto ProcessBlock = [&](BasicBlock *BB) {
@@ -781,32 +800,40 @@ void MemorySSAUpdater::updateExitBlocksForClonedLoop(
 
 void MemorySSAUpdater::applyUpdates(ArrayRef<CFGUpdate> Updates,
                                     DominatorTree &DT) {
+  SmallVector<CFGUpdate, 4> DeleteUpdates;
   SmallVector<CFGUpdate, 4> RevDeleteUpdates;
   SmallVector<CFGUpdate, 4> InsertUpdates;
   for (auto &Update : Updates) {
     if (Update.getKind() == DT.Insert)
       InsertUpdates.push_back({DT.Insert, Update.getFrom(), Update.getTo()});
-    else
+    else {
+      DeleteUpdates.push_back({DT.Delete, Update.getFrom(), Update.getTo()});
       RevDeleteUpdates.push_back({DT.Insert, Update.getFrom(), Update.getTo()});
+    }
   }
 
-  if (!RevDeleteUpdates.empty()) {
-    // Update for inserted edges: use newDT and snapshot CFG as if deletes had
-    // not occurred.
-    // FIXME: This creates a new DT, so it's more expensive to do mix
-    // delete/inserts vs just inserts. We can do an incremental update on the DT
-    // to revert deletes, than re-delete the edges. Teaching DT to do this, is
-    // part of a pending cleanup.
-    DominatorTree NewDT(DT, RevDeleteUpdates);
+  if (!DeleteUpdates.empty()) {
+    SmallVector<CFGUpdate, 0> Empty;
+    // Deletes are reversed applied, because this CFGView is pretending the
+    // deletes did not happen yet, hence the edges still exist.
+    DT.applyUpdates(Empty, RevDeleteUpdates);
+
+    // Note: the MSSA update below doesn't distinguish between a GD with
+    // (RevDelete,false) and (Delete, true), but this matters for the DT
+    // updates above; for "children" purposes they are equivalent; but the
+    // updates themselves convey the desired update, used inside DT only.
     GraphDiff<BasicBlock *> GD(RevDeleteUpdates);
-    applyInsertUpdates(InsertUpdates, NewDT, &GD);
+    applyInsertUpdates(InsertUpdates, DT, &GD);
+    // Update DT to redelete edges; this matches the real CFG so we can perform
+    // the standard update without a postview of the CFG.
+    DT.applyUpdates(DeleteUpdates);
   } else {
     GraphDiff<BasicBlock *> GD;
     applyInsertUpdates(InsertUpdates, DT, &GD);
   }
 
   // Update for deleted edges
-  for (auto &Update : RevDeleteUpdates)
+  for (auto &Update : DeleteUpdates)
     removeEdge(Update.getFrom(), Update.getTo());
 }
 
@@ -830,8 +857,8 @@ void MemorySSAUpdater::applyInsertUpdates(ArrayRef<CFGUpdate> Updates,
       // Check number of predecessors, we only care if there's more than one.
       unsigned Count = 0;
       BasicBlock *Pred = nullptr;
-      for (auto &Pair : children<GraphDiffInvBBPair>({GD, BB})) {
-        Pred = Pair.second;
+      for (auto *Pi : GD->template getChildren</*InverseEdge=*/true>(BB)) {
+        Pred = Pi;
         Count++;
         if (Count == 2)
           break;
@@ -924,8 +951,7 @@ void MemorySSAUpdater::applyInsertUpdates(ArrayRef<CFGUpdate> Updates,
     auto *BB = BBPredPair.first;
     const auto &AddedBlockSet = BBPredPair.second.Added;
     auto &PrevBlockSet = BBPredPair.second.Prev;
-    for (auto &Pair : children<GraphDiffInvBBPair>({GD, BB})) {
-      BasicBlock *Pi = Pair.second;
+    for (auto *Pi : GD->template getChildren</*InverseEdge=*/true>(BB)) {
       if (!AddedBlockSet.count(Pi))
         PrevBlockSet.insert(Pi);
       EdgeCountMap[{Pi, BB}]++;
@@ -1076,10 +1102,8 @@ void MemorySSAUpdater::applyInsertUpdates(ArrayRef<CFGUpdate> Updates,
         for (unsigned I = 0, E = IDFPhi->getNumIncomingValues(); I < E; ++I)
           IDFPhi->setIncomingValue(I, GetLastDef(IDFPhi->getIncomingBlock(I)));
       } else {
-        for (auto &Pair : children<GraphDiffInvBBPair>({GD, BBIDF})) {
-          BasicBlock *Pi = Pair.second;
+        for (auto *Pi : GD->template getChildren</*InverseEdge=*/true>(BBIDF))
           IDFPhi->addIncoming(GetLastDef(Pi), Pi);
-        }
       }
     }
   }
@@ -1223,20 +1247,6 @@ void MemorySSAUpdater::moveAllAfterMergeBlocks(BasicBlock *From, BasicBlock *To,
   for (BasicBlock *Succ : successors(From))
     if (MemoryPhi *MPhi = MSSA->getMemoryAccess(Succ))
       MPhi->setIncomingBlock(MPhi->getBasicBlockIndex(From), To);
-}
-
-/// If all arguments of a MemoryPHI are defined by the same incoming
-/// argument, return that argument.
-static MemoryAccess *onlySingleValue(MemoryPhi *MP) {
-  MemoryAccess *MA = nullptr;
-
-  for (auto &Arg : MP->operands()) {
-    if (!MA)
-      MA = cast<MemoryAccess>(Arg);
-    else if (MA != Arg)
-      return nullptr;
-  }
-  return MA;
 }
 
 void MemorySSAUpdater::wireOldPredecessorsToNewImmediatePredecessor(

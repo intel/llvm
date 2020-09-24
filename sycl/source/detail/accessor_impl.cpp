@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/accessor_impl.hpp>
+#include <CL/sycl/detail/buffer_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
@@ -22,6 +23,15 @@ AccessorImplHost::~AccessorImplHost() {
   }
 }
 
+void AccessorImplHost::resize(size_t GlobalSize) {
+  if (GlobalSize != 1) {
+    auto Bufi = static_cast<detail::buffer_impl *>(MSYCLMemObj);
+    MMemoryRange[0] *= GlobalSize;
+    MAccessRange[0] *= GlobalSize;
+    Bufi->resize(MMemoryRange[0] * MElemSize);
+  }
+}
+
 void addHostAccessorAndWait(Requirement *Req) {
   detail::EventImplPtr Event =
       detail::Scheduler::getInstance().addHostAccessor(Req);
@@ -30,4 +40,3 @@ void addHostAccessorAndWait(Requirement *Req) {
 }
 }
 }
-

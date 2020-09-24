@@ -46,7 +46,7 @@ BasicBlock *llvm::CloneBasicBlock(const BasicBlock *BB, ValueToValueMapTy &VMap,
   if (BB->hasName())
     NewBB->setName(BB->getName() + NameSuffix);
 
-  bool hasCalls = false, hasDynamicAllocas = false, hasStaticAllocas = false;
+  bool hasCalls = false, hasDynamicAllocas = false;
   Module *TheModule = F ? F->getParent() : nullptr;
 
   // Loop over all instructions, and copy them over.
@@ -62,18 +62,15 @@ BasicBlock *llvm::CloneBasicBlock(const BasicBlock *BB, ValueToValueMapTy &VMap,
 
     hasCalls |= (isa<CallInst>(I) && !isa<DbgInfoIntrinsic>(I));
     if (const AllocaInst *AI = dyn_cast<AllocaInst>(&I)) {
-      if (isa<ConstantInt>(AI->getArraySize()))
-        hasStaticAllocas = true;
-      else
+      if (!AI->isStaticAlloca()) {
         hasDynamicAllocas = true;
+      }
     }
   }
 
   if (CodeInfo) {
     CodeInfo->ContainsCalls          |= hasCalls;
     CodeInfo->ContainsDynamicAllocas |= hasDynamicAllocas;
-    CodeInfo->ContainsDynamicAllocas |= hasStaticAllocas &&
-                                        BB != &BB->getParent()->getEntryBlock();
   }
   return NewBB;
 }
@@ -140,15 +137,10 @@ void llvm::CloneFunctionInto(Function *NewFunc, const Function *OldFunc,
       MD[SP].reset(SP);
   }
 
-  SmallVector<std::pair<unsigned, MDNode *>, 1> MDs;
-  OldFunc->getAllMetadata(MDs);
-  for (auto MD : MDs) {
-    NewFunc->addMetadata(
-        MD.first,
-        *MapMetadata(MD.second, VMap,
-                     ModuleLevelChanges ? RF_None : RF_NoModuleLevelChanges,
-                     TypeMapper, Materializer));
-  }
+  // Everything else beyond this point deals with function instructions,
+  // so if we are dealing with a function declaration, we're done.
+  if (OldFunc->isDeclaration())
+    return;
 
   // When we remap instructions, we want to avoid duplicating inlined
   // DISubprograms, so record all subprograms we find as we duplicate
@@ -160,7 +152,6 @@ void llvm::CloneFunctionInto(Function *NewFunc, const Function *OldFunc,
   // Loop over all of the basic blocks in the function, cloning them as
   // appropriate.  Note that we save BE this way in order to handle cloning of
   // recursive functions into themselves.
-  //
   for (Function::const_iterator BI = OldFunc->begin(), BE = OldFunc->end();
        BI != BE; ++BI) {
     const BasicBlock &BB = *BI;
@@ -198,6 +189,19 @@ void llvm::CloneFunctionInto(Function *NewFunc, const Function *OldFunc,
 
   for (DIType *Type : DIFinder.types())
     VMap.MD()[Type].reset(Type);
+
+  // Duplicate the metadata that is attached to the cloned function.
+  // Subprograms/CUs/types that were already mapped to themselves won't be
+  // duplicated.
+  SmallVector<std::pair<unsigned, MDNode *>, 1> MDs;
+  OldFunc->getAllMetadata(MDs);
+  for (auto MD : MDs) {
+    NewFunc->addMetadata(
+        MD.first,
+        *MapMetadata(MD.second, VMap,
+                     ModuleLevelChanges ? RF_None : RF_NoModuleLevelChanges,
+                     TypeMapper, Materializer));
+  }
 
   // Loop over all of the instructions in the function, fixing up operand
   // references as we go.  This uses VMap to do all the hard work.
@@ -367,8 +371,8 @@ void PruningFunctionCloner::CloneBlock(const BasicBlock *BB,
     hasCalls |= (isa<CallInst>(II) && !isa<DbgInfoIntrinsic>(II));
 
     if (CodeInfo)
-      if (auto CS = ImmutableCallSite(&*II))
-        if (CS.hasOperandBundles())
+      if (auto *CB = dyn_cast<CallBase>(&*II))
+        if (CB->hasOperandBundles())
           CodeInfo->OperandBundleCallSites.push_back(NewInst);
 
     if (const AllocaInst *AI = dyn_cast<AllocaInst>(II)) {
@@ -424,8 +428,8 @@ void PruningFunctionCloner::CloneBlock(const BasicBlock *BB,
     VMap[OldTI] = NewInst;             // Add instruction map to value.
 
     if (CodeInfo)
-      if (auto CS = ImmutableCallSite(OldTI))
-        if (CS.hasOperandBundles())
+      if (auto *CB = dyn_cast<CallBase>(OldTI))
+        if (CB->hasOperandBundles())
           CodeInfo->OperandBundleCallSites.push_back(NewInst);
 
     // Recursively clone any reachable successor blocks.
@@ -619,8 +623,9 @@ void llvm::CloneAndPruneIntoFromInst(Function *NewFunc, const Function *OldFunc,
 
     // Skip over non-intrinsic callsites, we don't want to remove any nodes from
     // the CGSCC.
-    CallSite CS = CallSite(I);
-    if (CS && CS.getCalledFunction() && !CS.getCalledFunction()->isIntrinsic())
+    CallBase *CB = dyn_cast<CallBase>(I);
+    if (CB && CB->getCalledFunction() &&
+        !CB->getCalledFunction()->isIntrinsic())
       continue;
 
     // See if this instruction simplifies.

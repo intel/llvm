@@ -18,8 +18,8 @@
 #include "llvm/CodeGen/AsmPrinterHandler.h"
 #include "llvm/CodeGen/DbgEntityHistoryCalculator.h"
 #include "llvm/CodeGen/LexicalScopes.h"
-#include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/DebugLoc.h"
 
 namespace llvm {
 
@@ -110,6 +110,9 @@ protected:
   virtual void endFunctionImpl(const MachineFunction *MF) = 0;
   virtual void skippedNonDebugFunction() {}
 
+private:
+  InstructionOrdering InstOrdering;
+
   // AsmPrinterHandler overrides.
 public:
   void beginInstruction(const MachineInstr *MI) override;
@@ -117,6 +120,9 @@ public:
 
   void beginFunction(const MachineFunction *MF) override;
   void endFunction(const MachineFunction *MF) override;
+
+  void beginBasicBlock(const MachineBasicBlock &MBB) override;
+  void endBasicBlock(const MachineBasicBlock &MBB) override;
 
   /// Return Label preceding the instruction.
   MCSymbol *getLabelBeforeInsn(const MachineInstr *MI);
@@ -126,8 +132,10 @@ public:
 
   /// If this type is derived from a base type then return base type size.
   static uint64_t getBaseTypeSize(const DIType *Ty);
+
+  const InstructionOrdering &getInstOrdering() const { return InstOrdering; }
 };
 
-}
+} // namespace llvm
 
 #endif

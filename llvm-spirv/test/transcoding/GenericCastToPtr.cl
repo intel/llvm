@@ -37,7 +37,7 @@ private short2 *testGenericCastToPtrPrivate(generic short2 *a) {
 // CHECK-LLVM-LABEL: @testGenericCastToPtrExplicitGlobal
 // CHECK-LLVM: %[[VoidPtrCast:[0-9]+]] = bitcast <2 x i16> addrspace(4)* %a to i8 addrspace(4)*
 // CHECK-LLVM-NEXT: %[[AddrSpaceCast:[0-9]+]] = bitcast i8 addrspace(4)* %[[VoidPtrCast]] to i8 addrspace(4)*
-// CHECK-LLVM-NEXT: %.tmp = call spir_func i8 addrspace(1)* @__to_global(i8 addrspace(4)* %[[AddrSpaceCast]])
+// CHECK-LLVM-NEXT: %{{[0-9a-zA-Z.]+}} = call spir_func i8 addrspace(1)* @__to_global(i8 addrspace(4)* %[[AddrSpaceCast]])
 // CHECK-LLVM: bitcast i8 addrspace(1)* %{{[0-9]+}} to <2 x i16> addrspace(1)*
 
 global short2 *testGenericCastToPtrExplicitGlobal(generic short2 *a) {
@@ -49,7 +49,7 @@ global short2 *testGenericCastToPtrExplicitGlobal(generic short2 *a) {
 // CHECK-LLVM-LABEL: @testGenericCastToPtrExplicitLocal
 // CHECK-LLVM: %[[VoidPtrCast:[0-9]+]] = bitcast <2 x i16> addrspace(4)* %a to i8 addrspace(4)*
 // CHECK-LLVM-NEXT: %[[AddrSpaceCast:[0-9]+]] = bitcast i8 addrspace(4)* %[[VoidPtrCast]] to i8 addrspace(4)*
-// CHECK-LLVM-NEXT: %.tmp = call spir_func i8 addrspace(3)* @__to_local(i8 addrspace(4)* %[[AddrSpaceCast]])
+// CHECK-LLVM-NEXT: %{{[0-9a-zA-Z.]+}} = call spir_func i8 addrspace(3)* @__to_local(i8 addrspace(4)* %[[AddrSpaceCast]])
 // CHECK-LLVM: bitcast i8 addrspace(3)* %{{[0-9]+}} to <2 x i16> addrspace(3)*
 
 local short2 *testGenericCastToPtrExplicitLocal(generic short2 *a) {
@@ -61,7 +61,7 @@ local short2 *testGenericCastToPtrExplicitLocal(generic short2 *a) {
 // CHECK-LLVM-LABEL: @testGenericCastToPtrExplicitPrivate
 // CHECK-LLVM: %[[VoidPtrCast:[0-9]+]] = bitcast <2 x i16> addrspace(4)* %a to i8 addrspace(4)*
 // CHECK-LLVM-NEXT: %[[AddrSpaceCast:[0-9]+]] = bitcast i8 addrspace(4)* %[[VoidPtrCast]] to i8 addrspace(4)*
-// CHECK-LLVM-NEXT: %.tmp = call spir_func i8* @__to_private(i8 addrspace(4)* %[[AddrSpaceCast]])
+// CHECK-LLVM-NEXT: %{{[0-9a-zA-Z.]+}} = call spir_func i8* @__to_private(i8 addrspace(4)* %[[AddrSpaceCast]])
 // CHECK-LLVM: bitcast i8* %{{[0-9]+}} to <2 x i16>*
 
 private short2 *testGenericCastToPtrExplicitPrivate(generic short2 *a) {

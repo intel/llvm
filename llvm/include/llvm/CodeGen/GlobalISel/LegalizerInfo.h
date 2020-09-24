@@ -35,6 +35,7 @@ namespace llvm {
 
 extern cl::opt<bool> DisableGISelLegalityCheck;
 
+class LegalizerHelper;
 class MachineInstr;
 class MachineIRBuilder;
 class MachineRegisterInfo;
@@ -182,7 +183,7 @@ struct TypePairAndMemDesc {
            MemSize == Other.MemSize;
   }
 
-  /// \returns true if this memory access is legal with for the acecss described
+  /// \returns true if this memory access is legal with for the access described
   /// by \p Other (The alignment is sufficient for the size and result type).
   bool isCompatible(const TypePairAndMemDesc &Other) const {
     return Type0 == Other.Type0 && Type1 == Other.Type1 &&
@@ -203,11 +204,33 @@ template<typename Predicate, typename... Args>
 Predicate all(Predicate P0, Predicate P1, Args... args) {
   return all(all(P0, P1), args...);
 }
-/// True iff the given type index is the specified types.
+
+/// True iff P0 or P1 are true.
+template<typename Predicate>
+Predicate any(Predicate P0, Predicate P1) {
+  return [=](const LegalityQuery &Query) {
+    return P0(Query) || P1(Query);
+  };
+}
+/// True iff any given predicates are true.
+template<typename Predicate, typename... Args>
+Predicate any(Predicate P0, Predicate P1, Args... args) {
+  return any(any(P0, P1), args...);
+}
+
+/// True iff the given type index is the specified type.
 LegalityPredicate typeIs(unsigned TypeIdx, LLT TypesInit);
 /// True iff the given type index is one of the specified types.
 LegalityPredicate typeInSet(unsigned TypeIdx,
                             std::initializer_list<LLT> TypesInit);
+
+/// True iff the given type index is not the specified type.
+inline LegalityPredicate typeIsNot(unsigned TypeIdx, LLT Type) {
+  return [=](const LegalityQuery &Query) {
+           return Query.Types[TypeIdx] != Type;
+         };
+}
+
 /// True iff the given types for the given pair of type indexes is one of the
 /// specified type pairs.
 LegalityPredicate
@@ -228,13 +251,16 @@ LegalityPredicate isPointer(unsigned TypeIdx);
 /// space.
 LegalityPredicate isPointer(unsigned TypeIdx, unsigned AddrSpace);
 
+/// True if the type index is a vector with element type \p EltTy
+LegalityPredicate elementTypeIs(unsigned TypeIdx, LLT EltTy);
+
 /// True iff the specified type index is a scalar that's narrower than the given
 /// size.
-LegalityPredicate narrowerThan(unsigned TypeIdx, unsigned Size);
+LegalityPredicate scalarNarrowerThan(unsigned TypeIdx, unsigned Size);
 
 /// True iff the specified type index is a scalar that's wider than the given
 /// size.
-LegalityPredicate widerThan(unsigned TypeIdx, unsigned Size);
+LegalityPredicate scalarWiderThan(unsigned TypeIdx, unsigned Size);
 
 /// True iff the specified type index is a scalar or vector with an element type
 /// that's narrower than the given size.
@@ -252,8 +278,20 @@ LegalityPredicate sizeNotPow2(unsigned TypeIdx);
 /// is not a power of 2.
 LegalityPredicate scalarOrEltSizeNotPow2(unsigned TypeIdx);
 
+/// True if the total bitwidth of the specified type index is \p Size bits.
+LegalityPredicate sizeIs(unsigned TypeIdx, unsigned Size);
+
 /// True iff the specified type indices are both the same bit size.
 LegalityPredicate sameSize(unsigned TypeIdx0, unsigned TypeIdx1);
+
+/// True iff the first type index has a larger total bit size than second type
+/// index.
+LegalityPredicate largerThan(unsigned TypeIdx0, unsigned TypeIdx1);
+
+/// True iff the first type index has a smaller total bit size than second type
+/// index.
+LegalityPredicate smallerThan(unsigned TypeIdx0, unsigned TypeIdx1);
+
 /// True iff the specified MMO index has a size that is not a power of 2
 LegalityPredicate memSizeInBytesNotPow2(unsigned MMOIdx);
 /// True iff the specified type index is a vector whose element count is not a
@@ -277,6 +315,11 @@ LegalizeMutation changeElementTo(unsigned TypeIdx, unsigned FromTypeIdx);
 
 /// Keep the same scalar or element type as the given type.
 LegalizeMutation changeElementTo(unsigned TypeIdx, LLT Ty);
+
+/// Change the scalar size or element size to have the same scalar size as type
+/// index \p FromIndex. Unlike changeElementTo, this discards pointer types and
+/// only changes the size.
+LegalizeMutation changeElementSizeTo(unsigned TypeIdx, unsigned FromTypeIdx);
 
 /// Widen the scalar type or vector element type for the given type index to the
 /// next power of 2.
@@ -430,6 +473,14 @@ class LegalizeRuleSet {
     immIdx(0); // Inform verifier imm idx 0 is handled.
     return actionIf(Action, typeInSet(typeIdx(0), Types));
   }
+
+  LegalizeRuleSet &actionForTypeWithAnyImm(
+    LegalizeAction Action, std::initializer_list<std::pair<LLT, LLT>> Types) {
+    using namespace LegalityPredicates;
+    immIdx(0); // Inform verifier imm idx 0 is handled.
+    return actionIf(Action, typePairInSet(typeIdx(0), typeIdx(1), Types));
+  }
+
   /// Use the given action when type indexes 0 and 1 are both in the given list.
   /// That is, the type pair is in the cartesian product of the list.
   /// Action should not be an action that requires mutation.
@@ -499,6 +550,13 @@ public:
     markAllIdxsAsCovered();
     return actionForTypeWithAnyImm(LegalizeAction::Legal, Types);
   }
+
+  LegalizeRuleSet &legalForTypeWithAnyImm(
+    std::initializer_list<std::pair<LLT, LLT>> Types) {
+    markAllIdxsAsCovered();
+    return actionForTypeWithAnyImm(LegalizeAction::Legal, Types);
+  }
+
   /// The instruction is legal when type indexes 0 and 1 along with the memory
   /// size and minimum alignment is any type and size tuple in the given list.
   LegalizeRuleSet &legalForTypesWithMemDesc(
@@ -534,6 +592,15 @@ public:
     return actionIf(LegalizeAction::Legal, always);
   }
 
+  /// The specified type index is coerced if predicate is true.
+  LegalizeRuleSet &bitcastIf(LegalityPredicate Predicate,
+                             LegalizeMutation Mutation) {
+    // We have no choice but conservatively assume that lowering with a
+    // free-form user provided Predicate properly handles all type indices:
+    markAllIdxsAsCovered();
+    return actionIf(LegalizeAction::Bitcast, Predicate, Mutation);
+  }
+
   /// The instruction is lowered.
   LegalizeRuleSet &lower() {
     using namespace LegalizeMutations;
@@ -562,8 +629,7 @@ public:
   /// The instruction is lowered when type index 0 is any type in the given
   /// list. Keep type index 0 as the same type.
   LegalizeRuleSet &lowerFor(std::initializer_list<LLT> Types) {
-    return actionFor(LegalizeAction::Lower, Types,
-                     LegalizeMutations::changeTo(0, 0));
+    return actionFor(LegalizeAction::Lower, Types);
   }
   /// The instruction is lowered when type index 0 is any type in the given
   /// list.
@@ -574,8 +640,7 @@ public:
   /// The instruction is lowered when type indexes 0 and 1 is any type pair in
   /// the given list. Keep type index 0 as the same type.
   LegalizeRuleSet &lowerFor(std::initializer_list<std::pair<LLT, LLT>> Types) {
-    return actionFor(LegalizeAction::Lower, Types,
-                     LegalizeMutations::changeTo(0, 0));
+    return actionFor(LegalizeAction::Lower, Types);
   }
   /// The instruction is lowered when type indexes 0 and 1 is any type pair in
   /// the given list.
@@ -598,6 +663,15 @@ public:
     using namespace LegalityPredicates;
     return actionForCartesianProduct(LegalizeAction::Lower, Types0, Types1,
                                      Types2);
+  }
+
+  /// The instruction is emitted as a library call.
+  LegalizeRuleSet &libcall() {
+    using namespace LegalizeMutations;
+    // We have no choice but conservatively assume that predicate-less lowering
+    // properly handles all type indices by design:
+    markAllIdxsAsCovered();
+    return actionIf(LegalizeAction::Libcall, always);
   }
 
   /// Like legalIf, but for the Libcall action.
@@ -641,6 +715,13 @@ public:
     // free-form user provided Predicate properly handles all type indices:
     markAllIdxsAsCovered();
     return actionIf(LegalizeAction::NarrowScalar, Predicate, Mutation);
+  }
+  /// Narrow the scalar, specified in mutation, when type indexes 0 and 1 is any
+  /// type pair in the given list.
+  LegalizeRuleSet &
+  narrowScalarFor(std::initializer_list<std::pair<LLT, LLT>> Types,
+                  LegalizeMutation Mutation) {
+    return actionFor(LegalizeAction::NarrowScalar, Types, Mutation);
   }
 
   /// Add more elements to reach the type selected by the mutation if the
@@ -771,7 +852,7 @@ public:
     using namespace LegalityPredicates;
     using namespace LegalizeMutations;
     return actionIf(LegalizeAction::WidenScalar,
-                    narrowerThan(TypeIdx, Ty.getSizeInBits()),
+                    scalarNarrowerThan(TypeIdx, Ty.getSizeInBits()),
                     changeTo(typeIdx(TypeIdx), Ty));
   }
 
@@ -789,7 +870,7 @@ public:
     using namespace LegalityPredicates;
     using namespace LegalizeMutations;
     return actionIf(LegalizeAction::NarrowScalar,
-                    widerThan(TypeIdx, Ty.getSizeInBits()),
+                    scalarWiderThan(TypeIdx, Ty.getSizeInBits()),
                     changeTo(typeIdx(TypeIdx), Ty));
   }
 
@@ -803,7 +884,10 @@ public:
     return actionIf(
         LegalizeAction::NarrowScalar,
         [=](const LegalityQuery &Query) {
-          return widerThan(TypeIdx, Ty.getSizeInBits()) && Predicate(Query);
+          const LLT QueryTy = Query.Types[TypeIdx];
+          return QueryTy.isScalar() &&
+                 QueryTy.getSizeInBits() > Ty.getSizeInBits() &&
+                 Predicate(Query);
         },
         changeElementTo(typeIdx(TypeIdx), Ty));
   }
@@ -829,11 +913,25 @@ public:
           return Query.Types[LargeTypeIdx].getScalarSizeInBits() >
                  Query.Types[TypeIdx].getSizeInBits();
         },
+        LegalizeMutations::changeElementSizeTo(TypeIdx, LargeTypeIdx));
+  }
+
+  /// Narrow the scalar to match the size of another.
+  LegalizeRuleSet &maxScalarSameAs(unsigned TypeIdx, unsigned NarrowTypeIdx) {
+    typeIdx(TypeIdx);
+    return narrowScalarIf(
         [=](const LegalityQuery &Query) {
-          LLT T = Query.Types[LargeTypeIdx];
-          return std::make_pair(TypeIdx,
-                                T.isVector() ? T.getElementType() : T);
-        });
+          return Query.Types[NarrowTypeIdx].getScalarSizeInBits() <
+                 Query.Types[TypeIdx].getSizeInBits();
+        },
+        LegalizeMutations::changeElementSizeTo(TypeIdx, NarrowTypeIdx));
+  }
+
+  /// Change the type \p TypeIdx to have the same scalar size as type \p
+  /// SameSizeIdx.
+  LegalizeRuleSet &scalarSameSizeAs(unsigned TypeIdx, unsigned SameSizeIdx) {
+    return minScalarSameAs(TypeIdx, SameSizeIdx)
+          .maxScalarSameAs(TypeIdx, SameSizeIdx);
   }
 
   /// Conditionally widen the scalar or elt to match the size of another.
@@ -1153,18 +1251,30 @@ public:
   bool isLegal(const LegalityQuery &Query) const {
     return getAction(Query).Action == LegalizeAction::Legal;
   }
+
+  bool isLegalOrCustom(const LegalityQuery &Query) const {
+    auto Action = getAction(Query).Action;
+    return Action == LegalizeAction::Legal || Action == LegalizeAction::Custom;
+  }
+
   bool isLegal(const MachineInstr &MI, const MachineRegisterInfo &MRI) const;
   bool isLegalOrCustom(const MachineInstr &MI,
                        const MachineRegisterInfo &MRI) const;
 
-  virtual bool legalizeCustom(MachineInstr &MI, MachineRegisterInfo &MRI,
-                              MachineIRBuilder &MIRBuilder,
-                              GISelChangeObserver &Observer) const;
+  /// Called for instructions with the Custom LegalizationAction.
+  virtual bool legalizeCustom(LegalizerHelper &Helper,
+                              MachineInstr &MI) const {
+    llvm_unreachable("must implement this if custom action is used");
+  }
 
+  /// \returns true if MI is either legal or has been legalized and false if not
+  /// legal.
   /// Return true if MI is either legal or has been legalized and false
   /// if not legal.
-  virtual bool legalizeIntrinsic(MachineInstr &MI, MachineIRBuilder &MIRBuilder,
-                                 GISelChangeObserver &Observer) const;
+  virtual bool legalizeIntrinsic(LegalizerHelper &Helper,
+                                 MachineInstr &MI) const {
+    return true;
+  }
 
   /// Return the opcode (SEXT/ZEXT/ANYEXT) that should be performed while
   /// widening a constant of type SmallTy which targets can override.

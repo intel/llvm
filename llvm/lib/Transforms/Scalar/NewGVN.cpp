@@ -106,6 +106,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/GVNExpression.h"
+#include "llvm/Transforms/Utils/AssumeBundleBuilder.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/PredicateInfo.h"
 #include "llvm/Transforms/Utils/VNCoercion.h"
@@ -495,6 +496,7 @@ class NewGVN {
   AliasAnalysis *AA = nullptr;
   MemorySSA *MSSA = nullptr;
   MemorySSAWalker *MSSAWalker = nullptr;
+  AssumptionCache *AC = nullptr;
   const DataLayout &DL;
   std::unique_ptr<PredicateInfo> PredInfo;
 
@@ -658,9 +660,10 @@ public:
   NewGVN(Function &F, DominatorTree *DT, AssumptionCache *AC,
          TargetLibraryInfo *TLI, AliasAnalysis *AA, MemorySSA *MSSA,
          const DataLayout &DL)
-      : F(F), DT(DT), TLI(TLI), AA(AA), MSSA(MSSA), DL(DL),
+      : F(F), DT(DT), TLI(TLI), AA(AA), MSSA(MSSA), AC(AC), DL(DL),
         PredInfo(std::make_unique<PredicateInfo>(F, *DT, *AC)),
-        SQ(DL, TLI, DT, AC, /*CtxI=*/nullptr, /*UseInstrInfo=*/false) {}
+        SQ(DL, TLI, DT, AC, /*CtxI=*/nullptr, /*UseInstrInfo=*/false,
+           /*CanUseUndef=*/false) {}
 
   bool runGVN();
 
@@ -898,7 +901,7 @@ bool NewGVN::isBackedge(BasicBlock *From, BasicBlock *To) const {
 
 #ifndef NDEBUG
 static std::string getBlockName(const BasicBlock *B) {
-  return DOTGraphTraits<const Function *>::getSimpleNodeLabel(B, nullptr);
+  return DOTGraphTraits<DOTFuncInfo *>::getSimpleNodeLabel(B, nullptr);
 }
 #endif
 
@@ -1251,6 +1254,7 @@ const UnknownExpression *NewGVN::createUnknownExpression(Instruction *I) const {
 const CallExpression *
 NewGVN::createCallExpression(CallInst *CI, const MemoryAccess *MA) const {
   // FIXME: Add operand bundles for calls.
+  // FIXME: Allow commutative matching for intrinsics.
   auto *E =
       new (ExpressionAllocator) CallExpression(CI->getNumOperands(), CI, MA);
   setBasicExpressionInfo(CI, E);
@@ -1334,8 +1338,6 @@ LoadExpression *NewGVN::createLoadExpression(Type *LoadType, Value *PointerOp,
   // Give store and loads same opcode so they value number together.
   E->setOpcode(0);
   E->op_push_back(PointerOp);
-  if (LI)
-    E->setAlignment(MaybeAlign(LI->getAlignment()));
 
   // TODO: Value number heap versions. We may be able to discover
   // things alias analysis can't on it's own (IE that a store and a
@@ -1470,7 +1472,8 @@ NewGVN::performSymbolicLoadCoercion(Type *LoadType, Value *LoadPtr,
   // undef value.  This can happen when loading for a fresh allocation with no
   // intervening stores, for example.  Note that this is only true in the case
   // that the result of the allocation is pointer equal to the load ptr.
-  if (isa<AllocaInst>(DepInst) || isMallocLikeFn(DepInst, TLI)) {
+  if (isa<AllocaInst>(DepInst) || isMallocLikeFn(DepInst, TLI) ||
+      isAlignedAllocLikeFn(DepInst, TLI)) {
     return createConstantExpression(UndefValue::get(LoadType));
   }
   // If this load occurs either right after a lifetime begin,
@@ -1538,90 +1541,39 @@ NewGVN::performSymbolicPredicateInfoEvaluation(Instruction *I) const {
 
   LLVM_DEBUG(dbgs() << "Found predicate info from instruction !\n");
 
-  auto *PWC = dyn_cast<PredicateWithCondition>(PI);
-  if (!PWC)
+  const Optional<PredicateConstraint> &Constraint = PI->getConstraint();
+  if (!Constraint)
     return nullptr;
 
-  auto *CopyOf = I->getOperand(0);
-  auto *Cond = PWC->Condition;
+  CmpInst::Predicate Predicate = Constraint->Predicate;
+  Value *CmpOp0 = I->getOperand(0);
+  Value *CmpOp1 = Constraint->OtherOp;
 
-  // If this a copy of the condition, it must be either true or false depending
-  // on the predicate info type and edge.
-  if (CopyOf == Cond) {
-    // We should not need to add predicate users because the predicate info is
-    // already a use of this operand.
-    if (isa<PredicateAssume>(PI))
-      return createConstantExpression(ConstantInt::getTrue(Cond->getType()));
-    if (auto *PBranch = dyn_cast<PredicateBranch>(PI)) {
-      if (PBranch->TrueEdge)
-        return createConstantExpression(ConstantInt::getTrue(Cond->getType()));
-      return createConstantExpression(ConstantInt::getFalse(Cond->getType()));
-    }
-    if (auto *PSwitch = dyn_cast<PredicateSwitch>(PI))
-      return createConstantExpression(cast<Constant>(PSwitch->CaseValue));
-  }
+  Value *FirstOp = lookupOperandLeader(CmpOp0);
+  Value *SecondOp = lookupOperandLeader(CmpOp1);
+  Value *AdditionallyUsedValue = CmpOp0;
 
-  // Not a copy of the condition, so see what the predicates tell us about this
-  // value.  First, though, we check to make sure the value is actually a copy
-  // of one of the condition operands. It's possible, in certain cases, for it
-  // to be a copy of a predicateinfo copy. In particular, if two branch
-  // operations use the same condition, and one branch dominates the other, we
-  // will end up with a copy of a copy.  This is currently a small deficiency in
-  // predicateinfo.  What will end up happening here is that we will value
-  // number both copies the same anyway.
-
-  // Everything below relies on the condition being a comparison.
-  auto *Cmp = dyn_cast<CmpInst>(Cond);
-  if (!Cmp)
-    return nullptr;
-
-  if (CopyOf != Cmp->getOperand(0) && CopyOf != Cmp->getOperand(1)) {
-    LLVM_DEBUG(dbgs() << "Copy is not of any condition operands!\n");
-    return nullptr;
-  }
-  Value *FirstOp = lookupOperandLeader(Cmp->getOperand(0));
-  Value *SecondOp = lookupOperandLeader(Cmp->getOperand(1));
-  bool SwappedOps = false;
   // Sort the ops.
   if (shouldSwapOperands(FirstOp, SecondOp)) {
     std::swap(FirstOp, SecondOp);
-    SwappedOps = true;
+    Predicate = CmpInst::getSwappedPredicate(Predicate);
+    AdditionallyUsedValue = CmpOp1;
   }
-  CmpInst::Predicate Predicate =
-      SwappedOps ? Cmp->getSwappedPredicate() : Cmp->getPredicate();
 
-  if (isa<PredicateAssume>(PI)) {
-    // If we assume the operands are equal, then they are equal.
-    if (Predicate == CmpInst::ICMP_EQ) {
-      addPredicateUsers(PI, I);
-      addAdditionalUsers(SwappedOps ? Cmp->getOperand(1) : Cmp->getOperand(0),
-                         I);
-      return createVariableOrConstant(FirstOp);
-    }
+  if (Predicate == CmpInst::ICMP_EQ) {
+    addPredicateUsers(PI, I);
+    addAdditionalUsers(AdditionallyUsedValue, I);
+    return createVariableOrConstant(FirstOp);
   }
-  if (const auto *PBranch = dyn_cast<PredicateBranch>(PI)) {
-    // If we are *not* a copy of the comparison, we may equal to the other
-    // operand when the predicate implies something about equality of
-    // operations.  In particular, if the comparison is true/false when the
-    // operands are equal, and we are on the right edge, we know this operation
-    // is equal to something.
-    if ((PBranch->TrueEdge && Predicate == CmpInst::ICMP_EQ) ||
-        (!PBranch->TrueEdge && Predicate == CmpInst::ICMP_NE)) {
-      addPredicateUsers(PI, I);
-      addAdditionalUsers(SwappedOps ? Cmp->getOperand(1) : Cmp->getOperand(0),
-                         I);
-      return createVariableOrConstant(FirstOp);
-    }
-    // Handle the special case of floating point.
-    if (((PBranch->TrueEdge && Predicate == CmpInst::FCMP_OEQ) ||
-         (!PBranch->TrueEdge && Predicate == CmpInst::FCMP_UNE)) &&
-        isa<ConstantFP>(FirstOp) && !cast<ConstantFP>(FirstOp)->isZero()) {
-      addPredicateUsers(PI, I);
-      addAdditionalUsers(SwappedOps ? Cmp->getOperand(1) : Cmp->getOperand(0),
-                         I);
-      return createConstantExpression(cast<Constant>(FirstOp));
-    }
+
+  // Handle the special case of floating point.
+  if (Predicate == CmpInst::FCMP_OEQ && isa<ConstantFP>(FirstOp) &&
+      !cast<ConstantFP>(FirstOp)->isZero()) {
+    addPredicateUsers(PI, I);
+    addAdditionalUsers(AdditionallyUsedValue, I);
+    return createConstantExpression(cast<Constant>(FirstOp));
   }
+
   return nullptr;
 }
 
@@ -2030,10 +1982,12 @@ NewGVN::performSymbolicEvaluation(Value *V,
     case Instruction::Select:
     case Instruction::ExtractElement:
     case Instruction::InsertElement:
-    case Instruction::ShuffleVector:
     case Instruction::GetElementPtr:
       E = createExpression(I);
       break;
+    case Instruction::ShuffleVector:
+      // FIXME: Add support for shufflevector to createExpression.
+      return nullptr;
     default:
       return nullptr;
     }
@@ -3433,7 +3387,7 @@ bool NewGVN::runGVN() {
   // Sort dominator tree children arrays into RPO.
   for (auto &B : RPOT) {
     auto *Node = DT->getNode(B);
-    if (Node->getChildren().size() > 1)
+    if (Node->getNumChildren() > 1)
       llvm::sort(Node->begin(), Node->end(),
                  [&](const DomTreeNode *A, const DomTreeNode *B) {
                    return RPOOrdering[A] < RPOOrdering[B];
@@ -3693,6 +3647,7 @@ void NewGVN::deleteInstructionsInBlock(BasicBlock *BB) {
       Inst.replaceAllUsesWith(UndefValue::get(Inst.getType()));
     if (isa<LandingPadInst>(Inst))
       continue;
+    salvageKnowledge(&Inst, AC);
 
     Inst.eraseFromParent();
     ++NumGVNInstrDeleted;

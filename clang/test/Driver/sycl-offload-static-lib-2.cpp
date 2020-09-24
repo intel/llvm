@@ -90,18 +90,18 @@
 // WHOLE_STATIC_LIB_1: ld{{.*}} "[[INPUTO]]" "--whole-archive" "[[INPUTA]]" "[[INPUTB]]" "--no-whole-archive"
 // WHOLE_STATIC_LIB_2: ld{{.*}} "[[INPUTO]]" "@[[ARGFILE]]"
 
-/// test -Wl,<arg> behaviors for special case handling of -z and -rpath
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L/dummy/dir %t.o -Wl,-rpath,nopass -Wl,-z,nopass %t.a %t_2.a -### 2>&1 \
+/// test behaviors for special case handling of -z and -rpath
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -z anystring -L/dummy/dir %t.o -Wl,-rpath,nopass -Wl,-z,nopass %t.a %t_2.a -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefixes=WL_CHECK
-// WL_CHECK-NOT: ld{{(.exe)?}}" "-r" {{.*}} "{{.*}}crt1.o" "{{.*}}crti.o" "-L/dummy/dir" {{.*}} "nopass" {{.*}} "{{.*}}crtn.o"
-// WL_CHECK: ld{{.*}}" "-rpath" "nopass" "-z" "nopass"
+// WL_CHECK-NOT: ld{{.*}} "-r" {{.*}} "anystring"
+// WL_CHECK: ld{{.*}} "-z" "anystring" {{.*}} "-rpath" "nopass" "-z" "nopass"
 
 /// ###########################################################################
 
 /// test behaviors of static lib with no source/object
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L/dummy/dir %t.a -### 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -L/dummy/dir %t.a -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_NOSRC -DINPUTLIB=%t.a
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L/dummy/dir %t.lo -### 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -L/dummy/dir %t.lo -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_NOSRC -DINPUTLIB=%t.lo
 // STATIC_LIB_NOSRC: clang-offload-bundler{{.*}} "-type=ao" "-targets=host-x86_64-unknown-linux-gnu" "-inputs=[[INPUTLIB]]" "-check-section"
 // STATIC_LIB_NOSRC: ld{{.*}} "-r" "-o" "[[PARTIALOBJ:.+\.o]]" "{{.*}}crt1.o" {{.*}} "-L/dummy/dir" {{.*}} "[[INPUTLIB]]"

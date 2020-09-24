@@ -37,6 +37,35 @@ enum class address_space : int {
 };
 } // namespace access
 
+class property_list {};
+
+namespace INTEL {
+namespace property {
+struct buffer_location {
+  template <int> class instance {};
+};
+} // namespace property
+} // namespace INTEL
+
+namespace ONEAPI {
+template <typename... properties>
+class accessor_property_list {};
+} // namespace ONEAPI
+
+namespace detail {
+namespace half_impl {
+struct half {
+#ifdef __SYCL_DEVICE_ONLY
+  _Float16 data;
+#else
+  char data[2];
+#endif
+};
+} // namespace half_impl
+} // namespace detail
+
+using half = detail::half_impl::half;
+
 template <int dim>
 struct range {
 };
@@ -72,7 +101,8 @@ struct DeviceValueType<dataT, access::target::local> {
 
 template <typename dataT, int dimensions, access::mode accessmode,
           access::target accessTarget = access::target::global_buffer,
-          access::placeholder isPlaceholder = access::placeholder::false_t>
+          access::placeholder isPlaceholder = access::placeholder::false_t,
+          typename propertyListT = ONEAPI::accessor_property_list<>>
 class accessor {
 
 public:
@@ -178,13 +208,13 @@ struct get_kernel_name_t<auto_name, Type> {
 };
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 template <typename KernelName = auto_name, typename KernelType>
-ATTR_SYCL_KERNEL void kernel_single_task(KernelType kernelFunc) {
+ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc) {
   kernelFunc();
 }
 class handler {
 public:
   template <typename KernelName = auto_name, typename KernelType>
-  void single_task(KernelType kernelFunc) {
+  void single_task(const KernelType &kernelFunc) {
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_single_task<NameT>(kernelFunc);
@@ -194,6 +224,25 @@ public:
   }
 };
 
+class stream {
+  accessor<int, 1, access::mode::read> acc;
+
+public:
+  stream(unsigned long BufferSize, unsigned long MaxStatementSize,
+         handler &CGH) {}
+
+  void __init() {}
+  void use() const {}
+
+  void __finalize() {}
+};
+
+namespace ONEAPI {
+namespace experimental {
+template <typename T, typename ID = T>
+class spec_constant {};
+} // namespace experimental
+} // namespace ONEAPI
 } // namespace sycl
 } // namespace cl
 

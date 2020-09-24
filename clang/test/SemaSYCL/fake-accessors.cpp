@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
 
-#include <sycl.hpp>
+#include "Inputs/sycl.hpp"
 
 namespace foo {
 namespace cl {
@@ -26,7 +26,7 @@ using MyAccessorA = cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_writ
                                        cl::sycl::access::target::global_buffer>;
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 

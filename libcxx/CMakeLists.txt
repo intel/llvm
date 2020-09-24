@@ -1,10 +1,14 @@
 # See https://libcxx.llvm.org/docs/BuildingLibcxx.html for instructions on how
 # to build libcxx with CMake.
 
+if (NOT IS_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/../libcxxabi")
+  message(FATAL_ERROR "libc++ now requires being built in a monorepo layout with libcxxabi available")
+endif()
+
 #===============================================================================
 # Setup Project
 #===============================================================================
-cmake_minimum_required(VERSION 3.4.3)
+cmake_minimum_required(VERSION 3.13.4)
 
 if(POLICY CMP0042)
   cmake_policy(SET CMP0042 NEW) # Set MACOSX_RPATH=YES by default
@@ -28,7 +32,7 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR LIBCXX_STANDALONE_BUIL
   project(libcxx CXX C)
 
   set(PACKAGE_NAME libcxx)
-  set(PACKAGE_VERSION 11.0.0git)
+  set(PACKAGE_VERSION 12.0.0git)
   set(PACKAGE_STRING "${PACKAGE_NAME} ${PACKAGE_VERSION}")
   set(PACKAGE_BUGREPORT "llvm-bugs@lists.llvm.org")
 
@@ -37,11 +41,33 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR LIBCXX_STANDALONE_BUIL
 endif()
 
 if (LIBCXX_STANDALONE_BUILD)
-  include(FindPythonInterp)
-  if( NOT PYTHONINTERP_FOUND )
-    message(WARNING "Failed to find python interpreter. "
-                    "The libc++ test suite will be disabled.")
-    set(LLVM_INCLUDE_TESTS OFF)
+  if(CMAKE_VERSION VERSION_LESS 3.12)
+    include(FindPythonInterp)
+    if( NOT PYTHONINTERP_FOUND )
+      message(WARNING "Failed to find python interpreter. "
+                      "The libc++ test suite will be disabled.")
+      set(LLVM_INCLUDE_TESTS OFF)
+    else()
+      add_executable(Python3::Interpreter IMPORTED)
+      set_target_properties(Python3::Interpreter PROPERTIES
+        IMPORTED_LOCATION ${PYTHON_EXECUTABLE})
+      set(Python3_EXECUTABLE ${PYTHON_EXECUTABLE})
+    endif()
+  else()
+    find_package(Python3 COMPONENTS Interpreter)
+    if(NOT Python3_Interpreter_FOUND)
+      message(WARNING "Python3 not found, using python2 as a fallback")
+      find_package(Python2 COMPONENTS Interpreter REQUIRED)
+      if(Python2_VERSION VERSION_LESS 2.7)
+        message(SEND_ERROR "Python 2.7 or newer is required")
+      endif()
+
+      # Treat python2 as python3
+      add_executable(Python3::Interpreter IMPORTED)
+      set_target_properties(Python3::Interpreter PROPERTIES
+        IMPORTED_LOCATION ${Python2_EXECUTABLE})
+      set(Python3_EXECUTABLE ${Python2_EXECUTABLE})
+    endif()
   endif()
 endif()
 
@@ -83,6 +109,10 @@ option(LIBCXX_ENABLE_FILESYSTEM "Build filesystem as part of the main libc++ lib
 option(LIBCXX_INCLUDE_TESTS "Build the libc++ tests." ${LLVM_INCLUDE_TESTS})
 option(LIBCXX_ENABLE_PARALLEL_ALGORITHMS "Enable the parallel algorithms library. This requires the PSTL to be available." OFF)
 option(LIBCXX_TEST_GDB_PRETTY_PRINTERS "Test gdb pretty printers." OFF)
+set(LIBCXX_TEST_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/test/configs/legacy.cfg.in" CACHE STRING
+    "The Lit testing configuration to use when running the tests." FORCE) # TODO: Stop using 'FORCE' once we can assume all CMake build dirs have been re-generated
+set(LIBCXX_TEST_PARAMS "" CACHE STRING
+    "A list of parameters to run the Lit test suite with.")
 
 # Benchmark options -----------------------------------------------------------
 option(LIBCXX_INCLUDE_BENCHMARKS "Build the libc++ benchmarks and their dependencies" ON)
@@ -128,14 +158,13 @@ option(LIBCXX_ABI_FORCE_ITANIUM "Ignore auto-detection and force use of the Itan
 option(LIBCXX_ABI_FORCE_MICROSOFT "Ignore auto-detection and force use of the Microsoft ABI.")
 
 
-set(LIBCXX_HAS_MERGED_TYPEINFO_NAMES_DEFAULT  "" CACHE STRING
-  "Whether typeinfo names are expected to be unique. Defining this option overrides the default configuration in the library.")
-set(MERGED_TYPEINFO_VALUES ";ON;OFF")
-set_property(CACHE LIBCXX_HAS_MERGED_TYPEINFO_NAMES_DEFAULT PROPERTY STRINGS ${MERGED_TYPEINFO_DEFAULTS})
-list(FIND MERGED_TYPEINFO_VALUES "${LIBCXX_HAS_MERGED_TYPEINFO_NAMES_DEFAULT}" IS_VALID_DEFAULT)
+set(LIBCXX_TYPEINFO_COMPARISON_IMPLEMENTATION "" CACHE STRING "The implementation of typeinfo comparison to use.")
+set(TYPEINFO_COMPARISON_VALUES ";1;2")
+set_property(CACHE LIBCXX_TYPEINFO_COMPARISON_IMPLEMENTATION PROPERTY STRINGS ${TYPEINFO_COMPARISON_VALUES})
+list(FIND TYPEINFO_COMPARISON_VALUES "${LIBCXX_TYPEINFO_COMPARISON_IMPLEMENTATION}" IS_VALID_DEFAULT)
 if (${IS_VALID_DEFAULT} EQUAL -1)
-  message(FATAL_ERROR "Value '${LIBCXX_HAS_MERGED_TYPEINFO_NAMES_DEFAULT}' is not a valid value for
-          LIBCXX_HAS_MERGED_TYPEINFO_NAMES_DEFAULT")
+  message(FATAL_ERROR "Value '${LIBCXX_TYPEINFO_COMPARISON_IMPLEMENTATION}' is not a valid value for
+          LIBCXX_TYPEINFO_COMPARISON_IMPLEMENTATION")
 endif()
 
 option(LIBCXX_HIDE_FROM_ABI_PER_TU_BY_DEFAULT "Enable per TU ABI insulation by default. To be used by vendors." OFF)
@@ -145,45 +174,19 @@ set(LIBCXX_LIBCPPABI_VERSION "2" CACHE STRING "Version of libc++abi's ABI to re-
                                                Note that this is not related to the version of libc++'s ABI itself!")
 
 # ABI Library options ---------------------------------------------------------
-set(LIBCXX_CXX_ABI "default" CACHE STRING
-    "Specify C++ ABI library to use.")
+set(LIBCXX_CXX_ABI "default" CACHE STRING "Specify C++ ABI library to use.")
 set(CXXABIS none default libcxxabi libcxxrt libstdc++ libsupc++ vcruntime)
 set_property(CACHE LIBCXX_CXX_ABI PROPERTY STRINGS ;${CXXABIS})
 
-# FIXME: This is a temporary hack to get the buildbots working while D63883 is in flight.
-# Without this all the bots fail while building libc++
-if (DEFINED ENV{USER})
-  if (("$ENV{USER}" STREQUAL "buildbot") OR (("$ENV{USER}" STREQUAL "llvmbb") OR ("$ENV{USER}" STREQUAL "buildslave")))
-    if (LIBCXX_CXX_ABI STREQUAL "libcxxabi" AND NOT DEFINED LIBCXX_CXX_ABI_INCLUDE_PATHS)
-      message(WARNING "OVERRIDING BUILDBOT CONFIG")
-      set(LIBCXX_CXX_ABI "default" CACHE STRING "FIXME" FORCE)
-    endif()
-  endif()
-endif()
 # Setup the default options if LIBCXX_CXX_ABI is not specified.
 if (LIBCXX_CXX_ABI STREQUAL "default")
-  find_path(
-    LIBCXX_LIBCXXABI_INCLUDES_INTERNAL cxxabi.h
-    PATHS ${LLVM_MAIN_SRC_DIR}/projects/libcxxabi/include
-          ${LLVM_MAIN_SRC_DIR}/runtimes/libcxxabi/include
-          ${LLVM_MAIN_SRC_DIR}/../libcxxabi/include
-    NO_DEFAULT_PATH
-    NO_CMAKE_FIND_ROOT_PATH
-  )
   if (LIBCXX_TARGETING_MSVC)
     # FIXME: Figure out how to configure the ABI library on Windows.
     set(LIBCXX_CXX_ABI_LIBNAME "vcruntime")
-  elseif ((NOT LIBCXX_STANDALONE_BUILD OR HAVE_LIBCXXABI) AND
-          IS_DIRECTORY "${LIBCXX_LIBCXXABI_INCLUDES_INTERNAL}")
-    set(LIBCXX_CXX_ABI_LIBNAME "libcxxabi")
-    set(LIBCXX_CXX_ABI_INCLUDE_PATHS "${LIBCXX_LIBCXXABI_INCLUDES_INTERNAL}")
-    set(LIBCXX_CXX_ABI_INTREE 1)
-  elseif (APPLE)
-    set(LIBCXX_CXX_ABI_LIBNAME "libcxxabi")
-    set(LIBCXX_CXX_ABI_SYSTEM 1)
   elseif (${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
     set(LIBCXX_CXX_ABI_LIBNAME "libcxxrt")
-    set(LIBCXX_CXX_ABI_INCLUDE_PATHS "/usr/include/c++/v1")
+  elseif (NOT LIBCXX_STANDALONE_BUILD OR HAVE_LIBCXXABI)
+    set(LIBCXX_CXX_ABI_LIBNAME "libcxxabi")
   else()
     set(LIBCXX_CXX_ABI_LIBNAME "default")
   endif()
@@ -212,7 +215,7 @@ set(ENABLE_LINKER_SCRIPT_DEFAULT_VALUE OFF)
 if (LLVM_HAVE_LINK_VERSION_SCRIPT AND NOT LIBCXX_STATICALLY_LINK_ABI_IN_SHARED_LIBRARY
       AND NOT LIBCXX_CXX_ABI_LIBNAME STREQUAL "none"
       AND NOT LIBCXX_CXX_ABI_LIBNAME STREQUAL "default"
-      AND PYTHONINTERP_FOUND
+      AND Python3_EXECUTABLE
       AND LIBCXX_ENABLE_SHARED)
     set(ENABLE_LINKER_SCRIPT_DEFAULT_VALUE ON)
 endif()
@@ -229,7 +232,6 @@ option(LIBCXX_ENABLE_NEW_DELETE_DEFINITIONS
 # Build libc++abi with libunwind. We need this option to determine whether to
 # link with libunwind or libgcc_s while running the test cases.
 option(LIBCXXABI_USE_LLVM_UNWINDER "Build and use the LLVM unwinder." OFF)
-option(LIBCXXABI_ENABLE_STATIC_UNWINDER "Statically link the LLVM unwinder." OFF)
 
 # Target options --------------------------------------------------------------
 option(LIBCXX_BUILD_32_BITS "Build 32 bit libc++." ${LLVM_BUILD_32_BITS})
@@ -372,7 +374,7 @@ endif()
 # Warn users that LIBCXX_ENABLE_STATIC_ABI_LIBRARY is an experimental option.
 if (LIBCXX_ENABLE_STATIC_ABI_LIBRARY)
   message(WARNING "LIBCXX_ENABLE_STATIC_ABI_LIBRARY is an experimental option")
-  if (LIBCXX_ENABLE_STATIC AND NOT PYTHONINTERP_FOUND)
+  if (LIBCXX_ENABLE_STATIC AND NOT Python3_EXECUTABLE)
     message(FATAL_ERROR "LIBCXX_ENABLE_STATIC_ABI_LIBRARY requires python but it was not found.")
   endif()
 endif()
@@ -405,13 +407,9 @@ endif ()
 # Configure System
 #===============================================================================
 
-set(LIBCXX_COMPILER    ${CMAKE_CXX_COMPILER})
 set(LIBCXX_SOURCE_DIR  ${CMAKE_CURRENT_SOURCE_DIR})
 set(LIBCXX_BINARY_DIR  ${CMAKE_CURRENT_BINARY_DIR})
 set(LIBCXX_BINARY_INCLUDE_DIR "${LIBCXX_BINARY_DIR}/include/c++build")
-
-string(REGEX MATCH "[0-9]+\\.[0-9]+(\\.[0-9]+)?" CLANG_VERSION
-       ${PACKAGE_VERSION})
 
 if(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR AND NOT APPLE)
   set(LIBCXX_LIBRARY_DIR ${LLVM_LIBRARY_OUTPUT_INTDIR}/${LLVM_DEFAULT_TARGET_TRIPLE}/c++)
@@ -427,6 +425,7 @@ elseif(LLVM_LIBRARY_OUTPUT_INTDIR)
   set(LIBCXX_INSTALL_LIBRARY_DIR lib${LIBCXX_LIBDIR_SUFFIX})
 else()
   set(LIBCXX_LIBRARY_DIR ${CMAKE_BINARY_DIR}/lib${LIBCXX_LIBDIR_SUFFIX})
+  set(LIBCXX_HEADER_DIR  ${CMAKE_BINARY_DIR})
   set(LIBCXX_INSTALL_LIBRARY_DIR lib${LIBCXX_LIBDIR_SUFFIX})
 endif()
 
@@ -520,12 +519,17 @@ remove_flags(-Wno-pedantic -pedantic-errors -pedantic)
 # Required flags ==============================================================
 function(cxx_add_basic_build_flags target)
 
-  # Require C++14 for all targets. C++14 is needed to ensure constant
-  # initialization for certain globals (ex global memory resources).
+  # Require C++17 for all targets. C++17 is needed to use aligned allocation
+  # in the dylib.
   set_target_properties(${target} PROPERTIES
-    CXX_STANDARD 14
+    CXX_STANDARD 17
     CXX_STANDARD_REQUIRED YES
     CXX_EXTENSIONS NO)
+
+  # When building the dylib, don't warn for unavailable aligned allocation
+  # functions based on the deployment target -- they are always available
+  # because they are provided by the dylib itself.
+  target_add_compile_flags_if_supported(${target} PRIVATE -faligned-allocation)
 
   # On all systems the system c++ standard library headers need to be excluded.
   # MSVC only has -X, which disables all default includes; including the crt.
@@ -579,6 +583,7 @@ function(cxx_add_warning_flags target)
     target_add_compile_flags_if_supported(${target} PRIVATE
       -Wno-user-defined-literals
       -Wno-covered-switch-default
+      -Wno-suggest-override
       -Wno-ignored-attributes # FIXME: Caused by _LIBCPP_NODEBUG_TYPE not being supported on older clangs
     )
     if (LIBCXX_TARGETING_CLANG_CL)
@@ -603,7 +608,8 @@ function(cxx_add_warning_flags target)
     target_add_compile_flags_if_supported(${target} PRIVATE
       -Wno-literal-suffix
       -Wno-c++14-compat
-      -Wno-noexcept-type)
+      -Wno-noexcept-type
+      -Wno-suggest-override)
   endif()
   if (LIBCXX_ENABLE_WERROR)
     target_add_compile_flags_if_supported(${target} PRIVATE -Werror)
@@ -628,7 +634,6 @@ function(cxx_add_exception_flags target)
     # functions never throw a C++ exception.
     target_add_compile_flags_if_supported(${target} PUBLIC -EHsc)
   else()
-    target_compile_definitions(${target} PUBLIC -D_LIBCPP_NO_EXCEPTIONS)
     target_add_compile_flags_if_supported(${target} PUBLIC -EHs- -EHa-)
     target_add_compile_flags_if_supported(${target} PUBLIC -fno-exceptions)
   endif()
@@ -637,7 +642,6 @@ endfunction()
 # RTTI flags ==================================================================
 function(cxx_add_rtti_flags target)
   if (NOT LIBCXX_ENABLE_RTTI)
-    target_compile_definitions(${target} PUBLIC -D_LIBCPP_NO_RTTI)
     target_add_compile_flags_if_supported(${target} PUBLIC -GR-)
     target_add_compile_flags_if_supported(${target} PUBLIC -fno-rtti)
   endif()
@@ -700,8 +704,13 @@ function(get_sanitizer_flags OUT_VAR  USE_SANITIZER)
       endif()
     elseif (USE_SANITIZER STREQUAL "Undefined")
       append_flags(SANITIZER_FLAGS "-fsanitize=undefined -fno-sanitize=vptr,function -fno-sanitize-recover=all")
+    elseif (USE_SANITIZER STREQUAL "Address;Undefined" OR
+            USE_SANITIZER STREQUAL "Undefined;Address")
+      append_flags(SANITIZER_FLAGS "-fsanitize=address,undefined -fno-sanitize=vptr,function -fno-sanitize-recover=all")
     elseif (USE_SANITIZER STREQUAL "Thread")
       append_flags(SANITIZER_FLAGS -fsanitize=thread)
+    elseif (USE_SANITIZER STREQUAL "DataFlow")
+      append_flags(SANITIZER_FLAGS -fsanitize=dataflow)
     else()
       message(WARNING "Unsupported value of LLVM_USE_SANITIZER: ${USE_SANITIZER}")
     endif()
@@ -753,11 +762,13 @@ function(cxx_link_system_libraries target)
     if (LIBCXX_BUILTINS_LIBRARY)
       target_link_libraries(${target} PRIVATE "${LIBCXX_BUILTINS_LIBRARY}")
     endif()
+  elseif (LIBCXX_HAS_GCC_LIB)
+    target_link_libraries(${target} PRIVATE gcc)
   elseif (LIBCXX_HAS_GCC_S_LIB)
     target_link_libraries(${target} PRIVATE gcc_s)
   endif()
 
-  if (LIBCXX_HAVE_CXX_ATOMICS_WITH_LIB)
+  if (LIBCXX_HAS_ATOMIC_LIB)
     target_link_libraries(${target} PRIVATE atomic)
   endif()
 
@@ -834,8 +845,8 @@ config_define_if_not(LIBCXX_ENABLE_STDOUT _LIBCPP_HAS_NO_STDOUT)
 config_define_if_not(LIBCXX_ENABLE_THREADS _LIBCPP_HAS_NO_THREADS)
 config_define_if_not(LIBCXX_ENABLE_MONOTONIC_CLOCK _LIBCPP_HAS_NO_MONOTONIC_CLOCK)
 config_define_if_not(LIBCXX_ENABLE_THREAD_UNSAFE_C_FUNCTIONS _LIBCPP_HAS_NO_THREAD_UNSAFE_C_FUNCTIONS)
-if (NOT LIBCXX_HAS_MERGED_TYPEINFO_NAMES_DEFAULT STREQUAL "")
-  config_define("${LIBCXX_HAS_MERGED_TYPEINFO_NAMES_DEFAULT}" _LIBCPP_HAS_MERGED_TYPEINFO_NAMES_DEFAULT)
+if (NOT LIBCXX_TYPEINFO_COMPARISON_IMPLEMENTATION STREQUAL "")
+  config_define("${LIBCXX_TYPEINFO_COMPARISON_IMPLEMENTATION}" _LIBCPP_TYPEINFO_COMPARISON_IMPLEMENTATION)
 endif()
 
 config_define_if(LIBCXX_HAS_PTHREAD_API _LIBCPP_HAS_THREAD_API_PTHREAD)
@@ -866,32 +877,11 @@ if (DEFINED WIN32 AND LIBCXX_ENABLE_STATIC AND NOT LIBCXX_ENABLE_SHARED)
   config_define(ON _LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS)
 endif()
 
-set(site_config_path "${LIBCXX_BINARY_DIR}/__config_site")
-if (LIBCXX_NEEDS_SITE_CONFIG)
-  configure_file("include/__config_site.in"
-                 "${site_config_path}"
-                 @ONLY)
-elseif(EXISTS "${site_config_path}")
-  message(STATUS "Removing stale site configuration ${site_config_path}")
-  file(REMOVE "${site_config_path}")
-endif()
-
-function(cxx_add_config_site target)
-  if (LIBCXX_NEEDS_SITE_CONFIG)
-    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC" OR "${CMAKE_CXX_SIMULATE_ID}" STREQUAL "MSVC")
-      target_compile_options(${target} PUBLIC /FI "${site_config_path}")
-    else()
-      target_compile_options(${target} PUBLIC -include "${site_config_path}")
-    endif()
-  endif()
-endfunction()
-
 # Setup all common build flags =================================================
 function(cxx_add_common_build_flags target)
   cxx_add_basic_build_flags(${target})
   cxx_add_warning_flags(${target})
   cxx_add_windows_flags(${target})
-  cxx_add_config_site(${target})
   cxx_add_exception_flags(${target})
   cxx_add_rtti_flags(${target})
   cxx_add_module_flags(${target})
@@ -901,7 +891,6 @@ endfunction()
 #===============================================================================
 # Setup Source Code And Tests
 #===============================================================================
-include_directories(include)
 add_subdirectory(include)
 add_subdirectory(src)
 
@@ -919,28 +908,18 @@ if (LIBCXX_INCLUDE_BENCHMARKS)
   add_subdirectory(benchmarks)
 endif()
 
-# Create the lit.site.cfg file even when LIBCXX_INCLUDE_TESTS is OFF or
-# LLVM_FOUND is OFF. This allows users to run the tests manually using
-# LIT without requiring a full LLVM checkout.
-#
-# However, since some submission systems strip test/ subdirectories, check for
-# it before adding it.
-
-if(IS_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/test")
-  add_subdirectory(test)
-endif()
 if (LIBCXX_INCLUDE_TESTS)
+  add_subdirectory(test)
   add_subdirectory(lib/abi)
-endif()
-
-if (LIBCXX_STANDALONE_BUILD AND EXISTS "${LLVM_MAIN_SRC_DIR}/utils/llvm-lit")
-  include(AddLLVM) # for get_llvm_lit_path
-  # Make sure the llvm-lit script is generated into the bin directory, and do
-  # it after adding all tests, since the generated script will only work
-  # correctly discovered tests against test locations from the source tree that
-  # have already been discovered.
-  add_subdirectory(${LLVM_MAIN_SRC_DIR}/utils/llvm-lit
-                   ${CMAKE_CURRENT_BINARY_DIR}/llvm-lit)
+  if (LIBCXX_STANDALONE_BUILD)
+    include(AddLLVM) # for get_llvm_lit_path
+    # Make sure the llvm-lit script is generated into the bin directory, and
+    # do it after adding all tests, since the generated script will only work
+    # correctly discovered tests against test locations from the source tree
+    # that have already been discovered.
+    add_subdirectory(${LLVM_MAIN_SRC_DIR}/utils/llvm-lit
+                     ${CMAKE_CURRENT_BINARY_DIR}/llvm-lit)
+  endif()
 endif()
 
 if (LIBCXX_INCLUDE_DOCS)

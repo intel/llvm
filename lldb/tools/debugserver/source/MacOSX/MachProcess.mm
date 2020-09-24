@@ -34,6 +34,7 @@
 #include <chrono>
 #include <map>
 
+#include <TargetConditionals.h>
 #import <Foundation/Foundation.h>
 
 #include "DNBDataRef.h"
@@ -92,6 +93,7 @@ typedef void (*SetErrorFunction)(NSInteger, std::string, DNBError &);
 typedef bool (*CallOpenApplicationFunction)(NSString *bundleIDNSStr,
                                             NSDictionary *options,
                                             DNBError &error, pid_t *return_pid);
+
 // This function runs the BKSSystemService (or FBSSystemService) method
 // openApplication:options:clientPort:withResult,
 // messaging the app passed in bundleIDNSStr.
@@ -164,16 +166,18 @@ static bool CallBoardSystemServiceOpenApplication(NSString *bundleIDNSStr,
                    [(NSString *)[bks_error localizedDescription] UTF8String];
                if (error_str) {
                  open_app_error_string = error_str;
+                 DNBLogError("In app launch attempt, got error "
+                             "localizedDescription '%s'.", error_str);
+                 const char *obj_desc = 
+                      [NSString stringWithFormat:@"%@", bks_error].UTF8String;
+                 DNBLogError("In app launch attempt, got error "
+                             "NSError object description: '%s'.",
+                             obj_desc);
                }
                DNBLogThreadedIf(LOG_PROCESS, "In completion handler for send "
                                              "event, got error \"%s\"(%ld).",
                                 error_str ? error_str : "<unknown error>",
                                 open_app_error);
-               // REMOVE ME
-               DNBLogError("In completion handler for send event, got error "
-                           "\"%s\"(%ld).",
-                           error_str ? error_str : "<unknown error>",
-                           open_app_error);
              }
 
              [system_service release];
@@ -480,6 +484,7 @@ static CallOpenApplicationFunction FBSCallOpenApplicationFunction =
 #define _POSIX_SPAWN_DISABLE_ASLR 0x0100
 #endif
 
+
 MachProcess::MachProcess()
     : m_pid(0), m_cpu_type(0), m_child_stdin(-1), m_child_stdout(-1),
       m_child_stderr(-1), m_path(), m_args(), m_task(this),
@@ -598,87 +603,122 @@ nub_addr_t MachProcess::GetTSDAddressForThread(
       plo_pthread_tsd_entry_size);
 }
 
-/// Determine whether this is running on macOS.
-/// Since debugserver runs on the same machine as the process, we can
-/// just look at the compilation target.
-static bool IsMacOSHost() {
-#if TARGET_OS_OSX == 1
-  return true;
-#else
-  return false;
-#endif
-}
-
-const char *MachProcess::GetDeploymentInfo(const struct load_command& lc,
-                                           uint64_t load_command_address,
-                                           uint32_t& major_version,
-                                           uint32_t& minor_version,
-                                           uint32_t& patch_version) {
+MachProcess::DeploymentInfo
+MachProcess::GetDeploymentInfo(const struct load_command &lc,
+                               uint64_t load_command_address,
+                               bool is_executable) {
+  DeploymentInfo info;
   uint32_t cmd = lc.cmd & ~LC_REQ_DYLD;
-  bool lc_cmd_known =
-    cmd == LC_VERSION_MIN_IPHONEOS || cmd == LC_VERSION_MIN_MACOSX ||
-    cmd == LC_VERSION_MIN_TVOS || cmd == LC_VERSION_MIN_WATCHOS;
 
-  if (lc_cmd_known) {
+  // Handle the older LC_VERSION load commands, which don't
+  // distinguish between simulator and real hardware.
+  auto handle_version_min = [&](char platform) {
     struct version_min_command vers_cmd;
     if (ReadMemory(load_command_address, sizeof(struct version_min_command),
-                   &vers_cmd) != sizeof(struct version_min_command)) {
-      return nullptr;
-    }
-    major_version = vers_cmd.sdk >> 16;
-    minor_version = (vers_cmd.sdk >> 8) & 0xffu;
-    patch_version = vers_cmd.sdk & 0xffu;
+                   &vers_cmd) != sizeof(struct version_min_command))
+      return;
+    info.platform = platform;
+    info.major_version = vers_cmd.version >> 16;
+    info.minor_version = (vers_cmd.version >> 8) & 0xffu;
+    info.patch_version = vers_cmd.version & 0xffu;
 
-    // Handle the older LC_VERSION load commands, which don't
-    // distinguish between simulator and real hardware.
-    switch (cmd) {
-    case LC_VERSION_MIN_IPHONEOS:
-      return IsMacOSHost() ? "iossimulator": "ios";
-    case LC_VERSION_MIN_MACOSX:
-      return "macosx";
-    case LC_VERSION_MIN_TVOS:
-      return IsMacOSHost() ? "tvossimulator": "tvos";
-    case LC_VERSION_MIN_WATCHOS:
-      return IsMacOSHost() ? "watchossimulator" : "watchos";
-    default:
-      return nullptr;
+    // Disambiguate legacy simulator platforms.
+#if (defined(__x86_64__) || defined(__i386__))
+    // If we are running on Intel macOS, it is safe to assume this is
+    // really a back-deploying simulator binary.
+    switch (info.platform) {
+    case PLATFORM_IOS:
+      info.platform = PLATFORM_IOSSIMULATOR;
+      break;
+    case PLATFORM_TVOS:
+      info.platform = PLATFORM_TVOSSIMULATOR;
+      break;
+    case PLATFORM_WATCHOS:
+      info.platform = PLATFORM_WATCHOSSIMULATOR;
+      break;
     }
-  }
-#if defined (LC_BUILD_VERSION)
-  if (cmd == LC_BUILD_VERSION) {
+#else
+    // On an Apple Silicon macOS host, there is no ambiguity. The only
+    // binaries that use legacy load commands are back-deploying
+    // native iOS binaries. All simulator binaries use the newer,
+    // unambiguous LC_BUILD_VERSION load commands.
+#endif
+  };
+
+  switch (cmd) {
+  case LC_VERSION_MIN_IPHONEOS:
+    handle_version_min(PLATFORM_IOS);
+    break;
+  case LC_VERSION_MIN_MACOSX:
+    handle_version_min(PLATFORM_MACOS);
+    break;
+  case LC_VERSION_MIN_TVOS:
+    handle_version_min(PLATFORM_TVOS);
+    break;
+  case LC_VERSION_MIN_WATCHOS:
+    handle_version_min(PLATFORM_WATCHOS);
+    break;
+#if defined(LC_BUILD_VERSION)
+  case LC_BUILD_VERSION: {
     struct build_version_command build_vers;
     if (ReadMemory(load_command_address, sizeof(struct build_version_command),
-                   &build_vers) != sizeof(struct build_version_command)) {
-      return nullptr;
-    }
-    major_version = build_vers.sdk >> 16;;
-    minor_version = (build_vers.sdk >> 8) & 0xffu;
-    patch_version = build_vers.sdk & 0xffu;
-
-    switch (build_vers.platform) {
-    case PLATFORM_MACOS:
-      return "macosx";
-    case PLATFORM_MACCATALYST:
-      return "maccatalyst";
-    case PLATFORM_IOS:
-      return "ios";
-    case PLATFORM_IOSSIMULATOR:
-      return "iossimulator";
-    case PLATFORM_TVOS:
-      return "tvos";
-    case PLATFORM_TVOSSIMULATOR:
-      return "tvossimulator";
-    case PLATFORM_WATCHOS:
-      return "watchos";
-    case PLATFORM_WATCHOSSIMULATOR:
-      return "watchossimulator";
-    case PLATFORM_BRIDGEOS:
-      return "bridgeos";
-    case PLATFORM_DRIVERKIT:
-      return "driverkit";
-    }
+                   &build_vers) != sizeof(struct build_version_command))
+      break;
+    info.platform = build_vers.platform;
+    info.major_version = build_vers.minos >> 16;
+    info.minor_version = (build_vers.minos >> 8) & 0xffu;
+    info.patch_version = build_vers.minos & 0xffu;
+    break;
   }
 #endif
+  }
+
+  // The xctest binary is a pure macOS binary but is launched with
+  // DYLD_FORCE_PLATFORM=6. In that case, force the platform to
+  // macCatalyst and use the macCatalyst version of the host OS
+  // instead of the macOS deployment target.
+  if (is_executable && GetProcessPlatformViaDYLDSPI() == PLATFORM_MACCATALYST) {
+    info.platform = PLATFORM_MACCATALYST;
+    std::string catalyst_version = GetMacCatalystVersionString();
+    const char *major = catalyst_version.c_str();
+    char *minor = nullptr;
+    char *patch = nullptr;
+    info.major_version = std::strtoul(major, &minor, 10);
+    info.minor_version = 0;
+    info.patch_version = 0;
+    if (minor && *minor == '.') {
+      info.minor_version = std::strtoul(++minor, &patch, 10);
+      if (patch && *patch == '.')
+        info.patch_version = std::strtoul(++patch, nullptr, 10);
+    }
+  }
+
+  return info;
+}
+
+const char *MachProcess::GetPlatformString(unsigned char platform) {
+  switch (platform) {
+  case PLATFORM_MACOS:
+    return "macosx";
+  case PLATFORM_MACCATALYST:
+    return "maccatalyst";
+  case PLATFORM_IOS:
+    return "ios";
+  case PLATFORM_IOSSIMULATOR:
+    return "iossimulator";
+  case PLATFORM_TVOS:
+    return "tvos";
+  case PLATFORM_TVOSSIMULATOR:
+    return "tvossimulator";
+  case PLATFORM_WATCHOS:
+    return "watchos";
+  case PLATFORM_WATCHOSSIMULATOR:
+    return "watchossimulator";
+  case PLATFORM_BRIDGEOS:
+    return "bridgeos";
+  case PLATFORM_DRIVERKIT:
+    return "driverkit";
+  }
   return nullptr;
 }
 
@@ -784,49 +824,34 @@ bool MachProcess::GetMachOInformationFromMemory(
           sizeof(struct uuid_command))
         uuid_copy(inf.uuid, uuidcmd.uuid);
     }
-
-    uint32_t major_version, minor_version, patch_version;
-    if (const char *lc_platform = GetDeploymentInfo(
-            lc, load_cmds_p, major_version, minor_version, patch_version)) {
-      // macCatalyst support.
-      //
-      // This handles two special cases:
-      //
-      // 1. Frameworks that have both a PLATFORM_MACOS and a
-      //    PLATFORM_MACCATALYST load command.  Make sure to select
-      //    the requested one.
-      //
-      // 2. The xctest binary is a pure macOS binary but is launched
-      //    with DYLD_FORCE_PLATFORM=6.
-      if (dyld_platform == PLATFORM_MACCATALYST &&
-          inf.mach_header.filetype == MH_EXECUTE &&
-          inf.min_version_os_name.empty() &&
-          (strcmp("macosx", lc_platform) == 0)) {
-        // DYLD says this *is* a macCatalyst process. If we haven't
-        // parsed any load commands, transform a macOS load command
-        // into a generic macCatalyst load command. It will be
-        // overwritten by a more specific one if there is one.  This
-        // is only done for the main executable. It is perfectly fine
-        // for a macCatalyst binary to link against a macOS-only framework.
-        inf.min_version_os_name = "maccatalyst";
-        inf.min_version_os_version = GetMacCatalystVersionString();
-      } else if (dyld_platform != PLATFORM_MACCATALYST &&
-                 inf.min_version_os_name == "macosx") {
-        // This is a binary with both PLATFORM_MACOS and
-        // PLATFORM_MACCATALYST load commands and the process is not
-        // running as PLATFORM_MACCATALYST. Stick with the
-        // "macosx" load command that we've already processed,
-        // ignore this one, which is presumed to be a
+    if (DeploymentInfo deployment_info = GetDeploymentInfo(
+            lc, load_cmds_p, inf.mach_header.filetype == MH_EXECUTE)) {
+      const char *lc_platform = GetPlatformString(deployment_info.platform);
+      if (dyld_platform != PLATFORM_MACCATALYST &&
+          inf.min_version_os_name == "macosx") {
+        // macCatalyst support.
+        //
+        // This the special case of "zippered" frameworks that have both
+        // a PLATFORM_MACOS and a PLATFORM_MACCATALYST load command.
+        //
+        // When we are in this block, this is a binary with both
+        // PLATFORM_MACOS and PLATFORM_MACCATALYST load commands and
+        // the process is not running as PLATFORM_MACCATALYST. Stick
+        // with the "macosx" load command that we've already
+        // processed, ignore this one, which is presumed to be a
         // PLATFORM_MACCATALYST one.
       } else {
         inf.min_version_os_name = lc_platform;
         inf.min_version_os_version = "";
-        inf.min_version_os_version += std::to_string(major_version);
+        inf.min_version_os_version +=
+            std::to_string(deployment_info.major_version);
         inf.min_version_os_version += ".";
-        inf.min_version_os_version += std::to_string(minor_version);
-        if (patch_version != 0) {
+        inf.min_version_os_version +=
+            std::to_string(deployment_info.minor_version);
+        if (deployment_info.patch_version != 0) {
           inf.min_version_os_version += ".";
-          inf.min_version_os_version += std::to_string(patch_version);
+          inf.min_version_os_version +=
+              std::to_string(deployment_info.patch_version);
         }
       }
     }
@@ -1041,25 +1066,36 @@ JSONGenerator::ObjectSP MachProcess::GetLoadedDynamicLibrariesInfos(
   return reply_sp;
 }
 
-// From dyld SPI header dyld_process_info.h
+/// From dyld SPI header dyld_process_info.h
 typedef void *dyld_process_info;
 struct dyld_process_cache_info {
-  uuid_t cacheUUID;          // UUID of cache used by process
-  uint64_t cacheBaseAddress; // load address of dyld shared cache
-  bool noCache;              // process is running without a dyld cache
-  bool privateCache; // process is using a private copy of its dyld cache
+  /// UUID of cache used by process.
+  uuid_t cacheUUID;
+  /// Load address of dyld shared cache.
+  uint64_t cacheBaseAddress;
+  /// Process is running without a dyld cache.
+  bool noCache;
+  /// Process is using a private copy of its dyld cache.
+  bool privateCache;
 };
 
-// Use the dyld SPI present in macOS 10.12, iOS 10, tvOS 10, watchOS 3 and newer
-// to get
-// the load address, uuid, and filenames of all the libraries.
-// This only fills in those three fields in the 'struct
-// binary_image_information' - call
-// GetMachOInformationFromMemory to fill in the mach-o header/load command
-// details.
-uint32_t MachProcess::GetAllLoadedBinariesViaDYLDSPI(
-    std::vector<struct binary_image_information> &image_infos) {
+uint32_t MachProcess::GetProcessPlatformViaDYLDSPI() {
+  kern_return_t kern_ret;
   uint32_t platform = 0;
+  if (m_dyld_process_info_create) {
+    dyld_process_info info =
+        m_dyld_process_info_create(m_task.TaskPort(), 0, &kern_ret);
+    if (info) {
+      if (m_dyld_process_info_get_platform)
+        platform = m_dyld_process_info_get_platform(info);
+      m_dyld_process_info_release(info);
+    }
+  }
+  return platform;
+}
+
+void MachProcess::GetAllLoadedBinariesViaDYLDSPI(
+    std::vector<struct binary_image_information> &image_infos) {
   kern_return_t kern_ret;
   if (m_dyld_process_info_create) {
     dyld_process_info info =
@@ -1074,12 +1110,9 @@ uint32_t MachProcess::GetAllLoadedBinariesViaDYLDSPI(
             image.load_address = mach_header_addr;
             image_infos.push_back(image);
           });
-      if (m_dyld_process_info_get_platform)
-        platform = m_dyld_process_info_get_platform(info);
       m_dyld_process_info_release(info);
     }
   }
-  return platform;
 }
 
 // Fetch information about all shared libraries using the dyld SPIs that exist
@@ -1100,7 +1133,8 @@ MachProcess::GetAllLoadedLibrariesInfos(nub_process_t pid) {
       pointer_size = 8;
 
     std::vector<struct binary_image_information> image_infos;
-    uint32_t platform = GetAllLoadedBinariesViaDYLDSPI(image_infos);
+    GetAllLoadedBinariesViaDYLDSPI(image_infos);
+    uint32_t platform = GetProcessPlatformViaDYLDSPI();
     const size_t image_count = image_infos.size();
     for (size_t i = 0; i < image_count; i++) {
       GetMachOInformationFromMemory(platform,
@@ -1130,7 +1164,8 @@ JSONGenerator::ObjectSP MachProcess::GetLibrariesInfoForAddresses(
       pointer_size = 8;
 
     std::vector<struct binary_image_information> all_image_infos;
-    uint32_t platform = GetAllLoadedBinariesViaDYLDSPI(all_image_infos);
+    GetAllLoadedBinariesViaDYLDSPI(all_image_infos);
+    uint32_t platform = GetProcessPlatformViaDYLDSPI();
 
     std::vector<struct binary_image_information> image_infos;
     const size_t macho_addresses_count = macho_addresses.size();
@@ -1158,7 +1193,7 @@ JSONGenerator::ObjectSP MachProcess::GetLibrariesInfoForAddresses(
 
 JSONGenerator::ObjectSP MachProcess::GetSharedCacheInfo(nub_process_t pid) {
   JSONGenerator::DictionarySP reply_sp(new JSONGenerator::Dictionary());
-  ;
+
   kern_return_t kern_ret;
   if (m_dyld_process_info_create && m_dyld_process_info_get_cache) {
     dyld_process_info info =
@@ -3252,9 +3287,9 @@ pid_t MachProcess::PosixSpawnChildForPTraceDebugging(
   if (file_actions_valid) {
     if (stdin_path == NULL && stdout_path == NULL && stderr_path == NULL &&
         !no_stdio) {
-      pty_error = pty.OpenFirstAvailableMaster(O_RDWR | O_NOCTTY);
+      pty_error = pty.OpenFirstAvailablePrimary(O_RDWR | O_NOCTTY);
       if (pty_error == PseudoTerminal::success) {
-        stdin_path = stdout_path = stderr_path = pty.SlaveName();
+        stdin_path = stdout_path = stderr_path = pty.SecondaryName();
       }
     }
 
@@ -3329,8 +3364,8 @@ pid_t MachProcess::PosixSpawnChildForPTraceDebugging(
 
   if (pty_error == 0) {
     if (process != NULL) {
-      int master_fd = pty.ReleaseMasterFD();
-      process->SetChildFileDescriptors(master_fd, master_fd, master_fd);
+      int primary_fd = pty.ReleasePrimaryFD();
+      process->SetChildFileDescriptors(primary_fd, primary_fd, primary_fd);
     }
   }
   ::posix_spawnattr_destroy(&attr);
@@ -3427,10 +3462,10 @@ pid_t MachProcess::ForkChildForPTraceDebugging(const char *path,
     ::setpgid(pid, pid); // Set the child process group to match its pid
 
     if (process != NULL) {
-      // Release our master pty file descriptor so the pty class doesn't
+      // Release our primary pty file descriptor so the pty class doesn't
       // close it and so we can continue to use it in our STDIO thread
-      int master_fd = pty.ReleaseMasterFD();
-      process->SetChildFileDescriptors(master_fd, master_fd, master_fd);
+      int primary_fd = pty.ReleasePrimaryFD();
+      process->SetChildFileDescriptors(primary_fd, primary_fd, primary_fd);
     }
   }
   return pid;
@@ -3603,15 +3638,15 @@ pid_t MachProcess::SBForkChildForPTraceDebugging(
   PseudoTerminal pty;
   if (!no_stdio) {
     PseudoTerminal::Status pty_err =
-        pty.OpenFirstAvailableMaster(O_RDWR | O_NOCTTY);
+        pty.OpenFirstAvailablePrimary(O_RDWR | O_NOCTTY);
     if (pty_err == PseudoTerminal::success) {
-      const char *slave_name = pty.SlaveName();
+      const char *secondary_name = pty.SecondaryName();
       DNBLogThreadedIf(LOG_PROCESS,
-                       "%s() successfully opened master pty, slave is %s",
-                       __FUNCTION__, slave_name);
-      if (slave_name && slave_name[0]) {
-        ::chmod(slave_name, S_IRWXU | S_IRWXG | S_IRWXO);
-        stdio_path.SetFileSystemRepresentation(slave_name);
+                       "%s() successfully opened primary pty, secondary is %s",
+                       __FUNCTION__, secondary_name);
+      if (secondary_name && secondary_name[0]) {
+        ::chmod(secondary_name, S_IRWXU | S_IRWXG | S_IRWXO);
+        stdio_path.SetFileSystemRepresentation(secondary_name);
       }
     }
   }
@@ -3668,10 +3703,10 @@ pid_t MachProcess::SBForkChildForPTraceDebugging(
     CFRelease(bundleIDCFStr);
     if (pid_found) {
       if (process != NULL) {
-        // Release our master pty file descriptor so the pty class doesn't
+        // Release our primary pty file descriptor so the pty class doesn't
         // close it and so we can continue to use it in our STDIO thread
-        int master_fd = pty.ReleaseMasterFD();
-        process->SetChildFileDescriptors(master_fd, master_fd, master_fd);
+        int primary_fd = pty.ReleasePrimaryFD();
+        process->SetChildFileDescriptors(primary_fd, primary_fd, primary_fd);
       }
       DNBLogThreadedIf(LOG_PROCESS, "%s() => pid = %4.4x", __FUNCTION__, pid);
     } else {
@@ -3804,17 +3839,17 @@ pid_t MachProcess::BoardServiceForkChildForPTraceDebugging(
   PseudoTerminal pty;
   if (!no_stdio) {
     PseudoTerminal::Status pty_err =
-        pty.OpenFirstAvailableMaster(O_RDWR | O_NOCTTY);
+        pty.OpenFirstAvailablePrimary(O_RDWR | O_NOCTTY);
     if (pty_err == PseudoTerminal::success) {
-      const char *slave_name = pty.SlaveName();
+      const char *secondary_name = pty.SecondaryName();
       DNBLogThreadedIf(LOG_PROCESS,
-                       "%s() successfully opened master pty, slave is %s",
-                       __FUNCTION__, slave_name);
-      if (slave_name && slave_name[0]) {
-        ::chmod(slave_name, S_IRWXU | S_IRWXG | S_IRWXO);
+                       "%s() successfully opened primary pty, secondary is %s",
+                       __FUNCTION__, secondary_name);
+      if (secondary_name && secondary_name[0]) {
+        ::chmod(secondary_name, S_IRWXU | S_IRWXG | S_IRWXO);
         stdio_path = [file_manager
-            stringWithFileSystemRepresentation:slave_name
-                                        length:strlen(slave_name)];
+            stringWithFileSystemRepresentation:secondary_name
+                                        length:strlen(secondary_name)];
       }
     }
   }
@@ -3863,8 +3898,8 @@ pid_t MachProcess::BoardServiceForkChildForPTraceDebugging(
 #endif
 
   if (success) {
-    int master_fd = pty.ReleaseMasterFD();
-    SetChildFileDescriptors(master_fd, master_fd, master_fd);
+    int primary_fd = pty.ReleasePrimaryFD();
+    SetChildFileDescriptors(primary_fd, primary_fd, primary_fd);
     CFString::UTF8(bundleIDCFStr, m_bundle_id);
   }
 

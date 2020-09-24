@@ -14,6 +14,7 @@
 #ifndef LLVM_CLANG_SERIALIZATION_ASTRECORDREADER_H
 #define LLVM_CLANG_SERIALIZATION_ASTRECORDREADER_H
 
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/AbstractBasicReader.h"
 #include "clang/Lex/Token.h"
 #include "clang/Serialization/ASTReader.h"
@@ -23,6 +24,7 @@
 
 namespace clang {
 class OMPTraitInfo;
+class OMPChildren;
 
 /// An object for streaming information from a record.
 class ASTRecordReader
@@ -118,7 +120,7 @@ public:
   //readExceptionSpecInfo(SmallVectorImpl<QualType> &ExceptionStorage);
 
   /// Get the global offset corresponding to a local offset.
-  uint64_t getGlobalBitOffset(uint32_t LocalOffset) {
+  uint64_t getGlobalBitOffset(uint64_t LocalOffset) {
     return Reader->getGlobalBitOffset(*F, LocalOffset);
   }
 
@@ -264,6 +266,9 @@ public:
 
   /// Read an OpenMP clause, advancing Idx.
   OMPClause *readOMPClause();
+
+  /// Read an OpenMP children, advancing Idx.
+  void readOMPChildren(OMPChildren *Data);
 
   /// Read a source location, advancing Idx.
   SourceLocation readSourceLocation() {

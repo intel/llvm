@@ -24,6 +24,9 @@ namespace detail {
 class queue_impl;
 }
 
+/// A list of asynchronous exceptions.
+///
+/// \ingroup sycl_api
 class __SYCL_EXPORT exception_list {
 public:
   using value_type = exception_ptr_class;

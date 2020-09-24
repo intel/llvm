@@ -6,6 +6,7 @@
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
+declare void @llvm.memset.p0i8.i64(i8* %dest, i8 %val, i64 %len, i1 %isvolatile)
 declare void @llvm.memset.p0i8.i32(i8* %dest, i8 %val, i32 %len, i1 %isvolatile)
 declare void @llvm.memcpy.p0i8.p0i8.i32(i8* %dest, i8* %src, i32 %len, i1 %isvolatile)
 declare void @llvm.memmove.p0i8.p0i8.i32(i8* %dest, i8* %src, i32 %len, i1 %isvolatile)
@@ -15,7 +16,7 @@ define void @MemsetInBounds() {
 ; CHECK-NEXT: args uses:
 ; CHECK-NEXT: allocas uses:
 ; CHECK-NEXT: x[4]: [0,4){{$}}
-; CHECK-NOT: ]:
+; CHECK-EMPTY:
 entry:
   %x = alloca i32, align 4
   %x1 = bitcast i32* %x to i8*
@@ -29,10 +30,10 @@ define void @VolatileMemsetInBounds() {
 ; CHECK-NEXT: args uses:
 ; CHECK-NEXT: allocas uses:
 ; CHECK-NEXT: x[4]: [0,4){{$}}
-; CHECK-NOT: ]:
+; CHECK-EMPTY:
 entry:
   %x = alloca i32, align 4
-    %x1 = bitcast i32* %x to i8*
+  %x1 = bitcast i32* %x to i8*
   call void @llvm.memset.p0i8.i32(i8* %x1, i8 42, i32 4, i1 true)
   ret void
 }
@@ -42,10 +43,10 @@ define void @MemsetOutOfBounds() {
 ; CHECK-NEXT: args uses:
 ; CHECK-NEXT: allocas uses:
 ; CHECK-NEXT: x[4]: [0,5){{$}}
-; CHECK-NOT: ]:
+; CHECK-EMPTY:
 entry:
   %x = alloca i32, align 4
-    %x1 = bitcast i32* %x to i8*
+  %x1 = bitcast i32* %x to i8*
   call void @llvm.memset.p0i8.i32(i8* %x1, i8 42, i32 5, i1 false)
   ret void
 }
@@ -53,13 +54,12 @@ entry:
 define void @MemsetNonConst(i32 %size) {
 ; CHECK-LABEL: MemsetNonConst dso_preemptable{{$}}
 ; CHECK-NEXT: args uses:
-; CHECK-NEXT: size[]: [0,1){{$}}
 ; CHECK-NEXT: allocas uses:
-; CHECK-NEXT: x[4]: full-set{{$}}
-; CHECK-NOT: ]:
+; CHECK-NEXT: x[4]: [0,4294967295){{$}}
+; CHECK-EMPTY:
 entry:
   %x = alloca i32, align 4
-    %x1 = bitcast i32* %x to i8*
+  %x1 = bitcast i32* %x to i8*
   call void @llvm.memset.p0i8.i32(i8* %x1, i8 42, i32 %size, i1 false)
   ret void
 }
@@ -69,15 +69,32 @@ entry:
 define void @MemsetNonConstInBounds(i1 zeroext %z) {
 ; CHECK-LABEL: MemsetNonConstInBounds dso_preemptable{{$}}
 ; CHECK-NEXT: args uses:
-; CHECK-NEXT: z[]: [0,1){{$}}
 ; CHECK-NEXT: allocas uses:
-; CHECK-NEXT: x[4]: full-set{{$}}
-; CHECK-NOT: ]:
+; CHECK-NEXT: x[4]: [0,4294967295){{$}}
+; CHECK-EMPTY:
 entry:
   %x = alloca i32, align 4
   %x1 = bitcast i32* %x to i8*
   %size = select i1 %z, i32 3, i32 4
   call void @llvm.memset.p0i8.i32(i8* %x1, i8 42, i32 %size, i1 false)
+  ret void
+}
+
+define void @MemsetNonConstSize() {
+; CHECK-LABEL: MemsetNonConstSize dso_preemptable{{$}}
+; CHECK-NEXT: args uses:
+; CHECK-NEXT: allocas uses:
+; CHECK-NEXT: x[4]: [0,4294967295){{$}}
+; CHECK-NEXT: y[4]: empty-set{{$}}
+; CHECK-EMPTY:
+entry:
+  %x = alloca i32, align 4
+  %y = alloca i32, align 4
+  %x1 = bitcast i32* %x to i8*
+  %xint = ptrtoint i32* %x to i32
+  %yint = ptrtoint i32* %y to i32
+  %d = sub i32 %xint, %yint
+  call void @llvm.memset.p0i8.i32(i8* %x1, i8 42, i32 %d, i1 false)
   ret void
 }
 
@@ -87,7 +104,7 @@ define void @MemcpyInBounds() {
 ; CHECK-NEXT: allocas uses:
 ; CHECK-NEXT: x[4]: [0,4){{$}}
 ; CHECK-NEXT: y[4]: [0,4){{$}}
-; CHECK-NOT: ]:
+; CHECK-EMPTY:
 entry:
   %x = alloca i32, align 4
   %y = alloca i32, align 4
@@ -103,7 +120,7 @@ define void @MemcpySrcOutOfBounds() {
 ; CHECK-NEXT: allocas uses:
 ; CHECK-NEXT: x[8]: [0,5){{$}}
 ; CHECK-NEXT: y[4]: [0,5){{$}}
-; CHECK-NOT: ]:
+; CHECK-EMPTY:
 entry:
   %x = alloca i64, align 4
   %y = alloca i32, align 4
@@ -119,7 +136,7 @@ define void @MemcpyDstOutOfBounds() {
 ; CHECK-NEXT: allocas uses:
 ; CHECK-NEXT: x[4]: [0,5){{$}}
 ; CHECK-NEXT: y[8]: [0,5){{$}}
-; CHECK-NOT: ]:
+; CHECK-EMPTY:
 entry:
   %x = alloca i32, align 4
   %y = alloca i64, align 4
@@ -135,7 +152,7 @@ define void @MemcpyBothOutOfBounds() {
 ; CHECK-NEXT: allocas uses:
 ; CHECK-NEXT: x[4]: [0,9){{$}}
 ; CHECK-NEXT: y[8]: [0,9){{$}}
-; CHECK-NOT: ]:
+; CHECK-EMPTY:
 entry:
   %x = alloca i32, align 4
   %y = alloca i64, align 4
@@ -150,7 +167,7 @@ define void @MemcpySelfInBounds() {
 ; CHECK-NEXT: args uses:
 ; CHECK-NEXT: allocas uses:
 ; CHECK-NEXT: x[8]: [0,8){{$}}
-; CHECK-NOT: ]:
+; CHECK-EMPTY:
 entry:
   %x = alloca i64, align 4
   %x1 = bitcast i64* %x to i8*
@@ -164,7 +181,7 @@ define void @MemcpySelfSrcOutOfBounds() {
 ; CHECK-NEXT: args uses:
 ; CHECK-NEXT: allocas uses:
 ; CHECK-NEXT: x[8]: [0,9){{$}}
-; CHECK-NOT: ]:
+; CHECK-EMPTY:
 entry:
   %x = alloca i64, align 4
   %x1 = bitcast i64* %x to i8*
@@ -178,7 +195,7 @@ define void @MemcpySelfDstOutOfBounds() {
 ; CHECK-NEXT: args uses:
 ; CHECK-NEXT: allocas uses:
 ; CHECK-NEXT: x[8]: [0,9){{$}}
-; CHECK-NOT: ]:
+; CHECK-EMPTY:
 entry:
   %x = alloca i64, align 4
   %x1 = bitcast i64* %x to i8*
@@ -192,7 +209,7 @@ define void @MemmoveSelfBothOutOfBounds() {
 ; CHECK-NEXT: args uses:
 ; CHECK-NEXT: allocas uses:
 ; CHECK-NEXT: x[8]: [0,14){{$}}
-; CHECK-NOT: ]:
+; CHECK-EMPTY:
 entry:
   %x = alloca i64, align 4
   %x1 = bitcast i64* %x to i8*

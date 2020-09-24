@@ -94,7 +94,7 @@ TEST_F(VPlanHCFGTest, testBuildHCFGInnerLoop) {
   Plan->addVPValue(&*F->arg_begin());
   std::string FullDump;
   raw_string_ostream(FullDump) << *Plan;
-  EXPECT_EQ(R"(digraph VPlan {
+  const char *ExpectedStr = R"(digraph VPlan {
 graph [labelloc=t, fontsize=30; label="Vectorization Plan"]
 node [shape=rect, fontname=Courier, fontsize=30]
 edge [fontname=Courier, fontsize=30]
@@ -125,8 +125,8 @@ compound=true
     ]
   }
 }
-)",
-            FullDump);
+)";
+  EXPECT_EQ(ExpectedStr, FullDump);
 
   LoopVectorizationLegality::InductionList Inductions;
   SmallPtrSet<Instruction *, 1> DeadInstructions;
@@ -169,28 +169,18 @@ TEST_F(VPlanHCFGTest, testVPInstructionToVPRecipesInner) {
   EXPECT_EQ(1u, Entry->getNumSuccessors());
 
   VPBasicBlock *VecBB = Entry->getSingleSuccessor()->getEntryBasicBlock();
-  EXPECT_EQ(6u, VecBB->size());
+  EXPECT_EQ(7u, VecBB->size());
   EXPECT_EQ(2u, VecBB->getNumPredecessors());
   EXPECT_EQ(2u, VecBB->getNumSuccessors());
 
   auto Iter = VecBB->begin();
-  auto *Phi = dyn_cast<VPWidenPHIRecipe>(&*Iter++);
-  EXPECT_NE(nullptr, Phi);
-
-  auto *Idx = dyn_cast<VPWidenGEPRecipe>(&*Iter++);
-  EXPECT_NE(nullptr, Idx);
-
-  auto *Load = dyn_cast<VPWidenMemoryInstructionRecipe>(&*Iter++);
-  EXPECT_NE(nullptr, Load);
-
-  auto *Add = dyn_cast<VPWidenRecipe>(&*Iter++);
-  EXPECT_NE(nullptr, Add);
-
-  auto *Store = dyn_cast<VPWidenMemoryInstructionRecipe>(&*Iter++);
-  EXPECT_NE(nullptr, Store);
-
-  auto *LastWiden = dyn_cast<VPWidenRecipe>(&*Iter++);
-  EXPECT_NE(nullptr, LastWiden);
+  EXPECT_NE(nullptr, dyn_cast<VPWidenPHIRecipe>(&*Iter++));
+  EXPECT_NE(nullptr, dyn_cast<VPWidenGEPRecipe>(&*Iter++));
+  EXPECT_NE(nullptr, dyn_cast<VPWidenMemoryInstructionRecipe>(&*Iter++));
+  EXPECT_NE(nullptr, dyn_cast<VPWidenRecipe>(&*Iter++));
+  EXPECT_NE(nullptr, dyn_cast<VPWidenMemoryInstructionRecipe>(&*Iter++));
+  EXPECT_NE(nullptr, dyn_cast<VPWidenRecipe>(&*Iter++));
+  EXPECT_NE(nullptr, dyn_cast<VPWidenRecipe>(&*Iter++));
   EXPECT_EQ(VecBB->end(), Iter);
 }
 

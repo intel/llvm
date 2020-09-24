@@ -98,7 +98,7 @@ make -j${J} libz.a
 if [[ ! -d ${LIBCXX_BUILD} ]]; then
   mkdir -p ${LIBCXX_BUILD}
   cd ${LIBCXX_BUILD}
-  LIBCXX_FLAGS="${FLAGS} -Wno-macro-redefined -I${LIBCXX_SRC}/include"
+  LIBCXX_FLAGS="${FLAGS} -Wno-macro-redefined"
   PROJECTS=
   if [[ ! -d $LLVM_SRC/projects/libcxxabi ]] ; then
     PROJECTS="-DLLVM_ENABLE_PROJECTS='libcxx;libcxxabi'"
@@ -165,6 +165,8 @@ $SCRIPT_DIR/ar_to_bc.sh $LIBCXX_BUILD/lib/libc++.a \
                         $LLVM_BUILD/lib/libLLVMDebugInfoDWARF.a \
                         $LLVM_BUILD/lib/libLLVMSupport.a \
                         $LLVM_BUILD/lib/libLLVMDebugInfoPDB.a \
+                        $LLVM_BUILD/lib/libLLVMDebugInfoMSF.a \
+                        $LLVM_BUILD/lib/libLLVMDebugInfoCodeView.a \
                         $LLVM_BUILD/lib/libLLVMDemangle.a \
                         $LLVM_BUILD/lib/libLLVMMC.a \
                         $LLVM_BUILD/lib/libLLVMTextAPI.a \

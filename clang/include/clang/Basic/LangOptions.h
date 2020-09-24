@@ -19,6 +19,7 @@
 #include "clang/Basic/ObjCRuntime.h"
 #include "clang/Basic/Sanitizers.h"
 #include "clang/Basic/Visibility.h"
+#include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 #include <string>
@@ -53,6 +54,7 @@ enum class MSVtorDispMode { Never, ForVBaseOverride, ForVFTable };
 class LangOptions : public LangOptionsBase {
 public:
   using Visibility = clang::Visibility;
+  using RoundingMode = llvm::RoundingMode;
 
   enum GCMode { NonGC, GCOnly, HybridGC };
   enum StackProtectorMode { SSPOff, SSPOn, SSPStrong, SSPReq };
@@ -177,41 +179,20 @@ public:
     Swift4_1,
   };
 
-  enum FPContractModeKind {
-    // Form fused FP ops only where result will not be affected.
-    FPC_Off,
+  enum FPModeKind {
+    // Disable the floating point pragma
+    FPM_Off,
 
-    // Form fused FP ops according to FP_CONTRACT rules.
-    FPC_On,
+    // Enable the floating point pragma
+    FPM_On,
 
     // Aggressively fuse FP ops (E.g. FMA).
-    FPC_Fast
+    FPM_Fast
   };
 
-  // TODO: merge FEnvAccessModeKind and FPContractModeKind
-  enum FEnvAccessModeKind {
-    FEA_Off,
-
-    FEA_On
-  };
-
-  // Values of the following enumerations correspond to metadata arguments
-  // specified for constrained floating-point intrinsics:
-  // http://llvm.org/docs/LangRef.html#constrained-floating-point-intrinsics.
-
-  /// Possible rounding modes.
-  enum FPRoundingModeKind {
-    /// Rounding to nearest, corresponds to "round.tonearest".
-    FPR_ToNearest,
-    /// Rounding toward -Inf, corresponds to "round.downward".
-    FPR_Downward,
-    /// Rounding toward +Inf, corresponds to "round.upward".
-    FPR_Upward,
-    /// Rounding toward zero, corresponds to "round.towardzero".
-    FPR_TowardZero,
-    /// Is determined by runtime environment, corresponds to "round.dynamic".
-    FPR_Dynamic
-  };
+  /// Alias for RoundingMode::NearestTiesToEven.
+  static constexpr unsigned FPR_ToNearest =
+      static_cast<unsigned>(llvm::RoundingMode::NearestTiesToEven);
 
   /// Possible floating point exception behavior.
   enum FPExceptionModeKind {
@@ -232,6 +213,22 @@ public:
     /// Permit vector bitcasts between all vectors with the same total
     /// bit-width.
     All,
+  };
+
+  enum class SignReturnAddressScopeKind {
+    /// No signing for any function.
+    None,
+    /// Sign the return address of functions that spill LR.
+    NonLeaf,
+    /// Sign the return address of all functions,
+    All
+  };
+
+  enum class SignReturnAddressKeyKind {
+    /// Return address signing uses APIA key.
+    AKey,
+    /// Return address signing uses APIB key.
+    BKey
   };
 
 public:
@@ -359,97 +356,232 @@ public:
 
   /// Return the OpenCL C or C++ version as a VersionTuple.
   VersionTuple getOpenCLVersionTuple() const;
+
+  /// Check if return address signing is enabled.
+  bool hasSignReturnAddress() const {
+    return getSignReturnAddressScope() != SignReturnAddressScopeKind::None;
+  }
+
+  /// Check if return address signing uses AKey.
+  bool isSignReturnAddressWithAKey() const {
+    return getSignReturnAddressKey() == SignReturnAddressKeyKind::AKey;
+  }
+
+  /// Check if leaf functions are also signed.
+  bool isSignReturnAddressScopeAll() const {
+    return getSignReturnAddressScope() == SignReturnAddressScopeKind::All;
+  }
 };
 
 /// Floating point control options
+class FPOptionsOverride;
 class FPOptions {
 public:
-  FPOptions() : fp_contract(LangOptions::FPC_Off),
-                fenv_access(LangOptions::FEA_Off),
-                rounding(LangOptions::FPR_ToNearest),
-                exceptions(LangOptions::FPE_Ignore)
-        {}
+  // We start by defining the layout.
+  using storage_type = uint16_t;
 
-  // Used for serializing.
-  explicit FPOptions(unsigned I)
-      : fp_contract(static_cast<LangOptions::FPContractModeKind>(I & 3)),
-        fenv_access(static_cast<LangOptions::FEnvAccessModeKind>((I >> 2) & 1)),
-        rounding(static_cast<LangOptions::FPRoundingModeKind>((I >> 3) & 7)),
-        exceptions(static_cast<LangOptions::FPExceptionModeKind>((I >> 6) & 3))
-        {}
+  using RoundingMode = llvm::RoundingMode;
 
-  explicit FPOptions(const LangOptions &LangOpts)
-      : fp_contract(LangOpts.getDefaultFPContractMode()),
-        fenv_access(LangOptions::FEA_Off),
-        rounding(LangOptions::FPR_ToNearest),
-        exceptions(LangOptions::FPE_Ignore)
-        {}
-  // FIXME: Use getDefaultFEnvAccessMode() when available.
+  static constexpr unsigned StorageBitSize = 8 * sizeof(storage_type);
+
+  // Define a fake option named "First" so that we have a PREVIOUS even for the
+  // real first option.
+  static constexpr storage_type FirstShift = 0, FirstWidth = 0;
+#define OPTION(NAME, TYPE, WIDTH, PREVIOUS)                                    \
+  static constexpr storage_type NAME##Shift =                                  \
+      PREVIOUS##Shift + PREVIOUS##Width;                                       \
+  static constexpr storage_type NAME##Width = WIDTH;                           \
+  static constexpr storage_type NAME##Mask = ((1 << NAME##Width) - 1)          \
+                                             << NAME##Shift;
+#include "clang/Basic/FPOptions.def"
+
+  static constexpr storage_type TotalWidth = 0
+#define OPTION(NAME, TYPE, WIDTH, PREVIOUS) +WIDTH
+#include "clang/Basic/FPOptions.def"
+      ;
+  static_assert(TotalWidth <= StorageBitSize, "Too short type for FPOptions");
+
+private:
+  storage_type Value;
+
+public:
+  FPOptions() : Value(0) {
+    setFPContractMode(LangOptions::FPM_Off);
+    setRoundingMode(static_cast<RoundingMode>(LangOptions::FPR_ToNearest));
+    setFPExceptionMode(LangOptions::FPE_Ignore);
+  }
+  explicit FPOptions(const LangOptions &LO) {
+    Value = 0;
+    setFPContractMode(LO.getDefaultFPContractMode());
+    setRoundingMode(LO.getFPRoundingMode());
+    setFPExceptionMode(LO.getFPExceptionMode());
+    setAllowFEnvAccess(LangOptions::FPM_Off);
+    setAllowFPReassociate(LO.AllowFPReassoc);
+    setNoHonorNaNs(LO.NoHonorNaNs);
+    setNoHonorInfs(LO.NoHonorInfs);
+    setNoSignedZero(LO.NoSignedZero);
+    setAllowReciprocal(LO.AllowRecip);
+    setAllowApproxFunc(LO.ApproxFunc);
+  }
 
   bool allowFPContractWithinStatement() const {
-    return fp_contract == LangOptions::FPC_On;
+    return getFPContractMode() == LangOptions::FPM_On;
+  }
+  void setAllowFPContractWithinStatement() {
+    setFPContractMode(LangOptions::FPM_On);
   }
 
   bool allowFPContractAcrossStatement() const {
-    return fp_contract == LangOptions::FPC_Fast;
+    return getFPContractMode() == LangOptions::FPM_Fast;
   }
-
-  void setAllowFPContractWithinStatement() {
-    fp_contract = LangOptions::FPC_On;
-  }
-
   void setAllowFPContractAcrossStatement() {
-    fp_contract = LangOptions::FPC_Fast;
-  }
-
-  void setDisallowFPContract() { fp_contract = LangOptions::FPC_Off; }
-
-  bool allowFEnvAccess() const {
-    return fenv_access == LangOptions::FEA_On;
-  }
-
-  void setAllowFEnvAccess() {
-    fenv_access = LangOptions::FEA_On;
-  }
-
-  void setDisallowFEnvAccess() { fenv_access = LangOptions::FEA_Off; }
-
-  LangOptions::FPRoundingModeKind getRoundingMode() const {
-    return static_cast<LangOptions::FPRoundingModeKind>(rounding);
-  }
-
-  void setRoundingMode(LangOptions::FPRoundingModeKind RM) {
-    rounding = RM;
-  }
-
-  LangOptions::FPExceptionModeKind getExceptionMode() const {
-    return static_cast<LangOptions::FPExceptionModeKind>(exceptions);
-  }
-
-  void setExceptionMode(LangOptions::FPExceptionModeKind EM) {
-    exceptions = EM;
+    setFPContractMode(LangOptions::FPM_Fast);
   }
 
   bool isFPConstrained() const {
-    return getRoundingMode() != LangOptions::FPR_ToNearest ||
-           getExceptionMode() != LangOptions::FPE_Ignore ||
-           allowFEnvAccess();
+    return getRoundingMode() !=
+               static_cast<unsigned>(RoundingMode::NearestTiesToEven) ||
+           getFPExceptionMode() != LangOptions::FPE_Ignore ||
+           getAllowFEnvAccess();
   }
 
-  /// Used to serialize this.
-  unsigned getInt() const {
-    return fp_contract | (fenv_access << 2) | (rounding << 3)
-        | (exceptions << 6);
+  bool operator==(FPOptions other) const { return Value == other.Value; }
+
+  /// Return the default value of FPOptions that's used when trailing
+  /// storage isn't required.
+  static FPOptions defaultWithoutTrailingStorage(const LangOptions &LO);
+
+  storage_type getAsOpaqueInt() const { return Value; }
+  static FPOptions getFromOpaqueInt(storage_type Value) {
+    FPOptions Opts;
+    Opts.Value = Value;
+    return Opts;
   }
 
-private:
-  /// Adjust BinaryOperatorBitfields::FPFeatures and
-  /// CXXOperatorCallExprBitfields::FPFeatures to match the total bit-field size
-  /// of these fields.
-  unsigned fp_contract : 2;
-  unsigned fenv_access : 1;
-  unsigned rounding : 3;
-  unsigned exceptions : 2;
+  // We can define most of the accessors automatically:
+#define OPTION(NAME, TYPE, WIDTH, PREVIOUS)                                    \
+  unsigned get##NAME() const {                                                 \
+    return static_cast<unsigned>(TYPE((Value & NAME##Mask) >> NAME##Shift));   \
+  }                                                                            \
+  void set##NAME(TYPE value) {                                                 \
+    Value = (Value & ~NAME##Mask) | (storage_type(value) << NAME##Shift);      \
+  }
+#include "clang/Basic/FPOptions.def"
+  LLVM_DUMP_METHOD void dump();
+};
+
+/// Represents difference between two FPOptions values.
+///
+/// The effect of language constructs changing the set of floating point options
+/// is usually a change of some FP properties while leaving others intact. This
+/// class describes such changes by keeping information about what FP options
+/// are overridden.
+///
+/// The integral set of FP options, described by the class FPOptions, may be
+/// represented as a default FP option set, defined by language standard and
+/// command line options, with the overrides introduced by pragmas.
+///
+/// The is implemented as a value of the new FPOptions plus a mask showing which
+/// fields are actually set in it.
+class FPOptionsOverride {
+  FPOptions Options = FPOptions::getFromOpaqueInt(0);
+  FPOptions::storage_type OverrideMask = 0;
+
+public:
+  using RoundingMode = llvm::RoundingMode;
+
+  /// The type suitable for storing values of FPOptionsOverride. Must be twice
+  /// as wide as bit size of FPOption.
+  using storage_type = uint32_t;
+  static_assert(sizeof(storage_type) >= 2 * sizeof(FPOptions::storage_type),
+                "Too short type for FPOptionsOverride");
+
+  /// Bit mask selecting bits of OverrideMask in serialized representation of
+  /// FPOptionsOverride.
+  static constexpr storage_type OverrideMaskBits =
+      (static_cast<storage_type>(1) << FPOptions::StorageBitSize) - 1;
+
+  FPOptionsOverride() {}
+  FPOptionsOverride(const LangOptions &LO)
+      : Options(LO), OverrideMask(OverrideMaskBits) {}
+
+  bool requiresTrailingStorage() const { return OverrideMask != 0; }
+
+  void setAllowFPContractWithinStatement() {
+    setFPContractModeOverride(LangOptions::FPM_On);
+  }
+
+  void setAllowFPContractAcrossStatement() {
+    setFPContractModeOverride(LangOptions::FPM_Fast);
+  }
+
+  void setDisallowFPContract() {
+    setFPContractModeOverride(LangOptions::FPM_Off);
+  }
+
+  void setFPPreciseEnabled(bool Value) {
+    setAllowFPReassociateOverride(!Value);
+    setNoHonorNaNsOverride(!Value);
+    setNoHonorInfsOverride(!Value);
+    setNoSignedZeroOverride(!Value);
+    setAllowReciprocalOverride(!Value);
+    setAllowApproxFuncOverride(!Value);
+    if (Value)
+      /* Precise mode implies fp_contract=on and disables ffast-math */
+      setAllowFPContractWithinStatement();
+    else
+      /* Precise mode disabled sets fp_contract=fast and enables ffast-math */
+      setAllowFPContractAcrossStatement();
+  }
+
+  storage_type getAsOpaqueInt() const {
+    return (static_cast<storage_type>(Options.getAsOpaqueInt())
+            << FPOptions::StorageBitSize) |
+           OverrideMask;
+  }
+  static FPOptionsOverride getFromOpaqueInt(storage_type I) {
+    FPOptionsOverride Opts;
+    Opts.OverrideMask = I & OverrideMaskBits;
+    Opts.Options = FPOptions::getFromOpaqueInt(I >> FPOptions::StorageBitSize);
+    return Opts;
+  }
+
+  FPOptions applyOverrides(FPOptions Base) {
+    FPOptions Result =
+        FPOptions::getFromOpaqueInt((Base.getAsOpaqueInt() & ~OverrideMask) |
+                                     (Options.getAsOpaqueInt() & OverrideMask));
+    return Result;
+  }
+
+  FPOptions applyOverrides(const LangOptions &LO) {
+    return applyOverrides(FPOptions(LO));
+  }
+
+  bool operator==(FPOptionsOverride other) const {
+    return Options == other.Options && OverrideMask == other.OverrideMask;
+  }
+  bool operator!=(FPOptionsOverride other) const { return !(*this == other); }
+
+#define OPTION(NAME, TYPE, WIDTH, PREVIOUS)                                    \
+  bool has##NAME##Override() const {                                           \
+    return OverrideMask & FPOptions::NAME##Mask;                               \
+  }                                                                            \
+  unsigned get##NAME##Override() const {                                       \
+    assert(has##NAME##Override());                                             \
+    return Options.get##NAME();                                                \
+  }                                                                            \
+  void clear##NAME##Override() {                                               \
+    /* Clear the actual value so that we don't have spurious differences when  \
+     * testing equality. */                                                    \
+    Options.set##NAME(TYPE(0));                                                \
+    OverrideMask &= ~FPOptions::NAME##Mask;                                    \
+  }                                                                            \
+  void set##NAME##Override(TYPE value) {                                       \
+    Options.set##NAME(value);                                                  \
+    OverrideMask |= FPOptions::NAME##Mask;                                     \
+  }
+#include "clang/Basic/FPOptions.def"
+  LLVM_DUMP_METHOD void dump();
 };
 
 /// Describes the kind of translation unit being processed.

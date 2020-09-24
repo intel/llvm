@@ -11,7 +11,9 @@
 
 #include "lldb/Utility/ArchSpec.h"
 #include "lldb/Utility/FileSpec.h"
+#include "lldb/Utility/UUID.h"
 #include "lldb/Utility/UserIDResolver.h"
+#include "lldb/Utility/XcodeSDK.h"
 #include "lldb/lldb-enumerations.h"
 #include "llvm/ADT/StringRef.h"
 
@@ -22,6 +24,11 @@
 namespace lldb_private {
 
 class FileSpec;
+
+struct SharedCacheImageInfo {
+  UUID uuid;
+  lldb::DataBufferSP data_sp;
+};
 
 class HostInfoBase {
 private:
@@ -90,6 +97,19 @@ public:
 
   static bool ComputePathRelativeToLibrary(FileSpec &file_spec,
                                            llvm::StringRef dir);
+
+  static FileSpec GetXcodeContentsDirectory() { return {}; }
+  static FileSpec GetXcodeDeveloperDirectory() { return {}; }
+  
+  /// Return the directory containing a specific Xcode SDK.
+  static llvm::StringRef GetXcodeSDKPath(XcodeSDK sdk) { return {}; }
+
+  /// Return information about module \p image_name if it is loaded in
+  /// the current process's address space.
+  static SharedCacheImageInfo
+  GetSharedCacheImageInfo(llvm::StringRef image_name) {
+    return {};
+  }
 
 protected:
   static bool ComputeSharedLibraryDirectory(FileSpec &file_spec);

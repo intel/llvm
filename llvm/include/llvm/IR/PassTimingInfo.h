@@ -17,11 +17,13 @@
 
 #include "llvm/ADT/Any.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Timer.h"
-#include "llvm/Support/TypeName.h"
 #include <memory>
+#include <utility>
+
 namespace llvm {
 
 class Pass;
@@ -55,11 +57,9 @@ class TimePassesHandler {
   /// A group of all pass-timing timers.
   TimerGroup TG;
 
+  using TimerVector = llvm::SmallVector<std::unique_ptr<Timer>, 4>;
   /// Map of timers for pass invocations
-  DenseMap<PassInvocationID, std::unique_ptr<Timer>> TimingData;
-
-  /// Map that counts invocations of passes, for use in UniqPassID construction.
-  StringMap<unsigned> PassIDCountMap;
+  StringMap<TimerVector> TimingData;
 
   /// Stack of currently active timers.
   SmallVector<Timer *, 8> TimerStack;
@@ -96,14 +96,11 @@ private:
   /// Returns the new timer for each new run of the pass.
   Timer &getPassTimer(StringRef PassID);
 
-  /// Returns the incremented counter for the next invocation of \p PassID.
-  unsigned nextPassID(StringRef PassID) { return ++PassIDCountMap[PassID]; }
-
   void startTimer(StringRef PassID);
   void stopTimer(StringRef PassID);
 
   // Implementation of pass instrumentation callbacks.
-  bool runBeforePass(StringRef PassID);
+  void runBeforePass(StringRef PassID);
   void runAfterPass(StringRef PassID);
 };
 

@@ -8,6 +8,7 @@ set(LLVM_LINK_COMPONENTS
   )
 
 add_llvm_unittest(IRTests
+  AbstractCallSiteTest.cpp
   AsmWriterTest.cpp
   AttributesTest.cpp
   BasicBlockTest.cpp
@@ -17,6 +18,7 @@ add_llvm_unittest(IRTests
   DataLayoutTest.cpp
   DebugInfoTest.cpp
   DebugTypeODRUniquingTest.cpp
+  DemandedBitsTest.cpp
   DominatorTreeTest.cpp
   DominatorTreeBatchUpdatesTest.cpp
   FunctionTest.cpp
@@ -24,7 +26,6 @@ add_llvm_unittest(IRTests
   IRBuilderTest.cpp
   InstructionsTest.cpp
   IntrinsicsTest.cpp
-  KnowledgeRetentionTest.cpp
   LegacyPassManagerTest.cpp
   MDBuilderTest.cpp
   ManglerTest.cpp
@@ -42,7 +43,6 @@ add_llvm_unittest(IRTests
   VectorTypesTest.cpp
   VerifierTest.cpp
   VPIntrinsicTest.cpp
-  WaymarkTest.cpp
   )
 
 target_link_libraries(IRTests PRIVATE LLVMTestingSupport)

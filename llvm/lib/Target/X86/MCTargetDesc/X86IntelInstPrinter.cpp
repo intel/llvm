@@ -16,6 +16,7 @@
 #include "X86InstComments.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
+#include "llvm/MC/MCInstrAnalysis.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
@@ -45,8 +46,7 @@ void X86IntelInstPrinter::printInst(const MCInst *MI, uint64_t Address,
   if (MI->getOpcode() == X86::DATA16_PREFIX &&
       STI.getFeatureBits()[X86::Mode16Bit]) {
     OS << "\tdata32";
-  } else if (!printAliasInstr(MI, OS) &&
-             !printVecCompareInstr(MI, OS))
+  } else if (!printAliasInstr(MI, Address, OS) && !printVecCompareInstr(MI, OS))
     printInstruction(MI, Address, OS);
 
   // Next always print the annotation.
@@ -343,6 +343,15 @@ void X86IntelInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
 
 void X86IntelInstPrinter::printMemReference(const MCInst *MI, unsigned Op,
                                             raw_ostream &O) {
+  // Do not print the exact form of the memory operand if it references a known
+  // binary object.
+  if (SymbolizeOperands && MIA) {
+    uint64_t Target;
+    if (MIA->evaluateBranch(*MI, 0, 0, Target))
+      return;
+    if (MIA->evaluateMemoryOperandAddress(*MI, 0, 0))
+      return;
+  }
   const MCOperand &BaseReg  = MI->getOperand(Op+X86::AddrBaseReg);
   unsigned ScaleVal         = MI->getOperand(Op+X86::AddrScaleAmt).getImm();
   const MCOperand &IndexReg = MI->getOperand(Op+X86::AddrIndexReg);

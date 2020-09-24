@@ -40,6 +40,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/PredIteratorCache.h"
@@ -76,12 +77,15 @@ static bool isExitBlock(BasicBlock *BB,
 /// that are outside the current loop.  If so, insert LCSSA PHI nodes and
 /// rewrite the uses.
 bool llvm::formLCSSAForInstructions(SmallVectorImpl<Instruction *> &Worklist,
-                                    DominatorTree &DT, LoopInfo &LI,
-                                    ScalarEvolution *SE) {
+                                    const DominatorTree &DT, const LoopInfo &LI,
+                                    ScalarEvolution *SE, IRBuilderBase &Builder,
+                                    SmallVectorImpl<PHINode *> *PHIsToRemove) {
   SmallVector<Use *, 16> UsesToRewrite;
-  SmallSetVector<PHINode *, 16> PHIsToRemove;
+  SmallSetVector<PHINode *, 16> LocalPHIsToRemove;
   PredIteratorCache PredCache;
   bool Changed = false;
+
+  IRBuilderBase::InsertPointGuard InsertPtGuard(Builder);
 
   // Cache the Loop ExitBlocks across this loop.  We expect to get a lot of
   // instructions within the same loops, computing the exit blocks is
@@ -128,7 +132,7 @@ bool llvm::formLCSSAForInstructions(SmallVectorImpl<Instruction *> &Worklist,
     if (auto *Inv = dyn_cast<InvokeInst>(I))
       DomBB = Inv->getNormalDest();
 
-    DomTreeNode *DomNode = DT.getNode(DomBB);
+    const DomTreeNode *DomNode = DT.getNode(DomBB);
 
     SmallVector<PHINode *, 16> AddedPHIs;
     SmallVector<PHINode *, 8> PostProcessPHIs;
@@ -151,9 +155,9 @@ bool llvm::formLCSSAForInstructions(SmallVectorImpl<Instruction *> &Worklist,
       // If we already inserted something for this BB, don't reprocess it.
       if (SSAUpdate.HasValueForBlock(ExitBB))
         continue;
-
-      PHINode *PN = PHINode::Create(I->getType(), PredCache.size(ExitBB),
-                                    I->getName() + ".lcssa", &ExitBB->front());
+      Builder.SetInsertPoint(&ExitBB->front());
+      PHINode *PN = Builder.CreatePHI(I->getType(), PredCache.size(ExitBB),
+                                      I->getName() + ".lcssa");
       // Get the debug location from the original instruction.
       PN->setDebugLoc(I->getDebugLoc());
       // Add inputs from inside the loop for this PHI.
@@ -253,28 +257,34 @@ bool llvm::formLCSSAForInstructions(SmallVectorImpl<Instruction *> &Worklist,
     SmallVector<PHINode *, 2> NeedDbgValues;
     for (PHINode *PN : AddedPHIs)
       if (PN->use_empty())
-        PHIsToRemove.insert(PN);
+        LocalPHIsToRemove.insert(PN);
       else
         NeedDbgValues.push_back(PN);
     insertDebugValuesForPHIs(InstBB, NeedDbgValues);
     Changed = true;
   }
-  // Remove PHI nodes that did not have any uses rewritten. We need to redo the
-  // use_empty() check here, because even if the PHI node wasn't used when added
-  // to PHIsToRemove, later added PHI nodes can be using it.  This cleanup is
-  // not guaranteed to handle trees/cycles of PHI nodes that only are used by
-  // each other. Such situations has only been noticed when the input IR
-  // contains unreachable code, and leaving some extra redundant PHI nodes in
-  // such situations is considered a minor problem.
-  for (PHINode *PN : PHIsToRemove)
-    if (PN->use_empty())
-      PN->eraseFromParent();
+
+  // Remove PHI nodes that did not have any uses rewritten or add them to
+  // PHIsToRemove, so the caller can remove them after some additional cleanup.
+  // We need to redo the use_empty() check here, because even if the PHI node
+  // wasn't used when added to LocalPHIsToRemove, later added PHI nodes can be
+  // using it.  This cleanup is not guaranteed to handle trees/cycles of PHI
+  // nodes that only are used by each other. Such situations has only been
+  // noticed when the input IR contains unreachable code, and leaving some extra
+  // redundant PHI nodes in such situations is considered a minor problem.
+  if (PHIsToRemove) {
+    PHIsToRemove->append(LocalPHIsToRemove.begin(), LocalPHIsToRemove.end());
+  } else {
+    for (PHINode *PN : LocalPHIsToRemove)
+      if (PN->use_empty())
+        PN->eraseFromParent();
+  }
   return Changed;
 }
 
 // Compute the set of BasicBlocks in the loop `L` dominating at least one exit.
 static void computeBlocksDominatingExits(
-    Loop &L, DominatorTree &DT, SmallVector<BasicBlock *, 8> &ExitBlocks,
+    Loop &L, const DominatorTree &DT, SmallVector<BasicBlock *, 8> &ExitBlocks,
     SmallSetVector<BasicBlock *, 8> &BlocksDominatingExits) {
   SmallVector<BasicBlock *, 8> BBWorklist;
 
@@ -318,7 +328,7 @@ static void computeBlocksDominatingExits(
   }
 }
 
-bool llvm::formLCSSA(Loop &L, DominatorTree &DT, LoopInfo *LI,
+bool llvm::formLCSSA(Loop &L, const DominatorTree &DT, const LoopInfo *LI,
                      ScalarEvolution *SE) {
   bool Changed = false;
 
@@ -369,7 +379,9 @@ bool llvm::formLCSSA(Loop &L, DominatorTree &DT, LoopInfo *LI,
       Worklist.push_back(&I);
     }
   }
-  Changed = formLCSSAForInstructions(Worklist, DT, *LI, SE);
+
+  IRBuilder<> Builder(L.getHeader()->getContext());
+  Changed = formLCSSAForInstructions(Worklist, DT, *LI, SE, Builder);
 
   // If we modified the code, remove any caches about the loop from SCEV to
   // avoid dangling entries.
@@ -383,8 +395,8 @@ bool llvm::formLCSSA(Loop &L, DominatorTree &DT, LoopInfo *LI,
 }
 
 /// Process a loop nest depth first.
-bool llvm::formLCSSARecursively(Loop &L, DominatorTree &DT, LoopInfo *LI,
-                                ScalarEvolution *SE) {
+bool llvm::formLCSSARecursively(Loop &L, const DominatorTree &DT,
+                                const LoopInfo *LI, ScalarEvolution *SE) {
   bool Changed = false;
 
   // Recurse depth-first through inner loops.
@@ -396,7 +408,7 @@ bool llvm::formLCSSARecursively(Loop &L, DominatorTree &DT, LoopInfo *LI,
 }
 
 /// Process all loops in the function, inner-most out.
-static bool formLCSSAOnAllLoops(LoopInfo *LI, DominatorTree &DT,
+static bool formLCSSAOnAllLoops(const LoopInfo *LI, const DominatorTree &DT,
                                 ScalarEvolution *SE) {
   bool Changed = false;
   for (auto &L : *LI)

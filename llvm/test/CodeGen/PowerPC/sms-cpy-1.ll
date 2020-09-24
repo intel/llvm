@@ -13,44 +13,44 @@ define void @print_res() nounwind {
 ; CHECK-NEXT:    lwz 3, 0(3)
 ; CHECK-NEXT:    addi 3, 3, -1
 ; CHECK-NEXT:    clrldi 4, 3, 32
-; CHECK-NEXT:    cmplwi 0, 3, 1
+; CHECK-NEXT:    cmplwi 3, 1
 ; CHECK-NEXT:    li 3, 1
-; CHECK-NEXT:    isel 3, 4, 3, 1
+; CHECK-NEXT:    iselgt 3, 4, 3
 ; CHECK-NEXT:    li 4, 2
 ; CHECK-NEXT:    addi 3, 3, -1
 ; CHECK-NEXT:    cmpldi 3, 2
-; CHECK-NEXT:    isel 3, 3, 4, 0
+; CHECK-NEXT:    isellt 3, 3, 4
 ; CHECK-NEXT:    li 4, 0
 ; CHECK-NEXT:    addi 3, 3, 1
-; CHECK-NEXT:    li 5, 0
 ; CHECK-NEXT:    li 7, -1
+; CHECK-NEXT:    li 5, 0
 ; CHECK-NEXT:    mtctr 3
-; CHECK-NEXT:    lbz 5, 0(5)
 ; CHECK-NEXT:    li 3, 1
+; CHECK-NEXT:    lbz 5, 0(5)
 ; CHECK-NEXT:    bdz .LBB0_6
 ; CHECK-NEXT:  # %bb.1:
+; CHECK-NEXT:    addi 3, 3, 1
+; CHECK-NEXT:    addi 8, 7, -1
 ; CHECK-NEXT:    xori 6, 5, 84
 ; CHECK-NEXT:    clrldi 5, 7, 32
 ; CHECK-NEXT:    lbz 5, 0(5)
-; CHECK-NEXT:    addi 3, 3, 1
-; CHECK-NEXT:    addi 8, 7, -1
 ; CHECK-NEXT:    bdz .LBB0_5
 ; CHECK-NEXT:  # %bb.2:
+; CHECK-NEXT:    addi 3, 3, 1
 ; CHECK-NEXT:    cntlzw 6, 6
 ; CHECK-NEXT:    srwi 7, 6, 5
 ; CHECK-NEXT:    xori 6, 5, 84
 ; CHECK-NEXT:    clrldi 5, 8, 32
 ; CHECK-NEXT:    addi 8, 8, -1
 ; CHECK-NEXT:    lbz 5, 0(5)
-; CHECK-NEXT:    addi 3, 3, 1
 ; CHECK-NEXT:    bdz .LBB0_4
-; CHECK-NEXT:  .LBB0_3: #
+; CHECK-NEXT:  .LBB0_3:
+; CHECK-NEXT:    addi 3, 3, 1
 ; CHECK-NEXT:    clrldi 10, 8, 32
+; CHECK-NEXT:    addi 8, 8, -1
 ; CHECK-NEXT:    cntlzw 9, 6
 ; CHECK-NEXT:    xori 6, 5, 84
 ; CHECK-NEXT:    lbz 5, 0(10)
-; CHECK-NEXT:    addi 8, 8, -1
-; CHECK-NEXT:    addi 3, 3, 1
 ; CHECK-NEXT:    add 4, 4, 7
 ; CHECK-NEXT:    srwi 7, 9, 5
 ; CHECK-NEXT:    bdnz .LBB0_3
@@ -62,23 +62,23 @@ define void @print_res() nounwind {
 ; CHECK-NEXT:    add 4, 4, 6
 ; CHECK-NEXT:  .LBB0_6:
 ; CHECK-NEXT:    xori 5, 5, 84
-; CHECK-NEXT:    cntlzw 5, 5
 ; CHECK-NEXT:    clrldi 3, 3, 32
-; CHECK-NEXT:    std 3, 104(1)
-; CHECK-NEXT:    addis 3, 2, .LC0@toc@ha
-; CHECK-NEXT:    ld 3, .LC0@toc@l(3)
 ; CHECK-NEXT:    li 7, 0
 ; CHECK-NEXT:    li 8, 3
+; CHECK-NEXT:    std 3, 104(1)
+; CHECK-NEXT:    cntlzw 5, 5
+; CHECK-NEXT:    addis 3, 2, .LC0@toc@ha
+; CHECK-NEXT:    li 10, 0
+; CHECK-NEXT:    ld 3, .LC0@toc@l(3)
 ; CHECK-NEXT:    srwi 5, 5, 5
 ; CHECK-NEXT:    add 4, 4, 5
 ; CHECK-NEXT:    li 5, 0
 ; CHECK-NEXT:    std 5, 120(1)
 ; CHECK-NEXT:    li 5, 3
-; CHECK-NEXT:    std 5, 96(1)
 ; CHECK-NEXT:    clrldi 6, 4, 32
 ; CHECK-NEXT:    li 4, 3
+; CHECK-NEXT:    std 5, 96(1)
 ; CHECK-NEXT:    li 5, 0
-; CHECK-NEXT:    li 10, 0
 ; CHECK-NEXT:    bl printf
 ; CHECK-NEXT:    nop
   %1 = load i32, i32* undef, align 4

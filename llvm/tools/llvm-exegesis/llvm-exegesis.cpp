@@ -83,13 +83,32 @@ static cl::opt<exegesis::InstructionBenchmark::ModeE> BenchmarkMode(
                clEnumValN(exegesis::InstructionBenchmark::Unknown, "analysis",
                           "Analysis")));
 
+static cl::opt<exegesis::InstructionBenchmark::ResultAggregationModeE>
+    ResultAggMode(
+        "result-aggregation-mode",
+        cl::desc("How to aggregate multi-values result"), cl::cat(Options),
+        cl::values(clEnumValN(exegesis::InstructionBenchmark::Min, "min",
+                              "Keep min reading"),
+                   clEnumValN(exegesis::InstructionBenchmark::Max, "max",
+                              "Keep max reading"),
+                   clEnumValN(exegesis::InstructionBenchmark::Mean, "mean",
+                              "Compute mean of all readings"),
+                   clEnumValN(exegesis::InstructionBenchmark::MinVariance,
+                              "min-variance",
+                              "Keep readings set with min-variance")),
+        cl::init(exegesis::InstructionBenchmark::Min));
+
 static cl::opt<exegesis::InstructionBenchmark::RepetitionModeE> RepetitionMode(
     "repetition-mode", cl::desc("how to repeat the instruction snippet"),
     cl::cat(BenchmarkOptions),
-    cl::values(clEnumValN(exegesis::InstructionBenchmark::Duplicate,
-                          "duplicate", "Duplicate the snippet"),
-               clEnumValN(exegesis::InstructionBenchmark::Loop, "loop",
-                          "Loop over the snippet")));
+    cl::values(
+        clEnumValN(exegesis::InstructionBenchmark::Duplicate, "duplicate",
+                   "Duplicate the snippet"),
+        clEnumValN(exegesis::InstructionBenchmark::Loop, "loop",
+                   "Loop over the snippet"),
+        clEnumValN(exegesis::InstructionBenchmark::AggregateMin, "min",
+                   "All of the above and take the minimum of measurements")),
+    cl::init(exegesis::InstructionBenchmark::Duplicate));
 
 static cl::opt<unsigned>
     NumRepetitions("num-repetitions",
@@ -140,6 +159,12 @@ static cl::opt<std::string>
     AnalysisInconsistenciesOutputFile("analysis-inconsistencies-output-file",
                                       cl::desc(""), cl::cat(AnalysisOptions),
                                       cl::init(""));
+
+static cl::list<std::string>
+    AllowedHostCpus("allowed-host-cpu",
+                    cl::desc("If specified, only run the benchmark if the host "
+                             "CPU matches the names"),
+                    cl::cat(Options), cl::ZeroOrMore);
 
 static cl::opt<bool> AnalysisDisplayUnstableOpcodes(
     "analysis-display-unstable-clusters",
@@ -277,15 +302,38 @@ void benchmarkMain() {
 
   const LLVMState State(CpuName);
 
-  const std::unique_ptr<BenchmarkRunner> Runner = ExitOnErr(
-      State.getExegesisTarget().createBenchmarkRunner(BenchmarkMode, State));
+  llvm::StringRef ActualCpu = State.getTargetMachine().getTargetCPU();
+  for (auto Begin = AllowedHostCpus.begin(); Begin != AllowedHostCpus.end();
+       ++Begin) {
+    if (ActualCpu != *Begin)
+      ExitWithError(llvm::Twine("Unexpected host CPU ").concat(ActualCpu));
+  }
+
+  const std::unique_ptr<BenchmarkRunner> Runner =
+      ExitOnErr(State.getExegesisTarget().createBenchmarkRunner(
+          BenchmarkMode, State, ResultAggMode));
   if (!Runner) {
     ExitWithError("cannot create benchmark runner");
   }
 
   const auto Opcodes = getOpcodesOrDie(State.getInstrInfo());
 
-  const auto Repetitor = SnippetRepetitor::Create(RepetitionMode, State);
+  SmallVector<std::unique_ptr<const SnippetRepetitor>, 2> Repetitors;
+  if (RepetitionMode != InstructionBenchmark::RepetitionModeE::AggregateMin)
+    Repetitors.emplace_back(SnippetRepetitor::Create(RepetitionMode, State));
+  else {
+    for (InstructionBenchmark::RepetitionModeE RepMode :
+         {InstructionBenchmark::RepetitionModeE::Duplicate,
+          InstructionBenchmark::RepetitionModeE::Loop})
+      Repetitors.emplace_back(SnippetRepetitor::Create(RepMode, State));
+  }
+
+  BitVector AllReservedRegs;
+  llvm::for_each(Repetitors,
+                 [&AllReservedRegs](
+                     const std::unique_ptr<const SnippetRepetitor> &Repetitor) {
+                   AllReservedRegs |= Repetitor->getReservedRegs();
+                 });
 
   std::vector<BenchmarkCode> Configurations;
   if (!Opcodes.empty()) {
@@ -298,8 +346,8 @@ void benchmarkMain() {
                << ": ignoring instruction without sched class\n";
         continue;
       }
-      auto ConfigsForInstr =
-          generateSnippets(State, Opcode, Repetitor->getReservedRegs());
+
+      auto ConfigsForInstr = generateSnippets(State, Opcode, AllReservedRegs);
       if (!ConfigsForInstr) {
         logAllUnhandledErrors(
             ConfigsForInstr.takeError(), errs(),
@@ -324,7 +372,7 @@ void benchmarkMain() {
 
   for (const BenchmarkCode &Conf : Configurations) {
     InstructionBenchmark Result = ExitOnErr(Runner->runConfiguration(
-        Conf, NumRepetitions, *Repetitor, DumpObjectToDisk));
+        Conf, NumRepetitions, Repetitors, DumpObjectToDisk));
     ExitOnFileError(BenchmarkFile, Result.writeYaml(State, BenchmarkFile));
   }
   exegesis::pfm::pfmTerminate();

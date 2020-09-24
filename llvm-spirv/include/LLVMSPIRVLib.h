@@ -59,6 +59,7 @@ void initializeSPIRVLowerConstExprPass(PassRegistry &);
 void initializeSPIRVLowerSPIRBlocksPass(PassRegistry &);
 void initializeSPIRVLowerOCLBlocksPass(PassRegistry &);
 void initializeSPIRVLowerMemmovePass(PassRegistry &);
+void initializeSPIRVLowerSaddWithOverflowPass(PassRegistry &);
 void initializeSPIRVRegularizeLLVMPass(PassRegistry &);
 void initializeSPIRVToOCL12Pass(PassRegistry &);
 void initializeSPIRVToOCL20Pass(PassRegistry &);
@@ -140,9 +141,19 @@ bool getSpecConstInfo(std::istream &IS,
 std::unique_ptr<Module>
 convertSpirvToLLVM(LLVMContext &C, SPIRV::SPIRVModule &BM, std::string &ErrMsg);
 
+/// \brief Convert a SPIRVModule into LLVM IR using specified options
+/// \returns null on failure.
+std::unique_ptr<Module> convertSpirvToLLVM(LLVMContext &C,
+                                           SPIRV::SPIRVModule &BM,
+                                           const SPIRV::TranslatorOpts &Opts,
+                                           std::string &ErrMsg);
+
 /// \brief Regularize LLVM module by removing entities not representable by
 /// SPIRV.
 bool regularizeLlvmForSpirv(Module *M, std::string &ErrMsg);
+
+bool regularizeLlvmForSpirv(Module *M, std::string &ErrMsg,
+                            const SPIRV::TranslatorOpts &Opts);
 
 /// \brief Mangle OpenCL builtin function function name.
 void mangleOpenClBuiltin(const std::string &UnmangledName,
@@ -178,12 +189,15 @@ ModulePass *createSPIRVLowerOCLBlocks();
 /// variable.
 ModulePass *createSPIRVLowerMemmove();
 
+/// Create a pass for lowering llvm.sadd.with.overflow
+ModulePass *createSPIRVLowerSaddWithOverflow();
+
 /// Create a pass for regularize LLVM module to be translated to SPIR-V.
 ModulePass *createSPIRVRegularizeLLVM();
 
-/// Create a pass for translating SPIR-V builtin functions to OCL builtin
-/// functions.
-ModulePass *createSPIRVToOCL(Module &M);
+/// Create a pass for translating SPIR-V Instructions to desired
+/// representation in LLVM IR (OpenCL built-ins, SPIR-V Friendly IR, etc.)
+ModulePass *createSPIRVBIsLoweringPass(Module &, SPIRV::BIsRepresentation);
 
 /// Create a pass for translating SPIR-V builtin functions to OCL 1.2 builtin
 /// functions.
@@ -200,6 +214,11 @@ ModulePass *createPreprocessMetadata();
 /// Create and return a pass that writes the module to the specified
 /// ostream.
 ModulePass *createSPIRVWriterPass(std::ostream &Str);
+
+/// Create and return a pass that writes the module to the specified
+/// ostream.
+ModulePass *createSPIRVWriterPass(std::ostream &Str,
+                                  const SPIRV::TranslatorOpts &Opts);
 
 } // namespace llvm
 

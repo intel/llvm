@@ -1,14 +1,14 @@
-// RUN: %clang -I %S/Inputs -fsycl-device-only -Xclang -fsycl-int-header=%t.h %s -c -o kernel.spv
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-int-header=%t.h %s -o %t.out
 // RUN: FileCheck -input-file=%t.h %s
 
 // This test checks if the SYCL device compiler is able to generate correct
 // integration header when the kernel name class is wrapped in an inline
 // namespace.
 
-#include "sycl.hpp"
+#include "Inputs/sycl.hpp"
 
 template <typename KernelName, typename KernelType>
-__attribute__((sycl_kernel)) void kernel_single_task(KernelType kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(const KernelType &kernelFunc) {
   kernelFunc();
 }
 

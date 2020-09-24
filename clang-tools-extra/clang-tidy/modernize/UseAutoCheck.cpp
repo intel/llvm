@@ -119,16 +119,11 @@ AST_MATCHER_P(QualType, isSugarFor, Matcher<QualType>, SugarMatcher) {
 /// \endcode
 ///
 /// namedDecl(hasStdIteratorName()) matches \c I and \c CI.
-AST_MATCHER(NamedDecl, hasStdIteratorName) {
-  static const char *const IteratorNames[] = {"iterator", "reverse_iterator",
-                                              "const_iterator",
-                                              "const_reverse_iterator"};
-
-  for (const char *Name : IteratorNames) {
-    if (hasName(Name).matches(Node, Finder, Builder))
-      return true;
-  }
-  return false;
+Matcher<NamedDecl> hasStdIteratorName() {
+  static const StringRef IteratorNames[] = {"iterator", "reverse_iterator",
+                                            "const_iterator",
+                                            "const_reverse_iterator"};
+  return hasAnyName(IteratorNames);
 }
 
 /// Matches named declarations that have one of the standard container
@@ -143,26 +138,21 @@ AST_MATCHER(NamedDecl, hasStdIteratorName) {
 ///
 /// recordDecl(hasStdContainerName()) matches \c vector and \c forward_list
 /// but not \c my_vec.
-AST_MATCHER(NamedDecl, hasStdContainerName) {
-  static const char *const ContainerNames[] = {
-      "array",         "deque",
-      "forward_list",  "list",
-      "vector",
+Matcher<NamedDecl> hasStdContainerName() {
+  static StringRef ContainerNames[] = {"array",         "deque",
+                                       "forward_list",  "list",
+                                       "vector",
 
-      "map",           "multimap",
-      "set",           "multiset",
+                                       "map",           "multimap",
+                                       "set",           "multiset",
 
-      "unordered_map", "unordered_multimap",
-      "unordered_set", "unordered_multiset",
+                                       "unordered_map", "unordered_multimap",
+                                       "unordered_set", "unordered_multiset",
 
-      "queue",         "priority_queue",
-      "stack"};
+                                       "queue",         "priority_queue",
+                                       "stack"};
 
-  for (const char *Name : ContainerNames) {
-    if (hasName(Name).matches(Node, Finder, Builder))
-      return true;
-  }
-  return false;
+  return hasAnyName(ContainerNames);
 }
 
 /// Matches declarations whose declaration context is the C++ standard library
@@ -317,15 +307,16 @@ StatementMatcher makeCombinedMatcher() {
 UseAutoCheck::UseAutoCheck(StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
       MinTypeNameLength(Options.get("MinTypeNameLength", 5)),
-      RemoveStars(Options.get("RemoveStars", 0)) {}
+      RemoveStars(Options.get("RemoveStars", false)) {}
 
 void UseAutoCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "MinTypeNameLength", MinTypeNameLength);
-  Options.store(Opts, "RemoveStars", RemoveStars ? 1 : 0);
+  Options.store(Opts, "RemoveStars", RemoveStars);
 }
 
 void UseAutoCheck::registerMatchers(MatchFinder *Finder) {
-    Finder->addMatcher(makeCombinedMatcher(), this);
+  Finder->addMatcher(traverse(ast_type_traits::TK_AsIs, makeCombinedMatcher()),
+                     this);
 }
 
 void UseAutoCheck::replaceIterators(const DeclStmt *D, ASTContext *Context) {
@@ -333,7 +324,7 @@ void UseAutoCheck::replaceIterators(const DeclStmt *D, ASTContext *Context) {
     const auto *V = cast<VarDecl>(Dec);
     const Expr *ExprInit = V->getInit();
 
-    // Skip expressions with cleanups from the intializer expression.
+    // Skip expressions with cleanups from the initializer expression.
     if (const auto *E = dyn_cast<ExprWithCleanups>(ExprInit))
       ExprInit = E->getSubExpr();
 
@@ -347,7 +338,7 @@ void UseAutoCheck::replaceIterators(const DeclStmt *D, ASTContext *Context) {
 
     // Drill down to the as-written initializer.
     const Expr *E = (*Construct->arg_begin())->IgnoreParenImpCasts();
-    if (E != E->IgnoreConversionOperator()) {
+    if (E != E->IgnoreConversionOperatorSingleStep()) {
       // We hit a conversion operator. Early-out now as they imply an implicit
       // conversion from a different type. Could also mean an explicit
       // conversion from the same type but that's pretty rare.

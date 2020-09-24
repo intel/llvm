@@ -28,8 +28,8 @@ const auto DefaultTupleMakeFunctions = "::std::make_pair; ::std::make_tuple";
 } // namespace
 
 UseEmplaceCheck::UseEmplaceCheck(StringRef Name, ClangTidyContext *Context)
-    : ClangTidyCheck(Name, Context),
-      IgnoreImplicitConstructors(Options.get("IgnoreImplicitConstructors", 0)),
+    : ClangTidyCheck(Name, Context), IgnoreImplicitConstructors(Options.get(
+                                         "IgnoreImplicitConstructors", false)),
       ContainersWithPushBack(utils::options::parseStringList(Options.get(
           "ContainersWithPushBack", DefaultContainersWithPushBack))),
       SmartPointers(utils::options::parseStringList(
@@ -109,10 +109,12 @@ void UseEmplaceCheck::registerMatchers(MatchFinder *Finder) {
       anyOf(has(MakeTuple), has(MakeTupleCtor),
             HasConstructExpr, has(cxxFunctionalCastExpr(HasConstructExpr))));
 
-  Finder->addMatcher(cxxMemberCallExpr(CallPushBack, has(SoughtParam),
-                                       unless(isInTemplateInstantiation()))
-                         .bind("call"),
-                     this);
+  Finder->addMatcher(
+      traverse(ast_type_traits::TK_AsIs,
+               cxxMemberCallExpr(CallPushBack, has(SoughtParam),
+                                 unless(isInTemplateInstantiation()))
+                   .bind("call")),
+      this);
 }
 
 void UseEmplaceCheck::check(const MatchFinder::MatchResult &Result) {
@@ -158,6 +160,7 @@ void UseEmplaceCheck::check(const MatchFinder::MatchResult &Result) {
 }
 
 void UseEmplaceCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
+  Options.store(Opts, "IgnoreImplicitConstructors", IgnoreImplicitConstructors);
   Options.store(Opts, "ContainersWithPushBack",
                 utils::options::serializeStringList(ContainersWithPushBack));
   Options.store(Opts, "SmartPointers",

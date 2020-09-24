@@ -45,7 +45,6 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/SMTConv.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SValBuilder.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SVals.h"
-#include "clang/StaticAnalyzer/Core/PathSensitive/SubEngine.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
@@ -2814,13 +2813,13 @@ UndefOrNullArgVisitor::VisitNode(const ExplodedNode *N, BugReporterContext &BRC,
 //===----------------------------------------------------------------------===//
 
 FalsePositiveRefutationBRVisitor::FalsePositiveRefutationBRVisitor()
-    : Constraints(ConstraintRangeTy::Factory().getEmptyMap()) {}
+    : Constraints(ConstraintMap::Factory().getEmptyMap()) {}
 
 void FalsePositiveRefutationBRVisitor::finalizeVisitor(
     BugReporterContext &BRC, const ExplodedNode *EndPathNode,
     PathSensitiveBugReport &BR) {
   // Collect new constraints
-  VisitNode(EndPathNode, BRC, BR);
+  addConstraints(EndPathNode, /*OverwriteConstraintsOnExistingSyms=*/true);
 
   // Create a refutation manager
   llvm::SMTSolverRef RefutationSolver = llvm::CreateZ3Solver();
@@ -2831,43 +2830,51 @@ void FalsePositiveRefutationBRVisitor::finalizeVisitor(
     const SymbolRef Sym = I.first;
     auto RangeIt = I.second.begin();
 
-    llvm::SMTExprRef Constraints = SMTConv::getRangeExpr(
+    llvm::SMTExprRef SMTConstraints = SMTConv::getRangeExpr(
         RefutationSolver, Ctx, Sym, RangeIt->From(), RangeIt->To(),
         /*InRange=*/true);
     while ((++RangeIt) != I.second.end()) {
-      Constraints = RefutationSolver->mkOr(
-          Constraints, SMTConv::getRangeExpr(RefutationSolver, Ctx, Sym,
-                                             RangeIt->From(), RangeIt->To(),
-                                             /*InRange=*/true));
+      SMTConstraints = RefutationSolver->mkOr(
+          SMTConstraints, SMTConv::getRangeExpr(RefutationSolver, Ctx, Sym,
+                                                RangeIt->From(), RangeIt->To(),
+                                                /*InRange=*/true));
     }
 
-    RefutationSolver->addConstraint(Constraints);
+    RefutationSolver->addConstraint(SMTConstraints);
   }
 
   // And check for satisfiability
-  Optional<bool> isSat = RefutationSolver->check();
-  if (!isSat.hasValue())
+  Optional<bool> IsSAT = RefutationSolver->check();
+  if (!IsSAT.hasValue())
     return;
 
-  if (!isSat.getValue())
+  if (!IsSAT.getValue())
     BR.markInvalid("Infeasible constraints", EndPathNode->getLocationContext());
 }
 
-PathDiagnosticPieceRef FalsePositiveRefutationBRVisitor::VisitNode(
-    const ExplodedNode *N, BugReporterContext &, PathSensitiveBugReport &) {
+void FalsePositiveRefutationBRVisitor::addConstraints(
+    const ExplodedNode *N, bool OverwriteConstraintsOnExistingSyms) {
   // Collect new constraints
-  const ConstraintRangeTy &NewCs = N->getState()->get<ConstraintRange>();
-  ConstraintRangeTy::Factory &CF =
-      N->getState()->get_context<ConstraintRange>();
+  ConstraintMap NewCs = getConstraintMap(N->getState());
+  ConstraintMap::Factory &CF = N->getState()->get_context<ConstraintMap>();
 
   // Add constraints if we don't have them yet
   for (auto const &C : NewCs) {
     const SymbolRef &Sym = C.first;
     if (!Constraints.contains(Sym)) {
+      // This symbol is new, just add the constraint.
+      Constraints = CF.add(Constraints, Sym, C.second);
+    } else if (OverwriteConstraintsOnExistingSyms) {
+      // Overwrite the associated constraint of the Symbol.
+      Constraints = CF.remove(Constraints, Sym);
       Constraints = CF.add(Constraints, Sym, C.second);
     }
   }
+}
 
+PathDiagnosticPieceRef FalsePositiveRefutationBRVisitor::VisitNode(
+    const ExplodedNode *N, BugReporterContext &, PathSensitiveBugReport &) {
+  addConstraints(N, /*OverwriteConstraintsOnExistingSyms=*/false);
   return nullptr;
 }
 

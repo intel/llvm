@@ -2,19 +2,14 @@
 # Extra parameters for `tblgen' may come after `ofn' parameter.
 # Adds the name of the generated file to TABLEGEN_OUTPUT.
 
-if(LLVM_MAIN_INCLUDE_DIR)
-  set(LLVM_TABLEGEN_FLAGS -I ${LLVM_MAIN_INCLUDE_DIR})
-endif()
-
 function(tablegen project ofn)
   # Validate calling context.
   if(NOT ${project}_TABLEGEN_EXE)
     message(FATAL_ERROR "${project}_TABLEGEN_EXE not set")
   endif()
 
-  # Use depfile instead of globbing arbitrary *.td(s)
-  # DEPFILE is available for Ninja Generator with CMake>=3.7.
-  if(CMAKE_GENERATOR STREQUAL "Ninja" AND NOT CMAKE_VERSION VERSION_LESS 3.7)
+  # Use depfile instead of globbing arbitrary *.td(s) for Ninja.
+  if(CMAKE_GENERATOR STREQUAL "Ninja")
     # Make output path relative to build.ninja, assuming located on
     # ${CMAKE_BINARY_DIR}.
     # CMake emits build targets as relative paths but Ninja doesn't identify
@@ -57,6 +52,15 @@ function(tablegen project ofn)
       list(APPEND LLVM_TABLEGEN_FLAGS "-gisel-coverage-file=${LLVM_GISEL_COV_PREFIX}all")
     endif()
   endif()
+  # Comments are only useful for Debug builds. Omit them if the backend
+  # supports it.
+  if (NOT (uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG" OR
+           uppercase_CMAKE_BUILD_TYPE STREQUAL "RELWITHDEBINFO"))
+    list(FIND ARGN "-gen-dag-isel" idx)
+    if (NOT idx EQUAL -1)
+      list(APPEND LLVM_TABLEGEN_FLAGS "-omit-comments")
+    endif()
+  endif()
 
   # MSVC can't support long string literals ("long" > 65534 bytes)[1], so if there's
   # a possibility of generated tables being consumed by MSVC, generate arrays of
@@ -84,8 +88,12 @@ function(tablegen project ofn)
   # dependency twice in the result file when
   # ("${${project}_TABLEGEN_TARGET}" STREQUAL "${${project}_TABLEGEN_EXE}")
   # but lets us having smaller and cleaner code here.
+  get_directory_property(tblgen_includes INCLUDE_DIRECTORIES)
+  list(TRANSFORM tblgen_includes PREPEND -I)
+
   add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${ofn}
     COMMAND ${${project}_TABLEGEN_EXE} ${ARGN} -I ${CMAKE_CURRENT_SOURCE_DIR}
+    ${tblgen_includes}
     ${LLVM_TABLEGEN_FLAGS}
     ${LLVM_TARGET_DEFINITIONS_ABSOLUTE}
     ${tblgen_change_flag}
@@ -125,8 +133,8 @@ macro(add_tablegen target project)
   set(${target}_OLD_LLVM_LINK_COMPONENTS ${LLVM_LINK_COMPONENTS})
   set(LLVM_LINK_COMPONENTS ${LLVM_LINK_COMPONENTS} TableGen)
 
-  # CMake-3.9 doesn't let compilation units depend on their dependent libraries.
-  if(NOT (CMAKE_GENERATOR STREQUAL "Ninja" AND NOT CMAKE_VERSION VERSION_LESS 3.9) AND NOT XCODE)
+  # CMake doesn't let compilation units depend on their dependent libraries on some generators.
+  if(NOT CMAKE_GENERATOR STREQUAL "Ninja" AND NOT XCODE)
     # FIXME: It leaks to user, callee of add_tablegen.
     set(LLVM_ENABLE_OBJLIB ON)
   endif()

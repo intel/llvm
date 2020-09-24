@@ -172,6 +172,7 @@ class SourceManagerTestCase(TestBase):
                     substrs=['Hello world'])
 
     @skipIf(oslist=["windows"], bugnumber="llvm.org/pr44431")
+    @skipIfReproducer # VFS is a snapshot.
     def test_modify_source_file_while_debugging(self):
         """Modify a source file while debugging the executable."""
         self.build()
@@ -196,6 +197,14 @@ class SourceManagerTestCase(TestBase):
             SOURCE_DISPLAYED_CORRECTLY,
             substrs=['Hello world'])
 
+        # Do the same thing with a file & line spec:
+        self.expect(
+            "source list -y main-copy.c:%d" %
+            self.line,
+            SOURCE_DISPLAYED_CORRECTLY,
+            substrs=['Hello world'])
+
+        
         # The '-b' option shows the line table locations from the debug information
         # that indicates valid places to set source level breakpoints.
 

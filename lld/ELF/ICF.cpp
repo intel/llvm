@@ -74,16 +74,17 @@
 
 #include "ICF.h"
 #include "Config.h"
+#include "EhFrame.h"
 #include "LinkerScript.h"
 #include "OutputSections.h"
 #include "SymbolTable.h"
 #include "Symbols.h"
 #include "SyntheticSections.h"
 #include "Writer.h"
-#include "lld/Common/Threads.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Object/ELF.h"
+#include "llvm/Support/Parallel.h"
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/xxhash.h"
 #include <algorithm>
@@ -92,9 +93,9 @@
 using namespace llvm;
 using namespace llvm::ELF;
 using namespace llvm::object;
+using namespace lld;
+using namespace lld::elf;
 
-namespace lld {
-namespace elf {
 namespace {
 template <class ELFT> class ICF {
 public:
@@ -400,7 +401,7 @@ template <class ELFT>
 void ICF<ELFT>::forEachClass(llvm::function_ref<void(size_t, size_t)> fn) {
   // If threading is disabled or the number of sections are
   // too small to use threading, call Fn sequentially.
-  if (!threadsEnabled || sections.size() < 1024) {
+  if (parallel::strategy.ThreadsRequested == 1 || sections.size() < 1024) {
     forEachClassRange(0, sections.size(), fn);
     ++cnt;
     return;
@@ -459,18 +460,33 @@ template <class ELFT> void ICF<ELFT>::run() {
   for (Symbol *sym : symtab->symbols())
     sym->isPreemptible = computeIsPreemptible(*sym);
 
+  // Two text sections may have identical content and relocations but different
+  // LSDA, e.g. the two functions may have catch blocks of different types. If a
+  // text section is referenced by a .eh_frame FDE with LSDA, it is not
+  // eligible. This is implemented by iterating over CIE/FDE and setting
+  // eqClass[0] to the referenced text section from a live FDE.
+  //
+  // If two .gcc_except_table have identical semantics (usually identical
+  // content with PC-relative encoding), we will lose folding opportunity.
+  uint32_t uniqueId = 0;
+  for (Partition &part : partitions)
+    part.ehFrame->iterateFDEWithLSDA<ELFT>(
+        [&](InputSection &s) { s.eqClass[0] = ++uniqueId; });
+
   // Collect sections to merge.
   for (InputSectionBase *sec : inputSections) {
     auto *s = cast<InputSection>(sec);
-    if (isEligible(s))
+    if (isEligible(s) && s->eqClass[0] == 0)
       sections.push_back(s);
   }
 
   // Initially, we use hash values to partition sections.
-  parallelForEach(sections, [&](InputSection *s) {
-    s->eqClass[0] = xxHash64(s->data());
-  });
+  parallelForEach(
+      sections, [&](InputSection *s) { s->eqClass[0] = xxHash64(s->data()); });
 
+  // Perform 2 rounds of relocation hash propagation. 2 is an empirical value to
+  // reduce the average sizes of equivalence classes, i.e. segregate() which has
+  // a large time complexity will have less work to do.
   for (unsigned cnt = 0; cnt != 2; ++cnt) {
     parallelForEach(sections, [&](InputSection *s) {
       if (s->areRelocsRela)
@@ -526,15 +542,12 @@ template <class ELFT> void ICF<ELFT>::run() {
 }
 
 // ICF entry point function.
-template <class ELFT> void doIcf() {
+template <class ELFT> void elf::doIcf() {
   llvm::TimeTraceScope timeScope("ICF");
   ICF<ELFT>().run();
 }
 
-template void doIcf<ELF32LE>();
-template void doIcf<ELF32BE>();
-template void doIcf<ELF64LE>();
-template void doIcf<ELF64BE>();
-
-} // namespace elf
-} // namespace lld
+template void elf::doIcf<ELF32LE>();
+template void elf::doIcf<ELF32BE>();
+template void elf::doIcf<ELF64LE>();
+template void elf::doIcf<ELF64BE>();

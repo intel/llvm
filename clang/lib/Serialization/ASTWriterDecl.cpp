@@ -95,6 +95,7 @@ namespace clang {
     void VisitCXXConversionDecl(CXXConversionDecl *D);
     void VisitFieldDecl(FieldDecl *D);
     void VisitMSPropertyDecl(MSPropertyDecl *D);
+    void VisitMSGuidDecl(MSGuidDecl *D);
     void VisitIndirectFieldDecl(IndirectFieldDecl *D);
     void VisitVarDecl(VarDecl *D);
     void VisitImplicitParamDecl(ImplicitParamDecl *D);
@@ -953,6 +954,17 @@ void ASTDeclWriter::VisitMSPropertyDecl(MSPropertyDecl *D) {
   Code = serialization::DECL_MS_PROPERTY;
 }
 
+void ASTDeclWriter::VisitMSGuidDecl(MSGuidDecl *D) {
+  VisitValueDecl(D);
+  MSGuidDecl::Parts Parts = D->getParts();
+  Record.push_back(Parts.Part1);
+  Record.push_back(Parts.Part2);
+  Record.push_back(Parts.Part3);
+  for (auto C : Parts.Part4And5)
+    Record.push_back(C);
+  Code = serialization::DECL_MS_GUID;
+}
+
 void ASTDeclWriter::VisitIndirectFieldDecl(IndirectFieldDecl *D) {
   VisitValueDecl(D);
   Record.push_back(D->getChainingSize());
@@ -1019,8 +1031,10 @@ void ASTDeclWriter::VisitVarDecl(VarDecl *D) {
       // that module interface unit, not by its users. (Inline variables are
       // still emitted in module users.)
       ModulesCodegen =
-          (Writer.WritingModule->Kind == Module::ModuleInterfaceUnit &&
-           Writer.Context->GetGVALinkageForVariable(D) == GVA_StrongExternal);
+          (Writer.WritingModule->Kind == Module::ModuleInterfaceUnit ||
+           (D->hasAttr<DLLExportAttr>() &&
+            Writer.Context->getLangOpts().BuildingPCHWithObjectFile)) &&
+          Writer.Context->GetGVALinkageForVariable(D) == GVA_StrongExternal;
     }
     Record.push_back(ModulesCodegen);
     if (ModulesCodegen)
@@ -1087,8 +1101,6 @@ void ASTDeclWriter::VisitParmVarDecl(ParmVarDecl *D) {
   if (D->hasUninstantiatedDefaultArg())
     Record.AddStmt(D->getUninstantiatedDefaultArg());
   Code = serialization::DECL_PARM_VAR;
-
-  assert(!D->isARCPseudoStrong()); // can be true of ImplicitParamDecl
 
   // If the assumptions about the DECL_PARM_VAR abbrev are true, use it.  Here
   // we dynamically check for the properties that we optimize for, but don't
@@ -1831,29 +1843,20 @@ void ASTDeclWriter::VisitRedeclarable(Redeclarable<T> *D) {
 }
 
 void ASTDeclWriter::VisitOMPThreadPrivateDecl(OMPThreadPrivateDecl *D) {
-  Record.push_back(D->varlist_size());
+  Record.writeOMPChildren(D->Data);
   VisitDecl(D);
-  for (auto *I : D->varlists())
-    Record.AddStmt(I);
   Code = serialization::DECL_OMP_THREADPRIVATE;
 }
 
 void ASTDeclWriter::VisitOMPAllocateDecl(OMPAllocateDecl *D) {
-  Record.push_back(D->varlist_size());
-  Record.push_back(D->clauselist_size());
+  Record.writeOMPChildren(D->Data);
   VisitDecl(D);
-  for (auto *I : D->varlists())
-    Record.AddStmt(I);
-  for (OMPClause *C : D->clauselists())
-    Record.writeOMPClause(C);
   Code = serialization::DECL_OMP_ALLOCATE;
 }
 
 void ASTDeclWriter::VisitOMPRequiresDecl(OMPRequiresDecl *D) {
-  Record.push_back(D->clauselist_size());
+  Record.writeOMPChildren(D->Data);
   VisitDecl(D);
-  for (OMPClause *C : D->clauselists())
-    Record.writeOMPClause(C);
   Code = serialization::DECL_OMP_REQUIRES;
 }
 
@@ -1872,14 +1875,10 @@ void ASTDeclWriter::VisitOMPDeclareReductionDecl(OMPDeclareReductionDecl *D) {
 }
 
 void ASTDeclWriter::VisitOMPDeclareMapperDecl(OMPDeclareMapperDecl *D) {
-  Record.push_back(D->clauselist_size());
+  Record.writeOMPChildren(D->Data);
   VisitValueDecl(D);
-  Record.AddSourceLocation(D->getBeginLoc());
-  Record.AddStmt(D->getMapperVarRef());
   Record.AddDeclarationName(D->getVarName());
   Record.AddDeclRef(D->getPrevDeclInScope());
-  for (OMPClause *C : D->clauselists())
-    Record.writeOMPClause(C);
   Code = serialization::DECL_OMP_DECLARE_MAPPER;
 }
 
@@ -2109,7 +2108,7 @@ void ASTWriter::WriteDeclAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(0));                       // SClass
   Abv->Add(BitCodeAbbrevOp(0));                       // TSCSpec
   Abv->Add(BitCodeAbbrevOp(0));                       // InitStyle
-  Abv->Add(BitCodeAbbrevOp(0));                       // ARCPseudoStrong
+  Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // isARCPseudoStrong
   Abv->Add(BitCodeAbbrevOp(0));                       // Linkage
   Abv->Add(BitCodeAbbrevOp(0));                       // HasInit
   Abv->Add(BitCodeAbbrevOp(0));                   // HasMemberSpecializationInfo
@@ -2422,12 +2421,12 @@ void ASTWriter::WriteDecl(ASTContext &Context, Decl *D) {
   SourceLocation Loc = D->getLocation();
   unsigned Index = ID - FirstDeclID;
   if (DeclOffsets.size() == Index)
-    DeclOffsets.push_back(DeclOffset(Loc, Offset));
+    DeclOffsets.emplace_back(Loc, Offset, DeclTypesBlockStartOffset);
   else if (DeclOffsets.size() < Index) {
     // FIXME: Can/should this happen?
     DeclOffsets.resize(Index+1);
     DeclOffsets[Index].setLocation(Loc);
-    DeclOffsets[Index].BitOffset = Offset;
+    DeclOffsets[Index].setBitOffset(Offset, DeclTypesBlockStartOffset);
   } else {
     llvm_unreachable("declarations should be emitted in ID order");
   }
@@ -2448,9 +2447,10 @@ void ASTRecordWriter::AddFunctionDefinition(const FunctionDecl *FD) {
 
   assert(FD->doesThisDeclarationHaveABody());
   bool ModulesCodegen = false;
-  if (Writer->WritingModule && !FD->isDependentContext()) {
+  if (!FD->isDependentContext()) {
     Optional<GVALinkage> Linkage;
-    if (Writer->WritingModule->Kind == Module::ModuleInterfaceUnit) {
+    if (Writer->WritingModule &&
+        Writer->WritingModule->Kind == Module::ModuleInterfaceUnit) {
       // When building a C++ Modules TS module interface unit, a strong
       // definition in the module interface is provided by the compilation of
       // that module interface unit, not by its users. (Inline functions are
@@ -2458,7 +2458,10 @@ void ASTRecordWriter::AddFunctionDefinition(const FunctionDecl *FD) {
       Linkage = Writer->Context->GetGVALinkageForFunction(FD);
       ModulesCodegen = *Linkage == GVA_StrongExternal;
     }
-    if (Writer->Context->getLangOpts().ModulesCodegen) {
+    if (Writer->Context->getLangOpts().ModulesCodegen ||
+        (FD->hasAttr<DLLExportAttr>() &&
+         Writer->Context->getLangOpts().BuildingPCHWithObjectFile)) {
+
       // Under -fmodules-codegen, codegen is performed for all non-internal,
       // non-always_inline functions, unless they are available elsewhere.
       if (!FD->hasAttr<AlwaysInlineAttr>()) {

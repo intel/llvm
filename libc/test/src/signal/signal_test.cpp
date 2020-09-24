@@ -1,4 +1,4 @@
-//===------------------------ Unittests for signal ------------------------===//
+//===-- Unittests for signal ----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,7 +12,7 @@
 #include "src/signal/raise.h"
 #include "src/signal/signal.h"
 
-#include "utils/UnitTest/ErrnoSetterMatcher.h"
+#include "test/ErrnoSetterMatcher.h"
 #include "utils/UnitTest/Test.h"
 
 using __llvm_libc::testing::ErrnoSetterMatcher::Fails;

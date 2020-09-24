@@ -10,14 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "X86Subtarget.h"
+#include "MCTargetDesc/X86BaseInfo.h"
 #include "X86.h"
-
 #include "X86CallLowering.h"
 #include "X86LegalizerInfo.h"
 #include "X86MacroFusion.h"
 #include "X86RegisterBankInfo.h"
-#include "X86Subtarget.h"
-#include "MCTargetDesc/X86BaseInfo.h"
 #include "X86TargetMachine.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
@@ -89,7 +88,9 @@ X86Subtarget::classifyLocalReference(const GlobalValue *GV) const {
 
       // Medium is a hybrid: RIP-rel for code, GOTOFF for DSO local data.
       case CodeModel::Medium:
-        if (isa<Function>(GV))
+        // Constant pool and jump table handling pass a nullptr to this
+        // function so we need to use isa_and_nonnull.
+        if (isa_and_nonnull<Function>(GV))
           return X86II::MO_NO_FLAG; // All code is RIP-relative
         return X86II::MO_GOTOFF;    // Local symbols use GOTOFF.
       }
@@ -226,39 +227,22 @@ bool X86Subtarget::isLegalToCallImmediateAddr() const {
   return isTargetELF() || TM.getRelocationModel() == Reloc::Static;
 }
 
-void X86Subtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
-  std::string CPUName = std::string(CPU);
-  if (CPUName.empty())
-    CPUName = "generic";
+void X86Subtarget::initSubtargetFeatures(StringRef CPU, StringRef TuneCPU,
+                                         StringRef FS) {
+  if (CPU.empty())
+    CPU = "generic";
 
-  std::string FullFS = std::string(FS);
-  if (In64BitMode) {
-    // SSE2 should default to enabled in 64-bit mode, but can be turned off
-    // explicitly.
-    if (!FullFS.empty())
-      FullFS = "+sse2," + FullFS;
-    else
-      FullFS = "+sse2";
+  if (TuneCPU.empty())
+    TuneCPU = "i586"; // FIXME: "generic" is more modern than llc tests expect.
 
-    // If no CPU was specified, enable 64bit feature to satisy later check.
-    if (CPUName == "generic") {
-      if (!FullFS.empty())
-        FullFS = "+64bit," + FullFS;
-      else
-        FullFS = "+64bit";
-    }
-  }
+  std::string FullFS = X86_MC::ParseX86Triple(TargetTriple);
+  assert(!FullFS.empty() && "Failed to parse X86 triple");
 
-  // LAHF/SAHF are always supported in non-64-bit mode.
-  if (!In64BitMode) {
-    if (!FullFS.empty())
-      FullFS = "+sahf," + FullFS;
-    else
-      FullFS = "+sahf";
-  }
+  if (!FS.empty())
+    FullFS = (Twine(FullFS) + "," + FS).str();
 
   // Parse features string and set the CPU.
-  ParseSubtargetFeatures(CPUName, FullFS);
+  ParseSubtargetFeatures(CPU, TuneCPU, FullFS);
 
   // All CPUs that implement SSE4.2 or SSE4A support unaligned accesses of
   // 16-bytes and under that are reasonably fast. These features were
@@ -266,17 +250,6 @@ void X86Subtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
   // micro-architectures respectively.
   if (hasSSE42() || hasSSE4A())
     IsUAMem16Slow = false;
-
-  // It's important to keep the MCSubtargetInfo feature bits in sync with
-  // target data structure which is shared with MC code emitter, etc.
-  if (In64BitMode)
-    ToggleFeature(X86::Mode64Bit);
-  else if (In32BitMode)
-    ToggleFeature(X86::Mode32Bit);
-  else if (In16BitMode)
-    ToggleFeature(X86::Mode16Bit);
-  else
-    llvm_unreachable("Not 16-bit, 32-bit or 64-bit mode!");
 
   LLVM_DEBUG(dbgs() << "Subtarget features: SSELevel " << X86SSELevel
                     << ", 3DNowLevel " << X863DNowLevel << ", 64bit "
@@ -293,17 +266,6 @@ void X86Subtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
            isTargetKFreeBSD() || In64BitMode)
     stackAlignment = Align(16);
 
-  // Some CPUs have more overhead for gather. The specified overhead is relative
-  // to the Load operation. "2" is the number provided by Intel architects. This
-  // parameter is used for cost estimation of Gather Op and comparison with
-  // other alternatives.
-  // TODO: Remove the explicit hasAVX512()?, That would mean we would only
-  // enable gather with a -march.
-  if (hasAVX512() || (hasAVX2() && hasFastGather()))
-    GatherOverhead = 2;
-  if (hasAVX512())
-    ScatterOverhead = 2;
-
   // Consume the vector width attribute or apply any target specific limit.
   if (PreferVectorWidthOverride)
     PreferVectorWidth = PreferVectorWidthOverride;
@@ -314,27 +276,24 @@ void X86Subtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
 }
 
 X86Subtarget &X86Subtarget::initializeSubtargetDependencies(StringRef CPU,
+                                                            StringRef TuneCPU,
                                                             StringRef FS) {
-  initSubtargetFeatures(CPU, FS);
+  initSubtargetFeatures(CPU, TuneCPU, FS);
   return *this;
 }
 
-X86Subtarget::X86Subtarget(const Triple &TT, StringRef CPU, StringRef FS,
-                           const X86TargetMachine &TM,
+X86Subtarget::X86Subtarget(const Triple &TT, StringRef CPU, StringRef TuneCPU,
+                           StringRef FS, const X86TargetMachine &TM,
                            MaybeAlign StackAlignOverride,
                            unsigned PreferVectorWidthOverride,
                            unsigned RequiredVectorWidth)
-    : X86GenSubtargetInfo(TT, CPU, FS), PICStyle(PICStyles::Style::None),
-      TM(TM), TargetTriple(TT), StackAlignOverride(StackAlignOverride),
+    : X86GenSubtargetInfo(TT, CPU, TuneCPU, FS),
+      PICStyle(PICStyles::Style::None), TM(TM), TargetTriple(TT),
+      StackAlignOverride(StackAlignOverride),
       PreferVectorWidthOverride(PreferVectorWidthOverride),
       RequiredVectorWidth(RequiredVectorWidth),
-      In64BitMode(TargetTriple.getArch() == Triple::x86_64),
-      In32BitMode(TargetTriple.getArch() == Triple::x86 &&
-                  TargetTriple.getEnvironment() != Triple::CODE16),
-      In16BitMode(TargetTriple.getArch() == Triple::x86 &&
-                  TargetTriple.getEnvironment() == Triple::CODE16),
-      InstrInfo(initializeSubtargetDependencies(CPU, FS)), TLInfo(TM, *this),
-      FrameLowering(*this, getStackAlignment()) {
+      InstrInfo(initializeSubtargetDependencies(CPU, TuneCPU, FS)),
+      TLInfo(TM, *this), FrameLowering(*this, getStackAlignment()) {
   // Determine the PICStyle based on the target selected.
   if (!isPositionIndependent())
     setPICStyle(PICStyles::Style::None);
@@ -378,4 +337,8 @@ bool X86Subtarget::enableEarlyIfConversion() const {
 void X86Subtarget::getPostRAMutations(
     std::vector<std::unique_ptr<ScheduleDAGMutation>> &Mutations) const {
   Mutations.push_back(createX86MacroFusionDAGMutation());
+}
+
+bool X86Subtarget::isPositionIndependent() const {
+  return TM.isPositionIndependent();
 }

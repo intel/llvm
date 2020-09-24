@@ -190,9 +190,9 @@ public:
     return SelectSVELogicalImm(N, VT, Imm);
   }
 
-  template <unsigned Low, unsigned High>
-  bool SelectSVEShiftImm64(SDValue N, SDValue &Imm) {
-    return SelectSVEShiftImm64(N, Low, High, Imm);
+  template <unsigned Low, unsigned High, bool AllowSaturation = false>
+  bool SelectSVEShiftImm(SDValue N, SDValue &Imm) {
+    return SelectSVEShiftImm(N, Low, High, AllowSaturation, Imm);
   }
 
   // Returns a suitable CNT/INC/DEC/RDVL multiplier to calculate VSCALE*N.
@@ -223,6 +223,9 @@ public:
   /// unchanged; otherwise a REG_SEQUENCE value is returned.
   SDValue createDTuple(ArrayRef<SDValue> Vecs);
   SDValue createQTuple(ArrayRef<SDValue> Vecs);
+  // Form a sequence of SVE registers for instructions using list of vectors,
+  // e.g. structured loads and stores (ldN, stN).
+  SDValue createZTuple(ArrayRef<SDValue> Vecs);
 
   /// Generic helper for the createDTuple/createQTuple
   /// functions. Those should almost always be called instead.
@@ -242,6 +245,8 @@ public:
                          unsigned SubRegIdx);
   void SelectLoadLane(SDNode *N, unsigned NumVecs, unsigned Opc);
   void SelectPostLoadLane(SDNode *N, unsigned NumVecs, unsigned Opc);
+  void SelectPredicatedLoad(SDNode *N, unsigned NumVecs, unsigned Scale,
+                            unsigned Opc_rr, unsigned Opc_ri);
 
   bool SelectAddrModeFrameIndexSVE(SDValue N, SDValue &Base, SDValue &OffImm);
   /// SVE Reg+Imm addressing mode.
@@ -258,6 +263,12 @@ public:
   void SelectPostStore(SDNode *N, unsigned NumVecs, unsigned Opc);
   void SelectStoreLane(SDNode *N, unsigned NumVecs, unsigned Opc);
   void SelectPostStoreLane(SDNode *N, unsigned NumVecs, unsigned Opc);
+  void SelectPredicatedStore(SDNode *N, unsigned NumVecs, unsigned Scale,
+                             unsigned Opc_rr, unsigned Opc_ri);
+  std::tuple<unsigned, SDValue, SDValue>
+  findAddrModeSVELoadStore(SDNode *N, unsigned Opc_rr, unsigned Opc_ri,
+                           const SDValue &OldBase, const SDValue &OldOffset,
+                           unsigned Scale);
 
   bool tryBitfieldExtractOp(SDNode *N);
   bool tryBitfieldExtractOpFromSExt(SDNode *N);
@@ -312,8 +323,8 @@ private:
   bool SelectSVELogicalImm(SDValue N, MVT VT, SDValue &Imm);
 
   bool SelectSVESignedArithImm(SDValue N, SDValue &Imm);
-  bool SelectSVEShiftImm64(SDValue N, uint64_t Low, uint64_t High,
-                           SDValue &Imm);
+  bool SelectSVEShiftImm(SDValue N, uint64_t Low, uint64_t High,
+                         bool AllowSaturation, SDValue &Imm);
 
   bool SelectSVEArithImm(SDValue N, SDValue &Imm);
   bool SelectSVERegRegAddrMode(SDValue N, unsigned Scale, SDValue &Base,
@@ -892,16 +903,9 @@ bool AArch64DAGToDAGISel::SelectAddrModeIndexed(SDValue N, unsigned Size,
     if (!GAN)
       return true;
 
-    if (GAN->getOffset() % Size == 0) {
-      const GlobalValue *GV = GAN->getGlobal();
-      unsigned Alignment = GV->getAlignment();
-      Type *Ty = GV->getValueType();
-      if (Alignment == 0 && Ty->isSized())
-        Alignment = DL.getABITypeAlignment(Ty);
-
-      if (Alignment >= Size)
-        return true;
-    }
+    if (GAN->getOffset() % Size == 0 &&
+        GAN->getGlobal()->getPointerAlignment(DL) >= Size)
+      return true;
   }
 
   if (CurDAG->isBaseWithConstantOffset(N)) {
@@ -1192,6 +1196,16 @@ SDValue AArch64DAGToDAGISel::createQTuple(ArrayRef<SDValue> Regs) {
   return createTuple(Regs, RegClassIDs, SubRegs);
 }
 
+SDValue AArch64DAGToDAGISel::createZTuple(ArrayRef<SDValue> Regs) {
+  static const unsigned RegClassIDs[] = {AArch64::ZPR2RegClassID,
+                                         AArch64::ZPR3RegClassID,
+                                         AArch64::ZPR4RegClassID};
+  static const unsigned SubRegs[] = {AArch64::zsub0, AArch64::zsub1,
+                                     AArch64::zsub2, AArch64::zsub3};
+
+  return createTuple(Regs, RegClassIDs, SubRegs);
+}
+
 SDValue AArch64DAGToDAGISel::createTuple(ArrayRef<SDValue> Regs,
                                          const unsigned RegClassIDs[],
                                          const unsigned SubRegs[]) {
@@ -1300,6 +1314,8 @@ bool AArch64DAGToDAGISel::tryIndexedLoad(SDNode *N) {
     }
   } else if (VT == MVT::f16) {
     Opcode = IsPre ? AArch64::LDRHpre : AArch64::LDRHpost;
+  } else if (VT == MVT::bf16) {
+    Opcode = IsPre ? AArch64::LDRHpre : AArch64::LDRHpost;
   } else if (VT == MVT::f32) {
     Opcode = IsPre ? AArch64::LDRSpre : AArch64::LDRSpost;
   } else if (VT == MVT::f64 || VT.is64BitVector()) {
@@ -1394,6 +1410,63 @@ void AArch64DAGToDAGISel::SelectPostLoad(SDNode *N, unsigned NumVecs,
   CurDAG->RemoveDeadNode(N);
 }
 
+/// Optimize \param OldBase and \param OldOffset selecting the best addressing
+/// mode. Returns a tuple consisting of an Opcode, an SDValue representing the
+/// new Base and an SDValue representing the new offset.
+std::tuple<unsigned, SDValue, SDValue>
+AArch64DAGToDAGISel::findAddrModeSVELoadStore(SDNode *N, unsigned Opc_rr,
+                                              unsigned Opc_ri,
+                                              const SDValue &OldBase,
+                                              const SDValue &OldOffset,
+                                              unsigned Scale) {
+  SDValue NewBase = OldBase;
+  SDValue NewOffset = OldOffset;
+  // Detect a possible Reg+Imm addressing mode.
+  const bool IsRegImm = SelectAddrModeIndexedSVE</*Min=*/-8, /*Max=*/7>(
+      N, OldBase, NewBase, NewOffset);
+
+  // Detect a possible reg+reg addressing mode, but only if we haven't already
+  // detected a Reg+Imm one.
+  const bool IsRegReg =
+      !IsRegImm && SelectSVERegRegAddrMode(OldBase, Scale, NewBase, NewOffset);
+
+  // Select the instruction.
+  return std::make_tuple(IsRegReg ? Opc_rr : Opc_ri, NewBase, NewOffset);
+}
+
+void AArch64DAGToDAGISel::SelectPredicatedLoad(SDNode *N, unsigned NumVecs,
+                                               unsigned Scale, unsigned Opc_ri,
+                                               unsigned Opc_rr) {
+  assert(Scale < 4 && "Invalid scaling value.");
+  SDLoc DL(N);
+  EVT VT = N->getValueType(0);
+  SDValue Chain = N->getOperand(0);
+
+  // Optimize addressing mode.
+  SDValue Base, Offset;
+  unsigned Opc;
+  std::tie(Opc, Base, Offset) = findAddrModeSVELoadStore(
+      N, Opc_rr, Opc_ri, N->getOperand(2),
+      CurDAG->getTargetConstant(0, DL, MVT::i64), Scale);
+
+  SDValue Ops[] = {N->getOperand(1), // Predicate
+                   Base,             // Memory operand
+                   Offset, Chain};
+
+  const EVT ResTys[] = {MVT::Untyped, MVT::Other};
+
+  SDNode *Load = CurDAG->getMachineNode(Opc, DL, ResTys, Ops);
+  SDValue SuperReg = SDValue(Load, 0);
+  for (unsigned i = 0; i < NumVecs; ++i)
+    ReplaceUses(SDValue(N, i), CurDAG->getTargetExtractSubreg(
+                                   AArch64::zsub0 + i, DL, VT, SuperReg));
+
+  // Copy chain
+  unsigned ChainIdx = NumVecs;
+  ReplaceUses(SDValue(N, ChainIdx), SDValue(Load, 1));
+  CurDAG->RemoveDeadNode(N);
+}
+
 void AArch64DAGToDAGISel::SelectStore(SDNode *N, unsigned NumVecs,
                                       unsigned Opc) {
   SDLoc dl(N);
@@ -1410,6 +1483,31 @@ void AArch64DAGToDAGISel::SelectStore(SDNode *N, unsigned NumVecs,
   // Transfer memoperands.
   MachineMemOperand *MemOp = cast<MemIntrinsicSDNode>(N)->getMemOperand();
   CurDAG->setNodeMemRefs(cast<MachineSDNode>(St), {MemOp});
+
+  ReplaceNode(N, St);
+}
+
+void AArch64DAGToDAGISel::SelectPredicatedStore(SDNode *N, unsigned NumVecs,
+                                                unsigned Scale, unsigned Opc_rr,
+                                                unsigned Opc_ri) {
+  SDLoc dl(N);
+
+  // Form a REG_SEQUENCE to force register allocation.
+  SmallVector<SDValue, 4> Regs(N->op_begin() + 2, N->op_begin() + 2 + NumVecs);
+  SDValue RegSeq = createZTuple(Regs);
+
+  // Optimize addressing mode.
+  unsigned Opc;
+  SDValue Offset, Base;
+  std::tie(Opc, Base, Offset) = findAddrModeSVELoadStore(
+      N, Opc_rr, Opc_ri, N->getOperand(NumVecs + 3),
+      CurDAG->getTargetConstant(0, dl, MVT::i64), Scale);
+
+  SDValue Ops[] = {RegSeq, N->getOperand(NumVecs + 2), // predicate
+                   Base,                               // address
+                   Offset,                             // offset
+                   N->getOperand(0)};                  // chain
+  SDNode *St = CurDAG->getMachineNode(Opc, dl, N->getValueType(0), Ops);
 
   ReplaceNode(N, St);
 }
@@ -3021,7 +3119,7 @@ bool AArch64DAGToDAGISel::SelectSVESignedArithImm(SDValue N, SDValue &Imm) {
   if (auto CNode = dyn_cast<ConstantSDNode>(N)) {
     int64_t ImmVal = CNode->getSExtValue();
     SDLoc DL(N);
-    if (ImmVal >= -127 && ImmVal < 127) {
+    if (ImmVal >= -128 && ImmVal < 128) {
       Imm = CurDAG->getTargetConstant(ImmVal, DL, MVT::i32);
       return true;
     }
@@ -3079,19 +3177,30 @@ bool AArch64DAGToDAGISel::SelectSVELogicalImm(SDValue N, MVT VT, SDValue &Imm) {
   return false;
 }
 
-// This method is only needed to "cast" i64s into i32s when the value
-// is a valid shift which has been splatted into a vector with i64 elements.
-// Every other type is fine in tablegen.
-bool AArch64DAGToDAGISel::SelectSVEShiftImm64(SDValue N, uint64_t Low,
-                                              uint64_t High, SDValue &Imm) {
+// SVE shift intrinsics allow shift amounts larger than the element's bitwidth.
+// Rather than attempt to normalise everything we can sometimes saturate the
+// shift amount during selection. This function also allows for consistent
+// isel patterns by ensuring the resulting "Imm" node is of the i32 type
+// required by the instructions.
+bool AArch64DAGToDAGISel::SelectSVEShiftImm(SDValue N, uint64_t Low,
+                                            uint64_t High, bool AllowSaturation,
+                                            SDValue &Imm) {
   if (auto *CN = dyn_cast<ConstantSDNode>(N)) {
     uint64_t ImmVal = CN->getZExtValue();
-    SDLoc DL(N);
 
-    if (ImmVal >= Low && ImmVal <= High) {
-      Imm = CurDAG->getTargetConstant(ImmVal, DL, MVT::i32);
-      return true;
+    // Reject shift amounts that are too small.
+    if (ImmVal < Low)
+      return false;
+
+    // Reject or saturate shift amounts that are too big.
+    if (ImmVal > High) {
+      if (!AllowSaturation)
+        return false;
+      ImmVal = High;
     }
+
+    Imm = CurDAG->getTargetConstant(ImmVal, SDLoc(N), MVT::i32);
+    return true;
   }
 
   return false;
@@ -3147,6 +3256,63 @@ void AArch64DAGToDAGISel::SelectTagP(SDNode *N) {
       {SDValue(N2, 0), CurDAG->getTargetConstant(0, DL, MVT::i64),
        CurDAG->getTargetConstant(TagOffset, DL, MVT::i64)});
   ReplaceNode(N, N3);
+}
+
+// NOTE: We cannot use EXTRACT_SUBREG in all cases because the fixed length
+// vector types larger than NEON don't have a matching SubRegIndex.
+static SDNode *extractSubReg(SelectionDAG *DAG, EVT VT, SDValue V) {
+  assert(V.getValueType().isScalableVector() &&
+         V.getValueType().getSizeInBits().getKnownMinSize() ==
+             AArch64::SVEBitsPerBlock &&
+         "Expected to extract from a packed scalable vector!");
+  assert(VT.isFixedLengthVector() &&
+         "Expected to extract a fixed length vector!");
+
+  SDLoc DL(V);
+  switch (VT.getSizeInBits()) {
+  case 64: {
+    auto SubReg = DAG->getTargetConstant(AArch64::dsub, DL, MVT::i32);
+    return DAG->getMachineNode(TargetOpcode::EXTRACT_SUBREG, DL, VT, V, SubReg);
+  }
+  case 128: {
+    auto SubReg = DAG->getTargetConstant(AArch64::zsub, DL, MVT::i32);
+    return DAG->getMachineNode(TargetOpcode::EXTRACT_SUBREG, DL, VT, V, SubReg);
+  }
+  default: {
+    auto RC = DAG->getTargetConstant(AArch64::ZPRRegClassID, DL, MVT::i64);
+    return DAG->getMachineNode(TargetOpcode::COPY_TO_REGCLASS, DL, VT, V, RC);
+  }
+  }
+}
+
+// NOTE: We cannot use INSERT_SUBREG in all cases because the fixed length
+// vector types larger than NEON don't have a matching SubRegIndex.
+static SDNode *insertSubReg(SelectionDAG *DAG, EVT VT, SDValue V) {
+  assert(VT.isScalableVector() &&
+         VT.getSizeInBits().getKnownMinSize() == AArch64::SVEBitsPerBlock &&
+         "Expected to insert into a packed scalable vector!");
+  assert(V.getValueType().isFixedLengthVector() &&
+         "Expected to insert a fixed length vector!");
+
+  SDLoc DL(V);
+  switch (V.getValueType().getSizeInBits()) {
+  case 64: {
+    auto SubReg = DAG->getTargetConstant(AArch64::dsub, DL, MVT::i32);
+    auto Container = DAG->getMachineNode(TargetOpcode::IMPLICIT_DEF, DL, VT);
+    return DAG->getMachineNode(TargetOpcode::INSERT_SUBREG, DL, VT,
+                               SDValue(Container, 0), V, SubReg);
+  }
+  case 128: {
+    auto SubReg = DAG->getTargetConstant(AArch64::zsub, DL, MVT::i32);
+    auto Container = DAG->getMachineNode(TargetOpcode::IMPLICIT_DEF, DL, VT);
+    return DAG->getMachineNode(TargetOpcode::INSERT_SUBREG, DL, VT,
+                               SDValue(Container, 0), V, SubReg);
+  }
+  default: {
+    auto RC = DAG->getTargetConstant(AArch64::ZPRRegClassID, DL, MVT::i64);
+    return DAG->getMachineNode(TargetOpcode::COPY_TO_REGCLASS, DL, VT, V, RC);
+  }
+  }
 }
 
 void AArch64DAGToDAGISel::Select(SDNode *Node) {
@@ -3221,6 +3387,52 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     if (tryBitfieldInsertOp(Node))
       return;
     break;
+
+  case ISD::EXTRACT_SUBVECTOR: {
+    // Bail when not a "cast" like extract_subvector.
+    if (cast<ConstantSDNode>(Node->getOperand(1))->getZExtValue() != 0)
+      break;
+
+    // Bail when normal isel can do the job.
+    EVT InVT = Node->getOperand(0).getValueType();
+    if (VT.isScalableVector() || InVT.isFixedLengthVector())
+      break;
+
+    // NOTE: We can only get here when doing fixed length SVE code generation.
+    // We do manual selection because the types involved are not linked to real
+    // registers (despite being legal) and must be coerced into SVE registers.
+    //
+    // NOTE: If the above changes, be aware that selection will still not work
+    // because the td definition of extract_vector does not support extracting
+    // a fixed length vector from a scalable vector.
+
+    ReplaceNode(Node, extractSubReg(CurDAG, VT, Node->getOperand(0)));
+    return;
+  }
+
+  case ISD::INSERT_SUBVECTOR: {
+    // Bail when not a "cast" like insert_subvector.
+    if (cast<ConstantSDNode>(Node->getOperand(2))->getZExtValue() != 0)
+      break;
+    if (!Node->getOperand(0).isUndef())
+      break;
+
+    // Bail when normal isel should do the job.
+    EVT InVT = Node->getOperand(1).getValueType();
+    if (VT.isFixedLengthVector() || InVT.isScalableVector())
+      break;
+
+    // NOTE: We can only get here when doing fixed length SVE code generation.
+    // We do manual selection because the types involved are not linked to real
+    // registers (despite being legal) and must be coerced into SVE registers.
+    //
+    // NOTE: If the above changes, be aware that selection will still not work
+    // because the td definition of insert_vector does not support inserting a
+    // fixed length vector into a scalable vector.
+
+    ReplaceNode(Node, insertSubReg(CurDAG, VT, Node->getOperand(1)));
+    return;
+  }
 
   case ISD::Constant: {
     // Materialize zero constants as copies from WZR/XZR.  This allows
@@ -3307,10 +3519,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       } else if (VT == MVT::v16i8) {
         SelectLoad(Node, 2, AArch64::LD1Twov16b, AArch64::qsub0);
         return;
-      } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+      } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
         SelectLoad(Node, 2, AArch64::LD1Twov4h, AArch64::dsub0);
         return;
-      } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+      } else if (VT == MVT::v8i16 || VT == MVT::v8f16 || VT == MVT::v8bf16) {
         SelectLoad(Node, 2, AArch64::LD1Twov8h, AArch64::qsub0);
         return;
       } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -3334,10 +3546,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       } else if (VT == MVT::v16i8) {
         SelectLoad(Node, 3, AArch64::LD1Threev16b, AArch64::qsub0);
         return;
-      } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+      } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
         SelectLoad(Node, 3, AArch64::LD1Threev4h, AArch64::dsub0);
         return;
-      } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+      } else if (VT == MVT::v8i16 || VT == MVT::v8f16 || VT == MVT::v8bf16) {
         SelectLoad(Node, 3, AArch64::LD1Threev8h, AArch64::qsub0);
         return;
       } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -3361,10 +3573,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       } else if (VT == MVT::v16i8) {
         SelectLoad(Node, 4, AArch64::LD1Fourv16b, AArch64::qsub0);
         return;
-      } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+      } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
         SelectLoad(Node, 4, AArch64::LD1Fourv4h, AArch64::dsub0);
         return;
-      } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+      } else if (VT == MVT::v8i16 || VT == MVT::v8f16 || VT == MVT::v8bf16) {
         SelectLoad(Node, 4, AArch64::LD1Fourv8h, AArch64::qsub0);
         return;
       } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -3388,10 +3600,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       } else if (VT == MVT::v16i8) {
         SelectLoad(Node, 2, AArch64::LD2Twov16b, AArch64::qsub0);
         return;
-      } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+      } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
         SelectLoad(Node, 2, AArch64::LD2Twov4h, AArch64::dsub0);
         return;
-      } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+      } else if (VT == MVT::v8i16 || VT == MVT::v8f16 || VT == MVT::v8bf16) {
         SelectLoad(Node, 2, AArch64::LD2Twov8h, AArch64::qsub0);
         return;
       } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -3415,10 +3627,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       } else if (VT == MVT::v16i8) {
         SelectLoad(Node, 3, AArch64::LD3Threev16b, AArch64::qsub0);
         return;
-      } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+      } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
         SelectLoad(Node, 3, AArch64::LD3Threev4h, AArch64::dsub0);
         return;
-      } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+      } else if (VT == MVT::v8i16 || VT == MVT::v8f16 || VT == MVT::v8bf16) {
         SelectLoad(Node, 3, AArch64::LD3Threev8h, AArch64::qsub0);
         return;
       } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -3442,10 +3654,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       } else if (VT == MVT::v16i8) {
         SelectLoad(Node, 4, AArch64::LD4Fourv16b, AArch64::qsub0);
         return;
-      } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+      } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
         SelectLoad(Node, 4, AArch64::LD4Fourv4h, AArch64::dsub0);
         return;
-      } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+      } else if (VT == MVT::v8i16 || VT == MVT::v8f16 || VT == MVT::v8bf16) {
         SelectLoad(Node, 4, AArch64::LD4Fourv8h, AArch64::qsub0);
         return;
       } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -3469,10 +3681,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       } else if (VT == MVT::v16i8) {
         SelectLoad(Node, 2, AArch64::LD2Rv16b, AArch64::qsub0);
         return;
-      } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+      } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
         SelectLoad(Node, 2, AArch64::LD2Rv4h, AArch64::dsub0);
         return;
-      } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+      } else if (VT == MVT::v8i16 || VT == MVT::v8f16 || VT == MVT::v8bf16) {
         SelectLoad(Node, 2, AArch64::LD2Rv8h, AArch64::qsub0);
         return;
       } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -3496,10 +3708,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       } else if (VT == MVT::v16i8) {
         SelectLoad(Node, 3, AArch64::LD3Rv16b, AArch64::qsub0);
         return;
-      } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+      } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
         SelectLoad(Node, 3, AArch64::LD3Rv4h, AArch64::dsub0);
         return;
-      } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+      } else if (VT == MVT::v8i16 || VT == MVT::v8f16 || VT == MVT::v8bf16) {
         SelectLoad(Node, 3, AArch64::LD3Rv8h, AArch64::qsub0);
         return;
       } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -3523,10 +3735,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       } else if (VT == MVT::v16i8) {
         SelectLoad(Node, 4, AArch64::LD4Rv16b, AArch64::qsub0);
         return;
-      } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+      } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
         SelectLoad(Node, 4, AArch64::LD4Rv4h, AArch64::dsub0);
         return;
-      } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+      } else if (VT == MVT::v8i16 || VT == MVT::v8f16 || VT == MVT::v8bf16) {
         SelectLoad(Node, 4, AArch64::LD4Rv8h, AArch64::qsub0);
         return;
       } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -3548,7 +3760,7 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
         SelectLoadLane(Node, 2, AArch64::LD2i8);
         return;
       } else if (VT == MVT::v8i16 || VT == MVT::v4i16 || VT == MVT::v4f16 ||
-                 VT == MVT::v8f16) {
+                 VT == MVT::v8f16 || VT == MVT::v4bf16 || VT == MVT::v8bf16) {
         SelectLoadLane(Node, 2, AArch64::LD2i16);
         return;
       } else if (VT == MVT::v4i32 || VT == MVT::v2i32 || VT == MVT::v4f32 ||
@@ -3566,7 +3778,7 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
         SelectLoadLane(Node, 3, AArch64::LD3i8);
         return;
       } else if (VT == MVT::v8i16 || VT == MVT::v4i16 || VT == MVT::v4f16 ||
-                 VT == MVT::v8f16) {
+                 VT == MVT::v8f16 || VT == MVT::v4bf16 || VT == MVT::v8bf16) {
         SelectLoadLane(Node, 3, AArch64::LD3i16);
         return;
       } else if (VT == MVT::v4i32 || VT == MVT::v2i32 || VT == MVT::v4f32 ||
@@ -3584,7 +3796,7 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
         SelectLoadLane(Node, 4, AArch64::LD4i8);
         return;
       } else if (VT == MVT::v8i16 || VT == MVT::v4i16 || VT == MVT::v4f16 ||
-                 VT == MVT::v8f16) {
+                 VT == MVT::v8f16 || VT == MVT::v4bf16 || VT == MVT::v8bf16) {
         SelectLoadLane(Node, 4, AArch64::LD4i16);
         return;
       } else if (VT == MVT::v4i32 || VT == MVT::v2i32 || VT == MVT::v4f32 ||
@@ -3659,10 +3871,12 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       } else if (VT == MVT::v16i8) {
         SelectStore(Node, 2, AArch64::ST1Twov16b);
         return;
-      } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+      } else if (VT == MVT::v4i16 || VT == MVT::v4f16 ||
+                 VT == MVT::v4bf16) {
         SelectStore(Node, 2, AArch64::ST1Twov4h);
         return;
-      } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+      } else if (VT == MVT::v8i16 || VT == MVT::v8f16 ||
+                 VT == MVT::v8bf16) {
         SelectStore(Node, 2, AArch64::ST1Twov8h);
         return;
       } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -3687,10 +3901,12 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       } else if (VT == MVT::v16i8) {
         SelectStore(Node, 3, AArch64::ST1Threev16b);
         return;
-      } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+      } else if (VT == MVT::v4i16 || VT == MVT::v4f16 ||
+                 VT == MVT::v4bf16) {
         SelectStore(Node, 3, AArch64::ST1Threev4h);
         return;
-      } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+      } else if (VT == MVT::v8i16 || VT == MVT::v8f16 ||
+                 VT == MVT::v8bf16) {
         SelectStore(Node, 3, AArch64::ST1Threev8h);
         return;
       } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -3715,10 +3931,12 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       } else if (VT == MVT::v16i8) {
         SelectStore(Node, 4, AArch64::ST1Fourv16b);
         return;
-      } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+      } else if (VT == MVT::v4i16 || VT == MVT::v4f16 ||
+                 VT == MVT::v4bf16) {
         SelectStore(Node, 4, AArch64::ST1Fourv4h);
         return;
-      } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+      } else if (VT == MVT::v8i16 || VT == MVT::v8f16 ||
+                 VT == MVT::v8bf16) {
         SelectStore(Node, 4, AArch64::ST1Fourv8h);
         return;
       } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -3743,10 +3961,12 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       } else if (VT == MVT::v16i8) {
         SelectStore(Node, 2, AArch64::ST2Twov16b);
         return;
-      } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+      } else if (VT == MVT::v4i16 || VT == MVT::v4f16 ||
+                 VT == MVT::v4bf16) {
         SelectStore(Node, 2, AArch64::ST2Twov4h);
         return;
-      } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+      } else if (VT == MVT::v8i16 || VT == MVT::v8f16 ||
+                 VT == MVT::v8bf16) {
         SelectStore(Node, 2, AArch64::ST2Twov8h);
         return;
       } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -3771,10 +3991,12 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       } else if (VT == MVT::v16i8) {
         SelectStore(Node, 3, AArch64::ST3Threev16b);
         return;
-      } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+      } else if (VT == MVT::v4i16 || VT == MVT::v4f16 ||
+                 VT == MVT::v4bf16) {
         SelectStore(Node, 3, AArch64::ST3Threev4h);
         return;
-      } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+      } else if (VT == MVT::v8i16 || VT == MVT::v8f16 ||
+                 VT == MVT::v8bf16) {
         SelectStore(Node, 3, AArch64::ST3Threev8h);
         return;
       } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -3799,10 +4021,12 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       } else if (VT == MVT::v16i8) {
         SelectStore(Node, 4, AArch64::ST4Fourv16b);
         return;
-      } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+      } else if (VT == MVT::v4i16 || VT == MVT::v4f16 ||
+                 VT == MVT::v4bf16) {
         SelectStore(Node, 4, AArch64::ST4Fourv4h);
         return;
-      } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+      } else if (VT == MVT::v8i16 || VT == MVT::v8f16 ||
+                 VT == MVT::v8bf16) {
         SelectStore(Node, 4, AArch64::ST4Fourv8h);
         return;
       } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -3825,7 +4049,7 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
         SelectStoreLane(Node, 2, AArch64::ST2i8);
         return;
       } else if (VT == MVT::v8i16 || VT == MVT::v4i16 || VT == MVT::v4f16 ||
-                 VT == MVT::v8f16) {
+                 VT == MVT::v8f16 || VT == MVT::v4bf16 || VT == MVT::v8bf16) {
         SelectStoreLane(Node, 2, AArch64::ST2i16);
         return;
       } else if (VT == MVT::v4i32 || VT == MVT::v2i32 || VT == MVT::v4f32 ||
@@ -3844,7 +4068,7 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
         SelectStoreLane(Node, 3, AArch64::ST3i8);
         return;
       } else if (VT == MVT::v8i16 || VT == MVT::v4i16 || VT == MVT::v4f16 ||
-                 VT == MVT::v8f16) {
+                 VT == MVT::v8f16 || VT == MVT::v4bf16 || VT == MVT::v8bf16) {
         SelectStoreLane(Node, 3, AArch64::ST3i16);
         return;
       } else if (VT == MVT::v4i32 || VT == MVT::v2i32 || VT == MVT::v4f32 ||
@@ -3863,7 +4087,7 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
         SelectStoreLane(Node, 4, AArch64::ST4i8);
         return;
       } else if (VT == MVT::v8i16 || VT == MVT::v4i16 || VT == MVT::v4f16 ||
-                 VT == MVT::v8f16) {
+                 VT == MVT::v8f16 || VT == MVT::v4bf16 || VT == MVT::v8bf16) {
         SelectStoreLane(Node, 4, AArch64::ST4i16);
         return;
       } else if (VT == MVT::v4i32 || VT == MVT::v2i32 || VT == MVT::v4f32 ||
@@ -3873,6 +4097,57 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       } else if (VT == MVT::v2i64 || VT == MVT::v1i64 || VT == MVT::v2f64 ||
                  VT == MVT::v1f64) {
         SelectStoreLane(Node, 4, AArch64::ST4i64);
+        return;
+      }
+      break;
+    }
+    case Intrinsic::aarch64_sve_st2: {
+      if (VT == MVT::nxv16i8) {
+        SelectPredicatedStore(Node, 2, 0, AArch64::ST2B, AArch64::ST2B_IMM);
+        return;
+      } else if (VT == MVT::nxv8i16 || VT == MVT::nxv8f16 ||
+                 (VT == MVT::nxv8bf16 && Subtarget->hasBF16())) {
+        SelectPredicatedStore(Node, 2, 1, AArch64::ST2H, AArch64::ST2H_IMM);
+        return;
+      } else if (VT == MVT::nxv4i32 || VT == MVT::nxv4f32) {
+        SelectPredicatedStore(Node, 2, 2, AArch64::ST2W, AArch64::ST2W_IMM);
+        return;
+      } else if (VT == MVT::nxv2i64 || VT == MVT::nxv2f64) {
+        SelectPredicatedStore(Node, 2, 3, AArch64::ST2D, AArch64::ST2D_IMM);
+        return;
+      }
+      break;
+    }
+    case Intrinsic::aarch64_sve_st3: {
+      if (VT == MVT::nxv16i8) {
+        SelectPredicatedStore(Node, 3, 0, AArch64::ST3B, AArch64::ST3B_IMM);
+        return;
+      } else if (VT == MVT::nxv8i16 || VT == MVT::nxv8f16 ||
+                 (VT == MVT::nxv8bf16 && Subtarget->hasBF16())) {
+        SelectPredicatedStore(Node, 3, 1, AArch64::ST3H, AArch64::ST3H_IMM);
+        return;
+      } else if (VT == MVT::nxv4i32 || VT == MVT::nxv4f32) {
+        SelectPredicatedStore(Node, 3, 2, AArch64::ST3W, AArch64::ST3W_IMM);
+        return;
+      } else if (VT == MVT::nxv2i64 || VT == MVT::nxv2f64) {
+        SelectPredicatedStore(Node, 3, 3, AArch64::ST3D, AArch64::ST3D_IMM);
+        return;
+      }
+      break;
+    }
+    case Intrinsic::aarch64_sve_st4: {
+      if (VT == MVT::nxv16i8) {
+        SelectPredicatedStore(Node, 4, 0, AArch64::ST4B, AArch64::ST4B_IMM);
+        return;
+      } else if (VT == MVT::nxv8i16 || VT == MVT::nxv8f16 ||
+                 (VT == MVT::nxv8bf16 && Subtarget->hasBF16())) {
+        SelectPredicatedStore(Node, 4, 1, AArch64::ST4H, AArch64::ST4H_IMM);
+        return;
+      } else if (VT == MVT::nxv4i32 || VT == MVT::nxv4f32) {
+        SelectPredicatedStore(Node, 4, 2, AArch64::ST4W, AArch64::ST4W_IMM);
+        return;
+      } else if (VT == MVT::nxv2i64 || VT == MVT::nxv2f64) {
+        SelectPredicatedStore(Node, 4, 3, AArch64::ST4D, AArch64::ST4D_IMM);
         return;
       }
       break;
@@ -3887,10 +4162,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     } else if (VT == MVT::v16i8) {
       SelectPostLoad(Node, 2, AArch64::LD2Twov16b_POST, AArch64::qsub0);
       return;
-    } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+    } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
       SelectPostLoad(Node, 2, AArch64::LD2Twov4h_POST, AArch64::dsub0);
       return;
-    } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+    } else if (VT == MVT::v8i16 || VT == MVT::v8f16  || VT == MVT::v8bf16) {
       SelectPostLoad(Node, 2, AArch64::LD2Twov8h_POST, AArch64::qsub0);
       return;
     } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -3915,10 +4190,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     } else if (VT == MVT::v16i8) {
       SelectPostLoad(Node, 3, AArch64::LD3Threev16b_POST, AArch64::qsub0);
       return;
-    } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+    } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
       SelectPostLoad(Node, 3, AArch64::LD3Threev4h_POST, AArch64::dsub0);
       return;
-    } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+    } else if (VT == MVT::v8i16 || VT == MVT::v8f16  || VT == MVT::v8bf16) {
       SelectPostLoad(Node, 3, AArch64::LD3Threev8h_POST, AArch64::qsub0);
       return;
     } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -3943,10 +4218,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     } else if (VT == MVT::v16i8) {
       SelectPostLoad(Node, 4, AArch64::LD4Fourv16b_POST, AArch64::qsub0);
       return;
-    } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+    } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
       SelectPostLoad(Node, 4, AArch64::LD4Fourv4h_POST, AArch64::dsub0);
       return;
-    } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+    } else if (VT == MVT::v8i16 || VT == MVT::v8f16  || VT == MVT::v8bf16) {
       SelectPostLoad(Node, 4, AArch64::LD4Fourv8h_POST, AArch64::qsub0);
       return;
     } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -3971,10 +4246,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     } else if (VT == MVT::v16i8) {
       SelectPostLoad(Node, 2, AArch64::LD1Twov16b_POST, AArch64::qsub0);
       return;
-    } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+    } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
       SelectPostLoad(Node, 2, AArch64::LD1Twov4h_POST, AArch64::dsub0);
       return;
-    } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+    } else if (VT == MVT::v8i16 || VT == MVT::v8f16  || VT == MVT::v8bf16) {
       SelectPostLoad(Node, 2, AArch64::LD1Twov8h_POST, AArch64::qsub0);
       return;
     } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -3999,10 +4274,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     } else if (VT == MVT::v16i8) {
       SelectPostLoad(Node, 3, AArch64::LD1Threev16b_POST, AArch64::qsub0);
       return;
-    } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+    } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
       SelectPostLoad(Node, 3, AArch64::LD1Threev4h_POST, AArch64::dsub0);
       return;
-    } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+    } else if (VT == MVT::v8i16 || VT == MVT::v8f16  || VT == MVT::v8bf16) {
       SelectPostLoad(Node, 3, AArch64::LD1Threev8h_POST, AArch64::qsub0);
       return;
     } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -4027,10 +4302,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     } else if (VT == MVT::v16i8) {
       SelectPostLoad(Node, 4, AArch64::LD1Fourv16b_POST, AArch64::qsub0);
       return;
-    } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+    } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
       SelectPostLoad(Node, 4, AArch64::LD1Fourv4h_POST, AArch64::dsub0);
       return;
-    } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+    } else if (VT == MVT::v8i16 || VT == MVT::v8f16  || VT == MVT::v8bf16) {
       SelectPostLoad(Node, 4, AArch64::LD1Fourv8h_POST, AArch64::qsub0);
       return;
     } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -4055,10 +4330,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     } else if (VT == MVT::v16i8) {
       SelectPostLoad(Node, 1, AArch64::LD1Rv16b_POST, AArch64::qsub0);
       return;
-    } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+    } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
       SelectPostLoad(Node, 1, AArch64::LD1Rv4h_POST, AArch64::dsub0);
       return;
-    } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+    } else if (VT == MVT::v8i16 || VT == MVT::v8f16  || VT == MVT::v8bf16) {
       SelectPostLoad(Node, 1, AArch64::LD1Rv8h_POST, AArch64::qsub0);
       return;
     } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -4083,10 +4358,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     } else if (VT == MVT::v16i8) {
       SelectPostLoad(Node, 2, AArch64::LD2Rv16b_POST, AArch64::qsub0);
       return;
-    } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+    } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
       SelectPostLoad(Node, 2, AArch64::LD2Rv4h_POST, AArch64::dsub0);
       return;
-    } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+    } else if (VT == MVT::v8i16 || VT == MVT::v8f16  || VT == MVT::v8bf16) {
       SelectPostLoad(Node, 2, AArch64::LD2Rv8h_POST, AArch64::qsub0);
       return;
     } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -4111,10 +4386,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     } else if (VT == MVT::v16i8) {
       SelectPostLoad(Node, 3, AArch64::LD3Rv16b_POST, AArch64::qsub0);
       return;
-    } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+    } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
       SelectPostLoad(Node, 3, AArch64::LD3Rv4h_POST, AArch64::dsub0);
       return;
-    } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+    } else if (VT == MVT::v8i16 || VT == MVT::v8f16  || VT == MVT::v8bf16) {
       SelectPostLoad(Node, 3, AArch64::LD3Rv8h_POST, AArch64::qsub0);
       return;
     } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -4139,10 +4414,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     } else if (VT == MVT::v16i8) {
       SelectPostLoad(Node, 4, AArch64::LD4Rv16b_POST, AArch64::qsub0);
       return;
-    } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+    } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
       SelectPostLoad(Node, 4, AArch64::LD4Rv4h_POST, AArch64::dsub0);
       return;
-    } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+    } else if (VT == MVT::v8i16 || VT == MVT::v8f16  || VT == MVT::v8bf16) {
       SelectPostLoad(Node, 4, AArch64::LD4Rv8h_POST, AArch64::qsub0);
       return;
     } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -4165,7 +4440,7 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       SelectPostLoadLane(Node, 1, AArch64::LD1i8_POST);
       return;
     } else if (VT == MVT::v8i16 || VT == MVT::v4i16 || VT == MVT::v4f16 ||
-               VT == MVT::v8f16) {
+               VT == MVT::v8f16 || VT == MVT::v4bf16 || VT == MVT::v8bf16) {
       SelectPostLoadLane(Node, 1, AArch64::LD1i16_POST);
       return;
     } else if (VT == MVT::v4i32 || VT == MVT::v2i32 || VT == MVT::v4f32 ||
@@ -4184,7 +4459,7 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       SelectPostLoadLane(Node, 2, AArch64::LD2i8_POST);
       return;
     } else if (VT == MVT::v8i16 || VT == MVT::v4i16 || VT == MVT::v4f16 ||
-               VT == MVT::v8f16) {
+               VT == MVT::v8f16 || VT == MVT::v4bf16 || VT == MVT::v8bf16) {
       SelectPostLoadLane(Node, 2, AArch64::LD2i16_POST);
       return;
     } else if (VT == MVT::v4i32 || VT == MVT::v2i32 || VT == MVT::v4f32 ||
@@ -4203,7 +4478,7 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       SelectPostLoadLane(Node, 3, AArch64::LD3i8_POST);
       return;
     } else if (VT == MVT::v8i16 || VT == MVT::v4i16 || VT == MVT::v4f16 ||
-               VT == MVT::v8f16) {
+               VT == MVT::v8f16 || VT == MVT::v4bf16 || VT == MVT::v8bf16) {
       SelectPostLoadLane(Node, 3, AArch64::LD3i16_POST);
       return;
     } else if (VT == MVT::v4i32 || VT == MVT::v2i32 || VT == MVT::v4f32 ||
@@ -4222,7 +4497,7 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       SelectPostLoadLane(Node, 4, AArch64::LD4i8_POST);
       return;
     } else if (VT == MVT::v8i16 || VT == MVT::v4i16 || VT == MVT::v4f16 ||
-               VT == MVT::v8f16) {
+               VT == MVT::v8f16 || VT == MVT::v4bf16 || VT == MVT::v8bf16) {
       SelectPostLoadLane(Node, 4, AArch64::LD4i16_POST);
       return;
     } else if (VT == MVT::v4i32 || VT == MVT::v2i32 || VT == MVT::v4f32 ||
@@ -4244,10 +4519,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     } else if (VT == MVT::v16i8) {
       SelectPostStore(Node, 2, AArch64::ST2Twov16b_POST);
       return;
-    } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+    } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
       SelectPostStore(Node, 2, AArch64::ST2Twov4h_POST);
       return;
-    } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+    } else if (VT == MVT::v8i16 || VT == MVT::v8f16 || VT == MVT::v8bf16) {
       SelectPostStore(Node, 2, AArch64::ST2Twov8h_POST);
       return;
     } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -4273,10 +4548,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     } else if (VT == MVT::v16i8) {
       SelectPostStore(Node, 3, AArch64::ST3Threev16b_POST);
       return;
-    } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+    } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
       SelectPostStore(Node, 3, AArch64::ST3Threev4h_POST);
       return;
-    } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+    } else if (VT == MVT::v8i16 || VT == MVT::v8f16 || VT == MVT::v8bf16) {
       SelectPostStore(Node, 3, AArch64::ST3Threev8h_POST);
       return;
     } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -4302,10 +4577,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     } else if (VT == MVT::v16i8) {
       SelectPostStore(Node, 4, AArch64::ST4Fourv16b_POST);
       return;
-    } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+    } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
       SelectPostStore(Node, 4, AArch64::ST4Fourv4h_POST);
       return;
-    } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+    } else if (VT == MVT::v8i16 || VT == MVT::v8f16 || VT == MVT::v8bf16) {
       SelectPostStore(Node, 4, AArch64::ST4Fourv8h_POST);
       return;
     } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -4331,10 +4606,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     } else if (VT == MVT::v16i8) {
       SelectPostStore(Node, 2, AArch64::ST1Twov16b_POST);
       return;
-    } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+    } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
       SelectPostStore(Node, 2, AArch64::ST1Twov4h_POST);
       return;
-    } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+    } else if (VT == MVT::v8i16 || VT == MVT::v8f16 || VT == MVT::v8bf16) {
       SelectPostStore(Node, 2, AArch64::ST1Twov8h_POST);
       return;
     } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -4360,10 +4635,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     } else if (VT == MVT::v16i8) {
       SelectPostStore(Node, 3, AArch64::ST1Threev16b_POST);
       return;
-    } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+    } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
       SelectPostStore(Node, 3, AArch64::ST1Threev4h_POST);
       return;
-    } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+    } else if (VT == MVT::v8i16 || VT == MVT::v8f16 || VT == MVT::v8bf16 ) {
       SelectPostStore(Node, 3, AArch64::ST1Threev8h_POST);
       return;
     } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -4389,10 +4664,10 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     } else if (VT == MVT::v16i8) {
       SelectPostStore(Node, 4, AArch64::ST1Fourv16b_POST);
       return;
-    } else if (VT == MVT::v4i16 || VT == MVT::v4f16) {
+    } else if (VT == MVT::v4i16 || VT == MVT::v4f16 || VT == MVT::v4bf16) {
       SelectPostStore(Node, 4, AArch64::ST1Fourv4h_POST);
       return;
-    } else if (VT == MVT::v8i16 || VT == MVT::v8f16) {
+    } else if (VT == MVT::v8i16 || VT == MVT::v8f16 || VT == MVT::v8bf16) {
       SelectPostStore(Node, 4, AArch64::ST1Fourv8h_POST);
       return;
     } else if (VT == MVT::v2i32 || VT == MVT::v2f32) {
@@ -4416,7 +4691,7 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       SelectPostStoreLane(Node, 2, AArch64::ST2i8_POST);
       return;
     } else if (VT == MVT::v8i16 || VT == MVT::v4i16 || VT == MVT::v4f16 ||
-               VT == MVT::v8f16) {
+               VT == MVT::v8f16 || VT == MVT::v4bf16 || VT == MVT::v8bf16) {
       SelectPostStoreLane(Node, 2, AArch64::ST2i16_POST);
       return;
     } else if (VT == MVT::v4i32 || VT == MVT::v2i32 || VT == MVT::v4f32 ||
@@ -4436,7 +4711,7 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       SelectPostStoreLane(Node, 3, AArch64::ST3i8_POST);
       return;
     } else if (VT == MVT::v8i16 || VT == MVT::v4i16 || VT == MVT::v4f16 ||
-               VT == MVT::v8f16) {
+               VT == MVT::v8f16 || VT == MVT::v4bf16 || VT == MVT::v8bf16) {
       SelectPostStoreLane(Node, 3, AArch64::ST3i16_POST);
       return;
     } else if (VT == MVT::v4i32 || VT == MVT::v2i32 || VT == MVT::v4f32 ||
@@ -4456,7 +4731,7 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       SelectPostStoreLane(Node, 4, AArch64::ST4i8_POST);
       return;
     } else if (VT == MVT::v8i16 || VT == MVT::v4i16 || VT == MVT::v4f16 ||
-               VT == MVT::v8f16) {
+               VT == MVT::v8f16 || VT == MVT::v4bf16 || VT == MVT::v8bf16) {
       SelectPostStoreLane(Node, 4, AArch64::ST4i16_POST);
       return;
     } else if (VT == MVT::v4i32 || VT == MVT::v2i32 || VT == MVT::v4f32 ||
@@ -4466,6 +4741,57 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     } else if (VT == MVT::v2i64 || VT == MVT::v1i64 || VT == MVT::v2f64 ||
                VT == MVT::v1f64) {
       SelectPostStoreLane(Node, 4, AArch64::ST4i64_POST);
+      return;
+    }
+    break;
+  }
+  case AArch64ISD::SVE_LD2_MERGE_ZERO: {
+    if (VT == MVT::nxv16i8) {
+      SelectPredicatedLoad(Node, 2, 0, AArch64::LD2B_IMM, AArch64::LD2B);
+      return;
+    } else if (VT == MVT::nxv8i16 || VT == MVT::nxv8f16 ||
+               (VT == MVT::nxv8bf16 && Subtarget->hasBF16())) {
+      SelectPredicatedLoad(Node, 2, 1, AArch64::LD2H_IMM, AArch64::LD2H);
+      return;
+    } else if (VT == MVT::nxv4i32 || VT == MVT::nxv4f32) {
+      SelectPredicatedLoad(Node, 2, 2, AArch64::LD2W_IMM, AArch64::LD2W);
+      return;
+    } else if (VT == MVT::nxv2i64 || VT == MVT::nxv2f64) {
+      SelectPredicatedLoad(Node, 2, 3, AArch64::LD2D_IMM, AArch64::LD2D);
+      return;
+    }
+    break;
+  }
+  case AArch64ISD::SVE_LD3_MERGE_ZERO: {
+    if (VT == MVT::nxv16i8) {
+      SelectPredicatedLoad(Node, 3, 0, AArch64::LD3B_IMM, AArch64::LD3B);
+      return;
+    } else if (VT == MVT::nxv8i16 || VT == MVT::nxv8f16 ||
+               (VT == MVT::nxv8bf16 && Subtarget->hasBF16())) {
+      SelectPredicatedLoad(Node, 3, 1, AArch64::LD3H_IMM, AArch64::LD3H);
+      return;
+    } else if (VT == MVT::nxv4i32 || VT == MVT::nxv4f32) {
+      SelectPredicatedLoad(Node, 3, 2, AArch64::LD3W_IMM, AArch64::LD3W);
+      return;
+    } else if (VT == MVT::nxv2i64 || VT == MVT::nxv2f64) {
+      SelectPredicatedLoad(Node, 3, 3, AArch64::LD3D_IMM, AArch64::LD3D);
+      return;
+    }
+    break;
+  }
+  case AArch64ISD::SVE_LD4_MERGE_ZERO: {
+    if (VT == MVT::nxv16i8) {
+      SelectPredicatedLoad(Node, 4, 0, AArch64::LD4B_IMM, AArch64::LD4B);
+      return;
+    } else if (VT == MVT::nxv8i16 || VT == MVT::nxv8f16 ||
+               (VT == MVT::nxv8bf16 && Subtarget->hasBF16())) {
+      SelectPredicatedLoad(Node, 4, 1, AArch64::LD4H_IMM, AArch64::LD4H);
+      return;
+    } else if (VT == MVT::nxv4i32 || VT == MVT::nxv4f32) {
+      SelectPredicatedLoad(Node, 4, 2, AArch64::LD4W_IMM, AArch64::LD4W);
+      return;
+    } else if (VT == MVT::nxv2i64 || VT == MVT::nxv2f64) {
+      SelectPredicatedLoad(Node, 4, 3, AArch64::LD4D_IMM, AArch64::LD4D);
       return;
     }
     break;
@@ -4485,20 +4811,26 @@ FunctionPass *llvm::createAArch64ISelDag(AArch64TargetMachine &TM,
 
 /// When \p PredVT is a scalable vector predicate in the form
 /// MVT::nx<M>xi1, it builds the correspondent scalable vector of
-/// integers MVT::nx<M>xi<bits> s.t. M x bits = 128. If the input
+/// integers MVT::nx<M>xi<bits> s.t. M x bits = 128. When targeting
+/// structured vectors (NumVec >1), the output data type is
+/// MVT::nx<M*NumVec>xi<bits> s.t. M x bits = 128. If the input
 /// PredVT is not in the form MVT::nx<M>xi1, it returns an invalid
 /// EVT.
-static EVT getPackedVectorTypeFromPredicateType(LLVMContext &Ctx, EVT PredVT) {
+static EVT getPackedVectorTypeFromPredicateType(LLVMContext &Ctx, EVT PredVT,
+                                                unsigned NumVec) {
+  assert(NumVec > 0 && NumVec < 5 && "Invalid number of vectors.");
   if (!PredVT.isScalableVector() || PredVT.getVectorElementType() != MVT::i1)
     return EVT();
 
-  const unsigned NumElts = PredVT.getVectorNumElements();
-
-  if (NumElts != 2 && NumElts != 4 && NumElts != 8 && NumElts != 16)
+  if (PredVT != MVT::nxv16i1 && PredVT != MVT::nxv8i1 &&
+      PredVT != MVT::nxv4i1 && PredVT != MVT::nxv2i1)
     return EVT();
 
-  EVT ScalarVT = EVT::getIntegerVT(Ctx, AArch64::SVEBitsPerBlock / NumElts);
-  EVT MemVT = EVT::getVectorVT(Ctx, ScalarVT, NumElts, /*IsScalable=*/true);
+  ElementCount EC = PredVT.getVectorElementCount();
+  EVT ScalarVT =
+      EVT::getIntegerVT(Ctx, AArch64::SVEBitsPerBlock / EC.getKnownMinValue());
+  EVT MemVT = EVT::getVectorVT(Ctx, ScalarVT, EC * NumVec);
+
   return MemVT;
 }
 
@@ -4508,13 +4840,29 @@ static EVT getMemVTFromNode(LLVMContext &Ctx, SDNode *Root) {
   if (isa<MemSDNode>(Root))
     return cast<MemSDNode>(Root)->getMemoryVT();
 
+  if (isa<MemIntrinsicSDNode>(Root))
+    return cast<MemIntrinsicSDNode>(Root)->getMemoryVT();
+
   const unsigned Opcode = Root->getOpcode();
   // For custom ISD nodes, we have to look at them individually to extract the
   // type of the data moved to/from memory.
   switch (Opcode) {
-  case AArch64ISD::LDNF1:
-  case AArch64ISD::LDNF1S:
+  case AArch64ISD::LD1_MERGE_ZERO:
+  case AArch64ISD::LD1S_MERGE_ZERO:
+  case AArch64ISD::LDNF1_MERGE_ZERO:
+  case AArch64ISD::LDNF1S_MERGE_ZERO:
     return cast<VTSDNode>(Root->getOperand(3))->getVT();
+  case AArch64ISD::ST1_PRED:
+    return cast<VTSDNode>(Root->getOperand(4))->getVT();
+  case AArch64ISD::SVE_LD2_MERGE_ZERO:
+    return getPackedVectorTypeFromPredicateType(
+        Ctx, Root->getOperand(1)->getValueType(0), /*NumVec=*/2);
+  case AArch64ISD::SVE_LD3_MERGE_ZERO:
+    return getPackedVectorTypeFromPredicateType(
+        Ctx, Root->getOperand(1)->getValueType(0), /*NumVec=*/3);
+  case AArch64ISD::SVE_LD4_MERGE_ZERO:
+    return getPackedVectorTypeFromPredicateType(
+        Ctx, Root->getOperand(1)->getValueType(0), /*NumVec=*/4);
   default:
     break;
   }
@@ -4530,7 +4878,7 @@ static EVT getMemVTFromNode(LLVMContext &Ctx, SDNode *Root) {
   // We are using an SVE prefetch intrinsic. Type must be inferred
   // from the width of the predicate.
   return getPackedVectorTypeFromPredicateType(
-      Ctx, Root->getOperand(2)->getValueType(0));
+      Ctx, Root->getOperand(2)->getValueType(0), /*NumVec=*/1);
 }
 
 /// SelectAddrModeIndexedSVE - Attempt selection of the addressing mode:

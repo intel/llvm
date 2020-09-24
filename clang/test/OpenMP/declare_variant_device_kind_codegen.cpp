@@ -1,22 +1,62 @@
 // RUN: %clang_cc1 -verify -fopenmp -x c++ -triple x86_64-unknown-linux -emit-llvm %s -fexceptions -fcxx-exceptions -o - -fsanitize-address-use-after-scope -DHOST | FileCheck %s
-// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple x86_64-unknown-linux -fexceptions -fcxx-exceptions -emit-pch -o %t -fopenmp-version=50 %s -DHOST
-// RUN: %clang_cc1 -fopenmp -x c++ -triple x86_64-unknown-linux -fexceptions -fcxx-exceptions -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -fopenmp-version=50 -DHOST | FileCheck %s
+// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple x86_64-unknown-linux -fexceptions -fcxx-exceptions -emit-pch -o %t -fopenmp-version=45 %s -DHOST
+// RUN: %clang_cc1 -fopenmp -x c++ -triple x86_64-unknown-linux -fexceptions -fcxx-exceptions -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -fopenmp-version=45 -DHOST | FileCheck %s
 // RUN: %clang_cc1 -verify -fopenmp -x c++ -triple aarch64-unknown-linux -emit-llvm %s -fexceptions -fcxx-exceptions -o - -fsanitize-address-use-after-scope -DHOST | FileCheck %s
-// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple aarch64-unknown-linux -fexceptions -fcxx-exceptions -emit-pch -o %t -fopenmp-version=50 %s -DHOST
-// RUN: %clang_cc1 -fopenmp -x c++ -triple aarch64-unknown-linux -fexceptions -fcxx-exceptions -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -fopenmp-version=50 -DHOST | FileCheck %s
+// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple aarch64-unknown-linux -fexceptions -fcxx-exceptions -emit-pch -o %t -fopenmp-version=45 %s -DHOST
+// RUN: %clang_cc1 -fopenmp -x c++ -triple aarch64-unknown-linux -fexceptions -fcxx-exceptions -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -fopenmp-version=45 -DHOST | FileCheck %s
 // RUN: %clang_cc1 -verify -fopenmp -x c++ -triple ppc64le-unknown-linux -emit-llvm %s -fexceptions -fcxx-exceptions -o - -fsanitize-address-use-after-scope -DHOST | FileCheck %s
-// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple ppc64le-unknown-linux -fexceptions -fcxx-exceptions -emit-pch -o %t -fopenmp-version=50 %s -DHOST
-// RUN: %clang_cc1 -fopenmp -x c++ -triple ppc64le-unknown-linux -fexceptions -fcxx-exceptions -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -fopenmp-version=50 -DHOST | FileCheck %s
+// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple ppc64le-unknown-linux -fexceptions -fcxx-exceptions -emit-pch -o %t -fopenmp-version=45 %s -DHOST
+// RUN: %clang_cc1 -fopenmp -x c++ -triple ppc64le-unknown-linux -fexceptions -fcxx-exceptions -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -fopenmp-version=45 -DHOST | FileCheck %s
 
 // RUN: %clang_cc1 -verify -fopenmp -x c++ -triple x86_64-unknown-linux -emit-llvm %s -fexceptions -fcxx-exceptions -o - -fsanitize-address-use-after-scope -DCPU | FileCheck %s
-// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple x86_64-unknown-linux -fexceptions -fcxx-exceptions -emit-pch -o %t -fopenmp-version=50 %s -DCPU
-// RUN: %clang_cc1 -fopenmp -x c++ -triple x86_64-unknown-linux -fexceptions -fcxx-exceptions -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -fopenmp-version=50 -DCPU | FileCheck %s
+// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple x86_64-unknown-linux -fexceptions -fcxx-exceptions -emit-pch -o %t -fopenmp-version=45 %s -DCPU
+// RUN: %clang_cc1 -fopenmp -x c++ -triple x86_64-unknown-linux -fexceptions -fcxx-exceptions -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -fopenmp-version=45 -DCPU | FileCheck %s
 // RUN: %clang_cc1 -verify -fopenmp -x c++ -triple aarch64-unknown-linux -emit-llvm %s -fexceptions -fcxx-exceptions -o - -fsanitize-address-use-after-scope -DCPU | FileCheck %s
-// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple aarch64-unknown-linux -fexceptions -fcxx-exceptions -emit-pch -o %t -fopenmp-version=50 %s -DCPU
-// RUN: %clang_cc1 -fopenmp -x c++ -triple aarch64-unknown-linux -fexceptions -fcxx-exceptions -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -fopenmp-version=50 -DCPU | FileCheck %s
+// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple aarch64-unknown-linux -fexceptions -fcxx-exceptions -emit-pch -o %t -fopenmp-version=45 %s -DCPU
+// RUN: %clang_cc1 -fopenmp -x c++ -triple aarch64-unknown-linux -fexceptions -fcxx-exceptions -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -fopenmp-version=45 -DCPU | FileCheck %s
 // RUN: %clang_cc1 -verify -fopenmp -x c++ -triple ppc64le-unknown-linux -emit-llvm %s -fexceptions -fcxx-exceptions -o - -fsanitize-address-use-after-scope -DCPU | FileCheck %s
-// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple ppc64le-unknown-linux -fexceptions -fcxx-exceptions -emit-pch -o %t -fopenmp-version=50 %s -DCPU
-// RUN: %clang_cc1 -fopenmp -x c++ -triple ppc64le-unknown-linux -fexceptions -fcxx-exceptions -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -fopenmp-version=50 -DCPU | FileCheck %s
+// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple ppc64le-unknown-linux -fexceptions -fcxx-exceptions -emit-pch -o %t -fopenmp-version=45 %s -DCPU
+// RUN: %clang_cc1 -fopenmp -x c++ -triple ppc64le-unknown-linux -fexceptions -fcxx-exceptions -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -fopenmp-version=45 -DCPU | FileCheck %s
+
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple x86_64-unknown-linux -fopenmp-targets=x86_64-unknown-linux -emit-llvm-bc %s -o %t-host.bc -DCPU
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple x86_64-unknown-linux -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-host.bc -o - -DCPU | FileCheck %s
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple x86_64-unknown-linux -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-host.bc -emit-pch -o %t -DCPU
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple x86_64-unknown-linux -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-host.bc -include-pch %t -o - -DCPU | FileCheck %s
+
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple ppc64le-unknown-linux -fopenmp-targets=ppc64le-unknown-linux -emit-llvm-bc %s -o %t-host.bc -DCPU
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple ppc64le-unknown-linux -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-host.bc -o - -DCPU | FileCheck %s
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple ppc64le-unknown-linux -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-host.bc -emit-pch -o %t -DCPU
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple ppc64le-unknown-linux -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-host.bc -include-pch %t -o - -DCPU | FileCheck %s
+
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple x86_64-unknown-linux -fopenmp-targets=x86_64-unknown-linux -emit-llvm-bc %s -o %t-host.bc -DNOHOST
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple x86_64-unknown-linux -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-host.bc -o - -DNOHOST | FileCheck %s
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple x86_64-unknown-linux -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-host.bc -emit-pch -o %t -DNOHOST
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple x86_64-unknown-linux -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-host.bc -include-pch %t -o - -DNOHOST | FileCheck %s
+
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple ppc64le-unknown-linux -fopenmp-targets=ppc64le-unknown-linux -emit-llvm-bc %s -o %t-host.bc -DNOHOST
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple ppc64le-unknown-linux -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-host.bc -o - -DNOHOST | FileCheck %s
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple ppc64le-unknown-linux -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-host.bc -emit-pch -o %t -DNOHOST
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple ppc64le-unknown-linux -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-host.bc -include-pch %t -o - -DNOHOST | FileCheck %s
+
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple x86_64-unknown-linux -emit-llvm %s -fexceptions -fcxx-exceptions -o - -fsanitize-address-use-after-scope -DHOST | FileCheck %s
+// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple x86_64-unknown-linux -fexceptions -fcxx-exceptions -emit-pch -o %t %s -DHOST
+// RUN: %clang_cc1 -fopenmp -x c++ -triple x86_64-unknown-linux -fexceptions -fcxx-exceptions -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -DHOST | FileCheck %s
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple aarch64-unknown-linux -emit-llvm %s -fexceptions -fcxx-exceptions -o - -fsanitize-address-use-after-scope -DHOST | FileCheck %s
+// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple aarch64-unknown-linux -fexceptions -fcxx-exceptions -emit-pch -o %t %s -DHOST
+// RUN: %clang_cc1 -fopenmp -x c++ -triple aarch64-unknown-linux -fexceptions -fcxx-exceptions -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -DHOST | FileCheck %s
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple ppc64le-unknown-linux -emit-llvm %s -fexceptions -fcxx-exceptions -o - -fsanitize-address-use-after-scope -DHOST | FileCheck %s
+// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple ppc64le-unknown-linux -fexceptions -fcxx-exceptions -emit-pch -o %t %s -DHOST
+// RUN: %clang_cc1 -fopenmp -x c++ -triple ppc64le-unknown-linux -fexceptions -fcxx-exceptions -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -DHOST | FileCheck %s
+
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple x86_64-unknown-linux -emit-llvm %s -fexceptions -fcxx-exceptions -o - -fsanitize-address-use-after-scope -DCPU | FileCheck %s
+// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple x86_64-unknown-linux -fexceptions -fcxx-exceptions -emit-pch -o %t %s -DCPU
+// RUN: %clang_cc1 -fopenmp -x c++ -triple x86_64-unknown-linux -fexceptions -fcxx-exceptions -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -DCPU | FileCheck %s
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple aarch64-unknown-linux -emit-llvm %s -fexceptions -fcxx-exceptions -o - -fsanitize-address-use-after-scope -DCPU | FileCheck %s
+// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple aarch64-unknown-linux -fexceptions -fcxx-exceptions -emit-pch -o %t %s -DCPU
+// RUN: %clang_cc1 -fopenmp -x c++ -triple aarch64-unknown-linux -fexceptions -fcxx-exceptions -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -DCPU | FileCheck %s
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple ppc64le-unknown-linux -emit-llvm %s -fexceptions -fcxx-exceptions -o - -fsanitize-address-use-after-scope -DCPU | FileCheck %s
+// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple ppc64le-unknown-linux -fexceptions -fcxx-exceptions -emit-pch -o %t %s -DCPU
+// RUN: %clang_cc1 -fopenmp -x c++ -triple ppc64le-unknown-linux -fexceptions -fcxx-exceptions -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -DCPU | FileCheck %s
 
 // RUN: %clang_cc1 -verify -fopenmp -x c++ -triple x86_64-unknown-linux -fopenmp-targets=x86_64-unknown-linux -emit-llvm-bc %s -o %t-host.bc -DCPU
 // RUN: %clang_cc1 -verify -fopenmp -x c++ -triple x86_64-unknown-linux -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-host.bc -o - -DCPU | FileCheck %s
@@ -40,20 +80,11 @@
 
 // expected-no-diagnostics
 
+// CHECK-NOT: alias
+
 // CHECK-NOT: ret i32 {{1|4|81|84}}
-// CHECK-DAG: @_Z3barv = {{.*}}alias i32 (), i32 ()* @_Z3foov
-// CHECK-DAG: @_ZN16SpecSpecialFuncs6MethodEv = {{.*}}alias i32 (%struct.SpecSpecialFuncs*), i32 (%struct.SpecSpecialFuncs*)* @_ZN16SpecSpecialFuncs7method_Ev
-// CHECK-DAG: @_ZN16SpecSpecialFuncs6methodEv = linkonce_odr {{.*}}alias i32 (%struct.SpecSpecialFuncs*), i32 (%struct.SpecSpecialFuncs*)* @_ZN16SpecSpecialFuncs7method_Ev
-// CHECK-DAG: @_ZN12SpecialFuncs6methodEv = linkonce_odr {{.*}}alias i32 (%struct.SpecialFuncs*), i32 (%struct.SpecialFuncs*)* @_ZN12SpecialFuncs7method_Ev
-// CHECK-DAG: @_Z5prio_v = {{.*}}alias i32 (), i32 ()* @_Z5prio1v
-// CHECK-DAG: @_ZL6prio1_v = internal alias i32 (), i32 ()* @_ZL5prio2v
-// CHECK-DAG: @_Z4callv = {{.*}}alias i32 (), i32 ()* @_Z4testv
-// CHECK-DAG: @_ZL9stat_usedv = internal alias i32 (), i32 ()* @_ZL10stat_used_v
-// CHECK-DAG: @_ZN12SpecialFuncs6MethodEv = {{.*}}alias i32 (%struct.SpecialFuncs*), i32 (%struct.SpecialFuncs*)* @_ZN12SpecialFuncs7method_Ev
-// CHECK-DAG: @fn_linkage = {{.*}}alias i32 (), i32 ()* @_Z18fn_linkage_variantv
-// CHECK-DAG: @_Z11fn_linkage1v = {{.*}}alias i32 (), i32 ()* @fn_linkage_variant1
 // CHECK-DAG: declare {{.*}}i32 @_Z5bazzzv()
-// CHECK-DAG: declare {{.*}}i32 @_Z3bazv()
+// CHECK-DAG: define {{.*}}i32 @_Z3bazv()
 // CHECK-DAG: ret i32 2
 // CHECK-DAG: ret i32 3
 // CHECK-DAG: ret i32 5
@@ -64,7 +95,7 @@
 // CHECK-DAG: ret i32 85
 // CHECK-DAG: ret i32 86
 // CHECK-DAG: ret i32 87
-// CHECK-NOT: ret i32 {{1|4|81|84}}
+// CHECK-NOT: ret i32 {{4|81|84}}
 
 #ifndef HEADER
 #define HEADER

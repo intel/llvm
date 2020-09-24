@@ -407,13 +407,18 @@ template <> struct ScalarTraits<Target> {
     case PlatformKind::watchOSSimulator:
       OS << "watchos-simulator";
       break;
+    case PlatformKind::driverKit:
+      OS << "driverkit";
+      break;
     }
   }
 
   static StringRef input(StringRef Scalar, void *, Target &Value) {
     auto Result = Target::create(Scalar);
-    if (!Result)
-      return toString(Result.takeError());
+    if (!Result) {
+      consumeError(Result.takeError());
+      return "unparsable target";
+    }
 
     Value = *Result;
     if (Value.Arch == AK_unknown)
@@ -450,10 +455,8 @@ template <> struct MappingTraits<const InterfaceFile *> {
       if (File->isInstallAPI())
         Flags |= TBDFlags::InstallAPI;
 
-      for (const auto &Iter : File->umbrellas()) {
-        ParentUmbrella = Iter.second;
-        break;
-      }
+      if (!File->umbrellas().empty())
+        ParentUmbrella = File->umbrellas().begin()->second;
 
       std::set<ArchitectureSet> ArchSet;
       for (const auto &Library : File->allowableClients())
@@ -1089,8 +1092,8 @@ struct DocumentListTraits<std::vector<const MachO::InterfaceFile *>> {
 };
 
 } // end namespace yaml.
+} // namespace llvm
 
-namespace MachO {
 static void DiagHandler(const SMDiagnostic &Diag, void *Context) {
   auto *File = static_cast<TextAPIContext *>(Context);
   SmallString<1024> Message;
@@ -1120,6 +1123,10 @@ TextAPIReader::get(MemoryBufferRef InputBuffer) {
   auto File = std::unique_ptr<InterfaceFile>(
       const_cast<InterfaceFile *>(Files.front()));
 
+  for (auto Iter = std::next(Files.begin()); Iter != Files.end(); ++Iter)
+    File->addDocument(
+        std::shared_ptr<InterfaceFile>(const_cast<InterfaceFile *>(*Iter)));
+
   if (YAMLIn.error())
     return make_error<StringError>(Ctx.ErrorMessage, YAMLIn.error());
 
@@ -1135,11 +1142,11 @@ Error TextAPIWriter::writeToStream(raw_ostream &OS, const InterfaceFile &File) {
   std::vector<const InterfaceFile *> Files;
   Files.emplace_back(&File);
 
+  for (auto Document : File.documents())
+    Files.emplace_back(Document.get());
+
   // Stream out yaml.
   YAMLOut << Files;
 
   return Error::success();
 }
-
-} // end namespace MachO.
-} // end namespace llvm.

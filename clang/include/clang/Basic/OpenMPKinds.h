@@ -23,16 +23,7 @@ namespace clang {
 using OpenMPDirectiveKind = llvm::omp::Directive;
 
 /// OpenMP clauses.
-enum OpenMPClauseKind {
-#define OPENMP_CLAUSE(Name, Class) \
-  OMPC_##Name,
-#include "clang/Basic/OpenMPKinds.def"
-  OMPC_threadprivate,
-  OMPC_uniform,
-  OMPC_device_type,
-  OMPC_match,
-  OMPC_unknown
-};
+using OpenMPClauseKind = llvm::omp::Clause;
 
 /// OpenMP attributes for 'schedule' clause.
 enum OpenMPScheduleClauseKind {
@@ -91,21 +82,21 @@ enum OpenMPMapModifierKind {
   OMPC_MAP_MODIFIER_last
 };
 
-/// OpenMP modifier kind for 'to' clause.
-enum OpenMPToModifierKind {
-#define OPENMP_TO_MODIFIER_KIND(Name) \
-  OMPC_TO_MODIFIER_##Name,
+  /// Number of allowed map-type-modifiers.
+static constexpr unsigned NumberOfOMPMapClauseModifiers =
+    OMPC_MAP_MODIFIER_last - OMPC_MAP_MODIFIER_unknown - 1;
+
+/// OpenMP modifier kind for 'to' or 'from' clause.
+enum OpenMPMotionModifierKind {
+#define OPENMP_MOTION_MODIFIER_KIND(Name) \
+  OMPC_MOTION_MODIFIER_##Name,
 #include "clang/Basic/OpenMPKinds.def"
-  OMPC_TO_MODIFIER_unknown
+  OMPC_MOTION_MODIFIER_unknown
 };
 
-/// OpenMP modifier kind for 'from' clause.
-enum OpenMPFromModifierKind {
-#define OPENMP_FROM_MODIFIER_KIND(Name) \
-  OMPC_FROM_MODIFIER_##Name,
-#include "clang/Basic/OpenMPKinds.def"
-  OMPC_FROM_MODIFIER_unknown
-};
+/// Number of allowed motion-modifiers.
+static constexpr unsigned NumberOfOMPMotionModifiers =
+    OMPC_MOTION_MODIFIER_unknown;
 
 /// OpenMP attributes for 'dist_schedule' clause.
 enum OpenMPDistScheduleClauseKind {
@@ -175,15 +166,9 @@ enum OpenMPReductionClauseModifier {
   OMPC_REDUCTION_unknown,
 };
 
-OpenMPClauseKind getOpenMPClauseKind(llvm::StringRef Str);
-const char *getOpenMPClauseName(OpenMPClauseKind Kind);
-
-unsigned getOpenMPSimpleClauseType(OpenMPClauseKind Kind, llvm::StringRef Str);
+unsigned getOpenMPSimpleClauseType(OpenMPClauseKind Kind, llvm::StringRef Str,
+                                   unsigned OpenMPVersion);
 const char *getOpenMPSimpleClauseTypeName(OpenMPClauseKind Kind, unsigned Type);
-
-bool isAllowedClauseForDirective(OpenMPDirectiveKind DKind,
-                                 OpenMPClauseKind CKind,
-                                 unsigned OpenMPVersion);
 
 /// Checks if the specified directive is a directive with an associated
 /// loop construct.

@@ -49,6 +49,9 @@ const int ColdccPenalty = 2000;
 /// Do not inline functions which allocate this many bytes on the stack
 /// when the caller is recursive.
 const unsigned TotalAllocaSizeRecursiveCaller = 1024;
+/// Do not inline dynamic allocas that have been constant propagated to be
+/// static allocas above this amount in bytes.
+const uint64_t MaxSimplifiedDynamicAllocaToInline = 65536;
 } // namespace InlineConstants
 
 /// Represents the cost of inlining a function.
@@ -182,6 +185,9 @@ struct InlineParams {
 
   /// Compute inline cost even when the cost has exceeded the threshold.
   Optional<bool> ComputeFullInlineCost;
+
+  /// Indicate whether we should allow inline deferral.
+  Optional<bool> EnableDeferral = true;
 };
 
 /// Generate the parameters to tune the inline cost analysis based only on the
@@ -216,12 +222,14 @@ int getCallsiteCost(CallBase &Call, const DataLayout &DL);
 ///
 /// Also note that calling this function *dynamically* computes the cost of
 /// inlining the callsite. It is an expensive, heavyweight call.
-InlineCost getInlineCost(
-    CallBase &Call, const InlineParams &Params, TargetTransformInfo &CalleeTTI,
-    std::function<AssumptionCache &(Function &)> &GetAssumptionCache,
-    Optional<function_ref<BlockFrequencyInfo &(Function &)>> GetBFI,
-    function_ref<const TargetLibraryInfo &(Function &)> GetTLI,
-    ProfileSummaryInfo *PSI, OptimizationRemarkEmitter *ORE = nullptr);
+InlineCost
+getInlineCost(CallBase &Call, const InlineParams &Params,
+              TargetTransformInfo &CalleeTTI,
+              function_ref<AssumptionCache &(Function &)> GetAssumptionCache,
+              function_ref<const TargetLibraryInfo &(Function &)> GetTLI,
+              function_ref<BlockFrequencyInfo &(Function &)> GetBFI = nullptr,
+              ProfileSummaryInfo *PSI = nullptr,
+              OptimizationRemarkEmitter *ORE = nullptr);
 
 /// Get an InlineCost with the callee explicitly specified.
 /// This allows you to calculate the cost of inlining a function via a
@@ -231,13 +239,51 @@ InlineCost getInlineCost(
 InlineCost
 getInlineCost(CallBase &Call, Function *Callee, const InlineParams &Params,
               TargetTransformInfo &CalleeTTI,
-              std::function<AssumptionCache &(Function &)> &GetAssumptionCache,
-              Optional<function_ref<BlockFrequencyInfo &(Function &)>> GetBFI,
+              function_ref<AssumptionCache &(Function &)> GetAssumptionCache,
               function_ref<const TargetLibraryInfo &(Function &)> GetTLI,
-              ProfileSummaryInfo *PSI, OptimizationRemarkEmitter *ORE);
+              function_ref<BlockFrequencyInfo &(Function &)> GetBFI = nullptr,
+              ProfileSummaryInfo *PSI = nullptr,
+              OptimizationRemarkEmitter *ORE = nullptr);
+
+/// Returns InlineResult::success() if the call site should be always inlined
+/// because of user directives, and the inlining is viable. Returns
+/// InlineResult::failure() if the inlining may never happen because of user
+/// directives or incompatibilities detectable without needing callee traversal.
+/// Otherwise returns None, meaning that inlining should be decided based on
+/// other criteria (e.g. cost modeling).
+Optional<InlineResult> getAttributeBasedInliningDecision(
+    CallBase &Call, Function *Callee, TargetTransformInfo &CalleeTTI,
+    function_ref<const TargetLibraryInfo &(Function &)> GetTLI);
+
+/// Get the cost estimate ignoring thresholds. This is similar to getInlineCost
+/// when passed InlineParams::ComputeFullInlineCost, or a non-null ORE. It
+/// uses default InlineParams otherwise.
+/// Contrary to getInlineCost, which makes a threshold-based final evaluation of
+/// should/shouldn't inline, captured in InlineResult, getInliningCostEstimate
+/// returns:
+/// - None, if the inlining cannot happen (is illegal)
+/// - an integer, representing the cost.
+Optional<int> getInliningCostEstimate(
+    CallBase &Call, TargetTransformInfo &CalleeTTI,
+    function_ref<AssumptionCache &(Function &)> GetAssumptionCache,
+    function_ref<BlockFrequencyInfo &(Function &)> GetBFI = nullptr,
+    ProfileSummaryInfo *PSI = nullptr,
+    OptimizationRemarkEmitter *ORE = nullptr);
 
 /// Minimal filter to detect invalid constructs for inlining.
 InlineResult isInlineViable(Function &Callee);
+
+// This pass is used to annotate instructions during the inline process for
+// debugging and analysis. The main purpose of the pass is to see and test
+// inliner's decisions when creating new optimizations to InlineCost.
+struct InlineCostAnnotationPrinterPass
+    : PassInfoMixin<InlineCostAnnotationPrinterPass> {
+  raw_ostream &OS;
+
+public:
+  explicit InlineCostAnnotationPrinterPass(raw_ostream &OS) : OS(OS) {}
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
+};
 } // namespace llvm
 
 #endif

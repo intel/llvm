@@ -22,7 +22,7 @@ namespace X {
 
   template<typename T>
     auto begin(T &&t) -> decltype(t.alt_begin()) { return t.alt_begin(); } // expected-note {{selected 'begin' template [with T = }} \
-                                                                              expected-note 2{{candidate template ignored: substitution failure [with T = }}
+                                                                           // expected-note 2{{candidate template ignored: substitution failure [with T = }}
   template<typename T>
     auto end(T &&t) -> decltype(t.alt_end()) { return t.alt_end(); } // expected-note {{candidate template ignored: substitution failure [with T = }}
 
@@ -64,6 +64,21 @@ namespace X {
   };
 
   constexpr int operator*(const C::It &) { return 0; }
+
+  struct D {
+    D();
+    using Ty = int[2];
+    Ty *begin();
+    Ty *end();
+  };
+
+  void test_D() {
+#if __cplusplus >= 201703L
+    for (extern auto [x, y] : D()) {
+    } // expected-error@-1 {{decomposition declaration cannot be declared 'extern'}}
+      // expected-error@-2 {{loop variable '[x, y]' may not be declared 'extern'}}
+#endif
+  }
 }
 
 using X::A;

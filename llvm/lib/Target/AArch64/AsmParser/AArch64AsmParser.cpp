@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "MCTargetDesc/AArch64AddressingModes.h"
+#include "MCTargetDesc/AArch64InstPrinter.h"
 #include "MCTargetDesc/AArch64MCExpr.h"
 #include "MCTargetDesc/AArch64MCTargetDesc.h"
 #include "MCTargetDesc/AArch64TargetStreamer.h"
@@ -160,6 +161,10 @@ private:
   bool parseOptionalMulOperand(OperandVector &Operands);
   bool parseOperand(OperandVector &Operands, bool isCondCode,
                     bool invertCondCode);
+  bool parseImmExpr(int64_t &Out);
+  bool parseComma();
+  bool parseRegisterInRange(unsigned &Out, unsigned Base, unsigned First,
+                            unsigned Last);
 
   bool showMatchError(SMLoc Loc, unsigned ErrCode, uint64_t ErrorInfo,
                       OperandVector &Operands);
@@ -178,6 +183,31 @@ private:
   bool parseDirectiveUnreq(SMLoc L);
   bool parseDirectiveCFINegateRAState();
   bool parseDirectiveCFIBKeyFrame();
+
+  bool parseDirectiveSEHAllocStack(SMLoc L);
+  bool parseDirectiveSEHPrologEnd(SMLoc L);
+  bool parseDirectiveSEHSaveR19R20X(SMLoc L);
+  bool parseDirectiveSEHSaveFPLR(SMLoc L);
+  bool parseDirectiveSEHSaveFPLRX(SMLoc L);
+  bool parseDirectiveSEHSaveReg(SMLoc L);
+  bool parseDirectiveSEHSaveRegX(SMLoc L);
+  bool parseDirectiveSEHSaveRegP(SMLoc L);
+  bool parseDirectiveSEHSaveRegPX(SMLoc L);
+  bool parseDirectiveSEHSaveLRPair(SMLoc L);
+  bool parseDirectiveSEHSaveFReg(SMLoc L);
+  bool parseDirectiveSEHSaveFRegX(SMLoc L);
+  bool parseDirectiveSEHSaveFRegP(SMLoc L);
+  bool parseDirectiveSEHSaveFRegPX(SMLoc L);
+  bool parseDirectiveSEHSetFP(SMLoc L);
+  bool parseDirectiveSEHAddFP(SMLoc L);
+  bool parseDirectiveSEHNop(SMLoc L);
+  bool parseDirectiveSEHSaveNext(SMLoc L);
+  bool parseDirectiveSEHEpilogStart(SMLoc L);
+  bool parseDirectiveSEHEpilogEnd(SMLoc L);
+  bool parseDirectiveSEHTrapFrame(SMLoc L);
+  bool parseDirectiveSEHMachineFrame(SMLoc L);
+  bool parseDirectiveSEHContext(SMLoc L);
+  bool parseDirectiveSEHClearUnwoundToCall(SMLoc L);
 
   bool validateInstruction(MCInst &Inst, SMLoc &IDLoc,
                            SmallVectorImpl<SMLoc> &Loc);
@@ -757,12 +787,13 @@ public:
       return false;
 
     int64_t Val = MCE->getValue();
-    int64_t SVal = std::make_signed_t<T>(Val);
-    int64_t UVal = std::make_unsigned_t<T>(Val);
-    if (Val != SVal && Val != UVal)
+    // Avoid left shift by 64 directly.
+    uint64_t Upper = UINT64_C(-1) << (sizeof(T) * 4) << (sizeof(T) * 4);
+    // Allow all-0 or all-1 in top bits to permit bitwise NOT.
+    if ((Val & Upper) && (Val & Upper) != Upper)
       return false;
 
-    return AArch64_AM::isLogicalImmediate(UVal, sizeof(T) * 8);
+    return AArch64_AM::isLogicalImmediate(Val & ~Upper, sizeof(T) * 8);
   }
 
   bool isShiftedImm() const { return Kind == k_ShiftedImm; }
@@ -854,7 +885,8 @@ public:
     if (!isShiftedImm() && (!isImm() || !isa<MCConstantExpr>(getImm())))
       return DiagnosticPredicateTy::NoMatch;
 
-    bool IsByte = std::is_same<int8_t, std::make_signed_t<T>>::value;
+    bool IsByte = std::is_same<int8_t, std::make_signed_t<T>>::value ||
+                  std::is_same<int8_t, T>::value;
     if (auto ShiftedImm = getShiftedVal<8>())
       if (!(IsByte && ShiftedImm->second) &&
           AArch64_AM::isSVECpyImm<T>(uint64_t(ShiftedImm->first)
@@ -871,7 +903,8 @@ public:
     if (!isShiftedImm() && (!isImm() || !isa<MCConstantExpr>(getImm())))
       return DiagnosticPredicateTy::NoMatch;
 
-    bool IsByte = std::is_same<int8_t, std::make_signed_t<T>>::value;
+    bool IsByte = std::is_same<int8_t, std::make_signed_t<T>>::value ||
+                  std::is_same<int8_t, T>::value;
     if (auto ShiftedImm = getShiftedVal<8>())
       if (!(IsByte && ShiftedImm->second) &&
           AArch64_AM::isSVEAddSubImm<T>(ShiftedImm->first
@@ -969,11 +1002,15 @@ public:
   bool isMOVZMovAlias() const {
     if (!isImm()) return false;
 
-    const MCConstantExpr *CE = dyn_cast<MCConstantExpr>(getImm());
-    if (!CE) return false;
-    uint64_t Value = CE->getValue();
+    const MCExpr *E = getImm();
+    if (const MCConstantExpr *CE = dyn_cast<MCConstantExpr>(E)) {
+      uint64_t Value = CE->getValue();
 
-    return AArch64_AM::isMOVZMovAlias(Value, Shift, RegWidth);
+      return AArch64_AM::isMOVZMovAlias(Value, Shift, RegWidth);
+    }
+    // Only supports the case of Shift being 0 if an expression is used as an
+    // operand
+    return !Shift && E;
   }
 
   template<int RegWidth, int Shift>
@@ -1773,9 +1810,13 @@ public:
   void addMOVZMovAliasOperands(MCInst &Inst, unsigned N) const {
     assert(N == 1 && "Invalid number of operands!");
 
-    const MCConstantExpr *CE = cast<MCConstantExpr>(getImm());
-    uint64_t Value = CE->getValue();
-    Inst.addOperand(MCOperand::createImm((Value >> Shift) & 0xffff));
+    const MCConstantExpr *CE = dyn_cast<MCConstantExpr>(getImm());
+    if (CE) {
+      uint64_t Value = CE->getValue();
+      Inst.addOperand(MCOperand::createImm((Value >> Shift) & 0xffff));
+    } else {
+      addExpr(Inst, getImm());
+    }
   }
 
   template<int Shift>
@@ -2062,14 +2103,14 @@ void AArch64Operand::print(raw_ostream &OS) const {
   case k_PSBHint:
     OS << getPSBHintName();
     break;
+  case k_BTIHint:
+    OS << getBTIHintName();
+    break;
   case k_Register:
     OS << "<register " << getReg() << ">";
     if (!getShiftExtendAmount() && !hasShiftExtendAmount())
       break;
     LLVM_FALLTHROUGH;
-  case k_BTIHint:
-    OS << getBTIHintName();
-    break;
   case k_ShiftExtend:
     OS << "<" << AArch64_AM::getShiftExtendName(getShiftExtendType()) << " #"
        << getShiftExtendAmount();
@@ -2412,9 +2453,9 @@ AArch64AsmParser::tryParsePrefetch(OperandVector &Operands) {
     return MatchOperand_ParseFail;
   }
 
-  Parser.Lex(); // Eat identifier token.
   Operands.push_back(AArch64Operand::CreatePrefetch(
       *PRFM, Tok.getString(), S, getContext()));
+  Parser.Lex(); // Eat identifier token.
   return MatchOperand_Success;
 }
 
@@ -2435,9 +2476,9 @@ AArch64AsmParser::tryParsePSBHint(OperandVector &Operands) {
     return MatchOperand_ParseFail;
   }
 
-  Parser.Lex(); // Eat identifier token.
   Operands.push_back(AArch64Operand::CreatePSBHint(
       PSB->Encoding, Tok.getString(), S, getContext()));
+  Parser.Lex(); // Eat identifier token.
   return MatchOperand_Success;
 }
 
@@ -2458,9 +2499,9 @@ AArch64AsmParser::tryParseBTIHint(OperandVector &Operands) {
     return MatchOperand_ParseFail;
   }
 
-  Parser.Lex(); // Eat identifier token.
   Operands.push_back(AArch64Operand::CreateBTIHint(
       BTI->Encoding, Tok.getString(), S, getContext()));
+  Parser.Lex(); // Eat identifier token.
   return MatchOperand_Success;
 }
 
@@ -2832,9 +2873,11 @@ static const struct Extension {
     {"predres", {AArch64::FeaturePredRes}},
     {"ccdp", {AArch64::FeatureCacheDeepPersist}},
     {"mte", {AArch64::FeatureMTE}},
+    {"memtag", {AArch64::FeatureMTE}},
     {"tlb-rmi", {AArch64::FeatureTLB_RMI}},
     {"pan-rwv", {AArch64::FeaturePAN_RWV}},
     {"ccpp", {AArch64::FeatureCCPP}},
+    {"rcpc", {AArch64::FeatureRCPC}},
     {"sve", {AArch64::FeatureSVE}},
     {"sve2", {AArch64::FeatureSVE2}},
     {"sve2-aes", {AArch64::FeatureSVE2AES}},
@@ -2859,6 +2902,8 @@ static void setRequiredFeatureString(FeatureBitset FBS, std::string &Str) {
     Str += "ARMv8.4a";
   else if (FBS[AArch64::HasV8_5aOps])
     Str += "ARMv8.5a";
+  else if (FBS[AArch64::HasV8_6aOps])
+    Str += "ARMv8.6a";
   else {
     auto ext = std::find_if(std::begin(ExtensionMap),
       std::end(ExtensionMap),
@@ -3726,6 +3771,66 @@ bool AArch64AsmParser::parseOperand(OperandVector &Operands, bool isCondCode,
   }
 }
 
+bool AArch64AsmParser::parseImmExpr(int64_t &Out) {
+  const MCExpr *Expr = nullptr;
+  SMLoc L = getLoc();
+  if (check(getParser().parseExpression(Expr), L, "expected expression"))
+    return true;
+  const MCConstantExpr *Value = dyn_cast_or_null<MCConstantExpr>(Expr);
+  if (check(!Value, L, "expected constant expression"))
+    return true;
+  Out = Value->getValue();
+  return false;
+}
+
+bool AArch64AsmParser::parseComma() {
+  if (check(getParser().getTok().isNot(AsmToken::Comma), getLoc(),
+            "expected comma"))
+    return true;
+  // Eat the comma
+  getParser().Lex();
+  return false;
+}
+
+bool AArch64AsmParser::parseRegisterInRange(unsigned &Out, unsigned Base,
+                                            unsigned First, unsigned Last) {
+  unsigned Reg;
+  SMLoc Start, End;
+  if (check(ParseRegister(Reg, Start, End), getLoc(), "expected register"))
+    return true;
+
+  // Special handling for FP and LR; they aren't linearly after x28 in
+  // the registers enum.
+  unsigned RangeEnd = Last;
+  if (Base == AArch64::X0) {
+    if (Last == AArch64::FP) {
+      RangeEnd = AArch64::X28;
+      if (Reg == AArch64::FP) {
+        Out = 29;
+        return false;
+      }
+    }
+    if (Last == AArch64::LR) {
+      RangeEnd = AArch64::X28;
+      if (Reg == AArch64::FP) {
+        Out = 29;
+        return false;
+      } else if (Reg == AArch64::LR) {
+        Out = 30;
+        return false;
+      }
+    }
+  }
+
+  if (check(Reg < First || Reg > RangeEnd, Start,
+            Twine("expected register in range ") +
+                AArch64InstPrinter::getRegisterName(First) + " to " +
+                AArch64InstPrinter::getRegisterName(Last)))
+    return true;
+  Out = Reg - Base;
+  return false;
+}
+
 bool AArch64AsmParser::regsEqual(const MCParsedAsmOperand &Op1,
                                  const MCParsedAsmOperand &Op2) const {
   auto &AOp1 = static_cast<const AArch64Operand&>(Op1);
@@ -4253,6 +4358,8 @@ bool AArch64AsmParser::showMatchError(SMLoc Loc, unsigned ErrCode,
     return Error(Loc, "index must be a multiple of 4 in range [-32, 28].");
   case Match_InvalidMemoryIndexed16SImm4:
     return Error(Loc, "index must be a multiple of 16 in range [-128, 112].");
+  case Match_InvalidMemoryIndexed32SImm4:
+    return Error(Loc, "index must be a multiple of 32 in range [-256, 224].");
   case Match_InvalidMemoryIndexed1SImm6:
     return Error(Loc, "index must be an integer in range [-32, 31].");
   case Match_InvalidMemoryIndexedSImm8:
@@ -4912,6 +5019,7 @@ bool AArch64AsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   case Match_InvalidMemoryIndexed4SImm4:
   case Match_InvalidMemoryIndexed1SImm6:
   case Match_InvalidMemoryIndexed16SImm4:
+  case Match_InvalidMemoryIndexed32SImm4:
   case Match_InvalidMemoryIndexed4SImm7:
   case Match_InvalidMemoryIndexed8SImm7:
   case Match_InvalidMemoryIndexed16SImm7:
@@ -5041,6 +5149,7 @@ bool AArch64AsmParser::ParseDirective(AsmToken DirectiveID) {
   const MCObjectFileInfo::Environment Format =
     getContext().getObjectFileInfo()->getObjectFileType();
   bool IsMachO = Format == MCObjectFileInfo::IsMachO;
+  bool IsCOFF = Format == MCObjectFileInfo::IsCOFF;
 
   auto IDVal = DirectiveID.getIdentifier().lower();
   SMLoc Loc = DirectiveID.getLoc();
@@ -5067,6 +5176,57 @@ bool AArch64AsmParser::ParseDirective(AsmToken DirectiveID) {
       parseDirectiveLOH(IDVal, Loc);
     else
       return true;
+  } else if (IsCOFF) {
+    if (IDVal == ".seh_stackalloc")
+      parseDirectiveSEHAllocStack(Loc);
+    else if (IDVal == ".seh_endprologue")
+      parseDirectiveSEHPrologEnd(Loc);
+    else if (IDVal == ".seh_save_r19r20_x")
+      parseDirectiveSEHSaveR19R20X(Loc);
+    else if (IDVal == ".seh_save_fplr")
+      parseDirectiveSEHSaveFPLR(Loc);
+    else if (IDVal == ".seh_save_fplr_x")
+      parseDirectiveSEHSaveFPLRX(Loc);
+    else if (IDVal == ".seh_save_reg")
+      parseDirectiveSEHSaveReg(Loc);
+    else if (IDVal == ".seh_save_reg_x")
+      parseDirectiveSEHSaveRegX(Loc);
+    else if (IDVal == ".seh_save_regp")
+      parseDirectiveSEHSaveRegP(Loc);
+    else if (IDVal == ".seh_save_regp_x")
+      parseDirectiveSEHSaveRegPX(Loc);
+    else if (IDVal == ".seh_save_lrpair")
+      parseDirectiveSEHSaveLRPair(Loc);
+    else if (IDVal == ".seh_save_freg")
+      parseDirectiveSEHSaveFReg(Loc);
+    else if (IDVal == ".seh_save_freg_x")
+      parseDirectiveSEHSaveFRegX(Loc);
+    else if (IDVal == ".seh_save_fregp")
+      parseDirectiveSEHSaveFRegP(Loc);
+    else if (IDVal == ".seh_save_fregp_x")
+      parseDirectiveSEHSaveFRegPX(Loc);
+    else if (IDVal == ".seh_set_fp")
+      parseDirectiveSEHSetFP(Loc);
+    else if (IDVal == ".seh_add_fp")
+      parseDirectiveSEHAddFP(Loc);
+    else if (IDVal == ".seh_nop")
+      parseDirectiveSEHNop(Loc);
+    else if (IDVal == ".seh_save_next")
+      parseDirectiveSEHSaveNext(Loc);
+    else if (IDVal == ".seh_startepilogue")
+      parseDirectiveSEHEpilogStart(Loc);
+    else if (IDVal == ".seh_endepilogue")
+      parseDirectiveSEHEpilogEnd(Loc);
+    else if (IDVal == ".seh_trap_frame")
+      parseDirectiveSEHTrapFrame(Loc);
+    else if (IDVal == ".seh_pushframe")
+      parseDirectiveSEHMachineFrame(Loc);
+    else if (IDVal == ".seh_context")
+      parseDirectiveSEHContext(Loc);
+    else if (IDVal == ".seh_clear_unwound_to_call")
+      parseDirectiveSEHClearUnwoundToCall(Loc);
+    else
+      return true;
   } else
     return true;
   return false;
@@ -5074,12 +5234,8 @@ bool AArch64AsmParser::ParseDirective(AsmToken DirectiveID) {
 
 static void ExpandCryptoAEK(AArch64::ArchKind ArchKind,
                             SmallVector<StringRef, 4> &RequestedExtensions) {
-  const bool NoCrypto =
-      (std::find(RequestedExtensions.begin(), RequestedExtensions.end(),
-                 "nocrypto") != std::end(RequestedExtensions));
-  const bool Crypto =
-      (std::find(RequestedExtensions.begin(), RequestedExtensions.end(),
-                 "crypto") != std::end(RequestedExtensions));
+  const bool NoCrypto = llvm::is_contained(RequestedExtensions, "nocrypto");
+  const bool Crypto = llvm::is_contained(RequestedExtensions, "crypto");
 
   if (!NoCrypto && Crypto) {
     switch (ArchKind) {
@@ -5094,6 +5250,7 @@ static void ExpandCryptoAEK(AArch64::ArchKind ArchKind,
       break;
     case AArch64::ArchKind::ARMV8_4A:
     case AArch64::ArchKind::ARMV8_5A:
+    case AArch64::ArchKind::ARMV8_6A:
       RequestedExtensions.push_back("sm4");
       RequestedExtensions.push_back("sha3");
       RequestedExtensions.push_back("sha2");
@@ -5113,6 +5270,7 @@ static void ExpandCryptoAEK(AArch64::ArchKind ArchKind,
       break;
     case AArch64::ArchKind::ARMV8_4A:
     case AArch64::ArchKind::ARMV8_5A:
+    case AArch64::ArchKind::ARMV8_6A:
       RequestedExtensions.push_back("nosm4");
       RequestedExtensions.push_back("nosha3");
       RequestedExtensions.push_back("nosha2");
@@ -5146,7 +5304,8 @@ bool AArch64AsmParser::parseDirectiveArch(SMLoc L) {
 
   MCSubtargetInfo &STI = copySTI();
   std::vector<std::string> ArchFeatures(AArch64Features.begin(), AArch64Features.end());
-  STI.setDefaultFeatures("generic", join(ArchFeatures.begin(), ArchFeatures.end(), ","));
+  STI.setDefaultFeatures("generic", /*TuneCPU*/ "generic",
+                         join(ArchFeatures.begin(), ArchFeatures.end(), ","));
 
   SmallVector<StringRef, 4> RequestedExtensions;
   if (!ExtensionString.empty())
@@ -5248,7 +5407,7 @@ bool AArch64AsmParser::parseDirectiveCPU(SMLoc L) {
   }
 
   MCSubtargetInfo &STI = copySTI();
-  STI.setDefaultFeatures(CPU, "");
+  STI.setDefaultFeatures(CPU, /*TuneCPU*/ CPU, "");
   CurLoc = incrementLoc(CurLoc, CPU.size());
 
   ExpandCryptoAEK(llvm::AArch64::getCPUArchKind(CPU), RequestedExtensions);
@@ -5487,6 +5646,238 @@ bool AArch64AsmParser::parseDirectiveCFIBKeyFrame() {
                  "unexpected token in '.cfi_b_key_frame'"))
     return true;
   getStreamer().emitCFIBKeyFrame();
+  return false;
+}
+
+/// parseDirectiveSEHAllocStack
+/// ::= .seh_stackalloc
+bool AArch64AsmParser::parseDirectiveSEHAllocStack(SMLoc L) {
+  int64_t Size;
+  if (parseImmExpr(Size))
+    return true;
+  getTargetStreamer().EmitARM64WinCFIAllocStack(Size);
+  return false;
+}
+
+/// parseDirectiveSEHPrologEnd
+/// ::= .seh_endprologue
+bool AArch64AsmParser::parseDirectiveSEHPrologEnd(SMLoc L) {
+  getTargetStreamer().EmitARM64WinCFIPrologEnd();
+  return false;
+}
+
+/// parseDirectiveSEHSaveR19R20X
+/// ::= .seh_save_r19r20_x
+bool AArch64AsmParser::parseDirectiveSEHSaveR19R20X(SMLoc L) {
+  int64_t Offset;
+  if (parseImmExpr(Offset))
+    return true;
+  getTargetStreamer().EmitARM64WinCFISaveR19R20X(Offset);
+  return false;
+}
+
+/// parseDirectiveSEHSaveFPLR
+/// ::= .seh_save_fplr
+bool AArch64AsmParser::parseDirectiveSEHSaveFPLR(SMLoc L) {
+  int64_t Offset;
+  if (parseImmExpr(Offset))
+    return true;
+  getTargetStreamer().EmitARM64WinCFISaveFPLR(Offset);
+  return false;
+}
+
+/// parseDirectiveSEHSaveFPLRX
+/// ::= .seh_save_fplr_x
+bool AArch64AsmParser::parseDirectiveSEHSaveFPLRX(SMLoc L) {
+  int64_t Offset;
+  if (parseImmExpr(Offset))
+    return true;
+  getTargetStreamer().EmitARM64WinCFISaveFPLRX(Offset);
+  return false;
+}
+
+/// parseDirectiveSEHSaveReg
+/// ::= .seh_save_reg
+bool AArch64AsmParser::parseDirectiveSEHSaveReg(SMLoc L) {
+  unsigned Reg;
+  int64_t Offset;
+  if (parseRegisterInRange(Reg, AArch64::X0, AArch64::X19, AArch64::LR) ||
+      parseComma() || parseImmExpr(Offset))
+    return true;
+  getTargetStreamer().EmitARM64WinCFISaveReg(Reg, Offset);
+  return false;
+}
+
+/// parseDirectiveSEHSaveRegX
+/// ::= .seh_save_reg_x
+bool AArch64AsmParser::parseDirectiveSEHSaveRegX(SMLoc L) {
+  unsigned Reg;
+  int64_t Offset;
+  if (parseRegisterInRange(Reg, AArch64::X0, AArch64::X19, AArch64::LR) ||
+      parseComma() || parseImmExpr(Offset))
+    return true;
+  getTargetStreamer().EmitARM64WinCFISaveRegX(Reg, Offset);
+  return false;
+}
+
+/// parseDirectiveSEHSaveRegP
+/// ::= .seh_save_regp
+bool AArch64AsmParser::parseDirectiveSEHSaveRegP(SMLoc L) {
+  unsigned Reg;
+  int64_t Offset;
+  if (parseRegisterInRange(Reg, AArch64::X0, AArch64::X19, AArch64::LR) ||
+      parseComma() || parseImmExpr(Offset))
+    return true;
+  getTargetStreamer().EmitARM64WinCFISaveRegP(Reg, Offset);
+  return false;
+}
+
+/// parseDirectiveSEHSaveRegPX
+/// ::= .seh_save_regp_x
+bool AArch64AsmParser::parseDirectiveSEHSaveRegPX(SMLoc L) {
+  unsigned Reg;
+  int64_t Offset;
+  if (parseRegisterInRange(Reg, AArch64::X0, AArch64::X19, AArch64::X28) ||
+      parseComma() || parseImmExpr(Offset))
+    return true;
+  getTargetStreamer().EmitARM64WinCFISaveRegPX(Reg, Offset);
+  return false;
+}
+
+/// parseDirectiveSEHSaveLRPair
+/// ::= .seh_save_lrpair
+bool AArch64AsmParser::parseDirectiveSEHSaveLRPair(SMLoc L) {
+  unsigned Reg;
+  int64_t Offset;
+  L = getLoc();
+  if (parseRegisterInRange(Reg, AArch64::X0, AArch64::X19, AArch64::LR) ||
+      parseComma() || parseImmExpr(Offset))
+    return true;
+  if (check(((Reg - 19) % 2 != 0), L,
+            "expected register with even offset from x19"))
+    return true;
+  getTargetStreamer().EmitARM64WinCFISaveLRPair(Reg, Offset);
+  return false;
+}
+
+/// parseDirectiveSEHSaveFReg
+/// ::= .seh_save_freg
+bool AArch64AsmParser::parseDirectiveSEHSaveFReg(SMLoc L) {
+  unsigned Reg;
+  int64_t Offset;
+  if (parseRegisterInRange(Reg, AArch64::D0, AArch64::D8, AArch64::D15) ||
+      parseComma() || parseImmExpr(Offset))
+    return true;
+  getTargetStreamer().EmitARM64WinCFISaveFReg(Reg, Offset);
+  return false;
+}
+
+/// parseDirectiveSEHSaveFRegX
+/// ::= .seh_save_freg_x
+bool AArch64AsmParser::parseDirectiveSEHSaveFRegX(SMLoc L) {
+  unsigned Reg;
+  int64_t Offset;
+  if (parseRegisterInRange(Reg, AArch64::D0, AArch64::D8, AArch64::D15) ||
+      parseComma() || parseImmExpr(Offset))
+    return true;
+  getTargetStreamer().EmitARM64WinCFISaveFRegX(Reg, Offset);
+  return false;
+}
+
+/// parseDirectiveSEHSaveFRegP
+/// ::= .seh_save_fregp
+bool AArch64AsmParser::parseDirectiveSEHSaveFRegP(SMLoc L) {
+  unsigned Reg;
+  int64_t Offset;
+  if (parseRegisterInRange(Reg, AArch64::D0, AArch64::D8, AArch64::D15) ||
+      parseComma() || parseImmExpr(Offset))
+    return true;
+  getTargetStreamer().EmitARM64WinCFISaveFRegP(Reg, Offset);
+  return false;
+}
+
+/// parseDirectiveSEHSaveFRegPX
+/// ::= .seh_save_fregp_x
+bool AArch64AsmParser::parseDirectiveSEHSaveFRegPX(SMLoc L) {
+  unsigned Reg;
+  int64_t Offset;
+  if (parseRegisterInRange(Reg, AArch64::D0, AArch64::D8, AArch64::D15) ||
+      parseComma() || parseImmExpr(Offset))
+    return true;
+  getTargetStreamer().EmitARM64WinCFISaveFRegPX(Reg, Offset);
+  return false;
+}
+
+/// parseDirectiveSEHSetFP
+/// ::= .seh_set_fp
+bool AArch64AsmParser::parseDirectiveSEHSetFP(SMLoc L) {
+  getTargetStreamer().EmitARM64WinCFISetFP();
+  return false;
+}
+
+/// parseDirectiveSEHAddFP
+/// ::= .seh_add_fp
+bool AArch64AsmParser::parseDirectiveSEHAddFP(SMLoc L) {
+  int64_t Size;
+  if (parseImmExpr(Size))
+    return true;
+  getTargetStreamer().EmitARM64WinCFIAddFP(Size);
+  return false;
+}
+
+/// parseDirectiveSEHNop
+/// ::= .seh_nop
+bool AArch64AsmParser::parseDirectiveSEHNop(SMLoc L) {
+  getTargetStreamer().EmitARM64WinCFINop();
+  return false;
+}
+
+/// parseDirectiveSEHSaveNext
+/// ::= .seh_save_next
+bool AArch64AsmParser::parseDirectiveSEHSaveNext(SMLoc L) {
+  getTargetStreamer().EmitARM64WinCFISaveNext();
+  return false;
+}
+
+/// parseDirectiveSEHEpilogStart
+/// ::= .seh_startepilogue
+bool AArch64AsmParser::parseDirectiveSEHEpilogStart(SMLoc L) {
+  getTargetStreamer().EmitARM64WinCFIEpilogStart();
+  return false;
+}
+
+/// parseDirectiveSEHEpilogEnd
+/// ::= .seh_endepilogue
+bool AArch64AsmParser::parseDirectiveSEHEpilogEnd(SMLoc L) {
+  getTargetStreamer().EmitARM64WinCFIEpilogEnd();
+  return false;
+}
+
+/// parseDirectiveSEHTrapFrame
+/// ::= .seh_trap_frame
+bool AArch64AsmParser::parseDirectiveSEHTrapFrame(SMLoc L) {
+  getTargetStreamer().EmitARM64WinCFITrapFrame();
+  return false;
+}
+
+/// parseDirectiveSEHMachineFrame
+/// ::= .seh_pushframe
+bool AArch64AsmParser::parseDirectiveSEHMachineFrame(SMLoc L) {
+  getTargetStreamer().EmitARM64WinCFIMachineFrame();
+  return false;
+}
+
+/// parseDirectiveSEHContext
+/// ::= .seh_context
+bool AArch64AsmParser::parseDirectiveSEHContext(SMLoc L) {
+  getTargetStreamer().EmitARM64WinCFIContext();
+  return false;
+}
+
+/// parseDirectiveSEHClearUnwoundToCall
+/// ::= .seh_clear_unwound_to_call
+bool AArch64AsmParser::parseDirectiveSEHClearUnwoundToCall(SMLoc L) {
+  getTargetStreamer().EmitARM64WinCFIClearUnwoundToCall();
   return false;
 }
 

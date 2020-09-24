@@ -47,6 +47,8 @@
 #include <utility>
 #include <vector>
 
+static inline clang::QualType GetFloat16Type(clang::ASTContext &Context);
+
 #include "OpenCLBuiltins.inc"
 #include "SPIRVBuiltins.inc"
 
@@ -678,6 +680,10 @@ LLVM_DUMP_METHOD void LookupResult::dump() {
     D->dump();
 }
 
+static inline QualType GetFloat16Type(clang::ASTContext &Context) {
+  return Context.getLangOpts().OpenCL ? Context.HalfTy : Context.Float16Ty;
+}
+
 /// Get the QualType instances of the return type and arguments for a ProgModel
 /// builtin function signature.
 /// \param Context (in) The Context instance.
@@ -908,8 +914,11 @@ bool Sema::LookupBuiltin(LookupResult &R) {
               *this, 0, R, II, Index.first - 1, Index.second,
               [this](const SPIRVBuiltin::BuiltinStruct &,
                      FunctionDecl &NewBuiltin) {
-                NewBuiltin.addAttr(
-                    SYCLDeviceAttr::CreateImplicit(this->Context));
+                if (!this->getLangOpts().CPlusPlus)
+                  NewBuiltin.addAttr(OverloadableAttr::CreateImplicit(Context));
+                if (this->getLangOpts().SYCLIsDevice)
+                  NewBuiltin.addAttr(
+                      SYCLDeviceAttr::CreateImplicit(this->Context));
               });
           return true;
         }
@@ -1182,73 +1191,14 @@ static bool isNamespaceOrTranslationUnitScope(Scope *S) {
   return false;
 }
 
-// Find the next outer declaration context from this scope. This
-// routine actually returns the semantic outer context, which may
-// differ from the lexical context (encoded directly in the Scope
-// stack) when we are parsing a member of a class template. In this
-// case, the second element of the pair will be true, to indicate that
-// name lookup should continue searching in this semantic context when
-// it leaves the current template parameter scope.
-static std::pair<DeclContext *, bool> findOuterContext(Scope *S) {
-  DeclContext *DC = S->getEntity();
-  DeclContext *Lexical = nullptr;
-  for (Scope *OuterS = S->getParent(); OuterS;
-       OuterS = OuterS->getParent()) {
-    if (OuterS->getEntity()) {
-      Lexical = OuterS->getEntity();
-      break;
-    }
-  }
-
-  // C++ [temp.local]p8:
-  //   In the definition of a member of a class template that appears
-  //   outside of the namespace containing the class template
-  //   definition, the name of a template-parameter hides the name of
-  //   a member of this namespace.
-  //
-  // Example:
-  //
-  //   namespace N {
-  //     class C { };
-  //
-  //     template<class T> class B {
-  //       void f(T);
-  //     };
-  //   }
-  //
-  //   template<class C> void N::B<C>::f(C) {
-  //     C b;  // C is the template parameter, not N::C
-  //   }
-  //
-  // In this example, the lexical context we return is the
-  // TranslationUnit, while the semantic context is the namespace N.
-  if (!Lexical || !DC || !S->getParent() ||
-      !S->getParent()->isTemplateParamScope())
-    return std::make_pair(Lexical, false);
-
-  // Find the outermost template parameter scope.
-  // For the example, this is the scope for the template parameters of
-  // template<class C>.
-  Scope *OutermostTemplateScope = S->getParent();
-  while (OutermostTemplateScope->getParent() &&
-         OutermostTemplateScope->getParent()->isTemplateParamScope())
-    OutermostTemplateScope = OutermostTemplateScope->getParent();
-
-  // Find the namespace context in which the original scope occurs. In
-  // the example, this is namespace N.
-  DeclContext *Semantic = DC;
-  while (!Semantic->isFileContext())
-    Semantic = Semantic->getParent();
-
-  // Find the declaration context just outside of the template
-  // parameter scope. This is the context in which the template is
-  // being lexically declaration (a namespace context). In the
-  // example, this is the global scope.
-  if (Lexical->isFileContext() && !Lexical->Equals(Semantic) &&
-      Lexical->Encloses(Semantic))
-    return std::make_pair(Semantic, true);
-
-  return std::make_pair(Lexical, false);
+/// Find the outer declaration context from this scope. This indicates the
+/// context that we should search up to (exclusive) before considering the
+/// parent of the specified scope.
+static DeclContext *findOuterContext(Scope *S) {
+  for (Scope *OuterS = S->getParent(); OuterS; OuterS = OuterS->getParent())
+    if (DeclContext *DC = OuterS->getLookupEntity())
+      return DC;
+  return nullptr;
 }
 
 namespace {
@@ -1315,13 +1265,11 @@ bool Sema::CppLookupName(LookupResult &R, Scope *S) {
   UnqualUsingDirectiveSet UDirs(*this);
   bool VisitedUsingDirectives = false;
   bool LeftStartingScope = false;
-  DeclContext *OutsideOfTemplateParamDC = nullptr;
 
   // When performing a scope lookup, we want to find local extern decls.
   FindLocalExternScope FindLocals(R);
 
   for (; S && !isNamespaceOrTranslationUnitScope(S); S = S->getParent()) {
-    DeclContext *Ctx = S->getEntity();
     bool SearchNamespaceScope = true;
     // Check whether the IdResolver has anything in this scope.
     for (; I != IEnd && S->isDeclScope(*I); ++I) {
@@ -1353,7 +1301,8 @@ bool Sema::CppLookupName(LookupResult &R, Scope *S) {
     if (!SearchNamespaceScope) {
       R.resolveKind();
       if (S->isClassScope())
-        if (CXXRecordDecl *Record = dyn_cast_or_null<CXXRecordDecl>(Ctx))
+        if (CXXRecordDecl *Record =
+                dyn_cast_or_null<CXXRecordDecl>(S->getEntity()))
           R.setNamingClass(Record);
       return true;
     }
@@ -1367,24 +1316,8 @@ bool Sema::CppLookupName(LookupResult &R, Scope *S) {
       return false;
     }
 
-    if (!Ctx && S->isTemplateParamScope() && OutsideOfTemplateParamDC &&
-        S->getParent() && !S->getParent()->isTemplateParamScope()) {
-      // We've just searched the last template parameter scope and
-      // found nothing, so look into the contexts between the
-      // lexical and semantic declaration contexts returned by
-      // findOuterContext(). This implements the name lookup behavior
-      // of C++ [temp.local]p8.
-      Ctx = OutsideOfTemplateParamDC;
-      OutsideOfTemplateParamDC = nullptr;
-    }
-
-    if (Ctx) {
-      DeclContext *OuterCtx;
-      bool SearchAfterTemplateScope;
-      std::tie(OuterCtx, SearchAfterTemplateScope) = findOuterContext(S);
-      if (SearchAfterTemplateScope)
-        OutsideOfTemplateParamDC = OuterCtx;
-
+    if (DeclContext *Ctx = S->getLookupEntity()) {
+      DeclContext *OuterCtx = findOuterContext(S);
       for (; Ctx && !Ctx->Equals(OuterCtx); Ctx = Ctx->getLookupParent()) {
         // We do not directly look into transparent contexts, since
         // those entities will be found in the nearest enclosing
@@ -1509,25 +1442,9 @@ bool Sema::CppLookupName(LookupResult &R, Scope *S) {
       return true;
     }
 
-    DeclContext *Ctx = S->getEntity();
-    if (!Ctx && S->isTemplateParamScope() && OutsideOfTemplateParamDC &&
-        S->getParent() && !S->getParent()->isTemplateParamScope()) {
-      // We've just searched the last template parameter scope and
-      // found nothing, so look into the contexts between the
-      // lexical and semantic declaration contexts returned by
-      // findOuterContext(). This implements the name lookup behavior
-      // of C++ [temp.local]p8.
-      Ctx = OutsideOfTemplateParamDC;
-      OutsideOfTemplateParamDC = nullptr;
-    }
-
+    DeclContext *Ctx = S->getLookupEntity();
     if (Ctx) {
-      DeclContext *OuterCtx;
-      bool SearchAfterTemplateScope;
-      std::tie(OuterCtx, SearchAfterTemplateScope) = findOuterContext(S);
-      if (SearchAfterTemplateScope)
-        OutsideOfTemplateParamDC = OuterCtx;
-
+      DeclContext *OuterCtx = findOuterContext(S);
       for (; Ctx && !Ctx->Equals(OuterCtx); Ctx = Ctx->getLookupParent()) {
         // We do not directly look into transparent contexts, since
         // those entities will be found in the nearest enclosing
@@ -1739,7 +1656,8 @@ bool Sema::hasVisibleMemberSpecialization(
 /// path (by instantiating a template, you allow it to see the declarations that
 /// your module can see, including those later on in your module).
 bool LookupResult::isVisibleSlow(Sema &SemaRef, NamedDecl *D) {
-  assert(D->isHidden() && "should not call this: not in slow case");
+  assert(!D->isUnconditionallyVisible() &&
+         "should not call this: not in slow case");
 
   Module *DeclModule = SemaRef.getOwningModule(D);
   assert(DeclModule && "hidden decl has no owning module");
@@ -2995,7 +2913,9 @@ addAssociatedClassesAndNamespaces(AssociatedLookup &Result, QualType Ty) {
     // These are fundamental types.
     case Type::Vector:
     case Type::ExtVector:
+    case Type::ConstantMatrix:
     case Type::Complex:
+    case Type::ExtInt:
       break;
 
     // Non-deduced auto types only get here for error cases.
@@ -3099,7 +3019,6 @@ ObjCProtocolDecl *Sema::LookupProtocol(IdentifierInfo *II,
 }
 
 void Sema::LookupOverloadedOperatorName(OverloadedOperatorKind Op, Scope *S,
-                                        QualType T1, QualType T2,
                                         UnresolvedSetImpl &Functions) {
   // C++ [over.match.oper]p3:
   //     -- The set of non-member candidates is the result of the
@@ -4021,14 +3940,12 @@ private:
       }
     }
 
-    // FIXME: C++ [temp.local]p8
-    DeclContext *Entity = nullptr;
-    if (S->getEntity()) {
+    DeclContext *Entity = S->getLookupEntity();
+    if (Entity) {
       // Look into this scope's declaration context, along with any of its
       // parent lookup contexts (e.g., enclosing classes), up to the point
       // where we hit the context stored in the next outer scope.
-      Entity = S->getEntity();
-      DeclContext *OuterCtx = findOuterContext(S).first; // FIXME
+      DeclContext *OuterCtx = findOuterContext(S);
 
       for (DeclContext *Ctx = Entity; Ctx && !Ctx->Equals(OuterCtx);
            Ctx = Ctx->getLookupParent()) {
@@ -5194,9 +5111,9 @@ TypoExpr *Sema::CorrectTypoDelayed(
   IdentifierInfo *Typo = TypoName.getName().getAsIdentifierInfo();
   if (!ExternalTypo && ED > 0 && Typo->getName().size() / ED < 3)
     return nullptr;
-
   ExprEvalContexts.back().NumTypos++;
-  return createDelayedTypo(std::move(Consumer), std::move(TDG), std::move(TRC));
+  return createDelayedTypo(std::move(Consumer), std::move(TDG), std::move(TRC),
+                           TypoName.getLoc());
 }
 
 void TypoCorrection::addCorrectionDecl(NamedDecl *CDecl) {
@@ -5378,9 +5295,8 @@ void Sema::diagnoseMissingImport(SourceLocation Loc, NamedDecl *Decl,
 
 /// Get a "quoted.h" or <angled.h> include path to use in a diagnostic
 /// suggesting the addition of a #include of the specified file.
-static std::string getIncludeStringForHeader(Preprocessor &PP,
-                                             const FileEntry *E,
-                                             llvm::StringRef IncludingFile) {
+static std::string getHeaderNameForHeader(Preprocessor &PP, const FileEntry *E,
+                                          llvm::StringRef IncludingFile) {
   bool IsSystem = false;
   auto Path = PP.getHeaderSearchInfo().suggestPathToFileForDiagnostics(
       E, IncludingFile, &IsSystem);
@@ -5394,25 +5310,10 @@ void Sema::diagnoseMissingImport(SourceLocation UseLoc, NamedDecl *Decl,
   assert(!Modules.empty());
 
   auto NotePrevious = [&] {
-    unsigned DiagID;
-    switch (MIK) {
-    case MissingImportKind::Declaration:
-      DiagID = diag::note_previous_declaration;
-      break;
-    case MissingImportKind::Definition:
-      DiagID = diag::note_previous_definition;
-      break;
-    case MissingImportKind::DefaultArgument:
-      DiagID = diag::note_default_argument_declared_here;
-      break;
-    case MissingImportKind::ExplicitSpecialization:
-      DiagID = diag::note_explicit_specialization_declared_here;
-      break;
-    case MissingImportKind::PartialSpecialization:
-      DiagID = diag::note_partial_specialization_declared_here;
-      break;
-    }
-    Diag(DeclLoc, DiagID);
+    // FIXME: Suppress the note backtrace even under
+    // -fdiagnostics-show-note-include-stack. We don't care how this
+    // declaration was previously reached.
+    Diag(DeclLoc, diag::note_unreachable_entity) << (int)MIK;
   };
 
   // Weed out duplicates from module list.
@@ -5425,26 +5326,24 @@ void Sema::diagnoseMissingImport(SourceLocation UseLoc, NamedDecl *Decl,
       UniqueModules.push_back(M);
   }
 
-  llvm::StringRef IncludingFile;
-  if (const FileEntry *FE =
-          SourceMgr.getFileEntryForID(SourceMgr.getFileID(UseLoc)))
-    IncludingFile = FE->tryGetRealPathName();
+  // Try to find a suitable header-name to #include.
+  std::string HeaderName;
+  if (const FileEntry *Header =
+          PP.getHeaderToIncludeForDiagnostics(UseLoc, DeclLoc)) {
+    if (const FileEntry *FE =
+            SourceMgr.getFileEntryForID(SourceMgr.getFileID(UseLoc)))
+      HeaderName = getHeaderNameForHeader(PP, Header, FE->tryGetRealPathName());
+  }
 
-  if (UniqueModules.empty()) {
-    // All candidates were global module fragments. Try to suggest a #include.
-    const FileEntry *E =
-        PP.getModuleHeaderToIncludeForDiagnostics(UseLoc, Modules[0], DeclLoc);
+  // If we have a #include we should suggest, or if all definition locations
+  // were in global module fragments, don't suggest an import.
+  if (!HeaderName.empty() || UniqueModules.empty()) {
     // FIXME: Find a smart place to suggest inserting a #include, and add
     // a FixItHint there.
-    Diag(UseLoc, diag::err_module_unimported_use_global_module_fragment)
-        << (int)MIK << Decl << !!E
-        << (E ? getIncludeStringForHeader(PP, E, IncludingFile) : "");
-    // Produce a "previous" note if it will point to a header rather than some
-    // random global module fragment.
-    // FIXME: Suppress the note backtrace even under
-    // -fdiagnostics-show-note-include-stack.
-    if (E)
-      NotePrevious();
+    Diag(UseLoc, diag::err_module_unimported_use_header)
+        << (int)MIK << Decl << !HeaderName.empty() << HeaderName;
+    // Produce a note showing where the entity was declared.
+    NotePrevious();
     if (Recover)
       createImplicitModuleImportForErrorRecovery(UseLoc, Modules[0]);
     return;
@@ -5466,16 +5365,6 @@ void Sema::diagnoseMissingImport(SourceLocation UseLoc, NamedDecl *Decl,
 
     Diag(UseLoc, diag::err_module_unimported_use_multiple)
       << (int)MIK << Decl << ModuleList;
-  } else if (const FileEntry *E = PP.getModuleHeaderToIncludeForDiagnostics(
-                 UseLoc, Modules[0], DeclLoc)) {
-    // The right way to make the declaration visible is to include a header;
-    // suggest doing so.
-    //
-    // FIXME: Find a smart place to suggest inserting a #include, and add
-    // a FixItHint there.
-    Diag(UseLoc, diag::err_module_unimported_use_header)
-        << (int)MIK << Decl << Modules[0]->getFullModuleName()
-        << getIncludeStringForHeader(PP, E, IncludingFile);
   } else {
     // FIXME: Add a FixItHint that imports the corresponding module.
     Diag(UseLoc, diag::err_module_unimported_use)
@@ -5536,9 +5425,10 @@ void Sema::diagnoseTypo(const TypoCorrection &Correction,
 
 TypoExpr *Sema::createDelayedTypo(std::unique_ptr<TypoCorrectionConsumer> TCC,
                                   TypoDiagnosticGenerator TDG,
-                                  TypoRecoveryCallback TRC) {
+                                  TypoRecoveryCallback TRC,
+                                  SourceLocation TypoLoc) {
   assert(TCC && "createDelayedTypo requires a valid TypoCorrectionConsumer");
-  auto TE = new (Context) TypoExpr(Context.DependentTy);
+  auto TE = new (Context) TypoExpr(Context.DependentTy, TypoLoc);
   auto &State = DelayedTypos[TE];
   State.Consumer = std::move(TCC);
   State.DiagHandler = std::move(TDG);

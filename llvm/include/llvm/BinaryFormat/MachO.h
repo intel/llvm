@@ -82,7 +82,8 @@ enum {
   MH_HAS_TLV_DESCRIPTORS = 0x00800000u,
   MH_NO_HEAP_EXECUTION = 0x01000000u,
   MH_APP_EXTENSION_SAFE = 0x02000000u,
-  MH_NLIST_OUTOFSYNC_WITH_DYLDINFO = 0x04000000u
+  MH_NLIST_OUTOFSYNC_WITH_DYLDINFO = 0x04000000u,
+  MH_DYLIB_IN_CACHE = 0x80000000u,
 };
 
 enum : uint32_t {
@@ -494,7 +495,8 @@ enum PlatformType {
   PLATFORM_MACCATALYST = 6,
   PLATFORM_IOSSIMULATOR = 7,
   PLATFORM_TVOSSIMULATOR = 8,
-  PLATFORM_WATCHOSSIMULATOR = 9
+  PLATFORM_WATCHOSSIMULATOR = 9,
+  PLATFORM_DRIVERKIT = 10,
 };
 
 // Values for tools enum in build_tool_version.
@@ -952,13 +954,8 @@ struct fat_arch_64 {
 // Structs from <mach-o/reloc.h>
 struct relocation_info {
   int32_t r_address;
-#if defined(BYTE_ORDER) && defined(BIG_ENDIAN) && (BYTE_ORDER == BIG_ENDIAN)
-  uint32_t r_type : 4,  r_extern : 1, r_length : 2, r_pcrel : 1,
-      r_symbolnum : 24;
-#else
   uint32_t r_symbolnum : 24, r_pcrel : 1, r_length : 2, r_extern : 1,
       r_type : 4;
-#endif
 };
 
 struct scattered_relocation_info {
@@ -1496,6 +1493,7 @@ enum CPUSubTypeARM {
 
 enum CPUSubTypeARM64 {
   CPU_SUBTYPE_ARM64_ALL = 0,
+  CPU_SUBTYPE_ARM64_V8 = 1,
   CPU_SUBTYPE_ARM64E = 2,
 };
 

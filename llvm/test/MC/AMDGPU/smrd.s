@@ -3,9 +3,9 @@
 // RUN: llvm-mc -arch=amdgcn -mcpu=bonaire -show-encoding %s | FileCheck --check-prefix=GCN --check-prefix=CI %s
 // RUN: not llvm-mc -arch=amdgcn -mcpu=fiji -show-encoding %s | FileCheck --check-prefix=VI %s
 
-// RUN: not llvm-mc -arch=amdgcn %s 2>&1 | FileCheck %s --check-prefix=NOSI
-// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti  %s 2>&1 | FileCheck %s --check-prefix=NOSI
-// RUN: not llvm-mc -arch=amdgcn -mcpu=fiji  %s 2>&1 | FileCheck %s --check-prefix=NOVI
+// RUN: not llvm-mc -arch=amdgcn %s 2>&1 | FileCheck %s --check-prefix=NOSI --implicit-check-not=error:
+// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti  %s 2>&1 | FileCheck %s --check-prefix=NOSI --implicit-check-not=error:
+// RUN: not llvm-mc -arch=amdgcn -mcpu=fiji  %s 2>&1 | FileCheck %s --check-prefix=NOVI --implicit-check-not=error:
 
 //===----------------------------------------------------------------------===//
 // Offset Handling
@@ -32,12 +32,12 @@ s_load_dword s1, s[2:3], 0xfffff
 s_load_dword s1, s[2:3], 0x100000
 // NOSI: error: instruction not supported on this GPU
 // CI: s_load_dword s1, s[2:3], 0x100000 ; encoding: [0xff,0x82,0x00,0xc0,0x00,0x00,0x10,0x00]
-// NOVI: error: instruction not supported on this GPU
+// NOVI: error: expected a 20-bit unsigned offset
 
 s_load_dword s1, s[2:3], 0xffffffff
 // NOSI: error: instruction not supported on this GPU
 // CI: s_load_dword s1, s[2:3], 0xffffffff ; encoding: [0xff,0x82,0x00,0xc0,0xff,0xff,0xff,0xff]
-// NOVI: error: instruction not supported on this GPU
+// NOVI: error: expected a 20-bit unsigned offset
 
 //===----------------------------------------------------------------------===//
 // Instructions

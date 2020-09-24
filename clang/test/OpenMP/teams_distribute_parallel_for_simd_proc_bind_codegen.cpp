@@ -16,7 +16,7 @@ typedef __INTPTR_TYPE__ intptr_t;
 
 // CHECK-DAG: [[IDENT_T_TY:%.+]] = type { i32, i32, i32, i32, i8* }
 // CHECK-DAG: [[STR:@.+]] = private unnamed_addr constant [23 x i8] c";unknown;unknown;0;0;;\00"
-// CHECK-DAG: [[DEF_LOC_2:@.+]] = private unnamed_addr global [[IDENT_T_TY]] { i32 0, i32 2, i32 0, i32 0, i8* getelementptr inbounds ([23 x i8], [23 x i8]* [[STR]], i32 0, i32 0) }
+// CHECK-DAG: [[DEF_LOC_2:@.+]] = private unnamed_addr constant [[IDENT_T_TY]] { i32 0, i32 2, i32 0, i32 0, i8* getelementptr inbounds ([23 x i8], [23 x i8]* [[STR]], i32 0, i32 0) }
 
 void foo();
 
@@ -46,9 +46,9 @@ int main() {
   return tmain<int>();
 }
 
-// CHECK: call {{.*}}@__tgt_target_teams({{.+}})
+// CHECK: call {{.*}}@__tgt_target_teams_mapper({{.+}})
 // CHECK: call void [[OFFL1:@.+]]()
-// CHECK: call {{.*}}@__tgt_target_teams({{.+}})
+// CHECK: call {{.*}}@__tgt_target_teams_mapper({{.+}})
 // CHECK: call void [[OFFL2:@.+]]()
 // CHECK: [[CALL_RET:%.+]] = call{{.+}} i32 [[TMAIN:@.+]]()
 // CHECK: ret i32 [[CALL_RET]]
@@ -78,7 +78,7 @@ int main() {
 // CHECK: ret void
 
 // CHECK: define{{.+}} [[TMAIN]]()
-// CHECK: call {{.*}}@__tgt_target_teams({{.+}})
+// CHECK: call {{.*}}@__tgt_target_teams_mapper({{.+}})
 // CHECK: call void [[OFFL3:@.+]]()
 
 // CHECK: define{{.+}} [[OFFL3]]()

@@ -28,7 +28,6 @@ add_llvm_component_library(LLVMCore
   Instruction.cpp
   Instructions.cpp
   IntrinsicInst.cpp
-  KnowledgeRetention.cpp
   LLVMContext.cpp
   LLVMContextImpl.cpp
   LLVMRemarkStreamer.cpp
@@ -48,6 +47,7 @@ add_llvm_component_library(LLVMCore
   SafepointIRVerifier.cpp
   ProfileSummary.cpp
   Statepoint.cpp
+  StructuralHash.cpp
   Type.cpp
   TypeFinder.cpp
   Use.cpp

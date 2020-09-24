@@ -14,16 +14,12 @@
 #ifndef LLVM_LIB_TARGET_AMDGPU_AMDGPUPALMETADATA_H
 #define LLVM_LIB_TARGET_AMDGPU_AMDGPUPALMETADATA_H
 
-#include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/MsgPackDocument.h"
-#include <map>
 
 namespace llvm {
 
-class AMDGPUTargetStreamer;
-class formatted_raw_ostream;
-class MCStreamer;
 class Module;
+class StringRef;
 
 class AMDGPUPALMetadata {
   unsigned BlobType = 0;
@@ -109,6 +105,9 @@ public:
 
   // Set legacy PAL metadata format.
   void setLegacy();
+
+  // Erase all PAL metadata.
+  void reset();
 
 private:
   // Return whether the blob type is legacy PAL metadata.

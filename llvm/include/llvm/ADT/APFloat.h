@@ -18,6 +18,7 @@
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <memory>
 
@@ -141,7 +142,7 @@ enum lostFraction { // Example of truncated bits:
 // members.
 struct APFloatBase {
   typedef APInt::WordType integerPart;
-  static const unsigned integerPartWidth = APInt::APINT_BITS_PER_WORD;
+  static constexpr unsigned integerPartWidth = APInt::APINT_BITS_PER_WORD;
 
   /// A signed type to represent a floating point numbers unbiased exponent.
   typedef int32_t ExponentType;
@@ -150,6 +151,7 @@ struct APFloatBase {
   /// @{
   enum Semantics {
     S_IEEEhalf,
+    S_BFloat,
     S_IEEEsingle,
     S_IEEEdouble,
     S_x87DoubleExtended,
@@ -161,6 +163,7 @@ struct APFloatBase {
   static Semantics SemanticsToEnum(const llvm::fltSemantics &Sem);
 
   static const fltSemantics &IEEEhalf() LLVM_READNONE;
+  static const fltSemantics &BFloat() LLVM_READNONE;
   static const fltSemantics &IEEEsingle() LLVM_READNONE;
   static const fltSemantics &IEEEdouble() LLVM_READNONE;
   static const fltSemantics &IEEEquad() LLVM_READNONE;
@@ -182,13 +185,15 @@ struct APFloatBase {
   };
 
   /// IEEE-754R 4.3: Rounding-direction attributes.
-  enum roundingMode {
-    rmNearestTiesToEven,
-    rmTowardPositive,
-    rmTowardNegative,
-    rmTowardZero,
-    rmNearestTiesToAway
-  };
+  using roundingMode = llvm::RoundingMode;
+
+  static constexpr roundingMode rmNearestTiesToEven =
+                                                RoundingMode::NearestTiesToEven;
+  static constexpr roundingMode rmTowardPositive = RoundingMode::TowardPositive;
+  static constexpr roundingMode rmTowardNegative = RoundingMode::TowardNegative;
+  static constexpr roundingMode rmTowardZero     = RoundingMode::TowardZero;
+  static constexpr roundingMode rmNearestTiesToAway =
+                                                RoundingMode::NearestTiesToAway;
 
   /// IEEE-754R 7: Default exception handling.
   ///
@@ -538,6 +543,7 @@ private:
   /// @}
 
   APInt convertHalfAPFloatToAPInt() const;
+  APInt convertBFloatAPFloatToAPInt() const;
   APInt convertFloatAPFloatToAPInt() const;
   APInt convertDoubleAPFloatToAPInt() const;
   APInt convertQuadrupleAPFloatToAPInt() const;
@@ -545,6 +551,7 @@ private:
   APInt convertPPCDoubleDoubleAPFloatToAPInt() const;
   void initFromAPInt(const fltSemantics *Sem, const APInt &api);
   void initFromHalfAPInt(const APInt &api);
+  void initFromBFloatAPInt(const APInt &api);
   void initFromFloatAPInt(const APInt &api);
   void initFromDoubleAPInt(const APInt &api);
   void initFromQuadrupleAPInt(const APInt &api);
@@ -586,7 +593,7 @@ IEEEFloat scalbn(IEEEFloat X, int Exp, IEEEFloat::roundingMode);
 IEEEFloat frexp(const IEEEFloat &Val, int &Exp, IEEEFloat::roundingMode RM);
 
 // This mode implements more precise float in terms of two APFloats.
-// The interface and layout is designed for arbitray underlying semantics,
+// The interface and layout is designed for arbitrary underlying semantics,
 // though currently only PPCDoubleDouble semantics are supported, whose
 // corresponding underlying semantics are IEEEdouble.
 class DoubleAPFloat final : public APFloatBase {
@@ -951,9 +958,10 @@ public:
 
   /// Returns a float which is bitcasted from an all one value int.
   ///
+  /// \param Semantics - type float semantics
   /// \param BitWidth - Select float type
-  /// \param isIEEE   - If 128 bit number, select between PPC and IEEE
-  static APFloat getAllOnesValue(unsigned BitWidth, bool isIEEE = false);
+  static APFloat getAllOnesValue(const fltSemantics &Semantics,
+                                 unsigned BitWidth);
 
   /// Used to insert APFloat objects, or objects that contain APFloat objects,
   /// into FoldingSets.

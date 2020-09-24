@@ -106,6 +106,9 @@ public:
   lldb::LanguageType
   ParseLanguage(lldb_private::CompileUnit &comp_unit) override;
 
+  lldb_private::XcodeSDK
+  ParseXcodeSDK(lldb_private::CompileUnit &comp_unit) override;
+
   size_t ParseFunctions(lldb_private::CompileUnit &comp_unit) override;
 
   bool ParseLineTable(lldb_private::CompileUnit &comp_unit) override;
@@ -237,8 +240,8 @@ public:
   lldb_private::CompileUnit *
   GetCompUnitForDWARFCompUnit(DWARFCompileUnit &dwarf_cu);
 
-  virtual size_t GetObjCMethodDIEOffsets(lldb_private::ConstString class_name,
-                                         DIEArray &method_die_offsets);
+  virtual void GetObjCMethods(lldb_private::ConstString class_name,
+                              llvm::function_ref<bool(DWARFDIE die)> callback);
 
   bool Supports_DW_AT_APPLE_objc_complete_type(DWARFUnit *cu);
 
@@ -326,7 +329,8 @@ protected:
       DIEToClangType;
   typedef llvm::DenseMap<lldb::opaque_compiler_type_t, DIERef> ClangTypeToDIE;
 
-  DISALLOW_COPY_AND_ASSIGN(SymbolFileDWARF);
+  SymbolFileDWARF(const SymbolFileDWARF &) = delete;
+  const SymbolFileDWARF &operator=(const SymbolFileDWARF &) = delete;
 
   virtual void LoadSectionData(lldb::SectionType sect_type,
                                lldb_private::DWARFDataExtractor &data);

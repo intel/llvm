@@ -41,7 +41,7 @@ ObjCLanguageRuntime::ObjCLanguageRuntime(Process *process)
       m_isa_to_descriptor_stop_id(UINT32_MAX), m_complete_class_cache(),
       m_negative_complete_class_cache() {}
 
-bool ObjCLanguageRuntime::IsWhitelistedRuntimeValue(ConstString name) {
+bool ObjCLanguageRuntime::IsAllowedRuntimeValue(ConstString name) {
   static ConstString g_self = ConstString("self");
   static ConstString g_cmd = ConstString("_cmd");
   return name == g_self || name == g_cmd;
@@ -129,7 +129,7 @@ ObjCLanguageRuntime::LookupInCompleteClassCache(ConstString &name) {
 
       if (TypeSystemClang::IsObjCObjectOrInterfaceType(
               type_sp->GetForwardCompilerType())) {
-        if (type_sp->IsCompleteObjCClass()) {
+        if (TypePayloadClang(type_sp->GetPayload()).IsCompleteObjCClass()) {
           m_complete_class_cache[name] = type_sp;
           return type_sp;
         }

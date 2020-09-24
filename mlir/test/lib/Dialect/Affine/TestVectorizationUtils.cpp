@@ -14,13 +14,12 @@
 #include "mlir/Analysis/NestedMatcher.h"
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/Dialect/Vector/VectorUtils.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/Functional.h"
-#include "mlir/Support/STLExtras.h"
 #include "mlir/Transforms/Passes.h"
 
 #include "llvm/ADT/STLExtras.h"
@@ -32,8 +31,6 @@
 using namespace mlir;
 
 using llvm::SetVector;
-
-using functional::map;
 
 static llvm::cl::OptionCategory clOptionsCategory(DEBUG_TYPE " options");
 
@@ -72,9 +69,13 @@ static llvm::cl::opt<bool> clTestNormalizeMaps(
     llvm::cl::cat(clOptionsCategory));
 
 namespace {
-struct VectorizerTestPass : public FunctionPass<VectorizerTestPass> {
+struct VectorizerTestPass
+    : public PassWrapper<VectorizerTestPass, FunctionPass> {
   static constexpr auto kTestAffineMapOpName = "test_affine_map";
   static constexpr auto kTestAffineMapAttrName = "affine_map";
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<vector::VectorDialect>();
+  }
 
   void runOnFunction() override;
   void testVectorShapeRatio(llvm::raw_ostream &outs);
@@ -122,13 +123,12 @@ void VectorizerTestPass::testVectorShapeRatio(llvm::raw_ostream &outs) {
       opInst->emitRemark("NOT MATCHED");
     } else {
       outs << "\nmatched: " << *opInst << " with shape ratio: ";
-      interleaveComma(MutableArrayRef<int64_t>(*ratio), outs);
+      llvm::interleaveComma(MutableArrayRef<int64_t>(*ratio), outs);
     }
   }
 }
 
 static NestedPattern patternTestSlicingOps() {
-  using functional::map;
   using matcher::Op;
   // Match all operations with the kTestSlicingOpName name.
   auto filter = [](Operation &op) {
@@ -252,7 +252,7 @@ void VectorizerTestPass::runOnFunction() {
 
   // Only support single block functions at this point.
   FuncOp f = getFunction();
-  if (f.getBlocks().size() != 1)
+  if (!llvm::hasSingleElement(f))
     return;
 
   std::string str;

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clcmacro.h>
 #include <spirv/spirv.h>
-#include "../../lib/clcmacro.h"
 
 /*
  *log(x) = log2(x) * (1/log2(e))

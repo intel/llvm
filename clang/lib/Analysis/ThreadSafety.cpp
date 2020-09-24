@@ -905,11 +905,7 @@ public:
   ScopedLockableFactEntry(const CapabilityExpr &CE, SourceLocation Loc)
       : FactEntry(CE, LK_Exclusive, Loc, false) {}
 
-  void addExclusiveLock(const CapabilityExpr &M) {
-    UnderlyingMutexes.emplace_back(M.sexpr(), UCK_Acquired);
-  }
-
-  void addSharedLock(const CapabilityExpr &M) {
+  void addLock(const CapabilityExpr &M) {
     UnderlyingMutexes.emplace_back(M.sexpr(), UCK_Acquired);
   }
 
@@ -999,7 +995,10 @@ private:
       FSet.addLock(FactMan, std::make_unique<LockableFactEntry>(
                                 !Cp, LK_Exclusive, loc));
     } else if (Handler) {
-      Handler->handleUnmatchedUnlock(DiagKind, Cp.toString(), loc);
+      SourceLocation PrevLoc;
+      if (const FactEntry *Neg = FSet.findLock(FactMan, !Cp))
+        PrevLoc = Neg->loc();
+      Handler->handleUnmatchedUnlock(DiagKind, Cp.toString(), loc, PrevLoc);
     }
   }
 };
@@ -1267,13 +1266,21 @@ ClassifyDiagnostic(const AttrTy *A) {
 }
 
 bool ThreadSafetyAnalyzer::inCurrentScope(const CapabilityExpr &CapE) {
-  if (!CurrentMethod)
+  const threadSafety::til::SExpr *SExp = CapE.sexpr();
+  assert(SExp && "Null expressions should be ignored");
+
+  // Global variables are always in scope.
+  if (isa<til::LiteralPtr>(SExp))
+    return true;
+
+  // Members are in scope from methods of the same class.
+  if (const auto *P = dyn_cast<til::Project>(SExp)) {
+    if (!CurrentMethod)
       return false;
-  if (const auto *P = dyn_cast_or_null<til::Project>(CapE.sexpr())) {
-    const auto *VD = P->clangDecl();
-    if (VD)
-      return VD->getDeclContext() == CurrentMethod->getDeclContext();
+    const ValueDecl *VD = P->clangDecl();
+    return VD->getDeclContext() == CurrentMethod->getDeclContext();
   }
+
   return false;
 }
 
@@ -1326,7 +1333,10 @@ void ThreadSafetyAnalyzer::removeLock(FactSet &FSet, const CapabilityExpr &Cp,
 
   const FactEntry *LDat = FSet.findLock(FactMan, Cp);
   if (!LDat) {
-    Handler.handleUnmatchedUnlock(DiagKind, Cp.toString(), UnlockLoc);
+    SourceLocation PrevLoc;
+    if (const FactEntry *Neg = FSet.findLock(FactMan, !Cp))
+      PrevLoc = Neg->loc();
+    Handler.handleUnmatchedUnlock(DiagKind, Cp.toString(), UnlockLoc, PrevLoc);
     return;
   }
 
@@ -1639,8 +1649,7 @@ void BuildLockset::warnIfMutexNotHeld(const NamedDecl *D, const Expr *Exp,
     // Otherwise the negative requirement must be propagated to the caller.
     LDat = FSet.findLock(Analyzer->FactMan, Cp);
     if (!LDat) {
-      Analyzer->Handler.handleMutexNotHeld("", D, POK, Cp.toString(),
-                                           LK_Shared, Loc);
+      Analyzer->Handler.handleNegativeNotHeld(D, Cp.toString(), Loc);
     }
     return;
   }
@@ -1801,7 +1810,7 @@ void BuildLockset::handleCall(const Expr *Exp, const NamedDecl *D,
   SourceLocation Loc = Exp->getExprLoc();
   CapExprSet ExclusiveLocksToAdd, SharedLocksToAdd;
   CapExprSet ExclusiveLocksToRemove, SharedLocksToRemove, GenericLocksToRemove;
-  CapExprSet ScopedExclusiveReqs, ScopedSharedReqs;
+  CapExprSet ScopedReqsAndExcludes;
   StringRef CapDiagKind = "mutex";
 
   // Figure out if we're constructing an object of scoped lockable class
@@ -1892,19 +1901,20 @@ void BuildLockset::handleCall(const Expr *Exp, const NamedDecl *D,
                              POK_FunctionCall, ClassifyDiagnostic(A),
                              Exp->getExprLoc());
           // use for adopting a lock
-          if (isScopedVar) {
-            Analyzer->getMutexIDs(A->isShared() ? ScopedSharedReqs
-                                                : ScopedExclusiveReqs,
-                                  A, Exp, D, VD);
-          }
+          if (isScopedVar)
+            Analyzer->getMutexIDs(ScopedReqsAndExcludes, A, Exp, D, VD);
         }
         break;
       }
 
       case attr::LocksExcluded: {
         const auto *A = cast<LocksExcludedAttr>(At);
-        for (auto *Arg : A->args())
+        for (auto *Arg : A->args()) {
           warnIfMutexHeld(D, Exp, Arg, ClassifyDiagnostic(A));
+          // use for deferring a lock
+          if (isScopedVar)
+            Analyzer->getMutexIDs(ScopedReqsAndExcludes, A, Exp, D, VD);
+        }
         break;
       }
 
@@ -1944,13 +1954,11 @@ void BuildLockset::handleCall(const Expr *Exp, const NamedDecl *D,
 
     auto ScopedEntry = std::make_unique<ScopedLockableFactEntry>(Scp, MLoc);
     for (const auto &M : ExclusiveLocksToAdd)
-      ScopedEntry->addExclusiveLock(M);
-    for (const auto &M : ScopedExclusiveReqs)
-      ScopedEntry->addExclusiveLock(M);
+      ScopedEntry->addLock(M);
     for (const auto &M : SharedLocksToAdd)
-      ScopedEntry->addSharedLock(M);
-    for (const auto &M : ScopedSharedReqs)
-      ScopedEntry->addSharedLock(M);
+      ScopedEntry->addLock(M);
+    for (const auto &M : ScopedReqsAndExcludes)
+      ScopedEntry->addLock(M);
     for (const auto &M : ExclusiveLocksToRemove)
       ScopedEntry->addExclusiveUnlock(M);
     for (const auto &M : SharedLocksToRemove)
@@ -2139,12 +2147,14 @@ void BuildLockset::VisitDeclStmt(const DeclStmt *S) {
 
       // handle constructors that involve temporaries
       if (auto *EWC = dyn_cast<ExprWithCleanups>(E))
-        E = EWC->getSubExpr();
-      if (auto *ICE = dyn_cast<ImplicitCastExpr>(E))
-        if (ICE->getCastKind() == CK_NoOp)
-          E = ICE->getSubExpr();
+        E = EWC->getSubExpr()->IgnoreParens();
+      if (auto *CE = dyn_cast<CastExpr>(E))
+        if (CE->getCastKind() == CK_NoOp ||
+            CE->getCastKind() == CK_ConstructorConversion ||
+            CE->getCastKind() == CK_UserDefinedConversion)
+          E = CE->getSubExpr()->IgnoreParens();
       if (auto *BTE = dyn_cast<CXXBindTemporaryExpr>(E))
-        E = BTE->getSubExpr();
+        E = BTE->getSubExpr()->IgnoreParens();
 
       if (const auto *CE = dyn_cast<CXXConstructExpr>(E)) {
         const auto *CtorD = dyn_cast_or_null<NamedDecl>(CE->getConstructor());

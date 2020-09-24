@@ -15,6 +15,7 @@
 
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/StringRef.h"
+#include <vector>
 
 namespace llvm {
 class Init;
@@ -24,7 +25,7 @@ class Record;
 namespace mlir {
 namespace tblgen {
 
-class OpInterface;
+struct OpInterface;
 
 // Wrapper class with helper methods for accessing OpTrait constraints defined
 // in TableGen.
@@ -97,7 +98,7 @@ public:
   OpInterface getOpInterface() const;
 
   // Returns the trait corresponding to a C++ trait class.
-  StringRef getTrait() const;
+  std::string getTrait() const;
 
   static bool classof(const OpTrait *t) {
     return t->getKind() == Kind::Interface;
@@ -105,6 +106,10 @@ public:
 
   // Whether the declaration of methods for this trait should be emitted.
   bool shouldDeclareMethods() const;
+
+  // Returns the methods that should always be declared if this interface is
+  // emitting declarations.
+  std::vector<StringRef> getAlwaysDeclaredMethods() const;
 };
 
 } // end namespace tblgen

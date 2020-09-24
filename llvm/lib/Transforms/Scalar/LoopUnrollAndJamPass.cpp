@@ -34,15 +34,14 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
-#include "llvm/PassAnalysisSupport.h"
 #include "llvm/PassRegistry.h"
-#include "llvm/PassSupport.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Utils/LoopPeel.h"
 #include "llvm/Transforms/Utils/LoopSimplify.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
 #include "llvm/Transforms/Utils/UnrollLoop.h"
@@ -160,7 +159,8 @@ static bool computeUnrollAndJamCount(
     const SmallPtrSetImpl<const Value *> &EphValues,
     OptimizationRemarkEmitter *ORE, unsigned OuterTripCount,
     unsigned OuterTripMultiple, unsigned OuterLoopSize, unsigned InnerTripCount,
-    unsigned InnerLoopSize, TargetTransformInfo::UnrollingPreferences &UP) {
+    unsigned InnerLoopSize, TargetTransformInfo::UnrollingPreferences &UP,
+    TargetTransformInfo::PeelingPreferences &PP) {
   // First up use computeUnrollCount from the loop unroller to get a count
   // for unrolling the outer loop, plus any loops requiring explicit
   // unrolling we leave to the unroller. This uses UP.Threshold /
@@ -170,7 +170,8 @@ static bool computeUnrollAndJamCount(
   bool UseUpperBound = false;
   bool ExplicitUnroll = computeUnrollCount(
       L, TTI, DT, LI, SE, EphValues, ORE, OuterTripCount, MaxTripCount,
-      /*MaxOrZero*/ false, OuterTripMultiple, OuterLoopSize, UP, UseUpperBound);
+      /*MaxOrZero*/ false, OuterTripMultiple, OuterLoopSize, UP, PP,
+      UseUpperBound);
   if (ExplicitUnroll || UseUpperBound) {
     // If the user explicitly set the loop as unrolled, dont UnJ it. Leave it
     // for the unroller instead.
@@ -282,24 +283,11 @@ tryToUnrollAndJamLoop(Loop *L, DominatorTree &DT, LoopInfo *LI,
                       ScalarEvolution &SE, const TargetTransformInfo &TTI,
                       AssumptionCache &AC, DependenceInfo &DI,
                       OptimizationRemarkEmitter &ORE, int OptLevel) {
-  // Quick checks of the correct loop form
-  if (!L->isLoopSimplifyForm() || L->getSubLoops().size() != 1)
-    return LoopUnrollResult::Unmodified;
-  Loop *SubLoop = L->getSubLoops()[0];
-  if (!SubLoop->isLoopSimplifyForm())
-    return LoopUnrollResult::Unmodified;
-
-  BasicBlock *Latch = L->getLoopLatch();
-  BasicBlock *Exit = L->getExitingBlock();
-  BasicBlock *SubLoopLatch = SubLoop->getLoopLatch();
-  BasicBlock *SubLoopExit = SubLoop->getExitingBlock();
-
-  if (Latch != Exit || SubLoopLatch != SubLoopExit)
-    return LoopUnrollResult::Unmodified;
-
   TargetTransformInfo::UnrollingPreferences UP =
       gatherUnrollingPreferences(L, SE, TTI, nullptr, nullptr, OptLevel, None,
-                                 None, None, None, None, None, None, None);
+                                 None, None, None, None, None);
+  TargetTransformInfo::PeelingPreferences PP =
+      gatherPeelingPreferences(L, SE, TTI, None, None);
   if (AllowUnrollAndJam.getNumOccurrences() > 0)
     UP.UnrollAndJam = AllowUnrollAndJam;
   if (UnrollAndJamThreshold.getNumOccurrences() > 0)
@@ -326,7 +314,7 @@ tryToUnrollAndJamLoop(Loop *L, DominatorTree &DT, LoopInfo *LI,
     return LoopUnrollResult::Unmodified;
   }
 
-  if (!isSafeToUnrollAndJam(L, SE, DT, DI)) {
+  if (!isSafeToUnrollAndJam(L, SE, DT, DI, *LI)) {
     LLVM_DEBUG(dbgs() << "  Disabled due to not being safe.\n");
     return LoopUnrollResult::Unmodified;
   }
@@ -337,6 +325,7 @@ tryToUnrollAndJamLoop(Loop *L, DominatorTree &DT, LoopInfo *LI,
   bool Convergent;
   SmallPtrSet<const Value *, 32> EphValues;
   CodeMetrics::collectEphemeralValues(L, &AC, EphValues);
+  Loop *SubLoop = L->getSubLoops()[0];
   unsigned InnerLoopSize =
       ApproximateLoopSize(SubLoop, NumInlineCandidates, NotDuplicatable,
                           Convergent, TTI, EphValues, UP.BEInsns);
@@ -374,6 +363,8 @@ tryToUnrollAndJamLoop(Loop *L, DominatorTree &DT, LoopInfo *LI,
     SubLoop->setLoopID(NewInnerEpilogueLoopID.getValue());
 
   // Find trip count and trip multiple
+  BasicBlock *Latch = L->getLoopLatch();
+  BasicBlock *SubLoopLatch = SubLoop->getLoopLatch();
   unsigned OuterTripCount = SE.getSmallConstantTripCount(L, Latch);
   unsigned OuterTripMultiple = SE.getSmallConstantTripMultiple(L, Latch);
   unsigned InnerTripCount = SE.getSmallConstantTripCount(SubLoop, SubLoopLatch);
@@ -381,7 +372,7 @@ tryToUnrollAndJamLoop(Loop *L, DominatorTree &DT, LoopInfo *LI,
   // Decide if, and by how much, to unroll
   bool IsCountSetExplicitly = computeUnrollAndJamCount(
       L, SubLoop, TTI, DT, LI, SE, EphValues, &ORE, OuterTripCount,
-      OuterTripMultiple, OuterLoopSize, InnerTripCount, InnerLoopSize, UP);
+      OuterTripMultiple, OuterLoopSize, InnerTripCount, InnerLoopSize, UP, PP);
   if (UP.Count <= 1)
     return LoopUnrollResult::Unmodified;
   // Unroll factor (Count) must be less or equal to TripCount.

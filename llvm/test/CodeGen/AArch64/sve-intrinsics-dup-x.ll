@@ -1,4 +1,8 @@
-; RUN: llc -mtriple=aarch64-linux-gnu -verify-machineinstrs -mattr=+sve -asm-verbose=0 < %s | FileCheck %s
+; RUN: llc -mtriple=aarch64-linux-gnu -verify-machineinstrs -mattr=+sve -asm-verbose=0 < %s 2>%t | FileCheck %s
+; RUN: FileCheck --check-prefix=WARN --allow-empty %s <%t
+
+; If this check fails please read test/CodeGen/AArch64/README for instructions on how to resolve it.
+; WARN-NOT: warning
 
 ;
 ; Unpredicated dup instruction (which is an alias for mov):
@@ -78,6 +82,14 @@ define <vscale x 8 x half> @dup_f16(half %b) {
   ret <vscale x 8 x half> %out
 }
 
+define <vscale x 8 x bfloat> @dup_bf16(bfloat %b) #0 {
+; CHECK-LABEL: dup_bf16:
+; CHECK: mov z0.h, h0
+; CHECK-NEXT: ret
+  %out = call <vscale x 8 x bfloat> @llvm.aarch64.sve.dup.x.nxv8bf16(bfloat %b)
+  ret <vscale x 8 x bfloat> %out
+}
+
 define <vscale x 8 x half> @dup_imm_f16(half %b) {
 ; CHECK-LABEL: dup_imm_f16:
 ; CHECK: mov z0.h, #16.00000000
@@ -123,5 +135,9 @@ declare <vscale x 8 x i16> @llvm.aarch64.sve.dup.x.nxv8i16(i16)
 declare <vscale x 4 x i32> @llvm.aarch64.sve.dup.x.nxv4i32(i32)
 declare <vscale x 2 x i64> @llvm.aarch64.sve.dup.x.nxv2i64(i64)
 declare <vscale x 8 x half> @llvm.aarch64.sve.dup.x.nxv8f16(half)
+declare <vscale x 8 x bfloat> @llvm.aarch64.sve.dup.x.nxv8bf16(bfloat)
 declare <vscale x 4 x float> @llvm.aarch64.sve.dup.x.nxv4f32(float)
 declare <vscale x 2 x double> @llvm.aarch64.sve.dup.x.nxv2f64(double)
+
+; +bf16 is required for the bfloat version.
+attributes #0 = { "target-features"="+sve,+bf16" }

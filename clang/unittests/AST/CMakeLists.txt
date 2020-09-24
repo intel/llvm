@@ -1,10 +1,8 @@
 set(LLVM_LINK_COMPONENTS
+  FrontendOpenMP
   Support
   )
 
-if (MSVC)
-  set_source_files_properties(ASTImporterTest.cpp PROPERTIES COMPILE_FLAGS /bigobj)
-endif()
 
 add_clang_unittest(ASTTests
   ASTContextParentMapTest.cpp
@@ -25,7 +23,6 @@ add_clang_unittest(ASTTests
   DeclTest.cpp
   EvaluateAsRValueTest.cpp
   ExternalASTSourceTest.cpp
-  Language.cpp
   NamedDeclPrinterTest.cpp
   RecursiveASTVisitorTest.cpp
   SizelessTypesTest.cpp
@@ -41,6 +38,11 @@ clang_target_link_libraries(ASTTests
   clangBasic
   clangFrontend
   clangSerialization
+  clangTesting
   clangTooling
-  LLVMTestingSupport
   )
+
+target_link_libraries(ASTTests
+  PRIVATE
+  LLVMTestingSupport
+)

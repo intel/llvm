@@ -28,7 +28,8 @@ enum class image_channel_type : unsigned int;
 
 template <int Dimensions, typename AllocatorT> class image;
 template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder>
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename property_listT>
 class accessor;
 class handler;
 
@@ -232,29 +233,6 @@ public:
 
 private:
   vector_class<device> getDevices(const ContextImplPtr Context);
-
-  template <info::device Param>
-  bool checkImageValueRange(const ContextImplPtr Context, const size_t Value) {
-    const auto &Devices = getDevices(Context);
-    return Value >= 1 && std::all_of(Devices.cbegin(), Devices.cend(),
-                                     [Value](const device &Dev) {
-                                       return Value <= Dev.get_info<Param>();
-                                     });
-  }
-
-  template <typename T, typename... Args> bool checkAnyImpl(T Value) {
-    return false;
-  }
-
-  template <typename ValT, typename VarT, typename... Args>
-  bool checkAnyImpl(ValT Value, VarT Variant, Args... Arguments) {
-    return (Value == Variant) ? true : checkAnyImpl(Value, Arguments...);
-  }
-
-  template <typename T, typename... Args>
-  bool checkAny(const T Value, Args... Arguments) {
-    return checkAnyImpl(Value, Arguments...);
-  }
 
   RT::PiMemObjectType getImageType() {
     if (Dimensions == 1)

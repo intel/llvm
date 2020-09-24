@@ -80,6 +80,9 @@ private:
   bool expandSetTagLoop(MachineBasicBlock &MBB,
                         MachineBasicBlock::iterator MBBI,
                         MachineBasicBlock::iterator &NextMBBI);
+  bool expandSVESpillFill(MachineBasicBlock &MBB,
+                          MachineBasicBlock::iterator MBBI, unsigned Opc,
+                          unsigned N);
 };
 
 } // end anonymous namespace
@@ -435,16 +438,17 @@ bool AArch64ExpandPseudo::expand_DestructiveOp(
     DOPRegIsUnique = true;
     break;
   }
-
-  assert (DOPRegIsUnique && "The destructive operand should be unique");
 #endif
 
   // Resolve the reverse opcode
   if (UseRev) {
-    if (AArch64::getSVERevInstr(Opcode) != -1)
-      Opcode = AArch64::getSVERevInstr(Opcode);
-    else if (AArch64::getSVEOrigInstr(Opcode) != -1)
-      Opcode = AArch64::getSVEOrigInstr(Opcode);
+    int NewOpcode;
+    // e.g. DIV -> DIVR
+    if ((NewOpcode = AArch64::getSVERevInstr(Opcode)) != -1)
+      Opcode = NewOpcode;
+    // e.g. DIVR -> DIV
+    else if ((NewOpcode = AArch64::getSVENonRevInstr(Opcode)) != -1)
+      Opcode = NewOpcode;
   }
 
   // Get the right MOVPRFX
@@ -477,6 +481,9 @@ bool AArch64ExpandPseudo::expand_DestructiveOp(
   //
   MachineInstrBuilder PRFX, DOP;
   if (FalseZero) {
+#ifndef NDEBUG
+    assert(DOPRegIsUnique && "The destructive operand should be unique");
+#endif
     assert(ElementSize != AArch64::ElementSizeNone &&
            "This instruction is unpredicated");
 
@@ -489,6 +496,9 @@ bool AArch64ExpandPseudo::expand_DestructiveOp(
     // After the movprfx, the destructive operand is same as Dst
     DOPIdx = 0;
   } else if (DstReg != MI.getOperand(DOPIdx).getReg()) {
+#ifndef NDEBUG
+    assert(DOPRegIsUnique && "The destructive operand should be unique");
+#endif
     PRFX = BuildMI(MBB, MBBI, MI.getDebugLoc(), TII->get(MovPrfx))
                .addReg(DstReg, RegState::Define)
                .addReg(MI.getOperand(DOPIdx).getReg());
@@ -592,6 +602,28 @@ bool AArch64ExpandPseudo::expandSetTagLoop(
   DoneBB->clearLiveIns();
   computeAndAddLiveIns(LiveRegs, *DoneBB);
 
+  return true;
+}
+
+bool AArch64ExpandPseudo::expandSVESpillFill(MachineBasicBlock &MBB,
+                                             MachineBasicBlock::iterator MBBI,
+                                             unsigned Opc, unsigned N) {
+  const TargetRegisterInfo *TRI =
+      MBB.getParent()->getSubtarget().getRegisterInfo();
+  MachineInstr &MI = *MBBI;
+  for (unsigned Offset = 0; Offset < N; ++Offset) {
+    int ImmOffset = MI.getOperand(2).getImm() + Offset;
+    bool Kill = (Offset + 1 == N) ? MI.getOperand(1).isKill() : false;
+    assert(ImmOffset >= -256 && ImmOffset < 256 &&
+           "Immediate spill offset out of range");
+    BuildMI(MBB, MBBI, MI.getDebugLoc(), TII->get(Opc))
+        .addReg(
+            TRI->getSubReg(MI.getOperand(0).getReg(), AArch64::zsub0 + Offset),
+            Opc == AArch64::LDR_ZXI ? RegState::Define : 0)
+        .addReg(MI.getOperand(1).getReg(), getKillRegState(Kill))
+        .addImm(ImmOffset);
+  }
+  MI.eraseFromParent();
   return true;
 }
 
@@ -932,7 +964,7 @@ bool AArch64ExpandPseudo::expandMI(MachineBasicBlock &MBB,
      // almost always point to SP-after-prologue; if not, emit a longer
      // instruction sequence.
      int BaseOffset = -AFI->getTaggedBasePointerOffset();
-     unsigned FrameReg;
+     Register FrameReg;
      StackOffset FrameRegOffset = TFI->resolveFrameOffsetReference(
          MF, BaseOffset, false /*isFixed*/, false /*isSVE*/, FrameReg,
          /*PreferFP=*/false,
@@ -970,6 +1002,18 @@ bool AArch64ExpandPseudo::expandMI(MachineBasicBlock &MBB,
      report_fatal_error(
          "Non-writeback variants of STGloop / STZGloop should not "
          "survive past PrologEpilogInserter.");
+   case AArch64::STR_ZZZZXI:
+     return expandSVESpillFill(MBB, MBBI, AArch64::STR_ZXI, 4);
+   case AArch64::STR_ZZZXI:
+     return expandSVESpillFill(MBB, MBBI, AArch64::STR_ZXI, 3);
+   case AArch64::STR_ZZXI:
+     return expandSVESpillFill(MBB, MBBI, AArch64::STR_ZXI, 2);
+   case AArch64::LDR_ZZZZXI:
+     return expandSVESpillFill(MBB, MBBI, AArch64::LDR_ZXI, 4);
+   case AArch64::LDR_ZZZXI:
+     return expandSVESpillFill(MBB, MBBI, AArch64::LDR_ZXI, 3);
+   case AArch64::LDR_ZZXI:
+     return expandSVESpillFill(MBB, MBBI, AArch64::LDR_ZXI, 2);
   }
   return false;
 }

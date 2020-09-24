@@ -50,14 +50,14 @@ void llvm::initializeAnalysis(PassRegistry &Registry) {
   initializeAAResultsWrapperPassPass(Registry);
   initializeGlobalsAAWrapperPassPass(Registry);
   initializeIVUsersWrapperPassPass(Registry);
-  initializeInstCountPass(Registry);
+  initializeInstCountLegacyPassPass(Registry);
   initializeIntervalPartitionPass(Registry);
   initializeLazyBranchProbabilityInfoPassPass(Registry);
   initializeLazyBlockFrequencyInfoPassPass(Registry);
   initializeLazyValueInfoWrapperPassPass(Registry);
   initializeLazyValueInfoPrinterPass(Registry);
   initializeLegacyDivergenceAnalysisPass(Registry);
-  initializeLintPass(Registry);
+  initializeLintLegacyPassPass(Registry);
   initializeLoopInfoWrapperPassPass(Registry);
   initializeMemDepPrinterPass(Registry);
   initializeMemDerefPrinterPass(Registry);

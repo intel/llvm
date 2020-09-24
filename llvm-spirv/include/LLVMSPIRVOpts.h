@@ -51,10 +51,12 @@ enum class VersionNumber : uint32_t {
   // Instruction
   SPIRV_1_0 = 0x00010000,
   SPIRV_1_1 = 0x00010100,
-  // TODO: populate this enum with the latest versions (up to 1.4) once
-  // translator get support of correponding features
+  SPIRV_1_2 = 0x00010200,
+  SPIRV_1_3 = 0x00010300,
+  // TODO: populate this enum with the latest versions (up to 1.5) once
+  // translator get support of corresponding features
   MinimumVersion = SPIRV_1_0,
-  MaximumVersion = SPIRV_1_1
+  MaximumVersion = SPIRV_1_3
 };
 
 enum class ExtensionID : uint32_t {
@@ -65,6 +67,12 @@ enum class ExtensionID : uint32_t {
   Last,
 };
 
+enum class BIsRepresentation : uint32_t { OpenCL12, OpenCL20, SPIRVFriendlyIR };
+
+enum class FPContractMode : uint32_t { On, Off, Fast };
+
+enum class DebugInfoEIS : uint32_t { SPIRV_Debug, OpenCL_DebugInfo_100 };
+
 /// \brief Helper class to manage SPIR-V translation
 class TranslatorOpts {
 public:
@@ -72,9 +80,8 @@ public:
 
   TranslatorOpts() = default;
 
-  TranslatorOpts(VersionNumber Max, const ExtensionsStatusMap &Map = {},
-                 bool ArgNameMD = false)
-      : MaxVersion(Max), ExtStatusMap(Map), GenKernelArgNameMD(ArgNameMD) {}
+  TranslatorOpts(VersionNumber Max, const ExtensionsStatusMap &Map = {})
+      : MaxVersion(Max), ExtStatusMap(Map) {}
 
   bool isAllowedToUseVersion(VersionNumber RequestedVersion) const {
     return RequestedVersion <= MaxVersion;
@@ -91,6 +98,14 @@ public:
   VersionNumber getMaxVersion() const { return MaxVersion; }
 
   bool isGenArgNameMDEnabled() const { return GenKernelArgNameMD; }
+
+  bool isSPIRVMemToRegEnabled() const { return SPIRVMemToReg; }
+
+  void setMemToRegEnabled(bool Mem2Reg) { SPIRVMemToReg = Mem2Reg; }
+
+  void setGenKernelArgNameMDEnabled(bool ArgNameMD) {
+    GenKernelArgNameMD = ArgNameMD;
+  }
 
   void enableAllExtensions() {
 #define EXT(X) ExtStatusMap[ExtensionID::X] = true;
@@ -112,13 +127,59 @@ public:
     return true;
   }
 
+  void setDesiredBIsRepresentation(BIsRepresentation Value) {
+    DesiredRepresentationOfBIs = Value;
+  }
+
+  BIsRepresentation getDesiredBIsRepresentation() const {
+    return DesiredRepresentationOfBIs;
+  }
+
+  void setFPContractMode(FPContractMode Mode) { FPCMode = Mode; }
+
+  FPContractMode getFPContractMode() const { return FPCMode; }
+
+  bool isSPIRVAllowUnknownIntrinsicsEnabled() const noexcept {
+    return SPIRVAllowUnknownIntrinsics;
+  }
+
+  void
+  setSPIRVAllowUnknownIntrinsicsEnabled(bool AllowUnknownIntrinsics) noexcept {
+    SPIRVAllowUnknownIntrinsics = AllowUnknownIntrinsics;
+  }
+
+  DebugInfoEIS getDebugInfoEIS() const { return DebugInfoVersion; }
+
+  void setDebugInfoEIS(DebugInfoEIS EIS) { DebugInfoVersion = EIS; }
+
 private:
   // Common translation options
   VersionNumber MaxVersion = VersionNumber::MaximumVersion;
   ExtensionsStatusMap ExtStatusMap;
+  // SPIRVMemToReg option affects LLVM IR regularization phase
+  bool SPIRVMemToReg = false;
   // SPIR-V to LLVM translation options
   bool GenKernelArgNameMD = false;
   std::unordered_map<uint32_t, uint64_t> ExternalSpecialization;
+  // Representation of built-ins, which should be used while translating from
+  // SPIR-V to back to LLVM IR
+  BIsRepresentation DesiredRepresentationOfBIs = BIsRepresentation::OpenCL12;
+  // Controls floating point contraction.
+  //
+  // - FPContractMode::On allows to choose a mode according to
+  //   presence of fused LLVM intrinsics
+  //
+  // - FPContractMode::Off disables contratction for all entry points
+  //
+  // - FPContractMode::Fast allows *all* operations to be contracted
+  //   for all entry points
+  FPContractMode FPCMode = FPContractMode::On;
+
+  // Unknown LLVM intrinsics will be translated as external function calls in
+  // SPIR-V
+  bool SPIRVAllowUnknownIntrinsics = false;
+
+  DebugInfoEIS DebugInfoVersion = DebugInfoEIS::OpenCL_DebugInfo_100;
 };
 
 } // namespace SPIRV

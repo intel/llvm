@@ -91,7 +91,7 @@ public:
       if (Region->CanRelease)
         Region->ReleaseInfo.LastReleaseAtNs = Time;
     }
-    setReleaseToOsIntervalMs(ReleaseToOsInterval);
+    setOption(Option::ReleaseInterval, static_cast<sptr>(ReleaseToOsInterval));
 
     if (SupportsMemoryTagging)
       UseMemoryTagging = systemSupportsMemoryTagging();
@@ -185,13 +185,16 @@ public:
       getStats(Str, I, 0);
   }
 
-  void setReleaseToOsIntervalMs(s32 Interval) {
-    if (Interval >= MaxReleaseToOsIntervalMs) {
-      Interval = MaxReleaseToOsIntervalMs;
-    } else if (Interval <= MinReleaseToOsIntervalMs) {
-      Interval = MinReleaseToOsIntervalMs;
+  bool setOption(Option O, sptr Value) {
+    if (O == Option::ReleaseInterval) {
+      const s32 Interval =
+          Max(Min(static_cast<s32>(Value), MaxReleaseToOsIntervalMs),
+              MinReleaseToOsIntervalMs);
+      atomic_store(&ReleaseToOsIntervalMs, Interval, memory_order_relaxed);
+      return true;
     }
-    atomic_store(&ReleaseToOsIntervalMs, Interval, memory_order_relaxed);
+    // Not supported by the Primary, but not an error either.
+    return true;
   }
 
   uptr releaseToOS() {
@@ -208,6 +211,56 @@ public:
     return SupportsMemoryTagging && UseMemoryTagging;
   }
   void disableMemoryTagging() { UseMemoryTagging = false; }
+
+  const char *getRegionInfoArrayAddress() const {
+    return reinterpret_cast<const char *>(RegionInfoArray);
+  }
+
+  static uptr getRegionInfoArraySize() { return sizeof(RegionInfoArray); }
+
+  static BlockInfo findNearestBlock(const char *RegionInfoData, uptr Ptr) {
+    const RegionInfo *RegionInfoArray =
+        reinterpret_cast<const RegionInfo *>(RegionInfoData);
+    uptr ClassId;
+    uptr MinDistance = -1UL;
+    for (uptr I = 0; I != NumClasses; ++I) {
+      if (I == SizeClassMap::BatchClassId)
+        continue;
+      uptr Begin = RegionInfoArray[I].RegionBeg;
+      uptr End = Begin + RegionInfoArray[I].AllocatedUser;
+      if (Begin > End || End - Begin < SizeClassMap::getSizeByClassId(I))
+        continue;
+      uptr RegionDistance;
+      if (Begin <= Ptr) {
+        if (Ptr < End)
+          RegionDistance = 0;
+        else
+          RegionDistance = Ptr - End;
+      } else {
+        RegionDistance = Begin - Ptr;
+      }
+
+      if (RegionDistance < MinDistance) {
+        MinDistance = RegionDistance;
+        ClassId = I;
+      }
+    }
+
+    BlockInfo B = {};
+    if (MinDistance <= 8192) {
+      B.RegionBegin = RegionInfoArray[ClassId].RegionBeg;
+      B.RegionEnd = B.RegionBegin + RegionInfoArray[ClassId].AllocatedUser;
+      B.BlockSize = SizeClassMap::getSizeByClassId(ClassId);
+      B.BlockBegin =
+          B.RegionBegin + uptr(sptr(Ptr - B.RegionBegin) / sptr(B.BlockSize) *
+                               sptr(B.BlockSize));
+      while (B.BlockBegin < B.RegionBegin)
+        B.BlockBegin += B.BlockSize;
+      while (B.RegionEnd < B.BlockBegin + B.BlockSize)
+        B.BlockBegin -= B.BlockSize;
+    }
+    return B;
+  }
 
 private:
   static const uptr RegionSize = 1UL << RegionSizeLog;
@@ -231,7 +284,7 @@ private:
     u64 LastReleaseAtNs;
   };
 
-  struct ALIGNED(SCUDO_CACHE_LINE_SIZE) RegionInfo {
+  struct UnpaddedRegionInfo {
     HybridMutex Mutex;
     SinglyLinkedList<TransferBatch> FreeList;
     RegionStats Stats;
@@ -244,13 +297,17 @@ private:
     MapPlatformData Data;
     ReleaseToOsInfo ReleaseInfo;
   };
+  struct RegionInfo : UnpaddedRegionInfo {
+    char Padding[SCUDO_CACHE_LINE_SIZE -
+                 (sizeof(UnpaddedRegionInfo) % SCUDO_CACHE_LINE_SIZE)];
+  };
   static_assert(sizeof(RegionInfo) % SCUDO_CACHE_LINE_SIZE == 0, "");
 
   uptr PrimaryBase;
   MapPlatformData Data;
   atomic_s32 ReleaseToOsIntervalMs;
   bool UseMemoryTagging;
-  RegionInfo RegionInfoArray[NumClasses];
+  alignas(SCUDO_CACHE_LINE_SIZE) RegionInfo RegionInfoArray[NumClasses];
 
   RegionInfo *getRegionInfo(uptr ClassId) {
     DCHECK_LT(ClassId, NumClasses);
@@ -381,10 +438,6 @@ private:
                 getRegionBaseByClassId(ClassId));
   }
 
-  s32 getReleaseToOsIntervalMs() {
-    return atomic_load(&ReleaseToOsIntervalMs, memory_order_relaxed);
-  }
-
   NOINLINE uptr releaseToOSMaybe(RegionInfo *Region, uptr ClassId,
                                  bool Force = false) {
     const uptr BlockSize = getSizeByClassId(ClassId);
@@ -402,8 +455,21 @@ private:
     if (BytesPushed < PageSize)
       return 0; // Nothing new to release.
 
+    // Releasing smaller blocks is expensive, so we want to make sure that a
+    // significant amount of bytes are free, and that there has been a good
+    // amount of batches pushed to the freelist before attempting to release.
+    if (BlockSize < PageSize / 16U) {
+      if (!Force && BytesPushed < Region->AllocatedUser / 16U)
+        return 0;
+      // We want 8x% to 9x% free bytes (the larger the bock, the lower the %).
+      if ((BytesInFreeList * 100U) / Region->AllocatedUser <
+          (100U - 1U - BlockSize / 16U))
+        return 0;
+    }
+
     if (!Force) {
-      const s32 IntervalMs = getReleaseToOsIntervalMs();
+      const s32 IntervalMs =
+          atomic_load(&ReleaseToOsIntervalMs, memory_order_relaxed);
       if (IntervalMs < 0)
         return 0;
       if (Region->ReleaseInfo.LastReleaseAtNs +
@@ -413,9 +479,11 @@ private:
       }
     }
 
+    auto SkipRegion = [](UNUSED uptr RegionIndex) { return false; };
     ReleaseRecorder Recorder(Region->RegionBeg, &Region->Data);
     releaseFreeMemoryToOS(Region->FreeList, Region->RegionBeg,
-                          Region->AllocatedUser, BlockSize, &Recorder);
+                          Region->AllocatedUser, 1U, BlockSize, &Recorder,
+                          SkipRegion);
 
     if (Recorder.getReleasedRangesCount() > 0) {
       Region->ReleaseInfo.PushedBlocksAtLastRelease =

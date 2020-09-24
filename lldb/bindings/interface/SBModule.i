@@ -344,6 +344,26 @@ public:
     lldb::SBAddress
     GetObjectFileEntryPointAddress() const;
 
+    %feature("docstring", "
+    Returns the number of modules in the module cache. This is an
+    implementation detail exposed for testing and should not be relied upon.
+
+    @return
+        The number of modules in the module cache.") GetNumberAllocatedModules;
+    static uint32_t
+    GetNumberAllocatedModules();
+
+    %feature("docstring", "
+    Removes all modules which are no longer needed by any part of LLDB from
+    the module cache.
+
+    This is an implementation detail exposed for testing and should not be
+    relied upon. Use SBDebugger::MemoryPressureDetected instead to reduce
+    LLDB's memory consumption during execution.
+    ") GarbageCollectAllocatedModules;
+    static void
+    GarbageCollectAllocatedModules();
+
     STRING_EXTENSION(SBModule)
 
 #ifdef SWIGPYTHON

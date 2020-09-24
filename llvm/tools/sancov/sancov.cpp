@@ -32,15 +32,13 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/MD5.h"
-#include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/SHA1.h"
-#include "llvm/Support/Signals.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/SpecialCaseList.h"
 #include "llvm/Support/TargetRegistry.h"
@@ -471,7 +469,7 @@ static std::unique_ptr<symbolize::LLVMSymbolizer> createSymbolizer() {
 static std::string normalizeFilename(const std::string &FileName) {
   SmallString<256> S(FileName);
   sys::path::remove_dots(S, /* remove_dot_dot */ true);
-  return stripPathPrefix(std::string(S));
+  return stripPathPrefix(sys::path::convert_to_slash(std::string(S)));
 }
 
 class Blacklists {
@@ -657,7 +655,12 @@ findSanitizerCovFunctions(const object::ObjectFile &O) {
     failIfError(NameOrErr);
     StringRef Name = NameOrErr.get();
 
-    if (!(Symbol.getFlags() & object::BasicSymbolRef::SF_Undefined) &&
+    Expected<uint32_t> FlagsOrErr = Symbol.getFlags();
+    // TODO: Test this error.
+    failIfError(FlagsOrErr);
+    uint32_t Flags = FlagsOrErr.get();
+
+    if (!(Flags & object::BasicSymbolRef::SF_Undefined) &&
         isCoveragePointSymbol(Name)) {
       Result.insert(Address);
     }
@@ -667,12 +670,10 @@ findSanitizerCovFunctions(const object::ObjectFile &O) {
     for (const object::ExportDirectoryEntryRef &Export :
          CO->export_directories()) {
       uint32_t RVA;
-      std::error_code EC = Export.getExportRVA(RVA);
-      failIfError(EC);
+      failIfError(Export.getExportRVA(RVA));
 
       StringRef Name;
-      EC = Export.getSymbolName(Name);
-      failIfError(EC);
+      failIfError(Export.getSymbolName(Name));
 
       if (isCoveragePointSymbol(Name))
         Result.insert(CO->getImageBase() + RVA);
@@ -1131,10 +1132,7 @@ readSymbolizeAndMergeCmdArguments(std::vector<std::string> FileNames) {
 } // namespace
 
 int main(int Argc, char **Argv) {
-  // Print stack trace if we signal out.
-  sys::PrintStackTraceOnErrorSignal(Argv[0]);
-  PrettyStackTraceProgram X(Argc, Argv);
-  llvm_shutdown_obj Y; // Call llvm_shutdown() on exit.
+  llvm::InitLLVM X(Argc, Argv);
 
   llvm::InitializeAllTargetInfos();
   llvm::InitializeAllTargetMCs();

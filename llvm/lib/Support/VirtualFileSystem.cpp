@@ -1159,6 +1159,17 @@ StringRef RedirectingFileSystem::getExternalContentsPrefixDir() const {
   return ExternalContentsPrefixDir;
 }
 
+void RedirectingFileSystem::setFallthrough(bool Fallthrough) {
+  IsFallthrough = Fallthrough;
+}
+
+std::vector<StringRef> RedirectingFileSystem::getRoots() const {
+  std::vector<StringRef> R;
+  for (const auto &Root : Roots)
+    R.push_back(Root->getName());
+  return R;
+}
+
 void RedirectingFileSystem::dump(raw_ostream &OS) const {
   for (const auto &Root : Roots)
     dumpEntry(OS, Root.get());
@@ -1912,11 +1923,21 @@ UniqueID vfs::getNextVirtualUniqueID() {
   return UniqueID(std::numeric_limits<uint64_t>::max(), ID);
 }
 
-void YAMLVFSWriter::addFileMapping(StringRef VirtualPath, StringRef RealPath) {
+void YAMLVFSWriter::addEntry(StringRef VirtualPath, StringRef RealPath,
+                             bool IsDirectory) {
   assert(sys::path::is_absolute(VirtualPath) && "virtual path not absolute");
   assert(sys::path::is_absolute(RealPath) && "real path not absolute");
   assert(!pathHasTraversal(VirtualPath) && "path traversal is not supported");
-  Mappings.emplace_back(VirtualPath, RealPath);
+  Mappings.emplace_back(VirtualPath, RealPath, IsDirectory);
+}
+
+void YAMLVFSWriter::addFileMapping(StringRef VirtualPath, StringRef RealPath) {
+  addEntry(VirtualPath, RealPath, /*IsDirectory=*/false);
+}
+
+void YAMLVFSWriter::addDirectoryMapping(StringRef VirtualPath,
+                                        StringRef RealPath) {
+  addEntry(VirtualPath, RealPath, /*IsDirectory=*/true);
 }
 
 namespace {
@@ -2017,7 +2038,10 @@ void JSONWriter::write(ArrayRef<YAMLVFSEntry> Entries,
 
   if (!Entries.empty()) {
     const YAMLVFSEntry &Entry = Entries.front();
-    startDirectory(path::parent_path(Entry.VPath));
+
+    startDirectory(
+      Entry.IsDirectory ? Entry.VPath : path::parent_path(Entry.VPath)
+    );
 
     StringRef RPath = Entry.RPath;
     if (UseOverlayRelative) {
@@ -2027,19 +2051,31 @@ void JSONWriter::write(ArrayRef<YAMLVFSEntry> Entries,
       RPath = RPath.slice(OverlayDirLen, RPath.size());
     }
 
-    writeEntry(path::filename(Entry.VPath), RPath);
+    bool IsCurrentDirEmpty = true;
+    if (!Entry.IsDirectory) {
+      writeEntry(path::filename(Entry.VPath), RPath);
+      IsCurrentDirEmpty = false;
+    }
 
     for (const auto &Entry : Entries.slice(1)) {
-      StringRef Dir = path::parent_path(Entry.VPath);
-      if (Dir == DirStack.back())
-        OS << ",\n";
-      else {
+      StringRef Dir =
+          Entry.IsDirectory ? Entry.VPath : path::parent_path(Entry.VPath);
+      if (Dir == DirStack.back()) {
+        if (!IsCurrentDirEmpty) {
+          OS << ",\n";
+        }
+      } else {
+        bool IsDirPoppedFromStack = false;
         while (!DirStack.empty() && !containedIn(DirStack.back(), Dir)) {
           OS << "\n";
           endDirectory();
+          IsDirPoppedFromStack = true;
         }
-        OS << ",\n";
+        if (IsDirPoppedFromStack || !IsCurrentDirEmpty) {
+          OS << ",\n";
+        }
         startDirectory(Dir);
+        IsCurrentDirEmpty = true;
       }
       StringRef RPath = Entry.RPath;
       if (UseOverlayRelative) {
@@ -2048,7 +2084,10 @@ void JSONWriter::write(ArrayRef<YAMLVFSEntry> Entries,
                "Overlay dir must be contained in RPath");
         RPath = RPath.slice(OverlayDirLen, RPath.size());
       }
-      writeEntry(path::filename(Entry.VPath), RPath);
+      if (!Entry.IsDirectory) {
+        writeEntry(path::filename(Entry.VPath), RPath);
+        IsCurrentDirEmpty = false;
+      }
     }
 
     while (!DirStack.empty()) {

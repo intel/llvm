@@ -3,6 +3,8 @@
 
 target datalayout = "e-p:64:64:64-p1:16:16:16-p2:32:32:32-p3:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64"
 
+declare i8 @llvm.abs.i8(i8, i1)
+
 define i32 @test1(i32 %X) {
 ; CHECK-LABEL: @test1(
 ; CHECK-NEXT:    [[X_LOBIT:%.*]] = lshr i32 [[X:%.*]], 31
@@ -25,8 +27,8 @@ define <2 x i32> @test1vec(<2 x i32> %X) {
 
 define i32 @test2(i32 %X) {
 ; CHECK-LABEL: @test2(
-; CHECK-NEXT:    [[X_LOBIT:%.*]] = lshr i32 [[X:%.*]], 31
-; CHECK-NEXT:    [[X_LOBIT_NOT:%.*]] = xor i32 [[X_LOBIT]], 1
+; CHECK-NEXT:    [[TMP1:%.*]] = xor i32 [[X:%.*]], -1
+; CHECK-NEXT:    [[X_LOBIT_NOT:%.*]] = lshr i32 [[TMP1]], 31
 ; CHECK-NEXT:    ret i32 [[X_LOBIT_NOT]]
 ;
   %a = icmp ult i32 %X, -2147483648
@@ -36,8 +38,8 @@ define i32 @test2(i32 %X) {
 
 define <2 x i32> @test2vec(<2 x i32> %X) {
 ; CHECK-LABEL: @test2vec(
-; CHECK-NEXT:    [[X_LOBIT:%.*]] = lshr <2 x i32> [[X:%.*]], <i32 31, i32 31>
-; CHECK-NEXT:    [[X_LOBIT_NOT:%.*]] = xor <2 x i32> [[X_LOBIT]], <i32 1, i32 1>
+; CHECK-NEXT:    [[TMP1:%.*]] = xor <2 x i32> [[X:%.*]], <i32 -1, i32 -1>
+; CHECK-NEXT:    [[X_LOBIT_NOT:%.*]] = lshr <2 x i32> [[TMP1]], <i32 31, i32 31>
 ; CHECK-NEXT:    ret <2 x i32> [[X_LOBIT_NOT]]
 ;
   %a = icmp ult <2 x i32> %X, <i32 -2147483648, i32 -2147483648>
@@ -512,7 +514,8 @@ define i1 @test24(i64 %i) {
 ; unsigned overflow does not happen during offset computation
 define i1 @test24_neg_offs(i32* %p, i64 %offs) {
 ; CHECK-LABEL: @test24_neg_offs(
-; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i64 [[OFFS:%.*]], -2
+; CHECK-NEXT:    [[P1_IDX_NEG:%.*]] = mul i64 [[OFFS:%.*]], -4
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i64 [[P1_IDX_NEG]], 8
 ; CHECK-NEXT:    ret i1 [[CMP]]
 ;
   %p1 = getelementptr inbounds i32, i32* %p, i64 %offs
@@ -916,14 +919,14 @@ define i1 @PR32949(i32 %X, i32 %Y, i32 %Z) {
 }
 
 ; PR8469
-define <2 x i1> @test49(<2 x i32> %tmp3) {
+define <2 x i1> @test49(<2 x i32> %i3) {
 ; CHECK-LABEL: @test49(
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    ret <2 x i1> <i1 true, i1 true>
 ;
 entry:
-  %tmp11 = and <2 x i32> %tmp3, <i32 3, i32 3>
-  %cmp = icmp ult <2 x i32> %tmp11, <i32 4, i32 4>
+  %i11 = and <2 x i32> %i3, <i32 3, i32 3>
+  %cmp = icmp ult <2 x i32> %i11, <i32 4, i32 4>
   ret <2 x i1> %cmp
 }
 
@@ -959,9 +962,9 @@ define i1 @test52(i32 %x1) {
 ;
   %conv = and i32 %x1, 255
   %cmp = icmp eq i32 %conv, 127
-  %tmp2 = lshr i32 %x1, 16
-  %tmp3 = trunc i32 %tmp2 to i8
-  %cmp15 = icmp eq i8 %tmp3, 76
+  %i2 = lshr i32 %x1, 16
+  %i3 = trunc i32 %i2 to i8
+  %cmp15 = icmp eq i8 %i3, 76
 
   %A = and i1 %cmp, %cmp15
   ret i1 %A
@@ -975,9 +978,9 @@ define i1 @test52b(i128 %x1) {
 ;
   %conv = and i128 %x1, 255
   %cmp = icmp eq i128 %conv, 127
-  %tmp2 = lshr i128 %x1, 16
-  %tmp3 = trunc i128 %tmp2 to i8
-  %cmp15 = icmp eq i8 %tmp3, 76
+  %i2 = lshr i128 %x1, 16
+  %i3 = trunc i128 %i2 to i8
+  %cmp15 = icmp eq i8 %i3, 76
 
   %A = and i1 %cmp, %cmp15
   ret i1 %A
@@ -1087,6 +1090,26 @@ define zeroext i1 @cmpabs2(i64 %val) {
   %sub.val = select i1 %cmp, i64 %val, i64 %sub
   %tobool = icmp ne i64 %sub.val, 0
   ret i1 %tobool
+}
+
+define i1 @abs_intrin_eq_zero(i8 %x) {
+; CHECK-LABEL: @abs_intrin_eq_zero(
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i8 [[X:%.*]], 0
+; CHECK-NEXT:    ret i1 [[CMP]]
+;
+  %abs = call i8 @llvm.abs.i8(i8 %x, i1 false)
+  %cmp = icmp eq i8 %abs, 0
+  ret i1 %cmp
+}
+
+define i1 @abs_intrin_ne_zero(i8 %x) {
+; CHECK-LABEL: @abs_intrin_ne_zero(
+; CHECK-NEXT:    [[CMP:%.*]] = icmp ne i8 [[X:%.*]], 0
+; CHECK-NEXT:    ret i1 [[CMP]]
+;
+  %abs = call i8 @llvm.abs.i8(i8 %x, i1 false)
+  %cmp = icmp ne i8 %abs, 0
+  ret i1 %cmp
 }
 
 define void @test58() {
@@ -2163,8 +2186,8 @@ define <2 x i1> @icmp_add_X_-14_ult_2_vec(<2 x i32> %X) {
 
 define i1 @icmp_sub_3_X_ult_2(i32 %X) {
 ; CHECK-LABEL: @icmp_sub_3_X_ult_2(
-; CHECK-NEXT:    [[TMP1:%.*]] = or i32 [[X:%.*]], 1
-; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[TMP1]], 3
+; CHECK-NEXT:    [[TMP1:%.*]] = and i32 [[X:%.*]], -2
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[TMP1]], 2
 ; CHECK-NEXT:    ret i1 [[CMP]]
 ;
   %add = sub i32 3, %X
@@ -2174,8 +2197,8 @@ define i1 @icmp_sub_3_X_ult_2(i32 %X) {
 
 define <2 x i1> @icmp_sub_3_X_ult_2_vec(<2 x i32> %X) {
 ; CHECK-LABEL: @icmp_sub_3_X_ult_2_vec(
-; CHECK-NEXT:    [[TMP1:%.*]] = or <2 x i32> [[X:%.*]], <i32 1, i32 1>
-; CHECK-NEXT:    [[CMP:%.*]] = icmp eq <2 x i32> [[TMP1]], <i32 3, i32 3>
+; CHECK-NEXT:    [[TMP1:%.*]] = and <2 x i32> [[X:%.*]], <i32 -2, i32 -2>
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq <2 x i32> [[TMP1]], <i32 2, i32 2>
 ; CHECK-NEXT:    ret <2 x i1> [[CMP]]
 ;
   %add = sub <2 x i32> <i32 3, i32 3>, %X
@@ -2207,8 +2230,8 @@ define <2 x i1> @icmp_add_X_-14_uge_2_vec(<2 x i32> %X) {
 
 define i1 @icmp_sub_3_X_uge_2(i32 %X) {
 ; CHECK-LABEL: @icmp_sub_3_X_uge_2(
-; CHECK-NEXT:    [[TMP1:%.*]] = or i32 [[X:%.*]], 1
-; CHECK-NEXT:    [[CMP:%.*]] = icmp ne i32 [[TMP1]], 3
+; CHECK-NEXT:    [[TMP1:%.*]] = and i32 [[X:%.*]], -2
+; CHECK-NEXT:    [[CMP:%.*]] = icmp ne i32 [[TMP1]], 2
 ; CHECK-NEXT:    ret i1 [[CMP]]
 ;
   %add = sub i32 3, %X
@@ -2218,8 +2241,8 @@ define i1 @icmp_sub_3_X_uge_2(i32 %X) {
 
 define <2 x i1> @icmp_sub_3_X_uge_2_vec(<2 x i32> %X) {
 ; CHECK-LABEL: @icmp_sub_3_X_uge_2_vec(
-; CHECK-NEXT:    [[TMP1:%.*]] = or <2 x i32> [[X:%.*]], <i32 1, i32 1>
-; CHECK-NEXT:    [[CMP:%.*]] = icmp ne <2 x i32> [[TMP1]], <i32 3, i32 3>
+; CHECK-NEXT:    [[TMP1:%.*]] = and <2 x i32> [[X:%.*]], <i32 -2, i32 -2>
+; CHECK-NEXT:    [[CMP:%.*]] = icmp ne <2 x i32> [[TMP1]], <i32 2, i32 2>
 ; CHECK-NEXT:    ret <2 x i1> [[CMP]]
 ;
   %add = sub <2 x i32> <i32 3, i32 3>, %X
@@ -2686,6 +2709,32 @@ define <2 x i1> @icmp_and_or_lshr_cst_vec(<2 x i32> %x) {
   ret <2 x i1> %ret
 }
 
+define <2 x i1> @icmp_and_or_lshr_cst_vec_nonuniform(<2 x i32> %x) {
+; CHECK-LABEL: @icmp_and_or_lshr_cst_vec_nonuniform(
+; CHECK-NEXT:    [[TMP1:%.*]] = and <2 x i32> [[X:%.*]], <i32 3, i32 5>
+; CHECK-NEXT:    [[RET:%.*]] = icmp ne <2 x i32> [[TMP1]], zeroinitializer
+; CHECK-NEXT:    ret <2 x i1> [[RET]]
+;
+  %shf = lshr <2 x i32> %x, <i32 1, i32 2>
+  %or = or <2 x i32> %shf, %x
+  %and = and <2 x i32> %or, <i32 1, i32 1>
+  %ret = icmp ne <2 x i32> %and, zeroinitializer
+  ret <2 x i1> %ret
+}
+
+define <2 x i1> @icmp_and_or_lshr_cst_vec_undef(<2 x i32> %x) {
+; CHECK-LABEL: @icmp_and_or_lshr_cst_vec_undef(
+; CHECK-NEXT:    [[TMP1:%.*]] = and <2 x i32> [[X:%.*]], <i32 3, i32 -1>
+; CHECK-NEXT:    [[RET:%.*]] = icmp ne <2 x i32> [[TMP1]], zeroinitializer
+; CHECK-NEXT:    ret <2 x i1> [[RET]]
+;
+  %shf = lshr <2 x i32> %x, <i32 1, i32 undef>
+  %or = or <2 x i32> %shf, %x
+  %and = and <2 x i32> %or, <i32 1, i32 1>
+  %ret = icmp ne <2 x i32> %and, zeroinitializer
+  ret <2 x i1> %ret
+}
+
 define <2 x i1> @icmp_and_or_lshr_cst_vec_commute(<2 x i32> %xp) {
 ; CHECK-LABEL: @icmp_and_or_lshr_cst_vec_commute(
 ; CHECK-NEXT:    [[X:%.*]] = srem <2 x i32> [[XP:%.*]], <i32 42, i32 42>
@@ -2695,6 +2744,36 @@ define <2 x i1> @icmp_and_or_lshr_cst_vec_commute(<2 x i32> %xp) {
 ;
   %x = srem <2 x i32> %xp, <i32 42, i32 -42> ; prevent complexity-based canonicalization
   %shf = lshr <2 x i32> %x, <i32 1, i32 1>
+  %or = or <2 x i32> %x, %shf
+  %and = and <2 x i32> %or, <i32 1, i32 1>
+  %ret = icmp ne <2 x i32> %and, zeroinitializer
+  ret <2 x i1> %ret
+}
+
+define <2 x i1> @icmp_and_or_lshr_cst_vec_nonuniform_commute(<2 x i32> %xp) {
+; CHECK-LABEL: @icmp_and_or_lshr_cst_vec_nonuniform_commute(
+; CHECK-NEXT:    [[X:%.*]] = srem <2 x i32> [[XP:%.*]], <i32 42, i32 42>
+; CHECK-NEXT:    [[TMP1:%.*]] = and <2 x i32> [[X]], <i32 3, i32 5>
+; CHECK-NEXT:    [[RET:%.*]] = icmp ne <2 x i32> [[TMP1]], zeroinitializer
+; CHECK-NEXT:    ret <2 x i1> [[RET]]
+;
+  %x = srem <2 x i32> %xp, <i32 42, i32 -42> ; prevent complexity-based canonicalization
+  %shf = lshr <2 x i32> %x, <i32 1, i32 2>
+  %or = or <2 x i32> %x, %shf
+  %and = and <2 x i32> %or, <i32 1, i32 1>
+  %ret = icmp ne <2 x i32> %and, zeroinitializer
+  ret <2 x i1> %ret
+}
+
+define <2 x i1> @icmp_and_or_lshr_cst_vec_undef_commute(<2 x i32> %xp) {
+; CHECK-LABEL: @icmp_and_or_lshr_cst_vec_undef_commute(
+; CHECK-NEXT:    [[X:%.*]] = srem <2 x i32> [[XP:%.*]], <i32 42, i32 42>
+; CHECK-NEXT:    [[TMP1:%.*]] = and <2 x i32> [[X]], <i32 3, i32 -1>
+; CHECK-NEXT:    [[RET:%.*]] = icmp ne <2 x i32> [[TMP1]], zeroinitializer
+; CHECK-NEXT:    ret <2 x i1> [[RET]]
+;
+  %x = srem <2 x i32> %xp, <i32 42, i32 -42> ; prevent complexity-based canonicalization
+  %shf = lshr <2 x i32> %x, <i32 1, i32 undef>
   %or = or <2 x i32> %x, %shf
   %and = and <2 x i32> %or, <i32 1, i32 1>
   %ret = icmp ne <2 x i32> %and, zeroinitializer
@@ -2717,6 +2796,17 @@ define <2 x i1> @shl_ap1_zero_ap2_non_zero_2_vec(<2 x i32> %a) {
 ; CHECK-NEXT:    ret <2 x i1> [[CMP]]
 ;
   %shl = shl <2 x i32> <i32 4, i32 4>, %a
+  %cmp = icmp eq <2 x i32> %shl, zeroinitializer
+  ret <2 x i1> %cmp
+}
+
+define <2 x i1> @shl_ap1_zero_ap2_non_zero_2_vec_nonuniform(<2 x i32> %a) {
+; CHECK-LABEL: @shl_ap1_zero_ap2_non_zero_2_vec_nonuniform(
+; CHECK-NEXT:    [[SHL:%.*]] = shl <2 x i32> <i32 4, i32 5>, [[A:%.*]]
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq <2 x i32> [[SHL]], zeroinitializer
+; CHECK-NEXT:    ret <2 x i1> [[CMP]]
+;
+  %shl = shl <2 x i32> <i32 4, i32 5>, %a
   %cmp = icmp eq <2 x i32> %shl, zeroinitializer
   ret <2 x i1> %cmp
 }
@@ -2939,10 +3029,10 @@ define i32 @f6(i32 %a, i32 %b) {
 
 define i32 @f7(i32 %a, i32 %b) {
 ; CHECK-LABEL: @f7(
-; CHECK-NEXT:    [[CMP_UNSHIFTED:%.*]] = xor i32 [[A:%.*]], [[B:%.*]]
-; CHECK-NEXT:    [[CMP_MASK:%.*]] = and i32 [[CMP_UNSHIFTED]], 511
-; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[CMP_MASK]], 0
-; CHECK-NEXT:    [[S:%.*]] = select i1 [[CMP]], i32 0, i32 10000
+; CHECK-NEXT:    [[CMP_NOT_UNSHIFTED:%.*]] = xor i32 [[A:%.*]], [[B:%.*]]
+; CHECK-NEXT:    [[CMP_NOT_MASK:%.*]] = and i32 [[CMP_NOT_UNSHIFTED]], 511
+; CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp eq i32 [[CMP_NOT_MASK]], 0
+; CHECK-NEXT:    [[S:%.*]] = select i1 [[CMP_NOT]], i32 0, i32 10000
 ; CHECK-NEXT:    ret i32 [[S]]
 ;
   %sext = shl i32 %a, 23
@@ -3307,58 +3397,6 @@ define i1 @eq_add_constants(i32 %x, i32 %y) {
   ret i1 %C
 }
 
-define i1 @eq_mul_constants(i32 %x, i32 %y) {
-; CHECK-LABEL: @eq_mul_constants(
-; CHECK-NEXT:    [[C:%.*]] = icmp eq i32 [[X:%.*]], [[Y:%.*]]
-; CHECK-NEXT:    ret i1 [[C]]
-;
-  %A = mul i32 %x, 5
-  %B = mul i32 %y, 5
-  %C = icmp eq i32 %A, %B
-  ret i1 %C
-}
-
-define <2 x i1> @eq_mul_constants_splat(<2 x i32> %x, <2 x i32> %y) {
-; CHECK-LABEL: @eq_mul_constants_splat(
-; CHECK-NEXT:    [[C:%.*]] = icmp ne <2 x i32> [[X:%.*]], [[Y:%.*]]
-; CHECK-NEXT:    ret <2 x i1> [[C]]
-;
-  %A = mul <2 x i32> %x, <i32 5, i32 5>
-  %B = mul <2 x i32> %y, <i32 5, i32 5>
-  %C = icmp ne <2 x i32> %A, %B
-  ret <2 x i1> %C
-}
-
-; If the multiply constant has any trailing zero bits, we get something completely different.
-; We mask off the high bits of each input and then convert:
-; (X&Z) == (Y&Z) -> (X^Y) & Z == 0
-
-define i1 @eq_mul_constants_with_tz(i32 %x, i32 %y) {
-; CHECK-LABEL: @eq_mul_constants_with_tz(
-; CHECK-NEXT:    [[TMP1:%.*]] = xor i32 [[X:%.*]], [[Y:%.*]]
-; CHECK-NEXT:    [[TMP2:%.*]] = and i32 [[TMP1]], 1073741823
-; CHECK-NEXT:    [[C:%.*]] = icmp ne i32 [[TMP2]], 0
-; CHECK-NEXT:    ret i1 [[C]]
-;
-  %A = mul i32 %x, 12
-  %B = mul i32 %y, 12
-  %C = icmp ne i32 %A, %B
-  ret i1 %C
-}
-
-define <2 x i1> @eq_mul_constants_with_tz_splat(<2 x i32> %x, <2 x i32> %y) {
-; CHECK-LABEL: @eq_mul_constants_with_tz_splat(
-; CHECK-NEXT:    [[TMP1:%.*]] = xor <2 x i32> [[X:%.*]], [[Y:%.*]]
-; CHECK-NEXT:    [[TMP2:%.*]] = and <2 x i32> [[TMP1]], <i32 1073741823, i32 1073741823>
-; CHECK-NEXT:    [[C:%.*]] = icmp eq <2 x i32> [[TMP2]], zeroinitializer
-; CHECK-NEXT:    ret <2 x i1> [[C]]
-;
-  %A = mul <2 x i32> %x, <i32 12, i32 12>
-  %B = mul <2 x i32> %y, <i32 12, i32 12>
-  %C = icmp eq <2 x i32> %A, %B
-  ret <2 x i1> %C
-}
-
 declare i32 @llvm.bswap.i32(i32)
 
 define i1 @bswap_ne(i32 %x, i32 %y) {
@@ -3605,4 +3643,121 @@ define <2 x i32> @Op1Negated_Vec(<2 x i32> %x) {
   %cmp = icmp sgt <2 x i32> %sub, <i32 -1, i32 -1>
   %cond = select <2 x i1> %cmp, <2 x i32> %sub, <2 x i32> %x
   ret <2 x i32> %cond
+}
+
+define i1 @signbit_bitcast_fpext(float %x) {
+; CHECK-LABEL: @signbit_bitcast_fpext(
+; CHECK-NEXT:    [[TMP1:%.*]] = bitcast float [[X:%.*]] to i32
+; CHECK-NEXT:    [[R:%.*]] = icmp slt i32 [[TMP1]], 0
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %f = fpext float %x to double
+  %b = bitcast double %f to i64
+  %r = icmp slt i64 %b, 0
+  ret i1 %r
+}
+
+define <2 x i1> @signbit_bitcast_fpext_vec(<2 x half> %x) {
+; CHECK-LABEL: @signbit_bitcast_fpext_vec(
+; CHECK-NEXT:    [[TMP1:%.*]] = bitcast <2 x half> [[X:%.*]] to <2 x i16>
+; CHECK-NEXT:    [[R:%.*]] = icmp slt <2 x i16> [[TMP1]], zeroinitializer
+; CHECK-NEXT:    ret <2 x i1> [[R]]
+;
+  %f = fpext <2 x half> %x to <2 x float>
+  %b = bitcast <2 x float> %f to <2 x i32>
+  %r = icmp ugt <2 x i32> %b, <i32 2147483647, i32 2147483647>
+  ret <2 x i1> %r
+}
+
+define i1 @signbit_bitcast_fptrunc(float %x) {
+; CHECK-LABEL: @signbit_bitcast_fptrunc(
+; CHECK-NEXT:    [[TMP1:%.*]] = bitcast float [[X:%.*]] to i32
+; CHECK-NEXT:    [[R:%.*]] = icmp sgt i32 [[TMP1]], -1
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %f = fptrunc float %x to half
+  %b = bitcast half %f to i16
+  %r = icmp ult i16 %b, 32768
+  ret i1 %r
+}
+
+define <2 x i1> @signbit_bitcast_fptrunc_vec(<2 x double> %x) {
+; CHECK-LABEL: @signbit_bitcast_fptrunc_vec(
+; CHECK-NEXT:    [[TMP1:%.*]] = bitcast <2 x double> [[X:%.*]] to <2 x i64>
+; CHECK-NEXT:    [[R:%.*]] = icmp sgt <2 x i64> [[TMP1]], <i64 -1, i64 -1>
+; CHECK-NEXT:    ret <2 x i1> [[R]]
+;
+  %f = fptrunc <2 x double> %x to <2 x half>
+  %b = bitcast <2 x half> %f to <2 x i16>
+  %r = icmp sge <2 x i16> %b, zeroinitializer
+  ret <2 x i1> %r
+}
+
+define i1 @signbit_bitcast_fpext_wrong_cmp(float %x) {
+; CHECK-LABEL: @signbit_bitcast_fpext_wrong_cmp(
+; CHECK-NEXT:    [[F:%.*]] = fpext float [[X:%.*]] to double
+; CHECK-NEXT:    [[B:%.*]] = bitcast double [[F]] to i64
+; CHECK-NEXT:    [[R:%.*]] = icmp slt i64 [[B]], 1
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %f = fpext float %x to double
+  %b = bitcast double %f to i64
+  %r = icmp slt i64 %b, 1
+  ret i1 %r
+}
+
+define <4 x i1> @signbit_bitcast_fpext_vec_wrong_bitcast(<2 x half> %x) {
+; CHECK-LABEL: @signbit_bitcast_fpext_vec_wrong_bitcast(
+; CHECK-NEXT:    [[F:%.*]] = fpext <2 x half> [[X:%.*]] to <2 x float>
+; CHECK-NEXT:    [[B:%.*]] = bitcast <2 x float> [[F]] to <4 x i16>
+; CHECK-NEXT:    [[R:%.*]] = icmp sgt <4 x i16> [[B]], <i16 -1, i16 -1, i16 -1, i16 -1>
+; CHECK-NEXT:    ret <4 x i1> [[R]]
+;
+  %f = fpext <2 x half> %x to <2 x float>
+  %b = bitcast <2 x float> %f to <4 x i16>
+  %r = icmp sgt <4 x i16> %b, <i16 -1, i16 -1, i16 -1, i16 -1>
+  ret <4 x i1> %r
+}
+
+declare void @use_i64(i64)
+
+define i1 @signbit_bitcast_fpext_extra_use(float %x, i64* %p) {
+; CHECK-LABEL: @signbit_bitcast_fpext_extra_use(
+; CHECK-NEXT:    [[F:%.*]] = fpext float [[X:%.*]] to double
+; CHECK-NEXT:    [[B:%.*]] = bitcast double [[F]] to i64
+; CHECK-NEXT:    call void @use_i64(i64 [[B]])
+; CHECK-NEXT:    [[R:%.*]] = icmp slt i64 [[B]], 0
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %f = fpext float %x to double
+  %b = bitcast double %f to i64
+  call void @use_i64(i64 %b)
+  %r = icmp slt i64 %b, 0
+  ret i1 %r
+}
+
+define i1 @signbit_bitcast_fpext_ppc_fp128(float %x) {
+; CHECK-LABEL: @signbit_bitcast_fpext_ppc_fp128(
+; CHECK-NEXT:    [[S2:%.*]] = fpext float [[X:%.*]] to ppc_fp128
+; CHECK-NEXT:    [[S3:%.*]] = bitcast ppc_fp128 [[S2]] to i128
+; CHECK-NEXT:    [[S4:%.*]] = icmp slt i128 [[S3]], 0
+; CHECK-NEXT:    ret i1 [[S4]]
+;
+  %s2 = fpext float %x to ppc_fp128
+  %s3 = bitcast ppc_fp128 %s2 to i128
+  %s4 = icmp slt i128 %s3, 0
+  ret i1 %s4
+}
+
+define i1 @signbit_bitcast_fptrunc_ppc_fp128(ppc_fp128 %x) {
+; CHECK-LABEL: @signbit_bitcast_fptrunc_ppc_fp128(
+; CHECK-NEXT:    [[S2:%.*]] = fptrunc ppc_fp128 [[X:%.*]] to float
+; CHECK-NEXT:    [[S3:%.*]] = bitcast float [[S2]] to i32
+; CHECK-NEXT:    [[S4:%.*]] = icmp slt i32 [[S3]], 0
+; CHECK-NEXT:    ret i1 [[S4]]
+;
+  %s2 = fptrunc ppc_fp128 %x to float
+  %s3 = bitcast float %s2 to i32
+  %s4 = icmp slt i32 %s3, 0
+  ret i1 %s4
 }

@@ -338,7 +338,7 @@ R600TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
 
   case R600::MASK_WRITE: {
     Register maskedRegister = MI.getOperand(0).getReg();
-    assert(Register::isVirtualRegister(maskedRegister));
+    assert(maskedRegister.isVirtual());
     MachineInstr * defInstr = MRI.getVRegDef(maskedRegister);
     TII->addFlag(*defInstr, 0, MO_FLAG_MASK);
     break;
@@ -1265,10 +1265,11 @@ SDValue R600TargetLowering::LowerSTORE(SDValue Op, SelectionDAG &DAG) const {
     return scalarizeVectorStore(StoreNode, DAG);
   }
 
-  unsigned Align = StoreNode->getAlignment();
-  if (Align < MemVT.getStoreSize() &&
-      !allowsMisalignedMemoryAccesses(
-          MemVT, AS, Align, StoreNode->getMemOperand()->getFlags(), nullptr)) {
+  Align Alignment = StoreNode->getAlign();
+  if (Alignment < MemVT.getStoreSize() &&
+      !allowsMisalignedMemoryAccesses(MemVT, AS, Alignment.value(),
+                                      StoreNode->getMemOperand()->getFlags(),
+                                      nullptr)) {
     return expandUnalignedStore(StoreNode, DAG);
   }
 
@@ -1548,7 +1549,7 @@ SDValue R600TargetLowering::lowerFrameIndex(SDValue Op,
   FrameIndexSDNode *FIN = cast<FrameIndexSDNode>(Op);
 
   unsigned FrameIndex = FIN->getIndex();
-  unsigned IgnoredFrameReg;
+  Register IgnoredFrameReg;
   unsigned Offset =
     TFL->getFrameIndexReference(MF, FrameIndex, IgnoredFrameReg);
   return DAG.getConstant(Offset * 4 * TFL->getStackWidth(MF), SDLoc(Op),
@@ -1607,7 +1608,7 @@ SDValue R600TargetLowering::LowerFormalArguments(
     }
 
     if (AMDGPU::isShader(CallConv)) {
-      unsigned Reg = MF.addLiveIn(VA.getLocReg(), &R600::R600_Reg128RegClass);
+      Register Reg = MF.addLiveIn(VA.getLocReg(), &R600::R600_Reg128RegClass);
       SDValue Register = DAG.getCopyFromReg(Chain, DL, Reg, VT);
       InVals.push_back(Register);
       continue;

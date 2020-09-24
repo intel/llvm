@@ -354,7 +354,7 @@ static void printUniformQuantizedPerAxisType(UniformQuantizedPerAxisType type,
   ArrayRef<double> scales = type.getScales();
   ArrayRef<int64_t> zeroPoints = type.getZeroPoints();
   out << "{";
-  interleave(
+  llvm::interleave(
       llvm::seq<size_t>(0, scales.size()), out,
       [&](size_t index) {
         printQuantParams(scales[index], zeroPoints[index], out);
@@ -365,18 +365,12 @@ static void printUniformQuantizedPerAxisType(UniformQuantizedPerAxisType type,
 
 /// Print a type registered to this dialect.
 void QuantizationDialect::printType(Type type, DialectAsmPrinter &os) const {
-  switch (type.getKind()) {
-  default:
+  if (auto anyType = type.dyn_cast<AnyQuantizedType>())
+    printAnyQuantizedType(anyType, os);
+  else if (auto uniformType = type.dyn_cast<UniformQuantizedType>())
+    printUniformQuantizedType(uniformType, os);
+  else if (auto perAxisType = type.dyn_cast<UniformQuantizedPerAxisType>())
+    printUniformQuantizedPerAxisType(perAxisType, os);
+  else
     llvm_unreachable("Unhandled quantized type");
-  case QuantizationTypes::Any:
-    printAnyQuantizedType(type.cast<AnyQuantizedType>(), os);
-    break;
-  case QuantizationTypes::UniformQuantized:
-    printUniformQuantizedType(type.cast<UniformQuantizedType>(), os);
-    break;
-  case QuantizationTypes::UniformQuantizedPerAxis:
-    printUniformQuantizedPerAxisType(type.cast<UniformQuantizedPerAxisType>(),
-                                     os);
-    break;
-  }
 }

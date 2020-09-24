@@ -96,6 +96,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeARMTarget() {
   initializeARMExpandPseudoPass(Registry);
   initializeThumb2SizeReducePass(Registry);
   initializeMVEVPTBlockPass(Registry);
+  initializeMVEVPTOptimisationsPass(Registry);
   initializeMVETailPredicationPass(Registry);
   initializeARMLowOverheadLoopsPass(Registry);
   initializeMVEGatherScatterLoweringPass(Registry);
@@ -247,6 +248,10 @@ ARMBaseTargetMachine::ARMBaseTargetMachine(const Target &T, const Triple &TT,
   setSupportsDebugEntryValues(true);
 
   initAsmInfo();
+
+  // ARM supports the MachineOutliner.
+  setMachineOutliner(true);
+  setSupportsDefaultOutlining(true);
 }
 
 ARMBaseTargetMachine::~ARMBaseTargetMachine() = default;
@@ -256,12 +261,10 @@ ARMBaseTargetMachine::getSubtargetImpl(const Function &F) const {
   Attribute CPUAttr = F.getFnAttribute("target-cpu");
   Attribute FSAttr = F.getFnAttribute("target-features");
 
-  std::string CPU = !CPUAttr.hasAttribute(Attribute::None)
-                        ? CPUAttr.getValueAsString().str()
-                        : TargetCPU;
-  std::string FS = !FSAttr.hasAttribute(Attribute::None)
-                       ? FSAttr.getValueAsString().str()
-                       : TargetFS;
+  std::string CPU =
+      CPUAttr.isValid() ? CPUAttr.getValueAsString().str() : TargetCPU;
+  std::string FS =
+      FSAttr.isValid() ? FSAttr.getValueAsString().str() : TargetFS;
 
   // FIXME: This is related to the code below to reset the target options,
   // we need to know whether or not the soft float flag is set on the
@@ -362,6 +365,7 @@ public:
   void addPreRegAlloc() override;
   void addPreSched2() override;
   void addPreEmitPass() override;
+  void addPreEmitPass2() override;
 
   std::unique_ptr<CSEConfigBase> getCSEConfig() const override;
 };
@@ -403,7 +407,7 @@ void ARMPassConfig::addIRPasses() {
   // ldrex/strex loops to simplify this, but it needs tidying up.
   if (TM->getOptLevel() != CodeGenOpt::None && EnableAtomicTidy)
     addPass(createCFGSimplificationPass(
-        1, false, false, true, true, [this](const Function &F) {
+        SimplifyCFGOptions().sinkCommonInsts(true), [this](const Function &F) {
           const auto &ST = this->TM->getSubtarget<ARMSubtarget>(F);
           return ST.hasAnyDataBarrier() && !ST.isThumb1Only();
         }));
@@ -486,6 +490,8 @@ bool ARMPassConfig::addGlobalInstructionSelect() {
 
 void ARMPassConfig::addPreRegAlloc() {
   if (getOptLevel() != CodeGenOpt::None) {
+    addPass(createMVEVPTOptimisationsPass());
+
     addPass(createMLxExpansionPass());
 
     if (EnableARMLoadStoreOpt)
@@ -510,9 +516,12 @@ void ARMPassConfig::addPreSched2() {
   addPass(createARMExpandPseudoPass());
 
   if (getOptLevel() != CodeGenOpt::None) {
-    // in v8, IfConversion depends on Thumb instruction widths
+    // When optimising for size, always run the Thumb2SizeReduction pass before
+    // IfConversion. Otherwise, check whether IT blocks are restricted
+    // (e.g. in v8, IfConversion depends on Thumb instruction widths)
     addPass(createThumb2SizeReductionPass([this](const Function &F) {
-      return this->TM->getSubtarget<ARMSubtarget>(F).restrictIT();
+      return this->TM->getSubtarget<ARMSubtarget>(F).hasMinSize() ||
+             this->TM->getSubtarget<ARMSubtarget>(F).restrictIT();
     }));
 
     addPass(createIfConverter([](const MachineFunction &MF) {
@@ -541,7 +550,9 @@ void ARMPassConfig::addPreEmitPass() {
   // Don't optimize barriers at -O0.
   if (getOptLevel() != CodeGenOpt::None)
     addPass(createARMOptimizeBarriersPass());
+}
 
+void ARMPassConfig::addPreEmitPass2() {
   addPass(createARMConstantIslandPass());
   addPass(createARMLowOverheadLoopsPass());
 

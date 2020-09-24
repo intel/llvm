@@ -288,40 +288,55 @@ Status PlatformRemoteGDBServer::ConnectRemote(Args &args) {
                                    "execute 'platform disconnect' to close the "
                                    "current connection",
                                    GetHostname());
-  } else {
-    if (args.GetArgumentCount() == 1) {
-      m_gdb_client.SetConnection(new ConnectionFileDescriptor());
-      // we're going to reuse the hostname when we connect to the debugserver
-      int port;
-      std::string path;
-      const char *url = args.GetArgumentAtIndex(0);
-      if (!url)
-        return Status("URL is null.");
-      llvm::StringRef scheme, hostname, pathname;
-      if (!UriParser::Parse(url, scheme, hostname, port, pathname))
-        return Status("Invalid URL: %s", url);
-      m_platform_scheme = std::string(scheme);
-      m_platform_hostname = std::string(hostname);
-      path = std::string(pathname);
+    return error;
+  }
 
-      const ConnectionStatus status = m_gdb_client.Connect(url, &error);
-      if (status == eConnectionStatusSuccess) {
-        if (m_gdb_client.HandshakeWithServer(&error)) {
-          m_gdb_client.GetHostInfo();
-          // If a working directory was set prior to connecting, send it down
-          // now
-          if (m_working_dir)
-            m_gdb_client.SetWorkingDir(m_working_dir);
-        } else {
-          m_gdb_client.Disconnect();
-          if (error.Success())
-            error.SetErrorString("handshake failed");
-        }
-      }
-    } else {
-      error.SetErrorString(
-          "\"platform connect\" takes a single argument: <connect-url>");
+  if (args.GetArgumentCount() != 1) {
+    error.SetErrorString(
+        "\"platform connect\" takes a single argument: <connect-url>");
+    return error;
+  }
+
+  const char *url = args.GetArgumentAtIndex(0);
+  if (!url)
+    return Status("URL is null.");
+
+  int port;
+  llvm::StringRef scheme, hostname, pathname;
+  if (!UriParser::Parse(url, scheme, hostname, port, pathname))
+    return Status("Invalid URL: %s", url);
+
+  // We're going to reuse the hostname when we connect to the debugserver.
+  m_platform_scheme = std::string(scheme);
+  m_platform_hostname = std::string(hostname);
+
+  m_gdb_client.SetConnection(std::make_unique<ConnectionFileDescriptor>());
+  if (repro::Reproducer::Instance().IsReplaying()) {
+    error = m_gdb_replay_server.Connect(m_gdb_client);
+    if (error.Success())
+      m_gdb_replay_server.StartAsyncThread();
+  } else {
+    if (repro::Generator *g = repro::Reproducer::Instance().GetGenerator()) {
+      repro::GDBRemoteProvider &provider =
+          g->GetOrCreate<repro::GDBRemoteProvider>();
+      m_gdb_client.SetPacketRecorder(provider.GetNewPacketRecorder());
     }
+    m_gdb_client.Connect(url, &error);
+  }
+
+  if (error.Fail())
+    return error;
+
+  if (m_gdb_client.HandshakeWithServer(&error)) {
+    m_gdb_client.GetHostInfo();
+    // If a working directory was set prior to connecting, send it down
+    // now.
+    if (m_working_dir)
+      m_gdb_client.SetWorkingDir(m_working_dir);
+  } else {
+    m_gdb_client.Disconnect();
+    if (error.Success())
+      error.SetErrorString("handshake failed");
   }
   return error;
 }
@@ -488,10 +503,10 @@ lldb::ProcessSP PlatformRemoteGDBServer::DebugProcess(
                                              "gdb-remote", nullptr);
 
           if (process_sp) {
-            error = process_sp->ConnectRemote(nullptr, connect_url.c_str());
+            error = process_sp->ConnectRemote(connect_url.c_str());
             // Retry the connect remote one time...
             if (error.Fail())
-              error = process_sp->ConnectRemote(nullptr, connect_url.c_str());
+              error = process_sp->ConnectRemote(connect_url.c_str());
             if (error.Success())
               error = process_sp->Launch(launch_info);
             else if (debugserver_pid != LLDB_INVALID_PROCESS_ID) {
@@ -574,7 +589,7 @@ lldb::ProcessSP PlatformRemoteGDBServer::Attach(
               target->CreateProcess(attach_info.GetListenerForProcess(debugger),
                                     "gdb-remote", nullptr);
           if (process_sp) {
-            error = process_sp->ConnectRemote(nullptr, connect_url.c_str());
+            error = process_sp->ConnectRemote(connect_url.c_str());
             if (error.Success()) {
               ListenerSP listener_sp = attach_info.GetHijackListener();
               if (listener_sp)
@@ -646,6 +661,11 @@ PlatformRemoteGDBServer::GetFileSize(const FileSpec &file_spec) {
   return m_gdb_client.GetFileSize(file_spec);
 }
 
+void PlatformRemoteGDBServer::AutoCompleteDiskFileOrDirectory(
+    CompletionRequest &request, bool only_dir) {
+  m_gdb_client.AutoCompleteDiskFileOrDirectory(request, only_dir);
+}
+
 uint64_t PlatformRemoteGDBServer::ReadFile(lldb::user_id_t fd, uint64_t offset,
                                            void *dst, uint64_t dst_len,
                                            Status &error) {
@@ -691,7 +711,7 @@ bool PlatformRemoteGDBServer::GetFileExists(const FileSpec &file_spec) {
 }
 
 Status PlatformRemoteGDBServer::RunShellCommand(
-    const char *command, // Shouldn't be NULL
+    llvm::StringRef shell, llvm::StringRef command,
     const FileSpec &
         working_dir, // Pass empty FileSpec to use the current working directory
     int *status_ptr, // Pass NULL if you don't want the process exit status

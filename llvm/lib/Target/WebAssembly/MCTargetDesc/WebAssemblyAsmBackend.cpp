@@ -59,14 +59,6 @@ public:
     return false;
   }
 
-  bool mayNeedRelaxation(const MCInst &Inst,
-                         const MCSubtargetInfo &STI) const override {
-    return false;
-  }
-
-  void relaxInstruction(const MCInst &Inst, const MCSubtargetInfo &STI,
-                        MCInst &Res) const override {}
-
   bool writeNopData(raw_ostream &OS, uint64_t Count) const override;
 };
 
@@ -80,6 +72,7 @@ WebAssemblyAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
       {"fixup_sleb128_i32", 0, 5 * 8, 0},
       {"fixup_sleb128_i64", 0, 10 * 8, 0},
       {"fixup_uleb128_i32", 0, 5 * 8, 0},
+      {"fixup_uleb128_i64", 0, 10 * 8, 0},
   };
 
   if (Kind < FirstTargetFixupKind)

@@ -1,10 +1,10 @@
-// RUN: mlir-opt %s -memref-dataflow-opt | FileCheck %s
+// RUN: mlir-opt -allow-unregistered-dialect %s -memref-dataflow-opt | FileCheck %s
 
-// CHECK-DAG: [[MAP0:#map[0-9]+]] = affine_map<(d0, d1) -> (d1 + 1)>
-// CHECK-DAG: [[MAP1:#map[0-9]+]] = affine_map<(d0, d1) -> (d0)>
-// CHECK-DAG: [[MAP2:#map[0-9]+]] = affine_map<(d0, d1) -> (d1)>
-// CHECK-DAG: [[MAP3:#map[0-9]+]] = affine_map<(d0, d1) -> (d0 - 1)>
-// CHECK-DAG: [[MAP4:#map[0-9]+]] = affine_map<(d0) -> (d0 + 1)>
+// CHECK-DAG: [[$MAP0:#map[0-9]+]] = affine_map<(d0, d1) -> (d1 + 1)>
+// CHECK-DAG: [[$MAP1:#map[0-9]+]] = affine_map<(d0, d1) -> (d0)>
+// CHECK-DAG: [[$MAP2:#map[0-9]+]] = affine_map<(d0, d1) -> (d1)>
+// CHECK-DAG: [[$MAP3:#map[0-9]+]] = affine_map<(d0, d1) -> (d0 - 1)>
+// CHECK-DAG: [[$MAP4:#map[0-9]+]] = affine_map<(d0) -> (d0 + 1)>
 
 // CHECK-LABEL: func @simple_store_load() {
 func @simple_store_load() {
@@ -77,10 +77,10 @@ func @store_load_affine_apply() -> memref<10x10xf32> {
 // CHECK-NEXT:  %{{.*}} = alloc() : memref<10x10xf32>
 // CHECK-NEXT:  affine.for %{{.*}} = 0 to 10 {
 // CHECK-NEXT:    affine.for %{{.*}} = 0 to 10 {
-// CHECK-NEXT:      %{{.*}} = affine.apply [[MAP0]](%{{.*}}, %{{.*}})
-// CHECK-NEXT:      %{{.*}} = affine.apply [[MAP1]](%{{.*}}, %{{.*}})
-// CHECK-NEXT:      %{{.*}} = affine.apply [[MAP2]](%{{.*}}, %{{.*}})
-// CHECK-NEXT:      %{{.*}} = affine.apply [[MAP3]](%{{.*}}, %{{.*}})
+// CHECK-NEXT:      %{{.*}} = affine.apply [[$MAP0]](%{{.*}}, %{{.*}})
+// CHECK-NEXT:      %{{.*}} = affine.apply [[$MAP1]](%{{.*}}, %{{.*}})
+// CHECK-NEXT:      %{{.*}} = affine.apply [[$MAP2]](%{{.*}}, %{{.*}})
+// CHECK-NEXT:      %{{.*}} = affine.apply [[$MAP3]](%{{.*}}, %{{.*}})
 // CHECK-NEXT:      affine.store %{{.*}}, %{{.*}}[%{{.*}}, %{{.*}}] : memref<10x10xf32>
 // CHECK-NEXT:      %{{.*}} = addf %{{.*}}, %{{.*}} : f32
 // CHECK-NEXT:    }
@@ -240,7 +240,7 @@ func @store_load_store_nested_fwd(%N : index) -> f32 {
 // CHECK-NEXT:    affine.store %{{.*}}, %{{.*}}[%{{.*}}] : memref<10xf32>
 // CHECK-NEXT:    affine.for %{{.*}} = 0 to %{{.*}} {
 // CHECK-NEXT:      %{{.*}} = addf %{{.*}}, %{{.*}} : f32
-// CHECK-NEXT:      %{{.*}} = affine.apply [[MAP4]](%{{.*}})
+// CHECK-NEXT:      %{{.*}} = affine.apply [[$MAP4]](%{{.*}})
 // CHECK-NEXT:      affine.store %{{.*}}, %{{.*}}[%{{.*}}] : memref<10xf32>
 // CHECK-NEXT:    }
 // CHECK-NEXT:  }
@@ -280,3 +280,23 @@ func @refs_not_known_to_be_equal(%A : memref<100 x 100 x f32>, %M : index) {
   }
   return
 }
+
+// The test checks for value forwarding from vector stores to vector loads.
+// The value loaded from %in can directly be stored to %out by eliminating
+// store and load from %tmp.
+func @vector_forwarding(%in : memref<512xf32>, %out : memref<512xf32>) {
+  %tmp = alloc() : memref<512xf32>
+  affine.for %i = 0 to 16 {
+    %ld0 = affine.vector_load %in[32*%i] : memref<512xf32>, vector<32xf32>
+    affine.vector_store %ld0, %tmp[32*%i] : memref<512xf32>, vector<32xf32>
+    %ld1 = affine.vector_load %tmp[32*%i] : memref<512xf32>, vector<32xf32>
+    affine.vector_store %ld1, %out[32*%i] : memref<512xf32>, vector<32xf32>
+  }
+  return
+}
+
+// CHECK-LABEL: func @vector_forwarding
+// CHECK:      affine.for %{{.*}} = 0 to 16 {
+// CHECK-NEXT:   %[[LDVAL:.*]] = affine.vector_load
+// CHECK-NEXT:   affine.vector_store %[[LDVAL]],{{.*}}
+// CHECK-NEXT: }

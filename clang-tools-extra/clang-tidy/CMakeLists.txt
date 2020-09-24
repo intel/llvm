@@ -1,4 +1,5 @@
 set(LLVM_LINK_COMPONENTS
+  FrontendOpenMP
   Support
   )
 
@@ -14,8 +15,11 @@ add_clang_library(clangTidy
 
   DEPENDS
   ClangSACheckers
+  omp_gen
+  )
 
-  LINK_LIBS
+clang_target_link_libraries(clangTidy
+  PRIVATE
   clangAnalysis
   clangAST
   clangASTMatchers
@@ -31,7 +35,8 @@ add_clang_library(clangTidy
   )
 
 if(CLANG_ENABLE_STATIC_ANALYZER)
-  target_link_libraries(clangTidy PRIVATE
+  clang_target_link_libraries(clangTidy
+    PRIVATE
     clangStaticAnalyzerCore
     clangStaticAnalyzerFrontend
   )

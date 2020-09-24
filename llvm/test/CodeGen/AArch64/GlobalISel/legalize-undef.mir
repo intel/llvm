@@ -22,10 +22,8 @@ body: |
 
     ; CHECK-LABEL: name: test_implicit_def_s3
     ; CHECK: [[DEF:%[0-9]+]]:_(s64) = G_IMPLICIT_DEF
-    ; CHECK: [[C:%[0-9]+]]:_(s64) = G_CONSTANT i64 61
-    ; CHECK: [[SHL:%[0-9]+]]:_(s64) = G_SHL [[DEF]], [[C]](s64)
-    ; CHECK: [[ASHR:%[0-9]+]]:_(s64) = G_ASHR [[SHL]], [[C]](s64)
-    ; CHECK: $x0 = COPY [[ASHR]](s64)
+    ; CHECK: [[SEXT_INREG:%[0-9]+]]:_(s64) = G_SEXT_INREG [[DEF]], 3
+    ; CHECK: $x0 = COPY [[SEXT_INREG]](s64)
     %0:_(s3) = G_IMPLICIT_DEF
     %1:_(s64) = G_SEXT %0
     $x0 = COPY %1(s64)
@@ -56,9 +54,8 @@ body: |
 
     ; CHECK-LABEL: name: test_implicit_def_v4s64
     ; CHECK: [[DEF:%[0-9]+]]:_(<2 x s64>) = G_IMPLICIT_DEF
-    ; CHECK: [[COPY:%[0-9]+]]:_(<2 x s64>) = COPY [[DEF]](<2 x s64>)
     ; CHECK: $q0 = COPY [[DEF]](<2 x s64>)
-    ; CHECK: $q1 = COPY [[COPY]](<2 x s64>)
+    ; CHECK: $q1 = COPY [[DEF]](<2 x s64>)
     %0:_(<4 x s64>) = G_IMPLICIT_DEF
     %1:_(<2 x s64> ), %2:_(<2 x s64>) = G_UNMERGE_VALUES %0
     $q0 = COPY %1
@@ -78,4 +75,26 @@ body: |
     %1:_(s32), %2:_(s32) = G_UNMERGE_VALUES %0
     $w0 = COPY %1
     $w1 = COPY %2
+...
+---
+name: test_implicit_def_v16s8
+body: |
+  bb.0:
+
+    ; CHECK-LABEL: name: test_implicit_def_v16s8
+    ; CHECK: [[DEF:%[0-9]+]]:_(<16 x s8>) = G_IMPLICIT_DEF
+    ; CHECK: $q0 = COPY [[DEF]](<16 x s8>)
+    %0:_(<16 x s8>) = G_IMPLICIT_DEF
+    $q0 = COPY %0
+...
+---
+name: test_implicit_def_v8s16
+body: |
+  bb.0:
+
+    ; CHECK-LABEL: name: test_implicit_def_v8s16
+    ; CHECK: [[DEF:%[0-9]+]]:_(<8 x s16>) = G_IMPLICIT_DEF
+    ; CHECK: $q0 = COPY [[DEF]](<8 x s16>)
+    %0:_(<8 x s16>) = G_IMPLICIT_DEF
+    $q0 = COPY %0
 ...

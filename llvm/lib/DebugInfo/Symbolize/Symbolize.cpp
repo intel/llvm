@@ -16,6 +16,7 @@
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/BinaryFormat/COFF.h"
+#include "llvm/Config/config.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/DebugInfo/PDB/PDB.h"
 #include "llvm/DebugInfo/PDB/PDBContext.h"
@@ -515,8 +516,8 @@ LLVMSymbolizer::createModuleInfo(const ObjectFile *Obj,
   auto InsertResult = Modules.insert(
       std::make_pair(std::string(ModuleName), std::move(SymMod)));
   assert(InsertResult.second);
-  if (std::error_code EC = InfoOrErr.getError())
-    return errorCodeToError(EC);
+  if (!InfoOrErr)
+    return InfoOrErr.takeError();
   return InsertResult.first->second.get();
 }
 
@@ -555,8 +556,14 @@ LLVMSymbolizer::getOrCreateModuleInfo(const std::string &ModuleName) {
     if (!EC && DebugInfo != nullptr && !PDBFileName.empty()) {
       using namespace pdb;
       std::unique_ptr<IPDBSession> Session;
-      if (auto Err = loadDataForEXE(PDB_ReaderType::DIA,
-                                    Objects.first->getFileName(), Session)) {
+
+      PDB_ReaderType ReaderType = PDB_ReaderType::Native;
+#if LLVM_ENABLE_DIA_SDK
+      if (!Opts.UseNativePDBReader)
+        ReaderType = PDB_ReaderType::DIA;
+#endif
+      if (auto Err = loadDataForEXE(ReaderType, Objects.first->getFileName(),
+                                    Session)) {
         Modules.emplace(ModuleName, std::unique_ptr<SymbolizableModule>());
         // Return along the PDB filename to provide more context
         return createFileError(PDBFileName, std::move(Err));
@@ -621,7 +628,7 @@ LLVMSymbolizer::DemangleName(const std::string &Name,
     // Only do MSVC C++ demangling on symbols starting with '?'.
     int status = 0;
     char *DemangledName = microsoftDemangle(
-        Name.c_str(), nullptr, nullptr, &status,
+        Name.c_str(), nullptr, nullptr, nullptr, &status,
         MSDemangleFlags(MSDF_NoAccessSpecifier | MSDF_NoCallingConvention |
                         MSDF_NoMemberType | MSDF_NoReturnType));
     if (status != 0)

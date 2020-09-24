@@ -7,36 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "SchedulerTest.hpp"
-
-#include <CL/cl.h>
-#include <CL/sycl.hpp>
-#include <detail/scheduler/scheduler.hpp>
-
-#include <gtest/gtest.h>
+#include "SchedulerTestUtils.hpp"
 
 using namespace cl::sycl;
-
-class MockCommand : public detail::Command {
-public:
-  MockCommand(detail::QueueImplPtr Queue)
-      : Command(detail::Command::ALLOCA, Queue) {}
-  void printDot(std::ostream &Stream) const override {}
-
-  void emitInstrumentationData() override {}
-
-  cl_int enqueueImp() override { return MRetVal; }
-
-  cl_int MRetVal = CL_SUCCESS;
-};
-
-class TestScheduler : public detail::Scheduler {
-public:
-  static bool enqueueCommand(detail::Command *Cmd,
-                             detail::EnqueueResultT &EnqueueResult,
-                             detail::BlockingT Blocking) {
-    return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, Blocking);
-  }
-};
+using namespace testing;
 
 TEST_F(SchedulerTest, BlockedCommands) {
   MockCommand MockCmd(detail::getSyclObjImpl(MQueue));
@@ -47,7 +21,7 @@ TEST_F(SchedulerTest, BlockedCommands) {
 
   detail::EnqueueResultT Res;
   bool Enqueued =
-      TestScheduler::enqueueCommand(&MockCmd, Res, detail::NON_BLOCKING);
+      MockScheduler::enqueueCommand(&MockCmd, Res, detail::NON_BLOCKING);
   ASSERT_FALSE(Enqueued) << "Blocked command should not be enqueued\n";
   ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueBlocked, Res.MResult)
       << "Result of enqueueing blocked command should be BLOCKED\n";
@@ -56,7 +30,7 @@ TEST_F(SchedulerTest, BlockedCommands) {
   Res.MResult = detail::EnqueueResultT::SyclEnqueueSuccess;
   MockCmd.MRetVal = CL_DEVICE_PARTITION_EQUALLY;
 
-  Enqueued = TestScheduler::enqueueCommand(&MockCmd, Res, detail::BLOCKING);
+  Enqueued = MockScheduler::enqueueCommand(&MockCmd, Res, detail::BLOCKING);
   ASSERT_FALSE(Enqueued) << "Blocked command should not be enqueued\n";
   ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueFailed, Res.MResult)
       << "The command is expected to fail to enqueue.\n";
@@ -67,8 +41,92 @@ TEST_F(SchedulerTest, BlockedCommands) {
   Res = detail::EnqueueResultT{};
   MockCmd.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   MockCmd.MRetVal = CL_SUCCESS;
-  Enqueued = TestScheduler::enqueueCommand(&MockCmd, Res, detail::BLOCKING);
+  Enqueued = MockScheduler::enqueueCommand(&MockCmd, Res, detail::BLOCKING);
   ASSERT_TRUE(Enqueued &&
               Res.MResult == detail::EnqueueResultT::SyclEnqueueSuccess)
       << "The command is expected to be successfully enqueued.\n";
+}
+
+TEST_F(SchedulerTest, DontEnqueueDepsIfOneOfThemIsBlocked) {
+  MockCommand A(detail::getSyclObjImpl(MQueue));
+  A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
+  A.MIsBlockable = true;
+  A.MRetVal = CL_SUCCESS;
+
+  MockCommand B(detail::getSyclObjImpl(MQueue));
+  B.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
+  B.MIsBlockable = true;
+  B.MRetVal = CL_SUCCESS;
+
+  MockCommand C(detail::getSyclObjImpl(MQueue));
+  C.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
+  C.MIsBlockable = true;
+
+  MockCommand D(detail::getSyclObjImpl(MQueue));
+  D.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
+  D.MIsBlockable = true;
+  D.MRetVal = CL_SUCCESS;
+
+  addEdge(&A, &B, nullptr);
+  addEdge(&A, &C, nullptr);
+  addEdge(&A, &D, nullptr);
+
+  // We have such a graph:
+  //
+  //     A
+  //   / | \
+  //  B  C  D
+  //
+  // If C is blocked, we should not try to enqueue D.
+
+  EXPECT_CALL(A, enqueue(_, _)).Times(0);
+  EXPECT_CALL(B, enqueue(_, _)).Times(1);
+  EXPECT_CALL(C, enqueue(_, _)).Times(0);
+  EXPECT_CALL(D, enqueue(_, _)).Times(0);
+
+  detail::EnqueueResultT Res;
+  bool Enqueued = MockScheduler::enqueueCommand(&A, Res, detail::NON_BLOCKING);
+  ASSERT_FALSE(Enqueued) << "Blocked command should not be enqueued\n";
+  ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueBlocked, Res.MResult)
+      << "Result of enqueueing blocked command should be BLOCKED.\n";
+  ASSERT_EQ(&C, Res.MCmd) << "Expected different failed command.\n";
+}
+
+TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
+  MockCommand A(detail::getSyclObjImpl(MQueue));
+  A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
+  A.MIsBlockable = true;
+
+  MockCommand B(detail::getSyclObjImpl(MQueue));
+  B.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
+  B.MRetVal = CL_OUT_OF_RESOURCES;
+
+  addEdge(&A, &B, nullptr);
+
+  // We have such a graph:
+  //
+  //   A -> B
+  //
+  // If A is blocked, we should not try to enqueue B.
+
+  EXPECT_CALL(A, enqueue(_, _)).Times(0);
+  EXPECT_CALL(B, enqueue(_, _)).Times(0);
+
+  detail::EnqueueResultT Res;
+  bool Enqueued = MockScheduler::enqueueCommand(&A, Res, detail::NON_BLOCKING);
+  ASSERT_FALSE(Enqueued) << "Blocked command should not be enqueued\n";
+  ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueBlocked, Res.MResult)
+      << "Result of enqueueing blocked command should be BLOCKED.\n";
+  ASSERT_EQ(&A, Res.MCmd) << "Expected different failed command.\n";
+
+  // But if the enqueue type is blocking we should not exit early.
+
+  EXPECT_CALL(A, enqueue(_, _)).Times(0);
+  EXPECT_CALL(B, enqueue(_, _)).Times(1);
+
+  Enqueued = MockScheduler::enqueueCommand(&A, Res, detail::BLOCKING);
+  ASSERT_FALSE(Enqueued) << "Blocked command should not be enqueued\n";
+  ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueFailed, Res.MResult)
+      << "Result of enqueueing blocked command should be BLOCKED.\n";
+  ASSERT_EQ(&B, Res.MCmd) << "Expected different failed command.\n";
 }

@@ -17,7 +17,7 @@
 # NOBTIDYN-NOT:   0x0000000070000003 (AARCH64_PAC_PLT)
 
 # NOBTI: 00000000000102b8 <func2>:
-# NOBTI-NEXT:    102b8: bl      #56 <func3@plt>
+# NOBTI-NEXT:    102b8: bl      0x102f0 <func3@plt>
 # NOBTI-NEXT:    102bc: ret
 # NOBTI: Disassembly of section .plt:
 # NOBTI: 00000000000102d0 <.plt>:
@@ -56,7 +56,7 @@
 # BTIDYN-NOT:  0x0000000070000003 (AARCH64_PAC_PLT)
 
 # BTISO: 0000000000010348 <func2>:
-# BTISO-NEXT:    10348: bl      #56 <func3@plt>
+# BTISO-NEXT:    10348: bl      0x10380 <func3@plt>
 # BTISO-NEXT:           ret
 # BTISO: 0000000000010350 <func3>:
 # BTISO-NEXT:    10350: ret
@@ -92,7 +92,7 @@
 
 # EXECBTI: Disassembly of section .text:
 # EXECBTI: 0000000000210348 <func1>:
-# EXECBTI-NEXT:   210348: bl    #40 <func2@plt>
+# EXECBTI-NEXT:   210348: bl    0x210370 <func2@plt>
 # EXECBTI-NEXT:           ret
 # EXECBTI: Disassembly of section .plt:
 # EXECBTI: 0000000000210350 <.plt>:
@@ -120,23 +120,23 @@
 
 # PIE: Disassembly of section .text:
 # PIE: 0000000000010348 <func1>:
-# PIE-NEXT:    10348: bl     #40 <func2@plt>
+# PIE-NEXT:    10348: bl     0x10370 <func2@plt>
 # PIE-NEXT:           ret
 # PIE: Disassembly of section .plt:
 # PIE: 0000000000010350 <.plt>:
 # PIE-NEXT:    10350: bti    c
 # PIE-NEXT:           stp    x16, x30, [sp, #-16]!
 # PIE-NEXT:           adrp   x16, #131072
-# PIE-NEXT:           ldr    x17, [x16, #1160]
-# PIE-NEXT:           add    x16, x16, #1160
+# PIE-NEXT:           ldr    x17, [x16, #1176]
+# PIE-NEXT:           add    x16, x16, #1176
 # PIE-NEXT:           br     x17
 # PIE-NEXT:           nop
 # PIE-NEXT:           nop
 # PIE: 0000000000010370 <func2@plt>:
 # PIE-NEXT:    10370: bti    c
 # PIE-NEXT:           adrp   x16, #131072
-# PIE-NEXT:           ldr    x17, [x16, #1168]
-# PIE-NEXT:           add    x16, x16, #1168
+# PIE-NEXT:           ldr    x17, [x16, #1184]
+# PIE-NEXT:           add    x16, x16, #1184
 # PIE-NEXT:           br     x17
 # PIE-NEXT:           nop
 
@@ -149,7 +149,7 @@
 
 # NOEX: Disassembly of section .text:
 # NOEX: 00000000002102e0 <func1>:
-# NOEX-NEXT:   2102e0: bl      #48 <func2@plt>
+# NOEX-NEXT:   2102e0: bl      0x210310 <func2@plt>
 # NOEX-NEXT:           ret
 # NOEX: 00000000002102e8 <func3>:
 # NOEX-NEXT:   2102e8: ret
@@ -183,7 +183,7 @@
 
 # FORCE: Disassembly of section .text:
 # FORCE: 0000000000210370 <func1>:
-# FORCE-NEXT:   210370: bl      #48 <func2@plt>
+# FORCE-NEXT:   210370: bl      0x2103a0 <func2@plt>
 # FORCE-NEXT:           ret
 # FORCE: 0000000000210378 <func3>:
 # FORCE-NEXT:   210378: ret

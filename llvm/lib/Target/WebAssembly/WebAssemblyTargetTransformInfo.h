@@ -57,6 +57,7 @@ public:
   unsigned getRegisterBitWidth(bool Vector) const;
   unsigned getArithmeticInstrCost(
       unsigned Opcode, Type *Ty,
+      TTI::TargetCostKind CostKind = TTI::TCK_SizeAndLatency,
       TTI::OperandValueKind Opd1Info = TTI::OK_AnyValue,
       TTI::OperandValueKind Opd2Info = TTI::OK_AnyValue,
       TTI::OperandValueProperties Opd1PropInfo = TTI::OP_None,
@@ -66,6 +67,9 @@ public:
   unsigned getVectorInstrCost(unsigned Opcode, Type *Val, unsigned Index);
 
   /// @}
+
+  bool areInlineCompatible(const Function *Caller,
+                           const Function *Callee) const;
 };
 
 } // end namespace llvm

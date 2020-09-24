@@ -29,7 +29,7 @@ class SYCLMemObjI {
 public:
   virtual ~SYCLMemObjI() = default;
 
-  enum MemObjType { BUFFER, IMAGE };
+  enum MemObjType { BUFFER, IMAGE, UNDEFINED };
 
   virtual MemObjType getType() const = 0;
 
@@ -69,6 +69,7 @@ protected:
   // which is unavailable.
   shared_ptr_class<MemObjRecord> MRecord;
   friend class Scheduler;
+  friend class ExecCGCommand;
 };
 
 } // namespace detail

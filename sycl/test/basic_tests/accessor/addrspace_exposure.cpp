@@ -33,9 +33,9 @@ int main() {
     Cgh.single_task<class test>([=]() {
       static_assert(std::is_same<decltype(GlobalRWAcc[0]), int &>::value,
                     "Incorrect type from global read-write accessor");
-      static_assert(std::is_same<decltype(GlobalRAcc[0]), int>::value,
+      static_assert(std::is_same<decltype(GlobalRAcc[0]), const int &>::value,
                     "Incorrect type from global read accessor");
-      static_assert(std::is_same<decltype(ConstantAcc[0]), int>::value,
+      static_assert(std::is_same<decltype(ConstantAcc[0]), const int &>::value,
                     "Incorrect type from constant accessor");
       static_assert(std::is_same<decltype(LocalAcc[0]), int &>::value,
                     "Incorrect type from local accessor");

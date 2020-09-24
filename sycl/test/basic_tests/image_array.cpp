@@ -1,11 +1,10 @@
+// UNSUPPORTED: cuda
+// CUDA cannot support SYCL 1.2.1 images.
+//
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUNx: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUNx: %GPU_RUN_PLACEHOLDER %t.out
-
-// TODO: No CUDA image support
-// TODO: ptxas fatal   : Unresolved extern function '_Z17__spirv_ImageReadIDv4_f14ocl_image2d_roDv2_iET_T0_T1_'
-// XFAIL: cuda
 
 //==------------------- image.cpp - SYCL image basic test -----------------==//
 //

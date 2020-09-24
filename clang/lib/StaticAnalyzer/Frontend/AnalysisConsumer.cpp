@@ -33,7 +33,6 @@
 #include "clang/StaticAnalyzer/Core/PathDiagnosticConsumers.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/AnalysisManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ExprEngine.h"
-#include "clang/StaticAnalyzer/Frontend/CheckerRegistration.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/FileSystem.h"
@@ -155,7 +154,7 @@ public:
     break;
 #include "clang/StaticAnalyzer/Core/Analyses.def"
     default:
-      llvm_unreachable("Unkown analyzer output type!");
+      llvm_unreachable("Unknown analyzer output type!");
     }
 
     // Create the analyzer component creators.
@@ -209,8 +208,8 @@ public:
 
   void Initialize(ASTContext &Context) override {
     Ctx = &Context;
-    checkerMgr = createCheckerManager(
-        *Ctx, *Opts, Plugins, CheckerRegistrationFns, PP.getDiagnostics());
+    checkerMgr = std::make_unique<CheckerManager>(*Ctx, *Opts, PP, Plugins,
+                                                  CheckerRegistrationFns);
 
     Mgr = std::make_unique<AnalysisManager>(*Ctx, PP, PathConsumers,
                                             CreateStoreMgr, CreateConstraintMgr,

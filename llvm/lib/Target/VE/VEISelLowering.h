@@ -27,8 +27,10 @@ enum NodeType : unsigned {
   Hi,
   Lo, // Hi/Lo operations, typically on a global address.
 
-  GETFUNPLT,       // load function address through %plt insturction
+  GETFUNPLT,   // load function address through %plt insturction
   GETTLSADDR,  // load address for TLS access
+  GETSTACKTOP, // retrieve address of stack top (first address of
+               // locals and temporaries)
 
   CALL,            // A call instruction.
   RET_FLAG,        // Return with a flag operand.
@@ -75,19 +77,30 @@ public:
   /// Custom Lower {
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
 
-  SDValue LowerVASTART(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerVAARG(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerBlockAddress(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerToTLSGeneralDynamicModel(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerBlockAddress(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerConstantPool(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerDYNAMIC_STACKALLOC(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerLOAD(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerSTORE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerToTLSGeneralDynamicModel(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerVASTART(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerVAARG(SDValue Op, SelectionDAG &DAG) const;
   /// } Custom Lower
+
+  /// Custom DAGCombine {
+  SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
+
+  SDValue combineTRUNCATE(SDNode *N, DAGCombinerInfo &DCI) const;
+  /// } Custom DAGCombine
 
   SDValue withTargetFlags(SDValue Op, unsigned TF, SelectionDAG &DAG) const;
   SDValue makeHiLoPair(SDValue Op, unsigned HiTF, unsigned LoTF,
                        SelectionDAG &DAG) const;
   SDValue makeAddress(SDValue Op, SelectionDAG &DAG) const;
 
+  bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;
   bool isFPImmLegal(const APFloat &Imm, EVT VT,
                     bool ForCodeSize) const override;
   /// Returns true if the target allows unaligned memory accesses of the
@@ -96,8 +109,20 @@ public:
                                       MachineMemOperand::Flags Flags,
                                       bool *Fast) const override;
 
-  // Block s/udiv lowering for now
-  bool isIntDivCheap(EVT VT, AttributeList Attr) const override { return true; }
+  /// Target Optimization {
+
+  // SX-Aurora VE's s/udiv is 5-9 times slower than multiply.
+  bool isIntDivCheap(EVT, AttributeList) const override { return false; }
+  // VE doesn't have rem.
+  bool hasStandaloneRem(EVT) const override { return false; }
+  // VE LDZ instruction returns 64 if the input is zero.
+  bool isCheapToSpeculateCtlz() const override { return true; }
+  // VE LDZ instruction is fast.
+  bool isCtlzFast() const override { return true; }
+  // VE has NND instruction.
+  bool hasAndNot(SDValue Y) const override;
+
+  /// } Target Optimization
 };
 } // namespace llvm
 

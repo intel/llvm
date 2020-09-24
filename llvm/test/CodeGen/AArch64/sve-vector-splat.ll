@@ -1,4 +1,8 @@
-; RUN: llc -mtriple=aarch64-linux-gnu -mattr=+sve < %s | FileCheck %s
+; RUN: llc -mtriple=aarch64-linux-gnu -mattr=+sve < %s 2>%t | FileCheck %s
+; RUN: FileCheck --check-prefix=WARN --allow-empty %s <%t
+
+; If this check fails please read test/CodeGen/AArch64/README for instructions on how to resolve it.
+; WARN-NOT: warning
 
 ;; Splats of legal integer vector types
 
@@ -130,6 +134,19 @@ define <vscale x 2 x i32> @sve_splat_2xi32(i32 %val) {
   ret <vscale x 2 x i32> %splat
 }
 
+;; Widen/split splats of wide vector types.
+
+define <vscale x 12 x i32> @sve_splat_12xi32(i32 %val) {
+; CHECK-LABEL: @sve_splat_12xi32
+; CHECK: mov z0.s, w0
+; CHECK-NEXT: mov z1.d, z0.d
+; CHECK-NEXT: mov z2.d, z0.d
+; CHECK-NEXT: ret
+  %ins = insertelement <vscale x 12 x i32> undef, i32 %val, i32 0
+  %splat = shufflevector <vscale x 12 x i32> %ins, <vscale x 12 x i32> undef, <vscale x 12 x i32> zeroinitializer
+  ret <vscale x 12 x i32> %splat
+}
+
 define <vscale x 2 x i1> @sve_splat_2xi1(i1 %val) {
 ; CHECK-LABEL: @sve_splat_2xi1
 ; CHECK: sbfx x8, x0, #0, #1
@@ -171,6 +188,15 @@ define <vscale x 16 x i1> @sve_splat_16xi1(i1 %val) {
 }
 
 ;; Splats of legal floating point vector types
+
+define <vscale x 8 x bfloat> @splat_nxv8bf16(bfloat %val) #0 {
+; CHECK-LABEL: splat_nxv8bf16:
+; CHECK: mov z0.h, h0
+; CHECK-NEXT: ret
+  %1 = insertelement <vscale x 8 x bfloat> undef, bfloat %val, i32 0
+  %2 = shufflevector <vscale x 8 x bfloat> %1, <vscale x 8 x bfloat> undef, <vscale x 8 x i32> zeroinitializer
+  ret <vscale x 8 x bfloat> %2
+}
 
 define <vscale x 8 x half> @splat_nxv8f16(half %val) {
 ; CHECK-LABEL: splat_nxv8f16:
@@ -233,6 +259,13 @@ define <vscale x 8 x half> @splat_nxv8f16_zero() {
   ret <vscale x 8 x half> zeroinitializer
 }
 
+define <vscale x 8 x bfloat> @splat_nxv8bf16_zero() #0 {
+; CHECK-LABEL: splat_nxv8bf16_zero:
+; CHECK: mov z0.h, #0
+; CHECK-NEXT: ret
+  ret <vscale x 8 x bfloat> zeroinitializer
+}
+
 define <vscale x 4 x half> @splat_nxv4f16_zero() {
 ; CHECK-LABEL: splat_nxv4f16_zero:
 ; CHECK: mov z0.h, #0
@@ -270,7 +303,7 @@ define <vscale x 2 x double> @splat_nxv2f64_zero() {
 
 define <vscale x 8 x half> @splat_nxv8f16_imm() {
 ; CHECK-LABEL: splat_nxv8f16_imm:
-; CHECK: mov z0.h, #1.0
+; CHECK: fmov z0.h, #1.00000000
 ; CHECK-NEXT: ret
   %1 = insertelement <vscale x 8 x half> undef, half 1.0, i32 0
   %2 = shufflevector <vscale x 8 x half> %1, <vscale x 8 x half> undef, <vscale x 8 x i32> zeroinitializer
@@ -279,7 +312,7 @@ define <vscale x 8 x half> @splat_nxv8f16_imm() {
 
 define <vscale x 4 x half> @splat_nxv4f16_imm() {
 ; CHECK-LABEL: splat_nxv4f16_imm:
-; CHECK: mov z0.h, #1.0
+; CHECK: fmov z0.h, #1.00000000
 ; CHECK-NEXT: ret
   %1 = insertelement <vscale x 4 x half> undef, half 1.0, i32 0
   %2 = shufflevector <vscale x 4 x half> %1, <vscale x 4 x half> undef, <vscale x 4 x i32> zeroinitializer
@@ -288,7 +321,7 @@ define <vscale x 4 x half> @splat_nxv4f16_imm() {
 
 define <vscale x 2 x half> @splat_nxv2f16_imm() {
 ; CHECK-LABEL: splat_nxv2f16_imm:
-; CHECK: mov z0.h, #1.0
+; CHECK: fmov z0.h, #1.00000000
 ; CHECK-NEXT: ret
   %1 = insertelement <vscale x 2 x half> undef, half 1.0, i32 0
   %2 = shufflevector <vscale x 2 x half> %1, <vscale x 2 x half> undef, <vscale x 2 x i32> zeroinitializer
@@ -297,7 +330,7 @@ define <vscale x 2 x half> @splat_nxv2f16_imm() {
 
 define <vscale x 4 x float> @splat_nxv4f32_imm() {
 ; CHECK-LABEL: splat_nxv4f32_imm:
-; CHECK: mov z0.s, #1.0
+; CHECK: fmov z0.s, #1.00000000
 ; CHECK-NEXT: ret
   %1 = insertelement <vscale x 4 x float> undef, float 1.0, i32 0
   %2 = shufflevector <vscale x 4 x float> %1, <vscale x 4 x float> undef, <vscale x 4 x i32> zeroinitializer
@@ -306,7 +339,7 @@ define <vscale x 4 x float> @splat_nxv4f32_imm() {
 
 define <vscale x 2 x float> @splat_nxv2f32_imm() {
 ; CHECK-LABEL: splat_nxv2f32_imm:
-; CHECK: mov z0.s, #1.0
+; CHECK: fmov z0.s, #1.00000000
 ; CHECK-NEXT: ret
   %1 = insertelement <vscale x 2 x float> undef, float 1.0, i32 0
   %2 = shufflevector <vscale x 2 x float> %1, <vscale x 2 x float> undef, <vscale x 2 x i32> zeroinitializer
@@ -315,9 +348,29 @@ define <vscale x 2 x float> @splat_nxv2f32_imm() {
 
 define <vscale x 2 x double> @splat_nxv2f64_imm() {
 ; CHECK-LABEL: splat_nxv2f64_imm:
-; CHECK: mov z0.d, #1.0
+; CHECK: fmov z0.d, #1.00000000
 ; CHECK-NEXT: ret
   %1 = insertelement <vscale x 2 x double> undef, double 1.0, i32 0
   %2 = shufflevector <vscale x 2 x double> %1, <vscale x 2 x double> undef, <vscale x 2 x i32> zeroinitializer
   ret <vscale x 2 x double> %2
 }
+
+define <vscale x 4 x i32> @splat_nxv4i32_fold(<vscale x 4 x i32> %x) {
+; CHECK-LABEL: splat_nxv4i32_fold:
+; CHECK: mov z0.s, #0
+; CHECK-NEXT: ret
+  %r = sub <vscale x 4 x i32> %x, %x
+  ret <vscale x 4 x i32> %r
+}
+
+
+define <vscale x 4 x float> @splat_nxv4f32_fold(<vscale x 4 x float> %x) {
+; CHECK-LABEL: splat_nxv4f32_fold:
+; CHECK: mov z0.s, #0
+; CHECK-NEXT: ret
+  %r = fsub nnan <vscale x 4 x float> %x, %x
+  ret <vscale x 4 x float> %r
+}
+
+; +bf16 is required for the bfloat version.
+attributes #0 = { "target-features"="+sve,+bf16" }

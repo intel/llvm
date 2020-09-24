@@ -549,6 +549,7 @@ __kmp_hyper_barrier_gather(enum barrier_type bt, kmp_info_t *this_thr, int gtid,
     if (((tid >> level) & (branch_factor - 1)) != 0) {
       kmp_int32 parent_tid = tid & ~((1 << (level + branch_bits)) - 1);
 
+      KMP_MB(); // Synchronize parent and child threads.
       KA_TRACE(20,
                ("__kmp_hyper_barrier_gather: T#%d(%d:%d) releasing T#%d(%d:%d) "
                 "arrived(%p): %llu => %llu\n",
@@ -590,6 +591,7 @@ __kmp_hyper_barrier_gather(enum barrier_type bt, kmp_info_t *this_thr, int gtid,
       kmp_flag_64 c_flag(&child_bar->b_arrived, new_state);
       c_flag.wait(this_thr, FALSE USE_ITT_BUILD_ARG(itt_sync_obj));
       ANNOTATE_BARRIER_END(child_thr);
+      KMP_MB(); // Synchronize parent and child threads.
 #if USE_ITT_BUILD && USE_ITT_NOTIFY
       // Barrier imbalance - write min of the thread time and a child time to
       // the thread.
@@ -1451,7 +1453,8 @@ static int __kmp_barrier_template(enum barrier_type bt, int gtid, int is_split,
       // Barrier - report frame end (only if active_level == 1)
       if ((__itt_frame_submit_v3_ptr || KMP_ITT_DEBUG) &&
           __kmp_forkjoin_frames_mode &&
-          this_thr->th.th_teams_microtask == NULL &&
+          (this_thr->th.th_teams_microtask == NULL || // either not in teams
+           this_thr->th.th_teams_size.nteams == 1) && // or inside single team
           team->t.t_active_level == 1) {
         ident_t *loc = __kmp_threads[gtid]->th.th_ident;
         kmp_uint64 cur_time = __itt_get_timestamp();
@@ -1837,7 +1840,9 @@ void __kmp_join_barrier(int gtid) {
 #if USE_ITT_BUILD && USE_ITT_NOTIFY
     // Join barrier - report frame end
     if ((__itt_frame_submit_v3_ptr || KMP_ITT_DEBUG) &&
-        __kmp_forkjoin_frames_mode && this_thr->th.th_teams_microtask == NULL &&
+        __kmp_forkjoin_frames_mode &&
+        (this_thr->th.th_teams_microtask == NULL || // either not in teams
+         this_thr->th.th_teams_size.nteams == 1) && // or inside single team
         team->t.t_active_level == 1) {
       kmp_uint64 cur_time = __itt_get_timestamp();
       ident_t *loc = team->t.t_ident;

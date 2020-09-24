@@ -1,4 +1,4 @@
-//===--------------------- Unittests for sigprocmask ----------------------===//
+//===-- Unittests for sigprocmask -----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,7 +14,7 @@
 #include "src/signal/sigemptyset.h"
 #include "src/signal/sigprocmask.h"
 
-#include "utils/UnitTest/ErrnoSetterMatcher.h"
+#include "test/ErrnoSetterMatcher.h"
 #include "utils/UnitTest/Test.h"
 
 class SignalTest : public __llvm_libc::testing::Test {

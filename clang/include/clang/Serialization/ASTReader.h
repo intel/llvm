@@ -723,9 +723,10 @@ private:
 
   struct PendingMacroInfo {
     ModuleFile *M;
-    uint64_t MacroDirectivesOffset;
+    /// Offset relative to ModuleFile::MacroOffsetsBase.
+    uint32_t MacroDirectivesOffset;
 
-    PendingMacroInfo(ModuleFile *M, uint64_t MacroDirectivesOffset)
+    PendingMacroInfo(ModuleFile *M, uint32_t MacroDirectivesOffset)
         : M(M), MacroDirectivesOffset(MacroDirectivesOffset) {}
   };
 
@@ -856,6 +857,18 @@ private:
   int PragmaMSPointersToMembersState = -1;
   SourceLocation PointersToMembersPragmaLocation;
 
+  /// The pragma float_control state.
+  Optional<FPOptionsOverride> FpPragmaCurrentValue;
+  SourceLocation FpPragmaCurrentLocation;
+  struct FpPragmaStackEntry {
+    FPOptionsOverride Value;
+    SourceLocation Location;
+    SourceLocation PushLocation;
+    StringRef SlotLabel;
+  };
+  llvm::SmallVector<FpPragmaStackEntry, 2> FpPragmaStack;
+  llvm::SmallVector<std::string, 2> FpPragmaStrings;
+
   /// The pragma pack state.
   Optional<unsigned> PragmaPackCurrentValue;
   SourceLocation PragmaPackCurrentLocation;
@@ -887,8 +900,9 @@ private:
   /// Delete expressions to analyze at the end of translation unit.
   SmallVector<uint64_t, 8> DelayedDeleteExprs;
 
-  // A list of late parsed template function data.
-  SmallVector<uint64_t, 1> LateParsedTemplates;
+  // A list of late parsed template function data with their module files.
+  SmallVector<std::pair<ModuleFile *, SmallVector<uint64_t, 1>>, 4>
+      LateParsedTemplates;
 
   /// The IDs of all decls to be checked for deferred diags.
   ///
@@ -1354,7 +1368,7 @@ private:
                           unsigned PreviousGeneration = 0);
 
   RecordLocation getLocalBitOffset(uint64_t GlobalOffset);
-  uint64_t getGlobalBitOffset(ModuleFile &M, uint32_t LocalOffset);
+  uint64_t getGlobalBitOffset(ModuleFile &M, uint64_t LocalOffset);
 
   /// Returns the first preprocessed entity ID that begins or ends after
   /// \arg Loc.
@@ -1877,7 +1891,8 @@ public:
   /// ReadBlockAbbrevs - Enter a subblock of the specified BlockID with the
   /// specified cursor.  Read the abbreviations that are at the top of the block
   /// and then leave the cursor pointing into the block.
-  static bool ReadBlockAbbrevs(llvm::BitstreamCursor &Cursor, unsigned BlockID);
+  static bool ReadBlockAbbrevs(llvm::BitstreamCursor &Cursor, unsigned BlockID,
+                               uint64_t *StartOfBlockOffset = nullptr);
 
   /// Finds all the visible declarations with a given name.
   /// The current implementation of this method just loads the entire
@@ -2071,8 +2086,6 @@ public:
   /// Note: overrides method in ExternalASTSource
   Module *getModule(unsigned ID) override;
 
-  bool DeclIsFromPCHWithObjectFile(const Decl *D) override;
-
   /// Retrieve the module file with a given local ID within the specified
   /// ModuleFile.
   ModuleFile *getLocalModuleFile(ModuleFile &M, unsigned ID);
@@ -2205,7 +2218,7 @@ public:
   /// \param MacroDirectivesOffset Offset of the serialized macro directive
   /// history.
   void addPendingMacro(IdentifierInfo *II, ModuleFile *M,
-                       uint64_t MacroDirectivesOffset);
+                       uint32_t MacroDirectivesOffset);
 
   /// Read the set of macros defined by this external macro source.
   void ReadDefinedMacros() override;

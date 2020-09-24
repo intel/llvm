@@ -135,7 +135,6 @@ define i1 @gep9(i8* %ptr) {
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    ret i1 true
 ;
-
 entry:
   %first1 = getelementptr inbounds i8, i8* %ptr, i32 0
   %first2 = getelementptr inbounds i8, i8* %first1, i32 1
@@ -156,7 +155,6 @@ define i1 @gep10(i8* %ptr) {
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    ret i1 true
 ;
-
 entry:
   %first1 = getelementptr inbounds i8, i8* %ptr, i32 -2
   %first2 = getelementptr inbounds i8, i8* %first1, i32 44
@@ -173,7 +171,6 @@ define i1 @gep11(i8* %ptr) {
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    ret i1 true
 ;
-
 entry:
   %first1 = getelementptr inbounds i8, i8* %ptr, i32 -2
   %last1 = getelementptr inbounds i8, i8* %ptr, i32 48
@@ -191,7 +188,6 @@ define i1 @gep12(i8* %ptr) {
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp slt i8* [[FIRST1]], [[LAST2]]
 ; CHECK-NEXT:    ret i1 [[CMP]]
 ;
-
 entry:
   %first1 = getelementptr inbounds i8, i8* %ptr, i32 -2
   %last1 = getelementptr inbounds i8, i8* %ptr, i32 48
@@ -278,7 +274,6 @@ define i1 @gep16_no_null_opt(i8* %ptr, i32 %a) #0 {
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i8* [[X]], null
 ; CHECK-NEXT:    ret i1 [[CMP]]
 ;
-; CHECK getelementptr inbounds i8, i8* %ptr, i32 %b
   %b = or i32 %a, 1
   %x = getelementptr inbounds i8, i8* %ptr, i32 %b
   %cmp = icmp eq i8* %x, null
@@ -728,6 +723,42 @@ define i1 @urem7(i32 %X) {
   ret i1 %B
 }
 
+define i1 @urem8(i8 %X, i8 %Y) {
+; CHECK-LABEL: @urem8(
+; CHECK-NEXT:    ret i1 true
+;
+  %A = urem i8 %X, %Y
+  %B = icmp ule i8 %A, %X
+  ret i1 %B
+}
+
+define i1 @urem9(i8 %X, i8 %Y) {
+; CHECK-LABEL: @urem9(
+; CHECK-NEXT:    ret i1 false
+;
+  %A = urem i8 %X, %Y
+  %B = icmp ugt i8 %A, %X
+  ret i1 %B
+}
+
+define i1 @urem10(i8 %X, i8 %Y) {
+; CHECK-LABEL: @urem10(
+; CHECK-NEXT:    ret i1 true
+;
+  %A = urem i8 %X, %Y
+  %B = icmp uge i8 %X, %A
+  ret i1 %B
+}
+
+define i1 @urem11(i8 %X, i8 %Y) {
+; CHECK-LABEL: @urem11(
+; CHECK-NEXT:    ret i1 false
+;
+  %A = urem i8 %X, %Y
+  %B = icmp ult i8 %X, %A
+  ret i1 %B
+}
+
 ; PR9343 #15
 define i1 @srem2(i16 %X, i32 %Y) {
 ; CHECK-LABEL: @srem2(
@@ -966,7 +997,7 @@ define i1 @alloca_compare(i64 %idx) {
 
 define i1 @alloca_compare_no_null_opt(i64 %idx) #0 {
 ; CHECK-LABEL: @alloca_compare_no_null_opt(
-; CHECK-NEXT:    [[SV:%.*]] = alloca { i32, i32, [124 x i32] }
+; CHECK-NEXT:    [[SV:%.*]] = alloca { i32, i32, [124 x i32] }, align 8
 ; CHECK-NEXT:    [[CMP:%.*]] = getelementptr inbounds { i32, i32, [124 x i32] }, { i32, i32, [124 x i32] }* [[SV]], i32 0, i32 2, i64 [[IDX:%.*]]
 ; CHECK-NEXT:    [[X:%.*]] = icmp eq i32* [[CMP]], null
 ; CHECK-NEXT:    ret i1 [[X]]
@@ -1000,7 +1031,7 @@ unreachableblock:
 
 define i1 @alloca_argument_compare(i64* %arg) {
 ; CHECK-LABEL: @alloca_argument_compare(
-; CHECK-NEXT:    [[ALLOC:%.*]] = alloca i64
+; CHECK-NEXT:    [[ALLOC:%.*]] = alloca i64, align 8
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i64* [[ARG:%.*]], [[ALLOC]]
 ; CHECK-NEXT:    ret i1 [[CMP]]
 ;
@@ -1013,7 +1044,7 @@ define i1 @alloca_argument_compare(i64* %arg) {
 
 define i1 @alloca_argument_compare_swapped(i64* %arg) {
 ; CHECK-LABEL: @alloca_argument_compare_swapped(
-; CHECK-NEXT:    [[ALLOC:%.*]] = alloca i64
+; CHECK-NEXT:    [[ALLOC:%.*]] = alloca i64, align 8
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i64* [[ALLOC]], [[ARG:%.*]]
 ; CHECK-NEXT:    ret i1 [[CMP]]
 ;
@@ -1678,4 +1709,4 @@ define i1 @cmp_through_addrspacecast(i32 addrspace(1)* %p1) {
   ret i1 %cmp
 }
 
-attributes #0 = { "null-pointer-is-valid"="true" }
+attributes #0 = { null_pointer_is_valid }

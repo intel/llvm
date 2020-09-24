@@ -41,7 +41,7 @@ function(get_debugserver_codesign_identity result)
     return()
   endif()
 
-  message(WARNING "Development code sign identiy not found: 'lldb_codesign' ${not_found_help}")
+  message(WARNING "Development code sign identity not found: 'lldb_codesign' ${not_found_help}")
 
   # LLVM pendant: fallback if available
   if(LLVM_CODESIGNING_IDENTITY)
@@ -99,7 +99,7 @@ set_property(GLOBAL PROPERTY
   LLDB_DEBUGSERVER_CODESIGN_IDENTITY ${debugserver_codesign_identity})
 
 if(APPLE)
-  if(IOS)
+  if(APPLE_EMBEDDED)
     find_library(BACKBOARD_LIBRARY BackBoardServices
       PATHS ${CMAKE_OSX_SYSROOT}/System/Library/PrivateFrameworks)
     find_library(FRONTBOARD_LIBRARY FrontBoardServices
@@ -121,12 +121,22 @@ if(HAVE_LIBCOMPRESSION)
 endif()
 
 if(LLDB_USE_ENTITLEMENTS)
-  if(IOS)
+  if(APPLE_EMBEDDED)
     set(entitlements ${CMAKE_CURRENT_SOURCE_DIR}/debugserver-entitlements.plist)
   else()
     # Same entitlements file as used for lldb-server
     set(entitlements ${LLDB_SOURCE_DIR}/resources/debugserver-macosx-entitlements.plist)
   endif()
+endif()
+
+add_definitions(-DLLDB_USE_OS_LOG)
+
+if(${CMAKE_OSX_SYSROOT} MATCHES ".Internal.sdk$")
+  message(STATUS "LLDB debugserver energy support is enabled")
+  add_definitions(-DLLDB_ENERGY)
+  set(ENERGY_LIBRARY -lpmenergy -lpmsample)
+else()
+  message(STATUS "LLDB debugserver energy support is disabled")
 endif()
 
 set(generated_mach_interfaces
@@ -208,7 +218,8 @@ target_link_libraries(lldbDebugserverCommon
                       lldbDebugserverDarwin_DarwinLog
                       ${FOUNDATION_LIBRARY}
                       ${SECURITY_LIBRARY}
-                      ${LIBCOMPRESSION})
+                      ${LIBCOMPRESSION}
+                      ${ENERGY_LIBRARY})
 if(HAVE_LIBCOMPRESSION)
   set_property(TARGET lldbDebugserverCommon APPEND PROPERTY
                 COMPILE_DEFINITIONS HAVE_LIBCOMPRESSION)
@@ -249,7 +260,7 @@ endif()
 
 set_target_properties(debugserver PROPERTIES FOLDER "lldb libraries/debugserver")
 
-if(IOS)
+if(APPLE_EMBEDDED)
   set_property(TARGET lldbDebugserverCommon APPEND PROPERTY COMPILE_DEFINITIONS
     WITH_LOCKDOWN
     WITH_FBS

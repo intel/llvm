@@ -74,10 +74,12 @@ TEST(RTDyldObjectLinkingLayerTest, TestSetProcessAllSections) {
   LLVMContext Context;
   auto M = std::make_unique<Module>("", Context);
   M->setTargetTriple("x86_64-unknown-linux-gnu");
-  Type *Int32Ty = IntegerType::get(Context, 32);
-  GlobalVariable *GV =
-      new GlobalVariable(*M, Int32Ty, false, GlobalValue::ExternalLinkage,
-                         ConstantInt::get(Int32Ty, 42), "foo");
+  Constant *StrConstant = ConstantDataArray::getString(Context, "forty-two");
+  auto *GV =
+      new GlobalVariable(*M, StrConstant->getType(), true,
+                         GlobalValue::ExternalLinkage, StrConstant, "foo");
+  GV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
+  GV->setAlignment(Align(1));
 
   GV->setSection(".debug_str");
 
@@ -115,7 +117,7 @@ TEST(RTDyldObjectLinkingLayerTest, TestOverrideObjectFlags) {
   public:
     FunkySimpleCompiler(TargetMachine &TM) : SimpleCompiler(TM) {}
 
-    Expected<CompileResult> operator()(Module &M) {
+    Expected<CompileResult> operator()(Module &M) override {
       auto *Foo = M.getFunction("foo");
       assert(Foo && "Expected function Foo not found");
       Foo->setVisibility(GlobalValue::HiddenVisibility);
@@ -185,7 +187,7 @@ TEST(RTDyldObjectLinkingLayerTest, TestAutoClaimResponsibilityForSymbols) {
   public:
     FunkySimpleCompiler(TargetMachine &TM) : SimpleCompiler(TM) {}
 
-    Expected<CompileResult> operator()(Module &M) {
+    Expected<CompileResult> operator()(Module &M) override {
       Function *BarImpl = Function::Create(
           FunctionType::get(Type::getVoidTy(M.getContext()), {}, false),
           GlobalValue::ExternalLinkage, "bar", &M);

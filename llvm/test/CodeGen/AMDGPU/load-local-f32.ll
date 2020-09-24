@@ -1,5 +1,5 @@
 ; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,SICIVI,FUNC %s
-; RUN: llc -march=amdgcn -mcpu=tonga -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,SICIVI,FUNC %s
+; RUN: llc -march=amdgcn -mcpu=tonga -mattr=-enable-ds128 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,SICIVI,FUNC %s
 ; RUN: llc -march=r600 -mcpu=redwood < %s | FileCheck -check-prefixes=EG,FUNC %s
 
 ; Testing for ds_read/write_128
@@ -40,11 +40,13 @@ entry:
 ; SICIVI: s_mov_b32 m0
 ; GFX9-NOT: m0
 
-; GCN-DAG: ds_read_b32 v{{[0-9]+}}, v{{[0-9]+}} offset:8
-; GCN-DAG: ds_read_b64 v{{\[[0-9]+:[0-9]+\]}}, v{{[0-9]+$}}
+; SI-DAG: ds_read_b32 v{{[0-9]+}}, v{{[0-9]+}} offset:8
+; SI-DAG: ds_read_b64 v{{\[[0-9]+:[0-9]+\]}}, v{{[0-9]+$}}
+; CIVI-DAG: ds_read_b96 v{{\[[0-9]+:[0-9]+\]}}, v{{[0-9]+$}}
 ; GCN: s_waitcnt
-; GCN-DAG: ds_write_b64
-; GCN-DAG: ds_write_b32 v{{[0-9]+}}, v{{[0-9]+}} offset:8{{$}}
+; SI-DAG: ds_write_b64
+; SI-DAG: ds_write_b32 v{{[0-9]+}}, v{{[0-9]+}} offset:8{{$}}
+; CIVI-DAG: ds_write_b96 v{{[0-9]+}}, v{{\[[0-9]+:[0-9]+\]}}
 
 ; EG: LDS_READ_RET
 ; EG: LDS_READ_RET

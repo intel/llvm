@@ -43,6 +43,15 @@ class ObjCDataFormatterNSDate(ObjCDataFormatterTestCase):
         self.expect('frame variable date4_abs', substrs=['1970'])
         self.expect('frame variable date5_abs', substrs=[now_year])
 
+        # Check that LLDB always follow's NSDate's rounding behavior (which
+        # is always rounding down).
+        self.expect_expr("date_1970_minus_06", result_summary="1969-12-31 23:59:59 UTC")
+        self.expect_expr("date_1970_minus_05", result_summary="1969-12-31 23:59:59 UTC")
+        self.expect_expr("date_1970_minus_04", result_summary="1969-12-31 23:59:59 UTC")
+        self.expect_expr("date_1970_plus_06", result_summary="1970-01-01 00:00:00 UTC")
+        self.expect_expr("date_1970_plus_05", result_summary="1970-01-01 00:00:00 UTC")
+        self.expect_expr("date_1970_plus_04", result_summary="1970-01-01 00:00:00 UTC")
+
         self.expect('frame variable cupertino home europe',
                     substrs=['@"America/Los_Angeles"',
                              '@"Europe/Rome"',
@@ -58,3 +67,6 @@ class ObjCDataFormatterNSDate(ObjCDataFormatterTestCase):
             substrs=[
                 '(CFMutableBitVectorRef) mut_bv = ',
                 '1110 0110 1011 0000 1101 1010 1000 1111 0011 0101 1101 0001 00'])
+
+        self.expect_expr("distant_past", result_summary="0001-01-01 00:00:00 UTC")
+        self.expect_expr("distant_future", result_summary="4001-01-01 00:00:00 UTC")

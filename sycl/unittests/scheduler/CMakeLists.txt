@@ -4,5 +4,9 @@ add_sycl_unittest(SchedulerTests OBJECT
     FinishedCmdCleanup.cpp
     LeafLimit.cpp
     MemObjCommandCleanup.cpp
+    CommandsWaitForEvents.cpp
+    WaitAfterCleanup.cpp
+    LinkedAllocaDependencies.cpp
+    LeavesCollection.cpp
     utils.cpp
 )

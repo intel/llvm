@@ -102,10 +102,15 @@ public:
   Instruction *transWGSizeQueryBI(SPIRVInstruction *BI, BasicBlock *BB);
   Instruction *transSGSizeQueryBI(SPIRVInstruction *BI, BasicBlock *BB);
   bool transFPContractMetadata();
-  bool transKernelMetadata();
+  bool transMetadata();
+  bool transOCLMetadata(SPIRVFunction *BF);
+  bool transVectorComputeMetadata(SPIRVFunction *BF);
   Value *transAsmINTEL(SPIRVAsmINTEL *BA);
   CallInst *transAsmCallINTEL(SPIRVAsmCallINTEL *BI, Function *F,
                               BasicBlock *BB);
+  CallInst *transFixedPointInst(SPIRVInstruction *BI, BasicBlock *BB);
+  CallInst *transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
+                              bool IsBinaryInst = false);
   bool transNonTemporalMetadata(Instruction *I);
   bool transSourceLanguage();
   bool transSourceExtension();
@@ -169,14 +174,6 @@ public:
   /// \return transformed call instruction.
   CallInst *expandOCLBuiltinWithScalarArg(CallInst *CI,
                                           const std::string &FuncName);
-
-  /// \brief Post-process OpGroupAll and OpGroupAny instructions translation.
-  /// i1 func (<n x i1> arg)
-  /// =>
-  /// i32 func (<n x i32> arg)
-  /// \return transformed call instruction.
-  Instruction *postProcessGroupAllAny(CallInst *CI,
-                                      const std::string &DemangledName);
 
   typedef DenseMap<SPIRVType *, Type *> SPIRVToLLVMTypeMap;
   typedef DenseMap<SPIRVValue *, Value *> SPIRVToLLVMValueMap;
@@ -252,6 +249,7 @@ private:
   std::string transOCLPipeStorageTypeName(SPIRV::SPIRVTypePipeStorage *PST);
   std::string transOCLImageTypeAccessQualifier(SPIRV::SPIRVTypeImage *ST);
   std::string transOCLPipeTypeAccessQualifier(SPIRV::SPIRVTypePipe *ST);
+  std::string transVCTypeName(SPIRVTypeBufferSurfaceINTEL *PST);
 
   Value *oclTransConstantSampler(SPIRV::SPIRVConstantSampler *BCS,
                                  BasicBlock *BB);
@@ -270,6 +268,7 @@ private:
   Instruction *transOCLAllAny(SPIRVInstruction *BI, BasicBlock *BB);
   Instruction *transOCLRelational(SPIRVInstruction *BI, BasicBlock *BB);
 
+  void transUserSemantic(SPIRV::SPIRVFunction *Fun);
   void transGlobalAnnotations();
   void transIntelFPGADecorations(SPIRVValue *BV, Value *V);
 }; // class SPIRVToLLVM

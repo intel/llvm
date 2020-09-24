@@ -1,4 +1,4 @@
-add_mlir_dialect_library(MLIRQuantOps
+add_mlir_dialect_library(MLIRQuant
   IR/QuantOps.cpp
   IR/QuantTypes.cpp
   IR/TypeDetail.h
@@ -14,12 +14,12 @@ add_mlir_dialect_library(MLIRQuantOps
 
   DEPENDS
   MLIRQuantOpsIncGen
-  )
-target_link_libraries(MLIRQuantOps
-  PUBLIC
+  MLIRQuantPassIncGen
+
+  LINK_LIBS PUBLIC
   MLIRIR
   MLIRPass
-  MLIRSideEffects
+  MLIRSideEffectInterfaces
   MLIRSupport
   MLIRStandardOps
   MLIRTransformUtils

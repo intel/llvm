@@ -7,7 +7,7 @@
 ; RUN:     -function-sections -data-sections \
 ; RUN:     -relocation-model=pic -filetype=obj \
 ; RUN:     -generate-type-units -o - %s | \
-; RUN:     llvm-readelf --sections | \
+; RUN:     llvm-readelf --sections - | \
 ; RUN:     FileCheck %s --check-prefix=CHECK-ELF
 ; Created from `clang++ -fxray-instrument -gsplit-dwarf -fdebug-types-section
 ; -ffunction-sections -fdata-sections -emit-llvm -S input.cc`:
@@ -29,7 +29,7 @@
 ;
 ; CHECK-ELF-DAG: [[FSECT:[0-9]+]]] .text._ZN1a1bEv PROGBITS
 ; CHECK-ELF-DAG: [{{.*}}] .debug_types.dwo PROGBITS
-; CHECK-ELF-DAG: [{{.*}}] xray_instr_map PROGBITS {{.*}} {{.*}} {{.*}} {{.*}} WAL [[FSECT]]
+; CHECK-ELF-DAG: [{{.*}}] xray_instr_map PROGBITS {{.*}} {{.*}} {{.*}} {{.*}} AL [[FSECT]]
 target triple = "x86_64-pc-linux"
 
 %class.a = type { i8 }

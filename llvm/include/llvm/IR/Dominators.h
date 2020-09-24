@@ -44,6 +44,9 @@ using BBPostDomTree = PostDomTreeBase<BasicBlock>;
 
 using BBUpdates = ArrayRef<llvm::cfg::Update<BasicBlock *>>;
 
+using BBDomTreeGraphDiff = GraphDiff<BasicBlock *, false>;
+using BBPostDomTreeGraphDiff = GraphDiff<BasicBlock *, true>;
+
 extern template void Calculate<BBDomTree>(BBDomTree &DT);
 extern template void CalculateWithUpdates<BBDomTree>(BBDomTree &DT,
                                                      BBUpdates U);
@@ -62,8 +65,12 @@ extern template void DeleteEdge<BBPostDomTree>(BBPostDomTree &DT,
                                                BasicBlock *From,
                                                BasicBlock *To);
 
-extern template void ApplyUpdates<BBDomTree>(BBDomTree &DT, BBUpdates);
-extern template void ApplyUpdates<BBPostDomTree>(BBPostDomTree &DT, BBUpdates);
+extern template void ApplyUpdates<BBDomTree>(BBDomTree &DT,
+                                             BBDomTreeGraphDiff &,
+                                             BBDomTreeGraphDiff *);
+extern template void ApplyUpdates<BBPostDomTree>(BBPostDomTree &DT,
+                                                 BBPostDomTreeGraphDiff &,
+                                                 BBPostDomTreeGraphDiff *);
 
 extern template bool Verify<BBDomTree>(const BBDomTree &DT,
                                        BBDomTree::VerificationLevel VL);
@@ -172,6 +179,8 @@ class DominatorTree : public DominatorTreeBase<BasicBlock, false> {
   /// never dominate the use.
   bool dominates(const BasicBlockEdge &BBE, const Use &U) const;
   bool dominates(const BasicBlockEdge &BBE, const BasicBlock *BB) const;
+  /// Returns true if edge \p BBE1 dominates edge \p BBE2.
+  bool dominates(const BasicBlockEdge &BBE1, const BasicBlockEdge &BBE2) const;
 
   // Ensure base class overloads are visible.
   using Base::isReachableFromEntry;
@@ -206,7 +215,8 @@ template <class Node, class ChildIterator> struct DomTreeGraphTraitsBase {
 
 template <>
 struct GraphTraits<DomTreeNode *>
-    : public DomTreeGraphTraitsBase<DomTreeNode, DomTreeNode::iterator> {};
+    : public DomTreeGraphTraitsBase<DomTreeNode, DomTreeNode::const_iterator> {
+};
 
 template <>
 struct GraphTraits<const DomTreeNode *>
@@ -275,7 +285,7 @@ public:
     AU.setPreservesAll();
   }
 
-  void releaseMemory() override { DT.releaseMemory(); }
+  void releaseMemory() override { DT.reset(); }
 
   void print(raw_ostream &OS, const Module *M = nullptr) const override;
 };

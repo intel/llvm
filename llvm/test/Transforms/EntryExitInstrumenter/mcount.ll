@@ -4,7 +4,7 @@
 ; RUN: opt -passes="function(ee-instrument),function(ee-instrument),cgscc(inline),function(post-inline-ee-instrument),function(post-inline-ee-instrument)" -S < %s | FileCheck %s
 
 target datalayout = "E-m:e-i64:64-n32:64"
-target triple = "powerpc64-bgq-linux"
+target triple = "powerpc64le-unknown-linux"
 
 define void @leaf_function() #0 {
 entry:
@@ -30,18 +30,18 @@ entry:
 ; CHECK: entry:
 ; CHECK-NEXT: call void @mcount()
 
-; CHECK-NEXT %0 = call i8* @llvm.returnaddress(i32 0)
-; CHECK-NEXT call void @__cyg_profile_func_enter(i8* bitcast (void ()* @root_function to i8*), i8* %0)
+; CHECK-NEXT: %0 = call i8* @llvm.returnaddress(i32 0)
+; CHECK-NEXT: call void @__cyg_profile_func_enter(i8* bitcast (void ()* @root_function to i8*), i8* %0)
 
 ; Entry and exit calls, inlined from @leaf_function()
-; CHECK-NEXT %1 = call i8* @llvm.returnaddress(i32 0)
-; CHECK-NEXT call void @__cyg_profile_func_enter(i8* bitcast (void ()* @leaf_function to i8*), i8* %1)
-; CHECK-NEXT %2 = call i8* @llvm.returnaddress(i32 0)
-; CHECK-NEXT call void @__cyg_profile_func_exit(i8* bitcast (void ()* @leaf_function to i8*), i8* %2)
-; CHECK-NEXT %3 = call i8* @llvm.returnaddress(i32 0)
+; CHECK-NEXT: %1 = call i8* @llvm.returnaddress(i32 0)
+; CHECK-NEXT: call void @__cyg_profile_func_enter(i8* bitcast (void ()* @leaf_function to i8*), i8* %1)
+; CHECK-NEXT: %2 = call i8* @llvm.returnaddress(i32 0)
+; CHECK-NEXT: call void @__cyg_profile_func_exit(i8* bitcast (void ()* @leaf_function to i8*), i8* %2)
+; CHECK-NEXT: %3 = call i8* @llvm.returnaddress(i32 0)
 
-; CHECK-NEXT call void @__cyg_profile_func_exit(i8* bitcast (void ()* @root_function to i8*), i8* %3)
-; CHECK-NEXT ret void
+; CHECK-NEXT: call void @__cyg_profile_func_exit(i8* bitcast (void ()* @root_function to i8*), i8* %3)
+; CHECK-NEXT: ret void
 }
 
 

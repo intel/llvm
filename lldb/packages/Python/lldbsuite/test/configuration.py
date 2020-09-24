@@ -42,8 +42,10 @@ lldb_framework_path = None
 count = 1
 
 # The 'arch' and 'compiler' can be specified via command line.
-arch = None        # Must be initialized after option parsing
-compiler = None    # Must be initialized after option parsing
+arch = None
+compiler = None
+dsymutil = None
+sdkroot = None
 
 # The overriden dwarf verison.
 dwarf_version = 0
@@ -54,6 +56,9 @@ settings = [('target.prefer-dynamic-value', 'no-dynamic-values')]
 
 # Path to the FileCheck testing tool. Not optional.
 filecheck = None
+
+# Path to the yaml2obj tool. Not optional.
+yaml2obj = None
 
 # The arch might dictate some specific CFLAGS to be passed to the toolchain to build
 # the inferior programs.  The global variable cflags_extras provides a hook to do
@@ -87,7 +92,6 @@ session_file_format = 'fnmac'
 
 # Set this flag if there is any session info dumped during the test run.
 sdir_has_content = False
-
 # svn_info stores the output from 'svn info lldb.base.dir'.
 svn_info = ''
 
@@ -99,6 +103,10 @@ verbose = 0
 # because it doesn't work under a debugger
 testdirs = [lldbsuite.lldb_test_root]
 
+# The root of the test case tree (where the actual tests reside, not the test
+# infrastructure).
+test_src_root = lldbsuite.lldb_test_root
+
 # Separator string.
 separator = '-' * 70
 
@@ -109,6 +117,9 @@ lldb_platform_name = None
 lldb_platform_url = None
 lldb_platform_working_dir = None
 
+# Apple SDK
+apple_sdk = None
+
 # The base directory in which the tests are being built.
 test_build_dir = None
 
@@ -118,14 +129,11 @@ lldb_module_cache_dir = None
 clang_module_cache_dir = None
 
 # Test results handling globals
-results_filename = None
-results_formatter_name = None
-results_formatter_object = None
-results_formatter_options = None
 test_result = None
 
-# Test rerun configuration vars
-rerun_all_issues = False
+# Reproducers
+capture_path = None
+replay_path = None
 
 # The names of all tests. Used to assert we don't have two tests with the
 # same base name.
@@ -133,6 +141,9 @@ all_tests = set()
 
 # LLDB library directory.
 lldb_libs_dir = None
+
+# A plugin whose tests will be enabled, like intel-pt.
+enabled_plugins = []
 
 
 def shouldSkipBecauseOfCategories(test_categories):
@@ -154,3 +165,25 @@ def get_filecheck_path():
     """
     if filecheck and os.path.lexists(filecheck):
         return filecheck
+
+def get_yaml2obj_path():
+    """
+    Get the path to the yaml2obj tool.
+    """
+    if yaml2obj and os.path.lexists(yaml2obj):
+        return yaml2obj
+
+def is_reproducer_replay():
+    """
+    Returns true when dotest is being replayed from a reproducer. Never use
+    this method to guard SB API calls as it will cause a divergence between
+    capture and replay.
+    """
+    return replay_path is not None
+
+def is_reproducer():
+    """
+    Returns true when dotest is capturing a reproducer or is being replayed
+    from a reproducer. Use this method to guard SB API calls.
+    """
+    return capture_path or replay_path

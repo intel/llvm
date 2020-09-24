@@ -1,0 +1,49 @@
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include "utils.h"
+#include <clcmacro.h>
+
+#ifndef __CLC_BUILTIN
+#define __CLC_BUILTIN __CLC_XCONCAT(__clc_, __CLC_FUNCTION)
+#endif
+
+#ifndef __CLC_BUILTIN_D
+#define __CLC_BUILTIN_D __CLC_BUILTIN
+#endif
+
+#ifndef __CLC_BUILTIN_F
+#define __CLC_BUILTIN_F __CLC_BUILTIN
+#endif
+
+#ifndef __CLC_BUILTIN_H
+#define __CLC_BUILTIN_H __CLC_BUILTIN_F
+#endif
+
+_CLC_DEFINE_BINARY_BUILTIN(float, __CLC_FUNCTION, __CLC_BUILTIN_F, float, float)
+
+#ifndef __FLOAT_ONLY
+
+#ifdef cl_khr_fp64
+
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
+
+_CLC_DEFINE_BINARY_BUILTIN(double, __CLC_FUNCTION, __CLC_BUILTIN_D, double,
+                           double)
+
+#endif
+
+#ifdef cl_khr_fp16
+
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+
+_CLC_DEFINE_BINARY_BUILTIN(half, __CLC_FUNCTION, __CLC_BUILTIN_H, half, half)
+
+#endif
+
+#endif

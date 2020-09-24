@@ -139,7 +139,7 @@ static bool canUseLocalRelocation(const MCSectionMachO &Section,
     return false;
 
   if (RefSec.getSegmentName() == "__DATA" &&
-      RefSec.getSectionName() == "__objc_classrefs")
+      RefSec.getName() == "__objc_classrefs")
     return false;
 
   // FIXME: ld64 currently handles internal pointer-sized relocations
@@ -373,7 +373,11 @@ void AArch64MachObjectWriter::recordRelocation(
        Type == MachO::ARM64_RELOC_PAGE21 ||
        Type == MachO::ARM64_RELOC_PAGEOFF12) &&
       Value) {
-    assert((Value & 0xff000000) == 0 && "Added relocation out of range!");
+    if (!isInt<24>(Value)) {
+      Asm.getContext().reportError(Fixup.getLoc(),
+                                   "addend too big for relocation");
+      return;
+    }
 
     MachO::any_relocation_info MRE;
     MRE.r_word0 = FixupOffset;

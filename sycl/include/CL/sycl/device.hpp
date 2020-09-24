@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <CL/sycl/aspects.hpp>
+#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/info/info_desc.hpp>
@@ -24,6 +26,11 @@ class device_selector;
 namespace detail {
 class device_impl;
 }
+
+/// The SYCL device class encapsulates a single SYCL device on which kernels
+/// may be executed.
+///
+/// \ingroup sycl_api
 class __SYCL_EXPORT device {
 public:
   /// Constructs a SYCL device instance as a host device.
@@ -165,9 +172,27 @@ public:
   static vector_class<device>
   get_devices(info::device_type deviceType = info::device_type::all);
 
+  /// Gets the native handle of the SYCL device.
+  ///
+  /// \return a native handle, the type of which defined by the backend.
+  template <backend BackendName>
+  auto get_native() const -> typename interop<BackendName, device>::type {
+    return (typename interop<BackendName, device>::type)getNative();
+  }
+
+  /// Indicates if the SYCL device has the given feature.
+  ///
+  /// \param Aspect is one of the values in Table 4.20 of the SYCL 2020
+  /// Provisional Spec.
+  ///
+  /// \return true if the SYCL device has the given feature.
+  bool has(aspect Aspect) const;
+
 private:
   shared_ptr_class<detail::device_impl> impl;
   device(shared_ptr_class<detail::device_impl> impl) : impl(impl) {}
+
+  pi_native_handle getNative() const;
 
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);

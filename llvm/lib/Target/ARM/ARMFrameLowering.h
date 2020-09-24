@@ -9,9 +9,7 @@
 #ifndef LLVM_LIB_TARGET_ARM_ARMFRAMELOWERING_H
 #define LLVM_LIB_TARGET_ARM_ARMFRAMELOWERING_H
 
-#include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
-#include <vector>
 
 namespace llvm {
 
@@ -50,16 +48,12 @@ public:
   bool hasReservedCallFrame(const MachineFunction &MF) const override;
   bool canSimplifyCallFramePseudos(const MachineFunction &MF) const override;
   int getFrameIndexReference(const MachineFunction &MF, int FI,
-                             unsigned &FrameReg) const override;
+                             Register &FrameReg) const override;
   int ResolveFrameIndexReference(const MachineFunction &MF, int FI,
-                                 unsigned &FrameReg, int SPAdj) const;
+                                 Register &FrameReg, int SPAdj) const;
 
   void getCalleeSaves(const MachineFunction &MF,
                       BitVector &SavedRegs) const override;
-  void findRegDefsOutsideSaveRestore(MachineFunction &MF,
-                                     BitVector &Regs) const;
-  unsigned spillExtraRegsForIPRA(MachineFunction &MF, BitVector &SavedRegs,
-                                 bool HasFPRegSaves) const;
   void determineCalleeSaves(MachineFunction &MF, BitVector &SavedRegs,
                             RegScavenger *RS) const override;
 
@@ -74,6 +68,14 @@ public:
     // many registers with a single PUSH/POP pair.
     return false;
   }
+
+  bool
+  assignCalleeSavedSpillSlots(MachineFunction &MF,
+                              const TargetRegisterInfo *TRI,
+                              std::vector<CalleeSavedInfo> &CSI) const override;
+
+  const SpillSlot *
+  getCalleeSavedSpillSlots(unsigned &NumEntries) const override;
 
 private:
   void emitPushInst(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,

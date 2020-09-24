@@ -35,10 +35,12 @@ using namespace llvm;
 
 #define DEBUG_TYPE "wasm-asm-parser"
 
+static const char *getSubtargetFeatureName(uint64_t Val);
+
 namespace {
 
 /// WebAssemblyOperand - Instances of this class represent the operands in a
-/// parsed WASM machine instruction.
+/// parsed Wasm machine instruction.
 struct WebAssemblyOperand : public MCParsedAsmOperand {
   enum KindTy { Token, Integer, Float, Symbol, BrList } Kind;
 
@@ -164,6 +166,7 @@ class WebAssemblyAsmParser final : public MCTargetAsmParser {
 
   // Much like WebAssemblyAsmPrinter in the backend, we have to own these.
   std::vector<std::unique_ptr<wasm::WasmSignature>> Signatures;
+  std::vector<std::unique_ptr<std::string>> Names;
 
   // Order of labels, directives and instructions in a .s file have no
   // syntactical enforcement. This class is a callback from the actual parser,
@@ -230,6 +233,12 @@ public:
 
   void addSignature(std::unique_ptr<wasm::WasmSignature> &&Sig) {
     Signatures.push_back(std::move(Sig));
+  }
+
+  StringRef storeName(StringRef Name) {
+    std::unique_ptr<std::string> N = std::make_unique<std::string>(Name);
+    Names.push_back(std::move(N));
+    return *Names.back();
   }
 
   std::pair<StringRef, StringRef> nestingString(NestingType NT) {
@@ -315,6 +324,8 @@ public:
       return wasm::ValType::V128;
     if (Type == "exnref")
       return wasm::ValType::EXNREF;
+    if (Type == "externref")
+      return wasm::ValType::EXTERNREF;
     return Optional<wasm::ValType>();
   }
 
@@ -435,7 +446,7 @@ public:
     Name = StringRef(NameLoc.getPointer(), Name.size());
 
     // WebAssembly has instructions with / in them, which AsmLexer parses
-    // as seperate tokens, so if we find such tokens immediately adjacent (no
+    // as separate tokens, so if we find such tokens immediately adjacent (no
     // whitespace), expand the name to include them:
     for (;;) {
       auto &Sep = Lexer.getTok();
@@ -693,7 +704,7 @@ public:
       // WebAssemblyAsmPrinter::EmitFunctionBodyStart.
       // TODO: would be good to factor this into a common function, but the
       // assembler and backend really don't share any common code, and this code
-      // parses the locals seperately.
+      // parses the locals separately.
       auto SymName = expectIdent();
       if (SymName.empty())
         return true;
@@ -725,7 +736,7 @@ public:
         return true;
       auto ExportName = expectIdent();
       auto WasmSym = cast<MCSymbolWasm>(Ctx.getOrCreateSymbol(SymName));
-      WasmSym->setExportName(ExportName);
+      WasmSym->setExportName(storeName(ExportName));
       TOut.emitExportName(WasmSym, ExportName);
     }
 
@@ -737,7 +748,7 @@ public:
         return true;
       auto ImportModule = expectIdent();
       auto WasmSym = cast<MCSymbolWasm>(Ctx.getOrCreateSymbol(SymName));
-      WasmSym->setImportModule(ImportModule);
+      WasmSym->setImportModule(storeName(ImportModule));
       TOut.emitImportModule(WasmSym, ImportModule);
     }
 
@@ -749,7 +760,7 @@ public:
         return true;
       auto ImportName = expectIdent();
       auto WasmSym = cast<MCSymbolWasm>(Ctx.getOrCreateSymbol(SymName));
-      WasmSym->setImportName(ImportName);
+      WasmSym->setImportName(storeName(ImportName));
       TOut.emitImportName(WasmSym, ImportName);
     }
 
@@ -827,8 +838,9 @@ public:
                                bool MatchingInlineAsm) override {
     MCInst Inst;
     Inst.setLoc(IDLoc);
-    unsigned MatchResult =
-        MatchInstructionImpl(Operands, Inst, ErrorInfo, MatchingInlineAsm);
+    FeatureBitset MissingFeatures;
+    unsigned MatchResult = MatchInstructionImpl(
+        Operands, Inst, ErrorInfo, MissingFeatures, MatchingInlineAsm);
     switch (MatchResult) {
     case Match_Success: {
       ensureLocals(Out);
@@ -839,6 +851,16 @@ public:
         if (Op0.getImm() == -1)
           Op0.setImm(Align);
       }
+      if (getSTI().getTargetTriple().isArch64Bit()) {
+        // Upgrade 32-bit loads/stores to 64-bit. These mostly differ by having
+        // an offset64 arg instead of offset32, but to the assembler matcher
+        // they're both immediates so don't get selected for.
+        auto Opc64 = WebAssembly::getWasm64Opcode(
+            static_cast<uint16_t>(Inst.getOpcode()));
+        if (Opc64 >= 0) {
+          Inst.setOpcode(Opc64);
+        }
+      }
       Out.emitInstruction(Inst, getSTI());
       if (CurrentState == EndFunction) {
         onEndOfFunction();
@@ -847,9 +869,16 @@ public:
       }
       return false;
     }
-    case Match_MissingFeature:
-      return Parser.Error(
-          IDLoc, "instruction requires a WASM feature not currently enabled");
+    case Match_MissingFeature: {
+      assert(MissingFeatures.count() > 0 && "Expected missing features");
+      SmallString<128> Message;
+      raw_svector_ostream OS(Message);
+      OS << "instruction requires:";
+      for (unsigned i = 0, e = MissingFeatures.size(); i != e; ++i)
+        if (MissingFeatures.test(i))
+          OS << ' ' << getSubtargetFeatureName(i);
+      return Parser.Error(IDLoc, Message);
+    }
     case Match_MnemonicFail:
       return Parser.Error(IDLoc, "invalid instruction");
     case Match_NearMisses:
@@ -913,5 +942,6 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeWebAssemblyAsmParser() {
 }
 
 #define GET_REGISTER_MATCHER
+#define GET_SUBTARGET_FEATURE_NAME
 #define GET_MATCHER_IMPLEMENTATION
 #include "WebAssemblyGenAsmMatcher.inc"

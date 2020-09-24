@@ -40,11 +40,11 @@
 // DEFAULT: "-triple" "spir64-unknown-{{.*}}-sycldevice{{.*}}" "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
 // DEFAULT: "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
 // DEFAULT: "-internal-isystem" "{{.*lib.*clang.*include}}"
-// DEFAULT-NOT: "{{.*}}llvm-spirv"{{.*}} "-spirv-max-version=1.1"{{.*}} "-spirv-ext=+all"
+// DEFAULT-NOT: "{{.*}}llvm-spirv"{{.*}} "-spirv-max-version=1.1"{{.*}} "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes"
 // DEFAULT-NOT: "-std=c++11"
 // DEFAULT-NOT: "-std=c++14"
 // NO-BITCODE: "-triple" "spir64-unknown-{{.*}}-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
-// NO-BITCODE: "{{.*}}llvm-spirv"{{.*}} "-spirv-max-version=1.1"{{.*}} "-spirv-ext=+all"
+// NO-BITCODE: "{{.*}}llvm-spirv"{{.*}} "-spirv-max-version=1.1"{{.*}} "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes"
 // TARGET: "-triple" "spir64-unknown-linux-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
 // COMBINED: "-triple" "spir64-unknown-{{.*}}-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
 // TEXTUAL: "-triple" "spir64-unknown-{{.*}}-sycldevice{{.*}}" "-fsycl-is-device"{{.*}} "-emit-llvm"
@@ -75,8 +75,20 @@
 // SYCL-HELP-BADARG: unsupported argument 'foo' to option 'fsycl-help='
 // SYCL-HELP-GEN: Emitting help information for ocloc
 // SYCL-HELP-GEN: Use triple of 'spir64_gen-unknown-unknown-sycldevice' to enable ahead of time compilation
-// SYCL-HELP-FPGA-OUT: "[[DIR]]{{[/\\]+}}aoc" "-help"
+// SYCL-HELP-FPGA-OUT: "[[DIR]]{{[/\\]+}}aoc" "-help" "-sycl"
 // SYCL-HELP-FPGA: Emitting help information for aoc
 // SYCL-HELP-FPGA: Use triple of 'spir64_fpga-unknown-unknown-sycldevice' to enable ahead of time compilation
 // SYCL-HELP-CPU: Emitting help information for opencl-aot
 // SYCL-HELP-CPU: Use triple of 'spir64_x86_64-unknown-unknown-sycldevice' to enable ahead of time compilation
+
+// -fsycl-id-queries-fit-in-int
+// RUN: %clang -### -fsycl -fsycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES
+// RUN: %clang_cl -### -fsycl -fsycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES
+// RUN: %clang -### -fsycl-device-only -fsycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES
+// RUN: %clang_cl -### -fsycl-device-only -fsycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES
+// RUN: %clang -### -fsycl -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=NO_ID_QUERIES
+// RUN: %clang_cl -### -fsycl -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=NO_ID_QUERIES
+// RUN: %clang -### -fsycl-device-only -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=NO_ID_QUERIES
+// RUN: %clang_cl -### -fsycl-device-only -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=NO_ID_QUERIES
+// ID_QUERIES: "-fsycl-id-queries-fit-in-int"
+// NO_ID_QUERIES: "-fno-sycl-id-queries-fit-in-int"

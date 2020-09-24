@@ -158,8 +158,7 @@ public:
 
   void restrictToBlocks(SmallSetVector<BasicBlock *, 4> &Blocks) {
     for (auto II = Insts.begin(); II != Insts.end();) {
-      if (std::find(Blocks.begin(), Blocks.end(), (*II)->getParent()) ==
-          Blocks.end()) {
+      if (!llvm::is_contained(Blocks, (*II)->getParent())) {
         ActiveBlocks.remove((*II)->getParent());
         II = Insts.erase(II);
       } else {
@@ -277,8 +276,7 @@ public:
     auto VI = Values.begin();
     while (BI != Blocks.end()) {
       assert(VI != Values.end());
-      if (std::find(NewBlocks.begin(), NewBlocks.end(), *BI) ==
-          NewBlocks.end()) {
+      if (!llvm::is_contained(NewBlocks, *BI)) {
         BI = Blocks.erase(BI);
         VI = Values.erase(VI);
       } else {
@@ -350,6 +348,7 @@ using ModelledPHISet = DenseSet<ModelledPHI, DenseMapInfo<ModelledPHI>>;
 class InstructionUseExpr : public GVNExpression::BasicExpression {
   unsigned MemoryUseOrder = -1;
   bool Volatile = false;
+  ArrayRef<int> ShuffleMask;
 
 public:
   InstructionUseExpr(Instruction *I, ArrayRecycler<Value *> &R,
@@ -358,6 +357,9 @@ public:
     allocateOperands(R, A);
     setOpcode(I->getOpcode());
     setType(I->getType());
+
+    if (ShuffleVectorInst *SVI = dyn_cast<ShuffleVectorInst>(I))
+      ShuffleMask = SVI->getShuffleMask().copy(A);
 
     for (auto &U : I->uses())
       op_push_back(U.getUser());
@@ -369,12 +371,12 @@ public:
 
   hash_code getHashValue() const override {
     return hash_combine(GVNExpression::BasicExpression::getHashValue(),
-                        MemoryUseOrder, Volatile);
+                        MemoryUseOrder, Volatile, ShuffleMask);
   }
 
   template <typename Function> hash_code getHashValue(Function MapFn) {
-    hash_code H =
-        hash_combine(getOpcode(), getType(), MemoryUseOrder, Volatile);
+    hash_code H = hash_combine(getOpcode(), getType(), MemoryUseOrder, Volatile,
+                               ShuffleMask);
     for (auto *V : operands())
       H = hash_combine(H, MapFn(V));
     return H;
@@ -577,7 +579,7 @@ public:
 private:
   ValueTable VN;
 
-  bool isInstructionBlacklisted(Instruction *I) {
+  bool shouldAvoidSinkingInstruction(Instruction *I) {
     // These instructions may change or break semantics if moved.
     if (isa<PHINode>(I) || I->isEHPad() || isa<AllocaInst>(I) ||
         I->getType()->isTokenTy())
@@ -669,7 +671,7 @@ Optional<SinkingInstructionCandidate> GVNSink::analyzeInstructionForSinking(
       NewInsts.push_back(I);
   }
   for (auto *I : NewInsts)
-    if (isInstructionBlacklisted(I))
+    if (shouldAvoidSinkingInstruction(I))
       return None;
 
   // If we've restricted the incoming blocks, restrict all needed PHIs also

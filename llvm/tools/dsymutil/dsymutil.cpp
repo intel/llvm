@@ -16,6 +16,8 @@
 #include "DebugMap.h"
 #include "LinkUtils.h"
 #include "MachOUtils.h"
+#include "Reproducer.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
@@ -31,6 +33,7 @@
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/Option.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FileCollector.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/ManagedStatic.h"
@@ -92,9 +95,11 @@ struct DsymutilOptions {
   std::string SymbolMap;
   std::string OutputFile;
   std::string Toolchain;
+  std::string ReproducerPath;
   std::vector<std::string> Archs;
   std::vector<std::string> InputFiles;
   unsigned NumThreads;
+  ReproducerMode ReproMode = ReproducerMode::Off;
   dsymutil::LinkOptions LinkOpts;
 };
 
@@ -153,9 +158,7 @@ static Error verifyOptions(const DsymutilOptions &Options) {
                                    errc::invalid_argument);
   }
 
-  if (Options.LinkOpts.Update &&
-      std::find(Options.InputFiles.begin(), Options.InputFiles.end(), "-") !=
-          Options.InputFiles.end()) {
+  if (Options.LinkOpts.Update && llvm::is_contained(Options.InputFiles, "-")) {
     // FIXME: We cannot use stdin for an update because stdin will be
     // consumed by the BinaryHolder during the debugmap parsing, and
     // then we will want to consume it again in DwarfLinker. If we
@@ -180,6 +183,12 @@ static Error verifyOptions(const DsymutilOptions &Options) {
   if (Options.PaperTrailWarnings && Options.InputIsYAMLDebugMap)
     return make_error<StringError>(
         "paper trail warnings are not supported for YAML input.",
+        errc::invalid_argument);
+
+  if (!Options.ReproducerPath.empty() &&
+      Options.ReproMode != ReproducerMode::Use)
+    return make_error<StringError>(
+        "cannot combine --gen-reproducer and --use-reproducer.",
         errc::invalid_argument);
 
   return Error::success();
@@ -220,6 +229,15 @@ static Expected<DsymutilOptions> getOptions(opt::InputArgList &Args) {
   Options.LinkOpts.NoTimestamp = Args.hasArg(OPT_no_swiftmodule_timestamp);
   Options.LinkOpts.Update = Args.hasArg(OPT_update);
   Options.LinkOpts.Verbose = Args.hasArg(OPT_verbose);
+  Options.LinkOpts.Statistics = Args.hasArg(OPT_statistics);
+
+  if (opt::Arg *ReproducerPath = Args.getLastArg(OPT_use_reproducer)) {
+    Options.ReproMode = ReproducerMode::Use;
+    Options.ReproducerPath = ReproducerPath->getValue();
+  }
+
+  if (Args.hasArg(OPT_gen_reproducer))
+    Options.ReproMode = ReproducerMode::Generate;
 
   if (Expected<AccelTableKind> AccelKind = getAccelTableKind(Args)) {
     Options.LinkOpts.TheAccelTableKind = *AccelKind;
@@ -319,7 +337,9 @@ static Error createPlistFile(StringRef Bin, StringRef BundleRoot,
      << "\t\t<key>CFBundleDevelopmentRegion</key>\n"
      << "\t\t<string>English</string>\n"
      << "\t\t<key>CFBundleIdentifier</key>\n"
-     << "\t\t<string>com.apple.xcode.dsym." << BI.IDStr << "</string>\n"
+     << "\t\t<string>com.apple.xcode.dsym.";
+  printHTMLEscaped(BI.IDStr, PL);
+  PL << "</string>\n"
      << "\t\t<key>CFBundleInfoDictionaryVersion</key>\n"
      << "\t\t<string>6.0</string>\n"
      << "\t\t<key>CFBundlePackageType</key>\n"
@@ -498,6 +518,15 @@ int main(int argc, char **argv) {
   InitializeAllTargets();
   InitializeAllAsmPrinters();
 
+  auto Repro =
+      Reproducer::createReproducer(Options.ReproMode, Options.ReproducerPath);
+  if (!Repro) {
+    WithColor::error() << toString(Repro.takeError());
+    return 1;
+  }
+
+  Options.LinkOpts.VFS = (*Repro)->getVFS();
+
   for (const auto &Arch : Options.Archs)
     if (Arch != "*" && Arch != "all" &&
         !object::MachOObjectFile::isValidArch(Arch)) {
@@ -510,15 +539,16 @@ int main(int argc, char **argv) {
   for (auto &InputFile : Options.InputFiles) {
     // Dump the symbol table for each input file and requested arch
     if (Options.DumpStab) {
-      if (!dumpStab(InputFile, Options.Archs, Options.LinkOpts.PrependPath))
+      if (!dumpStab(Options.LinkOpts.VFS, InputFile, Options.Archs,
+                    Options.LinkOpts.PrependPath))
         return 1;
       continue;
     }
 
     auto DebugMapPtrsOrErr =
-        parseDebugMap(InputFile, Options.Archs, Options.LinkOpts.PrependPath,
-                      Options.PaperTrailWarnings, Options.LinkOpts.Verbose,
-                      Options.InputIsYAMLDebugMap);
+        parseDebugMap(Options.LinkOpts.VFS, InputFile, Options.Archs,
+                      Options.LinkOpts.PrependPath, Options.PaperTrailWarnings,
+                      Options.LinkOpts.Verbose, Options.InputIsYAMLDebugMap);
 
     if (auto EC = DebugMapPtrsOrErr.getError()) {
       WithColor::error() << "cannot parse the debug map for '" << InputFile
@@ -545,12 +575,20 @@ int main(int argc, char **argv) {
     }
 
     // Shared a single binary holder for all the link steps.
-    BinaryHolder BinHolder;
+    BinaryHolder BinHolder(Options.LinkOpts.VFS);
 
-    unsigned ThreadCount = Options.LinkOpts.Threads;
-    if (!ThreadCount)
-      ThreadCount = DebugMapPtrsOrErr->size();
-    ThreadPool Threads(hardware_concurrency(ThreadCount));
+    // Statistics only require different architectures to be processed
+    // sequentially, the link itself can still happen in parallel. Change the
+    // thread pool strategy here instead of modifying LinkOpts.Threads.
+    ThreadPoolStrategy S = hardware_concurrency(
+        Options.LinkOpts.Statistics ? 1 : Options.LinkOpts.Threads);
+    if (Options.LinkOpts.Threads == 0) {
+      // If NumThreads is not specified, create one thread for each input, up to
+      // the number of hardware threads.
+      S.ThreadsRequested = DebugMapPtrsOrErr->size();
+      S.Limit = true;
+    }
+    ThreadPool Threads(S);
 
     // If there is more than one link to execute, we need to generate
     // temporary files.
@@ -625,7 +663,7 @@ int main(int argc, char **argv) {
       // FIXME: The DwarfLinker can have some very deep recursion that can max
       // out the (significantly smaller) stack when using threads. We don't
       // want this limitation when we only have a single thread.
-      if (ThreadCount == 1)
+      if (S.ThreadsRequested == 1)
         LinkLambda(OS, Options.LinkOpts);
       else
         Threads.async(LinkLambda, OS, Options.LinkOpts);

@@ -224,8 +224,7 @@ bool AssemblerInvocation::CreateFromArgs(AssemblerInvocation &Opts,
   if (const Arg *A = Args.getLastArg(OPT_compress_debug_sections,
                                      OPT_compress_debug_sections_EQ)) {
     if (A->getOption().getID() == OPT_compress_debug_sections) {
-      // TODO: be more clever about the compression type auto-detection
-      Opts.CompressDebugSections = llvm::DebugCompressionType::GNU;
+      Opts.CompressDebugSections = llvm::DebugCompressionType::Z;
     } else {
       Opts.CompressDebugSections =
           llvm::StringSwitch<llvm::DebugCompressionType>(A->getValue())
@@ -429,12 +428,7 @@ static bool ExecuteAssembler(AssemblerInvocation &Opts,
                             SrcMgr.getMemoryBuffer(BufferIndex)->getBuffer());
 
   // Build up the feature string from the target feature list.
-  std::string FS;
-  if (!Opts.Features.empty()) {
-    FS = Opts.Features[0];
-    for (unsigned i = 1, e = Opts.Features.size(); i != e; ++i)
-      FS += "," + Opts.Features[i];
-  }
+  std::string FS = llvm::join(Opts.Features, ",");
 
   std::unique_ptr<MCStreamer> Str;
 

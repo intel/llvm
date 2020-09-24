@@ -5,7 +5,7 @@
 
 # CHECK-LABEL: image lookup -v -s lookup_loclists
 # CHECK: Variable: {{.*}}, name = "x0", type = "int", location = DW_OP_reg0 RAX,
-# CHECK: Variable: {{.*}}, name = "x1", type = "int", location = ,
+# CHECK-NOT: Variable:
 
 loclists:
         nop
@@ -28,7 +28,7 @@ lookup_loclists:
         .short  5                       # Version
         .byte   8                       # Address size
         .byte   0                       # Segment selector size
-        .long   1                       # Offset entry count
+        .long   2                       # Offset entry count
 .Lloclists_table_base:
         .long   .Ldebug_loc0-.Lloclists_table_base
         .long   .Ldebug_loc1-.Lloclists_table_base
@@ -58,6 +58,10 @@ lookup_loclists:
         .byte   5                       # DW_FORM_data2
         .uleb128 0x8c                   # DW_AT_loclists_base
         .byte   0x17                    # DW_FORM_sec_offset
+        .byte   17                      # DW_AT_low_pc
+        .byte   1                       # DW_FORM_addr
+        .byte   18                      # DW_AT_high_pc
+        .byte   6                       # DW_FORM_data4
         .byte   0                       # EOM(1)
         .byte   0                       # EOM(2)
         .byte   2                       # Abbreviation Code
@@ -109,6 +113,8 @@ lookup_loclists:
         .asciz  "Hand-written DWARF"    # DW_AT_producer
         .short  12                      # DW_AT_language
         .long   .Lloclists_table_base   # DW_AT_loclists_base
+        .quad   loclists                # DW_AT_low_pc
+        .long   .Lloclists_end-loclists # DW_AT_high_pc
         .byte   2                       # Abbrev [2] 0x2a:0x29 DW_TAG_subprogram
         .quad   loclists                # DW_AT_low_pc
         .long   .Lloclists_end-loclists # DW_AT_high_pc

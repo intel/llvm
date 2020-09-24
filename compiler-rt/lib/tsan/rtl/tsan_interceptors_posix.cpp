@@ -31,6 +31,8 @@
 #include "tsan_mman.h"
 #include "tsan_fd.h"
 
+#include <stdarg.h>
+
 using namespace __tsan;
 
 #if SANITIZER_FREEBSD || SANITIZER_MAC
@@ -135,6 +137,7 @@ const int PTHREAD_BARRIER_SERIAL_THREAD = -1;
 #endif
 const int MAP_FIXED = 0x10;
 typedef long long_t;
+typedef __sanitizer::u16 mode_t;
 
 // From /usr/include/unistd.h
 # define F_ULOCK 0      /* Unlock a previously locked region.  */
@@ -254,7 +257,8 @@ ScopedInterceptor::ScopedInterceptor(ThreadState *thr, const char *fname,
   if (!thr_->ignore_interceptors) FuncEntry(thr, pc);
   DPrintf("#%d: intercept %s()\n", thr_->tid, fname);
   ignoring_ =
-      !thr_->in_ignored_lib && libignore()->IsIgnored(pc, &in_ignored_lib_);
+      !thr_->in_ignored_lib && (flags()->ignore_interceptors_accesses ||
+                                libignore()->IsIgnored(pc, &in_ignored_lib_));
   EnableIgnores();
 }
 
@@ -891,13 +895,16 @@ void DestroyThreadState() {
   ThreadFinish(thr);
   ProcUnwire(proc, thr);
   ProcDestroy(proc);
+  DTLS_Destroy();
+  cur_thread_finalize();
+}
+
+void PlatformCleanUpThreadState(ThreadState *thr) {
   ThreadSignalContext *sctx = thr->signal_ctx;
   if (sctx) {
     thr->signal_ctx = 0;
     UnmapOrDie(sctx, sizeof(*sctx));
   }
-  DTLS_Destroy();
-  cur_thread_finalize();
 }
 }  // namespace __tsan
 
@@ -1504,20 +1511,28 @@ TSAN_INTERCEPTOR(int, fstat64, int fd, void *buf) {
 #define TSAN_MAYBE_INTERCEPT_FSTAT64
 #endif
 
-TSAN_INTERCEPTOR(int, open, const char *name, int flags, int mode) {
-  SCOPED_TSAN_INTERCEPTOR(open, name, flags, mode);
+TSAN_INTERCEPTOR(int, open, const char *name, int oflag, ...) {
+  va_list ap;
+  va_start(ap, oflag);
+  mode_t mode = va_arg(ap, int);
+  va_end(ap);
+  SCOPED_TSAN_INTERCEPTOR(open, name, oflag, mode);
   READ_STRING(thr, pc, name, 0);
-  int fd = REAL(open)(name, flags, mode);
+  int fd = REAL(open)(name, oflag, mode);
   if (fd >= 0)
     FdFileCreate(thr, pc, fd);
   return fd;
 }
 
 #if SANITIZER_LINUX
-TSAN_INTERCEPTOR(int, open64, const char *name, int flags, int mode) {
-  SCOPED_TSAN_INTERCEPTOR(open64, name, flags, mode);
+TSAN_INTERCEPTOR(int, open64, const char *name, int oflag, ...) {
+  va_list ap;
+  va_start(ap, oflag);
+  mode_t mode = va_arg(ap, int);
+  va_end(ap);
+  SCOPED_TSAN_INTERCEPTOR(open64, name, oflag, mode);
   READ_STRING(thr, pc, name, 0);
-  int fd = REAL(open64)(name, flags, mode);
+  int fd = REAL(open64)(name, oflag, mode);
   if (fd >= 0)
     FdFileCreate(thr, pc, fd);
   return fd;

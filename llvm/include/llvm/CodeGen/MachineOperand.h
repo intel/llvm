@@ -612,14 +612,14 @@ public:
   /// It is sometimes necessary to detach the register mask pointer from its
   /// machine operand. This static method can be used for such detached bit
   /// mask pointers.
-  static bool clobbersPhysReg(const uint32_t *RegMask, unsigned PhysReg) {
+  static bool clobbersPhysReg(const uint32_t *RegMask, MCRegister PhysReg) {
     // See TargetRegisterInfo.h.
     assert(PhysReg < (1u << 30) && "Not a physical register");
     return !(RegMask[PhysReg / 32] & (1u << PhysReg % 32));
   }
 
   /// clobbersPhysReg - Returns true if this RegMask operand clobbers PhysReg.
-  bool clobbersPhysReg(unsigned PhysReg) const {
+  bool clobbersPhysReg(MCRegister PhysReg) const {
      return clobbersPhysReg(getRegMask(), PhysReg);
   }
 
@@ -698,6 +698,11 @@ public:
     Contents.RegMask = RegMaskPtr;
   }
 
+  void setIntrinsicID(Intrinsic::ID IID) {
+    assert(isIntrinsicID() && "Wrong MachineOperand mutator");
+    Contents.IntrinsicID = IID;
+  }
+
   void setPredicate(unsigned Predicate) {
     assert(isPredicate() && "Wrong MachineOperand mutator");
     Contents.Pred = Predicate;
@@ -723,12 +728,12 @@ public:
   /// ChangeToImmediate - Replace this operand with a new immediate operand of
   /// the specified value.  If an operand is known to be an immediate already,
   /// the setImm method should be used.
-  void ChangeToImmediate(int64_t ImmVal);
+  void ChangeToImmediate(int64_t ImmVal, unsigned TargetFlags = 0);
 
   /// ChangeToFPImmediate - Replace this operand with a new FP immediate operand
   /// of the specified value.  If an operand is known to be an FP immediate
   /// already, the setFPImm method should be used.
-  void ChangeToFPImmediate(const ConstantFP *FPImm);
+  void ChangeToFPImmediate(const ConstantFP *FPImm, unsigned TargetFlags = 0);
 
   /// ChangeToES - Replace this operand with a new external symbol operand.
   void ChangeToES(const char *SymName, unsigned TargetFlags = 0);
@@ -738,10 +743,10 @@ public:
                   unsigned TargetFlags = 0);
 
   /// ChangeToMCSymbol - Replace this operand with a new MC symbol operand.
-  void ChangeToMCSymbol(MCSymbol *Sym);
+  void ChangeToMCSymbol(MCSymbol *Sym, unsigned TargetFlags = 0);
 
   /// Replace this operand with a frame index.
-  void ChangeToFrameIndex(int Idx);
+  void ChangeToFrameIndex(int Idx, unsigned TargetFlags = 0);
 
   /// Replace this operand with a target index.
   void ChangeToTargetIndex(unsigned Idx, int64_t Offset,
@@ -753,6 +758,11 @@ public:
   void ChangeToRegister(Register Reg, bool isDef, bool isImp = false,
                         bool isKill = false, bool isDead = false,
                         bool isUndef = false, bool isDebug = false);
+
+  /// getTargetIndexName - If this MachineOperand is a TargetIndex that has a
+  /// name, attempt to get the name. Returns nullptr if the TargetIndex does not
+  /// have a name. Asserts if MO is not a TargetIndex.
+  const char *getTargetIndexName() const;
 
   //===--------------------------------------------------------------------===//
   // Construction methods.

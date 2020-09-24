@@ -16,9 +16,9 @@
 #include "clang/Driver/Tool.h"
 #include "clang/Driver/ToolChain.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/SmallSet.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/VersionTuple.h"
+#include <bitset>
 #include <set>
 #include <vector>
 
@@ -42,7 +42,7 @@ private:
 
   // CUDA architectures for which we have raised an error in
   // CheckCudaVersionSupportsArch.
-  mutable llvm::SmallSet<CudaArch, 4> ArchsWithBadVersion;
+  mutable std::bitset<(int)CudaArch::LAST> ArchsWithBadVersion;
 
 public:
   CudaInstallationDetector(const Driver &D, const llvm::Triple &HostTriple,
@@ -90,9 +90,7 @@ namespace NVPTX {
 // Run ptxas, the NVPTX assembler.
 class LLVM_LIBRARY_VISIBILITY Assembler : public Tool {
  public:
-   Assembler(const ToolChain &TC)
-       : Tool("NVPTX::Assembler", "ptxas", TC, RF_Full, llvm::sys::WEM_UTF8,
-              "--options-file") {}
+   Assembler(const ToolChain &TC) : Tool("NVPTX::Assembler", "ptxas", TC) {}
 
    bool hasIntegratedCPP() const override { return false; }
 
@@ -106,9 +104,7 @@ class LLVM_LIBRARY_VISIBILITY Assembler : public Tool {
 // assembly into a single output file.
 class LLVM_LIBRARY_VISIBILITY Linker : public Tool {
  public:
-   Linker(const ToolChain &TC)
-       : Tool("NVPTX::Linker", "fatbinary", TC, RF_Full, llvm::sys::WEM_UTF8,
-              "--options-file") {}
+   Linker(const ToolChain &TC) : Tool("NVPTX::Linker", "fatbinary", TC) {}
 
    bool hasIntegratedCPP() const override { return false; }
 
@@ -121,8 +117,7 @@ class LLVM_LIBRARY_VISIBILITY Linker : public Tool {
 class LLVM_LIBRARY_VISIBILITY OpenMPLinker : public Tool {
  public:
    OpenMPLinker(const ToolChain &TC)
-       : Tool("NVPTX::OpenMPLinker", "nvlink", TC, RF_Full, llvm::sys::WEM_UTF8,
-              "--options-file") {}
+       : Tool("NVPTX::OpenMPLinker", "nvlink", TC) {}
 
    bool hasIntegratedCPP() const override { return false; }
 
@@ -170,8 +165,7 @@ public:
                              Action::OffloadKind DeviceOffloadKind) const override;
 
   llvm::DenormalMode getDefaultDenormalModeForType(
-      const llvm::opt::ArgList &DriverArgs,
-      Action::OffloadKind DeviceOffloadKind,
+      const llvm::opt::ArgList &DriverArgs, const JobAction &JA,
       const llvm::fltSemantics *FPType = nullptr) const override;
 
   // Never try to use the integrated assembler with CUDA; always fork out to
@@ -209,7 +203,7 @@ public:
 
   unsigned GetDefaultDwarfVersion() const override { return 2; }
 
-  Tool *SelectTool(const JobAction &JA) const;
+  Tool *SelectTool(const JobAction &JA) const override;
 
   const ToolChain &HostTC;
   CudaInstallationDetector CudaInstallation;

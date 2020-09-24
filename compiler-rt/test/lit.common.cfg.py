@@ -23,6 +23,9 @@ else:
     # bash on Windows is usually very slow.
     execute_external = (not sys.platform in ['win32'])
 
+# Allow expanding substitutions that are based on other substitutions
+config.recursiveExpansionLimit = 10
+
 # Setup test format.
 config.test_format = lit.formats.ShTest(execute_external)
 if execute_external:
@@ -67,6 +70,8 @@ if config.android:
     # to link. In r19 and later we just use the default which is libc++.
     config.cxx_mode_flags.append('-stdlib=libstdc++')
 
+config.environment = dict(os.environ)
+
 # Clear some environment variables that might affect Clang.
 possibly_dangerous_env_vars = ['ASAN_OPTIONS', 'DFSAN_OPTIONS', 'LSAN_OPTIONS',
                                'MSAN_OPTIONS', 'UBSAN_OPTIONS',
@@ -102,6 +107,8 @@ config.available_features.add(config.host_os.lower())
 
 if re.match(r'^x86_64.*-linux', config.target_triple):
   config.available_features.add("x86_64-linux")
+
+config.available_features.add("host-byteorder-" + sys.byteorder + "-endian")
 
 if config.have_zlib == "1":
   config.available_features.add("zlib")
@@ -181,7 +188,7 @@ elif config.host_os == 'Darwin' and config.apple_platform != "osx":
   config.compile_wrapper = compile_wrapper
 
   try:
-    prepare_output = subprocess.check_output([prepare_script, config.apple_platform, config.clang]).strip()
+    prepare_output = subprocess.check_output([prepare_script, config.apple_platform, config.clang]).decode().strip()
   except subprocess.CalledProcessError as e:
     print("Command failed:")
     print(e.output)
@@ -257,69 +264,24 @@ if config.gwp_asan:
 
 lit.util.usePlatformSdkOnDarwin(config, lit_config)
 
-# Maps a lit substitution name for the minimum target OS flag
-# to the macOS version that first contained the relevant feature.
-darwin_min_deployment_target_substitutions = {
-  '%macos_min_target_10_11': '10.11',
-  # rdar://problem/22207160
-  '%darwin_min_target_with_full_runtime_arc_support': '10.11',
-  '%darwin_min_target_with_tls_support': '10.12',
-}
+min_macos_deployment_target_substitutions = [
+  (10, 11),
+  (10, 12),
+]
+# TLS requires watchOS 3+
+config.substitutions.append( ('%darwin_min_target_with_tls_support', '%min_macos_deployment_target=10.12') )
 
 if config.host_os == 'Darwin':
-  def get_apple_platform_version_aligned_with(macos_version, apple_platform):
-    """
-      Given a macOS version (`macos_version`) returns the corresponding version for
-      the specified Apple platform if it exists.
-
-      `macos_version` - The macOS version as a string.
-      `apple_platform` - The Apple platform name as a string.
-
-      Returns the corresponding version as a string if it exists, otherwise
-      `None` is returned.
-    """
-    m = re.match(r'^10\.(?P<min>\d+)(\.(?P<patch>\d+))?$', macos_version)
-    if not m:
-      raise Exception('Could not parse macOS version: "{}"'.format(macos_version))
-    ver_min = int(m.group('min'))
-    ver_patch = m.group('patch')
-    if ver_patch:
-      ver_patch = int(ver_patch)
-    else:
-      ver_patch = 0
-    result_str = ''
-    if apple_platform == 'osx':
-      # Drop patch for now.
-      result_str = '10.{}'.format(ver_min)
-    elif apple_platform.startswith('ios') or apple_platform.startswith('tvos'):
-      result_maj = ver_min - 2
-      if result_maj < 1:
-        return None
-      result_str = '{}.{}'.format(result_maj, ver_patch)
-    elif apple_platform.startswith('watch'):
-      result_maj = ver_min - 9
-      if result_maj < 1:
-        return None
-      result_str = '{}.{}'.format(result_maj, ver_patch)
-    else:
-      raise Exception('Unsuported apple platform "{}"'.format(apple_platform))
-    return result_str
-
   osx_version = (10, 0, 0)
   try:
-    osx_version = subprocess.check_output(["sw_vers", "-productVersion"])
+    osx_version = subprocess.check_output(["sw_vers", "-productVersion"],
+                                          universal_newlines=True)
     osx_version = tuple(int(x) for x in osx_version.split('.'))
     if len(osx_version) == 2: osx_version = (osx_version[0], osx_version[1], 0)
     if osx_version >= (10, 11):
       config.available_features.add('osx-autointerception')
       config.available_features.add('osx-ld64-live_support')
-    else:
-      # The ASAN initialization-bug.cpp test should XFAIL on OS X systems
-      # older than El Capitan. By marking the test as being unsupported with
-      # this "feature", we can pass the test on newer OS X versions and other
-      # platforms.
-      config.available_features.add('osx-no-ld64-live_support')
-  except:
+  except subprocess.CalledProcessError:
     pass
 
   config.darwin_osx_version = osx_version
@@ -335,29 +297,44 @@ if config.host_os == 'Darwin':
   except:
     pass
 
-  def get_apple_min_deploy_target_flag_aligned_with_osx(version):
-    min_os_aligned_with_osx_v = get_apple_platform_version_aligned_with(version, config.apple_platform)
-    min_os_aligned_with_osx_v_flag = ''
-    if min_os_aligned_with_osx_v:
-      min_os_aligned_with_osx_v_flag = '{flag}={version}'.format(
-        flag=config.apple_platform_min_deployment_target_flag,
-        version=min_os_aligned_with_osx_v)
-    else:
-      lit_config.warning('Could not find a version of {} that corresponds with macOS {}'.format(
-        config.apple_platform,
-        version))
-    return min_os_aligned_with_osx_v_flag
-
-  for substitution, osx_version in darwin_min_deployment_target_substitutions.items():
-    config.substitutions.append( (substitution, get_apple_min_deploy_target_flag_aligned_with_osx(osx_version)) )
-
   # 32-bit iOS simulator is deprecated and removed in latest Xcode.
   if config.apple_platform == "iossim":
     if config.target_arch == "i386":
       config.unsupported = True
+
+  def get_macos_aligned_version(macos_vers):
+    platform = config.apple_platform
+    if platform == 'osx':
+      return macos_vers
+
+    macos_major, macos_minor = macos_vers
+    assert macos_major >= 10
+
+    if macos_major == 10:  # macOS 10.x
+      major = macos_minor
+      minor = 0
+    else:                  # macOS 11+
+      major = macos_major + 5
+      minor = macos_minor
+
+    assert major >= 11
+
+    if platform.startswith('ios') or platform.startswith('tvos'):
+      major -= 2
+    elif platform.startswith('watch'):
+      major -= 9
+    else:
+      lit_config.fatal("Unsupported apple platform '{}'".format(platform))
+
+    return (major, minor)
+
+  for vers in min_macos_deployment_target_substitutions:
+    flag = config.apple_platform_min_deployment_target_flag
+    major, minor = get_macos_aligned_version(vers)
+    config.substitutions.append( ('%%min_macos_deployment_target=%s.%s' % vers, '{}={}.{}'.format(flag, major, minor)) )
 else:
-  for substitution in darwin_min_deployment_target_substitutions.keys():
-    config.substitutions.append( (substitution, "") )
+  for vers in min_macos_deployment_target_substitutions:
+    config.substitutions.append( ('%%min_macos_deployment_target=%s.%s' % vers, '') )
 
 if config.android:
   env = os.environ.copy()
@@ -408,19 +385,18 @@ if os.path.exists(sancovcc_path):
 def is_darwin_lto_supported():
   return os.path.exists(os.path.join(config.llvm_shlib_dir, 'libLTO.dylib'))
 
-def is_linux_lto_supported():
-  if config.use_lld:
-    return True
-
+def is_binutils_lto_supported():
   if not os.path.exists(os.path.join(config.llvm_shlib_dir, 'LLVMgold.so')):
     return False
 
-  ld_cmd = subprocess.Popen([config.gold_executable, '--help'], stdout = subprocess.PIPE, env={'LANG': 'C'})
-  ld_out = ld_cmd.stdout.read().decode()
-  ld_cmd.wait()
-
-  if not '-plugin' in ld_out:
-    return False
+  # We require both ld.bfd and ld.gold exist and support plugins. They are in
+  # the same repository 'binutils-gdb' and usually built together.
+  for exe in (config.gnu_ld_executable, config.gold_executable):
+    ld_cmd = subprocess.Popen([exe, '--help'], stdout=subprocess.PIPE, env={'LANG': 'C'})
+    ld_out = ld_cmd.stdout.read().decode()
+    ld_cmd.wait()
+    if not '-plugin' in ld_out:
+      return False
 
   return True
 
@@ -431,13 +407,20 @@ if config.host_os == 'Darwin' and is_darwin_lto_supported():
   config.lto_supported = True
   config.lto_launch = ["env", "DYLD_LIBRARY_PATH=" + config.llvm_shlib_dir]
   config.lto_flags = []
-elif config.host_os in ['Linux', 'FreeBSD', 'NetBSD'] and is_linux_lto_supported():
-  config.lto_supported = True
-  config.lto_launch = []
+elif config.host_os in ['Linux', 'FreeBSD', 'NetBSD']:
+  config.lto_supported = False
   if config.use_lld:
-    config.lto_flags = ["-fuse-ld=lld"]
-  else:
-    config.lto_flags = ["-fuse-ld=gold"]
+    config.lto_supported = True
+  if is_binutils_lto_supported():
+    config.available_features.add('binutils_lto')
+    config.lto_supported = True
+
+  if config.lto_supported:
+    config.lto_launch = []
+    if config.use_lld:
+      config.lto_flags = ["-fuse-ld=lld"]
+    else:
+      config.lto_flags = ["-fuse-ld=gold"]
 elif config.host_os == 'Windows' and is_windows_lto_supported():
   config.lto_supported = True
   config.lto_launch = []
@@ -533,6 +516,19 @@ if config.host_os == 'Darwin':
   # much slower. Let's override this and run lit tests with 'abort_on_error=0'.
   config.default_sanitizer_opts += ['abort_on_error=0']
   config.default_sanitizer_opts += ['log_to_syslog=0']
+  if lit.util.which('log'):
+    # Querying the log can only done by a privileged user so
+    # so check if we can query the log.
+    exit_code = -1
+    with open('/dev/null', 'r') as f:
+      # Run a `log show` command the should finish fairly quickly and produce very little output.
+      exit_code = subprocess.call(['log', 'show', '--last', '1m', '--predicate', '1 == 0'], stdout=f, stderr=f)
+    if exit_code == 0:
+      config.available_features.add('darwin_log_cmd')
+    else:
+      lit_config.warning('log command found but cannot queried')
+  else:
+    lit_config.warning('log command not found. Some tests will be skipped.')
 elif config.android:
   config.default_sanitizer_opts += ['abort_on_error=0']
 

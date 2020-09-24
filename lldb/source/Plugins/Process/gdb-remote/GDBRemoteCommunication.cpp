@@ -50,7 +50,7 @@
 #include <compression.h>
 #endif
 
-#if defined(HAVE_LIBZ)
+#if LLVM_ENABLE_ZLIB
 #include <zlib.h>
 #endif
 
@@ -284,7 +284,7 @@ GDBRemoteCommunication::WaitForPacketNoLock(StringExtractorGDBRemote &packet,
     LLDB_LOGV(log,
               "Read(buffer, sizeof(buffer), timeout = {0}, "
               "status = {1}, error = {2}) => bytes_read = {3}",
-              timeout, Communication::ConnectionStatusAsCString(status), error,
+              timeout, Communication::ConnectionStatusAsString(status), error,
               bytes_read);
 
     if (bytes_read > 0) {
@@ -582,7 +582,7 @@ bool GDBRemoteCommunication::DecompressPacket() {
   }
 #endif
 
-#if defined(HAVE_LIBZ)
+#if LLVM_ENABLE_ZLIB
   if (decompressed_bytes == 0 && decompressed_bufsize != ULONG_MAX &&
       decompressed_buffer != nullptr &&
       m_compression_type == CompressionType::ZlibDeflate) {
@@ -763,7 +763,7 @@ GDBRemoteCommunication::CheckForPacket(const uint8_t *src, size_t src_len,
         if (m_bytes[0] == '$' && total_length > 4) {
           for (size_t i = 0; !binary && i < total_length; ++i) {
             unsigned char c = m_bytes[i];
-            if (isprint(c) == 0 && isspace(c) == 0) {
+            if (!llvm::isPrint(c) && !llvm::isSpace(c)) {
               binary = true;
             }
           }
@@ -869,7 +869,7 @@ Status GDBRemoteCommunication::StartListenThread(const char *hostname,
   else
     snprintf(listen_url, sizeof(listen_url), "listen://%i", port);
   m_listen_url = listen_url;
-  SetConnection(new ConnectionFileDescriptor());
+  SetConnection(std::make_unique<ConnectionFileDescriptor>());
   llvm::Expected<HostThread> listen_thread = ThreadLauncher::LaunchThread(
       listen_url, GDBRemoteCommunication::ListenThread, this);
   if (!listen_thread)
@@ -1252,11 +1252,12 @@ GDBRemoteCommunication::ConnectLocally(GDBRemoteCommunication &client,
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "Unable to connect: %s", status.AsCString());
 
-  client.SetConnection(conn_up.release());
+  client.SetConnection(std::move(conn_up));
   if (llvm::Error error = accept_status.get().ToError())
     return error;
 
-  server.SetConnection(new ConnectionFileDescriptor(accept_socket));
+  server.SetConnection(
+      std::make_unique<ConnectionFileDescriptor>(accept_socket));
   return llvm::Error::success();
 }
 

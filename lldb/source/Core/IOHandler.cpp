@@ -18,6 +18,7 @@
 #include "lldb/Host/Config.h"
 #include "lldb/Host/File.h"
 #include "lldb/Utility/Predicate.h"
+#include "lldb/Utility/ReproducerProvider.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/StringList.h"
@@ -195,6 +196,14 @@ void IOHandlerConfirm::IOHandlerInputComplete(IOHandler &io_handler,
   }
 }
 
+llvm::Optional<std::string>
+IOHandlerDelegate::IOHandlerSuggestion(IOHandler &io_handler,
+                                       llvm::StringRef line) {
+  return io_handler.GetDebugger()
+      .GetCommandInterpreter()
+      .GetAutoSuggestionForCommand(line);
+}
+
 void IOHandlerDelegate::IOHandlerComplete(IOHandler &io_handler,
                                           CompletionRequest &request) {
   switch (m_completion) {
@@ -253,11 +262,13 @@ IOHandlerEditline::IOHandlerEditline(
                  m_input_sp && m_input_sp->GetIsRealTerminal();
 
   if (use_editline) {
-    m_editline_up.reset(new Editline(editline_name, GetInputFILE(),
-                                     GetOutputFILE(), GetErrorFILE(),
-                                     m_color_prompts));
+    m_editline_up = std::make_unique<Editline>(editline_name, GetInputFILE(),
+                                               GetOutputFILE(), GetErrorFILE(),
+                                               m_color_prompts);
     m_editline_up->SetIsInputCompleteCallback(IsInputCompleteCallback, this);
     m_editline_up->SetAutoCompleteCallback(AutoCompleteCallback, this);
+    if (debugger.GetUseAutosuggestion() && debugger.GetUseColor())
+      m_editline_up->SetSuggestionCallback(SuggestionCallback, this);
     // See if the delegate supports fixing indentation
     const char *indent_chars = delegate.IOHandlerGetFixIndentationCharacters();
     if (indent_chars) {
@@ -289,6 +300,13 @@ void IOHandlerEditline::Deactivate() {
   m_delegate.IOHandlerDeactivated(*this);
 }
 
+void IOHandlerEditline::TerminalSizeChanged() {
+#if LLDB_ENABLE_LIBEDIT
+  if (m_editline_up)
+    m_editline_up->TerminalSizeChanged();
+#endif
+}
+
 // Split out a line from the buffer, if there is a full one to get.
 static Optional<std::string> SplitLine(std::string &line_buffer) {
   size_t pos = line_buffer.find('\n');
@@ -303,7 +321,7 @@ static Optional<std::string> SplitLine(std::string &line_buffer) {
 // If the final line of the file ends without a end-of-line, return
 // it as a line anyway.
 static Optional<std::string> SplitLineEOF(std::string &line_buffer) {
-  if (llvm::all_of(line_buffer, isspace))
+  if (llvm::all_of(line_buffer, llvm::isSpace))
     return None;
   std::string line = std::move(line_buffer);
   line_buffer.clear();
@@ -421,6 +439,16 @@ int IOHandlerEditline::FixIndentationCallback(Editline *editline,
   IOHandlerEditline *editline_reader = (IOHandlerEditline *)baton;
   return editline_reader->m_delegate.IOHandlerFixIndentation(
       *editline_reader, lines, cursor_position);
+}
+
+llvm::Optional<std::string>
+IOHandlerEditline::SuggestionCallback(llvm::StringRef line, void *baton) {
+  IOHandlerEditline *editline_reader = static_cast<IOHandlerEditline *>(baton);
+  if (editline_reader)
+    return editline_reader->m_delegate.IOHandlerSuggestion(*editline_reader,
+                                                           line);
+
+  return llvm::None;
 }
 
 void IOHandlerEditline::AutoCompleteCallback(CompletionRequest &request,

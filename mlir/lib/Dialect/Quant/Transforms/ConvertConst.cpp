@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "PassDetail.h"
 #include "mlir/Dialect/Quant/Passes.h"
 #include "mlir/Dialect/Quant/QuantOps.h"
 #include "mlir/Dialect/Quant/QuantizeUtils.h"
@@ -15,15 +16,12 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/StandardTypes.h"
-#include "mlir/Pass/Pass.h"
 
 using namespace mlir;
 using namespace mlir::quant;
 
 namespace {
-
-class ConvertConstPass : public FunctionPass<ConvertConstPass> {
-public:
+struct ConvertConstPass : public QuantConvertConstBase<ConvertConstPass> {
   void runOnFunction() override;
 };
 
@@ -71,8 +69,7 @@ QuantizedConstRewrite::matchAndRewrite(QuantizeCastOp qbarrier,
   }
 
   // Is the constant value a type expressed in a way that we support?
-  if (!value.isa<FloatAttr>() && !value.isa<DenseElementsAttr>() &&
-      !value.isa<SparseElementsAttr>()) {
+  if (!value.isa<FloatAttr, DenseElementsAttr, SparseElementsAttr>()) {
     return failure();
   }
 
@@ -100,13 +97,9 @@ void ConvertConstPass::runOnFunction() {
   auto func = getFunction();
   auto *context = &getContext();
   patterns.insert<QuantizedConstRewrite>(context);
-  applyPatternsGreedily(func, patterns);
+  applyPatternsAndFoldGreedily(func, patterns);
 }
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::quant::createConvertConstPass() {
+std::unique_ptr<OperationPass<FuncOp>> mlir::quant::createConvertConstPass() {
   return std::make_unique<ConvertConstPass>();
 }
-
-static PassRegistration<ConvertConstPass>
-    pass("quant-convert-const",
-         "Converts constants followed by qbarrier to actual quantized values");

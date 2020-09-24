@@ -11,10 +11,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "FormatStringParsing.h"
 #include "clang/AST/FormatString.h"
 #include "clang/AST/OSLog.h"
-#include "FormatStringParsing.h"
 #include "clang/Basic/TargetInfo.h"
+#include "llvm/Support/Regex.h"
 
 using clang::analyze_format_string::ArgType;
 using clang::analyze_format_string::FormatStringHandler;
@@ -751,6 +752,7 @@ bool PrintfSpecifier::fixType(QualType QT, const LangOptions &LangOpt,
   case BuiltinType::UInt128:
   case BuiltinType::Int128:
   case BuiltinType::Half:
+  case BuiltinType::BFloat16:
   case BuiltinType::Float16:
   case BuiltinType::Float128:
   case BuiltinType::ShortAccum:
@@ -782,6 +784,11 @@ bool PrintfSpecifier::fixType(QualType QT, const LangOptions &LangOpt,
 
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) \
   case BuiltinType::Id:
+#include "clang/Basic/OpenCLImageTypes.def"
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  case BuiltinType::Sampled##Id:
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
 #include "clang/Basic/OpenCLImageTypes.def"
 #define EXT_OPAQUE_TYPE(ExtType, Id, Ext) \
   case BuiltinType::Id:

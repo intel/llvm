@@ -1,4 +1,4 @@
-//===- VectorOps.h - MLIR Super Vectorizer Operations -----------*- C++ -*-===//
+//===- VectorOps.h - MLIR Vector Dialect Operations -------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,23 +13,18 @@
 #ifndef MLIR_DIALECT_VECTOR_VECTOROPS_H
 #define MLIR_DIALECT_VECTOR_VECTOROPS_H
 
+#include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/StandardTypes.h"
-#include "mlir/Interfaces/SideEffects.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "mlir/Interfaces/VectorInterfaces.h"
 
 namespace mlir {
 class MLIRContext;
 class OwningRewritePatternList;
 namespace vector {
-
-/// Structure to control the behavior of vector transform patterns.
-struct VectorTransformsOptions {
-  /// Let vector.contract lower to vector.matrix_multiply and LLVM matrix
-  /// intrinsics.
-  bool lowerToLLVMMatrixIntrinsics = false;
-};
 
 /// Collect a set of vector-to-vector canonicalization patterns.
 void populateVectorToVectorCanonicalizationPatterns(
@@ -50,11 +45,67 @@ void populateVectorToVectorTransformationPatterns(
 void populateVectorSlicesLoweringPatterns(OwningRewritePatternList &patterns,
                                           MLIRContext *context);
 
+/// Enum to control the lowering of `vector.contract` operations.
+enum class VectorContractLowering {
+  /// Progressively lower to finer grained `vector.contract` and dot-products.
+  Dot = 0,
+  /// Lower to `vector.matrix_multiply`, maps 1-1 to LLVM matrix intrinsics.
+  Matmul = 1,
+  /// Lower to `vector.outerproduct`.
+  OuterProduct = 2,
+};
+/// Enum to control the lowering of `vector.transpose` operations.
+enum class VectorTransposeLowering {
+  /// Lower transpose into element-wise extract and inserts.
+  EltWise = 0,
+  /// Lower 2-D transpose to `vector.flat_transpose`, maps 1-1 to LLVM matrix
+  /// intrinsics.
+  Flat = 1,
+};
+/// Enum to control the splitting of `vector.transfer` operations into masked
+/// and unmasked variants.
+enum class VectorTransferSplit {
+  /// Do not split vector transfer operations.
+  None = 0,
+  /// Split using masked + unmasked vector.transfer operations.
+  VectorTransfer = 1,
+  /// Split using a unmasked vector.transfer + linalg.fill + linalg.copy
+  /// operations.
+  LinalgCopy = 2,
+  /// Do not split vector transfer operation but instead mark it as "unmasked".
+  ForceUnmasked = 3
+};
+/// Structure to control the behavior of vector transform patterns.
+struct VectorTransformsOptions {
+  /// Option to control the lowering of vector.contract.
+  VectorContractLowering vectorContractLowering = VectorContractLowering::Dot;
+  VectorTransformsOptions &
+  setVectorTransformsOptions(VectorContractLowering opt) {
+    vectorContractLowering = opt;
+    return *this;
+  }
+  /// Option to control the lowering of vector.transpose.
+  VectorTransposeLowering vectorTransposeLowering =
+      VectorTransposeLowering::EltWise;
+  VectorTransformsOptions &
+  setVectorTransposeLowering(VectorTransposeLowering opt) {
+    vectorTransposeLowering = opt;
+    return *this;
+  }
+  /// Option to control the splitting of vector transfers.
+  VectorTransferSplit vectorTransferSplit = VectorTransferSplit::None;
+  VectorTransformsOptions &setVectorTransferSplit(VectorTransferSplit opt) {
+    vectorTransferSplit = opt;
+    return *this;
+  }
+};
+
 /// Collect a set of transformation patterns that are related to contracting
 /// or expanding vector operations:
 ///   ContractionOpLowering,
 ///   ShapeCastOp2DDownCastRewritePattern,
 ///   ShapeCastOp2DUpCastRewritePattern
+///   BroadcastOpLowering,
 ///   TransposeOpLowering
 ///   OuterproductOpLowering
 /// These transformation express higher level vector ops in terms of more
@@ -69,6 +120,14 @@ IntegerType getVectorSubscriptType(Builder &builder);
 /// Returns an integer array attribute containing the given values using
 /// the integer type required for subscripts in the vector dialect.
 ArrayAttr getVectorSubscriptAttr(Builder &b, ArrayRef<int64_t> values);
+
+namespace impl {
+/// Build the default minor identity map suitable for a vector transfer. This
+/// also handles the case memref<... x vector<...>> -> vector<...> in which the
+/// rank of the identity map must take the vector element type into account.
+AffineMap getTransferMinorIdentityMap(MemRefType memRefType,
+                                      VectorType vectorType);
+} // namespace impl
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Vector/VectorOps.h.inc"

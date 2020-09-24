@@ -27,24 +27,12 @@
 
 using namespace llvm;
 
-static MaybeAlign getBaseAlign(const Value *Base, const DataLayout &DL) {
-  if (const MaybeAlign PA = Base->getPointerAlignment(DL))
-    return *PA;
-  Type *const Ty = Base->getType()->getPointerElementType();
-  if (!Ty->isSized())
-    return None;
-  return Align(DL.getABITypeAlignment(Ty));
-}
-
 static bool isAligned(const Value *Base, const APInt &Offset, Align Alignment,
                       const DataLayout &DL) {
-  if (MaybeAlign BA = getBaseAlign(Base, DL)) {
-    const APInt APBaseAlign(Offset.getBitWidth(), BA->value());
-    const APInt APAlign(Offset.getBitWidth(), Alignment.value());
-    assert(APAlign.isPowerOf2() && "must be a power of 2!");
-    return APBaseAlign.uge(APAlign) && !(Offset & (APAlign - 1));
-  }
-  return false;
+  Align BA = Base->getPointerAlignment(DL);
+  const APInt APAlign(Offset.getBitWidth(), Alignment.value());
+  assert(APAlign.isPowerOf2() && "must be a power of 2!");
+  return BA >= Alignment && !(Offset & (APAlign - 1));
 }
 
 /// Test if V is always a pointer to allocated and suitably aligned memory for
@@ -53,6 +41,7 @@ static bool isDereferenceableAndAlignedPointer(
     const Value *V, Align Alignment, const APInt &Size, const DataLayout &DL,
     const Instruction *CtxI, const DominatorTree *DT,
     SmallPtrSetImpl<const Value *> &Visited, unsigned MaxDepth) {
+  assert(V->getType()->isPointerTy() && "Base must be pointer");
 
   // Recursion limit.
   if (MaxDepth-- == 0)
@@ -66,10 +55,11 @@ static bool isDereferenceableAndAlignedPointer(
   // malloc may return null.
 
   // bitcast instructions are no-ops as far as dereferenceability is concerned.
-  if (const BitCastOperator *BC = dyn_cast<BitCastOperator>(V))
-    return isDereferenceableAndAlignedPointer(BC->getOperand(0), Alignment,
-                                              Size, DL, CtxI, DT, Visited,
-                                              MaxDepth);
+  if (const BitCastOperator *BC = dyn_cast<BitCastOperator>(V)) {
+    if (BC->getSrcTy()->isPointerTy())
+      return isDereferenceableAndAlignedPointer(
+          BC->getOperand(0), Alignment, Size, DL, CtxI, DT, Visited, MaxDepth);
+  }
 
   bool CheckForNonNull = false;
   APInt KnownDerefBytes(Size.getBitWidth(),
@@ -148,7 +138,7 @@ bool llvm::isDereferenceableAndAlignedPointer(const Value *V, Type *Ty,
                                               const DominatorTree *DT) {
   // For unsized types or scalable vectors we don't know exactly how many bytes
   // are dereferenced, so bail out.
-  if (!Ty->isSized() || (Ty->isVectorTy() && Ty->getVectorIsScalable()))
+  if (!Ty->isSized() || isa<ScalableVectorType>(Ty))
     return false;
 
   // When dereferenceability information is provided by a dereferenceable
@@ -210,8 +200,7 @@ bool llvm::isDereferenceableAndAlignedInLoop(LoadInst *LI, Loop *L,
 
   APInt EltSize(DL.getIndexTypeSizeInBits(Ptr->getType()),
                 DL.getTypeStoreSize(LI->getType()));
-  const Align Alignment = DL.getValueOrABITypeAlignment(
-      MaybeAlign(LI->getAlignment()), LI->getType());
+  const Align Alignment = LI->getAlign();
 
   Instruction *HeaderFirstNonPHI = L->getHeader()->getFirstNonPHI();
 
@@ -267,14 +256,10 @@ bool llvm::isDereferenceableAndAlignedInLoop(LoadInst *LI, Loop *L,
 ///
 /// This uses the pointee type to determine how many bytes need to be safe to
 /// load from the pointer.
-bool llvm::isSafeToLoadUnconditionally(Value *V, MaybeAlign MA, APInt &Size,
+bool llvm::isSafeToLoadUnconditionally(Value *V, Align Alignment, APInt &Size,
                                        const DataLayout &DL,
                                        Instruction *ScanFrom,
                                        const DominatorTree *DT) {
-  // Zero alignment means that the load has the ABI alignment for the target
-  const Align Alignment =
-      DL.getValueOrABITypeAlignment(MA, V->getType()->getPointerElementType());
-
   // If DT is not specified we can't make context-sensitive query
   const Instruction* CtxI = DT ? ScanFrom : nullptr;
   if (isDereferenceableAndAlignedPointer(V, Alignment, Size, DL, CtxI, DT))
@@ -309,7 +294,8 @@ bool llvm::isSafeToLoadUnconditionally(Value *V, MaybeAlign MA, APInt &Size,
       return false;
 
     Value *AccessedPtr;
-    MaybeAlign MaybeAccessedAlign;
+    Type *AccessedTy;
+    Align AccessedAlign;
     if (LoadInst *LI = dyn_cast<LoadInst>(BBI)) {
       // Ignore volatile loads. The execution of a volatile load cannot
       // be used to prove an address is backed by regular memory; it can,
@@ -317,20 +303,18 @@ bool llvm::isSafeToLoadUnconditionally(Value *V, MaybeAlign MA, APInt &Size,
       if (LI->isVolatile())
         continue;
       AccessedPtr = LI->getPointerOperand();
-      MaybeAccessedAlign = MaybeAlign(LI->getAlignment());
+      AccessedTy = LI->getType();
+      AccessedAlign = LI->getAlign();
     } else if (StoreInst *SI = dyn_cast<StoreInst>(BBI)) {
       // Ignore volatile stores (see comment for loads).
       if (SI->isVolatile())
         continue;
       AccessedPtr = SI->getPointerOperand();
-      MaybeAccessedAlign = MaybeAlign(SI->getAlignment());
+      AccessedTy = SI->getValueOperand()->getType();
+      AccessedAlign = SI->getAlign();
     } else
       continue;
 
-    Type *AccessedTy = AccessedPtr->getType()->getPointerElementType();
-
-    const Align AccessedAlign =
-        DL.getValueOrABITypeAlignment(MaybeAccessedAlign, AccessedTy);
     if (AccessedAlign < Alignment)
       continue;
 
@@ -346,7 +330,7 @@ bool llvm::isSafeToLoadUnconditionally(Value *V, MaybeAlign MA, APInt &Size,
   return false;
 }
 
-bool llvm::isSafeToLoadUnconditionally(Value *V, Type *Ty, MaybeAlign Alignment,
+bool llvm::isSafeToLoadUnconditionally(Value *V, Type *Ty, Align Alignment,
                                        const DataLayout &DL,
                                        Instruction *ScanFrom,
                                        const DominatorTree *DT) {
@@ -370,7 +354,7 @@ Value *llvm::FindAvailableLoadedValue(LoadInst *Load,
                                       BasicBlock *ScanBB,
                                       BasicBlock::iterator &ScanFrom,
                                       unsigned MaxInstsToScan,
-                                      AliasAnalysis *AA, bool *IsLoad,
+                                      AAResults *AA, bool *IsLoad,
                                       unsigned *NumScanedInst) {
   // Don't CSE load that is volatile or anything stronger than unordered.
   if (!Load->isUnordered())
@@ -407,7 +391,7 @@ Value *llvm::FindAvailablePtrLoadStore(Value *Ptr, Type *AccessTy,
                                        bool AtLeastAtomic, BasicBlock *ScanBB,
                                        BasicBlock::iterator &ScanFrom,
                                        unsigned MaxInstsToScan,
-                                       AliasAnalysis *AA, bool *IsLoadCSE,
+                                       AAResults *AA, bool *IsLoadCSE,
                                        unsigned *NumScanedInst) {
   if (MaxInstsToScan == 0)
     MaxInstsToScan = ~0U;
@@ -518,4 +502,24 @@ Value *llvm::FindAvailablePtrLoadStore(Value *Ptr, Type *AccessTy,
   // Got to the start of the block, we didn't find it, but are done for this
   // block.
   return nullptr;
+}
+
+bool llvm::canReplacePointersIfEqual(Value *A, Value *B, const DataLayout &DL,
+                                     Instruction *CtxI) {
+  Type *Ty = A->getType();
+  assert(Ty == B->getType() && Ty->isPointerTy() &&
+         "values must have matching pointer types");
+
+  // NOTE: The checks in the function are incomplete and currently miss illegal
+  // cases! The current implementation is a starting point and the
+  // implementation should be made stricter over time.
+  if (auto *C = dyn_cast<Constant>(B)) {
+    // Do not allow replacing a pointer with a constant pointer, unless it is
+    // either null or at least one byte is dereferenceable.
+    APInt OneByte(DL.getPointerTypeSizeInBits(Ty), 1);
+    return C->isNullValue() ||
+           isDereferenceableAndAlignedPointer(B, Align(1), OneByte, DL, CtxI);
+  }
+
+  return true;
 }

@@ -279,9 +279,6 @@ public:
   /// @param[in] start
   ///     The instruction index of the first instruction to check.
   ///
-  /// @param[in] target
-  ///     A LLDB target object that is used to resolve addresses.
-  ///    
   /// @param[in] ignore_calls
   ///     It true, then fine the first branch instruction that isn't
   ///     a function call (a branch that calls and returns to the next
@@ -298,7 +295,6 @@ public:
   ///     found.
   //------------------------------------------------------------------
   uint32_t GetIndexOfNextBranchInstruction(uint32_t start,
-                                           Target &target,
                                            bool ignore_calls,
                                            bool *found_calls) const;
 
@@ -349,7 +345,8 @@ public:
 protected:
   std::string m_description;
 
-  DISALLOW_COPY_AND_ASSIGN(PseudoInstruction);
+  PseudoInstruction(const PseudoInstruction &) = delete;
+  const PseudoInstruction &operator=(const PseudoInstruction &) = delete;
 };
 
 class Disassembler : public std::enable_shared_from_this<Disassembler>,
@@ -520,7 +517,8 @@ protected:
 
 private:
   // For Disassembler only
-  DISALLOW_COPY_AND_ASSIGN(Disassembler);
+  Disassembler(const Disassembler &) = delete;
+  const Disassembler &operator=(const Disassembler &) = delete;
 };
 
 } // namespace lldb_private

@@ -44,7 +44,7 @@ volatile int g = 1212;
 
 // CHECK: [[S_FLOAT_TY:%.+]] = type { float }
 // CHECK: [[S_INT_TY:%.+]] = type { i32 }
-// CHECK-DAG: [[SECTIONS_BARRIER_LOC:@.+]] = private unnamed_addr global %{{.+}} { i32 0, i32 194, i32 0, i32 0, i8*
+// CHECK-DAG: [[SECTIONS_BARRIER_LOC:@.+]] = private unnamed_addr constant %{{.+}} { i32 0, i32 194, i32 0, i32 0, i8*
 // CHECK-DAG: [[X:@.+]] = global double 0.0
 // OMP50-DAG: [[LAST_IV_X:@.+]] = {{.*}}common global i32 0
 // OMP50-DAG: [[LAST_X:@.+]] = {{.*}}common global double 0.000000e+00,
@@ -84,7 +84,7 @@ int main() {
 #pragma omp parallel
 #pragma omp sections lastprivate(g, sivar)
   {
-    // LAMBDA: define{{.*}} internal{{.*}} void [[OMP_REGION]](i32* noalias [[GTID:%.+]], i32* noalias %{{.+}}, i32* dereferenceable(4) [[SIVAR_REF:%.+]])
+    // LAMBDA: define{{.*}} internal{{.*}} void [[OMP_REGION]](i32* noalias [[GTID:%.+]], i32* noalias %{{.+}}, i32* nonnull align 4 dereferenceable(4) [[SIVAR_REF:%.+]])
     // LAMBDA: alloca i{{[0-9]+}},
     // LAMBDA: alloca i{{[0-9]+}},
     // LAMBDA: alloca i{{[0-9]+}},
@@ -156,7 +156,7 @@ int main() {
 #pragma omp parallel
 #pragma omp sections lastprivate(g, sivar)
   {
-    // BLOCKS: define{{.*}} internal{{.*}} void [[OMP_REGION]](i32* noalias [[GTID:%.+]], i32* noalias %{{.+}}, i32* dereferenceable(4) [[SIVAR:%.+]])
+    // BLOCKS: define{{.*}} internal{{.*}} void [[OMP_REGION]](i32* noalias [[GTID:%.+]], i32* noalias %{{.+}}, i32* nonnull align 4 dereferenceable(4) [[SIVAR:%.+]])
     // BLOCKS: alloca i{{[0-9]+}},
     // BLOCKS: alloca i{{[0-9]+}},
     // BLOCKS: alloca i{{[0-9]+}},

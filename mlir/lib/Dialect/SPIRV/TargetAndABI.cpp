@@ -38,6 +38,14 @@ spirv::TargetEnv::TargetEnv(spirv::TargetEnvAttr targetAttr)
   }
 }
 
+spirv::DeviceType spirv::TargetEnv::getDeviceType() {
+  auto deviceType = spirv::symbolizeDeviceType(
+      targetAttr.getResourceLimits().device_type().getInt());
+  if (!deviceType)
+    return DeviceType::Unknown;
+  return *deviceType;
+}
+
 spirv::Version spirv::TargetEnv::getVersion() {
   return targetAttr.getVersion();
 }
@@ -86,14 +94,18 @@ spirv::InterfaceVarABIAttr
 spirv::getInterfaceVarABIAttr(unsigned descriptorSet, unsigned binding,
                               Optional<spirv::StorageClass> storageClass,
                               MLIRContext *context) {
-  Type i32Type = IntegerType::get(32, context);
-  auto scAttr =
-      storageClass
-          ? IntegerAttr::get(i32Type, static_cast<int64_t>(*storageClass))
-          : IntegerAttr();
-  return spirv::InterfaceVarABIAttr::get(
-      IntegerAttr::get(i32Type, descriptorSet),
-      IntegerAttr::get(i32Type, binding), scAttr, context);
+  return spirv::InterfaceVarABIAttr::get(descriptorSet, binding, storageClass,
+                                         context);
+}
+
+bool spirv::needsInterfaceVarABIAttrs(spirv::TargetEnvAttr targetAttr) {
+  for (spirv::Capability cap : targetAttr.getCapabilities()) {
+    if (cap == spirv::Capability::Kernel)
+      return false;
+    if (cap == spirv::Capability::Shader)
+      return true;
+  }
+  return false;
 }
 
 StringRef spirv::getEntryPointABIAttrName() { return "spv.entry_point_abi"; }
@@ -130,13 +142,16 @@ DenseIntElementsAttr spirv::lookupLocalWorkGroupSize(Operation *op) {
 
 spirv::ResourceLimitsAttr
 spirv::getDefaultResourceLimits(MLIRContext *context) {
-  auto i32Type = IntegerType::get(32, context);
-  auto v3i32Type = VectorType::get(3, i32Type);
-
-  // These numbers are from "Table 46. Required Limits" of the Vulkan spec.
+  // All the fields have default values. Here we just provide a nicer way to
+  // construct a default resource limit attribute.
   return spirv::ResourceLimitsAttr ::get(
-      IntegerAttr::get(i32Type, 128),
-      DenseIntElementsAttr::get<int32_t>(v3i32Type, {128, 128, 64}), context);
+      /*vendor_id=*/nullptr,
+      /*device_id*/ nullptr,
+      /*device_type=*/nullptr,
+      /*max_compute_shared_memory_size=*/nullptr,
+      /*max_compute_workgroup_invocations=*/nullptr,
+      /*max_compute_workgroup_size=*/nullptr,
+      /*subgroup_size=*/nullptr, context);
 }
 
 StringRef spirv::getTargetEnvAttrName() { return "spv.target_env"; }
@@ -170,4 +185,38 @@ spirv::TargetEnvAttr spirv::lookupTargetEnvOrDefault(Operation *op) {
     return attr;
 
   return getDefaultTargetEnv(op->getContext());
+}
+
+spirv::AddressingModel
+spirv::getAddressingModel(spirv::TargetEnvAttr targetAttr) {
+  for (spirv::Capability cap : targetAttr.getCapabilities()) {
+    // TODO: Physical64 is hard-coded here, but some information should come
+    // from TargetEnvAttr to selected between Physical32 and Physical64.
+    if (cap == Capability::Kernel)
+      return spirv::AddressingModel::Physical64;
+  }
+  // Logical addressing doesn't need any capabilities so return it as default.
+  return spirv::AddressingModel::Logical;
+}
+
+FailureOr<spirv::ExecutionModel>
+spirv::getExecutionModel(spirv::TargetEnvAttr targetAttr) {
+  for (spirv::Capability cap : targetAttr.getCapabilities()) {
+    if (cap == spirv::Capability::Kernel)
+      return spirv::ExecutionModel::Kernel;
+    if (cap == spirv::Capability::Shader)
+      return spirv::ExecutionModel::GLCompute;
+  }
+  return failure();
+}
+
+FailureOr<spirv::MemoryModel>
+spirv::getMemoryModel(spirv::TargetEnvAttr targetAttr) {
+  for (spirv::Capability cap : targetAttr.getCapabilities()) {
+    if (cap == spirv::Capability::Addresses)
+      return spirv::MemoryModel::OpenCL;
+    if (cap == spirv::Capability::Shader)
+      return spirv::MemoryModel::GLSL450;
+  }
+  return failure();
 }

@@ -4,7 +4,7 @@
 # CHECK: bb.0:
 # CHECK:     [[COND:%[0-9]+]]:sreg_64 = V_CMP_EQ_U32_e64
 # CHECK:     [[IF_SOURCE0:%[0-9]+]]:sreg_64 = SI_IF [[COND]], %bb.1, implicit-def dead $exec, implicit-def dead $scc, implicit $exec
-# CHECK:     [[IF_INPUT_REG:%[0-9]+]]:sreg_64 =  S_MOV_B64_term killed [[IF_SOURCE0]], implicit $exec
+# CHECK:     [[IF_INPUT_REG:%[0-9]+]]:sreg_64 = S_MOV_B64_term killed [[IF_SOURCE0]], implicit $exec
 
 # CHECK: bb.1:
 # CHECK:     [[END_CF_ARG:%[0-9]+]]:sreg_64 = COPY killed [[IF_INPUT_REG]]
@@ -12,7 +12,7 @@
 
 # CHECK: bb.2:
 # CHECK:     [[IF_SOURCE1:%[0-9]+]]:sreg_64 = SI_IF [[COND]], %bb.1, implicit-def dead $exec, implicit-def dead $scc, implicit $exec
-# CHECK:     [[IF_INPUT_REG]]:sreg_64 =  S_MOV_B64_term killed [[IF_SOURCE1]], implicit $exec
+# CHECK:     [[IF_INPUT_REG]]:sreg_64 = S_MOV_B64_term killed [[IF_SOURCE1]], implicit $exec
 
 
 ...
@@ -37,7 +37,7 @@ body:             |
     %24:sreg_64 = PHI %20, %bb.3, %22, %bb.0
     %23:vgpr_32 = PHI %19, %bb.3, %18, %bb.0
     SI_END_CF %24, implicit-def dead $exec, implicit-def dead $scc, implicit $exec
-    %3:vgpr_32, dead %10:sreg_64 = nsw V_ADD_I32_e64 1, %23, 0, implicit $exec
+    %3:vgpr_32, dead %10:sreg_64 = nsw V_ADD_CO_U32_e64 1, %23, 0, implicit $exec
 
   bb.3:
     successors: %bb.3(0x40000000), %bb.2(0x40000000)

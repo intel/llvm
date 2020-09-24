@@ -16,6 +16,8 @@
 #include "llvm/Analysis/CallGraphSCCPass.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/LoopPass.h"
+#include "llvm/AsmParser/Parser.h"
+#include "llvm/IR/AbstractCallSite.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/DataLayout.h"
@@ -28,6 +30,7 @@
 #include "llvm/IR/OptBisect.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/CallGraphUpdater.h"
 #include "gtest/gtest.h"
@@ -355,12 +358,12 @@ namespace llvm {
     struct CustomOptPassGate : public OptPassGate {
       bool Skip;
       CustomOptPassGate(bool Skip) : Skip(Skip) { }
-      bool shouldRunPass(const Pass *P, StringRef IRDescription) {
+      bool shouldRunPass(const Pass *P, StringRef IRDescription) override {
         if (P->getPassKind() == PT_Module)
           return !Skip;
         return OptPassGate::shouldRunPass(P, IRDescription);
       }
-      bool isEnabled() const { return true; }
+      bool isEnabled() const override { return true; }
     };
 
     // Optional module pass.
@@ -459,7 +462,7 @@ namespace llvm {
 
       Function* func_test3 = Function::Create(
         /*Type=*/FuncTy_0,
-        /*Linkage=*/GlobalValue::ExternalLinkage,
+        /*Linkage=*/GlobalValue::InternalLinkage,
         /*Name=*/"test3", mod);
       func_test3->setCallingConv(CallingConv::C);
       AttributeList func_test3_PAL;
@@ -546,6 +549,9 @@ namespace llvm {
             BasicBlock::Create(Context, "return", func_test4, nullptr);
 
         // Block entry (label_entry_11)
+        auto *AI = new AllocaInst(func_test3->getType(), 0, "func3ptr",
+                                  label_entry_11);
+        new StoreInst(func_test3, AI, label_entry_11);
         BranchInst::Create(label_bb, label_entry_11);
 
         // Block bb (label_bb)
@@ -560,20 +566,44 @@ namespace llvm {
       return mod;
     }
 
+    /// Split a simple function which contains only a call and a return into two
+    /// such that the first calls the second and the second whoever was called
+    /// initially.
+    Function *splitSimpleFunction(Function &F) {
+      LLVMContext &Context = F.getContext();
+      Function *SF = Function::Create(F.getFunctionType(), F.getLinkage(),
+                                      F.getName() + "b", F.getParent());
+      F.setName(F.getName() + "a");
+      BasicBlock *Entry = BasicBlock::Create(Context, "entry", SF, nullptr);
+      CallInst &CI = cast<CallInst>(F.getEntryBlock().front());
+      CI.clone()->insertBefore(ReturnInst::Create(Context, Entry));
+      CI.setCalledFunction(SF);
+      return SF;
+    }
+
     struct CGModifierPass : public CGPass {
       unsigned NumSCCs = 0;
       unsigned NumFns = 0;
-      bool SetupWorked = true;
+      unsigned NumFnDecls = 0;
+      unsigned SetupWorked = 0;
+      unsigned NumExtCalledBefore = 0;
+      unsigned NumExtCalledAfter = 0;
 
       CallGraphUpdater CGU;
 
       bool runOnSCC(CallGraphSCC &SCMM) override {
         ++NumSCCs;
-        for (CallGraphNode *N : SCMM)
-          if (N->getFunction())
+        for (CallGraphNode *N : SCMM) {
+          if (N->getFunction()){
             ++NumFns;
-
+            NumFnDecls += N->getFunction()->isDeclaration();
+          }
+        }
         CGPass::run();
+
+        CallGraph &CG = const_cast<CallGraph &>(SCMM.getCallGraph());
+        CallGraphNode *ExtCallingNode = CG.getExternalCallingNode();
+        NumExtCalledBefore = ExtCallingNode->size();
 
         if (SCMM.size() <= 1)
           return false;
@@ -582,49 +612,173 @@ namespace llvm {
         Function *F = N->getFunction();
         Module *M = F->getParent();
         Function *Test1F = M->getFunction("test1");
-        Function *Test2F = M->getFunction("test2");
+        Function *Test2aF = M->getFunction("test2a");
+        Function *Test2bF = M->getFunction("test2b");
         Function *Test3F = M->getFunction("test3");
+
         auto InSCC = [&](Function *Fn) {
           return llvm::any_of(SCMM, [Fn](CallGraphNode *CGN) {
             return CGN->getFunction() == Fn;
           });
         };
 
-        if (!Test1F || !Test2F || !Test3F || !InSCC(Test1F) || !InSCC(Test2F) ||
-            !InSCC(Test3F))
-          return SetupWorked = false;
+        if (!Test1F || !Test2aF || !Test2bF || !Test3F || !InSCC(Test1F) ||
+            !InSCC(Test2aF) || !InSCC(Test2bF) || !InSCC(Test3F))
+          return false;
 
         CallInst *CI = dyn_cast<CallInst>(&Test1F->getEntryBlock().front());
-        if (!CI || CI->getCalledFunction() != Test2F)
-          return SetupWorked = false;
+        if (!CI || CI->getCalledFunction() != Test2aF)
+          return false;
 
-        CI->setCalledFunction(Test3F);
+        SetupWorked += 1;
 
-        CGU.initialize(const_cast<CallGraph &>(SCMM.getCallGraph()), SCMM);
-        CGU.removeFunction(*Test2F);
+        // Create a replica of test3 and just move the blocks there.
+        Function *Test3FRepl = Function::Create(
+            /*Type=*/Test3F->getFunctionType(),
+            /*Linkage=*/GlobalValue::InternalLinkage,
+            /*Name=*/"test3repl", Test3F->getParent());
+        while (!Test3F->empty()) {
+          BasicBlock &BB = Test3F->front();
+          BB.removeFromParent();
+          BB.insertInto(Test3FRepl);
+        }
+
+        CGU.initialize(CG, SCMM);
+
+        // Replace test3 with the replica. This is legal as it is actually
+        // internal and the "capturing use" is not really capturing anything.
+        CGU.replaceFunctionWith(*Test3F, *Test3FRepl);
+        Test3F->replaceAllUsesWith(Test3FRepl);
+
+        // Rewrite the call in test1 to point to the replica of 3 not test2.
+        CI->setCalledFunction(Test3FRepl);
+
+        // Delete test2a and test2b and reanalyze 1 as we changed calls inside.
+        CGU.removeFunction(*Test2aF);
+        CGU.removeFunction(*Test2bF);
         CGU.reanalyzeFunction(*Test1F);
+
         return true;
       }
 
-      bool doFinalization(CallGraph &CG) override { return CGU.finalize(); }
+      bool doFinalization(CallGraph &CG) override {
+        CGU.finalize();
+        // We removed test2 and replaced the internal test3.
+        NumExtCalledAfter = CG.getExternalCallingNode()->size();
+        return true;
+      }
     };
 
     TEST(PassManager, CallGraphUpdater0) {
-      // SCC#1: test1->test2->test3->test1
+      // SCC#1: test1->test2a->test2b->test3->test1
       // SCC#2: test4
-      // SCC#3: indirect call node
+      // SCC#3: test3 (the empty function declaration as we replaced it with
+      //               test3repl when we visited SCC#1)
+      // SCC#4: test2a->test2b (the empty function declarations as we deleted
+      //                        these functions when we visited SCC#1)
+      // SCC#5: indirect call node
 
       LLVMContext Context;
       std::unique_ptr<Module> M(makeLLVMModule(Context));
       ASSERT_EQ(M->getFunctionList().size(), 4U);
+      Function *F = M->getFunction("test2");
+      Function *SF = splitSimpleFunction(*F);
+      CallInst::Create(F, "", &*SF->getEntryBlock().getFirstInsertionPt());
+      ASSERT_EQ(M->getFunctionList().size(), 5U);
       CGModifierPass *P = new CGModifierPass();
       legacy::PassManager Passes;
       Passes.add(P);
       Passes.run(*M);
-      ASSERT_TRUE(P->SetupWorked);
-      ASSERT_EQ(P->NumSCCs, 3U);
-      ASSERT_EQ(P->NumFns, 4U);
+      ASSERT_EQ(P->SetupWorked, 1U);
+      ASSERT_EQ(P->NumSCCs, 4U);
+      ASSERT_EQ(P->NumFns, 6U);
+      ASSERT_EQ(P->NumFnDecls, 1U);
       ASSERT_EQ(M->getFunctionList().size(), 3U);
+      ASSERT_EQ(P->NumExtCalledBefore, /* test1, 2a, 2b, 3, 4 */ 5U);
+      ASSERT_EQ(P->NumExtCalledAfter, /* test1, 3repl, 4 */ 3U);
+    }
+
+    // Test for call graph SCC pass that replaces all callback call instructions
+    // with clones and updates CallGraph by calling CallGraph::replaceCallEdge()
+    // method. Test is expected to complete successfully after running pass on
+    // all SCCs in the test module.
+    struct CallbackCallsModifierPass : public CGPass {
+      bool runOnSCC(CallGraphSCC &SCC) override {
+        CGPass::run();
+
+        CallGraph &CG = const_cast<CallGraph &>(SCC.getCallGraph());
+
+        bool Changed = false;
+        for (CallGraphNode *CGN : SCC) {
+          Function *F = CGN->getFunction();
+          if (!F || F->isDeclaration())
+            continue;
+
+          SmallVector<CallBase *, 4u> Calls;
+          for (Use &U : F->uses()) {
+            AbstractCallSite ACS(&U);
+            if (!ACS || !ACS.isCallbackCall() || !ACS.isCallee(&U))
+              continue;
+            Calls.push_back(cast<CallBase>(ACS.getInstruction()));
+          }
+          if (Calls.empty())
+            continue;
+
+          for (CallBase *OldCB : Calls) {
+            CallGraphNode *CallerCGN = CG[OldCB->getParent()->getParent()];
+            assert(any_of(*CallerCGN,
+                          [CGN](const CallGraphNode::CallRecord &CallRecord) {
+                            return CallRecord.second == CGN;
+                          }) &&
+                   "function is not a callee");
+
+            CallBase *NewCB = cast<CallBase>(OldCB->clone());
+
+            NewCB->insertBefore(OldCB);
+            NewCB->takeName(OldCB);
+
+            CallerCGN->replaceCallEdge(*OldCB, *NewCB, CG[F]);
+
+            OldCB->replaceAllUsesWith(NewCB);
+            OldCB->eraseFromParent();
+          }
+          Changed = true;
+        }
+        return Changed;
+      }
+    };
+
+    TEST(PassManager, CallbackCallsModifier0) {
+      LLVMContext Context;
+
+      const char *IR = "define void @foo() {\n"
+                       "  call void @broker(void (i8*)* @callback0, i8* null)\n"
+                       "  call void @broker(void (i8*)* @callback1, i8* null)\n"
+                       "  ret void\n"
+                       "}\n"
+                       "\n"
+                       "declare !callback !0 void @broker(void (i8*)*, i8*)\n"
+                       "\n"
+                       "define internal void @callback0(i8* %arg) {\n"
+                       "  ret void\n"
+                       "}\n"
+                       "\n"
+                       "define internal void @callback1(i8* %arg) {\n"
+                       "  ret void\n"
+                       "}\n"
+                       "\n"
+                       "!0 = !{!1}\n"
+                       "!1 = !{i64 0, i64 1, i1 false}";
+
+      SMDiagnostic Err;
+      std::unique_ptr<Module> M = parseAssemblyString(IR, Err, Context);
+      if (!M)
+        Err.print("LegacyPassManagerTest", errs());
+
+      CallbackCallsModifierPass *P = new CallbackCallsModifierPass();
+      legacy::PassManager Passes;
+      Passes.add(P);
+      Passes.run(*M);
     }
   }
 }

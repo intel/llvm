@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "PassDetail.h"
 #include "mlir/Dialect/SPIRV/LayoutUtils.h"
 #include "mlir/Dialect/SPIRV/Passes.h"
 #include "mlir/Dialect/SPIRV/SPIRVDialect.h"
@@ -40,25 +41,24 @@ createGlobalVarForEntryPointArgument(OpBuilder &builder, spirv::FuncOp funcOp,
   // it must already be a !spv.ptr<!spv.struct<...>>.
   auto varType = funcOp.getType().getInput(argIndex);
   if (varType.cast<spirv::SPIRVType>().isScalarOrVector()) {
-    auto storageClass =
-        static_cast<spirv::StorageClass>(abiInfo.storage_class().getInt());
+    auto storageClass = abiInfo.getStorageClass();
+    if (!storageClass)
+      return nullptr;
     varType =
-        spirv::PointerType::get(spirv::StructType::get(varType), storageClass);
+        spirv::PointerType::get(spirv::StructType::get(varType), *storageClass);
   }
   auto varPtrType = varType.cast<spirv::PointerType>();
   auto varPointeeType = varPtrType.getPointeeType().cast<spirv::StructType>();
 
   // Set the offset information.
-  VulkanLayoutUtils::Size size = 0, alignment = 0;
   varPointeeType =
-      VulkanLayoutUtils::decorateType(varPointeeType, size, alignment)
-          .cast<spirv::StructType>();
+      VulkanLayoutUtils::decorateType(varPointeeType).cast<spirv::StructType>();
   varType =
       spirv::PointerType::get(varPointeeType, varPtrType.getStorageClass());
 
   return builder.create<spirv::GlobalVariableOp>(
-      funcOp.getLoc(), varType, varName, abiInfo.descriptor_set().getInt(),
-      abiInfo.binding().getInt());
+      funcOp.getLoc(), varType, varName, abiInfo.getDescriptorSet(),
+      abiInfo.getBinding());
 }
 
 /// Gets the global variables that need to be specified as interface variable
@@ -72,13 +72,13 @@ getInterfaceVariables(spirv::FuncOp funcOp,
   }
   llvm::SetVector<Operation *> interfaceVarSet;
 
-  // TODO(ravishankarm) : This should in reality traverse the entry function
+  // TODO: This should in reality traverse the entry function
   // call graph and collect all the interfaces. For now, just traverse the
   // instructions in this function.
   funcOp.walk([&](spirv::AddressOfOp addressOfOp) {
     auto var =
         module.lookupSymbol<spirv::GlobalVariableOp>(addressOfOp.variable());
-    // TODO(antiagainst): Per SPIR-V spec: "Before version 1.4, the interface’s
+    // TODO: Per SPIR-V spec: "Before version 1.4, the interface’s
     // storage classes are limited to the Input and Output storage classes.
     // Starting with version 1.4, the interface’s storage classes are all
     // storage classes used in declaring all global variables referenced by the
@@ -119,8 +119,17 @@ static LogicalResult lowerEntryPointABIAttr(spirv::FuncOp funcOp,
   if (failed(getInterfaceVariables(funcOp, interfaceVars))) {
     return failure();
   }
+
+  spirv::TargetEnvAttr targetEnv = spirv::lookupTargetEnv(funcOp);
+  FailureOr<spirv::ExecutionModel> executionModel =
+      spirv::getExecutionModel(targetEnv);
+  if (failed(executionModel))
+    return funcOp.emitRemark("lower entry point failure: could not select "
+                             "execution model based on 'spv.target_env'");
+
   builder.create<spirv::EntryPointOp>(
-      funcOp.getLoc(), spirv::ExecutionModel::GLCompute, funcOp, interfaceVars);
+      funcOp.getLoc(), executionModel.getValue(), funcOp, interfaceVars);
+
   // Specifies the spv.ExecutionModeOp.
   auto localSizeAttr = entryPointAttr.local_size();
   SmallVector<int32_t, 3> localSize(localSizeAttr.getValues<int32_t>());
@@ -148,8 +157,7 @@ public:
 
 /// Pass to implement the ABI information specified as attributes.
 class LowerABIAttributesPass final
-    : public OperationPass<LowerABIAttributesPass, spirv::ModuleOp> {
-private:
+    : public SPIRVLowerABIAttributesBase<LowerABIAttributesPass> {
   void runOnOperation() override;
 };
 } // namespace
@@ -159,7 +167,7 @@ LogicalResult ProcessInterfaceVarABI::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
   if (!funcOp.getAttrOfType<spirv::EntryPointABIAttr>(
           spirv::getEntryPointABIAttrName())) {
-    // TODO(ravishankarm) : Non-entry point functions are not handled.
+    // TODO: Non-entry point functions are not handled.
     return failure();
   }
   TypeConverter::SignatureConversion signatureConverter(
@@ -170,7 +178,7 @@ LogicalResult ProcessInterfaceVarABI::matchAndRewrite(
     auto abiInfo = funcOp.getArgAttrOfType<spirv::InterfaceVarABIAttr>(
         argType.index(), attrName);
     if (!abiInfo) {
-      // TODO(ravishankarm) : For non-entry point functions, it should be legal
+      // TODO: For non-entry point functions, it should be legal
       // to pass around scalar/vector values and return a scalar/vector. For now
       // non-entry point functions are not handled in this ABI lowering and will
       // produce an error.
@@ -188,26 +196,28 @@ LogicalResult ProcessInterfaceVarABI::matchAndRewrite(
         rewriter.create<spirv::AddressOfOp>(funcOp.getLoc(), var);
     // Check if the arg is a scalar or vector type. In that case, the value
     // needs to be loaded into registers.
-    // TODO(ravishankarm) : This is loading value of the scalar into registers
+    // TODO: This is loading value of the scalar into registers
     // at the start of the function. It is probably better to do the load just
     // before the use. There might be multiple loads and currently there is no
     // easy way to replace all uses with a sequence of operations.
     if (argType.value().cast<spirv::SPIRVType>().isScalarOrVector()) {
       auto indexType = SPIRVTypeConverter::getIndexType(funcOp.getContext());
       auto zero =
-          spirv::ConstantOp::getZero(indexType, funcOp.getLoc(), &rewriter);
+          spirv::ConstantOp::getZero(indexType, funcOp.getLoc(), rewriter);
       auto loadPtr = rewriter.create<spirv::AccessChainOp>(
           funcOp.getLoc(), replacement, zero.constant());
       replacement = rewriter.create<spirv::LoadOp>(funcOp.getLoc(), loadPtr);
     }
     signatureConverter.remapInput(argType.index(), replacement);
   }
+  if (failed(rewriter.convertRegionTypes(&funcOp.getBody(), typeConverter,
+                                         &signatureConverter)))
+    return failure();
 
   // Creates a new function with the update signature.
   rewriter.updateRootInPlace(funcOp, [&] {
     funcOp.setType(rewriter.getFunctionType(
         signatureConverter.getConvertedTypes(), llvm::None));
-    rewriter.applySignatureConversion(&funcOp.getBody(), signatureConverter);
   });
   return success();
 }
@@ -221,6 +231,16 @@ void LowerABIAttributesPass::runOnOperation() {
   spirv::TargetEnv targetEnv(spirv::lookupTargetEnv(module));
 
   SPIRVTypeConverter typeConverter(targetEnv);
+
+  // Insert a bitcast in the case of a pointer type change.
+  typeConverter.addSourceMaterialization([](OpBuilder &builder,
+                                            spirv::PointerType type,
+                                            ValueRange inputs, Location loc) {
+    if (inputs.size() != 1 || !inputs[0].getType().isa<spirv::PointerType>())
+      return Value();
+    return builder.create<spirv::BitcastOp>(loc, type, inputs[0]).getResult();
+  });
+
   OwningRewritePatternList patterns;
   patterns.insert<ProcessInterfaceVarABI>(context, typeConverter);
 
@@ -238,10 +258,8 @@ void LowerABIAttributesPass::runOnOperation() {
     return op->getDialect()->getNamespace() ==
            spirv::SPIRVDialect::getDialectNamespace();
   });
-  if (failed(
-          applyPartialConversion(module, target, patterns, &typeConverter))) {
+  if (failed(applyPartialConversion(module, target, patterns)))
     return signalPassFailure();
-  }
 
   // Walks over all the FuncOps in spirv::ModuleOp to lower the entry point
   // attributes.
@@ -260,10 +278,7 @@ void LowerABIAttributesPass::runOnOperation() {
   }
 }
 
-std::unique_ptr<OpPassBase<spirv::ModuleOp>>
+std::unique_ptr<OperationPass<spirv::ModuleOp>>
 mlir::spirv::createLowerABIAttributesPass() {
   return std::make_unique<LowerABIAttributesPass>();
 }
-
-static PassRegistration<LowerABIAttributesPass>
-    pass("spirv-lower-abi-attrs", "Lower SPIR-V ABI Attributes");

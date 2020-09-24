@@ -47,7 +47,7 @@
 
 /// test behaviors of -foffload-static-lib=<lib> from source
 // RUN: touch %t.a
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -foffload-static-lib=%t.a -ccc-print-phases %s 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -foffload-static-lib=%t.a -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC
 
 // FOFFLOAD_STATIC_LIB_SRC: 0: input, "[[INPUTA:.+\.a]]", object, (host-sycl)
@@ -122,9 +122,9 @@
 /// ###########################################################################
 
 /// test behaviors of -foffload-static-lib with no source/object
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L/dummy/dir -foffload-static-lib=%t.a -### -ccc-print-phases 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -L/dummy/dir -foffload-static-lib=%t.a -### -ccc-print-phases 2>&1 \
 // RUN:   | FileCheck %s -check-prefixes=FOFFLOAD_STATIC_LIB_NOSRC_PHASES,FOFFLOAD_STATIC_LIB_NOSRC_PHASES_1
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L/dummy/dir -foffload-whole-static-lib=%t.a -### -ccc-print-phases 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -L/dummy/dir -foffload-whole-static-lib=%t.a -### -ccc-print-phases 2>&1 \
 // RUN:   | FileCheck %s -check-prefixes=FOFFLOAD_STATIC_LIB_NOSRC_PHASES,FOFFLOAD_STATIC_LIB_NOSRC_PHASES_2
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 0: input, "[[INPUTA:.+\.a]]", object, (host-sycl)
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 1: linker, {0}, image, (host-sycl)
@@ -139,3 +139,10 @@
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 9: file-table-tform, {6, 8}, tempfiletable, (device-sycl)
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 10: clang-offload-wrapper, {9}, object, (device-sycl)
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 11: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64-unknown-unknown-sycldevice)" {10}, image
+
+/// ###########################################################################
+
+/// test behaviors of -foffload-static-lib with no value
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -foffload-static-lib= -c %s 2>&1 \
+// RUN:   | FileCheck %s -check-prefixes=FOFFLOAD_STATIC_LIB_NOVALUE
+// FOFFLOAD_STATIC_LIB_NOVALUE: warning: argument unused during compilation: '-foffload-static-lib='

@@ -11,8 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/TableGen/OpTrait.h"
-#include "mlir/Support/STLExtras.h"
-#include "mlir/TableGen/OpInterfaces.h"
+#include "mlir/TableGen/Interfaces.h"
 #include "mlir/TableGen/Predicate.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -28,7 +27,7 @@ OpTrait OpTrait::create(const llvm::Init *init) {
     return OpTrait(Kind::Pred, def);
   if (def->isSubClassOf("GenInternalOpTrait"))
     return OpTrait(Kind::Internal, def);
-  if (def->isSubClassOf("OpInterface"))
+  if (def->isSubClassOf("OpInterfaceTrait"))
     return OpTrait(Kind::Interface, def);
   assert(def->isSubClassOf("NativeOpTrait"));
   return OpTrait(Kind::Native, def);
@@ -45,7 +44,7 @@ llvm::StringRef InternalOpTrait::getTrait() const {
 }
 
 std::string PredOpTrait::getPredTemplate() const {
-  auto pred = tblgen::Pred(def->getValueInit("predicate"));
+  auto pred = Pred(def->getValueInit("predicate"));
   return pred.getCondition();
 }
 
@@ -57,10 +56,17 @@ OpInterface InterfaceOpTrait::getOpInterface() const {
   return OpInterface(def);
 }
 
-llvm::StringRef InterfaceOpTrait::getTrait() const {
-  return def->getValueAsString("trait");
+std::string InterfaceOpTrait::getTrait() const {
+  llvm::StringRef trait = def->getValueAsString("trait");
+  llvm::StringRef cppNamespace = def->getValueAsString("cppNamespace");
+  return cppNamespace.empty() ? trait.str()
+                              : (cppNamespace + "::" + trait).str();
 }
 
 bool InterfaceOpTrait::shouldDeclareMethods() const {
   return def->isSubClassOf("DeclareOpInterfaceMethods");
+}
+
+std::vector<StringRef> InterfaceOpTrait::getAlwaysDeclaredMethods() const {
+  return def->getValueAsListOfStrings("alwaysOverriddenMethods");
 }

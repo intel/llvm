@@ -7,11 +7,19 @@
 //===----------------------------------------------------------------------===//
 
 #include "MIRVRegNamerUtils.h"
+#include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/MachineStableHash.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/Support/Debug.h"
 
 using namespace llvm;
 
 #define DEBUG_TYPE "mir-vregnamer-utils"
+
+static cl::opt<bool>
+    UseStableNamerHash("mir-vreg-namer-use-stable-hash", cl::init(false),
+                       cl::Hidden,
+                       cl::desc("Use Stable Hashing for MIR VReg Renaming"));
 
 using VRegRenameMap = std::map<unsigned, unsigned>;
 
@@ -50,6 +58,14 @@ std::string VRegRenamer::getInstructionOpcodeHash(MachineInstr &MI) {
   std::string S;
   raw_string_ostream OS(S);
 
+  if (UseStableNamerHash) {
+    auto Hash = stableHashValue(MI, /* HashVRegs */ true,
+                                /* HashConstantPoolIndices */ true,
+                                /* HashMemOperands */ true);
+    assert(Hash && "Expected non-zero Hash");
+    return std::to_string(Hash).substr(0, 5);
+  }
+
   // Gets a hashable artifact from a given MachineOperand (ie an unsigned).
   auto GetHashableMO = [this](const MachineOperand &MO) -> unsigned {
     switch (MO.getType()) {
@@ -70,6 +86,7 @@ std::string VRegRenamer::getInstructionOpcodeHash(MachineInstr &MI) {
       return MO.getOffset() | (MO.getTargetFlags() << 16);
     case MachineOperand::MO_FrameIndex:
     case MachineOperand::MO_ConstantPoolIndex:
+    case MachineOperand::MO_JumpTableIndex:
       return llvm::hash_value(MO);
 
     // We could explicitly handle all the types of the MachineOperand,
@@ -80,7 +97,6 @@ std::string VRegRenamer::getInstructionOpcodeHash(MachineInstr &MI) {
 
     // TODO: Handle the following Index/ID/Predicate cases. They can
     // be hashed on in a stable manner.
-    case MachineOperand::MO_JumpTableIndex:
     case MachineOperand::MO_CFIIndex:
     case MachineOperand::MO_IntrinsicID:
     case MachineOperand::MO_Predicate:
@@ -112,7 +128,7 @@ std::string VRegRenamer::getInstructionOpcodeHash(MachineInstr &MI) {
     MIOperands.push_back((unsigned)Op->getOrdering());
     MIOperands.push_back((unsigned)Op->getAddrSpace());
     MIOperands.push_back((unsigned)Op->getSyncScopeID());
-    MIOperands.push_back((unsigned)Op->getBaseAlignment());
+    MIOperands.push_back((unsigned)Op->getBaseAlign().value());
     MIOperands.push_back((unsigned)Op->getFailureOrdering());
   }
 

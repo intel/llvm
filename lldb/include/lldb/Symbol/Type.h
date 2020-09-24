@@ -97,13 +97,14 @@ public:
        llvm::Optional<uint64_t> byte_size, SymbolContextScope *context,
        lldb::user_id_t encoding_uid, EncodingDataType encoding_uid_type,
        const Declaration &decl, const CompilerType &compiler_qual_type,
-       ResolveState compiler_type_resolve_state);
+       ResolveState compiler_type_resolve_state, uint32_t opaque_payload = 0);
 
   // This makes an invalid type.  Used for functions that return a Type when
   // they get an error.
   Type();
 
-  void Dump(Stream *s, bool show_context);
+  void Dump(Stream *s, bool show_context,
+            lldb::DescriptionLevel level = lldb::eDescriptionLevelFull);
 
   void DumpTypeName(Stream *s);
 
@@ -113,14 +114,15 @@ public:
   // Type instances. They can store a weak pointer to the Module;
   lldb::ModuleSP GetModule();
 
-  void GetDescription(Stream *s, lldb::DescriptionLevel level, bool show_name);
+  void GetDescription(Stream *s, lldb::DescriptionLevel level, bool show_name,
+                      ExecutionContextScope *exe_scope);
 
   SymbolFile *GetSymbolFile() { return m_symbol_file; }
   const SymbolFile *GetSymbolFile() const { return m_symbol_file; }
 
   ConstString GetName();
 
-  llvm::Optional<uint64_t> GetByteSize();
+  llvm::Optional<uint64_t> GetByteSize(ExecutionContextScope *exe_scope);
 
   uint32_t GetNumChildren(bool omit_empty_base_classes);
 
@@ -196,11 +198,11 @@ public:
 
   uint32_t GetEncodingMask();
 
-  bool IsCompleteObjCClass() { return m_is_complete_objc_class; }
-
-  void SetIsCompleteObjCClass(bool is_complete_objc_class) {
-    m_is_complete_objc_class = is_complete_objc_class;
-  }
+  typedef uint32_t Payload;
+  /// Return the language-specific payload.
+  Payload GetPayload() { return m_payload; }
+  /// Return the language-specific payload.
+  void SetPayload(Payload opaque_payload) { m_payload = opaque_payload; }
 
 protected:
   ConstString m_name;
@@ -215,7 +217,8 @@ protected:
   Declaration m_decl;
   CompilerType m_compiler_type;
   ResolveState m_compiler_type_resolve_state;
-  bool m_is_complete_objc_class;
+  /// Language-specific flags.
+  Payload m_payload;
 
   Type *GetEncodingType();
 

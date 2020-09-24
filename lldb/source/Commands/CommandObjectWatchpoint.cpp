@@ -41,7 +41,7 @@ static bool CheckTargetForWatchpointOperations(Target *target,
   bool process_is_valid =
       target->GetProcessSP() && target->GetProcessSP()->IsAlive();
   if (!process_is_valid) {
-    result.AppendError("Thre's no process or it is not alive.");
+    result.AppendError("There's no process or it is not alive.");
     result.SetStatus(eReturnStatusFailed);
     return false;
   }
@@ -292,6 +292,14 @@ public:
 
   ~CommandObjectWatchpointEnable() override = default;
 
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), CommandCompletions::eWatchPointIDCompletion,
+        request, nullptr);
+  }
+
 protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     Target *target = &GetSelectedTarget();
@@ -361,6 +369,14 @@ public:
   }
 
   ~CommandObjectWatchpointDisable() override = default;
+
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), CommandCompletions::eWatchPointIDCompletion,
+        request, nullptr);
+  }
 
 protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
@@ -438,6 +454,14 @@ public:
   }
 
   ~CommandObjectWatchpointDelete() override = default;
+
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), CommandCompletions::eWatchPointIDCompletion,
+        request, nullptr);
+  }
 
   Options *GetOptions() override { return &m_options; }
 
@@ -556,6 +580,14 @@ public:
   }
 
   ~CommandObjectWatchpointIgnore() override = default;
+
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), CommandCompletions::eWatchPointIDCompletion,
+        request, nullptr);
+  }
 
   Options *GetOptions() override { return &m_options; }
 
@@ -676,6 +708,14 @@ public:
   }
 
   ~CommandObjectWatchpointModify() override = default;
+
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), CommandCompletions::eWatchPointIDCompletion,
+        request, nullptr);
+  }
 
   Options *GetOptions() override { return &m_options; }
 
@@ -823,6 +863,16 @@ corresponding to the byte size of the data type.");
 
   ~CommandObjectWatchpointSetVariable() override = default;
 
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    if (request.GetCursorIndex() != 0)
+      return;
+    CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), CommandCompletions::eVariablePathCompletion,
+        request, nullptr);
+  }
+
   Options *GetOptions() override { return &m_option_group; }
 
 protected:
@@ -905,7 +955,7 @@ protected:
         // We're in business.
         // Find out the size of this variable.
         size = m_option_watchpoint.watch_size == 0
-                   ? valobj_sp->GetByteSize()
+                   ? valobj_sp->GetByteSize().getValueOr(0)
                    : m_option_watchpoint.watch_size;
       }
       compiler_type = valobj_sp->GetCompilerType();
@@ -1038,7 +1088,7 @@ protected:
     // set a watchpoint.
     if (raw_command.trim().empty()) {
       result.GetErrorStream().Printf("error: required argument missing; "
-                                     "specify an expression to evaulate into "
+                                     "specify an expression to evaluate into "
                                      "the address to watch for\n");
       result.SetStatus(eReturnStatusFailed);
       return false;

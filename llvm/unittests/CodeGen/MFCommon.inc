@@ -72,7 +72,7 @@ public:
 class BogusSubtarget : public TargetSubtargetInfo {
 public:
   BogusSubtarget(TargetMachine &TM)
-      : TargetSubtargetInfo(Triple(""), "", "", {}, {}, nullptr, nullptr,
+      : TargetSubtargetInfo(Triple(""), "", "", "", {}, {}, nullptr, nullptr,
                             nullptr, nullptr, nullptr, nullptr),
         FL(), TL(TM) {}
   ~BogusSubtarget() override {}
@@ -92,11 +92,18 @@ private:
   TargetInstrInfo TII;
 };
 
+static TargetOptions getTargetOptionsForBogusMachine() {
+  TargetOptions Opts;
+  Opts.EmitCallSiteInfo = true;
+  return Opts;
+}
+
 class BogusTargetMachine : public LLVMTargetMachine {
 public:
   BogusTargetMachine()
-      : LLVMTargetMachine(Target(), "", Triple(""), "", "", TargetOptions(),
-                          Reloc::Static, CodeModel::Small, CodeGenOpt::Default),
+      : LLVMTargetMachine(Target(), "", Triple(""), "", "",
+                          getTargetOptionsForBogusMachine(), Reloc::Static,
+                          CodeModel::Small, CodeGenOpt::Default),
         ST(*this) {}
 
   ~BogusTargetMachine() override {}

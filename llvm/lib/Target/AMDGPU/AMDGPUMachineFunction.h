@@ -9,9 +9,10 @@
 #ifndef LLVM_LIB_TARGET_AMDGPU_AMDGPUMACHINEFUNCTION_H
 #define LLVM_LIB_TARGET_AMDGPU_AMDGPUMACHINEFUNCTION_H
 
+#include "Utils/AMDGPUBaseInfo.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/CodeGen/MachineFunction.h"
-#include "Utils/AMDGPUBaseInfo.h"
+#include "llvm/Support/Alignment.h"
 
 namespace llvm {
 
@@ -23,26 +24,37 @@ class AMDGPUMachineFunction : public MachineFunctionInfo {
   SmallDenseMap<const GlobalValue *, unsigned, 4> LocalMemoryObjects;
 
 protected:
-  uint64_t ExplicitKernArgSize; // Cache for this.
+  uint64_t ExplicitKernArgSize = 0; // Cache for this.
   Align MaxKernArgAlign;        // Cache for this.
 
   /// Number of bytes in the LDS that are being used.
-  unsigned LDSSize;
+  unsigned LDSSize = 0;
+
+  /// Number of bytes in the LDS allocated statically. This field is only used
+  /// in the instruction selector and not part of the machine function info.
+  unsigned StaticLDSSize = 0;
+
+  /// Align for dynamic shared memory if any. Dynamic shared memory is
+  /// allocated directly after the static one, i.e., LDSSize. Need to pad
+  /// LDSSize to ensure that dynamic one is aligned accordingly.
+  /// The maximal alignment is updated during IR translation or lowering
+  /// stages.
+  Align DynLDSAlign;
 
   // State of MODE register, assumed FP mode.
   AMDGPU::SIModeRegisterDefaults Mode;
 
   // Kernels + shaders. i.e. functions called by the driver and not called
   // by other functions.
-  bool IsEntryFunction;
+  bool IsEntryFunction = false;
 
-  bool NoSignedZerosFPMath;
+  bool NoSignedZerosFPMath = false;
 
   // Function may be memory bound.
-  bool MemoryBound;
+  bool MemoryBound = false;
 
   // Kernel may need limited waves per EU for better performance.
-  bool WaveLimiter;
+  bool WaveLimiter = false;
 
 public:
   AMDGPUMachineFunction(const MachineFunction &MF);
@@ -77,7 +89,11 @@ public:
     return WaveLimiter;
   }
 
-  unsigned allocateLDSGlobal(const DataLayout &DL, const GlobalValue &GV);
+  unsigned allocateLDSGlobal(const DataLayout &DL, const GlobalVariable &GV);
+
+  Align getDynLDSAlign() const { return DynLDSAlign; }
+
+  void setDynLDSAlign(const DataLayout &DL, const GlobalVariable &GV);
 };
 
 }

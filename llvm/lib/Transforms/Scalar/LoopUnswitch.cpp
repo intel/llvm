@@ -38,11 +38,11 @@
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/MemorySSA.h"
 #include "llvm/Analysis/MemorySSAUpdater.h"
+#include "llvm/Analysis/MustExecute.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -661,7 +661,7 @@ bool LoopUnswitch::processCurrentLoop() {
   // FIXME: Use Function::hasOptSize().
   if (OptimizeForSize ||
       LoopHeader->getParent()->hasFnAttribute(Attribute::OptimizeForSize))
-    return false;
+    return Changed;
 
   // Run through the instructions in the loop, keeping track of three things:
   //
@@ -681,13 +681,14 @@ bool LoopUnswitch::processCurrentLoop() {
 
   for (const auto BB : CurrentLoop->blocks()) {
     for (auto &I : *BB) {
-      auto CS = CallSite(&I);
-      if (!CS) continue;
-      if (CS.isConvergent())
-        return false;
+      auto *CB = dyn_cast<CallBase>(&I);
+      if (!CB)
+        continue;
+      if (CB->isConvergent())
+        return Changed;
       if (auto *II = dyn_cast<InvokeInst>(&I))
         if (!II->getUnwindDest()->canSplitPredecessors())
-          return false;
+          return Changed;
       if (auto *II = dyn_cast<IntrinsicInst>(&I))
         if (II->getIntrinsicID() == Intrinsic::experimental_guard)
           Guards.push_back(II);

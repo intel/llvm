@@ -25,6 +25,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/Utils/GlobalStatus.h"
 
 using namespace llvm;
@@ -312,8 +313,8 @@ static const Value *getNoopInput(const Value *V,
       DataBits = std::min((uint64_t)DataBits,
                          I->getType()->getPrimitiveSizeInBits().getFixedSize());
       NoopInput = Op;
-    } else if (auto CS = ImmutableCallSite(I)) {
-      const Value *ReturnedOp = CS.getReturnedArgOperand();
+    } else if (auto *CB = dyn_cast<CallBase>(I)) {
+      const Value *ReturnedOp = CB->getReturnedArgOperand();
       if (ReturnedOp && isNoopBitcast(ReturnedOp->getType(), I->getType(), TLI))
         NoopInput = ReturnedOp;
     } else if (const InsertValueInst *IVI = dyn_cast<InsertValueInst>(V)) {
@@ -509,9 +510,8 @@ static bool nextRealType(SmallVectorImpl<Type *> &SubTypes,
 /// between it and the return.
 ///
 /// This function only tests target-independent requirements.
-bool llvm::isInTailCallPosition(ImmutableCallSite CS, const TargetMachine &TM) {
-  const Instruction *I = CS.getInstruction();
-  const BasicBlock *ExitBB = I->getParent();
+bool llvm::isInTailCallPosition(const CallBase &Call, const TargetMachine &TM) {
+  const BasicBlock *ExitBB = Call.getParent();
   const Instruction *Term = ExitBB->getTerminator();
   const ReturnInst *Ret = dyn_cast<ReturnInst>(Term);
 
@@ -525,33 +525,32 @@ bool llvm::isInTailCallPosition(ImmutableCallSite CS, const TargetMachine &TM) {
   // been fully understood.
   if (!Ret &&
       ((!TM.Options.GuaranteedTailCallOpt &&
-        CS.getCallingConv() != CallingConv::Tail) || !isa<UnreachableInst>(Term)))
+        Call.getCallingConv() != CallingConv::Tail) || !isa<UnreachableInst>(Term)))
     return false;
 
   // If I will have a chain, make sure no other instruction that will have a
   // chain interposes between I and the return.
-  if (I->mayHaveSideEffects() || I->mayReadFromMemory() ||
-      !isSafeToSpeculativelyExecute(I))
-    for (BasicBlock::const_iterator BBI = std::prev(ExitBB->end(), 2);; --BBI) {
-      if (&*BBI == I)
-        break;
-      // Debug info intrinsics do not get in the way of tail call optimization.
-      if (isa<DbgInfoIntrinsic>(BBI))
+  // Check for all calls including speculatable functions.
+  for (BasicBlock::const_iterator BBI = std::prev(ExitBB->end(), 2);; --BBI) {
+    if (&*BBI == &Call)
+      break;
+    // Debug info intrinsics do not get in the way of tail call optimization.
+    if (isa<DbgInfoIntrinsic>(BBI))
+      continue;
+    // A lifetime end or assume intrinsic should not stop tail call
+    // optimization.
+    if (const IntrinsicInst *II = dyn_cast<IntrinsicInst>(BBI))
+      if (II->getIntrinsicID() == Intrinsic::lifetime_end ||
+          II->getIntrinsicID() == Intrinsic::assume)
         continue;
-      // A lifetime end or assume intrinsic should not stop tail call
-      // optimization.
-      if (const IntrinsicInst *II = dyn_cast<IntrinsicInst>(BBI))
-        if (II->getIntrinsicID() == Intrinsic::lifetime_end ||
-            II->getIntrinsicID() == Intrinsic::assume)
-          continue;
-      if (BBI->mayHaveSideEffects() || BBI->mayReadFromMemory() ||
-          !isSafeToSpeculativelyExecute(&*BBI))
-        return false;
-    }
+    if (BBI->mayHaveSideEffects() || BBI->mayReadFromMemory() ||
+        !isSafeToSpeculativelyExecute(&*BBI))
+      return false;
+  }
 
   const Function *F = ExitBB->getParent();
   return returnTypeIsEligibleForTailCall(
-      F, I, Ret, *TM.getSubtargetImpl(*F)->getTargetLowering());
+      F, &Call, Ret, *TM.getSubtargetImpl(*F)->getTargetLowering());
 }
 
 bool llvm::attributesPermitTailCall(const Function *F, const Instruction *I,

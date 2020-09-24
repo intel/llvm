@@ -466,8 +466,6 @@ void LTOCodeGenerator::applyScopeRestrictions() {
 
   internalizeModule(*MergedModule, mustPreserveGV);
 
-  MergedModule->addModuleFlag(Module::Error, "LTOPostLink", 1);
-
   ScopeRestrictionsDone = true;
 }
 
@@ -559,6 +557,9 @@ bool LTOCodeGenerator::optimize(bool DisableVerify, bool DisableInline,
   // Mark which symbols can not be internalized
   this->applyScopeRestrictions();
 
+  // Write LTOPostLink flag for passes that require all the modules.
+  MergedModule->addModuleFlag(Module::Error, "LTOPostLink", 1);
+
   // Instantiate the pass manager to organize the passes.
   legacy::PassManager passes;
 
@@ -632,9 +633,9 @@ bool LTOCodeGenerator::compileOptimized(ArrayRef<raw_pwrite_stream *> Out) {
   return true;
 }
 
-void LTOCodeGenerator::setCodeGenDebugOptions(ArrayRef<const char *> Options) {
+void LTOCodeGenerator::setCodeGenDebugOptions(ArrayRef<StringRef> Options) {
   for (StringRef Option : Options)
-    CodegenOptions.push_back(std::string(Option));
+    CodegenOptions.push_back(Option.str());
 }
 
 void LTOCodeGenerator::parseCodeGenDebugOptions() {

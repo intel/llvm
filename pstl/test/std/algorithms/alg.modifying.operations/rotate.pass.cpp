@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 #include "support/pstl_test_config.h"
 
@@ -167,6 +167,9 @@ main()
 {
     test<int32_t>();
     test<wrapper<float64_t>>();
+    test<MemoryChecker>();
+    EXPECT_FALSE(MemoryChecker::alive_objects() < 0, "wrong effect from rotate: number of ctors calls < num of dtors calls");
+    EXPECT_FALSE(MemoryChecker::alive_objects() > 0, "wrong effect from rotate: number of ctors calls > num of dtors calls");
 
     std::cout << done() << std::endl;
     return 0;

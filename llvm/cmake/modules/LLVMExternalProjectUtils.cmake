@@ -53,8 +53,10 @@ function(llvm_ExternalProject_Add name source_dir)
   endforeach()
 
   if(NOT ARG_TOOLCHAIN_TOOLS)
-    set(ARG_TOOLCHAIN_TOOLS clang lld llvm-ar llvm-lipo llvm-ranlib llvm-nm llvm-objdump)
-    if(NOT _cmake_system_name STREQUAL Darwin)
+    set(ARG_TOOLCHAIN_TOOLS clang lld llvm-ar llvm-ranlib llvm-nm llvm-objdump)
+    if(_cmake_system_name STREQUAL Darwin)
+      list(APPEND ARG_TOOLCHAIN_TOOLS llvm-libtool-darwin llvm-lipo)
+    else()
       # TODO: These tools don't fully support Mach-O format yet.
       list(APPEND ARG_TOOLCHAIN_TOOLS llvm-objcopy llvm-strip)
     endif()
@@ -62,7 +64,17 @@ function(llvm_ExternalProject_Add name source_dir)
   foreach(tool ${ARG_TOOLCHAIN_TOOLS})
     if(TARGET ${tool})
       list(APPEND TOOLCHAIN_TOOLS ${tool})
-      list(APPEND TOOLCHAIN_BINS $<TARGET_FILE:${tool}>)
+
+      # $<TARGET_FILE:tgt> only works on add_executable or add_library targets
+      # The below logic mirrors cmake's own implementation
+      get_target_property(target_type "${tool}" TYPE)
+      if(NOT target_type STREQUAL "OBJECT_LIBRARY" AND
+         NOT target_type STREQUAL "UTILITY" AND
+         NOT target_type STREQUAL "GLOBAL_TARGET" AND
+         NOT target_type STREQUAL "INTERFACE_LIBRARY")
+        list(APPEND TOOLCHAIN_BINS $<TARGET_FILE:${tool}>)
+      endif()
+
     endif()
   endforeach()
 
@@ -127,12 +139,15 @@ function(llvm_ExternalProject_Add name source_dir)
     if(lld IN_LIST TOOLCHAIN_TOOLS)
       if(_cmake_system_name STREQUAL Windows)
         list(APPEND compiler_args -DCMAKE_LINKER=${LLVM_RUNTIME_OUTPUT_INTDIR}/lld-link${CMAKE_EXECUTABLE_SUFFIX})
-      else()
+      elseif(NOT _cmake_system_name STREQUAL Darwin)
         list(APPEND compiler_args -DCMAKE_LINKER=${LLVM_RUNTIME_OUTPUT_INTDIR}/ld.lld${CMAKE_EXECUTABLE_SUFFIX})
       endif()
     endif()
     if(llvm-ar IN_LIST TOOLCHAIN_TOOLS)
       list(APPEND compiler_args -DCMAKE_AR=${LLVM_RUNTIME_OUTPUT_INTDIR}/llvm-ar${CMAKE_EXECUTABLE_SUFFIX})
+    endif()
+    if(llvm-libtool-darwin IN_LIST TOOLCHAIN_TOOLS)
+      list(APPEND compiler_args -DCMAKE_LIBTOOL=${LLVM_RUNTIME_OUTPUT_INTDIR}/llvm-libtool-darwin${CMAKE_EXECUTABLE_SUFFIX})
     endif()
     if(llvm-lipo IN_LIST TOOLCHAIN_TOOLS)
       list(APPEND compiler_args -DCMAKE_LIPO=${LLVM_RUNTIME_OUTPUT_INTDIR}/llvm-lipo${CMAKE_EXECUTABLE_SUFFIX})
@@ -240,6 +255,7 @@ function(llvm_ExternalProject_Add name source_dir)
                -DLLVM_HAVE_LINK_VERSION_SCRIPT=${LLVM_HAVE_LINK_VERSION_SCRIPT}
                -DLLVM_USE_RELATIVE_PATHS_IN_DEBUG_INFO=${LLVM_USE_RELATIVE_PATHS_IN_DEBUG_INFO}
                -DLLVM_USE_RELATIVE_PATHS_IN_FILES=${LLVM_USE_RELATIVE_PATHS_IN_FILES}
+               -DLLVM_LIT_ARGS=${LLVM_LIT_ARGS}
                -DLLVM_SOURCE_PREFIX=${LLVM_SOURCE_PREFIX}
                -DPACKAGE_VERSION=${PACKAGE_VERSION}
                -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}

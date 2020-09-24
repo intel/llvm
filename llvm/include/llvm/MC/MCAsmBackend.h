@@ -11,7 +11,6 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/MC/MCDirectives.h"
 #include "llvm/MC/MCFixup.h"
 #include "llvm/MC/MCFragment.h"
@@ -24,15 +23,14 @@ class MCAsmLayout;
 class MCAssembler;
 class MCCFIInstruction;
 struct MCFixupKindInfo;
-class MCFragment;
 class MCInst;
 class MCObjectStreamer;
 class MCObjectTargetWriter;
 class MCObjectWriter;
-class MCRelaxableFragment;
 class MCSubtargetInfo;
 class MCValue;
 class raw_pwrite_stream;
+class StringRef;
 
 /// Generic interface to target specific assembler backends.
 class MCAsmBackend {
@@ -49,6 +47,10 @@ public:
   /// Return true if this target might automatically pad instructions and thus
   /// need to emit padding enable/disable directives around sensative code.
   virtual bool allowAutoPadding() const { return false; }
+  /// Return true if this target allows an unrelaxable instruction to be
+  /// emitted into RelaxableFragment and then we can increase its size in a
+  /// tricky way for optimization.
+  virtual bool allowEnhancedRelaxation() const { return false; }
 
   /// Give the target a chance to manipulate state related to instruction
   /// alignment (e.g. padding for optimization), instruction relaxablility, etc.
@@ -142,7 +144,9 @@ public:
   /// \param STI - The MCSubtargetInfo in effect when the instruction was
   /// encoded.
   virtual bool mayNeedRelaxation(const MCInst &Inst,
-                                 const MCSubtargetInfo &STI) const = 0;
+                                 const MCSubtargetInfo &STI) const {
+    return false;
+  }
 
   /// Target specific predicate for whether a given fixup requires the
   /// associated instruction to be relaxed.
@@ -159,12 +163,11 @@ public:
 
   /// Relax the instruction in the given fragment to the next wider instruction.
   ///
-  /// \param Inst The instruction to relax, which may be the same as the
-  /// output.
+  /// \param [out] Inst The instruction to relax, which is also the relaxed
+  /// instruction.
   /// \param STI the subtarget information for the associated instruction.
-  /// \param [out] Res On return, the relaxed instruction.
-  virtual void relaxInstruction(const MCInst &Inst, const MCSubtargetInfo &STI,
-                                MCInst &Res) const = 0;
+  virtual void relaxInstruction(MCInst &Inst,
+                                const MCSubtargetInfo &STI) const {};
 
   /// @}
 
@@ -173,6 +176,10 @@ public:
   /// required for simple alignment would be less than the minimum nop size.
   ///
   virtual unsigned getMinimumNopSize() const { return 1; }
+
+  /// Returns the maximum size of a nop in bytes on this target.
+  ///
+  virtual unsigned getMaximumNopSize() const { return 0; }
 
   /// Write an (optimal) nop sequence of Count bytes to the given output. If the
   /// target cannot generate such a sequence, it should return an error.

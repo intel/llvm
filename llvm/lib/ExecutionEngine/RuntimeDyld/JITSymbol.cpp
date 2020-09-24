@@ -20,6 +20,8 @@
 using namespace llvm;
 
 JITSymbolFlags llvm::JITSymbolFlags::fromGlobalValue(const GlobalValue &GV) {
+  assert(GV.hasName() && "Can't get flags for anonymous symbol");
+
   JITSymbolFlags Flags = JITSymbolFlags::None;
   if (GV.hasWeakLinkage() || GV.hasLinkOnceLinkage())
     Flags |= JITSymbolFlags::Weak;
@@ -33,6 +35,16 @@ JITSymbolFlags llvm::JITSymbolFlags::fromGlobalValue(const GlobalValue &GV) {
   else if (isa<GlobalAlias>(GV) &&
            isa<Function>(cast<GlobalAlias>(GV).getAliasee()))
     Flags |= JITSymbolFlags::Callable;
+
+  // Check for a linker-private-global-prefix on the symbol name, in which
+  // case it must be marked as non-exported.
+  if (auto *M = GV.getParent()) {
+    const auto &DL = M->getDataLayout();
+    StringRef LPGP = DL.getLinkerPrivateGlobalPrefix();
+    if (!LPGP.empty() && GV.getName().front() == '\01' &&
+        GV.getName().substr(1).startswith(LPGP))
+      Flags &= ~JITSymbolFlags::Exported;
+  }
 
   return Flags;
 }
@@ -55,12 +67,17 @@ JITSymbolFlags llvm::JITSymbolFlags::fromSummary(GlobalValueSummary *S) {
 
 Expected<JITSymbolFlags>
 llvm::JITSymbolFlags::fromObjectSymbol(const object::SymbolRef &Symbol) {
+  Expected<uint32_t> SymbolFlagsOrErr = Symbol.getFlags();
+  if (!SymbolFlagsOrErr)
+    // TODO: Test this error.
+    return SymbolFlagsOrErr.takeError();
+
   JITSymbolFlags Flags = JITSymbolFlags::None;
-  if (Symbol.getFlags() & object::BasicSymbolRef::SF_Weak)
+  if (*SymbolFlagsOrErr & object::BasicSymbolRef::SF_Weak)
     Flags |= JITSymbolFlags::Weak;
-  if (Symbol.getFlags() & object::BasicSymbolRef::SF_Common)
+  if (*SymbolFlagsOrErr & object::BasicSymbolRef::SF_Common)
     Flags |= JITSymbolFlags::Common;
-  if (Symbol.getFlags() & object::BasicSymbolRef::SF_Exported)
+  if (*SymbolFlagsOrErr & object::BasicSymbolRef::SF_Exported)
     Flags |= JITSymbolFlags::Exported;
 
   auto SymbolType = Symbol.getType();
@@ -75,8 +92,12 @@ llvm::JITSymbolFlags::fromObjectSymbol(const object::SymbolRef &Symbol) {
 
 ARMJITSymbolFlags
 llvm::ARMJITSymbolFlags::fromObjectSymbol(const object::SymbolRef &Symbol) {
+  Expected<uint32_t> SymbolFlagsOrErr = Symbol.getFlags();
+  if (!SymbolFlagsOrErr)
+    // TODO: Actually report errors helpfully.
+    report_fatal_error(SymbolFlagsOrErr.takeError());
   ARMJITSymbolFlags Flags;
-  if (Symbol.getFlags() & object::BasicSymbolRef::SF_Thumb)
+  if (*SymbolFlagsOrErr & object::BasicSymbolRef::SF_Thumb)
     Flags |= ARMJITSymbolFlags::Thumb;
   return Flags;
 }

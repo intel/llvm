@@ -108,6 +108,17 @@ struct FormatStyle {
   /// \endcode
   bool AlignConsecutiveAssignments;
 
+  /// If ``true``, aligns consecutive bitfield members.
+  ///
+  /// This will align the bitfield separators of consecutive lines. This
+  /// will result in formattings like
+  /// \code
+  ///   int aaaa : 1;
+  ///   int b    : 12;
+  ///   int ccc  : 8;
+  /// \endcode
+  bool AlignConsecutiveBitFields;
+
   /// If ``true``, aligns consecutive declarations.
   ///
   /// This will align the declaration names of consecutive lines. This
@@ -153,16 +164,43 @@ struct FormatStyle {
   /// Options for aligning backslashes in escaped newlines.
   EscapedNewlineAlignmentStyle AlignEscapedNewlines;
 
+  /// Different styles for aligning operands.
+  enum OperandAlignmentStyle {
+    /// Do not align operands of binary and ternary expressions.
+    /// The wrapped lines are indented ``ContinuationIndentWidth`` spaces from
+    /// the start of the line.
+    OAS_DontAlign,
+    /// Horizontally align operands of binary and ternary expressions.
+    ///
+    /// Specifically, this aligns operands of a single expression that needs
+    /// to be split over multiple lines, e.g.:
+    /// \code
+    ///   int aaa = bbbbbbbbbbbbbbb +
+    ///             ccccccccccccccc;
+    /// \endcode
+    ///
+    /// When ``BreakBeforeBinaryOperators`` is set, the wrapped operator is
+    /// aligned with the operand on the first line.
+    /// \code
+    ///   int aaa = bbbbbbbbbbbbbbb
+    ///             + ccccccccccccccc;
+    /// \endcode
+    OAS_Align,
+    /// Horizontally align operands of binary and ternary expressions.
+    ///
+    /// This is similar to ``AO_Align``, except when
+    /// ``BreakBeforeBinaryOperators`` is set, the operator is un-indented so
+    /// that the wrapped operand is aligned with the operand on the first line.
+    /// \code
+    ///   int aaa = bbbbbbbbbbbbbbb
+    ///           + ccccccccccccccc;
+    /// \endcode
+    OAS_AlignAfterOperator,
+  };
+
   /// If ``true``, horizontally align operands of binary and ternary
   /// expressions.
-  ///
-  /// Specifically, this aligns operands of a single expression that needs to be
-  /// split over multiple lines, e.g.:
-  /// \code
-  ///   int aaa = bbbbbbbbbbbbbbb +
-  ///             ccccccccccccccc;
-  /// \endcode
-  bool AlignOperands;
+  OperandAlignmentStyle AlignOperands;
 
   /// If ``true``, aligns trailing comments.
   /// \code
@@ -220,6 +258,20 @@ struct FormatStyle {
   ///                   int e);
   /// \endcode
   bool AllowAllParametersOfDeclarationOnNextLine;
+
+  /// Allow short enums on a single line.
+  /// \code
+  ///   true:
+  ///   enum { A, B } myEnum;
+  ///
+  ///   false:
+  ///   enum
+  ///   {
+  ///     A,
+  ///     B
+  ///   } myEnum;
+  /// \endcode
+  bool AllowShortEnumsOnASingleLine;
 
   /// Different styles for merging short blocks containing at most one
   /// statement.
@@ -531,6 +583,24 @@ struct FormatStyle {
   /// The template declaration breaking style to use.
   BreakTemplateDeclarationsStyle AlwaysBreakTemplateDeclarations;
 
+  /// A vector of strings that should be interpreted as attributes/qualifiers
+  /// instead of identifiers. This can be useful for language extensions or
+  /// static analyzer annotations.
+  ///
+  /// For example:
+  /// \code
+  ///   x = (char *__capability)&y;
+  ///   int function(void) __ununsed;
+  ///   void only_writes_to_buffer(char *__output buffer);
+  /// \endcode
+  ///
+  /// In the .clang-format configuration file, this can be configured like:
+  /// \code{.yaml}
+  ///   AttributeMacros: ['__capability', '__output', '__ununsed']
+  /// \endcode
+  ///
+  std::vector<std::string> AttributeMacros;
+
   /// If ``false``, a function call's arguments will either be all on the
   /// same line or will have one line each.
   /// \code
@@ -561,6 +631,21 @@ struct FormatStyle {
     TCS_Wrapped,
   };
 
+  /// If set to ``TCS_Wrapped`` will insert trailing commas in container
+  /// literals (arrays and objects) that wrap across multiple lines.
+  /// It is currently only available for JavaScript
+  /// and disabled by default ``TCS_None``.
+  /// ``InsertTrailingCommas`` cannot be used together with ``BinPackArguments``
+  /// as inserting the comma disables bin-packing.
+  /// \code
+  ///   TSC_Wrapped:
+  ///   const someArray = [
+  ///   aaaaaaaaaaaaaaaaaaaaaaaaaa,
+  ///   aaaaaaaaaaaaaaaaaaaaaaaaaa,
+  ///   aaaaaaaaaaaaaaaaaaaaaaaaaa,
+  ///   //                        ^ inserted
+  ///   ]
+  /// \endcode
   TrailingCommaStyle InsertTrailingCommas;
 
   /// If ``false``, a function declaration's or function definition's
@@ -961,7 +1046,7 @@ struct FormatStyle {
     ///   int foo();
     ///   }
     /// \endcode
-    bool AfterExternBlock;
+    bool AfterExternBlock; // Partially superseded by IndentExternBlock
     /// Wrap before ``catch``.
     /// \code
     ///   true:
@@ -1009,6 +1094,20 @@ struct FormatStyle {
     ///   });
     /// \endcode
     bool BeforeLambdaBody;
+    /// Wrap before ``while``.
+    /// \code
+    ///   true:
+    ///   do {
+    ///     foo();
+    ///   }
+    ///   while (1);
+    ///
+    ///   false:
+    ///   do {
+    ///     foo();
+    ///   } while (1);
+    /// \endcode
+    bool BeforeWhile;
     /// Indent the wrapped braces themselves.
     bool IndentBraces;
     /// If ``false``, empty function body can be put on a single line.
@@ -1344,6 +1443,22 @@ struct FormatStyle {
   /// For example: TESTSUITE
   std::vector<std::string> NamespaceMacros;
 
+  /// A vector of macros which are whitespace-sensitive and should not
+  /// be touched.
+  ///
+  /// These are expected to be macros of the form:
+  /// \code
+  ///   STRINGIZE(...)
+  /// \endcode
+  ///
+  /// In the .clang-format configuration file, this can be configured like:
+  /// \code{.yaml}
+  ///   WhitespaceSensitiveMacros: ['STRINGIZE', 'PP_STRINGIZE']
+  /// \endcode
+  ///
+  /// For example: BOOST_PP_STRINGIZE
+  std::vector<std::string> WhitespaceSensitiveMacros;
+
   tooling::IncludeStyle IncludeStyle;
 
   /// Indent case labels one level from the switch statement.
@@ -1435,6 +1550,45 @@ struct FormatStyle {
 
   /// The preprocessor directive indenting style to use.
   PPDirectiveIndentStyle IndentPPDirectives;
+
+  /// Indents extern blocks
+  enum IndentExternBlockStyle {
+    /// Backwards compatible with AfterExternBlock's indenting.
+    /// \code
+    ///    IndentExternBlock: AfterExternBlock
+    ///    BraceWrapping.AfterExternBlock: true
+    ///    extern "C"
+    ///    {
+    ///        void foo();
+    ///    }
+    /// \endcode
+    ///
+    /// \code
+    ///    IndentExternBlock: AfterExternBlock
+    ///    BraceWrapping.AfterExternBlock: false
+    ///    extern "C" {
+    ///    void foo();
+    ///    }
+    /// \endcode
+    IEBS_AfterExternBlock,
+    /// Does not indent extern blocks.
+    /// \code
+    ///     extern "C" {
+    ///     void foo();
+    ///     }
+    /// \endcode
+    IEBS_NoIndent,
+    /// Indents extern blocks.
+    /// \code
+    ///     extern "C" {
+    ///       void foo();
+    ///     }
+    /// \endcode
+    IEBS_Indent,
+  };
+
+  /// IndentExternBlockStyle is the type of indenting of extern blocks.
+  IndentExternBlockStyle IndentExternBlock;
 
   /// The number of columns to use for indentation.
   /// \code
@@ -1954,6 +2108,17 @@ struct FormatStyle {
     ///    }
     /// \endcode
     SBPO_ControlStatements,
+    /// Same as ``SBPO_ControlStatements`` except this option doesn't apply to
+    /// ForEach macros. This is useful in projects where ForEach macros are
+    /// treated as function calls instead of control statements.
+    /// \code
+    ///    void f() {
+    ///      Q_FOREACH(...) {
+    ///        f();
+    ///      }
+    ///    }
+    /// \endcode
+    SBPO_ControlStatementsExceptForEachMacros,
     /// Put a space before opening parentheses only if the parentheses are not
     /// empty i.e. '()'
     /// \code
@@ -2086,6 +2251,34 @@ struct FormatStyle {
   /// \endcode
   bool SpaceBeforeSquareBrackets;
 
+  /// Styles for adding spacing around ``:`` in bitfield definitions.
+  enum BitFieldColonSpacingStyle {
+    /// Add one space on each side of the ``:``
+    /// \code
+    ///   unsigned bf : 2;
+    /// \endcode
+    BFCS_Both,
+    /// Add no space around the ``:`` (except when needed for
+    /// ``AlignConsecutiveBitFields``).
+    /// \code
+    ///   unsigned bf:2;
+    /// \endcode
+    BFCS_None,
+    /// Add space before the ``:`` only
+    /// \code
+    ///   unsigned bf :2;
+    /// \endcode
+    BFCS_Before,
+    /// Add space after the ``:`` only (space may be added before if
+    /// needed for ``AlignConsecutiveBitFields``).
+    /// \code
+    ///   unsigned bf: 2;
+    /// \endcode
+    BFCS_After
+  };
+  /// The BitFieldColonSpacingStyle to use for bitfields.
+  BitFieldColonSpacingStyle BitFieldColonSpacing;
+
   /// Supported language standards for parsing and formatting C++ constructs.
   /// \code
   ///    Latest:                                vector<set<int>>
@@ -2129,8 +2322,12 @@ struct FormatStyle {
     UT_Never,
     /// Use tabs only for indentation.
     UT_ForIndentation,
-    /// Use tabs only for line continuation and indentation.
+    /// Fill all leading whitespace with tabs, and use spaces for alignment that
+    /// appears within a line (e.g. consecutive assignments and declarations).
     UT_ForContinuationAndIndentation,
+    /// Use tabs for line continuation and indentation, and spaces for
+    /// alignment.
+    UT_AlignWithSpaces,
     /// Use tabs whenever we need to fill whitespace that spans at least from
     /// one tab stop to the next one.
     UT_Always
@@ -2147,6 +2344,7 @@ struct FormatStyle {
     return AccessModifierOffset == R.AccessModifierOffset &&
            AlignAfterOpenBracket == R.AlignAfterOpenBracket &&
            AlignConsecutiveAssignments == R.AlignConsecutiveAssignments &&
+           AlignConsecutiveBitFields == R.AlignConsecutiveBitFields &&
            AlignConsecutiveDeclarations == R.AlignConsecutiveDeclarations &&
            AlignEscapedNewlines == R.AlignEscapedNewlines &&
            AlignOperands == R.AlignOperands &&
@@ -2156,6 +2354,7 @@ struct FormatStyle {
                R.AllowAllConstructorInitializersOnNextLine &&
            AllowAllParametersOfDeclarationOnNextLine ==
                R.AllowAllParametersOfDeclarationOnNextLine &&
+           AllowShortEnumsOnASingleLine == R.AllowShortEnumsOnASingleLine &&
            AllowShortBlocksOnASingleLine == R.AllowShortBlocksOnASingleLine &&
            AllowShortCaseLabelsOnASingleLine ==
                R.AllowShortCaseLabelsOnASingleLine &&
@@ -2170,6 +2369,7 @@ struct FormatStyle {
                R.AlwaysBreakBeforeMultilineStrings &&
            AlwaysBreakTemplateDeclarations ==
                R.AlwaysBreakTemplateDeclarations &&
+           AttributeMacros == R.AttributeMacros &&
            BinPackArguments == R.BinPackArguments &&
            BinPackParameters == R.BinPackParameters &&
            BreakBeforeBinaryOperators == R.BreakBeforeBinaryOperators &&
@@ -2204,6 +2404,7 @@ struct FormatStyle {
            IndentCaseBlocks == R.IndentCaseBlocks &&
            IndentGotoLabels == R.IndentGotoLabels &&
            IndentPPDirectives == R.IndentPPDirectives &&
+           IndentExternBlock == R.IndentExternBlock &&
            IndentWidth == R.IndentWidth && Language == R.Language &&
            IndentWrappedFunctionNames == R.IndentWrappedFunctionNames &&
            JavaImportGroups == R.JavaImportGroups &&
@@ -2255,6 +2456,7 @@ struct FormatStyle {
            SpacesInParentheses == R.SpacesInParentheses &&
            SpacesInSquareBrackets == R.SpacesInSquareBrackets &&
            SpaceBeforeSquareBrackets == R.SpaceBeforeSquareBrackets &&
+           BitFieldColonSpacing == R.BitFieldColonSpacing &&
            Standard == R.Standard && TabWidth == R.TabWidth &&
            StatementMacros == R.StatementMacros && UseTab == R.UseTab &&
            UseCRLF == R.UseCRLF && TypenameMacros == R.TypenameMacros;

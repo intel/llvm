@@ -9,9 +9,6 @@
 #include "llvm/Support/Parallel.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Support/ManagedStatic.h"
-
-#if LLVM_ENABLE_THREADS
-
 #include "llvm/Support/Threading.h"
 
 #include <atomic>
@@ -19,6 +16,10 @@
 #include <stack>
 #include <thread>
 #include <vector>
+
+llvm::ThreadPoolStrategy llvm::parallel::strategy;
+
+#if LLVM_ENABLE_THREADS
 
 namespace llvm {
 namespace parallel {
@@ -78,6 +79,9 @@ public:
         T.join();
   }
 
+  struct Creator {
+    static void *call() { return new ThreadPoolExecutor(strategy); }
+  };
   struct Deleter {
     static void call(void *Ptr) { ((ThreadPoolExecutor *)Ptr)->stop(); }
   };
@@ -131,7 +135,8 @@ Executor *Executor::getDefaultExecutor() {
   // are more frequent with the debug static runtime.
   //
   // This also prevents intermittent deadlocks on exit with the MinGW runtime.
-  static ManagedStatic<ThreadPoolExecutor, object_creator<ThreadPoolExecutor>,
+
+  static ManagedStatic<ThreadPoolExecutor, ThreadPoolExecutor::Creator,
                        ThreadPoolExecutor::Deleter>
       ManagedExec;
   static std::unique_ptr<ThreadPoolExecutor> Exec(&(*ManagedExec));

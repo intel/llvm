@@ -24,7 +24,25 @@
 # * Add a filtering step on the files to check, with the result stored in
 #   FILES_TO_CHECK.
 
-MODIFIED_FILES=$(git diff --name-only master | grep -E ".*\.(cpp|cc|c\+\+|cxx|c|h|hpp)$")
+if [ -n "${TRAVIS_BRANCH+check}" ]; then
+    BASE_BRANCH="travis/${TRAVIS_BRANCH}"
+    git fetch --depth=1 origin ${TRAVIS_BRANCH}:${BASE_BRANCH}
+else
+    BASE_BRANCH=$(git for-each-ref --format='%(upstream:short)' "$(git symbolic-ref -q HEAD)")
+fi
+
+if [ -z ${BASE_BRANCH} ]; then
+    cat <<EOF
+Error: no branch to compare with.
+If you are running script locally, please set upstream branch
+that you want to compare your changes with: "git branch --set-upstream-to=<branch>".
+EOF
+    exit 2
+fi
+
+echo "Checking changes between '${BASE_BRANCH}' and 'HEAD'..."
+
+MODIFIED_FILES=$(git diff --name-only ${BASE_BRANCH} | grep -E ".*\.(cpp|cc|c\+\+|cxx|c|h|hpp)$")
 FILES_TO_CHECK=$(echo "${MODIFIED_FILES}" | grep -v -E "Mangler/*|runtime/*|libSPIRV/(OpenCL.std.h|spirv.hpp)$")
 
 if [ -z "${FILES_TO_CHECK}" ]; then
@@ -32,7 +50,7 @@ if [ -z "${FILES_TO_CHECK}" ]; then
   exit 0
 fi
 
-FORMAT_DIFF=$(git diff -U0 master -- ${FILES_TO_CHECK} | ./utils/clang-format-diff.py -p1 -style=file)
+FORMAT_DIFF=$(git diff -U0 ${BASE_BRANCH} -- ${FILES_TO_CHECK} | ./utils/clang-format-diff.py -p1 -style=file)
 
 if [ -z "${FORMAT_DIFF}" ]; then
   echo "All source code in PR properly formatted."

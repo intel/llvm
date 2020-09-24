@@ -1,10 +1,10 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %clangxx -fsycl -D HALF_IS_SUPPORTED %s -o %t_gpu.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -D HALF_IS_SUPPORTED %s -o %t_gpu.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t_gpu.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-// XFAIL: cuda
+
 #include <CL/sycl.hpp>
 
 #include <cassert>

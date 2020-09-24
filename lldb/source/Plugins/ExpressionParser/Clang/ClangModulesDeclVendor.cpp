@@ -6,11 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <mutex>
-
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendActions.h"
+#include "clang/Frontend/TextDiagnosticPrinter.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Parse/Parser.h"
@@ -34,8 +33,11 @@
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/LLDBAssert.h"
 #include "lldb/Utility/Log.h"
-#include "lldb/Utility/Reproducer.h"
+#include "lldb/Utility/ReproducerProvider.h"
 #include "lldb/Utility/StreamString.h"
+
+#include <memory>
+#include <mutex>
 
 using namespace lldb_private;
 
@@ -54,10 +56,21 @@ public:
 
   void DumpDiagnostics(Stream &error_stream);
 
+  void BeginSourceFile(const clang::LangOptions &LangOpts,
+                       const clang::Preprocessor *PP = nullptr) override;
+  void EndSourceFile() override;
+
 private:
   typedef std::pair<clang::DiagnosticsEngine::Level, std::string>
       IDAndDiagnostic;
   std::vector<IDAndDiagnostic> m_diagnostics;
+  /// The DiagnosticPrinter used for creating the full diagnostic messages
+  /// that are stored in m_diagnostics.
+  std::shared_ptr<clang::TextDiagnosticPrinter> m_diag_printer;
+  /// Output stream of m_diag_printer.
+  std::shared_ptr<llvm::raw_string_ostream> m_os;
+  /// Output string filled by m_os. Will be reused for different diagnostics.
+  std::string m_output;
   Log *m_log;
 };
 
@@ -116,17 +129,22 @@ private:
 
 StoringDiagnosticConsumer::StoringDiagnosticConsumer() {
   m_log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS);
+
+  clang::DiagnosticOptions *m_options = new clang::DiagnosticOptions();
+  m_os = std::make_shared<llvm::raw_string_ostream>(m_output);
+  m_diag_printer =
+      std::make_shared<clang::TextDiagnosticPrinter>(*m_os, m_options);
 }
 
 void StoringDiagnosticConsumer::HandleDiagnostic(
     clang::DiagnosticsEngine::Level DiagLevel, const clang::Diagnostic &info) {
-  llvm::SmallVector<char, 256> diagnostic_string;
+  // Print the diagnostic to m_output.
+  m_output.clear();
+  m_diag_printer->HandleDiagnostic(DiagLevel, info);
+  m_os->flush();
 
-  info.FormatDiagnostic(diagnostic_string);
-
-  m_diagnostics.push_back(
-      IDAndDiagnostic(DiagLevel, std::string(diagnostic_string.data(),
-                                             diagnostic_string.size())));
+  // Store the diagnostic for later.
+  m_diagnostics.push_back(IDAndDiagnostic(DiagLevel, m_output));
 }
 
 void StoringDiagnosticConsumer::ClearDiagnostics() { m_diagnostics.clear(); }
@@ -142,6 +160,15 @@ void StoringDiagnosticConsumer::DumpDiagnostics(Stream &error_stream) {
       break;
     }
   }
+}
+
+void StoringDiagnosticConsumer::BeginSourceFile(
+    const clang::LangOptions &LangOpts, const clang::Preprocessor *PP) {
+  m_diag_printer->BeginSourceFile(LangOpts, PP);
+}
+
+void StoringDiagnosticConsumer::EndSourceFile() {
+  m_diag_printer->EndSourceFile();
 }
 
 ClangModulesDeclVendor::ClangModulesDeclVendor()
@@ -160,9 +187,9 @@ ClangModulesDeclVendorImpl::ClangModulesDeclVendorImpl(
       m_parser(std::move(parser)) {
 
   // Initialize our TypeSystemClang.
-  m_ast_context.reset(
-      new TypeSystemClang("ClangModulesDeclVendor ASTContext",
-                          m_compiler_instance->getASTContext()));
+  m_ast_context =
+      std::make_unique<TypeSystemClang>("ClangModulesDeclVendor ASTContext",
+                                        m_compiler_instance->getASTContext());
 }
 
 void ClangModulesDeclVendorImpl::ReportModuleExportsHelper(

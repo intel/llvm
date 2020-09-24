@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // IO functions implementation using Posix API.
 //===----------------------------------------------------------------------===//
-#include "FuzzerDefs.h"
+#include "FuzzerPlatform.h"
 #if LIBFUZZER_POSIX || LIBFUZZER_FUCHSIA
 
 #include "FuzzerExtFunctions.h"
@@ -31,7 +31,7 @@ bool IsFile(const std::string &Path) {
   return S_ISREG(St.st_mode);
 }
 
-static bool IsDirectory(const std::string &Path) {
+bool IsDirectory(const std::string &Path) {
   struct stat St;
   if (stat(Path.c_str(), &St))
     return false;
@@ -102,6 +102,10 @@ void IterateDirRecursive(const std::string &Dir,
 
 char GetSeparator() {
   return '/';
+}
+
+bool IsSeparator(char C) {
+  return C == '/';
 }
 
 FILE* OpenFile(int Fd, const char* Mode) {

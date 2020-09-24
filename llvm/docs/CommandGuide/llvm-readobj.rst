@@ -14,7 +14,7 @@ DESCRIPTION
 The :program:`llvm-readobj` tool displays low-level format-specific information
 about one or more object files.
 
-If ``input`` is "``-``" or omitted, :program:`llvm-readobj` reads from standard
+If ``input`` is "``-``", :program:`llvm-readobj` reads from standard
 input. Otherwise, it will read from the specified ``filenames``.
 
 DIFFERENCES TO LLVM-READELF
@@ -168,7 +168,7 @@ The following options are implemented only for the ELF file format.
 
  Display the dynamic table.
 
-.. option:: --elf-cg-profile
+.. option:: --cg-profile
 
  Display the callgraph profile section.
 

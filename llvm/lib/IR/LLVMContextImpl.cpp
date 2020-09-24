@@ -26,6 +26,7 @@ LLVMContextImpl::LLVMContextImpl(LLVMContext &C)
     VoidTy(C, Type::VoidTyID),
     LabelTy(C, Type::LabelTyID),
     HalfTy(C, Type::HalfTyID),
+    BFloatTy(C, Type::BFloatTyID),
     FloatTy(C, Type::FloatTyID),
     DoubleTy(C, Type::DoubleTyID),
     MetadataTy(C, Type::MetadataTyID),
@@ -104,21 +105,6 @@ LLVMContextImpl::~LLVMContextImpl() {
     delete CDSConstant.second;
   CDSConstants.clear();
 
-  // Destroy attributes.
-  for (FoldingSetIterator<AttributeImpl> I = AttrsSet.begin(),
-         E = AttrsSet.end(); I != E; ) {
-    FoldingSetIterator<AttributeImpl> Elem = I++;
-    delete &*Elem;
-  }
-
-  // Destroy attribute lists.
-  for (FoldingSetIterator<AttributeListImpl> I = AttrsLists.begin(),
-                                             E = AttrsLists.end();
-       I != E;) {
-    FoldingSetIterator<AttributeListImpl> Elem = I++;
-    delete &*Elem;
-  }
-
   // Destroy attribute node lists.
   for (FoldingSetIterator<AttributeSetNode> I = AttrsSetNodes.begin(),
          E = AttrsSetNodes.end(); I != E; ) {
@@ -143,8 +129,15 @@ LLVMContextImpl::~LLVMContextImpl() {
 }
 
 void LLVMContextImpl::dropTriviallyDeadConstantArrays() {
-  SmallSetVector<ConstantArray *, 4> WorkList(ArrayConstants.begin(),
-                                              ArrayConstants.end());
+  SmallSetVector<ConstantArray *, 4> WorkList;
+
+  // When ArrayConstants are of substantial size and only a few in them are
+  // dead, starting WorkList with all elements of ArrayConstants can be
+  // wasteful. Instead, starting WorkList with only elements that have empty
+  // uses.
+  for (ConstantArray *C : ArrayConstants)
+    if (C->use_empty())
+      WorkList.insert(C);
 
   while (!WorkList.empty()) {
     ConstantArray *C = WorkList.pop_back_val();

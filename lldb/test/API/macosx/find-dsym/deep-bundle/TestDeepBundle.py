@@ -16,12 +16,6 @@ class DeepBundleTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
-    @skipIfRemote
-    @skipUnlessDarwin
-    # This test is explicitly a dSYM test, it doesn't need to run for any other config, but
-    # the following doesn't work, fixme.
-    # @skipIf(debug_info=no_match(["dsym"]), bugnumber="This test is looking explicitly for a dSYM")
-
     def setUp(self):
         TestBase.setUp(self)
         self.source = 'main.c'
@@ -33,15 +27,28 @@ class DeepBundleTestCase(TestBase):
         # Call super's tearDown().
         TestBase.tearDown(self)
 
+    @skipIfRemote
+    @skipUnlessDarwin
+    # This test is explicitly a dSYM test, it doesn't need to run for any other config.
+    @skipIf(debug_info=no_match(["dsym"]))
+    @skipIfReproducer # File synchronization is not supported during replay.
     def test_attach_and_check_dsyms(self):
         """Test attach to binary, see if the framework dSYM is found"""
         exe = self.getBuildArtifact(exe_name)
         self.build()
-        popen = self.spawnSubprocess(exe, [self.getBuildDir()])
-        self.addTearDownHook(self.cleanupSubprocesses)
 
-        # Give the inferior time to start up, dlopen a bundle, remove the bundle it linked in
-        sleep(5)
+        # Use a file as a synchronization point between test and inferior.
+        pid_file_path = lldbutil.append_to_process_working_directory(self,
+            "token_pid_%d" % (int(os.getpid())))
+        self.addTearDownHook(
+            lambda: self.run_platform_command(
+                "rm %s" %
+                (pid_file_path)))
+
+        popen = self.spawnSubprocess(exe, [self.getBuildDir(),  pid_file_path])
+
+        # Wait for the inferior to start up, dlopen a bundle, remove the bundle it linked in
+        pid = lldbutil.wait_for_file_on_target(self, pid_file_path)
 
         # Since the library that was dlopen()'ed is now removed, lldb will need to find the
         # binary & dSYM via target.exec-search-paths
@@ -67,6 +74,3 @@ class DeepBundleTestCase(TestBase):
             i=i+1
 
         self.assertTrue(found_module, "Check that we found the framework loaded in lldb's image list")
-
-if __name__ == '__main__':
-    unittest.main()

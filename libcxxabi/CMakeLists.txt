@@ -1,10 +1,14 @@
 # See www/CMake.html for instructions on how to build libcxxabi with CMake.
 
+if (NOT IS_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/../libcxx")
+  message(FATAL_ERROR "libc++abi now requires being built in a monorepo layout with libcxx available")
+endif()
+
 #===============================================================================
 # Setup Project
 #===============================================================================
 
-cmake_minimum_required(VERSION 3.4.3)
+cmake_minimum_required(VERSION 3.13.4)
 
 if(POLICY CMP0042)
   cmake_policy(SET CMP0042 NEW) # Set MACOSX_RPATH=YES by default
@@ -61,10 +65,17 @@ option(LIBCXXABI_HAS_EXTERNAL_THREAD_API
 option(LIBCXXABI_BUILD_EXTERNAL_THREAD_LIBRARY
   "Build libc++abi with an externalized threading library.
    This option may only be set to ON when LIBCXXABI_ENABLE_THREADS=ON" OFF)
+option(LIBCXXABI_ENABLE_FORGIVING_DYNAMIC_CAST
+"Make dynamic_cast more forgiving when type_info's mistakenly have hidden \
+visibility, and thus multiple type_infos can exist for a single type. \
+When the dynamic_cast would normally fail, this option will cause the \
+library to try comparing the type_info names to see if they are equal \
+instead." OFF)
 
 # FIXME: This option should default to off. Unfortunatly GCC 4.9 fails to link
 # programs to due undefined references to new/delete in libc++abi. Once this
 # has been fixed or worked around the default value should be changed.
+# See https://reviews.llvm.org/D68269 for more details.
 option(LIBCXXABI_ENABLE_NEW_DELETE_DEFINITIONS
     "Build libc++abi with definitions for operator new/delete. Normally libc++
     provides these definitions" ON)
@@ -115,56 +126,19 @@ if (NOT LIBCXXABI_ENABLE_SHARED AND NOT LIBCXXABI_ENABLE_STATIC)
   message(FATAL_ERROR "libc++abi must be built as either a shared or static library.")
 endif()
 
-if (LLVM_EXTERNAL_LIBCXX_SOURCE_DIR)
-  set(LIBCXXABI_LIBCXX_SRC_DIRS ${LLVM_EXTERNAL_LIBCXX_SOURCE_DIR})
-else()
-  set(LIBCXXABI_LIBCXX_SRC_DIRS
-    "${LLVM_MAIN_SRC_DIR}/projects/libcxx"
-    "${LLVM_MAIN_SRC_DIR}/runtimes/libcxx"
-    "${LLVM_MAIN_SRC_DIR}/../libcxx"
-    )
-endif()
-
-set(LIBCXXABI_LIBCXX_INCLUDE_DIRS "")
-foreach(dir ${LIBCXXABI_LIBCXX_SRC_DIRS})
-  list(APPEND LIBCXXABI_LIBCXX_INCLUDE_DIRS "${dir}/include")
-endforeach()
-
-find_path(
-  LIBCXXABI_LIBCXX_INCLUDES
-  __config
-  PATHS ${LIBCXXABI_LIBCXX_INCLUDES}
-        ${LIBCXXABI_LIBCXX_PATH}/include
-        ${CMAKE_BINARY_DIR}/${LIBCXXABI_LIBCXX_INCLUDES}
-        ${LIBCXXABI_LIBCXX_INCLUDE_DIRS}
-        ${LLVM_INCLUDE_DIR}/c++/v1
-  NO_DEFAULT_PATH
-  NO_CMAKE_FIND_ROOT_PATH
-  )
-
-set(LIBCXXABI_LIBCXX_INCLUDES "${LIBCXXABI_LIBCXX_INCLUDES}" CACHE PATH
-    "Specify path to libc++ includes." FORCE)
-
-find_path(
-  LIBCXXABI_LIBCXX_PATH
-  utils/libcxx/test/__init__.py
-  PATHS ${LIBCXXABI_LIBCXX_PATH}
-        ${LIBCXXABI_LIBCXX_INCLUDES}/../
-        ${LIBCXXABI_LIBCXX_SRC_DIRS}
-  NO_DEFAULT_PATH
-  NO_CMAKE_FIND_ROOT_PATH
-  )
-
-if (LIBCXXABI_LIBCXX_PATH STREQUAL "LIBCXXABI_LIBCXX_PATH-NOTFOUND")
-  message(WARNING "LIBCXXABI_LIBCXX_PATH was not specified and couldn't be infered.")
-  set(LIBCXXABI_LIBCXX_PATH "")
-endif()
-
-set(LIBCXXABI_LIBCXX_PATH "${LIBCXXABI_LIBCXX_PATH}" CACHE PATH
-    "Specify path to libc++ source." FORCE)
+set(LIBCXXABI_LIBCXX_PATH "${CMAKE_CURRENT_LIST_DIR}/../libcxx" CACHE PATH
+    "Specify path to libc++ source.")
+set(LIBCXXABI_LIBCXX_INCLUDES "${LIBCXXABI_LIBCXX_PATH}/include" CACHE PATH
+    "Specify path to libc++ includes.")
+message(STATUS "Libc++abi will be using libc++ includes from ${LIBCXXABI_LIBCXX_INCLUDES}")
 
 option(LIBCXXABI_HERMETIC_STATIC_LIBRARY
   "Do not export any symbols from the static library." OFF)
+
+set(LIBCXXABI_TEST_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/test/lit.site.cfg.in" CACHE STRING
+    "The Lit testing configuration to use when running the tests.")
+set(LIBCXXABI_TEST_PARAMS "" CACHE STRING
+    "A list of parameters to run the Lit test suite with.")
 
 #===============================================================================
 # Configure System
@@ -177,12 +151,8 @@ set(CMAKE_MODULE_PATH
   ${CMAKE_MODULE_PATH}
   )
 
-set(LIBCXXABI_COMPILER    ${CMAKE_CXX_COMPILER})
 set(LIBCXXABI_SOURCE_DIR  ${CMAKE_CURRENT_SOURCE_DIR})
 set(LIBCXXABI_BINARY_DIR  ${CMAKE_CURRENT_BINARY_DIR})
-
-string(REGEX MATCH "[0-9]+\\.[0-9]+(\\.[0-9]+)?" CLANG_VERSION
-       ${PACKAGE_VERSION})
 
 if(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR AND NOT APPLE)
   set(LIBCXXABI_LIBRARY_DIR ${LLVM_LIBRARY_OUTPUT_INTDIR}/${LLVM_DEFAULT_TARGET_TRIPLE}/c++)
@@ -313,6 +283,8 @@ add_compile_flags_if_supported(-Wunused-variable)
 add_compile_flags_if_supported(-Wwrite-strings)
 add_compile_flags_if_supported(-Wundef)
 
+add_compile_flags_if_supported(-Wno-suggest-override)
+
 if (LIBCXXABI_ENABLE_WERROR)
   add_compile_flags_if_supported(-Werror)
   add_compile_flags_if_supported(-WX)
@@ -335,7 +307,6 @@ if (LIBCXXABI_ENABLE_EXCEPTIONS)
   # Do we really need to be run through the C compiler ?
   add_c_compile_flags_if_supported(-funwind-tables)
 else()
-  add_definitions(-D_LIBCXXABI_NO_EXCEPTIONS)
   add_compile_flags_if_supported(-fno-exceptions)
   add_compile_flags_if_supported(-EHs-)
   add_compile_flags_if_supported(-EHa-)

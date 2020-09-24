@@ -1,36 +1,36 @@
 // RUN: %clang_analyze_cc1 -analyzer-checker=cplusplus.Move %s\
 // RUN:  -std=c++11 -analyzer-output=text -analyzer-config eagerly-assume=false\
 // RUN:  -analyzer-config exploration_strategy=unexplored_first_queue\
-// RUN:  -analyzer-checker core,cplusplus.SmartPtr,debug.ExprInspection\
+// RUN:  -analyzer-checker core,cplusplus.SmartPtrModeling,debug.ExprInspection\
 // RUN:  -verify=expected,peaceful,non-aggressive
 // RUN: %clang_analyze_cc1 -analyzer-checker=cplusplus.Move %s\
 // RUN:  -std=c++11 -analyzer-output=text -analyzer-config eagerly-assume=false\
 // RUN:  -analyzer-config exploration_strategy=dfs -DDFS\
-// RUN:  -analyzer-checker core,cplusplus.SmartPtr,debug.ExprInspection\
+// RUN:  -analyzer-checker core,cplusplus.SmartPtrModeling,debug.ExprInspection\
 // RUN:  -verify=expected,peaceful,non-aggressive
 // RUN: %clang_analyze_cc1 -analyzer-checker=cplusplus.Move %s\
 // RUN:  -std=c++11 -analyzer-output=text -analyzer-config eagerly-assume=false\
 // RUN:  -analyzer-config exploration_strategy=unexplored_first_queue\
 // RUN:  -analyzer-config cplusplus.Move:WarnOn=KnownsOnly\
-// RUN:  -analyzer-checker core,cplusplus.SmartPtr,debug.ExprInspection\
+// RUN:  -analyzer-checker core,cplusplus.SmartPtrModeling,debug.ExprInspection\
 // RUN:  -verify=expected,non-aggressive
 // RUN: %clang_analyze_cc1 -analyzer-checker=cplusplus.Move -verify %s\
 // RUN:  -std=c++11 -analyzer-output=text -analyzer-config eagerly-assume=false\
 // RUN:  -analyzer-config exploration_strategy=dfs -DDFS\
 // RUN:  -analyzer-config cplusplus.Move:WarnOn=KnownsOnly\
-// RUN:  -analyzer-checker core,cplusplus.SmartPtr,debug.ExprInspection\
+// RUN:  -analyzer-checker core,cplusplus.SmartPtrModeling,debug.ExprInspection\
 // RUN:  -verify=expected,non-aggressive
 // RUN: %clang_analyze_cc1 -analyzer-checker=cplusplus.Move %s\
 // RUN:  -std=c++11 -analyzer-output=text -analyzer-config eagerly-assume=false\
 // RUN:  -analyzer-config exploration_strategy=unexplored_first_queue\
 // RUN:  -analyzer-config cplusplus.Move:WarnOn=All\
-// RUN:  -analyzer-checker core,cplusplus.SmartPtr,debug.ExprInspection\
+// RUN:  -analyzer-checker core,cplusplus.SmartPtrModeling,debug.ExprInspection\
 // RUN:  -verify=expected,peaceful,aggressive
 // RUN: %clang_analyze_cc1 -analyzer-checker=cplusplus.Move %s\
 // RUN:  -std=c++11 -analyzer-output=text -analyzer-config eagerly-assume=false\
 // RUN:  -analyzer-config exploration_strategy=dfs -DDFS\
 // RUN:  -analyzer-config cplusplus.Move:WarnOn=All\
-// RUN:  -analyzer-checker core,cplusplus.SmartPtr,debug.ExprInspection\
+// RUN:  -analyzer-checker core,cplusplus.SmartPtrModeling,debug.ExprInspection\
 // RUN:  -verify=expected,peaceful,aggressive
 
 // RUN: not %clang_analyze_cc1 -verify %s \
@@ -49,7 +49,7 @@
 // RUN:  -std=c++11 -analyzer-output=text -analyzer-config eagerly-assume=false\
 // RUN:  -analyzer-config exploration_strategy=dfs -DDFS\
 // RUN:  -analyzer-config cplusplus.Move:WarnOn=All -DAGGRESSIVE_DFS\
-// RUN:  -analyzer-checker core,cplusplus.SmartPtr,debug.ExprInspection\
+// RUN:  -analyzer-checker core,cplusplus.SmartPtrModeling,debug.ExprInspection\
 // RUN:  -verify=expected,peaceful,aggressive %s 2>&1 | FileCheck %s
 
 #include "Inputs/system-header-simulator-cxx.h"
@@ -974,3 +974,19 @@ void getAfterMove(std::unique_ptr<A> P) {
   // TODO: Warn on a null dereference here.
   a->foo();
 }
+
+struct OtherMoveSafeClasses {
+  std::packaged_task<int(void)> Task;
+
+  void test() {
+    // Test the suppression caused by use-after-move semantics of
+    // std::package_task being different from other standard classes.
+    // Only warn in aggressive mode. Don't say that the object
+    // is left in unspecified state after move.
+    std::packaged_task<int(void)> Task2 = std::move(Task);
+    // aggressive-note@-1   {{Object 'Task' is moved}}
+    std::packaged_task<int(void)> Task3 = std::move(Task);
+    // aggressive-warning@-1{{Moved-from object 'Task' is moved}}
+    // aggressive-note@-2   {{Moved-from object 'Task' is moved}}
+  }
+};

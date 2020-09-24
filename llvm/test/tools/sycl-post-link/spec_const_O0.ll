@@ -26,7 +26,7 @@ declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #1
 declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #1
 
 ; Function Attrs: norecurse
-define linkonce_odr dso_local spir_func zeroext i1 @FOO(%"UserSpecConstIDType" addrspace(4)* %0) comdat align 2 {
+define spir_func zeroext i1 @FOO(%"UserSpecConstIDType" addrspace(4)* %0) comdat align 2 {
   %2 = alloca %"UserSpecConstIDType" addrspace(4)*, align 8
   %3 = alloca i8 addrspace(4)*, align 8
   store %"UserSpecConstIDType" addrspace(4)* %0, %"UserSpecConstIDType" addrspace(4)** %2, align 8, !tbaa !8

@@ -17,7 +17,8 @@ define <vscale x 4 x i32> @insertelement_idx_undef(<vscale x 4 x i32> %a) {
 
 define <vscale x 4 x i32> @insertelement_value_undef(<vscale x 4 x i32> %a) {
 ; CHECK-LABEL: @insertelement_value_undef(
-; CHECK-NEXT:    ret <vscale x 4 x i32> [[A:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = insertelement <vscale x 4 x i32> [[A:%.*]], i32 undef, i64 0
+; CHECK-NEXT:    ret <vscale x 4 x i32> [[R]]
 ;
   %r = insertelement <vscale x 4 x i32> %a, i32 undef, i64 0
   ret <vscale x 4 x i32> %r
@@ -48,6 +49,23 @@ define <vscale x 4 x i32> @insert_extract_element_same_vec_idx_1(<vscale x 4 x i
   %v = extractelement <vscale x 4 x i32> %a, i64 1
   %r = insertelement <vscale x 4 x i32> %a, i32 %v, i64 1
   ret <vscale x 4 x i32> %r
+}
+
+define <vscale x 4 x i32> @insertelement_inline_to_ret() {
+; CHECK-LABEL: @insertelement_inline_to_ret(
+; CHECK-NEXT:    ret <vscale x 4 x i32> insertelement (<vscale x 4 x i32> undef, i32 1, i32 0)
+;
+  %i = insertelement <vscale x 4 x i32> undef, i32 1, i32 0
+  ret <vscale x 4 x i32> %i
+}
+
+define <vscale x 4 x i32> @insertelement_shufflevector_inline_to_ret() {
+; CHECK-LABEL: @insertelement_shufflevector_inline_to_ret(
+; CHECK-NEXT:    ret <vscale x 4 x i32> shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> undef, i32 1, i32 0), <vscale x 4 x i32> undef, <vscale x 4 x i32> zeroinitializer)
+;
+  %i = insertelement <vscale x 4 x i32> undef, i32 1, i32 0
+  %i2 = shufflevector <vscale x 4 x i32> %i, <vscale x 4 x i32> undef, <vscale x 4 x i32> zeroinitializer
+  ret <vscale x 4 x i32> %i2
 }
 
 ; extractelement
@@ -85,13 +103,48 @@ define i32 @extractelement_idx_large_bound(<vscale x 4 x i32> %a) {
   ret i32 %r
 }
 
-define i32 @insert_extract_element_same_vec_idx_2(<vscale x 4 x i32> %a) {
+define i32 @insert_extract_element_same_vec_idx_2() {
 ; CHECK-LABEL: @insert_extract_element_same_vec_idx_2(
 ; CHECK-NEXT:    ret i32 1
 ;
   %v = insertelement <vscale x 4 x i32> undef, i32 1, i64 4
   %r = extractelement <vscale x 4 x i32> %v, i64 4
   ret i32 %r
+}
+
+define i32 @insert_extract_element_same_vec_idx_3() {
+; CHECK-LABEL: @insert_extract_element_same_vec_idx_3(
+; CHECK-NEXT:    ret i32 1
+;
+  %r = extractelement <vscale x 4 x i32> insertelement (<vscale x 4 x i32> undef, i32 1, i64 4), i64 4
+  ret i32 %r
+}
+
+define i32 @insert_extract_element_same_vec_idx_4() {
+; CHECK-LABEL: @insert_extract_element_same_vec_idx_4(
+; CHECK-NEXT:    ret i32 1
+;
+  %r = extractelement <vscale x 4 x i32> insertelement (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> undef, i32 1, i32 4), i32 2, i64 3), i64 4
+  ret i32 %r
+}
+
+; more complicated expressions
+
+define <vscale x 2 x i1> @cmp_le_smax_always_true(<vscale x 2 x i64> %x) {
+; CHECK-LABEL: @cmp_le_smax_always_true(
+; CHECK-NEXT:    ret <vscale x 2 x i1> shufflevector (<vscale x 2 x i1> insertelement (<vscale x 2 x i1> undef, i1 true, i32 0), <vscale x 2 x i1> undef, <vscale x 2 x i32> zeroinitializer)
+   %cmp = icmp sle <vscale x 2 x i64> %x, shufflevector (<vscale x 2 x i64> insertelement (<vscale x 2 x i64> undef, i64 9223372036854775807, i32 0), <vscale x 2 x i64> undef, <vscale x 2 x i32> zeroinitializer)
+   ret <vscale x 2 x i1> %cmp
+}
+
+define <vscale x 4 x float> @bitcast() {
+; CHECK-LABEL: @bitcast(
+; CHECK-NEXT:    ret <vscale x 4 x float> bitcast (<vscale x 4 x i32> shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> undef, i32 1, i32 0), <vscale x 4 x i32> undef, <vscale x 4 x i32> zeroinitializer) to <vscale x 4 x float>)
+;
+  %i1 = insertelement <vscale x 4 x i32> undef, i32 1, i32 0
+  %i2 = shufflevector <vscale x 4 x i32> %i1, <vscale x 4 x i32> undef, <vscale x 4 x i32> zeroinitializer
+  %i3 = bitcast <vscale x 4 x i32> %i2 to <vscale x 4 x float>
+  ret <vscale x 4 x float> %i3
 }
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

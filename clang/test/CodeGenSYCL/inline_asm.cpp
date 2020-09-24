@@ -1,9 +1,9 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-enable-optimizations -triple spir64-unknown-unknown-sycldevice -emit-llvm -x c++ %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -emit-llvm -x c++ %s -o - | FileCheck %s
 
 class kernel;
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [100 x i32], align 4
   // CHECK: %[[IDX:.*]] = getelementptr inbounds [100 x i32], [100 x i32]* %[[ARRAY_A]], i64 0, i64 0
   int a[100], i = 0;

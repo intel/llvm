@@ -13,8 +13,8 @@
 #ifndef LLVM_CLANG_AST_APVALUE_H
 #define LLVM_CLANG_AST_APVALUE_H
 
-#include "clang/Basic/FixedPoint.h"
 #include "clang/Basic/LLVM.h"
+#include "llvm/ADT/APFixedPoint.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/PointerIntPair.h"
@@ -32,6 +32,7 @@ namespace clang {
   struct PrintingPolicy;
   class Type;
   class ValueDecl;
+  class QualType;
 
 /// Symbolic representation of typeid(T) for some type T.
 class TypeInfoLValue {
@@ -113,6 +114,7 @@ namespace clang {
 /// [APSInt] [APFloat], [Complex APSInt] [Complex APFloat], [Expr + Offset],
 /// [Vector: N * APValue], [Array: N * APValue]
 class APValue {
+  typedef llvm::APFixedPoint APFixedPoint;
   typedef llvm::APSInt APSInt;
   typedef llvm::APFloat APFloat;
 public:
@@ -302,7 +304,7 @@ public:
     MakeComplexFloat(); setComplexFloat(std::move(R), std::move(I));
   }
   APValue(const APValue &RHS);
-  APValue(APValue &&RHS) : Kind(None) { swap(RHS); }
+  APValue(APValue &&RHS);
   APValue(LValueBase B, const CharUnits &O, NoLValuePath N,
           bool IsNullPtr = false)
       : Kind(None) {
@@ -336,6 +338,9 @@ public:
     Result.Kind = Indeterminate;
     return Result;
   }
+
+  APValue &operator=(const APValue &RHS);
+  APValue &operator=(APValue &&RHS);
 
   ~APValue() {
     if (Kind != None && Kind != Indeterminate)
@@ -372,7 +377,7 @@ public:
   bool isAddrLabelDiff() const { return Kind == AddrLabelDiff; }
 
   void dump() const;
-  void dump(raw_ostream &OS) const;
+  void dump(raw_ostream &OS, const ASTContext &Context) const;
 
   void printPretty(raw_ostream &OS, const ASTContext &Ctx, QualType Ty) const;
   std::string getAsString(const ASTContext &Ctx, QualType Ty) const;
@@ -587,12 +592,6 @@ public:
                         const AddrLabelExpr* RHSExpr) {
     ((AddrLabelDiffData*)(char*)Data.buffer)->LHSExpr = LHSExpr;
     ((AddrLabelDiffData*)(char*)Data.buffer)->RHSExpr = RHSExpr;
-  }
-
-  /// Assign by swapping from a copy of the RHS.
-  APValue &operator=(APValue RHS) {
-    swap(RHS);
-    return *this;
   }
 
 private:

@@ -15,6 +15,7 @@
 #include "clang/Driver/Options.h"
 #include "clang/Driver/SanitizerArgs.h"
 #include "llvm/Option/ArgList.h"
+#include "llvm/ProfileData/InstrProf.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/VirtualFileSystem.h"
@@ -47,6 +48,9 @@ void fuchsia::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   Args.ClaimAllArgs(options::OPT_w);
 
   CmdArgs.push_back("-z");
+  CmdArgs.push_back("max-page-size=4096");
+
+  CmdArgs.push_back("-z");
   CmdArgs.push_back("now");
 
   const char *Exec = Args.MakeArgString(ToolChain.GetLinkerPath());
@@ -56,6 +60,7 @@ void fuchsia::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("rodynamic");
     CmdArgs.push_back("-z");
     CmdArgs.push_back("separate-loadable-segments");
+    CmdArgs.push_back("--pack-dyn-relocs=relr");
   }
 
   if (!D.SysRoot.empty())
@@ -90,6 +95,8 @@ void fuchsia::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     std::string Dyld = D.DyldPrefix;
     if (SanArgs.needsAsanRt() && SanArgs.needsSharedRt())
       Dyld += "asan/";
+    if (SanArgs.needsTsanRt() && SanArgs.needsSharedRt())
+      Dyld += "tsan/";
     Dyld += "ld.so.1";
     CmdArgs.push_back("-dynamic-linker");
     CmdArgs.push_back(Args.MakeArgString(Dyld));
@@ -159,7 +166,8 @@ void fuchsia::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-lc");
   }
 
-  C.addCommand(std::make_unique<Command>(JA, *this, Exec, CmdArgs, Inputs));
+  C.addCommand(std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
+                                         Exec, CmdArgs, Inputs));
 }
 
 /// Fuchsia - Fuchsia tool chain which can call as(1) and ld(1) directly.
@@ -343,6 +351,7 @@ SanitizerMask Fuchsia::getSupportedSanitizers() const {
   Res |= SanitizerKind::Leak;
   Res |= SanitizerKind::SafeStack;
   Res |= SanitizerKind::Scudo;
+  Res |= SanitizerKind::Thread;
   return Res;
 }
 
@@ -360,4 +369,14 @@ SanitizerMask Fuchsia::getDefaultSanitizers() const {
     break;
   }
   return Res;
+}
+
+void Fuchsia::addProfileRTLibs(const llvm::opt::ArgList &Args,
+                               llvm::opt::ArgStringList &CmdArgs) const {
+  // Add linker option -u__llvm_profile_runtime to cause runtime
+  // initialization module to be linked in.
+  if (needsProfileRT(Args))
+    CmdArgs.push_back(Args.MakeArgString(
+        Twine("-u", llvm::getInstrProfRuntimeHookVarName())));
+  ToolChain::addProfileRTLibs(Args, CmdArgs);
 }

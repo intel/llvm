@@ -15,9 +15,10 @@
 #include "toy/Parser.h"
 #include "toy/Passes.h"
 
-#include "mlir/Analysis/Verifier.h"
+#include "mlir/IR/AsmState.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Module.h"
+#include "mlir/IR/Verifier.h"
 #include "mlir/InitAllDialects.h"
 #include "mlir/Parser.h"
 #include "mlir/Pass/Pass.h"
@@ -105,10 +106,10 @@ int loadMLIR(llvm::SourceMgr &sourceMgr, mlir::MLIRContext &context,
 }
 
 int dumpMLIR() {
-  // Register our Dialect with MLIR.
-  mlir::registerDialect<mlir::toy::ToyDialect>();
+  mlir::MLIRContext context(/*loadAllDialects=*/false);
+  // Load our Dialect in this MLIR Context.
+  context.getOrLoadDialect<mlir::toy::ToyDialect>();
 
-  mlir::MLIRContext context;
   mlir::OwningModuleRef module;
   llvm::SourceMgr sourceMgr;
   mlir::SourceMgrDiagnosticHandler sourceMgrHandler(sourceMgr, &context);
@@ -172,7 +173,12 @@ int dumpAST() {
 
 int main(int argc, char **argv) {
   mlir::registerAllDialects();
+
+  // Register any command line options.
+  mlir::registerAsmPrinterCLOptions();
+  mlir::registerMLIRContextCLOptions();
   mlir::registerPassManagerCLOptions();
+
   cl::ParseCommandLineOptions(argc, argv, "toy compiler\n");
 
   switch (emitAction) {

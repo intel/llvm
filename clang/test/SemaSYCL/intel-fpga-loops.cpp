@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify -pedantic %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -Wno-sycl-2017-compat -verify -pedantic %s
 
 // Test for Intel FPGA loop attributes applied not to a loop
 void foo() {
@@ -141,6 +141,23 @@ void goo() {
   // no diagnostics are expected
   [[intelfpga::ivdep(2, a)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  int *ptr;
+  // no diagnostics are expected
+  [[intelfpga::ivdep(2, ptr)]] for (int i = 0; i != 10; ++i)
+      ptr[i] = 0;
+
+  struct S {
+    int arr[10];
+    int *ptr;
+  } s;
+
+  // no diagnostics are expected
+  [[intelfpga::ivdep(2, s.arr)]] for (int i = 0; i != 10; ++i)
+      s.arr[i] = 0;
+  // no diagnostics are expected
+  [[intelfpga::ivdep(2, s.ptr)]] for (int i = 0; i != 10; ++i)
+      s.ptr[i] = 0;
 }
 
 // Test for Intel FPGA loop attributes duplication
@@ -354,7 +371,7 @@ void max_concurrency_dependent() {
 }
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
 }
 

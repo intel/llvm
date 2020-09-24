@@ -23,6 +23,8 @@
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Support/RISCVAttributeParser.h"
+#include "llvm/Support/RISCVAttributes.h"
 #include "llvm/Support/TargetRegistry.h"
 #include <algorithm>
 #include <cstddef>
@@ -164,12 +166,14 @@ SubtargetFeatures ELFObjectFileBase::getARMFeatures() const {
 
   // both ARMv7-M and R have to support thumb hardware div
   bool isV7 = false;
-  if (Attributes.hasAttribute(ARMBuildAttrs::CPU_arch))
-    isV7 = Attributes.getAttributeValue(ARMBuildAttrs::CPU_arch)
-      == ARMBuildAttrs::v7;
+  Optional<unsigned> Attr =
+      Attributes.getAttributeValue(ARMBuildAttrs::CPU_arch);
+  if (Attr.hasValue())
+    isV7 = Attr.getValue() == ARMBuildAttrs::v7;
 
-  if (Attributes.hasAttribute(ARMBuildAttrs::CPU_arch_profile)) {
-    switch(Attributes.getAttributeValue(ARMBuildAttrs::CPU_arch_profile)) {
+  Attr = Attributes.getAttributeValue(ARMBuildAttrs::CPU_arch_profile);
+  if (Attr.hasValue()) {
+    switch (Attr.getValue()) {
     case ARMBuildAttrs::ApplicationProfile:
       Features.AddFeature("aclass");
       break;
@@ -186,8 +190,9 @@ SubtargetFeatures ELFObjectFileBase::getARMFeatures() const {
     }
   }
 
-  if (Attributes.hasAttribute(ARMBuildAttrs::THUMB_ISA_use)) {
-    switch(Attributes.getAttributeValue(ARMBuildAttrs::THUMB_ISA_use)) {
+  Attr = Attributes.getAttributeValue(ARMBuildAttrs::THUMB_ISA_use);
+  if (Attr.hasValue()) {
+    switch (Attr.getValue()) {
     default:
       break;
     case ARMBuildAttrs::Not_Allowed:
@@ -200,8 +205,9 @@ SubtargetFeatures ELFObjectFileBase::getARMFeatures() const {
     }
   }
 
-  if (Attributes.hasAttribute(ARMBuildAttrs::FP_arch)) {
-    switch(Attributes.getAttributeValue(ARMBuildAttrs::FP_arch)) {
+  Attr = Attributes.getAttributeValue(ARMBuildAttrs::FP_arch);
+  if (Attr.hasValue()) {
+    switch (Attr.getValue()) {
     default:
       break;
     case ARMBuildAttrs::Not_Allowed:
@@ -223,8 +229,9 @@ SubtargetFeatures ELFObjectFileBase::getARMFeatures() const {
     }
   }
 
-  if (Attributes.hasAttribute(ARMBuildAttrs::Advanced_SIMD_arch)) {
-    switch(Attributes.getAttributeValue(ARMBuildAttrs::Advanced_SIMD_arch)) {
+  Attr = Attributes.getAttributeValue(ARMBuildAttrs::Advanced_SIMD_arch);
+  if (Attr.hasValue()) {
+    switch (Attr.getValue()) {
     default:
       break;
     case ARMBuildAttrs::Not_Allowed:
@@ -241,8 +248,9 @@ SubtargetFeatures ELFObjectFileBase::getARMFeatures() const {
     }
   }
 
-  if (Attributes.hasAttribute(ARMBuildAttrs::MVE_arch)) {
-    switch(Attributes.getAttributeValue(ARMBuildAttrs::MVE_arch)) {
+  Attr = Attributes.getAttributeValue(ARMBuildAttrs::MVE_arch);
+  if (Attr.hasValue()) {
+    switch (Attr.getValue()) {
     default:
       break;
     case ARMBuildAttrs::Not_Allowed:
@@ -259,8 +267,9 @@ SubtargetFeatures ELFObjectFileBase::getARMFeatures() const {
     }
   }
 
-  if (Attributes.hasAttribute(ARMBuildAttrs::DIV_use)) {
-    switch(Attributes.getAttributeValue(ARMBuildAttrs::DIV_use)) {
+  Attr = Attributes.getAttributeValue(ARMBuildAttrs::DIV_use);
+  if (Attr.hasValue()) {
+    switch (Attr.getValue()) {
     default:
       break;
     case ARMBuildAttrs::DisallowDIV:
@@ -285,6 +294,51 @@ SubtargetFeatures ELFObjectFileBase::getRISCVFeatures() const {
     Features.AddFeature("c");
   }
 
+  // Add features according to the ELF attribute section.
+  // If there are any unrecognized features, ignore them.
+  RISCVAttributeParser Attributes;
+  if (Error E = getBuildAttributes(Attributes)) {
+    // TODO Propagate Error.
+    consumeError(std::move(E));
+    return Features; // Keep "c" feature if there is one in PlatformFlags.
+  }
+
+  Optional<StringRef> Attr = Attributes.getAttributeString(RISCVAttrs::ARCH);
+  if (Attr.hasValue()) {
+    // The Arch pattern is [rv32|rv64][i|e]version(_[m|a|f|d|c]version)*
+    // Version string pattern is (major)p(minor). Major and minor are optional.
+    // For example, a version number could be 2p0, 2, or p92.
+    StringRef Arch = Attr.getValue();
+    if (Arch.consume_front("rv32"))
+      Features.AddFeature("64bit", false);
+    else if (Arch.consume_front("rv64"))
+      Features.AddFeature("64bit");
+
+    while (!Arch.empty()) {
+      switch (Arch[0]) {
+      default:
+        break; // Ignore unexpected features.
+      case 'i':
+        Features.AddFeature("e", false);
+        break;
+      case 'd':
+        Features.AddFeature("f"); // D-ext will imply F-ext.
+        LLVM_FALLTHROUGH;
+      case 'e':
+      case 'm':
+      case 'a':
+      case 'f':
+      case 'c':
+        Features.AddFeature(Arch.take_front());
+        break;
+      }
+
+      // FIXME: Handle version numbers.
+      Arch = Arch.drop_until([](char c) { return c == '_' || c == '\0'; });
+      Arch = Arch.drop_while([](char c) { return c == '_'; });
+    }
+  }
+
   return Features;
 }
 
@@ -298,6 +352,117 @@ SubtargetFeatures ELFObjectFileBase::getFeatures() const {
     return getRISCVFeatures();
   default:
     return SubtargetFeatures();
+  }
+}
+
+Optional<StringRef> ELFObjectFileBase::tryGetCPUName() const {
+  switch (getEMachine()) {
+  case ELF::EM_AMDGPU:
+    return getAMDGPUCPUName();
+  default:
+    return None;
+  }
+}
+
+StringRef ELFObjectFileBase::getAMDGPUCPUName() const {
+  assert(getEMachine() == ELF::EM_AMDGPU);
+  unsigned CPU = getPlatformFlags() & ELF::EF_AMDGPU_MACH;
+
+  switch (CPU) {
+  // Radeon HD 2000/3000 Series (R600).
+  case ELF::EF_AMDGPU_MACH_R600_R600:
+    return "r600";
+  case ELF::EF_AMDGPU_MACH_R600_R630:
+    return "r630";
+  case ELF::EF_AMDGPU_MACH_R600_RS880:
+    return "rs880";
+  case ELF::EF_AMDGPU_MACH_R600_RV670:
+    return "rv670";
+
+  // Radeon HD 4000 Series (R700).
+  case ELF::EF_AMDGPU_MACH_R600_RV710:
+    return "rv710";
+  case ELF::EF_AMDGPU_MACH_R600_RV730:
+    return "rv730";
+  case ELF::EF_AMDGPU_MACH_R600_RV770:
+    return "rv770";
+
+  // Radeon HD 5000 Series (Evergreen).
+  case ELF::EF_AMDGPU_MACH_R600_CEDAR:
+    return "cedar";
+  case ELF::EF_AMDGPU_MACH_R600_CYPRESS:
+    return "cypress";
+  case ELF::EF_AMDGPU_MACH_R600_JUNIPER:
+    return "juniper";
+  case ELF::EF_AMDGPU_MACH_R600_REDWOOD:
+    return "redwood";
+  case ELF::EF_AMDGPU_MACH_R600_SUMO:
+    return "sumo";
+
+  // Radeon HD 6000 Series (Northern Islands).
+  case ELF::EF_AMDGPU_MACH_R600_BARTS:
+    return "barts";
+  case ELF::EF_AMDGPU_MACH_R600_CAICOS:
+    return "caicos";
+  case ELF::EF_AMDGPU_MACH_R600_CAYMAN:
+    return "cayman";
+  case ELF::EF_AMDGPU_MACH_R600_TURKS:
+    return "turks";
+
+  // AMDGCN GFX6.
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX600:
+    return "gfx600";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX601:
+    return "gfx601";
+
+  // AMDGCN GFX7.
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX700:
+    return "gfx700";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX701:
+    return "gfx701";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX702:
+    return "gfx702";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX703:
+    return "gfx703";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX704:
+    return "gfx704";
+
+  // AMDGCN GFX8.
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX801:
+    return "gfx801";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX802:
+    return "gfx802";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX803:
+    return "gfx803";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX810:
+    return "gfx810";
+
+  // AMDGCN GFX9.
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX900:
+    return "gfx900";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX902:
+    return "gfx902";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX904:
+    return "gfx904";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX906:
+    return "gfx906";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX908:
+    return "gfx908";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX909:
+    return "gfx909";
+
+  // AMDGCN GFX10.
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1010:
+    return "gfx1010";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1011:
+    return "gfx1011";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1012:
+    return "gfx1012";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1030:
+    return "gfx1030";
+
+  default:
+    llvm_unreachable("Unknown EF_AMDGPU_MACH value");
   }
 }
 
@@ -320,8 +485,10 @@ void ELFObjectFileBase::setARMSubArch(Triple &TheTriple) const {
   else
     Triple = "arm";
 
-  if (Attributes.hasAttribute(ARMBuildAttrs::CPU_arch)) {
-    switch(Attributes.getAttributeValue(ARMBuildAttrs::CPU_arch)) {
+  Optional<unsigned> Attr =
+      Attributes.getAttributeValue(ARMBuildAttrs::CPU_arch);
+  if (Attr.hasValue()) {
+    switch (Attr.getValue()) {
     case ARMBuildAttrs::v4:
       Triple += "v4";
       break;
@@ -384,7 +551,7 @@ void ELFObjectFileBase::setARMSubArch(Triple &TheTriple) const {
   TheTriple.setArchName(Triple);
 }
 
-std::vector<std::pair<DataRefImpl, uint64_t>>
+std::vector<std::pair<Optional<DataRefImpl>, uint64_t>>
 ELFObjectFileBase::getPltAddresses() const {
   std::string Err;
   const auto Triple = makeTriple();
@@ -442,14 +609,18 @@ ELFObjectFileBase::getPltAddresses() const {
     GotToPlt.insert(std::make_pair(Entry.second, Entry.first));
   // Find the relocations in the dynamic relocation table that point to
   // locations in the GOT for which we know the corresponding PLT entry.
-  std::vector<std::pair<DataRefImpl, uint64_t>> Result;
+  std::vector<std::pair<Optional<DataRefImpl>, uint64_t>> Result;
   for (const auto &Relocation : RelaPlt->relocations()) {
     if (Relocation.getType() != JumpSlotReloc)
       continue;
     auto PltEntryIter = GotToPlt.find(Relocation.getOffset());
-    if (PltEntryIter != GotToPlt.end())
-      Result.push_back(std::make_pair(
-          Relocation.getSymbol()->getRawDataRefImpl(), PltEntryIter->second));
+    if (PltEntryIter != GotToPlt.end()) {
+      symbol_iterator Sym = Relocation.getSymbol();
+      if (Sym == symbol_end())
+        Result.emplace_back(None, PltEntryIter->second);
+      else
+        Result.emplace_back(Sym->getRawDataRefImpl(), PltEntryIter->second);
+    }
   }
   return Result;
 }

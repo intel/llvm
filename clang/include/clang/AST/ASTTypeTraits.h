@@ -16,6 +16,7 @@
 #define LLVM_CLANG_AST_ASTTYPETRAITS_H
 
 #include "clang/AST/ASTFwd.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/TypeLoc.h"
@@ -131,11 +132,13 @@ private:
   enum NodeKindId {
     NKI_None,
     NKI_TemplateArgument,
+    NKI_TemplateArgumentLoc,
     NKI_TemplateName,
     NKI_NestedNameSpecifierLoc,
     NKI_QualType,
     NKI_TypeLoc,
     NKI_LastKindWithoutPointerIdentity = NKI_TypeLoc,
+    NKI_CXXBaseSpecifier,
     NKI_CXXCtorInitializer,
     NKI_NestedNameSpecifier,
     NKI_Decl,
@@ -148,8 +151,8 @@ private:
 #define TYPE(DERIVED, BASE) NKI_##DERIVED##Type,
 #include "clang/AST/TypeNodes.inc"
     NKI_OMPClause,
-#define OPENMP_CLAUSE(TextualSpelling, Class) NKI_##Class,
-#include "clang/Basic/OpenMPKinds.def"
+#define OMP_CLAUSE_CLASS(Enum, Str, Class) NKI_##Class,
+#include "llvm/Frontend/OpenMP/OMPKinds.def"
     NKI_NumberOfKinds
   };
 
@@ -189,6 +192,7 @@ private:
   };
 KIND_TO_KIND_ID(CXXCtorInitializer)
 KIND_TO_KIND_ID(TemplateArgument)
+KIND_TO_KIND_ID(TemplateArgumentLoc)
 KIND_TO_KIND_ID(TemplateName)
 KIND_TO_KIND_ID(NestedNameSpecifier)
 KIND_TO_KIND_ID(NestedNameSpecifierLoc)
@@ -198,14 +202,15 @@ KIND_TO_KIND_ID(Decl)
 KIND_TO_KIND_ID(Stmt)
 KIND_TO_KIND_ID(Type)
 KIND_TO_KIND_ID(OMPClause)
+KIND_TO_KIND_ID(CXXBaseSpecifier)
 #define DECL(DERIVED, BASE) KIND_TO_KIND_ID(DERIVED##Decl)
 #include "clang/AST/DeclNodes.inc"
 #define STMT(DERIVED, BASE) KIND_TO_KIND_ID(DERIVED)
 #include "clang/AST/StmtNodes.inc"
 #define TYPE(DERIVED, BASE) KIND_TO_KIND_ID(DERIVED##Type)
 #include "clang/AST/TypeNodes.inc"
-#define OPENMP_CLAUSE(TextualSpelling, Class) KIND_TO_KIND_ID(Class)
-#include "clang/Basic/OpenMPKinds.def"
+#define OMP_CLAUSE_CLASS(Enum, Str, Class) KIND_TO_KIND_ID(Class)
+#include "llvm/Frontend/OpenMP/OMPKinds.def"
 #undef KIND_TO_KIND_ID
 
 inline raw_ostream &operator<<(raw_ostream &OS, ASTNodeKind K) {
@@ -275,7 +280,7 @@ public:
   void print(llvm::raw_ostream &OS, const PrintingPolicy &PP) const;
 
   /// Dumps the node to the given output stream.
-  void dump(llvm::raw_ostream &OS, SourceManager &SM) const;
+  void dump(llvm::raw_ostream &OS, const ASTContext &Context) const;
 
   /// For nodes which represent textual entities in the source code,
   /// return their SourceRange.  For all other nodes, return SourceRange().
@@ -453,12 +458,13 @@ private:
   /// Note that we can store \c Decls, \c Stmts, \c Types,
   /// \c NestedNameSpecifiers and \c CXXCtorInitializer by pointer as they are
   /// guaranteed to be unique pointers pointing to dedicated storage in the AST.
-  /// \c QualTypes, \c NestedNameSpecifierLocs, \c TypeLocs and
-  /// \c TemplateArguments on the other hand do not have storage or unique
-  /// pointers and thus need to be stored by value.
+  /// \c QualTypes, \c NestedNameSpecifierLocs, \c TypeLocs,
+  /// \c TemplateArguments and \c TemplateArgumentLocs on the other hand do not
+  /// have storage or unique pointers and thus need to be stored by value.
   llvm::AlignedCharArrayUnion<const void *, TemplateArgument,
-                              NestedNameSpecifierLoc, QualType,
-                              TypeLoc> Storage;
+                              TemplateArgumentLoc, NestedNameSpecifierLoc,
+                              QualType, TypeLoc>
+      Storage;
 };
 
 template <typename T>
@@ -494,6 +500,10 @@ struct DynTypedNode::BaseConverter<
     TemplateArgument, void> : public ValueConverter<TemplateArgument> {};
 
 template <>
+struct DynTypedNode::BaseConverter<TemplateArgumentLoc, void>
+    : public ValueConverter<TemplateArgumentLoc> {};
+
+template <>
 struct DynTypedNode::BaseConverter<
     TemplateName, void> : public ValueConverter<TemplateName> {};
 
@@ -509,6 +519,10 @@ struct DynTypedNode::BaseConverter<QualType,
 template <>
 struct DynTypedNode::BaseConverter<
     TypeLoc, void> : public ValueConverter<TypeLoc> {};
+
+template <>
+struct DynTypedNode::BaseConverter<CXXBaseSpecifier, void>
+    : public PtrConverter<CXXBaseSpecifier> {};
 
 // The only operation we allow on unsupported types is \c get.
 // This allows to conveniently use \c DynTypedNode when having an arbitrary

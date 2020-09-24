@@ -15,6 +15,7 @@
 #include "lldb/Target/Thread.h"
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/Log.h"
+#include "llvm/DebugInfo/DWARF/DWARFExpression.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -79,13 +80,10 @@ GetByteOrderAndAddrSize(Thread *thread) {
 
 static void DumpDWARFExpr(Stream &s, llvm::ArrayRef<uint8_t> expr, Thread *thread) {
   if (auto order_and_width = GetByteOrderAndAddrSize(thread)) {
-    DataExtractor extractor(expr.data(), expr.size(), order_and_width->first,
-                            order_and_width->second);
-    if (!DWARFExpression::PrintDWARFExpression(s, extractor,
-                                               order_and_width->second,
-                                               /*dwarf_ref_size*/ 4,
-                                               /*location_expression*/ false))
-      s.PutCString("invalid-dwarf-expr");
+    llvm::DataExtractor data(expr, order_and_width->first == eByteOrderLittle,
+                             order_and_width->second);
+    llvm::DWARFExpression(data, order_and_width->second, llvm::dwarf::DWARF32)
+        .print(s.AsRawOstream(), nullptr, nullptr);
   } else
     s.PutCString("dwarf-expr");
 }
@@ -519,6 +517,18 @@ void UnwindPlan::Dump(Stream &s, Thread *thread, lldb::addr_t base_addr) const {
   }
   s.Printf("This UnwindPlan is valid at all instruction locations: ");
   switch (m_plan_is_valid_at_all_instruction_locations) {
+  case eLazyBoolYes:
+    s.Printf("yes.\n");
+    break;
+  case eLazyBoolNo:
+    s.Printf("no.\n");
+    break;
+  case eLazyBoolCalculate:
+    s.Printf("not specified.\n");
+    break;
+  }
+  s.Printf("This UnwindPlan is for a trap handler function: ");
+  switch (m_plan_is_for_signal_trap) {
   case eLazyBoolYes:
     s.Printf("yes.\n");
     break;

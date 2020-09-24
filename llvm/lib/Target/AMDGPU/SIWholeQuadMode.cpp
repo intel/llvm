@@ -279,7 +279,7 @@ void SIWholeQuadMode::markInstructionUses(const MachineInstr &MI, char Flag,
     // Handle physical registers that we need to track; this is mostly relevant
     // for VCC, which can appear as the (implicit) input of a uniform branch,
     // e.g. when a loop counter is stored in a VGPR.
-    if (!Register::isVirtualRegister(Reg)) {
+    if (!Reg.isVirtual()) {
       if (Reg == AMDGPU::EXEC || Reg == AMDGPU::EXEC_LO)
         continue;
 
@@ -363,7 +363,7 @@ char SIWholeQuadMode::scanInstructions(MachineFunction &MF,
             LowerToCopyInstrs.push_back(&MI);
           } else {
             Register Reg = Inactive.getReg();
-            if (Register::isVirtualRegister(Reg)) {
+            if (Reg.isVirtual()) {
               for (MachineInstr &DefMI : MRI->def_instructions(Reg))
                 markInstruction(DefMI, StateWWM, Worklist);
             }
@@ -393,7 +393,7 @@ char SIWholeQuadMode::scanInstructions(MachineFunction &MF,
 
             Register Reg = MO.getReg();
 
-            if (!Register::isVirtualRegister(Reg) &&
+            if (!Reg.isVirtual() &&
                 TRI->hasVectorRegisters(TRI->getPhysRegClass(Reg))) {
               Flags = StateWQM;
               break;
@@ -762,18 +762,23 @@ void SIWholeQuadMode::processBlock(MachineBasicBlock &MBB, unsigned LiveMaskReg,
       if (State == StateWWM) {
         assert(SavedNonWWMReg);
         fromWWM(MBB, Before, SavedNonWWMReg);
+        LIS->createAndComputeVirtRegInterval(SavedNonWWMReg);
+        SavedNonWWMReg = 0;
         State = NonWWMState;
       }
 
       if (Needs == StateWWM) {
         NonWWMState = State;
+        assert(!SavedNonWWMReg);
         SavedNonWWMReg = MRI->createVirtualRegister(BoolRC);
         toWWM(MBB, Before, SavedNonWWMReg);
         State = StateWWM;
       } else {
         if (State == StateWQM && (Needs & StateExact) && !(Needs & StateWQM)) {
-          if (!WQMFromExec && (OutNeeds & StateWQM))
+          if (!WQMFromExec && (OutNeeds & StateWQM)) {
+            assert(!SavedWQMReg);
             SavedWQMReg = MRI->createVirtualRegister(BoolRC);
+          }
 
           toExact(MBB, Before, SavedWQMReg, LiveMaskReg);
           State = StateExact;
@@ -806,6 +811,8 @@ void SIWholeQuadMode::processBlock(MachineBasicBlock &MBB, unsigned LiveMaskReg,
       break;
     II = Next;
   }
+  assert(!SavedWQMReg);
+  assert(!SavedNonWWMReg);
 }
 
 void SIWholeQuadMode::lowerLiveMaskQueries(unsigned LiveMaskReg) {
@@ -828,9 +835,8 @@ void SIWholeQuadMode::lowerCopyInstrs() {
     const Register Reg = MI->getOperand(0).getReg();
 
     if (TRI->isVGPR(*MRI, Reg)) {
-      const TargetRegisterClass *regClass = Register::isVirtualRegister(Reg)
-                                                ? MRI->getRegClass(Reg)
-                                                : TRI->getPhysRegClass(Reg);
+      const TargetRegisterClass *regClass =
+          Reg.isVirtual() ? MRI->getRegClass(Reg) : TRI->getPhysRegClass(Reg);
 
       const unsigned MovOp = TII->getMovOpcode(regClass);
       MI->setDesc(TII->get(MovOp));
@@ -898,10 +904,12 @@ bool SIWholeQuadMode::runOnMachineFunction(MachineFunction &MF) {
 
     if (GlobalFlags == StateWQM) {
       // For a shader that needs only WQM, we can just set it once.
-      BuildMI(Entry, EntryMI, DebugLoc(), TII->get(ST->isWave32() ?
-                AMDGPU::S_WQM_B32 : AMDGPU::S_WQM_B64),
-              Exec)
-          .addReg(Exec);
+      auto MI = BuildMI(Entry, EntryMI, DebugLoc(),
+                        TII->get(ST->isWave32() ? AMDGPU::S_WQM_B32
+                                                : AMDGPU::S_WQM_B64),
+                        Exec)
+                    .addReg(Exec);
+      LIS->InsertMachineInstrInMaps(*MI);
 
       lowerCopyInstrs();
       // EntryMI may become invalid here
@@ -916,6 +924,9 @@ bool SIWholeQuadMode::runOnMachineFunction(MachineFunction &MF) {
   // Handle the general case
   for (auto BII : Blocks)
     processBlock(*BII.first, LiveMaskReg, BII.first == &*MF.begin());
+
+  if (LiveMaskReg)
+    LIS->createAndComputeVirtRegInterval(LiveMaskReg);
 
   // Physical registers like SCC aren't tracked by default anyway, so just
   // removing the ranges we computed is the simplest option for maintaining

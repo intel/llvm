@@ -167,14 +167,15 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       | | |   `-BinaryOperator {{.*}} <col:3, <invalid sloc>> 'int' '-'
 // CHECK-NEXT: |       | | |     |-BinaryOperator {{.*}} <col:3, col:26> 'int' '/'
 // CHECK-NEXT: |       | | |     | |-ParenExpr {{.*}} <col:3> 'int'
-// CHECK-NEXT: |       | | |     | | `-BinaryOperator {{.*}} <col:23, col:26> 'int' '+'
-// CHECK-NEXT: |       | | |     | |   |-BinaryOperator {{.*}} <col:23, <invalid sloc>> 'int' '-'
-// CHECK-NEXT: |       | | |     | |   | |-BinaryOperator {{.*}} <col:23, col:16> 'int' '-'
-// CHECK-NEXT: |       | | |     | |   | | |-ImplicitCastExpr {{.*}} <col:23> 'int' <LValueToRValue>
-// CHECK-NEXT: |       | | |     | |   | | | `-DeclRefExpr {{.*}} <col:23> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
-// CHECK-NEXT: |       | | |     | |   | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
-// CHECK-NEXT: |       | | |     | |   | `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
-// CHECK-NEXT: |       | | |     | |   `-IntegerLiteral {{.*}} <col:26> 'int' 1
+// CHECK-NEXT: |       | | |     | | `-BinaryOperator {{.*}} <col:23, col:3> 'int' '-'
+// CHECK-NEXT: |       | | |     | |   |-ImplicitCastExpr {{.*}} <col:23> 'int' <LValueToRValue>
+// CHECK-NEXT: |       | | |     | |   | `-DeclRefExpr {{.*}} <col:23> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
+// CHECK-NEXT: |       | | |     | |   `-ParenExpr {{.*}} <col:3> 'int'
+// CHECK-NEXT: |       | | |     | |     `-BinaryOperator {{.*}} <col:16, <invalid sloc>> 'int' '+'
+// CHECK-NEXT: |       | | |     | |       |-BinaryOperator {{.*}} <col:16, col:26> 'int' '-'
+// CHECK-NEXT: |       | | |     | |       | |-IntegerLiteral {{.*}} <col:16> 'int' 0
+// CHECK-NEXT: |       | | |     | |       | `-IntegerLiteral {{.*}} <col:26> 'int' 1
+// CHECK-NEXT: |       | | |     | |       `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
 // CHECK-NEXT: |       | | |     | `-IntegerLiteral {{.*}} <col:26> 'int' 1
 // CHECK-NEXT: |       | | |     `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
 // CHECK-NEXT: |       | | `-DeclRefExpr {{.*}} <col:3> 'int' lvalue ParmVar {{.*}} 'x' 'int'
@@ -188,7 +189,7 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       | |-RecordDecl {{.*}} <col:1> col:1 implicit struct definition
 // CHECK-NEXT: |       | | |-CapturedRecordAttr {{.*}} <<invalid sloc>> Implicit
 // CHECK-NEXT: |       | | `-FieldDecl {{.*}} <line:6:3> col:3 implicit 'int'
-// CHECK-NEXT: |       | |   `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit 9
+// CHECK-NEXT: |       | |   `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit {{.*}}
 // CHECK-NEXT: |       | `-CapturedDecl {{.*}} <<invalid sloc>> <invalid sloc> nothrow
 // CHECK-NEXT: |       |   |-OMPTeamsDistributeParallelForDirective {{.*}} <line:5:1, col:42>
 // CHECK-NEXT: |       |   | `-CapturedStmt {{.*}} <line:6:3, line:7:5>
@@ -306,14 +307,15 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       |     `-BinaryOperator {{.*}} <col:3, <invalid sloc>> 'int' '-'
 // CHECK-NEXT: |       |       |-BinaryOperator {{.*}} <col:3, col:26> 'int' '/'
 // CHECK-NEXT: |       |       | |-ParenExpr {{.*}} <col:3> 'int'
-// CHECK-NEXT: |       |       | | `-BinaryOperator {{.*}} <col:23, col:26> 'int' '+'
-// CHECK-NEXT: |       |       | |   |-BinaryOperator {{.*}} <col:23, <invalid sloc>> 'int' '-'
-// CHECK-NEXT: |       |       | |   | |-BinaryOperator {{.*}} <col:23, col:16> 'int' '-'
-// CHECK-NEXT: |       |       | |   | | |-ImplicitCastExpr {{.*}} <col:23> 'int' <LValueToRValue>
-// CHECK-NEXT: |       |       | |   | | | `-DeclRefExpr {{.*}} <col:23> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
-// CHECK-NEXT: |       |       | |   | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
-// CHECK-NEXT: |       |       | |   | `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
-// CHECK-NEXT: |       |       | |   `-IntegerLiteral {{.*}} <col:26> 'int' 1
+// CHECK-NEXT: |       |       | | `-BinaryOperator {{.*}} <col:23, col:3> 'int' '-'
+// CHECK-NEXT: |       |       | |   |-ImplicitCastExpr {{.*}} <col:23> 'int' <LValueToRValue>
+// CHECK-NEXT: |       |       | |   | `-DeclRefExpr {{.*}} <col:23> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
+// CHECK-NEXT: |       |       | |   `-ParenExpr {{.*}} <col:3> 'int'
+// CHECK-NEXT: |       |       | |     `-BinaryOperator {{.*}} <col:16, <invalid sloc>> 'int' '+'
+// CHECK-NEXT: |       |       | |       |-BinaryOperator {{.*}} <col:16, col:26> 'int' '-'
+// CHECK-NEXT: |       |       | |       | |-IntegerLiteral {{.*}} <col:16> 'int' 0
+// CHECK-NEXT: |       |       | |       | `-IntegerLiteral {{.*}} <col:26> 'int' 1
+// CHECK-NEXT: |       |       | |       `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
 // CHECK-NEXT: |       |       | `-IntegerLiteral {{.*}} <col:26> 'int' 1
 // CHECK-NEXT: |       |       `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
 // CHECK-NEXT: |       `-DeclRefExpr {{.*}} <col:3> 'int' lvalue ParmVar {{.*}} 'x' 'int'
@@ -507,14 +509,15 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       | | |   `-BinaryOperator {{.*}} <col:3, <invalid sloc>> 'int' '-'
 // CHECK-NEXT: |       | | |     |-BinaryOperator {{.*}} <col:3, col:26> 'int' '/'
 // CHECK-NEXT: |       | | |     | |-ParenExpr {{.*}} <col:3> 'int'
-// CHECK-NEXT: |       | | |     | | `-BinaryOperator {{.*}} <col:23, col:26> 'int' '+'
-// CHECK-NEXT: |       | | |     | |   |-BinaryOperator {{.*}} <col:23, <invalid sloc>> 'int' '-'
-// CHECK-NEXT: |       | | |     | |   | |-BinaryOperator {{.*}} <col:23, col:16> 'int' '-'
-// CHECK-NEXT: |       | | |     | |   | | |-ImplicitCastExpr {{.*}} <col:23> 'int' <LValueToRValue>
-// CHECK-NEXT: |       | | |     | |   | | | `-DeclRefExpr {{.*}} <col:23> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
-// CHECK-NEXT: |       | | |     | |   | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
-// CHECK-NEXT: |       | | |     | |   | `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
-// CHECK-NEXT: |       | | |     | |   `-IntegerLiteral {{.*}} <col:26> 'int' 1
+// CHECK-NEXT: |       | | |     | | `-BinaryOperator {{.*}} <col:23, col:3> 'int' '-'
+// CHECK-NEXT: |       | | |     | |   |-ImplicitCastExpr {{.*}} <col:23> 'int' <LValueToRValue>
+// CHECK-NEXT: |       | | |     | |   | `-DeclRefExpr {{.*}} <col:23> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
+// CHECK-NEXT: |       | | |     | |   `-ParenExpr {{.*}} <col:3> 'int'
+// CHECK-NEXT: |       | | |     | |     `-BinaryOperator {{.*}} <col:16, <invalid sloc>> 'int' '+'
+// CHECK-NEXT: |       | | |     | |       |-BinaryOperator {{.*}} <col:16, col:26> 'int' '-'
+// CHECK-NEXT: |       | | |     | |       | |-IntegerLiteral {{.*}} <col:16> 'int' 0
+// CHECK-NEXT: |       | | |     | |       | `-IntegerLiteral {{.*}} <col:26> 'int' 1
+// CHECK-NEXT: |       | | |     | |       `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
 // CHECK-NEXT: |       | | |     | `-IntegerLiteral {{.*}} <col:26> 'int' 1
 // CHECK-NEXT: |       | | |     `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
 // CHECK-NEXT: |       | | |-DeclRefExpr {{.*}} <col:3> 'int' lvalue ParmVar {{.*}} 'x' 'int'
@@ -529,9 +532,9 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       | |-RecordDecl {{.*}} <col:1> col:1 implicit struct definition
 // CHECK-NEXT: |       | | |-CapturedRecordAttr {{.*}} <<invalid sloc>> Implicit
 // CHECK-NEXT: |       | | |-FieldDecl {{.*}} <line:13:3> col:3 implicit 'int'
-// CHECK-NEXT: |       | | | `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit 9
+// CHECK-NEXT: |       | | | `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit {{.*}}
 // CHECK-NEXT: |       | | `-FieldDecl {{.*}} <line:14:25> col:25 implicit 'int'
-// CHECK-NEXT: |       | |   `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit 9
+// CHECK-NEXT: |       | |   `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit {{.*}}
 // CHECK-NEXT: |       | `-CapturedDecl {{.*}} <<invalid sloc>> <invalid sloc> nothrow
 // CHECK-NEXT: |       |   |-OMPTeamsDistributeParallelForDirective {{.*}} <line:12:1, col:42>
 // CHECK-NEXT: |       |   | `-CapturedStmt {{.*}} <line:13:3, line:15:7>
@@ -711,14 +714,15 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       |     `-BinaryOperator {{.*}} <col:3, <invalid sloc>> 'int' '-'
 // CHECK-NEXT: |       |       |-BinaryOperator {{.*}} <col:3, col:26> 'int' '/'
 // CHECK-NEXT: |       |       | |-ParenExpr {{.*}} <col:3> 'int'
-// CHECK-NEXT: |       |       | | `-BinaryOperator {{.*}} <col:23, col:26> 'int' '+'
-// CHECK-NEXT: |       |       | |   |-BinaryOperator {{.*}} <col:23, <invalid sloc>> 'int' '-'
-// CHECK-NEXT: |       |       | |   | |-BinaryOperator {{.*}} <col:23, col:16> 'int' '-'
-// CHECK-NEXT: |       |       | |   | | |-ImplicitCastExpr {{.*}} <col:23> 'int' <LValueToRValue>
-// CHECK-NEXT: |       |       | |   | | | `-DeclRefExpr {{.*}} <col:23> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
-// CHECK-NEXT: |       |       | |   | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
-// CHECK-NEXT: |       |       | |   | `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
-// CHECK-NEXT: |       |       | |   `-IntegerLiteral {{.*}} <col:26> 'int' 1
+// CHECK-NEXT: |       |       | | `-BinaryOperator {{.*}} <col:23, col:3> 'int' '-'
+// CHECK-NEXT: |       |       | |   |-ImplicitCastExpr {{.*}} <col:23> 'int' <LValueToRValue>
+// CHECK-NEXT: |       |       | |   | `-DeclRefExpr {{.*}} <col:23> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
+// CHECK-NEXT: |       |       | |   `-ParenExpr {{.*}} <col:3> 'int'
+// CHECK-NEXT: |       |       | |     `-BinaryOperator {{.*}} <col:16, <invalid sloc>> 'int' '+'
+// CHECK-NEXT: |       |       | |       |-BinaryOperator {{.*}} <col:16, col:26> 'int' '-'
+// CHECK-NEXT: |       |       | |       | |-IntegerLiteral {{.*}} <col:16> 'int' 0
+// CHECK-NEXT: |       |       | |       | `-IntegerLiteral {{.*}} <col:26> 'int' 1
+// CHECK-NEXT: |       |       | |       `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
 // CHECK-NEXT: |       |       | `-IntegerLiteral {{.*}} <col:26> 'int' 1
 // CHECK-NEXT: |       |       `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
 // CHECK-NEXT: |       |-DeclRefExpr {{.*}} <col:3> 'int' lvalue ParmVar {{.*}} 'x' 'int'
@@ -916,14 +920,15 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       | | |   `-BinaryOperator {{.*}} <col:3, <invalid sloc>> 'int' '-'
 // CHECK-NEXT: |       | | |     |-BinaryOperator {{.*}} <col:3, col:26> 'int' '/'
 // CHECK-NEXT: |       | | |     | |-ParenExpr {{.*}} <col:3> 'int'
-// CHECK-NEXT: |       | | |     | | `-BinaryOperator {{.*}} <col:23, col:26> 'int' '+'
-// CHECK-NEXT: |       | | |     | |   |-BinaryOperator {{.*}} <col:23, <invalid sloc>> 'int' '-'
-// CHECK-NEXT: |       | | |     | |   | |-BinaryOperator {{.*}} <col:23, col:16> 'int' '-'
-// CHECK-NEXT: |       | | |     | |   | | |-ImplicitCastExpr {{.*}} <col:23> 'int' <LValueToRValue>
-// CHECK-NEXT: |       | | |     | |   | | | `-DeclRefExpr {{.*}} <col:23> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
-// CHECK-NEXT: |       | | |     | |   | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
-// CHECK-NEXT: |       | | |     | |   | `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
-// CHECK-NEXT: |       | | |     | |   `-IntegerLiteral {{.*}} <col:26> 'int' 1
+// CHECK-NEXT: |       | | |     | | `-BinaryOperator {{.*}} <col:23, col:3> 'int' '-'
+// CHECK-NEXT: |       | | |     | |   |-ImplicitCastExpr {{.*}} <col:23> 'int' <LValueToRValue>
+// CHECK-NEXT: |       | | |     | |   | `-DeclRefExpr {{.*}} <col:23> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
+// CHECK-NEXT: |       | | |     | |   `-ParenExpr {{.*}} <col:3> 'int'
+// CHECK-NEXT: |       | | |     | |     `-BinaryOperator {{.*}} <col:16, <invalid sloc>> 'int' '+'
+// CHECK-NEXT: |       | | |     | |       |-BinaryOperator {{.*}} <col:16, col:26> 'int' '-'
+// CHECK-NEXT: |       | | |     | |       | |-IntegerLiteral {{.*}} <col:16> 'int' 0
+// CHECK-NEXT: |       | | |     | |       | `-IntegerLiteral {{.*}} <col:26> 'int' 1
+// CHECK-NEXT: |       | | |     | |       `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
 // CHECK-NEXT: |       | | |     | `-IntegerLiteral {{.*}} <col:26> 'int' 1
 // CHECK-NEXT: |       | | |     `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
 // CHECK-NEXT: |       | | |-DeclRefExpr {{.*}} <col:3> 'int' lvalue ParmVar {{.*}} 'x' 'int'
@@ -938,9 +943,9 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       | |-RecordDecl {{.*}} <col:1> col:1 implicit struct definition
 // CHECK-NEXT: |       | | |-CapturedRecordAttr {{.*}} <<invalid sloc>> Implicit
 // CHECK-NEXT: |       | | |-FieldDecl {{.*}} <line:21:3> col:3 implicit 'int'
-// CHECK-NEXT: |       | | | `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit 9
+// CHECK-NEXT: |       | | | `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit {{.*}}
 // CHECK-NEXT: |       | | `-FieldDecl {{.*}} <line:22:25> col:25 implicit 'int'
-// CHECK-NEXT: |       | |   `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit 9
+// CHECK-NEXT: |       | |   `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit {{.*}}
 // CHECK-NEXT: |       | `-CapturedDecl {{.*}} <<invalid sloc>> <invalid sloc> nothrow
 // CHECK-NEXT: |       |   |-OMPTeamsDistributeParallelForDirective {{.*}} <line:20:1, col:54>
 // CHECK-NEXT: |       |   | |-OMPCollapseClause {{.*}} <col:43, col:53>
@@ -1123,14 +1128,15 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       |     `-BinaryOperator {{.*}} <col:3, <invalid sloc>> 'int' '-'
 // CHECK-NEXT: |       |       |-BinaryOperator {{.*}} <col:3, col:26> 'int' '/'
 // CHECK-NEXT: |       |       | |-ParenExpr {{.*}} <col:3> 'int'
-// CHECK-NEXT: |       |       | | `-BinaryOperator {{.*}} <col:23, col:26> 'int' '+'
-// CHECK-NEXT: |       |       | |   |-BinaryOperator {{.*}} <col:23, <invalid sloc>> 'int' '-'
-// CHECK-NEXT: |       |       | |   | |-BinaryOperator {{.*}} <col:23, col:16> 'int' '-'
-// CHECK-NEXT: |       |       | |   | | |-ImplicitCastExpr {{.*}} <col:23> 'int' <LValueToRValue>
-// CHECK-NEXT: |       |       | |   | | | `-DeclRefExpr {{.*}} <col:23> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
-// CHECK-NEXT: |       |       | |   | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
-// CHECK-NEXT: |       |       | |   | `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
-// CHECK-NEXT: |       |       | |   `-IntegerLiteral {{.*}} <col:26> 'int' 1
+// CHECK-NEXT: |       |       | | `-BinaryOperator {{.*}} <col:23, col:3> 'int' '-'
+// CHECK-NEXT: |       |       | |   |-ImplicitCastExpr {{.*}} <col:23> 'int' <LValueToRValue>
+// CHECK-NEXT: |       |       | |   | `-DeclRefExpr {{.*}} <col:23> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
+// CHECK-NEXT: |       |       | |   `-ParenExpr {{.*}} <col:3> 'int'
+// CHECK-NEXT: |       |       | |     `-BinaryOperator {{.*}} <col:16, <invalid sloc>> 'int' '+'
+// CHECK-NEXT: |       |       | |       |-BinaryOperator {{.*}} <col:16, col:26> 'int' '-'
+// CHECK-NEXT: |       |       | |       | |-IntegerLiteral {{.*}} <col:16> 'int' 0
+// CHECK-NEXT: |       |       | |       | `-IntegerLiteral {{.*}} <col:26> 'int' 1
+// CHECK-NEXT: |       |       | |       `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
 // CHECK-NEXT: |       |       | `-IntegerLiteral {{.*}} <col:26> 'int' 1
 // CHECK-NEXT: |       |       `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
 // CHECK-NEXT: |       |-DeclRefExpr {{.*}} <col:3> 'int' lvalue ParmVar {{.*}} 'x' 'int'
@@ -1333,26 +1339,28 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       | | |     | |-ImplicitCastExpr {{.*}} <line:29:3, col:26> 'long' <IntegralCast>
 // CHECK-NEXT: |       | | |     | | `-BinaryOperator {{.*}} <col:3, col:26> 'int' '/'
 // CHECK-NEXT: |       | | |     | |   |-ParenExpr {{.*}} <col:3> 'int'
-// CHECK-NEXT: |       | | |     | |   | `-BinaryOperator {{.*}} <col:23, col:26> 'int' '+'
-// CHECK-NEXT: |       | | |     | |   |   |-BinaryOperator {{.*}} <col:23, <invalid sloc>> 'int' '-'
-// CHECK-NEXT: |       | | |     | |   |   | |-BinaryOperator {{.*}} <col:23, col:16> 'int' '-'
-// CHECK-NEXT: |       | | |     | |   |   | | |-ImplicitCastExpr {{.*}} <col:23> 'int' <LValueToRValue>
-// CHECK-NEXT: |       | | |     | |   |   | | | `-DeclRefExpr {{.*}} <col:23> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
-// CHECK-NEXT: |       | | |     | |   |   | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
-// CHECK-NEXT: |       | | |     | |   |   | `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
-// CHECK-NEXT: |       | | |     | |   |   `-IntegerLiteral {{.*}} <col:26> 'int' 1
+// CHECK-NEXT: |       | | |     | |   | `-BinaryOperator {{.*}} <col:23, col:3> 'int' '-'
+// CHECK-NEXT: |       | | |     | |   |   |-ImplicitCastExpr {{.*}} <col:23> 'int' <LValueToRValue>
+// CHECK-NEXT: |       | | |     | |   |   | `-DeclRefExpr {{.*}} <col:23> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
+// CHECK-NEXT: |       | | |     | |   |   `-ParenExpr {{.*}} <col:3> 'int'
+// CHECK-NEXT: |       | | |     | |   |     `-BinaryOperator {{.*}} <col:16, <invalid sloc>> 'int' '+'
+// CHECK-NEXT: |       | | |     | |   |       |-BinaryOperator {{.*}} <col:16, col:26> 'int' '-'
+// CHECK-NEXT: |       | | |     | |   |       | |-IntegerLiteral {{.*}} <col:16> 'int' 0
+// CHECK-NEXT: |       | | |     | |   |       | `-IntegerLiteral {{.*}} <col:26> 'int' 1
+// CHECK-NEXT: |       | | |     | |   |       `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
 // CHECK-NEXT: |       | | |     | |   `-IntegerLiteral {{.*}} <col:26> 'int' 1
 // CHECK-NEXT: |       | | |     | `-ImplicitCastExpr {{.*}} <line:30:5, col:28> 'long' <IntegralCast>
 // CHECK-NEXT: |       | | |     |   `-BinaryOperator {{.*}} <col:5, col:28> 'int' '/'
 // CHECK-NEXT: |       | | |     |     |-ParenExpr {{.*}} <col:5> 'int'
-// CHECK-NEXT: |       | | |     |     | `-BinaryOperator {{.*}} <col:25, col:28> 'int' '+'
-// CHECK-NEXT: |       | | |     |     |   |-BinaryOperator {{.*}} <col:25, <invalid sloc>> 'int' '-'
-// CHECK-NEXT: |       | | |     |     |   | |-BinaryOperator {{.*}} <col:25, col:18> 'int' '-'
-// CHECK-NEXT: |       | | |     |     |   | | |-ImplicitCastExpr {{.*}} <col:25> 'int' <LValueToRValue>
-// CHECK-NEXT: |       | | |     |     |   | | | `-DeclRefExpr {{.*}} <col:25> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
-// CHECK-NEXT: |       | | |     |     |   | | `-IntegerLiteral {{.*}} <col:18> 'int' 0
-// CHECK-NEXT: |       | | |     |     |   | `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
-// CHECK-NEXT: |       | | |     |     |   `-IntegerLiteral {{.*}} <col:28> 'int' 1
+// CHECK-NEXT: |       | | |     |     | `-BinaryOperator {{.*}} <col:25, col:5> 'int' '-'
+// CHECK-NEXT: |       | | |     |     |   |-ImplicitCastExpr {{.*}} <col:25> 'int' <LValueToRValue>
+// CHECK-NEXT: |       | | |     |     |   | `-DeclRefExpr {{.*}} <col:25> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
+// CHECK-NEXT: |       | | |     |     |   `-ParenExpr {{.*}} <col:5> 'int'
+// CHECK-NEXT: |       | | |     |     |     `-BinaryOperator {{.*}} <col:18, <invalid sloc>> 'int' '+'
+// CHECK-NEXT: |       | | |     |     |       |-BinaryOperator {{.*}} <col:18, col:28> 'int' '-'
+// CHECK-NEXT: |       | | |     |     |       | |-IntegerLiteral {{.*}} <col:18> 'int' 0
+// CHECK-NEXT: |       | | |     |     |       | `-IntegerLiteral {{.*}} <col:28> 'int' 1
+// CHECK-NEXT: |       | | |     |     |       `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
 // CHECK-NEXT: |       | | |     |     `-IntegerLiteral {{.*}} <col:28> 'int' 1
 // CHECK-NEXT: |       | | |     `-ImplicitCastExpr {{.*}} <<invalid sloc>> 'long' <IntegralCast>
 // CHECK-NEXT: |       | | |       `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
@@ -1368,9 +1376,9 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       | |-RecordDecl {{.*}} <col:1> col:1 implicit struct definition
 // CHECK-NEXT: |       | | |-CapturedRecordAttr {{.*}} <<invalid sloc>> Implicit
 // CHECK-NEXT: |       | | |-FieldDecl {{.*}} <line:29:3> col:3 implicit 'int'
-// CHECK-NEXT: |       | | | `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit 9
+// CHECK-NEXT: |       | | | `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit {{.*}}
 // CHECK-NEXT: |       | | `-FieldDecl {{.*}} <line:30:5> col:5 implicit 'int'
-// CHECK-NEXT: |       | |   `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit 9
+// CHECK-NEXT: |       | |   `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit {{.*}}
 // CHECK-NEXT: |       | `-CapturedDecl {{.*}} <<invalid sloc>> <invalid sloc> nothrow
 // CHECK-NEXT: |       |   |-OMPTeamsDistributeParallelForDirective {{.*}} <line:28:1, col:54>
 // CHECK-NEXT: |       |   | |-OMPCollapseClause {{.*}} <col:43, col:53>
@@ -1558,26 +1566,28 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       |       | |-ImplicitCastExpr {{.*}} <line:29:3, col:26> 'long' <IntegralCast>
 // CHECK-NEXT: |       |       | | `-BinaryOperator {{.*}} <col:3, col:26> 'int' '/'
 // CHECK-NEXT: |       |       | |   |-ParenExpr {{.*}} <col:3> 'int'
-// CHECK-NEXT: |       |       | |   | `-BinaryOperator {{.*}} <col:23, col:26> 'int' '+'
-// CHECK-NEXT: |       |       | |   |   |-BinaryOperator {{.*}} <col:23, <invalid sloc>> 'int' '-'
-// CHECK-NEXT: |       |       | |   |   | |-BinaryOperator {{.*}} <col:23, col:16> 'int' '-'
-// CHECK-NEXT: |       |       | |   |   | | |-ImplicitCastExpr {{.*}} <col:23> 'int' <LValueToRValue>
-// CHECK-NEXT: |       |       | |   |   | | | `-DeclRefExpr {{.*}} <col:23> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
-// CHECK-NEXT: |       |       | |   |   | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
-// CHECK-NEXT: |       |       | |   |   | `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
-// CHECK-NEXT: |       |       | |   |   `-IntegerLiteral {{.*}} <col:26> 'int' 1
+// CHECK-NEXT: |       |       | |   | `-BinaryOperator {{.*}} <col:23, col:3> 'int' '-'
+// CHECK-NEXT: |       |       | |   |   |-ImplicitCastExpr {{.*}} <col:23> 'int' <LValueToRValue>
+// CHECK-NEXT: |       |       | |   |   | `-DeclRefExpr {{.*}} <col:23> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
+// CHECK-NEXT: |       |       | |   |   `-ParenExpr {{.*}} <col:3> 'int'
+// CHECK-NEXT: |       |       | |   |     `-BinaryOperator {{.*}} <col:16, <invalid sloc>> 'int' '+'
+// CHECK-NEXT: |       |       | |   |       |-BinaryOperator {{.*}} <col:16, col:26> 'int' '-'
+// CHECK-NEXT: |       |       | |   |       | |-IntegerLiteral {{.*}} <col:16> 'int' 0
+// CHECK-NEXT: |       |       | |   |       | `-IntegerLiteral {{.*}} <col:26> 'int' 1
+// CHECK-NEXT: |       |       | |   |       `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
 // CHECK-NEXT: |       |       | |   `-IntegerLiteral {{.*}} <col:26> 'int' 1
 // CHECK-NEXT: |       |       | `-ImplicitCastExpr {{.*}} <line:30:5, col:28> 'long' <IntegralCast>
 // CHECK-NEXT: |       |       |   `-BinaryOperator {{.*}} <col:5, col:28> 'int' '/'
 // CHECK-NEXT: |       |       |     |-ParenExpr {{.*}} <col:5> 'int'
-// CHECK-NEXT: |       |       |     | `-BinaryOperator {{.*}} <col:25, col:28> 'int' '+'
-// CHECK-NEXT: |       |       |     |   |-BinaryOperator {{.*}} <col:25, <invalid sloc>> 'int' '-'
-// CHECK-NEXT: |       |       |     |   | |-BinaryOperator {{.*}} <col:25, col:18> 'int' '-'
-// CHECK-NEXT: |       |       |     |   | | |-ImplicitCastExpr {{.*}} <col:25> 'int' <LValueToRValue>
-// CHECK-NEXT: |       |       |     |   | | | `-DeclRefExpr {{.*}} <col:25> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
-// CHECK-NEXT: |       |       |     |   | | `-IntegerLiteral {{.*}} <col:18> 'int' 0
-// CHECK-NEXT: |       |       |     |   | `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
-// CHECK-NEXT: |       |       |     |   `-IntegerLiteral {{.*}} <col:28> 'int' 1
+// CHECK-NEXT: |       |       |     | `-BinaryOperator {{.*}} <col:25, col:5> 'int' '-'
+// CHECK-NEXT: |       |       |     |   |-ImplicitCastExpr {{.*}} <col:25> 'int' <LValueToRValue>
+// CHECK-NEXT: |       |       |     |   | `-DeclRefExpr {{.*}} <col:25> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
+// CHECK-NEXT: |       |       |     |   `-ParenExpr {{.*}} <col:5> 'int'
+// CHECK-NEXT: |       |       |     |     `-BinaryOperator {{.*}} <col:18, <invalid sloc>> 'int' '+'
+// CHECK-NEXT: |       |       |     |       |-BinaryOperator {{.*}} <col:18, col:28> 'int' '-'
+// CHECK-NEXT: |       |       |     |       | |-IntegerLiteral {{.*}} <col:18> 'int' 0
+// CHECK-NEXT: |       |       |     |       | `-IntegerLiteral {{.*}} <col:28> 'int' 1
+// CHECK-NEXT: |       |       |     |       `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
 // CHECK-NEXT: |       |       |     `-IntegerLiteral {{.*}} <col:28> 'int' 1
 // CHECK-NEXT: |       |       `-ImplicitCastExpr {{.*}} <<invalid sloc>> 'long' <IntegralCast>
 // CHECK-NEXT: |       |         `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
@@ -1845,26 +1855,28 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT:         | | |     | |-ImplicitCastExpr {{.*}} <line:37:3, col:26> 'long' <IntegralCast>
 // CHECK-NEXT:         | | |     | | `-BinaryOperator {{.*}} <col:3, col:26> 'int' '/'
 // CHECK-NEXT:         | | |     | |   |-ParenExpr {{.*}} <col:3> 'int'
-// CHECK-NEXT:         | | |     | |   | `-BinaryOperator {{.*}} <col:23, col:26> 'int' '+'
-// CHECK-NEXT:         | | |     | |   |   |-BinaryOperator {{.*}} <col:23, <invalid sloc>> 'int' '-'
-// CHECK-NEXT:         | | |     | |   |   | |-BinaryOperator {{.*}} <col:23, col:16> 'int' '-'
-// CHECK-NEXT:         | | |     | |   |   | | |-ImplicitCastExpr {{.*}} <col:23> 'int' <LValueToRValue>
-// CHECK-NEXT:         | | |     | |   |   | | | `-DeclRefExpr {{.*}} <col:23> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
-// CHECK-NEXT:         | | |     | |   |   | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
-// CHECK-NEXT:         | | |     | |   |   | `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
-// CHECK-NEXT:         | | |     | |   |   `-IntegerLiteral {{.*}} <col:26> 'int' 1
+// CHECK-NEXT:         | | |     | |   | `-BinaryOperator {{.*}} <col:23, col:3> 'int' '-'
+// CHECK-NEXT:         | | |     | |   |   |-ImplicitCastExpr {{.*}} <col:23> 'int' <LValueToRValue>
+// CHECK-NEXT:         | | |     | |   |   | `-DeclRefExpr {{.*}} <col:23> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
+// CHECK-NEXT:         | | |     | |   |   `-ParenExpr {{.*}} <col:3> 'int'
+// CHECK-NEXT:         | | |     | |   |     `-BinaryOperator {{.*}} <col:16, <invalid sloc>> 'int' '+'
+// CHECK-NEXT:         | | |     | |   |       |-BinaryOperator {{.*}} <col:16, col:26> 'int' '-'
+// CHECK-NEXT:         | | |     | |   |       | |-IntegerLiteral {{.*}} <col:16> 'int' 0
+// CHECK-NEXT:         | | |     | |   |       | `-IntegerLiteral {{.*}} <col:26> 'int' 1
+// CHECK-NEXT:         | | |     | |   |       `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
 // CHECK-NEXT:         | | |     | |   `-IntegerLiteral {{.*}} <col:26> 'int' 1
 // CHECK-NEXT:         | | |     | `-ImplicitCastExpr {{.*}} <line:38:5, col:28> 'long' <IntegralCast>
 // CHECK-NEXT:         | | |     |   `-BinaryOperator {{.*}} <col:5, col:28> 'int' '/'
 // CHECK-NEXT:         | | |     |     |-ParenExpr {{.*}} <col:5> 'int'
-// CHECK-NEXT:         | | |     |     | `-BinaryOperator {{.*}} <col:25, col:28> 'int' '+'
-// CHECK-NEXT:         | | |     |     |   |-BinaryOperator {{.*}} <col:25, <invalid sloc>> 'int' '-'
-// CHECK-NEXT:         | | |     |     |   | |-BinaryOperator {{.*}} <col:25, col:18> 'int' '-'
-// CHECK-NEXT:         | | |     |     |   | | |-ImplicitCastExpr {{.*}} <col:25> 'int' <LValueToRValue>
-// CHECK-NEXT:         | | |     |     |   | | | `-DeclRefExpr {{.*}} <col:25> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
-// CHECK-NEXT:         | | |     |     |   | | `-IntegerLiteral {{.*}} <col:18> 'int' 0
-// CHECK-NEXT:         | | |     |     |   | `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
-// CHECK-NEXT:         | | |     |     |   `-IntegerLiteral {{.*}} <col:28> 'int' 1
+// CHECK-NEXT:         | | |     |     | `-BinaryOperator {{.*}} <col:25, col:5> 'int' '-'
+// CHECK-NEXT:         | | |     |     |   |-ImplicitCastExpr {{.*}} <col:25> 'int' <LValueToRValue>
+// CHECK-NEXT:         | | |     |     |   | `-DeclRefExpr {{.*}} <col:25> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
+// CHECK-NEXT:         | | |     |     |   `-ParenExpr {{.*}} <col:5> 'int'
+// CHECK-NEXT:         | | |     |     |     `-BinaryOperator {{.*}} <col:18, <invalid sloc>> 'int' '+'
+// CHECK-NEXT:         | | |     |     |       |-BinaryOperator {{.*}} <col:18, col:28> 'int' '-'
+// CHECK-NEXT:         | | |     |     |       | |-IntegerLiteral {{.*}} <col:18> 'int' 0
+// CHECK-NEXT:         | | |     |     |       | `-IntegerLiteral {{.*}} <col:28> 'int' 1
+// CHECK-NEXT:         | | |     |     |       `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
 // CHECK-NEXT:         | | |     |     `-IntegerLiteral {{.*}} <col:28> 'int' 1
 // CHECK-NEXT:         | | |     `-ImplicitCastExpr {{.*}} <<invalid sloc>> 'long' <IntegralCast>
 // CHECK-NEXT:         | | |       `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
@@ -1881,11 +1893,11 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT:         | |-RecordDecl {{.*}} <col:1> col:1 implicit struct definition
 // CHECK-NEXT:         | | |-CapturedRecordAttr {{.*}} <<invalid sloc>> Implicit
 // CHECK-NEXT:         | | |-FieldDecl {{.*}} <line:37:3> col:3 implicit 'int'
-// CHECK-NEXT:         | | | `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit 9
+// CHECK-NEXT:         | | | `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit {{.*}}
 // CHECK-NEXT:         | | |-FieldDecl {{.*}} <line:38:5> col:5 implicit 'int'
-// CHECK-NEXT:         | | | `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit 9
+// CHECK-NEXT:         | | | `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit {{.*}}
 // CHECK-NEXT:         | | `-FieldDecl {{.*}} <line:39:27> col:27 implicit 'int'
-// CHECK-NEXT:         | |   `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit 9
+// CHECK-NEXT:         | |   `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit {{.*}}
 // CHECK-NEXT:         | `-CapturedDecl {{.*}} <<invalid sloc>> <invalid sloc> nothrow
 // CHECK-NEXT:         |   |-OMPTeamsDistributeParallelForDirective {{.*}} <line:36:1, col:54>
 // CHECK-NEXT:         |   | |-OMPCollapseClause {{.*}} <col:43, col:53>
@@ -2135,26 +2147,28 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT:         |       | |-ImplicitCastExpr {{.*}} <line:37:3, col:26> 'long' <IntegralCast>
 // CHECK-NEXT:         |       | | `-BinaryOperator {{.*}} <col:3, col:26> 'int' '/'
 // CHECK-NEXT:         |       | |   |-ParenExpr {{.*}} <col:3> 'int'
-// CHECK-NEXT:         |       | |   | `-BinaryOperator {{.*}} <col:23, col:26> 'int' '+'
-// CHECK-NEXT:         |       | |   |   |-BinaryOperator {{.*}} <col:23, <invalid sloc>> 'int' '-'
-// CHECK-NEXT:         |       | |   |   | |-BinaryOperator {{.*}} <col:23, col:16> 'int' '-'
-// CHECK-NEXT:         |       | |   |   | | |-ImplicitCastExpr {{.*}} <col:23> 'int' <LValueToRValue>
-// CHECK-NEXT:         |       | |   |   | | | `-DeclRefExpr {{.*}} <col:23> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
-// CHECK-NEXT:         |       | |   |   | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
-// CHECK-NEXT:         |       | |   |   | `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
-// CHECK-NEXT:         |       | |   |   `-IntegerLiteral {{.*}} <col:26> 'int' 1
+// CHECK-NEXT:         |       | |   | `-BinaryOperator {{.*}} <col:23, col:3> 'int' '-'
+// CHECK-NEXT:         |       | |   |   |-ImplicitCastExpr {{.*}} <col:23> 'int' <LValueToRValue>
+// CHECK-NEXT:         |       | |   |   | `-DeclRefExpr {{.*}} <col:23> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
+// CHECK-NEXT:         |       | |   |   `-ParenExpr {{.*}} <col:3> 'int'
+// CHECK-NEXT:         |       | |   |     `-BinaryOperator {{.*}} <col:16, <invalid sloc>> 'int' '+'
+// CHECK-NEXT:         |       | |   |       |-BinaryOperator {{.*}} <col:16, col:26> 'int' '-'
+// CHECK-NEXT:         |       | |   |       | |-IntegerLiteral {{.*}} <col:16> 'int' 0
+// CHECK-NEXT:         |       | |   |       | `-IntegerLiteral {{.*}} <col:26> 'int' 1
+// CHECK-NEXT:         |       | |   |       `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
 // CHECK-NEXT:         |       | |   `-IntegerLiteral {{.*}} <col:26> 'int' 1
 // CHECK-NEXT:         |       | `-ImplicitCastExpr {{.*}} <line:38:5, col:28> 'long' <IntegralCast>
 // CHECK-NEXT:         |       |   `-BinaryOperator {{.*}} <col:5, col:28> 'int' '/'
 // CHECK-NEXT:         |       |     |-ParenExpr {{.*}} <col:5> 'int'
-// CHECK-NEXT:         |       |     | `-BinaryOperator {{.*}} <col:25, col:28> 'int' '+'
-// CHECK-NEXT:         |       |     |   |-BinaryOperator {{.*}} <col:25, <invalid sloc>> 'int' '-'
-// CHECK-NEXT:         |       |     |   | |-BinaryOperator {{.*}} <col:25, col:18> 'int' '-'
-// CHECK-NEXT:         |       |     |   | | |-ImplicitCastExpr {{.*}} <col:25> 'int' <LValueToRValue>
-// CHECK-NEXT:         |       |     |   | | | `-DeclRefExpr {{.*}} <col:25> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
-// CHECK-NEXT:         |       |     |   | | `-IntegerLiteral {{.*}} <col:18> 'int' 0
-// CHECK-NEXT:         |       |     |   | `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
-// CHECK-NEXT:         |       |     |   `-IntegerLiteral {{.*}} <col:28> 'int' 1
+// CHECK-NEXT:         |       |     | `-BinaryOperator {{.*}} <col:25, col:5> 'int' '-'
+// CHECK-NEXT:         |       |     |   |-ImplicitCastExpr {{.*}} <col:25> 'int' <LValueToRValue>
+// CHECK-NEXT:         |       |     |   | `-DeclRefExpr {{.*}} <col:25> 'int' lvalue OMPCapturedExpr {{.*}} '.capture_expr.' 'int'
+// CHECK-NEXT:         |       |     |   `-ParenExpr {{.*}} <col:5> 'int'
+// CHECK-NEXT:         |       |     |     `-BinaryOperator {{.*}} <col:18, <invalid sloc>> 'int' '+'
+// CHECK-NEXT:         |       |     |       |-BinaryOperator {{.*}} <col:18, col:28> 'int' '-'
+// CHECK-NEXT:         |       |     |       | |-IntegerLiteral {{.*}} <col:18> 'int' 0
+// CHECK-NEXT:         |       |     |       | `-IntegerLiteral {{.*}} <col:28> 'int' 1
+// CHECK-NEXT:         |       |     |       `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1
 // CHECK-NEXT:         |       |     `-IntegerLiteral {{.*}} <col:28> 'int' 1
 // CHECK-NEXT:         |       `-ImplicitCastExpr {{.*}} <<invalid sloc>> 'long' <IntegralCast>
 // CHECK-NEXT:         |         `-IntegerLiteral {{.*}} <<invalid sloc>> 'int' 1

@@ -3,7 +3,8 @@
 ; first instruction.  Breaking on the instrumented function in a debugger
 ; would then stop at that instruction, before the prologue is finished.
 
-; RUN: opt < %s -asan -asan-module -S | FileCheck %s
+; RUN: opt < %s -asan -asan-module -enable-new-pm=0 -S | FileCheck %s
+; RUN: opt < %s -passes='asan-pipeline' -S | FileCheck %s
 ; 1: void f(int *arg) {
 ; 2: }
 ; 3: int main(int argc, char **argv) {
@@ -17,7 +18,7 @@ target triple = "x86_64-unknown-linux-gnu"
 define dso_local i32 @main(i32 %argc, i8** %argv) #0 !dbg !15 {
 entry:
 ; No suffix like !dbg !123
-; CHECK: %asan_local_stack_base = alloca i64{{$}}
+; CHECK: %asan_local_stack_base = alloca i64, align 8{{$}}
 ; CHECK:     %3 = call i64 @__asan_stack_malloc_0(i64 64){{$}}
   %argc.addr = alloca i32, align 4
   %argv.addr = alloca i8**, align 8

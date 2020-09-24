@@ -212,6 +212,11 @@ Status Debugger::SetPropertyValue(const ExecutionContext *exe_ctx,
       // use-color changed. Ping the prompt so it can reset the ansi terminal
       // codes.
       SetPrompt(GetPrompt());
+    } else if (property_path == g_debugger_properties[ePropertyUseSourceCache].name) {
+      // use-source-cache changed. Wipe out the cache contents if it was disabled.
+      if (!GetUseSourceCache()) {
+        m_source_file_cache.Clear();
+      }
     } else if (is_load_script && target_sp &&
                load_script_old_value == eLoadScriptFromSymFileWarn) {
       if (target_sp->TargetProperties::GetLoadScriptFromSymbolFile() ==
@@ -310,6 +315,9 @@ uint32_t Debugger::GetTerminalWidth() const {
 }
 
 bool Debugger::SetTerminalWidth(uint32_t term_width) {
+  if (auto handler_sp = m_io_handler_stack.Top())
+    handler_sp->TerminalSizeChanged();
+
   const uint32_t idx = ePropertyTerminalWidth;
   return m_collection_sp->SetPropertyAtIndexAsSInt64(nullptr, idx, term_width);
 }
@@ -338,6 +346,26 @@ bool Debugger::SetUseColor(bool b) {
   return ret;
 }
 
+bool Debugger::GetUseAutosuggestion() const {
+  const uint32_t idx = ePropertyShowAutosuggestion;
+  return m_collection_sp->GetPropertyAtIndexAsBoolean(
+      nullptr, idx, g_debugger_properties[idx].default_uint_value != 0);
+}
+
+bool Debugger::GetUseSourceCache() const {
+  const uint32_t idx = ePropertyUseSourceCache;
+  return m_collection_sp->GetPropertyAtIndexAsBoolean(
+      nullptr, idx, g_debugger_properties[idx].default_uint_value != 0);
+}
+
+bool Debugger::SetUseSourceCache(bool b) {
+  const uint32_t idx = ePropertyUseSourceCache;
+  bool ret = m_collection_sp->SetPropertyAtIndexAsBoolean(nullptr, idx, b);
+  if (!ret) {
+    m_source_file_cache.Clear();
+  }
+  return ret;
+}
 bool Debugger::GetHighlightSource() const {
   const uint32_t idx = ePropertyHighlightSource;
   return m_collection_sp->GetPropertyAtIndexAsBoolean(
@@ -644,9 +672,7 @@ Debugger::Debugger(lldb::LogOutputCallback log_callback, void *baton)
       m_event_handler_thread(), m_io_handler_thread(),
       m_sync_broadcaster(nullptr, "lldb.debugger.sync"),
       m_forward_listener_sp(), m_clear_once() {
-  char instance_cstr[256];
-  snprintf(instance_cstr, sizeof(instance_cstr), "debugger_%d", (int)GetID());
-  m_instance_name.SetCString(instance_cstr);
+  m_instance_name.SetString(llvm::formatv("debugger_{0}", GetID()).str());
   if (log_callback)
     m_log_callback_stream_sp =
         std::make_shared<StreamCallback>(log_callback, baton);
@@ -756,7 +782,7 @@ repro::DataRecorder *Debugger::GetInputRecorder() { return m_input_recorder; }
 void Debugger::SetInputFile(FileSP file_sp, repro::DataRecorder *recorder) {
   assert(file_sp && file_sp->IsValid());
   m_input_recorder = recorder;
-  m_input_file_sp = file_sp;
+  m_input_file_sp = std::move(file_sp);
   // Save away the terminal state if that is relevant, so that we can restore
   // it in RestoreInputState.
   SaveInputTerminalState();
@@ -1132,17 +1158,22 @@ bool Debugger::EnableLog(llvm::StringRef channel,
     if (pos != m_log_streams.end())
       log_stream_sp = pos->second.lock();
     if (!log_stream_sp) {
-      llvm::sys::fs::OpenFlags flags = llvm::sys::fs::OF_Text;
+      File::OpenOptions flags =
+          File::eOpenOptionWrite | File::eOpenOptionCanCreate;
       if (log_options & LLDB_LOG_OPTION_APPEND)
-        flags |= llvm::sys::fs::OF_Append;
-      int FD;
-      if (std::error_code ec = llvm::sys::fs::openFileForWrite(
-              log_file, FD, llvm::sys::fs::CD_CreateAlways, flags)) {
-        error_stream << "Unable to open log file: " << ec.message();
+        flags |= File::eOpenOptionAppend;
+      else
+        flags |= File::eOpenOptionTruncate;
+      llvm::Expected<FileUP> file = FileSystem::Instance().Open(
+          FileSpec(log_file), flags, lldb::eFilePermissionsFileDefault, false);
+      if (!file) {
+        error_stream << "Unable to open log file '" << log_file
+                     << "': " << llvm::toString(file.takeError()) << "\n";
         return false;
       }
-      log_stream_sp =
-          std::make_shared<llvm::raw_fd_ostream>(FD, should_close, unbuffered);
+
+      log_stream_sp = std::make_shared<llvm::raw_fd_ostream>(
+          (*file)->GetDescriptor(), should_close, unbuffered);
       m_log_streams[log_file] = log_stream_sp;
     }
   }

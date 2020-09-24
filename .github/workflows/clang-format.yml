@@ -9,12 +9,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+    - name: Get clang-format first
+      run: sudo apt-get install -yqq clang-format-9
+
     - uses: actions/checkout@v2
       with:
         fetch-depth: 2
-
-    - name: Get clang-format first
-      run: sudo apt-get install -yqq clang-format-9
 
     - name: Run clang-format for the patch
       run: |

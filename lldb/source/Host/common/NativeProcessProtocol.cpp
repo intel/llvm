@@ -298,8 +298,7 @@ Status NativeProcessProtocol::RemoveHardwareBreakpoint(lldb::addr_t addr) {
 bool NativeProcessProtocol::RegisterNativeDelegate(
     NativeDelegate &native_delegate) {
   std::lock_guard<std::recursive_mutex> guard(m_delegates_mutex);
-  if (std::find(m_delegates.begin(), m_delegates.end(), &native_delegate) !=
-      m_delegates.end())
+  if (llvm::is_contained(m_delegates, &native_delegate))
     return false;
 
   m_delegates.push_back(&native_delegate);
@@ -650,7 +649,7 @@ Status NativeProcessProtocol::ReadMemoryWithoutTrap(lldb::addr_t addr,
     auto saved_opcodes = makeArrayRef(pair.second.saved_opcodes);
 
     if (bp_addr + saved_opcodes.size() < addr || addr + bytes_read <= bp_addr)
-      continue; // Breapoint not in range, ignore
+      continue; // Breakpoint not in range, ignore
 
     if (bp_addr < addr) {
       saved_opcodes = saved_opcodes.drop_front(addr - bp_addr);

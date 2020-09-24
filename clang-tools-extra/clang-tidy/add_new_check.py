@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 #
-#===- add_new_check.py - clang-tidy check generator ----------*- python -*--===#
+#===- add_new_check.py - clang-tidy check generator ---------*- python -*--===#
 #
 # Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
-#===------------------------------------------------------------------------===#
+#===-----------------------------------------------------------------------===#
 
 from __future__ import print_function
 
@@ -15,8 +15,9 @@ import os
 import re
 import sys
 
-# Adapts the module's CMakelist file. Returns 'True' if it could add a new entry
-# and 'False' if the entry already existed.
+
+# Adapts the module's CMakelist file. Returns 'True' if it could add a new
+# entry and 'False' if the entry already existed.
 def adapt_cmake(module_path, check_name_camel):
   filename = os.path.join(module_path, 'CMakeLists.txt')
   with open(filename, 'r') as f:
@@ -135,7 +136,7 @@ void %(check_name)s::registerMatchers(MatchFinder *Finder) {
 void %(check_name)s::check(const MatchFinder::MatchResult &Result) {
   // FIXME: Add callback implementation.
   const auto *MatchedDecl = Result.Nodes.getNodeAs<FunctionDecl>("x");
-  if (MatchedDecl->getName().startswith("awesome_"))
+  if (!MatchedDecl->getIdentifier() || MatchedDecl->getName().startswith("awesome_"))
     return;
   diag(MatchedDecl->getLocation(), "function %%0 is insufficiently awesome")
       << MatchedDecl;
@@ -172,7 +173,7 @@ def adapt_module(module_path, module, check_name, check_name_camel):
     lines = iter(lines)
     try:
       while True:
-        line = lines.next()
+        line = next(lines)
         if not header_added:
           match = re.search('#include "(.*)"', line)
           if match:
@@ -197,7 +198,7 @@ def adapt_module(module_path, module, check_name, check_name_camel):
                 # If we didn't find the check name on this line, look on the
                 # next one.
                 prev_line = line
-                line = lines.next()
+                line = next(lines)
                 match = re.search(' *"([^"]*)"', line)
                 if match:
                   current_check_name = match.group(1)
@@ -227,7 +228,6 @@ def add_release_notes(module_path, module, check_name):
   with open(filename, 'w') as f:
     note_added = False
     header_found = False
-    next_header_found = False
     add_note_here = False
 
     for line in lines:
@@ -241,7 +241,6 @@ def add_release_notes(module_path, module, check_name):
             add_note_here = True
 
         if match_next:
-          next_header_found = True
           add_note_here = True
 
         if match:
@@ -290,6 +289,19 @@ void awesome_f2();
 """ % {'check_name_dashes': check_name_dashes})
 
 
+def get_actual_filename(dirname, filename):
+  if not os.path.isdir(dirname): 
+    return ""
+  name = os.path.join(dirname, filename)
+  if (os.path.isfile(name)):
+    return name
+  caselessname = filename.lower()
+  for file in os.listdir(dirname):
+    if (file.lower() == caselessname):
+      return os.path.join(dirname, file)
+  return ""
+
+
 # Recreates the list of checks in the docs/clang-tidy/checks directory.
 def update_checks_list(clang_tidy_path):
   docs_dir = os.path.join(clang_tidy_path, '../docs/clang-tidy/checks')
@@ -305,7 +317,8 @@ def update_checks_list(clang_tidy_path):
   def has_auto_fix(check_name):
     dirname, _, check_name = check_name.partition("-")
 
-    checkerCode = os.path.join(dirname, get_camel_name(check_name)) + ".cpp"
+    checkerCode = get_actual_filename(dirname,
+                                      get_camel_name(check_name) + '.cpp')
 
     if not os.path.isfile(checkerCode):
       return ""

@@ -30,6 +30,7 @@
 #include "llvm/MC/MCTargetOptionsCommandFlags.h"
 #include "llvm/Object/Decompressor.h"
 #include "llvm/Object/ObjectFile.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/DataExtractor.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
@@ -216,10 +217,28 @@ struct UnitIndexEntry {
   StringRef DWPName;
 };
 
+static bool isSupportedSectionKind(DWARFSectionKind Kind) {
+  return Kind != DW_SECT_EXT_unknown;
+}
+
+// Convert an internal section identifier into the index to use with
+// UnitIndexEntry::Contributions.
+static unsigned getContributionIndex(DWARFSectionKind Kind) {
+  // Assuming the pre-standard DWP format.
+  assert(serializeSectionKind(Kind, 2) >= DW_SECT_INFO);
+  return serializeSectionKind(Kind, 2) - DW_SECT_INFO;
+}
+
+// Convert a UnitIndexEntry::Contributions index to the corresponding on-disk
+// value of the section identifier.
+static unsigned getOnDiskSectionId(unsigned Index) {
+  return Index + DW_SECT_INFO;
+}
+
 static StringRef getSubsection(StringRef Section,
                                const DWARFUnitIndex::Entry &Entry,
                                DWARFSectionKind Kind) {
-  const auto *Off = Entry.getOffset(Kind);
+  const auto *Off = Entry.getContribution(Kind);
   if (!Off)
     return StringRef();
   return Section.substr(Off->Offset, Off->Length);
@@ -231,7 +250,7 @@ static void addAllTypesFromDWP(
     const UnitIndexEntry &TUEntry, uint32_t &TypesOffset) {
   Out.SwitchSection(OutputTypes);
   for (const DWARFUnitIndex::Entry &E : TUIndex.getRows()) {
-    auto *I = E.getOffsets();
+    auto *I = E.getContributions();
     if (!I)
       continue;
     auto P = TypeIndexEntries.insert(std::make_pair(E.getSignature(), TUEntry));
@@ -241,15 +260,17 @@ static void addAllTypesFromDWP(
     // Zero out the debug_info contribution
     Entry.Contributions[0] = {};
     for (auto Kind : TUIndex.getColumnKinds()) {
-      auto &C = Entry.Contributions[Kind - DW_SECT_INFO];
+      if (!isSupportedSectionKind(Kind))
+        continue;
+      auto &C = Entry.Contributions[getContributionIndex(Kind)];
       C.Offset += I->Offset;
       C.Length = I->Length;
       ++I;
     }
-    auto &C = Entry.Contributions[DW_SECT_TYPES - DW_SECT_INFO];
+    unsigned TypesIndex = getContributionIndex(DW_SECT_EXT_TYPES);
+    auto &C = Entry.Contributions[TypesIndex];
     Out.emitBytes(Types.substr(
-        C.Offset - TUEntry.Contributions[DW_SECT_TYPES - DW_SECT_INFO].Offset,
-        C.Length));
+        C.Offset - TUEntry.Contributions[TypesIndex].Offset, C.Length));
     C.Offset = TypesOffset;
     TypesOffset += C.Length;
   }
@@ -268,7 +289,7 @@ static void addAllTypes(MCStreamer &Out,
       UnitIndexEntry Entry = CUEntry;
       // Zero out the debug_info contribution
       Entry.Contributions[0] = {};
-      auto &C = Entry.Contributions[DW_SECT_TYPES - DW_SECT_INFO];
+      auto &C = Entry.Contributions[getContributionIndex(DW_SECT_EXT_TYPES)];
       C.Offset = TypesOffset;
       auto PrevOffset = Offset;
       // Length of the unit, including the 4 byte length field.
@@ -345,7 +366,7 @@ writeIndex(MCStreamer &Out, MCSection *Section,
   // Write the column headers (which sections will appear in the table)
   for (size_t i = 0; i != ContributionOffsets.size(); ++i)
     if (ContributionOffsets[i])
-      Out.emitIntValue(i + DW_SECT_INFO, 4);
+      Out.emitIntValue(getOnDiskSectionId(i), 4);
 
   // Write the offsets.
   writeIndexTable(Out, ContributionOffsets, IndexEntries,
@@ -438,8 +459,8 @@ static Error handleSection(
     return Error::success();
 
   if (DWARFSectionKind Kind = SectionPair->second.second) {
-    auto Index = Kind - DW_SECT_INFO;
-    if (Kind != DW_SECT_TYPES) {
+    auto Index = getContributionIndex(Kind);
+    if (Kind != DW_SECT_EXT_TYPES) {
       CurEntry.Contributions[Index].Offset = ContributionOffsets[Index];
       ContributionOffsets[Index] +=
           (CurEntry.Contributions[Index].Length = Contents.size());
@@ -523,10 +544,10 @@ static Error write(MCStreamer &Out, ArrayRef<std::string> Inputs) {
   MCSection *const TUIndexSection = MCOFI.getDwarfTUIndexSection();
   const StringMap<std::pair<MCSection *, DWARFSectionKind>> KnownSections = {
       {"debug_info.dwo", {MCOFI.getDwarfInfoDWOSection(), DW_SECT_INFO}},
-      {"debug_types.dwo", {MCOFI.getDwarfTypesDWOSection(), DW_SECT_TYPES}},
+      {"debug_types.dwo", {MCOFI.getDwarfTypesDWOSection(), DW_SECT_EXT_TYPES}},
       {"debug_str_offsets.dwo", {StrOffsetSection, DW_SECT_STR_OFFSETS}},
       {"debug_str.dwo", {StrSection, static_cast<DWARFSectionKind>(0)}},
-      {"debug_loc.dwo", {MCOFI.getDwarfLocDWOSection(), DW_SECT_LOC}},
+      {"debug_loc.dwo", {MCOFI.getDwarfLocDWOSection(), DW_SECT_EXT_LOC}},
       {"debug_line.dwo", {MCOFI.getDwarfLineDWOSection(), DW_SECT_LINE}},
       {"debug_abbrev.dwo", {MCOFI.getDwarfAbbrevDWOSection(), DW_SECT_ABBREV}},
       {"debug_cu_index", {CUIndexSection, static_cast<DWARFSectionKind>(0)}},
@@ -589,7 +610,8 @@ static Error write(MCStreamer &Out, ArrayRef<std::string> Inputs) {
       P.first->second.Name = ID.Name;
       P.first->second.DWOName = ID.DWOName;
       addAllTypes(Out, TypeIndexEntries, TypesSection, CurTypesSection,
-                  CurEntry, ContributionOffsets[DW_SECT_TYPES - DW_SECT_INFO]);
+                  CurEntry,
+                  ContributionOffsets[getContributionIndex(DW_SECT_EXT_TYPES)]);
       continue;
     }
 
@@ -597,9 +619,13 @@ static Error write(MCStreamer &Out, ArrayRef<std::string> Inputs) {
     DataExtractor CUIndexData(CurCUIndexSection, Obj.isLittleEndian(), 0);
     if (!CUIndex.parse(CUIndexData))
       return make_error<DWPError>("failed to parse cu_index");
+    if (CUIndex.getVersion() != 2)
+      return make_error<DWPError>(
+          "unsupported cu_index version: " + utostr(CUIndex.getVersion()) +
+          " (only version 2 is supported)");
 
     for (const DWARFUnitIndex::Entry &E : CUIndex.getRows()) {
-      auto *I = E.getOffsets();
+      auto *I = E.getContributions();
       if (!I)
         continue;
       auto P = IndexEntries.insert(std::make_pair(E.getSignature(), CurEntry));
@@ -618,7 +644,9 @@ static Error write(MCStreamer &Out, ArrayRef<std::string> Inputs) {
       NewEntry.DWOName = ID.DWOName;
       NewEntry.DWPName = Input;
       for (auto Kind : CUIndex.getColumnKinds()) {
-        auto &C = NewEntry.Contributions[Kind - DW_SECT_INFO];
+        if (!isSupportedSectionKind(Kind))
+          continue;
+        auto &C = NewEntry.Contributions[getContributionIndex(Kind)];
         C.Offset += I->Offset;
         C.Length = I->Length;
         ++I;
@@ -628,13 +656,19 @@ static Error write(MCStreamer &Out, ArrayRef<std::string> Inputs) {
     if (!CurTypesSection.empty()) {
       if (CurTypesSection.size() != 1)
         return make_error<DWPError>("multiple type unit sections in .dwp file");
-      DWARFUnitIndex TUIndex(DW_SECT_TYPES);
+      DWARFUnitIndex TUIndex(DW_SECT_EXT_TYPES);
       DataExtractor TUIndexData(CurTUIndexSection, Obj.isLittleEndian(), 0);
       if (!TUIndex.parse(TUIndexData))
         return make_error<DWPError>("failed to parse tu_index");
-      addAllTypesFromDWP(Out, TypeIndexEntries, TUIndex, TypesSection,
-                         CurTypesSection.front(), CurEntry,
-                         ContributionOffsets[DW_SECT_TYPES - DW_SECT_INFO]);
+      if (TUIndex.getVersion() != 2)
+        return make_error<DWPError>(
+            "unsupported tu_index version: " + utostr(TUIndex.getVersion()) +
+            " (only version 2 is supported)");
+
+      addAllTypesFromDWP(
+          Out, TypeIndexEntries, TUIndex, TypesSection, CurTypesSection.front(),
+          CurEntry,
+          ContributionOffsets[getContributionIndex(DW_SECT_EXT_TYPES)]);
     }
   }
 
@@ -645,7 +679,7 @@ static Error write(MCStreamer &Out, ArrayRef<std::string> Inputs) {
              TypeIndexEntries);
 
   // Lie about the type contribution
-  ContributionOffsets[DW_SECT_TYPES - DW_SECT_INFO] = 0;
+  ContributionOffsets[getContributionIndex(DW_SECT_EXT_TYPES)] = 0;
   // Unlie about the info contribution
   ContributionOffsets[0] = 1;
 

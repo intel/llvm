@@ -8,10 +8,10 @@
 
 #include "SemanticHighlighting.h"
 #include "FindTarget.h"
-#include "Logger.h"
 #include "ParsedAST.h"
 #include "Protocol.h"
 #include "SourceCode.h"
+#include "support/Logger.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
@@ -90,8 +90,10 @@ llvm::Optional<HighlightingKind> kindForDecl(const NamedDecl *D) {
                ? HighlightingKind::StaticField
                : VD->isLocalVarDecl() ? HighlightingKind::LocalVariable
                                       : HighlightingKind::Variable;
-  if (isa<BindingDecl>(D))
-    return HighlightingKind::Variable;
+  if (const auto *BD = dyn_cast<BindingDecl>(D))
+    return BD->getDeclContext()->isFunctionOrMethod()
+               ? HighlightingKind::LocalVariable
+               : HighlightingKind::Variable;
   if (isa<FunctionDecl>(D))
     return HighlightingKind::Function;
   if (isa<NamespaceDecl>(D) || isa<NamespaceAliasDecl>(D) ||
@@ -143,6 +145,36 @@ SourceLocation getHighlightableSpellingToken(SourceLocation L,
   return getHighlightableSpellingToken(SM.getImmediateSpellingLoc(L), SM);
 }
 
+unsigned evaluateHighlightPriority(HighlightingKind Kind) {
+  enum HighlightPriority { Dependent = 0, Resolved = 1 };
+  return Kind == HighlightingKind::DependentType ||
+                 Kind == HighlightingKind::DependentName
+             ? Dependent
+             : Resolved;
+}
+
+// Sometimes we get conflicts between findExplicitReferences() returning
+// a heuristic result for a dependent name (e.g. Method) and
+// CollectExtraHighlighting returning a fallback dependent highlighting (e.g.
+// DependentName). In such cases, resolve the conflict in favour of the
+// resolved (non-dependent) highlighting.
+// With macros we can get other conflicts (if a spelled token has multiple
+// expansions with different token types) which we can't usefully resolve.
+llvm::Optional<HighlightingToken>
+resolveConflict(ArrayRef<HighlightingToken> Tokens) {
+  if (Tokens.size() == 1)
+    return Tokens[0];
+
+  if (Tokens.size() != 2)
+    return llvm::None;
+
+  unsigned Priority1 = evaluateHighlightPriority(Tokens[0].Kind);
+  unsigned Priority2 = evaluateHighlightPriority(Tokens[1].Kind);
+  if (Priority1 == Priority2)
+    return llvm::None;
+  return Priority1 > Priority2 ? Tokens[0] : Tokens[1];
+}
+
 /// Consumes source locations and maps them to text ranges for highlightings.
 class HighlightingsBuilder {
 public:
@@ -183,31 +215,57 @@ public:
             // this predicate would never fire.
             return T.R == TokRef.front().R;
           });
-      // If there is exactly one token with this range it's non conflicting and
-      // should be in the highlightings.
-      if (Conflicting.size() == 1)
-        NonConflicting.push_back(TokRef.front());
+      if (auto Resolved = resolveConflict(Conflicting))
+        NonConflicting.push_back(*Resolved);
       // TokRef[Conflicting.size()] is the next token with a different range (or
       // the end of the Tokens).
       TokRef = TokRef.drop_front(Conflicting.size());
     }
-    // Add tokens indicating lines skipped by the preprocessor.
-    for (const Range &R : AST.getMacros().SkippedRanges) {
+    const auto &SM = AST.getSourceManager();
+    StringRef MainCode = SM.getBuffer(SM.getMainFileID())->getBuffer();
+
+    // Merge token stream with "inactive line" markers.
+    std::vector<HighlightingToken> WithInactiveLines;
+    auto SortedSkippedRanges = AST.getMacros().SkippedRanges;
+    llvm::sort(SortedSkippedRanges);
+    auto It = NonConflicting.begin();
+    for (const Range &R : SortedSkippedRanges) {
       // Create one token for each line in the skipped range, so it works
       // with line-based diffing.
       assert(R.start.line <= R.end.line);
-      for (int Line = R.start.line; Line < R.end.line; ++Line) {
-        // Don't bother computing the offset for the end of the line, just use
-        // zero. The client will treat this highlighting kind specially, and
-        // highlight the entire line visually (i.e. not just to where the text
-        // on the line ends, but to the end of the screen).
-        NonConflicting.push_back({HighlightingKind::InactiveCode,
-                                  {Position{Line, 0}, Position{Line, 0}}});
+      for (int Line = R.start.line; Line <= R.end.line; ++Line) {
+        // Copy tokens before the inactive line
+        for (; It != NonConflicting.end() && It->R.start.line < Line; ++It)
+          WithInactiveLines.push_back(std::move(*It));
+        // Add a token for the inactive line itself.
+        auto StartOfLine = positionToOffset(MainCode, Position{Line, 0});
+        if (StartOfLine) {
+          StringRef LineText =
+              MainCode.drop_front(*StartOfLine).take_until([](char C) {
+                return C == '\n';
+              });
+          WithInactiveLines.push_back(
+              {HighlightingKind::InactiveCode,
+               {Position{Line, 0},
+                Position{Line, static_cast<int>(lspLength(LineText))}}});
+        } else {
+          elog("Failed to convert position to offset: {0}",
+               StartOfLine.takeError());
+        }
+
+        // Skip any other tokens on the inactive line. e.g.
+        // `#ifndef Foo` is considered as part of an inactive region when Foo is
+        // defined, and there is a Foo macro token.
+        // FIXME: we should reduce the scope of the inactive region to not
+        // include the directive itself.
+        while (It != NonConflicting.end() && It->R.start.line == Line)
+          ++It;
       }
     }
-    // Re-sort the tokens because that's what the diffing expects.
-    llvm::sort(NonConflicting);
-    return NonConflicting;
+    // Copy tokens after the last inactive line
+    for (; It != NonConflicting.end(); ++It)
+      WithInactiveLines.push_back(std::move(*It));
+    return WithInactiveLines;
   }
 
 private:
@@ -266,6 +324,18 @@ public:
       DependentTemplateSpecializationTypeLoc L) {
     H.addToken(L.getTemplateNameLoc(), HighlightingKind::DependentType);
     return true;
+  }
+
+  bool TraverseTemplateArgumentLoc(TemplateArgumentLoc L) {
+    switch (L.getArgument().getKind()) {
+    case TemplateArgument::Template:
+    case TemplateArgument::TemplateExpansion:
+      H.addToken(L.getTemplateNameLoc(), HighlightingKind::DependentType);
+      break;
+    default:
+      break;
+    }
+    return RecursiveASTVisitor::TraverseTemplateArgumentLoc(L);
   }
 
   // findExplicitReferences will walk nested-name-specifiers and
@@ -445,6 +515,81 @@ bool operator==(const LineHighlightings &L, const LineHighlightings &R) {
   return std::tie(L.Line, L.Tokens) == std::tie(R.Line, R.Tokens);
 }
 
+std::vector<SemanticToken>
+toSemanticTokens(llvm::ArrayRef<HighlightingToken> Tokens) {
+  assert(std::is_sorted(Tokens.begin(), Tokens.end()));
+  std::vector<SemanticToken> Result;
+  const HighlightingToken *Last = nullptr;
+  for (const HighlightingToken &Tok : Tokens) {
+    Result.emplace_back();
+    SemanticToken &Out = Result.back();
+    // deltaStart/deltaLine are relative if possible.
+    if (Last) {
+      assert(Tok.R.start.line >= Last->R.start.line);
+      Out.deltaLine = Tok.R.start.line - Last->R.start.line;
+      if (Out.deltaLine == 0) {
+        assert(Tok.R.start.character >= Last->R.start.character);
+        Out.deltaStart = Tok.R.start.character - Last->R.start.character;
+      } else {
+        Out.deltaStart = Tok.R.start.character;
+      }
+    } else {
+      Out.deltaLine = Tok.R.start.line;
+      Out.deltaStart = Tok.R.start.character;
+    }
+    assert(Tok.R.end.line == Tok.R.start.line);
+    Out.length = Tok.R.end.character - Tok.R.start.character;
+    Out.tokenType = static_cast<unsigned>(Tok.Kind);
+
+    Last = &Tok;
+  }
+  return Result;
+}
+llvm::StringRef toSemanticTokenType(HighlightingKind Kind) {
+  switch (Kind) {
+  case HighlightingKind::Variable:
+  case HighlightingKind::LocalVariable:
+  case HighlightingKind::StaticField:
+    return "variable";
+  case HighlightingKind::Parameter:
+    return "parameter";
+  case HighlightingKind::Function:
+    return "function";
+  case HighlightingKind::Method:
+    return "member";
+  case HighlightingKind::StaticMethod:
+    // FIXME: better function/member with static modifier?
+    return "function";
+  case HighlightingKind::Field:
+    return "member";
+  case HighlightingKind::Class:
+    return "class";
+  case HighlightingKind::Enum:
+    return "enum";
+  case HighlightingKind::EnumConstant:
+    return "enumConstant"; // nonstandard
+  case HighlightingKind::Typedef:
+    return "type";
+  case HighlightingKind::DependentType:
+    return "dependent"; // nonstandard
+  case HighlightingKind::DependentName:
+    return "dependent"; // nonstandard
+  case HighlightingKind::Namespace:
+    return "namespace";
+  case HighlightingKind::TemplateParameter:
+    return "typeParameter";
+  case HighlightingKind::Concept:
+    return "concept"; // nonstandard
+  case HighlightingKind::Primitive:
+    return "type";
+  case HighlightingKind::Macro:
+    return "macro";
+  case HighlightingKind::InactiveCode:
+    return "comment";
+  }
+  llvm_unreachable("unhandled HighlightingKind");
+}
+
 std::vector<TheiaSemanticHighlightingInformation>
 toTheiaSemanticHighlightingInformation(
     llvm::ArrayRef<LineHighlightings> Tokens) {
@@ -520,6 +665,32 @@ llvm::StringRef toTextMateScope(HighlightingKind Kind) {
     return "meta.disabled";
   }
   llvm_unreachable("unhandled HighlightingKind");
+}
+
+std::vector<SemanticTokensEdit>
+diffTokens(llvm::ArrayRef<SemanticToken> Old,
+           llvm::ArrayRef<SemanticToken> New) {
+  // For now, just replace everything from the first-last modification.
+  // FIXME: use a real diff instead, this is bad with include-insertion.
+
+  unsigned Offset = 0;
+  while (!Old.empty() && !New.empty() && Old.front() == New.front()) {
+    ++Offset;
+    Old = Old.drop_front();
+    New = New.drop_front();
+  }
+  while (!Old.empty() && !New.empty() && Old.back() == New.back()) {
+    Old = Old.drop_back();
+    New = New.drop_back();
+  }
+
+  if (Old.empty() && New.empty())
+    return {};
+  SemanticTokensEdit Edit;
+  Edit.startToken = Offset;
+  Edit.deleteTokens = Old.size();
+  Edit.tokens = New;
+  return {std::move(Edit)};
 }
 
 } // namespace clangd

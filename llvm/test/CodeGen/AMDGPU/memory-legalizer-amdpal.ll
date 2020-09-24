@@ -1,13 +1,23 @@
-; RUN: llc -mtriple=amdgcn--amdpal -mcpu=gfx600 -verify-machineinstrs < %s | FileCheck -check-prefixes=FUNC,GCN %s
-; RUN: llc -mtriple=amdgcn--amdpal -mcpu=gfx700 -verify-machineinstrs < %s | FileCheck -check-prefixes=FUNC,GCN %s
-; RUN: llc -mtriple=amdgcn--amdpal -mcpu=gfx800 -verify-machineinstrs < %s | FileCheck -check-prefixes=FUNC,GCN %s
-; RUN: llc -mtriple=amdgcn--amdpal -mcpu=gfx900 -verify-machineinstrs < %s | FileCheck -check-prefixes=FUNC,GCN %s
+; RUN: llc -mtriple=amdgcn--amdpal -mcpu=gfx600 -verify-machineinstrs < %s | FileCheck -check-prefixes=FUNC,GCN,GCN9,CACHE_INV %s
+; RUN: llc -mtriple=amdgcn--amdpal -mcpu=gfx700 -verify-machineinstrs < %s | FileCheck -check-prefixes=FUNC,GCN,GCN9,CACHE_INV %s
+; RUN: llc -mtriple=amdgcn--amdpal -mcpu=gfx803 -verify-machineinstrs < %s | FileCheck -check-prefixes=FUNC,GCN,GCN9,CACHE_INV %s
+; RUN: llc -mtriple=amdgcn--amdpal -mcpu=gfx900 -verify-machineinstrs < %s | FileCheck -check-prefixes=FUNC,GCN,GCN9,CACHE_INV %s
+; RUN: llc -mtriple=amdgcn--amdpal -mcpu=gfx1010 -verify-machineinstrs < %s | FileCheck -check-prefixes=FUNC,GCN,GCN10,CACHE_INV10 %s
+
+; RUN: llc -mtriple=amdgcn--amdpal -mcpu=gfx900 -amdgcn-skip-cache-invalidations -verify-machineinstrs < %s | FileCheck -check-prefixes=FUNC,GCN,GCN9,SKIP_CACHE_INV %s
+; RUN: llc -mtriple=amdgcn--amdpal -mcpu=gfx1010 -amdgcn-skip-cache-invalidations -verify-machineinstrs < %s | FileCheck -check-prefixes=FUNC,GCN,GCN10,SKIP_CACHE_INV %s
+
 
 ; FUNC-LABEL: {{^}}system_acquire:
 ; GCN:        %bb.0
 ; GCN-NOT:    ATOMIC_FENCE
 ; GCN:        s_waitcnt vmcnt(0) lgkmcnt(0){{$}}
-; GCN-NEXT:   buffer_wbinvl1{{$}}
+; GCN10:      s_waitcnt_vscnt null, 0x0
+; CACHE_INV:  buffer_wbinvl1{{$}}
+; CACHE_INV10: buffer_gl0_inv
+; CACHE_INV10: buffer_gl1_inv
+; SKIP_CACHE_INV-NOT: buffer_wbinvl1{{$}}
+; SKIP_CACHE_INV-NOT: buffer_gl
 ; GCN:        s_endpgm
 define amdgpu_kernel void @system_acquire() {
 entry:
@@ -19,6 +29,7 @@ entry:
 ; GCN:        %bb.0
 ; GCN-NOT:    ATOMIC_FENCE
 ; GCN:        s_waitcnt vmcnt(0) lgkmcnt(0){{$}}
+; GCN10:      s_waitcnt_vscnt null, 0x0
 ; GCN:        s_endpgm
 define amdgpu_kernel void @system_release() {
 entry:
@@ -30,7 +41,12 @@ entry:
 ; GCN:        %bb.0
 ; GCN-NOT:    ATOMIC_FENCE
 ; GCN:        s_waitcnt vmcnt(0) lgkmcnt(0){{$}}
-; GCN:        buffer_wbinvl1{{$}}
+; GCN10:      s_waitcnt_vscnt null, 0x0
+; CACHE_INV:  buffer_wbinvl1{{$}}
+; CACHE_INV10: buffer_gl0_inv
+; CACHE_INV10: buffer_gl1_inv
+; SKIP_CACHE_INV-NOT: buffer_wbinvl1{{$}}
+; SKIP_CACHE_INV-NOT: buffer_gl
 ; GCN:        s_endpgm
 define amdgpu_kernel void @system_acq_rel() {
 entry:
@@ -42,7 +58,12 @@ entry:
 ; GCN:        %bb.0
 ; GCN-NOT:    ATOMIC_FENCE
 ; GCN:        s_waitcnt vmcnt(0) lgkmcnt(0){{$}}
-; GCN:        buffer_wbinvl1{{$}}
+; GCN10:      s_waitcnt_vscnt null, 0x0
+; CACHE_INV:  buffer_wbinvl1{{$}}
+; CACHE_INV10: buffer_gl0_inv
+; CACHE_INV10: buffer_gl1_inv
+; SKIP_CACHE_INV-NOT: buffer_wbinvl1{{$}}
+; SKIP_CACHE_INV-NOT: buffer_gl
 ; GCN:        s_endpgm
 define amdgpu_kernel void @system_seq_cst() {
 entry:
@@ -54,7 +75,12 @@ entry:
 ; GCN:        %bb.0
 ; GCN-NOT:    ATOMIC_FENCE
 ; GCN:        s_waitcnt vmcnt(0){{$}}
-; GCN-NEXT:   buffer_wbinvl1{{$}}
+; GCN10:      s_waitcnt_vscnt null, 0x0
+; CACHE_INV:  buffer_wbinvl1{{$}}
+; CACHE_INV10: buffer_gl0_inv
+; CACHE_INV10: buffer_gl1_inv
+; SKIP_CACHE_INV-NOT: buffer_wbinvl1{{$}}
+; SKIP_CACHE_INV-NOT: buffer_gl
 ; GCN:        s_endpgm
 define amdgpu_kernel void @system_one_as_acquire() {
 entry:
@@ -66,6 +92,7 @@ entry:
 ; GCN:        %bb.0
 ; GCN-NOT:    ATOMIC_FENCE
 ; GCN:        s_waitcnt vmcnt(0){{$}}
+; GCN10:      s_waitcnt_vscnt null, 0x0
 ; GCN:        s_endpgm
 define amdgpu_kernel void @system_one_as_release() {
 entry:
@@ -77,7 +104,12 @@ entry:
 ; GCN:        %bb.0
 ; GCN-NOT:    ATOMIC_FENCE
 ; GCN:        s_waitcnt vmcnt(0){{$}}
-; GCN:        buffer_wbinvl1{{$}}
+; GCN10:      s_waitcnt_vscnt null, 0x0
+; CACHE_INV:  buffer_wbinvl1{{$}}
+; CACHE_INV10: buffer_gl0_inv
+; CACHE_INV10: buffer_gl1_inv
+; SKIP_CACHE_INV-NOT: buffer_wbinvl1{{$}}
+; SKIP_CACHE_INV-NOT: buffer_gl
 ; GCN:        s_endpgm
 define amdgpu_kernel void @system_one_as_acq_rel() {
 entry:
@@ -89,7 +121,12 @@ entry:
 ; GCN:        %bb.0
 ; GCN-NOT:    ATOMIC_FENCE
 ; GCN:        s_waitcnt vmcnt(0){{$}}
-; GCN:        buffer_wbinvl1{{$}}
+; GCN10:      s_waitcnt_vscnt null, 0x0
+; CACHE_INV:    buffer_wbinvl1{{$}}
+; CACHE_INV10: buffer_gl0_inv
+; CACHE_INV10: buffer_gl1_inv
+; SKIP_CACHE_INV-NOT: buffer_wbinvl1{{$}}
+; SKIP_CACHE_INV-NOT: buffer_gl
 ; GCN:        s_endpgm
 define amdgpu_kernel void @system_one_as_seq_cst() {
 entry:
@@ -181,7 +218,12 @@ entry:
 ; GCN:        %bb.0
 ; GCN-NOT:    ATOMIC_FENCE
 ; GCN:        s_waitcnt vmcnt(0) lgkmcnt(0){{$}}
-; GCN-NEXT:   buffer_wbinvl1{{$}}
+; GCN10:      s_waitcnt_vscnt null, 0x0
+; CACHE_INV:  buffer_wbinvl1{{$}}
+; CACHE_INV10: buffer_gl0_inv
+; CACHE_INV10: buffer_gl1_inv
+; SKIP_CACHE_INV-NOT: buffer_wbinvl1{{$}}
+; SKIP_CACHE_INV-NOT: buffer_gl
 ; GCN:        s_endpgm
 define amdgpu_kernel void @agent_acquire() {
 entry:
@@ -193,6 +235,7 @@ entry:
 ; GCN:        %bb.0
 ; GCN-NOT:    ATOMIC_FENCE
 ; GCN:        s_waitcnt vmcnt(0) lgkmcnt(0){{$}}
+; GCN10:      s_waitcnt_vscnt null, 0x0
 ; GCN:        s_endpgm
 define amdgpu_kernel void @agent_release() {
 entry:
@@ -204,7 +247,12 @@ entry:
 ; GCN:        %bb.0
 ; GCN-NOT:    ATOMIC_FENCE
 ; GCN:        s_waitcnt vmcnt(0) lgkmcnt(0){{$}}
-; GCN:        buffer_wbinvl1{{$}}
+; GCN10:      s_waitcnt_vscnt null, 0x0
+; CACHE_INV:  buffer_wbinvl1{{$}}
+; CACHE_INV10: buffer_gl0_inv
+; CACHE_INV10: buffer_gl1_inv
+; SKIP_CACHE_INV-NOT: buffer_wbinvl1{{$}}
+; SKIP_CACHE_INV-NOT: buffer_gl
 ; GCN:        s_endpgm
 define amdgpu_kernel void @agent_acq_rel() {
 entry:
@@ -216,7 +264,12 @@ entry:
 ; GCN:        %bb.0
 ; GCN-NOT:    ATOMIC_FENCE
 ; GCN:        s_waitcnt vmcnt(0) lgkmcnt(0){{$}}
-; GCN:        buffer_wbinvl1{{$}}
+; GCN10:      s_waitcnt_vscnt null, 0x0
+; CACHE_INV:  buffer_wbinvl1{{$}}
+; CACHE_INV10: buffer_gl0_inv
+; CACHE_INV10: buffer_gl1_inv
+; SKIP_CACHE_INV-NOT: buffer_wbinvl1{{$}}
+; SKIP_CACHE_INV-NOT: buffer_gl
 ; GCN:        s_endpgm
 define amdgpu_kernel void @agent_seq_cst() {
 entry:
@@ -228,7 +281,12 @@ entry:
 ; GCN:        %bb.0
 ; GCN-NOT:    ATOMIC_FENCE
 ; GCN:        s_waitcnt vmcnt(0){{$}}
-; GCN-NEXT:   buffer_wbinvl1{{$}}
+; GCN10:      s_waitcnt_vscnt null, 0x0
+; CACHE_INV:  buffer_wbinvl1{{$}}
+; CACHE_INV10: buffer_gl0_inv
+; CACHE_INV10: buffer_gl1_inv
+; SKIP_CACHE_INV-NOT: buffer_wbinvl1{{$}}
+; SKIP_CACHE_INV-NOT: buffer_gl
 ; GCN:        s_endpgm
 define amdgpu_kernel void @agent_one_as_acquire() {
 entry:
@@ -240,6 +298,7 @@ entry:
 ; GCN:        %bb.0
 ; GCN-NOT:    ATOMIC_FENCE
 ; GCN:        s_waitcnt vmcnt(0){{$}}
+; GCN10:      s_waitcnt_vscnt null, 0x0
 ; GCN:        s_endpgm
 define amdgpu_kernel void @agent_one_as_release() {
 entry:
@@ -251,7 +310,12 @@ entry:
 ; GCN:        %bb.0
 ; GCN-NOT:    ATOMIC_FENCE
 ; GCN:        s_waitcnt vmcnt(0){{$}}
-; GCN:        buffer_wbinvl1{{$}}
+; GCN10:      s_waitcnt_vscnt null, 0x0
+; CACHE_INV:  buffer_wbinvl1{{$}}
+; CACHE_INV10: buffer_gl0_inv
+; CACHE_INV10: buffer_gl1_inv
+; SKIP_CACHE_INV-NOT: buffer_wbinvl1{{$}}
+; SKIP_CACHE_INV-NOT: buffer_gl
 ; GCN:        s_endpgm
 define amdgpu_kernel void @agent_one_as_acq_rel() {
 entry:
@@ -263,7 +327,12 @@ entry:
 ; GCN:        %bb.0
 ; GCN-NOT:    ATOMIC_FENCE
 ; GCN:        s_waitcnt vmcnt(0){{$}}
-; GCN:        buffer_wbinvl1{{$}}
+; GCN10:      s_waitcnt_vscnt null, 0x0
+; CACHE_INV:  buffer_wbinvl1{{$}}
+; CACHE_INV10: buffer_gl0_inv
+; CACHE_INV10: buffer_gl1_inv
+; SKIP_CACHE_INV-NOT: buffer_wbinvl1{{$}}
+; SKIP_CACHE_INV-NOT: buffer_gl
 ; GCN:        s_endpgm
 define amdgpu_kernel void @agent_one_as_seq_cst() {
 entry:
@@ -273,7 +342,9 @@ entry:
 
 ; FUNC-LABEL: {{^}}workgroup_acquire:
 ; GCN:        %bb.0
-; GCN-NOT:    s_waitcnt vmcnt(0) lgkmcnt(0){{$}}
+; GCN9-NOT:   s_waitcnt vmcnt(0) lgkmcnt(0){{$}}
+; GCN10:      s_waitcnt vmcnt(0) lgkmcnt(0){{$}}
+; GCN10:      s_waitcnt_vscnt null, 0x0
 ; GCN-NOT:    ATOMIC_FENCE
 ; GCN:        s_endpgm
 define amdgpu_kernel void @workgroup_acquire() {
@@ -284,7 +355,9 @@ entry:
 
 ; FUNC-LABEL: {{^}}workgroup_release:
 ; GCN:        %bb.0
-; GCN-NOT:    s_waitcnt vmcnt(0) lgkmcnt(0){{$}}
+; GCN9-NOT:   s_waitcnt vmcnt(0) lgkmcnt(0){{$}}
+; GCN10:      s_waitcnt vmcnt(0) lgkmcnt(0){{$}}
+; GCN10:      s_waitcnt_vscnt null, 0x0
 ; GCN-NOT:    ATOMIC_FENCE
 ; GCN:        s_endpgm
 define amdgpu_kernel void @workgroup_release() {
@@ -295,7 +368,9 @@ entry:
 
 ; FUNC-LABEL: {{^}}workgroup_acq_rel:
 ; GCN:        %bb.0
-; GCN-NOT:    s_waitcnt vmcnt(0) lgkmcnt(0){{$}}
+; GCN9-NOT:   s_waitcnt vmcnt(0) lgkmcnt(0){{$}}
+; GCN10:      s_waitcnt vmcnt(0) lgkmcnt(0){{$}}
+; GCN10:      s_waitcnt_vscnt null, 0x0
 ; GCN-NOT:    ATOMIC_FENCE
 ; GCN:        s_endpgm
 define amdgpu_kernel void @workgroup_acq_rel() {
@@ -307,6 +382,9 @@ entry:
 ; FUNC-LABEL: {{^}}workgroup_seq_cst:
 ; GCN:        %bb.0
 ; GCN-NOT:    s_waitcnt vmcnt(0) lgkmcnt(0){{$}}
+; GCN9-NOT:   s_waitcnt vmcnt(0) lgkmcnt(0){{$}}
+; GCN10:      s_waitcnt vmcnt(0) lgkmcnt(0){{$}}
+; GCN10:      s_waitcnt_vscnt null, 0x0
 ; GCN-NOT:    ATOMIC_FENCE
 ; GCN:        s_endpgm
 define amdgpu_kernel void @workgroup_seq_cst() {
@@ -317,7 +395,9 @@ entry:
 
 ; FUNC-LABEL: {{^}}workgroup_one_as_acquire:
 ; GCN:        %bb.0
-; GCN-NOT:    s_waitcnt vmcnt(0){{$}}
+; GCN9-NOT:   s_waitcnt vmcnt(0) lgkmcnt(0){{$}}
+; GCN10:      s_waitcnt vmcnt(0)
+; GCN10:      s_waitcnt_vscnt null, 0x0
 ; GCN-NOT:    ATOMIC_FENCE
 ; GCN:        s_endpgm
 define amdgpu_kernel void @workgroup_one_as_acquire() {
@@ -328,7 +408,9 @@ entry:
 
 ; FUNC-LABEL: {{^}}workgroup_one_as_release:
 ; GCN:        %bb.0
-; GCN-NOT:    s_waitcnt vmcnt(0){{$}}
+; GCN9-NOT:   s_waitcnt vmcnt(0) lgkmcnt(0){{$}}
+; GCN10:      s_waitcnt vmcnt(0)
+; GCN10:      s_waitcnt_vscnt null, 0x0
 ; GCN-NOT:    ATOMIC_FENCE
 ; GCN:        s_endpgm
 define amdgpu_kernel void @workgroup_one_as_release() {
@@ -339,7 +421,9 @@ entry:
 
 ; FUNC-LABEL: {{^}}workgroup_one_as_acq_rel:
 ; GCN:        %bb.0
-; GCN-NOT:    s_waitcnt vmcnt(0){{$}}
+; GCN9-NOT:   s_waitcnt vmcnt(0) lgkmcnt(0){{$}}
+; GCN10:      s_waitcnt vmcnt(0)
+; GCN10:      s_waitcnt_vscnt null, 0x0
 ; GCN-NOT:    ATOMIC_FENCE
 ; GCN:        s_endpgm
 define amdgpu_kernel void @workgroup_one_as_acq_rel() {
@@ -350,7 +434,9 @@ entry:
 
 ; FUNC-LABEL: {{^}}workgroup_one_as_seq_cst:
 ; GCN:        %bb.0
-; GCN-NOT:    s_waitcnt vmcnt(0){{$}}
+; GCN9-NOT:   s_waitcnt vmcnt(0) lgkmcnt(0){{$}}
+; GCN10:      s_waitcnt vmcnt(0)
+; GCN10:      s_waitcnt_vscnt null, 0x0
 ; GCN-NOT:    ATOMIC_FENCE
 ; GCN:        s_endpgm
 define amdgpu_kernel void @workgroup_one_as_seq_cst() {

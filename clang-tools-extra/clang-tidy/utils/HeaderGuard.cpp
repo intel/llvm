@@ -123,12 +123,7 @@ public:
 
     // Emit warnings for headers that are missing guards.
     checkGuardlessHeaders();
-
-    // Clear all state.
-    Macros.clear();
-    Files.clear();
-    Ifndefs.clear();
-    EndIfs.clear();
+    clearAllState();
   }
 
   bool wouldFixEndifComment(StringRef FileName, SourceLocation EndIf,
@@ -255,6 +250,13 @@ public:
   }
 
 private:
+  void clearAllState() {
+    Macros.clear();
+    Files.clear();
+    Ifndefs.clear();
+    EndIfs.clear();
+  }
+
   std::vector<std::pair<Token, const MacroInfo *>> Macros;
   llvm::StringMap<const FileEntry *> Files;
   std::map<const IdentifierInfo *, std::pair<SourceLocation, SourceLocation>>
@@ -265,6 +267,10 @@ private:
   HeaderGuardCheck *Check;
 };
 } // namespace
+
+void HeaderGuardCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
+  Options.store(Opts, "HeaderFileExtensions", RawStringHeaderFileExtensions);
+}
 
 void HeaderGuardCheck::registerPPCallbacks(const SourceManager &SM,
                                            Preprocessor *PP,
@@ -285,7 +291,6 @@ bool HeaderGuardCheck::shouldSuggestToAddHeaderGuard(StringRef FileName) {
 std::string HeaderGuardCheck::formatEndIf(StringRef HeaderGuard) {
   return "endif // " + HeaderGuard.str();
 }
-
 } // namespace utils
 } // namespace tidy
 } // namespace clang

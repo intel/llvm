@@ -7,15 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Host/Host.h"
+#include "PosixSpawnResponsible.h"
 
 #include <AvailabilityMacros.h>
+#include <TargetConditionals.h>
 
-// On device doesn't have supporty for XPC.
-#if defined(__APPLE__) && (defined(__arm64__) || defined(__aarch64__))
-#define NO_XPC_SERVICES 1
-#endif
-
-#if !defined(NO_XPC_SERVICES)
+#if TARGET_OS_OSX
 #define __XPC_PRIVATE_H__
 #include <xpc/xpc.h>
 
@@ -135,6 +132,8 @@ bool Host::ResolveExecutableInBundle(FileSpec &file) {
   return false;
 }
 
+#if TARGET_OS_OSX
+
 static void *AcceptPIDFromInferior(void *arg) {
   const char *connect_url = (const char *)arg;
   ConnectionFileDescriptor file_conn;
@@ -152,8 +151,6 @@ static void *AcceptPIDFromInferior(void *arg) {
   }
   return NULL;
 }
-
-#if !defined(__arm__) && !defined(__arm64__) && !defined(__aarch64__)
 
 const char *applscript_in_new_tty = "tell application \"Terminal\"\n"
                                     "   activate\n"
@@ -307,13 +304,13 @@ LaunchInNewTerminalWithAppleScript(const char *exe_path,
   return error;
 }
 
-#endif // #if !defined(__arm__) && !defined(__arm64__) && !defined(__aarch64__)
+#endif // TARGET_OS_OSX
 
 bool Host::OpenFileInExternalEditor(const FileSpec &file_spec,
                                     uint32_t line_no) {
-#if defined(__arm__) || defined(__arm64__) || defined(__aarch64__)
+#if !TARGET_OS_OSX
   return false;
-#else
+#else // !TARGET_OS_OSX
   // We attach this to an 'odoc' event to specify a particular selection
   typedef struct {
     int16_t reserved0; // must be zero
@@ -404,7 +401,7 @@ bool Host::OpenFileInExternalEditor(const FileSpec &file_spec,
   }
 
   return true;
-#endif // #if !defined(__arm__) && !defined(__arm64__) && !defined(__aarch64__)
+#endif // TARGET_OS_OSX
 }
 
 Environment Host::GetEnvironment() { return Environment(*_NSGetEnviron()); }
@@ -635,8 +632,7 @@ uint32_t Host::FindProcessesImpl(const ProcessInstanceInfoMatch &match_info,
         kinfo.kp_proc.p_pid == 0 ||      // Skip kernel (kernel pid is zero)
         kinfo.kp_proc.p_stat == SZOMB || // Zombies are bad, they like brains...
         kinfo.kp_proc.p_flag & P_TRACED ||   // Being debugged?
-        kinfo.kp_proc.p_flag & P_WEXIT ||    // Working on exiting?
-        kinfo.kp_proc.p_flag & P_TRANSLATED) // Skip translated ppc (Rosetta)
+        kinfo.kp_proc.p_flag & P_WEXIT)
       continue;
 
     ProcessInstanceInfo process_info;
@@ -689,7 +685,7 @@ bool Host::GetProcessInfo(lldb::pid_t pid, ProcessInstanceInfo &process_info) {
   return false;
 }
 
-#if !NO_XPC_SERVICES
+#if TARGET_OS_OSX
 static void PackageXPCArguments(xpc_object_t message, const char *prefix,
                                 const Args &args) {
   size_t count = args.GetArgumentCount();
@@ -841,7 +837,7 @@ static short GetPosixspawnFlags(const ProcessLaunchInfo &launch_info) {
 static Status LaunchProcessXPC(const char *exe_path,
                                ProcessLaunchInfo &launch_info,
                                lldb::pid_t &pid) {
-#if !NO_XPC_SERVICES
+#if TARGET_OS_OSX
   Status error = getXPCAuthorization(launch_info);
   if (error.Fail())
     return error;
@@ -1088,6 +1084,30 @@ static Status LaunchProcessPosixSpawn(const char *exe_path,
     return error;
   }
 
+  bool is_graphical = true;
+
+#if TARGET_OS_OSX
+  SecuritySessionId session_id;
+  SessionAttributeBits session_attributes;
+  OSStatus status =
+      SessionGetInfo(callerSecuritySession, &session_id, &session_attributes);
+  if (status == errSessionSuccess)
+    is_graphical = session_attributes & sessionHasGraphicAccess;
+#endif
+
+  //  When lldb is ran through a graphical session, make the debuggee process
+  //  responsible for its own TCC permissions instead of inheriting them from
+  //  its parent.
+  if (is_graphical && launch_info.GetFlags().Test(eLaunchFlagDebug) &&
+      !launch_info.GetFlags().Test(eLaunchFlagInheritTCCFromParent)) {
+    error.SetError(setup_posix_spawn_responsible_flag(&attr), eErrorTypePOSIX);
+    if (error.Fail()) {
+      LLDB_LOG(log, "error: {0}, setup_posix_spawn_responsible_flag(&attr)",
+               error);
+      return error;
+    }
+  }
+
   const char *tmp_argv[2];
   char *const *argv = const_cast<char *const *>(
       launch_info.GetArguments().GetConstArgumentVector());
@@ -1194,7 +1214,7 @@ static Status LaunchProcessPosixSpawn(const char *exe_path,
 static bool ShouldLaunchUsingXPC(ProcessLaunchInfo &launch_info) {
   bool result = false;
 
-#if !NO_XPC_SERVICES
+#if TARGET_OS_OSX
   bool launchingAsRoot = launch_info.GetUserID() == 0;
   bool currentUserIsRoot = HostInfo::GetEffectiveUserID() == 0;
 
@@ -1226,7 +1246,7 @@ Status Host::LaunchProcess(ProcessLaunchInfo &launch_info) {
   }
 
   if (launch_info.GetFlags().Test(eLaunchFlagLaunchInTTY)) {
-#if !defined(__arm__) && !defined(__arm64__) && !defined(__aarch64__)
+#if TARGET_OS_OSX
     return LaunchInNewTerminalWithAppleScript(exe_spec.GetPath().c_str(),
                                               launch_info);
 #else
@@ -1303,11 +1323,11 @@ Status Host::ShellExpandArguments(ProcessLaunchInfo &launch_info) {
         launch_info.SetWorkingDirectory(working_dir);
       }
     }
-    bool run_in_default_shell = true;
+    bool run_in_shell = true;
     bool hide_stderr = true;
-    Status e = RunShellCommand(expand_command, cwd, &status, nullptr, &output,
-                               std::chrono::seconds(10), run_in_default_shell,
-                               hide_stderr);
+    Status e =
+        RunShellCommand(expand_command, cwd, &status, nullptr, &output,
+                        std::chrono::seconds(10), run_in_shell, hide_stderr);
 
     if (e.Fail())
       return e;

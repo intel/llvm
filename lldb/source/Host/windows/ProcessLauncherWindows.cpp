@@ -23,10 +23,9 @@ using namespace lldb_private;
 namespace {
 void CreateEnvironmentBuffer(const Environment &env,
                              std::vector<char> &buffer) {
-  if (env.size() == 0)
-    return;
-
-  // Environment buffer is a null terminated list of null terminated strings
+  // The buffer is a list of null-terminated UTF-16 strings, followed by an
+  // extra L'\0' (two bytes of 0).  An empty environment must have one
+  // empty string, followed by an extra L'\0'.
   for (const auto &KV : env) {
     std::wstring warg;
     if (llvm::ConvertUTF8toWide(Environment::compose(KV), warg)) {
@@ -38,9 +37,12 @@ void CreateEnvironmentBuffer(const Environment &env,
   // One null wchar_t (to end the block) is two null bytes
   buffer.push_back(0);
   buffer.push_back(0);
+  // Insert extra two bytes, just in case the environment was empty.
+  buffer.push_back(0);
+  buffer.push_back(0);
 }
 
-bool GetFlattenedWindowsCommandString(Args args, std::string &command) {
+bool GetFlattenedWindowsCommandString(Args args, std::wstring &command) {
   if (args.empty())
     return false;
 
@@ -48,7 +50,12 @@ bool GetFlattenedWindowsCommandString(Args args, std::string &command) {
   for (auto &entry : args.entries())
     args_ref.push_back(entry.ref());
 
-  command = llvm::sys::flattenWindowsCommandLine(args_ref);
+  llvm::ErrorOr<std::wstring> result =
+      llvm::sys::flattenWindowsCommandLine(args_ref);
+  if (result.getError())
+    return false;
+
+  command = *result;
   return true;
 }
 } // namespace
@@ -59,7 +66,6 @@ ProcessLauncherWindows::LaunchProcess(const ProcessLaunchInfo &launch_info,
   error.Clear();
 
   std::string executable;
-  std::string commandLine;
   std::vector<char> environment;
   STARTUPINFO startupinfo = {};
   PROCESS_INFORMATION pi = {};
@@ -94,15 +100,14 @@ ProcessLauncherWindows::LaunchProcess(const ProcessLaunchInfo &launch_info,
 
   LPVOID env_block = nullptr;
   ::CreateEnvironmentBuffer(launch_info.GetEnvironment(), environment);
-  if (!environment.empty())
-    env_block = environment.data();
+  env_block = environment.data();
 
   executable = launch_info.GetExecutableFile().GetPath();
-  GetFlattenedWindowsCommandString(launch_info.GetArguments(), commandLine);
+  std::wstring wcommandLine;
+  GetFlattenedWindowsCommandString(launch_info.GetArguments(), wcommandLine);
 
-  std::wstring wexecutable, wcommandLine, wworkingDirectory;
+  std::wstring wexecutable, wworkingDirectory;
   llvm::ConvertUTF8toWide(executable, wexecutable);
-  llvm::ConvertUTF8toWide(commandLine, wcommandLine);
   llvm::ConvertUTF8toWide(launch_info.GetWorkingDirectory().GetCString(),
                           wworkingDirectory);
   // If the command line is empty, it's best to pass a null pointer to tell

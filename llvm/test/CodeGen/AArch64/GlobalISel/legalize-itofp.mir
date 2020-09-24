@@ -24,6 +24,9 @@
   define void @test_sitofp_v4s32() { ret void }
   define void @test_uitofp_v4s32() { ret void }
 
+  define void @test_uitofp_v2s64_v2i1() { ret void }
+  define void @test_sitofp_v2s64_v2i1() { ret void }
+
   define void @test_sitofp_s32_s16() { ret void }
   define void @test_uitofp_s32_s16() { ret void }
 ...
@@ -149,11 +152,8 @@ body: |
     ; CHECK-LABEL: name: test_sitofp_s32_s1
     ; CHECK: [[COPY:%[0-9]+]]:_(s32) = COPY $w0
     ; CHECK: [[COPY1:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
-    ; CHECK: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 31
-    ; CHECK: [[SHL:%[0-9]+]]:_(s32) = G_SHL [[COPY1]], [[C]](s32)
-    ; CHECK: [[C1:%[0-9]+]]:_(s64) = G_CONSTANT i64 31
-    ; CHECK: [[ASHR:%[0-9]+]]:_(s32) = G_ASHR [[SHL]], [[C1]](s64)
-    ; CHECK: [[SITOFP:%[0-9]+]]:_(s32) = G_SITOFP [[ASHR]](s32)
+    ; CHECK: [[SEXT_INREG:%[0-9]+]]:_(s32) = G_SEXT_INREG [[COPY1]], 1
+    ; CHECK: [[SITOFP:%[0-9]+]]:_(s32) = G_SITOFP [[SEXT_INREG]](s32)
     ; CHECK: $w0 = COPY [[SITOFP]](s32)
     %0:_(s32) = COPY $w0
     %1:_(s1) = G_TRUNC %0
@@ -187,11 +187,8 @@ body: |
     ; CHECK-LABEL: name: test_sitofp_s64_s8
     ; CHECK: [[COPY:%[0-9]+]]:_(s32) = COPY $w0
     ; CHECK: [[COPY1:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
-    ; CHECK: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 24
-    ; CHECK: [[SHL:%[0-9]+]]:_(s32) = G_SHL [[COPY1]], [[C]](s32)
-    ; CHECK: [[C1:%[0-9]+]]:_(s64) = G_CONSTANT i64 24
-    ; CHECK: [[ASHR:%[0-9]+]]:_(s32) = G_ASHR [[SHL]], [[C1]](s64)
-    ; CHECK: [[SITOFP:%[0-9]+]]:_(s64) = G_SITOFP [[ASHR]](s32)
+    ; CHECK: [[SEXT_INREG:%[0-9]+]]:_(s32) = G_SEXT_INREG [[COPY1]], 8
+    ; CHECK: [[SITOFP:%[0-9]+]]:_(s64) = G_SITOFP [[SEXT_INREG]](s32)
     ; CHECK: $x0 = COPY [[SITOFP]](s64)
     %0:_(s32) = COPY $w0
     %1:_(s8) = G_TRUNC %0
@@ -246,6 +243,38 @@ body: |
 ...
 
 ---
+name:            test_uitofp_v2s64_v2i1
+body: |
+  bb.0:
+    liveins: $q0
+    ; CHECK-LABEL: name: test_uitofp_v2s64_v2i1
+    ; CHECK: [[DEF:%[0-9]+]]:_(s1) = G_IMPLICIT_DEF
+    ; CHECK: [[BUILD_VECTOR:%[0-9]+]]:_(<2 x s1>) = G_BUILD_VECTOR [[DEF]](s1), [[DEF]](s1)
+    ; CHECK: [[ZEXT:%[0-9]+]]:_(<2 x s64>) = G_ZEXT [[BUILD_VECTOR]](<2 x s1>)
+    ; CHECK: [[UITOFP:%[0-9]+]]:_(<2 x s64>) = G_UITOFP [[ZEXT]](<2 x s64>)
+    ; CHECK: $q0 = COPY [[UITOFP]](<2 x s64>)
+    %0:_(<2 x s1>) = G_IMPLICIT_DEF
+    %1:_(<2 x s64>) = G_UITOFP %0
+    $q0 = COPY %1
+...
+
+---
+name:            test_sitofp_v2s64_v2i1
+body: |
+  bb.0:
+    liveins: $q0
+    ; CHECK-LABEL: name: test_sitofp_v2s64_v2i1
+    ; CHECK: [[DEF:%[0-9]+]]:_(s1) = G_IMPLICIT_DEF
+    ; CHECK: [[BUILD_VECTOR:%[0-9]+]]:_(<2 x s1>) = G_BUILD_VECTOR [[DEF]](s1), [[DEF]](s1)
+    ; CHECK: [[SEXT:%[0-9]+]]:_(<2 x s64>) = G_SEXT [[BUILD_VECTOR]](<2 x s1>)
+    ; CHECK: [[SITOFP:%[0-9]+]]:_(<2 x s64>) = G_SITOFP [[SEXT]](<2 x s64>)
+    ; CHECK: $q0 = COPY [[SITOFP]](<2 x s64>)
+    %0:_(<2 x s1>) = G_IMPLICIT_DEF
+    %1:_(<2 x s64>) = G_SITOFP %0
+    $q0 = COPY %1
+...
+
+---
 name:            test_sitofp_s32_s16
 body: |
   bb.0:
@@ -253,11 +282,8 @@ body: |
     ; CHECK-LABEL: name: test_sitofp_s32_s16
     ; CHECK: [[COPY:%[0-9]+]]:_(s32) = COPY $w0
     ; CHECK: [[COPY1:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
-    ; CHECK: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 16
-    ; CHECK: [[SHL:%[0-9]+]]:_(s32) = G_SHL [[COPY1]], [[C]](s32)
-    ; CHECK: [[C1:%[0-9]+]]:_(s64) = G_CONSTANT i64 16
-    ; CHECK: [[ASHR:%[0-9]+]]:_(s32) = G_ASHR [[SHL]], [[C1]](s64)
-    ; CHECK: [[SITOFP:%[0-9]+]]:_(s32) = G_SITOFP [[ASHR]](s32)
+    ; CHECK: [[SEXT_INREG:%[0-9]+]]:_(s32) = G_SEXT_INREG [[COPY1]], 16
+    ; CHECK: [[SITOFP:%[0-9]+]]:_(s32) = G_SITOFP [[SEXT_INREG]](s32)
     ; CHECK: $w0 = COPY [[SITOFP]](s32)
     %0:_(s32) = COPY $w0
     %1:_(s16) = G_TRUNC %0

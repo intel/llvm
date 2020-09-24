@@ -18,7 +18,7 @@ using namespace clang;
 using namespace ento;
 using namespace retaincountchecker;
 
-StringRef RefCountBug::bugTypeToName(RefCountBug::RefCountBugType BT) {
+StringRef RefCountBug::bugTypeToName(RefCountBug::RefCountBugKind BT) {
   switch (BT) {
   case UseAfterRelease:
     return "Use-after-release";
@@ -37,7 +37,7 @@ StringRef RefCountBug::bugTypeToName(RefCountBug::RefCountBugType BT) {
   case LeakAtReturn:
     return "Leak of returned object";
   }
-  llvm_unreachable("Unknown RefCountBugType");
+  llvm_unreachable("Unknown RefCountBugKind");
 }
 
 StringRef RefCountBug::getDescription() const {
@@ -60,13 +60,14 @@ StringRef RefCountBug::getDescription() const {
   case LeakAtReturn:
     return "";
   }
-  llvm_unreachable("Unknown RefCountBugType");
+  llvm_unreachable("Unknown RefCountBugKind");
 }
 
-RefCountBug::RefCountBug(const CheckerBase *Checker, RefCountBugType BT)
+RefCountBug::RefCountBug(CheckerNameRef Checker, RefCountBugKind BT)
     : BugType(Checker, bugTypeToName(BT), categories::MemoryRefCount,
-              /*SuppressOnSink=*/BT == LeakWithinFunction || BT == LeakAtReturn),
-      BT(BT), Checker(Checker) {}
+              /*SuppressOnSink=*/BT == LeakWithinFunction ||
+                  BT == LeakAtReturn),
+      BT(BT) {}
 
 static bool isNumericLiteralExpression(const Expr *E) {
   // FIXME: This set of cases was copied from SemaExprObjC.
@@ -176,7 +177,7 @@ static Optional<unsigned> findArgIdxOfSymbol(ProgramStateRef CurrSt,
   for (unsigned Idx = 0; Idx < (*CE)->getNumArgs(); Idx++)
     if (const MemRegion *MR = (*CE)->getArgSVal(Idx).getAsRegion())
       if (const auto *TR = dyn_cast<TypedValueRegion>(MR))
-        if (CurrSt->getSVal(MR, TR->getValueType()).getAsSymExpr() == Sym)
+        if (CurrSt->getSVal(MR, TR->getValueType()).getAsSymbol() == Sym)
           return Idx;
 
   return None;
@@ -438,7 +439,7 @@ annotateStartParameter(const ExplodedNode *N, SymbolRef Sym,
 
   std::string s;
   llvm::raw_string_ostream os(s);
-  os << "Parameter '" << PVD->getNameAsString() << "' starts at +";
+  os << "Parameter '" << PVD->getDeclName() << "' starts at +";
   if (CurrT->getCount() == 1) {
     os << "1, as it is marked as consuming";
   } else {
@@ -453,8 +454,6 @@ RefCountReportVisitor::VisitNode(const ExplodedNode *N, BugReporterContext &BRC,
                                  PathSensitiveBugReport &BR) {
 
   const auto &BT = static_cast<const RefCountBug&>(BR.getBugType());
-  const auto *Checker =
-      static_cast<const RetainCountChecker *>(BT.getChecker());
 
   bool IsFreeUnowned = BT.getBugType() == RefCountBug::FreeNotOwned ||
                        BT.getBugType() == RefCountBug::DeallocNotOwned;
@@ -545,11 +544,11 @@ RefCountReportVisitor::VisitNode(const ExplodedNode *N, BugReporterContext &BRC,
 
   const ProgramPointTag *Tag = N->getLocation().getTag();
 
-  if (Tag == &Checker->getCastFailTag()) {
+  if (Tag == &RetainCountChecker::getCastFailTag()) {
     os << "Assuming dynamic cast returns null due to type mismatch";
   }
 
-  if (Tag == &Checker->getDeallocSentTag()) {
+  if (Tag == &RetainCountChecker::getDeallocSentTag()) {
     // We only have summaries attached to nodes after evaluating CallExpr and
     // ObjCMessageExprs.
     const Stmt *S = N->getLocation().castAs<StmtPoint>().getStmt();

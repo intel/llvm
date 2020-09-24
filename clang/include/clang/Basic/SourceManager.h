@@ -813,6 +813,11 @@ public:
     MainFileID = FID;
   }
 
+  /// Returns true when the given FileEntry corresponds to the main file.
+  ///
+  /// The main file should be set prior to calling this function.
+  bool isMainFile(FileEntryRef SourceFile);
+
   /// Set the file ID for the precompiled preamble.
   void setPreambleFileID(FileID Preamble) {
     assert(PreambleFileID.isInvalid() && "PreambleFileID already set!");
@@ -1640,8 +1645,7 @@ public:
   unsigned local_sloc_entry_size() const { return LocalSLocEntryTable.size(); }
 
   /// Get a local SLocEntry. This is exposed for indexing.
-  const SrcMgr::SLocEntry &getLocalSLocEntry(unsigned Index,
-                                             bool *Invalid = nullptr) const {
+  const SrcMgr::SLocEntry &getLocalSLocEntry(unsigned Index) const {
     assert(Index < LocalSLocEntryTable.size() && "Invalid index");
     return LocalSLocEntryTable[Index];
   }
@@ -1734,12 +1738,13 @@ private:
   const SrcMgr::SLocEntry &loadSLocEntry(unsigned Index, bool *Invalid) const;
 
   /// Get the entry with the given unwrapped FileID.
+  /// Invalid will not be modified for Local IDs.
   const SrcMgr::SLocEntry &getSLocEntryByID(int ID,
                                             bool *Invalid = nullptr) const {
     assert(ID != -1 && "Using FileID sentinel value");
     if (ID < 0)
       return getLoadedSLocEntryByID(ID, Invalid);
-    return getLocalSLocEntry(static_cast<unsigned>(ID), Invalid);
+    return getLocalSLocEntry(static_cast<unsigned>(ID));
   }
 
   const SrcMgr::SLocEntry &

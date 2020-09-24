@@ -85,6 +85,7 @@ void EmitClangOpcodes(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 
 void EmitNeon(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 void EmitFP16(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
+void EmitBF16(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 void EmitNeonSema(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 void EmitNeonTest(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 void EmitNeon2(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
@@ -95,6 +96,7 @@ void EmitSveHeader(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 void EmitSveBuiltins(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 void EmitSveBuiltinCG(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 void EmitSveTypeFlags(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
+void EmitSveRangeChecks(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 
 void EmitMveHeader(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 void EmitMveBuiltinDef(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);

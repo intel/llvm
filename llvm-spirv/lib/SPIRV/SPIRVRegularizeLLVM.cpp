@@ -45,7 +45,6 @@
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
-#include "llvm/PassSupport.h"
 #include "llvm/Support/Debug.h"
 
 #include <set>
@@ -128,6 +127,14 @@ bool SPIRVRegularizeLLVM::regularize() {
           if (isa<PossiblyExactOperator>(BO) && BO->isExact())
             BO->setIsExact(false);
         }
+
+        // FIXME: This is not valid handling for freeze instruction
+        if (auto FI = dyn_cast<FreezeInst>(&II)) {
+          FI->replaceAllUsesWith(FI->getOperand(0));
+          FI->dropAllReferences();
+          ToErase.push_back(FI);
+        }
+
         // Remove metadata not supported by SPIRV
         static const char *MDs[] = {
             "fpmath",

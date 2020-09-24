@@ -7223,7 +7223,7 @@ bool EmulateInstructionARM::EmulateLDRHImmediate(const uint32_t opcode,
   return true;
 }
 
-// LDRH (literal) caculates an address from the PC value and an immediate
+// LDRH (literal) calculates an address from the PC value and an immediate
 // offset, loads a halfword from memory,
 // zero-extends it to form a 32-bit word, and writes it to a register.
 bool EmulateInstructionARM::EmulateLDRHLiteral(const uint32_t opcode,
@@ -8509,7 +8509,7 @@ bool EmulateInstructionARM::EmulateSXTH(const uint32_t opcode,
   return true;
 }
 
-// UXTB extracts an 8-bit value from a register, zero-extneds it to 32 bits, and
+// UXTB extracts an 8-bit value from a register, zero-extends it to 32 bits, and
 // writes the result to the destination
 // register.  You can specify a rotation by 0, 8, 16, or 24 bits before
 // extracting the 8-bit value.
@@ -14361,7 +14361,7 @@ bool EmulateInstructionARM::EvaluateInstruction(uint32_t evaluate_options) {
     if (!success)
       return false;
 
-    if (auto_advance_pc && (after_pc_value == orig_pc_value)) {
+    if (after_pc_value == orig_pc_value) {
       after_pc_value += m_opcode.GetByteSize();
 
       EmulateInstruction::Context context;

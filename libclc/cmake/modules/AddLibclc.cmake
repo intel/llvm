@@ -42,8 +42,8 @@ endfunction(add_libclc_alias alias target)
 macro(add_libclc_builtin_set arch_suffix)
   cmake_parse_arguments(ARG
     ""
-    "TRIPLE;TARGET_ENV;LIB_DEP;GENERATE_TARGET;PARENT_TARGET"
-    "FILES;ALIASES;COMPILE_OPT"
+    "TRIPLE;TARGET_ENV;LIB_DEP;PARENT_TARGET"
+    "FILES;ALIASES;GENERATE_TARGET;COMPILE_OPT"
     ${ARGN})
 
   if (DEFINED ${ARG_LIB_DEP})
@@ -66,7 +66,7 @@ macro(add_libclc_builtin_set arch_suffix)
   target_compile_definitions( builtins.link.${arch_suffix} PRIVATE
     "__CLC_INTERNAL" )
   target_compile_options( builtins.link.${arch_suffix} PRIVATE
-    -target ${ARG_TRIPLE} ${ARG_COMPILE_OPT} -fno-builtin )
+    -target ${ARG_TRIPLE} ${ARG_COMPILE_OPT} -fno-builtin -nostdlib )
   set_target_properties( builtins.link.${arch_suffix} PROPERTIES
     LINKER_LANGUAGE CLC )
   set_output_directory(builtins.link.${arch_suffix} LIBRARY_DIR ${LIBCLC_LIBRARY_OUTPUT_INTDIR})
@@ -74,27 +74,29 @@ macro(add_libclc_builtin_set arch_suffix)
   set( obj_suffix ${arch_suffix}.bc )
 
   # Add opt target
-  add_custom_command( OUTPUT "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/builtins.opt.${obj_suffix}"
+  set( builtins_opt_path "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/builtins.opt.${obj_suffix}" )
+  add_custom_command( OUTPUT "${builtins_opt_path}"
     COMMAND ${LLVM_OPT} -O3 -o
-    "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/builtins.opt.${obj_suffix}"
+    "${builtins_opt_path}"
     "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/builtins.link.${obj_suffix}"
     DEPENDS opt "builtins.link.${arch_suffix}" )
   add_custom_target( "opt.${obj_suffix}" ALL
-    DEPENDS "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/builtins.opt.${obj_suffix}" )
+    DEPENDS "${builtins_opt_path}" )
   set_target_properties("opt.${obj_suffix}"
-    PROPERTIES TARGET_FILE "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/builtins.opt.${obj_suffix}")
+    PROPERTIES TARGET_FILE "${builtins_opt_path}")
 
   # Add prepare target
-  add_custom_command( OUTPUT "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}"
+  set( builtins_obj_path "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}" )
+  add_custom_command( OUTPUT "${builtins_obj_path}"
     COMMAND prepare_builtins -o
-    "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}"
+    "${builtins_obj_path}"
     "$<TARGET_PROPERTY:opt.${obj_suffix},TARGET_FILE>"
-    DEPENDS "opt.${obj_suffix}"
-    prepare_builtins )
+    DEPENDS ${builtins_opt_path}
+            prepare_builtins )
   add_custom_target( "prepare-${obj_suffix}" ALL
-    DEPENDS "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}" )
+    DEPENDS "${builtins_obj_path}" )
   set_target_properties("prepare-${obj_suffix}"
-    PROPERTIES TARGET_FILE "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}")
+    PROPERTIES TARGET_FILE "${builtins_obj_path}")
 
   # Add dependency to top-level pseudo target to ease making other
   # targets dependent on libclc.
@@ -177,3 +179,57 @@ function(libclc_configure_lib_source OUT_LIST)
   set( ${OUT_LIST} ${rel_files} PARENT_SCOPE )
 
 endfunction(libclc_configure_lib_source OUT_LIST)
+
+# add_libclc_sycl_binding(arch_suffix
+#   TRIPLE string
+#     Triple used to compile
+#   FILES string ...
+#     List of file that should be built for this library
+#   COMPILE_OPT
+#     Compilation options
+#   )
+#
+# Build the sycl binding file for SYCLDEVICE.
+# The path to the generated object file are appended in OUT_LIST.
+#
+# The mangling for sycl device is not yet fully
+# compatible with standard mangling.
+# For various reason, we need a mangling specific
+# for the Default address space (mapping to generic in SYCL).
+# The Default address space is not accessible in CL mode,
+# so we build this file in sycl mode for mangling purposes.
+#
+# FIXME: all the files should be compiled with the sycldevice triple
+#        but this is not possible at the moment as this will trigger
+#        the SYCL mode which we don't want.
+#
+function(add_libclc_sycl_binding OUT_LIST)
+  cmake_parse_arguments(ARG
+    ""
+    "TRIPLE"
+    "FILES;COMPILE_OPT"
+    ${ARGN})
+
+	foreach( file ${ARG_FILES} )
+    file( TO_CMAKE_PATH ${LIBCLC_ROOT_DIR}/${file} SYCLDEVICE_BINDING )
+    if( EXISTS ${SYCLDEVICE_BINDING} )
+      set( SYCLDEVICE_BINDING_OUT ${CMAKE_CURRENT_BINARY_DIR}/sycldevice-binding-${ARG_TRIPLE}/sycldevice-binding.bc )
+      add_custom_command( OUTPUT ${SYCLDEVICE_BINDING_OUT}
+                         COMMAND ${CMAKE_COMMAND} -E make_directory
+                         ${CMAKE_CURRENT_BINARY_DIR}/sycldevice-binding-${ARG_TRIPLE}
+                         COMMAND ${LLVM_CLANG}
+                         -target ${ARG_TRIPLE}-sycldevice
+                         -fsycl
+                         -fsycl-device-only
+                         -Dcl_khr_fp64
+                         -I${LIBCLC_ROOT_DIR}/generic/include
+                         ${ARG_COMPILE_OPT}
+                         ${SYCLDEVICE_BINDING}
+                         -o ${SYCLDEVICE_BINDING_OUT}
+                     MAIN_DEPENDENCY ${SYCLDEVICE_BINDING}
+                     DEPENDS ${SYCLDEVICE_BINDING} ${LLVM_CLANG}
+                     VERBATIM )
+      set( ${OUT_LIST} "${${OUT_LIST}};${SYCLDEVICE_BINDING_OUT}" PARENT_SCOPE )
+    endif()
+  endforeach()
+endfunction(add_libclc_sycl_binding OUT_LIST)

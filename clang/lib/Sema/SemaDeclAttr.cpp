@@ -21,6 +21,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/Mangle.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/Type.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TargetBuiltins.h"
@@ -30,12 +31,15 @@
 #include "clang/Sema/DelayedDiagnostic.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Lookup.h"
+#include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/SemaInternal.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Support/raw_ostream.h"
 
 using namespace clang;
 using namespace sema;
@@ -240,9 +244,9 @@ template <typename AttrInfo>
 static bool checkUInt32Argument(Sema &S, const AttrInfo &AI, const Expr *Expr,
                                 uint32_t &Val, unsigned Idx = UINT_MAX,
                                 bool StrictlyUnsigned = false) {
-  llvm::APSInt I(32);
+  Optional<llvm::APSInt> I = llvm::APSInt(32);
   if (Expr->isTypeDependent() || Expr->isValueDependent() ||
-      !Expr->isIntegerConstantExpr(I, S.Context)) {
+      !(I = Expr->getIntegerConstantExpr(S.Context))) {
     if (Idx != UINT_MAX)
       S.Diag(getAttrLoc(AI), diag::err_attribute_argument_n_type)
           << &AI << Idx << AANT_ArgumentIntegerConstant
@@ -253,19 +257,19 @@ static bool checkUInt32Argument(Sema &S, const AttrInfo &AI, const Expr *Expr,
     return false;
   }
 
-  if (!I.isIntN(32)) {
+  if (!I->isIntN(32)) {
     S.Diag(Expr->getExprLoc(), diag::err_ice_too_large)
-        << I.toString(10, false) << 32 << /* Unsigned */ 1;
+        << I->toString(10, false) << 32 << /* Unsigned */ 1;
     return false;
   }
 
-  if (StrictlyUnsigned && I.isSigned() && I.isNegative()) {
+  if (StrictlyUnsigned && I->isSigned() && I->isNegative()) {
     S.Diag(getAttrLoc(AI), diag::err_attribute_requires_positive_integer)
         << &AI << /*non-negative*/ 1;
     return false;
   }
 
-  Val = (uint32_t)I.getZExtValue();
+  Val = (uint32_t)I->getZExtValue();
   return true;
 }
 
@@ -332,16 +336,16 @@ static bool checkFunctionOrMethodParameterIndex(
   unsigned NumParams =
       (HP ? getFunctionOrMethodNumParams(D) : 0) + HasImplicitThisParam;
 
-  llvm::APSInt IdxInt;
+  Optional<llvm::APSInt> IdxInt;
   if (IdxExpr->isTypeDependent() || IdxExpr->isValueDependent() ||
-      !IdxExpr->isIntegerConstantExpr(IdxInt, S.Context)) {
+      !(IdxInt = IdxExpr->getIntegerConstantExpr(S.Context))) {
     S.Diag(getAttrLoc(AI), diag::err_attribute_argument_n_type)
         << &AI << AttrArgNum << AANT_ArgumentIntegerConstant
         << IdxExpr->getSourceRange();
     return false;
   }
 
-  unsigned IdxSource = IdxInt.getLimitedValue(UINT_MAX);
+  unsigned IdxSource = IdxInt->getLimitedValue(UINT_MAX);
   if (IdxSource < 1 || (!IV && IdxSource > NumParams)) {
     S.Diag(getAttrLoc(AI), diag::err_attribute_argument_out_of_bounds)
         << &AI << AttrArgNum << IdxExpr->getSourceRange();
@@ -1605,8 +1609,8 @@ void Sema::AddAssumeAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
   }
 
   if (!E->isValueDependent()) {
-    llvm::APSInt I(64);
-    if (!E->isIntegerConstantExpr(I, Context)) {
+    Optional<llvm::APSInt> I = llvm::APSInt(64);
+    if (!(I = E->getIntegerConstantExpr(Context))) {
       if (OE)
         Diag(AttrLoc, diag::err_attribute_argument_n_type)
           << &TmpAttr << 1 << AANT_ArgumentIntegerConstant
@@ -1618,27 +1622,22 @@ void Sema::AddAssumeAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
       return;
     }
 
-    if (!I.isPowerOf2()) {
+    if (!I->isPowerOf2()) {
       Diag(AttrLoc, diag::err_alignment_not_power_of_two)
         << E->getSourceRange();
       return;
     }
 
-    if (I > Sema::MaximumAlignment)
+    if (*I > Sema::MaximumAlignment)
       Diag(CI.getLoc(), diag::warn_assume_aligned_too_great)
           << CI.getRange() << Sema::MaximumAlignment;
   }
 
-  if (OE) {
-    if (!OE->isValueDependent()) {
-      llvm::APSInt I(64);
-      if (!OE->isIntegerConstantExpr(I, Context)) {
-        Diag(AttrLoc, diag::err_attribute_argument_n_type)
-          << &TmpAttr << 2 << AANT_ArgumentIntegerConstant
-          << OE->getSourceRange();
-        return;
-      }
-    }
+  if (OE && !OE->isValueDependent() && !OE->isIntegerConstantExpr(Context)) {
+    Diag(AttrLoc, diag::err_attribute_argument_n_type)
+        << &TmpAttr << 2 << AANT_ArgumentIntegerConstant
+        << OE->getSourceRange();
+    return;
   }
 
   D->addAttr(::new (Context) AssumeAlignedAttr(Context, CI, E, OE));
@@ -1998,7 +1997,8 @@ static void handleCmseNSEntryAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
   }
 
-  if (cast<FunctionDecl>(D)->getStorageClass() == SC_Static) {
+  const auto *FD = cast<FunctionDecl>(D);
+  if (!FD->isExternallyVisible()) {
     S.Diag(AL.getLoc(), diag::warn_attribute_cmse_entry_static);
     return;
   }
@@ -2731,36 +2731,36 @@ static void handleSentinelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   unsigned sentinel = (unsigned)SentinelAttr::DefaultSentinel;
   if (AL.getNumArgs() > 0) {
     Expr *E = AL.getArgAsExpr(0);
-    llvm::APSInt Idx(32);
+    Optional<llvm::APSInt> Idx = llvm::APSInt(32);
     if (E->isTypeDependent() || E->isValueDependent() ||
-        !E->isIntegerConstantExpr(Idx, S.Context)) {
+        !(Idx = E->getIntegerConstantExpr(S.Context))) {
       S.Diag(AL.getLoc(), diag::err_attribute_argument_n_type)
           << AL << 1 << AANT_ArgumentIntegerConstant << E->getSourceRange();
       return;
     }
 
-    if (Idx.isSigned() && Idx.isNegative()) {
+    if (Idx->isSigned() && Idx->isNegative()) {
       S.Diag(AL.getLoc(), diag::err_attribute_sentinel_less_than_zero)
         << E->getSourceRange();
       return;
     }
 
-    sentinel = Idx.getZExtValue();
+    sentinel = Idx->getZExtValue();
   }
 
   unsigned nullPos = (unsigned)SentinelAttr::DefaultNullPos;
   if (AL.getNumArgs() > 1) {
     Expr *E = AL.getArgAsExpr(1);
-    llvm::APSInt Idx(32);
+    Optional<llvm::APSInt> Idx = llvm::APSInt(32);
     if (E->isTypeDependent() || E->isValueDependent() ||
-        !E->isIntegerConstantExpr(Idx, S.Context)) {
+        !(Idx = E->getIntegerConstantExpr(S.Context))) {
       S.Diag(AL.getLoc(), diag::err_attribute_argument_n_type)
           << AL << 2 << AANT_ArgumentIntegerConstant << E->getSourceRange();
       return;
     }
-    nullPos = Idx.getZExtValue();
+    nullPos = Idx->getZExtValue();
 
-    if ((Idx.isSigned() && Idx.isNegative()) || nullPos > 1) {
+    if ((Idx->isSigned() && Idx->isNegative()) || nullPos > 1) {
       // FIXME: This error message could be improved, it would be nice
       // to say what the bounds actually are.
       S.Diag(AL.getLoc(), diag::err_attribute_sentinel_not_zero_or_one)
@@ -2829,6 +2829,12 @@ static void handleWarnUnusedResult(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   StringRef Str;
   if ((AL.isCXX11Attribute() || AL.isC2xAttribute()) && !AL.getScopeName()) {
+    // The standard attribute cannot be applied to variable declarations such
+    // as a function pointer.
+    if (isa<VarDecl>(D))
+      S.Diag(AL.getLoc(), diag::warn_attribute_wrong_decl_type_str)
+          << AL << "functions, classes, or enumerations";
+
     // If this is spelled as the standard C++17 attribute, but not in C++17,
     // warn about using it as an extension. If there are attribute arguments,
     // then claim it's a C++2a extension instead.
@@ -2836,8 +2842,8 @@ static void handleWarnUnusedResult(Sema &S, Decl *D, const ParsedAttr &AL) {
     // extension warning for C2x mode.
     const LangOptions &LO = S.getLangOpts();
     if (AL.getNumArgs() == 1) {
-      if (LO.CPlusPlus && !LO.CPlusPlus2a)
-        S.Diag(AL.getLoc(), diag::ext_cxx2a_attr) << AL;
+      if (LO.CPlusPlus && !LO.CPlusPlus20)
+        S.Diag(AL.getLoc(), diag::ext_cxx20_attr) << AL;
 
       // Since this this is spelled [[nodiscard]], get the optional string
       // literal. If in C++ mode, but not in C++2a mode, diagnose as an
@@ -2974,23 +2980,15 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
 
 // Handles intel_reqd_sub_group_size.
 static void handleSubGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
-  uint32_t SGSize;
-  const Expr *E = AL.getArgAsExpr(0);
-  if (!checkUInt32Argument(S, AL, E, SGSize))
+  if (S.LangOpts.SYCLIsHost)
     return;
-  if (SGSize == 0) {
-    S.Diag(AL.getLoc(), diag::err_attribute_argument_is_zero)
-        << AL << E->getSourceRange();
-    return;
-  }
 
-  IntelReqdSubGroupSizeAttr *Existing =
-      D->getAttr<IntelReqdSubGroupSizeAttr>();
-  if (Existing && Existing->getSubGroupSize() != SGSize)
+  Expr *E = AL.getArgAsExpr(0);
+
+  if (D->getAttr<IntelReqdSubGroupSizeAttr>())
     S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
 
-  D->addAttr(::new (S.Context)
-                 IntelReqdSubGroupSizeAttr(S.Context, AL, SGSize));
+  S.addIntelSYCLSingleArgFunctionAttr<IntelReqdSubGroupSizeAttr>(D, AL, E);
 }
 
 // Handles num_simd_work_items.
@@ -2999,23 +2997,13 @@ static void handleNumSimdWorkItemsAttr(Sema &S, Decl *D,
   if (D->isInvalidDecl())
     return;
 
-  uint32_t NumSimdWorkItems = 0;
-  const Expr *E = Attr.getArgAsExpr(0);
-  if (!checkUInt32Argument(S, Attr, E, NumSimdWorkItems, 0,
-                           /*StrictlyUnsigned=*/true))
-    return;
-
-  if (NumSimdWorkItems == 0) {
-    S.Diag(Attr.getLoc(), diag::err_attribute_argument_is_zero)
-      << Attr << E->getSourceRange();
-    return;
-  }
+  Expr *E = Attr.getArgAsExpr(0);
 
   if (D->getAttr<SYCLIntelNumSimdWorkItemsAttr>())
     S.Diag(Attr.getLoc(), diag::warn_duplicate_attribute) << Attr;
 
-  D->addAttr(::new (S.Context) SYCLIntelNumSimdWorkItemsAttr(
-        S.Context, Attr, NumSimdWorkItems));
+  S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelNumSimdWorkItemsAttr>(D, Attr,
+                                                                     E);
 }
 
 // Handles max_global_work_dim.
@@ -3190,23 +3178,36 @@ static void handleCodeSegAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 // Check for things we'd like to warn about. Multiversioning issues are
 // handled later in the process, once we know how many exist.
 bool Sema::checkTargetAttr(SourceLocation LiteralLoc, StringRef AttrStr) {
-  enum FirstParam { Unsupported, Duplicate };
-  enum SecondParam { None, Architecture };
-  for (auto Str : {"tune=", "fpmath="})
-    if (AttrStr.find(Str) != StringRef::npos)
-      return Diag(LiteralLoc, diag::warn_unsupported_target_attribute)
-             << Unsupported << None << Str;
+  enum FirstParam { Unsupported, Duplicate, Unknown };
+  enum SecondParam { None, Architecture, Tune };
+  if (AttrStr.find("fpmath=") != StringRef::npos)
+    return Diag(LiteralLoc, diag::warn_unsupported_target_attribute)
+           << Unsupported << None << "fpmath=";
+
+  // Diagnose use of tune if target doesn't support it.
+  if (!Context.getTargetInfo().supportsTargetAttributeTune() &&
+      AttrStr.find("tune=") != StringRef::npos)
+    return Diag(LiteralLoc, diag::warn_unsupported_target_attribute)
+           << Unsupported << None << "tune=";
 
   ParsedTargetAttr ParsedAttrs = TargetAttr::parse(AttrStr);
 
   if (!ParsedAttrs.Architecture.empty() &&
       !Context.getTargetInfo().isValidCPUName(ParsedAttrs.Architecture))
     return Diag(LiteralLoc, diag::warn_unsupported_target_attribute)
-           << Unsupported << Architecture << ParsedAttrs.Architecture;
+           << Unknown << Architecture << ParsedAttrs.Architecture;
+
+  if (!ParsedAttrs.Tune.empty() &&
+      !Context.getTargetInfo().isValidCPUName(ParsedAttrs.Tune))
+    return Diag(LiteralLoc, diag::warn_unsupported_target_attribute)
+           << Unknown << Tune << ParsedAttrs.Tune;
 
   if (ParsedAttrs.DuplicateArchitecture)
     return Diag(LiteralLoc, diag::warn_unsupported_target_attribute)
            << Duplicate << None << "arch=";
+  if (ParsedAttrs.DuplicateTune)
+    return Diag(LiteralLoc, diag::warn_unsupported_target_attribute)
+           << Duplicate << None << "tune=";
 
   for (const auto &Feature : ParsedAttrs.Features) {
     auto CurFeature = StringRef(Feature).drop_front(); // remove + or -.
@@ -3772,15 +3773,15 @@ static void handleTransparentUnionAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
         S.Context.getTypeAlign(FieldType) > FirstAlign) {
       // Warn if we drop the attribute.
       bool isSize = S.Context.getTypeSize(FieldType) != FirstSize;
-      unsigned FieldBits = isSize? S.Context.getTypeSize(FieldType)
-                                 : S.Context.getTypeAlign(FieldType);
+      unsigned FieldBits = isSize ? S.Context.getTypeSize(FieldType)
+                                  : S.Context.getTypeAlign(FieldType);
       S.Diag(Field->getLocation(),
-          diag::warn_transparent_union_attribute_field_size_align)
-        << isSize << Field->getDeclName() << FieldBits;
-      unsigned FirstBits = isSize? FirstSize : FirstAlign;
+             diag::warn_transparent_union_attribute_field_size_align)
+          << isSize << *Field << FieldBits;
+      unsigned FirstBits = isSize ? FirstSize : FirstAlign;
       S.Diag(FirstField->getLocation(),
              diag::note_transparent_union_first_field_size_align)
-        << isSize << FirstBits;
+          << isSize << FirstBits;
       return;
     }
   }
@@ -4087,7 +4088,8 @@ bool Sema::checkMSInheritanceAttrOnDefinition(
 /// parseModeAttrArg - Parses attribute mode string and returns parsed type
 /// attribute.
 static void parseModeAttrArg(Sema &S, StringRef Str, unsigned &DestWidth,
-                             bool &IntegerMode, bool &ComplexMode) {
+                             bool &IntegerMode, bool &ComplexMode,
+                             bool &ExplicitIEEE) {
   IntegerMode = true;
   ComplexMode = false;
   switch (Str.size()) {
@@ -4108,7 +4110,12 @@ static void parseModeAttrArg(Sema &S, StringRef Str, unsigned &DestWidth,
     case 'X':
       DestWidth = 96;
       break;
+    case 'K': // KFmode - IEEE quad precision (__float128)
+      ExplicitIEEE = true;
+      DestWidth = Str[1] == 'I' ? 0 : 128;
+      break;
     case 'T':
+      ExplicitIEEE = false;
       DestWidth = 128;
       break;
     }
@@ -4169,6 +4176,7 @@ void Sema::AddModeAttr(Decl *D, const AttributeCommonInfo &CI,
   unsigned DestWidth = 0;
   bool IntegerMode = true;
   bool ComplexMode = false;
+  bool ExplicitIEEE = false;
   llvm::APInt VectorSize(64, 0);
   if (Str.size() >= 4 && Str[0] == 'V') {
     // Minimal length of vector mode is 4: 'V' + NUMBER(>=1) + TYPE(>=2).
@@ -4181,7 +4189,7 @@ void Sema::AddModeAttr(Decl *D, const AttributeCommonInfo &CI,
         !Str.substr(1, VectorStringLength).getAsInteger(10, VectorSize) &&
         VectorSize.isPowerOf2()) {
       parseModeAttrArg(*this, Str.substr(VectorStringLength + 1), DestWidth,
-                       IntegerMode, ComplexMode);
+                       IntegerMode, ComplexMode, ExplicitIEEE);
       // Avoid duplicate warning from template instantiation.
       if (!InInstantiation)
         Diag(AttrLoc, diag::warn_vector_mode_deprecated);
@@ -4191,7 +4199,8 @@ void Sema::AddModeAttr(Decl *D, const AttributeCommonInfo &CI,
   }
 
   if (!VectorSize)
-    parseModeAttrArg(*this, Str, DestWidth, IntegerMode, ComplexMode);
+    parseModeAttrArg(*this, Str, DestWidth, IntegerMode, ComplexMode,
+                     ExplicitIEEE);
 
   // FIXME: Sync this with InitializePredefinedMacros; we need to match int8_t
   // and friends, at least with glibc.
@@ -4233,8 +4242,9 @@ void Sema::AddModeAttr(Decl *D, const AttributeCommonInfo &CI,
     Diag(AttrLoc, diag::err_enum_mode_vector_type) << Name << CI.getRange();
     return;
   }
-  bool IntegralOrAnyEnumType =
-      OldElemTy->isIntegralOrEnumerationType() || OldElemTy->getAs<EnumType>();
+  bool IntegralOrAnyEnumType = (OldElemTy->isIntegralOrEnumerationType() &&
+                                !OldElemTy->isExtIntType()) ||
+                               OldElemTy->getAs<EnumType>();
 
   if (!OldElemTy->getAs<BuiltinType>() && !OldElemTy->isComplexType() &&
       !IntegralOrAnyEnumType)
@@ -4256,7 +4266,7 @@ void Sema::AddModeAttr(Decl *D, const AttributeCommonInfo &CI,
     NewElemTy = Context.getIntTypeForBitwidth(DestWidth,
                                               OldElemTy->isSignedIntegerType());
   else
-    NewElemTy = Context.getRealTypeForBitwidth(DestWidth);
+    NewElemTy = Context.getRealTypeForBitwidth(DestWidth, ExplicitIEEE);
 
   if (NewElemTy.isNull()) {
     Diag(AttrLoc, diag::err_machine_mode) << 1 /*Unsupported*/ << Name;
@@ -4478,6 +4488,22 @@ static void handleSYCLDeviceIndirectlyCallableAttr(Sema &S, Decl *D,
   handleSimpleAttribute<SYCLDeviceIndirectlyCallableAttr>(S, D, AL);
 }
 
+static void handleSYCLRegisterNumAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  auto *VD = cast<VarDecl>(D);
+  if (!VD->hasGlobalStorage()) {
+    S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here)
+        << AL << 0;
+    return;
+  }
+  if (!checkAttributeNumArgs(S, AL, 1))
+    return;
+  uint32_t RegNo = 0;
+  const Expr *E = AL.getArgAsExpr(0);
+  if (!checkUInt32Argument(S, AL, E, RegNo, 0, /*StrictlyUnsigned=*/true))
+    return;
+  D->addAttr(::new (S.Context) SYCLRegisterNumAttr(S.Context, AL, RegNo));
+}
+
 static void handleConstantAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (checkAttrMutualExclusion<CUDASharedAttr>(S, D, AL))
     return;
@@ -4536,6 +4562,12 @@ static void handleGlobalAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     S.Diag(FD->getBeginLoc(), diag::warn_kern_is_inline) << FD;
 
   D->addAttr(::new (S.Context) CUDAGlobalAttr(S.Context, AL));
+  // In host compilation the kernel is emitted as a stub function, which is
+  // a helper function for launching the kernel. The instructions in the helper
+  // function has nothing to do with the source code of the kernel. Do not emit
+  // debug info for the stub function to avoid confusing the debugger.
+  if (S.LangOpts.HIP && !S.LangOpts.CUDAIsDevice)
+    D->addAttr(NoDebugAttr::CreateImplicit(S.Context));
 }
 
 static void handleGNUInlineAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -4994,19 +5026,19 @@ static Expr *makeLaunchBoundsArgExpr(Sema &S, Expr *E,
   if (E->isValueDependent())
     return E;
 
-  llvm::APSInt I(64);
-  if (!E->isIntegerConstantExpr(I, S.Context)) {
+  Optional<llvm::APSInt> I = llvm::APSInt(64);
+  if (!(I = E->getIntegerConstantExpr(S.Context))) {
     S.Diag(E->getExprLoc(), diag::err_attribute_argument_n_type)
         << &AL << Idx << AANT_ArgumentIntegerConstant << E->getSourceRange();
     return nullptr;
   }
   // Make sure we can fit it in 32 bits.
-  if (!I.isIntN(32)) {
-    S.Diag(E->getExprLoc(), diag::err_ice_too_large) << I.toString(10, false)
-                                                     << 32 << /* Unsigned */ 1;
+  if (!I->isIntN(32)) {
+    S.Diag(E->getExprLoc(), diag::err_ice_too_large)
+        << I->toString(10, false) << 32 << /* Unsigned */ 1;
     return nullptr;
   }
-  if (I < 0)
+  if (*I < 0)
     S.Diag(E->getExprLoc(), diag::warn_attribute_argument_n_negative)
         << &AL << Idx << E->getSourceRange();
 
@@ -5499,14 +5531,14 @@ void Sema::addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &Attr,
   }
 
   if (!E->isInstantiationDependent()) {
-    llvm::APSInt ArgVal(32);
-    if (!E->isIntegerConstantExpr(ArgVal, getASTContext())) {
+    Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(getASTContext());
+    if (!ArgVal) {
       Diag(E->getExprLoc(), diag::err_attribute_argument_type)
           << Attr.getAttrName() << AANT_ArgumentIntegerConstant
           << E->getSourceRange();
       return;
     }
-    int32_t ArgInt = ArgVal.getSExtValue();
+    int32_t ArgInt = ArgVal->getSExtValue();
     if (ArgInt < 0) {
       Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
           << Attr.getAttrName() << /*non-negative*/ 1;
@@ -5877,6 +5909,30 @@ static void handleObjCRequiresSuperAttr(Sema &S, Decl *D,
   D->addAttr(::new (S.Context) ObjCRequiresSuperAttr(S.Context, Attrs));
 }
 
+static void handleNSErrorDomain(Sema &S, Decl *D, const ParsedAttr &AL) {
+  auto *E = AL.getArgAsExpr(0);
+  auto Loc = E ? E->getBeginLoc() : AL.getLoc();
+
+  auto *DRE = dyn_cast<DeclRefExpr>(AL.getArgAsExpr(0));
+  if (!DRE) {
+    S.Diag(Loc, diag::err_nserrordomain_invalid_decl) << 0;
+    return;
+  }
+
+  auto *VD = dyn_cast<VarDecl>(DRE->getDecl());
+  if (!VD) {
+    S.Diag(Loc, diag::err_nserrordomain_invalid_decl) << 1 << DRE->getDecl();
+    return;
+  }
+
+  if (!isNSStringType(VD->getType(), S.Context)) {
+    S.Diag(Loc, diag::err_nserrordomain_wrong_type) << VD;
+    return;
+  }
+
+  D->addAttr(::new (S.Context) NSErrorDomainAttr(S.Context, AL, VD));
+}
+
 static void handleObjCBridgeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   IdentifierLoc *Parm = AL.isArgIdent(0) ? AL.getArgAsIdent(0) : nullptr;
 
@@ -6043,9 +6099,9 @@ static void handleObjCPreciseLifetimeAttr(Sema &S, Decl *D,
 //===----------------------------------------------------------------------===//
 
 UuidAttr *Sema::mergeUuidAttr(Decl *D, const AttributeCommonInfo &CI,
-                              StringRef Uuid) {
+                              StringRef UuidAsWritten, MSGuidDecl *GuidDecl) {
   if (const auto *UA = D->getAttr<UuidAttr>()) {
-    if (UA->getGuid().equals_lower(Uuid))
+    if (declaresSameEntity(UA->getGuidDecl(), GuidDecl))
       return nullptr;
     if (!UA->getGuid().empty()) {
       Diag(UA->getLocation(), diag::err_mismatched_uuid);
@@ -6054,7 +6110,7 @@ UuidAttr *Sema::mergeUuidAttr(Decl *D, const AttributeCommonInfo &CI,
     }
   }
 
-  return ::new (Context) UuidAttr(Context, CI, Uuid);
+  return ::new (Context) UuidAttr(Context, CI, UuidAsWritten, GuidDecl);
 }
 
 static void handleUuidAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -6064,13 +6120,14 @@ static void handleUuidAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
   }
 
-  StringRef StrRef;
+  StringRef OrigStrRef;
   SourceLocation LiteralLoc;
-  if (!S.checkStringLiteralArgumentAttr(AL, 0, StrRef, &LiteralLoc))
+  if (!S.checkStringLiteralArgumentAttr(AL, 0, OrigStrRef, &LiteralLoc))
     return;
 
   // GUID format is "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" or
   // "{XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}", normalize to the former.
+  StringRef StrRef = OrigStrRef;
   if (StrRef.size() == 38 && StrRef.front() == '{' && StrRef.back() == '}')
     StrRef = StrRef.drop_front().drop_back();
 
@@ -6092,6 +6149,16 @@ static void handleUuidAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     }
   }
 
+  // Convert to our parsed format and canonicalize.
+  MSGuidDecl::Parts Parsed;
+  StrRef.substr(0, 8).getAsInteger(16, Parsed.Part1);
+  StrRef.substr(9, 4).getAsInteger(16, Parsed.Part2);
+  StrRef.substr(14, 4).getAsInteger(16, Parsed.Part3);
+  for (unsigned i = 0; i != 8; ++i)
+    StrRef.substr(19 + 2 * i + (i >= 2 ? 1 : 0), 2)
+        .getAsInteger(16, Parsed.Part4And5[i]);
+  MSGuidDecl *Guid = S.Context.getMSGuidDecl(Parsed);
+
   // FIXME: It'd be nice to also emit a fixit removing uuid(...) (and, if it's
   // the only thing in the [] list, the [] too), and add an insertion of
   // __declspec(uuid(...)).  But sadly, neither the SourceLocs of the commas
@@ -6101,7 +6168,7 @@ static void handleUuidAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (AL.isMicrosoftAttribute()) // Check for [uuid(...)] spelling.
     S.Diag(AL.getLoc(), diag::warn_atl_uuid_deprecated);
 
-  UuidAttr *UA = S.mergeUuidAttr(D, AL, StrRef);
+  UuidAttr *UA = S.mergeUuidAttr(D, AL, OrigStrRef, Guid);
   if (UA)
     D->addAttr(UA);
 }
@@ -6225,18 +6292,18 @@ static void handleMSP430InterruptAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 
   Expr *NumParamsExpr = static_cast<Expr *>(AL.getArgAsExpr(0));
-  llvm::APSInt NumParams(32);
-  if (!NumParamsExpr->isIntegerConstantExpr(NumParams, S.Context)) {
+  Optional<llvm::APSInt> NumParams = llvm::APSInt(32);
+  if (!(NumParams = NumParamsExpr->getIntegerConstantExpr(S.Context))) {
     S.Diag(AL.getLoc(), diag::err_attribute_argument_type)
         << AL << AANT_ArgumentIntegerConstant
         << NumParamsExpr->getSourceRange();
     return;
   }
   // The argument should be in range 0..63.
-  unsigned Num = NumParams.getLimitedValue(255);
+  unsigned Num = NumParams->getLimitedValue(255);
   if (Num > 63) {
     S.Diag(AL.getLoc(), diag::err_attribute_argument_out_of_bounds)
-        << AL << (int)NumParams.getSExtValue()
+        << AL << (int)NumParams->getSExtValue()
         << NumParamsExpr->getSourceRange();
     return;
   }
@@ -6431,45 +6498,75 @@ static void handleWebAssemblyExportNameAttr(Sema &S, Decl *D, const ParsedAttr &
   D->addAttr(UsedAttr::CreateImplicit(S.Context));
 }
 
-static void handleWebAssemblyImportModuleAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (!isFunctionOrMethod(D)) {
-    S.Diag(D->getLocation(), diag::warn_attribute_wrong_decl_type)
-        << "'import_module'" << ExpectedFunction;
-    return;
-  }
-
+WebAssemblyImportModuleAttr *
+Sema::mergeImportModuleAttr(Decl *D, const WebAssemblyImportModuleAttr &AL) {
   auto *FD = cast<FunctionDecl>(D);
-  if (FD->isThisDeclarationADefinition()) {
-    S.Diag(D->getLocation(), diag::err_alias_is_definition) << FD << 0;
-    return;
+
+  if (const auto *ExistingAttr = FD->getAttr<WebAssemblyImportModuleAttr>()) {
+    if (ExistingAttr->getImportModule() == AL.getImportModule())
+      return nullptr;
+    Diag(ExistingAttr->getLocation(), diag::warn_mismatched_import) << 0
+      << ExistingAttr->getImportModule() << AL.getImportModule();
+    Diag(AL.getLoc(), diag::note_previous_attribute);
+    return nullptr;
   }
+  if (FD->hasBody()) {
+    Diag(AL.getLoc(), diag::warn_import_on_definition) << 0;
+    return nullptr;
+  }
+  return ::new (Context) WebAssemblyImportModuleAttr(Context, AL,
+                                                     AL.getImportModule());
+}
+
+WebAssemblyImportNameAttr *
+Sema::mergeImportNameAttr(Decl *D, const WebAssemblyImportNameAttr &AL) {
+  auto *FD = cast<FunctionDecl>(D);
+
+  if (const auto *ExistingAttr = FD->getAttr<WebAssemblyImportNameAttr>()) {
+    if (ExistingAttr->getImportName() == AL.getImportName())
+      return nullptr;
+    Diag(ExistingAttr->getLocation(), diag::warn_mismatched_import) << 1
+      << ExistingAttr->getImportName() << AL.getImportName();
+    Diag(AL.getLoc(), diag::note_previous_attribute);
+    return nullptr;
+  }
+  if (FD->hasBody()) {
+    Diag(AL.getLoc(), diag::warn_import_on_definition) << 1;
+    return nullptr;
+  }
+  return ::new (Context) WebAssemblyImportNameAttr(Context, AL,
+                                                   AL.getImportName());
+}
+
+static void
+handleWebAssemblyImportModuleAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  auto *FD = cast<FunctionDecl>(D);
 
   StringRef Str;
   SourceLocation ArgLoc;
   if (!S.checkStringLiteralArgumentAttr(AL, 0, Str, &ArgLoc))
     return;
+  if (FD->hasBody()) {
+    S.Diag(AL.getLoc(), diag::warn_import_on_definition) << 0;
+    return;
+  }
 
   FD->addAttr(::new (S.Context)
                   WebAssemblyImportModuleAttr(S.Context, AL, Str));
 }
 
-static void handleWebAssemblyImportNameAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (!isFunctionOrMethod(D)) {
-    S.Diag(D->getLocation(), diag::warn_attribute_wrong_decl_type)
-        << "'import_name'" << ExpectedFunction;
-    return;
-  }
-
+static void
+handleWebAssemblyImportNameAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   auto *FD = cast<FunctionDecl>(D);
-  if (FD->isThisDeclarationADefinition()) {
-    S.Diag(D->getLocation(), diag::err_alias_is_definition) << FD << 0;
-    return;
-  }
 
   StringRef Str;
   SourceLocation ArgLoc;
   if (!S.checkStringLiteralArgumentAttr(AL, 0, Str, &ArgLoc))
     return;
+  if (FD->hasBody()) {
+    S.Diag(AL.getLoc(), diag::warn_import_on_definition) << 1;
+    return;
+  }
 
   FD->addAttr(::new (S.Context) WebAssemblyImportNameAttr(S.Context, AL, Str));
 }
@@ -7090,15 +7187,16 @@ static void handleSYCLKernelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   const FunctionTemplateDecl *FT = FD->getDescribedFunctionTemplate();
   assert(FT && "Function template is expected");
 
-  // Function template must have at least two template parameters.
+  // Function template must have at least two template parameters so it
+  // can be used in OpenCL kernel generation.
   const TemplateParameterList *TL = FT->getTemplateParameters();
-  if (TL->size() < 2) {
+  if (S.LangOpts.SYCLIsDevice && TL->size() < 2) {
     S.Diag(FT->getLocation(), diag::warn_sycl_kernel_num_of_template_params);
     return;
   }
 
-  // Template parameters must be typenames.
-  for (unsigned I = 0; I < 2; ++I) {
+  // The first two template parameters must be typenames.
+  for (unsigned I = 0; I < 2 && I < TL->size(); ++I) {
     const NamedDecl *TParam = TL->getParam(I);
     if (isa<NonTypeTemplateParmDecl>(TParam)) {
       S.Diag(FT->getLocation(),
@@ -7107,8 +7205,8 @@ static void handleSYCLKernelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     }
   }
 
-  // Function must have at least one argument.
-  if (getFunctionOrMethodNumParams(D) != 1) {
+  // Function must have at least one parameter.
+  if (getFunctionOrMethodNumParams(D) < 1) {
     S.Diag(FT->getLocation(), diag::warn_sycl_kernel_num_of_function_params);
     return;
   }
@@ -7253,7 +7351,7 @@ static void handleMSAllocatorAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   handleSimpleAttribute<MSAllocatorAttr>(S, D, AL);
 }
 
-static void handeAcquireHandleAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+static void handleAcquireHandleAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (AL.isUsedAsTypeAttr())
     return;
   // Warn if the parameter is definitely not an output parameter.
@@ -7459,13 +7557,20 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     handlePassObjectSizeAttr(S, D, AL);
     break;
   case ParsedAttr::AT_Constructor:
-    handleConstructorAttr(S, D, AL);
+    if (S.Context.getTargetInfo().getTriple().isOSAIX())
+      llvm::report_fatal_error(
+          "'constructor' attribute is not yet supported on AIX");
+    else
+      handleConstructorAttr(S, D, AL);
     break;
   case ParsedAttr::AT_Deprecated:
     handleDeprecatedAttr(S, D, AL);
     break;
   case ParsedAttr::AT_Destructor:
-    handleDestructorAttr(S, D, AL);
+    if (S.Context.getTargetInfo().getTriple().isOSAIX())
+      llvm::report_fatal_error("'destructor' attribute is not yet supported on AIX");
+    else
+      handleDestructorAttr(S, D, AL);
     break;
   case ParsedAttr::AT_EnableIf:
     handleEnableIfAttr(S, D, AL);
@@ -7494,11 +7599,17 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_SYCLKernel:
     handleSYCLKernelAttr(S, D, AL);
     break;
+  case ParsedAttr::AT_SYCLSimd:
+    handleSimpleAttribute<SYCLSimdAttr>(S, D, AL);
+    break;
   case ParsedAttr::AT_SYCLDevice:
     handleSYCLDeviceAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLDeviceIndirectlyCallable:
     handleSYCLDeviceIndirectlyCallableAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLRegisterNum:
+    handleSYCLRegisterNumAttr(S, D, AL);
     break;
   case ParsedAttr::AT_Format:
     handleFormatAttr(S, D, AL);
@@ -7519,9 +7630,15 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_CUDAHost:
     handleSimpleAttributeWithExclusions<CUDAHostAttr, CUDAGlobalAttr>(S, D, AL);
     break;
-  case ParsedAttr::AT_HIPPinnedShadow:
-    handleSimpleAttributeWithExclusions<HIPPinnedShadowAttr, CUDADeviceAttr,
-                                        CUDAConstantAttr>(S, D, AL);
+  case ParsedAttr::AT_CUDADeviceBuiltinSurfaceType:
+    handleSimpleAttributeWithExclusions<CUDADeviceBuiltinSurfaceTypeAttr,
+                                        CUDADeviceBuiltinTextureTypeAttr>(S, D,
+                                                                          AL);
+    break;
+  case ParsedAttr::AT_CUDADeviceBuiltinTextureType:
+    handleSimpleAttributeWithExclusions<CUDADeviceBuiltinTextureTypeAttr,
+                                        CUDADeviceBuiltinSurfaceTypeAttr>(S, D,
+                                                                          AL);
     break;
   case ParsedAttr::AT_GNUInline:
     handleGNUInlineAttr(S, D, AL);
@@ -7611,6 +7728,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_ObjCBoxable:
     handleObjCBoxable(S, D, AL);
     break;
+  case ParsedAttr::AT_NSErrorDomain:
+    handleNSErrorDomain(S, D, AL);
+    break;
   case ParsedAttr::AT_CFAuditedTransfer:
     handleSimpleAttributeWithExclusions<CFAuditedTransferAttr,
                                         CFUnknownTransferAttr>(S, D, AL);
@@ -7671,7 +7791,11 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     handleVecTypeHint(S, D, AL);
     break;
   case ParsedAttr::AT_InitPriority:
-    handleInitPriorityAttr(S, D, AL);
+    if (S.Context.getTargetInfo().getTriple().isOSAIX())
+      llvm::report_fatal_error(
+          "'init_priority' attribute is not yet supported on AIX");
+    else
+      handleInitPriorityAttr(S, D, AL);
     break;
   case ParsedAttr::AT_Packed:
     handlePackedAttr(S, D, AL);
@@ -8000,7 +8124,7 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
 
   case ParsedAttr::AT_AcquireHandle:
-    handeAcquireHandleAttr(S, D, AL);
+    handleAcquireHandleAttr(S, D, AL);
     break;
 
   case ParsedAttr::AT_ReleaseHandle:

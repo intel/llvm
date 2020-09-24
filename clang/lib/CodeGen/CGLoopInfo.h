@@ -29,6 +29,7 @@ class MDNode;
 namespace clang {
 class Attr;
 class ASTContext;
+class CodeGenOptions;
 class ValueDecl;
 namespace CodeGen {
 
@@ -281,6 +282,7 @@ public:
   /// Begin a new structured loop. Stage attributes from the Attrs list.
   /// The staged attributes are applied to the loop and then cleared.
   void push(llvm::BasicBlock *Header, clang::ASTContext &Ctx,
+            const clang::CodeGenOptions &CGOpts,
             llvm::ArrayRef<const Attr *> Attrs, const llvm::DebugLoc &StartLoc,
             const llvm::DebugLoc &EndLoc);
 

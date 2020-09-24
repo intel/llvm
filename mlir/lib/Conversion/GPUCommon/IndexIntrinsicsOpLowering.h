@@ -34,33 +34,29 @@ private:
         .Default(invalid);
   }
 
-  static unsigned getIndexBitWidth(LLVMTypeConverter &type_converter) {
-    auto dialect = type_converter.getDialect();
-    return dialect->getLLVMModule().getDataLayout().getPointerSizeInBits();
-  }
-
 public:
-  explicit GPUIndexIntrinsicOpLowering(LLVMTypeConverter &lowering_)
+  explicit GPUIndexIntrinsicOpLowering(LLVMTypeConverter &typeConverter)
       : ConvertToLLVMPattern(Op::getOperationName(),
-                             lowering_.getDialect()->getContext(), lowering_),
-        indexBitwidth(getIndexBitWidth(lowering_)) {}
+                             typeConverter.getDialect()->getContext(),
+                             typeConverter),
+        indexBitwidth(typeConverter.getIndexTypeBitwidth()) {}
 
   // Convert the kernel arguments to an LLVM type, preserve the rest.
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
-    auto dialect = typeConverter.getDialect();
+    MLIRContext *context = rewriter.getContext();
     Value newOp;
     switch (dimensionToIndex(cast<Op>(op))) {
     case X:
-      newOp = rewriter.create<XOp>(loc, LLVM::LLVMType::getInt32Ty(dialect));
+      newOp = rewriter.create<XOp>(loc, LLVM::LLVMType::getInt32Ty(context));
       break;
     case Y:
-      newOp = rewriter.create<YOp>(loc, LLVM::LLVMType::getInt32Ty(dialect));
+      newOp = rewriter.create<YOp>(loc, LLVM::LLVMType::getInt32Ty(context));
       break;
     case Z:
-      newOp = rewriter.create<ZOp>(loc, LLVM::LLVMType::getInt32Ty(dialect));
+      newOp = rewriter.create<ZOp>(loc, LLVM::LLVMType::getInt32Ty(context));
       break;
     default:
       return failure();
@@ -68,10 +64,10 @@ public:
 
     if (indexBitwidth > 32) {
       newOp = rewriter.create<LLVM::SExtOp>(
-          loc, LLVM::LLVMType::getIntNTy(dialect, indexBitwidth), newOp);
+          loc, LLVM::LLVMType::getIntNTy(context, indexBitwidth), newOp);
     } else if (indexBitwidth < 32) {
       newOp = rewriter.create<LLVM::TruncOp>(
-          loc, LLVM::LLVMType::getIntNTy(dialect, indexBitwidth), newOp);
+          loc, LLVM::LLVMType::getIntNTy(context, indexBitwidth), newOp);
     }
 
     rewriter.replaceOp(op, {newOp});

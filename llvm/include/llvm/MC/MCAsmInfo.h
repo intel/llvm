@@ -93,6 +93,10 @@ protected:
   /// constants into comdat sections.
   bool HasCOFFComdatConstants = false;
 
+  /// True if this is an XCOFF target that supports visibility attributes as
+  /// part of .global, .weak, .extern, and .comm. Default is false.
+  bool HasVisibilityOnlyWithLinkage = false;
+
   /// This is the maximum possible length of an instruction, which is needed to
   /// compute the size of an inline asm.  Defaults to 4.
   unsigned MaxInstLength = 4;
@@ -204,6 +208,9 @@ protected:
   const char *Data16bitsDirective;
   const char *Data32bitsDirective;
   const char *Data64bitsDirective;
+
+  /// True if data directives support signed values
+  bool SupportsSignedData = true;
 
   /// If non-null, a directive that is used to emit a word which should be
   /// relocated as a 64-bit GP-relative offset, e.g. .gpdword on Mips.  Defaults
@@ -322,13 +329,10 @@ protected:
   /// symbol that can be hidden (unexported).  Defaults to false.
   bool HasWeakDefCanBeHiddenDirective = false;
 
-  /// True if we have a .linkonce directive.  This is used on cygwin/mingw.
+  /// True if we should mark symbols as global instead of weak, for
+  /// weak*/linkonce*, if the symbol has a comdat.
   /// Defaults to false.
-  bool HasLinkOnceDirective = false;
-
-  /// True if we have a .lglobl directive, which is used to emit the information
-  /// of a static symbol into the symbol table. Defaults to false.
-  bool HasDotLGloblDirective = false;
+  bool AvoidWeakIfComdat = false;
 
   /// This attribute, if not MCSA_Invalid, is used to declare a symbol as having
   /// hidden visibility.  Defaults to MCSA_Hidden.
@@ -341,10 +345,6 @@ protected:
   /// This attribute, if not MCSA_Invalid, is used to declare a symbol as having
   /// protected visibility.  Defaults to MCSA_Protected
   MCSymbolAttr ProtectedVisibilityAttr = MCSA_Protected;
-
-  // This attribute is used to indicate symbols such as commons on AIX may have
-  // a storage mapping class embedded in the name.
-  bool SymbolsHaveSMC = false;
 
   //===--- Dwarf Emission Directives -----------------------------------===//
 
@@ -439,6 +439,7 @@ public:
   const char *getData16bitsDirective() const { return Data16bitsDirective; }
   const char *getData32bitsDirective() const { return Data32bitsDirective; }
   const char *getData64bitsDirective() const { return Data64bitsDirective; }
+  bool supportsSignedData() const { return SupportsSignedData; }
   const char *getGPRel64Directive() const { return GPRel64Directive; }
   const char *getGPRel32Directive() const { return GPRel32Directive; }
   const char *getDTPRel64Directive() const { return DTPRel64Directive; }
@@ -501,6 +502,9 @@ public:
   bool hasMachoTBSSDirective() const { return HasMachoTBSSDirective; }
   bool hasCOFFAssociativeComdats() const { return HasCOFFAssociativeComdats; }
   bool hasCOFFComdatConstants() const { return HasCOFFComdatConstants; }
+  bool hasVisibilityOnlyWithLinkage() const {
+    return HasVisibilityOnlyWithLinkage;
+  }
 
   /// Returns the maximum possible encoded instruction size in bytes. If \p STI
   /// is null, this should be the maximum size for any subtarget.
@@ -590,9 +594,7 @@ public:
     return HasWeakDefCanBeHiddenDirective;
   }
 
-  bool hasLinkOnceDirective() const { return HasLinkOnceDirective; }
-
-  bool hasDotLGloblDirective() const { return HasDotLGloblDirective; }
+  bool avoidWeakIfComdat() const { return AvoidWeakIfComdat; }
 
   MCSymbolAttr getHiddenVisibilityAttr() const { return HiddenVisibilityAttr; }
 
@@ -603,8 +605,6 @@ public:
   MCSymbolAttr getProtectedVisibilityAttr() const {
     return ProtectedVisibilityAttr;
   }
-
-  bool getSymbolsHaveSMC() const { return SymbolsHaveSMC; }
 
   bool doesSupportDebugInformation() const { return SupportsDebugInformation; }
 

@@ -58,6 +58,21 @@ public:
 
 } // end anonymous namespace
 
+// skip allocas
+static BasicBlock::iterator getInsertPt(BasicBlock &BB) {
+  BasicBlock::iterator InsPt = BB.getFirstInsertionPt();
+  for (BasicBlock::iterator E = BB.end(); InsPt != E; ++InsPt) {
+    AllocaInst *AI = dyn_cast<AllocaInst>(&*InsPt);
+
+    // If this is a dynamic alloca, the value may depend on the loaded kernargs,
+    // so loads will need to be inserted before it.
+    if (!AI || !AI->isStaticAlloca())
+      break;
+  }
+
+  return InsPt;
+}
+
 bool AMDGPULowerKernelArguments::runOnFunction(Function &F) {
   CallingConv::ID CC = F.getCallingConv();
   if (CC != CallingConv::AMDGPU_KERNEL || F.arg_empty())
@@ -70,7 +85,7 @@ bool AMDGPULowerKernelArguments::runOnFunction(Function &F) {
   LLVMContext &Ctx = F.getParent()->getContext();
   const DataLayout &DL = F.getParent()->getDataLayout();
   BasicBlock &EntryBlock = *F.begin();
-  IRBuilder<> Builder(&*EntryBlock.begin());
+  IRBuilder<> Builder(&*getInsertPt(EntryBlock));
 
   const Align KernArgBaseAlign(16); // FIXME: Increase if necessary
   const uint64_t BaseOffset = ST.getExplicitKernelArgOffset(F);
@@ -93,16 +108,33 @@ bool AMDGPULowerKernelArguments::runOnFunction(Function &F) {
   uint64_t ExplicitArgOffset = 0;
 
   for (Argument &Arg : F.args()) {
-    Type *ArgTy = Arg.getType();
-    unsigned ABITypeAlign = DL.getABITypeAlignment(ArgTy);
-    unsigned Size = DL.getTypeSizeInBits(ArgTy);
-    unsigned AllocSize = DL.getTypeAllocSize(ArgTy);
+    const bool IsByRef = Arg.hasByRefAttr();
+    Type *ArgTy = IsByRef ? Arg.getParamByRefType() : Arg.getType();
+    MaybeAlign ABITypeAlign = IsByRef ? Arg.getParamAlign() : None;
+    if (!ABITypeAlign)
+      ABITypeAlign = DL.getABITypeAlign(ArgTy);
+
+    uint64_t Size = DL.getTypeSizeInBits(ArgTy);
+    uint64_t AllocSize = DL.getTypeAllocSize(ArgTy);
 
     uint64_t EltOffset = alignTo(ExplicitArgOffset, ABITypeAlign) + BaseOffset;
     ExplicitArgOffset = alignTo(ExplicitArgOffset, ABITypeAlign) + AllocSize;
 
     if (Arg.use_empty())
       continue;
+
+    // If this is byval, the loads are already explicit in the function. We just
+    // need to rewrite the pointer values.
+    if (IsByRef) {
+      Value *ArgOffsetPtr = Builder.CreateConstInBoundsGEP1_64(
+          Builder.getInt8Ty(), KernArgSegment, EltOffset,
+          Arg.getName() + ".byval.kernarg.offset");
+
+      Value *CastOffsetPtr = Builder.CreatePointerBitCastOrAddrSpaceCast(
+          ArgOffsetPtr, Arg.getType());
+      Arg.replaceAllUsesWith(CastOffsetPtr);
+      continue;
+    }
 
     if (PointerType *PT = dyn_cast<PointerType>(ArgTy)) {
       // FIXME: Hack. We rely on AssertZext to be able to fold DS addressing
@@ -120,7 +152,7 @@ bool AMDGPULowerKernelArguments::runOnFunction(Function &F) {
         continue;
     }
 
-    VectorType *VT = dyn_cast<VectorType>(ArgTy);
+    auto *VT = dyn_cast<FixedVectorType>(ArgTy);
     bool IsV3 = VT && VT->getNumElements() == 3;
     bool DoShiftOpt = Size < 32 && !ArgTy->isAggregateType();
 
@@ -152,7 +184,7 @@ bool AMDGPULowerKernelArguments::runOnFunction(Function &F) {
     }
 
     if (IsV3 && Size >= 32) {
-      V4Ty = VectorType::get(VT->getVectorElementType(), 4);
+      V4Ty = FixedVectorType::get(VT->getElementType(), 4);
       // Use the hack that clang uses to avoid SelectionDAG ruining v3 loads
       AdjustedArgTy = V4Ty;
     }
@@ -210,7 +242,7 @@ bool AMDGPULowerKernelArguments::runOnFunction(Function &F) {
       Arg.replaceAllUsesWith(NewVal);
     } else if (IsV3) {
       Value *Shuf = Builder.CreateShuffleVector(Load, UndefValue::get(V4Ty),
-                                                {0, 1, 2},
+                                                ArrayRef<int>{0, 1, 2},
                                                 Arg.getName() + ".load");
       Arg.replaceAllUsesWith(Shuf);
     } else {

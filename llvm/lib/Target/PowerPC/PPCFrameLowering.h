@@ -61,8 +61,8 @@ class PPCFrameLowering: public TargetFrameLowering {
   bool findScratchRegister(MachineBasicBlock *MBB,
                            bool UseAtEnd,
                            bool TwoUniqueRegsRequired = false,
-                           unsigned *SR1 = nullptr,
-                           unsigned *SR2 = nullptr) const;
+                           Register *SR1 = nullptr,
+                           Register *SR2 = nullptr) const;
   bool twoUniqueScratchRegsRequired(MachineBasicBlock *MBB) const;
 
   /**
@@ -100,6 +100,8 @@ public:
   /// the function.
   void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
   void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
+  void inlineStackProbe(MachineFunction &MF,
+                        MachineBasicBlock &PrologMBB) const override;
 
   bool hasFP(const MachineFunction &MF) const override;
   bool needsFP(const MachineFunction &MF) const;

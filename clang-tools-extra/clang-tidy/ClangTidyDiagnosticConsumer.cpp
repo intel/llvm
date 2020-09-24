@@ -18,14 +18,21 @@
 #include "ClangTidyDiagnosticConsumer.h"
 #include "ClangTidyOptions.h"
 #include "GlobList.h"
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTDiagnostic.h"
 #include "clang/AST/Attr.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticOptions.h"
+#include "clang/Basic/FileManager.h"
+#include "clang/Basic/SourceManager.h"
 #include "clang/Frontend/DiagnosticRenderer.h"
 #include "clang/Tooling/Core/Diagnostic.h"
+#include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/StringMap.h"
+#include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Regex.h"
 #include <tuple>
 #include <vector>
@@ -124,7 +131,6 @@ ClangTidyError::ClangTidyError(StringRef CheckName,
     : tooling::Diagnostic(CheckName, DiagLevel, BuildDirectory),
       IsWarningAsError(IsWarningAsError) {}
 
-
 class ClangTidyContext::CachedGlobList {
 public:
   CachedGlobList(StringRef Globs) : Globs(Globs) {}
@@ -200,7 +206,7 @@ ClangTidyOptions ClangTidyContext::getOptionsForFile(StringRef File) const {
   // Merge options on top of getDefaults() as a safeguard against options with
   // unset values.
   return ClangTidyOptions::getDefaults().mergeWith(
-      OptionsProvider->getOptions(File));
+      OptionsProvider->getOptions(File), 0);
 }
 
 void ClangTidyContext::setEnableProfiling(bool P) { Profile = P; }
@@ -297,57 +303,54 @@ static bool IsNOLINTFound(StringRef NolintDirectiveText, StringRef Line,
   return true;
 }
 
+static llvm::Optional<StringRef> getBuffer(const SourceManager &SM, FileID File,
+                                           bool AllowIO) {
+  // This is similar to the implementation of SourceManager::getBufferData(),
+  // but uses ContentCache::getRawBuffer() rather than getBuffer() if
+  // AllowIO=false, to avoid triggering file I/O if the file contents aren't
+  // already mapped.
+  bool CharDataInvalid = false;
+  const SrcMgr::SLocEntry &Entry = SM.getSLocEntry(File, &CharDataInvalid);
+  if (CharDataInvalid || !Entry.isFile())
+    return llvm::None;
+  const SrcMgr::ContentCache *Cache = Entry.getFile().getContentCache();
+  const llvm::MemoryBuffer *Buffer =
+      AllowIO ? Cache->getBuffer(SM.getDiagnostics(), SM.getFileManager(),
+                                 SourceLocation(), &CharDataInvalid)
+              : Cache->getRawBuffer();
+  if (!Buffer || CharDataInvalid)
+    return llvm::None;
+  return Buffer->getBuffer();
+}
+
 static bool LineIsMarkedWithNOLINT(const SourceManager &SM, SourceLocation Loc,
                                    unsigned DiagID,
-                                   const ClangTidyContext &Context) {
-  bool Invalid;
-  const char *CharacterData = SM.getCharacterData(Loc, &Invalid);
-  if (Invalid)
+                                   const ClangTidyContext &Context,
+                                   bool AllowIO) {
+  FileID File;
+  unsigned Offset;
+  std::tie(File, Offset) = SM.getDecomposedSpellingLoc(Loc);
+  llvm::Optional<StringRef> Buffer = getBuffer(SM, File, AllowIO);
+  if (!Buffer)
     return false;
 
   // Check if there's a NOLINT on this line.
-  const char *P = CharacterData;
-  while (*P != '\0' && *P != '\r' && *P != '\n')
-    ++P;
-  StringRef RestOfLine(CharacterData, P - CharacterData + 1);
+  StringRef RestOfLine = Buffer->substr(Offset).split('\n').first;
   if (IsNOLINTFound("NOLINT", RestOfLine, DiagID, Context))
     return true;
 
   // Check if there's a NOLINTNEXTLINE on the previous line.
-  const char *BufBegin =
-      SM.getCharacterData(SM.getLocForStartOfFile(SM.getFileID(Loc)), &Invalid);
-  if (Invalid || P == BufBegin)
-    return false;
-
-  // Scan backwards over the current line.
-  P = CharacterData;
-  while (P != BufBegin && *P != '\n')
-    --P;
-
-  // If we reached the begin of the file there is no line before it.
-  if (P == BufBegin)
-    return false;
-
-  // Skip over the newline.
-  --P;
-  const char *LineEnd = P;
-
-  // Now we're on the previous line. Skip to the beginning of it.
-  while (P != BufBegin && *P != '\n')
-    --P;
-
-  RestOfLine = StringRef(P, LineEnd - P + 1);
-  if (IsNOLINTFound("NOLINTNEXTLINE", RestOfLine, DiagID, Context))
-    return true;
-
-  return false;
+  StringRef PrevLine =
+      Buffer->substr(0, Offset).rsplit('\n').first.rsplit('\n').second;
+  return IsNOLINTFound("NOLINTNEXTLINE", PrevLine, DiagID, Context);
 }
 
 static bool LineIsMarkedWithNOLINTinMacro(const SourceManager &SM,
                                           SourceLocation Loc, unsigned DiagID,
-                                          const ClangTidyContext &Context) {
+                                          const ClangTidyContext &Context,
+                                          bool AllowIO) {
   while (true) {
-    if (LineIsMarkedWithNOLINT(SM, Loc, DiagID, Context))
+    if (LineIsMarkedWithNOLINT(SM, Loc, DiagID, Context, AllowIO))
       return true;
     if (!Loc.isMacroID())
       return false;
@@ -361,14 +364,13 @@ namespace tidy {
 
 bool shouldSuppressDiagnostic(DiagnosticsEngine::Level DiagLevel,
                               const Diagnostic &Info, ClangTidyContext &Context,
-                              bool CheckMacroExpansion) {
+                              bool AllowIO) {
   return Info.getLocation().isValid() &&
          DiagLevel != DiagnosticsEngine::Error &&
          DiagLevel != DiagnosticsEngine::Fatal &&
-         (CheckMacroExpansion ? LineIsMarkedWithNOLINTinMacro
-                              : LineIsMarkedWithNOLINT)(Info.getSourceManager(),
-                                                        Info.getLocation(),
-                                                        Info.getID(), Context);
+         LineIsMarkedWithNOLINTinMacro(Info.getSourceManager(),
+                                       Info.getLocation(), Info.getID(),
+                                       Context, AllowIO);
 }
 
 } // namespace tidy
@@ -589,6 +591,7 @@ void ClangTidyDiagnosticConsumer::removeIncompatibleErrors() {
     // An event can be either the begin or the end of an interval.
     enum EventType {
       ET_Begin = 1,
+      ET_Insert = 0,
       ET_End = -1,
     };
 
@@ -620,10 +623,17 @@ void ClangTidyDiagnosticConsumer::removeIncompatibleErrors() {
       //   one will be processed before, disallowing the second one, and the
       //   end point of the first one will also be processed before,
       //   disallowing the first one.
-      if (Type == ET_Begin)
+      switch (Type) {
+      case ET_Begin:
         Priority = std::make_tuple(Begin, Type, -End, -ErrorSize, ErrorId);
-      else
+        break;
+      case ET_Insert:
+        Priority = std::make_tuple(Begin, Type, -End, ErrorSize, ErrorId);
+        break;
+      case ET_End:
         Priority = std::make_tuple(End, Type, -Begin, ErrorSize, ErrorId);
+        break;
+      }
     }
 
     bool operator<(const Event &Other) const {
@@ -638,6 +648,8 @@ void ClangTidyDiagnosticConsumer::removeIncompatibleErrors() {
     // The events will be sorted based on this field.
     std::tuple<unsigned, EventType, int, int, unsigned> Priority;
   };
+
+  removeDuplicatedDiagnosticsOfAliasCheckers();
 
   // Compute error sizes.
   std::vector<int> Sizes;
@@ -659,19 +671,19 @@ void ClangTidyDiagnosticConsumer::removeIncompatibleErrors() {
   }
 
   // Build events from error intervals.
-  std::map<std::string, std::vector<Event>> FileEvents;
+  llvm::StringMap<std::vector<Event>> FileEvents;
   for (unsigned I = 0; I < ErrorFixes.size(); ++I) {
     for (const auto &FileAndReplace : *ErrorFixes[I].second) {
       for (const auto &Replace : FileAndReplace.second) {
         unsigned Begin = Replace.getOffset();
         unsigned End = Begin + Replace.getLength();
-        const std::string &FilePath = std::string(Replace.getFilePath());
-        // FIXME: Handle empty intervals, such as those from insertions.
-        if (Begin == End)
-          continue;
-        auto &Events = FileEvents[FilePath];
-        Events.emplace_back(Begin, End, Event::ET_Begin, I, Sizes[I]);
-        Events.emplace_back(Begin, End, Event::ET_End, I, Sizes[I]);
+        auto &Events = FileEvents[Replace.getFilePath()];
+        if (Begin == End) {
+          Events.emplace_back(Begin, End, Event::ET_Insert, I, Sizes[I]);
+        } else {
+          Events.emplace_back(Begin, End, Event::ET_Begin, I, Sizes[I]);
+          Events.emplace_back(Begin, End, Event::ET_End, I, Sizes[I]);
+        }
       }
     }
   }
@@ -680,17 +692,23 @@ void ClangTidyDiagnosticConsumer::removeIncompatibleErrors() {
   for (auto &FileAndEvents : FileEvents) {
     std::vector<Event> &Events = FileAndEvents.second;
     // Sweep.
-    std::sort(Events.begin(), Events.end());
+    llvm::sort(Events);
     int OpenIntervals = 0;
     for (const auto &Event : Events) {
-      if (Event.Type == Event::ET_End)
-        --OpenIntervals;
-      // This has to be checked after removing the interval from the count if it
-      // is an end event, or before adding it if it is a begin event.
-      if (OpenIntervals != 0)
-        Apply[Event.ErrorId] = false;
-      if (Event.Type == Event::ET_Begin)
-        ++OpenIntervals;
+      switch (Event.Type) {
+      case Event::ET_Begin:
+        if (OpenIntervals++ != 0)
+          Apply[Event.ErrorId] = false;
+        break;
+      case Event::ET_Insert:
+        if (OpenIntervals != 0)
+          Apply[Event.ErrorId] = false;
+        break;
+      case Event::ET_End:
+        if (--OpenIntervals != 0)
+          Apply[Event.ErrorId] = false;
+        break;
+      }
     }
     assert(OpenIntervals == 0 && "Amount of begin/end points doesn't match");
   }
@@ -710,9 +728,9 @@ struct LessClangTidyError {
     const tooling::DiagnosticMessage &M1 = LHS.Message;
     const tooling::DiagnosticMessage &M2 = RHS.Message;
 
-    return
-      std::tie(M1.FilePath, M1.FileOffset, LHS.DiagnosticName, M1.Message) <
-      std::tie(M2.FilePath, M2.FileOffset, RHS.DiagnosticName, M2.Message);
+    return std::tie(M1.FilePath, M1.FileOffset, LHS.DiagnosticName,
+                    M1.Message) <
+           std::tie(M2.FilePath, M2.FileOffset, RHS.DiagnosticName, M2.Message);
   }
 };
 struct EqualClangTidyError {
@@ -726,10 +744,66 @@ struct EqualClangTidyError {
 std::vector<ClangTidyError> ClangTidyDiagnosticConsumer::take() {
   finalizeLastError();
 
-  std::sort(Errors.begin(), Errors.end(), LessClangTidyError());
+  llvm::stable_sort(Errors, LessClangTidyError());
   Errors.erase(std::unique(Errors.begin(), Errors.end(), EqualClangTidyError()),
                Errors.end());
   if (RemoveIncompatibleErrors)
     removeIncompatibleErrors();
   return std::move(Errors);
+}
+
+namespace {
+struct LessClangTidyErrorWithoutDiagnosticName {
+  bool operator()(const ClangTidyError *LHS, const ClangTidyError *RHS) const {
+    const tooling::DiagnosticMessage &M1 = LHS->Message;
+    const tooling::DiagnosticMessage &M2 = RHS->Message;
+
+    return std::tie(M1.FilePath, M1.FileOffset, M1.Message) <
+           std::tie(M2.FilePath, M2.FileOffset, M2.Message);
+  }
+};
+} // end anonymous namespace
+
+void ClangTidyDiagnosticConsumer::removeDuplicatedDiagnosticsOfAliasCheckers() {
+  using UniqueErrorSet =
+      std::set<ClangTidyError *, LessClangTidyErrorWithoutDiagnosticName>;
+  UniqueErrorSet UniqueErrors;
+
+  auto IT = Errors.begin();
+  while (IT != Errors.end()) {
+    ClangTidyError &Error = *IT;
+    std::pair<UniqueErrorSet::iterator, bool> Inserted =
+        UniqueErrors.insert(&Error);
+
+    // Unique error, we keep it and move along.
+    if (Inserted.second) {
+      ++IT;
+    } else {
+      ClangTidyError &ExistingError = **Inserted.first;
+      const llvm::StringMap<tooling::Replacements> &CandidateFix =
+          Error.Message.Fix;
+      const llvm::StringMap<tooling::Replacements> &ExistingFix =
+          (*Inserted.first)->Message.Fix;
+
+      if (CandidateFix != ExistingFix) {
+
+        // In case of a conflict, don't suggest any fix-it.
+        ExistingError.Message.Fix.clear();
+        ExistingError.Notes.emplace_back(
+            llvm::formatv("cannot apply fix-it because an alias checker has "
+                          "suggested a different fix-it; please remove one of "
+                          "the checkers ('{0}', '{1}') or "
+                          "ensure they are both configured the same",
+                          ExistingError.DiagnosticName, Error.DiagnosticName)
+                .str());
+      }
+
+      if (Error.IsWarningAsError)
+        ExistingError.IsWarningAsError = true;
+
+      // Since it is the same error, we should take it as alias and remove it.
+      ExistingError.EnabledDiagnosticAliases.emplace_back(Error.DiagnosticName);
+      IT = Errors.erase(IT);
+    }
+  }
 }

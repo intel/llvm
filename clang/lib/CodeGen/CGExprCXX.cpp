@@ -112,7 +112,8 @@ RValue CodeGenFunction::EmitCXXDestructorCall(
   commonEmitCXXMemberOrOperatorCall(*this, DtorDecl, This, ImplicitParam,
                                     ImplicitParamTy, CE, Args, nullptr);
   return EmitCall(CGM.getTypes().arrangeCXXStructorDeclaration(Dtor), Callee,
-                  ReturnValueSlot(), Args);
+                  ReturnValueSlot(), Args, nullptr,
+                  CE ? CE->getExprLoc() : SourceLocation{});
 }
 
 RValue CodeGenFunction::EmitCXXPseudoDestructorExpr(
@@ -219,7 +220,7 @@ RValue CodeGenFunction::EmitCXXMemberOrOperatorMemberCallExpr(
     DevirtualizedMethod = MD->getCorrespondingMethodInClass(BestDynamicDecl);
     assert(DevirtualizedMethod);
     const CXXRecordDecl *DevirtualizedClass = DevirtualizedMethod->getParent();
-    const Expr *Inner = Base->ignoreParenBaseCasts();
+    const Expr *Inner = Base->IgnoreParenBaseCasts();
     if (DevirtualizedMethod->getReturnType().getCanonicalType() !=
         MD->getReturnType().getCanonicalType())
       // If the return types are not the same, this might be a case where more
@@ -380,7 +381,7 @@ RValue CodeGenFunction::EmitCXXMemberOrOperatorMemberCallExpr(
           IsArrow ? Base->getType()->getPointeeType() : Base->getType();
       EmitCXXDestructorCall(GD, Callee, This.getPointer(*this), ThisTy,
                             /*ImplicitParam=*/nullptr,
-                            /*ImplicitParamTy=*/QualType(), nullptr);
+                            /*ImplicitParamTy=*/QualType(), CE);
     }
     return RValue::get(nullptr);
   }
@@ -1637,6 +1638,12 @@ llvm::Value *CodeGenFunction::EmitCXXNewExpr(const CXXNewExpr *E) {
     RValue RV =
       EmitNewDeleteCall(*this, allocator, allocatorType, allocatorArgs);
 
+    // Set !heapallocsite metadata on the call to operator new.
+    if (getDebugInfo())
+      if (auto *newCall = dyn_cast<llvm::CallBase>(RV.getScalarVal()))
+        getDebugInfo()->addHeapAllocSiteMetadata(newCall, allocType,
+                                                 E->getExprLoc());
+
     // If this was a call to a global replaceable allocation function that does
     // not take an alignment argument, the allocator is known to produce
     // storage that's suitably aligned for any object that fits, up to a known
@@ -1781,11 +1788,14 @@ void CodeGenFunction::EmitDeleteCall(const FunctionDecl *DeleteFD,
   DeleteArgs.add(RValue::get(DeletePtr), ArgTy);
 
   // Pass the std::destroying_delete tag if present.
+  llvm::AllocaInst *DestroyingDeleteTag = nullptr;
   if (Params.DestroyingDelete) {
     QualType DDTag = *ParamTypeIt++;
-    // Just pass an 'undef'. We expect the tag type to be an empty struct.
-    auto *V = llvm::UndefValue::get(getTypes().ConvertType(DDTag));
-    DeleteArgs.add(RValue::get(V), DDTag);
+    llvm::Type *Ty = getTypes().ConvertType(DDTag);
+    CharUnits Align = CGM.getNaturalTypeAlignment(DDTag);
+    DestroyingDeleteTag = CreateTempAlloca(Ty, "destroying.delete.tag");
+    DestroyingDeleteTag->setAlignment(Align.getAsAlign());
+    DeleteArgs.add(RValue::getAggregate(Address(DestroyingDeleteTag, Align)), DDTag);
   }
 
   // Pass the size if the delete function has a size_t parameter.
@@ -1822,6 +1832,11 @@ void CodeGenFunction::EmitDeleteCall(const FunctionDecl *DeleteFD,
 
   // Emit the call to delete.
   EmitNewDeleteCall(*this, DeleteFD, DeleteFTy, DeleteArgs);
+
+  // If call argument lowering didn't use the destroying_delete_t alloca,
+  // remove it again.
+  if (DestroyingDeleteTag && DestroyingDeleteTag->use_empty())
+    DestroyingDeleteTag->eraseFromParent();
 }
 
 namespace {
@@ -1866,10 +1881,13 @@ static void EmitDestroyingObjectDelete(CodeGenFunction &CGF,
 }
 
 /// Emit the code for deleting a single object.
-static void EmitObjectDelete(CodeGenFunction &CGF,
+/// \return \c true if we started emitting UnconditionalDeleteBlock, \c false
+/// if not.
+static bool EmitObjectDelete(CodeGenFunction &CGF,
                              const CXXDeleteExpr *DE,
                              Address Ptr,
-                             QualType ElementType) {
+                             QualType ElementType,
+                             llvm::BasicBlock *UnconditionalDeleteBlock) {
   // C++11 [expr.delete]p3:
   //   If the static type of the object to be deleted is different from its
   //   dynamic type, the static type shall be a base class of the dynamic type
@@ -1916,7 +1934,7 @@ static void EmitObjectDelete(CodeGenFunction &CGF,
         if (UseVirtualCall) {
           CGF.CGM.getCXXABI().emitVirtualObjectDelete(CGF, DE, Ptr, ElementType,
                                                       Dtor);
-          return;
+          return false;
         }
       }
     }
@@ -1951,7 +1969,15 @@ static void EmitObjectDelete(CodeGenFunction &CGF,
     }
   }
 
+  // When optimizing for size, call 'operator delete' unconditionally.
+  if (CGF.CGM.getCodeGenOpts().OptimizeSize > 1) {
+    CGF.EmitBlock(UnconditionalDeleteBlock);
+    CGF.PopCleanupBlock();
+    return true;
+  }
+
   CGF.PopCleanupBlock();
+  return false;
 }
 
 namespace {
@@ -2028,6 +2054,12 @@ void CodeGenFunction::EmitCXXDeleteExpr(const CXXDeleteExpr *E) {
   Address Ptr = EmitPointerWithAlignment(Arg);
 
   // Null check the pointer.
+  //
+  // We could avoid this null check if we can determine that the object
+  // destruction is trivial and doesn't require an array cookie; we can
+  // unconditionally perform the operator delete call in that case. For now, we
+  // assume that deleted pointers are null rarely enough that it's better to
+  // keep the branch. This might be worth revisiting for a -O0 code size win.
   llvm::BasicBlock *DeleteNotNull = createBasicBlock("delete.notnull");
   llvm::BasicBlock *DeleteEnd = createBasicBlock("delete.end");
 
@@ -2073,11 +2105,11 @@ void CodeGenFunction::EmitCXXDeleteExpr(const CXXDeleteExpr *E) {
 
   if (E->isArrayForm()) {
     EmitArrayDelete(*this, E, Ptr, DeleteTy);
+    EmitBlock(DeleteEnd);
   } else {
-    EmitObjectDelete(*this, E, Ptr, DeleteTy);
+    if (!EmitObjectDelete(*this, E, Ptr, DeleteTy, DeleteEnd))
+      EmitBlock(DeleteEnd);
   }
-
-  EmitBlock(DeleteEnd);
 }
 
 static bool isGLValueFromPointerDeref(const Expr *E) {

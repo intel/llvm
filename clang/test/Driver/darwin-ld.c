@@ -156,7 +156,7 @@
 // RUN: FileCheck -check-prefix=LINK_IOSSIM_PROFILE %s < %t.log
 // LINK_IOSSIM_PROFILE: {{ld(.exe)?"}}
 // LINK_IOSSIM_PROFILE: libclang_rt.profile_iossim.a
-// LINK_IOSSIM_PROFILE: libclang_rt.ios.a
+// LINK_IOSSIM_PROFILE: libclang_rt.iossim.a
 
 // RUN: %clang -target arm64-apple-tvos8.3 -mlinker-version=400 -mtvos-version-min=8.3 -resource-dir=%S/Inputs/resource_dir -### %t.o 2> %t.log
 // RUN: FileCheck -check-prefix=LINK_TVOS_ARM64 %s < %t.log
@@ -309,32 +309,6 @@
 // LINK_VERSION_DIGITS: invalid version number in '-mlinker-version=133.3.0.1.a'
 // LINK_VERSION_DIGITS: invalid version number in '-mlinker-version=133.3.0.1a'
 
-// Check that we're passing -lto-pass-remarks-output for LTO
-// RUN: %clang -target x86_64-apple-darwin12 %t.o -fsave-optimization-record -### -o foo/bar.out 2> %t.log
-// RUN: FileCheck -check-prefix=PASS_REMARKS_OUTPUT %s < %t.log
-// PASS_REMARKS_OUTPUT: "-mllvm" "-lto-pass-remarks-output" "-mllvm" "foo/bar.out.opt.yaml"
-// PASS_REMARKS_OUTPUT-NOT: -lto-pass-remarks-with-hotness
-
-// RUN: %clang -target x86_64-apple-darwin12 %t.o -fsave-optimization-record -### 2> %t.log
-// RUN: FileCheck -check-prefix=PASS_REMARKS_OUTPUT_NO_O %s < %t.log
-// PASS_REMARKS_OUTPUT_NO_O: "-mllvm" "-lto-pass-remarks-output" "-mllvm" "a.out.opt.yaml"
-
-// RUN: %clang -target x86_64-apple-darwin12 %t.o -fsave-optimization-record -fprofile-instr-use=blah -### -o foo/bar.out 2> %t.log
-// RUN: FileCheck -check-prefix=PASS_REMARKS_WITH_HOTNESS %s < %t.log
-// PASS_REMARKS_WITH_HOTNESS: "-mllvm" "-lto-pass-remarks-output" "-mllvm" "foo/bar.out.opt.yaml" "-mllvm" "-lto-pass-remarks-with-hotness"
-
-// RUN: %clang -target x86_64-apple-darwin12 %t.o -fsave-optimization-record -fprofile-instr-use=blah -fdiagnostics-hotness-threshold=100 -### -o foo/bar.out 2> %t.log
-// RUN: FileCheck -check-prefix=PASS_REMARKS_WITH_HOTNESS_THRESHOLD %s < %t.log
-// PASS_REMARKS_WITH_HOTNESS_THRESHOLD: "-mllvm" "-lto-pass-remarks-output" "-mllvm" "foo/bar.out.opt.yaml" "-mllvm" "-lto-pass-remarks-with-hotness" "-mllvm" "-lto-pass-remarks-hotness-threshold=100"
-
-// RUN: %clang -target x86_64-apple-darwin12 %t.o -fsave-optimization-record -foptimization-record-passes=inline -### -o foo/bar.out 2> %t.log
-// RUN: FileCheck -check-prefix=PASS_REMARKS_WITH_PASSES %s < %t.log
-// PASS_REMARKS_WITH_PASSES: "-mllvm" "-lto-pass-remarks-output" "-mllvm" "foo/bar.out.opt.yaml" "-mllvm" "-lto-pass-remarks-filter=inline"
-//
-// RUN: %clang -target x86_64-apple-darwin12 %t.o -fsave-optimization-record=some-format -### -o foo/bar.out 2> %t.log
-// RUN: FileCheck -check-prefix=PASS_REMARKS_WITH_FORMAT %s < %t.log
-// PASS_REMARKS_WITH_FORMAT: "-mllvm" "-lto-pass-remarks-output" "-mllvm" "foo/bar.out.opt.some-format" "-mllvm" "-lto-pass-remarks-format=some-format"
-
 // RUN: %clang -target x86_64-apple-ios6.0 -miphoneos-version-min=6.0 -fprofile-instr-generate -### %t.o 2> %t.log
 // RUN: FileCheck -check-prefix=LINK_PROFILE_FIRST %s < %t.log
 // RUN: %clang -target x86_64-apple-darwin12 -fprofile-instr-generate -### %t.o 2> %t.log
@@ -377,7 +351,8 @@
 // RUN: FileCheck -check-prefix=GCOV_EXPORT %s < %t.log
 // RUN: %clang -target x86_64-apple-darwin12 -fprofile-arcs -Xlinker -exported_symbols_list -Xlinker /dev/null -### %t.o 2> %t.log
 // RUN: FileCheck -check-prefix=GCOV_EXPORT %s < %t.log
-// GCOV_EXPORT: "-exported_symbol" "___gcov_flush"
+// GCOV_EXPORT: "-exported_symbol" "___gcov_dump"
+// GCOV_EXPORT: "-exported_symbol" "___gcov_reset"
 //
 // Check that we can pass the outliner down to the linker.
 // RUN: env IPHONEOS_DEPLOYMENT_TARGET=7.0 \

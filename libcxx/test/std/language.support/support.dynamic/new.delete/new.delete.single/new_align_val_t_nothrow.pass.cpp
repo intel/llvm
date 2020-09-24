@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // Aligned allocation was not provided before macosx10.14 and as a result we
 // get availability errors when the deployment target is older than macosx10.14.
@@ -17,8 +17,6 @@
 // XFAIL: !(apple-clang-9 || apple-clang-10) && availability=macosx10.11
 // XFAIL: !(apple-clang-9 || apple-clang-10) && availability=macosx10.10
 // XFAIL: !(apple-clang-9 || apple-clang-10) && availability=macosx10.9
-// XFAIL: !(apple-clang-9 || apple-clang-10) && availability=macosx10.8
-// XFAIL: !(apple-clang-9 || apple-clang-10) && availability=macosx10.7
 
 // On AppleClang 10 (and older), instead of getting an availability failure
 // like above, we get a link error when we link against a dylib that does
@@ -27,8 +25,6 @@
 // XFAIL: (apple-clang-9 || apple-clang-10) && with_system_cxx_lib=macosx10.11
 // XFAIL: (apple-clang-9 || apple-clang-10) && with_system_cxx_lib=macosx10.10
 // XFAIL: (apple-clang-9 || apple-clang-10) && with_system_cxx_lib=macosx10.9
-// XFAIL: (apple-clang-9 || apple-clang-10) && with_system_cxx_lib=macosx10.8
-// XFAIL: (apple-clang-9 || apple-clang-10) && with_system_cxx_lib=macosx10.7
 
 // asan and msan will not call the new handler.
 // UNSUPPORTED: sanitizer-new-delete

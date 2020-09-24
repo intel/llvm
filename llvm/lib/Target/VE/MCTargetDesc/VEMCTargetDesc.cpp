@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "VEMCTargetDesc.h"
+#include "TargetInfo/VETargetInfo.h"
 #include "VEInstPrinter.h"
 #include "VEMCAsmInfo.h"
 #include "VETargetStreamer.h"
@@ -35,7 +36,7 @@ static MCAsmInfo *createVEMCAsmInfo(const MCRegisterInfo &MRI, const Triple &TT,
                                     const MCTargetOptions &Options) {
   MCAsmInfo *MAI = new VEELFMCAsmInfo(TT);
   unsigned Reg = MRI.getDwarfRegNum(VE::SX11, true);
-  MCCFIInstruction Inst = MCCFIInstruction::createDefCfa(nullptr, Reg, 0);
+  MCCFIInstruction Inst = MCCFIInstruction::cfiDefCfa(nullptr, Reg, 0);
   MAI->addInitialFrameState(Inst);
   return MAI;
 }
@@ -56,7 +57,7 @@ static MCSubtargetInfo *createVEMCSubtargetInfo(const Triple &TT, StringRef CPU,
                                                 StringRef FS) {
   if (CPU.empty())
     CPU = "ve";
-  return createVEMCSubtargetInfoImpl(TT, CPU, FS);
+  return createVEMCSubtargetInfoImpl(TT, CPU, /*TuneCPU=*/CPU, FS);
 }
 
 static MCTargetStreamer *
@@ -92,6 +93,12 @@ extern "C" void LLVMInitializeVETargetMC() {
 
     // Register the MC subtarget info.
     TargetRegistry::RegisterMCSubtargetInfo(*T, createVEMCSubtargetInfo);
+
+    // Register the MC Code Emitter.
+    TargetRegistry::RegisterMCCodeEmitter(*T, createVEMCCodeEmitter);
+
+    // Register the asm backend.
+    TargetRegistry::RegisterMCAsmBackend(*T, createVEAsmBackend);
 
     // Register the object target streamer.
     TargetRegistry::RegisterObjectTargetStreamer(*T,

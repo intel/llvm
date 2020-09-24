@@ -7,8 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <spirv/spirv.h>
-#include "../../lib/clcmacro.h"
+
 #include "tables.h"
+#include <clcmacro.h>
 
 #ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable

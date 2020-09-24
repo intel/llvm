@@ -227,6 +227,38 @@ bool Parser::expectIdentifier() {
   return true;
 }
 
+void Parser::checkCompoundToken(SourceLocation FirstTokLoc,
+                                tok::TokenKind FirstTokKind, CompoundToken Op) {
+  if (FirstTokLoc.isInvalid())
+    return;
+  SourceLocation SecondTokLoc = Tok.getLocation();
+
+  // If either token is in a macro, we expect both tokens to come from the same
+  // macro expansion.
+  if ((FirstTokLoc.isMacroID() || SecondTokLoc.isMacroID()) &&
+      PP.getSourceManager().getFileID(FirstTokLoc) !=
+          PP.getSourceManager().getFileID(SecondTokLoc)) {
+    Diag(FirstTokLoc, diag::warn_compound_token_split_by_macro)
+        << (FirstTokKind == Tok.getKind()) << FirstTokKind << Tok.getKind()
+        << static_cast<int>(Op) << SourceRange(FirstTokLoc);
+    Diag(SecondTokLoc, diag::note_compound_token_split_second_token_here)
+        << (FirstTokKind == Tok.getKind()) << Tok.getKind()
+        << SourceRange(SecondTokLoc);
+    return;
+  }
+
+  // We expect the tokens to abut.
+  if (Tok.hasLeadingSpace() || Tok.isAtStartOfLine()) {
+    SourceLocation SpaceLoc = PP.getLocForEndOfToken(FirstTokLoc);
+    if (SpaceLoc.isInvalid())
+      SpaceLoc = FirstTokLoc;
+    Diag(SpaceLoc, diag::warn_compound_token_split_by_whitespace)
+        << (FirstTokKind == Tok.getKind()) << FirstTokKind << Tok.getKind()
+        << static_cast<int>(Op) << SourceRange(FirstTokLoc, SecondTokLoc);
+    return;
+  }
+}
+
 //===----------------------------------------------------------------------===//
 // Error recovery.
 //===----------------------------------------------------------------------===//
@@ -433,16 +465,7 @@ Parser::~Parser() {
 
   PP.clearCodeCompletionHandler();
 
-  if (getLangOpts().DelayedTemplateParsing &&
-      !PP.isIncrementalProcessingEnabled() && !TemplateIds.empty()) {
-    // If an ASTConsumer parsed delay-parsed templates in their
-    // HandleTranslationUnit() method, TemplateIds created there were not
-    // guarded by a DestroyTemplateIdAnnotationsRAIIObj object in
-    // ParseTopLevelDecl(). Destroy them here.
-    DestroyTemplateIdAnnotationsRAIIObj CleanupRAII(TemplateIds);
-  }
-
-  assert(TemplateIds.empty() && "Still alive TemplateIdAnnotations around?");
+  DestroyTemplateIds();
 }
 
 /// Initialize - Warm up the parser.
@@ -538,11 +561,10 @@ void Parser::Initialize() {
   ConsumeToken();
 }
 
-void Parser::LateTemplateParserCleanupCallback(void *P) {
-  // While this RAII helper doesn't bracket any actual work, the destructor will
-  // clean up annotations that were created during ActOnEndOfTranslationUnit
-  // when incremental processing is enabled.
-  DestroyTemplateIdAnnotationsRAIIObj CleanupRAII(((Parser *)P)->TemplateIds);
+void Parser::DestroyTemplateIds() {
+  for (TemplateIdAnnotation *Id : TemplateIds)
+    Id->Destroy();
+  TemplateIds.clear();
 }
 
 /// Parse the first top-level declaration in a translation unit.
@@ -562,9 +584,10 @@ bool Parser::ParseFirstTopLevelDecl(DeclGroupPtrTy &Result) {
   // declaration. C++ doesn't have this restriction. We also don't want to
   // complain if we have a precompiled header, although technically if the PCH
   // is empty we should still emit the (pedantic) diagnostic.
+  // If the main file is a header, we're only pretending it's a TU; don't warn.
   bool NoTopLevelDecls = ParseTopLevelDecl(Result, true);
   if (NoTopLevelDecls && !Actions.getASTContext().getExternalSource() &&
-      !getLangOpts().CPlusPlus)
+      !getLangOpts().CPlusPlus && !getLangOpts().IsHeaderFile)
     Diag(diag::ext_empty_translation_unit);
 
   return NoTopLevelDecls;
@@ -577,7 +600,7 @@ bool Parser::ParseFirstTopLevelDecl(DeclGroupPtrTy &Result) {
 ///           declaration
 /// [C++20]   module-import-declaration
 bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result, bool IsFirstDecl) {
-  DestroyTemplateIdAnnotationsRAIIObj CleanupRAII(TemplateIds);
+  DestroyTemplateIdAnnotationsRAIIObj CleanupRAII(*this);
 
   // Skip over the EOF token, flagging end of previous input for incremental
   // processing
@@ -662,11 +685,7 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result, bool IsFirstDecl) {
     }
 
     // Late template parsing can begin.
-    if (getLangOpts().DelayedTemplateParsing)
-      Actions.SetLateTemplateParser(LateTemplateParserCallback,
-                                    PP.isIncrementalProcessingEnabled() ?
-                                    LateTemplateParserCleanupCallback : nullptr,
-                                    this);
+    Actions.SetLateTemplateParser(LateTemplateParserCallback, nullptr, this);
     if (!PP.isIncrementalProcessingEnabled())
       Actions.ActOnEndOfTranslationUnit();
     //else don't tell Sema that we ended parsing: more input might come.
@@ -727,7 +746,7 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result, bool IsFirstDecl) {
 Parser::DeclGroupPtrTy
 Parser::ParseExternalDeclaration(ParsedAttributesWithRange &attrs,
                                  ParsingDeclSpec *DS) {
-  DestroyTemplateIdAnnotationsRAIIObj CleanupRAII(TemplateIds);
+  DestroyTemplateIdAnnotationsRAIIObj CleanupRAII(*this);
   ParenBraceBracketBalancer BalancerRAIIObj(*this);
 
   if (PP.isCodeCompletionReached()) {
@@ -763,6 +782,12 @@ Parser::ParseExternalDeclaration(ParsedAttributesWithRange &attrs,
     return nullptr;
   case tok::annot_pragma_fenv_access:
     HandlePragmaFEnvAccess();
+    return nullptr;
+  case tok::annot_pragma_fenv_round:
+    HandlePragmaFEnvRound();
+    return nullptr;
+  case tok::annot_pragma_float_control:
+    HandlePragmaFloatControl();
     return nullptr;
   case tok::annot_pragma_fp:
     HandlePragmaFP();
@@ -1702,8 +1727,8 @@ Parser::TryAnnotateName(CorrectionCandidateCallback *CCC) {
     return ANK_Success;
   }
 
-  case Sema::NC_ContextIndependentExpr:
-    Tok.setKind(tok::annot_primary_expr);
+  case Sema::NC_OverloadSet:
+    Tok.setKind(tok::annot_overload_set);
     setExprAnnotation(Tok, Classification.getExpression());
     Tok.setAnnotationEndLoc(NameLoc);
     if (SS.isNotEmpty())
@@ -1878,9 +1903,7 @@ bool Parser::TryAnnotateTypeOrScopeToken() {
                                      Tok.getLocation());
     } else if (Tok.is(tok::annot_template_id)) {
       TemplateIdAnnotation *TemplateId = takeTemplateIdAnnotation(Tok);
-      if (TemplateId->Kind != TNK_Type_template &&
-          TemplateId->Kind != TNK_Dependent_template_name &&
-          TemplateId->Kind != TNK_Undeclared_template) {
+      if (!TemplateId->mightBeType()) {
         Diag(Tok, diag::err_typename_refers_to_non_type_template)
           << Tok.getAnnotationRange();
         return true;
@@ -1889,14 +1912,13 @@ bool Parser::TryAnnotateTypeOrScopeToken() {
       ASTTemplateArgsPtr TemplateArgsPtr(TemplateId->getTemplateArgs(),
                                          TemplateId->NumArgs);
 
-      Ty = Actions.ActOnTypenameType(getCurScope(), TypenameLoc, SS,
-                                     TemplateId->TemplateKWLoc,
-                                     TemplateId->Template,
-                                     TemplateId->Name,
-                                     TemplateId->TemplateNameLoc,
-                                     TemplateId->LAngleLoc,
-                                     TemplateArgsPtr,
-                                     TemplateId->RAngleLoc);
+      Ty = TemplateId->isInvalid()
+               ? TypeError()
+               : Actions.ActOnTypenameType(
+                     getCurScope(), TypenameLoc, SS, TemplateId->TemplateKWLoc,
+                     TemplateId->Template, TemplateId->Name,
+                     TemplateId->TemplateNameLoc, TemplateId->LAngleLoc,
+                     TemplateArgsPtr, TemplateId->RAngleLoc);
     } else {
       Diag(Tok, diag::err_expected_type_name_after_typename)
         << SS.getRange();
@@ -1905,7 +1927,7 @@ bool Parser::TryAnnotateTypeOrScopeToken() {
 
     SourceLocation EndLoc = Tok.getLastLoc();
     Tok.setKind(tok::annot_typename);
-    setTypeAnnotation(Tok, Ty.isInvalid() ? nullptr : Ty.get());
+    setTypeAnnotation(Tok, Ty);
     Tok.setAnnotationEndLoc(EndLoc);
     Tok.setLocation(TypenameLoc);
     PP.AnnotateCachedTokens(Tok);

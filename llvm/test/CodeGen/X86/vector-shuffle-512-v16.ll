@@ -260,6 +260,27 @@ define <16 x float> @shuffle_v16f32_0f_1f_0e_16_0d_1d_04_1e_0b_1b_0a_1a_09_19_08
   ret <16 x float> %c
 }
 
+; PR46249
+define <16 x i32> @shuffle_v16i32_0b_0a_09_08_0f_0e_0d_0c_03_02_01_00_07_06_05_04(<16 x i32> %a) {
+; ALL-LABEL: shuffle_v16i32_0b_0a_09_08_0f_0e_0d_0c_03_02_01_00_07_06_05_04:
+; ALL:       # %bb.0:
+; ALL-NEXT:    vpshufd {{.*#+}} zmm0 = zmm0[3,2,1,0,7,6,5,4,11,10,9,8,15,14,13,12]
+; ALL-NEXT:    vshufi64x2 {{.*#+}} zmm0 = zmm0[4,5,6,7,0,1,2,3]
+; ALL-NEXT:    retq
+  %1 = shufflevector <16 x i32> %a, <16 x i32> undef, <16 x i32> <i32 11, i32 10, i32 9, i32 8, i32 15, i32 14, i32 13, i32 12, i32 3, i32 2, i32 1, i32 0, i32 7, i32 6, i32 5, i32 4>
+  ret <16 x i32> %1
+}
+
+define <16 x float> @shuffle_v16f32_0b_0a_09_08_0f_0e_0d_0c_03_02_01_00_07_06_05_04(<16 x float> %a) {
+; ALL-LABEL: shuffle_v16f32_0b_0a_09_08_0f_0e_0d_0c_03_02_01_00_07_06_05_04:
+; ALL:       # %bb.0:
+; ALL-NEXT:    vpermilps {{.*#+}} zmm0 = zmm0[3,2,1,0,7,6,5,4,11,10,9,8,15,14,13,12]
+; ALL-NEXT:    vshuff64x2 {{.*#+}} zmm0 = zmm0[4,5,6,7,0,1,2,3]
+; ALL-NEXT:    retq
+  %1 = shufflevector <16 x float> %a, <16 x float> undef, <16 x i32> <i32 11, i32 10, i32 9, i32 8, i32 15, i32 14, i32 13, i32 12, i32 3, i32 2, i32 1, i32 0, i32 7, i32 6, i32 5, i32 4>
+  ret <16 x float> %1
+}
+
 define <16 x float> @shuffle_v16f32_load_0f_1f_0e_16_0d_1d_04_1e_0b_1b_0a_1a_09_19_08_18(<16 x float> %a, <16 x float>* %b)  {
 ; ALL-LABEL: shuffle_v16f32_load_0f_1f_0e_16_0d_1d_04_1e_0b_1b_0a_1a_09_19_08_18:
 ; ALL:       # %bb.0:
@@ -320,7 +341,7 @@ define <4 x i32> @test_v16i32_0_1_2_12 (<16 x i32> %v) {
 ; ALL:       # %bb.0:
 ; ALL-NEXT:    vextractf64x4 $1, %zmm0, %ymm1
 ; ALL-NEXT:    vextractf128 $1, %ymm1, %xmm1
-; ALL-NEXT:    vpermilps {{.*#+}} xmm1 = xmm1[0,1,2,0]
+; ALL-NEXT:    vbroadcastss %xmm1, %xmm1
 ; ALL-NEXT:    vblendps {{.*#+}} xmm0 = xmm0[0,1,2],xmm1[3]
 ; ALL-NEXT:    vzeroupper
 ; ALL-NEXT:    retq
@@ -357,11 +378,10 @@ define <8 x float> @shuffle_v16f32_extract_256(float* %RET, float* %a) {
 define <8 x float> @test_v16f32_0_1_2_3_4_6_7_10 (<16 x float> %v) {
 ; ALL-LABEL: test_v16f32_0_1_2_3_4_6_7_10:
 ; ALL:       # %bb.0:
-; ALL-NEXT:    vextractf32x4 $2, %zmm0, %xmm1
-; ALL-NEXT:    vmovsldup {{.*#+}} xmm1 = xmm1[0,0,2,2]
-; ALL-NEXT:    vinsertf128 $1, %xmm1, %ymm0, %ymm1
-; ALL-NEXT:    vpermilps {{.*#+}} ymm0 = ymm0[0,1,2,3,4,6,7,u]
-; ALL-NEXT:    vblendps {{.*#+}} ymm0 = ymm0[0,1,2,3,4,5,6],ymm1[7]
+; ALL-NEXT:    vbroadcasti64x4 {{.*#+}} zmm1 = [0,1,2,3,4,6,7,10,0,1,2,3,4,6,7,10]
+; ALL-NEXT:    # zmm1 = mem[0,1,2,3,0,1,2,3]
+; ALL-NEXT:    vpermd %zmm0, %zmm1, %zmm0
+; ALL-NEXT:    # kill: def $ymm0 killed $ymm0 killed $zmm0
 ; ALL-NEXT:    retq
   %res = shufflevector <16 x float> %v, <16 x float> undef, <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 6, i32 7, i32 10>
   ret <8 x float> %res
@@ -743,3 +763,47 @@ define <16 x float> @mask_shuffle_v4f32_v16f32_00_01_02_03_00_01_02_03_00_01_02_
   %res = shufflevector <4 x float> %a, <4 x float> undef, <16 x i32> <i32 0, i32 1, i32 2, i32 3, i32 0, i32 1, i32 2, i32 3, i32 0, i32 1, i32 2, i32 3, i32 0, i32 1, i32 2, i32 3>
   ret <16 x float> %res
 }
+
+%struct.foo = type { [4 x double], [3 x [4 x double]], [4 x double] }
+
+; This test previously hung in shuffle combining. https://github.com/ispc/ispc/issues/1864
+define void @ispc_1864(<16 x float>* %arg) {
+; ALL-LABEL: ispc_1864:
+; ALL:       # %bb.0: # %bb
+; ALL-NEXT:    pushq %rbp
+; ALL-NEXT:    .cfi_def_cfa_offset 16
+; ALL-NEXT:    .cfi_offset %rbp, -16
+; ALL-NEXT:    movq %rsp, %rbp
+; ALL-NEXT:    .cfi_def_cfa_register %rbp
+; ALL-NEXT:    andq $-64, %rsp
+; ALL-NEXT:    subq $4864, %rsp # imm = 0x1300
+; ALL-NEXT:    vbroadcastss {{.*#+}} ymm0 = [-5.0E+0,-5.0E+0,-5.0E+0,-5.0E+0,-5.0E+0,-5.0E+0,-5.0E+0,-5.0E+0]
+; ALL-NEXT:    vmulps 32(%rdi), %ymm0, %ymm0
+; ALL-NEXT:    vcvtps2pd %ymm0, %zmm0
+; ALL-NEXT:    vshuff64x2 {{.*#+}} zmm0 = zmm0[2,3,4,5,0,1,0,1]
+; ALL-NEXT:    vmovapd %ymm0, {{[0-9]+}}(%rsp)
+; ALL-NEXT:    movq %rbp, %rsp
+; ALL-NEXT:    popq %rbp
+; ALL-NEXT:    .cfi_def_cfa %rsp, 8
+; ALL-NEXT:    vzeroupper
+; ALL-NEXT:    retq
+bb:
+  %tmp = alloca [30 x %struct.foo], align 64
+  %tmp1 = load <16 x float>, <16 x float>* %arg, align 4
+  %tmp2 = fmul <16 x float> %tmp1, <float -5.000000e+00, float -5.000000e+00, float -5.000000e+00, float -5.000000e+00, float -5.000000e+00, float -5.000000e+00, float -5.000000e+00, float -5.000000e+00, float -5.000000e+00, float -5.000000e+00, float -5.000000e+00, float -5.000000e+00, float -5.000000e+00, float -5.000000e+00, float -5.000000e+00, float -5.000000e+00>
+  %tmp3 = fpext <16 x float> %tmp2 to <16 x double>
+  %tmp4 = getelementptr inbounds [30 x %struct.foo], [30 x %struct.foo]* %tmp, i64 0, i64 3, i32 2, i64 0
+  %tmp5 = extractelement <16 x double> %tmp3, i32 10
+  store double %tmp5, double* %tmp4, align 32
+  %tmp6 = getelementptr inbounds [30 x %struct.foo], [30 x %struct.foo]* %tmp, i64 0, i64 3, i32 2, i64 1
+  %tmp7 = extractelement <16 x double> %tmp3, i32 11
+  store double %tmp7, double* %tmp6, align 8
+  %tmp8 = getelementptr inbounds [30 x %struct.foo], [30 x %struct.foo]* %tmp, i64 0, i64 3, i32 2, i64 2
+  %tmp9 = extractelement <16 x double> %tmp3, i32 12
+  store double %tmp9, double* %tmp8, align 16
+  %tmp10 = getelementptr inbounds [30 x %struct.foo], [30 x %struct.foo]* %tmp, i64 0, i64 3, i32 2, i64 3
+  %tmp11 = extractelement <16 x double> %tmp3, i32 13
+  store double %tmp11, double* %tmp10, align 8
+  ret void
+}
+

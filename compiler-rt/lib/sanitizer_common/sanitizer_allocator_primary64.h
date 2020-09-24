@@ -72,11 +72,15 @@ class SizeClassAllocator64 {
   void Init(s32 release_to_os_interval_ms) {
     uptr TotalSpaceSize = kSpaceSize + AdditionalSize();
     if (kUsingConstantSpaceBeg) {
+      CHECK(IsAligned(kSpaceBeg, SizeClassMap::kMaxSize));
       CHECK_EQ(kSpaceBeg, address_range.Init(TotalSpaceSize,
                                              PrimaryAllocatorName, kSpaceBeg));
     } else {
-      NonConstSpaceBeg = address_range.Init(TotalSpaceSize,
-                                            PrimaryAllocatorName);
+      // Combined allocator expects that an 2^N allocation is always aligned to
+      // 2^N. For this to work, the start of the space needs to be aligned as
+      // high as the largest size class (which also needs to be a power of 2).
+      NonConstSpaceBeg = address_range.InitAligned(
+          TotalSpaceSize, SizeClassMap::kMaxSize, PrimaryAllocatorName);
       CHECK_NE(NonConstSpaceBeg, ~(uptr)0);
     }
     SetReleaseToOSIntervalMs(release_to_os_interval_ms);
@@ -195,6 +199,30 @@ class SizeClassAllocator64 {
     return nullptr;
   }
 
+  void *GetBlockBeginDebug(const void *p) {
+    uptr class_id = GetSizeClass(p);
+    uptr size = ClassIdToSize(class_id);
+    Printf("GetBlockBeginDebug1 p %p class_id %p size %p\n", p, class_id, size);
+    if (!size)
+      return nullptr;
+    uptr chunk_idx = GetChunkIdx((uptr)p, size);
+    uptr reg_beg = GetRegionBegin(p);
+    uptr beg = chunk_idx * size;
+    uptr next_beg = beg + size;
+    Printf(
+        "GetBlockBeginDebug2 chunk_idx %p reg_beg %p beg %p next_beg %p "
+        "kNumClasses %p\n",
+        chunk_idx, reg_beg, beg, next_beg, kNumClasses);
+    if (class_id >= kNumClasses)
+      return nullptr;
+    const RegionInfo *region = AddressSpaceView::Load(GetRegionInfo(class_id));
+    Printf("GetBlockBeginDebug3 region %p region->mapped_user %p\n", region,
+           region->mapped_user);
+    if (region->mapped_user >= next_beg)
+      return reinterpret_cast<void *>(reg_beg + beg);
+    return nullptr;
+  }
+
   uptr GetActuallyAllocatedSize(void *p) {
     CHECK(PointerIsMine(p));
     return ClassIdToSize(GetSizeClass(p));
@@ -203,6 +231,7 @@ class SizeClassAllocator64 {
   static uptr ClassID(uptr size) { return SizeClassMap::ClassID(size); }
 
   void *GetMetaData(const void *p) {
+    CHECK(kMetadataSize);
     uptr class_id = GetSizeClass(p);
     uptr size = ClassIdToSize(class_id);
     uptr chunk_idx = GetChunkIdx(reinterpret_cast<uptr>(p), size);
@@ -220,7 +249,7 @@ class SizeClassAllocator64 {
 
   // Test-only.
   void TestOnlyUnmap() {
-    UnmapWithCallbackOrDie(SpaceBeg(), kSpaceSize + AdditionalSize());
+    UnmapWithCallbackOrDie((uptr)address_range.base(), address_range.size());
   }
 
   static void FillMemoryProfile(uptr start, uptr rss, bool file, uptr *stats,

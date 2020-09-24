@@ -23,10 +23,9 @@
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS32
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_386
+  Class: ELFCLASS32
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
 ## SHT_HASH is linked to dynamic symbol table by default.
   - Name: .dynsym
@@ -52,10 +51,9 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS32
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_386
+  Class: ELFCLASS32
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
   - Name:   .hash
     Type:   SHT_HASH
@@ -70,10 +68,9 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS32
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_386
+  Class: ELFCLASS32
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
   - Name:   .hash
     Type:   SHT_HASH
@@ -88,10 +85,9 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS32
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_386
+  Class: ELFCLASS32
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
   - Name:   .hash
     Type:   SHT_HASH
@@ -106,10 +102,9 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS32
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_386
+  Class: ELFCLASS32
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
   - Name:   .hash
     Type:   SHT_HASH
@@ -121,10 +116,9 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS32
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_386
+  Class: ELFCLASS32
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
   - Name:  .hash
     Type:  SHT_HASH
@@ -138,10 +132,9 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS32
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_386
+  Class: ELFCLASS32
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
   - Name:  .hash
     Type:  SHT_HASH
@@ -161,10 +154,9 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS32
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_386
+  Class: ELFCLASS32
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
   - Name: .hash1
     Type: SHT_HASH
@@ -193,10 +185,9 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_EXEC
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_EXEC
 Sections:
   - Name: .hash
     Type: SHT_HASH
@@ -216,10 +207,9 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_EXEC
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_EXEC
 Sections:
   - Name: .hash
     Type: SHT_HASH
@@ -235,10 +225,9 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_EXEC
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_EXEC
 Sections:
   - Name: .hash
     Type: SHT_HASH
@@ -251,10 +240,9 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_EXEC
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_EXEC
 Sections:
   - Name: .hash
     Type: SHT_HASH
@@ -267,12 +255,46 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_EXEC
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_EXEC
 Sections:
   - Name: .hash
     Type: SHT_HASH
     Size: 0x1
     Chain: [ 1 ]
+
+## Check we can override "nbucket" and "nchain" values of a SHT_HASH section using "NBucket"
+## and "NChain" tags. Check that the section size is unaffected when we do this.
+
+# RUN: yaml2obj --docnum=14 %s -o %t14
+# RUN: llvm-readobj --sections --section-data %t14 | FileCheck %s --check-prefix=OVERRIDE
+
+# OVERRIDE:      Name: .hash
+# OVERRIDE-NEXT: Type: SHT_HASH
+# OVERRIDE-NEXT: Flags [
+# OVERRIDE-NEXT: ]
+# OVERRIDE-NEXT: Address: 0x0
+# OVERRIDE-NEXT: Offset: 0x34
+# OVERRIDE-NEXT: Size: 28
+# OVERRIDE-NEXT: Link: 0
+# OVERRIDE-NEXT: Info: 0
+# OVERRIDE-NEXT: AddressAlignment: 0
+# OVERRIDE-NEXT: EntrySize: 0
+# OVERRIDE-NEXT: SectionData (
+# OVERRIDE-NEXT:   0000: AA000000 BB000000 01000000 02000000
+# OVERRIDE-NEXT:   0010: 03000000 04000000 05000000
+# OVERRIDE-NEXT: )
+
+--- !ELF
+FileHeader:
+  Class: ELFCLASS32
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
+Sections:
+  - Name:   .hash
+    Type:   SHT_HASH
+    Bucket: [ 1, 2 ]
+    Chain:  [ 3, 4, 5 ]
+    NBucket: 0xAA
+    NChain:  0xBB

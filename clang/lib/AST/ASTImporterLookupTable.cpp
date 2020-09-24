@@ -22,6 +22,20 @@ namespace {
 struct Builder : RecursiveASTVisitor<Builder> {
   ASTImporterLookupTable &LT;
   Builder(ASTImporterLookupTable &LT) : LT(LT) {}
+
+  bool VisitTypedefNameDecl(TypedefNameDecl *D) {
+    QualType Ty = D->getUnderlyingType();
+    Ty = Ty.getCanonicalType();
+    if (const auto *RTy = dyn_cast<RecordType>(Ty)) {
+      LT.add(RTy->getAsRecordDecl());
+      // iterate over the field decls, adding them
+      for (auto *it : RTy->getAsRecordDecl()->fields()) {
+        LT.add(it);
+      }
+    }
+    return true;
+  }
+
   bool VisitNamedDecl(NamedDecl *D) {
     LT.add(D);
     return true;
@@ -45,7 +59,11 @@ struct Builder : RecursiveASTVisitor<Builder> {
           LT.add(RTy->getAsCXXRecordDecl());
         else if (const auto *SpecTy = dyn_cast<TemplateSpecializationType>(Ty))
           LT.add(SpecTy->getAsCXXRecordDecl());
-        else if (isa<TypedefType>(Ty)) {
+        else if (const auto *SubstTy =
+                     dyn_cast<SubstTemplateTypeParmType>(Ty)) {
+          if (SubstTy->getAsCXXRecordDecl())
+            LT.add(SubstTy->getAsCXXRecordDecl());
+        } else if (isa<TypedefType>(Ty)) {
           // We do not put friend typedefs to the lookup table because
           // ASTImporter does not organize typedefs into redecl chains.
         } else {

@@ -133,6 +133,8 @@ const char *getEnv(const char *Name);
 
 u64 getMonotonicTime();
 
+u32 getThreadID();
+
 // Our randomness gathering function is limited to 256 bytes to ensure we get
 // as many bytes as requested, and avoid interruptions (on Linux).
 constexpr uptr MaxRandomLength = 256U;
@@ -172,6 +174,30 @@ void NORETURN dieOnMapUnmapError(bool OutOfMemory = false);
 // Logging related functions.
 
 void setAbortMessage(const char *Message);
+
+struct BlockInfo {
+  uptr BlockBegin;
+  uptr BlockSize;
+  uptr RegionBegin;
+  uptr RegionEnd;
+};
+
+enum class Option : u8 {
+  ReleaseInterval,      // Release to OS interval in milliseconds.
+  MemtagTuning,         // Whether to tune tagging for UAF or overflow.
+  MaxCacheEntriesCount, // Maximum number of blocks that can be cached.
+  MaxCacheEntrySize,    // Maximum size of a block that can be cached.
+  MaxTSDsCount,         // Number of usable TSDs for the shared registry.
+};
+
+constexpr unsigned char PatternFillByte = 0xAB;
+
+enum FillContentsMode {
+  NoFill = 0,
+  ZeroFill = 1,
+  PatternOrZeroFill = 2 // Pattern fill unless the memory is known to be
+                        // zero-initialized already.
+};
 
 } // namespace scudo
 

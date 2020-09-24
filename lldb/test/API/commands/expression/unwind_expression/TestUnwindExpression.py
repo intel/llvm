@@ -45,14 +45,13 @@ class UnwindFromExpressionTest(TestBase):
 
         main_frame = self.thread.GetFrameAtIndex(0)
         val = main_frame.EvaluateExpression("second_function(47)", options)
-        self.assertTrue(
-            val.GetError().Success(),
-            "We did complete the execution.")
+        self.assertSuccess(val.GetError(), "We did complete the execution.")
         self.assertEquals(47, val.GetValueAsSigned())
 
 
     @add_test_categories(['pyapi'])
     @expectedFlakeyNetBSD
+    @skipIfReproducer # FIXME: Unexpected packet during (passive) replay
     def test_unwind_expression(self):
         """Test unwinding from an expression."""
         self.build_and_run_to_bkpt()
@@ -91,8 +90,8 @@ class UnwindFromExpressionTest(TestBase):
 
         # Now unwind the expression, and make sure we got back to where we
         # started.
-        error = thread.UnwindInnermostExpression()
-        self.assertTrue(error.Success(), "We succeeded in unwinding")
+        self.assertSuccess(thread.UnwindInnermostExpression(),
+                "We succeeded in unwinding")
 
         cur_frame = thread.GetFrameAtIndex(0)
         self.assertTrue(

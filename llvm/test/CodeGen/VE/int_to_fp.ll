@@ -71,7 +71,7 @@ entry:
 define float @ui2f(i32 %a) {
 ; CHECK-LABEL: ui2f:
 ; CHECK:       .LBB{{[0-9]+}}_2:
-; CHECK-NEXT:    adds.w.zx %s0, %s0, (0)1
+; CHECK-NEXT:    and %s0, %s0, (32)0
 ; CHECK-NEXT:    cvt.d.l %s0, %s0
 ; CHECK-NEXT:    cvt.s.d %s0, %s0
 ; CHECK-NEXT:    or %s11, 0, %s9
@@ -172,7 +172,7 @@ entry:
 define double @ui2d(i32 %a) {
 ; CHECK-LABEL: ui2d:
 ; CHECK:       .LBB{{[0-9]+}}_2:
-; CHECK-NEXT:    adds.w.zx %s0, %s0, (0)1
+; CHECK-NEXT:    and %s0, %s0, (32)0
 ; CHECK-NEXT:    cvt.d.l %s0, %s0
 ; CHECK-NEXT:    or %s11, 0, %s9
 entry:
@@ -188,11 +188,9 @@ define double @ul2d(i64 %a) {
 ; CHECK-NEXT:    lea.sl %s2, 1160773632
 ; CHECK-NEXT:    or %s1, %s1, %s2
 ; CHECK-NEXT:    lea %s2, 1048576
-; CHECK-NEXT:    lea.sl %s2, -986710016(%s2)
+; CHECK-NEXT:    lea.sl %s2, -986710016(, %s2)
 ; CHECK-NEXT:    fadd.d %s1, %s1, %s2
-; CHECK-NEXT:    lea %s2, -1
-; CHECK-NEXT:    and %s2, %s2, (32)0
-; CHECK-NEXT:    and %s0, %s0, %s2
+; CHECK-NEXT:    and %s0, %s0, (32)0
 ; CHECK-NEXT:    lea.sl %s2, 1127219200
 ; CHECK-NEXT:    or %s0, %s0, %s2
 ; CHECK-NEXT:    fadd.d %s0, %s0, %s1

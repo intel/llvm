@@ -194,12 +194,11 @@ size_t CommunicationKDP::WaitForPacketWithTimeoutMicroSecondsNoLock(
                                  : std::chrono::microseconds(timeout_usec),
                              status, &error);
 
-    LLDB_LOGV(log, 
-      "Read (buffer, sizeof(buffer), timeout_usec = 0x{0:x}, "
-                  "status = {1}, error = {2}) => bytes_read = {4}",
-                  timeout_usec,
-                  Communication::ConnectionStatusAsCString(status),
-                  error, bytes_read);
+    LLDB_LOGV(log,
+              "Read (buffer, sizeof(buffer), timeout_usec = 0x{0:x}, "
+              "status = {1}, error = {2}) => bytes_read = {4}",
+              timeout_usec, Communication::ConnectionStatusAsString(status),
+              error, bytes_read);
 
     if (bytes_read > 0) {
       if (CheckForPacket(buffer, bytes_read, packet))
@@ -304,7 +303,7 @@ bool CommunicationKDP::CheckForPacket(const uint8_t *src, size_t src_len,
       if (length <= bytes_available) {
         // We have an entire packet ready, we need to copy the data bytes into
         // a buffer that will be owned by the packet and erase the bytes from
-        // our communcation buffer "m_bytes"
+        // our communication buffer "m_bytes"
         packet.SetData(DataBufferSP(new DataBufferHeap(&m_bytes[0], length)));
         m_bytes.erase(0, length);
 
@@ -445,7 +444,7 @@ lldb_private::UUID CommunicationKDP::GetUUID() {
   if (uuid_str.size() < 32)
     return uuid;
 
-  if (uuid.SetFromStringRef(uuid_str) == 0) {
+  if (!uuid.SetFromStringRef(uuid_str)) {
     UUID invalid_uuid;
     return invalid_uuid;
   }

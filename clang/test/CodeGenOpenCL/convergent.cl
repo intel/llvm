@@ -70,9 +70,9 @@ void test_merge_if(int a) {
 // CHECK-NOT: call spir_func void @g()
 // CHECK: br label %[[if_end]]
 // CHECK: [[if_end]]:
-// CHECK:  %[[tobool_pr:.+]] = phi i1 [ true, %[[if_then]] ], [ false, %{{.+}} ]
+// CHECK-NOT: phi i1
 // CHECK:  tail call spir_func void @convfun() #[[attr4:.+]]
-// CHECK:  br i1 %[[tobool_pr]], label %[[if_then2:.+]], label %[[if_end3:.+]]
+// CHECK:  br i1 %[[tobool]], label %[[if_end3:.+]], label %[[if_then2:.+]]
 // CHECK: [[if_then2]]:
 // CHECK: tail call spir_func void @g()
 // CHECK:  br label %[[if_end3:.+]]
@@ -121,7 +121,7 @@ void test_unroll() {
 
 // The new PM produces a slightly different IR for the loop from the legacy PM,
 // but the test still checks that the loop is not unrolled.
-// CHECK-LEGACY:  br i1 %{{.+}}, label %[[for_body]], label %[[for_cond_cleanup]]
+// CHECK-LEGACY:  br i1 %{{.+}}, label %[[for_cond_cleanup]], label %[[for_body]]
 // CHECK-NEW:     br i1 %{{.+}}, label %[[for_body_crit_edge:.+]], label %[[for_cond_cleanup]]
 // CHECK-NEW:     [[for_body_crit_edge]]:
 

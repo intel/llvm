@@ -7,7 +7,11 @@ add_gen_header(
   DATA_FILES
     ${LIBC_TARGET_MACHINE}/syscall.h.inc
   DEPENDS
-    support_common_h
+    libc.src.__support.common
 )
 
-add_subdirectory(x86_64)
+add_header(
+  app_h
+  HDR
+    app.h
+)

@@ -61,7 +61,7 @@ everything to the LLVM dialect.
 
 ```c++
   mlir::ConversionTarget target(getContext());
-  target.addLegalDialect<mlir::LLVM::LLVMDialect>();
+  target.addLegalDialect<mlir::LLVMDialect>();
   target.addLegalOp<mlir::ModuleOp, mlir::ModuleTerminatorOp>();
 ```
 
@@ -105,9 +105,8 @@ We want to completely lower to LLVM, so we use a `FullConversion`. This ensures
 that only legal operations will remain after the conversion.
 
 ```c++
-  mlir::ModuleOp module = getModule();
-  if (mlir::failed(mlir::applyFullConversion(module, target, patterns,
-                                             &typeConverter)))
+  mlir::ModuleOp module = getOperation();
+  if (mlir::failed(mlir::applyFullConversion(module, target, patterns)))
     signalPassFailure();
 ```
 
@@ -239,14 +238,17 @@ define void @main()
 }
 ```
 
-The full code listing for dumping LLVM IR can be found in `Ch6/toy.cpp` in the
-`dumpLLVMIR()` function:
+The full code listing for dumping LLVM IR can be found in
+`examples/toy/Ch6/toy.cpp` in the `dumpLLVMIR()` function:
 
 ```c++
 
 int dumpLLVMIR(mlir::ModuleOp module) {
-  // Translate the module, that contains the LLVM dialect, to LLVM IR.
-  auto llvmModule = mlir::translateModuleToLLVMIR(module);
+  // Translate the module, that contains the LLVM dialect, to LLVM IR. Use a
+  // fresh LLVM IR context. (Note that LLVM is not thread-safe and any
+  // concurrent use of a context requires external locking.)
+  llvm::LLVMContext llvmContext;
+  auto llvmModule = mlir::translateModuleToLLVMIR(module, llvmContext);
   if (!llvmModule) {
     llvm::errs() << "Failed to emit LLVM IR\n";
     return -1;
@@ -315,8 +317,11 @@ $ echo 'def main() { print([[1, 2], [3, 4]]); }' | ./bin/toyc-ch6 -emit=jit
 
 You can also play with `-emit=mlir`, `-emit=mlir-affine`, `-emit=mlir-llvm`, and
 `-emit=llvm` to compare the various levels of IR involved. Also try options like
-[`--print-ir-after-all`](../../WritingAPass.md#ir-printing) to track the
+[`--print-ir-after-all`](../../PassManagement.md#ir-printing) to track the
 evolution of the IR throughout the pipeline.
+
+The example code used throughout this section can be found in 
+test/Examples/Toy/Ch6/llvm-lowering.mlir.
 
 So far, we have worked with primitive data types. In the
 [next chapter](Ch-7.md), we will add a composite `struct` type.

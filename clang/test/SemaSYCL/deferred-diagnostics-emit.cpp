@@ -1,4 +1,4 @@
-// RUN: %clang_cc1  -fsycl -triple spir64 -fsycl-is-device -verify -fsyntax-only  %s
+// RUN: %clang_cc1  -fsycl -triple spir64 -fsycl-is-device -Wno-sycl-2017-compat -verify -fsyntax-only  %s
 //
 // Ensure that the SYCL diagnostics that are typically deferred are correctly emitted.
 
@@ -12,7 +12,7 @@ inline namespace cl {
 namespace sycl {
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   // expected-note@+1 3{{called by 'kernel_single_task<AName, (lambda}}
   kernelFunc();
 }
@@ -49,6 +49,8 @@ typedef const __float128 trickyFloatType;
 typedef const __int128 tricky128Type;
 
 //templated type (late)
+// expected-note@+3 {{'bar<const __float128>' defined here}}
+// expected-note@+2 {{'bar<__float128>' defined here}}
 template <typename T>
 T bar() { return T(); };
 
@@ -73,16 +75,20 @@ void setup_sycl_operation(const T VA[]) {
     std::size_t arrSz = sizeof(int[0]);
 
     // ======= Float128 Not Allowed in Kernel ==========
+    // expected-note@+2 {{'malFloat' defined here}}
     // expected-error@+1 {{'__float128' is not supported on this target}}
     __float128 malFloat = 40;
     // expected-error@+1 {{'__float128' is not supported on this target}}
     trickyFloatType malFloatTrick = 41;
     // expected-error@+1 {{'__float128' is not supported on this target}}
     floatDef malFloatDef = 44;
+    // expected-error@+2 {{'malFloat' requires 128 bit size '__float128' type support, but device 'spir64' does not support it}}
     // expected-error@+1 {{'__float128' is not supported on this target}}
     auto whatFloat = malFloat;
+    // expected-error@+2 {{'bar<__float128>' requires 128 bit size '__float128' type support, but device 'spir64' does not support it}}
     // expected-error@+1 {{'__float128' is not supported on this target}}
     auto malAutoTemp5 = bar<__float128>();
+    // expected-error@+2 {{'bar<const __float128>' requires 128 bit size 'const __float128' type support, but device 'spir64' does not support it}}
     // expected-error@+1 {{'__float128' is not supported on this target}}
     auto malAutoTemp6 = bar<trickyFloatType>();
     // expected-error@+1 {{'__float128' is not supported on this target}}

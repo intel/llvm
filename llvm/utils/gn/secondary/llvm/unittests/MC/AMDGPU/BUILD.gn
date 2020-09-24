@@ -8,7 +8,5 @@ unittest("AMDGPUDwarfTests") {
     "//llvm/lib/Target/AMDGPU/MCTargetDesc",
     "//llvm/lib/Target/AMDGPU/TargetInfo",
   ]
-  sources = [
-    "DwarfRegMappings.cpp",
-  ]
+  sources = [ "DwarfRegMappings.cpp" ]
 }

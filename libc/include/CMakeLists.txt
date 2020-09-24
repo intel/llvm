@@ -6,25 +6,32 @@ add_header(
 )
 
 add_header(
-  libc_posix_types_h
+  libc_posix_types
   HDR
     __posix-types.h
 )
 
 add_header(
-  ctype_h
+  stdc_types
   HDR
-   ctype.h
-  DEPENDS
-    llvm_libc_common_h
+    __llvm-libc-stdc-types.h
 )
 
 add_gen_header(
-  math_h
+  ctype
+  DEF_FILE ctype.h.def
+  GEN_HDR ctype.h
+  DEPENDS
+    .llvm_libc_common_h
+)
+
+add_gen_header(
+  math
   DEF_FILE math.h.def
   GEN_HDR math.h
   DEPENDS
-    llvm_libc_common_h
+    .llvm_libc_common_h
+    .stdc_types
 )
 
 add_gen_header(
@@ -32,31 +39,31 @@ add_gen_header(
   DEF_FILE assert.h.def
   GEN_HDR assert.h
   DEPENDS
-    llvm_libc_common_h
+    .llvm_libc_common_h
 )
 
 add_gen_header(
-  string_h
+  string
   DEF_FILE string.h.def
   GEN_HDR string.h
   DEPENDS
-    llvm_libc_common_h
+    .llvm_libc_common_h
 )
 
 add_gen_header(
-  threads_h
+  threads
   DEF_FILE threads.h.def
   GEN_HDR threads.h
   PARAMS
     platform_threads=../config/${LIBC_TARGET_OS}/threads.h.in
   DEPENDS
-    llvm_libc_common_h
+    .llvm_libc_common_h
   DATA_FILES
     ../config/${LIBC_TARGET_OS}/threads.h.in
 )
 
 add_gen_header(
-  errno_h
+  errno
   DEF_FILE errno.h.def
   PARAMS
     platform_errno=../config/${LIBC_TARGET_OS}/errno.h.in
@@ -66,7 +73,7 @@ add_gen_header(
 )
 
 add_gen_header(
-  signal_h
+  signal
   DEF_FILE signal.h.def
   PARAMS
     platform_signal=../config/${LIBC_TARGET_OS}/signal.h.in
@@ -76,11 +83,27 @@ add_gen_header(
 )
 
 add_gen_header(
-  stdlib_h
+  stdio
+  DEF_FILE stdio.h.def
+  GEN_HDR stdio.h
+  DEPENDS
+    .llvm_libc_common_h
+)
+
+add_gen_header(
+  stdlib
   DEF_FILE stdlib.h.def
   GEN_HDR stdlib.h
   DEPENDS
-    llvm_libc_common_h
+    .llvm_libc_common_h
+)
+
+add_gen_header(
+  unistd
+  DEF_FILE unistd.h.def
+  GEN_HDR unistd.h
+  DEPENDS
+    .llvm_libc_common_h
 )
 
 # TODO: Not all platforms will have a include/sys directory. Add the sys
@@ -89,16 +112,16 @@ add_gen_header(
 file(MAKE_DIRECTORY "sys")
 
 add_gen_header(
-  sys_mman_h
+  sys_mman
   DEF_FILE sys/mman.h.def
   GEN_HDR sys/mman.h
   DEPENDS
-    libc_posix_types_h
-    llvm_libc_common_h
+    .libc_posix_types
+    .llvm_libc_common_h
 )
 
 add_gen_header(
-  sys_syscall_h
+  sys_syscall
   DEF_FILE sys/syscall.h.def
   GEN_HDR sys/syscall.h
   PARAMS

@@ -34,6 +34,8 @@ public:
   void emitWorkGroupLocalVarDecl(CodeGenFunction &CGF, const VarDecl &D);
   bool actOnAutoVarEmit(CodeGenFunction &CGF, const VarDecl &D,
                         llvm::Value *Addr);
+  bool actOnGlobalVarEmit(CodeGenModule &CGM, const VarDecl &D,
+                          llvm::Value *Addr);
 };
 
 } // namespace CodeGen

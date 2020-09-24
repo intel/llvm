@@ -10,7 +10,6 @@
 #define LLVM_LIB_TARGET_X86_X86TARGETOBJECTFILE_H
 
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
-#include "llvm/Target/TargetLoweringObjectFile.h"
 
 namespace llvm {
 
@@ -37,7 +36,7 @@ namespace llvm {
                                             MCStreamer &Streamer) const override;
   };
 
-  /// This implemenatation is used for X86 ELF targets that don't
+  /// This implementation is used for X86 ELF targets that don't
   /// have a further specialization.
   class X86ELFTargetObjectFile : public TargetLoweringObjectFileELF {
   public:

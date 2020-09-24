@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 #include <CL/sycl.hpp>
 #include <cmath>
+#include <complex>
 #include <iostream>
 
 using namespace cl::sycl;
@@ -111,6 +112,24 @@ template <typename T> void exit_if_not_equal(T val, T ref, const char *name) {
   }
 }
 
+template <typename T>
+void exit_if_not_equal(std::complex<T> val, std::complex<T> ref, const char *name) {
+  if (std::fabs(val.real() - ref.real()) > 0.01 || std::fabs(val.imag() - ref.imag()) > 0.01) {
+    std::cout << "Unexpected result for " << name << ": " << val
+              << " expected value: " << ref << std::endl;
+    exit(1);
+  }
+}
+
+template <typename T>
+void exit_if_not_equal(T *val, T *ref, const char *name) {
+  if ((val - ref) != 0) {
+    std::cout << "Unexpected result for " << name << ": " << val
+              << " expected value: " << ref << std::endl;
+    exit(1);
+  }
+}
+
 template <> void exit_if_not_equal(half val, half ref, const char *name) {
   int16_t cmp_val = reinterpret_cast<int16_t&>(val);
   int16_t cmp_ref = reinterpret_cast<int16_t&>(ref);
@@ -131,23 +150,6 @@ void exit_if_not_equal_vec(vec<T, N> val, vec<T, N> ref, const char *name) {
 
     exit(1);
   }
-}
-
-/* CPU returns max number of SG, GPU returns max SG size for
- * CL_DEVICE_MAX_NUM_SUB_GROUPS device parameter. This function aligns the
- * value.
- * */
-inline size_t get_sg_size(const device &Device) {
-  size_t max_num_sg = Device.get_info<info::device::max_num_sub_groups>();
-  if (Device.get_info<info::device::device_type>() == info::device_type::cpu) {
-    size_t max_wg_size = Device.get_info<info::device::max_work_group_size>();
-    return max_wg_size / max_num_sg;
-  }
-  if (Device.get_info<info::device::device_type>() == info::device_type::gpu) {
-    return max_num_sg;
-  }
-  std::cout << "Unexpected deive type" << std::endl;
-  exit(1);
 }
 
 bool core_sg_supported(const device &Device) {

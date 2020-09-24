@@ -46,14 +46,20 @@ template <typename T> struct IsValidAtomicType {
 };
 
 template <cl::sycl::access::address_space AS> struct IsValidAtomicAddressSpace {
-  static constexpr bool value = (AS == access::address_space::global_space ||
-                                 AS == access::address_space::local_space);
+  static constexpr bool value =
+      (AS == access::address_space::global_space ||
+       AS == access::address_space::local_space ||
+       AS == access::address_space::global_device_space);
 };
 
 // Type trait to translate a cl::sycl::access::address_space to
 // a SPIR-V memory scope
 template <access::address_space AS> struct GetSpirvMemoryScope {};
 template <> struct GetSpirvMemoryScope<access::address_space::global_space> {
+  static constexpr auto scope = __spv::Scope::Device;
+};
+template <>
+struct GetSpirvMemoryScope<access::address_space::global_device_space> {
   static constexpr auto scope = __spv::Scope::Device;
 };
 template <> struct GetSpirvMemoryScope<access::address_space::local_space> {
@@ -73,10 +79,10 @@ namespace detail {
 // into std::memory_order
 // Only relaxed memory semantics are supported currently
 static inline std::memory_order
-getStdMemoryOrder(__spv::MemorySemanticsMask::Flag MS) {
+getStdMemoryOrder(__spv::MemorySemanticsMask::Flag) {
   return std::memory_order_relaxed;
 }
-static inline std::memory_order getStdMemoryOrder(::cl::sycl::memory_order MS) {
+static inline std::memory_order getStdMemoryOrder(::cl::sycl::memory_order) {
   return std::memory_order_relaxed;
 }
 } // namespace detail
@@ -86,55 +92,55 @@ static inline std::memory_order getStdMemoryOrder(::cl::sycl::memory_order MS) {
 // std::atomic version of atomic SPIR-V builtins
 
 template <typename T>
-void __spirv_AtomicStore(std::atomic<T> *Ptr, __spv::Scope::Flag S,
+void __spirv_AtomicStore(std::atomic<T> *Ptr, __spv::Scope::Flag,
                          __spv::MemorySemanticsMask::Flag MS, T V) {
   Ptr->store(V, ::cl::sycl::detail::getStdMemoryOrder(MS));
 }
 
 template <typename T>
-T __spirv_AtomicLoad(const std::atomic<T> *Ptr, __spv::Scope::Flag S,
+T __spirv_AtomicLoad(const std::atomic<T> *Ptr, __spv::Scope::Flag,
                      __spv::MemorySemanticsMask::Flag MS) {
   return Ptr->load(::cl::sycl::detail::getStdMemoryOrder(MS));
 }
 
 template <typename T>
-T __spirv_AtomicExchange(std::atomic<T> *Ptr, __spv::Scope::Flag S,
+T __spirv_AtomicExchange(std::atomic<T> *Ptr, __spv::Scope::Flag,
                          __spv::MemorySemanticsMask::Flag MS, T V) {
   return Ptr->exchange(V, ::cl::sycl::detail::getStdMemoryOrder(MS));
 }
 
 template <typename T>
-extern T __spirv_AtomicIAdd(std::atomic<T> *Ptr, __spv::Scope::Flag S,
+extern T __spirv_AtomicIAdd(std::atomic<T> *Ptr, __spv::Scope::Flag,
                             __spv::MemorySemanticsMask::Flag MS, T V) {
   return Ptr->fetch_add(V, ::cl::sycl::detail::getStdMemoryOrder(MS));
 }
 
 template <typename T>
-extern T __spirv_AtomicISub(std::atomic<T> *Ptr, __spv::Scope::Flag S,
+extern T __spirv_AtomicISub(std::atomic<T> *Ptr, __spv::Scope::Flag,
                             __spv::MemorySemanticsMask::Flag MS, T V) {
   return Ptr->fetch_sub(V, ::cl::sycl::detail::getStdMemoryOrder(MS));
 }
 
 template <typename T>
-extern T __spirv_AtomicAnd(std::atomic<T> *Ptr, __spv::Scope::Flag S,
+extern T __spirv_AtomicAnd(std::atomic<T> *Ptr, __spv::Scope::Flag,
                            __spv::MemorySemanticsMask::Flag MS, T V) {
   return Ptr->fetch_and(V, ::cl::sycl::detail::getStdMemoryOrder(MS));
 }
 
 template <typename T>
-extern T __spirv_AtomicOr(std::atomic<T> *Ptr, __spv::Scope::Flag S,
+extern T __spirv_AtomicOr(std::atomic<T> *Ptr, __spv::Scope::Flag,
                           __spv::MemorySemanticsMask::Flag MS, T V) {
   return Ptr->fetch_or(V, ::cl::sycl::detail::getStdMemoryOrder(MS));
 }
 
 template <typename T>
-extern T __spirv_AtomicXor(std::atomic<T> *Ptr, __spv::Scope::Flag S,
+extern T __spirv_AtomicXor(std::atomic<T> *Ptr, __spv::Scope::Flag,
                            __spv::MemorySemanticsMask::Flag MS, T V) {
   return Ptr->fetch_xor(V, ::cl::sycl::detail::getStdMemoryOrder(MS));
 }
 
 template <typename T>
-extern T __spirv_AtomicMin(std::atomic<T> *Ptr, __spv::Scope::Flag S,
+extern T __spirv_AtomicMin(std::atomic<T> *Ptr, __spv::Scope::Flag,
                            __spv::MemorySemanticsMask::Flag MS, T V) {
   std::memory_order MemoryOrder = ::cl::sycl::detail::getStdMemoryOrder(MS);
   T Val = Ptr->load(MemoryOrder);
@@ -147,7 +153,7 @@ extern T __spirv_AtomicMin(std::atomic<T> *Ptr, __spv::Scope::Flag S,
 }
 
 template <typename T>
-extern T __spirv_AtomicMax(std::atomic<T> *Ptr, __spv::Scope::Flag S,
+extern T __spirv_AtomicMax(std::atomic<T> *Ptr, __spv::Scope::Flag,
                            __spv::MemorySemanticsMask::Flag MS, T V) {
   std::memory_order MemoryOrder = ::cl::sycl::detail::getStdMemoryOrder(MS);
   T Val = Ptr->load(MemoryOrder);
@@ -167,13 +173,14 @@ namespace sycl {
 template <typename T, access::address_space addressSpace =
                           access::address_space::global_space>
 class atomic {
+  friend class atomic<T, access::address_space::global_space>;
   static_assert(detail::IsValidAtomicType<T>::value,
-                "Invalid SYCL atomic type.  Valid types are: int, "
-                "unsigned int, long, unsigned long, long long,  unsigned "
+                "Invalid SYCL atomic type. Valid types are: int, "
+                "unsigned int, long, unsigned long, long long, unsigned "
                 "long long, float");
   static_assert(detail::IsValidAtomicAddressSpace<addressSpace>::value,
-                "Invalid SYCL atomic address_space.  Valid address spaces are: "
-                "global_space, local_space");
+                "Invalid SYCL atomic address_space. Valid address spaces are: "
+                "global_space, local_space, global_device_space");
   static constexpr auto SpirvScope =
       detail::GetSpirvMemoryScope<addressSpace>::scope;
 
@@ -190,6 +197,25 @@ public:
     static_assert(sizeof(T) == sizeof(pointerT),
                   "T and pointerT must be same size");
   }
+
+#ifdef __ENABLE_USM_ADDR_SPACE__
+  // Create atomic in global_space with one from global_device_space
+  template <access::address_space _Space = addressSpace,
+            typename = typename std::enable_if<
+                _Space == addressSpace &&
+                addressSpace == access::address_space::global_space>::type>
+  atomic(const atomic<T, access::address_space::global_device_space> &RHS) {
+    Ptr = RHS.Ptr;
+  }
+
+  template <access::address_space _Space = addressSpace,
+            typename = typename std::enable_if<
+                _Space == addressSpace &&
+                addressSpace == access::address_space::global_space>::type>
+  atomic(atomic<T, access::address_space::global_device_space> &&RHS) {
+    Ptr = RHS.Ptr;
+  }
+#endif // __ENABLE_USM_ADDR_SPACE__
 
   void store(T Operand, memory_order Order = memory_order::relaxed) {
     __spirv_AtomicStore(

@@ -1,13 +1,3 @@
-// RUN: %clangxx -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -c %s -o %t.o
-// RUN: %clangxx -fsycl -fsycl-link-targets=spir64-unknown-unknown-sycldevice %t.o -o %t.spv
-// RUN: llvm-spirv -r %t.spv -o %t.bc
-// RUN: %clangxx -fsycl -fsycl-add-targets=spir64:%t.bc %t.o -o %t.out
-//
-// Only CPU supports LLVM IR bitcode as a binary
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-
-// REQUIRES: cpu
-
 //==----- with-llvm-bc.cpp - SYCL kernel with LLVM IR bitcode as binary ----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -16,71 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+// REQUIRES: cpu
 
-#include <array>
-#include <iostream>
-
-constexpr cl::sycl::access::mode sycl_read = cl::sycl::access::mode::read;
-constexpr cl::sycl::access::mode sycl_write = cl::sycl::access::mode::write;
-
-template <typename T>
-class SimpleVadd;
-
-template <typename T, size_t N>
-void simple_vadd(const std::array<T, N>& VA, const std::array<T, N>& VB,
-                 std::array<T, N>& VC) {
-  cl::sycl::queue deviceQueue([](cl::sycl::exception_list ExceptionList) {
-      for (cl::sycl::exception_ptr_class ExceptionPtr : ExceptionList) {
-        try {
-          std::rethrow_exception(ExceptionPtr);
-        } catch (cl::sycl::exception &E) {
-          std::cerr << E.what();
-        } catch (...) {
-          std::cerr << "Unknown async exception was caught." << std::endl;
-        }
-      }
-    });
-  
-  cl::sycl::range<1> numOfItems{N};
-  cl::sycl::buffer<T, 1> bufferA(VA.data(), numOfItems);
-  cl::sycl::buffer<T, 1> bufferB(VB.data(), numOfItems);
-  cl::sycl::buffer<T, 1> bufferC(VC.data(), numOfItems);
-
-  deviceQueue.submit([&](cl::sycl::handler& cgh) {
-    auto accessorA = bufferA.template get_access<sycl_read>(cgh);
-    auto accessorB = bufferB.template get_access<sycl_read>(cgh);
-    auto accessorC = bufferC.template get_access<sycl_write>(cgh);
-
-    cgh.parallel_for<class SimpleVadd<T>>(numOfItems,
-    [=](cl::sycl::id<1> wiID) {
-        accessorC[wiID] = accessorA[wiID] + accessorB[wiID];
-    });
-  });
-
-  deviceQueue.wait_and_throw();
-}
-
-int main() {
-  const size_t array_size = 4;
-  std::array<cl::sycl::cl_int, array_size> A = {{1, 2, 3, 4}},
-                                           B = {{1, 2, 3, 4}}, C;
-  std::array<cl::sycl::cl_float, array_size> D = {{1.f, 2.f, 3.f, 4.f}},
-                                             E = {{1.f, 2.f, 3.f, 4.f}}, F;
-  simple_vadd(A, B, C);
-  simple_vadd(D, E, F);
-  for (unsigned int i = 0; i < array_size; i++) {
-    if (C[i] != A[i] + B[i]) {
-      std::cout << "The results are incorrect (element " << i << " is " << C[i]
-                << "!\n";
-      return 1;
-    }
-    if (F[i] != D[i] + E[i]) {
-      std::cout << "The results are incorrect (element " << i << " is " << F[i]
-                << "!\n";
-      return 1;
-    }
-  }
-  std::cout << "The results are correct!\n";
-  return 0;
-}
+// RUN: %clangxx -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -c %S/Inputs/aot.cpp -o %t.o
+// RUN: %clangxx -fsycl -fsycl-link-targets=spir64-unknown-unknown-sycldevice %t.o -o %t.spv
+// RUN: llvm-spirv -r %t.spv -o %t.bc
+// RUN: %clangxx -fsycl -fsycl-add-targets=spir64:%t.bc %t.o -o %t.out
+//
+// Only CPU supports LLVM IR bitcode as a binary
+// RUN: %CPU_RUN_PLACEHOLDER %t.out

@@ -173,6 +173,15 @@ TEST_F(ShowSelectionTreeTest, Test) {
         *IntegerLiteral 2
 )";
   EXPECT_EQ(apply("int fcall(int); int x = fca[[ll(2 +]]2);"), Output);
+
+  Output = R"(message:
+ TranslationUnitDecl 
+   FunctionDecl void x()
+     CompoundStmt { …
+       ForStmt for (;;) …
+        *BreakStmt break;
+)";
+  EXPECT_EQ(apply("void x() { for (;;) br^eak; }"), Output);
 }
 
 TWEAK_TEST(DumpRecordLayout);
@@ -588,7 +597,7 @@ TEST_F(ExtractFunctionTest, FunctionTest) {
   // lead to break being included in the extraction zone.
   EXPECT_THAT(apply("for(;;) { [[int x;]]break; }"), HasSubstr("extracted"));
   // FIXME: ExtractFunction should be unavailable inside loop construct
-  // initalizer/condition.
+  // initializer/condition.
   EXPECT_THAT(apply(" for([[int i = 0;]];);"), HasSubstr("extracted"));
   // Don't extract because needs hoisting.
   EXPECT_THAT(apply(" [[int a = 5;]] a++; "), StartsWith("fail"));
@@ -596,6 +605,9 @@ TEST_F(ExtractFunctionTest, FunctionTest) {
   EXPECT_THAT(apply(" if(true) [[{ return; }]] "), HasSubstr("extracted"));
   // Don't extract uncertain return
   EXPECT_THAT(apply(" if(true) [[if (false) return;]] "), StartsWith("fail"));
+
+  FileName = "a.c";
+  EXPECT_THAT(apply(" for([[int i = 0;]];);"), HasSubstr("unavailable"));
 }
 
 TEST_F(ExtractFunctionTest, FileTest) {
@@ -1083,6 +1095,11 @@ TEST_F(DefineInlineTest, TemplateSpec) {
 
     template<> void f^oo<int>() {
       bar();
+    })cpp");
+  EXPECT_UNAVAILABLE(R"cpp(
+    namespace bar {
+      template <typename T> void f^oo() {}
+      template void foo<int>();
     })cpp");
 }
 
@@ -1994,6 +2011,13 @@ TEST_F(DefineOutlineTest, TriggersOnFunctionDecl) {
   EXPECT_UNAVAILABLE(R"cpp(
     template <typename> struct Foo { void fo^o(){} };
     )cpp");
+
+  // Not available on function templates and specializations, as definition must
+  // be visible to all translation units.
+  EXPECT_UNAVAILABLE(R"cpp(
+    template <typename> void fo^o() {};
+    template <> void fo^o<int>() {};
+  )cpp");
 }
 
 TEST_F(DefineOutlineTest, FailsWithoutSource) {
@@ -2023,48 +2047,63 @@ TEST_F(DefineOutlineTest, ApplyTest) {
           "void foo() ;",
           "void foo() { return; }",
       },
-      // Templated function.
-      {
-          "template <typename T> void fo^o(T, T x) { return; }",
-          "template <typename T> void foo(T, T x) ;",
-          "template <typename T> void foo(T, T x) { return; }",
-      },
-      {
-          "template <typename> void fo^o() { return; }",
-          "template <typename> void foo() ;",
-          "template <typename> void foo() { return; }",
-      },
-      // Template specialization.
-      {
-          R"cpp(
-            template <typename> void foo();
-            template <> void fo^o<int>() { return; })cpp",
-          R"cpp(
-            template <typename> void foo();
-            template <> void foo<int>() ;)cpp",
-          "template <> void foo<int>() { return; }",
-      },
       // Default args.
       {
           "void fo^o(int x, int y = 5, int = 2, int (*foo)(int) = nullptr) {}",
           "void foo(int x, int y = 5, int = 2, int (*foo)(int) = nullptr) ;",
           "void foo(int x, int y , int , int (*foo)(int) ) {}",
       },
-      // Ctor initializers.
+      // Constructors
+      {
+          R"cpp(
+            class Foo {public: Foo(); Foo(int);};
+            class Bar {
+              Ba^r() {}
+              Bar(int x) : f1(x) {}
+              Foo f1;
+              Foo f2 = 2;
+            };)cpp",
+          R"cpp(
+            class Foo {public: Foo(); Foo(int);};
+            class Bar {
+              Bar() ;
+              Bar(int x) : f1(x) {}
+              Foo f1;
+              Foo f2 = 2;
+            };)cpp",
+          "Bar::Bar() {}\n",
+      },
+      // Ctor with initializer.
+      {
+          R"cpp(
+            class Foo {public: Foo(); Foo(int);};
+            class Bar {
+              Bar() {}
+              B^ar(int x) : f1(x), f2(3) {}
+              Foo f1;
+              Foo f2 = 2;
+            };)cpp",
+          R"cpp(
+            class Foo {public: Foo(); Foo(int);};
+            class Bar {
+              Bar() {}
+              Bar(int x) ;
+              Foo f1;
+              Foo f2 = 2;
+            };)cpp",
+          "Bar::Bar(int x) : f1(x), f2(3) {}\n",
+      },
+      // Ctor initializer with attribute.
       {
           R"cpp(
               class Foo {
-                int y = 2;
                 F^oo(int z) __attribute__((weak)) : bar(2){}
                 int bar;
-                int z = 2;
               };)cpp",
           R"cpp(
               class Foo {
-                int y = 2;
                 Foo(int z) __attribute__((weak)) ;
                 int bar;
-                int z = 2;
               };)cpp",
           "Foo::Foo(int z) __attribute__((weak)) : bar(2){}\n",
       },
@@ -2141,6 +2180,28 @@ TEST_F(DefineOutlineTest, ApplyTest) {
               void foo() final override ;
             };)cpp",
           "void B::foo()   {}\n",
+      },
+      {
+          R"cpp(
+            struct A {
+              static void fo^o() {}
+            };)cpp",
+          R"cpp(
+            struct A {
+              static void foo() ;
+            };)cpp",
+          " void A::foo() {}\n",
+      },
+      {
+          R"cpp(
+            struct A {
+              static static void fo^o() {}
+            };)cpp",
+          R"cpp(
+            struct A {
+              static static void foo() ;
+            };)cpp",
+          "  void A::foo() {}\n",
       },
   };
   for (const auto &Case : Cases) {
@@ -2232,6 +2293,24 @@ TEST_F(DefineOutlineTest, HandleMacros) {
             STUPID_MACRO(sizeof sizeof int) void f^oo() {}
           };)cpp",
        R"cpp(#define STUPID_MACRO(X) virtual
+          struct A {
+            STUPID_MACRO(sizeof sizeof int) void foo() ;
+          };)cpp",
+       " void A::foo() {}\n"},
+      {R"cpp(#define STAT static
+          struct A {
+            STAT void f^oo() {}
+          };)cpp",
+       R"cpp(#define STAT static
+          struct A {
+            STAT void foo() ;
+          };)cpp",
+       " void A::foo() {}\n"},
+      {R"cpp(#define STUPID_MACRO(X) static
+          struct A {
+            STUPID_MACRO(sizeof sizeof int) void f^oo() {}
+          };)cpp",
+       R"cpp(#define STUPID_MACRO(X) static
           struct A {
             STUPID_MACRO(sizeof sizeof int) void foo() ;
           };)cpp",
@@ -2360,8 +2439,7 @@ TEST_F(DefineOutlineTest, FailsMacroSpecifier) {
           struct A {
             VIRT fo^o() {}
           };)cpp",
-          "fail: define outline: Can't move out of line as function has a "
-          "macro `virtual` specifier."},
+          "fail: define outline: couldn't remove `virtual` keyword."},
       {
           R"cpp(
           #define OVERFINAL final override
@@ -2390,6 +2468,340 @@ TEST_F(DefineOutlineTest, FailsMacroSpecifier) {
     EXPECT_EQ(apply(Case.first), Case.second);
   }
 }
+
+TWEAK_TEST(AddUsing);
+TEST_F(AddUsingTest, Prepare) {
+  const std::string Header = R"cpp(
+#define NS(name) one::two::name
+namespace one {
+void oo() {}
+template<typename TT> class tt {};
+namespace two {
+enum ee {};
+void ff() {}
+class cc {
+public:
+  struct st {};
+  static void mm() {}
+  cc operator|(const cc& x) const { return x; }
+};
+}
+})cpp";
+
+  EXPECT_AVAILABLE(Header + "void fun() { o^n^e^:^:^t^w^o^:^:^f^f(); }");
+  EXPECT_AVAILABLE(Header + "void fun() { o^n^e^::^o^o(); }");
+  EXPECT_AVAILABLE(Header + "void fun() { o^n^e^:^:^t^w^o^:^:^e^e E; }");
+  EXPECT_AVAILABLE(Header + "void fun() { o^n^e^:^:^t^w^o:^:^c^c C; }");
+  EXPECT_UNAVAILABLE(Header +
+                     "void fun() { o^n^e^:^:^t^w^o^:^:^c^c^:^:^m^m(); }");
+  EXPECT_UNAVAILABLE(Header +
+                     "void fun() { o^n^e^:^:^t^w^o^:^:^c^c^:^:^s^t inst; }");
+  EXPECT_UNAVAILABLE(Header +
+                     "void fun() { o^n^e^:^:^t^w^o^:^:^c^c^:^:^s^t inst; }");
+  EXPECT_UNAVAILABLE(Header + "void fun() { N^S(c^c) inst; }");
+  // This used to crash. Ideally we would support this case, but for now we just
+  // test that we don't crash.
+  EXPECT_UNAVAILABLE(Header +
+                     "template<typename TT> using foo = one::tt<T^T>;");
+  // Test that we don't crash or misbehave on unnamed DeclRefExpr.
+  EXPECT_UNAVAILABLE(Header +
+                     "void fun() { one::two::cc() ^| one::two::cc(); }");
+
+  // Check that we do not trigger in header files.
+  FileName = "test.h";
+  ExtraArgs.push_back("-xc++-header"); // .h file is treated a C by default.
+  EXPECT_UNAVAILABLE(Header + "void fun() { one::two::f^f(); }");
+  FileName = "test.hpp";
+  EXPECT_UNAVAILABLE(Header + "void fun() { one::two::f^f(); }");
+}
+
+TEST_F(AddUsingTest, Apply) {
+  FileName = "test.cpp";
+  struct {
+    llvm::StringRef TestSource;
+    llvm::StringRef ExpectedSource;
+  } Cases[]{{
+                // Function, no other using, namespace.
+                R"cpp(
+#include "test.hpp"
+namespace {
+void fun() {
+  ^o^n^e^:^:^t^w^o^:^:^f^f();
+}
+})cpp",
+                R"cpp(
+#include "test.hpp"
+namespace {using one::two::ff;
+
+void fun() {
+  ff();
+}
+})cpp",
+            },
+            // Type, no other using, namespace.
+            {
+                R"cpp(
+#include "test.hpp"
+namespace {
+void fun() {
+  ::on^e::t^wo::c^c inst;
+}
+})cpp",
+                R"cpp(
+#include "test.hpp"
+namespace {using ::one::two::cc;
+
+void fun() {
+  cc inst;
+}
+})cpp",
+            },
+            // Type, no other using, no namespace.
+            {
+                R"cpp(
+#include "test.hpp"
+
+void fun() {
+  on^e::t^wo::e^e inst;
+})cpp",
+                R"cpp(
+#include "test.hpp"
+
+using one::two::ee;
+
+void fun() {
+  ee inst;
+})cpp"},
+            // Function, other usings.
+            {
+                R"cpp(
+#include "test.hpp"
+
+using one::two::cc;
+using one::two::ee;
+
+namespace {
+void fun() {
+  one::two::f^f();
+}
+})cpp",
+                R"cpp(
+#include "test.hpp"
+
+using one::two::cc;
+using one::two::ff;using one::two::ee;
+
+namespace {
+void fun() {
+  ff();
+}
+})cpp",
+            },
+            // Function, other usings inside namespace.
+            {
+                R"cpp(
+#include "test.hpp"
+
+using one::two::cc;
+
+namespace {
+
+using one::two::ff;
+
+void fun() {
+  o^ne::o^o();
+}
+})cpp",
+                R"cpp(
+#include "test.hpp"
+
+using one::two::cc;
+
+namespace {
+
+using one::oo;using one::two::ff;
+
+void fun() {
+  oo();
+}
+})cpp"},
+            // Using comes after cursor.
+            {
+                R"cpp(
+#include "test.hpp"
+
+namespace {
+
+void fun() {
+  one::t^wo::ff();
+}
+
+using one::two::cc;
+
+})cpp",
+                R"cpp(
+#include "test.hpp"
+
+namespace {using one::two::ff;
+
+
+void fun() {
+  ff();
+}
+
+using one::two::cc;
+
+})cpp"},
+            // Pointer type.
+            {R"cpp(
+#include "test.hpp"
+
+void fun() {
+  one::two::c^c *p;
+})cpp",
+             R"cpp(
+#include "test.hpp"
+
+using one::two::cc;
+
+void fun() {
+  cc *p;
+})cpp"},
+            // Namespace declared via macro.
+            {R"cpp(
+#include "test.hpp"
+#define NS_BEGIN(name) namespace name {
+
+NS_BEGIN(foo)
+
+void fun() {
+  one::two::f^f();
+}
+})cpp",
+             R"cpp(
+#include "test.hpp"
+#define NS_BEGIN(name) namespace name {
+
+using one::two::ff;
+
+NS_BEGIN(foo)
+
+void fun() {
+  ff();
+}
+})cpp"},
+            // Inside macro argument.
+            {R"cpp(
+#include "test.hpp"
+#define CALL(name) name()
+
+void fun() {
+  CALL(one::t^wo::ff);
+})cpp",
+             R"cpp(
+#include "test.hpp"
+#define CALL(name) name()
+
+using one::two::ff;
+
+void fun() {
+  CALL(ff);
+})cpp"},
+            // Parent namespace != lexical parent namespace
+            {R"cpp(
+#include "test.hpp"
+namespace foo { void fun(); }
+
+void foo::fun() {
+  one::two::f^f();
+})cpp",
+             R"cpp(
+#include "test.hpp"
+using one::two::ff;
+
+namespace foo { void fun(); }
+
+void foo::fun() {
+  ff();
+})cpp"},
+            // If all other using are fully qualified, add ::
+            {R"cpp(
+#include "test.hpp"
+
+using ::one::two::cc;
+using ::one::two::ee;
+
+void fun() {
+  one::two::f^f();
+})cpp",
+             R"cpp(
+#include "test.hpp"
+
+using ::one::two::cc;
+using ::one::two::ff;using ::one::two::ee;
+
+void fun() {
+  ff();
+})cpp"},
+            // Make sure we don't add :: if it's already there
+            {R"cpp(
+#include "test.hpp"
+
+using ::one::two::cc;
+using ::one::two::ee;
+
+void fun() {
+  ::one::two::f^f();
+})cpp",
+             R"cpp(
+#include "test.hpp"
+
+using ::one::two::cc;
+using ::one::two::ff;using ::one::two::ee;
+
+void fun() {
+  ff();
+})cpp"},
+            // If even one using doesn't start with ::, do not add it
+            {R"cpp(
+#include "test.hpp"
+
+using ::one::two::cc;
+using one::two::ee;
+
+void fun() {
+  one::two::f^f();
+})cpp",
+             R"cpp(
+#include "test.hpp"
+
+using ::one::two::cc;
+using one::two::ff;using one::two::ee;
+
+void fun() {
+  ff();
+})cpp"}};
+  llvm::StringMap<std::string> EditedFiles;
+  for (const auto &Case : Cases) {
+    for (const auto &SubCase : expandCases(Case.TestSource)) {
+      ExtraFiles["test.hpp"] = R"cpp(
+namespace one {
+void oo() {}
+namespace two {
+enum ee {};
+void ff() {}
+class cc {
+public:
+  struct st { struct nested {}; };
+  static void mm() {}
+};
+}
+})cpp";
+      EXPECT_EQ(apply(SubCase, &EditedFiles), Case.ExpectedSource);
+    }
+  }
+}
+
 } // namespace
 } // namespace clangd
 } // namespace clang

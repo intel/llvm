@@ -17,6 +17,7 @@ class InvalidArgsLogTestCase(TestBase):
                     substrs=["error: log disable takes a log channel and one or more log types."])
 
     @no_debug_info_test
-    def test_timer_empty(self):
-        self.expect("log timer", error=True,
-                    substrs=["error: Missing subcommand"])
+    def test_enable_empty(self):
+        invalid_path = os.path.join("this", "is", "not", "a", "valid", "path")
+        self.expect("log enable lldb all -f " + invalid_path, error=True,
+                    substrs=["Unable to open log file '" + invalid_path + "': ", "\n"])

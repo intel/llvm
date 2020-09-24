@@ -52,27 +52,24 @@ static inline bool is_newline_char(char ch) { return ch == '\n' || ch == '\r'; }
 
 // SourceManager constructor
 SourceManager::SourceManager(const TargetSP &target_sp)
-    : m_last_file_sp(), m_last_line(0), m_last_count(0), m_default_set(false),
+    : m_last_line(0), m_last_count(0), m_default_set(false),
       m_target_wp(target_sp),
       m_debugger_wp(target_sp->GetDebugger().shared_from_this()) {}
 
 SourceManager::SourceManager(const DebuggerSP &debugger_sp)
-    : m_last_file_sp(), m_last_line(0), m_last_count(0), m_default_set(false),
-      m_target_wp(), m_debugger_wp(debugger_sp) {}
+    : m_last_line(0), m_last_count(0), m_default_set(false), m_target_wp(),
+      m_debugger_wp(debugger_sp) {}
 
 // Destructor
 SourceManager::~SourceManager() {}
 
 SourceManager::FileSP SourceManager::GetFile(const FileSpec &file_spec) {
-  bool same_as_previous =
-      m_last_file_sp &&
-      FileSpec::Match(file_spec, m_last_file_sp->GetFileSpec());
+  if (!file_spec)
+    return nullptr;
 
   DebuggerSP debugger_sp(m_debugger_wp.lock());
   FileSP file_sp;
-  if (same_as_previous)
-    file_sp = m_last_file_sp;
-  else if (debugger_sp)
+  if (debugger_sp && debugger_sp->GetUseSourceCache())
     file_sp = debugger_sp->GetSourceFileCache().FindSourceFile(file_spec);
 
   TargetSP target_sp(m_target_wp.lock());
@@ -95,7 +92,7 @@ SourceManager::FileSP SourceManager::GetFile(const FileSpec &file_spec) {
     else
       file_sp = std::make_shared<File>(file_spec, debugger_sp);
 
-    if (debugger_sp)
+    if (debugger_sp && debugger_sp->GetUseSourceCache())
       debugger_sp->GetSourceFileCache().AddSourceFile(file_sp);
   }
   return file_sp;
@@ -178,22 +175,22 @@ size_t SourceManager::DisplaySourceLinesWithLineNumbersUsingLastFile(
   m_last_line = start_line;
   m_last_count = count;
 
-  if (m_last_file_sp.get()) {
+  if (FileSP last_file_sp = GetLastFile()) {
     const uint32_t end_line = start_line + count - 1;
     for (uint32_t line = start_line; line <= end_line; ++line) {
-      if (!m_last_file_sp->LineIsValid(line)) {
+      if (!last_file_sp->LineIsValid(line)) {
         m_last_line = UINT32_MAX;
         break;
       }
 
-      char prefix[32] = "";
+      std::string prefix;
       if (bp_locs) {
         uint32_t bp_count = bp_locs->NumLineEntriesWithLine(line);
 
         if (bp_count > 0)
-          ::snprintf(prefix, sizeof(prefix), "[%u] ", bp_count);
+          prefix = llvm::formatv("[{0}]", bp_count);
         else
-          ::snprintf(prefix, sizeof(prefix), "    ");
+          prefix = "    ";
       }
 
       char buffer[3];
@@ -209,7 +206,8 @@ size_t SourceManager::DisplaySourceLinesWithLineNumbersUsingLastFile(
                 .str());
       }
 
-      s->Printf("%s%s %-4u\t", prefix, current_line_highlight.c_str(), line);
+      s->Printf("%s%s %-4u\t", prefix.c_str(), current_line_highlight.c_str(),
+                line);
 
       // So far we treated column 0 as a special 'no column value', but
       // DisplaySourceLines starts counting columns from 0 (and no column is
@@ -219,12 +217,12 @@ size_t SourceManager::DisplaySourceLinesWithLineNumbersUsingLastFile(
         columnToHighlight = column - 1;
 
       size_t this_line_size =
-          m_last_file_sp->DisplaySourceLines(line, columnToHighlight, 0, 0, s);
+          last_file_sp->DisplaySourceLines(line, columnToHighlight, 0, 0, s);
       if (column != 0 && line == curr_line &&
           should_show_stop_column_with_caret(debugger_sp)) {
         // Display caret cursor.
         std::string src_line;
-        m_last_file_sp->GetLine(line, src_line);
+        last_file_sp->GetLine(line, src_line);
         s->Printf("    \t");
         // Insert a space for every non-tab character in the source line.
         for (size_t i = 0; i + 1 < column && i < src_line.length(); ++i)
@@ -255,10 +253,11 @@ size_t SourceManager::DisplaySourceLinesWithLineNumbers(
   else
     start_line = 1;
 
-  if (m_last_file_sp.get() != file_sp.get()) {
+  FileSP last_file_sp(GetLastFile());
+  if (last_file_sp.get() != file_sp.get()) {
     if (line == 0)
       m_last_line = 0;
-    m_last_file_sp = file_sp;
+    m_last_file_spec = file_spec;
   }
   return DisplaySourceLinesWithLineNumbersUsingLastFile(
       start_line, count, line, column, current_line_cstr, s, bp_locs);
@@ -268,14 +267,15 @@ size_t SourceManager::DisplayMoreWithLineNumbers(
     Stream *s, uint32_t count, bool reverse, const SymbolContextList *bp_locs) {
   // If we get called before anybody has set a default file and line, then try
   // to figure it out here.
-  const bool have_default_file_line = m_last_file_sp && m_last_line > 0;
+  FileSP last_file_sp(GetLastFile());
+  const bool have_default_file_line = last_file_sp && m_last_line > 0;
   if (!m_default_set) {
     FileSpec tmp_spec;
     uint32_t tmp_line;
     GetDefaultFileAndLine(tmp_spec, tmp_line);
   }
 
-  if (m_last_file_sp) {
+  if (last_file_sp) {
     if (m_last_line == UINT32_MAX)
       return 0;
 
@@ -310,22 +310,21 @@ size_t SourceManager::DisplayMoreWithLineNumbers(
 
 bool SourceManager::SetDefaultFileAndLine(const FileSpec &file_spec,
                                           uint32_t line) {
-  FileSP old_file_sp = m_last_file_sp;
-  m_last_file_sp = GetFile(file_spec);
-
   m_default_set = true;
-  if (m_last_file_sp) {
+  FileSP file_sp(GetFile(file_spec));
+
+  if (file_sp) {
     m_last_line = line;
+    m_last_file_spec = file_spec;
     return true;
   } else {
-    m_last_file_sp = old_file_sp;
     return false;
   }
 }
 
 bool SourceManager::GetDefaultFileAndLine(FileSpec &file_spec, uint32_t &line) {
-  if (m_last_file_sp) {
-    file_spec = m_last_file_sp->GetFileSpec();
+  if (FileSP last_file_sp = GetLastFile()) {
+    file_spec = m_last_file_spec;
     line = m_last_line;
     return true;
   } else if (!m_default_set) {
@@ -355,7 +354,7 @@ bool SourceManager::GetDefaultFileAndLine(FileSpec &file_spec, uint32_t &line) {
                     .GetBaseAddress()
                     .CalculateSymbolContextLineEntry(line_entry)) {
               SetDefaultFileAndLine(line_entry.file, line_entry.line);
-              file_spec = m_last_file_sp->GetFileSpec();
+              file_spec = m_last_file_spec;
               line = m_last_line;
               return true;
             }
@@ -696,7 +695,7 @@ bool SourceManager::File::GetLine(uint32_t line_no, std::string &buffer) {
 }
 
 void SourceManager::SourceFileCache::AddSourceFile(const FileSP &file_sp) {
-  FileSpec file_spec;
+  FileSpec file_spec = file_sp->GetFileSpec();
   FileCache::iterator pos = m_file_cache.find(file_spec);
   if (pos == m_file_cache.end())
     m_file_cache[file_spec] = file_sp;

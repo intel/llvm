@@ -800,10 +800,11 @@ QualType Sema::buildLambdaInitCaptureInitialization(
   }
   if (EllipsisLoc.isValid()) {
     if (Init->containsUnexpandedParameterPack()) {
-      Diag(EllipsisLoc, getLangOpts().CPlusPlus2a
+      Diag(EllipsisLoc, getLangOpts().CPlusPlus20
                             ? diag::warn_cxx17_compat_init_capture_pack
                             : diag::ext_init_capture_pack);
-      DeductType = Context.getPackExpansionType(DeductType, NumExpansions);
+      DeductType = Context.getPackExpansionType(DeductType, NumExpansions,
+                                                /*ExpectPackInType=*/false);
       TLB.push<PackExpansionTypeLoc>(DeductType).setEllipsisLoc(EllipsisLoc);
     } else {
       // Just ignore the ellipsis for now and form a non-pack variable. We'll
@@ -990,8 +991,7 @@ void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
   // Attributes on the lambda apply to the method.
   ProcessDeclAttributes(CurScope, Method, ParamInfo);
 
-  // CUDA lambdas get implicit attributes based on the scope in which they're
-  // declared.
+  // CUDA lambdas get implicit host and device attributes.
   if (getLangOpts().CUDA)
     CUDASetLambdaAttrs(Method);
 
@@ -1053,8 +1053,8 @@ void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
       //  "&identifier", "this", or "* this". [ Note: The form [&,this] is
       //  redundant but accepted for compatibility with ISO C++14. --end note ]
       if (Intro.Default == LCD_ByCopy && C->Kind != LCK_StarThis)
-        Diag(C->Loc, !getLangOpts().CPlusPlus2a
-                         ? diag::ext_equals_this_lambda_capture_cxx2a
+        Diag(C->Loc, !getLangOpts().CPlusPlus20
+                         ? diag::ext_equals_this_lambda_capture_cxx20
                          : diag::warn_cxx17_compat_equals_this_lambda_capture);
 
       // C++11 [expr.prim.lambda]p12:
@@ -1624,8 +1624,9 @@ FieldDecl *Sema::BuildCaptureField(RecordDecl *RD,
 
   // Build the non-static data member.
   FieldDecl *Field =
-      FieldDecl::Create(Context, RD, Loc, Loc, nullptr, FieldType, TSI, nullptr,
-                        false, ICIS_NoInit);
+      FieldDecl::Create(Context, RD, /*StartLoc=*/Loc, /*IdLoc=*/Loc,
+                        /*Id=*/nullptr, FieldType, TSI, /*BW=*/nullptr,
+                        /*Mutable=*/false, ICIS_NoInit);
   // If the variable being captured has an invalid type, mark the class as
   // invalid as well.
   if (!FieldType->isDependentType()) {
@@ -1748,7 +1749,7 @@ ExprResult Sema::BuildLambdaExpr(SourceLocation StartLoc, SourceLocation EndLoc,
           // Capturing 'this' implicitly with a default of '[=]' is deprecated,
           // because it results in a reference capture. Don't warn prior to
           // C++2a; there's nothing that can be done about it before then.
-          if (getLangOpts().CPlusPlus2a && IsImplicit &&
+          if (getLangOpts().CPlusPlus20 && IsImplicit &&
               CaptureDefault == LCD_ByCopy) {
             Diag(From.getLocation(), diag::warn_deprecated_this_capture);
             Diag(CaptureDefaultLoc, diag::note_deprecated_this_capture)
@@ -1780,7 +1781,12 @@ ExprResult Sema::BuildLambdaExpr(SourceLocation StartLoc, SourceLocation EndLoc,
       BuildCaptureField(Class, From);
       Captures.push_back(Capture);
       CaptureInits.push_back(Init.get());
+
+      if (LangOpts.CUDA)
+        CUDACheckLambdaCapture(CallOperator, From);
     }
+
+    Class->setCaptures(Context, Captures);
 
     // C++11 [expr.prim.lambda]p6:
     //   The closure type for a lambda-expression with no lambda-capture
@@ -1811,7 +1817,6 @@ ExprResult Sema::BuildLambdaExpr(SourceLocation StartLoc, SourceLocation EndLoc,
 
   LambdaExpr *Lambda = LambdaExpr::Create(Context, Class, IntroducerRange,
                                           CaptureDefault, CaptureDefaultLoc,
-                                          Captures,
                                           ExplicitParams, ExplicitResultType,
                                           CaptureInits, EndLoc,
                                           ContainsUnexpandedParameterPack);

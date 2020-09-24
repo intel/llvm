@@ -185,7 +185,7 @@ static void stashEntryDbgValues(MachineBasicBlock &MBB,
       break;
     if (!MI.isDebugValue() || !MI.getDebugVariable()->isParameter())
       continue;
-    if (MI.getOperand(0).isFI()) {
+    if (MI.getDebugOperand(0).isFI()) {
       // We can only emit valid locations for frame indices after the frame
       // setup, so do not stash away them.
       FrameIndexValues.push_back(&MI);
@@ -451,8 +451,6 @@ static void assignCalleeSavedSpillSlots(MachineFunction &F,
         FrameIdx = MFI.CreateFixedSpillStackObject(Size, FixedSlot->Offset);
       }
 
-      LLVM_DEBUG(dbgs() << "Assigned " << RegInfo->getName(Reg)
-                        << " to spill slot " << FrameIdx << "\n");
       CS.setFrameIdx(FrameIdx);
     }
   }
@@ -1207,7 +1205,7 @@ void PEI::replaceFrameIndices(MachineBasicBlock *BB, MachineFunction &MF,
       if (MI.isDebugValue()) {
         assert(i == 0 && "Frame indices can only appear as the first "
                          "operand of a DBG_VALUE machine instruction");
-        unsigned Reg;
+        Register Reg;
         unsigned FrameIdx = MI.getOperand(0).getIndex();
         unsigned Size = MF.getFrameInfo().getObjectSize(FrameIdx);
 
@@ -1236,10 +1234,10 @@ void PEI::replaceFrameIndices(MachineBasicBlock *BB, MachineFunction &MF,
           bool WithStackValue = true;
           DIExpr = DIExpression::prependOpcodes(DIExpr, Ops, WithStackValue);
           // Make the DBG_VALUE direct.
-          MI.getOperand(1).ChangeToRegister(0, false);
+          MI.getDebugOffset().ChangeToRegister(0, false);
         }
         DIExpr = DIExpression::prepend(DIExpr, PrependFlags, Offset);
-        MI.getOperand(3).setMetadata(DIExpr);
+        MI.getDebugExpressionOp().setMetadata(DIExpr);
         continue;
       }
 
@@ -1252,7 +1250,7 @@ void PEI::replaceFrameIndices(MachineBasicBlock *BB, MachineFunction &MF,
         assert((!MI.isDebugValue() || i == 0) &&
                "Frame indicies can only appear as the first operand of a "
                "DBG_VALUE machine instruction");
-        unsigned Reg;
+        Register Reg;
         MachineOperand &Offset = MI.getOperand(i + 1);
         int refOffset = TFI->getFrameIndexReferencePreferSP(
             MF, MI.getOperand(i).getIndex(), Reg, /*IgnoreSPUpdates*/ false);

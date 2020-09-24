@@ -14,6 +14,7 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 
+#include <atomic>
 #include <cassert>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -25,14 +26,13 @@ class context_impl;
 using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 class queue_impl;
 using QueueImplPtr = std::shared_ptr<cl::sycl::detail::queue_impl>;
-using QueueImplWPtr = std::weak_ptr<cl::sycl::detail::queue_impl>;
 
 class event_impl {
 public:
   /// Constructs a ready SYCL event.
   ///
   /// If the constructed SYCL event is waited on it will complete immediately.
-  event_impl() = default;
+  event_impl();
   /// Constructs an event instance from a plug-in event handle.
   ///
   /// The SyclContext must match the plug-in context associated with the
@@ -132,10 +132,14 @@ public:
 
   /// Returns command that is associated with the event.
   ///
+  /// Scheduler mutex must be locked in read mode when this is called.
+  ///
   /// @return a generic pointer to Command object instance.
   void *getCommand() { return MCommand; }
 
   /// Associates this event with the command.
+  ///
+  /// Scheduler mutex must be locked in write mode when this is called.
   ///
   /// @param Command is a generic pointer to Command object instance.
   void setCommand(void *Command) { MCommand = Command; }
@@ -144,6 +148,11 @@ public:
   ///
   /// @return a pointer to HostProfilingInfo instance.
   HostProfilingInfo *getHostProfilingInfo() { return MHostProfilingInfo.get(); }
+
+  /// Gets the native handle of the SYCL event.
+  ///
+  /// \return a native handle.
+  pi_native_handle getNative() const;
 
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
@@ -156,11 +165,17 @@ private:
 
   RT::PiEvent MEvent = nullptr;
   ContextImplPtr MContext;
-  QueueImplWPtr MQueue;
   bool MOpenCLInterop = false;
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
+
+  enum HostEventState : int { HES_NotComplete = 0, HES_Complete };
+
+  // State of host event. Employed only for host events and event with no
+  // backend's representation (e.g. alloca). Used values are listed in
+  // HostEventState enum.
+  std::atomic<int> MState;
 };
 
 } // namespace detail

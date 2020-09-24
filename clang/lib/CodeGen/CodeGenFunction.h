@@ -26,6 +26,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/ExprOpenMP.h"
+#include "clang/AST/StmtOpenMP.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/ABI.h"
 #include "clang/Basic/CapturedStmt.h"
@@ -76,7 +77,11 @@ class ObjCAtTryStmt;
 class ObjCAtThrowStmt;
 class ObjCAtSynchronizedStmt;
 class ObjCAutoreleasePoolStmt;
+class OMPUseDevicePtrClause;
+class OMPUseDeviceAddrClause;
 class ReturnsNonNullAttr;
+class SVETypeFlags;
+class OMPExecutableDirective;
 
 namespace analyze_os_log {
 class OSLogBufferLayout;
@@ -119,6 +124,7 @@ enum TypeEvaluationKind {
   SANITIZER_CHECK(FunctionTypeMismatch, function_type_mismatch, 1)             \
   SANITIZER_CHECK(ImplicitConversion, implicit_conversion, 0)                  \
   SANITIZER_CHECK(InvalidBuiltin, invalid_builtin, 0)                          \
+  SANITIZER_CHECK(InvalidObjCCast, invalid_objc_cast, 0)                       \
   SANITIZER_CHECK(LoadInvalidValue, load_invalid_value, 0)                     \
   SANITIZER_CHECK(MissingReturn, missing_return, 0)                            \
   SANITIZER_CHECK(MulOverflow, mul_overflow, 0)                                \
@@ -256,116 +262,11 @@ public:
     unsigned Index;
   };
 
-  // Helper class for the OpenMP IR Builder. Allows reusability of code used for
-  // region body, and finalization codegen callbacks. This will class will also
-  // contain privatization functions used by the privatization call backs
-  struct OMPBuilderCBHelpers {
-
-    using InsertPointTy = llvm::OpenMPIRBuilder::InsertPointTy;
-
-    /// Emit the Finalization for an OMP region
-    /// \param CGF	The Codegen function this belongs to
-    /// \param IP	Insertion point for generating the finalization code.
-    static void FinalizeOMPRegion(CodeGenFunction &CGF, InsertPointTy IP) {
-      CGBuilderTy::InsertPointGuard IPG(CGF.Builder);
-      assert(IP.getBlock()->end() != IP.getPoint() &&
-             "OpenMP IR Builder should cause terminated block!");
-
-      llvm::BasicBlock *IPBB = IP.getBlock();
-      llvm::BasicBlock *DestBB = IPBB->getUniqueSuccessor();
-      assert(DestBB && "Finalization block should have one successor!");
-
-      // erase and replace with cleanup branch.
-      IPBB->getTerminator()->eraseFromParent();
-      CGF.Builder.SetInsertPoint(IPBB);
-      CodeGenFunction::JumpDest Dest = CGF.getJumpDestInCurrentScope(DestBB);
-      CGF.EmitBranchThroughCleanup(Dest);
-    }
-
-    /// Emit the body of an OMP region
-    /// \param CGF	The Codegen function this belongs to
-    /// \param RegionBodyStmt	The body statement for the OpenMP region being
-    /// 			 generated
-    /// \param CodeGenIP	Insertion point for generating the body code.
-    /// \param FiniBB	The finalization basic block
-    static void EmitOMPRegionBody(CodeGenFunction &CGF,
-                                  const Stmt *RegionBodyStmt,
-                                  InsertPointTy CodeGenIP,
-                                  llvm::BasicBlock &FiniBB) {
-      llvm::BasicBlock *CodeGenIPBB = CodeGenIP.getBlock();
-      if (llvm::Instruction *CodeGenIPBBTI = CodeGenIPBB->getTerminator())
-        CodeGenIPBBTI->eraseFromParent();
-
-      CGF.Builder.SetInsertPoint(CodeGenIPBB);
-
-      CGF.EmitStmt(RegionBodyStmt);
-
-      if (CGF.Builder.saveIP().isSet())
-        CGF.Builder.CreateBr(&FiniBB);
-    }
-
-    /// RAII for preserving necessary info during Outlined region body codegen.
-    class OutlinedRegionBodyRAII {
-
-      llvm::AssertingVH<llvm::Instruction> OldAllocaIP;
-      CodeGenFunction::JumpDest OldReturnBlock;
-      CodeGenFunction &CGF;
-
-    public:
-      OutlinedRegionBodyRAII(CodeGenFunction &cgf, InsertPointTy &AllocaIP,
-                             llvm::BasicBlock &RetBB)
-          : CGF(cgf) {
-        assert(AllocaIP.isSet() &&
-               "Must specify Insertion point for allocas of outlined function");
-        OldAllocaIP = CGF.AllocaInsertPt;
-        CGF.AllocaInsertPt = &*AllocaIP.getPoint();
-
-        OldReturnBlock = CGF.ReturnBlock;
-        CGF.ReturnBlock = CGF.getJumpDestInCurrentScope(&RetBB);
-      }
-
-      ~OutlinedRegionBodyRAII() {
-        CGF.AllocaInsertPt = OldAllocaIP;
-        CGF.ReturnBlock = OldReturnBlock;
-      }
-    };
-
-    /// RAII for preserving necessary info during inlined region body codegen.
-    class InlinedRegionBodyRAII {
-
-      llvm::AssertingVH<llvm::Instruction> OldAllocaIP;
-      CodeGenFunction &CGF;
-
-    public:
-      InlinedRegionBodyRAII(CodeGenFunction &cgf, InsertPointTy &AllocaIP,
-                            llvm::BasicBlock &FiniBB)
-          : CGF(cgf) {
-        // Alloca insertion block should be in the entry block of the containing
-        // function so it expects an empty AllocaIP in which case will reuse the
-        // old alloca insertion point, or a new AllocaIP in the same block as
-        // the old one
-        assert((!AllocaIP.isSet() ||
-                CGF.AllocaInsertPt->getParent() == AllocaIP.getBlock()) &&
-               "Insertion point should be in the entry block of containing "
-               "function!");
-        OldAllocaIP = CGF.AllocaInsertPt;
-        if (AllocaIP.isSet())
-          CGF.AllocaInsertPt = &*AllocaIP.getPoint();
-
-        // TODO: Remove the call, after making sure the counter is not used by
-        //       the EHStack.
-        // Since this is an inlined region, it should not modify the
-        // ReturnBlock, and should reuse the one for the enclosing outlined
-        // region. So, the JumpDest being return by the function is discarded
-        (void)CGF.getJumpDestInCurrentScope(&FiniBB);
-      }
-
-      ~InlinedRegionBodyRAII() { CGF.AllocaInsertPt = OldAllocaIP; }
-    };
-  };
-
   CodeGenModule &CGM;  // Per-module state.
   const TargetInfo &Target;
+
+  // For EH/SEH outlined funclets, this field points to parent's CGF
+  CodeGenFunction *ParentCGF = nullptr;
 
   typedef std::pair<llvm::Value *, llvm::Value *> ComplexPairTy;
   LoopInfoStack LoopStack;
@@ -440,6 +341,10 @@ public:
   /// ReturnValuePointer - The temporary alloca to hold a pointer to sret.
   /// This is invalid if sret is not in use.
   Address ReturnValuePointer = Address::invalid();
+
+  /// If a return statement is being visited, this holds the return statment's
+  /// result expression.
+  const Expr *RetExpr = nullptr;
 
   /// Return true if a label was seen in the current scope.
   bool hasLabelBeenSeenInCurrentScope() const {
@@ -594,6 +499,9 @@ public:
   /// region.
   bool IsInPreservedAIRegion = false;
 
+  /// True if the current statement has nomerge attribute.
+  bool InNoMergeAttributedStmt = false;
+
   const CodeGen::CGBlockInfo *BlockInfo = nullptr;
   llvm::Value *BlockPointer = nullptr;
 
@@ -642,9 +550,6 @@ public:
 
   unsigned NextCleanupDestIndex = 1;
 
-  /// FirstBlockInfo - The head of a singly-linked-list of block layouts.
-  CGBlockInfo *FirstBlockInfo = nullptr;
-
   /// EHResumeBlock - Unified block containing a call to llvm.eh.resume.
   llvm::BasicBlock *EHResumeBlock = nullptr;
 
@@ -669,10 +574,48 @@ public:
 
   llvm::BasicBlock *getInvokeDestImpl();
 
+  /// Parent loop-based directive for scan directive.
+  const OMPExecutableDirective *OMPParentLoopDirectiveForScan = nullptr;
+  llvm::BasicBlock *OMPBeforeScanBlock = nullptr;
+  llvm::BasicBlock *OMPAfterScanBlock = nullptr;
+  llvm::BasicBlock *OMPScanExitBlock = nullptr;
+  llvm::BasicBlock *OMPScanDispatch = nullptr;
+  bool OMPFirstScanLoop = false;
+
+  /// Manages parent directive for scan directives.
+  class ParentLoopDirectiveForScanRegion {
+    CodeGenFunction &CGF;
+    const OMPExecutableDirective *ParentLoopDirectiveForScan;
+
+  public:
+    ParentLoopDirectiveForScanRegion(
+        CodeGenFunction &CGF,
+        const OMPExecutableDirective &ParentLoopDirectiveForScan)
+        : CGF(CGF),
+          ParentLoopDirectiveForScan(CGF.OMPParentLoopDirectiveForScan) {
+      CGF.OMPParentLoopDirectiveForScan = &ParentLoopDirectiveForScan;
+    }
+    ~ParentLoopDirectiveForScanRegion() {
+      CGF.OMPParentLoopDirectiveForScan = ParentLoopDirectiveForScan;
+    }
+  };
+
   template <class T>
   typename DominatingValue<T>::saved_type saveValueInCond(T value) {
     return DominatingValue<T>::save(*this, value);
   }
+
+  class CGFPOptionsRAII {
+  public:
+    CGFPOptionsRAII(CodeGenFunction &CGF, FPOptions FPFeatures);
+    ~CGFPOptionsRAII();
+
+  private:
+    CodeGenFunction &CGF;
+    FPOptions OldFPFeatures;
+    Optional<CGBuilderTy::FastMathFlagGuard> FMFGuard;
+  };
+  FPOptions CurFPFeatures;
 
 public:
   /// ObjCEHValueStack - Stack of Objective-C exception values, used for
@@ -729,12 +672,13 @@ public:
     initFullExprCleanup();
   }
 
-  /// Queue a cleanup to be pushed after finishing the current
-  /// full-expression.
+  /// Queue a cleanup to be pushed after finishing the current full-expression,
+  /// potentially with an active flag.
   template <class T, class... As>
   void pushCleanupAfterFullExpr(CleanupKind Kind, As... A) {
     if (!isInConditionalBranch())
-      return pushCleanupAfterFullExprImpl<T>(Kind, Address::invalid(), A...);
+      return pushCleanupAfterFullExprWithActiveFlag<T>(Kind, Address::invalid(),
+                                                       A...);
 
     Address ActiveFlag = createCleanupActiveFlag();
     assert(!DominatingValue<Address>::needsSaving(ActiveFlag) &&
@@ -744,12 +688,12 @@ public:
     SavedTuple Saved{saveValueInCond(A)...};
 
     typedef EHScopeStack::ConditionalCleanup<T, As...> CleanupType;
-    pushCleanupAfterFullExprImpl<CleanupType>(Kind, ActiveFlag, Saved);
+    pushCleanupAfterFullExprWithActiveFlag<CleanupType>(Kind, ActiveFlag, Saved);
   }
 
   template <class T, class... As>
-  void pushCleanupAfterFullExprImpl(CleanupKind Kind, Address ActiveFlag,
-                                    As... A) {
+  void pushCleanupAfterFullExprWithActiveFlag(CleanupKind Kind,
+                                              Address ActiveFlag, As... A) {
     LifetimeExtendedCleanupHeader Header = {sizeof(T), Kind,
                                             ActiveFlag.isValid()};
 
@@ -1650,6 +1594,169 @@ public:
     CallArgList OldCXXInheritedCtorInitExprArgs;
   };
 
+  // Helper class for the OpenMP IR Builder. Allows reusability of code used for
+  // region body, and finalization codegen callbacks. This will class will also
+  // contain privatization functions used by the privatization call backs
+  //
+  // TODO: this is temporary class for things that are being moved out of
+  // CGOpenMPRuntime, new versions of current CodeGenFunction methods, or
+  // utility function for use with the OMPBuilder. Once that move to use the
+  // OMPBuilder is done, everything here will either become part of CodeGenFunc.
+  // directly, or a new helper class that will contain functions used by both
+  // this and the OMPBuilder
+
+  struct OMPBuilderCBHelpers {
+
+    OMPBuilderCBHelpers() = delete;
+    OMPBuilderCBHelpers(const OMPBuilderCBHelpers &) = delete;
+    OMPBuilderCBHelpers &operator=(const OMPBuilderCBHelpers &) = delete;
+
+    using InsertPointTy = llvm::OpenMPIRBuilder::InsertPointTy;
+
+    /// Cleanup action for allocate support.
+    class OMPAllocateCleanupTy final : public EHScopeStack::Cleanup {
+
+    private:
+      llvm::CallInst *RTLFnCI;
+
+    public:
+      OMPAllocateCleanupTy(llvm::CallInst *RLFnCI) : RTLFnCI(RLFnCI) {
+        RLFnCI->removeFromParent();
+      }
+
+      void Emit(CodeGenFunction &CGF, Flags /*flags*/) override {
+        if (!CGF.HaveInsertPoint())
+          return;
+        CGF.Builder.Insert(RTLFnCI);
+      }
+    };
+
+    /// Returns address of the threadprivate variable for the current
+    /// thread. This Also create any necessary OMP runtime calls.
+    ///
+    /// \param VD VarDecl for Threadprivate variable.
+    /// \param VDAddr Address of the Vardecl
+    /// \param Loc  The location where the barrier directive was encountered
+    static Address getAddrOfThreadPrivate(CodeGenFunction &CGF,
+                                          const VarDecl *VD, Address VDAddr,
+                                          SourceLocation Loc);
+
+    /// Gets the OpenMP-specific address of the local variable /p VD.
+    static Address getAddressOfLocalVariable(CodeGenFunction &CGF,
+                                             const VarDecl *VD);
+    /// Get the platform-specific name separator.
+    /// \param Parts different parts of the final name that needs separation
+    /// \param FirstSeparator First separator used between the initial two
+    ///        parts of the name.
+    /// \param Separator separator used between all of the rest consecutinve
+    ///        parts of the name
+    static std::string getNameWithSeparators(ArrayRef<StringRef> Parts,
+                                             StringRef FirstSeparator = ".",
+                                             StringRef Separator = ".");
+    /// Emit the Finalization for an OMP region
+    /// \param CGF	The Codegen function this belongs to
+    /// \param IP	Insertion point for generating the finalization code.
+    static void FinalizeOMPRegion(CodeGenFunction &CGF, InsertPointTy IP) {
+      CGBuilderTy::InsertPointGuard IPG(CGF.Builder);
+      assert(IP.getBlock()->end() != IP.getPoint() &&
+             "OpenMP IR Builder should cause terminated block!");
+
+      llvm::BasicBlock *IPBB = IP.getBlock();
+      llvm::BasicBlock *DestBB = IPBB->getUniqueSuccessor();
+      assert(DestBB && "Finalization block should have one successor!");
+
+      // erase and replace with cleanup branch.
+      IPBB->getTerminator()->eraseFromParent();
+      CGF.Builder.SetInsertPoint(IPBB);
+      CodeGenFunction::JumpDest Dest = CGF.getJumpDestInCurrentScope(DestBB);
+      CGF.EmitBranchThroughCleanup(Dest);
+    }
+
+    /// Emit the body of an OMP region
+    /// \param CGF	The Codegen function this belongs to
+    /// \param RegionBodyStmt	The body statement for the OpenMP region being
+    /// 			 generated
+    /// \param CodeGenIP	Insertion point for generating the body code.
+    /// \param FiniBB	The finalization basic block
+    static void EmitOMPRegionBody(CodeGenFunction &CGF,
+                                  const Stmt *RegionBodyStmt,
+                                  InsertPointTy CodeGenIP,
+                                  llvm::BasicBlock &FiniBB) {
+      llvm::BasicBlock *CodeGenIPBB = CodeGenIP.getBlock();
+      if (llvm::Instruction *CodeGenIPBBTI = CodeGenIPBB->getTerminator())
+        CodeGenIPBBTI->eraseFromParent();
+
+      CGF.Builder.SetInsertPoint(CodeGenIPBB);
+
+      CGF.EmitStmt(RegionBodyStmt);
+
+      if (CGF.Builder.saveIP().isSet())
+        CGF.Builder.CreateBr(&FiniBB);
+    }
+
+    /// RAII for preserving necessary info during Outlined region body codegen.
+    class OutlinedRegionBodyRAII {
+
+      llvm::AssertingVH<llvm::Instruction> OldAllocaIP;
+      CodeGenFunction::JumpDest OldReturnBlock;
+      CGBuilderTy::InsertPoint IP;
+      CodeGenFunction &CGF;
+
+    public:
+      OutlinedRegionBodyRAII(CodeGenFunction &cgf, InsertPointTy &AllocaIP,
+                             llvm::BasicBlock &RetBB)
+          : CGF(cgf) {
+        assert(AllocaIP.isSet() &&
+               "Must specify Insertion point for allocas of outlined function");
+        OldAllocaIP = CGF.AllocaInsertPt;
+        CGF.AllocaInsertPt = &*AllocaIP.getPoint();
+        IP = CGF.Builder.saveIP();
+
+        OldReturnBlock = CGF.ReturnBlock;
+        CGF.ReturnBlock = CGF.getJumpDestInCurrentScope(&RetBB);
+      }
+
+      ~OutlinedRegionBodyRAII() {
+        CGF.AllocaInsertPt = OldAllocaIP;
+        CGF.ReturnBlock = OldReturnBlock;
+        CGF.Builder.restoreIP(IP);
+      }
+    };
+
+    /// RAII for preserving necessary info during inlined region body codegen.
+    class InlinedRegionBodyRAII {
+
+      llvm::AssertingVH<llvm::Instruction> OldAllocaIP;
+      CodeGenFunction &CGF;
+
+    public:
+      InlinedRegionBodyRAII(CodeGenFunction &cgf, InsertPointTy &AllocaIP,
+                            llvm::BasicBlock &FiniBB)
+          : CGF(cgf) {
+        // Alloca insertion block should be in the entry block of the containing
+        // function so it expects an empty AllocaIP in which case will reuse the
+        // old alloca insertion point, or a new AllocaIP in the same block as
+        // the old one
+        assert((!AllocaIP.isSet() ||
+                CGF.AllocaInsertPt->getParent() == AllocaIP.getBlock()) &&
+               "Insertion point should be in the entry block of containing "
+               "function!");
+        OldAllocaIP = CGF.AllocaInsertPt;
+        if (AllocaIP.isSet())
+          CGF.AllocaInsertPt = &*AllocaIP.getPoint();
+
+        // TODO: Remove the call, after making sure the counter is not used by
+        //       the EHStack.
+        // Since this is an inlined region, it should not modify the
+        // ReturnBlock, and should reuse the one for the enclosing outlined
+        // region. So, the JumpDest being return by the function is discarded
+        (void)CGF.getJumpDestInCurrentScope(&FiniBB);
+      }
+
+      ~InlinedRegionBodyRAII() { CGF.AllocaInsertPt = OldAllocaIP; }
+    };
+  };
+
 private:
   /// CXXThisDecl - When generating code for a C++ member function,
   /// this will hold the implicit 'this' declaration.
@@ -1881,7 +1988,6 @@ public:
   /// information about the block, including the block invoke function, the
   /// captured variables, etc.
   llvm::Value *EmitBlockLiteral(const BlockExpr *);
-  static void destroyBlockInfos(CGBlockInfo *info);
 
   llvm::Function *GenerateBlockFunction(GlobalDecl GD,
                                         const CGBlockInfo &Info,
@@ -2264,13 +2370,6 @@ public:
 
   LValue MakeNaturalAlignPointeeAddrLValue(llvm::Value *V, QualType T);
   LValue MakeNaturalAlignAddrLValue(llvm::Value *V, QualType T);
-  CharUnits getNaturalTypeAlignment(QualType T,
-                                    LValueBaseInfo *BaseInfo = nullptr,
-                                    TBAAAccessInfo *TBAAInfo = nullptr,
-                                    bool forPointeeType = false);
-  CharUnits getNaturalPointeeTypeAlignment(QualType T,
-                                           LValueBaseInfo *BaseInfo = nullptr,
-                                           TBAAAccessInfo *TBAAInfo = nullptr);
 
   Address EmitLoadOfReference(LValue RefLVal,
                               LValueBaseInfo *PointeeBaseInfo = nullptr,
@@ -3150,7 +3249,10 @@ public:
   void EmitOMPPrivateClause(const OMPExecutableDirective &D,
                             OMPPrivateScope &PrivateScope);
   void EmitOMPUseDevicePtrClause(
-      const OMPClause &C, OMPPrivateScope &PrivateScope,
+      const OMPUseDevicePtrClause &C, OMPPrivateScope &PrivateScope,
+      const llvm::DenseMap<const ValueDecl *, Address> &CaptureDeviceAddrMap);
+  void EmitOMPUseDeviceAddrClause(
+      const OMPUseDeviceAddrClause &C, OMPPrivateScope &PrivateScope,
       const llvm::DenseMap<const ValueDecl *, Address> &CaptureDeviceAddrMap);
   /// Emit code for copyin clause in \a D directive. The next code is
   /// generated at the start of outlined functions for directives:
@@ -3204,7 +3306,8 @@ public:
   /// proper codegen in internal captured statement.
   ///
   void EmitOMPReductionClauseInit(const OMPExecutableDirective &D,
-                                  OMPPrivateScope &PrivateScope);
+                                  OMPPrivateScope &PrivateScope,
+                                  bool ForInscan = false);
   /// Emit final update of reduction values to original variables at
   /// the end of the directive.
   ///
@@ -3232,12 +3335,15 @@ public:
     Address BasePointersArray = Address::invalid();
     Address PointersArray = Address::invalid();
     Address SizesArray = Address::invalid();
+    Address MappersArray = Address::invalid();
     unsigned NumberOfTargetItems = 0;
     explicit OMPTargetDataInfo() = default;
     OMPTargetDataInfo(Address BasePointersArray, Address PointersArray,
-                      Address SizesArray, unsigned NumberOfTargetItems)
+                      Address SizesArray, Address MappersArray,
+                      unsigned NumberOfTargetItems)
         : BasePointersArray(BasePointersArray), PointersArray(PointersArray),
-          SizesArray(SizesArray), NumberOfTargetItems(NumberOfTargetItems) {}
+          SizesArray(SizesArray), MappersArray(MappersArray),
+          NumberOfTargetItems(NumberOfTargetItems) {}
   };
   void EmitOMPTargetTaskBasedDirective(const OMPExecutableDirective &S,
                                        const RegionCodeGenTy &BodyGen,
@@ -3263,6 +3369,7 @@ public:
   void EmitOMPTaskgroupDirective(const OMPTaskgroupDirective &S);
   void EmitOMPFlushDirective(const OMPFlushDirective &S);
   void EmitOMPDepobjDirective(const OMPDepobjDirective &S);
+  void EmitOMPScanDirective(const OMPScanDirective &S);
   void EmitOMPOrderedDirective(const OMPOrderedDirective &S);
   void EmitOMPAtomicDirective(const OMPAtomicDirective &S);
   void EmitOMPTargetDirective(const OMPTargetDirective &S);
@@ -3364,8 +3471,8 @@ public:
   /// \param PostIncGen Genrator for post-increment code (required for ordered
   /// loop directvies).
   void EmitOMPInnerLoop(
-      const Stmt &S, bool RequiresCleanup, const Expr *LoopCond,
-      const Expr *IncExpr,
+      const OMPExecutableDirective &S, bool RequiresCleanup,
+      const Expr *LoopCond, const Expr *IncExpr,
       const llvm::function_ref<void(CodeGenFunction &)> BodyGen,
       const llvm::function_ref<void(CodeGenFunction &)> PostIncGen);
 
@@ -3631,6 +3738,7 @@ public:
   LValue EmitUnaryOpLValue(const UnaryOperator *E);
   LValue EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
                                 bool Accessed = false);
+  LValue EmitMatrixSubscriptExpr(const MatrixSubscriptExpr *E);
   LValue EmitOMPArraySectionExpr(const OMPArraySectionExpr *E,
                                  bool IsLowerBound = true);
   LValue EmitExtVectorElementExpr(const ExtVectorElementExpr *E);
@@ -3876,6 +3984,10 @@ public:
   llvm::Value *EmitARMCDEBuiltinExpr(unsigned BuiltinID, const CallExpr *E,
                                      ReturnValueSlot ReturnValue,
                                      llvm::Triple::ArchType Arch);
+  llvm::Value *EmitCMSEClearRecord(llvm::Value *V, llvm::IntegerType *ITy,
+                                   QualType RTy);
+  llvm::Value *EmitCMSEClearRecord(llvm::Value *V, llvm::ArrayType *ATy,
+                                   QualType RTy);
 
   llvm::Value *EmitCommonNeonBuiltinExpr(unsigned BuiltinID,
                                          unsigned LLVMIntrinsic,
@@ -3902,10 +4014,52 @@ public:
   llvm::Value *EmitNeonRShiftImm(llvm::Value *Vec, llvm::Value *Amt,
                                  llvm::Type *Ty, bool usgn, const char *name);
   llvm::Value *vectorWrapScalar16(llvm::Value *Op);
+  /// SVEBuiltinMemEltTy - Returns the memory element type for this memory
+  /// access builtin.  Only required if it can't be inferred from the base
+  /// pointer operand.
+  llvm::Type *SVEBuiltinMemEltTy(SVETypeFlags TypeFlags);
 
-  llvm::Value *EmitSVEPredicateCast(llvm::Value *Pred, llvm::VectorType *VTy);
-  llvm::Value *EmitSVEMaskedLoad(llvm::Type *ReturnTy,
-                                 SmallVectorImpl<llvm::Value *> &Ops);
+  SmallVector<llvm::Type *, 2> getSVEOverloadTypes(SVETypeFlags TypeFlags,
+                                                   llvm::Type *ReturnType,
+                                                   ArrayRef<llvm::Value *> Ops);
+  llvm::Type *getEltType(SVETypeFlags TypeFlags);
+  llvm::ScalableVectorType *getSVEType(const SVETypeFlags &TypeFlags);
+  llvm::ScalableVectorType *getSVEPredType(SVETypeFlags TypeFlags);
+  llvm::Value *EmitSVEAllTruePred(SVETypeFlags TypeFlags);
+  llvm::Value *EmitSVEDupX(llvm::Value *Scalar);
+  llvm::Value *EmitSVEDupX(llvm::Value *Scalar, llvm::Type *Ty);
+  llvm::Value *EmitSVEReinterpret(llvm::Value *Val, llvm::Type *Ty);
+  llvm::Value *EmitSVEPMull(SVETypeFlags TypeFlags,
+                            llvm::SmallVectorImpl<llvm::Value *> &Ops,
+                            unsigned BuiltinID);
+  llvm::Value *EmitSVEMovl(SVETypeFlags TypeFlags,
+                           llvm::ArrayRef<llvm::Value *> Ops,
+                           unsigned BuiltinID);
+  llvm::Value *EmitSVEPredicateCast(llvm::Value *Pred,
+                                    llvm::ScalableVectorType *VTy);
+  llvm::Value *EmitSVEGatherLoad(SVETypeFlags TypeFlags,
+                                 llvm::SmallVectorImpl<llvm::Value *> &Ops,
+                                 unsigned IntID);
+  llvm::Value *EmitSVEScatterStore(SVETypeFlags TypeFlags,
+                                   llvm::SmallVectorImpl<llvm::Value *> &Ops,
+                                   unsigned IntID);
+  llvm::Value *EmitSVEMaskedLoad(const CallExpr *, llvm::Type *ReturnTy,
+                                 SmallVectorImpl<llvm::Value *> &Ops,
+                                 unsigned BuiltinID, bool IsZExtReturn);
+  llvm::Value *EmitSVEMaskedStore(const CallExpr *,
+                                  SmallVectorImpl<llvm::Value *> &Ops,
+                                  unsigned BuiltinID);
+  llvm::Value *EmitSVEPrefetchLoad(SVETypeFlags TypeFlags,
+                                   SmallVectorImpl<llvm::Value *> &Ops,
+                                   unsigned BuiltinID);
+  llvm::Value *EmitSVEGatherPrefetch(SVETypeFlags TypeFlags,
+                                     SmallVectorImpl<llvm::Value *> &Ops,
+                                     unsigned IntID);
+  llvm::Value *EmitSVEStructLoad(SVETypeFlags TypeFlags,
+                                 SmallVectorImpl<llvm::Value *> &Ops, unsigned IntID);
+  llvm::Value *EmitSVEStructStore(SVETypeFlags TypeFlags,
+                                  SmallVectorImpl<llvm::Value *> &Ops,
+                                  unsigned IntID);
   llvm::Value *EmitAArch64SVEBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
 
   llvm::Value *EmitAArch64BuiltinExpr(unsigned BuiltinID, const CallExpr *E,
@@ -3921,6 +4075,9 @@ public:
   llvm::Value *EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
                                           const CallExpr *E);
   llvm::Value *EmitHexagonBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
+  bool ProcessOrderScopeAMDGCN(llvm::Value *Order, llvm::Value *Scope,
+                               llvm::AtomicOrdering &AO,
+                               llvm::SyncScope::ID &SSID);
 
   RValue EmitIntelFPGARegBuiltin(const CallExpr *E,
                                  ReturnValueSlot ReturnValue);
@@ -4055,6 +4212,10 @@ public:
   /// aggregate type into a temporary LValue.
   LValue EmitAggExprToLValue(const Expr *E);
 
+  /// Build all the stores needed to initialize an aggregate at Dest with the
+  /// value Val.
+  void EmitAggregateStore(llvm::Value *Val, Address Dest, bool DestIsVolatile);
+
   /// EmitExtendGCLifetime - Given a pointer to an Objective-C object,
   /// make sure it survives garbage collection until this point.
   void EmitExtendGCLifetime(llvm::Value *object);
@@ -4105,6 +4266,9 @@ public:
   /// Call atexit() with function dtorStub.
   void registerGlobalDtorWithAtExit(llvm::Constant *dtorStub);
 
+  /// Call unatexit() with function dtorStub.
+  llvm::Value *unregisterGlobalDtorWithUnAtExit(llvm::Function *dtorStub);
+
   /// Emit code in this function to perform a guarded variable
   /// initialization.  Guarded initializations are used when it's not
   /// possible to prove that an initialization will be done exactly
@@ -4128,12 +4292,12 @@ public:
                             ArrayRef<llvm::Function *> CXXThreadLocals,
                             ConstantAddress Guard = ConstantAddress::invalid());
 
-  /// GenerateCXXGlobalDtorsFunc - Generates code for destroying global
+  /// GenerateCXXGlobalCleanUpFunc - Generates code for cleaning up global
   /// variables.
-  void GenerateCXXGlobalDtorsFunc(
+  void GenerateCXXGlobalCleanUpFunc(
       llvm::Function *Fn,
       const std::vector<std::tuple<llvm::FunctionType *, llvm::WeakTrackingVH,
-                                   llvm::Constant *>> &DtorsAndObjects);
+                                   llvm::Constant *>> &DtorsOrStermFinalizers);
 
   void GenerateCXXGlobalVarDeclInitFunc(llvm::Function *Fn,
                                         const VarDecl *D,
@@ -4143,14 +4307,6 @@ public:
   void EmitCXXConstructExpr(const CXXConstructExpr *E, AggValueSlot Dest);
 
   void EmitSynthesizedCXXCopyCtor(Address Dest, Address Src, const Expr *Exp);
-
-  void enterFullExpression(const FullExpr *E) {
-    if (const auto *EWC = dyn_cast<ExprWithCleanups>(E))
-      if (EWC->getNumObjects() == 0)
-        return;
-    enterNonTrivialFullExpression(E);
-  }
-  void enterNonTrivialFullExpression(const FullExpr *E);
 
   void EmitCXXThrowExpr(const CXXThrowExpr *E, bool KeepInsertionPoint = true);
 
@@ -4313,6 +4469,9 @@ public:
   /// SetFPModel - Control floating point behavior via fp-model settings.
   void SetFPModel();
 
+  /// Set the codegen fast-math flags.
+  void SetFastMathFlags(FPOptions FPFeatures);
+
 private:
   llvm::MDNode *getRangeForLoadFromType(QualType Ty);
   void EmitReturnOfRValue(RValue RV, QualType Ty);
@@ -4333,7 +4492,7 @@ private:
   ///
   /// \param AI - The first function argument of the expansion.
   void ExpandTypeFromArgs(QualType Ty, LValue Dst,
-                          SmallVectorImpl<llvm::Value *>::iterator &AI);
+                          llvm::Function::arg_iterator &AI);
 
   /// ExpandTypeToArgs - Expand an CallArg \arg Arg, with the LLVM type for \arg
   /// Ty, into individual arguments on the provided vector \arg IRCallArgs,
@@ -4553,6 +4712,11 @@ inline llvm::Value *DominatingLLVMValue::restore(CodeGenFunction &CGF,
 }
 
 }  // end namespace CodeGen
+
+// Map the LangOption for floating point exception behavior into
+// the corresponding enum in the IR.
+llvm::fp::ExceptionBehavior
+ToConstrainedExceptMD(LangOptions::FPExceptionModeKind Kind);
 }  // end namespace clang
 
 #endif

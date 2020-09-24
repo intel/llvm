@@ -8,6 +8,7 @@
 
 #include "mlir/Conversion/AVX512ToLLVM/ConvertAVX512ToLLVM.h"
 
+#include "../PassDetail.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Conversion/VectorToLLVM/ConvertVectorToLLVM.h"
@@ -16,14 +17,11 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
-#include "mlir/EDSC/Intrinsics.h"
 #include "mlir/IR/Module.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 
 using namespace mlir;
-using namespace mlir::edsc;
-using namespace mlir::edsc::intrinsics;
 using namespace mlir::vector;
 using namespace mlir::avx512;
 
@@ -32,7 +30,7 @@ static Type getSrcVectorElementType(OpTy op) {
   return op.src().getType().template cast<VectorType>().getElementType();
 }
 
-// TODO(ntv, zinenko): Code is currently copy-pasted and adapted from the code
+// TODO: Code is currently copy-pasted and adapted from the code
 // 1-1 LLVM conversion. It would better if it were properly exposed in core and
 // reusable.
 /// Basic lowering implementation for one-to-one rewriting from AVX512 Ops to
@@ -78,7 +76,7 @@ matchAndRewriteOneToOne(const ConvertToLLVMPattern &lowering,
 }
 
 namespace {
-// TODO(ntv): Patterns are too verbose due to the fact that we have 1 op (e.g.
+// TODO: Patterns are too verbose due to the fact that we have 1 op (e.g.
 // MaskRndScaleOp) and different possible target ops. It would be better to take
 // a Functor so that all these conversions become 1-liners.
 struct MaskRndScaleOpPS512Conversion : public ConvertToLLVMPattern {
@@ -163,12 +161,13 @@ void mlir::populateAVX512ToLLVMConversionPatterns(
 }
 
 namespace {
-struct ConvertAVX512ToLLVMPass : public ModulePass<ConvertAVX512ToLLVMPass> {
-  void runOnModule() override;
+struct ConvertAVX512ToLLVMPass
+    : public ConvertAVX512ToLLVMBase<ConvertAVX512ToLLVMPass> {
+  void runOnOperation() override;
 };
 } // namespace
 
-void ConvertAVX512ToLLVMPass::runOnModule() {
+void ConvertAVX512ToLLVMPass::runOnOperation() {
   // Convert to the LLVM IR dialect.
   OwningRewritePatternList patterns;
   LLVMTypeConverter converter(&getContext());
@@ -180,18 +179,11 @@ void ConvertAVX512ToLLVMPass::runOnModule() {
   target.addLegalDialect<LLVM::LLVMDialect>();
   target.addLegalDialect<LLVM::LLVMAVX512Dialect>();
   target.addIllegalDialect<avx512::AVX512Dialect>();
-  target.addDynamicallyLegalOp<FuncOp>(
-      [&](FuncOp op) { return converter.isSignatureLegal(op.getType()); });
-  if (failed(
-          applyPartialConversion(getModule(), target, patterns, &converter))) {
+  if (failed(applyPartialConversion(getOperation(), target, patterns))) {
     signalPassFailure();
   }
 }
 
-std::unique_ptr<OpPassBase<ModuleOp>> mlir::createConvertAVX512ToLLVMPass() {
+std::unique_ptr<OperationPass<ModuleOp>> mlir::createConvertAVX512ToLLVMPass() {
   return std::make_unique<ConvertAVX512ToLLVMPass>();
 }
-
-static PassRegistration<ConvertAVX512ToLLVMPass> pass(
-    "convert-avx512-to-llvm",
-    "Convert the operations from the avx512 dialect into the LLVM dialect");

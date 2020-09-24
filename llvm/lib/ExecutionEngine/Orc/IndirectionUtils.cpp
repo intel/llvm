@@ -10,7 +10,6 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/ExecutionEngine/Orc/OrcABISupport.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -55,8 +54,8 @@ private:
 namespace llvm {
 namespace orc {
 
+TrampolinePool::~TrampolinePool() {}
 void IndirectStubsManager::anchor() {}
-void TrampolinePool::anchor() {}
 
 Expected<JITTargetAddress>
 JITCompileCallbackManager::getCompileCallback(CompileFunction Compile) {

@@ -25,11 +25,12 @@ using namespace lldb_private;
 
 // ThreadPlanPython
 
-ThreadPlanPython::ThreadPlanPython(Thread &thread, const char *class_name, 
+ThreadPlanPython::ThreadPlanPython(Thread &thread, const char *class_name,
                                    StructuredDataImpl *args_data)
     : ThreadPlan(ThreadPlan::eKindPython, "Python based Thread Plan", thread,
                  eVoteNoOpinion, eVoteNoOpinion),
-      m_class_name(class_name), m_args_data(args_data), m_did_push(false) {
+      m_class_name(class_name), m_args_data(args_data), m_did_push(false),
+      m_stop_others(false) {
   SetIsMasterPlan(true);
   SetOkayToDiscard(true);
   SetPrivate(false);
@@ -55,15 +56,16 @@ bool ThreadPlanPython::ValidatePlan(Stream *error) {
   return true;
 }
 
+ScriptInterpreter *ThreadPlanPython::GetScriptInterpreter() {
+  return m_process.GetTarget().GetDebugger().GetScriptInterpreter();
+}
+
 void ThreadPlanPython::DidPush() {
   // We set up the script side in DidPush, so that it can push other plans in
   // the constructor, and doesn't have to care about the details of DidPush.
   m_did_push = true;
   if (!m_class_name.empty()) {
-    ScriptInterpreter *script_interp = m_thread.GetProcess()
-                                           ->GetTarget()
-                                           .GetDebugger()
-                                           .GetScriptInterpreter();
+    ScriptInterpreter *script_interp = GetScriptInterpreter();
     if (script_interp) {
       m_implementation_sp = script_interp->CreateScriptedThreadPlan(
           m_class_name.c_str(), m_args_data, m_error_str, 
@@ -79,10 +81,7 @@ bool ThreadPlanPython::ShouldStop(Event *event_ptr) {
 
   bool should_stop = true;
   if (m_implementation_sp) {
-    ScriptInterpreter *script_interp = m_thread.GetProcess()
-                                           ->GetTarget()
-                                           .GetDebugger()
-                                           .GetScriptInterpreter();
+    ScriptInterpreter *script_interp = GetScriptInterpreter();
     if (script_interp) {
       bool script_error;
       should_stop = script_interp->ScriptedThreadPlanShouldStop(
@@ -101,10 +100,7 @@ bool ThreadPlanPython::IsPlanStale() {
 
   bool is_stale = true;
   if (m_implementation_sp) {
-    ScriptInterpreter *script_interp = m_thread.GetProcess()
-                                           ->GetTarget()
-                                           .GetDebugger()
-                                           .GetScriptInterpreter();
+    ScriptInterpreter *script_interp = GetScriptInterpreter();
     if (script_interp) {
       bool script_error;
       is_stale = script_interp->ScriptedThreadPlanIsStale(m_implementation_sp,
@@ -123,10 +119,7 @@ bool ThreadPlanPython::DoPlanExplainsStop(Event *event_ptr) {
 
   bool explains_stop = true;
   if (m_implementation_sp) {
-    ScriptInterpreter *script_interp = m_thread.GetProcess()
-                                           ->GetTarget()
-                                           .GetDebugger()
-                                           .GetScriptInterpreter();
+    ScriptInterpreter *script_interp = GetScriptInterpreter();
     if (script_interp) {
       bool script_error;
       explains_stop = script_interp->ScriptedThreadPlanExplainsStop(
@@ -159,10 +152,7 @@ lldb::StateType ThreadPlanPython::GetPlanRunState() {
             m_class_name.c_str());
   lldb::StateType run_state = eStateRunning;
   if (m_implementation_sp) {
-    ScriptInterpreter *script_interp = m_thread.GetProcess()
-                                           ->GetTarget()
-                                           .GetDebugger()
-                                           .GetScriptInterpreter();
+    ScriptInterpreter *script_interp = GetScriptInterpreter();
     if (script_interp) {
       bool script_error;
       run_state = script_interp->ScriptedThreadPlanGetRunState(
@@ -173,13 +163,6 @@ lldb::StateType ThreadPlanPython::GetPlanRunState() {
 }
 
 // The ones below are not currently exported to Python.
-
-bool ThreadPlanPython::StopOthers() {
-  // For now Python plans run all threads, but we should add some controls for
-  // this.
-  return false;
-}
-
 void ThreadPlanPython::GetDescription(Stream *s, lldb::DescriptionLevel level) {
   s->Printf("Python thread plan implemented by class %s.",
             m_class_name.c_str());

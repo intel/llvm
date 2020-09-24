@@ -30,10 +30,6 @@
 #include "llvm/Support/Host.h"
 #include "llvm/Support/TargetRegistry.h"
 
-#if _MSC_VER
-#include <intrin.h>
-#endif
-
 using namespace llvm;
 
 #define GET_REGINFO_MC_DESC
@@ -48,8 +44,10 @@ using namespace llvm;
 
 std::string X86_MC::ParseX86Triple(const Triple &TT) {
   std::string FS;
-  if (TT.getArch() == Triple::x86_64)
-    FS = "+64bit-mode,-32bit-mode,-16bit-mode";
+  // SSE2 should default to enabled in 64-bit mode, but can be turned off
+  // explicitly.
+  if (TT.isArch64Bit())
+    FS = "+64bit-mode,-32bit-mode,-16bit-mode,+sse2";
   else if (TT.getEnvironment() != Triple::CODE16)
     FS = "-64bit-mode,+32bit-mode,-16bit-mode";
   else
@@ -294,11 +292,10 @@ MCSubtargetInfo *X86_MC::createX86MCSubtargetInfo(const Triple &TT,
   if (!FS.empty())
     ArchFS = (Twine(ArchFS) + "," + FS).str();
 
-  std::string CPUName = std::string(CPU);
-  if (CPUName.empty())
-    CPUName = "generic";
+  if (CPU.empty())
+    CPU = "generic";
 
-  return createX86MCSubtargetInfoImpl(TT, CPUName, ArchFS);
+  return createX86MCSubtargetInfoImpl(TT, CPU, /*TuneCPU*/ CPU, ArchFS);
 }
 
 static MCInstrInfo *createX86MCInstrInfo() {
@@ -353,7 +350,7 @@ static MCAsmInfo *createX86MCAsmInfo(const MCRegisterInfo &MRI,
 
   // Initial state of the frame pointer is esp+stackGrowth.
   unsigned StackPtr = is64Bit ? X86::RSP : X86::ESP;
-  MCCFIInstruction Inst = MCCFIInstruction::createDefCfa(
+  MCCFIInstruction Inst = MCCFIInstruction::cfiDefCfa(
       nullptr, MRI.getDwarfRegNum(StackPtr, true), -stackGrowth);
   MAI->addInitialFrameState(Inst);
 
@@ -404,6 +401,9 @@ public:
   findPltEntries(uint64_t PltSectionVA, ArrayRef<uint8_t> PltContents,
                  uint64_t GotSectionVA,
                  const Triple &TargetTriple) const override;
+
+  bool evaluateBranch(const MCInst &Inst, uint64_t Addr, uint64_t Size,
+                      uint64_t &Target) const override;
   Optional<uint64_t> evaluateMemoryOperandAddress(const MCInst &Inst,
                                                   uint64_t Addr,
                                                   uint64_t Size) const override;
@@ -520,6 +520,15 @@ std::vector<std::pair<uint64_t, uint64_t>> X86MCInstrAnalysis::findPltEntries(
     default:
       return {};
     }
+}
+
+bool X86MCInstrAnalysis::evaluateBranch(const MCInst &Inst, uint64_t Addr,
+                                        uint64_t Size, uint64_t &Target) const {
+  if (Inst.getNumOperands() == 0 ||
+      Info->get(Inst.getOpcode()).OpInfo[0].OperandType != MCOI::OPERAND_PCREL)
+    return false;
+  Target = Addr + Size + Inst.getOperand(0).getImm();
+  return true;
 }
 
 Optional<uint64_t> X86MCInstrAnalysis::evaluateMemoryOperandAddress(

@@ -31,7 +31,7 @@
 #include <sys/times.h>
 #include <unistd.h>
 
-#if KMP_OS_LINUX && !KMP_OS_CNK
+#if KMP_OS_LINUX
 #include <sys/sysinfo.h>
 #if KMP_USE_FUTEX
 // We should really include <futex.h>, but that causes compatibility problems on
@@ -2207,7 +2207,7 @@ int __kmp_get_load_balance(int max) {
 
 #else // Linux* OS
 
-// The fuction returns number of running (not sleeping) threads, or -1 in case
+// The function returns number of running (not sleeping) threads, or -1 in case
 // of error. Error could be reported if Linux* OS kernel too old (without
 // "/proc" support). Counting running threads stops if max running threads
 // encountered.

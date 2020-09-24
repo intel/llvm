@@ -7,14 +7,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
-// The following compilers don't generate constexpr special members correctly.
-// XFAIL: clang-3.5, clang-3.6, clang-3.7, clang-3.8
-// XFAIL: apple-clang-6, apple-clang-7, apple-clang-8.0
-
-// XFAIL: dylib-has-no-bad_variant_access && !libcpp-no-exceptions
-
+// Throwing bad_variant_access is supported starting in macosx10.13
+// XFAIL: with_system_cxx_lib=macosx10.12 && !no-exceptions
+// XFAIL: with_system_cxx_lib=macosx10.11 && !no-exceptions
+// XFAIL: with_system_cxx_lib=macosx10.10 && !no-exceptions
+// XFAIL: with_system_cxx_lib=macosx10.9 && !no-exceptions
 
 // <variant>
 

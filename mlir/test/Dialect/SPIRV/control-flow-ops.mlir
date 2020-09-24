@@ -1,4 +1,4 @@
-// RUN: mlir-opt -split-input-file -verify-diagnostics %s | FileCheck %s
+// RUN: mlir-opt -allow-unregistered-dialect -split-input-file -verify-diagnostics %s | FileCheck %s
 
 //===----------------------------------------------------------------------===//
 // spv.Branch
@@ -202,7 +202,7 @@ func @caller() {
 
 spv.module Logical GLSL450 {
   spv.func @f_invalid_result_type(%arg0 : i32, %arg1 : i32) -> () "None" {
-    // expected-error @+1 {{expected callee function to have 0 or 1 result, but provided 2}}
+    // expected-error @+1 {{result group starting at #0 requires 0 or 1 element, but found 2}}
     %0:2 = spv.FunctionCall @f_invalid_result_type(%arg0, %arg1) : (i32, i32) -> (i32, i32)
     spv.Return
   }
@@ -311,6 +311,16 @@ func @loop(%count : i32) -> () {
 func @empty_region() -> () {
   // CHECK: spv.loop
   spv.loop {
+  }
+  return
+}
+
+// -----
+
+// CHECK-LABEL: @loop_with_control
+func @loop_with_control() -> () {
+  // CHECK: spv.loop control(Unroll)
+  spv.loop control(Unroll) {
   }
   return
 }
@@ -712,6 +722,16 @@ func @selection(%cond: i1) -> () {
 func @empty_region() -> () {
   // CHECK: spv.selection
   spv.selection {
+  }
+  return
+}
+
+// -----
+
+// CHECK-LABEL: @selection_with_control
+func @selection_with_control() -> () {
+  // CHECK: spv.selection control(Flatten)
+  spv.selection control(Flatten) {
   }
   return
 }

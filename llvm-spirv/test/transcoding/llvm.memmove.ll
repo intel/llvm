@@ -17,18 +17,46 @@
 ; CHECK-SPIRV: Bitcast [[i8Ty]] [[tmp3:[0-9]+]] [[mem]]
 ; CHECK-SPIRV: LifetimeStop [[tmp3]] [[size]]
 
+; CHECK-SPIRV: GenericCastToPtr {{[0-9]+}} [[out:[0-9]+]]
+; CHECK-SPIRV: Variable {{[0-9]+}} [[mem:[0-9]+]] 7
+; CHECK-SPIRV: Bitcast [[i8Ty:[0-9]+]] [[tmp0:[0-9]+]] [[mem]]
+; CHECK-SPIRV: LifetimeStart [[tmp0]] [[size:[0-9]+]]
+; CHECK-SPIRV: Bitcast [[i8Ty]] [[tmp1:[0-9]+]] [[mem]]
+; CHECK-SPIRV: CopyMemorySized [[tmp1]] {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV: Bitcast [[i8Ty]] [[tmp2:[0-9]+]] [[mem]]
+; CHECK-SPIRV: CopyMemorySized [[out]] [[tmp2]] {{[0-9]+}}
+; CHECK-SPIRV: Bitcast [[i8Ty]] [[tmp3:[0-9]+]] [[mem]]
+; CHECK-SPIRV: LifetimeStop [[tmp3]] [[size]]
+
 ; CHECK-LLVM-NOT: llvm.memmove
 
+; CHECK-LLVM-LABEL: @test_struct
 ; CHECK-LLVM: [[local:%[0-9]+]] = alloca %struct.SomeStruct
 ; CHECK-LLVM: [[tmp1:%[0-9]+]] = bitcast %struct.SomeStruct* [[local]] to [[type:i[0-9]+\*]]
 ; CHECK-LLVM: call void @llvm.lifetime.start.p0i8({{i[0-9]+}} {{-?[0-9]+}}, [[type]] [[tmp1]])
 ; CHECK-LLVM: [[tmp2:%[0-9]+]] = bitcast %struct.SomeStruct* [[local]] to [[type]]
-; CHECK-LLVM: call void @llvm.memcpy
-; CHECK-LLVM:  ([[type]] align 64 [[tmp2]],
-; CHECK-LLVM:  {{i[0-9]+}} [[size:[0-9]+]]
+; CHECK-LLVM: call void @llvm.memcpy.p0i8.p1i8.i32
+; CHECK-LLVM-SAME:  ([[type]] align 64 [[tmp2]],
+; CHECK-LLVM-SAME:  {{i[0-9]+}} [[size:[0-9]+]]
 ; CHECK-LLVM: [[tmp3:%[0-9]+]] = bitcast %struct.SomeStruct* [[local]] to [[type]]
-; CHECK-LLVM: call void @llvm.memcpy
-; CHECK-LLVM:  , [[type]] align 64 [[tmp3]], {{i[0-9]+}} [[size]]
+; CHECK-LLVM: call void @llvm.memcpy.p1i8.p0i8.i32
+; CHECK-LLVM-SAME:  , [[type]] align 64 [[tmp3]], {{i[0-9]+}} [[size]]
+; CHECK-LLVM: [[tmp4:%[0-9]+]] = bitcast %struct.SomeStruct* [[local]] to [[type]]
+; CHECK-LLVM: call void @llvm.lifetime.end.p0i8({{i[0-9]+}} {{-?[0-9]+}}, [[type]] [[tmp4]])
+
+; CHECK-LLVM-LABEL: @copy_struct
+; CHECK-LLVM: [[out:%[0-9]+]] = addrspacecast i8 addrspace(4)* %2 to i8 addrspace(1)*
+; CHECK-LLVM: [[local:%[0-9]+]] = alloca %struct.SomeStruct
+; CHECK-LLVM: [[tmp1:%[0-9]+]] = bitcast %struct.SomeStruct* [[local]] to [[type:i[0-9]+\*]]
+; CHECK-LLVM: call void @llvm.lifetime.start.p0i8({{i[0-9]+}} {{-?[0-9]+}}, [[type]] [[tmp1]])
+; CHECK-LLVM: [[tmp2:%[0-9]+]] = bitcast %struct.SomeStruct* [[local]] to [[type]]
+; CHECK-LLVM: call void @llvm.memcpy.p0i8.p1i8.i32
+; CHECK-LLVM-SAME:  ([[type]] align 64 [[tmp2]],
+; CHECK-LLVM-SAME:  {{i[0-9]+}} [[size:[0-9]+]]
+; CHECK-LLVM: [[tmp3:%[0-9]+]] = bitcast %struct.SomeStruct* [[local]] to [[type]]
+; CHECK-LLVM: call void @llvm.memcpy.p1i8.p0i8.i32
+; CHECK-LLVM-SAME:  align 64 [[out]]
+; CHECK-LLVM-SAME:  , [[type]] align 64 [[tmp3]], {{i[0-9]+}} [[size]]
 ; CHECK-LLVM: [[tmp4:%[0-9]+]] = bitcast %struct.SomeStruct* [[local]] to [[type]]
 ; CHECK-LLVM: call void @llvm.lifetime.end.p0i8({{i[0-9]+}} {{-?[0-9]+}}, [[type]] [[tmp4]])
 
@@ -42,6 +70,14 @@ define spir_kernel void @test_struct(%struct.SomeStruct addrspace(1)* nocapture 
   %1 = bitcast %struct.SomeStruct addrspace(1)* %in to i8 addrspace(1)*
   %2 = bitcast %struct.SomeStruct addrspace(1)* %out to i8 addrspace(1)*
   call void @llvm.memmove.p1i8.p1i8.i32(i8 addrspace(1)* align 64 %2, i8 addrspace(1)* align 64 %1, i32 128, i1 false)
+  ret void
+}
+
+define spir_func void @copy_struct(%struct.SomeStruct addrspace(1)* nocapture readonly %in, %struct.SomeStruct addrspace(4)* nocapture %out) {
+  %1 = bitcast %struct.SomeStruct addrspace(1)* %in to i8 addrspace(1)*
+  %2 = bitcast %struct.SomeStruct addrspace(4)* %out to i8 addrspace(4)*
+  %3 = addrspacecast i8 addrspace(4)* %2 to i8 addrspace(1)*
+  call void @llvm.memmove.p1i8.p1i8.i32(i8 addrspace(1)* align 64 %3, i8 addrspace(1)* align 64 %1, i32 68, i1 false)
   ret void
 }
 

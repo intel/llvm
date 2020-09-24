@@ -11,6 +11,8 @@
 #include "ParallelSnippetGenerator.h"
 #include "SerialSnippetGenerator.h"
 #include "UopsBenchmarkRunner.h"
+#include "llvm/ADT/Twine.h"
+#include "llvm/Support/Error.h"
 
 namespace llvm {
 namespace exegesis {
@@ -25,6 +27,18 @@ const ExegesisTarget *ExegesisTarget::lookup(Triple TT) {
       return T;
   }
   return nullptr;
+}
+
+Expected<std::unique_ptr<pfm::Counter>>
+ExegesisTarget::createCounter(StringRef CounterName, const LLVMState &) const {
+  pfm::PerfEvent Event(CounterName);
+  if (!Event.valid())
+    return llvm::make_error<Failure>(
+        llvm::Twine("Unable to create counter with name '")
+            .concat(CounterName)
+            .concat("'"));
+
+  return std::make_unique<pfm::Counter>(std::move(Event));
 }
 
 void ExegesisTarget::registerTarget(ExegesisTarget *Target) {
@@ -54,8 +68,9 @@ std::unique_ptr<SnippetGenerator> ExegesisTarget::createSnippetGenerator(
 }
 
 Expected<std::unique_ptr<BenchmarkRunner>>
-ExegesisTarget::createBenchmarkRunner(InstructionBenchmark::ModeE Mode,
-                                      const LLVMState &State) const {
+ExegesisTarget::createBenchmarkRunner(
+    InstructionBenchmark::ModeE Mode, const LLVMState &State,
+    InstructionBenchmark::ResultAggregationModeE ResultAggMode) const {
   PfmCountersInfo PfmCounters = State.getPfmCounters();
   switch (Mode) {
   case InstructionBenchmark::Unknown:
@@ -71,12 +86,12 @@ ExegesisTarget::createBenchmarkRunner(InstructionBenchmark::ModeE Mode,
               .concat(ModeName)
               .concat("' mode, sched model does not define a cycle counter."));
     }
-    return createLatencyBenchmarkRunner(State, Mode);
+    return createLatencyBenchmarkRunner(State, Mode, ResultAggMode);
   case InstructionBenchmark::Uops:
     if (!PfmCounters.UopsCounter && !PfmCounters.IssueCounters)
       return make_error<Failure>("can't run 'uops' mode, sched model does not "
                                  "define uops or issue counters.");
-    return createUopsBenchmarkRunner(State);
+    return createUopsBenchmarkRunner(State, ResultAggMode);
   }
   return nullptr;
 }
@@ -92,12 +107,14 @@ std::unique_ptr<SnippetGenerator> ExegesisTarget::createParallelSnippetGenerator
 }
 
 std::unique_ptr<BenchmarkRunner> ExegesisTarget::createLatencyBenchmarkRunner(
-    const LLVMState &State, InstructionBenchmark::ModeE Mode) const {
-  return std::make_unique<LatencyBenchmarkRunner>(State, Mode);
+    const LLVMState &State, InstructionBenchmark::ModeE Mode,
+    InstructionBenchmark::ResultAggregationModeE ResultAggMode) const {
+  return std::make_unique<LatencyBenchmarkRunner>(State, Mode, ResultAggMode);
 }
 
-std::unique_ptr<BenchmarkRunner>
-ExegesisTarget::createUopsBenchmarkRunner(const LLVMState &State) const {
+std::unique_ptr<BenchmarkRunner> ExegesisTarget::createUopsBenchmarkRunner(
+    const LLVMState &State,
+    InstructionBenchmark::ResultAggregationModeE /*unused*/) const {
   return std::make_unique<UopsBenchmarkRunner>(State);
 }
 
@@ -107,8 +124,8 @@ const PfmCountersInfo PfmCountersInfo::Default = {nullptr, nullptr, nullptr,
                                                   0u};
 
 const PfmCountersInfo &ExegesisTarget::getPfmCounters(StringRef CpuName) const {
-  assert(std::is_sorted(
-             CpuPfmCounters.begin(), CpuPfmCounters.end(),
+  assert(llvm::is_sorted(
+             CpuPfmCounters,
              [](const CpuAndPfmCounters &LHS, const CpuAndPfmCounters &RHS) {
                return strcmp(LHS.CpuName, RHS.CpuName) < 0;
              }) &&

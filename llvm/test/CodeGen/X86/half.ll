@@ -382,16 +382,16 @@ define <4 x float> @test_extend32_vec4(<4 x half>* %p) #0 {
 ; CHECK-LIBCALL-NEXT:    subq $88, %rsp
 ; CHECK-LIBCALL-NEXT:    movl (%rdi), %eax
 ; CHECK-LIBCALL-NEXT:    movl 4(%rdi), %ecx
-; CHECK-LIBCALL-NEXT:    movl %eax, {{[0-9]+}}(%rsp)
+; CHECK-LIBCALL-NEXT:    movl %eax, (%rsp)
 ; CHECK-LIBCALL-NEXT:    movl %ecx, {{[0-9]+}}(%rsp)
-; CHECK-LIBCALL-NEXT:    movaps {{[0-9]+}}(%rsp), %xmm0
+; CHECK-LIBCALL-NEXT:    movaps (%rsp), %xmm0
 ; CHECK-LIBCALL-NEXT:    movaps %xmm0, {{[-0-9]+}}(%r{{[sb]}}p) # 16-byte Spill
 ; CHECK-LIBCALL-NEXT:    movdqa {{[0-9]+}}(%rsp), %xmm0
-; CHECK-LIBCALL-NEXT:    movdqa %xmm0, (%rsp) # 16-byte Spill
+; CHECK-LIBCALL-NEXT:    movdqa %xmm0, {{[-0-9]+}}(%r{{[sb]}}p) # 16-byte Spill
 ; CHECK-LIBCALL-NEXT:    pextrw $1, %xmm0, %edi
 ; CHECK-LIBCALL-NEXT:    callq __gnu_h2f_ieee
 ; CHECK-LIBCALL-NEXT:    movdqa %xmm0, {{[-0-9]+}}(%r{{[sb]}}p) # 16-byte Spill
-; CHECK-LIBCALL-NEXT:    movdqa (%rsp), %xmm0 # 16-byte Reload
+; CHECK-LIBCALL-NEXT:    movdqa {{[-0-9]+}}(%r{{[sb]}}p), %xmm0 # 16-byte Reload
 ; CHECK-LIBCALL-NEXT:    pextrw $0, %xmm0, %edi
 ; CHECK-LIBCALL-NEXT:    callq __gnu_h2f_ieee
 ; CHECK-LIBCALL-NEXT:    punpckldq {{[-0-9]+}}(%r{{[sb]}}p), %xmm0 # 16-byte Folded Reload
@@ -400,11 +400,11 @@ define <4 x float> @test_extend32_vec4(<4 x half>* %p) #0 {
 ; CHECK-LIBCALL-NEXT:    movdqa {{[-0-9]+}}(%r{{[sb]}}p), %xmm0 # 16-byte Reload
 ; CHECK-LIBCALL-NEXT:    pextrw $1, %xmm0, %edi
 ; CHECK-LIBCALL-NEXT:    callq __gnu_h2f_ieee
-; CHECK-LIBCALL-NEXT:    movdqa %xmm0, (%rsp) # 16-byte Spill
+; CHECK-LIBCALL-NEXT:    movdqa %xmm0, {{[-0-9]+}}(%r{{[sb]}}p) # 16-byte Spill
 ; CHECK-LIBCALL-NEXT:    movdqa {{[-0-9]+}}(%r{{[sb]}}p), %xmm0 # 16-byte Reload
 ; CHECK-LIBCALL-NEXT:    pextrw $0, %xmm0, %edi
 ; CHECK-LIBCALL-NEXT:    callq __gnu_h2f_ieee
-; CHECK-LIBCALL-NEXT:    punpckldq (%rsp), %xmm0 # 16-byte Folded Reload
+; CHECK-LIBCALL-NEXT:    punpckldq {{[-0-9]+}}(%r{{[sb]}}p), %xmm0 # 16-byte Folded Reload
 ; CHECK-LIBCALL-NEXT:    # xmm0 = xmm0[0],mem[0],xmm0[1],mem[1]
 ; CHECK-LIBCALL-NEXT:    punpcklqdq {{[-0-9]+}}(%r{{[sb]}}p), %xmm0 # 16-byte Folded Reload
 ; CHECK-LIBCALL-NEXT:    # xmm0 = xmm0[0],mem[0]
@@ -558,7 +558,7 @@ define void @test_trunc32_vec4(<4 x float> %a, <4 x half>* %p) #0 {
 ; BWON-NOF16C-NEXT:    subq $24, %rsp
 ; BWON-NOF16C-NEXT:    movq %rdi, %rbx
 ; BWON-NOF16C-NEXT:    movaps %xmm0, (%rsp) # 16-byte Spill
-; BWON-NOF16C-NEXT:    shufps {{.*#+}} xmm0 = xmm0[1,1,2,3]
+; BWON-NOF16C-NEXT:    shufps {{.*#+}} xmm0 = xmm0[1,1,1,1]
 ; BWON-NOF16C-NEXT:    callq __gnu_f2h_ieee
 ; BWON-NOF16C-NEXT:    movl %eax, %r14d
 ; BWON-NOF16C-NEXT:    movaps (%rsp), %xmm0 # 16-byte Reload
@@ -566,7 +566,7 @@ define void @test_trunc32_vec4(<4 x float> %a, <4 x half>* %p) #0 {
 ; BWON-NOF16C-NEXT:    callq __gnu_f2h_ieee
 ; BWON-NOF16C-NEXT:    movl %eax, %r15d
 ; BWON-NOF16C-NEXT:    movaps (%rsp), %xmm0 # 16-byte Reload
-; BWON-NOF16C-NEXT:    shufps {{.*#+}} xmm0 = xmm0[3,1,2,3]
+; BWON-NOF16C-NEXT:    shufps {{.*#+}} xmm0 = xmm0[3,3,3,3]
 ; BWON-NOF16C-NEXT:    callq __gnu_f2h_ieee
 ; BWON-NOF16C-NEXT:    movl %eax, %ebp
 ; BWON-NOF16C-NEXT:    movaps (%rsp), %xmm0 # 16-byte Reload
@@ -591,7 +591,7 @@ define void @test_trunc32_vec4(<4 x float> %a, <4 x half>* %p) #0 {
 ; BWOFF-NEXT:    subq $24, %rsp
 ; BWOFF-NEXT:    movq %rdi, %rbx
 ; BWOFF-NEXT:    movaps %xmm0, (%rsp) # 16-byte Spill
-; BWOFF-NEXT:    shufps {{.*#+}} xmm0 = xmm0[1,1,2,3]
+; BWOFF-NEXT:    shufps {{.*#+}} xmm0 = xmm0[1,1,1,1]
 ; BWOFF-NEXT:    callq __gnu_f2h_ieee
 ; BWOFF-NEXT:    movw %ax, %r14w
 ; BWOFF-NEXT:    movaps (%rsp), %xmm0 # 16-byte Reload
@@ -599,7 +599,7 @@ define void @test_trunc32_vec4(<4 x float> %a, <4 x half>* %p) #0 {
 ; BWOFF-NEXT:    callq __gnu_f2h_ieee
 ; BWOFF-NEXT:    movw %ax, %r15w
 ; BWOFF-NEXT:    movaps (%rsp), %xmm0 # 16-byte Reload
-; BWOFF-NEXT:    shufps {{.*#+}} xmm0 = xmm0[3,1,2,3]
+; BWOFF-NEXT:    shufps {{.*#+}} xmm0 = xmm0[3,3,3,3]
 ; BWOFF-NEXT:    callq __gnu_f2h_ieee
 ; BWOFF-NEXT:    movw %ax, %bp
 ; BWOFF-NEXT:    movaps (%rsp), %xmm0 # 16-byte Reload
@@ -630,7 +630,7 @@ define void @test_trunc32_vec4(<4 x float> %a, <4 x half>* %p) #0 {
 ; CHECK-I686-NEXT:    movaps %xmm0, {{[-0-9]+}}(%e{{[sb]}}p) # 16-byte Spill
 ; CHECK-I686-NEXT:    movl {{[0-9]+}}(%esp), %ebp
 ; CHECK-I686-NEXT:    movaps %xmm0, %xmm1
-; CHECK-I686-NEXT:    shufps {{.*#+}} xmm1 = xmm1[1,1],xmm0[2,3]
+; CHECK-I686-NEXT:    shufps {{.*#+}} xmm1 = xmm1[1,1],xmm0[1,1]
 ; CHECK-I686-NEXT:    movss %xmm1, (%esp)
 ; CHECK-I686-NEXT:    calll __gnu_f2h_ieee
 ; CHECK-I686-NEXT:    movw %ax, %si
@@ -640,7 +640,7 @@ define void @test_trunc32_vec4(<4 x float> %a, <4 x half>* %p) #0 {
 ; CHECK-I686-NEXT:    calll __gnu_f2h_ieee
 ; CHECK-I686-NEXT:    movw %ax, %di
 ; CHECK-I686-NEXT:    movaps {{[-0-9]+}}(%e{{[sb]}}p), %xmm0 # 16-byte Reload
-; CHECK-I686-NEXT:    shufps {{.*#+}} xmm0 = xmm0[3,1,2,3]
+; CHECK-I686-NEXT:    shufps {{.*#+}} xmm0 = xmm0[3,3,3,3]
 ; CHECK-I686-NEXT:    movss %xmm0, (%esp)
 ; CHECK-I686-NEXT:    calll __gnu_f2h_ieee
 ; CHECK-I686-NEXT:    movw %ax, %bx

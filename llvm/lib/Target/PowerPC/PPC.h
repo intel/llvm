@@ -44,7 +44,6 @@ namespace llvm {
   FunctionPass *createPPCMIPeepholePass();
   FunctionPass *createPPCBranchSelectionPass();
   FunctionPass *createPPCBranchCoalescingPass();
-  FunctionPass *createPPCQPXLoadSplatPass();
   FunctionPass *createPPCISelDag(PPCTargetMachine &TM, CodeGenOpt::Level OL);
   FunctionPass *createPPCTLSDynamicCallPass();
   FunctionPass *createPPCBoolRetToIntPass();
@@ -68,7 +67,6 @@ namespace llvm {
   void initializePPCReduceCRLogicalsPass(PassRegistry&);
   void initializePPCBSelPass(PassRegistry&);
   void initializePPCBranchCoalescingPass(PassRegistry&);
-  void initializePPCQPXLoadSplatPass(PassRegistry&);
   void initializePPCBoolRetToIntPass(PassRegistry&);
   void initializePPCExpandISELPass(PassRegistry &);
   void initializePPCPreEmitPeepholePass(PassRegistry &);
@@ -98,24 +96,55 @@ namespace llvm {
     /// the function's picbase, e.g. lo16(symbol-picbase).
     MO_PIC_FLAG = 2,
 
+    /// MO_PCREL_FLAG - If this bit is set, the symbol reference is relative to
+    /// the current instruction address(pc), e.g., var@pcrel. Fixup is VK_PCREL.
+    MO_PCREL_FLAG = 4,
+
+    /// MO_GOT_FLAG - If this bit is set the symbol reference is to be computed
+    /// via the GOT. For example when combined with the MO_PCREL_FLAG it should
+    /// produce the relocation @got@pcrel. Fixup is VK_PPC_GOT_PCREL.
+    MO_GOT_FLAG = 8,
+
+    // MO_PCREL_OPT_FLAG - If this bit is set the operand is part of a
+    // PC Relative linker optimization.
+    MO_PCREL_OPT_FLAG = 16,
+
+    /// MO_TLSGD_FLAG - If this bit is set the symbol reference is relative to
+    /// TLS General Dynamic model.
+    MO_TLSGD_FLAG = 32,
+
+    /// MO_TPREL_FLAG - If this bit is set the symbol reference is relative to
+    /// TLS Initial Exec model.
+    MO_TPREL_FLAG = 64,
+
+    /// MO_GOT_TLSGD_PCREL_FLAG - A combintaion of flags, if these bits are set
+    /// they should produce the relocation @got@tlsgd@pcrel.
+    /// Fix up is VK_PPC_GOT_TLSGD_PCREL
+    MO_GOT_TLSGD_PCREL_FLAG = MO_PCREL_FLAG | MO_GOT_FLAG | MO_TLSGD_FLAG,
+
+    /// MO_GOT_TPREL_PCREL_FLAG - A combintaion of flags, if these bits are set
+    /// they should produce the relocation @got@tprel@pcrel.
+    /// Fix up is VK_PPC_GOT_TPREL_PCREL
+    MO_GOT_TPREL_PCREL_FLAG = MO_GOT_FLAG | MO_TPREL_FLAG | MO_PCREL_FLAG,
+
     /// The next are not flags but distinct values.
-    MO_ACCESS_MASK = 0xf0,
+    MO_ACCESS_MASK = 0xf00,
 
     /// MO_LO, MO_HA - lo16(symbol) and ha16(symbol)
-    MO_LO = 1 << 4,
-    MO_HA = 2 << 4,
+    MO_LO = 1 << 8,
+    MO_HA = 2 << 8,
 
-    MO_TPREL_LO = 4 << 4,
-    MO_TPREL_HA = 3 << 4,
+    MO_TPREL_LO = 4 << 8,
+    MO_TPREL_HA = 3 << 8,
 
     /// These values identify relocations on immediates folded
     /// into memory operations.
-    MO_DTPREL_LO = 5 << 4,
-    MO_TLSLD_LO = 6 << 4,
-    MO_TOC_LO = 7 << 4,
+    MO_DTPREL_LO = 5 << 8,
+    MO_TLSLD_LO = 6 << 8,
+    MO_TOC_LO = 7 << 8,
 
     // Symbol for VK_PPC_TLS fixup attached to an ADD instruction
-    MO_TLS = 8 << 4
+    MO_TLS = 8 << 8
   };
   } // end namespace PPCII
 

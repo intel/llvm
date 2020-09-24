@@ -647,7 +647,7 @@ void Dependence::dump(raw_ostream &OS) const {
 // tbaa, non-overlapping regions etc), then it is known there is no dependecy.
 // Otherwise the underlying objects are checked to see if they point to
 // different identifiable objects.
-static AliasResult underlyingObjectsAlias(AliasAnalysis *AA,
+static AliasResult underlyingObjectsAlias(AAResults *AA,
                                           const DataLayout &DL,
                                           const MemoryLocation &LocA,
                                           const MemoryLocation &LocB) {
@@ -659,8 +659,8 @@ static AliasResult underlyingObjectsAlias(AliasAnalysis *AA,
     return NoAlias;
 
   // Check the underlying objects are the same
-  const Value *AObj = GetUnderlyingObject(LocA.Ptr, DL);
-  const Value *BObj = GetUnderlyingObject(LocB.Ptr, DL);
+  const Value *AObj = getUnderlyingObject(LocA.Ptr);
+  const Value *BObj = getUnderlyingObject(LocB.Ptr);
 
   // If the underlying objects are the same, they must alias
   if (AObj == BObj)

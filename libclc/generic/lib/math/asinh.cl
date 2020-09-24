@@ -22,9 +22,9 @@
 
 #include <clc/clc.h>
 
-#include "math.h"
 #include "ep_log.h"
-#include "../clcmacro.h"
+#include "math.h"
+#include <clcmacro.h>
 
 _CLC_OVERLOAD _CLC_DEF float asinh(float x) {
     uint ux = as_uint(x);

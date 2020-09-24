@@ -8,8 +8,8 @@
 
 #include "GlobalCompilationDatabase.h"
 #include "FS.h"
-#include "Logger.h"
-#include "Path.h"
+#include "support/Logger.h"
+#include "support/Path.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Tooling/ArgumentsAdjusters.h"
 #include "clang/Tooling/CompilationDatabase.h"
@@ -110,14 +110,24 @@ static bool pathEqual(PathRef A, PathRef B) {
 DirectoryBasedGlobalCompilationDatabase::CachedCDB &
 DirectoryBasedGlobalCompilationDatabase::getCDBInDirLocked(PathRef Dir) const {
   // FIXME(ibiryukov): Invalidate cached compilation databases on changes
-  // FIXME(sammccall): this function hot, avoid copying key when hitting cache.
   auto Key = maybeCaseFoldPath(Dir);
   auto R = CompilationDatabases.try_emplace(Key);
   if (R.second) { // Cache miss, try to load CDB.
     CachedCDB &Entry = R.first->second;
     std::string Error;
-    Entry.CDB = tooling::CompilationDatabase::loadFromDirectory(Dir, Error);
     Entry.Path = std::string(Dir);
+    Entry.CDB = tooling::CompilationDatabase::loadFromDirectory(Dir, Error);
+    // Check for $src/build, the conventional CMake build root.
+    // Probe existence first to avoid each plugin doing IO if it doesn't exist.
+    if (!CompileCommandsDir && !Entry.CDB) {
+      llvm::SmallString<256> BuildDir = Dir;
+      llvm::sys::path::append(BuildDir, "build");
+      if (llvm::sys::fs::is_directory(BuildDir)) {
+        vlog("Found candidate build directory {0}", BuildDir);
+        Entry.CDB =
+            tooling::CompilationDatabase::loadFromDirectory(BuildDir, Error);
+      }
+    }
     if (Entry.CDB)
       log("Loaded compilation database from {0}", Dir);
   }
@@ -288,15 +298,11 @@ void OverlayCDB::setCompileCommand(
 }
 
 llvm::Optional<ProjectInfo> OverlayCDB::getProjectInfo(PathRef File) const {
-  {
-    std::lock_guard<std::mutex> Lock(Mutex);
-    auto It = Commands.find(removeDots(File));
-    if (It != Commands.end())
-      return ProjectInfo{};
-  }
+  // It wouldn't make much sense to treat files with overridden commands
+  // specially when we can't do the same for the (unknown) local headers they
+  // include or changing behavior mid-air after receiving an override.
   if (Base)
     return Base->getProjectInfo(File);
-
   return llvm::None;
 }
 } // namespace clangd

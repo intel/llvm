@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "TGLexer.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Config/config.h" // for strtoull()/strtoll() define
@@ -160,7 +161,6 @@ tgtok::TokKind TGLexer::LexToken(bool FileOrLineStart) {
 
   case ':': return tgtok::colon;
   case ';': return tgtok::semi;
-  case '.': return tgtok::period;
   case ',': return tgtok::comma;
   case '<': return tgtok::less;
   case '>': return tgtok::greater;
@@ -179,6 +179,19 @@ tgtok::TokKind TGLexer::LexToken(bool FileOrLineStart) {
     }
 
     return tgtok::paste;
+
+  // The period is a separate case so we can recognize the "..."
+  // range punctuator.
+  case '.':
+    if (peekNextChar(0) == '.') {
+      ++CurPtr; // Eat second dot.
+      if (peekNextChar(0) == '.') {
+        ++CurPtr; // Eat third dot.
+        return tgtok::dotdotdot;
+      }
+      return ReturnError(TokStart, "Invalid '..' punctuation");
+    }
+    return tgtok::dot;
 
   case '\r':
     PrintFatalError("getNextChar() must never return '\r'");

@@ -31,6 +31,7 @@ class raw_ostream;
 template <typename T> class SmallVectorImpl;
 template <typename T> class ArrayRef;
 template <typename T> class Optional;
+template <typename T> struct DenseMapInfo;
 
 class APInt;
 
@@ -84,7 +85,7 @@ public:
     UP,
   };
 
-  static const WordType WORDTYPE_MAX = ~WordType(0);
+  static constexpr WordType WORDTYPE_MAX = ~WordType(0);
 
 private:
   /// This union is used to store the integer value. When the
@@ -96,7 +97,7 @@ private:
 
   unsigned BitWidth; ///< The number of bits in this APInt.
 
-  friend struct DenseMapAPIntKeyInfo;
+  friend struct DenseMapInfo<APInt>;
 
   friend class APSInt;
 
@@ -616,9 +617,11 @@ public:
   }
 
   /// Wrap version of getBitsSet.
-  /// If \p hiBit is no less than \p loBit, this is same with getBitsSet.
-  /// If \p hiBit is less than \p loBit, the set bits "wrap". For example, with
-  /// parameters (32, 28, 4), you would get 0xF000000F.
+  /// If \p hiBit is bigger than \p loBit, this is same with getBitsSet.
+  /// If \p hiBit is not bigger than \p loBit, the set bits "wrap". For example,
+  /// with parameters (32, 28, 4), you would get 0xF000000F.
+  /// If \p hiBit is equal to \p loBit, you would get a result with all bits
+  /// set.
   static APInt getBitsSetWithWrap(unsigned numBits, unsigned loBit,
                                   unsigned hiBit) {
     APInt Res(numBits, 0);
@@ -762,8 +765,8 @@ public:
 
   /// Move assignment operator.
   APInt &operator=(APInt &&that) {
-#ifdef _MSC_VER
-    // The MSVC std::shuffle implementation still does self-assignment.
+#ifdef EXPENSIVE_CHECKS
+    // Some std::shuffle implementations still do self-assignment.
     if (this == &that)
       return *this;
 #endif
@@ -1447,13 +1450,22 @@ public:
     setBit(BitWidth - 1);
   }
 
+  /// Set a given bit to a given value.
+  void setBitVal(unsigned BitPosition, bool BitValue) {
+    if (BitValue)
+      setBit(BitPosition);
+    else
+      clearBit(BitPosition);
+  }
+
   /// Set the bits from loBit (inclusive) to hiBit (exclusive) to 1.
-  /// This function handles "wrap" case when \p loBit > \p hiBit, and calls
-  /// setBits when \p loBit <= \p hiBit.
+  /// This function handles "wrap" case when \p loBit >= \p hiBit, and calls
+  /// setBits when \p loBit < \p hiBit.
+  /// For \p loBit == \p hiBit wrap case, set every bit to 1.
   void setBitsWithWrap(unsigned loBit, unsigned hiBit) {
     assert(hiBit <= BitWidth && "hiBit out of range");
     assert(loBit <= BitWidth && "loBit out of range");
-    if (loBit <= hiBit) {
+    if (loBit < hiBit) {
       setBits(loBit, hiBit);
       return;
     }
@@ -2283,7 +2295,7 @@ void StoreIntToMemory(const APInt &IntVal, uint8_t *Dst, unsigned StoreBytes);
 
 /// LoadIntFromMemory - Loads the integer stored in the LoadBytes bytes starting
 /// from Src into IntVal, which is assumed to be wide enough and to hold zero.
-void LoadIntFromMemory(APInt &IntVal, uint8_t *Src, unsigned LoadBytes);
+void LoadIntFromMemory(APInt &IntVal, const uint8_t *Src, unsigned LoadBytes);
 
 } // namespace llvm
 

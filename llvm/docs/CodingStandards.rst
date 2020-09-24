@@ -174,6 +174,16 @@ used as an abstract.  Any additional information should be separated by a blank
 line.  If an algorithm is based on a paper or is described in another source,
 provide a reference.
 
+Header Guard
+""""""""""""
+
+The header file's guard should be the all-caps path that a user of this header
+would #include, using '_' instead of path separator and extension marker. 
+For example, the header file
+``llvm/include/llvm/Analysis/Utils/Local.h`` would be ``#include``-ed as 
+``#include "llvm/Analysis/Utils/Local.h"``, so its guard is 
+``LLVM_ANALYSIS_UTILS_LOCAL_H``.
+
 Class overviews
 """""""""""""""
 
@@ -319,6 +329,46 @@ Preferred:
 
   /// Builds a B-tree in order to do foo.  See paper by...
   void example() { ... }
+
+Error and Warning Messages
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Clear diagnostic messages are important to help users identify and fix issues in
+their inputs. Use succinct but correct English prose that gives the user the
+context needed to understand what went wrong. Also, to match error message
+styles commonly produced by other tools, start the first sentence with a
+lower-case letter, and finish the last sentence without a period, if it would
+end in one otherwise. Sentences which end with different punctuation, such as
+"did you forget ';'?", should still do so.
+
+For example this is a good error message:
+
+.. code-block:: none
+
+  error: file.o: section header 3 is corrupt. Size is 10 when it should be 20
+
+This is a bad message, since it does not provide useful information and uses the
+wrong style:
+
+.. code-block:: none
+
+  error: file.o: Corrupt section header.
+
+As with other coding standards, individual projects, such as the Clang Static
+Analyzer, may have preexisting styles that do not conform to this. If a
+different formatting scheme is used consistently throughout the project, use
+that style instead. Otherwise, this standard applies to all LLVM tools,
+including clang, clang-tidy, and so on.
+
+If the tool or project does not have existing functions to emit warnings or
+errors, use the error and warning handlers provided in ``Support/WithColor.h``
+to ensure they are printed in the appropriate style, rather than printing to
+stderr directly.
+
+When using ``report_fatal_error``, follow the same standards for the message as
+regular error messages. Assertion messages and ``llvm_unreachable`` calls do not
+necessarily need to follow these same styles as they are automatically
+formatted, and thus these guidelines may not be suitable.
 
 ``#include`` Style
 ^^^^^^^^^^^^^^^^^^
@@ -629,15 +679,15 @@ copy.
 .. code-block:: c++
 
   // Typically there's no reason to copy.
-  for (const auto &Val : Container) { observe(Val); }
-  for (auto &Val : Container) { Val.change(); }
+  for (const auto &Val : Container) observe(Val);
+  for (auto &Val : Container) Val.change();
 
   // Remove the reference if you really want a new copy.
   for (auto Val : Container) { Val.change(); saveSomewhere(Val); }
 
   // Copy pointers, but make it clear that they're pointers.
-  for (const auto *Ptr : Container) { observe(*Ptr); }
-  for (auto *Ptr : Container) { Ptr->change(); }
+  for (const auto *Ptr : Container) observe(*Ptr);
+  for (auto *Ptr : Container) Ptr->change();
 
 Beware of non-determinism due to ordering of pointers
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -844,7 +894,7 @@ It is much preferred to format the code like this:
 .. code-block:: c++
 
   Value *doSomething(Instruction *I) {
-    // Terminators never need 'something' done to them because ... 
+    // Terminators never need 'something' done to them because ...
     if (I->isTerminator())
       return 0;
 
@@ -856,7 +906,7 @@ It is much preferred to format the code like this:
     // This is really just here for example.
     if (!doOtherThing(I))
       return 0;
-    
+
     ... some long code ....
   }
 
@@ -960,7 +1010,7 @@ Or better yet (in this case) as:
       Type = Context.getsigjmp_bufType();
     else
       Type = Context.getjmp_bufType();
-    
+
     if (Type.isNull()) {
       Error = Signed ? ASTContext::GE_Missing_sigjmp_buf :
                        ASTContext::GE_Missing_jmp_buf;
@@ -970,7 +1020,7 @@ Or better yet (in this case) as:
 
 The idea is to reduce indentation and the amount of code you have to keep track
 of when reading the code.
-              
+
 Turn Predicate Loops into Predicate Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1041,7 +1091,7 @@ In general, names should be in camel case (e.g. ``TextFileReader`` and
 * **Variable names** should be nouns (as they represent state).  The name should
   be camel case, and start with an upper case letter (e.g. ``Leader`` or
   ``Boats``).
-  
+
 * **Function names** should be verb phrases (as they represent actions), and
   command-like function should be imperative.  The name should be camel case,
   and start with a lower case letter (e.g. ``openFile()`` or ``isFoo()``).
@@ -1051,7 +1101,7 @@ In general, names should be in camel case (e.g. ``TextFileReader`` and
   discriminator for a union, or an indicator of a subclass.  When an enum is
   used for something like this, it should have a ``Kind`` suffix
   (e.g. ``ValueKind``).
-  
+
 * **Enumerators** (e.g. ``enum { Foo, Bar }``) and **public member variables**
   should start with an upper-case letter, just like types.  Unless the
   enumerators are defined in their own small namespace or inside a class,
@@ -1067,7 +1117,7 @@ In general, names should be in camel case (e.g. ``TextFileReader`` and
         MaxSize = 42,
         Density = 12
       };
-  
+
 As an exception, classes that mimic STL classes can have member names in STL's
 style of lower-case words separated by underscores (e.g. ``begin()``,
 ``push_back()``, and ``empty()``). Classes that provide multiple
@@ -1153,8 +1203,14 @@ builds), ``llvm_unreachable`` becomes a hint to compilers to skip generating
 code for this branch. If the compiler does not support this, it will fall back
 to the "abort" implementation.
 
-Neither assertions or ``llvm_unreachable`` will abort the program on a release
-build. If the error condition can be triggered by user input then the
+Use ``llvm_unreachable`` to mark a specific point in code that should never be
+reached. This is especially desirable for addressing warnings about unreachable
+branches, etc., but can be used whenever reaching a particular code path is
+unconditionally a bug (not originating from user input; see below) of some kind.
+Use of ``assert`` should always include a testable predicate (as opposed to
+``assert(false)``).
+
+If the error condition can be triggered by user input then the
 recoverable error mechanism described in :doc:`ProgrammersManual` should be
 used instead. In cases where this is not practical, ``report_fatal_error`` may
 be used.
@@ -1256,6 +1312,9 @@ loops wherever possible for all newly added code. For example:
   for (Instruction &I : *BB)
     ... use I ...
 
+Usage of ``std::for_each()``/``llvm::for_each()`` functions is discouraged,
+unless the the callable object already exists.
+
 Don't evaluate ``end()`` every time through a loop
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1313,7 +1372,7 @@ prefer it.
 The use of ``#include <iostream>`` in library files is hereby **forbidden**,
 because many common implementations transparently inject a `static constructor`_
 into every translation unit that includes it.
-  
+
 Note that using the other stream headers (``<sstream>`` for example) is not
 problematic in this regard --- just ``<iostream>``. However, ``raw_ostream``
 provides various APIs that are better performing for almost every use than
@@ -1445,7 +1504,7 @@ being closed by a ``}``.  For example:
   public:
     explicit Grokable() { ... }
     virtual ~Grokable() = 0;
-  
+
     ...
 
   };
@@ -1494,8 +1553,8 @@ as possible, and only use them for class declarations.  For example:
   };
   } // end anonymous namespace
 
-  static void runHelper() { 
-    ... 
+  static void runHelper() {
+    ...
   }
 
   bool StringSort::operator<(const char *RHS) const {
@@ -1522,6 +1581,101 @@ When you are looking at "``runHelper``" in the middle of a large C++ file,
 you have no immediate way to tell if this function is local to the file.  In
 contrast, when the function is marked static, you don't need to cross-reference
 faraway places in the file to tell that the function is local.
+
+Don't Use Braces on Simple Single-Statement Bodies of if/else/loop Statements
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When writing the body of an ``if``, ``else``, or loop statement, we prefer to
+omit the braces to avoid unnecessary line noise. However, braces should be used
+in cases where the omission of braces harm the readability and maintainability
+of the code.
+
+We consider that readability is harmed when omitting the brace in the presence
+of a single statement that is accompanied by a comment (assuming the comment
+can't be hoisted above the ``if`` or loop statement, see below).
+Similarly, braces should be used when a single-statement body is complex enough
+that it becomes difficult to see where the block containing the following
+statement began. An ``if``/``else`` chain or a loop is considered a single
+statement for this rule, and this rule applies recursively.
+
+This list is not exhaustive, for example, readability is also harmed if an
+``if``/``else`` chain does not use braced bodies for either all or none of its
+members, with complex conditionals, deep nesting, etc. The examples below
+intend to provide some guidelines.
+
+Maintainability is harmed if the body of an ``if`` ends with a (directly or
+indirectly) nested ``if`` statement with no ``else``. Braces on the outer ``if``
+would help to avoid running into a "dangling else" situation.
+
+
+.. code-block:: c++
+
+  // Omit the braces, since the body is simple and clearly associated with the if.
+  if (isa<FunctionDecl>(D))
+    handleFunctionDecl(D);
+  else if (isa<VarDecl>(D))
+    handleVarDecl(D);
+
+
+  // Here we document the condition itself and not the body.
+  if (isa<VarDecl>(D)) {
+    // It is necessary that we explain the situation with this surprisingly long
+    // comment, so it would be unclear without the braces whether the following
+    // statement is in the scope of the `if`.
+    // Because the condition is documented, we can't really hoist this
+    // comment that applies to the body above the if.
+    handleOtherDecl(D);
+  }
+
+  // Use braces on the outer `if` to avoid a potential dangling else situation.
+  if (isa<VarDecl>(D)) {
+    for (auto *A : D.attrs())
+      if (shouldProcessAttr(A))
+        handleAttr(A);
+  }
+
+  // Use braces for the `if` block to keep it uniform with the else block.
+  if (isa<FunctionDecl>(D)) {
+    handleFunctionDecl(D);
+  } else {
+    // In this else case, it is necessary that we explain the situation with this
+    // surprisingly long comment, so it would be unclear without the braces whether
+    // the following statement is in the scope of the `if`.
+    handleOtherDecl(D);
+  }
+
+  // This should also omit braces.  The `for` loop contains only a single statement,
+  // so it shouldn't have braces.  The `if` also only contains a single simple
+  // statement (the for loop), so it also should omit braces.
+  if (isa<FunctionDecl>(D))
+    for (auto *A : D.attrs())
+      handleAttr(A);
+
+  // Use braces for the outer `if` since the nested `for` is braced.
+  if (isa<FunctionDecl>(D)) {
+    for (auto *A : D.attrs()) {
+      // In this for loop body, it is necessary that we explain the situation
+      // with this surprisingly long comment, forcing braces on the `for` block.
+      handleAttr(A);
+    }
+  }
+
+  // Use braces on the outer block because there are more than two levels of nesting.
+  if (isa<FunctionDecl>(D)) {
+    for (auto *A : D.attrs())
+      for (ssize_t i : llvm::seq<ssize_t>(count))
+         handleAttrOnDecl(D, A, i);
+  }
+
+  // Use braces on the outer block because of a nested `if`, otherwise the
+  // compiler would warn: `add explicit braces to avoid dangling else`
+  if (auto *D = dyn_cast<FunctionDecl>(D)) {
+    if (shouldProcess(D))
+      handleVarDecl(D);
+    else
+      markAsIgnored(D);
+  }
+
 
 See Also
 ========

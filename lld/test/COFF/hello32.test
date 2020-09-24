@@ -1,4 +1,4 @@
-# RUN: yaml2obj < %p/Inputs/hello32.yaml > %t.obj
+# RUN: yaml2obj %p/Inputs/hello32.yaml -o %t.obj
 # RUN: lld-link -safeseh:no %t.obj %p/Inputs/std32.lib /subsystem:console \
 # RUN:   /entry:main@0 /out:%t.exe /appcontainer
 # RUN: llvm-readobj --file-headers %t.exe | FileCheck -check-prefix=HEADER %s
@@ -14,6 +14,7 @@ HEADER-NEXT:   SectionCount: 4
 HEADER-NEXT:   TimeDateStamp: 
 HEADER-NEXT:   PointerToSymbolTable: 0x0
 HEADER-NEXT:   SymbolCount: 0
+HEADER-NEXT:   StringTableSize: 0
 HEADER-NEXT:   OptionalHeaderSize: 224
 HEADER-NEXT:   Characteristics [ (0x102)
 HEADER-NEXT:     IMAGE_FILE_32BIT_MACHINE (0x100)

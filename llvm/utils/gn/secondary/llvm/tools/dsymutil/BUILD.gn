@@ -23,13 +23,13 @@ executable("dsymutil") {
     "CFBundle.cpp",
     "DebugMap.cpp",
     "DwarfLinkerForBinary.cpp",
-    "DwarfStreamer.cpp",
     "MachODebugMapParser.cpp",
     "MachOUtils.cpp",
+    "Reproducer.cpp",
     "SymbolMap.cpp",
     "dsymutil.cpp",
   ]
   if (host_os == "mac") {
-    libs = [ "CoreFoundation.framework" ]
+    frameworks = [ "CoreFoundation.framework" ]
   }
 }

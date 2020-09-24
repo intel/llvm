@@ -96,6 +96,7 @@ LiveDebugVariables::LiveDebugVariables() : MachineFunctionPass(ID) {
 
 enum : unsigned { UndefLocNo = ~0U };
 
+namespace {
 /// Describes a debug variable value by location number and expression along
 /// with some flags about the original usage of the location.
 class DbgVariableValue {
@@ -136,6 +137,7 @@ private:
   unsigned WasIndirect : 1;
   const DIExpression *Expression = nullptr;
 };
+} // namespace
 
 /// Map of where a user value is live to that value.
 using LocMap = IntervalMap<SlotIndex, DbgVariableValue, 4>;
@@ -154,9 +156,8 @@ class LDVImpl;
 /// holds part of a user variable. The part is identified by a byte offset.
 ///
 /// UserValues are grouped into equivalence classes for easier searching. Two
-/// user values are related if they refer to the same variable, or if they are
-/// held by the same virtual register. The equivalence class is the transitive
-/// closure of that relation.
+/// user values are related if they are held by the same virtual register. The
+/// equivalence class is the transitive closure of that relation.
 class UserValue {
   const DILocalVariable *Variable; ///< The debug info variable we are part of.
   /// The part of the variable we describe.
@@ -185,7 +186,7 @@ class UserValue {
 
   /// Replace OldLocNo ranges with NewRegs ranges where NewRegs
   /// is live. Returns true if any changes were made.
-  bool splitLocation(unsigned OldLocNo, ArrayRef<unsigned> NewRegs,
+  bool splitLocation(unsigned OldLocNo, ArrayRef<Register> NewRegs,
                      LiveIntervals &LIS);
 
 public:
@@ -206,24 +207,6 @@ public:
 
   /// Return the next UserValue in the equivalence class.
   UserValue *getNext() const { return next; }
-
-  /// Does this UserValue match the parameters?
-  bool matches(const DILocalVariable *Var,
-             Optional<DIExpression::FragmentInfo> OtherFragment,
-             const DILocation *IA) const {
-    // FIXME: Handle partially overlapping fragments.
-    // A DBG_VALUE with a fragment which overlaps a previous DBG_VALUE fragment
-    // for the same variable terminates the interval opened by the first.
-    // getUserValue() uses matches() to filter DBG_VALUEs into interval maps to
-    // represent these intervals.
-    // Given two _partially_ overlapping fragments matches() will always return
-    // false. The DBG_VALUEs will be filtered into separate interval maps and
-    // therefore we do not faithfully represent the original intervals.
-    // See D70121#1849741 for a more detailed explanation and further
-    // discussion.
-    return Var == Variable && OtherFragment == Fragment &&
-           dl->getInlinedAt() == IA;
-  }
 
   /// Merge equivalence classes.
   static UserValue *merge(UserValue *L1, UserValue *L2) {
@@ -351,7 +334,7 @@ public:
 
   /// Replace OldReg ranges with NewRegs ranges where NewRegs is
   /// live. Returns true if any changes were made.
-  bool splitRegister(unsigned OldReg, ArrayRef<unsigned> NewRegs,
+  bool splitRegister(Register OldReg, ArrayRef<Register> NewRegs,
                      LiveIntervals &LIS);
 
   /// Rewrite virtual register locations according to the provided virtual
@@ -429,8 +412,8 @@ class LDVImpl {
   using VRMap = DenseMap<unsigned, UserValue *>;
   VRMap virtRegToEqClass;
 
-  /// Map user variable to eq class leader.
-  using UVMap = DenseMap<const DILocalVariable *, UserValue *>;
+  /// Map to find existing UserValue instances.
+  using UVMap = DenseMap<DebugVariable, UserValue *>;
   UVMap userVarMap;
 
   /// Find or create a UserValue.
@@ -439,7 +422,7 @@ class LDVImpl {
                           const DebugLoc &DL);
 
   /// Find the EC leader for VirtReg or null.
-  UserValue *lookupVirtReg(unsigned VirtReg);
+  UserValue *lookupVirtReg(Register VirtReg);
 
   /// Add DBG_VALUE instruction to our maps.
   ///
@@ -489,10 +472,10 @@ public:
   }
 
   /// Map virtual register to an equivalence class.
-  void mapVirtReg(unsigned VirtReg, UserValue *EC);
+  void mapVirtReg(Register VirtReg, UserValue *EC);
 
   /// Replace all references to OldReg with NewRegs.
-  void splitRegister(unsigned OldReg, ArrayRef<unsigned> NewRegs);
+  void splitRegister(Register OldReg, ArrayRef<Register> NewRegs);
 
   /// Recreate DBG_VALUE instruction from data structures.
   void emitDebugValues(VirtRegMap *VRM);
@@ -600,29 +583,25 @@ void UserValue::mapVirtRegs(LDVImpl *LDV) {
 UserValue *LDVImpl::getUserValue(const DILocalVariable *Var,
                                  Optional<DIExpression::FragmentInfo> Fragment,
                                  const DebugLoc &DL) {
-  UserValue *&Leader = userVarMap[Var];
-  if (Leader) {
-    UserValue *UV = Leader->getLeader();
-    Leader = UV;
-    for (; UV; UV = UV->getNext())
-      if (UV->matches(Var, Fragment, DL->getInlinedAt()))
-        return UV;
+  // FIXME: Handle partially overlapping fragments. See
+  // https://reviews.llvm.org/D70121#1849741.
+  DebugVariable ID(Var, Fragment, DL->getInlinedAt());
+  UserValue *&UV = userVarMap[ID];
+  if (!UV) {
+    userValues.push_back(
+        std::make_unique<UserValue>(Var, Fragment, DL, allocator));
+    UV = userValues.back().get();
   }
-
-  userValues.push_back(
-      std::make_unique<UserValue>(Var, Fragment, DL, allocator));
-  UserValue *UV = userValues.back().get();
-  Leader = UserValue::merge(Leader, UV);
   return UV;
 }
 
-void LDVImpl::mapVirtReg(unsigned VirtReg, UserValue *EC) {
+void LDVImpl::mapVirtReg(Register VirtReg, UserValue *EC) {
   assert(Register::isVirtualRegister(VirtReg) && "Only map VirtRegs");
   UserValue *&Leader = virtRegToEqClass[VirtReg];
   Leader = UserValue::merge(Leader, EC);
 }
 
-UserValue *LDVImpl::lookupVirtReg(unsigned VirtReg) {
+UserValue *LDVImpl::lookupVirtReg(Register VirtReg) {
   if (UserValue *UV = virtRegToEqClass.lookup(VirtReg))
     return UV->getLeader();
   return nullptr;
@@ -631,8 +610,8 @@ UserValue *LDVImpl::lookupVirtReg(unsigned VirtReg) {
 bool LDVImpl::handleDebugValue(MachineInstr &MI, SlotIndex Idx) {
   // DBG_VALUE loc, offset, variable
   if (MI.getNumOperands() != 4 ||
-      !(MI.getOperand(1).isReg() || MI.getOperand(1).isImm()) ||
-      !MI.getOperand(2).isMetadata()) {
+      !(MI.getDebugOffset().isReg() || MI.getDebugOffset().isImm()) ||
+      !MI.getDebugVariableOp().isMetadata()) {
     LLVM_DEBUG(dbgs() << "Can't handle " << MI);
     return false;
   }
@@ -645,9 +624,9 @@ bool LDVImpl::handleDebugValue(MachineInstr &MI, SlotIndex Idx) {
   // (and if the machine verifier is improved to catch this), then these checks
   // could be removed or replaced by asserts.
   bool Discard = false;
-  if (MI.getOperand(0).isReg() &&
-      Register::isVirtualRegister(MI.getOperand(0).getReg())) {
-    const Register Reg = MI.getOperand(0).getReg();
+  if (MI.getDebugOperand(0).isReg() &&
+      Register::isVirtualRegister(MI.getDebugOperand(0).getReg())) {
+    const Register Reg = MI.getDebugOperand(0).getReg();
     if (!LIS->hasInterval(Reg)) {
       // The DBG_VALUE is described by a virtual register that does not have a
       // live interval. Discard the DBG_VALUE.
@@ -671,14 +650,15 @@ bool LDVImpl::handleDebugValue(MachineInstr &MI, SlotIndex Idx) {
   }
 
   // Get or create the UserValue for (variable,offset) here.
-  bool IsIndirect = MI.getOperand(1).isImm();
+  bool IsIndirect = MI.isDebugOffsetImm();
   if (IsIndirect)
-    assert(MI.getOperand(1).getImm() == 0 && "DBG_VALUE with nonzero offset");
+    assert(MI.getDebugOffset().getImm() == 0 &&
+           "DBG_VALUE with nonzero offset");
   const DILocalVariable *Var = MI.getDebugVariable();
   const DIExpression *Expr = MI.getDebugExpression();
   UserValue *UV = getUserValue(Var, Expr->getFragmentInfo(), MI.getDebugLoc());
   if (!Discard)
-    UV->addDef(Idx, MI.getOperand(0), IsIndirect, *Expr);
+    UV->addDef(Idx, MI.getDebugOperand(0), IsIndirect, *Expr);
   else {
     MachineOperand MO = MachineOperand::CreateReg(0U, false);
     MO.setIsDebug();
@@ -1052,7 +1032,7 @@ LiveDebugVariables::~LiveDebugVariables() {
 //===----------------------------------------------------------------------===//
 
 bool
-UserValue::splitLocation(unsigned OldLocNo, ArrayRef<unsigned> NewRegs,
+UserValue::splitLocation(unsigned OldLocNo, ArrayRef<Register> NewRegs,
                          LiveIntervals& LIS) {
   LLVM_DEBUG({
     dbgs() << "Splitting Loc" << OldLocNo << '\t';
@@ -1152,7 +1132,7 @@ UserValue::splitLocation(unsigned OldLocNo, ArrayRef<unsigned> NewRegs,
 }
 
 bool
-UserValue::splitRegister(unsigned OldReg, ArrayRef<unsigned> NewRegs,
+UserValue::splitRegister(Register OldReg, ArrayRef<Register> NewRegs,
                          LiveIntervals &LIS) {
   bool DidChange = false;
   // Split locations referring to OldReg. Iterate backwards so splitLocation can
@@ -1167,7 +1147,7 @@ UserValue::splitRegister(unsigned OldReg, ArrayRef<unsigned> NewRegs,
   return DidChange;
 }
 
-void LDVImpl::splitRegister(unsigned OldReg, ArrayRef<unsigned> NewRegs) {
+void LDVImpl::splitRegister(Register OldReg, ArrayRef<Register> NewRegs) {
   bool DidChange = false;
   for (UserValue *UV = lookupVirtReg(OldReg); UV; UV = UV->getNext())
     DidChange |= UV->splitRegister(OldReg, NewRegs, *LIS);
@@ -1182,7 +1162,7 @@ void LDVImpl::splitRegister(unsigned OldReg, ArrayRef<unsigned> NewRegs) {
 }
 
 void LiveDebugVariables::
-splitRegister(unsigned OldReg, ArrayRef<unsigned> NewRegs, LiveIntervals &LIS) {
+splitRegister(Register OldReg, ArrayRef<Register> NewRegs, LiveIntervals &LIS) {
   if (pImpl)
     static_cast<LDVImpl*>(pImpl)->splitRegister(OldReg, NewRegs);
 }
@@ -1462,10 +1442,6 @@ void LDVImpl::emitDebugValues(VirtRegMap *VRM) {
 void LiveDebugVariables::emitDebugValues(VirtRegMap *VRM) {
   if (pImpl)
     static_cast<LDVImpl*>(pImpl)->emitDebugValues(VRM);
-}
-
-bool LiveDebugVariables::doInitialization(Module &M) {
-  return Pass::doInitialization(M);
 }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)

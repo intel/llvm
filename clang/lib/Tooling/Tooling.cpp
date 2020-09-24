@@ -141,11 +141,13 @@ namespace clang {
 namespace tooling {
 
 /// Returns a clang build invocation initialized from the CC1 flags.
-CompilerInvocation *newInvocation(
-    DiagnosticsEngine *Diagnostics, const llvm::opt::ArgStringList &CC1Args) {
+CompilerInvocation *newInvocation(DiagnosticsEngine *Diagnostics,
+                                  const llvm::opt::ArgStringList &CC1Args,
+                                  const char *const BinaryName) {
   assert(!CC1Args.empty() && "Must at least contain the program name!");
   CompilerInvocation *Invocation = new CompilerInvocation;
-  CompilerInvocation::CreateFromArgs(*Invocation, CC1Args, *Diagnostics);
+  CompilerInvocation::CreateFromArgs(*Invocation, CC1Args, *Diagnostics,
+                                     BinaryName);
   Invocation->getFrontendOpts().DisableFree = false;
   Invocation->getCodeGenOpts().DisableFree = false;
   return Invocation;
@@ -243,27 +245,38 @@ std::string getAbsolutePath(StringRef File) {
 
 void addTargetAndModeForProgramName(std::vector<std::string> &CommandLine,
                                     StringRef InvokedAs) {
-  if (!CommandLine.empty() && !InvokedAs.empty()) {
-    bool AlreadyHasTarget = false;
-    bool AlreadyHasMode = false;
-    // Skip CommandLine[0].
-    for (auto Token = ++CommandLine.begin(); Token != CommandLine.end();
-         ++Token) {
-      StringRef TokenRef(*Token);
-      AlreadyHasTarget |=
-          (TokenRef == "-target" || TokenRef.startswith("-target="));
-      AlreadyHasMode |= (TokenRef == "--driver-mode" ||
-                         TokenRef.startswith("--driver-mode="));
-    }
-    auto TargetMode =
-        driver::ToolChain::getTargetAndModeFromProgramName(InvokedAs);
-    if (!AlreadyHasMode && TargetMode.DriverMode) {
-      CommandLine.insert(++CommandLine.begin(), TargetMode.DriverMode);
-    }
-    if (!AlreadyHasTarget && TargetMode.TargetIsValid) {
-      CommandLine.insert(++CommandLine.begin(), {"-target",
-                                                 TargetMode.TargetPrefix});
-    }
+  if (CommandLine.empty() || InvokedAs.empty())
+    return;
+  const auto &Table = driver::getDriverOptTable();
+  // --target=X
+  const std::string TargetOPT =
+      Table.getOption(driver::options::OPT_target).getPrefixedName();
+  // -target X
+  const std::string TargetOPTLegacy =
+      Table.getOption(driver::options::OPT_target_legacy_spelling)
+          .getPrefixedName();
+  // --driver-mode=X
+  const std::string DriverModeOPT =
+      Table.getOption(driver::options::OPT_driver_mode).getPrefixedName();
+  auto TargetMode =
+      driver::ToolChain::getTargetAndModeFromProgramName(InvokedAs);
+  // No need to search for target args if we don't have a target/mode to insert.
+  bool ShouldAddTarget = TargetMode.TargetIsValid;
+  bool ShouldAddMode = TargetMode.DriverMode != nullptr;
+  // Skip CommandLine[0].
+  for (auto Token = ++CommandLine.begin(); Token != CommandLine.end();
+       ++Token) {
+    StringRef TokenRef(*Token);
+    ShouldAddTarget = ShouldAddTarget && !TokenRef.startswith(TargetOPT) &&
+                      !TokenRef.equals(TargetOPTLegacy);
+    ShouldAddMode = ShouldAddMode && !TokenRef.startswith(DriverModeOPT);
+  }
+  if (ShouldAddMode) {
+    CommandLine.insert(++CommandLine.begin(), TargetMode.DriverMode);
+  }
+  if (ShouldAddTarget) {
+    CommandLine.insert(++CommandLine.begin(),
+                       TargetOPT + TargetMode.TargetPrefix);
   }
 }
 
@@ -345,7 +358,7 @@ bool ToolInvocation::run() {
   if (!CC1Args)
     return false;
   std::unique_ptr<CompilerInvocation> Invocation(
-      newInvocation(&Diagnostics, *CC1Args));
+      newInvocation(&Diagnostics, *CC1Args, BinaryName));
   // FIXME: remove this when all users have migrated!
   for (const auto &It : MappedFileContents) {
     // Inject the code as the given file name into the preprocessor options.

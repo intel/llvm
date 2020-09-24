@@ -27,20 +27,14 @@
 ; RUN:     -passes='thinlto-pre-link<O2>,name-anon-globals' -S  %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefixes=CHECK-DIS,CHECK-O,CHECK-O2,CHECK-O23SZ,CHECK-O123 --dump-input=fail
 ;
-; CHECK-O: Running analysis: PassInstrumentationAnalysis
-; CHECK-O-NEXT: Starting {{.*}}Module pass manager run.
-; CHECK-O-NEXT: Running pass: PassManager<{{.*}}Module{{.*}}>
+; CHECK-O: Starting {{.*}}Module pass manager run.
 ; CHECK-O-NEXT: Starting {{.*}}Module pass manager run.
 ; CHECK-O-NEXT: Running pass: ForceFunctionAttrsPass
 ; CHECK-EP-PIPELINE-START-NEXT: Running pass: NoOpModulePass
-; CHECK-O-NEXT: Running pass: PassManager<{{.*}}Module{{.*}}>
 ; CHECK-O-NEXT: Starting {{.*}}Module pass manager run.
 ; CHECK-O-NEXT: Running pass: InferFunctionAttrsPass
 ; CHECK-O-NEXT: Running analysis: InnerAnalysisManagerProxy
 ; CHECK-O-NEXT: Running analysis: TargetLibraryAnalysis
-; CHECK-O-NEXT: Running analysis: PassInstrumentationAnalysis
-; CHECK-O-NEXT: Running pass: ModuleToFunctionPassAdaptor<{{.*}}PassManager{{.*}}>
-; CHECK-O-NEXT: Running analysis: PassInstrumentationAnalysis
 ; CHECK-O-NEXT: Starting {{.*}}Function pass manager run.
 ; CHECK-O-NEXT: Running pass: SimplifyCFGPass
 ; CHECK-O-NEXT: Running analysis: TargetIRAnalysis
@@ -52,13 +46,11 @@
 ; CHECK-O-NEXT: Running pass: LowerExpectIntrinsicPass
 ; CHECK-O3-NEXT: Running pass: CallSiteSplittingPass
 ; CHECK-O-NEXT: Finished {{.*}}Function pass manager run.
-; CHECK-O-NEXT: Running pass: AttributorPass
 ; CHECK-O-NEXT: Running pass: IPSCCPPass
 ; CHECK-O-NEXT: Running pass: CalledValuePropagationPass
 ; CHECK-O-NEXT: Running pass: GlobalOptPass
-; CHECK-O-NEXT: Running pass: ModuleToFunctionPassAdaptor<{{.*}}PromotePass>
+; CHECK-O-NEXT: Running pass: PromotePass
 ; CHECK-O-NEXT: Running pass: DeadArgumentEliminationPass
-; CHECK-O-NEXT: Running pass: ModuleToFunctionPassAdaptor<{{.*}}PassManager{{.*}}>
 ; CHECK-O-NEXT: Starting {{.*}}Function pass manager run.
 ; CHECK-O-NEXT: Running pass: InstCombinePass
 ; CHECK-O-NEXT: Running analysis: OptimizationRemarkEmitterAnalysis
@@ -66,25 +58,30 @@
 ; CHECK-O-NEXT: Running analysis: OuterAnalysisManagerProxy
 ; CHECK-O-NEXT: Running pass: SimplifyCFGPass
 ; CHECK-O-NEXT: Finished {{.*}}Function pass manager run.
-; CHECK-O123-NEXT: Running pass: ModuleToPostOrderCGSCCPassAdaptor<{{.*}}PassManager<{{.*}}LazyCallGraph::SCC
+; CHECK-O123-NEXT: Running pass: ModuleInlinerWrapperPass
+; CHECK-O123-NEXT: Running analysis: InlineAdvisorAnalysis
+; CHECK-O123-NEXT: Starting {{.*}}Module pass manager run.
 ; CHECK-O123-NEXT: Running analysis: InnerAnalysisManagerProxy
 ; CHECK-O123-NEXT: Running analysis: LazyCallGraphAnalysis
 ; CHECK-O123-NEXT: Running analysis: FunctionAnalysisManagerCGSCCProxy on (foo)
-; CHECK-O123-NEXT: Running analysis: PassInstrumentationAnalysis on (foo)
 ; CHECK-O123-NEXT: Running analysis: OuterAnalysisManagerProxy
 ; CHECK-O123-NEXT: Starting CGSCC pass manager run.
 ; CHECK-O123-NEXT: Running pass: InlinerPass on (foo)
-; CHECK-O123-NEXT: Running pass: CGSCCToFunctionPassAdaptor<{{.*}}PassManager{{.*}}>
+; CHECK-O123-NEXT: Running pass: SROA on foo
+; CHECK-O123-NEXT: Running pass: EarlyCSEPass on foo
+; CHECK-O123-NEXT: Running pass: SimplifyCFGPass on foo
+; CHECK-O123-NEXT: Running pass: InstCombinePass on foo
 ; CHECK-O123-NEXT: Finished CGSCC pass manager run.
+; CHECK-O123-NEXT: Finished {{.*}}Module pass manager run.
 ; CHECK-O123-NEXT: Running pass: GlobalDCEPass
 ; CHECK-O-NEXT: Running pass: PGOInstrumentationUse
 ; CHECK-O-NEXT: Running analysis: ProfileSummaryAnalysis
 ; These next two can appear in any order since they are accessed as parameters
 ; on the same call to BlockFrequencyInfo::calculate.
 ; CHECK-O-DAG: Running analysis: BranchProbabilityAnalysis on foo
+; CHECK-O-DAG: Running analysis: PostDominatorTreeAnalysis on foo
 ; CHECK-O-DAG: Running analysis: LoopAnalysis on foo
 ; CHECK-O-NEXT: Running analysis: BlockFrequencyAnalysis on foo
-; CHECK-O-NEXT: Invalidating all non-preserved analyses for:
 ; CHECK-O-NEXT: Invalidating analysis: InnerAnalysisManagerProxy
 ; CHECK-O123-NEXT: Invalidating analysis: LazyCallGraphAnalysis on
 ; CHECK-O123-NEXT: Invalidating analysis: InnerAnalysisManagerProxy
@@ -92,28 +89,28 @@
 ; CHECK-O-NEXT: Running pass: PGOIndirectCallPromotion on
 ; CHECK-O-NEXT: Running analysis: InnerAnalysisManagerProxy
 ; CHECK-O-NEXT: Running analysis: OptimizationRemarkEmitterAnalysis on foo
-; CHECK-O-NEXT: Running analysis: PassInstrumentationAnalysis on foo
+; CHECK-O-NEXT: Running pass: ModuleInlinerWrapperPass
+; CHECK-Os-NEXT: Running analysis: InlineAdvisorAnalysis
+; CHECK-Oz-NEXT: Running analysis: InlineAdvisorAnalysis
+; CHECK-O-NEXT: Starting {{.*}}Module pass manager run.
 ; CHECK-O-NEXT: Running pass: RequireAnalysisPass<{{.*}}GlobalsAA
 ; CHECK-O-NEXT: Running analysis: GlobalsAA
 ; CHECK-O-NEXT: Running analysis: CallGraphAnalysis
 ; CHECK-O-NEXT: Running pass: RequireAnalysisPass<{{.*}}ProfileSummaryAnalysis
-; CHECK-O-NEXT: Running pass: ModuleToPostOrderCGSCCPassAdaptor<{{.*}}LazyCallGraph{{.*}}>
 ; CHECK-O-NEXT: Running analysis: InnerAnalysisManagerProxy
 ; CHECK-O-NEXT: Running analysis: LazyCallGraphAnalysis
 ; CHECK-O-NEXT: Running analysis: TargetLibraryAnalysis on foo
 ; CHECK-O-NEXT: Running analysis: FunctionAnalysisManagerCGSCCProxy
-; CHECK-O-NEXT: Running analysis: PassInstrumentationAnalysis
 ; CHECK-O-NEXT: Running analysis: OuterAnalysisManagerProxy<{{.*}}LazyCallGraph::SCC{{.*}}>
+; CHECK-O-NEXT: Running pass: DevirtSCCRepeatedPass
 ; CHECK-O-NEXT: Starting CGSCC pass manager run.
 ; CHECK-O-NEXT: Running pass: InlinerPass
-; CHECK-O-NEXT: Running pass: AttributorCGSCCPass
 ; CHECK-O-NEXT: Running pass: PostOrderFunctionAttrsPass
 ; CHECK-O-NEXT: Running analysis: AAManager on foo
 ; CHECK-O3-NEXT: Running pass: ArgumentPromotionPass
 ; CHECK-O3-NEXT: Running analysis: TargetIRAnalysis
 ; CHECK-O2-NEXT: Running pass: OpenMPOptPass
 ; CHECK-O3-NEXT: Running pass: OpenMPOptPass
-; CHECK-O-NEXT: Running pass: CGSCCToFunctionPassAdaptor<{{.*}}PassManager{{.*}}>
 ; CHECK-O-NEXT: Starting {{.*}}Function pass manager run.
 ; CHECK-O-NEXT: Running pass: SROA
 ; These next two can appear in any order since they are accessed as parameters
@@ -130,6 +127,7 @@
 ; CHECK-O23SZ-NEXT: Running pass: JumpThreadingPass
 ; CHECK-O23SZ-NEXT: Running analysis: LazyValueAnalysis
 ; CHECK-O23SZ-NEXT: Running pass: CorrelatedValuePropagationPass
+; CHECK-O23SZ-NEXT: Invalidating analysis: LazyValueAnalysis
 ; CHECK-O-NEXT: Running pass: SimplifyCFGPass
 ; CHECK-O3-NEXT: Running pass: AggressiveInstCombinePass
 ; CHECK-O-NEXT: Running pass: InstCombinePass
@@ -137,8 +135,9 @@
 ; CHECK-O-NEXT: Running analysis: BlockFrequencyAnalysis on foo
 ; These next two can appear in any order since they are accessed as parameters
 ; on the same call to BlockFrequencyInfo::calculate.
-; CHECK-O-DAG: Running analysis: BranchProbabilityAnalysis on foo
 ; CHECK-O-DAG: Running analysis: LoopAnalysis on foo
+; CHECK-O-DAG: Running analysis: BranchProbabilityAnalysis on foo
+; CHECK-O-DAG: Running analysis: PostDominatorTreeAnalysis on foo
 ; CHECK-O1-NEXT: Running pass: LibCallsShrinkWrapPass
 ; CHECK-O2-NEXT: Running pass: LibCallsShrinkWrapPass
 ; CHECK-O3-NEXT: Running pass: LibCallsShrinkWrapPass
@@ -148,7 +147,6 @@
 ; CHECK-O-NEXT: Running pass: SimplifyCFGPass
 ; CHECK-O-NEXT: Running pass: ReassociatePass
 ; CHECK-O-NEXT: Running pass: RequireAnalysisPass<{{.*}}OptimizationRemarkEmitterAnalysis
-; CHECK-O-NEXT: Running pass: FunctionToLoopPassAdaptor<{{.*}}LoopStandardAnalysisResults{{.*}}>
 ; CHECK-O-NEXT: Starting {{.*}}Function pass manager run
 ; CHECK-O-NEXT: Running pass: LoopSimplifyPass
 ; CHECK-O-NEXT: Running pass: LCSSAPass
@@ -156,7 +154,6 @@
 ; CHECK-O-NEXT: Running analysis: ScalarEvolutionAnalysis
 ; CHECK-O-NEXT: Running analysis: InnerAnalysisManagerProxy
 ; CHECK-O-NEXT: Starting Loop pass manager run.
-; CHECK-O-NEXT: Running analysis: PassInstrumentationAnalysis
 ; CHECK-O-NEXT: Running pass: LoopInstSimplifyPass
 ; CHECK-O-NEXT: Running pass: LoopSimplifyCFGPass
 ; CHECK-O-NEXT: Running pass: LoopRotatePass
@@ -165,7 +162,6 @@
 ; CHECK-O-NEXT: Finished Loop pass manager run.
 ; CHECK-O-NEXT: Running pass: SimplifyCFGPass
 ; CHECK-O-NEXT: Running pass: InstCombinePass
-; CHECK-O-NEXT: Running pass: FunctionToLoopPassAdaptor<{{.*}}LoopStandardAnalysisResults{{.*}}>
 ; CHECK-O-NEXT: Starting {{.*}}Function pass manager run
 ; CHECK-O-NEXT: Running pass: LoopSimplifyPass
 ; CHECK-O-NEXT: Running pass: LCSSAPass
@@ -201,15 +197,16 @@
 ; CHECK-O-NEXT: Running analysis: DemandedBitsAnalysis
 ; CHECK-O-NEXT: Running pass: InstCombinePass
 ; CHECK-O23SZ-NEXT: Running pass: JumpThreadingPass
+; CHECK-O23SZ-NEXT: Running analysis: LazyValueAnalysis
 ; CHECK-O23SZ-NEXT: Running pass: CorrelatedValuePropagationPass
+; CHECK-O23SZ-NEXT: Invalidating analysis: LazyValueAnalysis
 ; CHECK-O23SZ-NEXT: Running pass: DSEPass
-; CHECK-O23SZ-NEXT: Running pass: FunctionToLoopPassAdaptor<{{.*}}LICMPass{{.*}}>
 ; CHECK-O23SZ-NEXT: Starting {{.*}}Function pass manager run
 ; CHECK-O23SZ-NEXT: Running pass: LoopSimplifyPass
 ; CHECK-O23SZ-NEXT: Running pass: LCSSAPass
 ; CHECK-O23SZ-NEXT: Finished {{.*}}Function pass manager run
+; CHECK-O23SZ-NEXT: Running pass: LICMPass
 ; CHECK-O-NEXT: Running pass: ADCEPass
-; CHECK-O-NEXT: Running analysis: PostDominatorTreeAnalysis
 ; CHECK-O-NEXT: Running pass: SimplifyCFGPass
 ; CHECK-O-NEXT: Running pass: InstCombinePass
 ; CHECK-O3-NEXT: Running pass: ControlHeightReductionPass on foo
@@ -218,11 +215,27 @@
 ; CHECK-O-NEXT: Finished {{.*}}Function pass manager run.
 ; CHECK-O-NEXT: Finished CGSCC pass manager run.
 ; CHECK-O-NEXT: Finished {{.*}}Module pass manager run.
+; CHECK-O-NEXT: Finished {{.*}}Module pass manager run.
+; CHECK-O23SZ-NEXT: Clearing all analysis results for: <possibly invalidated loop>
+; CHECK-O23SZ-NEXT: Invalidating analysis: DominatorTreeAnalysis
+; CHECK-O23SZ-NEXT: Invalidating analysis: MemorySSAAnalysis
+; CHECK-O23SZ-NEXT: Invalidating analysis: LoopAnalysis
+; CHECK-O23SZ-NEXT: Invalidating analysis: PostDominatorTreeAnalysis
+; CHECK-O23SZ-NEXT: Invalidating analysis: BranchProbabilityAnalysis
+; CHECK-O23SZ-NEXT: Invalidating analysis: BlockFrequencyAnalysis
+; CHECK-O23SZ-NEXT: Invalidating analysis: ScalarEvolutionAnalysis
+; CHECK-O23SZ-NEXT: Invalidating analysis: InnerAnalysisManagerProxy
+; CHECK-O23SZ-NEXT: Invalidating analysis: PhiValuesAnalysis
+; CHECK-O23SZ-NEXT: Invalidating analysis: MemoryDependenceAnalysis
+; CHECK-O23SZ-NEXT: Invalidating analysis: DemandedBitsAnalysis
+; CHECK-O3-NEXT: Invalidating analysis: DominanceFrontierAnalysis
+; CHECK-O3-NEXT: Invalidating analysis: RegionInfoAnalysis
+; CHECK-O23SZ-NEXT: Clearing all analysis results for: foo
 ; CHECK-O-NEXT: Running pass: GlobalOptPass
 ; CHECK-O-NEXT: Running analysis: TargetLibraryAnalysis on bar
-; CHECK-O-NEXT: Running analysis: PassInstrumentationAnalysis on bar
 ; CHECK-EXT: Running pass: {{.*}}::Bye
 ; CHECK-O-NEXT: Finished {{.*}}Module pass manager run.
+; CHECK-O23SZ-NEXT: Clearing all analysis results for: foo
 ; CHECK-O-NEXT: Running pass: NameAnonGlobalPass
 ; CHECK-O-NEXT: Running pass: PrintModulePass
 

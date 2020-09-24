@@ -22,9 +22,9 @@ using namespace mlir;
 
 /// Given an operation, find the parent region that folded constants should be
 /// inserted into.
-static Region *getInsertionRegion(
-    DialectInterfaceCollection<OpFolderDialectInterface> &interfaces,
-    Block *insertionBlock) {
+static Region *
+getInsertionRegion(DialectInterfaceCollection<DialectFoldInterface> &interfaces,
+                   Block *insertionBlock) {
   while (Region *region = insertionBlock->getParent()) {
     // Insert in this region for any of the following scenarios:
     //  * The parent is unregistered, or is known to be isolated from above.
@@ -74,7 +74,10 @@ static Operation *materializeConstant(Dialect *dialect, OpBuilder &builder,
 
 LogicalResult OperationFolder::tryToFold(
     Operation *op, function_ref<void(Operation *)> processGeneratedConstants,
-    function_ref<void(Operation *)> preReplaceAction) {
+    function_ref<void(Operation *)> preReplaceAction, bool *inPlaceUpdate) {
+  if (inPlaceUpdate)
+    *inPlaceUpdate = false;
+
   // If this is a unique'd constant, return failure as we know that it has
   // already been folded.
   if (referencedDialects.count(op))
@@ -87,8 +90,11 @@ LogicalResult OperationFolder::tryToFold(
     return failure();
 
   // Check to see if the operation was just updated in place.
-  if (results.empty())
+  if (results.empty()) {
+    if (inPlaceUpdate)
+      *inPlaceUpdate = true;
     return success();
+  }
 
   // Constant folding succeeded. We will start replacing this op's uses and
   // erase this op. Invoke the callback provided by the caller to perform any
@@ -132,6 +138,27 @@ void OperationFolder::notifyRemoval(Operation *op) {
 void OperationFolder::clear() {
   foldScopes.clear();
   referencedDialects.clear();
+}
+
+/// Get or create a constant using the given builder. On success this returns
+/// the constant operation, nullptr otherwise.
+Value OperationFolder::getOrCreateConstant(OpBuilder &builder, Dialect *dialect,
+                                           Attribute value, Type type,
+                                           Location loc) {
+  OpBuilder::InsertionGuard foldGuard(builder);
+
+  // Use the builder insertion block to find an insertion point for the
+  // constant.
+  auto *insertRegion =
+      getInsertionRegion(interfaces, builder.getInsertionBlock());
+  auto &entry = insertRegion->front();
+  builder.setInsertionPoint(&entry, entry.begin());
+
+  // Get the constant map for the insertion region of this operation.
+  auto &uniquedConstants = foldScopes[insertRegion];
+  Operation *constOp = tryGetOrCreateConstant(uniquedConstants, dialect,
+                                              builder, value, type, loc);
+  return constOp ? constOp->getResult(0) : Value();
 }
 
 /// Tries to perform folding on the given `op`. If successful, populates

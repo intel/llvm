@@ -1,6 +1,7 @@
 ; Test basic address sanitizer instrumentation.
 ;
-; RUN: opt -asan -asan-module -S  < %s | FileCheck %s
+; RUN: opt -asan -asan-module -enable-new-pm=0 -S  < %s | FileCheck %s
+; RUN: opt -passes='asan-pipeline' -S  < %s | FileCheck %s
 
 target triple = "x86_64-pc-windows-msvc"
 ; CHECK: @llvm.global_ctors = {{.*}}@asan.module_ctor
@@ -13,7 +14,7 @@ define i32 @test_load(i32* %a) sanitize_address {
 ; CHECK-NEXT: %[[SHADOW:[^ ]*]] = load i64, i64* @__asan_shadow_memory_dynamic_address
 
 ; Shadow address is loaded and added into the whole offset computation.
-; CHECK add i64 %{{.*}}, %[[SHADOW] ]
+; CHECK: add i64 %{{.*}}, %[[SHADOW]]
 
 entry:
   %tmp1 = load i32, i32* %a, align 4

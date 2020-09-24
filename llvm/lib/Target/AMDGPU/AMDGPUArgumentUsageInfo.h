@@ -11,15 +11,13 @@
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/CodeGen/Register.h"
-#include "llvm/IR/Function.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/LowLevelTypeImpl.h"
 
 namespace llvm {
 
 class Function;
 class raw_ostream;
-class GCNSubtarget;
-class TargetMachine;
 class TargetRegisterClass;
 class TargetRegisterInfo;
 
@@ -29,7 +27,7 @@ private:
   friend class AMDGPUArgumentUsageInfo;
 
   union {
-    Register Reg;
+    MCRegister Reg;
     unsigned StackOffset;
   };
 
@@ -71,7 +69,7 @@ public:
     return !IsStack;
   }
 
-  Register getRegister() const {
+  MCRegister getRegister() const {
     assert(!IsStack);
     return Reg;
   }
@@ -151,7 +149,7 @@ struct AMDGPUFunctionArgInfo {
   ArgDescriptor WorkItemIDY;
   ArgDescriptor WorkItemIDZ;
 
-  std::pair<const ArgDescriptor *, const TargetRegisterClass *>
+  std::tuple<const ArgDescriptor *, const TargetRegisterClass *, LLT>
   getPreloadedValue(PreloadedValue Value) const;
 
   static constexpr AMDGPUFunctionArgInfo fixedABILayout();

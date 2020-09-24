@@ -10,6 +10,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "VETargetMachine.h"
+#include "TargetInfo/VETargetInfo.h"
 #include "VE.h"
 #include "VETargetTransformInfo.h"
 #include "llvm/CodeGen/Passes.h"
@@ -40,8 +41,8 @@ static std::string computeDataLayout(const Triple &T) {
   // VE supports 32 bit and 64 bits integer on registers
   Ret += "-n32:64";
 
-  // Stack alignment is 64 bits
-  Ret += "-S64";
+  // Stack alignment is 128 bits
+  Ret += "-S128";
 
   return Ret;
 }

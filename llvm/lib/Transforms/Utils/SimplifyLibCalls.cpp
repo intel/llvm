@@ -20,7 +20,6 @@
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
-#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/Analysis/CaptureTracking.h"
@@ -609,9 +608,19 @@ Value *LibCallSimplifier::optimizeStrNCpy(CallInst *CI, IRBuilderBase &B) {
     return Dst;
   }
 
-  // Let strncpy handle the zero padding
-  if (Len > SrcLen + 1)
-    return nullptr;
+  // strncpy(a, "a", 4) - > memcpy(a, "a\0\0\0", 4)
+  if (Len > SrcLen + 1) {
+    if (Len <= 128) {
+      StringRef Str;
+      if (!getConstantStringInfo(Src, Str))
+        return nullptr;
+      std::string SrcStr = Str.str();
+      SrcStr.resize(Len, '\0');
+      Src = B.CreateGlobalString(SrcStr, "str");
+    } else {
+      return nullptr;
+    }
+  }
 
   Type *PT = Callee->getFunctionType()->getParamType(0);
   // strncpy(x, s, c) -> memcpy(align 1 x, align 1 s, c) [s and c are constant]
@@ -684,8 +693,6 @@ Value *LibCallSimplifier::optimizeStringLength(CallInst *CI, IRBuilderBase &B,
                            Offset);
       }
     }
-
-    return nullptr;
   }
 
   // strlen(x?"foo":"bars") --> x ? 3 : 4
@@ -1448,7 +1455,7 @@ static Value *getIntToFPVal(Value *I2F, IRBuilderBase &B) {
 /// exp10(x) for pow(10.0, x); exp2(log2(n) * x) for pow(n, x).
 Value *LibCallSimplifier::replacePowWithExp(CallInst *Pow, IRBuilderBase &B) {
   Value *Base = Pow->getArgOperand(0), *Expo = Pow->getArgOperand(1);
-  AttributeList Attrs = Pow->getCalledFunction()->getAttributes();
+  AttributeList Attrs; // Attributes are only meaningful on the original call
   Module *Mod = Pow->getModule();
   Type *Ty = Pow->getType();
   bool Ignored;
@@ -1563,9 +1570,14 @@ Value *LibCallSimplifier::replacePowWithExp(CallInst *Pow, IRBuilderBase &B) {
     return emitUnaryFloatFnCall(Expo, TLI, LibFunc_exp10, LibFunc_exp10f,
                                 LibFunc_exp10l, B, Attrs);
 
-  // pow(n, x) -> exp2(log2(n) * x)
-  if (Pow->hasOneUse() && Pow->hasApproxFunc() && Pow->hasNoNaNs() &&
-      Pow->hasNoInfs() && BaseF->isNormal() && !BaseF->isNegative()) {
+  // pow(x, y) -> exp2(log2(x) * y)
+  if (Pow->hasApproxFunc() && Pow->hasNoNaNs() && BaseF->isFiniteNonZero() &&
+      !BaseF->isNegative()) {
+    // pow(1, inf) is defined to be 1 but exp2(log2(1) * inf) evaluates to NaN.
+    // Luckily optimizePow has already handled the x == 1 case.
+    assert(!match(Base, m_FPOne()) &&
+           "pow(1.0, y) should have been simplified earlier!");
+
     Value *Log = nullptr;
     if (Ty->isFloatTy())
       Log = ConstantFP::get(Ty, std::log2(BaseF->convertToFloat()));
@@ -1610,7 +1622,7 @@ static Value *getSqrtCall(Value *V, AttributeList Attrs, bool NoErrno,
 /// Use square root in place of pow(x, +/-0.5).
 Value *LibCallSimplifier::replacePowWithSqrt(CallInst *Pow, IRBuilderBase &B) {
   Value *Sqrt, *Base = Pow->getArgOperand(0), *Expo = Pow->getArgOperand(1);
-  AttributeList Attrs = Pow->getCalledFunction()->getAttributes();
+  AttributeList Attrs; // Attributes are only meaningful on the original call
   Module *Mod = Pow->getModule();
   Type *Ty = Pow->getType();
 
@@ -1667,10 +1679,6 @@ Value *LibCallSimplifier::optimizePow(CallInst *Pow, IRBuilderBase &B) {
   Value *Shrunk = nullptr;
   bool AllowApprox = Pow->hasApproxFunc();
   bool Ignored;
-
-  // Bail out if simplifying libcalls to pow() is disabled.
-  if (!hasFloatFn(TLI, Ty, LibFunc_pow, LibFunc_powf, LibFunc_powl))
-    return nullptr;
 
   // Propagate the math semantics from the call to any created instructions.
   IRBuilderBase::FastMathFlagGuard Guard(B);
@@ -1784,6 +1792,7 @@ Value *LibCallSimplifier::optimizePow(CallInst *Pow, IRBuilderBase &B) {
 
 Value *LibCallSimplifier::optimizeExp2(CallInst *CI, IRBuilderBase &B) {
   Function *Callee = CI->getCalledFunction();
+  AttributeList Attrs; // Attributes are only meaningful on the original call
   StringRef Name = Callee->getName();
   Value *Ret = nullptr;
   if (UnsafeFPShrink && Name == TLI->getName(LibFunc_exp2) &&
@@ -1800,7 +1809,7 @@ Value *LibCallSimplifier::optimizeExp2(CallInst *CI, IRBuilderBase &B) {
     if (Value *Exp = getIntToFPVal(Op, B))
       return emitBinaryFloatFnCall(ConstantFP::get(Ty, 1.0), Exp, TLI,
                                    LibFunc_ldexp, LibFunc_ldexpf, LibFunc_ldexpl,
-                                   B, CI->getCalledFunction()->getAttributes());
+                                   B, Attrs);
   }
 
   return Ret;
@@ -1835,7 +1844,7 @@ Value *LibCallSimplifier::optimizeFMinFMax(CallInst *CI, IRBuilderBase &B) {
 
 Value *LibCallSimplifier::optimizeLog(CallInst *Log, IRBuilderBase &B) {
   Function *LogFn = Log->getCalledFunction();
-  AttributeList Attrs = LogFn->getAttributes();
+  AttributeList Attrs; // Attributes are only meaningful on the original call
   StringRef LogNm = LogFn->getName();
   Intrinsic::ID LogID = LogFn->getIntrinsicID();
   Module *Mod = Log->getModule();
@@ -1943,7 +1952,7 @@ Value *LibCallSimplifier::optimizeLog(CallInst *Log, IRBuilderBase &B) {
 
   Intrinsic::ID ArgID = Arg->getIntrinsicID();
   LibFunc ArgLb = NotLibFunc;
-  TLI->getLibFunc(Arg, ArgLb);
+  TLI->getLibFunc(*Arg, ArgLb);
 
   // log(pow(x,y)) -> y*log(x)
   if (ArgLb == PowLb || ArgID == Intrinsic::pow) {
@@ -2106,7 +2115,7 @@ static void insertSinCosCall(IRBuilderBase &B, Function *OrigCallee, Value *Arg,
     // x86_64 can't use {float, float} since that would be returned in both
     // xmm0 and xmm1, which isn't what a real struct would do.
     ResTy = T.getArch() == Triple::x86_64
-                ? static_cast<Type *>(VectorType::get(ArgTy, 2))
+                ? static_cast<Type *>(FixedVectorType::get(ArgTy, 2))
                 : static_cast<Type *>(StructType::get(ArgTy, ArgTy));
   } else {
     Name = "__sincospi_stret";
@@ -2483,6 +2492,30 @@ Value *LibCallSimplifier::optimizeSPrintFString(CallInst *CI,
     // sprintf(dest, "%s", str) -> llvm.memcpy(align 1 dest, align 1 str,
     // strlen(str)+1)
     if (!CI->getArgOperand(2)->getType()->isPointerTy())
+      return nullptr;
+
+    if (CI->use_empty())
+      // sprintf(dest, "%s", str) -> strcpy(dest, str)
+      return emitStrCpy(CI->getArgOperand(0), CI->getArgOperand(2), B, TLI);
+
+    uint64_t SrcLen = GetStringLength(CI->getArgOperand(2));
+    if (SrcLen) {
+      B.CreateMemCpy(
+          CI->getArgOperand(0), Align(1), CI->getArgOperand(2), Align(1),
+          ConstantInt::get(DL.getIntPtrType(CI->getContext()), SrcLen));
+      // Returns total number of characters written without null-character.
+      return ConstantInt::get(CI->getType(), SrcLen - 1);
+    } else if (Value *V = emitStpCpy(CI->getArgOperand(0), CI->getArgOperand(2),
+                                     B, TLI)) {
+      // sprintf(dest, "%s", str) -> stpcpy(dest, str) - dest
+      Value *PtrDiff = B.CreatePtrDiff(V, CI->getArgOperand(0));
+      return B.CreateIntCast(PtrDiff, CI->getType(), false);
+    }
+
+    bool OptForSize = CI->getFunction()->hasOptSize() ||
+                      llvm::shouldOptimizeForSize(CI->getParent(), PSI, BFI,
+                                                  PGSOQueryType::IRPass);
+    if (OptForSize)
       return nullptr;
 
     Value *Len = emitStrLen(CI->getArgOperand(2), B, DL, TLI);
@@ -2929,6 +2962,8 @@ Value *LibCallSimplifier::optimizeFloatingPointLibCall(CallInst *CI,
     return replaceUnaryCall(CI, Builder, Intrinsic::floor);
   case LibFunc_round:
     return replaceUnaryCall(CI, Builder, Intrinsic::round);
+  case LibFunc_roundeven:
+    return replaceUnaryCall(CI, Builder, Intrinsic::roundeven);
   case LibFunc_nearbyint:
     return replaceUnaryCall(CI, Builder, Intrinsic::nearbyint);
   case LibFunc_rint:

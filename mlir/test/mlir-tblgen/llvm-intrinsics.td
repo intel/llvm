@@ -5,7 +5,7 @@
 // writing a local test source. We filter out platform-specific intrinsic
 // includes from the main file to avoid unnecessary dependencies and decrease
 // the test cost. The command-line flags further ensure a specific intrinsic is
-// processed and we only check the ouptut below.
+// processed and we only check the output below.
 // We also verify emission of type specialization for overloadable intrinsics.
 //
 // RUN: cat %S/../../../llvm/include/llvm/IR/Intrinsics.td \
@@ -17,8 +17,9 @@
 // CHECK: LLVM_IntrOp<"ptrmask
 // The result of this intrinsic result is overloadable.
 // CHECK: [0]
-// Both its operands are overloadable.
-// CHECK: [0, 1]
+// The second operand is overloadable, but the first operand needs to
+// match the result type.
+// CHECK: [1]
 // It has no additional traits.
 // CHECK: []
 // It has a result.

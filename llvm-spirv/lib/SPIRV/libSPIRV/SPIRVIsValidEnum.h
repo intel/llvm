@@ -144,6 +144,16 @@ inline bool isValid(spv::ExecutionMode V) {
   case ExecutionModeNoGlobalOffsetINTEL:
   case ExecutionModeMaxWorkDimINTEL:
   case ExecutionModeNumSIMDWorkitemsINTEL:
+  case ExecutionModeDenormPreserve:
+  case ExecutionModeDenormFlushToZero:
+  case ExecutionModeSignedZeroInfNanPreserve:
+  case ExecutionModeRoundingModeRTE:
+  case ExecutionModeRoundingModeRTZ:
+  case ExecutionModeRoundingModeRTPINTEL:
+  case ExecutionModeRoundingModeRTNINTEL:
+  case ExecutionModeFloatingPointModeALTINTEL:
+  case ExecutionModeFloatingPointModeIEEEINTEL:
+  case ExecutionModeSharedLocalMemorySizeINTEL:
     return true;
   default:
     return false;
@@ -164,6 +174,8 @@ inline bool isValid(spv::StorageClass V) {
   case StorageClassPushConstant:
   case StorageClassAtomicCounter:
   case StorageClassImage:
+  case StorageClassDeviceOnlyINTEL:
+  case StorageClassHostOnlyINTEL:
     return true;
   default:
     return false;
@@ -411,7 +423,22 @@ inline bool isValid(spv::Decoration V) {
   case DecorationDoublepumpINTEL:
   case DecorationBankBitsINTEL:
   case DecorationForcePow2DepthINTEL:
+  case DecorationBurstCoalesceINTEL:
+  case DecorationCacheSizeINTEL:
+  case DecorationDontStaticallyCoalesceINTEL:
+  case DecorationPrefetchINTEL:
   case DecorationReferencedIndirectlyINTEL:
+  case DecorationVectorComputeFunctionINTEL:
+  case DecorationStackCallINTEL:
+  case DecorationFuncParamKindINTEL:
+  case DecorationFuncParamDescINTEL:
+  case DecorationVectorComputeVariableINTEL:
+  case DecorationGlobalVariableOffsetINTEL:
+  case DecorationFuncParamIOKind:
+  case DecorationSIMTCallINTEL:
+  case DecorationFunctionRoundingModeINTEL:
+  case DecorationFunctionDenormModeINTEL:
+  case DecorationFunctionFloatingPointModeINTEL:
     return true;
   default:
     return false;
@@ -459,6 +486,11 @@ inline bool isValid(spv::BuiltIn V) {
   case BuiltInNumEnqueuedSubgroups:
   case BuiltInSubgroupId:
   case BuiltInSubgroupLocalInvocationId:
+  case BuiltInSubgroupEqMask:
+  case BuiltInSubgroupGeMask:
+  case BuiltInSubgroupGtMask:
+  case BuiltInSubgroupLeMask:
+  case BuiltInSubgroupLtMask:
   case BuiltInVertexIndex:
   case BuiltInInstanceIndex:
     return true;
@@ -563,460 +595,34 @@ inline bool isValid(spv::Capability V) {
   case CapabilitySubgroupDispatch:
   case CapabilityNamedBarrier:
   case CapabilityPipeStorage:
+  case CapabilityGroupNonUniform:
+  case CapabilityGroupNonUniformVote:
+  case CapabilityGroupNonUniformArithmetic:
+  case CapabilityGroupNonUniformBallot:
+  case CapabilityGroupNonUniformShuffle:
+  case CapabilityGroupNonUniformShuffleRelative:
+  case CapabilityGroupNonUniformClustered:
+  case CapabilityGroupNonUniformQuad:
+  case CapabilityDenormPreserve:
+  case CapabilityDenormFlushToZero:
+  case CapabilitySignedZeroInfNanPreserve:
+  case CapabilityRoundingModeRTE:
+  case CapabilityRoundingModeRTZ:
+  case CapabilityRoundToInfinityINTEL:
+  case CapabilityFloatingPointModeINTEL:
+  case CapabilityVectorComputeINTEL:
+  case CapabilityVectorAnyINTEL:
   case CapabilityFPGAMemoryAttributesINTEL:
+  case CapabilityFPGAMemoryAccessesINTEL:
+  case CapabilityArbitraryPrecisionIntegersINTEL:
+  case CapabilityArbitraryPrecisionFixedPointINTEL:
+  case CapabilityArbitraryPrecisionFloatingPointINTEL:
   case CapabilityFPGALoopControlsINTEL:
   case CapabilityBlockingPipesINTEL:
   case CapabilityUnstructuredLoopControlsINTEL:
   case CapabilityKernelAttributesINTEL:
   case CapabilityFPGAKernelAttributesINTEL:
-    return true;
-  default:
-    return false;
-  }
-}
-
-inline bool isValid(spv::Op V) {
-  switch (V) {
-  case OpNop:
-  case OpUndef:
-  case OpSourceContinued:
-  case OpSource:
-  case OpSourceExtension:
-  case OpName:
-  case OpMemberName:
-  case OpString:
-  case OpLine:
-  case OpExtension:
-  case OpExtInstImport:
-  case OpExtInst:
-  case OpMemoryModel:
-  case OpEntryPoint:
-  case OpExecutionMode:
-  case OpCapability:
-  case OpTypeVoid:
-  case OpTypeBool:
-  case OpTypeInt:
-  case OpTypeFloat:
-  case OpTypeVector:
-  case OpTypeMatrix:
-  case OpTypeImage:
-  case OpTypeSampler:
-  case OpTypeSampledImage:
-  case OpTypeArray:
-  case OpTypeRuntimeArray:
-  case OpTypeStruct:
-  case OpTypeOpaque:
-  case OpTypePointer:
-  case OpTypeFunction:
-  case OpTypeEvent:
-  case OpTypeDeviceEvent:
-  case OpTypeReserveId:
-  case OpTypeQueue:
-  case OpTypePipe:
-  case OpTypeForwardPointer:
-  case OpConstantTrue:
-  case OpConstantFalse:
-  case OpConstant:
-  case OpConstantComposite:
-  case OpConstantSampler:
-  case OpConstantNull:
-  case OpSpecConstantTrue:
-  case OpSpecConstantFalse:
-  case OpSpecConstant:
-  case OpSpecConstantComposite:
-  case OpSpecConstantOp:
-  case OpFunction:
-  case OpFunctionParameter:
-  case OpFunctionEnd:
-  case OpFunctionCall:
-  case OpVariable:
-  case OpImageTexelPointer:
-  case OpLoad:
-  case OpStore:
-  case OpCopyMemory:
-  case OpCopyMemorySized:
-  case OpAccessChain:
-  case OpInBoundsAccessChain:
-  case OpPtrAccessChain:
-  case OpArrayLength:
-  case OpGenericPtrMemSemantics:
-  case OpInBoundsPtrAccessChain:
-  case OpDecorate:
-  case OpMemberDecorate:
-  case OpDecorationGroup:
-  case OpGroupDecorate:
-  case OpGroupMemberDecorate:
-  case OpVectorExtractDynamic:
-  case OpVectorInsertDynamic:
-  case OpVectorShuffle:
-  case OpCompositeConstruct:
-  case OpCompositeExtract:
-  case OpCompositeInsert:
-  case OpCopyObject:
-  case OpTranspose:
-  case OpSampledImage:
-  case OpImageSampleImplicitLod:
-  case OpImageSampleExplicitLod:
-  case OpImageSampleDrefImplicitLod:
-  case OpImageSampleDrefExplicitLod:
-  case OpImageSampleProjImplicitLod:
-  case OpImageSampleProjExplicitLod:
-  case OpImageSampleProjDrefImplicitLod:
-  case OpImageSampleProjDrefExplicitLod:
-  case OpImageFetch:
-  case OpImageGather:
-  case OpImageDrefGather:
-  case OpImageRead:
-  case OpImageWrite:
-  case OpImage:
-  case OpImageQueryFormat:
-  case OpImageQueryOrder:
-  case OpImageQuerySizeLod:
-  case OpImageQuerySize:
-  case OpImageQueryLod:
-  case OpImageQueryLevels:
-  case OpImageQuerySamples:
-  case OpConvertFToU:
-  case OpConvertFToS:
-  case OpConvertSToF:
-  case OpConvertUToF:
-  case OpUConvert:
-  case OpSConvert:
-  case OpFConvert:
-  case OpQuantizeToF16:
-  case OpConvertPtrToU:
-  case OpSatConvertSToU:
-  case OpSatConvertUToS:
-  case OpConvertUToPtr:
-  case OpPtrCastToGeneric:
-  case OpGenericCastToPtr:
-  case OpGenericCastToPtrExplicit:
-  case OpBitcast:
-  case OpSNegate:
-  case OpFNegate:
-  case OpIAdd:
-  case OpFAdd:
-  case OpISub:
-  case OpFSub:
-  case OpIMul:
-  case OpFMul:
-  case OpUDiv:
-  case OpSDiv:
-  case OpFDiv:
-  case OpUMod:
-  case OpSRem:
-  case OpSMod:
-  case OpFRem:
-  case OpFMod:
-  case OpVectorTimesScalar:
-  case OpMatrixTimesScalar:
-  case OpVectorTimesMatrix:
-  case OpMatrixTimesVector:
-  case OpMatrixTimesMatrix:
-  case OpOuterProduct:
-  case OpDot:
-  case OpIAddCarry:
-  case OpISubBorrow:
-  case OpUMulExtended:
-  case OpSMulExtended:
-  case OpAny:
-  case OpAll:
-  case OpIsNan:
-  case OpIsInf:
-  case OpIsFinite:
-  case OpIsNormal:
-  case OpSignBitSet:
-  case OpLessOrGreater:
-  case OpOrdered:
-  case OpUnordered:
-  case OpLogicalEqual:
-  case OpLogicalNotEqual:
-  case OpLogicalOr:
-  case OpLogicalAnd:
-  case OpLogicalNot:
-  case OpSelect:
-  case OpIEqual:
-  case OpINotEqual:
-  case OpUGreaterThan:
-  case OpSGreaterThan:
-  case OpUGreaterThanEqual:
-  case OpSGreaterThanEqual:
-  case OpULessThan:
-  case OpSLessThan:
-  case OpULessThanEqual:
-  case OpSLessThanEqual:
-  case OpFOrdEqual:
-  case OpFUnordEqual:
-  case OpFOrdNotEqual:
-  case OpFUnordNotEqual:
-  case OpFOrdLessThan:
-  case OpFUnordLessThan:
-  case OpFOrdGreaterThan:
-  case OpFUnordGreaterThan:
-  case OpFOrdLessThanEqual:
-  case OpFUnordLessThanEqual:
-  case OpFOrdGreaterThanEqual:
-  case OpFUnordGreaterThanEqual:
-  case OpShiftRightLogical:
-  case OpShiftRightArithmetic:
-  case OpShiftLeftLogical:
-  case OpBitwiseOr:
-  case OpBitwiseXor:
-  case OpBitwiseAnd:
-  case OpNot:
-  case OpBitFieldInsert:
-  case OpBitFieldSExtract:
-  case OpBitFieldUExtract:
-  case OpBitReverse:
-  case OpBitCount:
-  case OpDPdx:
-  case OpDPdy:
-  case OpFwidth:
-  case OpDPdxFine:
-  case OpDPdyFine:
-  case OpFwidthFine:
-  case OpDPdxCoarse:
-  case OpDPdyCoarse:
-  case OpFwidthCoarse:
-  case OpEmitVertex:
-  case OpEndPrimitive:
-  case OpEmitStreamVertex:
-  case OpEndStreamPrimitive:
-  case OpControlBarrier:
-  case OpMemoryBarrier:
-  case OpAtomicLoad:
-  case OpAtomicStore:
-  case OpAtomicExchange:
-  case OpAtomicCompareExchange:
-  case OpAtomicCompareExchangeWeak:
-  case OpAtomicIIncrement:
-  case OpAtomicIDecrement:
-  case OpAtomicIAdd:
-  case OpAtomicISub:
-  case OpAtomicSMin:
-  case OpAtomicUMin:
-  case OpAtomicSMax:
-  case OpAtomicUMax:
-  case OpAtomicAnd:
-  case OpAtomicOr:
-  case OpAtomicXor:
-  case OpPhi:
-  case OpLoopMerge:
-  case OpSelectionMerge:
-  case OpLabel:
-  case OpBranch:
-  case OpBranchConditional:
-  case OpSwitch:
-  case OpKill:
-  case OpReturn:
-  case OpReturnValue:
-  case OpUnreachable:
-  case OpLifetimeStart:
-  case OpLifetimeStop:
-  case OpGroupAsyncCopy:
-  case OpGroupWaitEvents:
-  case OpGroupAll:
-  case OpGroupAny:
-  case OpGroupBroadcast:
-  case OpGroupIAdd:
-  case OpGroupFAdd:
-  case OpGroupFMin:
-  case OpGroupUMin:
-  case OpGroupSMin:
-  case OpGroupFMax:
-  case OpGroupUMax:
-  case OpGroupSMax:
-  case OpReadPipe:
-  case OpWritePipe:
-  case OpReadPipeBlockingINTEL:
-  case OpWritePipeBlockingINTEL:
-  case OpReservedReadPipe:
-  case OpReservedWritePipe:
-  case OpReserveReadPipePackets:
-  case OpReserveWritePipePackets:
-  case OpCommitReadPipe:
-  case OpCommitWritePipe:
-  case OpIsValidReserveId:
-  case OpGetNumPipePackets:
-  case OpGetMaxPipePackets:
-  case OpGroupReserveReadPipePackets:
-  case OpGroupReserveWritePipePackets:
-  case OpGroupCommitReadPipe:
-  case OpGroupCommitWritePipe:
-  case OpEnqueueMarker:
-  case OpEnqueueKernel:
-  case OpGetKernelNDrangeSubGroupCount:
-  case OpGetKernelNDrangeMaxSubGroupSize:
-  case OpGetKernelWorkGroupSize:
-  case OpGetKernelPreferredWorkGroupSizeMultiple:
-  case OpRetainEvent:
-  case OpReleaseEvent:
-  case OpCreateUserEvent:
-  case OpIsValidEvent:
-  case OpSetUserEventStatus:
-  case OpCaptureEventProfilingInfo:
-  case OpGetDefaultQueue:
-  case OpBuildNDRange:
-  case OpImageSparseSampleImplicitLod:
-  case OpImageSparseSampleExplicitLod:
-  case OpImageSparseSampleDrefImplicitLod:
-  case OpImageSparseSampleDrefExplicitLod:
-  case OpImageSparseSampleProjImplicitLod:
-  case OpImageSparseSampleProjExplicitLod:
-  case OpImageSparseSampleProjDrefImplicitLod:
-  case OpImageSparseSampleProjDrefExplicitLod:
-  case OpImageSparseFetch:
-  case OpImageSparseGather:
-  case OpImageSparseDrefGather:
-  case OpImageSparseTexelsResident:
-  case OpNoLine:
-  case OpAtomicFlagTestAndSet:
-  case OpAtomicFlagClear:
-  case OpImageSparseRead:
-  case OpSizeOf:
-  case OpTypePipeStorage:
-  case OpConstantPipeStorage:
-  case OpCreatePipeFromPipeStorage:
-  case OpGetKernelLocalSizeForSubgroupCount:
-  case OpGetKernelMaxNumSubgroups:
-  case OpTypeNamedBarrier:
-  case OpNamedBarrierInitialize:
-  case OpMemoryNamedBarrier:
-  case OpModuleProcessed:
-  case OpForward:
-  case OpSubgroupShuffleINTEL:
-  case OpSubgroupShuffleDownINTEL:
-  case OpSubgroupShuffleUpINTEL:
-  case OpSubgroupShuffleXorINTEL:
-  case OpSubgroupBlockReadINTEL:
-  case OpSubgroupBlockWriteINTEL:
-  case OpSubgroupImageBlockReadINTEL:
-  case OpSubgroupImageBlockWriteINTEL:
-  case OpSubgroupImageMediaBlockReadINTEL:
-  case OpSubgroupImageMediaBlockWriteINTEL:
-  case OpAsmTargetINTEL:
-  case OpAsmINTEL:
-  case OpAsmCallINTEL:
-  case OpVmeImageINTEL:
-  case OpTypeVmeImageINTEL:
-  case OpTypeAvcImePayloadINTEL:
-  case OpTypeAvcRefPayloadINTEL:
-  case OpTypeAvcSicPayloadINTEL:
-  case OpTypeAvcMcePayloadINTEL:
-  case OpTypeAvcMceResultINTEL:
-  case OpTypeAvcImeResultINTEL:
-  case OpTypeAvcImeResultSingleReferenceStreamoutINTEL:
-  case OpTypeAvcImeResultDualReferenceStreamoutINTEL:
-  case OpTypeAvcImeSingleReferenceStreaminINTEL:
-  case OpTypeAvcImeDualReferenceStreaminINTEL:
-  case OpTypeAvcRefResultINTEL:
-  case OpTypeAvcSicResultINTEL:
-  case OpSubgroupAvcMceGetDefaultInterBaseMultiReferencePenaltyINTEL:
-  case OpSubgroupAvcMceSetInterBaseMultiReferencePenaltyINTEL:
-  case OpSubgroupAvcMceGetDefaultInterShapePenaltyINTEL:
-  case OpSubgroupAvcMceSetInterShapePenaltyINTEL:
-  case OpSubgroupAvcMceGetDefaultInterDirectionPenaltyINTEL:
-  case OpSubgroupAvcMceSetInterDirectionPenaltyINTEL:
-  case OpSubgroupAvcMceGetDefaultIntraLumaShapePenaltyINTEL:
-  case OpSubgroupAvcMceGetDefaultInterMotionVectorCostTableINTEL:
-  case OpSubgroupAvcMceGetDefaultHighPenaltyCostTableINTEL:
-  case OpSubgroupAvcMceGetDefaultMediumPenaltyCostTableINTEL:
-  case OpSubgroupAvcMceGetDefaultLowPenaltyCostTableINTEL:
-  case OpSubgroupAvcMceSetMotionVectorCostFunctionINTEL:
-  case OpSubgroupAvcMceGetDefaultIntraLumaModePenaltyINTEL:
-  case OpSubgroupAvcMceGetDefaultNonDcLumaIntraPenaltyINTEL:
-  case OpSubgroupAvcMceGetDefaultIntraChromaModeBasePenaltyINTEL:
-  case OpSubgroupAvcMceSetAcOnlyHaarINTEL:
-  case OpSubgroupAvcMceSetSourceInterlacedFieldPolarityINTEL:
-  case OpSubgroupAvcMceSetSingleReferenceInterlacedFieldPolarityINTEL:
-  case OpSubgroupAvcMceSetDualReferenceInterlacedFieldPolaritiesINTEL:
-  case OpSubgroupAvcMceConvertToImePayloadINTEL:
-  case OpSubgroupAvcMceConvertToImeResultINTEL:
-  case OpSubgroupAvcMceConvertToRefPayloadINTEL:
-  case OpSubgroupAvcMceConvertToRefResultINTEL:
-  case OpSubgroupAvcMceConvertToSicPayloadINTEL:
-  case OpSubgroupAvcMceConvertToSicResultINTEL:
-  case OpSubgroupAvcMceGetMotionVectorsINTEL:
-  case OpSubgroupAvcMceGetInterDistortionsINTEL:
-  case OpSubgroupAvcMceGetBestInterDistortionsINTEL:
-  case OpSubgroupAvcMceGetInterMajorShapeINTEL:
-  case OpSubgroupAvcMceGetInterMinorShapeINTEL:
-  case OpSubgroupAvcMceGetInterDirectionsINTEL:
-  case OpSubgroupAvcMceGetInterMotionVectorCountINTEL:
-  case OpSubgroupAvcMceGetInterReferenceIdsINTEL:
-  case OpSubgroupAvcMceGetInterReferenceInterlacedFieldPolaritiesINTEL:
-  case OpSubgroupAvcImeInitializeINTEL:
-  case OpSubgroupAvcImeSetSingleReferenceINTEL:
-  case OpSubgroupAvcImeSetDualReferenceINTEL:
-  case OpSubgroupAvcImeRefWindowSizeINTEL:
-  case OpSubgroupAvcImeAdjustRefOffsetINTEL:
-  case OpSubgroupAvcImeConvertToMcePayloadINTEL:
-  case OpSubgroupAvcImeSetMaxMotionVectorCountINTEL:
-  case OpSubgroupAvcImeSetUnidirectionalMixDisableINTEL:
-  case OpSubgroupAvcImeSetEarlySearchTerminationThresholdINTEL:
-  case OpSubgroupAvcImeSetWeightedSadINTEL:
-  case OpSubgroupAvcImeEvaluateWithSingleReferenceINTEL:
-  case OpSubgroupAvcImeEvaluateWithDualReferenceINTEL:
-  case OpSubgroupAvcImeEvaluateWithSingleReferenceStreaminINTEL:
-  case OpSubgroupAvcImeEvaluateWithDualReferenceStreaminINTEL:
-  case OpSubgroupAvcImeEvaluateWithSingleReferenceStreamoutINTEL:
-  case OpSubgroupAvcImeEvaluateWithDualReferenceStreamoutINTEL:
-  case OpSubgroupAvcImeEvaluateWithSingleReferenceStreaminoutINTEL:
-  case OpSubgroupAvcImeEvaluateWithDualReferenceStreaminoutINTEL:
-  case OpSubgroupAvcImeConvertToMceResultINTEL:
-  case OpSubgroupAvcImeGetSingleReferenceStreaminINTEL:
-  case OpSubgroupAvcImeGetDualReferenceStreaminINTEL:
-  case OpSubgroupAvcImeStripSingleReferenceStreamoutINTEL:
-  case OpSubgroupAvcImeStripDualReferenceStreamoutINTEL:
-  case OpSubgroupAvcImeGetStreamoutSingleReferenceMajorShapeMotionVectorsINTEL:
-  case OpSubgroupAvcImeGetStreamoutSingleReferenceMajorShapeDistortionsINTEL:
-  case OpSubgroupAvcImeGetStreamoutSingleReferenceMajorShapeReferenceIdsINTEL:
-  case OpSubgroupAvcImeGetStreamoutDualReferenceMajorShapeMotionVectorsINTEL:
-  case OpSubgroupAvcImeGetStreamoutDualReferenceMajorShapeDistortionsINTEL:
-  case OpSubgroupAvcImeGetStreamoutDualReferenceMajorShapeReferenceIdsINTEL:
-  case OpSubgroupAvcImeGetBorderReachedINTEL:
-  case OpSubgroupAvcImeGetTruncatedSearchIndicationINTEL:
-  case OpSubgroupAvcImeGetUnidirectionalEarlySearchTerminationINTEL:
-  case OpSubgroupAvcImeGetWeightingPatternMinimumMotionVectorINTEL:
-  case OpSubgroupAvcImeGetWeightingPatternMinimumDistortionINTEL:
-  case OpSubgroupAvcFmeInitializeINTEL:
-  case OpSubgroupAvcBmeInitializeINTEL:
-  case OpSubgroupAvcRefConvertToMcePayloadINTEL:
-  case OpSubgroupAvcRefSetBidirectionalMixDisableINTEL:
-  case OpSubgroupAvcRefSetBilinearFilterEnableINTEL:
-  case OpSubgroupAvcRefEvaluateWithSingleReferenceINTEL:
-  case OpSubgroupAvcRefEvaluateWithDualReferenceINTEL:
-  case OpSubgroupAvcRefEvaluateWithMultiReferenceINTEL:
-  case OpSubgroupAvcRefEvaluateWithMultiReferenceInterlacedINTEL:
-  case OpSubgroupAvcRefConvertToMceResultINTEL:
-  case OpSubgroupAvcSicInitializeINTEL:
-  case OpSubgroupAvcSicConfigureSkcINTEL:
-  case OpSubgroupAvcSicConfigureIpeLumaINTEL:
-  case OpSubgroupAvcSicConfigureIpeLumaChromaINTEL:
-  case OpSubgroupAvcSicGetMotionVectorMaskINTEL:
-  case OpSubgroupAvcSicConvertToMcePayloadINTEL:
-  case OpSubgroupAvcSicSetIntraLumaShapePenaltyINTEL:
-  case OpSubgroupAvcSicSetIntraLumaModeCostFunctionINTEL:
-  case OpSubgroupAvcSicSetIntraChromaModeCostFunctionINTEL:
-  case OpSubgroupAvcSicSetBilinearFilterEnableINTEL:
-  case OpSubgroupAvcSicSetSkcForwardTransformEnableINTEL:
-  case OpSubgroupAvcSicSetBlockBasedRawSkipSadINTEL:
-  case OpSubgroupAvcSicEvaluateIpeINTEL:
-  case OpSubgroupAvcSicEvaluateWithSingleReferenceINTEL:
-  case OpSubgroupAvcSicEvaluateWithDualReferenceINTEL:
-  case OpSubgroupAvcSicEvaluateWithMultiReferenceINTEL:
-  case OpSubgroupAvcSicEvaluateWithMultiReferenceInterlacedINTEL:
-  case OpSubgroupAvcSicConvertToMceResultINTEL:
-  case OpSubgroupAvcSicGetIpeLumaShapeINTEL:
-  case OpSubgroupAvcSicGetBestIpeLumaDistortionINTEL:
-  case OpSubgroupAvcSicGetBestIpeChromaDistortionINTEL:
-  case OpSubgroupAvcSicGetPackedIpeLumaModesINTEL:
-  case OpSubgroupAvcSicGetIpeChromaModeINTEL:
-  case OpSubgroupAvcSicGetPackedSkcLumaCountThresholdINTEL:
-  case OpSubgroupAvcSicGetPackedSkcLumaSumThresholdINTEL:
-  case OpSubgroupAvcSicGetInterRawSadsINTEL:
-  case OpFPGARegINTEL:
-  case OpLoopControlINTEL:
+  case CapabilityFunctionFloatControlINTEL:
     return true;
   default:
     return false;
@@ -1063,13 +669,13 @@ inline bool isValidLoopControlMask(SPIRVWord Mask) {
   ValidMask |= LoopControlPartialCountMask;
   ValidMask |= LoopControlDependencyInfiniteMask;
   ValidMask |= LoopControlDependencyLengthMask;
-  ValidMask |= LoopControlInitiationIntervalINTEL;
-  ValidMask |= LoopControlMaxConcurrencyINTEL;
-  ValidMask |= LoopControlDependencyArrayINTEL;
-  ValidMask |= LoopControlPipelineEnableINTEL;
-  ValidMask |= LoopControlLoopCoalesceINTEL;
-  ValidMask |= LoopControlMaxInterleavingINTEL;
-  ValidMask |= LoopControlSpeculatedIterationsINTEL;
+  ValidMask |= LoopControlInitiationIntervalINTELMask;
+  ValidMask |= LoopControlMaxConcurrencyINTELMask;
+  ValidMask |= LoopControlDependencyArrayINTELMask;
+  ValidMask |= LoopControlPipelineEnableINTELMask;
+  ValidMask |= LoopControlLoopCoalesceINTELMask;
+  ValidMask |= LoopControlMaxInterleavingINTELMask;
+  ValidMask |= LoopControlSpeculatedIterationsINTELMask;
 
   return (Mask & ~ValidMask) == 0;
 }

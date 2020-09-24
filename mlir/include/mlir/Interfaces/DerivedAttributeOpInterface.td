@@ -23,6 +23,7 @@ def DerivedAttributeOpInterface : OpInterface<"DerivedAttributeOpInterface"> {
     from information of the operation. ODS generates convenience accessors for
     derived attributes and can be used to simplify translations.
   }];
+  let cppNamespace = "::mlir";
 
   let methods = [
     StaticInterfaceMethod<
@@ -30,6 +31,14 @@ def DerivedAttributeOpInterface : OpInterface<"DerivedAttributeOpInterface"> {
       /*retTy=*/"bool",
       /*methodName=*/"isDerivedAttribute",
       /*args=*/(ins "StringRef":$name)
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Materializes the derived attributes. Returns null attribute where
+        unable to materialize a derived attribute as attribute.
+      }],
+      /*retTy=*/"DictionaryAttr",
+      /*methodName=*/"materializeDerivedAttributes"
     >,
   ];
 }

@@ -11,6 +11,8 @@
 
 #include "device.h"
 
+#ifdef __SPIR__
+
 DEVICE_EXTERN_C
 double __devicelib_log(double x);
 
@@ -247,4 +249,5 @@ float __devicelib_logbf(float x);
 
 DEVICE_EXTERN_C
 float __devicelib_scalbnf(float x, int n);
+#endif // __SPIR__
 #endif // __LIBDEVICE_DEVICE_MATH_H__

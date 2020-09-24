@@ -280,13 +280,13 @@ struct Ops {
   void *v;
 };
 
-// CHECK-LABEL: define dereferenceable({{[0-9]+}}) %struct.Ops* @_ZN3OpsplERKS_
+// CHECK-LABEL: define nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) %struct.Ops* @_ZN3OpsplERKS_
 Ops& Ops::operator+(const Ops&) { return *this; }
-// CHECK-LABEL: define dereferenceable({{[0-9]+}}) %struct.Ops* @_ZN3OpsmiERKS_
+// CHECK-LABEL: define nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) %struct.Ops* @_ZN3OpsmiERKS_
 Ops& Ops::operator-(const Ops&) { return *this; }
-// CHECK-LABEL: define dereferenceable({{[0-9]+}}) %struct.Ops* @_ZN3OpsanERKS_
+// CHECK-LABEL: define nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) %struct.Ops* @_ZN3OpsanERKS_
 Ops& Ops::operator&(const Ops&) { return *this; }
-// CHECK-LABEL: define dereferenceable({{[0-9]+}}) %struct.Ops* @_ZN3OpsmlERKS_
+// CHECK-LABEL: define nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) %struct.Ops* @_ZN3OpsmlERKS_
 Ops& Ops::operator*(const Ops&) { return *this; }
 
 // PR5861
@@ -1137,4 +1137,21 @@ namespace test58 {
   };
   // CHECK-LABEL: @_ZN6test581AC1INS_5StateEEET_MNS_8identityIS3_E4typeEFbvE
   void fn1() { A(a, &State::m_fn1); }
+}
+
+namespace test59 {
+  // verify no crash.
+  template<typename T>
+  void f(T g) {
+    auto [e] = g;
+    [](decltype(e)) {};
+  }
+}
+
+namespace test60 {
+  struct X { int i, j; };
+  auto [a,b] = X{1,2};
+  template<typename T> void f(decltype(a + T())) {}
+  // CHECK-LABEL: @_ZN6test601fIiEEvDTplL_ZNS_1aEEcvT__EE
+  template void f<int>(int);
 }

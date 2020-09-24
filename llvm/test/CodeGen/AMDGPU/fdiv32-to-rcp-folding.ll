@@ -1,5 +1,5 @@
-; RUN: llc -march=amdgcn -mcpu=gfx900 -mattr=+fp32-denormals < %s | FileCheck --check-prefixes=GCN,GCN-DENORM %s
-; RUN: llc -march=amdgcn -mcpu=gfx900 -mattr=-fp32-denormals < %s | FileCheck --check-prefixes=GCN,GCN-FLUSH %s
+; RUN: llc -march=amdgcn -mcpu=gfx900 -denormal-fp-math-f32=ieee < %s | FileCheck --check-prefixes=GCN,GCN-DENORM %s
+; RUN: llc -march=amdgcn -mcpu=gfx900 -denormal-fp-math-f32=preserve-sign < %s | FileCheck --check-prefixes=GCN,GCN-FLUSH %s
 
 ; GCN-LABEL: {{^}}div_1_by_x_25ulp:
 ; GCN-DENORM-DAG: v_mov_b32_e32 [[L:v[0-9]+]], 0x6f800000
@@ -311,7 +311,7 @@ define amdgpu_kernel void @div_v4_c_by_x_25ulp(<4 x float> addrspace(1)* %arg) {
 ; GCN:            global_store_dwordx4
 define amdgpu_kernel void @div_v4_c_by_minus_x_25ulp(<4 x float> addrspace(1)* %arg) {
   %load = load <4 x float>, <4 x float> addrspace(1)* %arg, align 16
-  %neg = fsub <4 x float> <float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00>, %load
+  %neg = fneg <4 x float> %load
   %div = fdiv <4 x float> <float 2.000000e+00, float 1.000000e+00, float -1.000000e+00, float -2.000000e+00>, %neg, !fpmath !0
   store <4 x float> %div, <4 x float> addrspace(1)* %arg, align 16
   ret void

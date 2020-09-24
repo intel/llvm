@@ -1,4 +1,7 @@
-set(LLVM_LINK_COMPONENTS support)
+set(LLVM_LINK_COMPONENTS
+  support
+  FrontendOpenMP
+  )
 
 add_clang_library(clangTidyBugproneModule
   ArgumentCommentCheck.cpp
@@ -26,9 +29,11 @@ add_clang_library(clangTidyBugproneModule
   MisplacedWideningCastCheck.cpp
   MoveForwardingReferenceCheck.cpp
   MultipleStatementMacroCheck.cpp
+  NoEscapeCheck.cpp
   NotNullTerminatedResultCheck.cpp
   ParentVirtualCallCheck.cpp
   PosixReturnCheck.cpp
+  RedundantBranchConditionCheck.cpp
   ReservedIdentifierCheck.cpp
   SignedCharMisuseCheck.cpp
   SizeofContainerCheck.cpp
@@ -56,13 +61,20 @@ add_clang_library(clangTidyBugproneModule
   VirtualNearMissCheck.cpp
 
   LINK_LIBS
+  clangTidy
+  clangTidyCppCoreGuidelinesModule
+  clangTidyUtils
+
+  DEPENDS
+  omp_gen
+  )
+
+clang_target_link_libraries(clangTidyBugproneModule
+  PRIVATE
   clangAnalysis
   clangAST
   clangASTMatchers
   clangBasic
   clangLex
-  clangTidy
-  clangTidyCppCoreGuidelinesModule
-  clangTidyUtils
   clangTooling
   )

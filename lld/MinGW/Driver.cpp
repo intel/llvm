@@ -249,6 +249,12 @@ bool mingw::link(ArrayRef<const char *> argsArr, bool canExitEarly,
     add("-lldmap:" + StringRef(a->getValue()));
   if (auto *a = args.getLastArg(OPT_reproduce))
     add("-reproduce:" + StringRef(a->getValue()));
+  if (auto *a = args.getLastArg(OPT_thinlto_cache_dir))
+    add("-lldltocache:" + StringRef(a->getValue()));
+  if (auto *a = args.getLastArg(OPT_file_alignment))
+    add("-filealign:" + StringRef(a->getValue()));
+  if (auto *a = args.getLastArg(OPT_section_alignment))
+    add("-align:" + StringRef(a->getValue()));
 
   if (auto *a = args.getLastArg(OPT_o))
     add("-out:" + StringRef(a->getValue()));
@@ -282,9 +288,12 @@ bool mingw::link(ArrayRef<const char *> argsArr, bool canExitEarly,
     add("-kill-at");
   if (args.hasArg(OPT_appcontainer))
     add("-appcontainer");
+  if (args.hasArg(OPT_no_seh))
+    add("-noseh");
 
   if (args.getLastArgValue(OPT_m) != "thumb2pe" &&
-      args.getLastArgValue(OPT_m) != "arm64pe" && !args.hasArg(OPT_dynamicbase))
+      args.getLastArgValue(OPT_m) != "arm64pe" &&
+      args.hasArg(OPT_no_dynamicbase))
     add("-dynamicbase:no");
 
   if (args.hasFlag(OPT_no_insert_timestamp, OPT_insert_timestamp, false))
@@ -294,6 +303,20 @@ bool mingw::link(ArrayRef<const char *> argsArr, bool canExitEarly,
     add("-opt:ref");
   else
     add("-opt:noref");
+
+  if (args.hasFlag(OPT_enable_auto_import, OPT_disable_auto_import, true))
+    add("-auto-import");
+  else
+    add("-auto-import:no");
+  if (args.hasFlag(OPT_enable_runtime_pseudo_reloc,
+                   OPT_disable_runtime_pseudo_reloc, true))
+    add("-runtime-pseudo-reloc");
+  else
+    add("-runtime-pseudo-reloc:no");
+
+  if (args.hasFlag(OPT_allow_multiple_definition,
+                   OPT_no_allow_multiple_definition, false))
+    add("-force:multiple");
 
   if (auto *a = args.getLastArg(OPT_icf)) {
     StringRef s = a->getValue();

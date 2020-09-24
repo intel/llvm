@@ -6,9 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clc.h>
-#include "math/clc_sqrt.h"
+#include <spirv/spirv.h>
+
+#include <math/clc_sqrt.h>
 
 #define __CLC_BUILTIN __clc_sqrt
 #define __CLC_FUNCTION __spirv_ocl_sqrt
-#include "unary_builtin.inc"
+#include <math/unary_builtin.inc>

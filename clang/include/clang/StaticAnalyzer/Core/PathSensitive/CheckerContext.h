@@ -175,8 +175,7 @@ public:
   /// @param Pred The transition will be generated from the specified Pred node
   ///             to the newly generated node.
   /// @param Tag The tag to uniquely identify the creation site.
-  ExplodedNode *addTransition(ProgramStateRef State,
-                              ExplodedNode *Pred,
+  ExplodedNode *addTransition(ProgramStateRef State, ExplodedNode *Pred,
                               const ProgramPointTag *Tag = nullptr) {
     return addTransitionImpl(State, false, Pred, Tag);
   }
@@ -187,6 +186,14 @@ public:
   ExplodedNode *generateSink(ProgramStateRef State, ExplodedNode *Pred,
                              const ProgramPointTag *Tag = nullptr) {
     return addTransitionImpl(State ? State : getState(), true, Pred, Tag);
+  }
+
+  /// Add a sink node to the current path of execution, halting analysis.
+  void addSink(ProgramStateRef State = nullptr,
+               const ProgramPointTag *Tag = nullptr) {
+    if (!State)
+      State = getState();
+    addTransition(State, generateSink(State, getPredecessor()));
   }
 
   /// Generate a transition to a node that will be used to report
@@ -291,6 +298,26 @@ public:
     return getNoteTag(
         [Note](BugReporterContext &,
                PathSensitiveBugReport &) { return std::string(Note); },
+        IsPrunable);
+  }
+
+  /// A shorthand version of getNoteTag that accepts a lambda with stream for
+  /// note.
+  ///
+  /// @param Cb Callback with 'BugReport &' and 'llvm::raw_ostream &'.
+  /// @param IsPrunable Whether the note is prunable. It allows BugReporter
+  ///        to omit the note from the report if it would make the displayed
+  ///        bug path significantly shorter.
+  const NoteTag *getNoteTag(
+      std::function<void(PathSensitiveBugReport &BR, llvm::raw_ostream &OS)> &&Cb,
+      bool IsPrunable = false) {
+    return getNoteTag(
+        [Cb](PathSensitiveBugReport &BR) -> std::string {
+          llvm::SmallString<128> Str;
+          llvm::raw_svector_ostream OS(Str);
+          Cb(BR, OS);
+          return std::string(OS.str());
+        },
         IsPrunable);
   }
 

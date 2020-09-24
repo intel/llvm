@@ -258,7 +258,8 @@ namespace test5 {
   struct A { A(int); virtual ~A() = 0; }; // expected-note {{pure virtual method}}
   const A &a = 0; // expected-error {{abstract class}}
   void f(const A &a = 0); // expected-error {{abstract class}}
-  void g() { f(0); } // expected-error {{abstract class}}
+  void g(const A &a);
+  void h() { g(0); } // expected-error {{abstract class}}
 }
 
 // PR9247: Crash on invalid in clang::Sema::ActOnFinishCXXMemberSpecification
@@ -278,7 +279,7 @@ namespace pr12658 {
       virtual void f() = 0; // expected-note {{unimplemented pure virtual method 'f' in 'C'}}
   };
 
-  void foo( C& c ) {}
+  void foo(const C& c ) {}
 
   void bar( void ) {
     foo(C(99)); // expected-error {{allocating an object of abstract class type 'pr12658::C'}}

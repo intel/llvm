@@ -9,6 +9,7 @@
 #ifndef MLIR_PASS_PASS_H
 #define MLIR_PASS_PASS_H
 
+#include "mlir/IR/Dialect.h"
 #include "mlir/IR/Function.h"
 #include "mlir/Pass/AnalysisManager.h"
 #include "mlir/Pass/PassRegistry.h"
@@ -18,6 +19,8 @@
 
 namespace mlir {
 namespace detail {
+class OpToOpPassAdaptor;
+
 /// The state for a single execution of a pass. This provides a unified
 /// interface for accessing and initializing necessary state for pass execution.
 struct PassExecutionState {
@@ -37,25 +40,40 @@ struct PassExecutionState {
 } // namespace detail
 
 /// The abstract base pass class. This class contains information describing the
-/// derived pass object, e.g its kind and abstract PassInfo.
+/// derived pass object, e.g its kind and abstract TypeID.
 class Pass {
 public:
   virtual ~Pass() = default;
 
   /// Returns the unique identifier that corresponds to this pass.
-  const PassID *getPassID() const { return passID; }
+  TypeID getTypeID() const { return passID; }
 
   /// Returns the pass info for the specified pass class or null if unknown.
-  static const PassInfo *lookupPassInfo(const PassID *passID);
+  static const PassInfo *lookupPassInfo(TypeID passID);
   template <typename PassT> static const PassInfo *lookupPassInfo() {
-    return lookupPassInfo(PassID::getID<PassT>());
+    return lookupPassInfo(TypeID::get<PassT>());
   }
 
   /// Returns the pass info for this pass.
-  const PassInfo *lookupPassInfo() const { return lookupPassInfo(getPassID()); }
+  const PassInfo *lookupPassInfo() const { return lookupPassInfo(getTypeID()); }
 
   /// Returns the derived pass name.
-  virtual StringRef getName() = 0;
+  virtual StringRef getName() const = 0;
+
+  /// Register dependent dialects for the current pass.
+  /// A pass is expected to register the dialects it will create entities for
+  /// (Operations, Types, Attributes), other than dialect that exists in the
+  /// input. For example, a pass that converts from Linalg to Affine would
+  /// register the Affine dialect but does not need to register Linalg.
+  virtual void getDependentDialects(DialectRegistry &registry) const {}
+
+  /// Returns the command line argument used when registering this pass. Return
+  /// an empty string if one does not exist.
+  virtual StringRef getArgument() const {
+    if (const PassInfo *passInfo = lookupPassInfo())
+      return passInfo->getPassArgument();
+    return "";
+  }
 
   /// Returns the name of the operation that this pass operates on, or None if
   /// this is a generic OperationPass.
@@ -122,7 +140,7 @@ public:
   MutableArrayRef<Statistic *> getStatistics() { return statistics; }
 
 protected:
-  explicit Pass(const PassID *passID, Optional<StringRef> opName = llvm::None)
+  explicit Pass(TypeID passID, Optional<StringRef> opName = llvm::None)
       : passID(passID), opName(opName) {}
   Pass(const Pass &other) : Pass(other.passID, other.opName) {}
 
@@ -139,11 +157,85 @@ protected:
   virtual void runOnOperation() = 0;
 
   /// A clone method to create a copy of this pass.
-  virtual std::unique_ptr<Pass> clone() const = 0;
+  std::unique_ptr<Pass> clone() const {
+    auto newInst = clonePass();
+    newInst->copyOptionValuesFrom(this);
+    return newInst;
+  }
 
   /// Return the current operation being transformed.
   Operation *getOperation() {
     return getPassState().irAndPassFailed.getPointer();
+  }
+
+  /// Signal that some invariant was broken when running. The IR is allowed to
+  /// be in an invalid state.
+  void signalPassFailure() { getPassState().irAndPassFailed.setInt(true); }
+
+  /// Query an analysis for the current ir unit.
+  template <typename AnalysisT> AnalysisT &getAnalysis() {
+    return getAnalysisManager().getAnalysis<AnalysisT>();
+  }
+
+  /// Query an analysis for the current ir unit of a specific derived operation
+  /// type.
+  template <typename AnalysisT, typename OpT>
+  AnalysisT &getAnalysis() {
+    return getAnalysisManager().getAnalysis<AnalysisT, OpT>();
+  }
+
+  /// Query a cached instance of an analysis for the current ir unit if one
+  /// exists.
+  template <typename AnalysisT>
+  Optional<std::reference_wrapper<AnalysisT>> getCachedAnalysis() {
+    return getAnalysisManager().getCachedAnalysis<AnalysisT>();
+  }
+
+  /// Mark all analyses as preserved.
+  void markAllAnalysesPreserved() {
+    getPassState().preservedAnalyses.preserveAll();
+  }
+
+  /// Mark the provided analyses as preserved.
+  template <typename... AnalysesT> void markAnalysesPreserved() {
+    getPassState().preservedAnalyses.preserve<AnalysesT...>();
+  }
+  void markAnalysesPreserved(TypeID id) {
+    getPassState().preservedAnalyses.preserve(id);
+  }
+
+  /// Returns the analysis for the given parent operation if it exists.
+  template <typename AnalysisT>
+  Optional<std::reference_wrapper<AnalysisT>>
+  getCachedParentAnalysis(Operation *parent) {
+    return getAnalysisManager().getCachedParentAnalysis<AnalysisT>(parent);
+  }
+
+  /// Returns the analysis for the parent operation if it exists.
+  template <typename AnalysisT>
+  Optional<std::reference_wrapper<AnalysisT>> getCachedParentAnalysis() {
+    return getAnalysisManager().getCachedParentAnalysis<AnalysisT>(
+        getOperation()->getParentOp());
+  }
+
+  /// Returns the analysis for the given child operation if it exists.
+  template <typename AnalysisT>
+  Optional<std::reference_wrapper<AnalysisT>>
+  getCachedChildAnalysis(Operation *child) {
+    return getAnalysisManager().getCachedChildAnalysis<AnalysisT>(child);
+  }
+
+  /// Returns the analysis for the given child operation, or creates it if it
+  /// doesn't exist.
+  template <typename AnalysisT> AnalysisT &getChildAnalysis(Operation *child) {
+    return getAnalysisManager().getChildAnalysis<AnalysisT>(child);
+  }
+
+  /// Returns the analysis for the given child operation of specific derived
+  /// operation type, or creates it if it doesn't exist.
+  template <typename AnalysisT, typename OpTy>
+  AnalysisT &getChildAnalysis(OpTy child) {
+    return getAnalysisManager().getChildAnalysis<AnalysisT>(child);
   }
 
   /// Returns the current analysis manager.
@@ -151,21 +243,21 @@ protected:
     return getPassState().analysisManager;
   }
 
+  /// Create a copy of this pass, ignoring statistics and options.
+  virtual std::unique_ptr<Pass> clonePass() const = 0;
+
   /// Copy the option values from 'other', which is another instance of this
   /// pass.
   void copyOptionValuesFrom(const Pass *other);
 
 private:
-  /// Forwarding function to execute this pass on the given operation.
-  LLVM_NODISCARD
-  LogicalResult run(Operation *op, AnalysisManager am);
 
   /// Out of line virtual method to ensure vtables and metadata are emitted to a
   /// single .o file.
   virtual void anchor();
 
   /// Represents a unique identifier for the pass.
-  const PassID *passID;
+  TypeID passID;
 
   /// The name of the operation that this pass operates on, or None if this is a
   /// generic OperationPass.
@@ -180,8 +272,11 @@ private:
   /// The pass options registered to this pass instance.
   detail::PassOptions passOptions;
 
-  /// Allow access to 'clone' and 'run'.
+  /// Allow access to 'clone'.
   friend class OpPassManager;
+
+  /// Allow access to 'passState'.
+  friend detail::OpToOpPassAdaptor;
 
   /// Allow access to 'passOptions'.
   friend class PassInfo;
@@ -190,109 +285,6 @@ private:
 //===----------------------------------------------------------------------===//
 // Pass Model Definitions
 //===----------------------------------------------------------------------===//
-namespace detail {
-/// The opaque CRTP model of a pass. This class provides utilities for derived
-/// pass execution and handles all of the necessary polymorphic API.
-template <typename PassT, typename BasePassT>
-class PassModel : public BasePassT {
-public:
-  /// Support isa/dyn_cast functionality for the derived pass class.
-  static bool classof(const Pass *pass) {
-    return pass->getPassID() == PassID::getID<PassT>();
-  }
-
-protected:
-  explicit PassModel(Optional<StringRef> opName = llvm::None)
-      : BasePassT(PassID::getID<PassT>(), opName) {}
-
-  /// Signal that some invariant was broken when running. The IR is allowed to
-  /// be in an invalid state.
-  void signalPassFailure() {
-    this->getPassState().irAndPassFailed.setInt(true);
-  }
-
-  /// Query an analysis for the current ir unit.
-  template <typename AnalysisT> AnalysisT &getAnalysis() {
-    return this->getAnalysisManager().template getAnalysis<AnalysisT>();
-  }
-
-  /// Query a cached instance of an analysis for the current ir unit if one
-  /// exists.
-  template <typename AnalysisT>
-  Optional<std::reference_wrapper<AnalysisT>> getCachedAnalysis() {
-    return this->getAnalysisManager().template getCachedAnalysis<AnalysisT>();
-  }
-
-  /// Mark all analyses as preserved.
-  void markAllAnalysesPreserved() {
-    this->getPassState().preservedAnalyses.preserveAll();
-  }
-
-  /// Mark the provided analyses as preserved.
-  template <typename... AnalysesT> void markAnalysesPreserved() {
-    this->getPassState().preservedAnalyses.template preserve<AnalysesT...>();
-  }
-  void markAnalysesPreserved(const AnalysisID *id) {
-    this->getPassState().preservedAnalyses.preserve(id);
-  }
-
-  /// Returns the derived pass name.
-  StringRef getName() override {
-    StringRef name = llvm::getTypeName<PassT>();
-    if (!name.consume_front("mlir::"))
-      name.consume_front("(anonymous namespace)::");
-    return name;
-  }
-
-  /// A clone method to create a copy of this pass.
-  std::unique_ptr<Pass> clone() const override {
-    auto newInst = std::make_unique<PassT>(*static_cast<const PassT *>(this));
-    newInst->copyOptionValuesFrom(this);
-    return newInst;
-  }
-
-  /// Returns the analysis for the parent operation if it exists.
-  template <typename AnalysisT>
-  Optional<std::reference_wrapper<AnalysisT>>
-  getCachedParentAnalysis(Operation *parent) {
-    return this->getAnalysisManager()
-        .template getCachedParentAnalysis<AnalysisT>(parent);
-  }
-  template <typename AnalysisT>
-  Optional<std::reference_wrapper<AnalysisT>> getCachedParentAnalysis() {
-    return this->getAnalysisManager()
-        .template getCachedParentAnalysis<AnalysisT>(
-            this->getOperation()->getParentOp());
-  }
-
-  /// Returns the analysis for the given child operation if it exists.
-  template <typename AnalysisT>
-  Optional<std::reference_wrapper<AnalysisT>>
-  getCachedChildAnalysis(Operation *child) {
-    return this->getAnalysisManager()
-        .template getCachedChildAnalysis<AnalysisT>(child);
-  }
-
-  /// Returns the analysis for the given child operation, or creates it if it
-  /// doesn't exist.
-  template <typename AnalysisT> AnalysisT &getChildAnalysis(Operation *child) {
-    return this->getAnalysisManager().template getChildAnalysis<AnalysisT>(
-        child);
-  }
-};
-} // end namespace detail
-
-/// Utility base class for OpPass below to denote an opaque pass operating on a
-/// specific operation type.
-template <typename OpT> class OpPassBase : public Pass {
-public:
-  using Pass::Pass;
-
-  /// Support isa/dyn_cast functionality.
-  static bool classof(const Pass *pass) {
-    return pass->getOpName() == OpT::getOperationName();
-  }
-};
 
 /// Pass to transform an operation of a specific type.
 ///
@@ -304,14 +296,26 @@ public:
 ///
 /// Derived function passes are expected to provide the following:
 ///   - A 'void runOnOperation()' method.
-template <typename PassT, typename OpT = void>
-class OperationPass : public detail::PassModel<PassT, OpPassBase<OpT>> {
+///   - A 'StringRef getName() const' method.
+///   - A 'std::unique_ptr<Pass> clonePass() const' method.
+template <typename OpT = void> class OperationPass : public Pass {
 protected:
-  OperationPass()
-      : detail::PassModel<PassT, OpPassBase<OpT>>(OpT::getOperationName()) {}
+  OperationPass(TypeID passID) : Pass(passID, OpT::getOperationName()) {}
+
+  /// Support isa/dyn_cast functionality.
+  static bool classof(const Pass *pass) {
+    return pass->getOpName() == OpT::getOperationName();
+  }
 
   /// Return the current operation being transformed.
   OpT getOperation() { return cast<OpT>(Pass::getOperation()); }
+
+  /// Query an analysis for the current operation of the specific derived
+  /// operation type.
+  template <typename AnalysisT>
+  AnalysisT &getAnalysis() {
+    return Pass::getAnalysis<AnalysisT, OpT>();
+  }
 };
 
 /// Pass to transform an operation.
@@ -324,14 +328,23 @@ protected:
 ///
 /// Derived function passes are expected to provide the following:
 ///   - A 'void runOnOperation()' method.
-template <typename PassT>
-struct OperationPass<PassT, void> : public detail::PassModel<PassT, Pass> {};
+///   - A 'StringRef getName() const' method.
+///   - A 'std::unique_ptr<Pass> clonePass() const' method.
+template <> class OperationPass<void> : public Pass {
+protected:
+  OperationPass(TypeID passID) : Pass(passID) {}
+};
 
 /// A model for providing function pass specific utilities.
 ///
 /// Derived function passes are expected to provide the following:
 ///   - A 'void runOnFunction()' method.
-template <typename T> struct FunctionPass : public OperationPass<T, FuncOp> {
+///   - A 'StringRef getName() const' method.
+///   - A 'std::unique_ptr<Pass> clonePass() const' method.
+class FunctionPass : public OperationPass<FuncOp> {
+public:
+  using OperationPass<FuncOp>::OperationPass;
+
   /// The polymorphic API that runs the pass over the currently held function.
   virtual void runOnFunction() = 0;
 
@@ -341,24 +354,33 @@ template <typename T> struct FunctionPass : public OperationPass<T, FuncOp> {
       runOnFunction();
   }
 
-  /// Return the current module being transformed.
+  /// Return the current function being transformed.
   FuncOp getFunction() { return this->getOperation(); }
 };
 
-/// A model for providing module pass specific utilities.
-///
-/// Derived module passes are expected to provide the following:
-///   - A 'void runOnModule()' method.
-template <typename T> struct ModulePass : public OperationPass<T, ModuleOp> {
-  /// The polymorphic API that runs the pass over the currently held module.
-  virtual void runOnModule() = 0;
+/// This class provides a CRTP wrapper around a base pass class to define
+/// several necessary utility methods. This should only be used for passes that
+/// are not suitably represented using the declarative pass specification(i.e.
+/// tablegen backend).
+template <typename PassT, typename BaseT> class PassWrapper : public BaseT {
+public:
+  /// Support isa/dyn_cast functionality for the derived pass class.
+  static bool classof(const Pass *pass) {
+    return pass->getTypeID() == TypeID::get<PassT>();
+  }
 
-  /// The polymorphic API that runs the pass over the currently held operation.
-  void runOnOperation() final { runOnModule(); }
+protected:
+  PassWrapper() : BaseT(TypeID::get<PassT>()) {}
 
-  /// Return the current module being transformed.
-  ModuleOp getModule() { return this->getOperation(); }
+  /// Returns the derived pass name.
+  StringRef getName() const override { return llvm::getTypeName<PassT>(); }
+
+  /// A clone method to create a copy of this pass.
+  std::unique_ptr<Pass> clonePass() const override {
+    return std::make_unique<PassT>(*static_cast<const PassT *>(this));
+  }
 };
+
 } // end namespace mlir
 
 #endif // MLIR_PASS_PASS_H

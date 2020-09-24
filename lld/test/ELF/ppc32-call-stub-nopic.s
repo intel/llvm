@@ -20,10 +20,10 @@
 
 ## .got2+0x8000-0x10004 = 0x30000+0x8000-0x10004 = 65536*2+32764
 # CHECK-LABEL: <_start>:
-# CHECK-NEXT:    bl .+16
-# CHECK-NEXT:    bl .+12
-# CHECK-NEXT:    bl .+24
-# CHECK-NEXT:    bl .+20
+# CHECK-NEXT:    bl 0x100101d0
+# CHECK-NEXT:    bl 0x100101d0
+# CHECK-NEXT:    bl 0x100101e0
+# CHECK-NEXT:    bl 0x100101e0
 # CHECK-EMPTY:
 
 ## -fno-PIC call stubs of f and g.
@@ -47,8 +47,8 @@
 
 ## These instructions are referenced by .plt entries.
 # CHECK: 10010200 <.glink>:
-# CHECK-NEXT: b .+8
-# CHECK-NEXT: b .+4
+# CHECK-NEXT: b 0x10010208
+# CHECK-NEXT: b 0x10010208
 
 ## PLTresolve
 ## Operands of lis & lwz: .got+4 = 0x10020070+4 = 65536*4098+700

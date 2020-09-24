@@ -139,6 +139,8 @@ void ImportSection::writeBody() {
     }
     if (config->sharedMemory)
       import.Memory.Flags |= WASM_LIMITS_FLAG_IS_SHARED;
+    if (config->is64.getValueOr(false))
+      import.Memory.Flags |= WASM_LIMITS_FLAG_IS_64;
     writeImport(os, import);
   }
 
@@ -234,10 +236,32 @@ void MemorySection::writeBody() {
     flags |= WASM_LIMITS_FLAG_HAS_MAX;
   if (config->sharedMemory)
     flags |= WASM_LIMITS_FLAG_IS_SHARED;
+  if (config->is64.getValueOr(false))
+    flags |= WASM_LIMITS_FLAG_IS_64;
   writeUleb128(os, flags, "memory limits flags");
   writeUleb128(os, numMemoryPages, "initial pages");
   if (hasMax)
     writeUleb128(os, maxMemoryPages, "max pages");
+}
+
+void EventSection::writeBody() {
+  raw_ostream &os = bodyOutputStream;
+
+  writeUleb128(os, inputEvents.size(), "event count");
+  for (InputEvent *e : inputEvents) {
+    e->event.Type.SigIndex = out.typeSec->lookupType(e->signature);
+    writeEvent(os, e->event);
+  }
+}
+
+void EventSection::addEvent(InputEvent *event) {
+  if (!event->live)
+    return;
+  uint32_t eventIndex =
+      out.importSec->getNumImportedEvents() + inputEvents.size();
+  LLVM_DEBUG(dbgs() << "addEvent: " << eventIndex << "\n");
+  event->setEventIndex(eventIndex);
+  inputEvents.push_back(event);
 }
 
 void GlobalSection::assignIndexes() {
@@ -267,6 +291,7 @@ void GlobalSection::writeBody() {
   writeUleb128(os, numGlobals(), "global count");
   for (InputGlobal *g : inputGlobals)
     writeGlobal(os, g->global);
+  // TODO(wvo): when do these need I64_CONST?
   for (const Symbol *sym : staticGotSymbols) {
     WasmGlobal global;
     global.Type = {WASM_TYPE_I32, false};
@@ -297,26 +322,6 @@ void GlobalSection::addGlobal(InputGlobal *global) {
   inputGlobals.push_back(global);
 }
 
-void EventSection::writeBody() {
-  raw_ostream &os = bodyOutputStream;
-
-  writeUleb128(os, inputEvents.size(), "event count");
-  for (InputEvent *e : inputEvents) {
-    e->event.Type.SigIndex = out.typeSec->lookupType(e->signature);
-    writeEvent(os, e->event);
-  }
-}
-
-void EventSection::addEvent(InputEvent *event) {
-  if (!event->live)
-    return;
-  uint32_t eventIndex =
-      out.importSec->getNumImportedEvents() + inputEvents.size();
-  LLVM_DEBUG(dbgs() << "addEvent: " << eventIndex << "\n");
-  event->setEventIndex(eventIndex);
-  inputEvents.push_back(event);
-}
-
 void ExportSection::writeBody() {
   raw_ostream &os = bodyOutputStream;
 
@@ -326,7 +331,7 @@ void ExportSection::writeBody() {
 }
 
 bool StartSection::isNeeded() const {
-  return !config->relocatable && numSegments && config->sharedMemory;
+  return !config->relocatable && hasInitializedSegments && config->sharedMemory;
 }
 
 void StartSection::writeBody() {
