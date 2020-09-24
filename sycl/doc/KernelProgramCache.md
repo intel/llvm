@@ -127,7 +127,7 @@ Invoked by user `program::build_with_kernel_type<>()` and
 `program::get_kernel<>()` methods will call either
 `ProgramManager::getBuildPIProgram()` or `ProgramManager::getOrCreateKernel()`
 method respectively. Now, both these methods will call template
-function [`getOrBuild()`](../source/detail/program_manager/program_manager.cpp#L149)
+function [`getOrBuild()`](https://github.com/intel/llvm/blob/sycl/sycl/source/detail/program_manager/program_manager.cpp#L149)
 with multiple lambdas passed to it:
  - Acquire function;
  - GetCache function;
@@ -135,7 +135,7 @@ with multiple lambdas passed to it:
 
 *Acquire* function returns a locked version of cache. Locking is employed for
 thread safety. The threads are blocked only for insert-or-acquire attempt, i.e.
-when calling to `map::insert` in [`getOrBuild`](../source/detail/program_manager/program_manager.cpp#L149)
+when calling to `map::insert` in [`getOrBuild`](https://github.com/intel/llvm/blob/sycl/sycl/source/detail/program_manager/program_manager.cpp#L149)
 function. The rest of operation is done with the help of atomics and condition
 variables (plus a mutex for proper work of condition variable).
 
