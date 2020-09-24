@@ -25,10 +25,6 @@
 
 #include "usm_allocator.hpp"
 
-#ifdef _WIN32
-#define setenv(name, value, overwrite) _putenv_s(name, value)
-#endif
-
 namespace {
 
 // Controls Level Zero calls serialization to w/a Level Zero driver being not MT
@@ -561,6 +557,8 @@ static pi_result copyModule(ze_context_handle_t ZeContext,
                             ze_module_handle_t SrcMod,
                             ze_module_handle_t *DestMod);
 
+static void setEnvVar(const char *var, const char *value);
+
 // Forward declarations for mock implementations of Level Zero APIs that
 // do not yet work in the driver.
 // TODO: Remove these mock definitions when they work in the driver.
@@ -575,6 +573,16 @@ zeModuleGetPropertiesMock(ze_module_handle_t hModule,
 static bool isOnlineLinkEnabled();
 // End forward declarations for mock Level Zero APIs
 std::once_flag OnceFlag;
+
+// This function will ensure compatibility with both Linux and Windowns for
+// setting environment variables.
+static void setEnvVar(const char *name, const char *value) {
+#ifdef _WIN32
+  _putenv_s(name, value);
+#else
+  setenv(name, value, 1);
+#endif
+}
 
 pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                          pi_uint32 *NumPlatforms) {
@@ -610,9 +618,11 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   static std::vector<pi_platform> PiPlatformsCache;
   static std::mutex PiPlatformsCacheMutex;
 
+  // Setting these environment variables before running zeInit will enable the
+  // validation layer in the Level Zero loader.
   if (ZeValidationLayer) {
-    setenv("ZE_ENABLE_VALIDATION_LAYER", "1", 1);
-    setenv("ZE_ENABLE_PARAMETER_VALIDATION", "1", 1);
+    setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
+    setEnvVar("ZE_ENABLE_PARAMETER_VALIDATION", "1");
   }
 
   // This is a good time to initialize Level Zero.
