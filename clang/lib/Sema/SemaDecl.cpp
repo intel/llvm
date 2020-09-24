@@ -3217,6 +3217,10 @@ static void checkDimensionsAndSetDiagnostics(Sema &S, FunctionDecl *New,
                                              FunctionDecl *Old) {
   const auto *NewDeclAttr = New->getAttr<AttributeType>();
   const auto *OldDeclAttr = Old->getAttr<AttributeType>();
+
+  if (!NewDeclAttr || !OldDeclAttr)
+    return;
+
   if ((NewDeclAttr->getXDim() != OldDeclAttr->getXDim()) ||
       (NewDeclAttr->getYDim() != OldDeclAttr->getYDim()) ||
       (NewDeclAttr->getZDim() != OldDeclAttr->getZDim())) {
@@ -3302,12 +3306,8 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD,
     }
   }
 
-  if (New->hasAttr<ReqdWorkGroupSizeAttr>() &&
-      Old->hasAttr<ReqdWorkGroupSizeAttr>())
     checkDimensionsAndSetDiagnostics<ReqdWorkGroupSizeAttr>(*this, New, Old);
 
-  if (New->hasAttr<SYCLIntelMaxWorkGroupSizeAttr>() &&
-      Old->hasAttr<SYCLIntelMaxWorkGroupSizeAttr>())
     checkDimensionsAndSetDiagnostics<SYCLIntelMaxWorkGroupSizeAttr>(*this, New,
                                                                     Old);
 
