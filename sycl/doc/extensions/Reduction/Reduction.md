@@ -59,7 +59,7 @@ struct known_identity {
 
 // Available if C++17
 template <typename BinaryOperation, typename AccumulatorT>
-inline constexpr T known_identity_v = known_identity<BinaryOperation, AccumulatorT>::value;
+inline constexpr AccumulatorT known_identity_v = known_identity<BinaryOperation, AccumulatorT>::value;
 ```
 
 The dimensionality of the `accessor` passed to the `reduction` function specifies the dimensionality of the reduction variable: a 0-dimensional `accessor` represents a scalar reduction, and any other dimensionality represents an array reduction.  Specifying an array reduction of size N is functionally equivalent to specifying N independent scalar reductions.  The access mode of the accessor determines whether the reduction variable's original value is included in the reduction (i.e. for `access::mode::read_write` it is included, and for `access::mode::discard_write` it is not).  Multiple reductions aliasing the same output results in undefined behavior.
