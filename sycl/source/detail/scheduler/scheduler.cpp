@@ -271,6 +271,9 @@ void Scheduler::lockSharedTimedMutex(
   // std::shared_mutex and use std::lock_guard here both for Windows and Linux.
   while (!Lock.owns_lock()) {
     Lock.try_lock_for(std::chrono::milliseconds(10));
+    // Without yield while loop acts like endless while loop and occupies the
+    // whole CPU when multiple command groups are created in multiple host
+    // threads
     std::this_thread::yield();
   }
 #else
