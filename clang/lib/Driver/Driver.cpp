@@ -810,14 +810,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     return SYCLArg;
   };
 
-  // Emit an error if c-compilation is forced in -fsycl mode
-  if (HasValidSYCLRuntime)
-    for (StringRef XValue : C.getInputArgs().getAllArgValues(options::OPT_x)) {
-      if (XValue == "c" || XValue == "c-header")
-        C.getDriver().Diag(clang::diag::err_drv_fsycl_with_c_type)
-            << "-x " << XValue;
-    }
-
   Arg *SYCLTargets = getArgRequiringSYCLRuntime(options::OPT_fsycl_targets_EQ);
   Arg *SYCLLinkTargets =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_link_targets_EQ);
@@ -2392,12 +2384,13 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
   // actually use it, so we warn about unused -x arguments.
   types::ID InputType = types::TY_Nothing;
   Arg *InputTypeArg = nullptr;
+  bool IsSYCL = Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false);
 
   // The last /TC or /TP option sets the input type to C or C++ globally.
   if (Arg *TCTP = Args.getLastArgNoClaim(options::OPT__SLASH_TC,
                                          options::OPT__SLASH_TP)) {
     InputTypeArg = TCTP;
-    InputType = TCTP->getOption().matches(options::OPT__SLASH_TC)
+    InputType = TCTP->getOption().matches(options::OPT__SLASH_TC) && !IsSYCL
                     ? types::TY_C
                     : types::TY_CXX;
 
@@ -2430,6 +2423,11 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
         if (InputTypeArg)
           InputTypeArg->claim();
 
+        types::ID CType = types::TY_C;
+        // For SYCL, all source file inputs are considered C++.
+        if (IsSYCL)
+          CType = types::TY_CXX;
+
         // stdin must be handled specially.
         if (memcmp(Value, "-", 2) == 0) {
           // If running with -E, treat as a C input (this changes the builtin
@@ -2440,7 +2438,7 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
           if (!Args.hasArgNoClaim(options::OPT_E) && !CCCIsCPP())
             Diag(IsCLMode() ? clang::diag::err_drv_unknown_stdin_type_clang_cl
                             : clang::diag::err_drv_unknown_stdin_type);
-          Ty = types::TY_C;
+          Ty = CType;
         } else {
           // Otherwise lookup by extension.
           // Fallback is C if invoked as C preprocessor, C++ if invoked with
@@ -2450,9 +2448,29 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
           if (const char *Ext = strrchr(Value, '.'))
             Ty = TC.LookupTypeForExtension(Ext + 1);
 
+          // For SYCL, convert C-type sources to C++-type sources.
+          if (IsSYCL) {
+            switch (Ty) {
+            case types::TY_C:
+              Ty = types::TY_CXX;
+              break;
+            case types::TY_CHeader:
+              Ty = types::TY_CXXHeader;
+              break;
+            case types::TY_PP_C:
+              Ty = types::TY_PP_CXX;
+              break;
+            case types::TY_PP_CHeader:
+              Ty = types::TY_PP_CXXHeader;
+              break;
+            default:
+              break;
+            }
+          }
+
           if (Ty == types::TY_INVALID) {
             if (CCCIsCPP())
-              Ty = types::TY_C;
+              Ty = CType;
             else if (IsCLMode() && Args.hasArgNoClaim(options::OPT_E))
               Ty = types::TY_CXX;
             else
@@ -2511,7 +2529,8 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
       if (DiagnoseInputExistence(Args, Value, types::TY_C,
                                  /*TypoCorrect=*/false)) {
         Arg *InputArg = MakeInputArg(Args, Opts, A->getValue());
-        Inputs.push_back(std::make_pair(types::TY_C, InputArg));
+        Inputs.push_back(
+            std::make_pair(IsSYCL ? types::TY_CXX : types::TY_C, InputArg));
       }
       A->claim();
     } else if (A->getOption().matches(options::OPT__SLASH_Tp)) {
@@ -2539,6 +2558,11 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
         Diag(clang::diag::err_drv_unknown_language) << A->getValue();
         InputType = types::TY_Object;
       }
+      // Emit an error if c-compilation is forced in -fsycl mode
+      if (IsSYCL && (InputType == types::TY_C || InputType == types::TY_PP_C ||
+                     InputType == types::TY_CHeader))
+        Diag(clang::diag::err_drv_fsycl_with_c_type) << A->getAsString(Args);
+
     } else if (A->getOption().getID() == options::OPT_U) {
       assert(A->getNumValues() == 1 && "The /U option has one value.");
       StringRef Val = A->getValue(0);

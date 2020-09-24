@@ -2273,12 +2273,13 @@ void CodeGenModule::EmitDeferred() {
         auto DDI = DeferredDecls.find(AliaseeName);
         // Emit what is aliased first.
         if (DDI != DeferredDecls.end()) {
-          llvm::GlobalValue *AliaseeGV = dyn_cast<llvm::GlobalValue>(
-              GetAddrOfGlobal(DDI->second, ForDefinition));
+          GlobalDecl GD = DDI->second;
+          llvm::GlobalValue *AliaseeGV =
+              dyn_cast<llvm::GlobalValue>(GetAddrOfGlobal(GD, ForDefinition));
           if (!AliaseeGV)
-            AliaseeGV = GetGlobalValue(getMangledName(DDI->second));
+            AliaseeGV = GetGlobalValue(getMangledName(GD));
           assert(AliaseeGV);
-          EmitGlobalDefinition(DDI->second, AliaseeGV);
+          EmitGlobalDefinition(GD, AliaseeGV);
           // Remove the entry just added to the DeferredDeclsToEmit
           // since we have emitted it.
           DeferredDeclsToEmit.pop_back();

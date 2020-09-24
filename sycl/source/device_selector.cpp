@@ -154,6 +154,12 @@ int default_selector::operator()(const device &dev) const {
   if (dev.is_host())
     Score += 100;
 
+  // Since we deprecate SYCL_BE and SYCL_DEVICE_TYPE,
+  // we should not disallow accelerator to be chosen.
+  // But this device type gets the lowest heuristic point.
+  if (dev.is_accelerator())
+    Score += 75;
+
   return Score;
 }
 

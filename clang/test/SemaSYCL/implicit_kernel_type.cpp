@@ -51,10 +51,11 @@ class myWrapper2;
 int main() {
   queue q;
 #ifndef __SYCL_UNNAMED_LAMBDA__
-  // expected-note@+1 {{InvalidKernelName1 declared here}}
+  // expected-note@+3 {{InvalidKernelName1 declared here}}
+  // expected-note@+4{{in instantiation of function template specialization}}
+  // expected-error@28 {{kernel needs to have a globally-visible name}}
   class InvalidKernelName1 {};
   q.submit([&](handler &h) {
-    // expected-error@+1 {{kernel needs to have a globally-visible name}}
     h.single_task<InvalidKernelName1>([]() {});
   });
 #endif
