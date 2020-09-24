@@ -1,6 +1,7 @@
 // clang-format off
 // RUN: %clangxx -fsycl -c -emit-llvm -S -o - %s | FileCheck %s --check-prefix CHK-HOST
 // RUN: %clangxx -fsycl -fsycl-device-only -O0 -c -emit-llvm -S -o - %s | FileCheck %s --check-prefix CHK-DEVICE
+// REQUIRES: linux
 
 #include <CL/sycl.hpp>
 
