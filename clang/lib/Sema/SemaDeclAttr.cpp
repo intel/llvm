@@ -3017,9 +3017,12 @@ static void handleSchedulerTargetFmaxMhzAttr(Sema &S, Decl *D,
                            /*StrictlyUnsigned=*/true))
     return;
 
-  if (TargetFmaxMhz == 0) {
-    S.Diag(Attr.getLoc(), diag::err_attribute_argument_is_zero)
-        << Attr << E->getSourceRange();
+  uint32_t UpperLimit = 1048576;
+  if (TargetFmaxMhz > UpperLimit) {
+    // Allow frequency to be a "large enough" positive value, zero included
+    // Let FPGA backend handle unachievable frequency value
+    S.Diag(Attr.getLoc(), diag::err_attribute_argument_out_of_range)
+        << Attr << E->getSourceRange() << 0 << UpperLimit;
     return;
   }
 

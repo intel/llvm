@@ -25,7 +25,7 @@ int main() {
   [[intelfpga::scheduler_target_fmax_mhz(0)]] int Var = 0; // expected-error{{'scheduler_target_fmax_mhz' attribute only applies to functions}}
 
   cl::sycl::kernel_single_task<class test_kernel3>(
-      []() [[intelfpga::scheduler_target_fmax_mhz(0)]]{}); // expected-error{{'scheduler_target_fmax_mhz' attribute must be greater than 0}}
+      []() [[intelfpga::scheduler_target_fmax_mhz(1048577)]]{}); // expected-error{{'scheduler_target_fmax_mhz' attribute requires integer constant between 0 and 1048576 inclusive}}
 
   cl::sycl::kernel_single_task<class test_kernel4>(
       []() [[intelfpga::scheduler_target_fmax_mhz(-4)]]{}); // expected-error{{'scheduler_target_fmax_mhz' attribute requires a non-negative integral compile time constant expression}}
