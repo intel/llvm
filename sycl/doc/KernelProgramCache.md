@@ -83,6 +83,7 @@ built for.
 
 <a name="what-is-ksid">1</a>: Kernel set id is merely a number of translation
 unit which contains at least one kernel.
+
 <a name="what-is-kname">2</a>: Kernel name is mangled class name which is
 provided to methods of `cl::sycl::handler` (e.g. `parallel_for` or
 `single_task`).
