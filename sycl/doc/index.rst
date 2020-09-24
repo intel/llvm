@@ -27,3 +27,4 @@ Developing oneAPI DPC++ Compiler
    EnvironmentVariables
    PluginInterface
    ABIPolicyGuide
+   KernelProgramCache
