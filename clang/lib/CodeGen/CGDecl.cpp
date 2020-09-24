@@ -1144,8 +1144,6 @@ Address CodeGenModule::createUnnamedGlobalFrom(const VarDecl &D,
     llvm::GlobalVariable *InsertBefore = nullptr;
     unsigned AS =
         getContext().getTargetAddressSpace(getStringLiteralAddressSpace());
-    if (AS == 0)
-      AS = 1;
     std::string Name;
     if (D.hasGlobalStorage())
       Name = getMangledName(&D).str() + ".const";
