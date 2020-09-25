@@ -5,7 +5,7 @@
 // RUN: not %clangxx -std=c++11 -include sycl_ihdr_a.h -c %s -I %sycl_include 2>&1 | FileCheck %s
 
 // >> ---- diagnostics correctness check
-// CHECK: C++ version for host compilation does not match C++ version used for device compilation
+// CHECK: C++ version (std=c++11 or less) for host compilation cannot be matched with C++ version (std=c++14 or greater) for device compilation
 
 //==----------- cpp_version_mismatch_test_1.cpp - SYCL separate compilation cpp version mismatch test -----------------==//
 //

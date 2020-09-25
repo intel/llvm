@@ -4,8 +4,8 @@
 // >> ---- code generation checks
 // RUN: FileCheck -input-file=sycl_ihdr_a.h %s
 // CHECK: #define STD_CPP_VERSION
-// CHECK-NEXT: #if __cplusplus != STD_CPP_VERSION
-// CHECK-NEXT: #error "C++ version for host compilation does not match C++ version used for device compilation"
+// CHECK-NEXT: #if (__cplusplus <= 201112L) && (STD_CPP_VERSION >= 201401L)
+// CHECK-NEXT: #error "C++ version (std=c++11 or less) for host compilation cannot be matched with C++ version (std=c++14 or greater) for device compilation"
 // CHECK-NEXT: #endif
 
 //==----------- cpp_version_mismatch_test_2.cpp - SYCL separate compilation cpp version mismatch test -----------------==//

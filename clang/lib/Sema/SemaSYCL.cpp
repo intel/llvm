@@ -2728,14 +2728,7 @@ static void emitKernelNameType(QualType T, ASTContext &Ctx, raw_ostream &OS,
   emitWithoutAnonNamespaces(OS, T.getCanonicalType().getAsString(TypePolicy));
 }
 
-void SYCLIntegrationHeader::emit(raw_ostream &O) {
-  O << "// This is auto-generated SYCL integration header.\n";
-  O << "\n";
-
-  O << "#include <CL/sycl/detail/defines.hpp>\n";
-  O << "#include <CL/sycl/detail/kernel_desc.hpp>\n";
-
-  O << "\n";
+static int getCppVersion(SemaRef& S) {
 
   // Get c++ version to support version mismatch diagnostics
   int CppVersion = -1;
@@ -2752,11 +2745,25 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   else
     CppVersion = 199711L;
 
+  return CppVersion;
+}
+
+void SYCLIntegrationHeader::emit(raw_ostream &O) {
+  O << "// This is auto-generated SYCL integration header.\n";
+  O << "\n";
+
+  O << "#include <CL/sycl/detail/defines.hpp>\n";
+  O << "#include <CL/sycl/detail/kernel_desc.hpp>\n";
+  O << "\n";
+
+  // Get c++ version to support version mismatch diagnostics
+  int CppVersion = getCppVersion(S);
+
   // Generate C++ version mismatch diagnostics
   O << "#define STD_CPP_VERSION ";
   O << CppVersion << "\n";
-  O << "#if __cplusplus != STD_CPP_VERSION\n";
-  O << "#error \"C++ version for host compilation does not match C++ version used for device compilation\"\n";
+  O << "#if (__cplusplus <= 201112L) && (STD_CPP_VERSION >= 201401L) \n";
+  O << "#error \"C++ version (std=c++11 or less) for host compilation cannot be matched with C++ version (std=c++14 or greater) for device compilation\"\n";
   O << "#endif\n";
   O << "\n";
 
