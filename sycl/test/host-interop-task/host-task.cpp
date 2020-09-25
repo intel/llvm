@@ -143,7 +143,6 @@ void test3() {
     Deps = {E};
   }
 
-  auto Start = std::chrono::steady_clock::now();
   Q.wait_and_throw();
   auto End = std::chrono::steady_clock::now();
 
