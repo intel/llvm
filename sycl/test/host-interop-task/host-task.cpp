@@ -11,9 +11,9 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out 3
 // RUN: %ACC_RUN_PLACEHOLDER %t.out 3
 
-// RUN: %CPU_RUN_PLACEHOLDER %t.out 4
-// RUN: %GPU_RUN_PLACEHOLDER %t.out 4
-// RUN: %ACC_RUN_PLACEHOLDER %t.out 4
+// RUNx: %CPU_RUN_PLACEHOLDER %t.out 4
+// RUNx: %GPU_RUN_PLACEHOLDER %t.out 4
+// RUNx: %ACC_RUN_PLACEHOLDER %t.out 4
 
 #include <CL/sycl.hpp>
 #include <chrono>
