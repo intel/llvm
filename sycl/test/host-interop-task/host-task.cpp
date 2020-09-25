@@ -1,4 +1,4 @@
-// RUN: %clangxx -std=c++14 -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out 1
 // RUN: %GPU_RUN_PLACEHOLDER %t.out 1
 // RUN: %ACC_RUN_PLACEHOLDER %t.out 1
@@ -18,7 +18,6 @@
 #include <CL/sycl.hpp>
 #include <chrono>
 #include <iostream>
-#include <thread>
 #include <vector>
 
 using namespace cl::sycl;
@@ -105,9 +104,9 @@ void test3() {
   std::vector<event> Deps;
 
   using namespace std::chrono_literals;
-  static constexpr auto SleepInHT = 100ms;
   static constexpr size_t Count = 10;
 
+  auto Start = std::chrono::steady_clock::now();
   for (size_t Idx = 0; Idx < Count; ++Idx) {
     event E = Q.submit([&](handler &CGH) {
       CGH.depends_on(Deps);
@@ -138,21 +137,16 @@ void test3() {
         X ^= reinterpret_cast<uint64_t>(&Acc7[Idx + 7]);
         X ^= reinterpret_cast<uint64_t>(&Acc8[Idx + 8]);
         X ^= reinterpret_cast<uint64_t>(&Acc9[Idx + 9]);
-
-        std::cout << "  Start " << Idx << " (" << X << ")" << std::endl;
-        std::this_thread::sleep_for(SleepInHT);
-        std::cout << "    End " << Idx << std::endl;
       });
     });
 
     Deps = {E};
   }
 
-  auto Start = std::chrono::steady_clock::now();
   Q.wait_and_throw();
   auto End = std::chrono::steady_clock::now();
 
-  const auto Threshold = 2 * Count * SleepInHT;
+  constexpr auto Threshold = 2s;
 
   assert(End - Start < Threshold && "Host tasks were waiting for too long");
 }
