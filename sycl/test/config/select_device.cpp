@@ -38,6 +38,8 @@
 //
 // REQUIRES: gpu
 //
+// XFAIL: cuda
+//
 // TODO: Update this test when SYCL_DEVICE_FILTER support in enabled.
 
 //==------------ select_device.cpp - SYCL_DEVICE_ALLOWLIST test ------------==//
