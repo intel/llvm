@@ -49,6 +49,7 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/Debug.h"
 
 #include <algorithm>
 #include <set>

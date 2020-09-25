@@ -41,16 +41,15 @@
 #define SPIRV_LIBSPIRV_SPIRVDEBUG_H
 
 #include "SPIRVUtil.h"
-#include "llvm/IR/Module.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Debug.h"
 
 #include <iostream>
 #include <string>
 
-namespace SPIRV {
+namespace llvm {
+class Module;
+}
 
-extern llvm::cl::opt<bool> VerifyRegularizationPasses;
+namespace SPIRV {
 
 // Include source file and line number in error message.
 extern bool SPIRVDbgErrorMsgIncludesSourceInfo;
