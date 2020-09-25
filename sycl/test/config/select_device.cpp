@@ -179,7 +179,10 @@ static std::vector<DevDescT> getAllowListDesc(std::string allowList) {
 
 int main() {
   bool passed = false;
-  std::string sycl_be = getenv("SYCL_BE");
+  std::string sycl_be("PI_OPENCL");
+  if (getenv("SYCL_BE")) {
+    sycl_be = getenv("SYCL_BE");
+  }
 
   // Test the GPU devices name and version number.
   if (getenv("WRITE_DEVICE_INFO")) {
