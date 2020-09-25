@@ -104,7 +104,11 @@ void test3() {
 
   std::vector<event> Deps;
 
-  for (size_t Idx = 0; Idx < 10; ++Idx) {
+  using namespace std::chrono_literals;
+  static constexpr size_t Count = 10;
+
+  auto Start = std::chrono::steady_clock::now();
+  for (size_t Idx = 0; Idx < Count; ++Idx) {
     event E = Q.submit([&](handler &CGH) {
       CGH.depends_on(Deps);
 
@@ -134,11 +138,6 @@ void test3() {
         X ^= reinterpret_cast<uint64_t>(&Acc7[Idx + 7]);
         X ^= reinterpret_cast<uint64_t>(&Acc8[Idx + 8]);
         X ^= reinterpret_cast<uint64_t>(&Acc9[Idx + 9]);
-
-        std::cout << "  Start " << Idx << " (" << X << ")" << std::endl;
-        using namespace std::chrono_literals;
-        std::this_thread::sleep_for(100ms);
-        std::cout << "    End " << Idx << std::endl;
       });
     });
 
@@ -146,6 +145,11 @@ void test3() {
   }
 
   Q.wait_and_throw();
+  auto End = std::chrono::steady_clock::now();
+
+  constexpr auto Threshold = 2s;
+
+  assert(End - Start < Threshold && "Host tasks were waiting for too long");
 }
 
 // Host-task depending on another host-task via handler::depends_on() only
