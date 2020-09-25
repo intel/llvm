@@ -18,8 +18,8 @@
 #include <CL/sycl.hpp>
 #include <chrono>
 #include <iostream>
-#include <vector>
 #include <thread>
+#include <vector>
 
 using namespace cl::sycl;
 using namespace cl::sycl::access;
@@ -170,7 +170,7 @@ void test4() {
     auto Acc1 = B1.get_access<mode::read_write, target::host_buffer>(CGH);
     auto Acc2 = B2.get_access<mode::read_write, target::host_buffer>(CGH);
 
-    CGH.codeplay_host_task([=]{
+    CGH.codeplay_host_task([=] {
       Acc0[0] = 1;
       Acc1[0] = 2;
       Acc2[0] = 3;
@@ -218,20 +218,20 @@ int main(int Argc, const char *Argv[]) {
   int TestIdx = std::stoi(Argv[1]);
 
   switch (TestIdx) {
-    case 1:
-      test1();
-      break;
-    case 2:
-      test2();
-      break;
-    case 3:
-      test3();
-      break;
-    case 4:
-      test4();
-      break;
-    default:
-      return 1;
+  case 1:
+    test1();
+    break;
+  case 2:
+    test2();
+    break;
+  case 3:
+    test3();
+    break;
+  case 4:
+    test4();
+    break;
+  default:
+    return 1;
   }
 
   return 0;
