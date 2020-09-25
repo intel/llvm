@@ -58,17 +58,16 @@ bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
   if (!Cmd || Cmd->isSuccessfullyEnqueued())
     return true;
 
-  // Exit early if the command is blocked and the enqueue type is non-blocking
-  if (Cmd->isEnqueueBlocked() && !Blocking) {
-    EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
-    return false;
-  }
-
   // Recursively enqueue all the dependencies first and
   // exit immediately if any of the commands cannot be enqueued.
   for (DepDesc &Dep : Cmd->MDeps) {
     if (!enqueueCommand(Dep.MDepCommand, EnqueueResult, Blocking))
       return false;
+  }
+
+  if (Cmd->isEnqueueBlocked() && !Blocking) {
+    EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
+    return false;
   }
 
   return Cmd->enqueue(EnqueueResult, Blocking);
