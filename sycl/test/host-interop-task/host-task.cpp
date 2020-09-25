@@ -18,7 +18,6 @@
 #include <CL/sycl.hpp>
 #include <chrono>
 #include <iostream>
-#include <thread>
 #include <vector>
 
 using namespace cl::sycl;
