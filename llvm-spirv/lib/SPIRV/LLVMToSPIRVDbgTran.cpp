@@ -39,6 +39,7 @@
 #include "SPIRVWriter.h"
 
 #include "llvm/IR/DebugInfo.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 
 using namespace SPIRV;
 

@@ -40,7 +40,6 @@
 #define SPIRVTOLLVMDBGTRAN_H
 
 #include "SPIRVInstruction.h"
-#include "SPIRVModule.h"
 
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DebugLoc.h"

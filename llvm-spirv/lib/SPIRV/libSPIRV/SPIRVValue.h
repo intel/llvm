@@ -48,8 +48,6 @@
 #include "SPIRVType.h"
 
 #include <iostream>
-#include <map>
-#include <memory>
 
 namespace SPIRV {
 

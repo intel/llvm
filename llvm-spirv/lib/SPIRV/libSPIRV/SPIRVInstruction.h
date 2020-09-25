@@ -48,10 +48,8 @@
 #include "SPIRVValue.h"
 
 #include <cassert>
-#include <cstdint>
 #include <functional>
 #include <iostream>
-#include <map>
 #include <unordered_set>
 #include <utility>
 #include <vector>

@@ -45,9 +45,9 @@
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/IR/GlobalValue.h" // llvm::GlobalValue::LinkageTypes
-#include "llvm/IR/Metadata.h"    // llvm::Metadata
 
 namespace llvm {
+class Metadata;
 class Module;
 class Type;
 class Instruction;
