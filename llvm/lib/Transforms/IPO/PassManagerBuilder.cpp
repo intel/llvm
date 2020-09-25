@@ -749,6 +749,8 @@ void PassManagerBuilder::populateModulePassManager(
 
   addExtensionsToPM(EP_VectorizerStart, MPM);
 
+  // Disable vectorization in SYCL mode, since it's target dependent
+  // optimization
   if (!SYCLOptimizationMode) {
     // Re-rotate loops in all our loop nests. These may have fallout out of
     // rotated form due to GVN or other transformations, and the vectorizer
