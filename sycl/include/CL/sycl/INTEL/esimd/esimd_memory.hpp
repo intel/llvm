@@ -658,6 +658,9 @@ ESIMD_INLINE ESIMD_NODEBUG uint32_t esimd_get_value(AccessorTy acc) {
   return __esimd_get_value(acc);
 #endif // __SYCL_DEVICE_ONLY__ && __SYCL_EXPLICIT_SIMD__
 }
+/// Raw send APIs below are used to implement the send messages on Intel(R) processor
+/// graphics, as defined in the documentation at
+/// https://01.org/sites/default/files/documentation/intel-gfx-prm-osrc-icllp-vol02a-commandreference-instructions_2.pdf
 
 /// \brief Raw sends load.
 ///
@@ -693,11 +696,8 @@ ESIMD_INLINE ESIMD_NODEBUG uint32_t esimd_get_value(AccessorTy acc) {
 /// @param mask the predicate to specify enabled channels (optional - default to
 /// on).
 ///
-/// Returns a simd vector of type T1 and size n1.
+/// Returns the vector value read from memory.
 ///
-/// Raw send APIs are used to implement the send messages on Intel® processor
-/// graphics.
-/// https://01.org/sites/default/files/documentation/intel-gfx-prm-osrc-icllp-vol02a-commandreference-instructions_2.pdf
 ///
 template <typename T1, int n1, typename T2, int n2, typename T3, int n3,
           int N = 16>
@@ -749,7 +749,7 @@ esimd_raw_sends_load(simd<T1, n1> msgDst, simd<T2, n2> msgSrc0,
 /// @param mask the predicate to specify enabled channels (optional - default to
 /// on).
 ///
-/// Returns a simd vector of type T1 and size n1.
+/// Returns the vector value read from memory.
 ///
 template <typename T1, int n1, typename T2, int n2, int N = 16>
 ESIMD_INLINE ESIMD_NODEBUG simd<T1, n1>
