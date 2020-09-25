@@ -195,7 +195,12 @@ getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
     BuildResult->Ptr.store(Desired);
 #endif
 
-    BuildResult->State.store(BS_Done);
+    {
+      // Even if shared variable is atomic, it must be modified under the mutex
+      // in order to correctly publish the modification to the waiting thread
+      std::lock_guard<std::mutex> Lock(BuildResult->MBuildResultMutex);
+      BuildResult->State.store(BS_Done);
+    }
 
     KPCache.notifyAllBuild(*BuildResult);
 
@@ -204,13 +209,19 @@ getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
     BuildResult->Error.Msg = Ex.what();
     BuildResult->Error.Code = Ex.get_cl_code();
 
-    BuildResult->State.store(BS_Failed);
+    {
+      std::lock_guard<std::mutex> Lock(BuildResult->MBuildResultMutex);
+      BuildResult->State.store(BS_Failed);
+    }
 
     KPCache.notifyAllBuild(*BuildResult);
 
     std::rethrow_exception(std::current_exception());
   } catch (...) {
-    BuildResult->State.store(BS_Failed);
+    {
+      std::lock_guard<std::mutex> Lock(BuildResult->MBuildResultMutex);
+      BuildResult->State.store(BS_Failed);
+    }
 
     KPCache.notifyAllBuild(*BuildResult);
 
