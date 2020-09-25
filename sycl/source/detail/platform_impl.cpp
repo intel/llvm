@@ -208,61 +208,7 @@ static std::vector<DevDescT> getAllowListDesc() {
   return DecDescs;
 }
 
-std::vector<int> convertVersionString(std::string Version) {
-  // version string format is xx.yy.zzzzz.ww   WW is optional
-  std::vector<int> Values;
-  size_t Pos = 0;
-  size_t Start = Pos;
-  if ((Pos = Version.find(".", Pos)) == std::string::npos) {
-    throw sycl::runtime_error("Malformed syntax in version string",
-                              PI_INVALID_VALUE);
-  }
-  Values.push_back(std::stoi(Version.substr(Start, Pos - Start)));
-  Pos++;
-  Start = Pos;
-  if ((Pos = Version.find(".", Pos)) == std::string::npos) {
-    throw sycl::runtime_error("Malformed syntax in version string",
-                              PI_INVALID_VALUE);
-  }
-  Values.push_back(std::stoi(Version.substr(Start, Pos - Start)));
-  Pos++;
-  size_t Prev = Pos;
-  if ((Pos = Version.find(".", Pos)) == std::string::npos) {
-    Values.push_back(std::stoi(Version.substr(Prev)));
-  } else {
-    Values.push_back(std::stoi(Version.substr(Start, Pos - Start)));
-    Pos++;
-    Values.push_back(std::stoi(Version.substr(Pos)));
-  }
-  return Values;
-}
-
 enum MatchState { UNKNOWN, MATCH, NOMATCH };
-
-MatchState matchVersions(std::string Version1, std::string Version2) {
-  std::vector<int> V1 = convertVersionString(Version1);
-  std::vector<int> V2 = convertVersionString(Version2);
-
-  if (V1.size() != V2.size()) {
-    return MatchState::NOMATCH;
-  }
-  if (V1[0] > V2[0]) {
-    return MatchState::MATCH;
-  }
-  if ((V1[0] == V2[0]) && (V1[1] >= V2[1])) {
-    return MatchState::MATCH;
-  }
-  if ((V1[0] == V2[0]) && (V1[1] == V2[1]) && (V1[2] >= V2[2])) {
-    return MatchState::MATCH;
-  }
-  if (V1.size() == 4) {
-    if ((V1[0] == V2[0]) && (V1[1] == V2[1]) && (V1[2] == V2[2]) &&
-        (V1[3] >= V2[3])) {
-      return MatchState::MATCH;
-    }
-  }
-  return MatchState::NOMATCH;
-}
 
 static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
                             RT::PiPlatform PiPlatform, const plugin &Plugin) {
@@ -323,10 +269,8 @@ static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
 
       if (!Desc.DevDriverVer.empty()) {
         if (!std::regex_match(DeviceDriverVer, std::regex(Desc.DevDriverVer))) {
-          DevVerState = matchVersions(DeviceDriverVer, Desc.DevDriverVer);
-          if (DevVerState == MatchState::NOMATCH) {
-            continue;
-          }
+          DevVerState = MatchState::NOMATCH;
+          continue;
         } else {
           DevVerState = MatchState::MATCH;
         }

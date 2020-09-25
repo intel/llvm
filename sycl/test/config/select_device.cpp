@@ -1,43 +1,44 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 //
-// RUN: env WRITE_DEVICE_INFO=1 %t.out
-// RUN: env READ_DEVICE_INFO=1 %t.out
+// RUN: env WRITE_DEVICE_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env READ_DEVICE_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
 //
-// RUN: env WRITE_PLATFORM_INFO=1 %t.out
-// RUN: env READ_PLATFORM_INFO=1 %t.out
+// RUN: env WRITE_PLATFORM_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env READ_PLATFORM_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
 //
-// RUN: env WRITE_DEVICE_ERROR_INFO=1 %t.out
-// RUN: env READ_DEVICE_ERROR_INFO=1 %t.out
+// RUN: env WRITE_DEVICE_ERROR_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env READ_DEVICE_ERROR_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
 //
-// RUN: env WRITE_PLATFORM_ERROR_INFO=1 %t.out
-// RUN: env READ_PLATFORM_ERROR_INFO=1 %t.out
+// RUN: env WRITE_PLATFORM_ERROR_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env READ_PLATFORM_ERROR_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
 //
-// RUN: env WRITE_OLD_VERSION_INFO=1 %t.out
-// RUN: env READ_OLD_VERSION_INFO=1 %t.out
+// RUN: env WRITE_REG_EX_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env READ_REG_EX_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
 //
-// RUN: env WRITE_REG_EX_INFO=1 %t.out
-// RUN: env READ_REG_EX_INFO=1 %t.out
+// RUN: env WRITE_DEVICE_NAME_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env READ_DEVICE_NAME_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
 //
-// RUN: env WRITE_DEVICE_NAME_INFO=1 %t.out
-// RUN: env READ_DEVICE_NAME_INFO=1 %t.out
+// RUN: env WRITE_PLATFORM_NAME_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env READ_PLATFORM_NAME_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
 //
-// RUN: env WRITE_PLATFORM_NAME_INFO=1 %t.out
-// RUN: env READ_PLATFORM_NAME_INFO=1 %t.out
+// RUN: env WRITE_DEVICE_MULTI_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env READ_DEVICE_MULTI_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
 //
-// RUN: env WRITE_DEVICE_MULTI_INFO=1 %t.out
-// RUN: env READ_DEVICE_MULTI_INFO=1 %t.out
+// RUN: env WRITE_DEVICE_MALFORMED_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env READ_DEVICE_MALFORMED_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
 //
-// RUN: env WRITE_DEVICE_MALFORMED_INFO=1 %t.out
-// RUN: env READ_DEVICE_MALFORMED_INFO=1 %t.out
+// RUN: env WRITE_DRIVER_MALFORMED_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env READ_DRIVER_MALFORMED_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
 //
-// RUN: env WRITE_DRIVER_MALFORMED_INFO=1 %t.out
-// RUN: env READ_DRIVER_MALFORMED_INFO=1 %t.out
+// RUN: env WRITE_PLATFORM_MALFORMED_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env READ_PLATFORM_MALFORMED_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
 //
-// RUN: env WRITE_PLATFORM_MALFORMED_INFO=1 %t.out
-// RUN: env READ_PLATFORM_MALFORMED_INFO=1 %t.out
+// RUN: env WRITE_PLATVER_MALFORMED_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env READ_PLATVER_MALFORMED_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
 //
-// RUN: env WRITE_PLATFORM_VERSION_MALFORMED_INFO=1 %t.out
-// RUN: env READ_PLATFORM_VERSION_MALFORMED_INFO=1 %t.out
+// REQUIRES: gpu
+//
+// TODO: Update this test when SYCL_DEVICE_FILTER support in enabled.
 
 //==------------ select_device.cpp - SYCL_DEVICE_ALLOWLIST test ------------==//
 //
@@ -89,60 +90,6 @@ static void replaceSpecialCharacters(std::string &str) {
     str.replace(pos, rparen.size(), escrparen);
     pos += escrparen.size();
   }
-}
-
-std::vector<int> convertVersionString(std::string version) {
-  // version string format is xx.yy.zzzzz
-  std::vector<int> values;
-  size_t pos = 0;
-  size_t start = pos;
-  if ((pos = version.find(".", pos)) == std::string::npos) {
-    throw sycl::runtime_error("Malformed syntax in version string",
-                              PI_INVALID_VALUE);
-  }
-  values.push_back(std::stoi(version.substr(start, pos - start)));
-  pos++;
-  start = pos;
-  if ((pos = version.find(".", pos)) == std::string::npos) {
-    throw sycl::runtime_error("Malformed syntax in version string",
-                              PI_INVALID_VALUE);
-  }
-  values.push_back(std::stoi(version.substr(start, pos - start)));
-  pos++;
-  size_t prev = pos;
-  if ((pos = version.find(".", pos)) == std::string::npos) {
-    values.push_back(std::stoi(version.substr(prev)));
-  } else {
-    values.push_back(std::stoi(version.substr(start, pos - start)));
-    pos++;
-    values.push_back(std::stoi(version.substr(pos)));
-  }
-  return values;
-}
-
-bool matchVersions(std::string version1, std::string version2) {
-  std::vector<int> v1 = convertVersionString(version1);
-  std::vector<int> v2 = convertVersionString(version2);
-
-  if (v1.size() != v2.size()) {
-    return false;
-  }
-  if (v1[0] > v2[0]) {
-    return true;
-  }
-  if ((v1[0] == v2[0]) && (v1[1] >= v2[1])) {
-    return true;
-  }
-  if ((v1[0] == v2[0]) && (v1[1] == v2[1]) && (v1[2] >= v2[2])) {
-    return true;
-  }
-  if (v1.size() == 4) {
-    if ((v1[0] == v2[0]) && (v1[1] == v2[1]) && (v1[2] == v2[2]) &&
-        (v1[3] >= v2[3])) {
-      return true;
-    }
-  }
-  return false;
 }
 
 static std::vector<DevDescT> getAllowListDesc(std::string allowList) {
@@ -230,6 +177,7 @@ static std::vector<DevDescT> getAllowListDesc(std::string allowList) {
 
 int main() {
   bool passed = false;
+  std::string sycl_be = getenv("SYCL_BE");
 
   // Test the GPU devices name and version number.
   if (getenv("WRITE_DEVICE_INFO")) {
@@ -243,10 +191,19 @@ int main() {
               std::string name = dev.get_info<info::device::name>();
               replaceSpecialCharacters(name);
               std::string ver = dev.get_info<info::device::driver_version>();
-              fs << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
-                 << "}}" << std::endl;
-              passed = true;
-              break;
+              if ((plt.get_backend() == backend::opencl) &&
+                  (sycl_be.find("OPENCL") != std::string::npos)) {
+                fs << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
+                   << "}}" << std::endl;
+                passed = true;
+                break;
+              } else if ((plt.get_backend() == backend::level_zero) &&
+                         (sycl_be.find("LEVEL_ZERO") != std::string::npos)) {
+                fs << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
+                   << "}}" << std::endl;
+                passed = true;
+                break;
+              }
             }
           }
         }
@@ -294,14 +251,23 @@ int main() {
           std::string name = plt.get_info<info::platform::name>();
           replaceSpecialCharacters(name);
           std::string ver = plt.get_info<info::platform::version>();
-          fs << "PlatformName:{{" << name << "}},PlatformVersion:{{" << ver
-             << "}}" << std::endl;
-          passed = true;
-          break;
+          if ((plt.get_backend() == backend::opencl) &&
+              (sycl_be.find("OPENCL") != std::string::npos)) {
+            fs << "PlatformName:{{" << name << "}},PlatformVersion:{{" << ver
+               << "}}" << std::endl;
+            passed = true;
+            break;
+          } else if ((plt.get_backend() == backend::level_zero) &&
+                     (sycl_be.find("LEVEL_ZERO") != std::string::npos)) {
+            fs << "PlatformName:{{" << name << "}},PlatformVersion:{{" << ver
+               << "}}" << std::endl;
+            passed = true;
+            break;
+          }
         }
       }
+      fs.close();
     }
-    fs.close();
   } else if (getenv("READ_PLATFORM_INFO")) {
     std::ifstream fs;
     fs.open("select_device_config.txt", std::fstream::in);
@@ -345,10 +311,19 @@ int main() {
               std::string name = dev.get_info<info::device::name>();
               replaceSpecialCharacters(name);
               std::string ver("98.76.54321");
-              fs << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
-                 << "}}" << std::endl;
-              passed = true;
-              break;
+              if ((plt.get_backend() == backend::opencl) &&
+                  (sycl_be.find("OPENCL") != std::string::npos)) {
+                fs << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
+                   << "}}" << std::endl;
+                passed = true;
+                break;
+              } else if ((plt.get_backend() == backend::level_zero) &&
+                         (sycl_be.find("LEVEL_ZERO") != std::string::npos)) {
+                fs << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
+                   << "}}" << std::endl;
+                passed = true;
+                break;
+              }
             }
           }
         }
@@ -393,11 +368,21 @@ int main() {
         if (plt.has(aspect::gpu)) {
           std::string name = plt.get_info<info::platform::name>();
           replaceSpecialCharacters(name);
-          std::string ver("OpenCL 12.34");
-          fs << "PlatformName:{{" << name << "}},PlatformVersion:{{" << ver
-             << "}}" << std::endl;
-          passed = true;
-          break;
+          if ((plt.get_backend() == backend::opencl) &&
+              (sycl_be.find("OPENCL") != std::string::npos)) {
+            std::string ver("OpenCL 12.34");
+            fs << "PlatformName:{{" << name << "}},PlatformVersion:{{" << ver
+               << "}}" << std::endl;
+            passed = true;
+            break;
+          } else if ((plt.get_backend() == backend::level_zero) &&
+                     (sycl_be.find("LEVEL_ZERO") != std::string::npos)) {
+            std::string ver("12.34");
+            fs << "PlatformName:{{" << name << "}},PlatformVersion:{{" << ver
+               << "}}" << std::endl;
+            passed = true;
+            break;
+          }
         }
       }
     }
@@ -431,70 +416,6 @@ int main() {
     }
   }
 
-  // Test that the device driver version number is >= the provided version
-  // number.
-  if (getenv("WRITE_OLD_VERSION_INFO")) {
-    std::ofstream fs;
-    fs.open("select_device_config.txt");
-    if (fs.is_open()) {
-      for (const auto &plt : platform::get_platforms()) {
-        if (!plt.has(aspect::host)) {
-          for (const auto &dev : plt.get_devices()) {
-            if (dev.has(aspect::gpu)) {
-              std::string name = dev.get_info<info::device::name>();
-              replaceSpecialCharacters(name);
-              std::string ver = dev.get_info<info::device::driver_version>();
-              size_t pos = 0;
-              if ((pos = ver.rfind(".")) == std::string::npos) {
-                throw std::runtime_error("Malformed syntax in version string");
-              }
-              pos = ver.length() - pos;
-              int num = stoi(ver.substr(pos));
-              if (num > 20) {
-                num = num - 20;
-              }
-              std::string str = ver.substr(0, pos) + std::to_string(num);
-              fs << "DeviceName:{{" << name << "}},DriverVersion:{{" << str
-                 << "}}" << std::endl;
-              passed = true;
-              break;
-            }
-          }
-        }
-      }
-      fs.close();
-    }
-  } else if (getenv("READ_OLD_VERSION_INFO")) {
-    std::ifstream fs;
-    fs.open("select_device_config.txt");
-    if (fs.is_open()) {
-      std::string allowlist;
-      std::getline(fs, allowlist);
-      if (!allowlist.empty()) {
-        setenv("SYCL_DEVICE_ALLOWLIST", allowlist.c_str(), 0);
-        std::vector<DevDescT> components(getAllowListDesc(allowlist));
-        std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
-
-        cl::sycl::queue deviceQueue(gpu_selector{});
-        device dev = deviceQueue.get_device();
-        for (const DevDescT &desc : components) {
-          if ((std::regex_match(dev.get_info<info::device::name>(),
-                                std::regex(desc.devName))) &&
-              (matchVersions(dev.get_info<info::device::driver_version>(),
-                             desc.devDriverVer) == true)) {
-            passed = true;
-          }
-          std::cout << "Device: " << dev.get_info<info::device::name>()
-                    << std::endl;
-          std::cout << "DriverVersion: "
-                    << dev.get_info<info::device::driver_version>()
-                    << std::endl;
-        }
-      }
-      fs.close();
-    }
-  }
-
   // Test handling a regular expression in the device driver version number.
   if (getenv("WRITE_REG_EX_INFO")) {
     std::ofstream fs;
@@ -517,10 +438,19 @@ int main() {
                 throw std::runtime_error("Malformed syntax in version string");
               }
               ver.replace(start, pos - start, "*");
-              fs << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
-                 << "}}" << std::endl;
-              passed = true;
-              break;
+              if ((plt.get_backend() == backend::opencl) &&
+                  (sycl_be.find("OPENCL") != std::string::npos)) {
+                fs << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
+                   << "}}" << std::endl;
+                passed = true;
+                break;
+              } else if ((plt.get_backend() == backend::level_zero) &&
+                         (sycl_be.find("LEVEL_ZERO") != std::string::npos)) {
+                fs << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
+                   << "}}" << std::endl;
+                passed = true;
+                break;
+              }
             }
           }
         }
@@ -569,9 +499,17 @@ int main() {
             if (dev.has(aspect::gpu)) {
               std::string name = dev.get_info<info::device::name>();
               replaceSpecialCharacters(name);
-              fs << "DeviceName:{{" << name << "}}" << std::endl;
-              passed = true;
-              break;
+              if ((plt.get_backend() == backend::opencl) &&
+                  (sycl_be.find("OPENCL") != std::string::npos)) {
+                fs << "DeviceName:{{" << name << "}}" << std::endl;
+                passed = true;
+                break;
+              } else if ((plt.get_backend() == backend::level_zero) &&
+                         (sycl_be.find("LEVEL_ZERO") != std::string::npos)) {
+                fs << "DeviceName:{{" << name << "}}" << std::endl;
+                passed = true;
+                break;
+              }
             }
           }
         }
@@ -613,9 +551,17 @@ int main() {
         if (plt.has(aspect::gpu)) {
           std::string name = plt.get_info<info::platform::name>();
           replaceSpecialCharacters(name);
-          fs << "PlatformName:{{" << name << "}}" << std::endl;
-          passed = true;
-          break;
+          if ((plt.get_backend() == backend::opencl) &&
+              (sycl_be.find("OPENCL") != std::string::npos)) {
+            fs << "PlatformName:{{" << name << "}}" << std::endl;
+            passed = true;
+            break;
+          } else if ((plt.get_backend() == backend::level_zero) &&
+                     (sycl_be.find("LEVEL_ZERO") != std::string::npos)) {
+            fs << "PlatformName:{{" << name << "}}" << std::endl;
+            passed = true;
+            break;
+          }
         }
       }
     }
@@ -661,13 +607,27 @@ int main() {
               std::string name = dev.get_info<info::device::name>();
               replaceSpecialCharacters(name);
               std::string ver = dev.get_info<info::device::driver_version>();
-              if (count > 0) {
-                ss << " | ";
+              if ((plt.get_backend() == backend::opencl) &&
+                  (sycl_be.find("OPENCL") != std::string::npos)) {
+                if (count > 0) {
+                  ss << " | ";
+                }
+                ss << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
+                   << "}}";
+                count++;
+                passed = true;
+                break;
+              } else if ((plt.get_backend() == backend::level_zero) &&
+                         (sycl_be.find("LEVEL_ZERO") != std::string::npos)) {
+                if (count > 0) {
+                  ss << " | ";
+                }
+                ss << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
+                   << "}}";
+                count++;
+                passed = true;
+                break;
               }
-              ss << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
-                 << "}}";
-              count++;
-              passed = true;
             }
           }
         }
@@ -717,9 +677,17 @@ int main() {
             if (dev.has(aspect::gpu)) {
               std::string name = dev.get_info<info::device::name>();
               replaceSpecialCharacters(name);
-              fs << "DeviceName:HAHA{{" << name << "}}" << std::endl;
-              passed = true;
-              break;
+              if ((plt.get_backend() == backend::opencl) &&
+                  (sycl_be.find("OPENCL") != std::string::npos)) {
+                fs << "DeviceName:HAHA{{" << name << "}}" << std::endl;
+                passed = true;
+                break;
+              } else if ((plt.get_backend() == backend::level_zero) &&
+                         (sycl_be.find("LEVEL_ZERO") != std::string::npos)) {
+                fs << "DeviceName:HAHA{{" << name << "}}" << std::endl;
+                passed = true;
+                break;
+              }
             }
           }
         }
@@ -765,9 +733,17 @@ int main() {
         if (plt.has(aspect::gpu)) {
           std::string name = plt.get_info<info::platform::name>();
           replaceSpecialCharacters(name);
-          fs << "PlatformName:HAHA{{" << name << "}}" << std::endl;
-          passed = true;
-          break;
+          if ((plt.get_backend() == backend::opencl) &&
+              (sycl_be.find("OPENCL") != std::string::npos)) {
+            fs << "PlatformName:HAHA{{" << name << "}}" << std::endl;
+            passed = true;
+            break;
+          } else if ((plt.get_backend() == backend::level_zero) &&
+                     (sycl_be.find("LEVEL_ZERO") != std::string::npos)) {
+            fs << "PlatformName:HAHA{{" << name << "}}" << std::endl;
+            passed = true;
+            break;
+          }
         }
       }
     }
@@ -814,10 +790,19 @@ int main() {
               std::string name = dev.get_info<info::device::name>();
               replaceSpecialCharacters(name);
               std::string ver = dev.get_info<info::device::driver_version>();
-              fs << "DeviceName:{{" << name << "}},DriverVersion:HAHA{{" << ver
-                 << "}}" << std::endl;
-              passed = true;
-              break;
+              if ((plt.get_backend() == backend::opencl) &&
+                  (sycl_be.find("OPENCL") != std::string::npos)) {
+                fs << "DeviceName:{{" << name << "}},DriverVersion:HAHA{{"
+                   << ver << "}}" << std::endl;
+                passed = true;
+                break;
+              } else if ((plt.get_backend() == backend::level_zero) &&
+                         (sycl_be.find("LEVEL_ZERO") != std::string::npos)) {
+                fs << "DeviceName:{{" << name << "}},DriverVersion:HAHA{{"
+                   << ver << "}}" << std::endl;
+                passed = true;
+                break;
+              }
             }
           }
         }
@@ -855,7 +840,7 @@ int main() {
   }
 
   // Test the platform name and version number.
-  if (getenv("WRITE_PLATFORM_VERSION_MALFORMED_INFO")) {
+  if (getenv("WRITE_PLATVER_MALFORMED_INFO")) {
     std::ofstream fs;
     fs.open("select_device_config.txt");
     if (fs.is_open()) {
@@ -864,15 +849,24 @@ int main() {
           std::string name = plt.get_info<info::platform::name>();
           replaceSpecialCharacters(name);
           std::string ver = plt.get_info<info::platform::version>();
-          fs << "PlatformName:{{" << name << "}},PlatformVersion:HAHA{{" << ver
-             << "}}" << std::endl;
-          passed = true;
-          break;
+          if ((plt.get_backend() == backend::opencl) &&
+              (sycl_be.find("OPENCL") != std::string::npos)) {
+            fs << "PlatformName:{{" << name << "}},PlatformVersion:HAHA{{"
+               << ver << "}}" << std::endl;
+            passed = true;
+            break;
+          } else if ((plt.get_backend() == backend::level_zero) &&
+                     (sycl_be.find("LEVEL_ZERO") != std::string::npos)) {
+            fs << "PlatformName:{{" << name << "}},PlatformVersion:HAHA{{"
+               << ver << "}}" << std::endl;
+            passed = true;
+            break;
+          }
         }
       }
     }
     fs.close();
-  } else if (getenv("READ_PLATFORM_VERSION_MALFORMED_INFO")) {
+  } else if (getenv("READ_PLATVER_MALFORMED_INFO")) {
     std::ifstream fs;
     fs.open("select_device_config.txt", std::fstream::in);
     if (fs.is_open()) {
