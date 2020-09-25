@@ -31,13 +31,6 @@
 // CHECK-EMPTY:
 // CHECK-NEXT: };
 
-// CHECK: static constexpr
-// CHECK-NEXT: const unsigned kernel_signature_start[] = {
-// CHECK-NEXT:  0, // _ZTSZ4mainE8kernel_B
-// CHECK-NEXT:  2, // _ZTSZ4mainE8kernel_C
-// CHECK-NEXT:  4 // _ZTSZ4mainE8kernel_D
-// CHECK-NEXT: };
-
 // CHECK: template <> struct KernelInfo<class kernel_B> {
 // CHECK: template <> struct KernelInfo<class kernel_C> {
 // CHECK: template <> struct KernelInfo<class kernel_D> {

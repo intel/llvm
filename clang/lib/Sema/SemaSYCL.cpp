@@ -3747,30 +3747,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   }
   O << "};\n\n";
 
-  O << "// indices into the kernel_signatures array, each representing a "
-       "start"
-       " of\n";
-  O << "// kernel signature descriptor subarray of the kernel_signatures"
-       " array;\n";
-  O << "// the index order in this array corresponds to the kernel name order"
-       " in the\n";
-  O << "// kernel_names array\n";
-  O << "static constexpr\n";
-  O << "const unsigned kernel_signature_start[] = {\n";
-  unsigned CurStart = 0;
-
-  for (unsigned I = 0; I < KernelDescs.size(); I++) {
-    auto &K = KernelDescs[I];
-    O << "  " << CurStart;
-    if (I < KernelDescs.size() - 1)
-      O << ",";
-    O << " // " << K.Name << "\n";
-    CurStart += K.Params.size() + 1;
-  }
-  O << "};\n\n";
-
   O << "// Specializations of KernelInfo for kernel function types:\n";
-  CurStart = 0;
+  unsigned CurStart = 0;
 
   for (const KernelDesc &K : KernelDescs) {
     const size_t N = K.Params.size();
