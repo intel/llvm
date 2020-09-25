@@ -1,4 +1,4 @@
-//==--------- plugin_printers.hpp - Printers for the Plugin Interface -------==//
+//==--------- plugin_printers.hpp - Printers for the Plugin Interface ------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
