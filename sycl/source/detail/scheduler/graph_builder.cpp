@@ -695,7 +695,7 @@ Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
     const Requirement *Req = Dep.MDepRequirement;
     MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
 
-    updateLeaves({Cmd}, Record, Req->MAccessMode);
+    // Do not remove the actual command from list of leaves with updateLeaves
     addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode);
   }
 
