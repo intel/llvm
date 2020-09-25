@@ -446,9 +446,11 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
   if (EnableLoopInterchange)
     MPM.add(createLoopInterchangePass()); // Interchange loops
 
-  // Unroll small loops
-  MPM.add(createSimpleLoopUnrollPass(OptLevel, DisableUnrollLoops,
-                                     ForgetAllSCEVInLoopUnroll));
+  // Don't perform unrolling for SPIR target
+  if (!SYCLOptimizationMode)
+    // Unroll small loops
+    MPM.add(createSimpleLoopUnrollPass(OptLevel, DisableUnrollLoops,
+                                       ForgetAllSCEVInLoopUnroll));
   addExtensionsToPM(EP_LoopOptimizerEnd, MPM);
   // This ends the loop pass pipelines.
 
