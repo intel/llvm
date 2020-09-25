@@ -558,7 +558,7 @@ static pi_result copyModule(ze_context_handle_t ZeContext,
                             ze_module_handle_t SrcMod,
                             ze_module_handle_t *DestMod);
 
-static void setEnvVar(const char *var, const char *value);
+static bool setEnvVar(const char *var, const char *value);
 
 static pi_result getOrCreatePlatform(ze_driver_handle_t ZeDriver,
                                      pi_platform *Platform);
@@ -580,12 +580,19 @@ std::once_flag OnceFlag;
 
 // This function will ensure compatibility with both Linux and Windowns for
 // setting environment variables.
-static void setEnvVar(const char *name, const char *value) {
+static bool setEnvVar(const char *name, const char *value) {
 #ifdef _WIN32
-  _putenv_s(name, value);
+  int Res = _putenv_s(name, value);
 #else
-  setenv(name, value, 1);
+  int Res = setenv(name, value, 1);
 #endif
+  if (Res != 0) {
+    zePrint(
+        "Level Zero plugin was unable to set the environment variable: %s\n",
+        name);
+    return false;
+  }
+  return true;
 }
 
 pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
