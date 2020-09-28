@@ -6,6 +6,13 @@
 
 using namespace sycl::ONEAPI;
 
+void foo(sycl::accessor<int, 1, sycl::access::mode::read_write,
+                        sycl::access::target::global_buffer,
+                        sycl::access::placeholder::true_t,
+                        accessor_property_list<property::no_alias::instance<>,
+                                               property::no_offset::instance<>>>
+             acc) {}
+
 int main() {
   {
     // Create empty property list
@@ -34,6 +41,26 @@ int main() {
 
     static_assert(PL.get_property<property::no_alias>() == no_alias,
                   "Properties are not equal");
+  }
+
+  {
+    // Property list copy
+    accessor_property_list PL{no_alias, sycl::noinit};
+
+    accessor_property_list PL_1{PL};
+    static_assert(PL_1.has_property<property::no_alias>(),
+                  "Property not found");
+  }
+
+  {
+    // Conversion
+    accessor_property_list PL{no_offset, no_alias};
+    int *data = nullptr;
+    sycl::buffer<int, 1> buf_data(data, sycl::range<1>(1),
+                                  {sycl::property::buffer::use_host_ptr()});
+
+    sycl::accessor acc_1(buf_data, PL);
+    foo(acc_1);
   }
 
   {
