@@ -7,16 +7,19 @@
 #include <CL/sycl.hpp>
 #include <iostream>
 #include <math.h>
+#include <cstdint>
 
 namespace s = cl::sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
-#define TEST_NUM 36
+#define TEST_NUM 61
 
 float ref_val[TEST_NUM] = {1, 0, 0, 0, 0, 0, 0, 1, 1,   0.5, 0,   0,
                            1, 0, 2, 0, 0, 0, 0, 0, 1,   0,   1,   2,
-                           0, 1, 2, 5, 0, 0, 0, 0, 0.5, 0.5, NAN, NAN};
+                           0, 1, 2, 5, 0, 0, 0, 0, 0.5, 0.5, NAN, NAN, 2,
+                           0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                           0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 float refIptr = 1;
 
@@ -39,6 +42,13 @@ void device_math_test(s::queue &deviceQueue) {
       auto quo_access = buffer3.template get_access<sycl_write>(cgh);
       cgh.single_task<class DeviceMathTest>([=]() {
         int i = 0;
+        float nan = NAN;
+        float minus_nan = -NAN;
+        float infinity = INFINITY;
+        float minus_infinity = -INFINITY;
+        float subnormal;
+        *((uint32_t *)&subnormal) = 0x7FFFFF;
+
         res_access[i++] = cosf(0.0f);
         res_access[i++] = sinf(0.0f);
         res_access[i++] = logf(1.0f);
@@ -73,9 +83,58 @@ void device_math_test(s::queue &deviceQueue) {
         res_access[i++] = logbf(1.0f);
         res_access[i++] = remainderf(0.5f, 1.0f);
         res_access[i++] = remquof(0.5f, 1.0f, &quo_access[0]);
-        float a = NAN;
-        res_access[i++] = tgammaf(a);
-        res_access[i++] = lgammaf(a);
+        res_access[i++] = tgammaf(nan);
+        res_access[i++] = lgammaf(nan);
+        res_access[i++] = scalbnf(1.0f, 1);
+
+        res_access[i++] = !(signbit(infinity) == 0);
+        res_access[i++] = !(signbit(minus_infinity) != 0);
+        res_access[i++] = !(signbit(nan) == 0);
+        res_access[i++] = !(signbit(minus_nan) != 0);
+
+        res_access[i++] = !(isunordered(minus_nan, nan) != 0);
+        res_access[i++] = !(isunordered(minus_infinity, infinity) == 0);
+        res_access[i++] = !(isgreater(minus_infinity, infinity) == 0);
+        res_access[i++] = !(isgreater(0.0f, minus_nan) == 0);
+#ifdef _WIN32
+        res_access[i++] = !(isfinite(0.0f) != 0);
+        res_access[i++] = !(isfinite(nan) == 0);
+        res_access[i++] = !(isfinite(infinity) == 0);
+        res_access[i++] = !(isfinite(minus_infinity) == 0);
+
+        res_access[i++] = !(isinf(0.0f) == 0);
+        res_access[i++] = !(isinf(nan) == 0);
+        res_access[i++] = !(isinf(infinity) != 0);
+        res_access[i++] = !(isinf(minus_infinity) != 0);
+#else  // !_WIN32
+        // __builtin_isfinite is unsupported.
+        res_access[i++] = 0;
+        res_access[i++] = 0;
+        res_access[i++] = 0;
+        res_access[i++] = 0;
+
+        // __builtin_isinf is unsupported.
+        res_access[i++] = 0;
+        res_access[i++] = 0;
+        res_access[i++] = 0;
+        res_access[i++] = 0;
+#endif // !_WIN32
+        res_access[i++] = !(isnan(0.0f) == 0);
+        res_access[i++] = !(isnan(nan) != 0);
+        res_access[i++] = !(isnan(infinity) == 0);
+        res_access[i++] = !(isnan(minus_infinity) == 0);
+#ifdef _WIN32
+        res_access[i++] = !(isnormal(nan) == 0);
+        res_access[i++] = !(isnormal(minus_infinity) == 0);
+        res_access[i++] = !(isnormal(subnormal) == 0);
+        res_access[i++] = !(isnormal(1.0f) != 0);
+#else  // !_WIN32
+        // __builtin_isnormal() is unsupported.
+        res_access[i++] = 0;
+        res_access[i++] = 0;
+        res_access[i++] = 0;
+        res_access[i++] = 0;
+#endif // !_WIN32
       });
     });
   }

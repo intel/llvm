@@ -7,16 +7,19 @@
 #include <CL/sycl.hpp>
 #include <cmath>
 #include <iostream>
+#include <cstdint>
 
 namespace s = cl::sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
-#define TEST_NUM 36
+#define TEST_NUM 61
 
 float ref[TEST_NUM] = {1, 0, 0, 0, 0, 0, 0, 1, 1,   0.5, 0,   0,
                        1, 0, 2, 0, 0, 0, 0, 0, 1,   0,   1,   2,
-                       0, 1, 2, 5, 0, 0, 0, 0, 0.5, 0.5, NAN, NAN};
+                       0, 1, 2, 5, 0, 0, 0, 0, 0.5, 0.5, NAN, NAN, 2,
+                       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 float refIptr = 1;
 
@@ -39,6 +42,13 @@ template <class T> void device_cmath_test_1(s::queue &deviceQueue) {
       auto quo_access = buffer3.template get_access<sycl_write>(cgh);
       cgh.single_task<class DeviceMathTest1>([=]() {
         int i = 0;
+        T nan = NAN;
+        T minus_nan = -NAN;
+        T infinity = INFINITY;
+        T minus_infinity = -INFINITY;
+        float subnormal;
+        *((uint32_t *)&subnormal) = 0x7FFFFF;
+
         res_access[i++] = std::cos(0.0f);
         res_access[i++] = std::sin(0.0f);
         res_access[i++] = std::log(1.0f);
@@ -73,9 +83,58 @@ template <class T> void device_cmath_test_1(s::queue &deviceQueue) {
         res_access[i++] = std::logb(1.0f);
         res_access[i++] = std::remainder(0.5f, 1.0f);
         res_access[i++] = std::remquo(0.5f, 1.0f, &quo_access[0]);
-        T a = NAN;
-        res_access[i++] = std::tgamma(a);
-        res_access[i++] = std::lgamma(a);
+        res_access[i++] = std::tgamma(nan);
+        res_access[i++] = std::lgamma(nan);
+        res_access[i++] = std::scalbn(1.0f, 1);
+
+        res_access[i++] = !(std::signbit(infinity) == 0);
+        res_access[i++] = !(std::signbit(minus_infinity) != 0);
+        res_access[i++] = !(std::signbit(nan) == 0);
+        res_access[i++] = !(std::signbit(minus_nan) != 0);
+
+        res_access[i++] = !(std::isunordered(minus_nan, nan) != 0);
+        res_access[i++] = !(std::isunordered(minus_infinity, infinity) == 0);
+        res_access[i++] = !(std::isgreater(minus_infinity, infinity) == 0);
+        res_access[i++] = !(std::isgreater(0.0f, minus_nan) == 0);
+#ifdef _WIN32
+        res_access[i++] = !(std::isfinite(0.0f) != 0);
+        res_access[i++] = !(std::isfinite(nan) == 0);
+        res_access[i++] = !(std::isfinite(infinity) == 0);
+        res_access[i++] = !(std::isfinite(minus_infinity) == 0);
+
+        res_access[i++] = !(std::isinf(0.0f) == 0);
+        res_access[i++] = !(std::isinf(nan) == 0);
+        res_access[i++] = !(std::isinf(infinity) != 0);
+        res_access[i++] = !(std::isinf(minus_infinity) != 0);
+#else  // !_WIN32
+        // __builtin_isfinite is unsupported.
+        res_access[i++] = 0;
+        res_access[i++] = 0;
+        res_access[i++] = 0;
+        res_access[i++] = 0;
+
+        // __builtin_isinf is unsupported.
+        res_access[i++] = 0;
+        res_access[i++] = 0;
+        res_access[i++] = 0;
+        res_access[i++] = 0;
+#endif // !_WIN32
+        res_access[i++] = !(std::isnan(0.0f) == 0);
+        res_access[i++] = !(std::isnan(nan) != 0);
+        res_access[i++] = !(std::isnan(infinity) == 0);
+        res_access[i++] = !(std::isnan(minus_infinity) == 0);
+#ifdef _WIN32
+        res_access[i++] = !(std::isnormal(nan) == 0);
+        res_access[i++] = !(std::isnormal(minus_infinity) == 0);
+        res_access[i++] = !(std::isnormal(subnormal) == 0);
+        res_access[i++] = !(std::isnormal(1.0f) != 0);
+#else  // !_WIN32
+        // __builtin_isnormal() is unsupported.
+        res_access[i++] = 0;
+        res_access[i++] = 0;
+        res_access[i++] = 0;
+        res_access[i++] = 0;
+#endif // !_WIN32
       });
     });
   }
