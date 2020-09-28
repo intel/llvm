@@ -659,8 +659,8 @@ ESIMD_INLINE ESIMD_NODEBUG uint32_t esimd_get_value(AccessorTy acc) {
 #endif // __SYCL_DEVICE_ONLY__ && __SYCL_EXPLICIT_SIMD__
 }
 
-+/// Raw send APIs below are used to implement the send messages on Intel(R)
-+/// processor graphics, as defined in the documentation at
+/// Raw send APIs below are used to implement the send messages on Intel(R)
+/// processor graphics, as defined in the documentation at
 /// https://01.org/sites/default/files/documentation/intel-gfx-prm-osrc-icllp-vol02a-commandreference-instructions_2.pdf
 
 /// \brief Raw sends load.
