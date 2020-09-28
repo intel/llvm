@@ -494,9 +494,9 @@ public:
   detail::CG &getCG() const { return *MCommandGroup; }
 
   // MEmptyCmd is only employed if this command refers to host-task.
-  // Due to unreliable mechanism of lookup for single EmptyCommand amongst users
-  // of host-task-representing command. This unreliability roots in cleanup
-  // process.
+  // The mechanism of lookup for single EmptyCommand amongst users of
+  // host-task-representing command is unreliable. This unreliability roots in
+  // the cleanup process.
   EmptyCommand *MEmptyCmd = nullptr;
 
 private:
