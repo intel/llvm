@@ -272,10 +272,13 @@ void ESIMDLowerVecArgPass::fixGlobals(Module &M) {
     if (NewTy && !G.user_empty()) {
       // Peel off ptr type that getSimdArgPtrTyOrNull applies
       NewTy = NewTy->getPointerElementType();
-      auto ZeroInit = ConstantAggregateZero::get(NewTy);
+      auto InitVal =
+          G.hasInitializer() && isa<UndefValue>(G.getInitializer())
+              ? static_cast<ConstantData *>(UndefValue::get(NewTy))
+              : static_cast<ConstantData *>(ConstantAggregateZero::get(NewTy));
       auto NewGlobalVar =
-          new GlobalVariable(NewTy, G.isConstant(), G.getLinkage(), ZeroInit,
-                             "", G.getThreadLocalMode(), G.getAddressSpace());
+          new GlobalVariable(NewTy, G.isConstant(), G.getLinkage(), InitVal, "",
+                             G.getThreadLocalMode(), G.getAddressSpace());
       NewGlobalVar->setExternallyInitialized(G.isExternallyInitialized());
       NewGlobalVar->copyAttributesFrom(&G);
       NewGlobalVar->takeName(&G);

@@ -6,7 +6,7 @@ target triple = "spir64-unknown-unknown-sycldevice"
 
 %"class._ZTSN2cl4sycl5INTEL3gpu4simdIiLi2512EEE.cl::sycl::INTEL::gpu::simd" = type { <2512 x i32> }
 
-; CHECK: @GlobalGRF_data = dso_local global <2512 x i32> zeroinitializer, align 16384
+; CHECK: @GlobalGRF_data = dso_local global <2512 x i32> undef, align 16384
 @GlobalGRF_data = dso_local global %"class._ZTSN2cl4sycl5INTEL3gpu4simdIiLi2512EEE.cl::sycl::INTEL::gpu::simd" undef, align 16384
 
 define void @f(<2512 x i32> %simd_val) {
