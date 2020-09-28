@@ -286,6 +286,32 @@ MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
   return Req->MSYCLMemObj->MRecord.get();
 }
 
+void Scheduler::addHostTaskCommandUnlocked(Command *Cmd) {
+  HostTaskCommandXRefT XRef = HostTaskCmds.insert(HostTaskCmds.end(), Cmd);
+  HostTaskCmdXRefs[Cmd] = XRef;
+}
+
+void Scheduler::removeHostTaskCommandUnlocked(Command *Cmd) {
+  auto It = HostTaskCmdXRefs.find(Cmd);
+
+  if (It == HostTaskCmdXRefs.end())
+    return;
+
+  HostTaskCommandXRefT &XRef = It->second;
+  HostTaskCmds.erase(XRef);
+
+  HostTaskCmdXRefs.erase(It);
+}
+
+void Scheduler::enqueueHostTasksUnlocked() {
+  for (Command *Cmd : HostTaskCmds) {
+    EnqueueResultT Res;
+    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res);
+    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+      throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+  }
+}
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

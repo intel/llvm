@@ -108,10 +108,12 @@ static void unmarkVisitedNodes(std::vector<Command *> &Visited) {
     Cmd->MMarks.MVisited = false;
 }
 
-static void handleVisitedNodes(std::vector<Command *> &Visited) {
+void
+Scheduler::GraphBuilder::handleVisitedNodes(std::vector<Command *> &Visited) {
   for (Command *Cmd : Visited) {
     if (Cmd->MMarks.MToBeDeleted) {
       Cmd->getEvent()->setCommand(nullptr);
+      Scheduler::getInstance().removeHostTaskCommandUnlocked(Cmd);
       delete Cmd;
     } else
       Cmd->MMarks.MVisited = false;
@@ -803,9 +805,11 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     NewCmd->addDep(e);
   }
 
-  if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK)
+  if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
     NewCmd->MEmptyCmd = addEmptyCmd(NewCmd.get(), NewCmd->getCG().MRequirements,
                                     Queue, Command::BlockReason::HostTask);
+    Scheduler::getInstance().addHostTaskCommandUnlocked(NewCmd.get());
+  }
 
   if (MPrintOptionsArray[AfterAddCG])
     printGraphAsDot("after_addCG");

@@ -243,6 +243,8 @@ public:
 
       for (const DepDesc &Dep : Deps)
         Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement);
+
+      Sched.enqueueHostTasksUnlocked();
     }
   }
 };

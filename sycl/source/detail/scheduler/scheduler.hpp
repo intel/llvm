@@ -19,6 +19,7 @@
 #include <set>
 #include <shared_mutex>
 #include <unordered_set>
+#include <unordered_map>
 #include <vector>
 
 /// \defgroup sycl_graph DPC++ Execution Graph
@@ -585,6 +586,8 @@ protected:
   private:
     friend class ::MockScheduler;
 
+    static void handleVisitedNodes(std::vector<Command *> &Visited);
+
     /// Searches for suitable alloca in memory record.
     ///
     /// If none found, creates new one.
@@ -742,6 +745,23 @@ protected:
   };
 
   friend class stream_impl;
+
+  // List of host-task commands. This data structure is employed to overcome
+  // certain use-cases with deadlocks involving host-task. The use of this list
+  // is to enqueue (if possible) host-tasks when another host task is finished.
+  // List is used in order to remain the order of host-tasks unchanged.
+  // A map is employed to allow for quick lookup and removal of host-task
+  // command upon cleanup.
+  // Access to this data structure is guarded with graph read-write lock.
+  using HostTaskCommandsT = std::list<Command *>;
+  using HostTaskCommandXRefT = HostTaskCommandsT::iterator;
+  HostTaskCommandsT HostTaskCmds;
+  std::unordered_map<Command *, HostTaskCommandXRefT> HostTaskCmdXRefs;
+
+  void addHostTaskCommandUnlocked(Command *Cmd);
+  void removeHostTaskCommandUnlocked(Command *Cmd);
+  void enqueueHostTasksUnlocked();
+
 
   // Protects stream buffers pool
   std::mutex StreamBuffersPoolMutex;
