@@ -3,6 +3,7 @@
 // RUN: spirv-val %t.spv
 // RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 // RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: not llvm-spirv %t.bc --spirv-max-version=1.0 2>&1 | FileCheck %s --check-prefix=CHECK-SPV10
 
 class Something {
   public:
@@ -23,3 +24,5 @@ void kernel work(global int *out) {
 
 // CHECK-LLVM: llvm.global_ctors = appending global [1 x { i32, void ()*, i8* }] [{ i32, void ()*, i8* } { i32 65535, void ()* @[[CTORNAME:_GLOBAL__sub_I[^ ]+]], i8* null }
 // CHECK-LLVM: define spir_kernel void @[[CTORNAME]]
+
+// CHECK-SPV10: Feature requires SPIR-V 1.1 or greater: Initializer/Finalizer Execution Mode

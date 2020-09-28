@@ -3028,10 +3028,19 @@ bool LLVMToSPIRV::transExecutionMode() {
 
       switch (EMode) {
       case spv::ExecutionModeContractionOff:
-      case spv::ExecutionModeInitializer:
-      case spv::ExecutionModeFinalizer:
         BF->addExecutionMode(BM->add(
             new SPIRVExecutionMode(BF, static_cast<ExecutionMode>(EMode))));
+        break;
+      case spv::ExecutionModeInitializer:
+      case spv::ExecutionModeFinalizer:
+        if (BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_1)) {
+          BF->addExecutionMode(BM->add(
+              new SPIRVExecutionMode(BF, static_cast<ExecutionMode>(EMode))));
+        } else {
+          getErrorLog().checkError(false, SPIRVEC_Requires1_1,
+                                   "Initializer/Finalizer Execution Mode");
+          return false;
+        }
         break;
       case spv::ExecutionModeLocalSize:
       case spv::ExecutionModeLocalSizeHint: {
