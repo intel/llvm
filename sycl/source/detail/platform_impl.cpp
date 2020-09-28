@@ -121,7 +121,7 @@ vector_class<platform> platform_impl::get_platforms() {
   return Platforms;
 }
 
-std::string getValue(/*const*/ std::string &AllowList, size_t &Pos,
+std::string getValue(const std::string &AllowList, size_t &Pos,
                      unsigned long int Size) {
   size_t Prev = Pos;
   if ((Pos = AllowList.find("{{", Pos)) == std::string::npos) {
