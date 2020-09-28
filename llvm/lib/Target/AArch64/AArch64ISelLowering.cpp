@@ -1092,6 +1092,8 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
       setOperationAction(ISD::UMAX, MVT::v2i64, Custom);
       setOperationAction(ISD::UMIN, MVT::v1i64, Custom);
       setOperationAction(ISD::UMIN, MVT::v2i64, Custom);
+      setOperationAction(ISD::VECREDUCE_SMAX, MVT::v2i64, Custom);
+      setOperationAction(ISD::VECREDUCE_SMIN, MVT::v2i64, Custom);
     }
   }
 
@@ -1219,6 +1221,8 @@ void AArch64TargetLowering::addTypeForFixedLengthSVE(MVT VT) {
   setOperationAction(ISD::UMAX, VT, Custom);
   setOperationAction(ISD::UMIN, VT, Custom);
   setOperationAction(ISD::VECREDUCE_ADD, VT, Custom);
+  setOperationAction(ISD::VECREDUCE_SMAX, VT, Custom);
+  setOperationAction(ISD::VECREDUCE_SMIN, VT, Custom);
   setOperationAction(ISD::VSELECT, VT, Custom);
   setOperationAction(ISD::XOR, VT, Custom);
   setOperationAction(ISD::ZERO_EXTEND, VT, Custom);
@@ -6628,17 +6632,34 @@ SDValue AArch64TargetLowering::LowerRETURNADDR(SDValue Op,
   EVT VT = Op.getValueType();
   SDLoc DL(Op);
   unsigned Depth = cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue();
+  SDValue ReturnAddress;
   if (Depth) {
     SDValue FrameAddr = LowerFRAMEADDR(Op, DAG);
     SDValue Offset = DAG.getConstant(8, DL, getPointerTy(DAG.getDataLayout()));
-    return DAG.getLoad(VT, DL, DAG.getEntryNode(),
-                       DAG.getNode(ISD::ADD, DL, VT, FrameAddr, Offset),
-                       MachinePointerInfo());
+    ReturnAddress = DAG.getLoad(
+        VT, DL, DAG.getEntryNode(),
+        DAG.getNode(ISD::ADD, DL, VT, FrameAddr, Offset), MachinePointerInfo());
+  } else {
+    // Return LR, which contains the return address. Mark it an implicit
+    // live-in.
+    unsigned Reg = MF.addLiveIn(AArch64::LR, &AArch64::GPR64RegClass);
+    ReturnAddress = DAG.getCopyFromReg(DAG.getEntryNode(), DL, Reg, VT);
   }
 
-  // Return LR, which contains the return address. Mark it an implicit live-in.
-  unsigned Reg = MF.addLiveIn(AArch64::LR, &AArch64::GPR64RegClass);
-  return DAG.getCopyFromReg(DAG.getEntryNode(), DL, Reg, VT);
+  // The XPACLRI instruction assembles to a hint-space instruction before
+  // Armv8.3-A therefore this instruction can be safely used for any pre
+  // Armv8.3-A architectures. On Armv8.3-A and onwards XPACI is available so use
+  // that instead.
+  SDNode *St;
+  if (Subtarget->hasV8_3aOps()) {
+    St = DAG.getMachineNode(AArch64::XPACI, DL, VT, ReturnAddress);
+  } else {
+    // XPACLRI operates on LR therefore we must move the operand accordingly.
+    SDValue Chain =
+        DAG.getCopyToReg(DAG.getEntryNode(), DL, AArch64::LR, ReturnAddress);
+    St = DAG.getMachineNode(AArch64::XPACLRI, DL, VT, Chain);
+  }
+  return SDValue(St, 0);
 }
 
 /// LowerShiftRightParts - Lower SRA_PARTS, which returns two
@@ -9633,18 +9654,27 @@ static SDValue getReductionSDNode(unsigned Op, SDLoc DL, SDValue ScalarOp,
 
 SDValue AArch64TargetLowering::LowerVECREDUCE(SDValue Op,
                                               SelectionDAG &DAG) const {
-  SDValue VecOp = Op.getOperand(0);
+  SDValue Src = Op.getOperand(0);
+  EVT SrcVT = Src.getValueType();
 
   SDLoc dl(Op);
   switch (Op.getOpcode()) {
   case ISD::VECREDUCE_ADD:
-    if (useSVEForFixedLengthVectorVT(VecOp.getValueType()))
+    if (useSVEForFixedLengthVectorVT(SrcVT))
       return LowerFixedLengthReductionToSVE(AArch64ISD::UADDV_PRED, Op, DAG);
     return getReductionSDNode(AArch64ISD::UADDV, dl, Op, DAG);
-  case ISD::VECREDUCE_SMAX:
+  case ISD::VECREDUCE_SMAX: {
+    bool OverrideNEON = SrcVT.getVectorElementType() == MVT::i64;
+    if (useSVEForFixedLengthVectorVT(SrcVT, OverrideNEON))
+      return LowerFixedLengthReductionToSVE(AArch64ISD::SMAXV_PRED, Op, DAG);
     return getReductionSDNode(AArch64ISD::SMAXV, dl, Op, DAG);
-  case ISD::VECREDUCE_SMIN:
+  }
+  case ISD::VECREDUCE_SMIN: {
+    bool OverrideNEON = SrcVT.getVectorElementType() == MVT::i64;
+    if (useSVEForFixedLengthVectorVT(SrcVT, OverrideNEON))
+      return LowerFixedLengthReductionToSVE(AArch64ISD::SMINV_PRED, Op, DAG);
     return getReductionSDNode(AArch64ISD::SMINV, dl, Op, DAG);
+  }
   case ISD::VECREDUCE_UMAX:
     return getReductionSDNode(AArch64ISD::UMAXV, dl, Op, DAG);
   case ISD::VECREDUCE_UMIN:
@@ -15984,10 +16014,9 @@ SDValue AArch64TargetLowering::LowerFixedLengthReductionToSVE(unsigned Opcode,
   SDValue Res = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, DL, ResVT,
                             Rdx, DAG.getConstant(0, DL, MVT::i64));
 
-  // This is needed for UADDV, since it returns an i64 result. The VEC_REDUCE
-  // nodes expect an element size result.
+  // The VEC_REDUCE nodes expect an element size result.
   if (ResVT != ScalarOp.getValueType())
-    Res = DAG.getNode(ISD::TRUNCATE, DL, ScalarOp.getValueType(), Res);
+    Res = DAG.getAnyExtOrTrunc(Res, DL, ScalarOp.getValueType());
 
   return Res;
 }

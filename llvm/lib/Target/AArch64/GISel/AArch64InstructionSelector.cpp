@@ -1496,6 +1496,10 @@ bool AArch64InstructionSelector::selectVectorSHL(
     Opc = ImmVal ? AArch64::SHLv2i32_shift : AArch64::USHLv2i32;
   } else if (Ty == LLT::vector(4, 16)) {
     Opc = ImmVal ? AArch64::SHLv4i16_shift : AArch64::USHLv4i16;
+  } else if (Ty == LLT::vector(8, 16)) {
+    Opc = ImmVal ? AArch64::SHLv8i16_shift : AArch64::USHLv8i16;
+  } else if (Ty == LLT::vector(16, 8)) {
+    Opc = ImmVal ? AArch64::SHLv16i8_shift : AArch64::USHLv16i8;
   } else {
     LLVM_DEBUG(dbgs() << "Unhandled G_SHL type");
     return false;
@@ -1551,6 +1555,9 @@ bool AArch64InstructionSelector::selectVectorAshrLshr(
     NegOpc = AArch64::NEGv4i16;
   } else if (Ty == LLT::vector(8, 16)) {
     Opc = IsASHR ? AArch64::SSHLv8i16 : AArch64::USHLv8i16;
+    NegOpc = AArch64::NEGv8i16;
+  } else if (Ty == LLT::vector(16, 8)) {
+    Opc = IsASHR ? AArch64::SSHLv16i8 : AArch64::USHLv16i8;
     NegOpc = AArch64::NEGv8i16;
   } else {
     LLVM_DEBUG(dbgs() << "Unhandled G_ASHR type");
@@ -2971,6 +2978,24 @@ bool AArch64InstructionSelector::select(MachineInstr &I) {
       return constrainSelectedInstRegOperands(*MovMI, TII, TRI, RBI);
     }
   }
+  case AArch64::G_DUP: {
+    // When the scalar of G_DUP is an s8/s16 gpr, they can't be selected by
+    // imported patterns. Do it manually here. Avoiding generating s16 gpr is
+    // difficult because at RBS we may end up pessimizing the fpr case if we
+    // decided to add an anyextend to fix this. Manual selection is the most
+    // robust solution for now.
+    Register SrcReg = I.getOperand(1).getReg();
+    if (RBI.getRegBank(SrcReg, MRI, TRI)->getID() != AArch64::GPRRegBankID)
+      return false; // We expect the fpr regbank case to be imported.
+    LLT SrcTy = MRI.getType(SrcReg);
+    if (SrcTy.getSizeInBits() == 16)
+      I.setDesc(TII.get(AArch64::DUPv8i16gpr));
+    else if (SrcTy.getSizeInBits() == 8)
+      I.setDesc(TII.get(AArch64::DUPv16i8gpr));
+    else
+      return false;
+    return constrainSelectedInstRegOperands(I, TII, TRI, RBI);
+  }
   case TargetOpcode::G_INTRINSIC_TRUNC:
     return selectIntrinsicTrunc(I, MRI);
   case TargetOpcode::G_INTRINSIC_ROUND:
@@ -3781,7 +3806,10 @@ static std::pair<unsigned, unsigned>
 getInsertVecEltOpInfo(const RegisterBank &RB, unsigned EltSize) {
   unsigned Opc, SubregIdx;
   if (RB.getID() == AArch64::GPRRegBankID) {
-    if (EltSize == 32) {
+    if (EltSize == 16) {
+      Opc = AArch64::INSvi16gpr;
+      SubregIdx = AArch64::ssub;
+    } else if (EltSize == 32) {
       Opc = AArch64::INSvi32gpr;
       SubregIdx = AArch64::ssub;
     } else if (EltSize == 64) {

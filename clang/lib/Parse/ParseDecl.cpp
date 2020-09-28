@@ -4153,7 +4153,7 @@ void Parser::ParseStructDeclaration(
 ///       struct-contents:
 ///         struct-declaration-list
 /// [EXT]   empty
-/// [GNU]   "struct-declaration-list" without terminatoring ';'
+/// [GNU]   "struct-declaration-list" without terminating ';'
 ///       struct-declaration-list:
 ///         struct-declaration
 ///         struct-declaration-list struct-declaration
@@ -6487,6 +6487,10 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
       InitCXXThisScopeForDeclaratorIfRelevant(D, DS, ThisScope);
 
       // Parse exception-specification[opt].
+      // FIXME: Per [class.mem]p6, all exception-specifications at class scope
+      // should be delayed, including those for non-members (eg, friend
+      // declarations). But only applying this to member declarations is
+      // consistent with what other implementations do.
       bool Delayed = D.isFirstDeclarationOfMember() &&
                      D.isFunctionDeclaratorAFunctionDeclaration();
       if (Delayed && Actions.isLibstdcxxEagerExceptionSpecHack(D) &&

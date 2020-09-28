@@ -88,6 +88,24 @@ void MachOOptTable::printHelp(const char *argv0, bool showHidden) const {
   lld::outs() << "\n";
 }
 
+static HeaderFileType getOutputType(const opt::InputArgList &args) {
+  // TODO: -r, -dylinker, -preload...
+  opt::Arg *outputArg = args.getLastArg(OPT_bundle, OPT_dylib, OPT_execute);
+  if (outputArg == nullptr)
+    return MH_EXECUTE;
+
+  switch (outputArg->getOption().getID()) {
+  case OPT_bundle:
+    return MH_BUNDLE;
+  case OPT_dylib:
+    return MH_DYLIB;
+  case OPT_execute:
+    return MH_EXECUTE;
+  default:
+    llvm_unreachable("internal error");
+  }
+}
+
 static Optional<std::string>
 findAlongPathsWithExtensions(StringRef name, ArrayRef<StringRef> extensions) {
   llvm::SmallString<261> base;
@@ -436,6 +454,34 @@ static bool markSubLibrary(StringRef searchName) {
   return false;
 }
 
+// Replaces common symbols with defined symbols residing in __common sections.
+// This function must be called after all symbol names are resolved (i.e. after
+// all InputFiles have been loaded.) As a result, later operations won't see
+// any CommonSymbols.
+static void replaceCommonSymbols() {
+  for (macho::Symbol *sym : symtab->getSymbols()) {
+    auto *common = dyn_cast<CommonSymbol>(sym);
+    if (common == nullptr)
+      continue;
+
+    auto *isec = make<InputSection>();
+    isec->file = common->file;
+    isec->name = section_names::common;
+    isec->segname = segment_names::data;
+    isec->align = common->align;
+    // Casting to size_t will truncate large values on 32-bit architectures,
+    // but it's not really worth supporting the linking of 64-bit programs on
+    // 32-bit archs.
+    isec->data = {nullptr, static_cast<size_t>(common->size)};
+    isec->flags = S_ZEROFILL;
+    inputSections.push_back(isec);
+
+    replaceSymbol<Defined>(sym, sym->getName(), isec, /*value=*/0,
+                           /*isWeakDef=*/false,
+                           /*isExternal=*/true);
+  }
+}
+
 static inline char toLowerDash(char x) {
   if (x >= 'A' && x <= 'Z')
     return x - 'A' + 'a';
@@ -523,6 +569,8 @@ bool macho::link(llvm::ArrayRef<const char *> argsArr, bool canExitEarly,
   stderrOS.enable_colors(stderrOS.has_colors());
   // TODO: Set up error handler properly, e.g. the errorLimitExceededMsg
 
+  errorHandler().cleanupCallback = []() { freeArena(); };
+
   MachOOptTable parser;
   opt::InputArgList args = parser.parse(argsArr.slice(1));
 
@@ -545,7 +593,7 @@ bool macho::link(llvm::ArrayRef<const char *> argsArr, bool canExitEarly,
   config->headerPad = args::getHex(args, OPT_headerpad, /*Default=*/32);
   config->headerPadMaxInstallNames =
       args.hasArg(OPT_headerpad_max_install_names);
-  config->outputType = args.hasArg(OPT_dylib) ? MH_DYLIB : MH_EXECUTE;
+  config->outputType = getOutputType(args);
   config->runtimePaths = args::getStrings(args, OPT_rpath);
   config->allLoad = args.hasArg(OPT_all_load);
   config->forceLoadObjC = args.hasArg(OPT_ObjC);
@@ -630,6 +678,10 @@ bool macho::link(llvm::ArrayRef<const char *> argsArr, bool canExitEarly,
     }
   }
 
+  config->isPic = config->outputType == MH_DYLIB ||
+                  config->outputType == MH_BUNDLE ||
+                  (config->outputType == MH_EXECUTE && args.hasArg(OPT_pie));
+
   // Now that all dylibs have been loaded, search for those that should be
   // re-exported.
   for (opt::Arg *arg : args.filtered(OPT_sub_library)) {
@@ -639,11 +691,13 @@ bool macho::link(llvm::ArrayRef<const char *> argsArr, bool canExitEarly,
       error("-sub_library " + searchName + " does not match a supplied dylib");
   }
 
+  replaceCommonSymbols();
+
   StringRef orderFile = args.getLastArgValue(OPT_order_file);
   if (!orderFile.empty())
     parseOrderFile(orderFile);
 
-  if (config->outputType == MH_EXECUTE && !isa<Defined>(config->entry)) {
+  if (config->outputType == MH_EXECUTE && isa<Undefined>(config->entry)) {
     error("undefined symbol: " + config->entry->getName());
     return false;
   }
@@ -676,6 +730,5 @@ bool macho::link(llvm::ArrayRef<const char *> argsArr, bool canExitEarly,
   if (canExitEarly)
     exitLld(errorCount() ? 1 : 0);
 
-  freeArena();
   return !errorCount();
 }

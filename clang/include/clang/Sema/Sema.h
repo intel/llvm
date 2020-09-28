@@ -1654,17 +1654,6 @@ public:
       BaseDiag << Value;
       return Diag;
     }
-
-    // It is necessary to limit this to rvalue reference to avoid calling this
-    // function with a bitfield lvalue argument since non-const reference to
-    // bitfield is not allowed.
-    template <typename T, typename = typename std::enable_if<
-                              !std::is_lvalue_reference<T>::value>::type>
-    const SemaDiagnosticBuilder &operator<<(T &&V) const {
-      const StreamableDiagnosticBase &DB = *this;
-      DB << std::move(V);
-      return *this;
-    }
   };
 
   /// Emit a diagnostic.
@@ -3235,7 +3224,7 @@ public:
   mergeSpeculativeLoadHardeningAttr(Decl *D,
                                     const SpeculativeLoadHardeningAttr &AL);
   SwiftNameAttr *mergeSwiftNameAttr(Decl *D, const SwiftNameAttr &SNA,
-                                    StringRef Name, bool Override);
+                                    StringRef Name);
   OptimizeNoneAttr *mergeOptimizeNoneAttr(Decl *D,
                                           const AttributeCommonInfo &CI);
   InternalLinkageAttr *mergeInternalLinkageAttr(Decl *D, const ParsedAttr &AL);

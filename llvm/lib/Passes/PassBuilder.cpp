@@ -35,6 +35,7 @@
 #include "llvm/Analysis/DominanceFrontier.h"
 #include "llvm/Analysis/FunctionPropertiesAnalysis.h"
 #include "llvm/Analysis/GlobalsModRef.h"
+#include "llvm/Analysis/IRSimilarityIdentifier.h"
 #include "llvm/Analysis/IVUsers.h"
 #include "llvm/Analysis/InlineAdvisor.h"
 #include "llvm/Analysis/InlineSizeEstimatorAnalysis.h"
@@ -129,6 +130,7 @@
 #include "llvm/Transforms/Scalar/BDCE.h"
 #include "llvm/Transforms/Scalar/CallSiteSplitting.h"
 #include "llvm/Transforms/Scalar/ConstantHoisting.h"
+#include "llvm/Transforms/Scalar/ConstraintElimination.h"
 #include "llvm/Transforms/Scalar/CorrelatedValuePropagation.h"
 #include "llvm/Transforms/Scalar/DCE.h"
 #include "llvm/Transforms/Scalar/DeadStoreElimination.h"
@@ -153,6 +155,7 @@
 #include "llvm/Transforms/Scalar/LoopLoadElimination.h"
 #include "llvm/Transforms/Scalar/LoopPassManager.h"
 #include "llvm/Transforms/Scalar/LoopPredication.h"
+#include "llvm/Transforms/Scalar/LoopReroll.h"
 #include "llvm/Transforms/Scalar/LoopRotation.h"
 #include "llvm/Transforms/Scalar/LoopSimplifyCFG.h"
 #include "llvm/Transforms/Scalar/LoopSink.h"
@@ -282,6 +285,7 @@ PipelineTuningOptions::PipelineTuningOptions() {
   CallGraphProfile = true;
 }
 
+extern cl::opt<bool> EnableConstraintElimination;
 extern cl::opt<bool> EnableHotColdSplit;
 extern cl::opt<bool> EnableOrderFileInstrumentation;
 
@@ -603,6 +607,9 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
     FPM.addPass(GVNSinkPass());
     FPM.addPass(SimplifyCFGPass());
   }
+
+  if (EnableConstraintElimination)
+    FPM.addPass(ConstraintEliminationPass());
 
   // Speculative execution if the target has divergent branches; otherwise nop.
   FPM.addPass(SpeculativeExecutionPass(/* OnlyIfDivergentTarget =*/true));
@@ -2833,4 +2840,10 @@ bool PassBuilder::isAnalysisPassName(StringRef PassName) {
     return true;
 #include "PassRegistry.def"
   return false;
+}
+
+void PassBuilder::registerParseTopLevelPipelineCallback(
+    const std::function<bool(ModulePassManager &, ArrayRef<PipelineElement>,
+                             bool VerifyEachPass, bool DebugLogging)> &C) {
+  TopLevelPipelineParsingCallbacks.push_back(C);
 }

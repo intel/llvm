@@ -4416,13 +4416,8 @@ NoSpeculativeLoadHardeningAttr *Sema::mergeNoSpeculativeLoadHardeningAttr(
 }
 
 SwiftNameAttr *Sema::mergeSwiftNameAttr(Decl *D, const SwiftNameAttr &SNA,
-                                        StringRef Name, bool Override) {
+                                        StringRef Name) {
   if (const auto *PrevSNA = D->getAttr<SwiftNameAttr>()) {
-    if (Override) {
-      // FIXME: warn about incompatible override
-      return nullptr;
-    }
-
     if (PrevSNA->getName() != Name && !PrevSNA->isImplicit()) {
       Diag(PrevSNA->getLocation(), diag::err_attributes_are_not_compatible)
           << PrevSNA << &SNA;
@@ -8552,6 +8547,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_SwiftObjCMembers:
     handleSimpleAttribute<SwiftObjCMembersAttr>(S, D, AL);
+    break;
+  case ParsedAttr::AT_SwiftPrivate:
+    handleSimpleAttribute<SwiftPrivateAttr>(S, D, AL);
     break;
 
   // XRay attributes.

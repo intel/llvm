@@ -98,8 +98,15 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .moreElementsToNextPow2(0);
 
   getActionDefinitionsBuilder(G_SHL)
+      .customIf([=](const LegalityQuery &Query) {
+        const auto &SrcTy = Query.Types[0];
+        const auto &AmtTy = Query.Types[1];
+        return !SrcTy.isVector() && SrcTy.getSizeInBits() == 32 &&
+               AmtTy.getSizeInBits() == 32;
+      })
       .legalFor({
           {s32, s32},
+          {s32, s64},
           {s64, s64},
           {v16s8, v16s8},
           {v4s16, v4s16},
@@ -597,11 +604,7 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .minScalarOrElt(0, s8); // Worst case, we need at least s8.
 
   getActionDefinitionsBuilder(G_INSERT_VECTOR_ELT)
-      .legalIf([=](const LegalityQuery &Query) {
-        const LLT &VecTy = Query.Types[0];
-        // TODO: Support s8 and s16
-        return VecTy == v2s32 || VecTy == v4s32 || VecTy == v2s64;
-      });
+      .legalIf(typeInSet(0, {v8s16, v2s32, v4s32, v2s64}));
 
   getActionDefinitionsBuilder(G_BUILD_VECTOR)
       .legalFor({{v8s8, s8},
@@ -760,16 +763,14 @@ bool AArch64LegalizerInfo::legalizeShlAshrLshr(
   // If the shift amount is a G_CONSTANT, promote it to a 64 bit type so the
   // imported patterns can select it later. Either way, it will be legal.
   Register AmtReg = MI.getOperand(2).getReg();
-  auto *CstMI = MRI.getVRegDef(AmtReg);
-  assert(CstMI && "expected to find a vreg def");
-  if (CstMI->getOpcode() != TargetOpcode::G_CONSTANT)
+  auto VRegAndVal = getConstantVRegValWithLookThrough(AmtReg, MRI);
+  if (!VRegAndVal)
     return true;
   // Check the shift amount is in range for an immediate form.
-  unsigned Amount = CstMI->getOperand(1).getCImm()->getZExtValue();
+  int64_t Amount = VRegAndVal->Value;
   if (Amount > 31)
     return true; // This will have to remain a register variant.
-  assert(MRI.getType(AmtReg).getSizeInBits() == 32);
-  auto ExtCst = MIRBuilder.buildZExt(LLT::scalar(64), AmtReg);
+  auto ExtCst = MIRBuilder.buildConstant(LLT::scalar(64), Amount);
   MI.getOperand(2).setReg(ExtCst.getReg(0));
   return true;
 }
