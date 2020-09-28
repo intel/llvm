@@ -2247,7 +2247,7 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
       BM->getErrorLog().checkError(
           isa<ConstantInt>(Len), SPIRVEC_InvalidFunctionCall,
           toString(II) +
-              "\nCan't translate llvm.memset with non-const `length` argument");
+              "\nTranslation of llvm.memset requires a non-const `length` argument");
       return nullptr;
     }
     uint64_t NumElements = static_cast<ConstantInt *>(Len)->getZExtValue();
