@@ -154,6 +154,7 @@ kernel_impl::get_sub_group_info(
 #include <CL/sycl/info/kernel_device_specific_traits.def>
 
 #undef PARAM_TRAITS_SPEC
+#undef PARAM_TRAITS_SPEC_WITH_INPUT
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
   template ret_type kernel_impl::get_work_group_info<info::param_type::param>( \
@@ -162,7 +163,6 @@ kernel_impl::get_sub_group_info(
 #include <CL/sycl/info/kernel_work_group_traits.def>
 
 #undef PARAM_TRAITS_SPEC
-#undef PARAM_TRAITS_SPEC_WITH_INPUT
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
   template ret_type kernel_impl::get_sub_group_info<info::param_type::param>(  \
