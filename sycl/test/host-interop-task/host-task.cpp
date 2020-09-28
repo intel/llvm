@@ -303,7 +303,7 @@ void test5(size_t Count = 1) {
         std::this_thread::sleep_for(2s);
         Acc0[4] = 1 * Idx;
         Acc1[4] = 2 * Idx;
-        Acc2[4] = 3 * IDx;
+        Acc2[4] = 3 * Idx;
       });
     });
 
@@ -318,7 +318,7 @@ void test5(size_t Count = 1) {
       auto Acc5 = B5.get_access<mode::read_write, target::host_buffer>(CGH);
 
       CGH.codeplay_host_task([=] {
-        Acc5[5] = 1 * IDx;
+        Acc5[5] = 1 * Idx;
       });
     });
   }
