@@ -5,9 +5,9 @@
 
 #include "math_utils.hpp"
 #include <CL/sycl.hpp>
+#include <cstdint>
 #include <iostream>
 #include <math.h>
-#include <cstdint>
 
 namespace s = cl::sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
@@ -15,11 +15,10 @@ constexpr s::access::mode sycl_write = s::access::mode::write;
 
 #define TEST_NUM 61
 
-float ref_val[TEST_NUM] = {1, 0, 0, 0, 0, 0, 0, 1, 1,   0.5, 0,   0,
-                           1, 0, 2, 0, 0, 0, 0, 0, 1,   0,   1,   2,
-                           0, 1, 2, 5, 0, 0, 0, 0, 0.5, 0.5, NAN, NAN, 2,
-                           0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                           0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+float ref_val[TEST_NUM] = {
+    1, 0, 0, 0, 0, 0, 0, 1, 1, 0.5, 0, 0,   1,   0,   2,   0, 0, 0, 0, 0, 1,
+    0, 1, 2, 0, 1, 2, 5, 0, 0, 0,   0, 0.5, 0.5, NAN, NAN, 2, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0, 0,   0,   0,   0,   0, 0, 0, 0};
 
 float refIptr = 1;
 
@@ -107,7 +106,7 @@ void device_math_test(s::queue &deviceQueue) {
         res_access[i++] = !(isinf(infinity) != 0);
         res_access[i++] = !(isinf(minus_infinity) != 0);
 #else  // !_WIN32
-        // __builtin_isfinite is unsupported.
+       // __builtin_isfinite is unsupported.
         res_access[i++] = 0;
         res_access[i++] = 0;
         res_access[i++] = 0;
@@ -129,7 +128,7 @@ void device_math_test(s::queue &deviceQueue) {
         res_access[i++] = !(isnormal(subnormal) == 0);
         res_access[i++] = !(isnormal(1.0f) != 0);
 #else  // !_WIN32
-        // __builtin_isnormal() is unsupported.
+       // __builtin_isnormal() is unsupported.
         res_access[i++] = 0;
         res_access[i++] = 0;
         res_access[i++] = 0;

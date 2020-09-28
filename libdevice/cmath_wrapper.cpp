@@ -203,19 +203,22 @@ int _fdpcomp(float x, float y) {
 
 // Returns 0, if the sign bit is not set, and non-zero otherwise.
 DEVICE_EXTERN_C
-int _fdsign(float x) {
-  return FSIGN(x);
-}
+int _fdsign(float x) { return FSIGN(x); }
 
 // fpclassify() equivalent with a pointer argument.
 DEVICE_EXTERN_C
-short _fdtest(float* px) {
-  switch(_FDtest(px)) {
-  case _DENORM: return FP_SUBNORMAL;
-  case _FINITE: return FP_NORMAL;
-  case 0: return FP_ZERO;
-  case _INFCODE: return FP_INFINITE;
-  case _NANCODE: return FP_NAN;
+short _fdtest(float *px) {
+  switch (_FDtest(px)) {
+  case _DENORM:
+    return FP_SUBNORMAL;
+  case _FINITE:
+    return FP_NORMAL;
+  case 0:
+    return FP_ZERO;
+  case _INFCODE:
+    return FP_INFINITE;
+  case _NANCODE:
+    return FP_NAN;
   }
 }
 
