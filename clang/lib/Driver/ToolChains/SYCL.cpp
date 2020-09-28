@@ -207,7 +207,8 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
 static const char *makeExeName(Compilation &C, StringRef Name) {
   llvm::SmallString<8> ExeName(Name);
-  if (C.getDriver().IsCLMode())
+  const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+  if (HostTC->getTriple().isWindowsMSVCEnvironment())
     ExeName.append(".exe");
   return C.getArgs().MakeArgString(ExeName);
 }
@@ -233,7 +234,8 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
       // Add any FPGA library lists.  These come in as special tempfile lists.
       CmdArgs.push_back(Args.MakeArgString(Twine("-library-list=") +
           Filename));
-    else if (II.getType() == types::TY_FPGA_Dependencies)
+    else if (II.getType() == types::TY_FPGA_Dependencies ||
+             II.getType() == types::TY_FPGA_Dependencies_List)
       FPGADepFiles.push_back(II);
     else
       CmdArgs.push_back(C.getArgs().MakeArgString(Filename));
@@ -287,6 +289,8 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
     for (unsigned I = 0; I < FPGADepFiles.size(); ++I) {
       if (I)
         DepOpt += ',';
+      if (FPGADepFiles[I].getType() == types::TY_FPGA_Dependencies_List)
+        DepOpt += "@";
       DepOpt += FPGADepFiles[I].getFilename();
     }
     CmdArgs.push_back(C.getArgs().MakeArgString(DepOpt));

@@ -95,7 +95,9 @@
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_arbitrary_precision_integers,+SPV_INTEL_arbitrary_precision_fixed_point -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
-; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_arbitrary_precision_integers -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV-NEGATIVE
+; RUN: not llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_arbitrary_precision_integers -spirv-text -o - 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
+; CHECK-ERROR: InvalidInstruction: Can't translate llvm instruction:
+; CHECK-ERROR: Fixed point instructions can't be translated correctly without enabled SPV_INTEL_arbitrary_precision_fixed_point extension!
 
 ; RUN: llvm-spirv -r %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
@@ -105,9 +107,6 @@
 ; CHECK-SPIRV: 2 Capability ArbitraryPrecisionFixedPointINTEL
 ; CHECK-SPIRV: 12 Extension "SPV_INTEL_arbitrary_precision_fixed_point"
 ; CHECK-SPIRV: 11 Extension "SPV_INTEL_arbitrary_precision_integers"
-
-; CHECK-SPIRV-NEGATIVE-NOT: 2 Capability ArbitraryPrecisionFixedPointINTEL
-; CHECK-SPIRV-NEGATIVE-NOT: 12 Extension "SPV_INTEL_arbitrary_precision_fixed_point"
 
 ; CHECK-SPIRV: 4 TypeInt [[Ty_8:[0-9]+]] 8 0
 ; CHECK-SPIRV: 4 TypeInt [[Ty_13:[0-9]+]] 13 0
@@ -128,53 +127,40 @@
 
 ; CHECK-SPIRV: 6 Load [[Ty_13]] [[Sqrt_InId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 FixedSqrtINTEL [[Ty_5]] [[#]] [[Sqrt_InId]] 0 2 2 0 0
-; CHECK-SPIRV-NEGATIVE-NOT: 9 FixedSqrtINTEL
 ; CHECK-SPIRV: 6 Load [[Ty_5]] [[Sqrt_InId_B:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 FixedSqrtINTEL [[Ty_13]] [[#]] [[Sqrt_InId_B]] 0 2 2 0 0
-; CHECK-SPIRV-NEGATIVE-NOT: 9 FixedSqrtINTEL
 ; CHECK-SPIRV: 6 Load [[Ty_5]] [[Sqrt_InId_C:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 FixedSqrtINTEL [[Ty_13]] [[#]] [[Sqrt_InId_C]] 0 2 2 0 0
-; CHECK-SPIRV-NEGATIVE-NOT: 9 FixedSqrtINTEL
 
 ; CHECK-SPIRV: 6 Load [[Ty_3]] [[Recip_InId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 FixedRecipINTEL [[Ty_8]] [[#]] [[Recip_InId]] 1 4 4 0 0
-; CHECK-SPIRV-NEGATIVE-NOT: 9 FixedRecipINTEL
 
 ; CHECK-SPIRV: 6 Load [[Ty_11]] [[Rsqrt_InId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 FixedRsqrtINTEL [[Ty_10]] [[#]] [[Rsqrt_InId]] 0 8 6 0 0
-; CHECK-SPIRV-NEGATIVE-NOT: 9 FixedRsqrtINTEL
 
 ; CHECK-SPIRV: 6 Load [[Ty_17]] [[Sin_InId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 FixedSinINTEL [[Ty_11]] [[#]] [[Sin_InId]] 1 7 5 0 0
-; CHECK-SPIRV-NEGATIVE-NOT: 9 FixedSinINTEL
 
 ; CHECK-SPIRV: 6 Load [[Ty_35]] [[Cos_InId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 FixedCosINTEL [[Ty_28]] [[#]] [[Cos_InId]] 0 9 3 0 0
-; CHECK-SPIRV-NEGATIVE-NOT: 9 FixedCosINTEL
 
 ; CHECK-SPIRV: 6 Load [[Ty_31]] [[SinCos_InId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 FixedSinCosINTEL [[Ty_40]] [[#]] [[SinCos_InId]] 1 10 12 0 0
-; CHECK-SPIRV-NEGATIVE-NOT: 9 FixedSinCosINTEL
 
 ; CHECK-SPIRV: 6 Load [[Ty_60]] [[SinPi_InId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 FixedSinPiINTEL [[Ty_5]] [[#]] [[SinPi_InId]] 0 2 2 0 0
-; CHECK-SPIRV-NEGATIVE-NOT: 9 FixedSinPiINTEL
 
 ; CHECK-SPIRV: 6 Load [[Ty_28]] [[CosPi_InId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 FixedCosPiINTEL [[Ty_16]] [[#]] [[CosPi_InId]] 0 8 5 0 0
-; CHECK-SPIRV-NEGATIVE-NOT: 9 FixedCosPiINTEL
 
 ; CHECK-SPIRV: 6 Load [[Ty_13]] [[SinCosPi_InId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 FixedSinCosPiINTEL [[Ty_10]] [[#]] [[SinCosPi_InId]] 0 2 2 0 0
-; CHECK-SPIRV-NEGATIVE-NOT: 9 FixedSinCosPiINTEL
 
 ; CHECK-SPIRV: 6 Load [[Ty_64]] [[Log_InId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 FixedLogINTEL [[Ty_44]] [[#]] [[Log_InId]] 1 24 22 0 0
-; CHECK-SPIRV-NEGATIVE-NOT: 9 FixedLogINTEL
 
 ; CHECK-SPIRV: 6 Load [[Ty_44]] [[Exp_InId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 FixedExpINTEL [[Ty_34]] [[#]] [[Exp_InId]] 0 20 20 0 0
-; CHECK-SPIRV-NEGATIVE-NOT: 9 FixedExpINTEL
 
 ; CHECK-LLVM: call i5 @intel_arbitrary_fixed_sqrt.i5.i13(i13 %[[#]], i1 false, i32 2, i32 2, i32 0, i32 0)
 ; CHECK-LLVM: call i13 @intel_arbitrary_fixed_sqrt.i13.i5(i5 %[[#]], i1 false, i32 2, i32 2, i32 0, i32 0)

@@ -69,7 +69,7 @@ void load_to_slm(uint grpSize, uint localId, uint slmOffset, char *addr,
     vOffsets += (grpSize * 256);
   }
 
-  slm_fence(ESIMD_GLOBAL_COHERENT_FENCE);
+  esimd_fence(ESIMD_GLOBAL_COHERENT_FENCE);
   esimd_barrier();
 }
 

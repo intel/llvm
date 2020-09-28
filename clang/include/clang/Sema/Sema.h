@@ -9904,7 +9904,7 @@ public:
   /// \#pragma STDC FENV_ACCESS
   void ActOnPragmaFEnvAccess(SourceLocation Loc, bool IsEnabled);
 
-  /// Called to set rounding mode for floating point operations.
+  /// Called to set constant rounding mode for floating point operations.
   void setRoundingMode(SourceLocation Loc, llvm::RoundingMode);
 
   /// Called to set exception behavior for floating point operations.
@@ -9986,7 +9986,9 @@ public:
                                        Expr *E);
   void AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
                                 Expr **Exprs, unsigned Size);
-
+  template <typename AttrType>
+  void addIntelSYCLSingleArgFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
+                                         Expr *E);
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
                       bool IsPackExpansion);
@@ -10040,10 +10042,6 @@ public:
   bool checkNSReturnsRetainedReturnType(SourceLocation loc, QualType type);
   bool checkAllowedSYCLInitializer(VarDecl *VD,
                                    bool CheckValueDependent = false);
-
-  // Adds an intel_reqd_sub_group_size attribute to a particular declaration.
-  void addIntelReqdSubGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
-                                    Expr *E);
 
   //===--------------------------------------------------------------------===//
   // C++ Coroutines TS
@@ -11400,10 +11398,6 @@ public:
   ExprResult PerformImplicitConversion(Expr *From, QualType ToType,
                                        AssignmentAction Action,
                                        bool AllowExplicit = false);
-  ExprResult PerformImplicitConversion(Expr *From, QualType ToType,
-                                       AssignmentAction Action,
-                                       bool AllowExplicit,
-                                       ImplicitConversionSequence& ICS);
   ExprResult PerformImplicitConversion(Expr *From, QualType ToType,
                                        const ImplicitConversionSequence& ICS,
                                        AssignmentAction Action,
@@ -12839,6 +12833,31 @@ public:
            (VDecl->getType().getAddressSpace() == LangAS::opencl_private);
   }
 };
+
+template <typename AttrType>
+void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
+                                             const AttributeCommonInfo &CI,
+                                             Expr *E) {
+  assert(E && "Attribute must have an argument.");
+
+  if (!E->isInstantiationDependent()) {
+    Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(getASTContext());
+    if (!ArgVal) {
+      Diag(E->getExprLoc(), diag::err_attribute_argument_type)
+          << CI.getAttrName() << AANT_ArgumentIntegerConstant
+          << E->getSourceRange();
+      return;
+    }
+    int32_t ArgInt = ArgVal->getSExtValue();
+    if (ArgInt <= 0) {
+      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+          << CI.getAttrName() << /*positive*/ 0;
+      return;
+    }
+  }
+
+  D->addAttr(::new (Context) AttrType(Context, CI, E));
+}
 
 template <typename AttrType>
 void Sema::AddOneConstantValueAttr(Decl *D, const AttributeCommonInfo &CI,

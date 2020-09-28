@@ -1,9 +1,8 @@
-// RUN: %clang_cc1 -fsycl -triple spir64_gen -DGPU -fsycl-is-device -fsyntax-only -verify %s
 // RUN: %clang_cc1 -fsycl -triple spir64 -fsycl-is-device -fsyntax-only -verify %s
-// RUN: %clang_cc1 -fsycl -triple spir64_gen -Wno-sycl-strict -fsycl-is-device -fsyntax-only -verify %s
-// RUN: %clang_cc1 -fsycl -triple spir64_gen -Werror=sycl-strict -DERROR -fsycl-is-device -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl -triple spir64 -Werror=sycl-strict -DERROR -fsycl-is-device -fsyntax-only -verify %s
 
 #include "Inputs/sycl.hpp"
+class Foo;
 
 template <typename Name, typename F>
 __attribute__((sycl_kernel)) void kernel(F KernelFunc) {
@@ -12,12 +11,10 @@ __attribute__((sycl_kernel)) void kernel(F KernelFunc) {
 
 template <typename Name, typename F>
 void parallel_for(F KernelFunc) {
-#ifdef GPU
-  // expected-warning@+6 {{size of kernel arguments (7994 bytes) exceeds supported maximum of 2048 bytes on GPU}}
-#elif ERROR
-  // expected-error@+4 {{size of kernel arguments (7994 bytes) exceeds supported maximum of 2048 bytes on GPU}}
+#ifdef ERROR
+  // expected-error@+4 {{size of kernel arguments (7994 bytes) may exceed the supported maximum of 2048 bytes on some devices}}
 #else
-  // expected-no-diagnostics
+  // expected-warning@+2 {{size of kernel arguments (7994 bytes) may exceed the supported maximum of 2048 bytes on some devices}}
 #endif
   kernel<Name>(KernelFunc);
 }
@@ -34,8 +31,6 @@ void use() {
     int Array[1991];
   } Args;
   auto L = [=]() { (void)Args; };
-#if defined(GPU) || defined(ERROR)
-  // expected-note@+2 {{in instantiation of function template specialization 'parallel_for<Foo}}
-#endif
-  parallel_for<class Foo>(L);
+  // expected-note@+1 {{in instantiation of function template specialization 'parallel_for<Foo}}
+  parallel_for<Foo>(L);
 }

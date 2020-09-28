@@ -132,6 +132,7 @@ def err_drv_invalid_Xsycl_frontend_with_args : Error<
   "invalid -Xsycl-target-frontend argument: '%0', options requiring arguments are unsupported">;
 def err_drv_bad_fpga_device_count : Error<
   "More than one FPGA specific device binary found in input objects">;
+def err_drv_unsupported_opt_dpcpp : Error<"option '%0' unsupported with DPC++">;
 def err_drv_argument_only_allowed_with : Error<
   "invalid argument '%0' only allowed with '%1'">;
 def err_drv_argument_not_allowed_with : Error<
@@ -273,7 +274,7 @@ def err_drv_expecting_fopenmp_with_fopenmp_targets : Error<
 def err_drv_expecting_fsycl_with_sycl_opt : Error<
   "The option %0 must be used in conjunction with -fsycl to enable offloading.">;
 def err_drv_fsycl_with_c_type : Error<
-  "The option %0%1 must not be used in conjunction with -fsycl which expects C++ source.">;
+  "The option '%0' must not be used in conjunction with '-fsycl', which expects C++ source.">;
 def warn_drv_omp_offload_target_duplicate : Warning<
   "The OpenMP offloading target '%0' is similar to target '%1' already specified - will be ignored.">,
   InGroup<OpenMPTarget>;

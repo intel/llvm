@@ -1198,6 +1198,14 @@ def SYCLIntelBufferLocation : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+def SYCLRequiresDecomposition : InheritableAttr {
+  // No spellings, as this is for internal use.
+  let Spellings = [];
+  let Subjects = SubjectList<[Named]>;
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Documentation = [Undocumented];
+}
+
 def SYCLIntelKernelArgsRestrict : InheritableAttr {
   let Spellings = [ CXX11<"intel", "kernel_args_restrict"> ];
   let Subjects = SubjectList<[Function], ErrorDiag>;
@@ -1209,7 +1217,7 @@ def SYCLIntelKernelArgsRestrict : InheritableAttr {
 
 def SYCLIntelNumSimdWorkItems : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","num_simd_work_items">];
-  let Args = [UnsignedArgument<"Number">];
+  let Args = [ExprArgument<"Value">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelNumSimdWorkItemsAttrDocs];
@@ -1300,7 +1308,7 @@ def LoopUnrollHint : InheritableAttr {
 def IntelReqdSubGroupSize: InheritableAttr {
   let Spellings = [GNU<"intel_reqd_sub_group_size">,
                    CXX11<"intel", "reqd_sub_group_size">];
-  let Args = [ExprArgument<"SubGroupSize">];
+  let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[Function, CXXMethod], ErrorDiag>;
   let Documentation = [IntelReqdSubGroupSizeDocs];
   let LangOpts = [OpenCL, SYCLIsDevice, SYCLIsHost];

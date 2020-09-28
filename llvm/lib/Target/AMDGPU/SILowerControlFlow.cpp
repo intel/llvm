@@ -113,6 +113,8 @@ private:
 
   void combineMasks(MachineInstr &MI);
 
+  bool removeMBBifRedundant(MachineBasicBlock &MBB);
+
   void process(MachineInstr &MI);
 
   // Skip to the next instruction, ignoring debug instructions, and trivial
@@ -154,9 +156,6 @@ public:
     AU.addPreserved<SlotIndexes>();
     AU.addPreserved<LiveIntervals>();
     AU.addPreservedID(LiveVariablesID);
-    AU.addPreservedID(MachineLoopInfoID);
-    AU.addPreservedID(MachineDominatorsID);
-    AU.setPreservesCFG();
     MachineFunctionPass::getAnalysisUsage(AU);
   }
 };
@@ -335,21 +334,13 @@ void SILowerControlFlow::emitElse(MachineInstr &MI) {
   bool ExecModified = MI.getOperand(3).getImm() != 0;
   MachineBasicBlock::iterator Start = MBB.begin();
 
-  // We are running before TwoAddressInstructions, and si_else's operands are
-  // tied. In order to correctly tie the registers, split this into a copy of
-  // the src like it does.
-  Register CopyReg = MRI->createVirtualRegister(BoolRC);
-  MachineInstr *CopyExec =
-    BuildMI(MBB, Start, DL, TII->get(AMDGPU::COPY), CopyReg)
-      .add(MI.getOperand(1)); // Saved EXEC
-
   // This must be inserted before phis and any spill code inserted before the
   // else.
   Register SaveReg = ExecModified ?
     MRI->createVirtualRegister(BoolRC) : DstReg;
   MachineInstr *OrSaveExec =
     BuildMI(MBB, Start, DL, TII->get(OrSaveExecOpc), SaveReg)
-    .addReg(CopyReg);
+    .add(MI.getOperand(1)); // Saved EXEC
 
   MachineBasicBlock *DestBB = MI.getOperand(2).getMBB();
 
@@ -386,16 +377,13 @@ void SILowerControlFlow::emitElse(MachineInstr &MI) {
   LIS->RemoveMachineInstrFromMaps(MI);
   MI.eraseFromParent();
 
-  LIS->InsertMachineInstrInMaps(*CopyExec);
   LIS->InsertMachineInstrInMaps(*OrSaveExec);
 
   LIS->InsertMachineInstrInMaps(*Xor);
   LIS->InsertMachineInstrInMaps(*Branch);
 
-  // src reg is tied to dst reg.
   LIS->removeInterval(DstReg);
   LIS->createAndComputeVirtRegInterval(DstReg);
-  LIS->createAndComputeVirtRegInterval(CopyReg);
   if (ExecModified)
     LIS->createAndComputeVirtRegInterval(SaveReg);
 
@@ -615,6 +603,7 @@ void SILowerControlFlow::optimizeEndCf() {
       if (LIS)
         LIS->RemoveMachineInstrFromMaps(*MI);
       MI->eraseFromParent();
+      removeMBBifRedundant(MBB);
     }
   }
 }
@@ -667,6 +656,47 @@ void SILowerControlFlow::process(MachineInstr &MI) {
       break;
     }
   }
+}
+
+bool SILowerControlFlow::removeMBBifRedundant(MachineBasicBlock &MBB) {
+  bool Redundant = true;
+  for (auto &I : MBB.instrs()) {
+    if (!I.isDebugInstr() && !I.isUnconditionalBranch())
+      Redundant = false;
+  }
+  if (Redundant) {
+    MachineBasicBlock *Succ = *MBB.succ_begin();
+    SmallVector<MachineBasicBlock *, 2> Preds(MBB.predecessors());
+    for (auto P : Preds) {
+      P->replaceSuccessor(&MBB, Succ);
+      MachineBasicBlock::iterator I(P->getFirstInstrTerminator());
+      while (I != P->end()) {
+        if (I->isBranch()) {
+          if (TII->getBranchDestBlock(*I) == &MBB) {
+            I->getOperand(0).setMBB(Succ);
+            break;
+          }
+        }
+        I++;
+      }
+      if (I == P->end()) {
+        MachineFunction *MF = P->getParent();
+        MachineFunction::iterator InsertPt =
+            P->getNextNode() ? MachineFunction::iterator(P->getNextNode())
+                             : MF->end();
+        MF->splice(InsertPt, Succ);
+      }
+    }
+    MBB.removeSuccessor(Succ);
+    if (LIS) {
+      for (auto &I : MBB.instrs())
+        LIS->RemoveMachineInstrFromMaps(I);
+    }
+    MBB.clear();
+    MBB.eraseFromParent();
+    return true;
+  }
+  return false;
 }
 
 bool SILowerControlFlow::runOnMachineFunction(MachineFunction &MF) {

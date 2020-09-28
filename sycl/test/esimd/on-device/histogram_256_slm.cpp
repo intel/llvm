@@ -38,7 +38,7 @@ ESIMD_INLINE void histogram_atomic(const uint32_t *input_ptr, uint32_t *output,
   slm_offset *= sizeof(int);
   simd<uint, 16> slm_data = 0;
   slm_store<uint, 16>(slm_data, slm_offset);
-  slm_fence(ESIMD_GLOBAL_COHERENT_FENCE);
+  esimd_fence(ESIMD_GLOBAL_COHERENT_FENCE);
   esimd_barrier();
 
   // Each thread handles NUM_BLOCKSxBLOCK_WIDTH pixel blocks
@@ -57,7 +57,7 @@ ESIMD_INLINE void histogram_atomic(const uint32_t *input_ptr, uint32_t *output,
     }
     start_off += BLOCK_WIDTH;
   }
-  slm_fence(ESIMD_GLOBAL_COHERENT_FENCE);
+  esimd_fence(ESIMD_GLOBAL_COHERENT_FENCE);
   esimd_barrier();
 
   // Update global sum by atomically adding each local histogram

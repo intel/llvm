@@ -21,13 +21,8 @@
 // CHECK-NEXT: const kernel_param_desc_t kernel_signatures[] = {
 // CHECK-NEXT: //--- _ZTSZ4mainE8kernel_C
 // CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 0 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 16 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 12 },
 // CHECK-EMPTY:
-// CHECK-NEXT: };
-
-// CHECK: static constexpr
-// CHECK-NEXT: const unsigned kernel_signature_start[] = {
-// CHECK-NEXT:  0 // _ZTSZ4mainE8kernel_C
 // CHECK-NEXT: };
 
 // CHECK: template <> struct KernelInfo<class kernel_C> {
