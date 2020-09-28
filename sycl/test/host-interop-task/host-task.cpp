@@ -15,17 +15,17 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out 4
 // RUN: %ACC_RUN_PLACEHOLDER %t.out 4
 
-// RUNx: %CPU_RUN_PLACEHOLDER %t.out 5
-// RUNx: %GPU_RUN_PLACEHOLDER %t.out 5
-// RUNx: %ACC_RUN_PLACEHOLDER %t.out 5
+// RUN: %CPU_RUN_PLACEHOLDER %t.out 5
+// RUN: %GPU_RUN_PLACEHOLDER %t.out 5
+// RUN: %ACC_RUN_PLACEHOLDER %t.out 5
 
-// RUNx: %CPU_RUN_PLACEHOLDER %t.out 6
-// RUNx: %GPU_RUN_PLACEHOLDER %t.out 6
-// RUNx: %ACC_RUN_PLACEHOLDER %t.out 6
+// RUN: %CPU_RUN_PLACEHOLDER %t.out 6
+// RUN: %GPU_RUN_PLACEHOLDER %t.out 6
+// RUN: %ACC_RUN_PLACEHOLDER %t.out 6
 
-// RUNx: %CPU_RUN_PLACEHOLDER %t.out 7
-// RUNx: %GPU_RUN_PLACEHOLDER %t.out 7
-// RUNx: %ACC_RUN_PLACEHOLDER %t.out 7
+// RUN: %CPU_RUN_PLACEHOLDER %t.out 7
+// RUN: %GPU_RUN_PLACEHOLDER %t.out 7
+// RUN: %ACC_RUN_PLACEHOLDER %t.out 7
 
 #include <CL/sycl.hpp>
 #include <chrono>
