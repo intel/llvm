@@ -45,6 +45,32 @@ kernel::get_info() const {
 
 #undef PARAM_TRAITS_SPEC
 
+template <info::kernel_device_specific param>
+typename info::param_traits<info::kernel_device_specific, param>::return_type
+kernel::get_info(const device &Dev) const {
+  return impl->get_info<param>(Dev);
+}
+
+template <info::kernel_device_specific param>
+typename info::param_traits<info::kernel_device_specific, param>::return_type
+kernel::get_info(const device &Device,
+                 typename info::param_traits<info::kernel_device_specific,
+                                             param>::input_type Value) const {
+  return impl->get_info<param>(Device, Value);
+}
+
+#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+  template __SYCL_EXPORT ret_type kernel::get_info<info::param_type::param>(   \
+      const device &) const;
+#define PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type, in_type)     \
+  template __SYCL_EXPORT ret_type kernel::get_info<info::param_type::param>(   \
+      const device &, in_type) const;
+
+#include <CL/sycl/info/kernel_device_specific_traits.def>
+
+#undef PARAM_TRAITS_SPEC
+#undef PARAM_TRAITS_SPEC_WITH_INPUT
+
 template <info::kernel_work_group param>
 typename info::param_traits<info::kernel_work_group, param>::return_type
 kernel::get_work_group_info(const device &dev) const {

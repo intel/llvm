@@ -92,6 +92,27 @@ public:
   typename info::param_traits<info::kernel, param>::return_type
   get_info() const;
 
+  /// Query device-specific information from the kernel object using the
+  /// info::kernel_device_specific descriptor.
+  ///
+  /// \param Device is a valid SYCL device to query info for.
+  /// \return depends on information being queried.
+  template <info::kernel_device_specific param>
+  typename info::param_traits<info::kernel_device_specific, param>::return_type
+  get_info(const device &Device) const;
+
+  /// Query device-specific information from a kernel using the
+  /// info::kernel_device_specific descriptor for a specific device and value.
+  ///
+  /// \param Device is a valid SYCL device.
+  /// \param Value depends on information being queried.
+  /// \return depends on information being queried.
+  template <info::kernel_device_specific param>
+  typename info::param_traits<info::kernel_device_specific, param>::return_type
+  get_info(const device &Device,
+           typename info::param_traits<info::kernel_device_specific,
+                                       param>::input_type Value) const;
+
   /// Query work-group information from a kernel using the
   /// info::kernel_work_group descriptor for a specific device.
   ///
@@ -106,6 +127,7 @@ public:
   ///
   /// \param Device is a valid SYCL device.
   /// \return depends on information being queried.
+  __SYCL_DEPRECATED("Use get_info with info::kernel_device_specific instead.")
   template <info::kernel_sub_group param>
   typename info::param_traits<info::kernel_sub_group, param>::return_type
   get_sub_group_info(const device &Device) const;
@@ -116,6 +138,7 @@ public:
   /// \param Device is a valid SYCL device.
   /// \param Value depends on information being queried.
   /// \return depends on information being queried.
+  __SYCL_DEPRECATED("Use get_info with info::kernel_device_specific instead.")
   template <info::kernel_sub_group param>
   typename info::param_traits<info::kernel_sub_group, param>::return_type
   get_sub_group_info(
