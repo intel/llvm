@@ -27,10 +27,10 @@ namespace detail {
 class SpinLock {
 public:
   void lock() {
-    while (MLock.exchange(true, std::memory_order_acquire))
+    while (MLock.test_and_set(std::memory_order_acquire))
       std::this_thread::yield();
   }
-  void unlock() { MLock.store(false, std::memory_order_release); }
+  void unlock() { MLock.clear(std::memory_order_release); }
 
 private:
   std::atomic_flag MLock{false};
