@@ -7,15 +7,16 @@
 #include <CL/sycl.hpp>
 
 cl::sycl::event submit(cl::sycl::queue &Q, cl::sycl::buffer<int> &B) {
-  return queue.submit([&](cl::sycl::handler &CGH) {
-    auto A = B.template get_access<cl::sycl::access::mode::read_write>(cgh);
+  return Q.submit([&](cl::sycl::handler &CGH) {
+    auto A = B.template get_access<cl::sycl::access::mode::read_write>(CGH);
     CGH.codeplay_host_task([=]() { (void)A; });
   });
 }
 
 int main() {
   cl::sycl::queue Q;
-  cl::sycl::buffer<int> A{&status, 1};
+  int Status = 0;
+  cl::sycl::buffer<int> A{&Status, 1};
   cl::sycl::vector_class<cl::sycl::event> Events;
 
   Events.push_back(submit(Q, A));

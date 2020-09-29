@@ -13,6 +13,17 @@
 #include <iostream>
 #include <thread>
 
+using namespace cl::sycl;
+using namespace cl::sycl::access;
+
+static constexpr size_t BUFFER_SIZE = 1024;
+
+static auto EH = [](exception_list EL) {
+  for (const std::exception_ptr &E : EL) {
+    throw E;
+  }
+};
+
 // Host-task depending on another host-task via handler::depends_on() only
 // should not hang. A bit more complicated case with kernels depending on
 // host-task being involved.
