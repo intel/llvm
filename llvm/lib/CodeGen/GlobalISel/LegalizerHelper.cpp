@@ -387,7 +387,14 @@ void LegalizerHelper::buildWidenedRemergeToDst(Register DstReg, LLT LCMTy,
   }
 
   if (LCMTy.isVector()) {
-    MIRBuilder.buildExtract(DstReg, Remerge, 0);
+    unsigned NumDefs = LCMTy.getSizeInBits() / DstTy.getSizeInBits();
+    SmallVector<Register, 8> UnmergeDefs(NumDefs);
+    UnmergeDefs[0] = DstReg;
+    for (unsigned I = 1; I != NumDefs; ++I)
+      UnmergeDefs[I] = MRI.createGenericVirtualRegister(DstTy);
+
+    MIRBuilder.buildUnmerge(UnmergeDefs,
+                            MIRBuilder.buildMerge(LCMTy, RemergeRegs));
     return;
   }
 
@@ -2837,6 +2844,9 @@ LegalizerHelper::lower(MachineInstr &MI, unsigned TypeIdx, LLT LowerHintTy) {
   case TargetOpcode::G_SADDO:
   case TargetOpcode::G_SSUBO:
     return lowerSADDO_SSUBO(MI);
+  case TargetOpcode::G_UMULH:
+  case TargetOpcode::G_SMULH:
+    return lowerSMULH_UMULH(MI);
   case TargetOpcode::G_SMULO:
   case TargetOpcode::G_UMULO: {
     // Generate G_UMULH/G_SMULH to check for overflow and a normal G_MUL for the
@@ -2881,16 +2891,10 @@ LegalizerHelper::lower(MachineInstr &MI, unsigned TypeIdx, LLT LowerHintTy) {
     // represent them.
     if (Ty.isVector())
       return UnableToLegalize;
-    LLVMContext &Ctx = MIRBuilder.getMF().getFunction().getContext();
-    Type *ZeroTy = getFloatTypeForLLT(Ctx, Ty);
-    if (!ZeroTy)
-      return UnableToLegalize;
-    ConstantFP &ZeroForNegation =
-        *cast<ConstantFP>(ConstantFP::getZeroValueForNegation(ZeroTy));
-    auto Zero = MIRBuilder.buildFConstant(Ty, ZeroForNegation);
+    auto SignMask =
+        MIRBuilder.buildConstant(Ty, APInt::getSignMask(Ty.getSizeInBits()));
     Register SubByReg = MI.getOperand(1).getReg();
-    Register ZeroReg = Zero.getReg(0);
-    MIRBuilder.buildFSub(Res, ZeroReg, SubByReg, MI.getFlags());
+    MIRBuilder.buildXor(Res, SubByReg, SignMask);
     MI.eraseFromParent();
     return Legalized;
   }
@@ -3090,6 +3094,24 @@ LegalizerHelper::lower(MachineInstr &MI, unsigned TypeIdx, LLT LowerHintTy) {
   case G_SSHLSAT:
   case G_USHLSAT:
     return lowerShlSat(MI);
+  case G_ABS: {
+    // Expand %res = G_ABS %a into:
+    // %v1 = G_ASHR %a, scalar_size-1
+    // %v2 = G_ADD %a, %v1
+    // %res = G_XOR %v2, %v1
+    LLT DstTy = MRI.getType(MI.getOperand(0).getReg());
+    Register OpReg = MI.getOperand(1).getReg();
+    auto ShiftAmt =
+        MIRBuilder.buildConstant(DstTy, DstTy.getScalarSizeInBits() - 1);
+    auto Shift =
+        MIRBuilder.buildAShr(DstTy, OpReg, ShiftAmt);
+    auto Add = MIRBuilder.buildAdd(DstTy, OpReg, Shift);
+    MIRBuilder.buildXor(MI.getOperand(0).getReg(), Add, Shift);
+    MI.eraseFromParent();
+    return Legalized;
+  }
+  case G_SELECT:
+    return lowerSelect(MI);
   }
 }
 
@@ -6131,6 +6153,51 @@ LegalizerHelper::lowerReadWriteRegister(MachineInstr &MI) {
   else
     MIRBuilder.buildCopy(PhysReg, ValReg);
 
+  MI.eraseFromParent();
+  return Legalized;
+}
+
+LegalizerHelper::LegalizeResult
+LegalizerHelper::lowerSMULH_UMULH(MachineInstr &MI) {
+  bool IsSigned = MI.getOpcode() == TargetOpcode::G_SMULH;
+  unsigned ExtOp = IsSigned ? TargetOpcode::G_SEXT : TargetOpcode::G_ZEXT;
+  Register Result = MI.getOperand(0).getReg();
+  LLT OrigTy = MRI.getType(Result);
+  auto SizeInBits = OrigTy.getScalarSizeInBits();
+  LLT WideTy = OrigTy.changeElementSize(SizeInBits * 2);
+
+  auto LHS = MIRBuilder.buildInstr(ExtOp, {WideTy}, {MI.getOperand(1)});
+  auto RHS = MIRBuilder.buildInstr(ExtOp, {WideTy}, {MI.getOperand(2)});
+  auto Mul = MIRBuilder.buildMul(WideTy, LHS, RHS);
+  unsigned ShiftOp = IsSigned ? TargetOpcode::G_ASHR : TargetOpcode::G_LSHR;
+
+  auto ShiftAmt = MIRBuilder.buildConstant(WideTy, SizeInBits);
+  auto Shifted = MIRBuilder.buildInstr(ShiftOp, {WideTy}, {Mul, ShiftAmt});
+  MIRBuilder.buildTrunc(Result, Shifted);
+
+  MI.eraseFromParent();
+  return Legalized;
+}
+
+LegalizerHelper::LegalizeResult LegalizerHelper::lowerSelect(MachineInstr &MI) {
+  // Implement vector G_SELECT in terms of XOR, AND, OR.
+  Register DstReg = MI.getOperand(0).getReg();
+  Register MaskReg = MI.getOperand(1).getReg();
+  Register Op1Reg = MI.getOperand(2).getReg();
+  Register Op2Reg = MI.getOperand(3).getReg();
+  LLT DstTy = MRI.getType(DstReg);
+  LLT MaskTy = MRI.getType(MaskReg);
+  LLT Op1Ty = MRI.getType(Op1Reg);
+  if (!DstTy.isVector())
+    return UnableToLegalize;
+
+  if (MaskTy.getSizeInBits() != Op1Ty.getSizeInBits())
+    return UnableToLegalize;
+
+  auto NotMask = MIRBuilder.buildNot(MaskTy, MaskReg);
+  auto NewOp1 = MIRBuilder.buildAnd(MaskTy, Op1Reg, MaskReg);
+  auto NewOp2 = MIRBuilder.buildAnd(MaskTy, Op2Reg, NotMask);
+  MIRBuilder.buildOr(DstReg, NewOp1, NewOp2);
   MI.eraseFromParent();
   return Legalized;
 }

@@ -43,6 +43,7 @@
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/IntrinsicsPowerPC.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CodeGen.h"
@@ -647,6 +648,8 @@ bool PPCDAGToDAGISel::tryTLSXFormStore(StoreSDNode *ST) {
     return false;
   SDValue Offset = ST->getOffset();
   if (!Offset.isUndef())
+    return false;
+  if (Base.getOperand(1).getOpcode() == PPCISD::TLS_LOCAL_EXEC_MAT_ADDR)
     return false;
 
   SDLoc dl(ST);
@@ -3945,7 +3948,8 @@ static unsigned getCRIdxForSetCC(ISD::CondCode CC, bool &Invert) {
 
 // getVCmpInst: return the vector compare instruction for the specified
 // vector type and condition code. Since this is for altivec specific code,
-// only support the altivec types (v16i8, v8i16, v4i32, v2i64, and v4f32).
+// only support the altivec types (v16i8, v8i16, v4i32, v2i64, v1i128,
+// and v4f32).
 static unsigned int getVCmpInst(MVT VecVT, ISD::CondCode CC,
                                 bool HasVSX, bool &Swap, bool &Negate) {
   Swap = false;
@@ -4026,6 +4030,8 @@ static unsigned int getVCmpInst(MVT VecVT, ISD::CondCode CC,
           return PPC::VCMPEQUW;
         else if (VecVT == MVT::v2i64)
           return PPC::VCMPEQUD;
+        else if (VecVT == MVT::v1i128)
+          return PPC::VCMPEQUQ;
         break;
       case ISD::SETGT:
         if (VecVT == MVT::v16i8)
@@ -4036,6 +4042,8 @@ static unsigned int getVCmpInst(MVT VecVT, ISD::CondCode CC,
           return PPC::VCMPGTSW;
         else if (VecVT == MVT::v2i64)
           return PPC::VCMPGTSD;
+        else if (VecVT == MVT::v1i128)
+           return PPC::VCMPGTSQ;
         break;
       case ISD::SETUGT:
         if (VecVT == MVT::v16i8)
@@ -4046,6 +4054,8 @@ static unsigned int getVCmpInst(MVT VecVT, ISD::CondCode CC,
           return PPC::VCMPGTUW;
         else if (VecVT == MVT::v2i64)
           return PPC::VCMPGTUD;
+        else if (VecVT == MVT::v1i128)
+           return PPC::VCMPGTUQ;
         break;
       default:
         break;
@@ -4674,6 +4684,45 @@ void PPCDAGToDAGISel::Select(SDNode *N) {
       return;
     }
     break;
+
+  case ISD::INTRINSIC_WO_CHAIN: {
+    if (!Subtarget->isISA3_1())
+      break;
+    unsigned Opcode = 0;
+    switch (N->getConstantOperandVal(0)) {
+    default:
+      break;
+    case Intrinsic::ppc_altivec_vstribr_p:
+      Opcode = PPC::VSTRIBR_rec;
+      break;
+    case Intrinsic::ppc_altivec_vstribl_p:
+      Opcode = PPC::VSTRIBL_rec;
+      break;
+    case Intrinsic::ppc_altivec_vstrihr_p:
+      Opcode = PPC::VSTRIHR_rec;
+      break;
+    case Intrinsic::ppc_altivec_vstrihl_p:
+      Opcode = PPC::VSTRIHL_rec;
+      break;
+    }
+    if (!Opcode)
+      break;
+
+    // Generate the appropriate vector string isolate intrinsic to match.
+    EVT VTs[] = {MVT::v16i8, MVT::Glue};
+    SDValue VecStrOp =
+        SDValue(CurDAG->getMachineNode(Opcode, dl, VTs, N->getOperand(2)), 0);
+    // Vector string isolate instructions update the EQ bit of CR6.
+    // Generate a SETBC instruction to extract the bit and place it in a GPR.
+    SDValue SubRegIdx = CurDAG->getTargetConstant(PPC::sub_eq, dl, MVT::i32);
+    SDValue CR6Reg = CurDAG->getRegister(PPC::CR6, MVT::i32);
+    SDValue CRBit = SDValue(
+        CurDAG->getMachineNode(TargetOpcode::EXTRACT_SUBREG, dl, MVT::i1,
+                               CR6Reg, SubRegIdx, VecStrOp.getValue(1)),
+        0);
+    CurDAG->SelectNodeTo(N, PPC::SETBC, MVT::i32, CRBit);
+    return;
+  }
 
   case ISD::SETCC:
   case ISD::STRICT_FSETCC:

@@ -2035,24 +2035,6 @@ Scope *Sema::getNonFieldDeclScope(Scope *S) {
   return S;
 }
 
-/// Looks up the declaration of "struct objc_super" and
-/// saves it for later use in building builtin declaration of
-/// objc_msgSendSuper and objc_msgSendSuper_stret. If no such
-/// pre-existing declaration exists no action takes place.
-static void LookupPredefedObjCSuperType(Sema &ThisSema, Scope *S,
-                                        IdentifierInfo *II) {
-  if (!II->isStr("objc_msgSendSuper"))
-    return;
-  ASTContext &Context = ThisSema.Context;
-
-  LookupResult Result(ThisSema, &Context.Idents.get("objc_super"),
-                      SourceLocation(), Sema::LookupTagName);
-  ThisSema.LookupName(Result, S);
-  if (Result.getResultKind() == LookupResult::Found)
-    if (const TagDecl *TD = Result.getAsSingle<TagDecl>())
-      Context.setObjCSuperType(Context.getTagDeclType(TD));
-}
-
 static StringRef getHeaderName(Builtin::Context &BuiltinInfo, unsigned ID,
                                ASTContext::GetBuiltinTypeError Error) {
   switch (Error) {
@@ -2113,7 +2095,7 @@ FunctionDecl *Sema::CreateBuiltin(IdentifierInfo *II, QualType Type,
 NamedDecl *Sema::LazilyCreateBuiltin(IdentifierInfo *II, unsigned ID,
                                      Scope *S, bool ForRedeclaration,
                                      SourceLocation Loc) {
-  LookupPredefedObjCSuperType(*this, S, II);
+  LookupNecessaryTypesForBuiltin(S, ID);
 
   ASTContext::GetBuiltinTypeError Error;
   QualType R = Context.GetBuiltinType(ID, Error);
@@ -2610,6 +2592,8 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     return false;
   } else if (const auto *MA = dyn_cast<MinSizeAttr>(Attr))
     NewAttr = S.mergeMinSizeAttr(D, *MA);
+  else if (const auto *SNA = dyn_cast<SwiftNameAttr>(Attr))
+    NewAttr = S.mergeSwiftNameAttr(D, *SNA, SNA->getName());
   else if (const auto *OA = dyn_cast<OptimizeNoneAttr>(Attr))
     NewAttr = S.mergeOptimizeNoneAttr(D, *OA);
   else if (const auto *InternalLinkageA = dyn_cast<InternalLinkageAttr>(Attr))
@@ -9691,7 +9675,8 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
 
   // In C builtins get merged with implicitly lazily created declarations.
   // In C++ we need to check if it's a builtin and add the BuiltinAttr here.
-  if (getLangOpts().CPlusPlus) {
+  if (getLangOpts().CPlusPlus &&
+      NewFD->getDeclContext()->getRedeclContext()->isFileContext()) {
     if (IdentifierInfo *II = Previous.getLookupName().getAsIdentifierInfo()) {
       if (unsigned BuiltinID = II->getBuiltinID()) {
         if (NewFD->getLanguageLinkage() == CLanguageLinkage) {
@@ -9702,6 +9687,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
             NewFD->addAttr(BuiltinAttr::CreateImplicit(Context, BuiltinID));
           } else {
             ASTContext::GetBuiltinTypeError Error;
+            LookupNecessaryTypesForBuiltin(S, BuiltinID);
             QualType BuiltinType = Context.GetBuiltinType(BuiltinID, Error);
 
             if (!Error && !BuiltinType.isNull() &&
@@ -10906,7 +10892,7 @@ bool Sema::CheckFunctionDeclaration(Scope *S, FunctionDecl *NewFD,
     // declaration against the expected type for the builtin.
     if (unsigned BuiltinID = NewFD->getBuiltinID()) {
       ASTContext::GetBuiltinTypeError Error;
-      LookupPredefedObjCSuperType(*this, S, NewFD->getIdentifier());
+      LookupNecessaryTypesForBuiltin(S, BuiltinID);
       QualType T = Context.GetBuiltinType(BuiltinID, Error);
       // If the type of the builtin differs only in its exception
       // specification, that's OK.

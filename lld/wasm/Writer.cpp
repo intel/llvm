@@ -26,7 +26,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/BinaryFormat/Wasm.h"
-#include "llvm/Object/WasmTraits.h"
+#include "llvm/BinaryFormat/WasmTraits.h"
 #include "llvm/Support/FileOutputBuffer.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -450,15 +450,6 @@ void Writer::populateTargetFeatures() {
     for (const auto &key : used.keys())
       allowed.insert(std::string(key));
 
-  if (!config->relocatable && allowed.count("atomics") &&
-      !config->sharedMemory) {
-    if (inferFeatures)
-      error(Twine("'atomics' feature is used by ") + used["atomics"] +
-            ", so --shared-memory must be used");
-    else
-      error("'atomics' feature is used, so --shared-memory must be used");
-  }
-
   if (!config->checkFeatures)
     return;
 
@@ -473,7 +464,7 @@ void Writer::populateTargetFeatures() {
       }
     }
     for (const Symbol *sym : out.exportSec->exportedSymbols) {
-      if (auto *global = dyn_cast<GlobalSymbol>(sym)) {
+      if (isa<GlobalSymbol>(sym)) {
         error(Twine("mutable global exported but 'mutable-globals' feature "
                     "not present in inputs: `") +
               toString(*sym) + "`. Use --no-check-features to suppress.");

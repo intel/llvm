@@ -37,6 +37,13 @@
 // or comparison predicate.  These are used to create a hash to map instructions
 // to integers to be used in similarity matching in sequences of instructions
 //
+// Terminology:
+// An IRSimilarityCandidate is a region of IRInstructionData (wrapped
+// Instructions), usually used to denote a region of similarity has been found.
+//
+// A SimilarityGroup is a set of IRSimilarityCandidates that are structurally
+// similar to one another.
+//
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_ANALYSIS_IRSIMILARITYIDENTIFIER_H
@@ -45,10 +52,14 @@
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/Pass.h"
 #include "llvm/Support/Allocator.h"
 
 namespace llvm {
 namespace IRSimilarity {
+
+struct IRInstructionDataList;
 
 /// This represents what is and is not supported when finding similarity in
 /// Instructions.
@@ -116,7 +127,7 @@ struct IRInstructionData : ilist_node<IRInstructionData> {
   /// operands. This extra information allows for similarity matching to make
   /// assertions that allow for more flexibility when checking for whether an
   /// Instruction performs the same operation.
-  IRInstructionData(Instruction &I, bool Legality);
+  IRInstructionData(Instruction &I, bool Legality, IRInstructionDataList &IDL);
 
   /// Hashes \p Value based on its opcode, types, and operand types.
   /// Two IRInstructionData instances produce the same hash when they perform
@@ -143,7 +154,7 @@ struct IRInstructionData : ilist_node<IRInstructionData> {
   /// instructions, so it will also be hashed to a different value that any of
   /// the previous instructions.
   ///
-  /// \param [in] Value - The IRInstructionData instance to be hashed.
+  /// \param [in] ID - The IRInstructionData instance to be hashed.
   /// \returns A hash_value of the IRInstructionData.
   friend hash_code hash_value(const IRInstructionData &ID) {
     SmallVector<Type *, 4> OperTypes;
@@ -155,7 +166,11 @@ struct IRInstructionData : ilist_node<IRInstructionData> {
         llvm::hash_value(ID.Inst->getType()),
         llvm::hash_combine_range(OperTypes.begin(), OperTypes.end()));
   }
+
+  IRInstructionDataList *IDL = nullptr;
 };
+
+struct IRInstructionDataList : simple_ilist<IRInstructionData> {};
 
 /// Compare one IRInstructionData class to another IRInstructionData class for
 /// whether they are performing a the same operation, and can mapped to the
@@ -263,13 +278,28 @@ struct IRInstructionMapper {
   /// with the information.
   SpecificBumpPtrAllocator<IRInstructionData> *InstDataAllocator = nullptr;
 
+  /// This allocator pointer is in charge of creating the IRInstructionDataList
+  /// so it is not deallocated until whatever external tool is using it is done
+  /// with the information.
+  SpecificBumpPtrAllocator<IRInstructionDataList> *IDLAllocator = nullptr;
+
   /// Get an allocated IRInstructionData struct using the InstDataAllocator.
   ///
   /// \param I - The Instruction to wrap with IRInstructionData.
   /// \param Legality - A boolean value that is true if the instruction is to
   /// be considered for similarity, and false if not.
+  /// \param IDL - The InstructionDataList that the IRInstructionData is
+  /// inserted into.
   /// \returns An allocated IRInstructionData struct.
-  IRInstructionData *allocateIRInstructionData(Instruction &I, bool Legality);
+  IRInstructionData *allocateIRInstructionData(Instruction &I, bool Legality,
+                                               IRInstructionDataList &IDL);
+
+  /// Get an allocated IRInstructionDataList object using the IDLAllocator.
+  ///
+  /// \returns An allocated IRInstructionDataList object.
+  IRInstructionDataList *allocateIRInstructionDataList();
+
+  IRInstructionDataList *IDL = nullptr;
 
   /// Maps the Instructions in a BasicBlock \p BB to legal or illegal integers
   /// determined by \p InstrType. Two Instructions are mapped to the same value
@@ -287,8 +317,8 @@ struct IRInstructionMapper {
   /// \param [in] It - The Instruction to be mapped to an integer.
   /// \param [in,out] IntegerMappingForBB - Vector of unsigned integers to
   /// append to.
-  /// \param [in,out] InstrList - Vector of InstructionData to append
-  /// to. \returns The integer \p It was mapped to.
+  /// \param [in,out] InstrListForBB - Vector of InstructionData to append to.
+  /// \returns The integer \p It was mapped to.
   unsigned mapToLegalUnsigned(BasicBlock::iterator &It,
                               std::vector<unsigned> &IntegerMappingForBB,
                               std::vector<IRInstructionData *> &InstrListForBB);
@@ -298,7 +328,7 @@ struct IRInstructionMapper {
   /// \param [in] It - The \p Instruction to be mapped to an integer.
   /// \param [in,out] IntegerMappingForBB - Vector of unsigned integers to
   /// append to.
-  /// \param [in,out] InstrList - Vector of IRInstructionData to append to.
+  /// \param [in,out] InstrListForBB - Vector of IRInstructionData to append to.
   /// \param End - true if creating a dummy IRInstructionData at the end of a
   /// basic block.
   /// \returns The integer \p It was mapped to.
@@ -306,8 +336,9 @@ struct IRInstructionMapper {
       BasicBlock::iterator &It, std::vector<unsigned> &IntegerMappingForBB,
       std::vector<IRInstructionData *> &InstrListForBB, bool End = false);
 
-  IRInstructionMapper(SpecificBumpPtrAllocator<IRInstructionData> *IDA)
-      : InstDataAllocator(IDA) {
+  IRInstructionMapper(SpecificBumpPtrAllocator<IRInstructionData> *IDA,
+                      SpecificBumpPtrAllocator<IRInstructionDataList> *IDLA)
+      : InstDataAllocator(IDA), IDLAllocator(IDLA) {
     // Make sure that the implementation of DenseMapInfo<unsigned> hasn't
     // changed.
     assert(DenseMapInfo<unsigned>::getEmptyKey() == static_cast<unsigned>(-1) &&
@@ -315,6 +346,9 @@ struct IRInstructionMapper {
     assert(DenseMapInfo<unsigned>::getTombstoneKey() ==
                static_cast<unsigned>(-2) &&
            "DenseMapInfo<unsigned>'s tombstone key isn't -2!");
+
+    IDL = new (IDLAllocator->Allocate())
+        IRInstructionDataList();
   }
 
   /// Custom InstVisitor to classify different instructions for whether it can
@@ -361,7 +395,352 @@ struct IRInstructionMapper {
   InstructionClassification InstClassifier;
 };
 
+/// This is a class that wraps a range of IRInstructionData from one point to
+/// another in the vector of IRInstructionData, which is a region of the
+/// program.  It is also responsible for defining the structure within this
+/// region of instructions.
+///
+/// The structure of a region is defined through a value numbering system
+/// assigned to each unique value in a region at the creation of the
+/// IRSimilarityCandidate.
+///
+/// For example, for each Instruction we add a mapping for each new
+/// value seen in that Instruction.
+/// IR:                    Mapping Added:
+/// %add1 = add i32 %a, c1    %add1 -> 3, %a -> 1, c1 -> 2
+/// %add2 = add i32 %a, %1    %add2 -> 4
+/// %add3 = add i32 c2, c1    %add3 -> 6, c2 -> 5
+///
+/// We can compare IRSimilarityCandidates against one another.
+/// The \ref isSimilar function compares each IRInstructionData against one
+/// another and if we have the same sequences of IRInstructionData that would
+/// create the same hash, we have similar IRSimilarityCandidates.
+///
+/// We can also compare the structure of IRSimilarityCandidates. If we can
+/// create a mapping of registers in the region contained by one
+/// IRSimilarityCandidate to the region contained by different
+/// IRSimilarityCandidate, they can be considered structurally similar.
+///
+/// IRSimilarityCandidate1:   IRSimilarityCandidate2:
+/// %add1 = add i32 %a, %b    %add1 = add i32 %d, %e
+/// %add2 = add i32 %a, %c    %add2 = add i32 %d, %f
+/// %add3 = add i32 c1, c2    %add3 = add i32 c3, c4
+///
+/// Can have the following mapping from candidate to candidate of:
+/// %a -> %d, %b -> %e, %c -> %f, c1 -> c3, c2 -> c4
+/// and can be considered similar.
+///
+/// IRSimilarityCandidate1:   IRSimilarityCandidate2:
+/// %add1 = add i32 %a, %b    %add1 = add i32 %d, c4
+/// %add2 = add i32 %a, %c    %add2 = add i32 %d, %f
+/// %add3 = add i32 c1, c2    %add3 = add i32 c3, c4
+///
+/// We cannot create the same mapping since the use of c4 is not used in the
+/// same way as %b or c2.
+class IRSimilarityCandidate {
+private:
+  /// The start index of this IRSimilarityCandidate in the instruction list.
+  unsigned StartIdx = 0;
+
+  /// The number of instructions in this IRSimilarityCandidate.
+  unsigned Len = 0;
+
+  /// The first instruction in this IRSimilarityCandidate.
+  IRInstructionData *FirstInst = nullptr;
+
+  /// The last instruction in this IRSimilarityCandidate.
+  IRInstructionData *LastInst = nullptr;
+
+  /// Global Value Numbering structures
+  /// @{
+  /// Stores the mapping of the value to the number assigned to it in the
+  /// IRSimilarityCandidate.
+  DenseMap<Value *, unsigned> ValueToNumber;
+  /// Stores the mapping of the number to the value assigned this number.
+  DenseMap<unsigned, Value *> NumberToValue;
+  /// @}
+
+public:
+  /// \param StartIdx - The starting location of the region.
+  /// \param Len - The length of the region.
+  /// \param FirstInstIt - The starting IRInstructionData of the region.
+  /// \param LastInstIt - The ending IRInstructionData of the region.
+  IRSimilarityCandidate(unsigned StartIdx, unsigned Len,
+                        IRInstructionData *FirstInstIt,
+                        IRInstructionData *LastInstIt);
+
+  /// \param A - The first IRInstructionCandidate to compare.
+  /// \param B - The second IRInstructionCandidate to compare.
+  /// \returns True when every IRInstructionData in \p A is similar to every
+  /// IRInstructionData in \p B.
+  static bool isSimilar(const IRSimilarityCandidate &A,
+                        const IRSimilarityCandidate &B);
+
+  /// \param A - The first IRInstructionCandidate to compare.
+  /// \param B - The second IRInstructionCandidate to compare.
+  /// \returns True when every IRInstructionData in \p A is structurally similar
+  /// to \p B.
+  static bool compareStructure(const IRSimilarityCandidate &A,
+                               const IRSimilarityCandidate &B);
+
+  struct OperandMapping {
+    /// The IRSimilarityCandidate that holds the instruction the OperVals were
+    /// pulled from.
+    const IRSimilarityCandidate &IRSC;
+
+    /// The operand values to be analyzed.
+    ArrayRef<Value *> &OperVals;
+
+    /// The current mapping of global value numbers from one IRSimilarityCandidate
+    /// to another IRSimilarityCandidate.
+    DenseMap<unsigned, DenseSet<unsigned>> &ValueNumberMapping;
+  };
+
+  /// Compare the operands in \p A and \p B and check that the current mapping
+  /// of global value numbers from \p A to \p B and \p B to \A is consistent.
+  ///
+  /// \param A - The first IRInstructionCandidate, operand values, and current
+  /// operand mappings to compare.
+  /// \param B - The second IRInstructionCandidate, operand values, and current
+  /// operand mappings to compare.
+  /// \returns true if the IRSimilarityCandidates operands are compatible.
+  static bool compareOperandMapping(OperandMapping A, OperandMapping B);
+
+  /// Compare the start and end indices of the two IRSimilarityCandidates for
+  /// whether they overlap. If the start instruction of one
+  /// IRSimilarityCandidate is less than the end instruction of the other, and
+  /// the start instruction of one is greater than the start instruction of the
+  /// other, they overlap.
+  ///
+  /// \returns true if the IRSimilarityCandidates do not have overlapping
+  /// instructions.
+  static bool overlap(const IRSimilarityCandidate &A,
+                      const IRSimilarityCandidate &B);
+
+  /// \returns the number of instructions in this Candidate.
+  unsigned getLength() const { return Len; }
+
+  /// \returns the start index of this IRSimilarityCandidate.
+  unsigned getStartIdx() const { return StartIdx; }
+
+  /// \returns the end index of this IRSimilarityCandidate.
+  unsigned getEndIdx() const { return StartIdx + Len - 1; }
+
+  /// \returns The first IRInstructionData.
+  IRInstructionData *front() const { return FirstInst; }
+  /// \returns The last IRInstructionData.
+  IRInstructionData *back() const { return LastInst; }
+
+  /// \returns The first Instruction.
+  Instruction *frontInstruction() { return FirstInst->Inst; }
+  /// \returns The last Instruction
+  Instruction *backInstruction() { return LastInst->Inst; }
+
+  /// \returns The BasicBlock the IRSimilarityCandidate starts in.
+  BasicBlock *getStartBB() { return FirstInst->Inst->getParent(); }
+  /// \returns The BasicBlock the IRSimilarityCandidate ends in.
+  BasicBlock *getEndBB() { return LastInst->Inst->getParent(); }
+
+  /// \returns The Function that the IRSimilarityCandidate is located in.
+  Function *getFunction() { return getStartBB()->getParent(); }
+
+  /// Finds the positive number associated with \p V if it has been mapped.
+  /// \param [in] V - the Value to find.
+  /// \returns The positive number corresponding to the value.
+  /// \returns None if not present.
+  Optional<unsigned> getGVN(Value *V) {
+    assert(V != nullptr && "Value is a nullptr?");
+    DenseMap<Value *, unsigned>::iterator VNIt = ValueToNumber.find(V);
+    if (VNIt == ValueToNumber.end())
+      return None;
+    return VNIt->second;
+  }
+
+  /// Finds the Value associate with \p Num if it exists.
+  /// \param [in] Num - the number to find.
+  /// \returns The Value associated with the number.
+  /// \returns None if not present.
+  Optional<Value *> fromGVN(unsigned Num) {
+    DenseMap<unsigned, Value *>::iterator VNIt = NumberToValue.find(Num);
+    if (VNIt == NumberToValue.end())
+      return None;
+    assert(VNIt->second != nullptr && "Found value is a nullptr!");
+    return VNIt->second;
+  }
+
+  /// \param RHS -The IRSimilarityCandidate to compare against
+  /// \returns true if the IRSimilarityCandidate is occurs after the
+  /// IRSimilarityCandidate in the program.
+  bool operator<(const IRSimilarityCandidate &RHS) const {
+    return getStartIdx() > RHS.getStartIdx();
+  }
+
+  using iterator = IRInstructionDataList::iterator;
+  iterator begin() const { return iterator(front()); }
+  iterator end() const { return std::next(iterator(back())); }
+};
+
+typedef std::vector<IRSimilarityCandidate> SimilarityGroup;
+typedef std::vector<SimilarityGroup> SimilarityGroupList;
+
+/// This class puts all the pieces of the IRInstructionData,
+/// IRInstructionMapper, IRSimilarityCandidate together.
+///
+/// It first feeds the Module or vector of Modules into the IRInstructionMapper,
+/// and puts all the mapped instructions into a single long list of
+/// IRInstructionData.
+///
+/// The list of unsigned integers is given to the Suffix Tree or similar data
+/// structure to find repeated subsequences.  We construct an
+/// IRSimilarityCandidate for each instance of the subsequence.  We compare them
+/// against one another since  These repeated subsequences can have different
+/// structure.  For each different kind of structure found, we create a
+/// similarity group.
+///
+/// If we had four IRSimilarityCandidates A, B, C, and D where A, B and D are
+/// structurally similar to one another, while C is different we would have two
+/// SimilarityGroups:
+///
+/// SimilarityGroup 1:  SimilarityGroup 2
+/// A, B, D             C
+///
+/// A list of the different similarity groups is then returned after
+/// analyzing the module.
+class IRSimilarityIdentifier {
+public:
+  IRSimilarityIdentifier()
+      : Mapper(&InstDataAllocator, &InstDataListAllocator) {}
+
+  /// \param M the module to find similarity in.
+  explicit IRSimilarityIdentifier(Module &M)
+      : Mapper(&InstDataAllocator, &InstDataListAllocator) {
+    findSimilarity(M);
+  }
+
+private:
+  /// Map the instructions in the module to unsigned integers, using mapping
+  /// already present in the Mapper if possible.
+  ///
+  /// \param [in] M Module - To map to integers.
+  /// \param [in,out] InstrList - The vector to append IRInstructionData to.
+  /// \param [in,out] IntegerMapping - The vector to append integers to.
+  void populateMapper(Module &M, std::vector<IRInstructionData *> &InstrList,
+                      std::vector<unsigned> &IntegerMapping);
+
+  /// Map the instructions in the modules vector to unsigned integers, using
+  /// mapping already present in the mapper if possible.
+  ///
+  /// \param [in] Modules - The list of modules to use to populate the mapper
+  /// \param [in,out] InstrList - The vector to append IRInstructionData to.
+  /// \param [in,out] IntegerMapping - The vector to append integers to.
+  void populateMapper(ArrayRef<std::unique_ptr<Module>> &Modules,
+                      std::vector<IRInstructionData *> &InstrList,
+                      std::vector<unsigned> &IntegerMapping);
+
+  /// Find the similarity candidates in \p InstrList and corresponding
+  /// \p UnsignedVec
+  ///
+  /// \param [in,out] InstrList - The vector to append IRInstructionData to.
+  /// \param [in,out] IntegerMapping - The vector to append integers to.
+  /// candidates found in the program.
+  void findCandidates(std::vector<IRInstructionData *> &InstrList,
+                      std::vector<unsigned> &IntegerMapping);
+
+public:
+  // Find the IRSimilarityCandidates in the \p Modules and group by structural
+  // similarity in a SimilarityGroup, each group is returned in a
+  // SimilarityGroupList.
+  //
+  // \param [in] Modules - the modules to analyze.
+  // \returns The groups of similarity ranges found in the modules.
+  SimilarityGroupList &
+  findSimilarity(ArrayRef<std::unique_ptr<Module>> Modules);
+
+  // Find the IRSimilarityCandidates in the given Module grouped by structural
+  // similarity in a SimilarityGroup, contained inside a SimilarityGroupList.
+  //
+  // \param [in] M - the module to analyze.
+  // \returns The groups of similarity ranges found in the module.
+  SimilarityGroupList &findSimilarity(Module &M);
+
+  // Clears \ref SimilarityCandidates if it is already filled by a previous run.
+  void resetSimilarityCandidates() {
+    // If we've already analyzed a Module or set of Modules, so we must clear
+    // the SimilarityCandidates to make sure we do not have only old values
+    // hanging around.
+    if (SimilarityCandidates.hasValue())
+      SimilarityCandidates->clear();
+    else
+      SimilarityCandidates = SimilarityGroupList();
+  }
+
+  // \returns The groups of similarity ranges found in the most recently passed
+  // set of modules.
+  Optional<SimilarityGroupList> &getSimilarity() {
+    return SimilarityCandidates;
+  }
+
+private:
+  /// The allocator for IRInstructionData.
+  SpecificBumpPtrAllocator<IRInstructionData> InstDataAllocator;
+
+  /// The allocator for IRInstructionDataLists.
+  SpecificBumpPtrAllocator<IRInstructionDataList> InstDataListAllocator;
+
+  /// Map Instructions to unsigned integers and wraps the Instruction in an
+  /// instance of IRInstructionData.
+  IRInstructionMapper Mapper;
+
+  /// The SimilarityGroups found with the most recent run of \ref
+  /// findSimilarity. None if there is no recent run.
+  Optional<SimilarityGroupList> SimilarityCandidates;
+};
+
 } // end namespace IRSimilarity
+
+/// An analysis pass based on legacy pass manager that runs and returns
+/// IRSimilarityIdentifier run on the Module.
+class IRSimilarityIdentifierWrapperPass : public ModulePass {
+  std::unique_ptr<IRSimilarity::IRSimilarityIdentifier> IRSI;
+
+public:
+  static char ID;
+  IRSimilarityIdentifierWrapperPass();
+
+  IRSimilarity::IRSimilarityIdentifier &getIRSI() { return *IRSI; }
+  const IRSimilarity::IRSimilarityIdentifier &getIRSI() const { return *IRSI; }
+
+  bool doInitialization(Module &M) override;
+  bool doFinalization(Module &M) override;
+  bool runOnModule(Module &M) override;
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.setPreservesAll();
+  }
+};
+
+/// An analysis pass that runs and returns the IRSimilarityIdentifier run on the
+/// Module.
+class IRSimilarityAnalysis : public AnalysisInfoMixin<IRSimilarityAnalysis> {
+public:
+  typedef IRSimilarity::IRSimilarityIdentifier Result;
+
+  Result run(Module &M, ModuleAnalysisManager &);
+
+private:
+  friend AnalysisInfoMixin<IRSimilarityAnalysis>;
+  static AnalysisKey Key;
+};
+
+/// Printer pass that uses \c IRSimilarityAnalysis.
+class IRSimilarityAnalysisPrinterPass
+    : public PassInfoMixin<IRSimilarityAnalysisPrinterPass> {
+  raw_ostream &OS;
+
+public:
+  explicit IRSimilarityAnalysisPrinterPass(raw_ostream &OS) : OS(OS) {}
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+};
+
 } // end namespace llvm
 
 #endif // LLVM_ANALYSIS_IRSIMILARITYIDENTIFIER_H

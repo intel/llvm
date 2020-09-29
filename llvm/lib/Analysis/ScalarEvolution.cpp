@@ -6344,6 +6344,14 @@ const SCEV *ScalarEvolution::createSCEV(Value *V) {
 
     if (auto *II = dyn_cast<IntrinsicInst>(U)) {
       switch (II->getIntrinsicID()) {
+      case Intrinsic::abs: {
+        const SCEV *Op = getSCEV(II->getArgOperand(0));
+        SCEV::NoWrapFlags Flags =
+            cast<ConstantInt>(II->getArgOperand(1))->isOne()
+                ? SCEV::FlagNSW
+                : SCEV::FlagAnyWrap;
+        return getSMaxExpr(Op, getNegativeSCEV(Op, Flags));
+      }
       case Intrinsic::umax:
         return getUMaxExpr(getSCEV(II->getArgOperand(0)),
                            getSCEV(II->getArgOperand(1)));
@@ -6356,6 +6364,18 @@ const SCEV *ScalarEvolution::createSCEV(Value *V) {
       case Intrinsic::smin:
         return getSMinExpr(getSCEV(II->getArgOperand(0)),
                            getSCEV(II->getArgOperand(1)));
+      case Intrinsic::usub_sat: {
+        const SCEV *X = getSCEV(II->getArgOperand(0));
+        const SCEV *Y = getSCEV(II->getArgOperand(1));
+        const SCEV *ClampedY = getUMinExpr(X, Y);
+        return getMinusSCEV(X, ClampedY, SCEV::FlagNUW);
+      }
+      case Intrinsic::uadd_sat: {
+        const SCEV *X = getSCEV(II->getArgOperand(0));
+        const SCEV *Y = getSCEV(II->getArgOperand(1));
+        const SCEV *ClampedX = getUMinExpr(X, getNotSCEV(Y));
+        return getAddExpr(ClampedX, Y, SCEV::FlagNUW);
+      }
       default:
         break;
       }
@@ -8671,7 +8691,10 @@ ScalarEvolution::howFarToZero(const SCEV *V, const Loop *L, bool ControlsExit,
   // 1*N = -Start; -1*N = Start (mod 2^BW), so:
   //   N = Distance (as unsigned)
   if (StepC->getValue()->isOne() || StepC->getValue()->isMinusOne()) {
-    APInt MaxBECount = getUnsignedRangeMax(Distance);
+    APInt MaxBECount = getUnsignedRangeMax(applyLoopGuards(Distance, L));
+    APInt MaxBECountBase = getUnsignedRangeMax(Distance);
+    if (MaxBECountBase.ult(MaxBECount))
+      MaxBECount = MaxBECountBase;
 
     // When a loop like "for (int i = 0; i != n; ++i) { /* body */ }" is rotated,
     // we end up with a loop whose backedge-taken count is n - 1.  Detect this
@@ -9294,6 +9317,24 @@ bool ScalarEvolution::isKnownPredicateViaNoOverflow(ICmpInst::Predicate Pred,
     if (MatchBinaryAddToConst(LHS, RHS, C, SCEV::FlagNSW) && C.isNegative())
       return true;
     break;
+
+  case ICmpInst::ICMP_UGE:
+    std::swap(LHS, RHS);
+    LLVM_FALLTHROUGH;
+  case ICmpInst::ICMP_ULE:
+    // X u<= (X + C)<nuw> for any C
+    if (MatchBinaryAddToConst(RHS, LHS, C, SCEV::FlagNUW))
+      return true;
+    break;
+
+  case ICmpInst::ICMP_UGT:
+    std::swap(LHS, RHS);
+    LLVM_FALLTHROUGH;
+  case ICmpInst::ICMP_ULT:
+    // X u< (X + C)<nuw> if C != 0
+    if (MatchBinaryAddToConst(RHS, LHS, C, SCEV::FlagNUW) && !C.isNullValue())
+      return true;
+    break;
   }
 
   return false;
@@ -9720,7 +9761,22 @@ bool ScalarEvolution::isImpliedCond(ICmpInst::Predicate Pred, const SCEV *LHS,
 
           if (isImpliedCondOperands(Pred, LHS, RHS, V, getConstant(Min)))
             return true;
+          break;
+
+        // `LHS < RHS` and `LHS <= RHS` are handled in the same way as `RHS > LHS` and `RHS >= LHS` respectively.
+        case ICmpInst::ICMP_SLE:
+        case ICmpInst::ICMP_ULE:
+          if (isImpliedCondOperands(CmpInst::getSwappedPredicate(Pred), RHS,
+                                    LHS, V, getConstant(SharperMin)))
+            return true;
           LLVM_FALLTHROUGH;
+
+        case ICmpInst::ICMP_SLT:
+        case ICmpInst::ICMP_ULT:
+          if (isImpliedCondOperands(CmpInst::getSwappedPredicate(Pred), RHS,
+                                    LHS, V, getConstant(Min)))
+            return true;
+          break;
 
         default:
           // No change
@@ -12532,4 +12588,89 @@ const SCEV* ScalarEvolution::computeMaxBackedgeTakenCount(const Loop *L) {
   if (ExitCounts.empty())
     return getCouldNotCompute();
   return getUMinFromMismatchedTypes(ExitCounts);
+}
+
+const SCEV *ScalarEvolution::applyLoopGuards(const SCEV *Expr, const Loop *L) {
+  auto CollectCondition = [&](ICmpInst::Predicate Predicate, const SCEV *LHS,
+                              const SCEV *RHS, ValueToSCEVMapTy &RewriteMap) {
+    if (!isa<SCEVUnknown>(LHS)) {
+      std::swap(LHS, RHS);
+      Predicate = CmpInst::getSwappedPredicate(Predicate);
+    }
+
+    // For now, limit to conditions that provide information about unknown
+    // expressions.
+    auto *LHSUnknown = dyn_cast<SCEVUnknown>(LHS);
+    if (!LHSUnknown)
+      return;
+
+    // TODO: use information from more predicates.
+    switch (Predicate) {
+    case CmpInst::ICMP_ULT: {
+      if (!containsAddRecurrence(RHS)) {
+        const SCEV *Base = LHS;
+        auto I = RewriteMap.find(LHSUnknown->getValue());
+        if (I != RewriteMap.end())
+          Base = I->second;
+
+        RewriteMap[LHSUnknown->getValue()] =
+            getUMinExpr(Base, getMinusSCEV(RHS, getOne(RHS->getType())));
+      }
+      break;
+    }
+    case CmpInst::ICMP_EQ:
+      if (isa<SCEVConstant>(RHS))
+        RewriteMap[LHSUnknown->getValue()] = RHS;
+      break;
+    case CmpInst::ICMP_NE:
+      if (isa<SCEVConstant>(RHS) &&
+          cast<SCEVConstant>(RHS)->getValue()->isNullValue())
+        RewriteMap[LHSUnknown->getValue()] =
+            getUMaxExpr(LHS, getOne(RHS->getType()));
+      break;
+    default:
+      break;
+    }
+  };
+  // Starting at the loop predecessor, climb up the predecessor chain, as long
+  // as there are predecessors that can be found that have unique successors
+  // leading to the original header.
+  // TODO: share this logic with isLoopEntryGuardedByCond.
+  ValueToSCEVMapTy RewriteMap;
+  for (std::pair<const BasicBlock *, const BasicBlock *> Pair(
+           L->getLoopPredecessor(), L->getHeader());
+       Pair.first; Pair = getPredecessorWithUniqueSuccessorForBB(Pair.first)) {
+
+    const BranchInst *LoopEntryPredicate =
+        dyn_cast<BranchInst>(Pair.first->getTerminator());
+    if (!LoopEntryPredicate || LoopEntryPredicate->isUnconditional())
+      continue;
+
+    // TODO: use information from more complex conditions, e.g. AND expressions.
+    auto *Cmp = dyn_cast<ICmpInst>(LoopEntryPredicate->getCondition());
+    if (!Cmp)
+      continue;
+
+    auto Predicate = Cmp->getPredicate();
+    if (LoopEntryPredicate->getSuccessor(1) == Pair.second)
+      Predicate = CmpInst::getInversePredicate(Predicate);
+    CollectCondition(Predicate, getSCEV(Cmp->getOperand(0)),
+                     getSCEV(Cmp->getOperand(1)), RewriteMap);
+  }
+
+  // Also collect information from assumptions dominating the loop.
+  for (auto &AssumeVH : AC.assumptions()) {
+    if (!AssumeVH)
+      continue;
+    auto *AssumeI = cast<CallInst>(AssumeVH);
+    auto *Cmp = dyn_cast<ICmpInst>(AssumeI->getOperand(0));
+    if (!Cmp || !DT.dominates(AssumeI, L->getHeader()))
+      continue;
+    CollectCondition(Cmp->getPredicate(), getSCEV(Cmp->getOperand(0)),
+                     getSCEV(Cmp->getOperand(1)), RewriteMap);
+  }
+
+  if (RewriteMap.empty())
+    return Expr;
+  return SCEVParameterRewriter::rewrite(Expr, *this, RewriteMap);
 }
