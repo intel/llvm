@@ -33,7 +33,7 @@ public:
   void unlock() { MLock.store(false, std::memory_order_release); }
 
 private:
-  std::atomic_bool MLock{false};
+  std::atomic_flag MLock{false};
 };
 } // namespace detail
 } // namespace sycl
