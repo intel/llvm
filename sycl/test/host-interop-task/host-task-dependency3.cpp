@@ -49,9 +49,7 @@ void test(size_t Count) {
 
       auto Acc0 = B0.get_access<mode::read_write>(CGH);
 
-      CGH.single_task<class Test5_Kernel1>([=] {
-        Acc0[1] = 1 * Idx;
-      });
+      CGH.single_task<class Test5_Kernel1>([=] { Acc0[1] = 1 * Idx; });
     });
 
     Q.submit([&](handler &CGH) {
