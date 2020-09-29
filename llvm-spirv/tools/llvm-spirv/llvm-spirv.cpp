@@ -183,6 +183,12 @@ cl::opt<bool> SPIRVAllowUnknownIntrinsics(
     cl::desc("Unknown LLVM intrinsics will be translated as external function "
              "calls in SPIR-V"));
 
+static cl::opt<bool> SPIRVAllowExtraDIExpressions(
+    "spirv-allow-extra-diexpressions", cl::init(false),
+    cl::desc("Allow DWARF operations not listed in the OpenCL.DebugInfo.100 "
+             "specification (experimental, may produce incompatible SPIR-V "
+             "module)"));
+
 static cl::opt<SPIRV::DebugInfoEIS> DebugEIS(
     "spirv-debug-info-version", cl::desc("Set SPIR-V debug info version:"),
     cl::init(SPIRV::DebugInfoEIS::OpenCL_DebugInfo_100),
@@ -579,6 +585,10 @@ int main(int Ac, char **Av) {
     } else {
       Opts.setSPIRVAllowUnknownIntrinsicsEnabled(SPIRVAllowUnknownIntrinsics);
     }
+  }
+
+  if (SPIRVAllowExtraDIExpressions.getNumOccurrences() != 0) {
+    Opts.setAllowExtraDIExpressionsEnabled(SPIRVAllowExtraDIExpressions);
   }
 
   if (DebugEIS.getNumOccurrences() != 0) {

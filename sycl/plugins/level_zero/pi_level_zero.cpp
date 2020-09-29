@@ -65,6 +65,15 @@ std::mutex ZeCall::GlobalLock;
 // Controls Level Zero calls tracing in zePrint.
 static bool ZeDebug = false;
 
+// Controls Level Zero validation layer and parameter validation.
+static bool ZeValidationLayer = false;
+
+enum DebugLevel {
+  ZE_DEBUG_BASIC = 0x1,
+  ZE_DEBUG_VALIDATION = 0x2,
+  ZE_DEBUG_ALL = -1
+};
+
 static void zePrint(const char *Format, ...) {
   if (ZeDebug) {
     va_list Args;
@@ -549,6 +558,8 @@ static pi_result copyModule(ze_context_handle_t ZeContext,
                             ze_module_handle_t SrcMod,
                             ze_module_handle_t *DestMod);
 
+static bool setEnvVar(const char *var, const char *value);
+
 static pi_result getOrCreatePlatform(ze_driver_handle_t ZeDriver,
                                      pi_platform *Platform);
 
@@ -567,12 +578,37 @@ static bool isOnlineLinkEnabled();
 // End forward declarations for mock Level Zero APIs
 std::once_flag OnceFlag;
 
+// This function will ensure compatibility with both Linux and Windowns for
+// setting environment variables.
+static bool setEnvVar(const char *name, const char *value) {
+#ifdef _WIN32
+  int Res = _putenv_s(name, value);
+#else
+  int Res = setenv(name, value, 1);
+#endif
+  if (Res != 0) {
+    zePrint(
+        "Level Zero plugin was unable to set the environment variable: %s\n",
+        name);
+    return false;
+  }
+  return true;
+}
+
 pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                          pi_uint32 *NumPlatforms) {
 
   static const char *DebugMode = std::getenv("ZE_DEBUG");
-  if (DebugMode)
+  static const int DebugModeValue = DebugMode ? std::stoi(DebugMode) : 0;
+  if (DebugModeValue == ZE_DEBUG_ALL) {
     ZeDebug = true;
+    ZeValidationLayer = true;
+  } else {
+    if (DebugModeValue & ZE_DEBUG_BASIC)
+      ZeDebug = true;
+    if (DebugModeValue & ZE_DEBUG_VALIDATION)
+      ZeValidationLayer = true;
+  }
 
   static const char *SerializeMode = std::getenv("ZE_SERIALIZE");
   static const pi_uint32 SerializeModeValue =
@@ -584,6 +620,13 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   }
   if (Platforms == nullptr && NumPlatforms == nullptr) {
     return PI_INVALID_VALUE;
+  }
+
+  // Setting these environment variables before running zeInit will enable the
+  // validation layer in the Level Zero loader.
+  if (ZeValidationLayer) {
+    setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
+    setEnvVar("ZE_ENABLE_PARAMETER_VALIDATION", "1");
   }
 
   // TODO: We can still safely recover if something goes wrong during the init.
