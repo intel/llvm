@@ -103,7 +103,7 @@ public:
   typename info::param_traits<info::kernel, param>::return_type
   get_info() const;
 
-  /// Query device-specific information from the kernel object using the
+  /// Query device-specific information from a kernel object using the
   /// info::kernel_device_specific descriptor.
   ///
   /// \param Device is a valid SYCL device to query info for.
