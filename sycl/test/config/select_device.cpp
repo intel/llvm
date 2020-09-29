@@ -81,6 +81,8 @@ static void replaceSpecialCharacters(std::string &str) {
   std::string rparen(")");
   std::string esclparen("\\(");
   std::string escrparen("\\)");
+  std::string period(".");
+  std::string escperiod("\\.");
 
   size_t pos = 0;
   while ((pos = str.find(lparen, pos)) != std::string::npos) {
@@ -91,6 +93,11 @@ static void replaceSpecialCharacters(std::string &str) {
   while ((pos = str.find(rparen, pos)) != std::string::npos) {
     str.replace(pos, rparen.size(), escrparen);
     pos += escrparen.size();
+  }
+  pos = 0;
+  while ((pos = str.find(period, pos)) != std::string::npos) {
+    str.replace(pos, period.size(), escperiod);
+    pos += escperiod.size();
   }
 }
 
@@ -256,14 +263,10 @@ int main() {
           std::string name = plt.get_info<info::platform::name>();
           replaceSpecialCharacters(name);
           std::string ver = plt.get_info<info::platform::version>();
-          if ((plt.get_backend() == backend::opencl) &&
-              (sycl_be.find("OPENCL") != std::string::npos)) {
-            fs << "PlatformName:{{" << name << "}},PlatformVersion:{{" << ver
-               << "}}" << std::endl;
-            passed = true;
-            break;
-          } else if ((plt.get_backend() == backend::level_zero) &&
-                     (sycl_be.find("LEVEL_ZERO") != std::string::npos)) {
+          if (((plt.get_backend() == backend::opencl) &&
+               (sycl_be.find("OPENCL") != std::string::npos)) ||
+              ((plt.get_backend() == backend::level_zero) &&
+               (sycl_be.find("LEVEL_ZERO") != std::string::npos))) {
             fs << "PlatformName:{{" << name << "}},PlatformVersion:{{" << ver
                << "}}" << std::endl;
             passed = true;
@@ -316,14 +319,10 @@ int main() {
               std::string name = dev.get_info<info::device::name>();
               replaceSpecialCharacters(name);
               std::string ver("98.76.54321");
-              if ((plt.get_backend() == backend::opencl) &&
-                  (sycl_be.find("OPENCL") != std::string::npos)) {
-                fs << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
-                   << "}}" << std::endl;
-                passed = true;
-                break;
-              } else if ((plt.get_backend() == backend::level_zero) &&
-                         (sycl_be.find("LEVEL_ZERO") != std::string::npos)) {
+              if (((plt.get_backend() == backend::opencl) &&
+                   (sycl_be.find("OPENCL") != std::string::npos)) ||
+                  ((plt.get_backend() == backend::level_zero) &&
+                   (sycl_be.find("LEVEL_ZERO") != std::string::npos))) {
                 fs << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
                    << "}}" << std::endl;
                 passed = true;
@@ -443,14 +442,10 @@ int main() {
                 throw std::runtime_error("Malformed syntax in version string");
               }
               ver.replace(start, pos - start, "*");
-              if ((plt.get_backend() == backend::opencl) &&
-                  (sycl_be.find("OPENCL") != std::string::npos)) {
-                fs << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
-                   << "}}" << std::endl;
-                passed = true;
-                break;
-              } else if ((plt.get_backend() == backend::level_zero) &&
-                         (sycl_be.find("LEVEL_ZERO") != std::string::npos)) {
+              if (((plt.get_backend() == backend::opencl) &&
+                   (sycl_be.find("OPENCL") != std::string::npos)) ||
+                  ((plt.get_backend() == backend::level_zero) &&
+                   (sycl_be.find("LEVEL_ZERO") != std::string::npos))) {
                 fs << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
                    << "}}" << std::endl;
                 passed = true;
@@ -504,13 +499,10 @@ int main() {
             if (dev.has(aspect::gpu)) {
               std::string name = dev.get_info<info::device::name>();
               replaceSpecialCharacters(name);
-              if ((plt.get_backend() == backend::opencl) &&
-                  (sycl_be.find("OPENCL") != std::string::npos)) {
-                fs << "DeviceName:{{" << name << "}}" << std::endl;
-                passed = true;
-                break;
-              } else if ((plt.get_backend() == backend::level_zero) &&
-                         (sycl_be.find("LEVEL_ZERO") != std::string::npos)) {
+              if (((plt.get_backend() == backend::opencl) &&
+                   (sycl_be.find("OPENCL") != std::string::npos)) ||
+                  ((plt.get_backend() == backend::level_zero) &&
+                   (sycl_be.find("LEVEL_ZERO") != std::string::npos))) {
                 fs << "DeviceName:{{" << name << "}}" << std::endl;
                 passed = true;
                 break;
@@ -556,13 +548,10 @@ int main() {
         if (plt.has(aspect::gpu)) {
           std::string name = plt.get_info<info::platform::name>();
           replaceSpecialCharacters(name);
-          if ((plt.get_backend() == backend::opencl) &&
-              (sycl_be.find("OPENCL") != std::string::npos)) {
-            fs << "PlatformName:{{" << name << "}}" << std::endl;
-            passed = true;
-            break;
-          } else if ((plt.get_backend() == backend::level_zero) &&
-                     (sycl_be.find("LEVEL_ZERO") != std::string::npos)) {
+          if (((plt.get_backend() == backend::opencl) &&
+               (sycl_be.find("OPENCL") != std::string::npos)) ||
+              ((plt.get_backend() == backend::level_zero) &&
+               (sycl_be.find("LEVEL_ZERO") != std::string::npos))) {
             fs << "PlatformName:{{" << name << "}}" << std::endl;
             passed = true;
             break;
@@ -612,18 +601,10 @@ int main() {
               std::string name = dev.get_info<info::device::name>();
               replaceSpecialCharacters(name);
               std::string ver = dev.get_info<info::device::driver_version>();
-              if ((plt.get_backend() == backend::opencl) &&
-                  (sycl_be.find("OPENCL") != std::string::npos)) {
-                if (count > 0) {
-                  ss << " | ";
-                }
-                ss << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
-                   << "}}";
-                count++;
-                passed = true;
-                break;
-              } else if ((plt.get_backend() == backend::level_zero) &&
-                         (sycl_be.find("LEVEL_ZERO") != std::string::npos)) {
+              if (((plt.get_backend() == backend::opencl) &&
+                   (sycl_be.find("OPENCL") != std::string::npos)) ||
+                  ((plt.get_backend() == backend::level_zero) &&
+                   (sycl_be.find("LEVEL_ZERO") != std::string::npos))) {
                 if (count > 0) {
                   ss << " | ";
                 }
@@ -682,13 +663,10 @@ int main() {
             if (dev.has(aspect::gpu)) {
               std::string name = dev.get_info<info::device::name>();
               replaceSpecialCharacters(name);
-              if ((plt.get_backend() == backend::opencl) &&
-                  (sycl_be.find("OPENCL") != std::string::npos)) {
-                fs << "DeviceName:HAHA{{" << name << "}}" << std::endl;
-                passed = true;
-                break;
-              } else if ((plt.get_backend() == backend::level_zero) &&
-                         (sycl_be.find("LEVEL_ZERO") != std::string::npos)) {
+              if (((plt.get_backend() == backend::opencl) &&
+                   (sycl_be.find("OPENCL") != std::string::npos)) ||
+                  ((plt.get_backend() == backend::level_zero) &&
+                   (sycl_be.find("LEVEL_ZERO") != std::string::npos))) {
                 fs << "DeviceName:HAHA{{" << name << "}}" << std::endl;
                 passed = true;
                 break;
@@ -738,13 +716,10 @@ int main() {
         if (plt.has(aspect::gpu)) {
           std::string name = plt.get_info<info::platform::name>();
           replaceSpecialCharacters(name);
-          if ((plt.get_backend() == backend::opencl) &&
-              (sycl_be.find("OPENCL") != std::string::npos)) {
-            fs << "PlatformName:HAHA{{" << name << "}}" << std::endl;
-            passed = true;
-            break;
-          } else if ((plt.get_backend() == backend::level_zero) &&
-                     (sycl_be.find("LEVEL_ZERO") != std::string::npos)) {
+          if (((plt.get_backend() == backend::opencl) &&
+               (sycl_be.find("OPENCL") != std::string::npos)) ||
+              ((plt.get_backend() == backend::level_zero) &&
+               (sycl_be.find("LEVEL_ZERO") != std::string::npos))) {
             fs << "PlatformName:HAHA{{" << name << "}}" << std::endl;
             passed = true;
             break;
@@ -795,14 +770,10 @@ int main() {
               std::string name = dev.get_info<info::device::name>();
               replaceSpecialCharacters(name);
               std::string ver = dev.get_info<info::device::driver_version>();
-              if ((plt.get_backend() == backend::opencl) &&
-                  (sycl_be.find("OPENCL") != std::string::npos)) {
-                fs << "DeviceName:{{" << name << "}},DriverVersion:HAHA{{"
-                   << ver << "}}" << std::endl;
-                passed = true;
-                break;
-              } else if ((plt.get_backend() == backend::level_zero) &&
-                         (sycl_be.find("LEVEL_ZERO") != std::string::npos)) {
+              if (((plt.get_backend() == backend::opencl) &&
+                   (sycl_be.find("OPENCL") != std::string::npos)) ||
+                  ((plt.get_backend() == backend::level_zero) &&
+                   (sycl_be.find("LEVEL_ZERO") != std::string::npos))) {
                 fs << "DeviceName:{{" << name << "}},DriverVersion:HAHA{{"
                    << ver << "}}" << std::endl;
                 passed = true;
@@ -854,14 +825,10 @@ int main() {
           std::string name = plt.get_info<info::platform::name>();
           replaceSpecialCharacters(name);
           std::string ver = plt.get_info<info::platform::version>();
-          if ((plt.get_backend() == backend::opencl) &&
-              (sycl_be.find("OPENCL") != std::string::npos)) {
-            fs << "PlatformName:{{" << name << "}},PlatformVersion:HAHA{{"
-               << ver << "}}" << std::endl;
-            passed = true;
-            break;
-          } else if ((plt.get_backend() == backend::level_zero) &&
-                     (sycl_be.find("LEVEL_ZERO") != std::string::npos)) {
+          if (((plt.get_backend() == backend::opencl) &&
+               (sycl_be.find("OPENCL") != std::string::npos)) ||
+              ((plt.get_backend() == backend::level_zero) &&
+               (sycl_be.find("LEVEL_ZERO") != std::string::npos))) {
             fs << "PlatformName:{{" << name << "}},PlatformVersion:HAHA{{"
                << ver << "}}" << std::endl;
             passed = true;
