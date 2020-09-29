@@ -11,6 +11,7 @@
 #include <CL/sycl/detail/defines.hpp>
 
 #include <atomic>
+#include <thread>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -27,7 +28,7 @@ class SpinLock {
 public:
   void lock() {
     while (MLock.exchange(true, std::memory_order_acquire))
-      ;
+      std::this_thread::yield();
   }
   void unlock() { MLock.store(false, std::memory_order_release); }
 

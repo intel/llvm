@@ -32,91 +32,89 @@ GlobalHandler::GlobalHandler() = default;
 GlobalHandler::~GlobalHandler() = default;
 
 GlobalHandler &GlobalHandler::instance() {
-  if (!SyclGlobalObjectsHandler) {
-    const std::lock_guard<SpinLock> Lock{GlobalWritesAllowed};
-    if (!SyclGlobalObjectsHandler) {
-      SyclGlobalObjectsHandler = new GlobalHandler();
-    }
-  }
+  if (SyclGlobalObjectsHandler) 
+    return *SyclGlobalObjectsHandler;
+
+  const std::lock_guard<SpinLock> Lock{GlobalWritesAllowed};
+  if (!SyclGlobalObjectsHandler)
+    SyclGlobalObjectsHandler = new GlobalHandler();
 
   return *SyclGlobalObjectsHandler;
 }
 
 Scheduler &GlobalHandler::getScheduler() {
-  if (!MScheduler) {
-    const std::lock_guard<SpinLock> Lock{MFieldsLock};
-    if (!MScheduler) {
-      MScheduler = std::make_unique<Scheduler>();
-    }
-  }
+  if (MScheduler)
+    return *MScheduler;
+
+  const std::lock_guard<SpinLock> Lock{MFieldsLock};
+  if (!MScheduler)
+    MScheduler = std::make_unique<Scheduler>();
+
   return *MScheduler;
 }
 ProgramManager &GlobalHandler::getProgramManager() {
-  if (!MProgramManager) {
-    const std::lock_guard<SpinLock> Lock{MFieldsLock};
-    if (!MProgramManager) {
-      MProgramManager = std::make_unique<ProgramManager>();
-    }
-  }
+  if (MProgramManager)
+    return *MProgramManager;
+
+  const std::lock_guard<SpinLock> Lock{MFieldsLock};
+  if (!MProgramManager)
+    MProgramManager = std::make_unique<ProgramManager>();
+
   return *MProgramManager;
 }
 Sync &GlobalHandler::getSync() {
-  if (!MSync) {
-    const std::lock_guard<SpinLock> Lock{MFieldsLock};
-    if (!MSync) {
-      MSync = std::make_unique<Sync>();
-    }
-  }
+  if (MSync)
+    return *MSync;
+
+  const std::lock_guard<SpinLock> Lock{MFieldsLock};
+  if (!MSync)
+    MSync = std::make_unique<Sync>();
+
   return *MSync;
 }
 std::vector<PlatformImplPtr> &GlobalHandler::getPlatformCache() {
-  if (!MPlatformCache) {
-    const std::lock_guard<SpinLock> Lock{MFieldsLock};
-    if (!MPlatformCache) {
-      MPlatformCache = std::make_unique<std::vector<PlatformImplPtr>>();
-    }
-  }
+  if (MPlatformCache)
+    return *MPlatformCache;
+
+  const std::lock_guard<SpinLock> Lock{MFieldsLock};
+  if (!MPlatformCache)
+    MPlatformCache = std::make_unique<std::vector<PlatformImplPtr>>();
+
   return *MPlatformCache;
 }
 std::mutex &GlobalHandler::getPlatformMapMutex() {
-  if (!MPlatformMapMutex) {
-    const std::lock_guard<SpinLock> Lock{MFieldsLock};
-    if (!MPlatformMapMutex) {
-      MPlatformMapMutex = std::make_unique<std::mutex>();
-    }
-  }
+  if (MPlatformMapMutex)
+    return *MPlatformMapMutex;
+
+  const std::lock_guard<SpinLock> Lock{MFieldsLock};
+  if (!MPlatformMapMutex)
+    MPlatformMapMutex = std::make_unique<std::mutex>();
+
   return *MPlatformMapMutex;
 }
 std::mutex &GlobalHandler::getFilterMutex() {
-  if (!MFilterMutex) {
-    const std::lock_guard<SpinLock> Lock{MFieldsLock};
-    if (!MFilterMutex) {
-      MFilterMutex = std::make_unique<std::mutex>();
-    }
-  }
+  if (MFilterMutex)
+    return *MFilterMutex;
+
+  const std::lock_guard<SpinLock> Lock{MFieldsLock};
+  if (!MPlatformMapMutex)
+    MPlatformMapMutex = std::make_unique<std::mutex>();
+
   return *MFilterMutex;
 }
 std::vector<plugin> &GlobalHandler::getPlugins() {
-  if (!MPlugins) {
-    const std::lock_guard<SpinLock> Lock{MFieldsLock};
-    if (!MPlugins) {
-      MPlugins = std::make_unique<std::vector<plugin>>();
-    }
-  }
+  if (MPlugins)
+    return *MPlugins;
+
+  const std::lock_guard<SpinLock> Lock{MFieldsLock};
+  if (!MPlugins)
+    MPlugins = std::make_unique<std::vector<plugin>>();
+
   return *MPlugins;
 }
 
 void shutdown() {
-  if (SyclGlobalObjectsHandler) {
-    const std::lock_guard<SpinLock> Lock{ShutdownLock};
-    if (SyclGlobalObjectsHandler) {
-      // Acquire fields lock to make sure no thread creates fields while
-      // object destruction is in flight.
-      const std::lock_guard<SpinLock> Lock{
-          SyclGlobalObjectsHandler->getFieldsLock()};
-      delete SyclGlobalObjectsHandler;
-    }
-  }
+  delete SyclGlobalObjectsHandler;
 }
 
 #ifdef WIN32
@@ -134,7 +132,9 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
   return TRUE; // Successful DLL_PROCESS_ATTACH.
 }
 #else
-__attribute__((destructor)) static void syclUnload() { shutdown(); }
+// Setting maximum priority on destructor ensures it runs after all other global
+// destructors.
+__attribute__((destructor(65535))) static void syclUnload() { shutdown(); }
 #endif
 } // namespace detail
 } // namespace sycl
