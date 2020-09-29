@@ -11,25 +11,6 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out 3
 // RUN: %ACC_RUN_PLACEHOLDER %t.out 3
 
-<<<<<<< HEAD
-// RUN: %CPU_RUN_PLACEHOLDER %t.out 4
-// RUN: %GPU_RUN_PLACEHOLDER %t.out 4
-// RUN: %ACC_RUN_PLACEHOLDER %t.out 4
-
-// RUN: %CPU_RUN_PLACEHOLDER %t.out 5
-// RUN: %GPU_RUN_PLACEHOLDER %t.out 5
-// RUN: %ACC_RUN_PLACEHOLDER %t.out 5
-
-// RUN: %CPU_RUN_PLACEHOLDER %t.out 6
-// RUN: %GPU_RUN_PLACEHOLDER %t.out 6
-// RUN: %ACC_RUN_PLACEHOLDER %t.out 6
-
-// RUN: %CPU_RUN_PLACEHOLDER %t.out 7
-// RUN: %GPU_RUN_PLACEHOLDER %t.out 7
-// RUN: %ACC_RUN_PLACEHOLDER %t.out 7
-
-=======
->>>>>>> private/s-kanaev/ht-tests
 #include <CL/sycl.hpp>
 #include <chrono>
 #include <iostream>
