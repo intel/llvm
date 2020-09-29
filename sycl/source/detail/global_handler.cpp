@@ -32,7 +32,7 @@ GlobalHandler::GlobalHandler() = default;
 GlobalHandler::~GlobalHandler() = default;
 
 GlobalHandler &GlobalHandler::instance() {
-  if (SyclGlobalObjectsHandler) 
+  if (SyclGlobalObjectsHandler)
     return *SyclGlobalObjectsHandler;
 
   const std::lock_guard<SpinLock> Lock{GlobalWritesAllowed};
@@ -113,9 +113,7 @@ std::vector<plugin> &GlobalHandler::getPlugins() {
   return *MPlugins;
 }
 
-void shutdown() {
-  delete SyclGlobalObjectsHandler;
-}
+void shutdown() { delete SyclGlobalObjectsHandler; }
 
 #ifdef WIN32
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
