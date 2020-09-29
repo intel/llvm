@@ -959,10 +959,14 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgExpression(const DIExpression *Expr) {
   for (unsigned I = 0, N = Expr->getNumElements(); I < N; ++I) {
     using namespace SPIRVDebug::Operand::Operation;
     auto DWARFOpCode = static_cast<dwarf::LocationAtom>(Expr->getElement(I));
+
     SPIRVDebug::ExpressionOpCode OC =
         SPIRV::DbgExpressionOpCodeMap::map(DWARFOpCode);
-    assert(OpCountMap.find(OC) != OpCountMap.end() &&
-           "unhandled opcode found in DIExpression");
+    if (OpCountMap.find(OC) == OpCountMap.end())
+      report_fatal_error("unknown opcode found in DIExpression");
+    if (OC > SPIRVDebug::Fragment && !BM->allowExtraDIExpressions())
+      report_fatal_error("unsupported opcode found in DIExpression");
+
     unsigned OpCount = OpCountMap[OC];
     SPIRVWordVec Op(OpCount);
     Op[OpCodeIdx] = OC;

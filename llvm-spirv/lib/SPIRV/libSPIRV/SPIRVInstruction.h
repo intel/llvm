@@ -2479,8 +2479,11 @@ public:
 
 #define _SPIRV_OP(x, ...)                                                      \
   typedef SPIRVInstTemplate<SPIRVGroupInstBase, Op##x, __VA_ARGS__> SPIRV##x;
-// Group instructions
-_SPIRV_OP(GroupWaitEvents, false, 4)
+// Group instructions.
+// Even though GroupWaitEvents has Group in its name, it doesn't require the
+// Group capability
+typedef SPIRVInstTemplate<SPIRVInstTemplateBase, OpGroupWaitEvents, false, 4>
+    SPIRVGroupWaitEvents;
 _SPIRV_OP(GroupAll, true, 5)
 _SPIRV_OP(GroupAny, true, 5)
 _SPIRV_OP(GroupBroadcast, true, 6)
