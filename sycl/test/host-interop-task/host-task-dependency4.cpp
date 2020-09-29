@@ -22,9 +22,7 @@ int main() {
   Events.push_back(submit(Q, A));
   Q.submit([&](sycl::handler &CGH) {
     CGH.depends_on(Events);
-    CGH.codeplay_host_task([&](){
-        printf("all done\n");
-    });
+    CGH.codeplay_host_task([&] { printf("all done\n"); });
   }).wait_and_throw();
 
   return 0;
