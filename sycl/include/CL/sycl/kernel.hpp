@@ -127,10 +127,12 @@ public:
   ///
   /// \param Device is a valid SYCL device.
   /// \return depends on information being queried.
-  __SYCL_DEPRECATED("Use get_info with info::kernel_device_specific instead.")
   template <info::kernel_sub_group param>
+  // clang-format off
   typename info::param_traits<info::kernel_sub_group, param>::return_type
+  __SYCL_DEPRECATED("Use get_info with info::kernel_device_specific instead.")
   get_sub_group_info(const device &Device) const;
+  // clang-format on
 
   /// Query sub-group information from a kernel using the
   /// info::kernel_sub_group descriptor for a specific device and value.
@@ -138,13 +140,14 @@ public:
   /// \param Device is a valid SYCL device.
   /// \param Value depends on information being queried.
   /// \return depends on information being queried.
-  __SYCL_DEPRECATED("Use get_info with info::kernel_device_specific instead.")
   template <info::kernel_sub_group param>
+  // clang-format off
   typename info::param_traits<info::kernel_sub_group, param>::return_type
-  get_sub_group_info(
-      const device &Device,
-      typename info::param_traits<info::kernel_sub_group, param>::input_type
-          Value) const;
+  __SYCL_DEPRECATED("Use get_info with info::kernel_device_specific instead.")
+  get_sub_group_info(const device &Device,
+                     typename info::param_traits<info::kernel_sub_group,
+                     param>::input_type Value) const;
+  // clang-format on
 
 private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.
