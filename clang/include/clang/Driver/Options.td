@@ -56,6 +56,13 @@ def NoDriverOption : OptionFlag;
 // be used), add this flag.
 def LinkOption : OptionFlag;
 
+// FlangOption - This is considered a "core" Flang option, available in
+// flang mode.
+def FlangOption : OptionFlag;
+
+// FC1Option - This option should be accepted by flang -fc1.
+def FC1Option : OptionFlag;
+
 // A short name to show in documentation. The name will be interpreted as rST.
 class DocName<string name> { string DocName = name; }
 
@@ -1014,7 +1021,7 @@ defm cxx_static_destructors : OptOutFFlag<"c++-static-destructors", "",
 def fsymbol_partition_EQ : Joined<["-"], "fsymbol-partition=">, Group<f_Group>,
   Flags<[CC1Option]>;
 
-defm memprof : OptInFFlag<"memprof", "Enable", "Disable", " heap memory profiling">;
+defm memory_profile : OptInFFlag<"memory-profile", "Enable", "Disable", " heap memory profiling">;
 
 // Begin sanitizer flags. These should all be core options exposed in all driver
 // modes.
@@ -2006,6 +2013,17 @@ def fvisibility_EQ : Joined<["-"], "fvisibility=">, Group<f_Group>,
 def fvisibility_inlines_hidden : Flag<["-"], "fvisibility-inlines-hidden">, Group<f_Group>,
   HelpText<"Give inline C++ member functions hidden visibility by default">,
   Flags<[CC1Option]>;
+def fvisibility_inlines_hidden_static_local_var :
+  Flag<["-"], "fvisibility-inlines-hidden-static-local-var">, Group<f_Group>,
+  HelpText<"When -fvisibility-inlines-hidden is enabled, static variables in "
+           "inline C++ member functions will also be given hidden visibility "
+           "by default">,
+  Flags<[CC1Option]>;
+def fno_visibility_inlines_hidden_static_local_var :
+  Flag<["-"], "fno-visibility-inlines-hidden-static-local-var">, Group<f_Group>,
+  HelpText<"Disables -fvisibility-inlines-hidden-static-local-var "
+           "(this is the default on non-darwin targets)">,
+  Flags<[CC1Option]>;
 def fvisibility_ms_compat : Flag<["-"], "fvisibility-ms-compat">, Group<f_Group>,
   HelpText<"Give global types 'default' visibility and global functions and "
            "variables 'hidden' visibility by default">;
@@ -2040,6 +2058,9 @@ defm unique_internal_linkage_names : OptInFFlag<"unique-internal-linkage-names",
  "Uniqueify Internal Linkage Symbol Names by appending the MD5 hash of the module path">;
 defm unique_section_names : OptOutFFlag<"unique-section-names",
   "", "Don't use unique names for text and data sections">;
+
+defm split_machine_functions: OptInFFlag<"split-machine-functions",
+  "Enable", "Disable", " late function splitting using profile information (x86 ELF)">;
 
 defm strict_return : OptOutFFlag<"strict-return", "",
   "Don't treat control flow paths that fall off the end of a non-void function as unreachable">;
@@ -2152,7 +2173,7 @@ def gno_embed_source : Flag<["-"], "gno-embed-source">, Group<g_flags_Group>,
     Flags<[DriverOption]>,
     HelpText<"Restore the default behavior of not embedding source text in DWARF debug sections">;
 def headerpad__max__install__names : Joined<["-"], "headerpad_max_install_names">;
-def help : Flag<["-", "--"], "help">, Flags<[CC1Option,CC1AsOption]>,
+def help : Flag<["-", "--"], "help">, Flags<[CC1Option,CC1AsOption, FC1Option, FlangOption]>,
   HelpText<"Display available options">;
 def ibuiltininc : Flag<["-"], "ibuiltininc">,
   HelpText<"Enable builtin #include directories even when -nostdinc is used "
@@ -2427,6 +2448,9 @@ def mfix_cortex_a53_835769 : Flag<["-"], "mfix-cortex-a53-835769">,
 def mno_fix_cortex_a53_835769 : Flag<["-"], "mno-fix-cortex-a53-835769">,
   Group<m_aarch64_Features_Group>,
   HelpText<"Don't workaround Cortex-A53 erratum 835769 (AArch64 only)">;
+def mmark_bti_property : Flag<["-"], "mmark-bti-property">,
+  Group<m_aarch64_Features_Group>,
+  HelpText<"Add .note.gnu.property with BTI to assembly files (AArch64 only)">;
 foreach i = {1-31} in
   def ffixed_x#i : Flag<["-"], "ffixed-x"#i>, Group<m_Group>,
     HelpText<"Reserve the x"#i#" register (AArch64/RISC-V only)">;
@@ -2812,7 +2836,7 @@ def no_pie : Flag<["-"], "no-pie">, Alias<nopie>;
 def noprebind : Flag<["-"], "noprebind">;
 def noprofilelib : Flag<["-"], "noprofilelib">;
 def noseglinkedit : Flag<["-"], "noseglinkedit">;
-def nostartfiles : Flag<["-"], "nostartfiles">;
+def nostartfiles : Flag<["-"], "nostartfiles">, Group<Link_Group>;
 def nostdinc : Flag<["-"], "nostdinc">, Flags<[CoreOption]>;
 def nostdlibinc : Flag<["-"], "nostdlibinc">;
 def nostdincxx : Flag<["-"], "nostdinc++">, Flags<[CC1Option]>,
@@ -2915,7 +2939,7 @@ def segs__read__ : Joined<["-"], "segs_read_">;
 def shared_libgcc : Flag<["-"], "shared-libgcc">;
 def shared : Flag<["-", "--"], "shared">, Group<Link_Group>;
 def single__module : Flag<["-"], "single_module">;
-def specs_EQ : Joined<["-", "--"], "specs=">;
+def specs_EQ : Joined<["-", "--"], "specs=">, Group<Link_Group>;
 def specs : Separate<["-", "--"], "specs">, Flags<[Unsupported]>;
 def static_libgcc : Flag<["-"], "static-libgcc">;
 def static_libstdcxx : Flag<["-"], "static-libstdc++">;
@@ -3103,7 +3127,8 @@ def _rtlib : Separate<["--"], "rtlib">, Alias<rtlib_EQ>;
 def _serialize_diags : Separate<["-", "--"], "serialize-diagnostics">, Flags<[DriverOption]>,
   HelpText<"Serialize compiler diagnostics to a file">;
 // We give --version different semantics from -version.
-def _version : Flag<["--"], "version">, Flags<[CoreOption, CC1Option]>,
+def _version : Flag<["--"], "version">,
+  Flags<[CoreOption, CC1Option, FC1Option, FlangOption]>,
   HelpText<"Print version information">;
 def _signed_char : Flag<["--"], "signed-char">, Alias<fsigned_char>;
 def _std : Separate<["--"], "std">, Alias<std_EQ>;
@@ -3561,6 +3586,15 @@ def fsycl_dead_args_optimization : Flag<["-"], "fsycl-dead-args-optimization">,
 def fno_sycl_dead_args_optimization : Flag<["-"], "fno-sycl-dead-args-optimization">,
   Group<sycl_Group>, Flags<[NoArgumentUnused, CoreOption]>, HelpText<"Disables "
   "elimination of DPC++ dead kernel arguments">;
+def fsycl_device_lib_EQ : CommaJoined<["-"], "fsycl-device-lib=">, Group<sycl_Group>, Flags<[DriverOption, CoreOption]>,
+  Values<"libc, libm-fp32, libm-fp64, all">, HelpText<"Control inclusion of "
+  "device libraries into device binary linkage. Valid arguments "
+  "are libc, libm-fp32, libm-fp64, all">;
+def fno_sycl_device_lib_EQ : CommaJoined<["-"], "fno-sycl-device-lib=">, Group<sycl_Group>, Flags<[DriverOption, CoreOption]>,
+  Values<"libc, libm-fp32, libm-fp64, all">, HelpText<"Control exclusion of "
+  "device libraries from device binary linkage. Valid arguments "
+  "are libc, libm-fp32, libm-fp64, all">;
+
 //===----------------------------------------------------------------------===//
 // CC1 Options
 //===----------------------------------------------------------------------===//
@@ -4387,6 +4421,9 @@ def fno_signed_wchar : Flag<["-"], "fno-signed-wchar">,
 def fcompatibility_qualified_id_block_param_type_checking : Flag<["-"], "fcompatibility-qualified-id-block-type-checking">,
   HelpText<"Allow using blocks with parameters of more specific type than "
            "the type system guarantees when a parameter is qualified id">;
+def fpass_by_value_is_noalias: Flag<["-"], "fpass-by-value-is-noalias">,
+  HelpText<"Allows assuming by-value parameters do not alias any other value. "
+           "Has no effect on non-trivially-copyable classes in C++.">, Group<f_Group>;
 
 // FIXME: Remove these entirely once functionality/tests have been excised.
 def fobjc_gc_only : Flag<["-"], "fobjc-gc-only">, Group<f_Group>,
@@ -4782,6 +4819,9 @@ def _SLASH_openmp : CLFlag<"openmp">, HelpText<"Enable OpenMP support">,
 def _SLASH_openmp_experimental : CLFlag<"openmp:experimental">,
   HelpText<"Enable OpenMP support with experimental SIMD support">,
   Alias<fopenmp>;
+def _SLASH_tune : CLCompileJoined<"tune:">,
+  HelpText<"Set CPU for optimization without affecting instruction set">,
+  Alias<mtune_EQ>;
 
 // Non-aliases:
 

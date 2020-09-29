@@ -16,10 +16,9 @@
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/Register.h"
-#include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/Support/Alignment.h"
 #include "llvm/Support/LowLevelTypeImpl.h"
-#include "llvm/Support/MachineValueType.h"
+#include <cstdint>
 
 namespace llvm {
 
@@ -34,10 +33,10 @@ class MachineRegisterInfo;
 class MCInstrDesc;
 class RegisterBankInfo;
 class TargetInstrInfo;
+class TargetLowering;
 class TargetPassConfig;
 class TargetRegisterInfo;
 class TargetRegisterClass;
-class Twine;
 class ConstantFP;
 class APFloat;
 
@@ -246,5 +245,9 @@ bool isBuildVectorAllOnes(const MachineInstr &MI,
 /// the value \p Val contains a true value.
 bool isConstTrueVal(const TargetLowering &TLI, int64_t Val, bool IsVector,
                     bool IsFP);
+
+/// Returns an integer representing true, as defined by the
+/// TargetBooleanContents.
+int64_t getICmpTrueVal(const TargetLowering &TLI, bool IsVector, bool IsFP);
 } // End namespace llvm.
 #endif

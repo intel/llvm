@@ -220,7 +220,7 @@ RValue CodeGenFunction::EmitCXXMemberOrOperatorMemberCallExpr(
     DevirtualizedMethod = MD->getCorrespondingMethodInClass(BestDynamicDecl);
     assert(DevirtualizedMethod);
     const CXXRecordDecl *DevirtualizedClass = DevirtualizedMethod->getParent();
-    const Expr *Inner = Base->ignoreParenBaseCasts();
+    const Expr *Inner = Base->IgnoreParenBaseCasts();
     if (DevirtualizedMethod->getReturnType().getCanonicalType() !=
         MD->getReturnType().getCanonicalType())
       // If the return types are not the same, this might be a case where more
@@ -2199,7 +2199,8 @@ llvm::Value *CodeGenFunction::EmitCXXTypeidExpr(const CXXTypeidExpr *E) {
   //   polymorphic class type, the result refers to a std::type_info object
   //   representing the type of the most derived object (that is, the dynamic
   //   type) to which the glvalue refers.
-  if (E->isPotentiallyEvaluated())
+  // If the operand is already most derived object, no need to look up vtable.
+  if (E->isPotentiallyEvaluated() && !E->isMostDerived(getContext()))
     return EmitTypeidFromVTable(*this, E->getExprOperand(),
                                 StdTypeInfoPtrTy);
 

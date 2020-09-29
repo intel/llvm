@@ -4126,6 +4126,8 @@ public:
   ObjCInterfaceDecl *getObjCInterfaceDecl(IdentifierInfo *&Id,
                                           SourceLocation IdLoc,
                                           bool TypoCorrection = false);
+  FunctionDecl *CreateBuiltin(IdentifierInfo *II, QualType Type, unsigned ID,
+                              SourceLocation Loc);
   NamedDecl *LazilyCreateBuiltin(IdentifierInfo *II, unsigned ID,
                                  Scope *S, bool ForRedeclaration,
                                  SourceLocation Loc);
@@ -9904,7 +9906,7 @@ public:
   /// \#pragma STDC FENV_ACCESS
   void ActOnPragmaFEnvAccess(SourceLocation Loc, bool IsEnabled);
 
-  /// Called to set rounding mode for floating point operations.
+  /// Called to set constant rounding mode for floating point operations.
   void setRoundingMode(SourceLocation Loc, llvm::RoundingMode);
 
   /// Called to set exception behavior for floating point operations.
@@ -9986,7 +9988,9 @@ public:
                                        Expr *E);
   void AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
                                 Expr **Exprs, unsigned Size);
-
+  template <typename AttrType>
+  void addIntelSYCLSingleArgFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
+                                         Expr *E);
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
                       bool IsPackExpansion);
@@ -10040,10 +10044,6 @@ public:
   bool checkNSReturnsRetainedReturnType(SourceLocation loc, QualType type);
   bool checkAllowedSYCLInitializer(VarDecl *VD,
                                    bool CheckValueDependent = false);
-
-  // Adds an intel_reqd_sub_group_size attribute to a particular declaration.
-  void addIntelReqdSubGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
-                                    Expr *E);
 
   //===--------------------------------------------------------------------===//
   // C++ Coroutines TS
@@ -10195,21 +10195,27 @@ private:
     OMPDeclareVariantScope(OMPTraitInfo &TI);
   };
 
+  /// Return the OMPTraitInfo for the surrounding scope, if any.
+  OMPTraitInfo *getOMPTraitInfoForSurroundingScope() {
+    return OMPDeclareVariantScopes.empty() ? nullptr
+                                           : OMPDeclareVariantScopes.back().TI;
+  }
+
   /// The current `omp begin/end declare variant` scopes.
   SmallVector<OMPDeclareVariantScope, 4> OMPDeclareVariantScopes;
 
   /// The declarator \p D defines a function in the scope \p S which is nested
   /// in an `omp begin/end declare variant` scope. In this method we create a
   /// declaration for \p D and rename \p D according to the OpenMP context
-  /// selector of the surrounding scope.
-  FunctionDecl *
-  ActOnStartOfFunctionDefinitionInOpenMPDeclareVariantScope(Scope *S,
-                                                            Declarator &D);
+  /// selector of the surrounding scope. Return all base functions in \p Bases.
+  void ActOnStartOfFunctionDefinitionInOpenMPDeclareVariantScope(
+      Scope *S, Declarator &D, MultiTemplateParamsArg TemplateParameterLists,
+      SmallVectorImpl<FunctionDecl *> &Bases);
 
-  /// Register \p FD as specialization of \p BaseFD in the current `omp
-  /// begin/end declare variant` scope.
+  /// Register \p D as specialization of all base functions in \p Bases in the
+  /// current `omp begin/end declare variant` scope.
   void ActOnFinishedFunctionDefinitionInOpenMPDeclareVariantScope(
-      FunctionDecl *FD, FunctionDecl *BaseFD);
+      Decl *D, SmallVectorImpl<FunctionDecl *> &Bases);
 
 public:
 
@@ -11400,10 +11406,6 @@ public:
   ExprResult PerformImplicitConversion(Expr *From, QualType ToType,
                                        AssignmentAction Action,
                                        bool AllowExplicit = false);
-  ExprResult PerformImplicitConversion(Expr *From, QualType ToType,
-                                       AssignmentAction Action,
-                                       bool AllowExplicit,
-                                       ImplicitConversionSequence& ICS);
   ExprResult PerformImplicitConversion(Expr *From, QualType ToType,
                                        const ImplicitConversionSequence& ICS,
                                        AssignmentAction Action,
@@ -12601,6 +12603,7 @@ public:
 
   /// The struct behind the CFErrorRef pointer.
   RecordDecl *CFError = nullptr;
+  bool isCFError(RecordDecl *D);
 
   /// Retrieve the identifier "NSError".
   IdentifierInfo *getNSErrorIdent();
@@ -12839,6 +12842,31 @@ public:
            (VDecl->getType().getAddressSpace() == LangAS::opencl_private);
   }
 };
+
+template <typename AttrType>
+void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
+                                             const AttributeCommonInfo &CI,
+                                             Expr *E) {
+  assert(E && "Attribute must have an argument.");
+
+  if (!E->isInstantiationDependent()) {
+    Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(getASTContext());
+    if (!ArgVal) {
+      Diag(E->getExprLoc(), diag::err_attribute_argument_type)
+          << CI.getAttrName() << AANT_ArgumentIntegerConstant
+          << E->getSourceRange();
+      return;
+    }
+    int32_t ArgInt = ArgVal->getSExtValue();
+    if (ArgInt <= 0) {
+      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+          << CI.getAttrName() << /*positive*/ 0;
+      return;
+    }
+  }
+
+  D->addAttr(::new (Context) AttrType(Context, CI, E));
+}
 
 template <typename AttrType>
 void Sema::AddOneConstantValueAttr(Decl *D, const AttributeCommonInfo &CI,

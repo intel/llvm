@@ -12,7 +12,7 @@ option(SYCL_ADD_DEV_VERSION_POSTFIX "Adds -V postfix to version string" ON)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(AddSYCLExecutable)
 
-set(SYCL_MAJOR_VERSION 4)
+set(SYCL_MAJOR_VERSION 5)
 set(SYCL_MINOR_VERSION 0)
 set(SYCL_PATCH_VERSION 0)
 set(SYCL_DEV_ABI_VERSION 0)
@@ -144,7 +144,7 @@ if( NOT OpenCL_LIBRARIES )
   endif()
   ExternalProject_Add(ocl-icd
     GIT_REPOSITORY    https://github.com/KhronosGroup/OpenCL-ICD-Loader.git
-    GIT_TAG           origin/master
+    GIT_TAG           v2020.06.16
     UPDATE_DISCONNECTED ${SYCL_EP_OCL_ICD_SKIP_AUTO_UPDATE}
     SOURCE_DIR        ${OpenCL_ICD_LOADER_SOURCE_DIR}
     BINARY_DIR        "${CMAKE_CURRENT_BINARY_DIR}/icd_build"

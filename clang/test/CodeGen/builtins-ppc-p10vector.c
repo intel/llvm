@@ -17,17 +17,22 @@ vector signed int vsia, vsib;
 vector unsigned int vuia, vuib, vuic;
 vector signed long long vslla, vsllb;
 vector unsigned long long vulla, vullb, vullc;
+vector signed __int128 vsi128a, vsi128b;
 vector unsigned __int128 vui128a, vui128b, vui128c;
 vector float vfa, vfb;
 vector double vda, vdb;
 signed int *iap;
 unsigned int uia, uib, *uiap;
 signed char *cap;
-unsigned char uca, *ucap;
-signed short *sap;
-unsigned short usa, *usap;
-signed long long *llap, llb;
-unsigned long long ulla, *ullap;
+unsigned char uca;
+const unsigned char *ucap;
+const signed short *sap;
+unsigned short usa;
+const unsigned short *usap;
+const signed long long *llap;
+signed long long llb;
+unsigned long long ulla;
+const unsigned long long *ullap;
 
 vector signed long long test_vec_mul_sll(void) {
   // CHECK: mul <2 x i64>
@@ -63,6 +68,18 @@ vector unsigned long long test_vec_div_ull(void) {
   // CHECK: udiv <2 x i64>
   // CHECK-NEXT: ret <2 x i64>
   return vec_div(vulla, vullb);
+}
+
+vector unsigned __int128 test_vec_div_u128(void) {
+  // CHECK: udiv <1 x i128>
+  // CHECK-NEXT: ret <1 x i128>
+  return vec_div(vui128a, vui128b);
+}
+
+vector signed __int128 test_vec_div_s128(void) {
+  // CHECK: sdiv <1 x i128>
+  // CHECK-NEXT: ret <1 x i128>
+  return vec_div(vsi128a, vsi128b);
 }
 
 vector signed int test_vec_dive_si(void) {
@@ -195,6 +212,60 @@ vector unsigned long long test_vcfuged(void) {
   // CHECK: @llvm.ppc.altivec.vcfuged(<2 x i64>
   // CHECK-NEXT: ret <2 x i64>
   return vec_cfuge(vulla, vullb);
+}
+
+vector unsigned char test_vec_expandm_uc(void) {
+  // CHECK: @llvm.ppc.altivec.vexpandbm(<16 x i8> %{{.+}})
+  // CHECK-NEXT: ret <16 x i8>
+  return vec_expandm(vuca);
+}
+
+vector unsigned short test_vec_expandm_us(void) {
+  // CHECK: @llvm.ppc.altivec.vexpandhm(<8 x i16> %{{.+}})
+  // CHECK-NEXT: ret <8 x i16>
+  return vec_expandm(vusa);
+}
+
+vector unsigned int test_vec_expandm_ui(void) {
+  // CHECK: @llvm.ppc.altivec.vexpandwm(<4 x i32> %{{.+}})
+  // CHECK-NEXT: ret <4 x i32>
+  return vec_expandm(vuia);
+}
+
+vector unsigned long long test_vec_expandm_ull(void) {
+  // CHECK: @llvm.ppc.altivec.vexpanddm(<2 x i64> %{{.+}})
+  // CHECK-NEXT: ret <2 x i64>
+  return vec_expandm(vulla);
+}
+
+vector unsigned __int128 test_vec_expandm_u128(void) {
+  // CHECK: @llvm.ppc.altivec.vexpandqm(<1 x i128> %{{.+}})
+  // CHECK-NEXT: ret <1 x i128>
+  return vec_expandm(vui128a);
+}
+
+unsigned long long test_vec_cntm_uc(void) {
+  // CHECK: @llvm.ppc.altivec.vcntmbb(<16 x i8> %{{.+}}, i32
+  // CHECK-NEXT: ret i64
+  return vec_cntm(vuca, 1);
+}
+
+unsigned long long test_vec_cntm_us(void) {
+  // CHECK: @llvm.ppc.altivec.vcntmbh(<8 x i16> %{{.+}}, i32
+  // CHECK-NEXT: ret i64
+  return vec_cntm(vusa, 0);
+}
+
+unsigned long long test_vec_cntm_ui(void) {
+  // CHECK: @llvm.ppc.altivec.vcntmbw(<4 x i32> %{{.+}}, i32
+  // CHECK-NEXT: ret i64
+  return vec_cntm(vuia, 1);
+}
+
+unsigned long long test_vec_cntm_ull(void) {
+  // CHECK: @llvm.ppc.altivec.vcntmbd(<2 x i64> %{{.+}}, i32
+  // CHECK-NEXT: ret i64
+  return vec_cntm(vulla, 0);
 }
 
 unsigned long long test_vgnb_1(void) {
@@ -926,6 +997,44 @@ int test_vec_test_lsbb_all_zeros(void) {
   // CHECK: @llvm.ppc.vsx.xvtlsbb(<16 x i8> %{{.+}}, i32 0
   // CHECK-NEXT: ret i32
   return vec_test_lsbb_all_zeros(vuca);
+}
+
+vector unsigned __int128 test_vec_mule_u128(void) {
+  // CHECK-BE: @llvm.ppc.altivec.vmuleud(<2 x i64>
+  // CHECK-BE-NEXT: ret <1 x i128>
+  // CHECK-LE: @llvm.ppc.altivec.vmuloud(<2 x i64>
+  // CHECK-LE-NEXT: ret <1 x i128>
+  return vec_mule(vulla, vullb);
+}
+
+vector signed __int128 test_vec_mule_s128(void) {
+  // CHECK-BE: @llvm.ppc.altivec.vmulesd(<2 x i64>
+  // CHECK-BE-NEXT: ret <1 x i128>
+  // CHECK-LE: @llvm.ppc.altivec.vmulosd(<2 x i64>
+  // CHECK-LE-NEXT: ret <1 x i128>
+  return vec_mule(vslla, vsllb);
+}
+
+vector unsigned __int128 test_vec_mulo_u128(void) {
+  // CHECK-BE: @llvm.ppc.altivec.vmuloud(<2 x i64>
+  // CHECK-BE-NEXT: ret <1 x i128>
+  // CHECK-LE: @llvm.ppc.altivec.vmuleud(<2 x i64>
+  // CHECK-LE-NEXT: ret <1 x i128>
+  return vec_mulo(vulla, vullb);
+}
+
+vector signed __int128 test_vec_mulo_s128(void) {
+  // CHECK-BE: @llvm.ppc.altivec.vmulosd(<2 x i64>
+  // CHECK-BE-NEXT: ret <1 x i128>
+  // CHECK-LE: @llvm.ppc.altivec.vmulesd(<2 x i64>
+  // CHECK-LE-NEXT: ret <1 x i128>
+  return vec_mulo(vslla, vsllb);
+}
+
+vector unsigned __int128 test_vec_msumc_u128(void) {
+  // CHECK: @llvm.ppc.altivec.vmsumcud(<2 x i64>
+  // CHECK-NEXT: ret <1 x i128>
+  return vec_msumc(vulla, vullb, vui128a);
 }
 
 vector signed __int128 test_vec_xl_sext_i8(void) {

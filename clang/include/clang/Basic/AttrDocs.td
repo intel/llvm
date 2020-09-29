@@ -1708,6 +1708,101 @@ Here is an example:
   }];
 }
 
+def LikelihoodDocs : Documentation {
+  let Category = DocCatStmt;
+  let Heading = "likely and unlikely";
+  let Content = [{
+The ``likely`` and ``unlikely`` attributes are used as compiler hints.
+The attributes are used to aid the compiler to determine which branch is
+likely or unlikely to be taken. This is done by marking the branch substatement
+with one of the two attributes.
+
+It isn't allowed to annotate a single statement with both ``likely`` and
+``unlikely``. Annotating the ``true`` and ``false`` branch of an ``if``
+statement with the same likelihood attribute will result in a diagnostic and
+the attributes are ignored on both branches.
+
+These attributes have no effect on the generated code when using
+PGO (Profile-Guided Optimization) or at optimization level 0.
+
+In Clang, the attributes will be ignored if they're not placed on the
+substatement of an ``if`` or ``else`` statement. The C++ Standard recommends
+to honor them on every statement in the path of execution, but that can be
+confusing:
+
+.. code-block:: c++
+
+  if (b) {
+    [[unlikely]] --b; // In the path of execution,
+                      // this branch is considered unlikely.
+  }
+
+  if (b) {
+    --b;
+    if(b)
+      return;
+    [[unlikely]] --b; // Not in the path of execution,
+  }                   // the branch has no likelihood information.
+
+  if (b) {
+    --b;
+    foo(b);
+    // Whether or not the next statement is in the path of execution depends
+    // on the declaration of foo():
+    // In the path of execution: void foo(int);
+    // Not in the path of execution: [[noreturn]] void foo(int);
+    // This means the likelihood of the branch depends on the declaration
+    // of foo().
+    [[unlikely]] --b;
+  }
+
+
+At the moment the attribute only has effect when used in an ``if`` or ``else``
+statement.
+
+.. code-block:: c++
+
+  if (b) [[likely]] { // Placement on the first statement in the branch.
+    // The compiler will optimize to execute the code here.
+  } else {
+  }
+
+  if (b)
+    [[unlikely]] b++; // Placement on the first statement in the branch.
+  else {
+    // The compiler will optimize to execute the code here.
+  }
+
+  if (b) {
+    [[unlikely]] b++; // Placement on the second statement in the branch.
+  }                   // The attribute will be ignored.
+
+  if (b) [[likely]] {
+    [[unlikely]] b++; // No contradiction since the second attribute
+  }                   // is ignored.
+
+  if (b)
+    ;
+  else [[likely]] {
+    // The compiler will optimize to execute the code here.
+  }
+
+  if (b)
+    ;
+  else
+    // The compiler will optimize to execute the next statement.
+    [[likely]] b = f();
+
+  if (b) [[likely]]; // Both branches are likely. A diagnostic is issued
+  else [[likely]];   // and the attributes are ignored.
+
+  if (b)
+    [[likely]] int i = 5; // Issues a diagnostic since the attribute
+                          // isn't allowed on a declaration.
+
+  }];
+}
+
 def ARMInterruptDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "interrupt (ARM)";
@@ -3837,6 +3932,109 @@ For example:
   }];
 }
 
+def SwiftDocs : DocumentationCategory<"Customizing Swift Import"> {
+  let Content = [{
+Clang supports additional attributes for customizing how APIs are imported into
+Swift.
+  }];
+}
+
+def SwiftBridgeDocs : Documentation {
+  let Category = SwiftDocs;
+  let Heading = "swift_bridge";
+  let Content = [{
+The ``swift_bridge`` attribute indicates that the declaration to which the
+attribute appertains is bridged to the named Swift type.
+
+  .. code-block:: c
+
+    __attribute__((__objc_root__))
+    @interface Base
+    - (instancetype)init;
+    @end
+
+    __attribute__((__swift_bridge__("BridgedI")))
+    @interface I : Base
+    @end
+
+In this example, the Objective-C interface ``I`` will be made available to Swift
+with the name ``BridgedI``.  It would be possible for the compiler to refer to
+``I`` still in order to bridge the type back to Objective-C.
+  }];
+}
+
+def SwiftBridgedTypedefDocs : Documentation {
+  let Category = SwiftDocs;
+  let Heading = "swift_bridged";
+  let Content = [{
+The ``swift_bridged_typedef`` attribute indicates that when the typedef to which
+the attribute appertains is imported into Swift, it should refer to the bridged
+Swift type (e.g. Swift's ``String``) rather than the Objective-C type as written
+(e.g. ``NSString``).
+
+  .. code-block:: c
+
+    @interface NSString;
+    typedef NSString *AliasedString __attribute__((__swift_bridged_typedef__));
+
+    extern void acceptsAliasedString(AliasedString _Nonnull parameter);
+
+In this case, the function ``acceptsAliasedString`` will be imported into Swift
+as a function which accepts a ``String`` type parameter.
+  }];
+}
+
+def SwiftObjCMembersDocs : Documentation {
+  let Category = SwiftDocs;
+  let Heading = "swift_objc_members";
+  let Content = [{
+This attribute indicates that Swift subclasses and members of Swift extensions
+of this class will be implicitly marked with the ``@objcMembers`` Swift
+attribute, exposing them back to Objective-C.
+  }];
+}
+
+def SwiftErrorDocs : Documentation {
+  let Category = SwiftDocs;
+  let Heading = "swift_error";
+  let Content = [{
+The ``swift_error`` attribute controls whether a particular function (or
+Objective-C method) is imported into Swift as a throwing function, and if so,
+which dynamic convention it uses.
+
+All of these conventions except ``none`` require the function to have an error
+parameter. Currently, the error parameter is always the last parameter of type
+``NSError**`` or ``CFErrorRef*``.  Swift will remove the error parameter from
+the imported API. When calling the API, Swift will always pass a valid address
+initialized to a null pointer.
+
+* ``swift_error(none)`` means that the function should not be imported as
+throwing. The error parameter and result type will be imported normally.
+
+* ``swift_error(null_result)`` means that calls to the function should be
+considered to have thrown if they return a null value. The return type must be
+a pointer type, and it will be imported into Swift with a non-optional type.
+This is the default error convention for Objective-C methods that return
+pointers.
+
+* ``swift_error(zero_result)`` means that calls to the function should be
+considered to have thrown if they return a zero result. The return type must be
+an integral type. If the return type would have been imported as ``Bool``, it
+is instead imported as ``Void``. This is the default error convention for
+Objective-C methods that return a type that would be imported as ``Bool``.
+
+* ``swift_error(nonzero_result)`` means that calls to the function should be
+considered to have thrown if they return a non-zero result. The return type must
+be an integral type. If the return type would have been imported as ``Bool``,
+it is instead imported as ``Void``.
+
+* ``swift_error(nonnull_error)`` means that calls to the function should be
+considered to have thrown if they leave a non-null error in the error parameter.
+The return type is left unmodified.
+
+  }];
+}
+
 def OMPDeclareSimdDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "#pragma omp declare simd";
@@ -3943,12 +4141,24 @@ Clang provides the following context selector extensions, used via
     match_all
     match_any
     match_none
+    disable_implicit_base
+    allow_templates
 
 The match extensions change when the *entire* context selector is considered a
 match for an OpenMP context. The default is ``all``, with ``none`` no trait in the
 selector is allowed to be in the OpenMP context, with ``any`` a single trait in
 both the selector and OpenMP context is sufficient. Only a single match
 extension trait is allowed per context selector.
+The disable extensions remove default effects of the ``begin declare variant``
+applied to a definition. If ``disable_implicit_base`` is given, we will not
+introduce an implicit base function for a variant if no base function was
+found. The variant is still generated but will never be called, due to the
+absence of a base function and consequently calls to a base function.
+The allow extensions change when the ``begin declare variant`` effect is
+applied to a definition. If ``allow_templates`` is given, template function
+definitions are considered as specializations of existing or assumed template
+declarations with the same name. The template parameters for the base functions
+are used to instantiate the specialization.
 
   }];
 }
@@ -5406,10 +5616,6 @@ to the SVE predicate type ``svbool_t``, this excludes tuple types such as
 ``svint32x4_t``. The behavior of the attribute is undefined unless
 ``N==__ARM_FEATURE_SVE_BITS``, the implementation defined feature macro that is
 enabled under the ``-msve-vector-bits`` flag.
-
-NOTE: This feature is currently WIP, the ``-msve-vector-bits=`` flag defines
-the ``__ARM_FEATURE_SVE_BITS_EXPERIMENTAL`` macro. This feature is complete
-when experimental is dropped.
 
 For more information See `Arm C Language Extensions for SVE
 <https://developer.arm.com/documentation/100987/latest>`_ for more information.

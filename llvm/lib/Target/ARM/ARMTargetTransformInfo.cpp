@@ -26,6 +26,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/MC/SubtargetFeature.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/KnownBits.h"
 #include "llvm/Support/MachineValueType.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/InstCombine/InstCombiner.h"
@@ -1039,13 +1040,28 @@ int ARMTTIImpl::getArithmeticInstrCost(unsigned Opcode, Type *Ty,
                                        TTI::OperandValueProperties Opd2PropInfo,
                                        ArrayRef<const Value *> Args,
                                        const Instruction *CxtI) {
+  int ISDOpcode = TLI->InstructionOpcodeToISD(Opcode);
+  if (ST->isThumb() && CostKind == TTI::TCK_CodeSize && Ty->isIntegerTy(1)) {
+    // Make operations on i1 relatively expensive as this often involves
+    // combining predicates. AND and XOR should be easier to handle with IT
+    // blocks.
+    switch (ISDOpcode) {
+    default:
+      break;
+    case ISD::AND:
+    case ISD::XOR:
+      return 2;
+    case ISD::OR:
+      return 3;
+    }
+  }
+
   // TODO: Handle more cost kinds.
   if (CostKind != TTI::TCK_RecipThroughput)
     return BaseT::getArithmeticInstrCost(Opcode, Ty, CostKind, Op1Info,
                                          Op2Info, Opd1PropInfo,
                                          Opd2PropInfo, Args, CxtI);
 
-  int ISDOpcode = TLI->InstructionOpcodeToISD(Opcode);
   std::pair<int, MVT> LT = TLI->getTypeLegalizationCost(DL, Ty);
 
   if (ST->hasNEON()) {
@@ -1844,6 +1860,20 @@ void ARMTTIImpl::getPeelingPreferences(Loop *L, ScalarEvolution &SE,
 bool ARMTTIImpl::useReductionIntrinsic(unsigned Opcode, Type *Ty,
                                        TTI::ReductionFlags Flags) const {
   return ST->hasMVEIntegerOps();
+}
+
+bool ARMTTIImpl::preferInLoopReduction(unsigned Opcode, Type *Ty,
+                                       TTI::ReductionFlags Flags) const {
+  if (!ST->hasMVEIntegerOps())
+    return false;
+
+  unsigned ScalarBits = Ty->getScalarSizeInBits();
+  switch (Opcode) {
+  case Instruction::Add:
+    return ScalarBits <= 32;
+  default:
+    return false;
+  }
 }
 
 bool ARMTTIImpl::preferPredicatedReductionSelect(

@@ -319,11 +319,14 @@ Instruction *InstCombinerImpl::simplifyMaskedStore(IntrinsicInst &II) {
     return new StoreInst(II.getArgOperand(0), StorePtr, false, Alignment);
   }
 
+  if (isa<ScalableVectorType>(ConstMask->getType()))
+    return nullptr;
+
   // Use masked off lanes to simplify operands via SimplifyDemandedVectorElts
   APInt DemandedElts = possiblyDemandedEltsInMask(ConstMask);
   APInt UndefElts(DemandedElts.getBitWidth(), 0);
-  if (Value *V = SimplifyDemandedVectorElts(II.getOperand(0),
-                                            DemandedElts, UndefElts))
+  if (Value *V =
+          SimplifyDemandedVectorElts(II.getOperand(0), DemandedElts, UndefElts))
     return replaceOperand(II, 0, V);
 
   return nullptr;
@@ -355,14 +358,17 @@ Instruction *InstCombinerImpl::simplifyMaskedScatter(IntrinsicInst &II) {
   if (ConstMask->isNullValue())
     return eraseInstFromFunction(II);
 
+  if (isa<ScalableVectorType>(ConstMask->getType()))
+    return nullptr;
+
   // Use masked off lanes to simplify operands via SimplifyDemandedVectorElts
   APInt DemandedElts = possiblyDemandedEltsInMask(ConstMask);
   APInt UndefElts(DemandedElts.getBitWidth(), 0);
-  if (Value *V = SimplifyDemandedVectorElts(II.getOperand(0),
-                                            DemandedElts, UndefElts))
+  if (Value *V =
+          SimplifyDemandedVectorElts(II.getOperand(0), DemandedElts, UndefElts))
     return replaceOperand(II, 0, V);
-  if (Value *V = SimplifyDemandedVectorElts(II.getOperand(1),
-                                            DemandedElts, UndefElts))
+  if (Value *V =
+          SimplifyDemandedVectorElts(II.getOperand(1), DemandedElts, UndefElts))
     return replaceOperand(II, 1, V);
 
   return nullptr;
@@ -427,6 +433,9 @@ static Instruction *foldCttzCtlz(IntrinsicInst &II, InstCombinerImpl &IC) {
     Value *Y;
     SelectPatternFlavor SPF = matchSelectPattern(Op0, X, Y).Flavor;
     if (SPF == SPF_ABS || SPF == SPF_NABS)
+      return IC.replaceOperand(II, 0, X);
+
+    if (match(Op0, m_Intrinsic<Intrinsic::abs>(m_Value(X))))
       return IC.replaceOperand(II, 0, X);
   }
 
@@ -622,7 +631,7 @@ Instruction *InstCombinerImpl::visitVAEndInst(VAEndInst &I) {
   return nullptr;
 }
 
-static Instruction *canonicalizeConstantArg0ToArg1(CallInst &Call) {
+static CallInst *canonicalizeConstantArg0ToArg1(CallInst &Call) {
   assert(Call.getNumArgOperands() > 1 && "Need at least 2 args to swap");
   Value *Arg0 = Call.getArgOperand(0), *Arg1 = Call.getArgOperand(1);
   if (isa<Constant>(Arg0) && !isa<Constant>(Arg1)) {
@@ -652,6 +661,19 @@ InstCombinerImpl::foldIntrinsicWithOverflowCommon(IntrinsicInst *II) {
                             WO->getRHS(), *WO, OperationResult, OverflowResult))
     return createOverflowTuple(WO, OperationResult, OverflowResult);
   return nullptr;
+}
+
+static Optional<bool> getKnownSign(Value *Op, Instruction *CxtI,
+                                   const DataLayout &DL, AssumptionCache *AC,
+                                   DominatorTree *DT) {
+  KnownBits Known = computeKnownBits(Op, DL, 0, AC, CxtI, DT);
+  if (Known.isNonNegative())
+    return false;
+  if (Known.isNegative())
+    return true;
+
+  return isImpliedByDomCondition(
+      ICmpInst::ICMP_SLT, Op, Constant::getNullValue(Op->getType()), CxtI, DL);
 }
 
 /// CallInst simplification. This mostly only handles folding of intrinsic
@@ -763,6 +785,11 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     }
   }
 
+  if (II->isCommutative()) {
+    if (CallInst *NewCall = canonicalizeConstantArg0ToArg1(CI))
+      return NewCall;
+  }
+
   Intrinsic::ID IID = II->getIntrinsicID();
   switch (IID) {
   case Intrinsic::objectsize:
@@ -771,6 +798,8 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     return nullptr;
   case Intrinsic::abs: {
     Value *IIOperand = II->getArgOperand(0);
+    bool IntMinIsPoison = cast<Constant>(II->getArgOperand(1))->isOneValue();
+
     // abs(-x) -> abs(x)
     // TODO: Copy nsw if it was present on the neg?
     Value *X;
@@ -780,6 +809,17 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
       return replaceOperand(*II, 0, X);
     if (match(IIOperand, m_Select(m_Value(), m_Neg(m_Value(X)), m_Deferred(X))))
       return replaceOperand(*II, 0, X);
+
+    if (Optional<bool> Sign = getKnownSign(IIOperand, II, DL, &AC, &DT)) {
+      // abs(x) -> x if x >= 0
+      if (!*Sign)
+        return replaceInstUsesWith(*II, IIOperand);
+
+      // abs(x) -> -x if x < 0
+      if (IntMinIsPoison)
+        return BinaryOperator::CreateNSWNeg(IIOperand);
+      return BinaryOperator::CreateNeg(IIOperand);
+    }
 
     break;
   }
@@ -905,8 +945,6 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
   }
   case Intrinsic::uadd_with_overflow:
   case Intrinsic::sadd_with_overflow: {
-    if (Instruction *I = canonicalizeConstantArg0ToArg1(CI))
-      return I;
     if (Instruction *I = foldIntrinsicWithOverflowCommon(II))
       return I;
 
@@ -934,10 +972,6 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
 
   case Intrinsic::umul_with_overflow:
   case Intrinsic::smul_with_overflow:
-    if (Instruction *I = canonicalizeConstantArg0ToArg1(CI))
-      return I;
-    LLVM_FALLTHROUGH;
-
   case Intrinsic::usub_with_overflow:
     if (Instruction *I = foldIntrinsicWithOverflowCommon(II))
       return I;
@@ -968,9 +1002,6 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
 
   case Intrinsic::uadd_sat:
   case Intrinsic::sadd_sat:
-    if (Instruction *I = canonicalizeConstantArg0ToArg1(CI))
-      return I;
-    LLVM_FALLTHROUGH;
   case Intrinsic::usub_sat:
   case Intrinsic::ssub_sat: {
     SaturatingInst *SI = cast<SaturatingInst>(II);
@@ -1051,8 +1082,6 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
   case Intrinsic::maxnum:
   case Intrinsic::minimum:
   case Intrinsic::maximum: {
-    if (Instruction *I = canonicalizeConstantArg0ToArg1(CI))
-      return I;
     Value *Arg0 = II->getArgOperand(0);
     Value *Arg1 = II->getArgOperand(1);
     Value *X, *Y;
@@ -1161,9 +1190,6 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     LLVM_FALLTHROUGH;
   }
   case Intrinsic::fma: {
-    if (Instruction *I = canonicalizeConstantArg0ToArg1(CI))
-      return I;
-
     // fma fneg(x), fneg(y), z -> fma x, y, z
     Value *Src0 = II->getArgOperand(0);
     Value *Src1 = II->getArgOperand(1);
@@ -1435,11 +1461,16 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     break;
   case Intrinsic::assume: {
     Value *IIOperand = II->getArgOperand(0);
+    SmallVector<OperandBundleDef, 4> OpBundles;
+    II->getOperandBundlesAsDefs(OpBundles);
+    bool HasOpBundles = !OpBundles.empty();
     // Remove an assume if it is followed by an identical assume.
     // TODO: Do we need this? Unless there are conflicting assumptions, the
     // computeKnownBits(IIOperand) below here eliminates redundant assumes.
     Instruction *Next = II->getNextNonDebugInstruction();
-    if (match(Next, m_Intrinsic<Intrinsic::assume>(m_Specific(IIOperand))))
+    if (HasOpBundles &&
+        match(Next, m_Intrinsic<Intrinsic::assume>(m_Specific(IIOperand))) &&
+        !cast<IntrinsicInst>(Next)->hasOperandBundles())
       return eraseInstFromFunction(CI);
 
     // Canonicalize assume(a && b) -> assume(a); assume(b);
@@ -1449,14 +1480,15 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     Value *AssumeIntrinsic = II->getCalledOperand();
     Value *A, *B;
     if (match(IIOperand, m_And(m_Value(A), m_Value(B)))) {
-      Builder.CreateCall(AssumeIntrinsicTy, AssumeIntrinsic, A, II->getName());
+      Builder.CreateCall(AssumeIntrinsicTy, AssumeIntrinsic, A, OpBundles,
+                         II->getName());
       Builder.CreateCall(AssumeIntrinsicTy, AssumeIntrinsic, B, II->getName());
       return eraseInstFromFunction(*II);
     }
     // assume(!(a || b)) -> assume(!a); assume(!b);
     if (match(IIOperand, m_Not(m_Or(m_Value(A), m_Value(B))))) {
       Builder.CreateCall(AssumeIntrinsicTy, AssumeIntrinsic,
-                         Builder.CreateNot(A), II->getName());
+                         Builder.CreateNot(A), OpBundles, II->getName());
       Builder.CreateCall(AssumeIntrinsicTy, AssumeIntrinsic,
                          Builder.CreateNot(B), II->getName());
       return eraseInstFromFunction(*II);
@@ -1472,7 +1504,8 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
         isValidAssumeForContext(II, LHS, &DT)) {
       MDNode *MD = MDNode::get(II->getContext(), None);
       LHS->setMetadata(LLVMContext::MD_nonnull, MD);
-      return eraseInstFromFunction(*II);
+      if (!HasOpBundles)
+        return eraseInstFromFunction(*II);
 
       // TODO: apply nonnull return attributes to calls and invokes
       // TODO: apply range metadata for range check patterns?

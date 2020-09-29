@@ -32,6 +32,7 @@
 #include "llvm/BinaryFormat/COFF.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/CodeGen/AsmPrinter.h"
+#include "llvm/CodeGen/FaultMaps.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
@@ -69,12 +70,13 @@ namespace {
 class AArch64AsmPrinter : public AsmPrinter {
   AArch64MCInstLower MCInstLowering;
   StackMaps SM;
+  FaultMaps FM;
   const AArch64Subtarget *STI;
 
 public:
   AArch64AsmPrinter(TargetMachine &TM, std::unique_ptr<MCStreamer> Streamer)
       : AsmPrinter(TM, std::move(Streamer)), MCInstLowering(OutContext, *this),
-        SM(*this) {}
+        SM(*this), FM(*this) {}
 
   StringRef getPassName() const override { return "AArch64 Assembly Printer"; }
 
@@ -95,6 +97,9 @@ public:
                      const MachineInstr &MI);
   void LowerPATCHPOINT(MCStreamer &OutStreamer, StackMaps &SM,
                        const MachineInstr &MI);
+  void LowerSTATEPOINT(MCStreamer &OutStreamer, StackMaps &SM,
+                       const MachineInstr &MI);
+  void LowerFAULTING_OP(const MachineInstr &MI);
 
   void LowerPATCHABLE_FUNCTION_ENTER(const MachineInstr &MI);
   void LowerPATCHABLE_FUNCTION_EXIT(const MachineInstr &MI);
@@ -221,26 +226,9 @@ void AArch64AsmPrinter::emitStartOfAsmFile(Module &M) {
     return;
 
   // Emit a .note.gnu.property section with the flags.
-  MCSection *Cur = OutStreamer->getCurrentSectionOnly();
-  MCSection *Nt = MMI->getContext().getELFSection(
-      ".note.gnu.property", ELF::SHT_NOTE, ELF::SHF_ALLOC);
-  OutStreamer->SwitchSection(Nt);
-
-  // Emit the note header.
-  emitAlignment(Align(8));
-  OutStreamer->emitInt32(4);     // data size for "GNU\0"
-  OutStreamer->emitInt32(4 * 4); // Elf_Prop size
-  OutStreamer->emitInt32(ELF::NT_GNU_PROPERTY_TYPE_0);
-  OutStreamer->emitBytes(StringRef("GNU", 4)); // note name
-
-  // Emit the PAC/BTI properties.
-  OutStreamer->emitInt32(ELF::GNU_PROPERTY_AARCH64_FEATURE_1_AND);
-  OutStreamer->emitInt32(4);     // data size
-  OutStreamer->emitInt32(Flags); // data
-  OutStreamer->emitInt32(0);     // pad
-
-  OutStreamer->endSection(Nt);
-  OutStreamer->SwitchSection(Cur);
+  if (auto *TS = static_cast<AArch64TargetStreamer *>(
+          OutStreamer->getTargetStreamer()))
+    TS->emitNoteSection(Flags);
 }
 
 void AArch64AsmPrinter::emitFunctionHeaderComment() {
@@ -539,7 +527,11 @@ void AArch64AsmPrinter::emitEndOfAsmFile(Module &M) {
     // generates code that does this, it is always safe to set.
     OutStreamer->emitAssemblerFlag(MCAF_SubsectionsViaSymbols);
   }
+  
+  // Emit stack and fault map information.
   emitStackMaps(SM);
+  FM.serializeToFaultMapSection();
+
 }
 
 void AArch64AsmPrinter::EmitLOHs() {
@@ -944,6 +936,83 @@ void AArch64AsmPrinter::LowerPATCHPOINT(MCStreamer &OutStreamer, StackMaps &SM,
     EmitToStreamer(OutStreamer, MCInstBuilder(AArch64::HINT).addImm(0));
 }
 
+void AArch64AsmPrinter::LowerSTATEPOINT(MCStreamer &OutStreamer, StackMaps &SM,
+                                        const MachineInstr &MI) {
+  StatepointOpers SOpers(&MI);
+  if (unsigned PatchBytes = SOpers.getNumPatchBytes()) {
+    assert(PatchBytes % 4 == 0 && "Invalid number of NOP bytes requested!");
+    for (unsigned i = 0; i < PatchBytes; i += 4)
+      EmitToStreamer(OutStreamer, MCInstBuilder(AArch64::HINT).addImm(0));
+  } else {
+    // Lower call target and choose correct opcode
+    const MachineOperand &CallTarget = SOpers.getCallTarget();
+    MCOperand CallTargetMCOp;
+    unsigned CallOpcode;
+    switch (CallTarget.getType()) {
+    case MachineOperand::MO_GlobalAddress:
+    case MachineOperand::MO_ExternalSymbol:
+      MCInstLowering.lowerOperand(CallTarget, CallTargetMCOp);
+      CallOpcode = AArch64::BL;
+      break;
+    case MachineOperand::MO_Immediate:
+      CallTargetMCOp = MCOperand::createImm(CallTarget.getImm());
+      CallOpcode = AArch64::BL;
+      break;
+    case MachineOperand::MO_Register:
+      CallTargetMCOp = MCOperand::createReg(CallTarget.getReg());
+      CallOpcode = AArch64::BLR;
+      break;
+    default:
+      llvm_unreachable("Unsupported operand type in statepoint call target");
+      break;
+    }
+
+    EmitToStreamer(OutStreamer,
+                   MCInstBuilder(CallOpcode).addOperand(CallTargetMCOp));
+  }
+
+  auto &Ctx = OutStreamer.getContext();
+  MCSymbol *MILabel = Ctx.createTempSymbol();
+  OutStreamer.emitLabel(MILabel);
+  SM.recordStatepoint(*MILabel, MI);
+}
+
+void AArch64AsmPrinter::LowerFAULTING_OP(const MachineInstr &FaultingMI) {
+  // FAULTING_LOAD_OP <def>, <faltinf type>, <MBB handler>,
+  //                  <opcode>, <operands>
+
+  Register DefRegister = FaultingMI.getOperand(0).getReg();
+  FaultMaps::FaultKind FK =
+      static_cast<FaultMaps::FaultKind>(FaultingMI.getOperand(1).getImm());
+  MCSymbol *HandlerLabel = FaultingMI.getOperand(2).getMBB()->getSymbol();
+  unsigned Opcode = FaultingMI.getOperand(3).getImm();
+  unsigned OperandsBeginIdx = 4;
+
+  auto &Ctx = OutStreamer->getContext();
+  MCSymbol *FaultingLabel = Ctx.createTempSymbol();
+  OutStreamer->emitLabel(FaultingLabel);
+
+  assert(FK < FaultMaps::FaultKindMax && "Invalid Faulting Kind!");
+  FM.recordFaultingOp(FK, FaultingLabel, HandlerLabel);
+
+  MCInst MI;
+  MI.setOpcode(Opcode);
+
+  if (DefRegister != (Register)0)
+    MI.addOperand(MCOperand::createReg(DefRegister));
+
+  for (auto I = FaultingMI.operands_begin() + OperandsBeginIdx,
+            E = FaultingMI.operands_end();
+       I != E; ++I) {
+    MCOperand Dest;
+    lowerOperand(*I, Dest);
+    MI.addOperand(Dest);
+  }
+
+  OutStreamer->AddComment("on-fault: " + HandlerLabel->getName());
+  OutStreamer->emitInstruction(MI, getSubtargetInfo());
+}
+
 void AArch64AsmPrinter::EmitFMov0(const MachineInstr &MI) {
   Register DestReg = MI.getOperand(0).getReg();
   if (STI->hasZeroCycleZeroingFP() && !STI->hasZeroCycleZeroingFPWorkaround()) {
@@ -1224,6 +1293,12 @@ void AArch64AsmPrinter::emitInstruction(const MachineInstr *MI) {
 
   case TargetOpcode::PATCHPOINT:
     return LowerPATCHPOINT(*OutStreamer, SM, *MI);
+
+  case TargetOpcode::STATEPOINT:
+    return LowerSTATEPOINT(*OutStreamer, SM, *MI);
+
+  case TargetOpcode::FAULTING_OP:
+    return LowerFAULTING_OP(*MI);
 
   case TargetOpcode::PATCHABLE_FUNCTION_ENTER:
     LowerPATCHABLE_FUNCTION_ENTER(*MI);

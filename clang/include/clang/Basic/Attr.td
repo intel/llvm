@@ -836,6 +836,7 @@ static llvm::StringRef getPlatformNameSourceSpelling(llvm::StringRef Platform) {
              .Case("macos_app_extension", "macOSApplicationExtension")
              .Case("tvos_app_extension", "tvOSApplicationExtension")
              .Case("watchos_app_extension", "watchOSApplicationExtension")
+             .Case("zos", "z/OS")
              .Default(Platform);
 }
 static llvm::StringRef canonicalizePlatformName(llvm::StringRef Platform) {
@@ -1198,6 +1199,14 @@ def SYCLIntelBufferLocation : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+def SYCLRequiresDecomposition : InheritableAttr {
+  // No spellings, as this is for internal use.
+  let Spellings = [];
+  let Subjects = SubjectList<[Named]>;
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Documentation = [Undocumented];
+}
+
 def SYCLIntelKernelArgsRestrict : InheritableAttr {
   let Spellings = [ CXX11<"intel", "kernel_args_restrict"> ];
   let Subjects = SubjectList<[Function], ErrorDiag>;
@@ -1209,7 +1218,7 @@ def SYCLIntelKernelArgsRestrict : InheritableAttr {
 
 def SYCLIntelNumSimdWorkItems : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","num_simd_work_items">];
-  let Args = [UnsignedArgument<"Number">];
+  let Args = [ExprArgument<"Value">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelNumSimdWorkItemsAttrDocs];
@@ -1300,7 +1309,7 @@ def LoopUnrollHint : InheritableAttr {
 def IntelReqdSubGroupSize: InheritableAttr {
   let Spellings = [GNU<"intel_reqd_sub_group_size">,
                    CXX11<"intel", "reqd_sub_group_size">];
-  let Args = [ExprArgument<"SubGroupSize">];
+  let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[Function, CXXMethod], ErrorDiag>;
   let Documentation = [IntelReqdSubGroupSizeDocs];
   let LangOpts = [OpenCL, SYCLIsDevice, SYCLIsHost];
@@ -1439,6 +1448,18 @@ def FallThrough : StmtAttr {
                    CXX11<"clang", "fallthrough">, GCC<"fallthrough">];
 //  let Subjects = [NullStmt];
   let Documentation = [FallthroughDocs];
+}
+
+def Likely : StmtAttr {
+  // FIXME: Change the date to 201803 once the implementation is finished.
+  let Spellings = [CXX11<"", "likely", 2>, C2x<"clang", "likely">];
+  let Documentation = [LikelihoodDocs];
+}
+
+def Unlikely : StmtAttr {
+  // FIXME: Change the date to 201803 once the implementation is finished.
+  let Spellings = [CXX11<"", "unlikely", 2>, C2x<"clang", "unlikely">];
+  let Documentation = [LikelihoodDocs];
 }
 
 def NoMerge : StmtAttr {
@@ -2605,6 +2626,37 @@ def Regparm : TypeAttr {
   let Documentation = [RegparmDocs];
   // Represented as part of the enclosing function type.
   let ASTNode = 0;
+}
+
+def SwiftBridge : InheritableAttr {
+  let Spellings = [GNU<"swift_bridge">];
+  let Args = [StringArgument<"SwiftType">];
+  let Subjects = SubjectList<[Tag, TypedefName, ObjCInterface, ObjCProtocol],
+                             ErrorDiag>;
+  let Documentation = [SwiftBridgeDocs];
+}
+
+def SwiftBridgedTypedef : InheritableAttr {
+  let Spellings = [GNU<"swift_bridged_typedef">];
+  let Subjects = SubjectList<[TypedefName], ErrorDiag>;
+  let Documentation = [SwiftBridgedTypedefDocs];
+}
+
+def SwiftObjCMembers : Attr {
+  let Spellings = [GNU<"swift_objc_members">];
+  let Subjects = SubjectList<[ObjCInterface], ErrorDiag>;
+  let Documentation = [SwiftObjCMembersDocs];
+}
+
+def SwiftError : InheritableAttr {
+  let Spellings = [GNU<"swift_error">];
+  let Args = [
+      EnumArgument<"Convention", "ConventionKind",
+                   ["none", "nonnull_error", "null_result", "zero_result", "nonzero_result"],
+                   ["None", "NonNullError", "NullResult", "ZeroResult", "NonZeroResult"]>
+  ];
+  let Subjects = SubjectList<[Function, ObjCMethod], ErrorDiag>;
+  let Documentation = [SwiftErrorDocs];
 }
 
 def NoDeref : TypeAttr {
@@ -3973,4 +4025,12 @@ def ReleaseHandle : InheritableParamAttr {
   let Args = [StringArgument<"HandleType">];
   let Subjects = SubjectList<[ParmVar]>;
   let Documentation = [ReleaseHandleDocs];
+}
+
+def Builtin : InheritableAttr {
+  let Spellings = [];
+  let Args = [UnsignedArgument<"ID">];
+  let Subjects = SubjectList<[Function]>;
+  let SemaHandler = 0;
+  let Documentation = [Undocumented];
 }

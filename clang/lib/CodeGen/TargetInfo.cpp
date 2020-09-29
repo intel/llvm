@@ -5627,7 +5627,7 @@ ABIArgInfo AArch64ABIInfo::coerceIllegalVector(QualType Ty) const {
       ResType = llvm::ScalableVectorType::get(
           llvm::Type::getInt64Ty(getVMContext()), 2);
       break;
-    case BuiltinType::Float16:
+    case BuiltinType::Half:
       ResType = llvm::ScalableVectorType::get(
           llvm::Type::getHalfTy(getVMContext()), 8);
       break;
@@ -9066,13 +9066,9 @@ void AMDGPUTargetCodeGenInfo::setTargetAttributes(
       assert(Max == 0 && "Max must be zero");
   } else if (IsOpenCLKernel || IsHIPKernel) {
     // By default, restrict the maximum size to a value specified by
-    // --gpu-max-threads-per-block=n or its default value for HIP.
-    const unsigned OpenCLDefaultMaxWorkGroupSize = 256;
-    const unsigned DefaultMaxWorkGroupSize =
-        IsOpenCLKernel ? OpenCLDefaultMaxWorkGroupSize
-                       : M.getLangOpts().GPUMaxThreadsPerBlock;
+    // --gpu-max-threads-per-block=n or its default value.
     std::string AttrVal =
-        std::string("1,") + llvm::utostr(DefaultMaxWorkGroupSize);
+        std::string("1,") + llvm::utostr(M.getLangOpts().GPUMaxThreadsPerBlock);
     F->addFnAttr("amdgpu-flat-work-group-size", AttrVal);
   }
 

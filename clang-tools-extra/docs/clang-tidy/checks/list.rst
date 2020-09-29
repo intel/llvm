@@ -30,6 +30,7 @@ Clang-Tidy Checks
    `abseil-time-comparison <abseil-time-comparison.html>`_, "Yes"
    `abseil-time-subtraction <abseil-time-subtraction.html>`_, "Yes"
    `abseil-upgrade-duration-conversions <abseil-upgrade-duration-conversions.html>`_, "Yes"
+   `altera-struct-pack-align <altera-struct-pack-align.html>`_,
    `android-cloexec-accept <android-cloexec-accept.html>`_, "Yes"
    `android-cloexec-accept4 <android-cloexec-accept4.html>`_,
    `android-cloexec-creat <android-cloexec-creat.html>`_, "Yes"
@@ -142,7 +143,6 @@ Clang-Tidy Checks
    `cppcoreguidelines-narrowing-conversions <cppcoreguidelines-narrowing-conversions.html>`_,
    `cppcoreguidelines-no-malloc <cppcoreguidelines-no-malloc.html>`_,
    `cppcoreguidelines-owning-memory <cppcoreguidelines-owning-memory.html>`_,
-   `cppcoreguidelines-prefer-member-initializer <cppcoreguidelines-prefer-member-initializer.html>`_,
    `cppcoreguidelines-pro-bounds-array-to-pointer-decay <cppcoreguidelines-pro-bounds-array-to-pointer-decay.html>`_,
    `cppcoreguidelines-pro-bounds-constant-array-index <cppcoreguidelines-pro-bounds-constant-array-index.html>`_, "Yes"
    `cppcoreguidelines-pro-bounds-pointer-arithmetic <cppcoreguidelines-pro-bounds-pointer-arithmetic.html>`_,

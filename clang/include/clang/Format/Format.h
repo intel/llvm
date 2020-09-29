@@ -583,6 +583,24 @@ struct FormatStyle {
   /// The template declaration breaking style to use.
   BreakTemplateDeclarationsStyle AlwaysBreakTemplateDeclarations;
 
+  /// A vector of strings that should be interpreted as attributes/qualifiers
+  /// instead of identifiers. This can be useful for language extensions or
+  /// static analyzer annotations.
+  ///
+  /// For example:
+  /// \code
+  ///   x = (char *__capability)&y;
+  ///   int function(void) __ununsed;
+  ///   void only_writes_to_buffer(char *__output buffer);
+  /// \endcode
+  ///
+  /// In the .clang-format configuration file, this can be configured like:
+  /// \code{.yaml}
+  ///   AttributeMacros: ['__capability', '__output', '__ununsed']
+  /// \endcode
+  ///
+  std::vector<std::string> AttributeMacros;
+
   /// If ``false``, a function call's arguments will either be all on the
   /// same line or will have one line each.
   /// \code
@@ -1842,7 +1860,7 @@ struct FormatStyle {
   bool ObjCSpaceAfterProperty;
 
   /// Break parameters list into lines when there is nested block
-  /// parameters in a fuction call.
+  /// parameters in a function call.
   /// \code
   ///   false:
   ///    - (void)_aMethod
@@ -2351,6 +2369,7 @@ struct FormatStyle {
                R.AlwaysBreakBeforeMultilineStrings &&
            AlwaysBreakTemplateDeclarations ==
                R.AlwaysBreakTemplateDeclarations &&
+           AttributeMacros == R.AttributeMacros &&
            BinPackArguments == R.BinPackArguments &&
            BinPackParameters == R.BinPackParameters &&
            BreakBeforeBinaryOperators == R.BreakBeforeBinaryOperators &&

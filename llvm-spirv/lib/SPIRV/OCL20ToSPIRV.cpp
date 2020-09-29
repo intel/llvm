@@ -40,6 +40,7 @@
 #include "OCLTypeToSPIRV.h"
 #include "OCLUtil.h"
 #include "SPIRVInternal.h"
+#include "libSPIRV/SPIRVDebug.h"
 
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Analysis/ValueTracking.h"
@@ -47,9 +48,7 @@
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/Debug.h"
 
 #include <algorithm>
 #include <set>
@@ -349,11 +348,8 @@ bool OCL20ToSPIRV::runOnModule(Module &Module) {
   eraseUselessFunctions(M); // remove unused functions declarations
   LLVM_DEBUG(dbgs() << "After OCL20ToSPIRV:\n" << *M);
 
-  std::string Err;
-  raw_string_ostream ErrorOS(Err);
-  if (verifyModule(*M, &ErrorOS)) {
-    LLVM_DEBUG(errs() << "Fails to verify module: " << ErrorOS.str());
-  }
+  verifyRegularizationPass(*M, "OCL20ToSPIRV");
+
   return true;
 }
 
@@ -1261,11 +1257,16 @@ void OCL20ToSPIRV::transWorkItemBuiltinsToVariables() {
     for (auto UI = I.user_begin(), UE = I.user_end(); UI != UE; ++UI) {
       auto CI = dyn_cast<CallInst>(*UI);
       assert(CI && "invalid instruction");
-      Value *NewValue = new LoadInst(GVType, BV, "", CI);
+      const DebugLoc &DLoc = CI->getDebugLoc();
+      Instruction *NewValue = new LoadInst(GVType, BV, "", CI);
+      if (DLoc)
+        NewValue->setDebugLoc(DLoc);
       LLVM_DEBUG(dbgs() << "Transform: " << *CI << " => " << *NewValue << '\n');
       if (IsVec) {
         NewValue =
             ExtractElementInst::Create(NewValue, CI->getArgOperand(0), "", CI);
+        if (DLoc)
+          NewValue->setDebugLoc(DLoc);
         LLVM_DEBUG(dbgs() << *NewValue << '\n');
       }
       NewValue->takeName(CI);
@@ -1335,23 +1336,24 @@ void OCL20ToSPIRV::visitCallRelational(CallInst *CI, StringRef DemangledName) {
         if (CI->getOperand(0)->getType()->isVectorTy())
           Ret = FixedVectorType::get(
               Type::getInt1Ty(*Ctx),
-              cast<VectorType>(CI->getOperand(0)->getType())->getNumElements());
+              cast<FixedVectorType>(CI->getOperand(0)->getType())
+                  ->getNumElements());
         return SPIRVName;
       },
       [=](CallInst *NewCI) -> Instruction * {
         Value *False = nullptr, *True = nullptr;
         if (NewCI->getType()->isVectorTy()) {
           Type *IntTy = Type::getInt32Ty(*Ctx);
-          if (cast<VectorType>(NewCI->getOperand(0)->getType())
+          if (cast<FixedVectorType>(NewCI->getOperand(0)->getType())
                   ->getElementType()
                   ->isDoubleTy())
             IntTy = Type::getInt64Ty(*Ctx);
-          if (cast<VectorType>(NewCI->getOperand(0)->getType())
+          if (cast<FixedVectorType>(NewCI->getOperand(0)->getType())
                   ->getElementType()
                   ->isHalfTy())
             IntTy = Type::getInt16Ty(*Ctx);
           Type *VTy = FixedVectorType::get(
-              IntTy, cast<VectorType>(NewCI->getType())->getNumElements());
+              IntTy, cast<FixedVectorType>(NewCI->getType())->getNumElements());
           False = Constant::getNullValue(VTy);
           True = Constant::getAllOnesValue(VTy);
         } else {
@@ -1618,7 +1620,7 @@ static void processSubgroupBlockReadWriteINTEL(CallInst *CI,
                                                OCLBuiltinTransInfo &Info,
                                                const Type *DataTy, Module *M) {
   unsigned VectorNumElements = 1;
-  if (auto *VecTy = dyn_cast<VectorType>(DataTy))
+  if (auto *VecTy = dyn_cast<FixedVectorType>(DataTy))
     VectorNumElements = VecTy->getNumElements();
   unsigned ElementBitSize = DataTy->getScalarSizeInBits();
   Info.Postfix = "_";

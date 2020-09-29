@@ -13,7 +13,6 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/Twine.h"
 #include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
@@ -23,9 +22,11 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/StackProtector.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
+#include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/Target/TargetMachine.h"
 
 #define DEBUG_TYPE "globalisel-utils"
 
@@ -470,7 +471,8 @@ bool llvm::isKnownNeverNaN(Register Val, const MachineRegisterInfo &MRI,
   if (!DefMI)
     return false;
 
-  if (DefMI->getFlag(MachineInstr::FmNoNans))
+  const TargetMachine& TM = DefMI->getMF()->getTarget();
+  if (DefMI->getFlag(MachineInstr::FmNoNans) || TM.Options.NoNaNsFPMath)
     return true;
 
   if (SNaN) {
@@ -737,6 +739,18 @@ bool llvm::isConstTrueVal(const TargetLowering &TLI, int64_t Val, bool IsVector,
     return Val == 1;
   case TargetLowering::ZeroOrNegativeOneBooleanContent:
     return Val == -1;
+  }
+  llvm_unreachable("Invalid boolean contents");
+}
+
+int64_t llvm::getICmpTrueVal(const TargetLowering &TLI, bool IsVector,
+                             bool IsFP) {
+  switch (TLI.getBooleanContents(IsVector, IsFP)) {
+  case TargetLowering::UndefinedBooleanContent:
+  case TargetLowering::ZeroOrOneBooleanContent:
+    return 1;
+  case TargetLowering::ZeroOrNegativeOneBooleanContent:
+    return -1;
   }
   llvm_unreachable("Invalid boolean contents");
 }

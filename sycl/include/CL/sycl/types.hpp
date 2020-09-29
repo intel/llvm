@@ -899,9 +899,12 @@ public:
     load(Offset, ConstPtr);
   }
   template <int Dimensions, access::mode Mode,
-            access::placeholder IsPlaceholder, access::target Target>
-  void load(size_t Offset,
-            accessor<DataT, Dimensions, Mode, Target, IsPlaceholder> Acc) {
+            access::placeholder IsPlaceholder, access::target Target,
+            typename PropertyListT>
+  void
+  load(size_t Offset,
+       accessor<DataT, Dimensions, Mode, Target, IsPlaceholder, PropertyListT>
+           Acc) {
     multi_ptr<const DataT, detail::TargetToAS<Target>::AS> MultiPtr(Acc);
     load(Offset, MultiPtr);
   }
@@ -912,9 +915,12 @@ public:
     }
   }
   template <int Dimensions, access::mode Mode,
-            access::placeholder IsPlaceholder, access::target Target>
-  void store(size_t Offset,
-             accessor<DataT, Dimensions, Mode, Target, IsPlaceholder> Acc) {
+            access::placeholder IsPlaceholder, access::target Target,
+            typename PropertyListT>
+  void
+  store(size_t Offset,
+        accessor<DataT, Dimensions, Mode, Target, IsPlaceholder, PropertyListT>
+            Acc) {
     multi_ptr<DataT, detail::TargetToAS<Target>::AS> MultiPtr(Acc);
     store(Offset, MultiPtr);
   }

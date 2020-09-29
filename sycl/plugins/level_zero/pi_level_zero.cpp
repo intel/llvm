@@ -12,6 +12,7 @@
 /// \ingroup sycl_pi_level_zero
 
 #include "pi_level_zero.hpp"
+#include <algorithm>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
@@ -63,6 +64,15 @@ std::mutex ZeCall::GlobalLock;
 
 // Controls Level Zero calls tracing in zePrint.
 static bool ZeDebug = false;
+
+// Controls Level Zero validation layer and parameter validation.
+static bool ZeValidationLayer = false;
+
+enum DebugLevel {
+  ZE_DEBUG_BASIC = 0x1,
+  ZE_DEBUG_VALIDATION = 0x2,
+  ZE_DEBUG_ALL = -1
+};
 
 static void zePrint(const char *Format, ...) {
   if (ZeDebug) {
@@ -216,12 +226,17 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &ZePool,
         NumEventsLiveInEventPoolMutex, std::adopt_lock);
 
     ze_event_pool_desc_t ZeEventPoolDesc = {};
+    ZeEventPoolDesc.stype = ZE_STRUCTURE_TYPE_EVENT_POOL_DESC;
     ZeEventPoolDesc.count = MaxNumEventsPerPool;
     ZeEventPoolDesc.flags = ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;
 
-    ze_device_handle_t ZeDevice = Device->ZeDevice;
-    if (ze_result_t ZeRes = zeEventPoolCreate(ZeContext, &ZeEventPoolDesc, 1,
-                                              &ZeDevice, &ZeEventPool))
+    std::vector<ze_device_handle_t> ZeDevices;
+    std::for_each(Devices.begin(), Devices.end(),
+                  [&](pi_device &D) { ZeDevices.push_back(D->ZeDevice); });
+
+    if (ze_result_t ZeRes =
+            zeEventPoolCreate(ZeContext, &ZeEventPoolDesc, ZeDevices.size(),
+                              &ZeDevices[0], &ZeEventPool))
       return ZeRes;
     NumEventsAvailableInEventPool[ZeEventPool] = MaxNumEventsPerPool - 1;
     NumEventsLiveInEventPool[ZeEventPool] = MaxNumEventsPerPool;
@@ -408,9 +423,9 @@ _pi_queue::resetCommandListFenceEntry(ze_command_list_handle_t ZeCommandList,
   ZE_CALL(zeFenceReset(this->ZeCommandListFenceMap[ZeCommandList]));
   ZE_CALL(zeCommandListReset(ZeCommandList));
   if (MakeAvailable) {
-    this->Context->Device->ZeCommandListCacheMutex.lock();
-    this->Context->Device->ZeCommandListCache.push_back(ZeCommandList);
-    this->Context->Device->ZeCommandListCacheMutex.unlock();
+    this->Device->ZeCommandListCacheMutex.lock();
+    this->Device->ZeCommandListCache.push_back(ZeCommandList);
+    this->Device->ZeCommandListCacheMutex.unlock();
   }
 
   return PI_SUCCESS;
@@ -433,7 +448,7 @@ _pi_device::getAvailableCommandList(pi_queue Queue,
 
   // Initally, we need to check if a command list has already been created
   // on this device that is available for use. If so, then reuse that
-  // L0 Command List and Fence for this PI call.
+  // Level-Zero Command List and Fence for this PI call.
   if (Queue->Device->ZeCommandListCache.size() > 0) {
     Queue->Device->ZeCommandListCacheMutex.lock();
     *ZeCommandList = Queue->Device->ZeCommandListCache.front();
@@ -543,6 +558,11 @@ static pi_result copyModule(ze_context_handle_t ZeContext,
                             ze_module_handle_t SrcMod,
                             ze_module_handle_t *DestMod);
 
+static bool setEnvVar(const char *var, const char *value);
+
+static pi_result getOrCreatePlatform(ze_driver_handle_t ZeDriver,
+                                     pi_platform *Platform);
+
 // Forward declarations for mock implementations of Level Zero APIs that
 // do not yet work in the driver.
 // TODO: Remove these mock definitions when they work in the driver.
@@ -558,12 +578,37 @@ static bool isOnlineLinkEnabled();
 // End forward declarations for mock Level Zero APIs
 std::once_flag OnceFlag;
 
+// This function will ensure compatibility with both Linux and Windowns for
+// setting environment variables.
+static bool setEnvVar(const char *name, const char *value) {
+#ifdef _WIN32
+  int Res = _putenv_s(name, value);
+#else
+  int Res = setenv(name, value, 1);
+#endif
+  if (Res != 0) {
+    zePrint(
+        "Level Zero plugin was unable to set the environment variable: %s\n",
+        name);
+    return false;
+  }
+  return true;
+}
+
 pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                          pi_uint32 *NumPlatforms) {
 
   static const char *DebugMode = std::getenv("ZE_DEBUG");
-  if (DebugMode)
+  static const int DebugModeValue = DebugMode ? std::stoi(DebugMode) : 0;
+  if (DebugModeValue == ZE_DEBUG_ALL) {
     ZeDebug = true;
+    ZeValidationLayer = true;
+  } else {
+    if (DebugModeValue & ZE_DEBUG_BASIC)
+      ZeDebug = true;
+    if (DebugModeValue & ZE_DEBUG_VALIDATION)
+      ZeValidationLayer = true;
+  }
 
   static const char *SerializeMode = std::getenv("ZE_SERIALIZE");
   static const pi_uint32 SerializeModeValue =
@@ -577,31 +622,20 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     return PI_INVALID_VALUE;
   }
 
-  // Cache pi_platforms for reuse in the future
-  // It solves two problems;
-  // 1. sycl::device equality issue; we always return the same pi_device.
-  // 2. performance; we can save time by immediately return from cache.
-  static std::vector<pi_platform> PiPlatformsCache;
-  static std::mutex PiPlatformsCacheMutex;
-
-  // This is a good time to initialize Level Zero.
-  static const char *CommandListCacheSize =
-      std::getenv("SYCL_PI_LEVEL0_MAX_COMMAND_LIST_CACHE");
-  static pi_uint32 CommandListCacheSizeValue;
-  try {
-    CommandListCacheSizeValue =
-        CommandListCacheSize ? std::atoi(CommandListCacheSize) : 20000;
-  } catch (std::exception const &) {
-    zePrint("SYCL_PI_LEVEL0_MAX_COMMAND_LIST_CACHE: invalid value provided, "
-            "default set.\n");
-    CommandListCacheSizeValue = 20000;
+  // Setting these environment variables before running zeInit will enable the
+  // validation layer in the Level Zero loader.
+  if (ZeValidationLayer) {
+    setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
+    setEnvVar("ZE_ENABLE_PARAMETER_VALIDATION", "1");
   }
 
   // TODO: We can still safely recover if something goes wrong during the init.
   // Implement handling segfault using sigaction.
-  // TODO: We should not call zeInit multiples times ever, so
-  // this code should be changed.
-  ze_result_t ZeResult = ZE_CALL_NOCHECK(zeInit(ZE_INIT_FLAG_GPU_ONLY));
+
+  // We must only initialize the driver once, even if piPlatformsGet() is called
+  // multiple times.  Declaring the return value as "static" ensures it's only
+  // called once.
+  static ze_result_t ZeResult = ZE_CALL_NOCHECK(zeInit(ZE_INIT_FLAG_GPU_ONLY));
 
   // Absorb the ZE_RESULT_ERROR_UNINITIALIZED and just return 0 Platforms.
   if (ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
@@ -629,56 +663,92 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     assert(ZeDriverCount == 1);
     ZE_CALL(zeDriverGet(&ZeDriverCount, &ZeDriver));
 
-    std::lock_guard<std::mutex> Lock(PiPlatformsCacheMutex);
-    for (const pi_platform CachedPlatform : PiPlatformsCache) {
-      if (CachedPlatform->ZeDriver == ZeDriver) {
-        Platforms[0] = CachedPlatform;
-        // if the caller sent a valid NumPlatforms pointer, set it here
-        if (NumPlatforms)
-          *NumPlatforms = 1;
-
-        return PI_SUCCESS;
-      }
-    }
-
-    try {
-      // TODO: figure out how/when to release this memory
-      *Platforms = new _pi_platform(ZeDriver);
-
-      // Cache driver properties
-      ze_driver_properties_t ZeDriverProperties;
-      ZE_CALL(zeDriverGetProperties(ZeDriver, &ZeDriverProperties));
-      uint32_t ZeDriverVersion = ZeDriverProperties.driverVersion;
-      // Intel Level-Zero GPU driver stores version as:
-      // | 31 - 24 | 23 - 16 | 15 - 0 |
-      // |  Major  |  Minor  | Build  |
-      std::string VersionMajor =
-          std::to_string((ZeDriverVersion & 0xFF000000) >> 24);
-      std::string VersionMinor =
-          std::to_string((ZeDriverVersion & 0x00FF0000) >> 16);
-      std::string VersionBuild = std::to_string(ZeDriverVersion & 0x0000FFFF);
-      Platforms[0]->ZeDriverVersion = VersionMajor + std::string(".") +
-                                      VersionMinor + std::string(".") +
-                                      VersionBuild;
-
-      ze_api_version_t ZeApiVersion;
-      ZE_CALL(zeDriverGetApiVersion(ZeDriver, &ZeApiVersion));
-      Platforms[0]->ZeDriverApiVersion =
-          std::to_string(ZE_MAJOR_VERSION(ZeApiVersion)) + std::string(".") +
-          std::to_string(ZE_MINOR_VERSION(ZeApiVersion));
-
-      // save a copy in the cache for future uses
-      PiPlatformsCache.push_back(Platforms[0]);
-      Platforms[0]->ZeMaxCommandListCache = CommandListCacheSizeValue;
-    } catch (const std::bad_alloc &) {
-      return PI_OUT_OF_HOST_MEMORY;
-    } catch (...) {
-      return PI_ERROR_UNKNOWN;
+    pi_result Res = getOrCreatePlatform(ZeDriver, Platforms);
+    if (Res != PI_SUCCESS) {
+      return Res;
     }
   }
 
   if (NumPlatforms)
     *NumPlatforms = 1;
+
+  return PI_SUCCESS;
+}
+
+// Retrieve a cached Platform that has a matching driver handle or use the
+// driver handle to create and initialize a new Platform.
+static pi_result getOrCreatePlatform(ze_driver_handle_t ZeDriver,
+                                     pi_platform *Platform) {
+
+  // We will retrieve the Max CommandList Cache in this lamda function so that
+  // it only has to be executed once
+  static pi_uint32 CommandListCacheSizeValue = ([] {
+    const char *CommandListCacheSize =
+        std::getenv("SYCL_PI_LEVEL0_MAX_COMMAND_LIST_CACHE");
+    pi_uint32 CommandListCacheSizeValue;
+    try {
+      CommandListCacheSizeValue =
+          CommandListCacheSize ? std::stoi(CommandListCacheSize) : 20000;
+    } catch (std::exception const &) {
+      zePrint("SYCL_PI_LEVEL0_MAX_COMMAND_LIST_CACHE: invalid value provided, "
+              "default set.\n");
+      CommandListCacheSizeValue = 20000;
+    }
+    return CommandListCacheSizeValue;
+  })();
+
+  try {
+    // Cache pi_platforms for reuse in the future
+    // It solves two problems;
+    // 1. sycl::device equality issue; we always return the same pi_device.
+    // 2. performance; we can save time by immediately return from cache.
+    //
+    // Note: The memory for "PiPlatformsCache" and "PiPlatformsCacheMutex" is
+    // intentionally leaked because the application may call into the SYCL
+    // runtime from a global destructor, and such a call could eventually
+    // access these variables. Therefore, there is no safe time when
+    // "PiPlatformsCache" and "PiPlatformsCacheMutex" could be deleted.
+    static auto PiPlatformsCache = new std::vector<pi_platform>;
+    static auto PiPlatformsCacheMutex = new std::mutex;
+
+    std::lock_guard<std::mutex> Lock(*PiPlatformsCacheMutex);
+    for (const pi_platform &CachedPlatform : *PiPlatformsCache) {
+      if (CachedPlatform->ZeDriver == ZeDriver) {
+        Platform[0] = CachedPlatform;
+        return PI_SUCCESS;
+      }
+    }
+
+    // TODO: figure out how/when to release this memory
+    *Platform = new _pi_platform(ZeDriver);
+
+    // Cache driver properties
+    ze_driver_properties_t ZeDriverProperties;
+    ZE_CALL(zeDriverGetProperties(ZeDriver, &ZeDriverProperties));
+    uint32_t ZeDriverVersion = ZeDriverProperties.driverVersion;
+    // Intel Level-Zero GPU driver stores version as:
+    // | 31 - 24 | 23 - 16 | 15 - 0 |
+    // |  Major  |  Minor  | Build  |
+    auto VersionMajor = std::to_string((ZeDriverVersion & 0xFF000000) >> 24);
+    auto VersionMinor = std::to_string((ZeDriverVersion & 0x00FF0000) >> 16);
+    auto VersionBuild = std::to_string(ZeDriverVersion & 0x0000FFFF);
+    Platform[0]->ZeDriverVersion =
+        VersionMajor + "." + VersionMinor + "." + VersionBuild;
+
+    ze_api_version_t ZeApiVersion;
+    ZE_CALL(zeDriverGetApiVersion(ZeDriver, &ZeApiVersion));
+    Platform[0]->ZeDriverApiVersion =
+        std::to_string(ZE_MAJOR_VERSION(ZeApiVersion)) + "." +
+        std::to_string(ZE_MINOR_VERSION(ZeApiVersion));
+
+    Platform[0]->ZeMaxCommandListCache = CommandListCacheSizeValue;
+    // save a copy in the cache for future uses.
+    PiPlatformsCache->push_back(Platform[0]);
+  } catch (const std::bad_alloc &) {
+    return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
 
   return PI_SUCCESS;
 }
@@ -748,10 +818,23 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
   assert(NativeHandle);
   assert(Platform);
 
-  // Create PI platform from the given Level Zero driver handle.
+  // Create PI platform from the given Level Zero driver handle or retrieve it
+  // from the cache.
   auto ZeDriver = pi_cast<ze_driver_handle_t>(NativeHandle);
-  *Platform = new _pi_platform(ZeDriver);
-  return PI_SUCCESS;
+  return getOrCreatePlatform(ZeDriver, Platform);
+}
+
+// Get the cahched PI device created for the L0 device handle.
+// Return NULL if no such PI device found.
+pi_device _pi_platform::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
+
+  std::lock_guard<std::mutex> Lock(this->PiDevicesCacheMutex);
+  auto it = std::find_if(PiDevicesCache.begin(), PiDevicesCache.end(),
+                         [&](pi_device &D) { return D->ZeDevice == ZeDevice; });
+  if (it != PiDevicesCache.end()) {
+    return *it;
+  }
+  return nullptr;
 }
 
 pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
@@ -1391,6 +1474,7 @@ pi_result piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
   assert(Platform);
 
   // Create PI device from the given Level Zero device handle.
+  // TODO: get the device from the devices' cache.
   auto ZeDevice = pi_cast<ze_device_handle_t>(NativeHandle);
   *Device = new _pi_device(ZeDevice, Platform);
   return (*Device)->initialize();
@@ -1402,15 +1486,14 @@ pi_result piContextCreate(const pi_context_properties *Properties,
                                             const void *PrivateInfo, size_t CB,
                                             void *UserData),
                           void *UserData, pi_context *RetContext) {
-  if (NumDevices != 1 || !Devices) {
-    zePrint("piCreateContext: context should have exactly one Device\n");
+  if (!Devices) {
     return PI_INVALID_VALUE;
   }
 
   assert(RetContext);
 
   try {
-    *RetContext = new _pi_context(*Devices);
+    *RetContext = new _pi_context(NumDevices, Devices);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -1444,9 +1527,10 @@ pi_result piContextGetInfo(pi_context Context, pi_context_info ParamName,
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   switch (ParamName) {
   case PI_CONTEXT_INFO_DEVICES:
-    return ReturnValue(Context->Device);
+    return getInfoArray(Context->Devices.size(), ParamValueSize, ParamValue,
+                        ParamValueSizeRet, &Context->Devices[0]);
   case PI_CONTEXT_INFO_NUM_DEVICES:
-    return ReturnValue(pi_uint32{1});
+    return ReturnValue(pi_uint32(Context->Devices.size()));
   case PI_CONTEXT_INFO_REFERENCE_COUNT:
     return ReturnValue(pi_uint32{Context->RefCount});
   default:
@@ -1521,7 +1605,8 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
   if (!Context) {
     return PI_INVALID_CONTEXT;
   }
-  if (Context->Device != Device) {
+  if (std::find(Context->Devices.begin(), Context->Devices.end(), Device) ==
+      Context->Devices.end()) {
     return PI_INVALID_DEVICE;
   }
 
@@ -1628,7 +1713,11 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   assert(Queue);
 
   auto ZeQueue = pi_cast<ze_command_queue_handle_t>(NativeHandle);
-  *Queue = new _pi_queue(ZeQueue, Context, Context->Device);
+
+  // Attach the queue to the "0" device.
+  // TODO: see if we need to let user choose the device.
+  pi_device Device = Context->Devices[0];
+  *Queue = new _pi_queue(ZeQueue, Context, Device);
   return PI_SUCCESS;
 }
 
@@ -1641,14 +1730,24 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   assert(RetMem);
 
   void *Ptr;
-  ze_device_handle_t ZeDevice = Context->Device->ZeDevice;
 
-  ze_device_mem_alloc_desc_t ZeDesc = {};
-  ZeDesc.flags = 0;
-  ZeDesc.ordinal = 0;
-  ZE_CALL(zeMemAllocDevice(Context->ZeContext, &ZeDesc, Size,
-                           1, // TODO: alignment
-                           ZeDevice, &Ptr));
+  ze_device_mem_alloc_desc_t ZeDeviceMemDesc = {};
+  ZeDeviceMemDesc.flags = 0;
+  ZeDeviceMemDesc.ordinal = 0;
+
+  if (Context->Devices.size() == 1) {
+    ZE_CALL(zeMemAllocDevice(Context->ZeContext, &ZeDeviceMemDesc, Size,
+                             1, // TODO: alignment
+                             Context->Devices[0]->ZeDevice, &Ptr));
+  } else {
+    ze_host_mem_alloc_desc_t ZeHostMemDesc = {};
+    ZeHostMemDesc.flags = 0;
+    ZE_CALL(zeMemAllocShared(Context->ZeContext, &ZeDeviceMemDesc,
+                             &ZeHostMemDesc, Size,
+                             1,       // TODO: alignment
+                             nullptr, // not bound to any device
+                             &Ptr));
+  }
 
   if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0 ||
       (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) != 0) {
@@ -1837,9 +1936,17 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   ZeImageDesc.arraylevels = pi_cast<uint32_t>(ImageDesc->image_array_size);
   ZeImageDesc.miplevels = ImageDesc->num_mip_levels;
 
+  // Have the "0" device in context to own the image. Rely on Level-Zero
+  // drivers to perform migration as necessary for sharing it across multiple
+  // devices in the context.
+  //
+  // TODO: figure out if we instead need explicit copying for acessing
+  // the image from other devices in the context.
+  //
+  pi_device Device = Context->Devices[0];
   ze_image_handle_t ZeHImage;
-  ZE_CALL(zeImageCreate(Context->ZeContext, Context->Device->ZeDevice,
-                        &ZeImageDesc, &ZeHImage));
+  ZE_CALL(zeImageCreate(Context->ZeContext, Device->ZeDevice, &ZeImageDesc,
+                        &ZeHImage));
 
   auto HostPtrOrNull =
       (Flags & PI_MEM_FLAGS_HOST_PTR_USE) ? pi_cast<char *>(HostPtr) : nullptr;
@@ -1926,7 +2033,7 @@ pi_result piProgramCreateWithBinary(pi_context Context, pi_uint32 NumDevices,
       *BinaryStatus = PI_INVALID_VALUE;
     return PI_INVALID_VALUE;
   }
-  if (DeviceList[0] != Context->Device)
+  if (DeviceList[0] != Context->Devices[0])
     return PI_INVALID_DEVICE;
 
   size_t Length = Lengths[0];
@@ -1975,10 +2082,11 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
   case PI_PROGRAM_INFO_REFERENCE_COUNT:
     return ReturnValue(pi_uint32{Program->RefCount});
   case PI_PROGRAM_INFO_NUM_DEVICES:
-    // Level Zero Module is always for a single device.
+    // TODO: return true number of devices this program exists for.
     return ReturnValue(pi_uint32{1});
   case PI_PROGRAM_INFO_DEVICES:
-    return ReturnValue(Program->Context->Device);
+    // TODO: return all devices this program exists for.
+    return ReturnValue(Program->Context->Devices[0]);
   case PI_PROGRAM_INFO_BINARY_SIZES: {
     size_t SzBinary;
     if (Program->State == _pi_program::IL ||
@@ -2105,9 +2213,10 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
                         void (*PFnNotify)(pi_program Program, void *UserData),
                         void *UserData, pi_program *RetProgram) {
 
-  // We only support one device with Level Zero.
+  // We only support one device with Level Zero currently.
+  pi_device Device = Context->Devices[0];
   assert(NumDevices == 1);
-  assert(DeviceList && DeviceList[0] == Context->Device);
+  assert(DeviceList && DeviceList[0] == Device);
   assert(!PFnNotify && !UserData);
 
   // Validate input parameters.
@@ -2170,9 +2279,8 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
           // only export symbols.
           Guard.unlock();
           ze_module_handle_t ZeModule;
-          pi_result res =
-              copyModule(Context->ZeContext, Context->Device->ZeDevice,
-                         Input->ZeModule, &ZeModule);
+          pi_result res = copyModule(Context->ZeContext, Device->ZeDevice,
+                                     Input->ZeModule, &ZeModule);
           if (res != PI_SUCCESS) {
             return res;
           }
@@ -2187,16 +2295,22 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
       ZeHandles.push_back(Input->ZeModule);
     }
 
-    // Link all the modules together.  If this fails (or if we catch an
-    // exception below), we need to release the reference counts on the input
-    // modules, delete any copies, etc.
+    // Link all the modules together.
     ze_module_build_log_handle_t ZeBuildLog;
-    ZE_CALL(zeModuleDynamicLinkMock(ZeHandles.size(), ZeHandles.data(),
-                                    &ZeBuildLog));
+    ze_result_t ZeResult = ZE_CALL_NOCHECK(zeModuleDynamicLinkMock(
+        ZeHandles.size(), ZeHandles.data(), &ZeBuildLog));
 
     // Construct a new program object to represent the linked executable.  This
-    // new object holds a reference to all the input programs.
-    *RetProgram = new _pi_program(Context, std::move(Inputs), ZeBuildLog);
+    // new object holds a reference to all the input programs.  Note that we
+    // create this program object even if the link fails with "link failure"
+    // because we need the new program object to hold the buid log (which has
+    // the description of the failure).
+    if (ZeResult == ZE_RESULT_SUCCESS ||
+        ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE) {
+      *RetProgram = new _pi_program(Context, std::move(Inputs), ZeBuildLog);
+    }
+    if (ZeResult != ZE_RESULT_SUCCESS)
+      return mapError(ZeResult);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -2270,7 +2384,9 @@ static pi_result compileOrBuild(pi_program Program, pi_uint32 NumDevices,
   if ((NumDevices && !DeviceList) || (!NumDevices && DeviceList))
     return PI_INVALID_VALUE;
 
-  // We only support one device with Level Zero.
+  // We only support build to one device with Level Zero now.
+  // TODO: we should eventually build to the possibly multiple root
+  // devices in the context.
   assert(NumDevices == 1 && DeviceList);
 
   // We should have either IL or native device code.
@@ -2307,12 +2423,11 @@ static pi_result compileOrBuild(pi_program Program, pi_uint32 NumDevices,
   ZeModuleDesc.pBuildFlags = Options;
   ZeModuleDesc.pConstants = &ZeSpecConstants;
 
-  ze_device_handle_t ZeDevice = Program->Context->Device->ZeDevice;
+  ze_device_handle_t ZeDevice = DeviceList[0]->ZeDevice;
   ze_context_handle_t ZeContext = Program->Context->ZeContext;
   ze_module_handle_t ZeModule;
-  ze_module_build_log_handle_t ZeBuildLog;
   ZE_CALL(zeModuleCreate(ZeContext, ZeDevice, &ZeModuleDesc, &ZeModule,
-                         &ZeBuildLog));
+                         &Program->ZeBuildLog));
 
   // Check if this module imports any symbols, which we need to know if we
   // end up linking this module later.  See comments in piProgramLink() for
@@ -2325,7 +2440,6 @@ static pi_result compileOrBuild(pi_program Program, pi_uint32 NumDevices,
   // The caller must set the State to Object or Exe as appropriate.
   Program->Code.reset();
   Program->ZeModule = ZeModule;
-  Program->ZeBuildLog = ZeBuildLog;
   return PI_SUCCESS;
 }
 
@@ -2779,6 +2893,7 @@ pi_result piKernelRelease(pi_kernel Kernel) {
 
   assert(Kernel);
   if (--(Kernel->RefCount) == 0) {
+    zeKernelDestroy(Kernel->ZeKernel);
     delete Kernel;
   }
   return PI_SUCCESS;
@@ -2904,7 +3019,8 @@ pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
   ze_event_handle_t ZeEvent;
   ze_event_desc_t ZeEventDesc = {};
   // We have to set the SIGNAL & WAIT flags as HOST scope because the
-  // L0 plugin implementation waits for the events to complete on the host.
+  // Level-Zero plugin implementation waits for the events to complete
+  // on the host.
   ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
   ZeEventDesc.wait = ZE_EVENT_SCOPE_FLAG_HOST;
   ZeEventDesc.index = Index;
@@ -3018,16 +3134,18 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
       // Event has been signaled: If the fence for the associated command list
       // is signalled, then reset the fence and command list and add them to the
       // available list for reuse in PI calls.
-      EventList[I]->Queue->ZeCommandListFenceMapMutex.lock();
-      ze_result_t ZeResult = ZE_CALL_NOCHECK(zeFenceQueryStatus(
-          EventList[I]
-              ->Queue->ZeCommandListFenceMap[EventList[I]->ZeCommandList]));
-      if (ZeResult == ZE_RESULT_SUCCESS) {
-        EventList[I]->Queue->resetCommandListFenceEntry(
-            EventList[I]->ZeCommandList, true);
-        EventList[I]->ZeCommandList = nullptr;
+      if (EventList[I]->Queue->RefCount > 0) {
+        EventList[I]->Queue->ZeCommandListFenceMapMutex.lock();
+        ze_result_t ZeResult = ZE_CALL_NOCHECK(zeFenceQueryStatus(
+            EventList[I]
+                ->Queue->ZeCommandListFenceMap[EventList[I]->ZeCommandList]));
+        if (ZeResult == ZE_RESULT_SUCCESS) {
+          EventList[I]->Queue->resetCommandListFenceEntry(
+              EventList[I]->ZeCommandList, true);
+          EventList[I]->ZeCommandList = nullptr;
+        }
+        EventList[I]->Queue->ZeCommandListFenceMapMutex.unlock();
       }
-      EventList[I]->Queue->ZeCommandListFenceMapMutex.unlock();
     }
   }
   return PI_SUCCESS;
@@ -3059,7 +3177,7 @@ pi_result piEventRelease(pi_event Event) {
       // If the fence associated with this command list has signalled, then
       // Reset the Command List Used in this event and put it back on the
       // available list.
-      if (Event->Queue->ZeCommandQueue) {
+      if (Event->Queue->RefCount > 0) {
         Event->Queue->ZeCommandListFenceMapMutex.lock();
         ze_result_t ZeResult = ZE_CALL_NOCHECK(zeFenceQueryStatus(
             Event->Queue->ZeCommandListFenceMap[Event->ZeCommandList]));
@@ -3108,7 +3226,14 @@ pi_result piSamplerCreate(pi_context Context,
   assert(Context);
   assert(RetSampler);
 
-  ze_device_handle_t ZeDevice = Context->Device->ZeDevice;
+  // Have the "0" device in context to own the sampler. Rely on Level-Zero
+  // drivers to perform migration as necessary for sharing it across multiple
+  // devices in the context.
+  //
+  // TODO: figure out if we instead need explicit copying for acessing
+  // the sampler from other devices in the context.
+  //
+  pi_device Device = Context->Devices[0];
 
   ze_sampler_handle_t ZeSampler;
   ze_sampler_desc_t ZeSamplerDesc = {};
@@ -3196,7 +3321,7 @@ pi_result piSamplerCreate(pi_context Context,
     }
   }
 
-  ZE_CALL(zeSamplerCreate(Context->ZeContext, ZeDevice,
+  ZE_CALL(zeSamplerCreate(Context->ZeContext, Device->ZeDevice,
                           &ZeSamplerDesc, // TODO: translate properties
                           &ZeSampler));
 
@@ -4238,49 +4363,44 @@ pi_result piextUSMFree(pi_context Context, void *Ptr) {
   ze_memory_allocation_properties_t ZeMemoryAllocationProperties = {};
 
   // Query memory type of the pointer we're freeing to determine the correct
-  // way to do it(directly or via the allocator)
+  // way to do it(directly or via an allocator)
   ZE_CALL(zeMemGetAllocProperties(
       Context->ZeContext, Ptr, &ZeMemoryAllocationProperties, &ZeDeviceHandle));
 
-  // TODO: when support for multiple devices is implemented, here
-  // we should do the following:
-  // - Find pi_device instance corresponding to ZeDeviceHandle we've just got if
-  // exist
-  // - Use that pi_device to find the right allocator context and free the
-  // pointer.
+  if (ZeDeviceHandle) {
+    // All devices in the context are of the same platform.
+    auto Platform = Context->Devices[0]->Platform;
+    auto Device = Platform->getDeviceFromNativeHandle(ZeDeviceHandle);
+    assert(Device);
 
-  // The allocation doesn't belong to any device for which USM allocator is
-  // enabled.
-  if (Context->Device->ZeDevice != ZeDeviceHandle) {
-    return USMFreeImpl(Context, Ptr);
+    auto DeallocationHelper =
+        [Context, Device,
+         Ptr](std::unordered_map<pi_device, USMAllocContext> &AllocContextMap) {
+          try {
+            auto It = AllocContextMap.find(Device);
+            if (It == AllocContextMap.end())
+              return PI_INVALID_VALUE;
+
+            // The right context is found, deallocate the pointer
+            It->second.deallocate(Ptr);
+          } catch (const UsmAllocationException &Ex) {
+            return Ex.getError();
+          }
+
+          return PI_SUCCESS;
+        };
+
+    switch (ZeMemoryAllocationProperties.type) {
+    case ZE_MEMORY_TYPE_SHARED:
+      return DeallocationHelper(Context->SharedMemAllocContexts);
+    case ZE_MEMORY_TYPE_DEVICE:
+      return DeallocationHelper(Context->DeviceMemAllocContexts);
+    default:
+      // Handled below
+      break;
+    }
   }
 
-  auto DeallocationHelper =
-      [Context,
-       Ptr](std::unordered_map<pi_device, USMAllocContext> &AllocContextMap) {
-        try {
-          auto It = AllocContextMap.find(Context->Device);
-          if (It == AllocContextMap.end())
-            return PI_INVALID_VALUE;
-
-          // The right context is found, deallocate the pointer
-          It->second.deallocate(Ptr);
-        } catch (const UsmAllocationException &Ex) {
-          return Ex.getError();
-        }
-
-        return PI_SUCCESS;
-      };
-
-  switch (ZeMemoryAllocationProperties.type) {
-  case ZE_MEMORY_TYPE_SHARED:
-    return DeallocationHelper(Context->SharedMemAllocContexts);
-  case ZE_MEMORY_TYPE_DEVICE:
-    return DeallocationHelper(Context->DeviceMemAllocContexts);
-  default:
-    // Handled below
-    break;
-  }
   return USMFreeImpl(Context, Ptr);
 }
 
@@ -4516,14 +4636,15 @@ pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
     }
     return ReturnValue(MemAllocaType);
   }
-  case PI_MEM_ALLOC_DEVICE: {
+  case PI_MEM_ALLOC_DEVICE:
     if (ZeDeviceHandle) {
-      if (Context->Device->ZeDevice == ZeDeviceHandle) {
-        return ReturnValue(Context->Device);
-      }
+      // All devices in the context are of the same platform.
+      auto Platform = Context->Devices[0]->Platform;
+      auto Device = Platform->getDeviceFromNativeHandle(ZeDeviceHandle);
+      return Device ? ReturnValue(Device) : PI_INVALID_VALUE;
+    } else {
+      return PI_INVALID_VALUE;
     }
-    return PI_INVALID_VALUE;
-  }
   case PI_MEM_ALLOC_BASE_PTR: {
     void *Base;
     ZE_CALL(zeMemGetAddressRange(Context->ZeContext, Ptr, &Base, nullptr));
