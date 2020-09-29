@@ -445,12 +445,6 @@ static void instantiateOMPDeclareVariantAttr(
                                                          New->getLocation());
         if (!SubstFD)
           return;
-        QualType NewType = S.Context.mergeFunctionTypes(
-            SubstFD->getType(), FD->getType(),
-            /* OfBlockPointer */ false,
-            /* Unqualified */ false, /* AllowCXX */ true);
-        if (NewType.isNull())
-          return;
         S.InstantiateFunctionDefinition(
             New->getLocation(), SubstFD, /* Recursive */ true,
             /* DefinitionRequired */ false, /* AtEndOfTU */ false);
