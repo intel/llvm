@@ -3063,7 +3063,6 @@ void Sema::MarkSyclSimd() {
       }
 }
 
-// This function marks 
 void Sema::MarkHost(void) {
   MarkDeviceFunction Marker(*this);
   Marker.SYCLCG.addToCallGraph(getASTContext().getTranslationUnitDecl());
