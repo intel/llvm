@@ -1736,7 +1736,8 @@ void DispatchNativeKernel(void *Blob) {
 }
 
 cl_int ExecCGCommand::enqueueImp() {
-  waitForPreparedHostEvents();
+  if (getCG().getType() != CG::CGTYPE::CODEPLAY_HOST_TASK)
+    waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   auto RawEvents = getPiEvents(EventImpls);
 

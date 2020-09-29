@@ -71,6 +71,12 @@ bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
       return false;
   }
 
+  for (const EventImplPtr &Event : Cmd->getPreparedHostDepsEvents()) {
+    if (Command *DepCmd = static_cast<Command *>(Event->getCommand()))
+      if (!enqueueCommand(DepCmd, EnqueueResult, Blocking))
+        return false;
+  }
+
   return Cmd->enqueue(EnqueueResult, Blocking);
 }
 
