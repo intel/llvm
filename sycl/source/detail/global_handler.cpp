@@ -97,8 +97,8 @@ std::mutex &GlobalHandler::getFilterMutex() {
     return *MFilterMutex;
 
   const std::lock_guard<SpinLock> Lock{MFieldsLock};
-  if (!MPlatformMapMutex)
-    MPlatformMapMutex = std::make_unique<std::mutex>();
+  if (!MFilterMutex)
+    MFilterMutex = std::make_unique<std::mutex>();
 
   return *MFilterMutex;
 }
