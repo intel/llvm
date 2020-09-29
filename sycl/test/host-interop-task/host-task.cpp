@@ -245,6 +245,7 @@ void test5(size_t Count = 1) {
   buffer<int, 1> B5{range<1>{BufferSize}};
 
   using namespace std::chrono_literals;
+  constexpr auto SleepFor = 1s;
 
   for (size_t Idx = 1; Idx <= Count; ++Idx) {
     // This host task should be submitted without hesitation
@@ -254,7 +255,7 @@ void test5(size_t Count = 1) {
       auto Acc0 = B0.get_access<mode::read_write, target::host_buffer>(CGH);
 
       CGH.codeplay_host_task([=] {
-        std::this_thread::sleep_for(2s);
+        std::this_thread::sleep_for(SleepFor);
         Acc0[0] = 1 * Idx;
       });
     });
@@ -283,7 +284,7 @@ void test5(size_t Count = 1) {
       auto Acc2 = B2.get_access<mode::read_write, target::host_buffer>(CGH);
 
       CGH.codeplay_host_task([=] {
-        std::this_thread::sleep_for(2s);
+        std::this_thread::sleep_for(SleepFor);
         Acc2[3] = 1 * Idx;
       });
     });
@@ -298,7 +299,7 @@ void test5(size_t Count = 1) {
       auto Acc2 = B2.get_access<mode::read_write, target::host_buffer>(CGH);
 
       CGH.codeplay_host_task([=] {
-        std::this_thread::sleep_for(2s);
+        std::this_thread::sleep_for(SleepFor);
         Acc0[4] = 1 * Idx;
         Acc1[4] = 2 * Idx;
         Acc2[4] = 3 * Idx;
