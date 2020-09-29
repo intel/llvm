@@ -1,7 +1,6 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -Xclang -verify -Wsycl-strict %s -fsyntax-only
 
 #include <CL/sycl.hpp>
-class Foo;
 
 using namespace cl::sycl;
 
