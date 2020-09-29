@@ -805,10 +805,10 @@ static llvm::Value *EmitX86BitTestIntrinsic(CodeGenFunction &CGF,
   AsmOS << "bt";
   if (Action)
     AsmOS << Action;
-  AsmOS << SizeSuffix << " $2, ($1)\n\tsetc ${0:b}";
+  AsmOS << SizeSuffix << " $2, ($1)";
 
   // Build the constraints. FIXME: We should support immediates when possible.
-  std::string Constraints = "=r,r,r,~{cc},~{memory}";
+  std::string Constraints = "={@ccc},r,r,~{cc},~{memory}";
   std::string MachineClobbers = CGF.getTarget().getClobbers();
   if (!MachineClobbers.empty()) {
     Constraints += ',';
@@ -5656,7 +5656,7 @@ Value *CodeGenFunction::EmitCommonNeonBuiltinExpr(
     if (BuiltinID == NEON::BI__builtin_neon_splatq_lane_v)
       NumElements = NumElements * 2;
     if (BuiltinID == NEON::BI__builtin_neon_splat_laneq_v)
-      NumElements = NumElements / 2;
+      NumElements = NumElements.divideCoefficientBy(2);
 
     Ops[0] = Builder.CreateBitCast(Ops[0], VTy);
     return EmitNeonSplat(Ops[0], cast<ConstantInt>(Ops[1]), NumElements);
@@ -8489,8 +8489,7 @@ Value *CodeGenFunction::EmitAArch64SVEBuiltinExpr(unsigned BuiltinID,
   case SVE::BI__builtin_sve_svtbl2_f64: {
     SVETypeFlags TF(Builtin->TypeModifier);
     auto VTy = cast<llvm::VectorType>(getSVEType(TF));
-    auto TupleTy = llvm::VectorType::get(VTy->getElementType(),
-                                         VTy->getElementCount() * 2);
+    auto TupleTy = llvm::VectorType::getDoubleElementsVectorType(VTy);
     Function *FExtr =
         CGM.getIntrinsic(Intrinsic::aarch64_sve_tuple_get, {VTy, TupleTy});
     Value *V0 = Builder.CreateCall(FExtr, {Ops[0], Builder.getInt32(0)});

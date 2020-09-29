@@ -78,7 +78,7 @@ struct SymbolQualitySignals {
   void merge(const Symbol &IndexResult);
 
   // Condense these signals down to a single number, higher is better.
-  float evaluate() const;
+  float evaluateHeuristics() const;
 };
 llvm::raw_ostream &operator<<(llvm::raw_ostream &,
                               const SymbolQualitySignals &);
@@ -136,6 +136,10 @@ struct SymbolRelevanceSignals {
   // Whether the item matches the type expected in the completion context.
   bool TypeMatchesPreferred = false;
 
+  /// Length of the unqualified partial name of Symbol typed in
+  /// CompletionPrefix.
+  unsigned FilterLength = 0;
+
   /// Set of derived signals computed by calculateDerivedSignals(). Must not be
   /// set explicitly.
   struct DerivedSignals {
@@ -153,7 +157,7 @@ struct SymbolRelevanceSignals {
   void merge(const Symbol &IndexResult);
 
   // Condense these signals down to a single number, higher is better.
-  float evaluate() const;
+  float evaluateHeuristics() const;
 };
 llvm::raw_ostream &operator<<(llvm::raw_ostream &,
                               const SymbolRelevanceSignals &);
@@ -161,6 +165,8 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &,
 /// Combine symbol quality and relevance into a single score.
 float evaluateSymbolAndRelevance(float SymbolQuality, float SymbolRelevance);
 
+float evaluateDecisionForest(const SymbolQualitySignals &Quality,
+                             const SymbolRelevanceSignals &Relevance);
 /// TopN<T> is a lossy container that preserves only the "best" N elements.
 template <typename T, typename Compare = std::greater<T>> class TopN {
 public:
