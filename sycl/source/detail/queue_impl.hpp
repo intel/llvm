@@ -400,7 +400,9 @@ private:
 
   void initHostTaskAndEventCallbackThreadPool();
 
-  /// Stores a USM operation event that should be associated with the queue
+  /// queue_impl.addSharedEvent tracks events with weak pointers
+  /// but some events have no other owners. addSharedEvent()
+  /// follows events with a shared pointer.
   ///
   /// \param Event is the event to be stored
   void addSharedEvent(const event &Event);
