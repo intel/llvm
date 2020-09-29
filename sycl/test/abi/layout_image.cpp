@@ -18,8 +18,7 @@ sycl::image<2> Img{sycl::image_channel_order::rgba, sycl::image_channel_type::fp
 // CHECK-NEXT: 16 |           class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
 // CHECK-NEXT: 16 |             _Sp_counted_base<(enum __gnu_cxx::_Lock_policy)2U> * _M_pi
 // CHECK-NEXT: 24 |     class std::unique_ptr<class cl::sycl::detail::SYCLMemObjAllocator, struct std::default_delete<class cl::sycl::detail::SYCLMemObjAllocator> > MAllocator
-// CHECK-NEXT: 24 |       struct std::__uniq_ptr_data<class cl::sycl::detail::SYCLMemObjAllocator, struct std::default_delete<class cl::sycl::detail::SYCLMemObjAllocator>, true, true> _M_t
-// CHECK-NEXT: 24 |         class std::__uniq_ptr_impl<class cl::sycl::detail::SYCLMemObjAllocator, struct std::default_delete<class cl::sycl::detail::SYCLMemObjAllocator> > (base)
+// CHECK: 24 |         class std::__uniq_ptr_impl<class cl::sycl::detail::SYCLMemObjAllocator, struct std::default_delete<class cl::sycl::detail::SYCLMemObjAllocator> > (base)
 // CHECK-NEXT: 24 |           class std::tuple<class cl::sycl::detail::SYCLMemObjAllocator *, struct std::default_delete<class cl::sycl::detail::SYCLMemObjAllocator> > _M_t
 // CHECK-NEXT: 24 |             struct std::_Tuple_impl<0, class cl::sycl::detail::SYCLMemObjAllocator *, struct std::default_delete<class cl::sycl::detail::SYCLMemObjAllocator> > (base)
 // CHECK-NEXT: 24 |               struct std::_Tuple_impl<1, struct std::default_delete<class cl::sycl::detail::SYCLMemObjAllocator> > (base) (empty)
@@ -37,8 +36,7 @@ sycl::image<2> Img{sycl::image_channel_order::rgba, sycl::image_channel_type::fp
 // CHECK-NEXT: 40 |             struct std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::PropertyWithDataBase>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::PropertyWithDataBase> > >::_Vector_impl _M_impl
 // CHECK-NEXT: 40 |               class std::allocator<class std::shared_ptr<class cl::sycl::detail::PropertyWithDataBase> > (base) (empty)
 // CHECK-NEXT: 40 |                 class __gnu_cxx::new_allocator<class std::shared_ptr<class cl::sycl::detail::PropertyWithDataBase> > (base) (empty)
-// CHECK-NEXT: 40 |               struct std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::PropertyWithDataBase>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::PropertyWithDataBase> > >::_Vector_impl_data (base)
-// CHECK-NEXT: 40 |                 std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::PropertyWithDataBase>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::PropertyWithDataBase> > >::pointer _M_start
+// CHECK: 40 |                 std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::PropertyWithDataBase>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::PropertyWithDataBase> > >::pointer _M_start
 // CHECK-NEXT: 48 |                 std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::PropertyWithDataBase>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::PropertyWithDataBase> > >::pointer _M_finish
 // CHECK-NEXT: 56 |                 std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::PropertyWithDataBase>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::PropertyWithDataBase> > >::pointer _M_end_of_storage
 // CHECK-NEXT: 64 |     class std::shared_ptr<class cl::sycl::detail::event_impl> MInteropEvent
