@@ -11,26 +11,9 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out 3
 // RUN: %ACC_RUN_PLACEHOLDER %t.out 3
 
-// RUNx: %CPU_RUN_PLACEHOLDER %t.out 4
-// RUNx: %GPU_RUN_PLACEHOLDER %t.out 4
-// RUNx: %ACC_RUN_PLACEHOLDER %t.out 4
-
-// RUNx: %CPU_RUN_PLACEHOLDER %t.out 5
-// RUNx: %GPU_RUN_PLACEHOLDER %t.out 5
-// RUNx: %ACC_RUN_PLACEHOLDER %t.out 5
-
-// RUNx: %CPU_RUN_PLACEHOLDER %t.out 6
-// RUNx: %GPU_RUN_PLACEHOLDER %t.out 6
-// RUNx: %ACC_RUN_PLACEHOLDER %t.out 6
-
-// RUNx: %CPU_RUN_PLACEHOLDER %t.out 7
-// RUNx: %GPU_RUN_PLACEHOLDER %t.out 7
-// RUNx: %ACC_RUN_PLACEHOLDER %t.out 7
-
 #include <CL/sycl.hpp>
 #include <chrono>
 #include <iostream>
-#include <thread>
 #include <vector>
 
 using namespace cl::sycl;
@@ -164,165 +147,6 @@ void test3() {
   assert(End - Start < Threshold && "Host tasks were waiting for too long");
 }
 
-// Host-task depending on another host-task via handler::depends_on() only
-// should not hang
-void test4(size_t Count = 1) {
-  queue Q(EH);
-
-  static constexpr size_t BufferSize = 10 * 1024;
-
-  buffer<int, 1> B0{range<1>{BufferSize}};
-  buffer<int, 1> B1{range<1>{BufferSize}};
-  buffer<int, 1> B2{range<1>{BufferSize}};
-  buffer<int, 1> B3{range<1>{BufferSize}};
-  buffer<int, 1> B4{range<1>{BufferSize}};
-  buffer<int, 1> B5{range<1>{BufferSize}};
-
-  for (size_t Idx = 1; Idx <= Count; ++Idx) {
-    // This host task should be submitted without hesitation
-    event E1 = Q.submit([&](handler &CGH) {
-      std::cout << "Submit 1" << std::endl;
-
-      auto Acc0 = B0.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc1 = B1.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc2 = B2.get_access<mode::read_write, target::host_buffer>(CGH);
-
-      CGH.codeplay_host_task([=] {
-        Acc0[0] = 1 * Idx;
-        Acc1[0] = 2 * Idx;
-        Acc2[0] = 3 * Idx;
-      });
-    });
-
-    // This host task is going to depend on blocked empty node of the first
-    // host-task (via buffer #2). Still this one should be enqueued.
-    event E2 = Q.submit([&](handler &CGH) {
-      std::cout << "Submit 2" << std::endl;
-
-      auto Acc2 = B2.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc3 = B3.get_access<mode::read_write, target::host_buffer>(CGH);
-
-      CGH.codeplay_host_task([=] {
-        Acc2[1] = 1 * Idx;
-        Acc3[1] = 2 * Idx;
-      });
-    });
-
-    // This host-task only depends on the second host-task via
-    // handler::depends_on(). This one should not hang and should be eexecuted
-    // after host-task #2.
-    event E3 = Q.submit([&](handler &CGH) {
-      CGH.depends_on(E2);
-
-      std::cout << "Submit 3" << std::endl;
-
-      auto Acc4 = B4.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc5 = B5.get_access<mode::read_write, target::host_buffer>(CGH);
-
-      CGH.codeplay_host_task([=] {
-        Acc4[2] = 1 * Idx;
-        Acc5[2] = 2 * Idx;
-      });
-    });
-  }
-
-  Q.wait_and_throw();
-}
-
-// Host-task depending on another host-task via handler::depends_on() only
-// should not hang. A bit more complicated case with kernels depending on
-// host-task being involved.
-void test5(size_t Count = 1) {
-  queue Q(EH);
-
-  static constexpr size_t BufferSize = 10 * 1024;
-
-  buffer<int, 1> B0{range<1>{BufferSize}};
-  buffer<int, 1> B1{range<1>{BufferSize}};
-  buffer<int, 1> B2{range<1>{BufferSize}};
-  buffer<int, 1> B3{range<1>{BufferSize}};
-  buffer<int, 1> B4{range<1>{BufferSize}};
-  buffer<int, 1> B5{range<1>{BufferSize}};
-
-  using namespace std::chrono_literals;
-  constexpr auto SleepFor = 1s;
-
-  for (size_t Idx = 1; Idx <= Count; ++Idx) {
-    // This host task should be submitted without hesitation
-    Q.submit([&](handler &CGH) {
-      std::cout << "Submit HT-1" << std::endl;
-
-      auto Acc0 = B0.get_access<mode::read_write, target::host_buffer>(CGH);
-
-      CGH.codeplay_host_task([=] {
-        std::this_thread::sleep_for(SleepFor);
-        Acc0[0] = 1 * Idx;
-      });
-    });
-
-    Q.submit([&](handler &CGH) {
-      std::cout << "Submit Kernel-1" << std::endl;
-
-      auto Acc0 = B0.get_access<mode::read_write>(CGH);
-
-      CGH.single_task<class Test5_Kernel1>([=] {
-        Acc0[1] = 1 * Idx;
-      });
-    });
-
-    Q.submit([&](handler &CGH) {
-      std::cout << "Submit Kernel-2" << std::endl;
-
-      auto Acc1 = B1.get_access<mode::read_write>(CGH);
-
-      CGH.single_task<class Test5_Kernel2>([=] { Acc1[2] = 1 * Idx; });
-    });
-
-    Q.submit([&](handler &CGH) {
-      std::cout << "Submit HT-2" << std::endl;
-
-      auto Acc2 = B2.get_access<mode::read_write, target::host_buffer>(CGH);
-
-      CGH.codeplay_host_task([=] {
-        std::this_thread::sleep_for(SleepFor);
-        Acc2[3] = 1 * Idx;
-      });
-    });
-
-    // This host task is going to depend on blocked empty node of the second
-    // host-task (via buffer #0). Still this one should be enqueued.
-    event EHT3 = Q.submit([&](handler &CGH) {
-      std::cout << "Submit HT-3" << std::endl;
-
-      auto Acc0 = B0.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc1 = B1.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc2 = B2.get_access<mode::read_write, target::host_buffer>(CGH);
-
-      CGH.codeplay_host_task([=] {
-        std::this_thread::sleep_for(SleepFor);
-        Acc0[4] = 1 * Idx;
-        Acc1[4] = 2 * Idx;
-        Acc2[4] = 3 * Idx;
-      });
-    });
-
-    // This host-task only depends on the third host-task via
-    // handler::depends_on(). This one should not hang and should be executed
-    // after host-task #3.
-    Q.submit([&](handler &CGH) {
-      std::cout << "Submit HT-4" << std::endl;
-
-      CGH.depends_on(EHT3);
-
-      auto Acc5 = B5.get_access<mode::read_write, target::host_buffer>(CGH);
-
-      CGH.codeplay_host_task([=] { Acc5[5] = 1 * Idx; });
-    });
-  }
-
-  Q.wait_and_throw();
-}
-
 int main(int Argc, const char *Argv[]) {
   if (Argc < 2)
     return 1;
@@ -338,18 +162,6 @@ int main(int Argc, const char *Argv[]) {
     break;
   case 3:
     test3();
-    break;
-  case 4:
-    test4();
-    break;
-  case 5:
-    test5();
-    break;
-  case 6:
-    test4(10);
-    break;
-  case 7:
-    test5(10);
     break;
   default:
     return 1;
