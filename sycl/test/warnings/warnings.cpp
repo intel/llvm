@@ -1,5 +1,4 @@
 // RUN: %clangxx -fsycl --no-system-header-prefix=CL/sycl -fsyntax-only -Wall -Wextra -Wno-ignored-attributes -Wno-deprecated-declarations -Wpessimizing-move -Wunused-variable -Wmismatched-tags -Wunneeded-internal-declaration -Werror -Wno-unknown-cuda-version %s -o %t.out
-// UNSUPPORTED: linux
 #include <CL/sycl.hpp>
 
 using namespace cl::sycl;
