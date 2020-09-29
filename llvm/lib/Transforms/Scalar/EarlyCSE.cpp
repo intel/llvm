@@ -196,6 +196,11 @@ static bool matchSelectWithOptionalNotCond(Value *V, Value *&Cond, Value *&A,
   case CmpInst::ICMP_ULT: Flavor = SPF_UMIN; break;
   case CmpInst::ICMP_SGT: Flavor = SPF_SMAX; break;
   case CmpInst::ICMP_SLT: Flavor = SPF_SMIN; break;
+  // Non-strict inequalities.
+  case CmpInst::ICMP_ULE: Flavor = SPF_UMIN; break;
+  case CmpInst::ICMP_UGE: Flavor = SPF_UMAX; break;
+  case CmpInst::ICMP_SLE: Flavor = SPF_SMIN; break;
+  case CmpInst::ICMP_SGE: Flavor = SPF_SMAX; break;
   default: break;
   }
 
@@ -1463,6 +1468,7 @@ public:
     AU.addRequired<TargetLibraryInfoWrapperPass>();
     AU.addRequired<TargetTransformInfoWrapperPass>();
     if (UseMemorySSA) {
+      AU.addRequired<AAResultsWrapperPass>();
       AU.addRequired<MemorySSAWrapperPass>();
       AU.addPreserved<MemorySSAWrapperPass>();
     }
@@ -1504,6 +1510,7 @@ INITIALIZE_PASS_BEGIN(EarlyCSEMemSSALegacyPass, "early-cse-memssa",
                       "Early CSE w/ MemorySSA", false, false)
 INITIALIZE_PASS_DEPENDENCY(TargetTransformInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
+INITIALIZE_PASS_DEPENDENCY(AAResultsWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(MemorySSAWrapperPass)

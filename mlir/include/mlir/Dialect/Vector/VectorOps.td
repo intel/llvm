@@ -19,7 +19,7 @@ include "mlir/Interfaces/VectorInterfaces.td"
 
 def Vector_Dialect : Dialect {
   let name = "vector";
-  let cppNamespace = "vector";
+  let cppNamespace = "::mlir::vector";
   let hasConstantMaterializer = 1;
 }
 
@@ -270,6 +270,7 @@ def Vector_BroadcastOp :
     }
   }];
   let assemblyFormat = "$source attr-dict `:` type($source) `to` type($vector)";
+  let hasFolder = 1;
 }
 
 def Vector_ShuffleOp :
@@ -348,14 +349,20 @@ def Vector_ExtractElementOp :
     %1 = vector.extractelement %0[%c : i32]: vector<16xf32>
     ```
   }];
+  let assemblyFormat = [{
+    $vector `[` $position `:` type($position) `]` attr-dict `:` type($vector)
+  }];
+
+  let builders = [OpBuilder<
+    "OpBuilder &builder, OperationState &result, Value source, "
+    "int64_t position">,
+    OpBuilder<
+    "OpBuilder &builder, OperationState &result, Value source, "
+    "Value position">];
   let extraClassDeclaration = [{
     VectorType getVectorType() {
       return vector().getType().cast<VectorType>();
     }
-  }];
-
-  let assemblyFormat = [{
-    $vector `[` $position `:` type($position) `]` attr-dict `:` type($vector)
   }];
 }
 
@@ -508,6 +515,17 @@ def Vector_InsertElementOp :
     %1 = vector.insertelement %f, %0[%c : i32]: vector<16xf32>
     ```
   }];
+  let assemblyFormat = [{
+    $source `,` $dest `[` $position `:` type($position) `]` attr-dict `:`
+    type($result)
+  }];
+
+  let builders = [OpBuilder<
+    "OpBuilder &builder, OperationState &result, Value source, "
+    "Value dest, int64_t position">,
+    OpBuilder<
+    "OpBuilder &builder, OperationState &result, Value source, "
+    "Value dest, Value position">];
   let extraClassDeclaration = [{
     Type getSourceType() { return source().getType(); }
     VectorType getDestVectorType() {
@@ -515,10 +533,6 @@ def Vector_InsertElementOp :
     }
   }];
 
-  let assemblyFormat = [{
-    $source `,` $dest `[` $position `:` type($position) `]` attr-dict `:`
-    type($result)
-  }];
 }
 
 def Vector_InsertOp :

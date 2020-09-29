@@ -167,6 +167,10 @@ protected:
   template <class Obj>
   friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
 
+  template <typename, int, access::mode, access::target, access::placeholder,
+            typename>
+  friend class accessor;
+
   AccessorImplPtr impl;
 
 private:

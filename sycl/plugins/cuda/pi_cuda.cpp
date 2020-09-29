@@ -1782,7 +1782,7 @@ pi_result cuda_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
   assert(memObj != nullptr);
 
   const auto bufferRegion =
-      *reinterpret_cast<const pi_buffer_region>(buffer_create_info);
+      *reinterpret_cast<pi_buffer_region>(buffer_create_info);
   assert((bufferRegion.size != 0u) && "PI_INVALID_BUFFER_SIZE");
 
   assert((bufferRegion.origin <= (bufferRegion.origin + bufferRegion.size)) &&
@@ -4133,7 +4133,7 @@ pi_result cuda_piextUSMHostAlloc(void **result_ptr, pi_context context,
   } catch (pi_result error) {
     result = error;
   }
-  assert(reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0);
+
   return result;
 }
 
@@ -4154,7 +4154,7 @@ pi_result cuda_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
   } catch (pi_result error) {
     result = error;
   }
-  assert(reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0);
+
   return result;
 }
 
@@ -4176,7 +4176,7 @@ pi_result cuda_piextUSMSharedAlloc(void **result_ptr, pi_context context,
   } catch (pi_result error) {
     result = error;
   }
-  assert(reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0);
+
   return result;
 }
 

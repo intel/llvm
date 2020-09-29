@@ -29,6 +29,7 @@
 
 namespace mlir {
 class Block;
+class BlockRange;
 class Dialect;
 class Operation;
 struct OperationState;
@@ -42,7 +43,6 @@ class Pattern;
 class Region;
 class ResultRange;
 class RewritePattern;
-class SuccessorRange;
 class Type;
 class Value;
 class ValueRange;
@@ -82,7 +82,7 @@ public:
   using OperationProperties = uint32_t;
 
   /// This is the name of the operation.
-  const StringRef name;
+  const Identifier name;
 
   /// This is the dialect that this operation belongs to.
   Dialect &dialect;
@@ -171,13 +171,7 @@ private:
                                 SmallVectorImpl<OpFoldResult> &results),
       void (&getCanonicalizationPatterns)(OwningRewritePatternList &results,
                                           MLIRContext *context),
-      detail::InterfaceMap &&interfaceMap, bool (&hasTrait)(TypeID traitID))
-      : name(name), dialect(dialect), typeID(typeID),
-        parseAssembly(parseAssembly), printAssembly(printAssembly),
-        verifyInvariants(verifyInvariants), foldHook(foldHook),
-        getCanonicalizationPatterns(getCanonicalizationPatterns),
-        opProperties(opProperties), interfaceMap(std::move(interfaceMap)),
-        hasRawTrait(hasTrait) {}
+      detail::InterfaceMap &&interfaceMap, bool (&hasTrait)(TypeID traitID));
 
   /// The properties of the operation.
   const OperationProperties opProperties;
@@ -302,8 +296,11 @@ public:
   /// Return the operation name with dialect name stripped, if it has one.
   StringRef stripDialect() const;
 
-  /// Return the name of this operation.  This always succeeds.
+  /// Return the name of this operation. This always succeeds.
   StringRef getStringRef() const;
+
+  /// Return the name of this operation as an identifier. This always succeeds.
+  Identifier getIdentifier() const;
 
   /// If this operation has a registered operation description, return it.
   /// Otherwise return null.
@@ -397,12 +394,8 @@ public:
     attributes.append(newAttributes);
   }
 
-  /// Add an array of successors.
-  void addSuccessors(ArrayRef<Block *> newSuccessors) {
-    successors.append(newSuccessors.begin(), newSuccessors.end());
-  }
   void addSuccessors(Block *successor) { successors.push_back(successor); }
-  void addSuccessors(SuccessorRange newSuccessors);
+  void addSuccessors(BlockRange newSuccessors);
 
   /// Create a region that should be attached to the operation.  These regions
   /// can be filled in immediately without waiting for Operation to be

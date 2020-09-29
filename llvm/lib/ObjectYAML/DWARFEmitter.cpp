@@ -190,7 +190,7 @@ Error DWARFYAML::emitDebugAranges(raw_ostream &OS, const DWARFYAML::Data &DI) {
 Error DWARFYAML::emitDebugRanges(raw_ostream &OS, const DWARFYAML::Data &DI) {
   const size_t RangesOffset = OS.tell();
   uint64_t EntryIndex = 0;
-  for (auto DebugRanges : DI.DebugRanges) {
+  for (auto DebugRanges : *DI.DebugRanges) {
     const size_t CurrOffset = OS.tell() - RangesOffset;
     if (DebugRanges.Offset && (uint64_t)*DebugRanges.Offset < CurrOffset)
       return createStringError(errc::invalid_argument,
@@ -594,7 +594,7 @@ Error DWARFYAML::emitDebugLine(raw_ostream &OS, const DWARFYAML::Data &DI) {
 }
 
 Error DWARFYAML::emitDebugAddr(raw_ostream &OS, const Data &DI) {
-  for (const AddrTableEntry &TableEntry : DI.DebugAddr) {
+  for (const AddrTableEntry &TableEntry : *DI.DebugAddr) {
     uint8_t AddrSize;
     if (TableEntry.AddrSize)
       AddrSize = *TableEntry.AddrSize;

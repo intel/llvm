@@ -195,7 +195,12 @@ getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
     BuildResult->Ptr.store(Desired);
 #endif
 
-    BuildResult->State.store(BS_Done);
+    {
+      // Even if shared variable is atomic, it must be modified under the mutex
+      // in order to correctly publish the modification to the waiting thread
+      std::lock_guard<std::mutex> Lock(BuildResult->MBuildResultMutex);
+      BuildResult->State.store(BS_Done);
+    }
 
     KPCache.notifyAllBuild(*BuildResult);
 
@@ -204,13 +209,19 @@ getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
     BuildResult->Error.Msg = Ex.what();
     BuildResult->Error.Code = Ex.get_cl_code();
 
-    BuildResult->State.store(BS_Failed);
+    {
+      std::lock_guard<std::mutex> Lock(BuildResult->MBuildResultMutex);
+      BuildResult->State.store(BS_Failed);
+    }
 
     KPCache.notifyAllBuild(*BuildResult);
 
     std::rethrow_exception(std::current_exception());
   } catch (...) {
-    BuildResult->State.store(BS_Failed);
+    {
+      std::lock_guard<std::mutex> Lock(BuildResult->MBuildResultMutex);
+      BuildResult->State.store(BS_Failed);
+    }
 
     KPCache.notifyAllBuild(*BuildResult);
 
@@ -218,18 +229,19 @@ getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
   }
 }
 
+// TODO replace this with a new PI API function
 static bool isDeviceBinaryTypeSupported(const context &C,
                                         RT::PiDeviceBinaryType Format) {
+  // All formats except PI_DEVICE_BINARY_TYPE_SPIRV are supported.
+  if (Format != PI_DEVICE_BINARY_TYPE_SPIRV)
+    return true;
+
   const backend ContextBackend =
       detail::getSyclObjImpl(C)->getPlugin().getBackend();
 
   // The CUDA backend cannot use SPIR-V
-  if (ContextBackend == backend::cuda && Format == PI_DEVICE_BINARY_TYPE_SPIRV)
+  if (ContextBackend == backend::cuda)
     return false;
-
-  // All formats except PI_DEVICE_BINARY_TYPE_SPIRV are supported.
-  if (Format != PI_DEVICE_BINARY_TYPE_SPIRV)
-    return true;
 
   vector_class<device> Devices = C.get_devices();
 
@@ -240,9 +252,14 @@ static bool isDeviceBinaryTypeSupported(const context &C,
   }
 
   // OpenCL 2.1 and greater require clCreateProgramWithIL
-  if ((ContextBackend == backend::opencl) &&
-      C.get_platform().get_info<info::platform::version>() >= "2.1")
-    return true;
+  if (ContextBackend == backend::opencl) {
+    std::string ver = C.get_platform().get_info<info::platform::version>();
+    if (ver.find("OpenCL 1.0") == std::string::npos &&
+        ver.find("OpenCL 1.1") == std::string::npos &&
+        ver.find("OpenCL 1.2") == std::string::npos &&
+        ver.find("OpenCL 2.0") == std::string::npos)
+      return true;
+  }
 
   for (const device &D : Devices) {
     // We need cl_khr_il_program extension to be present
@@ -777,16 +794,12 @@ ProgramManager::ProgramPtr ProgramManager::build(
     LinkOpts = LinkOptions.c_str();
   }
 
-  // The Level Zero driver support for online linking currently has bugs, but
-  // we think the DPC++ runtime support is ready.  This environment variable
-  // gates the runtime support for online linking, so we can try enabling if a
-  // new driver is released before the next DPC++ release.
-  static bool EnableLevelZeroLink = std::getenv("SYCL_ENABLE_LEVEL_ZERO_LINK");
-  if (!EnableLevelZeroLink) {
-    if (Context->getPlugin().getBackend() == backend::level_zero) {
-      LinkDeviceLibs = false;
-    }
-  }
+  // TODO: Currently, online linking isn't implemented yet on Level Zero.
+  // To enable device libraries and unify the behaviors on all backends,
+  // online linking is disabled temporarily, all fallback device libraries
+  // will be linked offline. When Level Zero supports online linking, we need
+  // to remove the line of code below and switch back to online linking.
+  LinkDeviceLibs = false;
 
   // TODO: this is a temporary workaround for GPU tests for ESIMD compiler.
   // We do not link with other device libraries, because it may fail

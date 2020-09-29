@@ -794,11 +794,10 @@ public:
   APInt &operator=(uint64_t RHS) {
     if (isSingleWord()) {
       U.VAL = RHS;
-      clearUnusedBits();
-    } else {
-      U.pVal[0] = RHS;
-      memset(U.pVal+1, 0, (getNumWords() - 1) * APINT_WORD_SIZE);
+      return clearUnusedBits();
     }
+    U.pVal[0] = RHS;
+    memset(U.pVal + 1, 0, (getNumWords() - 1) * APINT_WORD_SIZE);
     return *this;
   }
 
@@ -855,10 +854,9 @@ public:
   APInt &operator|=(uint64_t RHS) {
     if (isSingleWord()) {
       U.VAL |= RHS;
-      clearUnusedBits();
-    } else {
-      U.pVal[0] |= RHS;
+      return clearUnusedBits();
     }
+    U.pVal[0] |= RHS;
     return *this;
   }
 
@@ -885,10 +883,9 @@ public:
   APInt &operator^=(uint64_t RHS) {
     if (isSingleWord()) {
       U.VAL ^= RHS;
-      clearUnusedBits();
-    } else {
-      U.pVal[0] ^= RHS;
+      return clearUnusedBits();
     }
+    U.pVal[0] ^= RHS;
     return *this;
   }
 
@@ -1448,6 +1445,14 @@ public:
   /// Set the sign bit to 1.
   void setSignBit() {
     setBit(BitWidth - 1);
+  }
+
+  /// Set a given bit to a given value.
+  void setBitVal(unsigned BitPosition, bool BitValue) {
+    if (BitValue)
+      setBit(BitPosition);
+    else
+      clearBit(BitPosition);
   }
 
   /// Set the bits from loBit (inclusive) to hiBit (exclusive) to 1.
