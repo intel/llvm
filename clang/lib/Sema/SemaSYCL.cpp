@@ -1766,6 +1766,7 @@ public:
     KernelDecl->setParams(Params);
 
     SemaRef.addSyclDeviceDecl(KernelDecl);
+    SemaRef.addSyclHostDecl(KernelDecl);
   }
 
   bool enterStream(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
@@ -3060,6 +3061,42 @@ void Sema::MarkSyclSimd() {
               Def->addAttr(SYCLSimdAttr::CreateImplicit(getASTContext()));
         }
       }
+}
+
+// This function marks 
+void Sema::MarkHost(void) {
+  MarkDeviceFunction Marker(*this);
+  Marker.SYCLCG.addToCallGraph(getASTContext().getTranslationUnitDecl());
+  for (Decl *D : syclHostDecls()) {
+    if (auto SYCLKernel = dyn_cast<FunctionDecl>(D)) {
+      llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet;
+      Marker.CollectKernelSet(SYCLKernel, SYCLKernel, VisitedSet);
+      llvm::SmallPtrSet<Attr *, 4> Attrs;
+      FunctionDecl *KernelBody =
+          Marker.CollectPossibleKernelAttributes(SYCLKernel, Attrs);
+
+      for (auto *A : Attrs) {
+          auto *Attr = cast<IntelReqdSubGroupSizeAttr>(A);
+          if (auto *Existing =
+                  SYCLKernel->getAttr<IntelReqdSubGroupSizeAttr>()) {
+            if (getIntExprValue(Existing->getValue(), getASTContext()) !=
+                getIntExprValue(Attr->getValue(), getASTContext())) {
+              Diag(SYCLKernel->getLocation(),
+                   diag::err_conflicting_sycl_kernel_attributes);
+              Diag(Existing->getLocation(), diag::note_conflicting_attribute);
+              Diag(Attr->getLocation(), diag::note_conflicting_attribute);
+              SYCLKernel->setInvalidDecl();
+            }
+          } else {
+            SYCLKernel->addAttr(A);
+          }
+        }
+    }
+  }  
+  for (const auto &elt : Marker.KernelSet) {
+     if (FunctionDecl *Def = elt->getDefinition())
+        Marker.TraverseStmt(Def->getBody());
+  }  
 }
 
 void Sema::MarkDevice(void) {

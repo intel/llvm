@@ -2980,9 +2980,6 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
 
 // Handles intel_reqd_sub_group_size.
 static void handleSubGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (S.LangOpts.SYCLIsHost)
-    return;
-
   Expr *E = AL.getArgAsExpr(0);
 
   if (D->getAttr<IntelReqdSubGroupSizeAttr>())
@@ -8310,10 +8307,8 @@ void Sema::ProcessDeclAttributeList(Scope *S, Decl *D,
       Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
       D->setInvalidDecl();
     } else if (const auto *A = D->getAttr<IntelReqdSubGroupSizeAttr>()) {
-      if (!getLangOpts().SYCLIsDevice) {
         Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
         D->setInvalidDecl();
-      }
     } else if (!D->hasAttr<CUDAGlobalAttr>()) {
       if (const auto *A = D->getAttr<AMDGPUFlatWorkGroupSizeAttr>()) {
         Diag(D->getLocation(), diag::err_attribute_wrong_decl_type)

@@ -994,6 +994,11 @@ void Sema::ActOnEndOfTranslationUnitFragment(TUFragmentKind Kind) {
       SyclIntHeader->emit(getLangOpts().SYCLIntHeader);
     MarkDevice();
   }
+
+  if (getLangOpts().SYCLIsHost) {
+    MarkHost();
+  }
+
   if (getLangOpts().SYCLExplicitSIMD)
     MarkSyclSimd();
 

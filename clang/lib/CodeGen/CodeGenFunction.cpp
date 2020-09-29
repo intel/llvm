@@ -896,7 +896,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   if (getLangOpts().SYCLIsHost && D && D->hasAttr<SYCLKernelAttr>())
     Fn->addFnAttr("sycl_kernel");
 
-  if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) {
+  if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice ||
+      getLangOpts().SYCLIsHost) {
     // Add metadata for a kernel function.
     if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D)) {
       EmitOpenCLKernelMetadata(FD, Fn);
