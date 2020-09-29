@@ -5,12 +5,12 @@ struct C {
   static int c;
 };
 
-template<typename T>
+template <typename T>
 struct D {
   static T d;
 };
 
-template<typename T>
+template <typename T>
 void test() {
   // CHECK: @_ZZ4testIiEvvE1a = linkonce_odr addrspace(1) constant i32 0, comdat, align 4
   static const int a = 0;
@@ -22,9 +22,7 @@ void test() {
   // CHECK: @_ZN1DIiE1dE = external addrspace(1) global i32, align 4
   D<int>::d = 11;
   const D<int> struct_d;
-
 }
-
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
