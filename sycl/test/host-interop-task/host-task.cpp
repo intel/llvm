@@ -274,9 +274,7 @@ void test5(size_t Count = 1) {
 
       auto Acc1 = B1.get_access<mode::read_write>(CGH);
 
-      CGH.single_task<class Test5_Kernel2>([=] {
-        Acc1[2] = 1 * Idx;
-      });
+      CGH.single_task<class Test5_Kernel2>([=] { Acc1[2] = 1 * Idx; });
     });
 
     Q.submit([&](handler &CGH) {
@@ -317,9 +315,7 @@ void test5(size_t Count = 1) {
 
       auto Acc5 = B5.get_access<mode::read_write, target::host_buffer>(CGH);
 
-      CGH.codeplay_host_task([=] {
-        Acc5[5] = 1 * Idx;
-      });
+      CGH.codeplay_host_task([=] { Acc5[5] = 1 * Idx; });
     });
   }
 
