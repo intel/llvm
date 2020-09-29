@@ -2,13 +2,13 @@
 
 class Foo {
 public:
-  [[intelfpga::num_simd_work_items(1)]] void operator()() const {}
+  [[INTEL::num_simd_work_items(1)]] void operator()() const {}
 };
 
 template <int SIZE>
 class Functor {
 public:
-  [[intelfpga::num_simd_work_items(SIZE)]] void operator()() const {}
+  [[INTEL::num_simd_work_items(SIZE)]] void operator()() const {}
 };
 
 template <typename name, typename Func>
@@ -21,7 +21,7 @@ void bar() {
   kernel<class kernel_name1>(boo);
 
   kernel<class kernel_name2>(
-  []() [[intelfpga::num_simd_work_items(42)]] {});
+  []() [[INTEL::num_simd_work_items(42)]] {});
 
   Functor<2> f;
   kernel<class kernel_name3>(f);

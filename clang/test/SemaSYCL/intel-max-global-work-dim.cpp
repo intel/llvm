@@ -4,7 +4,7 @@
 
 #ifndef __SYCL_DEVICE_ONLY__
 struct FuncObj {
-  [[intelfpga::max_global_work_dim(1)]] // expected-no-diagnostics
+  [[INTEL::max_global_work_dim(1)]] // expected-no-diagnostics
   void
   operator()() const {}
 };
@@ -21,30 +21,36 @@ void foo() {
 
 #else // __SYCL_DEVICE_ONLY__
 
-[[intelfpga::max_global_work_dim(2)]] void func_do_not_ignore() {}
+[[INTEL::max_global_work_dim(2)]] void func_do_not_ignore() {}
 
 struct FuncObj {
-  [[intelfpga::max_global_work_dim(1)]] void operator()() const {}
+  [[INTEL::max_global_work_dim(1)]] void operator()() const {}
+};
+
+struct Func {
+  // expected-warning@+2 {{attribute 'max_global_work_dim' is deprecated}}
+  // expected-note@+1 {{did you mean to use 'INTEL::max_global_work_dim' instead?}}
+  [[intelfpga::max_global_work_dim(2)]] void operator()() const {}
 };
 
 struct TRIFuncObjGood1 {
-  [[intelfpga::max_global_work_dim(0)]]
-  [[intelfpga::max_work_group_size(1, 1, 1)]]
+  [[INTEL::max_global_work_dim(0)]]
+  [[INTEL::max_work_group_size(1, 1, 1)]]
   [[cl::reqd_work_group_size(1, 1, 1)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood2 {
-  [[intelfpga::max_global_work_dim(3)]]
-  [[intelfpga::max_work_group_size(8, 1, 1)]]
+  [[INTEL::max_global_work_dim(3)]]
+  [[INTEL::max_work_group_size(8, 1, 1)]]
   [[cl::reqd_work_group_size(4, 1, 1)]] void
   operator()() const {}
 };
 
 #ifdef TRIGGER_ERROR
 struct TRIFuncObjBad {
-  [[intelfpga::max_global_work_dim(0)]]
-  [[intelfpga::max_work_group_size(8, 8, 8)]] // expected-error{{'max_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
+  [[INTEL::max_global_work_dim(0)]]
+  [[INTEL::max_work_group_size(8, 8, 8)]] // expected-error{{'max_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
   [[cl::reqd_work_group_size(4, 4, 4)]]       // expected-error{{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
   void
   operator()() const {}
@@ -65,7 +71,7 @@ int main() {
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
   // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}} 2
   kernel<class test_kernel2>(
-      []() [[intelfpga::max_global_work_dim(2)]] {});
+      []() [[INTEL::max_global_work_dim(2)]] {});
 
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
   // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
@@ -87,20 +93,20 @@ int main() {
   // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}} 3
 
 #ifdef TRIGGER_ERROR
-  [[intelfpga::max_global_work_dim(1)]] int Var = 0; // expected-error{{'max_global_work_dim' attribute only applies to functions}}
+  [[INTEL::max_global_work_dim(1)]] int Var = 0; // expected-error{{'max_global_work_dim' attribute only applies to functions}}
 
   kernel<class test_kernel6>(
-      []() [[intelfpga::max_global_work_dim(-8)]] {}); // expected-error{{'max_global_work_dim' attribute requires a non-negative integral compile time constant expression}}
+      []() [[INTEL::max_global_work_dim(-8)]] {}); // expected-error{{'max_global_work_dim' attribute requires a non-negative integral compile time constant expression}}
 
   kernel<class test_kernel7>(
-      []() [[intelfpga::max_global_work_dim(3),
-             intelfpga::max_global_work_dim(2)]] {}); // expected-warning{{attribute 'max_global_work_dim' is already applied with different parameters}}
+      []() [[INTEL::max_global_work_dim(3),
+             INTEL::max_global_work_dim(2)]] {}); // expected-warning{{attribute 'max_global_work_dim' is already applied with different parameters}}
 
   kernel<class test_kernel8>(
       TRIFuncObjBad());
 
   kernel<class test_kernel9>(
-      []() [[intelfpga::max_global_work_dim(4)]] {}); // expected-error{{The value of 'max_global_work_dim' attribute must be in range from 0 to 3}}
+      []() [[INTEL::max_global_work_dim(4)]] {}); // expected-error{{The value of 'max_global_work_dim' attribute must be in range from 0 to 3}}
 
 #endif // TRIGGER_ERROR
 }

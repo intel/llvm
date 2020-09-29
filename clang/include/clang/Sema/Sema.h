@@ -12964,7 +12964,7 @@ FPGALoopAttrT *Sema::BuildSYCLIntelFPGALoopAttr(const AttributeCommonInfo &A,
       llvm_unreachable("unknown sycl fpga loop attr");
     }
   }
-
+  
   return new (Context) FPGALoopAttrT(Context, A, E);
 }
 

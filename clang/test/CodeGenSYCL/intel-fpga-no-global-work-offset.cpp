@@ -2,7 +2,7 @@
 
 class Foo {
 public:
-  [[intelfpga::no_global_work_offset(1)]] void operator()() const {}
+  [[INTEL::no_global_work_offset(1)]] void operator()() const {}
 };
 
 template <typename name, typename Func>
@@ -15,10 +15,10 @@ void bar() {
   kernel<class kernel_name1>(boo);
 
   kernel<class kernel_name2>(
-      []() [[intelfpga::no_global_work_offset]]{});
+      []() [[INTEL::no_global_work_offset]]{});
 
   kernel<class kernel_name3>(
-      []() [[intelfpga::no_global_work_offset(0)]]{});
+      []() [[INTEL::no_global_work_offset(0)]]{});
 }
 
 // CHECK: define spir_kernel void @{{.*}}kernel_name1() {{.*}} !no_global_work_offset ![[NUM5:[0-9]+]]

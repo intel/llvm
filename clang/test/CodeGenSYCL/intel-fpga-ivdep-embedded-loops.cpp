@@ -6,9 +6,9 @@
 void ivdep_inner_loop_access() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
-  [[intelfpga::ivdep]]
+  [[INTEL::ivdep]]
   for (int i = 0; i != 10; ++i) {
-    [[intelfpga::ivdep(3)]]
+    [[INTEL::ivdep(3)]]
     for (int j = 0; j != 10; ++j) {
       // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_INNER_ACCESS:[0-9]+]]
       // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_INNER_ACCESS]]
@@ -25,12 +25,12 @@ void ivdep_inner_loop_access() {
 void ivdep_embedded_global_safelen() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
-  [[intelfpga::ivdep]]
+  [[INTEL::ivdep]]
   for (int i = 0; i != 10; ++i) {
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_OUTER_GLOB_SFLN:[0-9]+]]
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_OUTER_GLOB_SFLN]]
     a[i] = a[i % 2];
-    [[intelfpga::ivdep]]
+    [[INTEL::ivdep]]
     for (int j = 0; j != 10; ++j) {
       // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_INNER_GLOB_SFLN:[0-9]+]]
       // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_INNER_GLOB_SFLN]]
@@ -47,12 +47,12 @@ void ivdep_embedded_global_safelen() {
 void ivdep_embedded_various_safelens() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
-  [[intelfpga::ivdep(a, 4)]]
+  [[INTEL::ivdep(a, 4)]]
   for (int i = 0; i != 10; ++i) {
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_OUTER_VAR_SFLN:[0-9]+]]
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_OUTER_VAR_SFLN]]
     a[i] = a[i % 2];
-    [[intelfpga::ivdep(a, 2)]]
+    [[INTEL::ivdep(a, 2)]]
     for (int j = 0; j != 10; ++j) {
       // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_INNER_VAR_SFLN:[0-9]+]]
       // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_INNER_VAR_SFLN]]
@@ -73,7 +73,7 @@ void ivdep_embedded_multiple_arrays() {
   int a[10];
   // CHECK: %[[ARRAY_B:[0-9a-z]+]] = alloca [10 x i32]
   int b[10];
-  [[intelfpga::ivdep(a, 3), intelfpga::ivdep(b, 4)]]
+  [[INTEL::ivdep(a, 3), INTEL::ivdep(b, 4)]]
   for (int i = 0; i != 10; ++i) {
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_OUTER_MUL_ARRS:[0-9]+]]
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_OUTER_MUL_ARRS]]
@@ -81,7 +81,7 @@ void ivdep_embedded_multiple_arrays() {
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_B]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_OUTER_MUL_ARRS:[0-9]+]]
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_B]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_OUTER_MUL_ARRS]]
     b[i] = b[i % 2];
-    [[intelfpga::ivdep(2)]]
+    [[INTEL::ivdep(2)]]
     for (int j = 0; j != 10; ++j) {
       // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_B]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_INNER_MUL_ARRS:[0-9]+]]
       // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_INNER_MUL_ARRS:[0-9]+]]
@@ -104,7 +104,7 @@ void ivdep_embedded_multiple_arrays_global() {
   int a[10];
   // CHECK: %[[ARRAY_B:[0-9a-z]+]] = alloca [10 x i32]
   int b[10];
-  [[intelfpga::ivdep(a)]]
+  [[INTEL::ivdep(a)]]
   for (int i = 0; i != 10; ++i) {
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_OUTER_MUL_ARRS_GLOB:[0-9]+]]
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_OUTER_MUL_ARRS_GLOB]]
@@ -112,7 +112,7 @@ void ivdep_embedded_multiple_arrays_global() {
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_B]], i64 0, i64 %{{[0-9a-z]+}}{{[[:space:]]}}
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_B]], i64 0, i64 %{{[0-9a-z]+}}{{[[:space:]]}}
     b[i] = b[i % 2];
-    [[intelfpga::ivdep]]
+    [[INTEL::ivdep]]
     for (int j = 0; j != 10; ++j) {
       // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_B]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_INNER_MUL_ARRS_GLOB:[0-9]+]]
       // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_INNER_MUL_ARRS_GLOB:[0-9]+]]
@@ -127,15 +127,15 @@ void ivdep_embedded_multiple_arrays_global() {
 // CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_embedded_multiple_dimensionsv()
 void ivdep_embedded_multiple_dimensions() {
   int a[10];
-  [[intelfpga::ivdep]]
+  [[INTEL::ivdep]]
   for (int i = 0; i != 10; ++i) {
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_DIM_1_MUL_DIMS:[0-9]+]]
     a[i] = i;
-    [[intelfpga::ivdep]]
+    [[INTEL::ivdep]]
     for (int j = 0; j != 10; ++j) {
       // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_DIM_2_MUL_DIMS:[0-9]+]]
       a[j] += j;
-      [[intelfpga::ivdep]]
+      [[INTEL::ivdep]]
       for (int k = 0; k != 10; ++k) {
 	// CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_DIM_3_MUL_DIMS:[0-9]+]]
 	a[k] += k;

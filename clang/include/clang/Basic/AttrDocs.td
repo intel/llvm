@@ -1860,7 +1860,7 @@ as ``-mlong-calls`` and ``-mno-long-calls``.
 
 def IntelFPGADoublePumpAttrDocs : Documentation {
 let Category = DocCatVariable;
-  let Heading = "doublepump (IntelFPGA)";
+  let Heading = "INTEL::doublepump";
   let Content = [{
 This attribute may be attached to a variable or struct member declaration and
 instructs the backend to implement the variable or struct member in a memory
@@ -1870,7 +1870,7 @@ that is clocked at twice the rate of its accessors.
 
 def IntelFPGASinglePumpAttrDocs : Documentation {
 let Category = DocCatVariable;
-  let Heading = "singlepump (IntelFPGA)";
+  let Heading = "INTEL::singlepump";
   let Content = [{
 This attribute may be attached to a variable or struct member declaration and
 instructs the backend to implement the variable or struct member in a memory
@@ -1880,7 +1880,7 @@ that is clocked at the same rate as its accessors.
 
 def IntelFPGAMemoryAttrDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "memory (IntelFPGA)";
+  let Heading = "INTEL::fpga_memory";
   let Content = [{
 This attribute may be attached to a variable or struct member declaration and
 instructs the backend to implement the variable or struct member in memory
@@ -1891,7 +1891,7 @@ it indicates what type of memory to use.
 
 def IntelFPGARegisterAttrDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "register (IntelFPGA)";
+  let Heading = "INTEL::fpga_register";
   let Content = [{
 This attribute may be attached to a variable or struct member declaration and
 instructs the backend to promote the variable or struct member to register(s)
@@ -1901,7 +1901,7 @@ if possible.
 
 def IntelFPGABankWidthAttrDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "bankwidth (IntelFPGA)";
+  let Heading = "INTEL::bankwidth";
   let Content = [{
 This attribute may be attached to a variable or struct member declaration and
 instructs the backend to implement the variable or struct member in a memory
@@ -1911,7 +1911,7 @@ with banks that are N bytes wide.
 
 def IntelFPGANumBanksAttrDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "numbanks (IntelFPGA)";
+  let Heading = "INTEL::numbanks";
   let Content = [{
 This attribute may be attached to a variable or struct member declaration and
 instructs the backend to implement the variable or struct member in a memory
@@ -1921,7 +1921,7 @@ with N banks.
 
 def IntelFPGAPrivateCopiesAttrDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "private_copies (IntelFPGA)";
+  let Heading = "INTEL::private_copies";
   let Content = [{
 This attribute may be attached to a variable or struct member declaration and
 instructs the backend to replicate the memory generated for the variable or
@@ -1932,7 +1932,7 @@ threads or loop iterations.
 
 def IntelFPGAMergeAttrDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "merge (IntelFPGA)";
+  let Heading = "INTEL::merge";
   let Content = [{
 This attribute may be attached to a variable or struct member declaration and
 instructs the backend to merge the memories used to implement any variable or
@@ -1944,7 +1944,7 @@ depth-wise or width-wise manner.
 
 def IntelFPGAMaxReplicatesAttrDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "max_replicates (IntelFPGA)";
+  let Heading = "INTEL::max_replicates";
   let Content = [{
 This attribute may be attached to a variable or struct member declaration and
 instructs the backend to replicate the memory generated for the variable or
@@ -1955,7 +1955,7 @@ simultaneous accesses from different load/store sites in the program.
 
 def IntelFPGASimpleDualPortAttrDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "simple_dual_port (IntelFPGA)";
+  let Heading = "INTEL::simple_dual_port";
   let Content = [{
 This attribute may be attached to a variable or struct member declaration and
 instructs the backend to implement the variable or struct member in a memory
@@ -1966,7 +1966,7 @@ loads).
 
 def IntelFPGABankBitsDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "bank_bits (IntelFPGA)";
+  let Heading = "INTEL::bank_bits";
   let Content = [{
 This attribute may be attached to a variable or struct member declaration and
 instructs the backend to implement the variable or struct member in a banked
@@ -1977,7 +1977,7 @@ pointer address bits to bank on.
 
 def IntelFPGAForcePow2DepthAttrDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "force_pow2_depth (IntelFPGA)";
+  let Heading = "INTEL::force_pow2_depth";
   let Content = [{
 This attribute may be attached to a variable or struct member declaration and
 provides explicit control over the geometry of memory blocks used in a given
@@ -1999,7 +1999,7 @@ def SYCLIntelKernelArgsRestrictDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "kernel_args_restrict";
   let Content = [{
-The attribute ``intel::kernel_args_restrict`` is legal on device functions, and
+The attribute ``INTEL::kernel_args_restrict`` is legal on device functions, and
 can be ignored on non-device functions. When applied to a function, lambda, or
 function call operator (of a function object), the attribute is a hint to the
 compiler equivalent to specifying the C99 restrict attribute on all pointer
@@ -2008,37 +2008,37 @@ lambda capture, or function object member, of the callable to which the
 attribute was applied. This effect is equivalent to annotating restrict on
 **all** kernel pointer arguments in an OpenCL or SPIR-V kernel.
 
-If ``intel::kernel_args_restrict`` is applied to a function called from a device
+If ``INTEL::kernel_args_restrict`` is applied to a function called from a device
 kernel, the attribute is ignored and it is not propagated to a kernel.
 
 The attribute forms an unchecked assertion, in that implementations
 do not need to check/confirm the pre-condition in any way. If a user applies
-``intel::_kernel_args_restrict`` to a kernel, but there is in fact aliasing
+``INTEL::_kernel_args_restrict`` to a kernel, but there is in fact aliasing
 between kernel pointer arguments at runtime, the behavior is undefined.
 
-The attribute-token ``intel::kernel_args_restrict`` shall appear at most once in
+The attribute-token ``INTEL::kernel_args_restrict`` shall appear at most once in
 each attribute-list and no attribute-argument-clause shall be present. The
 attribute may be applied to the function-type in a function declaration. The
 first declaration of a function shall specify the
-``intel::kernel_args_restrict`` attribute if any declaration of that function
-specifies the ``intel::kernel_args_restrict`` attribute. If a function is
-declared with the ``intel::kernel_args_restrict`` attribute in one translation
+``INTEL::kernel_args_restrict`` attribute if any declaration of that function
+specifies the ``INTEL::kernel_args_restrict`` attribute. If a function is
+declared with the ``INTEL::kernel_args_restrict`` attribute in one translation
 unit and the same function is declared without the
-``intel::kernel_args_restrict`` attribute in another translation unit, the
+``INTEL::kernel_args_restrict`` attribute in another translation unit, the
 program is ill-formed and no diagnostic is required.
 
-The ``intel::kernel_args_restrict`` attribute has an effect when applied to a
+The ``INTEL::kernel_args_restrict`` attribute has an effect when applied to a
 function, and no effect otherwise.
   }];
 }
 
 def SYCLIntelNumSimdWorkItemsAttrDocs : Documentation {
   let Category = DocCatFunction;
-  let Heading = "num_simd_work_items (IntelFPGA)";
+  let Heading = "INTEL::num_simd_work_items";
   let Content = [{
 Applies to a device function/lambda function. Indicates the number of work
 items that should be processed in parallel. Valid values are positive integers.
-If ``intelfpga::num_simd_work_items`` is applied to a function called from a
+If ``INTEL::num_simd_work_items`` is applied to a function called from a
 device kernel, the attribute is ignored and it is not propagated to a kernel.
   }];
 }
@@ -2062,7 +2062,7 @@ those device functions, such that the kernel attributes are the sum of all
 attributes of all device functions called in this kernel.
 See section 6.7 Attributes for more details.
 
-As Intel extension, ``[[intel::reqd_work_group_size(X, Y, Z)]]`` spelling is allowed
+As Intel extension, ``[[INTEL::reqd_work_group_size(X, Y, Z)]]`` spelling is allowed
 which features optional arguments `Y` and `Z`, those simplifies its usage if
 only 1- or 2-dimensional ND-range is assumed by a programmer. These arguments
 defaults to ``1``.
@@ -2075,36 +2075,36 @@ In OpenCL C, this attribute is available in GNU spelling
 
 def SYCLIntelMaxWorkGroupSizeAttrDocs : Documentation {
   let Category = DocCatFunction;
-  let Heading = "max_work_group_size (IntelFPGA)";
+  let Heading = "INTEL::max_work_group_size";
   let Content = [{
 Applies to a device function/lambda function. Indicates the maximum dimensions
 of a work group. Values must be positive integers. This is similar to
 reqd_work_group_size, but allows work groups that are smaller or equal to the
 specified sizes.
-If ``intelfpga::max_work_group_size`` is applied to a function called from a
+If ``INTEL::max_work_group_size`` is applied to a function called from a
 device kernel, the attribute is ignored and it is not propagated to a kernel.
   }];
 }
 
 def SYCLIntelMaxGlobalWorkDimAttrDocs : Documentation {
   let Category = DocCatFunction;
-  let Heading = "max_global_work_dim (IntelFPGA)";
+  let Heading = "INTEL::max_global_work_dim";
   let Content = [{
 Applies to a device function/lambda function or function call operator (of a
 function object). Indicates the largest valid global work dimension that will be
 accepted when running the kernel on a device. Valid values are integers in a
 range of [0, 3]. A kernel with max_global_work_dim(0) must be invoked with a
-'single_task' and if ``intelfpga::max_work_group_size`` or
+'single_task' and if ``INTEL::max_work_group_size`` or
 ``cl::reqd_work_group_size`` are applied to the kernel as well - they shall
 have arguments of (1, 1, 1).
-If ``intelfpga::max_global_work_dim`` is applied to a function called from a
+If ``INTEL::max_global_work_dim`` is applied to a function called from a
 device kernel, the attribute is ignored and it is not propagated to a kernel.
   }];
 }
 
 def SYCLIntelNoGlobalWorkOffsetAttrDocs : Documentation {
   let Category = DocCatFunction;
-  let Heading = "no_global_work_offset (IntelFPGA)";
+  let Heading = "INTEL::no_global_work_offset";
   let Content = [{
 Applies to a device function/lambda function or function call operator (of a
 function object). If 1, compiler doesn't use the global work offset values for
@@ -2139,7 +2139,7 @@ with which a pipe interfaces. The id argument is the name of the I/O interface.
 
 def SYCLIntelFPGAIVDepAttrDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "ivdep";
+  let Heading = "INTEL::ivdep";
   let Content = [{
 This attribute applies to a loop. If no additional arguments are provided, it
 indicates that the backend may assume that the loop carries no dependences.
@@ -2161,7 +2161,7 @@ the no-array ivdep's safelen, with the correspondent treatment by the backend.
 
 def SYCLIntelFPGAIIAttrDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "ii";
+  let Heading = "INTEL::ii";
   let Content = [{
 This attribute applies to a loop. Indicates that the loop should be pipelined
 with an initiation interval of N. N must be a positive integer. Cannot be
@@ -2171,7 +2171,7 @@ applied multiple times to the same loop.
 
 def SYCLIntelFPGAMaxConcurrencyAttrDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "max_concurrency";
+  let Heading = "INTEL::max_concurrency";
   let Content = [{
 This attribute applies to a loop. Indicates that the loop should allow no more
 than N threads or iterations to execute it simultaneously. N must be a non
@@ -2182,7 +2182,7 @@ be applied multiple times to the same loop.
 
 def SYCLIntelFPGALoopCoalesceAttrDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "loop_coalesce";
+  let Heading = "INTEL::loop_coalesce";
   let Content = [{
 This attribute applies to a loop. Indicates that the loop nest should be
 coalesced into a single loop without affecting functionality. Parameter N is
@@ -2193,7 +2193,7 @@ of the nested loop levels should be coalesced.
 
 def SYCLIntelFPGADisableLoopPipeliningAttrDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "disable_loop_pipelining";
+  let Heading = "INTEL::disable_loop_pipelining";
   let Content = [{
 This attribute applies to a loop. Disables pipelining of the loop data path,
 causing the loop to be executed serially. Cannot be used on the same loop in
@@ -2204,7 +2204,7 @@ or ivdep.
 
 def SYCLIntelFPGAMaxInterleavingAttrDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "max_interleaving";
+  let Heading = "INTEL::max_interleaving";
   let Content = [{
 This attribute applies to a loop. Places a maximum limit N on the number of
 interleaved invocations of an inner loop by an outer loop (note, this does not
@@ -2217,7 +2217,7 @@ used on the same loop in conjunction with disable_loop_pipelining.
 
 def SYCLIntelFPGASpeculatedIterationsAttrDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "speculated_iterations";
+  let Heading = "INTEL::speculated_iterations";
   let Content = [{
 This attribute applies to a loop. Specifies the number of concurrent speculated
 iterations that will be in flight for a loop invocation (i.e. the exit
@@ -2229,7 +2229,7 @@ used on the same loop in conjunction with disable_loop_pipelining.
 
 def SYCLDeviceIndirectlyCallableDocs : Documentation {
   let Category = DocCatFunction;
-  let Heading = "intel::device_indirectly_callable";
+  let Heading = "INTEL::device_indirectly_callable";
   let Content = [{
 This attribute can only be applied to functions and indicates that the
 function must be treated as a device function and must be emitted even if it has
@@ -3466,7 +3466,7 @@ def IntelReqdSubGroupSizeDocs : Documentation {
 This attribute can be used in both OpenCL and SYCL.
 
 OpenCL documentation:
-The optional attribute intel_reqd_sub_group_size can be used to indicate that
+The optional attribute INTEL_reqd_sub_group_size can be used to indicate that
 the kernel must be compiled and executed with the specified subgroup size. When
 this attribute is present, get_max_sub_group_size() is guaranteed to return the
 specified integer value. This is important for the correctness of many subgroup
@@ -3476,7 +3476,7 @@ code. See `cl_intel_required_subgroup_size
 for details.
 
 SYCL documentation:
-The [[intel::reqd_sub_group_size(n)]] attribute indicates that the kernel must
+The [[INTEL::reqd_sub_group_size(n)]] attribute indicates that the kernel must
 be compiled and executed with a sub-group of size n. The value of n must be set
 to a sub-group size supported by the device, or device compilation will fail.
 
@@ -3488,14 +3488,14 @@ as in the examples below:
 
   class Functor
   {
-      [[intel::reqd_sub_group_size(16)]] void operator()(item<1> item)
+      [[INTEL::reqd_sub_group_size(16)]] void operator()(item<1> item)
       {
           /* kernel code */
       }
   }
 
   kernel<class kernel_name>(
-  []() [[intel::reqd_sub_group_size(n)]] {
+  []() [[INTEL::reqd_sub_group_size(n)]] {
        /* kernel code */
   });
 

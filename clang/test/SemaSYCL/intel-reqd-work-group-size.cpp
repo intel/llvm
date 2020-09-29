@@ -6,7 +6,7 @@
 // expected-no-diagnostics
 class Functor {
 public:
-  [[intel::reqd_work_group_size(4)]] void operator()() const {}
+  [[INTEL::reqd_work_group_size(4)]] void operator()() const {}
 };
 
 template <typename name, typename Func>
@@ -19,15 +19,15 @@ void bar() {
   kernel<class kernel_name>(f);
 }
 #else
-[[intel::reqd_work_group_size(4)]] void f4x1x1() {} // expected-note {{conflicting attribute is here}}
+[[INTEL::reqd_work_group_size(4)]] void f4x1x1() {} // expected-note {{conflicting attribute is here}}
 // expected-note@-1 {{conflicting attribute is here}}
-[[intel::reqd_work_group_size(32)]] void f32x1x1() {} // expected-note {{conflicting attribute is here}}
+[[INTEL::reqd_work_group_size(32)]] void f32x1x1() {} // expected-note {{conflicting attribute is here}}
 
-[[intel::reqd_work_group_size(16)]] void f16x1x1() {}      // expected-note {{conflicting attribute is here}}
-[[intel::reqd_work_group_size(16, 16)]] void f16x16x1() {} // expected-note {{conflicting attribute is here}}
+[[INTEL::reqd_work_group_size(16)]] void f16x1x1() {}      // expected-note {{conflicting attribute is here}}
+[[INTEL::reqd_work_group_size(16, 16)]] void f16x16x1() {} // expected-note {{conflicting attribute is here}}
 
-[[intel::reqd_work_group_size(32, 32)]] void f32x32x1() {}      // expected-note {{conflicting attribute is here}}
-[[intel::reqd_work_group_size(32, 32, 32)]] void f32x32x32() {} // expected-note {{conflicting attribute is here}}
+[[INTEL::reqd_work_group_size(32, 32)]] void f32x32x1() {}      // expected-note {{conflicting attribute is here}}
+[[INTEL::reqd_work_group_size(32, 32, 32)]] void f32x32x32() {} // expected-note {{conflicting attribute is here}}
 
 #ifdef TRIGGER_ERROR
 class Functor32 {
@@ -36,28 +36,28 @@ public:
 };
 class Functor33 {
 public:
-  [[intel::reqd_work_group_size(32, -4)]] void operator()() const {} // expected-error {{'reqd_work_group_size' attribute requires a non-negative integral compile time constant expression}}
+  [[INTEL::reqd_work_group_size(32, -4)]] void operator()() const {} // expected-error {{'reqd_work_group_size' attribute requires a non-negative integral compile time constant expression}}
 };
 #endif // TRIGGER_ERROR
 
 class Functor16 {
 public:
-  [[intel::reqd_work_group_size(16)]] void operator()() const {}
+  [[INTEL::reqd_work_group_size(16)]] void operator()() const {}
 };
 
 class Functor64 {
 public:
-  [[intel::reqd_work_group_size(64, 64)]] void operator()() const {}
+  [[INTEL::reqd_work_group_size(64, 64)]] void operator()() const {}
 };
 
 class Functor16x16x16 {
 public:
-  [[intel::reqd_work_group_size(16, 16, 16)]] void operator()() const {}
+  [[INTEL::reqd_work_group_size(16, 16, 16)]] void operator()() const {}
 };
 
 class Functor8 { // expected-error {{conflicting attributes applied to a SYCL kernel}}
 public:
-  [[intel::reqd_work_group_size(8)]] void operator()() const { // expected-note {{conflicting attribute is here}}
+  [[INTEL::reqd_work_group_size(8)]] void operator()() const { // expected-note {{conflicting attribute is here}}
     f4x1x1();
   }
 };
@@ -92,7 +92,7 @@ void bar() {
   FunctorAttr fattr;
   kernel<class kernel_name4>(fattr);
 
-  kernel<class kernel_name5>([]() [[intel::reqd_work_group_size(32, 32, 32)]] {
+  kernel<class kernel_name5>([]() [[INTEL::reqd_work_group_size(32, 32, 32)]] {
     f32x32x32();
   });
 
@@ -116,7 +116,7 @@ void bar() {
   });
 
   // expected-error@+1 {{expected variable name or 'this' in lambda capture list}}
-  kernel<class kernel_name10>([[intel::reqd_work_group_size(32, 32, 32)]][]() {
+  kernel<class kernel_name10>([[INTEL::reqd_work_group_size(32, 32, 32)]][]() {
     f32x32x32();
   });
 

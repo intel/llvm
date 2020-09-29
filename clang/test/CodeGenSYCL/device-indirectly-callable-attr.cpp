@@ -2,7 +2,7 @@
 
 void helper() {}
 
-[[intel::device_indirectly_callable]]
+[[INTEL::device_indirectly_callable]]
 void foo() {
   helper();
 }
@@ -19,33 +19,33 @@ class A {
 public:
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN1A3fooEv{{.*}}#[[ATTRS_INDIR_CALL]]
   // CHECK-DAG: define spir_func i32 @_Z5bar20{{.*}}#[[ATTRS_NOT_INDIR_CALL]]
-  [[intel::device_indirectly_callable]] void foo() { bar20(10); }
+  [[INTEL::device_indirectly_callable]] void foo() { bar20(10); }
 
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN1AC1Ev{{.*}}#[[ATTRS_INDIR_CALL]]
-  [[intel::device_indirectly_callable]] A() {}
+  [[INTEL::device_indirectly_callable]] A() {}
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN1AD1Ev{{.*}}#[[ATTRS_INDIR_CALL]]
-  [[intel::device_indirectly_callable]] ~A() {}
+  [[INTEL::device_indirectly_callable]] ~A() {}
 
   template <typename T>
-  [[intel::device_indirectly_callable]] void AFoo(T t) {}
+  [[INTEL::device_indirectly_callable]] void AFoo(T t) {}
 
   // Templates are emitted when they are instantiated
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN1A4AFooIiEEvT_{{.*}}#[[ATTRS_INDIR_CALL]]
   template <>
-  [[intel::device_indirectly_callable]] void AFoo<int>(int t) {}
+  [[INTEL::device_indirectly_callable]] void AFoo<int>(int t) {}
 };
 
 struct Base {
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN4Base12BaseWithAttrEv{{.*}}#[[ATTRS_INDIR_CALL]]
-  [[intel::device_indirectly_callable]] virtual void BaseWithAttr() { int a = 10; }
+  [[INTEL::device_indirectly_callable]] virtual void BaseWithAttr() { int a = 10; }
   virtual void BaseWithoutAttr() { int b = 20; }
 };
 
 struct Overrider : Base {
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN9Overrider12BaseWithAttrEv{{.*}}#[[ATTRS_INDIR_CALL]]
-  [[intel::device_indirectly_callable]] void BaseWithAttr() override { int a = 20; }
+  [[INTEL::device_indirectly_callable]] void BaseWithAttr() override { int a = 20; }
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN9Overrider15BaseWithoutAttrEv{{.*}}#[[ATTRS_INDIR_CALL]]
-  [[intel::device_indirectly_callable]] void BaseWithoutAttr() override { int b = 30; }
+  [[INTEL::device_indirectly_callable]] void BaseWithoutAttr() override { int b = 30; }
 };
 
 struct Overrider1 : Base {
@@ -55,9 +55,9 @@ struct Overrider1 : Base {
 
 struct Finalizer : Base {
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN9Finalizer12BaseWithAttrEv{{.*}}#[[ATTRS_INDIR_CALL]]
-  [[intel::device_indirectly_callable]] void BaseWithAttr() final { int a = 20; }
+  [[INTEL::device_indirectly_callable]] void BaseWithAttr() final { int a = 20; }
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN9Finalizer15BaseWithoutAttrEv{{.*}}#[[ATTRS_INDIR_CALL]]
-  [[intel::device_indirectly_callable]] void BaseWithoutAttr() final { int b = 30; }
+  [[INTEL::device_indirectly_callable]] void BaseWithoutAttr() final { int b = 30; }
 };
 
 struct Finalizer1 : Base {

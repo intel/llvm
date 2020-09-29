@@ -17,7 +17,7 @@ void kernel0(const F &f) __attribute__((sycl_kernel)) {
 }
 
 // expected-note@+1{{conflicting attribute is here}}
-[[intel::reqd_sub_group_size(2)]] void g0() {}
+[[INTEL::reqd_sub_group_size(2)]] void g0() {}
 
 void test0() {
   // expected-error@+2{{conflicting attributes applied to a SYCL kernel}}

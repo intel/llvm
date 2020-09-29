@@ -95,6 +95,38 @@ static Attr *handleIntelFPGALoopAttr(Sema &S, const ParsedAttr &A) {
     }
   }
 
+  if (A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGAII &&
+      A.getAttributeSpellingListIndex() ==
+      SYCLIntelFPGAIIAttr::CXX11_intelfpga_ii) {
+    S.Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated) << A;
+    S.Diag(A.getLoc(), diag::note_spelling_suggestion)
+        << "'INTEL::ii'";
+  } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency &&
+             A.getAttributeSpellingListIndex() ==
+             SYCLIntelFPGAMaxConcurrencyAttr::CXX11_intelfpga_max_concurrency) {
+    S.Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated) << A;
+    S.Diag(A.getLoc(), diag::note_spelling_suggestion)
+        << "'INTEL::max_concurrency'";
+  } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAMaxInterleaving &&
+             A.getAttributeSpellingListIndex() ==
+             SYCLIntelFPGAMaxInterleavingAttr::CXX11_intelfpga_max_interleaving) {
+    S.Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated) << A;
+    S.Diag(A.getLoc(), diag::note_spelling_suggestion)
+        << "'INTEL::max_interleaving'";
+  } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGASpeculatedIterations &&
+             A.getAttributeSpellingListIndex() ==
+             SYCLIntelFPGASpeculatedIterationsAttr::CXX11_intelfpga_speculated_iterations) {
+    S.Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated) << A;
+    S.Diag(A.getLoc(), diag::note_spelling_suggestion)
+        << "'INTEL::speculated_iterations'";
+  } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGALoopCoalesce &&
+             A.getAttributeSpellingListIndex() ==
+             SYCLIntelFPGALoopCoalesceAttr::CXX11_intelfpga_loop_coalesce) {
+    S.Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated) << A;
+    S.Diag(A.getLoc(), diag::note_spelling_suggestion)
+        << "'INTEL::loop_coalesce'";
+  }
+
   return S.BuildSYCLIntelFPGALoopAttr<FPGALoopAttrT>(
       A, A.getNumArgs() ? A.getArgAsExpr(0) : nullptr);
 }
@@ -109,6 +141,13 @@ Attr *handleIntelFPGALoopAttr<SYCLIntelFPGADisableLoopPipeliningAttr>(
   if (NumArgs > 0) {
     S.Diag(A.getLoc(), diag::warn_attribute_too_many_arguments) << A << 0;
     return nullptr;
+  }
+
+  if (A.getAttributeSpellingListIndex() ==
+      SYCLIntelFPGADisableLoopPipeliningAttr::CXX11_intelfpga_disable_loop_pipelining) {
+    S.Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated) << A;
+    S.Diag(A.getLoc(), diag::note_spelling_suggestion)
+        << "'INTEL::disable_loop_pipelining'";
   }
 
   return new (S.Context) SYCLIntelFPGADisableLoopPipeliningAttr(S.Context, A);
@@ -272,6 +311,12 @@ static Attr *handleIntelFPGAIVDepAttr(Sema &S, const ParsedAttr &A) {
     return nullptr;
   }
 
+  if (A.getAttributeSpellingListIndex() ==
+      SYCLIntelFPGAIVDepAttr::CXX11_intelfpga_ivdep) {
+    S.Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated) << A;
+    S.Diag(A.getLoc(), diag::note_spelling_suggestion)
+        << "'INTEL::ivdep'";
+  }
   return S.BuildSYCLIntelFPGAIVDepAttr(
       A, NumArgs >= 1 ? A.getArgAsExpr(0) : nullptr,
       NumArgs == 2 ? A.getArgAsExpr(1) : nullptr);

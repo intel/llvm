@@ -8,7 +8,7 @@ void ivdep_no_param() {
   int a[10];
   // CHECK: %[[ARRAY_B:[0-9a-z]+]] = alloca [10 x i32]
   int b[10];
-  [[intelfpga::ivdep]]
+  [[INTEL::ivdep]]
   for (int i = 0; i != 10; ++i) {
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_NO_PARAM:[0-9]+]]
     a[i] = 0;
@@ -29,7 +29,7 @@ void ivdep_no_param_multiple_geps() {
   int b[10];
   // CHECK: %[[TMP:[0-9a-z]+]] = alloca i32
   int t;
-  [[intelfpga::ivdep]]
+  [[INTEL::ivdep]]
   for (int i = 0; i != 10; ++i) {
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_MUL_GEPS:[0-9]+]]
     t = a[i];
@@ -50,7 +50,7 @@ void ivdep_safelen() {
   int a[10];
   // CHECK: %[[ARRAY_B:[0-9a-z]+]] = alloca [10 x i32]
   int b[10];
-  [[intelfpga::ivdep(5)]]
+  [[INTEL::ivdep(5)]]
   for (int i = 0; i != 10; ++i) {
     // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_SAFELEN:[0-9]+]]
     a[i] = 0;
@@ -68,8 +68,8 @@ void ivdep_conflicting_safelen() {
   int a[10];
   // CHECK: %[[ARRAY_B:[0-9a-z]+]] = alloca [10 x i32]
   int b[10];
-  [[intelfpga::ivdep(5)]]
-  [[intelfpga::ivdep(4)]]
+  [[INTEL::ivdep(5)]]
+  [[INTEL::ivdep(4)]]
   for (int i = 0; i != 10; ++i) {
     // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_CONFL_SAFELEN:[0-9]+]]
     a[i] = 0;

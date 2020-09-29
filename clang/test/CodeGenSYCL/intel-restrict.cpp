@@ -10,7 +10,7 @@ int main() {
   int *b;
   int *c;
   kernel<class kernel_restrict>(
-      [ a, b, c ]() [[intel::kernel_args_restrict]] { c[0] = a[0] + b[0]; });
+      [ a, b, c ]() [[INTEL::kernel_args_restrict]] { c[0] = a[0] + b[0]; });
   // CHECK: define spir_kernel {{.*}}kernel_restrict(i32 addrspace(1)* noalias %{{.*}}, i32 addrspace(1)* noalias %{{.*}}, i32 addrspace(1)* noalias %{{.*}})
 
   int *d;
@@ -23,6 +23,6 @@ int main() {
 
   int g = 42;
   kernel<class kernel_restrict_other_types>(
-      [ a, b, c, g ]() [[intel::kernel_args_restrict]] { c[0] = a[0] + b[0] + g; });
+      [ a, b, c, g ]() [[INTEL::kernel_args_restrict]] { c[0] = a[0] + b[0] + g; });
   // CHECK: define spir_kernel {{.*}}kernel_restrict_other_types(i32 addrspace(1)* noalias %{{.*}}, i32 addrspace(1)* noalias %{{.*}}, i32 addrspace(1)* noalias %{{.*}}, i32 %{{.*}})
 }
