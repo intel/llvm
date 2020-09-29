@@ -1045,13 +1045,16 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
   if (EnableLoopInterchange)
     PM.add(createLoopInterchangePass());
 
-  // Unroll small loops
-  PM.add(createSimpleLoopUnrollPass(OptLevel, DisableUnrollLoops,
-                                    ForgetAllSCEVInLoopUnroll));
-  PM.add(createLoopVectorizePass(true, !LoopVectorize));
-  // The vectorizer may have significantly shortened a loop body; unroll again.
-  PM.add(createLoopUnrollPass(OptLevel, DisableUnrollLoops,
-                              ForgetAllSCEVInLoopUnroll));
+  if (!SYCLOptimizationMode) {
+    // Unroll small loops
+    PM.add(createSimpleLoopUnrollPass(OptLevel, DisableUnrollLoops,
+                                      ForgetAllSCEVInLoopUnroll));
+    PM.add(createLoopVectorizePass(true, !LoopVectorize));
+    // The vectorizer may have significantly shortened a loop body; unroll
+    // again.
+    PM.add(createLoopUnrollPass(OptLevel, DisableUnrollLoops,
+                                ForgetAllSCEVInLoopUnroll));
+  }
 
   PM.add(createWarnMissedTransformationsPass());
 
