@@ -439,10 +439,10 @@ _pi_device::getAvailableCommandList(pi_queue Queue,
   // Initally, we need to check if a command list has already been created
   // on this device that is available for use. If so, then reuse that
   // Level-Zero Command List and Fence for this PI call.
+  Queue->ZeCommandListFenceMapMutex.lock();
+  Queue->Device->ZeCommandListCacheMutex.lock();
   if (Queue->Device->ZeCommandListCache.size() > 0) {
-    Queue->Device->ZeCommandListCacheMutex.lock();
     *ZeCommandList = Queue->Device->ZeCommandListCache.front();
-    Queue->ZeCommandListFenceMapMutex.lock();
     *ZeFence = Queue->ZeCommandListFenceMap[*ZeCommandList];
     if (*ZeFence == nullptr) {
       // If there is a command list available on this device, but no fence yet
@@ -452,11 +452,13 @@ _pi_device::getAvailableCommandList(pi_queue Queue,
       ZE_CALL(zeFenceCreate(Queue->ZeCommandQueue, &ZeFenceDesc, ZeFence));
       Queue->ZeCommandListFenceMap[*ZeCommandList] = *ZeFence;
     }
-    Queue->ZeCommandListFenceMapMutex.unlock();
     Queue->Device->ZeCommandListCache.pop_front();
     Queue->Device->ZeCommandListCacheMutex.unlock();
+    Queue->ZeCommandListFenceMapMutex.unlock();
     return PI_SUCCESS;
   }
+  Queue->Device->ZeCommandListCacheMutex.unlock();
+  Queue->ZeCommandListFenceMapMutex.unlock();
 
   // If there are no available command lists in the cache, then we check for
   // command lists that have already signalled, but have not been added to the
@@ -3062,12 +3064,12 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
 
     // NOTE: we are destroying associated command lists here to free
     // resources sooner in case RT is not calling piEventRelease soon enough.
-    if (EventList[I]->ZeCommandList) {
-      // Event has been signaled: If the fence for the associated command list
-      // is signalled, then reset the fence and command list and add them to the
-      // available list for reuse in PI calls.
-      if (EventList[I]->Queue->RefCount > 0) {
-        EventList[I]->Queue->ZeCommandListFenceMapMutex.lock();
+    // Event has been signaled: If the fence for the associated command list
+    // is signalled, then reset the fence and command list and add them to the
+    // available list for reuse in PI calls.
+    if (EventList[I]->Queue->RefCount > 0) {
+      EventList[I]->Queue->ZeCommandListFenceMapMutex.lock();
+      if (EventList[I]->ZeCommandList) {
         ze_result_t ZeResult = ZE_CALL_NOCHECK(zeFenceQueryStatus(
             EventList[I]
                 ->Queue->ZeCommandListFenceMap[EventList[I]->ZeCommandList]));
@@ -3076,8 +3078,8 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
               EventList[I]->ZeCommandList, true);
           EventList[I]->ZeCommandList = nullptr;
         }
-        EventList[I]->Queue->ZeCommandListFenceMapMutex.unlock();
       }
+      EventList[I]->Queue->ZeCommandListFenceMapMutex.unlock();
     }
   }
   return PI_SUCCESS;
