@@ -77,7 +77,7 @@ constexpr unsigned int ElemsPerAddrDecoding(unsigned int ElemsPerAddrEncoded) {
   return (1 << ElemsPerAddrEncoded);
 }
 
-namespace details {
+namespace detail {
 
 /// type traits
 template <typename T> struct is_esimd_vector {
@@ -236,7 +236,7 @@ template <> struct word_type<int> { using type = short; };
 template <> struct word_type<uchar> { using type = ushort; };
 template <> struct word_type<uint> { using type = ushort; };
 
-} // namespace details
+} // namespace detail
 } // namespace gpu
 } // namespace INTEL
 } // namespace sycl
