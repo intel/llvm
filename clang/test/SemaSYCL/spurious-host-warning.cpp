@@ -45,7 +45,7 @@ void foo()
 #ifndef SYCLHOST
 // expected-warning@+2 {{'merge' attribute ignored}}
 #endif
-  [[INTEL::merge("mrg1", "depth")]]  unsigned int v_eight[64];
+  [[INTEL::merge("mrg1", "depth")]] unsigned int v_eight[64];
 
 #ifndef SYCLHOST
 // expected-warning@+2 {{'max_replicates' attribute ignored}}

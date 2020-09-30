@@ -42,8 +42,7 @@ void foo_deprecated() {
 
   // expected-warning@+2 {{attribute 'max_concurrency' is deprecated}}
   // expected-note@+1 {{did you mean to use 'INTEL::max_concurrency' instead?}}
-  [[intelfpga::max_concurrency(4)]]
-  for (int i = 0; i != 10; ++i)
+  [[intelfpga::max_concurrency(4)]] for (int i = 0; i != 10; ++i)
     a[i] = 0;
 
   // expected-warning@+2 {{attribute 'max_interleaving' is deprecated}}
@@ -72,19 +71,19 @@ void boo() {
   int a[10];
   int b[10];
   // expected-error@+1 {{duplicate argument to 'ivdep'. attribute requires one or both of a safelen and array}}
-  [[INTEL::ivdep(2,2)]] for (int i = 0; i != 10; ++i)
+  [[INTEL::ivdep(2, 2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
   // expected-warning@+1 {{'ii' attribute takes at least 1 argument - attribute ignored}}
   [[INTEL::ii]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
   // expected-warning@+1 {{'ii' attribute takes no more than 1 argument - attribute ignored}}
-  [[INTEL::ii(2,2)]] for (int i = 0; i != 10; ++i)
+  [[INTEL::ii(2, 2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
   // expected-warning@+1 {{'max_concurrency' attribute takes at least 1 argument - attribute ignored}}
   [[INTEL::max_concurrency]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
   // expected-warning@+1 {{'max_concurrency' attribute takes no more than 1 argument - attribute ignored}}
-  [[INTEL::max_concurrency(2,2)]] for (int i = 0; i != 10; ++i)
+  [[INTEL::max_concurrency(2, 2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
   // expected-error@+1 {{duplicate argument to 'ivdep'. attribute requires one or both of a safelen and array}}
@@ -350,7 +349,7 @@ void ivdep_dependent() {
   // expected-warning@+3 2{{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen INF >= safelen INF}}
   // expected-note@+1 2{{previous attribute is here}}
   [[INTEL::ivdep]]
-  [[INTEL::ivdep]] while(true);
+  [[INTEL::ivdep]] while (true);
   };
 }
 

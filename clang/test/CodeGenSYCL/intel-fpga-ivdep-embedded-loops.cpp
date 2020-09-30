@@ -125,7 +125,7 @@ void ivdep_embedded_multiple_dimensions() {
       a[j] += j;
       [[INTEL::ivdep]] for (int k = 0; k != 10; ++k) {
         // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_DIM_3_MUL_DIMS:[0-9]+]]
-	a[k] += k;
++        a[k] += k;
         // CHECK: br label %for.cond{{[0-9]*}}, !llvm.loop ![[MD_LOOP_DIM_3_MUL_DIMS:[0-9]+]]
       }
       // CHECK: br label %for.cond{{[0-9]*}}, !llvm.loop ![[MD_LOOP_DIM_2_MUL_DIMS:[0-9]+]]

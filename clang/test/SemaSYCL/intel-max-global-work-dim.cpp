@@ -51,7 +51,7 @@ struct TRIFuncObjGood2 {
 struct TRIFuncObjBad {
   [[INTEL::max_global_work_dim(0)]]
   [[INTEL::max_work_group_size(8, 8, 8)]] // expected-error{{'max_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
-  [[cl::reqd_work_group_size(4, 4, 4)]] // expected-error{{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
+  [[cl::reqd_work_group_size(4, 4, 4)]]   // expected-error{{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
   void
   operator()() const {}
 };
@@ -96,7 +96,7 @@ int main() {
   [[INTEL::max_global_work_dim(1)]] int Var = 0; // expected-error{{'max_global_work_dim' attribute only applies to functions}}
 
   kernel<class test_kernel6>(
-      []() [[INTEL::max_global_work_dim(-8)]] {}); // expected-error{{'max_global_work_dim' attribute requires a non-negative integral compile time constant expression}}
+      []() [[INTEL::max_global_work_dim(-8)]]{}); // expected-error{{'max_global_work_dim' attribute requires a non-negative integral compile time constant expression}}
 
   kernel<class test_kernel7>(
       []() [[INTEL::max_global_work_dim(3),

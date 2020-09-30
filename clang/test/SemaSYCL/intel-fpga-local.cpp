@@ -56,12 +56,12 @@ void check_ast()
   //CHECK: VarDecl{{.*}}merge_depth
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAMergeAttr{{.*}}"mrg1" "depth"{{$}}
-  [[INTEL::merge("mrg1","depth")]] unsigned int merge_depth[64];
+  [[INTEL::merge("mrg1", "depth")]] unsigned int merge_depth[64];
 
   //CHECK: VarDecl{{.*}}merge_width
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAMergeAttr{{.*}}"mrg2" "width"{{$}}
-  [[INTEL::merge("mrg2","width")]] unsigned int merge_width[64];
+  [[INTEL::merge("mrg2", "width")]] unsigned int merge_width[64];
 
   //CHECK: VarDecl{{.*}}bankbits
   //CHECK: IntelFPGANumBanksAttr{{.*}}Implicit{{$}}
@@ -80,7 +80,7 @@ void check_ast()
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}5
   //CHECK-NEXT: IntegerLiteral{{.*}}5{{$}}
-  [[INTEL::bank_bits(2,3,4,5)]] unsigned int bankbits[64];
+  [[INTEL::bank_bits(2, 3, 4, 5)]] unsigned int bankbits[64];
 
   //CHECK: VarDecl{{.*}}bank_bits_width
   //CHECK-NEXT: IntelFPGANumBanksAttr{{.*}}Implicit{{$}}
@@ -97,7 +97,7 @@ void check_ast()
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}16
   //CHECK-NEXT: IntegerLiteral{{.*}}16{{$}}
-  [[INTEL::bank_bits(2,3), INTEL::bankwidth(16)]]  unsigned int bank_bits_width[64];
+  [[INTEL::bank_bits(2, 3), INTEL::bankwidth(16)]]  unsigned int bank_bits_width[64];
 
   //CHECK: VarDecl{{.*}}doublepump_mlab
   //CHECK: IntelFPGADoublePumpAttr
@@ -363,11 +363,10 @@ void diagnostics()
   unsigned int bw_non_const[64];
 
   //expected-error@+1{{'bankwidth' attribute takes one argument}}
-  [[INTEL::bankwidth(4,8)]] unsigned int bw_two_args[64];
+  [[INTEL::bankwidth(4, 8)]] unsigned int bw_two_args[64];
 
   //expected-error@+1{{requires integer constant between 1 and 1048576}}
   [[INTEL::bankwidth(0)]] unsigned int bw_zero[64];
-
 
   // private_copies_
   //expected-error@+2{{attributes are not compatible}}
@@ -399,7 +398,7 @@ void diagnostics()
   unsigned int pc_nonconst[64];
 
   //expected-error@+1{{'private_copies' attribute takes one argument}}
-  [[INTEL::private_copies(4,8)]] unsigned int pc_two_arg[64];
+  [[INTEL::private_copies(4, 8)]] unsigned int pc_two_arg[64];
 
   // numbanks
   //expected-error@+2{{attributes are not compatible}}
@@ -419,7 +418,7 @@ void diagnostics()
   //CHECK-NEXT: IntegerLiteral{{.*}}16{{$}}
   //expected-warning@+2{{attribute 'numbanks' is already applied}}
   [[INTEL::numbanks(8)]]
-  [[INTEL::numbanks(16)]]  unsigned int nb_nb[64];
+  [[INTEL::numbanks(16)]] unsigned int nb_nb[64];
 
   //expected-error@+1{{must be a constant power of two greater than zero}}
   [[INTEL::numbanks(15)]] unsigned int nb_invalid_arg[64];
@@ -434,7 +433,7 @@ void diagnostics()
   unsigned int nb_nonconst[64];
 
   //expected-error@+1{{'numbanks' attribute takes one argument}}
-  [[INTEL::numbanks(4,8)]] unsigned int nb_two_args[64];
+  [[INTEL::numbanks(4, 8)]] unsigned int nb_two_args[64];
 
   //expected-error@+1{{requires integer constant between 1 and 1048576}}
   [[INTEL::numbanks(0)]] unsigned int nb_zero[64];
@@ -447,7 +446,7 @@ void diagnostics()
   unsigned int mrg_reg[4];
 
   //expected-error@+1{{attribute requires a string}}
-  [[INTEL::merge(3,9.0f)]] unsigned int mrg_float[4];
+  [[INTEL::merge(3, 9.0f)]] unsigned int mrg_float[4];
 
   //expected-error@+1{{attribute requires exactly 2 arguments}}
   [[INTEL::merge("mrg2")]] unsigned int mrg_one_arg[4];
@@ -464,7 +463,7 @@ void diagnostics()
   //CHECK: IntelFPGAMergeAttr{{.*}}"mrg5" "width"{{$}}
   //expected-warning@+2{{attribute 'merge' is already applied}}
   [[INTEL::merge("mrg4", "depth")]]
-  [[INTEL::merge("mrg5", "width")]]  unsigned int mrg_mrg[4];
+  [[INTEL::merge("mrg5", "width")]] unsigned int mrg_mrg[4];
 
   // bank_bits
   //expected-error@+2 1{{'fpga_register' and 'bank_bits' attributes are not compatible}}
@@ -490,14 +489,13 @@ void diagnostics()
   //CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
   //expected-warning@+2{{attribute 'bank_bits' is already applied}}
   [[INTEL::bank_bits(42, 43)]]
-  [[INTEL::bank_bits(1, 2)]]
-  unsigned int bb_bb[4];
+  [[INTEL::bank_bits(1, 2)]] unsigned int bb_bb[4];
 
   //expected-error@+1{{the number of bank_bits must be equal to ceil(log2(numbanks))}}
   [[INTEL::numbanks(8), INTEL::bank_bits(3, 4)]] unsigned int bb_numbanks[4];
 
   //expected-error@+1{{bank_bits must be consecutive}}
-  [[INTEL::bank_bits(3, 3, 4), INTEL::bankwidth(4)]]  unsigned int bb_noncons[4];
+  [[INTEL::bank_bits(3, 3, 4), INTEL::bankwidth(4)]] unsigned int bb_noncons[4];
 
   //expected-error@+1{{bank_bits must be consecutive}}
   [[INTEL::bank_bits(1, 3, 4), INTEL::bankwidth(4)]] unsigned int bb_noncons1[4];
@@ -575,12 +573,12 @@ void check_gnu_style() {
 
 //expected-error@+1{{attribute only applies to local non-const variables and non-static data members}}
 [[INTEL::private_copies(8)]]
-__attribute__((opencl_constant)) unsigned int const_var[64] = {1, 2, 3 };
+__attribute__((opencl_constant)) unsigned int const_var[64] = {1, 2, 3};
 
 void attr_on_const_error()
 {
   //expected-error@+1{{attribute only applies to local non-const variables and non-static data members}}
-  [[INTEL::private_copies(8)]] const int const_var[64] = {0, 1 };
+  [[INTEL::private_copies(8)]] const int const_var[64] = {0, 1};
 }
 
 //expected-error@+1{{attribute only applies to local non-const variables and non-static data members}}
@@ -669,7 +667,7 @@ struct foo {
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}3
   //CHECK-NEXT: IntegerLiteral{{.*}}3{{$}}
-  [[INTEL::bank_bits(2,3)]] unsigned int bankbits[64];
+  [[INTEL::bank_bits(2, 3)]] unsigned int bankbits[64];
 
   //CHECK: FieldDecl{{.*}}force_p2d_field
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
@@ -730,7 +728,7 @@ void check_template_parameters() {
   //CHECK-NEXT: value:{{.*}}2
   //CHECK-NEXT: SubstNonTypeTemplateParmExpr
   //CHECK: IntegerLiteral{{.*}}2{{$}}
-  [[INTEL::max_replicates(A)]]  unsigned int max_replicates;
+  [[INTEL::max_replicates(A)]] unsigned int max_replicates;
 
   [[INTEL::force_pow2_depth(E)]] const int const_force_p2d_templ[64] = {0, 1};
 

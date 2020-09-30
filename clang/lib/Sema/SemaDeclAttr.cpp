@@ -5251,7 +5251,7 @@ static void handleIntelFPGAPumpAttr(Sema &S, Decl *D, const ParsedAttr &Attr) {
     S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)
         << "'INTEL::doublepump'";
   } else if (Attr.getKind() == ParsedAttr::AT_IntelFPGASinglePump &&
-	     Attr.getAttributeSpellingListIndex() ==
+             Attr.getAttributeSpellingListIndex() ==
                  IntelFPGASinglePumpAttr::CXX11_intelfpga_singlepump) {
     S.Diag(Attr.getLoc(), diag::warn_attribute_spelling_deprecated) << Attr;
     S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)

@@ -28,7 +28,7 @@ void ivdep_no_param_multiple_geps() {
   int b[10];
   // CHECK: %[[TMP:[0-9a-z]+]] = alloca i32
   int t;
-  [[INTEL::ivdep]]  for (int i = 0; i != 10; ++i) {
+  [[INTEL::ivdep]] for (int i = 0; i != 10; ++i) {
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_MUL_GEPS:[0-9]+]]
     t = a[i];
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_B]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_MUL_GEPS:[0-9]+]]
