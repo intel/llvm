@@ -560,11 +560,9 @@ static pi_result copyModule(ze_context_handle_t ZeContext,
 
 static bool setEnvVar(const char *var, const char *value);
 
-static pi_result getOrCreatePlatform(ze_driver_handle_t ZeDriver,
-                                     pi_platform *Platform);
+static pi_result getPlatformCache(std::vector<pi_platform> **PlatformCache);
 
-static pi_result getOrCreateDevice(pi_platform Platform, pi_uint32 NumEntries,
-                                   pi_device *Devices);
+static pi_result populateDeviceCacheIfNeeded(pi_platform Platform);
 
 // Forward declarations for mock implementations of Level Zero APIs that
 // do not yet work in the driver.
@@ -652,37 +650,34 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     return mapError(ZeResult);
   }
 
+  std::vector<pi_platform> *PlatformCache;
+  pi_result Res = getPlatformCache(&PlatformCache);
+  if (Res != PI_SUCCESS) {
+    return Res;
+  }
+
   // Level Zero does not have concept of Platforms, but Level Zero driver is the
   // closest match.
   if (Platforms && NumEntries > 0) {
-    uint32_t ZeDriverCount = 0;
-    ZE_CALL(zeDriverGet(&ZeDriverCount, nullptr));
-    if (ZeDriverCount == 0) {
-      assert(NumPlatforms != 0);
-      *NumPlatforms = 0;
-      return PI_SUCCESS;
-    }
-    ze_driver_handle_t ZeDriver;
-    assert(ZeDriverCount == 1);
-    ZE_CALL(zeDriverGet(&ZeDriverCount, &ZeDriver));
-
-    pi_result Res = getOrCreatePlatform(ZeDriver, Platforms);
-    if (Res != PI_SUCCESS) {
-      return Res;
+    uint32_t I = 0;
+    for (const pi_platform &CachedPlatform : *PlatformCache) {
+      if (I < NumEntries) {
+        *Platforms++ = CachedPlatform;
+        return PI_SUCCESS;
+      } else {
+        break;
+      }
     }
   }
 
   if (NumPlatforms)
-    *NumPlatforms = 1;
+    *NumPlatforms = PlatformCache->size();
 
   return PI_SUCCESS;
 }
 
-// Retrieve a cached Platform that has a matching driver handle or use the
-// driver handle to create and initialize a new Platform.
-static pi_result getOrCreatePlatform(ze_driver_handle_t ZeDriver,
-                                     pi_platform *Platform) {
-
+// Get the cached platforms, return them using the "PlatformCache" out parameter
+static pi_result getPlatformCache(std::vector<pi_platform> **PlatformCache) {
   // We will retrieve the Max CommandList Cache in this lamda function so that
   // it only has to be executed once
   static pi_uint32 CommandListCacheSizeValue = ([] {
@@ -715,15 +710,20 @@ static pi_result getOrCreatePlatform(ze_driver_handle_t ZeDriver,
     static auto PiPlatformsCacheMutex = new std::mutex;
 
     std::lock_guard<std::mutex> Lock(*PiPlatformsCacheMutex);
-    for (const pi_platform &CachedPlatform : *PiPlatformsCache) {
-      if (CachedPlatform->ZeDriver == ZeDriver) {
-        Platform[0] = CachedPlatform;
-        return PI_SUCCESS;
-      }
+    if (!PiPlatformsCache->empty()) {
+      *PlatformCache = PiPlatformsCache;
+      return PI_SUCCESS;
     }
 
-    // TODO: figure out how/when to release this memory
-    *Platform = new _pi_platform(ZeDriver);
+    uint32_t ZeDriverCount = 0;
+    ZE_CALL(zeDriverGet(&ZeDriverCount, nullptr));
+    if (ZeDriverCount == 0) {
+      return PI_SUCCESS;
+    }
+    ze_driver_handle_t ZeDriver;
+    assert(ZeDriverCount == 1);
+    ZE_CALL(zeDriverGet(&ZeDriverCount, &ZeDriver));
+    pi_platform Platform = new _pi_platform(ZeDriver);
 
     // Cache driver properties
     ze_driver_properties_t ZeDriverProperties;
@@ -735,24 +735,25 @@ static pi_result getOrCreatePlatform(ze_driver_handle_t ZeDriver,
     auto VersionMajor = std::to_string((ZeDriverVersion & 0xFF000000) >> 24);
     auto VersionMinor = std::to_string((ZeDriverVersion & 0x00FF0000) >> 16);
     auto VersionBuild = std::to_string(ZeDriverVersion & 0x0000FFFF);
-    Platform[0]->ZeDriverVersion =
+    Platform->ZeDriverVersion =
         VersionMajor + "." + VersionMinor + "." + VersionBuild;
 
     ze_api_version_t ZeApiVersion;
     ZE_CALL(zeDriverGetApiVersion(ZeDriver, &ZeApiVersion));
-    Platform[0]->ZeDriverApiVersion =
+    Platform->ZeDriverApiVersion =
         std::to_string(ZE_MAJOR_VERSION(ZeApiVersion)) + "." +
         std::to_string(ZE_MINOR_VERSION(ZeApiVersion));
 
-    Platform[0]->ZeMaxCommandListCache = CommandListCacheSizeValue;
-    // save a copy in the cache for future uses.
-    PiPlatformsCache->push_back(Platform[0]);
+    Platform->ZeMaxCommandListCache = CommandListCacheSizeValue;
+    // Save a copy in the cache for future uses.
+    PiPlatformsCache->push_back(Platform);
+    // Copy the into cache to the out parameter.
+    *PlatformCache = PiPlatformsCache;
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
-
   return PI_SUCCESS;
 }
 
@@ -821,10 +822,23 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
   assert(NativeHandle);
   assert(Platform);
 
-  // Create PI platform from the given Level Zero driver handle or retrieve it
-  // from the cache.
+  // Scan the cache for the requested platform handle. If it is not present in
+  // the cache an error will be returned for an invalid value for the
+  // NativeHandle.
   auto ZeDriver = pi_cast<ze_driver_handle_t>(NativeHandle);
-  return getOrCreatePlatform(ZeDriver, Platform);
+  std::vector<pi_platform> *PlatformCache;
+  pi_result Res = getPlatformCache(&PlatformCache);
+  if (Res != PI_SUCCESS) {
+    return Res;
+  }
+
+  for (const pi_platform &CachedPlatform : *PlatformCache) {
+    if (CachedPlatform->ZeDriver == ZeDriver) {
+      *Platform = CachedPlatform;
+      return PI_SUCCESS;
+    }
+  }
+  return PI_INVALID_VALUE;
 }
 
 // Get the cahched PI device created for the L0 device handle.
@@ -845,19 +859,19 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
                        pi_uint32 *NumDevices) {
 
   assert(Platform);
-  ze_driver_handle_t ZeDriver = Platform->ZeDriver;
 
   // Get number of devices supporting Level Zero
   uint32_t ZeDeviceCount = 0;
   std::lock_guard<std::mutex> Lock(Platform->PiDevicesCacheMutex);
-  ZeDeviceCount = Platform->PiDevicesCache.size();
 
+  pi_result Res = populateDeviceCacheIfNeeded(Platform);
+  if (Res != PI_SUCCESS) {
+    return Res;
+  }
+
+  ZeDeviceCount = Platform->PiDevicesCache.size();
   const bool AskingForGPU = (DeviceType & PI_DEVICE_TYPE_GPU);
   const bool AskingForDefault = (DeviceType == PI_DEVICE_TYPE_DEFAULT);
-
-  if (ZeDeviceCount == 0) {
-    ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, nullptr));
-  }
 
   if (ZeDeviceCount == 0 || !(AskingForGPU || AskingForDefault)) {
     if (NumDevices)
@@ -873,11 +887,24 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
            "Devices should be nullptr when querying the number of devices");
     return PI_SUCCESS;
   }
-  return getOrCreateDevice(Platform, NumEntries, Devices);
+
+  // Return the devices from the cache.
+  uint32_t I = 0;
+  for (const pi_device CachedDevice : Platform->PiDevicesCache) {
+    if (I < NumEntries) {
+      *Devices++ = CachedDevice;
+      I++;
+    } else {
+      break;
+    }
+  }
+
+  return PI_SUCCESS;
 }
 
-static pi_result getOrCreateDevice(pi_platform Platform, pi_uint32 NumEntries,
-                                   pi_device *Devices) {
+// Check the device cache and load it if necessary. The PiDevicesCacheMutex must
+// be locked before calling this function to prevent any synchronization issues.
+static pi_result populateDeviceCacheIfNeeded(pi_platform Platform) {
 
   ze_driver_handle_t ZeDriver = Platform->ZeDriver;
   uint32_t ZeDeviceCount = Platform->PiDevicesCache.size();
@@ -885,10 +912,6 @@ static pi_result getOrCreateDevice(pi_platform Platform, pi_uint32 NumEntries,
     ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, nullptr));
   }
 
-  // if devices are already captured in cache, return them from the cache.
-  for (const pi_device CachedDevice : Platform->PiDevicesCache) {
-    *Devices++ = CachedDevice;
-  }
   if (!Platform->PiDevicesCache.empty()) {
     return PI_SUCCESS;
   }
@@ -896,17 +919,16 @@ static pi_result getOrCreateDevice(pi_platform Platform, pi_uint32 NumEntries,
   try {
     std::vector<ze_device_handle_t> ZeDevices(ZeDeviceCount);
     ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, ZeDevices.data()));
+    pi_device Device;
 
     for (uint32_t I = 0; I < ZeDeviceCount; ++I) {
-      if (I < NumEntries) {
-        Devices[I] = new _pi_device(ZeDevices[I], Platform);
-        pi_result Result = Devices[I]->initialize();
-        if (Result != PI_SUCCESS) {
-          return Result;
-        }
-        // save a copy in the cache for future uses.
-        Platform->PiDevicesCache.push_back(Devices[I]);
+      Device = new _pi_device(ZeDevices[I], Platform);
+      pi_result Result = Device->initialize();
+      if (Result != PI_SUCCESS) {
+        return Result;
       }
+      // save a copy in the cache for future uses.
+      Platform->PiDevicesCache.push_back(Device);
     }
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
@@ -1487,13 +1509,8 @@ pi_result piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
   assert(Device);
   assert(Platform);
 
-  // Create PI device from the given Level Zero device handle or retrieve it
-  // from the cache.
-
-  // This object mirrors the cache captured in Platform->PiDevicesCache
-  pi_device DeviceCache;
-
-  getOrCreateDevice(Platform, 1, &DeviceCache);
+  std::lock_guard<std::mutex> Lock(Platform->PiDevicesCacheMutex);
+  populateDeviceCacheIfNeeded(Platform);
 
   // Scan the cache for the requested device handle. If it is not present in the
   // cache an error will be returned for an invalid value for the NativeHandle.
