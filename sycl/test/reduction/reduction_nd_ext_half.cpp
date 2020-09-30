@@ -1,3 +1,7 @@
+// TODO: Enable compilation w/o -fno-sycl-early-optimizations option.
+// See https://github.com/intel/llvm/issues/2264 for more details.
+// XFAIL: gpu && (level_zero || opencl)
+
 // UNSUPPORTED: cuda
 // OpenCL C 2.x alike work-group functions not yet supported by CUDA.
 //
