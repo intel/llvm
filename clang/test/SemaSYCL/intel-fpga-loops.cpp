@@ -43,7 +43,7 @@ void foo_deprecated() {
   // expected-warning@+2 {{attribute 'max_concurrency' is deprecated}}
   // expected-note@+1 {{did you mean to use 'INTEL::max_concurrency' instead?}}
   [[intelfpga::max_concurrency(4)]] for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+      a[i] = 0;
 
   // expected-warning@+2 {{attribute 'max_interleaving' is deprecated}}
   // expected-note@+1 {{did you mean to use 'INTEL::max_interleaving' instead?}}

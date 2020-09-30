@@ -97,7 +97,7 @@ void check_ast()
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}16
   //CHECK-NEXT: IntegerLiteral{{.*}}16{{$}}
-  [[INTEL::bank_bits(2, 3), INTEL::bankwidth(16)]]  unsigned int bank_bits_width[64];
+  [[INTEL::bank_bits(2, 3), INTEL::bankwidth(16)]] unsigned int bank_bits_width[64];
 
   //CHECK: VarDecl{{.*}}doublepump_mlab
   //CHECK: IntelFPGADoublePumpAttr

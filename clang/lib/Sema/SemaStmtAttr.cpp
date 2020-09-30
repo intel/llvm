@@ -103,21 +103,21 @@ static Attr *handleIntelFPGALoopAttr(Sema &S, const ParsedAttr &A) {
   } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency &&
              A.getAttributeSpellingListIndex() ==
                  SYCLIntelFPGAMaxConcurrencyAttr::
-		      CXX11_intelfpga_max_concurrency) {
+                     CXX11_intelfpga_max_concurrency) {
     S.Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated) << A;
     S.Diag(A.getLoc(), diag::note_spelling_suggestion)
         << "'INTEL::max_concurrency'";
   } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAMaxInterleaving &&
              A.getAttributeSpellingListIndex() ==
                  SYCLIntelFPGAMaxInterleavingAttr::
-		      CXX11_intelfpga_max_interleaving) {
+                     CXX11_intelfpga_max_interleaving) {
     S.Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated) << A;
     S.Diag(A.getLoc(), diag::note_spelling_suggestion)
         << "'INTEL::max_interleaving'";
   } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGASpeculatedIterations &&
              A.getAttributeSpellingListIndex() ==
                  SYCLIntelFPGASpeculatedIterationsAttr::
-		      CXX11_intelfpga_speculated_iterations) {
+                     CXX11_intelfpga_speculated_iterations) {
     S.Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated) << A;
     S.Diag(A.getLoc(), diag::note_spelling_suggestion)
         << "'INTEL::speculated_iterations'";
