@@ -11,10 +11,6 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out 3
 // RUN: %ACC_RUN_PLACEHOLDER %t.out 3
 
-// RUNx: %CPU_RUN_PLACEHOLDER %t.out 4
-// RUNx: %GPU_RUN_PLACEHOLDER %t.out 4
-// RUNx: %ACC_RUN_PLACEHOLDER %t.out 4
-
 #include <CL/sycl.hpp>
 #include <chrono>
 #include <iostream>
@@ -103,7 +99,6 @@ void test3() {
 
   std::vector<event> Deps;
 
-  using namespace std::chrono_literals;
   static constexpr size_t Count = 10;
 
   auto Start = std::chrono::steady_clock::now();
@@ -146,72 +141,10 @@ void test3() {
   Q.wait_and_throw();
   auto End = std::chrono::steady_clock::now();
 
+  using namespace std::chrono_literals;
   constexpr auto Threshold = 2s;
 
   assert(End - Start < Threshold && "Host tasks were waiting for too long");
-}
-
-// Host-task depending on another host-task via handler::depends_on() only
-// should not hang
-void test4() {
-  queue Q(EH);
-
-  static constexpr size_t BufferSize = 10 * 1024;
-
-  buffer<int, 1> B0{range<1>{BufferSize}};
-  buffer<int, 1> B1{range<1>{BufferSize}};
-  buffer<int, 1> B2{range<1>{BufferSize}};
-  buffer<int, 1> B3{range<1>{BufferSize}};
-  buffer<int, 1> B4{range<1>{BufferSize}};
-  buffer<int, 1> B5{range<1>{BufferSize}};
-
-  // This host task should be submitted without hesitation
-  event E1 = Q.submit([&](handler &CGH) {
-    std::cout << "Submit 1" << std::endl;
-
-    auto Acc0 = B0.get_access<mode::read_write, target::host_buffer>(CGH);
-    auto Acc1 = B1.get_access<mode::read_write, target::host_buffer>(CGH);
-    auto Acc2 = B2.get_access<mode::read_write, target::host_buffer>(CGH);
-
-    CGH.codeplay_host_task([=] {
-      Acc0[0] = 1;
-      Acc1[0] = 2;
-      Acc2[0] = 3;
-    });
-  });
-
-  // This host task is going to depend on blocked empty node of the first
-  // host-task (via buffer #2). Still this one should be enqueued.
-  event E2 = Q.submit([&](handler &CGH) {
-    std::cout << "Submit 2" << std::endl;
-
-    auto Acc2 = B2.get_access<mode::read_write, target::host_buffer>(CGH);
-    auto Acc3 = B3.get_access<mode::read_write, target::host_buffer>(CGH);
-
-    CGH.codeplay_host_task([=] {
-      Acc2[1] = 1;
-      Acc3[1] = 2;
-    });
-  });
-
-  // This host-task only depends on the second host-task via
-  // handler::depends_on(). This one should not hang and should be enqueued
-  // after host-task #2.
-  event E3 = Q.submit([&](handler &CGH) {
-    CGH.depends_on(E2);
-
-    std::cout << "Submit 3" << std::endl;
-
-    auto Acc4 = B4.get_access<mode::read_write, target::host_buffer>(CGH);
-    auto Acc5 = B5.get_access<mode::read_write, target::host_buffer>(CGH);
-
-    CGH.codeplay_host_task([=] {
-      Acc4[2] = 1;
-      Acc5[2] = 2;
-    });
-  });
-
-  Q.wait_and_throw();
 }
 
 int main(int Argc, const char *Argv[]) {
@@ -229,9 +162,6 @@ int main(int Argc, const char *Argv[]) {
     break;
   case 3:
     test3();
-    break;
-  case 4:
-    test4();
     break;
   default:
     return 1;
