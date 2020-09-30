@@ -644,8 +644,8 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
     Optional<llvm::APSInt> ArgVal =
         A->getValue()->getIntegerConstantExpr(FD->getASTContext());
     assert(ArgVal.hasValue() && "Not an integer constant expression");
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt32(ArgVal->getZExtValue()))};
+    llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
+        Builder.getInt32(ArgVal->getSExtValue()))};
     Fn->setMetadata("scheduler_target_fmax_mhz",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
