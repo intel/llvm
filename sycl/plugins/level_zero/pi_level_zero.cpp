@@ -2956,15 +2956,18 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 
   // Error handling for non-uniform group size case
   if (GlobalWorkSize[0] != (ZeThreadGroupDimensions.groupCountX * WG[0])) {
-    zePrint("piEnqueueKernelLaunch: invalid work_dim. The range is not a multiple of the group size in the 3rd dimension\n");
+    zePrint("piEnqueueKernelLaunch: invalid work_dim. The range is not a "
+            "multiple of the group size in the 3rd dimension\n");
     return PI_INVALID_WORK_GROUP_SIZE;
   }
   if (GlobalWorkSize[1] != (ZeThreadGroupDimensions.groupCountY * WG[1])) {
-    zePrint("piEnqueueKernelLaunch: invalid work_dim. The range is not a multiple of the group size in the 3rd dimension\n");
+    zePrint("piEnqueueKernelLaunch: invalid work_dim. The range is not a "
+            "multiple of the group size in the 3rd dimension\n");
     return PI_INVALID_WORK_GROUP_SIZE;
   }
   if (GlobalWorkSize[2] != (ZeThreadGroupDimensions.groupCountZ * WG[2])) {
-    zePrint("piEnqueueKernelLaunch: invalid work_dim. The range is not a multiple of the group size in the 3rd dimension\n");
+    zePrint("piEnqueueKernelLaunch: invalid work_dim. The range is not a "
+            "multiple of the group size in the 3rd dimension\n");
     return PI_INVALID_WORK_GROUP_SIZE;
   }
 
