@@ -1227,11 +1227,20 @@ def SYCLIntelNumSimdWorkItems : InheritableAttr {
 
 def SYCLIntelSchedulerTargetFmaxMhz : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","scheduler_target_fmax_mhz">];
-  let Args = [ExprArgument<"TargetFmaxMhz">];
+  let Args = [ExprArgument<"Value">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelSchedulerTargetFmaxMhzAttrDocs];
   let PragmaAttributeSupport = 0;
+  let AdditionalMembers = [{
+    static unsigned getMinValue() {
+      return 0;
+    }
+    static unsigned getMaxValue() {
+      return 1048576;
+    }
+  }];
+
 }
 
 def SYCLIntelMaxWorkGroupSize : InheritableAttr {

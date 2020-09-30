@@ -3012,23 +3012,13 @@ void Sema::addSYCLIntelSchedulerTargetFmaxMhzAttr(
   if (!E)
     return;
 
-  if (!E->isInstantiationDependent()) {
-    Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(getASTContext());
-    if (!ArgVal) {
-      Diag(E->getExprLoc(), diag::err_attribute_argument_type)
-          << Attr.getAttrName() << AANT_ArgumentIntegerConstant
-          << E->getSourceRange();
+  SYCLIntelSchedulerTargetFmaxMhzAttr TmpAttr(Context, Attr, E);
+  if (!E->isValueDependent()) {
+    ExprResult ResultExpr;
+    if (checkRangedIntegralArgument<SYCLIntelSchedulerTargetFmaxMhzAttr>(
+            E, &TmpAttr, ResultExpr))
       return;
-    }
-    uint32_t TargetFmaxMhz = ArgVal->getSExtValue();
-    uint32_t UpperLimit = 1048576;
-    if (TargetFmaxMhz > UpperLimit) {
-      // Allow frequency to be a "large enough" positive value, zero included
-      // Let FPGA backend handle unachievable frequency value
-      Diag(E->getExprLoc(), diag::err_attribute_argument_out_of_range)
-          << Attr.getAttrName() << 0 << UpperLimit << E->getSourceRange();
-      return;
-    }
+    E = ResultExpr.get();
   }
 
   D->addAttr(::new (Context)

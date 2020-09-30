@@ -16,12 +16,16 @@ int main() {
 #ifndef TRIGGER_ERROR
   // CHECK-LABEL:  FunctionDecl {{.*}}test_kernel1 'void ()'
   // CHECK:        SYCLIntelSchedulerTargetFmaxMhzAttr {{.*}}
+  // CHECK-NEXT:   ConstantExpr {{.*}} 'int'
+  // CHECK-NEXT:   value: Int 5
   // CHECK-NEXT:   IntegerLiteral {{.*}} 'int' 5
   cl::sycl::kernel_single_task<class test_kernel1>(
       []() [[intelfpga::scheduler_target_fmax_mhz(5)]]{});
 
   // CHECK-LABEL:  FunctionDecl {{.*}}test_kernel2 'void ()'
   // CHECK:        SYCLIntelSchedulerTargetFmaxMhzAttr {{.*}}
+  // CHECK-NEXT:   ConstantExpr {{.*}} 'int'
+  // CHECK-NEXT:   value: Int 2
   // CHECK-NEXT:   IntegerLiteral {{.*}} 'int' 2
   cl::sycl::kernel_single_task<class test_kernel2>(
       []() { func(); });
