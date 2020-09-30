@@ -45,7 +45,7 @@ ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ> esimd_sat(simd<T1, SZ> src) {
 }
 
 // esimd_abs
-namespace details {
+namespace detail {
 
 template <typename T0, typename T1, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ>
@@ -59,8 +59,8 @@ __esimd_abs_common_internal(simd<T1, SZ> src0, int flag = GENX_NOSAT) {
 
 template <typename T0, typename T1>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_esimd_scalar<T0>::value &&
-                                details::is_esimd_scalar<T1>::value,
+    typename std::enable_if<detail::is_esimd_scalar<T0>::value &&
+                                detail::is_esimd_scalar<T1>::value,
                             typename std::remove_const<T0>::type>::type
     __esimd_abs_common_internal(T1 src0, int flag = GENX_NOSAT) {
   typedef typename std::remove_const<T0>::type TT0;
@@ -70,7 +70,7 @@ ESIMD_NODEBUG ESIMD_INLINE
   simd<TT0, 1> Result = __esimd_abs_common_internal<TT0>(Src0, flag);
   return Result[0];
 }
-} // namespace details
+} // namespace detail
 
 template <typename T0, typename T1, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE typename std::enable_if<
@@ -78,32 +78,32 @@ ESIMD_NODEBUG ESIMD_INLINE typename std::enable_if<
                   typename std::remove_const<T1>::type>::value,
     simd<T0, SZ>>::type
 esimd_abs(simd<T1, SZ> src0, int flag = GENX_NOSAT) {
-  return details::__esimd_abs_common_internal<T0, T1, SZ>(src0, flag);
+  return detail::__esimd_abs_common_internal<T0, T1, SZ>(src0, flag);
 }
 
 template <typename T0, typename T1>
 ESIMD_NODEBUG ESIMD_INLINE typename std::enable_if<
     !std::is_same<typename std::remove_const<T0>::type,
                   typename std::remove_const<T1>::type>::value &&
-        details::is_esimd_scalar<T0>::value &&
-        details::is_esimd_scalar<T1>::value,
+        detail::is_esimd_scalar<T0>::value &&
+        detail::is_esimd_scalar<T1>::value,
     typename std::remove_const<T0>::type>::type
 esimd_abs(T1 src0, int flag = GENX_NOSAT) {
-  return details::__esimd_abs_common_internal<T0, T1>(src0, flag);
+  return detail::__esimd_abs_common_internal<T0, T1>(src0, flag);
 }
 
 template <typename T1, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<T1, SZ> esimd_abs(simd<T1, SZ> src0,
                                                   int flag = GENX_NOSAT) {
-  return details::__esimd_abs_common_internal<T1, T1, SZ>(src0, flag);
+  return detail::__esimd_abs_common_internal<T1, T1, SZ>(src0, flag);
 }
 
 template <typename T1>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_esimd_scalar<T1>::value,
+    typename std::enable_if<detail::is_esimd_scalar<T1>::value,
                             typename std::remove_const<T1>::type>::type
     esimd_abs(T1 src0, int flag = GENX_NOSAT) {
-  return details::__esimd_abs_common_internal<T1, T1>(src0, flag);
+  return detail::__esimd_abs_common_internal<T1, T1>(src0, flag);
 }
 
 // esimd_shl
@@ -115,8 +115,8 @@ ESIMD_NODEBUG ESIMD_INLINE
                             simd<T0, SZ>>::type
     esimd_shl(simd<T1, SZ> src0, U src1, int flag = GENX_NOSAT) {
   typedef typename computation_type<decltype(src0), U>::type ComputationTy;
-  typename details::simd_type<ComputationTy>::type Src0 = src0;
-  typename details::simd_type<ComputationTy>::type Src1 = src1;
+  typename detail::simd_type<ComputationTy>::type Src0 = src0;
+  typename detail::simd_type<ComputationTy>::type Src1 = src1;
 
   if (flag != GENX_SAT) {
     if constexpr (std::is_unsigned<T0>::value) {
@@ -147,15 +147,14 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T0, typename T1, typename T2>
 ESIMD_NODEBUG ESIMD_INLINE typename std::enable_if<
-    details::is_esimd_scalar<T0>::value &&
-        details::is_esimd_scalar<T1>::value &&
-        details::is_esimd_scalar<T2>::value && std::is_integral<T0>::value &&
+    detail::is_esimd_scalar<T0>::value && detail::is_esimd_scalar<T1>::value &&
+        detail::is_esimd_scalar<T2>::value && std::is_integral<T0>::value &&
         std::is_integral<T1>::value && std::is_integral<T2>::value,
     typename std::remove_const<T0>::type>::type
 esimd_shl(T1 src0, T2 src1, int flag = GENX_NOSAT) {
   typedef typename computation_type<T1, T2>::type ComputationTy;
-  typename details::simd_type<ComputationTy>::type Src0 = src0;
-  typename details::simd_type<ComputationTy>::type Src1 = src1;
+  typename detail::simd_type<ComputationTy>::type Src0 = src0;
+  typename detail::simd_type<ComputationTy>::type Src1 = src1;
   simd<T0, 1> Result = esimd_shl<T0>(Src0, Src1, flag);
   return Result[0];
 }
@@ -169,9 +168,9 @@ ESIMD_NODEBUG ESIMD_INLINE
                             simd<T0, SZ>>::type
     esimd_shr(simd<T1, SZ> src0, U src1, int flag = GENX_NOSAT) {
   typedef typename computation_type<decltype(src0), U>::type ComputationTy;
-  typename details::simd_type<ComputationTy>::type Src0 = src0;
-  typename details::simd_type<ComputationTy>::type Src1 = src1;
-  typename details::simd_type<ComputationTy>::type Result =
+  typename detail::simd_type<ComputationTy>::type Src0 = src0;
+  typename detail::simd_type<ComputationTy>::type Src1 = src1;
+  typename detail::simd_type<ComputationTy>::type Result =
       Src0.data() >> Src1.data();
 
   if (flag != GENX_SAT)
@@ -182,15 +181,14 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T0, typename T1, typename T2>
 ESIMD_NODEBUG ESIMD_INLINE typename std::enable_if<
-    details::is_esimd_scalar<T0>::value &&
-        details::is_esimd_scalar<T1>::value &&
-        details::is_esimd_scalar<T2>::value && std::is_integral<T0>::value &&
+    detail::is_esimd_scalar<T0>::value && detail::is_esimd_scalar<T1>::value &&
+        detail::is_esimd_scalar<T2>::value && std::is_integral<T0>::value &&
         std::is_integral<T1>::value && std::is_integral<T2>::value,
     typename std::remove_const<T0>::type>::type
 esimd_shr(T1 src0, T2 src1, int flag = GENX_NOSAT) {
   typedef typename computation_type<T1, T2>::type ComputationTy;
-  typename details::simd_type<ComputationTy>::type Src0 = src0;
-  typename details::simd_type<ComputationTy>::type Src1 = src1;
+  typename detail::simd_type<ComputationTy>::type Src0 = src0;
+  typename detail::simd_type<ComputationTy>::type Src1 = src1;
   simd<T0, 1> Result = esimd_shr<T0>(Src0, Src1, flag);
   return Result[0];
 }
@@ -213,22 +211,21 @@ ESIMD_NODEBUG ESIMD_INLINE
                             simd<T0, SZ>>::type
     esimd_rol(simd<T1, SZ> src0, U src1) {
   typedef typename computation_type<decltype(src0), U>::type ComputationTy;
-  typename details::simd_type<ComputationTy>::type Src0 = src0;
-  typename details::simd_type<ComputationTy>::type Src1 = src1;
+  typename detail::simd_type<ComputationTy>::type Src0 = src0;
+  typename detail::simd_type<ComputationTy>::type Src1 = src1;
   return __esimd_rol<T0>(Src0.data(), Src1.data());
 }
 
 template <typename T0, typename T1, typename T2>
 ESIMD_NODEBUG ESIMD_INLINE typename std::enable_if<
-    details::is_esimd_scalar<T0>::value &&
-        details::is_esimd_scalar<T1>::value &&
-        details::is_esimd_scalar<T2>::value && std::is_integral<T0>::value &&
+    detail::is_esimd_scalar<T0>::value && detail::is_esimd_scalar<T1>::value &&
+        detail::is_esimd_scalar<T2>::value && std::is_integral<T0>::value &&
         std::is_integral<T1>::value && std::is_integral<T2>::value,
     typename std::remove_const<T0>::type>::type
 esimd_rol(T1 src0, T2 src1) {
   typedef typename computation_type<T1, T2>::type ComputationTy;
-  typename details::simd_type<ComputationTy>::type Src0 = src0;
-  typename details::simd_type<ComputationTy>::type Src1 = src1;
+  typename detail::simd_type<ComputationTy>::type Src0 = src0;
+  typename detail::simd_type<ComputationTy>::type Src1 = src1;
   simd<T0, 1> Result = esimd_rol<T0>(Src0, Src1);
   return Result[0];
 }
@@ -251,22 +248,21 @@ ESIMD_NODEBUG ESIMD_INLINE
                             simd<T0, SZ>>::type
     esimd_ror(simd<T1, SZ> src0, U src1) {
   typedef typename computation_type<decltype(src0), U>::type ComputationTy;
-  typename details::simd_type<ComputationTy>::type Src0 = src0;
-  typename details::simd_type<ComputationTy>::type Src1 = src1;
+  typename detail::simd_type<ComputationTy>::type Src0 = src0;
+  typename detail::simd_type<ComputationTy>::type Src1 = src1;
   return __esimd_ror<T0>(Src0.data(), Src1.data());
 }
 
 template <typename T0, typename T1, typename T2>
 ESIMD_NODEBUG ESIMD_INLINE typename std::enable_if<
-    details::is_esimd_scalar<T0>::value &&
-        details::is_esimd_scalar<T1>::value &&
-        details::is_esimd_scalar<T2>::value && std::is_integral<T0>::value &&
+    detail::is_esimd_scalar<T0>::value && detail::is_esimd_scalar<T1>::value &&
+        detail::is_esimd_scalar<T2>::value && std::is_integral<T0>::value &&
         std::is_integral<T1>::value && std::is_integral<T2>::value,
     typename std::remove_const<T0>::type>::type
 esimd_ror(T1 src0, T2 src1) {
   typedef typename computation_type<T1, T2>::type ComputationTy;
-  typename details::simd_type<ComputationTy>::type Src0 = src0;
-  typename details::simd_type<ComputationTy>::type Src1 = src1;
+  typename detail::simd_type<ComputationTy>::type Src0 = src0;
+  typename detail::simd_type<ComputationTy>::type Src1 = src1;
   simd<T0, 1> Result = esimd_ror<T0>(Src0, Src1);
   return Result[0];
 }
@@ -292,24 +288,23 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T0, typename T1, typename T2>
 ESIMD_NODEBUG ESIMD_INLINE typename std::enable_if<
-    details::is_esimd_scalar<T0>::value &&
-        details::is_esimd_scalar<T1>::value &&
-        details::is_esimd_scalar<T2>::value && std::is_integral<T0>::value &&
+    detail::is_esimd_scalar<T0>::value && detail::is_esimd_scalar<T1>::value &&
+        detail::is_esimd_scalar<T2>::value && std::is_integral<T0>::value &&
         std::is_integral<T1>::value && std::is_integral<T2>::value,
     typename std::remove_const<T0>::type>::type
 esimd_lsr(T1 src0, T2 src1, int flag = GENX_NOSAT) {
   typedef typename computation_type<T1, T2>::type ComputationTy;
-  typename details::simd_type<ComputationTy>::type Src0 = src0;
-  typename details::simd_type<ComputationTy>::type Src1 = src1;
+  typename detail::simd_type<ComputationTy>::type Src0 = src0;
+  typename detail::simd_type<ComputationTy>::type Src1 = src1;
   simd<T0, 1> Result = esimd_lsr<T0>(Src0, Src1, flag);
   return Result[0];
 }
 
 template <typename T0, typename T1, typename T2>
 ESIMD_NODEBUG ESIMD_INLINE typename std::enable_if<
-    details::is_esimd_scalar<T1>::value &&
-        details::is_esimd_vector<T2>::value && std::is_integral<T0>::value &&
-        std::is_integral<T1>::value && std::is_integral<T2>::value,
+    detail::is_esimd_scalar<T1>::value && detail::is_esimd_vector<T2>::value &&
+        std::is_integral<T0>::value && std::is_integral<T1>::value &&
+        std::is_integral<T2>::value,
     decltype(esimd_lsr<T0>(T2(), T1()))>::type
 esimd_lsr(T1 src0, T2 src1, int flag = GENX_NOSAT) {
   return esimd_lsr<T0>(src1, src0, flag);
@@ -336,24 +331,23 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T0, typename T1, typename T2>
 ESIMD_NODEBUG ESIMD_INLINE typename std::enable_if<
-    details::is_esimd_scalar<T0>::value &&
-        details::is_esimd_scalar<T1>::value &&
-        details::is_esimd_scalar<T2>::value && std::is_integral<T0>::value &&
+    detail::is_esimd_scalar<T0>::value && detail::is_esimd_scalar<T1>::value &&
+        detail::is_esimd_scalar<T2>::value && std::is_integral<T0>::value &&
         std::is_integral<T1>::value && std::is_integral<T2>::value,
     typename std::remove_const<T0>::type>::type
 esimd_asr(T1 src0, T2 src1, int flag = GENX_NOSAT) {
   typedef typename computation_type<T1, T2>::type ComputationTy;
-  typename details::simd_type<ComputationTy>::type Src0 = src0;
-  typename details::simd_type<ComputationTy>::type Src1 = src1;
+  typename detail::simd_type<ComputationTy>::type Src0 = src0;
+  typename detail::simd_type<ComputationTy>::type Src1 = src1;
   simd<T0, 1> Result = esimd_asr<T0>(Src0, Src1, flag);
   return Result[0];
 }
 
 template <typename T0, typename T1, typename T2>
 ESIMD_NODEBUG ESIMD_INLINE typename std::enable_if<
-    details::is_esimd_scalar<T1>::value &&
-        details::is_esimd_vector<T2>::value && std::is_integral<T0>::value &&
-        std::is_integral<T1>::value && std::is_integral<T2>::value,
+    detail::is_esimd_scalar<T1>::value && detail::is_esimd_vector<T2>::value &&
+        std::is_integral<T0>::value && std::is_integral<T1>::value &&
+        std::is_integral<T2>::value,
     decltype(esimd_asr<T0>(T2(), T1()))>::type
 esimd_asr(T1 src0, T2 src1, int flag = GENX_NOSAT) {
   return esimd_asr<T0>(src1, src0, flag);
@@ -364,14 +358,14 @@ esimd_asr(T1 src0, T2 src1, int flag = GENX_NOSAT) {
 // use mulh instruction for high half
 template <typename T0, typename T1, typename U, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_dword_type<T0>::value &&
-                                details::is_dword_type<T1>::value &&
-                                details::is_dword_type<U>::value,
+    typename std::enable_if<detail::is_dword_type<T0>::value &&
+                                detail::is_dword_type<T1>::value &&
+                                detail::is_dword_type<U>::value,
                             simd<T0, SZ>>::type
     esimd_imul(simd<T0, SZ> &rmd, simd<T1, SZ> src0, U src1) {
   typedef typename computation_type<decltype(src0), U>::type ComputationTy;
-  typename details::simd_type<ComputationTy>::type Src0 = src0;
-  typename details::simd_type<ComputationTy>::type Src1 = src1;
+  typename detail::simd_type<ComputationTy>::type Src0 = src0;
+  typename detail::simd_type<ComputationTy>::type Src1 = src1;
   rmd = Src0 * Src1;
   if constexpr (std::is_unsigned<T0>::value)
     return __esimd_umulh(Src0.data(), Src1.data());
@@ -385,9 +379,9 @@ ESIMD_NODEBUG ESIMD_INLINE
 // stride must also be 1" on the selects.
 template <typename T0, typename T1, typename U, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_dword_type<T0>::value &&
-                                details::is_dword_type<T1>::value &&
-                                details::is_dword_type<U>::value && SZ == 1,
+    typename std::enable_if<detail::is_dword_type<T0>::value &&
+                                detail::is_dword_type<T1>::value &&
+                                detail::is_dword_type<U>::value && SZ == 1,
                             simd<T0, SZ>>::type
     esimd_imul(simd<T0, SZ> &rmd, simd<T1, SZ> src0, U src1) {
   typedef
@@ -400,9 +394,9 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T0, typename T1, typename U, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_dword_type<T0>::value &&
-                                details::is_dword_type<T1>::value &&
-                                details::is_dword_type<U>::value && SZ != 1,
+    typename std::enable_if<detail::is_dword_type<T0>::value &&
+                                detail::is_dword_type<T1>::value &&
+                                detail::is_dword_type<U>::value && SZ != 1,
                             simd<T0, SZ>>::type
     esimd_imul(simd<T0, SZ> &rmd, simd<T1, SZ> src0, U src1) {
   typedef
@@ -418,7 +412,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T0, typename T1, typename U, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_esimd_scalar<U>::value,
+    typename std::enable_if<detail::is_esimd_scalar<U>::value,
                             simd<T0, SZ>>::type
     esimd_imul(simd<T0, SZ> &rmd, U src0, simd<T1, SZ> src1) {
   return esimd_imul(rmd, src1, src0);
@@ -426,9 +420,9 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T0, typename T, typename U>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_esimd_scalar<T>::value &&
-                                details::is_esimd_scalar<U>::value &&
-                                details::is_esimd_scalar<T0>::value,
+    typename std::enable_if<detail::is_esimd_scalar<T>::value &&
+                                detail::is_esimd_scalar<U>::value &&
+                                detail::is_esimd_scalar<T0>::value,
                             T0>::type
     esimd_imul(simd<T0, 1> &rmd, T src0, U src1) {
   simd<T, 1> src_0 = src0;
@@ -446,13 +440,11 @@ esimd_quot(simd<T, SZ> src0, U src1) {
 }
 
 template <typename T0, typename T1>
-ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_esimd_scalar<T0>::value &&
-                                details::is_esimd_scalar<T1>::value &&
-                                std::is_integral<T0>::value &&
-                                std::is_integral<T1>::value,
-                            typename std::remove_const<T0>::type>::type
-    esimd_quot(T0 src0, T1 src1) {
+ESIMD_NODEBUG ESIMD_INLINE typename std::enable_if<
+    detail::is_esimd_scalar<T0>::value && detail::is_esimd_scalar<T1>::value &&
+        std::is_integral<T0>::value && std::is_integral<T1>::value,
+    typename std::remove_const<T0>::type>::type
+esimd_quot(T0 src0, T1 src1) {
   return src0 / src1;
 }
 
@@ -465,13 +457,11 @@ esimd_mod(simd<T, SZ> src0, U src1) {
 }
 
 template <typename T0, typename T1>
-ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_esimd_scalar<T0>::value &&
-                                details::is_esimd_scalar<T1>::value &&
-                                std::is_integral<T0>::value &&
-                                std::is_integral<T1>::value,
-                            typename std::remove_const<T0>::type>::type
-    esimd_mod(T0 src0, T1 src1) {
+ESIMD_NODEBUG ESIMD_INLINE typename std::enable_if<
+    detail::is_esimd_scalar<T0>::value && detail::is_esimd_scalar<T1>::value &&
+        std::is_integral<T0>::value && std::is_integral<T1>::value,
+    typename std::remove_const<T0>::type>::type
+esimd_mod(T0 src0, T1 src1) {
   return src0 % src1;
 }
 
@@ -488,7 +478,7 @@ template <typename T, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE
     typename std::enable_if<std::is_integral<T>::value &&
                                 std::is_integral<U>::value &&
-                                details::is_esimd_scalar<U>::value,
+                                detail::is_esimd_scalar<U>::value,
                             simd<T, SZ>>::type
     esimd_div(simd<T, SZ> &remainder, U src0, simd<T, SZ> src1) {
   remainder = src0 % src1;
@@ -497,9 +487,9 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename RT, typename T0, typename T1>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_esimd_scalar<RT>::value &&
-                                details::is_esimd_scalar<T0>::value &&
-                                details::is_esimd_scalar<T1>::value,
+    typename std::enable_if<detail::is_esimd_scalar<RT>::value &&
+                                detail::is_esimd_scalar<T0>::value &&
+                                detail::is_esimd_scalar<T1>::value,
                             typename std::remove_const<RT>::type>::type
     esimd_div(simd<typename std::remove_const<RT>::type, 1> &remainder, T0 src0,
               T1 src1) {
@@ -532,7 +522,7 @@ esimd_max(simd<T, SZ> src0, simd<T, SZ> src1, int flag = GENX_NOSAT) {
 
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_esimd_scalar<T>::value,
+    typename std::enable_if<detail::is_esimd_scalar<T>::value,
                             simd<T, SZ>>::type
     esimd_max(simd<T, SZ> src0, T src1, int flag = GENX_NOSAT) {
   simd<T, SZ> Src1 = src1;
@@ -542,7 +532,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_esimd_scalar<T>::value,
+    typename std::enable_if<detail::is_esimd_scalar<T>::value,
                             simd<T, SZ>>::type
     esimd_max(T src0, simd<T, SZ> src1, int flag = GENX_NOSAT) {
   simd<T, SZ> Src0 = src0;
@@ -552,7 +542,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_esimd_scalar<T>::value, T>::type
+    typename std::enable_if<detail::is_esimd_scalar<T>::value, T>::type
     esimd_max(T src0, T src1, int flag = GENX_NOSAT) {
   simd<T, 1> Src0 = src0;
   simd<T, 1> Src1 = src1;
@@ -579,7 +569,7 @@ esimd_min(simd<T, SZ> src0, simd<T, SZ> src1, int flag = GENX_NOSAT) {
 
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_esimd_scalar<T>::value,
+    typename std::enable_if<detail::is_esimd_scalar<T>::value,
                             simd<T, SZ>>::type
     esimd_min(simd<T, SZ> src0, T src1, int flag = GENX_NOSAT) {
   simd<T, SZ> Src1 = src1;
@@ -589,7 +579,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_esimd_scalar<T>::value,
+    typename std::enable_if<detail::is_esimd_scalar<T>::value,
                             simd<T, SZ>>::type
     esimd_min(T src0, simd<T, SZ> src1, int flag = GENX_NOSAT) {
   simd<T, SZ> Src0 = src0;
@@ -598,7 +588,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 }
 template <typename T>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_esimd_scalar<T>::value, T>::type
+    typename std::enable_if<detail::is_esimd_scalar<T>::value, T>::type
     esimd_min(T src0, T src1, int flag = GENX_NOSAT) {
   simd<T, 1> Src0 = src0;
   simd<T, 1> Src1 = src1;
@@ -700,9 +690,9 @@ esimd_line(float P, float Q, simd<T, SZ> src1, int flag = GENX_NOSAT) {
 // using a less efficient implementation if not on GEN10 or above.
 template <typename T0, typename T1, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_fp_or_dword_type<T1>::value &&
+    typename std::enable_if<detail::is_fp_or_dword_type<T1>::value &&
                                 std::is_floating_point<T1>::value &&
-                                details::is_fp_or_dword_type<U>::value &&
+                                detail::is_fp_or_dword_type<U>::value &&
                                 std::is_floating_point<U>::value,
                             simd<T0, SZ>>::type
     esimd_dp2(simd<T1, SZ> src0, U src1, int flag = GENX_NOSAT) {
@@ -722,9 +712,9 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T0, typename T1, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_fp_or_dword_type<T1>::value &&
+    typename std::enable_if<detail::is_fp_or_dword_type<T1>::value &&
                                 std::is_floating_point<T1>::value &&
-                                details::is_fp_or_dword_type<U>::value &&
+                                detail::is_fp_or_dword_type<U>::value &&
                                 std::is_floating_point<U>::value,
                             simd<T0, SZ>>::type
     esimd_dp3(simd<T1, SZ> src0, U src1, int flag = GENX_NOSAT) {
@@ -745,9 +735,9 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T0, typename T1, int SZ, typename U>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_fp_or_dword_type<T1>::value &&
+    typename std::enable_if<detail::is_fp_or_dword_type<T1>::value &&
                                 std::is_floating_point<T1>::value &&
-                                details::is_fp_or_dword_type<U>::value &&
+                                detail::is_fp_or_dword_type<U>::value &&
                                 std::is_floating_point<U>::value,
                             simd<T0, SZ>>::type
     esimd_dp4(simd<T1, SZ> src0, U src1, int flag = GENX_NOSAT) {
@@ -769,9 +759,9 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T, typename U, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_fp_or_dword_type<T>::value &&
+    typename std::enable_if<detail::is_fp_or_dword_type<T>::value &&
                                 std::is_floating_point<T>::value &&
-                                details::is_fp_or_dword_type<U>::value &&
+                                detail::is_fp_or_dword_type<U>::value &&
                                 std::is_floating_point<U>::value,
                             simd<T, SZ>>::type
     esimd_dph(simd<T, SZ> src0, U src1, int flag = GENX_NOSAT) {
@@ -792,7 +782,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_fp_or_dword_type<T>::value &&
+    typename std::enable_if<detail::is_fp_or_dword_type<T>::value &&
                                 std::is_floating_point<T>::value,
                             simd<T, SZ>>::type
     esimd_line(simd<T, 4> src0, simd<T, SZ> src1, int flag = GENX_NOSAT) {
@@ -813,7 +803,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_fp_or_dword_type<T>::value &&
+    typename std::enable_if<detail::is_fp_or_dword_type<T>::value &&
                                 std::is_floating_point<T>::value,
                             simd<T, SZ>>::type
     esimd_line(float P, float Q, simd<T, SZ> src1, int flag = GENX_NOSAT) {
@@ -847,8 +837,8 @@ ESIMD_NODEBUG ESIMD_INLINE simd<RT, SZ> esimd_lzd(simd<T0, SZ> src0,
 
 template <typename RT, typename T0>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_esimd_scalar<RT>::value &&
-                                details::is_esimd_scalar<T0>::value,
+    typename std::enable_if<detail::is_esimd_scalar<RT>::value &&
+                                detail::is_esimd_scalar<T0>::value,
                             typename std::remove_const<RT>::type>::type
     esimd_lzd(T0 src0, int flag = GENX_NOSAT) {
   simd<T0, 1> Src0 = src0;
@@ -888,9 +878,9 @@ esimd_lrp(simd<float, SZ> src0, U src1, V src2, int flag = GENX_NOSAT) {
 // using less efficient implementation.
 template <typename T, int SZ, typename U, typename V>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_fp_or_dword_type<T>::value &&
+    typename std::enable_if<detail::is_fp_or_dword_type<T>::value &&
                                 std::is_floating_point<T>::value &&
-                                details::is_fp_or_dword_type<U>::value &&
+                                detail::is_fp_or_dword_type<U>::value &&
                                 std::is_floating_point<U>::value,
                             simd<T, SZ>>::type
     esimd_lrp(simd<T, SZ> src0, U src1, V src2, int flag = GENX_NOSAT) {
@@ -943,8 +933,8 @@ ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ> esimd_bf_reverse(simd<T1, SZ> src0) {
 
 template <typename T0, typename T1>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_esimd_scalar<T0>::value &&
-                                details::is_esimd_scalar<T1>::value,
+    typename std::enable_if<detail::is_esimd_scalar<T0>::value &&
+                                detail::is_esimd_scalar<T1>::value,
                             typename std::remove_const<T0>::type>::type
     esimd_bf_reverse(T1 src0) {
   simd<T1, 1> Src0 = src0;
@@ -957,7 +947,7 @@ template <typename T0, typename T1, int SZ, typename U, typename V, typename W>
 ESIMD_NODEBUG ESIMD_INLINE
     typename std::enable_if<std::is_integral<T1>::value, simd<T0, SZ>>::type
     esimd_bf_insert(U src0, V src1, W src2, simd<T1, SZ> src3) {
-  typedef typename details::dword_type<T1>::type DT1;
+  typedef typename detail::dword_type<T1>::type DT1;
   static_assert(std::is_integral<DT1>::value && sizeof(DT1) == sizeof(int),
                 "operand conversion failed");
   simd<DT1, SZ> Src0 = src0;
@@ -970,8 +960,8 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_esimd_scalar<T0>::value &&
-                                details::is_esimd_scalar<T4>::value,
+    typename std::enable_if<detail::is_esimd_scalar<T0>::value &&
+                                detail::is_esimd_scalar<T4>::value,
                             typename std::remove_const<T0>::type>::type
     esimd_bf_insert(T1 src0, T2 src1, T3 src2, T4 src3) {
   simd<T4, 1> Src3 = src3;
@@ -984,7 +974,7 @@ template <typename T0, typename T1, int SZ, typename U, typename V>
 ESIMD_NODEBUG ESIMD_INLINE
     typename std::enable_if<std::is_integral<T1>::value, simd<T0, SZ>>::type
     esimd_bf_extract(U src0, V src1, simd<T1, SZ> src2) {
-  typedef typename details::dword_type<T1>::type DT1;
+  typedef typename detail::dword_type<T1>::type DT1;
   static_assert(std::is_integral<DT1>::value && sizeof(DT1) == sizeof(int),
                 "operand conversion failed");
   simd<DT1, SZ> Src0 = src0;
@@ -996,8 +986,8 @@ ESIMD_NODEBUG ESIMD_INLINE
 
 template <typename T0, typename T1, typename T2, typename T3>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_esimd_scalar<T0>::value &&
-                                details::is_esimd_scalar<T3>::value,
+    typename std::enable_if<detail::is_esimd_scalar<T0>::value &&
+                                detail::is_esimd_scalar<T3>::value,
                             typename std::remove_const<T0>::type>::type
     esimd_bf_extract(T1 src0, T2 src1, T3 src2) {
   simd<T3, 1> Src2 = src2;
@@ -1082,7 +1072,7 @@ ESIMD_INTRINSIC_DEF(double, sqrt_ieee)
   }                                                                            \
   template <int SZ, typename U>                                                \
   ESIMD_NODEBUG ESIMD_INLINE                                                   \
-      typename std::enable_if<details::is_esimd_scalar<U>::value,              \
+      typename std::enable_if<detail::is_esimd_scalar<U>::value,               \
                               simd<ftype, SZ>>::type                           \
           esimd_##name(U src0, simd<ftype, SZ> src1, int flag = GENX_NOSAT) {  \
     simd<ftype, SZ> Src0 = src0;                                               \
@@ -1288,11 +1278,9 @@ ESIMD_NODEBUG ESIMD_INLINE
 }
 
 template <typename T>
-ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<std::is_integral<T>::value &&
-                                details::is_esimd_scalar<T>::value,
-                            uint>::type
-    esimd_cbit(T src) {
+ESIMD_NODEBUG ESIMD_INLINE typename std::enable_if<
+    std::is_integral<T>::value && detail::is_esimd_scalar<T>::value, uint>::type
+esimd_cbit(T src) {
   simd<T, 1> Src = src;
   simd<uint, 1> Result = esimd_cbit(Src);
   return Result[0];
@@ -1325,8 +1313,8 @@ esimd_fbh(simd<unsigned int, N> src) {
 
 template <typename T>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<details::is_dword_type<T>::value &&
-                                details::is_esimd_scalar<T>::value,
+    typename std::enable_if<detail::is_dword_type<T>::value &&
+                                detail::is_esimd_scalar<T>::value,
                             T>::type
     esimd_fbh(T src) {
   simd<T, 1> Src = src;
@@ -1338,8 +1326,8 @@ template <typename T = void> simd<uint, 4> esimd_rdtsc();
 
 template <typename T1, typename T2, typename T3, typename T4, int N>
 ESIMD_NODEBUG ESIMD_INLINE typename std::enable_if<
-    details::is_dword_type<T1>::value && details::is_dword_type<T2>::value &&
-        details::is_dword_type<T3>::value && details::is_dword_type<T4>::value,
+    detail::is_dword_type<T1>::value && detail::is_dword_type<T2>::value &&
+        detail::is_dword_type<T3>::value && detail::is_dword_type<T4>::value,
     simd<T1, N>>::type
 esimd_dp4a(simd<T2, N> src0, simd<T3, N> src1, simd<T4, N> src2,
            int flag = GENX_NOSAT) {
