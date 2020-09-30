@@ -8,14 +8,17 @@
 int N;
 
 [[INTEL::device_indirectly_callable(3)]] // expected-error {{'device_indirectly_callable' attribute takes no arguments}}
-void bar() {}
+void
+bar() {}
 
 [[INTEL::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a static function or function in an anonymous namespace}}
-static void func1() {}
+static void
+func1() {}
 
 namespace {
-  [[INTEL::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a static function or function in an anonymous namespace}}
-  void func2() {}
+[[INTEL::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a static function or function in an anonymous namespace}}
+void
+func2() {}
 }
 
 class test {
@@ -38,15 +41,15 @@ class B {
 
 void helper() {}
 
-[[INTEL::device_indirectly_callable]]
-void foo() {
+[[INTEL::device_indirectly_callable]] void foo() {
   helper();
 }
 
 #else
 
 [[INTEL::device_indirectly_callable]] // expected-warning {{'device_indirectly_callable' attribute ignored}}
-void baz() {}
+void
+baz() {}
 
 #endif // NO_SYCL
 

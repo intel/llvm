@@ -8,8 +8,7 @@ void ivdep_array_no_safelen() {
   int a[10];
   // CHECK: %[[ARRAY_B:[0-9a-z]+]] = alloca [10 x i32]
   int b[10];
-  [[INTEL::ivdep(a)]]
-  for (int i = 0; i != 10; ++i) {
+  [[INTEL::ivdep(a)]] for (int i = 0; i != 10; ++i) {
     // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_ARR:[0-9]+]]
     a[i] = 0;
     // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_B]], i64 0, i64 %{{[0-9a-z]+}}{{[[:space:]]}}
@@ -25,8 +24,7 @@ void ivdep_array_with_safelen() {
   int a[10];
   // CHECK: %[[ARRAY_B:[0-9a-z]+]] = alloca [10 x i32]
   int b[10];
-  [[INTEL::ivdep(a, 5)]]
-  for (int i = 0; i != 10; ++i) {
+  [[INTEL::ivdep(a, 5)]] for (int i = 0; i != 10; ++i) {
     // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_ARR_SAFELEN:[0-9]+]]
     a[i] = 0;
     // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_B]], i64 0, i64 %{{[0-9a-z]+}}{{[[:space:]]}}
@@ -50,8 +48,7 @@ void ivdep_multiple_arrays() {
   [[INTEL::ivdep(a, 5)]]
   [[INTEL::ivdep(b, 5)]]
   [[INTEL::ivdep(c)]]
-  [[INTEL::ivdep(d)]]
-  for (int i = 0; i != 10; ++i) {
+  [[INTEL::ivdep(d)]] for (int i = 0; i != 10; ++i) {
     // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_MUL_ARR:[0-9]+]]
     a[i] = 0;
     // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_B]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_MUL_ARR:[0-9]+]]
@@ -73,8 +70,7 @@ void ivdep_array_and_global() {
   // CHECK: %[[ARRAY_B:[0-9a-z]+]] = alloca [10 x i32]
   int b[10];
   [[INTEL::ivdep]]
-  [[INTEL::ivdep(a)]]
-  for (int i = 0; i != 10; ++i) {
+  [[INTEL::ivdep(a)]] for (int i = 0; i != 10; ++i) {
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_ARR_AND_GLOB:[0-9]+]]
     a[i] = 0;
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_B]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_ARR_AND_GLOB:[0-9]+]]
@@ -92,8 +88,7 @@ void ivdep_array_and_inf_global() {
   // CHECK: %[[ARRAY_B:[0-9a-z]+]] = alloca [10 x i32]
   int b[10];
   [[INTEL::ivdep]]
-  [[INTEL::ivdep(a, 8)]]
-  for (int i = 0; i != 10; ++i) {
+  [[INTEL::ivdep(a, 8)]] for (int i = 0; i != 10; ++i) {
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_ARR_AND_INF_GLOB:[0-9]+]]
     a[i] = 0;
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_B]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_ARR_AND_INF_GLOB:[0-9]+]]
@@ -111,8 +106,7 @@ void ivdep_array_and_greater_global() {
   // CHECK: %[[ARRAY_B:[0-9a-z]+]] = alloca [10 x i32]
   int b[10];
   [[INTEL::ivdep(9)]]
-  [[INTEL::ivdep(a, 8)]]
-  for (int i = 0; i != 10; ++i) {
+  [[INTEL::ivdep(a, 8)]] for (int i = 0; i != 10; ++i) {
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_ARR_AND_GREAT_GLOB:[0-9]+]]
     a[i] = 0;
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_B]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_ARR_AND_GREAT_GLOB:[0-9]+]]
@@ -133,8 +127,7 @@ void ivdep_mul_arrays_and_global() {
   int c[10];
   [[INTEL::ivdep(5)]]
   [[INTEL::ivdep(b, 6)]]
-  [[INTEL::ivdep(c)]]
-  for (int i = 0; i != 10; ++i) {
+  [[INTEL::ivdep(c)]] for (int i = 0; i != 10; ++i) {
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_MUL_ARR_AND_GLOB:[0-9]+]]
     a[i] = 0;
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_B]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_MUL_ARR_AND_GLOB:[0-9]+]]

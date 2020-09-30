@@ -24,7 +24,7 @@ int main() {
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
   // CHECK:       SYCLIntelKernelArgsRestrictAttr
   kernel<class test_kernel2>(
-      []() [[INTEL::kernel_args_restrict]] {});
+      []() [[INTEL::kernel_args_restrict]]{});
 
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
   // CHECK:       SYCLIntelKernelArgsRestrictAttr

@@ -32,15 +32,13 @@ void foo_deprecated() {
   int a[10];
   // expected-warning@+2 {{attribute 'ivdep' is deprecated}}
   // expected-note@+1 {{did you mean to use 'INTEL::ivdep' instead?}}
-  [[intelfpga::ivdep(2)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[intelfpga::ivdep(2)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 
   // expected-warning@+2 {{attribute 'ii' is deprecated}}
   // expected-note@+1 {{did you mean to use 'INTEL::ii' instead?}}
-  [[intelfpga::ii(2)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[intelfpga::ii(2)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 
   // expected-warning@+2 {{attribute 'max_concurrency' is deprecated}}
   // expected-note@+1 {{did you mean to use 'INTEL::max_concurrency' instead?}}
@@ -50,27 +48,23 @@ void foo_deprecated() {
 
   // expected-warning@+2 {{attribute 'max_interleaving' is deprecated}}
   // expected-note@+1 {{did you mean to use 'INTEL::max_interleaving' instead?}}
-  [[intelfpga::max_interleaving(2)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[intelfpga::max_interleaving(2)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 
   // expected-warning@+2 {{attribute 'disable_loop_pipelining' is deprecated}}
   // expected-note@+1 {{did you mean to use 'INTEL::disable_loop_pipelining' instead?}}
-  [[intelfpga::disable_loop_pipelining]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[intelfpga::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 
   // expected-warning@+2 {{attribute 'loop_coalesce' is deprecated}}
   // expected-note@+1 {{did you mean to use 'INTEL::loop_coalesce' instead?}}
-  [[intelfpga::loop_coalesce(2)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[intelfpga::loop_coalesce(2)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 
   // expected-warning@+2 {{attribute 'speculated_iterations' is deprecated}}
   // expected-note@+1 {{did you mean to use 'INTEL::speculated_iterations' instead?}}
-  [[intelfpga::speculated_iterations(6)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[intelfpga::speculated_iterations(6)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 // Test for incorrect number of arguments for Intel FPGA loop attributes
@@ -78,25 +72,20 @@ void boo() {
   int a[10];
   int b[10];
   // expected-error@+1 {{duplicate argument to 'ivdep'. attribute requires one or both of a safelen and array}}
-  [[INTEL::ivdep(2,2)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::ivdep(2,2)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
   // expected-warning@+1 {{'ii' attribute takes at least 1 argument - attribute ignored}}
-  [[INTEL::ii]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::ii]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
   // expected-warning@+1 {{'ii' attribute takes no more than 1 argument - attribute ignored}}
-  [[INTEL::ii(2,2)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::ii(2,2)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
   // expected-warning@+1 {{'max_concurrency' attribute takes at least 1 argument - attribute ignored}}
-  [[INTEL::max_concurrency]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::max_concurrency]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
   // expected-warning@+1 {{'max_concurrency' attribute takes no more than 1 argument - attribute ignored}}
-  [[INTEL::max_concurrency(2,2)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::max_concurrency(2,2)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 
   // expected-error@+1 {{duplicate argument to 'ivdep'. attribute requires one or both of a safelen and array}}
   [[INTEL::ivdep(2, 3)]] for (int i = 0; i != 10; ++i)
@@ -135,17 +124,14 @@ void goo() {
   [[INTEL::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
   // no diagnostics are expected
-  [[INTEL::max_concurrency(0)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::max_concurrency(0)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
   // expected-error@+1 {{'ivdep' attribute requires a positive integral compile time constant expression}}
-  [[INTEL::ivdep(0)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::ivdep(0)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
   // expected-error@+1 {{'ii' attribute requires a positive integral compile time constant expression}}
-  [[INTEL::ii(0)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::ii(0)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
   // expected-error@+1 {{'max_concurrency' attribute requires a non-negative integral compile time constant expression}}
   [[INTEL::max_concurrency(-1)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
@@ -159,13 +145,11 @@ void goo() {
   [[INTEL::speculated_iterations(-1)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
   // expected-error@+1 {{unknown argument to 'ivdep'. Expected integer or array variable}}
-  [[INTEL::ivdep("test123")]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::ivdep("test123")]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
   // expected-error@+1 {{'ii' attribute requires an integer constant}}
-  [[INTEL::ii("test123")]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::ii("test123")]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
   // expected-error@+1 {{'max_concurrency' attribute requires an integer constant}}
   [[INTEL::max_concurrency("test123")]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
@@ -211,37 +195,31 @@ void zoo() {
   int a[10];
   // no diagnostics are expected
   [[INTEL::ivdep]]
-  [[INTEL::max_concurrency(2)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::max_concurrency(2)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
   [[INTEL::ivdep]]
   // expected-warning@+2 {{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen INF >= safelen INF}}
   // expected-note@-2 {{previous attribute is here}}
-  [[INTEL::ivdep]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::ivdep]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
   [[INTEL::ivdep]]
   // expected-warning@+2 {{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen INF >= safelen 2}}
   // expected-note@-2 {{previous attribute is here}}
-  [[INTEL::ivdep(2)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::ivdep(2)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
   [[INTEL::ivdep(2)]]
   // expected-warning@-1 {{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen 4 >= safelen 2}}
   // expected-note@+1 {{previous attribute is here}}
-  [[INTEL::ivdep(4)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::ivdep(4)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
   [[INTEL::max_concurrency(2)]]
   // expected-error@-1 {{duplicate Intel FPGA loop attribute 'max_concurrency'}}
-  [[INTEL::max_concurrency(2)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::max_concurrency(2)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
   [[INTEL::ii(2)]]
   // expected-error@-1 {{duplicate Intel FPGA loop attribute 'ii'}}
-  [[INTEL::ii(2)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::ii(2)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
   [[INTEL::ii(2)]]
   // expected-error@-1 {{duplicate Intel FPGA loop attribute 'ii'}}
   [[INTEL::max_concurrency(2)]]
@@ -270,40 +248,34 @@ void zoo() {
   [[INTEL::ivdep]]
   // expected-warning@+2 {{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen INF >= safelen INF}}
   // expected-note@-2 {{previous attribute is here}}
-  [[INTEL::ivdep]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::ivdep]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
   [[INTEL::ivdep(2)]]
   // expected-warning@-1 {{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen INF >= safelen 2}}
   // expected-note@+1 {{previous attribute is here}}
-  [[INTEL::ivdep]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::ivdep]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
   [[INTEL::ivdep(a, 2)]]
   // expected-warning@-1 {{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen INF >= safelen 2}}
   // expected-note@+1 {{previous attribute is here}}
-  [[INTEL::ivdep(a)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::ivdep(a)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
   [[INTEL::ivdep(2)]]
   // expected-warning@-1 {{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen 4 >= safelen 2}}
   // expected-note@+1 {{previous attribute is here}}
-  [[INTEL::ivdep(4)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::ivdep(4)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 
   // no diagnostics are expected
   [[INTEL::ivdep(a)]]
-  [[INTEL::ivdep(2)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::ivdep(2)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 
   [[INTEL::ivdep(a, 2)]]
   // expected-warning@-1 {{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen INF >= safelen 2}}
   // expected-note@+1 {{previous attribute is here}}
-  [[INTEL::ivdep]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::ivdep]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 
   // Ensure we only diagnose conflict with the 'worst', not all.
   // expected-warning@+1 {{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen 5 >= safelen 3}}
@@ -311,16 +283,14 @@ void zoo() {
   // expected-warning@+1 {{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen 5 >= safelen 4}}
   [[INTEL::ivdep(4)]]
   // expected-note@+1 2 {{previous attribute is here}}
-  [[INTEL::ivdep(5)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::ivdep(5)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 
   [[INTEL::ivdep(a, 2)]]
   // expected-warning@-1 {{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen 3 >= safelen 2}}
   // expected-note@+1 {{previous attribute is here}}
-  [[INTEL::ivdep(a, 3)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::ivdep(a, 3)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 // Test for Intel FPGA loop attributes compatibility
@@ -359,14 +329,13 @@ void ivdep_dependent() {
   [[INTEL::ivdep(3)]]
   // expected-warning@-1 2{{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen 5 >= safelen 3}}
   // expected-note@+1 2{{previous attribute is here}}
-  [[INTEL::ivdep(5)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::ivdep(5)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 
   [[INTEL::ivdep(C)]]
   // expected-error@-1 {{'ivdep' attribute requires a positive integral compile time constant expression}}
   for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+      a[i] = 0;
 
   // expected-warning@+3 {{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen 4 >= safelen 2}}
   // expected-note@+1 {{previous attribute is here}}
@@ -375,14 +344,13 @@ void ivdep_dependent() {
   // expected-warning@-2 {{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen 4 >= safelen 2}}
   // expected-note@-2 {{previous attribute is here}}
   for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+      a[i] = 0;
 
   (void)[]() {
   // expected-warning@+3 2{{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen INF >= safelen INF}}
   // expected-note@+1 2{{previous attribute is here}}
   [[INTEL::ivdep]]
-  [[INTEL::ivdep]]
-    while(true);
+  [[INTEL::ivdep]] while(true);
   };
 }
 
@@ -390,30 +358,26 @@ template <int A, int B, int C>
 void ii_dependent() {
   int a[10];
   // expected-error@+1 {{'ii' attribute requires a positive integral compile time constant expression}}
-  [[INTEL::ii(C)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::ii(C)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 
   // expected-error@+1 {{duplicate Intel FPGA loop attribute 'ii'}}
   [[INTEL::ii(A)]]
-  [[INTEL::ii(B)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::ii(B)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 template <int A, int B, int C>
 void max_concurrency_dependent() {
   int a[10];
   // expected-error@+1 {{'max_concurrency' attribute requires a non-negative integral compile time constant expression}}
-  [[INTEL::max_concurrency(C)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::max_concurrency(C)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 
   // expected-error@+1 {{duplicate Intel FPGA loop attribute 'max_concurrency'}}
   [[INTEL::max_concurrency(A)]]
-  [[INTEL::max_concurrency(B)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::max_concurrency(B)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 template <typename name, typename Func>

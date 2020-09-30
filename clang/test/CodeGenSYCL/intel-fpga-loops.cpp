@@ -26,14 +26,12 @@ void ii() {
   int a[10];
   // CHECK: ![[MD_II]] = distinct !{![[MD_II]], ![[MD_ii_count:[0-9]+]]}
   // CHECK-NEXT: ![[MD_ii_count]] = !{!"llvm.loop.ii.count", i32 4}
-  [[INTEL::ii(A)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::ii(A)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
   // CHECK: ![[MD_II_2]] = distinct !{![[MD_II_2]], ![[MD_ii_count_2:[0-9]+]]}
   // CHECK-NEXT: ![[MD_ii_count_2]] = !{!"llvm.loop.ii.count", i32 8}
-  [[INTEL::ii(8)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::ii(8)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 template <int A>
@@ -41,14 +39,12 @@ void max_concurrency() {
   int a[10];
   // CHECK: ![[MD_MC]] = distinct !{![[MD_MC]], ![[MD_max_concurrency:[0-9]+]]}
   // CHECK-NEXT: ![[MD_max_concurrency]] = !{!"llvm.loop.max_concurrency.count", i32 0}
-  [[INTEL::max_concurrency(A)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::max_concurrency(A)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
   // CHECK: ![[MD_MC_2]] = distinct !{![[MD_MC_2]], ![[MD_max_concurrency_2:[0-9]+]]}
   // CHECK-NEXT: ![[MD_max_concurrency_2]] = !{!"llvm.loop.max_concurrency.count", i32 4}
-  [[INTEL::max_concurrency(4)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
+  [[INTEL::max_concurrency(4)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 template <int A>

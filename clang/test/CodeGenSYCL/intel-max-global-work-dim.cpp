@@ -15,7 +15,7 @@ void bar() {
   kernel<class kernel_name1>(boo);
 
   kernel<class kernel_name2>(
-  []() [[INTEL::max_global_work_dim(2)]] {});
+      []() [[INTEL::max_global_work_dim(2)]]{});
 }
 
 // CHECK: define spir_kernel void @{{.*}}kernel_name1() {{.*}} !max_global_work_dim ![[NUM1:[0-9]+]]

@@ -51,7 +51,7 @@ struct TRIFuncObjGood2 {
 struct TRIFuncObjBad {
   [[INTEL::max_global_work_dim(0)]]
   [[INTEL::max_work_group_size(8, 8, 8)]] // expected-error{{'max_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
-  [[cl::reqd_work_group_size(4, 4, 4)]]       // expected-error{{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
+  [[cl::reqd_work_group_size(4, 4, 4)]] // expected-error{{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
   void
   operator()() const {}
 };
@@ -71,7 +71,7 @@ int main() {
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
   // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}} 2
   kernel<class test_kernel2>(
-      []() [[INTEL::max_global_work_dim(2)]] {});
+      []() [[INTEL::max_global_work_dim(2)]]{});
 
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
   // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
@@ -100,13 +100,13 @@ int main() {
 
   kernel<class test_kernel7>(
       []() [[INTEL::max_global_work_dim(3),
-             INTEL::max_global_work_dim(2)]] {}); // expected-warning{{attribute 'max_global_work_dim' is already applied with different parameters}}
+             INTEL::max_global_work_dim(2)]]{}); // expected-warning{{attribute 'max_global_work_dim' is already applied with different parameters}}
 
   kernel<class test_kernel8>(
       TRIFuncObjBad());
 
   kernel<class test_kernel9>(
-      []() [[INTEL::max_global_work_dim(4)]] {}); // expected-error{{The value of 'max_global_work_dim' attribute must be in range from 0 to 3}}
+      []() [[INTEL::max_global_work_dim(4)]]{}); // expected-error{{The value of 'max_global_work_dim' attribute must be in range from 0 to 3}}
 
 #endif // TRIGGER_ERROR
 }

@@ -2927,7 +2927,7 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &Attr,
 
   if (Attr.getKind() == ParsedAttr::AT_SYCLIntelMaxWorkGroupSize &&
       Attr.getAttributeSpellingListIndex() ==
-           SYCLIntelMaxWorkGroupSizeAttr::CXX11_intelfpga_max_work_group_size) {
+          SYCLIntelMaxWorkGroupSizeAttr::CXX11_intelfpga_max_work_group_size) {
     S.Diag(Attr.getLoc(), diag::warn_attribute_spelling_deprecated) << Attr;
     S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)
         << "'INTEL::max_work_group_size'";
@@ -2983,7 +2983,7 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!checkWorkGroupSizeValues(S, D, AL, WGSize))
     return;
 
-  if (AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize && 
+  if (AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize &&
       AL.getAttributeSpellingListIndex() ==
           ReqdWorkGroupSizeAttr::CXX11_intel_reqd_work_group_size) {
     S.Diag(AL.getLoc(), diag::warn_attribute_spelling_deprecated) << AL;
@@ -4522,7 +4522,8 @@ static void handleSYCLDeviceIndirectlyCallableAttr(Sema &S, Decl *D,
   }
 
   if (AL.getAttributeSpellingListIndex() ==
-      SYCLDeviceIndirectlyCallableAttr::CXX11_intel_device_indirectly_callable) {
+      SYCLDeviceIndirectlyCallableAttr::
+          CXX11_intel_device_indirectly_callable) {
     S.Diag(AL.getLoc(), diag::warn_attribute_spelling_deprecated) << AL;
     S.Diag(AL.getLoc(), diag::note_spelling_suggestion)
         << "'INTEL::device_indirectly_callable'";
@@ -5243,15 +5244,15 @@ static void handleIntelFPGAPumpAttr(Sema &S, Decl *D, const ParsedAttr &Attr) {
     D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
         S.Context, IntelFPGAMemoryAttr::Default));
 
-  if (Attr.getKind()  == ParsedAttr::AT_IntelFPGADoublePump &&
+  if (Attr.getKind() == ParsedAttr::AT_IntelFPGADoublePump &&
       Attr.getAttributeSpellingListIndex() ==
-      IntelFPGADoublePumpAttr::CXX11_intelfpga_doublepump) {
+          IntelFPGADoublePumpAttr::CXX11_intelfpga_doublepump) {
     S.Diag(Attr.getLoc(), diag::warn_attribute_spelling_deprecated) << Attr;
     S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)
         << "'INTEL::doublepump'";
-  } else if (Attr.getKind()  == ParsedAttr::AT_IntelFPGASinglePump && 
+  } else if (Attr.getKind() == ParsedAttr::AT_IntelFPGASinglePump &&
 	     Attr.getAttributeSpellingListIndex() ==
-             IntelFPGASinglePumpAttr::CXX11_intelfpga_singlepump) {
+                 IntelFPGASinglePumpAttr::CXX11_intelfpga_singlepump) {
     S.Diag(Attr.getLoc(), diag::warn_attribute_spelling_deprecated) << Attr;
     S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)
         << "'INTEL::singlepump'";
@@ -5379,13 +5380,13 @@ static void handleOneConstantPowerTwoValueAttr(Sema &S, Decl *D,
 
   if (Attr.getKind() == ParsedAttr::AT_IntelFPGABankWidth &&
       Attr.getAttributeSpellingListIndex() ==
-      IntelFPGABankWidthAttr::CXX11_intelfpga_bankwidth) {
+          IntelFPGABankWidthAttr::CXX11_intelfpga_bankwidth) {
     S.Diag(Attr.getLoc(), diag::warn_attribute_spelling_deprecated) << Attr;
     S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)
         << "'INTEL::bankwidth'";
   } else if (Attr.getKind() == ParsedAttr::AT_IntelFPGANumBanks &&
-     	     Attr.getAttributeSpellingListIndex() ==
-             IntelFPGANumBanksAttr::CXX11_intelfpga_numbanks) {
+             Attr.getAttributeSpellingListIndex() ==
+                 IntelFPGANumBanksAttr::CXX11_intelfpga_numbanks) {
     S.Diag(Attr.getLoc(), diag::warn_attribute_spelling_deprecated) << Attr;
     S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)
         << "'INTEL::numbanks'";
@@ -5473,8 +5474,7 @@ static void handleIntelFPGAMergeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (AL.getAttributeSpellingListIndex() ==
       IntelFPGAMergeAttr::CXX11_intelfpga_merge) {
     S.Diag(AL.getLoc(), diag::warn_attribute_spelling_deprecated) << AL;
-    S.Diag(AL.getLoc(), diag::note_spelling_suggestion)
-        << "'INTEL::merge'";
+    S.Diag(AL.getLoc(), diag::note_spelling_suggestion) << "'INTEL::merge'";
   }
 
   D->addAttr(::new (S.Context)

@@ -21,7 +21,7 @@ void bar() {
   kernel<class kernel_name1>(boo);
 
   kernel<class kernel_name2>(
-  []() [[INTEL::num_simd_work_items(42)]] {});
+      []() [[INTEL::num_simd_work_items(42)]]{});
 
   Functor<2> f;
   kernel<class kernel_name3>(f);

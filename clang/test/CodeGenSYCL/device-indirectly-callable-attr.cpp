@@ -2,8 +2,7 @@
 
 void helper() {}
 
-[[INTEL::device_indirectly_callable]]
-void foo() {
+[[INTEL::device_indirectly_callable]] void foo() {
   helper();
 }
 

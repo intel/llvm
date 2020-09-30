@@ -7,56 +7,54 @@
 
 void foo()
 {
-  #ifndef SYCLHOST
-  // expected-warning@+2 {{'doublepump' attribute ignored}}
-  #endif
+#ifndef SYCLHOST
+// expected-warning@+2 {{'doublepump' attribute ignored}}
+#endif
   [[INTEL::doublepump]] unsigned int v_one[64];
 
-  #ifndef SYCLHOST
-  // expected-warning@+2 {{'fpga_memory' attribute ignored}}
-  #endif
+#ifndef SYCLHOST
+// expected-warning@+2 {{'fpga_memory' attribute ignored}}
+#endif
   [[INTEL::fpga_memory]] unsigned int v_two[64];
 
-  #ifndef SYCLHOST
-  // expected-warning@+2 {{'fpga_register' attribute ignored}}
-  #endif
+#ifndef SYCLHOST
+// expected-warning@+2 {{'fpga_register' attribute ignored}}
+#endif
   [[INTEL::fpga_register]] unsigned int v_three[64];
 
-  #ifndef SYCLHOST
-  // expected-warning@+2 {{'singlepump' attribute ignored}}
-  #endif
+#ifndef SYCLHOST
+// expected-warning@+2 {{'singlepump' attribute ignored}}
+#endif
   [[INTEL::singlepump]] unsigned int v_four[64];
 
-  #ifndef SYCLHOST
-  // expected-warning@+2 {{'bankwidth' attribute ignored}}
-  #endif
+#ifndef SYCLHOST
+// expected-warning@+2 {{'bankwidth' attribute ignored}}
+#endif
   [[INTEL::bankwidth(4)]] unsigned int v_five[32];
 
-  #ifndef SYCLHOST
-  // expected-warning@+2 {{'numbanks' attribute ignored}}
-  #endif
+#ifndef SYCLHOST
+// expected-warning@+2 {{'numbanks' attribute ignored}}
+#endif
   [[INTEL::numbanks(8)]] unsigned int v_six[32];
 
-  #ifndef SYCLHOST
-  // expected-warning@+2 {{'private_copies' attribute ignored}}
-  #endif
+#ifndef SYCLHOST
+// expected-warning@+2 {{'private_copies' attribute ignored}}
+#endif
   [[INTEL::private_copies(8)]] unsigned int v_seven[64];
 
-  #ifndef SYCLHOST
-  // expected-warning@+2 {{'merge' attribute ignored}}
-  #endif
-  [[INTEL::merge("mrg1","depth")]]  unsigned int v_eight[64];
+#ifndef SYCLHOST
+// expected-warning@+2 {{'merge' attribute ignored}}
+#endif
+  [[INTEL::merge("mrg1", "depth")]]  unsigned int v_eight[64];
 
-  #ifndef SYCLHOST
-  // expected-warning@+2 {{'max_replicates' attribute ignored}}
-  #endif
-  [[INTEL::max_replicates(2)]]
-  unsigned int v_nine[64];
+#ifndef SYCLHOST
+// expected-warning@+2 {{'max_replicates' attribute ignored}}
+#endif
+  [[INTEL::max_replicates(2)]] unsigned int v_nine[64];
 
-  #ifndef SYCLHOST
-  // expected-warning@+2 {{'simple_dual_port' attribute ignored}}
-  #endif
-  [[INTEL::simple_dual_port]]
-  unsigned int v_ten[64];
+#ifndef SYCLHOST
+// expected-warning@+2 {{'simple_dual_port' attribute ignored}}
+#endif
+  [[INTEL::simple_dual_port]] unsigned int v_ten[64];
 }
 

@@ -101,11 +101,11 @@ void attrs_on_var() {
   // CHECK-DEVICE: %[[VAR_BANKBITS:[0-9]+]] = bitcast{{.*}}%bankbits
   // CHECK-DEVICE: %[[VAR_BANKBITS1:bankbits[0-9]+]] = bitcast{{.*}}%bankbits
   // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[VAR_BANKBITS1]],{{.*}}[[ANN_bankbits_4_5]]
-  int bankbits [[INTEL::bank_bits(4,5)]];
+  int bankbits [[INTEL::bank_bits(4, 5)]];
   // CHECK-DEVICE: %[[VAR_BANKBITS_NUMBANKS:[0-9]+]] = bitcast{{.*}}%bankbits_numbanks_mlab
   // CHECK-DEVICE: %[[VAR_BANKBITS_NUMBANKS1:bankbits_numbanks_mlab[0-9]+]] = bitcast{{.*}}%bankbits_numbanks_mlab
   // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[VAR_BANKBITS_NUMBANKS1]],{{.*}}[[ANN_bankbits_numbanks_mlab]]
-  [[INTEL::bank_bits(5,4,3), INTEL::numbanks(8), INTEL::fpga_memory("MLAB")]] int bankbits_numbanks_mlab;
+  [[INTEL::bank_bits(5, 4, 3), INTEL::numbanks(8), INTEL::fpga_memory("MLAB")]] int bankbits_numbanks_mlab;
   // CHECK-DEVICE: %[[VAR_BANK_BITS_WIDTH:[0-9]+]] = bitcast{{.*}}%bank_bits_width
   // CHECK-DEVICE: %[[VAR_BANK_BITS_WIDTH1:bank_bits_width[0-9]+]] = bitcast{{.*}}%bank_bits_width
   // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[VAR_BANK_BITS_WIDTH1]],{{.*}}[[ANN_bankbits_bankwidth]]
@@ -118,7 +118,7 @@ void attrs_on_var() {
 
 void attrs_on_struct() {
   struct attrs_on_struct {
-    int numbanks [[INTEL::numbanks(4)]] ;
+    int numbanks [[INTEL::numbanks(4)]];
     int reg [[INTEL::fpga_register]];
     int memory [[INTEL::fpga_memory]];
     int memory_blockram [[INTEL::fpga_memory("BLOCK_RAM")]];
@@ -207,7 +207,7 @@ void attrs_with_template_param() {
   int force_p2d [[INTEL::force_pow2_depth(C)]];
 
   struct templ_on_struct_fields {
-    int numbanks [[INTEL::numbanks(A)]] ;
+    int numbanks [[INTEL::numbanks(A)]];
     int bankwidth [[INTEL::bankwidth(A)]];
     int privatecopies [[INTEL::private_copies(A)]];
     int maxreplicates [[INTEL::max_replicates(A)]];
