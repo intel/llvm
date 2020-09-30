@@ -169,4 +169,3 @@ TEST_F(SchedulerTest, EnqueueHostDependency) {
   ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueSuccess, Res.MResult)
       << "Enqueue operation should return successfully.\n";
 }
-
