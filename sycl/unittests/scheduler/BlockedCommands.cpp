@@ -130,3 +130,43 @@ TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
       << "Result of enqueueing blocked command should be BLOCKED.\n";
   ASSERT_EQ(&B, Res.MCmd) << "Expected different failed command.\n";
 }
+
+// This unit test is for workaround described in GraphProcessor::enqueueCommand
+// method.
+TEST_F(SchedulerTest, EnqueueHostDependency) {
+  MockCommand A(detail::getSyclObjImpl(MQueue));
+  A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
+  A.MIsBlockable = true;
+  A.MRetVal = CL_SUCCESS;
+
+  MockCommand B(detail::getSyclObjImpl(MQueue));
+  B.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
+  B.MIsBlockable = true;
+  B.MRetVal = CL_SUCCESS;
+
+  cl::sycl::detail::EventImplPtr DepEvent{
+      new cl::sycl::detail::event_impl(detail::getSyclObjImpl(MQueue))};
+  DepEvent->setCommand(&B);
+
+  A.addDep(DepEvent);
+
+  // We have such a "graph":
+  //
+  //     A
+  //     |
+  //     B
+  //
+  // A depends on B. B is host command.
+  // "Graph" is quoted as we don't have this dependency in MDeps. Instead, we
+  // have this dependecy as result of handler::depends_on() call.
+
+  EXPECT_CALL(A, enqueue(_, _)).Times(1);
+  EXPECT_CALL(B, enqueue(_, _)).Times(1);
+
+  detail::EnqueueResultT Res;
+  bool Enqueued = MockScheduler::enqueueCommand(&A, Res, detail::NON_BLOCKING);
+  ASSERT_TRUE(Enqueued) << "The command should be enqueued\n";
+  ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueSuccess, Res.MResult)
+      << "Enqueue operation should return successfully.\n";
+}
+
