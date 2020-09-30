@@ -126,6 +126,8 @@ class StdLibraryFunctionsChecker
     }
     ArgNo getArgNo() const { return ArgN; }
 
+    virtual StringRef getName() const = 0;
+
   protected:
     ArgNo ArgN; // Argument to which we apply the constraint.
 
@@ -152,6 +154,7 @@ class StdLibraryFunctionsChecker
     IntRangeVector Ranges;
 
   public:
+    StringRef getName() const override { return "Range"; }
     RangeConstraint(ArgNo ArgN, RangeKind Kind, const IntRangeVector &Ranges)
         : ValueConstraint(ArgN), Kind(Kind), Ranges(Ranges) {}
 
@@ -205,6 +208,7 @@ class StdLibraryFunctionsChecker
     ArgNo OtherArgN;
 
   public:
+    virtual StringRef getName() const override { return "Comparison"; };
     ComparisonConstraint(ArgNo ArgN, BinaryOperator::Opcode Opcode,
                          ArgNo OtherArgN)
         : ValueConstraint(ArgN), Opcode(Opcode), OtherArgN(OtherArgN) {}
@@ -221,6 +225,7 @@ class StdLibraryFunctionsChecker
     bool CannotBeNull = true;
 
   public:
+    StringRef getName() const override { return "NonNull"; }
     ProgramStateRef apply(ProgramStateRef State, const CallEvent &Call,
                           const Summary &Summary,
                           CheckerContext &C) const override {
@@ -272,6 +277,7 @@ class StdLibraryFunctionsChecker
     BinaryOperator::Opcode Op = BO_LE;
 
   public:
+    StringRef getName() const override { return "BufferSize"; }
     BufferSizeConstraint(ArgNo Buffer, llvm::APSInt BufMinSize)
         : ValueConstraint(Buffer), ConcreteSize(BufMinSize) {}
     BufferSizeConstraint(ArgNo Buffer, ArgNo BufSize)
@@ -466,6 +472,8 @@ class StdLibraryFunctionsChecker
       return *this;
     }
     Summary &ArgConstraint(ValueConstraintPtr VC) {
+      assert(VC->getArgNo() != Ret &&
+             "Arg constraint should not refer to the return value");
       ArgConstraints.push_back(VC);
       return *this;
     }
@@ -549,17 +557,24 @@ private:
   void initFunctionSummaries(CheckerContext &C) const;
 
   void reportBug(const CallEvent &Call, ExplodedNode *N,
-                 CheckerContext &C) const {
+                 const ValueConstraint *VC, CheckerContext &C) const {
     if (!ChecksEnabled[CK_StdCLibraryFunctionArgsChecker])
       return;
-    // TODO Add detailed diagnostic.
-    StringRef Msg = "Function argument constraint is not satisfied";
+    // TODO Add more detailed diagnostic.
+    std::string Msg =
+        (Twine("Function argument constraint is not satisfied, constraint: ") +
+         VC->getName().data() + ", ArgN: " + Twine(VC->getArgNo()))
+            .str();
     if (!BT_InvalidArg)
       BT_InvalidArg = std::make_unique<BugType>(
           CheckNames[CK_StdCLibraryFunctionArgsChecker],
           "Unsatisfied argument constraints", categories::LogicError);
     auto R = std::make_unique<PathSensitiveBugReport>(*BT_InvalidArg, Msg, N);
-    bugreporter::trackExpressionValue(N, Call.getArgExpr(0), *R);
+    bugreporter::trackExpressionValue(N, Call.getArgExpr(VC->getArgNo()), *R);
+
+    // Highlight the range of the argument that was violated.
+    R->addRange(Call.getArgSourceRange(VC->getArgNo()));
+
     C.emitReport(std::move(R));
   }
 };
@@ -696,7 +711,7 @@ void StdLibraryFunctionsChecker::checkPreCall(const CallEvent &Call,
     // The argument constraint is not satisfied.
     if (FailureSt && !SuccessSt) {
       if (ExplodedNode *N = C.generateErrorNode(NewState))
-        reportBug(Call, N, C);
+        reportBug(Call, N, Constraint.get(), C);
       break;
     } else {
       // We will apply the constraint even if we cannot reason about the
@@ -1075,34 +1090,11 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
   Optional<QualType> FilePtrRestrictTy = getRestrictTy(FilePtrTy);
 
   // Templates for summaries that are reused by many functions.
-  auto Getc = [&]() {
-    return Summary(ArgTypes{FilePtrTy}, RetType{IntTy}, NoEvalCall)
-        .Case({ReturnValueCondition(WithinRange,
-                                    {{EOFv, EOFv}, {0, UCharRangeMax}})});
-  };
   auto Read = [&](RetType R, RangeInt Max) {
     return Summary(ArgTypes{Irrelevant, Irrelevant, SizeTy}, RetType{R},
                    NoEvalCall)
         .Case({ReturnValueCondition(LessThanOrEq, ArgNo(2)),
                ReturnValueCondition(WithinRange, Range(-1, Max))});
-  };
-  auto Fread = [&]() {
-    return Summary(
-               ArgTypes{VoidPtrRestrictTy, SizeTy, SizeTy, FilePtrRestrictTy},
-               RetType{SizeTy}, NoEvalCall)
-        .Case({
-            ReturnValueCondition(LessThanOrEq, ArgNo(2)),
-        })
-        .ArgConstraint(NotNull(ArgNo(0)));
-  };
-  auto Fwrite = [&]() {
-    return Summary(ArgTypes{ConstVoidPtrRestrictTy, SizeTy, SizeTy,
-                            FilePtrRestrictTy},
-                   RetType{SizeTy}, NoEvalCall)
-        .Case({
-            ReturnValueCondition(LessThanOrEq, ArgNo(2)),
-        })
-        .ArgConstraint(NotNull(ArgNo(0)));
   };
   auto Getline = [&](RetType R, RangeInt Max) {
     return Summary(ArgTypes{Irrelevant, Irrelevant, Irrelevant}, RetType{R},
@@ -1268,19 +1260,45 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
                          0U, WithinRange, {{EOFv, EOFv}, {0, UCharRangeMax}})));
 
   // The getc() family of functions that returns either a char or an EOF.
-    addToFunctionSummaryMap("getc", Getc());
-    addToFunctionSummaryMap("fgetc", Getc());
+  addToFunctionSummaryMap(
+      {"getc", "fgetc"}, Signature(ArgTypes{FilePtrTy}, RetType{IntTy}),
+      Summary(NoEvalCall)
+          .Case({ReturnValueCondition(WithinRange,
+                                      {{EOFv, EOFv}, {0, UCharRangeMax}})}));
   addToFunctionSummaryMap(
       "getchar", Summary(ArgTypes{}, RetType{IntTy}, NoEvalCall)
                      .Case({ReturnValueCondition(
                          WithinRange, {{EOFv, EOFv}, {0, UCharRangeMax}})}));
 
   // read()-like functions that never return more than buffer size.
-    addToFunctionSummaryMap("fread", Fread());
-    addToFunctionSummaryMap("fwrite", Fwrite());
+  auto FreadSummary =
+      Summary(NoEvalCall)
+          .Case({
+              ReturnValueCondition(LessThanOrEq, ArgNo(2)),
+          })
+          .ArgConstraint(NotNull(ArgNo(0)))
+          .ArgConstraint(NotNull(ArgNo(3)))
+          .ArgConstraint(BufferSize(/*Buffer=*/ArgNo(0), /*BufSize=*/ArgNo(1),
+                                    /*BufSizeMultiplier=*/ArgNo(2)));
+
+  // size_t fread(void *restrict ptr, size_t size, size_t nitems,
+  //              FILE *restrict stream);
+  addToFunctionSummaryMap(
+      "fread",
+      Signature(ArgTypes{VoidPtrRestrictTy, SizeTy, SizeTy, FilePtrRestrictTy},
+                RetType{SizeTy}),
+      FreadSummary);
+  // size_t fwrite(const void *restrict ptr, size_t size, size_t nitems,
+  //               FILE *restrict stream);
+  addToFunctionSummaryMap("fwrite",
+                          Signature(ArgTypes{ConstVoidPtrRestrictTy, SizeTy,
+                                             SizeTy, FilePtrRestrictTy},
+                                    RetType{SizeTy}),
+                          FreadSummary);
 
   // We are not sure how ssize_t is defined on every platform, so we
   // provide three variants that should cover common cases.
+  // FIXME Use lookupTy("ssize_t") instead of the `Read` lambda.
   // FIXME these are actually defined by POSIX and not by the C standard, we
   // should handle them together with the rest of the POSIX functions.
   addToFunctionSummaryMap("read", {Read(IntTy, IntMax), Read(LongTy, LongMax),
@@ -1289,11 +1307,13 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
                                     Read(LongLongTy, LongLongMax)});
 
   // getline()-like functions either fail or read at least the delimiter.
+  // FIXME Use lookupTy("ssize_t") instead of the `Getline` lambda.
   // FIXME these are actually defined by POSIX and not by the C standard, we
   // should handle them together with the rest of the POSIX functions.
   addToFunctionSummaryMap("getline",
                           {Getline(IntTy, IntMax), Getline(LongTy, LongMax),
                            Getline(LongLongTy, LongLongMax)});
+  // FIXME getdelim's signature is different than getline's!
   addToFunctionSummaryMap("getdelim",
                           {Getline(IntTy, IntMax), Getline(LongTy, LongMax),
                            Getline(LongLongTy, LongLongMax)});
@@ -1675,22 +1695,6 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
     addToFunctionSummaryMap("rand_r", Summary(ArgTypes{UnsignedIntPtrTy},
                                               RetType{IntTy}, NoEvalCall)
                                           .ArgConstraint(NotNull(ArgNo(0))));
-
-    // int strcasecmp(const char *s1, const char *s2);
-    addToFunctionSummaryMap("strcasecmp",
-                            Summary(ArgTypes{ConstCharPtrTy, ConstCharPtrTy},
-                                    RetType{IntTy}, EvalCallAsPure)
-                                .ArgConstraint(NotNull(ArgNo(0)))
-                                .ArgConstraint(NotNull(ArgNo(1))));
-
-    // int strncasecmp(const char *s1, const char *s2, size_t n);
-    addToFunctionSummaryMap(
-        "strncasecmp", Summary(ArgTypes{ConstCharPtrTy, ConstCharPtrTy, SizeTy},
-                               RetType{IntTy}, EvalCallAsPure)
-                           .ArgConstraint(NotNull(ArgNo(0)))
-                           .ArgConstraint(NotNull(ArgNo(1)))
-                           .ArgConstraint(ArgumentCondition(
-                               2, WithinRange, Range(0, SizeMax))));
 
     // int fileno(FILE *stream);
     addToFunctionSummaryMap(

@@ -3053,6 +3053,11 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     Known.Zero.setBitsFrom(Log2_32(PossibleOnes) + 1);
     break;
   }
+  case ISD::PARITY: {
+    // Parity returns 0 everywhere but the LSB.
+    Known.Zero.setBitsFrom(1);
+    break;
+  }
   case ISD::LOAD: {
     LoadSDNode *LD = cast<LoadSDNode>(Op);
     const Constant *Cst = TLI->getTargetConstantFromLoad(LD);
@@ -3370,21 +3375,7 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
   }
   case ISD::ABS: {
     Known2 = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
-
-    // If the source's MSB is zero then we know the rest of the bits already.
-    if (Known2.isNonNegative()) {
-      Known.Zero = Known2.Zero;
-      Known.One = Known2.One;
-      break;
-    }
-
-    // We only know that the absolute values's MSB will be zero iff there is
-    // a set bit that isn't the sign bit (otherwise it could be INT_MIN).
-    Known2.One.clearSignBit();
-    if (Known2.One.getBoolValue()) {
-      Known.Zero = APInt::getSignMask(BitWidth);
-      break;
-    }
+    Known = Known2.abs();
     break;
   }
   case ISD::UMIN: {
@@ -6112,7 +6103,7 @@ static SDValue getMemcpyLoadsAndStores(SelectionDAG &DAG, const SDLoc &dl,
         Store = DAG.getStore(
             Chain, dl, Value,
             DAG.getMemBasePlusOffset(Dst, TypeSize::Fixed(DstOff), dl),
-            DstPtrInfo.getWithOffset(DstOff), Alignment.value(), MMOFlags);
+            DstPtrInfo.getWithOffset(DstOff), Alignment, MMOFlags);
         OutChains.push_back(Store);
       }
     }
@@ -6136,13 +6127,13 @@ static SDValue getMemcpyLoadsAndStores(SelectionDAG &DAG, const SDLoc &dl,
           ISD::EXTLOAD, dl, NVT, Chain,
           DAG.getMemBasePlusOffset(Src, TypeSize::Fixed(SrcOff), dl),
           SrcPtrInfo.getWithOffset(SrcOff), VT,
-          commonAlignment(*SrcAlign, SrcOff).value(), SrcMMOFlags);
+          commonAlignment(*SrcAlign, SrcOff), SrcMMOFlags);
       OutLoadChains.push_back(Value.getValue(1));
 
       Store = DAG.getTruncStore(
           Chain, dl, Value,
           DAG.getMemBasePlusOffset(Dst, TypeSize::Fixed(DstOff), dl),
-          DstPtrInfo.getWithOffset(DstOff), VT, Alignment.value(), MMOFlags);
+          DstPtrInfo.getWithOffset(DstOff), VT, Alignment, MMOFlags);
       OutStoreChains.push_back(Store);
     }
     SrcOff += VTSize;
@@ -6262,10 +6253,10 @@ static SDValue getMemmoveLoadsAndStores(SelectionDAG &DAG, const SDLoc &dl,
     if (isDereferenceable)
       SrcMMOFlags |= MachineMemOperand::MODereferenceable;
 
-    Value = DAG.getLoad(
-        VT, dl, Chain,
-        DAG.getMemBasePlusOffset(Src, TypeSize::Fixed(SrcOff), dl),
-        SrcPtrInfo.getWithOffset(SrcOff), SrcAlign->value(), SrcMMOFlags);
+    Value =
+        DAG.getLoad(VT, dl, Chain,
+                    DAG.getMemBasePlusOffset(Src, TypeSize::Fixed(SrcOff), dl),
+                    SrcPtrInfo.getWithOffset(SrcOff), *SrcAlign, SrcMMOFlags);
     LoadValues.push_back(Value);
     LoadChains.push_back(Value.getValue(1));
     SrcOff += VTSize;
@@ -6277,10 +6268,10 @@ static SDValue getMemmoveLoadsAndStores(SelectionDAG &DAG, const SDLoc &dl,
     unsigned VTSize = VT.getSizeInBits() / 8;
     SDValue Store;
 
-    Store = DAG.getStore(
-        Chain, dl, LoadValues[i],
-        DAG.getMemBasePlusOffset(Dst, TypeSize::Fixed(DstOff), dl),
-        DstPtrInfo.getWithOffset(DstOff), Alignment.value(), MMOFlags);
+    Store =
+        DAG.getStore(Chain, dl, LoadValues[i],
+                     DAG.getMemBasePlusOffset(Dst, TypeSize::Fixed(DstOff), dl),
+                     DstPtrInfo.getWithOffset(DstOff), Alignment, MMOFlags);
     OutChains.push_back(Store);
     DstOff += VTSize;
   }
@@ -6380,7 +6371,7 @@ static SDValue getMemsetStores(SelectionDAG &DAG, const SDLoc &dl,
     SDValue Store = DAG.getStore(
         Chain, dl, Value,
         DAG.getMemBasePlusOffset(Dst, TypeSize::Fixed(DstOff), dl),
-        DstPtrInfo.getWithOffset(DstOff), Alignment.value(),
+        DstPtrInfo.getWithOffset(DstOff), Alignment,
         isVol ? MachineMemOperand::MOVolatile : MachineMemOperand::MONone);
     OutChains.push_back(Store);
     DstOff += VT.getSizeInBits() / 8;
@@ -7045,8 +7036,7 @@ SDValue SelectionDAG::getIndexedLoad(SDValue OrigLoad, const SDLoc &dl,
       ~(MachineMemOperand::MOInvariant | MachineMemOperand::MODereferenceable);
   return getLoad(AM, LD->getExtensionType(), OrigLoad.getValueType(), dl,
                  LD->getChain(), Base, Offset, LD->getPointerInfo(),
-                 LD->getMemoryVT(), LD->getAlignment(), MMOFlags,
-                 LD->getAAInfo());
+                 LD->getMemoryVT(), LD->getAlign(), MMOFlags, LD->getAAInfo());
 }
 
 SDValue SelectionDAG::getStore(SDValue Chain, const SDLoc &dl, SDValue Val,

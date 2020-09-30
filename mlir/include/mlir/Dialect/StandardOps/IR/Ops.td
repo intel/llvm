@@ -1504,6 +1504,15 @@ def DynamicTensorFromElementsOp : Std_Op<"dynamic_tensor_from_elements",
   let arguments = (ins Variadic<Index>:$dynamicExtents);
   let results = (outs AnyRankedTensor:$result);
   let regions = (region SizedRegion<1>:$body);
+
+  let builders = [
+    // Build op and populate its body per callback function.
+    OpBuilder<"OpBuilder &b, OperationState &result, Type resultTy, "
+              "ValueRange dynamicExtents, "
+              "function_ref<void(OpBuilder &, Location, ValueRange)>">,
+  ];
+
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1604,8 +1613,13 @@ def ExtractElementOp : Std_Op<"extract_element",
 // TensorFromElementsOp
 //===----------------------------------------------------------------------===//
 
-def TensorFromElementsOp : Std_Op<"tensor_from_elements",
-    [NoSideEffect, SameOperandsAndResultElementType]> {
+def TensorFromElementsOp : Std_Op<"tensor_from_elements", [
+    NoSideEffect,
+    TypesMatchWith<"operand types match result element type",
+                   "result", "elements", "SmallVector<Type, 2>("
+                   "$_self.cast<ShapedType>().getDimSize(0), "
+                   "$_self.cast<ShapedType>().getElementType())">
+  ]> {
   string summary = "tensor from elements operation.";
   string description = [{
     Create a 1D tensor from a range of same-type arguments.
@@ -1618,17 +1632,20 @@ def TensorFromElementsOp : Std_Op<"tensor_from_elements",
   }];
 
   let arguments = (ins Variadic<AnyType>:$elements);
-  let results = (outs AnyTensor:$result);
+  let results = (outs 1DTensorOf<[AnyType]>:$result);
+
+  let assemblyFormat = "$elements attr-dict `:` type($result)";
+
+  // This op is fully verified by its traits.
+  let verifier = ?;
 
   let skipDefaultBuilders = 1;
-  let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, ValueRange elements", [{
-      assert(!elements.empty() && "expected at least one element");
-      result.addOperands(elements);
-      result.addTypes(
-          RankedTensorType::get({static_cast<int64_t>(elements.size())},
-                                *elements.getTypes().begin()));
-    }]>];
+  let builders = [
+    OpBuilder<"OpBuilder &b, OperationState &result, Type elementType,"
+    "ValueRange elements">,
+    // Special case builder for when `elements` has size >=1.
+    OpBuilder<"OpBuilder &b, OperationState &result, ValueRange elements">
+  ];
 
   let hasCanonicalizer = 1;
 }
@@ -2428,10 +2445,10 @@ def SignExtendIOp : Std_Op<"sexti",
 def SIToFPOp : CastOp<"sitofp">, Arguments<(ins AnyType:$in)> {
   let summary = "cast from integer type to floating-point";
   let description = [{
-    Cast from a value interpreted as signed integer to the corresponding
-    floating-point value. If the value cannot be exactly represented, it is
-    rounded using the default rounding mode. Only scalars are currently
-    supported.
+    Cast from a value interpreted as signed or vector of signed integers to the
+    corresponding floating-point scalar or vector value. If the value cannot be
+    exactly represented, it is rounded using the default rounding mode. Scalars
+    and vector types are currently supported.
   }];
 
   let extraClassDeclaration = [{
@@ -2980,6 +2997,8 @@ def TensorCastOp : CastOp<"tensor_cast"> {
     /// The result of a tensor_cast is always a tensor.
     TensorType getType() { return getResult().getType().cast<TensorType>(); }
   }];
+
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -3109,10 +3128,10 @@ def TruncateIOp : Std_Op<"trunci", [NoSideEffect, SameOperandsAndResultShape]> {
 def UIToFPOp : CastOp<"uitofp">, Arguments<(ins AnyType:$in)> {
   let summary = "cast from unsigned integer type to floating-point";
   let description = [{
-    Cast from a value interpreted as unsigned integer to the corresponding
-    floating-point value. If the value cannot be exactly represented, it is
-    rounded using the default rounding mode. Only scalars are currently
-    supported.
+    Cast from a value interpreted as unsigned integer or vector of unsigned
+    integers to the corresponding scalar or vector floating-point value. If the
+    value cannot be exactly represented, it is rounded using the default
+    rounding mode. Scalars and vector types are currently supported.
   }];
 
   let extraClassDeclaration = [{

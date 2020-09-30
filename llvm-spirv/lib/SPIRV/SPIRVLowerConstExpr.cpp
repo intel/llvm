@@ -41,16 +41,14 @@
 #include "SPIRVInternal.h"
 #include "SPIRVMDBuilder.h"
 #include "SPIRVMDWalker.h"
+#include "libSPIRV/SPIRVDebug.h"
 
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Debug.h"
 
 #include <list>
 #include <set>
@@ -93,12 +91,8 @@ bool SPIRVLowerConstExpr::runOnModule(Module &Module) {
   LLVM_DEBUG(dbgs() << "Enter SPIRVLowerConstExpr:\n");
   visit(M);
 
-  LLVM_DEBUG(dbgs() << "After SPIRVLowerConstExpr:\n" << *M);
-  std::string Err;
-  raw_string_ostream ErrorOS(Err);
-  if (verifyModule(*M, &ErrorOS)) {
-    LLVM_DEBUG(errs() << "Fails to verify module: " << ErrorOS.str());
-  }
+  verifyRegularizationPass(*M, "SPIRVLowerConstExpr");
+
   return true;
 }
 

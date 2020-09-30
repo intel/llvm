@@ -182,8 +182,9 @@ LogicalResult ConstShapeOpConverter::matchAndRewrite(
     extentOperands.push_back(
         rewriter.create<ConstantIndexOp>(loc, extent.getLimitedValue()));
   }
-  Value tensor = rewriter.create<TensorFromElementsOp>(loc, extentOperands);
   Type indexTy = rewriter.getIndexType();
+  Value tensor =
+      rewriter.create<TensorFromElementsOp>(loc, indexTy, extentOperands);
   Type resultTy = RankedTensorType::get({ShapedType::kDynamicSize}, indexTy);
   rewriter.replaceOpWithNewOp<TensorCastOp>(op, tensor, resultTy);
   return success();
@@ -422,6 +423,7 @@ LogicalResult ShapeOfOpConversion::matchAndRewrite(
     return failure();
 
   // For ranked tensor arguments, lower to `tensor_from_elements`.
+  auto loc = op.getLoc();
   ShapeOfOp::Adaptor transformed(operands);
   Value tensor = transformed.arg();
   Type tensorTy = tensor.getType();
@@ -431,7 +433,6 @@ LogicalResult ShapeOfOpConversion::matchAndRewrite(
     SmallVector<Value, 8> extentValues;
     RankedTensorType rankedTensorTy = tensorTy.cast<RankedTensorType>();
     int64_t rank = rankedTensorTy.getRank();
-    auto loc = op.getLoc();
     for (int64_t i = 0; i < rank; i++) {
       if (rankedTensorTy.isDynamicDim(i)) {
         Value extent = rewriter.create<DimOp>(loc, tensor, i);
@@ -444,33 +445,24 @@ LogicalResult ShapeOfOpConversion::matchAndRewrite(
     }
 
     // Materialize extent tensor.
-    Value staticExtentTensor =
-        rewriter.create<TensorFromElementsOp>(loc, extentValues);
+    Value staticExtentTensor = rewriter.create<TensorFromElementsOp>(
+        loc, rewriter.getIndexType(), extentValues);
     rewriter.replaceOpWithNewOp<TensorCastOp>(op, staticExtentTensor,
                                               op.getType());
     return success();
   }
 
-  // Allocate stack memory.
-  auto loc = op.getLoc();
+  // Lower to `dynamic_tensor_from_elements` otherwise.
+  auto *ctx = rewriter.getContext();
   Value rank = rewriter.create<mlir::RankOp>(loc, tensor);
-  Type indexTy = rewriter.getIndexType();
-  Type memTy = MemRefType::get({ShapedType::kDynamicSize}, indexTy);
-  Value mem = rewriter.create<AllocaOp>(loc, memTy, ValueRange{rank});
-
-  // Copy shape extents to stack-allocated memory.
-  Value zero = rewriter.create<ConstantIndexOp>(loc, 0);
-  Value one = rewriter.create<ConstantIndexOp>(loc, 1);
-  rewriter.create<scf::ForOp>(
-      loc, zero, rank, one, llvm::None,
-      [&](OpBuilder &b, Location loc, Value iv, ValueRange args) {
-        Value dim = rewriter.create<DimOp>(loc, tensor, iv);
-        rewriter.create<StoreOp>(loc, dim, mem, ValueRange{iv});
-        rewriter.create<scf::YieldOp>(loc);
+  rewriter.replaceOpWithNewOp<DynamicTensorFromElementsOp>(
+      op, getExtentTensorType(ctx), ValueRange{rank},
+      [&](OpBuilder &b, Location loc, ValueRange args) {
+        Value dim = args.front();
+        Value extent = b.create<DimOp>(loc, tensor, dim);
+        b.create<mlir::YieldOp>(loc, extent);
       });
 
-  // Load extents to tensor value.
-  rewriter.replaceOpWithNewOp<TensorLoadOp>(op.getOperation(), mem);
   return success();
 }
 

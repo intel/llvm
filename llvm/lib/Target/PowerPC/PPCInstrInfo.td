@@ -368,6 +368,8 @@ def PPCprobedalloca : SDNode<"PPCISD::PROBED_ALLOCA", SDTDynOp, [SDNPHasChain]>;
 def PPCmatpcreladdr : SDNode<"PPCISD::MAT_PCREL_ADDR", SDTIntUnaryOp, []>;
 def PPCtlsdynamatpcreladdr : SDNode<"PPCISD::TLS_DYNAMIC_MAT_PCREL_ADDR",
                                     SDTIntUnaryOp, []>;
+def PPCtlslocalexecmataddr : SDNode<"PPCISD::TLS_LOCAL_EXEC_MAT_ADDR",
+                                    SDTIntUnaryOp, []>;
 
 //===----------------------------------------------------------------------===//
 // PowerPC specific transformation functions and pattern fragments.
@@ -2624,7 +2626,7 @@ let isCompare = 1, hasSideEffects = 0 in {
 }
 }
 let PPC970_Unit = 3, Predicates = [HasFPU] in {  // FPU Operations.
-let isCompare = 1, hasSideEffects = 0 in {
+let isCompare = 1, mayRaiseFPException = 1, hasSideEffects = 0 in {
   def FCMPUS : XForm_17<63, 0, (outs crrc:$crD), (ins f4rc:$fA, f4rc:$fB),
                         "fcmpu $crD, $fA, $fB", IIC_FPCompare>;
   def FCMPOS : XForm_17<63, 32, (outs crrc:$crD), (ins f4rc:$fA, f4rc:$fB),
@@ -3477,7 +3479,7 @@ def : Pat<(f64 (extloadf32 iaddr:$src)),
 def : Pat<(f64 (extloadf32 xaddr:$src)),
           (COPY_TO_REGCLASS (LFSX xaddr:$src), F8RC)>;
 
-def : Pat<(f64 (fpextend f32:$src)),
+def : Pat<(f64 (any_fpextend f32:$src)),
           (COPY_TO_REGCLASS $src, F8RC)>;
 }
 

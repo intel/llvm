@@ -65,6 +65,15 @@ std::mutex ZeCall::GlobalLock;
 // Controls Level Zero calls tracing in zePrint.
 static bool ZeDebug = false;
 
+// Controls Level Zero validation layer and parameter validation.
+static bool ZeValidationLayer = false;
+
+enum DebugLevel {
+  ZE_DEBUG_BASIC = 0x1,
+  ZE_DEBUG_VALIDATION = 0x2,
+  ZE_DEBUG_ALL = -1
+};
+
 static void zePrint(const char *Format, ...) {
   if (ZeDebug) {
     va_list Args;
@@ -549,6 +558,8 @@ static pi_result copyModule(ze_context_handle_t ZeContext,
                             ze_module_handle_t SrcMod,
                             ze_module_handle_t *DestMod);
 
+static bool setEnvVar(const char *var, const char *value);
+
 static pi_result getOrCreatePlatform(ze_driver_handle_t ZeDriver,
                                      pi_platform *Platform);
 
@@ -567,12 +578,37 @@ static bool isOnlineLinkEnabled();
 // End forward declarations for mock Level Zero APIs
 std::once_flag OnceFlag;
 
+// This function will ensure compatibility with both Linux and Windowns for
+// setting environment variables.
+static bool setEnvVar(const char *name, const char *value) {
+#ifdef _WIN32
+  int Res = _putenv_s(name, value);
+#else
+  int Res = setenv(name, value, 1);
+#endif
+  if (Res != 0) {
+    zePrint(
+        "Level Zero plugin was unable to set the environment variable: %s\n",
+        name);
+    return false;
+  }
+  return true;
+}
+
 pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                          pi_uint32 *NumPlatforms) {
 
   static const char *DebugMode = std::getenv("ZE_DEBUG");
-  if (DebugMode)
+  static const int DebugModeValue = DebugMode ? std::stoi(DebugMode) : 0;
+  if (DebugModeValue == ZE_DEBUG_ALL) {
     ZeDebug = true;
+    ZeValidationLayer = true;
+  } else {
+    if (DebugModeValue & ZE_DEBUG_BASIC)
+      ZeDebug = true;
+    if (DebugModeValue & ZE_DEBUG_VALIDATION)
+      ZeValidationLayer = true;
+  }
 
   static const char *SerializeMode = std::getenv("ZE_SERIALIZE");
   static const pi_uint32 SerializeModeValue =
@@ -584,6 +620,13 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   }
   if (Platforms == nullptr && NumPlatforms == nullptr) {
     return PI_INVALID_VALUE;
+  }
+
+  // Setting these environment variables before running zeInit will enable the
+  // validation layer in the Level Zero loader.
+  if (ZeValidationLayer) {
+    setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
+    setEnvVar("ZE_ENABLE_PARAMETER_VALIDATION", "1");
   }
 
   // TODO: We can still safely recover if something goes wrong during the init.
@@ -1398,7 +1441,16 @@ piextDeviceSelectBinary(pi_device Device, // TODO: does this need to be context?
                         pi_device_binary *Binaries, pi_uint32 NumBinaries,
                         pi_uint32 *SelectedBinaryInd) {
 
-  // TODO dummy implementation.
+  assert(Device);
+  assert(SelectedBinaryInd);
+  assert(NumBinaries == 0 || Binaries);
+
+  // TODO: this is a bare-bones implementation for choosing a device image
+  // that would be compatible with the targeted device. An AOT-compiled
+  // image is preferred over SPIR-V for known devices (i.e. Intel devices)
+  // The implementation makes no effort to differentiate between multiple images
+  // for the given device, and simply picks the first one compatible.
+  //
   // Real implementation will use the same mechanism OpenCL ICD dispatcher
   // uses. Something like:
   //   PI_VALIDATE_HANDLE_RETURN_HANDLE(ctx, PI_INVALID_CONTEXT);
@@ -1407,9 +1459,28 @@ piextDeviceSelectBinary(pi_device Device, // TODO: does this need to be context?
   // where context->dispatch is set to the dispatch table provided by PI
   // plugin for platform/device the ctx was created for.
 
+  // Look for GEN binary, which we known can only be handled by Level-Zero now.
+  const char *BinaryTarget = PI_DEVICE_BINARY_TARGET_SPIRV64_GEN;
+
+  // Find the appropriate device image, fallback to spirv if not found
   constexpr pi_uint32 InvalidInd = std::numeric_limits<pi_uint32>::max();
-  *SelectedBinaryInd = NumBinaries > 0 ? 0 : InvalidInd;
-  return PI_SUCCESS;
+  pi_uint32 Spirv = InvalidInd;
+
+  for (pi_uint32 i = 0; i < NumBinaries; ++i) {
+    if (strcmp(Binaries[i]->DeviceTargetSpec, BinaryTarget) == 0) {
+      *SelectedBinaryInd = i;
+      return PI_SUCCESS;
+    }
+    if (strcmp(Binaries[i]->DeviceTargetSpec,
+               PI_DEVICE_BINARY_TARGET_SPIRV64) == 0)
+      Spirv = i;
+  }
+  // Points to a spirv image, if such indeed was found
+  if ((*SelectedBinaryInd = Spirv) != InvalidInd)
+    return PI_SUCCESS;
+
+  // No image can be loaded for the given device
+  return PI_INVALID_BINARY;
 }
 
 pi_result piextDeviceGetNativeHandle(pi_device Device,

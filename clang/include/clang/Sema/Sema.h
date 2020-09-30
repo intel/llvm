@@ -4126,6 +4126,8 @@ public:
   ObjCInterfaceDecl *getObjCInterfaceDecl(IdentifierInfo *&Id,
                                           SourceLocation IdLoc,
                                           bool TypoCorrection = false);
+  FunctionDecl *CreateBuiltin(IdentifierInfo *II, QualType Type, unsigned ID,
+                              SourceLocation Loc);
   NamedDecl *LazilyCreateBuiltin(IdentifierInfo *II, unsigned ID,
                                  Scope *S, bool ForRedeclaration,
                                  SourceLocation Loc);
@@ -10193,21 +10195,27 @@ private:
     OMPDeclareVariantScope(OMPTraitInfo &TI);
   };
 
+  /// Return the OMPTraitInfo for the surrounding scope, if any.
+  OMPTraitInfo *getOMPTraitInfoForSurroundingScope() {
+    return OMPDeclareVariantScopes.empty() ? nullptr
+                                           : OMPDeclareVariantScopes.back().TI;
+  }
+
   /// The current `omp begin/end declare variant` scopes.
   SmallVector<OMPDeclareVariantScope, 4> OMPDeclareVariantScopes;
 
   /// The declarator \p D defines a function in the scope \p S which is nested
   /// in an `omp begin/end declare variant` scope. In this method we create a
   /// declaration for \p D and rename \p D according to the OpenMP context
-  /// selector of the surrounding scope.
-  FunctionDecl *
-  ActOnStartOfFunctionDefinitionInOpenMPDeclareVariantScope(Scope *S,
-                                                            Declarator &D);
+  /// selector of the surrounding scope. Return all base functions in \p Bases.
+  void ActOnStartOfFunctionDefinitionInOpenMPDeclareVariantScope(
+      Scope *S, Declarator &D, MultiTemplateParamsArg TemplateParameterLists,
+      SmallVectorImpl<FunctionDecl *> &Bases);
 
-  /// Register \p FD as specialization of \p BaseFD in the current `omp
-  /// begin/end declare variant` scope.
+  /// Register \p D as specialization of all base functions in \p Bases in the
+  /// current `omp begin/end declare variant` scope.
   void ActOnFinishedFunctionDefinitionInOpenMPDeclareVariantScope(
-      FunctionDecl *FD, FunctionDecl *BaseFD);
+      Decl *D, SmallVectorImpl<FunctionDecl *> &Bases);
 
 public:
 
@@ -12595,6 +12603,7 @@ public:
 
   /// The struct behind the CFErrorRef pointer.
   RecordDecl *CFError = nullptr;
+  bool isCFError(RecordDecl *D);
 
   /// Retrieve the identifier "NSError".
   IdentifierInfo *getNSErrorIdent();

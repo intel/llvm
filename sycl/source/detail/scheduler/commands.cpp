@@ -1605,8 +1605,9 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, RT::PiKernel Kernel,
   assert(NDR.NumWorkGroups[0] != 0 && NDR.LocalSize[0] == 0);
   // TODO might be good to cache this info together with the kernel info to
   // avoid get_kernel_work_group_info on every kernel run
-  range<3> WGSize = get_kernel_work_group_info<
-      range<3>, cl::sycl::info::kernel_work_group::compile_work_group_size>::
+  range<3> WGSize = get_kernel_device_specific_info<
+      range<3>,
+      cl::sycl::info::kernel_device_specific::compile_work_group_size>::
       get(Kernel, DeviceImpl.getHandleRef(), DeviceImpl.getPlugin());
 
   if (WGSize[0] == 0) {
@@ -1615,8 +1616,8 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, RT::PiKernel Kernel,
         get_device_info<id<3>, cl::sycl::info::device::max_work_item_sizes>::
             get(DeviceImpl.getHandleRef(), DeviceImpl.getPlugin());
 
-    size_t WGSize1D = get_kernel_work_group_info<
-        size_t, cl::sycl::info::kernel_work_group::work_group_size>::
+    size_t WGSize1D = get_kernel_device_specific_info<
+        size_t, cl::sycl::info::kernel_device_specific::work_group_size>::
         get(Kernel, DeviceImpl.getHandleRef(), DeviceImpl.getPlugin());
 
     assert(MaxWGSizes[2] != 0);
