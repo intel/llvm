@@ -215,13 +215,13 @@ short _dtest(double *px) {
     return FP_SUBNORMAL;
   case _FINITE:
     return FP_NORMAL;
-  case 0:
-    return FP_ZERO;
   case _INFCODE:
     return FP_INFINITE;
   case _NANCODE:
     return FP_NAN;
   }
+
+  return FP_ZERO;
 }
 
 DEVICE_EXTERN_C
