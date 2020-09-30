@@ -1,6 +1,5 @@
-
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
-
+#include "Inputs/sycl.hpp"
 struct C {
   static int c;
 };
@@ -24,12 +23,7 @@ void test() {
   const D<int> struct_d;
 }
 
-template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
-  kernelFunc();
-}
-
 int main() {
-  kernel_single_task<class fake_kernel>([]() { test<int>(); });
+  cl::sycl::kernel_single_task<class fake_kernel>([]() { test<int>(); });
   return 0;
 }

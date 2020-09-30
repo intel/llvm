@@ -4012,12 +4012,9 @@ LangAS CodeGenModule::getStringLiteralAddressSpace() const {
     //   const char *getLiteral() n{
     //     return "AB";
     //   }
-    // because there is a addressspacecast to generic address space in IR,
-    // but adressspacecast from constant to generic forbitten because of
-    // constant address space is not part of generic address space.
-    // The private adress space doesn't suit here because a IR is translated
-    // in SPIRV in SYCLIsDevice mode, and all global Value shouldn't
-    // be private in IR for rigth translation to SPIRV.
+    // Use global address space to avoid illegal casts from constant to generic.
+    // Private address space is not used here because in SPIR-V global values
+    // cannot have private address space.
     return LangAS::opencl_global;
   if (auto AS = getTarget().getConstantAddressSpace())
     return AS.getValue();
