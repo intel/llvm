@@ -400,7 +400,7 @@ private:
 
   void initHostTaskAndEventCallbackThreadPool();
 
-  /// queue_impl.addSharedEvent tracks events with weak pointers
+  /// queue_impl.addEvent tracks events with weak pointers
   /// but some events have no other owners. addSharedEvent()
   /// follows events with a shared pointer.
   ///
