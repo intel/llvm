@@ -2,7 +2,7 @@
 ; RUN: not llvm-spirv %t.bc -o %t.spv 2>&1 | FileCheck %s
 
 ; CHECK: InvalidFunctionCall: Unexpected llvm intrinsic:
-; CHECK: Translation of llvm.memset requires a non-const `length` argument
+; CHECK: Translation of llvm.memset requires a const `length` argument
 
 target triple = "spir"
 
