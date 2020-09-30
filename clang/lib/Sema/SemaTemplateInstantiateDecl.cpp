@@ -582,6 +582,17 @@ static void instantiateIntelSYCLFunctionAttr(
                                                   Result.getAs<Expr>());
 }
 
+static void instantiateSYCLIntelSchedulerTargetFmaxMhzAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLIntelSchedulerTargetFmaxMhzAttr *Attr, Decl *New) {
+  // The TargetFmaxMhz expression is a constant expression.
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(Attr->getTargetFmaxMhz(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.addSYCLIntelSchedulerTargetFmaxMhzAttr(New, *Attr, Result.getAs<Expr>());
+}
+
 void Sema::InstantiateAttrsForDecl(
     const MultiLevelTemplateArgumentList &TemplateArgs, const Decl *Tmpl,
     Decl *New, LateInstantiatedAttrVec *LateAttrs,
@@ -735,6 +746,12 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
             dyn_cast<SYCLIntelNumSimdWorkItemsAttr>(TmplAttr)) {
       instantiateIntelSYCLFunctionAttr<SYCLIntelNumSimdWorkItemsAttr>(
           *this, TemplateArgs, SYCLIntelNumSimdWorkItems, New);
+      continue;
+    }
+    if (const auto *SYCLIntelSchedulerTargetFmaxMhz =
+            dyn_cast<SYCLIntelSchedulerTargetFmaxMhzAttr>(TmplAttr)) {
+      instantiateSYCLIntelSchedulerTargetFmaxMhzAttr(
+          *this, TemplateArgs, SYCLIntelSchedulerTargetFmaxMhz, New);
       continue;
     }
     // Existing DLL attribute on the instantiation takes precedence.

@@ -3005,32 +3005,48 @@ static void handleNumSimdWorkItemsAttr(Sema &S, Decl *D,
   S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelNumSimdWorkItemsAttr>(D, Attr,
                                                                      E);
 }
-// Handles scheduler_target_fmax_mhz
+
+// Add scheduler_target_fmax_mhz
+void Sema::addSYCLIntelSchedulerTargetFmaxMhzAttr(
+    Decl *D, const AttributeCommonInfo &Attr, Expr *E) {
+  if (!E)
+    return;
+
+  if (!E->isInstantiationDependent()) {
+    Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(getASTContext());
+    if (!ArgVal) {
+      Diag(E->getExprLoc(), diag::err_attribute_argument_type)
+          << Attr.getAttrName() << AANT_ArgumentIntegerConstant
+          << E->getSourceRange();
+      return;
+    }
+    uint32_t TargetFmaxMhz = ArgVal->getSExtValue();
+    uint32_t UpperLimit = 1048576;
+    if (TargetFmaxMhz > UpperLimit) {
+      // Allow frequency to be a "large enough" positive value, zero included
+      // Let FPGA backend handle unachievable frequency value
+      Diag(E->getExprLoc(), diag::err_attribute_argument_out_of_range)
+          << Attr.getAttrName() << 0 << UpperLimit << E->getSourceRange();
+      return;
+    }
+  }
+
+  D->addAttr(::new (Context)
+                 SYCLIntelSchedulerTargetFmaxMhzAttr(Context, Attr, E));
+}
+
+// Handle scheduler_target_fmax_mhz
 static void handleSchedulerTargetFmaxMhzAttr(Sema &S, Decl *D,
-                                             const ParsedAttr &Attr) {
+                                             const ParsedAttr &AL) {
   if (D->isInvalidDecl())
     return;
 
-  uint32_t TargetFmaxMhz = 0;
-  const Expr *E = Attr.getArgAsExpr(0);
-  if (!checkUInt32Argument(S, Attr, E, TargetFmaxMhz, 0,
-                           /*StrictlyUnsigned=*/true))
-    return;
-
-  uint32_t UpperLimit = 1048576;
-  if (TargetFmaxMhz > UpperLimit) {
-    // Allow frequency to be a "large enough" positive value, zero included
-    // Let FPGA backend handle unachievable frequency value
-    S.Diag(Attr.getLoc(), diag::err_attribute_argument_out_of_range)
-        << Attr << E->getSourceRange() << 0 << UpperLimit;
-    return;
-  }
+  Expr *E = AL.getArgAsExpr(0);
 
   if (D->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>())
-    S.Diag(Attr.getLoc(), diag::warn_duplicate_attribute) << Attr;
+    S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
 
-  D->addAttr(::new (S.Context) SYCLIntelSchedulerTargetFmaxMhzAttr(
-      S.Context, Attr, TargetFmaxMhz));
+  S.addSYCLIntelSchedulerTargetFmaxMhzAttr(D, AL, E);
 }
 
 // Handles max_global_work_dim.
@@ -8344,6 +8360,10 @@ void Sema::ProcessDeclAttributeList(Scope *S, Decl *D,
         Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
         D->setInvalidDecl();
       }
+    } else if (const auto *A =
+                   D->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>()) {
+      Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
+      D->setInvalidDecl();
     } else if (!D->hasAttr<CUDAGlobalAttr>()) {
       if (const auto *A = D->getAttr<AMDGPUFlatWorkGroupSizeAttr>()) {
         Diag(D->getLocation(), diag::err_attribute_wrong_decl_type)

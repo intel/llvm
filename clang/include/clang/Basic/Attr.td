@@ -1227,7 +1227,7 @@ def SYCLIntelNumSimdWorkItems : InheritableAttr {
 
 def SYCLIntelSchedulerTargetFmaxMhz : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","scheduler_target_fmax_mhz">];
-  let Args = [UnsignedArgument<"Number">];
+  let Args = [ExprArgument<"TargetFmaxMhz">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelSchedulerTargetFmaxMhzAttrDocs];
