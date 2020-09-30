@@ -3100,7 +3100,20 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
   case PI_PROFILING_INFO_COMMAND_END: {
     zeEventQueryKernelTimestamp(Event->ZeEvent, &tsResult);
 
+    uint64_t ContextStartTime = tsResult.context.kernelStart;
     uint64_t ContextEndTime = tsResult.context.kernelEnd;
+    //
+    // Handle a possible wrap-around (the underlying HW counter is < 64-bit).
+    // Note, it will not report correct time if there were multiple wrap
+    // arounds, and the longer term plan is to enlarge the capacity of the
+    // HW timestamps.
+    //
+    if (ContextEndTime <= ContextStartTime) {
+      pi_device Device = Event->Context->Devices[0];
+      const uint64_t TimestampMaxValue =
+          ~(-1LL << Device->ZeDeviceProperties.kernelTimestampValidBits);
+      ContextEndTime += TimestampMaxValue - ContextStartTime;
+    }
     ContextEndTime *= ZeTimerResolution;
 
     return ReturnValue(uint64_t{ContextEndTime});
