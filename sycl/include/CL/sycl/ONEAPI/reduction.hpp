@@ -143,10 +143,9 @@ using IsKnownIdentityOp =
                   IsMaximumIdentityOp<T, BinaryOperation>::value>;
 
 template <typename BinaryOperation, typename AccumulatorT>
-struct has_known_identity_impl {
-  static constexpr bool value =
-      IsKnownIdentityOp<AccumulatorT, BinaryOperation>::value;
-};
+struct has_known_identity_impl
+    : std::integral_constant<
+          bool, IsKnownIdentityOp<AccumulatorT, BinaryOperation>::value> {};
 
 template <typename BinaryOperation, typename AccumulatorT, typename = void>
 struct known_identity_impl {};
