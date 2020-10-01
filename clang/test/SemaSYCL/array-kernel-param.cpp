@@ -337,7 +337,7 @@ int main() {
 // CHECK-NEXT: OpaqueValueExpr {{.*}} 'int [2][3]' lvalue
 // CHECK-NEXT: MemberExpr {{.*}} 'int [2][3]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_' '__wrapper_class'
-// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned long
+// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'int' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <ArrayToPointerDecay>
@@ -347,8 +347,8 @@ int main() {
 // CHECK-NEXT: OpaqueValueExpr {{.*}} 'int [2][3]' lvalue
 // CHECK-NEXT: MemberExpr {{.*}} 'int [2][3]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_' '__wrapper_class'
-// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned long
-// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned long
+// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned
+// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned
 
 // Check kernel_G parameters.
 // CHECK: FunctionDecl {{.*}}kernel_G{{.*}} 'void (__wrapper_class)'
@@ -369,4 +369,4 @@ int main() {
 // CHECK-NEXT: OpaqueValueExpr {{.*}} 'foo2 [2]' lvalue
 // CHECK-NEXT: MemberExpr {{.*}} 'foo2 [2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_' '__wrapper_class'
-// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned long
+// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned
