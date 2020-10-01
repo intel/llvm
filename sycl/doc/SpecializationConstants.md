@@ -4,6 +4,7 @@ DPC++ implements the [proposal](https://github.com/codeplaysoftware/standards-pr
 by Codeplay with some restrictions. See this [document](https://github.com/intel/llvm/pull/2503) for more details.
 
 #### Requirements:
+
 - must work with separate compilation and linking
 - must support AOT compilation
 
@@ -42,7 +43,9 @@ This section describes the basic design used to support spec constants of
 primitive numeric types. POD types support is described further in the document.
 
 #### Compiler
+
 Key `spec_constant::get()` function implementation for the device code:
+
 ```cpp
 template <typename T, typename ID = T> class spec_constant {
 ...
@@ -98,6 +101,7 @@ its name as a key into the appropriate property set (named "SYCL/specialization
 constants").
 
 ##### Ahead of time compilation
+
 With AOT everything is simplified - the `SpecConstants` pass simply replaces
 the `__sycl_getSpecConstantValue` calls with constants - default values of
 the spec constant's type. No maps are generated, and SYCL program can't change
@@ -117,6 +121,7 @@ define dso_local spir_func i32 @get() local_unnamed_addr #0 {
 ```
 the translator will generate `OpSpecConstant` SPIRV instructions with proper
 `SpecId` decorations:
+
 ```cpp
               OpDecorate %i32 SpecId 42 ; ID
        %i32 = OpSpecConstant %int 0     ; Default value
@@ -136,14 +141,15 @@ It also maintains another map \<Spec const symbolic ID\> =\> \<its value\>
 ("value map") per `sycl::program` object. The value map is updated upon
 `program::set_spec_constant<IDType>(val)` calls from the app.
 
-***NOTE**: `IDType` gets translated to the symbolic ID using the integration
+**_NOTE_**  `IDType` gets translated to the symbolic ID using the integration
 header mechanism, similarly to kernel ID type. The reason why
 `__builtin_unique_stable_name` is not used here is because this code is
 compiled by the host compiler, which can be any C++ 14-compatible compiler
-unaware of the clang-specific built-ins.*
+unaware of the clang-specific built-ins.
 
 Before JIT-ing a program, the runtime "flushes" the spec constants: it iterates
 through the value map and invokes the
+
 ```cpp
 pi_result piextProgramSetSpecializationConstant(pi_program prog,
                                                 pi_uint32 spec_id,
@@ -158,6 +164,7 @@ Plugin Interface function for each entry, taking the `spec_id` from the ID map.
 #### Source representation
 
 Say, the POD type is
+
 ```cpp
 struct A {
   int x;
@@ -170,6 +177,7 @@ struct POD {
 };
 ```
 and the user says
+
 ```cpp
   POD gold{
     {
@@ -182,8 +190,11 @@ and the user says
   cl::sycl::ONEAPI::experimental::spec_constant<POD, MyConst> sc =  program4.set_spec_constant<MyConst>(gold);
 ```
 #### Compiler
+
 ##### The SpecConstant pass changes
+
  - The SpecConstants pass in the post-link will have the following IR as input (`sret` conversion is omitted for clarity):
+
 ```cpp
   %spec_const = call %struct.POD __sycl_getCompositeSpecConstantValue<mangling for POD type template specialization ("MyConst_mangled")
 ```
