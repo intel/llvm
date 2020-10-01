@@ -3009,8 +3009,7 @@ static void handleNumSimdWorkItemsAttr(Sema &S, Decl *D,
 // Add scheduler_target_fmax_mhz
 void Sema::addSYCLIntelSchedulerTargetFmaxMhzAttr(
     Decl *D, const AttributeCommonInfo &Attr, Expr *E) {
-  if (!E)
-    return;
+  assert(E && "Attribute must have an argument.");
 
   SYCLIntelSchedulerTargetFmaxMhzAttr TmpAttr(Context, Attr, E);
   if (!E->isValueDependent()) {
