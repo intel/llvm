@@ -1,16 +1,16 @@
 # Specialization constants
 
-DPC++ implements the [proposal](https://github.com/codeplaysoftware/standards-proposals/blob/master/spec-constant/index.md)
-by Codeplay with some restrictions. See this [document](https://github.com/intel/llvm/pull/2503) for more details.
+DPC++ implements this [proposal](https://github.com/codeplaysoftware/standards-proposals/blob/master/spec-constant/index.md)
+with some restrictions. See this [document](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/SpecConstants/README.md) for more details.
 
 #### Requirements:
 
 - must work with separate compilation and linking
 - must support AOT compilation
 
-Implementaion is based on SPIRV specialization constants. But there is one
-important difference between SYCL and SPIRV: in SYCL speciazation constants are
-identified by a type ID which is mapped to a symbolic name, in SPIRV - by an
+Implementaion is based on SPIR-V specialization constants. But there is one
+important difference between SYCL and SPIR-V: in SYCL speciazation constants are
+identified by a type ID which is mapped to a symbolic name, in SPIR-V - by an
 ordinal number. This complicates the design, as the compiler
 1) needs to propagate symbolic =\> numeric ID correspondence to the runtime
 2) can assign numeric IDs only when linking due to the separate compilation
@@ -59,6 +59,7 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
   }
 ```
+
 here `__builtin_unique_stable_name` is a compiler built-in used to translate
 types to unique strings. `__sycl_getSpecConstantValue<T>` is an "intrinsic"
 recognized by a special LLVM pass later.
@@ -107,7 +108,7 @@ the `__sycl_getSpecConstantValue` calls with constants - default values of
 the spec constant's type. No maps are generated, and SYCL program can't change
 the value of a spec constant.
 
-#### LLVMIR-SPIRV translator
+#### LLVMIR-SPIR-V translator
 
 Given the `__spirv_SpecConstant` intrinsic calls produced by the
 `SpecConstants` pass:
@@ -119,7 +120,8 @@ define dso_local spir_func i32 @get() local_unnamed_addr #0 {
   ret i32 %1
 }
 ```
-the translator will generate `OpSpecConstant` SPIRV instructions with proper
+
+the translator will generate `OpSpecConstant` SPIR-V instructions with proper
 `SpecId` decorations:
 
 ```cpp
@@ -176,6 +178,7 @@ struct POD {
   int b;
 };
 ```
+
 and the user says
 
 ```cpp
@@ -189,6 +192,7 @@ and the user says
 
   cl::sycl::ONEAPI::experimental::spec_constant<POD, MyConst> sc =  program4.set_spec_constant<MyConst>(gold);
 ```
+
 #### Compiler
 
 ##### The SpecConstant pass changes
@@ -198,6 +202,7 @@ and the user says
 ```cpp
   %spec_const = call %struct.POD __sycl_getCompositeSpecConstantValue<mangling for POD type template specialization ("MyConst_mangled")
 ```
+
 where `__sycl_getCompositeSpecConstantValue` is a new "intrinsic"
  (in addition to `__sycl_getSpecConstantValue`) recognized by SpecConstants pass,
  which creates a value of a composite (of non-primitive type) specialization constant.
@@ -207,7 +212,8 @@ where `__sycl_getCompositeSpecConstantValue` is a new "intrinsic"
  - after spec constant enumeration (symbolic -\> int ID translation), the SC pass
  will handle the `__sycl_getCompositeSpecConstantValue`. Knowning the composite
  specialization constant's type (`%struct.POD`), the pass will traverse its leaf
- fields and generate 5 "primitive" spec constants using already existing SPIRV intrinsic:
+ fields and generate 5 "primitive" spec constants using already existing SPIR-V intrinsic:
+
 ```cpp
 %gold_POD_a0x = call i32 __spirv_SpecConstant(i32 10, i32 0)
 %gold_POD_a0y = call float __spirv_SpecConstant(i32 11, float 0)
@@ -215,15 +221,18 @@ where `__sycl_getCompositeSpecConstantValue` is a new "intrinsic"
 %gold_POD_a1y = call float __spirv_SpecConstant(i32 13, float 0)
 %gold_POD_b = call i32 __spirv_SpecConstant(i32 14, i32 0)
 ```
+
 And 1 "composite"
+
 ```cpp
   %gold_POD = call %struct.POD __spirvCompositeSpecConstant<POD mangling>(10, 11, 12, 13, 14, 15)
 ```
-where `__spirvCompositeSpecConstant<type mangling>` is a new SPIRV intrinsic which
+
+where `__spirvCompositeSpecConstant<type mangling>` is a new SPIR-V intrinsic which
  represents creation of a composite specialization constant. Its arguments are spec
  constant IDs corresponding to the leaf fields of the POD type of the constant.
  ID is not needed, as runtime will never use it - it will use IDs of the leaves instead.
- Yet SPIRV does not allow IDs for composite spec constants.
+ Yet SPIR-V does not allow IDs for composite spec constants.
 
 ##### The post-link tool changes
 
@@ -234,13 +243,15 @@ existing meta-information associated with the specialization constants and
 passed to the runtime. Also, for a composite specialization constant the will be
 no ID map entry within the meta information, and the composite constant will
 referenced by its symbolic ID. For example:
+
 ```cpp
 MyConst_mangled [10,int,0,4],[10,float,4,4],[10,int,8,4],[10,float,12,4],[10,int,16,4]
 ```
 
-#### LLVMIR-\>SPIRV translator
+#### LLVMIR-\>SPIR-V translator
 
 The translator aims to create the following code (pseudo-code)
+
 ```cpp
 %gold_POD_a0x = OpSpecConstant(0)    [SpecId = 10]
 %gold_POD_a0y = OpSpecConstant(0.0f) [SpecId = 11]
@@ -264,6 +275,7 @@ The translator aims to create the following code (pseudo-code)
   %gold_POD_b   // gold.b
 }
 ```
+
  - `OpSpecConstant` operations will be created using already existing mechanism for
  the primitive spec constants.
  - Then the translator will handle `__spirvCompositeSpecConstant*` intrinsic. It will
