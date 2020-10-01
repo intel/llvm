@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/sycl/queue.hpp>
+#include <detail/event_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
 
@@ -59,21 +61,31 @@ size_t stream_impl::get_size() const { return BufferSize_; }
 
 size_t stream_impl::get_max_statement_size() const { return MaxStatementSize_; }
 
-void stream_impl::flush() {
-  // Access the stream buffer on the host. This access guarantees that kernel is
-  // executed and buffer contains streamed data.
-  {
-    auto HostAcc = detail::Scheduler::getInstance()
-                       .StreamBuffersPool.find(this)
-                       ->second.Buf.get_access<cl::sycl::access::mode::read>(
-                           range<1>(BufferSize_), id<1>(OffsetSize));
+void stream_impl::enqueueFlush() {
+  // We don't want stream flushing to be blocking operation that is why submit a
+  // host task to print stream buffer.
+  queue Q;
+  auto CopyBackAndPrintEvent = Q.submit([&](handler &cgh) {
+    auto HostAcc =
+        detail::Scheduler::getInstance()
+            .StreamBuffersPool.find(this)
+            ->second.Buf
+            .get_access<access::mode::read, access::target::host_buffer>(
+                cgh, range<1>(BufferSize_), id<1>(OffsetSize));
+    cgh.codeplay_host_task([=]() {
+      printf("%s", HostAcc.get_pointer());
+      fflush(stdout);
+    });
+  });
 
-    printf("%s", HostAcc.get_pointer());
-    fflush(stdout);
-  }
-
-  // Flushed the stream, can deallocate the buffers now.
-  detail::Scheduler::getInstance().deallocateStreamBuffers(this);
+  // Submit a task to deallocate stream buffers after copy back and printing is
+  // completed.
+  auto DeallocateEvent = Q.submit([&](handler &cgh) {
+    cgh.codeplay_host_task([=]() {
+      detail::getSyclObjImpl(CopyBackAndPrintEvent)->waitInternal();
+      detail::Scheduler::getInstance().deallocateStreamBuffers(this);
+    });
+  });
 }
 } // namespace detail
 } // namespace sycl

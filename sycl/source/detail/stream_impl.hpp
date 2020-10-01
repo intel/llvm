@@ -35,8 +35,8 @@ public:
   // buffer and offset in the flush buffer
   GlobalOffsetAccessorT accessGlobalOffset(handler &CGH);
 
-  // Copy stream buffer to the host and print the contents
-  void flush();
+  // Enqueue task to copy stream buffer to the host and print the contents
+  void enqueueFlush();
 
   size_t get_size() const;
 

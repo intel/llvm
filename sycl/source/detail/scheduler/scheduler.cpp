@@ -111,7 +111,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
   }
 
   for (auto StreamImplPtr : Streams) {
-    StreamImplPtr->flush();
+    StreamImplPtr->enqueueFlush();
   }
 
   return NewEvent;
