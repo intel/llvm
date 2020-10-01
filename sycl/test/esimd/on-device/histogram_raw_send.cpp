@@ -1,12 +1,14 @@
-//==---------------- histogram.cpp  - DPC++ ESIMD on-device test -----------==//
+//==------------ histogram_raw_send.cpp  - DPC++ ESIMD on-device test
+//-------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// TODO enable on Windows and Level Zero
-// REQUIRES: linux && gpu && opencl
+// TODO enable on Windows
+// REQUIRES: linux
+// REQUIRES: gpu
 // RUN: %clangxx-esimd -fsycl %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %ESIMD_RUN_PLACEHOLDER %t.out
@@ -59,6 +61,29 @@ int checkHistogram(unsigned int *refHistogram, unsigned int *hist) {
     }
   }
   return 1;
+}
+
+using namespace sycl::INTEL::gpu;
+template <EsimdAtomicOpType Op, typename T, int n>
+ESIMD_INLINE void atomic_write(T *bins, simd<unsigned, n> offset,
+                               simd<T, n> src0, simd<ushort, n> pred) {
+  simd<T, n> oldDst;
+  simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(bins));
+  simd<uintptr_t, n> vOffset = convert<uintptr_t>(offset);
+  vAddr += vOffset;
+
+  uint32_t exDesc = 0x4C;
+  uint32_t desc = 0x414A7FF;
+  constexpr uint8_t execSize = 0x83;
+  constexpr uint8_t sfid = 0x1;
+  constexpr uint8_t numDst = 0x1;
+  constexpr uint8_t numSrc0 = 0x2;
+  constexpr uint8_t numSrc1 = 0x1;
+  constexpr uint8_t isEOT = 0;
+  constexpr uint8_t isSendc = 0;
+
+  esimd_raw_sends_load(oldDst, vAddr, src0, exDesc, desc, execSize, sfid,
+                       numSrc0, numSrc1, numDst, isEOT, isSendc, pred);
 }
 
 int main(int argc, char *argv[]) {
@@ -137,9 +162,9 @@ int main(int argc, char *argv[]) {
 
   {
     // create ranges
-    // We need that many workitems
+    // We need that many task groups
     auto GlobalRange = range<1>(range_width * range_height);
-    // Number of workitems in a workgroup
+    // We need that many tasks in each group
     auto LocalRange = range<1>(1);
     nd_range<1> Range(GlobalRange, LocalRange);
 
@@ -148,8 +173,6 @@ int main(int argc, char *argv[]) {
 
       cgh.parallel_for<class Hist>(
           Range, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
-            using namespace sycl::INTEL::gpu;
-
             // Get thread origin offsets
             uint tid = ndi.get_group(0);
             uint h_pos = (tid % range_width) * BLOCK_WIDTH;
@@ -192,7 +215,9 @@ int main(int argc, char *argv[]) {
               src = histogram.select<8, 1>(i);
 
 #ifdef __SYCL_DEVICE_ONLY__
-              flat_atomic<EsimdAtomicOpType::ATOMIC_ADD, unsigned int, 8>(
+              // flat_atomic<EsimdAtomicOpType::ATOMIC_ADD, unsigned int,
+              // 8>(bins, offset, src, 1);
+              atomic_write<EsimdAtomicOpType::ATOMIC_ADD, unsigned int, 8>(
                   bins, offset, src, 1);
               offset += 8 * sizeof(unsigned int);
 #else

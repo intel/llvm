@@ -217,6 +217,10 @@ protected:
   friend class DispatchHostTask;
 
 public:
+  const std::vector<EventImplPtr> getPreparedHostDepsEvents() const {
+    return MPreparedHostDepsEvents;
+  }
+
   /// Contains list of dependencies(edges)
   std::vector<DepDesc> MDeps;
   /// Contains list of commands that depend on the command.
