@@ -1,5 +1,6 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-host -fsyntax-only -verify %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-host -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-host -Wno-sycl-2017-compat -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-host -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+//expected-no-diagnostics
 
 [[intel::reqd_sub_group_size(8)]] void fun() {}
 
@@ -10,7 +11,7 @@ public:
 
 class Functor16 {
 public:
-  [[intel::reqd_sub_group_size(4)]] void operator()() const { 
+  [[intel::reqd_sub_group_size(4)]] void operator()() const {
   }
 };
 
@@ -44,4 +45,3 @@ void bar() {
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name3
 // CHECK: IntelReqdSubGroupSizeAttr {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}12{{$}}
-

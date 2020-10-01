@@ -12750,7 +12750,6 @@ private:
   // We store SYCL Kernels here and handle separately -- which is a hack.
   // FIXME: It would be best to refactor this.
   llvm::SetVector<Decl *> SyclDeviceDecls;
-  llvm::SetVector<Decl *> SyclHostDecls;
   // SYCL integration header instance for current compilation unit this Sema
   // is associated with.
   std::unique_ptr<SYCLIntegrationHeader> SyclIntHeader;
@@ -12763,9 +12762,6 @@ private:
 public:
   void addSyclDeviceDecl(Decl *d) { SyclDeviceDecls.insert(d); }
   llvm::SetVector<Decl *> &syclDeviceDecls() { return SyclDeviceDecls; }
-
-  void addSyclHostDecl(Decl *d) { SyclHostDecls.insert(d); }
-  llvm::SetVector<Decl *> &syclHostDecls() { return SyclHostDecls; }
 
   /// Lazily creates and returns SYCL integration header instance.
   SYCLIntegrationHeader &getSyclIntegrationHeader() {
@@ -12796,7 +12792,6 @@ public:
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void MarkDevice();
   void MarkSyclSimd();
-  void MarkHost();
 
   /// Creates a DeviceDiagBuilder that emits the diagnostic if the current
   /// context is "used as device code".
