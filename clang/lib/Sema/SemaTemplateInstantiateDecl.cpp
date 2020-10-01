@@ -6169,11 +6169,11 @@ static void processSYCLKernel(Sema &S, FunctionDecl *FD, MangleContext &MC) {
     S.ConstructOpenCLKernel(FD, MC);
   } else if (S.LangOpts.SYCLIsHost) {
     S.ConstructOpenCLKernel(FD, MC);
-     /*CXXRecordDecl *CRD =
-    (*FD->param_begin())->getType()->getAsCXXRecordDecl(); for (auto *Method :
-    CRD->methods()) if (Method->getOverloadedOperator() == OO_Call &&
-          !Method->hasAttr<AlwaysInlineAttr>())
-        Method->addAttr(AlwaysInlineAttr::CreateImplicit(S.getASTContext()));*/
+    /*CXXRecordDecl *CRD =
+   (*FD->param_begin())->getType()->getAsCXXRecordDecl(); for (auto *Method :
+   CRD->methods()) if (Method->getOverloadedOperator() == OO_Call &&
+         !Method->hasAttr<AlwaysInlineAttr>())
+       Method->addAttr(AlwaysInlineAttr::CreateImplicit(S.getASTContext()));*/
   }
 }
 
