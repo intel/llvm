@@ -1,36 +1,25 @@
-// RUN: %clang_cc1 -fsycl -triple spir64 -fsycl-is-device -fsyntax-only -verify %s
-// RUN: %clang_cc1 -fsycl -triple spir64 -Werror=sycl-strict -DERROR -fsycl-is-device -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -Wsycl-strict -sycl-std=2020 -verify %s
 
 #include "Inputs/sycl.hpp"
-class Foo;
+class kernel;
 
-template <typename Name, typename F>
-__attribute__((sycl_kernel)) void kernel(F KernelFunc) {
-  KernelFunc();
-}
+using namespace cl::sycl;
 
-template <typename Name, typename F>
-void parallel_for(F KernelFunc) {
-#ifdef ERROR
-  // expected-error@+4 {{size of kernel arguments (7994 bytes) may exceed the supported maximum of 2048 bytes on some devices}}
-#else
-  // expected-warning@+2 {{size of kernel arguments (7994 bytes) may exceed the supported maximum of 2048 bytes on some devices}}
-#endif
-  kernel<Name>(KernelFunc);
-}
+// expected-warning@Inputs/sycl.hpp:220 {{size of kernel arguments (8068 bytes) may exceed the supported maximum of 2048 bytes on some devices}}
 
-using Accessor =
-    cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer>;
+int main() {
 
-void use() {
   struct S {
     int A;
     int B;
-    Accessor AAcc;
-    Accessor BAcc;
-    int Array[1991];
+    int Array[2015];
   } Args;
-  auto L = [=]() { (void)Args; };
-  // expected-note@+1 {{in instantiation of function template specialization 'parallel_for<Foo}}
-  parallel_for<Foo>(L);
+
+  queue myQueue;
+
+  myQueue.submit([&](handler &cgh) {
+    // expected-note@+1 {{in instantiation of function template specialization 'cl::sycl::handler::single_task}}
+    cgh.single_task<class kernel>([=]() { (void)Args; });
+  });
+  return 0;
 }
