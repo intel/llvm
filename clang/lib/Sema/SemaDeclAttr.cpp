@@ -8350,10 +8350,6 @@ void Sema::ProcessDeclAttributeList(Scope *S, Decl *D,
         Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
         D->setInvalidDecl();
       }
-    } else if (const auto *A =
-                   D->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>()) {
-      Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
-      D->setInvalidDecl();
     } else if (!D->hasAttr<CUDAGlobalAttr>()) {
       if (const auto *A = D->getAttr<AMDGPUFlatWorkGroupSizeAttr>()) {
         Diag(D->getLocation(), diag::err_attribute_wrong_decl_type)
