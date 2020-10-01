@@ -22,22 +22,11 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-GlobalHandler *SyclGlobalObjectsHandler;
-// SpinLock is chosen because, unlike std::mutex, it can be zero initialized,
-// which spares us from dealing with global constructor/destructor call order.
-SpinLock SyclGlobalObjectInitLock;
-
 GlobalHandler::GlobalHandler() = default;
 GlobalHandler::~GlobalHandler() = default;
 
 GlobalHandler &GlobalHandler::instance() {
-  if (SyclGlobalObjectsHandler)
-    return *SyclGlobalObjectsHandler;
-
-  const std::lock_guard<SpinLock> Lock{SyclGlobalObjectInitLock};
-  if (!SyclGlobalObjectsHandler)
-    SyclGlobalObjectsHandler = new GlobalHandler();
-
+  static GlobalHandler *SyclGlobalObjectsHandler = new GlobalHandler();
   return *SyclGlobalObjectsHandler;
 }
 
@@ -112,7 +101,7 @@ std::vector<plugin> &GlobalHandler::getPlugins() {
   return *MPlugins;
 }
 
-void shutdown() { delete SyclGlobalObjectsHandler; }
+void shutdown() { delete &GlobalHandler::instance(); }
 
 #ifdef WIN32
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {

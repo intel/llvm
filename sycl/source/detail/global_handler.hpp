@@ -60,8 +60,6 @@ private:
   GlobalHandler();
   ~GlobalHandler();
 
-  SpinLock &getFieldsLock() { return MFieldsLock; }
-
   SpinLock MFieldsLock;
 
   std::unique_ptr<Scheduler> MScheduler;
