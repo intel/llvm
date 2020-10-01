@@ -10045,8 +10045,7 @@ public:
   bool checkAllowedSYCLInitializer(VarDecl *VD,
                                    bool CheckValueDependent = false);
 
-  // Adds an scheduler_target_fmax_mhz intel_reqd_sub_group_size attribute to a
-  // particular declaration.
+  // Adds a scheduler_target_fmax_mhz attribute to a particular declaration.
   void addSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
                                               const AttributeCommonInfo &CI,
                                               Expr *E);

@@ -2214,7 +2214,7 @@ unachievable by the device.
 
 This attribute enables communication of the desired maximum frequency of the
 device operation, guiding the FPGA backend to insert the appropriate number of
-registers to break-up the combinational logic circuit, and therby controlling
+registers to break-up the combinational logic circuit, and thereby controlling
 the length of the longest combinational path.
   }];
 }
