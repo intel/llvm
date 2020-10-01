@@ -3,7 +3,7 @@
 // RUN: %clang_cc1 -triple spir64 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -verify -fsyntax-only -Wno-sycl-strict -DNODIAG %s
 // RUN: %clang_cc1 -triple spir64 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -verify -fsyntax-only -sycl-std=2020 -Wno-sycl-strict -DNODIAG %s
 
-#include "Inputs/sycl.hpp"
+#include "sycl.hpp"
 
 using namespace cl::sycl;
 

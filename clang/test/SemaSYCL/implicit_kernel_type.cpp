@@ -2,7 +2,7 @@
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -fsycl-int-header=%t.h -fsyntax-only -verify %s  -Wsycl-strict -DWARN
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -fsycl-int-header=%t.h -fsycl-unnamed-lambda -fsyntax-only -verify %s  -Werror=sycl-strict
 
-#include "Inputs/sycl.hpp"
+#include "sycl.hpp"
 
 using namespace cl::sycl;
 
