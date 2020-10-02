@@ -7,9 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include <spirv/spirv.h>
-_CLC_DEF _CLC_OVERLOAD uint __spirv_SubgroupId();
-_CLC_DEF _CLC_OVERLOAD uint __spirv_NumSubgroups();
-_CLC_DEF _CLC_OVERLOAD uint __spirv_SubgroupMaxSize();
 
 _CLC_DEF _CLC_OVERLOAD uint __spirv_SubgroupSize() {
   if (__spirv_SubgroupId() != __spirv_NumSubgroups() - 1) {

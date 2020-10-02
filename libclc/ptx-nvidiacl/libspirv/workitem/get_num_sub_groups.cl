@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include <spirv/spirv.h>
-_CLC_DEF _CLC_OVERLOAD uint __spirv_SubgroupMaxSize();
 
 _CLC_DEF _CLC_OVERLOAD uint __spirv_NumSubgroups() {
   // sreg.nwarpid returns number of warp identifiers, not number of warps
