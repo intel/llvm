@@ -3604,7 +3604,7 @@ void addPassesForSPIRV(legacy::PassManager &PassMgr,
   PassMgr.add(createSPIRVLowerSPIRBlocks());
   PassMgr.add(createOCLTypeToSPIRV());
   PassMgr.add(createSPIRVLowerOCLBlocks());
-  PassMgr.add(createOCL20ToSPIRV());
+  PassMgr.add(createOCLToSPIRV());
   PassMgr.add(createSPIRVRegularizeLLVM());
   PassMgr.add(createSPIRVLowerConstExpr());
   PassMgr.add(createSPIRVLowerBool());
