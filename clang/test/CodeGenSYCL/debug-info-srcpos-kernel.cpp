@@ -1,4 +1,4 @@
-// RUN: %clang -fsycl-device-only %s -S -emit-llvm -O0 -g -o - | FileCheck %s
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice -fsycl-device-only %s -Xclang -S -emit-llvm -O0 -g -o - | FileCheck %s
 //
 // Verify the SYCL kernel routine is marked artificial and has the
 // expected source correlation.
