@@ -17,8 +17,7 @@ const size_t NElems = 32;
 const size_t WorkGroupSize = 8;
 const size_t NWorkGroups = NElems / WorkGroupSize;
 
-template <typename T>
-void initInputBuffer(buffer<T, 1> &Buf, size_t Stride = 0) {
+template <typename T> void initInputBuffer(buffer<T, 1> &Buf, size_t Stride) {
   auto Acc = Buf.template get_access<access::mode::write>();
   for (size_t I = 0; I < Buf.get_count(); I += WorkGroupSize) {
     for (size_t J = 0; J < WorkGroupSize; J++)
@@ -77,10 +76,9 @@ template <typename T> int checkResults(buffer<T, 1> &OutBuf, size_t Stride) {
     for (size_t J = 0; J < WorkGroupSize; J++) {
       size_t ExpectedVal = (J % Stride == 0) ? (100 + I + J) : 0;
       if (!checkEqual(Out[I + J], ExpectedVal)) {
-        std::cerr << std::string(typeid(T).name()) +
-                         ": Incorrect value at index "
-                  << I + J << " : "
-                  << "Expected: " << toString(ExpectedVal)
+        std::cerr << std::string(typeid(T).name()) + ": Stride=" << Stride
+                  << " : Incorrect value at index " << I + J
+                  << " : Expected: " << toString(ExpectedVal)
                   << ", Computed: " << toString(Out[I + J]) << "\n";
         if (--EarlyFailout == 0)
           return 1;
@@ -112,15 +110,27 @@ template <typename T> int test(size_t Stride) {
        size_t NElemsToCopy =
            WorkGroupSize / Stride + ((WorkGroupSize % Stride) ? 1 : 0);
        size_t Offset = GrId * WorkGroupSize;
-       auto E = NDId.async_work_group_copy(Local.get_pointer(),
-                                           In.get_pointer() + Offset,
-                                           NElemsToCopy, Stride);
-       E.wait();
+       if (Stride == 1) { // Check the version without stride arg.
+         auto E = NDId.async_work_group_copy(
+             Local.get_pointer(), In.get_pointer() + Offset, NElemsToCopy);
+         E.wait();
+       } else {
+         auto E = NDId.async_work_group_copy(Local.get_pointer(),
+                                             In.get_pointer() + Offset,
+                                             NElemsToCopy, Stride);
+         E.wait();
+       }
 
-       E = NDId.async_work_group_copy(Out.get_pointer() + Offset,
-                                      Local.get_pointer(), NElemsToCopy,
-                                      Stride);
-       Group.wait_for(E);
+       if (Stride == 1) { // Check the version without stride arg.
+         auto E = Group.async_work_group_copy(
+             Out.get_pointer() + Offset, Local.get_pointer(), NElemsToCopy);
+         Group.wait_for(E);
+       } else {
+         auto E = Group.async_work_group_copy(Out.get_pointer() + Offset,
+                                              Local.get_pointer(), NElemsToCopy,
+                                              Stride);
+         Group.wait_for(E);
+       }
      });
    }).wait();
 
