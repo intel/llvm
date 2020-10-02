@@ -35,8 +35,8 @@ namespace host_half_impl {
 class __SYCL_EXPORT half {
 public:
   half() = default;
-  half(const half &) = default;
-  half(half &&) = default;
+  constexpr half(const half &) = default;
+  constexpr half(half &&) = default;
 
   half(const float &rhs);
 
@@ -74,13 +74,21 @@ public:
     return ret;
   }
 
+  // Operator neg
+  constexpr half &operator-() {
+    Buf ^= 0x8000;
+    return *this;
+  }
+
   // Operator float
   operator float() const;
 
   template <typename Key> friend struct std::hash;
 
 private:
+  constexpr explicit half(uint16_t x) : Buf(x) {}
   uint16_t Buf;
+  friend std::numeric_limits<class cl::sycl::detail::half_impl::half>;
 };
 
 } // namespace host_half_impl
@@ -136,8 +144,8 @@ class half;
 class half {
 public:
   half() = default;
-  half(const half &) = default;
-  half(half &&) = default;
+  constexpr half(const half &) = default;
+  constexpr half(half &&) = default;
 
   __SYCL_CONSTEXPR_ON_DEVICE half(const float &rhs) : Data(rhs) {}
 
@@ -146,8 +154,8 @@ public:
 #ifndef __SYCL_DEVICE_ONLY__
   // Since StorageT and BIsRepresentationT are different on host, these two
   // helpers are required for 'vec' class
-  half(const detail::host_half_impl::half &rhs) : Data(rhs) {};
-  operator detail::host_half_impl::half() const { return Data; }
+  constexpr half(const detail::host_half_impl::half &rhs) : Data(rhs){};
+  constexpr operator detail::host_half_impl::half() const { return Data; }
 #endif // __SYCL_DEVICE_ONLY__
 
   // Operator +=, -=, *=, /=
@@ -193,7 +201,14 @@ public:
     operator--();
     return ret;
   }
-
+  constexpr half &operator-() {
+    Data = -Data;
+    return *this;
+  }
+  constexpr half operator-() const {
+    half r = *this;
+    return -r;
+  }
   // Operator float
   operator float() const { return static_cast<float>(Data); }
 
@@ -327,8 +342,13 @@ template <> struct numeric_limits<half> {
     return 0.5F;
   }
 
-  static __SYCL_CONSTEXPR_ON_DEVICE const half infinity() noexcept {
+  static constexpr const half infinity() noexcept {
+#ifdef __SYCL_DEVICE_ONLY__
     return __builtin_huge_valf();
+#else
+    return cl::sycl::detail::host_half_impl::half(
+        static_cast<uint16_t>(0x7C00));
+#endif
   }
 
   static __SYCL_CONSTEXPR_ON_DEVICE const half quiet_NaN() noexcept {
