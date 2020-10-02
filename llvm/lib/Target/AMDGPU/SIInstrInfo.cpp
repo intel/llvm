@@ -1659,7 +1659,11 @@ bool SIInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // register allocation.
     MI.setDesc(get(AMDGPU::S_XOR_B32));
     break;
-
+  case AMDGPU::S_OR_B64_term:
+    // This is only a terminator to get the correct spill code placement during
+    // register allocation.
+    MI.setDesc(get(AMDGPU::S_OR_B64));
+    break;
   case AMDGPU::S_OR_B32_term:
     // This is only a terminator to get the correct spill code placement during
     // register allocation.
@@ -2236,6 +2240,7 @@ bool SIInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&TBB,
     case AMDGPU::SI_MASK_BRANCH:
     case AMDGPU::S_MOV_B64_term:
     case AMDGPU::S_XOR_B64_term:
+    case AMDGPU::S_OR_B64_term:
     case AMDGPU::S_ANDN2_B64_term:
     case AMDGPU::S_MOV_B32_term:
     case AMDGPU::S_XOR_B32_term:
@@ -3817,11 +3822,7 @@ bool SIInstrInfo::verifyInstruction(const MachineInstr &MI,
       ++ConstantBusCount;
 
     SmallVector<Register, 2> SGPRsUsed;
-    Register SGPRUsed = findImplicitSGPRRead(MI);
-    if (SGPRUsed != AMDGPU::NoRegister) {
-      ++ConstantBusCount;
-      SGPRsUsed.push_back(SGPRUsed);
-    }
+    Register SGPRUsed;
 
     for (int OpIdx : OpIndices) {
       if (OpIdx == -1)
@@ -3830,8 +3831,8 @@ bool SIInstrInfo::verifyInstruction(const MachineInstr &MI,
       if (usesConstantBus(MRI, MO, MI.getDesc().OpInfo[OpIdx])) {
         if (MO.isReg()) {
           SGPRUsed = MO.getReg();
-          if (llvm::all_of(SGPRsUsed, [this, SGPRUsed](unsigned SGPR) {
-                return !RI.regsOverlap(SGPRUsed, SGPR);
+          if (llvm::all_of(SGPRsUsed, [SGPRUsed](unsigned SGPR) {
+                return SGPRUsed != SGPR;
               })) {
             ++ConstantBusCount;
             SGPRsUsed.push_back(SGPRUsed);
@@ -3842,6 +3843,18 @@ bool SIInstrInfo::verifyInstruction(const MachineInstr &MI,
         }
       }
     }
+
+    SGPRUsed = findImplicitSGPRRead(MI);
+    if (SGPRUsed != AMDGPU::NoRegister) {
+      // Implicit uses may safely overlap true overands
+      if (llvm::all_of(SGPRsUsed, [this, SGPRUsed](unsigned SGPR) {
+            return !RI.regsOverlap(SGPRUsed, SGPR);
+          })) {
+        ++ConstantBusCount;
+        SGPRsUsed.push_back(SGPRUsed);
+      }
+    }
+
     // v_writelane_b32 is an exception from constant bus restriction:
     // vsrc0 can be sgpr, const or m0 and lane select sgpr, m0 or inline-const
     if (ConstantBusCount > ST.getConstantBusLimit(Opcode) &&

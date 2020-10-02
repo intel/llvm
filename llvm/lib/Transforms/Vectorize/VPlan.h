@@ -653,6 +653,9 @@ public:
   virtual void print(raw_ostream &O, const Twine &Indent,
                      VPSlotTracker &SlotTracker) const = 0;
 
+  /// Dump the recipe to stderr (for debugging).
+  void dump() const;
+
   /// Insert an unlinked recipe into a basic block immediately before
   /// the specified recipe.
   void insertBefore(VPRecipeBase *InsertPos);
@@ -679,7 +682,7 @@ public:
 /// While as any Recipe it may generate a sequence of IR instructions when
 /// executed, these instructions would always form a single-def expression as
 /// the VPInstruction is also a single def-use vertex.
-class VPInstruction : public VPUser, public VPRecipeBase {
+class VPInstruction : public VPUser, public VPValue, public VPRecipeBase {
   friend class VPlanSlp;
 
 public:
@@ -709,7 +712,7 @@ protected:
 
 public:
   VPInstruction(unsigned Opcode, ArrayRef<VPValue *> Operands)
-      : VPUser(VPValue::VPInstructionSC, Operands),
+      : VPUser(Operands), VPValue(VPValue::VPInstructionSC),
         VPRecipeBase(VPRecipeBase::VPInstructionSC), Opcode(Opcode) {}
 
   VPInstruction(unsigned Opcode, std::initializer_list<VPValue *> Operands)
