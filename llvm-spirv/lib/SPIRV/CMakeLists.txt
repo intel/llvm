@@ -5,7 +5,6 @@ add_llvm_library(LLVMSPIRVLib
   Mangler/ManglingUtils.cpp
   Mangler/ParameterType.cpp
   OCLToSPIRV.cpp
-  OCL21ToSPIRV.cpp
   OCLTypeToSPIRV.cpp
   OCLUtil.cpp
   VectorComputeUtil.cpp

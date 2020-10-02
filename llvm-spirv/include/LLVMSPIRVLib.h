@@ -52,7 +52,6 @@ namespace llvm {
 class PassRegistry;
 void initializeLLVMToSPIRVPass(PassRegistry &);
 void initializeOCLToSPIRVPass(PassRegistry &);
-void initializeOCL21ToSPIRVPass(PassRegistry &);
 void initializeOCLTypeToSPIRVPass(PassRegistry &);
 void initializeSPIRVLowerBoolPass(PassRegistry &);
 void initializeSPIRVLowerConstExprPass(PassRegistry &);
@@ -165,10 +164,6 @@ ModulePass *createLLVMToSPIRV(SPIRV::SPIRVModule *);
 /// Create a pass for translating OCL C builtin functions to SPIR-V builtin
 /// functions.
 ModulePass *createOCLToSPIRV();
-
-/// Create a pass for translating OCL 2.1 builtin functions to SPIR-V builtin
-/// functions.
-ModulePass *createOCL21ToSPIRV();
 
 /// Create a pass for adapting OCL types for SPIRV.
 ModulePass *createOCLTypeToSPIRV();
