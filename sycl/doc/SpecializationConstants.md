@@ -200,7 +200,7 @@ and the user says
  - The SpecConstants pass in the post-link will have the following IR as input (`sret` conversion is omitted for clarity):
 
 ```cpp
-  %spec_const = call %struct.POD __sycl_getCompositeSpecConstantValue<mangling for POD type template specialization> ("MyConst_mangled")
+  %spec_const = call %struct.POD __sycl_getCompositeSpecConstantValue<POD type mangling> ("MyConst_mangled")
 ```
 
 where `__sycl_getCompositeSpecConstantValue` is a new "intrinsic"
@@ -225,10 +225,10 @@ where `__sycl_getCompositeSpecConstantValue` is a new "intrinsic"
 And 1 "composite"
 
 ```cpp
-  %gold_POD = call %struct.POD __spirvCompositeSpecConstant<POD mangling>(i32 10, i32 11, i32 12, i32 13, i32 14, i32 15)
+  %gold_POD = call %struct.POD __spirvCompositeSpecConstant<POD type mangling>(i32 10, i32 11, i32 12, i32 13, i32 14, i32 15)
 ```
 
-where `__spirvCompositeSpecConstant<type mangling>` is a new SPIR-V intrinsic which
+where `__spirvCompositeSpecConstant<POD type mangling>` is a new SPIR-V intrinsic which
  represents creation of a composite specialization constant. Its arguments are spec
  constant IDs corresponding to the leaf fields of the POD type of the constant.
 Spec ID for the composite spec constant is not needed, as runtime will never use it - it will use IDs of the leaves instead.
@@ -276,14 +276,16 @@ The translator aims to create the following code (pseudo-code)
 }
 ```
 
- - `OpSpecConstant` operations will be created using already existing mechanism for
- the primitive spec constants.
- - Then the translator will handle `__spirvCompositeSpecConstant*` intrinsic. It will
- recursively traverse the spec constant type structure in parallel with the argument
- list - which is a list of primitive spec constant operation IDs (not their SpecIds!).
- When traversing, it will create all the intermediate OpSpecConstantComposite
- operations as well as the root one (`%gold_POD`) using simple depth-first tree
- traversal with stack. This requires mapping from SpecId decoration number to \<id\> of the corresponding OpSpecConstant operation, but this should be pretty straightforward.
+- `OpSpecConstant` operations will be created using already existing mechanism for
+the primitive spec constants.
+- Then the translator will handle `__spirvCompositeSpecConstant*` intrinsic.
+It will recursively traverse the spec constant type structure in parallel with
+the argument list - which is a list of primitive spec constant SpecIds.
+When traversing, it will create all the intermediate OpSpecConstantComposite
+operations as well as the root one (`%gold_POD`) using simple depth-first tree
+traversal with stack. This requires mapping from SpecId decoration number to
+\<id\> of the corresponding OpSpecConstant operation, but this should be pretty
+straightforward.
 
 #### SYCL runtime
 
