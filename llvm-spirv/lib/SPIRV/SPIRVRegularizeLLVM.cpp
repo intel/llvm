@@ -45,6 +45,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/Debug.h"
 
 #include <set>
 #include <vector>
