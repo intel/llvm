@@ -4,7 +4,7 @@
 
 #ifndef __SYCL_DEVICE_ONLY__
 struct FuncObj {
-  [[INTEL::max_work_group_size(1, 1, 1)]] // expected-no-diagnostics
+  [[intel::max_work_group_size(1, 1, 1)]] // expected-no-diagnostics
   void
   operator()() const {}
 };
@@ -21,21 +21,21 @@ void foo() {
 
 #else // __SYCL_DEVICE_ONLY__
 
-[[INTEL::max_work_group_size(2, 2, 2)]] void func_do_not_ignore() {}
+[[intel::max_work_group_size(2, 2, 2)]] void func_do_not_ignore() {}
 
 struct FuncObj {
-  [[INTEL::max_work_group_size(4, 4, 4)]] void operator()() const {}
+  [[intel::max_work_group_size(4, 4, 4)]] void operator()() const {}
 };
 
 struct Func {
   // expected-warning@+2 {{attribute 'max_work_group_size' is deprecated}}
-  // expected-note@+1 {{did you mean to use 'INTEL::max_work_group_size' instead?}}
+  // expected-note@+1 {{did you mean to use 'intel::max_work_group_size' instead?}}
   [[intelfpga::max_work_group_size(1, 1, 1)]] void operator()() const {}
 };
 
 #ifdef TRIGGER_ERROR
 struct DAFuncObj {
-  [[INTEL::max_work_group_size(4, 4, 4)]]
+  [[intel::max_work_group_size(4, 4, 4)]]
   [[cl::reqd_work_group_size(8, 8, 4)]] // expected-error{{'reqd_work_group_size' attribute conflicts with 'max_work_group_size' attribute}}
   void
   operator()() const {}
@@ -56,7 +56,7 @@ int main() {
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
   // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}} 8 8 8
   kernel<class test_kernel2>(
-      []() [[INTEL::max_work_group_size(8, 8, 8)]]{});
+      []() [[intel::max_work_group_size(8, 8, 8)]]{});
 
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
   // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
@@ -64,17 +64,17 @@ int main() {
       []() { func_do_not_ignore(); });
 
 #ifdef TRIGGER_ERROR
-  [[INTEL::max_work_group_size(1, 1, 1)]] int Var = 0; // expected-error{{'max_work_group_size' attribute only applies to functions}}
+  [[intel::max_work_group_size(1, 1, 1)]] int Var = 0; // expected-error{{'max_work_group_size' attribute only applies to functions}}
 
   kernel<class test_kernel4>(
-      []() [[INTEL::max_work_group_size(0, 1, 3)]]{}); // expected-error{{'max_work_group_size' attribute must be greater than 0}}
+      []() [[intel::max_work_group_size(0, 1, 3)]]{}); // expected-error{{'max_work_group_size' attribute must be greater than 0}}
 
   kernel<class test_kernel5>(
-      []() [[INTEL::max_work_group_size(-8, 8, 1)]]{}); // expected-error{{'max_work_group_size' attribute requires a non-negative integral compile time constant expression}}
+      []() [[intel::max_work_group_size(-8, 8, 1)]]{}); // expected-error{{'max_work_group_size' attribute requires a non-negative integral compile time constant expression}}
 
   kernel<class test_kernel6>(
-      []() [[INTEL::max_work_group_size(16, 16, 16),
-             INTEL::max_work_group_size(2, 2, 2)]]{}); // expected-warning{{attribute 'max_work_group_size' is already applied with different parameters}}
+      []() [[intel::max_work_group_size(16, 16, 16),
+             intel::max_work_group_size(2, 2, 2)]]{}); // expected-warning{{attribute 'max_work_group_size' is already applied with different parameters}}
 
   kernel<class test_kernel7>(
       DAFuncObj());

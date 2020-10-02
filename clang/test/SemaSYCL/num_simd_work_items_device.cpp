@@ -3,15 +3,15 @@
 
 #ifndef __SYCL_DEVICE_ONLY__
 struct FuncObj {
-  [[INTEL::num_simd_work_items(42)]] // expected-no-diagnostics
+  [[intel::num_simd_work_items(42)]] // expected-no-diagnostics
   void
   operator()() const {}
 };
 
 struct FuncObj {
   // expected-warning@+2 {{attribute 'intel_num_simd_work_items' is deprecated}}
-  // expected-note@+1 {{did you mean to use 'INTEL::num_simd_work_items' instead?}}
-  [[intel::num_simd_work_items(42)]] void
+  // expected-note@+1 {{did you mean to use 'intel::num_simd_work_items' instead?}}
+  [[intelfpga::num_simd_work_items(42)]] void
   operator()() const {}
 };
 
@@ -26,10 +26,10 @@ void foo() {
 }
 
 #else // __SYCL_DEVICE_ONLY__
-[[INTEL::num_simd_work_items(2)]] void func_do_not_ignore() {}
+[[intel::num_simd_work_items(2)]] void func_do_not_ignore() {}
 
 struct FuncObj {
-  [[INTEL::num_simd_work_items(42)]] void operator()() const {}
+  [[intel::num_simd_work_items(42)]] void operator()() const {}
 };
 
 template <typename name, typename Func>
@@ -48,7 +48,7 @@ int main() {
   // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
   // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
   kernel<class test_kernel2>(
-      []() [[INTEL::num_simd_work_items(8)]]{});
+      []() [[intel::num_simd_work_items(8)]]{});
 
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
   // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
@@ -57,16 +57,16 @@ int main() {
       []() { func_do_not_ignore(); });
 
 #ifdef TRIGGER_ERROR
-  [[INTEL::num_simd_work_items(0)]] int Var = 0; // expected-error{{'num_simd_work_items' attribute only applies to functions}}
+  [[intel::num_simd_work_items(0)]] int Var = 0; // expected-error{{'num_simd_work_items' attribute only applies to functions}}
 
   kernel<class test_kernel4>(
-      []() [[INTEL::num_simd_work_items(0)]]{}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+      []() [[intel::num_simd_work_items(0)]]{}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 
   kernel<class test_kernel5>(
-      []() [[INTEL::num_simd_work_items(-42)]]{}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+      []() [[intel::num_simd_work_items(-42)]]{}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 
   kernel<class test_kernel6>(
-      []() [[INTEL::num_simd_work_items(1), INTEL::num_simd_work_items(2)]]{}); // expected-warning{{attribute 'num_simd_work_items' is already applied with different parameters}}
+      []() [[intel::num_simd_work_items(1), intel::num_simd_work_items(2)]]{}); // expected-warning{{attribute 'num_simd_work_items' is already applied with different parameters}}
 #endif // TRIGGER_ERROR
 }
 #endif // __SYCL_DEVICE_ONLY__

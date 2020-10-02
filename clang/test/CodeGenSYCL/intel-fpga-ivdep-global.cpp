@@ -8,7 +8,7 @@ void ivdep_no_param() {
   int a[10];
   // CHECK: %[[ARRAY_B:[0-9a-z]+]] = alloca [10 x i32]
   int b[10];
-  [[INTEL::ivdep]] for (int i = 0; i != 10; ++i) {
+  [[intel::ivdep]] for (int i = 0; i != 10; ++i) {
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_NO_PARAM:[0-9]+]]
     a[i] = 0;
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_B]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_NO_PARAM:[0-9]+]]
@@ -28,7 +28,7 @@ void ivdep_no_param_multiple_geps() {
   int b[10];
   // CHECK: %[[TMP:[0-9a-z]+]] = alloca i32
   int t;
-  [[INTEL::ivdep]] for (int i = 0; i != 10; ++i) {
+  [[intel::ivdep]] for (int i = 0; i != 10; ++i) {
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_MUL_GEPS:[0-9]+]]
     t = a[i];
     // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_B]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_MUL_GEPS:[0-9]+]]
@@ -48,7 +48,7 @@ void ivdep_safelen() {
   int a[10];
   // CHECK: %[[ARRAY_B:[0-9a-z]+]] = alloca [10 x i32]
   int b[10];
-  [[INTEL::ivdep(5)]] for (int i = 0; i != 10; ++i) {
+  [[intel::ivdep(5)]] for (int i = 0; i != 10; ++i) {
     // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_SAFELEN:[0-9]+]]
     a[i] = 0;
     // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_B]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_SAFELEN:[0-9]+]]
@@ -65,8 +65,8 @@ void ivdep_conflicting_safelen() {
   int a[10];
   // CHECK: %[[ARRAY_B:[0-9a-z]+]] = alloca [10 x i32]
   int b[10];
-  [[INTEL::ivdep(5)]]
-  [[INTEL::ivdep(4)]] for (int i = 0; i != 10; ++i) {
+  [[intel::ivdep(5)]]
+  [[intel::ivdep(4)]] for (int i = 0; i != 10; ++i) {
     // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_CONFL_SAFELEN:[0-9]+]]
     a[i] = 0;
     // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_B]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_CONFL_SAFELEN:[0-9]+]]

@@ -4,50 +4,44 @@
 
 #ifndef NO_SYCL
 
-[[INTEL::device_indirectly_callable]] // expected-warning {{'device_indirectly_callable' attribute only applies to functions}}
+[[intel::device_indirectly_callable]] // expected-warning {{'device_indirectly_callable' attribute only applies to functions}}
 int N;
 
-[[INTEL::device_indirectly_callable(3)]] // expected-error {{'device_indirectly_callable' attribute takes no arguments}}
+[[intel::device_indirectly_callable(3)]] // expected-error {{'device_indirectly_callable' attribute takes no arguments}}
 void
 bar() {}
 
-[[INTEL::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a static function or function in an anonymous namespace}}
+[[intel::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a static function or function in an anonymous namespace}}
 static void
 func1() {}
 
 namespace {
-[[INTEL::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a static function or function in an anonymous namespace}}
+[[intel::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a static function or function in an anonymous namespace}}
 void
 func2() {}
 }
 
-class test {
-  // expected-warning@+2 {{attribute 'device_indirectly_callable' is deprecated}}
-  // expected-note@+1 {{did you mean to use 'INTEL::device_indirectly_callable' instead?}}
-  [[intel::device_indirectly_callable]] int func() {}
-};
-
 class A {
-  [[INTEL::device_indirectly_callable]] A() {}
+  [[intel::device_indirectly_callable]] A() {}
 
-  [[INTEL::device_indirectly_callable]] int func3() {}
+  [[intel::device_indirectly_callable]] int func3() {}
 };
 
 class B {
-  [[INTEL::device_indirectly_callable]] virtual int foo() {}
+  [[intel::device_indirectly_callable]] virtual int foo() {}
 
-  [[INTEL::device_indirectly_callable]] virtual int bar() = 0;
+  [[intel::device_indirectly_callable]] virtual int bar() = 0;
 };
 
 void helper() {}
 
-[[INTEL::device_indirectly_callable]] void foo() {
+[[intel::device_indirectly_callable]] void foo() {
   helper();
 }
 
 #else
 
-[[INTEL::device_indirectly_callable]] // expected-warning {{'device_indirectly_callable' attribute ignored}}
+[[intel::device_indirectly_callable]] // expected-warning {{'device_indirectly_callable' attribute ignored}}
 void
 baz() {}
 
