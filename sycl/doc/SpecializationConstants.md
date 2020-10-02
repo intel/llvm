@@ -225,14 +225,14 @@ where `__sycl_getCompositeSpecConstantValue` is a new "intrinsic"
 And 1 "composite"
 
 ```cpp
-  %gold_POD = call %struct.POD __spirvCompositeSpecConstant<POD type mangling>(i32 10, i32 11, i32 12, i32 13, i32 14, i32 15)
+  %gold_POD = call %struct.POD __spirvCompositeSpecConstant<POD type mangling>(i32 10, i32 11, i32 12, i32 13, i32 14)
 ```
 
 where `__spirvCompositeSpecConstant<POD type mangling>` is a new SPIR-V intrinsic which
  represents creation of a composite specialization constant. Its arguments are spec
  constant IDs corresponding to the leaf fields of the POD type of the constant.
 Spec ID for the composite spec constant is not needed, as runtime will never use it - it will use IDs of the leaves instead.
- Yet SPIR-V does not allow IDs for composite spec constants.
+ Yet, the SPIR-V specification does not allow `SpecID` decoration for composite spec constants.
 
 ##### The post-link tool changes
 
