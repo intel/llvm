@@ -275,10 +275,22 @@ struct _pi_queue : _pi_object {
   ze_command_queue_handle_t ZeCommandQueue;
 
   // Keeps the PI context to which this queue belongs.
-  pi_context Context;
+  // This field is only set at _pi_queue creation time, and cannot change.
+  // Therefore it can be accessed without holding a lock on this _pi_queue.
+  const pi_context Context;
 
-  // Mutex Lock for the Command List, Fence Map
-  std::mutex ZeCommandListFenceMapMutex;
+  // Keeps the PI device to which this queue belongs.
+  // This field is only set at _pi_queue creation time, and cannot change.
+  // Therefore it can be accessed without holding a lock on this _pi_queue.
+  const pi_device Device;
+
+  // Mutex to be locked on entry to a _pi_queue API call, and unlocked
+  // prior to exit.  Access to all state of a queue is done only after
+  // this lock has been acquired, and this must be released upon exit
+  // from a pi_queue API call.  No other mutexes/locking should be
+  // needed/used for the queue data structures.
+  std::mutex PiQueueMutex;
+
   // Map of all Command lists created with their associated Fence used for
   // tracking when the command list is available for use again.
   std::map<ze_command_list_handle_t, ze_fence_handle_t> ZeCommandListFenceMap;
@@ -286,13 +298,9 @@ struct _pi_queue : _pi_object {
   // Resets the Command List and Associated fence in the ZeCommandListFenceMap.
   // If the reset command list should be made available, then MakeAvailable
   // needs to be set to true. The caller must verify that this command list and
-  // fence have been signalled and call while holding the
-  // ZeCommandListFenceMapMutex lock.
+  // fence have been signalled.
   pi_result resetCommandListFenceEntry(ze_command_list_handle_t ZeCommandList,
                                        bool MakeAvailable);
-
-  // Keeps the PI device to which this queue belongs.
-  pi_device Device;
 
   // Attach a command list to this queue, close, and execute it.
   // Note that this command list cannot be appended to after this.
