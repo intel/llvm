@@ -759,7 +759,7 @@ SPIRVValue *LLVMToSPIRV::transConstant(Value *V) {
     }
     std::vector<SPIRVValue *> BV;
     for (auto I = ConstV->op_begin(), E = ConstV->op_end(); I != E; ++I)
-      BV.push_back(transValue(*I, nullptr));
+      BV.push_back(transValue(*I, nullptr, true, FuncTransMode::Pointer));
     return BM->addCompositeConstant(transType(V->getType()), BV);
   }
 
@@ -2861,8 +2861,16 @@ void LLVMToSPIRV::transFunction(Function *I) {
   }
 }
 
+bool isEmptyLLVMModule(Module *M) {
+  return M->empty() &&      // No functions
+         M->global_empty(); // No global variables
+}
+
 bool LLVMToSPIRV::translate() {
   BM->setGeneratorVer(KTranslatorVer);
+
+  if (isEmptyLLVMModule(M))
+    BM->addCapability(CapabilityLinkage);
 
   if (!transSourceLanguage())
     return false;
@@ -3598,6 +3606,9 @@ void addPassesForSPIRV(legacy::PassManager &PassMgr,
 bool isValidLLVMModule(Module *M, SPIRVErrorLog &ErrorLog) {
   if (!M)
     return false;
+
+  if (isEmptyLLVMModule(M))
+    return true;
 
   Triple TT(M->getTargetTriple());
   if (!ErrorLog.checkError(isSupportedTriple(TT), SPIRVEC_InvalidTargetTriple,

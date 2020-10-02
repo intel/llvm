@@ -3309,6 +3309,8 @@ bool SPIRVToLLVM::translate() {
     auto BV = BM->getVariable(I);
     if (BV->getStorageClass() != StorageClassFunction)
       transValue(BV, nullptr, nullptr);
+    else
+      transGlobalCtorDtors(BV);
   }
 
   // Compile unit might be needed during translation of debug intrinsics.
@@ -3649,6 +3651,15 @@ bool SPIRVToLLVM::transDecoration(SPIRVValue *BV, Value *V) {
 
   DbgTran->transDbgInfo(BV, V);
   return true;
+}
+
+void SPIRVToLLVM::transGlobalCtorDtors(SPIRVVariable *BV) {
+  if (BV->getName() != "llvm.global_ctors" &&
+      BV->getName() != "llvm.global_dtors")
+    return;
+
+  Value *V = transValue(BV, nullptr, nullptr);
+  cast<GlobalValue>(V)->setLinkage(GlobalValue::AppendingLinkage);
 }
 
 bool SPIRVToLLVM::transFPContractMetadata() {
