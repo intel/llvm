@@ -1183,7 +1183,7 @@ def SYCLScope : Attr {
 }
 
 def SYCLDeviceIndirectlyCallable : InheritableAttr {
-  let Spellings = [ CXX11<"intel", "device_indirectly_callable">];
+  let Spellings = [ CXX11<"intel", "device_indirectly_callable"> ];
   let Subjects = SubjectList<[Function]>;
   let LangOpts = [SYCLIsDevice];
   let Documentation = [SYCLDeviceIndirectlyCallableDocs];
@@ -1207,7 +1207,7 @@ def SYCLRequiresDecomposition : InheritableAttr {
 }
 
 def SYCLIntelKernelArgsRestrict : InheritableAttr {
-  let Spellings = [ CXX11<"intel", "kernel_args_restrict">];
+  let Spellings = [ CXX11<"intel", "kernel_args_restrict"> ];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let LangOpts = [ SYCLIsDevice, SYCLIsHost ];
   let Documentation = [ SYCLIntelKernelArgsRestrictDocs ];
