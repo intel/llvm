@@ -200,7 +200,7 @@ and the user says
  - The SpecConstants pass in the post-link will have the following IR as input (`sret` conversion is omitted for clarity):
 
 ```cpp
-  %spec_const = call %struct.POD __sycl_getCompositeSpecConstantValue<mangling for POD type template specialization ("MyConst_mangled")
+  %spec_const = call %struct.POD __sycl_getCompositeSpecConstantValue<mangling for POD type template specialization> ("MyConst_mangled")
 ```
 
 where `__sycl_getCompositeSpecConstantValue` is a new "intrinsic"
@@ -209,8 +209,8 @@ where `__sycl_getCompositeSpecConstantValue` is a new "intrinsic"
  It does not need a default value, because its default value consists of default
  valued of its leaf specialization constants (see below).
 
- - after spec constant enumeration (symbolic -\> int ID translation), the SC pass
- will handle the `__sycl_getCompositeSpecConstantValue`. Knowning the composite
+ - after spec constant enumeration (symbolic -\> int ID translation), the SpecConstants pass
+ will handle the `__sycl_getCompositeSpecConstantValue`. Given the knowledge of the composite
  specialization constant's type (`%struct.POD`), the pass will traverse its leaf
  fields and generate 5 "primitive" spec constants using already existing SPIR-V intrinsic:
 
@@ -225,13 +225,13 @@ where `__sycl_getCompositeSpecConstantValue` is a new "intrinsic"
 And 1 "composite"
 
 ```cpp
-  %gold_POD = call %struct.POD __spirvCompositeSpecConstant<POD mangling>(10, 11, 12, 13, 14, 15)
+  %gold_POD = call %struct.POD __spirvCompositeSpecConstant<POD mangling>(i32 10, i32 11, i32 12, i32 13, i32 14, i32 15)
 ```
 
 where `__spirvCompositeSpecConstant<type mangling>` is a new SPIR-V intrinsic which
  represents creation of a composite specialization constant. Its arguments are spec
  constant IDs corresponding to the leaf fields of the POD type of the constant.
- ID is not needed, as runtime will never use it - it will use IDs of the leaves instead.
+Spec ID for the composite spec constant is not needed, as runtime will never use it - it will use IDs of the leaves instead.
  Yet SPIR-V does not allow IDs for composite spec constants.
 
 ##### The post-link tool changes
