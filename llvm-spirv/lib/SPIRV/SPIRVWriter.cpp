@@ -951,7 +951,8 @@ public:
       // survive the translation. This check should be replaced with an
       // assertion once all known cases are handled.
       if (IdxGroupArrayPairIt != IndexGroupArrayMap.end())
-        ArrayVariablesVec.push_back(IdxGroupArrayPairIt->second);
+        for (SPIRVId ArrayAccessId : IdxGroupArrayPairIt->second)
+          ArrayVariablesVec.push_back(ArrayAccessId);
     }
   }
 
@@ -1476,13 +1477,13 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
       // 1) The metadata node has no operands. It will be directly referenced
       //    from within the optimization hint metadata.
       if (NumOperands == 0)
-        IndexGroupArrayMap[IndexGroup] = AccessedArrayId;
+        IndexGroupArrayMap[IndexGroup].insert(AccessedArrayId);
       // 2) The metadata node has several operands. It serves to link an index
       //    group specific to some embedded loop with other index groups that
       //    mark the same array variable for the outer loop(s).
       for (unsigned I = 0; I < NumOperands; ++I) {
         auto *ContainedIndexGroup = getMDOperandAsMDNode(IndexGroup, I);
-        IndexGroupArrayMap[ContainedIndexGroup] = AccessedArrayId;
+        IndexGroupArrayMap[ContainedIndexGroup].insert(AccessedArrayId);
       }
     }
 
