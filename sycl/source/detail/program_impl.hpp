@@ -14,9 +14,9 @@
 #include <CL/sycl/program.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
-#include <detail/kernel_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/spec_constant_impl.hpp>
+#include <detail/context_impl.hpp>
 
 #include <algorithm>
 #include <cassert>
