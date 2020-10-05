@@ -240,8 +240,7 @@ void HIPToolChain::addClangTargetOptions(
     Action::OffloadKind DeviceOffloadingKind) const {
   HostTC.addClangTargetOptions(DriverArgs, CC1Args, DeviceOffloadingKind);
 
-  // Allow using target ID in --offload-arch.
-  StringRef GpuArch = translateTargetID(DriverArgs, CC1Args);
+  StringRef GpuArch = getGPUArch(DriverArgs);
   assert(!GpuArch.empty() && "Must have an explicit GPU arch.");
   (void) GpuArch;
   assert(DeviceOffloadingKind == Action::OFK_HIP &&
@@ -268,10 +267,6 @@ void HIPToolChain::addClangTargetOptions(
         std::string("--gpu-max-threads-per-block=") + MaxThreadsPerBlock.str();
     CC1Args.push_back(DriverArgs.MakeArgStringRef(ArgStr));
   }
-
-  if (DriverArgs.hasFlag(options::OPT_fgpu_allow_device_init,
-                         options::OPT_fno_gpu_allow_device_init, false))
-    CC1Args.push_back("-fgpu-allow-device-init");
 
   CC1Args.push_back("-fcuda-allow-variadic-functions");
 
@@ -331,6 +326,17 @@ void HIPToolChain::addClangTargetOptions(
     RocmInstallation.addCommonBitcodeLibCC1Args(
       DriverArgs, CC1Args, LibDeviceFile, Wave64, DAZ, FiniteOnly,
       UnsafeMathOpt, FastRelaxedMath, CorrectSqrt);
+
+    // Add instrument lib.
+    auto InstLib =
+        DriverArgs.getLastArgValue(options::OPT_gpu_instrument_lib_EQ);
+    if (InstLib.empty())
+      return;
+    if (llvm::sys::fs::exists(InstLib)) {
+      CC1Args.push_back("-mlink-builtin-bitcode");
+      CC1Args.push_back(DriverArgs.MakeArgString(InstLib));
+    } else
+      getDriver().Diag(diag::err_drv_no_such_file) << InstLib;
   }
 }
 
@@ -353,6 +359,7 @@ HIPToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
   if (!BoundArch.empty()) {
     DAL->eraseArg(options::OPT_mcpu_EQ);
     DAL->AddJoinedArg(nullptr, Opts.getOption(options::OPT_mcpu_EQ), BoundArch);
+    checkTargetID(*DAL);
   }
 
   return DAL;
