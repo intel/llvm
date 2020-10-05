@@ -10,7 +10,7 @@ queue q;
 using Accessor =
     accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer>;
 
-// expected-warning@Inputs/sycl.hpp:220 {{size of kernel arguments (7994 bytes) may exceed the supported maximum of 2048 bytes on some devices}}
+// expected-warning-re@Inputs/sycl.hpp:220 {{size of kernel arguments ({{.*}} bytes) may exceed the supported maximum of 2048 bytes on some devices}}
 
 void use() {
   struct S {
