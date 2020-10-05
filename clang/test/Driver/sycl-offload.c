@@ -598,10 +598,6 @@
 // RUN: %clangxx %s -fsycl -fsycl-explicit-simd -### 2>&1 | FileCheck %s --check-prefix=CHK-FSYCL-ESIMD
 // CHK-FSYCL-ESIMD: llvm-spirv{{.*}}-spirv-allow-unknown-intrinsics
 
-/// Check "-spirv-allow-extra-diexpressions" option is emitted for llvm-spirv tool for debug mode
-// RUN: %clangxx %s -fsycl -g -### 2>&1 | FileCheck %s --check-prefix=CHK-FSYCL-DEBUG
-// CHK-FSYCL-DEBUG: llvm-spirv{{.*}}-spirv-allow-extra-diexpressions
-
 /// ###########################################################################
 
 /// Check -Xsycl-target-backend triggers error when multiple triples are used.
