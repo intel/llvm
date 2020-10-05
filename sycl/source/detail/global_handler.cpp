@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/sycl/detail/device_filter.hpp>
 #include <CL/sycl/detail/spinlock.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
@@ -99,6 +100,17 @@ std::vector<plugin> &GlobalHandler::getPlugins() {
     MPlugins = std::make_unique<std::vector<plugin>>();
 
   return *MPlugins;
+}
+device_filter_list &
+GlobalHandler::getDeviceFilterList(const std::string &InitValue) {
+  if (MDeviceFilterList)
+    return *MDeviceFilterList;
+
+  const std::lock_guard<SpinLock> Lock{MFieldsLock};
+  if (!MDeviceFilterList)
+    MDeviceFilterList = std::make_unique<device_filter_list>(InitValue);
+
+  return *MDeviceFilterList;
 }
 
 void shutdown() { delete &GlobalHandler::instance(); }

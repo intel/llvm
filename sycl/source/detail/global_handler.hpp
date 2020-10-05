@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#pragma once
+
 #include <CL/sycl/detail/spinlock.hpp>
 #include <CL/sycl/detail/util.hpp>
 
@@ -19,6 +21,7 @@ class Scheduler;
 class ProgramManager;
 class Sync;
 class plugin;
+class device_filter_list;
 
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
 
@@ -52,6 +55,7 @@ public:
   std::mutex &getPlatformMapMutex();
   std::mutex &getFilterMutex();
   std::vector<plugin> &getPlugins();
+  device_filter_list &getDeviceFilterList(const std::string &InitValue);
 
 private:
   friend void shutdown();
@@ -69,6 +73,7 @@ private:
   std::unique_ptr<std::mutex> MPlatformMapMutex;
   std::unique_ptr<std::mutex> MFilterMutex;
   std::unique_ptr<std::vector<plugin>> MPlugins;
+  std::unique_ptr<device_filter_list> MDeviceFilterList;
 };
 } // namespace detail
 } // namespace sycl
