@@ -560,7 +560,8 @@ static pi_result copyModule(ze_context_handle_t ZeContext,
 
 static bool setEnvVar(const char *var, const char *value);
 
-static pi_result getPlatformCache(std::vector<pi_platform> **PlatformCache);
+static pi_result
+getPlatformCache(std::vector<pi_platform> const **PlatformCache);
 
 static pi_result populateDeviceCacheIfNeeded(pi_platform Platform);
 
@@ -650,7 +651,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     return mapError(ZeResult);
   }
 
-  std::vector<pi_platform> *PlatformCache;
+  const std::vector<pi_platform> *PlatformCache;
   pi_result Res = getPlatformCache(&PlatformCache);
   if (Res != PI_SUCCESS) {
     return Res;
@@ -663,10 +664,10 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     for (const pi_platform &CachedPlatform : *PlatformCache) {
       if (I < NumEntries) {
         *Platforms++ = CachedPlatform;
-        return PI_SUCCESS;
       } else {
         break;
       }
+      I++;
     }
   }
 
@@ -677,7 +678,8 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
 }
 
 // Get the cached platforms, return them using the "PlatformCache" out parameter
-static pi_result getPlatformCache(std::vector<pi_platform> **PlatformCache) {
+static pi_result
+getPlatformCache(std::vector<pi_platform> const **PlatformCache) {
   // We will retrieve the Max CommandList Cache in this lamda function so that
   // it only has to be executed once
   static pi_uint32 CommandListCacheSizeValue = ([] {
@@ -718,6 +720,7 @@ static pi_result getPlatformCache(std::vector<pi_platform> **PlatformCache) {
     uint32_t ZeDriverCount = 0;
     ZE_CALL(zeDriverGet(&ZeDriverCount, nullptr));
     if (ZeDriverCount == 0) {
+      *PlatformCache = PiPlatformsCache;
       return PI_SUCCESS;
     }
     ze_driver_handle_t ZeDriver;
@@ -822,11 +825,14 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
   assert(NativeHandle);
   assert(Platform);
 
-  // Scan the cache for the requested platform handle. If it is not present in
-  // the cache an error will be returned for an invalid value for the
-  // NativeHandle.
   auto ZeDriver = pi_cast<ze_driver_handle_t>(NativeHandle);
-  std::vector<pi_platform> *PlatformCache;
+  const std::vector<pi_platform> *PlatformCache;
+
+  // The SYCL spec requires that the set of platforms must remain fixed for the
+  // duration of the application's execution. We assume that we found all of the
+  // Level Zero drivers when we initialized the platform cache, so the
+  // "NativeHandle" must already be in the cache. If it is not, this must not be
+  // a valid Level Zero driver.
   pi_result Res = getPlatformCache(&PlatformCache);
   if (Res != PI_SUCCESS) {
     return Res;
@@ -847,9 +853,11 @@ pi_device _pi_platform::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
 
   std::lock_guard<std::mutex> Lock(this->PiDevicesCacheMutex);
   auto it = std::find_if(PiDevicesCache.begin(), PiDevicesCache.end(),
-                         [&](pi_device &D) { return D->ZeDevice == ZeDevice; });
+                         [&](std::unique_ptr<_pi_device> &D) {
+                           return D.get()->ZeDevice == ZeDevice;
+                         });
   if (it != PiDevicesCache.end()) {
-    return *it;
+    return (*it).get();
   }
   return nullptr;
 }
@@ -890,9 +898,10 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
 
   // Return the devices from the cache.
   uint32_t I = 0;
-  for (const pi_device CachedDevice : Platform->PiDevicesCache) {
+  for (const std::unique_ptr<_pi_device> &CachedDevice :
+       Platform->PiDevicesCache) {
     if (I < NumEntries) {
-      *Devices++ = CachedDevice;
+      *Devices++ = CachedDevice.get();
       I++;
     } else {
       break;
@@ -906,35 +915,34 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
 // be locked before calling this function to prevent any synchronization issues.
 static pi_result populateDeviceCacheIfNeeded(pi_platform Platform) {
 
-  ze_driver_handle_t ZeDriver = Platform->ZeDriver;
-  uint32_t ZeDeviceCount = Platform->PiDevicesCache.size();
-  if (ZeDeviceCount == 0) {
-    ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, nullptr));
-  }
-
-  if (!Platform->PiDevicesCache.empty()) {
+  if (Platform->DeviceCachePopulated) {
     return PI_SUCCESS;
   }
+
+  ze_driver_handle_t ZeDriver = Platform->ZeDriver;
+  uint32_t ZeDeviceCount = 0;
+  ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, nullptr));
 
   try {
     std::vector<ze_device_handle_t> ZeDevices(ZeDeviceCount);
     ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, ZeDevices.data()));
-    pi_device Device;
 
     for (uint32_t I = 0; I < ZeDeviceCount; ++I) {
-      Device = new _pi_device(ZeDevices[I], Platform);
+      std::unique_ptr<_pi_device> Device(
+          new _pi_device(ZeDevices[I], Platform));
       pi_result Result = Device->initialize();
       if (Result != PI_SUCCESS) {
         return Result;
       }
       // save a copy in the cache for future uses.
-      Platform->PiDevicesCache.push_back(Device);
+      Platform->PiDevicesCache.push_back(std::move(Device));
     }
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
+  Platform->DeviceCachePopulated = true;
   return PI_SUCCESS;
 }
 
@@ -1510,14 +1518,22 @@ pi_result piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
   assert(Platform);
 
   std::lock_guard<std::mutex> Lock(Platform->PiDevicesCacheMutex);
-  populateDeviceCacheIfNeeded(Platform);
+  pi_result Res = populateDeviceCacheIfNeeded(Platform);
+  if (Res != PI_SUCCESS) {
+    return Res;
+  }
 
-  // Scan the cache for the requested device handle. If it is not present in the
-  // cache an error will be returned for an invalid value for the NativeHandle.
   auto ZeDevice = pi_cast<ze_device_handle_t>(NativeHandle);
-  for (const pi_device &CachedDevice : Platform->PiDevicesCache) {
+
+  // The SYCL spec requires that the set of devices must remain fixed for the
+  // duration of the application's execution. We assume that we found all of the
+  // Level Zero devices when we initialized the device cache, so the
+  // "NativeHandle" must already be in the cache. If it is not, this must not be
+  // a valid Level Zero device.
+  for (const std::unique_ptr<_pi_device> &CachedDevice :
+       Platform->PiDevicesCache) {
     if (CachedDevice->ZeDevice == ZeDevice) {
-      *Device = CachedDevice;
+      *Device = CachedDevice.get();
       return PI_SUCCESS;
     }
   }
