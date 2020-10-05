@@ -3011,6 +3011,38 @@ static void handleNumSimdWorkItemsAttr(Sema &S, Decl *D,
                                                                      E);
 }
 
+// Add scheduler_target_fmax_mhz
+void Sema::addSYCLIntelSchedulerTargetFmaxMhzAttr(
+    Decl *D, const AttributeCommonInfo &Attr, Expr *E) {
+  assert(E && "Attribute must have an argument.");
+
+  SYCLIntelSchedulerTargetFmaxMhzAttr TmpAttr(Context, Attr, E);
+  if (!E->isValueDependent()) {
+    ExprResult ResultExpr;
+    if (checkRangedIntegralArgument<SYCLIntelSchedulerTargetFmaxMhzAttr>(
+            E, &TmpAttr, ResultExpr))
+      return;
+    E = ResultExpr.get();
+  }
+
+  D->addAttr(::new (Context)
+                 SYCLIntelSchedulerTargetFmaxMhzAttr(Context, Attr, E));
+}
+
+// Handle scheduler_target_fmax_mhz
+static void handleSchedulerTargetFmaxMhzAttr(Sema &S, Decl *D,
+                                             const ParsedAttr &AL) {
+  if (D->isInvalidDecl())
+    return;
+
+  Expr *E = AL.getArgAsExpr(0);
+
+  if (D->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>())
+    S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
+
+  S.addSYCLIntelSchedulerTargetFmaxMhzAttr(D, AL, E);
+}
+
 // Handles max_global_work_dim.
 static void handleMaxGlobalWorkDimAttr(Sema &S, Decl *D,
                                        const ParsedAttr &Attr) {
@@ -8229,6 +8261,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_SYCLIntelNumSimdWorkItems:
     handleNumSimdWorkItemsAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLIntelSchedulerTargetFmaxMhz:
+    handleSchedulerTargetFmaxMhzAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim:
     handleMaxGlobalWorkDimAttr(S, D, AL);
