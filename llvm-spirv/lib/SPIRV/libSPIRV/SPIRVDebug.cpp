@@ -40,6 +40,7 @@
 #include "SPIRVDebug.h"
 
 #include "llvm/IR/Verifier.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "spirv-regularization"
@@ -51,12 +52,12 @@ SPIRV::SPIRVDbgErrorHandlingKinds SPIRV::SPIRVDbgError =
     SPIRVDbgErrorHandlingKinds::Exit;
 bool SPIRV::SPIRVDbgErrorMsgIncludesSourceInfo = true;
 
-llvm::cl::opt<bool> SPIRV::VerifyRegularizationPasses(
+namespace SPIRV {
+llvm::cl::opt<bool> VerifyRegularizationPasses(
     "spirv-verify-regularize-passes", llvm::cl::init(_SPIRVDBG),
     llvm::cl::desc(
         "Verify module after each pass in LLVM regularization phase"));
 
-namespace SPIRV {
 void verifyRegularizationPass(llvm::Module &M, const std::string &PassName) {
   if (VerifyRegularizationPasses) {
     std::string Err;

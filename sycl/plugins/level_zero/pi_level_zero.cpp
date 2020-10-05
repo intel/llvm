@@ -228,7 +228,13 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &ZePool,
     ze_event_pool_desc_t ZeEventPoolDesc = {};
     ZeEventPoolDesc.stype = ZE_STRUCTURE_TYPE_EVENT_POOL_DESC;
     ZeEventPoolDesc.count = MaxNumEventsPerPool;
-    ZeEventPoolDesc.flags = ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;
+
+    // Make all events visible on the host.
+    // TODO: events that are used only on device side APIs can be optimized
+    // to not be from the host-visible pool.
+    //
+    ZeEventPoolDesc.flags =
+        ZE_EVENT_POOL_FLAG_HOST_VISIBLE | ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;
 
     std::vector<ze_device_handle_t> ZeDevices;
     std::for_each(Devices.begin(), Devices.end(),
@@ -1441,7 +1447,16 @@ piextDeviceSelectBinary(pi_device Device, // TODO: does this need to be context?
                         pi_device_binary *Binaries, pi_uint32 NumBinaries,
                         pi_uint32 *SelectedBinaryInd) {
 
-  // TODO dummy implementation.
+  assert(Device);
+  assert(SelectedBinaryInd);
+  assert(NumBinaries == 0 || Binaries);
+
+  // TODO: this is a bare-bones implementation for choosing a device image
+  // that would be compatible with the targeted device. An AOT-compiled
+  // image is preferred over SPIR-V for known devices (i.e. Intel devices)
+  // The implementation makes no effort to differentiate between multiple images
+  // for the given device, and simply picks the first one compatible.
+  //
   // Real implementation will use the same mechanism OpenCL ICD dispatcher
   // uses. Something like:
   //   PI_VALIDATE_HANDLE_RETURN_HANDLE(ctx, PI_INVALID_CONTEXT);
@@ -1450,9 +1465,28 @@ piextDeviceSelectBinary(pi_device Device, // TODO: does this need to be context?
   // where context->dispatch is set to the dispatch table provided by PI
   // plugin for platform/device the ctx was created for.
 
+  // Look for GEN binary, which we known can only be handled by Level-Zero now.
+  const char *BinaryTarget = PI_DEVICE_BINARY_TARGET_SPIRV64_GEN;
+
+  // Find the appropriate device image, fallback to spirv if not found
   constexpr pi_uint32 InvalidInd = std::numeric_limits<pi_uint32>::max();
-  *SelectedBinaryInd = NumBinaries > 0 ? 0 : InvalidInd;
-  return PI_SUCCESS;
+  pi_uint32 Spirv = InvalidInd;
+
+  for (pi_uint32 i = 0; i < NumBinaries; ++i) {
+    if (strcmp(Binaries[i]->DeviceTargetSpec, BinaryTarget) == 0) {
+      *SelectedBinaryInd = i;
+      return PI_SUCCESS;
+    }
+    if (strcmp(Binaries[i]->DeviceTargetSpec,
+               PI_DEVICE_BINARY_TARGET_SPIRV64) == 0)
+      Spirv = i;
+  }
+  // Points to a spirv image, if such indeed was found
+  if ((*SelectedBinaryInd = Spirv) != InvalidInd)
+    return PI_SUCCESS;
+
+  // No image can be loaded for the given device
+  return PI_INVALID_BINARY;
 }
 
 pi_result piextDeviceGetNativeHandle(pi_device Device,
@@ -2954,9 +2988,22 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
     return PI_INVALID_VALUE;
   }
 
-  assert(GlobalWorkSize[0] == (ZeThreadGroupDimensions.groupCountX * WG[0]));
-  assert(GlobalWorkSize[1] == (ZeThreadGroupDimensions.groupCountY * WG[1]));
-  assert(GlobalWorkSize[2] == (ZeThreadGroupDimensions.groupCountZ * WG[2]));
+  // Error handling for non-uniform group size case
+  if (GlobalWorkSize[0] != (ZeThreadGroupDimensions.groupCountX * WG[0])) {
+    zePrint("piEnqueueKernelLaunch: invalid work_dim. The range is not a "
+            "multiple of the group size in the 1st dimension\n");
+    return PI_INVALID_WORK_GROUP_SIZE;
+  }
+  if (GlobalWorkSize[1] != (ZeThreadGroupDimensions.groupCountY * WG[1])) {
+    zePrint("piEnqueueKernelLaunch: invalid work_dim. The range is not a "
+            "multiple of the group size in the 2nd dimension\n");
+    return PI_INVALID_WORK_GROUP_SIZE;
+  }
+  if (GlobalWorkSize[2] != (ZeThreadGroupDimensions.groupCountZ * WG[2])) {
+    zePrint("piEnqueueKernelLaunch: invalid work_dim. The range is not a "
+            "multiple of the group size in the 3rd dimension\n");
+    return PI_INVALID_WORK_GROUP_SIZE;
+  }
 
   ZE_CALL(zeKernelSetGroupSize(Kernel->ZeKernel, WG[0], WG[1], WG[2]));
 
@@ -3100,7 +3147,20 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
   case PI_PROFILING_INFO_COMMAND_END: {
     zeEventQueryKernelTimestamp(Event->ZeEvent, &tsResult);
 
+    uint64_t ContextStartTime = tsResult.context.kernelStart;
     uint64_t ContextEndTime = tsResult.context.kernelEnd;
+    //
+    // Handle a possible wrap-around (the underlying HW counter is < 64-bit).
+    // Note, it will not report correct time if there were multiple wrap
+    // arounds, and the longer term plan is to enlarge the capacity of the
+    // HW timestamps.
+    //
+    if (ContextEndTime <= ContextStartTime) {
+      pi_device Device = Event->Context->Devices[0];
+      const uint64_t TimestampMaxValue =
+          (1LL << Device->ZeDeviceProperties.kernelTimestampValidBits) - 1;
+      ContextEndTime += TimestampMaxValue - ContextStartTime;
+    }
     ContextEndTime *= ZeTimerResolution;
 
     return ReturnValue(uint64_t{ContextEndTime});

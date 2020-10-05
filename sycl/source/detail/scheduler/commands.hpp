@@ -217,6 +217,10 @@ protected:
   friend class DispatchHostTask;
 
 public:
+  const std::vector<EventImplPtr> getPreparedHostDepsEvents() const {
+    return MPreparedHostDepsEvents;
+  }
+
   /// Contains list of dependencies(edges)
   std::vector<DepDesc> MDeps;
   /// Contains list of commands that depend on the command.
@@ -493,10 +497,10 @@ public:
 
   detail::CG &getCG() const { return *MCommandGroup; }
 
-  // MEmptyCmd one is only employed if this command refers to host-task.
-  // MEmptyCmd due to unreliable mechanism of lookup for single EmptyCommand
-  // amongst users of host-task-representing command. This unreliability roots
-  // in cleanup process.
+  // MEmptyCmd is only employed if this command refers to host-task.
+  // The mechanism of lookup for single EmptyCommand amongst users of
+  // host-task-representing command is unreliable. This unreliability roots in
+  // the cleanup process.
   EmptyCommand *MEmptyCmd = nullptr;
 
 private:

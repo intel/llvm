@@ -29,7 +29,7 @@ void test() {
   (void)bars;
   // CHECK:    @_ZZ4testvE4bars = internal addrspace(1) constant <{ [21 x i32], [235 x i32] }> <{ [21 x i32] [i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15, i32 16, i32 17, i32 18, i32 19, i32 20], [235 x i32] zeroinitializer }>, align 4
 
-  // CHECK: @[[STR:[.a-zA-Z0-9_]+]] = private unnamed_addr constant [14 x i8] c"Hello, world!\00", align 1
+  // CHECK: @[[STR:[.a-zA-Z0-9_]+]] = private unnamed_addr addrspace(1) constant [14 x i8] c"Hello, world!\00", align 1
 
   // CHECK: %i.ascast = addrspacecast i32* %i to i32 addrspace(4)*
   // CHECK: %[[ARR:[a-zA-Z0-9]+]] = alloca [42 x i32]
@@ -69,7 +69,7 @@ void test() {
   // CHECK:    %cmp{{[0-9]+}} = icmp ult i32 addrspace(4)* %[[VALAPTR]], %[[ADDPTRCAST]]
 
   const char *str = "Hello, world!";
-  // CHECK: store i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([14 x i8], [14 x i8]* @[[STR]], i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)** %[[STRVAL:[a-zA-Z0-9]+]], align 8
+  // CHECK: store i8 addrspace(4)* addrspacecast (i8 addrspace(1)* getelementptr inbounds ([14 x i8], [14 x i8] addrspace(1)* @[[STR]], i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)** %[[STRVAL:[a-zA-Z0-9]+]], align 8
 
   i = str[0];
 
@@ -85,11 +85,11 @@ void test() {
   // CHECK: [[CONDFALSE]]:
 
   // CHECK: [[CONDEND]]:
-  // CHECK-NEXT: phi i8 addrspace(4)* [ %[[VALTRUE]], %[[CONDTRUE]] ], [ addrspacecast (i8* getelementptr inbounds ([21 x i8], [21 x i8]* @{{.*}}, i64 0, i64 0) to i8 addrspace(4)*), %[[CONDFALSE]] ]
+  // CHECK-NEXT: phi i8 addrspace(4)* [ %[[VALTRUE]], %[[CONDTRUE]] ], [ addrspacecast (i8 addrspace(1)* getelementptr inbounds ([21 x i8], [21 x i8] addrspace(1)* @{{.*}}, i64 0, i64 0) to i8 addrspace(4)*), %[[CONDFALSE]] ]
 
   const char *select_null = i > 2 ? "Yet another Hello world" : nullptr;
   (void)select_null;
-  // CHECK: select i1 %{{.*}}, i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([24 x i8], [24 x i8]* @{{.*}}, i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)* null
+  // CHECK: select i1 %{{.*}}, i8 addrspace(4)* addrspacecast (i8 addrspace(1)* getelementptr inbounds ([24 x i8], [24 x i8] addrspace(1)* @{{.*}}, i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)* null
 
   const char *select_str_trivial1 = true ? str : "Another hello world!";
   (void)select_str_trivial1;
@@ -98,7 +98,7 @@ void test() {
 
   const char *select_str_trivial2 = false ? str : "Another hello world!";
   (void)select_str_trivial2;
-  // CHECK: store i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([21 x i8], [21 x i8]* @{{.*}}, i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)** %{{.*}}
+  // CHECK: store i8 addrspace(4)* addrspacecast (i8 addrspace(1)* getelementptr inbounds ([21 x i8], [21 x i8] addrspace(1)* @{{.*}}, i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)** %{{.*}}
   //
   //
   Y yy;

@@ -1262,54 +1262,53 @@ bool llvm::EliminateDuplicatePHINodes(BasicBlock *BB) {
   return EliminateDuplicatePHINodesSetBasedImpl(BB);
 }
 
-/// enforceKnownAlignment - If the specified pointer points to an object that
-/// we control, modify the object's alignment to PrefAlign. This isn't
-/// often possible though. If alignment is important, a more reliable approach
-/// is to simply align all global variables and allocation instructions to
-/// their preferred alignment from the beginning.
-static Align enforceKnownAlignment(Value *V, Align Alignment, Align PrefAlign,
-                                   const DataLayout &DL) {
-  assert(PrefAlign > Alignment);
-
+/// If the specified pointer points to an object that we control, try to modify
+/// the object's alignment to PrefAlign. Returns a minimum known alignment of
+/// the value after the operation, which may be lower than PrefAlign.
+///
+/// Increating value alignment isn't often possible though. If alignment is
+/// important, a more reliable approach is to simply align all global variables
+/// and allocation instructions to their preferred alignment from the beginning.
+static Align tryEnforceAlignment(Value *V, Align PrefAlign,
+                                 const DataLayout &DL) {
   V = V->stripPointerCasts();
 
   if (AllocaInst *AI = dyn_cast<AllocaInst>(V)) {
-    // TODO: ideally, computeKnownBits ought to have used
-    // AllocaInst::getAlignment() in its computation already, making
-    // the below max redundant. But, as it turns out,
-    // stripPointerCasts recurses through infinite layers of bitcasts,
-    // while computeKnownBits is not allowed to traverse more than 6
-    // levels.
-    Alignment = std::max(AI->getAlign(), Alignment);
-    if (PrefAlign <= Alignment)
-      return Alignment;
+    // TODO: Ideally, this function would not be called if PrefAlign is smaller
+    // than the current alignment, as the known bits calculation should have
+    // already taken it into account. However, this is not always the case,
+    // as computeKnownBits() has a depth limit, while stripPointerCasts()
+    // doesn't.
+    Align CurrentAlign = AI->getAlign();
+    if (PrefAlign <= CurrentAlign)
+      return CurrentAlign;
 
     // If the preferred alignment is greater than the natural stack alignment
     // then don't round up. This avoids dynamic stack realignment.
     if (DL.exceedsNaturalStackAlignment(PrefAlign))
-      return Alignment;
+      return CurrentAlign;
     AI->setAlignment(PrefAlign);
     return PrefAlign;
   }
 
   if (auto *GO = dyn_cast<GlobalObject>(V)) {
     // TODO: as above, this shouldn't be necessary.
-    Alignment = max(GO->getAlign(), Alignment);
-    if (PrefAlign <= Alignment)
-      return Alignment;
+    Align CurrentAlign = GO->getPointerAlignment(DL);
+    if (PrefAlign <= CurrentAlign)
+      return CurrentAlign;
 
     // If there is a large requested alignment and we can, bump up the alignment
     // of the global.  If the memory we set aside for the global may not be the
     // memory used by the final program then it is impossible for us to reliably
     // enforce the preferred alignment.
     if (!GO->canIncreaseAlignment())
-      return Alignment;
+      return CurrentAlign;
 
     GO->setAlignment(PrefAlign);
     return PrefAlign;
   }
 
-  return Alignment;
+  return Align(1);
 }
 
 Align llvm::getOrEnforceKnownAlignment(Value *V, MaybeAlign PrefAlign,
@@ -1331,7 +1330,7 @@ Align llvm::getOrEnforceKnownAlignment(Value *V, MaybeAlign PrefAlign,
   Align Alignment = Align(1ull << std::min(Known.getBitWidth() - 1, TrailZ));
 
   if (PrefAlign && *PrefAlign > Alignment)
-    Alignment = enforceKnownAlignment(V, Alignment, *PrefAlign, DL);
+    Alignment = std::max(Alignment, tryEnforceAlignment(V, *PrefAlign, DL));
 
   // We don't need to make any adjustment.
   return Alignment;
@@ -2939,6 +2938,41 @@ collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
       for (unsigned i = NarrowBitWidth; i < BitWidth; ++i)
         Result->Provenance[i] = BitPart::Unset;
       return Result;
+    }
+
+    // Handle intrinsic calls.
+    if (auto *II = dyn_cast<IntrinsicInst>(I)) {
+      Intrinsic::ID IntrinsicID = II->getIntrinsicID();
+
+      // Funnel 'double' shifts take 3 operands, 2 inputs and the shift
+      // amount (modulo).
+      // fshl(X,Y,Z): (X << (Z % BW)) | (Y >> (BW - (Z % BW)))
+      // fshr(X,Y,Z): (X << (BW - (Z % BW))) | (Y >> (Z % BW))
+      const APInt *Amt;
+      if ((IntrinsicID == Intrinsic::fshl || IntrinsicID == Intrinsic::fshr) &&
+          match(II->getArgOperand(2), m_APInt(Amt))) {
+
+        // We can treat fshr as a fshl by flipping the modulo amount.
+        unsigned ModAmt = Amt->urem(BitWidth);
+        if (IntrinsicID == Intrinsic::fshr)
+          ModAmt = BitWidth - ModAmt;
+
+        const auto &LHS = collectBitParts(II->getArgOperand(0), MatchBSwaps,
+                                          MatchBitReversals, BPS, Depth + 1);
+        const auto &RHS = collectBitParts(II->getArgOperand(1), MatchBSwaps,
+                                          MatchBitReversals, BPS, Depth + 1);
+
+        // Check we have both sources and they are from the same provider.
+        if (!LHS || !RHS || !LHS->Provider || LHS->Provider != RHS->Provider)
+          return Result;
+
+        Result = BitPart(LHS->Provider, BitWidth);
+        for (unsigned I = 0; I < (BitWidth - ModAmt); ++I)
+          Result->Provenance[I + ModAmt] = LHS->Provenance[I];
+        for (unsigned I = 0; I < ModAmt; ++I)
+          Result->Provenance[I] = RHS->Provenance[I + BitWidth - ModAmt];
+        return Result;
+      }
     }
   }
 
