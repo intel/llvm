@@ -878,6 +878,17 @@ static void addPGOAndCoverageFlags(const ToolChain &TC, Compilation &C,
     CmdArgs.push_back(Args.MakeArgString(Twine("-fprofile-filter-files=" + v)));
   }
 
+  if (const auto *A = Args.getLastArg(options::OPT_fprofile_update_EQ)) {
+    StringRef Val = A->getValue();
+    if (Val == "atomic" || Val == "prefer-atomic")
+      CmdArgs.push_back("-fprofile-update=atomic");
+    else if (Val != "single")
+      D.Diag(diag::err_drv_unsupported_option_argument)
+          << A->getOption().getName() << Val;
+  } else if (TC.getSanitizerArgs().needsTsanRt()) {
+    CmdArgs.push_back("-fprofile-update=atomic");
+  }
+
   // Leave -fprofile-dir= an unused argument unless .gcda emission is
   // enabled. To be polite, with '-fprofile-arcs -fno-profile-arcs' consider
   // the flag used. There is no -fno-profile-dir, so the user has no
@@ -5629,9 +5640,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Forward -sycl-std option to -cc1
   Args.AddLastArg(CmdArgs, options::OPT_sycl_std_EQ);
 
-  if (IsHIP && Args.hasFlag(options::OPT_fhip_new_launch_api,
-                            options::OPT_fno_hip_new_launch_api, true))
-    CmdArgs.push_back("-fhip-new-launch-api");
+  if (IsHIP) {
+    if (Args.hasFlag(options::OPT_fhip_new_launch_api,
+                     options::OPT_fno_hip_new_launch_api, true))
+      CmdArgs.push_back("-fhip-new-launch-api");
+    if (Args.hasFlag(options::OPT_fgpu_allow_device_init,
+                     options::OPT_fno_gpu_allow_device_init, false))
+      CmdArgs.push_back("-fgpu-allow-device-init");
+  }
 
   if (Arg *A = Args.getLastArg(options::OPT_fcf_protection_EQ)) {
     CmdArgs.push_back(
