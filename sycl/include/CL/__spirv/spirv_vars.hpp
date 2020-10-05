@@ -45,6 +45,12 @@ SYCL_EXTERNAL size_t __spirv_LocalInvocationId_x();
 SYCL_EXTERNAL size_t __spirv_LocalInvocationId_y();
 SYCL_EXTERNAL size_t __spirv_LocalInvocationId_z();
 
+SYCL_EXTERNAL uint32_t __spirv_SubgroupSize();
+SYCL_EXTERNAL uint32_t __spirv_SubgroupMaxSize();
+SYCL_EXTERNAL uint32_t __spirv_NumSubgroups();
+SYCL_EXTERNAL uint32_t __spirv_SubgroupId();
+SYCL_EXTERNAL uint32_t __spirv_SubgroupLocalInvocationId();
+
 #else // __SYCL_NVPTX__
 
 typedef size_t size_t_vec __attribute__((ext_vector_type(3)));
@@ -55,6 +61,12 @@ __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInNumWorkgroups;
 __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInLocalInvocationId;
 __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInWorkgroupId;
 __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInGlobalOffset;
+
+__SPIRV_VAR_QUALIFIERS uint32_t __spirv_BuiltInSubgroupSize;
+__SPIRV_VAR_QUALIFIERS uint32_t __spirv_BuiltInSubgroupMaxSize;
+__SPIRV_VAR_QUALIFIERS uint32_t __spirv_BuiltInNumSubgroups;
+__SPIRV_VAR_QUALIFIERS uint32_t __spirv_BuiltInSubgroupId;
+__SPIRV_VAR_QUALIFIERS uint32_t __spirv_BuiltInSubgroupLocalInvocationId;
 
 SYCL_EXTERNAL inline size_t __spirv_GlobalInvocationId_x() {
   return __spirv_BuiltInGlobalInvocationId.x;
@@ -126,14 +138,23 @@ SYCL_EXTERNAL inline size_t __spirv_LocalInvocationId_z() {
   return __spirv_BuiltInLocalInvocationId.z;
 }
 
-#endif // __SYCL_NVPTX__
+SYCL_EXTERNAL inline uint32_t __spirv_SubgroupSize() {
+  return __spirv_BuiltInSubgroupSize;
+}
+SYCL_EXTERNAL inline uint32_t __spirv_SubgroupMaxSize() {
+  return __spirv_BuiltInSubgroupMaxSize;
+}
+SYCL_EXTERNAL inline uint32_t __spirv_NumSubgroups() {
+  return __spirv_BuiltInNumSubgroups;
+}
+SYCL_EXTERNAL inline uint32_t __spirv_SubgroupId() {
+  return __spirv_BuiltInSubgroupId;
+}
+SYCL_EXTERNAL inline uint32_t __spirv_SubgroupLocalInvocationId() {
+  return __spirv_BuiltInSubgroupLocalInvocationId;
+}
 
-__SPIRV_VAR_QUALIFIERS uint32_t __spirv_BuiltInSubgroupSize;
-__SPIRV_VAR_QUALIFIERS uint32_t __spirv_BuiltInSubgroupMaxSize;
-__SPIRV_VAR_QUALIFIERS uint32_t __spirv_BuiltInNumSubgroups;
-__SPIRV_VAR_QUALIFIERS uint32_t __spirv_BuiltInNumEnqueuedSubgroups;
-__SPIRV_VAR_QUALIFIERS uint32_t __spirv_BuiltInSubgroupId;
-__SPIRV_VAR_QUALIFIERS uint32_t __spirv_BuiltInSubgroupLocalInvocationId;
+#endif // __SYCL_NVPTX__
 
 #undef __SPIRV_VAR_QUALIFIERS
 
