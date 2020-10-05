@@ -102,7 +102,8 @@ which is provided to methods of `cl::sycl::handler` (e.g. `parallel_for` or
  - Allow for caching of objects built with some build options.
  - Employ the same built object for multiple devices of the same ISA,
    capabilities and so on. *NOTE:* It's not really known if it's possible to
-   check if two distinct devices are *exactly* the same.
+   check if two distinct devices are *exactly* the same. Probably this should be
+   an improvement request for plugins.
  - Improve testing: cover real use-cases. See currently covered cases [here](https://github.com/intel/llvm/blob/sycl/sycl/unittests/kernel-and-program/Cache.cpp).
 
 
