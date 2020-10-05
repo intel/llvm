@@ -326,7 +326,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   if (is_host() || DeviceType == info::device_type::host)
     return Res;
 
-  pi_uint32 NumDevices;
+  pi_uint32 NumDevices = 0;
   const detail::plugin &Plugin = getPlugin();
   Plugin.call<PiApiKind::piDevicesGet>(
       MPlatform, pi::cast<RT::PiDeviceType>(DeviceType), 0,
