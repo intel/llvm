@@ -46,8 +46,6 @@
 #include <iostream>
 #include <set>
 #include <string>
-#include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 namespace SPIRV {
@@ -477,6 +475,10 @@ public:
 
   bool isSPIRVAllowUnknownIntrinsicsEnabled() const noexcept {
     return TranslationOpts.isSPIRVAllowUnknownIntrinsicsEnabled();
+  }
+
+  bool allowExtraDIExpressions() const noexcept {
+    return TranslationOpts.allowExtraDIExpressions();
   }
 
   SPIRVExtInstSetKind getDebugInfoEIS() const {

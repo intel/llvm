@@ -1589,7 +1589,7 @@ public:
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
     MSharedPtrStorage.push_back(Dst);
-    T_Dst *RawDstPtr = Dst.get();
+    typename shared_ptr_class<T_Dst>::element_type *RawDstPtr = Dst.get();
     copy(Src, RawDstPtr);
   }
 
@@ -1612,7 +1612,7 @@ public:
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
     MSharedPtrStorage.push_back(Src);
-    T_Src *RawSrcPtr = Src.get();
+    typename shared_ptr_class<T_Src>::element_type *RawSrcPtr = Src.get();
     copy(RawSrcPtr, Dst);
   }
 

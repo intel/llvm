@@ -25,11 +25,6 @@
 // CHECK-EMPTY:
 // CHECK-NEXT: };
 
-// CHECK: static constexpr
-// CHECK-NEXT: const unsigned kernel_signature_start[] = {
-// CHECK-NEXT:  0 // _ZTSZ4mainE8kernel_A
-// CHECK-NEXT: };
-
 // CHECK: template <> struct KernelInfo<class kernel_A> {
 
 #include "Inputs/sycl.hpp"

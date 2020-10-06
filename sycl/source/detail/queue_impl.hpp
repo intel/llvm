@@ -400,10 +400,12 @@ private:
 
   void initHostTaskAndEventCallbackThreadPool();
 
-  /// Stores a USM operation event that should be associated with the queue
+  /// queue_impl.addEvent tracks events with weak pointers
+  /// but some events have no other owners. addSharedEvent()
+  /// follows events with a shared pointer.
   ///
   /// \param Event is the event to be stored
-  void addUSMEvent(const event &Event);
+  void addSharedEvent(const event &Event);
 
   /// Stores an event that should be associated with the queue
   ///
@@ -415,10 +417,14 @@ private:
 
   DeviceImplPtr MDevice;
   const ContextImplPtr MContext;
-  vector_class<std::weak_ptr<event_impl>> MEvents;
-  // USM operations are not added to the scheduler command graph,
-  // queue is the only owner on the runtime side.
-  vector_class<event> MUSMEvents;
+
+  /// These events are tracked, but not owned, by the queue.
+  vector_class<std::weak_ptr<event_impl>> MEventsWeak;
+
+  /// Events without data dependencies (such as USM) need an owner,
+  /// additionally, USM operations are not added to the scheduler command graph,
+  /// queue is the only owner on the runtime side.
+  vector_class<event> MEventsShared;
   exception_list MExceptions;
   const async_handler MAsyncHandler;
   const property_list MPropList;

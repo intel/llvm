@@ -3053,6 +3053,11 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     Known.Zero.setBitsFrom(Log2_32(PossibleOnes) + 1);
     break;
   }
+  case ISD::PARITY: {
+    // Parity returns 0 everywhere but the LSB.
+    Known.Zero.setBitsFrom(1);
+    break;
+  }
   case ISD::LOAD: {
     LoadSDNode *LD = cast<LoadSDNode>(Op);
     const Constant *Cst = TLI->getTargetConstantFromLoad(LD);
@@ -3370,21 +3375,7 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
   }
   case ISD::ABS: {
     Known2 = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
-
-    // If the source's MSB is zero then we know the rest of the bits already.
-    if (Known2.isNonNegative()) {
-      Known.Zero = Known2.Zero;
-      Known.One = Known2.One;
-      break;
-    }
-
-    // We only know that the absolute values's MSB will be zero iff there is
-    // a set bit that isn't the sign bit (otherwise it could be INT_MIN).
-    Known2.One.clearSignBit();
-    if (Known2.One.getBoolValue()) {
-      Known.Zero = APInt::getSignMask(BitWidth);
-      break;
-    }
+    Known = Known2.abs();
     break;
   }
   case ISD::UMIN: {
@@ -4409,6 +4400,14 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT) {
 }
 
 SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
+                              SDValue Operand) {
+  SDNodeFlags Flags;
+  if (Inserter)
+    Flags = Inserter->getFlags();
+  return getNode(Opcode, DL, VT, Operand, Flags);
+}
+
+SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
                               SDValue Operand, const SDNodeFlags Flags) {
   // Constant fold unary operations with an integer constant operand. Even
   // opaque constant will be folded, because the folding of unary operations
@@ -5217,6 +5216,14 @@ SDValue SelectionDAG::getAssertAlign(const SDLoc &DL, SDValue Val, Align A) {
 }
 
 SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
+                              SDValue N1, SDValue N2) {
+  SDNodeFlags Flags;
+  if (Inserter)
+    Flags = Inserter->getFlags();
+  return getNode(Opcode, DL, VT, N1, N2, Flags);
+}
+
+SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
                               SDValue N1, SDValue N2, const SDNodeFlags Flags) {
   ConstantSDNode *N1C = dyn_cast<ConstantSDNode>(N1);
   ConstantSDNode *N2C = dyn_cast<ConstantSDNode>(N2);
@@ -5349,8 +5356,8 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
     // amounts.  This catches things like trying to shift an i1024 value by an
     // i8, which is easy to fall into in generic code that uses
     // TLI.getShiftAmount().
-    assert(N2.getValueType().getScalarSizeInBits().getFixedSize() >=
-               Log2_32_Ceil(VT.getScalarSizeInBits().getFixedSize()) &&
+    assert(N2.getValueType().getScalarSizeInBits() >=
+               Log2_32_Ceil(VT.getScalarSizeInBits()) &&
            "Invalid use of small shift amount with oversized value!");
 
     // Always fold shifts of i1 values so the code generator doesn't need to
@@ -5657,6 +5664,14 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
   SDValue V = SDValue(N, 0);
   NewSDValueDbgMsg(V, "Creating new node: ", this);
   return V;
+}
+
+SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
+                              SDValue N1, SDValue N2, SDValue N3) {
+  SDNodeFlags Flags;
+  if (Inserter)
+    Flags = Inserter->getFlags();
+  return getNode(Opcode, DL, VT, N1, N2, N3, Flags);
 }
 
 SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
@@ -6112,7 +6127,7 @@ static SDValue getMemcpyLoadsAndStores(SelectionDAG &DAG, const SDLoc &dl,
         Store = DAG.getStore(
             Chain, dl, Value,
             DAG.getMemBasePlusOffset(Dst, TypeSize::Fixed(DstOff), dl),
-            DstPtrInfo.getWithOffset(DstOff), Alignment.value(), MMOFlags);
+            DstPtrInfo.getWithOffset(DstOff), Alignment, MMOFlags);
         OutChains.push_back(Store);
       }
     }
@@ -6136,13 +6151,13 @@ static SDValue getMemcpyLoadsAndStores(SelectionDAG &DAG, const SDLoc &dl,
           ISD::EXTLOAD, dl, NVT, Chain,
           DAG.getMemBasePlusOffset(Src, TypeSize::Fixed(SrcOff), dl),
           SrcPtrInfo.getWithOffset(SrcOff), VT,
-          commonAlignment(*SrcAlign, SrcOff).value(), SrcMMOFlags);
+          commonAlignment(*SrcAlign, SrcOff), SrcMMOFlags);
       OutLoadChains.push_back(Value.getValue(1));
 
       Store = DAG.getTruncStore(
           Chain, dl, Value,
           DAG.getMemBasePlusOffset(Dst, TypeSize::Fixed(DstOff), dl),
-          DstPtrInfo.getWithOffset(DstOff), VT, Alignment.value(), MMOFlags);
+          DstPtrInfo.getWithOffset(DstOff), VT, Alignment, MMOFlags);
       OutStoreChains.push_back(Store);
     }
     SrcOff += VTSize;
@@ -6262,10 +6277,10 @@ static SDValue getMemmoveLoadsAndStores(SelectionDAG &DAG, const SDLoc &dl,
     if (isDereferenceable)
       SrcMMOFlags |= MachineMemOperand::MODereferenceable;
 
-    Value = DAG.getLoad(
-        VT, dl, Chain,
-        DAG.getMemBasePlusOffset(Src, TypeSize::Fixed(SrcOff), dl),
-        SrcPtrInfo.getWithOffset(SrcOff), SrcAlign->value(), SrcMMOFlags);
+    Value =
+        DAG.getLoad(VT, dl, Chain,
+                    DAG.getMemBasePlusOffset(Src, TypeSize::Fixed(SrcOff), dl),
+                    SrcPtrInfo.getWithOffset(SrcOff), *SrcAlign, SrcMMOFlags);
     LoadValues.push_back(Value);
     LoadChains.push_back(Value.getValue(1));
     SrcOff += VTSize;
@@ -6277,10 +6292,10 @@ static SDValue getMemmoveLoadsAndStores(SelectionDAG &DAG, const SDLoc &dl,
     unsigned VTSize = VT.getSizeInBits() / 8;
     SDValue Store;
 
-    Store = DAG.getStore(
-        Chain, dl, LoadValues[i],
-        DAG.getMemBasePlusOffset(Dst, TypeSize::Fixed(DstOff), dl),
-        DstPtrInfo.getWithOffset(DstOff), Alignment.value(), MMOFlags);
+    Store =
+        DAG.getStore(Chain, dl, LoadValues[i],
+                     DAG.getMemBasePlusOffset(Dst, TypeSize::Fixed(DstOff), dl),
+                     DstPtrInfo.getWithOffset(DstOff), Alignment, MMOFlags);
     OutChains.push_back(Store);
     DstOff += VTSize;
   }
@@ -6380,7 +6395,7 @@ static SDValue getMemsetStores(SelectionDAG &DAG, const SDLoc &dl,
     SDValue Store = DAG.getStore(
         Chain, dl, Value,
         DAG.getMemBasePlusOffset(Dst, TypeSize::Fixed(DstOff), dl),
-        DstPtrInfo.getWithOffset(DstOff), Alignment.value(),
+        DstPtrInfo.getWithOffset(DstOff), Alignment,
         isVol ? MachineMemOperand::MOVolatile : MachineMemOperand::MONone);
     OutChains.push_back(Store);
     DstOff += VT.getSizeInBits() / 8;
@@ -7045,8 +7060,7 @@ SDValue SelectionDAG::getIndexedLoad(SDValue OrigLoad, const SDLoc &dl,
       ~(MachineMemOperand::MOInvariant | MachineMemOperand::MODereferenceable);
   return getLoad(AM, LD->getExtensionType(), OrigLoad.getValueType(), dl,
                  LD->getChain(), Base, Offset, LD->getPointerInfo(),
-                 LD->getMemoryVT(), LD->getAlignment(), MMOFlags,
-                 LD->getAAInfo());
+                 LD->getMemoryVT(), LD->getAlign(), MMOFlags, LD->getAAInfo());
 }
 
 SDValue SelectionDAG::getStore(SDValue Chain, const SDLoc &dl, SDValue Val,
@@ -7482,6 +7496,14 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
 }
 
 SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
+                              ArrayRef<SDValue> Ops) {
+  SDNodeFlags Flags;
+  if (Inserter)
+    Flags = Inserter->getFlags();
+  return getNode(Opcode, DL, VT, Ops, Flags);
+}
+
+SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
                               ArrayRef<SDValue> Ops, const SDNodeFlags Flags) {
   unsigned NumOps = Ops.size();
   switch (NumOps) {
@@ -7550,6 +7572,14 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
 SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL,
                               ArrayRef<EVT> ResultTys, ArrayRef<SDValue> Ops) {
   return getNode(Opcode, DL, getVTList(ResultTys), Ops);
+}
+
+SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, SDVTList VTList,
+                              ArrayRef<SDValue> Ops) {
+  SDNodeFlags Flags;
+  if (Inserter)
+    Flags = Inserter->getFlags();
+  return getNode(Opcode, DL, VTList, Ops, Flags);
 }
 
 SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, SDVTList VTList,
@@ -8248,6 +8278,14 @@ SDValue SelectionDAG::getTargetInsertSubreg(int SRIdx, const SDLoc &DL, EVT VT,
 
 /// getNodeIfExists - Get the specified node if it's already available, or
 /// else return NULL.
+SDNode *SelectionDAG::getNodeIfExists(unsigned Opcode, SDVTList VTList,
+                                      ArrayRef<SDValue> Ops) {
+  SDNodeFlags Flags;
+  if (Inserter)
+    Flags = Inserter->getFlags();
+  return getNodeIfExists(Opcode, VTList, Ops, Flags);
+}
+
 SDNode *SelectionDAG::getNodeIfExists(unsigned Opcode, SDVTList VTList,
                                       ArrayRef<SDValue> Ops,
                                       const SDNodeFlags Flags) {
@@ -9776,16 +9814,16 @@ bool BuildVectorSDNode::isConstantSplat(APInt &SplatValue, APInt &SplatUndef,
 
 SDValue BuildVectorSDNode::getSplatValue(const APInt &DemandedElts,
                                          BitVector *UndefElements) const {
+  unsigned NumOps = getNumOperands();
   if (UndefElements) {
     UndefElements->clear();
-    UndefElements->resize(getNumOperands());
+    UndefElements->resize(NumOps);
   }
-  assert(getNumOperands() == DemandedElts.getBitWidth() &&
-         "Unexpected vector size");
+  assert(NumOps == DemandedElts.getBitWidth() && "Unexpected vector size");
   if (!DemandedElts)
     return SDValue();
   SDValue Splatted;
-  for (unsigned i = 0, e = getNumOperands(); i != e; ++i) {
+  for (unsigned i = 0; i != NumOps; ++i) {
     if (!DemandedElts[i])
       continue;
     SDValue Op = getOperand(i);

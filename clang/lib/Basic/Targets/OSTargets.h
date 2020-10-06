@@ -770,11 +770,15 @@ protected:
       // type is not declared as a typedef in system headers.
       Builder.defineMacro("__wchar_t");
     }
+
+    this->PlatformName = llvm::Triple::getOSTypeName(Triple.getOS());
   }
 
 public:
   ZOSTargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
-      : OSTargetInfo<Target>(Triple, Opts) {}
+      : OSTargetInfo<Target>(Triple, Opts) {
+    this->WCharType = TargetInfo::UnsignedInt;
+  }
 };
 
 void addWindowsDefines(const llvm::Triple &Triple, const LangOptions &Opts,

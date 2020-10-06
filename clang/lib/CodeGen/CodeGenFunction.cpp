@@ -33,6 +33,7 @@
 #include "clang/Basic/TargetInfo.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/Frontend/OpenMP/OMPIRBuilder.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
@@ -41,6 +42,7 @@
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/Support/CRC.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
 using namespace clang;
 using namespace CodeGen;
@@ -639,6 +641,17 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
 
+  if (const SYCLIntelSchedulerTargetFmaxMhzAttr *A =
+          FD->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>()) {
+    Optional<llvm::APSInt> ArgVal =
+        A->getValue()->getIntegerConstantExpr(FD->getASTContext());
+    assert(ArgVal.hasValue() && "Not an integer constant expression");
+    llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
+        Builder.getInt32(ArgVal->getSExtValue()))};
+    Fn->setMetadata("scheduler_target_fmax_mhz",
+                    llvm::MDNode::get(Context, AttrMDArgs));
+  }
+
   if (const SYCLIntelMaxWorkGroupSizeAttr *A =
       FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
     llvm::Metadata *AttrMDArgs[] = {
@@ -826,13 +839,16 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
         SanOpts.Mask &= ~SanitizerKind::Null;
 
   // Apply xray attributes to the function (as a string, for now)
+  bool AlwaysXRayAttr = false;
   if (const auto *XRayAttr = D ? D->getAttr<XRayInstrumentAttr>() : nullptr) {
     if (CGM.getCodeGenOpts().XRayInstrumentationBundle.has(
             XRayInstrKind::FunctionEntry) ||
         CGM.getCodeGenOpts().XRayInstrumentationBundle.has(
             XRayInstrKind::FunctionExit)) {
-      if (XRayAttr->alwaysXRayInstrument() && ShouldXRayInstrumentFunction())
+      if (XRayAttr->alwaysXRayInstrument() && ShouldXRayInstrumentFunction()) {
         Fn->addFnAttr("function-instrument", "xray-always");
+        AlwaysXRayAttr = true;
+      }
       if (XRayAttr->neverXRayInstrument())
         Fn->addFnAttr("function-instrument", "xray-never");
       if (const auto *LogArgs = D->getAttr<XRayLogArgsAttr>())
@@ -858,6 +874,16 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     if (!CGM.getCodeGenOpts().XRayInstrumentationBundle.has(
             XRayInstrKind::FunctionEntry))
       Fn->addFnAttr("xray-skip-entry");
+
+    auto FuncGroups = CGM.getCodeGenOpts().XRayTotalFunctionGroups;
+    if (FuncGroups > 1) {
+      auto FuncName = llvm::makeArrayRef<uint8_t>(
+          CurFn->getName().bytes_begin(), CurFn->getName().bytes_end());
+      auto Group = crc32(FuncName) % FuncGroups;
+      if (Group != CGM.getCodeGenOpts().XRaySelectedFunctionGroup &&
+          !AlwaysXRayAttr)
+        Fn->addFnAttr("function-instrument", "xray-never");
+    }
   }
 
   unsigned Count, Offset;
@@ -1528,16 +1554,15 @@ bool CodeGenFunction::ConstantFoldsToSimpleInteger(const Expr *Cond,
   return true;
 }
 
-
-
 /// EmitBranchOnBoolExpr - Emit a branch on a boolean condition (e.g. for an if
 /// statement) to the specified blocks.  Based on the condition, this might try
 /// to simplify the codegen of the conditional based on the branch.
-///
+/// \param Weights The weights determined by the likelihood attributes.
 void CodeGenFunction::EmitBranchOnBoolExpr(const Expr *Cond,
                                            llvm::BasicBlock *TrueBlock,
                                            llvm::BasicBlock *FalseBlock,
-                                           uint64_t TrueCount) {
+                                           uint64_t TrueCount,
+                                           llvm::MDNode *Weights) {
   Cond = Cond->IgnoreParens();
 
   if (const BinaryOperator *CondBOp = dyn_cast<BinaryOperator>(Cond)) {
@@ -1552,7 +1577,7 @@ void CodeGenFunction::EmitBranchOnBoolExpr(const Expr *Cond,
         // br(1 && X) -> br(X).
         incrementProfileCounter(CondBOp);
         return EmitBranchOnBoolExpr(CondBOp->getRHS(), TrueBlock, FalseBlock,
-                                    TrueCount);
+                                    TrueCount, Weights);
       }
 
       // If we have "X && 1", simplify the code to use an uncond branch.
@@ -1561,7 +1586,7 @@ void CodeGenFunction::EmitBranchOnBoolExpr(const Expr *Cond,
           ConstantBool) {
         // br(X && 1) -> br(X).
         return EmitBranchOnBoolExpr(CondBOp->getLHS(), TrueBlock, FalseBlock,
-                                    TrueCount);
+                                    TrueCount, Weights);
       }
 
       // Emit the LHS as a conditional.  If the LHS conditional is false, we
@@ -1574,7 +1599,8 @@ void CodeGenFunction::EmitBranchOnBoolExpr(const Expr *Cond,
       ConditionalEvaluation eval(*this);
       {
         ApplyDebugLocation DL(*this, Cond);
-        EmitBranchOnBoolExpr(CondBOp->getLHS(), LHSTrue, FalseBlock, RHSCount);
+        EmitBranchOnBoolExpr(CondBOp->getLHS(), LHSTrue, FalseBlock, RHSCount,
+                             Weights);
         EmitBlock(LHSTrue);
       }
 
@@ -1583,7 +1609,8 @@ void CodeGenFunction::EmitBranchOnBoolExpr(const Expr *Cond,
 
       // Any temporaries created here are conditional.
       eval.begin(*this);
-      EmitBranchOnBoolExpr(CondBOp->getRHS(), TrueBlock, FalseBlock, TrueCount);
+      EmitBranchOnBoolExpr(CondBOp->getRHS(), TrueBlock, FalseBlock, TrueCount,
+                           Weights);
       eval.end(*this);
 
       return;
@@ -1598,7 +1625,7 @@ void CodeGenFunction::EmitBranchOnBoolExpr(const Expr *Cond,
         // br(0 || X) -> br(X).
         incrementProfileCounter(CondBOp);
         return EmitBranchOnBoolExpr(CondBOp->getRHS(), TrueBlock, FalseBlock,
-                                    TrueCount);
+                                    TrueCount, Weights);
       }
 
       // If we have "X || 0", simplify the code to use an uncond branch.
@@ -1607,7 +1634,7 @@ void CodeGenFunction::EmitBranchOnBoolExpr(const Expr *Cond,
           !ConstantBool) {
         // br(X || 0) -> br(X).
         return EmitBranchOnBoolExpr(CondBOp->getLHS(), TrueBlock, FalseBlock,
-                                    TrueCount);
+                                    TrueCount, Weights);
       }
 
       // Emit the LHS as a conditional.  If the LHS conditional is true, we
@@ -1623,7 +1650,8 @@ void CodeGenFunction::EmitBranchOnBoolExpr(const Expr *Cond,
       ConditionalEvaluation eval(*this);
       {
         ApplyDebugLocation DL(*this, Cond);
-        EmitBranchOnBoolExpr(CondBOp->getLHS(), TrueBlock, LHSFalse, LHSCount);
+        EmitBranchOnBoolExpr(CondBOp->getLHS(), TrueBlock, LHSFalse, LHSCount,
+                             Weights);
         EmitBlock(LHSFalse);
       }
 
@@ -1632,7 +1660,8 @@ void CodeGenFunction::EmitBranchOnBoolExpr(const Expr *Cond,
 
       // Any temporaries created here are conditional.
       eval.begin(*this);
-      EmitBranchOnBoolExpr(CondBOp->getRHS(), TrueBlock, FalseBlock, RHSCount);
+      EmitBranchOnBoolExpr(CondBOp->getRHS(), TrueBlock, FalseBlock, RHSCount,
+                           Weights);
 
       eval.end(*this);
 
@@ -1647,7 +1676,7 @@ void CodeGenFunction::EmitBranchOnBoolExpr(const Expr *Cond,
       uint64_t FalseCount = getCurrentProfileCount() - TrueCount;
       // Negate the condition and swap the destination blocks.
       return EmitBranchOnBoolExpr(CondUOp->getSubExpr(), FalseBlock, TrueBlock,
-                                  FalseCount);
+                                  FalseCount, Weights);
     }
   }
 
@@ -1658,7 +1687,7 @@ void CodeGenFunction::EmitBranchOnBoolExpr(const Expr *Cond,
 
     ConditionalEvaluation cond(*this);
     EmitBranchOnBoolExpr(CondOp->getCond(), LHSBlock, RHSBlock,
-                         getProfileCount(CondOp));
+                         getProfileCount(CondOp), Weights);
 
     // When computing PGO branch weights, we only know the overall count for
     // the true block. This code is essentially doing tail duplication of the
@@ -1678,14 +1707,14 @@ void CodeGenFunction::EmitBranchOnBoolExpr(const Expr *Cond,
     {
       ApplyDebugLocation DL(*this, Cond);
       EmitBranchOnBoolExpr(CondOp->getLHS(), TrueBlock, FalseBlock,
-                           LHSScaledTrueCount);
+                           LHSScaledTrueCount, Weights);
     }
     cond.end(*this);
 
     cond.begin(*this);
     EmitBlock(RHSBlock);
     EmitBranchOnBoolExpr(CondOp->getRHS(), TrueBlock, FalseBlock,
-                         TrueCount - LHSScaledTrueCount);
+                         TrueCount - LHSScaledTrueCount, Weights);
     cond.end(*this);
 
     return;
@@ -1716,9 +1745,10 @@ void CodeGenFunction::EmitBranchOnBoolExpr(const Expr *Cond,
 
   // Create branch weights based on the number of times we get here and the
   // number of times the condition should be true.
-  uint64_t CurrentCount = std::max(getCurrentProfileCount(), TrueCount);
-  llvm::MDNode *Weights =
-      createProfileWeights(TrueCount, CurrentCount - TrueCount);
+  if (!Weights) {
+    uint64_t CurrentCount = std::max(getCurrentProfileCount(), TrueCount);
+    Weights = createProfileWeights(TrueCount, CurrentCount - TrueCount);
+  }
 
   // Emit the code with the fully general case.
   llvm::Value *CondV;
@@ -2219,13 +2249,39 @@ void CodeGenFunction::emitAlignmentAssumption(llvm::Value *PtrValue,
                                               SourceLocation AssumptionLoc,
                                               llvm::Value *Alignment,
                                               llvm::Value *OffsetValue) {
-  llvm::Value *TheCheck;
-  llvm::Instruction *Assumption = Builder.CreateAlignmentAssumption(
-      CGM.getDataLayout(), PtrValue, Alignment, OffsetValue, &TheCheck);
+  if (Alignment->getType() != IntPtrTy)
+    Alignment =
+        Builder.CreateIntCast(Alignment, IntPtrTy, false, "casted.align");
+  if (OffsetValue && OffsetValue->getType() != IntPtrTy)
+    OffsetValue =
+        Builder.CreateIntCast(OffsetValue, IntPtrTy, true, "casted.offset");
+  llvm::Value *TheCheck = nullptr;
   if (SanOpts.has(SanitizerKind::Alignment)) {
-    emitAlignmentAssumptionCheck(PtrValue, Ty, Loc, AssumptionLoc, Alignment,
-                                 OffsetValue, TheCheck, Assumption);
+    llvm::Value *PtrIntValue =
+        Builder.CreatePtrToInt(PtrValue, IntPtrTy, "ptrint");
+
+    if (OffsetValue) {
+      bool IsOffsetZero = false;
+      if (const auto *CI = dyn_cast<llvm::ConstantInt>(OffsetValue))
+        IsOffsetZero = CI->isZero();
+
+      if (!IsOffsetZero)
+        PtrIntValue = Builder.CreateSub(PtrIntValue, OffsetValue, "offsetptr");
+    }
+
+    llvm::Value *Zero = llvm::ConstantInt::get(IntPtrTy, 0);
+    llvm::Value *Mask =
+        Builder.CreateSub(Alignment, llvm::ConstantInt::get(IntPtrTy, 1));
+    llvm::Value *MaskedPtr = Builder.CreateAnd(PtrIntValue, Mask, "maskedptr");
+    TheCheck = Builder.CreateICmpEQ(MaskedPtr, Zero, "maskcond");
   }
+  llvm::Instruction *Assumption = Builder.CreateAlignmentAssumption(
+      CGM.getDataLayout(), PtrValue, Alignment, OffsetValue);
+
+  if (!SanOpts.has(SanitizerKind::Alignment))
+    return;
+  emitAlignmentAssumptionCheck(PtrValue, Ty, Loc, AssumptionLoc, Alignment,
+                               OffsetValue, TheCheck, Assumption);
 }
 
 void CodeGenFunction::emitAlignmentAssumption(llvm::Value *PtrValue,

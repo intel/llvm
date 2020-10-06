@@ -43,14 +43,13 @@
 #include "SPIRVMDBuilder.h"
 #include "SPIRVMDWalker.h"
 #include "VectorComputeUtil.h"
+#include "libSPIRV/SPIRVDebug.h"
 
 #include "llvm/ADT/Triple.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
-#include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Debug.h"
 
 using namespace llvm;
 using namespace SPIRV;
@@ -88,13 +87,10 @@ bool PreprocessMetadata::runOnModule(Module &Module) {
 
   LLVM_DEBUG(dbgs() << "Enter PreprocessMetadata:\n");
   visit(M);
-
   LLVM_DEBUG(dbgs() << "After PreprocessMetadata:\n" << *M);
-  std::string Err;
-  raw_string_ostream ErrorOS(Err);
-  if (verifyModule(*M, &ErrorOS)) {
-    LLVM_DEBUG(errs() << "Fails to verify module: " << ErrorOS.str());
-  }
+
+  verifyRegularizationPass(*M, "PreprocessMetadata");
+
   return true;
 }
 
@@ -212,8 +208,8 @@ void PreprocessMetadata::preprocessOCLMetadata(Module *M, SPIRVMDBuilder *B,
   // !{x} = !{i32 3, i32 102000}
   B->addNamedMD(kSPIRVMD::Source)
       .addOp()
-      .add(CLVer < kOCLVer::CL21 ? spv::SourceLanguageOpenCL_C
-                                 : spv::SourceLanguageOpenCL_CPP)
+      .add(CLVer == kOCLVer::CL21 ? spv::SourceLanguageOpenCL_CPP
+                                  : spv::SourceLanguageOpenCL_C)
       .add(CLVer)
       .done();
   if (EraseOCLMD)

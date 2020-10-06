@@ -38,22 +38,17 @@
 #define DEBUG_TYPE "spvbool"
 
 #include "SPIRVInternal.h"
+#include "libSPIRV/SPIRVDebug.h"
+
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Debug.h"
 
 using namespace llvm;
 using namespace SPIRV;
 
 namespace SPIRV {
-cl::opt<bool> SPIRVLowerBoolValidate(
-    "spvbool-validate",
-    cl::desc("Validate module after lowering boolean instructions for SPIR-V"));
-
 class SPIRVLowerBool : public ModulePass, public InstVisitor<SPIRVLowerBool> {
 public:
   SPIRVLowerBool() : ModulePass(ID), Context(nullptr) {
@@ -119,15 +114,7 @@ public:
     Context = &M.getContext();
     visit(M);
 
-    if (SPIRVLowerBoolValidate) {
-      LLVM_DEBUG(dbgs() << "After SPIRVLowerBool:\n" << M);
-      std::string Err;
-      raw_string_ostream ErrorOS(Err);
-      if (verifyModule(M, &ErrorOS)) {
-        Err = std::string("Fails to verify module: ") + Err;
-        report_fatal_error(Err.c_str(), false);
-      }
-    }
+    verifyRegularizationPass(M, "SPIRVLowerBool");
     return true;
   }
 

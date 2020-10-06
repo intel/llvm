@@ -125,23 +125,17 @@ entry:
 
 ; Test that null can be passed as a 32-bit pointer.
 define dso_local void @test_null_arg(%struct.Foo* %f) {
-; CHECK-LABEL: test_null_arg:
-; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    subq $40, %rsp
-; CHECK:         xorl %edx, %edx
-; CHECK-NEXT:    callq test_noop1
-; CHECK-NEXT:    nop
-; CHECK-NEXT:    addq $40, %rsp
-; CHECK-NEXT:    retq
-;
-; CHECK-O0-LABEL: test_null_arg:
-; CHECK-O0:       # %bb.0: # %entry
-; CHECK-O0-NEXT:    subq $40, %rsp
-; CHECK-O0:         xorl %edx, %edx
-; CHECK-O0-NEXT:    callq test_noop1
-; CHECK-O0-NEXT:    nop
-; CHECK-O0-NEXT:    addq $40, %rsp
-; CHECK-O0-NEXT:    retq
+; ALL-LABEL: test_null_arg:
+; ALL:       # %bb.0: # %entry
+; ALL-NEXT:    subq $40, %rsp
+; ALL-NEXT:    .seh_stackalloc 40
+; ALL-NEXT:    .seh_endprologue
+; ALL-NEXT:    xorl %edx, %edx
+; ALL-NEXT:    callq test_noop1
+; ALL-NEXT:    nop
+; ALL-NEXT:    addq $40, %rsp
+; ALL-NEXT:    retq
+; ALL-NEXT:    .seh_endproc
 entry:
   call void @test_noop1(%struct.Foo* %f, i32 addrspace(270)* null)
   ret void

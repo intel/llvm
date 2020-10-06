@@ -40,6 +40,7 @@
 #include "OCLTypeToSPIRV.h"
 #include "OCLUtil.h"
 #include "SPIRVInternal.h"
+#include "libSPIRV/SPIRVDebug.h"
 
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Analysis/ValueTracking.h"
@@ -47,7 +48,6 @@
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Debug.h"
 
@@ -330,7 +330,7 @@ bool OCL20ToSPIRV::runOnModule(Module &Module) {
     return false;
 
   CLVer = std::get<1>(Src);
-  if (CLVer > kOCLVer::CL20)
+  if (CLVer == kOCLVer::CL21)
     return false;
 
   LLVM_DEBUG(dbgs() << "Enter OCL20ToSPIRV:\n");
@@ -349,11 +349,8 @@ bool OCL20ToSPIRV::runOnModule(Module &Module) {
   eraseUselessFunctions(M); // remove unused functions declarations
   LLVM_DEBUG(dbgs() << "After OCL20ToSPIRV:\n" << *M);
 
-  std::string Err;
-  raw_string_ostream ErrorOS(Err);
-  if (verifyModule(*M, &ErrorOS)) {
-    LLVM_DEBUG(errs() << "Fails to verify module: " << ErrorOS.str());
-  }
+  verifyRegularizationPass(*M, "OCL20ToSPIRV");
+
   return true;
 }
 
@@ -410,7 +407,8 @@ void OCL20ToSPIRV::visitCallInst(CallInst &CI) {
         DemangledName == kOCLBuiltinName::AtomicCmpXchgStrong ||
         DemangledName == kOCLBuiltinName::AtomicCmpXchgWeakExplicit ||
         DemangledName == kOCLBuiltinName::AtomicCmpXchgStrongExplicit) {
-      assert(CLVer == kOCLVer::CL20 && "Wrong version of OpenCL");
+      assert((CLVer == kOCLVer::CL20 || CLVer == kOCLVer::CL30) &&
+             "Wrong version of OpenCL");
       PCI = visitCallAtomicCmpXchg(PCI);
     }
     visitCallAtomicLegacy(PCI, MangledName, DemangledName);
@@ -1261,11 +1259,16 @@ void OCL20ToSPIRV::transWorkItemBuiltinsToVariables() {
     for (auto UI = I.user_begin(), UE = I.user_end(); UI != UE; ++UI) {
       auto CI = dyn_cast<CallInst>(*UI);
       assert(CI && "invalid instruction");
-      Value *NewValue = new LoadInst(GVType, BV, "", CI);
+      const DebugLoc &DLoc = CI->getDebugLoc();
+      Instruction *NewValue = new LoadInst(GVType, BV, "", CI);
+      if (DLoc)
+        NewValue->setDebugLoc(DLoc);
       LLVM_DEBUG(dbgs() << "Transform: " << *CI << " => " << *NewValue << '\n');
       if (IsVec) {
         NewValue =
             ExtractElementInst::Create(NewValue, CI->getArgOperand(0), "", CI);
+        if (DLoc)
+          NewValue->setDebugLoc(DLoc);
         LLVM_DEBUG(dbgs() << *NewValue << '\n');
       }
       NewValue->takeName(CI);

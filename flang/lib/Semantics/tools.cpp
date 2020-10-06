@@ -156,6 +156,19 @@ bool IsGenericDefinedOp(const Symbol &symbol) {
   }
 }
 
+bool IsDefinedOperator(SourceName name) {
+  const char *begin{name.begin()};
+  const char *end{name.end()};
+  return begin != end && begin[0] == '.' && end[-1] == '.';
+}
+
+std::string MakeOpName(SourceName name) {
+  std::string result{name.ToString()};
+  return IsDefinedOperator(name)         ? "OPERATOR(" + result + ")"
+      : result.find("operator(", 0) == 0 ? parser::ToUpperCaseLetters(result)
+                                         : result;
+}
+
 bool IsCommonBlockContaining(const Symbol &block, const Symbol &object) {
   const auto &objects{block.get<CommonBlockDetails>().objects()};
   auto found{std::find(objects.begin(), objects.end(), object)};
@@ -739,7 +752,6 @@ bool InProtectedContext(const Symbol &symbol, const Scope &currentScope) {
 }
 
 // C1101 and C1158
-// TODO Need to check for a coindexed object (why? C1103?)
 std::optional<parser::MessageFixedText> WhyNotModifiable(
     const Symbol &symbol, const Scope &scope) {
   const Symbol *root{GetAssociationRoot(symbol)};

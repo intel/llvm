@@ -18,9 +18,8 @@ namespace tidy {
 namespace cppcoreguidelines {
 
 static bool isControlStatement(const Stmt *S) {
-  return isa<IfStmt>(S) || isa<SwitchStmt>(S) || isa<ForStmt>(S) ||
-         isa<WhileStmt>(S) || isa<DoStmt>(S) || isa<ReturnStmt>(S) ||
-         isa<GotoStmt>(S) || isa<CXXTryStmt>(S) || isa<CXXThrowExpr>(S);
+  return isa<IfStmt, SwitchStmt, ForStmt, WhileStmt, DoStmt, ReturnStmt,
+             GotoStmt, CXXTryStmt, CXXThrowExpr>(S);
 }
 
 static bool isNoReturnCallStatement(const Stmt *S) {
@@ -36,9 +35,8 @@ static bool isNoReturnCallStatement(const Stmt *S) {
 }
 
 static bool isLiteral(const Expr *E) {
-  return isa<StringLiteral>(E) || isa<CharacterLiteral>(E) ||
-         isa<IntegerLiteral>(E) || isa<FloatingLiteral>(E) ||
-         isa<CXXBoolLiteralExpr>(E) || isa<CXXNullPtrLiteralExpr>(E);
+  return isa<StringLiteral, CharacterLiteral, IntegerLiteral, FloatingLiteral,
+             CXXBoolLiteralExpr, CXXNullPtrLiteralExpr>(E);
 }
 
 static bool isUnaryExprOfLiteral(const Expr *E) {
@@ -123,12 +121,25 @@ void PreferMemberInitializerCheck::check(
   SourceLocation InsertPos;
   bool FirstToCtorInits = true;
 
-  for (const auto *S : Body->body()) {
+  for (const Stmt *S : Body->body()) {
+    if (S->getBeginLoc().isMacroID()) {
+      StringRef MacroName =
+        Lexer::getImmediateMacroName(S->getBeginLoc(), *Result.SourceManager,
+                                     getLangOpts());
+      if (MacroName.contains_lower("assert"))
+        return;
+    }
     if (isControlStatement(S))
       return;
 
     if (isNoReturnCallStatement(S))
       return;
+
+    if (const auto *CondOp = dyn_cast<ConditionalOperator>(S)) {
+      if (isNoReturnCallStatement(CondOp->getLHS()) ||
+          isNoReturnCallStatement(CondOp->getRHS()))
+        return;
+    }
 
     const FieldDecl *Field;
     const Expr *InitValue;
@@ -186,11 +197,13 @@ void PreferMemberInitializerCheck::check(
         } else {
           bool Found = false;
           for (const auto *Init : Ctor->inits()) {
-            if (Result.SourceManager->isBeforeInTranslationUnit(
-                    Field->getLocation(), Init->getMember()->getLocation())) {
-              InsertPos = Init->getSourceLocation();
-              Found = true;
-              break;
+            if (Init->isMemberInitializer()) {
+              if (Result.SourceManager->isBeforeInTranslationUnit(
+                      Field->getLocation(), Init->getMember()->getLocation())) {
+                InsertPos = Init->getSourceLocation();
+                Found = true;
+                break;
+              }
             }
           }
 

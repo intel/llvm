@@ -642,9 +642,11 @@ void MemRefDescriptor::setConstantStride(OpBuilder &builder, Location loc,
             createIndexAttrConstant(builder, loc, indexType, stride));
 }
 
-LLVM::LLVMType MemRefDescriptor::getElementType() {
-  return value.getType().cast<LLVM::LLVMType>().getStructElementType(
-      kAlignedPtrPosInMemRefDescriptor);
+LLVM::LLVMPointerType MemRefDescriptor::getElementPtrType() {
+  return value.getType()
+      .cast<LLVM::LLVMType>()
+      .getStructElementType(kAlignedPtrPosInMemRefDescriptor)
+      .cast<LLVM::LLVMPointerType>();
 }
 
 /// Creates a MemRef descriptor structure from a list of individual values
@@ -894,7 +896,7 @@ Value ConvertToLLVMPattern::getStridedElementPtr(
 Value ConvertToLLVMPattern::getDataPtr(
     Location loc, MemRefType type, Value memRefDesc, ValueRange indices,
     ConversionPatternRewriter &rewriter) const {
-  LLVM::LLVMType ptrType = MemRefDescriptor(memRefDesc).getElementType();
+  LLVM::LLVMType ptrType = MemRefDescriptor(memRefDesc).getElementPtrType();
   int64_t offset;
   SmallVector<int64_t, 4> strides;
   auto successStrides = getStridesAndOffset(type, strides, offset);
@@ -1110,6 +1112,8 @@ protected:
     TypeConverter::SignatureConversion result(funcOp.getNumArguments());
     auto llvmType = typeConverter.convertFunctionSignature(
         funcOp.getType(), varargsAttr && varargsAttr.getValue(), result);
+    if (!llvmType)
+      return nullptr;
 
     // Propagate argument attributes to all converted arguments obtained after
     // converting a given original argument.
@@ -2185,7 +2189,7 @@ struct DeallocOpLowering : public ConvertOpToLLVMPattern<DeallocOp> {
         op->getLoc(), getVoidPtrType(),
         memref.allocatedPtr(rewriter, op->getLoc()));
     rewriter.replaceOpWithNewOp<LLVM::CallOp>(
-        op, ArrayRef<Type>(), rewriter.getSymbolRefAttr(freeFunc), casted);
+        op, TypeRange(), rewriter.getSymbolRefAttr(freeFunc), casted);
     return success();
   }
 };
@@ -2710,13 +2714,13 @@ struct ReturnOpLowering : public ConvertOpToLLVMPattern<ReturnOp> {
 
     // If ReturnOp has 0 or 1 operand, create it and return immediately.
     if (numArguments == 0) {
-      rewriter.replaceOpWithNewOp<LLVM::ReturnOp>(
-          op, ArrayRef<Type>(), ArrayRef<Value>(), op->getAttrs());
+      rewriter.replaceOpWithNewOp<LLVM::ReturnOp>(op, TypeRange(), ValueRange(),
+                                                  op->getAttrs());
       return success();
     }
     if (numArguments == 1) {
       rewriter.replaceOpWithNewOp<LLVM::ReturnOp>(
-          op, ArrayRef<Type>(), updatedOperands, op->getAttrs());
+          op, TypeRange(), updatedOperands, op->getAttrs());
       return success();
     }
 
@@ -2731,7 +2735,7 @@ struct ReturnOpLowering : public ConvertOpToLLVMPattern<ReturnOp> {
           op->getLoc(), packedType, packed, updatedOperands[i],
           rewriter.getI64ArrayAttr(i));
     }
-    rewriter.replaceOpWithNewOp<LLVM::ReturnOp>(op, ArrayRef<Type>(), packed,
+    rewriter.replaceOpWithNewOp<LLVM::ReturnOp>(op, TypeRange(), packed,
                                                 op->getAttrs());
     return success();
   }
@@ -3386,7 +3390,7 @@ Type LLVMTypeConverter::packFunctionResults(ArrayRef<Type> types) {
   SmallVector<LLVM::LLVMType, 8> resultTypes;
   resultTypes.reserve(types.size());
   for (auto t : types) {
-    auto converted = convertType(t).dyn_cast<LLVM::LLVMType>();
+    auto converted = convertType(t).dyn_cast_or_null<LLVM::LLVMType>();
     if (!converted)
       return {};
     resultTypes.push_back(converted);

@@ -131,8 +131,6 @@ New function objects without {cpp} standard library equivalents are defined in t
 |+T operator(const T&, const T&) const+ applies +std::greater+ to its arguments, in the same order, then returns the greater argument unchanged.
 |===
 
-Function objects supported by the group algorithms library can be identified using the +cl::sycl::intel::is_native_function_object+ and +cl::sycl::intel::is_native_function_object_v+ traits classes.
-
 === Functions
 
 The group algorithms library is based on the algorithms library described in Section 28 of the {cpp}17 standard.  The syntax and restrictions are aligned, with two notable differences: the first argument to each function is a group of work-items, in place of an execution policy; and pointers are accepted in place of iterators in order to guarantee that address space information is visible to the compiler.
@@ -144,6 +142,8 @@ Many functions provide at least two overloads: one operating directly on data pr
 Using functions from the group algorithms library inside of a kernel may introduce additional limits on the resources available to user code inside the same kernel (e.g. private memory, work-group local memory).  The behavior of these limits is implementation-defined, but must be reflected by calls to kernel querying functions such as +kernel::get_work_group_info+.
 
 It is undefined behavior for any of these functions to be invoked within a +parallel_for_work_group+ or +parallel_for_work_item+ context, but this restriction may be lifted in a future version of the proposal.
+
+A number of the restrictions regarding the types of parameters that are acceptable for each algorithm must implemented as constraints: group arguments must be of a supported group class type; binary operations must be one of the group algorithms function objects; pointer arguments must be pointers to fundamental data types; and value arguments must be scalar fundamental data types (or vectors of those types).
 
 ==== Vote
 
@@ -262,6 +262,11 @@ None.
 //*RESOLUTION*: Not resolved.
 //--
 
+. How should `is_native_function_object` work?  Does it represent what is minimally required by the specification, or what the implementation really supports?
+--
+*RESOLUTION*: The `is_native_function_object` trait has been removed.  It proved too difficult to implement something that returned sensible values for transparent function objects (e.g. `std::plus<void>`) that did not also require checking additional traits for each individual group algorithm.  Requiring the user to implement their own checks based on type requirements outlined in the specification would make it significantly harder for implementers to extend the algorithms to types and function objects beyond what is specified.  Using constrained forms of the algorithms instead allows a user to determine whether an implementation of a particular algorithm exists using the C++ detection idiom.
+--
+
 == Revision History
 
 [cols="5,15,15,70"]
@@ -270,6 +275,7 @@ None.
 |========================================
 |Rev|Date|Author|Changes
 |1|2020-01-30|John Pennycook|*Initial public working draft*
+|2|2020-09-10|John Pennycook|*Remove is_native_function_object and clarify which requirements are constraints*
 |========================================
 
 //************************************************************************

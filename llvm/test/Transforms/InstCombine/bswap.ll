@@ -123,9 +123,7 @@ define i32 @bswap32_and_first(i32 %x) {
 
 define i32 @bswap32_and_first_extra_use(i32 %x) {
 ; CHECK-LABEL: @bswap32_and_first_extra_use(
-; CHECK-NEXT:    [[SHL:%.*]] = shl i32 [[X:%.*]], 16
-; CHECK-NEXT:    [[SHR:%.*]] = lshr i32 [[X]], 16
-; CHECK-NEXT:    [[SWAPHALF:%.*]] = or i32 [[SHL]], [[SHR]]
+; CHECK-NEXT:    [[SWAPHALF:%.*]] = call i32 @llvm.fshl.i32(i32 [[X:%.*]], i32 [[X]], i32 16)
 ; CHECK-NEXT:    [[T:%.*]] = and i32 [[SWAPHALF]], 16711935
 ; CHECK-NEXT:    [[BSWAP:%.*]] = call i32 @llvm.bswap.i32(i32 [[X]])
 ; CHECK-NEXT:    call void @extra_use(i32 [[T]])
@@ -169,10 +167,8 @@ define i32 @bswap32_shl_first(i32 %x) {
 
 define i32 @bswap32_shl_first_extra_use(i32 %x) {
 ; CHECK-LABEL: @bswap32_shl_first_extra_use(
-; CHECK-NEXT:    [[SHR:%.*]] = lshr i32 [[X:%.*]], 16
-; CHECK-NEXT:    [[TMP1:%.*]] = shl i32 [[X]], 24
-; CHECK-NEXT:    [[TMP2:%.*]] = shl nuw nsw i32 [[SHR]], 8
-; CHECK-NEXT:    [[T:%.*]] = or i32 [[TMP1]], [[TMP2]]
+; CHECK-NEXT:    [[SWAPHALF:%.*]] = call i32 @llvm.fshl.i32(i32 [[X:%.*]], i32 [[X]], i32 16)
+; CHECK-NEXT:    [[T:%.*]] = shl i32 [[SWAPHALF]], 8
 ; CHECK-NEXT:    [[BSWAP:%.*]] = call i32 @llvm.bswap.i32(i32 [[X]])
 ; CHECK-NEXT:    call void @extra_use(i32 [[T]])
 ; CHECK-NEXT:    ret i32 [[BSWAP]]
@@ -229,6 +225,124 @@ define i16 @test10(i32 %a) {
   %or = or i32 %and1, %shl1
   %conv = trunc i32 %or to i16
   ret i16 %conv
+}
+
+define i64 @PR39793_bswap_u64_as_u32(i64 %0) {
+; CHECK-LABEL: @PR39793_bswap_u64_as_u32(
+; CHECK-NEXT:    [[TMP2:%.*]] = lshr i64 [[TMP0:%.*]], 24
+; CHECK-NEXT:    [[TMP3:%.*]] = and i64 [[TMP2]], 255
+; CHECK-NEXT:    [[TMP4:%.*]] = lshr i64 [[TMP0]], 8
+; CHECK-NEXT:    [[TMP5:%.*]] = and i64 [[TMP4]], 65280
+; CHECK-NEXT:    [[TMP6:%.*]] = or i64 [[TMP3]], [[TMP5]]
+; CHECK-NEXT:    [[TMP7:%.*]] = shl i64 [[TMP0]], 8
+; CHECK-NEXT:    [[TMP8:%.*]] = and i64 [[TMP7]], 16711680
+; CHECK-NEXT:    [[TMP9:%.*]] = or i64 [[TMP6]], [[TMP8]]
+; CHECK-NEXT:    [[TMP10:%.*]] = shl i64 [[TMP0]], 24
+; CHECK-NEXT:    [[TMP11:%.*]] = and i64 [[TMP10]], 4278190080
+; CHECK-NEXT:    [[TMP12:%.*]] = or i64 [[TMP9]], [[TMP11]]
+; CHECK-NEXT:    ret i64 [[TMP12]]
+;
+  %2 = lshr i64 %0, 24
+  %3 = and i64 %2, 255
+  %4 = lshr i64 %0, 8
+  %5 = and i64 %4, 65280
+  %6 = or i64 %3, %5
+  %7 = shl i64 %0, 8
+  %8 = and i64 %7, 16711680
+  %9 = or i64 %6, %8
+  %10 = shl i64 %0, 24
+  %11 = and i64 %10, 4278190080
+  %12 = or i64 %9, %11
+  ret i64 %12
+}
+
+define i16 @PR39793_bswap_u64_as_u32_trunc(i64 %0) {
+; CHECK-LABEL: @PR39793_bswap_u64_as_u32_trunc(
+; CHECK-NEXT:    [[TMP2:%.*]] = lshr i64 [[TMP0:%.*]], 24
+; CHECK-NEXT:    [[TMP3:%.*]] = and i64 [[TMP2]], 255
+; CHECK-NEXT:    [[TMP4:%.*]] = lshr i64 [[TMP0]], 8
+; CHECK-NEXT:    [[TMP5:%.*]] = and i64 [[TMP4]], 65280
+; CHECK-NEXT:    [[TMP6:%.*]] = or i64 [[TMP3]], [[TMP5]]
+; CHECK-NEXT:    [[TMP7:%.*]] = trunc i64 [[TMP6]] to i16
+; CHECK-NEXT:    ret i16 [[TMP7]]
+;
+  %2 = lshr i64 %0, 24
+  %3 = and i64 %2, 255
+  %4 = lshr i64 %0, 8
+  %5 = and i64 %4, 65280
+  %6 = or i64 %3, %5
+  %7 = shl i64 %0, 8
+  %8 = and i64 %7, 16711680
+  %9 = or i64 %6, %8
+  %10 = shl i64 %0, 24
+  %11 = and i64 %10, 4278190080
+  %12 = or i64 %9, %11
+  %13 = trunc i64 %12 to i16
+  ret i16 %13
+}
+
+define i64 @PR39793_bswap_u64_as_u16(i64 %0) {
+; CHECK-LABEL: @PR39793_bswap_u64_as_u16(
+; CHECK-NEXT:    [[TMP2:%.*]] = lshr i64 [[TMP0:%.*]], 8
+; CHECK-NEXT:    [[TMP3:%.*]] = and i64 [[TMP2]], 255
+; CHECK-NEXT:    [[TMP4:%.*]] = shl i64 [[TMP0]], 8
+; CHECK-NEXT:    [[TMP5:%.*]] = and i64 [[TMP4]], 65280
+; CHECK-NEXT:    [[TMP6:%.*]] = or i64 [[TMP3]], [[TMP5]]
+; CHECK-NEXT:    ret i64 [[TMP6]]
+;
+  %2 = lshr i64 %0, 8
+  %3 = and i64 %2, 255
+  %4 = shl i64 %0, 8
+  %5 = and i64 %4, 65280
+  %6 = or i64 %3, %5
+  ret i64 %6
+}
+
+define i8 @PR39793_bswap_u64_as_u16_trunc(i64 %0) {
+; CHECK-LABEL: @PR39793_bswap_u64_as_u16_trunc(
+; CHECK-NEXT:    [[TMP2:%.*]] = lshr i64 [[TMP0:%.*]], 8
+; CHECK-NEXT:    [[TMP3:%.*]] = trunc i64 [[TMP2]] to i8
+; CHECK-NEXT:    ret i8 [[TMP3]]
+;
+  %2 = lshr i64 %0, 8
+  %3 = and i64 %2, 255
+  %4 = shl i64 %0, 8
+  %5 = and i64 %4, 65280
+  %6 = or i64 %3, %5
+  %7 = trunc i64 %6 to i8
+  ret i8 %7
+}
+
+define i32 @PR39793_bswap_u32_as_u16(i32 %0) {
+; CHECK-LABEL: @PR39793_bswap_u32_as_u16(
+; CHECK-NEXT:    [[TMP2:%.*]] = lshr i32 [[TMP0:%.*]], 8
+; CHECK-NEXT:    [[TMP3:%.*]] = and i32 [[TMP2]], 255
+; CHECK-NEXT:    [[TMP4:%.*]] = shl i32 [[TMP0]], 8
+; CHECK-NEXT:    [[TMP5:%.*]] = and i32 [[TMP4]], 65280
+; CHECK-NEXT:    [[TMP6:%.*]] = or i32 [[TMP3]], [[TMP5]]
+; CHECK-NEXT:    ret i32 [[TMP6]]
+;
+  %2 = lshr i32 %0, 8
+  %3 = and i32 %2, 255
+  %4 = shl i32 %0, 8
+  %5 = and i32 %4, 65280
+  %6 = or i32 %3, %5
+  ret i32 %6
+}
+
+define i8 @PR39793_bswap_u32_as_u16_trunc(i32 %0) {
+; CHECK-LABEL: @PR39793_bswap_u32_as_u16_trunc(
+; CHECK-NEXT:    [[TMP2:%.*]] = lshr i32 [[TMP0:%.*]], 8
+; CHECK-NEXT:    [[TMP3:%.*]] = trunc i32 [[TMP2]] to i8
+; CHECK-NEXT:    ret i8 [[TMP3]]
+;
+  %2 = lshr i32 %0, 8
+  %3 = and i32 %2, 255
+  %4 = shl i32 %0, 8
+  %5 = and i32 %4, 65280
+  %6 = or i32 %3, %5
+  %7 = trunc i32 %6 to i8
+  ret i8 %7
 }
 
 define i32 @shuf_4bytes(<4 x i8> %x) {
@@ -306,4 +420,35 @@ define i32 @shuf_2bytes_widening(<2 x i8> %x) {
   %bswap = shufflevector <2 x i8> %x, <2 x i8> undef, <4 x i32> <i32 1, i32 0, i32 undef, i32 undef>
   %cast = bitcast <4 x i8> %bswap to i32
   ret i32 %cast
+}
+
+declare i32 @llvm.fshl.i32(i32, i32, i32)
+declare i32 @llvm.fshr.i32(i32, i32, i32)
+
+define i32 @funnel_unary(i32 %abcd) {
+; CHECK-LABEL: @funnel_unary(
+; CHECK-NEXT:    [[DCBA:%.*]] = call i32 @llvm.bswap.i32(i32 [[ABCD:%.*]])
+; CHECK-NEXT:    ret i32 [[DCBA]]
+;
+  %dabc = call i32 @llvm.fshl.i32(i32 %abcd, i32 %abcd, i32 24)
+  %bcda = call i32 @llvm.fshr.i32(i32 %abcd, i32 %abcd, i32 24)
+  %dzbz = and i32 %dabc, -16711936
+  %zcza = and i32 %bcda,  16711935
+  %dcba = or i32 %dzbz, %zcza
+  ret i32 %dcba
+}
+
+define i32 @funnel_binary(i32 %abcd) {
+; CHECK-LABEL: @funnel_binary(
+; CHECK-NEXT:    [[DCBA:%.*]] = call i32 @llvm.bswap.i32(i32 [[ABCD:%.*]])
+; CHECK-NEXT:    ret i32 [[DCBA]]
+;
+  %cdzz = shl i32 %abcd, 16
+  %dcdz = call i32 @llvm.fshl.i32(i32 %abcd, i32 %cdzz, i32 24)
+  %zzab = lshr i32 %abcd, 16
+  %zaba = call i32 @llvm.fshr.i32(i32 %zzab, i32 %abcd, i32 24)
+  %dczz = and i32 %dcdz, -65536
+  %zzba = and i32 %zaba,  65535
+  %dcba = or i32 %dczz, %zzba
+  ret i32 %dcba
 }

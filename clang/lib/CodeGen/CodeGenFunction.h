@@ -3566,6 +3566,9 @@ public:
   //                         LValue Expression Emission
   //===--------------------------------------------------------------------===//
 
+  /// Create a check that a scalar RValue is non-null.
+  llvm::Value *EmitNonNullRValueCheck(RValue RV, QualType T);
+
   /// GetUndefRValue - Get an appropriate 'undef' rvalue for the given type.
   RValue GetUndefRValue(QualType Ty);
 
@@ -4372,7 +4375,8 @@ public:
   /// TrueCount should be the number of times we expect the condition to
   /// evaluate to true based on PGO data.
   void EmitBranchOnBoolExpr(const Expr *Cond, llvm::BasicBlock *TrueBlock,
-                            llvm::BasicBlock *FalseBlock, uint64_t TrueCount);
+                            llvm::BasicBlock *FalseBlock, uint64_t TrueCount,
+                            llvm::MDNode *Weights = nullptr);
 
   /// Given an assignment `*LHS = RHS`, emit a test that checks if \p RHS is
   /// nonnull, if \p LHS is marked _Nonnull.

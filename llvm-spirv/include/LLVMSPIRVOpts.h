@@ -148,6 +148,14 @@ public:
     SPIRVAllowUnknownIntrinsics = AllowUnknownIntrinsics;
   }
 
+  bool allowExtraDIExpressions() const noexcept {
+    return AllowExtraDIExpressions;
+  }
+
+  void setAllowExtraDIExpressionsEnabled(bool Allow) noexcept {
+    AllowExtraDIExpressions = Allow;
+  }
+
   DebugInfoEIS getDebugInfoEIS() const { return DebugInfoVersion; }
 
   void setDebugInfoEIS(DebugInfoEIS EIS) { DebugInfoVersion = EIS; }
@@ -178,6 +186,10 @@ private:
   // Unknown LLVM intrinsics will be translated as external function calls in
   // SPIR-V
   bool SPIRVAllowUnknownIntrinsics = false;
+
+  // Enable support for extra DIExpression opcodes not listed in the SPIR-V
+  // DebugInfo specification.
+  bool AllowExtraDIExpressions = false;
 
   DebugInfoEIS DebugInfoVersion = DebugInfoEIS::OpenCL_DebugInfo_100;
 };

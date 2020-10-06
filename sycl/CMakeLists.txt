@@ -144,7 +144,7 @@ if( NOT OpenCL_LIBRARIES )
   endif()
   ExternalProject_Add(ocl-icd
     GIT_REPOSITORY    https://github.com/KhronosGroup/OpenCL-ICD-Loader.git
-    GIT_TAG           origin/master
+    GIT_TAG           v2020.06.16
     UPDATE_DISCONNECTED ${SYCL_EP_OCL_ICD_SKIP_AUTO_UPDATE}
     SOURCE_DIR        ${OpenCL_ICD_LOADER_SOURCE_DIR}
     BINARY_DIR        "${CMAKE_CURRENT_BINARY_DIR}/icd_build"

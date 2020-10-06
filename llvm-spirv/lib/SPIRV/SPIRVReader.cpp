@@ -340,11 +340,16 @@ bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
           LD->getPointerOperandType()->getPointerElementType());
       Value *EmptyVec = UndefValue::get(VecTy);
       Vectors.push_back(EmptyVec);
+      const DebugLoc &DLoc = LD->getDebugLoc();
       for (unsigned I = 0; I < VecTy->getNumElements(); ++I) {
         auto *Idx = ConstantInt::get(Type::getInt32Ty(*Context), I);
         auto *Call = CallInst::Create(Func, {Idx}, "", LD);
+        if (DLoc)
+          Call->setDebugLoc(DLoc);
         setAttrByCalledFunc(Call);
         auto *Insert = InsertElementInst::Create(Vectors.back(), Call, Idx);
+        if (DLoc)
+          Insert->setDebugLoc(DLoc);
         Insert->insertAfter(Call);
         Vectors.push_back(Insert);
       }
@@ -3304,6 +3309,8 @@ bool SPIRVToLLVM::translate() {
     auto BV = BM->getVariable(I);
     if (BV->getStorageClass() != StorageClassFunction)
       transValue(BV, nullptr, nullptr);
+    else
+      transGlobalCtorDtors(BV);
   }
 
   // Compile unit might be needed during translation of debug intrinsics.
@@ -3644,6 +3651,15 @@ bool SPIRVToLLVM::transDecoration(SPIRVValue *BV, Value *V) {
 
   DbgTran->transDbgInfo(BV, V);
   return true;
+}
+
+void SPIRVToLLVM::transGlobalCtorDtors(SPIRVVariable *BV) {
+  if (BV->getName() != "llvm.global_ctors" &&
+      BV->getName() != "llvm.global_dtors")
+    return;
+
+  Value *V = transValue(BV, nullptr, nullptr);
+  cast<GlobalValue>(V)->setLinkage(GlobalValue::AppendingLinkage);
 }
 
 bool SPIRVToLLVM::transFPContractMetadata() {
@@ -4090,18 +4106,14 @@ Instruction *SPIRVToLLVM::transOCLBuiltinFromExtInst(SPIRVExtInst *BC,
   assert(BB && "Invalid BB");
   std::string MangledName;
   SPIRVWord EntryPoint = BC->getExtOp();
-  bool IsVarArg = false;
-  bool IsPrintf = false;
   std::string UnmangledName;
-  auto BArgs = BC->getArguments();
+  std::vector<SPIRVWord> BArgs = BC->getArguments();
 
   assert(BM->getBuiltinSet(BC->getExtSetId()) == SPIRVEIS_OpenCL &&
          "Not OpenCL extended instruction");
-  if (EntryPoint == OpenCLLIB::Printf)
-    IsPrintf = true;
-  else {
-    UnmangledName = OCLExtOpMap::map(static_cast<OCLExtOpKind>(EntryPoint));
-  }
+
+  bool IsPrintf = (EntryPoint == OpenCLLIB::Printf);
+  UnmangledName = OCLExtOpMap::map(static_cast<OCLExtOpKind>(EntryPoint));
 
   SPIRVDBG(spvdbgs() << "[transOCLBuiltinFromExtInst] OrigUnmangledName: "
                      << UnmangledName << '\n');
@@ -4111,12 +4123,7 @@ Instruction *SPIRVToLLVM::transOCLBuiltinFromExtInst(SPIRVExtInst *BC,
 
   if (IsPrintf) {
     MangledName = "printf";
-    IsVarArg = true;
     ArgTypes.resize(1);
-  } else if (UnmangledName.find("read_image") == 0) {
-    auto ModifiedArgTypes = ArgTypes;
-    ModifiedArgTypes[1] = getOrCreateOpaquePtrType(M, "opencl.sampler_t");
-    mangleOpenClBuiltin(UnmangledName, ModifiedArgTypes, MangledName);
   } else {
     mangleOpenClBuiltin(UnmangledName, ArgTypes, MangledName);
   }
@@ -4124,8 +4131,8 @@ Instruction *SPIRVToLLVM::transOCLBuiltinFromExtInst(SPIRVExtInst *BC,
                      << UnmangledName << " MangledName: " << MangledName
                      << '\n');
 
-  FunctionType *FT =
-      FunctionType::get(transType(BC->getType()), ArgTypes, IsVarArg);
+  FunctionType *FT = FunctionType::get(transType(BC->getType()), ArgTypes,
+                                       /* IsVarArg */ IsPrintf);
   Function *F = M->getFunction(MangledName);
   if (!F) {
     F = Function::Create(FT, GlobalValue::ExternalLinkage, MangledName, M);

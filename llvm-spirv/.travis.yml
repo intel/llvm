@@ -23,9 +23,9 @@ before_install:
   - |
     if [ $TRAVIS_OS_NAME == "linux" ]; then
       curl -L "https://apt.llvm.org/llvm-snapshot.gpg.key" | sudo apt-key add -
-      curl -L "http://packages.lunarg.com/lunarg-signing-key-pub.asc" | sudo apt-key add -
+      curl -L "https://packages.lunarg.com/lunarg-signing-key-pub.asc" | sudo apt-key add -
       curl -L "https://apt.kitware.com/keys/kitware-archive-latest.asc" | sudo apt-key add -
-      echo "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic main" | sudo tee -a ${TRAVIS_ROOT}/etc/apt/sources.list
+      echo "deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic main" | sudo tee -a ${TRAVIS_ROOT}/etc/apt/sources.list
       echo "deb https://packages.lunarg.com/vulkan bionic main" | sudo tee -a ${TRAVIS_ROOT}/etc/apt/sources.list
       echo "deb https://apt.kitware.com/ubuntu/ bionic main" | sudo tee -a ${TRAVIS_ROOT}/etc/apt/sources.list
       sudo apt-get update
@@ -40,7 +40,6 @@ before_install:
 
 compiler:
   - gcc
-  - clang
 
 env:
   global:
@@ -57,7 +56,6 @@ env:
     - BUILD_TYPE=Debug   BUILD_EXTERNAL=1 SHARED_LIBS=OFF MAKE_TARGETS=""           MAKE_TEST_TARGET="test"
     - BUILD_TYPE=Release BUILD_EXTERNAL=0 SHARED_LIBS=OFF MAKE_TARGETS="llvm-spirv" MAKE_TEST_TARGET="check-llvm-spirv"
     - BUILD_TYPE=Debug   BUILD_EXTERNAL=0 SHARED_LIBS=OFF MAKE_TARGETS="llvm-spirv" MAKE_TEST_TARGET="check-llvm-spirv"
-  # some bug inside clang-5.0.0, works with 5.0.1
 
 matrix:
   include:
@@ -68,6 +66,15 @@ matrix:
     - os: osx
       env: BUILD_TYPE=Debug BUILD_EXTERNAL=0 MAKE_TARGETS="llvm-spirv" MAKE_TEST_TARGET="check-llvm-spirv"
       osx_image: xcode12
+
+    - compiler: clang
+      env: BUILD_TYPE=Release BUILD_EXTERNAL=1 SHARED_LIBS=OFF  MAKE_TARGETS=""           MAKE_TEST_TARGET="test"
+
+    - compiler: clang
+      env: BUILD_TYPE=Debug   BUILD_EXTERNAL=1 SHARED_LIBS=ON   MAKE_TARGETS=""           MAKE_TEST_TARGET="test"
+
+    - compiler: clang
+      env: BUILD_TYPE=Release BUILD_EXTERNAL=0 SHARED_LIBS=ON   MAKE_TARGETS="llvm-spirv" MAKE_TEST_TARGET="check-llvm-spirv"
 
     - env: BUILD_EXTERNAL=1 CHECK_FORMAT=1
 

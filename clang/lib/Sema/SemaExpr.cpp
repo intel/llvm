@@ -715,7 +715,8 @@ ExprResult Sema::DefaultLvalueConversion(Expr *E) {
   // C++ [conv.lval]p3:
   //   If T is cv std::nullptr_t, the result is a null pointer constant.
   CastKind CK = T->isNullPtrType() ? CK_NullToPointer : CK_LValueToRValue;
-  Res = ImplicitCastExpr::Create(Context, T, CK, E, nullptr, VK_RValue);
+  Res = ImplicitCastExpr::Create(Context, T, CK, E, nullptr, VK_RValue,
+                                 FPOptionsOverride());
 
   // C11 6.3.2.1p2:
   //   ... if the lvalue has atomic type, the value has the non-atomic version
@@ -723,7 +724,7 @@ ExprResult Sema::DefaultLvalueConversion(Expr *E) {
   if (const AtomicType *Atomic = T->getAs<AtomicType>()) {
     T = Atomic->getValueType().getUnqualifiedType();
     Res = ImplicitCastExpr::Create(Context, T, CK_AtomicToNonAtomic, Res.get(),
-                                   nullptr, VK_RValue);
+                                   nullptr, VK_RValue, FPOptionsOverride());
   }
 
   return Res;
@@ -2600,6 +2601,13 @@ ExprResult Sema::BuildQualifiedDeclarationNameExpr(
                                      NameInfo, /*TemplateArgs=*/nullptr);
 
   if (R.empty()) {
+    // Don't diagnose problems with invalid record decl, the secondary no_member
+    // diagnostic during template instantiation is likely bogus, e.g. if a class
+    // is invalid because it's derived from an invalid base class, then missing
+    // members were likely supposed to be inherited.
+    if (const auto *CD = dyn_cast<CXXRecordDecl>(DC))
+      if (CD->isInvalidDecl())
+        return ExprError();
     Diag(NameInfo.getLoc(), diag::err_no_member)
       << NameInfo.getName() << DC << SS.getRange();
     return ExprError();
@@ -6092,8 +6100,6 @@ static bool checkArgsForPlaceholders(Sema &S, MultiExprArg args) {
       ExprResult result = S.CheckPlaceholderExpr(args[i]);
       if (result.isInvalid()) hasInvalid = true;
       else args[i] = result.get();
-    } else if (hasInvalid) {
-      (void)S.CorrectDelayedTyposInExpr(args[i]);
     }
   }
   return hasInvalid;
@@ -6181,6 +6187,7 @@ static FunctionDecl *rewriteBuiltinFunctionDecl(Sema *Sema, ASTContext &Context,
     Params.push_back(Parm);
   }
   OverloadDecl->setParams(Params);
+  Sema->mergeDeclAttributes(OverloadDecl, FDecl);
   return OverloadDecl;
 }
 
@@ -6985,9 +6992,9 @@ void Sema::maybeExtendBlockObject(ExprResult &E) {
   // Only do this in an r-value context.
   if (!getLangOpts().ObjCAutoRefCount) return;
 
-  E = ImplicitCastExpr::Create(Context, E.get()->getType(),
-                               CK_ARCExtendBlockObject, E.get(),
-                               /*base path*/ nullptr, VK_RValue);
+  E = ImplicitCastExpr::Create(
+      Context, E.get()->getType(), CK_ARCExtendBlockObject, E.get(),
+      /*base path*/ nullptr, VK_RValue, FPOptionsOverride());
   Cleanup.setExprNeedsCleanups(true);
 }
 
@@ -10061,7 +10068,7 @@ static void DiagnoseDivisionSizeofPointerOrArray(Sema &S, Expr *LHS, Expr *RHS,
     QualType ArrayElemTy = ArrayTy->getElementType();
     if (ArrayElemTy != S.Context.getBaseElementType(ArrayTy) ||
         ArrayElemTy->isDependentType() || RHSTy->isDependentType() ||
-        ArrayElemTy->isCharType() ||
+        RHSTy->isReferenceType() || ArrayElemTy->isCharType() ||
         S.Context.getTypeSize(ArrayElemTy) == S.Context.getTypeSize(RHSTy))
       return;
     S.Diag(Loc, diag::warn_division_sizeof_array)
@@ -16606,8 +16613,13 @@ static OdrUseContext isOdrUseContext(Sema &SemaRef) {
 }
 
 static bool isImplicitlyDefinableConstexprFunction(FunctionDecl *Func) {
-  return Func->isConstexpr() &&
-         (Func->isImplicitlyInstantiable() || !Func->isUserProvided());
+  if (!Func->isConstexpr())
+    return false;
+
+  if (Func->isImplicitlyInstantiable() || !Func->isUserProvided())
+    return true;
+  auto *CCD = dyn_cast<CXXConstructorDecl>(Func);
+  return CCD && CCD->getInheritedConstructor();
 }
 
 /// Mark a function referenced, and check whether it is odr-used

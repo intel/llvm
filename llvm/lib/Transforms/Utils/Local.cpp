@@ -104,6 +104,12 @@ static cl::opt<bool> PHICSEDebugHash(
     cl::desc("Perform extra assertion checking to verify that PHINodes's hash "
              "function is well-behaved w.r.t. its isEqual predicate"));
 
+static cl::opt<unsigned> PHICSENumPHISmallSize(
+    "phicse-num-phi-smallsize", cl::init(32), cl::Hidden,
+    cl::desc(
+        "When the basic block contains not more than this number of PHI nodes, "
+        "perform a (faster!) exhaustive search instead of set-driven one."));
+
 // Max recursion depth for collectBitParts used when detecting bswap and
 // bitreverse idioms
 static const unsigned BitPartRecursionMaxDepth = 64;
@@ -1132,9 +1138,39 @@ bool llvm::TryToSimplifyUncondBranchFromEmptyBlock(BasicBlock *BB,
   return true;
 }
 
-// WARNING: this logic must be kept in sync with
-//          Instruction::isIdenticalToWhenDefined()!
-bool llvm::EliminateDuplicatePHINodes(BasicBlock *BB) {
+static bool EliminateDuplicatePHINodesNaiveImpl(BasicBlock *BB) {
+  // This implementation doesn't currently consider undef operands
+  // specially. Theoretically, two phis which are identical except for
+  // one having an undef where the other doesn't could be collapsed.
+
+  bool Changed = false;
+
+  // Examine each PHI.
+  // Note that increment of I must *NOT* be in the iteration_expression, since
+  // we don't want to immediately advance when we restart from the beginning.
+  for (auto I = BB->begin(); PHINode *PN = dyn_cast<PHINode>(I);) {
+    ++I;
+    // Is there an identical PHI node in this basic block?
+    // Note that we only look in the upper square's triangle,
+    // we already checked that the lower triangle PHI's aren't identical.
+    for (auto J = I; PHINode *DuplicatePN = dyn_cast<PHINode>(J); ++J) {
+      if (!DuplicatePN->isIdenticalToWhenDefined(PN))
+        continue;
+      // A duplicate. Replace this PHI with the base PHI.
+      ++NumPHICSEs;
+      DuplicatePN->replaceAllUsesWith(PN);
+      DuplicatePN->eraseFromParent();
+      Changed = true;
+
+      // The RAUW can change PHIs that we already visited.
+      I = BB->begin();
+      break; // Start over from the beginning.
+    }
+  }
+  return Changed;
+}
+
+static bool EliminateDuplicatePHINodesSetBasedImpl(BasicBlock *BB) {
   // This implementation doesn't currently consider undef operands
   // specially. Theoretically, two phis which are identical except for
   // one having an undef where the other doesn't could be collapsed.
@@ -1152,6 +1188,8 @@ bool llvm::EliminateDuplicatePHINodes(BasicBlock *BB) {
       return PN == getEmptyKey() || PN == getTombstoneKey();
     }
 
+    // WARNING: this logic must be kept in sync with
+    //          Instruction::isIdenticalToWhenDefined()!
     static unsigned getHashValueImpl(PHINode *PN) {
       // Compute a hash value on the operands. Instcombine will likely have
       // sorted them, which helps expose duplicates, but we have to check all
@@ -1191,6 +1229,7 @@ bool llvm::EliminateDuplicatePHINodes(BasicBlock *BB) {
 
   // Set of unique PHINodes.
   DenseSet<PHINode *, PHIDenseMapInfo> PHISet;
+  PHISet.reserve(4 * PHICSENumPHISmallSize);
 
   // Examine each PHI.
   bool Changed = false;
@@ -1213,54 +1252,63 @@ bool llvm::EliminateDuplicatePHINodes(BasicBlock *BB) {
   return Changed;
 }
 
-/// enforceKnownAlignment - If the specified pointer points to an object that
-/// we control, modify the object's alignment to PrefAlign. This isn't
-/// often possible though. If alignment is important, a more reliable approach
-/// is to simply align all global variables and allocation instructions to
-/// their preferred alignment from the beginning.
-static Align enforceKnownAlignment(Value *V, Align Alignment, Align PrefAlign,
-                                   const DataLayout &DL) {
-  assert(PrefAlign > Alignment);
+bool llvm::EliminateDuplicatePHINodes(BasicBlock *BB) {
+  if (
+#ifndef NDEBUG
+      !PHICSEDebugHash &&
+#endif
+      hasNItemsOrLess(BB->phis(), PHICSENumPHISmallSize))
+    return EliminateDuplicatePHINodesNaiveImpl(BB);
+  return EliminateDuplicatePHINodesSetBasedImpl(BB);
+}
 
+/// If the specified pointer points to an object that we control, try to modify
+/// the object's alignment to PrefAlign. Returns a minimum known alignment of
+/// the value after the operation, which may be lower than PrefAlign.
+///
+/// Increating value alignment isn't often possible though. If alignment is
+/// important, a more reliable approach is to simply align all global variables
+/// and allocation instructions to their preferred alignment from the beginning.
+static Align tryEnforceAlignment(Value *V, Align PrefAlign,
+                                 const DataLayout &DL) {
   V = V->stripPointerCasts();
 
   if (AllocaInst *AI = dyn_cast<AllocaInst>(V)) {
-    // TODO: ideally, computeKnownBits ought to have used
-    // AllocaInst::getAlignment() in its computation already, making
-    // the below max redundant. But, as it turns out,
-    // stripPointerCasts recurses through infinite layers of bitcasts,
-    // while computeKnownBits is not allowed to traverse more than 6
-    // levels.
-    Alignment = std::max(AI->getAlign(), Alignment);
-    if (PrefAlign <= Alignment)
-      return Alignment;
+    // TODO: Ideally, this function would not be called if PrefAlign is smaller
+    // than the current alignment, as the known bits calculation should have
+    // already taken it into account. However, this is not always the case,
+    // as computeKnownBits() has a depth limit, while stripPointerCasts()
+    // doesn't.
+    Align CurrentAlign = AI->getAlign();
+    if (PrefAlign <= CurrentAlign)
+      return CurrentAlign;
 
     // If the preferred alignment is greater than the natural stack alignment
     // then don't round up. This avoids dynamic stack realignment.
     if (DL.exceedsNaturalStackAlignment(PrefAlign))
-      return Alignment;
+      return CurrentAlign;
     AI->setAlignment(PrefAlign);
     return PrefAlign;
   }
 
   if (auto *GO = dyn_cast<GlobalObject>(V)) {
     // TODO: as above, this shouldn't be necessary.
-    Alignment = max(GO->getAlign(), Alignment);
-    if (PrefAlign <= Alignment)
-      return Alignment;
+    Align CurrentAlign = GO->getPointerAlignment(DL);
+    if (PrefAlign <= CurrentAlign)
+      return CurrentAlign;
 
     // If there is a large requested alignment and we can, bump up the alignment
     // of the global.  If the memory we set aside for the global may not be the
     // memory used by the final program then it is impossible for us to reliably
     // enforce the preferred alignment.
     if (!GO->canIncreaseAlignment())
-      return Alignment;
+      return CurrentAlign;
 
     GO->setAlignment(PrefAlign);
     return PrefAlign;
   }
 
-  return Alignment;
+  return Align(1);
 }
 
 Align llvm::getOrEnforceKnownAlignment(Value *V, MaybeAlign PrefAlign,
@@ -1282,7 +1330,7 @@ Align llvm::getOrEnforceKnownAlignment(Value *V, MaybeAlign PrefAlign,
   Align Alignment = Align(1ull << std::min(Known.getBitWidth() - 1, TrailZ));
 
   if (PrefAlign && *PrefAlign > Alignment)
-    Alignment = enforceKnownAlignment(V, Alignment, *PrefAlign, DL);
+    Alignment = std::max(Alignment, tryEnforceAlignment(V, *PrefAlign, DL));
 
   // We don't need to make any adjustment.
   return Alignment;
@@ -2795,10 +2843,10 @@ collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
   if (Instruction *I = dyn_cast<Instruction>(V)) {
     // If this is an or instruction, it may be an inner node of the bswap.
     if (I->getOpcode() == Instruction::Or) {
-      auto &A = collectBitParts(I->getOperand(0), MatchBSwaps,
-                                MatchBitReversals, BPS, Depth + 1);
-      auto &B = collectBitParts(I->getOperand(1), MatchBSwaps,
-                                MatchBitReversals, BPS, Depth + 1);
+      const auto &A = collectBitParts(I->getOperand(0), MatchBSwaps,
+                                      MatchBitReversals, BPS, Depth + 1);
+      const auto &B = collectBitParts(I->getOperand(1), MatchBSwaps,
+                                      MatchBitReversals, BPS, Depth + 1);
       if (!A || !B)
         return Result;
 
@@ -2830,8 +2878,8 @@ collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
       if (BitShift > BitWidth)
         return Result;
 
-      auto &Res = collectBitParts(I->getOperand(0), MatchBSwaps,
-                                  MatchBitReversals, BPS, Depth + 1);
+      const auto &Res = collectBitParts(I->getOperand(0), MatchBSwaps,
+                                        MatchBitReversals, BPS, Depth + 1);
       if (!Res)
         return Result;
       Result = Res;
@@ -2862,8 +2910,8 @@ collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
       if (!MatchBitReversals && NumMaskedBits % 8 != 0)
         return Result;
 
-      auto &Res = collectBitParts(I->getOperand(0), MatchBSwaps,
-                                  MatchBitReversals, BPS, Depth + 1);
+      const auto &Res = collectBitParts(I->getOperand(0), MatchBSwaps,
+                                        MatchBitReversals, BPS, Depth + 1);
       if (!Res)
         return Result;
       Result = Res;
@@ -2877,8 +2925,8 @@ collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
 
     // If this is a zext instruction zero extend the result.
     if (I->getOpcode() == Instruction::ZExt) {
-      auto &Res = collectBitParts(I->getOperand(0), MatchBSwaps,
-                                  MatchBitReversals, BPS, Depth + 1);
+      const auto &Res = collectBitParts(I->getOperand(0), MatchBSwaps,
+                                        MatchBitReversals, BPS, Depth + 1);
       if (!Res)
         return Result;
 
@@ -2890,6 +2938,41 @@ collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
       for (unsigned i = NarrowBitWidth; i < BitWidth; ++i)
         Result->Provenance[i] = BitPart::Unset;
       return Result;
+    }
+
+    // Handle intrinsic calls.
+    if (auto *II = dyn_cast<IntrinsicInst>(I)) {
+      Intrinsic::ID IntrinsicID = II->getIntrinsicID();
+
+      // Funnel 'double' shifts take 3 operands, 2 inputs and the shift
+      // amount (modulo).
+      // fshl(X,Y,Z): (X << (Z % BW)) | (Y >> (BW - (Z % BW)))
+      // fshr(X,Y,Z): (X << (BW - (Z % BW))) | (Y >> (Z % BW))
+      const APInt *Amt;
+      if ((IntrinsicID == Intrinsic::fshl || IntrinsicID == Intrinsic::fshr) &&
+          match(II->getArgOperand(2), m_APInt(Amt))) {
+
+        // We can treat fshr as a fshl by flipping the modulo amount.
+        unsigned ModAmt = Amt->urem(BitWidth);
+        if (IntrinsicID == Intrinsic::fshr)
+          ModAmt = BitWidth - ModAmt;
+
+        const auto &LHS = collectBitParts(II->getArgOperand(0), MatchBSwaps,
+                                          MatchBitReversals, BPS, Depth + 1);
+        const auto &RHS = collectBitParts(II->getArgOperand(1), MatchBSwaps,
+                                          MatchBitReversals, BPS, Depth + 1);
+
+        // Check we have both sources and they are from the same provider.
+        if (!LHS || !RHS || !LHS->Provider || LHS->Provider != RHS->Provider)
+          return Result;
+
+        Result = BitPart(LHS->Provider, BitWidth);
+        for (unsigned I = 0; I < (BitWidth - ModAmt); ++I)
+          Result->Provenance[I + ModAmt] = LHS->Provenance[I];
+        for (unsigned I = 0; I < ModAmt; ++I)
+          Result->Provenance[I] = RHS->Provenance[I + BitWidth - ModAmt];
+        return Result;
+      }
     }
   }
 

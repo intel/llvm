@@ -94,10 +94,23 @@ func @const_shape() -> tensor<?xindex> {
   // CHECK: %[[C1:.*]] = constant 1 : index
   // CHECK: %[[C2:.*]] = constant 2 : index
   // CHECK: %[[C3:.*]] = constant 3 : index
-  // CHECK: %[[TENSOR3:.*]] = tensor_from_elements(%[[C1]], %[[C2]], %[[C3]])
+  // CHECK: %[[TENSOR3:.*]] = tensor_from_elements %[[C1]], %[[C2]], %[[C3]]
   // CHECK: %[[RESULT:.*]] = tensor_cast %[[TENSOR3]] : tensor<3xindex> to tensor<?xindex>
   // CHECK: return %[[RESULT]] : tensor<?xindex>
   %shape = shape.const_shape [1, 2, 3] : tensor<?xindex>
+  return %shape : tensor<?xindex>
+}
+
+// -----
+
+// Lower `const_shape` in the case of rank 0.
+// CHECK-LABEL: func @const_shape_zero_elements
+// CHECK-SAME: () -> tensor<?xindex>
+func @const_shape_zero_elements() -> tensor<?xindex> {
+  // CHECK: %[[TENSOR:.*]] = tensor_from_elements : tensor<0xindex>
+  // CHECK: %[[RESULT:.*]] = tensor_cast %[[TENSOR]] : tensor<0xindex> to tensor<?xindex>
+  // CHECK: return %[[RESULT]] : tensor<?xindex>
+  %shape = shape.const_shape [] : tensor<?xindex>
   return %shape : tensor<?xindex>
 }
 
@@ -191,14 +204,11 @@ func @shape_of(%arg : tensor<*xf32>) {
 // CHECK-SAME: (%[[ARG:.*]]: tensor<*xf32>)
 func @shape_of_unranked(%arg : tensor<*xf32>) {
   // CHECK: %[[RANK:.*]] = rank %[[ARG]] : tensor<*xf32>
-  // CHECK: %[[SHAPE_MEM:.*]] = alloca(%[[RANK]]) : memref<?xindex>
-  // CHECK: %[[C0:.*]] = constant 0 : index
-  // CHECK: %[[C1:.*]] = constant 1 : index
-  // CHECK: scf.for %[[I:.*]] = %[[C0]] to %[[RANK]] step %[[C1]] {
-  // CHECK:   %[[DIM:.]] = dim %[[ARG]], %[[I]] : tensor<*xf32>
-  // CHECK:   store %[[DIM]], %[[SHAPE_MEM]][%[[I]]] : memref<?xindex>
-  // CHECK: }
-  // CHECK: %[[SHAPE:.*]] = tensor_load %[[SHAPE_MEM]] : memref<?xindex>
+  // CHECK: %[[SHAPE:.*]] = dynamic_tensor_from_elements %[[RANK]] {
+  // CHECK: ^bb0(%[[I:.*]]: index):
+  // CHECK:   %[[EXTENT:.*]] = dim %[[ARG]], %[[I]] : tensor<*xf32>
+  // CHECK:   yield %[[EXTENT]] : index
+  // CHECK: } : tensor<?xindex>
   %shape = shape.shape_of %arg : tensor<*xf32> -> tensor<?xindex>
   return
 }
@@ -223,8 +233,19 @@ func @shape_of_stat(%arg : tensor<1x2x3xf32>) {
   // CHECK-DAG: %[[C1:.*]] = constant 1 : index
   // CHECK-DAG: %[[C2:.*]] = constant 2 : index
   // CHECK-DAG: %[[C3:.*]] = constant 3 : index
-  // CHECK-DAG: %[[SHAPE_UNCASTED:.*]] = tensor_from_elements(%[[C1]], %[[C2]], %[[C3]]) : tensor<3xindex>
+  // CHECK-DAG: %[[SHAPE_UNCASTED:.*]] = tensor_from_elements %[[C1]], %[[C2]], %[[C3]] : tensor<3xindex>
   %shape = shape.shape_of %arg : tensor<1x2x3xf32> -> tensor<?xindex>
+  return
+}
+
+// -----
+
+// Lower `shape_of` for 0-D tensor.
+// CHECK-LABEL: @shape_of_zero_d
+// CHECK-SAME: (%[[ARG:.*]]: tensor<f32>)
+func @shape_of_zero_d(%arg : tensor<f32>) {
+  // CHECK-DAG: %[[SHAPE_UNCASTED:.*]] = tensor_from_elements : tensor<0xindex>
+  %shape = shape.shape_of %arg : tensor<f32> -> tensor<?xindex>
   return
 }
 
@@ -238,7 +259,7 @@ func @shape_of_dyn(%arg : tensor<1x5x?xf32>) {
   // CHECK-DAG: %[[C5:.*]] = constant 5 : index
   // CHECK-DAG: %[[C2:.*]] = constant 2 : index
   // CHECK-DAG: %[[DYN_DIM:.*]] = dim %[[ARG]], %[[C2]] : tensor<1x5x?xf32>
-  // CHECK-DAG: %[[SHAPE_UNCASTED:.*]] = tensor_from_elements(%[[C1]], %[[C5]], %[[DYN_DIM]]) : tensor<3xindex>
+  // CHECK-DAG: %[[SHAPE_UNCASTED:.*]] = tensor_from_elements %[[C1]], %[[C5]], %[[DYN_DIM]] : tensor<3xindex>
   %shape = shape.shape_of %arg : tensor<1x5x?xf32> -> tensor<?xindex>
   return
 }
@@ -291,27 +312,26 @@ func @broadcast(%a : tensor<?xindex>, %b : tensor<?xindex>) {
   // CHECK: %[[C1:.*]] = constant 1 : index
   // CHECK: %[[LHS_RANK:.*]] = dim %[[LHS]], %[[C0]] : tensor<?xindex>
   // CHECK: %[[RHS_RANK:.*]] = dim %[[RHS]], %[[C0]] : tensor<?xindex>
-  // CHECK: %[[LHS_SMALLER:.*]] = cmpi "ule", %[[LHS_RANK]], %[[RHS_RANK]]
-  // CHECK: %[[ARG:.*]]:4 = scf.if %[[LHS_SMALLER]] -> (index, tensor<?xindex>, index, tensor<?xindex>) {
-  // CHECK:   scf.yield %[[LHS_RANK]], %[[LHS]], %[[RHS_RANK]], %[[RHS]] : index, tensor<?xindex>, index, tensor<?xindex>
-  // CHECK: } else {
-  // CHECK:   scf.yield %[[RHS_RANK]], %[[RHS]], %[[LHS_RANK]], %[[LHS]] : index, tensor<?xindex>, index, tensor<?xindex>
-  // CHECK: }
-  // CHECK: %[[MEM:.*]] = alloca(%[[ARG]]#2) : memref<?xindex>
-  // CHECK: %[[RANK_DIFF:.*]] = subi %[[ARG]]#2, %[[ARG]]#0 : index
+  // CHECK: %[[LHS_RANK_ULE:.*]] = cmpi "ule", %[[LHS_RANK]], %[[RHS_RANK]] : index
+  // CHECK: %[[LESSER_RANK:.*]] = select %[[LHS_RANK_ULE]], %[[LHS_RANK]], %[[RHS_RANK]] : index
+  // CHECK: %[[GREATER_RANK:.*]] = select %[[LHS_RANK_ULE]], %[[RHS_RANK]], %[[LHS_RANK]] : index
+  // CHECK: %[[LESSER_RANK_OPERAND:.*]] = select %[[LHS_RANK_ULE]], %[[LHS]], %[[RHS]] : tensor<?xindex>
+  // CHECK: %[[GREATER_RANK_OPERAND:.*]] = select %[[LHS_RANK_ULE]], %[[RHS]], %[[LHS]] : tensor<?xindex>
+  // CHECK: %[[MEM:.*]] = alloca(%[[GREATER_RANK]]) : memref<?xindex>
+  // CHECK: %[[RANK_DIFF:.*]] = subi %[[GREATER_RANK]], %[[LESSER_RANK]] : index
   // CHECK: scf.for %[[IV:.*]] = %[[C0]] to %[[RANK_DIFF]] step %[[C1]] {
-  // CHECK:   %[[EXTENT:.*]] = extract_element %[[ARG]]#3[%[[IV]]] : tensor<?xindex>
+  // CHECK:   %[[EXTENT:.*]] = extract_element %[[GREATER_RANK_OPERAND]][%[[IV]]] : tensor<?xindex>
   // CHECK:   store %[[EXTENT]], %[[MEM]][%[[IV]]] : memref<?xindex>
   // CHECK: }
-  // CHECK: scf.for %[[IV:.*]] = %[[RANK_DIFF]] to %[[ARG]]#2 step %[[C1]] {
-  // CHECK:   %[[GREATER_OPERAND_EXTENT:.*]] = extract_element %[[ARG]]#3[%[[IV]]] : tensor<?xindex>
-  // CHECK:   %[[GREATER_OPERAND_EXTENT_IS_ONE:.*]] = cmpi "eq", %[[GREATER_OPERAND_EXTENT]], %[[C1]] : index
+  // CHECK: scf.for %[[IV:.*]] = %[[RANK_DIFF]] to %[[GREATER_RANK]] step %[[C1]] {
+  // CHECK:   %[[GREATER_RANK_OPERAND_EXTENT:.*]] = extract_element %[[GREATER_RANK_OPERAND]][%[[IV]]] : tensor<?xindex>
+  // CHECK:   %[[GREATER_OPERAND_EXTENT_IS_ONE:.*]] = cmpi "eq", %[[GREATER_RANK_OPERAND_EXTENT]], %[[C1]] : index
   // CHECK:   %[[EXTENT:.*]] = scf.if %[[GREATER_OPERAND_EXTENT_IS_ONE]] -> (index) {
   // CHECK:     %[[IV_SHIFTED:.*]] = subi %[[IV]], %[[RANK_DIFF]] : index
-  // CHECK:     %[[SMALLER_OPERAND_EXTENT:.*]] = extract_element %[[ARG]]#1[%[[IV_SHIFTED]]] : tensor<?xindex>
-  // CHECK:     scf.yield %[[SMALLER_OPERAND_EXTENT]] : index
+  // CHECK:     %[[LESSER_RANK_OPERAND_EXTENT:.*]] = extract_element %[[LESSER_RANK_OPERAND]][%[[IV_SHIFTED]]] : tensor<?xindex>
+  // CHECK:     scf.yield %[[LESSER_RANK_OPERAND_EXTENT]] : index
   // CHECK:   } else {
-  // CHECK:     scf.yield %[[GREATER_OPERAND_EXTENT]] : index
+  // CHECK:     scf.yield %[[GREATER_RANK_OPERAND_EXTENT]] : index
   // CHECK:   }
   // CHECK:   store %[[EXTENT]], %[[MEM]][%[[IV]]] : memref<?xindex>
   // CHECK: }
@@ -320,4 +340,3 @@ func @broadcast(%a : tensor<?xindex>, %b : tensor<?xindex>) {
       : tensor<?xindex>, tensor<?xindex> -> tensor<?xindex>
   return
 }
-

@@ -38,9 +38,9 @@ void llvm::initializeScalarOpts(PassRegistry &Registry) {
   initializeAlignmentFromAssumptionsPass(Registry);
   initializeCallSiteSplittingLegacyPassPass(Registry);
   initializeConstantHoistingLegacyPassPass(Registry);
+  initializeConstraintEliminationPass(Registry);
   initializeCorrelatedValuePropagationPass(Registry);
   initializeDCELegacyPassPass(Registry);
-  initializeDeadInstEliminationPass(Registry);
   initializeDivRemPairsLegacyPassPass(Registry);
   initializeScalarizerLegacyPassPass(Registry);
   initializeDSELegacyPassPass(Registry);
@@ -70,7 +70,7 @@ void llvm::initializeScalarOpts(PassRegistry &Registry) {
   initializeLoopPredicationLegacyPassPass(Registry);
   initializeLoopRotateLegacyPassPass(Registry);
   initializeLoopStrengthReducePass(Registry);
-  initializeLoopRerollPass(Registry);
+  initializeLoopRerollLegacyPassPass(Registry);
   initializeLoopUnrollPass(Registry);
   initializeLoopUnrollAndJamPass(Registry);
   initializeLoopUnswitchPass(Registry);

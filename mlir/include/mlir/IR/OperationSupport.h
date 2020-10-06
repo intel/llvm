@@ -15,6 +15,7 @@
 #define MLIR_IR_OPERATION_SUPPORT_H
 
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/BlockSupport.h"
 #include "mlir/IR/Identifier.h"
 #include "mlir/IR/Location.h"
 #include "mlir/IR/TypeRange.h"
@@ -28,7 +29,6 @@
 #include <memory>
 
 namespace mlir {
-class Block;
 class Dialect;
 class Operation;
 struct OperationState;
@@ -42,7 +42,6 @@ class Pattern;
 class Region;
 class ResultRange;
 class RewritePattern;
-class SuccessorRange;
 class Type;
 class Value;
 class ValueRange;
@@ -364,8 +363,8 @@ public:
   OperationState(Location location, OperationName name);
 
   OperationState(Location location, StringRef name, ValueRange operands,
-                 ArrayRef<Type> types, ArrayRef<NamedAttribute> attributes,
-                 ArrayRef<Block *> successors = {},
+                 TypeRange types, ArrayRef<NamedAttribute> attributes,
+                 BlockRange successors = {},
                  MutableArrayRef<std::unique_ptr<Region>> regions = {});
 
   void addOperands(ValueRange newOperands);
@@ -394,12 +393,8 @@ public:
     attributes.append(newAttributes);
   }
 
-  /// Add an array of successors.
-  void addSuccessors(ArrayRef<Block *> newSuccessors) {
-    successors.append(newSuccessors.begin(), newSuccessors.end());
-  }
   void addSuccessors(Block *successor) { successors.push_back(successor); }
-  void addSuccessors(SuccessorRange newSuccessors);
+  void addSuccessors(BlockRange newSuccessors);
 
   /// Create a region that should be attached to the operation.  These regions
   /// can be filled in immediately without waiting for Operation to be
