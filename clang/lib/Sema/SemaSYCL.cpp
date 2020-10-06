@@ -2829,24 +2829,27 @@ public:
 } // namespace
 
 class SYCLKernelNameTypeVisitor
-    : public TypeVisitor<SYCLKernelNameTypeVisitor>,
-      public ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor> {
+    : public TypeVisitor<SYCLKernelNameTypeVisitor, bool>,
+      public ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor, bool> {
   Sema &S;
   SourceLocation KernelInvocationFuncLoc;
-  using InnerTypeVisitor = TypeVisitor<SYCLKernelNameTypeVisitor>;
+  using InnerTypeVisitor = TypeVisitor<SYCLKernelNameTypeVisitor, bool>;
   using InnerTAVisitor =
-      ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor>;
+      ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor, bool>;
+  bool IsInvalid = false;
 
 public:
   SYCLKernelNameTypeVisitor(Sema &S, SourceLocation KernelInvocationFuncLoc)
       : S(S), KernelInvocationFuncLoc(KernelInvocationFuncLoc) {}
 
-  void Visit(QualType T) {
+  bool isValid() { return !IsInvalid; }
+
+  bool Visit(QualType T) {
     if (T.isNull())
-      return;
+      return false;
     const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
     if (!RD)
-      return;
+      return false;
     // If KernelNameType has template args visit each template arg via
     // ConstTemplateArgumentVisitor
     if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
@@ -2857,29 +2860,33 @@ public:
     } else {
       InnerTypeVisitor::Visit(T.getTypePtr());
     }
+    return true;
   }
 
-  void Visit(const TemplateArgument &TA) {
+  bool Visit(const TemplateArgument &TA) {
     if (TA.isNull())
-      return;
-    InnerTAVisitor::Visit(TA);
+      return false;
+    return InnerTAVisitor::Visit(TA);
   }
 
-  void VisitEnumType(const EnumType *T) {
+  bool VisitEnumType(const EnumType *T) {
     const EnumDecl *ED = T->getDecl();
     if (!ED->isScoped() && !ED->isFixed()) {
       S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
           << /* Unscoped enum requires fixed underlying type */ 2;
       S.Diag(ED->getSourceRange().getBegin(), diag::note_entity_declared_at)
           << ED;
+      IsInvalid = true;
+      return isValid();
     }
+    return true;
   }
 
-  void VisitRecordType(const RecordType *T) {
+  bool VisitRecordType(const RecordType *T) {
     return VisitTagDecl(T->getDecl());
   }
 
-  void VisitTagDecl(const TagDecl *Tag) {
+  bool VisitTagDecl(const TagDecl *Tag) {
     bool UnnamedLambdaEnabled =
         S.getASTContext().getLangOpts().SYCLUnnamedLambda;
     if (!Tag->getDeclContext()->isTranslationUnit() &&
@@ -2888,43 +2895,49 @@ public:
       if (KernelNameIsMissing) {
         S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
             << /* kernel name is missing */ 0;
+        IsInvalid = true;
       } else {
-        if (Tag->isCompleteDefinition())
+        if (Tag->isCompleteDefinition()) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_sycl_kernel_incorrectly_named)
               << /* kernel name is not globally-visible */ 1;
-        else
+          IsInvalid = true;
+        } else
           S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
 
         S.Diag(Tag->getSourceRange().getBegin(), diag::note_previous_decl)
             << Tag->getName();
       }
+      return isValid();
     }
+    return true;
   }
 
-  void VisitTypeTemplateArgument(const TemplateArgument &TA) {
+  bool VisitTypeTemplateArgument(const TemplateArgument &TA) {
     QualType T = TA.getAsType();
     if (const auto *ET = T->getAs<EnumType>())
-      VisitEnumType(ET);
+      return VisitEnumType(ET);
     else
-      Visit(T);
+      return Visit(T);
   }
 
-  void VisitIntegralTemplateArgument(const TemplateArgument &TA) {
+  bool VisitIntegralTemplateArgument(const TemplateArgument &TA) {
     QualType T = TA.getIntegralType();
     if (const EnumType *ET = T->getAs<EnumType>())
-      VisitEnumType(ET);
+      return VisitEnumType(ET);
+    return true;
   }
 
-  void VisitTemplateTemplateArgument(const TemplateArgument &TA) {
+  bool VisitTemplateTemplateArgument(const TemplateArgument &TA) {
     TemplateDecl *TD = TA.getAsTemplate().getAsTemplateDecl();
     TemplateParameterList *TemplateParams = TD->getTemplateParameters();
     for (NamedDecl *P : *TemplateParams) {
       if (NonTypeTemplateParmDecl *TemplateParam =
               dyn_cast<NonTypeTemplateParmDecl>(P))
         if (const EnumType *ET = TemplateParam->getType()->getAs<EnumType>())
-          VisitEnumType(ET);
+          return VisitEnumType(ET);
     }
+    return true;
   }
 };
 
@@ -2970,10 +2983,10 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   SyclKernelArgsSizeChecker ArgsSizeChecker(*this, Args[0]->getExprLoc());
 
   KernelObjVisitor Visitor{*this};
-  SYCLKernelNameTypeVisitor KernelTypeVisitor(*this, Args[0]->getExprLoc());
+  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(*this, Args[0]->getExprLoc());
   // Emit diagnostics for SYCL device kernels only
   if (LangOpts.SYCLIsDevice)
-    KernelTypeVisitor.Visit(KernelNameType);
+    KernelNameTypeVisitor.Visit(KernelNameType);
   DiagnosingSYCLKernel = true;
   Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker, DecompMarker);
   Visitor.VisitRecordFields(KernelObj, FieldChecker, UnionChecker,
@@ -2987,7 +3000,9 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
     Visitor.VisitRecordFields(KernelObj, ArgsSizeChecker);
   }
   DiagnosingSYCLKernel = false;
-  if (!FieldChecker.isValid() || !UnionChecker.isValid())
+  // Set the kernel function as invalid, if any of the checkers fail validation.
+  if (!FieldChecker.isValid() || !UnionChecker.isValid() ||
+      !KernelNameTypeVisitor.isValid())
     KernelFunc->setInvalidDecl();
 }
 
