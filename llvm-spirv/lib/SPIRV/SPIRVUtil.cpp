@@ -1556,5 +1556,70 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
   }
   return true;
 }
+} // namespace SPIRV
+
+namespace {
+class OpenCLStdToSPIRVFriendlyIRMangleInfo : public BuiltinFuncMangleInfo {
+public:
+  OpenCLStdToSPIRVFriendlyIRMangleInfo(OCLExtOpKind ExtOpId,
+                                       ArrayRef<Type *> ArgTys)
+      : ExtOpId(ExtOpId), ArgTys(ArgTys) {
+    UnmangledName = getSPIRVExtFuncName(SPIRVEIS_OpenCL, ExtOpId);
+  }
+
+  void init(StringRef) override {
+    switch (ExtOpId) {
+    case OpenCLLIB::UAbs:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UAbs_diff:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UAdd_sat:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UHadd:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::URhadd:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UClamp:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UMad_hi:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UMad_sat:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UMax:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UMin:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UMul_hi:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::USub_sat:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::U_Upsample:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UMad24:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UMul24:
+      // Treat all arguments as unsigned
+      addUnsignedArg(-1);
+      break;
+    case OpenCLLIB::S_Upsample:
+      addUnsignedArg(1);
+      break;
+    default:;
+      // No special handling is needed
+    }
+  }
+
+private:
+  OCLExtOpKind ExtOpId;
+  ArrayRef<Type *> ArgTys;
+};
+} // namespace
+
+namespace SPIRV {
+std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
+                                           ArrayRef<Type *> ArgTys) {
+  OpenCLStdToSPIRVFriendlyIRMangleInfo MangleInfo(ExtOpId, ArgTys);
+  return mangleBuiltin(MangleInfo.getUnmangledName(), ArgTys, &MangleInfo);
+}
 
 } // namespace SPIRV

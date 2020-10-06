@@ -4195,12 +4195,24 @@ Instruction *SPIRVToLLVM::transOCLBuiltinFromExtInst(SPIRVExtInst *BC,
 
   std::vector<Type *> ArgTypes = transTypeVector(BC->getValueTypes(BArgs));
 
+  // TODO: we should always produce SPIR-V friendly IR and apply lowering
+  // later if needed
   if (IsPrintf) {
-    MangledName = "printf";
     ArgTypes.resize(1);
-  } else {
-    mangleOpenClBuiltin(UnmangledName, ArgTypes, MangledName);
   }
+
+  if (BM->getDesiredBIsRepresentation() != BIsRepresentation::SPIRVFriendlyIR) {
+    // Convert extended instruction into an OpenCL built-in
+    if (IsPrintf) {
+      MangledName = "printf";
+    } else {
+      mangleOpenClBuiltin(UnmangledName, ArgTypes, MangledName);
+    }
+  } else {
+    MangledName = getSPIRVFriendlyIRFunctionName(
+        static_cast<OCLExtOpKind>(EntryPoint), ArgTypes);
+  }
+
   SPIRVDBG(spvdbgs() << "[transOCLBuiltinFromExtInst] ModifiedUnmangledName: "
                      << UnmangledName << " MangledName: " << MangledName
                      << '\n');
