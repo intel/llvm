@@ -111,7 +111,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
   }
 
   for (auto StreamImplPtr : Streams) {
-    StreamImplPtr->enqueueFlush();
+    StreamImplPtr->flush();
   }
 
   return NewEvent;
@@ -254,9 +254,9 @@ void Scheduler::allocateStreamBuffers(stream_impl *Impl,
       {Impl, StreamBuffers(StreamBufferSize, FlushBufferSize)});
 }
 
-void Scheduler::deallocateStreamBuffers(stream_impl *Impl) {
+void Scheduler::deallocateStreamBuffers() {
   std::lock_guard<std::mutex> lock(StreamBuffersPoolMutex);
-  StreamBuffersPool.erase(Impl);
+  StreamBuffersPool.clear();
 }
 
 Scheduler::Scheduler() {

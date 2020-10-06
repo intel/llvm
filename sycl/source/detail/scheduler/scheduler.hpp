@@ -750,8 +750,8 @@ protected:
   /// Allocate buffers in the pool for a provided stream
   void allocateStreamBuffers(stream_impl *, size_t, size_t);
 
-  /// Deallocate buffers in the pool for a provided stream
-  void deallocateStreamBuffers(stream_impl *);
+  /// Deallocate all stream buffers in the pool
+  void deallocateStreamBuffers();
 };
 
 } // namespace detail

@@ -36,7 +36,7 @@ public:
   GlobalOffsetAccessorT accessGlobalOffset(handler &CGH);
 
   // Enqueue task to copy stream buffer to the host and print the contents
-  void enqueueFlush();
+  void flush();
 
   size_t get_size() const;
 

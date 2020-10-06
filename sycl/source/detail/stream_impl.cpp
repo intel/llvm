@@ -61,11 +61,13 @@ size_t stream_impl::get_size() const { return BufferSize_; }
 
 size_t stream_impl::get_max_statement_size() const { return MaxStatementSize_; }
 
-void stream_impl::enqueueFlush() {
+std::once_flag flag;
+
+void stream_impl::flush() {
   // We don't want stream flushing to be blocking operation that is why submit a
   // host task to print stream buffer.
-  queue Q;
-  auto CopyBackAndPrintEvent = Q.submit([&](handler &cgh) {
+  queue &Q = cl::sycl::detail::Scheduler::getInstance().getDefaultHostQueue();
+  Q.submit([&](handler &cgh) {
     auto HostAcc =
         detail::Scheduler::getInstance()
             .StreamBuffersPool.find(this)
@@ -78,13 +80,12 @@ void stream_impl::enqueueFlush() {
     });
   });
 
-  // Submit a task to deallocate stream buffers after copy back and printing is
-  // completed.
-  auto DeallocateEvent = Q.submit([&](handler &cgh) {
-    cgh.codeplay_host_task([=]() {
-      detail::getSyclObjImpl(CopyBackAndPrintEvent)->waitInternal();
-      detail::Scheduler::getInstance().deallocateStreamBuffers(this);
-    });
+  // Register a library cleanup function to deallocate stream buffers, we need
+  // to do it only once. Deallocation of the buffer will also guarantee that
+  // copy back and printing is completed.
+  std::call_once(flag, []() {
+    std::atexit(
+        []() { detail::Scheduler::getInstance().deallocateStreamBuffers(); });
   });
 }
 } // namespace detail
