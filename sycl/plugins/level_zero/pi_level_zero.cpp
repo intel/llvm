@@ -664,10 +664,10 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     for (const pi_platform &CachedPlatform : *PlatformCache) {
       if (I < NumEntries) {
         *Platforms++ = CachedPlatform;
+        I++;
       } else {
         break;
       }
-      I++;
     }
   }
 
@@ -711,8 +711,9 @@ getPlatformCache(std::vector<pi_platform> const **PlatformCache) {
     static auto PiPlatformsCache = new std::vector<pi_platform>;
     static auto PiPlatformsCacheMutex = new std::mutex;
 
+    static bool PiPlatformCachePopulated = false;
     std::lock_guard<std::mutex> Lock(*PiPlatformsCacheMutex);
-    if (!PiPlatformsCache->empty()) {
+    if (PiPlatformCachePopulated) {
       *PlatformCache = PiPlatformsCache;
       return PI_SUCCESS;
     }
@@ -750,8 +751,9 @@ getPlatformCache(std::vector<pi_platform> const **PlatformCache) {
     Platform->ZeMaxCommandListCache = CommandListCacheSizeValue;
     // Save a copy in the cache for future uses.
     PiPlatformsCache->push_back(Platform);
-    // Copy the into cache to the out parameter.
+    // Copy the cache to the out parameter.
     *PlatformCache = PiPlatformsCache;
+    PiPlatformCachePopulated = true;
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
