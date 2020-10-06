@@ -74,11 +74,11 @@ static Attr *handleSuppressAttr(Sema &S, Stmt *St, const ParsedAttr &A,
       S.Context, A, DiagnosticIdentifiers.data(), DiagnosticIdentifiers.size());
 }
 
-static bool CheckForDeprecatedSYCLLoopAttributeSpelling(
-    Sema &S, const ParsedAttr &A) {
+static bool CheckForDeprecatedSYCLLoopAttributeSpelling(Sema &S,
+                                                        const ParsedAttr &A) {
   if (A.getScopeName()->isStr("intelfpga")) {
     S.Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated)
-        << "'" +  A.getNormalizedFullName()  + "'";
+        << "'" + A.getNormalizedFullName() + "'";
     return true;
   }
   return false;
@@ -110,22 +110,26 @@ static Attr *handleIntelFPGALoopAttr(Sema &S, const ParsedAttr &A) {
     S.Diag(A.getLoc(), diag::note_spelling_suggestion) << "'intel::ii'";
     return nullptr;
   } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency &&
+             CheckForDeprecatedSYCLLoopAttributeSpelling(S, A)) {
+    S.Diag(A.getLoc(), diag::note_spelling_suggestion)
+        << "'intel::max_concurrency'";
+  } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency &&
 	     CheckForDeprecatedSYCLLoopAttributeSpelling(S, A)) {
     S.Diag(A.getLoc(), diag::note_spelling_suggestion)
 	<< "'intel::max_concurrency'";
     return nullptr;
   } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAMaxInterleaving &&
-	     CheckForDeprecatedSYCLLoopAttributeSpelling(S, A)) {
+             CheckForDeprecatedSYCLLoopAttributeSpelling(S, A)) {
     S.Diag(A.getLoc(), diag::note_spelling_suggestion)
         << "'intel::max_interleaving'";
     return nullptr;
   } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGASpeculatedIterations &&
-	      CheckForDeprecatedSYCLLoopAttributeSpelling(S, A)) {
+	     CheckForDeprecatedSYCLLoopAttributeSpelling(S, A)) {
     S.Diag(A.getLoc(), diag::note_spelling_suggestion)
         << "'intel::speculated_iterations'";
     return nullptr;
   } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGALoopCoalesce &&
-	     CheckForDeprecatedSYCLLoopAttributeSpelling(S, A)) {
+             CheckForDeprecatedSYCLLoopAttributeSpelling(S, A)) {
     S.Diag(A.getLoc(), diag::note_spelling_suggestion)
         << "'intel::loop_coalesce'";
     return nullptr;

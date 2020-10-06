@@ -321,7 +321,7 @@ static bool checkAttrMutualExclusion(Sema &S, Decl *D, const Attr &AL) {
 static bool checkDeprecatedFPGASYCLSpelling(Sema &S, const ParsedAttr &Attr) {
   if (Attr.getScopeName()->isStr("intelfpga")) {
     S.Diag(Attr.getLoc(), diag::warn_attribute_spelling_deprecated)
-        << "'" +  Attr.getNormalizedFullName()  + "'";
+        << "'" + Attr.getNormalizedFullName() + "'";
     return true;
   }
   return false;
@@ -5447,8 +5447,7 @@ static void handleIntelFPGAMergeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
         S.Context, IntelFPGAMemoryAttr::Default));
 
   if (checkDeprecatedFPGASYCLSpelling(S, AL)) {
-    S.Diag(AL.getLoc(), diag::note_spelling_suggestion)
-        << "'intel::merge'";
+    S.Diag(AL.getLoc(), diag::note_spelling_suggestion) << "'intel::merge'";
     return;
   }
 
@@ -5567,7 +5566,6 @@ static void handleIntelFPGAPrivateCopiesAttr(Sema &S, Decl *D,
   S.AddOneConstantValueAttr<IntelFPGAPrivateCopiesAttr>(
       D, Attr, Attr.getArgAsExpr(0));
 }
-
 
 static void handleIntelFPGAForcePow2DepthAttr(Sema &S, Decl *D,
                                               const ParsedAttr &Attr) {
