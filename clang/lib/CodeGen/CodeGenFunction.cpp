@@ -33,6 +33,7 @@
 #include "clang/Basic/TargetInfo.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/Frontend/OpenMP/OMPIRBuilder.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
@@ -41,6 +42,7 @@
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/Support/CRC.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
 using namespace clang;
 using namespace CodeGen;
@@ -639,6 +641,17 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
 
+  if (const SYCLIntelSchedulerTargetFmaxMhzAttr *A =
+          FD->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>()) {
+    Optional<llvm::APSInt> ArgVal =
+        A->getValue()->getIntegerConstantExpr(FD->getASTContext());
+    assert(ArgVal.hasValue() && "Not an integer constant expression");
+    llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
+        Builder.getInt32(ArgVal->getSExtValue()))};
+    Fn->setMetadata("scheduler_target_fmax_mhz",
+                    llvm::MDNode::get(Context, AttrMDArgs));
+  }
+
   if (const SYCLIntelMaxWorkGroupSizeAttr *A =
       FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
     llvm::Metadata *AttrMDArgs[] = {
@@ -826,13 +839,16 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
         SanOpts.Mask &= ~SanitizerKind::Null;
 
   // Apply xray attributes to the function (as a string, for now)
+  bool AlwaysXRayAttr = false;
   if (const auto *XRayAttr = D ? D->getAttr<XRayInstrumentAttr>() : nullptr) {
     if (CGM.getCodeGenOpts().XRayInstrumentationBundle.has(
             XRayInstrKind::FunctionEntry) ||
         CGM.getCodeGenOpts().XRayInstrumentationBundle.has(
             XRayInstrKind::FunctionExit)) {
-      if (XRayAttr->alwaysXRayInstrument() && ShouldXRayInstrumentFunction())
+      if (XRayAttr->alwaysXRayInstrument() && ShouldXRayInstrumentFunction()) {
         Fn->addFnAttr("function-instrument", "xray-always");
+        AlwaysXRayAttr = true;
+      }
       if (XRayAttr->neverXRayInstrument())
         Fn->addFnAttr("function-instrument", "xray-never");
       if (const auto *LogArgs = D->getAttr<XRayLogArgsAttr>())
@@ -858,6 +874,16 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     if (!CGM.getCodeGenOpts().XRayInstrumentationBundle.has(
             XRayInstrKind::FunctionEntry))
       Fn->addFnAttr("xray-skip-entry");
+
+    auto FuncGroups = CGM.getCodeGenOpts().XRayTotalFunctionGroups;
+    if (FuncGroups > 1) {
+      auto FuncName = llvm::makeArrayRef<uint8_t>(
+          CurFn->getName().bytes_begin(), CurFn->getName().bytes_end());
+      auto Group = crc32(FuncName) % FuncGroups;
+      if (Group != CGM.getCodeGenOpts().XRaySelectedFunctionGroup &&
+          !AlwaysXRayAttr)
+        Fn->addFnAttr("function-instrument", "xray-never");
+    }
   }
 
   unsigned Count, Offset;

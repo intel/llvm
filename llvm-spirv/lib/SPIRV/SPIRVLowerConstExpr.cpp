@@ -49,6 +49,7 @@
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/CommandLine.h"
 
 #include <list>
 #include <set>

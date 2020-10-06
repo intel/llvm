@@ -46,6 +46,7 @@
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/Debug.h"
 
 #include <set>
 
@@ -107,7 +108,7 @@ bool OCL21ToSPIRV::runOnModule(Module &Module) {
     return false;
 
   CLVer = std::get<1>(Src);
-  if (CLVer < kOCLVer::CL21)
+  if (CLVer != kOCLVer::CL21)
     return false;
 
   LLVM_DEBUG(dbgs() << "Enter OCL21ToSPIRV:\n");
