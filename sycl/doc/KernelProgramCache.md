@@ -78,7 +78,7 @@ kernels and/or device functions.
 ## Data structure of cache
 
 The cache stores underlying PI objects behind `cl::sycl::program` and
-`cl::sycl::kernel` user-levelobjects in a per-context data storage. The storage
+`cl::sycl::kernel` user-level objects in a per-context data storage. The storage
 consists of two maps: one is for programs and the other is for kernels.
 
 The programs map's key consists of three components: kernel set id<sup>[1](#what-is-ksid)</sup>,
@@ -187,7 +187,7 @@ class implements RAII to make code look cleaner a bit. Now, GetCache function
 will return the mapping to be employed that includes the 3 components: kernel
 name, device as well as any specialization constants. These get added to
 `BuildResult` and are cached. The `BuildResult` structure is specialized with
-either `PiKernel` or `PiProgram`<sup>[1](#remove-program)</sup>.
+either `PiKernel` or `PiProgram`<sup>[1](#remove-pointer)</sup>.
 
 
 ### Core of caching mechanism
