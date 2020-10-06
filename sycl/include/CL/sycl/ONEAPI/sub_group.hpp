@@ -109,7 +109,7 @@ struct sub_group {
 
   id_type get_local_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_BuiltInSubgroupLocalInvocationId;
+    return __spirv_SubgroupLocalInvocationId();
 #else
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_INVALID_DEVICE);
@@ -127,7 +127,7 @@ struct sub_group {
 
   range_type get_local_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_BuiltInSubgroupSize;
+    return __spirv_SubgroupSize();
 #else
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_INVALID_DEVICE);
@@ -136,7 +136,7 @@ struct sub_group {
 
   range_type get_max_local_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_BuiltInSubgroupMaxSize;
+    return __spirv_SubgroupMaxSize();
 #else
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_INVALID_DEVICE);
@@ -145,7 +145,7 @@ struct sub_group {
 
   id_type get_group_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_BuiltInSubgroupId;
+    return __spirv_SubgroupId();
 #else
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_INVALID_DEVICE);
@@ -163,7 +163,7 @@ struct sub_group {
 
   range_type get_group_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_BuiltInNumSubgroups;
+    return __spirv_NumSubgroups();
 #else
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_INVALID_DEVICE);

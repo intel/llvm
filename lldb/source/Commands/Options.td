@@ -227,6 +227,9 @@ let Command = "breakpoint delete" in {
   def breakpoint_delete_dummy_breakpoints : Option<"dummy-breakpoints", "D">,
     Group<1>, Desc<"Delete Dummy breakpoints - i.e. breakpoints set before a "
     "file is provided, which prime new targets.">;
+  def breakpoint_delete_disabled : Option<"disabled", "d">, Group<1>,
+    Desc<"Delete all breakpoints which are currently disabled.  When using the disabled option "
+    "any breakpoints listed on the command line are EXCLUDED from deletion.">;
 }
 
 let Command = "breakpoint name" in {
@@ -1174,4 +1177,20 @@ let Command = "watchpoint command add" in {
 let Command = "watchpoint delete" in {
   def watchpoint_delete_force : Option<"force", "f">, Group<1>,
     Desc<"Delete all watchpoints without querying for confirmation.">;
+}
+
+let Command = "trace load" in {
+  def trace_load_verbose : Option<"verbose", "v">, Group<1>,
+    Desc<"Show verbose trace load logging for debugging the plug-in "
+    "implementation.">;
+}
+
+let Command = "trace dump" in {
+  def trace_dump_verbose : Option<"verbose", "v">, Group<1>,
+    Desc<"Show verbose trace information.">;
+}
+
+let Command = "trace schema" in {
+  def trace_schema_verbose : Option<"verbose", "v">, Group<1>,
+    Desc<"Show verbose trace schema logging for debugging the plug-in.">;
 }
