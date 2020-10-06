@@ -153,19 +153,19 @@ void diagnostics()
   //expected-note@-2 {{conflicting attribute is here}}
   unsigned int dpump_spump[64];
 
-  // expected-warning@+2 {{attribute 'doublepump' is deprecated}}
+  // expected-warning@+2 {{attribute 'intelfpga::doublepump' is deprecated}}
   // expected-note@+1 {{did you mean to use 'intel::doublepump' instead?}}
   [[intelfpga::doublepump]] unsigned int x[3];
 
-  // expected-warning@+2 {{attribute 'singlepump' is deprecated}}
+  // expected-warning@+2 {{attribute 'intelfpga::singlepump' is deprecated}}
   // expected-note@+1 {{did you mean to use 'intel::singlepump' instead?}}
   [[intelfpga::singlepump]] unsigned int x1[3];
 
-  // expected-warning@+2 {{attribute 'register' is deprecated}}
+  // expected-warning@+2 {{attribute 'intelfpga::register' is deprecated}}
   // expected-note@+1 {{did you mean to use 'intel::fpga_register' instead?}}
   [[intelfpga::register]] unsigned int y1[3];
 
-  // expected-warning@+2 {{attribute 'memory' is deprecated}}
+  // expected-warning@+2 {{attribute 'intelfpga::memory' is deprecated}}
   // expected-note@+1 {{did you mean to use 'intel::fpga_memory' instead?}}
   [[intelfpga::memory]] unsigned int y2[3];
 
@@ -223,19 +223,19 @@ void diagnostics()
   //expected-note@-2 {{conflicting attribute is here}}
   unsigned int reg_bankbits[64];
 
-  // expected-warning@+2 {{attribute 'bank_bits' is deprecated}}
+  // expected-warning@+2 {{attribute 'intelfpga::bank_bits' is deprecated}}
   // expected-note@+1 {{did you mean to use 'intel::bank_bits' instead?}}
   [[intelfpga::bank_bits(4, 5)]] unsigned int p[3];
 
-  // expected-warning@+2 {{attribute 'bankwidth' is deprecated}}
+  // expected-warning@+2 {{attribute 'intelfpga::bankwidth' is deprecated}}
   // expected-note@+1 {{did you mean to use 'intel::bankwidth' instead?}}
   [[intelfpga::bankwidth(2)]] unsigned int p1[3];
 
-  // expected-warning@+2 {{attribute 'private_copies' is deprecated}}
+  // expected-warning@+2 {{attribute 'intelfpga::private_copies' is deprecated}}
   // expected-note@+1 {{did you mean to use 'intel::private_copies' instead?}}
   [[intelfpga::private_copies(3)]] unsigned int p2[3];
 
-  // expected-warning@+2 {{attribute 'numbanks' is deprecated}}
+  // expected-warning@+2 {{attribute 'intelfpga::numbanks' is deprecated}}
   // expected-note@+1 {{did you mean to use 'intel::numbanks' instead?}}
   [[intelfpga::numbanks(8)]] unsigned int p3[3];
 
@@ -283,19 +283,19 @@ void diagnostics()
   //expected-note@-1 {{conflicting attribute is here}}
   [[intel::fpga_register]] unsigned int force_p2d_reg[64];
 
-  // expected-warning@+2 {{attribute 'merge' is deprecated}}
+  // expected-warning@+2 {{attribute 'intelfpga::merge' is deprecated}}
   // expected-note@+1 {{did you mean to use 'intel::merge' instead?}}
   [[intelfpga::merge("mrg1", "depth")]] unsigned int r[3];
 
-  // expected-warning@+2 {{attribute 'max_replicates' is deprecated}}
+  // expected-warning@+2 {{attribute 'intelfpga::max_replicates' is deprecated}}
   // expected-note@+1 {{did you mean to use 'intel::max_replicates' instead?}}
   [[intelfpga::max_replicates(8)]] unsigned int r1[3];
 
-  // expected-warning@+2 {{attribute 'force_pow2_depth' is deprecated}}
+  // expected-warning@+2 {{attribute 'intelfpga::force_pow2_depth' is deprecated}}
   // expected-note@+1 {{did you mean to use 'intel::force_pow2_depth' instead?}}
   [[intelfpga::force_pow2_depth(1)]] unsigned int r2[3];
 
-  // expected-warning@+2 {{attribute 'simple_dual_port' is deprecated}}
+  // expected-warning@+2 {{attribute 'intelfpga::simple_dual_port' is deprecated}}
   // expected-note@+1 {{did you mean to use 'intel::simple_dual_port' instead?}}
   [[intelfpga::simple_dual_port]] unsigned int r3[3];
 

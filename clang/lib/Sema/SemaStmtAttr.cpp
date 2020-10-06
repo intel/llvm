@@ -74,6 +74,16 @@ static Attr *handleSuppressAttr(Sema &S, Stmt *St, const ParsedAttr &A,
       S.Context, A, DiagnosticIdentifiers.data(), DiagnosticIdentifiers.size());
 }
 
+static bool CheckForDeprecatedSYCLLoopAttributeSpelling(
+    Sema &S, const ParsedAttr &A) {
+  if (A.getScopeName()->isStr("intelfpga")) {
+    S.Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated)
+        << "'" +  A.getNormalizedFullName()  + "'";
+    return true;
+  }
+  return false;
+}
+
 template <typename FPGALoopAttrT>
 static Attr *handleIntelFPGALoopAttr(Sema &S, const ParsedAttr &A) {
   if(S.LangOpts.SYCLIsHost)
@@ -96,37 +106,29 @@ static Attr *handleIntelFPGALoopAttr(Sema &S, const ParsedAttr &A) {
   }
 
   if (A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGAII &&
-      A.getAttributeSpellingListIndex() ==
-          SYCLIntelFPGAIIAttr::CXX11_intelfpga_ii) {
-    S.Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated) << A;
+      CheckForDeprecatedSYCLLoopAttributeSpelling(S, A)) {
     S.Diag(A.getLoc(), diag::note_spelling_suggestion) << "'intel::ii'";
+    return nullptr;
   } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency &&
-             A.getAttributeSpellingListIndex() ==
-                 SYCLIntelFPGAMaxConcurrencyAttr::
-                     CXX11_intelfpga_max_concurrency) {
-    S.Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated) << A;
+	     CheckForDeprecatedSYCLLoopAttributeSpelling(S, A)) {
     S.Diag(A.getLoc(), diag::note_spelling_suggestion)
-        << "'intel::max_concurrency'";
+	<< "'intel::max_concurrency'";
+    return nullptr;
   } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAMaxInterleaving &&
-             A.getAttributeSpellingListIndex() ==
-                 SYCLIntelFPGAMaxInterleavingAttr::
-                     CXX11_intelfpga_max_interleaving) {
-    S.Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated) << A;
+	     CheckForDeprecatedSYCLLoopAttributeSpelling(S, A)) {
     S.Diag(A.getLoc(), diag::note_spelling_suggestion)
         << "'intel::max_interleaving'";
+    return nullptr;
   } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGASpeculatedIterations &&
-             A.getAttributeSpellingListIndex() ==
-                 SYCLIntelFPGASpeculatedIterationsAttr::
-                     CXX11_intelfpga_speculated_iterations) {
-    S.Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated) << A;
+	      CheckForDeprecatedSYCLLoopAttributeSpelling(S, A)) {
     S.Diag(A.getLoc(), diag::note_spelling_suggestion)
         << "'intel::speculated_iterations'";
+    return nullptr;
   } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGALoopCoalesce &&
-             A.getAttributeSpellingListIndex() ==
-                 SYCLIntelFPGALoopCoalesceAttr::CXX11_intelfpga_loop_coalesce) {
-    S.Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated) << A;
+	     CheckForDeprecatedSYCLLoopAttributeSpelling(S, A)) {
     S.Diag(A.getLoc(), diag::note_spelling_suggestion)
         << "'intel::loop_coalesce'";
+    return nullptr;
   }
 
   return S.BuildSYCLIntelFPGALoopAttr<FPGALoopAttrT>(
@@ -145,12 +147,10 @@ Attr *handleIntelFPGALoopAttr<SYCLIntelFPGADisableLoopPipeliningAttr>(
     return nullptr;
   }
 
-  if (A.getAttributeSpellingListIndex() ==
-      SYCLIntelFPGADisableLoopPipeliningAttr::
-          CXX11_intelfpga_disable_loop_pipelining) {
-    S.Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated) << A;
+  if (CheckForDeprecatedSYCLLoopAttributeSpelling(S, A)) {
     S.Diag(A.getLoc(), diag::note_spelling_suggestion)
         << "'intel::disable_loop_pipelining'";
+    return nullptr;
   }
 
   return new (S.Context) SYCLIntelFPGADisableLoopPipeliningAttr(S.Context, A);
@@ -314,11 +314,11 @@ static Attr *handleIntelFPGAIVDepAttr(Sema &S, const ParsedAttr &A) {
     return nullptr;
   }
 
-  if (A.getAttributeSpellingListIndex() ==
-      SYCLIntelFPGAIVDepAttr::CXX11_intelfpga_ivdep) {
-    S.Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated) << A;
+  if (CheckForDeprecatedSYCLLoopAttributeSpelling(S, A)) {
     S.Diag(A.getLoc(), diag::note_spelling_suggestion) << "'intel::ivdep'";
+    return nullptr;
   }
+
   return S.BuildSYCLIntelFPGAIVDepAttr(
       A, NumArgs >= 1 ? A.getArgAsExpr(0) : nullptr,
       NumArgs == 2 ? A.getArgAsExpr(1) : nullptr);

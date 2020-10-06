@@ -28,7 +28,7 @@ struct FuncObj {
 };
 
 struct Func {
-  // expected-warning@+2 {{attribute 'max_work_group_size' is deprecated}}
+  // expected-warning@+2 {{attribute 'intelfpga::max_work_group_size' is deprecated}}
   // expected-note@+1 {{did you mean to use 'intel::max_work_group_size' instead?}}
   [[intelfpga::max_work_group_size(1, 1, 1)]] void operator()() const {}
 };

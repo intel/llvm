@@ -1,9 +1,13 @@
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-return-type -fcxx-exceptions -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
 
-struct FuncObj {
-  // expected-warning@+2 {{attribute 'no_global_work_offset' is deprecated}}
+struct test {
+  // expected-warning@+2 {{attribute 'intelfpga::no_global_work_offset' is deprecated}}
   // expected-note@+1 {{did you mean to use 'intel::no_global_work_offset' instead?}}
   [[intelfpga::no_global_work_offset]] void operator()() {}
+};
+
+struct FuncObj {
+  [[intel::no_global_work_offset]] void operator()() {}
 };
 
 template <typename name, typename Func>

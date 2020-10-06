@@ -35,7 +35,8 @@ class B {
 
 void helper() {}
 
-[[intel::device_indirectly_callable]] void foo() {
+[[intel::device_indirectly_callable]]
+void foo() {
   helper();
 }
 

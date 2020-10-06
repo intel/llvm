@@ -9,7 +9,7 @@ struct FuncObj {
 };
 
 struct FuncObj {
-  // expected-warning@+2 {{attribute 'intel_num_simd_work_items' is deprecated}}
+  // expected-warning@+2 {{attribute 'intelfpga::num_simd_work_items' is deprecated}}
   // expected-note@+1 {{did you mean to use 'intel::num_simd_work_items' instead?}}
   [[intelfpga::num_simd_work_items(42)]] void
   operator()() const {}

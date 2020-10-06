@@ -28,7 +28,7 @@ struct FuncObj {
 };
 
 struct Func {
-  // expected-warning@+2 {{attribute 'max_global_work_dim' is deprecated}}
+  // expected-warning@+2 {{attribute 'intelfpga::max_global_work_dim' is deprecated}}
   // expected-note@+1 {{did you mean to use 'intel::max_global_work_dim' instead?}}
   [[intelfpga::max_global_work_dim(2)]] void operator()() const {}
 };
