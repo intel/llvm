@@ -2845,9 +2845,11 @@ public:
   bool isValid() { return !IsInvalid; }
 
   bool Visit(QualType T) {
-    assert(!T.isNull() && "KernelNameType cannot be null");
+    if (T.isNull())
+      return false;
     const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
-    assert(RD && "KernelNameType is not a record");
+    if (!RD)
+      return false;
     // If KernelNameType has template args visit each template arg via
     // ConstTemplateArgumentVisitor
     if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
@@ -2862,7 +2864,8 @@ public:
   }
 
   bool Visit(const TemplateArgument &TA) {
-    assert(!TA.isNull() && "TemplateArgument cannot be null");
+    if (TA.isNull())
+      return false;
     return InnerTAVisitor::Visit(TA);
   }
 
