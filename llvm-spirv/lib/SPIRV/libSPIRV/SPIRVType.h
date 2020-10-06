@@ -48,8 +48,6 @@
 #include "SPIRVStream.h"
 
 #include <cassert>
-#include <iostream>
-#include <map>
 #include <tuple>
 #include <vector>
 

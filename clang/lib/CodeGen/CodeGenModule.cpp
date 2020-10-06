@@ -606,6 +606,23 @@ void CodeGenModule::Release() {
                               1);
   }
 
+  if (Arch == llvm::Triple::aarch64 || Arch == llvm::Triple::aarch64_32 ||
+      Arch == llvm::Triple::aarch64_be) {
+    getModule().addModuleFlag(llvm::Module::Error,
+                              "branch-target-enforcement",
+                              LangOpts.BranchTargetEnforcement);
+
+    getModule().addModuleFlag(llvm::Module::Error, "sign-return-address",
+                              LangOpts.hasSignReturnAddress());
+
+    getModule().addModuleFlag(llvm::Module::Error, "sign-return-address-all",
+                              LangOpts.isSignReturnAddressScopeAll());
+
+    getModule().addModuleFlag(llvm::Module::Error,
+                              "sign-return-address-with-bkey",
+                              !LangOpts.isSignReturnAddressWithAKey());
+  }
+
   if (LangOpts.CUDAIsDevice && getTriple().isNVPTX()) {
     // Indicate whether __nvvm_reflect should be configured to flush denormal
     // floating point values to 0.  (This corresponds to its "__CUDA_FTZ"
@@ -2253,6 +2270,11 @@ void CodeGenModule::EmitDeferred() {
     // emitted that then need those vtables.
     assert(DeferredVTables.empty());
   }
+
+  // Emit CUDA/HIP static device variables referenced by host code only.
+  if (getLangOpts().CUDA)
+    for (auto V : getContext().CUDAStaticDeviceVarReferencedByHost)
+      DeferredDeclsToEmit.push_back(V);
 
   // Stop if we're out of both deferred vtables and deferred declarations.
   if (DeferredDeclsToEmit.empty())
@@ -4012,7 +4034,10 @@ LangAS CodeGenModule::getStringLiteralAddressSpace() const {
     //   const char *getLiteral() n{
     //     return "AB";
     //   }
-    return LangAS::opencl_private;
+    // Use global address space to avoid illegal casts from constant to generic.
+    // Private address space is not used here because in SPIR-V global values
+    // cannot have private address space.
+    return LangAS::opencl_global;
   if (auto AS = getTarget().getConstantAddressSpace())
     return AS.getValue();
   return LangAS::Default;

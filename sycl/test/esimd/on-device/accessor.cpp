@@ -5,9 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// TODO enable on Windows
-// REQUIRES: linux
-// REQUIRES: gpu
+// TODO enable on Windows and Level Zero
+// REQUIRES: linux && gpu && opencl
 // RUN: %clangxx-esimd -fsycl -D_CRT_SECURE_NO_WARNINGS=1 %s -o %t.out
 // RUN: %ESIMD_RUN_PLACEHOLDER %t.out
 

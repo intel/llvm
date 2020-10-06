@@ -101,6 +101,12 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
       if (IsKernel)
         Streams = ((ExecCGCommand *)NewCmd)->getStreams();
+
+      if (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0) {
+        NewEvent->setCommand(nullptr); // if there are no memory dependencies,
+                                       // decouple and free the command
+        delete NewCmd;
+      }
     }
   }
 
