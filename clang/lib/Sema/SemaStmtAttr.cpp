@@ -114,9 +114,9 @@ static Attr *handleIntelFPGALoopAttr(Sema &S, const ParsedAttr &A) {
     S.Diag(A.getLoc(), diag::note_spelling_suggestion)
         << "'intel::max_concurrency'";
   } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency &&
-	     CheckForDeprecatedSYCLLoopAttributeSpelling(S, A)) {
+             CheckForDeprecatedSYCLLoopAttributeSpelling(S, A)) {
     S.Diag(A.getLoc(), diag::note_spelling_suggestion)
-	<< "'intel::max_concurrency'";
+        << "'intel::max_concurrency'";
     return nullptr;
   } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAMaxInterleaving &&
              CheckForDeprecatedSYCLLoopAttributeSpelling(S, A)) {
@@ -124,7 +124,7 @@ static Attr *handleIntelFPGALoopAttr(Sema &S, const ParsedAttr &A) {
         << "'intel::max_interleaving'";
     return nullptr;
   } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGASpeculatedIterations &&
-	     CheckForDeprecatedSYCLLoopAttributeSpelling(S, A)) {
+             CheckForDeprecatedSYCLLoopAttributeSpelling(S, A)) {
     S.Diag(A.getLoc(), diag::note_spelling_suggestion)
         << "'intel::speculated_iterations'";
     return nullptr;
