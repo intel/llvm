@@ -66,7 +66,8 @@ std::once_flag flag;
 void stream_impl::flush() {
   // We don't want stream flushing to be blocking operation that is why submit a
   // host task to print stream buffer.
-  queue &Q = cl::sycl::detail::Scheduler::getInstance().getDefaultHostQueue();
+  queue Q = detail::createSyclObjFromImpl<queue>(
+      cl::sycl::detail::Scheduler::getInstance().getDefaultHostQueue());
   Q.submit([&](handler &cgh) {
     auto HostAcc =
         detail::Scheduler::getInstance()
