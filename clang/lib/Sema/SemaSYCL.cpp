@@ -2829,13 +2829,13 @@ public:
 } // namespace
 
 class SYCLKernelNameTypeVisitor
-    : public TypeVisitor<SYCLKernelNameTypeVisitor, bool>,
-      public ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor, bool> {
+    : public TypeVisitor<SYCLKernelNameTypeVisitor>,
+      public ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor> {
   Sema &S;
   SourceLocation KernelInvocationFuncLoc;
-  using InnerTypeVisitor = TypeVisitor<SYCLKernelNameTypeVisitor, bool>;
+  using InnerTypeVisitor = TypeVisitor<SYCLKernelNameTypeVisitor>;
   using InnerTAVisitor =
-      ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor, bool>;
+      ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor>;
   bool IsInvalid = false;
 
 public:
@@ -2844,12 +2844,12 @@ public:
 
   bool isValid() { return !IsInvalid; }
 
-  bool Visit(QualType T) {
+  void Visit(QualType T) {
     if (T.isNull())
-      return false;
+      return;
     const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
     if (!RD)
-      return false;
+      return;
     // If KernelNameType has template args visit each template arg via
     // ConstTemplateArgumentVisitor
     if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
@@ -2860,16 +2860,15 @@ public:
     } else {
       InnerTypeVisitor::Visit(T.getTypePtr());
     }
-    return true;
   }
 
-  bool Visit(const TemplateArgument &TA) {
+  void Visit(const TemplateArgument &TA) {
     if (TA.isNull())
-      return false;
-    return InnerTAVisitor::Visit(TA);
+      return;
+    InnerTAVisitor::Visit(TA);
   }
 
-  bool VisitEnumType(const EnumType *T) {
+  void VisitEnumType(const EnumType *T) {
     const EnumDecl *ED = T->getDecl();
     if (!ED->isScoped() && !ED->isFixed()) {
       S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
@@ -2877,16 +2876,14 @@ public:
       S.Diag(ED->getSourceRange().getBegin(), diag::note_entity_declared_at)
           << ED;
       IsInvalid = true;
-      return isValid();
     }
-    return true;
   }
 
-  bool VisitRecordType(const RecordType *T) {
+  void VisitRecordType(const RecordType *T) {
     return VisitTagDecl(T->getDecl());
   }
 
-  bool VisitTagDecl(const TagDecl *Tag) {
+  void VisitTagDecl(const TagDecl *Tag) {
     bool UnnamedLambdaEnabled =
         S.getASTContext().getLangOpts().SYCLUnnamedLambda;
     if (!Tag->getDeclContext()->isTranslationUnit() &&
@@ -2908,35 +2905,31 @@ public:
         S.Diag(Tag->getSourceRange().getBegin(), diag::note_previous_decl)
             << Tag->getName();
       }
-      return isValid();
     }
-    return true;
   }
 
-  bool VisitTypeTemplateArgument(const TemplateArgument &TA) {
+  void VisitTypeTemplateArgument(const TemplateArgument &TA) {
     QualType T = TA.getAsType();
     if (const auto *ET = T->getAs<EnumType>())
-      return VisitEnumType(ET);
-    return Visit(T);
+      VisitEnumType(ET);
+    Visit(T);
   }
 
-  bool VisitIntegralTemplateArgument(const TemplateArgument &TA) {
+  void VisitIntegralTemplateArgument(const TemplateArgument &TA) {
     QualType T = TA.getIntegralType();
     if (const EnumType *ET = T->getAs<EnumType>())
-      return VisitEnumType(ET);
-    return true;
+      VisitEnumType(ET);
   }
 
-  bool VisitTemplateTemplateArgument(const TemplateArgument &TA) {
+  void VisitTemplateTemplateArgument(const TemplateArgument &TA) {
     TemplateDecl *TD = TA.getAsTemplate().getAsTemplateDecl();
     TemplateParameterList *TemplateParams = TD->getTemplateParameters();
     for (NamedDecl *P : *TemplateParams) {
       if (NonTypeTemplateParmDecl *TemplateParam =
               dyn_cast<NonTypeTemplateParmDecl>(P))
         if (const EnumType *ET = TemplateParam->getType()->getAs<EnumType>())
-          return VisitEnumType(ET);
+          VisitEnumType(ET);
     }
-    return true;
   }
 };
 
