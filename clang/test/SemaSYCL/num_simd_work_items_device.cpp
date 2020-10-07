@@ -47,8 +47,10 @@ int main() {
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
   // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
   // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
+  // expected-warning@+3 {{attribute 'intelfpga::num_simd_work_items' is deprecated}}
+  // expected-note@+2 {{did you mean to use 'intel::num_simd_work_items' instead?}}
   kernel<class test_kernel2>(
-      []() [[intel::num_simd_work_items(8)]]{});
+      []() [[intelfpga::num_simd_work_items(8)]]{});
 
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
   // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}

@@ -70,8 +70,10 @@ int main() {
 
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
   // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}} 2
+  // expected-warning@+3 {{attribute 'intelfpga::max_global_work_dim' is deprecated}}
+  // expected-note@+2 {{did you mean to use 'intel::max_global_work_dim' instead?}}
   kernel<class test_kernel2>(
-      []() [[intel::max_global_work_dim(2)]]{});
+      []() [[intelfpga::max_global_work_dim(2)]]{});
 
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
   // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}

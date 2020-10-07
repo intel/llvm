@@ -55,8 +55,10 @@ int main() {
 
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
   // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}} 8 8 8
+  // expected-warning@+3 {{attribute 'intelfpga::max_work_group_size' is deprecated}}
+  // expected-note@+2 {{did you mean to use 'intel::max_work_group_size' instead?}}
   kernel<class test_kernel2>(
-      []() [[intel::max_work_group_size(8, 8, 8)]]{});
+      []() [[intelfpga::max_work_group_size(8, 8, 8)]]{});
 
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
   // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
