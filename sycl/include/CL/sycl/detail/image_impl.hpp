@@ -79,9 +79,26 @@ private:
                 "Dimensions of cl::sycl::image can be 1, 2 or 3");
 
   void setPitches() {
+    CPOUT << "setPitches()!!" << std::endl;
     size_t WHD[3] = {1, 1, 1}; // Width, Height, Depth.
+#ifndef CP_CHANGE_IMAGE
     for (int I = 0; I < Dimensions; I++)
       WHD[I] = MRange[I];
+#else
+    // MRange is [width], [height, width] or [depth, height, width]
+    if (Dimensions == 1) {
+      WHD[0] = MRange[0];
+    }
+    if (Dimensions == 2) {
+      WHD[0] = MRange[1];
+      WHD[1] = MRange[0];
+    }
+    if (Dimensions == 3) {
+      WHD[0] = MRange[2];
+      WHD[1] = MRange[1];
+      WHD[2] = MRange[0];
+    }
+#endif
     MRowPitch = MElementSize * WHD[0];
     MSlicePitch = MRowPitch * WHD[1];
     BaseT::MSizeInBytes = MSlicePitch * WHD[2];
@@ -89,12 +106,18 @@ private:
 
   template <bool B = (Dimensions > 1)>
   void setPitches(const EnableIfPitchT<B> Pitch) {
+    CPOUT << "setPitched() DIM BIG! " << Pitch[0] << " / "
+          << ((Dimensions == 3) ? Pitch[1] : 0) << std::endl;
     MRowPitch = Pitch[0];
     MSlicePitch =
         (Dimensions == 3) ? Pitch[1] : MRowPitch; // Dimensions will be 2/3.
     // NumSlices is depth when dim==3, and height when dim==2.
+#ifndef CP_CHANGE_IMAGE
     size_t NumSlices =
         (Dimensions == 3) ? MRange[2] : MRange[1]; // Dimensions will be 2/3.
+#else
+    size_t NumSlices = (Dimensions == 3) ? MRange[0] : 1;
+#endif
     BaseT::MSizeInBytes = MSlicePitch * NumSlices;
   }
 
@@ -245,17 +268,44 @@ private:
   RT::PiMemImageDesc getImageDesc(bool InitFromHostPtr) {
     RT::PiMemImageDesc Desc;
     Desc.image_type = getImageType();
-    //CP
-    //range<> is [width], [height,width], or [depth,height,width]
-    Desc.image_width = MRange[0];
-    Desc.image_height = Dimensions > 1 ? MRange[1] : 1;
-    Desc.image_depth = Dimensions > 2 ? MRange[2] : 1;
+    // CP
+    // MRange<> is [width], [height,width], or [depth,height,width]
+    if (Dimensions == 3) {
+      CPOUT << "getImageDesc: MRange: {" << MRange[0] << "," << MRange[1] << ","
+            << MRange[2] << "}" << std::endl;
+    } else if (Dimensions == 2) {
+      CPOUT << "getImageDesc: MRange: {" << MRange[0] << "," << MRange[1] << "}"
+            << std::endl;
+    } else if (Dimensions == 1) {
+      CPOUT << "getImageDesc: MRange: {" << MRange[0] << "}" << std::endl;
+    }
+
+#ifdef CP_CHANGE_IMAGE
+    int x_term_pos = 2, y_term_pos = 1, z_term_pos = 0;
+    if (Dimensions == 2) {
+      y_term_pos = 0;
+      x_term_pos = 1;
+    }
+    if (Dimensions == 1) {
+      x_term_pos = 0;
+    }
+#else
+    int x_term_pos = 0, y_term_pos = 1, z_term_pos = 2;
+#endif
+
+    Desc.image_width = MRange[x_term_pos];
+    Desc.image_height = Dimensions > 1 ? MRange[y_term_pos] : 1;
+    Desc.image_depth = Dimensions > 2 ? MRange[z_term_pos] : 1;
+    CPOUT << "    Desc.image_ w/h/d: " << Desc.image_width << " / "
+          << Desc.image_height << " / " << Desc.image_depth << std::endl;
 
     // TODO handle cases with IMAGE1D_ARRAY and IMAGE2D_ARRAY
     Desc.image_array_size = 0;
     // Pitches must be 0 if host ptr is not provided.
     Desc.image_row_pitch = InitFromHostPtr ? MRowPitch : 0;
     Desc.image_slice_pitch = InitFromHostPtr ? MSlicePitch : 0;
+    CPOUT << "    Desc.image_ row_pitch/slice: " << Desc.image_row_pitch
+          << " / " << Desc.image_slice_pitch << std::endl;
 
     Desc.num_mip_levels = 0;
     Desc.num_samples = 0;

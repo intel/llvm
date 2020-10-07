@@ -1,7 +1,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out | FileCheck %s
-// XUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out | FileCheck %s
-// TFAIL: *
+// RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
+// RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 
 /*
   Manual
@@ -71,8 +70,12 @@ void testcopyD2HImage(){
   constexpr auto SYCLWrite = sycl::access::mode::write;
 
   const sycl::range<1> ImgSize_1D(width);
-  const sycl::range<2> ImgSize_2D(height, width);
-  const sycl::range<3> ImgSize_3D(depth, height, width);
+  // for a buffer, a range<2> would be  (height, width).
+  // but for an image, the interpretation is reversed. (width, height).
+  const sycl::range<2> ImgSize_2D(width, height);
+  // for a buffer, a range<3> would be (depth, height, width)
+  // but for an image, the interpretation is reversed (width, height, depth)
+  const sycl::range<3> ImgSize_3D(width, height, depth);
 
   std::vector<sycl::float4> data_from_1D(ImgSize_1D.size(), {1, 2, 3, 4});
   std::vector<sycl::float4> data_to_1D(ImgSize_1D.size(), {0, 0, 0, 0});
@@ -82,6 +85,7 @@ void testcopyD2HImage(){
   std::vector<sycl::float4> data_to_3D(ImgSize_3D.size(), {0, 0, 0, 0});
 
   {
+    std::cout << "-- 1D" << std::endl;
     sycl::image<1> image_from_1D(data_from_1D.data(), ChanOrder, ChanType, ImgSize_1D);
     sycl::image<1> image_to_1D(data_to_1D.data(), ChanOrder, ChanType, ImgSize_1D);
     queue Q;
@@ -94,9 +98,11 @@ void testcopyD2HImage(){
         writeAcc.write(int(Item[0]), Data);
       });
     });
+    std::cout << "about to destruct 1D" << std::endl;
   } // ~image 1D
 
   {
+    std::cout << "-- 2D" << std::endl;
     sycl::image<2> image_from_2D(data_from_2D.data(), ChanOrder, ChanType, ImgSize_2D);
     sycl::image<2> image_to_2D(data_to_2D.data(), ChanOrder, ChanType, ImgSize_2D);
     queue Q;
@@ -109,9 +115,11 @@ void testcopyD2HImage(){
         writeAcc.write(sycl::int2{Item[0], Item[1]}, Data);
       });
     });
+    std::cout << "about to destruct 2D" << std::endl;
   } // ~image 2D
 
   {
+    std::cout << "-- 3D" << std::endl;
     sycl::image<3> image_from_3D(data_from_3D.data(), ChanOrder, ChanType, ImgSize_3D);
     sycl::image<3> image_to_3D(data_to_3D.data(), ChanOrder, ChanType, ImgSize_3D);
     queue Q;
@@ -124,6 +132,7 @@ void testcopyD2HImage(){
         writeAcc.write(sycl::int4{Item[0], Item[1], Item[2],0}, Data);
       });
     });
+    std::cout << "about to destruct 3D" << std::endl;
   } // ~image 3D
   
   std::cout << "end copyD2H-Image" << std::endl;
@@ -140,8 +149,12 @@ void testcopyH2DImage() {
   constexpr auto SYCLWrite = sycl::access::mode::write;
 
   const sycl::range<1> ImgSize_1D(width);
-  const sycl::range<2> ImgSize_2D(height, width);
-  const sycl::range<3> ImgSize_3D(depth, height, width);
+  // for a buffer, a range<2> would be  (height, width).
+  // but for an image, the interpretation is reversed. (width, height).
+  const sycl::range<2> ImgSize_2D(width, height);
+  // for a buffer, a range<3> would be (depth, height, width)
+  // but for an image, the interpretation is reversed (width, height, depth)
+  const sycl::range<3> ImgSize_3D(width, height, depth);
 
   std::vector<sycl::float4> data_from_1D(ImgSize_1D.size(), {1, 2, 3, 4});
   std::vector<sycl::float4> data_to_1D(ImgSize_1D.size(), {0, 0, 0, 0});
@@ -152,6 +165,7 @@ void testcopyH2DImage() {
 
   // 1D 
   {
+    std::cout << "-- 1D" << std::endl;
     sycl::image<1> image_from_1D(data_from_1D.data(), ChanOrder, ChanType, ImgSize_1D);
     sycl::image<1> image_to_1D(data_to_1D.data(), ChanOrder, ChanType, ImgSize_1D);
     queue Q;
@@ -177,10 +191,12 @@ void testcopyH2DImage() {
         writeAcc.write(int(Item[0]), Data);
       });
     });
+    std::cout << "about to destruct 1D" << std::endl;
   } // ~image 1D
-  
+
   //2D
   {
+    std::cout << "-- 2D" << std::endl;
     sycl::image<2> image_from_2D(data_from_2D.data(), ChanOrder, ChanType, ImgSize_2D);
     sycl::image<2> image_to_2D(data_to_2D.data(), ChanOrder, ChanType, ImgSize_2D);
     queue Q;
@@ -205,10 +221,12 @@ void testcopyH2DImage() {
         writeAcc.write(sycl::int2{Item[0], Item[1]}, Data);
       });
     });
+    std::cout << "about to destruct 2D" << std::endl;
   } // ~image 2D
 
   //3D
   {
+    std::cout << "-- 3D" << std::endl;
     sycl::image<3> image_from_3D(data_from_3D.data(), ChanOrder, ChanType, ImgSize_3D);
     sycl::image<3> image_to_3D(data_to_3D.data(), ChanOrder, ChanType, ImgSize_3D);
     queue Q;
@@ -233,6 +251,7 @@ void testcopyH2DImage() {
         writeAcc.write(sycl::int4{Item[0], Item[1], Item[2],0}, Data);
       });
     });
+    std::cout << "about to destruct 3D" << std::endl;
   } // ~image 3D
 
   std::cout << "end copyH2D-image" << std::endl;
@@ -241,12 +260,12 @@ void testcopyH2DImage() {
 // --------------
 
 int main() {
-    
-    
-    testcopyD2HImage();
-    testcopyH2DImage();
-    //TODO  .copy() and .fill() not yet supported for images
-    // add tests once they are.
+
+  remind();
+  testcopyD2HImage();
+  testcopyH2DImage();
+  // TODO  .copy() and .fill() not yet supported for images
+  // add tests once they are.
 }
 
 
@@ -254,11 +273,29 @@ int main() {
 // ----------- IMAGES
 
 //CHECK: start copyD2H-Image
+//CHECK: -- 1D
+//CHECK: ---> piMemImageCreate(
+//CHECK: image_desc w/h/d : 16 / 1 / 1  --  arrSz/row/slice : 0 / 256 / 256  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4340
+//CHECK: ---> piMemImageCreate(
+//CHECK: image_desc w/h/d : 16 / 1 / 1  --  arrSz/row/slice : 0 / 256 / 256  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4340
+//CHECK: about to destruct 1D
 //CHECK: ---> piEnqueueMemImageRead(
 //CHECK: pi_image_region width/height/depth : 16/1/1
+//CHECK: -- 2D
+//CHECK: ---> piMemImageCreate(
+//CHECK: image_desc w/h/d : 16 / 5 / 1  --  arrSz/row/slice : 0 / 256 / 1280  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4337
+//CHECK: ---> piMemImageCreate(
+//CHECK: image_desc w/h/d : 16 / 5 / 1  --  arrSz/row/slice : 0 / 256 / 1280  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4337
+//CHECK: about to destruct 2D
 //CHECK: ---> piEnqueueMemImageRead(
 //CHECK: pi_image_region width/height/depth : 16/5/1
 //CHECK-NEXT: <unknown> : 256
+//CHECK: -- 3D
+//CHECK: ---> piMemImageCreate(
+//CHECK: image_desc w/h/d : 16 / 5 / 3  --  arrSz/row/slice : 0 / 256 / 1280  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4338
+//CHECK: ---> piMemImageCreate(
+//CHECK: image_desc w/h/d : 16 / 5 / 3  --  arrSz/row/slice : 0 / 256 / 1280  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4338
+//CHECK: about to destruct 3D
 //CHECK: ---> piEnqueueMemImageRead(
 //CHECK: pi_image_region width/height/depth : 16/5/3
 //CHECK-NEXT: <unknown> : 256
@@ -266,32 +303,75 @@ int main() {
 //CHECK: end copyD2H-Image
 
 //CHECK: start copyH2D-image
-//CHECK: ---> piEnqueueMemImageWrite(
-//CHECK: pi_image_region width/height/depth : 16/1/1
-//CHECK: ---> piEnqueueMemImageWrite(
-//CHECK: pi_image_region width/height/depth : 16/1/1
+//CHECK: -- 1D
+//CHECK: ---> piMemImageCreate(
+//CHECK: image_desc w/h/d : 16 / 1 / 1  --  arrSz/row/slice : 0 / 256 / 256  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4340
+//CHECK: ---> piMemImageCreate(
+//CHECK: image_desc w/h/d : 16 / 1 / 1  --  arrSz/row/slice : 0 / 256 / 256  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4340
+//CHECK: ---> piMemImageCreate(
+//CHECK: image_desc w/h/d : 16 / 1 / 1  --  arrSz/row/slice : 0 / 0 / 0  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4340
 //CHECK: ---> piEnqueueMemImageRead(
-//CHECK: ---> piProgramRelease(
-//CHECK: ---> piQueueCreate(
-//CHECK: ---> piKernelCreate(
+//CHECK: pi_image_region width/height/depth : 16/1/1
+//CHECK: ---> piEnqueueMemImageWrite(
+//CHECK: pi_image_region width/height/depth : 16/1/1
+//CHECK: ---> piMemImageCreate(
+//CHECK: image_desc w/h/d : 16 / 1 / 1  --  arrSz/row/slice : 0 / 0 / 0  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4340
+//CHECK: ---> piEnqueueMemImageRead(
+//CHECK: pi_image_region width/height/depth : 16/1/1
+//CHECK: ---> piEnqueueMemImageWrite(
+//CHECK: pi_image_region width/height/depth : 16/1/1
+//CHECK: about to destruct 1D
+//CHECK: ---> piEnqueueMemImageRead(
+//CHECK: pi_image_region width/height/depth : 16/1/1
+//CHECK: -- 2D
+//CHECK: ---> piMemImageCreate(
+//CHECK: image_desc w/h/d : 16 / 5 / 1  --  arrSz/row/slice : 0 / 256 / 1280  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4337
+//CHECK: ---> piMemImageCreate(
+//CHECK: image_desc w/h/d : 16 / 5 / 1  --  arrSz/row/slice : 0 / 256 / 1280  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4337
+//CHECK: ---> piMemImageCreate(
+//CHECK: image_desc w/h/d : 16 / 5 / 1  --  arrSz/row/slice : 0 / 0 / 0  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4337
 //CHECK: ---> piEnqueueMemImageRead(
 //CHECK: pi_image_region width/height/depth : 16/5/1
 //CHECK: ---> piEnqueueMemImageWrite(
 //CHECK: pi_image_region width/height/depth : 16/5/1
 //CHECK-NEXT: <unknown> : 256
+//CHECK: ---> piMemImageCreate(
+//CHECK: image_desc w/h/d : 16 / 5 / 1  --  arrSz/row/slice : 0 / 0 / 0  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4337
+//CHECK: ---> piEnqueueMemImageRead(
+//CHECK: pi_image_region width/height/depth : 16/5/1
 //CHECK: ---> piEnqueueMemImageWrite(
 //CHECK: pi_image_region width/height/depth : 16/5/1
 //CHECK-NEXT: <unknown> : 256
+//CHECK: about to destruct 2D
+//CHECK: ---> piEnqueueMemImageRead(
+//CHECK: pi_image_region width/height/depth : 16/5/1
+//CHECK: -- 3D
+//CHECK: ---> piMemImageCreate(
+//CHECK: image_desc w/h/d : 16 / 5 / 3  --  arrSz/row/slice : 0 / 256 / 1280  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4338
+//CHECK: ---> piMemImageCreate(
+//CHECK: image_desc w/h/d : 16 / 5 / 3  --  arrSz/row/slice : 0 / 256 / 1280  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4338
+//CHECK: ---> piMemImageCreate(
+//CHECK: image_desc w/h/d : 16 / 5 / 3  --  arrSz/row/slice : 0 / 0 / 0  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4338
+//CHECK: ---> piEnqueueMemImageRead(
+//CHECK: pi_image_region width/height/depth : 16/5/3
 //CHECK: ---> piEnqueueMemImageWrite(
 //CHECK: pi_image_region width/height/depth : 16/5/3
 //CHECK-NEXT: <unknown> : 256
 //CHECK-NEXT: <unknown> : 1280
+//CHECK: ---> piMemImageCreate(
+//CHECK: image_desc w/h/d : 16 / 5 / 3  --  arrSz/row/slice : 0 / 0 / 0  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4338
+//CHECK: ---> piEnqueueMemImageRead(
+//CHECK: pi_image_region width/height/depth : 16/5/3
 //CHECK: ---> piEnqueueMemImageWrite(
 //CHECK: pi_image_region width/height/depth : 16/5/3
 //CHECK-NEXT: <unknown> : 256
 //CHECK-NEXT: <unknown> : 1280
+//CHECK: about to destruct 3D
+//CHECK: ---> piEnqueueMemImageRead(
+//CHECK: pi_image_region width/height/depth : 16/5/3
+// CHECK-NEXT: <unknown> : 256
+// CHECK-NEXT: <unknown> : 1280
 //CHECK: end copyH2D-image
-
 
 // ----------- 
 
