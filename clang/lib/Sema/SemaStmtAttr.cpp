@@ -103,7 +103,7 @@ static Attr *handleIntelFPGALoopAttr(Sema &S, const ParsedAttr &A) {
     }
   }
 
-  if (A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGAII &&
+  if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAII &&
       checkDeprecatedSYCLLoopAttributeSpelling(S, A)) {
     S.Diag(A.getLoc(), diag::note_spelling_suggestion) << "'intel::ii'";
   } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency &&
@@ -144,10 +144,9 @@ Attr *handleIntelFPGALoopAttr<SYCLIntelFPGADisableLoopPipeliningAttr>(
     return nullptr;
   }
 
-  if (checkDeprecatedSYCLLoopAttributeSpelling(S, A)) {
+  if (checkDeprecatedSYCLLoopAttributeSpelling(S, A))
     S.Diag(A.getLoc(), diag::note_spelling_suggestion)
         << "'intel::disable_loop_pipelining'";
-  }
 
   return new (S.Context) SYCLIntelFPGADisableLoopPipeliningAttr(S.Context, A);
 }
@@ -310,9 +309,8 @@ static Attr *handleIntelFPGAIVDepAttr(Sema &S, const ParsedAttr &A) {
     return nullptr;
   }
 
-  if (checkDeprecatedSYCLLoopAttributeSpelling(S, A)) {
+  if (checkDeprecatedSYCLLoopAttributeSpelling(S, A))
     S.Diag(A.getLoc(), diag::note_spelling_suggestion) << "'intel::ivdep'";
-  }
 
   return S.BuildSYCLIntelFPGAIVDepAttr(
       A, NumArgs >= 1 ? A.getArgAsExpr(0) : nullptr,

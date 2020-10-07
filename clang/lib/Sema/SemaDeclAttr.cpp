@@ -2934,10 +2934,9 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &Attr,
   }
 
   if (Attr.getKind() == ParsedAttr::AT_SYCLIntelMaxWorkGroupSize &&
-      checkDeprecatedSYCLAttributeSpelling(S, Attr)) {
+      checkDeprecatedSYCLAttributeSpelling(S, Attr))
     S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)
         << "'intel::max_work_group_size'";
-  }
 
   if (const auto *A = D->getAttr<ReqdWorkGroupSizeAttr>()) {
     if (!(WGSize[0] >= A->getXDim() && WGSize[1] >= A->getYDim() &&
@@ -5191,10 +5190,9 @@ static void handleNoGlobalWorkOffsetAttr(Sema &S, Decl *D,
         << Attr;
 
   if (Attr.getKind() == ParsedAttr::AT_SYCLIntelNoGlobalWorkOffset &&
-      checkDeprecatedSYCLAttributeSpelling(S, Attr)) {
+      checkDeprecatedSYCLAttributeSpelling(S, Attr))
     S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)
         << "'intel::no_global_work_offset'";
-  }
 
   D->addAttr(::new (S.Context)
                  SYCLIntelNoGlobalWorkOffsetAttr(S.Context, Attr, Enabled));
@@ -5221,14 +5219,13 @@ static void handleIntelFPGAPumpAttr(Sema &S, Decl *D, const ParsedAttr &Attr) {
         S.Context, IntelFPGAMemoryAttr::Default));
 
   if (Attr.getKind() == ParsedAttr::AT_IntelFPGADoublePump &&
-      checkDeprecatedSYCLAttributeSpelling(S, Attr)) {
+      checkDeprecatedSYCLAttributeSpelling(S, Attr))
     S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)
         << "'intel::doublepump'";
-  } else if (Attr.getKind() == ParsedAttr::AT_IntelFPGASinglePump &&
-             checkDeprecatedSYCLAttributeSpelling(S, Attr)) {
-    S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)
-        << "'intel::singlepump'";
-  }
+  else if (Attr.getKind() == ParsedAttr::AT_IntelFPGASinglePump &&
+           checkDeprecatedSYCLAttributeSpelling(S, Attr))
+  S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)
+      << "'intel::singlepump'";
 
   handleSimpleAttribute<AttrType>(S, D, Attr);
 }
@@ -5345,14 +5342,13 @@ static void handleOneConstantPowerTwoValueAttr(Sema &S, Decl *D,
     return;
 
   if (Attr.getKind() == ParsedAttr::AT_IntelFPGABankWidth &&
-      checkDeprecatedSYCLAttributeSpelling(S, Attr)) {
+      checkDeprecatedSYCLAttributeSpelling(S, Attr))
     S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)
         << "'intel::bankwidth'";
-  } else if (Attr.getKind() == ParsedAttr::AT_IntelFPGANumBanks &&
-             checkDeprecatedSYCLAttributeSpelling(S, Attr)) {
-    S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)
-        << "'intel::numbanks'";
-  }
+  else if (Attr.getKind() == ParsedAttr::AT_IntelFPGANumBanks &&
+           checkDeprecatedSYCLAttributeSpelling(S, Attr))
+  S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)
+      << "'intel::numbanks'";
 
   S.AddOneConstantPowerTwoValueAttr<AttrType>(D, Attr, Attr.getArgAsExpr(0));
 }
