@@ -1791,12 +1791,11 @@ pi_result piQueueRelease(pi_queue Queue) {
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
   if (--(Queue->RefCount) == 0) {
-    // There should be no open command lists.  Those should have been closed
-    // and executed by piQueueFinish or earlier.
-    assert(Queue->ZeOpenCommandList == nullptr &&
-           Queue->ZeOpenCommandListFence == nullptr &&
-           Queue->ZeOpenCommandListSize == 0);
-
+    // It is possible to get to here and still have an open command list
+    // if no wait or finish ever occurred for this queue.  But still need
+    // to make sure commands get executed.
+    Queue->executeOpenCommandList();
+    
     // Destroy all the fences created associated with this queue.
     for (const auto &MapEntry : Queue->ZeCommandListFenceMap) {
       ZE_CALL(zeFenceDestroy(MapEntry.second));
