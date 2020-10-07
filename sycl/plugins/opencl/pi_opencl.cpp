@@ -535,6 +535,7 @@ pi_result piMemImageCreate(pi_context context, pi_mem_flags flags,
                     cast<const cl_image_format *>(image_format),
                     cast<const cl_image_desc *>(image_desc), host_ptr,
                     cast<cl_int *>(&ret_err)));
+
   return ret_err;
 }
 

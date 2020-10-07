@@ -14,6 +14,5 @@
 #define CL_TARGET_OPENCL_VERSION 220
 #endif
 
-
 #include <CL/cl.h>
 #include <CL/cl_ext.h>

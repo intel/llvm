@@ -80,24 +80,9 @@ private:
 
   void setPitches() {
     size_t WHD[3] = {1, 1, 1}; // Width, Height, Depth.
-#ifndef CP_CHANGE_IMAGE
     for (int I = 0; I < Dimensions; I++)
       WHD[I] = MRange[I];
-#else
-    // MRange is [width], [height, width] or [depth, height, width]
-    if (Dimensions == 1) {
-      WHD[0] = MRange[0];
-    }
-    if (Dimensions == 2) {
-      WHD[0] = MRange[1];
-      WHD[1] = MRange[0];
-    }
-    if (Dimensions == 3) {
-      WHD[0] = MRange[2];
-      WHD[1] = MRange[1];
-      WHD[2] = MRange[0];
-    }
-#endif
+
     MRowPitch = MElementSize * WHD[0];
     MSlicePitch = MRowPitch * WHD[1];
     BaseT::MSizeInBytes = MSlicePitch * WHD[2];
@@ -109,12 +94,9 @@ private:
     MSlicePitch =
         (Dimensions == 3) ? Pitch[1] : MRowPitch; // Dimensions will be 2/3.
     // NumSlices is depth when dim==3, and height when dim==2.
-#ifndef CP_CHANGE_IMAGE
     size_t NumSlices =
         (Dimensions == 3) ? MRange[2] : MRange[1]; // Dimensions will be 2/3.
-#else
-    size_t NumSlices = (Dimensions == 3) ? MRange[0] : 1;
-#endif
+
     BaseT::MSizeInBytes = MSlicePitch * NumSlices;
   }
 

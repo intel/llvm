@@ -257,11 +257,8 @@ void prepTermPositions(term_positions &pos, int Dimensions,
   //  2 ==>  {height, width, 1}
   //  3 ==>  {depth, height, width}
   // Some callers enqueue 0 as DimDst/DimSrc.
-#ifdef CP_CHANGE_IMAGE
-  if (true) {
-#else
+
   if (type == detail::SYCLMemObjI::MemObjType::BUFFER) {
-#endif
     if (Dimensions == 3) {
       pos.x_term = 2, pos.y_term = 1, pos.z_term = 0;
     } else if (Dimensions == 2) {
