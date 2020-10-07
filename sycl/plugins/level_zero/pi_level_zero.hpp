@@ -177,9 +177,13 @@ struct _pi_device : _pi_object {
   // caller must pass a command queue to create a new fence for the new command
   // list if a command list/fence pair is not available. All Command Lists &
   // associated fences are destroyed at Device Release.
+  // If AllowBatching is true, then the command list returned may already have
+  // command in it, if AllowBatching is false, any open command lists that
+  // already exist in Queue will be closed and executed.
   pi_result getAvailableCommandList(pi_queue Queue,
                                     ze_command_list_handle_t *ZeCommandList,
-                                    ze_fence_handle_t *ZeFence);
+                                    ze_fence_handle_t *ZeFence,
+                                    bool AllowBatching = false);
 
   // Cache of the immutable device properties.
   ze_device_properties_t ZeDeviceProperties;
@@ -268,8 +272,9 @@ private:
 
 struct _pi_queue : _pi_object {
   _pi_queue(ze_command_queue_handle_t Queue, pi_context Context,
-            pi_device Device)
-      : ZeCommandQueue{Queue}, Context{Context}, Device{Device} {}
+            pi_device Device, pi_uint32 QueueBatchSize)
+      : ZeCommandQueue{Queue}, Context{Context}, Device{Device},
+        QueueBatchSize{QueueBatchSize} {}
 
   // Level Zero command queue handle.
   ze_command_queue_handle_t ZeCommandQueue;
@@ -291,9 +296,22 @@ struct _pi_queue : _pi_object {
   // needed/used for the queue data structures.
   std::mutex PiQueueMutex;
 
+  // Open command list field for batching commands into this queue.
+  ze_command_list_handle_t ZeOpenCommandList = {nullptr};
+  ze_fence_handle_t ZeOpenCommandListFence = {nullptr};
+  pi_uint32 ZeOpenCommandListSize = {0};
+
+  // Approximate number of commands that are allowed to be batched for
+  // this queue.
+  pi_uint32 QueueBatchSize = {0};
+
   // Map of all Command lists created with their associated Fence used for
   // tracking when the command list is available for use again.
   std::map<ze_command_list_handle_t, ze_fence_handle_t> ZeCommandListFenceMap;
+
+  // Returns true if any commands for this queue are allowed to
+  // be batched together.
+  bool isBatchingAllowed();
 
   // Resets the Command List and Associated fence in the ZeCommandListFenceMap.
   // If the reset command list should be made available, then MakeAvailable
@@ -302,14 +320,25 @@ struct _pi_queue : _pi_object {
   pi_result resetCommandListFenceEntry(ze_command_list_handle_t ZeCommandList,
                                        bool MakeAvailable);
 
+  // Attach a command list to this queue and allow it to remain open
+  // and used for further batching.  It may be executed immediately,
+  // or it may be left open for other future command to be batched into.
+  pi_result batchCommandList(ze_command_list_handle_t ZeCommandList,
+                             ze_fence_handle_t ZeFence);
+
   // Attach a command list to this queue, close, and execute it.
   // Note that this command list cannot be appended to after this.
-  // The "is_blocking" tells if the wait for completion is requested.
+  // The "IsBlocking" tells if the wait for completion is requested.
   // The "ZeFence" passed is used to track when the command list passed
   // has completed execution on the device and can be reused.
   pi_result executeCommandList(ze_command_list_handle_t ZeCommandList,
                                ze_fence_handle_t ZeFence,
-                               bool is_blocking = false);
+                               bool IsBlocking = false);
+
+  // If there is an open command list associated with this queue,
+  // close it, exceute it, and reset ZeOpenCommandList, ZeCommandListFence,
+  // and ZeOpenCommandListSize.
+  pi_result executeOpenCommandList();
 };
 
 struct _pi_mem : _pi_object {
