@@ -1795,7 +1795,7 @@ pi_result piQueueRelease(pi_queue Queue) {
     // if no wait or finish ever occurred for this queue.  But still need
     // to make sure commands get executed.
     Queue->executeOpenCommandList();
-    
+
     // Destroy all the fences created associated with this queue.
     for (const auto &MapEntry : Queue->ZeCommandListFenceMap) {
       ZE_CALL(zeFenceDestroy(MapEntry.second));
