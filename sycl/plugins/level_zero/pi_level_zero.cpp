@@ -592,19 +592,17 @@ pi_result _pi_queue::batchCommandList(ze_command_list_handle_t ZeCommandList,
 }
 
 pi_result _pi_queue::executeOpenCommandList() {
-  if (this->RefCount > 0) {
-    // If there are any commands still in the open command list for this
-    // queue, then close and execute that command list now.
-    auto OpenList = this->ZeOpenCommandList;
-    if (OpenList) {
-      auto OpenListFence = this->ZeOpenCommandListFence;
+  // If there are any commands still in the open command list for this
+  // queue, then close and execute that command list now.
+  auto OpenList = this->ZeOpenCommandList;
+  if (OpenList) {
+    auto OpenListFence = this->ZeOpenCommandListFence;
 
-      this->ZeOpenCommandList = nullptr;
-      this->ZeOpenCommandListFence = nullptr;
-      this->ZeOpenCommandListSize = 0;
+    this->ZeOpenCommandList = nullptr;
+    this->ZeOpenCommandListFence = nullptr;
+    this->ZeOpenCommandListSize = 0;
 
-      return executeCommandList(OpenList, OpenListFence);
-    }
+    return executeCommandList(OpenList, OpenListFence);
   }
 
   return PI_SUCCESS;

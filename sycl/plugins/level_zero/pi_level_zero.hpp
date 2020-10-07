@@ -303,6 +303,10 @@ struct _pi_queue : _pi_object {
 
   // Approximate number of commands that are allowed to be batched for
   // this queue.
+  // Added this member to the queue rather than using a global variable
+  // so that future implementation could use heuristics to change this on
+  // a queue specific basis. And by putting it in the queue itself, this
+  // is thread safe because of the locking of the queue that occurs.
   pi_uint32 QueueBatchSize = {0};
 
   // Map of all Command lists created with their associated Fence used for
