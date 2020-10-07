@@ -2,20 +2,6 @@
 // RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
 // RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 
-// TFAIL: *
-
-/*
-  Manual
-    clang++ -fsycl -o eaob.bin enqueue-arg-order-buffer.cpp
-    clang++ -fsycl -g -o eaob.d enqueue-arg-order-buffer.cpp
-    SYCL_PI_TRACE=2 ./eaob.bin
-
-    clang++ --driver-mode=g++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda-sycldevice -o eaob.bin enqueue-arg-order-buffer.cpp
-    SYCL_PI_TRACE=2 SYCL_BE=PI_CUDA ./eaob.bin
-
-    llvm-lit --param SYCL_BE=PI_CUDA -v enqueue-arg-order-buffer.cpp
-*/
-
 #include <CL/sycl.hpp>
 #include <CL/sycl/accessor.hpp>
 #include <iostream>
@@ -60,10 +46,6 @@ void remind() {
   std::cout << "SlicePitch SHOULD be 0 or : " << width * sizeof(float) * height
             << std::endl
             << std::endl; // 0 or 320
-
-  // NOTE: presently we see 20/16/1 for Region and 20 for row pitch.  both
-  // incorrect.
-
 }
 // ----------- FUNCTIONAL
 template <template <int> class T>
@@ -72,31 +54,38 @@ static void printRangeId(T<3> arr) {
 }
 
 void testDetailConvertToArrayOfN(){
-  //ranges
+  // ranges, as used with buffers (args reverse order for images)
   range<1> range_1D(width);
   range<2> range_2D(height, width);
   range<3> range_3D(depth, height, width);
 
-  range<3> arr1 = sycl::detail::convertToArrayOfN<3,1>(range_1D); 
-  //should be: {1,1,16}
+  range<3> arr1 = sycl::detail::convertToArrayOfN<3,1>(range_1D);
+  // {16,1,1}
   printRangeId(arr1);
-  //assert(arr1[0] == 1 && arr1[1] == 1 && arr1[2] == width && "arr1 should be {1,1,16} ");
+  assert(arr1[0] == width && arr1[1] == 1 && arr1[2] == 1 &&
+         "arr1 expected as {16,1,1}");
 
   range<3> arr2 = sycl::detail::convertToArrayOfN<3,1>(range_2D);
-  //should be: {1, 5, 16}
+  //{5, 16, 1}
   printRangeId(arr2);
-  //assert(arr2[0] == 1 && arr2[1] == height && arr2[2] == width && "arr2 should be {1,5,16} ");
+  assert(arr2[0] == height && arr2[1] == width && arr2[2] == 1 &&
+         "arr2 expected as {5, 16, 1}");
 
   range<3> arr3 = sycl::detail::convertToArrayOfN<3,1>(range_3D);
-  //should be: {3, 5, 16}
+  //{3, 5, 16}
   printRangeId(arr3);
-  //assert(arr3[0] == depth && arr3[1] == height && arr3[2] == width && "arr3 should be {3,5,16} ");
+  assert(arr3[0] == depth && arr3[1] == height && arr3[2] == width &&
+         "arr3 expected as {3,5,16}");
 
   range<2> smaller2 = sycl::detail::convertToArrayOfN<2,1>(range_3D);
-  //assert(smaller2[0] == height && smaller2[1] == width  && "smaller2 should be {5,16} ");
+  //{3,5}
+  std::cout << "{" << smaller2[0] << "," << smaller2[1] << "}" << std::endl;
+  assert(smaller2[0] == depth && smaller2[1] == height &&
+         "smaller2 expected {3,5} ");
 
   range<1> smaller1 = sycl::detail::convertToArrayOfN<1,1>(range_3D);
-  //assert(smaller1[0] == width && "smaller1 should be {16} ");
+  //{3}
+  assert(smaller1[0] == depth && "smaller1 expected {3} ");
 }
 
 // class to give access to protected function getLinearIndex

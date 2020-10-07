@@ -256,9 +256,7 @@ void prepTermPositions(term_positions &pos, int Dimensions,
   //  1 ==>  {width, 1, 1}
   //  2 ==>  {height, width, 1}
   //  3 ==>  {depth, height, width}
-  //  If the Dimension is 1, and being called by ~SYCLMemObjT, then
-  //  DstAccessRange[0] and DstSize[0] will already sized to bytes with
-  //  DstElemSize of 1. Some callers enqueue 0 as DimDst/DimSrc.
+  // Some callers enqueue 0 as DimDst/DimSrc.
 #ifdef CP_CHANGE_IMAGE
   if (true) {
 #else
@@ -296,38 +294,14 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
   const RT::PiQueue Queue = TgtQueue->getHandleRef();
   const detail::plugin &Plugin = TgtQueue->getPlugin();
 
-  CPOUT << "copyH2D " << std::endl;
-  CPOUT << "DimSrc: " << DimSrc << "  SrcAccessRange: " << SrcAccessRange[0]
-        << " / " << SrcAccessRange[1] << " / " << SrcAccessRange[2]
-        << std::endl;
-  // CPOUT << "        " << DimSrc << "  SrcOffset: " << SrcOffset[0] << " / "
-  // << SrcOffset[1] << " / " << SrcOffset[2] << std::endl;
-  CPOUT << "DimDst: " << DimDst << "  DstAccessRange: " << DstAccessRange[0]
-        << " / " << DstAccessRange[1] << " / " << DstAccessRange[2]
-        << std::endl;
-  // CPOUT << "        " << DimSrc << "  DstOffset: " << DstOffset[0] << " / "
-  // << DstOffset[1] << " / " << DstOffset[2] << std::endl;
-  CPOUT << "SrcElemSize / DstElemSize: " << SrcElemSize << " / " << DstElemSize
-        << std::endl;
-  CPOUT << std::endl;
-
   detail::SYCLMemObjI::MemObjType MemType = SYCLMemObj->getType();
   term_positions SrcPos, DstPos;
   prepTermPositions(SrcPos, DimSrc, MemType);
   prepTermPositions(DstPos, DimDst, MemType);
 
-  // int src_x_term_pos = 2, src_y_term_pos = 1, src_z_term_pos = 0;
-  // if(DimSrc == 2){
-  //   src_x_term_pos = 1; src_y_term_pos = 0; src_z_term_pos = 2;
-  // } else if (DimSrc == 1){
-  //   src_x_term_pos = 0; src_y_term_pos = 1; src_z_term_pos = 2;
-  // }
-  // int dst_x_term_pos = 2, dst_y_term_pos = 1, dst_z_term_pos = 0;
-  // if(DimDst == 2){
-  //   dst_x_term_pos = 1; dst_y_term_pos = 0; dst_z_term_pos = 2;
-  // } else if (DimDst == 1){
-  //   dst_x_term_pos = 0; dst_y_term_pos = 1; dst_z_term_pos = 2;
-  // }
+  //  If the Dimension is 1, and being called by ~SYCLMemObjT,
+  //  thenDstAccessRange[0] and DstSize[0] will already sized to bytes with
+  //  DstElemSize of 1.
   size_t DstXOffBytes = DstOffset[DstPos.x_term] * DstElemSize;
   size_t SrcXOffBytes = SrcOffset[SrcPos.x_term] * SrcElemSize;
   size_t DstARWidthBytes = DstAccessRange[DstPos.x_term] * DstElemSize;
@@ -395,44 +369,14 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
   const RT::PiQueue Queue = SrcQueue->getHandleRef();
   const detail::plugin &Plugin = SrcQueue->getPlugin();
 
-  // the offsets/ranges coming from accessor are always id<3>/range<3>
-  // But their organization varies by dimension:
-  //  1 ==>  {width, 1, 1}
-  //  2 ==>  {height, width, 1}
-  //  3 ==>  {depth, height, width}
-
-  CPOUT << "copyD2H " << std::endl;
-  CPOUT << "DimSrc: " << DimSrc << "  SrcAccessRange: " << SrcAccessRange[0]
-        << " / " << SrcAccessRange[1] << " / " << SrcAccessRange[2]
-        << std::endl;
-  // CPOUT << "        " << DimSrc << "  SrcOffset: " << SrcOffset[0] << " / "
-  // << SrcOffset[1] << " / " << SrcOffset[2] << std::endl;
-  CPOUT << "DimDst: " << DimDst << "  DstAccessRange: " << DstAccessRange[0]
-        << " / " << DstAccessRange[1] << " / " << DstAccessRange[2]
-        << std::endl;
-  // CPOUT << "        " << DimSrc << "  DstOffset: " << DstOffset[0] << " / "
-  // << DstOffset[1] << " / " << DstOffset[2] << std::endl;
-  CPOUT << "SrcElemSize / DstElemSize: " << SrcElemSize << " / " << DstElemSize
-        << std::endl;
-  CPOUT << std::endl;
-
   detail::SYCLMemObjI::MemObjType MemType = SYCLMemObj->getType();
   term_positions SrcPos, DstPos;
   prepTermPositions(SrcPos, DimSrc, MemType);
   prepTermPositions(DstPos, DimDst, MemType);
 
-  // int src_x_term_pos = 2, src_y_term_pos = 1, src_z_term_pos = 0;
-  // if(DimSrc == 2){
-  //   src_x_term_pos = 1; src_y_term_pos = 0; src_z_term_pos = 2;
-  // } else if (DimSrc == 1){
-  //   src_x_term_pos = 0; src_y_term_pos = 1; src_z_term_pos = 2;
-  // }
-  // int dst_x_term_pos = 2, dst_y_term_pos = 1, dst_z_term_pos = 0;
-  // if(DimDst == 2){
-  //   dst_x_term_pos = 1; dst_y_term_pos = 0; dst_z_term_pos = 2;
-  // } else if (DimDst == 1){
-  //   dst_x_term_pos = 0; dst_y_term_pos = 1; dst_z_term_pos = 2;
-  // }
+  //  If the Dimension is 1, and being called by ~SYCLMemObjT,
+  //  thenDstAccessRange[0] and DstSize[0] will already sized to bytes with
+  //  DstElemSize of 1.
   size_t DstXOffBytes = DstOffset[DstPos.x_term] * DstElemSize;
   size_t SrcXOffBytes = SrcOffset[SrcPos.x_term] * SrcElemSize;
   // size_t DstARWidthBytes = DstAccessRange[DstPos.x_term] * DstElemSize;
@@ -498,44 +442,14 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
   const RT::PiQueue Queue = SrcQueue->getHandleRef();
   const detail::plugin &Plugin = SrcQueue->getPlugin();
 
-  // the offsets/ranges coming from accessor are always id<3>/range<3>
-  // But their organization varies by dimension:
-  //  1 ==>  {width, 1, 1}
-  //  2 ==>  {height, width, 1}
-  //  3 ==>  {depth, height, width}
-
-  CPOUT << "copyD2D " << std::endl;
-  CPOUT << "DimSrc: " << DimSrc << "  SrcAccessRange: " << SrcAccessRange[0]
-        << " / " << SrcAccessRange[1] << " / " << SrcAccessRange[2]
-        << std::endl;
-  // CPOUT << "        " << DimSrc << "  SrcOffset: " << SrcOffset[0] << " / "
-  // << SrcOffset[1] << " / " << SrcOffset[2] << std::endl;
-  CPOUT << "DimDst: " /* << DimDst << "  DstAccessRange: " << DstAccessRange[0]
-                         << " / " << DstAccessRange[1] << " / " <<
-                         DstAccessRange[2] */
-        << std::endl;
-  // CPOUT << "        " << DimSrc << "  DstOffset: " << DstOffset[0] << " / "
-  // << DstOffset[1] << " / " << DstOffset[2] << std::endl;
-  CPOUT << "SrcElemSize / DstElemSize: " << SrcElemSize << " / " << DstElemSize
-        << std::endl;
-  CPOUT << std::endl;
-
   detail::SYCLMemObjI::MemObjType MemType = SYCLMemObj->getType();
   term_positions SrcPos, DstPos;
   prepTermPositions(SrcPos, DimSrc, MemType);
   prepTermPositions(DstPos, DimDst, MemType);
-  // int src_x_term_pos = 2, src_y_term_pos = 1, src_z_term_pos = 0;
-  // if(DimSrc == 2){
-  //   src_x_term_pos = 1; src_y_term_pos = 0; src_z_term_pos = 2;
-  // } else if (DimSrc == 1){
-  //   src_x_term_pos = 0; src_y_term_pos = 1; src_z_term_pos = 2;
-  // }
-  // int dst_x_term_pos = 2, dst_y_term_pos = 1, dst_z_term_pos = 0;
-  // if(DimDst == 2){
-  //   dst_x_term_pos = 1; dst_y_term_pos = 0; dst_z_term_pos = 2;
-  // } else if (DimDst == 1){
-  //   dst_x_term_pos = 0; dst_y_term_pos = 1; dst_z_term_pos = 2;
-  // }
+
+  //  If the Dimension is 1, and being called by ~SYCLMemObjT,
+  //  thenDstAccessRange[0] and DstSize[0] will already sized to bytes with
+  //  DstElemSize of 1.
   size_t DstXOffBytes = DstOffset[DstPos.x_term] * DstElemSize;
   size_t SrcXOffBytes = SrcOffset[SrcPos.x_term] * SrcElemSize;
   // size_t DstARWidthBytes = DstAccessRange[DstPos.x_term] * DstElemSize;

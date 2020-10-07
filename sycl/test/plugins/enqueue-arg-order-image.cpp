@@ -2,18 +2,6 @@
 // RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
 // RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 
-/*
-  Manual
-    clang++ -fsycl -o eaoi.bin enqueue-arg-order-image.cpp
-    clang++ -fsycl -g -o eaoi.d enqueue-arg-order-image.cpp
-    SYCL_PI_TRACE=2 ./eaoi.bin
-
-    clang++ --driver-mode=g++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda-sycldevice -o eaoi.bin enqueue-arg-order-image.cpp
-    SYCL_PI_TRACE=2 SYCL_BE=PI_CUDA ./eaoi.bin
-
-    llvm-lit --param SYCL_BE=PI_CUDA -v enqueue-arg-order-image.cpp
-*/
-
 #include <CL/sycl.hpp>
 #include <CL/sycl/accessor.hpp>
 #include <iostream>
@@ -52,8 +40,6 @@ void remind() {
             << width * sizeof(sycl::float4) * height << std::endl
             << std::endl; // 0 or 1280
 
-  // NOTE: presently we see 5/16/1 for image Region and 80 for row pitch.  both
-  // incorrect
 }
 
 

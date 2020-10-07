@@ -529,20 +529,12 @@ pi_result piMemImageCreate(pi_context context, pi_mem_flags flags,
                            const pi_image_format *image_format,
                            const pi_image_desc *image_desc, void *host_ptr,
                            pi_mem *ret_mem) {
-  CPOUT << "image_desc w/h/d: " << image_desc->image_width << " / "
-        << image_desc->image_height << " / " << image_desc->image_depth
-        << std::endl;
-  CPOUT << "           arrSz/row/slice: " << image_desc->image_array_size
-        << " / " << image_desc->image_row_pitch << " / "
-        << image_desc->image_slice_pitch << std::endl;
-
   pi_result ret_err = PI_INVALID_OPERATION;
   *ret_mem = cast<pi_mem>(
       clCreateImage(cast<cl_context>(context), cast<cl_mem_flags>(flags),
                     cast<const cl_image_format *>(image_format),
                     cast<const cl_image_desc *>(image_desc), host_ptr,
                     cast<cl_int *>(&ret_err)));
-  CPOUT << "ret_mem :: err: " << *ret_mem << " :: " << ret_err << std::endl;
   return ret_err;
 }
 

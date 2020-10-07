@@ -14,11 +14,6 @@
 #define CL_TARGET_OPENCL_VERSION 220
 #endif
 
-//#define CPOUT  std::clog
-#define CPOUT                                                                  \
-  std::clog.rdbuf(NULL);                                                       \
-  std::clog
-//#define CP_CHANGE_IMAGE 1
 
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
