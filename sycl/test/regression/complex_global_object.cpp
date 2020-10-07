@@ -4,6 +4,8 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 // REQUIRES: opencl
+// TODO enable test on GPUs once drivers are fixed
+// UNSUPPORTED: gpu
 
 // SYCL runtime may construct global objects at function scope. The test ensures
 // such objects do not cause problems if the first call to SYCL is inside main
