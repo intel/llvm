@@ -322,7 +322,7 @@ static bool checkDeprecatedSYCLAttributeSpelling(Sema &S,
                                                  const ParsedAttr &Attr) {
   if (Attr.getScopeName()->isStr("intelfpga"))
     return S.Diag(Attr.getLoc(), diag::warn_attribute_spelling_deprecated)
-        << "'" + Attr.getNormalizedFullName() + "'";
+           << "'" + Attr.getNormalizedFullName() + "'";
   return false;
 }
 

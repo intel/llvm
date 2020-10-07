@@ -79,6 +79,7 @@ static bool checkDeprecatedSYCLLoopAttributeSpelling(Sema &S,
   if (A.getScopeName()->isStr("intelfpga"))
     return S.Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated)
         << "'" + A.getNormalizedFullName() + "'";
+           << "'" + A.getNormalizedFullName() + "'";
   return false;
 }
 
