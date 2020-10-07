@@ -389,27 +389,6 @@ typedef enum {
 } _pi_mem_type;
 
 typedef enum {
-  PI_MEM_ADVICE_SET_READ_MOSTLY = 0,    ///< hints that memory will be read from
-                                        ///< frequently and written to rarely
-  PI_MEM_ADVICE_CLEAR_READ_MOSTLY,      ///< removes the affect of
-                                        ///< PI_MEM_ADVICE_SET_READ_MOSTLY
-  PI_MEM_ADVICE_SET_PREFERRED_LOCATION, ///< hints that the preferred memory
-                                        ///< location is the specified device
-  PI_MEM_ADVICE_CLEAR_PREFERRED_LOCATION, ///< removes the affect of
-                                          ///< PI_MEM_ADVICE_SET_PREFERRED_LOCATION
-  PI_MEM_ADVICE_SET_ACCESSED_BY, ///< hints that memory will be accessed by the
-                                 ///< specified device
-  PI_MEM_ADVICE_CLEAR_ACCESSED_BY,       ///< removes the affect of
-                                         ///< PI_MEM_ADVICE_SET_ACCESSED_BY
-  PI_MEM_ADVICE_SET_NON_ATOMIC_MOSTLY,   ///< hints that memory will mostly be
-                                         ///< accessed non-atomically
-  PI_MEM_ADVICE_CLEAR_NON_ATOMIC_MOSTLY, ///< removes the affect of
-                                         ///< PI_MEM_ADVICE_SET_NON_ATOMIC_MOSTLY
-  PI_MEM_ADVICE_BIAS_CACHED,  ///< hints that memory should be cached
-  PI_MEM_ADVICE_BIAS_UNCACHED ///< hints that memory should not be cached
-} _pi_mem_advice;
-
-typedef enum {
   PI_IMAGE_CHANNEL_ORDER_A = CL_A,
   PI_IMAGE_CHANNEL_ORDER_R = CL_R,
   PI_IMAGE_CHANNEL_ORDER_RG = CL_RG,
@@ -538,7 +517,7 @@ using pi_fp_capabilities = _pi_fp_capabilities;
 using pi_event_info = _pi_event_info;
 using pi_command_type = _pi_command_type;
 using pi_mem_type = _pi_mem_type;
-using pi_mem_advice = _pi_mem_advice;
+using pi_mem_advice = pi_int32;
 using pi_image_channel_order = _pi_image_channel_order;
 using pi_image_channel_type = _pi_image_channel_type;
 using pi_buffer_create_type = _pi_buffer_create_type;
