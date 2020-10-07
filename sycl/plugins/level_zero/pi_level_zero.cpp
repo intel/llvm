@@ -471,7 +471,8 @@ pi_result _pi_device::getAvailableCommandList(
     // go ahead and execute what is already in the batched list,
     // and then go on to process this. On exit from executeOpenCommandList
     // ZeOpenCommandList will be nullptr.
-    Queue->executeOpenCommandList();
+    if (auto Res = Queue->executeOpenCommandList())
+      return Res;
   }
 
   // Create/Reuse the command list, because in Level Zero commands are added to
@@ -1794,7 +1795,8 @@ pi_result piQueueRelease(pi_queue Queue) {
     // It is possible to get to here and still have an open command list
     // if no wait or finish ever occurred for this queue.  But still need
     // to make sure commands get executed.
-    Queue->executeOpenCommandList();
+    if (auto Res = Queue->executeOpenCommandList())
+      return Res;
 
     // Destroy all the fences created associated with this queue.
     for (const auto &MapEntry : Queue->ZeCommandListFenceMap) {
@@ -1815,7 +1817,8 @@ pi_result piQueueFinish(pi_queue Queue) {
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
   // execute any command list that may still be open.
-  Queue->executeOpenCommandList();
+  if (auto Res = Queue->executeOpenCommandList())
+    return Res;
 
   ZE_CALL(zeCommandQueueSynchronize(Queue->ZeCommandQueue, UINT32_MAX));
   return PI_SUCCESS;
@@ -3295,7 +3298,8 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
     std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
     if (Queue->RefCount > 0) {
-      Queue->executeOpenCommandList();
+      if (auto Res = Queue->executeOpenCommandList())
+        return Res;
     }
   }
 
