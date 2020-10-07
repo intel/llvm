@@ -1961,6 +1961,7 @@ bool LLVMToSPIRV::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::bitreverse:
   case Intrinsic::sqrt:
   case Intrinsic::fabs:
+  case Intrinsic::abs:
   case Intrinsic::ceil:
   case Intrinsic::ctlz:
   case Intrinsic::cttz:
@@ -2070,6 +2071,17 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
       break;
     SPIRVWord ExtOp = OpenCLLIB::Fabs;
+    SPIRVType *STy = transType(II->getType());
+    std::vector<SPIRVValue *> Ops(1, transValue(II->getArgOperand(0), BB));
+    return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
+                          BB);
+  }
+  case Intrinsic::abs: {
+    if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
+      break;
+    // LLVM has only one version of abs and it is only for signed integers. We
+    // unconditionally choose SAbs here
+    SPIRVWord ExtOp = OpenCLLIB::SAbs;
     SPIRVType *STy = transType(II->getType());
     std::vector<SPIRVValue *> Ops(1, transValue(II->getArgOperand(0), BB));
     return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
