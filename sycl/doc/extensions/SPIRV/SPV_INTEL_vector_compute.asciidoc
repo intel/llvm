@@ -44,8 +44,8 @@ Version
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2020-09-03
-| Revision           | 7
+| Last Modified Date | 2020-10-07
+| Revision           | 8
 |========================================
 
 Dependencies
@@ -107,6 +107,11 @@ Apply to a function definition to specify that the function is a vector compute 
 
 See the client API specification for more detail.
 | *VectorComputeINTEL* |
+| 6087 | *VectorComputeCallableFunctionINTEL* +
+Apply to a function definition to specify that the function is a subject to fast composite call pipelining.
+
+See the client API specification for more detail.
+| *VectorComputeINTEL* |
 | 5624 | *VectorComputeVariableINTEL* +
 Apply to a variable to specify that the variable is a vector compute variable.
 
@@ -159,7 +164,7 @@ Modify Section 3.31, Capability, add the following rows the 'Capability' table:
 |====
   2+^| Capability      |     Implicitly Declares    | Enabled by Extension
 | 5617 | *VectorComputeINTEL* +
-Enables the use of *Private* storage class, *SharedLocalMemorySizeINTEL* execution mode and *VectorComputeFunctionINTEL*, *VectorComputeVariableINTEL*, *StackCallINTEL*, *SIMTCallINTEL*, *FuncParamIOKindINTEL*, *GlobalVariableOffsetINTEL*
+Enables the use of *Private* storage class, *SharedLocalMemorySizeINTEL* execution mode and *VectorComputeFunctionINTEL*, *VectorComputeCallableFunctionINTEL*, *VectorComputeVariableINTEL*, *StackCallINTEL*, *SIMTCallINTEL*, *FuncParamIOKindINTEL*, *GlobalVariableOffsetINTEL*
 *SingleElementVectorINTEL* decorations and *OpTypeBufferSurfaceINTEL* type.
 |*VectorAnyINTEL* | *SPV_INTEL_vector_compute*
 | 5619 | *VectorAnyINTEL* +
@@ -202,4 +207,5 @@ Revision History
 |5|2020-07-09|Mariusz Merecki|Added *SIMTCallINTEL* decoration.
 |6|2020-08-13|Mariusz Merecki|Added *OpTypeBufferSurfaceINTEL* type and *SingleElementVectorINTEL* decoration.
 |7|2020-09-03|Mariusz Merecki|Added *Access Qualifier* operand to *OpTypeBufferSurfaceINTEL*
+|8|2020-10-07|Mariusz Merecki|Added *VectorComputeCallableFunctionINTEL*
 |========================================
