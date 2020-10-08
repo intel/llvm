@@ -313,10 +313,10 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
           /*blocking_write=*/CL_FALSE, DstXOffBytes, DstARWidthBytes,
           SrcMem + SrcXOffBytes, DepEvents.size(), DepEvents.data(), &OutEvent);
     } else {
-      size_t BufferRowPitch   = (1 == DimDst) ? 0 : DstSzWidthBytes;
+      size_t BufferRowPitch = (1 == DimDst) ? 0 : DstSzWidthBytes;
       size_t BufferSlicePitch =
           (3 == DimDst) ? DstSzWidthBytes * DstSize[DstPos.y_term] : 0;
-      size_t HostRowPitch     = (1 == DimSrc) ? 0 : SrcSzWidthBytes;
+      size_t HostRowPitch = (1 == DimSrc) ? 0 : SrcSzWidthBytes;
       size_t HostSlicePitch =
           (3 == DimSrc) ? SrcSzWidthBytes * SrcSize[SrcPos.y_term] : 0;
 
