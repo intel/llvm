@@ -40,99 +40,99 @@
 // CHECK-HOST-NOT: llvm.ptr.annotation
 
 void attrs_on_static() {
-  const static int static_numbanks [[intelfpga::numbanks(4)]] = 20;
+  const static int static_numbanks [[intel::numbanks(4)]] = 20;
   const static int static_annotate [[clang::annotate("foobar")]] = 30;
-  const static int static_force_p2d [[intelfpga::force_pow2_depth(0)]] = 40;
+  const static int static_force_p2d [[intel::force_pow2_depth(0)]] = 40;
 }
 
 void attrs_on_var() {
   // CHECK-DEVICE: %[[VAR_NUMBANKS:[0-9]+]] = bitcast{{.*}}%numbanks
   // CHECK-DEVICE: %[[VAR_NUMBANKS1:numbanks[0-9]+]] = bitcast{{.*}}%numbanks
   // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[VAR_NUMBANKS1]],{{.*}}[[ANN_numbanks_4]]
-  int numbanks [[intelfpga::numbanks(4)]];
+  int numbanks [[intel::numbanks(4)]];
   // CHECK-DEVICE: %[[VAR_REGISTER:[0-9]+]] = bitcast{{.*}}%reg
   // CHECK-DEVICE: %[[VAR_REGISTER1:reg[0-9]+]] = bitcast{{.*}}%reg
   // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[VAR_REGISTER1]],{{.*}}[[ANN_register]]
-  int reg [[intelfpga::register]];
+  int reg [[intel::fpga_register]];
   // CHECK-DEVICE: %[[VAR_MEMORY:[0-9]+]] = bitcast{{.*}}%memory
   // CHECK-DEVICE: %[[VAR_MEMORY1:memory[0-9]+]] = bitcast{{.*}}%memory
   // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[VAR_MEMORY1]],{{.*}}[[ANN_memory_default]]
-  int memory [[intelfpga::memory]];
+  int memory [[intel::fpga_memory]];
   // CHECK-DEVICE: %[[VAR_SIZE_MLAB:[0-9]+]] = bitcast{{.*}}size_mlab
   // CHECK-DEVICE: %[[VAR_SIZE_MLAB1:size_mlab[0-9]+]] = bitcast{{.*}}size_mlab
   // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_SIZE_MLAB1]],{{.*}}[[ANN_mlab_sizeinfo_500]]
-  [[intelfpga::memory("MLAB")]] int size_mlab[500];
+  [[intel::fpga_memory("MLAB")]] int size_mlab[500];
   // CHECK-DEVICE: %[[VAR_size_blockram:[0-9]+]] = bitcast{{.*}}size_blockram
   // CHECK-DEVICE: %[[VAR_size_blockram1:size_blockram[0-9]+]] = bitcast{{.*}}size_blockram
   // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_size_blockram1]],{{.*}}[[ANN_blockram_sizeinfo_10_2]]
-  [[intelfpga::memory("BLOCK_RAM")]] int size_blockram[10][2];
+  [[intel::fpga_memory("BLOCK_RAM")]] int size_blockram[10][2];
   // CHECK-DEVICE: %[[VAR_BANKWIDTH:[0-9]+]] = bitcast{{.*}}%bankwidth
   // CHECK-DEVICE: %[[VAR_BANKWIDTH1:bankwidth[a-z0-9]+]] = bitcast{{.*}}%bankwidth
   // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_BANKWIDTH1]],{{.*}}[[ANN_bankwidth_4]]
-  int bankwidth [[intelfpga::bankwidth(4)]];
+  int bankwidth [[intel::bankwidth(4)]];
   // CHECK-DEVICE: %[[VAR_PRIV_COPIES:[0-9]+]] = bitcast{{.*}}%priv_copies
   // CHECK-DEVICE: %[[VAR_PRIV_COPIES1:priv_copies[0-9]+]] = bitcast{{.*}}%priv_copies
   // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_PRIV_COPIES1]],{{.*}}[[ANN_private_copies_8]]
-  int priv_copies [[intelfpga::private_copies(8)]];
+  int priv_copies [[intel::private_copies(8)]];
   // CHECK-DEVICE: %[[VAR_SINGLEPUMP:[0-9]+]] = bitcast{{.*}}%singlepump
   // CHECK-DEVICE: %[[VAR_SINGLEPUMP1:singlepump[0-9]+]] = bitcast{{.*}}%singlepump
   // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_SINGLEPUMP1]],{{.*}}[[ANN_singlepump]]
-  int singlepump [[intelfpga::singlepump]];
+  int singlepump [[intel::singlepump]];
   // CHECK-DEVICE: %[[VAR_DOUBLEPUMP:[0-9]+]] = bitcast{{.*}}%doublepump
   // CHECK-DEVICE: %[[VAR_DOUBLEPUMP1:doublepump[0-9]+]] = bitcast{{.*}}%doublepump
   // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_DOUBLEPUMP1]],{{.*}}[[ANN_doublepump]]
-  int doublepump [[intelfpga::doublepump]];
+  int doublepump [[intel::doublepump]];
   // CHECK-DEVICE: %[[VAR_MERGE_DEPTH:[0-9]+]] = bitcast{{.*}}%merge_depth
   // CHECK-DEVICE: %[[VAR_MERGE_DEPTH1:merge_depth[0-9]+]] = bitcast{{.*}}%merge_depth
   // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_MERGE_DEPTH1]],{{.*}}[[ANN_merge_depth]]
-  int merge_depth [[intelfpga::merge("foo", "depth")]];
+  int merge_depth [[intel::merge("foo", "depth")]];
   // CHECK-DEVICE: %[[VAR_MERGE_WIDTH:[0-9]+]] = bitcast{{.*}}%merge_width
   // CHECK-DEVICE: %[[VAR_MERGE_WIDTH1:merge_width[0-9]+]] = bitcast{{.*}}%merge_width
   // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_MERGE_WIDTH1]],{{.*}}[[ANN_merge_width]]
-  int merge_width [[intelfpga::merge("bar", "width")]];
+  int merge_width [[intel::merge("bar", "width")]];
   // CHECK-DEVICE: %[[VAR_MAXREPL:[0-9]+]] = bitcast{{.*}}%max_repl
   // CHECK-DEVICE: %[[VAR_MAXREPL1:max_repl[0-9]+]] = bitcast{{.*}}%max_repl
   // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_MAXREPL1]],{{.*}}[[ANN_max_replicates_2]]
-  int max_repl [[intelfpga::max_replicates(2)]];
+  int max_repl [[intel::max_replicates(2)]];
   // CHECK-DEVICE: %[[VAR_DUALPORT:[0-9]+]] = bitcast{{.*}}%dualport
   // CHECK-DEVICE: %[[VAR_DUALPORT1:dualport[0-9]+]] = bitcast{{.*}}%dualport
   // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_DUALPORT1]],{{.*}}[[ANN_simple_dual_port]]
-  int dualport [[intelfpga::simple_dual_port]];
+  int dualport [[intel::simple_dual_port]];
   // CHECK-DEVICE: %[[VAR_BANKBITS:[0-9]+]] = bitcast{{.*}}%bankbits
   // CHECK-DEVICE: %[[VAR_BANKBITS1:bankbits[0-9]+]] = bitcast{{.*}}%bankbits
   // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[VAR_BANKBITS1]],{{.*}}[[ANN_bankbits_4_5]]
-  int bankbits [[intelfpga::bank_bits(4,5)]];
+  int bankbits [[intel::bank_bits(4, 5)]];
   // CHECK-DEVICE: %[[VAR_BANKBITS_NUMBANKS:[0-9]+]] = bitcast{{.*}}%bankbits_numbanks_mlab
   // CHECK-DEVICE: %[[VAR_BANKBITS_NUMBANKS1:bankbits_numbanks_mlab[0-9]+]] = bitcast{{.*}}%bankbits_numbanks_mlab
   // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[VAR_BANKBITS_NUMBANKS1]],{{.*}}[[ANN_bankbits_numbanks_mlab]]
-  [[intelfpga::bank_bits(5,4,3), intelfpga::numbanks(8), intelfpga::memory("MLAB")]] int bankbits_numbanks_mlab;
+  [[intel::bank_bits(5, 4, 3), intel::numbanks(8), intel::fpga_memory("MLAB")]] int bankbits_numbanks_mlab;
   // CHECK-DEVICE: %[[VAR_BANK_BITS_WIDTH:[0-9]+]] = bitcast{{.*}}%bank_bits_width
   // CHECK-DEVICE: %[[VAR_BANK_BITS_WIDTH1:bank_bits_width[0-9]+]] = bitcast{{.*}}%bank_bits_width
   // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[VAR_BANK_BITS_WIDTH1]],{{.*}}[[ANN_bankbits_bankwidth]]
-  [[intelfpga::bank_bits(0), intelfpga::bankwidth(16)]] int bank_bits_width[10][2];
+  [[intel::bank_bits(0), intel::bankwidth(16)]] int bank_bits_width[10][2];
   // CHECK-DEVICE: %[[VAR_FP2D:[0-9]+]] = bitcast{{.*}}%force_p2d
   // CHECK-DEVICE: %[[VAR_FP2D1:force_p2d[0-9]+]] = bitcast{{.*}}%force_p2d
   // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[VAR_FP2D1]],{{.*}}[[ANN_force_pow2_depth_0]]
-  int force_p2d [[intelfpga::force_pow2_depth(0)]];
+  int force_p2d [[intel::force_pow2_depth(0)]];
 }
 
 void attrs_on_struct() {
   struct attrs_on_struct {
-    int numbanks [[intelfpga::numbanks(4)]] ;
-    int reg [[intelfpga::register]];
-    int memory [[intelfpga::memory]];
-    int memory_blockram [[intelfpga::memory("BLOCK_RAM")]];
-    int memory_mlab [[intelfpga::memory("MLAB")]];
-    int bankwidth [[intelfpga::bankwidth(4)]];
-    int privatecopies [[intelfpga::private_copies(8)]];
-    int singlepump [[intelfpga::singlepump]];
-    int doublepump [[intelfpga::doublepump]];
-    int merge_depth [[intelfpga::merge("foo", "depth")]];
-    int merge_width [[intelfpga::merge("bar", "width")]];
-    int maxreplicates [[intelfpga::max_replicates(2)]];
-    int dualport [[intelfpga::simple_dual_port]];
-    int bankbits [[intelfpga::bank_bits(4, 5)]];
-    int force_p2d [[intelfpga::force_pow2_depth(1)]];
+    int numbanks [[intel::numbanks(4)]];
+    int reg [[intel::fpga_register]];
+    int memory [[intel::fpga_memory]];
+    int memory_blockram [[intel::fpga_memory("BLOCK_RAM")]];
+    int memory_mlab [[intel::fpga_memory("MLAB")]];
+    int bankwidth [[intel::bankwidth(4)]];
+    int privatecopies [[intel::private_copies(8)]];
+    int singlepump [[intel::singlepump]];
+    int doublepump [[intel::doublepump]];
+    int merge_depth [[intel::merge("foo", "depth")]];
+    int merge_width [[intel::merge("bar", "width")]];
+    int maxreplicates [[intel::max_replicates(2)]];
+    int dualport [[intel::simple_dual_port]];
+    int bankbits [[intel::bank_bits(4, 5)]];
+    int force_p2d [[intel::force_pow2_depth(1)]];
   } s;
 
   // CHECK-DEVICE: %[[FIELD_NUMBANKS:.*]] = getelementptr inbounds %struct.{{.*}}.attrs_on_struct{{.*}}
@@ -189,30 +189,30 @@ template <int A, int B, int C>
 void attrs_with_template_param() {
   // CHECK-DEVICE: %[[TEMPL_NUMBANKS:numbanks[0-9]+]] = bitcast{{.*}}%numbanks
   // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[TEMPL_NUMBANKS]],{{.*}}[[ANN_numbanks_4]]
-  int numbanks [[intelfpga::numbanks(A)]];
+  int numbanks [[intel::numbanks(A)]];
   // CHECK-DEVICE: %[[TEMPL_BANKWIDTH:bankwidth[a-z0-9]+]] = bitcast{{.*}}%bankwidth
   // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[TEMPL_BANKWIDTH]],{{.*}}[[ANN_bankwidth_4]]
-  int bankwidth [[intelfpga::bankwidth(A)]];
+  int bankwidth [[intel::bankwidth(A)]];
   // CHECK-DEVICE: %[[TEMPL_PRIV_COPIES:priv_copies[0-9]+]] = bitcast{{.*}}%priv_copies
   // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[TEMPL_PRIV_COPIES]],{{.*}}[[ANN_private_copies_4]]
-  int priv_copies [[intelfpga::private_copies(A)]];
+  int priv_copies [[intel::private_copies(A)]];
   // CHECK-DEVICE: %[[TEMPL_MAXREPL:max_repl[0-9]+]] = bitcast{{.*}}%max_repl
   // CHECK-DEVICE: llvm.var.annotation{{.*}}%[[TEMPL_MAXREPL]],{{.*}}[[ANN_max_replicates_4]]
-  int max_repl [[intelfpga::max_replicates(A)]];
+  int max_repl [[intel::max_replicates(A)]];
   // CHECK-DEVICE: %[[TEMPL_BANKBITS:bankbits[0-9]+]] = bitcast{{.*}}%bankbits
   // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[TEMPL_BANKBITS]],{{.*}}[[ANN_bankbits_4_5]]
-  int bankbits [[intelfpga::bank_bits(A, B)]];
+  int bankbits [[intel::bank_bits(A, B)]];
   // CHECK-DEVICE: %[[TEMPL_FP2D:force_p2d[0-9]+]] = bitcast{{.*}}%force_p2d
   // CHECK-DEVICE: @llvm.var.annotation{{.*}}%[[TEMPL_FP2D]]{{.*}}[[ANN_force_pow2_depth_1]]
-  int force_p2d [[intelfpga::force_pow2_depth(C)]];
+  int force_p2d [[intel::force_pow2_depth(C)]];
 
   struct templ_on_struct_fields {
-    int numbanks [[intelfpga::numbanks(A)]] ;
-    int bankwidth [[intelfpga::bankwidth(A)]];
-    int privatecopies [[intelfpga::private_copies(A)]];
-    int maxreplicates [[intelfpga::max_replicates(A)]];
-    int bankbits [[intelfpga::bank_bits(A, B)]];
-    int force_p2d [[intelfpga::force_pow2_depth(C)]];
+    int numbanks [[intel::numbanks(A)]];
+    int bankwidth [[intel::bankwidth(A)]];
+    int privatecopies [[intel::private_copies(A)]];
+    int maxreplicates [[intel::max_replicates(A)]];
+    int bankbits [[intel::bank_bits(A, B)]];
+    int force_p2d [[intel::force_pow2_depth(C)]];
   } s;
 
   // CHECK-DEVICE: %[[FIELD_NUMBANKS:.*]] = getelementptr inbounds %struct.{{.*}}.templ_on_struct_fields{{.*}}
@@ -237,7 +237,7 @@ void attrs_with_template_param() {
 
 void field_addrspace_cast() {
   struct state {
-    [[intelfpga::numbanks(2)]] int mem[8];
+    [[intel::numbanks(2)]] int mem[8];
 
     // The initialization code is not relevant to this example.
     // It prevents the compiler from optimizing away access to this struct.
