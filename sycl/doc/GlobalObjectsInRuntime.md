@@ -69,7 +69,7 @@ times, the memory leak may impact code performance.
 
 ### Windows
 
-To identify shutdown moment on Windows DPC++ runtime uses default `DllMain`
+To identify shutdown moment on Windows, DPC++ runtime uses default `DllMain`
 function with `DLL_PROCESS_DETACH` reason. This guarantees, that global objects
 deinitialization happens right before `sycl.dll` is unloaded from process
 address space.

@@ -28,3 +28,4 @@ Developing oneAPI DPC++ Compiler
    PluginInterface
    ABIPolicyGuide
    SpecializationConstants
+   GlobalObjectsInRuntime
