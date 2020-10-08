@@ -9,7 +9,6 @@
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/backend/level_zero.hpp>
-#include <CL/sycl/backend/opencl.hpp>
 
 /*
   The purpose of this test is to verify the expected behvior for
@@ -41,11 +40,9 @@ int queryFromQueue(std::vector<cl::sycl::platform> *platform_list,
 
   std::cout << "Platform queried from Queue : "
             << plt.get_info<cl::sycl::info::platform::name>() << std::endl;
-  auto plt_result = std::find_if(
-      platform_list->begin(), platform_list->end(), [&](cl::sycl::platform &p) {
-        return p.get_info<cl::sycl::info::platform::name>() ==
-               plt.get_info<cl::sycl::info::platform::name>();
-      });
+  auto plt_result =
+      std::find_if(platform_list->begin(), platform_list->end(),
+                   [&](cl::sycl::platform &p) { return p == plt; });
   if (plt_result != platform_list->end()) {
     std::cout << "The platform list contains: "
               << plt.get_info<cl::sycl::info::platform::name>() << std::endl;
@@ -57,11 +54,8 @@ int queryFromQueue(std::vector<cl::sycl::platform> *platform_list,
 
   std::cout << "Device queried from Queue : "
             << plt.get_info<cl::sycl::info::platform::name>() << std::endl;
-  auto dev_result = std::find_if(
-      device_list->begin(), device_list->end(), [&](cl::sycl::device &d) {
-        return d.get_info<cl::sycl::info::device::name>() ==
-               dev.get_info<cl::sycl::info::device::name>();
-      });
+  auto dev_result = std::find_if(device_list->begin(), device_list->end(),
+                                 [&](cl::sycl::device &d) { return d == dev; });
   if (dev_result != device_list->end()) {
     std::cout << "The device list contains: "
               << dev.get_info<cl::sycl::info::device::name>() << std::endl;
@@ -80,26 +74,24 @@ int queryFromNativeHandle(std::vector<cl::sycl::platform> *platform_list,
   int failures = 0;
   uint32_t l0_driver_count = 0;
   zeDriverGet(&l0_driver_count, nullptr);
-  ze_driver_handle_t l0_driver;
-  zeDriverGet(&l0_driver_count, &l0_driver);
+  std::vector<ze_driver_handle_t> l0_drivers(l0_driver_count);
+  zeDriverGet(&l0_driver_count, l0_drivers.data());
 
   uint32_t l0_device_count = 0;
-  zeDeviceGet(l0_driver, &l0_device_count, nullptr);
+  zeDeviceGet(l0_drivers[0], &l0_device_count, nullptr);
   std::vector<ze_device_handle_t> l0_devices(l0_device_count);
-  zeDeviceGet(l0_driver, &l0_device_count, l0_devices.data());
+  zeDeviceGet(l0_drivers[0], &l0_device_count, l0_devices.data());
 
   // Create the platform and device objects using the native handle.
-  auto plt = cl::sycl::level_zero::make<cl::sycl::platform>(l0_driver);
+  auto plt = cl::sycl::level_zero::make<cl::sycl::platform>(l0_drivers[0]);
   auto dev = cl::sycl::level_zero::make<cl::sycl::device>(plt, l0_devices[0]);
 
   // Check to see if this platform is in the platform list.
   std::cout << "Platform created with native handle: "
             << plt.get_info<cl::sycl::info::platform::name>() << std::endl;
-  auto plt_result = std::find_if(
-      platform_list->begin(), platform_list->end(), [&](cl::sycl::platform &p) {
-        return p.get_info<cl::sycl::info::platform::name>() ==
-               plt.get_info<cl::sycl::info::platform::name>();
-      });
+  auto plt_result =
+      std::find_if(platform_list->begin(), platform_list->end(),
+                   [&](cl::sycl::platform &p) { return p == plt; });
   if (plt_result != platform_list->end()) {
     std::cout << "The platform list contains: "
               << plt.get_info<cl::sycl::info::platform::name>() << std::endl;
@@ -112,11 +104,8 @@ int queryFromNativeHandle(std::vector<cl::sycl::platform> *platform_list,
   // Check to see if this device is in the device list.
   std::cout << "Device created with native handle: "
             << dev.get_info<cl::sycl::info::device::name>() << std::endl;
-  auto dev_result = std::find_if(
-      device_list->begin(), device_list->end(), [&](cl::sycl::device &d) {
-        return d.get_info<cl::sycl::info::device::name>() ==
-               dev.get_info<cl::sycl::info::device::name>();
-      });
+  auto dev_result = std::find_if(device_list->begin(), device_list->end(),
+                                 [&](cl::sycl::device &d) { return d == dev; });
   if (dev_result != device_list->end()) {
     std::cout << "The device list contains: "
               << dev.get_info<cl::sycl::info::device::name>() << std::endl;
