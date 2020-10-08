@@ -248,7 +248,7 @@ private:
     RT::PiMemImageDesc Desc;
     Desc.image_type = getImageType();
 
-    // MRange<> is [width], [width,height,width], or [width,height,depth] (which
+    // MRange<> is [width], [width,height], or [width,height,depth] (which
     // is different than MAccessRange, etc in bufffers)
     int x_term_pos = 0, y_term_pos = 1, z_term_pos = 2;
     Desc.image_width = MRange[x_term_pos];
