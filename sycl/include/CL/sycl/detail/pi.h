@@ -388,6 +388,7 @@ typedef enum {
   PI_MEM_TYPE_IMAGE1D_BUFFER = CL_MEM_OBJECT_IMAGE1D_BUFFER
 } _pi_mem_type;
 
+// Device-specific value opaque in PI API.
 typedef pi_int32 _pi_mem_advice;
 
 typedef enum {
