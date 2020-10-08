@@ -568,7 +568,7 @@ EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
   char *XBytes = reinterpret_cast<char *>(&x);
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
-    uint64_t ShuffleX, ShuffleY, ShuffleResult;
+    uint64_t ShuffleX, ShuffleResult;
     detail::memcpy(&ShuffleX, XBytes + Offset, Size);
     ShuffleResult = SubgroupShuffleUp(ShuffleX, local_id);
     detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
