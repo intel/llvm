@@ -2912,8 +2912,8 @@ public:
     QualType T = TA.getAsType();
     if (const auto *ET = T->getAs<EnumType>())
       VisitEnumType(ET);
-  else
-    Visit(T);
+    else
+      Visit(T);
   }
 
   void VisitIntegralTemplateArgument(const TemplateArgument &TA) {
