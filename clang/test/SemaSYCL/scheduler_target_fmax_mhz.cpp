@@ -1,11 +1,13 @@
 // RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl -fsycl-is-device -triple spir64 -Wno-sycl-2017-compat -verify | FileCheck %s
 
 #include "Inputs/sycl.hpp"
+// expected-warning@+2 {{attribute 'intelfpga::scheduler_target_fmax_mhz' is deprecated}}
+// expected-note@+1 {{did you mean to use 'intel::scheduler_target_fmax_mhz' instead?}}
 [[intelfpga::scheduler_target_fmax_mhz(2)]] void
 func() {}
 
 template <int N>
-[[intelfpga::scheduler_target_fmax_mhz(N)]] void zoo() {}
+[[intel::scheduler_target_fmax_mhz(N)]] void zoo() {}
 
 int main() {
   // CHECK-LABEL:  FunctionDecl {{.*}}test_kernel1 'void ()'
@@ -14,7 +16,7 @@ int main() {
   // CHECK-NEXT:   value: Int 5
   // CHECK-NEXT:   IntegerLiteral {{.*}} 'int' 5
   cl::sycl::kernel_single_task<class test_kernel1>(
-      []() [[intelfpga::scheduler_target_fmax_mhz(5)]]{});
+      []() [[intel::scheduler_target_fmax_mhz(5)]]{});
 
   // CHECK-LABEL:  FunctionDecl {{.*}}test_kernel2 'void ()'
   // CHECK:        SYCLIntelSchedulerTargetFmaxMhzAttr {{.*}}
@@ -32,14 +34,14 @@ int main() {
   cl::sycl::kernel_single_task<class test_kernel3>(
       []() { zoo<75>(); });
 
-  [[intelfpga::scheduler_target_fmax_mhz(0)]] int Var = 0; // expected-error{{'scheduler_target_fmax_mhz' attribute only applies to functions}}
+  [[intel::scheduler_target_fmax_mhz(0)]] int Var = 0; // expected-error{{'scheduler_target_fmax_mhz' attribute only applies to functions}}
 
   cl::sycl::kernel_single_task<class test_kernel4>(
-      []() [[intelfpga::scheduler_target_fmax_mhz(1048577)]]{}); // expected-error{{'scheduler_target_fmax_mhz' attribute requires integer constant between 0 and 1048576 inclusive}}
+      []() [[intel::scheduler_target_fmax_mhz(1048577)]]{}); // expected-error{{'scheduler_target_fmax_mhz' attribute requires integer constant between 0 and 1048576 inclusive}}
 
   cl::sycl::kernel_single_task<class test_kernel5>(
-      []() [[intelfpga::scheduler_target_fmax_mhz(-4)]]{}); // expected-error{{'scheduler_target_fmax_mhz' attribute requires integer constant between 0 and 1048576 inclusive}}
+      []() [[intel::scheduler_target_fmax_mhz(-4)]]{}); // expected-error{{'scheduler_target_fmax_mhz' attribute requires integer constant between 0 and 1048576 inclusive}}
 
   cl::sycl::kernel_single_task<class test_kernel6>(
-      []() [[intelfpga::scheduler_target_fmax_mhz(1), intelfpga::scheduler_target_fmax_mhz(2)]]{}); // expected-warning{{attribute 'scheduler_target_fmax_mhz' is already applied with different parameters}}
+      []() [[intel::scheduler_target_fmax_mhz(1), intel::scheduler_target_fmax_mhz(2)]]{}); // expected-warning{{attribute 'scheduler_target_fmax_mhz' is already applied with different parameters}}
 }
