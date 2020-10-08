@@ -15,8 +15,10 @@ int main() {
   // CHECK-NEXT:   ConstantExpr {{.*}} 'int'
   // CHECK-NEXT:   value: Int 5
   // CHECK-NEXT:   IntegerLiteral {{.*}} 'int' 5
+  // expected-warning@+2 {{attribute 'intelfpga::scheduler_target_fmax_mhz' is deprecated}}
+  // expected-note@+1 {{did you mean to use 'intel::scheduler_target_fmax_mhz' instead?}}
   cl::sycl::kernel_single_task<class test_kernel1>(
-      []() [[intel::scheduler_target_fmax_mhz(5)]]{});
+      []() [[intelfpga::scheduler_target_fmax_mhz(5)]]{});
 
   // CHECK-LABEL:  FunctionDecl {{.*}}test_kernel2 'void ()'
   // CHECK:        SYCLIntelSchedulerTargetFmaxMhzAttr {{.*}}
