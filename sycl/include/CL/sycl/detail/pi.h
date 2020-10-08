@@ -388,6 +388,8 @@ typedef enum {
   PI_MEM_TYPE_IMAGE1D_BUFFER = CL_MEM_OBJECT_IMAGE1D_BUFFER
 } _pi_mem_type;
 
+typedef pi_int32 _pi_mem_advice;
+
 typedef enum {
   PI_IMAGE_CHANNEL_ORDER_A = CL_A,
   PI_IMAGE_CHANNEL_ORDER_R = CL_R,
@@ -517,7 +519,7 @@ using pi_fp_capabilities = _pi_fp_capabilities;
 using pi_event_info = _pi_event_info;
 using pi_command_type = _pi_command_type;
 using pi_mem_type = _pi_mem_type;
-using pi_mem_advice = pi_int32;
+using pi_mem_advice = _pi_mem_advice;
 using pi_image_channel_order = _pi_image_channel_order;
 using pi_image_channel_type = _pi_image_channel_type;
 using pi_buffer_create_type = _pi_buffer_create_type;
