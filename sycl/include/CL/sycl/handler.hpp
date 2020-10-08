@@ -473,7 +473,7 @@ private:
     size_t x = Index % Range[2];
     return {z, y, x};
   }
-  
+
   /// Stores lambda to the template-free object
   ///
   /// Also initializes kernel name, list of arguments and requirements using
