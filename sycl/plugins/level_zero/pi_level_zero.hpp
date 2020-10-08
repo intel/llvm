@@ -84,8 +84,8 @@ struct _pi_platform {
 
   // Maximum Number of Command Lists that can be created.
   // This Value is initialized to 20000, but can be changed by the user
-  // thru the environment variable SYCL_PI_LEVEL0_MAX_COMMAND_LIST_CACHE
-  // ie SYCL_PI_LEVEL0_MAX_COMMAND_LIST_CACHE =10000.
+  // thru the environment variable SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE
+  // ie SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE =10000.
   int ZeMaxCommandListCache = 0;
 
   // Current number of L0 Command Lists created on this platform.
