@@ -4018,6 +4018,8 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
   SPIRVWord SIMTMode = 0;
   if (BF->hasDecorate(DecorationSIMTCallINTEL, 0, &SIMTMode))
     F->addFnAttr(kVCMetadata::VCSIMTCall, std::to_string(SIMTMode));
+  if (BF->hasDecorate(DecorationVectorComputeCallableFunctionINTEL))
+    F->addFnAttr(kVCMetadata::VCCallable);
 
   for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
        ++I) {

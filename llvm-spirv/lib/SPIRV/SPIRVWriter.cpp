@@ -621,6 +621,10 @@ void LLVMToSPIRV::transVectorComputeMetadata(Function *F) {
     BF->addDecorate(DecorationSIMTCallINTEL, SIMTMode);
   }
 
+  if (Attrs.hasFnAttribute(kVCMetadata::VCCallable)) {
+    BF->addDecorate(DecorationVectorComputeCallableFunctionINTEL);
+  }
+
   for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
        ++I) {
     auto ArgNo = I->getArgNo();
