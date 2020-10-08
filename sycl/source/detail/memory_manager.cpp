@@ -460,12 +460,6 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
           Queue, SrcMem, DstMem, SrcXOffBytes, DstXOffBytes, SrcARWidthBytes,
           DepEvents.size(), DepEvents.data(), &OutEvent);
     } else {
-      // size_t SrcRowPitch   = (1 == DimSrc) ? 0 : SrcSzWidthBytes;
-      // size_t SrcSlicePitch = (3 == DimSrc) ? SrcSzWidthBytes *
-      // SrcSize[SrcPos.y_term] : 0; size_t DstRowPitch   = (1 == DimDst) ? 0 :
-      // DstSzWidthBytes; size_t DstSlicePitch = (3 == DimDst) ? DstSzWidthBytes
-      // * DstSize[DstPos.y_term] : 0;
-
       // passing 0 for pitches not allowed. Because clEnqueueCopyBufferRect will
       // calculate both src and dest pitch using region[0], which is not correct
       // if src and dest are not the same size.
