@@ -198,19 +198,19 @@ file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/libspirv/gen_convert.py 
 
 add_custom_command(
 	OUTPUT convert-core.cl
-	COMMAND ${Python3_EXECUTABLE} ${script_loc} > convert-core.cl
+	COMMAND ${Python3_EXECUTABLE} ${core_script_loc} > convert-core.cl
 	DEPENDS ${core_script_loc} )
 add_custom_target( "generate_convert_core.cl" DEPENDS convert-core.cl )
 
 add_custom_command(
 	OUTPUT convert-spirv.cl
-	COMMAND ${Python3_EXECUTABLE} ${script_loc} > convert-spirv.cl
+	COMMAND ${Python3_EXECUTABLE} ${spirv_script_loc} > convert-spirv.cl
 	DEPENDS ${spirv_script_loc} )
 add_custom_target( "generate_convert_spirv.cl" DEPENDS convert-spirv.cl )
 
 add_custom_command(
 	OUTPUT convert-clc.cl
-	COMMAND ${Python3_EXECUTABLE} ${script_loc} > convert-clc.cl
+	COMMAND ${Python3_EXECUTABLE} ${clc_script_loc} > convert-clc.cl
 	DEPENDS ${clc_script_loc} )
 add_custom_target( "generate_convert_clc.cl" DEPENDS convert-clc.cl )
 
