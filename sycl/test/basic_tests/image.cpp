@@ -83,7 +83,7 @@ int main() {
     TestQueue Q{sycl::default_selector()};
     Q.submit([&](sycl::handler &CGH) {
       auto ImgAcc = Img.get_access<sycl::float4, SYCLRead>(CGH);
-      CGH.single_task<class ConstTestPitch>([=]() { ImgAcc.get_range(); });
+      CGH.single_task<class ConstTestPitch>([=] { ImgAcc.get_range(); });
     });
   }
 
