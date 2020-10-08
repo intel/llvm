@@ -215,7 +215,13 @@ template <> inline void print<>(PiResult val) {
 }
 
 // cout does not resolve a nullptr.
-template <> inline void print<>(std::nullptr_t val) { print<void *>(val); }
+template <> inline void print<>(std::nullptr_t val) {
+  std::cout << "<nullptr> : 0x0" << std::endl;
+}
+
+template <> inline void print(char *val) {
+  std::cout << "<char * > : " << static_cast<void *>(val) << std::endl;
+}
 
 inline void printArgs(void) {}
 template <typename Arg0, typename... Args>
