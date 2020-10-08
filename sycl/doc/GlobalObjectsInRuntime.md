@@ -96,5 +96,5 @@ Generally, DPC++ runtime has no control over low-level runtimes. If there's
 a global object inside loadable driver library, report this case to the
 concerned team.
 
-[static initialization order fiasco](https://isocpp.org/wiki/faq/ctors#static-init-order)
-[Itanium ABI](https://itanium-cxx-abi.github.io/cxx-abi/abi.html#dso-dtor)
+[static initialization order fiasco]: https://isocpp.org/wiki/faq/ctors#static-init-order
+[Itanium ABI]: https://itanium-cxx-abi.github.io/cxx-abi/abi.html#dso-dtor
