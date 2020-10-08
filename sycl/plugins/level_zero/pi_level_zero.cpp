@@ -771,8 +771,9 @@ static pi_result getOrCreatePlatform(ze_driver_handle_t ZeDriver,
       CommandListCacheSizeValue =
           CommandListCacheSize ? std::stoi(CommandListCacheSize) : 20000;
     } catch (std::exception const &) {
-      zePrint("SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE: invalid value provided, "
-              "default set.\n");
+      zePrint(
+          "SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE: invalid value provided, "
+          "default set.\n");
       CommandListCacheSizeValue = 20000;
     }
     return CommandListCacheSizeValue;
