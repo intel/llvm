@@ -1,5 +1,4 @@
-//==-------- Prefix_Local_sum3.cpp  - DPC++ ESIMD on-device test
-//------------==//
+//==------- Prefix_Local_sum3.cpp  - DPC++ ESIMD on-device test -----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 // TODO enable on Windows and Level Zero
 // REQUIRES: linux && gpu && opencl
-// RUN: %clangxx-esimd -fsycl %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
-// RUN: %ESIMD_RUN_PLACEHOLDER %t.out
+// RUN: %clangxx-esimd -fsycl %s -o %t.out 26
+// RUN: env SYCL_DEVICE_TYPE=HOST %t.out 26
+// RUN: %ESIMD_RUN_PLACEHOLDER %t.out 26
 
 #include "esimd_test_utils.hpp"
 
@@ -19,7 +18,8 @@
 #include <iostream>
 
 #define MAX_TS_WIDTH 1024
-#define TUPLE_SZ 2 // kernel can only handle TUPLE_SZ can be 1, 2, 4
+// kernel can handle TUPLE_SZ 1, 2, or 4
+#define TUPLE_SZ 2
 
 #if TUPLE_SZ == 1
 #define GATHER_SCATTER_MASK ESIMD_R_ENABLE
@@ -33,8 +33,8 @@
 #define PREFIX_ENTRIES (1 << LOG_ENTRIES)
 #define PREFIX_ENTRIES_LOW 32
 #define ENTRIES_THRESHOLD 2048
-#define MIN_NUM_THREADS                                                        \
-  1 // minimum number of threads to launch a kernel (power of 2)
+// minimum number of threads to launch a kernel (power of 2)
+#define MIN_NUM_THREADS 1
 #define REMAINING_ENTRIES 64
 
 using namespace cl::sycl;
@@ -74,20 +74,6 @@ void compute_local_prefixsum_remaining(unsigned int prefixSum[],
     // update every elem_stride entry
     memcpy(&prefixSum[((i + 1) * elem_stride - 1) * TUPLE_SZ], local_sum,
            TUPLE_SZ * sizeof(unsigned));
-  }
-}
-
-void compute_prefixsum(unsigned int input[], unsigned int prefixSum[],
-                       unsigned int size) {
-
-  for (int j = 0; j < TUPLE_SZ; j++) // init first entry
-    prefixSum[j] = input[j];
-
-  for (int i = 1; i < size; i++) {
-    for (int j = 0; j < TUPLE_SZ; j++) {
-      prefixSum[i * TUPLE_SZ + j] =
-          input[i * TUPLE_SZ + j] + prefixSum[(i - 1) * TUPLE_SZ + j];
-    }
   }
 }
 
@@ -137,18 +123,11 @@ void cmk_acum_iterative(unsigned *buf, unsigned h_pos,
   cnt_table.select<1, 1, TUPLE_SZ, 1>(0, 0) +=
       cnt_table.select<1, 1, TUPLE_SZ, 1>(1, 0);
 
-#if 0  
-    // store local accumulated sum in the last entry
-    simd<unsigned, TUPLE_SZ> voff(0, 1);  // 0, 1, 2, 3
-    voff = (voff + (global_offset + stride_threads * TUPLE_SZ - TUPLE_SZ)) * sizeof(unsigned);
-    scatter<unsigned, TUPLE_SZ>(buf, cnt_table.row(0), voff);
-#else // WA
   simd<unsigned, 8> voff(0, 1);        // 0, 1, 2, 3
   simd<ushort, 8> p = voff < TUPLE_SZ; // predicate
   voff = (voff + (global_offset + stride_threads * TUPLE_SZ - TUPLE_SZ)) *
          sizeof(unsigned);
   scatter<unsigned, 8>(buf, S.select<8, 1>(0), voff, p);
-#endif
 }
 
 void cmk_acum_iterative_low(unsigned *buf, unsigned h_pos,
@@ -195,18 +174,11 @@ void cmk_acum_iterative_low(unsigned *buf, unsigned h_pos,
   cnt_table.select<1, 1, TUPLE_SZ, 1>(0, 0) +=
       cnt_table.select<1, 1, TUPLE_SZ, 1>(1, 0);
 
-#if 0  
-    // store local accumulated sum in the last entry
-    simd<unsigned, TUPLE_SZ> voff(0, 1);  // 0, 1, 2, 3
-    voff = (voff + (global_offset + stride_threads * TUPLE_SZ - TUPLE_SZ)) * sizeof(unsigned);
-    scatter<unsigned, TUPLE_SZ>(buf, cnt_table.row(0), voff);
-#else // WA
   simd<unsigned, 8> voff(0, 1);        // 0, 1, 2, 3
   simd<ushort, 8> p = voff < TUPLE_SZ; // predicate
   voff = (voff + (global_offset + stride_threads * TUPLE_SZ - TUPLE_SZ)) *
          sizeof(unsigned);
   scatter<unsigned, 8>(buf, S.select<8, 1>(0), voff, p);
-#endif
 }
 
 // final reduction. One thread to compute prefix all remaining entries
@@ -324,14 +296,11 @@ void hierarchical_prefix(queue &q, unsigned *buf, unsigned elem_stride,
 int main(int argc, char *argv[]) {
 
   unsigned int *pInputs;
-#if 0
-    if (argc < 2) {
-        std::cout << "Usage: prefix [N]. N is 2^N entries x TUPLE_SZ" << std::endl;
-        exit(1);
-    }
-    unsigned log2_element = atoi(argv[1]);
-#endif
-  unsigned log2_element = 26;
+  if (argc < 2) {
+    std::cout << "Usage: prefix [N]. N is 2^N entries x TUPLE_SZ" << std::endl;
+    exit(1);
+  }
+  unsigned log2_element = atoi(argv[1]);
   unsigned int size = 1 << log2_element;
 
   cl::sycl::range<2> LocalRange{1, 1};
@@ -352,7 +321,6 @@ int main(int argc, char *argv[]) {
   // allocate & compute expected result
   unsigned int *pExpectOutputs = static_cast<unsigned int *>(
       malloc(size * TUPLE_SZ * sizeof(unsigned int)));
-  // compute_prefixsum(pInputs, pExpectOutputs, size);
   memcpy(pExpectOutputs, pInputs, size * TUPLE_SZ * sizeof(unsigned));
 
   hierarchical_prefix(q, pInputs, 1, PREFIX_ENTRIES, size, PREFIX_ENTRIES);
