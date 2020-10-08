@@ -250,7 +250,7 @@ private:
 
     // MRange<> is [width], [width,height], or [width,height,depth] (which
     // is different than MAccessRange, etc in bufffers)
-    int x_term_pos = 0, y_term_pos = 1, z_term_pos = 2;
+    static constexpr int x_term_pos = 0, y_term_pos = 1, z_term_pos = 2;
     Desc.image_width = MRange[x_term_pos];
     Desc.image_height = Dimensions > 1 ? MRange[y_term_pos] : 1;
     Desc.image_depth = Dimensions > 2 ? MRange[z_term_pos] : 1;
