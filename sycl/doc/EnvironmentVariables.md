@@ -28,6 +28,7 @@ subject to change. Do not rely on these variables in production code.
 | SYCL_DEVICELIB_NO_FALLBACK | Any(\*) | Disable loading and linking of device library images |
 | SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE | Positive integer | Maximum number of oneAPI Level Zero Command lists that can be allocated with no reuse before throwing an "out of resources" error. Default is 20000, threshold may be increased based on resource availabilty and workload demand. |
 | SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR | Any(\*) | Disable USM allocator in Level Zero plugin (each memory request will go directly to Level Zero runtime) |
+| SYCL_PI_LEVEL_ZERO_BATCH_SIZE | Positive integer | Sets a preferred number of commands to batch into a command list before executing the command list. Values 0 and 1 turn off batching. Default is 4. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
