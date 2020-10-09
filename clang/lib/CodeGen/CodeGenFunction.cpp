@@ -564,6 +564,31 @@ CodeGenFunction::DecodeAddrUsedInPrologue(llvm::Value *F,
                             "decoded_addr");
 }
 
+void CodeGenFunction::EmitOpenCLKernelSubGroupMetadata(const FunctionDecl *FD,
+                                                       llvm::Function *Fn)
+{
+  if (!FD->hasAttr<OpenCLKernelAttr>())
+    return;
+
+  // TODO Module identifier is not reliable for this purpose since two modules
+  // can have the same ID, needs improvement
+  if (getLangOpts().SYCLIsDevice)
+    Fn->addFnAttr("sycl-module-id", Fn->getParent()->getModuleIdentifier());
+
+  CGM.GenOpenCLArgMetadata(Fn, FD, this);
+  if (const IntelReqdSubGroupSizeAttr *A =
+      FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
+    llvm::LLVMContext &Context = getLLVMContext();
+    Optional<llvm::APSInt> ArgVal =
+        A->getValue()->getIntegerConstantExpr(FD->getASTContext());
+    assert(ArgVal.hasValue() && "Not an integer constant expression");
+    llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
+        Builder.getInt32(ArgVal->getSExtValue()))};
+    Fn->setMetadata("intel_reqd_sub_group_size",
+                    llvm::MDNode::get(Context, AttrMDArgs));
+  }
+}
+
 void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
                                                llvm::Function *Fn)
 {
@@ -608,18 +633,6 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
         llvm::ConstantAsMetadata::get(Builder.getInt32(A->getYDim())),
         llvm::ConstantAsMetadata::get(Builder.getInt32(A->getZDim()))};
     Fn->setMetadata("reqd_work_group_size", llvm::MDNode::get(Context, AttrMDArgs));
-  }
-
-  if (const IntelReqdSubGroupSizeAttr *A =
-          FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
-    llvm::LLVMContext &Context = getLLVMContext();
-    Optional<llvm::APSInt> ArgVal =
-        A->getValue()->getIntegerConstantExpr(FD->getASTContext());
-    assert(ArgVal.hasValue() && "Not an integer constant expression");
-    llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
-        Builder.getInt32(ArgVal->getSExtValue()))};
-    Fn->setMetadata("intel_reqd_sub_group_size",
-                    llvm::MDNode::get(Context, AttrMDArgs));
   }
 
   if (FD->hasAttr<SYCLSimdAttr>()) {
@@ -925,6 +938,16 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
 
   if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice ||
       getLangOpts().SYCLIsHost) {
+    // Add metadata for a kernel function.
+    if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D)) {
+      EmitOpenCLKernelSubGroupMetadata(FD, Fn);
+
+      if (getLangOpts().SYCLIsDevice)
+        CGM.getSYCLRuntime().actOnFunctionStart(*FD, *Fn);
+    }
+  }
+
+  if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) {
     // Add metadata for a kernel function.
     if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D)) {
       EmitOpenCLKernelMetadata(FD, Fn);
