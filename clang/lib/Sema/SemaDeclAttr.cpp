@@ -3058,6 +3058,10 @@ static void handleSchedulerTargetFmaxMhzAttr(Sema &S, Decl *D,
   if (D->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>())
     S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
 
+  if (checkDeprecatedSYCLAttributeSpelling(S, AL))
+    S.Diag(AL.getLoc(), diag::note_spelling_suggestion)
+        << "'intel::scheduler_target_fmax_mhz'";
+
   S.addSYCLIntelSchedulerTargetFmaxMhzAttr(D, AL, E);
 }
 
