@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 // TODO enable on Windows and Level Zero
 // REQUIRES: linux && gpu && opencl
-// RUN: %clangxx-esimd -fsycl %s -o %t.out 26
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out 26
-// RUN: %ESIMD_RUN_PLACEHOLDER %t.out 26
+// RUN: %clangxx-esimd -fsycl %s -o %t.out
+// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %ESIMD_RUN_PLACEHOLDER %t.out
 
 #include "esimd_test_utils.hpp"
 
@@ -296,11 +296,7 @@ void hierarchical_prefix(queue &q, unsigned *buf, unsigned elem_stride,
 int main(int argc, char *argv[]) {
 
   unsigned int *pInputs;
-  if (argc < 2) {
-    std::cout << "Usage: prefix [N]. N is 2^N entries x TUPLE_SZ" << std::endl;
-    exit(1);
-  }
-  unsigned log2_element = atoi(argv[1]);
+  unsigned log2_element = 26;
   unsigned int size = 1 << log2_element;
 
   cl::sycl::range<2> LocalRange{1, 1};

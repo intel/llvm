@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // TODO enable on Windows and Level Zero
 // REQUIRES: linux && gpu && opencl
-// RUN: %clangxx-esimd -fsycl %s -o %t.out 20
+// RUN: %clangxx-esimd -fsycl %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out 20
 // RUN: %ESIMD_RUN_PLACEHOLDER %t.out 20
 
