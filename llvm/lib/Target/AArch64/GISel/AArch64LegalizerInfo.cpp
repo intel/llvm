@@ -23,6 +23,8 @@
 #include "llvm/CodeGen/ValueTypes.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Type.h"
+#include <initializer_list>
+#include "llvm/Support/MathExtras.h"
 
 #define DEBUG_TYPE "aarch64-legalinfo"
 
@@ -54,6 +56,13 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
   const LLT v2s64 = LLT::vector(2, 64);
   const LLT v2p0 = LLT::vector(2, p0);
 
+  std::initializer_list<LLT> PackedVectorAllTypeList = {/* Begin 128bit types */
+                                                        v16s8, v8s16, v4s32,
+                                                        v2s64, v2p0,
+                                                        /* End 128bit types */
+                                                        /* Begin 64bit types */
+                                                        v8s8, v4s16, v2s32};
+
   const TargetMachine &TM = ST.getTargetLowering()->getTargetMachine();
 
   // FIXME: support subtargets which have neon/fp-armv8 disabled.
@@ -63,7 +72,8 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
   }
 
   getActionDefinitionsBuilder({G_IMPLICIT_DEF, G_FREEZE})
-      .legalFor({p0, s1, s8, s16, s32, s64, v2s32, v4s32, v2s64, v16s8, v8s16})
+      .legalFor({p0, s1, s8, s16, s32, s64})
+      .legalFor(PackedVectorAllTypeList)
       .clampScalar(0, s1, s64)
       .widenScalarToNextPow2(0, 8)
       .fewerElementsIf(
@@ -79,8 +89,8 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
             return std::make_pair(0, EltTy);
           });
 
-  getActionDefinitionsBuilder(G_PHI)
-      .legalFor({p0, s16, s32, s64, v2s32, v4s32, v2s64})
+  getActionDefinitionsBuilder(G_PHI).legalFor({p0, s16, s32, s64})
+      .legalFor(PackedVectorAllTypeList)
       .clampScalar(0, s16, s64)
       .widenScalarToNextPow2(0);
 
@@ -90,21 +100,38 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .widenScalarToNextPow2(0);
 
   getActionDefinitionsBuilder({G_ADD, G_SUB, G_MUL, G_AND, G_OR, G_XOR})
-      .legalFor({s32, s64, v2s32, v4s32, v2s64, v8s16, v16s8})
+      .legalFor({s32, s64, v2s32, v4s32, v4s16, v8s16, v16s8, v8s8})
+      .scalarizeIf(
+          [=](const LegalityQuery &Query) {
+            return Query.Opcode == G_MUL && Query.Types[0] == v2s64;
+          },
+          0)
+      .legalFor({v2s64})
       .clampScalar(0, s32, s64)
       .widenScalarToNextPow2(0)
       .clampNumElements(0, v2s32, v4s32)
       .clampNumElements(0, v2s64, v2s64)
       .moreElementsToNextPow2(0);
 
-  getActionDefinitionsBuilder(G_SHL)
-      .legalFor({{s32, s32},
-                 {s64, s64},
-                 {v2s32, v2s32},
-                 {v4s32, v4s32},
-                 {v2s64, v2s64},
-                 {v16s8, v16s8},
-                 {v8s16, v8s16}})
+  getActionDefinitionsBuilder({G_SHL, G_ASHR, G_LSHR})
+      .customIf([=](const LegalityQuery &Query) {
+        const auto &SrcTy = Query.Types[0];
+        const auto &AmtTy = Query.Types[1];
+        return !SrcTy.isVector() && SrcTy.getSizeInBits() == 32 &&
+               AmtTy.getSizeInBits() == 32;
+      })
+      .legalFor({
+          {s32, s32},
+          {s32, s64},
+          {s64, s64},
+          {v8s8, v8s8},
+          {v16s8, v16s8},
+          {v4s16, v4s16},
+          {v8s16, v8s16},
+          {v2s32, v2s32},
+          {v4s32, v4s32},
+          {v2s64, v2s64},
+      })
       .clampScalar(1, s32, s64)
       .clampScalar(0, s32, s64)
       .widenScalarToNextPow2(0)
@@ -126,25 +153,6 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .widenScalarToNextPow2(0)
       .scalarize(0);
 
-  getActionDefinitionsBuilder({G_LSHR, G_ASHR})
-      .customIf([=](const LegalityQuery &Query) {
-        const auto &SrcTy = Query.Types[0];
-        const auto &AmtTy = Query.Types[1];
-        return !SrcTy.isVector() && SrcTy.getSizeInBits() == 32 &&
-               AmtTy.getSizeInBits() == 32;
-      })
-      .legalFor({{s32, s32},
-                 {s32, s64},
-                 {s64, s64},
-                 {v2s32, v2s32},
-                 {v4s32, v4s32},
-                 {v2s64, v2s64},
-                 {v16s8, v16s8},
-                 {v8s16, v8s16}})
-      .clampScalar(1, s32, s64)
-      .clampScalar(0, s32, s64)
-      .minScalarSameAs(1, 0);
-
   getActionDefinitionsBuilder({G_SREM, G_UREM})
       .lowerFor({s1, s8, s16, s32, s64});
 
@@ -157,7 +165,9 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .minScalar(0, s32);
 
   getActionDefinitionsBuilder({G_FADD, G_FSUB, G_FMUL, G_FDIV, G_FNEG})
-      .legalFor({s32, s64, v2s64, v4s32, v2s32});
+      .legalFor({s32, s64, v2s64, v4s32, v2s32})
+      .clampNumElements(0, v2s32, v4s32)
+      .clampNumElements(0, v2s64, v2s64);
 
   getActionDefinitionsBuilder(G_FREM).libcallFor({s32, s64});
 
@@ -316,7 +326,8 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .legalFor({s32, s64})
       .clampScalar(0, s32, s64);
 
-  getActionDefinitionsBuilder(G_ICMP)
+
+  getActionDefinitionsBuilder({G_ICMP, G_FCMP})
       .legalFor({{s32, s32},
                  {s32, s64},
                  {s32, p0},
@@ -344,13 +355,8 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .minScalarOrEltIf(
           [=](const LegalityQuery &Query) { return Query.Types[1] == v2p0; }, 0,
           s64)
-      .widenScalarOrEltToNextPow2(1);
-
-  getActionDefinitionsBuilder(G_FCMP)
-      .legalFor({{s32, s32}, {s32, s64}})
-      .clampScalar(0, s32, s32)
-      .clampScalar(1, s32, s64)
-      .widenScalarToNextPow2(1);
+      .widenScalarOrEltToNextPow2(1)
+      .clampNumElements(0, v2s32, v4s32);
 
   // Extensions
   auto ExtLegalFunc = [=](const LegalityQuery &Query) {
@@ -383,7 +389,16 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .legalIf(ExtLegalFunc)
       .clampScalar(0, s64, s64); // Just for s128, others are handled above.
 
-  getActionDefinitionsBuilder(G_TRUNC).alwaysLegal();
+  getActionDefinitionsBuilder(G_TRUNC)
+      .minScalarOrEltIf(
+          [=](const LegalityQuery &Query) { return Query.Types[0].isVector(); },
+          0, s8)
+      .customIf([=](const LegalityQuery &Query) {
+        LLT DstTy = Query.Types[0];
+        LLT SrcTy = Query.Types[1];
+        return DstTy == v8s8 && SrcTy.getSizeInBits() > 128;
+      })
+      .alwaysLegal();
 
   getActionDefinitionsBuilder(G_SEXT_INREG).legalFor({s32, s64}).lower();
 
@@ -392,8 +407,10 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .legalFor(
           {{s16, s32}, {s16, s64}, {s32, s64}, {v4s16, v4s32}, {v2s32, v2s64}})
       .clampMaxNumElements(0, s32, 2);
-  getActionDefinitionsBuilder(G_FPEXT).legalFor(
-      {{s32, s16}, {s64, s16}, {s64, s32}, {v4s32, v4s16}, {v2s64, v2s32}});
+  getActionDefinitionsBuilder(G_FPEXT)
+      .legalFor(
+          {{s32, s16}, {s64, s16}, {s64, s32}, {v4s32, v4s16}, {v2s64, v2s32}})
+      .clampMaxNumElements(0, s64, 2);
 
   // Conversions
   getActionDefinitionsBuilder({G_FPTOSI, G_FPTOUI})
@@ -414,14 +431,12 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
   getActionDefinitionsBuilder(G_BRCOND).legalFor({s1, s8, s16, s32});
   getActionDefinitionsBuilder(G_BRINDIRECT).legalFor({p0});
 
-  // Select
-  // FIXME: We can probably do a bit better than just scalarizing vector
-  // selects.
   getActionDefinitionsBuilder(G_SELECT)
       .legalFor({{s32, s1}, {s64, s1}, {p0, s1}})
       .clampScalar(0, s32, s64)
       .widenScalarToNextPow2(0)
-      .scalarize(0);
+      .minScalarEltSameAsIf(isVector(0), 1, 0)
+      .lowerIf(isVector(0));
 
   // Pointer-handling
   getActionDefinitionsBuilder(G_FRAME_INDEX).legalFor({p0});
@@ -592,14 +607,11 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .minScalarOrElt(0, s8); // Worst case, we need at least s8.
 
   getActionDefinitionsBuilder(G_INSERT_VECTOR_ELT)
-      .legalIf([=](const LegalityQuery &Query) {
-        const LLT &VecTy = Query.Types[0];
-        // TODO: Support s8 and s16
-        return VecTy == v2s32 || VecTy == v4s32 || VecTy == v2s64;
-      });
+      .legalIf(typeInSet(0, {v8s16, v2s32, v4s32, v2s64}));
 
   getActionDefinitionsBuilder(G_BUILD_VECTOR)
-      .legalFor({{v16s8, s8},
+      .legalFor({{v8s8, s8},
+                 {v16s8, s8},
                  {v4s16, s16},
                  {v8s16, s16},
                  {v2s32, s32},
@@ -656,6 +668,9 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
 
   getActionDefinitionsBuilder({G_MEMCPY, G_MEMMOVE, G_MEMSET}).libcall();
 
+  getActionDefinitionsBuilder(G_ABS).lowerIf(
+      [=](const LegalityQuery &Query) { return Query.Types[0].isScalar(); });
+
   computeTables();
   verify(*ST.getInstrInfo());
 }
@@ -680,9 +695,58 @@ bool AArch64LegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
     return legalizeShlAshrLshr(MI, MRI, MIRBuilder, Observer);
   case TargetOpcode::G_GLOBAL_VALUE:
     return legalizeSmallCMGlobalValue(MI, MRI, MIRBuilder, Observer);
+  case TargetOpcode::G_TRUNC:
+    return legalizeVectorTrunc(MI, Helper);
   }
 
   llvm_unreachable("expected switch to return");
+}
+
+static void extractParts(Register Reg, MachineRegisterInfo &MRI,
+                         MachineIRBuilder &MIRBuilder, LLT Ty, int NumParts,
+                         SmallVectorImpl<Register> &VRegs) {
+  for (int I = 0; I < NumParts; ++I)
+    VRegs.push_back(MRI.createGenericVirtualRegister(Ty));
+  MIRBuilder.buildUnmerge(VRegs, Reg);
+}
+
+bool AArch64LegalizerInfo::legalizeVectorTrunc(
+    MachineInstr &MI, LegalizerHelper &Helper) const {
+  MachineIRBuilder &MIRBuilder = Helper.MIRBuilder;
+  MachineRegisterInfo &MRI = *MIRBuilder.getMRI();
+  // Similar to how operand splitting is done in SelectiondDAG, we can handle
+  // %res(v8s8) = G_TRUNC %in(v8s32) by generating:
+  //   %inlo(<4x s32>), %inhi(<4 x s32>) = G_UNMERGE %in(<8 x s32>)
+  //   %lo16(<4 x s16>) = G_TRUNC %inlo
+  //   %hi16(<4 x s16>) = G_TRUNC %inhi
+  //   %in16(<8 x s16>) = G_CONCAT_VECTORS %lo16, %hi16
+  //   %res(<8 x s8>) = G_TRUNC %in16
+
+  Register DstReg = MI.getOperand(0).getReg();
+  Register SrcReg = MI.getOperand(1).getReg();
+  LLT DstTy = MRI.getType(DstReg);
+  LLT SrcTy = MRI.getType(SrcReg);
+  assert(isPowerOf2_32(DstTy.getSizeInBits()) &&
+         isPowerOf2_32(SrcTy.getSizeInBits()));
+
+  // Split input type.
+  LLT SplitSrcTy = SrcTy.changeNumElements(SrcTy.getNumElements() / 2);
+  // First, split the source into two smaller vectors.
+  SmallVector<Register, 2> SplitSrcs;
+  extractParts(SrcReg, MRI, MIRBuilder, SplitSrcTy, 2, SplitSrcs);
+
+  // Truncate the splits into intermediate narrower elements.
+  LLT InterTy = SplitSrcTy.changeElementSize(DstTy.getScalarSizeInBits() * 2);
+  for (unsigned I = 0; I < SplitSrcs.size(); ++I)
+    SplitSrcs[I] = MIRBuilder.buildTrunc(InterTy, SplitSrcs[I]).getReg(0);
+
+  auto Concat = MIRBuilder.buildConcatVectors(
+      DstTy.changeElementSize(DstTy.getScalarSizeInBits() * 2), SplitSrcs);
+
+  Helper.Observer.changingInstr(MI);
+  MI.getOperand(1).setReg(Concat.getReg(0));
+  Helper.Observer.changedInstr(MI);
+  return true;
 }
 
 bool AArch64LegalizerInfo::legalizeSmallCMGlobalValue(
@@ -751,16 +815,14 @@ bool AArch64LegalizerInfo::legalizeShlAshrLshr(
   // If the shift amount is a G_CONSTANT, promote it to a 64 bit type so the
   // imported patterns can select it later. Either way, it will be legal.
   Register AmtReg = MI.getOperand(2).getReg();
-  auto *CstMI = MRI.getVRegDef(AmtReg);
-  assert(CstMI && "expected to find a vreg def");
-  if (CstMI->getOpcode() != TargetOpcode::G_CONSTANT)
+  auto VRegAndVal = getConstantVRegValWithLookThrough(AmtReg, MRI);
+  if (!VRegAndVal)
     return true;
   // Check the shift amount is in range for an immediate form.
-  unsigned Amount = CstMI->getOperand(1).getCImm()->getZExtValue();
+  int64_t Amount = VRegAndVal->Value;
   if (Amount > 31)
     return true; // This will have to remain a register variant.
-  assert(MRI.getType(AmtReg).getSizeInBits() == 32);
-  auto ExtCst = MIRBuilder.buildZExt(LLT::scalar(64), AmtReg);
+  auto ExtCst = MIRBuilder.buildConstant(LLT::scalar(64), Amount);
   MI.getOperand(2).setReg(ExtCst.getReg(0));
   return true;
 }

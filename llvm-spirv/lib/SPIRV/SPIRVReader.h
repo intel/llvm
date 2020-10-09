@@ -45,9 +45,9 @@
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/IR/GlobalValue.h" // llvm::GlobalValue::LinkageTypes
-#include "llvm/IR/Metadata.h"    // llvm::Metadata
 
 namespace llvm {
+class Metadata;
 class Module;
 class Type;
 class Instruction;
@@ -270,6 +270,9 @@ private:
 
   void transUserSemantic(SPIRV::SPIRVFunction *Fun);
   void transGlobalAnnotations();
+  void transGlobalCtorDtors(SPIRVVariable *BV);
+  void createCXXStructor(const char *ListName,
+                         SmallVectorImpl<Function *> &Funcs);
   void transIntelFPGADecorations(SPIRVValue *BV, Value *V);
 }; // class SPIRVToLLVM
 

@@ -1,7 +1,6 @@
 // UNSUPPORTED: cuda
 // CUDA compilation and runtime do not yet support sub-groups.
 //
-// XFAIL: linux && gpu
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //

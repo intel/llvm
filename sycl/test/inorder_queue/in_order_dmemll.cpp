@@ -2,7 +2,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 //
-// XFAIL: cuda
 //==----------- ordered_dmemll.cpp - Device Memory Linked List test --------==//
 // It uses an ordered queue where explicit waiting is not necessary between
 // kernels

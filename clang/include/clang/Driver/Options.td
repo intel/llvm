@@ -498,6 +498,7 @@ def Wno_nonportable_cfstrings : Joined<["-"], "Wno-nonportable-cfstrings">, Grou
   Flags<[CC1Option]>;
 def Wnonportable_cfstrings : Joined<["-"], "Wnonportable-cfstrings">, Group<W_Group>,
   Flags<[CC1Option]>;
+def Wno_sycl_strict : Joined<["-"], "Wno-sycl-strict">, Group<W_Group>, HelpText<"Disable warnings which enforce strict SYCL language compatibility.">;
 def Wp_COMMA : CommaJoined<["-"], "Wp,">,
   HelpText<"Pass the comma separated arguments in <arg> to the preprocessor">,
   MetaVarName<"<arg>">, Group<Preprocessor_Group>;
@@ -691,6 +692,9 @@ defm gpu_allow_device_init : OptInFFlag<"gpu-allow-device-init",
 def gpu_max_threads_per_block_EQ : Joined<["--"], "gpu-max-threads-per-block=">,
   Flags<[CC1Option]>,
   HelpText<"Default max threads per block for kernel launch bounds for HIP">;
+def gpu_instrument_lib_EQ : Joined<["--"], "gpu-instrument-lib=">,
+  HelpText<"Instrument device library for HIP, which is a LLVM bitcode containing "
+  "__cyg_profile_func_enter and __cyg_profile_func_exit">;
 def libomptarget_nvptx_path_EQ : Joined<["--"], "libomptarget-nvptx-path=">, Group<i_Group>,
   HelpText<"Path to libomptarget-nvptx libraries">;
 def dD : Flag<["-"], "dD">, Group<d_Group>, Flags<[CC1Option]>,
@@ -872,6 +876,9 @@ def fprofile_filter_files_EQ : Joined<["-"], "fprofile-filter-files=">,
 def fprofile_exclude_files_EQ : Joined<["-"], "fprofile-exclude-files=">,
     Group<f_Group>, Flags<[CC1Option, CoreOption]>,
     HelpText<"Instrument only functions from files where names don't match all the regexes separated by a semi-colon">;
+def fprofile_update_EQ : Joined<["-"], "fprofile-update=">,
+    Group<f_Group>, Flags<[CC1Option, CoreOption]>, Values<"atomic,prefer-atomic,single">,
+    MetaVarName<"<method>">, HelpText<"Set update method of profile counters (atomic,prefer-atomic,single)">;
 def forder_file_instrumentation : Flag<["-"], "forder-file-instrumentation">,
     Group<f_Group>, Flags<[CC1Option, CoreOption]>,
     HelpText<"Generate instrumented code to collect order file into default.profraw file (overridden by '=' form of option or LLVM_PROFILE_FILE env var)">;
@@ -1357,6 +1364,17 @@ def fxray_instrumentation_bundle :
   JoinedOrSeparate<["-"], "fxray-instrumentation-bundle=">,
   Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Select which XRay instrumentation points to emit. Options: all, none, function-entry, function-exit, function, custom. Default is 'all'.  'function' includes both 'function-entry' and 'function-exit'.">;
+
+def fxray_function_groups :
+  Joined<["-"], "fxray-function-groups=">,
+  Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Only instrument 1 of N groups">;
+
+def fxray_selected_function_group :
+  Joined<["-"], "fxray-selected-function-group=">,
+  Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"When using -fxray-function-groups, select which group of functions to instrument. Valid range is 0 to fxray-function-groups - 1">;
+
 
 def ffine_grained_bitfield_accesses : Flag<["-"],
   "ffine-grained-bitfield-accesses">, Group<f_clang_Group>, Flags<[CC1Option]>,
@@ -3304,6 +3322,10 @@ def minvpcid : Flag<["-"], "minvpcid">, Group<m_x86_Features_Group>;
 def mno_invpcid : Flag<["-"], "mno-invpcid">, Group<m_x86_Features_Group>;
 def mgfni : Flag<["-"], "mgfni">, Group<m_x86_Features_Group>;
 def mno_gfni : Flag<["-"], "mno-gfni">, Group<m_x86_Features_Group>;
+def mkl : Flag<["-"], "mkl">, Group<m_x86_Features_Group>;
+def mno_kl : Flag<["-"], "mno-kl">, Group<m_x86_Features_Group>;
+def mwidekl : Flag<["-"], "mwidekl">, Group<m_x86_Features_Group>;
+def mno_widekl : Flag<["-"], "mno-widekl">, Group<m_x86_Features_Group>;
 def mlwp : Flag<["-"], "mlwp">, Group<m_x86_Features_Group>;
 def mno_lwp : Flag<["-"], "mno-lwp">, Group<m_x86_Features_Group>;
 def mlzcnt : Flag<["-"], "mlzcnt">, Group<m_x86_Features_Group>;

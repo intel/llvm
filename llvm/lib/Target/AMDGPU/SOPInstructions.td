@@ -54,9 +54,9 @@ class SOP1_Pseudo <string opName, dag outs, dag ins,
   bits<1> has_sdst = 1;
 }
 
-class SOP1_Real<bits<8> op, SOP1_Pseudo ps> :
+class SOP1_Real<bits<8> op, SOP1_Pseudo ps, string real_name = ps.Mnemonic> :
   InstSI <ps.OutOperandList, ps.InOperandList,
-          ps.Mnemonic # " " # ps.AsmOperands, []>,
+          real_name # " " # ps.AsmOperands, []>,
   Enc32 {
 
   let isPseudo = 0;
@@ -421,6 +421,18 @@ class UniformBinFrag<SDPatternOperator Op> : PatFrag <
   (ops node:$src0, node:$src1),
   (Op $src0, $src1),
   [{ return !N->isDivergent(); }]> {
+  // This check is unnecessary as it's captured by the result register
+  // bank constraint.
+  //
+  // FIXME: Should add a way for the emitter to recognize this is a
+  // trivially true predicate to eliminate the check.
+  let GISelPredicateCode = [{return true;}];
+}
+
+class DivergentBinFrag<SDPatternOperator Op> : PatFrag <
+  (ops node:$src0, node:$src1),
+  (Op $src0, $src1),
+  [{ return N->isDivergent(); }]> {
   // This check is unnecessary as it's captured by the result register
   // bank constraint.
   //
@@ -1609,7 +1621,7 @@ defm S_SETREG_B32       : SOPK_Real32_gfx6_gfx7_gfx10<0x013>;
 defm S_SETREG_IMM32_B32 : SOPK_Real64_gfx6_gfx7_gfx10<0x015>;
 
 //===----------------------------------------------------------------------===//
-// GFX8, GFX9 (VI).
+// GFX8 (VI), GFX9.
 //===----------------------------------------------------------------------===//
 
 class Select_vi<string opName> :

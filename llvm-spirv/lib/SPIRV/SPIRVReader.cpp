@@ -1497,10 +1497,27 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     }
     switch (BT->getOpCode()) {
     case OpTypeBool:
-    case OpTypeInt:
+    case OpTypeInt: {
+      const unsigned NumBits = BT->getBitWidth();
+      if (NumBits > 64) {
+        // Translate arbitrary precision integer constants
+        const unsigned RawDataNumWords = BConst->getNumWords();
+        const unsigned BigValNumWords = (RawDataNumWords + 1) / 2;
+        std::vector<uint64_t> BigValVec(BigValNumWords);
+        const SPIRVWord *RawData = BConst->getSPIRVWords();
+        // SPIRV words are integers of 32-bit width, meanwhile llvm::APInt
+        // is storing data using an array of 64-bit words. Here we pack SPIRV
+        // words into 64-bit integer array.
+        for (size_t I = 0; I != RawDataNumWords; ++I)
+          BigValVec[I / 2] =
+              (I % 2) ? BigValVec[I / 2] | ((uint64_t)RawData[I] << 32)
+                      : BigValVec[I / 2] | ((uint64_t)RawData[I]);
+        return mapValue(BV, ConstantInt::get(LT, APInt(NumBits, BigValVec)));
+      }
       return mapValue(
           BV, ConstantInt::get(LT, ConstValue,
                                static_cast<SPIRVTypeInt *>(BT)->isSigned()));
+    }
     case OpTypeFloat: {
       const llvm::fltSemantics *FS = nullptr;
       switch (BT->getFloatBitWidth()) {
@@ -2786,21 +2803,33 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
   auto IsKernel = isKernel(BF);
   auto Linkage = IsKernel ? GlobalValue::ExternalLinkage : transLinkageType(BF);
   FunctionType *FT = dyn_cast<FunctionType>(transType(BF->getFunctionType()));
-  Function *F = cast<Function>(
-      mapValue(BF, Function::Create(FT, Linkage, BF->getName(), M)));
+  std::string FuncName = BF->getName();
+  StringRef FuncNameRef(FuncName);
+  // Transform "@spirv.llvm_memset_p0i8_i32.volatile" to @llvm.memset.p0i8.i32
+  // assuming llvm.memset is supported by the device compiler. If this
+  // assumption is not safe, we should have a command line option to control
+  // this behavior.
+  if (FuncNameRef.consume_front("spirv.")) {
+    FuncNameRef.consume_back(".volatile");
+    FuncName = FuncNameRef.str();
+    std::replace(FuncName.begin(), FuncName.end(), '_', '.');
+  }
+  Function *F = M->getFunction(FuncName);
+  if (!F)
+    F = Function::Create(FT, Linkage, FuncName, M);
+  F = cast<Function>(mapValue(BF, F));
   mapFunction(BF, F);
 
+  if (F->isIntrinsic())
+    return F;
+
+  F->setCallingConv(IsKernel ? CallingConv::SPIR_KERNEL
+                             : CallingConv::SPIR_FUNC);
   if (BF->hasDecorate(DecorationReferencedIndirectlyINTEL))
     F->addFnAttr("referenced-indirectly");
-
-  if (!F->isIntrinsic()) {
-    F->setCallingConv(IsKernel ? CallingConv::SPIR_KERNEL
-                               : CallingConv::SPIR_FUNC);
-    if (isFuncNoUnwind())
-      F->addFnAttr(Attribute::NoUnwind);
-    foreachFuncCtlMask(BF,
-                       [&](Attribute::AttrKind Attr) { F->addFnAttr(Attr); });
-  }
+  if (isFuncNoUnwind())
+    F->addFnAttr(Attribute::NoUnwind);
+  foreachFuncCtlMask(BF, [&](Attribute::AttrKind Attr) { F->addFnAttr(Attr); });
 
   for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
        ++I) {
@@ -3309,6 +3338,8 @@ bool SPIRVToLLVM::translate() {
     auto BV = BM->getVariable(I);
     if (BV->getStorageClass() != StorageClassFunction)
       transValue(BV, nullptr, nullptr);
+    else
+      transGlobalCtorDtors(BV);
   }
 
   // Compile unit might be needed during translation of debug intrinsics.
@@ -3651,6 +3682,54 @@ bool SPIRVToLLVM::transDecoration(SPIRVValue *BV, Value *V) {
   return true;
 }
 
+void SPIRVToLLVM::transGlobalCtorDtors(SPIRVVariable *BV) {
+  if (BV->getName() != "llvm.global_ctors" &&
+      BV->getName() != "llvm.global_dtors")
+    return;
+
+  Value *V = transValue(BV, nullptr, nullptr);
+  cast<GlobalValue>(V)->setLinkage(GlobalValue::AppendingLinkage);
+}
+
+void SPIRVToLLVM::createCXXStructor(const char *ListName,
+                                    SmallVectorImpl<Function *> &Funcs) {
+  if (Funcs.empty())
+    return;
+
+  // If the SPIR-V input contained a variable for the structor list and it
+  // has already been translated, then don't interfere.
+  if (M->getGlobalVariable(ListName))
+    return;
+
+  // Type of a structor entry: { i32, void ()*, i8* }
+  Type *PriorityTy = Type::getInt32Ty(*Context);
+  PointerType *CtorTy = PointerType::getUnqual(
+      FunctionType::get(Type::getVoidTy(*Context), false));
+  PointerType *ComdatTy = Type::getInt8PtrTy(*Context);
+  StructType *StructorTy = StructType::get(PriorityTy, CtorTy, ComdatTy);
+
+  ArrayType *ArrTy = ArrayType::get(StructorTy, Funcs.size());
+
+  GlobalVariable *GV =
+      cast<GlobalVariable>(M->getOrInsertGlobal(ListName, ArrTy));
+  GV->setLinkage(GlobalValue::AppendingLinkage);
+
+  // Build the initializer.
+  SmallVector<Constant *, 2> ArrayElts;
+  for (auto *F : Funcs) {
+    SmallVector<Constant *, 3> Elts;
+    // SPIR-V does not specify an order between Initializers, so set default
+    // priority.
+    Elts.push_back(ConstantInt::get(PriorityTy, 65535));
+    Elts.push_back(ConstantExpr::getBitCast(F, CtorTy));
+    Elts.push_back(ConstantPointerNull::get(ComdatTy));
+    ArrayElts.push_back(ConstantStruct::get(StructorTy, Elts));
+  }
+
+  Constant *NewArray = ConstantArray::get(ArrTy, ArrayElts);
+  GV->setInitializer(NewArray);
+}
+
 bool SPIRVToLLVM::transFPContractMetadata() {
   bool ContractOff = false;
   for (unsigned I = 0, E = BM->getNumFunctions(); I != E; ++I) {
@@ -3727,6 +3806,7 @@ static bool transKernelArgTypeMedataFromString(LLVMContext *Ctx,
 }
 
 bool SPIRVToLLVM::transMetadata() {
+  SmallVector<Function *, 2> CtorKernels;
   for (unsigned I = 0, E = BM->getNumFunctions(); I != E; ++I) {
     SPIRVFunction *BF = BM->getFunction(I);
     Function *F = static_cast<Function *>(getTranslatedValue(BF));
@@ -3758,6 +3838,10 @@ bool SPIRVToLLVM::transMetadata() {
           ConstantInt::get(Type::getInt32Ty(*Context), 1)));
       F->setMetadata(kSPIR2MD::VecTyHint, MDNode::get(*Context, MetadataVec));
     }
+    // Generate metadata for Initializer.
+    if (BF->getExecutionMode(ExecutionModeInitializer)) {
+      CtorKernels.push_back(F);
+    }
     // Generate metadata for intel_reqd_sub_group_size
     if (auto *EM = BF->getExecutionMode(ExecutionModeSubgroupSize)) {
       auto SizeMD = ConstantAsMetadata::get(getUInt32(M, EM->getLiterals()[0]));
@@ -3788,6 +3872,7 @@ bool SPIRVToLLVM::transMetadata() {
   MemoryModelMD->addOperand(
       getMDTwoInt(Context, static_cast<unsigned>(BM->getAddressingModel()),
                   static_cast<unsigned>(BM->getMemoryModel())));
+  createCXXStructor("llvm.global_ctors", CtorKernels);
   return true;
 }
 
@@ -4110,12 +4195,24 @@ Instruction *SPIRVToLLVM::transOCLBuiltinFromExtInst(SPIRVExtInst *BC,
 
   std::vector<Type *> ArgTypes = transTypeVector(BC->getValueTypes(BArgs));
 
+  // TODO: we should always produce SPIR-V friendly IR and apply lowering
+  // later if needed
   if (IsPrintf) {
-    MangledName = "printf";
     ArgTypes.resize(1);
-  } else {
-    mangleOpenClBuiltin(UnmangledName, ArgTypes, MangledName);
   }
+
+  if (BM->getDesiredBIsRepresentation() != BIsRepresentation::SPIRVFriendlyIR) {
+    // Convert extended instruction into an OpenCL built-in
+    if (IsPrintf) {
+      MangledName = "printf";
+    } else {
+      mangleOpenClBuiltin(UnmangledName, ArgTypes, MangledName);
+    }
+  } else {
+    MangledName = getSPIRVFriendlyIRFunctionName(
+        static_cast<OCLExtOpKind>(EntryPoint), ArgTypes);
+  }
+
   SPIRVDBG(spvdbgs() << "[transOCLBuiltinFromExtInst] ModifiedUnmangledName: "
                      << UnmangledName << " MangledName: " << MangledName
                      << '\n');

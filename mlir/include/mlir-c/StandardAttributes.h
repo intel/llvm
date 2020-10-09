@@ -93,6 +93,11 @@ int mlirAttributeIsAFloat(MlirAttribute attr);
 MlirAttribute mlirFloatAttrDoubleGet(MlirContext ctx, MlirType type,
                                      double value);
 
+/** Same as "mlirFloatAttrDoubleGet", but if the type is not valid for a
+ * construction of a FloatAttr, returns a null MlirAttribute. */
+MlirAttribute mlirFloatAttrDoubleGetChecked(MlirType type, double value,
+                                            MlirLocation loc);
+
 /** Returns the value stored in the given floating point attribute, interpreting
  * the value as double. */
 double mlirFloatAttrGetValueDouble(MlirAttribute attr);
@@ -149,7 +154,7 @@ MlirAttribute mlirOpaqueAttrGet(MlirContext ctx, const char *dialectNamespace,
                                 intptr_t dataLength, const char *data,
                                 MlirType type);
 
-/** Returns the namepsace of the dialect with which the given opaque attribute
+/** Returns the namespace of the dialect with which the given opaque attribute
  * is associated. The namespace string is owned by the context. */
 const char *mlirOpaqueAttrGetDialectNamespace(MlirAttribute attr);
 

@@ -455,17 +455,17 @@ LoopIdiomRecognize::isLegalStore(StoreInst *SI) {
   if (!SI->isUnordered())
     return LegalStoreKind::None;
 
-  // Don't convert stores of non-integral pointer types to memsets (which stores
-  // integers).
-  if (DL->isNonIntegralPointerType(SI->getValueOperand()->getType()))
-    return LegalStoreKind::None;
-
   // Avoid merging nontemporal stores.
   if (SI->getMetadata(LLVMContext::MD_nontemporal))
     return LegalStoreKind::None;
 
   Value *StoredVal = SI->getValueOperand();
   Value *StorePtr = SI->getPointerOperand();
+
+  // Don't convert stores of non-integral pointer types to memsets (which stores
+  // integers).
+  if (DL->isNonIntegralPointerType(StoredVal->getType()->getScalarType()))
+    return LegalStoreKind::None;
 
   // Reject stores that are so large that they overflow an unsigned.
   // When storing out scalable vectors we bail out for now, since the code
@@ -1211,7 +1211,7 @@ bool LoopIdiomRecognize::processLoopStoreOfLoopLoad(StoreInst *SI,
 bool LoopIdiomRecognize::avoidLIRForMultiBlockLoop(bool IsMemset,
                                                    bool IsLoopMemset) {
   if (ApplyCodeSizeHeuristics && CurLoop->getNumBlocks() > 1) {
-    if (!CurLoop->getParentLoop() && (!IsMemset || !IsLoopMemset)) {
+    if (CurLoop->isOutermost() && (!IsMemset || !IsLoopMemset)) {
       LLVM_DEBUG(dbgs() << "  " << CurLoop->getHeader()->getParent()->getName()
                         << " : LIR " << (IsMemset ? "Memset" : "Memcpy")
                         << " avoided: multi-block top-level loop\n");

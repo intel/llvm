@@ -27,6 +27,8 @@
 #include "llvm/Support/FormatVariadicDetails.h"
 #include "llvm/ADT/Triple.h"
 
+#include <limits>
+
 namespace llvm {
 class StringRef;
 
@@ -553,6 +555,7 @@ StringRef GDBIndexEntryLinkageString(GDBIndexEntryLinkage Linkage);
 StringRef IndexString(unsigned Idx);
 StringRef FormatString(DwarfFormat Format);
 StringRef FormatString(bool IsDWARF64);
+StringRef RLEString(unsigned RLE);
 /// @}
 
 /// \defgroup DwarfConstantsParsing Dwarf constants parsing functions
@@ -744,6 +747,11 @@ template <> struct EnumTraits<LocationAtom> : public std::true_type {
   static constexpr char Type[3] = "OP";
   static constexpr StringRef (*StringFn)(unsigned) = &OperationEncodingString;
 };
+
+inline uint64_t computeTombstoneAddress(uint8_t AddressByteSize) {
+  return std::numeric_limits<uint64_t>::max() >> (8 - AddressByteSize) * 8;
+}
+
 } // End of namespace dwarf
 
 /// Dwarf constants format_provider

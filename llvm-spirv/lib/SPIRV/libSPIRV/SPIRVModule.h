@@ -46,9 +46,11 @@
 #include <iostream>
 #include <set>
 #include <string>
-#include <unordered_map>
-#include <unordered_set>
 #include <vector>
+
+namespace llvm {
+class APInt;
+} // namespace llvm
 
 namespace SPIRV {
 
@@ -254,6 +256,7 @@ public:
                                                    SPIRVFunction *F) = 0;
   virtual SPIRVValue *addConstant(SPIRVValue *) = 0;
   virtual SPIRVValue *addConstant(SPIRVType *, uint64_t) = 0;
+  virtual SPIRVValue *addConstant(SPIRVType *, llvm::APInt) = 0;
   virtual SPIRVValue *addSpecConstant(SPIRVType *, uint64_t) = 0;
   virtual SPIRVValue *addDoubleConstant(SPIRVTypeFloat *, double) = 0;
   virtual SPIRVValue *addFloatConstant(SPIRVTypeFloat *, float) = 0;
@@ -493,6 +496,10 @@ public:
       assert(false && "Unexpected debug info EIS!");
       return SPIRVEIS_Debug;
     }
+  }
+
+  BIsRepresentation getDesiredBIsRepresentation() const {
+    return TranslationOpts.getDesiredBIsRepresentation();
   }
 
   // I/O functions
