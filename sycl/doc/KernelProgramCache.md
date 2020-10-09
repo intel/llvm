@@ -176,10 +176,35 @@ current build status (either of "in progress", "succeeded", "failed").
 
 One can find definition of `BuildResult` template in [KernelProgramCache](https://github.com/intel/llvm/blob/sycl/sycl/source/detail/kernel_program_cache.hpp).
 
-Pointer to built resource and build result are both atomic variables. Atomicity
-of these variables allows one to hold lock on cache for quite a short time and
-perform the rest of build/wait process without forcing other threads to wait on
-lock availability.
+The built resource access synchronization approach aims at minimizing the time
+any thread holds the global lock guarding the maps to improve performance. To
+achieve that, the global lock is acquired only for the duration of the global
+map access. Actual build of the program happens outside of the lock, so other
+threads can request or build other programs in the meantime. A thread requesting
+a `BuildResult` instance via `getOrBuild` can go one of three ways:
+ A) Build result is **not** available, it is the first thread to request it.
+    Current thread will then execute the build letting others wait for the
+    result using the per-build result condition variable kept in `BuildResult`'s
+    `MBuildCV` field.
+ B) Build result is **not** available, another thread is already building the
+    result. Current thread will then wait for the result using the `MBuildCV`
+    condition variable.
+ C) Build result **is** available. The thread simply takes it from the `Ptr`
+    field w/o using any mutexes or condition variables.
+
+As noted before, access to `BuildResult` instance fields may occur from
+different threads simultaneously, but the global lock is no longer held. So, to
+make it safe and to make sure only one thread builds the requested program, the
+following is done:
+ - program build state is reflected in the `State` field, threads use
+   compare-and-swap technique to compete who will do the build and become thread
+   A. Threads C will find 'DONE' in this field and immediately return the with
+   built result at hand.
+ - thread A and thread(s) B use the `MBuildCV` conditional variable field and
+   `MBuildResultMutex`  mutex field guarding that variable to implement the
+   "single producer-multiple consumers scheme".
+ - the build result itself appears in the 'Ptr' field when available.
+All fields are atomic because they can be accessed from multiple threads.
 
 A specialization of helper class [Locked](https://github.com/intel/llvm/blob/sycl/sycl/include/CL/sycl/detail/locked.hpp)
 for reference of proper mapping is returned by Acquire function. The use of this
