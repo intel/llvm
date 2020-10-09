@@ -6181,9 +6181,9 @@ static void processSYCLKernel(Sema &S, FunctionDecl *FD, MangleContext &MC) {
     else
       CRD = KernelParamTy->getAsCXXRecordDecl();
     for (auto *Method : CRD->methods())
-       if (Method->getOverloadedOperator() == OO_Call &&
-           !Method->hasAttr<AlwaysInlineAttr>())
-         Method->addAttr(AlwaysInlineAttr::CreateImplicit(S.getASTContext()));
+      if (Method->getOverloadedOperator() == OO_Call &&
+          !Method->hasAttr<AlwaysInlineAttr>())
+        Method->addAttr(AlwaysInlineAttr::CreateImplicit(S.getASTContext()));
   }
 }
 
