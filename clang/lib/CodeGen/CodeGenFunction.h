@@ -1838,7 +1838,7 @@ private:
   /// Add OpenCL kernel arg metadata and the kernel attribute metadata to
   /// the function metadata on intel_reqd_sub_group_size attribute.
   void EmitOpenCLKernelSubGroupMetadata(const FunctionDecl *FD,
-		                        llvm::Function *Fn);
+                                        llvm::Function *Fn);
 
 public:
   CodeGenFunction(CodeGenModule &cgm, bool suppressNewContext=false);

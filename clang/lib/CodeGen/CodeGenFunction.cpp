@@ -565,8 +565,7 @@ CodeGenFunction::DecodeAddrUsedInPrologue(llvm::Value *F,
 }
 
 void CodeGenFunction::EmitOpenCLKernelSubGroupMetadata(const FunctionDecl *FD,
-                                                       llvm::Function *Fn)
-{
+                                                       llvm::Function *Fn) {
   if (!FD->hasAttr<OpenCLKernelAttr>())
     return;
 
@@ -577,7 +576,7 @@ void CodeGenFunction::EmitOpenCLKernelSubGroupMetadata(const FunctionDecl *FD,
 
   CGM.GenOpenCLArgMetadata(Fn, FD, this);
   if (const IntelReqdSubGroupSizeAttr *A =
-      FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
+          FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
     llvm::LLVMContext &Context = getLLVMContext();
     Optional<llvm::APSInt> ArgVal =
         A->getValue()->getIntegerConstantExpr(FD->getASTContext());

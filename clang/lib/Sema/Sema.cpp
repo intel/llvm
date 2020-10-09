@@ -991,7 +991,7 @@ void Sema::ActOnEndOfTranslationUnitFragment(TUFragmentKind Kind) {
   if (getLangOpts().SYCLIsDevice)
     // Emit SYCL integration header for current translation unit if needed
     if (SyclIntHeader != nullptr)
-     SyclIntHeader->emit(getLangOpts().SYCLIntHeader);
+      SyclIntHeader->emit(getLangOpts().SYCLIntHeader);
 
   if (getLangOpts().SYCLIsDevice || getLangOpts().SYCLIsHost)
     MarkDevice();
