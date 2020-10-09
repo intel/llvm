@@ -31,6 +31,7 @@ class raw_ostream;
 class Value;
 class VPSlotTracker;
 class VPUser;
+class VPRecipeBase;
 
 // This is the base class of the VPlan Def/Use graph, used for modeling the data
 // flow into, within and out of the VPlan. VPValues can stand for live-ins
@@ -95,6 +96,22 @@ public:
 
   unsigned getNumUsers() const { return Users.size(); }
   void addUser(VPUser &User) { Users.push_back(&User); }
+
+  /// Remove a single \p User from the list of users.
+  void removeUser(VPUser &User) {
+    bool Found = false;
+    // The same user can be added multiple times, e.g. because the same VPValue
+    // is used twice by the same VPUser. Remove a single one.
+    erase_if(Users, [&User, &Found](VPUser *Other) {
+      if (Found)
+        return false;
+      if (Other == &User) {
+        Found = true;
+        return true;
+      }
+      return false;
+    });
+  }
 
   typedef SmallVectorImpl<VPUser *>::iterator user_iterator;
   typedef SmallVectorImpl<VPUser *>::const_iterator const_user_iterator;
@@ -163,7 +180,11 @@ public:
     return Operands[N];
   }
 
-  void setOperand(unsigned I, VPValue *New) { Operands[I] = New; }
+  void setOperand(unsigned I, VPValue *New) {
+    Operands[I]->removeUser(*this);
+    Operands[I] = New;
+    New->addUser(*this);
+  }
 
   typedef SmallVectorImpl<VPValue *>::iterator operand_iterator;
   typedef SmallVectorImpl<VPValue *>::const_iterator const_operand_iterator;
@@ -178,6 +199,9 @@ public:
   const_operand_range operands() const {
     return const_operand_range(op_begin(), op_end());
   }
+
+  /// Method to support type inquiry through isa, cast, and dyn_cast.
+  static inline bool classof(const VPRecipeBase *Recipe);
 };
 class VPlan;
 class VPBasicBlock;

@@ -2439,7 +2439,8 @@ static bool checkFloatingPointResult(EvalInfo &Info, const Expr *E,
     return false;
   }
 
-  if (St & APFloat::opStatus::opInvalidOp) {
+  if ((St & APFloat::opStatus::opInvalidOp) &&
+      FPO.getFPExceptionMode() != LangOptions::FPE_Ignore) {
     // There is no usefully definable result.
     Info.FFDiag(E);
     return false;
@@ -14821,7 +14822,7 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
         const VarDecl *VD;
         // Look for a declaration of this variable that has an initializer, and
         // check whether it is an ICE.
-        if (Dcl->getAnyInitializer(VD) && VD->checkInitIsICE())
+        if (Dcl->getAnyInitializer(VD) && !VD->isWeak() && VD->checkInitIsICE())
           return NoDiag();
         else
           return ICEDiag(IK_NotICE, cast<DeclRefExpr>(E)->getLocation());

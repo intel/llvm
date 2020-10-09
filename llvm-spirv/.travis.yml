@@ -89,6 +89,7 @@ script:
       mkdir llvm-spirv
       mv * llvm-spirv
       git clone https://github.com/llvm/llvm-project --depth 1
+      git -C llvm-project log --oneline -1
       mv llvm-spirv llvm-project/llvm-spirv
     fi
   - |

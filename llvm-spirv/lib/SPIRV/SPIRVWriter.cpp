@@ -684,8 +684,17 @@ SPIRVValue *LLVMToSPIRV::transConstant(Value *V) {
     return BM->addNullConstant(transType(AggType));
   }
 
-  if (auto ConstI = dyn_cast<ConstantInt>(V))
+  if (auto ConstI = dyn_cast<ConstantInt>(V)) {
+    unsigned BitWidth = ConstI->getType()->getBitWidth();
+    if (BitWidth > 64) {
+      BM->getErrorLog().checkError(
+          BM->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_arbitrary_precision_integers),
+          SPIRVEC_InvalidBitWidth, std::to_string(BitWidth));
+      return BM->addConstant(transType(V->getType()), ConstI->getValue());
+    }
     return BM->addConstant(transType(V->getType()), ConstI->getZExtValue());
+  }
 
   if (auto ConstFP = dyn_cast<ConstantFP>(V)) {
     auto BT = static_cast<SPIRVType *>(transType(V->getType()));
@@ -2693,7 +2702,14 @@ bool LLVMToSPIRV::transGlobalVariables() {
   for (auto I = M->global_begin(), E = M->global_end(); I != E; ++I) {
     if ((*I).getName() == "llvm.global.annotations")
       transGlobalAnnotation(&(*I));
-    else if (MDNode *IO = ((*I).getMetadata("io_pipe_id")))
+    else if ((I->getName() == "llvm.global_ctors" ||
+              I->getName() == "llvm.global_dtors") &&
+             !BM->isAllowedToUseExtension(
+                 ExtensionID::SPV_INTEL_function_pointers)) {
+      // Function pointers are required to represent structor lists; do not
+      // translate the variable if function pointers are not available.
+      continue;
+    } else if (MDNode *IO = ((*I).getMetadata("io_pipe_id")))
       transGlobalIOPipeStorage(&(*I), IO);
     else if (!transValue(&(*I), nullptr))
       return false;
@@ -3012,10 +3028,19 @@ bool LLVMToSPIRV::transExecutionMode() {
 
       switch (EMode) {
       case spv::ExecutionModeContractionOff:
-      case spv::ExecutionModeInitializer:
-      case spv::ExecutionModeFinalizer:
         BF->addExecutionMode(BM->add(
             new SPIRVExecutionMode(BF, static_cast<ExecutionMode>(EMode))));
+        break;
+      case spv::ExecutionModeInitializer:
+      case spv::ExecutionModeFinalizer:
+        if (BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_1)) {
+          BF->addExecutionMode(BM->add(
+              new SPIRVExecutionMode(BF, static_cast<ExecutionMode>(EMode))));
+        } else {
+          getErrorLog().checkError(false, SPIRVEC_Requires1_1,
+                                   "Initializer/Finalizer Execution Mode");
+          return false;
+        }
         break;
       case spv::ExecutionModeLocalSize:
       case spv::ExecutionModeLocalSizeHint: {
@@ -3591,11 +3616,10 @@ void addPassesForSPIRV(legacy::PassManager &PassMgr,
   if (Opts.isSPIRVMemToRegEnabled())
     PassMgr.add(createPromoteMemoryToRegisterPass());
   PassMgr.add(createPreprocessMetadata());
-  PassMgr.add(createOCL21ToSPIRV());
   PassMgr.add(createSPIRVLowerSPIRBlocks());
   PassMgr.add(createOCLTypeToSPIRV());
   PassMgr.add(createSPIRVLowerOCLBlocks());
-  PassMgr.add(createOCL20ToSPIRV());
+  PassMgr.add(createOCLToSPIRV());
   PassMgr.add(createSPIRVRegularizeLLVM());
   PassMgr.add(createSPIRVLowerConstExpr());
   PassMgr.add(createSPIRVLowerBool());
