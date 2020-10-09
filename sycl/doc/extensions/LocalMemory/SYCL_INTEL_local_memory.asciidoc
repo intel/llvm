@@ -56,16 +56,16 @@ products.
 == Version
 
 Built On: {docdate} +
-Revision: 1
+Revision: 2
 
 == Contact
 
-John Pennycook, Intel (john 'dot' pennycook 'at' intel 'dot' com)
+John Pennycook, Intel (john 'dot' pennycook 'at' intel 'dot' com) +
 Roland Schulz, Intel (roland 'dot' schulz 'at' intel 'dot' com)
 
 == Contributors
 
-Felipe de Azevedo Piovezan, Intel
+Felipe de Azevedo Piovezan, Intel +
 Michael Kinsner, Intel
 
 == Dependencies
@@ -191,12 +191,10 @@ extension.]
  multi_ptr<T, Group::address_space> group_local_memory_for_overwrite(Group g)` |
 Constructs an object of type `T` in an address space accessible by all
 work-items in group _g_, using default initialization.  The object is
-initialized pon or before the first call to `group_local_memory`.  The storage
+default initialized on or before the first call to `group_local_memory`.  The storage
 for the object is allocated upon or before the first call to
 `group_local_memory`, and deallocated when all work-items in the group have
 completed execution of the kernel.
-
-All arguments in _args_ must be the same for all work-items in the group.
 
 `Group` must be `sycl::group`, and `T` must be trivially destructible.
 [_Note_ - These restrictions may be lifted in a future version of this
@@ -216,6 +214,7 @@ None.
 |========================================
 |Rev|Date|Author|Changes
 |1|2020-08-18|John Pennycook|*Initial public working draft*
+|2|2020-10-09|Mike Kinsner|Fix minor text errors
 |========================================
 
 //************************************************************************
