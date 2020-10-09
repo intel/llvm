@@ -6174,17 +6174,16 @@ static void processSYCLKernel(Sema &S, FunctionDecl *FD, MangleContext &MC) {
   if (S.LangOpts.SYCLIsDevice) {
     S.ConstructOpenCLKernel(FD, MC);
   } else if (S.LangOpts.SYCLIsHost) {
-    //S.ConstructOpenCLKernel(FD, MC);
     QualType KernelParamTy = (*FD->param_begin())->getType();
     const CXXRecordDecl *CRD;
     if (KernelParamTy->isReferenceType())
       CRD = KernelParamTy->getPointeeCXXRecordDecl();
     else
       CRD = KernelParamTy->getAsCXXRecordDecl();
-      for (auto *Method : CRD->methods())
-	 if (Method->getOverloadedOperator() == OO_Call &&
-             !Method->hasAttr<AlwaysInlineAttr>())
-           Method->addAttr(AlwaysInlineAttr::CreateImplicit(S.getASTContext()));
+    for (auto *Method : CRD->methods())
+       if (Method->getOverloadedOperator() == OO_Call &&
+           !Method->hasAttr<AlwaysInlineAttr>())
+         Method->addAttr(AlwaysInlineAttr::CreateImplicit(S.getASTContext()));
   }
 }
 
