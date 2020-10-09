@@ -23,6 +23,9 @@ class device;
 namespace detail {
 class platform_impl;
 }
+namespace level_zero {
+platform make_platform(pi_native_handle NativeHandle);
+}
 
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///
@@ -126,9 +129,9 @@ public:
   /// given feature.
   bool has(aspect Aspect) const;
 
+private:
   platform(shared_ptr_class<detail::platform_impl> impl) : impl(impl) {}
 
-private:
   pi_native_handle getNative() const;
 
   shared_ptr_class<detail::platform_impl> impl;
@@ -137,6 +140,7 @@ private:
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend platform level_zero::make_platform(pi_native_handle NativeHandle);
 
 }; // class platform
 } // namespace sycl

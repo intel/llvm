@@ -25,11 +25,8 @@ __SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle) {
   pi::PiPlatform PiPlatform;
   Plugin.call<PiApiKind::piextPlatformCreateWithNativeHandle>(NativeHandle,
                                                               &PiPlatform);
-  const auto &PlatformImpl =
-      getSyclObjImpl(detail::createSyclObjFromImpl<platform>(
-          std::make_shared<platform_impl>(PiPlatform, Plugin)));
 
-  return PlatformImpl->getOrMakePlatformImpl(PiPlatform, Plugin);
+  return platform_impl::getOrMakePlatformImpl(PiPlatform, Plugin);
 }
 
 //----------------------------------------------------------------------------
