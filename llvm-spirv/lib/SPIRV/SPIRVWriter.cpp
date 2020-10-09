@@ -1986,6 +1986,7 @@ bool LLVMToSPIRV::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::fmuladd:
   case Intrinsic::memset:
   case Intrinsic::memcpy:
+  case Intrinsic::nearbyint:
   case Intrinsic::lifetime_start:
   case Intrinsic::lifetime_end:
   case Intrinsic::dbg_declare:
@@ -2315,6 +2316,13 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     if (Size == -1)
       Size = 0;
     return BM->addLifetimeInst(OC, transValue(II->getOperand(1), BB), Size, BB);
+  }
+  case Intrinsic::nearbyint: {
+    if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
+      break;
+    return BM->addExtInst(transType(II->getType()),
+                          BM->getExtInstSetId(SPIRVEIS_OpenCL), OpenCLLIB::Rint,
+                          {transValue(II->getOperand(0), BB)}, BB);
   }
   // We don't want to mix translation of regular code and debug info, because
   // it creates a mess, therefore translation of debug intrinsics is
