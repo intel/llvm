@@ -17,7 +17,7 @@ ordinal number. This complicates the design, as the compiler
 
 Simple source code example:
 
-```cpp
+```
 class MyInt32Const;
 ...
   sycl::program p(q.get_context());
@@ -46,7 +46,7 @@ primitive numeric types. POD types support is described further in the document.
 
 Key `spec_constant::get()` function implementation for the device code:
 
-```cpp
+```
 template <typename T, typename ID = T> class spec_constant {
 ...
 public:
@@ -87,7 +87,7 @@ After this pass the sycl-post-link tool will output the
 attaching this info to the device binary image via the offload wrapper tool as
 a property set:
 
-```cpp
+```
 struct pi_device_binary_struct {
 ...
   // Array of preperty sets; e.g. specialization constants symbol-int ID map is
@@ -112,7 +112,7 @@ the value of a spec constant.
 
 Given the `__spirv_SpecConstant` intrinsic calls produced by the
 `SpecConstants` pass:
-```cpp
+```
 ; Function Attrs: alwaysinline
 define dso_local spir_func i32 @get() local_unnamed_addr #0 {
   ; args are "ID" and "default value":
@@ -124,7 +124,7 @@ define dso_local spir_func i32 @get() local_unnamed_addr #0 {
 the translator will generate `OpSpecConstant` SPIR-V instructions with proper
 `SpecId` decorations:
 
-```cpp
+```
               OpDecorate %i32 SpecId 42 ; ID
        %i32 = OpSpecConstant %int 0     ; Default value
          %1 = OpTypeFunction %int
@@ -152,7 +152,7 @@ unaware of the clang-specific built-ins.
 Before JIT-ing a program, the runtime "flushes" the spec constants: it iterates
 through the value map and invokes the
 
-```cpp
+```
 pi_result piextProgramSetSpecializationConstant(pi_program prog,
                                                 pi_uint32 spec_id,
                                                 size_t spec_size,
@@ -167,7 +167,7 @@ Plugin Interface function for each entry, taking the `spec_id` from the ID map.
 
 Say, the POD type is
 
-```cpp
+```
 struct A {
   int x;
   float y;
@@ -181,7 +181,7 @@ struct POD {
 
 and the user says
 
-```cpp
+```
   POD gold{
     {
       { goldi, goldf },
@@ -199,7 +199,7 @@ and the user says
 
  - The SpecConstants pass in the post-link will have the following IR as input (`sret` conversion is omitted for clarity):
 
-```cpp
+```
   %spec_const = call %struct.POD __sycl_getCompositeSpecConstantValue<POD type mangling> ("MyConst_mangled")
 ```
 
@@ -214,7 +214,7 @@ where `__sycl_getCompositeSpecConstantValue` is a new "intrinsic"
  specialization constant's type (`%struct.POD`), the pass will traverse its leaf
  fields and generate 5 "primitive" spec constants using already existing SPIR-V intrinsic:
 
-```cpp
+```
 %gold_POD_a0x = call i32 __spirv_SpecConstant(i32 10, i32 0)
 %gold_POD_a0y = call float __spirv_SpecConstant(i32 11, float 0)
 %gold_POD_a1x = call i32 __spirv_SpecConstant(i32 12, i32 0)
@@ -224,7 +224,7 @@ where `__sycl_getCompositeSpecConstantValue` is a new "intrinsic"
 
 And 1 "composite"
 
-```cpp
+```
   %gold_POD = call %struct.POD __spirvCompositeSpecConstant<POD type mangling>(i32 10, i32 11, i32 12, i32 13, i32 14)
 ```
 
@@ -244,7 +244,7 @@ passed to the runtime. Also, for a composite specialization constant there is
 no ID map entry within the meta information, and the composite constant is
 referenced by its symbolic ID. For example:
 
-```cpp
+```
 MyConst_mangled [10,int,0,4],[11,float,4,4],[12,int,8,4],[13,float,12,4],[14,int,16,4]
 ```
 
@@ -252,7 +252,7 @@ MyConst_mangled [10,int,0,4],[11,float,4,4],[12,int,8,4],[13,float,12,4],[14,int
 
 The translator aims to create the following code (pseudo-code)
 
-```cpp
+```
 %gold_POD_a0x = OpSpecConstant(0)    [SpecId = 10]
 %gold_POD_a0y = OpSpecConstant(0.0f) [SpecId = 11]
 %gold_POD_a1x = OpSpecConstant(0)    [SpecId = 12]

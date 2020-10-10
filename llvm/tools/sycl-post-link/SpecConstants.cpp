@@ -183,27 +183,27 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   int NextID = 0;
   StringMap<unsigned> IDMap;
 
-  // Iterate through all calls to
+  // Iterate through all declarations of instances of function template
   // template <typename T> T __sycl_getSpecConstantValue(const char *ID)
-  // intrinsic and lower them depending on the SetValAtRT setting (see below).
+  // intrinsic to find its calls and lower them depending on the SetValAtRT
+  // setting (see below).
   bool IRModified = false;
 
   for (Function &F : M) {
-    if (F.isDeclaration())
+    if (!F.isDeclaration())
       continue;
+
+    if (!F.getName().startswith(SYCL_GET_SPEC_CONST_VAL))
+      continue;
+
     SmallVector<CallInst *, 32> SCIntrCalls;
-
-    for (Instruction &I : instructions(F)) {
-      auto *CI = dyn_cast<CallInst>(&I);
-      Function *Callee = nullptr;
-      if (!CI || CI->isIndirectCall() || !(Callee = CI->getCalledFunction()))
-        continue;
-      StringRef Name = Callee->getName();
-
-      if (!Name.startswith(SYCL_GET_SPEC_CONST_VAL))
+    for (auto *U : F.users()) {
+      auto *CI = dyn_cast<CallInst>(U);
+      if (!CI)
         continue;
       SCIntrCalls.push_back(CI);
     }
+
     IRModified = IRModified || (SCIntrCalls.size() > 0);
 
     for (auto *CI : SCIntrCalls) {

@@ -14,7 +14,6 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
-#include <detail/program_impl.hpp>
 
 #include <cassert>
 #include <memory>
