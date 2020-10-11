@@ -435,12 +435,46 @@ _pi_queue::resetCommandListFenceEntry(ze_command_list_handle_t ZeCommandList,
   return PI_SUCCESS;
 }
 
+static const pi_uint32 ZeCommandListBatchSize = [] {
+  // Default value of 4. This has been seen as a good tradeoff between
+  // lower overhead of number of enqueue and fence calls, and getting
+  // commands seen as soon possible (i.e. lazy vs eager submission).
+  pi_uint32 BatchSizeVal = 4;
+  const auto BatchSizeStr = std::getenv("SYCL_PI_LEVEL_ZERO_BATCH_SIZE");
+  if (BatchSizeStr) {
+    pi_int32 BatchSizeStrVal = std::atoi(BatchSizeStr);
+    // Level Zero may only support a limted number of commands per command
+    // list.  The actual upper limit is not specified by the Level Zero
+    // Specification.  For now we allow an arbitrary upper limit.
+    // Negative numbers will be silently ignored.
+    if (BatchSizeStrVal >= 0)
+      BatchSizeVal = BatchSizeStrVal;
+  }
+  return BatchSizeVal;
+}();
+
 // Retrieve an available command list to be used in a PI call
 // Caller must hold a lock on the Queue passed in.
-pi_result
-_pi_device::getAvailableCommandList(pi_queue Queue,
-                                    ze_command_list_handle_t *ZeCommandList,
-                                    ze_fence_handle_t *ZeFence) {
+pi_result _pi_device::getAvailableCommandList(
+    pi_queue Queue, ze_command_list_handle_t *ZeCommandList,
+    ze_fence_handle_t *ZeFence, bool AllowBatching) {
+  // First see if there is an command-list open for batching commands
+  // for this queue.
+  if (Queue->ZeOpenCommandList) {
+    if (AllowBatching) {
+      *ZeCommandList = Queue->ZeOpenCommandList;
+      *ZeFence = Queue->ZeOpenCommandListFence;
+      return PI_SUCCESS;
+    }
+
+    // If this command isn't allowed to be batched, then we need to
+    // go ahead and execute what is already in the batched list,
+    // and then go on to process this. On exit from executeOpenCommandList
+    // ZeOpenCommandList will be nullptr.
+    if (auto Res = Queue->executeOpenCommandList())
+      return Res;
+  }
+
   // Create/Reuse the command list, because in Level Zero commands are added to
   // the command lists, and later are then added to the command queue.
   // Each command list is paired with an associated fence to track when the
@@ -522,6 +556,55 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
     // Wait until command lists attached to the command queue are executed.
     ZE_CALL(zeCommandQueueSynchronize(ZeCommandQueue, UINT32_MAX));
   }
+  return PI_SUCCESS;
+}
+
+bool _pi_queue::isBatchingAllowed() {
+  return (this->QueueBatchSize > 1 && ((ZeSerialize & ZeSerializeBlock) == 0));
+}
+
+pi_result _pi_queue::batchCommandList(ze_command_list_handle_t ZeCommandList,
+                                      ze_fence_handle_t ZeFence) {
+  if (this->isBatchingAllowed()) {
+    assert(this->ZeOpenCommandList == nullptr ||
+           this->ZeOpenCommandList == ZeCommandList);
+
+    if (this->ZeOpenCommandListSize + 1 < QueueBatchSize) {
+      this->ZeOpenCommandList = ZeCommandList;
+      this->ZeOpenCommandListFence = ZeFence;
+
+      // NOTE: we don't know here how many commands are in the ZeCommandList
+      // but most PI interfaces translate to a single Level-Zero command.
+      // Some do translate to multiple commands so we may be undercounting
+      // a bit here, but this is a heuristic, not an exact measure.
+      //
+      this->ZeOpenCommandListSize += 1;
+
+      return PI_SUCCESS;
+    }
+
+    this->ZeOpenCommandList = nullptr;
+    this->ZeOpenCommandListFence = nullptr;
+    this->ZeOpenCommandListSize = 0;
+  }
+
+  return executeCommandList(ZeCommandList, ZeFence);
+}
+
+pi_result _pi_queue::executeOpenCommandList() {
+  // If there are any commands still in the open command list for this
+  // queue, then close and execute that command list now.
+  auto OpenList = this->ZeOpenCommandList;
+  if (OpenList) {
+    auto OpenListFence = this->ZeOpenCommandListFence;
+
+    this->ZeOpenCommandList = nullptr;
+    this->ZeOpenCommandListFence = nullptr;
+    this->ZeOpenCommandListSize = 0;
+
+    return executeCommandList(OpenList, OpenListFence);
+  }
+
   return PI_SUCCESS;
 }
 
@@ -682,14 +765,15 @@ static pi_result getOrCreatePlatform(ze_driver_handle_t ZeDriver,
   // it only has to be executed once
   static pi_uint32 CommandListCacheSizeValue = ([] {
     const char *CommandListCacheSize =
-        std::getenv("SYCL_PI_LEVEL0_MAX_COMMAND_LIST_CACHE");
+        std::getenv("SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE");
     pi_uint32 CommandListCacheSizeValue;
     try {
       CommandListCacheSizeValue =
           CommandListCacheSize ? std::stoi(CommandListCacheSize) : 20000;
     } catch (std::exception const &) {
-      zePrint("SYCL_PI_LEVEL0_MAX_COMMAND_LIST_CACHE: invalid value provided, "
-              "default set.\n");
+      zePrint(
+          "SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE: invalid value provided, "
+          "default set.\n");
       CommandListCacheSizeValue = 20000;
     }
     return CommandListCacheSizeValue;
@@ -1650,7 +1734,8 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
 
   assert(Queue);
   try {
-    *Queue = new _pi_queue(ZeCommandQueue, Context, Device);
+    *Queue =
+        new _pi_queue(ZeCommandQueue, Context, Device, ZeCommandListBatchSize);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -1706,6 +1791,12 @@ pi_result piQueueRelease(pi_queue Queue) {
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
   if (--(Queue->RefCount) == 0) {
+    // It is possible to get to here and still have an open command list
+    // if no wait or finish ever occurred for this queue.  But still need
+    // to make sure commands get executed.
+    if (auto Res = Queue->executeOpenCommandList())
+      return Res;
+
     // Destroy all the fences created associated with this queue.
     for (const auto &MapEntry : Queue->ZeCommandListFenceMap) {
       ZE_CALL(zeFenceDestroy(MapEntry.second));
@@ -1723,6 +1814,10 @@ pi_result piQueueFinish(pi_queue Queue) {
 
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+
+  // execute any command list that may still be open.
+  if (auto Res = Queue->executeOpenCommandList())
+    return Res;
 
   ZE_CALL(zeCommandQueueSynchronize(Queue->ZeCommandQueue, UINT32_MAX));
   return PI_SUCCESS;
@@ -1754,7 +1849,7 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   // Attach the queue to the "0" device.
   // TODO: see if we need to let user choose the device.
   pi_device Device = Context->Devices[0];
-  *Queue = new _pi_queue(ZeQueue, Context, Device);
+  *Queue = new _pi_queue(ZeQueue, Context, Device, ZeCommandListBatchSize);
   return PI_SUCCESS;
 }
 
@@ -3022,7 +3117,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
   if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
-                                                        &ZeFence))
+                                                        &ZeFence, true))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -3059,7 +3154,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
-  if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence))
+  if (auto Res = Queue->batchCommandList(ZeCommandList, ZeFence))
     return Res;
 
   _pi_event::deleteZeEventList(ZeEventWaitList);
@@ -3192,6 +3287,19 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
 
   if (NumEvents && !EventList) {
     return PI_INVALID_EVENT;
+  }
+
+  // Submit dependent open command lists for execution, if any
+  for (uint32_t I = 0; I < NumEvents; I++) {
+    auto Queue = EventList[I]->Queue;
+
+    // Lock automatically releases when this goes out of scope.
+    std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+
+    if (Queue->RefCount > 0) {
+      if (auto Res = Queue->executeOpenCommandList())
+        return Res;
+    }
   }
 
   for (uint32_t I = 0; I < NumEvents; I++) {
@@ -4345,7 +4453,7 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
 
 static bool ShouldUseUSMAllocator() {
   // Enable allocator by default if it's not explicitly disabled
-  return std::getenv("SYCL_PI_LEVEL0_DISABLE_USM_ALLOCATOR") == nullptr;
+  return std::getenv("SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR") == nullptr;
 }
 
 static const bool UseUSMAllocator = ShouldUseUSMAllocator();

@@ -1,6 +1,3 @@
-// UNSUPPORTED: cuda
-// CUDA compilation and runtime do not yet support sub-groups.
-//
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
@@ -73,7 +70,7 @@ template <typename T> void check(queue &Queue, size_t G = 240, size_t L = 60) {
 }
 int main() {
   queue Queue;
-  if (!core_sg_supported(Queue.get_device())) {
+  if (Queue.get_device().is_host()) {
     std::cout << "Skipping test\n";
     return 0;
   }

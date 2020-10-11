@@ -518,7 +518,8 @@ struct OpenMPOpt {
   /// Print initial ICV values for testing.
   /// FIXME: This should be done from the Attributor once it is added.
   void printICVs() const {
-    InternalControlVar ICVs[] = {ICV_nthreads, ICV_active_levels, ICV_cancel};
+    InternalControlVar ICVs[] = {ICV_nthreads, ICV_active_levels, ICV_cancel,
+                                 ICV_proc_bind};
 
     for (Function *F : OMPInfoCache.ModuleSlice) {
       for (auto ICV : ICVs) {
@@ -704,24 +705,29 @@ private:
   }
 
   void analysisGlobalization() {
-    auto &RFI =
-        OMPInfoCache.RFIs[OMPRTL___kmpc_data_sharing_coalesced_push_stack];
+    RuntimeFunction GlobalizationRuntimeIDs[] = {
+        OMPRTL___kmpc_data_sharing_coalesced_push_stack,
+        OMPRTL___kmpc_data_sharing_push_stack};
 
-    auto checkGlobalization = [&](Use &U, Function &Decl) {
-      if (CallInst *CI = getCallIfRegularCall(U, &RFI)) {
-        auto Remark = [&](OptimizationRemarkAnalysis ORA) {
-          return ORA
-                 << "Found thread data sharing on the GPU. "
-                 << "Expect degraded performance due to data globalization.";
-        };
-        emitRemark<OptimizationRemarkAnalysis>(CI, "OpenMPGlobalization",
-                                               Remark);
-      }
+    for (const auto GlobalizationCallID : GlobalizationRuntimeIDs) {
+      auto &RFI = OMPInfoCache.RFIs[GlobalizationCallID];
 
-      return false;
-    };
+      auto CheckGlobalization = [&](Use &U, Function &Decl) {
+        if (CallInst *CI = getCallIfRegularCall(U, &RFI)) {
+          auto Remark = [&](OptimizationRemarkAnalysis ORA) {
+            return ORA
+                   << "Found thread data sharing on the GPU. "
+                   << "Expect degraded performance due to data globalization.";
+          };
+          emitRemark<OptimizationRemarkAnalysis>(CI, "OpenMPGlobalization",
+                                                 Remark);
+        }
 
-    RFI.foreachUse(SCC, checkGlobalization);
+        return false;
+      };
+
+      RFI.foreachUse(SCC, CheckGlobalization);
+    }
     return;
   }
 

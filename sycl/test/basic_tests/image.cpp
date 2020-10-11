@@ -76,6 +76,17 @@ int main() {
     });
   }
 
+  {
+    const sycl::range<1> ImgPitch(4 * 4 * 4 * 2);
+    sycl::image<2> Img(Img1HostData.data(), ChanOrder, ChanType, Img1Size,
+                       ImgPitch);
+    TestQueue Q{sycl::default_selector()};
+    Q.submit([&](sycl::handler &CGH) {
+      auto ImgAcc = Img.get_access<sycl::float4, SYCLRead>(CGH);
+      CGH.single_task<class ConstTestPitch>([=] { ImgAcc.get_range(); });
+    });
+  }
+
   // image with write accessor to it in kernel
   {
     int NX = 32;
