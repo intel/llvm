@@ -2836,10 +2836,13 @@ class SYCLKernelNameTypeVisitor
   using InnerTypeVisitor = TypeVisitor<SYCLKernelNameTypeVisitor>;
   using InnerTAVisitor =
       ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor>;
+  bool IsInvalid = false;
 
 public:
   SYCLKernelNameTypeVisitor(Sema &S, SourceLocation KernelInvocationFuncLoc)
       : S(S), KernelInvocationFuncLoc(KernelInvocationFuncLoc) {}
+
+  bool isValid() { return !IsInvalid; }
 
   void Visit(QualType T) {
     if (T.isNull())
@@ -2872,6 +2875,7 @@ public:
           << /* Unscoped enum requires fixed underlying type */ 2;
       S.Diag(ED->getSourceRange().getBegin(), diag::note_entity_declared_at)
           << ED;
+      IsInvalid = true;
     }
   }
 
@@ -2888,12 +2892,14 @@ public:
       if (KernelNameIsMissing) {
         S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
             << /* kernel name is missing */ 0;
+        IsInvalid = true;
       } else {
-        if (Tag->isCompleteDefinition())
+        if (Tag->isCompleteDefinition()) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_sycl_kernel_incorrectly_named)
               << /* kernel name is not globally-visible */ 1;
-        else
+          IsInvalid = true;
+        } else
           S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
 
         S.Diag(Tag->getSourceRange().getBegin(), diag::note_previous_decl)
@@ -2970,11 +2976,13 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   SyclKernelArgsSizeChecker ArgsSizeChecker(*this, Args[0]->getExprLoc());
 
   KernelObjVisitor Visitor{*this};
-  SYCLKernelNameTypeVisitor KernelTypeVisitor(*this, Args[0]->getExprLoc());
+  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(*this, Args[0]->getExprLoc());
+
+  DiagnosingSYCLKernel = true;
+
   // Emit diagnostics for SYCL device kernels only
   if (LangOpts.SYCLIsDevice)
-    KernelTypeVisitor.Visit(KernelNameType);
-  DiagnosingSYCLKernel = true;
+    KernelNameTypeVisitor.Visit(KernelNameType);
   Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker, DecompMarker);
   Visitor.VisitRecordFields(KernelObj, FieldChecker, UnionChecker,
                             DecompMarker);
@@ -2987,7 +2995,9 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
     Visitor.VisitRecordFields(KernelObj, ArgsSizeChecker);
   }
   DiagnosingSYCLKernel = false;
-  if (!FieldChecker.isValid() || !UnionChecker.isValid())
+  // Set the kernel function as invalid, if any of the checkers fail validation.
+  if (!FieldChecker.isValid() || !UnionChecker.isValid() ||
+      !KernelNameTypeVisitor.isValid())
     KernelFunc->setInvalidDecl();
 }
 

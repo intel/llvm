@@ -9,6 +9,7 @@
 #include "IRModules.h"
 #include "PybindUtils.h"
 
+#include "mlir-c/Bindings/Python/Interop.h"
 #include "mlir-c/Registration.h"
 #include "mlir-c/StandardAttributes.h"
 #include "mlir-c/StandardTypes.h"
@@ -453,6 +454,17 @@ PyMlirContext::~PyMlirContext() {
   mlirContextDestroy(context);
 }
 
+py::object PyMlirContext::getCapsule() {
+  return py::reinterpret_steal<py::object>(mlirPythonContextToCapsule(get()));
+}
+
+py::object PyMlirContext::createFromCapsule(py::object capsule) {
+  MlirContext rawContext = mlirPythonCapsuleToContext(capsule.ptr());
+  if (mlirContextIsNull(rawContext))
+    throw py::error_already_set();
+  return forContext(rawContext).releaseObject();
+}
+
 PyMlirContext *PyMlirContext::createNewContextForInit() {
   MlirContext context = mlirContextCreate();
   mlirRegisterAllDialects(context);
@@ -579,6 +591,10 @@ PyModuleRef PyModule::create(PyMlirContextRef contextRef, MlirModule module) {
       py::cast(unownedModule, py::return_value_policy::take_ownership);
   unownedModule->handle = pyRef;
   return PyModuleRef(unownedModule, std::move(pyRef));
+}
+
+py::object PyModule::getCapsule() {
+  return py::reinterpret_steal<py::object>(mlirPythonModuleToCapsule(get()));
 }
 
 //------------------------------------------------------------------------------
@@ -724,6 +740,106 @@ public:
 
   /// Implemented by derived classes to add methods to the Python subclass.
   static void bindDerived(ClassTy &m) {}
+};
+
+/// Float Point Attribute subclass - FloatAttr.
+class PyFloatAttribute : public PyConcreteAttribute<PyFloatAttribute> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirAttributeIsAFloat;
+  static constexpr const char *pyClassName = "FloatAttr";
+  using PyConcreteAttribute::PyConcreteAttribute;
+
+  static void bindDerived(ClassTy &c) {
+    c.def_static(
+        "get",
+        // TODO: Make the location optional and create a default location.
+        [](PyType &type, double value, PyLocation &loc) {
+          MlirAttribute attr =
+              mlirFloatAttrDoubleGetChecked(type.type, value, loc.loc);
+          // TODO: Rework error reporting once diagnostic engine is exposed
+          // in C API.
+          if (mlirAttributeIsNull(attr)) {
+            throw SetPyError(PyExc_ValueError,
+                             llvm::Twine("invalid '") +
+                                 py::repr(py::cast(type)).cast<std::string>() +
+                                 "' and expected floating point type.");
+          }
+          return PyFloatAttribute(type.getContext(), attr);
+        },
+        py::arg("type"), py::arg("value"), py::arg("loc"),
+        "Gets an uniqued float point attribute associated to a type");
+    c.def_static(
+        "get_f32",
+        [](PyMlirContext &context, double value) {
+          MlirAttribute attr = mlirFloatAttrDoubleGet(
+              context.get(), mlirF32TypeGet(context.get()), value);
+          return PyFloatAttribute(context.getRef(), attr);
+        },
+        py::arg("context"), py::arg("value"),
+        "Gets an uniqued float point attribute associated to a f32 type");
+    c.def_static(
+        "get_f64",
+        [](PyMlirContext &context, double value) {
+          MlirAttribute attr = mlirFloatAttrDoubleGet(
+              context.get(), mlirF64TypeGet(context.get()), value);
+          return PyFloatAttribute(context.getRef(), attr);
+        },
+        py::arg("context"), py::arg("value"),
+        "Gets an uniqued float point attribute associated to a f64 type");
+    c.def_property_readonly(
+        "value",
+        [](PyFloatAttribute &self) {
+          return mlirFloatAttrGetValueDouble(self.attr);
+        },
+        "Returns the value of the float point attribute");
+  }
+};
+
+/// Integer Attribute subclass - IntegerAttr.
+class PyIntegerAttribute : public PyConcreteAttribute<PyIntegerAttribute> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirAttributeIsAInteger;
+  static constexpr const char *pyClassName = "IntegerAttr";
+  using PyConcreteAttribute::PyConcreteAttribute;
+
+  static void bindDerived(ClassTy &c) {
+    c.def_static(
+        "get",
+        [](PyType &type, int64_t value) {
+          MlirAttribute attr = mlirIntegerAttrGet(type.type, value);
+          return PyIntegerAttribute(type.getContext(), attr);
+        },
+        py::arg("type"), py::arg("value"),
+        "Gets an uniqued integer attribute associated to a type");
+    c.def_property_readonly(
+        "value",
+        [](PyIntegerAttribute &self) {
+          return mlirIntegerAttrGetValueInt(self.attr);
+        },
+        "Returns the value of the integer attribute");
+  }
+};
+
+/// Bool Attribute subclass - BoolAttr.
+class PyBoolAttribute : public PyConcreteAttribute<PyBoolAttribute> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirAttributeIsABool;
+  static constexpr const char *pyClassName = "BoolAttr";
+  using PyConcreteAttribute::PyConcreteAttribute;
+
+  static void bindDerived(ClassTy &c) {
+    c.def_static(
+        "get",
+        [](PyMlirContext &context, bool value) {
+          MlirAttribute attr = mlirBoolAttrGet(context.get(), value);
+          return PyBoolAttribute(context.getRef(), attr);
+        },
+        py::arg("context"), py::arg("value"), "Gets an uniqued bool attribute");
+    c.def_property_readonly(
+        "value",
+        [](PyBoolAttribute &self) { return mlirBoolAttrGetValue(self.attr); },
+        "Returns the value of the bool attribute");
+  }
 };
 
 class PyStringAttribute : public PyConcreteAttribute<PyStringAttribute> {
@@ -1345,6 +1461,9 @@ void mlir::python::populateIRSubmodule(py::module &m) {
              return ref.releaseObject();
            })
       .def("_get_live_operation_count", &PyMlirContext::getLiveOperationCount)
+      .def_property_readonly(MLIR_PYTHON_CAPI_PTR_ATTR,
+                             &PyMlirContext::getCapsule)
+      .def(MLIR_PYTHON_CAPI_FACTORY_ATTR, &PyMlirContext::createFromCapsule)
       .def_property(
           "allow_unregistered_dialects",
           [](PyMlirContext &self) -> bool {
@@ -1428,6 +1547,7 @@ void mlir::python::populateIRSubmodule(py::module &m) {
 
   // Mapping of Module
   py::class_<PyModule>(m, "Module")
+      .def_property_readonly(MLIR_PYTHON_CAPI_PTR_ATTR, &PyModule::getCapsule)
       .def_property_readonly(
           "operation",
           [](PyModule &self) {
@@ -1610,6 +1730,9 @@ void mlir::python::populateIRSubmodule(py::module &m) {
           "The underlying generic attribute of the NamedAttribute binding");
 
   // Standard attribute bindings.
+  PyFloatAttribute::bind(m);
+  PyIntegerAttribute::bind(m);
+  PyBoolAttribute::bind(m);
   PyStringAttribute::bind(m);
 
   // Mapping of Type.

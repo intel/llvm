@@ -3764,11 +3764,13 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   case Builtin::BI_abnormal_termination:
     return RValue::get(EmitSEHAbnormalTermination());
   case Builtin::BI_setjmpex:
-    if (getTarget().getTriple().isOSMSVCRT())
+    if (getTarget().getTriple().isOSMSVCRT() && E->getNumArgs() == 1 &&
+        E->getArg(0)->getType()->isPointerType())
       return EmitMSVCRTSetJmp(*this, MSVCSetJmpKind::_setjmpex, E);
     break;
   case Builtin::BI_setjmp:
-    if (getTarget().getTriple().isOSMSVCRT()) {
+    if (getTarget().getTriple().isOSMSVCRT() && E->getNumArgs() == 1 &&
+        E->getArg(0)->getType()->isPointerType()) {
       if (getTarget().getTriple().getArch() == llvm::Triple::x86)
         return EmitMSVCRTSetJmp(*this, MSVCSetJmpKind::_setjmp3, E);
       else if (getTarget().getTriple().getArch() == llvm::Triple::aarch64)
@@ -14043,6 +14045,102 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
   case X86::BI__builtin_ia32_psubusb128:
   case X86::BI__builtin_ia32_psubusw128:
     return EmitX86BinaryIntrinsic(*this, Ops, Intrinsic::usub_sat);
+  case X86::BI__builtin_ia32_encodekey128_u32: {
+    Intrinsic::ID IID = Intrinsic::x86_encodekey128;
+
+    Value *Call = Builder.CreateCall(CGM.getIntrinsic(IID), {Ops[0], Ops[1]});
+
+    for (int i = 0; i < 6; ++i) {
+      Value *Extract = Builder.CreateExtractValue(Call, i + 1);
+      Value *Ptr = Builder.CreateConstGEP1_32(Ops[2], i * 16);
+      Ptr = Builder.CreateBitCast(
+          Ptr, llvm::PointerType::getUnqual(Extract->getType()));
+      Builder.CreateAlignedStore(Extract, Ptr, Align(1));
+    }
+
+    return Builder.CreateExtractValue(Call, 0);
+  }
+  case X86::BI__builtin_ia32_encodekey256_u32: {
+    Intrinsic::ID IID = Intrinsic::x86_encodekey256;
+
+    Value *Call =
+        Builder.CreateCall(CGM.getIntrinsic(IID), {Ops[0], Ops[1], Ops[2]});
+
+    for (int i = 0; i < 7; ++i) {
+      Value *Extract = Builder.CreateExtractValue(Call, i + 1);
+      Value *Ptr = Builder.CreateConstGEP1_32(Ops[3], i * 16);
+      Ptr = Builder.CreateBitCast(
+          Ptr, llvm::PointerType::getUnqual(Extract->getType()));
+      Builder.CreateAlignedStore(Extract, Ptr, Align(1));
+    }
+
+    return Builder.CreateExtractValue(Call, 0);
+  }
+  case X86::BI__builtin_ia32_aesenc128kl_u8:
+  case X86::BI__builtin_ia32_aesdec128kl_u8:
+  case X86::BI__builtin_ia32_aesenc256kl_u8:
+  case X86::BI__builtin_ia32_aesdec256kl_u8: {
+    Intrinsic::ID IID;
+    switch (BuiltinID) {
+    default: llvm_unreachable("Unexpected builtin");
+    case X86::BI__builtin_ia32_aesenc128kl_u8:
+      IID = Intrinsic::x86_aesenc128kl;
+      break;
+    case X86::BI__builtin_ia32_aesdec128kl_u8:
+      IID = Intrinsic::x86_aesdec128kl;
+      break;
+    case X86::BI__builtin_ia32_aesenc256kl_u8:
+      IID = Intrinsic::x86_aesenc256kl;
+      break;
+    case X86::BI__builtin_ia32_aesdec256kl_u8:
+      IID = Intrinsic::x86_aesdec256kl;
+      break;
+    }
+
+    Value *Call = Builder.CreateCall(CGM.getIntrinsic(IID), {Ops[1], Ops[2]});
+
+    Builder.CreateDefaultAlignedStore(Builder.CreateExtractValue(Call, 1),
+                                      Ops[0]);
+
+    return Builder.CreateExtractValue(Call, 0);
+  }
+  case X86::BI__builtin_ia32_aesencwide128kl_u8:
+  case X86::BI__builtin_ia32_aesdecwide128kl_u8:
+  case X86::BI__builtin_ia32_aesencwide256kl_u8:
+  case X86::BI__builtin_ia32_aesdecwide256kl_u8: {
+    Intrinsic::ID IID;
+    switch (BuiltinID) {
+    case X86::BI__builtin_ia32_aesencwide128kl_u8:
+      IID = Intrinsic::x86_aesencwide128kl;
+      break;
+    case X86::BI__builtin_ia32_aesdecwide128kl_u8:
+      IID = Intrinsic::x86_aesdecwide128kl;
+      break;
+    case X86::BI__builtin_ia32_aesencwide256kl_u8:
+      IID = Intrinsic::x86_aesencwide256kl;
+      break;
+    case X86::BI__builtin_ia32_aesdecwide256kl_u8:
+      IID = Intrinsic::x86_aesdecwide256kl;
+      break;
+    }
+
+    Value *InOps[9];
+    InOps[0] = Ops[2];
+    for (int i = 0; i != 8; ++i) {
+      Value *Ptr = Builder.CreateConstGEP1_32(Ops[1], i);
+      InOps[i + 1] = Builder.CreateAlignedLoad(Ptr, Align(16));
+    }
+
+    Value *Call = Builder.CreateCall(CGM.getIntrinsic(IID), InOps);
+
+    for (int i = 0; i != 8; ++i) {
+      Value *Extract = Builder.CreateExtractValue(Call, i + 1);
+      Value *Ptr = Builder.CreateConstGEP1_32(Ops[0], i);
+      Builder.CreateAlignedStore(Extract, Ptr, Align(16));
+    }
+
+    return Builder.CreateExtractValue(Call, 0);
+  }
   }
 }
 

@@ -96,6 +96,10 @@ static cl::opt<bool> EnableUnrollAndJam("enable-unroll-and-jam",
                                         cl::init(false), cl::Hidden,
                                         cl::desc("Enable Unroll And Jam Pass"));
 
+static cl::opt<bool> EnableLoopFlatten("enable-loop-flatten", cl::init(false),
+                                       cl::Hidden,
+                                       cl::desc("Enable the LoopFlatten Pass"));
+
 static cl::opt<bool>
     EnablePrepareForThinLTO("prepare-for-thinlto", cl::init(false), cl::Hidden,
                             cl::desc("Enable preparation for ThinLTO."));
@@ -456,6 +460,10 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
 
     if (EnableLoopInterchange)
       MPM.add(createLoopInterchangePass()); // Interchange loops
+    if (EnableLoopFlatten) {
+      MPM.add(createLoopFlattenPass()); // Flatten loops
+      MPM.add(createLoopSimplifyCFGPass());
+    }
 
     // Unroll small loops
     MPM.add(createSimpleLoopUnrollPass(OptLevel, DisableUnrollLoops,
@@ -463,6 +471,9 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
     addExtensionsToPM(EP_LoopOptimizerEnd, MPM);
     // This ends the loop pass pipelines.
   }
+
+  // Break up allocas that may now be splittable after loop unrolling.
+  MPM.add(createSROAPass());
 
   if (OptLevel > 1) {
     MPM.add(createMergedLoadStoreMotionPass()); // Merge ld/st in diamonds
@@ -1056,6 +1067,8 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
   PM.add(createLoopDeletionPass());
   if (EnableLoopInterchange)
     PM.add(createLoopInterchangePass());
+  if (EnableLoopFlatten)
+    PM.add(createLoopFlattenPass());
 
   // Unroll small loops
   PM.add(createSimpleLoopUnrollPass(OptLevel, DisableUnrollLoops,
