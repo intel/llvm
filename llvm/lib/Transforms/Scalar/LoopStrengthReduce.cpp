@@ -5790,7 +5790,7 @@ static bool ReduceLoopStrength(Loop *L, IVUsers &IU, ScalarEvolution &SE,
     for (auto &I : *B) {
       if (DbgValueInst *D = dyn_cast<DbgValueInst>(&I)) {
         auto V = D->getVariableLocation();
-        if (!SE.isSCEVable(V->getType()))
+        if (!V || !SE.isSCEVable(V->getType()))
           continue;
         auto DS = SE.getSCEV(V);
         DbgValues.push_back(

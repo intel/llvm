@@ -413,7 +413,6 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        auto range = this->getOperation()->getOperands();
         return getNumInputsAndOutputBuffers() + $_op.getNumInitTensors();
       }]
     >,
@@ -648,7 +647,7 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
       res.reserve(nExtraOperands);
       for (unsigned i = 0; i < nExtraOperands; ++i) {
         res.push_back(getOperation()->getOperand(numShapedOperands + i));
-        assert((res.back().getType().isSignlessIntOrIndexOrFloat() 
+        assert((res.back().getType().isSignlessIntOrIndexOrFloat()
                 || res.back().getType().isa<VectorType>()) &&
                "expected scalar or vector type");
       }
