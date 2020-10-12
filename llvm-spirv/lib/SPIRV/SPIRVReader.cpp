@@ -290,7 +290,14 @@ Value *SPIRVToLLVM::mapFunction(SPIRVFunction *BF, Function *F) {
 // %d = extractelement <3 x i64> %5, i32 idx
 bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
                                               SPIRVBuiltinVariableKind Kind) {
-  std::string FuncName = SPIRSPIRVBuiltinVariableMap::rmap(Kind);
+  std::string FuncName;
+  // TODO: we should always produce SPIR-V friendly IR and apply lowering later
+  // if needed
+  if (BM->getDesiredBIsRepresentation() != BIsRepresentation::SPIRVFriendlyIR) {
+    FuncName = SPIRSPIRVBuiltinVariableMap::rmap(Kind);
+  } else {
+    FuncName = std::string(GV->getName());
+  }
   Type *ReturnTy = GV->getType()->getPointerElementType();
   // Some SPIR-V builtin variables are translated to a function with an index
   // argument.
