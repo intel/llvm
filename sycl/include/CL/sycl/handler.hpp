@@ -641,9 +641,7 @@ private:
     range<Dim> Range = Src.get_range();
     parallel_for<class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
         (Range, [=](id<Dim> Index) {
-      size_t LinearIndex = Index[0];
-      for (int I = 1; I < Dim; ++I)
-        LinearIndex += Range[I] * Index[I];
+      size_t LinearIndex = detail::getLinearIndex(Index, Range);
       using TSrcNonConst = typename std::remove_const<TSrc>::type;
       (reinterpret_cast<TSrcNonConst *>(Dst))[LinearIndex] = Src[Index];
     });
@@ -678,9 +676,7 @@ private:
     range<Dim> Range = Dst.get_range();
     parallel_for<class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
         (Range, [=](id<Dim> Index) {
-      size_t LinearIndex = Index[0];
-      for (int I = 1; I < Dim; ++I)
-        LinearIndex += Range[I] * Index[I];
+      size_t LinearIndex = detail::getLinearIndex(Index, Range);
       Dst[Index] = (reinterpret_cast<const TDst *>(Src))[LinearIndex];
     });
   }
