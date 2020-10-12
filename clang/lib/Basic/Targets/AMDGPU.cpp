@@ -227,6 +227,7 @@ bool AMDGPUTargetInfo::initFeatureMap(
       Features["gfx9-insts"] = true;
       LLVM_FALLTHROUGH;
     case GK_GFX810:
+    case GK_GFX805:
     case GK_GFX803:
     case GK_GFX802:
     case GK_GFX801:
@@ -235,6 +236,7 @@ bool AMDGPUTargetInfo::initFeatureMap(
       Features["dpp"] = true;
       Features["s-memrealtime"] = true;
       LLVM_FALLTHROUGH;
+    case GK_GFX705:
     case GK_GFX704:
     case GK_GFX703:
     case GK_GFX702:
@@ -243,6 +245,7 @@ bool AMDGPUTargetInfo::initFeatureMap(
       Features["ci-insts"] = true;
       Features["flat-address-space"] = true;
       LLVM_FALLTHROUGH;
+    case GK_GFX602:
     case GK_GFX601:
     case GK_GFX600:
       break;

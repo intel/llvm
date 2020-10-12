@@ -18,7 +18,7 @@
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Transforms/BufferPlacement.h"
+#include "mlir/Transforms/Bufferize.h"
 
 using namespace mlir;
 using namespace mlir::shape;
@@ -45,11 +45,9 @@ public:
     auto newAssumingOp = rewriter.create<shape::AssumingOp>(
         assumingOp.getLoc(), newResultTypes, assumingOp.witness());
 
-    // Handle the region transfer carefully here to avoid assertions that both
-    // operations are valid at replacement time.
-    newAssumingOp.doRegion().push_back(new Block());
     rewriter.replaceOp(assumingOp, newAssumingOp.getResults());
-    newAssumingOp.doRegion().takeBody(assumingOp.doRegion());
+    rewriter.inlineRegionBefore(assumingOp.doRegion(), newAssumingOp.doRegion(),
+                                newAssumingOp.doRegion().end());
 
     return success();
   }
