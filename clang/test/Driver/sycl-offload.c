@@ -416,9 +416,9 @@
 
 /// Check -fsycl-link behaviors unbundle
 // RUN:   touch %t.o
-// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -o %t.out -fsycl-link %t.o 2>&1 \
+// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -o %t.out -fsycl-link -fno-sycl-device-lib=all %t.o 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-UB %s
-// RUN:   %clang_cl -### -ccc-print-phases -fsycl -o %t.out -fsycl-link %t.o 2>&1 \
+// RUN:   %clang_cl -### -ccc-print-phases -fsycl -o %t.out -fsycl-link -fno-sycl-device-lib=all %t.o 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-UB %s
 // CHK-LINK-UB: 0: input, "[[INPUT:.+\.o]]", object
 // CHK-LINK-UB: 1: clang-offload-unbundler, {0}, object
@@ -431,9 +431,9 @@
 /// ###########################################################################
 
 /// Check -fsycl-link behaviors from source
-// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -o %t.out -fsycl-link %s 2>&1 \
+// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -o %t.out -fsycl-link -fno-sycl-device-lib=all %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK %s
-// RUN:   %clang_cl -### -ccc-print-phases -fsycl -o %t.out -fsycl-link %s 2>&1 \
+// RUN:   %clang_cl -### -ccc-print-phases -fsycl -o %t.out -fsycl-link -fno-sycl-device-lib=all %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK %s
 // CHK-LINK: 0: input, "[[INPUT:.+\.c]]", c++, (device-sycl)
 // CHK-LINK: 1: preprocessor, {0}, c++-cpp-output, (device-sycl)
