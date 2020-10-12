@@ -14,11 +14,6 @@
  * https://www.khronos.org/registry/OpenCL/specs/opencl-1.2.pdf#page=329
  *
  * Confirmed to pass with -fsycl-targets=spir64-unknown-linux-sycldevice
- *
- * Enable sampled test with -DSAMPLED_TEST
- *
- * Enabled unsampled tests with -DUNSAMPLED_TEST
- *
  */
 
 #include <CL/sycl.hpp>
