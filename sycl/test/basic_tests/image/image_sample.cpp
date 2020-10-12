@@ -5,7 +5,8 @@
 
 /*
     XFAIL CUDA due to driver bug.
-    Newer CUDA drivers cannot build valid programs here, failing with CUDA_ERROR_NOT_FOUND.
+    Newer CUDA drivers cannot build valid programs here, failing with
+   CUDA_ERROR_NOT_FOUND.
 */
 
 #include <CL/sycl.hpp>
@@ -41,30 +42,26 @@ bool check_result(dataT resultData, dataT expectedData, float epsilon = 0.1) {
 }
 
 template <typename dataT, typename coordT, s::image_channel_type channelType>
-bool test1d_coord(dataT *hostPtr, coordT coord,
-                  dataT expectedColour) {
+bool test1d_coord(dataT *hostPtr, coordT coord, dataT expectedColour) {
   dataT resultData;
 
   s::sampler testSampler(s::coordinate_normalization_mode::unnormalized,
-                         s::addressing_mode::clamp,
-                         s::filtering_mode::linear);
+                         s::addressing_mode::clamp, s::filtering_mode::linear);
 
   s::default_selector selector;
 
   { // Scope everything to force destruction
-    s::image<1> image(hostPtr, s::image_channel_order::rgba,
-                      channelType, s::range<1>{3});
+    s::image<1> image(hostPtr, s::image_channel_order::rgba, channelType,
+                      s::range<1>{3});
 
-    s::buffer<dataT, 1> resultDataBuf(&resultData,
-                                      s::range<1>(1));
+    s::buffer<dataT, 1> resultDataBuf(&resultData, s::range<1>(1));
 
     // Do the test by reading a single pixel from the image
     s::queue myQueue(selector);
     myQueue.submit([&](s::handler &cgh) {
-      auto imageAcc =
-          image.get_access<dataT, s::access::mode::read>(cgh);
-      s::accessor<dataT, 1, s::access::mode::write>
-          resultDataAcc(resultDataBuf, cgh);
+      auto imageAcc = image.get_access<dataT, s::access::mode::read>(cgh);
+      s::accessor<dataT, 1, s::access::mode::write> resultDataAcc(resultDataBuf,
+                                                                  cgh);
 
       cgh.single_task<test_1d_class>([=]() {
         dataT RetColor = imageAcc.read(coord, testSampler);
@@ -82,30 +79,26 @@ bool test1d_coord(dataT *hostPtr, coordT coord,
 }
 
 template <typename dataT, typename coordT, s::image_channel_type channelType>
-bool test2d_coord(dataT *hostPtr, coordT coord,
-                  dataT expectedColour) {
+bool test2d_coord(dataT *hostPtr, coordT coord, dataT expectedColour) {
   dataT resultData;
 
   s::sampler testSampler(s::coordinate_normalization_mode::unnormalized,
-                         s::addressing_mode::clamp,
-                         s::filtering_mode::linear);
+                         s::addressing_mode::clamp, s::filtering_mode::linear);
 
   s::default_selector selector;
 
   { // Scope everything to force destruction
-    s::image<2> image(hostPtr, s::image_channel_order::rgba,
-                      channelType, s::range<2>{3, 3});
+    s::image<2> image(hostPtr, s::image_channel_order::rgba, channelType,
+                      s::range<2>{3, 3});
 
-    s::buffer<dataT, 1> resultDataBuf(&resultData,
-                                      s::range<1>(1));
+    s::buffer<dataT, 1> resultDataBuf(&resultData, s::range<1>(1));
 
     // Do the test by reading a single pixel from the image
     s::queue myQueue(selector);
     myQueue.submit([&](s::handler &cgh) {
-      auto imageAcc =
-          image.get_access<dataT, s::access::mode::read>(cgh);
-      s::accessor<dataT, 1, s::access::mode::write>
-          resultDataAcc(resultDataBuf, cgh);
+      auto imageAcc = image.get_access<dataT, s::access::mode::read>(cgh);
+      s::accessor<dataT, 1, s::access::mode::write> resultDataAcc(resultDataBuf,
+                                                                  cgh);
 
       cgh.single_task<test_2d_class>([=]() {
         dataT RetColor = imageAcc.read(coord, testSampler);
@@ -123,30 +116,26 @@ bool test2d_coord(dataT *hostPtr, coordT coord,
 }
 
 template <typename dataT, typename coordT, s::image_channel_type channelType>
-bool test3d_coord(dataT *hostPtr, coordT coord,
-                  dataT expectedColour) {
+bool test3d_coord(dataT *hostPtr, coordT coord, dataT expectedColour) {
   dataT resultData;
 
   s::sampler testSampler(s::coordinate_normalization_mode::unnormalized,
-                         s::addressing_mode::clamp,
-                         s::filtering_mode::linear);
+                         s::addressing_mode::clamp, s::filtering_mode::linear);
 
   s::default_selector selector;
 
   { // Scope everything to force destruction
-    s::image<3> image(hostPtr, s::image_channel_order::rgba,
-                      channelType, s::range<3>{3, 3, 3});
+    s::image<3> image(hostPtr, s::image_channel_order::rgba, channelType,
+                      s::range<3>{3, 3, 3});
 
-    s::buffer<dataT, 1> resultDataBuf(&resultData,
-                                      s::range<1>(1));
+    s::buffer<dataT, 1> resultDataBuf(&resultData, s::range<1>(1));
 
     // Do the test by reading a single pixel from the image
     s::queue myQueue(selector);
     myQueue.submit([&](s::handler &cgh) {
-      auto imageAcc =
-          image.get_access<dataT, s::access::mode::read>(cgh);
-      s::accessor<dataT, 1, s::access::mode::write>
-          resultDataAcc(resultDataBuf, cgh);
+      auto imageAcc = image.get_access<dataT, s::access::mode::read>(cgh);
+      s::accessor<dataT, 1, s::access::mode::write> resultDataAcc(resultDataBuf,
+                                                                  cgh);
 
       cgh.single_task<test_3d_class>([=]() {
         dataT RetColor = imageAcc.read(coord, testSampler);
@@ -157,7 +146,8 @@ bool test3d_coord(dataT *hostPtr, coordT coord,
   bool correct = check_result(resultData, expectedColour);
 #ifdef DEBUG_OUTPUT
   if (!correct) {
-    std::cout << "Coord: " << coord.x() << ", " << coord.y() << ", " << coord.z() << "\n";
+    std::cout << "Coord: " << coord.x() << ", " << coord.y() << ", "
+              << coord.z() << "\n";
   }
 #endif // DEBUG_OUTPUT
   return correct;
@@ -168,7 +158,8 @@ bool test1d(coordT coord, dataT expectedResult) {
   dataT hostPtr[3];
   for (int i = 0; i < 3; i++)
     hostPtr[i] = dataT(0 + i, 20 + i, 40 + i, 60 + i);
-  return test1d_coord<dataT, coordT, channelType>(hostPtr, coord, expectedResult);
+  return test1d_coord<dataT, coordT, channelType>(hostPtr, coord,
+                                                  expectedResult);
 }
 
 template <typename dataT, typename coordT, s::image_channel_type channelType>
@@ -176,7 +167,8 @@ bool test2d(coordT coord, dataT expectedResult) {
   dataT hostPtr[9];
   for (int i = 0; i < 9; i++)
     hostPtr[i] = dataT(0 + i, 20 + i, 40 + i, 60 + i);
-  return test2d_coord<dataT, coordT, channelType>(hostPtr, coord, expectedResult);
+  return test2d_coord<dataT, coordT, channelType>(hostPtr, coord,
+                                                  expectedResult);
 }
 
 template <typename dataT, typename coordT, s::image_channel_type channelType>
@@ -184,7 +176,8 @@ bool test3d(coordT coord, dataT expectedResult) {
   dataT hostPtr[27];
   for (int i = 0; i < 27; i++)
     hostPtr[i] = dataT(0 + i, 20 + i, 40 + i, 60 + i);
-  return test3d_coord<dataT, coordT, channelType>(hostPtr, coord, expectedResult);
+  return test3d_coord<dataT, coordT, channelType>(hostPtr, coord,
+                                                  expectedResult);
 }
 
 int main() {

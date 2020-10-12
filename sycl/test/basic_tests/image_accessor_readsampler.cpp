@@ -22,8 +22,7 @@
 
 namespace s = cl::sycl;
 
-template <int unique_number>
-class kernel_class;
+template <int unique_number> class kernel_class;
 
 void validateReadData(s::cl_float4 ReadData, s::cl_float4 ExpectedColor,
                       s::cl_int precision = 1) {
