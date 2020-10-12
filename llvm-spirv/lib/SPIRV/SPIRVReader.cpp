@@ -4256,6 +4256,8 @@ Instruction *SPIRVToLLVM::transOCLBuiltinFromExtInst(SPIRVExtInst *BC,
     F->setCallingConv(CallingConv::SPIR_FUNC);
     if (isFuncNoUnwind())
       F->addFnAttr(Attribute::NoUnwind);
+    if (isFuncReadNone(UnmangledName))
+      F->addFnAttr(Attribute::ReadNone);
   }
   auto Args = transValue(BC->getValues(BArgs), F, BB);
   SPIRVDBG(dbgs() << "[transOCLBuiltinFromExtInst] Function: " << *F
@@ -4567,3 +4569,34 @@ bool llvm::getSpecConstInfo(std::istream &IS,
   }
   return !IS.fail();
 }
+
+// clang-format off
+const StringSet<> SPIRVToLLVM::BuiltInConstFunc {
+  "convert", "get_work_dim", "get_global_size", "sub_group_ballot_bit_count",
+  "get_global_id", "get_local_size", "get_local_id", "get_num_groups",
+  "get_group_id", "get_global_offset", "acos", "acosh", "acospi",
+  "asin", "asinh", "asinpi", "atan", "atan2", "atanh", "atanpi",
+  "atan2pi", "cbrt", "ceil", "copysign", "cos", "cosh", "cospi",
+  "erfc", "erf", "exp", "exp2", "exp10", "expm1", "fabs", "fdim",
+  "floor", "fma", "fmax", "fmin", "fmod", "ilogb", "ldexp", "lgamma",
+  "log", "log2", "log10", "log1p", "logb", "mad", "maxmag", "minmag",
+  "nan", "nextafter", "pow", "pown", "powr", "remainder", "rint",
+  "rootn", "round", "rsqrt", "sin", "sinh", "sinpi", "sqrt", "tan",
+  "tanh", "tanpi", "tgamma", "trunc", "half_cos", "half_divide", "half_exp",
+  "half_exp2", "half_exp10", "half_log", "half_log2", "half_log10", "half_powr",
+  "half_recip", "half_rsqrt", "half_sin", "half_sqrt", "half_tan", "native_cos",
+  "native_divide", "native_exp", "native_exp2", "native_exp10", "native_log",
+  "native_log2", "native_log10", "native_powr", "native_recip", "native_rsqrt",
+  "native_sin", "native_sqrt", "native_tan", "abs", "abs_diff", "add_sat", "hadd",
+  "rhadd", "clamp", "clz", "mad_hi", "mad_sat", "max", "min", "mul_hi", "rotate",
+  "sub_sat", "upsample", "popcount", "mad24", "mul24", "degrees", "mix", "radians",
+  "step", "smoothstep", "sign", "cross", "dot", "distance", "length", "normalize",
+  "fast_distance", "fast_length", "fast_normalize", "isequal", "isnotequal",
+  "isgreater", "isgreaterequal", "isless", "islessequal", "islessgreater",
+  "isfinite", "isinf", "isnan", "isnormal", "isordered", "isunordered", "signbit",
+  "any", "all", "bitselect", "select", "shuffle", "shuffle2", "get_image_width",
+  "get_image_height", "get_image_depth", "get_image_channel_data_type",
+  "get_image_channel_order", "get_image_dim", "get_image_array_size",
+  "get_image_array_size", "sub_group_inverse_ballot", "sub_group_ballot_bit_extract",
+};
+// clang-format on
