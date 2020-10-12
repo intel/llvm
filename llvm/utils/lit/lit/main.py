@@ -80,9 +80,13 @@ def main(builtin_params={}):
                              'error.\n')
             sys.exit(2)
 
+    # When running multiple shards, don't include skipped tests in the xunit
+    # output since merging the files will result in duplicates.
+    tests_for_report = discovered_tests
     if opts.shard:
         (run, shards) = opts.shard
         selected_tests = filter_by_shard(selected_tests, run, shards, lit_config)
+        tests_for_report = selected_tests
         if not selected_tests:
             sys.stderr.write('warning: shard does not contain any tests.  '
                              'Consider decreasing the number of shards.\n')
@@ -102,7 +106,7 @@ def main(builtin_params={}):
     print_results(discovered_tests, elapsed, opts)
 
     for report in opts.reports:
-        report.write_results(discovered_tests, elapsed)
+        report.write_results(tests_for_report, elapsed)
 
     if lit_config.numErrors:
         sys.stderr.write('\n%d error(s) in tests\n' % lit_config.numErrors)
@@ -265,15 +269,15 @@ def print_results(tests, elapsed, opts):
         tests_by_code[test.result.code].append(test)
 
     for code in lit.Test.ResultCode.all_codes():
-        print_group(tests_by_code[code], code, opts.show_results)
+        print_group(tests_by_code[code], code, opts.shown_codes)
 
     print_summary(tests_by_code, opts.quiet, elapsed)
 
 
-def print_group(tests, code, show_results):
+def print_group(tests, code, shown_codes):
     if not tests:
         return
-    if not code.isFailure and code not in show_results:
+    if not code.isFailure and code not in shown_codes:
         return
     print('*' * 20)
     print('{} Tests ({}):'.format(code.label, len(tests)))

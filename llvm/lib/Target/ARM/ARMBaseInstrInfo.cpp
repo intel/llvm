@@ -317,8 +317,8 @@ bool ARMBaseInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
   TBB = nullptr;
   FBB = nullptr;
 
-  MachineBasicBlock::iterator I = MBB.end();
-  if (I == MBB.begin())
+  MachineBasicBlock::instr_iterator I = MBB.instr_end();
+  if (I == MBB.instr_begin())
     return false; // Empty blocks are easy.
   --I;
 
@@ -332,7 +332,7 @@ bool ARMBaseInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
 
     // Skip over DEBUG values and predicated nonterminators.
     while (I->isDebugInstr() || !I->isTerminator()) {
-      if (I == MBB.begin())
+      if (I == MBB.instr_begin())
         return false;
       --I;
     }
@@ -356,7 +356,7 @@ bool ARMBaseInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
       Cond.push_back(I->getOperand(2));
     } else if (I->isReturn()) {
       // Returns can't be analyzed, but we should run cleanup.
-      CantAnalyze = !isPredicated(*I);
+      CantAnalyze = true;
     } else {
       // We encountered other unrecognized terminator. Bail out immediately.
       return true;
@@ -377,7 +377,7 @@ bool ARMBaseInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
       // unconditional branch.
       if (AllowModify) {
         MachineBasicBlock::iterator DI = std::next(I);
-        while (DI != MBB.end()) {
+        while (DI != MBB.instr_end()) {
           MachineInstr &InstToDelete = *DI;
           ++DI;
           InstToDelete.eraseFromParent();
@@ -385,10 +385,19 @@ bool ARMBaseInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
       }
     }
 
-    if (CantAnalyze)
+    if (CantAnalyze) {
+      // We may not be able to analyze the block, but we could still have
+      // an unconditional branch as the last instruction in the block, which
+      // just branches to layout successor. If this is the case, then just
+      // remove it if we're allowed to make modifications.
+      if (AllowModify && !isPredicated(MBB.back()) &&
+          isUncondBranchOpcode(MBB.back().getOpcode()) &&
+          TBB && MBB.isLayoutSuccessor(TBB))
+        removeBranch(MBB);
       return true;
+    }
 
-    if (I == MBB.begin())
+    if (I == MBB.instr_begin())
       return false;
 
     --I;
@@ -537,6 +546,18 @@ bool ARMBaseInstrInfo::PredicateInstruction(
     MachineOperand &PMO = MI.getOperand(PIdx);
     PMO.setImm(Pred[0].getImm());
     MI.getOperand(PIdx+1).setReg(Pred[1].getReg());
+
+    // Thumb 1 arithmetic instructions do not set CPSR when executed inside an
+    // IT block. This affects how they are printed.
+    const MCInstrDesc &MCID = MI.getDesc();
+    if (MCID.TSFlags & ARMII::ThumbArithFlagSetting) {
+      assert(MCID.OpInfo[1].isOptionalDef() && "CPSR def isn't expected operand");
+      assert((MI.getOperand(1).isDead() ||
+              MI.getOperand(1).getReg() != ARM::CPSR) &&
+             "if conversion tried to stop defining used CPSR");
+      MI.getOperand(1).setReg(ARM::NoRegister);
+    }
+
     return true;
   }
   return false;
@@ -2015,6 +2036,10 @@ bool ARMBaseInstrInfo::isSchedulingBoundary(const MachineInstr &MI,
   if (MI.isTerminator() || MI.isPosition())
     return true;
 
+  // INLINEASM_BR can jump to another block
+  if (MI.getOpcode() == TargetOpcode::INLINEASM_BR)
+    return true;
+
   // Treat the start of the IT block as a scheduling boundary, but schedule
   // t2IT along with all instructions following it.
   // FIXME: This is a big hammer. But the alternative is to add all potential
@@ -2138,7 +2163,12 @@ ARMBaseInstrInfo::extraSizeToPredicateInstructions(const MachineFunction &MF,
   // Thumb2 needs a 2-byte IT instruction to predicate up to 4 instructions.
   // ARM has a condition code field in every predicable instruction, using it
   // doesn't change code size.
-  return Subtarget.isThumb2() ? divideCeil(NumInsts, 4) * 2 : 0;
+  if (!Subtarget.isThumb2())
+    return 0;
+
+  // It's possible that the size of the IT is restricted to a single block.
+  unsigned MaxInsts = Subtarget.restrictIT() ? 1 : 4;
+  return divideCeil(NumInsts, MaxInsts) * 2;
 }
 
 unsigned
@@ -5497,6 +5527,8 @@ unsigned llvm::ConstantMaterializationCost(unsigned Val,
       return ForCodesize ? 4 : 1;
     if (ARM_AM::isSOImmTwoPartVal(Val)) // two instrs
       return ForCodesize ? 8 : 2;
+    if (ARM_AM::isSOImmTwoPartValNeg(Val)) // two instrs
+      return ForCodesize ? 8 : 2;
   }
   if (Subtarget->useMovt()) // MOVW + MOVT
     return ForCodesize ? 8 : 2;
@@ -5601,12 +5633,32 @@ bool llvm::HasLowerConstantMaterializationCost(unsigned Val1, unsigned Val2,
 /// | Frame overhead in Bytes |      2 |   4 |
 /// | Stack fixup required    |     No |  No |
 /// +-------------------------+--------+-----+
+///
+/// \p MachineOutlinerDefault implies that the function should be called with
+/// a save and restore of LR to the stack.
+///
+/// That is,
+///
+/// I1     Save LR                    OUTLINED_FUNCTION:
+/// I2 --> BL OUTLINED_FUNCTION       I1
+/// I3     Restore LR                 I2
+///                                   I3
+///                                   BX LR
+///
+/// +-------------------------+--------+-----+
+/// |                         | Thumb2 | ARM |
+/// +-------------------------+--------+-----+
+/// | Call overhead in Bytes  |      8 |  12 |
+/// | Frame overhead in Bytes |      2 |   4 |
+/// | Stack fixup required    |    Yes | Yes |
+/// +-------------------------+--------+-----+
 
 enum MachineOutlinerClass {
   MachineOutlinerTailCall,
   MachineOutlinerThunk,
   MachineOutlinerNoLRSave,
-  MachineOutlinerRegSave
+  MachineOutlinerRegSave,
+  MachineOutlinerDefault
 };
 
 enum MachineOutlinerMBBFlags {
@@ -5624,6 +5676,9 @@ struct OutlinerCosts {
   const int FrameNoLRSave;
   const int CallRegSave;
   const int FrameRegSave;
+  const int CallDefault;
+  const int FrameDefault;
+  const int SaveRestoreLROnStack;
 
   OutlinerCosts(const ARMSubtarget &target)
       : CallTailCall(target.isThumb() ? 4 : 4),
@@ -5633,7 +5688,10 @@ struct OutlinerCosts {
         CallNoLRSave(target.isThumb() ? 4 : 4),
         FrameNoLRSave(target.isThumb() ? 4 : 4),
         CallRegSave(target.isThumb() ? 8 : 12),
-        FrameRegSave(target.isThumb() ? 2 : 4) {}
+        FrameRegSave(target.isThumb() ? 2 : 4),
+        CallDefault(target.isThumb() ? 8 : 12),
+        FrameDefault(target.isThumb() ? 2 : 4),
+        SaveRestoreLROnStack(target.isThumb() ? 8 : 8) {}
 };
 
 unsigned
@@ -5726,8 +5784,8 @@ outliner::OutlinedFunction ARMBaseInstrInfo::getOutliningCandidateInfo(
       };
 
   OutlinerCosts Costs(Subtarget);
-  unsigned FrameID = 0;
-  unsigned NumBytesToCreateFrame = 0;
+  unsigned FrameID = MachineOutlinerDefault;
+  unsigned NumBytesToCreateFrame = Costs.FrameDefault;
 
   // If the last instruction in any candidate is a terminator, then we should
   // tail call all of the candidates.
@@ -5743,13 +5801,13 @@ outliner::OutlinedFunction ARMBaseInstrInfo::getOutliningCandidateInfo(
     SetCandidateCallInfo(MachineOutlinerThunk, Costs.CallThunk);
   } else {
     // We need to decide how to emit calls + frames. We can always emit the same
-    // frame if we don't need to save to the stack.
+    // frame if we don't need to save to the stack. If we have to save to the
+    // stack, then we need a different frame.
     unsigned NumBytesNoStackCalls = 0;
     std::vector<outliner::Candidate> CandidatesWithoutStackFixups;
 
     for (outliner::Candidate &C : RepeatedSequenceLocs) {
       C.initLRU(TRI);
-
       // Is LR available? If so, we don't need a save.
       if (C.LRU.available(ARM::LR)) {
         FrameID = MachineOutlinerNoLRSave;
@@ -5766,12 +5824,37 @@ outliner::OutlinedFunction ARMBaseInstrInfo::getOutliningCandidateInfo(
         C.setCallInfo(MachineOutlinerRegSave, Costs.CallRegSave);
         CandidatesWithoutStackFixups.push_back(C);
       }
+
+      // Is SP used in the sequence at all? If not, we don't have to modify
+      // the stack, so we are guaranteed to get the same frame.
+      else if (C.UsedInSequence.available(ARM::SP)) {
+        NumBytesNoStackCalls += Costs.CallDefault;
+        C.setCallInfo(MachineOutlinerDefault, Costs.CallDefault);
+        SetCandidateCallInfo(MachineOutlinerDefault, Costs.CallDefault);
+        CandidatesWithoutStackFixups.push_back(C);
+      } else
+        return outliner::OutlinedFunction();
     }
 
-    if (!CandidatesWithoutStackFixups.empty()) {
-      RepeatedSequenceLocs = CandidatesWithoutStackFixups;
-    } else
-      return outliner::OutlinedFunction();
+    // Does every candidate's MBB contain a call?  If so, then we might have a
+    // call in the range.
+    if (FlagsSetInAll & MachineOutlinerMBBFlags::HasCalls) {
+      // check if the range contains a call.  These require a save + restore of
+      // the link register.
+      if (std::any_of(FirstCand.front(), FirstCand.back(),
+                      [](const MachineInstr &MI) { return MI.isCall(); }))
+        NumBytesToCreateFrame += Costs.SaveRestoreLROnStack;
+
+      // Handle the last instruction separately.  If it is tail call, then the
+      // last instruction is a call, we don't want to save + restore in this
+      // case.  However, it could be possible that the last instruction is a
+      // call without it being valid to tail call this sequence.  We should
+      // consider this as well.
+      else if (FrameID != MachineOutlinerThunk &&
+               FrameID != MachineOutlinerTailCall && FirstCand.back()->isCall())
+        NumBytesToCreateFrame += Costs.SaveRestoreLROnStack;
+    }
+    RepeatedSequenceLocs = CandidatesWithoutStackFixups;
   }
 
   return outliner::OutlinedFunction(RepeatedSequenceLocs, SequenceSize,
@@ -5910,6 +5993,23 @@ ARMBaseInstrInfo::getOutliningType(MachineBasicBlock::iterator &MIT,
     return outliner::InstrType::Illegal;
 
   if (MI.isCall()) {
+    // Get the function associated with the call.  Look at each operand and find
+    // the one that represents the calle and get its name.
+    const Function *Callee = nullptr;
+    for (const MachineOperand &MOP : MI.operands()) {
+      if (MOP.isGlobal()) {
+        Callee = dyn_cast<Function>(MOP.getGlobal());
+        break;
+      }
+    }
+
+    // Dont't outline calls to "mcount" like functions, in particular Linux
+    // kernel function tracing relies on it.
+    if (Callee &&
+        (Callee->getName() == "\01__gnu_mcount_nc" ||
+         Callee->getName() == "\01mcount" || Callee->getName() == "__mcount"))
+      return outliner::InstrType::Illegal;
+
     // If we don't know anything about the callee, assume it depends on the
     // stack layout of the caller. In that case, it's only legal to outline
     // as a tail-call. Explicitly list the call instructions we know about so
@@ -5919,7 +6019,29 @@ ARMBaseInstrInfo::getOutliningType(MachineBasicBlock::iterator &MIT,
         Opc == ARM::tBLXr || Opc == ARM::tBLXi)
       UnknownCallOutlineType = outliner::InstrType::LegalTerminator;
 
-    return UnknownCallOutlineType;
+    if (!Callee)
+      return UnknownCallOutlineType;
+
+    // We have a function we have information about.  Check if it's something we
+    // can safely outline.
+    MachineFunction *MF = MI.getParent()->getParent();
+    MachineFunction *CalleeMF = MF->getMMI().getMachineFunction(*Callee);
+
+    // We don't know what's going on with the callee at all.  Don't touch it.
+    if (!CalleeMF)
+      return UnknownCallOutlineType;
+
+    // Check if we know anything about the callee saves on the function. If we
+    // don't, then don't touch it, since that implies that we haven't computed
+    // anything about its stack frame yet.
+    MachineFrameInfo &MFI = CalleeMF->getFrameInfo();
+    if (!MFI.isCalleeSavedInfoValid() || MFI.getStackSize() > 0 ||
+        MFI.getNumObjects() > 0)
+      return UnknownCallOutlineType;
+
+    // At this point, we can say that CalleeMF ought to not pass anything on the
+    // stack. Therefore, we can outline it.
+    return outliner::InstrType::Legal;
   }
 
   // Since calls are handled, don't touch LR or PC
@@ -5957,13 +6079,31 @@ ARMBaseInstrInfo::getOutliningType(MachineBasicBlock::iterator &MIT,
   return outliner::InstrType::Legal;
 }
 
+void ARMBaseInstrInfo::saveLROnStack(MachineBasicBlock &MBB,
+                                     MachineBasicBlock::iterator &It) const {
+  unsigned Opc = Subtarget.isThumb() ? ARM::t2STR_PRE : ARM::STR_PRE_IMM;
+  int Align = -Subtarget.getStackAlignment().value();
+  BuildMI(MBB, It, DebugLoc(), get(Opc), ARM::SP)
+    .addReg(ARM::LR, RegState::Kill)
+    .addReg(ARM::SP)
+    .addImm(Align)
+    .add(predOps(ARMCC::AL));
+}
+
+void ARMBaseInstrInfo::restoreLRFromStack(
+  MachineBasicBlock &MBB, MachineBasicBlock::iterator &It) const {
+  unsigned Opc = Subtarget.isThumb() ? ARM::t2LDR_POST : ARM::LDR_POST_IMM;
+  MachineInstrBuilder MIB = BuildMI(MBB, It, DebugLoc(), get(Opc), ARM::LR)
+    .addReg(ARM::SP, RegState::Define)
+    .addReg(ARM::SP);
+  if (!Subtarget.isThumb())
+    MIB.addReg(0);
+  MIB.addImm(Subtarget.getStackAlignment().value()).add(predOps(ARMCC::AL));
+}
+
 void ARMBaseInstrInfo::buildOutlinedFrame(
     MachineBasicBlock &MBB, MachineFunction &MF,
     const outliner::OutlinedFunction &OF) const {
-  // Nothing is needed for tail-calls.
-  if (OF.FrameConstructionID == MachineOutlinerTailCall)
-    return;
-
   // For thunk outlining, rewrite the last instruction from a call to a
   // tail-call.
   if (OF.FrameConstructionID == MachineOutlinerThunk) {
@@ -5980,8 +6120,56 @@ void ARMBaseInstrInfo::buildOutlinedFrame(
     if (isThumb && !Call->getOperand(FuncOp).isReg())
       MIB.add(predOps(ARMCC::AL));
     Call->eraseFromParent();
-    return;
   }
+
+  // Is there a call in the outlined range?
+  auto IsNonTailCall = [](MachineInstr &MI) {
+    return MI.isCall() && !MI.isReturn();
+  };
+  if (std::any_of(MBB.instr_begin(), MBB.instr_end(), IsNonTailCall)) {
+    MachineBasicBlock::iterator It = MBB.begin();
+    MachineBasicBlock::iterator Et = MBB.end();
+
+    if (OF.FrameConstructionID == MachineOutlinerTailCall ||
+        OF.FrameConstructionID == MachineOutlinerThunk)
+      Et = std::prev(MBB.end());
+
+    // We have to save and restore LR, we need to add it to the liveins if it
+    // is not already part of the set.  This is suffient since outlined
+    // functions only have one block.
+    if (!MBB.isLiveIn(ARM::LR))
+      MBB.addLiveIn(ARM::LR);
+
+    // Insert a save before the outlined region
+    saveLROnStack(MBB, It);
+
+    unsigned StackAlignment = Subtarget.getStackAlignment().value();
+    const TargetSubtargetInfo &STI = MF.getSubtarget();
+    const MCRegisterInfo *MRI = STI.getRegisterInfo();
+    unsigned DwarfReg = MRI->getDwarfRegNum(ARM::LR, true);
+    // Add a CFI saying the stack was moved down.
+    int64_t StackPosEntry = MF.addFrameInst(
+        MCCFIInstruction::cfiDefCfaOffset(nullptr, StackAlignment));
+    BuildMI(MBB, It, DebugLoc(), get(ARM::CFI_INSTRUCTION))
+        .addCFIIndex(StackPosEntry)
+        .setMIFlags(MachineInstr::FrameSetup);
+
+    // Add a CFI saying that the LR that we want to find is now higher than
+    // before.
+    int64_t LRPosEntry = MF.addFrameInst(
+        MCCFIInstruction::createOffset(nullptr, DwarfReg, StackAlignment));
+    BuildMI(MBB, It, DebugLoc(), get(ARM::CFI_INSTRUCTION))
+        .addCFIIndex(LRPosEntry)
+        .setMIFlags(MachineInstr::FrameSetup);
+
+    // Insert a restore before the terminator for the function.  Restore LR.
+    restoreLRFromStack(MBB, Et);
+  }
+
+  // If this is a tail call outlined function, then there's already a return.
+  if (OF.FrameConstructionID == MachineOutlinerTailCall ||
+      OF.FrameConstructionID == MachineOutlinerThunk)
+    return;
 
   // Here we have to insert the return ourselves.  Get the correct opcode from
   // current feature set.
@@ -6018,21 +6206,43 @@ MachineBasicBlock::iterator ARMBaseInstrInfo::insertOutlinedCall(
     CallMIB.add(predOps(ARMCC::AL));
   CallMIB.addGlobalAddress(M.getNamedValue(MF.getName()));
 
+  if (C.CallConstructionID == MachineOutlinerNoLRSave ||
+      C.CallConstructionID == MachineOutlinerThunk) {
+    // No, so just insert the call.
+    It = MBB.insert(It, CallMIB);
+    return It;
+  }
+
   // Can we save to a register?
   if (C.CallConstructionID == MachineOutlinerRegSave) {
     unsigned Reg = findRegisterToSaveLRTo(C);
     assert(Reg != 0 && "No callee-saved register available?");
 
     // Save and restore LR from that register.
-    if (!MBB.isLiveIn(ARM::LR))
-      MBB.addLiveIn(ARM::LR);
     copyPhysReg(MBB, It, DebugLoc(), Reg, ARM::LR, true);
     CallPt = MBB.insert(It, CallMIB);
     copyPhysReg(MBB, It, DebugLoc(), ARM::LR, Reg, true);
     It--;
     return CallPt;
   }
-  // Insert the call.
-  It = MBB.insert(It, CallMIB);
-  return It;
+  // We have the default case. Save and restore from SP.
+  saveLROnStack(MBB, It);
+  CallPt = MBB.insert(It, CallMIB);
+  restoreLRFromStack(MBB, It);
+  It--;
+  return CallPt;
+}
+
+bool ARMBaseInstrInfo::shouldOutlineFromFunctionByDefault(
+    MachineFunction &MF) const {
+  return Subtarget.isMClass() && MF.getFunction().hasMinSize();
+}
+
+bool ARMBaseInstrInfo::isReallyTriviallyReMaterializable(const MachineInstr &MI,
+                                                         AAResults *AA) const {
+  // Try hard to rematerialize any VCTPs because if we spill P0, it will block
+  // the tail predication conversion. This means that the element count
+  // register has to be live for longer, but that has to be better than
+  // spill/restore and VPT predication.
+  return isVCTP(&MI) && !isPredicated(MI);
 }

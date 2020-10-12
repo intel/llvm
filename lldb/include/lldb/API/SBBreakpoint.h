@@ -105,6 +105,8 @@ public:
 
   bool AddName(const char *new_name);
 
+  SBError AddNameWithErrorHandling(const char *new_name);
+
   void RemoveName(const char *name_to_remove);
 
   bool MatchesName(const char *name);
@@ -138,7 +140,9 @@ public:
   // Can only be called from a ScriptedBreakpointResolver...
   SBError
   AddLocation(SBAddress &address);
-  
+
+  SBStructuredData SerializeToStructuredData();
+
 private:
   friend class SBBreakpointList;
   friend class SBBreakpointLocation;

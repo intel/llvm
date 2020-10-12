@@ -15,13 +15,19 @@
 //===----------------------------------------------------------------------===//
 
 #include "AArch64TargetMachine.h"
+#include "MCTargetDesc/AArch64MCTargetDesc.h"
 #include "llvm/CodeGen/GlobalISel/Combiner.h"
 #include "llvm/CodeGen/GlobalISel/CombinerHelper.h"
 #include "llvm/CodeGen/GlobalISel/CombinerInfo.h"
 #include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
+#include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
+#include "llvm/CodeGen/GlobalISel/Utils.h"
 #include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
+#include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/Support/Debug.h"
 
@@ -42,29 +48,6 @@ struct ShuffleVectorPseudo {
       : Opc(Opc), Dst(Dst), SrcOps(SrcOps){};
   ShuffleVectorPseudo() {}
 };
-
-/// \returns The splat index of a G_SHUFFLE_VECTOR \p MI when \p MI is a splat.
-/// If \p MI is not a splat, returns None.
-static Optional<int> getSplatIndex(MachineInstr &MI) {
-  assert(MI.getOpcode() == TargetOpcode::G_SHUFFLE_VECTOR &&
-         "Only G_SHUFFLE_VECTOR can have a splat index!");
-  ArrayRef<int> Mask = MI.getOperand(3).getShuffleMask();
-  auto FirstDefinedIdx = find_if(Mask, [](int Elt) { return Elt >= 0; });
-
-  // If all elements are undefined, this shuffle can be considered a splat.
-  // Return 0 for better potential for callers to simplify.
-  if (FirstDefinedIdx == Mask.end())
-    return 0;
-
-  // Make sure all remaining elements are either undef or the same
-  // as the first non-undef value.
-  int SplatValue = *FirstDefinedIdx;
-  if (any_of(make_range(std::next(FirstDefinedIdx), Mask.end()),
-             [&SplatValue](int Elt) { return Elt >= 0 && Elt != SplatValue; }))
-    return None;
-
-  return SplatValue;
-}
 
 /// Check if a vector shuffle corresponds to a REV instruction with the
 /// specified blocksize.
@@ -386,6 +369,45 @@ static bool applyEXT(MachineInstr &MI, ShuffleVectorPseudo &MatchInfo) {
       MIRBuilder.buildConstant(LLT::scalar(32), MatchInfo.SrcOps[2].getImm());
   MIRBuilder.buildInstr(MatchInfo.Opc, {MatchInfo.Dst},
                         {MatchInfo.SrcOps[0], MatchInfo.SrcOps[1], Cst});
+  MI.eraseFromParent();
+  return true;
+}
+
+/// isVShiftRImm - Check if this is a valid vector for the immediate
+/// operand of a vector shift right operation. The value must be in the range:
+///   1 <= Value <= ElementBits for a right shift.
+static bool isVShiftRImm(Register Reg, MachineRegisterInfo &MRI, LLT Ty,
+                         int64_t &Cnt) {
+  assert(Ty.isVector() && "vector shift count is not a vector type");
+  MachineInstr *MI = MRI.getVRegDef(Reg);
+  auto Cst = getBuildVectorConstantSplat(*MI, MRI);
+  if (!Cst)
+    return false;
+  Cnt = *Cst;
+  int64_t ElementBits = Ty.getScalarSizeInBits();
+  return Cnt >= 1 && Cnt <= ElementBits;
+}
+
+/// Match a vector G_ASHR or G_LSHR with a valid immediate shift.
+static bool matchVAshrLshrImm(MachineInstr &MI, MachineRegisterInfo &MRI,
+                              int64_t &Imm) {
+  assert(MI.getOpcode() == TargetOpcode::G_ASHR ||
+         MI.getOpcode() == TargetOpcode::G_LSHR);
+  LLT Ty = MRI.getType(MI.getOperand(1).getReg());
+  if (!Ty.isVector())
+    return false;
+  return isVShiftRImm(MI.getOperand(2).getReg(), MRI, Ty, Imm);
+}
+
+static bool applyVAshrLshrImm(MachineInstr &MI, MachineRegisterInfo &MRI,
+                              int64_t &Imm) {
+  unsigned Opc = MI.getOpcode();
+  assert(Opc == TargetOpcode::G_ASHR || Opc == TargetOpcode::G_LSHR);
+  unsigned NewOpc =
+      Opc == TargetOpcode::G_ASHR ? AArch64::G_VASHR : AArch64::G_VLSHR;
+  MachineIRBuilder MIB(MI);
+  auto ImmDef = MIB.buildConstant(LLT::scalar(32), Imm);
+  MIB.buildInstr(NewOpc, {MI.getOperand(0)}, {MI.getOperand(1), ImmDef});
   MI.eraseFromParent();
   return true;
 }

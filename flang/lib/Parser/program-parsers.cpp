@@ -20,20 +20,6 @@
 
 namespace Fortran::parser {
 
-// R501 program -> program-unit [program-unit]...
-// This is the top-level production for the Fortran language.
-// F'2018 6.3.1 defines a program unit as a sequence of one or more lines,
-// implying that a line can't be part of two distinct program units.
-// Consequently, a program unit END statement should be the last statement
-// on its line.  We parse those END statements via unterminatedStatement()
-// and then skip over the end of the line here.
-TYPE_PARSER(construct<Program>(
-    extension<LanguageFeature::EmptySourceFile>(skipStuffBeforeStatement >>
-        !nextCh >> pure<std::list<ProgramUnit>>()) ||
-    some(StartNewSubprogram{} >> Parser<ProgramUnit>{} / skipMany(";"_tok) /
-            space / recovery(endOfLine, SkipPast<'\n'>{})) /
-        skipStuffBeforeStatement))
-
 // R502 program-unit ->
 //        main-program | external-subprogram | module | submodule | block-data
 // R503 external-subprogram -> function-subprogram | subroutine-subprogram
@@ -49,18 +35,37 @@ TYPE_PARSER(construct<Program>(
 // variant parsers for several productions; giving the "module" production
 // priority here is a cleaner solution, though regrettably subtle.  Enforcing
 // C1547 is done in semantics.
-TYPE_PARSER(construct<ProgramUnit>(indirect(Parser<Module>{})) ||
+static constexpr auto programUnit{
+    construct<ProgramUnit>(indirect(Parser<Module>{})) ||
     construct<ProgramUnit>(indirect(functionSubprogram)) ||
     construct<ProgramUnit>(indirect(subroutineSubprogram)) ||
     construct<ProgramUnit>(indirect(Parser<Submodule>{})) ||
     construct<ProgramUnit>(indirect(Parser<BlockData>{})) ||
-    construct<ProgramUnit>(indirect(Parser<MainProgram>{})))
+    construct<ProgramUnit>(indirect(Parser<MainProgram>{}))};
+static constexpr auto normalProgramUnit{StartNewSubprogram{} >> programUnit /
+        skipMany(";"_tok) / space / recovery(endOfLine, SkipPast<'\n'>{})};
+static constexpr auto globalCompilerDirective{
+    construct<ProgramUnit>(indirect(compilerDirective))};
+
+// R501 program -> program-unit [program-unit]...
+// This is the top-level production for the Fortran language.
+// F'2018 6.3.1 defines a program unit as a sequence of one or more lines,
+// implying that a line can't be part of two distinct program units.
+// Consequently, a program unit END statement should be the last statement
+// on its line.  We parse those END statements via unterminatedStatement()
+// and then skip over the end of the line here.
+TYPE_PARSER(construct<Program>(
+    extension<LanguageFeature::EmptySourceFile>(skipStuffBeforeStatement >>
+        !nextCh >> pure<std::list<ProgramUnit>>()) ||
+    some(globalCompilerDirective || normalProgramUnit) /
+        skipStuffBeforeStatement))
 
 // R504 specification-part ->
 //         [use-stmt]... [import-stmt]... [implicit-part]
 //         [declaration-construct]...
 TYPE_CONTEXT_PARSER("specification part"_en_US,
-    construct<SpecificationPart>(many(openmpDeclarativeConstruct),
+    construct<SpecificationPart>(many(openaccDeclarativeConstruct),
+        many(openmpDeclarativeConstruct), many(indirect(compilerDirective)),
         many(statement(indirect(Parser<UseStmt>{}))),
         many(unambiguousStatement(indirect(Parser<ImportStmt>{}))),
         implicitPart, many(declarationConstruct)))
@@ -76,7 +81,7 @@ TYPE_CONTEXT_PARSER("specification part"_en_US,
 // are allowed, and so we have a variant production for declaration-construct
 // that implements those constraints.
 constexpr auto execPartLookAhead{
-    first(actionStmt >> ok, ompEndLoopDirective >> ok, openmpConstruct >> ok,
+    first(actionStmt >> ok, openaccConstruct >> ok, openmpConstruct >> ok,
         "ASSOCIATE ("_tok, "BLOCK"_tok, "SELECT"_tok, "CHANGE TEAM"_sptok,
         "CRITICAL"_tok, "DO"_tok, "IF ("_tok, "WHERE ("_tok, "FORALL ("_tok)};
 constexpr auto declErrorRecovery{
@@ -126,7 +131,8 @@ constexpr auto limitedDeclarationConstruct{recovery(
 // specialized error recovery in the event of a spurious executable
 // statement.
 constexpr auto limitedSpecificationPart{inContext("specification part"_en_US,
-    construct<SpecificationPart>(many(openmpDeclarativeConstruct),
+    construct<SpecificationPart>(many(openaccDeclarativeConstruct),
+        many(openmpDeclarativeConstruct), many(indirect(compilerDirective)),
         many(statement(indirect(Parser<UseStmt>{}))),
         many(unambiguousStatement(indirect(Parser<ImportStmt>{}))),
         implicitPart, many(limitedDeclarationConstruct)))};
@@ -151,6 +157,8 @@ TYPE_CONTEXT_PARSER("specification construct"_en_US,
         construct<SpecificationConstruct>(
             statement(indirect(typeDeclarationStmt))),
         construct<SpecificationConstruct>(indirect(Parser<StructureDef>{})),
+        construct<SpecificationConstruct>(
+            indirect(openaccDeclarativeConstruct)),
         construct<SpecificationConstruct>(indirect(openmpDeclarativeConstruct)),
         construct<SpecificationConstruct>(indirect(compilerDirective))))
 

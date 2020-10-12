@@ -31,12 +31,61 @@
 // is textually included.
 #define COVMAP_V3
 
+static llvm::cl::opt<bool> EmptyLineCommentCoverage(
+    "emptyline-comment-coverage",
+    llvm::cl::desc("Emit emptylines and comment lines as skipped regions (only "
+                   "disable it on test)"),
+    llvm::cl::init(true), llvm::cl::Hidden);
+
 using namespace clang;
 using namespace CodeGen;
 using namespace llvm::coverage;
 
+CoverageSourceInfo *
+CoverageMappingModuleGen::setUpCoverageCallbacks(Preprocessor &PP) {
+  CoverageSourceInfo *CoverageInfo =
+      new CoverageSourceInfo(PP.getSourceManager());
+  PP.addPPCallbacks(std::unique_ptr<PPCallbacks>(CoverageInfo));
+  if (EmptyLineCommentCoverage) {
+    PP.addCommentHandler(CoverageInfo);
+    PP.setEmptylineHandler(CoverageInfo);
+    PP.setPreprocessToken(true);
+    PP.setTokenWatcher([CoverageInfo](clang::Token Tok) {
+      // Update previous token location.
+      CoverageInfo->PrevTokLoc = Tok.getLocation();
+      if (Tok.getKind() != clang::tok::eod)
+        CoverageInfo->updateNextTokLoc(Tok.getLocation());
+    });
+  }
+  return CoverageInfo;
+}
+
+void CoverageSourceInfo::AddSkippedRange(SourceRange Range) {
+  if (EmptyLineCommentCoverage && !SkippedRanges.empty() &&
+      PrevTokLoc == SkippedRanges.back().PrevTokLoc &&
+      SourceMgr.isWrittenInSameFile(SkippedRanges.back().Range.getEnd(),
+                                    Range.getBegin()))
+    SkippedRanges.back().Range.setEnd(Range.getEnd());
+  else
+    SkippedRanges.push_back({Range, PrevTokLoc});
+}
+
 void CoverageSourceInfo::SourceRangeSkipped(SourceRange Range, SourceLocation) {
-  SkippedRanges.push_back(Range);
+  AddSkippedRange(Range);
+}
+
+void CoverageSourceInfo::HandleEmptyline(SourceRange Range) {
+  AddSkippedRange(Range);
+}
+
+bool CoverageSourceInfo::HandleComment(Preprocessor &PP, SourceRange Range) {
+  AddSkippedRange(Range);
+  return false;
+}
+
+void CoverageSourceInfo::updateNextTokLoc(SourceLocation Loc) {
+  if (!SkippedRanges.empty() && SkippedRanges.back().NextTokLoc.isInvalid())
+    SkippedRanges.back().NextTokLoc = Loc;
 }
 
 namespace {
@@ -274,8 +323,31 @@ public:
     return None;
   }
 
+  /// This shrinks the skipped range if it spans a line that contains a
+  /// non-comment token. If shrinking the skipped range would make it empty,
+  /// this returns None.
+  Optional<SpellingRegion> adjustSkippedRange(SourceManager &SM,
+                                              SourceLocation LocStart,
+                                              SourceLocation LocEnd,
+                                              SourceLocation PrevTokLoc,
+                                              SourceLocation NextTokLoc) {
+    SpellingRegion SR{SM, LocStart, LocEnd};
+    SR.ColumnStart = 1;
+    if (PrevTokLoc.isValid() && SM.isWrittenInSameFile(LocStart, PrevTokLoc) &&
+        SR.LineStart == SM.getSpellingLineNumber(PrevTokLoc))
+      SR.LineStart++;
+    if (NextTokLoc.isValid() && SM.isWrittenInSameFile(LocEnd, NextTokLoc) &&
+        SR.LineEnd == SM.getSpellingLineNumber(NextTokLoc)) {
+      SR.LineEnd--;
+      SR.ColumnEnd++;
+    }
+    if (SR.isInSourceOrder())
+      return SR;
+    return None;
+  }
+
   /// Gather all the regions that were skipped by the preprocessor
-  /// using the constructs like #if.
+  /// using the constructs like #if or comments.
   void gatherSkippedRegions() {
     /// An array of the minimum lineStarts and the maximum lineEnds
     /// for mapping regions from the appropriate source files.
@@ -291,18 +363,23 @@ public:
     }
 
     auto SkippedRanges = CVM.getSourceInfo().getSkippedRanges();
-    for (const auto &I : SkippedRanges) {
-      auto LocStart = I.getBegin();
-      auto LocEnd = I.getEnd();
+    for (auto &I : SkippedRanges) {
+      SourceRange Range = I.Range;
+      auto LocStart = Range.getBegin();
+      auto LocEnd = Range.getEnd();
       assert(SM.isWrittenInSameFile(LocStart, LocEnd) &&
              "region spans multiple files");
 
       auto CovFileID = getCoverageFileID(LocStart);
       if (!CovFileID)
         continue;
-      SpellingRegion SR{SM, LocStart, LocEnd};
+      Optional<SpellingRegion> SR =
+          adjustSkippedRange(SM, LocStart, LocEnd, I.PrevTokLoc, I.NextTokLoc);
+      if (!SR.hasValue())
+        continue;
       auto Region = CounterMappingRegion::makeSkipped(
-          *CovFileID, SR.LineStart, SR.ColumnStart, SR.LineEnd, SR.ColumnEnd);
+          *CovFileID, SR->LineStart, SR->ColumnStart, SR->LineEnd,
+          SR->ColumnEnd);
       // Make sure that we only collect the regions that are inside
       // the source code of this function.
       if (Region.LineStart >= FileLineRanges[*CovFileID].first &&
@@ -905,6 +982,18 @@ struct CounterCoverageMappingBuilder
     extendRegion(S);
     if (S->getRetValue())
       Visit(S->getRetValue());
+    terminateRegion(S);
+  }
+
+  void VisitCoroutineBodyStmt(const CoroutineBodyStmt *S) {
+    extendRegion(S);
+    Visit(S->getBody());
+  }
+
+  void VisitCoreturnStmt(const CoreturnStmt *S) {
+    extendRegion(S);
+    if (S->getOperand())
+      Visit(S->getOperand());
     terminateRegion(S);
   }
 

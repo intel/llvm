@@ -13,6 +13,7 @@
 #ifndef LLVM_MC_MCSTREAMER_H
 #define LLVM_MC_MCSTREAMER_H
 
+#include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Optional.h"
@@ -574,6 +575,16 @@ public:
   virtual void emitXCOFFSymbolLinkageWithVisibility(MCSymbol *Symbol,
                                                     MCSymbolAttr Linkage,
                                                     MCSymbolAttr Visibility);
+
+  /// Emit a XCOFF .rename directive which creates a synonym for an illegal or
+  /// undesirable name.
+  ///
+  /// \param Name - The name used internally in the assembly for references to
+  /// the symbol.
+  /// \param Rename - The value to which the Name parameter is
+  /// changed at the end of assembly.
+  virtual void emitXCOFFRenameDirective(const MCSymbol *Name, StringRef Rename);
+
   /// Emit an ELF .size directive.
   ///
   /// This corresponds to an assembler statement such as:
@@ -663,6 +674,7 @@ public:
   /// Special case of EmitValue that avoids the client having
   /// to pass in a MCExpr for constant integers.
   virtual void emitIntValue(uint64_t Value, unsigned Size);
+  virtual void emitIntValue(APInt Value);
 
   /// Special case of EmitValue that avoids the client having to pass
   /// in a MCExpr for constant integers & prints in Hex format for certain
@@ -766,6 +778,9 @@ public:
   /// \param Expr - The expression from which \p Size bytes are used.
   virtual void emitFill(const MCExpr &NumValues, int64_t Size, int64_t Expr,
                         SMLoc Loc = SMLoc());
+
+  virtual void emitNops(int64_t NumBytes, int64_t ControlledNopLength,
+                        SMLoc Loc);
 
   /// Emit NumBytes worth of zeros.
   /// This function properly handles data in virtual sections.
@@ -1004,13 +1019,12 @@ public:
 
   virtual void emitSyntaxDirective();
 
-  /// Emit a .reloc directive.
-  /// Returns true if the relocation could not be emitted because Name is not
-  /// known.
-  virtual bool emitRelocDirective(const MCExpr &Offset, StringRef Name,
-                                  const MCExpr *Expr, SMLoc Loc,
-                                  const MCSubtargetInfo &STI) {
-    return true;
+  /// Record a relocation described by the .reloc directive. Return None if
+  /// succeeded. Otherwise, return a pair (Name is invalid, error message).
+  virtual Optional<std::pair<bool, std::string>>
+  emitRelocDirective(const MCExpr &Offset, StringRef Name, const MCExpr *Expr,
+                     SMLoc Loc, const MCSubtargetInfo &STI) {
+    return None;
   }
 
   virtual void emitAddrsig() {}

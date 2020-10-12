@@ -119,6 +119,7 @@ public:
     MSVC2017 = 1910,
     MSVC2017_5 = 1912,
     MSVC2017_7 = 1914,
+    MSVC2019 = 1920,
   };
 
   enum class SYCLVersionList {
@@ -382,6 +383,8 @@ public:
 
   using RoundingMode = llvm::RoundingMode;
 
+  static constexpr unsigned StorageBitSize = 8 * sizeof(storage_type);
+
   // Define a fake option named "First" so that we have a PREVIOUS even for the
   // real first option.
   static constexpr storage_type FirstShift = 0, FirstWidth = 0;
@@ -393,6 +396,12 @@ public:
                                              << NAME##Shift;
 #include "clang/Basic/FPOptions.def"
 
+  static constexpr storage_type TotalWidth = 0
+#define OPTION(NAME, TYPE, WIDTH, PREVIOUS) +WIDTH
+#include "clang/Basic/FPOptions.def"
+      ;
+  static_assert(TotalWidth <= StorageBitSize, "Too short type for FPOptions");
+
 private:
   storage_type Value;
 
@@ -402,16 +411,13 @@ public:
     setRoundingMode(static_cast<RoundingMode>(LangOptions::FPR_ToNearest));
     setFPExceptionMode(LangOptions::FPE_Ignore);
   }
-  // Used for serializing.
-  explicit FPOptions(unsigned I) { getFromOpaqueInt(I); }
-
   explicit FPOptions(const LangOptions &LO) {
     Value = 0;
     setFPContractMode(LO.getDefaultFPContractMode());
     setRoundingMode(LO.getFPRoundingMode());
     setFPExceptionMode(LO.getFPExceptionMode());
-    setAllowFEnvAccess(LangOptions::FPM_Off),
-        setAllowFPReassociate(LO.AllowFPReassoc);
+    setAllowFEnvAccess(LangOptions::FPM_Off);
+    setAllowFPReassociate(LO.AllowFPReassoc);
     setNoHonorNaNs(LO.NoHonorNaNs);
     setNoHonorInfs(LO.NoHonorInfs);
     setNoSignedZero(LO.NoSignedZero);
@@ -434,8 +440,7 @@ public:
   }
 
   bool isFPConstrained() const {
-    return getRoundingMode() !=
-               static_cast<unsigned>(RoundingMode::NearestTiesToEven) ||
+    return getRoundingMode() != llvm::RoundingMode::NearestTiesToEven ||
            getFPExceptionMode() != LangOptions::FPE_Ignore ||
            getAllowFEnvAccess();
   }
@@ -447,12 +452,16 @@ public:
   static FPOptions defaultWithoutTrailingStorage(const LangOptions &LO);
 
   storage_type getAsOpaqueInt() const { return Value; }
-  void getFromOpaqueInt(storage_type value) { Value = value; }
+  static FPOptions getFromOpaqueInt(storage_type Value) {
+    FPOptions Opts;
+    Opts.Value = Value;
+    return Opts;
+  }
 
   // We can define most of the accessors automatically:
 #define OPTION(NAME, TYPE, WIDTH, PREVIOUS)                                    \
-  unsigned get##NAME() const {                                                 \
-    return static_cast<unsigned>(TYPE((Value & NAME##Mask) >> NAME##Shift));   \
+  TYPE get##NAME() const {                                                     \
+    return static_cast<TYPE>((Value & NAME##Mask) >> NAME##Shift);             \
   }                                                                            \
   void set##NAME(TYPE value) {                                                 \
     Value = (Value & ~NAME##Mask) | (storage_type(value) << NAME##Shift);      \
@@ -461,18 +470,42 @@ public:
   LLVM_DUMP_METHOD void dump();
 };
 
-/// The FPOptions override type is value of the new FPOptions
-///  plus a mask showing which fields are actually set in it:
+/// Represents difference between two FPOptions values.
+///
+/// The effect of language constructs changing the set of floating point options
+/// is usually a change of some FP properties while leaving others intact. This
+/// class describes such changes by keeping information about what FP options
+/// are overridden.
+///
+/// The integral set of FP options, described by the class FPOptions, may be
+/// represented as a default FP option set, defined by language standard and
+/// command line options, with the overrides introduced by pragmas.
+///
+/// The is implemented as a value of the new FPOptions plus a mask showing which
+/// fields are actually set in it.
 class FPOptionsOverride {
-  FPOptions Options;
+  FPOptions Options = FPOptions::getFromOpaqueInt(0);
   FPOptions::storage_type OverrideMask = 0;
 
 public:
   using RoundingMode = llvm::RoundingMode;
-  FPOptionsOverride() {}
 
-  // Used for serializing.
-  explicit FPOptionsOverride(unsigned I) { getFromOpaqueInt(I); }
+  /// The type suitable for storing values of FPOptionsOverride. Must be twice
+  /// as wide as bit size of FPOption.
+  using storage_type = uint32_t;
+  static_assert(sizeof(storage_type) >= 2 * sizeof(FPOptions::storage_type),
+                "Too short type for FPOptionsOverride");
+
+  /// Bit mask selecting bits of OverrideMask in serialized representation of
+  /// FPOptionsOverride.
+  static constexpr storage_type OverrideMaskBits =
+      (static_cast<storage_type>(1) << FPOptions::StorageBitSize) - 1;
+
+  FPOptionsOverride() {}
+  FPOptionsOverride(const LangOptions &LO)
+      : Options(LO), OverrideMask(OverrideMaskBits) {}
+  FPOptionsOverride(FPOptions FPO)
+      : Options(FPO), OverrideMask(OverrideMaskBits) {}
 
   bool requiresTrailingStorage() const { return OverrideMask != 0; }
 
@@ -503,19 +536,27 @@ public:
       setAllowFPContractAcrossStatement();
   }
 
-  unsigned getAsOpaqueInt() const {
-    return Options.getAsOpaqueInt() << 16 | OverrideMask;
+  storage_type getAsOpaqueInt() const {
+    return (static_cast<storage_type>(Options.getAsOpaqueInt())
+            << FPOptions::StorageBitSize) |
+           OverrideMask;
   }
-  void getFromOpaqueInt(unsigned I) {
-    OverrideMask = I & 0xffff;
-    Options.getFromOpaqueInt(I >> 16);
+  static FPOptionsOverride getFromOpaqueInt(storage_type I) {
+    FPOptionsOverride Opts;
+    Opts.OverrideMask = I & OverrideMaskBits;
+    Opts.Options = FPOptions::getFromOpaqueInt(I >> FPOptions::StorageBitSize);
+    return Opts;
+  }
+
+  FPOptions applyOverrides(FPOptions Base) {
+    FPOptions Result =
+        FPOptions::getFromOpaqueInt((Base.getAsOpaqueInt() & ~OverrideMask) |
+                                     (Options.getAsOpaqueInt() & OverrideMask));
+    return Result;
   }
 
   FPOptions applyOverrides(const LangOptions &LO) {
-    FPOptions Base(LO);
-    FPOptions result((Base.getAsOpaqueInt() & ~OverrideMask) |
-                     (Options.getAsOpaqueInt() & OverrideMask));
-    return result;
+    return applyOverrides(FPOptions(LO));
   }
 
   bool operator==(FPOptionsOverride other) const {
@@ -527,7 +568,7 @@ public:
   bool has##NAME##Override() const {                                           \
     return OverrideMask & FPOptions::NAME##Mask;                               \
   }                                                                            \
-  unsigned get##NAME##Override() const {                                       \
+  TYPE get##NAME##Override() const {                                           \
     assert(has##NAME##Override());                                             \
     return Options.get##NAME();                                                \
   }                                                                            \

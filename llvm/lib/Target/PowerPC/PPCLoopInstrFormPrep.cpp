@@ -606,6 +606,10 @@ bool PPCLoopInstrFormPrep::rewriteLoadStores(Loop *L, Bucket &BucketChain,
       NewBasePtr = NewPHI;
   }
 
+  // Clear the rewriter cache, because values that are in the rewriter's cache
+  // can be deleted below, causing the AssertingVH in the cache to trigger.
+  SCEVE.clear();
+
   if (Instruction *IDel = dyn_cast<Instruction>(BasePtr))
     BBChanged.insert(IDel->getParent());
   BasePtr->replaceAllUsesWith(NewBasePtr);
@@ -791,7 +795,7 @@ bool PPCLoopInstrFormPrep::runOnLoop(Loop *L) {
   bool MadeChange = false;
 
   // Only prep. the inner-most loop
-  if (!L->empty())
+  if (!L->isInnermost())
     return MadeChange;
 
   // Return if already done enough preparation.

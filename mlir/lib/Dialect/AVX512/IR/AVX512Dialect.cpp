@@ -18,18 +18,12 @@
 
 using namespace mlir;
 
-avx512::AVX512Dialect::AVX512Dialect(MLIRContext *context)
-    : Dialect(getDialectNamespace(), context) {
+void avx512::AVX512Dialect::initialize() {
   addOperations<
 #define GET_OP_LIST
 #include "mlir/Dialect/AVX512/AVX512.cpp.inc"
       >();
 }
 
-namespace mlir {
-namespace avx512 {
 #define GET_OP_CLASSES
 #include "mlir/Dialect/AVX512/AVX512.cpp.inc"
-}  // namespace avx512
-} // namespace mlir
-

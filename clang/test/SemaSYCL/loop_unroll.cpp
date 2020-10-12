@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify -pedantic %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -Wno-sycl-2017-compat -verify -pedantic %s
 
 template <int A>
 void bar() {
@@ -39,8 +39,7 @@ void foo() {
 
   // no error expected
   [[clang::loop_unroll(4)]]
-  [[intelfpga::ii(2)]]
-  for (int i = 0; i < 10; ++i);
+  [[intel::ii(2)]] for (int i = 0; i < 10; ++i);
 
   // expected-error@+2 {{'loop_unroll' attribute requires an integer constant}}
   int b = 4;
@@ -60,7 +59,7 @@ void foo() {
 }
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
 }
 

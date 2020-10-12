@@ -15,15 +15,15 @@
 #define OPENMP_OPS
 
 include "mlir/IR/OpBase.td"
+include "mlir/Dialect/OpenMP/OmpCommon.td"
 
 def OpenMP_Dialect : Dialect {
   let name = "omp";
-  let cppNamespace = "omp";
+  let cppNamespace = "::mlir::omp";
 }
 
 class OpenMP_Op<string mnemonic, list<OpTrait> traits = []> :
       Op<OpenMP_Dialect, mnemonic, traits>;
-
 
 //===----------------------------------------------------------------------===//
 // 2.6 parallel Construct
@@ -40,18 +40,6 @@ def ClauseDefault : StrEnumAttr<
     "default clause",
     [ClauseDefaultPrivate, ClauseDefaultFirstPrivate, ClauseDefaultShared,
      ClauseDefaultNone]> {
-  let cppNamespace = "::mlir::omp";
-}
-
-// Possible values for the proc_bind clause
-def ClauseProcMaster : StrEnumAttrCase<"master">;
-def ClauseProcClose : StrEnumAttrCase<"close">;
-def ClauseProcSpread : StrEnumAttrCase<"spread">;
-
-def ClauseProcBind : StrEnumAttr<
-    "ClauseProcBind",
-    "procbind clause",
-    [ClauseProcMaster, ClauseProcClose, ClauseProcSpread]> {
   let cppNamespace = "::mlir::omp";
 }
 
@@ -81,14 +69,14 @@ def ParallelOp : OpenMP_Op<"parallel", [AttrSizedOperandSegments]> {
     of the parallel region.
   }];
 
-  let arguments = (ins Optional<I1>:$if_expr_var,
-             Optional<AnyInteger>:$num_threads_var,
+  let arguments = (ins Optional<AnyType>:$if_expr_var,
+             Optional<AnyType>:$num_threads_var,
              OptionalAttr<ClauseDefault>:$default_val,
              Variadic<AnyType>:$private_vars,
              Variadic<AnyType>:$firstprivate_vars,
              Variadic<AnyType>:$shared_vars,
              Variadic<AnyType>:$copyin_vars,
-             OptionalAttr<ClauseProcBind>:$proc_bind_val);
+             OptionalAttr<ProcBindKind>:$proc_bind_val);
 
   let regions = (region AnyRegion:$region);
 
@@ -136,7 +124,7 @@ def FlushOp : OpenMP_Op<"flush"> {
 
   let arguments = (ins Variadic<AnyType>:$varList);
 
-  let assemblyFormat = "attr-dict ($varList^ `:` type($varList))?";
+  let assemblyFormat = [{ ( `(` $varList^ `:` type($varList) `)` )? attr-dict}];
 }
 
 //===----------------------------------------------------------------------===//
@@ -150,6 +138,8 @@ def MasterOp : OpenMP_Op<"master"> {
   }];
 
   let regions = (region AnyRegion:$region);
+
+  let assemblyFormat = "$region attr-dict";
 }
 
 //===----------------------------------------------------------------------===//

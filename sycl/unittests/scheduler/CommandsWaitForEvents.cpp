@@ -97,7 +97,7 @@ TEST_F(SchedulerTest, CommandsWaitForEvents) {
   sycl::device HostDevice;
   std::shared_ptr<detail::queue_impl> DefaultHostQueue(new detail::queue_impl(
       detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
-      detail::QueueOrder::Ordered, /*PropList=*/{}));
+      /*PropList=*/{}));
 
   MockCommand Cmd(DefaultHostQueue);
 

@@ -20,7 +20,6 @@
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
-#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/Analysis/CaptureTracking.h"
@@ -609,9 +608,19 @@ Value *LibCallSimplifier::optimizeStrNCpy(CallInst *CI, IRBuilderBase &B) {
     return Dst;
   }
 
-  // Let strncpy handle the zero padding
-  if (Len > SrcLen + 1)
-    return nullptr;
+  // strncpy(a, "a", 4) - > memcpy(a, "a\0\0\0", 4)
+  if (Len > SrcLen + 1) {
+    if (Len <= 128) {
+      StringRef Str;
+      if (!getConstantStringInfo(Src, Str))
+        return nullptr;
+      std::string SrcStr = Str.str();
+      SrcStr.resize(Len, '\0');
+      Src = B.CreateGlobalString(SrcStr, "str");
+    } else {
+      return nullptr;
+    }
+  }
 
   Type *PT = Callee->getFunctionType()->getParamType(0);
   // strncpy(x, s, c) -> memcpy(align 1 x, align 1 s, c) [s and c are constant]
@@ -684,8 +693,6 @@ Value *LibCallSimplifier::optimizeStringLength(CallInst *CI, IRBuilderBase &B,
                            Offset);
       }
     }
-
-    return nullptr;
   }
 
   // strlen(x?"foo":"bars") --> x ? 3 : 4
@@ -1448,7 +1455,7 @@ static Value *getIntToFPVal(Value *I2F, IRBuilderBase &B) {
 /// exp10(x) for pow(10.0, x); exp2(log2(n) * x) for pow(n, x).
 Value *LibCallSimplifier::replacePowWithExp(CallInst *Pow, IRBuilderBase &B) {
   Value *Base = Pow->getArgOperand(0), *Expo = Pow->getArgOperand(1);
-  AttributeList Attrs = Pow->getCalledFunction()->getAttributes();
+  AttributeList Attrs; // Attributes are only meaningful on the original call
   Module *Mod = Pow->getModule();
   Type *Ty = Pow->getType();
   bool Ignored;
@@ -1615,7 +1622,7 @@ static Value *getSqrtCall(Value *V, AttributeList Attrs, bool NoErrno,
 /// Use square root in place of pow(x, +/-0.5).
 Value *LibCallSimplifier::replacePowWithSqrt(CallInst *Pow, IRBuilderBase &B) {
   Value *Sqrt, *Base = Pow->getArgOperand(0), *Expo = Pow->getArgOperand(1);
-  AttributeList Attrs = Pow->getCalledFunction()->getAttributes();
+  AttributeList Attrs; // Attributes are only meaningful on the original call
   Module *Mod = Pow->getModule();
   Type *Ty = Pow->getType();
 
@@ -1627,6 +1634,14 @@ Value *LibCallSimplifier::replacePowWithSqrt(CallInst *Pow, IRBuilderBase &B) {
   // Converting pow(X, -0.5) to 1/sqrt(X) may introduce an extra rounding step,
   // so that requires fast-math-flags (afn or reassoc).
   if (ExpoF->isNegative() && (!Pow->hasApproxFunc() && !Pow->hasAllowReassoc()))
+    return nullptr;
+
+  // If we have a pow() library call (accesses memory) and we can't guarantee
+  // that the base is not an infinity, give up:
+  // pow(-Inf, 0.5) is optionally required to have a result of +Inf (not setting
+  // errno), but sqrt(-Inf) is required by various standards to set errno.
+  if (!Pow->doesNotAccessMemory() && !Pow->hasNoInfs() &&
+      !isKnownNeverInfinity(Base, TLI))
     return nullptr;
 
   Sqrt = getSqrtCall(Base, Attrs, Pow->doesNotAccessMemory(), Mod, B, TLI);
@@ -1715,7 +1730,8 @@ Value *LibCallSimplifier::optimizePow(CallInst *Pow, IRBuilderBase &B) {
 
   // pow(x, n) -> x * x * x * ...
   const APFloat *ExpoF;
-  if (AllowApprox && match(Expo, m_APFloat(ExpoF))) {
+  if (AllowApprox && match(Expo, m_APFloat(ExpoF)) &&
+      !ExpoF->isExactlyValue(0.5) && !ExpoF->isExactlyValue(-0.5)) {
     // We limit to a max of 7 multiplications, thus the maximum exponent is 32.
     // If the exponent is an integer+0.5 we generate a call to sqrt and an
     // additional fmul.
@@ -1741,6 +1757,8 @@ Value *LibCallSimplifier::optimizePow(CallInst *Pow, IRBuilderBase &B) {
 
         Sqrt = getSqrtCall(Base, Pow->getCalledFunction()->getAttributes(),
                            Pow->doesNotAccessMemory(), M, B, TLI);
+        if (!Sqrt)
+          return nullptr;
       }
 
       // We will memoize intermediate products of the Addition Chain.
@@ -1785,6 +1803,7 @@ Value *LibCallSimplifier::optimizePow(CallInst *Pow, IRBuilderBase &B) {
 
 Value *LibCallSimplifier::optimizeExp2(CallInst *CI, IRBuilderBase &B) {
   Function *Callee = CI->getCalledFunction();
+  AttributeList Attrs; // Attributes are only meaningful on the original call
   StringRef Name = Callee->getName();
   Value *Ret = nullptr;
   if (UnsafeFPShrink && Name == TLI->getName(LibFunc_exp2) &&
@@ -1801,7 +1820,7 @@ Value *LibCallSimplifier::optimizeExp2(CallInst *CI, IRBuilderBase &B) {
     if (Value *Exp = getIntToFPVal(Op, B))
       return emitBinaryFloatFnCall(ConstantFP::get(Ty, 1.0), Exp, TLI,
                                    LibFunc_ldexp, LibFunc_ldexpf, LibFunc_ldexpl,
-                                   B, CI->getCalledFunction()->getAttributes());
+                                   B, Attrs);
   }
 
   return Ret;
@@ -1836,7 +1855,7 @@ Value *LibCallSimplifier::optimizeFMinFMax(CallInst *CI, IRBuilderBase &B) {
 
 Value *LibCallSimplifier::optimizeLog(CallInst *Log, IRBuilderBase &B) {
   Function *LogFn = Log->getCalledFunction();
-  AttributeList Attrs = LogFn->getAttributes();
+  AttributeList Attrs; // Attributes are only meaningful on the original call
   StringRef LogNm = LogFn->getName();
   Intrinsic::ID LogID = LogFn->getIntrinsicID();
   Module *Mod = Log->getModule();
@@ -2484,6 +2503,30 @@ Value *LibCallSimplifier::optimizeSPrintFString(CallInst *CI,
     // sprintf(dest, "%s", str) -> llvm.memcpy(align 1 dest, align 1 str,
     // strlen(str)+1)
     if (!CI->getArgOperand(2)->getType()->isPointerTy())
+      return nullptr;
+
+    if (CI->use_empty())
+      // sprintf(dest, "%s", str) -> strcpy(dest, str)
+      return emitStrCpy(CI->getArgOperand(0), CI->getArgOperand(2), B, TLI);
+
+    uint64_t SrcLen = GetStringLength(CI->getArgOperand(2));
+    if (SrcLen) {
+      B.CreateMemCpy(
+          CI->getArgOperand(0), Align(1), CI->getArgOperand(2), Align(1),
+          ConstantInt::get(DL.getIntPtrType(CI->getContext()), SrcLen));
+      // Returns total number of characters written without null-character.
+      return ConstantInt::get(CI->getType(), SrcLen - 1);
+    } else if (Value *V = emitStpCpy(CI->getArgOperand(0), CI->getArgOperand(2),
+                                     B, TLI)) {
+      // sprintf(dest, "%s", str) -> stpcpy(dest, str) - dest
+      Value *PtrDiff = B.CreatePtrDiff(V, CI->getArgOperand(0));
+      return B.CreateIntCast(PtrDiff, CI->getType(), false);
+    }
+
+    bool OptForSize = CI->getFunction()->hasOptSize() ||
+                      llvm::shouldOptimizeForSize(CI->getParent(), PSI, BFI,
+                                                  PGSOQueryType::IRPass);
+    if (OptForSize)
       return nullptr;
 
     Value *Len = emitStrLen(CI->getArgOperand(2), B, DL, TLI);

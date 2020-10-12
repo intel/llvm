@@ -8,6 +8,7 @@
 
 #include <CL/sycl/device.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/platform_impl.hpp>
 
 #include <algorithm>
 
@@ -16,8 +17,7 @@ namespace sycl {
 namespace detail {
 
 device_impl::device_impl()
-    : MIsHostDevice(true),
-      MPlatform(std::make_shared<platform_impl>(platform_impl())) {}
+    : MIsHostDevice(true), MPlatform(platform_impl::getHostPlatformImpl()) {}
 
 device_impl::device_impl(pi_native_handle InteropDeviceHandle,
                          const plugin &Plugin)
@@ -53,11 +53,12 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
 
   RT::PiDevice parent = nullptr;
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin.call<PiApiKind::piDeviceGetInfo>(
-      MDevice, PI_DEVICE_INFO_PARENT_DEVICE, sizeof(RT::PiDevice), &parent, nullptr);
+  Plugin.call<PiApiKind::piDeviceGetInfo>(MDevice, PI_DEVICE_INFO_PARENT_DEVICE,
+                                          sizeof(RT::PiDevice), &parent,
+                                          nullptr);
 
   MIsRootDevice = (nullptr == parent);
-  if (!MIsRootDevice && !InteroperabilityConstructor) {
+  if (!InteroperabilityConstructor) {
     // TODO catch an exception and put it to list of asynchronous exceptions
     // Interoperability Constructor already calls DeviceRetain in
     // piextDeviceFromNative.
@@ -66,17 +67,13 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
 
   // set MPlatform
   if (!Platform) {
-    RT::PiPlatform plt = nullptr; // TODO catch an exception and put it to list
-                                  // of asynchronous exceptions
-    Plugin.call<PiApiKind::piDeviceGetInfo>(MDevice, PI_DEVICE_INFO_PLATFORM,
-                                            sizeof(plt), &plt, nullptr);
-    Platform = std::make_shared<platform_impl>(plt, Plugin);
+    Platform = platform_impl::getPlatformFromPiDevice(MDevice, Plugin);
   }
   MPlatform = Platform;
 }
 
 device_impl::~device_impl() {
-  if (!MIsRootDevice && !MIsHostDevice) {
+  if (!MIsHostDevice) {
     // TODO catch an exception and put it to list of asynchronous exceptions
     const detail::plugin &Plugin = getPlugin();
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piDeviceRelease>(MDevice);
@@ -97,10 +94,9 @@ cl_device_id device_impl::get() const {
                                PI_INVALID_DEVICE);
 
   const detail::plugin &Plugin = getPlugin();
-  if (!MIsRootDevice) {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin.call<PiApiKind::piDeviceRetain>(MDevice);
-  }
+
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  Plugin.call<PiApiKind::piDeviceRetain>(MDevice);
   return pi::cast<cl_device_id>(getNative());
 }
 
@@ -146,7 +142,7 @@ device_impl::create_sub_devices(const cl_device_partition_property *Properties,
   std::for_each(SubDevices.begin(), SubDevices.end(),
                 [&res, this](const RT::PiDevice &a_pi_device) {
                   device sycl_device = detail::createSyclObjFromImpl<device>(
-                      std::make_shared<device_impl>(a_pi_device, MPlatform));
+                      MPlatform->getOrMakeDeviceImpl(a_pi_device, MPlatform));
                   res.push_back(sycl_device);
                 });
   return res;
@@ -181,13 +177,11 @@ device_impl::create_sub_devices(const vector_class<size_t> &Counts) const {
         "Partitioning to subdevices of the host device is not implemented yet",
         PI_INVALID_DEVICE);
 
-  if (!is_partition_supported(
-          info::partition_property::partition_by_counts)) {
+  if (!is_partition_supported(info::partition_property::partition_by_counts)) {
     throw cl::sycl::feature_not_supported();
   }
   static const cl_device_partition_property P[] = {
-      CL_DEVICE_PARTITION_BY_COUNTS, CL_DEVICE_PARTITION_BY_COUNTS_LIST_END,
-      0};
+      CL_DEVICE_PARTITION_BY_COUNTS, CL_DEVICE_PARTITION_BY_COUNTS_LIST_END, 0};
   vector_class<cl_device_partition_property> Properties(P, P + 3);
   Properties.insert(Properties.begin() + 1, Counts.begin(), Counts.end());
   return create_sub_devices(Properties.data(), Counts.size());
@@ -210,8 +204,7 @@ vector_class<device> device_impl::create_sub_devices(
   const cl_device_partition_property Properties[3] = {
       CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
       (cl_device_partition_property)AffinityDomain, 0};
-  size_t SubDevicesCount =
-      get_info<info::device::partition_max_sub_devices>();
+  size_t SubDevicesCount = get_info<info::device::partition_max_sub_devices>();
   return create_sub_devices(Properties, SubDevicesCount);
 }
 
@@ -220,6 +213,45 @@ pi_native_handle device_impl::getNative() const {
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextDeviceGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;
+}
+
+bool device_impl::has(aspect Aspect) const {
+  switch (Aspect) {
+  case aspect::host:
+    return is_host();
+  case aspect::cpu:
+    return is_cpu();
+  case aspect::gpu:
+    return is_gpu();
+  case aspect::accelerator:
+    return is_accelerator();
+  case aspect::fp16:
+    return has_extension("cl_khr_fp16");
+  case aspect::fp64:
+    return has_extension("cl_khr_fp64");
+  case aspect::int64_base_atomics:
+    return has_extension("cl_khr_int64_base_atomics");
+  case aspect::int64_extended_atomics:
+    return has_extension("cl_khr_int64_extended_atomics");
+  case aspect::image:
+    return get_info<info::device::image_support>();
+  case aspect::online_compiler:
+    return get_info<info::device::is_compiler_available>();
+  case aspect::online_linker:
+    return get_info<info::device::is_linker_available>();
+  case aspect::queue_profiling:
+    return get_info<info::device::queue_profiling>();
+  default:
+    throw runtime_error("This device aspect has not been implemented yet.",
+                        PI_INVALID_DEVICE);
+  }
+}
+
+std::shared_ptr<device_impl> device_impl::getHostDeviceImpl() {
+  static std::shared_ptr<device_impl> HostImpl =
+      std::make_shared<device_impl>();
+
+  return HostImpl;
 }
 
 } // namespace detail

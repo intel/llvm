@@ -1,4 +1,7 @@
-// XFAIL: cuda || opencl
+// XFAIL: cuda
+// The negative test fails on CUDA.  It's not clear whether the CUDA backend
+// respects the reqd_work_group_size attribute.
+
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -20,18 +23,75 @@ int main() {
   queue Q(AsyncHandler);
   device D(Q.get_device());
 
-  string_class DeviceVendorName = D.get_info<info::device::vendor>();
-  auto DeviceType = D.get_info<info::device::device_type>();
+  bool IsOpenCL = (D.get_platform().get_backend() == backend::opencl);
 
+  // Positive test case: Specify local size that matches required size.
+  // parallel_for, (8, 8, 8) global, (4, 4, 4) local, reqd_wg_size(4, 4, 4) ->
+  // pass
+  try {
+    Q.submit([&](handler &CGH) {
+      CGH.parallel_for<class ReqdWGSizePositiveA>(
+          nd_range<3>(range<3>(8, 8, 8), range<3>(4, 4, 4)), [=
+      ](nd_item<3>) [[intel::reqd_work_group_size(4, 4, 4)]]{});
+    });
+    Q.wait_and_throw();
+  } catch (nd_range_error &E) {
+    std::cerr << "Test case ReqdWGSizePositiveA failed: unexpected "
+                 "nd_range_error exception: "
+              << E.what() << std::endl;
+    return 1;
+  } catch (runtime_error &E) {
+    std::cerr << "Test case ReqdWGSizePositiveA failed: unexpected "
+                 "runtime_error exception: "
+              << E.what() << std::endl;
+    return 1;
+  } catch (...) {
+    std::cerr << "Test case ReqdWGSizePositiveA failed: something unexpected "
+                 "has been caught"
+              << std::endl;
+    return 1;
+  }
+
+  // Kernel that has a required WG size, but no local size is specified.
+  //
+  // TODO: This fails on OpenCL and should be investigated.
+  if (!IsOpenCL) {
+    try {
+      Q.submit([&](handler &CGH) {
+        CGH.parallel_for<class ReqdWGSizeNoLocalPositive>(
+            range<3>(16, 16, 16), [=
+        ](item<3>) [[intel::reqd_work_group_size(4, 4, 4)]]{});
+      });
+      Q.wait_and_throw();
+    } catch (nd_range_error &E) {
+      std::cerr << "Test case ReqdWGSizeNoLocalPositive failed: unexpected "
+                   "nd_range_error exception: "
+                << E.what() << std::endl;
+      return 1;
+    } catch (runtime_error &E) {
+      std::cerr
+          << "Test case ReqdWGSizeNoLocalPositive: unexpected runtime_error "
+             "exception: "
+          << E.what() << std::endl;
+      return 1;
+    } catch (...) {
+      std::cerr << "Test case ReqdWGSizeNoLocalPositive failed: something "
+                   "unexpected has been caught"
+                << std::endl;
+      return 1;
+    }
+  }
+
+  // Negative test case: Specify local size that does not match required size.
   // parallel_for, (16, 16, 16) global, (8, 8, 8) local, reqd_wg_size(4, 4, 4)
   // -> fail
   try {
     Q.submit([&](handler &CGH) {
       CGH.parallel_for<class ReqdWGSizeNegativeA>(
-          nd_range<3>(range<3>(16, 16, 16), range<3>(8, 8, 8)),
-          [=](nd_item<3>) [[intel::reqd_work_group_size(4, 4, 4)]]{
+          nd_range<3>(range<3>(16, 16, 16), range<3>(8, 8, 8)), [=
+      ](nd_item<3>) [[intel::reqd_work_group_size(4, 4, 4)]]{
 
-          });
+                                                                });
     });
     Q.wait_and_throw();
     std::cerr << "Test case ReqdWGSizeNegativeA failed: no exception has been "
@@ -42,64 +102,18 @@ int main() {
             "Specified local size doesn't match the required work-group size "
             "specified in the program source") == string_class::npos) {
       std::cerr
-          << "Test case ReqdWGSizeNegativeA failed 1: unexpected exception: "
+          << "Test case ReqdWGSizeNegativeA failed: unexpected nd_range_error "
+             "exception: "
           << E.what() << std::endl;
       return 1;
     }
   } catch (runtime_error &E) {
-    std::cerr << "Test case ReqdWGSizeNegativeA failed 2: unexpected exception: "
+    std::cerr << "Test case ReqdWGSizeNegativeA failed: unexpected "
+                 "nd_range_error exception: "
               << E.what() << std::endl;
     return 1;
   } catch (...) {
     std::cerr << "Test case ReqdWGSizeNegativeA failed: something unexpected "
-                 "has been caught"
-              << std::endl;
-    return 1;
-  }
-
-  // Positive test-cases that should pass on any underlying OpenCL runtime
-  // parallel_for, (8, 8, 8) global, (4, 4, 4) local, reqd_wg_size(4, 4, 4) ->
-  // pass
-  try {
-    Q.submit([&](handler &CGH) {
-      CGH.parallel_for<class ReqdWGSizePositiveA>(
-          nd_range<3>(range<3>(8, 8, 8), range<3>(4, 4, 4)),
-          [=](nd_item<3>) [[intel::reqd_work_group_size(4, 4, 4)]]{});
-    });
-    Q.wait_and_throw();
-  } catch (nd_range_error &E) {
-    std::cerr << "Test case ReqdWGSizePositiveA failed: unexpected exception: "
-              << E.what() << std::endl;
-    return 1;
-  } catch (runtime_error &E) {
-    std::cerr << "Test case ReqdWGSizePositiveA failed: unexpected exception: "
-              << E.what() << std::endl;
-    return 1;
-  } catch (...) {
-    std::cerr << "Test case ReqdWGSizePositiveA failed: something unexpected "
-                 "has been caught"
-              << std::endl;
-    return 1;
-  }
-
-  try {
-    Q.submit([&](handler &CGH) {
-      CGH.parallel_for<class ReqdWGSizePositiveB>(
-          range<3>(16, 16, 16), [=](item<3>) [[intel::reqd_work_group_size(4, 4, 4)]]{});
-    });
-    Q.wait_and_throw();
-
-  } catch (nd_range_error &E) {
-    std::cerr << "Test case ReqdWGSizePositiveB failed 1: unexpected exception: "
-              << E.what() << std::endl;
-    return 1;
-  } catch (runtime_error &E) {
-    std::cerr
-        << "Test case ReqdWGSizePositiveB failed 2: unexpected exception: "
-        << E.what() << std::endl;
-    return 1;
-  } catch (...) {
-    std::cerr << "Test case ReqdWGSizePositiveB failed: something unexpected "
                  "has been caught"
               << std::endl;
     return 1;

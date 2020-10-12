@@ -178,8 +178,12 @@ struct CopyConfig {
   std::vector<StringRef> DumpSection;
   std::vector<StringRef> SymbolsToAdd;
   std::vector<StringRef> RPathToAdd;
-  std::vector<std::pair<StringRef, StringRef>> RPathsToUpdate;
+  DenseMap<StringRef, StringRef> RPathsToUpdate;
+  DenseMap<StringRef, StringRef> InstallNamesToUpdate;
   DenseSet<StringRef> RPathsToRemove;
+
+  // install-name-tool's id option
+  Optional<StringRef> SharedLibId;
 
   // Section matchers
   NameMatcher KeepSection;
@@ -262,6 +266,11 @@ parseObjcopyOptions(ArrayRef<const char *> ArgsArr,
 // messege and exit.
 Expected<DriverConfig>
 parseInstallNameToolOptions(ArrayRef<const char *> ArgsArr);
+
+// ParseBitcodeStripOptions returns the config and sets the input arguments.
+// If a help flag is set then ParseBitcodeStripOptions will print the help
+// messege and exit.
+Expected<DriverConfig> parseBitcodeStripOptions(ArrayRef<const char *> ArgsArr);
 
 // ParseStripOptions returns the config and sets the input arguments. If a
 // help flag is set then ParseStripOptions will print the help messege and

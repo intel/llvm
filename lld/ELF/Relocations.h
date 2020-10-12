@@ -96,6 +96,7 @@ enum RelExpr {
   R_PPC64_CALL_PLT,
   R_PPC64_RELAX_TOC,
   R_PPC64_TOCBASE,
+  R_PPC64_RELAX_GOT_PC,
   R_RISCV_ADD,
   R_RISCV_PC_INDIRECT,
 };
@@ -130,7 +131,7 @@ bool hexagonNeedsTLSSymbol(ArrayRef<OutputSection *> outputSections);
 
 class ThunkSection;
 class Thunk;
-struct InputSectionDescription;
+class InputSectionDescription;
 
 class ThunkCreator {
 public:

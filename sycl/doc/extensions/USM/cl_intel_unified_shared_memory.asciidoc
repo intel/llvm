@@ -60,7 +60,7 @@ If you are interested in using this feature in your software product, please let
 == Version
 
 Built On: {docdate} +
-Revision: Q
+Revision: R
 
 == Dependencies
 
@@ -788,7 +788,7 @@ The new _param_name_ values described below may be used with the existing *clSet
       | Specifies that the kernel may access any device Unified Shared Memory allocation indirectly.
 
         By default, the value for this flag is `CL_FALSE`, indicating that the kernel will only access explicitly specified device Unified Shared Memory allocations.
-| `CL_KERNEL_EXEC_INFO_{zwsp}SHARED_ACCESS_INTEL`
+| `CL_KERNEL_EXEC_INFO_{zwsp}INDIRECT_SHARED_ACCESS_INTEL`
   | cl_bool
       | Specifies that the kernel may access any shared Unified Shared Memory allocation indirectly.
 
@@ -1251,6 +1251,7 @@ Note that some flags will not be valid, such as `CL_MEM_USE_HOST_PTR`.
 |O|2020-01-23|Ben Ashbaugh|Added aliases for USM migration flags.
 |P|2020-02-28|Ben Ashbaugh|Added blocking memfree API.
 |Q|2020-03-12|Ben Ashbaugh|Name tweak for blocking memfree API, added comparison to SVM, allow zero memory advice.
+|R|2020-08-21|Ben Ashbaugh|Fixed enum name typo in table.
 |========================================
 
 //************************************************************************

@@ -59,10 +59,8 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/Twine.h"
-#include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineOptimizationRemarkEmitter.h"
-#include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
@@ -618,9 +616,6 @@ MachineFunction *MachineOutliner::createOutlinedFunction(
   F->setLinkage(GlobalValue::InternalLinkage);
   F->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
 
-  // FIXME: Set nounwind, so we don't generate eh_frame? Haven't verified it's
-  // necessary.
-
   // Set optsize/minsize, so we don't insert padding between outlined
   // functions.
   F->addFnAttr(Attribute::OptimizeForSize);
@@ -634,6 +629,12 @@ MachineFunction *MachineOutliner::createOutlinedFunction(
   const Function &ParentFn = FirstCand.getMF()->getFunction();
   if (ParentFn.hasFnAttribute("target-features"))
     F->addFnAttr(ParentFn.getFnAttribute("target-features"));
+
+  // Set nounwind, so we don't generate eh_frame.
+  if (llvm::all_of(OF.Candidates, [](const outliner::Candidate &C) {
+        return C.getMF()->getFunction().hasFnAttribute(Attribute::NoUnwind);
+      }))
+    F->addFnAttr(Attribute::NoUnwind);
 
   BasicBlock *EntryBB = BasicBlock::Create(C, "entry", F);
   IRBuilder<> Builder(EntryBB);

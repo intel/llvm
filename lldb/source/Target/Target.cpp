@@ -45,6 +45,7 @@
 #include "lldb/Target/Process.h"
 #include "lldb/Target/SectionLoadList.h"
 #include "lldb/Target/StackFrame.h"
+#include "lldb/Target/StackFrameRecognizer.h"
 #include "lldb/Target/SystemRuntime.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Target/ThreadSpec.h"
@@ -94,6 +95,8 @@ Target::Target(Debugger &debugger, const ArchSpec &target_arch,
       m_source_manager_up(), m_stop_hooks(), m_stop_hook_next_id(0),
       m_valid(true), m_suppress_stop_hooks(false),
       m_is_dummy_target(is_dummy_target),
+      m_frame_recognizer_manager_up(
+          std::make_unique<StackFrameRecognizerManager>()),
       m_stats_storage(static_cast<int>(StatisticKind::StatisticMax))
 
 {
@@ -143,6 +146,9 @@ void Target::PrimeFromDummyTarget(Target *target) {
     BreakpointName *new_bp_name = new BreakpointName(*bp_name_entry.second);
     AddBreakpointName(new_bp_name);
   }
+
+  m_frame_recognizer_manager_up = std::make_unique<StackFrameRecognizerManager>(
+      *target->m_frame_recognizer_manager_up);
 }
 
 void Target::Dump(Stream *s, lldb::DescriptionLevel description_level) {
@@ -2401,21 +2407,13 @@ lldb::addr_t Target::GetPersistentSymbol(ConstString name) {
 
 llvm::Expected<lldb_private::Address> Target::GetEntryPointAddress() {
   Module *exe_module = GetExecutableModulePointer();
-  llvm::Error error = llvm::Error::success();
-  assert(!error); // Check the success value when assertions are enabled.
 
-  if (!exe_module || !exe_module->GetObjectFile()) {
-    error = llvm::make_error<llvm::StringError>("No primary executable found",
-                                                llvm::inconvertibleErrorCode());
-  } else {
+  // Try to find the entry point address in the primary executable.
+  const bool has_primary_executable = exe_module && exe_module->GetObjectFile();
+  if (has_primary_executable) {
     Address entry_addr = exe_module->GetObjectFile()->GetEntryPointAddress();
     if (entry_addr.IsValid())
       return entry_addr;
-
-    error = llvm::make_error<llvm::StringError>(
-        "Could not find entry point address for executable module \"" +
-            exe_module->GetFileSpec().GetFilename().GetStringRef() + "\"",
-        llvm::inconvertibleErrorCode());
   }
 
   const ModuleList &modules = GetImages();
@@ -2426,14 +2424,21 @@ llvm::Expected<lldb_private::Address> Target::GetEntryPointAddress() {
       continue;
 
     Address entry_addr = module_sp->GetObjectFile()->GetEntryPointAddress();
-    if (entry_addr.IsValid()) {
-      // Discard the error.
-      llvm::consumeError(std::move(error));
+    if (entry_addr.IsValid())
       return entry_addr;
-    }
   }
 
-  return std::move(error);
+  // We haven't found the entry point address. Return an appropriate error.
+  if (!has_primary_executable)
+    return llvm::make_error<llvm::StringError>(
+        "No primary executable found and could not find entry point address in "
+        "any executable module",
+        llvm::inconvertibleErrorCode());
+
+  return llvm::make_error<llvm::StringError>(
+      "Could not find entry point address for primary executable module \"" +
+          exe_module->GetFileSpec().GetFilename().GetStringRef() + "\"",
+      llvm::inconvertibleErrorCode());
 }
 
 lldb::addr_t Target::GetCallableLoadAddress(lldb::addr_t load_addr,
@@ -2479,11 +2484,26 @@ ClangModulesDeclVendor *Target::GetClangModulesDeclVendor() {
   return m_clang_modules_decl_vendor_up.get();
 }
 
-Target::StopHookSP Target::CreateStopHook() {
+Target::StopHookSP Target::CreateStopHook(StopHook::StopHookKind kind) {
   lldb::user_id_t new_uid = ++m_stop_hook_next_id;
-  Target::StopHookSP stop_hook_sp(new StopHook(shared_from_this(), new_uid));
+  Target::StopHookSP stop_hook_sp;
+  switch (kind) {
+  case StopHook::StopHookKind::CommandBased:
+    stop_hook_sp.reset(new StopHookCommandLine(shared_from_this(), new_uid));
+    break;
+  case StopHook::StopHookKind::ScriptBased:
+    stop_hook_sp.reset(new StopHookScripted(shared_from_this(), new_uid));
+    break;
+  }
   m_stop_hooks[new_uid] = stop_hook_sp;
   return stop_hook_sp;
+}
+
+void Target::UndoCreateStopHook(lldb::user_id_t user_id) {
+  if (!RemoveStopHookByID(user_id))
+    return;
+  if (user_id == m_stop_hook_next_id)
+    m_stop_hook_next_id--;
 }
 
 bool Target::RemoveStopHookByID(lldb::user_id_t user_id) {
@@ -2541,25 +2561,18 @@ void Target::RunStopHooks() {
   if (m_stop_hooks.empty())
     return;
 
-  StopHookCollection::iterator pos, end = m_stop_hooks.end();
-
   // If there aren't any active stop hooks, don't bother either.
-  // Also see if any of the active hooks want to auto-continue.
   bool any_active_hooks = false;
-  bool auto_continue = false;
   for (auto hook : m_stop_hooks) {
     if (hook.second->IsActive()) {
       any_active_hooks = true;
-      auto_continue |= hook.second->GetAutoContinue();
+      break;
     }
   }
   if (!any_active_hooks)
     return;
 
-  CommandReturnObject result(m_debugger.GetUseColor());
-
   std::vector<ExecutionContext> exc_ctx_with_reasons;
-  std::vector<SymbolContext> sym_ctx_with_reasons;
 
   ThreadList &cur_threadlist = m_process_sp->GetThreadList();
   size_t num_threads = cur_threadlist.GetSize();
@@ -2567,10 +2580,8 @@ void Target::RunStopHooks() {
     lldb::ThreadSP cur_thread_sp = cur_threadlist.GetThreadAtIndex(i);
     if (cur_thread_sp->ThreadStoppedForAReason()) {
       lldb::StackFrameSP cur_frame_sp = cur_thread_sp->GetStackFrameAtIndex(0);
-      exc_ctx_with_reasons.push_back(ExecutionContext(
-          m_process_sp.get(), cur_thread_sp.get(), cur_frame_sp.get()));
-      sym_ctx_with_reasons.push_back(
-          cur_frame_sp->GetSymbolContext(eSymbolContextEverything));
+      exc_ctx_with_reasons.emplace_back(m_process_sp.get(), cur_thread_sp.get(),
+                                        cur_frame_sp.get());
     }
   }
 
@@ -2579,91 +2590,86 @@ void Target::RunStopHooks() {
   if (num_exe_ctx == 0)
     return;
 
-  result.SetImmediateOutputStream(m_debugger.GetAsyncOutputStream());
-  result.SetImmediateErrorStream(m_debugger.GetAsyncErrorStream());
+  StreamSP output_sp = m_debugger.GetAsyncOutputStream();
 
-  bool keep_going = true;
+  bool auto_continue = false;
   bool hooks_ran = false;
   bool print_hook_header = (m_stop_hooks.size() != 1);
   bool print_thread_header = (num_exe_ctx != 1);
-  bool did_restart = false;
+  bool should_stop = false;
+  bool somebody_restarted = false;
 
-  for (pos = m_stop_hooks.begin(); keep_going && pos != end; pos++) {
-    // result.Clear();
-    StopHookSP cur_hook_sp = (*pos).second;
+  for (auto stop_entry : m_stop_hooks) {
+    StopHookSP cur_hook_sp = stop_entry.second;
     if (!cur_hook_sp->IsActive())
       continue;
 
     bool any_thread_matched = false;
-    for (size_t i = 0; keep_going && i < num_exe_ctx; i++) {
-      if ((cur_hook_sp->GetSpecifier() == nullptr ||
-           cur_hook_sp->GetSpecifier()->SymbolContextMatches(
-               sym_ctx_with_reasons[i])) &&
-          (cur_hook_sp->GetThreadSpecifier() == nullptr ||
-           cur_hook_sp->GetThreadSpecifier()->ThreadPassesBasicTests(
-               exc_ctx_with_reasons[i].GetThreadRef()))) {
-        if (!hooks_ran) {
-          hooks_ran = true;
-        }
-        if (print_hook_header && !any_thread_matched) {
-          const char *cmd =
-              (cur_hook_sp->GetCommands().GetSize() == 1
-                   ? cur_hook_sp->GetCommands().GetStringAtIndex(0)
-                   : nullptr);
-          if (cmd)
-            result.AppendMessageWithFormat("\n- Hook %" PRIu64 " (%s)\n",
-                                           cur_hook_sp->GetID(), cmd);
-          else
-            result.AppendMessageWithFormat("\n- Hook %" PRIu64 "\n",
-                                           cur_hook_sp->GetID());
-          any_thread_matched = true;
-        }
+    for (auto exc_ctx : exc_ctx_with_reasons) {
+      // We detect somebody restarted in the stop-hook loop, and broke out of
+      // that loop back to here.  So break out of here too.
+      if (somebody_restarted)
+        break;
 
-        if (print_thread_header)
-          result.AppendMessageWithFormat(
-              "-- Thread %d\n",
-              exc_ctx_with_reasons[i].GetThreadPtr()->GetIndexID());
+      if (!cur_hook_sp->ExecutionContextPasses(exc_ctx))
+        continue;
 
-        CommandInterpreterRunOptions options;
-        options.SetStopOnContinue(true);
-        options.SetStopOnError(true);
-        options.SetEchoCommands(false);
-        options.SetPrintResults(true);
-        options.SetPrintErrors(true);
-        options.SetAddToHistory(false);
+      // We only consult the auto-continue for a stop hook if it matched the
+      // specifier.
+      auto_continue |= cur_hook_sp->GetAutoContinue();
 
-        // Force Async:
-        bool old_async = GetDebugger().GetAsyncExecution();
-        GetDebugger().SetAsyncExecution(true);
-        GetDebugger().GetCommandInterpreter().HandleCommands(
-            cur_hook_sp->GetCommands(), &exc_ctx_with_reasons[i], options,
-            result);
-        GetDebugger().SetAsyncExecution(old_async);
-        // If the command started the target going again, we should bag out of
-        // running the stop hooks.
-        if ((result.GetStatus() == eReturnStatusSuccessContinuingNoResult) ||
-            (result.GetStatus() == eReturnStatusSuccessContinuingResult)) {
-          // But only complain if there were more stop hooks to do:
-          StopHookCollection::iterator tmp = pos;
-          if (++tmp != end)
-            result.AppendMessageWithFormat(
-                "\nAborting stop hooks, hook %" PRIu64
-                " set the program running.\n"
-                "  Consider using '-G true' to make "
-                "stop hooks auto-continue.\n",
-                cur_hook_sp->GetID());
-          keep_going = false;
-          did_restart = true;
-        }
+      if (!hooks_ran)
+        hooks_ran = true;
+
+      if (print_hook_header && !any_thread_matched) {
+        StreamString s;
+        cur_hook_sp->GetDescription(&s, eDescriptionLevelBrief);
+        if (s.GetSize() != 0)
+          output_sp->Printf("\n- Hook %" PRIu64 " (%s)\n", cur_hook_sp->GetID(),
+                            s.GetData());
+        else
+          output_sp->Printf("\n- Hook %" PRIu64 "\n", cur_hook_sp->GetID());
+        any_thread_matched = true;
+      }
+
+      if (print_thread_header)
+        output_sp->Printf("-- Thread %d\n",
+                          exc_ctx.GetThreadPtr()->GetIndexID());
+
+      bool this_should_stop = cur_hook_sp->HandleStop(exc_ctx, output_sp);
+      // If this hook is set to auto-continue that should override the
+      // HandleStop result...
+      if (cur_hook_sp->GetAutoContinue())
+        this_should_stop = false;
+
+      // If anybody wanted to stop, we should all stop.
+      if (!should_stop)
+        should_stop = this_should_stop;
+
+      // We don't have a good way to prohibit people from restarting the target
+      // willy nilly in a stop hook.  So see if the private state is running
+      // here and bag out if it is.
+      // FIXME: when we are doing non-stop mode for realz we'll have to instead
+      // track each thread, and only bag out if a thread is set running.
+      if (m_process_sp->GetPrivateState() != eStateStopped) {
+        output_sp->Printf("\nAborting stop hooks, hook %" PRIu64
+                          " set the program running.\n"
+                          "  Consider using '-G true' to make "
+                          "stop hooks auto-continue.\n",
+                          cur_hook_sp->GetID());
+        somebody_restarted = true;
+        break;
       }
     }
   }
-  // Finally, if auto-continue was requested, do it now:
-  if (!did_restart && auto_continue)
-    m_process_sp->PrivateResume();
 
-  result.GetImmediateOutputStream()->Flush();
-  result.GetImmediateErrorStream()->Flush();
+  output_sp->Flush();
+
+  // Finally, if auto-continue was requested, do it now:
+  // We only compute should_stop against the hook results if a hook got to run
+  // which is why we have to do this conjoint test.
+  if (!somebody_restarted && ((hooks_ran && !should_stop) || auto_continue))
+    m_process_sp->PrivateResume();
 }
 
 const TargetPropertiesSP &Target::GetGlobalProperties() {
@@ -2890,76 +2896,71 @@ Status Target::Launch(ProcessLaunchInfo &launch_info, Stream *stream) {
       error = m_process_sp->Launch(launch_info);
   }
 
-  if (!m_process_sp) {
-    if (error.Success())
-      error.SetErrorString("failed to launch or debug process");
+  if (!m_process_sp && error.Success())
+    error.SetErrorString("failed to launch or debug process");
+
+  if (!error.Success())
     return error;
+
+  auto at_exit =
+      llvm::make_scope_exit([&]() { m_process_sp->RestoreProcessEvents(); });
+
+  if (!synchronous_execution &&
+      launch_info.GetFlags().Test(eLaunchFlagStopAtEntry))
+    return error;
+
+  ListenerSP hijack_listener_sp(launch_info.GetHijackListener());
+  if (!hijack_listener_sp) {
+    hijack_listener_sp = Listener::MakeListener("lldb.Target.Launch.hijack");
+    launch_info.SetHijackListener(hijack_listener_sp);
+    m_process_sp->HijackProcessEvents(hijack_listener_sp);
   }
 
-  if (error.Success()) {
-    if (synchronous_execution ||
-        !launch_info.GetFlags().Test(eLaunchFlagStopAtEntry)) {
-      ListenerSP hijack_listener_sp(launch_info.GetHijackListener());
-      if (!hijack_listener_sp) {
-        hijack_listener_sp =
-            Listener::MakeListener("lldb.Target.Launch.hijack");
-        launch_info.SetHijackListener(hijack_listener_sp);
-        m_process_sp->HijackProcessEvents(hijack_listener_sp);
-      }
-
-      StateType state = m_process_sp->WaitForProcessToStop(
-          llvm::None, nullptr, false, hijack_listener_sp, nullptr);
-
-      if (state == eStateStopped) {
-        if (!launch_info.GetFlags().Test(eLaunchFlagStopAtEntry)) {
-          if (synchronous_execution) {
-            // Now we have handled the stop-from-attach, and we are just
-            // switching to a synchronous resume.  So we should switch to the
-            // SyncResume hijacker.
-            m_process_sp->RestoreProcessEvents();
-            m_process_sp->ResumeSynchronous(stream);
-          } else {
-            m_process_sp->RestoreProcessEvents();
-            error = m_process_sp->PrivateResume();
-          }
-          if (!error.Success()) {
-            Status error2;
-            error2.SetErrorStringWithFormat(
-                "process resume at entry point failed: %s", error.AsCString());
-            error = error2;
-          }
-        }
-      } else if (state == eStateExited) {
-        bool with_shell = !!launch_info.GetShell();
-        const int exit_status = m_process_sp->GetExitStatus();
-        const char *exit_desc = m_process_sp->GetExitDescription();
-#define LAUNCH_SHELL_MESSAGE                                                   \
-  "\n'r' and 'run' are aliases that default to launching through a "           \
-  "shell.\nTry launching without going through a shell by using 'process "     \
-  "launch'."
-        if (exit_desc && exit_desc[0]) {
-          if (with_shell)
-            error.SetErrorStringWithFormat(
-                "process exited with status %i (%s)" LAUNCH_SHELL_MESSAGE,
-                exit_status, exit_desc);
-          else
-            error.SetErrorStringWithFormat("process exited with status %i (%s)",
-                                           exit_status, exit_desc);
-        } else {
-          if (with_shell)
-            error.SetErrorStringWithFormat(
-                "process exited with status %i" LAUNCH_SHELL_MESSAGE,
-                exit_status);
-          else
-            error.SetErrorStringWithFormat("process exited with status %i",
-                                           exit_status);
-        }
-      } else {
-        error.SetErrorStringWithFormat(
-            "initial process state wasn't stopped: %s", StateAsCString(state));
-      }
+  switch (m_process_sp->WaitForProcessToStop(llvm::None, nullptr, false,
+                                             hijack_listener_sp, nullptr)) {
+  case eStateStopped: {
+    if (launch_info.GetFlags().Test(eLaunchFlagStopAtEntry))
+      break;
+    if (synchronous_execution) {
+      // Now we have handled the stop-from-attach, and we are just
+      // switching to a synchronous resume.  So we should switch to the
+      // SyncResume hijacker.
+      m_process_sp->RestoreProcessEvents();
+      m_process_sp->ResumeSynchronous(stream);
+    } else {
+      m_process_sp->RestoreProcessEvents();
+      error = m_process_sp->PrivateResume();
     }
-    m_process_sp->RestoreProcessEvents();
+    if (!error.Success()) {
+      Status error2;
+      error2.SetErrorStringWithFormat(
+          "process resume at entry point failed: %s", error.AsCString());
+      error = error2;
+    }
+  } break;
+  case eStateExited: {
+    bool with_shell = !!launch_info.GetShell();
+    const int exit_status = m_process_sp->GetExitStatus();
+    const char *exit_desc = m_process_sp->GetExitDescription();
+    std::string desc;
+    if (exit_desc && exit_desc[0])
+      desc = " (" + std::string(exit_desc) + ')';
+    if (with_shell)
+      error.SetErrorStringWithFormat(
+          "process exited with status %i%s\n"
+          "'r' and 'run' are aliases that default to launching through a "
+          "shell.\n"
+          "Try launching without going through a shell by using "
+          "'process launch'.",
+          exit_status, desc.c_str());
+    else
+      error.SetErrorStringWithFormat("process exited with status %i%s",
+                                     exit_status, desc.c_str());
+  } break;
+  default:
+    error.SetErrorStringWithFormat("initial process state wasn't stopped: %s",
+                                   StateAsCString(state));
+    break;
   }
   return error;
 }
@@ -3128,19 +3129,16 @@ void Target::FinalizeFileActions(ProcessLaunchInfo &info) {
 
 // Target::StopHook
 Target::StopHook::StopHook(lldb::TargetSP target_sp, lldb::user_id_t uid)
-    : UserID(uid), m_target_sp(target_sp), m_commands(), m_specifier_sp(),
+    : UserID(uid), m_target_sp(target_sp), m_specifier_sp(),
       m_thread_spec_up() {}
 
 Target::StopHook::StopHook(const StopHook &rhs)
     : UserID(rhs.GetID()), m_target_sp(rhs.m_target_sp),
-      m_commands(rhs.m_commands), m_specifier_sp(rhs.m_specifier_sp),
-      m_thread_spec_up(), m_active(rhs.m_active),
-      m_auto_continue(rhs.m_auto_continue) {
+      m_specifier_sp(rhs.m_specifier_sp), m_thread_spec_up(),
+      m_active(rhs.m_active), m_auto_continue(rhs.m_auto_continue) {
   if (rhs.m_thread_spec_up)
     m_thread_spec_up = std::make_unique<ThreadSpec>(*rhs.m_thread_spec_up);
 }
-
-Target::StopHook::~StopHook() = default;
 
 void Target::StopHook::SetSpecifier(SymbolContextSpecifier *specifier) {
   m_specifier_sp.reset(specifier);
@@ -3150,8 +3148,31 @@ void Target::StopHook::SetThreadSpecifier(ThreadSpec *specifier) {
   m_thread_spec_up.reset(specifier);
 }
 
+bool Target::StopHook::ExecutionContextPasses(const ExecutionContext &exc_ctx) {
+  SymbolContextSpecifier *specifier = GetSpecifier();
+  if (!specifier)
+    return true;
+
+  bool will_run = true;
+  if (exc_ctx.GetFramePtr())
+    will_run = GetSpecifier()->SymbolContextMatches(
+        exc_ctx.GetFramePtr()->GetSymbolContext(eSymbolContextEverything));
+  if (will_run && GetThreadSpecifier() != nullptr)
+    will_run =
+        GetThreadSpecifier()->ThreadPassesBasicTests(exc_ctx.GetThreadRef());
+
+  return will_run;
+}
+
 void Target::StopHook::GetDescription(Stream *s,
                                       lldb::DescriptionLevel level) const {
+
+  // For brief descriptions, only print the subclass description:
+  if (level == eDescriptionLevelBrief) {
+    GetSubclassDescription(s, level);
+    return;
+  }
+
   unsigned indent_level = s->GetIndentLevel();
 
   s->SetIndentLevel(indent_level + 2);
@@ -3182,15 +3203,148 @@ void Target::StopHook::GetDescription(Stream *s,
     s->PutCString("\n");
     s->SetIndentLevel(indent_level + 2);
   }
+  GetSubclassDescription(s, level);
+}
 
+void Target::StopHookCommandLine::GetSubclassDescription(
+    Stream *s, lldb::DescriptionLevel level) const {
+  // The brief description just prints the first command.
+  if (level == eDescriptionLevelBrief) {
+    if (m_commands.GetSize() == 1)
+      s->PutCString(m_commands.GetStringAtIndex(0));
+    return;
+  }
   s->Indent("Commands: \n");
-  s->SetIndentLevel(indent_level + 4);
+  s->SetIndentLevel(s->GetIndentLevel() + 4);
   uint32_t num_commands = m_commands.GetSize();
   for (uint32_t i = 0; i < num_commands; i++) {
     s->Indent(m_commands.GetStringAtIndex(i));
     s->PutCString("\n");
   }
-  s->SetIndentLevel(indent_level);
+  s->SetIndentLevel(s->GetIndentLevel() - 4);
+}
+
+// Target::StopHookCommandLine
+void Target::StopHookCommandLine::SetActionFromString(const std::string &string) {
+  GetCommands().SplitIntoLines(string);
+}
+
+void Target::StopHookCommandLine::SetActionFromStrings(
+    const std::vector<std::string> &strings) {
+  for (auto string : strings)
+    GetCommands().AppendString(string.c_str());
+}
+
+bool Target::StopHookCommandLine::HandleStop(ExecutionContext &exc_ctx,
+                                             StreamSP output_sp) {
+  assert(exc_ctx.GetTargetPtr() && "Can't call PerformAction on a context "
+                                   "with no target");
+
+  if (!m_commands.GetSize())
+    return true;
+
+  CommandReturnObject result(false);
+  result.SetImmediateOutputStream(output_sp);
+  Debugger &debugger = exc_ctx.GetTargetPtr()->GetDebugger();
+  CommandInterpreterRunOptions options;
+  options.SetStopOnContinue(true);
+  options.SetStopOnError(true);
+  options.SetEchoCommands(false);
+  options.SetPrintResults(true);
+  options.SetPrintErrors(true);
+  options.SetAddToHistory(false);
+
+  // Force Async:
+  bool old_async = debugger.GetAsyncExecution();
+  debugger.SetAsyncExecution(true);
+  debugger.GetCommandInterpreter().HandleCommands(GetCommands(), &exc_ctx,
+                                                  options, result);
+  debugger.SetAsyncExecution(old_async);
+
+  return true;
+}
+
+// Target::StopHookScripted
+Status Target::StopHookScripted::SetScriptCallback(
+    std::string class_name, StructuredData::ObjectSP extra_args_sp) {
+  Status error;
+
+  ScriptInterpreter *script_interp =
+      GetTarget()->GetDebugger().GetScriptInterpreter();
+  if (!script_interp) {
+    error.SetErrorString("No script interpreter installed.");
+    return error;
+  }
+
+  m_class_name = class_name;
+
+  m_extra_args = new StructuredDataImpl();
+
+  if (extra_args_sp)
+    m_extra_args->SetObjectSP(extra_args_sp);
+
+  m_implementation_sp = script_interp->CreateScriptedStopHook(
+      GetTarget(), m_class_name.c_str(), m_extra_args, error);
+
+  return error;
+}
+
+bool Target::StopHookScripted::HandleStop(ExecutionContext &exc_ctx,
+                                          StreamSP output_sp) {
+  assert(exc_ctx.GetTargetPtr() && "Can't call HandleStop on a context "
+                                   "with no target");
+
+  ScriptInterpreter *script_interp =
+      GetTarget()->GetDebugger().GetScriptInterpreter();
+  if (!script_interp)
+    return true;
+
+  bool should_stop = script_interp->ScriptedStopHookHandleStop(
+      m_implementation_sp, exc_ctx, output_sp);
+
+  return should_stop;
+}
+
+void Target::StopHookScripted::GetSubclassDescription(
+    Stream *s, lldb::DescriptionLevel level) const {
+  if (level == eDescriptionLevelBrief) {
+    s->PutCString(m_class_name);
+    return;
+  }
+  s->Indent("Class:");
+  s->Printf("%s\n", m_class_name.c_str());
+
+  // Now print the extra args:
+  // FIXME: We should use StructuredData.GetDescription on the m_extra_args
+  // but that seems to rely on some printing plugin that doesn't exist.
+  if (!m_extra_args->IsValid())
+    return;
+  StructuredData::ObjectSP object_sp = m_extra_args->GetObjectSP();
+  if (!object_sp || !object_sp->IsValid())
+    return;
+
+  StructuredData::Dictionary *as_dict = object_sp->GetAsDictionary();
+  if (!as_dict || !as_dict->IsValid())
+    return;
+
+  uint32_t num_keys = as_dict->GetSize();
+  if (num_keys == 0)
+    return;
+
+  s->Indent("Args:\n");
+  s->SetIndentLevel(s->GetIndentLevel() + 4);
+
+  auto print_one_element = [&s](ConstString key,
+                                StructuredData::Object *object) {
+    s->Indent();
+    s->Printf("%s : %s\n", key.GetCString(),
+              object->GetStringValue().str().c_str());
+    return true;
+  };
+
+  as_dict->ForEach(print_one_element);
+
+  s->SetIndentLevel(s->GetIndentLevel() - 4);
 }
 
 static constexpr OptionEnumValueElement g_dynamic_value_types[] = {
@@ -3425,6 +3579,8 @@ TargetProperties::TargetProperties(Target *target)
     m_collection_sp->SetValueChangedCallback(
         ePropertyDisableASLR, [this] { DisableASLRValueChangedCallback(); });
     m_collection_sp->SetValueChangedCallback(
+        ePropertyInheritTCC, [this] { InheritTCCValueChangedCallback(); });
+    m_collection_sp->SetValueChangedCallback(
         ePropertyDisableSTDIO, [this] { DisableSTDIOValueChangedCallback(); });
 
     m_experimental_properties_up =
@@ -3462,6 +3618,7 @@ void TargetProperties::UpdateLaunchInfoFromProperties() {
   ErrorPathValueChangedCallback();
   DetachOnErrorValueChangedCallback();
   DisableASLRValueChangedCallback();
+  InheritTCCValueChangedCallback();
   DisableSTDIOValueChangedCallback();
 }
 
@@ -3541,6 +3698,17 @@ bool TargetProperties::GetDisableASLR() const {
 
 void TargetProperties::SetDisableASLR(bool b) {
   const uint32_t idx = ePropertyDisableASLR;
+  m_collection_sp->SetPropertyAtIndexAsBoolean(nullptr, idx, b);
+}
+
+bool TargetProperties::GetInheritTCC() const {
+  const uint32_t idx = ePropertyInheritTCC;
+  return m_collection_sp->GetPropertyAtIndexAsBoolean(
+      nullptr, idx, g_target_properties[idx].default_uint_value != 0);
+}
+
+void TargetProperties::SetInheritTCC(bool b) {
+  const uint32_t idx = ePropertyInheritTCC;
   m_collection_sp->SetPropertyAtIndexAsBoolean(nullptr, idx, b);
 }
 
@@ -3935,6 +4103,8 @@ void TargetProperties::SetProcessLaunchInfo(
   }
   SetDetachOnError(launch_info.GetFlags().Test(lldb::eLaunchFlagDetachOnError));
   SetDisableASLR(launch_info.GetFlags().Test(lldb::eLaunchFlagDisableASLR));
+  SetInheritTCC(
+      launch_info.GetFlags().Test(lldb::eLaunchFlagInheritTCCFromParent));
   SetDisableSTDIO(launch_info.GetFlags().Test(lldb::eLaunchFlagDisableSTDIO));
 }
 
@@ -3996,6 +4166,13 @@ void TargetProperties::DisableASLRValueChangedCallback() {
     m_launch_info.GetFlags().Set(lldb::eLaunchFlagDisableASLR);
   else
     m_launch_info.GetFlags().Clear(lldb::eLaunchFlagDisableASLR);
+}
+
+void TargetProperties::InheritTCCValueChangedCallback() {
+  if (GetInheritTCC())
+    m_launch_info.GetFlags().Set(lldb::eLaunchFlagInheritTCCFromParent);
+  else
+    m_launch_info.GetFlags().Clear(lldb::eLaunchFlagInheritTCCFromParent);
 }
 
 void TargetProperties::DisableSTDIOValueChangedCallback() {

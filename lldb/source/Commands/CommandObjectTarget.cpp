@@ -16,7 +16,6 @@
 #include "lldb/Core/ValueObjectVariable.h"
 #include "lldb/DataFormatters/ValueObjectPrinter.h"
 #include "lldb/Host/OptionParser.h"
-#include "lldb/Host/StringConvert.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/OptionArgParser.h"
@@ -24,6 +23,8 @@
 #include "lldb/Interpreter/OptionGroupBoolean.h"
 #include "lldb/Interpreter/OptionGroupFile.h"
 #include "lldb/Interpreter/OptionGroupFormat.h"
+#include "lldb/Interpreter/OptionGroupPlatform.h"
+#include "lldb/Interpreter/OptionGroupPythonClassWithDict.h"
 #include "lldb/Interpreter/OptionGroupString.h"
 #include "lldb/Interpreter/OptionGroupUInt64.h"
 #include "lldb/Interpreter/OptionGroupUUID.h"
@@ -207,8 +208,6 @@ private:
 
 #pragma mark CommandObjectTargetCreate
 
-// "target create"
-
 class CommandObjectTargetCreate : public CommandObjectParsed {
 public:
   CommandObjectTargetCreate(CommandInterpreter &interpreter)
@@ -217,11 +216,9 @@ public:
             "Create a target using the argument as the main executable.",
             nullptr),
         m_option_group(), m_arch_option(),
+        m_platform_options(true), // Include the --platform option.
         m_core_file(LLDB_OPT_SET_1, false, "core", 'c', 0, eArgTypeFilename,
                     "Fullpath to a core file to use for this target."),
-        m_platform_path(LLDB_OPT_SET_1, false, "platform-path", 'P', 0,
-                        eArgTypePath,
-                        "Path to the remote file to use for this target."),
         m_symbol_file(LLDB_OPT_SET_1, false, "symfile", 's', 0,
                       eArgTypeFilename,
                       "Fullpath to a stand alone debug "
@@ -246,8 +243,8 @@ public:
     m_arguments.push_back(arg);
 
     m_option_group.Append(&m_arch_option, LLDB_OPT_SET_ALL, LLDB_OPT_SET_1);
+    m_option_group.Append(&m_platform_options, LLDB_OPT_SET_ALL, 1);
     m_option_group.Append(&m_core_file, LLDB_OPT_SET_ALL, LLDB_OPT_SET_1);
-    m_option_group.Append(&m_platform_path, LLDB_OPT_SET_ALL, LLDB_OPT_SET_1);
     m_option_group.Append(&m_symbol_file, LLDB_OPT_SET_ALL, LLDB_OPT_SET_1);
     m_option_group.Append(&m_remote_file, LLDB_OPT_SET_ALL, LLDB_OPT_SET_1);
     m_option_group.Append(&m_add_dependents, LLDB_OPT_SET_ALL, LLDB_OPT_SET_1);
@@ -318,7 +315,8 @@ protected:
       llvm::StringRef arch_cstr = m_arch_option.GetArchitectureName();
       Status error(debugger.GetTargetList().CreateTarget(
           debugger, file_path, arch_cstr,
-          m_add_dependents.m_load_dependent_files, nullptr, target_sp));
+          m_add_dependents.m_load_dependent_files, &m_platform_options,
+          target_sp));
 
       if (target_sp) {
         // Only get the platform after we create the target because we might
@@ -449,16 +447,14 @@ protected:
 private:
   OptionGroupOptions m_option_group;
   OptionGroupArchitecture m_arch_option;
+  OptionGroupPlatform m_platform_options;
   OptionGroupFile m_core_file;
-  OptionGroupFile m_platform_path;
   OptionGroupFile m_symbol_file;
   OptionGroupFile m_remote_file;
   OptionGroupDependents m_add_dependents;
 };
 
 #pragma mark CommandObjectTargetList
-
-// "target list"
 
 class CommandObjectTargetList : public CommandObjectParsed {
 public:
@@ -491,8 +487,6 @@ protected:
 
 #pragma mark CommandObjectTargetSelect
 
-// "target select"
-
 class CommandObjectTargetSelect : public CommandObjectParsed {
 public:
   CommandObjectTargetSelect(CommandInterpreter &interpreter)
@@ -506,11 +500,9 @@ public:
 protected:
   bool DoExecute(Args &args, CommandReturnObject &result) override {
     if (args.GetArgumentCount() == 1) {
-      bool success = false;
       const char *target_idx_arg = args.GetArgumentAtIndex(0);
-      uint32_t target_idx =
-          StringConvert::ToUInt32(target_idx_arg, UINT32_MAX, 0, &success);
-      if (success) {
+      uint32_t target_idx;
+      if (llvm::to_integer(target_idx_arg, target_idx)) {
         TargetList &target_list = GetDebugger().GetTargetList();
         const uint32_t num_targets = target_list.GetNumTargets();
         if (target_idx < num_targets) {
@@ -553,8 +545,6 @@ protected:
 };
 
 #pragma mark CommandObjectTargetDelete
-
-// "target delete"
 
 class CommandObjectTargetDelete : public CommandObjectParsed {
 public:
@@ -699,8 +689,6 @@ protected:
 };
 
 #pragma mark CommandObjectTargetVariable
-
-// "target variable"
 
 class CommandObjectTargetVariable : public CommandObjectParsed {
   static const uint32_t SHORT_OPTION_FILE = 0x66696c65; // 'file'
@@ -920,6 +908,7 @@ protected:
         CompileUnit *comp_unit = nullptr;
         if (frame) {
           SymbolContext sc = frame->GetSymbolContext(eSymbolContextCompUnit);
+          comp_unit = sc.comp_unit;
           if (sc.comp_unit) {
             const bool can_create = true;
             VariableListSP comp_unit_varlist_sp(
@@ -1170,18 +1159,34 @@ public:
 
   ~CommandObjectTargetModulesSearchPathsInsert() override = default;
 
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    if (!m_exe_ctx.HasTargetScope() || request.GetCursorIndex() != 0)
+      return;
+
+    Target *target = m_exe_ctx.GetTargetPtr();
+    const PathMappingList &list = target->GetImageSearchPathList();
+    const size_t num = list.GetSize();
+    ConstString old_path, new_path;
+    for (size_t i = 0; i < num; ++i) {
+      if (!list.GetPathsAtIndex(i, old_path, new_path))
+        break;
+      StreamString strm;
+      strm << old_path << " -> " << new_path;
+      request.TryCompleteCurrentArg(std::to_string(i), strm.GetString());
+    }
+  }
+
 protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     Target *target = &GetSelectedTarget();
     size_t argc = command.GetArgumentCount();
     // check for at least 3 arguments and an odd number of parameters
     if (argc >= 3 && argc & 1) {
-      bool success = false;
+      uint32_t insert_idx;
 
-      uint32_t insert_idx = StringConvert::ToUInt32(
-          command.GetArgumentAtIndex(0), UINT32_MAX, 0, &success);
-
-      if (!success) {
+      if (!llvm::to_integer(command.GetArgumentAtIndex(0), insert_idx)) {
         result.AppendErrorWithFormat(
             "<index> parameter is not an integer: '%s'.\n",
             command.GetArgumentAtIndex(0));
@@ -1630,7 +1635,8 @@ static size_t LookupFunctionInModule(CommandInterpreter &interpreter,
   return 0;
 }
 
-static size_t LookupTypeInModule(CommandInterpreter &interpreter, Stream &strm,
+static size_t LookupTypeInModule(Target *target,
+                                 CommandInterpreter &interpreter, Stream &strm,
                                  Module *module, const char *name_cstr,
                                  bool name_is_regex) {
   TypeList type_list;
@@ -1658,7 +1664,7 @@ static size_t LookupTypeInModule(CommandInterpreter &interpreter, Stream &strm,
       // Resolve the clang type so that any forward references to types
       // that haven't yet been parsed will get parsed.
       type_sp->GetFullCompilerType();
-      type_sp->GetDescription(&strm, eDescriptionLevelFull, true);
+      type_sp->GetDescription(&strm, eDescriptionLevelFull, true, target);
       // Print all typedef chains
       TypeSP typedef_type_sp(type_sp);
       TypeSP typedefed_type_sp(typedef_type_sp->GetTypedefType());
@@ -1667,7 +1673,8 @@ static size_t LookupTypeInModule(CommandInterpreter &interpreter, Stream &strm,
         strm.Printf("     typedef '%s': ",
                     typedef_type_sp->GetName().GetCString());
         typedefed_type_sp->GetFullCompilerType();
-        typedefed_type_sp->GetDescription(&strm, eDescriptionLevelFull, true);
+        typedefed_type_sp->GetDescription(&strm, eDescriptionLevelFull, true,
+                                          target);
         typedef_type_sp = typedefed_type_sp;
         typedefed_type_sp = typedef_type_sp->GetTypedefType();
       }
@@ -1677,9 +1684,9 @@ static size_t LookupTypeInModule(CommandInterpreter &interpreter, Stream &strm,
   return type_list.GetSize();
 }
 
-static size_t LookupTypeHere(CommandInterpreter &interpreter, Stream &strm,
-                             Module &module, const char *name_cstr,
-                             bool name_is_regex) {
+static size_t LookupTypeHere(Target *target, CommandInterpreter &interpreter,
+                             Stream &strm, Module &module,
+                             const char *name_cstr, bool name_is_regex) {
   TypeList type_list;
   const uint32_t max_num_matches = UINT32_MAX;
   bool name_is_fully_qualified = false;
@@ -1702,8 +1709,8 @@ static size_t LookupTypeHere(CommandInterpreter &interpreter, Stream &strm,
     // Resolve the clang type so that any forward references to types that
     // haven't yet been parsed will get parsed.
     type_sp->GetFullCompilerType();
-    type_sp->GetDescription(&strm, eDescriptionLevelFull, true);
-    // Print all typedef chains
+    type_sp->GetDescription(&strm, eDescriptionLevelFull, true, target);
+    // Print all typedef chains.
     TypeSP typedef_type_sp(type_sp);
     TypeSP typedefed_type_sp(typedef_type_sp->GetTypedefType());
     while (typedefed_type_sp) {
@@ -1711,7 +1718,8 @@ static size_t LookupTypeHere(CommandInterpreter &interpreter, Stream &strm,
       strm.Printf("     typedef '%s': ",
                   typedef_type_sp->GetName().GetCString());
       typedefed_type_sp->GetFullCompilerType();
-      typedefed_type_sp->GetDescription(&strm, eDescriptionLevelFull, true);
+      typedefed_type_sp->GetDescription(&strm, eDescriptionLevelFull, true,
+                                        target);
       typedef_type_sp = typedefed_type_sp;
       typedefed_type_sp = typedef_type_sp->GetTypedefType();
     }
@@ -2748,10 +2756,8 @@ protected:
                   const char *load_addr_cstr = args.GetArgumentAtIndex(i + 1);
                   if (sect_name && load_addr_cstr) {
                     ConstString const_sect_name(sect_name);
-                    bool success = false;
-                    addr_t load_addr = StringConvert::ToUInt64(
-                        load_addr_cstr, LLDB_INVALID_ADDRESS, 0, &success);
-                    if (success) {
+                    addr_t load_addr;
+                    if (llvm::to_integer(load_addr_cstr, load_addr)) {
                       SectionSP section_sp(
                           section_list->FindSectionByName(const_sect_name));
                       if (section_sp) {
@@ -3417,9 +3423,34 @@ protected:
         continue;
 
       result.GetOutputStream().Printf(
-          "UNWIND PLANS for %s`%s (start addr 0x%" PRIx64 ")\n\n",
+          "UNWIND PLANS for %s`%s (start addr 0x%" PRIx64 ")\n",
           sc.module_sp->GetPlatformFileSpec().GetFilename().AsCString(),
           funcname.AsCString(), start_addr);
+
+      Args args;
+      target->GetUserSpecifiedTrapHandlerNames(args);
+      size_t count = args.GetArgumentCount();
+      for (size_t i = 0; i < count; i++) {
+        const char *trap_func_name = args.GetArgumentAtIndex(i);
+        if (strcmp(funcname.GetCString(), trap_func_name) == 0)
+          result.GetOutputStream().Printf(
+              "This function is "
+              "treated as a trap handler function via user setting.\n");
+      }
+      PlatformSP platform_sp(target->GetPlatform());
+      if (platform_sp) {
+        const std::vector<ConstString> trap_handler_names(
+            platform_sp->GetTrapHandlerSymbolNames());
+        for (ConstString trap_name : trap_handler_names) {
+          if (trap_name == funcname) {
+            result.GetOutputStream().Printf(
+                "This function's "
+                "name is listed by the platform as a trap handler.\n");
+          }
+        }
+      }
+
+      result.GetOutputStream().Printf("\n");
 
       UnwindPlanSP non_callsite_unwind_plan =
           func_unwinders_sp->GetUnwindPlanAtNonCallSite(*target, *thread);
@@ -3753,9 +3784,9 @@ public:
       return false;
     case eLookupTypeType:
       if (!m_options.m_str.empty()) {
-        if (LookupTypeHere(m_interpreter, result.GetOutputStream(),
-                           *sym_ctx.module_sp, m_options.m_str.c_str(),
-                           m_options.m_use_regex)) {
+        if (LookupTypeHere(&GetSelectedTarget(), m_interpreter,
+                           result.GetOutputStream(), *sym_ctx.module_sp,
+                           m_options.m_str.c_str(), m_options.m_use_regex)) {
           result.SetStatus(eReturnStatusSuccessFinishResult);
           return true;
         }
@@ -3825,9 +3856,9 @@ public:
 
     case eLookupTypeType:
       if (!m_options.m_str.empty()) {
-        if (LookupTypeInModule(m_interpreter, result.GetOutputStream(), module,
-                               m_options.m_str.c_str(),
-                               m_options.m_use_regex)) {
+        if (LookupTypeInModule(
+                &GetSelectedTarget(), m_interpreter, result.GetOutputStream(),
+                module, m_options.m_str.c_str(), m_options.m_use_regex)) {
           result.SetStatus(eReturnStatusSuccessFinishResult);
           return true;
         }
@@ -4340,7 +4371,6 @@ protected:
                 module_spec.GetSymbolFileSpec() = symfile_spec;
             }
 
-            ArchSpec arch;
             bool symfile_exists =
                 FileSystem::Instance().Exists(module_spec.GetSymbolFileSpec());
 
@@ -4413,10 +4443,10 @@ private:
 class CommandObjectTargetStopHookAdd : public CommandObjectParsed,
                                        public IOHandlerDelegateMultiline {
 public:
-  class CommandOptions : public Options {
+  class CommandOptions : public OptionGroup {
   public:
     CommandOptions()
-        : Options(), m_line_start(0), m_line_end(UINT_MAX),
+        : OptionGroup(), m_line_start(0), m_line_end(UINT_MAX),
           m_func_name_type_mask(eFunctionNameTypeAuto),
           m_sym_ctx_specified(false), m_thread_specified(false),
           m_use_one_liner(false), m_one_liner() {}
@@ -4430,7 +4460,8 @@ public:
     Status SetOptionValue(uint32_t option_idx, llvm::StringRef option_arg,
                           ExecutionContext *execution_context) override {
       Status error;
-      const int short_option = m_getopt_table[option_idx].val;
+      const int short_option =
+          g_target_stop_hook_add_options[option_idx].short_option;
 
       switch (short_option) {
       case 'c':
@@ -4560,20 +4591,75 @@ public:
     // Instance variables to hold the values for one_liner options.
     bool m_use_one_liner;
     std::vector<std::string> m_one_liner;
+
     bool m_auto_continue;
   };
 
   CommandObjectTargetStopHookAdd(CommandInterpreter &interpreter)
       : CommandObjectParsed(interpreter, "target stop-hook add",
-                            "Add a hook to be executed when the target stops.",
+                            "Add a hook to be executed when the target stops."
+                            "The hook can either be a list of commands or an "
+                            "appropriately defined Python class.  You can also "
+                            "add filters so the hook only runs a certain stop "
+                            "points.",
                             "target stop-hook add"),
         IOHandlerDelegateMultiline("DONE",
                                    IOHandlerDelegate::Completion::LLDBCommand),
-        m_options() {}
+        m_options(), m_python_class_options("scripted stop-hook", true, 'P') {
+    SetHelpLong(
+        R"(
+Command Based stop-hooks:
+-------------------------
+  Stop hooks can run a list of lldb commands by providing one or more
+  --one-line-command options.  The commands will get run in the order they are 
+  added.  Or you can provide no commands, in which case you will enter a
+  command editor where you can enter the commands to be run.
+  
+Python Based Stop Hooks:
+------------------------
+  Stop hooks can be implemented with a suitably defined Python class, whose name
+  is passed in the --python-class option.
+  
+  When the stop hook is added, the class is initialized by calling:
+  
+    def __init__(self, target, extra_args, dict):
+    
+    target: The target that the stop hook is being added to.
+    extra_args: An SBStructuredData Dictionary filled with the -key -value 
+                option pairs passed to the command.     
+    dict: An implementation detail provided by lldb.
+
+  Then when the stop-hook triggers, lldb will run the 'handle_stop' method. 
+  The method has the signature:
+  
+    def handle_stop(self, exe_ctx, stream):
+    
+    exe_ctx: An SBExecutionContext for the thread that has stopped.
+    stream: An SBStream, anything written to this stream will be printed in the
+            the stop message when the process stops.
+
+    Return Value: The method returns "should_stop".  If should_stop is false
+                  from all the stop hook executions on threads that stopped
+                  with a reason, then the process will continue.  Note that this
+                  will happen only after all the stop hooks are run.
+    
+Filter Options:
+---------------
+  Stop hooks can be set to always run, or to only run when the stopped thread
+  matches the filter options passed on the command line.  The available filter
+  options include a shared library or a thread or queue specification, 
+  a line range in a source file, a function name or a class name.
+            )");
+    m_all_options.Append(&m_python_class_options,
+                         LLDB_OPT_SET_1 | LLDB_OPT_SET_2,
+                         LLDB_OPT_SET_FROM_TO(4, 6));
+    m_all_options.Append(&m_options);
+    m_all_options.Finalize();
+  }
 
   ~CommandObjectTargetStopHookAdd() override = default;
 
-  Options *GetOptions() override { return &m_options; }
+  Options *GetOptions() override { return &m_all_options; }
 
 protected:
   void IOHandlerActivated(IOHandler &io_handler, bool interactive) override {
@@ -4597,10 +4683,15 @@ protected:
           error_sp->Flush();
         }
         Target *target = GetDebugger().GetSelectedTarget().get();
-        if (target)
-          target->RemoveStopHookByID(m_stop_hook_sp->GetID());
+        if (target) {
+          target->UndoCreateStopHook(m_stop_hook_sp->GetID());
+        }
       } else {
-        m_stop_hook_sp->GetCommandPointer()->SplitIntoLines(line);
+        // The IOHandler editor is only for command lines stop hooks:
+        Target::StopHookCommandLine *hook_ptr =
+            static_cast<Target::StopHookCommandLine *>(m_stop_hook_sp.get());
+
+        hook_ptr->SetActionFromString(line);
         StreamFileSP output_sp(io_handler.GetOutputStreamFileSP());
         if (output_sp) {
           output_sp->Printf("Stop hook #%" PRIu64 " added.\n",
@@ -4617,7 +4708,10 @@ protected:
     m_stop_hook_sp.reset();
 
     Target &target = GetSelectedOrDummyTarget();
-    Target::StopHookSP new_hook_sp = target.CreateStopHook();
+    Target::StopHookSP new_hook_sp =
+        target.CreateStopHook(m_python_class_options.GetName().empty() ?
+                               Target::StopHook::StopHookKind::CommandBased
+                               : Target::StopHook::StopHookKind::ScriptBased);
 
     //  First step, make the specifier.
     std::unique_ptr<SymbolContextSpecifier> specifier_up;
@@ -4686,11 +4780,30 @@ protected:
 
     new_hook_sp->SetAutoContinue(m_options.m_auto_continue);
     if (m_options.m_use_one_liner) {
-      // Use one-liners.
-      for (auto cmd : m_options.m_one_liner)
-        new_hook_sp->GetCommandPointer()->AppendString(cmd.c_str());
+      // This is a command line stop hook:
+      Target::StopHookCommandLine *hook_ptr =
+          static_cast<Target::StopHookCommandLine *>(new_hook_sp.get());
+      hook_ptr->SetActionFromStrings(m_options.m_one_liner);
       result.AppendMessageWithFormat("Stop hook #%" PRIu64 " added.\n",
                                      new_hook_sp->GetID());
+    } else if (!m_python_class_options.GetName().empty()) {
+      // This is a scripted stop hook:
+      Target::StopHookScripted *hook_ptr =
+          static_cast<Target::StopHookScripted *>(new_hook_sp.get());
+      Status error = hook_ptr->SetScriptCallback(
+          m_python_class_options.GetName(),
+          m_python_class_options.GetStructuredData());
+      if (error.Success())
+        result.AppendMessageWithFormat("Stop hook #%" PRIu64 " added.\n",
+                                       new_hook_sp->GetID());
+      else {
+        // FIXME: Set the stop hook ID counter back.
+        result.AppendErrorWithFormat("Couldn't add stop hook: %s",
+                                     error.AsCString());
+        result.SetStatus(eReturnStatusFailed);
+        target.UndoCreateStopHook(new_hook_sp->GetID());
+        return false;
+      }
     } else {
       m_stop_hook_sp = new_hook_sp;
       m_interpreter.GetLLDBCommandsFromIOHandler("> ",   // Prompt
@@ -4703,6 +4816,9 @@ protected:
 
 private:
   CommandOptions m_options;
+  OptionGroupPythonClassWithDict m_python_class_options;
+  OptionGroupOptions m_all_options;
+
   Target::StopHookSP m_stop_hook_sp;
 };
 
@@ -4719,6 +4835,14 @@ public:
 
   ~CommandObjectTargetStopHookDelete() override = default;
 
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), CommandCompletions::eStopHookIDCompletion,
+        request, nullptr);
+  }
+
 protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     Target &target = GetSelectedOrDummyTarget();
@@ -4732,18 +4856,15 @@ protected:
         target.RemoveAllStopHooks();
       }
     } else {
-      bool success;
       for (size_t i = 0; i < num_args; i++) {
-        lldb::user_id_t user_id = StringConvert::ToUInt32(
-            command.GetArgumentAtIndex(i), 0, 0, &success);
-        if (!success) {
+        lldb::user_id_t user_id;
+        if (!llvm::to_integer(command.GetArgumentAtIndex(i), user_id)) {
           result.AppendErrorWithFormat("invalid stop hook id: \"%s\".\n",
                                        command.GetArgumentAtIndex(i));
           result.SetStatus(eReturnStatusFailed);
           return false;
         }
-        success = target.RemoveStopHookByID(user_id);
-        if (!success) {
+        if (!target.RemoveStopHookByID(user_id)) {
           result.AppendErrorWithFormat("unknown stop hook id: \"%s\".\n",
                                        command.GetArgumentAtIndex(i));
           result.SetStatus(eReturnStatusFailed);
@@ -4770,6 +4891,16 @@ public:
 
   ~CommandObjectTargetStopHookEnableDisable() override = default;
 
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    if (request.GetCursorIndex())
+      return;
+    CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), CommandCompletions::eStopHookIDCompletion,
+        request, nullptr);
+  }
+
 protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     Target &target = GetSelectedOrDummyTarget();
@@ -4781,9 +4912,8 @@ protected:
       target.SetAllStopHooksActiveState(m_enable);
     } else {
       for (size_t i = 0; i < num_args; i++) {
-        lldb::user_id_t user_id = StringConvert::ToUInt32(
-            command.GetArgumentAtIndex(i), 0, 0, &success);
-        if (!success) {
+        lldb::user_id_t user_id;
+        if (!llvm::to_integer(command.GetArgumentAtIndex(i), user_id)) {
           result.AppendErrorWithFormat("invalid stop hook id: \"%s\".\n",
                                        command.GetArgumentAtIndex(i));
           result.SetStatus(eReturnStatusFailed);

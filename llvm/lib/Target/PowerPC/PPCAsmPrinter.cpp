@@ -27,6 +27,7 @@
 #include "PPCTargetStreamer.h"
 #include "TargetInfo/PowerPCTargetInfo.h"
 #include "llvm/ADT/MapVector.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
@@ -47,6 +48,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
+#include "llvm/MC/MCDirectives.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstBuilder.h"
@@ -62,9 +64,11 @@
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/Process.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/Transforms/Utils/ModuleUtils.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -147,7 +151,19 @@ public:
 
 class PPCAIXAsmPrinter : public PPCAsmPrinter {
 private:
+  /// Symbols lowered from ExternalSymbolSDNodes, we will need to emit extern
+  /// linkage for them in AIX.
+  SmallPtrSet<MCSymbol *, 8> ExtSymSDNodeSymbols;
+
+  /// A format indicator and unique trailing identifier to form part of the
+  /// sinit/sterm function names.
+  std::string FormatIndicatorAndUniqueModId;
+
   static void ValidateGV(const GlobalVariable *GV);
+  // Record a list of GlobalAlias associated with a GlobalObject.
+  // This is used for AIX's extra-label-at-definition aliasing strategy.
+  DenseMap<const GlobalObject *, SmallVector<const GlobalAlias *, 1>>
+      GOAliasMap;
 
 public:
   PPCAIXAsmPrinter(TargetMachine &TM, std::unique_ptr<MCStreamer> Streamer)
@@ -161,15 +177,24 @@ public:
 
   bool doInitialization(Module &M) override;
 
+  void emitXXStructorList(const DataLayout &DL, const Constant *List,
+                          bool IsCtor) override;
+
   void SetupMachineFunction(MachineFunction &MF) override;
 
   void emitGlobalVariable(const GlobalVariable *GV) override;
 
   void emitFunctionDescriptor() override;
 
+  void emitFunctionEntryLabel() override;
+
   void emitEndOfAsmFile(Module &) override;
 
   void emitLinkage(const GlobalValue *GV, MCSymbol *GVSym) const override;
+
+  void emitInstruction(const MachineInstr *MI) override;
+
+  bool doFinalization(Module &M) override;
 };
 
 } // end anonymous namespace
@@ -463,6 +488,14 @@ void PPCAsmPrinter::EmitTlsCall(const MachineInstr *MI,
   StringRef Name = "__tls_get_addr";
   MCSymbol *TlsGetAddr = OutContext.getOrCreateSymbol(Name);
   MCSymbolRefExpr::VariantKind Kind = MCSymbolRefExpr::VK_None;
+  unsigned Opcode = PPC::BL8_NOP_TLS;
+
+  assert(MI->getNumOperands() >= 3 && "Expecting at least 3 operands from MI");
+  if (MI->getOperand(2).getTargetFlags() == PPCII::MO_GOT_TLSGD_PCREL_FLAG ||
+      MI->getOperand(2).getTargetFlags() == PPCII::MO_GOT_TLSLD_PCREL_FLAG) {
+    Kind = MCSymbolRefExpr::VK_PPC_NOTOC;
+    Opcode = PPC::BL8_NOTOC_TLS;
+  }
   const Module *M = MF->getFunction().getParent();
 
   assert(MI->getOperand(0).isReg() &&
@@ -490,10 +523,10 @@ void PPCAsmPrinter::EmitTlsCall(const MachineInstr *MI,
   MCSymbol *MOSymbol = getSymbol(GValue);
   const MCExpr *SymVar = MCSymbolRefExpr::create(MOSymbol, VK, OutContext);
   EmitToStreamer(*OutStreamer,
-                 MCInstBuilder(Subtarget->isPPC64() ?
-                               PPC::BL8_NOP_TLS : PPC::BL_TLS)
-                 .addExpr(TlsRef)
-                 .addExpr(SymVar));
+                 MCInstBuilder(Subtarget->isPPC64() ? Opcode
+                                                    : (unsigned)PPC::BL_TLS)
+                     .addExpr(TlsRef)
+                     .addExpr(SymVar));
 }
 
 /// Map a machine operand for a TOC pseudo-machine instruction to its
@@ -533,9 +566,6 @@ void PPCAsmPrinter::emitInstruction(const MachineInstr *MI) {
         if (Subtarget->hasSPE()) {
           if (PPC::F4RCRegClass.contains(Reg) ||
               PPC::F8RCRegClass.contains(Reg) ||
-              PPC::QBRCRegClass.contains(Reg) ||
-              PPC::QFRCRegClass.contains(Reg) ||
-              PPC::QSRCRegClass.contains(Reg) ||
               PPC::VFRCRegClass.contains(Reg) ||
               PPC::VRRCRegClass.contains(Reg) ||
               PPC::VSFRCRegClass.contains(Reg) ||
@@ -550,6 +580,38 @@ void PPCAsmPrinter::emitInstruction(const MachineInstr *MI) {
     }
   }
 #endif
+
+  auto getTOCRelocAdjustedExprForXCOFF = [this](const MCExpr *Expr,
+                                                ptrdiff_t OriginalOffset) {
+    // Apply an offset to the TOC-based expression such that the adjusted
+    // notional offset from the TOC base (to be encoded into the instruction's D
+    // or DS field) is the signed 16-bit truncation of the original notional
+    // offset from the TOC base.
+    // This is consistent with the treatment used both by XL C/C++ and
+    // by AIX ld -r.
+    ptrdiff_t Adjustment =
+        OriginalOffset - llvm::SignExtend32<16>(OriginalOffset);
+    return MCBinaryExpr::createAdd(
+        Expr, MCConstantExpr::create(-Adjustment, OutContext), OutContext);
+  };
+
+  auto getTOCEntryLoadingExprForXCOFF =
+      [IsPPC64, getTOCRelocAdjustedExprForXCOFF,
+       this](const MCSymbol *MOSymbol, const MCExpr *Expr) -> const MCExpr * {
+    const unsigned EntryByteSize = IsPPC64 ? 8 : 4;
+    const auto TOCEntryIter = TOC.find(MOSymbol);
+    assert(TOCEntryIter != TOC.end() &&
+           "Could not find the TOC entry for this symbol.");
+    const ptrdiff_t EntryDistanceFromTOCBase =
+        (TOCEntryIter - TOC.begin()) * EntryByteSize;
+    constexpr int16_t PositiveTOCRange = INT16_MAX;
+
+    if (EntryDistanceFromTOCBase > PositiveTOCRange)
+      return getTOCRelocAdjustedExprForXCOFF(Expr, EntryDistanceFromTOCBase);
+
+    return Expr;
+  };
+
   // Lower multi-instruction pseudo operations.
   switch (MI->getOpcode()) {
   default: break;
@@ -631,7 +693,7 @@ void PPCAsmPrinter::emitInstruction(const MachineInstr *MI) {
       return;
     } else {
       MCSymbol *PICOffset =
-        MF->getInfo<PPCFunctionInfo>()->getPICOffsetSymbol();
+        MF->getInfo<PPCFunctionInfo>()->getPICOffsetSymbol(*MF);
       TmpInst.setOpcode(PPC::LWZ);
       const MCExpr *Exp =
         MCSymbolRefExpr::create(PICOffset, MCSymbolRefExpr::VK_None, OutContext);
@@ -696,6 +758,7 @@ void PPCAsmPrinter::emitInstruction(const MachineInstr *MI) {
       assert(
           TM.getCodeModel() == CodeModel::Small &&
           "This pseudo should only be selected for 32-bit small code model.");
+      Exp = getTOCEntryLoadingExprForXCOFF(MOSymbol, Exp);
       TmpInst.getOperand(1) = MCOperand::createExpr(Exp);
       EmitToStreamer(*OutStreamer, TmpInst);
       return;
@@ -724,17 +787,20 @@ void PPCAsmPrinter::emitInstruction(const MachineInstr *MI) {
     assert((MO.isGlobal() || MO.isCPI() || MO.isJTI() || MO.isBlockAddress()) &&
            "Invalid operand!");
 
+    // Map the operand to its corresponding MCSymbol.
+    const MCSymbol *const MOSymbol = getMCSymbolForTOCPseudoMO(MO, *this);
+
     // Map the machine operand to its corresponding MCSymbol, then map the
     // global address operand to be a reference to the TOC entry we will
     // synthesize later.
-    MCSymbol *TOCEntry =
-        lookUpOrCreateTOCEntry(getMCSymbolForTOCPseudoMO(MO, *this));
+    MCSymbol *TOCEntry = lookUpOrCreateTOCEntry(MOSymbol);
 
     const MCSymbolRefExpr::VariantKind VK =
         IsAIX ? MCSymbolRefExpr::VK_None : MCSymbolRefExpr::VK_PPC_TOC;
     const MCExpr *Exp =
         MCSymbolRefExpr::create(TOCEntry, VK, OutContext);
-    TmpInst.getOperand(1) = MCOperand::createExpr(Exp);
+    TmpInst.getOperand(1) = MCOperand::createExpr(
+        IsAIX ? getTOCEntryLoadingExprForXCOFF(MOSymbol, Exp) : Exp);
     EmitToStreamer(*OutStreamer, TmpInst);
     return;
   }
@@ -1081,6 +1147,21 @@ void PPCAsmPrinter::emitInstruction(const MachineInstr *MI) {
             .addExpr(SymDtprel));
     return;
   }
+  case PPC::PADDIdtprel: {
+    // Transform: %rd = PADDIdtprel %rs, @sym
+    // Into:      %rd = PADDI8 %rs, sym@dtprel
+    const MachineOperand &MO = MI->getOperand(2);
+    const GlobalValue *GValue = MO.getGlobal();
+    MCSymbol *MOSymbol = getSymbol(GValue);
+    const MCExpr *SymDtprel = MCSymbolRefExpr::create(
+        MOSymbol, MCSymbolRefExpr::VK_DTPREL, OutContext);
+    EmitToStreamer(*OutStreamer, MCInstBuilder(PPC::PADDI8)
+                                     .addReg(MI->getOperand(0).getReg())
+                                     .addReg(MI->getOperand(1).getReg())
+                                     .addExpr(SymDtprel));
+    return;
+  }
+
   case PPC::ADDIdtprelL:
     // Transform: %xd = ADDIdtprelL %xs, @sym
     // Into:      %xd = ADDI8 %xs, sym@dtprel@l
@@ -1341,7 +1422,7 @@ void PPCLinuxAsmPrinter::emitFunctionEntryLabel() {
   if (!Subtarget->isPPC64()) {
     const PPCFunctionInfo *PPCFI = MF->getInfo<PPCFunctionInfo>();
     if (PPCFI->usesPICBase() && !Subtarget->isSecurePlt()) {
-      MCSymbol *RelocSymbol = PPCFI->getPICOffsetSymbol();
+      MCSymbol *RelocSymbol = PPCFI->getPICOffsetSymbol(*MF);
       MCSymbol *PICBase = MF->getPICBaseSymbol();
       OutStreamer->emitLabel(RelocSymbol);
 
@@ -1369,14 +1450,14 @@ void PPCLinuxAsmPrinter::emitFunctionEntryLabel() {
       const PPCFunctionInfo *PPCFI = MF->getInfo<PPCFunctionInfo>();
 
       MCSymbol *TOCSymbol = OutContext.getOrCreateSymbol(StringRef(".TOC."));
-      MCSymbol *GlobalEPSymbol = PPCFI->getGlobalEPSymbol();
+      MCSymbol *GlobalEPSymbol = PPCFI->getGlobalEPSymbol(*MF);
       const MCExpr *TOCDeltaExpr =
         MCBinaryExpr::createSub(MCSymbolRefExpr::create(TOCSymbol, OutContext),
                                 MCSymbolRefExpr::create(GlobalEPSymbol,
                                                         OutContext),
                                 OutContext);
 
-      OutStreamer->emitLabel(PPCFI->getTOCOffsetSymbol());
+      OutStreamer->emitLabel(PPCFI->getTOCOffsetSymbol(*MF));
       OutStreamer->emitValue(TOCDeltaExpr, 8);
     }
     return AsmPrinter::emitFunctionEntryLabel();
@@ -1483,7 +1564,7 @@ void PPCLinuxAsmPrinter::emitFunctionBodyStart() {
     // Note: The logic here must be synchronized with the code in the
     // branch-selection pass which sets the offset of the first block in the
     // function. This matters because it affects the alignment.
-    MCSymbol *GlobalEntryLabel = PPCFI->getGlobalEPSymbol();
+    MCSymbol *GlobalEntryLabel = PPCFI->getGlobalEPSymbol(*MF);
     OutStreamer->emitLabel(GlobalEntryLabel);
     const MCSymbolRefExpr *GlobalEntryLabelExp =
       MCSymbolRefExpr::create(GlobalEntryLabel, OutContext);
@@ -1506,7 +1587,7 @@ void PPCLinuxAsmPrinter::emitFunctionBodyStart() {
                                    .addReg(PPC::X2)
                                    .addExpr(TOCDeltaLo));
     } else {
-      MCSymbol *TOCOffset = PPCFI->getTOCOffsetSymbol();
+      MCSymbol *TOCOffset = PPCFI->getTOCOffsetSymbol(*MF);
       const MCExpr *TOCOffsetDeltaExpr =
         MCBinaryExpr::createSub(MCSymbolRefExpr::create(TOCOffset, OutContext),
                                 GlobalEntryLabelExp, OutContext);
@@ -1521,7 +1602,7 @@ void PPCLinuxAsmPrinter::emitFunctionBodyStart() {
                                    .addReg(PPC::X12));
     }
 
-    MCSymbol *LocalEntryLabel = PPCFI->getLocalEPSymbol();
+    MCSymbol *LocalEntryLabel = PPCFI->getLocalEPSymbol(*MF);
     OutStreamer->emitLabel(LocalEntryLabel);
     const MCSymbolRefExpr *LocalEntryLabelExp =
        MCSymbolRefExpr::create(LocalEntryLabel, OutContext);
@@ -1608,8 +1689,10 @@ void PPCAIXAsmPrinter::emitLinkage(const GlobalValue *GV,
   case GlobalValue::PrivateLinkage:
     return;
   case GlobalValue::InternalLinkage:
-    OutStreamer->emitSymbolAttribute(GVSym, MCSA_LGlobal);
-    return;
+    assert(GV->getVisibility() == GlobalValue::DefaultVisibility &&
+           "InternalLinkage should not have other visibility setting.");
+    LinkageAttr = MCSA_LGlobal;
+    break;
   case GlobalValue::AppendingLinkage:
     llvm_unreachable("Should never emit this");
   case GlobalValue::CommonLinkage:
@@ -1621,8 +1704,7 @@ void PPCAIXAsmPrinter::emitLinkage(const GlobalValue *GV,
   MCSymbolAttr VisibilityAttr = MCSA_Invalid;
   switch (GV->getVisibility()) {
 
-    // TODO: "exported" and "internal" Visibility needs to go here.
-
+  // TODO: "exported" and "internal" Visibility needs to go here.
   case GlobalValue::DefaultVisibility:
     break;
   case GlobalValue::HiddenVisibility:
@@ -1661,6 +1743,18 @@ void PPCAIXAsmPrinter::ValidateGV(const GlobalVariable *GV) {
     report_fatal_error("COMDAT not yet supported by AIX.");
 }
 
+static bool isSpecialLLVMGlobalArrayToSkip(const GlobalVariable *GV) {
+  return GV->hasAppendingLinkage() &&
+         StringSwitch<bool>(GV->getName())
+             // TODO: Linker could still eliminate the GV if we just skip
+             // handling llvm.used array. Skipping them for now until we or the
+             // AIX OS team come up with a good solution.
+             .Case("llvm.used", true)
+             // It's correct to just skip llvm.compiler.used array here.
+             .Case("llvm.compiler.used", true)
+             .Default(false);
+}
+
 static bool isSpecialLLVMGlobalArrayForStaticInit(const GlobalVariable *GV) {
   return StringSwitch<bool>(GV->getName())
       .Cases("llvm.global_ctors", "llvm.global_dtors", true)
@@ -1668,19 +1762,15 @@ static bool isSpecialLLVMGlobalArrayForStaticInit(const GlobalVariable *GV) {
 }
 
 void PPCAIXAsmPrinter::emitGlobalVariable(const GlobalVariable *GV) {
-  ValidateGV(GV);
-
-  // TODO: Update the handling of global arrays for static init when we support
-  // the ".ref" directive.
-  // Otherwise, we can skip these arrays, because the AIX linker collects
-  // static init functions simply based on their name.
-  if (isSpecialLLVMGlobalArrayForStaticInit(GV))
+  // Special LLVM global arrays have been handled at the initialization.
+  if (isSpecialLLVMGlobalArrayToSkip(GV) || isSpecialLLVMGlobalArrayForStaticInit(GV))
     return;
 
-  // Create the symbol, set its storage class.
+  assert(!GV->getName().startswith("llvm.") &&
+         "Unhandled intrinsic global variable.");
+  ValidateGV(GV);
+
   MCSymbolXCOFF *GVSym = cast<MCSymbolXCOFF>(getSymbol(GV));
-  GVSym->setStorageClass(
-      TargetLoweringObjectFileXCOFF::getStorageClassForGlobal(GV));
 
   if (GV->isDeclarationForLinker()) {
     emitLinkage(GV, GVSym);
@@ -1704,10 +1794,12 @@ void PPCAIXAsmPrinter::emitGlobalVariable(const GlobalVariable *GV) {
   if (GVKind.isCommon() || GVKind.isBSSLocal()) {
     Align Alignment = GV->getAlign().getValueOr(DL.getPreferredAlign(GV));
     uint64_t Size = DL.getTypeAllocSize(GV->getType()->getElementType());
+    GVSym->setStorageClass(
+        TargetLoweringObjectFileXCOFF::getStorageClassForGlobal(GV));
 
     if (GVKind.isBSSLocal())
       OutStreamer->emitXCOFFLocalCommonSymbol(
-          OutContext.getOrCreateSymbol(GVSym->getUnqualifiedName()), Size,
+          OutContext.getOrCreateSymbol(GVSym->getSymbolTableName()), Size,
           GVSym, Alignment.value());
     else
       OutStreamer->emitCommonSymbol(GVSym, Size, Alignment.value());
@@ -1717,7 +1809,16 @@ void PPCAIXAsmPrinter::emitGlobalVariable(const GlobalVariable *GV) {
   MCSymbol *EmittedInitSym = GVSym;
   emitLinkage(GV, EmittedInitSym);
   emitAlignment(getGVAlignment(GV, DL), GV);
-  OutStreamer->emitLabel(EmittedInitSym);
+  // When -fdata-sections is enabled, every GlobalVariable will
+  // be put into its own csect; therefore, label is not necessary here.
+  if (!TM.getDataSections())
+    OutStreamer->emitLabel(EmittedInitSym);
+
+  // Emit aliasing label for global variable.
+  llvm::for_each(GOAliasMap[GV], [this](const GlobalAlias *Alias) {
+    OutStreamer->emitLabel(getSymbol(Alias));
+  });
+
   emitGlobalConstant(GV->getParent()->getDataLayout(), GV->getInitializer());
 }
 
@@ -1729,6 +1830,13 @@ void PPCAIXAsmPrinter::emitFunctionDescriptor() {
   // Emit function descriptor.
   OutStreamer->SwitchSection(
       cast<MCSymbolXCOFF>(CurrentFnDescSym)->getRepresentedCsect());
+
+  // Emit aliasing label for function descriptor csect.
+  llvm::for_each(GOAliasMap[&MF->getFunction()],
+                 [this](const GlobalAlias *Alias) {
+                   OutStreamer->emitLabel(getSymbol(Alias));
+                 });
+
   // Emit function entry point address.
   OutStreamer->emitValue(MCSymbolRefExpr::create(CurrentFnSym, OutContext),
                          PointerSize);
@@ -1744,6 +1852,20 @@ void PPCAIXAsmPrinter::emitFunctionDescriptor() {
   OutStreamer->SwitchSection(Current.first, Current.second);
 }
 
+void PPCAIXAsmPrinter::emitFunctionEntryLabel() {
+  // It's not necessary to emit the label when we have individual
+  // function in its own csect.
+  if (!TM.getFunctionSections())
+    PPCAsmPrinter::emitFunctionEntryLabel();
+
+  // Emit aliasing label for function entry point label.
+  llvm::for_each(
+      GOAliasMap[&MF->getFunction()], [this](const GlobalAlias *Alias) {
+        OutStreamer->emitLabel(
+            getObjFileLowering().getFunctionEntryPointSymbol(Alias, TM));
+      });
+}
+
 void PPCAIXAsmPrinter::emitEndOfAsmFile(Module &M) {
   // If there are no functions in this module, we will never need to reference
   // the TOC base.
@@ -1756,20 +1878,10 @@ void PPCAIXAsmPrinter::emitEndOfAsmFile(Module &M) {
   PPCTargetStreamer *TS =
       static_cast<PPCTargetStreamer *>(OutStreamer->getTargetStreamer());
 
-  const unsigned EntryByteSize = Subtarget->isPPC64() ? 8 : 4;
-  const unsigned TOCEntriesByteSize = TOC.size() * EntryByteSize;
-  // TODO: If TOC entries' size is larger than 32768, then we run out of
-  // positive displacement to reach the TOC entry. We need to decide how to
-  // handle entries' size larger than that later.
-  if (TOCEntriesByteSize > 32767) {
-    report_fatal_error("Handling of TOC entry displacement larger than 32767 "
-                       "is not yet implemented.");
-  }
-
   for (auto &I : TOC) {
     // Setup the csect for the current TC entry.
     MCSectionXCOFF *TCEntry = cast<MCSectionXCOFF>(
-        getObjFileLowering().getSectionForTOCEntry(I.first));
+        getObjFileLowering().getSectionForTOCEntry(I.first, TM));
     OutStreamer->SwitchSection(TCEntry);
 
     OutStreamer->emitLabel(I.second);
@@ -1779,10 +1891,6 @@ void PPCAIXAsmPrinter::emitEndOfAsmFile(Module &M) {
 }
 
 bool PPCAIXAsmPrinter::doInitialization(Module &M) {
-  if (M.alias_size() > 0u)
-    report_fatal_error(
-        "module has aliases, which LLVM does not yet support for AIX");
-
   const bool Result = PPCAsmPrinter::doInitialization(M);
 
   auto setCsectAlignment = [this](const GlobalObject *GO) {
@@ -1802,13 +1910,111 @@ bool PPCAIXAsmPrinter::doInitialization(Module &M) {
   // We need to know, up front, the alignment of csects for the assembly path,
   // because once a .csect directive gets emitted, we could not change the
   // alignment value on it.
-  for (const auto &G : M.globals())
+  for (const auto &G : M.globals()) {
+    if (isSpecialLLVMGlobalArrayToSkip(&G))
+      continue;
+
+    if (isSpecialLLVMGlobalArrayForStaticInit(&G)) {
+      // Generate a format indicator and a unique module id to be a part of
+      // the sinit and sterm function names.
+      if (FormatIndicatorAndUniqueModId.empty()) {
+        std::string UniqueModuleId = getUniqueModuleId(&M);
+        if (UniqueModuleId.compare("") != 0)
+          // TODO: Use source file full path to generate the unique module id
+          // and add a format indicator as a part of function name in case we
+          // will support more than one format.
+          FormatIndicatorAndUniqueModId = "clang_" + UniqueModuleId.substr(1);
+        else
+          // Use the Pid and current time as the unique module id when we cannot
+          // generate one based on a module's strong external symbols.
+          // FIXME: Adjust the comment accordingly after we use source file full
+          // path instead.
+          FormatIndicatorAndUniqueModId =
+              "clangPidTime_" + llvm::itostr(sys::Process::getProcessId()) +
+              "_" + llvm::itostr(time(nullptr));
+      }
+
+      emitSpecialLLVMGlobal(&G);
+      continue;
+    }
+
     setCsectAlignment(&G);
+  }
 
   for (const auto &F : M)
     setCsectAlignment(&F);
 
+  // Construct an aliasing list for each GlobalObject.
+  for (const auto &Alias : M.aliases()) {
+    const GlobalObject *Base = Alias.getBaseObject();
+    if (!Base)
+      report_fatal_error(
+          "alias without a base object is not yet supported on AIX");
+    GOAliasMap[Base].push_back(&Alias);
+  }
+
   return Result;
+}
+
+void PPCAIXAsmPrinter::emitInstruction(const MachineInstr *MI) {
+  switch (MI->getOpcode()) {
+  default:
+    break;
+  case PPC::BL8:
+  case PPC::BL:
+  case PPC::BL8_NOP:
+  case PPC::BL_NOP: {
+    const MachineOperand &MO = MI->getOperand(0);
+    if (MO.isSymbol()) {
+      MCSymbolXCOFF *S =
+          cast<MCSymbolXCOFF>(OutContext.getOrCreateSymbol(MO.getSymbolName()));
+      ExtSymSDNodeSymbols.insert(S);
+    }
+  } break;
+  case PPC::BL_TLS:
+  case PPC::BL8_TLS:
+  case PPC::BL8_TLS_:
+  case PPC::BL8_NOP_TLS:
+    report_fatal_error("TLS call not yet implemented");
+  case PPC::TAILB:
+  case PPC::TAILB8:
+  case PPC::TAILBA:
+  case PPC::TAILBA8:
+  case PPC::TAILBCTR:
+  case PPC::TAILBCTR8:
+    if (MI->getOperand(0).isSymbol())
+      report_fatal_error("Tail call for extern symbol not yet supported.");
+    break;
+  }
+  return PPCAsmPrinter::emitInstruction(MI);
+}
+
+bool PPCAIXAsmPrinter::doFinalization(Module &M) {
+  for (MCSymbol *Sym : ExtSymSDNodeSymbols)
+    OutStreamer->emitSymbolAttribute(Sym, MCSA_Extern);
+  return PPCAsmPrinter::doFinalization(M);
+}
+
+void PPCAIXAsmPrinter::emitXXStructorList(const DataLayout &DL,
+                                          const Constant *List, bool IsCtor) {
+  SmallVector<Structor, 8> Structors;
+  preprocessXXStructorList(DL, List, Structors);
+  if (Structors.empty())
+    return;
+
+  unsigned Index = 0;
+  for (Structor &S : Structors) {
+    if (S.Priority != 65535)
+      report_fatal_error(
+          "prioritized sinit and sterm functions are not yet supported on AIX");
+
+    llvm::GlobalAlias::create(
+        GlobalValue::ExternalLinkage,
+        (IsCtor ? llvm::Twine("__sinit") : llvm::Twine("__sterm")) +
+            llvm::Twine("80000000_", FormatIndicatorAndUniqueModId) +
+            llvm::Twine("_", llvm::utostr(Index++)),
+        cast<Function>(S.Func));
+  }
 }
 
 /// createPPCAsmPrinterPass - Returns a pass that prints the PPC assembly code

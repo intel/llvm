@@ -39,6 +39,21 @@ the command line. To get you set up, follow the
 
 You can learn more about how to use arc to interact with
 Phabricator in the `Arcanist User Guide`_.
+The basic way of creating a revision for the current commit in your local
+repository is to run:
+
+::
+
+  arc diff HEAD~
+
+
+If you later update your commit message, you need to add the `--verbatim`
+option to have `arc` update the description on Phabricator:
+
+::
+
+  arc diff --edit --verbatim
+
 
 .. _phabricator-request-review-web:
 
@@ -49,7 +64,7 @@ The tool to create and review patches in Phabricator is called
 *Differential*.
 
 Note that you can upload patches created through git, but using `arc` on the
-command line (see previous section) is prefered: it adds more metadata to
+command line (see previous section) is preferred: it adds more metadata to
 Phabricator which are useful for the pre-merge testing system and for
 propagating attribution on commits when someone else has to push it for you.
 
@@ -82,8 +97,7 @@ To upload a new patch:
 * Add reviewers (see below for advice). (If you set the Repository field
   correctly, llvm-commits or cfe-commits will be subscribed automatically;
   otherwise, you will have to manually subscribe them.)
-* In the Repository field, enter the name of the project (LLVM, Clang,
-  etc.) to which the review should be sent.
+* In the Repository field, enter "rG LLVM Github Monorepo".
 * Click *Save*.
 
 To submit an updated patch:
@@ -182,14 +196,6 @@ Note that if you commit the change without using Arcanist and forget to add the
 that you close the review manually. In the web UI, under "Leap Into Action" put
 the git revision number in the Comment, set the Action to "Close Revision" and
 click Submit.  Note the review must have been Accepted first.
-
-Arcanist also adds extra tags that are mostly noise in the commit message, for
-this reason avoid using `arc land` and push commits to master directly with git
-after removing tags other than "Reviewed by" and "Differential Revision".
-You can run `llvm/utils/git/arcfilter.sh` to clean the commit message of the
-current "HEAD" commit automatically. You can also setup a git hook to catch this
-for you (see `Getting Started <GettingStarted.html#git-pre-push-hook>`).
-
 
 Committing someone's change from Phabricator
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

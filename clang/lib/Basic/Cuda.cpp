@@ -64,6 +64,7 @@ struct CudaArchToStringMap {
   { CudaArch::GFX##gpu, "gfx" #gpu, "compute_amdgcn" }
 CudaArchToStringMap arch_names[] = {
     // clang-format off
+    {CudaArch::UNUSED, "", ""},
     SM2(20, "compute_20"), SM2(21, "compute_20"), // Fermi
     SM(30), SM(32), SM(35), SM(37),  // Kepler
     SM(50), SM(52), SM(53),          // Maxwell
@@ -84,7 +85,7 @@ CudaArchToStringMap arch_names[] = {
     GFX(810), // stoney
     GFX(900), // vega, instinct
     GFX(902), GFX(904), GFX(906), GFX(908), GFX(909),
-    GFX(1010), GFX(1011), GFX(1012),
+    GFX(1010), GFX(1011), GFX(1012), GFX(1030), GFX(1031)
     // clang-format on
 };
 #undef SM

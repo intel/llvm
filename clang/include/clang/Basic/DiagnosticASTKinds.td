@@ -54,6 +54,9 @@ def note_constexpr_nonliteral : Note<
 def note_constexpr_non_global : Note<
   "%select{pointer|reference}0 to %select{|subobject of }1"
   "%select{temporary|%3}2 is not a constant expression">;
+def note_constexpr_not_static : Note<
+  "address of non-static constexpr variable %0 may differ on each invocation "
+  "of the enclosing function; add 'static' to give it a constant address">;
 def note_constexpr_dynamic_alloc : Note<
   "%select{pointer|reference}0 to %select{|subobject of }1"
   "heap-allocated object is not a constant expression">;
@@ -69,6 +72,8 @@ def note_constexpr_array_index : Note<"cannot refer to element %0 of "
   "in a constant expression">;
 def note_constexpr_float_arithmetic : Note<
   "floating point arithmetic produces %select{an infinity|a NaN}0">;
+def note_constexpr_dynamic_rounding : Note<
+  "cannot evaluate this expression if rounding mode is dynamic">;
 def note_constexpr_pointer_subtraction_not_same_array : Note<
   "subtracted pointers are not elements of the same array">;
 def note_constexpr_pointer_subtraction_zero_size : Note<
@@ -101,8 +106,16 @@ def note_constexpr_null_subobject : Note<
   "access array element of|perform pointer arithmetic on|"
   "access real component of|"
   "access imaginary component of}0 null pointer">;
+def note_constexpr_function_param_value_unknown : Note<
+  "function parameter %0 with unknown value cannot be used in a constant "
+  "expression">;
+def note_constexpr_var_init_unknown : Note<
+  "initializer of %0 is unknown">;
 def note_constexpr_var_init_non_constant : Note<
   "initializer of %0 is not a constant expression">;
+def note_constexpr_var_init_weak : Note<
+  "initializer of weak variable %0 is not considered constant because "
+  "it may be different at runtime">;
 def note_constexpr_typeid_polymorphic : Note<
   "typeid applied to expression of polymorphic type %0 is "
   "not allowed in a constant expression in C++ standards before C++20">;
@@ -159,6 +172,9 @@ def note_constexpr_access_mutable : Note<
   "mutable member %1 is not allowed in a constant expression">;
 def note_constexpr_ltor_non_const_int : Note<
   "read of non-const variable %0 is not allowed in a constant expression">;
+def note_constexpr_ltor_non_integral : Note<
+  "read of variable %0 of non-integral, non-enumeration type %1 "
+  "is not allowed in a constant expression">;
 def note_constexpr_ltor_non_constexpr : Note<
   "read of non-constexpr variable %0 is not allowed in a constant expression">;
 def note_constexpr_ltor_incomplete_type : Note<
@@ -284,6 +300,8 @@ def note_constexpr_bit_cast_invalid_subtype : Note<
 def note_constexpr_bit_cast_indet_dest : Note<
   "indeterminate value can only initialize an object of type 'unsigned char'"
   "%select{, 'char',|}1 or 'std::byte'; %0 is invalid">;
+def note_constexpr_bit_cast_unrepresentable_value : Note<
+  "value %1 cannot be represented in type %0">;
 def note_constexpr_pseudo_destructor : Note<
   "pseudo-destructor call is not permitted in constant expressions "
   "until C++20">;

@@ -206,6 +206,7 @@ public:
   //===--------------------------------------------------------------------===//
   // Argument Handling
   //===--------------------------------------------------------------------===//
+  using BlockArgListType = Region::BlockArgListType;
 
   unsigned getNumArguments() {
     return static_cast<ConcreteType *>(this)->getNumFuncArguments();
@@ -216,15 +217,17 @@ public:
   }
 
   /// Gets argument.
-  BlockArgument getArgument(unsigned idx) {
-    return getBlocks().front().getArgument(idx);
-  }
+  BlockArgument getArgument(unsigned idx) { return getBody().getArgument(idx); }
 
   /// Support argument iteration.
-  using args_iterator = Block::args_iterator;
-  args_iterator args_begin() { return front().args_begin(); }
-  args_iterator args_end() { return front().args_end(); }
-  Block::BlockArgListType getArguments() { return front().getArguments(); }
+  using args_iterator = Region::args_iterator;
+  args_iterator args_begin() { return getBody().args_begin(); }
+  args_iterator args_end() { return getBody().args_end(); }
+  Block::BlockArgListType getArguments() { return getBody().getArguments(); }
+
+  ValueTypeRange<BlockArgListType> getArgumentTypes() {
+    return getBody().getArgumentTypes();
+  }
 
   //===--------------------------------------------------------------------===//
   // Argument Attributes
@@ -425,7 +428,7 @@ LogicalResult FunctionLike<ConcreteType>::verifyTrait(Operation *op) {
       if (!attr.first.strref().contains('.'))
         return funcOp.emitOpError("arguments may only have dialect attributes");
       auto dialectNamePair = attr.first.strref().split('.');
-      if (auto *dialect = ctx->getRegisteredDialect(dialectNamePair.first)) {
+      if (auto *dialect = ctx->getLoadedDialect(dialectNamePair.first)) {
         if (failed(dialect->verifyRegionArgAttribute(op, /*regionIndex=*/0,
                                                      /*argIndex=*/i, attr)))
           return failure();
@@ -441,7 +444,7 @@ LogicalResult FunctionLike<ConcreteType>::verifyTrait(Operation *op) {
       if (!attr.first.strref().contains('.'))
         return funcOp.emitOpError("results may only have dialect attributes");
       auto dialectNamePair = attr.first.strref().split('.');
-      if (auto *dialect = ctx->getRegisteredDialect(dialectNamePair.first)) {
+      if (auto *dialect = ctx->getLoadedDialect(dialectNamePair.first)) {
         if (failed(dialect->verifyRegionResultAttribute(op, /*regionIndex=*/0,
                                                         /*resultIndex=*/i,
                                                         attr)))

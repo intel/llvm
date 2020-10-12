@@ -126,6 +126,14 @@ public:
   /// default, this is equal to CurrentFnSym.
   MCSymbol *CurrentFnSymForSize = nullptr;
 
+  /// Map a basic block section ID to the begin and end symbols of that section
+  ///  which determine the section's range.
+  struct MBBSectionRange {
+    MCSymbol *BeginLabel, *EndLabel;
+  };
+
+  MapVector<unsigned, MBBSectionRange> MBBSectionRanges;
+
   /// Map global GOT equivalent MCSymbols to GlobalVariables and keep track of
   /// its number of uses by other globals.
   using GOTEquivUsePair = std::pair<const GlobalVariable *, unsigned>;
@@ -133,7 +141,11 @@ public:
 
 private:
   MCSymbol *CurrentFnEnd = nullptr;
-  MCSymbol *CurExceptionSym = nullptr;
+
+  /// Map a basic block section ID to the exception symbol associated with that
+  /// section. Map entries are assigned and looked up via
+  /// AsmPrinter::getMBBExceptionSym.
+  DenseMap<unsigned, MCSymbol *> MBBSectionExceptionSyms;
 
   // The symbol used to represent the start of the current BB section of the
   // function. This is used to calculate the size of the BB section.
@@ -208,6 +220,14 @@ public:
   uint16_t getDwarfVersion() const;
   void setDwarfVersion(uint16_t Version);
 
+  bool isDwarf64() const;
+
+  /// Returns 4 for DWARF32 and 8 for DWARF64.
+  unsigned int getDwarfOffsetByteSize() const;
+
+  /// Returns 4 for DWARF32 and 12 for DWARF64.
+  unsigned int getUnitLengthFieldByteSize() const;
+
   bool isPositionIndependent() const;
 
   /// Return true if assembly output should contain comments.
@@ -222,7 +242,10 @@ public:
 
   MCSymbol *getFunctionBegin() const { return CurrentFnBegin; }
   MCSymbol *getFunctionEnd() const { return CurrentFnEnd; }
-  MCSymbol *getCurExceptionSym();
+
+  // Return the exception symbol associated with the MBB section containing a
+  // given basic block.
+  MCSymbol *getMBBExceptionSym(const MachineBasicBlock &MBB);
 
   /// Return information about object file lowering.
   const TargetLoweringObjectFile &getObjFileLowering() const;
@@ -334,6 +357,8 @@ public:
 
   void emitStackSizeSection(const MachineFunction &MF);
 
+  void emitBBAddrMapSection(const MachineFunction &MF);
+
   void emitRemarksSection(remarks::RemarkStreamer &RS);
 
   enum CFIMoveType { CFI_M_None, CFI_M_EH, CFI_M_Debug };
@@ -360,6 +385,32 @@ public:
   /// Check to see if the specified global is a special global used by LLVM. If
   /// so, emit it and return true, otherwise do nothing and return false.
   bool emitSpecialLLVMGlobal(const GlobalVariable *GV);
+
+  /// `llvm.global_ctors` and `llvm.global_dtors` are arrays of Structor
+  /// structs.
+  ///
+  /// Priority - init priority
+  /// Func - global initialization or global clean-up function
+  /// ComdatKey - associated data
+  struct Structor {
+    int Priority = 0;
+    Constant *Func = nullptr;
+    GlobalValue *ComdatKey = nullptr;
+
+    Structor() = default;
+  };
+
+  /// This method gathers an array of Structors and then sorts them out by
+  /// Priority.
+  /// @param List The initializer of `llvm.global_ctors` or `llvm.global_dtors`
+  /// array.
+  /// @param[out] Structors Sorted Structor structs by Priority.
+  void preprocessXXStructorList(const DataLayout &DL, const Constant *List,
+                                SmallVector<Structor, 8> &Structors);
+
+  /// This method emits `llvm.global_ctors` or `llvm.global_dtors` list.
+  virtual void emitXXStructorList(const DataLayout &DL, const Constant *List,
+                                  bool IsCtor);
 
   /// Emit an alignment directive to the specified power of two boundary. If a
   /// global value is specified, and if that global has an explicit alignment
@@ -526,9 +577,6 @@ public:
     emitLabelPlusOffset(Label, 0, Size, IsSectionRelative);
   }
 
-  /// Emit something like ".long Label + Offset".
-  void emitDwarfOffset(const MCSymbol *Label, uint64_t Offset) const;
-
   //===------------------------------------------------------------------===//
   // Dwarf Emission Helper Routines
   //===------------------------------------------------------------------===//
@@ -557,17 +605,38 @@ public:
   void emitDwarfSymbolReference(const MCSymbol *Label,
                                 bool ForceOffset = false) const;
 
-  /// Emit the 4-byte offset of a string from the start of its section.
+  /// Emit the 4- or 8-byte offset of a string from the start of its section.
   ///
   /// When possible, emit a DwarfStringPool section offset without any
   /// relocations, and without using the symbol.  Otherwise, defers to \a
   /// emitDwarfSymbolReference().
+  ///
+  /// The length of the emitted value depends on the DWARF format.
   void emitDwarfStringOffset(DwarfStringPoolEntry S) const;
 
-  /// Emit the 4-byte offset of a string from the start of its section.
+  /// Emit the 4-or 8-byte offset of a string from the start of its section.
   void emitDwarfStringOffset(DwarfStringPoolEntryRef S) const {
     emitDwarfStringOffset(S.getEntry());
   }
+
+  /// Emit something like ".long Label + Offset" or ".quad Label + Offset"
+  /// depending on the DWARF format.
+  void emitDwarfOffset(const MCSymbol *Label, uint64_t Offset) const;
+
+  /// Emit 32- or 64-bit value depending on the DWARF format.
+  void emitDwarfLengthOrOffset(uint64_t Value) const;
+
+  /// Emit a special value of 0xffffffff if producing 64-bit debugging info.
+  void maybeEmitDwarf64Mark() const;
+
+  /// Emit a unit length field. The actual format, DWARF32 or DWARF64, is chosen
+  /// according to the settings.
+  void emitDwarfUnitLength(uint64_t Length, const Twine &Comment) const;
+
+  /// Emit a unit length field. The actual format, DWARF32 or DWARF64, is chosen
+  /// according to the settings.
+  void emitDwarfUnitLength(const MCSymbol *Hi, const MCSymbol *Lo,
+                           const Twine &Comment) const;
 
   /// Emit reference to a call site with a specified encoding
   void emitCallSiteOffset(const MCSymbol *Hi, const MCSymbol *Lo,
@@ -705,8 +774,6 @@ private:
   void emitModuleIdents(Module &M);
   /// Emit bytes for llvm.commandline metadata.
   void emitModuleCommandLines(Module &M);
-  void emitXXStructorList(const DataLayout &DL, const Constant *List,
-                          bool isCtor);
 
   GCMetadataPrinter *GetOrCreateGCPrinter(GCStrategy &S);
   /// Emit GlobalAlias or GlobalIFunc.

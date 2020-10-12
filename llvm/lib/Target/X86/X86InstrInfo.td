@@ -132,6 +132,11 @@ def SDT_X86MEMBARRIER : SDTypeProfile<0, 0, []>;
 def SDT_X86ENQCMD : SDTypeProfile<1, 2, [SDTCisVT<0, i32>,
                                          SDTCisPtrTy<1>, SDTCisSameAs<1, 2>]>;
 
+def SDT_X86AESENCDECKL : SDTypeProfile<2, 2, [SDTCisVT<0, v2i64>,
+                                              SDTCisVT<1, i32>,
+                                              SDTCisVT<2, v2i64>,
+                                              SDTCisPtrTy<3>]>;
+
 def X86MemBarrier : SDNode<"X86ISD::MEMBARRIER", SDT_X86MEMBARRIER,
                             [SDNPHasChain,SDNPSideEffect]>;
 def X86MFence : SDNode<"X86ISD::MFENCE", SDT_X86MEMBARRIER,
@@ -324,6 +329,19 @@ def X86enqcmd : SDNode<"X86ISD::ENQCMD", SDT_X86ENQCMD,
 def X86enqcmds : SDNode<"X86ISD::ENQCMDS", SDT_X86ENQCMD,
                        [SDNPHasChain, SDNPSideEffect]>;
 
+def X86aesenc128kl : SDNode<"X86ISD::AESENC128KL", SDT_X86AESENCDECKL,
+                            [SDNPHasChain, SDNPMayLoad, SDNPSideEffect,
+                             SDNPMemOperand]>;
+def X86aesdec128kl : SDNode<"X86ISD::AESDEC128KL", SDT_X86AESENCDECKL,
+                            [SDNPHasChain, SDNPMayLoad, SDNPSideEffect,
+                             SDNPMemOperand]>;
+def X86aesenc256kl : SDNode<"X86ISD::AESENC256KL", SDT_X86AESENCDECKL,
+                            [SDNPHasChain, SDNPMayLoad, SDNPSideEffect,
+                             SDNPMemOperand]>;
+def X86aesdec256kl : SDNode<"X86ISD::AESDEC256KL", SDT_X86AESENCDECKL,
+                            [SDNPHasChain, SDNPMayLoad, SDNPSideEffect,
+                             SDNPMemOperand]>;
+
 //===----------------------------------------------------------------------===//
 // X86 Operand Definitions.
 //
@@ -361,6 +379,8 @@ let RenderMethod = "addMemOperands", SuperClasses = [X86MemAsmOperand] in {
   def X86Mem512_RC256XOperand : AsmOperandClass { let Name = "Mem512_RC256X"; }
   def X86Mem256_RC512Operand  : AsmOperandClass { let Name = "Mem256_RC512"; }
   def X86Mem512_RC512Operand  : AsmOperandClass { let Name = "Mem512_RC512"; }
+
+  def X86SibMemOperand : AsmOperandClass { let Name = "SibMem"; }
 }
 
 def X86AbsMemAsmOperand : AsmOperandClass {
@@ -391,6 +411,8 @@ def X86any_fcmp : PatFrags<(ops node:$lhs, node:$rhs),
 // FIXME: Right now we allow any size during parsing, but we might want to
 // restrict to only unsized memory.
 def opaquemem : X86MemOperand<"printMemReference">;
+
+def sibmem: X86MemOperand<"printMemReference", X86SibMemOperand>;
 
 def i8mem   : X86MemOperand<"printbytemem",   X86Mem8AsmOperand>;
 def i16mem  : X86MemOperand<"printwordmem",  X86Mem16AsmOperand>;
@@ -636,10 +658,17 @@ class ImmSExtAsmOperandClass : AsmOperandClass {
 def X86GR32orGR64AsmOperand : AsmOperandClass {
   let Name = "GR32orGR64";
 }
-
 def GR32orGR64 : RegisterOperand<GR32> {
   let ParserMatchClass = X86GR32orGR64AsmOperand;
 }
+
+def X86GR16orGR32orGR64AsmOperand : AsmOperandClass {
+  let Name = "GR16orGR32orGR64";
+}
+def GR16orGR32orGR64 : RegisterOperand<GR16> {
+  let ParserMatchClass = X86GR16orGR32orGR64AsmOperand;
+}
+
 def AVX512RCOperand : AsmOperandClass {
   let Name = "AVX512RC";
 }
@@ -953,8 +982,13 @@ def HasCmpxchg8b : Predicate<"Subtarget->hasCmpxchg8b()">;
 def HasCmpxchg16b: Predicate<"Subtarget->hasCmpxchg16b()">;
 def HasPCONFIG   : Predicate<"Subtarget->hasPCONFIG()">;
 def HasENQCMD    : Predicate<"Subtarget->hasENQCMD()">;
+def HasKL        : Predicate<"Subtarget->hasKL()">;
+def HasWIDEKL    : Predicate<"Subtarget->hasWIDEKL()">;
 def HasSERIALIZE : Predicate<"Subtarget->hasSERIALIZE()">;
 def HasTSXLDTRK  : Predicate<"Subtarget->hasTSXLDTRK()">;
+def HasAMXTILE   : Predicate<"Subtarget->hasAMXTILE()">;
+def HasAMXBF16   : Predicate<"Subtarget->hasAMXBF16()">;
+def HasAMXINT8   : Predicate<"Subtarget->hasAMXINT8()">;
 def Not64BitMode : Predicate<"!Subtarget->is64Bit()">,
                              AssemblerPredicate<(all_of (not Mode64Bit)), "Not 64-bit mode">;
 def In64BitMode  : Predicate<"Subtarget->is64Bit()">,
@@ -1002,6 +1036,7 @@ def HasFastMem32 : Predicate<"!Subtarget->isUnalignedMem32Slow()">;
 def HasFastLZCNT : Predicate<"Subtarget->hasFastLZCNT()">;
 def HasFastSHLDRotate : Predicate<"Subtarget->hasFastSHLDRotate()">;
 def HasERMSB : Predicate<"Subtarget->hasERMSB()">;
+def HasFSRM : Predicate<"Subtarget->hasFSRM()">;
 def HasMFence    : Predicate<"Subtarget->hasMFence()">;
 def UseIndirectThunkCalls : Predicate<"Subtarget->useIndirectThunkCalls()">;
 def NotUseIndirectThunkCalls : Predicate<"!Subtarget->useIndirectThunkCalls()">;
@@ -2773,8 +2808,7 @@ let SchedRW = [ WriteSystem ] in {
 
   let Uses = [ ECX, EAX, EBX ] in {
     def MWAITXrrr : I<0x01, MRM_FB, (outs), (ins), "mwaitx",
-                    [(int_x86_mwaitx ECX, EAX, EBX)]>,
-                    TB, Requires<[ HasMWAITX ]>;
+                    []>, TB, Requires<[ HasMWAITX ]>;
   }
 } // SchedRW
 
@@ -3069,6 +3103,14 @@ include "X86InstrSVM.td"
 
 include "X86InstrTSX.td"
 include "X86InstrSGX.td"
+
+include "X86InstrTDX.td"
+
+// Key Locker instructions
+include "X86InstrKL.td"
+
+// AMX instructions
+include "X86InstrAMX.td"
 
 // System instructions.
 include "X86InstrSystem.td"

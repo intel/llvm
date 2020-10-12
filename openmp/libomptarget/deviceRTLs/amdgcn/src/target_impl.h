@@ -42,10 +42,6 @@
 
 #define WARPSIZE 64
 
-// The named barrier for active parallel threads of a team in an L1 parallel
-// region to synchronize with each other.
-#define L1_BARRIER (1)
-
 // Maximum number of preallocated arguments to an outlined parallel/simd
 // function. Anything more requires dynamic memory allocation.
 #define MAX_SHARED_ARGS 20
@@ -113,16 +109,23 @@ INLINE void __kmpc_impl_syncwarp(__kmpc_impl_lanemask_t) {
   // AMDGCN doesn't need to sync threads in a warp
 }
 
-INLINE void __kmpc_impl_named_sync(int barrier, uint32_t num_threads) {
-  // we have protected the master warp from releasing from its barrier
-  // due to a full workgroup barrier in the middle of a work function.
-  // So it is ok to issue a full workgroup barrier here.
+INLINE void __kmpc_impl_named_sync(uint32_t num_threads) {
+  (void)num_threads;
+  // TODO: Implement on top of __SHARED__
   __builtin_amdgcn_s_barrier();
 }
 
-DEVICE void __kmpc_impl_threadfence(void);
-DEVICE void __kmpc_impl_threadfence_block(void);
-DEVICE void __kmpc_impl_threadfence_system(void);
+INLINE void __kmpc_impl_threadfence() {
+  __builtin_amdgcn_fence(__ATOMIC_SEQ_CST, "agent");
+}
+
+INLINE void __kmpc_impl_threadfence_block() {
+  __builtin_amdgcn_fence(__ATOMIC_SEQ_CST, "workgroup");
+}
+
+INLINE void __kmpc_impl_threadfence_system() {
+  __builtin_amdgcn_fence(__ATOMIC_SEQ_CST, "");
+}
 
 // Calls to the AMDGCN layer (assuming 1D layout)
 INLINE int GetThreadIdInBlock() { return __builtin_amdgcn_workitem_id_x(); }
@@ -131,8 +134,6 @@ DEVICE int GetNumberOfBlocksInKernel();
 DEVICE int GetNumberOfThreadsInBlock();
 DEVICE unsigned GetWarpId();
 DEVICE unsigned GetLaneId();
-
-DEVICE bool __kmpc_impl_is_first_active_thread();
 
 // Locks
 DEVICE void __kmpc_impl_init_lock(omp_lock_t *lock);

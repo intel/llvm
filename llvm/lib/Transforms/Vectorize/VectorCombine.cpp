@@ -16,6 +16,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/GlobalsModRef.h"
+#include "llvm/Analysis/Loads.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/Analysis/VectorUtils.h"
@@ -33,6 +34,7 @@ using namespace llvm;
 using namespace llvm::PatternMatch;
 
 #define DEBUG_TYPE "vector-combine"
+STATISTIC(NumVecLoad, "Number of vector loads formed");
 STATISTIC(NumVecCmp, "Number of vector compares formed");
 STATISTIC(NumVecBO, "Number of vector binops formed");
 STATISTIC(NumVecCmpBO, "Number of vector compare + binop formed");
@@ -50,6 +52,7 @@ static cl::opt<bool> DisableBinopExtractShuffle(
 
 static const unsigned InvalidIndex = std::numeric_limits<unsigned>::max();
 
+namespace {
 class VectorCombine {
 public:
   VectorCombine(Function &F, const TargetTransformInfo &TTI,
@@ -64,6 +67,7 @@ private:
   const TargetTransformInfo &TTI;
   const DominatorTree &DT;
 
+  bool vectorizeLoadInsert(Instruction &I);
   ExtractElementInst *getShuffleExtract(ExtractElementInst *Ext0,
                                         ExtractElementInst *Ext1,
                                         unsigned PreferredExtractIndex) const;
@@ -80,10 +84,81 @@ private:
   bool scalarizeBinopOrCmp(Instruction &I);
   bool foldExtractedCmps(Instruction &I);
 };
+} // namespace
 
 static void replaceValue(Value &Old, Value &New) {
   Old.replaceAllUsesWith(&New);
   New.takeName(&Old);
+}
+
+bool VectorCombine::vectorizeLoadInsert(Instruction &I) {
+  // Match insert into fixed vector of scalar load.
+  auto *Ty = dyn_cast<FixedVectorType>(I.getType());
+  Value *Scalar;
+  if (!Ty || !match(&I, m_InsertElt(m_Undef(), m_Value(Scalar), m_ZeroInt())) ||
+      !Scalar->hasOneUse())
+    return false;
+
+  // Do not vectorize scalar load (widening) if atomic/volatile or under
+  // asan/hwasan/memtag/tsan. The widened load may load data from dirty regions
+  // or create data races non-existent in the source.
+  auto *Load = dyn_cast<LoadInst>(Scalar);
+  if (!Load || !Load->isSimple() ||
+      Load->getFunction()->hasFnAttribute(Attribute::SanitizeMemTag) ||
+      mustSuppressSpeculation(*Load))
+    return false;
+
+  // TODO: Extend this to match GEP with constant offsets.
+  Value *PtrOp = Load->getPointerOperand()->stripPointerCasts();
+  assert(isa<PointerType>(PtrOp->getType()) && "Expected a pointer type");
+
+  Type *ScalarTy = Scalar->getType();
+  uint64_t ScalarSize = ScalarTy->getPrimitiveSizeInBits();
+  unsigned MinVectorSize = TTI.getMinVectorRegisterBitWidth();
+  if (!ScalarSize || !MinVectorSize || MinVectorSize % ScalarSize != 0)
+    return false;
+
+  // Check safety of replacing the scalar load with a larger vector load.
+  unsigned MinVecNumElts = MinVectorSize / ScalarSize;
+  auto *MinVecTy = VectorType::get(ScalarTy, MinVecNumElts, false);
+  Align Alignment = Load->getAlign();
+  const DataLayout &DL = I.getModule()->getDataLayout();
+  if (!isSafeToLoadUnconditionally(PtrOp, MinVecTy, Alignment, DL, Load, &DT))
+    return false;
+
+  unsigned AS = Load->getPointerAddressSpace();
+
+  // Original pattern: insertelt undef, load [free casts of] ScalarPtr, 0
+  int OldCost = TTI.getMemoryOpCost(Instruction::Load, ScalarTy, Alignment, AS);
+  APInt DemandedElts = APInt::getOneBitSet(MinVecNumElts, 0);
+  OldCost += TTI.getScalarizationOverhead(MinVecTy, DemandedElts, true, false);
+
+  // New pattern: load VecPtr
+  int NewCost = TTI.getMemoryOpCost(Instruction::Load, MinVecTy, Alignment, AS);
+
+  // We can aggressively convert to the vector form because the backend can
+  // invert this transform if it does not result in a performance win.
+  if (OldCost < NewCost)
+    return false;
+
+  // It is safe and potentially profitable to load a vector directly:
+  // inselt undef, load Scalar, 0 --> load VecPtr
+  IRBuilder<> Builder(Load);
+  Value *CastedPtr = Builder.CreateBitCast(PtrOp, MinVecTy->getPointerTo(AS));
+  Value *VecLd = Builder.CreateAlignedLoad(MinVecTy, CastedPtr, Alignment);
+
+  // If the insert type does not match the target's minimum vector type,
+  // use an identity shuffle to shrink/grow the vector.
+  if (Ty != MinVecTy) {
+    unsigned OutputNumElts = Ty->getNumElements();
+    SmallVector<int, 16> Mask(OutputNumElts, UndefMaskElem);
+    for (unsigned i = 0; i < OutputNumElts && i < MinVecNumElts; ++i)
+      Mask[i] = i;
+    VecLd = Builder.CreateShuffleVector(VecLd, Mask);
+  }
+  replaceValue(I, *VecLd);
+  ++NumVecLoad;
+  return true;
 }
 
 /// Determine which, if any, of the inputs should be replaced by a shuffle
@@ -229,8 +304,7 @@ static Value *createShiftShuffle(Value *Vec, unsigned OldIndex,
   auto *VecTy = cast<FixedVectorType>(Vec->getType());
   SmallVector<int, 32> ShufMask(VecTy->getNumElements(), UndefMaskElem);
   ShufMask[NewIndex] = OldIndex;
-  Value *Undef = UndefValue::get(VecTy);
-  return Builder.CreateShuffleVector(Vec, Undef, ShufMask, "shift");
+  return Builder.CreateShuffleVector(Vec, ShufMask, "shift");
 }
 
 /// Given an extract element instruction with constant index operand, shuffle
@@ -364,11 +438,14 @@ bool VectorCombine::foldBitcastShuf(Instruction &I) {
                      m_OneUse(m_Shuffle(m_Value(V), m_Undef(), m_Mask(Mask))))))
     return false;
 
-  // Disallow non-vector casts and length-changing shuffles.
+  // 1) Do not fold bitcast shuffle for scalable type. First, shuffle cost for
+  // scalable type is unknown; Second, we cannot reason if the narrowed shuffle
+  // mask for scalable type is a splat or not.
+  // 2) Disallow non-vector casts and length-changing shuffles.
   // TODO: We could allow any shuffle.
-  auto *DestTy = dyn_cast<VectorType>(I.getType());
-  auto *SrcTy = cast<VectorType>(V->getType());
-  if (!DestTy || I.getOperand(0)->getType() != SrcTy)
+  auto *DestTy = dyn_cast<FixedVectorType>(I.getType());
+  auto *SrcTy = dyn_cast<FixedVectorType>(V->getType());
+  if (!SrcTy || !DestTy || I.getOperand(0)->getType() != SrcTy)
     return false;
 
   // The new shuffle must not cost more than the old shuffle. The bitcast is
@@ -397,8 +474,7 @@ bool VectorCombine::foldBitcastShuf(Instruction &I) {
   // bitcast (shuf V, MaskC) --> shuf (bitcast V), MaskC'
   ++NumShufOfBitcast;
   Value *CastV = Builder.CreateBitCast(V, DestTy);
-  Value *Shuf =
-      Builder.CreateShuffleVector(CastV, UndefValue::get(DestTy), NewMask);
+  Value *Shuf = Builder.CreateShuffleVector(CastV, NewMask);
   replaceValue(I, *Shuf);
   return true;
 }
@@ -610,6 +686,10 @@ bool VectorCombine::run() {
   if (DisableVectorCombine)
     return false;
 
+  // Don't attempt vectorization if the target does not support vectors.
+  if (!TTI.getNumberOfRegisters(TTI.getRegisterClassForType(/*Vector*/ true)))
+    return false;
+
   bool MadeChange = false;
   for (BasicBlock &BB : F) {
     // Ignore unreachable basic blocks.
@@ -623,6 +703,7 @@ bool VectorCombine::run() {
       if (isa<DbgInfoIntrinsic>(I))
         continue;
       Builder.SetInsertPoint(&I);
+      MadeChange |= vectorizeLoadInsert(I);
       MadeChange |= foldExtractExtract(I);
       MadeChange |= foldBitcastShuf(I);
       MadeChange |= scalarizeBinopOrCmp(I);

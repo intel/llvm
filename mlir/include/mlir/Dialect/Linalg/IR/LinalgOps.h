@@ -22,6 +22,7 @@
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/IR/Types.h"
+#include "mlir/Interfaces/CopyOpInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
 #include "mlir/Support/LLVM.h"
@@ -50,9 +51,9 @@ using ReassociationExprs = SmallVector<AffineExpr, 2>;
 /// 1. linalg.fill(%A, %f) : memref<f32>, f32
 ///   name mangles into `linalg_fill_viewf32_f32_impl`
 ///
-/// 2. linalg.dot(%A, %B, %C) :
-///      memref<?xf32, stride_specification>,
-///      memref<?xf32, stride_specification>, memref<f32>
+/// 2. linalg.dot %A, %B, %C :
+///      (memref<?xf32, stride_specification>,
+///       memref<?xf32, stride_specification>, memref<f32>)
 ///   name mangles into `linalg_dot_viewxf32_viewxf32_viewf32_impl`
 ///
 /// 3. linalg.matmul(...) :
@@ -84,6 +85,14 @@ AffineMap extractOrIdentityMap(Optional<AffineMap> maybeMap, unsigned rank,
 SmallVector<AffineExpr, 4> concat(ArrayRef<AffineExpr> a,
                                   ArrayRef<AffineExpr> b);
 
+/// Return the dims that are `iteratorTypeName` loops in the LinalgOp `op`.
+/// Assumes `op` is a LinalgOp.
+void getDimsOfType(Operation *op, StringRef iteratorTypeName,
+                   SmallVectorImpl<AffineExpr> &res);
+
+} // namespace linalg
+} // namespace mlir
+
 #include "mlir/Dialect/Linalg/IR/LinalgStructuredOpsInterfaces.h.inc"
 
 #define GET_OP_CLASSES
@@ -91,8 +100,5 @@ SmallVector<AffineExpr, 4> concat(ArrayRef<AffineExpr> a,
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Linalg/IR/LinalgStructuredOps.h.inc"
-
-} // namespace linalg
-} // namespace mlir
 
 #endif // MLIR_DIALECT_LINALG_LINALGOPS_H_

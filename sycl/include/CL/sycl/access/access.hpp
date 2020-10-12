@@ -105,8 +105,13 @@ constexpr bool modeWritesNewData(access::mode m) {
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define __OPENCL_GLOBAL_AS__ __attribute__((opencl_global))
+#ifdef __ENABLE_USM_ADDR_SPACE__
 #define __OPENCL_GLOBAL_DEVICE_AS__ __attribute__((opencl_global_device))
 #define __OPENCL_GLOBAL_HOST_AS__ __attribute__((opencl_global_host))
+#else
+#define __OPENCL_GLOBAL_DEVICE_AS__ __attribute__((opencl_global))
+#define __OPENCL_GLOBAL_HOST_AS__ __attribute__((opencl_global))
+#endif // __ENABLE_USM_ADDR_SPACE__
 #define __OPENCL_LOCAL_AS__ __attribute__((opencl_local))
 #define __OPENCL_CONSTANT_AS__ __attribute__((opencl_constant))
 #define __OPENCL_PRIVATE_AS__ __attribute__((opencl_private))
@@ -124,10 +129,12 @@ template <access::target accessTarget> struct TargetToAS {
       access::address_space::global_space;
 };
 
+#ifdef __ENABLE_USM_ADDR_SPACE__
 template <> struct TargetToAS<access::target::global_buffer> {
   constexpr static access::address_space AS =
       access::address_space::global_device_space;
 };
+#endif // __ENABLE_USM_ADDR_SPACE__
 
 template <> struct TargetToAS<access::target::local> {
   constexpr static access::address_space AS =
@@ -192,6 +199,7 @@ struct remove_AS<__OPENCL_GLOBAL_AS__ T> {
   typedef T type;
 };
 
+#ifdef __ENABLE_USM_ADDR_SPACE__
 template <class T> struct remove_AS<__OPENCL_GLOBAL_DEVICE_AS__ T> {
   typedef T type;
 };
@@ -199,6 +207,7 @@ template <class T> struct remove_AS<__OPENCL_GLOBAL_DEVICE_AS__ T> {
 template <class T> struct remove_AS<__OPENCL_GLOBAL_HOST_AS__ T> {
   typedef T type;
 };
+#endif // __ENABLE_USM_ADDR_SPACE__
 
 template <class T>
 struct remove_AS<__OPENCL_PRIVATE_AS__ T> {

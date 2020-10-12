@@ -1,6 +1,10 @@
 # Test runner infrastructure for Flang. This configures the Flang test trees
 # for use by Lit, and delegates to LLVM's lit test handlers.
 
+llvm_canonicalize_cmake_booleans(
+  FLANG_STANDALONE_BUILD
+)
+
 set(FLANG_INTRINSIC_MODULES_DIR ${FLANG_BINARY_DIR}/include/flang)
 
 set(FLANG_TOOLS_DIR ${FLANG_BINARY_DIR}/bin)
@@ -19,6 +23,13 @@ configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/Unit/lit.cfg.py
 )
 
+configure_lit_site_cfg(
+  ${CMAKE_CURRENT_SOURCE_DIR}/NonGtestUnit/lit.site.cfg.py.in
+  ${CMAKE_CURRENT_BINARY_DIR}/NonGtestUnit/lit.site.cfg.py
+  MAIN_CONFIG
+  ${CMAKE_CURRENT_SOURCE_DIR}/NonGtestUnit/lit.cfg.py
+)
+
 set(FLANG_TEST_PARAMS
   flang_site_config=${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py)
 
@@ -28,6 +39,10 @@ set(FLANG_TEST_DEPENDS
 
 if (LINK_WITH_FIR)
   list(APPEND FLANG_TEST_DEPENDS tco)
+endif()
+
+if (FLANG_BUILD_NEW_DRIVER)
+  list(APPEND FLANG_TEST_DEPENDS flang-new)
 endif()
 
 if (FLANG_INCLUDE_TESTS)

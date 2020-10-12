@@ -855,7 +855,7 @@ bool SIInsertWaitcnts::generateWaitcntInstBefore(
   setForceEmitWaitcnt();
   bool IsForceEmitWaitcnt = isForceEmitWaitcnt();
 
-  if (MI.isDebugInstr())
+  if (MI.isMetaInstruction())
     return false;
 
   AMDGPU::Waitcnt Wait;
@@ -876,7 +876,7 @@ bool SIInsertWaitcnts::generateWaitcntInstBefore(
   if (MI.getOpcode() == AMDGPU::SI_RETURN_TO_EPILOG ||
       MI.getOpcode() == AMDGPU::S_SETPC_B64_return ||
       (MI.isReturn() && MI.isCall() && !callWaitsOnFunctionEntry(MI))) {
-    Wait = Wait.combined(AMDGPU::Waitcnt::allZero(IV));
+    Wait = Wait.combined(AMDGPU::Waitcnt::allZero(ST->hasVscnt()));
   }
   // Resolve vm waits before gs-done.
   else if ((MI.getOpcode() == AMDGPU::S_SENDMSG ||
@@ -963,26 +963,28 @@ bool SIInsertWaitcnts::generateWaitcntInstBefore(
 
       int CallAddrOpIdx =
           AMDGPU::getNamedOperandIdx(MI.getOpcode(), AMDGPU::OpName::src0);
-      RegInterval CallAddrOpInterval =
+
+      if (MI.getOperand(CallAddrOpIdx).isReg()) {
+        RegInterval CallAddrOpInterval =
           ScoreBrackets.getRegInterval(&MI, TII, MRI, TRI, CallAddrOpIdx);
 
-      for (int RegNo = CallAddrOpInterval.first;
-           RegNo < CallAddrOpInterval.second; ++RegNo)
-        ScoreBrackets.determineWait(
+        for (int RegNo = CallAddrOpInterval.first;
+             RegNo < CallAddrOpInterval.second; ++RegNo)
+          ScoreBrackets.determineWait(
             LGKM_CNT, ScoreBrackets.getRegScore(RegNo, LGKM_CNT), Wait);
 
-      int RtnAddrOpIdx =
-            AMDGPU::getNamedOperandIdx(MI.getOpcode(), AMDGPU::OpName::dst);
-      if (RtnAddrOpIdx != -1) {
-        RegInterval RtnAddrOpInterval =
+        int RtnAddrOpIdx =
+          AMDGPU::getNamedOperandIdx(MI.getOpcode(), AMDGPU::OpName::dst);
+        if (RtnAddrOpIdx != -1) {
+          RegInterval RtnAddrOpInterval =
             ScoreBrackets.getRegInterval(&MI, TII, MRI, TRI, RtnAddrOpIdx);
 
-        for (int RegNo = RtnAddrOpInterval.first;
-             RegNo < RtnAddrOpInterval.second; ++RegNo)
-          ScoreBrackets.determineWait(
+          for (int RegNo = RtnAddrOpInterval.first;
+               RegNo < RtnAddrOpInterval.second; ++RegNo)
+            ScoreBrackets.determineWait(
               LGKM_CNT, ScoreBrackets.getRegScore(RegNo, LGKM_CNT), Wait);
+        }
       }
-
     } else {
       // FIXME: Should not be relying on memoperands.
       // Look at the source operands of every instruction to see if
@@ -1024,8 +1026,10 @@ bool SIInsertWaitcnts::generateWaitcntInstBefore(
           continue;
         RegInterval Interval =
             ScoreBrackets.getRegInterval(&MI, TII, MRI, TRI, I);
+
+        const bool IsVGPR = TRI->isVGPR(*MRI, Op.getReg());
         for (int RegNo = Interval.first; RegNo < Interval.second; ++RegNo) {
-          if (TRI->isVGPR(*MRI, Op.getReg())) {
+          if (IsVGPR) {
             // RAW always needs an s_waitcnt. WAW needs an s_waitcnt unless the
             // previous write and this write are the same type of VMEM
             // instruction, in which case they're guaranteed to write their
@@ -1055,7 +1059,7 @@ bool SIInsertWaitcnts::generateWaitcntInstBefore(
   // requiring a WAITCNT beforehand.
   if (MI.getOpcode() == AMDGPU::S_BARRIER &&
       !ST->hasAutoWaitcntBeforeBarrier()) {
-    Wait = Wait.combined(AMDGPU::Waitcnt::allZero(IV));
+    Wait = Wait.combined(AMDGPU::Waitcnt::allZero(ST->hasVscnt()));
   }
 
   // TODO: Remove this work-around, enable the assert for Bug 457939
@@ -1088,8 +1092,8 @@ bool SIInsertWaitcnts::generateWaitcntInstBefore(
         } else {
           assert(II->getOpcode() == AMDGPU::S_WAITCNT_VSCNT);
           assert(II->getOperand(0).getReg() == AMDGPU::SGPR_NULL);
-          ScoreBrackets.applyWaitcnt(
-              AMDGPU::Waitcnt(~0u, ~0u, ~0u, II->getOperand(1).getImm()));
+          auto W = TII->getNamedOperand(*II, AMDGPU::OpName::simm16)->getImm();
+          ScoreBrackets.applyWaitcnt(AMDGPU::Waitcnt(~0u, ~0u, ~0u, W));
         }
       }
     }
@@ -1097,7 +1101,7 @@ bool SIInsertWaitcnts::generateWaitcntInstBefore(
   }
 
   if (ForceEmitZeroWaitcnts)
-    Wait = AMDGPU::Waitcnt::allZero(IV);
+    Wait = AMDGPU::Waitcnt::allZero(ST->hasVscnt());
 
   if (ForceEmitWaitcnt[VM_CNT])
     Wait.VmCnt = 0;
@@ -1137,12 +1141,13 @@ bool SIInsertWaitcnts::generateWaitcntInstBefore(
         assert(II->getOpcode() == AMDGPU::S_WAITCNT_VSCNT);
         assert(II->getOperand(0).getReg() == AMDGPU::SGPR_NULL);
 
-        unsigned ICnt = II->getOperand(1).getImm();
+        unsigned ICnt = TII->getNamedOperand(*II, AMDGPU::OpName::simm16)
+                        ->getImm();
         OldWait.VsCnt = std::min(OldWait.VsCnt, ICnt);
         if (!TrackedWaitcntSet.count(&*II))
           Wait.VsCnt = std::min(Wait.VsCnt, ICnt);
         if (Wait.VsCnt != ICnt) {
-          II->getOperand(1).setImm(Wait.VsCnt);
+          TII->getNamedOperand(*II, AMDGPU::OpName::simm16)->setImm(Wait.VsCnt);
           Modified = true;
         }
         Wait.VsCnt = ~0u;
@@ -1266,7 +1271,7 @@ void SIInsertWaitcnts::updateEventWaitcntAfter(MachineInstr &Inst,
   } else if (Inst.isCall()) {
     if (callWaitsOnFunctionReturn(Inst)) {
       // Act as a wait on everything
-      ScoreBrackets->applyWaitcnt(AMDGPU::Waitcnt::allZero(IV));
+      ScoreBrackets->applyWaitcnt(AMDGPU::Waitcnt::allZero(ST->hasVscnt()));
     } else {
       // May need to way wait for anything.
       ScoreBrackets->applyWaitcnt(AMDGPU::Waitcnt());

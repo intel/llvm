@@ -72,8 +72,16 @@
 #endif
 
 // wasm32 follows the arm32 ABI convention of using 32-bit guard.
-#if defined(__arm__) || defined(__wasm32__)
+#if defined(__arm__) || defined(__wasm32__) || defined(__ARM64_ARCH_8_32__)
 #  define _LIBCXXABI_GUARD_ABI_ARM
+#endif
+
+#if defined(_LIBCXXABI_COMPILER_CLANG)
+#  if !__has_feature(cxx_exceptions)
+#    define _LIBCXXABI_NO_EXCEPTIONS
+#  endif
+#elif defined(_LIBCXXABI_COMPILER_GCC) && !__EXCEPTIONS
+#  define _LIBCXXABI_NO_EXCEPTIONS
 #endif
 
 #endif // ____CXXABI_CONFIG_H

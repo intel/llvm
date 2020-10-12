@@ -17,7 +17,7 @@ using namespace llvm;
 
 SDValue AArch64SelectionDAGInfo::EmitTargetCodeForMemset(
     SelectionDAG &DAG, const SDLoc &dl, SDValue Chain, SDValue Dst, SDValue Src,
-    SDValue Size, unsigned Align, bool isVolatile,
+    SDValue Size, Align Alignment, bool isVolatile,
     MachinePointerInfo DstPtrInfo) const {
   // Check to see if there is a specialized entry-point for memory zeroing.
   ConstantSDNode *V = dyn_cast<ConstantSDNode>(Src);
@@ -82,7 +82,8 @@ static SDValue EmitUnrolledSetTag(SelectionDAG &DAG, const SDLoc &dl,
   unsigned OffsetScaled = 0;
   while (OffsetScaled < ObjSizeScaled) {
     if (ObjSizeScaled - OffsetScaled >= 2) {
-      SDValue AddrNode = DAG.getMemBasePlusOffset(Ptr, OffsetScaled * 16, dl);
+      SDValue AddrNode =
+          DAG.getMemBasePlusOffset(Ptr, TypeSize::Fixed(OffsetScaled * 16), dl);
       SDValue St = DAG.getMemIntrinsicNode(
           OpCode2, dl, DAG.getVTList(MVT::Other),
           {Chain, TagSrc, AddrNode},
@@ -94,7 +95,8 @@ static SDValue EmitUnrolledSetTag(SelectionDAG &DAG, const SDLoc &dl,
     }
 
     if (ObjSizeScaled - OffsetScaled > 0) {
-      SDValue AddrNode = DAG.getMemBasePlusOffset(Ptr, OffsetScaled * 16, dl);
+      SDValue AddrNode =
+          DAG.getMemBasePlusOffset(Ptr, TypeSize::Fixed(OffsetScaled * 16), dl);
       SDValue St = DAG.getMemIntrinsicNode(
           OpCode1, dl, DAG.getVTList(MVT::Other),
           {Chain, TagSrc, AddrNode},

@@ -96,9 +96,9 @@ inline constexpr bool IsSameApartFromCase(char x, char y) {
 inline constexpr char DecimalDigitValue(char ch) { return ch - '0'; }
 
 inline constexpr char HexadecimalDigitValue(char ch) {
-  return IsUpperCaseLetter(ch)
-      ? ch - 'A' + 10
-      : IsLowerCaseLetter(ch) ? ch - 'a' + 10 : DecimalDigitValue(ch);
+  return IsUpperCaseLetter(ch) ? ch - 'A' + 10
+      : IsLowerCaseLetter(ch)  ? ch - 'a' + 10
+                               : DecimalDigitValue(ch);
 }
 
 inline constexpr std::optional<char> BackslashEscapeValue(char ch) {
@@ -148,6 +148,33 @@ inline constexpr std::optional<char> BackslashEscapeChar(char ch) {
     return ch;
   default:
     return std::nullopt;
+  }
+}
+
+// Does not include spaces or line ending characters.
+inline constexpr bool IsValidFortranTokenCharacter(char ch) {
+  switch (ch) {
+  case '"':
+  case '%':
+  case '\'':
+  case '(':
+  case ')':
+  case '*':
+  case '+':
+  case ',':
+  case '-':
+  case '.':
+  case '/':
+  case ':':
+  case ';':
+  case '<':
+  case '=':
+  case '>':
+  case '[':
+  case ']':
+    return true;
+  default:
+    return IsLegalIdentifierStart(ch) || IsDecimalDigit(ch);
   }
 }
 

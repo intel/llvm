@@ -268,6 +268,7 @@ CleanupPointerRootUsers(GlobalVariable *GV,
         I = J;
       } while (true);
       I->eraseFromParent();
+      Changed = true;
     }
   }
 
@@ -468,19 +469,16 @@ static bool CanDoGlobalSRA(GlobalVariable *GV) {
 /// Copy over the debug info for a variable to its SRA replacements.
 static void transferSRADebugInfo(GlobalVariable *GV, GlobalVariable *NGV,
                                  uint64_t FragmentOffsetInBits,
-                                 uint64_t FragmentSizeInBits) {
+                                 uint64_t FragmentSizeInBits,
+                                 uint64_t VarSize) {
   SmallVector<DIGlobalVariableExpression *, 1> GVs;
   GV->getDebugInfo(GVs);
   for (auto *GVE : GVs) {
     DIVariable *Var = GVE->getVariable();
-    Optional<uint64_t> VarSize = Var->getSizeInBits();
-
     DIExpression *Expr = GVE->getExpression();
     // If the FragmentSize is smaller than the variable,
     // emit a fragment expression.
-    // If the variable size is unknown a fragment must be
-    // emitted to be safe.
-    if (!VarSize || FragmentSizeInBits < *VarSize) {
+    if (FragmentSizeInBits < VarSize) {
       if (auto E = DIExpression::createFragmentExpression(
               Expr, FragmentOffsetInBits, FragmentSizeInBits))
         Expr = *E;
@@ -505,13 +503,13 @@ static GlobalVariable *SRAGlobal(GlobalVariable *GV, const DataLayout &DL) {
   assert(GV->hasLocalLinkage());
   Constant *Init = GV->getInitializer();
   Type *Ty = Init->getType();
+  uint64_t VarSize = DL.getTypeSizeInBits(Ty);
 
   std::map<unsigned, GlobalVariable *> NewGlobals;
 
   // Get the alignment of the global, either explicit or target-specific.
-  unsigned StartAlignment = GV->getAlignment();
-  if (StartAlignment == 0)
-    StartAlignment = DL.getABITypeAlignment(GV->getType());
+  Align StartAlignment =
+      DL.getValueOrABITypeAlignment(GV->getAlign(), GV->getType());
 
   // Loop over all users and create replacement variables for used aggregate
   // elements.
@@ -554,28 +552,27 @@ static GlobalVariable *SRAGlobal(GlobalVariable *GV, const DataLayout &DL) {
       // had 256 byte alignment for example, something might depend on that:
       // propagate info to each field.
       uint64_t FieldOffset = Layout.getElementOffset(ElementIdx);
-      Align NewAlign(MinAlign(StartAlignment, FieldOffset));
-      if (NewAlign >
-          Align(DL.getABITypeAlignment(STy->getElementType(ElementIdx))))
+      Align NewAlign = commonAlignment(StartAlignment, FieldOffset);
+      if (NewAlign > DL.getABITypeAlign(STy->getElementType(ElementIdx)))
         NGV->setAlignment(NewAlign);
 
       // Copy over the debug info for the variable.
       uint64_t Size = DL.getTypeAllocSizeInBits(NGV->getValueType());
       uint64_t FragmentOffsetInBits = Layout.getElementOffsetInBits(ElementIdx);
-      transferSRADebugInfo(GV, NGV, FragmentOffsetInBits, Size);
+      transferSRADebugInfo(GV, NGV, FragmentOffsetInBits, Size, VarSize);
     } else {
       uint64_t EltSize = DL.getTypeAllocSize(ElTy);
-      Align EltAlign(DL.getABITypeAlignment(ElTy));
+      Align EltAlign = DL.getABITypeAlign(ElTy);
       uint64_t FragmentSizeInBits = DL.getTypeAllocSizeInBits(ElTy);
 
       // Calculate the known alignment of the field.  If the original aggregate
       // had 256 byte alignment for example, something might depend on that:
       // propagate info to each field.
-      Align NewAlign(MinAlign(StartAlignment, EltSize * ElementIdx));
+      Align NewAlign = commonAlignment(StartAlignment, EltSize * ElementIdx);
       if (NewAlign > EltAlign)
         NGV->setAlignment(NewAlign);
       transferSRADebugInfo(GV, NGV, FragmentSizeInBits * ElementIdx,
-                           FragmentSizeInBits);
+                           FragmentSizeInBits, VarSize);
     }
   }
 
@@ -1993,12 +1990,13 @@ processInternalGlobal(GlobalVariable *GV, const GlobalStatus &GS,
     return true;
   }
 
+  bool Changed = false;
+
   // If the global is never loaded (but may be stored to), it is dead.
   // Delete it now.
   if (!GS.IsLoaded) {
     LLVM_DEBUG(dbgs() << "GLOBAL NEVER LOADED: " << *GV << "\n");
 
-    bool Changed;
     if (isLeakCheckerRoot(GV)) {
       // Delete any constant stores to the global.
       Changed = CleanupPointerRootUsers(GV, GetTLI);
@@ -2024,11 +2022,14 @@ processInternalGlobal(GlobalVariable *GV, const GlobalStatus &GS,
     // Don't actually mark a global constant if it's atomic because atomic loads
     // are implemented by a trivial cmpxchg in some edge-cases and that usually
     // requires write access to the variable even if it's not actually changed.
-    if (GS.Ordering == AtomicOrdering::NotAtomic)
+    if (GS.Ordering == AtomicOrdering::NotAtomic) {
+      assert(!GV->isConstant() && "Expected a non-constant global");
       GV->setConstant(true);
+      Changed = true;
+    }
 
     // Clean up any obviously simplifiable users now.
-    CleanupConstantGlobalUsers(GV, GV->getInitializer(), DL, GetTLI);
+    Changed |= CleanupConstantGlobalUsers(GV, GV->getInitializer(), DL, GetTLI);
 
     // If the global is dead now, just nuke it.
     if (GV->use_empty()) {
@@ -2088,7 +2089,7 @@ processInternalGlobal(GlobalVariable *GV, const GlobalStatus &GS,
     }
   }
 
-  return false;
+  return Changed;
 }
 
 /// Analyze the specified global variable and optimize it if possible.  If we
@@ -2223,8 +2224,7 @@ isValidCandidateForColdCC(Function &F,
     BlockFrequencyInfo &CallerBFI = GetBFI(*CallerFunc);
     if (!isColdCallSite(CB, CallerBFI))
       return false;
-    auto It = std::find(AllCallsCold.begin(), AllCallsCold.end(), CallerFunc);
-    if (It == AllCallsCold.end())
+    if (!llvm::is_contained(AllCallsCold, CallerFunc))
       return false;
   }
   return true;
@@ -2323,13 +2323,10 @@ static void RemovePreallocated(Function *F) {
     assert(PreallocatedSetup && "Did not find preallocated bundle");
     uint64_t ArgCount =
         cast<ConstantInt>(PreallocatedSetup->getArgOperand(0))->getZExtValue();
-    CallBase *NewCB = nullptr;
-    if (InvokeInst *II = dyn_cast<InvokeInst>(CB)) {
-      NewCB = InvokeInst::Create(II, OpBundles, CB);
-    } else {
-      CallInst *CI = cast<CallInst>(CB);
-      NewCB = CallInst::Create(CI, OpBundles, CB);
-    }
+
+    assert((isa<CallInst>(CB) || isa<InvokeInst>(CB)) &&
+           "Unknown indirect call type");
+    CallBase *NewCB = CallBase::Create(CB, OpBundles, CB);
     CB->replaceAllUsesWith(NewCB);
     NewCB->takeName(CB);
     CB->eraseFromParent();
@@ -2447,7 +2444,7 @@ OptimizeFunctions(Module &M,
     // FIXME: We should also hoist alloca affected by this to the entry
     // block if possible.
     if (F->getAttributes().hasAttrSomewhere(Attribute::InAlloca) &&
-        !F->hasAddressTaken()) {
+        !F->hasAddressTaken() && !hasMustTailCallers(F)) {
       RemoveAttribute(F, Attribute::InAlloca);
       Changed = true;
     }

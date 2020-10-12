@@ -1,3 +1,4 @@
+import errno
 import os
 import os.path
 import threading
@@ -178,6 +179,8 @@ class MockGDBServerResponder:
             return self.qsProcessInfo()
         if packet.startswith("qfProcessInfo"):
             return self.qfProcessInfo(packet)
+        if packet.startswith("qPathComplete:"):
+            return self.qPathComplete()
 
         return self.other(packet)
 
@@ -282,6 +285,9 @@ class MockGDBServerResponder:
     def qMemoryRegionInfo(self):
         return ""
 
+    def qPathComplete(self):
+        return ""
+
     """
     Raised when we receive a packet for which there is no default action.
     Override the responder class to implement behavior suitable for the test at
@@ -312,12 +318,20 @@ class MockGDBServer:
     def __init__(self, port = 0):
         self.responder = MockGDBServerResponder()
         self.port = port
-        self._socket = socket.socket()
+        try:
+            self._socket = socket.socket(family=socket.AF_INET)
+        except OSError as e:
+            if e.errno != errno.EAFNOSUPPORT:
+                raise
+            self._socket = socket.socket(family=socket.AF_INET6)
 
     def start(self):
         # Block until the socket is up, so self.port is available immediately.
         # Then start a thread that waits for a client connection.
-        addr = ("127.0.0.1", self.port)
+        if self._socket.family == socket.AF_INET:
+            addr = ("127.0.0.1", self.port)
+        elif self._socket.family == socket.AF_INET6:
+            addr = ("::1", self.port)
         self._socket.bind(addr)
         self.port = self._socket.getsockname()[1]
         self._socket.listen(1)

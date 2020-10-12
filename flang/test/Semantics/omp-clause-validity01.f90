@@ -1,5 +1,5 @@
 ! RUN: %S/test_errors.sh %s %t %f18 -fopenmp
-
+use omp_lib
 ! Check OpenMP clause validity for the following directives:
 !
 !    2.5 PARALLEL construct
@@ -9,9 +9,14 @@
 ! TODO: all the internal errors
 
   integer :: b = 128
-  integer :: c = 32
+  integer :: z, c = 32
   integer, parameter :: num = 16
   real(8) :: arrayA(256), arrayB(512)
+
+  integer(omp_memspace_handle_kind) :: xy_memspace = omp_default_mem_space
+  type(omp_alloctrait) :: xy_traits(1) = [omp_alloctrait(omp_atk_alignment,64)]
+  integer(omp_allocator_handle_kind) :: xy_alloc
+  xy_alloc = omp_init_allocator(xy_memspace, 1, xy_traits)
 
   arrayA = 1.414
   arrayB = 3.14
@@ -25,13 +30,63 @@
 !                        shared-clause |
 !                        copyin-clause |
 !                        reduction-clause |
-!                        proc-bind-clause
+!                        proc-bind-clause |
+!                        allocate-clause
 
   !$omp parallel
   do i = 1, N
      a = 3.14
   enddo
   !$omp end parallel
+
+  !$omp parallel private(b) allocate(b)
+  do i = 1, N
+     a = 3.14
+  enddo
+  !$omp end parallel
+
+  !$omp parallel private(c, b) allocate(omp_default_mem_space : b, c)
+  do i = 1, N
+     a = 3.14
+  enddo
+  !$omp end parallel
+
+  !$omp parallel allocate(b) allocate(c) private(b, c)
+  do i = 1, N
+     a = 3.14
+  enddo
+  !$omp end parallel
+
+  !$omp parallel allocate(xy_alloc :b) private(b)
+  do i = 1, N
+     a = 3.14
+  enddo
+  !$omp end parallel
+  
+  !$omp task private(b) allocate(b)
+  do i = 1, N
+     z = 2
+  end do
+  !$omp end task
+
+  !$omp teams private(b) allocate(b)
+  do i = 1, N
+     z = 2
+  end do
+  !$omp end teams
+
+  !$omp target private(b) allocate(b)
+  do i = 1, N
+     z = 2
+  end do
+  !$omp end target
+ 
+  !ERROR: ALLOCATE clause is not allowed on the TARGET DATA directive
+  !$omp target data map(from: b) allocate(b)
+  do i = 1, N
+     z = 2
+  enddo
+   !$omp end target data
 
   !ERROR: SCHEDULE clause is not allowed on the PARALLEL directive
   !$omp parallel schedule(static)
@@ -364,7 +419,7 @@
      a = 3.14
   enddo
 
-  !ERROR: GRAINSIZE and NUM_TASKS are mutually exclusive and may not appear on the same TASKLOOP directive
+  !ERROR: GRAINSIZE and NUM_TASKS clauses are mutually exclusive and may not appear on the same TASKLOOP directive
   !$omp taskloop num_tasks(3) grainsize(2)
   do i = 1,N
      a = 3.14
@@ -396,6 +451,9 @@
   !$omp taskyield
   !$omp barrier
   !$omp taskwait
+  !$omp taskwait depend(source)
+  !ERROR: Internal: no symbol found for 'i'
+  !$omp taskwait depend(sink:i-1)
   ! !$omp target enter data map(to:arrayA) map(alloc:arrayB)
   ! !$omp target update from(arrayA) to(arrayB)
   ! !$omp target exit data map(from:arrayA) map(delete:arrayB)
@@ -403,6 +461,10 @@
   !ERROR: Internal: no symbol found for 'i'
   !$omp ordered depend(sink:i-1)
   !$omp flush (c)
+  !$omp flush acq_rel
+  !$omp flush release
+  !$omp flush acquire
+  !$omp flush release (c)
   !$omp cancel DO
   !$omp cancellation point parallel
 
@@ -454,7 +516,6 @@
   enddo
   !$omp end taskloop simd
 
-  !ERROR: REDUCTION clause is not allowed on the TASKLOOP SIMD directive
   !$omp taskloop simd reduction(+:a)
   do i = 1, N
      a = a + 3.14
@@ -462,7 +523,7 @@
   !ERROR: Unmatched END TASKLOOP directive
   !$omp end taskloop
 
-  !ERROR: GRAINSIZE and NUM_TASKS are mutually exclusive and may not appear on the same TASKLOOP SIMD directive
+  !ERROR: GRAINSIZE and NUM_TASKS clauses are mutually exclusive and may not appear on the same TASKLOOP SIMD directive
   !$omp taskloop simd num_tasks(3) grainsize(2)
   do i = 1,N
      a = 3.14

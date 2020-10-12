@@ -26,6 +26,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/SmallVectorMemoryBuffer.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -358,22 +359,21 @@ getSymbols(MemoryBufferRef Buf, raw_ostream &SymNames, bool &HasObject) {
   // reference to it, thus SymbolicFile should be destroyed first.
   LLVMContext Context;
   std::unique_ptr<object::SymbolicFile> Obj;
-  if (identify_magic(Buf.getBuffer()) == file_magic::bitcode) {
+
+  const file_magic Type = identify_magic(Buf.getBuffer());
+  // Treat unsupported file types as having no symbols.
+  if (!object::SymbolicFile::isSymbolicFile(Type, &Context))
+    return Ret;
+  if (Type == file_magic::bitcode) {
     auto ObjOrErr = object::SymbolicFile::createSymbolicFile(
         Buf, file_magic::bitcode, &Context);
-    if (!ObjOrErr) {
-      // FIXME: check only for "not an object file" errors.
-      consumeError(ObjOrErr.takeError());
-      return Ret;
-    }
+    if (!ObjOrErr)
+      return ObjOrErr.takeError();
     Obj = std::move(*ObjOrErr);
   } else {
     auto ObjOrErr = object::SymbolicFile::createSymbolicFile(Buf);
-    if (!ObjOrErr) {
-      // FIXME: check only for "not an object file" errors.
-      consumeError(ObjOrErr.takeError());
-      return Ret;
-    }
+    if (!ObjOrErr)
+      return ObjOrErr.takeError();
     Obj = std::move(*ObjOrErr);
   }
 
@@ -392,7 +392,7 @@ getSymbols(MemoryBufferRef Buf, raw_ostream &SymNames, bool &HasObject) {
 static Expected<std::vector<MemberData>>
 computeMemberData(raw_ostream &StringTable, raw_ostream &SymNames,
                   object::Archive::Kind Kind, bool Thin, bool Deterministic,
-                  ArrayRef<NewArchiveMember> NewMembers) {
+                  bool NeedSymbols, ArrayRef<NewArchiveMember> NewMembers) {
   static char PaddingData[8] = {'\n', '\n', '\n', '\n', '\n', '\n', '\n', '\n'};
 
   // This ignores the symbol table, but we only need the value mod 8 and the
@@ -493,13 +493,17 @@ computeMemberData(raw_ostream &StringTable, raw_ostream &SymNames,
                       ModTime, Size);
     Out.flush();
 
-    Expected<std::vector<unsigned>> Symbols =
-        getSymbols(Buf, SymNames, HasObject);
-    if (auto E = Symbols.takeError())
-      return std::move(E);
+    std::vector<unsigned> Symbols;
+    if (NeedSymbols) {
+      Expected<std::vector<unsigned>> SymbolsOrErr =
+          getSymbols(Buf, SymNames, HasObject);
+      if (auto E = SymbolsOrErr.takeError())
+        return std::move(E);
+      Symbols = std::move(*SymbolsOrErr);
+    }
 
     Pos += Header.size() + Data.size() + Padding.size();
-    Ret.push_back({std::move(*Symbols), std::move(Header), Data, Padding});
+    Ret.push_back({std::move(Symbols), std::move(Header), Data, Padding});
   }
   // If there are no symbols, emit an empty symbol table, to satisfy Solaris
   // tools, older versions of which expect a symbol table in a non-empty
@@ -552,10 +556,10 @@ Expected<std::string> computeArchiveRelativePath(StringRef From, StringRef To) {
   return std::string(Relative.str());
 }
 
-Error writeArchive(StringRef ArcName, ArrayRef<NewArchiveMember> NewMembers,
-                   bool WriteSymtab, object::Archive::Kind Kind,
-                   bool Deterministic, bool Thin,
-                   std::unique_ptr<MemoryBuffer> OldArchiveBuf) {
+static Error writeArchiveToStream(raw_ostream &Out,
+                                  ArrayRef<NewArchiveMember> NewMembers,
+                                  bool WriteSymtab, object::Archive::Kind Kind,
+                                  bool Deterministic, bool Thin) {
   assert((!Thin || !isBSDLike(Kind)) && "Only the gnu format has a thin mode");
 
   SmallString<0> SymNamesBuf;
@@ -563,8 +567,9 @@ Error writeArchive(StringRef ArcName, ArrayRef<NewArchiveMember> NewMembers,
   SmallString<0> StringTableBuf;
   raw_svector_ostream StringTable(StringTableBuf);
 
-  Expected<std::vector<MemberData>> DataOrErr = computeMemberData(
-      StringTable, SymNames, Kind, Thin, Deterministic, NewMembers);
+  Expected<std::vector<MemberData>> DataOrErr =
+      computeMemberData(StringTable, SymNames, Kind, Thin, Deterministic,
+                        WriteSymtab, NewMembers);
   if (Error E = DataOrErr.takeError())
     return E;
   std::vector<MemberData> &Data = *DataOrErr;
@@ -608,12 +613,6 @@ Error writeArchive(StringRef ArcName, ArrayRef<NewArchiveMember> NewMembers,
     }
   }
 
-  Expected<sys::fs::TempFile> Temp =
-      sys::fs::TempFile::create(ArcName + ".temp-archive-%%%%%%%.a");
-  if (!Temp)
-    return Temp.takeError();
-
-  raw_fd_ostream Out(Temp->FD, false);
   if (Thin)
     Out << "!<thin>\n";
   else
@@ -626,6 +625,25 @@ Error writeArchive(StringRef ArcName, ArrayRef<NewArchiveMember> NewMembers,
     Out << M.Header << M.Data << M.Padding;
 
   Out.flush();
+  return Error::success();
+}
+
+Error writeArchive(StringRef ArcName, ArrayRef<NewArchiveMember> NewMembers,
+                   bool WriteSymtab, object::Archive::Kind Kind,
+                   bool Deterministic, bool Thin,
+                   std::unique_ptr<MemoryBuffer> OldArchiveBuf) {
+  Expected<sys::fs::TempFile> Temp =
+      sys::fs::TempFile::create(ArcName + ".temp-archive-%%%%%%%.a");
+  if (!Temp)
+    return Temp.takeError();
+  raw_fd_ostream Out(Temp->FD, false);
+
+  if (Error E = writeArchiveToStream(Out, NewMembers, WriteSymtab, Kind,
+                                     Deterministic, Thin)) {
+    if (Error DiscardError = Temp->discard())
+      return joinErrors(std::move(E), std::move(DiscardError));
+    return E;
+  }
 
   // At this point, we no longer need whatever backing memory
   // was used to generate the NewMembers. On Windows, this buffer
@@ -640,6 +658,21 @@ Error writeArchive(StringRef ArcName, ArrayRef<NewArchiveMember> NewMembers,
   OldArchiveBuf.reset();
 
   return Temp->keep(ArcName);
+}
+
+Expected<std::unique_ptr<MemoryBuffer>>
+writeArchiveToBuffer(ArrayRef<NewArchiveMember> NewMembers, bool WriteSymtab,
+                     object::Archive::Kind Kind, bool Deterministic,
+                     bool Thin) {
+  SmallVector<char, 0> ArchiveBufferVector;
+  raw_svector_ostream ArchiveStream(ArchiveBufferVector);
+
+  if (Error E = writeArchiveToStream(ArchiveStream, NewMembers, WriteSymtab,
+                                     Kind, Deterministic, Thin))
+    return std::move(E);
+
+  return std::make_unique<SmallVectorMemoryBuffer>(
+      std::move(ArchiveBufferVector));
 }
 
 } // namespace llvm

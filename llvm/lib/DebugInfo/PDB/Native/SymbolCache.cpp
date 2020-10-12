@@ -319,8 +319,16 @@ SymbolCache::findSymbolBySectOffset(uint32_t Sect, uint32_t Offset,
     return findFunctionSymbolBySectOffset(Sect, Offset);
   case PDB_SymType::PublicSymbol:
     return findPublicSymbolBySectOffset(Sect, Offset);
+  case PDB_SymType::Compiland: {
+    Optional<uint16_t> Modi =
+        getModuleIndexForAddr(Session.getVAFromSectOffset(Sect, Offset));
+    if (!Modi)
+      return nullptr;
+    return getOrCreateCompiland(*Modi);
+  }
   case PDB_SymType::None: {
-    // FIXME: Implement for PDB_SymType::Data.
+    // FIXME: Implement for PDB_SymType::Data. The symbolizer calls this but
+    // only uses it to find the symbol length.
     if (auto Sym = findFunctionSymbolBySectOffset(Sect, Offset))
       return Sym;
     return nullptr;
@@ -332,8 +340,8 @@ SymbolCache::findSymbolBySectOffset(uint32_t Sect, uint32_t Offset,
 
 std::unique_ptr<PDBSymbol>
 SymbolCache::findFunctionSymbolBySectOffset(uint32_t Sect, uint32_t Offset) {
-  auto Iter = AddressToFunctionSymId.find({Sect, Offset});
-  if (Iter != AddressToFunctionSymId.end())
+  auto Iter = AddressToSymbolId.find({Sect, Offset});
+  if (Iter != AddressToSymbolId.end())
     return getSymbolById(Iter->second);
 
   if (!Dbi)
@@ -357,8 +365,14 @@ SymbolCache::findFunctionSymbolBySectOffset(uint32_t Sect, uint32_t Offset) {
     auto PS = cantFail(SymbolDeserializer::deserializeAs<ProcSym>(*I));
     if (Sect == PS.Segment && Offset >= PS.CodeOffset &&
         Offset < PS.CodeOffset + PS.CodeSize) {
+      // Check if the symbol is already cached.
+      auto Found = AddressToSymbolId.find({PS.Segment, PS.CodeOffset});
+      if (Found != AddressToSymbolId.end())
+        return getSymbolById(Found->second);
+
+      // Otherwise, create a new symbol.
       SymIndexId Id = createSymbol<NativeFunctionSymbol>(PS);
-      AddressToFunctionSymId.insert({{Sect, Offset}, Id});
+      AddressToSymbolId.insert({{PS.Segment, PS.CodeOffset}, Id});
       return getSymbolById(Id);
     }
 
@@ -418,9 +432,16 @@ SymbolCache::findPublicSymbolBySectOffset(uint32_t Sect, uint32_t Offset) {
     consumeError(Sym.takeError());
     return nullptr;
   }
+
+  // Check if the symbol is already cached.
   auto PS = cantFail(SymbolDeserializer::deserializeAs<PublicSym32>(Sym.get()));
+  auto Found = AddressToPublicSymId.find({PS.Segment, PS.Offset});
+  if (Found != AddressToPublicSymId.end())
+    return getSymbolById(Found->second);
+
+  // Otherwise, create a new symbol.
   SymIndexId Id = createSymbol<NativePublicSymbol>(PS);
-  AddressToPublicSymId.insert({{Sect, Offset}, Id});
+  AddressToPublicSymId.insert({{PS.Segment, PS.Offset}, Id});
   return getSymbolById(Id);
 }
 
@@ -460,18 +481,33 @@ SymbolCache::findLineTable(uint16_t Modi) const {
         continue;
 
       std::vector<LineTableEntry> Entries;
+
+      // If there are column numbers, then they should be in a parallel stream
+      // to the line numbers.
+      auto ColIt = Group.Columns.begin();
+      auto ColsEnd = Group.Columns.end();
+
       for (const LineNumberEntry &LN : Group.LineNumbers) {
-        LineInfo Line(LN.Flags);
         uint64_t VA =
             Session.getVAFromSectOffset(RelocSegment, RelocOffset + LN.Offset);
-        Entries.push_back({VA, Line, Group.NameIndex, false});
+        LineInfo Line(LN.Flags);
+        uint32_t ColNum = 0;
+
+        if (Lines.hasColumnInfo() && ColIt != ColsEnd) {
+          ColNum = ColIt->StartColumn;
+          ++ColIt;
+        }
+        Entries.push_back({VA, Line, ColNum, Group.NameIndex, false});
       }
 
       // Add a terminal entry line to mark the end of this subsection.
-      LineInfo LastLine(Group.LineNumbers.back().Flags);
       uint64_t VA = Session.getVAFromSectOffset(
           RelocSegment, RelocOffset + Lines.header()->CodeSize);
-      Entries.push_back({VA, LastLine, Group.NameIndex, true});
+      LineInfo LastLine(Group.LineNumbers.back().Flags);
+      uint32_t ColNum =
+          (Lines.hasColumnInfo()) ? Group.Columns.back().StartColumn : 0;
+      Entries.push_back({VA, LastLine, ColNum, Group.NameIndex, true});
+
       EntryList.push_back(Entries);
     }
   }
@@ -571,8 +607,8 @@ SymbolCache::findLineNumbersByVA(uint64_t VA, uint32_t Length) const {
     auto ChecksumIter =
         ExpectedChecksums->getArray().at(LineIter->FileNameIndex);
     uint32_t SrcFileId = getOrCreateSourceFile(*ChecksumIter);
-    NativeLineNumber LineNum(Session, LineIter->Line, LineSect, LineOff,
-                             LineLength, SrcFileId);
+    NativeLineNumber LineNum(Session, LineIter->Line, LineIter->ColumnNumber,
+                             LineSect, LineOff, LineLength, SrcFileId, Modi);
     LineNumbers.push_back(LineNum);
     ++LineIter;
   }

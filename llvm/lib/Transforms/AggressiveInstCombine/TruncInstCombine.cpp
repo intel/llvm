@@ -31,8 +31,8 @@
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
-#include "llvm/IR/Instruction.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instruction.h"
 
 using namespace llvm;
 
@@ -291,7 +291,8 @@ static Type *getReducedType(Value *V, Type *Ty) {
   assert(Ty && !Ty->isVectorTy() && "Expect Scalar Type");
   if (auto *VTy = dyn_cast<VectorType>(V->getType())) {
     // FIXME: should this handle scalable vectors?
-    return FixedVectorType::get(Ty, VTy->getNumElements());
+    return FixedVectorType::get(Ty,
+                                cast<FixedVectorType>(VTy)->getNumElements());
   }
   return Ty;
 }
@@ -344,7 +345,7 @@ void TruncInstCombine::ReduceExpressionDag(Type *SclTy) {
       // 1. Update Old-TruncInst -> New-TruncInst.
       // 2. Remove Old-TruncInst (if New node is not TruncInst).
       // 3. Add New-TruncInst (if Old node was not TruncInst).
-      auto Entry = find(Worklist, I);
+      auto *Entry = find(Worklist, I);
       if (Entry != Worklist.end()) {
         if (auto *NewCI = dyn_cast<TruncInst>(Res))
           *Entry = NewCI;

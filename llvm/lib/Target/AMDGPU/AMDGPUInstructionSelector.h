@@ -47,9 +47,10 @@ class SIInstrInfo;
 class SIMachineFunctionInfo;
 class SIRegisterInfo;
 
-class AMDGPUInstructionSelector : public InstructionSelector {
+class AMDGPUInstructionSelector final : public InstructionSelector {
 private:
   MachineRegisterInfo *MRI;
+  const GCNSubtarget *Subtarget;
 
 public:
   AMDGPUInstructionSelector(const GCNSubtarget &STI,
@@ -105,13 +106,20 @@ private:
   bool selectG_INSERT(MachineInstr &I) const;
 
   bool selectInterpP1F16(MachineInstr &MI) const;
+  bool selectWritelane(MachineInstr &MI) const;
   bool selectDivScale(MachineInstr &MI) const;
+  bool selectIntrinsicIcmp(MachineInstr &MI) const;
+  bool selectBallot(MachineInstr &I) const;
+  bool selectRelocConstant(MachineInstr &I) const;
+  bool selectGroupStaticSize(MachineInstr &I) const;
+  bool selectReturnAddress(MachineInstr &I) const;
   bool selectG_INTRINSIC(MachineInstr &I) const;
 
   bool selectEndCfIntrinsic(MachineInstr &MI) const;
   bool selectDSOrderedIntrinsic(MachineInstr &MI, Intrinsic::ID IID) const;
   bool selectDSGWSIntrinsic(MachineInstr &MI, Intrinsic::ID IID) const;
   bool selectDSAppendConsume(MachineInstr &MI, bool IsAppend) const;
+  bool selectSBarrier(MachineInstr &MI) const;
 
   bool selectImageIntrinsic(MachineInstr &MI,
                             const AMDGPU::ImageDimIntrinsicInfo *Intr) const;
@@ -124,16 +132,18 @@ private:
   bool selectSMRD(MachineInstr &I, ArrayRef<GEPInfo> AddrInfo) const;
 
   void initM0(MachineInstr &I) const;
-  bool selectG_LOAD_ATOMICRMW(MachineInstr &I) const;
+  bool selectG_LOAD_STORE_ATOMICRMW(MachineInstr &I) const;
   bool selectG_AMDGPU_ATOMIC_CMPXCHG(MachineInstr &I) const;
-  bool selectG_STORE(MachineInstr &I) const;
   bool selectG_SELECT(MachineInstr &I) const;
   bool selectG_BRCOND(MachineInstr &I) const;
-  bool selectG_FRAME_INDEX_GLOBAL_VALUE(MachineInstr &I) const;
+  bool selectG_GLOBAL_VALUE(MachineInstr &I) const;
   bool selectG_PTRMASK(MachineInstr &I) const;
   bool selectG_EXTRACT_VECTOR_ELT(MachineInstr &I) const;
   bool selectG_INSERT_VECTOR_ELT(MachineInstr &I) const;
   bool selectG_SHUFFLE_VECTOR(MachineInstr &I) const;
+  bool selectAMDGPU_BUFFER_ATOMIC_FADD(MachineInstr &I) const;
+  bool selectGlobalAtomicFaddIntrinsic(MachineInstr &I) const;
+  bool selectBVHIntrinsic(MachineInstr &I) const;
 
   std::pair<Register, unsigned>
   selectVOP3ModsImpl(MachineOperand &Root) const;
@@ -173,13 +183,16 @@ private:
   selectSmrdSgpr(MachineOperand &Root) const;
 
   template <bool Signed>
-  InstructionSelector::ComplexRendererFns
+  std::pair<Register, int>
   selectFlatOffsetImpl(MachineOperand &Root) const;
-  InstructionSelector::ComplexRendererFns
-  selectFlatOffset(MachineOperand &Root) const;
 
   InstructionSelector::ComplexRendererFns
+  selectFlatOffset(MachineOperand &Root) const;
+  InstructionSelector::ComplexRendererFns
   selectFlatOffsetSigned(MachineOperand &Root) const;
+
+  InstructionSelector::ComplexRendererFns
+  selectGlobalSAddr(MachineOperand &Root) const;
 
   InstructionSelector::ComplexRendererFns
   selectMUBUFScratchOffen(MachineOperand &Root) const;
@@ -194,10 +207,16 @@ private:
   InstructionSelector::ComplexRendererFns
   selectDS1Addr1Offset(MachineOperand &Root) const;
 
-  std::pair<Register, unsigned>
-  selectDS64Bit4ByteAlignedImpl(MachineOperand &Root) const;
   InstructionSelector::ComplexRendererFns
   selectDS64Bit4ByteAligned(MachineOperand &Root) const;
+
+  InstructionSelector::ComplexRendererFns
+  selectDS128Bit8ByteAligned(MachineOperand &Root) const;
+
+  std::pair<Register, unsigned>
+  selectDSReadWrite2Impl(MachineOperand &Root, bool IsDS128) const;
+  InstructionSelector::ComplexRendererFns
+  selectDSReadWrite2(MachineOperand &Root, bool IsDS128) const;
 
   std::pair<Register, int64_t>
   getPtrBaseWithConstantOffset(Register Root,
@@ -281,6 +300,8 @@ private:
   void renderExtractDLC(MachineInstrBuilder &MIB, const MachineInstr &MI,
                         int OpIdx) const;
   void renderExtractSWZ(MachineInstrBuilder &MIB, const MachineInstr &MI,
+                        int OpIdx) const;
+  void renderFrameIndex(MachineInstrBuilder &MIB, const MachineInstr &MI,
                         int OpIdx) const;
 
   bool isInlineImmediate16(int64_t Imm) const;

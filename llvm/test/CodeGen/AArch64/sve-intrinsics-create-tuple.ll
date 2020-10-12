@@ -1,4 +1,8 @@
-; RUN: llc -mtriple aarch64 -mattr=+sve -asm-verbose=1 < %s | FileCheck %s
+; RUN: llc -mtriple aarch64 -mattr=+sve -asm-verbose=1 < %s 2>%t | FileCheck %s
+; RUN: FileCheck --check-prefix=WARN --allow-empty %s <%t
+
+; If this check fails please read test/CodeGen/AArch64/README for instructions on how to resolve it.
+; WARN-NOT: warning
 
 ;
 ; SVCREATE2 (i8)

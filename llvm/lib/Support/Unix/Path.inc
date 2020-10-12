@@ -33,6 +33,7 @@
 
 #include <dirent.h>
 #include <pwd.h>
+#include <sys/file.h>
 
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
@@ -48,6 +49,8 @@ extern char **environ;
 #endif
 #elif defined(__DragonFly__)
 #include <sys/mount.h>
+#elif defined(__MVS__)
+#include <sys/ps.h>
 #endif
 
 // Both stdio.h and cstdio are included via different paths and
@@ -56,9 +59,13 @@ extern char **environ;
 #undef ferror
 #undef feof
 
+#if !defined(PATH_MAX)
 // For GNU Hurd
-#if defined(__GNU__) && !defined(PATH_MAX)
-# define PATH_MAX 4096
+#if defined(__GNU__)
+#define PATH_MAX 4096
+#elif defined(__MVS__)
+#define PATH_MAX _XOPEN_PATH_MAX
+#endif
 #endif
 
 #include <sys/types.h>
@@ -100,7 +107,8 @@ typedef uint_t uint;
 #define STATVFS_F_FRSIZE(vfs) static_cast<uint64_t>(vfs.f_bsize)
 #endif
 
-#if defined(__NetBSD__) || defined(__DragonFly__) || defined(__GNU__)
+#if defined(__NetBSD__) || defined(__DragonFly__) || defined(__GNU__) || \
+    defined(__MVS__)
 #define STATVFS_F_FLAG(vfs) (vfs).f_flag
 #else
 #define STATVFS_F_FLAG(vfs) (vfs).f_flags
@@ -265,6 +273,26 @@ std::string getMainExecutable(const char *argv0, void *MainAddr) {
   // Fall back to the classical detection.
   if (getprogpath(exe_path, argv0))
     return exe_path;
+#elif defined(__MVS__)
+  int token = 0;
+  W_PSPROC buf;
+  char exe_path[PS_PATHBLEN];
+  pid_t pid = getpid();
+
+  memset(&buf, 0, sizeof(buf));
+  buf.ps_pathptr = exe_path;
+  buf.ps_pathlen = sizeof(exe_path);
+
+  while (true) {
+    if ((token = w_getpsent(token, &buf, sizeof(buf))) <= 0)
+      break;
+    if (buf.ps_pid != pid)
+      continue;
+    char real_path[PATH_MAX];
+    if (realpath(exe_path, real_path))
+      return std::string(real_path);
+    break;  // Found entry, but realpath failed.
+  }
 #elif defined(HAVE_DLFCN_H) && defined(HAVE_DLADDR)
   // Use dladdr to get executable path if available.
   Dl_info DLInfo;
@@ -492,6 +520,10 @@ static bool is_local_impl(struct STATVFS &Vfs) {
   }
 
   // vmount entry not found; "remote" is the conservative answer.
+  return false;
+#elif defined(__MVS__)
+  // The file system can have an arbitrary structure on z/OS; must go with the
+  // conservative answer.
   return false;
 #else
   return !!(STATVFS_F_FLAG(Vfs) & MNT_LOCAL);
@@ -758,6 +790,16 @@ std::error_code setLastAccessAndModificationTime(int FD, TimePoint<> AccessTime,
       sys::toTimeVal(std::chrono::time_point_cast<std::chrono::microseconds>(
           ModificationTime));
   if (::futimes(FD, Times))
+    return std::error_code(errno, std::generic_category());
+  return std::error_code();
+#elif defined(__MVS__)
+  attrib_t Attr;
+  memset(&Attr, 0, sizeof(Attr));
+  Attr.att_atimechg = 1;
+  Attr.att_atime = sys::toTimeT(AccessTime);
+  Attr.att_mtimechg = 1;
+  Attr.att_mtime = sys::toTimeT(ModificationTime);
+  if (::__fchattr(FD, &Attr, sizeof(Attr)) != 0)
     return std::error_code(errno, std::generic_category());
   return std::error_code();
 #else
@@ -1047,6 +1089,50 @@ Expected<size_t> readNativeFileSlice(file_t FD, MutableArrayRef<char> Buf,
   return NumRead;
 }
 
+std::error_code tryLockFile(int FD, std::chrono::milliseconds Timeout) {
+  auto Start = std::chrono::steady_clock::now();
+  auto End = Start + Timeout;
+  do {
+    struct flock Lock;
+    memset(&Lock, 0, sizeof(Lock));
+    Lock.l_type = F_WRLCK;
+    Lock.l_whence = SEEK_SET;
+    Lock.l_start = 0;
+    Lock.l_len = 0;
+    if (::fcntl(FD, F_SETLK, &Lock) != -1)
+      return std::error_code();
+    int Error = errno;
+    if (Error != EACCES && Error != EAGAIN)
+      return std::error_code(Error, std::generic_category());
+    usleep(1000);
+  } while (std::chrono::steady_clock::now() < End);
+  return make_error_code(errc::no_lock_available);
+}
+
+std::error_code lockFile(int FD) {
+  struct flock Lock;
+  memset(&Lock, 0, sizeof(Lock));
+  Lock.l_type = F_WRLCK;
+  Lock.l_whence = SEEK_SET;
+  Lock.l_start = 0;
+  Lock.l_len = 0;
+  if (::fcntl(FD, F_SETLKW, &Lock) != -1)
+    return std::error_code();
+  int Error = errno;
+  return std::error_code(Error, std::generic_category());
+}
+
+std::error_code unlockFile(int FD) {
+  struct flock Lock;
+  Lock.l_type = F_UNLCK;
+  Lock.l_whence = SEEK_SET;
+  Lock.l_start = 0;
+  Lock.l_len = 0;
+  if (::fcntl(FD, F_SETLK, &Lock) != -1)
+    return std::error_code();
+  return std::error_code(errno, std::generic_category());
+}
+
 std::error_code closeFile(file_t &F) {
   file_t TmpF = F;
   F = kInvalidFile;
@@ -1156,6 +1242,30 @@ static bool getDarwinConfDir(bool TempDir, SmallVectorImpl<char> &Result) {
   }
   #endif
   return false;
+}
+
+bool user_config_directory(SmallVectorImpl<char> &result) {
+#ifdef __APPLE__
+  // Mac: ~/Library/Preferences/
+  if (home_directory(result)) {
+    append(result, "Library", "Preferences");
+    return true;
+  }
+#else
+  // XDG_CONFIG_HOME as defined in the XDG Base Directory Specification:
+  // http://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html
+  if (const char *RequestedDir = getenv("XDG_CONFIG_HOME")) {
+    result.clear();
+    result.append(RequestedDir, RequestedDir + strlen(RequestedDir));
+    return true;
+  }
+#endif
+  // Fallback: ~/.config
+  if (!home_directory(result)) {
+    return false;
+  }
+  append(result, ".config");
+  return true;
 }
 
 bool cache_directory(SmallVectorImpl<char> &result) {

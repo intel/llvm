@@ -30,7 +30,8 @@ Value Aliases::find(Value v) {
 
   auto it = aliases.find(v);
   if (it != aliases.end()) {
-    assert(it->getSecond().getType().isa<MemRefType>() && "Memref expected");
+    assert(it->getSecond().getType().isa<BaseMemRefType>() &&
+           "Memref expected");
     return it->getSecond();
   }
 
@@ -223,7 +224,7 @@ LinalgDependenceGraph::findOperationsWithCoveringDependences(
   SmallVector<Operation *, 8> res;
   // Consider an intermediate interleaved `interim` op, look for any dependence
   // to an aliasing view on a src -> op -> dst path.
-  // TODO(ntv) we are not considering paths yet, just interleaved positions.
+  // TODO: we are not considering paths yet, just interleaved positions.
   for (auto dt : types) {
     for (auto dependence : getDependencesFrom(src, dt)) {
       auto interimPos = linalgOpPositions.lookup(dependence.dependentOpView.op);

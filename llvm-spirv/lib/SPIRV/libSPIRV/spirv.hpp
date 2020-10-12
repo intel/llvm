@@ -386,10 +386,20 @@ enum FPRoundingMode {
     FPRoundingModeMax = 0x7fffffff,
 };
 
+enum FPDenormMode {
+  FPDenormModePreserve = 0,
+  FPDenormModeFlushToZero = 1,
+};
+
+enum FPOperationMode {
+  FPOperationModeIEEE = 0,
+  FPOperationModeALT = 1,
+};
+
 enum LinkageType {
     LinkageTypeExport = 0,
     LinkageTypeImport = 1,
-    LinkageTypeInternal, /* internal use only */
+    LinkageTypeInternal = 2, /* internal use only */
     LinkageTypeMax = 0x7fffffff,
 };
 
@@ -477,6 +487,9 @@ enum Decoration {
   DecorationRestrictPointerEXT = 5355,
   DecorationAliasedPointer = 5356,
   DecorationAliasedPointerEXT = 5356,
+  DecorationSIMTCallINTEL = 5599,
+  DecorationFuncParamKindINTEL = 9624,
+  DecorationFuncParamDescINTEL = 9625,
   DecorationReferencedIndirectlyINTEL = 5602,
   DecorationSideEffectsINTEL = 5608,
   DecorationVectorComputeVariableINTEL = 5624,
@@ -489,6 +502,8 @@ enum Decoration {
   DecorationHlslSemanticGOOGLE = 5635,
   DecorationUserSemantic = 5635,
   DecorationUserTypeGOOGLE = 5636,
+  DecorationFunctionRoundingModeINTEL = 5822,
+  DecorationFunctionDenormModeINTEL = 5823,
   DecorationRegisterINTEL = 5825,
   DecorationMemoryINTEL = 5826,
   DecorationNumbanksINTEL = 5827,
@@ -501,7 +516,13 @@ enum Decoration {
   DecorationMergeINTEL = 5834,
   DecorationBankBitsINTEL = 5835,
   DecorationForcePow2DepthINTEL = 5836,
+  DecorationBurstCoalesceINTEL = 5899,
+  DecorationCacheSizeINTEL = 5900,
+  DecorationDontStaticallyCoalesceINTEL = 5901,
+  DecorationPrefetchINTEL = 5902,
+  DecorationBufferLocationINTEL = 5921,
   DecorationIOPipeStorageINTEL = 5944,
+  DecorationFunctionFloatingPointModeINTEL = 6080,
   DecorationMax = 0x7fffffff,
 };
 
@@ -935,6 +956,8 @@ enum Capability {
   CapabilitySubgroupBufferBlockIOINTEL = 5569,
   CapabilitySubgroupImageBlockIOINTEL = 5570,
   CapabilitySubgroupImageMediaBlockIOINTEL = 5579,
+  CapabilityRoundToInfinityINTEL = 5582,
+  CapabilityFloatingPointModeINTEL = 5583,
   CapabilityIntegerFunctions2INTEL = 5584,
   CapabilityFunctionPointersINTEL = 5603,
   CapabilityIndirectReferencesINTEL = 5604,
@@ -945,17 +968,21 @@ enum Capability {
   CapabilitySubgroupAvcMotionEstimationINTEL = 5696,
   CapabilitySubgroupAvcMotionEstimationIntraINTEL = 5697,
   CapabilitySubgroupAvcMotionEstimationChromaINTEL = 5698,
-  CapabilityRoundToInfinityINTEL = 5582,
-  CapabilityFloatingPointModeINTEL = 5583,
+  CapabilityVariableLengthArrayINTEL = 5817,
+  CapabilityFunctionFloatControlINTEL = 5821,
   CapabilityFPGAMemoryAttributesINTEL = 5824,
   CapabilityArbitraryPrecisionIntegersINTEL = 5844,
+  CapabilityArbitraryPrecisionFloatingPointINTEL = 5845,
   CapabilityUnstructuredLoopControlsINTEL = 5886,
   CapabilityFPGALoopControlsINTEL = 5888,
   CapabilityBlockingPipesINTEL = 5945,
   CapabilityFPGARegINTEL = 5948,
   CapabilityKernelAttributesINTEL = 5892,
   CapabilityFPGAKernelAttributesINTEL = 5897,
+  CapabilityFPGABufferLocationINTEL = 5920,
+  CapabilityArbitraryPrecisionFixedPointINTEL = 5922,
   CapabilityUSMStorageClassesINTEL = 5935,
+  CapabilityFPGAMemoryAccessesINTEL = 5898,
   CapabilityIOPipeINTEL = 5943,
   CapabilityMax = 0x7fffffff,
 };
@@ -1365,7 +1392,7 @@ enum Op {
   OpUSubSatINTEL = 5596,
   OpIMul32x16INTEL = 5597,
   OpUMul32x16INTEL = 5598,
-  OpFunctionPointerINTEL = 5600,
+  OpConstFunctionPointerINTEL = 5600,
   OpFunctionPointerCallINTEL = 5601,
   OpAsmTargetINTEL = 5609,
   OpAsmINTEL = 5610,
@@ -1495,12 +1522,68 @@ enum Op {
   OpSubgroupAvcSicGetPackedSkcLumaCountThresholdINTEL = 5814,
   OpSubgroupAvcSicGetPackedSkcLumaSumThresholdINTEL = 5815,
   OpSubgroupAvcSicGetInterRawSadsINTEL = 5816,
+  OpVariableLengthArrayINTEL = 5818,
+  OpSaveMemoryINTEL = 5819,
+  OpRestoreMemoryINTEL = 5820,
+  OpArbitraryFloatSinCosPiINTEL = 5840,
+  OpArbitraryFloatCastINTEL = 5841,
+  OpArbitraryFloatCastFromIntINTEL = 5842,
+  OpArbitraryFloatCastToIntINTEL = 5843,
+  OpArbitraryFloatAddINTEL = 5846,
+  OpArbitraryFloatSubINTEL = 5847,
+  OpArbitraryFloatMulINTEL = 5848,
+  OpArbitraryFloatDivINTEL = 5849,
+  OpArbitraryFloatGTINTEL = 5850,
+  OpArbitraryFloatGEINTEL = 5851,
+  OpArbitraryFloatLTINTEL = 5852,
+  OpArbitraryFloatLEINTEL = 5853,
+  OpArbitraryFloatEQINTEL = 5854,
+  OpArbitraryFloatRecipINTEL = 5855,
+  OpArbitraryFloatRSqrtINTEL = 5856,
+  OpArbitraryFloatCbrtINTEL = 5857,
+  OpArbitraryFloatHypotINTEL = 5858,
+  OpArbitraryFloatSqrtINTEL = 5859,
+  OpArbitraryFloatLogINTEL = 5860,
+  OpArbitraryFloatLog2INTEL = 5861,
+  OpArbitraryFloatLog10INTEL = 5862,
+  OpArbitraryFloatLog1pINTEL = 5863,
+  OpArbitraryFloatExpINTEL = 5864,
+  OpArbitraryFloatExp2INTEL = 5865,
+  OpArbitraryFloatExp10INTEL = 5866,
+  OpArbitraryFloatExpm1INTEL = 5867,
+  OpArbitraryFloatSinINTEL = 5868,
+  OpArbitraryFloatCosINTEL = 5869,
+  OpArbitraryFloatSinCosINTEL = 5870,
+  OpArbitraryFloatSinPiINTEL = 5871,
+  OpArbitraryFloatCosPiINTEL = 5872,
+  OpArbitraryFloatASinINTEL = 5873,
+  OpArbitraryFloatASinPiINTEL = 5874,
+  OpArbitraryFloatACosINTEL = 5875,
+  OpArbitraryFloatACosPiINTEL = 5876,
+  OpArbitraryFloatATanINTEL = 5877,
+  OpArbitraryFloatATanPiINTEL = 5878,
+  OpArbitraryFloatATan2INTEL = 5879,
+  OpArbitraryFloatPowINTEL = 5880,
+  OpArbitraryFloatPowRINTEL = 5881,
+  OpArbitraryFloatPowNINTEL = 5882,
   OpLoopControlINTEL = 5887,
+  OpFixedSqrtINTEL = 5923,
+  OpFixedRecipINTEL = 5924,
+  OpFixedRsqrtINTEL = 5925,
+  OpFixedSinINTEL = 5926,
+  OpFixedCosINTEL = 5927,
+  OpFixedSinCosINTEL = 5928,
+  OpFixedSinPiINTEL = 5929,
+  OpFixedCosPiINTEL = 5930,
+  OpFixedSinCosPiINTEL = 5931,
+  OpFixedLogINTEL = 5932,
+  OpFixedExpINTEL = 5933,
   OpPtrCastToCrossWorkgroupINTEL = 5934,
   OpCrossWorkgroupCastToPtrINTEL = 5938,
   OpReadPipeBlockingINTEL = 5946,
   OpWritePipeBlockingINTEL = 5947,
   OpFPGARegINTEL = 5949,
+  OpTypeBufferSurfaceINTEL = 6086,
   OpMax = 0x7fffffff,
 };
 
@@ -2032,6 +2115,10 @@ inline void HasResultAndType(Op opcode, bool *hasResult, bool *hasResultType) {
     case OpSubgroupAvcSicGetPackedSkcLumaCountThresholdINTEL: *hasResult = true; *hasResultType = true; break;
     case OpSubgroupAvcSicGetPackedSkcLumaSumThresholdINTEL: *hasResult = true; *hasResultType = true; break;
     case OpSubgroupAvcSicGetInterRawSadsINTEL: *hasResult = true; *hasResultType = true; break;
+    case OpTypeBufferSurfaceINTEL:
+      *hasResult = true;
+      *hasResultType = false;
+      break;
     }
 }
 #endif /* SPV_ENABLE_UTILITY_CODE */

@@ -78,7 +78,8 @@ SPIRVExtInst *SPIRVToLLVMDbgTran::getDbgInst(const SPIRVId Id) {
   SPIRVEntry *E = BM->getEntry(Id);
   if (isa<OpExtInst>(E)) {
     SPIRVExtInst *EI = static_cast<SPIRVExtInst *>(E);
-    if (EI->getExtSetKind() == SPIRV::SPIRVEIS_Debug)
+    if (EI->getExtSetKind() == SPIRV::SPIRVEIS_Debug ||
+        EI->getExtSetKind() == SPIRV::SPIRVEIS_OpenCL_DebugInfo_100)
       return EI;
   }
   return nullptr;
@@ -230,7 +231,9 @@ SPIRVToLLVMDbgTran::transTypeComposite(const SPIRVExtInst *DebugInst) {
 
   uint64_t Size = 0;
   SPIRVEntry *SizeEntry = BM->getEntry(Ops[SizeIdx]);
-  if (!SizeEntry->isExtInst(SPIRVEIS_Debug, SPIRVDebug::DebugInfoNone)) {
+  if (!(SizeEntry->isExtInst(SPIRVEIS_Debug, SPIRVDebug::DebugInfoNone) ||
+        SizeEntry->isExtInst(SPIRVEIS_OpenCL_DebugInfo_100,
+                             SPIRVDebug::DebugInfoNone))) {
     Size = BM->get<SPIRVConstant>(Ops[SizeIdx])->getZExtIntValue();
   }
 

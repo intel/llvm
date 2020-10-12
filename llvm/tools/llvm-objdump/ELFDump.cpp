@@ -92,7 +92,7 @@ static Error getRelocationValueString(const ELFObjectFile<ELFT> *Obj,
         return SymSI.takeError();
       const typename ELFT::Shdr *SymSec =
           Obj->getSection((*SymSI)->getRawDataRefImpl());
-      auto SecName = EF.getSectionName(SymSec);
+      auto SecName = EF.getSectionName(*SymSec);
       if (!SecName)
         return SecName.takeError();
       Fmt << *SecName;
@@ -198,11 +198,17 @@ static void printDynamicSection(const ELFFile<ELFT> *Elf, StringRef Filename) {
   }
 }
 
-template <class ELFT> static void printProgramHeaders(const ELFFile<ELFT> *o) {
+template <class ELFT>
+static void printProgramHeaders(const ELFFile<ELFT> *Obj, StringRef FileName) {
   outs() << "Program Header:\n";
-  auto ProgramHeaderOrError = o->program_headers();
-  if (!ProgramHeaderOrError)
-    report_fatal_error(toString(ProgramHeaderOrError.takeError()));
+  auto ProgramHeaderOrError = Obj->program_headers();
+  if (!ProgramHeaderOrError) {
+    reportWarning("unable to read program headers: " +
+                      toString(ProgramHeaderOrError.takeError()),
+                  FileName);
+    return;
+  }
+
   for (const typename ELFT::Phdr &Phdr : *ProgramHeaderOrError) {
     switch (Phdr.p_type) {
     case ELF::PT_DYNAMIC:
@@ -332,10 +338,10 @@ static void printSymbolVersionInfo(const ELFFile<ELFT> *Elf,
       continue;
 
     ArrayRef<uint8_t> Contents =
-        unwrapOrError(Elf->getSectionContents(&Shdr), FileName);
+        unwrapOrError(Elf->getSectionContents(Shdr), FileName);
     const typename ELFT::Shdr *StrTabSec =
         unwrapOrError(Elf->getSection(Shdr.sh_link), FileName);
-    StringRef StrTab = unwrapOrError(Elf->getStringTable(StrTabSec), FileName);
+    StringRef StrTab = unwrapOrError(Elf->getStringTable(*StrTabSec), FileName);
 
     if (Shdr.sh_type == ELF::SHT_GNU_verneed)
       printSymbolVersionDependency<ELFT>(Contents, StrTab);
@@ -346,13 +352,13 @@ static void printSymbolVersionInfo(const ELFFile<ELFT> *Elf,
 
 void objdump::printELFFileHeader(const object::ObjectFile *Obj) {
   if (const auto *ELFObj = dyn_cast<ELF32LEObjectFile>(Obj))
-    printProgramHeaders(ELFObj->getELFFile());
+    printProgramHeaders(ELFObj->getELFFile(), Obj->getFileName());
   else if (const auto *ELFObj = dyn_cast<ELF32BEObjectFile>(Obj))
-    printProgramHeaders(ELFObj->getELFFile());
+    printProgramHeaders(ELFObj->getELFFile(), Obj->getFileName());
   else if (const auto *ELFObj = dyn_cast<ELF64LEObjectFile>(Obj))
-    printProgramHeaders(ELFObj->getELFFile());
+    printProgramHeaders(ELFObj->getELFFile(), Obj->getFileName());
   else if (const auto *ELFObj = dyn_cast<ELF64BEObjectFile>(Obj))
-    printProgramHeaders(ELFObj->getELFFile());
+    printProgramHeaders(ELFObj->getELFFile(), Obj->getFileName());
 }
 
 void objdump::printELFDynamicSection(const object::ObjectFile *Obj) {

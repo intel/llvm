@@ -46,6 +46,10 @@ inline bool isColumnMajorMatmul(ArrayAttr indexingMaps) {
   return indexingMaps == maps;
 }
 
+/// Attribute name for the IntegerAttr which encodes the index of operand
+/// whose dimensions will be propagated as symbols to the indexing maps
+constexpr StringRef getSymbolSourceAttrName() { return "symbol_source"; }
+
 /// Attribute name for the AffineArrayAttr which encodes the relationship
 /// between a structured op iterators' and its operands.
 constexpr StringRef getIndexingMapsAttrName() { return "indexing_maps"; }
@@ -53,14 +57,6 @@ constexpr StringRef getIndexingMapsAttrName() { return "indexing_maps"; }
 /// Attribute name for the StrArrayAttr which encodes the type of a structured
 /// op's iterators.
 constexpr StringRef getIteratorTypesAttrName() { return "iterator_types"; }
-
-/// Attribute name for the IntegerAttr which encodes the number of input buffer
-/// arguments.
-constexpr StringRef getArgsInAttrName() { return "args_in"; }
-
-/// Attribute name for the IntegerAttr which encodes the number of input buffer
-/// arguments.
-constexpr StringRef getArgsOutAttrName() { return "args_out"; }
 
 /// Attribute name for the StringAttr which encodes an optional documentation
 /// string of the structured op.

@@ -21,10 +21,13 @@ static bool requiresGOTAccess(const Symbol *sym) {
 }
 
 static bool allowUndefined(const Symbol* sym) {
-  // Undefined functions with explicit import name are allowed to be undefined
-  // at link time.
-  if (auto *F = dyn_cast<UndefinedFunction>(sym))
-    if (F->importName)
+  // Undefined functions and globals with explicit import name are allowed to be
+  // undefined at link time.
+  if (auto *f = dyn_cast<UndefinedFunction>(sym))
+    if (f->importName)
+      return true;
+  if (auto *g = dyn_cast<UndefinedGlobal>(sym))
+    if (g->importName)
       return true;
   return (config->allowUndefined ||
           config->allowUndefinedSymbols.count(sym->getName()) != 0);
@@ -70,7 +73,9 @@ void scanRelocations(InputChunk *chunk) {
 
     switch (reloc.Type) {
     case R_WASM_TABLE_INDEX_I32:
+    case R_WASM_TABLE_INDEX_I64:
     case R_WASM_TABLE_INDEX_SLEB:
+    case R_WASM_TABLE_INDEX_SLEB64:
     case R_WASM_TABLE_INDEX_REL_SLEB:
       if (requiresGOTAccess(sym))
         break;
@@ -86,6 +91,7 @@ void scanRelocations(InputChunk *chunk) {
     if (config->isPic) {
       switch (reloc.Type) {
       case R_WASM_TABLE_INDEX_SLEB:
+      case R_WASM_TABLE_INDEX_SLEB64:
       case R_WASM_MEMORY_ADDR_SLEB:
       case R_WASM_MEMORY_ADDR_LEB:
       case R_WASM_MEMORY_ADDR_SLEB64:
@@ -97,6 +103,7 @@ void scanRelocations(InputChunk *chunk) {
               "; recompile with -fPIC");
         break;
       case R_WASM_TABLE_INDEX_I32:
+      case R_WASM_TABLE_INDEX_I64:
       case R_WASM_MEMORY_ADDR_I32:
       case R_WASM_MEMORY_ADDR_I64:
         // These relocation types are only present in the data section and

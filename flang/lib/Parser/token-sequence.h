@@ -27,6 +27,8 @@ class raw_ostream;
 
 namespace Fortran::parser {
 
+class Messages;
+
 // Buffers a contiguous sequence of characters that has been partitioned into
 // a sequence of preprocessing tokens with provenances.
 class TokenSequence {
@@ -71,6 +73,10 @@ public:
 
   std::size_t SkipBlanks(std::size_t) const;
 
+  // True if anything remains in the sequence at & after the given offset
+  // except blanks and line-ending C++ and Fortran free-form comments.
+  bool IsAnythingLeft(std::size_t) const;
+
   void PutNextTokenChar(char ch, Provenance provenance) {
     char_.emplace_back(ch);
     provenances_.Put({provenance, 1});
@@ -111,6 +117,7 @@ public:
   TokenSequence &RemoveBlanks(std::size_t firstChar = 0);
   TokenSequence &RemoveRedundantBlanks(std::size_t firstChar = 0);
   TokenSequence &ClipComment(bool skipFirst = false);
+  const TokenSequence &CheckBadFortranCharacters(Messages &) const;
   void Emit(CookedSource &) const;
   void Dump(llvm::raw_ostream &) const;
 

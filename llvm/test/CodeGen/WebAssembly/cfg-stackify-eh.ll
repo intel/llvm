@@ -975,6 +975,102 @@ try.cont:                                         ; preds = %catch.start, %for.e
   ret void
 }
 
+; Here an exception is semantically contained in a loop. 'ehcleanup' BB belongs
+; to the exception, but does not belong to the loop (because it does not have a
+; path back to the loop header), and is placed after the loop latch block
+; 'invoke.cont' intentionally. This tests if 'end_loop' marker is placed
+; correctly not right after 'invoke.cont' part but after 'ehcleanup' part,
+; NOSORT-LABEL: test18
+; NOSORT: loop
+; NOSORT: try
+; NOSORT: end_try
+; NOSORT: end_loop
+define void @test18(i32 %n) personality i8* bitcast (i32 (...)* @__gxx_wasm_personality_v0 to i8*) {
+entry:
+  br label %while.cond
+
+while.cond:                                       ; preds = %invoke.cont, %entry
+  %n.addr.0 = phi i32 [ %n, %entry ], [ %dec, %invoke.cont ]
+  %tobool = icmp ne i32 %n.addr.0, 0
+  br i1 %tobool, label %while.body, label %while.end
+
+while.body:                                       ; preds = %while.cond
+  %dec = add nsw i32 %n.addr.0, -1
+  invoke void @foo()
+          to label %while.end unwind label %catch.dispatch
+
+catch.dispatch:                                   ; preds = %while.body
+  %0 = catchswitch within none [label %catch.start] unwind to caller
+
+catch.start:                                      ; preds = %catch.dispatch
+  %1 = catchpad within %0 [i8* null]
+  %2 = call i8* @llvm.wasm.get.exception(token %1)
+  %3 = call i32 @llvm.wasm.get.ehselector(token %1)
+  %4 = call i8* @__cxa_begin_catch(i8* %2) [ "funclet"(token %1) ]
+  invoke void @__cxa_end_catch() [ "funclet"(token %1) ]
+          to label %invoke.cont unwind label %ehcleanup
+
+invoke.cont:                                      ; preds = %catch.start
+  catchret from %1 to label %while.cond
+
+ehcleanup:                                        ; preds = %catch.start
+  %5 = cleanuppad within %1 []
+  %6 = call i8* @llvm.wasm.get.exception(token %5)
+  call void @__clang_call_terminate(i8* %6) [ "funclet"(token %5) ]
+  unreachable
+
+while.end:                                        ; preds = %while.body, %while.cond
+  ret void
+}
+
+; When the function return type is non-void and 'end' instructions are at the
+; very end of a function, CFGStackify's fixEndsAtEndOfFunction function fixes
+; the corresponding block/loop/try's type to match the function's return type.
+; But when a `try`'s type is fixed, we should also check `end` instructions
+; before its corresponding `catch`, because both `try` and `catch` body should
+; satisfy the return type requirements.
+
+; NOSORT-LABEL: test19
+; NOSORT: try i32
+; NOSORT: loop i32
+; NOSORT: end_loop
+; NOSORT: catch
+; NOSORT: end_try
+; NOSORT-NEXT: end_function
+define i32 @test19(i32 %n) personality i8* bitcast (i32 (...)* @__gxx_wasm_personality_v0 to i8*) {
+entry:
+  %t = alloca %class.Object, align 1
+  br label %for.cond
+
+for.cond:                                         ; preds = %for.inc, %entry
+  %i.0 = phi i32 [ 0, %entry ], [ %inc, %for.inc ]
+  %cmp = icmp slt i32 %i.0, %n
+  br label %for.body
+
+for.body:                                         ; preds = %for.cond
+  %div = sdiv i32 %n, 2
+  %cmp1 = icmp eq i32 %i.0, %div
+  br i1 %cmp1, label %if.then, label %for.inc
+
+if.then:                                          ; preds = %for.body
+  %call = invoke i32 @baz()
+          to label %invoke.cont unwind label %ehcleanup
+
+invoke.cont:                                      ; preds = %if.then
+  %call2 = call %class.Object* @_ZN6ObjectD2Ev(%class.Object* %t) #4
+  ret i32 %call
+
+for.inc:                                          ; preds = %for.body
+  %inc = add nsw i32 %i.0, 1
+  br label %for.cond
+
+ehcleanup:                                        ; preds = %if.then
+  %0 = cleanuppad within none []
+  %call3 = call %class.Object* @_ZN6ObjectD2Ev(%class.Object* %t) #4 [ "funclet"(token %0) ]
+  cleanupret from %0 unwind to caller
+}
+
+
 ; Check if the unwind destination mismatch stats are correct
 ; NOSORT-STAT: 17 wasm-cfg-stackify    - Number of EH pad unwind mismatches found
 

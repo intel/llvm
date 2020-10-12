@@ -28,7 +28,7 @@ protected:
 public:
   virtual ~MCWasmObjectTargetWriter();
 
-  virtual Triple::ObjectFormatType getFormat() const { return Triple::Wasm; }
+  Triple::ObjectFormatType getFormat() const override { return Triple::Wasm; }
   static bool classof(const MCObjectTargetWriter *W) {
     return W->getFormat() == Triple::Wasm;
   }
@@ -51,6 +51,10 @@ public:
 std::unique_ptr<MCObjectWriter>
 createWasmObjectWriter(std::unique_ptr<MCWasmObjectTargetWriter> MOTW,
                        raw_pwrite_stream &OS);
+
+std::unique_ptr<MCObjectWriter>
+createWasmDwoObjectWriter(std::unique_ptr<MCWasmObjectTargetWriter> MOTW,
+                          raw_pwrite_stream &OS, raw_pwrite_stream &DwoOS);
 
 } // namespace llvm
 

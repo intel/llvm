@@ -112,7 +112,7 @@ struct SST {
 // BLOCKS: [[SS_TY:%.+]] = type { i{{[0-9]+}}, i8
 // CHECK: [[S_FLOAT_TY:%.+]] = type { float }
 // CHECK: [[S_INT_TY:%.+]] = type { i32 }
-// CHECK-DAG: [[IMPLICIT_BARRIER_LOC:@.+]] = private unnamed_addr global %{{.+}} { i32 0, i32 66, i32 0, i32 0, i8*
+// CHECK-DAG: [[IMPLICIT_BARRIER_LOC:@.+]] = private unnamed_addr constant %{{.+}} { i32 0, i32 66, i32 0, i32 0, i8*
 // CHECK-DAG: [[F:@.+]] = global float 0.0
 // CHECK-DAG: [[CNT:@.+]] = global i8 0
 template <typename T>
@@ -414,6 +414,7 @@ int main() {
 // CHECK: [[ADD:%.+]] = add nsw i64 [[LVAR_VAL]], 3
 // CHECK: store i64 [[ADD]], i64* [[LVAR_PRIV]],
 // CHECK: call void @__kmpc_for_static_fini(%{{.+}}* @{{.+}}, i32 %{{.+}})
+// CHECK: [[LVAR_VOID_PTR:%.+]] = bitcast i64* [[LVAR_PRIV]] to i8*
 // CHECK: call void @__kmpc_free(i32 [[GTID]], i8* [[LVAR_VOID_PTR]], i8* inttoptr (i64 5 to i8*))
 // CHECK: call void @__kmpc_barrier(%{{.+}}* [[IMPLICIT_BARRIER_LOC]], i{{[0-9]+}} [[GTID]])
 // CHECK: ret void

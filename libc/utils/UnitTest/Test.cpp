@@ -9,6 +9,7 @@
 #include "Test.h"
 
 #include "utils/testutils/ExecuteFunction.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -32,77 +33,92 @@ private:
 
 namespace internal {
 
+// When the value is of integral type, just display it as normal.
+template <typename ValType>
+cpp::EnableIfType<cpp::IsIntegral<ValType>::Value, std::string>
+describeValue(ValType Value) {
+  return std::to_string(Value);
+}
+
+std::string describeValue(llvm::StringRef Value) { return std::string(Value); }
+
+// When the value is __uint128_t, also show its hexadecimal digits.
+// Using template to force exact match, prevent ambiguous promotion.
+template <> std::string describeValue<__uint128_t>(__uint128_t Value) {
+  std::string S(sizeof(__uint128_t) * 2, '0');
+
+  for (auto I = S.rbegin(), End = S.rend(); I != End; ++I, Value >>= 4) {
+    unsigned char Mod = static_cast<unsigned char>(Value) & 15;
+    *I = llvm::hexdigit(Mod, true);
+  }
+
+  return "0x" + S;
+}
+
+template <typename ValType>
+void explainDifference(ValType LHS, ValType RHS, const char *LHSStr,
+                       const char *RHSStr, const char *File, unsigned long Line,
+                       llvm::StringRef OpString) {
+  size_t OffsetLength = OpString.size() > 2 ? OpString.size() - 2 : 0;
+  std::string Offset(OffsetLength, ' ');
+
+  llvm::outs() << File << ":" << Line << ": FAILURE\n"
+               << Offset << "Expected: " << LHSStr << '\n'
+               << Offset << "Which is: " << describeValue(LHS) << '\n'
+               << "To be " << OpString << ": " << RHSStr << '\n'
+               << Offset << "Which is: " << describeValue(RHS) << '\n';
+}
+
 template <typename ValType>
 bool test(RunContext &Ctx, TestCondition Cond, ValType LHS, ValType RHS,
           const char *LHSStr, const char *RHSStr, const char *File,
           unsigned long Line) {
+  auto ExplainDifference = [=](llvm::StringRef OpString) {
+    explainDifference(LHS, RHS, LHSStr, RHSStr, File, Line, OpString);
+  };
+
   switch (Cond) {
   case Cond_EQ:
     if (LHS == RHS)
       return true;
 
     Ctx.markFail();
-    llvm::outs() << File << ":" << Line << ": FAILURE\n"
-                 << "      Expected: " << LHSStr << '\n'
-                 << "      Which is: " << LHS << '\n'
-                 << "To be equal to: " << RHSStr << '\n'
-                 << "      Which is: " << RHS << '\n';
-
+    ExplainDifference("equal to");
     return false;
   case Cond_NE:
     if (LHS != RHS)
       return true;
 
     Ctx.markFail();
-    llvm::outs() << File << ":" << Line << ": FAILURE\n"
-                 << "          Expected: " << LHSStr << '\n'
-                 << "          Which is: " << LHS << '\n'
-                 << "To be not equal to: " << RHSStr << '\n'
-                 << "          Which is: " << RHS << '\n';
+    ExplainDifference("not equal to");
     return false;
   case Cond_LT:
     if (LHS < RHS)
       return true;
 
     Ctx.markFail();
-    llvm::outs() << File << ":" << Line << ": FAILURE\n"
-                 << "       Expected: " << LHSStr << '\n'
-                 << "       Which is: " << LHS << '\n'
-                 << "To be less than: " << RHSStr << '\n'
-                 << "       Which is: " << RHS << '\n';
+    ExplainDifference("less than");
     return false;
   case Cond_LE:
     if (LHS <= RHS)
       return true;
 
     Ctx.markFail();
-    llvm::outs() << File << ":" << Line << ": FAILURE\n"
-                 << "                   Expected: " << LHSStr << '\n'
-                 << "                   Which is: " << LHS << '\n'
-                 << "To be less than or equal to: " << RHSStr << '\n'
-                 << "                   Which is: " << RHS << '\n';
+    ExplainDifference("less than or equal to");
     return false;
   case Cond_GT:
     if (LHS > RHS)
       return true;
 
     Ctx.markFail();
-    llvm::outs() << File << ":" << Line << ": FAILURE\n"
-                 << "          Expected: " << LHSStr << '\n'
-                 << "          Which is: " << LHS << '\n'
-                 << "To be greater than: " << RHSStr << '\n'
-                 << "          Which is: " << RHS << '\n';
+    ExplainDifference("greater than");
     return false;
   case Cond_GE:
     if (LHS >= RHS)
       return true;
 
     Ctx.markFail();
-    llvm::outs() << File << ":" << Line << ": FAILURE\n"
-                 << "                      Expected: " << LHSStr << '\n'
-                 << "                      Which is: " << LHS << '\n'
-                 << "To be greater than or equal to: " << RHSStr << '\n'
-                 << "                      Which is: " << RHS << '\n';
+    ExplainDifference("greater than or equal to");
     return false;
   default:
     Ctx.markFail();
@@ -217,6 +233,11 @@ template bool Test::test<unsigned long long, 0>(
     RunContext &Ctx, TestCondition Cond, unsigned long long LHS,
     unsigned long long RHS, const char *LHSStr, const char *RHSStr,
     const char *File, unsigned long Line);
+
+template bool Test::test<__uint128_t, 0>(RunContext &Ctx, TestCondition Cond,
+                                         __uint128_t LHS, __uint128_t RHS,
+                                         const char *LHSStr, const char *RHSStr,
+                                         const char *File, unsigned long Line);
 
 bool Test::testStrEq(RunContext &Ctx, const char *LHS, const char *RHS,
                      const char *LHSStr, const char *RHSStr, const char *File,

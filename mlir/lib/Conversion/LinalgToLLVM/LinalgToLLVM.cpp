@@ -19,6 +19,7 @@
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
 #include "mlir/Dialect/Linalg/Passes.h"
+#include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
@@ -219,7 +220,7 @@ public:
     BaseViewConversionHelper desc(
         typeConverter.convertType(sliceOp.getShapedType()));
 
-    // TODO(ntv): extract sizes and emit asserts.
+    // TODO: extract sizes and emit asserts.
     SmallVector<Value, 4> strides(memRefType.getRank());
     for (int i = 0, e = memRefType.getRank(); i < e; ++i)
       strides[i] = baseDesc.stride(i);
@@ -338,7 +339,8 @@ public:
 class YieldOpConversion : public ConvertToLLVMPattern {
 public:
   explicit YieldOpConversion(MLIRContext *context, LLVMTypeConverter &lowering_)
-      : ConvertToLLVMPattern(YieldOp::getOperationName(), context, lowering_) {}
+      : ConvertToLLVMPattern(linalg::YieldOp::getOperationName(), context,
+                             lowering_) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,

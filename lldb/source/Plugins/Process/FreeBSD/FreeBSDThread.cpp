@@ -164,10 +164,7 @@ lldb::RegisterContextSP FreeBSDThread::GetRegisterContext() {
     assert(target_arch.GetTriple().getOS() == llvm::Triple::FreeBSD);
     switch (target_arch.GetMachine()) {
     case llvm::Triple::aarch64:
-      reg_interface = new RegisterInfoPOSIX_arm64(target_arch);
-      break;
     case llvm::Triple::arm:
-      reg_interface = new RegisterInfoPOSIX_arm(target_arch);
       break;
     case llvm::Triple::ppc:
 #ifndef __powerpc64__
@@ -193,14 +190,16 @@ lldb::RegisterContextSP FreeBSDThread::GetRegisterContext() {
     switch (target_arch.GetMachine()) {
     case llvm::Triple::aarch64: {
       RegisterContextPOSIXProcessMonitor_arm64 *reg_ctx =
-          new RegisterContextPOSIXProcessMonitor_arm64(*this, 0, reg_interface);
+          new RegisterContextPOSIXProcessMonitor_arm64(
+              *this, std::make_unique<RegisterInfoPOSIX_arm64>(target_arch));
       m_posix_thread = reg_ctx;
       m_reg_context_sp.reset(reg_ctx);
       break;
     }
     case llvm::Triple::arm: {
       RegisterContextPOSIXProcessMonitor_arm *reg_ctx =
-          new RegisterContextPOSIXProcessMonitor_arm(*this, 0, reg_interface);
+          new RegisterContextPOSIXProcessMonitor_arm(
+              *this, std::make_unique<RegisterInfoPOSIX_arm>(target_arch));
       m_posix_thread = reg_ctx;
       m_reg_context_sp.reset(reg_ctx);
       break;

@@ -1,5 +1,8 @@
-// UNSUPPORTED: cuda
+
+// UNSUPPORTED: cuda || cpu
 // CUDA compilation and runtime do not yet support sub-groups.
+// #2252 Disable until all variants of built-ins are available in OpenCL CPU
+// runtime for every supported ISA
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
@@ -40,7 +43,7 @@ template <typename T, int N> void check(queue &Queue) {
       accessor<T, 1, access::mode::read_write, access::target::local> LocalMem(
           {L}, cgh);
       cgh.parallel_for<sycl_subgr<T, N>>(NdRange, [=](nd_item<1> NdItem) {
-        intel::sub_group SG = NdItem.get_sub_group();
+        ONEAPI::sub_group SG = NdItem.get_sub_group();
         if (SG.get_group_id().get(0) % N == 0) {
           size_t SGOffset =
               SG.get_group_id().get(0) * SG.get_max_local_range().get(0);
@@ -114,7 +117,7 @@ template <typename T> void check(queue &Queue) {
       accessor<T, 1, access::mode::read_write, access::target::local> LocalMem(
           {L}, cgh);
       cgh.parallel_for<sycl_subgr<T, 0>>(NdRange, [=](nd_item<1> NdItem) {
-        intel::sub_group SG = NdItem.get_sub_group();
+        ONEAPI::sub_group SG = NdItem.get_sub_group();
         if (NdItem.get_global_id(0) == 0)
           sgsizeacc[0] = SG.get_max_local_range()[0];
         size_t SGOffset =

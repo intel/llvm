@@ -242,3 +242,373 @@ define void @pr43446_1(i8* %a) {
   store i1 true, i1* %b, align 1
   ret void
 }
+
+define void @rotate16_in_place(i8* %p) {
+; CHECK-LABEL: rotate16_in_place:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    rolw $8, (%rdi)
+; CHECK-NEXT:    retq
+  %p0 = getelementptr i8, i8* %p, i64 0
+  %p1 = getelementptr i8, i8* %p, i64 1
+  %i0 = load i8, i8* %p0, align 1
+  %i1 = load i8, i8* %p1, align 1
+  store i8 %i1, i8* %p0, align 1
+  store i8 %i0, i8* %p1, align 1
+  ret void
+}
+
+define void @rotate16(i8* %p, i8* %q) {
+; CHECK-LABEL: rotate16:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    movzwl (%rdi), %eax
+; CHECK-NEXT:    rolw $8, %ax
+; CHECK-NEXT:    movw %ax, (%rsi)
+; CHECK-NEXT:    retq
+  %p0 = getelementptr i8, i8* %p, i64 0
+  %p1 = getelementptr i8, i8* %p, i64 1
+  %q0 = getelementptr i8, i8* %q, i64 0
+  %q1 = getelementptr i8, i8* %q, i64 1
+  %i0 = load i8, i8* %p0, align 1
+  %i1 = load i8, i8* %p1, align 1
+  store i8 %i1, i8* %q0, align 1
+  store i8 %i0, i8* %q1, align 1
+  ret void
+}
+
+define void @rotate32_in_place(i16* %p) {
+; CHECK-LABEL: rotate32_in_place:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    roll $16, (%rdi)
+; CHECK-NEXT:    retq
+  %p0 = getelementptr i16, i16* %p, i64 0
+  %p1 = getelementptr i16, i16* %p, i64 1
+  %i0 = load i16, i16* %p0, align 2
+  %i1 = load i16, i16* %p1, align 2
+  store i16 %i1, i16* %p0, align 2
+  store i16 %i0, i16* %p1, align 2
+  ret void
+}
+
+define void @rotate32(i16* %p) {
+; CHECK-LABEL: rotate32:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    movl (%rdi), %eax
+; CHECK-NEXT:    roll $16, %eax
+; CHECK-NEXT:    movl %eax, 84(%rdi)
+; CHECK-NEXT:    retq
+  %p0 = getelementptr i16, i16* %p, i64 0
+  %p1 = getelementptr i16, i16* %p, i64 1
+  %p42 = getelementptr i16, i16* %p, i64 42
+  %p43 = getelementptr i16, i16* %p, i64 43
+  %i0 = load i16, i16* %p0, align 2
+  %i1 = load i16, i16* %p1, align 2
+  store i16 %i1, i16* %p42, align 2
+  store i16 %i0, i16* %p43, align 2
+  ret void
+}
+
+define void @rotate64_in_place(i32* %p) {
+; CHECK-LABEL: rotate64_in_place:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    rolq $32, (%rdi)
+; CHECK-NEXT:    retq
+  %p0 = getelementptr i32, i32* %p, i64 0
+  %p1 = getelementptr i32, i32* %p, i64 1
+  %i0 = load i32, i32* %p0, align 4
+  %i1 = load i32, i32* %p1, align 4
+  store i32 %i1, i32* %p0, align 4
+  store i32 %i0, i32* %p1, align 4
+  ret void
+}
+
+define void @rotate64(i32* %p) {
+; CHECK-LABEL: rotate64:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    movq (%rdi), %rax
+; CHECK-NEXT:    rolq $32, %rax
+; CHECK-NEXT:    movq %rax, 8(%rdi)
+; CHECK-NEXT:    retq
+  %p0 = getelementptr i32, i32* %p, i64 0
+  %p1 = getelementptr i32, i32* %p, i64 1
+  %p2 = getelementptr i32, i32* %p, i64 2
+  %p3 = getelementptr i32, i32* %p, i64 3
+  %i0 = load i32, i32* %p0, align 4
+  %i1 = load i32, i32* %p1, align 4
+  store i32 %i1, i32* %p2, align 4
+  store i32 %i0, i32* %p3, align 4
+  ret void
+}
+
+define void @rotate64_iterate(i16* %p) {
+; CHECK-LABEL: rotate64_iterate:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    movq (%rdi), %rax
+; CHECK-NEXT:    rolq $32, %rax
+; CHECK-NEXT:    movq %rax, 84(%rdi)
+; CHECK-NEXT:    retq
+  %p0 = getelementptr i16, i16* %p, i64 0
+  %p1 = getelementptr i16, i16* %p, i64 1
+  %p2 = getelementptr i16, i16* %p, i64 2
+  %p3 = getelementptr i16, i16* %p, i64 3
+  %p42 = getelementptr i16, i16* %p, i64 42
+  %p43 = getelementptr i16, i16* %p, i64 43
+  %p44 = getelementptr i16, i16* %p, i64 44
+  %p45 = getelementptr i16, i16* %p, i64 45
+  %i0 = load i16, i16* %p0, align 2
+  %i1 = load i16, i16* %p1, align 2
+  %i2 = load i16, i16* %p2, align 2
+  %i3 = load i16, i16* %p3, align 2
+  store i16 %i2, i16* %p42, align 2
+  store i16 %i3, i16* %p43, align 2
+  store i16 %i0, i16* %p44, align 2
+  store i16 %i1, i16* %p45, align 2
+  ret void
+}
+
+; TODO: recognize this as 2 rotates?
+
+define void @rotate32_consecutive(i16* %p) {
+; CHECK-LABEL: rotate32_consecutive:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    movzwl (%rdi), %eax
+; CHECK-NEXT:    movzwl 2(%rdi), %ecx
+; CHECK-NEXT:    movzwl 4(%rdi), %edx
+; CHECK-NEXT:    movzwl 6(%rdi), %esi
+; CHECK-NEXT:    movw %cx, 84(%rdi)
+; CHECK-NEXT:    movw %ax, 86(%rdi)
+; CHECK-NEXT:    movw %si, 88(%rdi)
+; CHECK-NEXT:    movw %dx, 90(%rdi)
+; CHECK-NEXT:    retq
+  %p0 = getelementptr i16, i16* %p, i64 0
+  %p1 = getelementptr i16, i16* %p, i64 1
+  %p2 = getelementptr i16, i16* %p, i64 2
+  %p3 = getelementptr i16, i16* %p, i64 3
+  %p42 = getelementptr i16, i16* %p, i64 42
+  %p43 = getelementptr i16, i16* %p, i64 43
+  %p44 = getelementptr i16, i16* %p, i64 44
+  %p45 = getelementptr i16, i16* %p, i64 45
+  %i0 = load i16, i16* %p0, align 2
+  %i1 = load i16, i16* %p1, align 2
+  %i2 = load i16, i16* %p2, align 2
+  %i3 = load i16, i16* %p3, align 2
+  store i16 %i1, i16* %p42, align 2
+  store i16 %i0, i16* %p43, align 2
+  store i16 %i3, i16* %p44, align 2
+  store i16 %i2, i16* %p45, align 2
+  ret void
+}
+
+; Same as above, but now the stores are not all consecutive.
+
+define void @rotate32_twice(i16* %p) {
+; CHECK-LABEL: rotate32_twice:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    movl (%rdi), %eax
+; CHECK-NEXT:    movl 4(%rdi), %ecx
+; CHECK-NEXT:    roll $16, %eax
+; CHECK-NEXT:    roll $16, %ecx
+; CHECK-NEXT:    movl %eax, 84(%rdi)
+; CHECK-NEXT:    movl %ecx, 108(%rdi)
+; CHECK-NEXT:    retq
+  %p0 = getelementptr i16, i16* %p, i64 0
+  %p1 = getelementptr i16, i16* %p, i64 1
+  %p2 = getelementptr i16, i16* %p, i64 2
+  %p3 = getelementptr i16, i16* %p, i64 3
+  %p42 = getelementptr i16, i16* %p, i64 42
+  %p43 = getelementptr i16, i16* %p, i64 43
+  %p54 = getelementptr i16, i16* %p, i64 54
+  %p55 = getelementptr i16, i16* %p, i64 55
+  %i0 = load i16, i16* %p0, align 2
+  %i1 = load i16, i16* %p1, align 2
+  %i2 = load i16, i16* %p2, align 2
+  %i3 = load i16, i16* %p3, align 2
+  store i16 %i1, i16* %p42, align 2
+  store i16 %i0, i16* %p43, align 2
+  store i16 %i3, i16* %p54, align 2
+  store i16 %i2, i16* %p55, align 2
+  ret void
+}
+
+define void @trunc_i16_to_i8(i16 %x, i8* %p) {
+; CHECK-LABEL: trunc_i16_to_i8:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    movw %di, (%rsi)
+; CHECK-NEXT:    retq
+  %t1 = trunc i16 %x to i8
+  %sh = lshr i16 %x, 8
+  %t2 = trunc i16 %sh to i8
+  store i8 %t1, i8* %p, align 1
+  %p1 = getelementptr inbounds i8, i8* %p, i64 1
+  store i8 %t2, i8* %p1, align 1
+  ret void
+}
+
+define void @trunc_i32_to_i8(i32 %x, i8* %p) {
+; CHECK-LABEL: trunc_i32_to_i8:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    movl %edi, (%rsi)
+; CHECK-NEXT:    retq
+  %t1 = trunc i32 %x to i8
+  %sh1 = lshr i32 %x, 8
+  %t2 = trunc i32 %sh1 to i8
+  %sh2 = lshr i32 %x, 16
+  %t3 = trunc i32 %sh2 to i8
+  %sh3 = lshr i32 %x, 24
+  %t4 = trunc i32 %sh3 to i8
+  store i8 %t1, i8* %p, align 1
+  %p1 = getelementptr inbounds i8, i8* %p, i64 1
+  store i8 %t2, i8* %p1, align 1
+  %p2 = getelementptr inbounds i8, i8* %p, i64 2
+  store i8 %t3, i8* %p2, align 1
+  %p3 = getelementptr inbounds i8, i8* %p, i64 3
+  store i8 %t4, i8* %p3, align 1
+  ret void
+}
+
+define void @trunc_i32_to_i16(i32 %x, i16* %p) {
+; CHECK-LABEL: trunc_i32_to_i16:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    movl %edi, (%rsi)
+; CHECK-NEXT:    retq
+  %t1 = trunc i32 %x to i16
+  %sh = lshr i32 %x, 16
+  %t2 = trunc i32 %sh to i16
+  store i16 %t1, i16* %p, align 2
+  %p1 = getelementptr inbounds i16, i16* %p, i64 1
+  store i16 %t2, i16* %p1, align 2
+  ret void
+}
+
+define void @be_i32_to_i16(i32 %x, i16* %p0) {
+; CHECK-LABEL: be_i32_to_i16:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    rorl $16, %edi
+; CHECK-NEXT:    movl %edi, (%rsi)
+; CHECK-NEXT:    retq
+  %sh1 = lshr i32 %x, 16
+  %t0 = trunc i32 %x to i16
+  %t1 = trunc i32 %sh1 to i16
+  %p1 = getelementptr inbounds i16, i16* %p0, i64 1
+  store i16 %t0, i16* %p1, align 2
+  store i16 %t1, i16* %p0, align 2
+  ret void
+}
+
+define void @be_i32_to_i16_order(i32 %x, i16* %p0) {
+; CHECK-LABEL: be_i32_to_i16_order:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    rorl $16, %edi
+; CHECK-NEXT:    movl %edi, (%rsi)
+; CHECK-NEXT:    retq
+  %sh1 = lshr i32 %x, 16
+  %t0 = trunc i32 %x to i16
+  %t1 = trunc i32 %sh1 to i16
+  %p1 = getelementptr inbounds i16, i16* %p0, i64 1
+  store i16 %t1, i16* %p0, align 2
+  store i16 %t0, i16* %p1, align 2
+  ret void
+}
+
+define void @trunc_i64_to_i8(i64 %x, i8* %p) {
+; CHECK-LABEL: trunc_i64_to_i8:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    movq %rdi, (%rsi)
+; CHECK-NEXT:    retq
+  %t1 = trunc i64 %x to i8
+  %sh1 = lshr i64 %x, 8
+  %t2 = trunc i64 %sh1 to i8
+  %sh2 = lshr i64 %x, 16
+  %t3 = trunc i64 %sh2 to i8
+  %sh3 = lshr i64 %x, 24
+  %t4 = trunc i64 %sh3 to i8
+  %sh4 = lshr i64 %x, 32
+  %t5 = trunc i64 %sh4 to i8
+  %sh5 = lshr i64 %x, 40
+  %t6 = trunc i64 %sh5 to i8
+  %sh6 = lshr i64 %x, 48
+  %t7 = trunc i64 %sh6 to i8
+  %sh7 = lshr i64 %x, 56
+  %t8 = trunc i64 %sh7 to i8
+  store i8 %t1, i8* %p, align 1
+  %p1 = getelementptr inbounds i8, i8* %p, i64 1
+  store i8 %t2, i8* %p1, align 1
+  %p2 = getelementptr inbounds i8, i8* %p, i64 2
+  store i8 %t3, i8* %p2, align 1
+  %p3 = getelementptr inbounds i8, i8* %p, i64 3
+  store i8 %t4, i8* %p3, align 1
+  %p4 = getelementptr inbounds i8, i8* %p, i64 4
+  store i8 %t5, i8* %p4, align 1
+  %p5 = getelementptr inbounds i8, i8* %p, i64 5
+  store i8 %t6, i8* %p5, align 1
+  %p6 = getelementptr inbounds i8, i8* %p, i64 6
+  store i8 %t7, i8* %p6, align 1
+  %p7 = getelementptr inbounds i8, i8* %p, i64 7
+  store i8 %t8, i8* %p7, align 1
+  ret void
+}
+
+define void @trunc_i64_to_i16(i64 %x, i16* %p) {
+; CHECK-LABEL: trunc_i64_to_i16:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    movq %rdi, (%rsi)
+; CHECK-NEXT:    retq
+  %t1 = trunc i64 %x to i16
+  %sh1 = lshr i64 %x, 16
+  %t2 = trunc i64 %sh1 to i16
+  %sh2 = lshr i64 %x, 32
+  %t3 = trunc i64 %sh2 to i16
+  %sh3 = lshr i64 %x, 48
+  %t4 = trunc i64 %sh3 to i16
+  store i16 %t1, i16* %p, align 2
+  %p1 = getelementptr inbounds i16, i16* %p, i64 1
+  store i16 %t2, i16* %p1, align 2
+  %p2 = getelementptr inbounds i16, i16* %p, i64 2
+  store i16 %t3, i16* %p2, align 2
+  %p3 = getelementptr inbounds i16, i16* %p, i64 3
+  store i16 %t4, i16* %p3, align 2
+  ret void
+}
+
+define void @trunc_i64_to_i32(i64 %x, i32* %p) {
+; CHECK-LABEL: trunc_i64_to_i32:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    movq %rdi, (%rsi)
+; CHECK-NEXT:    retq
+  %t1 = trunc i64 %x to i32
+  %sh = lshr i64 %x, 32
+  %t2 = trunc i64 %sh to i32
+  store i32 %t1, i32* %p, align 4
+  %p1 = getelementptr inbounds i32, i32* %p, i64 1
+  store i32 %t2, i32* %p1, align 4
+  ret void
+}
+
+define void @be_i64_to_i32(i64 %x, i32* %p0) {
+; CHECK-LABEL: be_i64_to_i32:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    rorq $32, %rdi
+; CHECK-NEXT:    movq %rdi, (%rsi)
+; CHECK-NEXT:    retq
+  %sh1 = lshr i64 %x, 32
+  %t0 = trunc i64 %x to i32
+  %t1 = trunc i64 %sh1 to i32
+  %p1 = getelementptr inbounds i32, i32* %p0, i64 1
+  store i32 %t0, i32* %p1, align 4
+  store i32 %t1, i32* %p0, align 4
+  ret void
+}
+
+define void @be_i64_to_i32_order(i64 %x, i32* %p0) {
+; CHECK-LABEL: be_i64_to_i32_order:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    rorq $32, %rdi
+; CHECK-NEXT:    movq %rdi, (%rsi)
+; CHECK-NEXT:    retq
+  %sh1 = lshr i64 %x, 32
+  %t0 = trunc i64 %x to i32
+  %t1 = trunc i64 %sh1 to i32
+  %p1 = getelementptr inbounds i32, i32* %p0, i64 1
+  store i32 %t1, i32* %p0, align 4
+  store i32 %t0, i32* %p1, align 4
+  ret void
+}

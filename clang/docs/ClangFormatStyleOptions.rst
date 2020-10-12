@@ -760,6 +760,25 @@ the configuration (without a prefix: ``Auto``).
 
 
 
+**AttributeMacros** (``std::vector<std::string>``)
+  A vector of strings that should be interpreted as attributes/qualifiers
+  instead of identifiers. This can be useful for language extensions or
+  static analyzer annotations.
+
+  For example:
+
+  .. code-block:: c++
+
+    x = (char *__capability)&y;
+    int function(void) __ununsed;
+    void only_writes_to_buffer(char *__output buffer);
+
+  In the .clang-format configuration file, this can be configured like:
+
+  .. code-block:: yaml
+
+    AttributeMacros: ['__capability', '__output', '__ununsed']
+
 **BinPackArguments** (``bool``)
   If ``false``, a function call's arguments will either be all on the
   same line or will have one line each.
@@ -793,6 +812,43 @@ the configuration (without a prefix: ``Auto``).
     void f(int aaaaaaaaaaaaaaaaaaaa,
            int aaaaaaaaaaaaaaaaaaaa,
            int aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa) {}
+
+**BitFieldColonSpacing** (``BitFieldColonSpacingStyle``)
+  The BitFieldColonSpacingStyle to use for bitfields.
+
+  Possible values:
+
+  * ``BFCS_Both`` (in configuration: ``Both``)
+    Add one space on each side of the ``:``
+
+    .. code-block:: c++
+
+      unsigned bf : 2;
+
+  * ``BFCS_None`` (in configuration: ``None``)
+    Add no space around the ``:`` (except when needed for
+    ``AlignConsecutiveBitFields``).
+
+    .. code-block:: c++
+
+      unsigned bf:2;
+
+  * ``BFCS_Before`` (in configuration: ``Before``)
+    Add space before the ``:`` only
+
+    .. code-block:: c++
+
+      unsigned bf :2;
+
+  * ``BFCS_After`` (in configuration: ``After``)
+    Add space after the ``:`` only (space may be added before if
+    needed for ``AlignConsecutiveBitFields``).
+
+    .. code-block:: c++
+
+      unsigned bf: 2;
+
+
 
 **BraceWrapping** (``BraceWrappingFlags``)
   Control of individual brace wrapping cases.
@@ -1908,10 +1964,12 @@ the configuration (without a prefix: ``Auto``).
 **JavaImportGroups** (``std::vector<std::string>``)
   A vector of prefixes ordered by the desired groups for Java imports.
 
-  Each group is separated by a newline. Static imports will also follow the
-  same grouping convention above all non-static imports. One group's prefix
-  can be a subset of another - the longest prefix is always matched. Within
-  a group, the imports are ordered lexicographically.
+  One group's prefix can be a subset of another - the longest prefix is
+  always matched. Within a group, the imports are ordered lexicographically.
+  Static imports are grouped separately and follow the same group rules.
+  By default, static imports are placed before non-static imports,
+  but this behavior is changed by another option,
+  ``SortJavaStaticImport``.
 
   In the .clang-format configuration file, this can be configured like
   in the following yaml example. This will result in imports being
@@ -2192,7 +2250,7 @@ the configuration (without a prefix: ``Auto``).
 
 **ObjCBreakBeforeNestedBlockParam** (``bool``)
   Break parameters list into lines when there is nested block
-  parameters in a fuction call.
+  parameters in a function call.
 
   .. code-block:: c++
 
@@ -2336,6 +2394,33 @@ the configuration (without a prefix: ``Auto``).
      false:                                 true:
      #include "b.h"                 vs.     #include "a.h"
      #include "a.h"                         #include "b.h"
+
+**SortJavaStaticImport** (``SortJavaStaticImportOptions``)
+  When sorting Java imports, by default static imports are placed before
+  non-static imports. If ``JavaStaticImportAfterImport`` is ``After``,
+  static imports are placed after non-static imports.
+
+  Possible values:
+
+  * ``SJSIO_Before`` (in configuration: ``Before``)
+    Static imports are placed before non-static imports.
+
+    .. code-block:: java
+
+      import static org.example.function1;
+
+      import org.example.ClassA;
+
+  * ``SJSIO_After`` (in configuration: ``After``)
+    Static imports are placed after non-static imports.
+
+    .. code-block:: java
+
+      import org.example.ClassA;
+
+      import static org.example.function1;
+
+
 
 **SortUsingDeclarations** (``bool``)
   If ``true``, clang-format will sort using declarations.
@@ -2694,8 +2779,11 @@ the configuration (without a prefix: ``Auto``).
     Use tabs whenever we need to fill whitespace that spans at least from
     one tab stop to the next one.
 
+
+
 **WhitespaceSensitiveMacros** (``std::vector<std::string>``)
-  A vector of macros which are whitespace-sensitive and should not be touched.
+  A vector of macros which are whitespace-sensitive and should not
+  be touched.
 
   These are expected to be macros of the form:
 
@@ -2709,9 +2797,7 @@ the configuration (without a prefix: ``Auto``).
 
     WhitespaceSensitiveMacros: ['STRINGIZE', 'PP_STRINGIZE']
 
-  For example: BOOST_PP_STRINGIZE.
-
-
+  For example: BOOST_PP_STRINGIZE
 
 .. END_FORMAT_STYLE_OPTIONS
 

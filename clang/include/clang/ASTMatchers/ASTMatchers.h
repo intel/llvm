@@ -145,6 +145,7 @@ using TypeLocMatcher = internal::Matcher<TypeLoc>;
 using NestedNameSpecifierMatcher = internal::Matcher<NestedNameSpecifier>;
 using NestedNameSpecifierLocMatcher = internal::Matcher<NestedNameSpecifierLoc>;
 using CXXCtorInitializerMatcher = internal::Matcher<CXXCtorInitializer>;
+using TemplateArgumentLocMatcher = internal::Matcher<TemplateArgumentLoc>;
 /// @}
 
 /// Matches any node.
@@ -283,9 +284,10 @@ AST_POLYMORPHIC_MATCHER(isExpansionInSystemHeader,
 /// \endcode
 ///
 /// Usable as: Matcher<Decl>, Matcher<Stmt>, Matcher<TypeLoc>
-AST_POLYMORPHIC_MATCHER_P(isExpansionInFileMatching,
-                          AST_POLYMORPHIC_SUPPORTED_TYPES(Decl, Stmt, TypeLoc),
-                          std::string, RegExp) {
+AST_POLYMORPHIC_MATCHER_REGEX(isExpansionInFileMatching,
+                              AST_POLYMORPHIC_SUPPORTED_TYPES(Decl, Stmt,
+                                                              TypeLoc),
+                              RegExp) {
   auto &SourceManager = Finder->getASTContext().getSourceManager();
   auto ExpansionLoc = SourceManager.getExpansionLoc(Node.getBeginLoc());
   if (ExpansionLoc.isInvalid()) {
@@ -298,8 +300,7 @@ AST_POLYMORPHIC_MATCHER_P(isExpansionInFileMatching,
   }
 
   auto Filename = FileEntry->getName();
-  llvm::Regex RE(RegExp);
-  return RE.match(Filename);
+  return RegExp->match(Filename);
 }
 
 /// Matches statements that are (transitively) expanded from the named macro.
@@ -332,6 +333,19 @@ AST_MATCHER_P(Stmt, isExpandedFromMacro, llvm::StringRef, MacroName) {
 ///   };
 /// \endcode
 extern const internal::VariadicAllOfMatcher<Decl> decl;
+
+/// Matches decomposition-declarations.
+///
+/// Examples matches the declaration node with \c foo and \c bar, but not
+/// \c number.
+/// (matcher = declStmt(has(decompositionDecl())))
+///
+/// \code
+///   int number = 42;
+///   auto [foo, bar] = std::make_pair{42, 42};
+/// \endcode
+extern const internal::VariadicAllOfMatcher<DecompositionDecl>
+    decompositionDecl;
 
 /// Matches a declaration of a linkage specification.
 ///
@@ -515,6 +529,18 @@ extern const internal::VariadicAllOfMatcher<CXXCtorInitializer>
 ///   matches 'int' in C<int>.
 extern const internal::VariadicAllOfMatcher<TemplateArgument> templateArgument;
 
+/// Matches template arguments (with location info).
+///
+/// Given
+/// \code
+///   template <typename T> struct C {};
+///   C<int> c;
+/// \endcode
+/// templateArgumentLoc()
+///   matches 'int' in C<int>.
+extern const internal::VariadicAllOfMatcher<TemplateArgumentLoc>
+    templateArgumentLoc;
+
 /// Matches template name.
 ///
 /// Given
@@ -548,6 +574,18 @@ extern const internal::VariadicDynCastAllOfMatcher<Decl,
 ///   matches 'T', but not 'N'.
 extern const internal::VariadicDynCastAllOfMatcher<Decl, TemplateTypeParmDecl>
     templateTypeParmDecl;
+
+/// Matches template template parameter declarations.
+///
+/// Given
+/// \code
+///   template <template <typename> class Z, int N> struct C {};
+/// \endcode
+/// templateTypeParmDecl()
+///   matches 'Z', but not 'N'.
+extern const internal::VariadicDynCastAllOfMatcher<Decl,
+                                                   TemplateTemplateParmDecl>
+    templateTemplateParmDecl;
 
 /// Matches public C++ declarations and C++ base specifers that specify public
 /// inheritance.
@@ -1124,7 +1162,7 @@ AST_MATCHER(TemplateArgument, isIntegral) {
   return Node.getKind() == TemplateArgument::Integral;
 }
 
-/// Matches a TemplateArgument that referes to an integral type.
+/// Matches a TemplateArgument that refers to an integral type.
 ///
 /// Given
 /// \code
@@ -2748,11 +2786,9 @@ extern const internal::VariadicFunction<internal::Matcher<NamedDecl>, StringRef,
 /// \code
 ///   namespace foo { namespace bar { class X; } }
 /// \endcode
-AST_MATCHER_P(NamedDecl, matchesName, std::string, RegExp) {
-  assert(!RegExp.empty());
+AST_MATCHER_REGEX(NamedDecl, matchesName, RegExp) {
   std::string FullNameString = "::" + Node.getQualifiedNameAsString();
-  llvm::Regex RE(RegExp);
-  return RE.match(FullNameString);
+  return RegExp->match(FullNameString);
 }
 
 /// Matches overloaded operator names.
@@ -2864,7 +2900,7 @@ AST_POLYMORPHIC_MATCHER_P_OVERLOAD(
 /// BaseSpecMatcher.
 ///
 /// Example:
-/// matcher hasAnyBase(hasType(cxxRecordDecl(hasName("SpecialBase")))))
+/// matcher hasAnyBase(hasType(cxxRecordDecl(hasName("SpecialBase"))))
 /// \code
 ///   class Foo;
 ///   class Bar : Foo {};
@@ -2878,6 +2914,26 @@ AST_POLYMORPHIC_MATCHER_P_OVERLOAD(
 AST_MATCHER_P(CXXRecordDecl, hasAnyBase, internal::Matcher<CXXBaseSpecifier>,
               BaseSpecMatcher) {
   return internal::matchesAnyBase(Node, BaseSpecMatcher, Finder, Builder);
+}
+
+/// Matches C++ classes that have a direct base matching \p BaseSpecMatcher.
+///
+/// Example:
+/// matcher hasDirectBase(hasType(cxxRecordDecl(hasName("SpecialBase"))))
+/// \code
+///   class Foo;
+///   class Bar : Foo {};
+///   class Baz : Bar {};
+///   class SpecialBase;
+///   class Proxy : SpecialBase {};  // matches Proxy
+///   class IndirectlyDerived : Proxy {};  // doesn't match
+/// \endcode
+AST_MATCHER_P(CXXRecordDecl, hasDirectBase, internal::Matcher<CXXBaseSpecifier>,
+              BaseSpecMatcher) {
+  return Node.hasDefinition() &&
+         llvm::any_of(Node.bases(), [&](const CXXBaseSpecifier &Base) {
+           return BaseSpecMatcher.matches(Base, Finder, Builder);
+         });
 }
 
 /// Similar to \c isDerivedFrom(), but also matches classes that directly
@@ -3373,11 +3429,9 @@ extern const internal::VariadicFunction<internal::Matcher<ObjCMessageExpr>,
 /// \code
 ///     [self.bodyView loadHTMLString:html baseURL:NULL];
 /// \endcode
-AST_MATCHER_P(ObjCMessageExpr, matchesSelector, std::string, RegExp) {
-  assert(!RegExp.empty());
+AST_MATCHER_REGEX(ObjCMessageExpr, matchesSelector, RegExp) {
   std::string SelectorString = Node.getSelector().getAsString();
-  llvm::Regex RE(RegExp);
-  return RE.match(SelectorString);
+  return RegExp->match(SelectorString);
 }
 
 /// Matches when the selector is the empty selector
@@ -4308,6 +4362,103 @@ AST_POLYMORPHIC_MATCHER_P2(forEachArgumentWithParam,
   return Matched;
 }
 
+/// Matches all arguments and their respective types for a \c CallExpr or
+/// \c CXXConstructExpr. It is very similar to \c forEachArgumentWithParam but
+/// it works on calls through function pointers as well.
+///
+/// The difference is, that function pointers do not provide access to a
+/// \c ParmVarDecl, but only the \c QualType for each argument.
+///
+/// Given
+/// \code
+///   void f(int i);
+///   int y;
+///   f(y);
+///   void (*f_ptr)(int) = f;
+///   f_ptr(y);
+/// \endcode
+/// callExpr(
+///   forEachArgumentWithParamType(
+///     declRefExpr(to(varDecl(hasName("y")))),
+///     qualType(isInteger()).bind("type)
+/// ))
+///   matches f(y) and f_ptr(y)
+/// with declRefExpr(...)
+///   matching int y
+/// and qualType(...)
+///   matching int
+AST_POLYMORPHIC_MATCHER_P2(forEachArgumentWithParamType,
+                           AST_POLYMORPHIC_SUPPORTED_TYPES(CallExpr,
+                                                           CXXConstructExpr),
+                           internal::Matcher<Expr>, ArgMatcher,
+                           internal::Matcher<QualType>, ParamMatcher) {
+  BoundNodesTreeBuilder Result;
+  // The first argument of an overloaded member operator is the implicit object
+  // argument of the method which should not be matched against a parameter, so
+  // we skip over it here.
+  BoundNodesTreeBuilder Matches;
+  unsigned ArgIndex = cxxOperatorCallExpr(callee(cxxMethodDecl()))
+                              .matches(Node, Finder, &Matches)
+                          ? 1
+                          : 0;
+
+  const FunctionProtoType *FProto = nullptr;
+
+  if (const auto *Call = dyn_cast<CallExpr>(&Node)) {
+    if (const auto *Value =
+            dyn_cast_or_null<ValueDecl>(Call->getCalleeDecl())) {
+      QualType QT = Value->getType().getCanonicalType();
+
+      // This does not necessarily lead to a `FunctionProtoType`,
+      // e.g. K&R functions do not have a function prototype.
+      if (QT->isFunctionPointerType())
+        FProto = QT->getPointeeType()->getAs<FunctionProtoType>();
+
+      if (QT->isMemberFunctionPointerType()) {
+        const auto *MP = QT->getAs<MemberPointerType>();
+        assert(MP && "Must be member-pointer if its a memberfunctionpointer");
+        FProto = MP->getPointeeType()->getAs<FunctionProtoType>();
+        assert(FProto &&
+               "The call must have happened through a member function "
+               "pointer");
+      }
+    }
+  }
+
+  int ParamIndex = 0;
+  bool Matched = false;
+
+  for (; ArgIndex < Node.getNumArgs(); ++ArgIndex, ++ParamIndex) {
+    BoundNodesTreeBuilder ArgMatches(*Builder);
+    if (ArgMatcher.matches(*(Node.getArg(ArgIndex)->IgnoreParenCasts()), Finder,
+                           &ArgMatches)) {
+      BoundNodesTreeBuilder ParamMatches(ArgMatches);
+
+      // This test is cheaper compared to the big matcher in the next if.
+      // Therefore, please keep this order.
+      if (FProto) {
+        QualType ParamType = FProto->getParamType(ParamIndex);
+        if (ParamMatcher.matches(ParamType, Finder, &ParamMatches)) {
+          Result.addMatch(ParamMatches);
+          Matched = true;
+          continue;
+        }
+      }
+      if (expr(anyOf(cxxConstructExpr(hasDeclaration(cxxConstructorDecl(
+                         hasParameter(ParamIndex, hasType(ParamMatcher))))),
+                     callExpr(callee(functionDecl(
+                         hasParameter(ParamIndex, hasType(ParamMatcher)))))))
+              .matches(Node, Finder, &ParamMatches)) {
+        Result.addMatch(ParamMatches);
+        Matched = true;
+        continue;
+      }
+    }
+  }
+  *Builder = std::move(Result);
+  return Matched;
+}
+
 /// Matches the ParmVarDecl nodes that are at the N'th position in the parameter
 /// list. The parameter list could be that of either a block, function, or
 /// objc-method.
@@ -4728,7 +4879,9 @@ AST_MATCHER_P(ArraySubscriptExpr, hasBase,
 }
 
 /// Matches a 'for', 'while', 'do while' statement or a function
-/// definition that has a given body.
+/// definition that has a given body. Note that in case of functions
+/// this matcher only matches the definition itself and not the other
+/// declarations of the same function.
 ///
 /// Given
 /// \code
@@ -4738,6 +4891,18 @@ AST_MATCHER_P(ArraySubscriptExpr, hasBase,
 ///   matches 'for (;;) {}'
 /// with compoundStmt()
 ///   matching '{}'
+///
+/// Given
+/// \code
+///   void f();
+///   void f() {}
+/// \endcode
+/// hasBody(functionDecl())
+///   matches 'void f() {}'
+/// with compoundStmt()
+///   matching '{}'
+///   but does not match 'void f();'
+
 AST_POLYMORPHIC_MATCHER_P(hasBody,
                           AST_POLYMORPHIC_SUPPORTED_TYPES(DoStmt, ForStmt,
                                                           WhileStmt,
@@ -4748,6 +4913,30 @@ AST_POLYMORPHIC_MATCHER_P(hasBody,
   return (Statement != nullptr &&
           InnerMatcher.matches(*Statement, Finder, Builder));
 }
+
+/// Matches a function declaration that has a given body present in the AST.
+/// Note that this matcher matches all the declarations of a function whose
+/// body is present in the AST.
+///
+/// Given
+/// \code
+///   void f();
+///   void f() {}
+///   void g();
+/// \endcode
+/// hasAnyBody(functionDecl())
+///   matches both 'void f();'
+///   and 'void f() {}'
+/// with compoundStmt()
+///   matching '{}'
+///   but does not match 'void g();'
+AST_MATCHER_P(FunctionDecl, hasAnyBody,
+              internal::Matcher<Stmt>, InnerMatcher) {
+  const Stmt *const Statement = Node.getBody();
+  return (Statement != nullptr &&
+          InnerMatcher.matches(*Statement, Finder, Builder));
+}
+
 
 /// Matches compound statements where at least one substatement matches
 /// a given matcher. Also matches StmtExprs that have CompoundStmt as children.
@@ -6383,7 +6572,7 @@ extern const AstTypeMatcher<InjectedClassNameType> injectedClassNameType;
 /// \endcode
 extern const AstTypeMatcher<DecayedType> decayedType;
 
-/// Matches the decayed type, whos decayed type matches \c InnerMatcher
+/// Matches the decayed type, whoes decayed type matches \c InnerMatcher
 AST_MATCHER_P(DecayedType, hasDecayedType, internal::Matcher<QualType>,
               InnerType) {
   return InnerType.matches(Node.getDecayedType(), Finder, Builder);
@@ -7174,10 +7363,12 @@ AST_MATCHER_P(OMPExecutableDirective, hasAnyClause,
 /// \code
 ///   #pragma omp parallel default(none)
 ///   #pragma omp parallel default(shared)
+///   #pragma omp parallel default(firstprivate)
 ///   #pragma omp parallel
 /// \endcode
 ///
-/// ``ompDefaultClause()`` matches ``default(none)`` and ``default(shared)``.
+/// ``ompDefaultClause()`` matches ``default(none)``, ``default(shared)``, and
+/// ``default(firstprivate)``
 extern const internal::VariadicDynCastAllOfMatcher<OMPClause, OMPDefaultClause>
     ompDefaultClause;
 
@@ -7189,6 +7380,7 @@ extern const internal::VariadicDynCastAllOfMatcher<OMPClause, OMPDefaultClause>
 ///   #pragma omp parallel
 ///   #pragma omp parallel default(none)
 ///   #pragma omp parallel default(shared)
+///   #pragma omp parallel default(firstprivate)
 /// \endcode
 ///
 /// ``ompDefaultClause(isNoneKind())`` matches only ``default(none)``.
@@ -7204,11 +7396,30 @@ AST_MATCHER(OMPDefaultClause, isNoneKind) {
 ///   #pragma omp parallel
 ///   #pragma omp parallel default(none)
 ///   #pragma omp parallel default(shared)
+///   #pragma omp parallel default(firstprivate)
 /// \endcode
 ///
 /// ``ompDefaultClause(isSharedKind())`` matches only ``default(shared)``.
 AST_MATCHER(OMPDefaultClause, isSharedKind) {
   return Node.getDefaultKind() == llvm::omp::OMP_DEFAULT_shared;
+}
+
+/// Matches if the OpenMP ``default`` clause has ``firstprivate`` kind
+/// specified.
+///
+/// Given
+///
+/// \code
+///   #pragma omp parallel
+///   #pragma omp parallel default(none)
+///   #pragma omp parallel default(shared)
+///   #pragma omp parallel default(firstprivate)
+/// \endcode
+///
+/// ``ompDefaultClause(isFirstPrivateKind())`` matches only
+/// ``default(firstprivate)``.
+AST_MATCHER(OMPDefaultClause, isFirstPrivateKind) {
+  return Node.getDefaultKind() == llvm::omp::OMP_DEFAULT_firstprivate;
 }
 
 /// Matches if the OpenMP directive is allowed to contain the specified OpenMP

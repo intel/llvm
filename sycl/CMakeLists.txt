@@ -6,10 +6,14 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 option(SYCL_ENABLE_WERROR "Treat all warnings as errors in SYCL project" OFF)
+option(SYCL_DISABLE_STL_ASSERTIONS "Disable assertions in STL containers" OFF)
 option(SYCL_ADD_DEV_VERSION_POSTFIX "Adds -V postfix to version string" ON)
 
-set(SYCL_MAJOR_VERSION 2)
-set(SYCL_MINOR_VERSION 1)
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
+include(AddSYCLExecutable)
+
+set(SYCL_MAJOR_VERSION 5)
+set(SYCL_MINOR_VERSION 0)
 set(SYCL_PATCH_VERSION 0)
 set(SYCL_DEV_ABI_VERSION 0)
 if (SYCL_ADD_DEV_VERSION_POSTFIX)
@@ -104,6 +108,9 @@ if( NOT OpenCL_INCLUDE_DIRS )
     INSTALL_COMMAND   ""
     STEP_TARGETS      build
     COMMENT           "Downloading OpenCL headers."
+    LOG_DOWNLOAD 1
+    LOG_UPDATE 1
+    LOG_BUILD 1
   )
   add_definitions(-DCL_TARGET_OPENCL_VERSION=220)
 else()
@@ -137,7 +144,7 @@ if( NOT OpenCL_LIBRARIES )
   endif()
   ExternalProject_Add(ocl-icd
     GIT_REPOSITORY    https://github.com/KhronosGroup/OpenCL-ICD-Loader.git
-    GIT_TAG           origin/master
+    GIT_TAG           v2020.06.16
     UPDATE_DISCONNECTED ${SYCL_EP_OCL_ICD_SKIP_AUTO_UPDATE}
     SOURCE_DIR        ${OpenCL_ICD_LOADER_SOURCE_DIR}
     BINARY_DIR        "${CMAKE_CURRENT_BINARY_DIR}/icd_build"
@@ -151,6 +158,11 @@ if( NOT OpenCL_LIBRARIES )
     STEP_TARGETS      configure,build,install
     DEPENDS           ocl-headers
     BUILD_BYPRODUCTS ${OpenCL_LIBRARIES}
+    LOG_DOWNLOAD 1
+    LOG_UPDATE 1
+    LOG_CONFIGURE 1
+    LOG_BUILD 1
+    LOG_INSTALL 1
   )
   ExternalProject_Add_Step(ocl-icd llvminstall
     COMMAND ${CMAKE_COMMAND} -E copy_directory <INSTALL_DIR>/ ${LLVM_BINARY_DIR}
@@ -237,6 +249,17 @@ function( add_common_options LIB_NAME)
   endif()
 endfunction(add_common_options)
 
+
+if (LLVM_ENABLE_ASSERTIONS AND NOT SYCL_DISABLE_STL_ASSERTIONS)
+  if(SYCL_USE_LIBCXX)
+    add_definitions(-D_LIBCPP_DEBUG=1)
+    set(SYCL_CLANG_EXTRA_FLAGS "${SYCL_CLANG_EXTRA_FLAGS} -D_LIBCPP_DEBUG=1")
+  else()
+    add_definitions(-D_GLIBCXX_ASSERTIONS=1)
+    set(SYCL_CLANG_EXTRA_FLAGS "${SYCL_CLANG_EXTRA_FLAGS} -D_GLIBCXX_ASSERTIONS=1")
+  endif()
+endif()
+
 set(SYCL_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 # SYCL runtime library
@@ -245,7 +268,7 @@ add_subdirectory( source )
 # Auxilliary extras for SYCL headers/library
 if (NOT WIN32)
   install(FILES
-      "${CMAKE_CURRENT_SOURCE_DIR}/xmethods/libsycl.so-gdb.py"
+      "${CMAKE_CURRENT_SOURCE_DIR}/gdb/libsycl.so-gdb.py"
       RENAME "libsycl.so.${SYCL_VERSION_STRING}-gdb.py"
       DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/"
       COMPONENT sycl-headers-extras)
@@ -308,6 +331,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      clang-offload-wrapper
      clang-offload-bundler
      file-table-tform
+     level-zero-loader
      llc
      llvm-ar
      llvm-foreach
@@ -323,7 +347,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      sycl-headers-extras
      sycl
      pi_opencl
-     pi_level0
+     pi_level_zero
      libsycldevice
 )
 if(OpenCL_INSTALL_KHRONOS_ICD_LOADER AND TARGET ocl-icd)
@@ -372,3 +396,5 @@ add_custom_target(deploy-sycl-toolchain
 
 # SYCL Runtime documentation
 add_subdirectory(doc)
+
+add_subdirectory(examples)

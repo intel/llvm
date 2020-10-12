@@ -47,10 +47,10 @@ namespace RT = detail::pi;
 ///        function table entry
 #define _PI_API(api)                                                           \
   template <detail::PiApiKind PiApiOffset>                                     \
-  void setFuncPtr(RT::PiPlugin *MPlugin, decltype(&::api) FuncPtr);            \
+  inline void setFuncPtr(RT::PiPlugin *MPlugin, decltype(&::api) FuncPtr);     \
   template <>                                                                  \
-  void setFuncPtr<detail::PiApiKind::api>(RT::PiPlugin * MPlugin,              \
-                                          decltype(&::api) FuncPtr) {          \
+  inline void setFuncPtr<detail::PiApiKind::api>(RT::PiPlugin * MPlugin,       \
+                                                 decltype(&::api) FuncPtr) {   \
     MPlugin->PiFunctionTable.api = FuncPtr;                                    \
   }
 #include <CL/sycl/detail/pi.def>

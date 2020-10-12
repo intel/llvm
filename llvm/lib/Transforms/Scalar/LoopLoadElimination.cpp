@@ -308,8 +308,8 @@ public:
   /// We need a check if one is a pointer for a candidate load and the other is
   /// a pointer for a possibly intervening store.
   bool needsChecking(unsigned PtrIdx1, unsigned PtrIdx2,
-                     const SmallPtrSet<Value *, 4> &PtrsWrittenOnFwdingPath,
-                     const std::set<Value *> &CandLoadPtrs) {
+                     const SmallPtrSetImpl<Value *> &PtrsWrittenOnFwdingPath,
+                     const SmallPtrSetImpl<Value *> &CandLoadPtrs) {
     Value *Ptr1 =
         LAI.getRuntimePointerChecking()->getPointerInfo(PtrIdx1).PointerValue;
     Value *Ptr2 =
@@ -384,11 +384,9 @@ public:
         findPointersWrittenOnForwardingPath(Candidates);
 
     // Collect the pointers of the candidate loads.
-    // FIXME: SmallPtrSet does not work with std::inserter.
-    std::set<Value *> CandLoadPtrs;
-    transform(Candidates,
-                   std::inserter(CandLoadPtrs, CandLoadPtrs.begin()),
-                   std::mem_fn(&StoreToLoadForwardingCandidate::getLoadPtr));
+    SmallPtrSet<Value *, 4> CandLoadPtrs;
+    for (const auto &Candidate : Candidates)
+      CandLoadPtrs.insert(Candidate.getLoadPtr());
 
     const auto &AllChecks = LAI.getRuntimePointerChecking()->getChecks();
     SmallVector<RuntimePointerCheck, 4> Checks;
@@ -488,7 +486,6 @@ public:
 
     // Filter the candidates further.
     SmallVector<StoreToLoadForwardingCandidate, 4> Candidates;
-    unsigned NumForwarding = 0;
     for (const StoreToLoadForwardingCandidate &Cand : StoreToLoadDependences) {
       LLVM_DEBUG(dbgs() << "Candidate " << Cand);
 
@@ -508,12 +505,17 @@ public:
       if (!Cand.isDependenceDistanceOfOne(PSE, L))
         continue;
 
-      ++NumForwarding;
+      assert(isa<SCEVAddRecExpr>(PSE.getSCEV(Cand.Load->getPointerOperand())) &&
+             "Loading from something other than indvar?");
+      assert(
+          isa<SCEVAddRecExpr>(PSE.getSCEV(Cand.Store->getPointerOperand())) &&
+          "Storing to something other than indvar?");
+
+      Candidates.push_back(Cand);
       LLVM_DEBUG(
           dbgs()
-          << NumForwarding
+          << Candidates.size()
           << ". Valid store-to-load forwarding across the loop backedge\n");
-      Candidates.push_back(Cand);
     }
     if (Candidates.empty())
       return false;
@@ -565,6 +567,17 @@ public:
       LV.setAliasChecks(std::move(Checks));
       LV.setSCEVChecks(LAI.getPSE().getUnionPredicate());
       LV.versionLoop();
+
+      // After versioning, some of the candidates' pointers could stop being
+      // SCEVAddRecs. We need to filter them out.
+      auto NoLongerGoodCandidate = [this](
+          const StoreToLoadForwardingCandidate &Cand) {
+        return !isa<SCEVAddRecExpr>(
+                    PSE.getSCEV(Cand.Load->getPointerOperand())) ||
+               !isa<SCEVAddRecExpr>(
+                    PSE.getSCEV(Cand.Store->getPointerOperand()));
+      };
+      llvm::erase_if(Candidates, NoLongerGoodCandidate);
     }
 
     // Next, propagate the value stored by the store to the users of the load.
@@ -573,7 +586,7 @@ public:
                      "storeforward");
     for (const auto &Cand : Candidates)
       propagateStoredValueToLoadUsers(Cand, SEE);
-    NumLoopLoadEliminted += NumForwarding;
+    NumLoopLoadEliminted += Candidates.size();
 
     return true;
   }
@@ -610,7 +623,7 @@ eliminateLoadsAcrossLoops(Function &F, LoopInfo &LI, DominatorTree &DT,
   for (Loop *TopLevelLoop : LI)
     for (Loop *L : depth_first(TopLevelLoop))
       // We only handle inner-most loops.
-      if (L->empty())
+      if (L->isInnermost())
         Worklist.push_back(L);
 
   // Now walk the identified inner loops.
@@ -707,7 +720,8 @@ PreservedAnalyses LoopLoadEliminationPass::run(Function &F,
   auto &LAM = AM.getResult<LoopAnalysisManagerFunctionProxy>(F).getManager();
   bool Changed = eliminateLoadsAcrossLoops(
       F, LI, DT, BFI, PSI, [&](Loop &L) -> const LoopAccessInfo & {
-        LoopStandardAnalysisResults AR = {AA, AC, DT, LI, SE, TLI, TTI, MSSA};
+        LoopStandardAnalysisResults AR = {AA,  AC,  DT,      LI,  SE,
+                                          TLI, TTI, nullptr, MSSA};
         return LAM.getResult<LoopAccessAnalysis>(L, AR);
       });
 

@@ -41,6 +41,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
+#include "llvm/Analysis/BlockFrequencyInfo.h"
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/LoopAnalysisManager.h"
 #include "llvm/Analysis/LoopInfo.h"
@@ -50,6 +51,7 @@
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/Dominators.h"
+#include "llvm/IR/PassInstrumentation.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Transforms/Utils/LCSSA.h"
 #include "llvm/Transforms/Utils/LoopSimplify.h"
@@ -232,9 +234,11 @@ class FunctionToLoopPassAdaptor
     : public PassInfoMixin<FunctionToLoopPassAdaptor<LoopPassT>> {
 public:
   explicit FunctionToLoopPassAdaptor(LoopPassT Pass, bool UseMemorySSA = false,
+                                     bool UseBlockFrequencyInfo = false,
                                      bool DebugLogging = false)
       : Pass(std::move(Pass)), LoopCanonicalizationFPM(DebugLogging),
-        UseMemorySSA(UseMemorySSA) {
+        UseMemorySSA(UseMemorySSA),
+        UseBlockFrequencyInfo(UseBlockFrequencyInfo) {
     LoopCanonicalizationFPM.addPass(LoopSimplifyPass());
     LoopCanonicalizationFPM.addPass(LCSSAPass());
   }
@@ -252,7 +256,7 @@ public:
     // canonicalization pipeline.
     if (PI.runBeforePass<Function>(LoopCanonicalizationFPM, F)) {
       PA = LoopCanonicalizationFPM.run(F, AM);
-      PI.runAfterPass<Function>(LoopCanonicalizationFPM, F);
+      PI.runAfterPass<Function>(LoopCanonicalizationFPM, F, PA);
     }
 
     // Get the loop structure for this function
@@ -266,6 +270,9 @@ public:
     MemorySSA *MSSA = UseMemorySSA
                           ? (&AM.getResult<MemorySSAAnalysis>(F).getMSSA())
                           : nullptr;
+    BlockFrequencyInfo *BFI = UseBlockFrequencyInfo && F.hasProfileData()
+                                  ? (&AM.getResult<BlockFrequencyAnalysis>(F))
+                                  : nullptr;
     LoopStandardAnalysisResults LAR = {AM.getResult<AAManager>(F),
                                        AM.getResult<AssumptionAnalysis>(F),
                                        AM.getResult<DominatorTreeAnalysis>(F),
@@ -273,6 +280,7 @@ public:
                                        AM.getResult<ScalarEvolutionAnalysis>(F),
                                        AM.getResult<TargetLibraryAnalysis>(F),
                                        AM.getResult<TargetIRAnalysis>(F),
+                                       BFI,
                                        MSSA};
 
     // Setup the loop analysis manager from its proxy. It is important that
@@ -296,6 +304,21 @@ public:
     // declaration.
     appendLoopsToWorklist(LI, Worklist);
 
+#ifndef NDEBUG
+    PI.pushBeforeNonSkippedPassCallback([&LAR, &LI](StringRef PassID, Any IR) {
+      if (isSpecialPass(PassID, {"PassManager"}))
+        return;
+      assert(any_isa<const Loop *>(IR));
+      const Loop *L = any_cast<const Loop *>(IR);
+      assert(L && "Loop should be valid for printing");
+
+      // Verify the loop structure and LCSSA form before visiting the loop.
+      L->verifyLoop();
+      assert(L->isRecursivelyLCSSAForm(LAR.DT, LI) &&
+             "Loops must remain in LCSSA form!");
+    });
+#endif
+
     do {
       Loop *L = Worklist.pop_back_val();
 
@@ -306,11 +329,6 @@ public:
 #ifndef NDEBUG
       // Save a parent loop pointer for asserts.
       Updater.ParentL = L->getParentLoop();
-
-      // Verify the loop structure and LCSSA form before visiting the loop.
-      L->verifyLoop();
-      assert(L->isRecursivelyLCSSAForm(LAR.DT, LI) &&
-             "Loops must remain in LCSSA form!");
 #endif
       // Check the PassInstrumentation's BeforePass callbacks before running the
       // pass, skip its execution completely if asked to (callback returns
@@ -326,9 +344,9 @@ public:
 
       // Do not pass deleted Loop into the instrumentation.
       if (Updater.skipCurrentLoop())
-        PI.runAfterPassInvalidated<Loop>(Pass);
+        PI.runAfterPassInvalidated<Loop>(Pass, PassPA);
       else
-        PI.runAfterPass<Loop>(Pass, *L);
+        PI.runAfterPass<Loop>(Pass, *L, PassPA);
 
       // FIXME: We should verify the set of analyses relevant to Loop passes
       // are preserved.
@@ -345,6 +363,10 @@ public:
       PA.intersect(std::move(PassPA));
     } while (!Worklist.empty());
 
+#ifndef NDEBUG
+    PI.popBeforeNonSkippedPassCallback();
+#endif
+
     // By definition we preserve the proxy. We also preserve all analyses on
     // Loops. This precludes *any* invalidation of loop analyses by the proxy,
     // but that's OK because we've taken care to invalidate analyses in the
@@ -355,6 +377,8 @@ public:
     PA.preserve<DominatorTreeAnalysis>();
     PA.preserve<LoopAnalysis>();
     PA.preserve<ScalarEvolutionAnalysis>();
+    if (UseBlockFrequencyInfo && F.hasProfileData())
+      PA.preserve<BlockFrequencyAnalysis>();
     if (UseMemorySSA)
       PA.preserve<MemorySSAAnalysis>();
     // FIXME: What we really want to do here is preserve an AA category, but
@@ -366,12 +390,15 @@ public:
     return PA;
   }
 
+  static bool isRequired() { return true; }
+
 private:
   LoopPassT Pass;
 
   FunctionPassManager LoopCanonicalizationFPM;
 
   bool UseMemorySSA = false;
+  bool UseBlockFrequencyInfo = false;
 };
 
 /// A function to deduce a loop pass type and wrap it in the templated
@@ -379,9 +406,10 @@ private:
 template <typename LoopPassT>
 FunctionToLoopPassAdaptor<LoopPassT>
 createFunctionToLoopPassAdaptor(LoopPassT Pass, bool UseMemorySSA = false,
+                                bool UseBlockFrequencyInfo = false,
                                 bool DebugLogging = false) {
-  return FunctionToLoopPassAdaptor<LoopPassT>(std::move(Pass), UseMemorySSA,
-                                              DebugLogging);
+  return FunctionToLoopPassAdaptor<LoopPassT>(
+      std::move(Pass), UseMemorySSA, UseBlockFrequencyInfo, DebugLogging);
 }
 
 /// Pass for printing a loop's contents as textual IR.

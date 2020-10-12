@@ -86,7 +86,16 @@ enum NodeType {
   /// the parent's frame or return address, and so on.
   FRAMEADDR,
   RETURNADDR,
+
+  /// ADDROFRETURNADDR - Represents the llvm.addressofreturnaddress intrinsic.
+  /// This node takes no operand, returns a target-specific pointer to the
+  /// place in the stack frame where the return address of the current
+  /// function is stored.
   ADDROFRETURNADDR,
+
+  /// SPONENTRY - Represents the llvm.sponentry intrinsic. Takes no argument
+  /// and returns the stack pointer value at the entry of the current
+  /// function calling this intrinsic.
   SPONENTRY,
 
   /// LOCAL_RECOVER - Represents the llvm.localrecover intrinsic.
@@ -310,6 +319,16 @@ enum NodeType {
   SSUBSAT,
   USUBSAT,
 
+  /// RESULT = [US]SHLSAT(LHS, RHS) - Perform saturation left shift. The first
+  /// operand is the value to be shifted, and the second argument is the amount
+  /// to shift by. Both must be integers of the same bit width (W). If the true
+  /// value of LHS << RHS exceeds the largest value that can be represented by
+  /// W bits, the resulting value is this maximum value, Otherwise, if this
+  /// value is less than the smallest value that can be represented by W bits,
+  /// the resulting value is this minimum value.
+  SSHLSAT,
+  USHLSAT,
+
   /// RESULT = [US]MULFIX(LHS, RHS, SCALE) - Perform fixed point multiplication
   /// on
   /// 2 integers with the same width and scale. SCALE represents the scale of
@@ -448,11 +467,11 @@ enum NodeType {
   FCANONICALIZE,
 
   /// BUILD_VECTOR(ELT0, ELT1, ELT2, ELT3,...) - Return a fixed-width vector
-  /// with the specified, possibly variable, elements.  The number of elements
-  /// is required to be a power of two. The types of the operands must all be
-  /// the same and must match the vector element type, except that integer types
-  /// are allowed to be larger than the element type, in which case the operands
-  /// are implicitly truncated.
+  /// with the specified, possibly variable, elements. The types of the
+  /// operands must match the vector element type, except that integer types
+  /// are allowed to be larger than the element type, in which case the
+  /// operands are implicitly truncated. The types of the operands must all
+  /// be the same.
   BUILD_VECTOR,
 
   /// INSERT_VECTOR_ELT(VECTOR, VAL, IDX) - Returns VECTOR with the element
@@ -504,7 +523,8 @@ enum NodeType {
   /// IDX is first scaled by the runtime scaling factor of T. Elements IDX
   /// through (IDX + num_elements(T) - 1) must be valid VECTOR indices. If this
   /// condition cannot be determined statically but is false at runtime, then
-  /// the result vector is undefined.
+  /// the result vector is undefined. The IDX parameter must be a vector index
+  /// constant type, which for most targets will be an integer pointer type.
   ///
   /// This operation supports extracting a fixed-width vector from a scalable
   /// vector, but not the other way around.
@@ -587,6 +607,7 @@ enum NodeType {
   CTLZ,
   CTPOP,
   BITREVERSE,
+  PARITY,
 
   /// Bit counting operators with an undefined result for zero inputs.
   CTTZ_ZERO_UNDEF,
@@ -870,7 +891,7 @@ enum NodeType {
   /// SDOperands.
   INLINEASM,
 
-  /// INLINEASM_BR - Terminator version of inline asm. Used by asm-goto.
+  /// INLINEASM_BR - Branching version of inline asm. Used by asm-goto.
   INLINEASM_BR,
 
   /// EH_LABEL - Represents a label in mid basic block used to track

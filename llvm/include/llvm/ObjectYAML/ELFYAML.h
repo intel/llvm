@@ -77,14 +77,17 @@ struct FileHeader {
   ELF_ELFOSABI OSABI;
   llvm::yaml::Hex8 ABIVersion;
   ELF_ET Type;
-  ELF_EM Machine;
+  Optional<ELF_EM> Machine;
   ELF_EF Flags;
   llvm::yaml::Hex64 Entry;
 
-  Optional<llvm::yaml::Hex16> SHEntSize;
-  Optional<llvm::yaml::Hex64> SHOff;
-  Optional<llvm::yaml::Hex16> SHNum;
-  Optional<llvm::yaml::Hex16> SHStrNdx;
+  Optional<llvm::yaml::Hex64> EPhOff;
+  Optional<llvm::yaml::Hex16> EPhEntSize;
+  Optional<llvm::yaml::Hex16> EPhNum;
+  Optional<llvm::yaml::Hex16> EShEntSize;
+  Optional<llvm::yaml::Hex64> EShOff;
+  Optional<llvm::yaml::Hex16> EShNum;
+  Optional<llvm::yaml::Hex16> EShStrNdx;
 };
 
 struct SectionHeader {
@@ -94,7 +97,7 @@ struct SectionHeader {
 struct SectionHeaderTable {
   Optional<std::vector<SectionHeader>> Sections;
   Optional<std::vector<SectionHeader>> Excluded;
-  bool NoHeaders;
+  Optional<bool> NoHeaders;
 };
 
 struct SectionName {
@@ -150,6 +153,7 @@ struct Chunk {
     StackSizes,
     SymtabShndxSection,
     Symver,
+    ARMIndexTable,
     MipsABIFlags,
     Addrsig,
     Fill,
@@ -203,6 +207,12 @@ struct Section : public Chunk {
 
   // This can be used to override the sh_flags field.
   Optional<llvm::yaml::Hex64> ShFlags;
+
+  // This can be used to override the sh_type field. It is useful when we
+  // want to use specific YAML keys for a section of a particular type to
+  // describe the content, but still want to have a different final type
+  // for the section.
+  Optional<ELF_SHT> ShType;
 };
 
 // Fill is a block of data which is placed outside of sections. It is
@@ -252,6 +262,9 @@ struct RawContentSection : Section {
   static bool classof(const Chunk *S) {
     return S->Kind == ChunkKind::RawContent;
   }
+
+  // Is used when a content is read as an array of bytes.
+  Optional<std::vector<uint8_t>> ContentBuf;
 };
 
 struct NoBitsSection : Section {
@@ -481,6 +494,23 @@ struct SymtabShndxSection : Section {
   }
 };
 
+struct ARMIndexTableEntry {
+  llvm::yaml::Hex32 Offset;
+  llvm::yaml::Hex32 Value;
+};
+
+struct ARMIndexTableSection : Section {
+  Optional<std::vector<ARMIndexTableEntry>> Entries;
+  Optional<yaml::BinaryRef> Content;
+  Optional<llvm::yaml::Hex64> Size;
+
+  ARMIndexTableSection() : Section(ChunkKind::ARMIndexTable) {}
+
+  static bool classof(const Chunk *S) {
+    return S->Kind == ChunkKind::ARMIndexTable;
+  }
+};
+
 // Represents .MIPS.abiflags section
 struct MipsABIFlags : Section {
   llvm::yaml::Hex16 Version;
@@ -541,6 +571,8 @@ struct Object {
         Ret.push_back(S);
     return Ret;
   }
+
+  unsigned getMachine() const;
 };
 
 } // end namespace ELFYAML
@@ -561,6 +593,7 @@ LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::VerneedEntry)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::Relocation)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::SectionOrType)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::SectionName)
+LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::ARMIndexTableEntry)
 
 namespace llvm {
 namespace yaml {
@@ -741,6 +774,10 @@ template <> struct MappingTraits<ELFYAML::CallGraphEntry> {
 
 template <> struct MappingTraits<ELFYAML::Relocation> {
   static void mapping(IO &IO, ELFYAML::Relocation &Rel);
+};
+
+template <> struct MappingTraits<ELFYAML::ARMIndexTableEntry> {
+  static void mapping(IO &IO, ELFYAML::ARMIndexTableEntry &E);
 };
 
 template <> struct MappingTraits<std::unique_ptr<ELFYAML::Chunk>> {

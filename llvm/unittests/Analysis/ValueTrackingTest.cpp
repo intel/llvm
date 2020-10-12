@@ -10,6 +10,7 @@
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/AsmParser/Parser.h"
 #include "llvm/IR/ConstantRange.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
@@ -716,63 +717,152 @@ TEST(ValueTracking, propagatesPoison) {
   for (auto &I : BB) {
     if (isa<ReturnInst>(&I))
       break;
-    EXPECT_EQ(propagatesPoison(&I), Data[Index].first)
+    EXPECT_EQ(propagatesPoison(cast<Operator>(&I)), Data[Index].first)
         << "Incorrect answer at instruction " << Index << " = " << I;
     Index++;
   }
 }
 
-TEST(ValueTracking, canCreatePoison) {
+TEST_F(ValueTrackingTest, programUndefinedIfPoison) {
+  parseAssembly("declare i32 @any_num()"
+                "define void @test(i32 %mask) {\n"
+                "  %A = call i32 @any_num()\n"
+                "  %B = or i32 %A, %mask\n"
+                "  udiv i32 1, %B"
+                "  ret void\n"
+                "}\n");
+  // If %A was poison, udiv raises UB regardless of %mask's value
+  EXPECT_EQ(programUndefinedIfPoison(A), true);
+}
+
+TEST_F(ValueTrackingTest, programUndefinedIfUndefOrPoison) {
+  parseAssembly("declare i32 @any_num()"
+                "define void @test(i32 %mask) {\n"
+                "  %A = call i32 @any_num()\n"
+                "  %B = or i32 %A, %mask\n"
+                "  udiv i32 1, %B"
+                "  ret void\n"
+                "}\n");
+  // If %A was undef and %mask was 1, udiv does not raise UB
+  EXPECT_EQ(programUndefinedIfUndefOrPoison(A), false);
+}
+
+TEST_F(ValueTrackingTest, isGuaranteedNotToBePoison_exploitBranchCond) {
+  parseAssembly("declare i1 @any_bool()"
+                "define void @test(i1 %y) {\n"
+                "  %A = call i1 @any_bool()\n"
+                "  %cond = and i1 %A, %y\n"
+                "  br i1 %cond, label %BB1, label %BB2\n"
+                "BB1:\n"
+                "  ret void\n"
+                "BB2:\n"
+                "  ret void\n"
+                "}\n");
+  DominatorTree DT(*F);
+  for (auto &BB : *F) {
+    if (&BB == &F->getEntryBlock())
+      continue;
+
+    EXPECT_EQ(isGuaranteedNotToBePoison(A, BB.getTerminator(), &DT), true)
+        << "isGuaranteedNotToBePoison does not hold at " << *BB.getTerminator();
+  }
+}
+
+TEST_F(ValueTrackingTest, isGuaranteedNotToBePoison_phi) {
+  parseAssembly("declare i32 @any_i32(i32)"
+                "define void @test() {\n"
+                "ENTRY:\n"
+                "  br label %LOOP\n"
+                "LOOP:\n"
+                "  %A = phi i32 [0, %ENTRY], [%A.next, %NEXT]\n"
+                "  %A.next = call i32 @any_i32(i32 %A)\n"
+                "  %cond = icmp eq i32 %A.next, 0\n"
+                "  br i1 %cond, label %NEXT, label %EXIT\n"
+                "NEXT:\n"
+                "  br label %LOOP\n"
+                "EXIT:\n"
+                "  ret void\n"
+                "}\n");
+  DominatorTree DT(*F);
+  for (auto &BB : *F) {
+    if (BB.getName() == "LOOP") {
+      EXPECT_EQ(isGuaranteedNotToBePoison(A, A, &DT), true)
+          << "isGuaranteedNotToBePoison does not hold";
+    }
+  }
+}
+
+TEST_F(ValueTrackingTest, isGuaranteedNotToBeUndefOrPoison) {
+  parseAssembly("declare void @f(i32 noundef)"
+                "define void @test(i32 %x) {\n"
+                "  %A = bitcast i32 %x to i32\n"
+                "  call void @f(i32 noundef %x)\n"
+                "  ret void\n"
+                "}\n");
+  EXPECT_EQ(isGuaranteedNotToBeUndefOrPoison(A), true);
+}
+
+TEST(ValueTracking, canCreatePoisonOrUndef) {
   std::string AsmHead =
       "declare i32 @g(i32)\n"
       "define void @f(i32 %x, i32 %y, float %fx, float %fy, i1 %cond, "
       "<4 x i32> %vx, <4 x i32> %vx2, <vscale x 4 x i32> %svx, i8* %p) {\n";
   std::string AsmTail = "  ret void\n}";
-  // (can create poison?, IR instruction)
-  SmallVector<std::pair<bool, std::string>, 32> Data = {
-      {false, "add i32 %x, %y"},
-      {true, "add nsw nuw i32 %x, %y"},
-      {true, "shl i32 %x, %y"},
-      {true, "shl <4 x i32> %vx, %vx2"},
-      {true, "shl nsw i32 %x, %y"},
-      {true, "shl nsw <4 x i32> %vx, <i32 0, i32 1, i32 2, i32 3>"},
-      {false, "shl i32 %x, 31"},
-      {true, "shl i32 %x, 32"},
-      {false, "shl <4 x i32> %vx, <i32 0, i32 1, i32 2, i32 3>"},
-      {true, "shl <4 x i32> %vx, <i32 0, i32 1, i32 2, i32 32>"},
-      {true, "ashr i32 %x, %y"},
-      {true, "ashr exact i32 %x, %y"},
-      {false, "ashr i32 %x, 31"},
-      {true, "ashr exact i32 %x, 31"},
-      {false, "ashr <4 x i32> %vx, <i32 0, i32 1, i32 2, i32 3>"},
-      {true, "ashr <4 x i32> %vx, <i32 0, i32 1, i32 2, i32 32>"},
-      {true, "ashr exact <4 x i32> %vx, <i32 0, i32 1, i32 2, i32 3>"},
-      {true, "lshr i32 %x, %y"},
-      {true, "lshr exact i32 %x, 31"},
-      {false, "udiv i32 %x, %y"},
-      {true, "udiv exact i32 %x, %y"},
-      {false, "getelementptr i8, i8* %p, i32 %x"},
-      {true, "getelementptr inbounds i8, i8* %p, i32 %x"},
-      {true, "fneg nnan float %fx"},
-      {false, "fneg float %fx"},
-      {false, "fadd float %fx, %fy"},
-      {true, "fadd nnan float %fx, %fy"},
-      {false, "urem i32 %x, %y"},
-      {true, "fptoui float %fx to i32"},
-      {true, "fptosi float %fx to i32"},
-      {false, "bitcast float %fx to i32"},
-      {false, "select i1 %cond, i32 %x, i32 %y"},
-      {true, "select nnan i1 %cond, float %fx, float %fy"},
-      {true, "extractelement <4 x i32> %vx, i32 %x"},
-      {false, "extractelement <4 x i32> %vx, i32 3"},
-      {true, "extractelement <vscale x 4 x i32> %svx, i32 4"},
-      {true, "insertelement <4 x i32> %vx, i32 %x, i32 %y"},
-      {false, "insertelement <4 x i32> %vx, i32 %x, i32 3"},
-      {true, "insertelement <vscale x 4 x i32> %svx, i32 %x, i32 4"},
-      {false, "freeze i32 %x"},
-      {true, "call i32 @g(i32 %x)"},
-      {true, "fcmp nnan oeq float %fx, %fy"},
-      {false, "fcmp oeq float %fx, %fy"}};
+  // (can create poison?, can create undef?, IR instruction)
+  SmallVector<std::pair<std::pair<bool, bool>, std::string>, 32> Data = {
+      {{false, false}, "add i32 %x, %y"},
+      {{true, false}, "add nsw nuw i32 %x, %y"},
+      {{true, false}, "shl i32 %x, %y"},
+      {{true, false}, "shl <4 x i32> %vx, %vx2"},
+      {{true, false}, "shl nsw i32 %x, %y"},
+      {{true, false}, "shl nsw <4 x i32> %vx, <i32 0, i32 1, i32 2, i32 3>"},
+      {{false, false}, "shl i32 %x, 31"},
+      {{true, false}, "shl i32 %x, 32"},
+      {{false, false}, "shl <4 x i32> %vx, <i32 0, i32 1, i32 2, i32 3>"},
+      {{true, false}, "shl <4 x i32> %vx, <i32 0, i32 1, i32 2, i32 32>"},
+      {{true, false}, "ashr i32 %x, %y"},
+      {{true, false}, "ashr exact i32 %x, %y"},
+      {{false, false}, "ashr i32 %x, 31"},
+      {{true, false}, "ashr exact i32 %x, 31"},
+      {{false, false}, "ashr <4 x i32> %vx, <i32 0, i32 1, i32 2, i32 3>"},
+      {{true, false}, "ashr <4 x i32> %vx, <i32 0, i32 1, i32 2, i32 32>"},
+      {{true, false}, "ashr exact <4 x i32> %vx, <i32 0, i32 1, i32 2, i32 3>"},
+      {{true, false}, "lshr i32 %x, %y"},
+      {{true, false}, "lshr exact i32 %x, 31"},
+      {{false, false}, "udiv i32 %x, %y"},
+      {{true, false}, "udiv exact i32 %x, %y"},
+      {{false, false}, "getelementptr i8, i8* %p, i32 %x"},
+      {{true, false}, "getelementptr inbounds i8, i8* %p, i32 %x"},
+      {{true, false}, "fneg nnan float %fx"},
+      {{false, false}, "fneg float %fx"},
+      {{false, false}, "fadd float %fx, %fy"},
+      {{true, false}, "fadd nnan float %fx, %fy"},
+      {{false, false}, "urem i32 %x, %y"},
+      {{true, false}, "fptoui float %fx to i32"},
+      {{true, false}, "fptosi float %fx to i32"},
+      {{false, false}, "bitcast float %fx to i32"},
+      {{false, false}, "select i1 %cond, i32 %x, i32 %y"},
+      {{true, false}, "select nnan i1 %cond, float %fx, float %fy"},
+      {{true, false}, "extractelement <4 x i32> %vx, i32 %x"},
+      {{false, false}, "extractelement <4 x i32> %vx, i32 3"},
+      {{true, false}, "extractelement <vscale x 4 x i32> %svx, i32 4"},
+      {{true, false}, "insertelement <4 x i32> %vx, i32 %x, i32 %y"},
+      {{false, false}, "insertelement <4 x i32> %vx, i32 %x, i32 3"},
+      {{true, false}, "insertelement <vscale x 4 x i32> %svx, i32 %x, i32 4"},
+      {{false, false}, "freeze i32 %x"},
+      {{false, false},
+       "shufflevector <4 x i32> %vx, <4 x i32> %vx2, "
+       "<4 x i32> <i32 0, i32 1, i32 2, i32 3>"},
+      {{false, true},
+       "shufflevector <4 x i32> %vx, <4 x i32> %vx2, "
+       "<4 x i32> <i32 0, i32 1, i32 2, i32 undef>"},
+      {{false, true},
+       "shufflevector <vscale x 4 x i32> %svx, "
+       "<vscale x 4 x i32> %svx, <vscale x 4 x i32> undef"},
+      {{true, false}, "call i32 @g(i32 %x)"},
+      {{false, false}, "call noundef i32 @g(i32 %x)"},
+      {{true, false}, "fcmp nnan oeq float %fx, %fy"},
+      {{false, false}, "fcmp oeq float %fx, %fy"}};
 
   std::string AssemblyStr = AsmHead;
   for (auto &Itm : Data)
@@ -793,8 +883,14 @@ TEST(ValueTracking, canCreatePoison) {
   for (auto &I : BB) {
     if (isa<ReturnInst>(&I))
       break;
-    EXPECT_EQ(canCreatePoison(&I), Data[Index].first)
-        << "Incorrect answer at instruction " << Index << " = " << I;
+    bool Poison = Data[Index].first.first;
+    bool Undef = Data[Index].first.second;
+    EXPECT_EQ(canCreatePoison(cast<Operator>(&I)), Poison)
+        << "Incorrect answer of canCreatePoison at instruction " << Index
+        << " = " << I;
+    EXPECT_EQ(canCreateUndefOrPoison(cast<Operator>(&I)), Undef || Poison)
+        << "Incorrect answer of canCreateUndef at instruction " << Index
+        << " = " << I;
     Index++;
   }
 }
@@ -993,6 +1089,24 @@ TEST_F(ComputeKnownBitsTest, ComputeKnownBitsPtrToIntZext) {
   AssumptionCache AC(*F);
   KnownBits Known = computeKnownBits(
       A, M->getDataLayout(), /* Depth */ 0, &AC, F->front().getTerminator());
+  EXPECT_EQ(Known.Zero.getZExtValue(), 31u);
+  EXPECT_EQ(Known.One.getZExtValue(), 0u);
+}
+
+TEST_F(ComputeKnownBitsTest, ComputeKnownBitsFreeze) {
+  parseAssembly("define void @test() {\n"
+                "  %m = call i32 @any_num()\n"
+                "  %A = freeze i32 %m\n"
+                "  %n = and i32 %m, 31\n"
+                "  %c = icmp eq i32 %n, 0\n"
+                "  call void @llvm.assume(i1 %c)\n"
+                "  ret void\n"
+                "}\n"
+                "declare void @llvm.assume(i1)\n"
+                "declare i32 @any_num()\n");
+  AssumptionCache AC(*F);
+  KnownBits Known = computeKnownBits(A, M->getDataLayout(), /* Depth */ 0, &AC,
+                                     F->front().getTerminator());
   EXPECT_EQ(Known.Zero.getZExtValue(), 31u);
   EXPECT_EQ(Known.One.getZExtValue(), 0u);
 }
@@ -1414,3 +1528,150 @@ TEST_F(ValueTrackingTest, ComputeConstantRange) {
     EXPECT_TRUE(CR2.isFullSet());
   }
 }
+
+struct FindAllocaForValueTestParams {
+  const char *IR;
+  bool AnyOffsetResult;
+  bool ZeroOffsetResult;
+};
+
+class FindAllocaForValueTest
+    : public ValueTrackingTest,
+      public ::testing::WithParamInterface<FindAllocaForValueTestParams> {
+protected:
+};
+
+const FindAllocaForValueTestParams FindAllocaForValueTests[] = {
+    {R"(
+      define void @test() {
+        %a = alloca i64
+        %r = bitcast i64* %a to i32*
+        ret void
+      })",
+     true, true},
+
+    {R"(
+      define void @test() {
+        %a = alloca i32
+        %r = getelementptr i32, i32* %a, i32 1
+        ret void
+      })",
+     true, false},
+
+    {R"(
+      define void @test() {
+        %a = alloca i32
+        %r = getelementptr i32, i32* %a, i32 0
+        ret void
+      })",
+     true, true},
+
+    {R"(
+      define void @test(i1 %cond) {
+      entry:
+        %a = alloca i32
+        br label %bb1
+
+      bb1:
+        %r = phi i32* [ %a, %entry ], [ %r, %bb1 ]
+        br i1 %cond, label %bb1, label %exit
+
+      exit:
+        ret void
+      })",
+     true, true},
+
+    {R"(
+      define void @test(i1 %cond) {
+        %a = alloca i32
+        %r = select i1 %cond, i32* %a, i32* %a
+        ret void
+      })",
+     true, true},
+
+    {R"(
+      define void @test(i1 %cond) {
+        %a = alloca i32
+        %b = alloca i32
+        %r = select i1 %cond, i32* %a, i32* %b
+        ret void
+      })",
+     false, false},
+
+    {R"(
+      define void @test(i1 %cond) {
+      entry:
+        %a = alloca i64
+        %a32 = bitcast i64* %a to i32*
+        br label %bb1
+
+      bb1:
+        %x = phi i32* [ %a32, %entry ], [ %x, %bb1 ]
+        %r = getelementptr i32, i32* %x, i32 1
+        br i1 %cond, label %bb1, label %exit
+
+      exit:
+        ret void
+      })",
+     true, false},
+
+    {R"(
+      define void @test(i1 %cond) {
+      entry:
+        %a = alloca i64
+        %a32 = bitcast i64* %a to i32*
+        br label %bb1
+
+      bb1:
+        %x = phi i32* [ %a32, %entry ], [ %r, %bb1 ]
+        %r = getelementptr i32, i32* %x, i32 1
+        br i1 %cond, label %bb1, label %exit
+
+      exit:
+        ret void
+      })",
+     true, false},
+
+    {R"(
+      define void @test(i1 %cond, i64* %a) {
+      entry:
+        %r = bitcast i64* %a to i32*
+        ret void
+      })",
+     false, false},
+
+    {R"(
+      define void @test(i1 %cond) {
+      entry:
+        %a = alloca i32
+        %b = alloca i32
+        br label %bb1
+
+      bb1:
+        %r = phi i32* [ %a, %entry ], [ %b, %bb1 ]
+        br i1 %cond, label %bb1, label %exit
+
+      exit:
+        ret void
+      })",
+     false, false},
+};
+
+TEST_P(FindAllocaForValueTest, findAllocaForValue) {
+  auto M = parseModule(GetParam().IR);
+  Function *F = M->getFunction("test");
+  Instruction *I = &findInstructionByName(F, "r");
+  const AllocaInst *AI = findAllocaForValue(I);
+  EXPECT_EQ(!!AI, GetParam().AnyOffsetResult);
+}
+
+TEST_P(FindAllocaForValueTest, findAllocaForValueZeroOffset) {
+  auto M = parseModule(GetParam().IR);
+  Function *F = M->getFunction("test");
+  Instruction *I = &findInstructionByName(F, "r");
+  const AllocaInst *AI = findAllocaForValue(I, true);
+  EXPECT_EQ(!!AI, GetParam().ZeroOffsetResult);
+}
+
+INSTANTIATE_TEST_CASE_P(FindAllocaForValueTest, FindAllocaForValueTest,
+                        ::testing::ValuesIn(FindAllocaForValueTests), );

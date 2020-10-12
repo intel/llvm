@@ -117,7 +117,7 @@ bool LocalStackSlotPass::runOnMachineFunction(MachineFunction &MF) {
 
   // If the target doesn't want/need this pass, or if there are no locals
   // to consider, early exit.
-  if (!TRI->requiresVirtualBaseRegisters(MF) || LocalObjectCount == 0)
+  if (LocalObjectCount == 0 || !TRI->requiresVirtualBaseRegisters(MF))
     return true;
 
   // Make sure we have enough space to store the local offsets.
@@ -220,6 +220,8 @@ void LocalStackSlotPass::calculateFrameObjectOffsets(MachineFunction &Fn) {
         continue;
       if (StackProtectorFI == (int)i)
         continue;
+      if (!TFI.isStackIdSafeForLocalArea(MFI.getStackID(i)))
+        continue;
 
       switch (MFI.getObjectSSPLayout(i)) {
       case MachineFrameInfo::SSPLK_None:
@@ -253,6 +255,8 @@ void LocalStackSlotPass::calculateFrameObjectOffsets(MachineFunction &Fn) {
     if (MFI.getStackProtectorIndex() == (int)i)
       continue;
     if (ProtectedObjs.count(i))
+      continue;
+    if (!TFI.isStackIdSafeForLocalArea(MFI.getStackID(i)))
       continue;
 
     AdjustStackOffset(MFI, i, Offset, StackGrowsDown, MaxAlign);

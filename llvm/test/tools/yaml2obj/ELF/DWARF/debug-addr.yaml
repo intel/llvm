@@ -140,10 +140,9 @@
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    [[ENDIAN]]
-  Type:    ET_EXEC
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  [[ENDIAN]]
+  Type:  ET_EXEC
 DWARF:
   debug_addr:
     ## 1) Only address (4-byte) exists.
@@ -384,10 +383,9 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    [[ENDIAN]]
-  Type:    ET_EXEC
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  [[ENDIAN]]
+  Type:  ET_EXEC
 DWARF:
   debug_addr:
     - Format:      DWARF64
@@ -443,10 +441,9 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_EXEC
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_EXEC
 DWARF:
   debug_addr:
     - Entries: []
@@ -463,10 +460,9 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_EXEC
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_EXEC
 Sections:
   - Name:    .debug_addr
     Type:    SHT_PROGBITS
@@ -483,10 +479,9 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_EXEC
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_EXEC
 Sections:
   - Name: .debug_addr
     Type: SHT_PROGBITS
@@ -501,10 +496,9 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_EXEC
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_EXEC
 Sections:
   - Name: .debug_addr
     Type: SHT_PROGBITS
@@ -521,10 +515,9 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_EXEC
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_EXEC
 Sections:
   - Name:    .debug_addr
     Type:    SHT_PROGBITS
@@ -546,10 +539,9 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_EXEC
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_EXEC
 Sections:
   - Name:         .debug_addr
     Type:         SHT_STRTAB  ## SHT_PROGBITS by default.
@@ -572,10 +564,9 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_EXEC
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_EXEC
 Sections:
   - Name:         .debug_addr
     Type:         SHT_STRTAB  ## SHT_PROGBITS by default.
@@ -609,10 +600,9 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_EXEC
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_EXEC
 DWARF:
   debug_addr:
     - Version:      5
@@ -632,13 +622,27 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_EXEC
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_EXEC
 DWARF:
   debug_addr:
     - Version:      5
       [[SIZENAME]]: 3
       Entries:
         - Address: 0x1234
+
+## n) Test that the .debug_addr section header is emitted if the "debug_addr"
+## entry is empty.
+
+# RUN: yaml2obj --docnum=12 %s -o %t12.o
+# RUN: llvm-readobj --sections %t12.o | \
+# RUN:   FileCheck %s -DSIZE=0 -DADDRALIGN=1 --check-prefix=SHDR
+
+--- !ELF
+FileHeader:
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_EXEC
+DWARF:
+  debug_addr: []

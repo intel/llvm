@@ -10598,6 +10598,12 @@ unsigned ARMAsmParser::checkTargetMatchPredicate(MCInst &Inst) {
         (isThumb() && !hasV8Ops()))
       return Match_InvalidOperand;
     break;
+  case ARM::t2TBB:
+  case ARM::t2TBH:
+    // Rn = sp is only allowed with ARMv8-A
+    if (!hasV8Ops() && (Inst.getOperand(0).getReg() == ARM::SP))
+      return Match_RequiresV8;
+    break;
   default:
     break;
   }
@@ -11128,7 +11134,8 @@ bool ARMAsmParser::parseDirectiveArch(SMLoc L) {
   bool WasThumb = isThumb();
   Triple T;
   MCSubtargetInfo &STI = copySTI();
-  STI.setDefaultFeatures("", ("+" + ARM::getArchName(ID)).str());
+  STI.setDefaultFeatures("", /*TuneCPU*/ "",
+                         ("+" + ARM::getArchName(ID)).str());
   setAvailableFeatures(ComputeAvailableFeatures(STI.getFeatureBits()));
   FixModeAfterArchChange(WasThumb, L);
 
@@ -11241,7 +11248,7 @@ bool ARMAsmParser::parseDirectiveCPU(SMLoc L) {
 
   bool WasThumb = isThumb();
   MCSubtargetInfo &STI = copySTI();
-  STI.setDefaultFeatures(CPU, "");
+  STI.setDefaultFeatures(CPU, /*TuneCPU*/ CPU, "");
   setAvailableFeatures(ComputeAvailableFeatures(STI.getFeatureBits()));
   FixModeAfterArchChange(WasThumb, L);
 

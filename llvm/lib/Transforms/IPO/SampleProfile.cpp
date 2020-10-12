@@ -43,6 +43,7 @@
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
+#include "llvm/Analysis/ReplayInlineAdvisor.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/BasicBlock.h"
@@ -149,14 +150,17 @@ static cl::opt<bool> ProfileAccurateForSymsInList(
              "be accurate. It may be overriden by profile-sample-accurate. "));
 
 static cl::opt<bool> ProfileMergeInlinee(
-    "sample-profile-merge-inlinee", cl::Hidden, cl::init(false),
+    "sample-profile-merge-inlinee", cl::Hidden, cl::init(true),
     cl::desc("Merge past inlinee's profile to outline version if sample "
-             "profile loader decided not to inline a call site."));
+             "profile loader decided not to inline a call site. It will "
+             "only be enabled when top-down order of profile loading is "
+             "enabled. "));
 
 static cl::opt<bool> ProfileTopDownLoad(
-    "sample-profile-top-down-load", cl::Hidden, cl::init(false),
+    "sample-profile-top-down-load", cl::Hidden, cl::init(true),
     cl::desc("Do profile annotation and inlining for functions in top-down "
-             "order of call graph during sample profile loading."));
+             "order of call graph during sample profile loading. It only "
+             "works for new pass manager. "));
 
 static cl::opt<bool> ProfileSizeInline(
     "sample-profile-inline-size", cl::Hidden, cl::init(false),
@@ -166,6 +170,13 @@ static cl::opt<bool> ProfileSizeInline(
 static cl::opt<int> SampleColdCallSiteThreshold(
     "sample-profile-cold-inline-threshold", cl::Hidden, cl::init(45),
     cl::desc("Threshold for inlining cold callsites"));
+
+static cl::opt<std::string> ProfileInlineReplayFile(
+    "sample-profile-inline-replay", cl::init(""), cl::value_desc("filename"),
+    cl::desc(
+        "Optimization remarks file containing inline remarks to be replayed "
+        "by inlining from sample profile loader."),
+    cl::Hidden);
 
 namespace {
 
@@ -316,7 +327,7 @@ public:
         RemappingFilename(std::string(RemapName)),
         IsThinLTOPreLink(IsThinLTOPreLink) {}
 
-  bool doInitialization(Module &M);
+  bool doInitialization(Module &M, FunctionAnalysisManager *FAM = nullptr);
   bool runOnModule(Module &M, ModuleAnalysisManager *AM,
                    ProfileSummaryInfo *_PSI, CallGraph *CG);
 
@@ -470,6 +481,9 @@ protected:
   // overriden by -profile-sample-accurate or profile-sample-accurate
   // attribute.
   bool ProfAccForSymsInList;
+
+  // External inline advisor used to replay inline decision from remarks.
+  std::unique_ptr<ReplayInlineAdvisor> ExternalInlineAdvisor;
 };
 
 class SampleProfileLoaderLegacyPass : public ModulePass {
@@ -817,9 +831,8 @@ SampleProfileLoader::findCalleeFunctionSamples(const CallBase &Inst) const {
   }
 
   StringRef CalleeName;
-  if (const CallInst *CI = dyn_cast<CallInst>(&Inst))
-    if (Function *Callee = CI->getCalledFunction())
-      CalleeName = Callee->getName();
+  if (Function *Callee = Inst.getCalledFunction())
+    CalleeName = Callee->getName();
 
   const FunctionSamples *FS = findFunctionSamples(Inst);
   if (FS == nullptr)
@@ -827,7 +840,7 @@ SampleProfileLoader::findCalleeFunctionSamples(const CallBase &Inst) const {
 
   return FS->findFunctionSamplesAt(LineLocation(FunctionSamples::getOffset(DIL),
                                                 DIL->getBaseDiscriminator()),
-                                   CalleeName);
+                                   CalleeName, Reader->getRemapper());
 }
 
 /// Returns a vector of FunctionSamples that are the indirect call targets
@@ -890,11 +903,21 @@ SampleProfileLoader::findFunctionSamples(const Instruction &Inst) const {
 
   auto it = DILocation2SampleMap.try_emplace(DIL,nullptr);
   if (it.second)
-    it.first->second = Samples->findFunctionSamples(DIL);
+    it.first->second = Samples->findFunctionSamples(DIL, Reader->getRemapper());
   return it.first->second;
 }
 
 bool SampleProfileLoader::inlineCallInstruction(CallBase &CB) {
+  if (ExternalInlineAdvisor) {
+    auto Advice = ExternalInlineAdvisor->getAdvice(CB);
+    if (!Advice->isInliningRecommended()) {
+      Advice->recordUnattemptedInlining();
+      return false;
+    }
+    // Dummy record, we don't use it for replay.
+    Advice->recordInlining();
+  }
+
   Function *CalledFunction = CB.getCalledFunction();
   assert(CalledFunction);
   DebugLoc DLoc = CB.getDebugLoc();
@@ -992,6 +1015,8 @@ bool SampleProfileLoader::inlineHotFunctions(
         const FunctionSamples *FS = nullptr;
         if (auto *CB = dyn_cast<CallBase>(&I)) {
           if (!isa<IntrinsicInst>(I) && (FS = findCalleeFunctionSamples(*CB))) {
+            assert((!FunctionSamples::UseMD5 || FS->GUIDToFuncNameMap) &&
+                   "GUIDToFuncNameMap has to be populated");
             AllCandidates.push_back(CB);
             if (FS->getEntrySamples() > 0)
               localNotInlinedCallSites.try_emplace(CB, FS);
@@ -1002,7 +1027,7 @@ bool SampleProfileLoader::inlineHotFunctions(
           }
         }
       }
-      if (Hot) {
+      if (Hot || ExternalInlineAdvisor) {
         CIS.insert(CIS.begin(), AllCandidates.begin(), AllCandidates.end());
         emitOptimizationRemarksForInlineCandidates(AllCandidates, F, true);
       } else {
@@ -1025,24 +1050,23 @@ bool SampleProfileLoader::inlineHotFunctions(
                                      PSI->getOrCompHotCountThreshold());
             continue;
           }
-          auto CalleeFunctionName = FS->getFuncName();
+          if (!callsiteIsHot(FS, PSI))
+            continue;
+
+          const char *Reason = "Callee function not available";
+          // R->getValue() != &F is to prevent promoting a recursive call.
           // If it is a recursive call, we do not inline it as it could bloat
           // the code exponentially. There is way to better handle this, e.g.
           // clone the caller first, and inline the cloned caller if it is
           // recursive. As llvm does not inline recursive calls, we will
           // simply ignore it instead of handling it explicitly.
-          if (CalleeFunctionName == F.getName())
-            continue;
-
-          if (!callsiteIsHot(FS, PSI))
-            continue;
-
-          const char *Reason = "Callee function not available";
+          auto CalleeFunctionName = FS->getFuncName();
           auto R = SymbolMap.find(CalleeFunctionName);
           if (R != SymbolMap.end() && R->getValue() &&
               !R->getValue()->isDeclaration() &&
               R->getValue()->getSubprogram() &&
               R->getValue()->hasFnAttribute("use-sample-profile") &&
+              R->getValue() != &F &&
               isLegalToPromote(*I, R->getValue(), &Reason)) {
             uint64_t C = FS->getEntrySamples();
             auto &DI =
@@ -1101,16 +1125,26 @@ bool SampleProfileLoader::inlineHotFunctions(
     }
 
     if (ProfileMergeInlinee) {
-      // Use entry samples as head samples during the merge, as inlinees
-      // don't have head samples.
-      assert(FS->getHeadSamples() == 0 && "Expect 0 head sample for inlinee");
-      const_cast<FunctionSamples *>(FS)->addHeadSamples(FS->getEntrySamples());
+      // A function call can be replicated by optimizations like callsite
+      // splitting or jump threading and the replicates end up sharing the
+      // sample nested callee profile instead of slicing the original inlinee's
+      // profile. We want to do merge exactly once by filtering out callee
+      // profiles with a non-zero head sample count.
+      if (FS->getHeadSamples() == 0) {
+        // Use entry samples as head samples during the merge, as inlinees
+        // don't have head samples.
+        const_cast<FunctionSamples *>(FS)->addHeadSamples(
+            FS->getEntrySamples());
 
-      // Note that we have to do the merge right after processing function.
-      // This allows OutlineFS's profile to be used for annotation during
-      // top-down processing of functions' annotation.
-      FunctionSamples *OutlineFS = Reader->getOrCreateSamplesFor(*Callee);
-      OutlineFS->merge(*FS);
+        // Note that we have to do the merge right after processing function.
+        // This allows OutlineFS's profile to be used for annotation during
+        // top-down processing of functions' annotation.
+        FunctionSamples *OutlineFS = Reader->getOrCreateSamplesFor(*Callee);
+        OutlineFS->merge(*FS);
+      } else
+        assert(FS->getHeadSamples() == FS->getEntrySamples() &&
+               "Expect same head and entry sample counts for profiles already "
+               "merged.");
     } else {
       auto pair =
           notInlinedCallInfo.try_emplace(Callee, NotInlinedProfileInfo{0});
@@ -1785,6 +1819,15 @@ SampleProfileLoader::buildFunctionOrder(Module &M, CallGraph *CG) {
   FunctionOrderList.reserve(M.size());
 
   if (!ProfileTopDownLoad || CG == nullptr) {
+    if (ProfileMergeInlinee) {
+      // Disable ProfileMergeInlinee if profile is not loaded in top down order,
+      // because the profile for a function may be used for the profile
+      // annotation of its outline copy before the profile merging of its
+      // non-inlined inline instances, and that is not the way how
+      // ProfileMergeInlinee is supposed to work.
+      ProfileMergeInlinee = false;
+    }
+
     for (Function &F : M)
       if (!F.isDeclaration() && F.hasFnAttribute("use-sample-profile"))
         FunctionOrderList.push_back(&F);
@@ -1806,10 +1849,10 @@ SampleProfileLoader::buildFunctionOrder(Module &M, CallGraph *CG) {
   return FunctionOrderList;
 }
 
-bool SampleProfileLoader::doInitialization(Module &M) {
+bool SampleProfileLoader::doInitialization(Module &M,
+                                           FunctionAnalysisManager *FAM) {
   auto &Ctx = M.getContext();
 
-  std::unique_ptr<SampleProfileReaderItaniumRemapper> RemapReader;
   auto ReaderOrErr =
       SampleProfileReader::create(Filename, Ctx, RemappingFilename);
   if (std::error_code EC = ReaderOrErr.getError()) {
@@ -1829,6 +1872,13 @@ bool SampleProfileLoader::doInitialization(Module &M) {
     NamesInProfile.clear();
     if (auto NameTable = Reader->getNameTable())
       NamesInProfile.insert(NameTable->begin(), NameTable->end());
+  }
+
+  if (FAM && !ProfileInlineReplayFile.empty()) {
+    ExternalInlineAdvisor = std::make_unique<ReplayInlineAdvisor>(
+        *FAM, Ctx, ProfileInlineReplayFile);
+    if (!ExternalInlineAdvisor->areReplayRemarksLoaded())
+      ExternalInlineAdvisor.reset();
   }
 
   return true;
@@ -1858,6 +1908,7 @@ bool SampleProfileLoader::runOnModule(Module &M, ModuleAnalysisManager *AM,
   for (const auto &I : Reader->getProfiles())
     TotalCollectedSamples += I.second.getTotalSamples();
 
+  auto Remapper = Reader->getRemapper();
   // Populate the symbol map.
   for (const auto &N_F : M.getValueSymbolTable()) {
     StringRef OrigName = N_F.getKey();
@@ -1875,6 +1926,15 @@ bool SampleProfileLoader::runOnModule(Module &M, ModuleAnalysisManager *AM,
       // to nullptr to avoid confusion.
       if (!r.second)
         r.first->second = nullptr;
+      OrigName = NewName;
+    }
+    // Insert the remapped names into SymbolMap.
+    if (Remapper) {
+      if (auto MapName = Remapper->lookUpNameInProfile(OrigName)) {
+        if (*MapName == OrigName)
+          continue;
+        SymbolMap.insert(std::make_pair(*MapName, F));
+      }
     }
   }
 
@@ -1983,7 +2043,7 @@ PreservedAnalyses SampleProfileLoaderPass::run(Module &M,
                                        : ProfileRemappingFileName,
       IsThinLTOPreLink, GetAssumptionCache, GetTTI, GetTLI);
 
-  if (!SampleLoader.doInitialization(M))
+  if (!SampleLoader.doInitialization(M, &FAM))
     return PreservedAnalyses::all();
 
   ProfileSummaryInfo *PSI = &AM.getResult<ProfileSummaryAnalysis>(M);

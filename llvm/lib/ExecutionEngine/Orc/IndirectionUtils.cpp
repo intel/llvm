@@ -33,12 +33,12 @@ public:
   StringRef getName() const override { return "<Compile Callbacks>"; }
 
 private:
-  void materialize(MaterializationResponsibility R) override {
+  void materialize(std::unique_ptr<MaterializationResponsibility> R) override {
     SymbolMap Result;
     Result[Name] = JITEvaluatedSymbol(Compile(), JITSymbolFlags::Exported);
     // No dependencies, so these calls cannot fail.
-    cantFail(R.notifyResolved(Result));
-    cantFail(R.notifyEmitted());
+    cantFail(R->notifyResolved(Result));
+    cantFail(R->notifyEmitted());
   }
 
   void discard(const JITDylib &JD, const SymbolStringPtr &Name) override {
@@ -54,8 +54,8 @@ private:
 namespace llvm {
 namespace orc {
 
+TrampolinePool::~TrampolinePool() {}
 void IndirectStubsManager::anchor() {}
-void TrampolinePool::anchor() {}
 
 Expected<JITTargetAddress>
 JITCompileCallbackManager::getCompileCallback(CompileFunction Compile) {

@@ -105,6 +105,7 @@ static const uint64_t kSystemZ_ShadowOffset64 = 1ULL << 52;
 static const uint64_t kMIPS32_ShadowOffset32 = 0x0aaa0000;
 static const uint64_t kMIPS64_ShadowOffset64 = 1ULL << 37;
 static const uint64_t kAArch64_ShadowOffset64 = 1ULL << 36;
+static const uint64_t kRISCV64_ShadowOffset64 = 0x20000000;
 static const uint64_t kFreeBSD_ShadowOffset32 = 1ULL << 30;
 static const uint64_t kFreeBSD_ShadowOffset64 = 1ULL << 46;
 static const uint64_t kNetBSD_ShadowOffset32 = 1ULL << 30;
@@ -434,6 +435,7 @@ static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
                                       bool IsKasan) {
   bool IsAndroid = TargetTriple.isAndroid();
   bool IsIOS = TargetTriple.isiOS() || TargetTriple.isWatchOS();
+  bool IsMacOS = TargetTriple.isMacOSX();
   bool IsFreeBSD = TargetTriple.isOSFreeBSD();
   bool IsNetBSD = TargetTriple.isOSNetBSD();
   bool IsPS4CPU = TargetTriple.isPS4CPU();
@@ -446,6 +448,7 @@ static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
   bool IsMIPS64 = TargetTriple.isMIPS64();
   bool IsArmOrThumb = TargetTriple.isARM() || TargetTriple.isThumb();
   bool IsAArch64 = TargetTriple.getArch() == Triple::aarch64;
+  bool IsRISCV64 = TargetTriple.getArch() == Triple::riscv64;
   bool IsWindows = TargetTriple.isOSWindows();
   bool IsFuchsia = TargetTriple.isOSFuchsia();
   bool IsMyriad = TargetTriple.getVendor() == llvm::Triple::Myriad;
@@ -510,8 +513,12 @@ static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
       Mapping.Offset = kMIPS64_ShadowOffset64;
     else if (IsIOS)
       Mapping.Offset = kDynamicShadowSentinel;
+    else if (IsMacOS && IsAArch64)
+      Mapping.Offset = kDynamicShadowSentinel;
     else if (IsAArch64)
       Mapping.Offset = kAArch64_ShadowOffset64;
+    else if (IsRISCV64)
+      Mapping.Offset = kRISCV64_ShadowOffset64;
     else
       Mapping.Offset = kDefaultShadowOffset64;
   }
@@ -530,6 +537,7 @@ static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
   // we could OR the constant in a single instruction, but it's more
   // efficient to load it once and use indexed addressing.
   Mapping.OrShadowOffset = !IsAArch64 && !IsPPC64 && !IsSystemZ && !IsPS4CPU &&
+                           !IsRISCV64 &&
                            !(Mapping.Offset & (Mapping.Offset - 1)) &&
                            Mapping.Offset != kDynamicShadowSentinel;
   bool IsAndroidWithIfuncSupport =
@@ -551,6 +559,22 @@ static uint64_t GetCtorAndDtorPriority(Triple &TargetTriple) {
   } else {
     return kAsanCtorAndDtorPriority;
   }
+}
+
+// For a ret instruction followed by a musttail call, we cannot insert anything
+// in between. Instead we use the musttail call instruction as the insertion
+// point.
+static Instruction *adjustForMusttailCall(Instruction *I) {
+  ReturnInst *RI = dyn_cast<ReturnInst>(I);
+  if (!RI)
+    return I;
+  Instruction *Prev = RI->getPrevNode();
+  if (BitCastInst *BCI = dyn_cast_or_null<BitCastInst>(Prev))
+    Prev = BCI->getPrevNode();
+  if (CallInst *CI = dyn_cast_or_null<CallInst>(Prev))
+    if (CI->isMustTailCall())
+      return CI;
+  return RI;
 }
 
 namespace {
@@ -908,10 +932,6 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
   AllocaInst *DynamicAllocaLayout = nullptr;
   IntrinsicInst *LocalEscapeCall = nullptr;
 
-  // Maps Value to an AllocaInst from which the Value is originated.
-  using AllocaForValueMapTy = DenseMap<Value *, AllocaInst *>;
-  AllocaForValueMapTy AllocaForValue;
-
   bool HasInlineAsm = false;
   bool HasReturnsTwiceCall = false;
 
@@ -1000,10 +1020,11 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
 
   // Unpoison dynamic allocas redzones.
   void unpoisonDynamicAllocas() {
-    for (auto &Ret : RetVec)
-      unpoisonDynamicAllocasBeforeInst(Ret, DynamicAllocaLayout);
+    for (Instruction *Ret : RetVec)
+      unpoisonDynamicAllocasBeforeInst(adjustForMusttailCall(Ret),
+                                       DynamicAllocaLayout);
 
-    for (auto &StackRestoreInst : StackRestoreVec)
+    for (Instruction *StackRestoreInst : StackRestoreVec)
       unpoisonDynamicAllocasBeforeInst(StackRestoreInst,
                                        StackRestoreInst->getOperand(0));
   }
@@ -1062,8 +1083,7 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
         !ConstantInt::isValueValidForType(IntptrTy, SizeValue))
       return;
     // Find alloca instruction that corresponds to llvm.lifetime argument.
-    AllocaInst *AI =
-        llvm::findAllocaForValue(II.getArgOperand(1), AllocaForValue);
+    AllocaInst *AI = findAllocaForValue(II.getArgOperand(1));
     if (!AI) {
       HasUntracedLifetimeIntrinsic = true;
       return;
@@ -1378,23 +1398,22 @@ void AddressSanitizer::getInterestingMemoryOperands(
     if (!ClInstrumentReads || ignoreAccess(LI->getPointerOperand()))
       return;
     Interesting.emplace_back(I, LI->getPointerOperandIndex(), false,
-                             LI->getType(), LI->getAlignment());
+                             LI->getType(), LI->getAlign());
   } else if (StoreInst *SI = dyn_cast<StoreInst>(I)) {
     if (!ClInstrumentWrites || ignoreAccess(SI->getPointerOperand()))
       return;
     Interesting.emplace_back(I, SI->getPointerOperandIndex(), true,
-                             SI->getValueOperand()->getType(),
-                             SI->getAlignment());
+                             SI->getValueOperand()->getType(), SI->getAlign());
   } else if (AtomicRMWInst *RMW = dyn_cast<AtomicRMWInst>(I)) {
     if (!ClInstrumentAtomics || ignoreAccess(RMW->getPointerOperand()))
       return;
     Interesting.emplace_back(I, RMW->getPointerOperandIndex(), true,
-                             RMW->getValOperand()->getType(), 0);
+                             RMW->getValOperand()->getType(), None);
   } else if (AtomicCmpXchgInst *XCHG = dyn_cast<AtomicCmpXchgInst>(I)) {
     if (!ClInstrumentAtomics || ignoreAccess(XCHG->getPointerOperand()))
       return;
     Interesting.emplace_back(I, XCHG->getPointerOperandIndex(), true,
-                             XCHG->getCompareOperand()->getType(), 0);
+                             XCHG->getCompareOperand()->getType(), None);
   } else if (auto CI = dyn_cast<CallInst>(I)) {
     auto *F = CI->getCalledFunction();
     if (F && (F->getName().startswith("llvm.masked.load.") ||
@@ -1409,11 +1428,10 @@ void AddressSanitizer::getInterestingMemoryOperands(
       if (ignoreAccess(BasePtr))
         return;
       auto Ty = cast<PointerType>(BasePtr->getType())->getElementType();
-      unsigned Alignment = 1;
+      MaybeAlign Alignment = Align(1);
       // Otherwise no alignment guarantees. We probably got Undef.
-      if (auto AlignmentConstant =
-              dyn_cast<ConstantInt>(CI->getOperand(1 + OpOffset)))
-        Alignment = (unsigned)AlignmentConstant->getZExtValue();
+      if (auto *Op = dyn_cast<ConstantInt>(CI->getOperand(1 + OpOffset)))
+        Alignment = Op->getMaybeAlignValue();
       Value *Mask = CI->getOperand(2 + OpOffset);
       Interesting.emplace_back(I, OpOffset, IsWrite, Ty, Alignment, Mask);
     } else {
@@ -1422,7 +1440,7 @@ void AddressSanitizer::getInterestingMemoryOperands(
             ignoreAccess(CI->getArgOperand(ArgNo)))
           continue;
         Type *Ty = CI->getParamByValType(ArgNo);
-        Interesting.emplace_back(I, ArgNo, false, Ty, 1);
+        Interesting.emplace_back(I, ArgNo, false, Ty, Align(1));
       }
     }
   }
@@ -1484,7 +1502,7 @@ void AddressSanitizer::instrumentPointerComparisonOrSubtraction(
 
 static void doInstrumentAddress(AddressSanitizer *Pass, Instruction *I,
                                 Instruction *InsertBefore, Value *Addr,
-                                unsigned Alignment, unsigned Granularity,
+                                MaybeAlign Alignment, unsigned Granularity,
                                 uint32_t TypeSize, bool IsWrite,
                                 Value *SizeArgument, bool UseCalls,
                                 uint32_t Exp) {
@@ -1492,7 +1510,7 @@ static void doInstrumentAddress(AddressSanitizer *Pass, Instruction *I,
   // if the data is properly aligned.
   if ((TypeSize == 8 || TypeSize == 16 || TypeSize == 32 || TypeSize == 64 ||
        TypeSize == 128) &&
-      (Alignment >= Granularity || Alignment == 0 || Alignment >= TypeSize / 8))
+      (!Alignment || *Alignment >= Granularity || *Alignment >= TypeSize / 8))
     return Pass->instrumentAddress(I, InsertBefore, Addr, TypeSize, IsWrite,
                                    nullptr, UseCalls, Exp);
   Pass->instrumentUnusualSizeOrAlignment(I, InsertBefore, Addr, TypeSize,
@@ -1502,7 +1520,7 @@ static void doInstrumentAddress(AddressSanitizer *Pass, Instruction *I,
 static void instrumentMaskedLoadOrStore(AddressSanitizer *Pass,
                                         const DataLayout &DL, Type *IntptrTy,
                                         Value *Mask, Instruction *I,
-                                        Value *Addr, unsigned Alignment,
+                                        Value *Addr, MaybeAlign Alignment,
                                         unsigned Granularity, uint32_t TypeSize,
                                         bool IsWrite, Value *SizeArgument,
                                         bool UseCalls, uint32_t Exp) {
@@ -1560,7 +1578,7 @@ void AddressSanitizer::instrumentMop(ObjectSizeOffsetVisitor &ObjSizeVis,
   if (ClOpt && ClOptGlobals) {
     // If initialization order checking is disabled, a simple access to a
     // dynamically initialized global is always valid.
-    GlobalVariable *G = dyn_cast<GlobalVariable>(GetUnderlyingObject(Addr, DL));
+    GlobalVariable *G = dyn_cast<GlobalVariable>(getUnderlyingObject(Addr));
     if (G && (!ClInitializers || GlobalIsLinkerInitialized(G)) &&
         isSafeAccess(ObjSizeVis, Addr, O.TypeSize)) {
       NumOptimizedAccessesToGlobalVar++;
@@ -1570,7 +1588,7 @@ void AddressSanitizer::instrumentMop(ObjectSizeOffsetVisitor &ObjSizeVis,
 
   if (ClOpt && ClOptStack) {
     // A direct inbounds access to a stack variable is always valid.
-    if (isa<AllocaInst>(GetUnderlyingObject(Addr, DL)) &&
+    if (isa<AllocaInst>(getUnderlyingObject(Addr)) &&
         isSafeAccess(ObjSizeVis, Addr, O.TypeSize)) {
       NumOptimizedAccessesToStackVar++;
       return;
@@ -1870,6 +1888,14 @@ bool ModuleAddressSanitizer::shouldInstrumentGlobal(GlobalVariable *G) const {
       return false;
     }
 
+    // Do not instrument user-defined sections (with names resembling
+    // valid C identifiers)
+    if (TargetTriple.isOSBinFormatELF()) {
+      if (std::all_of(Section.begin(), Section.end(),
+                      [](char c) { return llvm::isAlnum(c) || c == '_'; }))
+        return false;
+    }
+
     // On COFF, if the section name contains '$', it is highly likely that the
     // user is using section sorting to create an array of globals similar to
     // the way initialization callbacks are registered in .init_array and
@@ -1954,9 +1980,10 @@ StringRef ModuleAddressSanitizer::getGlobalMetadataSection() const {
   case Triple::ELF:   return "asan_globals";
   case Triple::MachO: return "__DATA,__asan_globals,regular";
   case Triple::Wasm:
+  case Triple::GOFF:
   case Triple::XCOFF:
     report_fatal_error(
-        "ModuleAddressSanitizer not implemented for object file format.");
+        "ModuleAddressSanitizer not implemented for object file format");
   case Triple::UnknownObjectFormat:
     break;
   }
@@ -2105,23 +2132,10 @@ void ModuleAddressSanitizer::InstrumentGlobalsELF(
     SetComdatForGlobalMetadata(G, Metadata, UniqueModuleId);
   }
 
-  // This should never be called when there are no globals, by the logic that
-  // computes the UniqueModuleId string, which is "" when there are no globals.
-  // It's important that this path is only used when there are actually some
-  // globals, because that means that there will certainly be a live
-  // `asan_globals` input section at link time and thus `__start_asan_globals`
-  // and `__stop_asan_globals` symbols will definitely be defined at link time.
-  // This means there's no need for the references to them to be weak, which
-  // enables better code generation because ExternalWeakLinkage implies
-  // isInterposable() and thus requires GOT indirection for PIC.  Since these
-  // are known-defined hidden/dso_local symbols, direct PIC accesses without
-  // dynamic relocation are always sufficient.
-  assert(!MetadataGlobals.empty());
-  assert(!UniqueModuleId.empty());
-
   // Update llvm.compiler.used, adding the new metadata globals. This is
   // needed so that during LTO these variables stay alive.
-  appendToCompilerUsed(M, MetadataGlobals);
+  if (!MetadataGlobals.empty())
+    appendToCompilerUsed(M, MetadataGlobals);
 
   // RegisteredFlag serves two purposes. First, we can pass it to dladdr()
   // to look up the loaded image that contains it. Second, we can store in it
@@ -2134,18 +2148,15 @@ void ModuleAddressSanitizer::InstrumentGlobalsELF(
       ConstantInt::get(IntptrTy, 0), kAsanGlobalsRegisteredFlagName);
   RegisteredFlag->setVisibility(GlobalVariable::HiddenVisibility);
 
-  // Create start and stop symbols.  These are known to be defined by
-  // the linker, see comment above.
-  auto MakeStartStopGV = [&](const char *Prefix) {
-    GlobalVariable *StartStop =
-        new GlobalVariable(M, IntptrTy, false, GlobalVariable::ExternalLinkage,
-                           nullptr, Prefix + getGlobalMetadataSection());
-    StartStop->setVisibility(GlobalVariable::HiddenVisibility);
-    assert(StartStop->isImplicitDSOLocal());
-    return StartStop;
-  };
-  GlobalVariable *StartELFMetadata = MakeStartStopGV("__start_");
-  GlobalVariable *StopELFMetadata = MakeStartStopGV("__stop_");
+  // Create start and stop symbols.
+  GlobalVariable *StartELFMetadata = new GlobalVariable(
+      M, IntptrTy, false, GlobalVariable::ExternalWeakLinkage, nullptr,
+      "__start_" + getGlobalMetadataSection());
+  StartELFMetadata->setVisibility(GlobalVariable::HiddenVisibility);
+  GlobalVariable *StopELFMetadata = new GlobalVariable(
+      M, IntptrTy, false, GlobalVariable::ExternalWeakLinkage, nullptr,
+      "__stop_" + getGlobalMetadataSection());
+  StopELFMetadata->setVisibility(GlobalVariable::HiddenVisibility);
 
   // Create a call to register the globals with the runtime.
   IRB.CreateCall(AsanRegisterElfGlobals,
@@ -2351,12 +2362,9 @@ bool ModuleAddressSanitizer::InstrumentGlobals(IRBuilder<> &IRB, Module &M,
         NewGlobal->setSection("__TEXT,__asan_cstring,regular");
     }
 
-    // Transfer the debug info.  The payload starts at offset zero so we can
-    // copy the debug info over as is.
-    SmallVector<DIGlobalVariableExpression *, 1> GVs;
-    G->getDebugInfo(GVs);
-    for (auto *GV : GVs)
-      NewGlobal->addDebugInfo(GV);
+    // Transfer the debug info and type metadata.  The payload starts at offset
+    // zero so we can copy the metadata over as is.
+    NewGlobal->copyMetadata(G, 0);
 
     Value *Indices2[2];
     Indices2[0] = IRB.getInt32(0);
@@ -3322,8 +3330,9 @@ void FunctionStackPoisoner::processStaticAllocas() {
   SmallVector<uint8_t, 64> ShadowAfterReturn;
 
   // (Un)poison the stack before all ret instructions.
-  for (auto Ret : RetVec) {
-    IRBuilder<> IRBRet(Ret);
+  for (Instruction *Ret : RetVec) {
+    Instruction *Adjusted = adjustForMusttailCall(Ret);
+    IRBuilder<> IRBRet(Adjusted);
     // Mark the current frame as retired.
     IRBRet.CreateStore(ConstantInt::get(IntptrTy, kRetiredStackFrameMagic),
                        BasePlus0);
@@ -3342,7 +3351,7 @@ void FunctionStackPoisoner::processStaticAllocas() {
       Value *Cmp =
           IRBRet.CreateICmpNE(FakeStack, Constant::getNullValue(IntptrTy));
       Instruction *ThenTerm, *ElseTerm;
-      SplitBlockAndInsertIfThenElse(Cmp, Ret, &ThenTerm, &ElseTerm);
+      SplitBlockAndInsertIfThenElse(Cmp, Adjusted, &ThenTerm, &ElseTerm);
 
       IRBuilder<> IRBPoison(ThenTerm);
       if (StackMallocIdx <= 4) {

@@ -22,13 +22,14 @@ ENUM_CLASS(LanguageFeature, BackslashEscapes, OldDebugLines,
     DoubleComplex, Byte, StarKind, QuadPrecision, SlashInitialization,
     TripletInArrayConstructor, MissingColons, SignedComplexLiteral,
     OldStyleParameter, ComplexConstructor, PercentLOC, SignedPrimary, FileName,
-    Convert, Dispose, IOListLeadingComma, AbbreviatedEditDescriptor,
-    ProgramParentheses, PercentRefAndVal, OmitFunctionDummies, CrayPointer,
-    Hollerith, ArithmeticIF, Assign, AssignedGOTO, Pause, OpenMP,
-    CruftAfterAmpersand, ClassicCComments, AdditionalFormats, BigIntLiterals,
-    RealDoControls, EquivalenceNumericWithCharacter, AdditionalIntrinsics,
-    AnonymousParents, OldLabelDoEndStatements, LogicalIntegerAssignment,
-    EmptySourceFile, ProgramReturn)
+    Carriagecontrol, Convert, Dispose, IOListLeadingComma,
+    AbbreviatedEditDescriptor, ProgramParentheses, PercentRefAndVal,
+    OmitFunctionDummies, CrayPointer, Hollerith, ArithmeticIF, Assign,
+    AssignedGOTO, Pause, OpenACC, OpenMP, CruftAfterAmpersand, ClassicCComments,
+    AdditionalFormats, BigIntLiterals, RealDoControls,
+    EquivalenceNumericWithCharacter, AdditionalIntrinsics, AnonymousParents,
+    OldLabelDoEndStatements, LogicalIntegerAssignment, EmptySourceFile,
+    ProgramReturn, ImplicitNoneTypeNever, ImplicitNoneTypeAlways)
 
 using LanguageFeatures = EnumSet<LanguageFeature, LanguageFeature_enumSize>;
 
@@ -37,7 +38,10 @@ public:
   LanguageFeatureControl() {
     // These features must be explicitly enabled by command line options.
     disable_.set(LanguageFeature::OldDebugLines);
+    disable_.set(LanguageFeature::OpenACC);
     disable_.set(LanguageFeature::OpenMP);
+    disable_.set(LanguageFeature::ImplicitNoneTypeNever);
+    disable_.set(LanguageFeature::ImplicitNoneTypeAlways);
     // These features, if enabled, conflict with valid standard usage,
     // so there are disabled here by default.
     disable_.set(LanguageFeature::BackslashEscapes);
@@ -50,7 +54,9 @@ public:
   void WarnOnAllNonstandard(bool yes = true) { warnAll_ = yes; }
   bool IsEnabled(LanguageFeature f) const { return !disable_.test(f); }
   bool ShouldWarn(LanguageFeature f) const {
-    return (warnAll_ && f != LanguageFeature::OpenMP) || warn_.test(f);
+    return (warnAll_ && f != LanguageFeature::OpenMP &&
+               f != LanguageFeature::OpenACC) ||
+        warn_.test(f);
   }
   // Return all spellings of operators names, depending on features enabled
   std::vector<const char *> GetNames(LogicalOperator) const;

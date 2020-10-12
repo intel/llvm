@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <algorithm>
+#include <iomanip>
+#include <sstream>
 
 #include "llvm/ADT/Optional.h"
 #include "llvm/Support/FormatAdapters.h"
@@ -324,6 +326,91 @@ llvm::json::Value CreateBreakpoint(lldb::SBBreakpoint &bp,
   // We try to add request_line as a fallback
   if (request_line)
     object.try_emplace("line", *request_line);
+  return llvm::json::Value(std::move(object));
+}
+
+static uint64_t GetDebugInfoSizeInSection(lldb::SBSection section) {
+  uint64_t debug_info_size = 0;
+  llvm::StringRef section_name(section.GetName());
+  if (section_name.startswith(".debug") || section_name.startswith("__debug") ||
+      section_name.startswith(".apple") || section_name.startswith("__apple"))
+    debug_info_size += section.GetFileByteSize();
+  size_t num_sub_sections = section.GetNumSubSections();
+  for (size_t i = 0; i < num_sub_sections; i++) {
+    debug_info_size +=
+        GetDebugInfoSizeInSection(section.GetSubSectionAtIndex(i));
+  }
+  return debug_info_size;
+}
+
+static uint64_t GetDebugInfoSize(lldb::SBModule module) {
+  uint64_t debug_info_size = 0;
+  size_t num_sections = module.GetNumSections();
+  for (size_t i = 0; i < num_sections; i++) {
+    debug_info_size += GetDebugInfoSizeInSection(module.GetSectionAtIndex(i));
+  }
+  return debug_info_size;
+}
+
+static std::string ConvertDebugInfoSizeToString(uint64_t debug_info) {
+  std::ostringstream oss;
+  oss << std::fixed << std::setprecision(1);
+  if (debug_info < 1024) {
+    oss << debug_info << "B";
+  } else if (debug_info < 1024 * 1024) {
+    double kb = double(debug_info) / 1024.0;
+    oss << kb << "KB";
+  } else if (debug_info < 1024 * 1024 * 1024) {
+    double mb = double(debug_info) / (1024.0 * 1024.0);
+    oss << mb << "MB";
+  } else {
+    double gb = double(debug_info) / (1024.0 * 1024.0 * 1024.0);
+    oss << gb << "GB";
+  }
+  return oss.str();
+}
+llvm::json::Value CreateModule(lldb::SBModule &module) {
+  llvm::json::Object object;
+  if (!module.IsValid())
+    return llvm::json::Value(std::move(object));
+  const char *uuid = module.GetUUIDString();
+  object.try_emplace("id", uuid ? std::string(uuid) : std::string(""));
+  object.try_emplace("name", std::string(module.GetFileSpec().GetFilename()));
+  char module_path_arr[PATH_MAX];
+  module.GetFileSpec().GetPath(module_path_arr, sizeof(module_path_arr));
+  std::string module_path(module_path_arr);
+  object.try_emplace("path", module_path);
+  if (module.GetNumCompileUnits() > 0) {
+    std::string symbol_str = "Symbols loaded.";
+    std::string debug_info_size;
+    uint64_t debug_info = GetDebugInfoSize(module);
+    if (debug_info > 0) {
+      debug_info_size = ConvertDebugInfoSizeToString(debug_info);
+    }
+    object.try_emplace("symbolStatus", symbol_str);
+    object.try_emplace("debugInfoSize", debug_info_size);
+    char symbol_path_arr[PATH_MAX];
+    module.GetSymbolFileSpec().GetPath(symbol_path_arr,
+                                       sizeof(symbol_path_arr));
+    std::string symbol_path(symbol_path_arr);
+    object.try_emplace("symbolFilePath", symbol_path);
+  } else {
+    object.try_emplace("symbolStatus", "Symbols not found.");
+  }
+  std::string loaded_addr = std::to_string(
+      module.GetObjectFileHeaderAddress().GetLoadAddress(g_vsc.target));
+  object.try_emplace("addressRange", loaded_addr);
+  std::string version_str;
+  uint32_t version_nums[3];
+  uint32_t num_versions =
+      module.GetVersion(version_nums, sizeof(version_nums) / sizeof(uint32_t));
+  for (uint32_t i = 0; i < num_versions; ++i) {
+    if (!version_str.empty())
+      version_str += ".";
+    version_str += std::to_string(version_nums[i]);
+  }
+  if (!version_str.empty())
+    object.try_emplace("version", version_str);
   return llvm::json::Value(std::move(object));
 }
 
@@ -900,6 +987,55 @@ llvm::json::Value CreateVariable(lldb::SBValue v, int64_t variablesReference,
   if (evaluateName && evaluateName[0])
     EmplaceSafeString(object, "evaluateName", std::string(evaluateName));
   return llvm::json::Value(std::move(object));
+}
+
+llvm::json::Value CreateCompileUnit(lldb::SBCompileUnit unit) {
+  llvm::json::Object object;
+  char unit_path_arr[PATH_MAX];
+  unit.GetFileSpec().GetPath(unit_path_arr, sizeof(unit_path_arr));
+  std::string unit_path(unit_path_arr);
+  object.try_emplace("compileUnitPath", unit_path);
+  return llvm::json::Value(std::move(object));
+}
+
+/// See
+/// https://microsoft.github.io/debug-adapter-protocol/specification#Reverse_Requests_RunInTerminal
+llvm::json::Object
+CreateRunInTerminalReverseRequest(const llvm::json::Object &launch_request) {
+  llvm::json::Object reverse_request;
+  reverse_request.try_emplace("type", "request");
+  reverse_request.try_emplace("command", "runInTerminal");
+
+  llvm::json::Object run_in_terminal_args;
+  // This indicates the IDE to open an embedded terminal, instead of opening the
+  // terminal in a new window.
+  run_in_terminal_args.try_emplace("kind", "integrated");
+
+  auto launch_request_arguments = launch_request.getObject("arguments");
+  std::vector<std::string> args = GetStrings(launch_request_arguments, "args");
+  // The program path must be the first entry in the "args" field
+  args.insert(args.begin(),
+              GetString(launch_request_arguments, "program").str());
+  run_in_terminal_args.try_emplace("args", args);
+
+  const auto cwd = GetString(launch_request_arguments, "cwd");
+  if (!cwd.empty())
+    run_in_terminal_args.try_emplace("cwd", cwd);
+
+  // We need to convert the input list of environments variables into a
+  // dictionary
+  std::vector<std::string> envs = GetStrings(launch_request_arguments, "env");
+  llvm::json::Object environment;
+  for (const std::string &env : envs) {
+    size_t index = env.find("=");
+    environment.try_emplace(env.substr(0, index), env.substr(index + 1));
+  }
+  run_in_terminal_args.try_emplace("env",
+                                   llvm::json::Value(std::move(environment)));
+
+  reverse_request.try_emplace(
+      "arguments", llvm::json::Value(std::move(run_in_terminal_args)));
+  return reverse_request;
 }
 
 } // namespace lldb_vscode

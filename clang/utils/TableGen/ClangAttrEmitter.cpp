@@ -329,6 +329,8 @@ namespace {
         // empty string but are then recorded as a nullptr.
         OS << "\" << (get" << getUpperName() << "() ? get" << getUpperName()
            << "()->getName() : \"\") << \"";
+      else if (type == "VarDecl *")
+        OS << "\" << get" << getUpperName() << "()->getName() << \"";
       else if (type == "TypeSourceInfo *")
         OS << "\" << get" << getUpperName() << "().getAsString() << \"";
       else if (type == "ParamIdx")
@@ -2015,10 +2017,10 @@ PragmaClangAttributeSupport::generateStrictConformsTo(const Record &Attr,
     return;
   // Generate a function that constructs a set of matching rules that describe
   // to which declarations the attribute should apply to.
-  OS << "virtual void getPragmaAttributeMatchRules("
+  OS << "void getPragmaAttributeMatchRules("
      << "llvm::SmallVectorImpl<std::pair<"
      << AttributeSubjectMatchRule::EnumName
-     << ", bool>> &MatchRules, const LangOptions &LangOpts) const {\n";
+     << ", bool>> &MatchRules, const LangOptions &LangOpts) const override {\n";
   const Record *SubjectObj = Attr.getValueAsDef("Subjects");
   std::vector<Record *> Subjects = SubjectObj->getValueAsListOfDefs("Subjects");
   for (const auto *Subject : Subjects) {
@@ -3074,18 +3076,22 @@ static void GenerateHasAttrSpellingStringSwitch(
     // attribute version information should be taken from the SD-6 standing
     // document, which can be found at:
     // https://isocpp.org/std/standing-documents/sd-6-sg10-feature-test-recommendations
+    //
+    // C2x-style attributes have the same kind of version information
+    // associated with them. The unscoped attribute version information should
+    // be taken from the specification of the attribute in the C Standard.
     int Version = 1;
 
-    if (Variety == "CXX11") {
-        std::vector<Record *> Spellings = Attr->getValueAsListOfDefs("Spellings");
-        for (const auto &Spelling : Spellings) {
-          if (Spelling->getValueAsString("Variety") == "CXX11") {
-            Version = static_cast<int>(Spelling->getValueAsInt("Version"));
-            if (Scope.empty() && Version == 1)
-              PrintError(Spelling->getLoc(), "C++ standard attributes must "
-              "have valid version information.");
-            break;
-          }
+    if (Variety == "CXX11" || Variety == "C2x") {
+      std::vector<Record *> Spellings = Attr->getValueAsListOfDefs("Spellings");
+      for (const auto &Spelling : Spellings) {
+        if (Spelling->getValueAsString("Variety") == Variety) {
+          Version = static_cast<int>(Spelling->getValueAsInt("Version"));
+          if (Scope.empty() && Version == 1)
+            PrintError(Spelling->getLoc(), "Standard attributes must have "
+                                           "valid version information.");
+          break;
+        }
       }
     }
 
@@ -3529,8 +3535,8 @@ static void GenerateAppertainsTo(const Record &Attr, raw_ostream &OS) {
   // at all (for instance because it was applied to a type), or that the caller
   // has determined that the check should fail (perhaps prior to the creation
   // of the declaration).
-  OS << "virtual bool diagAppertainsToDecl(Sema &S, ";
-  OS << "const ParsedAttr &Attr, const Decl *D) const {\n";
+  OS << "bool diagAppertainsToDecl(Sema &S, ";
+  OS << "const ParsedAttr &Attr, const Decl *D) const override {\n";
   OS << "  if (";
   for (auto I = Subjects.begin(), E = Subjects.end(); I != E; ++I) {
     // If the subject has custom code associated with it, use the generated
@@ -3604,8 +3610,8 @@ static void GenerateLangOptRequirements(const Record &R,
   if (LangOpts.empty())
     return;
 
-  OS << "virtual bool diagLangOpts(Sema &S, const ParsedAttr &Attr) ";
-  OS << "const {\n";
+  OS << "bool diagLangOpts(Sema &S, const ParsedAttr &Attr) ";
+  OS << "const override {\n";
   OS << "  auto &LangOpts = S.LangOpts;\n";
   OS << "  if (" << GenerateTestExpression(LangOpts) << ")\n";
   OS << "    return true;\n\n";
@@ -3649,7 +3655,7 @@ static void GenerateTargetRequirements(const Record &Attr,
   std::string Test;
   bool UsesT = GenerateTargetSpecificAttrChecks(R, Arches, Test, &FnName);
 
-  OS << "virtual bool existsInTarget(const TargetInfo &Target) const {\n";
+  OS << "bool existsInTarget(const TargetInfo &Target) const override {\n";
   if (UsesT)
     OS << "  const llvm::Triple &T = Target.getTriple(); (void)T;\n";
   OS << "  return " << Test << ";\n";
@@ -3674,8 +3680,8 @@ static void GenerateSpellingIndexToSemanticSpelling(const Record &Attr,
   std::string Enum = CreateSemanticSpellings(Spellings, SemanticToSyntacticMap);
   std::string Name = Attr.getName().str() + "AttrSpellingMap";
 
-  OS << "virtual unsigned spellingIndexToSemanticSpelling(";
-  OS << "const ParsedAttr &Attr) const {\n";
+  OS << "unsigned spellingIndexToSemanticSpelling(";
+  OS << "const ParsedAttr &Attr) const override {\n";
   OS << Enum;
   OS << "  unsigned Idx = Attr.getAttributeSpellingListIndex();\n";
   WriteSemanticSpellingSwitch("Idx", SemanticToSyntacticMap, OS);
@@ -3688,8 +3694,8 @@ static void GenerateHandleDeclAttribute(const Record &Attr, raw_ostream &OS) {
     return;
 
   // Generate a function which just converts from ParsedAttr to the Attr type.
-  OS << "virtual AttrHandling handleDeclAttribute(Sema &S, Decl *D,";
-  OS << "const ParsedAttr &Attr) const {\n";
+  OS << "AttrHandling handleDeclAttribute(Sema &S, Decl *D,";
+  OS << "const ParsedAttr &Attr) const override {\n";
   OS << "  D->addAttr(::new (S.Context) " << Attr.getName();
   OS << "Attr(S.Context, Attr));\n";
   OS << "  return AttributeApplied;\n";

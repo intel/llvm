@@ -13,7 +13,6 @@
 #ifndef LINALG_OPS
 #define LINALG_OPS
 
-include "mlir/Dialect/Affine/IR/AffineOpsBase.td"
 include "mlir/Dialect/Linalg/IR/LinalgBase.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/ViewLikeInterface.td"
@@ -61,8 +60,8 @@ def Linalg_RangeOp :
   let assemblyFormat = "$min `:` $max `:` $step attr-dict `:` type(results)";
 }
 
-class Linalg_ReshapeLikeOp<string mnemonic> :
-    Linalg_Op<mnemonic, [NoSideEffect]> {
+class Linalg_ReshapeLikeOp<string mnemonic, list<OpTrait> traits = []> :
+    Linalg_Op<mnemonic, !listconcat(traits, [NoSideEffect])> {
   let builders = [
     // Builders for a contracting reshape whose result type is computed from
     // `src` and `reassociation`.
@@ -103,7 +102,8 @@ class Linalg_ReshapeLikeOp<string mnemonic> :
   }];
 }
 
-def Linalg_ReshapeOp : Linalg_ReshapeLikeOp<"reshape">,
+def Linalg_ReshapeOp : Linalg_ReshapeLikeOp<"reshape",
+    [DeclareOpInterfaceMethods<ViewLikeOpInterface>]>,
     Arguments<(ins AnyStridedMemRef:$src, AffineMapArrayAttr:$reassociation)>,
     Results<(outs AnyStridedMemRef:$result)> {
   let summary = "linalg.reshape produces a new view into the operand view";
@@ -299,7 +299,7 @@ def Linalg_TransposeOp : Linalg_Op<"transpose", [NoSideEffect]>,
     Example:
 
     ```mlir
-    %1 = linalg.transpose %0 (i, j) -> (j, i) : memref<?x?xf32, stride_spec>
+    %1 = linalg.transpose %0 (i, j) -> (j, i) : memref<?x?xf32> to memref<?x?xf32, stride_spec>
     ```
   }];
 
@@ -307,13 +307,7 @@ def Linalg_TransposeOp : Linalg_Op<"transpose", [NoSideEffect]>,
     "OpBuilder &b, OperationState &result, Value view, "
     "AffineMapAttr permutation, ArrayRef<NamedAttribute> attrs = {}">];
 
-  let verifier = [{
-    if (!permutation().isPermutation())
-      return emitOpError("expected a permutation map");
-    if (permutation().getNumDims() != getShapedType().getRank())
-      return emitOpError("expected a permutation map of same rank as the view");
-    return success();
-  }];
+  let verifier = [{ return ::verify(*this); }];
 
   let extraClassDeclaration = [{
     static StringRef getPermutationAttrName() { return "permutation"; }

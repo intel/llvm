@@ -14,46 +14,36 @@
 
 #include "ReduceFunctions.h"
 #include "Delta.h"
-#include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/Instructions.h"
-#include <set>
+#include <iterator>
+#include <vector>
 
 using namespace llvm;
 
-/// Removes all the Defined Functions (as well as their calls)
+/// Removes all the Defined Functions
 /// that aren't inside any of the desired Chunks.
 static void extractFunctionsFromModule(const std::vector<Chunk> &ChunksToKeep,
                                        Module *Program) {
-  // Get functions inside desired chunks
-  std::set<Function *> FuncsToKeep;
-  int I = 0, FunctionCount = 0;
-  for (auto &F : *Program)
-    if (I < (int)ChunksToKeep.size()) {
-      if (ChunksToKeep[I].contains(++FunctionCount))
-        FuncsToKeep.insert(&F);
-      if (FunctionCount == ChunksToKeep[I].end)
-        ++I;
-    }
+  Oracle O(ChunksToKeep);
 
-  // Delete out-of-chunk functions, and replace their calls with undef
-  std::vector<Function *> FuncsToRemove;
-  SetVector<CallInst *> CallsToRemove;
-  for (auto &F : *Program)
-    if (!FuncsToKeep.count(&F)) {
-      for (auto U : F.users())
-        if (auto *Call = dyn_cast<CallInst>(U)) {
-          Call->replaceAllUsesWith(UndefValue::get(Call->getType()));
-          CallsToRemove.insert(Call);
-        }
-      F.replaceAllUsesWith(UndefValue::get(F.getType()));
-      FuncsToRemove.push_back(&F);
-    }
+  // Record all out-of-chunk functions.
+  std::vector<std::reference_wrapper<Function>> FuncsToRemove;
+  copy_if(Program->functions(), std::back_inserter(FuncsToRemove),
+          [&O](auto &unused) { return !O.shouldKeep(); });
 
-  for (auto *C : CallsToRemove)
-    C->eraseFromParent();
+  // Then, drop body of each of them. We want to batch this and do nothing else
+  // here so that minimal number of remaining exteranal uses will remain.
+  for (Function &F : FuncsToRemove)
+    F.dropAllReferences();
 
-  for (auto *F : FuncsToRemove)
-    F->eraseFromParent();
+  // And finally, we can actually delete them.
+  for (Function &F : FuncsToRemove) {
+    // Replace all *still* remaining uses with undef.
+    F.replaceAllUsesWith(UndefValue::get(F.getType()));
+    // And finally, fully drop it.
+    F.eraseFromParent();
+  }
 }
 
 /// Counts the amount of non-declaration functions and prints their

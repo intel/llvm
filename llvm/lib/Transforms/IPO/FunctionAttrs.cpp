@@ -63,7 +63,7 @@
 
 using namespace llvm;
 
-#define DEBUG_TYPE "functionattrs"
+#define DEBUG_TYPE "function-attrs"
 
 STATISTIC(NumReadNone, "Number of functions marked readnone");
 STATISTIC(NumReadOnly, "Number of functions marked readonly");
@@ -281,16 +281,18 @@ static bool addReadAttrs(const SCCNodeSet &SCCNodes, AARGetterT &&AARGetter) {
     MadeChange = true;
 
     // Clear out any existing attributes.
-    F->removeFnAttr(Attribute::ReadOnly);
-    F->removeFnAttr(Attribute::ReadNone);
-    F->removeFnAttr(Attribute::WriteOnly);
+    AttrBuilder AttrsToRemove;
+    AttrsToRemove.addAttribute(Attribute::ReadOnly);
+    AttrsToRemove.addAttribute(Attribute::ReadNone);
+    AttrsToRemove.addAttribute(Attribute::WriteOnly);
 
     if (!WritesMemory && !ReadsMemory) {
       // Clear out any "access range attributes" if readnone was deduced.
-      F->removeFnAttr(Attribute::ArgMemOnly);
-      F->removeFnAttr(Attribute::InaccessibleMemOnly);
-      F->removeFnAttr(Attribute::InaccessibleMemOrArgMemOnly);
+      AttrsToRemove.addAttribute(Attribute::ArgMemOnly);
+      AttrsToRemove.addAttribute(Attribute::InaccessibleMemOnly);
+      AttrsToRemove.addAttribute(Attribute::InaccessibleMemOrArgMemOnly);
     }
+    F->removeAttributes(AttributeList::FunctionIndex, AttrsToRemove);
 
     // Add in the new attribute.
     if (WritesMemory && !ReadsMemory)
@@ -1343,14 +1345,6 @@ static bool inferAttrsFromFunctionBodies(const SCCNodeSet &SCCNodes) {
   return AI.run(SCCNodes);
 }
 
-static bool setDoesNotRecurse(Function &F) {
-  if (F.doesNotRecurse())
-    return false;
-  F.setDoesNotRecurse();
-  ++NumNoRecurse;
-  return true;
-}
-
 static bool addNoRecurseAttrs(const SCCNodeSet &SCCNodes) {
   // Try and identify functions that do not recurse.
 
@@ -1377,7 +1371,9 @@ static bool addNoRecurseAttrs(const SCCNodeSet &SCCNodes) {
   // Every call was to a non-recursive function other than this function, and
   // we have no indirect recursion as the SCC size is one. This function cannot
   // recurse.
-  return setDoesNotRecurse(*F);
+  F->setDoesNotRecurse();
+  ++NumNoRecurse;
+  return true;
 }
 
 template <typename AARGetterT>
@@ -1477,11 +1473,11 @@ struct PostOrderFunctionAttrsLegacyPass : public CallGraphSCCPass {
 } // end anonymous namespace
 
 char PostOrderFunctionAttrsLegacyPass::ID = 0;
-INITIALIZE_PASS_BEGIN(PostOrderFunctionAttrsLegacyPass, "functionattrs",
+INITIALIZE_PASS_BEGIN(PostOrderFunctionAttrsLegacyPass, "function-attrs",
                       "Deduce function attributes", false, false)
 INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
 INITIALIZE_PASS_DEPENDENCY(CallGraphWrapperPass)
-INITIALIZE_PASS_END(PostOrderFunctionAttrsLegacyPass, "functionattrs",
+INITIALIZE_PASS_END(PostOrderFunctionAttrsLegacyPass, "function-attrs",
                     "Deduce function attributes", false, false)
 
 Pass *llvm::createPostOrderFunctionAttrsLegacyPass() {
@@ -1542,11 +1538,13 @@ struct ReversePostOrderFunctionAttrsLegacyPass : public ModulePass {
 
 char ReversePostOrderFunctionAttrsLegacyPass::ID = 0;
 
-INITIALIZE_PASS_BEGIN(ReversePostOrderFunctionAttrsLegacyPass, "rpo-functionattrs",
-                      "Deduce function attributes in RPO", false, false)
+INITIALIZE_PASS_BEGIN(ReversePostOrderFunctionAttrsLegacyPass,
+                      "rpo-function-attrs", "Deduce function attributes in RPO",
+                      false, false)
 INITIALIZE_PASS_DEPENDENCY(CallGraphWrapperPass)
-INITIALIZE_PASS_END(ReversePostOrderFunctionAttrsLegacyPass, "rpo-functionattrs",
-                    "Deduce function attributes in RPO", false, false)
+INITIALIZE_PASS_END(ReversePostOrderFunctionAttrsLegacyPass,
+                    "rpo-function-attrs", "Deduce function attributes in RPO",
+                    false, false)
 
 Pass *llvm::createReversePostOrderFunctionAttrsPass() {
   return new ReversePostOrderFunctionAttrsLegacyPass();
@@ -1578,7 +1576,9 @@ static bool addNoRecurseAttrsTopDown(Function &F) {
     if (!CB || !CB->getParent()->getParent()->doesNotRecurse())
       return false;
   }
-  return setDoesNotRecurse(F);
+  F.setDoesNotRecurse();
+  ++NumNoRecurse;
+  return true;
 }
 
 static bool deduceFunctionAttributeInRPO(Module &M, CallGraph &CG) {

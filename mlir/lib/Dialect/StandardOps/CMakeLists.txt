@@ -1,4 +1,4 @@
-add_mlir_dialect_library(MLIRStandardOps
+add_mlir_dialect_library(MLIRStandard
   IR/Ops.cpp
   EDSC/Builders.cpp
   EDSC/Intrinsics.cpp
@@ -15,6 +15,7 @@ add_mlir_dialect_library(MLIRStandardOps
   MLIREDSC
   MLIRIR
   MLIRSideEffectInterfaces
+  MLIRVectorInterfaces
   MLIRViewLikeInterface
   )
 

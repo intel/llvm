@@ -338,7 +338,10 @@ enum MetadataCodes {
   METADATA_INDEX_OFFSET = 38,           // [offset]
   METADATA_INDEX = 39,                  // [bitpos]
   METADATA_LABEL = 40,                  // [distinct, scope, name, file, line]
-  METADATA_COMMON_BLOCK = 44,     // [distinct, scope, name, variable,...]
+  METADATA_STRING_TYPE = 41,            // [distinct, name, size, align,...]
+  // Codes 42 and 43 are reserved for support for Fortran array specific debug
+  // info.
+  METADATA_COMMON_BLOCK = 44 // [distinct, scope, name, variable,...]
 };
 
 // The constants block (CONSTANTS_BLOCK_ID) describes emission for each
@@ -536,8 +539,9 @@ enum FunctionCodes {
 
   FUNC_CODE_DEBUG_LOC = 35,        // DEBUG_LOC:  [Line,Col,ScopeVal, IAVal]
   FUNC_CODE_INST_FENCE = 36,       // FENCE: [ordering, synchscope]
-  FUNC_CODE_INST_CMPXCHG_OLD = 37, // CMPXCHG: [ptrty,ptr,cmp,new, align, vol,
-                                   //           ordering, synchscope]
+  FUNC_CODE_INST_CMPXCHG_OLD = 37, // CMPXCHG: [ptrty, ptr, cmp, val, vol,
+                                   //            ordering, synchscope,
+                                   //            failure_ordering?, weak?]
   FUNC_CODE_INST_ATOMICRMW = 38,   // ATOMICRMW: [ptrty,ptr,val, operation,
                                    //             align, vol,
                                    //             ordering, synchscope]
@@ -551,8 +555,9 @@ enum FunctionCodes {
   FUNC_CODE_INST_GEP = 43,             // GEP:  [inbounds, n x operands]
   FUNC_CODE_INST_STORE = 44,       // STORE: [ptrty,ptr,valty,val, align, vol]
   FUNC_CODE_INST_STOREATOMIC = 45, // STORE: [ptrty,ptr,val, align, vol
-  FUNC_CODE_INST_CMPXCHG = 46,     // CMPXCHG: [ptrty,ptr,valty,cmp,new, align,
-                                   //           vol,ordering,synchscope]
+  FUNC_CODE_INST_CMPXCHG = 46,     // CMPXCHG: [ptrty, ptr, cmp, val, vol,
+                                   //           success_ordering, synchscope,
+                                   //           failure_ordering, weak]
   FUNC_CODE_INST_LANDINGPAD = 47,  // LANDINGPAD: [ty,val,num,id0,val0...]
   FUNC_CODE_INST_CLEANUPRET = 48,  // CLEANUPRET: [val] or [val,bb#]
   FUNC_CODE_INST_CATCHRET = 49,    // CATCHRET: [val,bb#]
@@ -643,6 +648,8 @@ enum AttributeKindCodes {
   ATTR_KIND_PREALLOCATED = 65,
   ATTR_KIND_NO_MERGE = 66,
   ATTR_KIND_NULL_POINTER_IS_VALID = 67,
+  ATTR_KIND_NOUNDEF = 68,
+  ATTR_KIND_BYREF = 69,
 };
 
 enum ComdatSelectionKindCodes {

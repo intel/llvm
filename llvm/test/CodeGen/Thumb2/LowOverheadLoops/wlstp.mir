@@ -451,7 +451,7 @@ body:             |
   ; CHECK:   renamable $r1, dead $cpsr = tADDi8 killed renamable $r1, 16, 14 /* CC::al */, $noreg
   ; CHECK:   renamable $r2, dead $cpsr = tSUBi8 killed $r2, 4, 14 /* CC::al */, $noreg
   ; CHECK:   MVE_VPST 8, implicit $vpr
-  ; CHECK:   renamable $q1 = nsw MVE_VADDi32 killed renamable $q1, renamable $q0, 0, killed renamable $vpr, undef renamable $q1
+  ; CHECK:   renamable $q1 = nsw MVE_VADDi32 killed renamable $q1, renamable $q0, 1, killed renamable $vpr, undef renamable $q1
   ; CHECK:   $lr = t2LEUpdate killed renamable $lr, %bb.2
   ; CHECK: bb.3.middle.block:
   ; CHECK:   successors: %bb.4(0x80000000)
@@ -501,7 +501,7 @@ body:             |
     renamable $r1, dead $cpsr = tADDi8 killed renamable $r1, 16, 14, $noreg
     renamable $r2, dead $cpsr = tSUBi8 killed $r2, 4, 14, $noreg
     MVE_VPST 8, implicit $vpr
-    renamable $q1 = nsw MVE_VADDi32 killed renamable $q1, renamable $q0, 0, renamable $vpr, undef renamable $q1
+    renamable $q1 = nsw MVE_VADDi32 killed renamable $q1, renamable $q0, 1, renamable $vpr, undef renamable $q1
     renamable $lr = t2LoopDec killed renamable $lr, 1
     t2LoopEnd renamable $lr, %bb.2, implicit-def dead $cpsr
     tB %bb.3, 14, $noreg

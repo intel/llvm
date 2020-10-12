@@ -13,11 +13,12 @@
 #include "clang/AST/Stmt.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTDiagnostic.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclGroup.h"
 #include "clang/AST/Expr.h"
-#include "clang/AST/ExprConcepts.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/ExprConcepts.h"
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/ExprOpenMP.h"
 #include "clang/AST/StmtCXX.h"
@@ -41,8 +42,8 @@
 #include <cassert>
 #include <cstring>
 #include <string>
-#include <utility>
 #include <type_traits>
+#include <utility>
 
 using namespace clang;
 
@@ -127,6 +128,51 @@ void Stmt::addStmtClass(StmtClass s) {
 bool Stmt::StatisticsEnabled = false;
 void Stmt::EnableStatistics() {
   StatisticsEnabled = true;
+}
+
+static std::pair<Stmt::Likelihood, const Attr *> getLikelihood(const Stmt *S) {
+  if (const auto *AS = dyn_cast_or_null<AttributedStmt>(S))
+    for (const auto *A : AS->getAttrs()) {
+      if (isa<LikelyAttr>(A))
+        return std::make_pair(Stmt::LH_Likely, A);
+
+      if (isa<UnlikelyAttr>(A))
+        return std::make_pair(Stmt::LH_Unlikely, A);
+    }
+
+  return std::make_pair(Stmt::LH_None, nullptr);
+}
+
+Stmt::Likelihood Stmt::getLikelihood(const Stmt *S) {
+  return ::getLikelihood(S).first;
+}
+
+Stmt::Likelihood Stmt::getLikelihood(const Stmt *Then, const Stmt *Else) {
+  Likelihood LHT = ::getLikelihood(Then).first;
+  Likelihood LHE = ::getLikelihood(Else).first;
+  if (LHE == LH_None)
+    return LHT;
+
+  // If the same attribute is used on both branches there's a conflict.
+  if (LHT == LHE)
+    return LH_None;
+
+  if (LHT != LH_None)
+    return LHT;
+
+  // Invert the value of Else to get the value for Then.
+  return LHE == LH_Likely ? LH_Unlikely : LH_Likely;
+}
+
+std::tuple<bool, const Attr *, const Attr *>
+Stmt::determineLikelihoodConflict(const Stmt *Then, const Stmt *Else) {
+  std::pair<Likelihood, const Attr *> LHT = ::getLikelihood(Then);
+  std::pair<Likelihood, const Attr *> LHE = ::getLikelihood(Else);
+  // If the same attribute is used on both branches there's a conflict.
+  if (LHT.first != LH_None && LHT.first == LHE.first)
+    return std::make_tuple(true, LHT.second, LHE.second);
+
+  return std::make_tuple(false, nullptr, nullptr);
 }
 
 /// Skip no-op (attributed, compound) container stmts and skip captured
@@ -482,7 +528,6 @@ void GCCAsmStmt::setOutputsAndInputsAndClobbers(const ASTContext &C,
   this->NumInputs = NumInputs;
   this->NumClobbers = NumClobbers;
   this->NumLabels = NumLabels;
-  assert(!(NumOutputs && NumLabels) && "asm goto cannot have outputs");
 
   unsigned NumExprs = NumOutputs + NumInputs + NumLabels;
 
@@ -827,9 +872,9 @@ void MSAsmStmt::initialize(const ASTContext &C, StringRef asmstr,
 }
 
 IfStmt::IfStmt(const ASTContext &Ctx, SourceLocation IL, bool IsConstexpr,
-               Stmt *Init, VarDecl *Var, Expr *Cond, Stmt *Then,
-               SourceLocation EL, Stmt *Else)
-    : Stmt(IfStmtClass) {
+               Stmt *Init, VarDecl *Var, Expr *Cond, SourceLocation LPL,
+               SourceLocation RPL, Stmt *Then, SourceLocation EL, Stmt *Else)
+    : Stmt(IfStmtClass), LParenLoc(LPL), RParenLoc(RPL) {
   bool HasElse = Else != nullptr;
   bool HasVar = Var != nullptr;
   bool HasInit = Init != nullptr;
@@ -862,7 +907,8 @@ IfStmt::IfStmt(EmptyShell Empty, bool HasElse, bool HasVar, bool HasInit)
 
 IfStmt *IfStmt::Create(const ASTContext &Ctx, SourceLocation IL,
                        bool IsConstexpr, Stmt *Init, VarDecl *Var, Expr *Cond,
-                       Stmt *Then, SourceLocation EL, Stmt *Else) {
+                       SourceLocation LPL, SourceLocation RPL, Stmt *Then,
+                       SourceLocation EL, Stmt *Else) {
   bool HasElse = Else != nullptr;
   bool HasVar = Var != nullptr;
   bool HasInit = Init != nullptr;
@@ -871,7 +917,7 @@ IfStmt *IfStmt::Create(const ASTContext &Ctx, SourceLocation IL,
           NumMandatoryStmtPtr + HasElse + HasVar + HasInit, HasElse),
       alignof(IfStmt));
   return new (Mem)
-      IfStmt(Ctx, IL, IsConstexpr, Init, Var, Cond, Then, EL, Else);
+      IfStmt(Ctx, IL, IsConstexpr, Init, Var, Cond, LPL, RPL, Then, EL, Else);
 }
 
 IfStmt *IfStmt::CreateEmpty(const ASTContext &Ctx, bool HasElse, bool HasVar,
@@ -947,8 +993,10 @@ void ForStmt::setConditionVariable(const ASTContext &C, VarDecl *V) {
 }
 
 SwitchStmt::SwitchStmt(const ASTContext &Ctx, Stmt *Init, VarDecl *Var,
-                       Expr *Cond)
-    : Stmt(SwitchStmtClass), FirstCase(nullptr) {
+                       Expr *Cond, SourceLocation LParenLoc,
+                       SourceLocation RParenLoc)
+    : Stmt(SwitchStmtClass), FirstCase(nullptr), LParenLoc(LParenLoc),
+      RParenLoc(RParenLoc) {
   bool HasInit = Init != nullptr;
   bool HasVar = Var != nullptr;
   SwitchStmtBits.HasInit = HasInit;
@@ -973,13 +1021,14 @@ SwitchStmt::SwitchStmt(EmptyShell Empty, bool HasInit, bool HasVar)
 }
 
 SwitchStmt *SwitchStmt::Create(const ASTContext &Ctx, Stmt *Init, VarDecl *Var,
-                               Expr *Cond) {
+                               Expr *Cond, SourceLocation LParenLoc,
+                               SourceLocation RParenLoc) {
   bool HasInit = Init != nullptr;
   bool HasVar = Var != nullptr;
   void *Mem = Ctx.Allocate(
       totalSizeToAlloc<Stmt *>(NumMandatoryStmtPtr + HasInit + HasVar),
       alignof(SwitchStmt));
-  return new (Mem) SwitchStmt(Ctx, Init, Var, Cond);
+  return new (Mem) SwitchStmt(Ctx, Init, Var, Cond, LParenLoc, RParenLoc);
 }
 
 SwitchStmt *SwitchStmt::CreateEmpty(const ASTContext &Ctx, bool HasInit,
@@ -1012,7 +1061,8 @@ void SwitchStmt::setConditionVariable(const ASTContext &Ctx, VarDecl *V) {
 }
 
 WhileStmt::WhileStmt(const ASTContext &Ctx, VarDecl *Var, Expr *Cond,
-                     Stmt *Body, SourceLocation WL)
+                     Stmt *Body, SourceLocation WL, SourceLocation LParenLoc,
+                     SourceLocation RParenLoc)
     : Stmt(WhileStmtClass) {
   bool HasVar = Var != nullptr;
   WhileStmtBits.HasVar = HasVar;
@@ -1023,6 +1073,8 @@ WhileStmt::WhileStmt(const ASTContext &Ctx, VarDecl *Var, Expr *Cond,
     setConditionVariable(Ctx, Var);
 
   setWhileLoc(WL);
+  setLParenLoc(LParenLoc);
+  setRParenLoc(RParenLoc);
 }
 
 WhileStmt::WhileStmt(EmptyShell Empty, bool HasVar)
@@ -1031,12 +1083,14 @@ WhileStmt::WhileStmt(EmptyShell Empty, bool HasVar)
 }
 
 WhileStmt *WhileStmt::Create(const ASTContext &Ctx, VarDecl *Var, Expr *Cond,
-                             Stmt *Body, SourceLocation WL) {
+                             Stmt *Body, SourceLocation WL,
+                             SourceLocation LParenLoc,
+                             SourceLocation RParenLoc) {
   bool HasVar = Var != nullptr;
   void *Mem =
       Ctx.Allocate(totalSizeToAlloc<Stmt *>(NumMandatoryStmtPtr + HasVar),
                    alignof(WhileStmt));
-  return new (Mem) WhileStmt(Ctx, Var, Cond, Body, WL);
+  return new (Mem) WhileStmt(Ctx, Var, Cond, Body, WL, LParenLoc, RParenLoc);
 }
 
 WhileStmt *WhileStmt::CreateEmpty(const ASTContext &Ctx, bool HasVar) {

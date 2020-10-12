@@ -724,7 +724,7 @@ public:
     return nullptr;
   }
 
-  /// Analyze the loop code, return true if it cannot be understoo. Upon
+  /// Analyze the loop code, return true if it cannot be understood. Upon
   /// success, this function returns false and returns information about the
   /// induction variable and compare instruction used at the end.
   virtual bool analyzeLoop(MachineLoop &L, MachineInstr *&IndVarInst,
@@ -771,7 +771,7 @@ public:
 
   /// Second variant of isProfitableToIfCvt. This one
   /// checks for the case where two basic blocks from true and false path
-  /// of a if-then-else (diamond) are predicated on mutally exclusive
+  /// of a if-then-else (diamond) are predicated on mutually exclusive
   /// predicates, where the probability of the true path being taken is given
   /// by Probability, and Confidence is a measure of our confidence that it
   /// will be properly predicted.
@@ -1270,6 +1270,17 @@ public:
     return false;
   }
 
+  /// Returns true if MI's Def is NullValueReg, and the MI
+  /// does not change the Zero value. i.e. cases such as rax = shr rax, X where
+  /// NullValueReg = rax. Note that if the NullValueReg is non-zero, this
+  /// function can return true even if becomes zero. Specifically cases such as
+  /// NullValueReg = shl NullValueReg, 63.
+  virtual bool preservesZeroValueInReg(const MachineInstr *MI,
+                                       const Register NullValueReg,
+                                       const TargetRegisterInfo *TRI) const {
+    return false;
+  }
+
   /// If the instruction is an increment of a constant value, return the amount.
   virtual bool getIncrementValue(const MachineInstr &MI, int &Value) const {
     return false;
@@ -1442,7 +1453,7 @@ public:
   /// the machine instruction generated due to folding.
   virtual MachineInstr *optimizeLoadInstr(MachineInstr &MI,
                                           const MachineRegisterInfo *MRI,
-                                          unsigned &FoldAsLoadDefReg,
+                                          Register &FoldAsLoadDefReg,
                                           MachineInstr *&DefMI) const {
     return nullptr;
   }
@@ -1627,7 +1638,7 @@ public:
   /// This hook works similarly to getPartialRegUpdateClearance, except that it
   /// does not take an operand index. Instead sets \p OpNum to the index of the
   /// unused register.
-  virtual unsigned getUndefRegClearance(const MachineInstr &MI, unsigned &OpNum,
+  virtual unsigned getUndefRegClearance(const MachineInstr &MI, unsigned OpNum,
                                         const TargetRegisterInfo *TRI) const {
     // The default implementation returns 0 for no undef register dependency.
     return 0;

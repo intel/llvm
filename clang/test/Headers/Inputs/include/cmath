@@ -49,8 +49,12 @@ double fma(double, double, double);
 float fma(float, float, float);
 double fmax(double, double);
 float fmax(float, float);
+float max(float, float);
+double max(double, double);
 double fmin(double, double);
 float fmin(float, float);
+float min(float, float);
+double min(double, double);
 double fmod(double, double);
 float fmod(float, float);
 int fpclassify(double);
@@ -78,8 +82,13 @@ bool isless(float, float);
 bool islessgreater(double, double);
 bool islessgreater(float, float);
 bool isnan(long double);
+#ifdef USE_ISNAN_WITH_INT_RETURN
+int isnan(double);
+int isnan(float);
+#else
 bool isnan(double);
 bool isnan(float);
+#endif
 bool isnormal(double);
 bool isnormal(float);
 bool isunordered(double, double);

@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "llvm/Analysis/InlineCost.h"
+#include "llvm/Config/llvm-config.h"
 #include "llvm/IR/PassManager.h"
 
 namespace llvm {
@@ -208,6 +209,12 @@ std::unique_ptr<InlineAdvisor>
 getReleaseModeAdvisor(Module &M, ModuleAnalysisManager &MAM);
 #endif
 
+#ifdef LLVM_HAVE_TF_API
+std::unique_ptr<InlineAdvisor>
+getDevelopmentModeAdvisor(Module &M, ModuleAnalysisManager &MAM,
+                          std::function<bool(CallBase &)> GetDefaultAdvice);
+#endif
+
 // Default (manual policy) decision making helper APIs. Shared with the legacy
 // pass manager inliner.
 
@@ -225,6 +232,9 @@ void emitInlinedInto(OptimizationRemarkEmitter &ORE, DebugLoc DLoc,
                      const Function &Caller, const InlineCost &IC,
                      bool ForProfileContext = false,
                      const char *PassName = nullptr);
+
+/// get call site location as string
+std::string getCallSiteLocation(DebugLoc DLoc);
 
 /// Add location info to ORE message.
 void addLocationToRemarks(OptimizationRemark &Remark, DebugLoc DLoc);

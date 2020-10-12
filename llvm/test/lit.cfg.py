@@ -22,7 +22,7 @@ config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
 
 # suffixes: A list of file extensions to treat as test files. This is overriden
 # by individual lit.local.cfg files in the test subdirectories.
-config.suffixes = ['.ll', '.c', '.cxx', '.test', '.txt', '.s', '.mir']
+config.suffixes = ['.ll', '.c', '.test', '.txt', '.s', '.mir', '.yaml']
 
 # excludes: A list of directories to exclude from the testsuite. The 'Inputs'
 # subdirectories contain auxiliary inputs for various tests in their parent
@@ -141,14 +141,16 @@ tools = [
     ToolSubst('%llvm-objcopy', FindTool('llvm-objcopy')),
     ToolSubst('%llvm-strip', FindTool('llvm-strip')),
     ToolSubst('%llvm-install-name-tool', FindTool('llvm-install-name-tool')),
+    ToolSubst('%llvm-bitcode-strip', FindTool('llvm-bitcode-strip')),
+    ToolSubst('%split-file', FindTool('split-file')),
 ]
 
 # FIXME: Why do we have both `lli` and `%lli` that do slightly different things?
 tools.extend([
     'dsymutil', 'lli', 'lli-child-target', 'llvm-ar', 'llvm-as',
-    'llvm-addr2line', 'llvm-bcanalyzer', 'llvm-config', 'llvm-cov',
-    'llvm-cxxdump', 'llvm-cvtres', 'llvm-diff', 'llvm-dis', 'llvm-dwarfdump',
-    'llvm-exegesis', 'llvm-extract', 'llvm-isel-fuzzer', 'llvm-ifs',
+    'llvm-addr2line', 'llvm-bcanalyzer', 'llvm-bitcode-strip', 'llvm-config', 
+    'llvm-cov', 'llvm-cxxdump', 'llvm-cvtres', 'llvm-diff', 'llvm-dis', 
+    'llvm-dwarfdump', 'llvm-exegesis', 'llvm-extract', 'llvm-isel-fuzzer', 'llvm-ifs',
     'llvm-install-name-tool', 'llvm-jitlink', 'llvm-opt-fuzzer', 'llvm-lib',
     'llvm-link', 'llvm-lto', 'llvm-lto2', 'llvm-mc', 'llvm-mca',
     'llvm-modextract', 'llvm-nm', 'llvm-objcopy', 'llvm-objdump',
@@ -167,7 +169,8 @@ tools.extend([
     ToolSubst('Kaleidoscope-Ch5', unresolved='ignore'),
     ToolSubst('Kaleidoscope-Ch6', unresolved='ignore'),
     ToolSubst('Kaleidoscope-Ch7', unresolved='ignore'),
-    ToolSubst('Kaleidoscope-Ch8', unresolved='ignore')])
+    ToolSubst('Kaleidoscope-Ch8', unresolved='ignore'),
+    ToolSubst('LLJITWithThinLTOSummaries', unresolved='ignore')])
 
 llvm_config.add_tool_substitutions(tools, config.llvm_tools_dir)
 
@@ -221,6 +224,9 @@ if not config.build_shared_libs and not config.link_llvm_dylib:
 
 if config.have_tf_aot:
     config.available_features.add("have_tf_aot")
+
+if config.have_tf_api:
+    config.available_features.add("have_tf_api")
 
 def have_cxx_shared_library():
     readobj_exe = lit.util.which('llvm-readobj', config.llvm_tools_dir)
@@ -323,10 +329,10 @@ def have_ld64_plugin_support():
 if have_ld64_plugin_support():
     config.available_features.add('ld64_plugin')
 
-# Ask llvm-config about asserts and global-isel.
+# Ask llvm-config about asserts
 llvm_config.feature_config(
     [('--assertion-mode', {'ON': 'asserts'}),
-     ('--has-global-isel', {'ON': 'global-isel'})])
+     ('--build-mode', {'[Dd][Ee][Bb][Uu][Gg]': 'debug'})])
 
 if 'darwin' == sys.platform:
     cmd = ['sysctl', 'hw.optional.fma']
@@ -352,8 +358,11 @@ if config.have_libxar:
 if config.enable_threads:
     config.available_features.add('thread_support')
 
-if config.llvm_libxml2_enabled:
+if config.have_libxml2:
     config.available_features.add('libxml2')
 
 if config.have_opt_viewer_modules:
     config.available_features.add('have_opt_viewer_modules')
+
+if config.expensive_checks:
+    config.available_features.add('expensive_checks')

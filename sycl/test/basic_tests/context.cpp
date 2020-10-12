@@ -68,4 +68,31 @@ int main() {
     assert(Context == WillContextCopy);
     assert(Context.is_host() == WillContextCopy.is_host());
   }
+  {
+    auto AsyncHandler = [](const sycl::exception_list &EL) {};
+    sycl::context Context1(sycl::property_list{});
+    sycl::context Context2(AsyncHandler, sycl::property_list{});
+    sycl::context Context3(deviceA, sycl::property_list{});
+    sycl::context Context4(deviceA, AsyncHandler, sycl::property_list{});
+    sycl::context Context5(deviceA.get_platform(), sycl::property_list{});
+    sycl::context Context6(deviceA.get_platform(), AsyncHandler,
+                           sycl::property_list{});
+    sycl::context Context7(std::vector<sycl::device>{deviceA},
+                           sycl::property_list{});
+    sycl::context Context8(
+        std::vector<sycl::device>{deviceA}, AsyncHandler,
+        sycl::property_list{
+            sycl::property::context::cuda::use_primary_context{}});
+
+    if (!Context8.has_property<
+            sycl::property::context::cuda::use_primary_context>()) {
+      std::cerr << "Line " << __LINE__ << ": Property was not found"
+                << std::endl;
+      return 1;
+    }
+
+    sycl::property::context::cuda::use_primary_context Prop =
+        Context8
+            .get_property<sycl::property::context::cuda::use_primary_context>();
+  }
 }

@@ -818,6 +818,10 @@ Discard value names in LLVM IR
 
 Enables an experimental new pass manager in LLVM.
 
+.. option:: -fexperimental-strict-floating-point
+
+Enables the use of non-default rounding modes and non-default exception handling on targets that are not currently ready.
+
 .. option:: -ffine-grained-bitfield-accesses, -fno-fine-grained-bitfield-accesses
 
 Use separate accesses for consecutive bitfield runs with legal widths and alignments.
@@ -1012,7 +1016,7 @@ Flags controlling how ``#include``\s are resolved to files.
 
 .. option:: -I<dir>, --include-directory <arg>, --include-directory=<arg>
 
-Add directory to include search path
+Add directory to include search path. If there are multiple -I options, these directories are searched in the order they are given before the standard system directories are searched. If the same directory is in the SYSTEM include search paths, for example if also specified with -isystem, the -I option will be ignored
 
 .. option:: -I-, --include-barrier
 
@@ -2132,7 +2136,7 @@ Enable stack clash protection
 
 .. option:: -fstack-protector, -fno-stack-protector
 
-Enable stack protectors for some functions vulnerable to stack smashing. This uses a loose heuristic which considers functions vulnerable if they contain a char (or 8bit integer) array or constant sized calls to alloca, which are of greater size than ssp-buffer-size (default: 8 bytes). All variable sized calls to alloca are considered vulnerable
+Enable stack protectors for some functions vulnerable to stack smashing. This uses a loose heuristic which considers functions vulnerable if they contain a char (or 8bit integer) array or constant sized calls to alloca , which are of greater size than ssp-buffer-size (default: 8 bytes). All variable sized calls to alloca are considered vulnerable. A function witha stack protector has a guard value added to the stack frame that is checked on function exit. The guard value must be positioned in the stack frame such that a buffer overflow from a vulnerable variable will overwrite the guard value before overwriting the function's return address. The reference stack guard value is stored in a global variable.
 
 .. option:: -fstack-protector-all
 
@@ -2149,6 +2153,10 @@ Emit section containing metadata on function stack sizes
 .. option:: -fstandalone-debug, -fno-limit-debug-info, -fno-standalone-debug
 
 Emit full debug info for all types used by the program
+
+.. option:: -feliminate-unused-debug-types, -fno-eliminate-unused-debug-types
+
+Suppress (or emit) debug info for types that are unused but defined by the program.
 
 .. option:: -fstrict-aliasing, -fno-strict-aliasing
 
@@ -2755,6 +2763,10 @@ Generate a \_\_mcount\_loc section entry for each \_\_fentry\_\_ call.
 
 Make StdCall calling convention the default
 
+.. option:: -mseses, -mno-seses
+
+Enable speculative execution side effect suppression (SESES). Includes LVI control flow integrity mitigations
+
 .. option:: -msign-return-address=<arg>
 
 Select return address signing scope
@@ -3126,6 +3138,12 @@ X86
 .. option:: -madx, -mno-adx
 
 .. option:: -maes, -mno-aes
+
+.. option:: -mamx-bf16, -mno-amx-bf16
+
+.. option:: -mamx-int8, -mno-amx-int8
+
+.. option:: -mamx-tile, -mno-amx-tile
 
 .. option:: -mavx, -mno-avx
 

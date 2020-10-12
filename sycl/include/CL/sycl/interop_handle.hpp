@@ -45,7 +45,8 @@ public:
   template <backend BackendName = backend::opencl, typename DataT, int Dims,
             access::mode Mode, access::target Target, access::placeholder IsPlh>
   typename std::enable_if<
-      Target != access::target::host_buffer,
+      Target == access::target::global_buffer ||
+          Target == access::target::constant_buffer,
       typename interop<BackendName,
                        accessor<DataT, Dims, Mode, Target, IsPlh>>::type>::type
   get_native_mem(const accessor<DataT, Dims, Mode, Target, IsPlh> &Acc) const {
@@ -63,12 +64,14 @@ public:
   template <backend BackendName = backend::opencl, typename DataT, int Dims,
             access::mode Mode, access::target Target, access::placeholder IsPlh>
   typename std::enable_if<
-      Target == access::target::host_buffer,
-      typename interop<BackendName,
-                       accessor<DataT, Dims, Mode, Target, IsPlh>>::type>::type
+      !(Target == access::target::global_buffer ||
+        Target == access::target::constant_buffer),
+      typename interop<BackendName, accessor<DataT, Dims, Mode,
+                                             access::target::global_buffer,
+                                             IsPlh>>::type>::type
   get_native_mem(const accessor<DataT, Dims, Mode, Target, IsPlh> &) const {
-    throw invalid_object_error("Getting memory object out of host accessor is "
-                               "not allowed",
+    throw invalid_object_error("Getting memory object out of accessor for "
+                               "specified target is not allowed",
                                PI_INVALID_MEM_OBJECT);
   }
 

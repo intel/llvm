@@ -41,6 +41,11 @@ public:
     if (IntegerLiteral *IL = dyn_cast<IntegerLiteral>(S)) {
       return (ClassName + "(" + IL->getValue().toString(10, false) + ")").str();
     }
+    if (UnaryOperator *UO = dyn_cast<UnaryOperator>(S)) {
+      return (ClassName + "(" + UnaryOperator::getOpcodeStr(UO->getOpcode()) +
+              ")")
+          .str();
+    }
     if (BinaryOperator *BO = dyn_cast<BinaryOperator>(S)) {
       return (ClassName + "(" + BinaryOperator::getOpcodeStr(BO->getOpcode()) +
               ")")
@@ -149,22 +154,17 @@ TraverseIntegerLiteral IntegerLiteral(5)
       R"txt(
 TraverseIntegerLiteral IntegerLiteral(1)
   WalkUpFromStmt IntegerLiteral(1)
-WalkUpFromStmt IntegerLiteral(1)
 TraverseIntegerLiteral IntegerLiteral(2)
   WalkUpFromStmt IntegerLiteral(2)
-WalkUpFromStmt IntegerLiteral(2)
 TraverseIntegerLiteral IntegerLiteral(3)
   WalkUpFromStmt IntegerLiteral(3)
-WalkUpFromStmt IntegerLiteral(3)
 WalkUpFromStmt BinaryOperator(+)
 WalkUpFromStmt DeclRefExpr(add)
 WalkUpFromStmt ImplicitCastExpr
 TraverseIntegerLiteral IntegerLiteral(4)
   WalkUpFromStmt IntegerLiteral(4)
-WalkUpFromStmt IntegerLiteral(4)
 TraverseIntegerLiteral IntegerLiteral(5)
   WalkUpFromStmt IntegerLiteral(5)
-WalkUpFromStmt IntegerLiteral(5)
 WalkUpFromStmt CallExpr(add)
 WalkUpFromStmt CompoundStmt
 )txt"));
@@ -253,23 +253,14 @@ TraverseIntegerLiteral IntegerLiteral(1)
   WalkUpFromIntegerLiteral IntegerLiteral(1)
     WalkUpFromExpr IntegerLiteral(1)
       WalkUpFromStmt IntegerLiteral(1)
-WalkUpFromIntegerLiteral IntegerLiteral(1)
-  WalkUpFromExpr IntegerLiteral(1)
-    WalkUpFromStmt IntegerLiteral(1)
 TraverseIntegerLiteral IntegerLiteral(2)
   WalkUpFromIntegerLiteral IntegerLiteral(2)
     WalkUpFromExpr IntegerLiteral(2)
       WalkUpFromStmt IntegerLiteral(2)
-WalkUpFromIntegerLiteral IntegerLiteral(2)
-  WalkUpFromExpr IntegerLiteral(2)
-    WalkUpFromStmt IntegerLiteral(2)
 TraverseIntegerLiteral IntegerLiteral(3)
   WalkUpFromIntegerLiteral IntegerLiteral(3)
     WalkUpFromExpr IntegerLiteral(3)
       WalkUpFromStmt IntegerLiteral(3)
-WalkUpFromIntegerLiteral IntegerLiteral(3)
-  WalkUpFromExpr IntegerLiteral(3)
-    WalkUpFromStmt IntegerLiteral(3)
 WalkUpFromExpr BinaryOperator(+)
   WalkUpFromStmt BinaryOperator(+)
 WalkUpFromExpr DeclRefExpr(add)
@@ -280,16 +271,10 @@ TraverseIntegerLiteral IntegerLiteral(4)
   WalkUpFromIntegerLiteral IntegerLiteral(4)
     WalkUpFromExpr IntegerLiteral(4)
       WalkUpFromStmt IntegerLiteral(4)
-WalkUpFromIntegerLiteral IntegerLiteral(4)
-  WalkUpFromExpr IntegerLiteral(4)
-    WalkUpFromStmt IntegerLiteral(4)
 TraverseIntegerLiteral IntegerLiteral(5)
   WalkUpFromIntegerLiteral IntegerLiteral(5)
     WalkUpFromExpr IntegerLiteral(5)
       WalkUpFromStmt IntegerLiteral(5)
-WalkUpFromIntegerLiteral IntegerLiteral(5)
-  WalkUpFromExpr IntegerLiteral(5)
-    WalkUpFromStmt IntegerLiteral(5)
 WalkUpFromExpr CallExpr(add)
   WalkUpFromStmt CallExpr(add)
 WalkUpFromStmt CompoundStmt
@@ -390,6 +375,197 @@ WalkUpFromStmt CompoundStmt
 )txt"));
 }
 
+TEST(RecursiveASTVisitor, StmtCallbacks_TraverseUnaryOperator) {
+  class RecordingVisitor : public RecordingVisitorBase<RecordingVisitor> {
+  public:
+    RecordingVisitor(ShouldTraversePostOrder ShouldTraversePostOrderValue)
+        : RecordingVisitorBase(ShouldTraversePostOrderValue) {}
+
+    bool TraverseUnaryOperator(UnaryOperator *UO) {
+      recordCallback(__func__, UO, [&]() {
+        RecordingVisitorBase::TraverseUnaryOperator(UO);
+      });
+      return true;
+    }
+
+    bool WalkUpFromStmt(Stmt *S) {
+      recordCallback(__func__, S,
+                     [&]() { RecordingVisitorBase::WalkUpFromStmt(S); });
+      return true;
+    }
+  };
+
+  StringRef Code = R"cpp(
+void test() {
+  1;
+  -2;
+  3;
+}
+)cpp";
+
+  EXPECT_TRUE(visitorCallbackLogEqual(
+      RecordingVisitor(ShouldTraversePostOrder::No), Code,
+      R"txt(
+WalkUpFromStmt CompoundStmt
+WalkUpFromStmt IntegerLiteral(1)
+TraverseUnaryOperator UnaryOperator(-)
+  WalkUpFromStmt UnaryOperator(-)
+  WalkUpFromStmt IntegerLiteral(2)
+WalkUpFromStmt IntegerLiteral(3)
+)txt"));
+
+  EXPECT_TRUE(visitorCallbackLogEqual(
+      RecordingVisitor(ShouldTraversePostOrder::Yes), Code,
+      R"txt(
+WalkUpFromStmt IntegerLiteral(1)
+TraverseUnaryOperator UnaryOperator(-)
+  WalkUpFromStmt IntegerLiteral(2)
+  WalkUpFromStmt UnaryOperator(-)
+WalkUpFromStmt IntegerLiteral(3)
+WalkUpFromStmt CompoundStmt
+)txt"));
+}
+
+TEST(RecursiveASTVisitor,
+     StmtCallbacks_TraverseUnaryOperator_WalkUpFromUnaryOperator) {
+  class RecordingVisitor : public RecordingVisitorBase<RecordingVisitor> {
+  public:
+    RecordingVisitor(ShouldTraversePostOrder ShouldTraversePostOrderValue)
+        : RecordingVisitorBase(ShouldTraversePostOrderValue) {}
+
+    bool TraverseUnaryOperator(UnaryOperator *UO) {
+      recordCallback(__func__, UO, [&]() {
+        RecordingVisitorBase::TraverseUnaryOperator(UO);
+      });
+      return true;
+    }
+
+    bool WalkUpFromStmt(Stmt *S) {
+      recordCallback(__func__, S,
+                     [&]() { RecordingVisitorBase::WalkUpFromStmt(S); });
+      return true;
+    }
+
+    bool WalkUpFromExpr(Expr *E) {
+      recordCallback(__func__, E,
+                     [&]() { RecordingVisitorBase::WalkUpFromExpr(E); });
+      return true;
+    }
+
+    bool WalkUpFromUnaryOperator(UnaryOperator *UO) {
+      recordCallback(__func__, UO, [&]() {
+        RecordingVisitorBase::WalkUpFromUnaryOperator(UO);
+      });
+      return true;
+    }
+  };
+
+  StringRef Code = R"cpp(
+void test() {
+  1;
+  -2;
+  3;
+}
+)cpp";
+
+  EXPECT_TRUE(visitorCallbackLogEqual(
+      RecordingVisitor(ShouldTraversePostOrder::No), Code,
+      R"txt(
+WalkUpFromStmt CompoundStmt
+WalkUpFromExpr IntegerLiteral(1)
+  WalkUpFromStmt IntegerLiteral(1)
+TraverseUnaryOperator UnaryOperator(-)
+  WalkUpFromUnaryOperator UnaryOperator(-)
+    WalkUpFromExpr UnaryOperator(-)
+      WalkUpFromStmt UnaryOperator(-)
+  WalkUpFromExpr IntegerLiteral(2)
+    WalkUpFromStmt IntegerLiteral(2)
+WalkUpFromExpr IntegerLiteral(3)
+  WalkUpFromStmt IntegerLiteral(3)
+)txt"));
+
+  EXPECT_TRUE(visitorCallbackLogEqual(
+      RecordingVisitor(ShouldTraversePostOrder::Yes), Code,
+      R"txt(
+WalkUpFromExpr IntegerLiteral(1)
+  WalkUpFromStmt IntegerLiteral(1)
+TraverseUnaryOperator UnaryOperator(-)
+  WalkUpFromExpr IntegerLiteral(2)
+    WalkUpFromStmt IntegerLiteral(2)
+  WalkUpFromUnaryOperator UnaryOperator(-)
+    WalkUpFromExpr UnaryOperator(-)
+      WalkUpFromStmt UnaryOperator(-)
+WalkUpFromExpr IntegerLiteral(3)
+  WalkUpFromStmt IntegerLiteral(3)
+WalkUpFromStmt CompoundStmt
+)txt"));
+}
+
+TEST(RecursiveASTVisitor, StmtCallbacks_WalkUpFromUnaryOperator) {
+  class RecordingVisitor : public RecordingVisitorBase<RecordingVisitor> {
+  public:
+    RecordingVisitor(ShouldTraversePostOrder ShouldTraversePostOrderValue)
+        : RecordingVisitorBase(ShouldTraversePostOrderValue) {}
+
+    bool WalkUpFromStmt(Stmt *S) {
+      recordCallback(__func__, S,
+                     [&]() { RecordingVisitorBase::WalkUpFromStmt(S); });
+      return true;
+    }
+
+    bool WalkUpFromExpr(Expr *E) {
+      recordCallback(__func__, E,
+                     [&]() { RecordingVisitorBase::WalkUpFromExpr(E); });
+      return true;
+    }
+
+    bool WalkUpFromUnaryOperator(UnaryOperator *UO) {
+      recordCallback(__func__, UO, [&]() {
+        RecordingVisitorBase::WalkUpFromUnaryOperator(UO);
+      });
+      return true;
+    }
+  };
+
+  StringRef Code = R"cpp(
+void test() {
+  1;
+  -2;
+  3;
+}
+)cpp";
+
+  EXPECT_TRUE(visitorCallbackLogEqual(
+      RecordingVisitor(ShouldTraversePostOrder::No), Code,
+      R"txt(
+WalkUpFromStmt CompoundStmt
+WalkUpFromExpr IntegerLiteral(1)
+  WalkUpFromStmt IntegerLiteral(1)
+WalkUpFromUnaryOperator UnaryOperator(-)
+  WalkUpFromExpr UnaryOperator(-)
+    WalkUpFromStmt UnaryOperator(-)
+WalkUpFromExpr IntegerLiteral(2)
+  WalkUpFromStmt IntegerLiteral(2)
+WalkUpFromExpr IntegerLiteral(3)
+  WalkUpFromStmt IntegerLiteral(3)
+)txt"));
+
+  EXPECT_TRUE(visitorCallbackLogEqual(
+      RecordingVisitor(ShouldTraversePostOrder::Yes), Code,
+      R"txt(
+WalkUpFromExpr IntegerLiteral(1)
+  WalkUpFromStmt IntegerLiteral(1)
+WalkUpFromExpr IntegerLiteral(2)
+  WalkUpFromStmt IntegerLiteral(2)
+WalkUpFromUnaryOperator UnaryOperator(-)
+  WalkUpFromExpr UnaryOperator(-)
+    WalkUpFromStmt UnaryOperator(-)
+WalkUpFromExpr IntegerLiteral(3)
+  WalkUpFromStmt IntegerLiteral(3)
+WalkUpFromStmt CompoundStmt
+)txt"));
+}
+
 TEST(RecursiveASTVisitor, StmtCallbacks_TraverseBinaryOperator) {
   class RecordingVisitor : public RecordingVisitorBase<RecordingVisitor> {
   public:
@@ -411,11 +587,10 @@ TEST(RecursiveASTVisitor, StmtCallbacks_TraverseBinaryOperator) {
   };
 
   StringRef Code = R"cpp(
-void add(int, int);
 void test() {
   1;
   2 + 3;
-  add(4, 5);
+  4;
 }
 )cpp";
 
@@ -424,28 +599,22 @@ void test() {
       R"txt(
 WalkUpFromStmt CompoundStmt
 WalkUpFromStmt IntegerLiteral(1)
-WalkUpFromStmt BinaryOperator(+)
-WalkUpFromStmt IntegerLiteral(2)
-WalkUpFromStmt IntegerLiteral(3)
-WalkUpFromStmt CallExpr(add)
-WalkUpFromStmt ImplicitCastExpr
-WalkUpFromStmt DeclRefExpr(add)
+TraverseBinaryOperator BinaryOperator(+)
+  WalkUpFromStmt BinaryOperator(+)
+  WalkUpFromStmt IntegerLiteral(2)
+  WalkUpFromStmt IntegerLiteral(3)
 WalkUpFromStmt IntegerLiteral(4)
-WalkUpFromStmt IntegerLiteral(5)
 )txt"));
 
   EXPECT_TRUE(visitorCallbackLogEqual(
       RecordingVisitor(ShouldTraversePostOrder::Yes), Code,
       R"txt(
 WalkUpFromStmt IntegerLiteral(1)
-WalkUpFromStmt IntegerLiteral(2)
-WalkUpFromStmt IntegerLiteral(3)
-WalkUpFromStmt BinaryOperator(+)
-WalkUpFromStmt DeclRefExpr(add)
-WalkUpFromStmt ImplicitCastExpr
+TraverseBinaryOperator BinaryOperator(+)
+  WalkUpFromStmt IntegerLiteral(2)
+  WalkUpFromStmt IntegerLiteral(3)
+  WalkUpFromStmt BinaryOperator(+)
 WalkUpFromStmt IntegerLiteral(4)
-WalkUpFromStmt IntegerLiteral(5)
-WalkUpFromStmt CallExpr(add)
 WalkUpFromStmt CompoundStmt
 )txt"));
 }
@@ -485,40 +654,29 @@ TEST(RecursiveASTVisitor,
   };
 
   StringRef Code = R"cpp(
-void add(int, int);
 void test() {
   1;
   2 + 3;
-  add(4, 5);
+  4;
 }
 )cpp";
 
-  // FIXME: It is arguably a bug in RecursiveASTVisitor that
-  // WalkUpFromBinaryOperator is called, but TraverseBinaryOperator is not
-  // called.
   EXPECT_TRUE(visitorCallbackLogEqual(
       RecordingVisitor(ShouldTraversePostOrder::No), Code,
       R"txt(
 WalkUpFromStmt CompoundStmt
 WalkUpFromExpr IntegerLiteral(1)
   WalkUpFromStmt IntegerLiteral(1)
-WalkUpFromBinaryOperator BinaryOperator(+)
-  WalkUpFromExpr BinaryOperator(+)
-    WalkUpFromStmt BinaryOperator(+)
-WalkUpFromExpr IntegerLiteral(2)
-  WalkUpFromStmt IntegerLiteral(2)
-WalkUpFromExpr IntegerLiteral(3)
-  WalkUpFromStmt IntegerLiteral(3)
-WalkUpFromExpr CallExpr(add)
-  WalkUpFromStmt CallExpr(add)
-WalkUpFromExpr ImplicitCastExpr
-  WalkUpFromStmt ImplicitCastExpr
-WalkUpFromExpr DeclRefExpr(add)
-  WalkUpFromStmt DeclRefExpr(add)
+TraverseBinaryOperator BinaryOperator(+)
+  WalkUpFromBinaryOperator BinaryOperator(+)
+    WalkUpFromExpr BinaryOperator(+)
+      WalkUpFromStmt BinaryOperator(+)
+  WalkUpFromExpr IntegerLiteral(2)
+    WalkUpFromStmt IntegerLiteral(2)
+  WalkUpFromExpr IntegerLiteral(3)
+    WalkUpFromStmt IntegerLiteral(3)
 WalkUpFromExpr IntegerLiteral(4)
   WalkUpFromStmt IntegerLiteral(4)
-WalkUpFromExpr IntegerLiteral(5)
-  WalkUpFromStmt IntegerLiteral(5)
 )txt"));
 
   EXPECT_TRUE(visitorCallbackLogEqual(
@@ -526,23 +684,16 @@ WalkUpFromExpr IntegerLiteral(5)
       R"txt(
 WalkUpFromExpr IntegerLiteral(1)
   WalkUpFromStmt IntegerLiteral(1)
-WalkUpFromExpr IntegerLiteral(2)
-  WalkUpFromStmt IntegerLiteral(2)
-WalkUpFromExpr IntegerLiteral(3)
-  WalkUpFromStmt IntegerLiteral(3)
-WalkUpFromBinaryOperator BinaryOperator(+)
-  WalkUpFromExpr BinaryOperator(+)
-    WalkUpFromStmt BinaryOperator(+)
-WalkUpFromExpr DeclRefExpr(add)
-  WalkUpFromStmt DeclRefExpr(add)
-WalkUpFromExpr ImplicitCastExpr
-  WalkUpFromStmt ImplicitCastExpr
+TraverseBinaryOperator BinaryOperator(+)
+  WalkUpFromExpr IntegerLiteral(2)
+    WalkUpFromStmt IntegerLiteral(2)
+  WalkUpFromExpr IntegerLiteral(3)
+    WalkUpFromStmt IntegerLiteral(3)
+  WalkUpFromBinaryOperator BinaryOperator(+)
+    WalkUpFromExpr BinaryOperator(+)
+      WalkUpFromStmt BinaryOperator(+)
 WalkUpFromExpr IntegerLiteral(4)
   WalkUpFromStmt IntegerLiteral(4)
-WalkUpFromExpr IntegerLiteral(5)
-  WalkUpFromStmt IntegerLiteral(5)
-WalkUpFromExpr CallExpr(add)
-  WalkUpFromStmt CallExpr(add)
 WalkUpFromStmt CompoundStmt
 )txt"));
 }
@@ -574,11 +725,10 @@ TEST(RecursiveASTVisitor, StmtCallbacks_WalkUpFromBinaryOperator) {
   };
 
   StringRef Code = R"cpp(
-void add(int, int);
 void test() {
   1;
   2 + 3;
-  add(4, 5);
+  4;
 }
 )cpp";
 
@@ -595,16 +745,8 @@ WalkUpFromExpr IntegerLiteral(2)
   WalkUpFromStmt IntegerLiteral(2)
 WalkUpFromExpr IntegerLiteral(3)
   WalkUpFromStmt IntegerLiteral(3)
-WalkUpFromExpr CallExpr(add)
-  WalkUpFromStmt CallExpr(add)
-WalkUpFromExpr ImplicitCastExpr
-  WalkUpFromStmt ImplicitCastExpr
-WalkUpFromExpr DeclRefExpr(add)
-  WalkUpFromStmt DeclRefExpr(add)
 WalkUpFromExpr IntegerLiteral(4)
   WalkUpFromStmt IntegerLiteral(4)
-WalkUpFromExpr IntegerLiteral(5)
-  WalkUpFromStmt IntegerLiteral(5)
 )txt"));
 
   EXPECT_TRUE(visitorCallbackLogEqual(
@@ -619,16 +761,210 @@ WalkUpFromExpr IntegerLiteral(3)
 WalkUpFromBinaryOperator BinaryOperator(+)
   WalkUpFromExpr BinaryOperator(+)
     WalkUpFromStmt BinaryOperator(+)
-WalkUpFromExpr DeclRefExpr(add)
-  WalkUpFromStmt DeclRefExpr(add)
-WalkUpFromExpr ImplicitCastExpr
-  WalkUpFromStmt ImplicitCastExpr
 WalkUpFromExpr IntegerLiteral(4)
   WalkUpFromStmt IntegerLiteral(4)
-WalkUpFromExpr IntegerLiteral(5)
-  WalkUpFromStmt IntegerLiteral(5)
-WalkUpFromExpr CallExpr(add)
-  WalkUpFromStmt CallExpr(add)
+WalkUpFromStmt CompoundStmt
+)txt"));
+}
+
+TEST(RecursiveASTVisitor, StmtCallbacks_TraverseCompoundAssignOperator) {
+  class RecordingVisitor : public RecordingVisitorBase<RecordingVisitor> {
+  public:
+    RecordingVisitor(ShouldTraversePostOrder ShouldTraversePostOrderValue)
+        : RecordingVisitorBase(ShouldTraversePostOrderValue) {}
+
+    bool TraverseCompoundAssignOperator(CompoundAssignOperator *CAO) {
+      recordCallback(__func__, CAO, [&]() {
+        RecordingVisitorBase::TraverseCompoundAssignOperator(CAO);
+      });
+      return true;
+    }
+
+    bool WalkUpFromStmt(Stmt *S) {
+      recordCallback(__func__, S,
+                     [&]() { RecordingVisitorBase::WalkUpFromStmt(S); });
+      return true;
+    }
+  };
+
+  StringRef Code = R"cpp(
+void test(int a) {
+  1;
+  a += 2;
+  3;
+}
+)cpp";
+
+  EXPECT_TRUE(visitorCallbackLogEqual(
+      RecordingVisitor(ShouldTraversePostOrder::No), Code,
+      R"txt(
+WalkUpFromStmt CompoundStmt
+WalkUpFromStmt IntegerLiteral(1)
+TraverseCompoundAssignOperator CompoundAssignOperator(+=)
+  WalkUpFromStmt CompoundAssignOperator(+=)
+  WalkUpFromStmt DeclRefExpr(a)
+  WalkUpFromStmt IntegerLiteral(2)
+WalkUpFromStmt IntegerLiteral(3)
+)txt"));
+
+  EXPECT_TRUE(visitorCallbackLogEqual(
+      RecordingVisitor(ShouldTraversePostOrder::Yes), Code,
+      R"txt(
+WalkUpFromStmt IntegerLiteral(1)
+TraverseCompoundAssignOperator CompoundAssignOperator(+=)
+  WalkUpFromStmt DeclRefExpr(a)
+  WalkUpFromStmt IntegerLiteral(2)
+  WalkUpFromStmt CompoundAssignOperator(+=)
+WalkUpFromStmt IntegerLiteral(3)
+WalkUpFromStmt CompoundStmt
+)txt"));
+}
+
+TEST(
+    RecursiveASTVisitor,
+    StmtCallbacks_TraverseCompoundAssignOperator_WalkUpFromCompoundAssignOperator) {
+  class RecordingVisitor : public RecordingVisitorBase<RecordingVisitor> {
+  public:
+    RecordingVisitor(ShouldTraversePostOrder ShouldTraversePostOrderValue)
+        : RecordingVisitorBase(ShouldTraversePostOrderValue) {}
+
+    bool TraverseCompoundAssignOperator(CompoundAssignOperator *CAO) {
+      recordCallback(__func__, CAO, [&]() {
+        RecordingVisitorBase::TraverseCompoundAssignOperator(CAO);
+      });
+      return true;
+    }
+
+    bool WalkUpFromStmt(Stmt *S) {
+      recordCallback(__func__, S,
+                     [&]() { RecordingVisitorBase::WalkUpFromStmt(S); });
+      return true;
+    }
+
+    bool WalkUpFromExpr(Expr *E) {
+      recordCallback(__func__, E,
+                     [&]() { RecordingVisitorBase::WalkUpFromExpr(E); });
+      return true;
+    }
+
+    bool WalkUpFromCompoundAssignOperator(CompoundAssignOperator *CAO) {
+      recordCallback(__func__, CAO, [&]() {
+        RecordingVisitorBase::WalkUpFromCompoundAssignOperator(CAO);
+      });
+      return true;
+    }
+  };
+
+  StringRef Code = R"cpp(
+void test(int a) {
+  1;
+  a += 2;
+  3;
+}
+)cpp";
+
+  EXPECT_TRUE(visitorCallbackLogEqual(
+      RecordingVisitor(ShouldTraversePostOrder::No), Code,
+      R"txt(
+WalkUpFromStmt CompoundStmt
+WalkUpFromExpr IntegerLiteral(1)
+  WalkUpFromStmt IntegerLiteral(1)
+TraverseCompoundAssignOperator CompoundAssignOperator(+=)
+  WalkUpFromCompoundAssignOperator CompoundAssignOperator(+=)
+    WalkUpFromExpr CompoundAssignOperator(+=)
+      WalkUpFromStmt CompoundAssignOperator(+=)
+  WalkUpFromExpr DeclRefExpr(a)
+    WalkUpFromStmt DeclRefExpr(a)
+  WalkUpFromExpr IntegerLiteral(2)
+    WalkUpFromStmt IntegerLiteral(2)
+WalkUpFromExpr IntegerLiteral(3)
+  WalkUpFromStmt IntegerLiteral(3)
+)txt"));
+
+  EXPECT_TRUE(visitorCallbackLogEqual(
+      RecordingVisitor(ShouldTraversePostOrder::Yes), Code,
+      R"txt(
+WalkUpFromExpr IntegerLiteral(1)
+  WalkUpFromStmt IntegerLiteral(1)
+TraverseCompoundAssignOperator CompoundAssignOperator(+=)
+  WalkUpFromExpr DeclRefExpr(a)
+    WalkUpFromStmt DeclRefExpr(a)
+  WalkUpFromExpr IntegerLiteral(2)
+    WalkUpFromStmt IntegerLiteral(2)
+  WalkUpFromCompoundAssignOperator CompoundAssignOperator(+=)
+    WalkUpFromExpr CompoundAssignOperator(+=)
+      WalkUpFromStmt CompoundAssignOperator(+=)
+WalkUpFromExpr IntegerLiteral(3)
+  WalkUpFromStmt IntegerLiteral(3)
+WalkUpFromStmt CompoundStmt
+)txt"));
+}
+
+TEST(RecursiveASTVisitor, StmtCallbacks_WalkUpFromCompoundAssignOperator) {
+  class RecordingVisitor : public RecordingVisitorBase<RecordingVisitor> {
+  public:
+    RecordingVisitor(ShouldTraversePostOrder ShouldTraversePostOrderValue)
+        : RecordingVisitorBase(ShouldTraversePostOrderValue) {}
+
+    bool WalkUpFromStmt(Stmt *S) {
+      recordCallback(__func__, S,
+                     [&]() { RecordingVisitorBase::WalkUpFromStmt(S); });
+      return true;
+    }
+
+    bool WalkUpFromExpr(Expr *E) {
+      recordCallback(__func__, E,
+                     [&]() { RecordingVisitorBase::WalkUpFromExpr(E); });
+      return true;
+    }
+
+    bool WalkUpFromCompoundAssignOperator(CompoundAssignOperator *CAO) {
+      recordCallback(__func__, CAO, [&]() {
+        RecordingVisitorBase::WalkUpFromCompoundAssignOperator(CAO);
+      });
+      return true;
+    }
+  };
+
+  StringRef Code = R"cpp(
+void test(int a) {
+  1;
+  a += 2;
+  3;
+}
+)cpp";
+
+  EXPECT_TRUE(visitorCallbackLogEqual(
+      RecordingVisitor(ShouldTraversePostOrder::No), Code,
+      R"txt(
+WalkUpFromStmt CompoundStmt
+WalkUpFromExpr IntegerLiteral(1)
+  WalkUpFromStmt IntegerLiteral(1)
+WalkUpFromCompoundAssignOperator CompoundAssignOperator(+=)
+  WalkUpFromExpr CompoundAssignOperator(+=)
+    WalkUpFromStmt CompoundAssignOperator(+=)
+WalkUpFromExpr DeclRefExpr(a)
+  WalkUpFromStmt DeclRefExpr(a)
+WalkUpFromExpr IntegerLiteral(2)
+  WalkUpFromStmt IntegerLiteral(2)
+WalkUpFromExpr IntegerLiteral(3)
+  WalkUpFromStmt IntegerLiteral(3)
+)txt"));
+
+  EXPECT_TRUE(visitorCallbackLogEqual(
+      RecordingVisitor(ShouldTraversePostOrder::Yes), Code,
+      R"txt(
+WalkUpFromExpr IntegerLiteral(1)
+  WalkUpFromStmt IntegerLiteral(1)
+WalkUpFromExpr DeclRefExpr(a)
+  WalkUpFromStmt DeclRefExpr(a)
+WalkUpFromExpr IntegerLiteral(2)
+  WalkUpFromStmt IntegerLiteral(2)
+WalkUpFromCompoundAssignOperator CompoundAssignOperator(+=)
+  WalkUpFromExpr CompoundAssignOperator(+=)
+    WalkUpFromStmt CompoundAssignOperator(+=)
+WalkUpFromExpr IntegerLiteral(3)
+  WalkUpFromStmt IntegerLiteral(3)
 WalkUpFromStmt CompoundStmt
 )txt"));
 }
@@ -690,7 +1026,6 @@ TraverseCallExpr CallExpr(add)
   WalkUpFromStmt IntegerLiteral(4)
   WalkUpFromStmt IntegerLiteral(5)
   WalkUpFromStmt CallExpr(add)
-WalkUpFromStmt CallExpr(add)
 WalkUpFromStmt CompoundStmt
 )txt"));
 }
@@ -784,9 +1119,6 @@ TraverseCallExpr CallExpr(add)
   WalkUpFromCallExpr CallExpr(add)
     WalkUpFromExpr CallExpr(add)
       WalkUpFromStmt CallExpr(add)
-WalkUpFromCallExpr CallExpr(add)
-  WalkUpFromExpr CallExpr(add)
-    WalkUpFromStmt CallExpr(add)
 WalkUpFromStmt CompoundStmt
 )txt"));
 }

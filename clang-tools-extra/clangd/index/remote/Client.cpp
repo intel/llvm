@@ -10,10 +10,15 @@
 
 #include "Client.h"
 #include "Index.grpc.pb.h"
+#include "index/Index.h"
 #include "index/Serialization.h"
 #include "marshalling/Marshalling.h"
 #include "support/Logger.h"
 #include "support/Trace.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Error.h"
+
+#include <chrono>
 
 namespace clang {
 namespace clangd {
@@ -25,7 +30,6 @@ class IndexClient : public clangd::SymbolIndex {
   using StreamingCall = std::unique_ptr<grpc::ClientReader<ReplyT>> (
       remote::SymbolIndex::Stub::*)(grpc::ClientContext *, const RequestT &);
 
-  // FIXME(kirillbobyrev): Set deadlines for requests.
   template <typename RequestT, typename ReplyT, typename ClangdRequestT,
             typename CallbackT>
   bool streamRPC(ClangdRequestT Request,
@@ -33,29 +37,48 @@ class IndexClient : public clangd::SymbolIndex {
                  CallbackT Callback) const {
     bool FinalResult = false;
     trace::Span Tracer(RequestT::descriptor()->name());
-    const auto RPCRequest = toProtobuf(Request);
+    const auto RPCRequest = ProtobufMarshaller->toProtobuf(Request);
+    SPAN_ATTACH(Tracer, "Request", RPCRequest.DebugString());
     grpc::ClientContext Context;
+    std::chrono::system_clock::time_point Deadline =
+        std::chrono::system_clock::now() + DeadlineWaitingTime;
+    Context.set_deadline(Deadline);
     auto Reader = (Stub.get()->*RPCCall)(&Context, RPCRequest);
-    llvm::BumpPtrAllocator Arena;
-    llvm::UniqueStringSaver Strings(Arena);
     ReplyT Reply;
+    unsigned Successful = 0;
+    unsigned FailedToParse = 0;
     while (Reader->Read(&Reply)) {
       if (!Reply.has_stream_result()) {
         FinalResult = Reply.final_result();
         continue;
       }
-      auto Sym = fromProtobuf(Reply.stream_result(), &Strings);
-      if (!Sym)
-        elog("Received invalid {0}", ReplyT::descriptor()->name());
-      Callback(*Sym);
+      auto Response = ProtobufMarshaller->fromProtobuf(Reply.stream_result());
+      if (!Response) {
+        elog("Received invalid {0}: {1}. Reason: {2}",
+             ReplyT::descriptor()->name(), Reply.stream_result().DebugString(),
+             Response.takeError());
+        ++FailedToParse;
+        continue;
+      }
+      Callback(*Response);
+      ++Successful;
     }
-    SPAN_ATTACH(Tracer, "status", Reader->Finish().ok());
+    SPAN_ATTACH(Tracer, "Status", Reader->Finish().ok());
+    SPAN_ATTACH(Tracer, "Successful", Successful);
+    SPAN_ATTACH(Tracer, "Failed to parse", FailedToParse);
     return FinalResult;
   }
 
 public:
-  IndexClient(std::shared_ptr<grpc::Channel> Channel)
-      : Stub(remote::SymbolIndex::NewStub(Channel)) {}
+  IndexClient(
+      std::shared_ptr<grpc::Channel> Channel, llvm::StringRef ProjectRoot,
+      std::chrono::milliseconds DeadlineTime = std::chrono::milliseconds(1000))
+      : Stub(remote::SymbolIndex::NewStub(Channel)),
+        ProtobufMarshaller(new Marshaller(/*RemoteIndexRoot=*/"",
+                                          /*LocalIndexRoot=*/ProjectRoot)),
+        DeadlineWaitingTime(DeadlineTime) {
+    assert(!ProjectRoot.empty());
+  }
 
   void lookup(const clangd::LookupRequest &Request,
               llvm::function_ref<void(const clangd::Symbol &)> Callback) const {
@@ -73,26 +96,37 @@ public:
     return streamRPC(Request, &remote::SymbolIndex::Stub::Refs, Callback);
   }
 
-  // FIXME(kirillbobyrev): Implement this.
   void
-  relations(const clangd::RelationsRequest &,
-            llvm::function_ref<void(const SymbolID &, const clangd::Symbol &)>)
-      const {}
+  relations(const clangd::RelationsRequest &Request,
+            llvm::function_ref<void(const SymbolID &, const clangd::Symbol &)>
+                Callback) const {
+    streamRPC(Request, &remote::SymbolIndex::Stub::Relations,
+              // Unpack protobuf Relation.
+              [&](std::pair<SymbolID, clangd::Symbol> SubjectAndObject) {
+                Callback(SubjectAndObject.first, SubjectAndObject.second);
+              });
+  }
 
-  // IndexClient does not take any space since the data is stored on the server.
+  // IndexClient does not take any space since the data is stored on the
+  // server.
   size_t estimateMemoryUsage() const { return 0; }
 
 private:
   std::unique_ptr<remote::SymbolIndex::Stub> Stub;
+  std::unique_ptr<Marshaller> ProtobufMarshaller;
+  // Each request will be terminated if it takes too long.
+  std::chrono::milliseconds DeadlineWaitingTime;
 };
 
 } // namespace
 
-std::unique_ptr<clangd::SymbolIndex> getClient(llvm::StringRef Address) {
+std::unique_ptr<clangd::SymbolIndex> getClient(llvm::StringRef Address,
+                                               llvm::StringRef ProjectRoot) {
   const auto Channel =
       grpc::CreateChannel(Address.str(), grpc::InsecureChannelCredentials());
   Channel->GetState(true);
-  return std::unique_ptr<clangd::SymbolIndex>(new IndexClient(Channel));
+  return std::unique_ptr<clangd::SymbolIndex>(
+      new IndexClient(Channel, ProjectRoot));
 }
 
 } // namespace remote

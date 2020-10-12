@@ -169,9 +169,9 @@ OperationState::OperationState(Location location, OperationName name)
     : location(location), name(name) {}
 
 OperationState::OperationState(Location location, StringRef name,
-                               ValueRange operands, ArrayRef<Type> types,
+                               ValueRange operands, TypeRange types,
                                ArrayRef<NamedAttribute> attributes,
-                               ArrayRef<Block *> successors,
+                               BlockRange successors,
                                MutableArrayRef<std::unique_ptr<Region>> regions)
     : location(location), name(name, location->getContext()),
       operands(operands.begin(), operands.end()),
@@ -186,7 +186,7 @@ void OperationState::addOperands(ValueRange newOperands) {
   operands.append(newOperands.begin(), newOperands.end());
 }
 
-void OperationState::addSuccessors(SuccessorRange newSuccessors) {
+void OperationState::addSuccessors(BlockRange newSuccessors) {
   successors.append(newSuccessors.begin(), newSuccessors.end());
 }
 
@@ -197,6 +197,12 @@ Region *OperationState::addRegion() {
 
 void OperationState::addRegion(std::unique_ptr<Region> &&region) {
   regions.push_back(std::move(region));
+}
+
+void OperationState::addRegions(
+    MutableArrayRef<std::unique_ptr<Region>> regions) {
+  for (std::unique_ptr<Region> &region : regions)
+    addRegion(std::move(region));
 }
 
 //===----------------------------------------------------------------------===//
@@ -359,45 +365,6 @@ Operation *detail::TrailingOpResult::getOwner() {
 //===----------------------------------------------------------------------===//
 // Operation Value-Iterators
 //===----------------------------------------------------------------------===//
-
-//===----------------------------------------------------------------------===//
-// TypeRange
-
-TypeRange::TypeRange(ArrayRef<Type> types)
-    : TypeRange(types.data(), types.size()) {}
-TypeRange::TypeRange(OperandRange values)
-    : TypeRange(values.begin().getBase(), values.size()) {}
-TypeRange::TypeRange(ResultRange values)
-    : TypeRange(values.getBase()->getResultTypes().slice(values.getStartIndex(),
-                                                         values.size())) {}
-TypeRange::TypeRange(ArrayRef<Value> values)
-    : TypeRange(values.data(), values.size()) {}
-TypeRange::TypeRange(ValueRange values) : TypeRange(OwnerT(), values.size()) {
-  detail::ValueRangeOwner owner = values.begin().getBase();
-  if (auto *op = reinterpret_cast<Operation *>(owner.ptr.dyn_cast<void *>()))
-    this->base = op->getResultTypes().drop_front(owner.startIndex).data();
-  else if (auto *operand = owner.ptr.dyn_cast<OpOperand *>())
-    this->base = operand;
-  else
-    this->base = owner.ptr.get<const Value *>();
-}
-
-/// See `llvm::detail::indexed_accessor_range_base` for details.
-TypeRange::OwnerT TypeRange::offset_base(OwnerT object, ptrdiff_t index) {
-  if (auto *value = object.dyn_cast<const Value *>())
-    return {value + index};
-  if (auto *operand = object.dyn_cast<OpOperand *>())
-    return {operand + index};
-  return {object.dyn_cast<const Type *>() + index};
-}
-/// See `llvm::detail::indexed_accessor_range_base` for details.
-Type TypeRange::dereference_iterator(OwnerT object, ptrdiff_t index) {
-  if (auto *value = object.dyn_cast<const Value *>())
-    return (value + index)->getType();
-  if (auto *operand = object.dyn_cast<OpOperand *>())
-    return (operand + index)->get().getType();
-  return object.dyn_cast<const Type *>()[index];
-}
 
 //===----------------------------------------------------------------------===//
 // OperandRange

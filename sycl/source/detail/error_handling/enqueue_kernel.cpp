@@ -49,17 +49,17 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
     }
   }
 
-  size_t VerSize = 0;
-  Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_VERSION, 0,
-                                          nullptr, &VerSize);
+  // Some of the error handling below is special for particular OpenCL
+  // versions.  If this is an OpenCL backend, get the version.
+  bool IsOpenCL = false;    // Backend is any OpenCL version
+  bool IsOpenCLV1x = false; // Backend is OpenCL 1.x
+  bool IsOpenCLV20 = false; // Backend is OpenCL 2.0
   if (Platform.get_backend() == cl::sycl::backend::opencl) {
-    assert(VerSize >= 10 &&
-           "Unexpected device version string"); // strlen("OpenCL X.Y")
+    string_class VersionString = DeviceImpl.get_info<info::device::version>();
+    IsOpenCL = true;
+    IsOpenCLV1x = (VersionString.find("OpenCL 1.") == 0);
+    IsOpenCLV20 = (VersionString.find("OpenCL 2.0") == 0);
   }
-  string_class VerStr(VerSize, '\0');
-  Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_VERSION,
-                                          VerSize, &VerStr.front(), nullptr);
-  const char *Ver = &VerStr[7]; // strlen("OpenCL ")
 
   size_t CompileWGSize[3] = {0};
   Plugin.call<PiApiKind::piKernelGetGroupInfo>(
@@ -71,14 +71,12 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
     // PI_INVALID_WORK_GROUP_SIZE if local_work_size is NULL and the
     // reqd_work_group_size attribute is used to declare the work-group size
     // for kernel in the program source.
-    if (Platform.get_backend() == cl::sycl::backend::opencl) {
-      if (!HasLocalSize && (Ver[0] == '1' || (Ver[0] == '2' && Ver[2] == '0')))
-        throw sycl::nd_range_error(
-            "OpenCL 1.x and 2.0 requires to pass local size argument even if "
-            "required work-group size was specified in the program source",
-            PI_INVALID_WORK_GROUP_SIZE);
+    if (!HasLocalSize && (IsOpenCLV1x || IsOpenCLV20)) {
+      throw sycl::nd_range_error(
+          "OpenCL 1.x and 2.0 requires to pass local size argument even if "
+          "required work-group size was specified in the program source",
+          PI_INVALID_WORK_GROUP_SIZE);
     }
-    // Any OpenCL version:
     // PI_INVALID_WORK_GROUP_SIZE if local_work_size is specified and does not
     // match the required work-group size for kernel in the program source.
     if (NDRDesc.LocalSize[0] != CompileWGSize[0] ||
@@ -89,12 +87,12 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
           "specified in the program source",
           PI_INVALID_WORK_GROUP_SIZE);
   }
-  if (Platform.get_backend() == cl::sycl::backend::opencl) {
-    if (Ver[0] == '1') {
+  if (IsOpenCL) {
+    if (IsOpenCLV1x) {
       // OpenCL 1.x:
       // PI_INVALID_WORK_GROUP_SIZE if local_work_size is specified and the
       // total number of work-items in the work-group computed as
-      // local_work_size[0] * ... * local_work_size[work_dim – 1] is greater
+      // local_work_size[0] * ... * local_work_size[work_dim - 1] is greater
       // than the value specified by PI_DEVICE_MAX_WORK_GROUP_SIZE in
       // table 4.3
       size_t MaxWGSize = 0;
@@ -109,10 +107,10 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
                 std::to_string(MaxWGSize),
             PI_INVALID_WORK_GROUP_SIZE);
     } else {
-      // RELEVENT // OpenCL 2.x:
+      // OpenCL 2.x:
       // PI_INVALID_WORK_GROUP_SIZE if local_work_size is specified and the
       // total number of work-items in the work-group computed as
-      // local_work_size[0] * ... * local_work_size[work_dim – 1] is greater
+      // local_work_size[0] * ... * local_work_size[work_dim - 1] is greater
       // than the value specified by PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE in
       // table 5.21.
       size_t KernelWGSize = 0;
@@ -127,6 +125,8 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
                 std::to_string(KernelWGSize) + " for this kernel",
             PI_INVALID_WORK_GROUP_SIZE);
     }
+  } else {
+    // TODO: Should probably have something similar for the other backends
   }
 
   if (HasLocalSize) {
@@ -140,14 +140,14 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
          NDRDesc.GlobalSize[2] % NDRDesc.LocalSize[2] != 0);
     // Is the local size of the workgroup greater than the global range size in
     // any dimension?
-    if (Platform.get_backend() == cl::sycl::backend::opencl) {
+    if (IsOpenCL) {
       const bool LocalExceedsGlobal =
           NonUniformWGs && (NDRDesc.LocalSize[0] > NDRDesc.GlobalSize[0] ||
                             NDRDesc.LocalSize[1] > NDRDesc.GlobalSize[1] ||
                             NDRDesc.LocalSize[2] > NDRDesc.GlobalSize[2]);
 
       if (NonUniformWGs) {
-        if (Ver[0] == '1') {
+        if (IsOpenCLV1x) {
           // OpenCL 1.x:
           // PI_INVALID_WORK_GROUP_SIZE if local_work_size is specified and
           // number of workitems specified by global_work_size is not evenly
@@ -212,6 +212,8 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
           // else unknown.  fallback (below)
         }
       }
+    } else {
+      // TODO: Decide what checks (if any) we need for the other backends
     }
     throw sycl::nd_range_error(
         "Non-uniform work-groups are not supported by the target device",

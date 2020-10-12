@@ -10,6 +10,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 
 namespace clang {
@@ -72,20 +73,29 @@ llvm::Expected<std::string>
 ClangTidyCheck::OptionsView::get(StringRef LocalName) const {
   const auto &Iter = CheckOptions.find(NamePrefix + LocalName.str());
   if (Iter != CheckOptions.end())
-    return Iter->second.Value;
+    return Iter->getValue().Value;
   return llvm::make_error<MissingOptionError>((NamePrefix + LocalName).str());
+}
+
+static ClangTidyOptions::OptionMap::const_iterator
+findPriorityOption(const ClangTidyOptions::OptionMap &Options, StringRef NamePrefix,
+          StringRef LocalName) {
+  auto IterLocal = Options.find((NamePrefix + LocalName).str());
+  auto IterGlobal = Options.find(LocalName.str());
+  if (IterLocal == Options.end())
+    return IterGlobal;
+  if (IterGlobal == Options.end())
+    return IterLocal;
+  if (IterLocal->getValue().Priority >= IterGlobal->getValue().Priority)
+    return IterLocal;
+  return IterGlobal;
 }
 
 llvm::Expected<std::string>
 ClangTidyCheck::OptionsView::getLocalOrGlobal(StringRef LocalName) const {
-  auto IterLocal = CheckOptions.find(NamePrefix + LocalName.str());
-  auto IterGlobal = CheckOptions.find(LocalName.str());
-  if (IterLocal != CheckOptions.end() &&
-      (IterGlobal == CheckOptions.end() ||
-       IterLocal->second.Priority >= IterGlobal->second.Priority))
-    return IterLocal->second.Value;
-  if (IterGlobal != CheckOptions.end())
-    return IterGlobal->second.Value;
+  auto Iter = findPriorityOption(CheckOptions, NamePrefix, LocalName);
+  if (Iter != CheckOptions.end())
+    return Iter->getValue().Value;
   return llvm::make_error<MissingOptionError>((NamePrefix + LocalName).str());
 }
 
@@ -117,21 +127,16 @@ bool ClangTidyCheck::OptionsView::get<bool>(StringRef LocalName,
   llvm::Expected<bool> ValueOr = get<bool>(LocalName);
   if (ValueOr)
     return *ValueOr;
-  logErrToStdErr(ValueOr.takeError());
+  logIfOptionParsingError(ValueOr.takeError());
   return Default;
 }
 
 template <>
 llvm::Expected<bool>
 ClangTidyCheck::OptionsView::getLocalOrGlobal<bool>(StringRef LocalName) const {
-  auto IterLocal = CheckOptions.find(NamePrefix + LocalName.str());
-  auto IterGlobal = CheckOptions.find(LocalName.str());
-  if (IterLocal != CheckOptions.end() &&
-      (IterGlobal == CheckOptions.end() ||
-       IterLocal->second.Priority >= IterGlobal->second.Priority))
-    return getAsBool(IterLocal->second.Value, NamePrefix + LocalName);
-  if (IterGlobal != CheckOptions.end())
-    return getAsBool(IterGlobal->second.Value, llvm::Twine(LocalName));
+  auto Iter = findPriorityOption(CheckOptions, NamePrefix, LocalName);
+  if (Iter != CheckOptions.end())
+    return getAsBool(Iter->getValue().Value, Iter->getKey());
   return llvm::make_error<MissingOptionError>((NamePrefix + LocalName).str());
 }
 
@@ -141,7 +146,7 @@ bool ClangTidyCheck::OptionsView::getLocalOrGlobal<bool>(StringRef LocalName,
   llvm::Expected<bool> ValueOr = getLocalOrGlobal<bool>(LocalName);
   if (ValueOr)
     return *ValueOr;
-  logErrToStdErr(ValueOr.takeError());
+  logIfOptionParsingError(ValueOr.takeError());
   return Default;
 }
 
@@ -151,55 +156,82 @@ void ClangTidyCheck::OptionsView::store(ClangTidyOptions::OptionMap &Options,
   Options[NamePrefix + LocalName.str()] = Value;
 }
 
-void ClangTidyCheck::OptionsView::store(ClangTidyOptions::OptionMap &Options,
-                                        StringRef LocalName,
-                                        int64_t Value) const {
+void ClangTidyCheck::OptionsView::storeInt(ClangTidyOptions::OptionMap &Options,
+                                           StringRef LocalName,
+                                           int64_t Value) const {
   store(Options, LocalName, llvm::itostr(Value));
 }
 
+template <>
+void ClangTidyCheck::OptionsView::store<bool>(
+    ClangTidyOptions::OptionMap &Options, StringRef LocalName,
+    bool Value) const {
+  store(Options, LocalName, Value ? StringRef("true") : StringRef("false"));
+}
+
 llvm::Expected<int64_t> ClangTidyCheck::OptionsView::getEnumInt(
-    StringRef LocalName, ArrayRef<std::pair<StringRef, int64_t>> Mapping,
-    bool CheckGlobal, bool IgnoreCase) {
-  auto Iter = CheckOptions.find((NamePrefix + LocalName).str());
-  if (CheckGlobal && Iter == CheckOptions.end())
-    Iter = CheckOptions.find(LocalName.str());
+    StringRef LocalName, ArrayRef<NameAndValue> Mapping, bool CheckGlobal,
+    bool IgnoreCase) const {
+  auto Iter = CheckGlobal
+                  ? findPriorityOption(CheckOptions, NamePrefix, LocalName)
+                  : CheckOptions.find((NamePrefix + LocalName).str());
   if (Iter == CheckOptions.end())
     return llvm::make_error<MissingOptionError>((NamePrefix + LocalName).str());
 
-  StringRef Value = Iter->second.Value;
+  StringRef Value = Iter->getValue().Value;
   StringRef Closest;
   unsigned EditDistance = -1;
   for (const auto &NameAndEnum : Mapping) {
     if (IgnoreCase) {
-      if (Value.equals_lower(NameAndEnum.first))
-        return NameAndEnum.second;
-    } else if (Value.equals(NameAndEnum.first)) {
-      return NameAndEnum.second;
-    } else if (Value.equals_lower(NameAndEnum.first)) {
-      Closest = NameAndEnum.first;
+      if (Value.equals_lower(NameAndEnum.second))
+        return NameAndEnum.first;
+    } else if (Value.equals(NameAndEnum.second)) {
+      return NameAndEnum.first;
+    } else if (Value.equals_lower(NameAndEnum.second)) {
+      Closest = NameAndEnum.second;
       EditDistance = 0;
       continue;
     }
-    unsigned Distance = Value.edit_distance(NameAndEnum.first);
+    unsigned Distance = Value.edit_distance(NameAndEnum.second);
     if (Distance < EditDistance) {
       EditDistance = Distance;
-      Closest = NameAndEnum.first;
+      Closest = NameAndEnum.second;
     }
   }
   if (EditDistance < 3)
     return llvm::make_error<UnparseableEnumOptionError>(
-        Iter->first, Iter->second.Value, std::string(Closest));
-  return llvm::make_error<UnparseableEnumOptionError>(Iter->first,
-                                                      Iter->second.Value);
+        Iter->getKey().str(), Iter->getValue().Value, Closest.str());
+  return llvm::make_error<UnparseableEnumOptionError>(Iter->getKey().str(),
+                                                      Iter->getValue().Value);
 }
 
-void ClangTidyCheck::OptionsView::logErrToStdErr(llvm::Error &&Err) {
-  llvm::logAllUnhandledErrors(
-      llvm::handleErrors(std::move(Err),
-                         [](const MissingOptionError &) -> llvm::Error {
-                           return llvm::Error::success();
-                         }),
-      llvm::errs(), "warning: ");
+void ClangTidyCheck::OptionsView::logIfOptionParsingError(llvm::Error &&Err) {
+  if (auto RemainingErrors =
+          llvm::handleErrors(std::move(Err), [](const MissingOptionError &) {}))
+    llvm::logAllUnhandledErrors(std::move(RemainingErrors),
+                                llvm::WithColor::warning());
 }
+
+template <>
+Optional<std::string> ClangTidyCheck::OptionsView::getOptional<std::string>(
+    StringRef LocalName) const {
+  if (auto ValueOr = get(LocalName))
+    return *ValueOr;
+  else
+    consumeError(ValueOr.takeError());
+  return llvm::None;
+}
+
+template <>
+Optional<std::string>
+ClangTidyCheck::OptionsView::getOptionalLocalOrGlobal<std::string>(
+    StringRef LocalName) const {
+  if (auto ValueOr = getLocalOrGlobal(LocalName))
+    return *ValueOr;
+  else
+    consumeError(ValueOr.takeError());
+  return llvm::None;
+}
+
 } // namespace tidy
 } // namespace clang

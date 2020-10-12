@@ -74,14 +74,15 @@ Using a custom site configuration
 
 By default, the libc++ test suite will use a site configuration that matches
 the current CMake configuration. It does so by generating a ``lit.site.cfg``
-file in the build directory from the ``libcxx/test/lit.site.cfg.in`` template,
-and pointing ``llvm-lit`` (which is a wrapper around ``llvm/utils/lit/lit.py``)
-to that file. So when you're running ``<build>/bin/llvm-lit``, the generated
-``lit.site.cfg`` file is always loaded instead of ``libcxx/test/lit.cfg.py``.
-If you want to use a custom site configuration, simply point the CMake build
-to it using ``-DLIBCXX_TEST_CONFIG=<path-to-site-config>``, and that site
-configuration will be used instead. That file can use CMake variables inside
-itself to make configuration easier.
+file in the build directory from one of the configuration file templates in
+``libcxx/test/configs/``, and pointing ``llvm-lit`` (which is a wrapper around
+``llvm/utils/lit/lit.py``) to that file. So when you're running
+``<build>/bin/llvm-lit``, the generated ``lit.site.cfg`` file is always loaded
+instead of ``libcxx/test/lit.cfg.py``. If you want to use a custom site
+configuration, simply point the CMake build to it using
+``-DLIBCXX_TEST_CONFIG=<path-to-site-config>``, and that site configuration
+will be used instead. That file can use CMake variables inside it to make
+configuration easier.
 
    .. code-block:: bash
 
@@ -109,13 +110,13 @@ default.
 
   Specify the compiler used to build the tests.
 
-.. option:: cxx_stdlib_under_test=<stdlib name>
+.. option:: stdlib=<stdlib name>
 
-  **Values**: libc++, libstdc++
+  **Values**: libc++, libstdc++, msvc
 
-  Specify the C++ standard library being tested. Unless otherwise specified
-  libc++ is used. This option is intended to allow running the libc++ test
-  suite against other standard library implementations.
+  Specify the C++ standard library being tested. The default is libc++ if this
+  option is not provided. This option is intended to allow running the libc++
+  test suite against other standard library implementations.
 
 .. option:: std=<standard version>
 
@@ -150,22 +151,6 @@ default.
   not. The ``cxx_library_root`` and ``cxx_runtime_root`` parameters should
   still be used to specify the path of the library to link to and run against,
   respectively.
-
-.. option:: use_lit_shell=<bool>
-
-  Enable or disable the use of LIT's internal shell in ShTests. If the
-  environment variable LIT_USE_INTERNAL_SHELL is present then that is used as
-  the default value. Otherwise the default value is True on Windows and False
-  on every other platform.
-
-.. option:: compile_flags="<list-of-args>"
-
-  Specify additional compile flags as a space delimited string.
-  Note: This options should not be used to change the standard version used.
-
-.. option:: link_flags="<list-of-args>"
-
-  Specify additional link flags as a space delimited string.
 
 .. option:: debug_level=<level>
 

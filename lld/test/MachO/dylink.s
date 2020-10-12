@@ -4,9 +4,9 @@
 # RUN:   -o %t/libhello.o
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %p/Inputs/libgoodbye.s \
 # RUN:   -o %t/libgoodbye.o
-# RUN: lld -flavor darwinnew -dylib -install_name \
+# RUN: %lld -dylib -install_name \
 # RUN:   @executable_path/libhello.dylib %t/libhello.o -o %t/libhello.dylib
-# RUN: lld -flavor darwinnew -dylib -install_name \
+# RUN: %lld -dylib -install_name \
 # RUN:   @executable_path/libgoodbye.dylib %t/libgoodbye.o -o %t/libgoodbye.dylib
 
 ## Make sure we are using the export trie and not the symbol table when linking
@@ -18,7 +18,7 @@
 # NOSYM: no symbols
 
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %s -o %t/dylink.o
-# RUN: lld -flavor darwinnew -o %t/dylink -Z -L%t -lhello -lgoodbye %t/dylink.o
+# RUN: %lld -o %t/dylink -L%t -lhello -lgoodbye %t/dylink.o
 # RUN: llvm-objdump --bind -d --no-show-raw-insn %t/dylink | FileCheck %s
 
 # CHECK: movq [[#%u, HELLO_OFF:]](%rip), %rsi
@@ -31,9 +31,12 @@
 # CHECK-NEXT: [[#%x, GOODBYE_RIP:]]: popq %rsi
 
 # CHECK-LABEL: Bind table:
-# CHECK-DAG: __DATA_CONST __got 0x{{0*}}[[#%x, HELLO_RIP + HELLO_OFF]]               pointer 0 libhello   _hello_world
-# CHECK-DAG: __DATA_CONST __got 0x{{0*}}[[#%x, HELLO_ITS_ME_RIP + HELLO_ITS_ME_OFF]] pointer 0 libhello   _hello_its_me
-# CHECK-DAG: __DATA_CONST __got 0x{{0*}}[[#%x, GOODBYE_RIP + GOODBYE_OFF]]           pointer 0 libgoodbye _goodbye_world
+# CHECK-DAG: __DATA_CONST __got  0x{{0*}}[[#%x, HELLO_RIP + HELLO_OFF]]               pointer 0   libhello   _hello_world
+# CHECK-DAG: __DATA_CONST __got  0x{{0*}}[[#%x, HELLO_ITS_ME_RIP + HELLO_ITS_ME_OFF]] pointer 0   libhello   _hello_its_me
+# CHECK-DAG: __DATA_CONST __got  0x{{0*}}[[#%x, GOODBYE_RIP + GOODBYE_OFF]]           pointer 0   libgoodbye _goodbye_world
+# CHECK-DAG: __DATA       __data 0x[[#%x, DATA_ADDR:]]                                pointer 0   libhello   _hello_world
+# CHECK-DAG: __DATA       __data 0x{{0*}}[[#%x, DATA_ADDR + 8]]                       pointer 8   libhello   _hello_its_me
+# CHECK-DAG: __DATA       __data 0x{{0*}}[[#%x, DATA_ADDR + 16]]                      pointer -15 libgoodbye _goodbye_world
 
 .section __TEXT,__text
 .globl _main
@@ -59,3 +62,8 @@ _main:
   syscall
   mov $0, %rax
   ret
+
+.data
+.quad _hello_world
+.quad _hello_its_me + 0x8
+.quad _goodbye_world - 0xf

@@ -11,10 +11,12 @@
 #include "CommonArgs.h"
 #include "InputInfo.h"
 #include "clang/Basic/Cuda.h"
+#include "clang/Basic/TargetID.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/Options.h"
+#include "llvm/Support/Alignment.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/TargetParser.h"
@@ -32,6 +34,7 @@ using namespace llvm::opt;
 #endif
 
 namespace {
+const unsigned HIPCodeObjectAlign = 4096;
 
 static void addBCLib(const Driver &D, const ArgList &Args,
                      ArgStringList &CmdArgs, ArgStringList LibraryPaths,
@@ -68,7 +71,7 @@ void AMDGCN::Linker::constructLldCommand(Compilation &C, const JobAction &JA,
 
   // Extract all the -m options
   std::vector<llvm::StringRef> Features;
-  amdgpu::getAMDGPUTargetFeatures(D, Args, Features);
+  amdgpu::getAMDGPUTargetFeatures(D, TC.getTriple(), Args, Features);
 
   // Add features to mattr such as cumode
   std::string MAttrString = "-plugin-opt=-mattr=";
@@ -88,6 +91,8 @@ void AMDGCN::Linker::constructLldCommand(Compilation &C, const JobAction &JA,
   if (C.getDriver().isSaveTempsEnabled())
     LldArgs.push_back("-save-temps");
 
+  addLinkerCompressDebugSectionsOption(TC, Args, LldArgs);
+
   LldArgs.append({"-o", Output.getFilename()});
   for (auto Input : Inputs)
     LldArgs.push_back(Input.getFilename());
@@ -105,6 +110,8 @@ void AMDGCN::constructHIPFatbinCommand(Compilation &C, const JobAction &JA,
   // for different GPU archs.
   ArgStringList BundlerArgs;
   BundlerArgs.push_back(Args.MakeArgString("-type=o"));
+  BundlerArgs.push_back(
+      Args.MakeArgString("-bundle-align=" + Twine(HIPCodeObjectAlign)));
 
   // ToDo: Remove the dummy host binary entry which is required by
   // clang-offload-bundler.
@@ -172,7 +179,8 @@ void AMDGCN::Linker::constructGenerateObjFileFromHIPFatBinary(
   ObjStream << "  .section .hip_fatbin,\"aMS\",@progbits,1\n";
   ObjStream << "  .data\n";
   ObjStream << "  .globl __hip_fatbin\n";
-  ObjStream << "  .p2align 3\n";
+  ObjStream << "  .p2align " << llvm::Log2(llvm::Align(HIPCodeObjectAlign))
+            << "\n";
   ObjStream << "__hip_fatbin:\n";
   ObjStream << "  .incbin \"" << BundleFile << "\"\n";
   ObjStream.flush();
@@ -193,8 +201,7 @@ void AMDGCN::Linker::constructGenerateObjFileFromHIPFatBinary(
 
   Objf << ObjBuffer;
 
-  ArgStringList McArgs{"-triple", Args.MakeArgString(TC.getTripleString()),
-                       "-o",      Output.getFilename(),
+  ArgStringList McArgs{"-o",      Output.getFilename(),
                        McinFile,  "--filetype=obj"};
   const char *Mc = Args.MakeArgString(TC.GetProgramPath("llvm-mc"));
   C.addCommand(std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
@@ -233,7 +240,7 @@ void HIPToolChain::addClangTargetOptions(
     Action::OffloadKind DeviceOffloadingKind) const {
   HostTC.addClangTargetOptions(DriverArgs, CC1Args, DeviceOffloadingKind);
 
-  StringRef GpuArch = DriverArgs.getLastArgValue(options::OPT_mcpu_EQ);
+  StringRef GpuArch = getGPUArch(DriverArgs);
   assert(!GpuArch.empty() && "Must have an explicit GPU arch.");
   (void) GpuArch;
   assert(DeviceOffloadingKind == Action::OFK_HIP &&
@@ -261,10 +268,6 @@ void HIPToolChain::addClangTargetOptions(
     CC1Args.push_back(DriverArgs.MakeArgStringRef(ArgStr));
   }
 
-  if (DriverArgs.hasFlag(options::OPT_fgpu_allow_device_init,
-                         options::OPT_fno_gpu_allow_device_init, false))
-    CC1Args.push_back("-fgpu-allow-device-init");
-
   CC1Args.push_back("-fcuda-allow-variadic-functions");
 
   // Default to "hidden" visibility, as object level linking will not be
@@ -280,8 +283,7 @@ void HIPToolChain::addClangTargetOptions(
   ArgStringList LibraryPaths;
 
   // Find in --hip-device-lib-path and HIP_LIBRARY_PATH.
-  for (auto Path :
-       DriverArgs.getAllArgValues(options::OPT_hip_device_lib_path_EQ))
+  for (auto Path : RocmInstallation.getRocmDeviceLibPathArg())
     LibraryPaths.push_back(DriverArgs.MakeArgString(Path));
 
   addDirectoryList(DriverArgs, LibraryPaths, "", "HIP_DEVICE_LIB_PATH");
@@ -292,14 +294,14 @@ void HIPToolChain::addClangTargetOptions(
     for (auto Lib : BCLibs)
       addBCLib(getDriver(), DriverArgs, CC1Args, LibraryPaths, Lib);
   } else {
-    if (!RocmInstallation.isValid()) {
-      getDriver().Diag(diag::err_drv_no_rocm_installation);
+    if (!RocmInstallation.hasDeviceLibrary()) {
+      getDriver().Diag(diag::err_drv_no_rocm_device_lib) << 0;
       return;
     }
 
     std::string LibDeviceFile = RocmInstallation.getLibDeviceFile(CanonArch);
     if (LibDeviceFile.empty()) {
-      getDriver().Diag(diag::err_drv_no_rocm_device_lib) << GpuArch;
+      getDriver().Diag(diag::err_drv_no_rocm_device_lib) << 1 << GpuArch;
       return;
     }
 
@@ -324,6 +326,17 @@ void HIPToolChain::addClangTargetOptions(
     RocmInstallation.addCommonBitcodeLibCC1Args(
       DriverArgs, CC1Args, LibDeviceFile, Wave64, DAZ, FiniteOnly,
       UnsafeMathOpt, FastRelaxedMath, CorrectSqrt);
+
+    // Add instrument lib.
+    auto InstLib =
+        DriverArgs.getLastArgValue(options::OPT_gpu_instrument_lib_EQ);
+    if (InstLib.empty())
+      return;
+    if (llvm::sys::fs::exists(InstLib)) {
+      CC1Args.push_back("-mlink-builtin-bitcode");
+      CC1Args.push_back(DriverArgs.MakeArgString(InstLib));
+    } else
+      getDriver().Diag(diag::err_drv_no_such_file) << InstLib;
   }
 }
 
@@ -339,12 +352,14 @@ HIPToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
   const OptTable &Opts = getDriver().getOpts();
 
   for (Arg *A : Args) {
-    DAL->append(A);
+    if (!shouldSkipArgument(A))
+      DAL->append(A);
   }
 
   if (!BoundArch.empty()) {
     DAL->eraseArg(options::OPT_mcpu_EQ);
     DAL->AddJoinedArg(nullptr, Opts.getOption(options::OPT_mcpu_EQ), BoundArch);
+    checkTargetID(*DAL);
   }
 
   return DAL;

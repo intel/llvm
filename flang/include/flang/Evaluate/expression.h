@@ -129,8 +129,8 @@ private:
 
 public:
   CLASS_BOILERPLATE(Operation)
-  explicit Operation(const Expr<OPERANDS> &... x) : operand_{x...} {}
-  explicit Operation(Expr<OPERANDS> &&... x) : operand_{std::move(x)...} {}
+  explicit Operation(const Expr<OPERANDS> &...x) : operand_{x...} {}
+  explicit Operation(Expr<OPERANDS> &&...x) : operand_{std::move(x)...} {}
 
   Derived &derived() { return *static_cast<Derived *>(this); }
   const Derived &derived() const { return *static_cast<const Derived *>(this); }
@@ -516,15 +516,18 @@ private:
       Power<Result>, Extremum<Result>>;
   using Indices = std::conditional_t<KIND == ImpliedDoIndex::Result::kind,
       std::tuple<ImpliedDoIndex>, std::tuple<>>;
+  using TypeParamInquiries =
+      std::conditional_t<KIND == TypeParamInquiry::Result::kind,
+          std::tuple<TypeParamInquiry>, std::tuple<>>;
   using DescriptorInquiries =
       std::conditional_t<KIND == DescriptorInquiry::Result::kind,
           std::tuple<DescriptorInquiry>, std::tuple<>>;
   using Others = std::tuple<Constant<Result>, ArrayConstructor<Result>,
-      TypeParamInquiry<KIND>, Designator<Result>, FunctionRef<Result>>;
+      Designator<Result>, FunctionRef<Result>>;
 
 public:
   common::TupleToVariant<common::CombineTuples<Operations, Conversions, Indices,
-      DescriptorInquiries, Others>>
+      TypeParamInquiries, DescriptorInquiries, Others>>
       u;
 };
 
@@ -714,7 +717,8 @@ public:
     return values_.end();
   }
 
-  const Expr<SomeType> *Find(const Symbol &) const; // can return null
+  // can return nullopt
+  std::optional<Expr<SomeType>> Find(const Symbol &) const;
 
   StructureConstructor &Add(const semantics::Symbol &, Expr<SomeType> &&);
   int Rank() const { return 0; }
@@ -722,6 +726,7 @@ public:
   llvm::raw_ostream &AsFortran(llvm::raw_ostream &) const;
 
 private:
+  std::optional<Expr<SomeType>> CreateParentComponent(const Symbol &) const;
   Result result_;
   StructureConstructorValues values_;
 };
@@ -745,7 +750,7 @@ public:
   using Result = SomeKind<CAT>;
   EVALUATE_UNION_CLASS_BOILERPLATE(Expr)
   int GetKind() const;
-  common::MapTemplate<Expr, CategoryTypes<CAT>> u;
+  common::MapTemplate<evaluate::Expr, CategoryTypes<CAT>> u;
 };
 
 template <> class Expr<SomeCharacter> : public ExpressionBase<SomeCharacter> {
@@ -841,6 +846,7 @@ struct GenericExprWrapper {
   explicit GenericExprWrapper(std::optional<Expr<SomeType>> &&x)
       : v{std::move(x)} {}
   ~GenericExprWrapper();
+  static void Deleter(GenericExprWrapper *);
   std::optional<Expr<SomeType>> v; // vacant if error
 };
 
@@ -849,6 +855,7 @@ struct GenericAssignmentWrapper {
   GenericAssignmentWrapper() {}
   explicit GenericAssignmentWrapper(Assignment &&x) : v{std::move(x)} {}
   ~GenericAssignmentWrapper();
+  static void Deleter(GenericAssignmentWrapper *);
   std::optional<Assignment> v; // vacant if error
 };
 

@@ -28,6 +28,7 @@
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSectionMachO.h"
 #include "llvm/MC/MCStreamer.h"
+#include "llvm/MC/MCSymbolXCOFF.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/FormattedStream.h"
@@ -174,6 +175,8 @@ public:
   void emitXCOFFSymbolLinkageWithVisibility(MCSymbol *Symbol,
                                             MCSymbolAttr Linakge,
                                             MCSymbolAttr Visibility) override;
+  void emitXCOFFRenameDirective(const MCSymbol *Name,
+                                StringRef Rename) override;
 
   void emitELFSize(MCSymbol *Symbol, const MCExpr *Value) override;
   void emitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
@@ -346,9 +349,9 @@ public:
   void emitBundleLock(bool AlignToEnd) override;
   void emitBundleUnlock() override;
 
-  bool emitRelocDirective(const MCExpr &Offset, StringRef Name,
-                          const MCExpr *Expr, SMLoc Loc,
-                          const MCSubtargetInfo &STI) override;
+  Optional<std::pair<bool, std::string>>
+  emitRelocDirective(const MCExpr &Offset, StringRef Name, const MCExpr *Expr,
+                     SMLoc Loc, const MCSubtargetInfo &STI) override;
 
   void emitAddrsig() override;
   void emitAddrsigSym(const MCSymbol *Sym) override;
@@ -577,6 +580,7 @@ static const char *getPlatformName(MachO::PlatformType Type) {
   case MachO::PLATFORM_IOSSIMULATOR:     return "iossimulator";
   case MachO::PLATFORM_TVOSSIMULATOR:    return "tvossimulator";
   case MachO::PLATFORM_WATCHOSSIMULATOR: return "watchossimulator";
+  case MachO::PLATFORM_DRIVERKIT:        return "driverkit";
   }
   llvm_unreachable("Invalid Mach-O platform type");
 }
@@ -793,6 +797,12 @@ void MCAsmStreamer::emitXCOFFLocalCommonSymbol(MCSymbol *LabelSym,
   OS << ',' << Log2_32(ByteAlignment);
 
   EmitEOL();
+
+  // Print symbol's rename (original name contains invalid character(s)) if
+  // there is one.
+  MCSymbolXCOFF *XSym = cast<MCSymbolXCOFF>(CsectSym);
+  if (XSym->hasRename())
+    emitXCOFFRenameDirective(XSym, XSym->getSymbolTableName());
 }
 
 void MCAsmStreamer::emitXCOFFSymbolLinkageWithVisibility(
@@ -807,6 +817,9 @@ void MCAsmStreamer::emitXCOFFSymbolLinkageWithVisibility(
     break;
   case MCSA_Extern:
     OS << "\t.extern\t";
+    break;
+  case MCSA_LGlobal:
+    OS << "\t.lglobl\t";
     break;
   default:
     report_fatal_error("unhandled linkage type");
@@ -827,6 +840,28 @@ void MCAsmStreamer::emitXCOFFSymbolLinkageWithVisibility(
   default:
     report_fatal_error("unexpected value for Visibility type");
   }
+  EmitEOL();
+
+  // Print symbol's rename (original name contains invalid character(s)) if
+  // there is one.
+  if (cast<MCSymbolXCOFF>(Symbol)->hasRename())
+    emitXCOFFRenameDirective(Symbol,
+                             cast<MCSymbolXCOFF>(Symbol)->getSymbolTableName());
+}
+
+void MCAsmStreamer::emitXCOFFRenameDirective(const MCSymbol *Name,
+                                             StringRef Rename) {
+  OS << "\t.rename\t";
+  Name->print(OS, MAI);
+  const char DQ = '"';
+  OS << ',' << DQ;
+  for (char C : Rename) {
+    // To escape a double quote character, the character should be doubled.
+    if (C == DQ)
+      OS << DQ;
+    OS << C;
+  }
+  OS << DQ;
   EmitEOL();
 }
 
@@ -852,6 +887,13 @@ void MCAsmStreamer::emitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
       OS << ',' << Log2_32(ByteAlignment);
   }
   EmitEOL();
+
+  // Print symbol's rename (original name contains invalid character(s)) if
+  // there is one.
+  MCSymbolXCOFF *XSym = dyn_cast<MCSymbolXCOFF>(Symbol);
+  if (XSym && XSym->hasRename())
+    emitXCOFFRenameDirective(XSym, XSym->getSymbolTableName());
+
 }
 
 void MCAsmStreamer::emitLocalCommonSymbol(MCSymbol *Symbol, uint64_t Size,
@@ -929,6 +971,47 @@ void MCAsmStreamer::emitTBSSSymbol(MCSection *Section, MCSymbol *Symbol,
 
 static inline char toOctal(int X) { return (X&7)+'0'; }
 
+static void PrintByteList(StringRef Data, raw_ostream &OS,
+                          MCAsmInfo::AsmCharLiteralSyntax ACLS) {
+  assert(!Data.empty() && "Cannot generate an empty list.");
+  const auto printCharacterInOctal = [&OS](unsigned char C) {
+    OS << '0';
+    OS << toOctal(C >> 6);
+    OS << toOctal(C >> 3);
+    OS << toOctal(C >> 0);
+  };
+  const auto printOneCharacterFor = [printCharacterInOctal](
+                                        auto printOnePrintingCharacter) {
+    return [printCharacterInOctal, printOnePrintingCharacter](unsigned char C) {
+      if (isPrint(C)) {
+        printOnePrintingCharacter(static_cast<char>(C));
+        return;
+      }
+      printCharacterInOctal(C);
+    };
+  };
+  const auto printCharacterList = [Data, &OS](const auto &printOneCharacter) {
+    const auto BeginPtr = Data.begin(), EndPtr = Data.end();
+    for (const unsigned char C : make_range(BeginPtr, EndPtr - 1)) {
+      printOneCharacter(C);
+      OS << ',';
+    }
+    printOneCharacter(*(EndPtr - 1));
+  };
+  switch (ACLS) {
+  case MCAsmInfo::ACLS_Unknown:
+    printCharacterList(printCharacterInOctal);
+    return;
+  case MCAsmInfo::ACLS_SingleQuotePrefix:
+    printCharacterList(printOneCharacterFor([&OS](char C) {
+      const char AsmCharLitBuf[2] = {'\'', C};
+      OS << StringRef(AsmCharLitBuf, sizeof(AsmCharLitBuf));
+    }));
+    return;
+  }
+  llvm_unreachable("Invalid AsmCharLiteralSyntax value!");
+}
+
 static void PrintQuotedString(StringRef Data, raw_ostream &OS) {
   OS << '"';
 
@@ -967,33 +1050,42 @@ void MCAsmStreamer::emitBytes(StringRef Data) {
          "Cannot emit contents before setting section!");
   if (Data.empty()) return;
 
-  // If only single byte is provided or no ascii or asciz directives is
-  // supported, emit as vector of 8bits data.
-  if (Data.size() == 1 ||
-      !(MAI->getAscizDirective() || MAI->getAsciiDirective())) {
-    if (MCTargetStreamer *TS = getTargetStreamer()) {
-      TS->emitRawBytes(Data);
+  const auto emitAsString = [this](StringRef Data) {
+    // If the data ends with 0 and the target supports .asciz, use it, otherwise
+    // use .ascii or a byte-list directive
+    if (MAI->getAscizDirective() && Data.back() == 0) {
+      OS << MAI->getAscizDirective();
+      Data = Data.substr(0, Data.size() - 1);
+    } else if (LLVM_LIKELY(MAI->getAsciiDirective())) {
+      OS << MAI->getAsciiDirective();
+    } else if (MAI->getByteListDirective()) {
+      OS << MAI->getByteListDirective();
+      PrintByteList(Data, OS, MAI->characterLiteralSyntax());
+      EmitEOL();
+      return true;
     } else {
-      const char *Directive = MAI->getData8bitsDirective();
-      for (const unsigned char C : Data.bytes()) {
-        OS << Directive << (unsigned)C;
-        EmitEOL();
-      }
+      return false;
     }
+
+    PrintQuotedString(Data, OS);
+    EmitEOL();
+    return true;
+  };
+
+  if (Data.size() != 1 && emitAsString(Data))
+    return;
+
+  // Only single byte is provided or no ascii, asciz, or byte-list directives
+  // are applicable. Emit as vector of individual 8bits data elements.
+  if (MCTargetStreamer *TS = getTargetStreamer()) {
+    TS->emitRawBytes(Data);
     return;
   }
-
-  // If the data ends with 0 and the target supports .asciz, use it, otherwise
-  // use .ascii
-  if (MAI->getAscizDirective() && Data.back() == 0) {
-    OS << MAI->getAscizDirective();
-    Data = Data.substr(0, Data.size()-1);
-  } else {
-    OS << MAI->getAsciiDirective();
+  const char *Directive = MAI->getData8bitsDirective();
+  for (const unsigned char C : Data.bytes()) {
+    OS << Directive << (unsigned)C;
+    EmitEOL();
   }
-
-  PrintQuotedString(Data, OS);
-  EmitEOL();
 }
 
 void MCAsmStreamer::emitBinaryData(StringRef Data) {
@@ -1780,8 +1872,11 @@ void MCAsmStreamer::EmitWinCFIEndProc(SMLoc Loc) {
   EmitEOL();
 }
 
-// TODO: Implement
 void MCAsmStreamer::EmitWinCFIFuncletOrFuncEnd(SMLoc Loc) {
+  MCStreamer::EmitWinCFIFuncletOrFuncEnd(Loc);
+
+  OS << "\t.seh_endfunclet";
+  EmitEOL();
 }
 
 void MCAsmStreamer::EmitWinCFIStartChained(SMLoc Loc) {
@@ -2039,9 +2134,10 @@ void MCAsmStreamer::emitBundleUnlock() {
   EmitEOL();
 }
 
-bool MCAsmStreamer::emitRelocDirective(const MCExpr &Offset, StringRef Name,
-                                       const MCExpr *Expr, SMLoc,
-                                       const MCSubtargetInfo &STI) {
+Optional<std::pair<bool, std::string>>
+MCAsmStreamer::emitRelocDirective(const MCExpr &Offset, StringRef Name,
+                                  const MCExpr *Expr, SMLoc,
+                                  const MCSubtargetInfo &STI) {
   OS << "\t.reloc ";
   Offset.print(OS, MAI);
   OS << ", " << Name;
@@ -2050,7 +2146,7 @@ bool MCAsmStreamer::emitRelocDirective(const MCExpr &Offset, StringRef Name,
     Expr->print(OS, MAI);
   }
   EmitEOL();
-  return false;
+  return None;
 }
 
 void MCAsmStreamer::emitAddrsig() {

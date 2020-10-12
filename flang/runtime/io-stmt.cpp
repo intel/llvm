@@ -13,6 +13,7 @@
 #include "tools.h"
 #include "unit.h"
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 #include <limits>
 
@@ -23,6 +24,37 @@ int IoStatementBase::EndIoStatement() { return GetIoStat(); }
 std::optional<DataEdit> IoStatementBase::GetNextDataEdit(
     IoStatementState &, int) {
   return std::nullopt;
+}
+
+bool IoStatementBase::Inquire(InquiryKeywordHash, char *, std::size_t) {
+  Crash(
+      "IoStatementBase::Inquire() called for I/O statement other than INQUIRE");
+  return false;
+}
+
+bool IoStatementBase::Inquire(InquiryKeywordHash, bool &) {
+  Crash(
+      "IoStatementBase::Inquire() called for I/O statement other than INQUIRE");
+  return false;
+}
+
+bool IoStatementBase::Inquire(InquiryKeywordHash, std::int64_t, bool &) {
+  Crash(
+      "IoStatementBase::Inquire() called for I/O statement other than INQUIRE");
+  return false;
+}
+
+bool IoStatementBase::Inquire(InquiryKeywordHash, std::int64_t &) {
+  Crash(
+      "IoStatementBase::Inquire() called for I/O statement other than INQUIRE");
+  return false;
+}
+
+void IoStatementBase::BadInquiryKeywordHashCrash(InquiryKeywordHash inquiry) {
+  char buffer[16];
+  const char *decode{InquiryKeywordHashDecode(buffer, sizeof buffer, inquiry)};
+  Crash("bad InquiryKeywordHash 0x%x (%s)", inquiry,
+      decode ? decode : "(cannot decode)");
 }
 
 template <Direction DIR, typename CHAR>
@@ -37,7 +69,7 @@ InternalIoStatementState<DIR, CHAR>::InternalIoStatementState(
 
 template <Direction DIR, typename CHAR>
 bool InternalIoStatementState<DIR, CHAR>::Emit(
-    const CharType *data, std::size_t chars) {
+    const CharType *data, std::size_t chars, std::size_t /*elementBytes*/) {
   if constexpr (DIR == Direction::Input) {
     Crash("InternalIoStatementState<Direction::Input>::Emit() called");
     return false;
@@ -150,21 +182,41 @@ int ExternalIoStatementBase::EndIoStatement() {
   return result;
 }
 
-void OpenStatementState::set_path(
-    const char *path, std::size_t length, int kind) {
-  if (kind != 1) { // TODO
-    Crash("OPEN: FILE= with unimplemented: CHARACTER(KIND=%d)", kind);
-  }
-  std::size_t bytes{length * kind}; // TODO: UTF-8 encoding of Unicode path
-  path_ = SaveDefaultCharacter(path, bytes, *this);
-  pathLength_ = length;
+void OpenStatementState::set_path(const char *path, std::size_t length) {
+  pathLength_ = TrimTrailingSpaces(path, length);
+  path_ = SaveDefaultCharacter(path, pathLength_, *this);
 }
 
 int OpenStatementState::EndIoStatement() {
-  if (wasExtant_ && status_ != OpenStatus::Old) {
-    SignalError("OPEN statement for connected unit must have STATUS='OLD'");
+  if (wasExtant_ && status_ && *status_ != OpenStatus::Old) {
+    SignalError("OPEN statement for connected unit may not have STATUS= other "
+                "than 'OLD'");
   }
-  unit().OpenUnit(status_, position_, std::move(path_), pathLength_, *this);
+  if (path_.get() || wasExtant_ ||
+      (status_ && *status_ == OpenStatus::Scratch)) {
+    unit().OpenUnit(status_.value_or(OpenStatus::Unknown), action_, position_,
+        std::move(path_), pathLength_, convert_, *this);
+  } else {
+    unit().OpenAnonymousUnit(status_.value_or(OpenStatus::Unknown), action_,
+        position_, convert_, *this);
+  }
+  if (access_) {
+    if (*access_ != unit().access) {
+      if (wasExtant_) {
+        SignalError("ACCESS= may not be changed on an open unit");
+      }
+    }
+    unit().access = *access_;
+  }
+  if (!isUnformatted_) {
+    isUnformatted_ = unit().access != Access::Sequential;
+  }
+  if (*isUnformatted_ != unit().isUnformatted) {
+    if (wasExtant_) {
+      SignalError("FORM= may not be changed on an open unit");
+    }
+    unit().isUnformatted = *isUnformatted_;
+  }
   return ExternalIoStatementBase::EndIoStatement();
 }
 
@@ -175,14 +227,19 @@ int CloseStatementState::EndIoStatement() {
   return result;
 }
 
-int NoopCloseStatementState::EndIoStatement() {
+int NoUnitIoStatementState::EndIoStatement() {
   auto result{IoStatementBase::EndIoStatement()};
   FreeMemory(this);
   return result;
 }
 
 template <Direction DIR> int ExternalIoStatementState<DIR>::EndIoStatement() {
-  if constexpr (DIR == Direction::Output) {
+  if constexpr (DIR == Direction::Input) {
+    BeginReadingRecord(); // in case of READ with no data items
+    if (!unit().nonAdvancing) {
+      FinishReadingRecord();
+    }
+  } else {
     if (!unit().nonAdvancing) {
       unit().AdvanceRecord(*this);
     }
@@ -192,11 +249,12 @@ template <Direction DIR> int ExternalIoStatementState<DIR>::EndIoStatement() {
 }
 
 template <Direction DIR>
-bool ExternalIoStatementState<DIR>::Emit(const char *data, std::size_t chars) {
+bool ExternalIoStatementState<DIR>::Emit(
+    const char *data, std::size_t bytes, std::size_t elementBytes) {
   if constexpr (DIR == Direction::Input) {
     Crash("ExternalIoStatementState::Emit(char) called for input statement");
   }
-  return unit().Emit(data, chars * sizeof(*data), *this);
+  return unit().Emit(data, bytes, elementBytes, *this);
 }
 
 template <Direction DIR>
@@ -207,8 +265,8 @@ bool ExternalIoStatementState<DIR>::Emit(
         "ExternalIoStatementState::Emit(char16_t) called for input statement");
   }
   // TODO: UTF-8 encoding
-  return unit().Emit(
-      reinterpret_cast<const char *>(data), chars * sizeof(*data), *this);
+  return unit().Emit(reinterpret_cast<const char *>(data), chars * sizeof *data,
+      static_cast<int>(sizeof *data), *this);
 }
 
 template <Direction DIR>
@@ -219,8 +277,8 @@ bool ExternalIoStatementState<DIR>::Emit(
         "ExternalIoStatementState::Emit(char32_t) called for input statement");
   }
   // TODO: UTF-8 encoding
-  return unit().Emit(
-      reinterpret_cast<const char *>(data), chars * sizeof(*data), *this);
+  return unit().Emit(reinterpret_cast<const char *>(data), chars * sizeof *data,
+      static_cast<int>(sizeof *data), *this);
 }
 
 template <Direction DIR>
@@ -256,6 +314,26 @@ void ExternalIoStatementState<DIR>::HandleRelativePosition(std::int64_t n) {
   return unit().HandleRelativePosition(n);
 }
 
+template <Direction DIR>
+void ExternalIoStatementState<DIR>::BeginReadingRecord() {
+  if constexpr (DIR == Direction::Input) {
+    unit().BeginReadingRecord(*this);
+  } else {
+    Crash("ExternalIoStatementState<Direction::Output>::BeginReadingRecord() "
+          "called");
+  }
+}
+
+template <Direction DIR>
+void ExternalIoStatementState<DIR>::FinishReadingRecord() {
+  if constexpr (DIR == Direction::Input) {
+    unit().FinishReadingRecord(*this);
+  } else {
+    Crash("ExternalIoStatementState<Direction::Output>::FinishReadingRecord() "
+          "called");
+  }
+}
+
 template <Direction DIR, typename CHAR>
 ExternalFormattedIoStatementState<DIR, CHAR>::ExternalFormattedIoStatementState(
     ExternalFileUnit &unit, const CHAR *format, std::size_t formatLength,
@@ -274,8 +352,10 @@ std::optional<DataEdit> IoStatementState::GetNextDataEdit(int n) {
       [&](auto &x) { return x.get().GetNextDataEdit(*this, n); }, u_);
 }
 
-bool IoStatementState::Emit(const char *data, std::size_t n) {
-  return std::visit([=](auto &x) { return x.get().Emit(data, n); }, u_);
+bool IoStatementState::Emit(
+    const char *data, std::size_t n, std::size_t elementBytes) {
+  return std::visit(
+      [=](auto &x) { return x.get().Emit(data, n, elementBytes); }, u_);
 }
 
 std::optional<char32_t> IoStatementState::GetCurrentChar() {
@@ -291,7 +371,7 @@ void IoStatementState::BackspaceRecord() {
 }
 
 void IoStatementState::HandleRelativePosition(std::int64_t n) {
-  return std::visit([=](auto &x) { x.get().HandleRelativePosition(n); }, u_);
+  std::visit([=](auto &x) { x.get().HandleRelativePosition(n); }, u_);
 }
 
 int IoStatementState::EndIoStatement() {
@@ -307,6 +387,10 @@ ConnectionState &IoStatementState::GetConnectionState() {
 MutableModes &IoStatementState::mutableModes() {
   return std::visit(
       [](auto &x) -> MutableModes & { return x.get().mutableModes(); }, u_);
+}
+
+void IoStatementState::BeginReadingRecord() {
+  std::visit([](auto &x) { return x.get().BeginReadingRecord(); }, u_);
 }
 
 IoErrorHandler &IoStatementState::GetIoErrorHandler() const {
@@ -347,15 +431,22 @@ bool IoStatementState::EmitField(
   }
 }
 
-void IoStatementState::SkipSpaces(std::optional<int> &remaining) {
-  if (!remaining || *remaining > 0) {
-    for (auto ch{GetCurrentChar()}; ch && ch == ' '; ch = GetCurrentChar()) {
-      HandleRelativePosition(1);
-      if (remaining && !--*remaining) {
-        break;
+std::optional<char32_t> IoStatementState::SkipSpaces(
+    std::optional<int> &remaining) {
+  while (!remaining || *remaining > 0) {
+    if (auto ch{GetCurrentChar()}) {
+      if (*ch != ' ' && *ch != '\t') {
+        return ch;
       }
+      HandleRelativePosition(1);
+      if (remaining) {
+        --*remaining;
+      }
+    } else {
+      break;
     }
   }
+  return std::nullopt;
 }
 
 std::optional<char32_t> IoStatementState::NextInField(
@@ -364,6 +455,7 @@ std::optional<char32_t> IoStatementState::NextInField(
     if (auto next{GetCurrentChar()}) {
       switch (*next) {
       case ' ':
+      case '\t':
       case ',':
       case ';':
       case '/':
@@ -372,6 +464,7 @@ std::optional<char32_t> IoStatementState::NextInField(
       case '\'':
       case '"':
       case '*':
+      case '\n': // for stream access
         break;
       default:
         HandleRelativePosition(1);
@@ -385,7 +478,8 @@ std::optional<char32_t> IoStatementState::NextInField(
       return next;
     }
     const ConnectionState &connection{GetConnectionState()};
-    if (!connection.IsAtEOF() && connection.recordLength &&
+    if (!connection.IsAtEOF() && connection.isFixedRecordLength &&
+        connection.recordLength &&
         connection.positionInRecord >= *connection.recordLength) {
       if (connection.modes.pad) { // PAD='YES'
         --*remaining;
@@ -404,7 +498,7 @@ std::optional<char32_t> IoStatementState::NextInField(
 
 std::optional<char32_t> IoStatementState::GetNextNonBlank() {
   auto ch{GetCurrentChar()};
-  while (ch.value_or(' ') == ' ') {
+  while (!ch || *ch == ' ' || *ch == '\t') {
     if (ch) {
       HandleRelativePosition(1);
     } else if (!AdvanceRecord()) {
@@ -419,6 +513,26 @@ bool ListDirectedStatementState<Direction::Output>::NeedAdvance(
     const ConnectionState &connection, std::size_t width) const {
   return connection.positionInRecord > 0 &&
       width > connection.RemainingSpaceInRecord();
+}
+
+bool IoStatementState::Inquire(
+    InquiryKeywordHash inquiry, char *out, std::size_t chars) {
+  return std::visit(
+      [&](auto &x) { return x.get().Inquire(inquiry, out, chars); }, u_);
+}
+
+bool IoStatementState::Inquire(InquiryKeywordHash inquiry, bool &out) {
+  return std::visit([&](auto &x) { return x.get().Inquire(inquiry, out); }, u_);
+}
+
+bool IoStatementState::Inquire(
+    InquiryKeywordHash inquiry, std::int64_t id, bool &out) {
+  return std::visit(
+      [&](auto &x) { return x.get().Inquire(inquiry, id, out); }, u_);
+}
+
+bool IoStatementState::Inquire(InquiryKeywordHash inquiry, std::int64_t &n) {
+  return std::visit([&](auto &x) { return x.get().Inquire(inquiry, n); }, u_);
 }
 
 bool ListDirectedStatementState<Direction::Output>::EmitLeadingSpaceOrAdvance(
@@ -462,6 +576,10 @@ ListDirectedStatementState<Direction::Input>::GetNextDataEdit(
     edit.descriptor = DataEdit::ListDirectedNullValue;
     return edit;
   }
+  char32_t comma{','};
+  if (io.mutableModes().editingFlags & decimalComma) {
+    comma = ';';
+  }
   if (remaining_ > 0 && !realPart_) { // "r*c" repetition in progress
     while (connection.currentRecordNumber > initialRecordNumber_) {
       io.BackspaceRecord();
@@ -469,6 +587,11 @@ ListDirectedStatementState<Direction::Input>::GetNextDataEdit(
     connection.HandleAbsolutePosition(initialPositionInRecord_);
     if (!imaginaryPart_) {
       edit.repeat = std::min<int>(remaining_, maxRepeat);
+      auto ch{io.GetNextNonBlank()};
+      if (!ch || *ch == ' ' || *ch == '\t' || *ch == comma) {
+        // "r*" repeated null
+        edit.descriptor = DataEdit::ListDirectedNullValue;
+      }
     }
     remaining_ -= edit.repeat;
     return edit;
@@ -484,6 +607,7 @@ ListDirectedStatementState<Direction::Input>::GetNextDataEdit(
   } else if (realPart_) {
     realPart_ = false;
     imaginaryPart_ = true;
+    edit.descriptor = DataEdit::ListDirectedImaginaryPart;
   }
   if (!ch) {
     return std::nullopt;
@@ -492,10 +616,6 @@ ListDirectedStatementState<Direction::Input>::GetNextDataEdit(
     hitSlash_ = true;
     edit.descriptor = DataEdit::ListDirectedNullValue;
     return edit;
-  }
-  char32_t comma{','};
-  if (io.mutableModes().editingFlags & decimalComma) {
-    comma = ';';
   }
   bool isFirstItem{isFirstItem_};
   isFirstItem_ = false;
@@ -534,9 +654,13 @@ ListDirectedStatementState<Direction::Input>::GetNextDataEdit(
     if (r > 0 && ch && *ch == '*') { // subtle: r must be nonzero
       io.HandleRelativePosition(1);
       ch = io.GetCurrentChar();
-      if (!ch || *ch == ' ' || *ch == comma || *ch == '/') { // "r*" null
+      if (ch && *ch == '/') { // r*/
+        hitSlash_ = true;
         edit.descriptor = DataEdit::ListDirectedNullValue;
         return edit;
+      }
+      if (!ch || *ch == ' ' || *ch == '\t' || *ch == comma) { // "r*" null
+        edit.descriptor = DataEdit::ListDirectedNullValue;
       }
       edit.repeat = std::min<int>(r, maxRepeat);
       remaining_ = r - edit.repeat;
@@ -549,33 +673,29 @@ ListDirectedStatementState<Direction::Input>::GetNextDataEdit(
   if (!imaginaryPart_ && ch && *ch == '(') {
     realPart_ = true;
     io.HandleRelativePosition(1);
+    edit.descriptor = DataEdit::ListDirectedRealPart;
   }
   return edit;
 }
 
 template <Direction DIR>
-int UnformattedIoStatementState<DIR>::EndIoStatement() {
-  auto &ext{static_cast<ExternalIoStatementState<DIR> &>(*this)};
-  ExternalFileUnit &unit{ext.unit()};
-  if (unit.access == Access::Sequential && !unit.recordLength.has_value()) {
-    // Overwrite the first four bytes of the record with its length,
-    // and also append the length.  These four bytes were skipped over
-    // in BeginUnformattedOutput().
-    // TODO: Break very large records up into subrecords with negative
-    // headers &/or footers
-    union {
-      std::uint32_t u;
-      char c[sizeof u];
-    } u;
-    u.u = unit.furthestPositionInRecord - sizeof u.c;
-    // TODO: Convert record length to little-endian on big-endian host?
-    if (!(ext.Emit(u.c, sizeof u.c) &&
-            (ext.HandleAbsolutePosition(0), ext.Emit(u.c, sizeof u.c)) &&
-            ext.AdvanceRecord())) {
-      return false;
-    }
+bool UnformattedIoStatementState<DIR>::Receive(
+    char *data, std::size_t bytes, std::size_t elementBytes) {
+  if constexpr (DIR == Direction::Output) {
+    this->Crash(
+        "UnformattedIoStatementState::Receive() called for output statement");
   }
-  return ext.EndIoStatement();
+  return this->unit().Receive(data, bytes, elementBytes, *this);
+}
+
+template <Direction DIR>
+bool UnformattedIoStatementState<DIR>::Emit(
+    const char *data, std::size_t bytes, std::size_t elementBytes) {
+  if constexpr (DIR == Direction::Input) {
+    this->Crash(
+        "UnformattedIoStatementState::Emit() called for input statement");
+  }
+  return ExternalIoStatementState<DIR>::Emit(data, bytes, elementBytes);
 }
 
 template class InternalIoStatementState<Direction::Output>;
@@ -592,4 +712,448 @@ template class ExternalListIoStatementState<Direction::Output>;
 template class ExternalListIoStatementState<Direction::Input>;
 template class UnformattedIoStatementState<Direction::Output>;
 template class UnformattedIoStatementState<Direction::Input>;
+
+int ExternalMiscIoStatementState::EndIoStatement() {
+  ExternalFileUnit &ext{unit()};
+  switch (which_) {
+  case Flush:
+    ext.Flush(*this);
+    std::fflush(nullptr); // flushes C stdio output streams (12.9(2))
+    break;
+  case Backspace:
+    ext.BackspaceRecord(*this);
+    break;
+  case Endfile:
+    ext.Endfile(*this);
+    break;
+  case Rewind:
+    ext.Rewind(*this);
+    break;
+  }
+  return ExternalIoStatementBase::EndIoStatement();
+}
+
+InquireUnitState::InquireUnitState(
+    ExternalFileUnit &unit, const char *sourceFile, int sourceLine)
+    : ExternalIoStatementBase{unit, sourceFile, sourceLine} {}
+
+bool InquireUnitState::Inquire(
+    InquiryKeywordHash inquiry, char *result, std::size_t length) {
+  const char *str{nullptr};
+  switch (inquiry) {
+  case HashInquiryKeyword("ACCESS"):
+    switch (unit().access) {
+    case Access::Sequential:
+      str = "SEQUENTIAL";
+      break;
+    case Access::Direct:
+      str = "DIRECT";
+      break;
+    case Access::Stream:
+      str = "STREAM";
+      break;
+    }
+    break;
+  case HashInquiryKeyword("ACTION"):
+    str = unit().mayWrite() ? unit().mayRead() ? "READWRITE" : "WRITE" : "READ";
+    break;
+  case HashInquiryKeyword("ASYNCHRONOUS"):
+    str = unit().mayAsynchronous() ? "YES" : "NO";
+    break;
+  case HashInquiryKeyword("BLANK"):
+    str = unit().isUnformatted                  ? "UNDEFINED"
+        : unit().modes.editingFlags & blankZero ? "ZERO"
+                                                : "NULL";
+    break;
+  case HashInquiryKeyword("CARRIAGECONTROL"):
+    str = "LIST";
+    break;
+  case HashInquiryKeyword("CONVERT"):
+    str = unit().swapEndianness() ? "SWAP" : "NATIVE";
+    break;
+  case HashInquiryKeyword("DECIMAL"):
+    str = unit().isUnformatted                     ? "UNDEFINED"
+        : unit().modes.editingFlags & decimalComma ? "COMMA"
+                                                   : "POINT";
+    break;
+  case HashInquiryKeyword("DELIM"):
+    if (unit().isUnformatted) {
+      str = "UNDEFINED";
+    } else {
+      switch (unit().modes.delim) {
+      case '\'':
+        str = "APOSTROPHE";
+        break;
+      case '"':
+        str = "QUOTE";
+        break;
+      default:
+        str = "NONE";
+        break;
+      }
+    }
+    break;
+  case HashInquiryKeyword("DIRECT"):
+    str = unit().access == Access::Direct ||
+            (unit().mayPosition() && unit().isFixedRecordLength)
+        ? "YES"
+        : "NO";
+    break;
+  case HashInquiryKeyword("ENCODING"):
+    str = unit().isUnformatted ? "UNDEFINED"
+        : unit().isUTF8        ? "UTF-8"
+                               : "ASCII";
+    break;
+  case HashInquiryKeyword("FORM"):
+    str = unit().isUnformatted ? "UNFORMATTED" : "FORMATTED";
+    break;
+  case HashInquiryKeyword("FORMATTED"):
+    str = !unit().isUnformatted ? "YES" : "NO";
+    break;
+  case HashInquiryKeyword("NAME"):
+    str = unit().path();
+    if (!str) {
+      return true; // result is undefined
+    }
+    break;
+  case HashInquiryKeyword("PAD"):
+    str = unit().isUnformatted ? "UNDEFINED" : unit().modes.pad ? "YES" : "NO";
+    break;
+  case HashInquiryKeyword("POSITION"):
+    if (unit().access == Access::Direct) {
+      str = "UNDEFINED";
+    } else {
+      auto size{unit().knownSize()};
+      auto pos{unit().position()};
+      if (pos == size.value_or(pos + 1)) {
+        str = "APPEND";
+      } else if (pos == 0) {
+        str = "REWIND";
+      } else {
+        str = "ASIS"; // processor-dependent & no common behavior
+      }
+    }
+    break;
+  case HashInquiryKeyword("READ"):
+    str = unit().mayRead() ? "YES" : "NO";
+    break;
+  case HashInquiryKeyword("READWRITE"):
+    str = unit().mayRead() && unit().mayWrite() ? "YES" : "NO";
+    break;
+  case HashInquiryKeyword("ROUND"):
+    if (unit().isUnformatted) {
+      str = "UNDEFINED";
+    } else {
+      switch (unit().modes.round) {
+      case decimal::FortranRounding::RoundNearest:
+        str = "NEAREST";
+        break;
+      case decimal::FortranRounding::RoundUp:
+        str = "UP";
+        break;
+      case decimal::FortranRounding::RoundDown:
+        str = "DOWN";
+        break;
+      case decimal::FortranRounding::RoundToZero:
+        str = "ZERO";
+        break;
+      case decimal::FortranRounding::RoundCompatible:
+        str = "COMPATIBLE";
+        break;
+      }
+    }
+    break;
+  case HashInquiryKeyword("SEQUENTIAL"):
+    // "NO" for Direct, since Sequential would not work if
+    // the unit were reopened without RECL=.
+    str = unit().access == Access::Sequential ? "YES" : "NO";
+    break;
+  case HashInquiryKeyword("SIGN"):
+    str = unit().isUnformatted                 ? "UNDEFINED"
+        : unit().modes.editingFlags & signPlus ? "PLUS"
+                                               : "SUPPRESS";
+    break;
+  case HashInquiryKeyword("STREAM"):
+    str = unit().access == Access::Stream ? "YES" : "NO";
+    break;
+  case HashInquiryKeyword("WRITE"):
+    str = unit().mayWrite() ? "YES" : "NO";
+    break;
+  case HashInquiryKeyword("UNFORMATTED"):
+    str = unit().isUnformatted ? "YES" : "NO";
+    break;
+  }
+  if (str) {
+    ToFortranDefaultCharacter(result, length, str);
+    return true;
+  } else {
+    BadInquiryKeywordHashCrash(inquiry);
+    return false;
+  }
+}
+
+bool InquireUnitState::Inquire(InquiryKeywordHash inquiry, bool &result) {
+  switch (inquiry) {
+  case HashInquiryKeyword("EXIST"):
+    result = true;
+    return true;
+  case HashInquiryKeyword("NAMED"):
+    result = unit().path() != nullptr;
+    return true;
+  case HashInquiryKeyword("OPENED"):
+    result = true;
+    return true;
+  case HashInquiryKeyword("PENDING"):
+    result = false; // asynchronous I/O is not implemented
+    return true;
+  default:
+    BadInquiryKeywordHashCrash(inquiry);
+    return false;
+  }
+}
+
+bool InquireUnitState::Inquire(
+    InquiryKeywordHash inquiry, std::int64_t, bool &result) {
+  switch (inquiry) {
+  case HashInquiryKeyword("PENDING"):
+    result = false; // asynchronous I/O is not implemented
+    return true;
+  default:
+    BadInquiryKeywordHashCrash(inquiry);
+    return false;
+  }
+}
+
+bool InquireUnitState::Inquire(
+    InquiryKeywordHash inquiry, std::int64_t &result) {
+  switch (inquiry) {
+  case HashInquiryKeyword("NEXTREC"):
+    if (unit().access == Access::Direct) {
+      result = unit().currentRecordNumber;
+    }
+    return true;
+  case HashInquiryKeyword("NUMBER"):
+    result = unit().unitNumber();
+    return true;
+  case HashInquiryKeyword("POS"):
+    result = unit().position();
+    return true;
+  case HashInquiryKeyword("RECL"):
+    if (unit().access == Access::Stream) {
+      result = -2;
+    } else if (unit().isFixedRecordLength && unit().recordLength) {
+      result = *unit().recordLength;
+    } else {
+      result = std::numeric_limits<std::uint32_t>::max();
+    }
+    return true;
+  case HashInquiryKeyword("SIZE"):
+    if (auto size{unit().knownSize()}) {
+      result = *size;
+    } else {
+      result = -1;
+    }
+    return true;
+  default:
+    BadInquiryKeywordHashCrash(inquiry);
+    return false;
+  }
+}
+
+InquireNoUnitState::InquireNoUnitState(const char *sourceFile, int sourceLine)
+    : NoUnitIoStatementState{sourceFile, sourceLine, *this} {}
+
+bool InquireNoUnitState::Inquire(
+    InquiryKeywordHash inquiry, char *result, std::size_t length) {
+  switch (inquiry) {
+  case HashInquiryKeyword("ACCESS"):
+  case HashInquiryKeyword("ACTION"):
+  case HashInquiryKeyword("ASYNCHRONOUS"):
+  case HashInquiryKeyword("BLANK"):
+  case HashInquiryKeyword("CARRIAGECONTROL"):
+  case HashInquiryKeyword("CONVERT"):
+  case HashInquiryKeyword("DECIMAL"):
+  case HashInquiryKeyword("DELIM"):
+  case HashInquiryKeyword("FORM"):
+  case HashInquiryKeyword("NAME"):
+  case HashInquiryKeyword("PAD"):
+  case HashInquiryKeyword("POSITION"):
+  case HashInquiryKeyword("ROUND"):
+  case HashInquiryKeyword("SIGN"):
+    ToFortranDefaultCharacter(result, length, "UNDEFINED");
+    return true;
+  case HashInquiryKeyword("DIRECT"):
+  case HashInquiryKeyword("ENCODING"):
+  case HashInquiryKeyword("FORMATTED"):
+  case HashInquiryKeyword("READ"):
+  case HashInquiryKeyword("READWRITE"):
+  case HashInquiryKeyword("SEQUENTIAL"):
+  case HashInquiryKeyword("STREAM"):
+  case HashInquiryKeyword("WRITE"):
+  case HashInquiryKeyword("UNFORMATTED"):
+    ToFortranDefaultCharacter(result, length, "UNKNONN");
+    return true;
+  default:
+    BadInquiryKeywordHashCrash(inquiry);
+    return false;
+  }
+}
+
+bool InquireNoUnitState::Inquire(InquiryKeywordHash inquiry, bool &result) {
+  switch (inquiry) {
+  case HashInquiryKeyword("EXIST"):
+    result = true;
+    return true;
+  case HashInquiryKeyword("NAMED"):
+  case HashInquiryKeyword("OPENED"):
+  case HashInquiryKeyword("PENDING"):
+    result = false;
+    return true;
+  default:
+    BadInquiryKeywordHashCrash(inquiry);
+    return false;
+  }
+}
+
+bool InquireNoUnitState::Inquire(
+    InquiryKeywordHash inquiry, std::int64_t, bool &result) {
+  switch (inquiry) {
+  case HashInquiryKeyword("PENDING"):
+    result = false;
+    return true;
+  default:
+    BadInquiryKeywordHashCrash(inquiry);
+    return false;
+  }
+}
+
+bool InquireNoUnitState::Inquire(
+    InquiryKeywordHash inquiry, std::int64_t &result) {
+  switch (inquiry) {
+  case HashInquiryKeyword("NEXTREC"):
+  case HashInquiryKeyword("NUMBER"):
+  case HashInquiryKeyword("POS"):
+  case HashInquiryKeyword("RECL"):
+  case HashInquiryKeyword("SIZE"):
+    result = -1;
+    return true;
+  default:
+    BadInquiryKeywordHashCrash(inquiry);
+    return false;
+  }
+}
+
+InquireUnconnectedFileState::InquireUnconnectedFileState(
+    OwningPtr<char> &&path, const char *sourceFile, int sourceLine)
+    : NoUnitIoStatementState{sourceFile, sourceLine, *this}, path_{std::move(
+                                                                 path)} {}
+
+bool InquireUnconnectedFileState::Inquire(
+    InquiryKeywordHash inquiry, char *result, std::size_t length) {
+  const char *str{nullptr};
+  switch (inquiry) {
+  case HashInquiryKeyword("ACCESS"):
+  case HashInquiryKeyword("ACTION"):
+  case HashInquiryKeyword("ASYNCHRONOUS"):
+  case HashInquiryKeyword("BLANK"):
+  case HashInquiryKeyword("CARRIAGECONTROL"):
+  case HashInquiryKeyword("CONVERT"):
+  case HashInquiryKeyword("DECIMAL"):
+  case HashInquiryKeyword("DELIM"):
+  case HashInquiryKeyword("FORM"):
+  case HashInquiryKeyword("PAD"):
+  case HashInquiryKeyword("POSITION"):
+  case HashInquiryKeyword("ROUND"):
+  case HashInquiryKeyword("SIGN"):
+    str = "UNDEFINED";
+    break;
+  case HashInquiryKeyword("DIRECT"):
+  case HashInquiryKeyword("ENCODING"):
+  case HashInquiryKeyword("FORMATTED"):
+  case HashInquiryKeyword("SEQUENTIAL"):
+  case HashInquiryKeyword("STREAM"):
+  case HashInquiryKeyword("UNFORMATTED"):
+    str = "UNKNONN";
+    break;
+  case HashInquiryKeyword("READ"):
+    str = MayRead(path_.get()) ? "YES" : "NO";
+    break;
+  case HashInquiryKeyword("READWRITE"):
+    str = MayReadAndWrite(path_.get()) ? "YES" : "NO";
+    break;
+  case HashInquiryKeyword("WRITE"):
+    str = MayWrite(path_.get()) ? "YES" : "NO";
+    break;
+  case HashInquiryKeyword("NAME"):
+    str = path_.get();
+    return true;
+  }
+  if (str) {
+    ToFortranDefaultCharacter(result, length, str);
+    return true;
+  } else {
+    BadInquiryKeywordHashCrash(inquiry);
+    return false;
+  }
+}
+
+bool InquireUnconnectedFileState::Inquire(
+    InquiryKeywordHash inquiry, bool &result) {
+  switch (inquiry) {
+  case HashInquiryKeyword("EXIST"):
+    result = IsExtant(path_.get());
+    return true;
+  case HashInquiryKeyword("NAMED"):
+    result = true;
+    return true;
+  case HashInquiryKeyword("OPENED"):
+    result = false;
+    return true;
+  case HashInquiryKeyword("PENDING"):
+    result = false;
+    return true;
+  default:
+    BadInquiryKeywordHashCrash(inquiry);
+    return false;
+  }
+}
+
+bool InquireUnconnectedFileState::Inquire(
+    InquiryKeywordHash inquiry, std::int64_t, bool &result) {
+  switch (inquiry) {
+  case HashInquiryKeyword("PENDING"):
+    result = false;
+    return true;
+  default:
+    BadInquiryKeywordHashCrash(inquiry);
+    return false;
+  }
+}
+
+bool InquireUnconnectedFileState::Inquire(
+    InquiryKeywordHash inquiry, std::int64_t &result) {
+  switch (inquiry) {
+  case HashInquiryKeyword("NEXTREC"):
+  case HashInquiryKeyword("NUMBER"):
+  case HashInquiryKeyword("POS"):
+  case HashInquiryKeyword("RECL"):
+  case HashInquiryKeyword("SIZE"):
+    result = -1;
+    return true;
+  default:
+    BadInquiryKeywordHashCrash(inquiry);
+    return false;
+  }
+}
+
+InquireIOLengthState::InquireIOLengthState(
+    const char *sourceFile, int sourceLine)
+    : NoUnitIoStatementState{sourceFile, sourceLine, *this} {}
+
+bool InquireIOLengthState::Emit(
+    const char *, std::size_t n, std::size_t /*elementBytes*/) {
+  bytes_ += n;
+  return true;
+}
+
 } // namespace Fortran::runtime::io

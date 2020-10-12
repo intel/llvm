@@ -11,7 +11,7 @@
 
 using namespace cl::sycl;
 
-constexpr size_t c_num_items = 100;
+constexpr size_t c_num_items = 4;
 range<1> num_items{c_num_items}; // range<1>(num_items)
 
 // Change if tests are added/removed
@@ -48,12 +48,25 @@ void init(T &A, int value, int increment) {
 }
 
 bool test_one_array(queue &myQueue) {
-  int input1[c_num_items];
+  int input1[c_num_items][c_num_items];
+  int input2[c_num_items][c_num_items][c_num_items];
   int output[c_num_items];
   int ref[c_num_items];
-  init(input1, 1, 1);
-  init(output, 51, 1);
-  init(ref, 2, 1);
+  int value1 = 0;
+  int value2 = 0;
+  int increment = 1;
+  for (int i = 0; i < c_num_items; i++) {
+    for (int j = 0; j < c_num_items; j++) {
+      for (int k = 0; k < c_num_items; k++) {
+        input2[i][j][k] = value1;
+        value1 += increment;
+      }
+      input1[i][j] = value2;
+      value2 += increment;
+    }
+  }
+  init(output, 511, 1);
+  init(ref, 37, 2);
 
   auto out_buffer = buffer<int, 1>(&output[0], num_items);
 
@@ -61,7 +74,7 @@ bool test_one_array(queue &myQueue) {
     auto output_accessor = out_buffer.get_access<access::mode::write>(cgh);
 
     cgh.parallel_for<class one_array>(num_items, [=](cl::sycl::id<1> index) {
-      output_accessor[index] = input1[index] + 1;
+      output_accessor[index] = input1[0][index] + input2[2][1][index] + 1;
     });
   });
   const auto HostAccessor =

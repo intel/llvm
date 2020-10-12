@@ -13,8 +13,10 @@
 #include "ExportTrie.h"
 #include "InputSection.h"
 #include "OutputSection.h"
+#include "OutputSegment.h"
 #include "Target.h"
 
+#include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -24,16 +26,26 @@ namespace macho {
 namespace section_names {
 
 constexpr const char pageZero[] = "__pagezero";
+constexpr const char common[] = "__common";
 constexpr const char header[] = "__mach_header";
+constexpr const char rebase[] = "__rebase";
 constexpr const char binding[] = "__binding";
+constexpr const char weakBinding[] = "__weak_binding";
 constexpr const char lazyBinding[] = "__lazy_binding";
 constexpr const char export_[] = "__export";
 constexpr const char symbolTable[] = "__symbol_table";
+constexpr const char indirectSymbolTable[] = "__ind_sym_tab";
 constexpr const char stringTable[] = "__string_table";
 constexpr const char got[] = "__got";
+constexpr const char threadPtrs[] = "__thread_ptrs";
+constexpr const char unwindInfo[] = "__unwind_info";
+// these are not synthetic, but in service of synthetic __unwind_info
+constexpr const char compactUnwind[] = "__compact_unwind";
+constexpr const char ehFrame[] = "__eh_frame";
 
 } // namespace section_names
 
+class Defined;
 class DylibSymbol;
 class LoadCommand;
 
@@ -47,6 +59,32 @@ public:
   }
 
   const StringRef segname;
+};
+
+// All sections in __LINKEDIT should inherit from this.
+class LinkEditSection : public SyntheticSection {
+public:
+  LinkEditSection(const char *segname, const char *name)
+      : SyntheticSection(segname, name) {
+    align = WordSize;
+  }
+
+  // Sections in __LINKEDIT are special: their offsets are recorded in the
+  // load commands like LC_DYLD_INFO_ONLY and LC_SYMTAB, instead of in section
+  // headers.
+  bool isHidden() const override final { return true; }
+
+  virtual uint64_t getRawSize() const = 0;
+
+  // codesign (or more specifically libstuff) checks that each section in
+  // __LINKEDIT ends where the next one starts -- no gaps are permitted. We
+  // therefore align every section's start and end points to WordSize.
+  //
+  // NOTE: This assumes that the extra bytes required for alignment can be
+  // zero-valued bytes.
+  uint64_t getSize() const override final {
+    return llvm::alignTo(getRawSize(), WordSize);
+  }
 };
 
 // The header of the Mach-O file, which must have a file offset of zero.
@@ -74,11 +112,13 @@ public:
   void writeTo(uint8_t *buf) const override {}
 };
 
-// This section will be populated by dyld with addresses to non-lazily-loaded
-// dylib symbols.
-class GotSection : public SyntheticSection {
+// This is the base class for the GOT and TLVPointer sections, which are nearly
+// functionally identical -- they will both be populated by dyld with addresses
+// to non-lazily-loaded dylib symbols. The main difference is that the
+// TLVPointerSection stores references to thread-local variables.
+class NonLazyPointerSectionBase : public SyntheticSection {
 public:
-  GotSection();
+  NonLazyPointerSectionBase(const char *segname, const char *name);
 
   const llvm::SetVector<const Symbol *> &getEntries() const { return entries; }
 
@@ -88,38 +128,156 @@ public:
 
   void writeTo(uint8_t *buf) const override;
 
-  void addEntry(Symbol &sym);
+  void addEntry(Symbol *sym);
 
 private:
   llvm::SetVector<const Symbol *> entries;
 };
 
+class GotSection : public NonLazyPointerSectionBase {
+public:
+  GotSection()
+      : NonLazyPointerSectionBase(segment_names::dataConst,
+                                  section_names::got) {
+    // TODO: section_64::reserved1 should be an index into the indirect symbol
+    // table, which we do not currently emit
+  }
+};
+
+class TlvPointerSection : public NonLazyPointerSectionBase {
+public:
+  TlvPointerSection()
+      : NonLazyPointerSectionBase(segment_names::data,
+                                  section_names::threadPtrs) {}
+};
+
+using SectionPointerUnion =
+    llvm::PointerUnion<const InputSection *, const OutputSection *>;
+
+struct Location {
+  SectionPointerUnion section = nullptr;
+  uint64_t offset = 0;
+
+  Location(SectionPointerUnion section, uint64_t offset)
+      : section(section), offset(offset) {}
+  uint64_t getVA() const;
+};
+
+// Stores rebase opcodes, which tell dyld where absolute addresses have been
+// encoded in the binary. If the binary is not loaded at its preferred address,
+// dyld has to rebase these addresses by adding an offset to them.
+class RebaseSection : public LinkEditSection {
+public:
+  RebaseSection();
+  void finalizeContents();
+  uint64_t getRawSize() const override { return contents.size(); }
+  bool isNeeded() const override { return !locations.empty(); }
+  void writeTo(uint8_t *buf) const override;
+
+  void addEntry(SectionPointerUnion section, uint64_t offset) {
+    if (config->isPic)
+      locations.push_back({section, offset});
+  }
+
+private:
+  std::vector<Location> locations;
+  SmallVector<char, 128> contents;
+};
+
+struct BindingEntry {
+  const DylibSymbol *dysym;
+  int64_t addend;
+  Location target;
+  BindingEntry(const DylibSymbol *dysym, int64_t addend, Location target)
+      : dysym(dysym), addend(addend), target(std::move(target)) {}
+};
+
 // Stores bind opcodes for telling dyld which symbols to load non-lazily.
-class BindingSection : public SyntheticSection {
+class BindingSection : public LinkEditSection {
 public:
   BindingSection();
   void finalizeContents();
-  uint64_t getSize() const override { return contents.size(); }
-  // Like other sections in __LINKEDIT, the binding section is special: its
-  // offsets are recorded in the LC_DYLD_INFO_ONLY load command, instead of in
-  // section headers.
-  bool isHidden() const override { return true; }
-  bool isNeeded() const override;
+  uint64_t getRawSize() const override { return contents.size(); }
+  bool isNeeded() const override { return !bindings.empty(); }
   void writeTo(uint8_t *buf) const override;
 
+  void addEntry(const DylibSymbol *dysym, SectionPointerUnion section,
+                uint64_t offset, int64_t addend = 0) {
+    bindings.emplace_back(dysym, addend, Location(section, offset));
+  }
+
+private:
+  std::vector<BindingEntry> bindings;
   SmallVector<char, 128> contents;
 };
+
+struct WeakBindingEntry {
+  const Symbol *symbol;
+  int64_t addend;
+  Location target;
+  WeakBindingEntry(const Symbol *symbol, int64_t addend, Location target)
+      : symbol(symbol), addend(addend), target(std::move(target)) {}
+};
+
+// Stores bind opcodes for telling dyld which weak symbols need coalescing.
+// There are two types of entries in this section:
+//
+//   1) Non-weak definitions: This is a symbol definition that weak symbols in
+//   other dylibs should coalesce to.
+//
+//   2) Weak bindings: These tell dyld that a given symbol reference should
+//   coalesce to a non-weak definition if one is found. Note that unlike in the
+//   entries in the BindingSection, the bindings here only refer to these
+//   symbols by name, but do not specify which dylib to load them from.
+class WeakBindingSection : public LinkEditSection {
+public:
+  WeakBindingSection();
+  void finalizeContents();
+  uint64_t getRawSize() const override { return contents.size(); }
+  bool isNeeded() const override {
+    return !bindings.empty() || !definitions.empty();
+  }
+
+  void writeTo(uint8_t *buf) const override;
+
+  void addEntry(const Symbol *symbol, SectionPointerUnion section,
+                uint64_t offset, int64_t addend = 0) {
+    bindings.emplace_back(symbol, addend, Location(section, offset));
+  }
+
+  bool hasEntry() const { return !bindings.empty(); }
+
+  void addNonWeakDefinition(const Defined *defined) {
+    definitions.emplace_back(defined);
+  }
+
+  bool hasNonWeakDefinition() const { return !definitions.empty(); }
+
+private:
+  std::vector<WeakBindingEntry> bindings;
+  std::vector<const Defined *> definitions;
+  SmallVector<char, 128> contents;
+};
+
+// Whether a given symbol's address can only be resolved at runtime.
+bool needsBinding(const Symbol *);
+
+// Add bindings for symbols that need weak or non-lazy bindings.
+void addNonLazyBindingEntries(const Symbol *, SectionPointerUnion,
+                              uint64_t offset, int64_t addend = 0);
 
 // The following sections implement lazy symbol binding -- very similar to the
 // PLT mechanism in ELF.
 //
-// ELF's .plt section is broken up into two sections in Mach-O: StubsSection and
-// StubHelperSection. Calls to functions in dylibs will end up calling into
+// ELF's .plt section is broken up into two sections in Mach-O: StubsSection
+// and StubHelperSection. Calls to functions in dylibs will end up calling into
 // StubsSection, which contains indirect jumps to addresses stored in the
 // LazyPointerSection (the counterpart to ELF's .plt.got).
 //
-// Initially, the LazyPointerSection contains addresses that point into one of
-// the entry points in the middle of the StubHelperSection. The code in
+// We will first describe how non-weak symbols are handled.
+//
+// At program start, the LazyPointerSection contains addresses that point into
+// one of the entry points in the middle of the StubHelperSection. The code in
 // StubHelperSection will push on the stack an offset into the
 // LazyBindingSection. The push is followed by a jump to the beginning of the
 // StubHelperSection (similar to PLT0), which then calls into dyld_stub_binder.
@@ -127,10 +285,17 @@ public:
 // the GOT.
 //
 // The stub binder will look up the bind opcodes in the LazyBindingSection at
-// the given offset. The bind opcodes will tell the binder to update the address
-// in the LazyPointerSection to point to the symbol, so that subsequent calls
-// don't have to redo the symbol resolution. The binder will then jump to the
-// resolved symbol.
+// the given offset. The bind opcodes will tell the binder to update the
+// address in the LazyPointerSection to point to the symbol, so that subsequent
+// calls don't have to redo the symbol resolution. The binder will then jump to
+// the resolved symbol.
+//
+// With weak symbols, the situation is slightly different. Since there is no
+// "weak lazy" lookup, function calls to weak symbols are always non-lazily
+// bound. We emit both regular non-lazy bindings as well as weak bindings, in
+// order that the weak bindings may overwrite the non-lazy bindings if an
+// appropriate symbol is found at runtime. However, the bound addresses will
+// still be written (non-lazily) into the LazyPointerSection.
 
 class StubsSection : public SyntheticSection {
 public:
@@ -138,13 +303,13 @@ public:
   uint64_t getSize() const override;
   bool isNeeded() const override { return !entries.empty(); }
   void writeTo(uint8_t *buf) const override;
-
-  const llvm::SetVector<DylibSymbol *> &getEntries() const { return entries; }
-
-  void addEntry(DylibSymbol &sym);
+  const llvm::SetVector<Symbol *> &getEntries() const { return entries; }
+  // Returns whether the symbol was added. Note that every stubs entry will
+  // have a corresponding entry in the LazyPointerSection.
+  bool addEntry(Symbol *);
 
 private:
-  llvm::SetVector<DylibSymbol *> entries;
+  llvm::SetVector<Symbol *> entries;
 };
 
 class StubHelperSection : public SyntheticSection {
@@ -169,6 +334,8 @@ public:
   uint64_t getSize() const override { return WordSize; }
 };
 
+// Note that this section may also be targeted by non-lazy bindings. In
+// particular, this happens when branch relocations target weak symbols.
 class LazyPointerSection : public SyntheticSection {
 public:
   LazyPointerSection();
@@ -177,35 +344,39 @@ public:
   void writeTo(uint8_t *buf) const override;
 };
 
-class LazyBindingSection : public SyntheticSection {
+class LazyBindingSection : public LinkEditSection {
 public:
   LazyBindingSection();
   void finalizeContents();
-  uint64_t getSize() const override { return contents.size(); }
-  uint32_t encode(const DylibSymbol &);
-  // Like other sections in __LINKEDIT, the lazy binding section is special: its
-  // offsets are recorded in the LC_DYLD_INFO_ONLY load command, instead of in
-  // section headers.
-  bool isHidden() const override { return true; }
-  bool isNeeded() const override;
+  uint64_t getRawSize() const override { return contents.size(); }
+  bool isNeeded() const override { return !entries.empty(); }
   void writeTo(uint8_t *buf) const override;
+  // Note that every entry here will by referenced by a corresponding entry in
+  // the StubHelperSection.
+  void addEntry(DylibSymbol *dysym);
+  const llvm::SetVector<DylibSymbol *> &getEntries() const { return entries; }
 
 private:
+  uint32_t encode(const DylibSymbol &);
+
+  llvm::SetVector<DylibSymbol *> entries;
   SmallVector<char, 128> contents;
   llvm::raw_svector_ostream os{contents};
 };
 
+// Adds stubs and bindings where necessary (e.g. if the symbol is a
+// DylibSymbol.)
+void prepareBranchTarget(Symbol *);
+
 // Stores a trie that describes the set of exported symbols.
-class ExportSection : public SyntheticSection {
+class ExportSection : public LinkEditSection {
 public:
   ExportSection();
   void finalizeContents();
-  uint64_t getSize() const override { return size; }
-  // Like other sections in __LINKEDIT, the export section is special: its
-  // offsets are recorded in the LC_DYLD_INFO_ONLY load command, instead of in
-  // section headers.
-  bool isHidden() const override { return true; }
+  uint64_t getRawSize() const override { return size; }
   void writeTo(uint8_t *buf) const override;
+
+  bool hasWeakSymbol = false;
 
 private:
   TrieBuilder trieBuilder;
@@ -213,16 +384,12 @@ private:
 };
 
 // Stores the strings referenced by the symbol table.
-class StringTableSection : public SyntheticSection {
+class StringTableSection : public LinkEditSection {
 public:
   StringTableSection();
   // Returns the start offset of the added string.
   uint32_t addString(StringRef);
-  uint64_t getSize() const override { return size; }
-  // Like other sections in __LINKEDIT, the string table section is special: its
-  // offsets are recorded in the LC_SYMTAB load command, instead of in section
-  // headers.
-  bool isHidden() const override { return true; }
+  uint64_t getRawSize() const override { return size; }
   void writeTo(uint8_t *buf) const override;
 
 private:
@@ -238,16 +405,12 @@ struct SymtabEntry {
   size_t strx;
 };
 
-class SymtabSection : public SyntheticSection {
+class SymtabSection : public LinkEditSection {
 public:
   SymtabSection(StringTableSection &);
   void finalizeContents();
   size_t getNumSymbols() const { return symbols.size(); }
-  uint64_t getSize() const override;
-  // Like other sections in __LINKEDIT, the symtab section is special: its
-  // offsets are recorded in the LC_SYMTAB load command, instead of in section
-  // headers.
-  bool isHidden() const override { return true; }
+  uint64_t getRawSize() const override;
   void writeTo(uint8_t *buf) const override;
 
 private:
@@ -255,8 +418,37 @@ private:
   std::vector<SymtabEntry> symbols;
 };
 
+// The indirect symbol table is a list of 32-bit integers that serve as indices
+// into the (actual) symbol table. The indirect symbol table is a
+// concatentation of several sub-arrays of indices, each sub-array belonging to
+// a separate section. The starting offset of each sub-array is stored in the
+// reserved1 header field of the respective section.
+//
+// These sub-arrays provide symbol information for sections that store
+// contiguous sequences of symbol references. These references can be pointers
+// (e.g. those in the GOT and TLVP sections) or assembly sequences (e.g.
+// function stubs).
+class IndirectSymtabSection : public LinkEditSection {
+public:
+  IndirectSymtabSection();
+  void finalizeContents();
+  uint32_t getNumSymbols() const;
+  uint64_t getRawSize() const override {
+    return getNumSymbols() * sizeof(uint32_t);
+  }
+  bool isNeeded() const override;
+  void writeTo(uint8_t *buf) const override;
+};
+
 struct InStruct {
+  MachHeaderSection *header = nullptr;
+  RebaseSection *rebase = nullptr;
+  BindingSection *binding = nullptr;
+  WeakBindingSection *weakBinding = nullptr;
+  LazyBindingSection *lazyBinding = nullptr;
+  ExportSection *exports = nullptr;
   GotSection *got = nullptr;
+  TlvPointerSection *tlvPointers = nullptr;
   LazyPointerSection *lazyPointers = nullptr;
   StubsSection *stubs = nullptr;
   StubHelperSection *stubHelper = nullptr;

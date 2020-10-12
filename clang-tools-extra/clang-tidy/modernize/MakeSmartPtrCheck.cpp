@@ -19,7 +19,6 @@ namespace modernize {
 
 namespace {
 
-constexpr char StdMemoryHeader[] = "memory";
 constexpr char ConstructorCall[] = "constructorCall";
 constexpr char ResetCall[] = "resetCall";
 constexpr char NewExpression[] = "newExpression";
@@ -44,18 +43,16 @@ const char MakeSmartPtrCheck::PointerType[] = "pointerType";
 MakeSmartPtrCheck::MakeSmartPtrCheck(StringRef Name, ClangTidyContext *Context,
                                      StringRef MakeSmartPtrFunctionName)
     : ClangTidyCheck(Name, Context),
-      IncludeStyle(Options.getLocalOrGlobal("IncludeStyle",
-                                            utils::IncludeSorter::getMapping(),
-                                            utils::IncludeSorter::IS_LLVM)),
+      Inserter(Options.getLocalOrGlobal("IncludeStyle",
+                                        utils::IncludeSorter::IS_LLVM)),
       MakeSmartPtrFunctionHeader(
-          Options.get("MakeSmartPtrFunctionHeader", StdMemoryHeader)),
+          Options.get("MakeSmartPtrFunctionHeader", "<memory>")),
       MakeSmartPtrFunctionName(
           Options.get("MakeSmartPtrFunction", MakeSmartPtrFunctionName)),
       IgnoreMacros(Options.getLocalOrGlobal("IgnoreMacros", true)) {}
 
 void MakeSmartPtrCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "IncludeStyle", IncludeStyle,
-                utils::IncludeSorter::getMapping());
+  Options.store(Opts, "IncludeStyle", Inserter.getStyle());
   Options.store(Opts, "MakeSmartPtrFunctionHeader", MakeSmartPtrFunctionHeader);
   Options.store(Opts, "MakeSmartPtrFunction", MakeSmartPtrFunctionName);
   Options.store(Opts, "IgnoreMacros", IgnoreMacros);
@@ -69,9 +66,7 @@ bool MakeSmartPtrCheck::isLanguageVersionSupported(
 void MakeSmartPtrCheck::registerPPCallbacks(const SourceManager &SM,
                                             Preprocessor *PP,
                                             Preprocessor *ModuleExpanderPP) {
-    Inserter = std::make_unique<utils::IncludeInserter>(SM, getLangOpts(),
-                                                         IncludeStyle);
-    PP->addPPCallbacks(Inserter->CreatePPCallbacks());
+  Inserter.registerPreprocessor(PP);
 }
 
 void MakeSmartPtrCheck::registerMatchers(ast_matchers::MatchFinder *Finder) {
@@ -434,9 +429,7 @@ void MakeSmartPtrCheck::insertHeader(DiagnosticBuilder &Diag, FileID FD) {
   if (MakeSmartPtrFunctionHeader.empty()) {
     return;
   }
-  Diag << Inserter->CreateIncludeInsertion(
-      FD, MakeSmartPtrFunctionHeader,
-      /*IsAngled=*/MakeSmartPtrFunctionHeader == StdMemoryHeader);
+  Diag << Inserter.createIncludeInsertion(FD, MakeSmartPtrFunctionHeader);
 }
 
 } // namespace modernize

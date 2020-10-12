@@ -18,6 +18,8 @@ service SymbolIndex {
   rpc FuzzyFind(FuzzyFindRequest) returns (stream FuzzyFindReply) {}
 
   rpc Refs(RefsRequest) returns (stream RefsReply) {}
+
+  rpc Relations(RelationsRequest) returns (stream RelationsReply) {}
 }
 
 message LookupRequest { repeated string ids = 1; }
@@ -71,7 +73,7 @@ message Symbol {
   string name = 3;
   SymbolLocation definition = 4;
   string scope = 5;
-  SymbolLocation canonical_declarattion = 6;
+  SymbolLocation canonical_declaration = 6;
   int32 references = 7;
   uint32 origin = 8;
   string signature = 9;
@@ -99,7 +101,10 @@ message SymbolInfo {
 message SymbolLocation {
   Position start = 1;
   Position end = 2;
-  string file_uri = 3;
+  // clangd::SymbolLocation stores FileURI, but the protocol transmits a the
+  // relative path. Because paths are different on the remote and local machines
+  // they will be translated in the marshalling layer.
+  string file_path = 3;
 }
 
 message Position {
@@ -110,4 +115,26 @@ message Position {
 message HeaderWithReferences {
   string header = 1;
   uint32 references = 2;
+}
+
+message RelationsRequest {
+  repeated string subjects = 1;
+  uint32 predicate = 2;
+  uint32 limit = 3;
+}
+
+// The response is a stream of reference messages, and one terminating has_more
+// message.
+message RelationsReply {
+  oneof kind {
+    Relation stream_result = 1;
+    bool final_result = 2; // HasMore
+  }
+}
+
+// This struct does not mirror clangd::Relation but rather the arguments of
+// SymbolIndex::relations callback.
+message Relation {
+  string subject_id = 1;
+  Symbol object = 2;
 }

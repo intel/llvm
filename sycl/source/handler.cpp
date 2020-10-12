@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <algorithm>
+
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
@@ -111,6 +113,21 @@ event handler::finalize() {
 
   MLastEvent = detail::createSyclObjFromImpl<event>(Event);
   return MLastEvent;
+}
+
+void handler::associateWithHandler(detail::AccessorBaseHost *AccBase,
+                                   access::target AccTarget) {
+  detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
+  detail::Requirement *Req = AccImpl.get();
+  // Add accessor to the list of requirements.
+  MRequirements.push_back(Req);
+  // Store copy of the accessor.
+  MAccStorage.push_back(std::move(AccImpl));
+  // Add an accessor to the handler list of associated accessors.
+  // For associated accessors index does not means nothing.
+  MAssociatedAccesors.emplace_back(detail::kernel_param_kind_t::kind_accessor,
+                                   Req, static_cast<int>(AccTarget),
+                                   /*index*/ 0);
 }
 
 void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
@@ -276,6 +293,38 @@ void handler::extractArgsAndReqsFromLambda(
 // method inside the library and returns the result.
 string_class handler::getKernelName() {
   return MKernel->get_info<info::kernel::function_name>();
+}
+
+void handler::barrier(const vector_class<event> &WaitList) {
+  throwIfActionIsCreated();
+  MCGType = detail::CG::BARRIER_WAITLIST;
+  MEventsWaitWithBarrier.resize(WaitList.size());
+  std::transform(
+      WaitList.begin(), WaitList.end(), MEventsWaitWithBarrier.begin(),
+      [](const event &Event) { return detail::getSyclObjImpl(Event); });
+}
+
+void handler::memcpy(void *Dest, const void *Src, size_t Count) {
+  throwIfActionIsCreated();
+  MSrcPtr = const_cast<void *>(Src);
+  MDstPtr = Dest;
+  MLength = Count;
+  MCGType = detail::CG::COPY_USM;
+}
+
+void handler::memset(void *Dest, int Value, size_t Count) {
+  throwIfActionIsCreated();
+  MDstPtr = Dest;
+  MPattern.push_back(static_cast<char>(Value));
+  MLength = Count;
+  MCGType = detail::CG::FILL_USM;
+}
+
+void handler::prefetch(const void *Ptr, size_t Count) {
+  throwIfActionIsCreated();
+  MDstPtr = const_cast<void *>(Ptr);
+  MLength = Count;
+  MCGType = detail::CG::PREFETCH_USM;
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

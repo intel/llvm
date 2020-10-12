@@ -3066,7 +3066,7 @@ rnb_err_t RNBRemote::HandlePacket_last_signal(const char *unused) {
                  WEXITSTATUS(pid_status));
       else if (WIFSIGNALED(pid_status))
         snprintf(pid_exited_packet, sizeof(pid_exited_packet), "X%02x",
-                 WEXITSTATUS(pid_status));
+                 WTERMSIG(pid_status));
       else if (WIFSTOPPED(pid_status))
         snprintf(pid_exited_packet, sizeof(pid_exited_packet), "S%02x",
                  WSTOPSIG(pid_status));
@@ -6356,10 +6356,11 @@ rnb_err_t RNBRemote::HandlePacket_qProcessInfo(const char *p) {
             DNBProcessMemoryRead(pid, load_command_addr, sizeof(lc), &lc);
         (void)bytes_read;
 
+        bool is_executable = true;
         uint32_t major_version, minor_version, patch_version;
-        auto *platform = DNBGetDeploymentInfo(pid, lc, load_command_addr,
-                                              major_version, minor_version,
-                                              patch_version);
+        auto *platform =
+            DNBGetDeploymentInfo(pid, is_executable, lc, load_command_addr,
+                                 major_version, minor_version, patch_version);
         if (platform) {
           os_handled = true;
           rep << "ostype:" << platform << ";";

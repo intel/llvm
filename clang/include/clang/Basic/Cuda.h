@@ -37,6 +37,7 @@ const char *CudaVersionToString(CudaVersion V);
 CudaVersion CudaStringToVersion(const llvm::Twine &S);
 
 enum class CudaArch {
+  UNUSED,
   UNKNOWN,
   SM_20,
   SM_21,
@@ -75,6 +76,7 @@ enum class CudaArch {
   GFX1011,
   GFX1012,
   GFX1030,
+  GFX1031,
   LAST,
 };
 

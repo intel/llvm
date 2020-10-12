@@ -15,7 +15,8 @@ func @matmul(%arg0: memref<?xi8>, %M: index, %N: index, %K: index) {
   %A = view %arg0[%c0][%M, %K] : memref<?xi8> to memref<?x?xf32>
   %B = view %arg0[%c0][%K, %N] : memref<?xi8> to memref<?x?xf32>
   %C = view %arg0[%c0][%M, %N] : memref<?xi8> to memref<?x?xf32>
-  linalg.matmul %A, %B, %C : (memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>)
+  linalg.matmul ins(%A, %B: memref<?x?xf32>, memref<?x?xf32>)
+               outs(%C: memref<?x?xf32>)
   return
 }
 
@@ -50,9 +51,9 @@ func @conv_view3(%arg0: memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>, %arg1:
 //       CHECK:   %[[X0:.*]] = dim %arg2, %c1 : memref<?x?x?xf32, #[[$strided3D]]>
 //       CHECK:   affine.for %{{.*}} = 0 to %[[B]] {
 //       CHECK:     affine.for %{{.*}} = 0 to %[[X0]] {
-//       CHECK:       affine.for %{{.*}} = 0 to %[[K]] {
+//       CHECK:       affine.for %{{.*}} = 0 to %[[Z0]] {
 //       CHECK:         affine.for %{{.*}} = 0 to %[[Q]] {
-//       CHECK:           affine.for %{{.*}} = 0 to %[[Z0]] {
+//       CHECK:           affine.for %{{.*}} = 0 to %[[K]] {
 //       CHECK:            %[[SUM:.*]] = affine.apply #[[$stride2Dilation1]](%{{.*}}, %{{.*}})
 //       No padding needed here; only affine loads.
 //       CHECK-NEXT:       affine.load
@@ -80,10 +81,10 @@ func @conv_padding(%arg0: memref<?x?x?x?xf32>,
 //       CHECK:   affine.for %{{.*}} = 0 to %[[B]] {
 //       CHECK:     affine.for %{{.*}} = 0 to %[[X0]] {
 //       CHECK:       affine.for %{{.*}} = 0 to %[[X1]] {
-//       CHECK:         affine.for %{{.*}} = 0 to %[[K]] {
-//       CHECK:           affine.for %{{.*}} = 0 to %[[Q]] {
-//       CHECK:             affine.for %{{.*}} = 0 to %[[Z0]] {
-//       CHECK:               affine.for %{{.*}} = 0 to %[[Z1]] {
+//       CHECK:         affine.for %{{.*}} = 0 to %[[Z0]] {
+//       CHECK:           affine.for %{{.*}} = 0 to %[[Z1]] {
+//       CHECK:             affine.for %{{.*}} = 0 to %[[Q]] {
+//       CHECK:               affine.for %{{.*}} = 0 to %[[K]] {
 //       CHECK:                 %[[SUM0:.*]] = affine.apply #{{.*}}(%{{.*}}, %{{.*}})
 //       CHECK:                 %[[SUM1:.*]] = affine.apply #{{.*}}(%{{.*}}, %{{.*}})
 //       CHECK:                 %[[IDX:.*]] = affine.max #[[$clampMinMap]](%[[SUM0]])
@@ -102,7 +103,8 @@ func @conv_padding(%arg0: memref<?x?x?x?xf32>,
 // Named ops to loops.
 //----------------------------------------------------------------------------//
 func @named_batch_matmul(%A: memref<?x?x?xf32>, %B: memref<?x?x?xf32>, %C: memref<?x?x?xf32>) {
-  linalg.batch_matmul %A, %B, %C : (memref<?x?x?xf32>, memref<?x?x?xf32>, memref<?x?x?xf32>) -> ()
+  linalg.batch_matmul ins(%A, %B: memref<?x?x?xf32>, memref<?x?x?xf32>)
+                     outs(%C : memref<?x?x?xf32>)
   return
 }
 // CHECK-LABEL: @named_batch_matmul
@@ -123,3 +125,27 @@ func @named_batch_matmul(%A: memref<?x?x?xf32>, %B: memref<?x?x?xf32>, %C: memre
 //       CHECK:       %[[inc:.*]] = mulf %[[va]], %[[vb]] : f32
 //       CHECK:       %[[res:.*]] = addf %[[vc]], %[[inc]] : f32
 //       CHECK:       affine.store %[[res]], %[[mC]][%[[b]], %[[m]], %[[n]]] : memref<?x?x?xf32>
+
+// CHECK-LABEL: func @pooling_max_min
+func @pooling_max_min(%arg0: memref<?x?xf32>,
+                      %arg1: memref<?x?xi32>,
+                      %arg2: memref<?x?xf32>) {
+  linalg.pooling_max(%arg0, %arg1, %arg2) { strides = [2, 1] }:
+    memref<?x?xf32>, memref<?x?xi32>, memref<?x?xf32>
+  linalg.pooling_min(%arg0, %arg1, %arg2) { strides = [2, 1] }:
+    memref<?x?xf32>, memref<?x?xi32>, memref<?x?xf32>
+  return
+}
+// This is a basic check to make sure the right load/stores are used. loops.mlir
+// checks for the rest.
+// CHECK:      affine.load
+// CHECK-NEXT: affine.load
+// CHECK-NEXT: cmpf
+// CHECK-NEXT: select
+// CHECK-NEXT: affine.store
+// The min pooling body.
+// CHECK:      affine.load
+// CHECK-NEXT: affine.load
+// CHECK-NEXT: cmpf
+// CHECK-NEXT: select
+// CHECK-NEXT: affine.store

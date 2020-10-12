@@ -226,6 +226,19 @@ entry:
 ; CHECK: ret i32 undef
 }
 
+define i32 @moo3(i32* nocapture %a, i32* nocapture %b) nounwind uwtable {
+entry:
+  %0 = bitcast i32* %a to i8*
+  tail call void @llvm.assume(i1 true) ["align"(i8* %0, i16 32), "align"(i32* %b, i32 128)]
+  %1 = bitcast i32* %b to i8*
+  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 4 %0, i8* align 4 %1, i64 64, i1 false)
+  ret i32 undef
+
+; CHECK-LABEL: @moo3
+; CHECK: @llvm.memcpy.p0i8.p0i8.i64(i8* align 32 %0, i8* align 128 %1, i64 64, i1 false)
+; CHECK: ret i32 undef
+}
+
 declare void @llvm.assume(i1) nounwind
 
 declare void @llvm.memset.p0i8.i64(i8* nocapture, i8, i64, i1) nounwind

@@ -649,24 +649,25 @@ inline bool isBool(StringRef S) {
 inline QuotingType needsQuotes(StringRef S) {
   if (S.empty())
     return QuotingType::Single;
+
+  QuotingType MaxQuotingNeeded = QuotingType::None;
   if (isSpace(static_cast<unsigned char>(S.front())) ||
       isSpace(static_cast<unsigned char>(S.back())))
-    return QuotingType::Single;
+    MaxQuotingNeeded = QuotingType::Single;
   if (isNull(S))
-    return QuotingType::Single;
+    MaxQuotingNeeded = QuotingType::Single;
   if (isBool(S))
-    return QuotingType::Single;
+    MaxQuotingNeeded = QuotingType::Single;
   if (isNumeric(S))
-    return QuotingType::Single;
+    MaxQuotingNeeded = QuotingType::Single;
 
   // 7.3.3 Plain Style
   // Plain scalars must not begin with most indicators, as this would cause
   // ambiguity with other YAML constructs.
   static constexpr char Indicators[] = R"(-?:\,[]{}#&*!|>'"%@`)";
   if (S.find_first_of(Indicators) == 0)
-    return QuotingType::Single;
+    MaxQuotingNeeded = QuotingType::Single;
 
-  QuotingType MaxQuotingNeeded = QuotingType::None;
   for (unsigned char C : S) {
     // Alphanum is safe.
     if (isAlnum(C))
@@ -684,11 +685,11 @@ inline QuotingType needsQuotes(StringRef S) {
     case 0x9:
       continue;
     // LF(0xA) and CR(0xD) may delimit values and so require at least single
-    // quotes.
+    // quotes. LLVM YAML parser cannot handle single quoted multiline so use
+    // double quoting to produce valid YAML.
     case 0xA:
     case 0xD:
-      MaxQuotingNeeded = QuotingType::Single;
-      continue;
+      return QuotingType::Double;
     // DEL (0x7F) are excluded from the allowed character range.
     case 0x7F:
       return QuotingType::Double;
@@ -788,6 +789,7 @@ public:
   virtual NodeKind getNodeKind() = 0;
 
   virtual void setError(const Twine &) = 0;
+  virtual void setAllowUnknownKeys(bool Allow);
 
   template <typename T>
   void enumCase(T &Val, const char* Str, const T ConstVal) {
@@ -901,24 +903,7 @@ private:
   template <typename T, typename Context>
   void processKeyWithDefault(const char *Key, Optional<T> &Val,
                              const Optional<T> &DefaultValue, bool Required,
-                             Context &Ctx) {
-    assert(DefaultValue.hasValue() == false &&
-           "Optional<T> shouldn't have a value!");
-    void *SaveInfo;
-    bool UseDefault = true;
-    const bool sameAsDefault = outputting() && !Val.hasValue();
-    if (!outputting() && !Val.hasValue())
-      Val = T();
-    if (Val.hasValue() &&
-        this->preflightKey(Key, Required, sameAsDefault, UseDefault,
-                           SaveInfo)) {
-      yamlize(*this, Val.getValue(), Required, Ctx);
-      this->postflightKey(SaveInfo);
-    } else {
-      if (UseDefault)
-        Val = DefaultValue;
-    }
-  }
+                             Context &Ctx);
 
   template <typename T, typename Context>
   void processKeyWithDefault(const char *Key, T &Val, const T &DefaultValue,
@@ -1511,6 +1496,9 @@ private:
   void setError(HNode *hnode, const Twine &message);
   void setError(Node *node, const Twine &message);
 
+  void reportWarning(HNode *hnode, const Twine &message);
+  void reportWarning(Node *hnode, const Twine &message);
+
 public:
   // These are only used by operator>>. They could be private
   // if those templated things could be made friends.
@@ -1519,6 +1507,8 @@ public:
 
   /// Returns the current node that's being parsed by the YAML Parser.
   const Node *getCurrentNode() const;
+
+  void setAllowUnknownKeys(bool Allow) override;
 
 private:
   SourceMgr                           SrcMgr; // must be before Strm
@@ -1530,6 +1520,7 @@ private:
   std::vector<bool>                   BitValuesUsed;
   HNode *CurrentNode = nullptr;
   bool                                ScalarMatchFound = false;
+  bool AllowUnknownKeys = false;
 };
 
 ///
@@ -1623,6 +1614,42 @@ private:
   StringRef Padding;
   StringRef PaddingBeforeContainer;
 };
+
+template <typename T, typename Context>
+void IO::processKeyWithDefault(const char *Key, Optional<T> &Val,
+                               const Optional<T> &DefaultValue, bool Required,
+                               Context &Ctx) {
+  assert(DefaultValue.hasValue() == false &&
+         "Optional<T> shouldn't have a value!");
+  void *SaveInfo;
+  bool UseDefault = true;
+  const bool sameAsDefault = outputting() && !Val.hasValue();
+  if (!outputting() && !Val.hasValue())
+    Val = T();
+  if (Val.hasValue() &&
+      this->preflightKey(Key, Required, sameAsDefault, UseDefault, SaveInfo)) {
+
+    // When reading an Optional<X> key from a YAML description, we allow the
+    // special "<none>" value, which can be used to specify that no value was
+    // requested, i.e. the DefaultValue will be assigned. The DefaultValue is
+    // usually None.
+    bool IsNone = false;
+    if (!outputting())
+      if (auto *Node = dyn_cast<ScalarNode>(((Input *)this)->getCurrentNode()))
+        // We use rtrim to ignore possible white spaces that might exist when a
+        // comment is present on the same line.
+        IsNone = Node->getRawValue().rtrim(' ') == "<none>";
+
+    if (IsNone)
+      Val = DefaultValue;
+    else
+      yamlize(*this, Val.getValue(), Required, Ctx);
+    this->postflightKey(SaveInfo);
+  } else {
+    if (UseDefault)
+      Val = DefaultValue;
+  }
+}
 
 /// YAML I/O does conversion based on types. But often native data types
 /// are just a typedef of built in intergral types (e.g. int).  But the C++

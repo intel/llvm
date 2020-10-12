@@ -431,6 +431,11 @@ public:
   using VariableDbgInfoMapTy = SmallVector<VariableDbgInfo, 4>;
   VariableDbgInfoMapTy VariableDbgInfos;
 
+  /// A count of how many instructions in the function have had numbers
+  /// assigned to them. Used for debug value tracking, to determine the
+  /// next instruction number.
+  unsigned DebugInstrNumberingCount = 0;
+
   MachineFunction(Function &F, const LLVMTargetMachine &Target,
                   const TargetSubtargetInfo &STI, unsigned FunctionNum,
                   MachineModuleInfo &MMI);
@@ -494,7 +499,8 @@ public:
   /// Returns true if this function has basic block sections enabled.
   bool hasBBSections() const {
     return (BBSectionsType == BasicBlockSection::All ||
-            BBSectionsType == BasicBlockSection::List);
+            BBSectionsType == BasicBlockSection::List ||
+            BBSectionsType == BasicBlockSection::Preset);
   }
 
   /// Returns true if basic block labels are to be generated for this function.
@@ -503,9 +509,6 @@ public:
   }
 
   void setBBSectionsType(BasicBlockSection V) { BBSectionsType = V; }
-
-  /// Creates basic block Labels for this function.
-  void createBBLabels();
 
   /// Assign IsBeginSection IsEndSection fields for basic blocks in this
   /// function.
@@ -769,7 +772,7 @@ public:
   /// CreateMachineInstr - Allocate a new MachineInstr. Use this instead
   /// of `new MachineInstr'.
   MachineInstr *CreateMachineInstr(const MCInstrDesc &MCID, const DebugLoc &DL,
-                                   bool NoImp = false);
+                                   bool NoImplicit = false);
 
   /// Create a new MachineInstr which is a copy of \p Orig, identical in all
   /// ways except the instruction has no parent, prev, or next. Bundling flags
@@ -814,6 +817,14 @@ public:
   /// explicitly deallocated.
   MachineMemOperand *getMachineMemOperand(const MachineMemOperand *MMO,
                                           int64_t Offset, uint64_t Size);
+
+  /// getMachineMemOperand - Allocate a new MachineMemOperand by copying
+  /// an existing one, replacing only the MachinePointerInfo and size.
+  /// MachineMemOperands are owned by the MachineFunction and need not be
+  /// explicitly deallocated.
+  MachineMemOperand *getMachineMemOperand(const MachineMemOperand *MMO,
+                                          MachinePointerInfo &PtrInfo,
+                                          uint64_t Size);
 
   /// Allocate a new MachineMemOperand by copying an existing one,
   /// replacing only AliasAnalysis information. MachineMemOperands are owned
@@ -1067,6 +1078,10 @@ public:
   /// the same callee.
   void moveCallSiteInfo(const MachineInstr *Old,
                         const MachineInstr *New);
+
+  unsigned getNewDebugInstrNum() {
+    return ++DebugInstrNumberingCount;
+  }
 };
 
 //===--------------------------------------------------------------------===//
@@ -1132,6 +1147,11 @@ template <> struct GraphTraits<Inverse<const MachineFunction*>> :
     return &G.Graph->front();
   }
 };
+
+class MachineFunctionAnalysisManager;
+void verifyMachineFunction(MachineFunctionAnalysisManager *,
+                           const std::string &Banner,
+                           const MachineFunction &MF);
 
 } // end namespace llvm
 

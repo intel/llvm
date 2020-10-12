@@ -1,12 +1,12 @@
 ; RUN: llc -mtriple=amdgcn-amd-unknown -mcpu=gfx802 -mattr=-code-object-v3 < %s | FileCheck --check-prefix=GCN --check-prefix=OSABI-UNK --check-prefix=GFX802 %s
 ; RUN: llc -mtriple=amdgcn-amd-unknown -mcpu=iceland -mattr=-code-object-v3 < %s | FileCheck --check-prefix=GCN --check-prefix=OSABI-UNK --check-prefix=GFX802 %s
-; RUN: llc -mtriple=amdgcn-amd-unknown -mcpu=gfx802 -filetype=obj -mattr=-code-object-v3 < %s | llvm-readelf --notes  | FileCheck --check-prefix=GCN --check-prefix=OSABI-UNK-ELF --check-prefix=GFX802 %s
+; RUN: llc -mtriple=amdgcn-amd-unknown -mcpu=gfx802 -filetype=obj -mattr=-code-object-v3 < %s | llvm-readelf --notes  - | FileCheck --check-prefix=GCN --check-prefix=OSABI-UNK-ELF --check-prefix=GFX802 %s
 ; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx802 -mattr=-code-object-v3 < %s | FileCheck --check-prefix=GCN --check-prefix=OSABI-HSA --check-prefix=GFX802 %s
 ; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=iceland -mattr=-code-object-v3 < %s | FileCheck --check-prefix=GCN --check-prefix=OSABI-HSA --check-prefix=GFX802 %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx802 -filetype=obj -mattr=-code-object-v3 < %s | llvm-readelf --notes  | FileCheck --check-prefix=GCN --check-prefix=OSABI-HSA-ELF --check-prefix=GFX802 %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx802 -filetype=obj -mattr=-code-object-v3 < %s | llvm-readelf --notes  - | FileCheck --check-prefix=GCN --check-prefix=OSABI-HSA-ELF --check-prefix=GFX802 %s
 ; RUN: llc -mtriple=amdgcn-amd-amdpal -mcpu=gfx802 -mattr=-code-object-v3 < %s | FileCheck --check-prefix=GCN --check-prefix=OSABI-PAL --check-prefix=GFX802 %s
 ; RUN: llc -mtriple=amdgcn-amd-amdpal -mcpu=iceland -mattr=-code-object-v3 < %s | FileCheck --check-prefix=GCN --check-prefix=OSABI-PAL --check-prefix=GFX802 %s
-; RUN: llc -mtriple=amdgcn-amd-amdpal -mcpu=gfx802 -filetype=obj -mattr=-code-object-v3 < %s | llvm-readelf --notes  | FileCheck --check-prefix=GCN --check-prefix=OSABI-PAL-ELF --check-prefix=GFX802 %s
+; RUN: llc -mtriple=amdgcn-amd-amdpal -mcpu=gfx802 -filetype=obj -mattr=-code-object-v3 < %s | llvm-readelf --notes  - | FileCheck --check-prefix=GCN --check-prefix=OSABI-PAL-ELF --check-prefix=GFX802 %s
 ; RUN: llc -march=r600 < %s | FileCheck --check-prefix=R600 %s
 
 ; OSABI-UNK-NOT: .hsa_code_object_version
@@ -31,8 +31,8 @@
 ; OSABI-HSA: .amd_amdgpu_hsa_metadata
 ; OSABI-HSA-NOT: .amd_amdgpu_pal_metadata
 
-; OSABI-HSA-ELF: Unknown note type (0x00000001)
-; OSABI-HSA-ELF: Unknown note type (0x00000003)
+; OSABI-HSA-ELF: Unknown note type: (0x00000001)
+; OSABI-HSA-ELF: Unknown note type: (0x00000003)
 ; OSABI-HSA-ELF: NT_AMD_AMDGPU_ISA (ISA Version)
 ; OSABI-HSA-ELF: ISA Version:
 ; OSABI-HSA-ELF: amdgcn-amd-amdhsa--gfx802
@@ -59,7 +59,7 @@
 ; OSABI-PAL-NOT: .amd_amdgpu_hsa_metadata
 ; OSABI-PAL: .amd_amdgpu_pal_metadata
 
-; OSABI-PAL-ELF: Unknown note type (0x00000003)
+; OSABI-PAL-ELF: Unknown note type: (0x00000003)
 ; OSABI-PAL-ELF: NT_AMD_AMDGPU_ISA (ISA Version)
 ; OSABI-PAL-ELF: ISA Version:
 ; OSABI-PAL-ELF: amdgcn-amd-amdpal--gfx802

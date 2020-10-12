@@ -382,18 +382,26 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
       return false;
     case MVE_ASRLi:
     case MVE_ASRLr:
-    case MVE_LSRL:	
+    case MVE_LSRL:
+    case MVE_LSLLi:
+    case MVE_LSLLr:
     case MVE_SQRSHR:
+    case MVE_SQRSHRL:
     case MVE_SQSHL:
+    case MVE_SQSHLL:
     case MVE_SRSHR:
+    case MVE_SRSHRL:
     case MVE_UQRSHL:
+    case MVE_UQRSHLL:
     case MVE_UQSHL:
+    case MVE_UQSHLL:
     case MVE_URSHR:
+    case MVE_URSHRL:
     case MVE_VABDf16:
     case MVE_VABDf32:
     case MVE_VABDs16:
     case MVE_VABDs32:
-    case MVE_VABDs8:	
+    case MVE_VABDs8:
     case MVE_VABDu16:
     case MVE_VABDu32:
     case MVE_VABDu8:
@@ -609,6 +617,42 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
     case MVE_VIWDUPu16:
     case MVE_VIWDUPu32:
     case MVE_VIWDUPu8:
+    case MVE_VLD20_8:
+    case MVE_VLD21_8:
+    case MVE_VLD20_16:
+    case MVE_VLD21_16:
+    case MVE_VLD20_32:
+    case MVE_VLD21_32:
+    case MVE_VLD20_8_wb:
+    case MVE_VLD21_8_wb:
+    case MVE_VLD20_16_wb:
+    case MVE_VLD21_16_wb:
+    case MVE_VLD20_32_wb:
+    case MVE_VLD21_32_wb:
+    case MVE_VLD40_8:
+    case MVE_VLD41_8:
+    case MVE_VLD42_8:
+    case MVE_VLD43_8:
+    case MVE_VLD40_16:
+    case MVE_VLD41_16:
+    case MVE_VLD42_16:
+    case MVE_VLD43_16:
+    case MVE_VLD40_32:
+    case MVE_VLD41_32:
+    case MVE_VLD42_32:
+    case MVE_VLD43_32:
+    case MVE_VLD40_8_wb:
+    case MVE_VLD41_8_wb:
+    case MVE_VLD42_8_wb:
+    case MVE_VLD43_8_wb:
+    case MVE_VLD40_16_wb:
+    case MVE_VLD41_16_wb:
+    case MVE_VLD42_16_wb:
+    case MVE_VLD43_16_wb:
+    case MVE_VLD40_32_wb:
+    case MVE_VLD41_32_wb:
+    case MVE_VLD42_32_wb:
+    case MVE_VLD43_32_wb:
     case MVE_VLDRBS16:
     case MVE_VLDRBS16_post:
     case MVE_VLDRBS16_pre:
@@ -657,9 +701,9 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
     case MVE_VLDRWU32_rq_u:
     case MVE_VMOVimmf32:
     case MVE_VMOVimmi16:
-    case MVE_VMOVimmi32:	
+    case MVE_VMOVimmi32:
     case MVE_VMOVimmi64:
-    case MVE_VMOVimmi8:	
+    case MVE_VMOVimmi8:
     case MVE_VMOVNi16bh:
     case MVE_VMOVNi16th:
     case MVE_VMOVNi32bh:
@@ -679,7 +723,7 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
     case MVE_VMULLTs8:
     case MVE_VMULLTu16:
     case MVE_VMULLTu32:
-    case MVE_VMULLTu8:	
+    case MVE_VMULLTu8:
     case MVE_VMUL_qr_f16:
     case MVE_VMUL_qr_f32:
     case MVE_VMUL_qr_i16:
@@ -702,7 +746,29 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
     case MVE_VORR:
     case MVE_VORRimmi16:
     case MVE_VORRimmi32:
-    case MVE_VPST:	
+    case MVE_VPST:
+    case MVE_VPTv16i8:
+    case MVE_VPTv8i16:
+    case MVE_VPTv4i32:
+    case MVE_VPTv16i8r:
+    case MVE_VPTv8i16r:
+    case MVE_VPTv4i32r:
+    case MVE_VPTv16s8:
+    case MVE_VPTv8s16:
+    case MVE_VPTv4s32:
+    case MVE_VPTv16s8r:
+    case MVE_VPTv8s16r:
+    case MVE_VPTv4s32r:
+    case MVE_VPTv16u8:
+    case MVE_VPTv8u16:
+    case MVE_VPTv4u32:
+    case MVE_VPTv16u8r:
+    case MVE_VPTv8u16r:
+    case MVE_VPTv4u32r:
+    case MVE_VPTv8f16:
+    case MVE_VPTv4f32:
+    case MVE_VPTv8f16r:
+    case MVE_VPTv4f32r:
     case MVE_VQABSs16:
     case MVE_VQABSs32:
     case MVE_VQABSs8:
@@ -718,6 +784,12 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
     case MVE_VQADDu16:
     case MVE_VQADDu32:
     case MVE_VQADDu8:
+    case MVE_VQDMULH_qr_s16:
+    case MVE_VQDMULH_qr_s32:
+    case MVE_VQDMULH_qr_s8:
+    case MVE_VQDMULHi16:
+    case MVE_VQDMULHi32:
+    case MVE_VQDMULHi8:
     case MVE_VQDMULL_qr_s16bh:
     case MVE_VQDMULL_qr_s16th:
     case MVE_VQDMULL_qr_s32bh:
@@ -726,6 +798,12 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
     case MVE_VQDMULLs16th:
     case MVE_VQDMULLs32bh:
     case MVE_VQDMULLs32th:
+    case MVE_VQRDMULH_qr_s16:
+    case MVE_VQRDMULH_qr_s32:
+    case MVE_VQRDMULH_qr_s8:
+    case MVE_VQRDMULHi16:
+    case MVE_VQRDMULHi32:
+    case MVE_VQRDMULHi8:
     case MVE_VQNEGs16:
     case MVE_VQNEGs32:
     case MVE_VQNEGs8:
@@ -814,7 +892,7 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
     case MVE_VRHADDs32:
     case MVE_VRHADDs8:
     case MVE_VRHADDu16:
-    case MVE_VRHADDu32:	
+    case MVE_VRHADDu32:
     case MVE_VRHADDu8:
     case MVE_VRINTf16A:
     case MVE_VRINTf16M:
@@ -825,12 +903,12 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
     case MVE_VRINTf32A:
     case MVE_VRINTf32M:
     case MVE_VRINTf32N:
-    case MVE_VRINTf32P:	
-    case MVE_VRINTf32X:	
+    case MVE_VRINTf32P:
+    case MVE_VRINTf32X:
     case MVE_VRINTf32Z:
     case MVE_VRSHL_by_vecs16:
     case MVE_VRSHL_by_vecs32:
-    case MVE_VRSHL_by_vecs8:	
+    case MVE_VRSHL_by_vecs8:
     case MVE_VRSHL_by_vecu16:
     case MVE_VRSHL_by_vecu32:
     case MVE_VRSHL_by_vecu8:
@@ -887,7 +965,7 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
     case MVE_VSTRB16_rq:
     case MVE_VSTRB32:
     case MVE_VSTRB32_post:
-    case MVE_VSTRB32_pre:	
+    case MVE_VSTRB32_pre:
     case MVE_VSTRB32_rq:
     case MVE_VSTRB8_rq:
     case MVE_VSTRBU8:
@@ -924,6 +1002,20 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
     case MVE_VSUBi16:
     case MVE_VSUBi32:
     case MVE_VSUBi8:
+    case VLDR_P0_off:
+    case VLDR_P0_post:
+    case VLDR_P0_pre:
+    case VLDR_VPR_off:
+    case VLDR_VPR_post:
+    case VLDR_VPR_pre:
+    case VSTR_P0_off:
+    case VSTR_P0_post:
+    case VSTR_P0_pre:
+    case VSTR_VPR_off:
+    case VSTR_VPR_post:
+    case VSTR_VPR_pre:
+    case VMRS_P0:
+    case VMRS_VPR:
       return true;
     }
   };
@@ -948,38 +1040,126 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
   ARMSubtarget ST(TM->getTargetTriple(), std::string(TM->getTargetCPU()),
                   std::string(TM->getTargetFeatureString()),
                   *static_cast<const ARMBaseTargetMachine *>(TM.get()), false);
-  const ARMBaseInstrInfo *TII = ST.getInstrInfo();
+
   auto MII = TM->getMCInstrInfo();
-
   for (unsigned i = 0; i < ARM::INSTRUCTION_LIST_END; ++i) {
-    const MCInstrDesc &Desc = TII->get(i);
-
-    for (auto &Op : Desc.operands()) {
-      // Only check instructions that access the MQPR regs.
-      if ((Op.OperandType & MCOI::OPERAND_REGISTER) == 0 ||
-          Op.RegClass != ARM::MQPRRegClassID)
-        continue;
-
-      uint64_t Flags = MII->get(i).TSFlags;
-      bool Valid = (Flags & ARMII::ValidForTailPredication) != 0;
-      ASSERT_EQ(IsValidTPOpcode(i), Valid)
-                << MII->getName(i)
-                << ": mismatched expectation for tail-predicated safety\n";
-      break;
-    }
+    uint64_t Flags = MII->get(i).TSFlags;
+    if ((Flags & ARMII::DomainMask) != ARMII::DomainMVE)
+      continue;
+    bool Valid = (Flags & ARMII::ValidForTailPredication) != 0;
+    ASSERT_EQ(IsValidTPOpcode(i), Valid)
+              << MII->getName(i)
+              << ": mismatched expectation for tail-predicated safety\n";
   }
 }
 
 TEST(MachineInstr, HasSideEffects) {
   using namespace ARM;
   std::set<unsigned> UnpredictableOpcodes = {
-      MVE_VCTP8,     MVE_VCTP16,    MVE_VCTP32,    MVE_VCTP64,    MVE_VPST,
-      MVE_VPTv16i8,  MVE_VPTv8i16,  MVE_VPTv4i32,  MVE_VPTv16i8r, MVE_VPTv8i16r,
-      MVE_VPTv4i32r, MVE_VPTv16s8,  MVE_VPTv8s16,  MVE_VPTv4s32,  MVE_VPTv16s8r,
-      MVE_VPTv8s16r, MVE_VPTv4s32r, MVE_VPTv16u8,  MVE_VPTv8u16,  MVE_VPTv4u32,
-      MVE_VPTv16u8r, MVE_VPTv8u16r, MVE_VPTv4u32r, MVE_VPTv8f16,  MVE_VPTv4f32,
-      MVE_VPTv8f16r, MVE_VPTv4f32r, MVE_VADC,      MVE_VADCI,     MVE_VSBC,
-      MVE_VSBCI,     MVE_VSHLC,
+      // MVE Instructions
+      MVE_VCTP8,
+      MVE_VCTP16,
+      MVE_VCTP32,
+      MVE_VCTP64,
+      MVE_VPST,
+      MVE_VPTv16i8,
+      MVE_VPTv8i16,
+      MVE_VPTv4i32,
+      MVE_VPTv16i8r,
+      MVE_VPTv8i16r,
+      MVE_VPTv4i32r,
+      MVE_VPTv16s8,
+      MVE_VPTv8s16,
+      MVE_VPTv4s32,
+      MVE_VPTv16s8r,
+      MVE_VPTv8s16r,
+      MVE_VPTv4s32r,
+      MVE_VPTv16u8,
+      MVE_VPTv8u16,
+      MVE_VPTv4u32,
+      MVE_VPTv16u8r,
+      MVE_VPTv8u16r,
+      MVE_VPTv4u32r,
+      MVE_VPTv8f16,
+      MVE_VPTv4f32,
+      MVE_VPTv8f16r,
+      MVE_VPTv4f32r,
+      MVE_VADC,
+      MVE_VADCI,
+      MVE_VSBC,
+      MVE_VSBCI,
+      MVE_VSHLC,
+      // FP Instructions
+      FLDMXIA,
+      FLDMXDB_UPD,
+      FLDMXIA_UPD,
+      FSTMXDB_UPD,
+      FSTMXIA,
+      FSTMXIA_UPD,
+      VLDR_FPCXTNS_off,
+      VLDR_FPCXTNS_off,
+      VLDR_FPCXTNS_post,
+      VLDR_FPCXTNS_pre,
+      VLDR_FPCXTS_off,
+      VLDR_FPCXTS_post,
+      VLDR_FPCXTS_pre,
+      VLDR_FPSCR_NZCVQC_off,
+      VLDR_FPSCR_NZCVQC_post,
+      VLDR_FPSCR_NZCVQC_pre,
+      VLDR_FPSCR_off,
+      VLDR_FPSCR_post,
+      VLDR_FPSCR_pre,
+      VLDR_P0_off,
+      VLDR_P0_post,
+      VLDR_P0_pre,
+      VLDR_VPR_off,
+      VLDR_VPR_post,
+      VLDR_VPR_pre,
+      VLLDM,
+      VLSTM,
+      VMRS,
+      VMRS_FPCXTNS,
+      VMRS_FPCXTS,
+      VMRS_FPEXC,
+      VMRS_FPINST,
+      VMRS_FPINST2,
+      VMRS_FPSCR_NZCVQC,
+      VMRS_FPSID,
+      VMRS_MVFR0,
+      VMRS_MVFR1,
+      VMRS_MVFR2,
+      VMRS_P0,
+      VMRS_VPR,
+      VMSR,
+      VMSR_FPCXTNS,
+      VMSR_FPCXTS,
+      VMSR_FPEXC,
+      VMSR_FPINST,
+      VMSR_FPINST2,
+      VMSR_FPSCR_NZCVQC,
+      VMSR_FPSID,
+      VMSR_P0,
+      VMSR_VPR,
+      VSCCLRMD,
+      VSCCLRMS,
+      VSTR_FPCXTNS_off,
+      VSTR_FPCXTNS_post,
+      VSTR_FPCXTNS_pre,
+      VSTR_FPCXTS_off,
+      VSTR_FPCXTS_post,
+      VSTR_FPCXTS_pre,
+      VSTR_FPSCR_NZCVQC_off,
+      VSTR_FPSCR_NZCVQC_post,
+      VSTR_FPSCR_NZCVQC_pre,
+      VSTR_FPSCR_off,
+      VSTR_FPSCR_post,
+      VSTR_FPSCR_pre,
+      VSTR_P0_off,
+      VSTR_P0_post,
+      VSTR_P0_pre,
+      VSTR_VPR_off,
+      VSTR_VPR_post,
+      VSTR_VPR_pre,
   };
 
   LLVMInitializeARMTargetInfo();
@@ -1006,7 +1186,8 @@ TEST(MachineInstr, HasSideEffects) {
 
   for (unsigned Op = 0; Op < ARM::INSTRUCTION_LIST_END; ++Op) {
     const MCInstrDesc &Desc = TII->get(Op);
-    if ((Desc.TSFlags & ARMII::DomainMask) != ARMII::DomainMVE)
+    if ((Desc.TSFlags &
+         (ARMII::DomainMVE | ARMII::DomainVFP | ARMII::DomainNEONA8)) == 0)
       continue;
     if (UnpredictableOpcodes.count(Op))
       continue;

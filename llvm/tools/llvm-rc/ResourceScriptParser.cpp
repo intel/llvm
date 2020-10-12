@@ -698,8 +698,14 @@ RCParser::ParseType RCParser::parseStringTableResource() {
     // between, however we strictly adhere to the single statement definition.
     ASSIGN_OR_RETURN(IDResult, readInt());
     consumeOptionalType(Kind::Comma);
+
+    std::vector<StringRef> Strings;
     ASSIGN_OR_RETURN(StrResult, readString());
-    Table->addString(*IDResult, *StrResult);
+    Strings.push_back(*StrResult);
+    while (isNextTokenKind(Kind::String))
+      Strings.push_back(read().value());
+
+    Table->addStrings(*IDResult, std::move(Strings));
   }
 
   return std::move(Table);
@@ -771,8 +777,10 @@ RCParser::parseVersionInfoFixed() {
 
     // VERSION variations take multiple integers.
     size_t NumInts = RetType::isVersionType(FixedType) ? 4 : 1;
-    ASSIGN_OR_RETURN(ArgsResult, readIntsWithCommas(NumInts, NumInts));
+    ASSIGN_OR_RETURN(ArgsResult, readIntsWithCommas(1, NumInts));
     SmallVector<uint32_t, 4> ArgInts(ArgsResult->begin(), ArgsResult->end());
+    while (ArgInts.size() < NumInts)
+      ArgInts.push_back(0);
     Result.setValue(FixedType, ArgInts);
   }
 

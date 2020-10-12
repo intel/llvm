@@ -69,12 +69,12 @@ Platform Support
 LLDB is known to work on the following platforms, but ports to new platforms
 are welcome:
 
-* macOS desktop user space debugging for i386 and x86_64
-* iOS, tvOS, and watchOS simulator debugging on i386 and x86_64
+* macOS debugging for i386, x86_64 and AArch64
+* iOS, tvOS, and watchOS simulator debugging on i386, x86_64 and AArch64
 * iOS, tvOS, and watchOS device debugging on ARM and AArch64
-* Linux local user-space debugging for i386, x86_64 and PPC64le
-* FreeBSD local user-space debugging for i386 and x86_64
-* Windows local user-space debugging for i386 (*)
+* Linux user-space debugging for i386, x86_64 and PPC64le
+* FreeBSD user-space debugging for i386 and x86_64
+* Windows user-space debugging for i386 (*)
 
 (*) Support for Windows is under active development. Basic functionality is
 expected to work, with functionality improving rapidly.
@@ -140,14 +140,22 @@ interesting areas to contribute to lldb.
    :maxdepth: 1
    :caption: Development
 
-   resources/architecture
    resources/contributing
    resources/build
    resources/test
    resources/bots
-   resources/reproducers
-   resources/sbapi
    resources/caveats
+
+
+.. toctree::
+   :hidden:
+   :maxdepth: 1
+   :caption: Design
+
+   design/overview
+   design/reproducers
+   design/structureddataplugins
+   design/sbapi
 
 .. toctree::
    :hidden:

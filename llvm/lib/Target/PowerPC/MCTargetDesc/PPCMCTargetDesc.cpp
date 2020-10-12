@@ -20,8 +20,8 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/ELF.h"
-#include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCAsmBackend.h"
+#include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCDwarf.h"
@@ -30,6 +30,7 @@
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCRegisterInfo.h"
+#include "llvm/MC/MCSectionXCOFF.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCSymbol.h"
@@ -77,7 +78,7 @@ static MCRegisterInfo *createPPCMCRegisterInfo(const Triple &TT) {
 
 static MCSubtargetInfo *createPPCMCSubtargetInfo(const Triple &TT,
                                                  StringRef CPU, StringRef FS) {
-  return createPPCMCSubtargetInfoImpl(TT, CPU, FS);
+  return createPPCMCSubtargetInfoImpl(TT, CPU, /*TuneCPU*/ CPU, FS);
 }
 
 static MCAsmInfo *createPPCMCAsmInfo(const MCRegisterInfo &MRI,
@@ -120,14 +121,18 @@ public:
       : PPCTargetStreamer(S), OS(OS) {}
 
   void emitTCEntry(const MCSymbol &S) override {
-    const MCAsmInfo *MAI = Streamer.getContext().getAsmInfo();
-    OS << "\t.tc ";
-    OS << (MAI->getSymbolsHaveSMC()
-               ? cast<MCSymbolXCOFF>(S).getUnqualifiedName()
-               : S.getName());
-    OS << "[TC],";
-    OS << S.getName();
-    OS << '\n';
+    if (const MCSymbolXCOFF *XSym = dyn_cast<MCSymbolXCOFF>(&S)) {
+      MCSymbolXCOFF *TCSym =
+          cast<MCSectionXCOFF>(Streamer.getCurrentSectionOnly())
+              ->getQualNameSymbol();
+      OS << "\t.tc " << TCSym->getName() << "," << XSym->getName() << '\n';
+
+      if (TCSym->hasRename())
+        Streamer.emitXCOFFRenameDirective(TCSym, TCSym->getSymbolTableName());
+      return;
+    }
+
+    OS << "\t.tc " << S.getName() << "[TC]," << S.getName() << '\n';
   }
 
   void emitMachine(StringRef CPU) override {

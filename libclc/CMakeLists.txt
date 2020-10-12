@@ -1,4 +1,4 @@
-cmake_minimum_required( VERSION 3.9.2 )
+cmake_minimum_required(VERSION 3.13.4)
 
 add_custom_target(libspirv-builtins COMMENT "Build libspirv builtins")
 add_custom_target(libclc-builtins COMMENT "Build libclc builtins")
@@ -30,7 +30,9 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   generic/lib/SOURCES;
   ptx/lib/SOURCES;
   ptx-nvidiacl/lib/SOURCES;
-  r600/lib/SOURCES
+  r600/lib/SOURCES;
+  spirv/lib/SOURCES;
+  spirv64/lib/SOURCES
 )
 
 include( AddLibclc )
@@ -44,6 +46,8 @@ set( LIBCLC_TARGETS_ALL
   nvptx64--
   nvptx--nvidiacl
   nvptx64--nvidiacl
+  spirv-mesa3d-
+  spirv64-mesa3d-
 )
 set( LIBCLC_TEST_TARGETS_ALL
   nvptx--nvidiacl
@@ -68,7 +72,6 @@ if( LIBCLC_TARGETS_TO_BUILD STREQUAL "all" )
 	set( LIBCLC_TARGETS_TO_BUILD ${LIBCLC_TARGETS_ALL} )
 endif()
 
-list( SORT LIBCLC_TARGETS_TO_BUILD )
 
 set(LIBCLC_TARGET_TO_TEST)
 
@@ -109,14 +112,29 @@ message( "LLVM bindir: ${LLVM_TOOLS_BINARY_DIR}" )
 message( "LLVM cxx flags: ${LLVM_CXX_FLAGS}" )
 message( "" )
 
+find_program( LLVM_CLANG clang PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
+find_program( LLVM_AS llvm-as PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
+find_program( LLVM_LINK llvm-link PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
+find_program( LLVM_OPT opt PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
+find_program( LLVM_SPIRV llvm-spirv PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
+
 # Print toolchain
 message( "clang: ${LLVM_CLANG}" )
 message( "llvm-as: ${LLVM_AS}" )
 message( "llvm-link: ${LLVM_LINK}" )
 message( "opt: ${LLVM_OPT}" )
+message( "llvm-spirv: ${LLVM_SPIRV}" )
 message( "" )
 if( NOT LLVM_CLANG OR NOT LLVM_OPT OR NOT LLVM_AS OR NOT LLVM_LINK )
 	message( FATAL_ERROR "toolchain incomplete!" )
+endif()
+
+list( SORT LIBCLC_TARGETS_TO_BUILD )
+
+if( "spirv-mesa3d-" IN_LIST LIBCLC_TARGETS_TO_BUILD OR "spirv64-mesa3d-" IN_LIST LIBCLC_TARGETS_TO_BUILD )
+	if( NOT LLVM_SPIRV )
+		message( FATAL_ERROR "SPIR-V targets requested, but spirv-tools is not installed" )
+	endif()
 endif()
 
 set( CMAKE_CLC_COMPILER ${LLVM_CLANG} )
@@ -138,6 +156,8 @@ set( nvptx--_devices none )
 set( nvptx64--_devices none )
 set( nvptx--nvidiacl_devices none )
 set( nvptx64--nvidiacl_devices none )
+set( spirv-mesa3d-_devices none )
+set( spirv64-mesa3d-_devices none )
 
 # Setup aliases
 set( cedar_aliases palm sumo sumo2 redwood juniper )
@@ -171,26 +191,26 @@ if( ENABLE_RUNTIME_SUBNORMAL )
 		DESTINATION ${CMAKE_INSTALL_DATADIR}/clc )
 endif()
 
-find_program( PYTHON python )
+find_package( Python3 REQUIRED COMPONENTS Interpreter )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/gen_convert.py clc_script_loc )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/libspirv/gen_core_convert.py core_script_loc )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/libspirv/gen_convert.py spirv_script_loc )
 
 add_custom_command(
 	OUTPUT convert-core.cl
-	COMMAND ${PYTHON} ${core_script_loc} > convert-core.cl
+	COMMAND ${Python3_EXECUTABLE} ${core_script_loc} > convert-core.cl
 	DEPENDS ${core_script_loc} )
 add_custom_target( "generate_convert_core.cl" DEPENDS convert-core.cl )
 
 add_custom_command(
 	OUTPUT convert-spirv.cl
-	COMMAND ${PYTHON} ${spirv_script_loc} > convert-spirv.cl
+	COMMAND ${Python3_EXECUTABLE} ${spirv_script_loc} > convert-spirv.cl
 	DEPENDS ${spirv_script_loc} )
 add_custom_target( "generate_convert_spirv.cl" DEPENDS convert-spirv.cl )
 
 add_custom_command(
 	OUTPUT convert-clc.cl
-	COMMAND ${PYTHON} ${clc_script_loc} > convert-clc.cl
+	COMMAND ${Python3_EXECUTABLE} ${clc_script_loc} > convert-clc.cl
 	DEPENDS ${clc_script_loc} )
 add_custom_target( "generate_convert_clc.cl" DEPENDS convert-clc.cl )
 
@@ -210,9 +230,14 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 	list( GET TRIPLE 1 VENDOR )
 	list( GET TRIPLE 2 OS )
 
-	set( dirs generic )
+	set( dirs )
+
+	if ( NOT ${ARCH} STREQUAL spirv AND NOT ${ARCH} STREQUAL spirv64 )
+		LIST( APPEND dirs generic )
+	endif()
+
 	if( ${ARCH} STREQUAL r600 OR ${ARCH} STREQUAL amdgcn )
-		set( dirs ${dirs} amdgpu )
+		list( APPEND dirs amdgpu )
 	endif()
 
 	#nvptx is special
@@ -235,11 +260,14 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 
 	foreach( d ${${t}_devices} )
 		# Some targets don't have a specific GPU to target
-		if( ${d} STREQUAL "none" )
-			set( mcpu )
+		if( ${d} STREQUAL "none" OR ${ARCH} STREQUAL "spirv" OR ${ARCH} STREQUAL "spirv64" )
+			# FIXME: Ideally we would not be tied to a specific PTX ISA version
+			if( ${ARCH} STREQUAL nvptx OR ${ARCH} STREQUAL nvptx64 )
+				set( flags "SHELL:-Xclang -target-feature" "SHELL:-Xclang +ptx64")
+			endif()
 			set( arch_suffix "${t}" )
 		else()
-			set( mcpu "-mcpu=${d}" )
+			set( flags "-mcpu=${d}" )
 			set( arch_suffix "${d}-${t}" )
 		endif()
 		message( "    DEVICE: ${d} ( ${${d}_aliases} )" )
@@ -251,14 +279,14 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 		if( ${ARCH} STREQUAL nvptx OR ${ARCH} STREQUAL nvptx64 )
 			add_libclc_sycl_binding(libspirv_files
 				TRIPLE ${t}
-				COMPILE_OPT ${mcpu}
+				COMPILE_OPT ${flags}
 				FILES generic/libspirv/sycldevice-binding.cpp)
 		endif()
 
 		add_libclc_builtin_set(libspirv-${arch_suffix}
 			TRIPLE ${t}
 			TARGET_ENV libspirv
-			COMPILE_OPT ${mcpu}
+			COMPILE_OPT ${flags}
 			FILES ${libspirv_files}
 			ALIASES ${${d}_aliases}
 			GENERATE_TARGET "generate_convert_spirv.cl" "generate_convert_core.cl"
@@ -267,7 +295,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 		add_libclc_builtin_set(clc-${arch_suffix}
 			TRIPLE ${t}
 			TARGET_ENV clc
-			COMPILE_OPT ${mcpu}
+			COMPILE_OPT ${flags}
 			FILES ${lib_files}
 			LIB_DEP libspirv-${arch_suffix}
 			ALIASES ${${d}_aliases}

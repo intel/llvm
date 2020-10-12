@@ -201,16 +201,7 @@ add_custom_command(OUTPUT ${LIBCXX_BINARY_DIR}/__generated_config
 # Add a target that executes the generation commands.
 add_custom_target(cxx-generated-config ALL
   DEPENDS ${LIBCXX_BINARY_DIR}/__generated_config)
-set(generated_config_deps cxx-generated-config)
 
-# In some build configurations (like bootstrapping clang), we need to be able to
-# install the libcxx headers before the CMake configuration for libcxx runs. Making
-# the name of this target configurable allows LLVM/runtimes/CMakeLists.txt to
-# add this subdirectory to the LLVM build to put libcxx's headers in place
-# before libcxx's build configuration is run.
-if (NOT CXX_HEADER_TARGET)
-  set(CXX_HEADER_TARGET cxx-headers)
-endif()
 if(LIBCXX_HEADER_DIR)
   set(output_dir ${LIBCXX_HEADER_DIR}/include/c++/v1)
 
@@ -229,23 +220,37 @@ if(LIBCXX_HEADER_DIR)
   set(src ${LIBCXX_BINARY_DIR}/__generated_config)
   set(dst ${output_dir}/__config)
   add_custom_command(OUTPUT ${dst}
-      DEPENDS ${src} ${generated_config_deps}
+      DEPENDS ${src} cxx-generated-config
       COMMAND ${CMAKE_COMMAND} -E copy_if_different ${src} ${dst}
       COMMENT "Copying CXX __config")
   list(APPEND out_files ${dst})
+  add_custom_target(generate-cxx-headers DEPENDS ${out_files})
 
-  add_custom_target(${CXX_HEADER_TARGET} ALL DEPENDS ${out_files} ${LIBCXX_CXX_ABI_HEADER_TARGET})
+  add_library(cxx-headers INTERFACE)
+  add_dependencies(cxx-headers generate-cxx-headers ${LIBCXX_CXX_ABI_HEADER_TARGET})
+  # TODO: Use target_include_directories once we figure out why that breaks the runtimes build
+  if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC" OR "${CMAKE_CXX_SIMULATE_ID}" STREQUAL "MSVC")
+    target_compile_options(cxx-headers INTERFACE /I "${output_dir}")
+  else()
+    target_compile_options(cxx-headers INTERFACE -I "${output_dir}")
+  endif()
+
+  # Make sure the generated __config_site header is included when we build the library.
+  if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC" OR "${CMAKE_CXX_SIMULATE_ID}" STREQUAL "MSVC")
+    target_compile_options(cxx-headers INTERFACE /FI "${LIBCXX_BINARY_DIR}/__config_site")
+  else()
+    target_compile_options(cxx-headers INTERFACE -include "${LIBCXX_BINARY_DIR}/__config_site")
+  endif()
 else()
-  add_custom_target(${CXX_HEADER_TARGET})
+  add_library(cxx-headers INTERFACE)
 endif()
-set_target_properties(${CXX_HEADER_TARGET} PROPERTIES FOLDER "Misc")
 
 if (LIBCXX_INSTALL_HEADERS)
   foreach(file ${files})
     get_filename_component(dir ${file} DIRECTORY)
     install(FILES ${file}
       DESTINATION ${LIBCXX_INSTALL_HEADER_PREFIX}include/c++/v1/${dir}
-      COMPONENT ${CXX_HEADER_TARGET}
+      COMPONENT cxx-headers
       PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
     )
   endforeach()
@@ -255,15 +260,15 @@ if (LIBCXX_INSTALL_HEADERS)
     DESTINATION ${LIBCXX_INSTALL_HEADER_PREFIX}include/c++/v1
     PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
     RENAME __config
-    COMPONENT ${CXX_HEADER_TARGET})
+    COMPONENT cxx-headers)
 
   if (NOT CMAKE_CONFIGURATION_TYPES)
-    add_custom_target(install-${CXX_HEADER_TARGET}
-                      DEPENDS ${CXX_HEADER_TARGET} ${generated_config_deps}
+    add_custom_target(install-cxx-headers
+                      DEPENDS cxx-headers cxx-generated-config
                       COMMAND "${CMAKE_COMMAND}"
-                              -DCMAKE_INSTALL_COMPONENT=${CXX_HEADER_TARGET}
+                              -DCMAKE_INSTALL_COMPONENT=cxx-headers
                               -P "${CMAKE_BINARY_DIR}/cmake_install.cmake")
     # Stripping is a no-op for headers
-    add_custom_target(install-${CXX_HEADER_TARGET}-stripped DEPENDS install-${CXX_HEADER_TARGET})
+    add_custom_target(install-cxx-headers-stripped DEPENDS install-cxx-headers)
   endif()
 endif()

@@ -1,5 +1,4 @@
-// UNSUPPORTED: cuda
-// UNSUPPORTED: level0
+// UNSUPPORTED: cuda, level_zero
 // CUDA cannot support SYCL 1.2.1 images.
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
@@ -7,7 +6,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
-//==------------------- image_accessor_readsampler.cpp ---------------------==//
 //==-----------------image_accessor read API test with sampler--------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

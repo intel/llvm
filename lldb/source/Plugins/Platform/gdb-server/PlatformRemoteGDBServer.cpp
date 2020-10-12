@@ -503,10 +503,10 @@ lldb::ProcessSP PlatformRemoteGDBServer::DebugProcess(
                                              "gdb-remote", nullptr);
 
           if (process_sp) {
-            error = process_sp->ConnectRemote(nullptr, connect_url.c_str());
+            error = process_sp->ConnectRemote(connect_url.c_str());
             // Retry the connect remote one time...
             if (error.Fail())
-              error = process_sp->ConnectRemote(nullptr, connect_url.c_str());
+              error = process_sp->ConnectRemote(connect_url.c_str());
             if (error.Success())
               error = process_sp->Launch(launch_info);
             else if (debugserver_pid != LLDB_INVALID_PROCESS_ID) {
@@ -589,7 +589,7 @@ lldb::ProcessSP PlatformRemoteGDBServer::Attach(
               target->CreateProcess(attach_info.GetListenerForProcess(debugger),
                                     "gdb-remote", nullptr);
           if (process_sp) {
-            error = process_sp->ConnectRemote(nullptr, connect_url.c_str());
+            error = process_sp->ConnectRemote(connect_url.c_str());
             if (error.Success()) {
               ListenerSP listener_sp = attach_info.GetHijackListener();
               if (listener_sp)
@@ -661,6 +661,11 @@ PlatformRemoteGDBServer::GetFileSize(const FileSpec &file_spec) {
   return m_gdb_client.GetFileSize(file_spec);
 }
 
+void PlatformRemoteGDBServer::AutoCompleteDiskFileOrDirectory(
+    CompletionRequest &request, bool only_dir) {
+  m_gdb_client.AutoCompleteDiskFileOrDirectory(request, only_dir);
+}
+
 uint64_t PlatformRemoteGDBServer::ReadFile(lldb::user_id_t fd, uint64_t offset,
                                            void *dst, uint64_t dst_len,
                                            Status &error) {
@@ -706,7 +711,7 @@ bool PlatformRemoteGDBServer::GetFileExists(const FileSpec &file_spec) {
 }
 
 Status PlatformRemoteGDBServer::RunShellCommand(
-    const char *command, // Shouldn't be NULL
+    llvm::StringRef shell, llvm::StringRef command,
     const FileSpec &
         working_dir, // Pass empty FileSpec to use the current working directory
     int *status_ptr, // Pass NULL if you don't want the process exit status

@@ -39,8 +39,8 @@ TEST(PiMockTest, ConstructFromQueue) {
       detail::getSyclObjImpl(Mock.getPlatform())->getPlugin().getPiPlugin();
   EXPECT_EQ(&MockedQueuePiPlugin, &PiMockPlugin)
       << "The mocked object and the PiMock instance must share the same plugin";
-  ASSERT_FALSE(&NormalPiPlugin == &MockedQueuePiPlugin)
-      << "Normal and mock platforms must not share the same plugin";
+  EXPECT_EQ(&NormalPiPlugin, &MockedQueuePiPlugin)
+      << "Normal and mock platforms must share the same plugin";
 }
 
 TEST(PiMockTest, ConstructFromPlatform) {
@@ -60,8 +60,8 @@ TEST(PiMockTest, ConstructFromPlatform) {
       detail::getSyclObjImpl(Mock.getPlatform())->getPlugin().getPiPlugin();
   EXPECT_EQ(&MockedPlatformPiPlugin, &PiMockPlugin)
       << "The mocked object and the PiMock instance must share the same plugin";
-  ASSERT_FALSE(&NormalPiPlugin == &MockedPlatformPiPlugin)
-      << "Normal and mock platforms must not share the same plugin";
+  EXPECT_EQ(&NormalPiPlugin, &MockedPlatformPiPlugin)
+      << "Normal and mock platforms must share the same plugin";
 }
 
 TEST(PiMockTest, RedefineAPI) {

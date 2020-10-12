@@ -19,7 +19,7 @@
 
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringMap.h"
-#include "llvm/Object/WasmTraits.h"
+#include "llvm/BinaryFormat/WasmTraits.h"
 
 #define DEBUG_TYPE "lld"
 
@@ -167,8 +167,8 @@ public:
   bool isNeeded() const override { return !config->importMemory; }
   void writeBody() override;
 
-  uint32_t numMemoryPages = 0;
-  uint32_t maxMemoryPages = 0;
+  uint64_t numMemoryPages = 0;
+  uint64_t maxMemoryPages = 0;
 };
 
 // The event section contains a list of declared wasm events associated with the
@@ -221,6 +221,7 @@ public:
   void writeBody() override;
 
   std::vector<llvm::wasm::WasmExport> exports;
+  std::vector<const Symbol *> exportedSymbols;
 };
 
 class StartSection : public SyntheticSection {

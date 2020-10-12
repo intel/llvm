@@ -356,7 +356,7 @@ EmitRegUnitPressure(raw_ostream &OS, const CodeGenRegBank &RegBank,
 using DwarfRegNumsMapPair = std::pair<Record*, std::vector<int64_t>>;
 using DwarfRegNumsVecTy = std::vector<DwarfRegNumsMapPair>;
 
-void finalizeDwarfRegNumsKeys(DwarfRegNumsVecTy &DwarfRegNums) {
+static void finalizeDwarfRegNumsKeys(DwarfRegNumsVecTy &DwarfRegNums) {
   // Sort and unique to get a map-like vector. We want the last assignment to
   // match previous behaviour.
   std::stable_sort(DwarfRegNums.begin(), DwarfRegNums.end(),
@@ -1288,7 +1288,8 @@ RegisterInfoEmitter::runTargetDesc(raw_ostream &OS, CodeGenTarget &Target,
         OS << CGH.getMode(M).Name;
       OS << ")\n";
       for (const auto &RC : RegisterClasses) {
-        assert(RC.EnumValue == EV++ && "Unexpected order of register classes");
+        assert(RC.EnumValue == EV && "Unexpected order of register classes");
+        ++EV;
         (void)EV;
         const RegSizeInfo &RI = RC.RSI.get(M);
         OS << "  { " << RI.RegSize << ", " << RI.SpillSize << ", "

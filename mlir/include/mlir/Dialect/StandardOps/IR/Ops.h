@@ -21,6 +21,7 @@
 #include "mlir/Interfaces/CallInterfaces.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "mlir/Interfaces/VectorInterfaces.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
 
 // Pull in all enum type definitions and utility function declarations.
@@ -31,6 +32,17 @@ class AffineMap;
 class Builder;
 class FuncOp;
 class OpBuilder;
+
+/// Auxiliary range data structure to unpack the offset, size and stride
+/// operands of the SubViewOp / SubTensorOp into a list of triples.
+/// Such a list of triple is sometimes more convenient to manipulate.
+struct Range {
+  Value offset;
+  Value size;
+  Value stride;
+};
+
+raw_ostream &operator<<(raw_ostream &os, Range &range);
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/StandardOps/IR/Ops.h.inc"
@@ -128,9 +140,9 @@ public:
 //   dma_start %src[%i, %j], %dst[%k, %l], %num_elements, %tag[%idx], %stride,
 //             %num_elt_per_stride :
 //
-// TODO(mlir-team): add additional operands to allow source and destination
-// striding, and multiple stride levels.
-// TODO(andydavis) Consider replacing src/dst memref indices with view memrefs.
+// TODO: add additional operands to allow source and destination striding, and
+// multiple stride levels.
+// TODO: Consider replacing src/dst memref indices with view memrefs.
 class DmaStartOp
     : public Op<DmaStartOp, OpTrait::VariadicOperands, OpTrait::ZeroResult> {
 public:
@@ -298,8 +310,6 @@ void printDimAndSymbolList(Operation::operand_iterator begin,
 ParseResult parseDimAndSymbolList(OpAsmParser &parser,
                                   SmallVectorImpl<Value> &operands,
                                   unsigned &numDims);
-
-raw_ostream &operator<<(raw_ostream &os, SubViewOp::Range &range);
 
 /// Determines whether MemRefCastOp casts to a more dynamic version of the
 /// source memref. This is useful to to fold a memref_cast into a consuming op

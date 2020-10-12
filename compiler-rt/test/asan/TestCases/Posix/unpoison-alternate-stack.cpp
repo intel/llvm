@@ -6,6 +6,11 @@
 // RUN: %clangxx_asan -std=c++20 -fexceptions -O0 %s -o %t -pthread
 // RUN: %run %t
 
+// XFAIL: ios && !iossim
+// longjmp from signal handler is unportable.
+// XFAIL: solaris
+
+#include <algorithm>
 #include <cassert>
 #include <cerrno>
 #include <csetjmp>
@@ -62,12 +67,14 @@ void testOnCurrentStack() {
                                         c.RightRedzone - c.LeftRedzone));
 }
 
+bool isOnSignalStack() {
+  stack_t Stack;
+  sigaltstack(nullptr, &Stack);
+  return Stack.ss_flags == SS_ONSTACK;
+}
+
 void signalHandler(int, siginfo_t *, void *) {
-  {
-    stack_t Stack;
-    sigaltstack(nullptr, &Stack);
-    assert(Stack.ss_flags == SS_ONSTACK);
-  }
+  assert(isOnSignalStack());
 
   // test on signal alternate stack
   testOnCurrentStack();
@@ -79,10 +86,9 @@ void signalHandler(int, siginfo_t *, void *) {
 void setSignalAlternateStack(void *AltStack) {
   sigaltstack((stack_t const *)AltStack, nullptr);
 
-  struct sigaction Action = {
-      .sa_sigaction = signalHandler,
-      .sa_flags = SA_SIGINFO | SA_NODEFER | SA_ONSTACK,
-  };
+  struct sigaction Action = {};
+  Action.sa_sigaction = signalHandler;
+  Action.sa_flags = SA_SIGINFO | SA_NODEFER | SA_ONSTACK;
   sigemptyset(&Action.sa_mask);
 
   sigaction(SIGUSR1, &Action, nullptr);
@@ -110,6 +116,8 @@ void *threadFun(void *AltStack) {
     // Test on signal alternate stack, via signalHandler
     poisonStackAndJump(defaultStack, [] { raise(SIGUSR1); });
 
+  assert(!isOnSignalStack());
+
   assert(0 == __asan_region_is_poisoned(
                   defaultStack.LeftRedzone,
                   defaultStack.RightRedzone - defaultStack.LeftRedzone));
@@ -131,9 +139,11 @@ void *threadFun(void *AltStack) {
 // reports when the stack is reused.
 int main() {
   size_t const PageSize = sysconf(_SC_PAGESIZE);
+  // The Solaris defaults of 4k (32-bit) and 8k (64-bit) are too small.
+  size_t const MinStackSize = std::max(PTHREAD_STACK_MIN, 16 * 1024);
   // To align the alternate stack, we round this up to page_size.
   size_t const DefaultStackSize =
-      (PTHREAD_STACK_MIN - 1 + PageSize) & ~(PageSize - 1);
+      (MinStackSize - 1 + PageSize) & ~(PageSize - 1);
   // The alternate stack needs a certain size, or the signal handler segfaults.
   size_t const AltStackSize = 10 * PageSize;
   size_t const MappingSize = DefaultStackSize + AltStackSize;
@@ -143,11 +153,10 @@ int main() {
                              MAP_PRIVATE | MAP_ANONYMOUS,
                              -1, 0);
 
-  stack_t const AltStack = {
-      .ss_sp = (char *)Mapping + DefaultStackSize,
-      .ss_flags = 0,
-      .ss_size = AltStackSize,
-  };
+  stack_t AltStack = {};
+  AltStack.ss_sp = (char *)Mapping + DefaultStackSize;
+  AltStack.ss_flags = 0;
+  AltStack.ss_size = AltStackSize;
 
   pthread_t Thread;
   pthread_attr_t ThreadAttr;

@@ -37,6 +37,7 @@ void PrintDecl(raw_ostream &Out, const ASTContext *Context, const Decl *D,
                PrintingPolicyModifier PolicyModifier) {
   PrintingPolicy Policy = Context->getPrintingPolicy();
   Policy.TerseOutput = true;
+  Policy.Indentation = 0;
   if (PolicyModifier)
     PolicyModifier(Policy);
   D->print(Out, Policy, /*Indentation*/ 0, /*PrintInstantiation*/ false);
@@ -76,14 +77,16 @@ public:
 PrintedDeclMatches(StringRef Code, const std::vector<std::string> &Args,
                    const DeclarationMatcher &NodeMatch,
                    StringRef ExpectedPrinted, StringRef FileName,
-                   PrintingPolicyModifier PolicyModifier = nullptr) {
+                   PrintingPolicyModifier PolicyModifier = nullptr,
+                   bool AllowError = false) {
   PrintMatch Printer(PolicyModifier);
   MatchFinder Finder;
   Finder.addMatcher(NodeMatch, &Printer);
   std::unique_ptr<FrontendActionFactory> Factory(
       newFrontendActionFactory(&Finder));
 
-  if (!runToolOnCodeWithArgs(Factory->create(), Code, Args, FileName))
+  if (!runToolOnCodeWithArgs(Factory->create(), Code, Args, FileName) &&
+      !AllowError)
     return testing::AssertionFailure()
       << "Parsing error in \"" << Code.str() << "\"";
 
@@ -150,8 +153,7 @@ PrintedDeclCXX98Matches(StringRef Code, const DeclarationMatcher &NodeMatch,
                                   StringRef Code,
                                   const DeclarationMatcher &NodeMatch,
                                   StringRef ExpectedPrinted) {
-  std::vector<std::string> Args(1, "-std=c++11");
-  Args.push_back("-fno-delayed-template-parsing");
+  std::vector<std::string> Args{"-std=c++11", "-fno-delayed-template-parsing"};
   return PrintedDeclMatches(Code,
                             Args,
                             NodeMatch,
@@ -160,26 +162,29 @@ PrintedDeclCXX98Matches(StringRef Code, const DeclarationMatcher &NodeMatch,
 }
 
 ::testing::AssertionResult
-PrintedDeclCXX1ZMatches(StringRef Code, const DeclarationMatcher &NodeMatch,
-                        StringRef ExpectedPrinted) {
-  std::vector<std::string> Args(1, "-std=c++1z");
-  return PrintedDeclMatches(Code,
-                            Args,
-                            NodeMatch,
-                            ExpectedPrinted,
-                            "input.cc");
+PrintedDeclCXX17Matches(StringRef Code, const DeclarationMatcher &NodeMatch,
+                        StringRef ExpectedPrinted,
+                        PrintingPolicyModifier PolicyModifier = nullptr) {
+  std::vector<std::string> Args{"-std=c++17", "-fno-delayed-template-parsing"};
+  return PrintedDeclMatches(Code, Args, NodeMatch, ExpectedPrinted, "input.cc",
+                            PolicyModifier);
 }
 
-::testing::AssertionResult PrintedDeclObjCMatches(
-                                  StringRef Code,
-                                  const DeclarationMatcher &NodeMatch,
-                                  StringRef ExpectedPrinted) {
+::testing::AssertionResult
+PrintedDeclC11Matches(StringRef Code, const DeclarationMatcher &NodeMatch,
+                      StringRef ExpectedPrinted,
+                      PrintingPolicyModifier PolicyModifier = nullptr) {
+  std::vector<std::string> Args(1, "-std=c11");
+  return PrintedDeclMatches(Code, Args, NodeMatch, ExpectedPrinted, "input.c",
+                            PolicyModifier);
+}
+
+::testing::AssertionResult
+PrintedDeclObjCMatches(StringRef Code, const DeclarationMatcher &NodeMatch,
+                       StringRef ExpectedPrinted, bool AllowError = false) {
   std::vector<std::string> Args(1, "");
-  return PrintedDeclMatches(Code,
-                            Args,
-                            NodeMatch,
-                            ExpectedPrinted,
-                            "input.m");
+  return PrintedDeclMatches(Code, Args, NodeMatch, ExpectedPrinted, "input.m",
+                            /*PolicyModifier=*/nullptr, AllowError);
 }
 
 } // unnamed namespace
@@ -250,6 +255,72 @@ TEST(DeclPrinter, TestNamespaceAlias2) {
     "A",
     "namespace A = X::Y"));
     // Should be: with semicolon
+}
+
+TEST(DeclPrinter, TestNamespaceUnnamed) {
+  ASSERT_TRUE(PrintedDeclCXX17Matches(
+      "namespace { int X; }",
+      namespaceDecl(has(varDecl(hasName("X")))).bind("id"),
+      "namespace {\nint X;\n}",
+      [](PrintingPolicy &Policy) { Policy.TerseOutput = false; }));
+}
+
+TEST(DeclPrinter, TestNamespaceUsingDirective) {
+  ASSERT_TRUE(PrintedDeclCXX17Matches(
+      "namespace X { namespace A {} }"
+      "using namespace X::A;",
+      usingDirectiveDecl().bind("id"), "using namespace X::A",
+      [](PrintingPolicy &Policy) { Policy.TerseOutput = false; }));
+}
+
+TEST(DeclPrinter, TestEnumDecl1) {
+  ASSERT_TRUE(PrintedDeclCXX17Matches(
+      "enum A { a0, a1, a2 };", enumDecl(hasName("A")).bind("id"),
+      "enum A {\na0,\na1,\na2\n}",
+      [](PrintingPolicy &Policy) { Policy.TerseOutput = false; }));
+}
+
+TEST(DeclPrinter, TestEnumDecl2) {
+  ASSERT_TRUE(PrintedDeclCXX17Matches(
+      "enum A { a0 = -1, a1, a2 = 1 };", enumDecl(hasName("A")).bind("id"),
+      "enum A {\na0 = -1,\na1,\na2 = 1\n}",
+      [](PrintingPolicy &Policy) { Policy.TerseOutput = false; }));
+}
+
+TEST(DeclPrinter, TestEnumDecl3) {
+  ASSERT_TRUE(PrintedDeclCXX17Matches(
+      "enum { a0, a1, a2 };",
+      enumDecl(has(enumConstantDecl(hasName("a0")))).bind("id"),
+      "enum {\na0,\na1,\na2\n}",
+      [](PrintingPolicy &Policy) { Policy.TerseOutput = false; }));
+}
+
+TEST(DeclPrinter, TestEnumDecl4) {
+  ASSERT_TRUE(PrintedDeclCXX17Matches(
+      "enum class A { a0, a1, a2 };", enumDecl(hasName("A")).bind("id"),
+      "enum class A : int {\na0,\na1,\na2\n}",
+      [](PrintingPolicy &Policy) { Policy.TerseOutput = false; }));
+}
+
+TEST(DeclPrinter, TestRecordDecl1) {
+  ASSERT_TRUE(PrintedDeclC11Matches(
+      "struct A { int a; };", recordDecl(hasName("A")).bind("id"),
+      "struct A {\nint a;\n}",
+      [](PrintingPolicy &Policy) { Policy.TerseOutput = false; }));
+}
+
+TEST(DeclPrinter, TestRecordDecl2) {
+  ASSERT_TRUE(PrintedDeclC11Matches(
+      "struct A { struct { int i; }; };", recordDecl(hasName("A")).bind("id"),
+      "struct A {\nstruct {\nint i;\n};\n}",
+      [](PrintingPolicy &Policy) { Policy.TerseOutput = false; }));
+}
+
+TEST(DeclPrinter, TestRecordDecl3) {
+  ASSERT_TRUE(PrintedDeclC11Matches(
+      "union { int A; } u;",
+      recordDecl(has(fieldDecl(hasName("A")))).bind("id"), "union {\nint A;\n}",
+      [](PrintingPolicy &Policy) { Policy.TerseOutput = false; }));
 }
 
 TEST(DeclPrinter, TestCXXRecordDecl1) {
@@ -1121,6 +1192,39 @@ TEST(DeclPrinter, TestFunctionTemplateDecl6) {
     "template <typename U> void A(U t)"));
 }
 
+TEST(DeclPrinter, TestUnnamedTemplateParameters) {
+  ASSERT_TRUE(PrintedDeclCXX17Matches(
+      "template <typename, int, template <typename, bool> class> void A();",
+      functionTemplateDecl(hasName("A")).bind("id"),
+      "template <typename, int, template <typename, bool> class> void A()"));
+}
+
+TEST(DeclPrinter, TestUnnamedTemplateParametersPacks) {
+  ASSERT_TRUE(PrintedDeclCXX17Matches(
+      "template <typename ..., int ...,"
+      " template <typename ..., bool ...> class ...> void A();",
+      functionTemplateDecl(hasName("A")).bind("id"),
+      "template <typename ..., int ...,"
+      " template <typename ..., bool ...> class ...> void A()"));
+}
+
+TEST(DeclPrinter, TestNamedTemplateParametersPacks) {
+  ASSERT_TRUE(PrintedDeclCXX17Matches(
+      "template <typename ...T, int ...I,"
+      " template <typename ...X, bool ...B> class ...Z> void A();",
+      functionTemplateDecl(hasName("A")).bind("id"),
+      "template <typename ...T, int ...I,"
+      " template <typename ...X, bool ...B> class ...Z> void A()"));
+}
+
+TEST(DeclPrinter, TestTemplateTemplateParameterWrittenWithTypename) {
+  ASSERT_TRUE(PrintedDeclCXX17Matches(
+      "template <template <typename> typename Z> void A();",
+      functionTemplateDecl(hasName("A")).bind("id"),
+      "template <template <typename> class Z> void A()"));
+  // WRONG: We should use typename if the parameter was written with it.
+}
+
 TEST(DeclPrinter, TestTemplateArgumentList1) {
   ASSERT_TRUE(PrintedDeclCXX98Matches(
     "template<typename T> struct Z {};"
@@ -1284,10 +1388,9 @@ TEST(DeclPrinter, TestTemplateArgumentList16) {
 }
 
 TEST(DeclPrinter, TestStaticAssert1) {
-  ASSERT_TRUE(PrintedDeclCXX1ZMatches(
-    "static_assert(true);",
-    staticAssertDecl().bind("id"),
-    "static_assert(true)"));
+  ASSERT_TRUE(PrintedDeclCXX17Matches("static_assert(true);",
+                                      staticAssertDecl().bind("id"),
+                                      "static_assert(true)"));
 }
 
 TEST(DeclPrinter, TestObjCMethod1) {
@@ -1320,4 +1423,18 @@ TEST(DeclPrinter, TestObjCProtocol2) {
     "@protocol P1<P2> @end",
     namedDecl(hasName("P1")).bind("id"),
     "@protocol P1<P2>\n@end"));
+}
+
+TEST(DeclPrinter, TestObjCCategoryInvalidInterface) {
+  ASSERT_TRUE(PrintedDeclObjCMatches(
+      "@interface I (Extension) @end",
+      namedDecl(hasName("Extension")).bind("id"),
+      "@interface <<error-type>>(Extension)\n@end", /*AllowError=*/true));
+}
+
+TEST(DeclPrinter, TestObjCCategoryImplInvalidInterface) {
+  ASSERT_TRUE(PrintedDeclObjCMatches(
+      "@implementation I (Extension) @end",
+      namedDecl(hasName("Extension")).bind("id"),
+      "@implementation <<error-type>>(Extension)\n@end", /*AllowError=*/true));
 }

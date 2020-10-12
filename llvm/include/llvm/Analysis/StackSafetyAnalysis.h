@@ -45,7 +45,14 @@ public:
   void print(raw_ostream &O) const;
 
   /// Parameters use for a FunctionSummary.
-  std::vector<FunctionSummary::ParamAccess> getParamAccesses() const;
+  /// Function collects access information of all pointer parameters.
+  /// Information includes a range of direct access of parameters by the
+  /// functions and all call sites accepting the parameter.
+  /// StackSafety assumes that missing parameter information means possibility
+  /// of access to the parameter with any offset, so we can correctly link
+  /// code without StackSafety information, e.g. non-ThinLTO.
+  std::vector<FunctionSummary::ParamAccess>
+  getParamAccesses(ModuleSummaryIndex &Index) const;
 };
 
 class StackSafetyGlobalInfo {

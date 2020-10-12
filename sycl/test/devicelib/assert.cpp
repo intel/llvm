@@ -1,6 +1,5 @@
 // REQUIRES: cpu,linux
-// RUN: %clangxx -fsycl -c %s -o %t.o
-// RUN: %clangxx -fsycl %t.o %sycl_libs_dir/libsycl-glibc.o -o %t.out
+// RUN: %clangxx -fsycl %s -o %t.out
 // (see the other RUN lines below; it is a bit complicated)
 //
 // assert() call in device code guarantees nothing: on some devices it behaves
@@ -75,14 +74,6 @@
 // RUN: env SYCL_PI_TRACE=2 SHOULD_CRASH=1 SYCL_DEVICE_TYPE=CPU EXPECTED_SIGNAL=SIGABRT SKIP_IF_NO_EXT=1 %t.out 2>%t.stderr.native >%t.stdout.native
 // RUN: FileCheck %s --input-file %t.stdout.native --check-prefixes=CHECK-NATIVE || FileCheck %s --input-file %t.stderr.native --check-prefix CHECK-NOTSUPPORTED
 // RUN: FileCheck %s --input-file %t.stderr.native --check-prefixes=CHECK-MESSAGE || FileCheck %s --input-file %t.stderr.native --check-prefix CHECK-NOTSUPPORTED
-//
-// RUN: env SYCL_PI_TRACE=2 SYCL_DEVICELIB_INHIBIT_NATIVE=cl_intel_devicelib_assert SYCL_DEVICE_TYPE=CPU  %t.out >%t.stdout.pi.fallback
-// RUN: env SYCL_DEVICELIB_INHIBIT_NATIVE=cl_intel_devicelib_assert SYCL_DEVICE_TYPE=CPU  %t.out >%t.stdout.msg.fallback
-// RUN: FileCheck %s --input-file %t.stdout.pi.fallback --check-prefixes=CHECK-FALLBACK
-// RUN: FileCheck %s --input-file %t.stdout.msg.fallback --check-prefixes=CHECK-MESSAGE
-//
-// CHECK-NATIVE:   ---> piProgramBuild
-// CHECK-FALLBACK: ---> piProgramLink
 //
 // Skip the test if the CPU RT doesn't support the extension yet:
 // CHECK-NOTSUPPORTED: Device has no support for cl_intel_devicelib_assert

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Host/Host.h"
+#include "PosixSpawnResponsible.h"
 
 #include <AvailabilityMacros.h>
 #include <TargetConditionals.h>
@@ -1083,6 +1084,30 @@ static Status LaunchProcessPosixSpawn(const char *exe_path,
     return error;
   }
 
+  bool is_graphical = true;
+
+#if TARGET_OS_OSX
+  SecuritySessionId session_id;
+  SessionAttributeBits session_attributes;
+  OSStatus status =
+      SessionGetInfo(callerSecuritySession, &session_id, &session_attributes);
+  if (status == errSessionSuccess)
+    is_graphical = session_attributes & sessionHasGraphicAccess;
+#endif
+
+  //  When lldb is ran through a graphical session, make the debuggee process
+  //  responsible for its own TCC permissions instead of inheriting them from
+  //  its parent.
+  if (is_graphical && launch_info.GetFlags().Test(eLaunchFlagDebug) &&
+      !launch_info.GetFlags().Test(eLaunchFlagInheritTCCFromParent)) {
+    error.SetError(setup_posix_spawn_responsible_flag(&attr), eErrorTypePOSIX);
+    if (error.Fail()) {
+      LLDB_LOG(log, "error: {0}, setup_posix_spawn_responsible_flag(&attr)",
+               error);
+      return error;
+    }
+  }
+
   const char *tmp_argv[2];
   char *const *argv = const_cast<char *const *>(
       launch_info.GetArguments().GetConstArgumentVector());
@@ -1298,11 +1323,11 @@ Status Host::ShellExpandArguments(ProcessLaunchInfo &launch_info) {
         launch_info.SetWorkingDirectory(working_dir);
       }
     }
-    bool run_in_default_shell = true;
+    bool run_in_shell = true;
     bool hide_stderr = true;
-    Status e = RunShellCommand(expand_command, cwd, &status, nullptr, &output,
-                               std::chrono::seconds(10), run_in_default_shell,
-                               hide_stderr);
+    Status e =
+        RunShellCommand(expand_command, cwd, &status, nullptr, &output,
+                        std::chrono::seconds(10), run_in_shell, hide_stderr);
 
     if (e.Fail())
       return e;

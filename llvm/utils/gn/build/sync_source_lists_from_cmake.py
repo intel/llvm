@@ -27,8 +27,11 @@ def patch_gn_file(gn_file, add, remove):
     with open(gn_file) as f:
         gn_contents = f.read()
 
-    srcs_tok = 'sources = [\n'
+    srcs_tok = 'sources = ['
     tokloc = gn_contents.find(srcs_tok)
+    while tokloc != -1 and tokloc + len(srcs_tok) < len(gn_contents) and \
+            gn_contents[tokloc + len(srcs_tok)] == ']':
+        tokloc = gn_contents.find(srcs_tok, tokloc + 1)
 
     if tokloc == -1: raise ValueError(gn_file + ': Failed to find source list')
     if gn_contents.find(srcs_tok, tokloc + 1) != -1:
@@ -58,7 +61,11 @@ def sync_source_lists(write):
     gn_files = git_out(['ls-files', '*BUILD.gn']).splitlines()
 
     # Matches e.g. |   "foo.cpp",|, captures |foo| in group 1.
-    gn_cpp_re = re.compile(r'^\s*"([^"]+\.(?:cpp|c|h|S))",$', re.MULTILINE)
+    gn_cpp_re = re.compile(r'^\s*"([^$"]+\.(?:cpp|c|h|S))",$', re.MULTILINE)
+    # Matches e.g. |   bar_sources = [ "foo.cpp" ]|, captures |foo| in group 1.
+    gn_cpp_re2 = re.compile(
+        r'^\s*(?:.*_)?sources \+?= \[ "([^$"]+\.(?:cpp|c|h|S))" ]$',
+        re.MULTILINE)
     # Matches e.g. |   foo.cpp|, captures |foo| in group 1.
     cmake_cpp_re = re.compile(r'^\s*([A-Za-z_0-9./-]+\.(?:cpp|c|h|S))$',
                               re.MULTILINE)
@@ -88,6 +95,7 @@ def sync_source_lists(write):
         def get_sources(source_re, text):
             return set([m.group(1) for m in source_re.finditer(text)])
         gn_cpp = get_sources(gn_cpp_re, open(gn_file).read())
+        gn_cpp |= get_sources(gn_cpp_re2, open(gn_file).read())
         cmake_cpp = get_sources(cmake_cpp_re, open(cmake_file).read())
 
         if gn_cpp == cmake_cpp:

@@ -11,15 +11,52 @@
 //===----------------------------------------------------------------------===//
 
 #include "device.h"
+#include "MemoryManager.h"
 #include "private.h"
 #include "rtl.h"
 
 #include <cassert>
 #include <climits>
+#include <cstdio>
 #include <string>
 
 /// Map between Device ID (i.e. openmp device id) and its DeviceTy.
 DevicesTy Devices;
+
+DeviceTy::DeviceTy(const DeviceTy &D)
+    : DeviceID(D.DeviceID), RTL(D.RTL), RTLDeviceID(D.RTLDeviceID),
+      IsInit(D.IsInit), InitFlag(), HasPendingGlobals(D.HasPendingGlobals),
+      HostDataToTargetMap(D.HostDataToTargetMap),
+      PendingCtorsDtors(D.PendingCtorsDtors), ShadowPtrMap(D.ShadowPtrMap),
+      DataMapMtx(), PendingGlobalsMtx(), ShadowMtx(),
+      LoopTripCnt(D.LoopTripCnt), MemoryManager(nullptr) {}
+
+DeviceTy &DeviceTy::operator=(const DeviceTy &D) {
+  DeviceID = D.DeviceID;
+  RTL = D.RTL;
+  RTLDeviceID = D.RTLDeviceID;
+  IsInit = D.IsInit;
+  HasPendingGlobals = D.HasPendingGlobals;
+  HostDataToTargetMap = D.HostDataToTargetMap;
+  PendingCtorsDtors = D.PendingCtorsDtors;
+  ShadowPtrMap = D.ShadowPtrMap;
+  LoopTripCnt = D.LoopTripCnt;
+
+  return *this;
+}
+
+DeviceTy::DeviceTy(RTLInfoTy *RTL)
+    : DeviceID(-1), RTL(RTL), RTLDeviceID(-1), IsInit(false), InitFlag(),
+      HasPendingGlobals(false), HostDataToTargetMap(), PendingCtorsDtors(),
+      ShadowPtrMap(), DataMapMtx(), PendingGlobalsMtx(), ShadowMtx(),
+      MemoryManager(nullptr) {}
+
+DeviceTy::~DeviceTy() {
+  if (DeviceID == -1 || getInfoLevel() < 1)
+    return;
+
+  dumpTargetPointerMappings(*this);
+}
 
 int DeviceTy::associatePtr(void *HstPtrBegin, void *TgtPtrBegin, int64_t Size) {
   DataMapMtx.lock();
@@ -36,8 +73,8 @@ int DeviceTy::associatePtr(void *HstPtrBegin, void *TgtPtrBegin, int64_t Size) {
          "host ptr, nothing to do\n");
       return OFFLOAD_SUCCESS;
     } else {
-      DP("Not allowed to re-associate a different device ptr+offset with the "
-         "same host ptr\n");
+      REPORT("Not allowed to re-associate a different device ptr+offset with "
+             "the same host ptr\n");
       return OFFLOAD_FAIL;
     }
   }
@@ -72,14 +109,14 @@ int DeviceTy::disassociatePtr(void *HstPtrBegin) {
       DataMapMtx.unlock();
       return OFFLOAD_SUCCESS;
     } else {
-      DP("Trying to disassociate a pointer which was not mapped via "
-         "omp_target_associate_ptr\n");
+      REPORT("Trying to disassociate a pointer which was not mapped via "
+             "omp_target_associate_ptr\n");
     }
   }
 
   // Mapping not found
   DataMapMtx.unlock();
-  DP("Association not found\n");
+  REPORT("Association not found\n");
   return OFFLOAD_FAIL;
 }
 
@@ -112,8 +149,8 @@ LookupResult DeviceTy::lookupMapping(void *HstPtrBegin, int64_t Size) {
   uintptr_t hp = (uintptr_t)HstPtrBegin;
   LookupResult lr;
 
-  DP("Looking up mapping(HstPtrBegin=" DPxMOD ", Size=%ld)...\n", DPxPTR(hp),
-      Size);
+  DP("Looking up mapping(HstPtrBegin=" DPxMOD ", Size=%" PRId64 ")...\n",
+      DPxPTR(hp), Size);
 
   if (HostDataToTargetMap.empty())
     return lr;
@@ -153,15 +190,17 @@ LookupResult DeviceTy::lookupMapping(void *HstPtrBegin, int64_t Size) {
   return lr;
 }
 
-// Used by target_data_begin
+// Used by targetDataBegin
 // Return the target pointer begin (where the data will be moved).
 // Allocate memory if this is the first occurrence of this mapping.
 // Increment the reference counter.
 // If NULL is returned, then either data allocation failed or the user tried
 // to do an illegal mapping.
 void *DeviceTy::getOrAllocTgtPtr(void *HstPtrBegin, void *HstPtrBase,
-    int64_t Size, bool &IsNew, bool &IsHostPtr, bool IsImplicit,
-    bool UpdateRefCount, bool HasCloseModifier) {
+                                 int64_t Size, bool &IsNew, bool &IsHostPtr,
+                                 bool IsImplicit, bool UpdateRefCount,
+                                 bool HasCloseModifier,
+                                 bool HasPresentModifier) {
   void *rc = NULL;
   IsHostPtr = false;
   IsNew = false;
@@ -181,58 +220,79 @@ void *DeviceTy::getOrAllocTgtPtr(void *HstPtrBegin, void *HstPtrBase,
       HT.incRefCount();
 
     uintptr_t tp = HT.TgtPtrBegin + ((uintptr_t)HstPtrBegin - HT.HstPtrBegin);
-    DP("Mapping exists%s with HstPtrBegin=" DPxMOD ", TgtPtrBegin=" DPxMOD ", "
-        "Size=%ld,%s RefCount=%s\n", (IsImplicit ? " (implicit)" : ""),
-        DPxPTR(HstPtrBegin), DPxPTR(tp), Size,
-        (UpdateRefCount ? " updated" : ""),
-        HT.isRefCountInf() ? "INF" : std::to_string(HT.getRefCount()).c_str());
+    INFO(DeviceID,
+         "Mapping exists%s with HstPtrBegin=" DPxMOD ", TgtPtrBegin=" DPxMOD
+         ", "
+         "Size=%" PRId64 ",%s RefCount=%s\n",
+         (IsImplicit ? " (implicit)" : ""), DPxPTR(HstPtrBegin), DPxPTR(tp),
+         Size, (UpdateRefCount ? " updated" : ""),
+         HT.isRefCountInf() ? "INF" : std::to_string(HT.getRefCount()).c_str());
     rc = (void *)tp;
   } else if ((lr.Flags.ExtendsBefore || lr.Flags.ExtendsAfter) && !IsImplicit) {
     // Explicit extension of mapped data - not allowed.
-    DP("Explicit extension of mapping is not allowed.\n");
-  } else if (Size) {
-    // If unified shared memory is active, implicitly mapped variables that are not
-    // privatized use host address. Any explicitly mapped variables also use
-    // host address where correctness is not impeded. In all other cases
-    // maps are respected.
-    // In addition to the mapping rules above, the close map
-    // modifier forces the mapping of the variable to the device.
-    if (RTLs->RequiresFlags & OMP_REQ_UNIFIED_SHARED_MEMORY &&
-        !HasCloseModifier) {
-      DP("Return HstPtrBegin " DPxMOD " Size=%ld RefCount=%s\n",
-         DPxPTR((uintptr_t)HstPtrBegin), Size, (UpdateRefCount ? " updated" : ""));
+    MESSAGE("explicit extension not allowed: host address specified is " DPxMOD
+            " (%" PRId64 " bytes), but device allocation maps to host at "
+            DPxMOD " (%" PRId64 " bytes)",
+            DPxPTR(HstPtrBegin), Size, DPxPTR(lr.Entry->HstPtrBegin),
+            lr.Entry->HstPtrEnd - lr.Entry->HstPtrBegin);
+    if (HasPresentModifier)
+      MESSAGE("device mapping required by 'present' map type modifier does not "
+              "exist for host address " DPxMOD " (%" PRId64 " bytes)",
+              DPxPTR(HstPtrBegin), Size);
+  } else if (RTLs->RequiresFlags & OMP_REQ_UNIFIED_SHARED_MEMORY &&
+             !HasCloseModifier) {
+    // If unified shared memory is active, implicitly mapped variables that are
+    // not privatized use host address. Any explicitly mapped variables also use
+    // host address where correctness is not impeded. In all other cases maps
+    // are respected.
+    // In addition to the mapping rules above, the close map modifier forces the
+    // mapping of the variable to the device.
+    if (Size) {
+      DP("Return HstPtrBegin " DPxMOD " Size=%" PRId64 " RefCount=%s\n",
+         DPxPTR((uintptr_t)HstPtrBegin), Size,
+         (UpdateRefCount ? " updated" : ""));
       IsHostPtr = true;
       rc = HstPtrBegin;
-    } else {
-      // If it is not contained and Size > 0 we should create a new entry for it.
-      IsNew = true;
-      uintptr_t tp = (uintptr_t)RTL->data_alloc(RTLDeviceID, Size, HstPtrBegin);
-      DP("Creating new map entry: HstBase=" DPxMOD ", HstBegin=" DPxMOD ", "
-         "HstEnd=" DPxMOD ", TgtBegin=" DPxMOD "\n", DPxPTR(HstPtrBase),
-         DPxPTR(HstPtrBegin), DPxPTR((uintptr_t)HstPtrBegin + Size), DPxPTR(tp));
-      HostDataToTargetMap.emplace(
-          HostDataToTargetTy((uintptr_t)HstPtrBase, (uintptr_t)HstPtrBegin,
-                             (uintptr_t)HstPtrBegin + Size, tp));
-      rc = (void *)tp;
     }
+  } else if (HasPresentModifier) {
+    DP("Mapping required by 'present' map type modifier does not exist for "
+       "HstPtrBegin=" DPxMOD ", Size=%" PRId64 "\n",
+       DPxPTR(HstPtrBegin), Size);
+    MESSAGE("device mapping required by 'present' map type modifier does not "
+            "exist for host address " DPxMOD " (%" PRId64 " bytes)",
+            DPxPTR(HstPtrBegin), Size);
+  } else if (Size) {
+    // If it is not contained and Size > 0, we should create a new entry for it.
+    IsNew = true;
+    uintptr_t tp = (uintptr_t)allocData(Size, HstPtrBegin);
+    DP("Creating new map entry: HstBase=" DPxMOD ", HstBegin=" DPxMOD ", "
+       "HstEnd=" DPxMOD ", TgtBegin=" DPxMOD "\n",
+       DPxPTR(HstPtrBase), DPxPTR(HstPtrBegin),
+       DPxPTR((uintptr_t)HstPtrBegin + Size), DPxPTR(tp));
+    HostDataToTargetMap.emplace(
+        HostDataToTargetTy((uintptr_t)HstPtrBase, (uintptr_t)HstPtrBegin,
+                           (uintptr_t)HstPtrBegin + Size, tp));
+    rc = (void *)tp;
   }
 
   DataMapMtx.unlock();
   return rc;
 }
 
-// Used by target_data_begin, target_data_end, target_data_update and target.
+// Used by targetDataBegin, targetDataEnd, target_data_update and target.
 // Return the target pointer begin (where the data will be moved).
-// Decrement the reference counter if called from target_data_end.
+// Decrement the reference counter if called from targetDataEnd.
 void *DeviceTy::getTgtPtrBegin(void *HstPtrBegin, int64_t Size, bool &IsLast,
-    bool UpdateRefCount, bool &IsHostPtr) {
+                               bool UpdateRefCount, bool &IsHostPtr,
+                               bool MustContain) {
   void *rc = NULL;
   IsHostPtr = false;
   IsLast = false;
   DataMapMtx.lock();
   LookupResult lr = lookupMapping(HstPtrBegin, Size);
 
-  if (lr.Flags.IsContained || lr.Flags.ExtendsBefore || lr.Flags.ExtendsAfter) {
+  if (lr.Flags.IsContained ||
+      (!MustContain && (lr.Flags.ExtendsBefore || lr.Flags.ExtendsAfter))) {
     auto &HT = *lr.Entry;
     IsLast = HT.getRefCount() == 1;
 
@@ -241,15 +301,15 @@ void *DeviceTy::getTgtPtrBegin(void *HstPtrBegin, int64_t Size, bool &IsLast,
 
     uintptr_t tp = HT.TgtPtrBegin + ((uintptr_t)HstPtrBegin - HT.HstPtrBegin);
     DP("Mapping exists with HstPtrBegin=" DPxMOD ", TgtPtrBegin=" DPxMOD ", "
-        "Size=%ld,%s RefCount=%s\n", DPxPTR(HstPtrBegin), DPxPTR(tp), Size,
-        (UpdateRefCount ? " updated" : ""),
+        "Size=%" PRId64 ",%s RefCount=%s\n", DPxPTR(HstPtrBegin), DPxPTR(tp),
+        Size, (UpdateRefCount ? " updated" : ""),
         HT.isRefCountInf() ? "INF" : std::to_string(HT.getRefCount()).c_str());
     rc = (void *)tp;
   } else if (RTLs->RequiresFlags & OMP_REQ_UNIFIED_SHARED_MEMORY) {
     // If the value isn't found in the mapping and unified shared memory
     // is on then it means we have stumbled upon a value which we need to
     // use directly from the host.
-    DP("Get HstPtrBegin " DPxMOD " Size=%ld RefCount=%s\n",
+    DP("Get HstPtrBegin " DPxMOD " Size=%" PRId64 " RefCount=%s\n",
        DPxPTR((uintptr_t)HstPtrBegin), Size, (UpdateRefCount ? " updated" : ""));
     IsHostPtr = true;
     rc = HstPtrBegin;
@@ -286,18 +346,19 @@ int DeviceTy::deallocTgtPtr(void *HstPtrBegin, int64_t Size, bool ForceDelete,
     if (ForceDelete)
       HT.resetRefCount();
     if (HT.decRefCount() == 0) {
-      DP("Deleting tgt data " DPxMOD " of size %ld\n",
+      DP("Deleting tgt data " DPxMOD " of size %" PRId64 "\n",
           DPxPTR(HT.TgtPtrBegin), Size);
-      RTL->data_delete(RTLDeviceID, (void *)HT.TgtPtrBegin);
+      deleteData((void *)HT.TgtPtrBegin);
       DP("Removing%s mapping with HstPtrBegin=" DPxMOD ", TgtPtrBegin=" DPxMOD
-          ", Size=%ld\n", (ForceDelete ? " (forced)" : ""),
+          ", Size=%" PRId64 "\n", (ForceDelete ? " (forced)" : ""),
           DPxPTR(HT.HstPtrBegin), DPxPTR(HT.TgtPtrBegin), Size);
       HostDataToTargetMap.erase(lr.Entry);
     }
     rc = OFFLOAD_SUCCESS;
   } else {
-    DP("Section to delete (hst addr " DPxMOD ") does not exist in the allocated"
-       " memory\n", DPxPTR(HstPtrBegin));
+    REPORT("Section to delete (hst addr " DPxMOD ") does not exist in the"
+           " allocated memory\n",
+           DPxPTR(HstPtrBegin));
     rc = OFFLOAD_FAIL;
   }
 
@@ -310,10 +371,21 @@ void DeviceTy::init() {
   // Make call to init_requires if it exists for this plugin.
   if (RTL->init_requires)
     RTL->init_requires(RTLs->RequiresFlags);
-  int32_t rc = RTL->init_device(RTLDeviceID);
-  if (rc == OFFLOAD_SUCCESS) {
-    IsInit = true;
-  }
+  int32_t Ret = RTL->init_device(RTLDeviceID);
+  if (Ret != OFFLOAD_SUCCESS)
+    return;
+
+  // The memory manager will only be disabled when users provide a threshold via
+  // the environment variable \p LIBOMPTARGET_MEMORY_MANAGER_THRESHOLD and set
+  // it to 0.
+  if (const char *Env = std::getenv("LIBOMPTARGET_MEMORY_MANAGER_THRESHOLD")) {
+    size_t Threshold = std::stoul(Env);
+    if (Threshold)
+      MemoryManager = std::make_unique<MemoryManagerTy>(*this, Threshold);
+  } else
+    MemoryManager = std::make_unique<MemoryManagerTy>(*this);
+
+  IsInit = true;
 }
 
 /// Thread-safe method to initialize the device only once.
@@ -340,9 +412,25 @@ __tgt_target_table *DeviceTy::load_binary(void *Img) {
   return rc;
 }
 
+void *DeviceTy::allocData(int64_t Size, void *HstPtr) {
+  // If memory manager is enabled, we will allocate data via memory manager.
+  if (MemoryManager)
+    return MemoryManager->allocate(Size, HstPtr);
+
+  return RTL->data_alloc(RTLDeviceID, Size, HstPtr);
+}
+
+int32_t DeviceTy::deleteData(void *TgtPtrBegin) {
+  // If memory manager is enabled, we will deallocate data via memory manager.
+  if (MemoryManager)
+    return MemoryManager->free(TgtPtrBegin);
+
+  return RTL->data_delete(RTLDeviceID, TgtPtrBegin);
+}
+
 // Submit data to device
-int32_t DeviceTy::data_submit(void *TgtPtrBegin, void *HstPtrBegin,
-                              int64_t Size, __tgt_async_info *AsyncInfoPtr) {
+int32_t DeviceTy::submitData(void *TgtPtrBegin, void *HstPtrBegin, int64_t Size,
+                             __tgt_async_info *AsyncInfoPtr) {
   if (!AsyncInfoPtr || !RTL->data_submit_async || !RTL->synchronize)
     return RTL->data_submit(RTLDeviceID, TgtPtrBegin, HstPtrBegin, Size);
   else
@@ -351,8 +439,8 @@ int32_t DeviceTy::data_submit(void *TgtPtrBegin, void *HstPtrBegin,
 }
 
 // Retrieve data from device
-int32_t DeviceTy::data_retrieve(void *HstPtrBegin, void *TgtPtrBegin,
-                                int64_t Size, __tgt_async_info *AsyncInfoPtr) {
+int32_t DeviceTy::retrieveData(void *HstPtrBegin, void *TgtPtrBegin,
+                               int64_t Size, __tgt_async_info *AsyncInfoPtr) {
   if (!AsyncInfoPtr || !RTL->data_retrieve_async || !RTL->synchronize)
     return RTL->data_retrieve(RTLDeviceID, HstPtrBegin, TgtPtrBegin, Size);
   else
@@ -361,21 +449,21 @@ int32_t DeviceTy::data_retrieve(void *HstPtrBegin, void *TgtPtrBegin,
 }
 
 // Copy data from current device to destination device directly
-int32_t DeviceTy::data_exchange(void *SrcPtr, DeviceTy DstDev, void *DstPtr,
-                                int64_t Size, __tgt_async_info *AsyncInfoPtr) {
-  if (!AsyncInfoPtr || !RTL->data_exchange_async || !RTL->synchronize) {
+int32_t DeviceTy::dataExchange(void *SrcPtr, DeviceTy &DstDev, void *DstPtr,
+                               int64_t Size, __tgt_async_info *AsyncInfo) {
+  if (!AsyncInfo || !RTL->data_exchange_async || !RTL->synchronize) {
     assert(RTL->data_exchange && "RTL->data_exchange is nullptr");
     return RTL->data_exchange(RTLDeviceID, SrcPtr, DstDev.RTLDeviceID, DstPtr,
                               Size);
   } else
     return RTL->data_exchange_async(RTLDeviceID, SrcPtr, DstDev.RTLDeviceID,
-                                    DstPtr, Size, AsyncInfoPtr);
+                                    DstPtr, Size, AsyncInfo);
 }
 
 // Run region on device
-int32_t DeviceTy::run_region(void *TgtEntryPtr, void **TgtVarsPtr,
-                             ptrdiff_t *TgtOffsets, int32_t TgtVarsSize,
-                             __tgt_async_info *AsyncInfoPtr) {
+int32_t DeviceTy::runRegion(void *TgtEntryPtr, void **TgtVarsPtr,
+                            ptrdiff_t *TgtOffsets, int32_t TgtVarsSize,
+                            __tgt_async_info *AsyncInfoPtr) {
   if (!AsyncInfoPtr || !RTL->run_region || !RTL->synchronize)
     return RTL->run_region(RTLDeviceID, TgtEntryPtr, TgtVarsPtr, TgtOffsets,
                            TgtVarsSize);
@@ -385,11 +473,11 @@ int32_t DeviceTy::run_region(void *TgtEntryPtr, void **TgtVarsPtr,
 }
 
 // Run team region on device.
-int32_t DeviceTy::run_team_region(void *TgtEntryPtr, void **TgtVarsPtr,
-                                  ptrdiff_t *TgtOffsets, int32_t TgtVarsSize,
-                                  int32_t NumTeams, int32_t ThreadLimit,
-                                  uint64_t LoopTripCount,
-                                  __tgt_async_info *AsyncInfoPtr) {
+int32_t DeviceTy::runTeamRegion(void *TgtEntryPtr, void **TgtVarsPtr,
+                                ptrdiff_t *TgtOffsets, int32_t TgtVarsSize,
+                                int32_t NumTeams, int32_t ThreadLimit,
+                                uint64_t LoopTripCount,
+                                __tgt_async_info *AsyncInfoPtr) {
   if (!AsyncInfoPtr || !RTL->run_team_region_async || !RTL->synchronize)
     return RTL->run_team_region(RTLDeviceID, TgtEntryPtr, TgtVarsPtr,
                                 TgtOffsets, TgtVarsSize, NumTeams, ThreadLimit,
@@ -410,6 +498,12 @@ bool DeviceTy::isDataExchangable(const DeviceTy &DstDevice) {
            (RTL->data_exchange_async != nullptr);
 
   return false;
+}
+
+int32_t DeviceTy::synchronize(__tgt_async_info *AsyncInfoPtr) {
+  if (RTL->synchronize)
+    return RTL->synchronize(RTLDeviceID, AsyncInfoPtr);
+  return OFFLOAD_SUCCESS;
 }
 
 /// Check whether a device has an associated RTL and initialize it if it's not

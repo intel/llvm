@@ -105,6 +105,20 @@ def FeatureUnalignedScratchAccess : SubtargetFeature<"unaligned-scratch-access",
   "Support unaligned scratch loads and stores"
 >;
 
+// LDS alignment enforcement is controlled by a configuration register:
+// SH_MEM_CONFIG.alignment_mode
+def FeatureUnalignedAccessMode : SubtargetFeature<"unaligned-access-mode",
+  "UnalignedAccessMode",
+  "true",
+  "Support unaligned local and region loads and stores"
+>;
+
+def FeatureUnalignedDSAccess : SubtargetFeature<"unaligned-ds-access",
+  "UnalignedDSAccess",
+  "true",
+  "Does not requires 16 byte alignment for certain local and region loads and stores"
+>;
+
 def FeatureApertureRegs : SubtargetFeature<"aperture-regs",
   "HasApertureRegs",
   "true",
@@ -157,7 +171,7 @@ def FeatureSGPRInitBug : SubtargetFeature<"sgpr-init-bug",
 def FeatureLdsMisalignedBug : SubtargetFeature<"lds-misaligned-bug",
   "LDSMisalignedBug",
   "true",
-  "Some GFX10 bug with misaligned multi-dword LDS access in WGP mode"
+  "Some GFX10 bug with multi-dword LDS and flat access that is not naturally aligned in WGP mode"
 >;
 
 def FeatureMFMAInlineLiteralBug : SubtargetFeature<"mfma-inline-literal-bug",
@@ -695,7 +709,7 @@ def FeatureGFX9 : GCNSubtargetFeatureGeneration<"GFX9",
    FeatureAddNoCarryInsts, FeatureGFX8Insts, FeatureGFX7GFX8GFX9Insts,
    FeatureScalarFlatScratchInsts, FeatureScalarAtomics, FeatureR128A16,
    FeatureSMemTimeInst, FeatureMadMacF32Insts, FeatureDsSrc2Insts,
-   FeatureFastDenormalF32
+   FeatureFastDenormalF32, FeatureUnalignedDSAccess
   ]
 >;
 
@@ -713,7 +727,8 @@ def FeatureGFX10 : GCNSubtargetFeatureGeneration<"GFX10",
    FeatureNoSdstCMPX, FeatureVscnt, FeatureRegisterBanking,
    FeatureVOP3Literal, FeatureDPP8,
    FeatureNoDataDepHazard, FeaturePkFmacF16Inst, FeatureDoesNotSupportSRAMECC,
-   FeatureGFX10A16, FeatureFastDenormalF32, FeatureG16
+   FeatureGFX10A16, FeatureFastDenormalF32, FeatureG16,
+   FeatureUnalignedDSAccess
   ]
 >;
 
@@ -910,6 +925,7 @@ def FeatureISAVersion10_1_1 : FeatureSet<
      FeatureSMemTimeInst,
      FeatureMadMacF32Insts,
      FeatureDsSrc2Insts,
+     FeatureLdsMisalignedBug,
      FeatureDoesNotSupportXNACK,
      FeatureCodeObjectV3])>;
 
@@ -1052,6 +1068,11 @@ def isGFX7GFX10 :
   Predicate<"Subtarget->getGeneration() == AMDGPUSubtarget::SEA_ISLANDS ||"
             "Subtarget->getGeneration() == AMDGPUSubtarget::GFX10">,
   AssemblerPredicate<(all_of (not FeatureGCN3Encoding), FeatureCIInsts)>;
+
+def isGFX7GFX8 :
+  Predicate<"Subtarget->getGeneration() == AMDGPUSubtarget::SEA_ISLANDS ||"
+            "Subtarget->getGeneration() == AMDGPUSubtarget::VOLCANIC_ISLANDS">,
+  AssemblerPredicate<(all_of FeatureSouthernIslands, FeatureCIInsts)>;
 
 def isGFX7GFX8GFX9 :
   Predicate<"Subtarget->getGeneration() == AMDGPUSubtarget::SEA_ISLANDS ||"

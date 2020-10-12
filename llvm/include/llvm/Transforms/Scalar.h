@@ -14,6 +14,7 @@
 #ifndef LLVM_TRANSFORMS_SCALAR_H
 #define LLVM_TRANSFORMS_SCALAR_H
 
+#include "llvm/Transforms/Utils/SimplifyCFGOptions.h"
 #include <functional>
 
 namespace llvm {
@@ -22,12 +23,6 @@ class Function;
 class FunctionPass;
 class ModulePass;
 class Pass;
-
-//===----------------------------------------------------------------------===//
-//
-// ConstantPropagation - A worklist driven constant propagation pass
-//
-FunctionPass *createConstantPropagationPass();
 
 //===----------------------------------------------------------------------===//
 //
@@ -41,13 +36,6 @@ FunctionPass *createAlignmentFromAssumptionsPass();
 // SCCP - Sparse conditional constant propagation.
 //
 FunctionPass *createSCCPPass();
-
-//===----------------------------------------------------------------------===//
-//
-// DeadInstElimination - This pass quickly removes trivially dead instructions
-// without modifying the CFG of the function.  It is a FunctionPass.
-//
-Pass *createDeadInstEliminationPass();
 
 //===----------------------------------------------------------------------===//
 //
@@ -163,6 +151,12 @@ Pass *createLoopInterchangePass();
 
 //===----------------------------------------------------------------------===//
 //
+// LoopFlatten - This pass flattens nested loops into a single loop.
+//
+Pass *createLoopFlattenPass();
+
+//===----------------------------------------------------------------------===//
+//
 // LoopStrengthReduce - This pass is strength reduces GEP instructions that use
 // a loop's canonical induction variable as one of their indices.
 //
@@ -245,10 +239,12 @@ FunctionPass *createReassociatePass();
 //===----------------------------------------------------------------------===//
 //
 // JumpThreading - Thread control through mult-pred/multi-succ blocks where some
-// preds always go to some succ. Thresholds other than minus one override the
-// internal BB duplication default threshold.
+// preds always go to some succ. If FreezeSelectCond is true, unfold the
+// condition of a select that unfolds to branch. Thresholds other than minus one
+// override the internal BB duplication default threshold.
 //
-FunctionPass *createJumpThreadingPass(int Threshold = -1);
+FunctionPass *createJumpThreadingPass(bool FreezeSelectCond = false,
+                                      int Threshold = -1);
 
 //===----------------------------------------------------------------------===//
 //
@@ -256,8 +252,7 @@ FunctionPass *createJumpThreadingPass(int Threshold = -1);
 // simplify terminator instructions, convert switches to lookup tables, etc.
 //
 FunctionPass *createCFGSimplificationPass(
-    unsigned Threshold = 1, bool ForwardSwitchCond = false,
-    bool ConvertSwitch = false, bool KeepLoops = true, bool SinkCommon = false,
+    SimplifyCFGOptions Options = SimplifyCFGOptions(),
     std::function<bool(const Function &)> Ftor = nullptr);
 
 //===----------------------------------------------------------------------===//
@@ -346,6 +341,13 @@ FunctionPass *createConstantHoistingPass();
 
 //===----------------------------------------------------------------------===//
 //
+// ConstraintElimination - This pass eliminates conditions based on found
+//                         constraints.
+//
+FunctionPass *createConstraintEliminationPass();
+
+//===----------------------------------------------------------------------===//
+//
 // Sink - Code Sinking
 //
 FunctionPass *createSinkingPass();
@@ -367,6 +369,13 @@ Pass *createLowerGuardIntrinsicPass();
 // LowerMatrixIntrinsics - Lower matrix intrinsics to vector operations.
 //
 Pass *createLowerMatrixIntrinsicsPass();
+
+//===----------------------------------------------------------------------===//
+//
+// LowerMatrixIntrinsicsMinimal - Lower matrix intrinsics to vector operations
+//                               (lightweight, does not require extra analysis)
+//
+Pass *createLowerMatrixIntrinsicsMinimalPass();
 
 //===----------------------------------------------------------------------===//
 //
@@ -523,6 +532,13 @@ Pass *createLoopSimplifyCFGPass();
 // transformations.
 //
 Pass *createWarnMissedTransformationsPass();
+
+//===----------------------------------------------------------------------===//
+//
+// This pass does instruction simplification on each
+// instruction in a function.
+//
+FunctionPass *createInstSimplifyLegacyPass();
 } // End llvm namespace
 
 #endif

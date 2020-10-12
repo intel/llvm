@@ -55,8 +55,9 @@ public:
   using Ref = common::Reference<BaseType<B>>;
 
   ReferenceVariantBase() = delete;
-  template <typename B>
-  ReferenceVariantBase(B &b) : u{Ref<B>{b}} {}
+  ReferenceVariantBase(std::variant<Ref<A>...> b) : u(b) {}
+  template <typename T>
+  ReferenceVariantBase(Ref<T> b) : u(b) {}
 
   template <typename B>
   constexpr BaseType<B> &get() const {
@@ -131,8 +132,8 @@ using Constructs =
                parser::ForallConstruct>;
 
 using Directives =
-    std::tuple<parser::CompilerDirective, parser::OpenMPConstruct,
-               parser::OmpEndLoopDirective>;
+    std::tuple<parser::CompilerDirective, parser::OpenACCConstruct,
+               parser::OpenMPConstruct, parser::OmpEndLoopDirective>;
 
 template <typename A>
 static constexpr bool isActionStmt{common::HasMember<A, ActionStmts>};

@@ -255,7 +255,7 @@ ARM::ISAKind ARM::parseArchISA(StringRef Arch) {
 
 unsigned ARM::parseFPU(StringRef FPU) {
   StringRef Syn = getFPUSynonym(FPU);
-  for (const auto F : FPUNames) {
+  for (const auto &F : FPUNames) {
     if (Syn == F.getName())
       return F.ID;
   }
@@ -409,7 +409,7 @@ bool ARM::getExtensionFeatures(uint64_t Extensions,
   if (Extensions == AEK_INVALID)
     return false;
 
-  for (const auto AE : ARCHExtNames) {
+  for (const auto &AE : ARCHExtNames) {
     if ((Extensions & AE.ID) == AE.ID && AE.Feature)
       Features.push_back(AE.Feature);
     else if (AE.NegFeature)
@@ -436,7 +436,7 @@ unsigned ARM::getArchAttr(ARM::ArchKind AK) {
 }
 
 StringRef ARM::getArchExtName(uint64_t ArchExtKind) {
-  for (const auto AE : ARCHExtNames) {
+  for (const auto &AE : ARCHExtNames) {
     if (ArchExtKind == AE.ID)
       return AE.getName();
   }
@@ -453,7 +453,7 @@ static bool stripNegationPrefix(StringRef &Name) {
 
 StringRef ARM::getArchExtFeature(StringRef ArchExt) {
   bool Negated = stripNegationPrefix(ArchExt);
-  for (const auto AE : ARCHExtNames) {
+  for (const auto &AE : ARCHExtNames) {
     if (AE.Feature && ArchExt == AE.getName())
       return StringRef(Negated ? AE.NegFeature : AE.Feature);
   }
@@ -490,9 +490,10 @@ static unsigned findDoublePrecisionFPU(unsigned InputFPUKind) {
   return ARM::FK_INVALID;
 }
 
-bool ARM::appendArchExtFeatures(
-  StringRef CPU, ARM::ArchKind AK, StringRef ArchExt,
-  std::vector<StringRef> &Features) {
+bool ARM::appendArchExtFeatures(StringRef CPU, ARM::ArchKind AK,
+                                StringRef ArchExt,
+                                std::vector<StringRef> &Features,
+                                unsigned &ArgFPUID) {
 
   size_t StartingNumFeatures = Features.size();
   const bool Negated = stripNegationPrefix(ArchExt);
@@ -501,7 +502,7 @@ bool ARM::appendArchExtFeatures(
   if (ID == AEK_INVALID)
     return false;
 
-  for (const auto AE : ARCHExtNames) {
+  for (const auto &AE : ARCHExtNames) {
     if (Negated) {
       if ((AE.ID & ID) == ID && AE.NegFeature)
         Features.push_back(AE.NegFeature);
@@ -527,13 +528,14 @@ bool ARM::appendArchExtFeatures(
     } else {
       FPUKind = getDefaultFPU(CPU, AK);
     }
+    ArgFPUID = FPUKind;
     return ARM::getFPUFeatures(FPUKind, Features);
   }
   return StartingNumFeatures != Features.size();
 }
 
 StringRef ARM::getHWDivName(uint64_t HWDivKind) {
-  for (const auto D : HWDivNames) {
+  for (const auto &D : HWDivNames) {
     if (HWDivKind == D.ID)
       return D.getName();
   }
@@ -546,7 +548,7 @@ StringRef ARM::getDefaultCPU(StringRef Arch) {
     return StringRef();
 
   // Look for multiple AKs to find the default for pair AK+Name.
-  for (const auto CPU : CPUNames) {
+  for (const auto &CPU : CPUNames) {
     if (CPU.ArchID == AK && CPU.Default)
       return CPU.getName();
   }
@@ -557,7 +559,7 @@ StringRef ARM::getDefaultCPU(StringRef Arch) {
 
 uint64_t ARM::parseHWDiv(StringRef HWDiv) {
   StringRef Syn = getHWDivSynonym(HWDiv);
-  for (const auto D : HWDivNames) {
+  for (const auto &D : HWDivNames) {
     if (Syn == D.getName())
       return D.ID;
   }
@@ -565,7 +567,7 @@ uint64_t ARM::parseHWDiv(StringRef HWDiv) {
 }
 
 uint64_t ARM::parseArchExt(StringRef ArchExt) {
-  for (const auto A : ARCHExtNames) {
+  for (const auto &A : ARCHExtNames) {
     if (ArchExt == A.getName())
       return A.ID;
   }
@@ -573,7 +575,7 @@ uint64_t ARM::parseArchExt(StringRef ArchExt) {
 }
 
 ARM::ArchKind ARM::parseCPUArch(StringRef CPU) {
-  for (const auto C : CPUNames) {
+  for (const auto &C : CPUNames) {
     if (CPU == C.getName())
       return C.ArchID;
   }

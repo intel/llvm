@@ -16,6 +16,23 @@ class ModuleOp;
 template <typename T>
 class OperationPass;
 
+/// Options to control Vector to LLVM lowering.
+///
+/// This should kept in sync with VectorToLLVM options defined for the
+/// ConvertVectorToLLVM pass in include/mlir/Conversion/Passes.td
+struct LowerVectorToLLVMOptions {
+  bool reassociateFPReductions = false;
+  bool enableIndexOptimizations = true;
+  LowerVectorToLLVMOptions &setReassociateFPReductions(bool b) {
+    reassociateFPReductions = b;
+    return *this;
+  }
+  LowerVectorToLLVMOptions &setEnableIndexOptimizations(bool b) {
+    enableIndexOptimizations = b;
+    return *this;
+  }
+};
+
 /// Collect a set of patterns to convert from Vector contractions to LLVM Matrix
 /// Intrinsics. To lower to assembly, the LLVM flag -lower-matrix-intrinsics
 /// will be needed when invoking LLVM.
@@ -25,10 +42,11 @@ void populateVectorToLLVMMatrixConversionPatterns(
 /// Collect a set of patterns to convert from the Vector dialect to LLVM.
 void populateVectorToLLVMConversionPatterns(
     LLVMTypeConverter &converter, OwningRewritePatternList &patterns,
-    bool reassociateFPReductions = false);
+    bool reassociateFPReductions = false, bool enableIndexOptimizations = true);
 
 /// Create a pass to convert vector operations to the LLVMIR dialect.
-std::unique_ptr<OperationPass<ModuleOp>> createConvertVectorToLLVMPass();
+std::unique_ptr<OperationPass<ModuleOp>> createConvertVectorToLLVMPass(
+    const LowerVectorToLLVMOptions &options = LowerVectorToLLVMOptions());
 
 } // namespace mlir
 

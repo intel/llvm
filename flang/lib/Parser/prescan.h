@@ -37,7 +37,12 @@ public:
       common::LanguageFeatureControl);
   Prescanner(const Prescanner &);
 
-  Messages &messages() const { return messages_; }
+  const AllSources &allSources() const { return allSources_; }
+  AllSources &allSources() { return allSources_; }
+  const Messages &messages() const { return messages_; }
+  Messages &messages() { return messages_; }
+  const Preprocessor &preprocessor() const { return preprocessor_; }
+  Preprocessor &preprocessor() { return preprocessor_; }
 
   Prescanner &set_fixedForm(bool yes) {
     inFixedForm_ = yes;
@@ -64,11 +69,8 @@ public:
   TokenSequence TokenizePreprocessorDirective();
   Provenance GetCurrentProvenance() const { return GetProvenance(at_); }
 
-  template <typename... A> Message &Say(A &&... a) {
-    Message &m{messages_.Say(std::forward<A>(a)...)};
-    std::optional<ProvenanceRange> range{m.GetProvenanceRange(cooked_)};
-    CHECK(!range || cooked_.IsValid(*range));
-    return m;
+  template <typename... A> Message &Say(A &&...a) {
+    return messages_.Say(std::forward<A>(a)...);
   }
 
 private:
@@ -95,14 +97,18 @@ private:
     at_ = at;
     column_ = 1;
     tabInCurrentLine_ = false;
-    slashInCurrentLine_ = false;
-    preventHollerith_ = false;
-    delimiterNesting_ = 0;
   }
 
   void BeginSourceLineAndAdvance() {
     BeginSourceLine(nextLine_);
     NextLine();
+  }
+
+  void BeginStatementAndAdvance() {
+    BeginSourceLineAndAdvance();
+    slashInCurrentStatement_ = false;
+    preventHollerith_ = false;
+    delimiterNesting_ = 0;
   }
 
   Provenance GetProvenance(const char *sourceChar) const {
@@ -120,7 +126,7 @@ private:
   }
 
   void EmitInsertedChar(TokenSequence &tokens, char ch) {
-    Provenance provenance{cooked_.allSources().CompilerInsertionProvenance(ch)};
+    Provenance provenance{allSources_.CompilerInsertionProvenance(ch)};
     tokens.PutNextTokenChar(ch, provenance);
   }
 
@@ -143,7 +149,7 @@ private:
                     common::LanguageFeature::ClassicCComments)));
   }
 
-  void LabelField(TokenSequence &, int outCol = 1);
+  void LabelField(TokenSequence &);
   void SkipToEndOfLine();
   bool MustSkipToEndOfLine() const;
   void NextChar();
@@ -166,6 +172,7 @@ private:
   const char *IsPreprocessorDirectiveLine(const char *) const;
   const char *FixedFormContinuationLine(bool mightNeedSpace);
   const char *FreeFormContinuationLine(bool ampersand);
+  bool IsImplicitContinuation() const;
   bool FixedFormContinuation(bool mightNeedSpace);
   bool FreeFormContinuation();
   bool Continuation(bool mightNeedFixedFormSpace);
@@ -180,6 +187,7 @@ private:
   Messages &messages_;
   CookedSource &cooked_;
   Preprocessor &preprocessor_;
+  AllSources &allSources_;
   common::LanguageFeatureControl features_;
   bool inFixedForm_{false};
   int fixedFormColumnLimit_{72};
@@ -198,8 +206,8 @@ private:
   const char *at_{nullptr}; // next character to process; < nextLine_
   int column_{1}; // card image column position of next character
   bool tabInCurrentLine_{false};
-  bool slashInCurrentLine_{false};
-  bool preventHollerith_{false};
+  bool slashInCurrentStatement_{false};
+  bool preventHollerith_{false}; // CHARACTER*4HIMOM not Hollerith
   bool inCharLiteral_{false};
   bool inPreprocessorDirective_{false};
 
@@ -217,11 +225,9 @@ private:
   bool skipLeadingAmpersand_{false};
 
   const Provenance spaceProvenance_{
-      cooked_.allSources().CompilerInsertionProvenance(' ')};
+      allSources_.CompilerInsertionProvenance(' ')};
   const Provenance backslashProvenance_{
-      cooked_.allSources().CompilerInsertionProvenance('\\')};
-  const ProvenanceRange sixSpaceProvenance_{
-      cooked_.allSources().AddCompilerInsertion("      "s)};
+      allSources_.CompilerInsertionProvenance('\\')};
 
   // To avoid probing the set of active compiler directive sentinel strings
   // on every comment line, they're checked first with a cheap Bloom filter.

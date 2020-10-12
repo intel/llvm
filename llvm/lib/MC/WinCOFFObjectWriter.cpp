@@ -154,6 +154,8 @@ public:
   MCSectionCOFF *AddrsigSection;
   std::vector<const MCSymbol *> AddrsigSyms;
 
+  MCSectionCOFF *CGProfileSection = nullptr;
+
   WinCOFFObjectWriter(std::unique_ptr<MCWinCOFFObjectTargetWriter> MOTW,
                       raw_pwrite_stream &OS);
 
@@ -351,9 +353,10 @@ COFFSymbol *WinCOFFObjectWriter::getLinkedSymbol(const MCSymbol &Symbol) {
     return nullptr;
 
   const MCSymbol &Aliasee = SymRef->getSymbol();
-  if (!Aliasee.isUndefined())
+  if (Aliasee.isUndefined() || Aliasee.isExternal())
+    return GetOrCreateCOFFSymbol(&Aliasee);
+  else
     return nullptr;
-  return GetOrCreateCOFFSymbol(&Aliasee);
 }
 
 /// This function takes a symbol data object from the assembler
@@ -373,6 +376,7 @@ void WinCOFFObjectWriter::DefineSymbol(const MCSymbol &MCSym,
   COFFSymbol *Local = nullptr;
   if (cast<MCSymbolCOFF>(MCSym).isWeakExternal()) {
     Sym->Data.StorageClass = COFF::IMAGE_SYM_CLASS_WEAK_EXTERNAL;
+    Sym->Section = nullptr;
 
     COFFSymbol *WeakDefault = getLinkedSymbol(MCSym);
     if (!WeakDefault) {
@@ -672,6 +676,13 @@ void WinCOFFObjectWriter::executePostLayoutBinding(MCAssembler &Asm,
         ".llvm_addrsig", COFF::IMAGE_SCN_LNK_REMOVE,
         SectionKind::getMetadata());
     Asm.registerSection(*AddrsigSection);
+  }
+
+  if (!Asm.CGProfile.empty()) {
+    CGProfileSection = Asm.getContext().getCOFFSection(
+        ".llvm.call-graph-profile", COFF::IMAGE_SCN_LNK_REMOVE,
+        SectionKind::getMetadata());
+    Asm.registerSection(*CGProfileSection);
   }
 
   // "Define" each section & symbol. This creates section & symbol
@@ -1096,6 +1107,20 @@ uint64_t WinCOFFObjectWriter::writeObject(MCAssembler &Asm,
              "Section must already have been defined in "
              "executePostLayoutBinding!");
       encodeULEB128(SectionMap[TargetSection]->Symbol->getIndex(), OS);
+    }
+  }
+
+  // Create the contents of the .llvm.call-graph-profile section.
+  if (CGProfileSection) {
+    auto *Frag = new MCDataFragment(CGProfileSection);
+    Frag->setLayoutOrder(0);
+    raw_svector_ostream OS(Frag->getContents());
+    for (const MCAssembler::CGProfileEntry &CGPE : Asm.CGProfile) {
+      uint32_t FromIndex = CGPE.From->getSymbol().getIndex();
+      uint32_t ToIndex = CGPE.To->getSymbol().getIndex();
+      support::endian::write(OS, FromIndex, W.Endian);
+      support::endian::write(OS, ToIndex, W.Endian);
+      support::endian::write(OS, CGPE.Count, W.Endian);
     }
   }
 

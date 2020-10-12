@@ -177,8 +177,26 @@ TEST(SelectionTest, CommonAncestor) {
       {
           R"cpp(
             void foo();
-            #define CALL_FUNCTION(X) X^()^
+            #^define CALL_FUNCTION(X) X(^)
             void bar() { CALL_FUNCTION(foo); }
+          )cpp",
+          nullptr,
+      },
+      {
+          R"cpp(
+            void foo();
+            #define CALL_FUNCTION(X) X()
+            void bar() { CALL_FUNCTION(foo^)^; }
+          )cpp",
+          nullptr,
+      },
+      {
+          R"cpp(
+            namespace ns {
+            #if 0
+            void fo^o() {}
+            #endif
+            }
           )cpp",
           nullptr,
       },
@@ -388,8 +406,17 @@ TEST(SelectionTest, CommonAncestor) {
         void test(S2 s2) {
           s2[[-^>]]f();
         }
-      )cpp", "DeclRefExpr"} // DeclRefExpr to the "operator->" method.
-  };
+      )cpp",
+       "DeclRefExpr"}, // DeclRefExpr to the "operator->" method.
+
+      // Template template argument.
+      {R"cpp(
+        template <typename> class Vector {};
+        template <template <typename> class Container> class A {};
+        A<[[V^ector]]> a;
+      )cpp",
+       "TemplateArgumentLoc"}};
+
   for (const Case &C : Cases) {
     trace::TestTracer Tracer;
     Annotations Test(C.Code);
@@ -452,6 +479,8 @@ TEST(SelectionTree, Metrics) {
   trace::TestTracer Tracer;
   auto T = makeSelectionTree(Code, AST);
   EXPECT_THAT(Tracer.takeMetric("selection_recovery"),
+              testing::ElementsAreArray({1}));
+  EXPECT_THAT(Tracer.takeMetric("selection_recovery_type"),
               testing::ElementsAreArray({1}));
 }
 
@@ -536,7 +565,7 @@ TEST(SelectionTest, IncludedFile) {
   auto AST = TU.build();
   auto T = makeSelectionTree(Case, AST);
 
-  EXPECT_EQ("WhileStmt", T.commonAncestor()->kind());
+  EXPECT_EQ(nullptr, T.commonAncestor());
 }
 
 TEST(SelectionTest, MacroArgExpansion) {

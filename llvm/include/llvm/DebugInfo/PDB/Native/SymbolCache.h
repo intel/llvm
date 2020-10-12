@@ -61,7 +61,7 @@ class SymbolCache {
   DenseMap<uint32_t, SymIndexId> GlobalOffsetToSymbolId;
 
   /// Map from segment and code offset to SymIndexId.
-  DenseMap<std::pair<uint32_t, uint32_t>, SymIndexId> AddressToFunctionSymId;
+  DenseMap<std::pair<uint32_t, uint32_t>, SymIndexId> AddressToSymbolId;
   DenseMap<std::pair<uint32_t, uint32_t>, SymIndexId> AddressToPublicSymId;
 
   /// Map from virtual address to module index.
@@ -75,6 +75,7 @@ class SymbolCache {
   struct LineTableEntry {
     uint64_t Addr;
     codeview::LineInfo Line;
+    uint32_t ColumnNumber;
     uint32_t FileNameIndex;
     bool IsTerminalEntry;
   };

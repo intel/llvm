@@ -259,6 +259,15 @@ TEST(ParserTest, FullParserTest) {
   EXPECT_TRUE(matches("unsigned X = sizeof(int);", MStmt));
   EXPECT_FALSE(matches("unsigned X = alignof(int);", MStmt));
 
+  Code =
+      R"query(namedDecl(matchesName("^::[ABC]*$", "IgnoreCase | BasicRegex")))query";
+  llvm::Optional<DynTypedMatcher> MatchesName(
+      Parser::parseMatcherExpression(Code, nullptr, nullptr, &Error));
+  EXPECT_EQ("", Error.toStringFull());
+  M = MatchesName->unconditionalConvertTo<Decl>();
+  EXPECT_TRUE(matches("unsigned AAACCBB;", M));
+  EXPECT_TRUE(matches("unsigned aaaccbb;", M));
+
   Code = "hasInitializer(\n    binaryOperator(hasLHS(\"A\")))";
   EXPECT_TRUE(!Parser::parseMatcherExpression(Code, &Error).hasValue());
   EXPECT_EQ("1:1: Error parsing argument 1 for matcher hasInitializer.\n"
@@ -345,9 +354,27 @@ TEST(ParserTest, Errors) {
             ParseMatcherWithError(R"query(decl(hasAttr("Final")))query"));
   EXPECT_EQ("1:1: Error parsing argument 1 for matcher decl.\n"
             "1:6: Error building matcher hasAttr.\n"
-            "1:14: Incorrect type for arg 1. (Expected = string) != (Actual = "
-            "String)",
+            "1:14: Value not found: unrelated",
             ParseMatcherWithError(R"query(decl(hasAttr("unrelated")))query"));
+  EXPECT_EQ(
+      "1:1: Error parsing argument 1 for matcher namedDecl.\n"
+      "1:11: Error building matcher matchesName.\n"
+      "1:33: Unknown value 'Ignorecase' for arg 2; did you mean 'IgnoreCase'",
+      ParseMatcherWithError(
+          R"query(namedDecl(matchesName("[ABC]*", "Ignorecase")))query"));
+  EXPECT_EQ(
+      "1:1: Error parsing argument 1 for matcher namedDecl.\n"
+      "1:11: Error building matcher matchesName.\n"
+      "1:33: Value not found: IgnoreCase & BasicRegex",
+      ParseMatcherWithError(
+          R"query(namedDecl(matchesName("[ABC]*", "IgnoreCase & BasicRegex")))query"));
+  EXPECT_EQ(
+      "1:1: Error parsing argument 1 for matcher namedDecl.\n"
+      "1:11: Error building matcher matchesName.\n"
+      "1:33: Unknown value 'IgnoreCase | Basicregex' for arg 2; did you mean "
+      "'IgnoreCase | BasicRegex'",
+      ParseMatcherWithError(
+          R"query(namedDecl(matchesName("[ABC]*", "IgnoreCase | Basicregex")))query"));
 }
 
 TEST(ParserTest, OverloadErrors) {

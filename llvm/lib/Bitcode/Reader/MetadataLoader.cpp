@@ -17,7 +17,6 @@
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
@@ -63,7 +62,6 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -75,7 +73,6 @@
 #include <deque>
 #include <limits>
 #include <map>
-#include <memory>
 #include <string>
 #include <system_error>
 #include <tuple>
@@ -853,6 +850,7 @@ MetadataLoader::MetadataLoaderImpl::lazyLoadModuleMetadataBlock() {
       case bitc::METADATA_SUBRANGE:
       case bitc::METADATA_ENUMERATOR:
       case bitc::METADATA_BASIC_TYPE:
+      case bitc::METADATA_STRING_TYPE:
       case bitc::METADATA_DERIVED_TYPE:
       case bitc::METADATA_COMPOSITE_TYPE:
       case bitc::METADATA_SUBROUTINE_TYPE:
@@ -1325,6 +1323,20 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
     NextMetadataNo++;
     break;
   }
+  case bitc::METADATA_STRING_TYPE: {
+    if (Record.size() != 8)
+      return error("Invalid record");
+
+    IsDistinct = Record[0];
+    MetadataList.assignValue(
+        GET_OR_DISTINCT(DIStringType,
+                        (Context, Record[1], getMDString(Record[2]),
+                         getMDOrNull(Record[3]), getMDOrNull(Record[4]),
+                         Record[5], Record[6], Record[7])),
+        NextMetadataNo);
+    NextMetadataNo++;
+    break;
+  }
   case bitc::METADATA_DERIVED_TYPE: {
     if (Record.size() < 12 || Record.size() > 13)
       return error("Invalid record");
@@ -1350,7 +1362,7 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
     break;
   }
   case bitc::METADATA_COMPOSITE_TYPE: {
-    if (Record.size() < 16 || Record.size() > 18)
+    if (Record.size() < 16 || Record.size() > 20)
       return error("Invalid record");
 
     // If we have a UUID and this is not a forward declaration, lookup the
@@ -1375,6 +1387,8 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
     Metadata *TemplateParams = nullptr;
     Metadata *Discriminator = nullptr;
     Metadata *DataLocation = nullptr;
+    Metadata *Associated = nullptr;
+    Metadata *Allocated = nullptr;
     auto *Identifier = getMDString(Record[15]);
     // If this module is being parsed so that it can be ThinLTO imported
     // into another module, composite types only need to be imported
@@ -1399,13 +1413,18 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
         Discriminator = getMDOrNull(Record[16]);
       if (Record.size() > 17)
         DataLocation = getMDOrNull(Record[17]);
+      if (Record.size() > 19) {
+        Associated = getMDOrNull(Record[18]);
+        Allocated = getMDOrNull(Record[19]);
+      }
     }
     DICompositeType *CT = nullptr;
     if (Identifier)
       CT = DICompositeType::buildODRType(
           Context, *Identifier, Tag, Name, File, Line, Scope, BaseType,
           SizeInBits, AlignInBits, OffsetInBits, Flags, Elements, RuntimeLang,
-          VTableHolder, TemplateParams, Discriminator, DataLocation);
+          VTableHolder, TemplateParams, Discriminator, DataLocation, Associated,
+          Allocated);
 
     // Create a node if we didn't get a lazy ODR type.
     if (!CT)
@@ -1413,7 +1432,8 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
                            (Context, Tag, Name, File, Line, Scope, BaseType,
                             SizeInBits, AlignInBits, OffsetInBits, Flags,
                             Elements, RuntimeLang, VTableHolder, TemplateParams,
-                            Identifier, Discriminator, DataLocation));
+                            Identifier, Discriminator, DataLocation, Associated,
+                            Allocated));
     if (!IsNotUsedInTypeRef && Identifier)
       MetadataList.addTypeRef(*Identifier, *cast<DICompositeType>(CT));
 

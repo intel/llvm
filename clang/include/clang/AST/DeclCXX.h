@@ -1025,7 +1025,7 @@ public:
   }
 
   /// Set the captures for this lambda closure type.
-  void setCaptures(ArrayRef<LambdaCapture> Captures);
+  void setCaptures(ASTContext &Context, ArrayRef<LambdaCapture> Captures);
 
   /// For a closure type, retrieve the mapping from captured
   /// variables and \c this to the non-static data members that store the
@@ -1394,6 +1394,11 @@ public:
            (isAggregate() || isLambda() ||
             hasConstexprNonCopyMoveConstructor() ||
             hasTrivialDefaultConstructor());
+  }
+
+  /// Determine whether this is a structural type.
+  bool isStructural() const {
+    return isLiteral() && data().StructuralIfLiteral;
   }
 
   /// If this record is an instantiation of a member class,

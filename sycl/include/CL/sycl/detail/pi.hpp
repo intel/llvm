@@ -20,8 +20,10 @@
 #include <CL/sycl/detail/pi.h>
 
 #include <cassert>
+#include <cstdint>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Forward declarations
@@ -57,11 +59,11 @@ bool trace(TraceLevel level);
 
 #ifdef SYCL_RT_OS_WINDOWS
 #define OPENCL_PLUGIN_NAME "pi_opencl.dll"
-#define LEVEL0_PLUGIN_NAME "pi_level0.dll"
+#define LEVEL_ZERO_PLUGIN_NAME "pi_level_zero.dll"
 #define CUDA_PLUGIN_NAME "pi_cuda.dll"
 #else
 #define OPENCL_PLUGIN_NAME "libpi_opencl.so"
-#define LEVEL0_PLUGIN_NAME "libpi_level0.so"
+#define LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.so"
 #define CUDA_PLUGIN_NAME "libpi_cuda.so"
 #endif
 
@@ -178,6 +180,32 @@ template <> inline void print<>(PiPlatform val) {
   std::cout << "pi_platform : " << val << std::endl;
 }
 
+template <> inline void print<>(pi_buffer_region rgn) {
+  std::cout << "pi_buffer_region origin/size : " << rgn->origin << "/"
+            << rgn->size << std::endl;
+}
+
+template <> inline void print<>(pi_buff_rect_region rgn) {
+  std::cout << "pi_buff_rect_region width_bytes/height/depth : "
+            << rgn->width_bytes << "/" << rgn->height_scalar << "/"
+            << rgn->depth_scalar << std::endl;
+}
+
+template <> inline void print<>(pi_buff_rect_offset off) {
+  std::cout << "pi_buff_rect_offset x_bytes/y/z : " << off->x_bytes << "/"
+            << off->y_scalar << "/" << off->z_scalar << std::endl;
+}
+
+template <> inline void print<>(pi_image_region rgn) {
+  std::cout << "pi_image_region width/height/depth : " << rgn->width << "/"
+            << rgn->height << "/" << rgn->depth << std::endl;
+}
+
+template <> inline void print<>(pi_image_offset off) {
+  std::cout << "pi_image_offset x/y/z : " << off->x << "/" << off->y << "/"
+            << off->z << std::endl;
+}
+
 template <> inline void print<>(PiResult val) {
   std::cout << "pi_result : ";
   if (val == PI_SUCCESS)
@@ -197,6 +225,22 @@ void printArgs(Arg0 arg0, Args... args) {
   pi::printArgs(std::forward<Args>(args)...);
 }
 
+// A wrapper for passing around byte array properties
+class ByteArray {
+public:
+  using ConstIterator = const std::uint8_t *;
+
+  ByteArray(const std::uint8_t *Ptr, std::size_t Size) : Ptr{Ptr}, Size{Size} {}
+  const std::uint8_t &operator[](std::size_t Idx) const { return Ptr[Idx]; }
+  std::size_t size() const { return Size; }
+  ConstIterator begin() const { return Ptr; }
+  ConstIterator end() const { return Ptr + Size; }
+
+private:
+  const std::uint8_t *Ptr;
+  const std::size_t Size;
+};
+
 // C++ wrapper over the _pi_device_binary_property_struct structure.
 class DeviceBinaryProperty {
 public:
@@ -204,6 +248,7 @@ public:
       : Prop(Prop) {}
 
   pi_uint32 asUint32() const;
+  ByteArray asByteArray() const;
   const char *asCString() const;
 
 protected:
@@ -250,6 +295,7 @@ public:
     ConstIterator begin() const { return ConstIterator(Begin); }
     ConstIterator end() const { return ConstIterator(End); }
     friend class DeviceBinaryImage;
+    bool isAvailable() const { return !(Begin == nullptr); }
 
   private:
     PropertyRange() : Begin(nullptr), End(nullptr) {}
@@ -298,6 +344,10 @@ public:
   /// name of the property is the specializaion constant symbolic ID and the
   /// value is 32-bit unsigned integer ID.
   const PropertyRange &getSpecConstants() const { return SpecConstIDMap; }
+  const PropertyRange &getDeviceLibReqMask() const { return DeviceLibReqMask; }
+  const PropertyRange &getKernelParamOptInfo() const {
+    return KernelParamOptInfo;
+  }
   virtual ~DeviceBinaryImage() {}
 
 protected:
@@ -307,6 +357,8 @@ protected:
   pi_device_binary Bin;
   pi::PiDeviceBinaryType Format = PI_DEVICE_BINARY_TYPE_NONE;
   DeviceBinaryImage::PropertyRange SpecConstIDMap;
+  DeviceBinaryImage::PropertyRange DeviceLibReqMask;
+  DeviceBinaryImage::PropertyRange KernelParamOptInfo;
 };
 
 /// Tries to determine the device binary image foramat. Returns

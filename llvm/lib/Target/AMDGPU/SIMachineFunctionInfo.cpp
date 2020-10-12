@@ -303,7 +303,16 @@ bool SIMachineFunctionInfo::allocateSGPRSpillToVGPR(MachineFunction &MF,
     Register LaneVGPR;
     unsigned VGPRIndex = (NumVGPRSpillLanes % WaveSize);
 
-    if (VGPRIndex == 0 && !FuncInfo->VGPRReservedForSGPRSpill) {
+    // Reserve a VGPR (when NumVGPRSpillLanes = 0, WaveSize, 2*WaveSize, ..) and
+    // when one of the two conditions is true:
+    // 1. One reserved VGPR being tracked by VGPRReservedForSGPRSpill is not yet
+    // reserved.
+    // 2. All spill lanes of reserved VGPR(s) are full and another spill lane is
+    // required.
+    if (FuncInfo->VGPRReservedForSGPRSpill && NumVGPRSpillLanes < WaveSize) {
+      assert(FuncInfo->VGPRReservedForSGPRSpill == SpillVGPRs.back().VGPR);
+      LaneVGPR = FuncInfo->VGPRReservedForSGPRSpill;
+    } else if (VGPRIndex == 0) {
       LaneVGPR = TRI->findUnusedRegister(MRI, &AMDGPU::VGPR_32RegClass, MF);
       if (LaneVGPR == AMDGPU::NoRegister) {
         // We have no VGPRs left for spilling SGPRs. Reset because we will not
@@ -528,21 +537,20 @@ convertArgumentInfo(const AMDGPUFunctionArgInfo &ArgInfo,
 }
 
 yaml::SIMachineFunctionInfo::SIMachineFunctionInfo(
-  const llvm::SIMachineFunctionInfo& MFI,
-  const TargetRegisterInfo &TRI)
-  : ExplicitKernArgSize(MFI.getExplicitKernArgSize()),
-    MaxKernArgAlign(MFI.getMaxKernArgAlign()),
-    LDSSize(MFI.getLDSSize()),
-    IsEntryFunction(MFI.isEntryFunction()),
-    NoSignedZerosFPMath(MFI.hasNoSignedZerosFPMath()),
-    MemoryBound(MFI.isMemoryBound()),
-    WaveLimiter(MFI.needsWaveLimiter()),
-    HighBitsOf32BitAddress(MFI.get32BitAddressHighBits()),
-    ScratchRSrcReg(regToString(MFI.getScratchRSrcReg(), TRI)),
-    FrameOffsetReg(regToString(MFI.getFrameOffsetReg(), TRI)),
-    StackPtrOffsetReg(regToString(MFI.getStackPtrOffsetReg(), TRI)),
-    ArgInfo(convertArgumentInfo(MFI.getArgInfo(), TRI)),
-    Mode(MFI.getMode()) {}
+    const llvm::SIMachineFunctionInfo &MFI, const TargetRegisterInfo &TRI)
+    : ExplicitKernArgSize(MFI.getExplicitKernArgSize()),
+      MaxKernArgAlign(MFI.getMaxKernArgAlign()), LDSSize(MFI.getLDSSize()),
+      DynLDSAlign(MFI.getDynLDSAlign()), IsEntryFunction(MFI.isEntryFunction()),
+      NoSignedZerosFPMath(MFI.hasNoSignedZerosFPMath()),
+      MemoryBound(MFI.isMemoryBound()), WaveLimiter(MFI.needsWaveLimiter()),
+      HasSpilledSGPRs(MFI.hasSpilledSGPRs()),
+      HasSpilledVGPRs(MFI.hasSpilledVGPRs()),
+      HighBitsOf32BitAddress(MFI.get32BitAddressHighBits()),
+      ScratchRSrcReg(regToString(MFI.getScratchRSrcReg(), TRI)),
+      FrameOffsetReg(regToString(MFI.getFrameOffsetReg(), TRI)),
+      StackPtrOffsetReg(regToString(MFI.getStackPtrOffsetReg(), TRI)),
+      ArgInfo(convertArgumentInfo(MFI.getArgInfo(), TRI)), Mode(MFI.getMode()) {
+}
 
 void yaml::SIMachineFunctionInfo::mappingImpl(yaml::IO &YamlIO) {
   MappingTraits<SIMachineFunctionInfo>::mapping(YamlIO, *this);
@@ -553,11 +561,14 @@ bool SIMachineFunctionInfo::initializeBaseYamlFields(
   ExplicitKernArgSize = YamlMFI.ExplicitKernArgSize;
   MaxKernArgAlign = assumeAligned(YamlMFI.MaxKernArgAlign);
   LDSSize = YamlMFI.LDSSize;
+  DynLDSAlign = YamlMFI.DynLDSAlign;
   HighBitsOf32BitAddress = YamlMFI.HighBitsOf32BitAddress;
   IsEntryFunction = YamlMFI.IsEntryFunction;
   NoSignedZerosFPMath = YamlMFI.NoSignedZerosFPMath;
   MemoryBound = YamlMFI.MemoryBound;
   WaveLimiter = YamlMFI.WaveLimiter;
+  HasSpilledSGPRs = YamlMFI.HasSpilledSGPRs;
+  HasSpilledVGPRs = YamlMFI.HasSpilledVGPRs;
   return false;
 }
 

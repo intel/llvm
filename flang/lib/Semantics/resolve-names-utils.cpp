@@ -47,12 +47,6 @@ parser::MessageFixedText WithIsFatal(
       msg.text().begin(), msg.text().size(), isFatal};
 }
 
-bool IsDefinedOperator(const SourceName &name) {
-  const char *begin{name.begin()};
-  const char *end{name.end()};
-  return begin != end && begin[0] == '.' && end[-1] == '.';
-}
-
 bool IsIntrinsicOperator(
     const SemanticsContext &context, const SourceName &name) {
   std::string str{name.ToString()};
@@ -365,7 +359,8 @@ void EquivalenceSets::AddToSet(const parser::Designator &designator) {
       }
     }
     auto substringStart{currObject_.substringStart};
-    currSet_.emplace_back(symbol, subscripts, substringStart);
+    currSet_.emplace_back(
+        symbol, subscripts, substringStart, designator.source);
     PropagateSaveAttr(currSet_.back(), currSet_);
   }
   currObject_ = {};
@@ -446,16 +441,7 @@ void EquivalenceSets::MergeInto(const parser::CharBlock &source,
   EquivalenceSet &dst{sets_[dstIndex]};
   PropagateSaveAttr(dst, src);
   for (const auto &obj : src) {
-    if (const auto *obj2{Find(dst, obj.symbol)}) {
-      if (obj == *obj2) {
-        continue; // already there
-      }
-      context_.Say(source,
-          "'%s' and '%s' cannot have the same first storage unit"_err_en_US,
-          obj2->AsFortran(), obj.AsFortran());
-    } else {
-      dst.push_back(obj);
-    }
+    dst.push_back(obj);
     objectToSet_[obj] = dstIndex;
   }
   PropagateSaveAttr(src, dst);

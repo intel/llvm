@@ -19,7 +19,6 @@
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/WindowsError.h"
 #include <fcntl.h>
-#include <io.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -352,13 +351,13 @@ std::error_code is_local(const Twine &path, bool &result) {
 static std::error_code realPathFromHandle(HANDLE H,
                                           SmallVectorImpl<wchar_t> &Buffer) {
   DWORD CountChars = ::GetFinalPathNameByHandleW(
-      H, Buffer.begin(), Buffer.capacity() - 1, FILE_NAME_NORMALIZED);
-  if (CountChars > Buffer.capacity()) {
+      H, Buffer.begin(), Buffer.capacity(), FILE_NAME_NORMALIZED);
+  if (CountChars && CountChars >= Buffer.capacity()) {
     // The buffer wasn't big enough, try again.  In this case the return value
     // *does* indicate the size of the null terminator.
     Buffer.reserve(CountChars);
     CountChars = ::GetFinalPathNameByHandleW(
-        H, Buffer.data(), Buffer.capacity() - 1, FILE_NAME_NORMALIZED);
+        H, Buffer.begin(), Buffer.capacity(), FILE_NAME_NORMALIZED);
   }
   if (CountChars == 0)
     return mapWindowsError(GetLastError());
@@ -555,6 +554,11 @@ std::error_code rename(const Twine &From, const Twine &To) {
                       NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (FromHandle)
       break;
+
+    // We don't want to loop if the file doesn't exist.
+    auto EC = mapWindowsError(GetLastError());
+    if (EC == errc::no_such_file_or_directory)
+      return EC;
   }
   if (!FromHandle)
     return mapWindowsError(GetLastError());
@@ -952,9 +956,9 @@ std::error_code detail::directory_iterator_construct(detail::DirIterState &IT,
     return EC;
 
   // Convert path to the format that Windows is happy with.
-  if (PathUTF16.size() > 0 &&
-      !is_separator(PathUTF16[Path.size() - 1]) &&
-      PathUTF16[Path.size() - 1] != L':') {
+  size_t PathUTF16Len = PathUTF16.size();
+  if (PathUTF16Len > 0 && !is_separator(PathUTF16[PathUTF16Len - 1]) &&
+      PathUTF16[PathUTF16Len - 1] != L':') {
     PathUTF16.push_back(L'\\');
     PathUTF16.push_back(L'*');
   } else {
@@ -1255,6 +1259,43 @@ Expected<size_t> readNativeFileSlice(file_t FileHandle,
   return readNativeFileImpl(FileHandle, Buf, &Overlapped);
 }
 
+std::error_code tryLockFile(int FD, std::chrono::milliseconds Timeout) {
+  DWORD Flags = LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY;
+  OVERLAPPED OV = {};
+  file_t File = convertFDToNativeFile(FD);
+  auto Start = std::chrono::steady_clock::now();
+  auto End = Start + Timeout;
+  do {
+    if (::LockFileEx(File, Flags, 0, MAXDWORD, MAXDWORD, &OV))
+      return std::error_code();
+    DWORD Error = ::GetLastError();
+    if (Error == ERROR_LOCK_VIOLATION) {
+      ::Sleep(1);
+      continue;
+    }
+    return mapWindowsError(Error);
+  } while (std::chrono::steady_clock::now() < End);
+  return mapWindowsError(ERROR_LOCK_VIOLATION);
+}
+
+std::error_code lockFile(int FD) {
+  DWORD Flags = LOCKFILE_EXCLUSIVE_LOCK;
+  OVERLAPPED OV = {};
+  file_t File = convertFDToNativeFile(FD);
+  if (::LockFileEx(File, Flags, 0, MAXDWORD, MAXDWORD, &OV))
+    return std::error_code();
+  DWORD Error = ::GetLastError();
+  return mapWindowsError(Error);
+}
+
+std::error_code unlockFile(int FD) {
+  OVERLAPPED OV = {};
+  file_t File = convertFDToNativeFile(FD);
+  if (::UnlockFileEx(File, 0, MAXDWORD, MAXDWORD, &OV))
+    return std::error_code();
+  return mapWindowsError(::GetLastError());
+}
+
 std::error_code closeFile(file_t &F) {
   file_t TmpF = F;
   F = kInvalidFile;
@@ -1365,6 +1406,12 @@ static bool getKnownFolderPath(KNOWNFOLDERID folderId,
 
 bool home_directory(SmallVectorImpl<char> &result) {
   return getKnownFolderPath(FOLDERID_Profile, result);
+}
+
+bool user_config_directory(SmallVectorImpl<char> &result) {
+  // Either local or roaming appdata may be suitable in some cases, depending
+  // on the data. Local is more conservative, Roaming may not always be correct.
+  return getKnownFolderPath(FOLDERID_LocalAppData, result);
 }
 
 bool cache_directory(SmallVectorImpl<char> &result) {

@@ -1032,7 +1032,7 @@ unsigned PPCFastISel::PPCMoveToFPReg(MVT SrcVT, unsigned SrcReg,
   // Get a stack slot 8 bytes wide, aligned on an 8-byte boundary.
   Address Addr;
   Addr.BaseType = Address::FrameIndexBase;
-  Addr.Base.FI = MFI.CreateStackObject(8, 8, false);
+  Addr.Base.FI = MFI.CreateStackObject(8, Align(8), false);
 
   // Store the value from the GPR.
   if (!PPCEmitStore(MVT::i64, SrcReg, Addr))
@@ -1161,7 +1161,7 @@ unsigned PPCFastISel::PPCMoveToIntReg(const Instruction *I, MVT VT,
   // easiest code gen possible.
   Address Addr;
   Addr.BaseType = Address::FrameIndexBase;
-  Addr.Base.FI = MFI.CreateStackObject(8, 8, false);
+  Addr.Base.FI = MFI.CreateStackObject(8, Align(8), false);
 
   // Store the value from the FPR.
   if (!PPCEmitStore(MVT::f64, SrcReg, Addr))
@@ -1565,6 +1565,10 @@ bool PPCFastISel::fastLowerCall(CallLoweringInfo &CLI) {
 
   // Let SDISel handle vararg functions.
   if (IsVarArg)
+    return false;
+
+  // If this is a PC-Rel function, let SDISel handle the call.
+  if (Subtarget->isUsingPCRelativeCalls())
     return false;
 
   // Handle simple calls for now, with legal return types and
@@ -1991,6 +1995,10 @@ bool PPCFastISel::fastSelectInstruction(const Instruction *I) {
 // Materialize a floating-point constant into a register, and return
 // the register number (or zero if we failed to handle it).
 unsigned PPCFastISel::PPCMaterializeFP(const ConstantFP *CFP, MVT VT) {
+  // If this is a PC-Rel function, let SDISel handle constant pool.
+  if (Subtarget->isUsingPCRelativeCalls())
+    return false;
+
   // No plans to handle long double here.
   if (VT != MVT::f32 && VT != MVT::f64)
     return 0;
@@ -2055,6 +2063,10 @@ unsigned PPCFastISel::PPCMaterializeFP(const ConstantFP *CFP, MVT VT) {
 // Materialize the address of a global value into a register, and return
 // the register number (or zero if we failed to handle it).
 unsigned PPCFastISel::PPCMaterializeGV(const GlobalValue *GV, MVT VT) {
+  // If this is a PC-Rel function, let SDISel handle GV materialization.
+  if (Subtarget->isUsingPCRelativeCalls())
+    return false;
+
   assert(VT == MVT::i64 && "Non-address!");
   const TargetRegisterClass *RC = &PPC::G8RC_and_G8RC_NOX0RegClass;
   unsigned DestReg = createResultReg(RC);

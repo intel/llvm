@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <stdarg.h>
 #include <fstream>
 #include <mutex>
+#include <stdarg.h>
 
 #include "LLDBUtils.h"
 #include "VSCode.h"
@@ -16,9 +16,9 @@
 
 #if defined(_WIN32)
 #define NOMINMAX
-#include <windows.h>
 #include <fcntl.h>
 #include <io.h>
+#include <windows.h>
 #endif
 
 using namespace lldb_vscode;
@@ -38,12 +38,13 @@ VSCode::VSCode()
            {"swift_catch", "Swift Catch", lldb::eLanguageTypeSwift},
            {"swift_throw", "Swift Throw", lldb::eLanguageTypeSwift}}),
       focus_tid(LLDB_INVALID_THREAD_ID), sent_terminated_event(false),
-      stop_at_entry(false), is_attach(false) {
+      stop_at_entry(false), is_attach(false),
+      reverse_request_seq(0), waiting_for_run_in_terminal(false) {
   const char *log_file_path = getenv("LLDBVSCODE_LOG");
 #if defined(_WIN32)
-// Windows opens stdout and stdin in text mode which converts \n to 13,10
-// while the value is just 10 on Darwin/Linux. Setting the file mode to binary
-// fixes this.
+  // Windows opens stdout and stdin in text mode which converts \n to 13,10
+  // while the value is just 10 on Darwin/Linux. Setting the file mode to binary
+  // fixes this.
   int result = _setmode(fileno(stdout), _O_BINARY);
   assert(result);
   result = _setmode(fileno(stdin), _O_BINARY);
@@ -54,8 +55,7 @@ VSCode::VSCode()
     log.reset(new std::ofstream(log_file_path));
 }
 
-VSCode::~VSCode() {
-}
+VSCode::~VSCode() {}
 
 int64_t VSCode::GetLineForPC(int64_t sourceReference, lldb::addr_t pc) const {
   auto pos = source_map.find(sourceReference);
@@ -232,8 +232,8 @@ VSCode::SendFormattedOutput(OutputType o, const char *format, ...) {
   va_start(args, format);
   int actual_length = vsnprintf(buffer, sizeof(buffer), format, args);
   va_end(args);
-  SendOutput(o, llvm::StringRef(buffer,
-                                std::min<int>(actual_length, sizeof(buffer))));
+  SendOutput(
+      o, llvm::StringRef(buffer, std::min<int>(actual_length, sizeof(buffer))));
 }
 
 int64_t VSCode::GetNextSourceReference() {
@@ -313,9 +313,9 @@ void VSCode::RunTerminateCommands() {
   RunLLDBCommands("Running terminateCommands:", terminate_commands);
 }
 
-lldb::SBTarget VSCode::CreateTargetFromArguments(
-    const llvm::json::Object &arguments,
-    lldb::SBError &error) {
+lldb::SBTarget
+VSCode::CreateTargetFromArguments(const llvm::json::Object &arguments,
+                                  lldb::SBError &error) {
   // Grab the name of the program we need to debug and create a target using
   // the given program as an argument. Executable file can be a source of target
   // architecture and platform, if they differ from the host. Setting exe path
@@ -330,18 +330,15 @@ lldb::SBTarget VSCode::CreateTargetFromArguments(
   llvm::StringRef platform_name = GetString(arguments, "platformName");
   llvm::StringRef program = GetString(arguments, "program");
   auto target = this->debugger.CreateTarget(
-    program.data(),
-    target_triple.data(),
-    platform_name.data(),
-    true, // Add dependent modules.
-    error
-  );
+      program.data(), target_triple.data(), platform_name.data(),
+      true, // Add dependent modules.
+      error);
 
   if (error.Fail()) {
     // Update message if there was an error.
     error.SetErrorStringWithFormat(
-        "Could not create a target for a program '%s': %s.",
-        program.data(), error.GetCString());
+        "Could not create a target for a program '%s': %s.", program.data(),
+        error.GetCString());
   }
 
   return target;
@@ -358,7 +355,79 @@ void VSCode::SetTarget(const lldb::SBTarget target) {
         lldb::SBTarget::eBroadcastBitBreakpointChanged);
     listener.StartListeningForEvents(this->broadcaster,
                                      eBroadcastBitStopEventThread);
+    listener.StartListeningForEvents(
+        this->target.GetBroadcaster(),
+        lldb::SBTarget::eBroadcastBitModulesLoaded |
+            lldb::SBTarget::eBroadcastBitModulesUnloaded |
+            lldb::SBTarget::eBroadcastBitSymbolsLoaded);
   }
+}
+
+PacketStatus VSCode::GetNextObject(llvm::json::Object &object) {
+  std::string json = ReadJSON();
+  if (json.empty())
+    return PacketStatus::EndOfFile;
+
+  llvm::StringRef json_sref(json);
+  llvm::Expected<llvm::json::Value> json_value = llvm::json::parse(json_sref);
+  if (!json_value) {
+    auto error = json_value.takeError();
+    if (log) {
+      std::string error_str;
+      llvm::raw_string_ostream strm(error_str);
+      strm << error;
+      strm.flush();
+      *log << "error: failed to parse JSON: " << error_str << std::endl
+           << json << std::endl;
+    }
+    return PacketStatus::JSONMalformed;
+  }
+  object = *json_value->getAsObject();
+  if (!json_value->getAsObject()) {
+    if (log)
+      *log << "error: json packet isn't a object" << std::endl;
+    return PacketStatus::JSONNotObject;
+  }
+  return PacketStatus::Success;
+}
+
+bool VSCode::HandleObject(const llvm::json::Object &object) {
+  const auto packet_type = GetString(object, "type");
+  if (packet_type == "request") {
+    const auto command = GetString(object, "command");
+    auto handler_pos = request_handlers.find(std::string(command));
+    if (handler_pos != request_handlers.end()) {
+      handler_pos->second(object);
+      return true; // Success
+    } else {
+      if (log)
+        *log << "error: unhandled command \"" << command.data() << std::endl;
+      return false; // Fail
+    }
+  }
+  return false;
+}
+
+PacketStatus VSCode::SendReverseRequest(llvm::json::Object request,
+                                        llvm::json::Object &response) {
+  request.try_emplace("seq", ++reverse_request_seq);
+  SendJSON(llvm::json::Value(std::move(request)));
+  while (true) {
+    PacketStatus status = GetNextObject(response);
+    const auto packet_type = GetString(response, "type");
+    if (packet_type == "response")
+      return status;
+    else {
+      // Not our response, we got another packet
+      HandleObject(response);
+    }
+  }
+  return PacketStatus::EndOfFile;
+}
+
+void VSCode::RegisterRequestCallback(std::string request,
+                                     RequestCallback callback) {
+  request_handlers[request] = callback;
 }
 
 } // namespace lldb_vscode

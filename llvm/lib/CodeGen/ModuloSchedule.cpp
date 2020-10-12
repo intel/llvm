@@ -11,9 +11,7 @@
 #include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/CodeGen/LiveIntervals.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
-#include "llvm/CodeGen/MachineLoopUtils.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
-#include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/Support/Debug.h"
@@ -1947,7 +1945,7 @@ void PeelingModuloScheduleExpander::fixupBranches() {
     SmallVector<MachineOperand, 4> Cond;
     TII->removeBranch(*Prolog);
     Optional<bool> StaticallyGreater =
-        Info->createTripCountGreaterCondition(TC, *Prolog, Cond);
+        LoopInfo->createTripCountGreaterCondition(TC, *Prolog, Cond);
     if (!StaticallyGreater.hasValue()) {
       LLVM_DEBUG(dbgs() << "Dynamic: TC > " << TC << "\n");
       // Dynamically branch based on Cond.
@@ -1975,10 +1973,10 @@ void PeelingModuloScheduleExpander::fixupBranches() {
   }
 
   if (!KernelDisposed) {
-    Info->adjustTripCount(-(Schedule.getNumStages() - 1));
-    Info->setPreheader(Prologs.back());
+    LoopInfo->adjustTripCount(-(Schedule.getNumStages() - 1));
+    LoopInfo->setPreheader(Prologs.back());
   } else {
-    Info->disposed();
+    LoopInfo->disposed();
   }
 }
 
@@ -1991,8 +1989,8 @@ void PeelingModuloScheduleExpander::expand() {
   BB = Schedule.getLoop()->getTopBlock();
   Preheader = Schedule.getLoop()->getLoopPreheader();
   LLVM_DEBUG(Schedule.dump());
-  Info = TII->analyzeLoopForPipelining(BB);
-  assert(Info);
+  LoopInfo = TII->analyzeLoopForPipelining(BB);
+  assert(LoopInfo);
 
   rewriteKernel();
   peelPrologAndEpilogs();

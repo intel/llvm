@@ -32,6 +32,24 @@
 		"vsce": "^1.36.3"
 	},
 	"contributes": {
+		"languages": [
+			{
+                "id": "lldb.disassembly",
+                "aliases": [
+                "Disassembly"
+                ],
+                "extensions": [
+                ".disasm"
+                ]
+			}
+		],
+		"grammars": [
+			{
+                "language": "lldb.disassembly",
+                "scopeName": "source.disassembly",
+                "path": "./syntaxes/disassembly.json"
+            }
+        ],
 		"debuggers": [
 			{
 				"type": "lldb-vscode",
@@ -157,6 +175,11 @@
 								"type": "array",
 								"description": "Commands executed at the end of debugging session.",
 								"default": []
+							},
+							"runInTerminal": {
+								"type": "boolean",
+								"description": "Launch the program inside an integrated terminal in the IDE. Useful for debugging interactive command line programs",
+								"default": false
 							}
 						}
 					},

@@ -57,11 +57,11 @@ struct GPUShuffleOpLowering : public ConvertToLLVMPattern {
     Location loc = op->getLoc();
     gpu::ShuffleOpAdaptor adaptor(operands);
 
-    auto dialect = typeConverter.getDialect();
     auto valueTy = adaptor.value().getType().cast<LLVM::LLVMType>();
-    auto int32Type = LLVM::LLVMType::getInt32Ty(dialect);
-    auto predTy = LLVM::LLVMType::getInt1Ty(dialect);
-    auto resultTy = LLVM::LLVMType::getStructTy(dialect, {valueTy, predTy});
+    auto int32Type = LLVM::LLVMType::getInt32Ty(rewriter.getContext());
+    auto predTy = LLVM::LLVMType::getInt1Ty(rewriter.getContext());
+    auto resultTy =
+        LLVM::LLVMType::getStructTy(rewriter.getContext(), {valueTy, predTy});
 
     Value one = rewriter.create<LLVM::ConstantOp>(
         loc, int32Type, rewriter.getI32IntegerAttr(1));
@@ -137,10 +137,11 @@ struct LowerGpuOpsToNVVMOpsPass
     LLVMConversionTarget target(getContext());
     target.addIllegalDialect<gpu::GPUDialect>();
     target.addIllegalOp<LLVM::CosOp, LLVM::ExpOp, LLVM::FAbsOp, LLVM::FCeilOp,
-                        LLVM::LogOp, LLVM::Log10Op, LLVM::Log2Op>();
+                        LLVM::FFloorOp, LLVM::LogOp, LLVM::Log10Op,
+                        LLVM::Log2Op>();
     target.addIllegalOp<FuncOp>();
     target.addLegalDialect<NVVM::NVVMDialect>();
-    // TODO(csigg): Remove once we support replacing non-root ops.
+    // TODO: Remove once we support replacing non-root ops.
     target.addLegalOp<gpu::YieldOp, gpu::GPUModuleOp, gpu::ModuleEndOp>();
     if (failed(applyPartialConversion(m, target, patterns)))
       signalPassFailure();
@@ -174,6 +175,8 @@ void mlir::populateGpuToNVVMConversionPatterns(
                                                "__nv_cos");
   patterns.insert<OpToFuncCallLowering<ExpOp>>(converter, "__nv_expf",
                                                "__nv_exp");
+  patterns.insert<OpToFuncCallLowering<FloorFOp>>(converter, "__nv_floorf",
+                                                  "__nv_floor");
   patterns.insert<OpToFuncCallLowering<LogOp>>(converter, "__nv_logf",
                                                "__nv_log");
   patterns.insert<OpToFuncCallLowering<Log10Op>>(converter, "__nv_log10f",

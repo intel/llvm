@@ -70,6 +70,8 @@ bool IsIntrinsicConcat(
     const evaluate::DynamicType &, int, const evaluate::DynamicType &, int);
 
 bool IsGenericDefinedOp(const Symbol &);
+bool IsDefinedOperator(SourceName);
+std::string MakeOpName(SourceName);
 bool DoesScopeContain(const Scope *maybeAncestor, const Scope &maybeDescendent);
 bool DoesScopeContain(const Scope *, const Symbol &);
 bool IsUseAssociated(const Symbol &, const Scope &);
@@ -85,7 +87,6 @@ bool IsPointerDummy(const Symbol &);
 bool IsBindCProcedure(const Symbol &);
 bool IsBindCProcedure(const Scope &);
 bool IsProcName(const Symbol &); // proc-name
-bool IsFunctionResult(const Symbol &);
 bool IsFunctionResultWithSameNameAsFunction(const Symbol &);
 bool IsExtensibleType(const DerivedTypeSpec *);
 bool IsBuiltinDerivedType(const DerivedTypeSpec *derived, const char *name);
@@ -100,6 +101,8 @@ bool IsInitialized(const Symbol &, bool ignoreDATAstatements = false);
 bool HasIntrinsicTypeName(const Symbol &);
 bool IsSeparateModuleProcedureInterface(const Symbol *);
 bool IsAutomatic(const Symbol &);
+bool HasAlternateReturns(const Symbol &);
+bool InCommonBlock(const Symbol &);
 
 // Return an ultimate component of type that matches predicate, or nullptr.
 const Symbol *FindUltimateComponent(const DerivedTypeSpec &type,
@@ -159,6 +162,7 @@ inline bool IsAssumedRankArray(const Symbol &symbol) {
 }
 bool IsAssumedLengthCharacter(const Symbol &);
 bool IsExternal(const Symbol &);
+bool IsModuleProcedure(const Symbol &);
 // Is the symbol modifiable in this scope
 std::optional<parser::MessageFixedText> WhyNotModifiable(
     const Symbol &, const Scope &);
@@ -279,6 +283,20 @@ template <typename T> bool IsZero(const T &expr) {
   auto value{GetIntValue(expr)};
   return value && *value == 0;
 }
+
+// 15.2.2
+enum class ProcedureDefinitionClass {
+  None,
+  Intrinsic,
+  External,
+  Internal,
+  Module,
+  Dummy,
+  Pointer,
+  StatementFunction
+};
+
+ProcedureDefinitionClass ClassifyProcedure(const Symbol &);
 
 // Derived type component iterator that provides a C++ LegacyForwardIterator
 // iterator over the Ordered, Direct, Ultimate or Potential components of a

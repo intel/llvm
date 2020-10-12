@@ -182,6 +182,7 @@ public:
     case DISubrangeKind:
     case DIEnumeratorKind:
     case DIBasicTypeKind:
+    case DIStringTypeKind:
     case DIDerivedTypeKind:
     case DICompositeTypeKind:
     case DISubroutineTypeKind:
@@ -359,7 +360,7 @@ class DIEnumerator : public DINode {
   friend class MDNode;
 
   APInt Value;
-  DIEnumerator(LLVMContext &C, StorageType Storage, APInt Value,
+  DIEnumerator(LLVMContext &C, StorageType Storage, const APInt &Value,
                bool IsUnsigned, ArrayRef<Metadata *> Ops)
       : DINode(C, DIEnumeratorKind, Storage, dwarf::DW_TAG_enumerator, Ops),
         Value(Value) {
@@ -371,13 +372,13 @@ class DIEnumerator : public DINode {
                      Ops) {}
   ~DIEnumerator() = default;
 
-  static DIEnumerator *getImpl(LLVMContext &Context, APInt Value,
+  static DIEnumerator *getImpl(LLVMContext &Context, const APInt &Value,
                                bool IsUnsigned, StringRef Name,
                                StorageType Storage, bool ShouldCreate = true) {
     return getImpl(Context, Value, IsUnsigned,
                    getCanonicalMDString(Context, Name), Storage, ShouldCreate);
   }
-  static DIEnumerator *getImpl(LLVMContext &Context, APInt Value,
+  static DIEnumerator *getImpl(LLVMContext &Context, const APInt &Value,
                                bool IsUnsigned, MDString *Name,
                                StorageType Storage, bool ShouldCreate = true);
 
@@ -451,6 +452,7 @@ public:
     default:
       return false;
     case DIBasicTypeKind:
+    case DIStringTypeKind:
     case DIDerivedTypeKind:
     case DICompositeTypeKind:
     case DISubroutineTypeKind:
@@ -697,6 +699,7 @@ public:
     default:
       return false;
     case DIBasicTypeKind:
+    case DIStringTypeKind:
     case DIDerivedTypeKind:
     case DICompositeTypeKind:
     case DISubroutineTypeKind:
@@ -747,6 +750,12 @@ public:
   DEFINE_MDNODE_GET(DIBasicType, (unsigned Tag, StringRef Name),
                     (Tag, Name, 0, 0, 0, FlagZero))
   DEFINE_MDNODE_GET(DIBasicType,
+                    (unsigned Tag, StringRef Name, uint64_t SizeInBits),
+                    (Tag, Name, SizeInBits, 0, 0, FlagZero))
+  DEFINE_MDNODE_GET(DIBasicType,
+                    (unsigned Tag, MDString *Name, uint64_t SizeInBits),
+                    (Tag, Name, SizeInBits, 0, 0, FlagZero))
+  DEFINE_MDNODE_GET(DIBasicType,
                     (unsigned Tag, StringRef Name, uint64_t SizeInBits,
                      uint32_t AlignInBits, unsigned Encoding, DIFlags Flags),
                     (Tag, Name, SizeInBits, AlignInBits, Encoding, Flags))
@@ -768,6 +777,81 @@ public:
   static bool classof(const Metadata *MD) {
     return MD->getMetadataID() == DIBasicTypeKind;
   }
+};
+
+/// String type, Fortran CHARACTER(n)
+class DIStringType : public DIType {
+  friend class LLVMContextImpl;
+  friend class MDNode;
+
+  unsigned Encoding;
+
+  DIStringType(LLVMContext &C, StorageType Storage, unsigned Tag,
+               uint64_t SizeInBits, uint32_t AlignInBits, unsigned Encoding,
+               ArrayRef<Metadata *> Ops)
+      : DIType(C, DIStringTypeKind, Storage, Tag, 0, SizeInBits, AlignInBits, 0,
+               FlagZero, Ops),
+        Encoding(Encoding) {}
+  ~DIStringType() = default;
+
+  static DIStringType *getImpl(LLVMContext &Context, unsigned Tag,
+                               StringRef Name, Metadata *StringLength,
+                               Metadata *StrLenExp, uint64_t SizeInBits,
+                               uint32_t AlignInBits, unsigned Encoding,
+                               StorageType Storage, bool ShouldCreate = true) {
+    return getImpl(Context, Tag, getCanonicalMDString(Context, Name),
+                   StringLength, StrLenExp, SizeInBits, AlignInBits, Encoding,
+                   Storage, ShouldCreate);
+  }
+  static DIStringType *getImpl(LLVMContext &Context, unsigned Tag,
+                               MDString *Name, Metadata *StringLength,
+                               Metadata *StrLenExp, uint64_t SizeInBits,
+                               uint32_t AlignInBits, unsigned Encoding,
+                               StorageType Storage, bool ShouldCreate = true);
+
+  TempDIStringType cloneImpl() const {
+    return getTemporary(getContext(), getTag(), getRawName(),
+                        getRawStringLength(), getRawStringLengthExp(),
+                        getSizeInBits(), getAlignInBits(), getEncoding());
+  }
+
+public:
+  DEFINE_MDNODE_GET(DIStringType,
+                    (unsigned Tag, StringRef Name, uint64_t SizeInBits,
+                     uint32_t AlignInBits),
+                    (Tag, Name, nullptr, nullptr, SizeInBits, AlignInBits, 0))
+  DEFINE_MDNODE_GET(DIStringType,
+                    (unsigned Tag, MDString *Name, Metadata *StringLength,
+                     Metadata *StringLengthExp, uint64_t SizeInBits,
+                     uint32_t AlignInBits, unsigned Encoding),
+                    (Tag, Name, StringLength, StringLengthExp, SizeInBits,
+                     AlignInBits, Encoding))
+  DEFINE_MDNODE_GET(DIStringType,
+                    (unsigned Tag, StringRef Name, Metadata *StringLength,
+                     Metadata *StringLengthExp, uint64_t SizeInBits,
+                     uint32_t AlignInBits, unsigned Encoding),
+                    (Tag, Name, StringLength, StringLengthExp, SizeInBits,
+                     AlignInBits, Encoding))
+
+  TempDIStringType clone() const { return cloneImpl(); }
+
+  static bool classof(const Metadata *MD) {
+    return MD->getMetadataID() == DIStringTypeKind;
+  }
+
+  DIVariable *getStringLength() const {
+    return cast_or_null<DIVariable>(getRawStringLength());
+  }
+
+  DIExpression *getStringLengthExp() const {
+    return cast_or_null<DIExpression>(getRawStringLengthExp());
+  }
+
+  unsigned getEncoding() const { return Encoding; }
+
+  Metadata *getRawStringLength() const { return getOperand(3); }
+
+  Metadata *getRawStringLengthExp() const { return getOperand(4); }
 };
 
 /// Derived types.
@@ -942,13 +1026,14 @@ class DICompositeType : public DIType {
           DINodeArray Elements, unsigned RuntimeLang, DIType *VTableHolder,
           DITemplateParameterArray TemplateParams, StringRef Identifier,
           DIDerivedType *Discriminator, Metadata *DataLocation,
-          StorageType Storage, bool ShouldCreate = true) {
+          Metadata *Associated, Metadata *Allocated, StorageType Storage,
+          bool ShouldCreate = true) {
     return getImpl(Context, Tag, getCanonicalMDString(Context, Name), File,
                    Line, Scope, BaseType, SizeInBits, AlignInBits, OffsetInBits,
                    Flags, Elements.get(), RuntimeLang, VTableHolder,
                    TemplateParams.get(),
                    getCanonicalMDString(Context, Identifier), Discriminator,
-                   DataLocation, Storage, ShouldCreate);
+                   DataLocation, Associated, Allocated, Storage, ShouldCreate);
   }
   static DICompositeType *
   getImpl(LLVMContext &Context, unsigned Tag, MDString *Name, Metadata *File,
@@ -957,15 +1042,16 @@ class DICompositeType : public DIType {
           DIFlags Flags, Metadata *Elements, unsigned RuntimeLang,
           Metadata *VTableHolder, Metadata *TemplateParams,
           MDString *Identifier, Metadata *Discriminator, Metadata *DataLocation,
-          StorageType Storage, bool ShouldCreate = true);
+          Metadata *Associated, Metadata *Allocated, StorageType Storage,
+          bool ShouldCreate = true);
 
   TempDICompositeType cloneImpl() const {
-    return getTemporary(getContext(), getTag(), getName(), getFile(), getLine(),
-                        getScope(), getBaseType(), getSizeInBits(),
-                        getAlignInBits(), getOffsetInBits(), getFlags(),
-                        getElements(), getRuntimeLang(), getVTableHolder(),
-                        getTemplateParams(), getIdentifier(),
-                        getDiscriminator(), getRawDataLocation());
+    return getTemporary(
+        getContext(), getTag(), getName(), getFile(), getLine(), getScope(),
+        getBaseType(), getSizeInBits(), getAlignInBits(), getOffsetInBits(),
+        getFlags(), getElements(), getRuntimeLang(), getVTableHolder(),
+        getTemplateParams(), getIdentifier(), getDiscriminator(),
+        getRawDataLocation(), getRawAssociated(), getRawAllocated());
   }
 
 public:
@@ -977,10 +1063,11 @@ public:
        DINodeArray Elements, unsigned RuntimeLang, DIType *VTableHolder,
        DITemplateParameterArray TemplateParams = nullptr,
        StringRef Identifier = "", DIDerivedType *Discriminator = nullptr,
-       Metadata *DataLocation = nullptr),
+       Metadata *DataLocation = nullptr, Metadata *Associated = nullptr,
+       Metadata *Allocated = nullptr),
       (Tag, Name, File, Line, Scope, BaseType, SizeInBits, AlignInBits,
        OffsetInBits, Flags, Elements, RuntimeLang, VTableHolder, TemplateParams,
-       Identifier, Discriminator, DataLocation))
+       Identifier, Discriminator, DataLocation, Associated, Allocated))
   DEFINE_MDNODE_GET(
       DICompositeType,
       (unsigned Tag, MDString *Name, Metadata *File, unsigned Line,
@@ -988,10 +1075,11 @@ public:
        uint32_t AlignInBits, uint64_t OffsetInBits, DIFlags Flags,
        Metadata *Elements, unsigned RuntimeLang, Metadata *VTableHolder,
        Metadata *TemplateParams = nullptr, MDString *Identifier = nullptr,
-       Metadata *Discriminator = nullptr, Metadata *DataLocation = nullptr),
+       Metadata *Discriminator = nullptr, Metadata *DataLocation = nullptr,
+       Metadata *Associated = nullptr, Metadata *Allocated = nullptr),
       (Tag, Name, File, Line, Scope, BaseType, SizeInBits, AlignInBits,
        OffsetInBits, Flags, Elements, RuntimeLang, VTableHolder, TemplateParams,
-       Identifier, Discriminator, DataLocation))
+       Identifier, Discriminator, DataLocation, Associated, Allocated))
 
   TempDICompositeType clone() const { return cloneImpl(); }
 
@@ -1009,7 +1097,7 @@ public:
              uint64_t OffsetInBits, DIFlags Flags, Metadata *Elements,
              unsigned RuntimeLang, Metadata *VTableHolder,
              Metadata *TemplateParams, Metadata *Discriminator,
-             Metadata *DataLocation);
+             Metadata *DataLocation, Metadata *Associated, Metadata *Allocated);
   static DICompositeType *getODRTypeIfExists(LLVMContext &Context,
                                              MDString &Identifier);
 
@@ -1022,14 +1110,13 @@ public:
   ///
   /// If not \a LLVMContext::isODRUniquingDebugTypes(), this function returns
   /// nullptr.
-  static DICompositeType *
-  buildODRType(LLVMContext &Context, MDString &Identifier, unsigned Tag,
-               MDString *Name, Metadata *File, unsigned Line, Metadata *Scope,
-               Metadata *BaseType, uint64_t SizeInBits, uint32_t AlignInBits,
-               uint64_t OffsetInBits, DIFlags Flags, Metadata *Elements,
-               unsigned RuntimeLang, Metadata *VTableHolder,
-               Metadata *TemplateParams, Metadata *Discriminator,
-               Metadata *DataLocation);
+  static DICompositeType *buildODRType(
+      LLVMContext &Context, MDString &Identifier, unsigned Tag, MDString *Name,
+      Metadata *File, unsigned Line, Metadata *Scope, Metadata *BaseType,
+      uint64_t SizeInBits, uint32_t AlignInBits, uint64_t OffsetInBits,
+      DIFlags Flags, Metadata *Elements, unsigned RuntimeLang,
+      Metadata *VTableHolder, Metadata *TemplateParams, Metadata *Discriminator,
+      Metadata *DataLocation, Metadata *Associated, Metadata *Allocated);
 
   DIType *getBaseType() const { return cast_or_null<DIType>(getRawBaseType()); }
   DINodeArray getElements() const {
@@ -1057,6 +1144,20 @@ public:
   }
   DIExpression *getDataLocationExp() const {
     return dyn_cast_or_null<DIExpression>(getRawDataLocation());
+  }
+  Metadata *getRawAssociated() const { return getOperand(10); }
+  DIVariable *getAssociated() const {
+    return dyn_cast_or_null<DIVariable>(getRawAssociated());
+  }
+  DIExpression *getAssociatedExp() const {
+    return dyn_cast_or_null<DIExpression>(getRawAssociated());
+  }
+  Metadata *getRawAllocated() const { return getOperand(11); }
+  DIVariable *getAllocated() const {
+    return dyn_cast_or_null<DIVariable>(getRawAllocated());
+  }
+  DIExpression *getAllocatedExp() const {
+    return dyn_cast_or_null<DIExpression>(getRawAllocated());
   }
 
   /// Replace operands.

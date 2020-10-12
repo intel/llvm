@@ -8,30 +8,24 @@ add_library(RuntimeTesting
 )
 llvm_update_compile_flags(RuntimeTesting)
 
-add_executable(format-test
-  format.cpp
+target_link_libraries(RuntimeTesting
+  FortranRuntime
+  LLVMSupport
 )
 
-target_link_libraries(format-test
+add_flang_nongtest_unittest(format
   RuntimeTesting
   FortranRuntime
   LLVMSupport
 )
 
-add_test(NAME Format COMMAND format-test)
-
-add_executable(hello-world
-  hello.cpp
-)
-
-target_link_libraries(hello-world
+add_flang_nongtest_unittest(hello
   RuntimeTesting
   FortranRuntime
   LLVMSupport
 )
 
-add_test(NAME HelloWorld COMMAND hello-world)
-
+# This test is not run by default as it requires input.
 add_executable(external-hello-world
   external-hello.cpp
 )
@@ -41,26 +35,20 @@ target_link_libraries(external-hello-world
   LLVMSupport
 )
 
-add_executable(list-input-test
-  list-input.cpp
-)
-
-target_link_libraries(list-input-test
+add_flang_nongtest_unittest(external-io
   RuntimeTesting
   FortranRuntime
   LLVMSupport
 )
 
-add_test(NAME ListInput COMMAND list-input-test)
-
-add_executable(character-test
-  character.cpp
-)
-
-target_link_libraries(character-test
+add_flang_nongtest_unittest(list-input
   RuntimeTesting
   FortranRuntime
   LLVMSupport
 )
 
-add_test(NAME CharacterTest COMMAND character-test)
+add_flang_nongtest_unittest(character
+  RuntimeTesting
+  FortranRuntime
+  LLVMSupport
+)

@@ -9,10 +9,11 @@
 #ifndef LLDB_TOOLS_LLDB_VSCODE_JSONUTILS_H
 #define LLDB_TOOLS_LLDB_VSCODE_JSONUTILS_H
 
-#include <stdint.h>
+#include "VSCodeForward.h"
+#include "lldb/API/SBModule.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/JSON.h"
-#include "VSCodeForward.h"
+#include <stdint.h>
 
 namespace lldb_vscode {
 
@@ -237,6 +238,16 @@ CreateBreakpoint(lldb::SBBreakpoint &bp,
                  llvm::Optional<llvm::StringRef> request_path = llvm::None,
                  llvm::Optional<uint32_t> request_line = llvm::None);
 
+/// Converts a LLDB module to a VS Code DAP module for use in "modules" events.
+///
+/// \param[in] module
+///     A LLDB module object to convert into a JSON value
+///
+/// \return
+///     A "Module" JSON object with that follows the formal JSON
+///     definition outlined by Microsoft.
+llvm::json::Value CreateModule(lldb::SBModule &module);
+
 /// Create a "Event" JSON object using \a event_name as the event name
 ///
 /// \param[in] event_name
@@ -429,6 +440,20 @@ llvm::json::Value CreateThreadStopped(lldb::SBThread &thread, uint32_t stop_id);
 ///     definition outlined by Microsoft.
 llvm::json::Value CreateVariable(lldb::SBValue v, int64_t variablesReference,
                                  int64_t varID, bool format_hex);
+
+llvm::json::Value CreateCompileUnit(lldb::SBCompileUnit unit);
+
+/// Create a runInTerminal reverse request object
+///
+/// \param[in] launch_request
+///     The original launch_request object whose fields are used to construct
+///     the reverse request object.
+///
+/// \return
+///     A "runInTerminal" JSON object that follows the specification outlined by
+///     Microsoft.
+llvm::json::Object
+CreateRunInTerminalReverseRequest(const llvm::json::Object &launch_request);
 
 } // namespace lldb_vscode
 

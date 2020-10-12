@@ -23,10 +23,11 @@
 ; CHECK-SPIRV: Name [[HOST_ARG2:[0-9]+]] "arg_host.addr"
 ; CHECK-SPIRV-EXT: TypePointer [[DEVICE_TY:[0-9]+]] 5936 {{[0-9]+}}
 ; CHECK-SPIRV-EXT: TypePointer [[HOST_TY:[0-9]+]] 5937 {{[0-9]+}}
-; CHECK-SPIRV-NO-EXT: TypePointer [[DEVICE_TY:[0-9]+]] 5 {{[0-9]+}}
-; CHECK-SPIRV-NO-EXT: TypePointer [[HOST_TY:[0-9]+]] 5 {{[0-9]+}}
-; CHECK-SPIRV: Load [[DEVICE_TY]] {{[0-9]+}} [[DEVICE]] {{[0-9]+}} {{[0-9]+}}
-; CHECK-SPIRV: Load [[HOST_TY]] {{[0-9]+}} [[HOST]] {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV-NO-EXT: TypePointer [[GLOB_TY:[0-9]+]] 5 {{[0-9]+}}
+; CHECK-SPIRV-EXT: Load [[DEVICE_TY]] {{[0-9]+}} [[DEVICE]] {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV-EXT: Load [[HOST_TY]] {{[0-9]+}} [[HOST]] {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV-NO-EXT: Load [[GLOB_TY]] {{[0-9]+}} [[DEVICE]] {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV-NO-EXT: Load [[GLOB_TY]] {{[0-9]+}} [[HOST]] {{[0-9]+}} {{[0-9]+}}
 
 ; ModuleID = 'intel_usm_addrspaces.cpp'
 source_filename = "intel_usm_addrspaces.cpp"

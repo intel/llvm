@@ -27,8 +27,11 @@ struct LogicalResult;
 class Operation;
 class Region;
 
+} // namespace mlir
+
 #include "mlir/Dialect/GPU/ParallelLoopMapperAttr.h.inc"
 
+namespace mlir {
 namespace scf {
 class ParallelOp;
 }
@@ -44,7 +47,7 @@ inline Processor getProcessor(ParallelLoopDimMapping attr) {
 }
 
 /// Helper function to create a ParallelDimMapperAttr.
-/// TODO(ravishankarm/antiagainst): Replace its uses with an auto-gened method.
+/// TODO: Replace its uses with an auto-gened method.
 ParallelLoopDimMapping getParallelLoopDimMappingAttr(Processor processor,
                                                      AffineMap map,
                                                      AffineMap bound);

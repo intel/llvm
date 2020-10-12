@@ -640,7 +640,7 @@ bool MachineCSE::ProcessBlockCSE(MachineBasicBlock *MBB) {
 
     // Actually perform the elimination.
     if (DoCSE) {
-      for (std::pair<unsigned, unsigned> &CSEPair : CSEPairs) {
+      for (const std::pair<unsigned, unsigned> &CSEPair : CSEPairs) {
         unsigned OldReg = CSEPair.first;
         unsigned NewReg = CSEPair.second;
         // OldReg may have been unused but is used now, clear the Dead flag
@@ -656,7 +656,7 @@ bool MachineCSE::ProcessBlockCSE(MachineBasicBlock *MBB) {
       // we should make sure it is not dead at CSMI.
       for (unsigned ImplicitDefToUpdate : ImplicitDefsToUpdate)
         CSMI->getOperand(ImplicitDefToUpdate).setIsDead(false);
-      for (auto PhysDef : PhysDefs)
+      for (const auto &PhysDef : PhysDefs)
         if (!MI->getOperand(PhysDef.first).isDead())
           CSMI->getOperand(PhysDef.first).setIsDead(false);
 
@@ -747,9 +747,8 @@ bool MachineCSE::PerformCSE(MachineDomTreeNode *Node) {
   do {
     Node = WorkList.pop_back_val();
     Scopes.push_back(Node);
-    const std::vector<MachineDomTreeNode*> &Children = Node->getChildren();
-    OpenChildren[Node] = Children.size();
-    for (MachineDomTreeNode *Child : Children)
+    OpenChildren[Node] = Node->getNumChildren();
+    for (MachineDomTreeNode *Child : Node->children())
       WorkList.push_back(Child);
   } while (!WorkList.empty());
 
@@ -778,11 +777,11 @@ bool MachineCSE::isPRECandidate(MachineInstr *MI) {
       MI->getNumExplicitDefs() != 1)
     return false;
 
-  for (auto def : MI->defs())
+  for (const auto &def : MI->defs())
     if (!Register::isVirtualRegister(def.getReg()))
       return false;
 
-  for (auto use : MI->uses())
+  for (const auto &use : MI->uses())
     if (use.isReg() && !Register::isVirtualRegister(use.getReg()))
       return false;
 
@@ -862,8 +861,7 @@ bool MachineCSE::PerformSimplePRE(MachineDominatorTree *DT) {
   BBs.push_back(DT->getRootNode());
   do {
     auto Node = BBs.pop_back_val();
-    const std::vector<MachineDomTreeNode *> &Children = Node->getChildren();
-    for (MachineDomTreeNode *Child : Children)
+    for (MachineDomTreeNode *Child : Node->children())
       BBs.push_back(Child);
 
     MachineBasicBlock *MBB = Node->getBlock();

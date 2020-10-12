@@ -495,8 +495,7 @@ bool AMDGPULibCalls::isUnsafeMath(const CallInst *CI) const {
 }
 
 bool AMDGPULibCalls::useNativeFunc(const StringRef F) const {
-  return AllNative ||
-         std::find(UseNative.begin(), UseNative.end(), F) != UseNative.end();
+  return AllNative || llvm::is_contained(UseNative, F);
 }
 
 void AMDGPULibCalls::initNativeFuncs() {
@@ -590,8 +589,8 @@ bool AMDGPULibCalls::fold_read_write_pipe(CallInst *CI, IRBuilder<> &B,
   if (!isa<ConstantInt>(PacketSize) || !isa<ConstantInt>(PacketAlign))
     return false;
   unsigned Size = cast<ConstantInt>(PacketSize)->getZExtValue();
-  unsigned Align = cast<ConstantInt>(PacketAlign)->getZExtValue();
-  if (Size != Align || !isPowerOf2_32(Size))
+  Align Alignment = cast<ConstantInt>(PacketAlign)->getAlignValue();
+  if (Alignment != Size)
     return false;
 
   Type *PtrElemTy;

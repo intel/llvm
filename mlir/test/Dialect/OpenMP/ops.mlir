@@ -8,10 +8,11 @@ func @omp_barrier() -> () {
 
 func @omp_master() -> () {
   // CHECK: omp.master
-  "omp.master" ()({
+  omp.master {
     // CHECK: omp.terminator
     omp.terminator
-  }):()->()
+  }
+
   return
 }
 
@@ -28,19 +29,19 @@ func @omp_taskyield() -> () {
 }
 
 // CHECK-LABEL: func @omp_flush
-// CHECK-SAME: %[[ARG0:.*]]: !llvm.i32
+// CHECK-SAME: ([[ARG0:%.*]]: !llvm.i32) {
 func @omp_flush(%arg0 : !llvm.i32) -> () {
   // Test without data var
   // CHECK: omp.flush
   omp.flush
 
   // Test with one data var
-  // CHECK: omp.flush %[[ARG0]] : !llvm.i32
-  "omp.flush"(%arg0) : (!llvm.i32) -> ()
+  // CHECK: omp.flush([[ARG0]] : !llvm.i32)
+  omp.flush(%arg0 : !llvm.i32)
 
   // Test with two data var
-  // CHECK: omp.flush %[[ARG0]], %[[ARG0]] : !llvm.i32, !llvm.i32
-  "omp.flush"(%arg0, %arg0): (!llvm.i32, !llvm.i32) -> ()
+  // CHECK: omp.flush([[ARG0]], [[ARG0]] : !llvm.i32, !llvm.i32)
+  omp.flush(%arg0, %arg0: !llvm.i32, !llvm.i32)
 
   return
 }
@@ -99,14 +100,14 @@ func @omp_parallel_pretty(%data_var : memref<i32>, %if_cond : i1, %num_threads :
 
   // CHECK omp.parallel shared(%{{.*}} : memref<i32>) copyin(%{{.*}} : memref<i32>, %{{.*}} : memref<i32>)
   omp.parallel shared(%data_var : memref<i32>) copyin(%data_var : memref<i32>, %data_var : memref<i32>) {
-    omp.parallel if(%if_cond) {
+    omp.parallel if(%if_cond: i1) {
       omp.terminator
     }
     omp.terminator
   }
 
   // CHECK omp.parallel if(%{{.*}}) num_threads(%{{.*}} : si32) private(%{{.*}} : memref<i32>) proc_bind(close)
-  omp.parallel num_threads(%num_threads : si32) if(%if_cond) 
+  omp.parallel num_threads(%num_threads : si32) if(%if_cond: i1)
                private(%data_var : memref<i32>) proc_bind(close) {
     omp.terminator
   }

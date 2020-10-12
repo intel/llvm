@@ -22,13 +22,15 @@
 namespace clang {
 namespace format {
 
-FormatTokenLexer::FormatTokenLexer(const SourceManager &SourceMgr, FileID ID,
-                                   unsigned Column, const FormatStyle &Style,
-                                   encoding::Encoding Encoding)
+FormatTokenLexer::FormatTokenLexer(
+    const SourceManager &SourceMgr, FileID ID, unsigned Column,
+    const FormatStyle &Style, encoding::Encoding Encoding,
+    llvm::SpecificBumpPtrAllocator<FormatToken> &Allocator,
+    IdentifierTable &IdentTable)
     : FormatTok(nullptr), IsFirstToken(true), StateStack({LexerState::NORMAL}),
       Column(Column), TrailingWhitespace(0), SourceMgr(SourceMgr), ID(ID),
-      Style(Style), IdentTable(getFormattingLangOpts(Style)),
-      Keywords(IdentTable), Encoding(Encoding), FirstInLineIndex(0),
+      Style(Style), IdentTable(IdentTable), Keywords(IdentTable),
+      Encoding(Encoding), Allocator(Allocator), FirstInLineIndex(0),
       FormattingDisabled(false), MacroBlockBeginRegex(Style.MacroBlockBegin),
       MacroBlockEndRegex(Style.MacroBlockEnd) {
   Lex.reset(new Lexer(ID, SourceMgr.getBuffer(ID), SourceMgr,
@@ -37,6 +39,8 @@ FormatTokenLexer::FormatTokenLexer(const SourceManager &SourceMgr, FileID ID,
 
   for (const std::string &ForEachMacro : Style.ForEachMacros)
     Macros.insert({&IdentTable.get(ForEachMacro), TT_ForEachMacro});
+  for (const std::string &AttributeMacro : Style.AttributeMacros)
+    Macros.insert({&IdentTable.get(AttributeMacro), TT_AttributeMacro});
   for (const std::string &StatementMacro : Style.StatementMacros)
     Macros.insert({&IdentTable.get(StatementMacro), TT_StatementMacro});
   for (const std::string &TypenameMacro : Style.TypenameMacros)
@@ -397,7 +401,7 @@ bool FormatTokenLexer::tryTransformTryUsageForC() {
   if (!Try->is(tok::kw_try))
     return false;
   auto &Next = *(Tokens.end() - 1);
-  if (Next->isOneOf(tok::l_brace, tok::colon))
+  if (Next->isOneOf(tok::l_brace, tok::colon, tok::hash, tok::comment))
     return false;
 
   if (Tokens.size() > 2) {

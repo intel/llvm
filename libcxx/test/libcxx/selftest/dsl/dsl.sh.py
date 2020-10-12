@@ -6,11 +6,15 @@
 #
 #===----------------------------------------------------------------------===##
 
-# RUN: %{python} %s %S %T %{escaped_exec} \
-# RUN:                    %{escaped_cxx} \
-# RUN:                    %{escaped_flags} \
-# RUN:                    %{escaped_compile_flags} \
-# RUN:                    %{escaped_link_flags}
+# Note: We prepend arguments with 'x' to avoid thinking there are too few
+#       arguments in case an argument is an empty string.
+# RUN: %{python} %s x%S \
+# RUN:              x%T \
+# RUN:              x%{escaped_exec} \
+# RUN:              x%{escaped_cxx} \
+# RUN:              x%{escaped_flags} \
+# RUN:              x%{escaped_compile_flags} \
+# RUN:              x%{escaped_link_flags}
 # END.
 
 import base64
@@ -33,7 +37,8 @@ import lit.util
 
 # Steal some parameters from the config running this test so that we can
 # bootstrap our own TestingConfig.
-SOURCE_ROOT, EXEC_PATH, EXEC, CXX, FLAGS, COMPILE_FLAGS, LINK_FLAGS = sys.argv[1:8]
+args = list(map(lambda s: s[1:], sys.argv[1:8])) # Remove the leading 'x'
+SOURCE_ROOT, EXEC_PATH, EXEC, CXX, FLAGS, COMPILE_FLAGS, LINK_FLAGS = args
 sys.argv[1:8] = []
 
 class SetupConfigs(unittest.TestCase):
@@ -239,20 +244,28 @@ class TestFeature(SetupConfigs):
         self.assertIn('name', self.config.available_features)
 
     def test_name_can_be_a_callable(self):
-        feature = dsl.Feature(name=lambda cfg: (self.assertIs(self.config, cfg), 'name')[1])
+        feature = dsl.Feature(name=lambda cfg: 'name')
         assert feature.isSupported(self.config)
+        self.assertEqual('name', feature.getName(self.config))
         feature.enableIn(self.config)
         self.assertIn('name', self.config.available_features)
 
     def test_name_is_not_a_string_1(self):
         feature = dsl.Feature(name=None)
         assert feature.isSupported(self.config)
+        self.assertRaises(ValueError, lambda: feature.getName(self.config))
         self.assertRaises(ValueError, lambda: feature.enableIn(self.config))
 
     def test_name_is_not_a_string_2(self):
         feature = dsl.Feature(name=lambda cfg: None)
         assert feature.isSupported(self.config)
+        self.assertRaises(ValueError, lambda: feature.getName(self.config))
         self.assertRaises(ValueError, lambda: feature.enableIn(self.config))
+
+    def test_getName_when_unsupported(self):
+        feature = dsl.Feature(name='name', when=lambda _: False)
+        assert not feature.isSupported(self.config)
+        self.assertRaises(AssertionError, lambda: feature.getName(self.config))
 
     def test_adding_compile_flag(self):
         feature = dsl.Feature(name='name', compileFlag='-foo')

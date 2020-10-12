@@ -34,12 +34,14 @@ void getReachableAffineApplyOps(ArrayRef<Value> operands,
                                 SmallVectorImpl<Operation *> &affineApplyOps);
 
 /// Builds a system of constraints with dimensional identifiers corresponding to
-/// the loop IVs of the forOps appearing in that order. Bounds of the loop are
-/// used to add appropriate inequalities. Any symbols founds in the bound
-/// operands are added as symbols in the system. Returns failure for the yet
-/// unimplemented cases.
-//  TODO(bondhugula): handle non-unit strides.
-LogicalResult getIndexSet(MutableArrayRef<AffineForOp> forOps,
+/// the loop IVs of the forOps and AffineIfOp's operands appearing in
+/// that order. Bounds of the loop are used to add appropriate inequalities.
+/// Constraints from the index sets of AffineIfOp are also added. Any symbols
+/// founds in the bound operands are added as symbols in the system. Returns
+/// failure for the yet unimplemented cases. `ops` accepts both AffineForOp and
+/// AffineIfOp.
+//  TODO: handle non-unit strides.
+LogicalResult getIndexSet(MutableArrayRef<Operation *> ops,
                           FlatAffineConstraints *domain);
 
 /// Encapsulates a memref load or store access information.
@@ -49,8 +51,8 @@ struct MemRefAccess {
   SmallVector<Value, 4> indices;
 
   /// Constructs a MemRefAccess from a load or store operation.
-  // TODO(b/119949820): add accessors to standard op's load, store, DMA op's to
-  // return MemRefAccess, i.e., loadOp->getAccess(), dmaOp->getRead/WriteAccess.
+  // TODO: add accessors to standard op's load, store, DMA op's to return
+  // MemRefAccess, i.e., loadOp->getAccess(), dmaOp->getRead/WriteAccess.
   explicit MemRefAccess(Operation *opInst);
 
   // Returns the rank of the memref associated with this access.
@@ -95,9 +97,9 @@ struct DependenceComponent {
 /// access the same memref element. If 'allowRAR' is true, will consider
 /// read-after-read dependences (typically used by applications trying to
 /// optimize input reuse).
-// TODO(andydavis) Wrap 'dependenceConstraints' and 'dependenceComponents' into
-// a single struct.
-// TODO(andydavis) Make 'dependenceConstraints' optional arg.
+// TODO: Wrap 'dependenceConstraints' and 'dependenceComponents' into a single
+// struct.
+// TODO: Make 'dependenceConstraints' optional arg.
 struct DependenceResult {
   enum ResultEnum {
     HasDependence, // A dependence exists between 'srcAccess' and 'dstAccess'.

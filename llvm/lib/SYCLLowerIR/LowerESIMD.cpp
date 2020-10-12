@@ -579,6 +579,7 @@ template <typename Ty = llvm::Value> Ty *getVal(llvm::Metadata *M) {
 static llvm::MDNode *getSLMSizeMDNode(llvm::Function *F) {
   llvm::NamedMDNode *Nodes =
       F->getParent()->getNamedMetadata(GENX_KERNEL_METADATA);
+  assert(Nodes && "invalid genx.kernels metadata");
   for (auto Node : Nodes->operands()) {
     if (Node->getNumOperands() >= 4 && getVal(Node->getOperand(0)) == F)
       return Node;
@@ -626,6 +627,8 @@ static void translateSLMInit(CallInst &CI) {
 static void translatePackMask(CallInst &CI) {
   using Demangler = id::ManglingParser<SimpleAllocator>;
   Function *F = CI.getCalledFunction();
+  assert(F && "function to translate is invalid");
+
   StringRef MnglName = F->getName();
   Demangler Parser(MnglName.begin(), MnglName.end());
   id::Node *AST = Parser.parse();
@@ -665,6 +668,7 @@ static void translatePackMask(CallInst &CI) {
 static void translateUnPackMask(CallInst &CI) {
   using Demangler = id::ManglingParser<SimpleAllocator>;
   Function *F = CI.getCalledFunction();
+  assert(F && "function to translate is invalid");
   StringRef MnglName = F->getName();
   Demangler Parser(MnglName.begin(), MnglName.end());
   id::Node *AST = Parser.parse();
@@ -729,7 +733,7 @@ static void translateGetValue(CallInst &CI) {
   IRBuilder<> Builder(&CI);
   auto SV =
       Builder.CreatePtrToInt(opnd, IntegerType::getInt32Ty(CI.getContext()));
-  auto *SI = dyn_cast<CastInst>(SV);
+  auto *SI = cast<CastInst>(SV);
   SI->setDebugLoc(CI.getDebugLoc());
   CI.replaceAllUsesWith(SI);
 }
@@ -820,7 +824,7 @@ translateSpirvIntrinsic(CallInst *CI, StringRef SpirvIntrName,
   auto translateSpirvIntr = [&SpirvIntrName, &ESIMDToErases,
                              CI](StringRef SpvIName, auto TranslateFunc) {
     if (SpirvIntrName.consume_front(SpvIName)) {
-      Value *TranslatedV = TranslateFunc(*CI, SpirvIntrName);
+      Value *TranslatedV = TranslateFunc(*CI, SpirvIntrName.substr(1, 1));
       CI->replaceAllUsesWith(TranslatedV);
       ESIMDToErases.push_back(CI);
     }
@@ -1018,6 +1022,7 @@ static void createESIMDIntrinsicArgs(const ESIMDIntrinDesc &Desc,
 static void translateESIMDIntrinsicCall(CallInst &CI) {
   using Demangler = id::ManglingParser<SimpleAllocator>;
   Function *F = CI.getCalledFunction();
+  assert(F && "function to translate is invalid");
   StringRef MnglName = F->getName();
   Demangler Parser(MnglName.begin(), MnglName.end());
   id::Node *AST = Parser.parse();
@@ -1039,7 +1044,7 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   if (!Desc.isValid()) // TODO remove this once all intrinsics are supported
     return;
 
-  auto *FTy = CI.getCalledFunction()->getFunctionType();
+  auto *FTy = F->getFunctionType();
   std::string Suffix = getESIMDIntrinSuffix(FE, FTy, Desc.SuffixRule);
   auto ID = GenXIntrinsic::lookupGenXIntrinsicID(
       GenXIntrinsic::getGenXIntrinsicPrefix() + Desc.GenXSpelling + Suffix);
@@ -1180,7 +1185,7 @@ void SYCLLowerESIMDLegacyPass::collectGenXVolatileType(Module &M) {
     if (!PTy)
       continue;
     auto GTy = dyn_cast<StructType>(PTy->getPointerElementType());
-    if (!GTy || !GTy->getName().endswith("cl::sycl::intel::gpu::simd"))
+    if (!GTy || !GTy->getName().endswith("cl::sycl::INTEL::gpu::simd"))
       continue;
     assert(GTy->getNumContainedTypes() == 1);
     auto VTy = GTy->getContainedType(0);
@@ -1213,7 +1218,7 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Function &F,
         llvm::Value *Src = CastOp->getOperand(0);
         auto TmpTy = llvm::FixedVectorType::get(
             llvm::Type::getInt32Ty(DstTy->getContext()),
-            cast<VectorType>(DstTy)->getNumElements());
+            cast<FixedVectorType>(DstTy)->getNumElements());
         Src = Builder.CreateFPToSI(Src, TmpTy);
 
         llvm::Instruction::CastOps TruncOp = llvm::Instruction::Trunc;
@@ -1238,7 +1243,7 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Function &F,
 
     // process ESIMD builtins that go through special handling instead of
     // the translation procedure
-    if (Name.startswith("N2cl4sycl5intel3gpu8slm_init")) {
+    if (Name.startswith("N2cl4sycl5INTEL3gpu8slm_init")) {
       // tag the kernel with meta-data SLMSize, and remove this builtin
       translateSLMInit(*CI);
       ESIMDToErases.push_back(CI);

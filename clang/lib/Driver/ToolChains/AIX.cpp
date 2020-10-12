@@ -13,12 +13,15 @@
 #include "clang/Driver/Options.h"
 #include "clang/Driver/SanitizerArgs.h"
 #include "llvm/Option/ArgList.h"
+#include "llvm/Support/Path.h"
 
 using AIX = clang::driver::toolchains::AIX;
 using namespace clang::driver;
 using namespace clang::driver::tools;
+using namespace clang::driver::toolchains;
 
 using namespace llvm::opt;
+using namespace llvm::sys;
 
 void aix::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
                                   const InputInfo &Output,
@@ -40,12 +43,6 @@ void aix::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
     // Must be 64-bit, otherwise asserted already.
     CmdArgs.push_back("-a64");
   }
-
-  // Accept an undefined symbol as an extern so that an error message is not
-  // displayed. Otherwise, undefined symbols are flagged with error messages.
-  // FIXME: This should be removed when the assembly generation from the
-  // compiler is able to write externs properly.
-  CmdArgs.push_back("-u");
 
   // Accept any mixture of instructions.
   // On Power for AIX and Linux, this behaviour matches that of GCC for both the
@@ -95,6 +92,12 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   if (Args.hasArg(options::OPT_static))
     CmdArgs.push_back("-bnso");
 
+  // Add options for shared libraries.
+  if (Args.hasArg(options::OPT_shared)) {
+    CmdArgs.push_back("-bM:SRE");
+    CmdArgs.push_back("-bnoentry");
+  }
+
   // Specify linker output file.
   assert((Output.isFilename() || Output.isNothing()) && "Invalid output.");
   if (Output.isFilename()) {
@@ -126,9 +129,14 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       return IsArch32Bit ? "crt0.o" : "crt0_64.o";
   };
 
-  if (!Args.hasArg(options::OPT_nostdlib)) {
+  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles,
+                   options::OPT_shared)) {
     CmdArgs.push_back(
         Args.MakeArgString(ToolChain.GetFilePath(getCrt0Basename())));
+
+    if (D.CCCIsCXX())
+      CmdArgs.push_back(Args.MakeArgString(
+          ToolChain.GetFilePath(IsArch32Bit ? "crti.o" : "crti_64.o")));
   }
 
   // Collect all static constructor and destructor functions in CXX mode. This
@@ -144,10 +152,18 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddAllArgs(CmdArgs, options::OPT_L);
   ToolChain.AddFilePathLibArgs(Args, CmdArgs);
 
+  if (getToolChain().ShouldLinkCXXStdlib(Args))
+    getToolChain().AddCXXStdlibLibArgs(Args, CmdArgs);
+
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
+    AddRunTimeLibs(ToolChain, D, CmdArgs, Args);
+
     // Support POSIX threads if "-pthreads" or "-pthread" is present.
     if (Args.hasArg(options::OPT_pthreads, options::OPT_pthread))
       CmdArgs.push_back("-lpthreads");
+
+    if (D.CCCIsCXX())
+      CmdArgs.push_back("-lm");
 
     CmdArgs.push_back("-lc");
   }
@@ -161,6 +177,64 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 AIX::AIX(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
     : ToolChain(D, Triple, Args) {
   getFilePaths().push_back(getDriver().SysRoot + "/usr/lib");
+}
+
+// Returns the effective header sysroot path to use.
+// This comes from either -isysroot or --sysroot.
+llvm::StringRef
+AIX::GetHeaderSysroot(const llvm::opt::ArgList &DriverArgs) const {
+  if (DriverArgs.hasArg(options::OPT_isysroot))
+    return DriverArgs.getLastArgValue(options::OPT_isysroot);
+  if (!getDriver().SysRoot.empty())
+    return getDriver().SysRoot;
+  return "/";
+}
+
+void AIX::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
+                                    ArgStringList &CC1Args) const {
+  // Return if -nostdinc is specified as a driver option.
+  if (DriverArgs.hasArg(options::OPT_nostdinc))
+    return;
+
+  llvm::StringRef Sysroot = GetHeaderSysroot(DriverArgs);
+  const Driver &D = getDriver();
+
+  // Add the Clang builtin headers (<resource>/include).
+  if (!DriverArgs.hasArg(options::OPT_nobuiltininc)) {
+    SmallString<128> P(D.ResourceDir);
+    path::append(P, "/include");
+    addSystemInclude(DriverArgs, CC1Args, P.str());
+  }
+
+  // Return if -nostdlibinc is specified as a driver option.
+  if (DriverArgs.hasArg(options::OPT_nostdlibinc))
+    return;
+
+  // Add <sysroot>/usr/include.
+  SmallString<128> UP(Sysroot);
+  path::append(UP, "/usr/include");
+  addSystemInclude(DriverArgs, CC1Args, UP.str());
+}
+
+void AIX::AddCXXStdlibLibArgs(const llvm::opt::ArgList &DriverArgs,
+                              llvm::opt::ArgStringList &CC1Args) const {
+  switch (GetCXXStdlibType(DriverArgs)) {
+  case ToolChain::CST_Libcxx:
+    CC1Args.push_back("-lc++");
+    return;
+  case ToolChain::CST_Libstdcxx:
+    llvm::report_fatal_error("linking libstdc++ unimplemented on AIX");
+  }
+
+  llvm_unreachable("Unexpected C++ library type; only libc++ is supported.");
+}
+
+ToolChain::CXXStdlibType AIX::GetDefaultCXXStdlibType() const {
+  return ToolChain::CST_Libcxx;
+}
+
+ToolChain::RuntimeLibType AIX::GetDefaultRuntimeLibType() const {
+  return ToolChain::RLT_CompilerRT;
 }
 
 auto AIX::buildAssembler() const -> Tool * { return new aix::Assembler(*this); }

@@ -10,11 +10,14 @@
 
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/detail/device_filter.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/info/info_desc.hpp>
 
 #include <algorithm>
 #include <array>
 #include <cstdlib>
+#include <string>
 #include <utility>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -118,9 +121,10 @@ public:
       return BackendPtr;
 
     const char *ValStr = BaseT::getRawValue();
-    const std::array<std::pair<std::string, backend>, 3> SyclBeMap = {
+    const std::array<std::pair<std::string, backend>, 4> SyclBeMap = {
         {{"PI_OPENCL", backend::opencl},
-         {"PI_LEVEL0", backend::level0},
+         {"PI_LEVEL_ZERO", backend::level_zero},
+         {"PI_LEVEL0", backend::level_zero}, // for backward compatibility
          {"PI_CUDA", backend::cuda}}};
     if (ValStr) {
       auto It = std::find_if(
@@ -130,7 +134,7 @@ public:
           });
       if (It == SyclBeMap.end())
         pi::die("Invalid backend. "
-                "Valid values are PI_OPENCL/PI_LEVEL0/PI_CUDA");
+                "Valid values are PI_OPENCL/PI_LEVEL_ZERO/PI_CUDA");
       static backend Backend = It->second;
       BackendPtr = &Backend;
     }
@@ -161,6 +165,48 @@ public:
   }
 };
 
-} // __SYCL_INLINE_NAMESPACE(cl)
-} // namespace sycl
+template <> class SYCLConfig<SYCL_DEVICE_FILTER> {
+  using BaseT = SYCLConfigBase<SYCL_DEVICE_FILTER>;
+
+public:
+  static device_filter_list *get() {
+    static bool Initialized = false;
+    static device_filter_list *FilterList = nullptr;
+
+    // Configuration parameters are processed only once, like reading a string
+    // from environment and converting it into a typed object.
+    if (Initialized) {
+      return FilterList;
+    }
+
+    const char *ValStr = BaseT::getRawValue();
+    if (ValStr) {
+      static device_filter_list DFL{ValStr};
+      FilterList = &DFL;
+    }
+
+    // TODO: remove the following code when we remove the support for legacy
+    // env vars.
+    // Emit the deprecation warning message if SYCL_BE or SYCL_DEVICE_TYPE is
+    // set.
+    if (SYCLConfig<SYCL_BE>::get() || getenv("SYCL_DEVICE_TYPE")) {
+      std::cerr << "\nWARNING: The legacy environment variables SYCL_BE and "
+                   "SYCL_DEVICE_TYPE are deprecated. Please use "
+                   "SYCL_DEVICE_FILTER instead. For details, please refer to "
+                   "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
+                   "EnvironmentVariables.md\n\n";
+    }
+
+    // As mentioned above, configuration parameters are processed only once.
+    // If multiple threads are checking this env var at the same time,
+    // they will end up setting the configration to the same value.
+    // If other threads check after one thread already set configration,
+    // the threads will get the same value as the first thread.
+    Initialized = true;
+    return FilterList;
+  }
+};
+
 } // namespace detail
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)

@@ -44,7 +44,11 @@ func @vectransferx4(%arg0 : memref<?xf32>, %arg1 : memref<?xf32>) {
 }
 
 func @main() {
+  %c0 = constant 0 : index
+  %c1 = constant 1 : index
+  %c4 = constant 4 : index
   %cf1 = constant 1.0 : f32
+  %cf1dot23 = constant 1.23 : f32
 
   %arg0 = alloc() : memref<4xf32>
   %arg1 = alloc() : memref<4xf32>
@@ -52,11 +56,16 @@ func @main() {
   %22 = memref_cast %arg0 : memref<4xf32> to memref<?xf32>
   %23 = memref_cast %arg1 : memref<4xf32> to memref<?xf32>
 
+  scf.for %i = %c0 to %c4 step %c1 {
+    store %cf1dot23, %22[%i] : memref<?xf32>
+    store %cf1dot23, %23[%i] : memref<?xf32>
+  }
+
   %cast0 = memref_cast %22 : memref<?xf32> to memref<*xf32>
   %cast1 = memref_cast %23 : memref<?xf32> to memref<*xf32>
 
-  call @mgpuMemHostRegisterFloat(%cast0) : (memref<*xf32>) -> ()
-  call @mgpuMemHostRegisterFloat(%cast1) : (memref<*xf32>) -> ()
+  gpu.host_register %cast0 : memref<*xf32>
+  gpu.host_register %cast1 : memref<*xf32>
 
   %24 = call @mgpuMemGetDeviceMemRef1dFloat(%22) : (memref<?xf32>) -> (memref<?xf32>)
   %26 = call @mgpuMemGetDeviceMemRef1dFloat(%23) : (memref<?xf32>) -> (memref<?xf32>)
@@ -71,6 +80,5 @@ func @main() {
   return
 }
 
-func @mgpuMemHostRegisterFloat(%ptr : memref<*xf32>)
 func @mgpuMemGetDeviceMemRef1dFloat(%ptr : memref<?xf32>) -> (memref<?xf32>)
 func @print_memref_f32(%ptr : memref<*xf32>)

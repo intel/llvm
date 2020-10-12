@@ -47,9 +47,11 @@
 #include "SPIRVEntry.h"
 #include "SPIRVType.h"
 
+namespace llvm {
+class APInt;
+} // namespace llvm
+
 #include <iostream>
-#include <map>
-#include <memory>
 
 namespace SPIRV {
 
@@ -121,12 +123,13 @@ public:
     return Type->getRequiredCapability();
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    SPIRVExtSet EV;
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    llvm::Optional<ExtensionID> EV;
     if (!hasType())
       return EV;
-    EV = Type->getRequiredExtensions();
-    assert(!Module || Module->isAllowedToUseExtensions(EV));
+    EV = Type->getRequiredExtension();
+    assert(Module &&
+           (!EV.hasValue() || Module->isAllowedToUseExtension(EV.getValue())));
     return EV;
   }
 
@@ -147,6 +150,9 @@ public:
     recalculateWordCount();
     validate();
   }
+  // Incomplete constructor for AP integer constant
+  SPIRVConstantBase(SPIRVModule *M, SPIRVType *TheType, SPIRVId TheId,
+                    llvm::APInt &TheValue);
   // Complete constructor for float constant
   SPIRVConstantBase(SPIRVModule *M, SPIRVType *TheType, SPIRVId TheId,
                     float TheValue)
@@ -168,17 +174,17 @@ public:
   uint64_t getZExtIntValue() const { return Union.UInt64Val; }
   float getFloatValue() const { return Union.FloatVal; }
   double getDoubleValue() const { return Union.DoubleVal; }
+  unsigned getNumWords() const { return NumWords; }
+  SPIRVWord *getSPIRVWords() { return Union.Words; }
 
 protected:
   void recalculateWordCount() {
-    NumWords = Type->getBitWidth() / 32;
-    if (NumWords < 1)
-      NumWords = 1;
+    NumWords = (Type->getBitWidth() + 31) / 32;
     WordCount = 3 + NumWords;
   }
   void validate() const override {
     SPIRVValue::validate();
-    assert(NumWords >= 1 && NumWords <= 2 && "Invalid constant size");
+    assert(NumWords >= 1 && NumWords <= 64 && "Invalid constant size");
   }
   void encode(spv_ostream &O) const override {
     getEncoder(O) << Type << Id;
@@ -200,7 +206,7 @@ protected:
     uint64_t UInt64Val;
     float FloatVal;
     double DoubleVal;
-    SPIRVWord Words[2];
+    SPIRVWord Words[64];
     UnionType() { UInt64Val = 0; }
   } Union;
 };

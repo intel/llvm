@@ -8,6 +8,7 @@
 
 #include "mod-file.h"
 #include "resolve-names.h"
+#include "flang/Common/restorer.h"
 #include "flang/Evaluate/tools.h"
 #include "flang/Parser/message.h"
 #include "flang/Parser/parsing.h"
@@ -99,6 +100,9 @@ private:
 };
 
 bool ModFileWriter::WriteAll() {
+  // this flag affects character literals: force it to be consistent
+  auto restorer{
+      common::ScopedSet(parser::useHexadecimalEscapeSequences, false)};
   WriteAll(context_.globalScope());
   return !context_.AnyFatalError();
 }
@@ -173,7 +177,7 @@ std::string ModFileWriter::GetAsString(const Symbol &symbol) {
 }
 
 // Put out the visible symbols from scope.
-void ModFileWriter::PutSymbols(const Scope &scope) {
+bool ModFileWriter::PutSymbols(const Scope &scope) {
   std::string buf;
   llvm::raw_string_ostream typeBindings{
       buf}; // stuff after CONTAINS in derived type
@@ -183,6 +187,9 @@ void ModFileWriter::PutSymbols(const Scope &scope) {
   if (auto str{typeBindings.str()}; !str.empty()) {
     CHECK(scope.IsDerivedType());
     decls_ << "contains\n" << str;
+    return true;
+  } else {
+    return false;
   }
 }
 
@@ -253,9 +260,6 @@ void ModFileWriter::PutSymbol(
                      decls_ << "::/" << symbol.name() << "/\n";
                    }
                  },
-                 [&](const FinalProcDetails &) {
-                   typeBindings << "final::" << symbol.name() << '\n';
-                 },
                  [](const HostAssocDetails &) {},
                  [](const MiscDetails &) {},
                  [&](const auto &) { PutEntity(decls_, symbol); },
@@ -283,7 +287,17 @@ void ModFileWriter::PutDerivedType(const Symbol &typeSymbol) {
   if (details.sequence()) {
     decls_ << "sequence\n";
   }
-  PutSymbols(typeScope);
+  bool contains{PutSymbols(typeScope)};
+  if (!details.finals().empty()) {
+    const char *sep{contains ? "final::" : "contains\nfinal::"};
+    for (const auto &pair : details.finals()) {
+      decls_ << sep << pair.second->name();
+      sep = ",";
+    }
+    if (*sep == ',') {
+      decls_ << '\n';
+    }
+  }
   decls_ << "end type\n";
 }
 
@@ -747,7 +761,7 @@ Scope *ModFileReader::Read(const SourceName &name, Scope *ancestor) {
       return it->second->scope();
     }
   }
-  parser::Parsing parsing{context_.allSources()};
+  parser::Parsing parsing{context_.allCookedSources()};
   parser::Options options;
   options.isModuleFile = true;
   options.features.Enable(common::LanguageFeature::BackslashEscapes);
@@ -792,7 +806,6 @@ Scope *ModFileReader::Read(const SourceName &name, Scope *ancestor) {
   }
   auto &modSymbol{*it->second};
   modSymbol.set(Symbol::Flag::ModFile);
-  modSymbol.scope()->set_chars(parsing.cooked());
   return modSymbol.scope();
 }
 

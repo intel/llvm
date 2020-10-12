@@ -400,6 +400,7 @@ LogicalResult verifyNSuccessors(Operation *op, unsigned numSuccessors);
 LogicalResult verifyAtLeastNSuccessors(Operation *op, unsigned numSuccessors);
 LogicalResult verifyOperandSizeAttr(Operation *op, StringRef sizeAttrName);
 LogicalResult verifyResultSizeAttr(Operation *op, StringRef sizeAttrName);
+LogicalResult verifyNoRegionArguments(Operation *op);
 } // namespace impl
 
 /// Helper class for implementing traits.  Clients are not expected to interact
@@ -1123,7 +1124,7 @@ template <typename TerminatorOpType> struct SingleBlockImplicitTerminator {
 
     /// Ensure that the given region has the terminator required by this trait.
     /// If OpBuilder is provided, use it to build the terminator and notify the
-    /// OpBuilder litsteners accoridngly. If only a Builder is provided, locally
+    /// OpBuilder litsteners accordingly. If only a Builder is provided, locally
     /// construct an OpBuilder with no listeners; this should only be used if no
     /// OpBuilder is available at the call site, e.g., in the parser.
     static void ensureTerminator(Region &region, Builder &builder,
@@ -1202,6 +1203,24 @@ public:
   }
 };
 
+/// This trait provides a verifier for ops that are expecting their regions to
+/// not have any arguments
+template <typename ConcrentType>
+struct NoRegionArguments : public TraitBase<ConcrentType, NoRegionArguments> {
+  static LogicalResult verifyTrait(Operation *op) {
+    return ::mlir::OpTrait::impl::verifyNoRegionArguments(op);
+  }
+};
+
+// This trait is used to flag operations that consume or produce
+// values of `MemRef` type where those references can be 'normalized'.
+// TODO: Right now, the operands of an operation are either all normalizable,
+// or not. In the future, we may want to allow some of the operands to be
+// normalizable.
+template <typename ConcrentType>
+struct MemRefsNormalizable
+    : public TraitBase<ConcrentType, MemRefsNormalizable> {};
+
 } // end namespace OpTrait
 
 //===----------------------------------------------------------------------===//
@@ -1247,9 +1266,12 @@ public:
   static bool classof(Operation *op) {
     if (auto *abstractOp = op->getAbstractOperation())
       return TypeID::get<ConcreteType>() == abstractOp->typeID;
-    assert(op->getContext()->isOperationRegistered(
-               ConcreteType::getOperationName()) &&
-           "Casting attempt to an unregistered operation");
+#ifndef NDEBUG
+    if (op->getName().getStringRef() == ConcreteType::getOperationName())
+      llvm::report_fatal_error(
+          "classof on '" + ConcreteType::getOperationName() +
+          "' failed due to the operation not being registered");
+#endif
     return false;
   }
 

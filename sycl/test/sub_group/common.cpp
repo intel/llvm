@@ -1,6 +1,3 @@
-// UNSUPPORTED: cuda
-// CUDA compilation and runtime do not yet support sub-groups.
-//
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
@@ -36,7 +33,7 @@ void check(queue &Queue, unsigned int G, unsigned int L) {
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
       auto syclacc = syclbuf.get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<class sycl_subgr>(NdRange, [=](nd_item<1> NdItem) {
-        intel::sub_group SG = NdItem.get_sub_group();
+        ONEAPI::sub_group SG = NdItem.get_sub_group();
         syclacc[NdItem.get_global_id()].local_id = SG.get_local_id().get(0);
         syclacc[NdItem.get_global_id()].local_range =
             SG.get_local_range().get(0);
@@ -70,7 +67,7 @@ void check(queue &Queue, unsigned int G, unsigned int L) {
 }
 int main() {
   queue Queue;
-  if (!core_sg_supported(Queue.get_device())) {
+  if (Queue.get_device().is_host()) {
     std::cout << "Skipping test\n";
     return 0;
   }

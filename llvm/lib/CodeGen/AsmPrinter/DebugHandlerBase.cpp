@@ -21,10 +21,15 @@
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/MC/MCStreamer.h"
+#include "llvm/Support/CommandLine.h"
 
 using namespace llvm;
 
 #define DEBUG_TYPE "dwarfdebug"
+
+/// If true, we drop variable location ranges which exist entirely outside the
+/// variable's lexical scope instruction ranges.
+static cl::opt<bool> TrimVarLocs("trim-var-locs", cl::Hidden, cl::init(true));
 
 Optional<DbgVariableLocation>
 DbgVariableLocation::extractFromMachineInstruction(
@@ -191,6 +196,9 @@ void DebugHandlerBase::beginFunction(const MachineFunction *MF) {
   assert(DbgLabels.empty() && "DbgLabels map wasn't cleaned!");
   calculateDbgEntityHistory(MF, Asm->MF->getSubtarget().getRegisterInfo(),
                             DbgValues, DbgLabels);
+  InstOrdering.initialize(*MF);
+  if (TrimVarLocs)
+    DbgValues.trimLocationRanges(*MF, LScopes, InstOrdering);
   LLVM_DEBUG(DbgValues.dump());
 
   // Request labels for the full history.
@@ -212,10 +220,16 @@ void DebugHandlerBase::beginFunction(const MachineFunction *MF) {
     // doing that violates the ranges that are calculated in the history map.
     // However, we currently do not emit debug values for constant arguments
     // directly at the start of the function, so this code is still useful.
+    // FIXME: If the first mention of an argument is in a unique section basic
+    // block, we cannot always assign the CurrentFnBeginLabel as it lies in a
+    // different section.  Temporarily, we disable generating loc list
+    // information or DW_AT_const_value when the block is in a different
+    // section.
     const DILocalVariable *DIVar =
         Entries.front().getInstr()->getDebugVariable();
     if (DIVar->isParameter() &&
-        getDISubprogram(DIVar->getScope())->describes(&MF->getFunction())) {
+        getDISubprogram(DIVar->getScope())->describes(&MF->getFunction()) &&
+        Entries.front().getInstr()->getParent()->sameSection(&MF->front())) {
       if (!IsDescribedByReg(Entries.front().getInstr()))
         LabelsBeforeInsn[Entries.front().getInstr()] = Asm->getFunctionBegin();
       if (Entries.front().getInstr()->getDebugExpression()->isFragment()) {
@@ -326,4 +340,19 @@ void DebugHandlerBase::endFunction(const MachineFunction *MF) {
   DbgLabels.clear();
   LabelsBeforeInsn.clear();
   LabelsAfterInsn.clear();
+  InstOrdering.clear();
+}
+
+void DebugHandlerBase::beginBasicBlock(const MachineBasicBlock &MBB) {
+  if (!MBB.isBeginSection())
+    return;
+
+  PrevLabel = MBB.getSymbol();
+}
+
+void DebugHandlerBase::endBasicBlock(const MachineBasicBlock &MBB) {
+  if (!MBB.isEndSection())
+    return;
+
+  PrevLabel = nullptr;
 }

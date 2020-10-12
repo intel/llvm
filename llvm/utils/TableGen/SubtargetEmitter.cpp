@@ -267,12 +267,15 @@ SubtargetEmitter::CPUKeyValues(raw_ostream &OS,
   for (Record *Processor : ProcessorList) {
     StringRef Name = Processor->getValueAsString("Name");
     RecVec FeatureList = Processor->getValueAsListOfDefs("Features");
+    RecVec TuneFeatureList = Processor->getValueAsListOfDefs("TuneFeatures");
 
     // Emit as { "cpu", "description", 0, { f1 , f2 , ... fn } },
     OS << " { "
        << "\"" << Name << "\", ";
 
     printFeatureMask(OS, FeatureList, FeatureMap);
+    OS << ", ";
+    printFeatureMask(OS, TuneFeatureList, FeatureMap);
 
     // Emit the scheduler model pointer.
     const std::string &ProcModelName =
@@ -1504,7 +1507,8 @@ static void emitPredicates(const CodeGenSchedTransition &T,
 
 // Used by method `SubtargetEmitter::emitSchedModelHelpersImpl()` to generate
 // epilogue code for the auto-generated helper.
-void emitSchedModelHelperEpilogue(raw_ostream &OS, bool ShouldReturnZero) {
+static void emitSchedModelHelperEpilogue(raw_ostream &OS,
+                                         bool ShouldReturnZero) {
   if (ShouldReturnZero) {
     OS << "  // Don't know how to resolve this scheduling class.\n"
        << "  return 0;\n";
@@ -1514,15 +1518,15 @@ void emitSchedModelHelperEpilogue(raw_ostream &OS, bool ShouldReturnZero) {
   OS << "  report_fatal_error(\"Expected a variant SchedClass\");\n";
 }
 
-bool hasMCSchedPredicates(const CodeGenSchedTransition &T) {
+static bool hasMCSchedPredicates(const CodeGenSchedTransition &T) {
   return all_of(T.PredTerm, [](const Record *Rec) {
     return Rec->isSubClassOf("MCSchedPredicate");
   });
 }
 
-void collectVariantClasses(const CodeGenSchedModels &SchedModels,
-                           IdxVec &VariantClasses,
-                           bool OnlyExpandMCInstPredicates) {
+static void collectVariantClasses(const CodeGenSchedModels &SchedModels,
+                                  IdxVec &VariantClasses,
+                                  bool OnlyExpandMCInstPredicates) {
   for (const CodeGenSchedClass &SC : SchedModels.schedClasses()) {
     // Ignore non-variant scheduling classes.
     if (SC.Transitions.empty())
@@ -1541,7 +1545,8 @@ void collectVariantClasses(const CodeGenSchedModels &SchedModels,
   }
 }
 
-void collectProcessorIndices(const CodeGenSchedClass &SC, IdxVec &ProcIndices) {
+static void collectProcessorIndices(const CodeGenSchedClass &SC,
+                                    IdxVec &ProcIndices) {
   // A variant scheduling class may define transitions for multiple
   // processors.  This function identifies wich processors are associated with
   // transition rules specified by variant class `SC`.
@@ -1692,7 +1697,8 @@ void SubtargetEmitter::ParseFeaturesFunction(raw_ostream &OS,
      << "// subtarget options.\n"
      << "void llvm::";
   OS << Target;
-  OS << "Subtarget::ParseSubtargetFeatures(StringRef CPU, StringRef FS) {\n"
+  OS << "Subtarget::ParseSubtargetFeatures(StringRef CPU, StringRef TuneCPU, "
+     << "StringRef FS) {\n"
      << "  LLVM_DEBUG(dbgs() << \"\\nFeatures:\" << FS);\n"
      << "  LLVM_DEBUG(dbgs() << \"\\nCPU:\" << CPU << \"\\n\\n\");\n";
 
@@ -1701,7 +1707,7 @@ void SubtargetEmitter::ParseFeaturesFunction(raw_ostream &OS,
     return;
   }
 
-  OS << "  InitMCProcessorInfo(CPU, FS);\n"
+  OS << "  InitMCProcessorInfo(CPU, TuneCPU, FS);\n"
      << "  const FeatureBitset& Bits = getFeatureBits();\n";
 
   for (Record *R : Features) {
@@ -1734,14 +1740,15 @@ void SubtargetEmitter::emitGenMCSubtargetInfo(raw_ostream &OS) {
 
   OS << "struct " << Target
      << "GenMCSubtargetInfo : public MCSubtargetInfo {\n";
-  OS << "  " << Target << "GenMCSubtargetInfo(const Triple &TT, \n"
-     << "    StringRef CPU, StringRef FS, ArrayRef<SubtargetFeatureKV> PF,\n"
+  OS << "  " << Target << "GenMCSubtargetInfo(const Triple &TT,\n"
+     << "    StringRef CPU, StringRef TuneCPU, StringRef FS,\n"
+     << "    ArrayRef<SubtargetFeatureKV> PF,\n"
      << "    ArrayRef<SubtargetSubTypeKV> PD,\n"
      << "    const MCWriteProcResEntry *WPR,\n"
      << "    const MCWriteLatencyEntry *WL,\n"
      << "    const MCReadAdvanceEntry *RA, const InstrStage *IS,\n"
      << "    const unsigned *OC, const unsigned *FP) :\n"
-     << "      MCSubtargetInfo(TT, CPU, FS, PF, PD,\n"
+     << "      MCSubtargetInfo(TT, CPU, TuneCPU, FS, PF, PD,\n"
      << "                      WPR, WL, RA, IS, OC, FP) { }\n\n"
      << "  unsigned resolveVariantSchedClass(unsigned SchedClass,\n"
      << "      const MCInst *MI, unsigned CPUID) const override {\n"
@@ -1817,8 +1824,9 @@ void SubtargetEmitter::run(raw_ostream &OS) {
 
   OS << "\nstatic inline MCSubtargetInfo *create" << Target
      << "MCSubtargetInfoImpl("
-     << "const Triple &TT, StringRef CPU, StringRef FS) {\n";
-  OS << "  return new " << Target << "GenMCSubtargetInfo(TT, CPU, FS, ";
+     << "const Triple &TT, StringRef CPU, StringRef TuneCPU, StringRef FS) {\n";
+  OS << "  return new " << Target
+     << "GenMCSubtargetInfo(TT, CPU, TuneCPU, FS, ";
   if (NumFeatures)
     OS << Target << "FeatureKV, ";
   else
@@ -1866,7 +1874,7 @@ void SubtargetEmitter::run(raw_ostream &OS) {
      << "} // end namespace " << Target << "_MC\n\n";
   OS << "struct " << ClassName << " : public TargetSubtargetInfo {\n"
      << "  explicit " << ClassName << "(const Triple &TT, StringRef CPU, "
-     << "StringRef FS);\n"
+     << "StringRef TuneCPU, StringRef FS);\n"
      << "public:\n"
      << "  unsigned resolveSchedClass(unsigned SchedClass, "
      << " const MachineInstr *DefMI,"
@@ -1909,8 +1917,8 @@ void SubtargetEmitter::run(raw_ostream &OS) {
   }
 
   OS << ClassName << "::" << ClassName << "(const Triple &TT, StringRef CPU, "
-     << "StringRef FS)\n"
-     << "  : TargetSubtargetInfo(TT, CPU, FS, ";
+     << "StringRef TuneCPU, StringRef FS)\n"
+     << "  : TargetSubtargetInfo(TT, CPU, TuneCPU, FS, ";
   if (NumFeatures)
     OS << "makeArrayRef(" << Target << "FeatureKV, " << NumFeatures << "), ";
   else

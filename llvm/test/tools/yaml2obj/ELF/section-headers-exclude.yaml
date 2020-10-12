@@ -24,10 +24,9 @@
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_REL
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
 Sections:
   - Name: .foo
     Type: SHT_PROGBITS
@@ -64,10 +63,9 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_REL
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
 SectionHeaderTable:
   Sections:
     - Name: .strtab
@@ -90,10 +88,9 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_REL
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
 SectionHeaderTable:
   Sections: []
   Excluded:
@@ -106,10 +103,9 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_REL
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
 SectionHeaderTable:
   Excluded:
     - Name: .strtab
@@ -129,10 +125,9 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_REL
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
 Sections:
   - Name: .foo
     Type: SHT_PROGBITS
@@ -156,10 +151,9 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
   - Name:  [[NAME]]
     Type:  [[TYPE]]
@@ -183,10 +177,9 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
   - Name:  .dynsym
     Type:  SHT_DYNSYM
@@ -209,10 +202,9 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
   - Name:  .symtab
     Type:  SHT_SYMTAB
@@ -232,10 +224,9 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_EXEC
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_EXEC
 Sections:
   - Name:  .debug_unknown
     Type:  SHT_PROGBITS
@@ -254,10 +245,9 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
   - Name: .rela
     Type: SHT_RELA
@@ -277,10 +267,9 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
   - Name: .rela
     Type: SHT_RELA
@@ -304,10 +293,9 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
   - Name: .foo
     Type: SHT_PROGBITS
@@ -330,10 +318,9 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_REL
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
 Sections:
   - Name: .group
     Type: SHT_GROUP
@@ -353,10 +340,9 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_REL
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
 Sections:
   - Name: .group
     Type: SHT_GROUP
@@ -385,10 +371,9 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
   - Name:    .cgp
     Type:    SHT_LLVM_CALL_GRAPH_PROFILE
@@ -421,15 +406,14 @@ SectionHeaderTable:
 # RUN: llvm-readelf %t8 --section-headers | FileCheck %s --check-prefix=LINK-HASH
 
 # LINK-HASH:      [Nr] Name      Type     Address          Off    Size   ES Flg Lk Inf Al
-# LINK-HASH:      [ 1] .hash     HASH     0000000000000000 000040 000000 00      0   0  0
+# LINK-HASH:      [ 1] .hash     HASH     0000000000000000 000040 000000 04      0   0  0
 # LINK-HASH-NEXT: [ 2] .gnu_hash GNU_HASH 0000000000000000 000040 000000 00      0   0  0
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_DYN
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_DYN
 Sections:
   - Name:    .hash
     Type:    SHT_HASH
@@ -460,10 +444,9 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_REL
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
 Sections:
   - Name: .foo
     Type: SHT_PROGBITS
@@ -489,10 +472,9 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_REL
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
 SectionHeaderTable:
   Sections:
     - Name: .strtab
@@ -500,15 +482,15 @@ SectionHeaderTable:
     - Name: .shstrtab
 
 ## Check we do not allow using "Excluded" together with "NoHeaders".
-# RUN: not yaml2obj %s --docnum=19 -o /dev/null 2>&1 | FileCheck %s --check-prefix=NOHEADERS
+# RUN: not yaml2obj %s --docnum=19 -DNOHEADERS=true -o /dev/null 2>&1 | FileCheck %s --check-prefix=NOHEADERS
+# RUN: not yaml2obj %s --docnum=19 -DNOHEADERS=false -o /dev/null 2>&1 | FileCheck %s --check-prefix=NOHEADERS
 # NOHEADERS: NoHeaders can't be used together with Sections/Excluded
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_REL
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
 SectionHeaderTable:
-  NoHeaders: true
+  NoHeaders: [[NOHEADERS]]
   Excluded:  []

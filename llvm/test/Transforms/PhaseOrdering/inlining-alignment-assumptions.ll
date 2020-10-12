@@ -85,26 +85,20 @@ false2:
   ret void
 }
 
-; This test illustrates that alignment assumptions may prevent SROA.
+; This test checks that alignment assumptions do not prevent SROA.
 ; See PR45763.
 
-define internal void @callee2(i64* noalias sret align 8 %arg) {
+define internal void @callee2(i64* noalias sret align 32 %arg) {
   store i64 0, i64* %arg, align 8
   ret void
 }
 
 define amdgpu_kernel void @caller2() {
-; ASSUMPTIONS-OFF-LABEL: @caller2(
-; ASSUMPTIONS-OFF-NEXT:    ret void
-;
-; ASSUMPTIONS-ON-LABEL: @caller2(
-; ASSUMPTIONS-ON-NEXT:    [[ALLOCA:%.*]] = alloca i64, align 8, addrspace(5)
-; ASSUMPTIONS-ON-NEXT:    [[CAST:%.*]] = addrspacecast i64 addrspace(5)* [[ALLOCA]] to i64*
-; ASSUMPTIONS-ON-NEXT:    call void @llvm.assume(i1 true) [ "align"(i64* [[CAST]], i64 8) ]
-; ASSUMPTIONS-ON-NEXT:    ret void
+; CHECK-LABEL: @caller2(
+; CHECK-NEXT:    ret void
 ;
   %alloca = alloca i64, align 8, addrspace(5)
   %cast = addrspacecast i64 addrspace(5)* %alloca to i64*
-  call void @callee2(i64* sret align 8 %cast)
+  call void @callee2(i64* sret align 32 %cast)
   ret void
 }

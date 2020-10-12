@@ -104,6 +104,11 @@ static cl::opt<bool> PrintLVIAfterJumpThreading(
     cl::desc("Print the LazyValueInfo cache after JumpThreading"), cl::init(false),
     cl::Hidden);
 
+static cl::opt<bool> JumpThreadingFreezeSelectCond(
+    "jump-threading-freeze-select-cond",
+    cl::desc("Freeze the condition when unfolding select"), cl::init(false),
+    cl::Hidden);
+
 static cl::opt<bool> ThreadAcrossLoopHeaders(
     "jump-threading-across-loop-headers",
     cl::desc("Allow JumpThreading to thread across loop headers, for testing"),
@@ -133,7 +138,8 @@ namespace {
   public:
     static char ID; // Pass identification
 
-    JumpThreading(int T = -1) : FunctionPass(ID), Impl(T) {
+    JumpThreading(bool InsertFreezeWhenUnfoldingSelect = false, int T = -1)
+        : FunctionPass(ID), Impl(InsertFreezeWhenUnfoldingSelect, T) {
       initializeJumpThreadingPass(*PassRegistry::getPassRegistry());
     }
 
@@ -166,11 +172,12 @@ INITIALIZE_PASS_END(JumpThreading, "jump-threading",
                 "Jump Threading", false, false)
 
 // Public interface to the Jump Threading pass
-FunctionPass *llvm::createJumpThreadingPass(int Threshold) {
-  return new JumpThreading(Threshold);
+FunctionPass *llvm::createJumpThreadingPass(bool InsertFr, int Threshold) {
+  return new JumpThreading(InsertFr, Threshold);
 }
 
-JumpThreadingPass::JumpThreadingPass(int T) {
+JumpThreadingPass::JumpThreadingPass(bool InsertFr, int T) {
+  InsertFreezeWhenUnfoldingSelect = JumpThreadingFreezeSelectCond | InsertFr;
   DefaultBBDupThreshold = (T == -1) ? BBDuplicateThreshold : unsigned(T);
 }
 
@@ -535,6 +542,10 @@ static unsigned getJumpThreadDuplicationCost(BasicBlock *BB,
     if (isa<BitCastInst>(I) && I->getType()->isPointerTy())
       continue;
 
+    // Freeze instruction is free, too.
+    if (isa<FreezeInst>(I))
+      continue;
+
     // Bail out if this instruction gives back a token type, it is not possible
     // to duplicate it if it is used outside this BB.
     if (I->getType()->isTokenTy() && I->isUsedOutsideOfBlock(BB))
@@ -674,12 +685,9 @@ bool JumpThreadingPass::ComputeValueKnownInPredecessorsImpl(
     return !Result.empty();
   }
 
-  // Handle Cast instructions.  Only see through Cast when the source operand is
-  // PHI or Cmp to save the compilation time.
+  // Handle Cast instructions.
   if (CastInst *CI = dyn_cast<CastInst>(I)) {
     Value *Source = CI->getOperand(0);
-    if (!isa<PHINode>(Source) && !isa<CmpInst>(Source))
-      return false;
     ComputeValueKnownInPredecessorsImpl(Source, BB, Result, Preference,
                                         RecursionSet, CxtI);
     if (Result.empty())
@@ -690,6 +698,18 @@ bool JumpThreadingPass::ComputeValueKnownInPredecessorsImpl(
       R.first = ConstantExpr::getCast(CI->getOpcode(), R.first, CI->getType());
 
     return true;
+  }
+
+  if (FreezeInst *FI = dyn_cast<FreezeInst>(I)) {
+    Value *Source = FI->getOperand(0);
+    ComputeValueKnownInPredecessorsImpl(Source, BB, Result, Preference,
+                                        RecursionSet, CxtI);
+
+    erase_if(Result, [](auto &Pair) {
+      return !isGuaranteedNotToBeUndefOrPoison(Pair.first);
+    });
+
+    return !Result.empty();
   }
 
   // Handle some boolean conditions.
@@ -940,7 +960,8 @@ bool JumpThreadingPass::ComputeValueKnownInPredecessorsImpl(
   }
 
   // If all else fails, see if LVI can figure out a constant value for us.
-  Constant *CI = LVI->getConstant(V, BB, CxtI);
+  assert(CxtI->getParent() == BB && "CxtI should be in BB");
+  Constant *CI = LVI->getConstant(V, CxtI);
   if (Constant *KC = getKnownConstant(CI, Preference)) {
     for (BasicBlock *Pred : predecessors(BB))
       Result.emplace_back(KC, Pred);
@@ -1027,6 +1048,9 @@ bool JumpThreadingPass::ProcessBlock(BasicBlock *BB) {
     return false; // Must be an invoke or callbr.
   }
 
+  // Keep track if we constant folded the condition in this invocation.
+  bool ConstantFolded = false;
+
   // Run constant folding to see if we can reduce the condition to a simple
   // constant.
   if (Instruction *I = dyn_cast<Instruction>(Condition)) {
@@ -1037,12 +1061,15 @@ bool JumpThreadingPass::ProcessBlock(BasicBlock *BB) {
       if (isInstructionTriviallyDead(I, TLI))
         I->eraseFromParent();
       Condition = SimpleVal;
+      ConstantFolded = true;
     }
   }
 
-  // If the terminator is branching on an undef, we can pick any of the
-  // successors to branch to.  Let GetBestDestForJumpOnUndef decide.
-  if (isa<UndefValue>(Condition)) {
+  // If the terminator is branching on an undef or freeze undef, we can pick any
+  // of the successors to branch to.  Let GetBestDestForJumpOnUndef decide.
+  auto *FI = dyn_cast<FreezeInst>(Condition);
+  if (isa<UndefValue>(Condition) ||
+      (FI && isa<UndefValue>(FI->getOperand(0)) && FI->hasOneUse())) {
     unsigned BestSucc = GetBestDestForJumpOnUndef(BB);
     std::vector<DominatorTree::UpdateType> Updates;
 
@@ -1061,6 +1088,8 @@ bool JumpThreadingPass::ProcessBlock(BasicBlock *BB) {
     BranchInst::Create(BBTerm->getSuccessor(BestSucc), BBTerm);
     BBTerm->eraseFromParent();
     DTU->applyUpdatesPermissive(Updates);
+    if (FI)
+      FI->eraseFromParent();
     return true;
   }
 
@@ -1083,7 +1112,7 @@ bool JumpThreadingPass::ProcessBlock(BasicBlock *BB) {
     // FIXME: Unify this with code below.
     if (ProcessThreadableEdges(Condition, BB, Preference, Terminator))
       return true;
-    return false;
+    return ConstantFolded;
   }
 
   if (CmpInst *CondCmp = dyn_cast<CmpInst>(CondInst)) {
@@ -1147,6 +1176,11 @@ bool JumpThreadingPass::ProcessBlock(BasicBlock *BB) {
   // we see one, check to see if it's partially redundant.  If so, insert a PHI
   // which can then be used to thread the values.
   Value *SimplifyValue = CondInst;
+
+  if (auto *FI = dyn_cast<FreezeInst>(SimplifyValue))
+    // Look into freeze's operand
+    SimplifyValue = FI->getOperand(0);
+
   if (CmpInst *CondCmp = dyn_cast<CmpInst>(SimplifyValue))
     if (isa<Constant>(CondCmp->getOperand(1)))
       SimplifyValue = CondCmp->getOperand(0);
@@ -1168,11 +1202,14 @@ bool JumpThreadingPass::ProcessBlock(BasicBlock *BB) {
   if (ProcessThreadableEdges(CondInst, BB, Preference, Terminator))
     return true;
 
-  // If this is an otherwise-unfoldable branch on a phi node in the current
-  // block, see if we can simplify.
-  if (PHINode *PN = dyn_cast<PHINode>(CondInst))
-    if (PN->getParent() == BB && isa<BranchInst>(BB->getTerminator()))
-      return ProcessBranchOnPHI(PN);
+  // If this is an otherwise-unfoldable branch on a phi node or freeze(phi) in
+  // the current block, see if we can simplify.
+  PHINode *PN = dyn_cast<PHINode>(
+      isa<FreezeInst>(CondInst) ? cast<FreezeInst>(CondInst)->getOperand(0)
+                                : CondInst);
+
+  if (PN && PN->getParent() == BB && isa<BranchInst>(BB->getTerminator()))
+    return ProcessBranchOnPHI(PN);
 
   // If this is an otherwise-unfoldable branch on a XOR, see if we can simplify.
   if (CondInst->getOpcode() == Instruction::Xor &&
@@ -1728,8 +1765,8 @@ bool JumpThreadingPass::ProcessThreadableEdges(Value *Cond, BasicBlock *BB,
 }
 
 /// ProcessBranchOnPHI - We have an otherwise unthreadable conditional branch on
-/// a PHI node in the current block.  See if there are any simplifications we
-/// can do based on inputs to the phi node.
+/// a PHI node (or freeze PHI) in the current block.  See if there are any
+/// simplifications we can do based on inputs to the phi node.
 bool JumpThreadingPass::ProcessBranchOnPHI(PHINode *PN) {
   BasicBlock *BB = PN->getParent();
 
@@ -1742,6 +1779,9 @@ bool JumpThreadingPass::ProcessBranchOnPHI(PHINode *PN) {
   // *duplicate* the conditional branch into that block in order to further
   // encourage jump threading and to eliminate cases where we have branch on a
   // phi of an icmp (branch on icmp is much better).
+  // This is still beneficial when a frozen phi is used as the branch condition
+  // because it allows CodeGenPrepare to further canonicalize br(freeze(icmp))
+  // to br(icmp(freeze ...)).
   for (unsigned i = 0, e = PN->getNumIncomingValues(); i != e; ++i) {
     BasicBlock *PredBB = PN->getIncomingBlock(i);
     if (BranchInst *PredBr = dyn_cast<BranchInst>(PredBB->getTerminator()))
@@ -1858,6 +1898,14 @@ bool JumpThreadingPass::ProcessBranchOnXOR(BinaryOperator *BO) {
 
     return true;
   }
+
+  // If any of predecessors end with an indirect goto, we can't change its
+  // destination. Same for CallBr.
+  if (any_of(BlocksToFoldInto, [](BasicBlock *Pred) {
+        return isa<IndirectBrInst>(Pred->getTerminator()) ||
+               isa<CallBrInst>(Pred->getTerminator());
+      }))
+    return false;
 
   // Try to duplicate BB into PredBB.
   return DuplicateCondBranchOnPHIIntoPred(BB, BlocksToFoldInto);
@@ -2762,13 +2810,8 @@ bool JumpThreadingPass::TryToUnfoldSelect(CmpInst *CondCmp, BasicBlock *BB) {
 /// select is not jump-threaded, it will be folded again in the later
 /// optimizations.
 bool JumpThreadingPass::TryToUnfoldSelectInCurrBB(BasicBlock *BB) {
-  // This transform can introduce a UB (a conditional branch that depends on a
-  // poison value) that was not present in the original program. See
-  // @TryToUnfoldSelectInCurrBB test in test/Transforms/JumpThreading/select.ll.
+  // This transform would reduce the quality of msan diagnostics.
   // Disable this transform under MemorySanitizer.
-  // FIXME: either delete it or replace with a valid transform. This issue is
-  // not limited to MemorySanitizer (but has only been observed as an MSan false
-  // positive in practice so far).
   if (BB->getParent()->hasFnAttribute(Attribute::SanitizeMemory))
     return false;
 
@@ -2816,8 +2859,11 @@ bool JumpThreadingPass::TryToUnfoldSelectInCurrBB(BasicBlock *BB) {
     if (!SI)
       continue;
     // Expand the select.
-    Instruction *Term =
-        SplitBlockAndInsertIfThen(SI->getCondition(), SI, false);
+    Value *Cond = SI->getCondition();
+    if (InsertFreezeWhenUnfoldingSelect &&
+        !isGuaranteedNotToBeUndefOrPoison(Cond, SI, &DTU->getDomTree()))
+      Cond = new FreezeInst(Cond, "cond.fr", SI);
+    Instruction *Term = SplitBlockAndInsertIfThen(Cond, SI, false);
     BasicBlock *SplitBB = SI->getParent();
     BasicBlock *NewBB = Term->getParent();
     PHINode *NewPN = PHINode::Create(SI->getType(), 2, "", SI);

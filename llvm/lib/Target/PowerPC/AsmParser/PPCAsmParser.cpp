@@ -290,6 +290,16 @@ public:
     return (unsigned) Imm.Val;
   }
 
+  unsigned getACCReg() const {
+    assert(isACCRegNumber() && "Invalid access!");
+    return (unsigned) Imm.Val;
+  }
+
+  unsigned getVSRpEvenReg() const {
+    assert(isVSRpEvenRegNumber() && "Invalid access!");
+    return (unsigned) Imm.Val >> 1;
+  }
+
   unsigned getCCReg() const {
     assert(isCCRegNumber() && "Invalid access!");
     return (unsigned) (Kind == Immediate ? Imm.Val : Expr.CRVal);
@@ -402,6 +412,12 @@ public:
                                   (getImm() & 3) == 0); }
   bool isImmZero() const { return Kind == Immediate && getImm() == 0; }
   bool isRegNumber() const { return Kind == Immediate && isUInt<5>(getImm()); }
+  bool isACCRegNumber() const {
+    return Kind == Immediate && isUInt<3>(getImm());
+  }
+  bool isVSRpEvenRegNumber() const {
+    return Kind == Immediate && isUInt<6>(getImm()) && ((getImm() & 1) == 0);
+  }
   bool isVSRegNumber() const {
     return Kind == Immediate && isUInt<6>(getImm());
   }
@@ -492,21 +508,6 @@ public:
     Inst.addOperand(MCOperand::createReg(VSSRegs[getVSReg()]));
   }
 
-  void addRegQFRCOperands(MCInst &Inst, unsigned N) const {
-    assert(N == 1 && "Invalid number of operands!");
-    Inst.addOperand(MCOperand::createReg(QFRegs[getReg()]));
-  }
-
-  void addRegQSRCOperands(MCInst &Inst, unsigned N) const {
-    assert(N == 1 && "Invalid number of operands!");
-    Inst.addOperand(MCOperand::createReg(QFRegs[getReg()]));
-  }
-
-  void addRegQBRCOperands(MCInst &Inst, unsigned N) const {
-    assert(N == 1 && "Invalid number of operands!");
-    Inst.addOperand(MCOperand::createReg(QFRegs[getReg()]));
-  }
-
   void addRegSPE4RCOperands(MCInst &Inst, unsigned N) const {
     assert(N == 1 && "Invalid number of operands!");
     Inst.addOperand(MCOperand::createReg(RRegs[getReg()]));
@@ -515,6 +516,21 @@ public:
   void addRegSPERCOperands(MCInst &Inst, unsigned N) const {
     assert(N == 1 && "Invalid number of operands!");
     Inst.addOperand(MCOperand::createReg(SPERegs[getReg()]));
+  }
+
+  void addRegACCRCOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createReg(ACCRegs[getACCReg()]));
+  }
+
+  void addRegVSRpRCOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createReg(VSRpRegs[getVSRpEvenReg()]));
+  }
+
+  void addRegVSRpEvenRCOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createReg(VSRpRegs[getVSRpEvenReg()]));
   }
 
   void addRegCRBITRCOperands(MCInst &Inst, unsigned N) const {
@@ -666,7 +682,8 @@ public:
       return CreateImm(CE->getValue(), S, E, IsPPC64);
 
     if (const MCSymbolRefExpr *SRE = dyn_cast<MCSymbolRefExpr>(Val))
-      if (SRE->getKind() == MCSymbolRefExpr::VK_PPC_TLS)
+      if (SRE->getKind() == MCSymbolRefExpr::VK_PPC_TLS ||
+          SRE->getKind() == MCSymbolRefExpr::VK_PPC_TLS_PCREL)
         return CreateTLSReg(SRE, S, E, IsPPC64);
 
     if (const PPCMCExpr *TE = dyn_cast<PPCMCExpr>(Val)) {
@@ -1207,9 +1224,6 @@ bool PPCAsmParser::MatchRegisterName(unsigned &RegNo, int64_t &IntVal) {
     } else if (Name.startswith_lower("v") &&
                !Name.substr(1).getAsInteger(10, IntVal) && IntVal < 32) {
       RegNo = VRegs[IntVal];
-    } else if (Name.startswith_lower("q") &&
-               !Name.substr(1).getAsInteger(10, IntVal) && IntVal < 32) {
-      RegNo = QFRegs[IntVal];
     } else if (Name.startswith_lower("cr") &&
                !Name.substr(2).getAsInteger(10, IntVal) && IntVal < 8) {
       RegNo = CRRegs[IntVal];

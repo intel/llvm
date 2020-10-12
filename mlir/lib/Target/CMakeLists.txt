@@ -1,6 +1,7 @@
 add_mlir_translation_library(MLIRTargetLLVMIRModuleTranslation
   LLVMIR/DebugTranslation.cpp
   LLVMIR/ModuleTranslation.cpp
+  LLVMIR/TypeTranslation.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Target/LLVMIR
@@ -15,6 +16,7 @@ add_mlir_translation_library(MLIRTargetLLVMIRModuleTranslation
 
   LINK_LIBS PUBLIC
   MLIRLLVMIR
+  MLIROpenMP
   MLIRLLVMIRTransforms
   MLIRTranslation
   )

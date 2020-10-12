@@ -87,6 +87,7 @@
 ; CHECK-NEXT:      Remove dead machine instructions
 ; CHECK-NEXT:      MachineDominator Tree Construction
 ; CHECK-NEXT:      Machine Natural Loop Construction
+; CHECK-NEXT:      Machine Block Frequency Analysis
 ; CHECK-NEXT:      Early Machine Loop Invariant Code Motion
 ; CHECK-NEXT:      MachineDominator Tree Construction
 ; CHECK-NEXT:      Machine Block Frequency Analysis
@@ -170,6 +171,8 @@
 ; CHECK-NEXT:      Contiguously Lay Out Funclets
 ; CHECK-NEXT:      StackMap Liveness Analysis
 ; CHECK-NEXT:      Live DEBUG_VALUE analysis
+; CHECK-NEXT:    Machine Outliner
+; CHECK-NEXT:    FunctionPass Manager
 ; CHECK-NEXT:      MachineDominator Tree Construction
 ; CHECK-NEXT:      ARM constant island placement and branch shortening pass
 ; CHECK-NEXT:      MachineDominator Tree Construction

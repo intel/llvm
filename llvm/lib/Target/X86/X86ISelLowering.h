@@ -384,8 +384,10 @@ namespace llvm {
     /// Vector comparison generating mask bits for fp and
     /// integer signed and unsigned data types.
     CMPM,
-    // Vector comparison with SAE for FP values
-    CMPM_SAE,
+    // Vector mask comparison generating mask bits for FP values.
+    CMPMM,
+    // Vector mask comparison with SAE for FP values.
+    CMPMM_SAE,
 
     // Arithmetic operations with FLAGS results.
     ADD,
@@ -747,6 +749,9 @@ namespace llvm {
     STRICT_CVTPS2PH,
     STRICT_CVTPH2PS,
 
+    // WARNING: Only add nodes here if they are stric FP nodes. Non-memory and
+    // non-strict FP nodes should be above FIRST_TARGET_STRICTFP_OPCODE.
+
     // Compare and swap.
     LCMPXCHG_DAG = ISD::FIRST_TARGET_MEMORY_OPCODE,
     LCMPXCHG8_DAG,
@@ -820,6 +825,16 @@ namespace llvm {
     // X86 specific gather and scatter
     MGATHER,
     MSCATTER,
+
+    // Key locker nodes that produce flags.
+    AESENC128KL,
+    AESDEC128KL,
+    AESENC256KL,
+    AESDEC256KL,
+    AESENCWIDE128KL,
+    AESDECWIDE128KL,
+    AESENCWIDE256KL,
+    AESDECWIDE256KL,
 
     // WARNING: Do not add anything in the end unless you want the node to
     // have memop! In fact, starting from FIRST_TARGET_MEMORY_OPCODE all
@@ -1116,7 +1131,8 @@ namespace llvm {
     }
 
     /// Handle Lowering flag assembly outputs.
-    SDValue LowerAsmOutputForConstraint(SDValue &Chain, SDValue &Flag, SDLoc DL,
+    SDValue LowerAsmOutputForConstraint(SDValue &Chain, SDValue &Flag,
+                                        const SDLoc &DL,
                                         const AsmOperandInfo &Constraint,
                                         SelectionDAG &DAG) const override;
 
@@ -1349,8 +1365,6 @@ namespace llvm {
                                           Align Alignment,
                                           SelectionDAG &DAG) const;
 
-    bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override;
-
     /// Customize the preferred legalization strategy for certain types.
     LegalizeTypeAction getPreferredVectorAction(MVT VT) const override;
 
@@ -1436,7 +1450,7 @@ namespace llvm {
     SDValue LowerMemOpCallTo(SDValue Chain, SDValue StackPtr, SDValue Arg,
                              const SDLoc &dl, SelectionDAG &DAG,
                              const CCValAssign &VA,
-                             ISD::ArgFlagsTy Flags) const;
+                             ISD::ArgFlagsTy Flags, bool isByval) const;
 
     // Call lowering helpers.
 

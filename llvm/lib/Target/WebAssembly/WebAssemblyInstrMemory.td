@@ -70,7 +70,7 @@ defm LOAD_F64 : WebAssemblyLoad<F64, "f64.load", 0x2b, []>;
 multiclass LoadPatNoOffset<ValueType ty, PatFrag kind, string inst> {
   def : Pat<(ty (kind I32:$addr)), (!cast<NI>(inst # "_A32") 0, 0, I32:$addr)>,
         Requires<[HasAddr32]>;
-  def : Pat<(ty (kind I64:$addr)), (!cast<NI>(inst # "_A64") 0, 0, I64:$addr)>,
+  def : Pat<(ty (kind (i64 I64:$addr))), (!cast<NI>(inst # "_A64") 0, 0, I64:$addr)>,
         Requires<[HasAddr64]>;
 }
 
@@ -365,19 +365,24 @@ defm : StorePatGlobalAddrOffOnly<i64, truncstorei8, "STORE8_I64">;
 defm : StorePatGlobalAddrOffOnly<i64, truncstorei16, "STORE16_I64">;
 defm : StorePatGlobalAddrOffOnly<i64, truncstorei32, "STORE32_I64">;
 
+multiclass MemoryOps<WebAssemblyRegClass rc, string B> {
 // Current memory size.
-defm MEMORY_SIZE_I32 : I<(outs I32:$dst), (ins i32imm:$flags),
+defm MEMORY_SIZE_A#B : I<(outs rc:$dst), (ins i32imm:$flags),
                          (outs), (ins i32imm:$flags),
-                         [(set I32:$dst,
+                         [(set rc:$dst,
                            (int_wasm_memory_size (i32 imm:$flags)))],
                          "memory.size\t$dst, $flags", "memory.size\t$flags",
                          0x3f>;
 
 // Grow memory.
-defm MEMORY_GROW_I32 : I<(outs I32:$dst), (ins i32imm:$flags, I32:$delta),
+defm MEMORY_GROW_A#B : I<(outs rc:$dst), (ins i32imm:$flags, rc:$delta),
                          (outs), (ins i32imm:$flags),
-                         [(set I32:$dst,
+                         [(set rc:$dst,
                            (int_wasm_memory_grow (i32 imm:$flags),
-                             I32:$delta))],
+                             rc:$delta))],
                          "memory.grow\t$dst, $flags, $delta",
                          "memory.grow\t$flags", 0x40>;
+}
+
+defm : MemoryOps<I32, "32">;
+defm : MemoryOps<I64, "64">;

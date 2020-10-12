@@ -33,58 +33,58 @@ using namespace llvm;
 
 namespace {
 
-class BPFPreserveDIType final : public ModulePass {
-  StringRef getPassName() const override {
-    return "BPF Preserve DebugInfo Type";
-  }
-
-  bool runOnModule(Module &M) override;
+class BPFPreserveDIType final : public FunctionPass {
+  bool runOnFunction(Function &F) override;
 
 public:
   static char ID;
-  BPFPreserveDIType() : ModulePass(ID) {}
+  BPFPreserveDIType() : FunctionPass(ID) {}
 
 private:
-  bool doTransformation(Module &M);
+  Module *M = nullptr;
+
+  bool doTransformation(Function &F);
 };
 } // End anonymous namespace
 
 char BPFPreserveDIType::ID = 0;
-INITIALIZE_PASS(BPFPreserveDIType, DEBUG_TYPE, "preserve debuginfo type", false,
-                false)
+INITIALIZE_PASS(BPFPreserveDIType, DEBUG_TYPE, "BPF Preserve Debuginfo Type",
+                false, false)
 
-ModulePass *llvm::createBPFPreserveDIType() { return new BPFPreserveDIType(); }
+FunctionPass *llvm::createBPFPreserveDIType() { return new BPFPreserveDIType(); }
 
-bool BPFPreserveDIType::runOnModule(Module &M) {
+bool BPFPreserveDIType::runOnFunction(Function &F) {
   LLVM_DEBUG(dbgs() << "********** preserve debuginfo type **********\n");
 
-  // Bail out if no debug info.
-  if (M.debug_compile_units().empty())
+  M = F.getParent();
+  if (!M)
     return false;
 
-  return doTransformation(M);
+  // Bail out if no debug info.
+  if (M->debug_compile_units().empty())
+    return false;
+
+  return doTransformation(F);
 }
 
-bool BPFPreserveDIType::doTransformation(Module &M) {
+bool BPFPreserveDIType::doTransformation(Function &F) {
   std::vector<CallInst *> PreserveDITypeCalls;
 
-  for (auto &F : M) {
-    for (auto &BB : F) {
-      for (auto &I : BB) {
-        auto *Call = dyn_cast<CallInst>(&I);
-        if (!Call)
-          continue;
+  for (auto &BB : F) {
+    for (auto &I : BB) {
+      auto *Call = dyn_cast<CallInst>(&I);
+      if (!Call)
+        continue;
 
-        const auto *GV = dyn_cast<GlobalValue>(Call->getCalledOperand());
-        if (!GV)
-          continue;
+      const auto *GV = dyn_cast<GlobalValue>(Call->getCalledOperand());
+      if (!GV)
+        continue;
 
-        if (GV->getName().startswith("llvm.bpf.btf.type.id")) {
-          if (!Call->getMetadata(LLVMContext::MD_preserve_access_index))
-            report_fatal_error(
-                "Missing metadata for llvm.bpf.btf.type.id intrinsic");
-          PreserveDITypeCalls.push_back(Call);
-        }
+      if (GV->getName().startswith("llvm.bpf.btf.type.id")) {
+        if (!Call->getMetadata(LLVMContext::MD_preserve_access_index))
+          report_fatal_error(
+              "Missing metadata for llvm.bpf.btf.type.id intrinsic");
+        PreserveDITypeCalls.push_back(Call);
       }
     }
   }
@@ -95,34 +95,40 @@ bool BPFPreserveDIType::doTransformation(Module &M) {
   std::string BaseName = "llvm.btf_type_id.";
   int Count = 0;
   for (auto Call : PreserveDITypeCalls) {
-    const ConstantInt *Flag = dyn_cast<ConstantInt>(Call->getArgOperand(2));
+    const ConstantInt *Flag = dyn_cast<ConstantInt>(Call->getArgOperand(1));
     assert(Flag);
     uint64_t FlagValue = Flag->getValue().getZExtValue();
 
     if (FlagValue >= BPFCoreSharedInfo::MAX_BTF_TYPE_ID_FLAG)
       report_fatal_error("Incorrect flag for llvm.bpf.btf.type.id intrinsic");
 
+    MDNode *MD = Call->getMetadata(LLVMContext::MD_preserve_access_index);
+
     uint32_t Reloc;
-    if (FlagValue == BPFCoreSharedInfo::BTF_TYPE_ID_LOCAL_RELOC)
+    if (FlagValue == BPFCoreSharedInfo::BTF_TYPE_ID_LOCAL_RELOC) {
       Reloc = BPFCoreSharedInfo::BTF_TYPE_ID_LOCAL;
-    else
+    } else {
       Reloc = BPFCoreSharedInfo::BTF_TYPE_ID_REMOTE;
+      DIType *Ty = cast<DIType>(MD);
+      if (Ty->getName().empty())
+        report_fatal_error("Empty type name for BTF_TYPE_ID_REMOTE reloc");
+    }
 
     BasicBlock *BB = Call->getParent();
     IntegerType *VarType = Type::getInt32Ty(BB->getContext());
     std::string GVName = BaseName + std::to_string(Count) + "$" +
         std::to_string(Reloc);
-    GlobalVariable *GV =
-        new GlobalVariable(M, VarType, false, GlobalVariable::ExternalLinkage,
-                           NULL, GVName);
+    GlobalVariable *GV = new GlobalVariable(
+        *M, VarType, false, GlobalVariable::ExternalLinkage, NULL, GVName);
     GV->addAttribute(BPFCoreSharedInfo::TypeIdAttr);
-    MDNode *MD = Call->getMetadata(LLVMContext::MD_preserve_access_index);
     GV->setMetadata(LLVMContext::MD_preserve_access_index, MD);
 
     // Load the global variable which represents the type info.
     auto *LDInst = new LoadInst(Type::getInt32Ty(BB->getContext()), GV, "",
                                 Call);
-    Call->replaceAllUsesWith(LDInst);
+    Instruction *PassThroughInst =
+        BPFCoreSharedInfo::insertPassThrough(M, BB, LDInst, Call);
+    Call->replaceAllUsesWith(PassThroughInst);
     Call->eraseFromParent();
     Count++;
   }

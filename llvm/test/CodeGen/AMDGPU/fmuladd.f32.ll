@@ -17,8 +17,8 @@
 ; FIXME: Should probably test this, but sometimes selecting fmac is painful to match.
 ; XUN: llc -amdgpu-scalarize-global-loads=false -verify-machineinstrs -mcpu=gfx906 -denormal-fp-math-f32=ieee -fp-contract=on < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-DENORM-STRICT,GCN-DENORM,GFX9-DENORM,GCN-DENORM-FASTFMA,GCN-DENORM-FASTFMA-STRICT,GFX906 %s
 
-; RUN: llc -amdgpu-scalarize-global-loads=false -verify-machineinstrs -mcpu=gfx1030 -mattr=-fp32-denormals -fp-contract=on < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-FLUSH-STRICT,GCN-FLUSH-FMAC,GCN-FLUSH-FASTFMA,GCN-FLUSH-FASTFMA-STRICT %s
-; RUN: llc -amdgpu-scalarize-global-loads=false -verify-machineinstrs -mcpu=gfx1030 -mattr=+fp32-denormals -fp-contract=on < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-DENORM,GCN-DENORM-FASTFMA-STRICT,GCN-DENORM-STRICT %s
+; RUN: llc -amdgpu-scalarize-global-loads=false -verify-machineinstrs -mcpu=gfx1030 -denormal-fp-math-f32=preserve-sign -mattr=+mad-mac-f32-insts -fp-contract=on < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-FLUSH,GCN-FLUSH-STRICT,GCN-FLUSH-FMAC,GCN-FLUSH-FASTFMA,GCN-FLUSH-FASTFMA-STRICT,GFX1030 %s
+; RUN: llc -amdgpu-scalarize-global-loads=false -verify-machineinstrs -mcpu=gfx1030 -denormal-fp-math-f32=ieee -mattr=+mad-mac-f32-insts -fp-contract=on < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-DENORM-STRICT,GCN-DENORM,GCN-DENORM-FASTFMA-STRICT,GFX1030 %s
 
 ; Test all permutations of: fp32 denormals, fast fp contract, fp contract enabled for fmuladd, fmaf fast/slow.
 
@@ -65,6 +65,24 @@ define amdgpu_kernel void @fmul_fadd_f32(float addrspace(1)* %out, float addrspa
   %r2 = load volatile float, float addrspace(1)* %in3
   %mul = fmul float %r0, %r1
   %add = fadd float %mul, %r2
+  store float %add, float addrspace(1)* %out
+  ret void
+}
+
+; GCN-LABEL: {{^}}fmul_fadd_contract_f32:
+; GCN-FLUSH-FMAC: v_fmac_f32_e32
+
+; GCN-DENORM-SLOWFMA-CONTRACT: v_mul_f32_e32
+; GCN-DENORM-SLOWFMA-CONTRACT: v_add_f32_e32
+
+; GCN-DENORM-FASTFMA: v_fma_f32
+define amdgpu_kernel void @fmul_fadd_contract_f32(float addrspace(1)* %out, float addrspace(1)* %in1,
+                           float addrspace(1)* %in2, float addrspace(1)* %in3) #0 {
+  %r0 = load volatile float, float addrspace(1)* %in1
+  %r1 = load volatile float, float addrspace(1)* %in2
+  %r2 = load volatile float, float addrspace(1)* %in3
+  %mul = fmul float %r0, %r1
+  %add = fadd contract float %mul, %r2
   store float %add, float addrspace(1)* %out
   ret void
 }
@@ -256,7 +274,7 @@ define amdgpu_kernel void @fmuladd_neg_2.0_neg_a_b_f32(float addrspace(1)* %out,
   %r1 = load volatile float, float addrspace(1)* %gep.0
   %r2 = load volatile float, float addrspace(1)* %gep.1
 
-  %r1.fneg = fsub float -0.000000e+00, %r1
+  %r1.fneg = fneg float %r1
 
   %r3 = tail call float @llvm.fmuladd.f32(float -2.0, float %r1.fneg, float %r2)
   store float %r3, float addrspace(1)* %gep.out
@@ -289,7 +307,7 @@ define amdgpu_kernel void @fmuladd_2.0_neg_a_b_f32(float addrspace(1)* %out, flo
   %r1 = load volatile float, float addrspace(1)* %gep.0
   %r2 = load volatile float, float addrspace(1)* %gep.1
 
-  %r1.fneg = fsub float -0.000000e+00, %r1
+  %r1.fneg = fneg float %r1
 
   %r3 = tail call float @llvm.fmuladd.f32(float 2.0, float %r1.fneg, float %r2)
   store float %r3, float addrspace(1)* %gep.out
@@ -321,7 +339,7 @@ define amdgpu_kernel void @fmuladd_2.0_a_neg_b_f32(float addrspace(1)* %out, flo
   %r1 = load volatile float, float addrspace(1)* %gep.0
   %r2 = load volatile float, float addrspace(1)* %gep.1
 
-  %r2.fneg = fsub float -0.000000e+00, %r2
+  %r2.fneg = fneg float %r2
 
   %r3 = tail call float @llvm.fmuladd.f32(float 2.0, float %r1, float %r2.fneg)
   store float %r3, float addrspace(1)* %gep.out
@@ -499,8 +517,8 @@ define amdgpu_kernel void @neg_neg_mad_f32(float addrspace(1)* noalias nocapture
   %a = load volatile float, float addrspace(1)* %gep0, align 4
   %b = load volatile float, float addrspace(1)* %gep1, align 4
   %c = load volatile float, float addrspace(1)* %gep2, align 4
-  %nega = fsub float -0.000000e+00, %a
-  %negb = fsub float -0.000000e+00, %b
+  %nega = fneg float %a
+  %negb = fneg float %b
   %mul = fmul float %nega, %negb
   %sub = fadd float %mul, %c
   store float %sub, float addrspace(1)* %outgep, align 4

@@ -70,6 +70,7 @@ enum SPIRVInstructionSchemaKind {
 enum SPIRVExtInstSetKind {
   SPIRVEIS_OpenCL,
   SPIRVEIS_Debug,
+  SPIRVEIS_OpenCL_DebugInfo_100,
   SPIRVEIS_Count,
 };
 
@@ -120,6 +121,7 @@ template <> inline void SPIRVMap<ExtensionID, std::string>::init() {
 template <> inline void SPIRVMap<SPIRVExtInstSetKind, std::string>::init() {
   add(SPIRVEIS_OpenCL, "OpenCL.std");
   add(SPIRVEIS_Debug, "SPIRV.debug");
+  add(SPIRVEIS_OpenCL_DebugInfo_100, "OpenCL.DebugInfo.100");
 }
 typedef SPIRVMap<SPIRVExtInstSetKind, std::string> SPIRVBuiltinSetNameMap;
 
@@ -393,6 +395,23 @@ template <> inline void SPIRVMap<Decoration, SPIRVCapVec>::init() {
                {CapabilityVectorComputeINTEL});
   ADD_VEC_INIT(DecorationFuncParamIOKind, {CapabilityVectorComputeINTEL});
   ADD_VEC_INIT(DecorationStackCallINTEL, {CapabilityVectorComputeINTEL});
+  ADD_VEC_INIT(DecorationSIMTCallINTEL, {CapabilityVectorComputeINTEL});
+  ADD_VEC_INIT(DecorationFuncParamKindINTEL, {CapabilityVectorComputeINTEL});
+  ADD_VEC_INIT(DecorationFuncParamDescINTEL, {CapabilityVectorComputeINTEL});
+  ADD_VEC_INIT(DecorationBurstCoalesceINTEL,
+               {CapabilityFPGAMemoryAccessesINTEL});
+  ADD_VEC_INIT(DecorationCacheSizeINTEL, {CapabilityFPGAMemoryAccessesINTEL});
+  ADD_VEC_INIT(DecorationDontStaticallyCoalesceINTEL,
+               {CapabilityFPGAMemoryAccessesINTEL});
+  ADD_VEC_INIT(DecorationPrefetchINTEL, {CapabilityFPGAMemoryAccessesINTEL});
+  ADD_VEC_INIT(DecorationBufferLocationINTEL,
+               {CapabilityFPGABufferLocationINTEL});
+  ADD_VEC_INIT(DecorationFunctionRoundingModeINTEL,
+               {CapabilityFunctionFloatControlINTEL});
+  ADD_VEC_INIT(DecorationFunctionDenormModeINTEL,
+               {CapabilityFunctionFloatControlINTEL});
+  ADD_VEC_INIT(DecorationFunctionFloatingPointModeINTEL,
+               {CapabilityFunctionFloatControlINTEL});
 }
 
 template <> inline void SPIRVMap<BuiltIn, SPIRVCapVec>::init() {

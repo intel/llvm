@@ -1,8 +1,8 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -verify -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -verify -Wno-sycl-2017-compat -fsyntax-only %s
 const int glob1 = 1;
 int glob2 = 2;
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   // expected-note-re@+1{{called by 'kernel_single_task<fake_kernel, (lambda at {{.*}})>}}
   kernelFunc();
 }

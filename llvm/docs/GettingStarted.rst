@@ -167,7 +167,7 @@ uses the package and provides other details.
 =========================================================== ============ ==========================================
 Package                                                     Version      Notes
 =========================================================== ============ ==========================================
-`CMake <http://cmake.org/>`__                               >=3.4.3      Makefile/workspace generator
+`CMake <http://cmake.org/>`__                               >=3.13.4     Makefile/workspace generator
 `GCC <http://gcc.gnu.org/>`_                                >=5.1.0      C/C++ compiler\ :sup:`1`
 `python <http://www.python.org/>`_                          >=2.7        Automated test suite\ :sup:`2`
 `zlib <http://zlib.net>`_                                   >=1.2.3.4    Compression library\ :sup:`3`
@@ -527,6 +527,9 @@ not allowed. The `llvm-project` repo on github is configured to reject pushes
 that include merges, so the `git rebase` step above is required.
 
 Please ask for help if you're having trouble with your particular git workflow.
+
+
+.. _git_pre_push_hook:
 
 Git pre-push hook
 ^^^^^^^^^^^^^^^^^

@@ -388,6 +388,17 @@ std::set<SPIRVWord> SPIRVEntry::getDecorate(Decoration Kind,
   return Value;
 }
 
+std::vector<SPIRVDecorate const *>
+SPIRVEntry::getDecorations(Decoration Kind) const {
+  auto Range = Decorates.equal_range(Kind);
+  std::vector<SPIRVDecorate const *> Decors;
+  Decors.reserve(Decorates.count(Kind));
+  for (auto I = Range.first, E = Range.second; I != E; ++I) {
+    Decors.push_back(I->second);
+  }
+  return Decors;
+}
+
 bool SPIRVEntry::hasLinkageType() const {
   return OpCode == OpFunction || OpCode == OpVariable;
 }

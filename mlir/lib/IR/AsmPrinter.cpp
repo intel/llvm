@@ -33,6 +33,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/SaveAndRestore.h"
@@ -270,7 +271,7 @@ private:
   /// Mapping between attribute kind and a pair comprised of a base alias name
   /// and a unique list of attributes belonging to this kind sorted by location
   /// seen in the module.
-  llvm::MapVector<unsigned, std::pair<StringRef, std::vector<Attribute>>>
+  llvm::MapVector<TypeID, std::pair<StringRef, std::vector<Attribute>>>
       attrKindToAlias;
 
   /// Set of types known to be used within the module.
@@ -284,7 +285,7 @@ private:
 // Utility to generate a function to register a symbol alias.
 static bool canRegisterAlias(StringRef name, llvm::StringSet<> &usedAliases) {
   assert(!name.empty() && "expected alias name to be non-empty");
-  // TODO(riverriddle) Assert that the provided alias name can be lexed as
+  // TODO: Assert that the provided alias name can be lexed as
   // an identifier.
 
   // Check that the alias doesn't contain a '.' character and the name is not
@@ -300,13 +301,13 @@ void AliasState::initialize(
   llvm::StringSet<> usedAliases;
 
   // Collect the set of aliases from each dialect.
-  SmallVector<std::pair<unsigned, StringRef>, 8> attributeKindAliases;
+  SmallVector<std::pair<TypeID, StringRef>, 8> attributeKindAliases;
   SmallVector<std::pair<Attribute, StringRef>, 8> attributeAliases;
   SmallVector<std::pair<Type, StringRef>, 16> typeAliases;
 
   // AffineMap/Integer set have specific kind aliases.
-  attributeKindAliases.emplace_back(StandardAttributes::AffineMap, "map");
-  attributeKindAliases.emplace_back(StandardAttributes::IntegerSet, "set");
+  attributeKindAliases.emplace_back(AffineMapAttr::getTypeID(), "map");
+  attributeKindAliases.emplace_back(IntegerSetAttr::getTypeID(), "set");
 
   for (auto &interface : interfaces) {
     interface.getAttributeKindAliases(attributeKindAliases);
@@ -316,7 +317,7 @@ void AliasState::initialize(
 
   // Setup the attribute kind aliases.
   StringRef alias;
-  unsigned attrKind;
+  TypeID attrKind;
   for (auto &attrAliasPair : attributeKindAliases) {
     std::tie(attrKind, alias) = attrAliasPair;
     assert(!alias.empty() && "expected non-empty alias string");
@@ -419,7 +420,7 @@ void AliasState::recordAttributeReference(Attribute attr) {
     return;
 
   // If this attribute kind has an alias, then record one for this attribute.
-  auto alias = attrKindToAlias.find(static_cast<unsigned>(attr.getKind()));
+  auto alias = attrKindToAlias.find(attr.getTypeID());
   if (alias == attrKindToAlias.end())
     return;
   std::pair<StringRef, int> attrAlias(alias->second.first,
@@ -431,7 +432,7 @@ void AliasState::recordAttributeReference(Attribute attr) {
 /// Record a reference to the given type.
 void AliasState::recordTypeReference(Type ty) { usedTypes.insert(ty); }
 
-// TODO Support visiting other types/operations when implemented.
+// TODO: Support visiting other types/operations when implemented.
 void AliasState::visitType(Type type) {
   recordTypeReference(type);
 
@@ -619,7 +620,7 @@ unsigned SSANameState::getBlockID(Block *block) {
 
 void SSANameState::shadowRegionArgs(Region &region, ValueRange namesToUse) {
   assert(!region.empty() && "cannot shadow arguments of an empty region");
-  assert(region.front().getNumArguments() == namesToUse.size() &&
+  assert(region.getNumArguments() == namesToUse.size() &&
          "incorrect number of names passed in");
   assert(region.getParentOp()->isKnownIsolatedFromAbove() &&
          "only KnownIsolatedFromAbove ops can shadow names");
@@ -629,7 +630,7 @@ void SSANameState::shadowRegionArgs(Region &region, ValueRange namesToUse) {
     auto nameToUse = namesToUse[i];
     if (nameToUse == nullptr)
       continue;
-    auto nameToReplace = region.front().getArgument(i);
+    auto nameToReplace = region.getArgument(i);
 
     nameStr.clear();
     llvm::raw_svector_ostream nameStream(nameStr);
@@ -1019,76 +1020,67 @@ void ModulePrinter::printTrailingLocation(Location loc) {
 }
 
 void ModulePrinter::printLocationInternal(LocationAttr loc, bool pretty) {
-  switch (loc.getKind()) {
-  case StandardAttributes::OpaqueLocation:
-    printLocationInternal(loc.cast<OpaqueLoc>().getFallbackLocation(), pretty);
-    break;
-  case StandardAttributes::UnknownLocation:
-    if (pretty)
-      os << "[unknown]";
-    else
-      os << "unknown";
-    break;
-  case StandardAttributes::FileLineColLocation: {
-    auto fileLoc = loc.cast<FileLineColLoc>();
-    auto mayQuote = pretty ? "" : "\"";
-    os << mayQuote << fileLoc.getFilename() << mayQuote << ':'
-       << fileLoc.getLine() << ':' << fileLoc.getColumn();
-    break;
-  }
-  case StandardAttributes::NameLocation: {
-    auto nameLoc = loc.cast<NameLoc>();
-    os << '\"' << nameLoc.getName() << '\"';
+  TypeSwitch<LocationAttr>(loc)
+      .Case<OpaqueLoc>([&](OpaqueLoc loc) {
+        printLocationInternal(loc.getFallbackLocation(), pretty);
+      })
+      .Case<UnknownLoc>([&](UnknownLoc loc) {
+        if (pretty)
+          os << "[unknown]";
+        else
+          os << "unknown";
+      })
+      .Case<FileLineColLoc>([&](FileLineColLoc loc) {
+        StringRef mayQuote = pretty ? "" : "\"";
+        os << mayQuote << loc.getFilename() << mayQuote << ':' << loc.getLine()
+           << ':' << loc.getColumn();
+      })
+      .Case<NameLoc>([&](NameLoc loc) {
+        os << '\"' << loc.getName() << '\"';
 
-    // Print the child if it isn't unknown.
-    auto childLoc = nameLoc.getChildLoc();
-    if (!childLoc.isa<UnknownLoc>()) {
-      os << '(';
-      printLocationInternal(childLoc, pretty);
-      os << ')';
-    }
-    break;
-  }
-  case StandardAttributes::CallSiteLocation: {
-    auto callLocation = loc.cast<CallSiteLoc>();
-    auto caller = callLocation.getCaller();
-    auto callee = callLocation.getCallee();
-    if (!pretty)
-      os << "callsite(";
-    printLocationInternal(callee, pretty);
-    if (pretty) {
-      if (callee.isa<NameLoc>()) {
-        if (caller.isa<FileLineColLoc>()) {
-          os << " at ";
-        } else {
-          os << newLine << " at ";
+        // Print the child if it isn't unknown.
+        auto childLoc = loc.getChildLoc();
+        if (!childLoc.isa<UnknownLoc>()) {
+          os << '(';
+          printLocationInternal(childLoc, pretty);
+          os << ')';
         }
-      } else {
-        os << newLine << " at ";
-      }
-    } else {
-      os << " at ";
-    }
-    printLocationInternal(caller, pretty);
-    if (!pretty)
-      os << ")";
-    break;
-  }
-  case StandardAttributes::FusedLocation: {
-    auto fusedLoc = loc.cast<FusedLoc>();
-    if (!pretty)
-      os << "fused";
-    if (auto metadata = fusedLoc.getMetadata())
-      os << '<' << metadata << '>';
-    os << '[';
-    interleave(
-        fusedLoc.getLocations(),
-        [&](Location loc) { printLocationInternal(loc, pretty); },
-        [&]() { os << ", "; });
-    os << ']';
-    break;
-  }
-  }
+      })
+      .Case<CallSiteLoc>([&](CallSiteLoc loc) {
+        Location caller = loc.getCaller();
+        Location callee = loc.getCallee();
+        if (!pretty)
+          os << "callsite(";
+        printLocationInternal(callee, pretty);
+        if (pretty) {
+          if (callee.isa<NameLoc>()) {
+            if (caller.isa<FileLineColLoc>()) {
+              os << " at ";
+            } else {
+              os << newLine << " at ";
+            }
+          } else {
+            os << newLine << " at ";
+          }
+        } else {
+          os << " at ";
+        }
+        printLocationInternal(caller, pretty);
+        if (!pretty)
+          os << ")";
+      })
+      .Case<FusedLoc>([&](FusedLoc loc) {
+        if (!pretty)
+          os << "fused";
+        if (Attribute metadata = loc.getMetadata())
+          os << '<' << metadata << '>';
+        os << '[';
+        interleave(
+            loc.getLocations(),
+            [&](Location loc) { printLocationInternal(loc, pretty); },
+            [&]() { os << ", "; });
+        os << ']';
+      });
 }
 
 /// Print a floating point value in a way that the parser will be able to
@@ -1151,8 +1143,8 @@ void ModulePrinter::printLocation(LocationAttr loc) {
   }
 }
 
-/// Returns if the given dialect symbol data is simple enough to print in the
-/// pretty form, i.e. without the enclosing "".
+/// Returns true if the given dialect symbol data is simple enough to print in
+/// the pretty form, i.e. without the enclosing "".
 static bool isDialectSymbolSimpleEnoughForPrettyForm(StringRef symName) {
   // The name must start with an identifier.
   if (symName.empty() || !isalpha(symName.front()))
@@ -1241,7 +1233,7 @@ static void printDialectSymbol(raw_ostream &os, StringRef symPrefix,
   os << "<\"" << symString << "\">";
 }
 
-/// Returns if the given string can be represented as a bare identifier.
+/// Returns true if the given string can be represented as a bare identifier.
 static bool isBareIdentifier(StringRef name) {
   assert(!name.empty() && "invalid name");
 
@@ -1305,27 +1297,19 @@ void ModulePrinter::printAttribute(Attribute attr,
   }
 
   auto attrType = attr.getType();
-  switch (attr.getKind()) {
-  default:
-    return printDialectAttribute(attr);
-
-  case StandardAttributes::Opaque: {
-    auto opaqueAttr = attr.cast<OpaqueAttr>();
+  if (auto opaqueAttr = attr.dyn_cast<OpaqueAttr>()) {
     printDialectSymbol(os, "#", opaqueAttr.getDialectNamespace(),
                        opaqueAttr.getAttrData());
-    break;
-  }
-  case StandardAttributes::Unit:
+  } else if (attr.isa<UnitAttr>()) {
     os << "unit";
-    break;
-  case StandardAttributes::Dictionary:
+    return;
+  } else if (auto dictAttr = attr.dyn_cast<DictionaryAttr>()) {
     os << '{';
-    interleaveComma(attr.cast<DictionaryAttr>().getValue(),
+    interleaveComma(dictAttr.getValue(),
                     [&](NamedAttribute attr) { printNamedAttribute(attr); });
     os << '}';
-    break;
-  case StandardAttributes::Integer: {
-    auto intAttr = attr.cast<IntegerAttr>();
+
+  } else if (auto intAttr = attr.dyn_cast<IntegerAttr>()) {
     if (attrType.isSignlessInteger(1)) {
       os << (intAttr.getValue().getBoolValue() ? "true" : "false");
 
@@ -1343,112 +1327,98 @@ void ModulePrinter::printAttribute(Attribute attr,
     // IntegerAttr elides the type if I64.
     if (typeElision == AttrTypeElision::May && attrType.isSignlessInteger(64))
       return;
-    break;
-  }
-  case StandardAttributes::Float: {
-    auto floatAttr = attr.cast<FloatAttr>();
+
+  } else if (auto floatAttr = attr.dyn_cast<FloatAttr>()) {
     printFloatValue(floatAttr.getValue(), os);
 
     // FloatAttr elides the type if F64.
     if (typeElision == AttrTypeElision::May && attrType.isF64())
       return;
-    break;
-  }
-  case StandardAttributes::String:
+
+  } else if (auto strAttr = attr.dyn_cast<StringAttr>()) {
     os << '"';
-    printEscapedString(attr.cast<StringAttr>().getValue(), os);
+    printEscapedString(strAttr.getValue(), os);
     os << '"';
-    break;
-  case StandardAttributes::Array:
+
+  } else if (auto arrayAttr = attr.dyn_cast<ArrayAttr>()) {
     os << '[';
-    interleaveComma(attr.cast<ArrayAttr>().getValue(), [&](Attribute attr) {
+    interleaveComma(arrayAttr.getValue(), [&](Attribute attr) {
       printAttribute(attr, AttrTypeElision::May);
     });
     os << ']';
-    break;
-  case StandardAttributes::AffineMap:
+
+  } else if (auto affineMapAttr = attr.dyn_cast<AffineMapAttr>()) {
     os << "affine_map<";
-    attr.cast<AffineMapAttr>().getValue().print(os);
+    affineMapAttr.getValue().print(os);
     os << '>';
 
     // AffineMap always elides the type.
     return;
-  case StandardAttributes::IntegerSet:
+
+  } else if (auto integerSetAttr = attr.dyn_cast<IntegerSetAttr>()) {
     os << "affine_set<";
-    attr.cast<IntegerSetAttr>().getValue().print(os);
+    integerSetAttr.getValue().print(os);
     os << '>';
 
     // IntegerSet always elides the type.
     return;
-  case StandardAttributes::Type:
-    printType(attr.cast<TypeAttr>().getValue());
-    break;
-  case StandardAttributes::SymbolRef: {
-    auto refAttr = attr.dyn_cast<SymbolRefAttr>();
+
+  } else if (auto typeAttr = attr.dyn_cast<TypeAttr>()) {
+    printType(typeAttr.getValue());
+
+  } else if (auto refAttr = attr.dyn_cast<SymbolRefAttr>()) {
     printSymbolReference(refAttr.getRootReference(), os);
     for (FlatSymbolRefAttr nestedRef : refAttr.getNestedReferences()) {
       os << "::";
       printSymbolReference(nestedRef.getValue(), os);
     }
-    break;
-  }
-  case StandardAttributes::OpaqueElements: {
-    auto eltsAttr = attr.cast<OpaqueElementsAttr>();
-    if (printerFlags.shouldElideElementsAttr(eltsAttr)) {
-      printElidedElementsAttr(os);
-      break;
-    }
-    os << "opaque<\"" << eltsAttr.getDialect()->getNamespace() << "\", ";
-    os << '"' << "0x" << llvm::toHex(eltsAttr.getValue()) << "\">";
-    break;
-  }
-  case StandardAttributes::DenseIntOrFPElements: {
-    auto eltsAttr = attr.cast<DenseIntOrFPElementsAttr>();
-    if (printerFlags.shouldElideElementsAttr(eltsAttr)) {
-      printElidedElementsAttr(os);
-      break;
-    }
-    os << "dense<";
-    printDenseIntOrFPElementsAttr(eltsAttr, /*allowHex=*/true);
-    os << '>';
-    break;
-  }
-  case StandardAttributes::DenseStringElements: {
-    auto eltsAttr = attr.cast<DenseStringElementsAttr>();
-    if (printerFlags.shouldElideElementsAttr(eltsAttr)) {
-      printElidedElementsAttr(os);
-      break;
-    }
-    os << "dense<";
-    printDenseStringElementsAttr(eltsAttr);
-    os << '>';
-    break;
-  }
-  case StandardAttributes::SparseElements: {
-    auto elementsAttr = attr.cast<SparseElementsAttr>();
-    if (printerFlags.shouldElideElementsAttr(elementsAttr.getIndices()) ||
-        printerFlags.shouldElideElementsAttr(elementsAttr.getValues())) {
-      printElidedElementsAttr(os);
-      break;
-    }
-    os << "sparse<";
-    printDenseIntOrFPElementsAttr(elementsAttr.getIndices(),
-                                  /*allowHex=*/false);
-    os << ", ";
-    printDenseElementsAttr(elementsAttr.getValues(), /*allowHex=*/true);
-    os << '>';
-    break;
-  }
 
-  // Location attributes.
-  case StandardAttributes::CallSiteLocation:
-  case StandardAttributes::FileLineColLocation:
-  case StandardAttributes::FusedLocation:
-  case StandardAttributes::NameLocation:
-  case StandardAttributes::OpaqueLocation:
-  case StandardAttributes::UnknownLocation:
-    printLocation(attr.cast<LocationAttr>());
-    break;
+  } else if (auto opaqueAttr = attr.dyn_cast<OpaqueElementsAttr>()) {
+    if (printerFlags.shouldElideElementsAttr(opaqueAttr)) {
+      printElidedElementsAttr(os);
+    } else {
+      os << "opaque<\"" << opaqueAttr.getDialect()->getNamespace() << "\", ";
+      os << '"' << "0x" << llvm::toHex(opaqueAttr.getValue()) << "\">";
+    }
+
+  } else if (auto intOrFpEltAttr = attr.dyn_cast<DenseIntOrFPElementsAttr>()) {
+    if (printerFlags.shouldElideElementsAttr(intOrFpEltAttr)) {
+      printElidedElementsAttr(os);
+    } else {
+      os << "dense<";
+      printDenseIntOrFPElementsAttr(intOrFpEltAttr, /*allowHex=*/true);
+      os << '>';
+    }
+
+  } else if (auto strEltAttr = attr.dyn_cast<DenseStringElementsAttr>()) {
+    if (printerFlags.shouldElideElementsAttr(strEltAttr)) {
+      printElidedElementsAttr(os);
+    } else {
+      os << "dense<";
+      printDenseStringElementsAttr(strEltAttr);
+      os << '>';
+    }
+
+  } else if (auto sparseEltAttr = attr.dyn_cast<SparseElementsAttr>()) {
+    if (printerFlags.shouldElideElementsAttr(sparseEltAttr.getIndices()) ||
+        printerFlags.shouldElideElementsAttr(sparseEltAttr.getValues())) {
+      printElidedElementsAttr(os);
+    } else {
+      os << "sparse<";
+      DenseIntElementsAttr indices = sparseEltAttr.getIndices();
+      if (indices.getNumElements() != 0) {
+        printDenseIntOrFPElementsAttr(indices, /*allowHex=*/false);
+        os << ", ";
+        printDenseElementsAttr(sparseEltAttr.getValues(), /*allowHex=*/true);
+      }
+      os << '>';
+    }
+
+  } else if (auto locAttr = attr.dyn_cast<LocationAttr>()) {
+    printLocation(locAttr);
+
+  } else {
+    return printDialectAttribute(attr);
   }
 
   // Don't print the type if we must elide it, or if it is a None type.
@@ -1476,20 +1446,15 @@ printDenseElementsAttrImpl(bool isSplat, ShapedType type, raw_ostream &os,
 
   // Special case for degenerate tensors.
   auto numElements = type.getNumElements();
-  int64_t rank = type.getRank();
-  if (numElements == 0) {
-    for (int i = 0; i < rank; ++i)
-      os << '[';
-    for (int i = 0; i < rank; ++i)
-      os << ']';
+  if (numElements == 0)
     return;
-  }
 
   // We use a mixed-radix counter to iterate through the shape. When we bump a
   // non-least-significant digit, we emit a close bracket. When we next emit an
   // element we re-open all closed brackets.
 
   // The mixed-radix counter, with radices in 'shape'.
+  int64_t rank = type.getRank();
   SmallVector<unsigned, 4> counter(rank, 0);
   // The number of brackets that have been opened and not closed.
   unsigned openBrackets = 0;
@@ -1611,128 +1576,98 @@ void ModulePrinter::printType(Type type) {
     }
   }
 
-  switch (type.getKind()) {
-  default:
-    return printDialectType(type);
-
-  case Type::Kind::Opaque: {
-    auto opaqueTy = type.cast<OpaqueType>();
-    printDialectSymbol(os, "!", opaqueTy.getDialectNamespace(),
-                       opaqueTy.getTypeData());
-    return;
-  }
-  case StandardTypes::Index:
-    os << "index";
-    return;
-  case StandardTypes::BF16:
-    os << "bf16";
-    return;
-  case StandardTypes::F16:
-    os << "f16";
-    return;
-  case StandardTypes::F32:
-    os << "f32";
-    return;
-  case StandardTypes::F64:
-    os << "f64";
-    return;
-
-  case StandardTypes::Integer: {
-    auto integer = type.cast<IntegerType>();
-    if (integer.isSigned())
-      os << 's';
-    else if (integer.isUnsigned())
-      os << 'u';
-    os << 'i' << integer.getWidth();
-    return;
-  }
-  case Type::Kind::Function: {
-    auto func = type.cast<FunctionType>();
-    os << '(';
-    interleaveComma(func.getInputs(), [&](Type type) { printType(type); });
-    os << ") -> ";
-    auto results = func.getResults();
-    if (results.size() == 1 && !results[0].isa<FunctionType>())
-      os << results[0];
-    else {
-      os << '(';
-      interleaveComma(results, [&](Type type) { printType(type); });
-      os << ')';
-    }
-    return;
-  }
-  case StandardTypes::Vector: {
-    auto v = type.cast<VectorType>();
-    os << "vector<";
-    for (auto dim : v.getShape())
-      os << dim << 'x';
-    os << v.getElementType() << '>';
-    return;
-  }
-  case StandardTypes::RankedTensor: {
-    auto v = type.cast<RankedTensorType>();
-    os << "tensor<";
-    for (auto dim : v.getShape()) {
-      if (dim < 0)
-        os << '?';
-      else
-        os << dim;
-      os << 'x';
-    }
-    os << v.getElementType() << '>';
-    return;
-  }
-  case StandardTypes::UnrankedTensor: {
-    auto v = type.cast<UnrankedTensorType>();
-    os << "tensor<*x";
-    printType(v.getElementType());
-    os << '>';
-    return;
-  }
-  case StandardTypes::MemRef: {
-    auto v = type.cast<MemRefType>();
-    os << "memref<";
-    for (auto dim : v.getShape()) {
-      if (dim < 0)
-        os << '?';
-      else
-        os << dim;
-      os << 'x';
-    }
-    printType(v.getElementType());
-    for (auto map : v.getAffineMaps()) {
-      os << ", ";
-      printAttribute(AffineMapAttr::get(map));
-    }
-    // Only print the memory space if it is the non-default one.
-    if (v.getMemorySpace())
-      os << ", " << v.getMemorySpace();
-    os << '>';
-    return;
-  }
-  case StandardTypes::UnrankedMemRef: {
-    auto v = type.cast<UnrankedMemRefType>();
-    os << "memref<*x";
-    printType(v.getElementType());
-    os << '>';
-    return;
-  }
-  case StandardTypes::Complex:
-    os << "complex<";
-    printType(type.cast<ComplexType>().getElementType());
-    os << '>';
-    return;
-  case StandardTypes::Tuple: {
-    auto tuple = type.cast<TupleType>();
-    os << "tuple<";
-    interleaveComma(tuple.getTypes(), [&](Type type) { printType(type); });
-    os << '>';
-    return;
-  }
-  case StandardTypes::None:
-    os << "none";
-    return;
-  }
+  TypeSwitch<Type>(type)
+      .Case<OpaqueType>([&](OpaqueType opaqueTy) {
+        printDialectSymbol(os, "!", opaqueTy.getDialectNamespace(),
+                           opaqueTy.getTypeData());
+      })
+      .Case<IndexType>([&](Type) { os << "index"; })
+      .Case<BFloat16Type>([&](Type) { os << "bf16"; })
+      .Case<Float16Type>([&](Type) { os << "f16"; })
+      .Case<Float32Type>([&](Type) { os << "f32"; })
+      .Case<Float64Type>([&](Type) { os << "f64"; })
+      .Case<IntegerType>([&](IntegerType integerTy) {
+        if (integerTy.isSigned())
+          os << 's';
+        else if (integerTy.isUnsigned())
+          os << 'u';
+        os << 'i' << integerTy.getWidth();
+      })
+      .Case<FunctionType>([&](FunctionType funcTy) {
+        os << '(';
+        interleaveComma(funcTy.getInputs(), [&](Type ty) { printType(ty); });
+        os << ") -> ";
+        ArrayRef<Type> results = funcTy.getResults();
+        if (results.size() == 1 && !results[0].isa<FunctionType>()) {
+          os << results[0];
+        } else {
+          os << '(';
+          interleaveComma(results, [&](Type ty) { printType(ty); });
+          os << ')';
+        }
+      })
+      .Case<VectorType>([&](VectorType vectorTy) {
+        os << "vector<";
+        for (int64_t dim : vectorTy.getShape())
+          os << dim << 'x';
+        os << vectorTy.getElementType() << '>';
+      })
+      .Case<RankedTensorType>([&](RankedTensorType tensorTy) {
+        os << "tensor<";
+        for (int64_t dim : tensorTy.getShape()) {
+          if (ShapedType::isDynamic(dim))
+            os << '?';
+          else
+            os << dim;
+          os << 'x';
+        }
+        os << tensorTy.getElementType() << '>';
+      })
+      .Case<UnrankedTensorType>([&](UnrankedTensorType tensorTy) {
+        os << "tensor<*x";
+        printType(tensorTy.getElementType());
+        os << '>';
+      })
+      .Case<MemRefType>([&](MemRefType memrefTy) {
+        os << "memref<";
+        for (int64_t dim : memrefTy.getShape()) {
+          if (ShapedType::isDynamic(dim))
+            os << '?';
+          else
+            os << dim;
+          os << 'x';
+        }
+        printType(memrefTy.getElementType());
+        for (auto map : memrefTy.getAffineMaps()) {
+          os << ", ";
+          printAttribute(AffineMapAttr::get(map));
+        }
+        // Only print the memory space if it is the non-default one.
+        if (memrefTy.getMemorySpace())
+          os << ", " << memrefTy.getMemorySpace();
+        os << '>';
+      })
+      .Case<UnrankedMemRefType>([&](UnrankedMemRefType memrefTy) {
+        os << "memref<*x";
+        printType(memrefTy.getElementType());
+        // Only print the memory space if it is the non-default one.
+        if (memrefTy.getMemorySpace())
+          os << ", " << memrefTy.getMemorySpace();
+        os << '>';
+      })
+      .Case<ComplexType>([&](ComplexType complexTy) {
+        os << "complex<";
+        printType(complexTy.getElementType());
+        os << '>';
+      })
+      .Case<TupleType>([&](TupleType tupleTy) {
+        os << "tuple<";
+        interleaveComma(tupleTy.getTypes(),
+                        [&](Type type) { printType(type); });
+        os << '>';
+      })
+      .Case<NoneType>([&](Type) { os << "none"; })
+      .Default([&](Type type) { return printDialectType(type); });
 }
 
 void ModulePrinter::printOptionalAttrDict(ArrayRef<NamedAttribute> attrs,
@@ -2424,16 +2359,18 @@ void Value::print(raw_ostream &os) {
   if (auto *op = getDefiningOp())
     return op->print(os);
   // TODO: Improve this.
-  assert(isa<BlockArgument>());
-  os << "<block argument>\n";
+  BlockArgument arg = this->cast<BlockArgument>();
+  os << "<block argument> of type '" << arg.getType()
+     << "' at index: " << arg.getArgNumber() << '\n';
 }
 void Value::print(raw_ostream &os, AsmState &state) {
   if (auto *op = getDefiningOp())
     return op->print(os, state);
 
   // TODO: Improve this.
-  assert(isa<BlockArgument>());
-  os << "<block argument>\n";
+  BlockArgument arg = this->cast<BlockArgument>();
+  os << "<block argument> of type '" << arg.getType()
+     << "' at index: " << arg.getArgNumber() << '\n';
 }
 
 void Value::dump() {
@@ -2442,7 +2379,7 @@ void Value::dump() {
 }
 
 void Value::printAsOperand(raw_ostream &os, AsmState &state) {
-  // TODO(riverriddle) This doesn't necessarily capture all potential cases.
+  // TODO: This doesn't necessarily capture all potential cases.
   // Currently, region arguments can be shadowed when printing the main
   // operation. If the IR hasn't been printed, this will produce the old SSA
   // name and not the shadowed name.

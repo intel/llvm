@@ -1,9 +1,18 @@
-// RUN: %clang %s -### \
-// RUN:     -fuse-ld=/usr/local/bin/or1k-linux-ld 2>&1 \
-// RUN:     -target x86_64-unknown-linux \
-// RUN:   | FileCheck %s --check-prefix=CHECK-ABSOLUTE-LD
+/// The absolute path warning is enabled by -Wfuse-ld-path and -Wextra.
+// RUN: %clang %s -### -target x86_64-unknown-linux -Wfuse-ld-path \
+// RUN:   -fuse-ld=/usr/local/bin/or1k-linux-ld 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=CHECK-ABSOLUTE-LD
+// CHECK-ABSOLUTE-LD: warning: '-fuse-ld=' taking a path is deprecated. Use '--ld-path=' instead
 // CHECK-ABSOLUTE-LD: /usr/local/bin/or1k-linux-ld
 
+// RUN: %clang %s -### -target x86_64-unknown-linux -Wextra \
+// RUN:   -fuse-ld=/usr/local/bin/or1k-linux-ld 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=CHECK-ABSOLUTE-LD
+
+// RUN: %clang %s -### -target x86_64-unknown-linux \
+// RUN:   -fuse-ld=/usr/local/bin/or1k-linux-ld 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=CHECK-NO-WARN
+// CHECK-NO-WARN-NOT: warning:
 
 // RUN: %clang %s -### \
 // RUN:     -target x86_64-unknown-freebsd 2>&1 \
@@ -31,23 +40,21 @@
 // RUN:   | FileCheck %s -check-prefix=CHECK-FREEBSD-PLIB
 // CHECK-FREEBSD-PLIB: error: invalid linker name
 
-
-
 // RUN: %clang %s -### -fuse-ld=ld \
 // RUN:     -target arm-linux-androideabi \
-// RUN:     -B%S/Inputs/basic_android_tree/bin 2>&1 \
+// RUN:     -B%S/Inputs/basic_android_tree/bin/arm-linux-androideabi- 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=CHECK-ANDROID-ARM-LD
 // CHECK-ANDROID-ARM-LD: Inputs/basic_android_tree/bin{{/|\\+}}arm-linux-androideabi-ld
 
 // RUN: %clang %s -### -fuse-ld=bfd \
 // RUN:     -target arm-linux-androideabi \
-// RUN:     -B%S/Inputs/basic_android_tree/bin 2>&1 \
+// RUN:     -B%S/Inputs/basic_android_tree/bin/arm-linux-androideabi- 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=CHECK-ANDROID-ARM-BFD
 // CHECK-ANDROID-ARM-BFD: Inputs/basic_android_tree/bin{{/|\\+}}arm-linux-androideabi-ld.bfd
 
 // RUN: %clang %s -### -fuse-ld=gold \
 // RUN:     -target arm-linux-androideabi \
-// RUN:     -B%S/Inputs/basic_android_tree/bin 2>&1 \
+// RUN:     -B%S/Inputs/basic_android_tree/bin/arm-linux-androideabi- 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=CHECK-ANDROID-ARM-GOLD
 // CHECK-ANDROID-ARM-GOLD: Inputs/basic_android_tree/bin{{/|\\+}}arm-linux-androideabi-ld.gold
 

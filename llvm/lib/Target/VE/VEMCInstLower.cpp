@@ -30,9 +30,14 @@ static MCOperand LowerSymbolOperand(const MachineInstr *MI,
                                     const MCSymbol *Symbol, AsmPrinter &AP) {
   VEMCExpr::VariantKind Kind = (VEMCExpr::VariantKind)MO.getTargetFlags();
 
-  const MCSymbolRefExpr *MCSym = MCSymbolRefExpr::create(Symbol, AP.OutContext);
-  const VEMCExpr *expr = VEMCExpr::create(Kind, MCSym, AP.OutContext);
-  return MCOperand::createExpr(expr);
+  const MCExpr *Expr = MCSymbolRefExpr::create(Symbol, AP.OutContext);
+  // Add offset iff MO is not jump table info or machine basic block.
+  if (!MO.isJTI() && !MO.isMBB() && MO.getOffset())
+    Expr = MCBinaryExpr::createAdd(
+        Expr, MCConstantExpr::create(MO.getOffset(), AP.OutContext),
+        AP.OutContext);
+  Expr = VEMCExpr::create(Kind, Expr, AP.OutContext);
+  return MCOperand::createExpr(Expr);
 }
 
 static MCOperand LowerOperand(const MachineInstr *MI, const MachineOperand &MO,
@@ -46,6 +51,11 @@ static MCOperand LowerOperand(const MachineInstr *MI, const MachineOperand &MO,
       break;
     return MCOperand::createReg(MO.getReg());
 
+  case MachineOperand::MO_BlockAddress:
+    return LowerSymbolOperand(
+        MI, MO, AP.GetBlockAddressSymbol(MO.getBlockAddress()), AP);
+  case MachineOperand::MO_ConstantPoolIndex:
+    return LowerSymbolOperand(MI, MO, AP.GetCPISymbol(MO.getIndex()), AP);
   case MachineOperand::MO_ExternalSymbol:
     return LowerSymbolOperand(
         MI, MO, AP.GetExternalSymbolSymbol(MO.getSymbolName()), AP);

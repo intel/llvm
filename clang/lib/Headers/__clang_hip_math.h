@@ -14,6 +14,7 @@
 #include <limits.h>
 #include <limits>
 #include <stdint.h>
+#include <assert.h>
 
 #pragma push_macro("__DEVICE__")
 #pragma push_macro("__RETURN_TYPE")
@@ -21,6 +22,34 @@
 // to be consistent with __clang_cuda_math_forward_declares
 #define __DEVICE__ static __device__
 #define __RETURN_TYPE bool
+
+#if defined (__cplusplus) && __cplusplus < 201103L
+//emulate static_assert on type sizes
+template<bool>
+struct __compare_result{};
+template<>
+struct __compare_result<true> {
+  static const bool valid;
+};
+
+__DEVICE__
+inline void __suppress_unused_warning(bool b) {};
+template<unsigned int S, unsigned int T>
+__DEVICE__
+inline void __static_assert_equal_size() {
+    __suppress_unused_warning(__compare_result<S==T>::valid);
+}
+
+#define __static_assert_type_size_equal(A, B) \
+  __static_assert_equal_size<A,B>()
+
+#else
+
+#define __static_assert_type_size_equal(A,B) \
+  static_assert((A) == (B), "")
+
+#endif
+
 
 __DEVICE__
 inline uint64_t __make_mantissa_base8(const char *__tagp) {
@@ -95,8 +124,10 @@ inline uint64_t __make_mantissa(const char *__tagp) {
 }
 
 // BEGIN FLOAT
+#ifdef __cplusplus
 __DEVICE__
 inline float abs(float __x) { return __ocml_fabs_f32(__x); }
+#endif
 __DEVICE__
 inline float acosf(float __x) { return __ocml_acos_f32(__x); }
 __DEVICE__
@@ -250,9 +281,8 @@ inline float nanf(const char *__tagp) {
       uint32_t exponent : 8;
       uint32_t sign : 1;
     } bits;
-
-    static_assert(sizeof(float) == sizeof(ieee_float), "");
   } __tmp;
+  __static_assert_type_size_equal(sizeof(__tmp.val), sizeof(__tmp.bits));
 
   __tmp.bits.sign = 0u;
   __tmp.bits.exponent = ~0u;
@@ -293,6 +323,8 @@ normf(int __dim,
 }
 __DEVICE__
 inline float powf(float __x, float __y) { return __ocml_pow_f32(__x, __y); }
+__DEVICE__
+inline float powif(float __x, int __y) { return __ocml_pown_f32(__x, __y); }
 __DEVICE__
 inline float rcbrtf(float __x) { return __ocml_rcbrt_f32(__x); }
 __DEVICE__
@@ -551,8 +583,10 @@ inline float __tanf(float __x) { return __ocml_tan_f32(__x); }
 // END FLOAT
 
 // BEGIN DOUBLE
+#ifdef __cplusplus
 __DEVICE__
 inline double abs(double __x) { return __ocml_fabs_f64(__x); }
+#endif
 __DEVICE__
 inline double acos(double __x) { return __ocml_acos_f64(__x); }
 __DEVICE__
@@ -710,8 +744,8 @@ inline double nan(const char *__tagp) {
       uint32_t exponent : 11;
       uint32_t sign : 1;
     } bits;
-    static_assert(sizeof(double) == sizeof(ieee_double), "");
   } __tmp;
+  __static_assert_type_size_equal(sizeof(__tmp.val), sizeof(__tmp.bits));
 
   __tmp.bits.sign = 0u;
   __tmp.bits.exponent = ~0u;
@@ -720,7 +754,7 @@ inline double nan(const char *__tagp) {
 
   return __tmp.val;
 #else
-  static_assert(sizeof(uint64_t) == sizeof(double));
+  __static_assert_type_size_equal(sizeof(uint64_t), sizeof(double));
   uint64_t val = __make_mantissa(__tagp);
   val |= 0xFFF << 51;
   return *reinterpret_cast<double *>(&val);
@@ -758,6 +792,8 @@ __DEVICE__
 inline double normcdfinv(double __x) { return __ocml_ncdfinv_f64(__x); }
 __DEVICE__
 inline double pow(double __x, double __y) { return __ocml_pow_f64(__x, __y); }
+__DEVICE__
+inline double powi(double __x, int __y) { return __ocml_pown_f64(__x, __y); }
 __DEVICE__
 inline double rcbrt(double __x) { return __ocml_rcbrt_f64(__x); }
 __DEVICE__
@@ -1134,6 +1170,7 @@ __DEF_FUN1(double, trunc);
   __DEVICE__                                                                   \
   inline float __func(float __x, int __y) { return __func##f(__x, __y); }
 __DEF_FLOAT_FUN2I(scalbn)
+__DEF_FLOAT_FUN2I(ldexp)
 
 template <class T> __DEVICE__ inline T min(T __arg1, T __arg2) {
   return (__arg1 < __arg2) ? __arg1 : __arg2;
@@ -1172,6 +1209,40 @@ __host__ inline static int min(int __arg1, int __arg2) {
 __host__ inline static int max(int __arg1, int __arg2) {
   return std::max(__arg1, __arg2);
 }
+
+#ifdef __cplusplus
+__DEVICE__
+inline float pow(float __base, int __iexp) { return powif(__base, __iexp); }
+
+__DEVICE__
+inline double pow(double __base, int __iexp) { return powi(__base, __iexp); }
+
+__DEVICE__
+inline _Float16 pow(_Float16 __base, int __iexp) {
+  return __ocml_pown_f16(__base, __iexp);
+}
+
+__DEVICE__
+inline float remquo(float __x, float __y, int *__quo) {
+  return remquof(__x, __y, __quo);
+}
+
+template <typename __T1, typename __T2>
+__DEVICE__
+    typename __hip_enable_if<std::numeric_limits<__T1>::is_specialized &&
+                                 std::numeric_limits<__T2>::is_specialized,
+                             double>::type
+    remquo(__T1 __x, __T2 __y, int *__quo) {
+  return remquo((double)__x, (double)__y, __quo);
+}
+
+__DEVICE__
+inline float frexp(float __x, int *__nptr) { return frexpf(__x, __nptr); }
+
+__DEVICE__
+inline float modf(float __x, float *__iptr) { return modff(__x, __iptr); }
+
+#endif
 
 #pragma pop_macro("__DEF_FUN1")
 #pragma pop_macro("__DEF_FUN2")

@@ -896,6 +896,30 @@ def LCMPXCHG16B_SAVE_RBX :
                                                     GR64:$rbx_save))]>;
 }
 
+// This pseudo must be used when the frame uses RBX/EBX as
+// the base pointer.
+// cf comment for LCMPXCHG16B_SAVE_RBX.
+let Defs = [EBX], Uses = [ECX, EAX, EBX],
+    Predicates = [HasMWAITX], SchedRW = [WriteSystem],
+    isCodeGenOnly = 1, isPseudo = 1, Constraints = "$rbx_save = $dst" in {
+def MWAITX_SAVE_RBX :
+    I<0, Pseudo, (outs GR64:$dst),
+      (ins GR32:$ebx_input, GR64:$rbx_save),
+      "mwaitx",
+      []>;
+}
+
+// Pseudo mwaitx instruction to use for custom insertion.
+let Predicates = [HasMWAITX], SchedRW = [WriteSystem],
+    isCodeGenOnly = 1, isPseudo = 1,
+    usesCustomInserter = 1 in {
+def MWAITX :
+    I<0, Pseudo, (outs), (ins GR32:$ecx, GR32:$eax, GR32:$ebx),
+      "mwaitx",
+      [(int_x86_mwaitx GR32:$ecx, GR32:$eax, GR32:$ebx)]>;
+}
+
+
 defm LCMPXCHG : LCMPXCHG_BinOp<0xB0, 0xB1, MRMDestMem, "cmpxchg", X86cas>;
 
 // Atomic exchange and add
@@ -1698,6 +1722,16 @@ def : Pat<(store (i8 (trunc_su (srl_su GR16:$src, (i8 8)))), addr:$dst),
             (EXTRACT_SUBREG GR16:$src, sub_8bit_hi))>,
       Requires<[In64BitMode]>;
 
+// Special pattern to catch the last step of __builtin_parity handling. Our
+// goal is to use an xor of an h-register with the corresponding l-register.
+// The above patterns would handle this on non 64-bit targets, but for 64-bit
+// we need to be more careful. We're using a NOREX instruction here in case
+// register allocation fails to keep the two registers together. So we need to
+// make sure we can't accidentally mix R8-R15 with an h-register.
+def : Pat<(X86xor_flag (i8 (trunc GR32:$src)),
+                       (i8 (trunc (srl_su GR32:$src, (i8 8))))),
+          (XOR8rr_NOREX (EXTRACT_SUBREG GR32:$src, sub_8bit),
+                        (EXTRACT_SUBREG GR32:$src, sub_8bit_hi))>;
 
 // (shl x, 1) ==> (add x, x)
 // Note that if x is undef (immediate or otherwise), we could theoretically

@@ -48,25 +48,17 @@ struct SparseElementsAttributeStorage;
 
 /// Attributes are known-constant values of operations and functions.
 ///
-/// Instances of the Attribute class are references to immutable, uniqued,
-/// and immortal values owned by MLIRContext. As such, an Attribute is a thin
-/// wrapper around an underlying storage pointer. Attributes are usually passed
-/// by value.
+/// Instances of the Attribute class are references to immortal key-value pairs
+/// with immutable, uniqued key owned by MLIRContext. As such, an Attribute is a
+/// thin wrapper around an underlying storage pointer. Attributes are usually
+/// passed by value.
 class Attribute {
 public:
-  /// Integer identifier for all the concrete attribute kinds.
-  enum Kind {
-  // Reserve attribute kinds for dialect specific extensions.
-#define DEFINE_SYM_KIND_RANGE(Dialect)                                         \
-  FIRST_##Dialect##_ATTR, LAST_##Dialect##_ATTR = FIRST_##Dialect##_ATTR + 0xff,
-#include "DialectSymbolRegistry.def"
-  };
-
   /// Utility class for implementing attributes.
-  template <typename ConcreteType, typename BaseType = Attribute,
-            typename StorageType = AttributeStorage>
+  template <typename ConcreteType, typename BaseType, typename StorageType,
+            template <typename T> class... Traits>
   using AttrBase = detail::StorageUserBase<ConcreteType, BaseType, StorageType,
-                                           detail::AttributeUniquer>;
+                                           detail::AttributeUniquer, Traits...>;
 
   using ImplType = AttributeStorage;
   using ValueType = void;
@@ -94,8 +86,9 @@ public:
   // Support dyn_cast'ing Attribute to itself.
   static bool classof(Attribute) { return true; }
 
-  /// Return the classification for this attribute.
-  unsigned getKind() const { return impl->getKind(); }
+  /// Return a unique identifier for the concrete attribute type. This is used
+  /// to support dynamic type casting.
+  TypeID getTypeID() { return impl->getAbstractAttribute().getTypeID(); }
 
   /// Return the type of this attribute.
   Type getType() const;
@@ -119,6 +112,11 @@ public:
 
   friend ::llvm::hash_code hash_value(Attribute arg);
 
+  /// Return the abstract descriptor for this attribute.
+  const AbstractAttribute &getAbstractAttribute() const {
+    return impl->getAbstractAttribute();
+  }
+
 protected:
   ImplType *impl;
 };
@@ -128,49 +126,41 @@ inline raw_ostream &operator<<(raw_ostream &os, Attribute attr) {
   return os;
 }
 
-namespace StandardAttributes {
-enum Kind {
-  AffineMap = Attribute::FIRST_STANDARD_ATTR,
-  Array,
-  Dictionary,
-  Float,
-  Integer,
-  IntegerSet,
-  Opaque,
-  String,
-  SymbolRef,
-  Type,
-  Unit,
+//===----------------------------------------------------------------------===//
+// AttributeTraitBase
+//===----------------------------------------------------------------------===//
 
-  /// Elements Attributes.
-  DenseIntOrFPElements,
-  DenseStringElements,
-  OpaqueElements,
-  SparseElements,
-  FIRST_ELEMENTS_ATTR = DenseIntOrFPElements,
-  LAST_ELEMENTS_ATTR = SparseElements,
+namespace AttributeTrait {
+/// This class represents the base of an attribute trait.
+template <typename ConcreteType, template <typename> class TraitType>
+using TraitBase = detail::StorageUserTraitBase<ConcreteType, TraitType>;
+} // namespace AttributeTrait
 
-  /// Locations.
-  CallSiteLocation,
-  FileLineColLocation,
-  FusedLocation,
-  NameLocation,
-  OpaqueLocation,
-  UnknownLocation,
+//===----------------------------------------------------------------------===//
+// AttributeInterface
+//===----------------------------------------------------------------------===//
 
-  // Represents a location as a 'void*' pointer to a front-end's opaque
-  // location information, which must live longer than the MLIR objects that
-  // refer to it.  OpaqueLocation's are never serialized.
-  //
-  // TODO: OpaqueLocation,
+/// This class represents the base of an attribute interface. See the definition
+/// of `detail::Interface` for requirements on the `Traits` type.
+template <typename ConcreteType, typename Traits>
+class AttributeInterface
+    : public detail::Interface<ConcreteType, Attribute, Traits, Attribute,
+                               AttributeTrait::TraitBase> {
+public:
+  using Base = AttributeInterface<ConcreteType, Traits>;
+  using InterfaceBase = detail::Interface<ConcreteType, Type, Traits, Type,
+                                          AttributeTrait::TraitBase>;
+  using InterfaceBase::InterfaceBase;
 
-  // Represents a value inlined through a function call.
-  // TODO: InlinedLocation,
+private:
+  /// Returns the impl interface instance for the given type.
+  static typename InterfaceBase::Concept *getInterfaceFor(Attribute attr) {
+    return attr.getAbstractAttribute().getInterface<ConcreteType>();
+  }
 
-  FIRST_LOCATION_ATTR = CallSiteLocation,
-  LAST_LOCATION_ATTR = UnknownLocation,
+  /// Allow access to 'getInterfaceFor'.
+  friend InterfaceBase;
 };
-} // namespace StandardAttributes
 
 //===----------------------------------------------------------------------===//
 // AffineMapAttr
@@ -186,11 +176,6 @@ public:
   static AffineMapAttr get(AffineMap value);
 
   AffineMap getValue() const;
-
-  /// Methods for support type inquiry through isa, cast, and dyn_cast.
-  static bool kindof(unsigned kind) {
-    return kind == StandardAttributes::AffineMap;
-  }
 };
 
 //===----------------------------------------------------------------------===//
@@ -217,11 +202,6 @@ public:
   size_t size() const { return getValue().size(); }
   bool empty() const { return size() == 0; }
 
-  /// Methods for support type inquiry through isa, cast, and dyn_cast.
-  static bool kindof(unsigned kind) {
-    return kind == StandardAttributes::Array;
-  }
-
 private:
   /// Class for underlying value iterator support.
   template <typename AttrTy>
@@ -237,9 +217,15 @@ private:
 
 public:
   template <typename AttrTy>
-  llvm::iterator_range<attr_value_iterator<AttrTy>> getAsRange() {
+  iterator_range<attr_value_iterator<AttrTy>> getAsRange() {
     return llvm::make_range(attr_value_iterator<AttrTy>(begin()),
                             attr_value_iterator<AttrTy>(end()));
+  }
+  template <typename AttrTy, typename UnderlyingTy = typename AttrTy::ValueType>
+  auto getAsValueRange() {
+    return llvm::map_range(getAsRange<AttrTy>(), [](AttrTy attr) {
+      return static_cast<UnderlyingTy>(attr.getValue());
+    });
   }
 };
 
@@ -306,11 +292,6 @@ public:
   /// Requires: uniquely named attributes.
   static bool sortInPlace(SmallVectorImpl<NamedAttribute> &array);
 
-  /// Methods for supporting type inquiry through isa, cast, and dyn_cast.
-  static bool kindof(unsigned kind) {
-    return kind == StandardAttributes::Dictionary;
-  }
-
 private:
   /// Return empty dictionary.
   static DictionaryAttr getEmpty(MLIRContext *context);
@@ -343,11 +324,6 @@ public:
   double getValueAsDouble() const;
   static double getValueAsDouble(APFloat val);
 
-  /// Methods for support type inquiry through isa, cast, and dyn_cast.
-  static bool kindof(unsigned kind) {
-    return kind == StandardAttributes::Float;
-  }
-
   /// Verify the construction invariants for a double value.
   static LogicalResult verifyConstructionInvariants(Location loc, Type type,
                                                     double value);
@@ -372,7 +348,7 @@ public:
   APInt getValue() const;
   /// Return the integer value as a 64-bit int. The attribute must be a signless
   /// integer.
-  // TODO(jpienaar): Change callers to use getValue instead.
+  // TODO: Change callers to use getValue instead.
   int64_t getInt() const;
   /// Return the integer value as a signed 64-bit int. The attribute must be
   /// a signed integer.
@@ -380,11 +356,6 @@ public:
   /// Return the integer value as a unsigned 64-bit int. The attribute must be
   /// an unsigned integer.
   uint64_t getUInt() const;
-
-  /// Methods for support type inquiry through isa, cast, and dyn_cast.
-  static bool kindof(unsigned kind) {
-    return kind == StandardAttributes::Integer;
-  }
 
   static LogicalResult verifyConstructionInvariants(Location loc, Type type,
                                                     int64_t value);
@@ -429,11 +400,6 @@ public:
   static IntegerSetAttr get(IntegerSet value);
 
   IntegerSet getValue() const;
-
-  /// Methods for support type inquiry through isa, cast, and dyn_cast.
-  static bool kindof(unsigned kind) {
-    return kind == StandardAttributes::IntegerSet;
-  }
 };
 
 //===----------------------------------------------------------------------===//
@@ -469,10 +435,6 @@ public:
                                                     Identifier dialect,
                                                     StringRef attrData,
                                                     Type type);
-
-  static bool kindof(unsigned kind) {
-    return kind == StandardAttributes::Opaque;
-  }
 };
 
 //===----------------------------------------------------------------------===//
@@ -492,11 +454,6 @@ public:
   static StringAttr get(StringRef bytes, Type type);
 
   StringRef getValue() const;
-
-  /// Methods for support type inquiry through isa, cast, and dyn_cast.
-  static bool kindof(unsigned kind) {
-    return kind == StandardAttributes::String;
-  }
 };
 
 //===----------------------------------------------------------------------===//
@@ -533,11 +490,6 @@ public:
   /// Returns the set of nested references representing the path to the symbol
   /// nested under the root reference.
   ArrayRef<FlatSymbolRefAttr> getNestedReferences() const;
-
-  /// Methods for support type inquiry through isa, cast, and dyn_cast.
-  static bool kindof(unsigned kind) {
-    return kind == StandardAttributes::SymbolRef;
-  }
 };
 
 /// A symbol reference with a reference path containing a single element. This
@@ -579,9 +531,6 @@ public:
   static TypeAttr get(Type value);
 
   Type getValue() const;
-
-  /// Methods for support type inquiry through isa, cast, and dyn_cast.
-  static bool kindof(unsigned kind) { return kind == StandardAttributes::Type; }
 };
 
 //===----------------------------------------------------------------------===//
@@ -590,13 +539,12 @@ public:
 
 /// Unit attributes are attributes that hold no specific value and are given
 /// meaning by their existence.
-class UnitAttr : public Attribute::AttrBase<UnitAttr> {
+class UnitAttr
+    : public Attribute::AttrBase<UnitAttr, Attribute, AttributeStorage> {
 public:
   using Base::Base;
 
   static UnitAttr get(MLIRContext *context);
-
-  static bool kindof(unsigned kind) { return kind == StandardAttributes::Unit; }
 };
 
 //===----------------------------------------------------------------------===//
@@ -641,6 +589,9 @@ public:
   /// Returns the number of elements held by this attribute.
   int64_t getNumElements() const;
 
+  /// Returns the number of elements held by this attribute.
+  int64_t size() const { return getNumElements(); }
+
   /// Generates a new ElementsAttr by mapping each int value to a new
   /// underlying APInt. The new values can represent either an integer or float.
   /// This ElementsAttr should contain integers.
@@ -654,10 +605,7 @@ public:
                          function_ref<APInt(const APFloat &)> mapping) const;
 
   /// Method for support type inquiry through isa, cast and dyn_cast.
-  static bool classof(Attribute attr) {
-    return attr.getKind() >= StandardAttributes::FIRST_ELEMENTS_ATTR &&
-           attr.getKind() <= StandardAttributes::LAST_ELEMENTS_ATTR;
-  }
+  static bool classof(Attribute attr);
 
 protected:
   /// Returns the 1 dimensional flattened row-major index from the given
@@ -722,10 +670,7 @@ public:
   using ElementsAttr::ElementsAttr;
 
   /// Method for support type inquiry through isa, cast and dyn_cast.
-  static bool classof(Attribute attr) {
-    return attr.getKind() == StandardAttributes::DenseIntOrFPElements ||
-           attr.getKind() == StandardAttributes::DenseStringElements;
-  }
+  static bool classof(Attribute attr);
 
   /// Constructs a dense elements attribute from an array of element values.
   /// Each element attribute value is expected to be an element of 'type'.
@@ -954,7 +899,7 @@ public:
   // Value Querying
   //===--------------------------------------------------------------------===//
 
-  /// Returns if this attribute corresponds to a splat, i.e. if all element
+  /// Returns true if this attribute corresponds to a splat, i.e. if all element
   /// values are the same.
   bool isSplat() const;
 
@@ -1177,11 +1122,6 @@ class DenseStringElementsAttr
 public:
   using Base::Base;
 
-  /// Method for support type inquiry through isa, cast and dyn_cast.
-  static bool kindof(unsigned kind) {
-    return kind == StandardAttributes::DenseStringElements;
-  }
-
   /// Overload of the raw 'get' method that asserts that the given type is of
   /// integer or floating-point type. This method is used to verify type
   /// invariants that the templatized 'get' method cannot.
@@ -1199,11 +1139,6 @@ class DenseIntOrFPElementsAttr
 
 public:
   using Base::Base;
-
-  /// Method for support type inquiry through isa, cast and dyn_cast.
-  static bool kindof(unsigned kind) {
-    return kind == StandardAttributes::DenseIntOrFPElements;
-  }
 
 protected:
   friend DenseElementsAttr;
@@ -1342,11 +1277,6 @@ public:
 
   /// Returns dialect associated with this opaque constant.
   Dialect *getDialect() const;
-
-  /// Method for support type inquiry through isa, cast and dyn_cast.
-  static bool kindof(unsigned kind) {
-    return kind == StandardAttributes::OpaqueElements;
-  }
 };
 
 /// An attribute that represents a reference to a sparse vector or tensor
@@ -1392,8 +1322,7 @@ public:
     auto zeroValue = getZeroValue<T>();
     auto valueIt = getValues().getValues<T>().begin();
     const std::vector<ptrdiff_t> flatSparseIndices(getFlattenedSparseIndices());
-    // TODO(riverriddle): Move-capture flatSparseIndices when c++14 is
-    // available.
+    // TODO: Move-capture flatSparseIndices when c++14 is available.
     std::function<T(ptrdiff_t)> mapFn = [=](ptrdiff_t index) {
       // Try to map the current index to one of the sparse indices.
       for (unsigned i = 0, e = flatSparseIndices.size(); i != e; ++i)
@@ -1408,11 +1337,6 @@ public:
   /// Return the value of the element at the given index. The 'index' is
   /// expected to refer to a valid element.
   Attribute getValue(ArrayRef<uint64_t> index) const;
-
-  /// Method for support type inquiry through isa, cast and dyn_cast.
-  static bool kindof(unsigned kind) {
-    return kind == StandardAttributes::SparseElements;
-  }
 
 private:
   /// Get a zero APFloat for the given sparse attribute.
@@ -1527,12 +1451,10 @@ class ElementsAttrIterator
   template <typename RetT, template <typename> class ProcessFn,
             typename... Args>
   RetT process(Args &... args) const {
-    switch (attrKind) {
-    case StandardAttributes::DenseIntOrFPElements:
+    if (attr.isa<DenseElementsAttr>())
       return ProcessFn<DenseIteratorT>()(args...);
-    case StandardAttributes::SparseElements:
+    if (attr.isa<SparseElementsAttr>())
       return ProcessFn<SparseIteratorT>()(args...);
-    }
     llvm_unreachable("unexpected attribute kind");
   }
 
@@ -1557,22 +1479,21 @@ class ElementsAttrIterator
   };
 
 public:
-  ElementsAttrIterator(const ElementsAttrIterator<T> &rhs)
-      : attrKind(rhs.attrKind) {
+  ElementsAttrIterator(const ElementsAttrIterator<T> &rhs) : attr(rhs.attr) {
     process<void, ConstructIter>(it, rhs.it);
   }
   ~ElementsAttrIterator() { process<void, DestructIter>(it); }
 
   /// Methods necessary to support random access iteration.
   ptrdiff_t operator-(const ElementsAttrIterator<T> &rhs) const {
-    assert(attrKind == rhs.attrKind && "incompatible iterators");
+    assert(attr == rhs.attr && "incompatible iterators");
     return process<ptrdiff_t, Minus>(it, rhs.it);
   }
   bool operator==(const ElementsAttrIterator<T> &rhs) const {
-    return rhs.attrKind == attrKind && process<bool, std::equal_to>(it, rhs.it);
+    return rhs.attr == attr && process<bool, std::equal_to>(it, rhs.it);
   }
   bool operator<(const ElementsAttrIterator<T> &rhs) const {
-    assert(attrKind == rhs.attrKind && "incompatible iterators");
+    assert(attr == rhs.attr && "incompatible iterators");
     return process<bool, std::less>(it, rhs.it);
   }
   ElementsAttrIterator<T> &operator+=(ptrdiff_t offset) {
@@ -1589,14 +1510,14 @@ public:
 
 private:
   template <typename IteratorT>
-  ElementsAttrIterator(unsigned attrKind, IteratorT &&it)
-      : attrKind(attrKind), it(std::forward<IteratorT>(it)) {}
+  ElementsAttrIterator(Attribute attr, IteratorT &&it)
+      : attr(attr), it(std::forward<IteratorT>(it)) {}
 
   /// Allow accessing the constructor.
   friend ElementsAttr;
 
-  /// The kind of derived elements attribute.
-  unsigned attrKind;
+  /// The parent elements attribute.
+  Attribute attr;
 
   /// A union containing the specific iterators for each derived kind.
   Iterator it;
@@ -1613,13 +1534,13 @@ template <typename T>
 auto ElementsAttr::getValues() const -> iterator_range<T> {
   if (DenseElementsAttr denseAttr = dyn_cast<DenseElementsAttr>()) {
     auto values = denseAttr.getValues<T>();
-    return {iterator<T>(getKind(), values.begin()),
-            iterator<T>(getKind(), values.end())};
+    return {iterator<T>(*this, values.begin()),
+            iterator<T>(*this, values.end())};
   }
   if (SparseElementsAttr sparseAttr = dyn_cast<SparseElementsAttr>()) {
     auto values = sparseAttr.getValues<T>();
-    return {iterator<T>(getKind(), values.begin()),
-            iterator<T>(getKind(), values.end())};
+    return {iterator<T>(*this, values.begin()),
+            iterator<T>(*this, values.end())};
   }
   llvm_unreachable("unexpected attribute kind");
 }

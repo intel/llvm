@@ -40,7 +40,6 @@
 #include "clang/AST/DeclFriend.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
-#include "clang/AST/ExprObjC.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/NestedNameSpecifier.h"
@@ -61,11 +60,13 @@
 #include "llvm/ADT/iterator.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ManagedStatic.h"
+#include "llvm/Support/Regex.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -937,14 +938,13 @@ private:
 template <typename T>
 struct IsBaseType {
   static const bool value =
-      std::is_same<T, Decl>::value ||
-      std::is_same<T, Stmt>::value ||
-      std::is_same<T, QualType>::value ||
-      std::is_same<T, Type>::value ||
+      std::is_same<T, Decl>::value || std::is_same<T, Stmt>::value ||
+      std::is_same<T, QualType>::value || std::is_same<T, Type>::value ||
       std::is_same<T, TypeLoc>::value ||
       std::is_same<T, NestedNameSpecifier>::value ||
       std::is_same<T, NestedNameSpecifierLoc>::value ||
-      std::is_same<T, CXXCtorInitializer>::value;
+      std::is_same<T, CXXCtorInitializer>::value ||
+      std::is_same<T, TemplateArgumentLoc>::value;
 };
 template <typename T>
 const bool IsBaseType<T>::value;
@@ -1835,17 +1835,17 @@ struct NotEqualsBoundNodePredicate {
   DynTypedNode Node;
 };
 
-template <typename Ty>
-struct GetBodyMatcher {
-  static const Stmt *get(const Ty &Node) {
-    return Node.getBody();
-  }
+template <typename Ty, typename Enable = void> struct GetBodyMatcher {
+  static const Stmt *get(const Ty &Node) { return Node.getBody(); }
 };
 
-template <>
-inline const Stmt *GetBodyMatcher<FunctionDecl>::get(const FunctionDecl &Node) {
-  return Node.doesThisDeclarationHaveABody() ? Node.getBody() : nullptr;
-}
+template <typename Ty>
+struct GetBodyMatcher<Ty, typename std::enable_if<
+                              std::is_base_of<FunctionDecl, Ty>::value>::type> {
+  static const Stmt *get(const Ty &Node) {
+    return Node.doesThisDeclarationHaveABody() ? Node.getBody() : nullptr;
+  }
+};
 
 template <typename Ty>
 struct HasSizeMatcher {
@@ -1947,6 +1947,10 @@ hasAnyOverloadedOperatorNameFunc(ArrayRef<const StringRef *> NameRefs);
 bool matchesAnyBase(const CXXRecordDecl &Node,
                     const Matcher<CXXBaseSpecifier> &BaseSpecMatcher,
                     ASTMatchFinder *Finder, BoundNodesTreeBuilder *Builder);
+
+std::shared_ptr<llvm::Regex> createAndVerifyRegex(StringRef Regex,
+                                                  llvm::Regex::RegexFlags Flags,
+                                                  StringRef MatcherID);
 
 } // namespace internal
 

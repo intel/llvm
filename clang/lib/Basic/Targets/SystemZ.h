@@ -48,6 +48,7 @@ public:
     MinGlobalAlign = 16;
     resetDataLayout("E-m:e-i1:8:16-i8:8:16-i64:64-f128:64-a:8:16-n32:64");
     MaxAtomicPromoteWidth = MaxAtomicInlineWidth = 64;
+    HasStrictFP = true;
   }
 
   void getTargetDefines(const LangOptions &Opts,
@@ -156,6 +157,10 @@ public:
   const char *getLongDoubleMangling() const override { return "g"; }
 
   bool hasExtIntType() const override { return true; }
+
+  int getEHDataRegisterNumber(unsigned RegNo) const override {
+    return RegNo < 4 ? 6 + RegNo : -1;
+  }
 };
 } // namespace targets
 } // namespace clang

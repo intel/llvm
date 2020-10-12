@@ -70,7 +70,8 @@ class IntrinsicProcTable;
 struct SetExprHelper {
   explicit SetExprHelper(GenericExprWrapper &&expr) : expr_{std::move(expr)} {}
   void Set(parser::TypedExpr &x) {
-    x.reset(new GenericExprWrapper{std::move(expr_)});
+    x.Reset(new GenericExprWrapper{std::move(expr_)},
+        evaluate::GenericExprWrapper::Deleter);
   }
   void Set(const parser::Expr &x) { Set(x.typedExpr); }
   void Set(const parser::Variable &x) { Set(x.typedExpr); }
@@ -114,12 +115,12 @@ public:
     return foldingContext_.messages();
   }
 
-  template <typename... A> parser::Message *Say(A &&... args) {
+  template <typename... A> parser::Message *Say(A &&...args) {
     return GetContextualMessages().Say(std::forward<A>(args)...);
   }
 
   template <typename T, typename... A>
-  parser::Message *SayAt(const T &parsed, A &&... args) {
+  parser::Message *SayAt(const T &parsed, A &&...args) {
     return Say(parser::FindSourceLocation(parsed), std::forward<A>(args)...);
   }
 

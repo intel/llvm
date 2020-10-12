@@ -22,9 +22,12 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/AST/TemplateArgumentVisitor.h"
+#include "clang/AST/Type.h"
 #include "clang/AST/TypeVisitor.h"
 
 namespace clang {
+
+class APValue;
 
 class TextTreeStructure {
   raw_ostream &OS;
@@ -139,19 +142,30 @@ class TextNodeDumper
   const char *LastLocFilename = "";
   unsigned LastLocLine = ~0U;
 
-  const SourceManager *SM;
+  /// \p Context, \p SM, and \p Traits can be null. This is because we want
+  /// to be able to call \p dump() in a debugger without having to pass the
+  /// \p ASTContext to \p dump. Not all parts of the AST dump output will be
+  /// available without the \p ASTContext.
+  const ASTContext *Context = nullptr;
+  const SourceManager *SM = nullptr;
 
   /// The policy to use for printing; can be defaulted.
-  PrintingPolicy PrintPolicy;
+  PrintingPolicy PrintPolicy = LangOptions();
 
-  const comments::CommandTraits *Traits;
+  const comments::CommandTraits *Traits = nullptr;
 
   const char *getCommandName(unsigned CommandID);
+  void printFPOptions(FPOptionsOverride FPO);
+
+  void dumpAPValueChildren(const APValue &Value, QualType Ty,
+                           const APValue &(*IdxToChildFun)(const APValue &,
+                                                           unsigned),
+                           unsigned NumChildren, StringRef LabelSingular,
+                           StringRef LabelPlurial);
 
 public:
-  TextNodeDumper(raw_ostream &OS, bool ShowColors, const SourceManager *SM,
-                 const PrintingPolicy &PrintPolicy,
-                 const comments::CommandTraits *Traits);
+  TextNodeDumper(raw_ostream &OS, const ASTContext &Context, bool ShowColors);
+  TextNodeDumper(raw_ostream &OS, bool ShowColors);
 
   void Visit(const comments::Comment *C, const comments::FullComment *FC);
 
@@ -175,6 +189,8 @@ public:
   void Visit(const BlockDecl::Capture &C);
 
   void Visit(const GenericSelectionExpr::ConstAssociation &A);
+
+  void Visit(const APValue &Value, QualType Ty);
 
   void dumpPointer(const void *Ptr);
   void dumpLocation(SourceLocation Loc);
@@ -254,6 +270,7 @@ public:
   void VisitCXXBoolLiteralExpr(const CXXBoolLiteralExpr *Node);
   void VisitCXXThisExpr(const CXXThisExpr *Node);
   void VisitCXXFunctionalCastExpr(const CXXFunctionalCastExpr *Node);
+  void VisitCXXStaticCastExpr(const CXXStaticCastExpr *Node);
   void VisitCXXUnresolvedConstructExpr(const CXXUnresolvedConstructExpr *Node);
   void VisitCXXConstructExpr(const CXXConstructExpr *Node);
   void VisitCXXBindTemporaryExpr(const CXXBindTemporaryExpr *Node);
@@ -279,6 +296,7 @@ public:
   void VisitObjCIvarRefExpr(const ObjCIvarRefExpr *Node);
   void VisitObjCBoolLiteralExpr(const ObjCBoolLiteralExpr *Node);
   void VisitOMPIteratorExpr(const OMPIteratorExpr *Node);
+  void VisitConceptSpecializationExpr(const ConceptSpecializationExpr *Node);
 
   void VisitRValueReferenceType(const ReferenceType *T);
   void VisitArrayType(const ArrayType *T);

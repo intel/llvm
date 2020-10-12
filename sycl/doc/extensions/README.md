@@ -13,7 +13,7 @@ DPC++ extensions status:
 | [SYCL_INTEL_deduction_guides](deduction_guides/SYCL_INTEL_deduction_guides.asciidoc)                                        | Supported                                 | |
 | [SYCL_INTEL_device_specific_kernel_queries](DeviceSpecificKernelQueries/SYCL_INTEL_device_specific_kernel_queries.asciidoc) | Proposal                                  | |
 | [SYCL_INTEL_enqueue_barrier](EnqueueBarrier/enqueue_barrier.asciidoc)                                                       | Supported(OpenCL, Level Zero)             | |
-| [SYCL_INTEL_extended_atomics](ExtendedAtomics/SYCL_INTEL_extended_atomics.asciidoc)                                         | Partially supported(OpenCL: CPU, GPU)     | Not supported: pointer types |
+| [SYCL_INTEL_extended_atomics](ExtendedAtomics/SYCL_INTEL_extended_atomics.asciidoc)                                         | Supported(OpenCL: CPU, GPU)               | |
 | [SYCL_INTEL_group_algorithms](GroupAlgorithms/SYCL_INTEL_group_algorithms.asciidoc)                                         | Supported(OpenCL)                         | |
 | [SYCL_INTEL_group_mask](./GroupMask/SYCL_INTEL_group_mask.asciidoc)                                                         | Proposal                                  | |
 | [FPGA selector](IntelFPGA/FPGASelector.md)                                                                                  | Supported                                 | |
@@ -27,12 +27,14 @@ DPC++ extensions status:
 | [SYCL_INTEL_reqd_work_group_size](ReqdWorkGroupSize/SYCL_INTEL_reqd_work_group_size.asciidoc)                               | Supported(OpenCL: CPU, GPU)               | |
 | [SPV_INTEL_function_pointers](SPIRV/SPV_INTEL_function_pointers.asciidoc)                                                   | Supported(OpenCL: CPU, GPU; HOST)         | |
 | [SPV_INTEL_inline_assembly](SPIRV/SPV_INTEL_inline_assembly.asciidoc)                                                       | Supported(OpenCL: GPU)                    | |
+| [SYCL_INTEL_local_memory](LocalMemory/SYCL_INTEL_local_memory.asciidoc)                                                     | Proposal                                  | |
 | [SYCL_INTEL_static_local_memory_query](StaticLocalMemoryQuery/SYCL_INTEL_static_local_memory_query.asciidoc)                | Proposal                                  | |
 | [SYCL_INTEL_sub_group_algorithms](SubGroupAlgorithms/SYCL_INTEL_sub_group_algorithms.asciidoc)                              | Partially supported(OpenCL: CPU, GPU)     | Features from SYCL_INTEL_group_algorithms extended to sub-groups |
 | [Sub-groups for NDRange Parallelism](SubGroupNDRange/SubGroupNDRange.md)                                                    | Deprecated(OpenCL: CPU, GPU)              | |
 | [Sub-groups](SubGroup/SYCL_INTEL_sub_group.asciidoc)                                                                        | Supported(OpenCL)                         | |
 | [SYCL_INTEL_unnamed_kernel_lambda](UnnamedKernelLambda/SYCL_INTEL_unnamed_kernel_lambda.asciidoc)                           | Supported(OpenCL)                         | |
 | [Unified Shared Memory](USM/USM.adoc)                                                                                       | Supported(OpenCL)                         | |
+| [Use Pinned Memory Property](UsePinnedMemoryProperty/UsePinnedMemoryPropery.adoc)                                           | Supported                                 | |
 
 Legend:
 

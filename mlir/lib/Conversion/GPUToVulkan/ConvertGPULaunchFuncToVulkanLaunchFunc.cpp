@@ -16,6 +16,7 @@
 #include "../PassDetail.h"
 #include "mlir/Conversion/GPUToVulkan/ConvertGPUToVulkanPass.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
+#include "mlir/Dialect/SPIRV/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/SPIRVOps.h"
 #include "mlir/Dialect/SPIRV/Serialization.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -124,8 +125,7 @@ LogicalResult ConvertGpuLaunchFuncToVulkanLaunchFunc::declareVulkanLaunchFunc(
   // Declare vulkan launch function.
   builder.create<FuncOp>(
       loc, kVulkanLaunch,
-      FunctionType::get(vulkanLaunchTypes, ArrayRef<Type>{}, loc->getContext()),
-      ArrayRef<NamedAttribute>{});
+      FunctionType::get(vulkanLaunchTypes, {}, loc->getContext()));
 
   return success();
 }
@@ -173,7 +173,7 @@ void ConvertGpuLaunchFuncToVulkanLaunchFunc::convertGpuLaunchFunc(
 
   // Create vulkan launch call op.
   auto vulkanLaunchCallOp = builder.create<CallOp>(
-      loc, ArrayRef<Type>{}, builder.getSymbolRefAttr(kVulkanLaunch),
+      loc, TypeRange{}, builder.getSymbolRefAttr(kVulkanLaunch),
       vulkanLaunchOperands);
 
   // Set SPIR-V binary shader data as an attribute.

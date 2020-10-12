@@ -10,7 +10,6 @@
 
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Host/OptionParser.h"
-#include "lldb/Host/StringConvert.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/OptionArgParser.h"
@@ -109,11 +108,8 @@ public:
           process->GetThreadList().GetMutex());
 
       for (size_t i = 0; i < num_args; i++) {
-        bool success;
-
-        uint32_t thread_idx = StringConvert::ToUInt32(
-            command.GetArgumentAtIndex(i), 0, 0, &success);
-        if (!success) {
+        uint32_t thread_idx;
+        if (!llvm::to_integer(command.GetArgumentAtIndex(i), thread_idx)) {
           result.AppendErrorWithFormat("invalid thread specification: \"%s\"\n",
                                        command.GetArgumentAtIndex(i));
           result.SetStatus(eReturnStatusFailed);
@@ -486,8 +482,16 @@ public:
     // Check if we are in Non-Stop mode
     TargetSP target_sp =
         execution_context ? execution_context->GetTargetSP() : TargetSP();
-    if (target_sp && target_sp->GetNonStopModeEnabled())
+    if (target_sp && target_sp->GetNonStopModeEnabled()) {
+      // NonStopMode runs all threads by definition, so when it is on we don't
+      // need to check the process setting for runs all threads.
       m_run_mode = eOnlyThisThread;
+    } else {
+      ProcessSP process_sp =
+          execution_context ? execution_context->GetProcessSP() : ProcessSP();
+      if (process_sp && process_sp->GetSteppingRunsAllThreads())
+        m_run_mode = eAllThreads;
+    }
 
     m_avoid_regexp.clear();
     m_step_in_target.clear();
@@ -545,6 +549,17 @@ public:
 
   ~CommandObjectThreadStepWithTypeAndScope() override = default;
 
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    if (request.GetCursorIndex())
+      return;
+
+    CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), CommandCompletions::eThreadIndexCompletion,
+        request, nullptr);
+  }
+
   Options *GetOptions() override { return &m_all_options; }
 
 protected:
@@ -565,9 +580,9 @@ protected:
       }
     } else {
       const char *thread_idx_cstr = command.GetArgumentAtIndex(0);
-      uint32_t step_thread_idx =
-          StringConvert::ToUInt32(thread_idx_cstr, LLDB_INVALID_INDEX32);
-      if (step_thread_idx == LLDB_INVALID_INDEX32) {
+      uint32_t step_thread_idx;
+
+      if (!llvm::to_integer(thread_idx_cstr, step_thread_idx)) {
         result.AppendErrorWithFormat("invalid thread index '%s'.\n",
                                      thread_idx_cstr);
         result.SetStatus(eReturnStatusFailed);
@@ -616,8 +631,7 @@ protected:
     if (m_options.m_run_mode == eAllThreads)
       bool_stop_other_threads = false;
     else if (m_options.m_run_mode == eOnlyDuringStepping)
-      bool_stop_other_threads =
-          (m_step_type != eStepTypeOut && m_step_type != eStepTypeScripted);
+      bool_stop_other_threads = (m_step_type != eStepTypeOut);
     else
       bool_stop_other_threads = true;
 
@@ -811,6 +825,14 @@ public:
   }
 
   ~CommandObjectThreadContinue() override = default;
+
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), CommandCompletions::eThreadIndexCompletion,
+        request, nullptr);
+  }
 
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     bool synchronous_execution = m_interpreter.GetSynchronous();
@@ -1095,9 +1117,7 @@ protected:
         size_t num_args = command.GetArgumentCount();
         for (size_t i = 0; i < num_args; i++) {
           uint32_t line_number;
-          line_number = StringConvert::ToUInt32(command.GetArgumentAtIndex(i),
-                                                UINT32_MAX);
-          if (line_number == UINT32_MAX) {
+          if (!llvm::to_integer(command.GetArgumentAtIndex(i), line_number)) {
             result.AppendErrorWithFormat("invalid line number: '%s'.\n",
                                          command.GetArgumentAtIndex(i));
             result.SetStatus(eReturnStatusFailed);
@@ -1306,6 +1326,17 @@ public:
 
   ~CommandObjectThreadSelect() override = default;
 
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    if (request.GetCursorIndex())
+      return;
+
+    CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), CommandCompletions::eThreadIndexCompletion,
+        request, nullptr);
+  }
+
 protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     Process *process = m_exe_ctx.GetProcessPtr();
@@ -1321,8 +1352,13 @@ protected:
       return false;
     }
 
-    uint32_t index_id =
-        StringConvert::ToUInt32(command.GetArgumentAtIndex(0), 0, 0);
+    uint32_t index_id;
+    if (!llvm::to_integer(command.GetArgumentAtIndex(0), index_id)) {
+      result.AppendErrorWithFormat("Invalid thread index '%s'",
+                                   command.GetArgumentAtIndex(0));
+      result.SetStatus(eReturnStatusFailed);
+      return false;
+    }
 
     Thread *new_thread =
         process->GetThreadList().FindThreadByIndexID(index_id).get();
@@ -1432,6 +1468,14 @@ public:
 
   ~CommandObjectThreadInfo() override = default;
 
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), CommandCompletions::eThreadIndexCompletion,
+        request, nullptr);
+  }
+
   Options *GetOptions() override { return &m_options; }
 
   bool HandleOneThread(lldb::tid_t tid, CommandReturnObject &result) override {
@@ -1475,6 +1519,14 @@ public:
                 eCommandProcessMustBeLaunched | eCommandProcessMustBePaused) {}
 
   ~CommandObjectThreadException() override = default;
+
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), CommandCompletions::eThreadIndexCompletion,
+        request, nullptr);
+  }
 
   bool HandleOneThread(lldb::tid_t tid, CommandReturnObject &result) override {
     ThreadSP thread_sp =
@@ -1930,8 +1982,7 @@ public:
 protected:
   bool HandleOneThread(lldb::tid_t tid, CommandReturnObject &result) override {
     // If we have already handled this from a -t option, skip it here.
-    if (std::find(m_options.m_tids.begin(), m_options.m_tids.end(), tid) !=
-        m_options.m_tids.end())
+    if (llvm::is_contained(m_options.m_tids, tid))
       return true;
 
     Process *process = m_exe_ctx.GetProcessPtr();
@@ -1979,6 +2030,15 @@ public:
 
   ~CommandObjectThreadPlanDiscard() override = default;
 
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    if (!m_exe_ctx.HasThreadScope() || request.GetCursorIndex())
+      return;
+
+    m_exe_ctx.GetThreadPtr()->AutoCompleteThreadPlans(request);
+  }
+
   bool DoExecute(Args &args, CommandReturnObject &result) override {
     Thread *thread = m_exe_ctx.GetThreadPtr();
     if (args.GetArgumentCount() != 1) {
@@ -1989,10 +2049,8 @@ public:
       return false;
     }
 
-    bool success;
-    uint32_t thread_plan_idx =
-        StringConvert::ToUInt32(args.GetArgumentAtIndex(0), 0, 0, &success);
-    if (!success) {
+    uint32_t thread_plan_idx;
+    if (!llvm::to_integer(args.GetArgumentAtIndex(0), thread_plan_idx)) {
       result.AppendErrorWithFormat(
           "Invalid thread index: \"%s\" - should be unsigned int.",
           args.GetArgumentAtIndex(0));
@@ -2066,11 +2124,8 @@ public:
         process->GetThreadList().GetMutex());
 
     for (size_t i = 0; i < num_args; i++) {
-      bool success;
-
-      lldb::tid_t tid = StringConvert::ToUInt64(
-          args.GetArgumentAtIndex(i), 0, 0, &success);
-      if (!success) {
+      lldb::tid_t tid;
+      if (!llvm::to_integer(args.GetArgumentAtIndex(i), tid)) {
         result.AppendErrorWithFormat("invalid thread specification: \"%s\"\n",
                                      args.GetArgumentAtIndex(i));
         result.SetStatus(eReturnStatusFailed);

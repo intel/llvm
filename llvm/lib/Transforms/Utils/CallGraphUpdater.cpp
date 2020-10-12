@@ -99,8 +99,6 @@ void CallGraphUpdater::reanalyzeFunction(Function &Fn) {
 void CallGraphUpdater::registerOutlinedFunction(Function &NewFn) {
   if (CG)
     CG->addToCallGraph(&NewFn);
-  else if (LCG)
-    LCG->addNewFunctionIntoSCC(NewFn, *SCC);
 }
 
 void CallGraphUpdater::removeFunction(Function &DeadFn) {
@@ -149,7 +147,7 @@ bool CallGraphUpdater::replaceCallSite(CallBase &OldCS, CallBase &NewCS) {
       CG->getOrInsertFunction(NewCS.getCalledFunction());
   CallGraphNode *CallerNode = (*CG)[Caller];
   if (llvm::none_of(*CallerNode, [&OldCS](const CallGraphNode::CallRecord &CR) {
-        return CR.first == &OldCS;
+        return CR.first && *CR.first == &OldCS;
       }))
     return false;
   CallerNode->replaceCallEdge(OldCS, NewCS, NewCalleeNode);

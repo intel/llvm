@@ -9,13 +9,11 @@
 #include "PlatformMacOSX.h"
 #include "PlatformRemoteiOS.h"
 #if defined(__APPLE__)
-#include "PlatformAppleTVSimulator.h"
-#include "PlatformAppleWatchSimulator.h"
+#include "PlatformAppleSimulator.h"
 #include "PlatformDarwinKernel.h"
 #include "PlatformRemoteAppleBridge.h"
 #include "PlatformRemoteAppleTV.h"
 #include "PlatformRemoteAppleWatch.h"
-#include "PlatformiOSSimulator.h"
 #endif
 #include "lldb/Breakpoint/BreakpointLocation.h"
 #include "lldb/Core/Module.h"
@@ -47,10 +45,8 @@ void PlatformMacOSX::Initialize() {
   PlatformDarwin::Initialize();
   PlatformRemoteiOS::Initialize();
 #if defined(__APPLE__)
-  PlatformiOSSimulator::Initialize();
+  PlatformAppleSimulator::Initialize();
   PlatformDarwinKernel::Initialize();
-  PlatformAppleTVSimulator::Initialize();
-  PlatformAppleWatchSimulator::Initialize();
   PlatformRemoteAppleTV::Initialize();
   PlatformRemoteAppleWatch::Initialize();
   PlatformRemoteAppleBridge::Initialize();
@@ -79,10 +75,8 @@ void PlatformMacOSX::Terminate() {
   PlatformRemoteAppleBridge::Terminate();
   PlatformRemoteAppleWatch::Terminate();
   PlatformRemoteAppleTV::Terminate();
-  PlatformAppleWatchSimulator::Terminate();
-  PlatformAppleTVSimulator::Terminate();
   PlatformDarwinKernel::Terminate();
-  PlatformiOSSimulator::Terminate();
+  PlatformAppleSimulator::Terminate();
 #endif
   PlatformRemoteiOS::Terminate();
   PlatformDarwin::Terminate();
@@ -282,7 +276,33 @@ PlatformMacOSX::GetFileWithUUID(const lldb_private::FileSpec &platform_file,
 bool PlatformMacOSX::GetSupportedArchitectureAtIndex(uint32_t idx,
                                                      ArchSpec &arch) {
 #if defined(__arm__) || defined(__arm64__) || defined(__aarch64__)
-  return ARMGetSupportedArchitectureAtIndex(idx, arch);
+  // macOS for ARM64 support both native and translated x86_64 processes
+  if (!m_num_arm_arches || idx < m_num_arm_arches) {
+    bool res = ARMGetSupportedArchitectureAtIndex(idx, arch);
+    if (res)
+      return true;
+    if (!m_num_arm_arches)
+      m_num_arm_arches = idx;
+  }
+
+  // We can't use x86GetSupportedArchitectureAtIndex() because it uses
+  // the system architecture for some of its return values and also
+  // has a 32bits variant.
+  if (idx == m_num_arm_arches) {
+    arch.SetTriple("x86_64-apple-macosx");
+    return true;
+  } else if (idx == m_num_arm_arches + 1) {
+    arch.SetTriple("x86_64-apple-ios-macabi");
+    return true;
+  } else if (idx == m_num_arm_arches + 2) {
+    arch.SetTriple("arm64-apple-ios");
+    return true;
+  } else if (idx == m_num_arm_arches + 3) {
+    arch.SetTriple("arm64e-apple-ios");
+    return true;
+  }
+
+  return false;
 #else
   return x86GetSupportedArchitectureAtIndex(idx, arch);
 #endif

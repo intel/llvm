@@ -39,13 +39,14 @@
 
 #include "OCLUtil.h"
 #include "SPIRVInternal.h"
+#include "libSPIRV/SPIRVDebug.h"
 
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Operator.h"
-#include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Transforms/Utils/LowerMemIntrinsics.h" // expandMemSetAsLoop()
 
 #include <set>
 #include <vector>
@@ -75,6 +76,15 @@ public:
   void lowerFuncPtr(Function *F, Op OC);
   void lowerFuncPtr(Module *M);
 
+  /// There is no SPIR-V counterpart for @llvm.memset.* intrinsic. Cases with
+  /// constant value and length arguments are emulated via "storing" a constant
+  /// array to the destination. For other cases we wrap the intrinsic in
+  /// @spirv.llvm_memset_* function and expand the intrinsic to a loop via
+  /// expandMemSetAsLoop() from llvm/Transforms/Utils/LowerMemIntrinsics.h
+  /// During reverse translation from SPIR-V to LLVM IR we can detect
+  /// @spirv.llvm_memset_* and replace it with @llvm.memset.
+  void lowerMemset(MemSetInst *MSI);
+
   static char ID;
 
 private:
@@ -84,19 +94,59 @@ private:
 
 char SPIRVRegularizeLLVM::ID = 0;
 
+void SPIRVRegularizeLLVM::lowerMemset(MemSetInst *MSI) {
+  if (isa<Constant>(MSI->getValue()) && isa<ConstantInt>(MSI->getLength()))
+    return; // To be handled in LLVMToSPIRV::transIntrinsicInst
+  Function *IntrinsicFunc = MSI->getCalledFunction();
+  assert(IntrinsicFunc && "Missing function");
+  std::string FuncName = IntrinsicFunc->getName().str();
+  std::replace(FuncName.begin(), FuncName.end(), '.', '_');
+  FuncName = "spirv." + FuncName;
+  if (MSI->isVolatile())
+    FuncName += ".volatile";
+
+  // Redirect @llvm.memset.* call to @spirv.llvm_memset_*
+  Function *F = M->getFunction(FuncName);
+  if (F) {
+    // This function is already linked in.
+    MSI->setCalledFunction(F);
+    return;
+  }
+  // TODO copy arguments attributes: nocapture writeonly.
+  FunctionCallee FC = M->getOrInsertFunction(FuncName, MSI->getFunctionType());
+  MSI->setCalledFunction(FC);
+
+  F = dyn_cast<Function>(FC.getCallee());
+  assert(F && "must be a function!");
+  Argument *Dest = F->getArg(0);
+  Argument *Val = F->getArg(1);
+  Argument *Len = F->getArg(2);
+  Argument *IsVolatile = F->getArg(3);
+  Dest->setName("dest");
+  Val->setName("val");
+  Len->setName("len");
+  IsVolatile->setName("isvolatile");
+  IsVolatile->addAttr(Attribute::ImmArg);
+  BasicBlock *EntryBB = BasicBlock::Create(M->getContext(), "entry", F);
+  IRBuilder<> IRB(EntryBB);
+  auto *MemSet =
+      IRB.CreateMemSet(Dest, Val, Len, MSI->getDestAlign(), MSI->isVolatile());
+  IRB.CreateRetVoid();
+  expandMemSetAsLoop(cast<MemSetInst>(MemSet));
+  MemSet->eraseFromParent();
+  return;
+}
+
 bool SPIRVRegularizeLLVM::runOnModule(Module &Module) {
   M = &Module;
   Ctx = &M->getContext();
 
   LLVM_DEBUG(dbgs() << "Enter SPIRVRegularizeLLVM:\n");
   regularize();
-
   LLVM_DEBUG(dbgs() << "After SPIRVRegularizeLLVM:\n" << *M);
-  std::string Err;
-  raw_string_ostream ErrorOS(Err);
-  if (verifyModule(*M, &ErrorOS)) {
-    LLVM_DEBUG(errs() << "Fails to verify module: " << ErrorOS.str());
-  }
+
+  verifyRegularizationPass(*M, "SPIRVRegularizeLLVM");
+
   return true;
 }
 
@@ -118,8 +168,11 @@ bool SPIRVRegularizeLLVM::regularize() {
         if (auto Call = dyn_cast<CallInst>(&II)) {
           Call->setTailCall(false);
           Function *CF = Call->getCalledFunction();
-          if (CF && CF->isIntrinsic())
+          if (CF && CF->isIntrinsic()) {
             removeFnAttr(Call, Attribute::NoUnwind);
+            if (auto *MSI = dyn_cast<MemSetInst>(Call))
+              lowerMemset(MSI);
+          }
         }
 
         // Remove optimization info not supported by SPIRV
@@ -127,6 +180,14 @@ bool SPIRVRegularizeLLVM::regularize() {
           if (isa<PossiblyExactOperator>(BO) && BO->isExact())
             BO->setIsExact(false);
         }
+
+        // FIXME: This is not valid handling for freeze instruction
+        if (auto FI = dyn_cast<FreezeInst>(&II)) {
+          FI->replaceAllUsesWith(FI->getOperand(0));
+          FI->dropAllReferences();
+          ToErase.push_back(FI);
+        }
+
         // Remove metadata not supported by SPIRV
         static const char *MDs[] = {
             "fpmath",
@@ -196,13 +257,6 @@ bool SPIRVRegularizeLLVM::regularize() {
       assert(V->user_empty());
       V->eraseFromParent();
     }
-  }
-
-  std::string Err;
-  raw_string_ostream ErrorOS(Err);
-  if (verifyModule(*M, &ErrorOS)) {
-    SPIRVDBG(errs() << "Fails to verify module: " << ErrorOS.str();)
-    return false;
   }
 
   if (SPIRVDbgSaveRegularizedModule)

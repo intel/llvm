@@ -172,6 +172,10 @@ Attribute Attribute::getWithByValType(LLVMContext &Context, Type *Ty) {
   return get(Context, ByVal, Ty);
 }
 
+Attribute Attribute::getWithByRefType(LLVMContext &Context, Type *Ty) {
+  return get(Context, ByRef, Ty);
+}
+
 Attribute Attribute::getWithPreallocatedType(LLVMContext &Context, Type *Ty) {
   return get(Context, Preallocated, Ty);
 }
@@ -443,6 +447,8 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "cold";
   if (hasAttribute(Attribute::ImmArg))
     return "immarg";
+  if (hasAttribute(Attribute::NoUndef))
+    return "noundef";
 
   if (hasAttribute(Attribute::ByVal)) {
     std::string Result;
@@ -457,9 +463,9 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return Result;
   }
 
-  if (hasAttribute(Attribute::Preallocated)) {
-    std::string Result;
-    Result += "preallocated";
+  const bool IsByRef = hasAttribute(Attribute::ByRef);
+  if (IsByRef || hasAttribute(Attribute::Preallocated)) {
+    std::string Result = IsByRef ? "byref" : "preallocated";
     raw_string_ostream OS(Result);
     Result += '(';
     getValueAsType()->print(OS, false, true);
@@ -597,6 +603,8 @@ Type *AttributeImpl::getValueAsType() const {
 }
 
 bool AttributeImpl::operator<(const AttributeImpl &AI) const {
+  if (this == &AI)
+    return false;
   // This sorts the attributes with Attribute::AttrKinds coming first (sorted
   // relative to their enum value) and then strings.
   if (isEnumAttribute()) {
@@ -738,6 +746,10 @@ uint64_t AttributeSet::getDereferenceableOrNullBytes() const {
   return SetNode ? SetNode->getDereferenceableOrNullBytes() : 0;
 }
 
+Type *AttributeSet::getByRefType() const {
+  return SetNode ? SetNode->getByRefType() : nullptr;
+}
+
 Type *AttributeSet::getByValType() const {
   return SetNode ? SetNode->getByValType() : nullptr;
 }
@@ -838,6 +850,9 @@ AttributeSetNode *AttributeSetNode::get(LLVMContext &C, const AttrBuilder &B) {
     case Attribute::ByVal:
       Attr = Attribute::getWithByValType(C, B.getByValType());
       break;
+    case Attribute::ByRef:
+      Attr = Attribute::getWithByRefType(C, B.getByRefType());
+      break;
     case Attribute::Preallocated:
       Attr = Attribute::getWithPreallocatedType(C, B.getPreallocatedType());
       break;
@@ -921,14 +936,19 @@ MaybeAlign AttributeSetNode::getStackAlignment() const {
 Type *AttributeSetNode::getByValType() const {
   if (auto A = findEnumAttribute(Attribute::ByVal))
     return A->getValueAsType();
-  return 0;
+  return nullptr;
+}
+
+Type *AttributeSetNode::getByRefType() const {
+  if (auto A = findEnumAttribute(Attribute::ByRef))
+    return A->getValueAsType();
+  return nullptr;
 }
 
 Type *AttributeSetNode::getPreallocatedType() const {
-  for (const auto &I : *this)
-    if (I.hasAttribute(Attribute::Preallocated))
-      return I.getValueAsType();
-  return 0;
+  if (auto A = findEnumAttribute(Attribute::Preallocated))
+    return A->getValueAsType();
+  return nullptr;
 }
 
 uint64_t AttributeSetNode::getDereferenceableBytes() const {
@@ -966,7 +986,7 @@ std::string AttributeSetNode::getAsString(bool InAttrGrp) const {
 
 /// Map from AttributeList index to the internal array index. Adding one happens
 /// to work, because -1 wraps around to 0.
-static constexpr unsigned attrIdxToArrayIdx(unsigned Index) {
+static unsigned attrIdxToArrayIdx(unsigned Index) {
   return Index + 1;
 }
 
@@ -979,9 +999,7 @@ AttributeListImpl::AttributeListImpl(ArrayRef<AttributeSet> Sets)
 
   // Initialize AvailableFunctionAttrs and AvailableSomewhereAttrs
   // summary bitsets.
-  static_assert(attrIdxToArrayIdx(AttributeList::FunctionIndex) == 0U,
-                "function should be stored in slot 0");
-  for (const auto &I : Sets[0])
+  for (const auto &I : Sets[attrIdxToArrayIdx(AttributeList::FunctionIndex)])
     if (!I.isStringAttribute())
       AvailableFunctionAttrs.addAttribute(I.getKindAsEnum());
 
@@ -1069,10 +1087,10 @@ AttributeList::get(LLVMContext &C,
                            return LHS.first < RHS.first;
                          }) &&
          "Misordered Attributes list!");
-  assert(llvm::none_of(Attrs,
-                       [](const std::pair<unsigned, Attribute> &Pair) {
-                         return Pair.second.hasAttribute(Attribute::None);
-                       }) &&
+  assert(llvm::all_of(Attrs,
+                      [](const std::pair<unsigned, Attribute> &Pair) {
+                        return Pair.second.isValid();
+                      }) &&
          "Pointless attribute!");
 
   // Create a vector if (unsigned, AttributeSetNode*) pairs from the attributes
@@ -1448,6 +1466,10 @@ Type *AttributeList::getParamByValType(unsigned Index) const {
   return getAttributes(Index+FirstArgIndex).getByValType();
 }
 
+Type *AttributeList::getParamByRefType(unsigned Index) const {
+  return getAttributes(Index + FirstArgIndex).getByRefType();
+}
+
 Type *AttributeList::getParamPreallocatedType(unsigned Index) const {
   return getAttributes(Index + FirstArgIndex).getPreallocatedType();
 }
@@ -1533,15 +1555,8 @@ void AttrBuilder::clear() {
   DerefBytes = DerefOrNullBytes = 0;
   AllocSizeArgs = 0;
   ByValType = nullptr;
+  ByRefType = nullptr;
   PreallocatedType = nullptr;
-}
-
-AttrBuilder &AttrBuilder::addAttribute(Attribute::AttrKind Val) {
-  assert((unsigned)Val < Attribute::EndAttrKinds && "Attribute out of range!");
-  assert(!Attribute::doesAttrKindHaveArgument(Val) &&
-         "Adding integer attribute without adding a value!");
-  Attrs[Val] = true;
-  return *this;
 }
 
 AttrBuilder &AttrBuilder::addAttribute(Attribute Attr) {
@@ -1559,6 +1574,8 @@ AttrBuilder &AttrBuilder::addAttribute(Attribute Attr) {
     StackAlignment = Attr.getStackAlignment();
   else if (Kind == Attribute::ByVal)
     ByValType = Attr.getValueAsType();
+  else if (Kind == Attribute::ByRef)
+    ByRefType = Attr.getValueAsType();
   else if (Kind == Attribute::Preallocated)
     PreallocatedType = Attr.getValueAsType();
   else if (Kind == Attribute::Dereferenceable)
@@ -1585,6 +1602,8 @@ AttrBuilder &AttrBuilder::removeAttribute(Attribute::AttrKind Val) {
     StackAlignment.reset();
   else if (Val == Attribute::ByVal)
     ByValType = nullptr;
+  else if (Val == Attribute::ByRef)
+    ByRefType = nullptr;
   else if (Val == Attribute::Preallocated)
     PreallocatedType = nullptr;
   else if (Val == Attribute::Dereferenceable)
@@ -1675,6 +1694,12 @@ AttrBuilder &AttrBuilder::addByValAttr(Type *Ty) {
   return *this;
 }
 
+AttrBuilder &AttrBuilder::addByRefAttr(Type *Ty) {
+  Attrs[Attribute::ByRef] = true;
+  ByRefType = Ty;
+  return *this;
+}
+
 AttrBuilder &AttrBuilder::addPreallocatedAttr(Type *Ty) {
   Attrs[Attribute::Preallocated] = true;
   PreallocatedType = Ty;
@@ -1701,12 +1726,15 @@ AttrBuilder &AttrBuilder::merge(const AttrBuilder &B) {
   if (!ByValType)
     ByValType = B.ByValType;
 
+  if (!ByRefType)
+    ByRefType = B.ByRefType;
+
   if (!PreallocatedType)
     PreallocatedType = B.PreallocatedType;
 
   Attrs |= B.Attrs;
 
-  for (auto I : B.td_attrs())
+  for (const auto &I : B.td_attrs())
     TargetDepAttrs[I.first] = I.second;
 
   return *this;
@@ -1732,12 +1760,15 @@ AttrBuilder &AttrBuilder::remove(const AttrBuilder &B) {
   if (B.ByValType)
     ByValType = nullptr;
 
+  if (B.ByRefType)
+    ByRefType = nullptr;
+
   if (B.PreallocatedType)
     PreallocatedType = nullptr;
 
   Attrs &= ~B.Attrs;
 
-  for (auto I : B.td_attrs())
+  for (const auto &I : B.td_attrs())
     TargetDepAttrs.erase(I.first);
 
   return *this;
@@ -1795,7 +1826,7 @@ bool AttrBuilder::operator==(const AttrBuilder &B) {
 
   return Alignment == B.Alignment && StackAlignment == B.StackAlignment &&
          DerefBytes == B.DerefBytes && ByValType == B.ByValType &&
-         PreallocatedType == B.PreallocatedType;
+         ByRefType == B.ByRefType && PreallocatedType == B.PreallocatedType;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1824,7 +1855,8 @@ AttrBuilder AttributeFuncs::typeIncompatible(Type *Ty) {
         .addAttribute(Attribute::StructRet)
         .addAttribute(Attribute::InAlloca)
         .addPreallocatedAttr(Ty)
-        .addByValAttr(Ty);
+        .addByValAttr(Ty)
+        .addByRefAttr(Ty);
 
   return Incompatible;
 }
@@ -1897,21 +1929,19 @@ static void adjustCallerStackProbes(Function &Caller, const Function &Callee) {
 /// that is no larger.
 static void
 adjustCallerStackProbeSize(Function &Caller, const Function &Callee) {
-  if (Callee.hasFnAttribute("stack-probe-size")) {
-    uint64_t CalleeStackProbeSize;
-    Callee.getFnAttribute("stack-probe-size")
-          .getValueAsString()
-          .getAsInteger(0, CalleeStackProbeSize);
-    if (Caller.hasFnAttribute("stack-probe-size")) {
-      uint64_t CallerStackProbeSize;
-      Caller.getFnAttribute("stack-probe-size")
-            .getValueAsString()
-            .getAsInteger(0, CallerStackProbeSize);
+  Attribute CalleeAttr = Callee.getFnAttribute("stack-probe-size");
+  if (CalleeAttr.isValid()) {
+    Attribute CallerAttr = Caller.getFnAttribute("stack-probe-size");
+    if (CallerAttr.isValid()) {
+      uint64_t CallerStackProbeSize, CalleeStackProbeSize;
+      CallerAttr.getValueAsString().getAsInteger(0, CallerStackProbeSize);
+      CalleeAttr.getValueAsString().getAsInteger(0, CalleeStackProbeSize);
+
       if (CallerStackProbeSize > CalleeStackProbeSize) {
-        Caller.addFnAttr(Callee.getFnAttribute("stack-probe-size"));
+        Caller.addFnAttr(CalleeAttr);
       }
     } else {
-      Caller.addFnAttr(Callee.getFnAttribute("stack-probe-size"));
+      Caller.addFnAttr(CalleeAttr);
     }
   }
 }
@@ -1927,18 +1957,15 @@ adjustCallerStackProbeSize(Function &Caller, const Function &Callee) {
 /// handled as part of inline cost analysis.
 static void
 adjustMinLegalVectorWidth(Function &Caller, const Function &Callee) {
-  if (Caller.hasFnAttribute("min-legal-vector-width")) {
-    if (Callee.hasFnAttribute("min-legal-vector-width")) {
-      uint64_t CallerVectorWidth;
-      Caller.getFnAttribute("min-legal-vector-width")
-            .getValueAsString()
-            .getAsInteger(0, CallerVectorWidth);
-      uint64_t CalleeVectorWidth;
-      Callee.getFnAttribute("min-legal-vector-width")
-            .getValueAsString()
-            .getAsInteger(0, CalleeVectorWidth);
+  Attribute CallerAttr = Caller.getFnAttribute("min-legal-vector-width");
+  if (CallerAttr.isValid()) {
+    Attribute CalleeAttr = Callee.getFnAttribute("min-legal-vector-width");
+    if (CalleeAttr.isValid()) {
+      uint64_t CallerVectorWidth, CalleeVectorWidth;
+      CallerAttr.getValueAsString().getAsInteger(0, CallerVectorWidth);
+      CalleeAttr.getValueAsString().getAsInteger(0, CalleeVectorWidth);
       if (CallerVectorWidth < CalleeVectorWidth)
-        Caller.addFnAttr(Callee.getFnAttribute("min-legal-vector-width"));
+        Caller.addFnAttr(CalleeAttr);
     } else {
       // If the callee doesn't have the attribute then we don't know anything
       // and must drop the attribute from the caller.

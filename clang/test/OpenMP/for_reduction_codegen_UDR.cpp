@@ -53,8 +53,8 @@ void init_plus(BaseS1&, const BaseS1&);
 
 // CHECK-DAG: [[S_FLOAT_TY:%.+]] = type { %{{[^,]+}}, %{{[^,]+}}, float }
 // CHECK-DAG: [[S_INT_TY:%.+]] = type { %{{[^,]+}}, %{{[^,]+}}, i{{[0-9]+}} }
-// CHECK-DAG: [[IMPLICIT_BARRIER_LOC:@.+]] = private unnamed_addr global %struct.ident_t { i32 0, i32 66, i32 0, i32 0, i8*
-// CHECK-DAG: [[REDUCTION_LOC:@.+]] = private unnamed_addr global %struct.ident_t { i32 0, i32 18, i32 0, i32 0, i8*
+// CHECK-DAG: [[IMPLICIT_BARRIER_LOC:@.+]] = private unnamed_addr constant %struct.ident_t { i32 0, i32 66, i32 0, i32 0, i8*
+// CHECK-DAG: [[REDUCTION_LOC:@.+]] = private unnamed_addr constant %struct.ident_t { i32 0, i32 18, i32 0, i32 0, i8*
 // CHECK-DAG: [[REDUCTION_LOCK:@.+]] = common global [8 x i32] zeroinitializer
 
 #pragma omp declare reduction(operator* : S<int> : omp_out.f = 17 * omp_in.f) initializer(omp_priv = S<int>())
@@ -203,9 +203,11 @@ int main() {
 // For + reduction operation initial value of private variable is -1.
 // CHECK: call void [[RED_INIT1:@.+]](float* %{{.+}}, float* %{{.+}})
 
+// CHECK: call void @_ZN1SIfEC1Ev([[S_FLOAT_TY]]* [[VAR_PRIV]]
 // For & reduction operation initial value of private variable is defined by call of 'init()' function.
 // CHECK: call void [[RED_INIT2:@.+]](
 
+// CHECK: call void @_ZN1SIfEC1Ev([[S_FLOAT_TY]]* [[VAR1_PRIV]]
 // For && reduction operation initial value of private variable is 1.0.
 // CHECK: call void [[RED_INIT3:@.+]](
 
@@ -599,6 +601,17 @@ int main() {
 
 // Check initialization of private copy.
 // CHECK: [[BEGIN:%.+]] = getelementptr inbounds [10 x [4 x [[S_FLOAT_TY]]]], [10 x [4 x [[S_FLOAT_TY]]]]* [[ARRS_PRIV]], i32 0, i32 0, i32 0
+// CHECK: [[END:%.+]] = getelementptr inbounds [[S_FLOAT_TY]], [[S_FLOAT_TY]]* [[BEGIN]], i64 40
+// CHECK: br label %[[CTOR:[^,]+]]
+// CHECK: [[CTOR]]:
+// CHECK: [[CUR:%.+]] = phi [[S_FLOAT_TY]]* [ [[BEGIN]], %{{.+}} ], [ [[NEXT:%.+]], %[[CTOR]] ]
+// CHECK: call void @_ZN1SIfEC1Ev([[S_FLOAT_TY]]* [[CUR]])
+// CHECK: [[NEXT:%.+]] = getelementptr inbounds [[S_FLOAT_TY]], [[S_FLOAT_TY]]* [[CUR]], i64 1
+// CHECK: [[IS_DONE:%.+]] = icmp eq [[S_FLOAT_TY]]* [[NEXT]], [[END]]
+// CHECK: br i1 [[IS_DONE]], label %[[DONE:[^,]+]], label %[[CTOR]]
+// CHECK: [[DONE]]:
+
+// CHECK: [[BEGIN:%.+]] = getelementptr inbounds [10 x [4 x [[S_FLOAT_TY]]]], [10 x [4 x [[S_FLOAT_TY]]]]* [[ARRS_PRIV]], i32 0, i32 0, i32 0
 // CHECK: [[LHS_BEGIN:%.+]] = bitcast [10 x [4 x [[S_FLOAT_TY]]]]* %{{.+}} to [[S_FLOAT_TY]]*
 // CHECK: [[END:%.+]] = getelementptr [[S_FLOAT_TY]], [[S_FLOAT_TY]]* [[BEGIN]], i64 40
 // CHECK: [[ISEMPTY:%.+]] = icmp eq [[S_FLOAT_TY]]* [[BEGIN]], [[END]]
@@ -863,6 +876,7 @@ int main() {
 // CHECK: getelementptr [[S_FLOAT_TY]], [[S_FLOAT_TY]]* %{{.+}}, i64 4
 
 // CHECK: store [4 x [[S_FLOAT_TY]]]* [[VAR3_PRIV]], [4 x [[S_FLOAT_TY]]]** %
+// CHECK: [[VAR3_VOID_PTR:%.+]] = bitcast [4 x [[S_FLOAT_TY]]]* [[VAR3_PRIV]] to i8*
 // CHECK: call void @__kmpc_free(i32 [[GTID]], i8* [[VAR3_VOID_PTR]], i8* inttoptr (i64 6 to i8*))
 // CHECK: ret void
 
@@ -901,9 +915,11 @@ int main() {
 // For + reduction operation initial value of private variable is 0.
 // CHECK: call void [[RED_INIT6:@.+]](
 
+// CHECK: call void @_ZN1SIiEC1Ev([[S_INT_TY]]* [[VAR_PRIV]]
 // For & reduction operation initial value of private variable is ones in all bits.
 // CHECK: call void [[RED_INIT2:@.+]](
 
+// CHECK: call void @_ZN1SIiEC1Ev([[S_INT_TY]]* [[VAR1_PRIV]]
 // For && reduction operation initial value of private variable is 1.0.
 // CHECK: call void [[RED_INIT7:@.+]](
 

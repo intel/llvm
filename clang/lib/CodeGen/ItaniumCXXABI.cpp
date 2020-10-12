@@ -9,11 +9,11 @@
 // This provides C++ code generation targeting the Itanium C++ ABI.  The class
 // in this file generates structures that follow the Itanium C++ ABI, which is
 // documented at:
-//  http://www.codesourcery.com/public/cxx-abi/abi.html
-//  http://www.codesourcery.com/public/cxx-abi/abi-eh.html
+//  https://itanium-cxx-abi.github.io/cxx-abi/abi.html
+//  https://itanium-cxx-abi.github.io/cxx-abi/abi-eh.html
 //
 // It also supports the closely-related ARM ABI, documented at:
-// http://infocenter.arm.com/help/topic/com.arm.doc.ihi0041c/IHI0041C_cppabi.pdf
+// https://developer.arm.com/documentation/ihi0041/g/
 //
 //===----------------------------------------------------------------------===//
 
@@ -227,6 +227,12 @@ public:
                                                CXXCtorType Type,
                                                bool ForVirtualBase,
                                                bool Delegating) override;
+
+  llvm::Value *getCXXDestructorImplicitParam(CodeGenFunction &CGF,
+                                             const CXXDestructorDecl *DD,
+                                             CXXDtorType Type,
+                                             bool ForVirtualBase,
+                                             bool Delegating) override;
 
   void EmitDestructorCall(CodeGenFunction &CGF, const CXXDestructorDecl *DD,
                           CXXDtorType Type, bool ForVirtualBase,
@@ -1693,13 +1699,21 @@ CGCXXABI::AddedStructorArgs ItaniumCXXABI::getImplicitConstructorArgs(
   return AddedStructorArgs::prefix({{VTT, VTTTy}});
 }
 
+llvm::Value *ItaniumCXXABI::getCXXDestructorImplicitParam(
+    CodeGenFunction &CGF, const CXXDestructorDecl *DD, CXXDtorType Type,
+    bool ForVirtualBase, bool Delegating) {
+  GlobalDecl GD(DD, Type);
+  return CGF.GetVTTParameter(GD, ForVirtualBase, Delegating);
+}
+
 void ItaniumCXXABI::EmitDestructorCall(CodeGenFunction &CGF,
                                        const CXXDestructorDecl *DD,
                                        CXXDtorType Type, bool ForVirtualBase,
                                        bool Delegating, Address This,
                                        QualType ThisTy) {
   GlobalDecl GD(DD, Type);
-  llvm::Value *VTT = CGF.GetVTTParameter(GD, ForVirtualBase, Delegating);
+  llvm::Value *VTT =
+      getCXXDestructorImplicitParam(CGF, DD, Type, ForVirtualBase, Delegating);
   QualType VTTTy = getContext().getPointerType(getContext().VoidPtrTy);
 
   CGCallee Callee;
@@ -2097,7 +2111,7 @@ CharUnits ItaniumCXXABI::getArrayCookieSizeImpl(QualType elementType) {
   // The array cookie is a size_t; pad that up to the element alignment.
   // The cookie is actually right-justified in that space.
   return std::max(CharUnits::fromQuantity(CGM.SizeSizeInBytes),
-                  CGM.getContext().getTypeAlignInChars(elementType));
+                  CGM.getContext().getPreferredTypeAlignInChars(elementType));
 }
 
 Address ItaniumCXXABI::InitializeArrayCookie(CodeGenFunction &CGF,
@@ -2114,7 +2128,7 @@ Address ItaniumCXXABI::InitializeArrayCookie(CodeGenFunction &CGF,
 
   // The size of the cookie.
   CharUnits CookieSize =
-    std::max(SizeSize, Ctx.getTypeAlignInChars(ElementType));
+      std::max(SizeSize, Ctx.getPreferredTypeAlignInChars(ElementType));
   assert(CookieSize == getArrayCookieSizeImpl(ElementType));
 
   // Compute an offset to the cookie.
@@ -4558,7 +4572,8 @@ void XLCXXABI::emitCXXStermFinalizer(const VarDecl &D, llvm::Function *dtorStub,
   CodeGenFunction CGF(CGM);
 
   CGF.StartFunction(GlobalDecl(), CGM.getContext().VoidTy, StermFinalizer, FI,
-                    FunctionArgList());
+                    FunctionArgList(), D.getLocation(),
+                    D.getInit()->getExprLoc());
 
   // The unatexit subroutine unregisters __dtor functions that were previously
   // registered by the atexit subroutine. If the referenced function is found,
@@ -4587,5 +4602,16 @@ void XLCXXABI::emitCXXStermFinalizer(const VarDecl &D, llvm::Function *dtorStub,
 
   CGF.FinishFunction();
 
-  CGM.AddCXXStermFinalizerEntry(StermFinalizer);
+  assert(!D.getAttr<InitPriorityAttr>() &&
+         "Prioritized sinit and sterm functions are not yet supported.");
+
+  if (isTemplateInstantiation(D.getTemplateSpecializationKind()) ||
+      getContext().GetGVALinkageForVariable(&D) == GVA_DiscardableODR)
+    // According to C++ [basic.start.init]p2, class template static data
+    // members (i.e., implicitly or explicitly instantiated specializations)
+    // have unordered initialization. As a consequence, we can put them into
+    // their own llvm.global_dtors entry.
+    CGM.AddCXXStermFinalizerToGlobalDtor(StermFinalizer, 65535);
+  else
+    CGM.AddCXXStermFinalizerEntry(StermFinalizer);
 }

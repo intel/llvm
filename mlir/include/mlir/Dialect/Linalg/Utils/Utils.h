@@ -10,6 +10,7 @@
 #define MLIR_DIALECT_LINALG_UTILS_H_
 
 #include "mlir/Dialect/Affine/EDSC/Intrinsics.h"
+#include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
 #include "mlir/Dialect/Linalg/EDSC/Builders.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/SCF/SCF.h"
@@ -94,27 +95,28 @@ Operation *fuseTensorOps(PatternRewriter &rewriter, Operation *consumer,
                          unsigned consumerIdx,
                          OperationFolder *folder = nullptr);
 
-/// Returns the linearized list of all view dimensions in a linalgOp. Applying
+/// Returns the linearized list of all view dimensions in a `linalgOp`. Applying
 /// the inverse, concatenated loopToOperandRangeMaps to this list allows the
 /// derivation of loop ranges for any linalgOp.
-template <typename ConcreteOp>
-SmallVector<Value, 8> getViewSizes(OpBuilder &builder, ConcreteOp linalgOp) {
-  auto loc = linalgOp.getLoc();
-  SmallVector<Value, 8> res;
-  for (auto v : linalgOp.getInputsAndOutputBuffers()) {
-    MemRefType t = v.getType().template cast<MemRefType>();
-    for (unsigned i = 0; i < t.getRank(); ++i)
-      res.push_back(builder.create<DimOp>(loc, v, i));
-  }
-  return res;
+SmallVector<Value, 8> getViewSizes(OpBuilder &builder, LinalgOp linalgOp);
+template <typename ConcreteOpTy>
+SmallVector<Value, 8> getViewSizes(OpBuilder &builder, ConcreteOpTy linalgOp) {
+  return getViewSizes(builder, cast<linalg::LinalgOp>(linalgOp.getOperation()));
 }
+
+/// Returns the loop ranges of the `linalgOp`. Applies the inverse of the
+/// concatenated indexing maps to the result of `getViewSizes`. Returns None if
+/// the bounds computation fails.
+Optional<SmallVector<Value, 4>>
+getLoopRanges(OpBuilder &builder, LinalgOp linalgOp,
+              OperationFolder *folder = nullptr);
 
 /// Returns the values obtained by applying `map` to the list of values.
 /// When non-null, the optional pointer `folder` is used to call into the
 /// `createAndFold` builder method. If `folder` is null, the regular `create`
 /// method is called.
 SmallVector<Value, 4> applyMapToValues(OpBuilder &b, Location loc,
-                                       AffineMap map, ArrayRef<Value> values,
+                                       AffineMap map, ValueRange values,
                                        OperationFolder *folder = nullptr);
 
 /// Returns all the operands of `linalgOp` that are not views.
@@ -135,6 +137,74 @@ void applyPermutationToVector(SmallVector<T, N> &inVec,
   inVec = auxVec;
 }
 
+/// Scheme used to distribute loops to processors.
+enum class DistributionMethod {
+  /// Cyclic distribution where no assumption is made about the dynamic
+  /// relationship between number of processors and number of iterations of the
+  /// distributed loop. Distributes the following loop
+  ///
+  /// scf.parallel (%iv) = (%lb) to (%ub) step (%step)
+  ///
+  /// to
+  ///
+  /// scf.parallel(%iv)= (%lb + %procId * %step) to (%ub) step (%step * %nprocs)
+  Cyclic = 0,
+
+  /// Cyclic distribution where the number of processors can be assumed to be
+  /// more than or equal to the number of iterations of the distributed loop. In
+  /// such cases, a simple in-bounds check is enough (instead of materializing a
+  /// loop). Distributes the following loop
+  ///
+  /// scf.parallel (%iv) = (%lb) to (%ub) step (%step)
+  ///
+  /// to
+  ///
+  /// %iv = %lb + %procId * %step
+  /// %cond = cmpi "slt", %iv, %ub
+  /// scf.if %cond {
+  ///   ...
+  /// }
+  CyclicNumProcsGeNumIters = 1,
+
+  /// Cyclic distribution where the number of processors can be assumed to be
+  ///  equal to the number of iterations of the distributed loop. In such cases,
+  ///  no bounds check is needed. Distributes the following loop
+  ///
+  /// scf.parallel (%iv) = (%lb) to (%ub) step (%step)
+  ///
+  /// to
+  ///
+  /// %iv = %lb + %procId * %step
+  CyclicNumProcsEqNumIters = 2
+};
+
+/// Callback function type used to get processor ID, and number of processors
+/// used for distribution for all parallel loops generated.
+struct ProcInfo {
+  Value procId;
+  Value nprocs;
+};
+using ProcInfoCallBackFn = std::function<SmallVector<ProcInfo, 2>(
+    OpBuilder &b, Location loc, ArrayRef<Range> parallelLoopRanges)>;
+
+/// Options that allow distribution of loops generated in Linalg transforms to
+/// processors while generating the loops.
+struct LinalgLoopDistributionOptions {
+  /// Callback function that returns the Values for processor ID (`procId`), and
+  /// number of processors (`nprocs`) used to execute the parallel loops. The
+  /// number of `{procId, nprocs}` pairs returned must be equal to the number of
+  /// `parallelLoopRanges` passed into the callback, which in-turn is same as
+  /// the number of parallel loops for which the `distributionMethod` is
+  /// specified below.
+  ProcInfoCallBackFn procInfo;
+  /// Specification of how to distribute the `scf.parallel` loops that are
+  /// generated. As the `scf.parallel` loop is generated, the elements of this
+  /// vector is used (from left to right) and the specified distribution is
+  /// applied. If the vector is less than the number of `scf.parallel` loops
+  /// generated, then no distribution is applied.
+  SmallVector<DistributionMethod, 0> distributionMethod = {};
+};
+
 /// Utility class used to generate nested loops with ranges described by
 /// `loopRanges` and loop type described by the `iteratorTypes`. `bodyBuilderFn`
 /// is used to generate the body of the innermost loop. It is passed a range
@@ -145,9 +215,11 @@ struct GenerateLoopNest {
       typename std::conditional<std::is_same<LoopTy, AffineForOp>::value,
                                 AffineIndexedValue, StdIndexedValue>::type;
 
-  static void doit(ArrayRef<SubViewOp::Range> loopRanges,
-                   ArrayRef<Attribute> iteratorTypes,
-                   function_ref<void(ValueRange)> bodyBuilderFn);
+  static void
+  doit(ArrayRef<Range> loopRanges, ValueRange iterArgInitValues,
+       ArrayRef<Attribute> iteratorTypes,
+       function_ref<scf::ValueVector(ValueRange, ValueRange)> bodyBuilderFn,
+       Optional<LinalgLoopDistributionOptions> = None);
 };
 
 } // namespace linalg

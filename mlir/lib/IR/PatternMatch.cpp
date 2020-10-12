@@ -10,8 +10,11 @@
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
+#include "llvm/Support/Debug.h"
 
 using namespace mlir;
+
+#define DEBUG_TYPE "pattern-match"
 
 PatternBenefit::PatternBenefit(unsigned benefit) : representation(benefit) {
   assert(representation == benefit && benefit != ImpossibleToMatchSentinel &&
@@ -128,6 +131,28 @@ void PatternRewriter::mergeBlocks(Block *source, Block *dest,
   source->erase();
 }
 
+// Merge the operations of block 'source' before the operation 'op'. Source
+// block should not have existing predecessors or successors.
+void PatternRewriter::mergeBlockBefore(Block *source, Operation *op,
+                                       ValueRange argValues) {
+  assert(source->hasNoPredecessors() &&
+         "expected 'source' to have no predecessors");
+  assert(source->hasNoSuccessors() &&
+         "expected 'source' to have no successors");
+
+  // Split the block containing 'op' into two, one containg all operations
+  // before 'op' (prologue) and another (epilogue) containing 'op' and all
+  // operations after it.
+  Block *prologue = op->getBlock();
+  Block *epilogue = splitBlock(prologue, op->getIterator());
+
+  // Merge the source block at the end of the prologue.
+  mergeBlocks(source, prologue, argValues);
+
+  // Merge the epilogue at the end the prologue.
+  mergeBlocks(epilogue, prologue);
+}
+
 /// Split the operations starting at "before" (inclusive) out of the given
 /// block into a new block, and return it.
 Block *PatternRewriter::splitBlock(Block *block, Block::iterator before) {
@@ -185,8 +210,14 @@ void PatternApplicator::applyCostModel(CostModel model) {
   anyOpPatterns.clear();
   for (const auto &pat : owningPatternList) {
     // If the pattern is always impossible to match, just ignore it.
-    if (pat->getBenefit().isImpossibleToMatch())
+    if (pat->getBenefit().isImpossibleToMatch()) {
+      LLVM_DEBUG({
+        llvm::dbgs()
+            << "Ignoring pattern '" << pat->getRootKind()
+            << "' because it is impossible to match (by pattern benefit)\n";
+      });
       continue;
+    }
     if (Optional<OperationName> opName = pat->getRootKind())
       patterns[*opName].push_back(pat.get());
     else
@@ -201,8 +232,14 @@ void PatternApplicator::applyCostModel(CostModel model) {
   auto processPatternList = [&](SmallVectorImpl<RewritePattern *> &list) {
     // Special case for one pattern in the list, which is the most common case.
     if (list.size() == 1) {
-      if (model(*list.front()).isImpossibleToMatch())
+      if (model(*list.front()).isImpossibleToMatch()) {
+        LLVM_DEBUG({
+          llvm::dbgs() << "Ignoring pattern '" << list.front()->getRootKind()
+                       << "' because it is impossible to match or cannot lead "
+                          "to legal IR (by cost model)\n";
+        });
         list.clear();
+      }
       return;
     }
 
@@ -214,8 +251,14 @@ void PatternApplicator::applyCostModel(CostModel model) {
     // Sort patterns with highest benefit first, and remove those that are
     // impossible to match.
     std::stable_sort(list.begin(), list.end(), cmp);
-    while (!list.empty() && benefits[list.back()].isImpossibleToMatch())
+    while (!list.empty() && benefits[list.back()].isImpossibleToMatch()) {
+      LLVM_DEBUG({
+        llvm::dbgs() << "Ignoring pattern '" << list.back()->getRootKind()
+                     << "' because it is impossible to match or cannot lead to "
+                        "legal IR (by cost model)\n";
+      });
       list.pop_back();
+    }
   };
   for (auto &it : patterns)
     processPatternList(it.second);

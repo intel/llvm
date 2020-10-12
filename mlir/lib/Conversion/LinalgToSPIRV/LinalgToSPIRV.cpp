@@ -71,8 +71,7 @@ SingleWorkgroupReduction::matchAsPerformingReduction(
     return llvm::None;
 
   // Make sure this is reduction with one input and one output.
-  if (genericOp.args_in().getZExtValue() != 1 ||
-      genericOp.args_out().getZExtValue() != 1)
+  if (genericOp.getNumInputs() != 1 || genericOp.getNumOutputs() != 1)
     return llvm::None;
 
   auto originalInputType = op->getOperand(0).getType().cast<MemRefType>();
@@ -92,7 +91,7 @@ SingleWorkgroupReduction::matchAsPerformingReduction(
   if (genericOp.indexing_maps().getValue().size() != 2)
     return llvm::None;
 
-  // TODO(nicolasvasilache): create utility functions for these checks in Linalg
+  // TODO: create utility functions for these checks in Linalg
   // and use them.
   auto inputMap = genericOp.indexing_maps().getValue()[0].cast<AffineMapAttr>();
   auto outputMap =
@@ -132,7 +131,7 @@ LogicalResult SingleWorkgroupReduction::matchAndRewrite(
                    [](const APInt &size) { return !size.isOneValue(); }))
     return failure();
 
-  // TODO(antiagainst): Query the target environment to make sure the current
+  // TODO: Query the target environment to make sure the current
   // workload fits in a local workgroup.
 
   Value convertedInput = operands[0], convertedOutput = operands[1];
@@ -141,7 +140,7 @@ LogicalResult SingleWorkgroupReduction::matchAndRewrite(
   // Get the invocation ID.
   Value x = getLocalInvocationDimSize(genericOp, /*dim=*/0, loc, &rewriter);
 
-  // TODO(antiagainst): Load to Workgroup storage class first.
+  // TODO: Load to Workgroup storage class first.
 
   // Get the input element accessed by this invocation.
   Value inputElementPtr = spirv::getElementPtr(

@@ -1700,9 +1700,12 @@ are listed below.
 
 **-fbasic-block-sections=[labels, all, list=<arg>, none]**
 
-  Controls whether Clang emits a label for each basic block.  Further, with
-  values "all" and "list=arg", each basic block or a subset of basic blocks
-  can be placed in its own unique section.
+  Controls how Clang emits text sections for basic blocks. With values ``all``
+  and ``list=<arg>``, each basic block or a subset of basic blocks can be placed
+  in its own unique section. With the "labels" value, normal text sections are
+  emitted, but a ``.bb_addr_map`` section is emitted which includes address
+  offsets for each basic block in the program, relative to the parent function
+  address.
 
   With the ``list=<arg>`` option, a file containing the subset of basic blocks
   that need to placed in unique sections can be specified.  The format of the
@@ -2169,6 +2172,17 @@ programs using the same instrumentation method as ``-fprofile-generate``.
   profile file, it reads from that file. If ``pathname`` is a directory name,
   it reads from ``pathname/default.profdata``.
 
+.. option:: -fprofile-update[=<method>]
+
+  Unless ``-fsanitize=thread`` is specified, the default is ``single``, which
+  uses non-atomic increments. The counters can be inaccurate under thread
+  contention. ``atomic`` uses atomic increments which is accurate but has
+  overhead. ``prefer-atomic`` will be transformed to ``atomic`` when supported
+  by the target, or ``single`` otherwise.
+
+  This option currently works with ``-fprofile-arcs`` and ``-fprofile-instr-generate``,
+  but not with ``-fprofile-generate``.
+
 Disabling Instrumentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -2351,6 +2365,12 @@ below. If multiple flags are present, the last one is used.
 .. option:: -g
 
   Generate complete debug info.
+
+.. option:: -feliminate-unused-debug-types
+
+  By default, Clang does not emit type information for types that are defined
+  but not used in a program. To retain the debug info for these unused types,
+  the negation **-fno-eliminate-unused-debug-types** can be used.
 
 Controlling Macro Debug Info Generation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -3132,7 +3152,7 @@ Global objects must be constructed before the first kernel using the global obje
 is executed and destroyed just after the last kernel using the program objects is
 executed. In OpenCL v2.0 drivers there is no specific API for invoking global
 constructors. However, an easy workaround would be to enqueue a constructor
-initialization kernel that has a name ``@_GLOBAL__sub_I_<compiled file name>``.
+initialization kernel that has a name ``_GLOBAL__sub_I_<compiled file name>``.
 This kernel is only present if there are any global objects to be initialized in
 the compiled binary. One way to check this is by passing ``CL_PROGRAM_KERNEL_NAMES``
 to ``clGetProgramInfo`` (OpenCL v2.0 s5.8.7).
@@ -3148,7 +3168,7 @@ before running any kernels in which the objects are used.
      clang -cl-std=clc++ test.cl
 
 If there are any global objects to be initialized, the final binary will contain
-the ``@_GLOBAL__sub_I_test.cl`` kernel to be enqueued.
+the ``_GLOBAL__sub_I_test.cl`` kernel to be enqueued.
 
 Global destructors can not be invoked in OpenCL v2.0 drivers. However, all memory used
 for program scope objects is released on ``clReleaseProgram``.
@@ -3220,11 +3240,6 @@ backend.
 
 Operating System Features and Limitations
 -----------------------------------------
-
-Darwin (macOS)
-^^^^^^^^^^^^^^
-
-Thread Sanitizer is not supported.
 
 Windows
 ^^^^^^^

@@ -16,10 +16,58 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/StorageUniquerSupport.h"
 #include "llvm/ADT/PointerIntPair.h"
+#include "llvm/ADT/Twine.h"
 
 namespace mlir {
 class MLIRContext;
 class Type;
+
+//===----------------------------------------------------------------------===//
+// AbstractAttribute
+//===----------------------------------------------------------------------===//
+
+/// This class contains all of the static information common to all instances of
+/// a registered Attribute.
+class AbstractAttribute {
+public:
+  /// Look up the specified abstract attribute in the MLIRContext and return a
+  /// reference to it.
+  static const AbstractAttribute &lookup(TypeID typeID, MLIRContext *context);
+
+  /// This method is used by Dialect objects when they register the list of
+  /// attributes they contain.
+  template <typename T> static AbstractAttribute get(Dialect &dialect) {
+    return AbstractAttribute(dialect, T::getInterfaceMap(), T::getTypeID());
+  }
+
+  /// Return the dialect this attribute was registered to.
+  Dialect &getDialect() const { return const_cast<Dialect &>(dialect); }
+
+  /// Returns an instance of the concept object for the given interface if it
+  /// was registered to this attribute, null otherwise. This should not be used
+  /// directly.
+  template <typename T> typename T::Concept *getInterface() const {
+    return interfaceMap.lookup<T>();
+  }
+
+  /// Return the unique identifier representing the concrete attribute class.
+  TypeID getTypeID() const { return typeID; }
+
+private:
+  AbstractAttribute(Dialect &dialect, detail::InterfaceMap &&interfaceMap,
+                    TypeID typeID)
+      : dialect(dialect), interfaceMap(std::move(interfaceMap)),
+        typeID(typeID) {}
+
+  /// This is the dialect that this attribute was registered to.
+  Dialect &dialect;
+
+  /// This is a collection of the interfaces registered to this attribute.
+  detail::InterfaceMap interfaceMap;
+
+  /// The unique identifier of the derived Attribute class.
+  TypeID typeID;
+};
 
 //===----------------------------------------------------------------------===//
 // AttributeStorage
@@ -39,10 +87,10 @@ public:
   /// Get the type of this attribute.
   Type getType() const;
 
-  /// Get the dialect of this attribute.
-  Dialect &getDialect() const {
-    assert(dialect && "Malformed attribute storage object.");
-    return const_cast<Dialect &>(*dialect);
+  /// Return the abstract descriptor for this attribute.
+  const AbstractAttribute &getAbstractAttribute() const {
+    assert(abstractAttribute && "Malformed attribute storage object.");
+    return *abstractAttribute;
   }
 
 protected:
@@ -56,13 +104,15 @@ protected:
   /// Set the type of this attribute.
   void setType(Type type);
 
-  // Set the dialect for this storage instance. This is used by the
+  // Set the abstract attribute for this storage instance. This is used by the
   // AttributeUniquer when initializing a newly constructed storage object.
-  void initializeDialect(Dialect &newDialect) { dialect = &newDialect; }
+  void initialize(const AbstractAttribute &abstractAttr) {
+    abstractAttribute = &abstractAttr;
+  }
 
 private:
-  /// The dialect for this attribute.
-  Dialect *dialect;
+  /// The abstract descriptor for this attribute.
+  const AbstractAttribute *abstractAttribute;
 
   /// The opaque type of the attribute value.
   const void *type;
@@ -88,14 +138,67 @@ namespace detail {
 // MLIRContext. This class manages all creation and uniquing of attributes.
 class AttributeUniquer {
 public:
-  /// Get an uniqued instance of attribute T.
+  /// Get an uniqued instance of a parametric attribute T.
   template <typename T, typename... Args>
-  static T get(MLIRContext *ctx, unsigned kind, Args &&... args) {
+  static typename std::enable_if_t<
+      !std::is_same<typename T::ImplType, AttributeStorage>::value, T>
+  get(MLIRContext *ctx, Args &&...args) {
+#ifndef NDEBUG
+    if (!ctx->getAttributeUniquer().isParametricStorageInitialized(
+            T::getTypeID()))
+      llvm::report_fatal_error(llvm::Twine("can't create Attribute '") +
+                               llvm::getTypeName<T>() +
+                               "' because storage uniquer isn't initialized: "
+                               "the dialect was likely not loaded.");
+#endif
     return ctx->getAttributeUniquer().get<typename T::ImplType>(
         [ctx](AttributeStorage *storage) {
           initializeAttributeStorage(storage, ctx, T::getTypeID());
         },
-        kind, std::forward<Args>(args)...);
+        T::getTypeID(), std::forward<Args>(args)...);
+  }
+  /// Get an uniqued instance of a singleton attribute T.
+  template <typename T>
+  static typename std::enable_if_t<
+      std::is_same<typename T::ImplType, AttributeStorage>::value, T>
+  get(MLIRContext *ctx) {
+#ifndef NDEBUG
+    if (!ctx->getAttributeUniquer().isSingletonStorageInitialized(
+            T::getTypeID()))
+      llvm::report_fatal_error(llvm::Twine("can't create Attribute '") +
+                               llvm::getTypeName<T>() +
+                               "' because storage uniquer isn't initialized: "
+                               "the dialect was likely not loaded.");
+#endif
+    return ctx->getAttributeUniquer().get<typename T::ImplType>(T::getTypeID());
+  }
+
+  template <typename T, typename... Args>
+  static LogicalResult mutate(MLIRContext *ctx, typename T::ImplType *impl,
+                              Args &&...args) {
+    assert(impl && "cannot mutate null attribute");
+    return ctx->getAttributeUniquer().mutate(T::getTypeID(), impl,
+                                             std::forward<Args>(args)...);
+  }
+
+  /// Register a parametric attribute instance T with the uniquer.
+  template <typename T>
+  static typename std::enable_if_t<
+      !std::is_same<typename T::ImplType, AttributeStorage>::value>
+  registerAttribute(MLIRContext *ctx) {
+    ctx->getAttributeUniquer()
+        .registerParametricStorageType<typename T::ImplType>(T::getTypeID());
+  }
+  /// Register a singleton attribute instance T with the uniquer.
+  template <typename T>
+  static typename std::enable_if_t<
+      std::is_same<typename T::ImplType, AttributeStorage>::value>
+  registerAttribute(MLIRContext *ctx) {
+    ctx->getAttributeUniquer()
+        .registerSingletonStorageType<typename T::ImplType>(
+            T::getTypeID(), [ctx](AttributeStorage *storage) {
+              initializeAttributeStorage(storage, ctx, T::getTypeID());
+            });
   }
 
 private:

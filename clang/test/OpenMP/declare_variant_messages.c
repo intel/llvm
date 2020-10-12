@@ -137,7 +137,33 @@ void marked_variant(void);
 #pragma omp declare variant(marked_variant) match(xxx={}) // expected-warning {{'xxx' is not a valid context set in a `declare variant`; set ignored}} expected-warning {{variant function in '#pragma omp declare variant' is itself marked as '#pragma omp declare variant'}} expected-note {{context set options are: 'construct' 'device' 'implementation' 'user'}} expected-note {{the ignored set spans until here}}
 void marked(void);
 
+#pragma omp declare variant(foo) match(device = {isa("foo")})
+int unknown_isa_trait(void);
+#pragma omp declare variant(foo) match(device = {isa(foo)})
+int unknown_isa_trait2(void);
+#pragma omp declare variant(foo) match(device = {kind(fpga), isa(bar)})
+int ignored_isa_trait(void);
+
+void caller() {
+  unknown_isa_trait();  // expected-warning {{isa trait 'foo' is not known to the current target; verify the spelling or consider restricting the context selector with the 'arch' selector further}}
+  unknown_isa_trait2(); // expected-warning {{isa trait 'foo' is not known to the current target; verify the spelling or consider restricting the context selector with the 'arch' selector further}}
+  ignored_isa_trait();
+}
 
 #pragma omp declare variant // expected-error {{function declaration is expected after 'declare variant' directive}}
 
 #pragma omp declare variant // expected-error {{function declaration is expected after 'declare variant' directive}}
+
+// FIXME: If the scores are equivalent we should detect that and allow it.
+#pragma omp begin declare variant match(implementation = {vendor(score(2) \
+                                                                 : llvm)})
+#pragma omp declare variant(foo) match(implementation = {vendor(score(2) \
+                                                                : llvm)}) // expected-error@-1 {{nested OpenMP context selector contains duplicated trait 'llvm' in selector 'vendor' and set 'implementation' with different score}}
+int conflicting_nested_score(void);
+#pragma omp end declare variant
+
+// FIXME: We should build the conjuction of different conditions, see also the score fixme above.
+#pragma omp begin declare variant match(user = {condition(1)})
+#pragma omp declare variant(foo) match(user = {condition(1)}) // expected-error {{nested user conditions in OpenMP context selector not supported (yet)}}
+int conflicting_nested_condition(void);
+#pragma omp end declare variant

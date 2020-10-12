@@ -9,7 +9,6 @@ add_sycl_unittest(PiTests OBJECT
 )
 
 add_dependencies(PiTests sycl)
-target_link_libraries(PiTests PRIVATE sycl LLVMTestingSupport OpenCL-Headers)
 target_include_directories(PiTests PRIVATE SYSTEM ${sycl_inc_dir})
 
 if(SYCL_BUILD_PI_CUDA)

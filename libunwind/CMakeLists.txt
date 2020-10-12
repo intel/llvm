@@ -2,7 +2,7 @@
 # Setup Project
 #===============================================================================
 
-cmake_minimum_required(VERSION 3.4.3)
+cmake_minimum_required(VERSION 3.13.4)
 
 if (POLICY CMP0042)
   cmake_policy(SET CMP0042 NEW) # Set MACOSX_RPATH=YES by default
@@ -73,8 +73,6 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR LIBUNWIND_STANDALONE_B
   endif()
 
   if (EXISTS ${LLVM_CMAKE_PATH})
-    # Enable warnings, otherwise -w gets added to the cflags by HandleLLVMOptions.
-    set(LLVM_ENABLE_WARNINGS ON)
     list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_PATH}")
     include("${LLVM_CMAKE_PATH}/AddLLVM.cmake")
     include("${LLVM_CMAKE_PATH}/HandleLLVMOptions.cmake")
@@ -83,7 +81,7 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR LIBUNWIND_STANDALONE_B
   endif()
 
   set(PACKAGE_NAME libunwind)
-  set(PACKAGE_VERSION 11.0.0git)
+  set(PACKAGE_VERSION 12.0.0git)
   set(PACKAGE_STRING "${PACKAGE_NAME} ${PACKAGE_VERSION}")
   set(PACKAGE_BUGREPORT "llvm-bugs@lists.llvm.org")
 
@@ -137,6 +135,8 @@ option(LIBUNWIND_ENABLE_THREADS "Build libunwind with threading support." ON)
 option(LIBUNWIND_WEAK_PTHREAD_LIB "Use weak references to refer to pthread functions." OFF)
 option(LIBUNWIND_USE_COMPILER_RT "Use compiler-rt instead of libgcc" OFF)
 option(LIBUNWIND_INCLUDE_DOCS "Build the libunwind documentation." ${LLVM_INCLUDE_DOCS})
+option(LIBUNWIND_IS_BAREMETAL "Build libunwind for baremetal targets." OFF)
+option(LIBUNWIND_USE_FRAME_HEADER_CACHE "Cache frame headers for unwinding. Requires locking dl_iterate_phdr." OFF)
 
 set(LIBUNWIND_LIBDIR_SUFFIX "${LLVM_LIBDIR_SUFFIX}" CACHE STRING
     "Define suffix of library directory name (32/64)")
@@ -182,12 +182,8 @@ set(CMAKE_MODULE_PATH
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
     ${CMAKE_MODULE_PATH})
 
-set(LIBUNWIND_COMPILER    ${CMAKE_CXX_COMPILER})
 set(LIBUNWIND_SOURCE_DIR  ${CMAKE_CURRENT_SOURCE_DIR})
 set(LIBUNWIND_BINARY_DIR  ${CMAKE_CURRENT_BINARY_DIR})
-
-string(REGEX MATCH "[0-9]+\\.[0-9]+(\\.[0-9]+)?" CLANG_VERSION
-       ${PACKAGE_VERSION})
 
 if(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR AND NOT APPLE)
   set(LIBUNWIND_LIBRARY_DIR ${LLVM_LIBRARY_OUTPUT_INTDIR}/${LLVM_DEFAULT_TARGET_TRIPLE}/c++)
@@ -273,6 +269,8 @@ add_compile_flags_if_supported(-Wunused-parameter)
 add_compile_flags_if_supported(-Wunused-variable)
 add_compile_flags_if_supported(-Wwrite-strings)
 add_compile_flags_if_supported(-Wundef)
+
+add_compile_flags_if_supported(-Wno-suggest-override)
 
 if (LIBUNWIND_ENABLE_WERROR)
   add_compile_flags_if_supported(-Werror)
@@ -363,6 +361,14 @@ if (LIBUNWIND_ENABLE_ARM_WMMX)
   # provide the option to explicitly enable support for WMMX registers in the
   # unwinder.
   add_compile_flags(-D__ARM_WMMX)
+endif()
+
+if(LIBUNWIND_IS_BAREMETAL)
+  add_compile_definitions(_LIBUNWIND_IS_BAREMETAL)
+endif()
+
+if(LIBUNWIND_USE_FRAME_HEADER_CACHE)
+  add_compile_definitions(_LIBUNWIND_USE_FRAME_HEADER_CACHE)
 endif()
 
 # This is the _ONLY_ place where add_definitions is called.

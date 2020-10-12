@@ -899,9 +899,12 @@ public:
     load(Offset, ConstPtr);
   }
   template <int Dimensions, access::mode Mode,
-            access::placeholder IsPlaceholder, access::target Target>
-  void load(size_t Offset,
-            accessor<DataT, Dimensions, Mode, Target, IsPlaceholder> Acc) {
+            access::placeholder IsPlaceholder, access::target Target,
+            typename PropertyListT>
+  void
+  load(size_t Offset,
+       accessor<DataT, Dimensions, Mode, Target, IsPlaceholder, PropertyListT>
+           Acc) {
     multi_ptr<const DataT, detail::TargetToAS<Target>::AS> MultiPtr(Acc);
     load(Offset, MultiPtr);
   }
@@ -912,9 +915,12 @@ public:
     }
   }
   template <int Dimensions, access::mode Mode,
-            access::placeholder IsPlaceholder, access::target Target>
-  void store(size_t Offset,
-             accessor<DataT, Dimensions, Mode, Target, IsPlaceholder> Acc) {
+            access::placeholder IsPlaceholder, access::target Target,
+            typename PropertyListT>
+  void
+  store(size_t Offset,
+        accessor<DataT, Dimensions, Mode, Target, IsPlaceholder, PropertyListT>
+            Acc) {
     multi_ptr<DataT, detail::TargetToAS<Target>::AS> MultiPtr(Acc);
     store(Offset, MultiPtr);
   }
@@ -2117,6 +2123,14 @@ using select_apply_cl_t =
         GET_CL_TYPE(int, num), GET_CL_TYPE(long, num)>;                        \
   };
 
+#define DECLARE_BOOL_CONVERTER(num)                                            \
+  template <> class BaseCLTypeConverter<bool, num> {                           \
+  public:                                                                      \
+    using DataType = detail::select_apply_cl_t<                                \
+        bool, GET_CL_TYPE(char, num), GET_CL_TYPE(short, num),                 \
+        GET_CL_TYPE(int, num), GET_CL_TYPE(long, num)>;                        \
+  };
+
 #define DECLARE_HALF_CONVERTER(base, num)                                      \
   template <> class BaseCLTypeConverter<base, num> {                           \
   public:                                                                      \
@@ -2127,6 +2141,12 @@ using select_apply_cl_t =
   template <> class BaseCLTypeConverter<schar, 1> {                            \
   public:                                                                      \
     using DataType = schar;                                                    \
+  };
+
+#define DECLARE_SCALAR_BOOL_CONVERTER                                          \
+  template <> class BaseCLTypeConverter<bool, 1> {                             \
+  public:                                                                      \
+    using DataType = bool;                                                     \
   };
 
 #define DECLARE_SCALAR_CONVERTER(base)                                         \
@@ -2212,8 +2232,19 @@ using select_apply_cl_t =
   DECLARE_SCALAR_SCHAR_CONVERTER                                               \
   } // namespace detail
 
+#define DECLARE_BOOL_VECTOR_CONVERTERS                                         \
+  namespace detail {                                                           \
+  DECLARE_BOOL_CONVERTER(2)                                                    \
+  DECLARE_BOOL_CONVERTER(3)                                                    \
+  DECLARE_BOOL_CONVERTER(4)                                                    \
+  DECLARE_BOOL_CONVERTER(8)                                                    \
+  DECLARE_BOOL_CONVERTER(16)                                                   \
+  DECLARE_SCALAR_BOOL_CONVERTER                                                \
+  } // namespace detail
+
 DECLARE_VECTOR_CONVERTERS(char)
 DECLARE_SCHAR_VECTOR_CONVERTERS
+DECLARE_BOOL_VECTOR_CONVERTERS
 DECLARE_UNSIGNED_INTEGRAL_VECTOR_CONVERTERS(uchar)
 DECLARE_SIGNED_INTEGRAL_VECTOR_CONVERTERS(short)
 DECLARE_UNSIGNED_INTEGRAL_VECTOR_CONVERTERS(ushort)
@@ -2236,6 +2267,9 @@ DECLARE_FLOAT_VECTOR_CONVERTERS(double)
 #undef DECLARE_SCHAR_VECTOR_CONVERTERS
 #undef DECLARE_SCHAR_CONVERTER
 #undef DECLARE_SCALAR_SCHAR_CONVERTER
+#undef DECLARE_BOOL_VECTOR_CONVERTERS
+#undef DECLARE_BOOL_CONVERTER
+#undef DECLARE_SCALAR_BOOL_CONVERTER
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

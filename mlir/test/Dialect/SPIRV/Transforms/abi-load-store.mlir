@@ -2,9 +2,7 @@
 
 module attributes {
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>,
-    {max_compute_workgroup_invocations = 128 : i32,
-     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>, {}>
 } {
 
 // CHECK-LABEL: spv.module
@@ -57,9 +55,12 @@ spv.module Logical GLSL450 {
     // CHECK: [[CONST3:%.*]] = spv.constant 0 : i32
     // CHECK: [[ARG3PTR:%.*]] = spv.AccessChain [[ADDRESSARG3]]{{\[}}[[CONST3]]
     // CHECK: [[ARG3:%.*]] = spv.Load "StorageBuffer" [[ARG3PTR]]
-    // CHECK: [[ARG2:%.*]] = spv._address_of [[VAR2]]
-    // CHECK: [[ARG1:%.*]] = spv._address_of [[VAR1]]
-    // CHECK: [[ARG0:%.*]] = spv._address_of [[VAR0]]
+    // CHECK: [[ADDRESSARG2:%.*]] = spv._address_of [[VAR2]]
+    // CHECK: [[ARG2:%.*]] = spv.Bitcast [[ADDRESSARG2]]
+    // CHECK: [[ADDRESSARG1:%.*]] = spv._address_of [[VAR1]]
+    // CHECK: [[ARG1:%.*]] = spv.Bitcast [[ADDRESSARG1]]
+    // CHECK: [[ADDRESSARG0:%.*]] = spv._address_of [[VAR0]]
+    // CHECK: [[ARG0:%.*]] = spv.Bitcast [[ADDRESSARG0]]
     %0 = spv._address_of @__builtin_var_WorkgroupId__ : !spv.ptr<vector<3xi32>, Input>
     %1 = spv.Load "Input" %0 : vector<3xi32>
     %2 = spv.CompositeExtract %1[0 : i32] : vector<3xi32>

@@ -32,6 +32,10 @@ public:
     f(infoSection);
   }
 
+  InputSection *getInfoSection() const {
+    return cast<InputSection>(infoSection.sec);
+  }
+
   const llvm::DWARFSection &getLoclistsSection() const override {
     return loclistsSection;
   }
@@ -56,11 +60,11 @@ public:
     return addrSection;
   }
 
-  const llvm::DWARFSection &getGnuPubnamesSection() const override {
+  const LLDDWARFSection &getGnuPubnamesSection() const override {
     return gnuPubnamesSection;
   }
 
-  const llvm::DWARFSection &getGnuPubtypesSection() const override {
+  const LLDDWARFSection &getGnuPubtypesSection() const override {
     return gnuPubtypesSection;
   }
 

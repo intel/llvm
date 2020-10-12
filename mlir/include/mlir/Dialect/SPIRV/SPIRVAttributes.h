@@ -17,13 +17,15 @@
 #include "mlir/IR/Attributes.h"
 #include "mlir/Support/LLVM.h"
 
-namespace mlir {
 // Pull in SPIR-V attribute definitions for target and ABI.
 #include "mlir/Dialect/SPIRV/TargetAndABI.h.inc"
 
+namespace mlir {
 namespace spirv {
 enum class Capability : uint32_t;
+enum class DeviceType;
 enum class Extension;
+enum class Vendor;
 enum class Version : uint32_t;
 
 namespace detail {
@@ -31,15 +33,6 @@ struct InterfaceVarABIAttributeStorage;
 struct TargetEnvAttributeStorage;
 struct VerCapExtAttributeStorage;
 } // namespace detail
-
-/// SPIR-V dialect-specific attribute kinds.
-namespace AttrKind {
-enum Kind {
-  InterfaceVarABI = Attribute::FIRST_SPIRV_ATTR, /// Interface var ABI
-  TargetEnv,                                     /// Target environment
-  VerCapExt, /// (version, extension, capability) triple
-};
-} // namespace AttrKind
 
 /// An attribute that specifies the information regarding the interface
 /// variable: descriptor set, binding, storage class.
@@ -50,7 +43,7 @@ public:
   using Base::Base;
 
   /// Gets a InterfaceVarABIAttr.
-  static InterfaceVarABIAttr get(uint32_t descirptorSet, uint32_t binding,
+  static InterfaceVarABIAttr get(uint32_t descriptorSet, uint32_t binding,
                                  Optional<StorageClass> storageClass,
                                  MLIRContext *context);
   static InterfaceVarABIAttr get(IntegerAttr descriptorSet, IntegerAttr binding,
@@ -67,10 +60,6 @@ public:
 
   /// Returns `spirv::StorageClass`.
   Optional<StorageClass> getStorageClass();
-
-  static bool kindof(unsigned kind) {
-    return kind == AttrKind::InterfaceVarABI;
-  }
 
   static LogicalResult verifyConstructionInvariants(Location loc,
                                                     IntegerAttr descriptorSet,
@@ -123,8 +112,6 @@ public:
   /// Returns the capabilities as an integer array attribute.
   ArrayAttr getCapabilitiesAttr();
 
-  static bool kindof(unsigned kind) { return kind == AttrKind::VerCapExt; }
-
   static LogicalResult verifyConstructionInvariants(Location loc,
                                                     IntegerAttr version,
                                                     ArrayAttr capabilities,
@@ -138,10 +125,15 @@ class TargetEnvAttr
     : public Attribute::AttrBase<TargetEnvAttr, Attribute,
                                  detail::TargetEnvAttributeStorage> {
 public:
+  /// ID for unknown devices.
+  static constexpr uint32_t kUnknownDeviceID = 0x7FFFFFFF;
+
   using Base::Base;
 
   /// Gets a TargetEnvAttr instance.
-  static TargetEnvAttr get(VerCapExtAttr triple, DictionaryAttr limits);
+  static TargetEnvAttr get(VerCapExtAttr triple, Vendor vendorID,
+                           DeviceType deviceType, uint32_t deviceId,
+                           DictionaryAttr limits);
 
   /// Returns the attribute kind's name (without the 'spv.' prefix).
   static StringRef getKindName();
@@ -162,14 +154,22 @@ public:
   /// Returns the target capabilities as an integer array attribute.
   ArrayAttr getCapabilitiesAttr();
 
+  /// Returns the vendor ID.
+  Vendor getVendorID();
+
+  /// Returns the device type.
+  DeviceType getDeviceType();
+
+  /// Returns the device ID.
+  uint32_t getDeviceID();
+
   /// Returns the target resource limits.
   ResourceLimitsAttr getResourceLimits();
 
-  static bool kindof(unsigned kind) { return kind == AttrKind::TargetEnv; }
-
-  static LogicalResult verifyConstructionInvariants(Location loc,
-                                                    VerCapExtAttr triple,
-                                                    DictionaryAttr limits);
+  static LogicalResult
+  verifyConstructionInvariants(Location loc, VerCapExtAttr triple,
+                               Vendor vendorID, DeviceType deviceType,
+                               uint32_t deviceID, DictionaryAttr limits);
 };
 } // namespace spirv
 } // namespace mlir

@@ -1037,7 +1037,7 @@ static void AddAliasScopeMetadata(CallBase &CB, ValueToValueMapTy &VMap,
       SmallSetVector<const Argument *, 4> NAPtrArgs;
       for (const Value *V : PtrArgs) {
         SmallVector<const Value *, 4> Objects;
-        GetUnderlyingObjects(V, Objects, DL, /* LI = */ nullptr);
+        getUnderlyingObjects(V, Objects, /* LI = */ nullptr);
 
         for (const Value *O : Objects)
           ObjSet.insert(O);
@@ -1245,7 +1245,7 @@ static void AddAlignmentAssumptions(CallBase &CB, InlineFunctionInfo &IFI) {
   Function *CalledFunc = CB.getCalledFunction();
   for (Argument &Arg : CalledFunc->args()) {
     unsigned Align = Arg.getType()->isPointerTy() ? Arg.getParamAlignment() : 0;
-    if (Align && !Arg.hasPassPointeeByValueAttr() && !Arg.hasNUses(0)) {
+    if (Align && !Arg.hasPassPointeeByValueCopyAttr() && !Arg.hasNUses(0)) {
       if (!DTCalculated) {
         DT.recalculate(*CB.getCaller());
         DTCalculated = true;
@@ -1291,7 +1291,11 @@ static void UpdateCallGraphAfterInlining(CallBase &CB,
   }
 
   for (; I != E; ++I) {
-    const Value *OrigCall = I->first;
+    // Skip 'refererence' call records.
+    if (!I->first)
+      continue;
+
+    const Value *OrigCall = *I->first;
 
     ValueToValueMapTy::iterator VMI = VMap.find(OrigCall);
     // Only copy the edge if the call was inlined!
@@ -1860,13 +1864,7 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
           OpDefs.emplace_back("deopt", std::move(MergedDeoptArgs));
         }
 
-        Instruction *NewI = nullptr;
-        if (isa<CallInst>(ICS))
-          NewI = CallInst::Create(cast<CallInst>(ICS), OpDefs, ICS);
-        else if (isa<CallBrInst>(ICS))
-          NewI = CallBrInst::Create(cast<CallBrInst>(ICS), OpDefs, ICS);
-        else
-          NewI = InvokeInst::Create(cast<InvokeInst>(ICS), OpDefs, ICS);
+        Instruction *NewI = CallBase::Create(ICS, OpDefs, ICS);
 
         // Note: the RAUW does the appropriate fixup in VMap, so we need to do
         // this even if the call returns void.
@@ -2063,7 +2061,7 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
           dyn_cast<ConstantInt>(AI->getArraySize())) {
         auto &DL = Caller->getParent()->getDataLayout();
         Type *AllocaType = AI->getAllocatedType();
-        uint64_t AllocaTypeSize = DL.getTypeAllocSize(AllocaType);
+        TypeSize AllocaTypeSize = DL.getTypeAllocSize(AllocaType);
         uint64_t AllocaArraySize = AIArraySize->getLimitedValue();
 
         // Don't add markers for zero-sized allocas.
@@ -2072,9 +2070,10 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
 
         // Check that array size doesn't saturate uint64_t and doesn't
         // overflow when it's multiplied by type size.
-        if (AllocaArraySize != std::numeric_limits<uint64_t>::max() &&
+        if (!AllocaTypeSize.isScalable() &&
+            AllocaArraySize != std::numeric_limits<uint64_t>::max() &&
             std::numeric_limits<uint64_t>::max() / AllocaArraySize >=
-                AllocaTypeSize) {
+                AllocaTypeSize.getFixedSize()) {
           AllocaSize = ConstantInt::get(Type::getInt64Ty(AI->getContext()),
                                         AllocaArraySize * AllocaTypeSize);
         }
@@ -2162,13 +2161,7 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
         I->getOperandBundlesAsDefs(OpBundles);
         OpBundles.emplace_back("funclet", CallSiteEHPad);
 
-        Instruction *NewInst;
-        if (auto *CallI = dyn_cast<CallInst>(I))
-          NewInst = CallInst::Create(CallI, OpBundles, CallI);
-        else if (auto *CallBrI = dyn_cast<CallBrInst>(I))
-          NewInst = CallBrInst::Create(CallBrI, OpBundles, CallBrI);
-        else
-          NewInst = InvokeInst::Create(cast<InvokeInst>(I), OpBundles, I);
+        Instruction *NewInst = CallBase::Create(I, OpBundles, I);
         NewInst->takeName(I);
         I->replaceAllUsesWith(NewInst);
         I->eraseFromParent();

@@ -15,6 +15,7 @@
 #include "mlir/Dialect/SPIRV/SPIRVAttributes.h"
 #include "mlir/Dialect/SPIRV/SPIRVBinaryUtils.h"
 #include "mlir/Dialect/SPIRV/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/SPIRVModule.h"
 #include "mlir/Dialect/SPIRV/SPIRVOps.h"
 #include "mlir/Dialect/SPIRV/SPIRVTypes.h"
 #include "mlir/IR/Builders.h"
@@ -35,7 +36,10 @@ using namespace mlir;
 
 class SerializationTest : public ::testing::Test {
 protected:
-  SerializationTest() { createModuleOp(); }
+  SerializationTest() : context(/*loadAllDialects=*/false) {
+    context.getOrLoadDialect<mlir::spirv::SPIRVDialect>();
+    createModuleOp();
+  }
 
   void createModuleOp() {
     OpBuilder builder(&context);
@@ -56,7 +60,7 @@ protected:
   }
 
   Type getFloatStructType() {
-    OpBuilder opBuilder(module.body());
+    OpBuilder opBuilder(module->body());
     llvm::SmallVector<Type, 1> elementTypes{opBuilder.getF32Type()};
     llvm::SmallVector<spirv::StructType::OffsetInfo, 1> offsetInfo{0};
     auto structType = spirv::StructType::get(elementTypes, offsetInfo);
@@ -64,7 +68,7 @@ protected:
   }
 
   void addGlobalVar(Type type, llvm::StringRef name) {
-    OpBuilder opBuilder(module.body());
+    OpBuilder opBuilder(module->body());
     auto ptrType = spirv::PointerType::get(type, spirv::StorageClass::Uniform);
     opBuilder.create<spirv::GlobalVariableOp>(
         UnknownLoc::get(&context), TypeAttr::get(ptrType),
@@ -98,7 +102,7 @@ protected:
 
 protected:
   MLIRContext context;
-  spirv::ModuleOp module;
+  spirv::OwningSPIRVModuleRef module;
   SmallVector<uint32_t, 0> binary;
 };
 
@@ -109,7 +113,7 @@ protected:
 TEST_F(SerializationTest, BlockDecorationTest) {
   auto structType = getFloatStructType();
   addGlobalVar(structType, "var0");
-  ASSERT_TRUE(succeeded(spirv::serialize(module, binary)));
+  ASSERT_TRUE(succeeded(spirv::serialize(module.get(), binary)));
   auto hasBlockDecoration = [](spirv::Opcode opcode,
                                ArrayRef<uint32_t> operands) -> bool {
     if (opcode != spirv::Opcode::OpDecorate || operands.size() != 2)

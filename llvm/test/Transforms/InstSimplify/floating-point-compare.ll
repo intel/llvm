@@ -212,6 +212,17 @@ define i1 @orderedLessZero_fdiv(float %x) {
   ret i1 %uge
 }
 
+; If x == -0.0, maxnum can return -0.0, but that still compares equal to 0.0.
+
+define i1 @orderedLessZero_maxnum(float %x) {
+; CHECK-LABEL: @orderedLessZero_maxnum(
+; CHECK-NEXT:    ret i1 true
+;
+  %d = call float @llvm.maxnum.f32(float %x, float 0.0)
+  %uge = fcmp uge float %d, 0.0
+  ret i1 %uge
+}
+
 define i1 @orderedLessZeroExpExt(float) {
 ; CHECK-LABEL: @orderedLessZeroExpExt(
 ; CHECK-NEXT:    ret i1 true
@@ -1026,4 +1037,196 @@ define <2 x i1> @unorderedCompareWithNaNVector_undef_elt(<2 x double> %A) {
 ;
   %cmp = fcmp ult <2 x double> %A, <double undef, double 0xFFFFFFFFFFFFFFFF>
   ret <2 x i1> %cmp
+}
+
+define i1 @is_infinite(float %x) {
+; CHECK-LABEL: @is_infinite(
+; CHECK-NEXT:    ret i1 false
+;
+  %xabs = call ninf float @llvm.fabs.f32(float %x)
+  %r = fcmp oeq float %xabs, 0x7FF0000000000000
+  ret i1 %r
+}
+
+define <2 x i1> @is_infinite_neg(<2 x float> %x) {
+; CHECK-LABEL: @is_infinite_neg(
+; CHECK-NEXT:    ret <2 x i1> zeroinitializer
+;
+  %x42 = fadd ninf <2 x float> %x, <float 42.0, float 42.0>
+  %r = fcmp oeq <2 x float> %x42, <float 0xFFF0000000000000, float 0xFFF0000000000000>
+  ret <2 x i1> %r
+}
+
+; Negative test - but this could be reduced to 'uno' outside of instsimplify.
+
+define i1 @is_infinite_or_nan(float %x) {
+; CHECK-LABEL: @is_infinite_or_nan(
+; CHECK-NEXT:    [[X42:%.*]] = fadd ninf float [[X:%.*]], 4.200000e+01
+; CHECK-NEXT:    [[R:%.*]] = fcmp ueq float [[X42]], 0xFFF0000000000000
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %x42 = fadd ninf float %x, 42.0
+  %r = fcmp ueq float %x42, 0xFFF0000000000000
+  ret i1 %r
+}
+
+define i1 @is_infinite_or_nan2(float %x) {
+; CHECK-LABEL: @is_infinite_or_nan2(
+; CHECK-NEXT:    ret i1 false
+;
+  %xabs = call nnan ninf float @llvm.fabs.f32(float %x)
+  %r = fcmp ueq float %xabs, 0x7FF0000000000000
+  ret i1 %r
+}
+
+define <2 x i1> @is_infinite_neg_or_nan(<2 x float> %x) {
+; CHECK-LABEL: @is_infinite_neg_or_nan(
+; CHECK-NEXT:    ret <2 x i1> zeroinitializer
+;
+  %x42 = fadd nnan ninf <2 x float> %x, <float 42.0, float 42.0>
+  %r = fcmp ueq <2 x float> %x42, <float 0xFFF0000000000000, float 0xFFF0000000000000>
+  ret <2 x i1> %r
+}
+
+define i1 @is_finite_or_nan(i1 %c, double %x) {
+; CHECK-LABEL: @is_finite_or_nan(
+; CHECK-NEXT:    ret i1 true
+;
+  %xx = fmul ninf double %x, %x
+  %s = select i1 %c, double 42.0, double %xx
+  %r = fcmp une double %s, 0x7FF0000000000000
+  ret i1 %r
+}
+
+define <2 x i1> @is_finite_or_nan_commute(<2 x i8> %x) {
+; CHECK-LABEL: @is_finite_or_nan_commute(
+; CHECK-NEXT:    ret <2 x i1> <i1 true, i1 true>
+;
+  %cast = uitofp <2 x i8> %x to <2 x float>
+  %r = fcmp une <2 x float> <float 0x7FF0000000000000, float 0x7FF0000000000000>, %cast
+  ret <2 x i1> %r
+}
+
+; Negative test - but this could be reduced to 'ord' outside of instsimplify.
+
+define i1 @is_finite_and_ordered(double %x) {
+; CHECK-LABEL: @is_finite_and_ordered(
+; CHECK-NEXT:    [[XX:%.*]] = fmul ninf double [[X:%.*]], [[X]]
+; CHECK-NEXT:    [[R:%.*]] = fcmp one double [[XX]], 0x7FF0000000000000
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %xx = fmul ninf double %x, %x
+  %r = fcmp one double %xx, 0x7FF0000000000000
+  ret i1 %r
+}
+
+define i1 @is_finite(i1 %c, double %x) {
+; CHECK-LABEL: @is_finite(
+; CHECK-NEXT:    ret i1 true
+;
+  %xx = fmul nnan ninf double %x, %x
+  %s = select i1 %c, double 42.0, double %xx
+  %r = fcmp one double %s, 0x7FF0000000000000
+  ret i1 %r
+}
+
+define <2 x i1> @is_finite_commute(<2 x i8> %x) {
+; CHECK-LABEL: @is_finite_commute(
+; CHECK-NEXT:    ret <2 x i1> <i1 true, i1 true>
+;
+  %cast = uitofp <2 x i8> %x to <2 x float>
+  %r = fcmp one <2 x float> <float 0x7FF0000000000000, float 0x7FF0000000000000>, %cast
+  ret <2 x i1> %r
+}
+
+; largest unsigned i15 = 2^15 - 1 = 32767
+; largest half (max exponent = 15 -> 2^15 * (1 + 1023/1024) = 65504
+
+define i1 @isKnownNeverInfinity_uitofp(i15 %x) {
+; CHECK-LABEL: @isKnownNeverInfinity_uitofp(
+; CHECK-NEXT:    ret i1 true
+;
+  %f = uitofp i15 %x to half
+  %r = fcmp une half %f, 0xH7c00
+  ret i1 %r
+}
+
+; negative test
+
+define i1 @isNotKnownNeverInfinity_uitofp(i16 %x) {
+; CHECK-LABEL: @isNotKnownNeverInfinity_uitofp(
+; CHECK-NEXT:    [[F:%.*]] = uitofp i16 [[X:%.*]] to half
+; CHECK-NEXT:    [[R:%.*]] = fcmp une half [[F]], 0xH7C00
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %f = uitofp i16 %x to half
+  %r = fcmp une half %f, 0xH7c00
+  ret i1 %r
+}
+
+define i1 @isKnownNeverNegativeInfinity_uitofp(i15 %x) {
+; CHECK-LABEL: @isKnownNeverNegativeInfinity_uitofp(
+; CHECK-NEXT:    ret i1 false
+;
+  %f = uitofp i15 %x to half
+  %r = fcmp oeq half %f, 0xHfc00
+  ret i1 %r
+}
+
+; uitofp can't be negative, so this still works.
+
+define i1 @isNotKnownNeverNegativeInfinity_uitofp(i16 %x) {
+; CHECK-LABEL: @isNotKnownNeverNegativeInfinity_uitofp(
+; CHECK-NEXT:    ret i1 false
+;
+  %f = uitofp i16 %x to half
+  %r = fcmp oeq half %f, 0xHfc00
+  ret i1 %r
+}
+
+; largest magnitude signed i16 = 2^15 - 1 = 32767 --> -32768
+; largest half (max exponent = 15 -> 2^15 * (1 + 1023/1024) = 65504
+
+define i1 @isKnownNeverInfinity_sitofp(i16 %x) {
+; CHECK-LABEL: @isKnownNeverInfinity_sitofp(
+; CHECK-NEXT:    ret i1 true
+;
+  %f = sitofp i16 %x to half
+  %r = fcmp une half %f, 0xH7c00
+  ret i1 %r
+}
+
+; negative test
+
+define i1 @isNotKnownNeverInfinity_sitofp(i17 %x) {
+; CHECK-LABEL: @isNotKnownNeverInfinity_sitofp(
+; CHECK-NEXT:    [[F:%.*]] = sitofp i17 [[X:%.*]] to half
+; CHECK-NEXT:    [[R:%.*]] = fcmp une half [[F]], 0xH7C00
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %f = sitofp i17 %x to half
+  %r = fcmp une half %f, 0xH7c00
+  ret i1 %r
+}
+
+define i1 @isKnownNeverNegativeInfinity_sitofp(i16 %x) {
+; CHECK-LABEL: @isKnownNeverNegativeInfinity_sitofp(
+; CHECK-NEXT:    ret i1 false
+;
+  %f = sitofp i16 %x to half
+  %r = fcmp oeq half %f, 0xHfc00
+  ret i1 %r
+}
+
+; negative test
+
+define i1 @isNotKnownNeverNegativeInfinity_sitofp(i17 %x) {
+; CHECK-LABEL: @isNotKnownNeverNegativeInfinity_sitofp(
+; CHECK-NEXT:    [[F:%.*]] = sitofp i17 [[X:%.*]] to half
+; CHECK-NEXT:    [[R:%.*]] = fcmp oeq half [[F]], 0xHFC00
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %f = sitofp i17 %x to half
+  %r = fcmp oeq half %f, 0xHfc00
+  ret i1 %r
 }

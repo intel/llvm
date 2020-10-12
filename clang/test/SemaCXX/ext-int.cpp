@@ -91,10 +91,11 @@ typedef _ExtInt(32) __attribute__((vector_size(16))) VecTy;
 _Complex _ExtInt(3) Cmplx;
 
 // Reject cases of _Atomic:
-// expected-error@+1{{_Atomic cannot be applied to integer type '_ExtInt(4)' with less than 1 byte of precision}}
+// expected-error@+1{{_Atomic cannot be applied to integer type '_ExtInt(4)'}}
 _Atomic _ExtInt(4) TooSmallAtomic;
-// expected-error@+1{{_Atomic cannot be applied to integer type '_ExtInt(9)' with a non power of 2 precision}}
+// expected-error@+1{{_Atomic cannot be applied to integer type '_ExtInt(9)'}}
 _Atomic _ExtInt(9) NotPow2Atomic;
+// expected-error@+1{{_Atomic cannot be applied to integer type '_ExtInt(128)'}}
 _Atomic _ExtInt(128) JustRightAtomic;
 
 // Test result types of Unary/Bitwise/Binary Operations:
@@ -274,4 +275,13 @@ void ImplicitCasts(_ExtInt(31) s31, _ExtInt(33) s33, int i) {
   i = s31;
   // expected-warning@+1{{implicit conversion loses integer precision}}
   i = s33;
+}
+
+void Ternary(_ExtInt(30) s30, _ExtInt(31) s31a, _ExtInt(31) s31b,
+             _ExtInt(32) s32, bool b) {
+  b ? s30 : s31a; // expected-error{{incompatible operand types}}
+  b ? s31a : s30; // expected-error{{incompatible operand types}}
+  b ? s32 : (int)0; // expected-error{{incompatible operand types}}
+  (void)(b ? s31a : s31b);
+  (void)(s30 ? s31a : s31b);
 }

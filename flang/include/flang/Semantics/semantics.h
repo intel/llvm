@@ -30,7 +30,7 @@ class IntrinsicTypeDefaultKinds;
 namespace Fortran::parser {
 struct Name;
 struct Program;
-class CookedSource;
+class AllCookedSources;
 struct AssociateConstruct;
 struct BlockConstruct;
 struct CaseConstruct;
@@ -60,7 +60,7 @@ using ConstructStack = std::vector<ConstructNode>;
 class SemanticsContext {
 public:
   SemanticsContext(const common::IntrinsicTypeDefaultKinds &,
-      const common::LanguageFeatureControl &, parser::AllSources &);
+      const common::LanguageFeatureControl &, parser::AllCookedSources &);
   ~SemanticsContext();
 
   const common::IntrinsicTypeDefaultKinds &defaultKinds() const {
@@ -89,7 +89,7 @@ public:
   Scope &globalScope() { return globalScope_; }
   parser::Messages &messages() { return messages_; }
   evaluate::FoldingContext &foldingContext() { return foldingContext_; }
-  parser::AllSources &allSources() { return allSources_; }
+  parser::AllCookedSources &allCookedSources() { return allCookedSources_; }
 
   SemanticsContext &set_location(
       const std::optional<parser::CharBlock> &location) {
@@ -131,14 +131,14 @@ public:
   bool HasError(const Symbol &);
   bool HasError(const Symbol *);
   bool HasError(const parser::Name &);
-  void SetError(Symbol &, bool = true);
+  void SetError(const Symbol &, bool = true);
 
-  template <typename... A> parser::Message &Say(A &&... args) {
+  template <typename... A> parser::Message &Say(A &&...args) {
     CHECK(location_);
     return messages_.Say(*location_, std::forward<A>(args)...);
   }
   template <typename... A>
-  parser::Message &Say(parser::CharBlock at, A &&... args) {
+  parser::Message &Say(parser::CharBlock at, A &&...args) {
     return messages_.Say(at, std::forward<A>(args)...);
   }
   parser::Message &Say(parser::Message &&msg) {
@@ -146,7 +146,7 @@ public:
   }
   template <typename... A>
   void SayWithDecl(const Symbol &symbol, const parser::CharBlock &at,
-      parser::MessageFixedText &&msg, A &&... args) {
+      parser::MessageFixedText &&msg, A &&...args) {
     auto &message{Say(at, std::move(msg), args...)};
     evaluate::AttachDeclaration(&message, symbol);
   }
@@ -170,15 +170,16 @@ public:
   void ActivateIndexVar(const parser::Name &, IndexVarKind);
   void DeactivateIndexVar(const parser::Name &);
   SymbolVector GetIndexVars(IndexVarKind);
+  SourceName GetTempName(const Scope &);
 
 private:
   void CheckIndexVarRedefine(
       const parser::CharBlock &, const Symbol &, parser::MessageFixedText &&);
-  bool CheckError(bool);
+  void CheckError(const Symbol &);
 
   const common::IntrinsicTypeDefaultKinds &defaultKinds_;
   const common::LanguageFeatureControl languageFeatures_;
-  parser::AllSources &allSources_;
+  parser::AllCookedSources &allCookedSources_;
   std::optional<parser::CharBlock> location_;
   std::vector<std::string> searchDirectories_;
   std::string moduleDirectory_{"."s};
@@ -196,15 +197,17 @@ private:
     IndexVarKind kind;
   };
   std::map<SymbolRef, const IndexVarInfo> activeIndexVars_;
+  std::set<SymbolRef> errorSymbols_;
+  std::vector<std::string> tempNames_;
 };
 
 class Semantics {
 public:
   explicit Semantics(SemanticsContext &context, parser::Program &program,
-      parser::CookedSource &cooked, bool debugModuleWriter = false)
-      : context_{context}, program_{program}, cooked_{cooked} {
+      parser::CharBlock charBlock, bool debugModuleWriter = false)
+      : context_{context}, program_{program} {
     context.set_debugModuleWriter(debugModuleWriter);
-    context.globalScope().AddSourceRange(parser::CharBlock{cooked.data()});
+    context.globalScope().AddSourceRange(charBlock);
   }
 
   SemanticsContext &context() const { return context_; }
@@ -220,7 +223,6 @@ public:
 private:
   SemanticsContext &context_;
   parser::Program &program_;
-  const parser::CookedSource &cooked_;
 };
 
 // Base class for semantics checkers.

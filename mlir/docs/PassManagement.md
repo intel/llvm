@@ -104,6 +104,15 @@ struct MyOperationPass : public OperationPass<MyOperationPass> {
 };
 ```
 
+### Dependent Dialects
+
+Dialects must be loaded in the MLIRContext before entities from these dialects
+(operations, types, attributes, ...) can be created. Dialects must be loaded
+before starting the multi-threaded pass pipeline execution. To this end, a pass
+that can create an entity from a dialect that isn't already loaded must express
+this by overriding the `getDependentDialects()` method and declare this list of
+Dialects explicitly.
+
 ## Analysis Management
 
 An important concept, along with transformation passes, are analyses. These are
@@ -622,18 +631,34 @@ def MyPass : Pass<"my-pass", "ModuleOp"> {
 }
 ```
 
-We can include the generated registration calls via:
+Using the `gen-pass-decls` generator, we can generate the much of the
+boilerplater above automatically. This generator takes as an input a `-name`
+parameter, that provides a tag for the group of passes that are being generated.
+This generator produces two chunks of output:
+
+The first is the code for registering the declarative passes with the global
+registry. For each pass, the generator produces a `registerFooPass` where `Foo`
+is the name of the definition specified in tablegen. It also generates a
+`registerGroupPasses`, where `Group` is the tag provided via the `-name` input
+parameter, that registers all of the passes present.
 
 ```c++
-void registerMyPasses() {
-  // The generated registration is not static, so we need to include this in
-  // a location that we can call into.
 #define GEN_PASS_REGISTRATION
 #include "Passes.h.inc"
+
+void registerMyPasses() {
+  // Register all of our passes.
+  registerMyPasses();
+
+  // Register `MyPass` specifically.
+  registerMyPassPass();
 }
 ```
 
-We can then update the original C++ pass definition:
+The second is a base class for each of the passes, with each containing most of
+the boiler plate related to pass definition. These classes are named in the form
+of `MyPassBase`, where `MyPass` is the name of the definition in tablegen. We
+can update the original C++ pass definition as so:
 
 ```c++
 /// Include the generated base pass class definitions.
@@ -651,6 +676,10 @@ std::unique_ptr<Pass> foo::createMyPass() {
 }
 ```
 
+Using the `gen-pass-doc` generator, we can generate markdown documentation for
+each of our passes. See [Passes.md](Passes.md) for example output of real MLIR
+passes.
+
 ### Tablegen Specification
 
 The `Pass` class is used to begin a new pass definition. This class takes as an
@@ -664,6 +693,8 @@ It contains the following fields:
 *   description
     -   A longer, more detailed description of the pass. This is used when
         generating pass documentation.
+*   dependentDialects
+    -   A list of strings that are the Dialect classes this pass can introduce.
 *   constructor
     -   A piece of C++ code used to create a default instance of the pass.
 *   options

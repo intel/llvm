@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/spec_constant_impl.hpp>
+#include <detail/spec_constant_impl.hpp>
 
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/pi.h>

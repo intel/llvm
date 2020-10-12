@@ -32,9 +32,8 @@ TransformerClangTidyCheck::TransformerClangTidyCheck(
         MakeRule,
     StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context), Rule(MakeRule(getLangOpts(), Options)),
-      IncludeStyle(Options.getLocalOrGlobal("IncludeStyle",
-                                            IncludeSorter::getMapping(),
-                                            IncludeSorter::IS_LLVM)) {
+      Inserter(
+          Options.getLocalOrGlobal("IncludeStyle", IncludeSorter::IS_LLVM)) {
   if (Rule)
     assert(llvm::all_of(Rule->Cases, hasExplanation) &&
            "clang-tidy checks must have an explanation by default;"
@@ -45,9 +44,8 @@ TransformerClangTidyCheck::TransformerClangTidyCheck(RewriteRule R,
                                                      StringRef Name,
                                                      ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context), Rule(std::move(R)),
-      IncludeStyle(Options.getLocalOrGlobal("IncludeStyle",
-                                            IncludeSorter::getMapping(),
-                                            IncludeSorter::IS_LLVM)) {
+      Inserter(
+          Options.getLocalOrGlobal("IncludeStyle", IncludeSorter::IS_LLVM)) {
   assert(llvm::all_of(Rule->Cases, hasExplanation) &&
          "clang-tidy checks must have an explanation by default;"
          " explicitly provide an empty explanation if none is desired");
@@ -55,15 +53,7 @@ TransformerClangTidyCheck::TransformerClangTidyCheck(RewriteRule R,
 
 void TransformerClangTidyCheck::registerPPCallbacks(
     const SourceManager &SM, Preprocessor *PP, Preprocessor *ModuleExpanderPP) {
-  // Only allocate and register the IncludeInsert when some `Case` will add
-  // includes.
-  if (Rule && llvm::any_of(Rule->Cases, [](const RewriteRule::Case &C) {
-        return !C.AddedIncludes.empty();
-      })) {
-    Inserter =
-        std::make_unique<IncludeInserter>(SM, getLangOpts(), IncludeStyle);
-    PP->addPPCallbacks(Inserter->CreatePPCallbacks());
-  }
+  Inserter.registerPreprocessor(PP);
 }
 
 void TransformerClangTidyCheck::registerMatchers(
@@ -101,19 +91,24 @@ void TransformerClangTidyCheck::check(
   // Associate the diagnostic with the location of the first change.
   DiagnosticBuilder Diag = diag((*Edits)[0].Range.getBegin(), *Explanation);
   for (const auto &T : *Edits)
-    Diag << FixItHint::CreateReplacement(T.Range, T.Replacement);
-
-  for (const auto &I : Case.AddedIncludes) {
-    Diag << Inserter->CreateIncludeInsertion(
-        Result.SourceManager->getMainFileID(), I.first,
-        /*IsAngled=*/I.second == transformer::IncludeFormat::Angled);
-  }
+    switch (T.Kind) {
+    case transformer::EditKind::Range:
+      Diag << FixItHint::CreateReplacement(T.Range, T.Replacement);
+      break;
+    case transformer::EditKind::AddInclude: {
+      StringRef FileName = T.Replacement;
+      bool IsAngled = FileName.startswith("<") && FileName.endswith(">");
+      Diag << Inserter.createMainFileIncludeInsertion(
+          IsAngled ? FileName.substr(1, FileName.size() - 2) : FileName,
+          IsAngled);
+      break;
+    }
+    }
 }
 
 void TransformerClangTidyCheck::storeOptions(
     ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "IncludeStyle", IncludeStyle,
-                IncludeSorter::getMapping());
+  Options.store(Opts, "IncludeStyle", Inserter.getStyle());
 }
 
 } // namespace utils

@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out -L %opencl_libs_dir -lOpenCL
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-dead-args-optimization %s -o %t.out -L %opencl_libs_dir -lOpenCL
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -82,5 +82,22 @@ int main() {
       });
     });
   }
+
+  {
+    sycl::sampler Sampler(
+        sycl::coordinate_normalization_mode::unnormalized,
+        sycl::addressing_mode::clamp, sycl::filtering_mode::nearest,
+        sycl::property_list{sycl::property::buffer::use_host_ptr{}});
+
+    if (!Sampler.has_property<sycl::property::buffer::use_host_ptr>()) {
+      std::cerr << "Line " << __LINE__ << ": Property was not found"
+                << std::endl;
+      return 1;
+    }
+
+    sycl::property::buffer::use_host_ptr Prop =
+        Sampler.get_property<sycl::property::buffer::use_host_ptr>();
+  }
+
   return 0;
 }

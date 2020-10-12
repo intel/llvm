@@ -11,8 +11,13 @@ end
 
 ! Test substring
 program p2
+  type t1(n1,n2)
+    integer,kind :: n1,n2
+    integer :: c2(iachar('ABCDEFGHIJ'(n1:n1)))
+  end type
   character :: a(10)
   character :: b(5)
+  character :: c(0)
   integer :: n
   n = 3
   b = a(n:7)
@@ -21,6 +26,8 @@ program p2
   a(n:7) = b
   a(n+3:) = b
   a(:n+2) = b
+  n = iachar(1_'ABCDEFGHIJ'(1:1))
+  c = 'ABCDEFGHIJ'(1:0)
 end
 
 ! Test pointer assignment with bounds

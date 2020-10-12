@@ -8,13 +8,14 @@
 
 #pragma once
 
+#include <CL/sycl/ONEAPI/experimental/spec_constant.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/experimental/spec_constant.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/kernel.hpp>
+#include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -46,7 +47,8 @@ public:
   /// associated with the context.
   ///
   /// \param Context is an instance of SYCL context.
-  explicit program(const context &Context);
+  /// \param PropList is an instance of property_list.
+  explicit program(const context &Context, const property_list &PropList = {});
 
   /// Constructs an instance of SYCL program for the provided DeviceList.
   ///
@@ -56,7 +58,24 @@ public:
   ///
   /// \param Context is an instance of SYCL context.
   /// \param DeviceList is a list of SYCL devices.
-  program(const context &Context, vector_class<device> DeviceList);
+  /// \param PropList is an instance of property_list.
+  program(const context &Context, vector_class<device> DeviceList,
+          const property_list &PropList = {});
+
+  /// Constructs an instance of SYCL program by linking together each SYCL
+  /// program instance in ProgramList.
+  ///
+  /// Each SYCL program in ProgramList must be in the program_state::compiled
+  /// state and must be associated with the same SYCL context. Otherwise an
+  /// invalid_object_error SYCL exception will be thrown. A
+  /// feature_not_supported exception will be thrown if any device that the
+  /// program is to be linked for returns false for the device information query
+  /// info::device::is_linker_available.
+  ///
+  /// \param ProgramList is a list of SYCL program instances.
+  /// \param PropList is an instance of property_list.
+  program(vector_class<program> ProgramList,
+          const property_list &PropList = {});
 
   /// Constructs an instance of SYCL program by linking together each SYCL
   /// program instance in ProgramList.
@@ -70,7 +89,9 @@ public:
   ///
   /// \param ProgramList is a list of SYCL program instances.
   /// \param LinkOptions is a string containing valid OpenCL link options.
-  program(vector_class<program> ProgramList, string_class LinkOptions = "");
+  /// \param PropList is an instance of property_list.
+  program(vector_class<program> ProgramList, string_class LinkOptions,
+          const property_list &PropList = {});
 
   /// Constructs a SYCL program instance from an OpenCL cl_program.
   ///
@@ -96,6 +117,19 @@ public:
   bool operator==(const program &rhs) const { return impl == rhs.impl; }
 
   bool operator!=(const program &rhs) const { return impl != rhs.impl; }
+
+  /// Checks if this program has a property of type propertyT.
+  ///
+  /// \return true if this context has a property of type propertyT.
+  template <typename propertyT> bool has_property() const;
+
+  /// Gets the specified property of this program.
+  ///
+  /// Throws invalid_object_error if this program does not have a property
+  /// of type propertyT.
+  ///
+  /// \return a copy of the property of type propertyT.
+  template <typename propertyT> propertyT get_property() const;
 
   /// Returns a valid cl_program instance.
   ///
@@ -307,7 +341,7 @@ public:
   /// \return a specialization constant instance corresponding to given type ID
   ///         passed as a template parameter
   template <typename ID, typename T>
-  experimental::spec_constant<T, ID> set_spec_constant(T Cst) {
+  ONEAPI::experimental::spec_constant<T, ID> set_spec_constant(T Cst) {
     constexpr const char *Name = detail::SpecConstantInfo<ID>::getName();
     static_assert(std::is_integral<T>::value ||
                       std::is_floating_point<T>::value,
@@ -315,10 +349,10 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     (void)Cst;
     (void)Name;
-    return experimental::spec_constant<T, ID>();
+    return ONEAPI::experimental::spec_constant<T, ID>();
 #else
     set_spec_constant_impl(Name, &Cst, sizeof(T));
-    return experimental::spec_constant<T, ID>(Cst);
+    return ONEAPI::experimental::spec_constant<T, ID>(Cst);
 #endif // __SYCL_DEVICE_ONLY__
   }
 

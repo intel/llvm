@@ -49,8 +49,7 @@ EVT EVT::getExtendedVectorVT(LLVMContext &Context, EVT VT, unsigned NumElements,
 
 EVT EVT::getExtendedVectorVT(LLVMContext &Context, EVT VT, ElementCount EC) {
   EVT ResultVT;
-  ResultVT.LLVMTy =
-      VectorType::get(VT.getTypeForEVT(Context), {EC.Min, EC.Scalable});
+  ResultVT.LLVMTy = VectorType::get(VT.getTypeForEVT(Context), EC);
   assert(ResultVT.isExtended() && "Type is not extended!");
   return ResultVT;
 }
@@ -122,7 +121,14 @@ EVT EVT::getExtendedVectorElementType() const {
 
 unsigned EVT::getExtendedVectorNumElements() const {
   assert(isExtended() && "Type is not extended!");
-  return cast<VectorType>(LLVMTy)->getNumElements();
+  ElementCount EC = cast<VectorType>(LLVMTy)->getElementCount();
+  if (EC.isScalable()) {
+    WithColor::warning()
+        << "The code that requested the fixed number of elements has made the "
+           "assumption that this vector is not scalable. This assumption was "
+           "not correct, and this may lead to broken code\n";
+  }
+  return EC.getKnownMinValue();
 }
 
 ElementCount EVT::getExtendedVectorElementCount() const {
@@ -144,9 +150,9 @@ std::string EVT::getEVTString() const {
   switch (V.SimpleTy) {
   default:
     if (isVector())
-      return (isScalableVector() ? "nxv" : "v")
-             + utostr(getVectorElementCount().Min)
-             + getVectorElementType().getEVTString();
+      return (isScalableVector() ? "nxv" : "v") +
+             utostr(getVectorElementCount().getKnownMinValue()) +
+             getVectorElementType().getEVTString();
     if (isInteger())
       return "i" + utostr(getSizeInBits());
     if (isFloatingPoint())
@@ -300,9 +306,9 @@ Type *EVT::getTypeForEVT(LLVMContext &Context) const {
   case MVT::v32f16:
     return FixedVectorType::get(Type::getHalfTy(Context), 32);
   case MVT::v64f16:
-    return FixedVectorType::get(Type::getBFloatTy(Context), 64);
+    return FixedVectorType::get(Type::getHalfTy(Context), 64);
   case MVT::v128f16:
-    return FixedVectorType::get(Type::getBFloatTy(Context), 128);
+    return FixedVectorType::get(Type::getHalfTy(Context), 128);
   case MVT::v2bf16:
     return FixedVectorType::get(Type::getBFloatTy(Context), 2);
   case MVT::v3bf16:
@@ -371,6 +377,8 @@ Type *EVT::getTypeForEVT(LLVMContext &Context) const {
     return ScalableVectorType::get(Type::getInt1Ty(Context), 16);
   case MVT::nxv32i1:
     return ScalableVectorType::get(Type::getInt1Ty(Context), 32);
+  case MVT::nxv64i1:
+    return ScalableVectorType::get(Type::getInt1Ty(Context), 64);
   case MVT::nxv1i8:
     return ScalableVectorType::get(Type::getInt8Ty(Context), 1);
   case MVT::nxv2i8:
@@ -383,6 +391,8 @@ Type *EVT::getTypeForEVT(LLVMContext &Context) const {
     return ScalableVectorType::get(Type::getInt8Ty(Context), 16);
   case MVT::nxv32i8:
     return ScalableVectorType::get(Type::getInt8Ty(Context), 32);
+  case MVT::nxv64i8:
+    return ScalableVectorType::get(Type::getInt8Ty(Context), 64);
   case MVT::nxv1i16:
     return ScalableVectorType::get(Type::getInt16Ty(Context), 1);
   case MVT::nxv2i16:
@@ -419,12 +429,18 @@ Type *EVT::getTypeForEVT(LLVMContext &Context) const {
     return ScalableVectorType::get(Type::getInt64Ty(Context), 16);
   case MVT::nxv32i64:
     return ScalableVectorType::get(Type::getInt64Ty(Context), 32);
+  case MVT::nxv1f16:
+    return ScalableVectorType::get(Type::getHalfTy(Context), 1);
   case MVT::nxv2f16:
     return ScalableVectorType::get(Type::getHalfTy(Context), 2);
   case MVT::nxv4f16:
     return ScalableVectorType::get(Type::getHalfTy(Context), 4);
   case MVT::nxv8f16:
     return ScalableVectorType::get(Type::getHalfTy(Context), 8);
+  case MVT::nxv16f16:
+    return ScalableVectorType::get(Type::getHalfTy(Context), 16);
+  case MVT::nxv32f16:
+    return ScalableVectorType::get(Type::getHalfTy(Context), 32);
   case MVT::nxv2bf16:
     return ScalableVectorType::get(Type::getBFloatTy(Context), 2);
   case MVT::nxv4bf16:

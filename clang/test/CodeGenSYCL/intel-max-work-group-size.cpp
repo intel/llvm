@@ -2,11 +2,11 @@
 
 class Foo {
 public:
-  [[intelfpga::max_work_group_size(1, 1, 1)]] void operator()() {}
+  [[intel::max_work_group_size(1, 1, 1)]] void operator()() const {}
 };
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 
@@ -15,7 +15,7 @@ void bar() {
   kernel<class kernel_name1>(boo);
 
   kernel<class kernel_name2>(
-  []() [[intelfpga::max_work_group_size(8, 8, 8)]] {});
+      []() [[intel::max_work_group_size(8, 8, 8)]]{});
 }
 
 // CHECK: define spir_kernel void @{{.*}}kernel_name1() {{.*}} !max_work_group_size ![[NUM1:[0-9]+]]

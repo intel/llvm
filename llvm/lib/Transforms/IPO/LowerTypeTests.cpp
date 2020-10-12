@@ -735,6 +735,9 @@ static bool isKnownTypeIdMember(Metadata *TypeId, const DataLayout &DL,
 /// replace the call with.
 Value *LowerTypeTestsModule::lowerTypeTestCall(Metadata *TypeId, CallInst *CI,
                                                const TypeIdLowering &TIL) {
+  // Delay lowering if the resolution is currently unknown.
+  if (TIL.TheKind == TypeTestResolution::Unknown)
+    return nullptr;
   if (TIL.TheKind == TypeTestResolution::Unsat)
     return ConstantInt::getFalse(M.getContext());
 
@@ -835,11 +838,10 @@ void LowerTypeTestsModule::buildBitSetsFromGlobalVariables(
   uint64_t DesiredPadding = 0;
   for (GlobalTypeMember *G : Globals) {
     auto *GV = cast<GlobalVariable>(G->getGlobal());
-    MaybeAlign Alignment(GV->getAlignment());
-    if (!Alignment)
-      Alignment = Align(DL.getABITypeAlignment(GV->getValueType()));
-    MaxAlign = std::max(MaxAlign, *Alignment);
-    uint64_t GVOffset = alignTo(CurOffset + DesiredPadding, *Alignment);
+    Align Alignment =
+        DL.getValueOrABITypeAlignment(GV->getAlign(), GV->getValueType());
+    MaxAlign = std::max(MaxAlign, Alignment);
+    uint64_t GVOffset = alignTo(CurOffset + DesiredPadding, Alignment);
     GlobalLayout[G] = GVOffset;
     if (GVOffset != 0) {
       uint64_t Padding = GVOffset - CurOffset;
@@ -1037,14 +1039,18 @@ void LowerTypeTestsModule::importTypeTest(CallInst *CI) {
     report_fatal_error("Second argument of llvm.type.test must be metadata");
 
   auto TypeIdStr = dyn_cast<MDString>(TypeIdMDVal->getMetadata());
+  // If this is a local unpromoted type, which doesn't have a metadata string,
+  // treat as Unknown and delay lowering, so that we can still utilize it for
+  // later optimizations.
   if (!TypeIdStr)
-    report_fatal_error(
-        "Second argument of llvm.type.test must be a metadata string");
+    return;
 
   TypeIdLowering TIL = importTypeId(TypeIdStr->getString());
   Value *Lowered = lowerTypeTestCall(TypeIdStr, CI, TIL);
-  CI->replaceAllUsesWith(Lowered);
-  CI->eraseFromParent();
+  if (Lowered) {
+    CI->replaceAllUsesWith(Lowered);
+    CI->eraseFromParent();
+  }
 }
 
 // ThinLTO backend: the function F has a jump table entry; update this module
@@ -1167,8 +1173,10 @@ void LowerTypeTestsModule::lowerTypeTestCalls(
     for (CallInst *CI : TIUI.CallSites) {
       ++NumTypeTestCallsLowered;
       Value *Lowered = lowerTypeTestCall(TypeId, CI, TIL);
-      CI->replaceAllUsesWith(Lowered);
-      CI->eraseFromParent();
+      if (Lowered) {
+        CI->replaceAllUsesWith(Lowered);
+        CI->eraseFromParent();
+      }
     }
   }
 }
@@ -1197,6 +1205,7 @@ void LowerTypeTestsModule::verifyTypeMDNode(GlobalObject *GO, MDNode *Type) {
 
 static const unsigned kX86JumpTableEntrySize = 8;
 static const unsigned kARMJumpTableEntrySize = 4;
+static const unsigned kARMBTIJumpTableEntrySize = 8;
 
 unsigned LowerTypeTestsModule::getJumpTableEntrySize() {
   switch (Arch) {
@@ -1205,7 +1214,12 @@ unsigned LowerTypeTestsModule::getJumpTableEntrySize() {
       return kX86JumpTableEntrySize;
     case Triple::arm:
     case Triple::thumb:
+      return kARMJumpTableEntrySize;
     case Triple::aarch64:
+      if (const auto *BTE = mdconst::extract_or_null<ConstantInt>(
+            M.getModuleFlag("branch-target-enforcement")))
+        if (BTE->getZExtValue())
+          return kARMBTIJumpTableEntrySize;
       return kARMJumpTableEntrySize;
     default:
       report_fatal_error("Unsupported architecture for jump tables");
@@ -1224,7 +1238,13 @@ void LowerTypeTestsModule::createJumpTableEntry(
   if (JumpTableArch == Triple::x86 || JumpTableArch == Triple::x86_64) {
     AsmOS << "jmp ${" << ArgIndex << ":c}@plt\n";
     AsmOS << "int3\nint3\nint3\n";
-  } else if (JumpTableArch == Triple::arm || JumpTableArch == Triple::aarch64) {
+  } else if (JumpTableArch == Triple::arm) {
+    AsmOS << "b $" << ArgIndex << "\n";
+  } else if (JumpTableArch == Triple::aarch64) {
+    if (const auto *BTE = mdconst::extract_or_null<ConstantInt>(
+          Dest->getParent()->getModuleFlag("branch-target-enforcement")))
+      if (BTE->getZExtValue())
+        AsmOS << "bti c\n";
     AsmOS << "b $" << ArgIndex << "\n";
   } else if (JumpTableArch == Triple::thumb) {
     AsmOS << "b.w $" << ArgIndex << "\n";
@@ -1318,7 +1338,7 @@ void LowerTypeTestsModule::replaceWeakDeclarationWithJumpTablePtr(
 
 static bool isThumbFunction(Function *F, Triple::ArchType ModuleArch) {
   Attribute TFAttr = F->getFnAttribute("target-features");
-  if (!TFAttr.hasAttribute(Attribute::None)) {
+  if (TFAttr.isValid()) {
     SmallVector<StringRef, 6> Features;
     TFAttr.getValueAsString().split(Features, ',');
     for (StringRef Feature : Features) {
@@ -1385,6 +1405,10 @@ void LowerTypeTestsModule::createJumpTable(
     // Thumb jump table assembly needs Thumb2. The following attribute is added
     // by Clang for -march=armv7.
     F->addFnAttr("target-cpu", "cortex-a8");
+  }
+  if (JumpTableArch == Triple::aarch64) {
+    F->addFnAttr("branch-target-enforcement", "false");
+    F->addFnAttr("sign-return-address", "none");
   }
   // Make sure we don't emit .eh_frame for this function.
   F->addFnAttr(Attribute::NoUnwind);
@@ -2231,9 +2255,13 @@ bool LowerTypeTestsModule::lower() {
 
 PreservedAnalyses LowerTypeTestsPass::run(Module &M,
                                           ModuleAnalysisManager &AM) {
-  bool Changed =
-      LowerTypeTestsModule(M, ExportSummary, ImportSummary, DropTypeTests)
-          .lower();
+  bool Changed;
+  if (UseCommandLine)
+    Changed = LowerTypeTestsModule::runForTesting(M);
+  else
+    Changed =
+        LowerTypeTestsModule(M, ExportSummary, ImportSummary, DropTypeTests)
+            .lower();
   if (!Changed)
     return PreservedAnalyses::all();
   return PreservedAnalyses::none();

@@ -71,7 +71,6 @@ public:
 private:
   Module *M;
   LLVMContext *Ctx;
-  unsigned CLVer;
   std::map<Value *, Type *> AdaptedTy; // Adapted types for values
   std::set<Function *> WorkSet;        // Functions to be adapted
 

@@ -29,6 +29,8 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ManagedStatic.h"
+#include "llvm/Support/Regex.h"
+#include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
@@ -682,6 +684,19 @@ getExpansionLocOfMacro(StringRef MacroName, SourceLocation Loc,
   return llvm::None;
 }
 
+std::shared_ptr<llvm::Regex> createAndVerifyRegex(StringRef Regex,
+                                                  llvm::Regex::RegexFlags Flags,
+                                                  StringRef MatcherID) {
+  assert(!Regex.empty() && "Empty regex string");
+  auto SharedRegex = std::make_shared<llvm::Regex>(Regex, Flags);
+  std::string Error;
+  if (!SharedRegex->isValid(Error)) {
+    llvm::WithColor::error()
+        << "building matcher '" << MatcherID << "': " << Error << "\n";
+    llvm::WithColor::note() << " input was '" << Regex << "'\n";
+  }
+  return SharedRegex;
+}
 } // end namespace internal
 
 const internal::VariadicDynCastAllOfMatcher<Stmt, ObjCAutoreleasePoolStmt>
@@ -695,6 +710,7 @@ const internal::VariadicDynCastAllOfMatcher<Decl, TypeAliasDecl> typeAliasDecl;
 const internal::VariadicDynCastAllOfMatcher<Decl, TypeAliasTemplateDecl>
     typeAliasTemplateDecl;
 const internal::VariadicAllOfMatcher<Decl> decl;
+const internal::VariadicAllOfMatcher<DecompositionDecl> decompositionDecl;
 const internal::VariadicDynCastAllOfMatcher<Decl, LinkageSpecDecl>
     linkageSpecDecl;
 const internal::VariadicDynCastAllOfMatcher<Decl, NamedDecl> namedDecl;
@@ -719,11 +735,15 @@ const internal::VariadicDynCastAllOfMatcher<Decl, AccessSpecDecl>
     accessSpecDecl;
 const internal::VariadicAllOfMatcher<CXXCtorInitializer> cxxCtorInitializer;
 const internal::VariadicAllOfMatcher<TemplateArgument> templateArgument;
+const internal::VariadicAllOfMatcher<TemplateArgumentLoc> templateArgumentLoc;
 const internal::VariadicAllOfMatcher<TemplateName> templateName;
 const internal::VariadicDynCastAllOfMatcher<Decl, NonTypeTemplateParmDecl>
     nonTypeTemplateParmDecl;
 const internal::VariadicDynCastAllOfMatcher<Decl, TemplateTypeParmDecl>
     templateTypeParmDecl;
+const internal::VariadicDynCastAllOfMatcher<Decl, TemplateTemplateParmDecl>
+    templateTemplateParmDecl;
+
 const internal::VariadicAllOfMatcher<QualType> qualType;
 const internal::VariadicAllOfMatcher<Type> type;
 const internal::VariadicAllOfMatcher<TypeLoc> typeLoc;

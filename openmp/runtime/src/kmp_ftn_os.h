@@ -658,4 +658,28 @@
 #define KMP_API_NAME_GOMP_PARALLEL_LOOP_NONMONOTONIC_GUIDED                    \
   GOMP_parallel_loop_nonmonotonic_guided
 
+// All GOMP_5.0 symbols
+#define KMP_API_NAME_GOMP_LOOP_MAYBE_NONMONOTONIC_RUNTIME_NEXT                 \
+  GOMP_loop_maybe_nonmonotonic_runtime_next
+#define KMP_API_NAME_GOMP_LOOP_MAYBE_NONMONOTONIC_RUNTIME_START                \
+  GOMP_loop_maybe_nonmonotonic_runtime_start
+#define KMP_API_NAME_GOMP_LOOP_NONMONOTONIC_RUNTIME_NEXT                       \
+  GOMP_loop_nonmonotonic_runtime_next
+#define KMP_API_NAME_GOMP_LOOP_NONMONOTONIC_RUNTIME_START                      \
+  GOMP_loop_nonmonotonic_runtime_start
+#define KMP_API_NAME_GOMP_LOOP_ULL_MAYBE_NONMONOTONIC_RUNTIME_NEXT             \
+  GOMP_loop_ull_maybe_nonmonotonic_runtime_next
+#define KMP_API_NAME_GOMP_LOOP_ULL_MAYBE_NONMONOTONIC_RUNTIME_START            \
+  GOMP_loop_ull_maybe_nonmonotonic_runtime_start
+#define KMP_API_NAME_GOMP_LOOP_ULL_NONMONOTONIC_RUNTIME_NEXT                   \
+  GOMP_loop_ull_nonmonotonic_runtime_next
+#define KMP_API_NAME_GOMP_LOOP_ULL_NONMONOTONIC_RUNTIME_START                  \
+  GOMP_loop_ull_nonmonotonic_runtime_start
+#define KMP_API_NAME_GOMP_PARALLEL_LOOP_NONMONOTONIC_RUNTIME                   \
+  GOMP_parallel_loop_nonmonotonic_runtime
+#define KMP_API_NAME_GOMP_PARALLEL_LOOP_MAYBE_NONMONOTONIC_RUNTIME             \
+  GOMP_parallel_loop_maybe_nonmonotonic_runtime
+#define KMP_API_NAME_GOMP_TEAMS_REG GOMP_teams_reg
+#define KMP_API_NAME_GOMP_TASKWAIT_DEPEND GOMP_taskwait_depend
+
 #endif /* KMP_FTN_OS_H */

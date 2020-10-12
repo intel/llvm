@@ -20,7 +20,7 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
-#include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/Type.h"
 
@@ -147,8 +147,31 @@ public:
     return false;
   }
 
+  Optional<Instruction *> instCombineIntrinsic(InstCombiner &IC,
+                                               IntrinsicInst &II) const {
+    return None;
+  }
+
+  Optional<Value *>
+  simplifyDemandedUseBitsIntrinsic(InstCombiner &IC, IntrinsicInst &II,
+                                   APInt DemandedMask, KnownBits &Known,
+                                   bool &KnownBitsComputed) const {
+    return None;
+  }
+
+  Optional<Value *> simplifyDemandedVectorEltsIntrinsic(
+      InstCombiner &IC, IntrinsicInst &II, APInt DemandedElts, APInt &UndefElts,
+      APInt &UndefElts2, APInt &UndefElts3,
+      std::function<void(Instruction *, unsigned, APInt, APInt &)>
+          SimplifyAndSetOp) const {
+    return None;
+  }
+
   void getUnrollingPreferences(Loop *, ScalarEvolution &,
                                TTI::UnrollingPreferences &) {}
+
+  void getPeelingPreferences(Loop *, ScalarEvolution &,
+                             TTI::PeelingPreferences &) {}
 
   bool isLegalAddImmediate(int64_t Imm) { return false; }
 
@@ -291,7 +314,8 @@ public:
   }
 
   unsigned getIntImmCostInst(unsigned Opcode, unsigned Idx, const APInt &Imm,
-                             Type *Ty, TTI::TargetCostKind CostKind) {
+                             Type *Ty, TTI::TargetCostKind CostKind,
+                             Instruction *Inst = nullptr) {
     return TTI::TCC_Free;
   }
 
@@ -400,6 +424,7 @@ public:
   }
 
   unsigned getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
+                            TTI::CastContextHint CCH,
                             TTI::TargetCostKind CostKind,
                             const Instruction *I) {
     switch (Opcode) {
@@ -424,12 +449,14 @@ public:
         // Identity and pointer-to-pointer casts are free.
         return 0;
       break;
-    case Instruction::Trunc:
+    case Instruction::Trunc: {
       // trunc to a native type is free (assuming the target has compare and
       // shift-right of the same width).
-      if (DL.isLegalInteger(DL.getTypeSizeInBits(Dst)))
+      TypeSize DstSize = DL.getTypeSizeInBits(Dst);
+      if (!DstSize.isScalable() && DL.isLegalInteger(DstSize.getFixedSize()))
         return 0;
       break;
+    }
     }
     return 1;
   }
@@ -634,6 +661,16 @@ public:
     return false;
   }
 
+  bool preferInLoopReduction(unsigned Opcode, Type *Ty,
+                             TTI::ReductionFlags Flags) const {
+    return false;
+  }
+
+  bool preferPredicatedReductionSelect(unsigned Opcode, Type *Ty,
+                                       TTI::ReductionFlags Flags) const {
+    return false;
+  }
+
   bool shouldExpandReduction(const IntrinsicInst *II) const { return true; }
 
   unsigned getGISelRematGlobalCost() const { return 1; }
@@ -649,7 +686,7 @@ protected:
 
       // In case of a vector need to pick the max between the min
       // required size for each element
-      auto *VT = cast<VectorType>(Val->getType());
+      auto *VT = cast<FixedVectorType>(Val->getType());
 
       // Assume unsigned elements
       isSigned = false;
@@ -797,30 +834,17 @@ public:
   int getUserCost(const User *U, ArrayRef<const Value *> Operands,
                   TTI::TargetCostKind CostKind) {
     auto *TargetTTI = static_cast<T *>(this);
-
-    // FIXME: We shouldn't have to special-case intrinsics here.
-    if (CostKind == TTI::TCK_RecipThroughput) {
-      if (const IntrinsicInst *II = dyn_cast<IntrinsicInst>(U)) {
-        IntrinsicCostAttributes CostAttrs(*II);
-        return TargetTTI->getIntrinsicInstrCost(CostAttrs, CostKind);
-      }
-    }
-
+    // Handle non-intrinsic calls, invokes, and callbr.
     // FIXME: Unlikely to be true for anything but CodeSize.
-    if (const auto *CB = dyn_cast<CallBase>(U)) {
-      const Function *F = CB->getCalledFunction();
-      if (F) {
-        FunctionType *FTy = F->getFunctionType();
-        if (Intrinsic::ID IID = F->getIntrinsicID()) {
-          IntrinsicCostAttributes Attrs(IID, *CB);
-          return TargetTTI->getIntrinsicInstrCost(Attrs, CostKind);
-        }
-
+    auto *CB = dyn_cast<CallBase>(U);
+    if (CB && !isa<IntrinsicInst>(U)) {
+      if (const Function *F = CB->getCalledFunction()) {
         if (!TargetTTI->isLoweredToCall(F))
           return TTI::TCC_Basic; // Give a basic cost if it will be lowered
 
-        return TTI::TCC_Basic * (FTy->getNumParams() + 1);
+        return TTI::TCC_Basic * (F->getFunctionType()->getNumParams() + 1);
       }
+      // For indirect or other calls, scale cost by number of arguments.
       return TTI::TCC_Basic * (CB->arg_size() + 1);
     }
 
@@ -832,6 +856,12 @@ public:
     switch (Opcode) {
     default:
       break;
+    case Instruction::Call: {
+      assert(isa<IntrinsicInst>(U) && "Unexpected non-intrinsic call");
+      auto *Intrinsic = cast<IntrinsicInst>(U);
+      IntrinsicCostAttributes CostAttrs(Intrinsic->getIntrinsicID(), *CB);
+      return TargetTTI->getIntrinsicInstrCost(CostAttrs, CostKind);
+    }
     case Instruction::Br:
     case Instruction::Ret:
     case Instruction::PHI:
@@ -892,7 +922,8 @@ public:
     case Instruction::SExt:
     case Instruction::ZExt:
     case Instruction::AddrSpaceCast:
-      return TargetTTI->getCastInstrCost(Opcode, Ty, OpTy, CostKind, I);
+      return TargetTTI->getCastInstrCost(
+          Opcode, Ty, OpTy, TTI::getCastContextHint(I), CostKind, I);
     case Instruction::Store: {
       auto *SI = cast<StoreInst>(U);
       Type *ValTy = U->getOperand(0)->getType();
@@ -966,41 +997,23 @@ public:
       if (CI)
         Idx = CI->getZExtValue();
 
-      // Try to match a reduction sequence (series of shufflevector and
-      // vector  adds followed by a extractelement).
-      unsigned ReduxOpCode;
-      VectorType *ReduxType;
-
-      switch (TTI::matchVectorSplittingReduction(EEI, ReduxOpCode,
-                                                 ReduxType)) {
+      // Try to match a reduction (a series of shufflevector and vector ops
+      // followed by an extractelement).
+      unsigned RdxOpcode;
+      VectorType *RdxType;
+      bool IsPairwise;
+      switch (TTI::matchVectorReduction(EEI, RdxOpcode, RdxType, IsPairwise)) {
       case TTI::RK_Arithmetic:
-        return TargetTTI->getArithmeticReductionCost(ReduxOpCode, ReduxType,
-                                          /*IsPairwiseForm=*/false,
-                                          CostKind);
+        return TargetTTI->getArithmeticReductionCost(RdxOpcode, RdxType,
+                                                     IsPairwise, CostKind);
       case TTI::RK_MinMax:
         return TargetTTI->getMinMaxReductionCost(
-            ReduxType, cast<VectorType>(CmpInst::makeCmpResultType(ReduxType)),
-            /*IsPairwiseForm=*/false, /*IsUnsigned=*/false, CostKind);
+            RdxType, cast<VectorType>(CmpInst::makeCmpResultType(RdxType)),
+            IsPairwise, /*IsUnsigned=*/false, CostKind);
       case TTI::RK_UnsignedMinMax:
         return TargetTTI->getMinMaxReductionCost(
-            ReduxType, cast<VectorType>(CmpInst::makeCmpResultType(ReduxType)),
-            /*IsPairwiseForm=*/false, /*IsUnsigned=*/true, CostKind);
-      case TTI::RK_None:
-        break;
-      }
-
-      switch (TTI::matchPairwiseReduction(EEI, ReduxOpCode, ReduxType)) {
-      case TTI::RK_Arithmetic:
-        return TargetTTI->getArithmeticReductionCost(ReduxOpCode, ReduxType,
-                                          /*IsPairwiseForm=*/true, CostKind);
-      case TTI::RK_MinMax:
-        return TargetTTI->getMinMaxReductionCost(
-            ReduxType, cast<VectorType>(CmpInst::makeCmpResultType(ReduxType)),
-            /*IsPairwiseForm=*/true, /*IsUnsigned=*/false, CostKind);
-      case TTI::RK_UnsignedMinMax:
-        return TargetTTI->getMinMaxReductionCost(
-            ReduxType, cast<VectorType>(CmpInst::makeCmpResultType(ReduxType)),
-            /*IsPairwiseForm=*/true, /*IsUnsigned=*/true, CostKind);
+            RdxType, cast<VectorType>(CmpInst::makeCmpResultType(RdxType)),
+            IsPairwise, /*IsUnsigned=*/true, CostKind);
       case TTI::RK_None:
         break;
       }

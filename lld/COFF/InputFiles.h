@@ -191,6 +191,8 @@ public:
 
   const coff_section *addrsigSec = nullptr;
 
+  const coff_section *callgraphSec = nullptr;
+
   // When using Microsoft precompiled headers, this is the PCH's key.
   // The same key is used by both the precompiled object, and objects using the
   // precompiled object. Any difference indicates out-of-date objects.
@@ -253,9 +255,10 @@ private:
   // match the existing symbol and its selection. If either old or new
   // symbol have selection IMAGE_COMDAT_SELECT_LARGEST, Sym might replace
   // the existing leader. In that case, Prevailing is set to true.
-  void handleComdatSelection(COFFSymbolRef sym,
-                             llvm::COFF::COMDATType &selection,
-                             bool &prevailing, DefinedRegular *leader);
+  void
+  handleComdatSelection(COFFSymbolRef sym, llvm::COFF::COMDATType &selection,
+                        bool &prevailing, DefinedRegular *leader,
+                        const llvm::object::coff_aux_section_definition *def);
 
   llvm::Optional<Symbol *>
   createDefined(COFFSymbolRef sym,

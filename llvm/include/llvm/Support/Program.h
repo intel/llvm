@@ -36,7 +36,7 @@ namespace sys {
   typedef unsigned long procid_t; // Must match the type of DWORD on Windows.
   typedef void *process_t;        // Must match the type of HANDLE on Windows.
 #else
-  typedef pid_t procid_t;
+  typedef ::pid_t procid_t;
   typedef procid_t process_t;
 #endif
 
@@ -218,7 +218,7 @@ namespace sys {
   /// to build a single flat command line appropriate for calling CreateProcess
   /// on
   /// Windows.
-  std::string flattenWindowsCommandLine(ArrayRef<StringRef> Args);
+  ErrorOr<std::wstring> flattenWindowsCommandLine(ArrayRef<StringRef> Args);
 #endif
   }
 }

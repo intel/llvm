@@ -1,6 +1,7 @@
 ; RUN: opt < %s -loop-vectorize -S | FileCheck %s --check-prefixes=COMMON,DEFAULT
-; RUN: opt < %s -loop-vectorize -disable-mve-tail-predication=false  -prefer-predicate-over-epilog -S | FileCheck %s --check-prefixes=COMMON,CHECK-TF,CHECK-PREFER
-; RUN: opt < %s -loop-vectorize -disable-mve-tail-predication=false -S | FileCheck %s --check-prefixes=COMMON,CHECK-TF,CHECK-ENABLE-TP
+; RUN: opt < %s -loop-vectorize -tail-predication=enabled -prefer-predicate-over-epilogue=predicate-dont-vectorize -S | FileCheck %s --check-prefixes=COMMON,CHECK-TF,CHECK-PREFER
+; RUN: opt < %s -loop-vectorize -tail-predication=enabled -prefer-predicate-over-epilogue=predicate-else-scalar-epilogue -S | FileCheck %s --check-prefixes=COMMON,CHECK-TF,CHECK-PREFER
+; RUN: opt < %s -loop-vectorize -tail-predication=enabled -S | FileCheck %s --check-prefixes=COMMON,CHECK-TF,CHECK-ENABLE-TP
 
 target datalayout = "e-m:e-p:32:32-Fi8-i64:64-v128:64:128-a:0:32-n32-S64"
 target triple = "thumbv8.1m.main-arm-unknown-eabihf"
@@ -17,8 +18,7 @@ define dso_local void @sgt_loopguard(i8* noalias nocapture readonly %a, i8* noal
 ; COMMON:       vector.body:
 
 ; CHECK-TF:     %[[VIVELEM0:.*]] = extractelement <16 x i32> %vec.iv, i32 0
-; CHECK-TF:     %[[SCALARBTC:.*]] = extractelement <16 x i32> %broadcast.splat, i32 0
-; CHECK-TF:     %active.lane.mask = call <16 x i1> @llvm.get.active.lane.mask.v16i1.i32(i32 %[[VIVELEM0]], i32 %[[SCALARBTC]])
+; CHECK-TF:     %active.lane.mask = call <16 x i1> @llvm.get.active.lane.mask.v16i1.i32(i32 %[[VIVELEM0]], i32 %N)
 ; CHECK-TF:     llvm.masked.load.v16i8.p0v16i8(<16 x i8>* %{{.*}}, i32 1, <16 x i1> %active.lane.mask
 ; CHECK-TF:     llvm.masked.load.v16i8.p0v16i8(<16 x i8>* %{{.*}}, i32 1, <16 x i1> %active.lane.mask
 ; CHECK-TF:     llvm.masked.store.v16i8.p0v16i8(<16 x i8> %{{.*}}, <16 x i8>* %{{.*}}, i32 1, <16 x i1> %active.lane.mask)

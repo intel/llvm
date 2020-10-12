@@ -113,6 +113,17 @@ void elf::reportRangeError(uint8_t *loc, const Relocation &rel, const Twine &v,
               ", " + Twine(max).str() + "]" + hint);
 }
 
+void elf::reportRangeError(uint8_t *loc, int64_t v, int n, const Symbol &sym,
+                           const Twine &msg) {
+  ErrorPlace errPlace = getErrorPlace(loc);
+  std::string hint;
+  if (!sym.getName().empty())
+    hint = "; references " + lld::toString(sym) + getDefinedLocation(sym);
+  errorOrWarn(errPlace.loc + msg + " is out of range: " + Twine(v) +
+              " is not in [" + Twine(llvm::minIntN(n)) + ", " +
+              Twine(llvm::maxIntN(n)) + "]" + hint);
+}
+
 namespace {
 // Build a bitmask with one bit set for each RelExpr.
 //
@@ -197,9 +208,9 @@ handleTlsRelocation(RelType type, Symbol &sym, InputSectionBase &c,
     return 1;
   }
 
-  bool canRelax = config->emachine != EM_ARM &&
-                  config->emachine != EM_HEXAGON &&
-                  config->emachine != EM_RISCV;
+  bool toExecRelax = !config->shared && config->emachine != EM_ARM &&
+                     config->emachine != EM_HEXAGON &&
+                     config->emachine != EM_RISCV;
 
   // If we are producing an executable and the symbol is non-preemptable, it
   // must be defined and the code sequence can be relaxed to use Local-Exec.
@@ -217,7 +228,7 @@ handleTlsRelocation(RelType type, Symbol &sym, InputSectionBase &c,
   if (oneof<R_TLSLD_GOT, R_TLSLD_GOTPLT, R_TLSLD_PC, R_TLSLD_HINT>(
           expr)) {
     // Local-Dynamic relocs can be relaxed to Local-Exec.
-    if (canRelax && !config->shared) {
+    if (toExecRelax) {
       c.relocations.push_back(
           {target->adjustRelaxExpr(type, nullptr, R_RELAX_TLS_LD_TO_LE), type,
            offset, addend, &sym});
@@ -238,7 +249,7 @@ handleTlsRelocation(RelType type, Symbol &sym, InputSectionBase &c,
   }
 
   // Local-Dynamic relocs can be relaxed to Local-Exec.
-  if (expr == R_DTPREL && !config->shared) {
+  if (expr == R_DTPREL && toExecRelax) {
     c.relocations.push_back(
         {target->adjustRelaxExpr(type, nullptr, R_RELAX_TLS_LD_TO_LE), type,
          offset, addend, &sym});
@@ -260,7 +271,7 @@ handleTlsRelocation(RelType type, Symbol &sym, InputSectionBase &c,
 
   if (oneof<R_AARCH64_TLSDESC_PAGE, R_TLSDESC, R_TLSDESC_CALL, R_TLSDESC_PC,
             R_TLSGD_GOT, R_TLSGD_GOTPLT, R_TLSGD_PC>(expr)) {
-    if (!canRelax || config->shared) {
+    if (!toExecRelax) {
       if (in.got->addDynTlsEntry(sym)) {
         uint64_t off = in.got->getGlobalDynOffset(sym);
 
@@ -308,7 +319,7 @@ handleTlsRelocation(RelType type, Symbol &sym, InputSectionBase &c,
   // defined.
   if (oneof<R_GOT, R_GOTPLT, R_GOT_PC, R_AARCH64_GOT_PAGE_PC, R_GOT_OFF,
             R_TLSIE_HINT>(expr) &&
-      canRelax && isLocalInExecutable) {
+      toExecRelax && isLocalInExecutable) {
     c.relocations.push_back({R_RELAX_TLS_IE_TO_LE, type, offset, addend, &sym});
     return 1;
   }
@@ -376,7 +387,7 @@ static bool needsGot(RelExpr expr) {
 static bool isRelExpr(RelExpr expr) {
   return oneof<R_PC, R_GOTREL, R_GOTPLTREL, R_MIPS_GOTREL, R_PPC64_CALL,
                R_PPC64_RELAX_TOC, R_AARCH64_PAGE_PC, R_RELAX_GOT_PC,
-               R_RISCV_PC_INDIRECT>(expr);
+               R_RISCV_PC_INDIRECT, R_PPC64_RELAX_GOT_PC>(expr);
 }
 
 // Returns true if a given relocation can be computed at link-time.
@@ -681,7 +692,7 @@ static std::string maybeReportDiscarded(Undefined &sym) {
   if (sym.type == ELF::STT_SECTION) {
     msg = "relocation refers to a discarded section: ";
     msg += CHECK(
-        file->getObj().getSectionName(&objSections[sym.discardedSecIdx]), file);
+        file->getObj().getSectionName(objSections[sym.discardedSecIdx]), file);
   } else {
     msg = "relocation refers to a symbol in a discarded section: " +
           toString(sym);
@@ -1263,7 +1274,7 @@ static void processRelocAux(InputSectionBase &sec, RelExpr expr, RelType type,
 
 template <class ELFT, class RelTy>
 static void scanReloc(InputSectionBase &sec, OffsetGetter &getOffset, RelTy *&i,
-                      RelTy *end) {
+                      RelTy *start, RelTy *end) {
   const RelTy &rel = *i;
   uint32_t symIndex = rel.getSymbol(config->isMips64EL);
   Symbol &sym = sec.getFile<ELFT>()->getSymbol(symIndex);
@@ -1308,6 +1319,28 @@ static void scanReloc(InputSectionBase &sec, OffsetGetter &getOffset, RelTy *&i,
   int64_t addend = computeAddend<ELFT>(rel, end, sec, expr, sym.isLocal());
 
   if (config->emachine == EM_PPC64) {
+    // For a call to __tls_get_addr, the instruction needs to be relocated by
+    // two relocations, R_PPC64_TLSGD/R_PPC64_TLSLD and R_PPC64_REL24[_NOTOC].
+    // R_PPC64_TLSGD/R_PPC64_TLSLD should precede R_PPC64_REL24[_NOTOC].
+    if ((type == R_PPC64_REL24 || type == R_PPC64_REL24_NOTOC) &&
+        sym.getName() == "__tls_get_addr") {
+      bool err = i - start < 2;
+      if (!err) {
+        // Subtract 2 to get the previous iterator because we have already done
+        // ++i above. This is now safe because we know that i-1 is not the
+        // start.
+        const RelTy &prevRel = *(i - 2);
+        RelType prevType = prevRel.getType(config->isMips64EL);
+        err = prevRel.r_offset != rel.r_offset ||
+              (prevType != R_PPC64_TLSGD && prevType != R_PPC64_TLSLD);
+      }
+
+      if (err)
+        errorOrWarn("call to __tls_get_addr is missing a "
+                    "R_PPC64_TLSGD/R_PPC64_TLSLD relocation" +
+                    getLocation(sec, sym, offset));
+    }
+
     // We can separate the small code model relocations into 2 categories:
     // 1) Those that access the compiler generated .toc sections.
     // 2) Those that access the linker allocated got entries.
@@ -1324,6 +1357,19 @@ static void scanReloc(InputSectionBase &sec, OffsetGetter &getOffset, RelTy *&i,
     if (type == R_PPC64_TOC16_LO && sym.isSection() && isa<Defined>(sym) &&
         cast<Defined>(sym).section->name == ".toc")
       ppc64noTocRelax.insert({&sym, addend});
+
+    if (type == R_PPC64_TLSGD && expr == R_TLSDESC_CALL) {
+      if (i == end) {
+        errorOrWarn("R_PPC64_TLSGD may not be the last relocation" +
+                    getLocation(sec, sym, offset));
+        return;
+      }
+
+      // Offset the 4-byte aligned R_PPC64_TLSGD by one byte in the NOTOC case,
+      // so we can discern it later from the toc-case.
+      if (i->getType(/*isMips64EL=*/false) == R_PPC64_REL24_NOTOC)
+        ++offset;
+    }
   }
 
   // Relax relocations.
@@ -1502,7 +1548,7 @@ static void scanRelocs(InputSectionBase &sec, ArrayRef<RelTy> rels) {
   sec.relocations.reserve(rels.size());
 
   for (auto i = rels.begin(), end = rels.end(); i != end;)
-    scanReloc<ELFT>(sec, getOffset, i, end);
+    scanReloc<ELFT>(sec, getOffset, i, rels.begin(), end);
 
   // Sort relocations by offset for more efficient searching for
   // R_RISCV_PCREL_HI20 and R_PPC64_ADDR64.

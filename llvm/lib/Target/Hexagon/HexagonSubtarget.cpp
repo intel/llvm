@@ -10,10 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "HexagonSubtarget.h"
 #include "Hexagon.h"
 #include "HexagonInstrInfo.h"
 #include "HexagonRegisterInfo.h"
-#include "HexagonSubtarget.h"
 #include "MCTargetDesc/HexagonMCTargetDesc.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
@@ -26,6 +26,7 @@
 #include "llvm/CodeGen/ScheduleDAGInstrs.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Target/TargetMachine.h"
 #include <algorithm>
 #include <cassert>
 #include <map>
@@ -37,7 +38,6 @@ using namespace llvm;
 #define GET_SUBTARGETINFO_CTOR
 #define GET_SUBTARGETINFO_TARGET_DESC
 #include "HexagonGenSubtargetInfo.inc"
-
 
 static cl::opt<bool> EnableBSBSched("enable-bsb-sched",
   cl::Hidden, cl::ZeroOrMore, cl::init(true));
@@ -77,7 +77,8 @@ static cl::opt<bool> EnableCheckBankConflict("hexagon-check-bank-conflict",
 
 HexagonSubtarget::HexagonSubtarget(const Triple &TT, StringRef CPU,
                                    StringRef FS, const TargetMachine &TM)
-    : HexagonGenSubtargetInfo(TT, CPU, FS), OptLevel(TM.getOptLevel()),
+    : HexagonGenSubtargetInfo(TT, CPU, /*TuneCPU*/ CPU, FS),
+      OptLevel(TM.getOptLevel()),
       CPUString(std::string(Hexagon_MC::selectHexagonCPU(CPU))),
       TargetTriple(TT), InstrInfo(initializeSubtargetDependencies(CPU, FS)),
       RegInfo(getHwMode()), TLInfo(TM, *this),
@@ -104,7 +105,7 @@ HexagonSubtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS) {
 
   UseBSBScheduling = hasV60Ops() && EnableBSBSched;
 
-  ParseSubtargetFeatures(CPUString, FS);
+  ParseSubtargetFeatures(CPUString, /*TuneCPU*/ CPUString, FS);
 
   if (OverrideLongCalls.getPosition())
     UseLongCalls = OverrideLongCalls;

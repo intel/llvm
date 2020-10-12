@@ -15,16 +15,16 @@
 ; RUN: --check-prefix=64LARGE-MIR %s
 
 ; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc-ibm-aix-xcoff \
-; RUN: -code-model=small < %s | FileCheck --check-prefixes=32SMALL-ASM,CHECK %s
+; RUN: -code-model=small < %s | FileCheck --check-prefixes=32SMALL-ASM,SMALL-ASM %s
 
 ; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc-ibm-aix-xcoff \
-; RUN: -code-model=large < %s | FileCheck --check-prefixes=32LARGE-ASM,CHECK %s
+; RUN: -code-model=large < %s | FileCheck --check-prefixes=32LARGE-ASM,LARGE-ASM %s
 
 ; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc64-ibm-aix-xcoff \
-; RUN: -code-model=small < %s | FileCheck --check-prefixes=64SMALL-ASM,CHECK %s
+; RUN: -code-model=small < %s | FileCheck --check-prefixes=64SMALL-ASM,SMALL-ASM %s
 
 ; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc64-ibm-aix-xcoff \
-; RUN: -code-model=large < %s | FileCheck --check-prefixes=64LARGE-ASM,CHECK %s
+; RUN: -code-model=large < %s | FileCheck --check-prefixes=64LARGE-ASM,LARGE-ASM %s
 
 define float @test_float() {
 entry:
@@ -47,7 +47,7 @@ entry:
 
 ; 32SMALL-ASM:         .csect .rodata[RO],2
 ; 32SMALL-ASM:         .align  2
-; 32SMALL-ASM: .LCPI0_0:
+; 32SMALL-ASM: L..CPI0_0:
 ; 32SMALL-ASM:         .vbyte	4, 0x40b00000
 ; 32SMALL-ASM: .test_float:
 ; 32SMALL-ASM:         lwz [[REG1:[0-9]+]], L..C0(2)
@@ -56,7 +56,7 @@ entry:
 
 ; 32LARGE-ASM:         .csect .rodata[RO],2
 ; 32LARGE-ASM:         .align  2
-; 32LARGE-ASM: .LCPI0_0:
+; 32LARGE-ASM: L..CPI0_0:
 ; 32LARGE-ASM:         .vbyte	4, 0x40b00000
 ; 32LARGE-ASM: .test_float:
 ; 32LARGE-ASM:         addis [[REG1:[0-9]+]], L..C0@u(2)
@@ -66,7 +66,7 @@ entry:
 
 ; 64SMALL-ASM:         .csect .rodata[RO],2
 ; 64SMALL-ASM:         .align  2
-; 64SMALL-ASM: .LCPI0_0:
+; 64SMALL-ASM: L..CPI0_0:
 ; 64SMALL-ASM:         .vbyte	4, 0x40b00000
 ; 64SMALL-ASM: .test_float:
 ; 64SMALL-ASM:         ld [[REG1:[0-9]+]], L..C0(2)
@@ -75,7 +75,7 @@ entry:
 
 ; 64LARGE-ASM:         .csect .rodata[RO],2
 ; 64LARGE-ASM:         .align  2
-; 64LARGE-ASM: .LCPI0_0:
+; 64LARGE-ASM: L..CPI0_0:
 ; 64LARGE-ASM:         .vbyte	4, 0x40b00000
 ; 64LARGE-ASM: .test_float:
 ; 64LARGE-ASM:         addis [[REG1:[0-9]+]], L..C0@u(2)
@@ -83,5 +83,8 @@ entry:
 ; 64LARGE-ASM:         lfs 1, 0([[REG2]])
 ; 64LARGE-ASM:         blr
 
-; CHECK: .toc
-; CHECK: .tc .LCPI0_0[TC],.LCPI0_0
+; SMALL-ASM: .toc
+; SMALL-ASM: .tc L..CPI0_0[TC],L..CPI0_0
+
+; LARGE-ASM: .toc
+; LARGE-ASM: .tc L..CPI0_0[TE],L..CPI0_0

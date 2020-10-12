@@ -1,6 +1,4 @@
-// UNSUPPORTED: windows
-// RUN: %clangxx -fsycl -c %s -o %t.o
-// RUN: %clangxx -fsycl %t.o %sycl_libs_dir/libsycl-complex-fp64.o %sycl_libs_dir/libsycl-cmath-fp64.o -o %t.out
+// RUN: %clangxx -fsycl -fsycl-device-lib=libm-fp64 %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
@@ -17,8 +15,7 @@ namespace s = cl::sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
-template <typename T>
-bool approx_equal_cmplx(complex<T> x, complex<T> y) {
+template <typename T> bool approx_equal_cmplx(complex<T> x, complex<T> y) {
   return approx_equal_fp(x.real(), y.real()) &&
          approx_equal_fp(x.imag(), y.imag());
 }
@@ -86,8 +83,8 @@ std::array<complex<double>, TestArraySize1> ref1_results = {
     complex<double>(M_PI_2, 0.),
     complex<double>(M_PI_2, 0.549306144334055)};
 
-std::array<double, TestArraySize2> ref2_results = {0., 25., 169., INFINITY, 0.,
-                                                   5., 13., INFINITY, 0., M_PI_2};
+std::array<double, TestArraySize2> ref2_results = {
+    0., 25., 169., INFINITY, 0., 5., 13., INFINITY, 0., M_PI_2};
 
 void device_complex_test(s::queue &deviceQueue) {
   s::range<1> numOfItems1{TestArraySize1};

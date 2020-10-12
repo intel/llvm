@@ -128,11 +128,6 @@ struct fn_list {
 struct fn_list writeout_fn_list;
 
 /*
- *  A list of flush functions that our __gcov_flush() function should call, shared between all dynamic objects.
- */
-struct fn_list flush_fn_list;
-
-/*
  *  A list of reset functions, shared between all dynamic objects.
  */
 struct fn_list reset_fn_list;
@@ -208,22 +203,6 @@ static void write_64bit_value(uint64_t i) {
   uint32_t hi = (uint32_t) (i >> 32);
   write_32bit_value(lo);
   write_32bit_value(hi);
-}
-
-static uint32_t length_of_string(const char *s) {
-  return (strlen(s) / 4) + 1;
-}
-
-// Remove when we support libgcov 9 current_working_directory.
-#if !defined(_MSC_VER) && defined(__clang__)
-__attribute__((unused))
-#endif
-static void
-write_string(const char *s) {
-  uint32_t len = length_of_string(s);
-  write_32bit_value(len);
-  write_bytes(s, strlen(s));
-  write_bytes("\0\0\0\0", 4 - (strlen(s) % 4));
 }
 
 static uint32_t read_32bit_value() {
@@ -422,32 +401,6 @@ void llvm_gcda_start_file(const char *orig_filename, uint32_t version,
 #endif
 }
 
-/* Given an array of pointers to counters (counters), increment the n-th one,
- * where we're also given a pointer to n (predecessor).
- */
-COMPILER_RT_VISIBILITY
-void llvm_gcda_increment_indirect_counter(uint32_t *predecessor,
-                                          uint64_t **counters) {
-  uint64_t *counter;
-  uint32_t pred;
-
-  pred = *predecessor;
-  if (pred == 0xffffffff)
-    return;
-  counter = counters[pred];
-
-  /* Don't crash if the pred# is out of sync. This can happen due to threads,
-     or because of a TODO in GCOVProfiling.cpp buildEdgeLookupTable(). */
-  if (counter)
-    ++*counter;
-#ifdef DEBUG_GCDAPROFILING
-  else
-    fprintf(stderr,
-            "llvmgcda: increment_indirect_counter counters=%08llx, pred=%u\n",
-            *counter, *predecessor);
-#endif
-}
-
 COMPILER_RT_VISIBILITY
 void llvm_gcda_emit_function(uint32_t ident, uint32_t func_checksum,
                              uint32_t cfg_checksum) {
@@ -628,28 +581,18 @@ void llvm_writeout_files(void) {
   }
 }
 
-COMPILER_RT_VISIBILITY
-void llvm_delete_writeout_function_list(void) {
+#ifndef _WIN32
+// __attribute__((destructor)) and destructors whose priorities are greater than
+// 100 run before this function and can thus be tracked. The priority is
+// compatible with GCC 7 onwards.
+#if __GNUC__ >= 9
+#pragma GCC diagnostic ignored "-Wprio-ctor-dtor"
+#endif
+__attribute__((destructor(100)))
+#endif
+static void llvm_writeout_and_clear(void) {
+  llvm_writeout_files();
   fn_list_remove(&writeout_fn_list);
-}
-
-COMPILER_RT_VISIBILITY
-void llvm_register_flush_function(fn_ptr fn) {
-  fn_list_insert(&flush_fn_list, fn);
-}
-
-void __gcov_flush() {
-  struct fn_node* curr = flush_fn_list.head;
-
-  while (curr) {
-    curr->fn();
-    curr = curr->next;
-  }
-}
-
-COMPILER_RT_VISIBILITY
-void llvm_delete_flush_function_list(void) {
-  fn_list_remove(&flush_fn_list);
 }
 
 COMPILER_RT_VISIBILITY
@@ -692,14 +635,11 @@ pid_t __gcov_fork() {
 #endif
 
 COMPILER_RT_VISIBILITY
-void llvm_gcov_init(fn_ptr wfn, fn_ptr ffn, fn_ptr rfn) {
+void llvm_gcov_init(fn_ptr wfn, fn_ptr rfn) {
   static int atexit_ran = 0;
 
   if (wfn)
     llvm_register_writeout_function(wfn);
-
-  if (ffn)
-    llvm_register_flush_function(ffn);
 
   if (rfn)
     llvm_register_reset_function(rfn);
@@ -709,10 +649,20 @@ void llvm_gcov_init(fn_ptr wfn, fn_ptr ffn, fn_ptr rfn) {
 
     /* Make sure we write out the data and delete the data structures. */
     atexit(llvm_delete_reset_function_list);
-    atexit(llvm_delete_flush_function_list);
-    atexit(llvm_delete_writeout_function_list);
-    atexit(llvm_writeout_files);
+#ifdef _WIN32
+    atexit(llvm_writeout_and_clear);
+#endif
   }
+}
+
+void __gcov_dump(void) {
+  for (struct fn_node *f = writeout_fn_list.head; f; f = f->next)
+    f->fn();
+}
+
+void __gcov_reset(void) {
+  for (struct fn_node *f = reset_fn_list.head; f; f = f->next)
+    f->fn();
 }
 
 #endif

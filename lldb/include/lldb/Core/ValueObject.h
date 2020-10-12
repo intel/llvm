@@ -358,7 +358,7 @@ public:
   virtual bool CanProvideValue();
 
   // Subclasses must implement the functions below.
-  virtual uint64_t GetByteSize() = 0;
+  virtual llvm::Optional<uint64_t> GetByteSize() = 0;
 
   virtual lldb::ValueType GetValueType() const = 0;
 
@@ -702,12 +702,12 @@ public:
   }
 
   void SetSummaryFormat(lldb::TypeSummaryImplSP format) {
-    m_type_summary_sp = format;
+    m_type_summary_sp = std::move(format);
     ClearUserVisibleData(eClearUserVisibleDataItemsSummary);
   }
 
   void SetValueFormat(lldb::TypeFormatImplSP format) {
-    m_type_format_sp = format;
+    m_type_format_sp = std::move(format);
     ClearUserVisibleData(eClearUserVisibleDataItemsValue);
   }
 
@@ -963,9 +963,14 @@ protected:
 
   void SetPreferredDisplayLanguageIfNeeded(lldb::LanguageType);
 
+protected:
+  virtual void DoUpdateChildrenAddressType(ValueObject &valobj) { return; };
+
 private:
   virtual CompilerType MaybeCalculateCompleteType();
-  void UpdateChildrenAddressType();
+  void UpdateChildrenAddressType() {
+    GetRoot()->DoUpdateChildrenAddressType(*this);
+  }
 
   lldb::ValueObjectSP GetValueForExpressionPath_Impl(
       llvm::StringRef expression_cstr,

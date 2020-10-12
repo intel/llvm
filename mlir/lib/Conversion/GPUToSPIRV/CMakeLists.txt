@@ -14,8 +14,9 @@ add_mlir_conversion_library(MLIRGPUToSPIRVTransforms
   MLIRGPU
   MLIRIR
   MLIRPass
+  MLIRSCFToSPIRV
   MLIRSPIRV
-  MLIRStandardOps
+  MLIRStandard
   MLIRStandardToSPIRVTransforms
   MLIRSupport
   MLIRTransforms

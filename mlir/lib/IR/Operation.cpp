@@ -13,6 +13,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/TypeUtilities.h"
+#include "mlir/Interfaces/FoldInterfaces.h"
 #include <numeric>
 
 using namespace mlir;
@@ -44,11 +45,16 @@ StringRef OperationName::stripDialect() const {
   return splitName.second.empty() ? splitName.first : splitName.second;
 }
 
-/// Return the name of this operation.  This always succeeds.
+/// Return the name of this operation. This always succeeds.
 StringRef OperationName::getStringRef() const {
+  return getIdentifier().strref();
+}
+
+/// Return the name of this operation as an identifier. This always succeeds.
+Identifier OperationName::getIdentifier() const {
   if (auto *op = representation.dyn_cast<const AbstractOperation *>())
     return op->name;
-  return representation.get<Identifier>().strref();
+  return representation.get<Identifier>();
 }
 
 const AbstractOperation *OperationName::getAbstractOperation() const {
@@ -65,29 +71,24 @@ OperationName OperationName::getFromOpaquePointer(void *pointer) {
 
 /// Create a new Operation with the specific fields.
 Operation *Operation::create(Location location, OperationName name,
-                             ArrayRef<Type> resultTypes,
-                             ArrayRef<Value> operands,
+                             TypeRange resultTypes, ValueRange operands,
                              ArrayRef<NamedAttribute> attributes,
-                             ArrayRef<Block *> successors,
-                             unsigned numRegions) {
+                             BlockRange successors, unsigned numRegions) {
   return create(location, name, resultTypes, operands,
                 MutableDictionaryAttr(attributes), successors, numRegions);
 }
 
 /// Create a new Operation from operation state.
 Operation *Operation::create(const OperationState &state) {
-  return Operation::create(state.location, state.name, state.types,
-                           state.operands, state.attributes, state.successors,
-                           state.regions);
+  return create(state.location, state.name, state.types, state.operands,
+                state.attributes, state.successors, state.regions);
 }
 
 /// Create a new Operation with the specific fields.
 Operation *Operation::create(Location location, OperationName name,
-                             ArrayRef<Type> resultTypes,
-                             ArrayRef<Value> operands,
+                             TypeRange resultTypes, ValueRange operands,
                              MutableDictionaryAttr attributes,
-                             ArrayRef<Block *> successors,
-                             RegionRange regions) {
+                             BlockRange successors, RegionRange regions) {
   unsigned numRegions = regions.size();
   Operation *op = create(location, name, resultTypes, operands, attributes,
                          successors, numRegions);
@@ -100,11 +101,9 @@ Operation *Operation::create(Location location, OperationName name,
 /// Overload of create that takes an existing MutableDictionaryAttr to avoid
 /// unnecessarily uniquing a list of attributes.
 Operation *Operation::create(Location location, OperationName name,
-                             ArrayRef<Type> resultTypes,
-                             ArrayRef<Value> operands,
+                             TypeRange resultTypes, ValueRange operands,
                              MutableDictionaryAttr attributes,
-                             ArrayRef<Block *> successors,
-                             unsigned numRegions) {
+                             BlockRange successors, unsigned numRegions) {
   // We only need to allocate additional memory for a subset of results.
   unsigned numTrailingResults = OpResult::getNumTrailing(resultTypes.size());
   unsigned numInlineResults = OpResult::getNumInline(resultTypes.size());
@@ -161,7 +160,7 @@ Operation *Operation::create(Location location, OperationName name,
 }
 
 Operation::Operation(Location location, OperationName name,
-                     ArrayRef<Type> resultTypes, unsigned numSuccessors,
+                     TypeRange resultTypes, unsigned numSuccessors,
                      unsigned numRegions,
                      const MutableDictionaryAttr &attributes,
                      bool hasOperandStorage)
@@ -213,7 +212,7 @@ Dialect *Operation::getDialect() {
 
   // If this operation hasn't been registered or doesn't have abstract
   // operation, try looking up the dialect name in the context.
-  return getContext()->getRegisteredDialect(getName().getDialect());
+  return getContext()->getLoadedDialect(getName().getDialect());
 }
 
 Region *Operation::getParentRegion() {
@@ -280,7 +279,7 @@ InFlightDiagnostic Operation::emitError(const Twine &message) {
   if (getContext()->shouldPrintOpOnDiagnostic()) {
     // Print out the operation explicitly here so that we can print the generic
     // form.
-    // TODO(riverriddle) It would be nice if we could instead provide the
+    // TODO: It would be nice if we could instead provide the
     // specific printing flags when adding the operation as an argument to the
     // diagnostic.
     std::string printedOp;
@@ -570,11 +569,11 @@ LogicalResult Operation::fold(ArrayRef<Attribute> operands,
   if (!dialect)
     return failure();
 
-  SmallVector<Attribute, 8> constants;
-  if (failed(dialect->constantFoldHook(this, operands, constants)))
+  auto *interface = dialect->getRegisteredInterface<DialectFoldInterface>();
+  if (!interface)
     return failure();
-  results.assign(constants.begin(), constants.end());
-  return success();
+
+  return interface->fold(this, operands, results);
 }
 
 /// Emit an error with the op name prefixed, like "'dim' op " which is
@@ -605,8 +604,8 @@ Operation *Operation::cloneWithoutRegions(BlockAndValueMapping &mapper) {
     successors.push_back(mapper.lookupOrDefault(successor));
 
   // Create the new operation.
-  auto *newOp = Operation::create(getLoc(), getName(), getResultTypes(),
-                                  operands, attrs, successors, getNumRegions());
+  auto *newOp = create(getLoc(), getName(), getResultTypes(), operands, attrs,
+                       successors, getNumRegions());
 
   // Remember the mapping of any results.
   for (unsigned i = 0, e = getNumResults(); i != e; ++i)
@@ -1015,6 +1014,22 @@ LogicalResult OpTrait::impl::verifyOperandSizeAttr(Operation *op,
 LogicalResult OpTrait::impl::verifyResultSizeAttr(Operation *op,
                                                   StringRef attrName) {
   return verifyValueSizeAttr(op, attrName, /*isOperand=*/false);
+}
+
+LogicalResult OpTrait::impl::verifyNoRegionArguments(Operation *op) {
+  for (Region &region : op->getRegions()) {
+    if (region.empty())
+      continue;
+
+    if (region.getNumArguments() != 0) {
+      if (op->getNumRegions() > 1)
+        return op->emitOpError("region #")
+               << region.getRegionNumber() << " should have no arguments";
+      else
+        return op->emitOpError("region should have no arguments");
+    }
+  }
+  return success();
 }
 
 //===----------------------------------------------------------------------===//

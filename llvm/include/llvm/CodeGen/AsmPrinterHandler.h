@@ -24,7 +24,8 @@ class MachineFunction;
 class MachineInstr;
 class MCSymbol;
 
-typedef MCSymbol *ExceptionSymbolProvider(AsmPrinter *Asm);
+typedef MCSymbol *ExceptionSymbolProvider(AsmPrinter *Asm,
+                                          const MachineBasicBlock *MBB);
 
 /// Collects and handles AsmPrinter objects required to build debug
 /// or EH information.
@@ -67,6 +68,12 @@ public:
 
   /// Process end of an instruction.
   virtual void endInstruction() = 0;
+
+  /// Process beginning of a basic block during basic block sections.
+  virtual void beginBasicBlock(const MachineBasicBlock &MBB) {}
+
+  /// Process end of a basic block during basic block sections.
+  virtual void endBasicBlock(const MachineBasicBlock &MBB) {}
 };
 } // End of namespace llvm
 

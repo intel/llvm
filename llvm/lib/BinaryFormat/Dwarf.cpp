@@ -488,6 +488,17 @@ StringRef llvm::dwarf::MacroString(unsigned Encoding) {
   }
 }
 
+StringRef llvm::dwarf::GnuMacroString(unsigned Encoding) {
+  switch (Encoding) {
+  default:
+    return StringRef();
+#define HANDLE_DW_MACRO_GNU(ID, NAME)                                          \
+  case DW_MACRO_GNU_##NAME:                                                    \
+    return "DW_MACRO_GNU_" #NAME;
+#include "llvm/BinaryFormat/Dwarf.def"
+  }
+}
+
 unsigned llvm::dwarf::getMacro(StringRef MacroString) {
   return StringSwitch<unsigned>(MacroString)
 #define HANDLE_DW_MACRO(ID, NAME) .Case("DW_MACRO_" #NAME, ID)
@@ -782,6 +793,17 @@ StringRef llvm::dwarf::FormatString(DwarfFormat Format) {
 
 StringRef llvm::dwarf::FormatString(bool IsDWARF64) {
   return FormatString(IsDWARF64 ? DWARF64 : DWARF32);
+}
+
+StringRef llvm::dwarf::RLEString(unsigned RLE) {
+  switch (RLE) {
+  default:
+    return StringRef();
+#define HANDLE_DW_RLE(ID, NAME)                                                \
+  case DW_RLE_##NAME:                                                          \
+    return "DW_RLE_" #NAME;
+#include "llvm/BinaryFormat/Dwarf.def"
+  }
 }
 
 constexpr char llvm::dwarf::EnumTraits<Attribute>::Type[];

@@ -6,9 +6,7 @@
 
 module attributes {
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [Int8, Int16, Int64, Float16, Float64], []>,
-    {max_compute_workgroup_invocations = 128 : i32,
-     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+    #spv.vce<v1.0, [Int8, Int16, Int64, Float16, Float64], []>, {}>
 } {
 
 // Check integer operation conversions.
@@ -22,12 +20,23 @@ func @int32_scalar(%lhs: i32, %rhs: i32) {
   %2 = muli %lhs, %rhs: i32
   // CHECK: spv.SDiv %{{.*}}, %{{.*}}: i32
   %3 = divi_signed %lhs, %rhs: i32
-  // CHECK: spv.SRem %{{.*}}, %{{.*}}: i32
-  %4 = remi_signed %lhs, %rhs: i32
   // CHECK: spv.UDiv %{{.*}}, %{{.*}}: i32
-  %5 = divi_unsigned %lhs, %rhs: i32
+  %4 = divi_unsigned %lhs, %rhs: i32
   // CHECK: spv.UMod %{{.*}}, %{{.*}}: i32
-  %6 = remi_unsigned %lhs, %rhs: i32
+  %5 = remi_unsigned %lhs, %rhs: i32
+  return
+}
+
+// CHECK-LABEL: @scalar_srem
+// CHECK-SAME: (%[[LHS:.+]]: i32, %[[RHS:.+]]: i32)
+func @scalar_srem(%lhs: i32, %rhs: i32) {
+  // CHECK: %[[LABS:.+]] = spv.GLSL.SAbs %[[LHS]] : i32
+  // CHECK: %[[RABS:.+]] = spv.GLSL.SAbs %[[RHS]] : i32
+  // CHECK:  %[[ABS:.+]] = spv.UMod %[[LABS]], %[[RABS]] : i32
+  // CHECK:  %[[POS:.+]] = spv.IEqual %[[LHS]], %[[LABS]] : i32
+  // CHECK:  %[[NEG:.+]] = spv.SNegate %[[ABS]] : i32
+  // CHECK:      %{{.+}} = spv.Select %[[POS]], %[[ABS]], %[[NEG]] : i1, i32
+  %0 = remi_signed %lhs, %rhs: i32
   return
 }
 
@@ -54,6 +63,8 @@ func @float32_unary_scalar(%arg0: f32) {
   %8 = tanh %arg0 : f32
   // CHECK: spv.GLSL.Sin %{{.*}}: f32
   %9 = sin %arg0 : f32
+  // CHECK: spv.GLSL.Floor %{{.*}}: f32
+  %10 = floorf %arg0 : f32
   return
 }
 
@@ -75,13 +86,24 @@ func @float32_binary_scalar(%lhs: f32, %rhs: f32) {
 
 // Check int vector types.
 // CHECK-LABEL: @int_vector234
-func @int_vector234(%arg0: vector<2xi8>, %arg1: vector<3xi16>, %arg2: vector<4xi64>) {
+func @int_vector234(%arg0: vector<2xi8>, %arg1: vector<4xi64>) {
   // CHECK: spv.SDiv %{{.*}}, %{{.*}}: vector<2xi8>
   %0 = divi_signed %arg0, %arg0: vector<2xi8>
-  // CHECK: spv.SRem %{{.*}}, %{{.*}}: vector<3xi16>
-  %1 = remi_signed %arg1, %arg1: vector<3xi16>
   // CHECK: spv.UDiv %{{.*}}, %{{.*}}: vector<4xi64>
-  %2 = divi_unsigned %arg2, %arg2: vector<4xi64>
+  %1 = divi_unsigned %arg1, %arg1: vector<4xi64>
+  return
+}
+
+// CHECK-LABEL: @vector_srem
+// CHECK-SAME: (%[[LHS:.+]]: vector<3xi16>, %[[RHS:.+]]: vector<3xi16>)
+func @vector_srem(%arg0: vector<3xi16>, %arg1: vector<3xi16>) {
+  // CHECK: %[[LABS:.+]] = spv.GLSL.SAbs %[[LHS]] : vector<3xi16>
+  // CHECK: %[[RABS:.+]] = spv.GLSL.SAbs %[[RHS]] : vector<3xi16>
+  // CHECK:  %[[ABS:.+]] = spv.UMod %[[LABS]], %[[RABS]] : vector<3xi16>
+  // CHECK:  %[[POS:.+]] = spv.IEqual %[[LHS]], %[[LABS]] : vector<3xi16>
+  // CHECK:  %[[NEG:.+]] = spv.SNegate %[[ABS]] : vector<3xi16>
+  // CHECK:      %{{.+}} = spv.Select %[[POS]], %[[ABS]], %[[NEG]] : vector<3xi1>, vector<3xi16>
+  %0 = remi_signed %arg0, %arg1: vector<3xi16>
   return
 }
 
@@ -122,18 +144,15 @@ func @unsupported_2x2elem_vector(%arg0: vector<2x2xi32>) {
 
 // Check that types are converted to 32-bit when no special capabilities.
 module attributes {
-  spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [], []>,
-    {max_compute_workgroup_invocations = 128 : i32,
-     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, {}>
 } {
 
 // CHECK-LABEL: @int_vector23
 func @int_vector23(%arg0: vector<2xi8>, %arg1: vector<3xi16>) {
   // CHECK: spv.SDiv %{{.*}}, %{{.*}}: vector<2xi32>
   %0 = divi_signed %arg0, %arg0: vector<2xi8>
-  // CHECK: spv.SRem %{{.*}}, %{{.*}}: vector<3xi32>
-  %1 = remi_signed %arg1, %arg1: vector<3xi16>
+  // CHECK: spv.SDiv %{{.*}}, %{{.*}}: vector<3xi32>
+  %1 = divi_signed %arg1, %arg1: vector<3xi16>
   return
 }
 
@@ -153,13 +172,9 @@ func @float_scalar(%arg0: f16, %arg1: f64) {
 // Check that types are converted to 32-bit when no special capabilities that
 // are not supported.
 module attributes {
-  spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [], []>,
-    {max_compute_workgroup_invocations = 128 : i32,
-     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, {}>
 } {
 
-// CHECK-LEBEL: @int_vector4_invalid
 func @int_vector4_invalid(%arg0: vector<4xi64>) {
   // expected-error @+2 {{bitwidth emulation is not implemented yet on unsigned op}}
   // expected-error @+1 {{op requires the same type for all operands and results}}
@@ -176,10 +191,7 @@ func @int_vector4_invalid(%arg0: vector<4xi64>) {
 //===----------------------------------------------------------------------===//
 
 module attributes {
-  spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [], []>,
-    {max_compute_workgroup_invocations = 128 : i32,
-     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, {}>
 } {
 
 // CHECK-LABEL: @bitwise_scalar
@@ -325,9 +337,7 @@ func @boolcmpi(%arg0 : i1, %arg1 : i1) {
 
 module attributes {
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [Int8, Int16, Int64, Float16, Float64], []>,
-    {max_compute_workgroup_invocations = 128 : i32,
-     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+    #spv.vce<v1.0, [Int8, Int16, Int64, Float16, Float64], []>, {}>
 } {
 
 // CHECK-LABEL: @constant
@@ -389,10 +399,7 @@ func @constant_64bit() {
 
 // Check that constants are converted to 32-bit when no special capability.
 module attributes {
-  spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [], []>,
-    {max_compute_workgroup_invocations = 128 : i32,
-     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, {}>
 } {
 
 // CHECK-LABEL: @constant_16bit
@@ -475,9 +482,7 @@ func @unsupported_cases() {
 
 module attributes {
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [Int8, Int16, Int64, Float16, Float64], []>,
-    {max_compute_workgroup_invocations = 128 : i32,
-     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+    #spv.vce<v1.0, [Int8, Int16, Int64, Float16, Float64], []>, {}>
 } {
 
 // CHECK-LABEL: index_cast1
@@ -573,6 +578,15 @@ func @zexti3(%arg0 : i1) -> i32 {
   return %0 : i32
 }
 
+// CHECK-LABEL: @zexti4
+func @zexti4(%arg0 : vector<4xi1>) -> vector<4xi32> {
+  // CHECK: %[[ZERO:.+]] = spv.constant dense<0> : vector<4xi32>
+  // CHECK: %[[ONE:.+]] = spv.constant dense<1> : vector<4xi32>
+  // CHECK: spv.Select %{{.*}}, %[[ONE]], %[[ZERO]] : vector<4xi1>, vector<4xi32>
+  %0 = std.zexti %arg0 : vector<4xi1> to vector<4xi32>
+  return %0 : vector<4xi32>
+}
+
 // CHECK-LABEL: @trunci1
 func @trunci1(%arg0 : i64) -> i16 {
   // CHECK: spv.SConvert %{{.*}} : i64 to i16
@@ -608,10 +622,7 @@ func @fptosi2(%arg0 : f16) -> i16 {
 // Checks that cast types will be adjusted when no special capabilities for
 // non-32-bit scalar types.
 module attributes {
-  spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [], []>,
-    {max_compute_workgroup_invocations = 128 : i32,
-     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, {}>
 } {
 
 // CHECK-LABEL: @fpext1
@@ -659,9 +670,8 @@ func @sitofp(%arg0 : i64) {
 
 module attributes {
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [Shader, Int8, Int16, Int64, Float16, Float64], [SPV_KHR_storage_buffer_storage_class]>,
-    {max_compute_workgroup_invocations = 128 : i32,
-     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+    #spv.vce<v1.0, [Shader, Int8, Int16, Int64, Float16, Float64],
+             [SPV_KHR_storage_buffer_storage_class]>, {}>
 } {
 
 //===----------------------------------------------------------------------===//
@@ -727,9 +737,7 @@ func @load_store_zero_rank_int(%arg0: memref<i32>, %arg1: memref<i32>) {
 // TODO: Test i1 and i64 types.
 module attributes {
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>,
-    {max_compute_workgroup_invocations = 128 : i32,
-     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>, {}>
 } {
 
 // CHECK-LABEL: @load_i8
@@ -741,7 +749,7 @@ func @load_i8(%arg0: memref<i8>) {
   //     CHECK: %[[LOAD:.+]] = spv.Load  "StorageBuffer" %[[PTR]]
   //     CHECK: %[[FOUR2:.+]] = spv.constant 4 : i32
   //     CHECK: %[[EIGHT:.+]] = spv.constant 8 : i32
-  //     CHECK: %[[IDX:.+]] = spv.SMod %[[ZERO]], %[[FOUR2]] : i32
+  //     CHECK: %[[IDX:.+]] = spv.UMod %[[ZERO]], %[[FOUR2]] : i32
   //     CHECK: %[[BITS:.+]] = spv.IMul %[[IDX]], %[[EIGHT]] : i32
   //     CHECK: %[[VALUE:.+]] = spv.ShiftRightArithmetic %[[LOAD]], %[[BITS]] : i32, i32
   //     CHECK: %[[MASK:.+]] = spv.constant 255 : i32
@@ -767,7 +775,7 @@ func @load_i16(%arg0: memref<10xi16>, %index : index) {
   //     CHECK: %[[LOAD:.+]] = spv.Load  "StorageBuffer" %[[PTR]]
   //     CHECK: %[[TWO2:.+]] = spv.constant 2 : i32
   //     CHECK: %[[SIXTEEN:.+]] = spv.constant 16 : i32
-  //     CHECK: %[[IDX:.+]] = spv.SMod %[[FLAT_IDX]], %[[TWO2]] : i32
+  //     CHECK: %[[IDX:.+]] = spv.UMod %[[FLAT_IDX]], %[[TWO2]] : i32
   //     CHECK: %[[BITS:.+]] = spv.IMul %[[IDX]], %[[SIXTEEN]] : i32
   //     CHECK: %[[VALUE:.+]] = spv.ShiftRightArithmetic %[[LOAD]], %[[BITS]] : i32, i32
   //     CHECK: %[[MASK:.+]] = spv.constant 65535 : i32
@@ -803,7 +811,7 @@ func @store_i8(%arg0: memref<i8>, %value: i8) {
   //     CHECK: %[[ZERO:.+]] = spv.constant 0 : i32
   //     CHECK: %[[FOUR:.+]] = spv.constant 4 : i32
   //     CHECK: %[[EIGHT:.+]] = spv.constant 8 : i32
-  //     CHECK: %[[IDX:.+]] = spv.SMod %[[ZERO]], %[[FOUR]] : i32
+  //     CHECK: %[[IDX:.+]] = spv.UMod %[[ZERO]], %[[FOUR]] : i32
   //     CHECK: %[[OFFSET:.+]] = spv.IMul %[[IDX]], %[[EIGHT]] : i32
   //     CHECK: %[[MASK1:.+]] = spv.constant 255 : i32
   //     CHECK: %[[TMP1:.+]] = spv.ShiftLeftLogical %[[MASK1]], %[[OFFSET]] : i32, i32
@@ -829,7 +837,7 @@ func @store_i16(%arg0: memref<10xi16>, %index: index, %value: i16) {
   //     CHECK: %[[FLAT_IDX:.+]] = spv.IAdd %[[OFFSET]], %[[UPDATE]] : i32
   //     CHECK: %[[TWO:.+]] = spv.constant 2 : i32
   //     CHECK: %[[SIXTEEN:.+]] = spv.constant 16 : i32
-  //     CHECK: %[[IDX:.+]] = spv.SMod %[[FLAT_IDX]], %[[TWO]] : i32
+  //     CHECK: %[[IDX:.+]] = spv.UMod %[[FLAT_IDX]], %[[TWO]] : i32
   //     CHECK: %[[OFFSET:.+]] = spv.IMul %[[IDX]], %[[SIXTEEN]] : i32
   //     CHECK: %[[MASK1:.+]] = spv.constant 65535 : i32
   //     CHECK: %[[TMP1:.+]] = spv.ShiftLeftLogical %[[MASK1]], %[[OFFSET]] : i32, i32
@@ -872,9 +880,7 @@ func @store_f32(%arg0: memref<f32>, %value: f32) {
 module attributes {
   spv.target_env = #spv.target_env<
     #spv.vce<v1.0, [Int16, StorageBuffer16BitAccess, Shader],
-    [SPV_KHR_storage_buffer_storage_class, SPV_KHR_16bit_storage]>,
-    {max_compute_workgroup_invocations = 128 : i32,
-     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+    [SPV_KHR_storage_buffer_storage_class, SPV_KHR_16bit_storage]>, {}>
 } {
 
 // CHECK-LABEL: @load_i8
@@ -886,7 +892,7 @@ func @load_i8(%arg0: memref<i8>) {
   //     CHECK: %[[LOAD:.+]] = spv.Load  "StorageBuffer" %[[PTR]]
   //     CHECK: %[[FOUR2:.+]] = spv.constant 4 : i32
   //     CHECK: %[[EIGHT:.+]] = spv.constant 8 : i32
-  //     CHECK: %[[IDX:.+]] = spv.SMod %[[ZERO]], %[[FOUR2]] : i32
+  //     CHECK: %[[IDX:.+]] = spv.UMod %[[ZERO]], %[[FOUR2]] : i32
   //     CHECK: %[[BITS:.+]] = spv.IMul %[[IDX]], %[[EIGHT]] : i32
   //     CHECK: %[[VALUE:.+]] = spv.ShiftRightArithmetic %[[LOAD]], %[[BITS]] : i32, i32
   //     CHECK: %[[MASK:.+]] = spv.constant 255 : i32
@@ -913,7 +919,7 @@ func @store_i8(%arg0: memref<i8>, %value: i8) {
   //     CHECK: %[[ZERO:.+]] = spv.constant 0 : i32
   //     CHECK: %[[FOUR:.+]] = spv.constant 4 : i32
   //     CHECK: %[[EIGHT:.+]] = spv.constant 8 : i32
-  //     CHECK: %[[IDX:.+]] = spv.SMod %[[ZERO]], %[[FOUR]] : i32
+  //     CHECK: %[[IDX:.+]] = spv.UMod %[[ZERO]], %[[FOUR]] : i32
   //     CHECK: %[[OFFSET:.+]] = spv.IMul %[[IDX]], %[[EIGHT]] : i32
   //     CHECK: %[[MASK1:.+]] = spv.constant 255 : i32
   //     CHECK: %[[TMP1:.+]] = spv.ShiftLeftLogical %[[MASK1]], %[[OFFSET]] : i32, i32

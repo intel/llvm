@@ -21,6 +21,7 @@
 #include "llvm/Support/Parallel.h"
 #include "llvm/Support/SHA1.h"
 #include <regex>
+#include <unordered_set>
 
 using namespace llvm;
 using namespace llvm::dwarf;
@@ -77,10 +78,14 @@ OutputSection::OutputSection(StringRef name, uint32_t type, uint64_t flags)
 // to be allocated for nobits sections. Other ones don't require
 // any special treatment on top of progbits, so there doesn't
 // seem to be a harm in merging them.
+//
+// NOTE: clang since rL252300 emits SHT_X86_64_UNWIND .eh_frame sections. Allow
+// them to be merged into SHT_PROGBITS .eh_frame (GNU as .cfi_*).
 static bool canMergeToProgbits(unsigned type) {
   return type == SHT_NOBITS || type == SHT_PROGBITS || type == SHT_INIT_ARRAY ||
          type == SHT_PREINIT_ARRAY || type == SHT_FINI_ARRAY ||
-         type == SHT_NOTE;
+         type == SHT_NOTE ||
+         (type == SHT_X86_64_UNWIND && config->emachine == EM_X86_64);
 }
 
 // Record that isec will be placed in the OutputSection. isec does not become
@@ -376,6 +381,15 @@ static void finalizeShtGroup(OutputSection *os,
   // provides signature of the section group.
   ArrayRef<Symbol *> symbols = section->file->getSymbols();
   os->info = in.symTab->getSymbolIndex(symbols[section->info]);
+
+  // Some group members may be combined or discarded, so we need to compute the
+  // new size. The content will be rewritten in InputSection::copyShtGroup.
+  std::unordered_set<uint32_t> seen;
+  ArrayRef<InputSectionBase *> sections = section->file->getSections();
+  for (const uint32_t &idx : section->getDataAs<uint32_t>().slice(1))
+    if (OutputSection *osec = sections[read32(&idx)]->getOutputSection())
+      seen.insert(osec->sectionIndex);
+  os->size = (1 + seen.size()) * sizeof(uint32_t);
 }
 
 void OutputSection::finalize() {

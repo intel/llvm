@@ -50,13 +50,6 @@ endfunction()
 if (${OPENMP_STANDALONE_BUILD})
   find_standalone_test_dependencies()
 
-  # Make sure we can use the console pool for recent CMake and Ninja > 1.5.
-  if (CMAKE_VERSION VERSION_LESS 3.1.20141117)
-    set(cmake_3_2_USES_TERMINAL)
-  else()
-    set(cmake_3_2_USES_TERMINAL USES_TERMINAL)
-  endif()
-
   # Set lit arguments.
   set(DEFAULT_LIT_ARGS "-sv --show-unsupported --show-xfail")
   if (MSVC OR XCODE)
@@ -133,8 +126,8 @@ else()
   set(OPENMP_TEST_COMPILER_ID "Clang")
   # Cannot use CLANG_VERSION because we are not guaranteed that this is already set.
   set(OPENMP_TEST_COMPILER_VERSION "${LLVM_VERSION}")
-  set(OPENMP_TEST_COMPILER_VERSION_MAJOR "${LLVM_MAJOR_VERSION}")
-  set(OPENMP_TEST_COMPILER_VERSION_MAJOR_MINOR "${LLVM_MAJOR_VERSION}.${LLVM_MINOR_VERSION}")
+  set(OPENMP_TEST_COMPILER_VERSION_MAJOR "${LLVM_VERSION_MAJOR}")
+  set(OPENMP_TEST_COMPILER_VERSION_MAJOR_MINOR "${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}")
   # Unfortunately the top-level cmake/config-ix.cmake file mangles CMake's
   # CMAKE_THREAD_LIBS_INIT variable from the FindThreads package, so work
   # around that, until it is fixed there.
@@ -189,7 +182,7 @@ function(add_openmp_testsuite target comment)
       COMMAND ${PYTHON_EXECUTABLE} ${OPENMP_LLVM_LIT_EXECUTABLE} ${LIT_ARGS} ${ARG_UNPARSED_ARGUMENTS}
       COMMENT ${comment}
       DEPENDS ${ARG_DEPENDS}
-      ${cmake_3_2_USES_TERMINAL}
+      USES_TERMINAL
     )
   else()
     if (ARG_EXCLUDE_FROM_CHECK_ALL)

@@ -22,7 +22,8 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 
 def ROCDL_Dialect : Dialect {
   let name = "rocdl";
-  let cppNamespace = "ROCDL";
+  let cppNamespace = "::mlir::ROCDL";
+  let dependentDialects = ["LLVM::LLVMDialect"];
 }
 
 //===----------------------------------------------------------------------===//
@@ -139,7 +140,7 @@ def ROCDL_mfma_i32_16x16x16i8 : ROCDL_Mfma_IntrOp<"mfma.i32.16x16x16i8">;
 // Vector buffer load/store intrinsics
 
 def ROCDL_MubufLoadOp :
-  ROCDL_Op<"buffer.load">, 
+  ROCDL_Op<"buffer.load">,
   Results<(outs LLVM_Type:$res)>,
   Arguments<(ins LLVM_Type:$rsrc,
                  LLVM_Type:$vindex,
@@ -160,7 +161,7 @@ def ROCDL_MubufLoadOp :
 }
 
 def ROCDL_MubufStoreOp :
-  ROCDL_Op<"buffer.store">, 
+  ROCDL_Op<"buffer.store">,
   Arguments<(ins LLVM_Type:$vdata,
                  LLVM_Type:$rsrc,
                  LLVM_Type:$vindex,
@@ -168,14 +169,13 @@ def ROCDL_MubufStoreOp :
                  LLVM_Type:$glc,
                  LLVM_Type:$slc)>{
   string llvmBuilder = [{
-    auto vdataType = op.vdata().getType().cast<LLVM::LLVMType>()
-                       .getUnderlyingType();
+    auto vdataType = convertType(op.vdata().getType().cast<LLVM::LLVMType>());
     createIntrinsicCall(builder,
-          llvm::Intrinsic::amdgcn_buffer_store, {$vdata, $rsrc, $vindex, 
+          llvm::Intrinsic::amdgcn_buffer_store, {$vdata, $rsrc, $vindex,
           $offset, $glc, $slc}, {vdataType});
   }];
   let parser = [{ return parseROCDLMubufStoreOp(parser, result); }];
-  let printer = [{ 
+  let printer = [{
     Operation *op = this->getOperation();
     p << op->getName() << " " << op->getOperands()
       << " : " << vdata().getType();

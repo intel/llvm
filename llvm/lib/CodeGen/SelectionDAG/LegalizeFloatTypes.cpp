@@ -134,6 +134,12 @@ void DAGTypeLegalizer::SoftenFloatResult(SDNode *N, unsigned ResNo) {
     case ISD::UINT_TO_FP:  R = SoftenFloatRes_XINT_TO_FP(N); break;
     case ISD::UNDEF:       R = SoftenFloatRes_UNDEF(N); break;
     case ISD::VAARG:       R = SoftenFloatRes_VAARG(N); break;
+    case ISD::VECREDUCE_FADD:
+    case ISD::VECREDUCE_FMUL:
+    case ISD::VECREDUCE_FMIN:
+    case ISD::VECREDUCE_FMAX:
+      R = SoftenFloatRes_VECREDUCE(N);
+      break;
   }
 
   // If R is null, the sub-method took care of registering the result.
@@ -772,6 +778,12 @@ SDValue DAGTypeLegalizer::SoftenFloatRes_XINT_TO_FP(SDNode *N) {
   return Tmp.first;
 }
 
+SDValue DAGTypeLegalizer::SoftenFloatRes_VECREDUCE(SDNode *N) {
+  // Expand and soften recursively.
+  ReplaceValueWith(SDValue(N, 0), TLI.expandVecReduce(N, DAG));
+  return SDValue();
+}
+
 
 //===----------------------------------------------------------------------===//
 //  Convert Float Operand to Integer
@@ -1200,6 +1212,8 @@ void DAGTypeLegalizer::ExpandFloatResult(SDNode *N, unsigned ResNo) {
   case ISD::STRICT_FTRUNC:
   case ISD::FTRUNC:     ExpandFloatRes_FTRUNC(N, Lo, Hi); break;
   case ISD::LOAD:       ExpandFloatRes_LOAD(N, Lo, Hi); break;
+  case ISD::STRICT_SINT_TO_FP:
+  case ISD::STRICT_UINT_TO_FP:
   case ISD::SINT_TO_FP:
   case ISD::UINT_TO_FP: ExpandFloatRes_XINT_TO_FP(N, Lo, Hi); break;
   case ISD::STRICT_FREM:
@@ -1598,10 +1612,17 @@ void DAGTypeLegalizer::ExpandFloatRes_XINT_TO_FP(SDNode *N, SDValue &Lo,
   assert(N->getValueType(0) == MVT::ppcf128 && "Unsupported XINT_TO_FP!");
   EVT VT = N->getValueType(0);
   EVT NVT = TLI.getTypeToTransformTo(*DAG.getContext(), VT);
-  SDValue Src = N->getOperand(0);
+  bool Strict = N->isStrictFPOpcode();
+  SDValue Src = N->getOperand(Strict ? 1 : 0);
   EVT SrcVT = Src.getValueType();
-  bool isSigned = N->getOpcode() == ISD::SINT_TO_FP;
+  bool isSigned = N->getOpcode() == ISD::SINT_TO_FP ||
+                  N->getOpcode() == ISD::STRICT_SINT_TO_FP;
   SDLoc dl(N);
+  SDValue Chain = Strict ? N->getOperand(0) : DAG.getEntryNode();
+
+  // TODO: Any other flags to propagate?
+  SDNodeFlags Flags;
+  Flags.setNoFPExcept(N->getFlags().hasNoFPExcept());
 
   // First do an SINT_TO_FP, whether the original was signed or unsigned.
   // When promoting partial word types to i32 we must honor the signedness,
@@ -1612,7 +1633,12 @@ void DAGTypeLegalizer::ExpandFloatRes_XINT_TO_FP(SDNode *N, SDValue &Lo,
                       MVT::i32, Src);
     Lo = DAG.getConstantFP(APFloat(DAG.EVTToAPFloatSemantics(NVT),
                                    APInt(NVT.getSizeInBits(), 0)), dl, NVT);
-    Hi = DAG.getNode(ISD::SINT_TO_FP, dl, NVT, Src);
+    if (Strict) {
+      Hi = DAG.getNode(ISD::STRICT_SINT_TO_FP, dl,
+                       DAG.getVTList(NVT, MVT::Other), {Chain, Src}, Flags);
+      Chain = Hi.getValue(1);
+    } else
+      Hi = DAG.getNode(ISD::SINT_TO_FP, dl, NVT, Src);
   } else {
     RTLIB::Libcall LC = RTLIB::UNKNOWN_LIBCALL;
     if (SrcVT.bitsLE(MVT::i64)) {
@@ -1627,14 +1653,24 @@ void DAGTypeLegalizer::ExpandFloatRes_XINT_TO_FP(SDNode *N, SDValue &Lo,
 
     TargetLowering::MakeLibCallOptions CallOptions;
     CallOptions.setSExt(true);
-    Hi = TLI.makeLibCall(DAG, LC, VT, Src, CallOptions, dl).first;
-    GetPairElements(Hi, Lo, Hi);
+    std::pair<SDValue, SDValue> Tmp =
+        TLI.makeLibCall(DAG, LC, VT, Src, CallOptions, dl, Chain);
+    if (Strict)
+      Chain = Tmp.second;
+    GetPairElements(Tmp.first, Lo, Hi);
   }
 
-  if (isSigned)
+  if (isSigned) {
+    if (Strict)
+      ReplaceValueWith(SDValue(N, 1), Chain);
+
     return;
+  }
 
   // Unsigned - fix up the SINT_TO_FP value just calculated.
+  // FIXME: For unsigned i128 to ppc_fp128 conversion, we need to carefully
+  // keep semantics correctness if the integer is not exactly representable
+  // here. See ExpandLegalINT_TO_FP.
   Hi = DAG.getNode(ISD::BUILD_PAIR, dl, VT, Lo, Hi);
   SrcVT = Src.getValueType();
 
@@ -1658,11 +1694,16 @@ void DAGTypeLegalizer::ExpandFloatRes_XINT_TO_FP(SDNode *N, SDValue &Lo,
     break;
   }
 
-  // TODO: Are there fast-math-flags to propagate to this FADD?
-  Lo = DAG.getNode(ISD::FADD, dl, VT, Hi,
-                   DAG.getConstantFP(APFloat(APFloat::PPCDoubleDouble(),
-                                             APInt(128, Parts)),
-                                     dl, MVT::ppcf128));
+  // TODO: Are there other fast-math-flags to propagate to this FADD?
+  SDValue NewLo = DAG.getConstantFP(
+      APFloat(APFloat::PPCDoubleDouble(), APInt(128, Parts)), dl, MVT::ppcf128);
+  if (Strict) {
+    Lo = DAG.getNode(ISD::STRICT_FADD, dl, DAG.getVTList(VT, MVT::Other),
+                     {Chain, Hi, NewLo}, Flags);
+    Chain = Lo.getValue(1);
+    ReplaceValueWith(SDValue(N, 1), Chain);
+  } else
+    Lo = DAG.getNode(ISD::FADD, dl, VT, Hi, NewLo);
   Lo = DAG.getSelectCC(dl, Src, DAG.getConstant(0, dl, SrcVT),
                        Lo, Hi, ISD::SETLT);
   GetPairElements(Lo, Lo, Hi);
@@ -1710,6 +1751,8 @@ bool DAGTypeLegalizer::ExpandFloatOperand(SDNode *N, unsigned OpNo) {
   case ISD::LRINT:      Res = ExpandFloatOp_LRINT(N); break;
   case ISD::LLRINT:     Res = ExpandFloatOp_LLRINT(N); break;
   case ISD::SELECT_CC:  Res = ExpandFloatOp_SELECT_CC(N); break;
+  case ISD::STRICT_FSETCC:
+  case ISD::STRICT_FSETCCS:
   case ISD::SETCC:      Res = ExpandFloatOp_SETCC(N); break;
   case ISD::STORE:      Res = ExpandFloatOp_STORE(cast<StoreSDNode>(N),
                                                   OpNo); break;
@@ -1735,7 +1778,8 @@ bool DAGTypeLegalizer::ExpandFloatOperand(SDNode *N, unsigned OpNo) {
 void DAGTypeLegalizer::FloatExpandSetCCOperands(SDValue &NewLHS,
                                                 SDValue &NewRHS,
                                                 ISD::CondCode &CCCode,
-                                                const SDLoc &dl) {
+                                                const SDLoc &dl, SDValue &Chain,
+                                                bool IsSignaling) {
   SDValue LHSLo, LHSHi, RHSLo, RHSHi;
   GetExpandedFloat(NewLHS, LHSLo, LHSHi);
   GetExpandedFloat(NewRHS, RHSLo, RHSHi);
@@ -1747,25 +1791,32 @@ void DAGTypeLegalizer::FloatExpandSetCCOperands(SDValue &NewLHS,
   //         BNE crN, L:
   //         FCMPU crN, lo1, lo2
   // The following can be improved, but not that much.
-  SDValue Tmp1, Tmp2, Tmp3;
-  Tmp1 = DAG.getSetCC(dl, getSetCCResultType(LHSHi.getValueType()),
-                      LHSHi, RHSHi, ISD::SETOEQ);
-  Tmp2 = DAG.getSetCC(dl, getSetCCResultType(LHSLo.getValueType()),
-                      LHSLo, RHSLo, CCCode);
+  SDValue Tmp1, Tmp2, Tmp3, OutputChain;
+  Tmp1 = DAG.getSetCC(dl, getSetCCResultType(LHSHi.getValueType()), LHSHi,
+                      RHSHi, ISD::SETOEQ, SDNodeFlags(), Chain, IsSignaling);
+  OutputChain = Tmp1->getNumValues() > 1 ? Tmp1.getValue(1) : SDValue();
+  Tmp2 = DAG.getSetCC(dl, getSetCCResultType(LHSLo.getValueType()), LHSLo,
+                      RHSLo, CCCode, SDNodeFlags(), OutputChain, IsSignaling);
+  OutputChain = Tmp2->getNumValues() > 1 ? Tmp2.getValue(1) : SDValue();
   Tmp3 = DAG.getNode(ISD::AND, dl, Tmp1.getValueType(), Tmp1, Tmp2);
-  Tmp1 = DAG.getSetCC(dl, getSetCCResultType(LHSHi.getValueType()),
-                      LHSHi, RHSHi, ISD::SETUNE);
-  Tmp2 = DAG.getSetCC(dl, getSetCCResultType(LHSHi.getValueType()),
-                      LHSHi, RHSHi, CCCode);
+  Tmp1 =
+      DAG.getSetCC(dl, getSetCCResultType(LHSHi.getValueType()), LHSHi, RHSHi,
+                   ISD::SETUNE, SDNodeFlags(), OutputChain, IsSignaling);
+  OutputChain = Tmp1->getNumValues() > 1 ? Tmp1.getValue(1) : SDValue();
+  Tmp2 = DAG.getSetCC(dl, getSetCCResultType(LHSHi.getValueType()), LHSHi,
+                      RHSHi, CCCode, SDNodeFlags(), OutputChain, IsSignaling);
+  OutputChain = Tmp2->getNumValues() > 1 ? Tmp2.getValue(1) : SDValue();
   Tmp1 = DAG.getNode(ISD::AND, dl, Tmp1.getValueType(), Tmp1, Tmp2);
   NewLHS = DAG.getNode(ISD::OR, dl, Tmp1.getValueType(), Tmp1, Tmp3);
   NewRHS = SDValue();   // LHS is the result, not a compare.
+  Chain = OutputChain;
 }
 
 SDValue DAGTypeLegalizer::ExpandFloatOp_BR_CC(SDNode *N) {
   SDValue NewLHS = N->getOperand(2), NewRHS = N->getOperand(3);
   ISD::CondCode CCCode = cast<CondCodeSDNode>(N->getOperand(1))->get();
-  FloatExpandSetCCOperands(NewLHS, NewRHS, CCCode, SDLoc(N));
+  SDValue Chain;
+  FloatExpandSetCCOperands(NewLHS, NewRHS, CCCode, SDLoc(N), Chain);
 
   // If ExpandSetCCOperands returned a scalar, we need to compare the result
   // against zero to select between true and false values.
@@ -1863,7 +1914,8 @@ SDValue DAGTypeLegalizer::ExpandFloatOp_FP_TO_UINT(SDNode *N) {
 SDValue DAGTypeLegalizer::ExpandFloatOp_SELECT_CC(SDNode *N) {
   SDValue NewLHS = N->getOperand(0), NewRHS = N->getOperand(1);
   ISD::CondCode CCCode = cast<CondCodeSDNode>(N->getOperand(4))->get();
-  FloatExpandSetCCOperands(NewLHS, NewRHS, CCCode, SDLoc(N));
+  SDValue Chain;
+  FloatExpandSetCCOperands(NewLHS, NewRHS, CCCode, SDLoc(N), Chain);
 
   // If ExpandSetCCOperands returned a scalar, we need to compare the result
   // against zero to select between true and false values.
@@ -1879,20 +1931,25 @@ SDValue DAGTypeLegalizer::ExpandFloatOp_SELECT_CC(SDNode *N) {
 }
 
 SDValue DAGTypeLegalizer::ExpandFloatOp_SETCC(SDNode *N) {
-  SDValue NewLHS = N->getOperand(0), NewRHS = N->getOperand(1);
-  ISD::CondCode CCCode = cast<CondCodeSDNode>(N->getOperand(2))->get();
-  FloatExpandSetCCOperands(NewLHS, NewRHS, CCCode, SDLoc(N));
+  bool IsStrict = N->isStrictFPOpcode();
+  SDValue NewLHS = N->getOperand(IsStrict ? 1 : 0);
+  SDValue NewRHS = N->getOperand(IsStrict ? 2 : 1);
+  SDValue Chain = IsStrict ? N->getOperand(0) : SDValue();
+  ISD::CondCode CCCode =
+      cast<CondCodeSDNode>(N->getOperand(IsStrict ? 3 : 2))->get();
+  FloatExpandSetCCOperands(NewLHS, NewRHS, CCCode, SDLoc(N), Chain,
+                           N->getOpcode() == ISD::STRICT_FSETCCS);
 
-  // If ExpandSetCCOperands returned a scalar, use it.
-  if (!NewRHS.getNode()) {
-    assert(NewLHS.getValueType() == N->getValueType(0) &&
-           "Unexpected setcc expansion!");
-    return NewLHS;
+  // FloatExpandSetCCOperands always returned a scalar.
+  assert(!NewRHS.getNode() && "Expect to return scalar");
+  assert(NewLHS.getValueType() == N->getValueType(0) &&
+         "Unexpected setcc expansion!");
+  if (Chain) {
+    ReplaceValueWith(SDValue(N, 0), NewLHS);
+    ReplaceValueWith(SDValue(N, 1), Chain);
+    return SDValue();
   }
-
-  // Otherwise, update N to have the operands specified.
-  return SDValue(DAG.UpdateNodeOperands(N, NewLHS, NewRHS,
-                                DAG.getCondCode(CCCode)), 0);
+  return NewLHS;
 }
 
 SDValue DAGTypeLegalizer::ExpandFloatOp_STORE(SDNode *N, unsigned OpNo) {
@@ -2191,6 +2248,12 @@ void DAGTypeLegalizer::PromoteFloatResult(SDNode *N, unsigned ResNo) {
     case ISD::UINT_TO_FP: R = PromoteFloatRes_XINT_TO_FP(N); break;
     case ISD::UNDEF:      R = PromoteFloatRes_UNDEF(N); break;
     case ISD::ATOMIC_SWAP: R = BitcastToInt_ATOMIC_SWAP(N); break;
+    case ISD::VECREDUCE_FADD:
+    case ISD::VECREDUCE_FMUL:
+    case ISD::VECREDUCE_FMIN:
+    case ISD::VECREDUCE_FMAX:
+      R = PromoteFloatRes_VECREDUCE(N);
+      break;
   }
 
   if (R.getNode())
@@ -2422,6 +2485,15 @@ SDValue DAGTypeLegalizer::PromoteFloatRes_UNDEF(SDNode *N) {
                                                N->getValueType(0)));
 }
 
+SDValue DAGTypeLegalizer::PromoteFloatRes_VECREDUCE(SDNode *N) {
+  // Expand and promote recursively.
+  // TODO: This is non-optimal, but dealing with the concurrently happening
+  // vector-legalization is non-trivial. We could do something similar to
+  // PromoteFloatRes_EXTRACT_VECTOR_ELT here.
+  ReplaceValueWith(SDValue(N, 0), TLI.expandVecReduce(N, DAG));
+  return SDValue();
+}
+
 SDValue DAGTypeLegalizer::BitcastToInt_ATOMIC_SWAP(SDNode *N) {
   EVT VT = N->getValueType(0);
 
@@ -2530,6 +2602,12 @@ void DAGTypeLegalizer::SoftPromoteHalfResult(SDNode *N, unsigned ResNo) {
   case ISD::UINT_TO_FP:  R = SoftPromoteHalfRes_XINT_TO_FP(N); break;
   case ISD::UNDEF:       R = SoftPromoteHalfRes_UNDEF(N); break;
   case ISD::ATOMIC_SWAP: R = BitcastToInt_ATOMIC_SWAP(N); break;
+  case ISD::VECREDUCE_FADD:
+  case ISD::VECREDUCE_FMUL:
+  case ISD::VECREDUCE_FMIN:
+  case ISD::VECREDUCE_FMAX:
+    R = SoftPromoteHalfRes_VECREDUCE(N);
+    break;
   }
 
   if (R.getNode())
@@ -2720,6 +2798,12 @@ SDValue DAGTypeLegalizer::SoftPromoteHalfRes_BinOp(SDNode *N) {
 
   // Convert back to FP16 as an integer.
   return DAG.getNode(ISD::FP_TO_FP16, dl, MVT::i16, Res);
+}
+
+SDValue DAGTypeLegalizer::SoftPromoteHalfRes_VECREDUCE(SDNode *N) {
+  // Expand and soften recursively.
+  ReplaceValueWith(SDValue(N, 0), TLI.expandVecReduce(N, DAG));
+  return SDValue();
 }
 
 //===----------------------------------------------------------------------===//

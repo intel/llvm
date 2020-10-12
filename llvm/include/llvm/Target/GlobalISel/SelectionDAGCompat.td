@@ -52,6 +52,8 @@ def : GINodeEquiv<G_BITCAST, bitconvert>;
 def : GINodeEquiv<G_CONSTANT, imm>;
 def : GINodeEquiv<G_FCONSTANT, fpimm>;
 def : GINodeEquiv<G_IMPLICIT_DEF, undef>;
+def : GINodeEquiv<G_FRAME_INDEX, frameindex>;
+def : GINodeEquiv<G_BLOCK_ADDR, blockaddress>;
 def : GINodeEquiv<G_ADD, add>;
 def : GINodeEquiv<G_SUB, sub>;
 def : GINodeEquiv<G_MUL, mul>;
@@ -67,6 +69,20 @@ def : GINodeEquiv<G_XOR, xor>;
 def : GINodeEquiv<G_SHL, shl>;
 def : GINodeEquiv<G_LSHR, srl>;
 def : GINodeEquiv<G_ASHR, sra>;
+def : GINodeEquiv<G_SADDSAT, saddsat>;
+def : GINodeEquiv<G_UADDSAT, uaddsat>;
+def : GINodeEquiv<G_SSUBSAT, ssubsat>;
+def : GINodeEquiv<G_USUBSAT, usubsat>;
+def : GINodeEquiv<G_SSHLSAT, sshlsat>;
+def : GINodeEquiv<G_USHLSAT, ushlsat>;
+def : GINodeEquiv<G_SMULFIX, smulfix>;
+def : GINodeEquiv<G_UMULFIX, umulfix>;
+def : GINodeEquiv<G_SMULFIXSAT, smulfixsat>;
+def : GINodeEquiv<G_UMULFIXSAT, umulfixsat>;
+def : GINodeEquiv<G_SDIVFIX, sdivfix>;
+def : GINodeEquiv<G_UDIVFIX, udivfix>;
+def : GINodeEquiv<G_SDIVFIXSAT, sdivfixsat>;
+def : GINodeEquiv<G_UDIVFIXSAT, udivfixsat>;
 def : GINodeEquiv<G_SELECT, select>;
 def : GINodeEquiv<G_FNEG, fneg>;
 def : GINodeEquiv<G_FPEXT, fpextend>;
@@ -113,11 +129,13 @@ def : GINodeEquiv<G_FRINT, frint>;
 def : GINodeEquiv<G_FNEARBYINT, fnearbyint>;
 def : GINodeEquiv<G_INTRINSIC_TRUNC, ftrunc>;
 def : GINodeEquiv<G_INTRINSIC_ROUND, fround>;
+def : GINodeEquiv<G_INTRINSIC_LRINT, lrint>;
 def : GINodeEquiv<G_FCOPYSIGN, fcopysign>;
 def : GINodeEquiv<G_SMIN, smin>;
 def : GINodeEquiv<G_SMAX, smax>;
 def : GINodeEquiv<G_UMIN, umin>;
 def : GINodeEquiv<G_UMAX, umax>;
+def : GINodeEquiv<G_ABS, abs>;
 def : GINodeEquiv<G_FMINNUM, fminnum>;
 def : GINodeEquiv<G_FMAXNUM, fmaxnum>;
 def : GINodeEquiv<G_FMINNUM_IEEE, fminnum_ieee>;
@@ -159,6 +177,12 @@ def : GINodeEquiv<G_ICMP, setcc> {
 def : GINodeEquiv<G_STORE, st> { let CheckMMOIsNonAtomic = 1; }
 
 def : GINodeEquiv<G_LOAD, atomic_load> {
+  let CheckMMOIsNonAtomic = 0;
+  let CheckMMOIsAtomic = 1;
+}
+
+// Operands are swapped for atomic_store vs. regular store
+def : GINodeEquiv<G_STORE, atomic_store> {
   let CheckMMOIsNonAtomic = 0;
   let CheckMMOIsAtomic = 1;
 }

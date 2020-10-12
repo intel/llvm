@@ -58,8 +58,7 @@ namespace SPIRV {
 
 char OCLTypeToSPIRV::ID = 0;
 
-OCLTypeToSPIRV::OCLTypeToSPIRV()
-    : ModulePass(ID), M(nullptr), Ctx(nullptr), CLVer(0) {
+OCLTypeToSPIRV::OCLTypeToSPIRV() : ModulePass(ID), M(nullptr), Ctx(nullptr) {
   initializeOCLTypeToSPIRVPass(*PassRegistry::getPassRegistry());
 }
 
@@ -233,7 +232,7 @@ void OCLTypeToSPIRV::adaptFunctionArguments(Function *F) {
         continue;
       if (STName.startswith(kSPR2TypeName::ImagePrefix)) {
         auto Ty = STName.str();
-        auto AccStr = getAccessQualifier(Ty);
+        auto AccStr = getAccessQualifierFullName(Ty);
         addAdaptedType(&*Arg, getOrCreateOpaquePtrType(
                                   M, mapOCLTypeNameToSPIRV(Ty, AccStr)));
         Changed = true;

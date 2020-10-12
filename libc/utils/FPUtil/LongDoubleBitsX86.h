@@ -9,7 +9,7 @@
 #ifndef LLVM_LIBC_UTILS_FPUTIL_LONG_DOUBLE_BITS_X86_H
 #define LLVM_LIBC_UTILS_FPUTIL_LONG_DOUBLE_BITS_X86_H
 
-#include "utils/FPUtil/FPBits.h"
+#include "FPBits.h"
 
 #include <stdint.h>
 
@@ -23,22 +23,31 @@ template <> struct MantissaWidth<long double> {
 template <unsigned Width> struct Padding;
 
 // i386 padding.
-template <> struct Padding<4> { static constexpr unsigned Value = 16; };
+template <> struct Padding<4> { static constexpr unsigned value = 16; };
 
 // x86_64 padding.
-template <> struct Padding<8> { static constexpr unsigned Value = 48; };
+template <> struct Padding<8> { static constexpr unsigned value = 48; };
 
 template <> struct __attribute__((packed)) FPBits<long double> {
   using UIntType = __uint128_t;
 
   static constexpr int exponentBias = 0x3FFF;
   static constexpr int maxExponent = 0x7FFF;
+  static constexpr UIntType minSubnormal = UIntType(1);
+  // Subnormal numbers include the implicit bit in x86 long double formats.
+  static constexpr UIntType maxSubnormal =
+      (UIntType(1) << (MantissaWidth<long double>::value + 1)) - 1;
+  static constexpr UIntType minNormal =
+      (UIntType(3) << MantissaWidth<long double>::value);
+  static constexpr UIntType maxNormal =
+      ((UIntType(maxExponent) - 1) << (MantissaWidth<long double>::value + 1)) |
+      (UIntType(1) << MantissaWidth<long double>::value) | maxSubnormal;
 
   UIntType mantissa : MantissaWidth<long double>::value;
   uint8_t implicitBit : 1;
   uint16_t exponent : ExponentWidth<long double>::value;
   uint8_t sign : 1;
-  uint64_t padding : Padding<sizeof(uintptr_t)>::Value;
+  uint64_t padding : Padding<sizeof(uintptr_t)>::value;
 
   template <typename XType,
             cpp::EnableIfType<cpp::IsSame<long double, XType>::Value, int> = 0>
@@ -91,7 +100,15 @@ template <> struct __attribute__((packed)) FPBits<long double> {
     // zero in case i386.
     UIntType result = UIntType(0);
     *reinterpret_cast<FPBits<long double> *>(&result) = *this;
-    return result;
+
+    // Even though we zero out |result| before copying the long double value,
+    // there can be garbage bits in the padding. So, we zero the padding bits
+    // in |result|.
+    static constexpr UIntType mask =
+        (UIntType(1) << (sizeof(long double) * 8 -
+                         Padding<sizeof(uintptr_t)>::value)) -
+        1;
+    return result & mask;
   }
 
   static FPBits<long double> zero() { return FPBits<long double>(0.0l); }

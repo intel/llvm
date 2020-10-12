@@ -111,6 +111,9 @@ llvm::raw_ostream &operator<<(
     }
   }
   os << (sep == '(' ? "()" : ")");
+  if (x.stmtFunction_) {
+    os << " -> " << x.stmtFunction_->AsFortran();
+  }
   return os;
 }
 
@@ -150,9 +153,6 @@ UseErrorDetails &UseErrorDetails::add_occurrence(
   return *this;
 }
 
-GenericDetails::GenericDetails(const SymbolVector &specificProcs)
-    : specificProcs_{specificProcs} {}
-
 void GenericDetails::AddSpecificProc(
     const Symbol &proc, SourceName bindingName) {
   specificProcs_.push_back(proc);
@@ -186,6 +186,8 @@ Symbol *GenericDetails::CheckSpecific() {
 }
 
 void GenericDetails::CopyFrom(const GenericDetails &from) {
+  CHECK(specificProcs_.size() == bindingNames_.size());
+  CHECK(from.specificProcs_.size() == from.bindingNames_.size());
   if (from.specific_) {
     CHECK(!specific_ || specific_ == from.specific_);
     specific_ = from.specific_;
@@ -194,11 +196,13 @@ void GenericDetails::CopyFrom(const GenericDetails &from) {
     CHECK(!derivedType_ || derivedType_ == from.derivedType_);
     derivedType_ = from.derivedType_;
   }
-  for (const Symbol &symbol : from.specificProcs_) {
+  for (std::size_t i{0}; i < from.specificProcs_.size(); ++i) {
     if (std::find_if(specificProcs_.begin(), specificProcs_.end(),
-            [&](const Symbol &mySymbol) { return &mySymbol == &symbol; }) ==
-        specificProcs_.end()) {
-      specificProcs_.push_back(symbol);
+            [&](const Symbol &mySymbol) {
+              return &mySymbol == &*from.specificProcs_[i];
+            }) == specificProcs_.end()) {
+      specificProcs_.push_back(from.specificProcs_[i]);
+      bindingNames_.push_back(from.bindingNames_[i]);
     }
   }
 }
@@ -224,7 +228,6 @@ std::string DetailsToString(const Details &details) {
           [](const ProcBindingDetails &) { return "ProcBinding"; },
           [](const NamelistDetails &) { return "Namelist"; },
           [](const CommonBlockDetails &) { return "CommonBlockDetails"; },
-          [](const FinalProcDetails &) { return "FinalProc"; },
           [](const TypeParamDetails &) { return "TypeParam"; },
           [](const MiscDetails &) { return "Misc"; },
           [](const AssocEntityDetails &) { return "AssocEntity"; },
@@ -254,7 +257,7 @@ bool Symbol::CanReplaceDetails(const Details &details) const {
               return has<SubprogramNameDetails>() || has<EntityDetails>();
             },
             [&](const DerivedTypeDetails &) {
-              auto *derived{detailsIf<DerivedTypeDetails>()};
+              auto *derived{this->detailsIf<DerivedTypeDetails>()};
               return derived && derived->isForwardReferenced();
             },
             [](const auto &) { return false; },
@@ -432,7 +435,6 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const Details &details) {
               os << ' ' << object->name();
             }
           },
-          [&](const FinalProcDetails &) {},
           [&](const TypeParamDetails &x) {
             DumpOptional(os, "type", x.type());
             os << ' ' << common::EnumToString(x.attr());
@@ -537,13 +539,11 @@ const DerivedTypeSpec *Symbol::GetParentTypeSpec(const Scope *scope) const {
 
 const Symbol *Symbol::GetParentComponent(const Scope *scope) const {
   if (const auto *dtDetails{detailsIf<DerivedTypeDetails>()}) {
-    if (!scope) {
-      scope = scope_;
+    if (const Scope * localScope{scope ? scope : scope_}) {
+      return dtDetails->GetParentComponent(DEREF(localScope));
     }
-    return dtDetails->GetParentComponent(DEREF(scope));
-  } else {
-    return nullptr;
   }
+  return nullptr;
 }
 
 void DerivedTypeDetails::add_component(const Symbol &symbol) {

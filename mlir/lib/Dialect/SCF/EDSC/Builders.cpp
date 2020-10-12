@@ -61,6 +61,25 @@ mlir::scf::ValueVector mlir::edsc::loopNestBuilder(
       });
 }
 
+mlir::scf::ValueVector mlir::edsc::loopNestBuilder(
+    ValueRange lbs, ValueRange ubs, ValueRange steps,
+    ValueRange iterArgInitValues,
+    function_ref<scf::ValueVector(ValueRange, ValueRange)> fun) {
+  // Delegates actual construction to scf::buildLoopNest by wrapping `fun` into
+  // the expected function interface.
+  assert(ScopedContext::getContext() && "EDSC ScopedContext not set up");
+  return mlir::scf::buildLoopNest(
+      ScopedContext::getBuilderRef(), ScopedContext::getLocation(), lbs, ubs,
+      steps, iterArgInitValues,
+      [&](OpBuilder &builder, Location loc, ValueRange ivs, ValueRange args) {
+        ScopedContext context(builder, loc);
+        if (fun)
+          return fun(ivs, args);
+        return scf::ValueVector(iterArgInitValues.begin(),
+                                iterArgInitValues.end());
+      });
+}
+
 static std::function<void(OpBuilder &, Location)>
 wrapIfBody(function_ref<scf::ValueVector()> body, TypeRange expectedTypes) {
   (void)expectedTypes;
@@ -76,14 +95,17 @@ wrapIfBody(function_ref<scf::ValueVector()> body, TypeRange expectedTypes) {
 ValueRange
 mlir::edsc::conditionBuilder(TypeRange results, Value condition,
                              function_ref<scf::ValueVector()> thenBody,
-                             function_ref<scf::ValueVector()> elseBody) {
+                             function_ref<scf::ValueVector()> elseBody,
+                             scf::IfOp *ifOp) {
   assert(ScopedContext::getContext() && "EDSC ScopedContext not set up");
   assert(thenBody && "thenBody is mandatory");
 
-  auto ifOp = ScopedContext::getBuilderRef().create<scf::IfOp>(
+  auto newOp = ScopedContext::getBuilderRef().create<scf::IfOp>(
       ScopedContext::getLocation(), results, condition,
       wrapIfBody(thenBody, results), wrapIfBody(elseBody, results));
-  return ifOp.getResults();
+  if (ifOp)
+    *ifOp = newOp;
+  return newOp.getResults();
 }
 
 static std::function<void(OpBuilder &, Location)>
@@ -97,14 +119,17 @@ wrapZeroResultIfBody(function_ref<void()> body) {
 
 ValueRange mlir::edsc::conditionBuilder(Value condition,
                                         function_ref<void()> thenBody,
-                                        function_ref<void()> elseBody) {
+                                        function_ref<void()> elseBody,
+                                        scf::IfOp *ifOp) {
   assert(ScopedContext::getContext() && "EDSC ScopedContext not set up");
   assert(thenBody && "thenBody is mandatory");
 
-  ScopedContext::getBuilderRef().create<scf::IfOp>(
+  auto newOp = ScopedContext::getBuilderRef().create<scf::IfOp>(
       ScopedContext::getLocation(), condition, wrapZeroResultIfBody(thenBody),
       elseBody ? llvm::function_ref<void(OpBuilder &, Location)>(
                      wrapZeroResultIfBody(elseBody))
                : llvm::function_ref<void(OpBuilder &, Location)>(nullptr));
+  if (ifOp)
+    *ifOp = newOp;
   return {};
 }

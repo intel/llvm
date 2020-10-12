@@ -221,7 +221,7 @@ function(add_link_opts target_name)
 
     # Pass -O3 to the linker. This enabled different optimizations on different
     # linkers.
-    if(NOT (${CMAKE_SYSTEM_NAME} MATCHES "Darwin|SunOS|AIX" OR WIN32))
+    if(NOT (CMAKE_SYSTEM_NAME MATCHES "Darwin|SunOS|AIX|OS390" OR WIN32))
       set_property(TARGET ${target_name} APPEND_STRING PROPERTY
                    LINK_FLAGS " -Wl,-O3")
     endif()
@@ -249,11 +249,12 @@ function(add_link_opts target_name)
                        LINK_FLAGS " -Wl,-z,discard-unused=sections")
         endif()
       elseif(NOT WIN32 AND NOT LLVM_LINKER_IS_GOLD AND
-             NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD|AIX")
+             NOT CMAKE_SYSTEM_NAME MATCHES "OpenBSD|AIX|OS390")
         # Object files are compiled with -ffunction-data-sections.
         # Versions of bfd ld < 2.23.1 have a bug in --gc-sections that breaks
         # tools that use plugins. Always pass --gc-sections once we require
         # a newer linker.
+        # TODO Revisit this later on z/OS.
         set_property(TARGET ${target_name} APPEND_STRING PROPERTY
                      LINK_FLAGS " -Wl,--gc-sections")
       endif()
@@ -566,7 +567,7 @@ function(llvm_add_library name)
   endif()
 
   if(ARG_SHARED)
-    if(WIN32)
+    if(MSVC)
       set_target_properties(${name} PROPERTIES
         PREFIX ""
         )
@@ -891,7 +892,7 @@ endmacro(add_llvm_executable name)
 #   only an object library is built, and no module is built. This is specific to the Polly use case.
 #
 #   The SUBPROJECT argument contains the LLVM project the plugin belongs
-#   to. If set, the plugin will link statically by default it if the 
+#   to. If set, the plugin will link statically by default it if the
 #   project was enabled.
 function(add_llvm_pass_plugin name)
   cmake_parse_arguments(ARG
@@ -924,6 +925,12 @@ function(add_llvm_pass_plugin name)
     set_property(TARGET ${name} APPEND PROPERTY COMPILE_DEFINITIONS LLVM_LINK_INTO_TOOLS)
     if (TARGET intrinsics_gen)
       add_dependencies(obj.${name} intrinsics_gen)
+    endif()
+    if (TARGET omp_gen)
+      add_dependencies(obj.${name} omp_gen)
+    endif()
+    if (TARGET acc_gen)
+      add_dependencies(obj.${name} acc_gen)
     endif()
     set_property(GLOBAL APPEND PROPERTY LLVM_STATIC_EXTENSIONS ${name})
   elseif(NOT ARG_NO_MODULE)
@@ -1393,19 +1400,6 @@ function(add_unittest test_suite test_name)
   if( NOT LLVM_BUILD_TESTS )
     set(EXCLUDE_FROM_ALL ON)
   endif()
-
-  # Our current version of gtest does not properly recognize C++11 support
-  # with MSVC, so it falls back to tr1 / experimental classes.  Since LLVM
-  # itself requires C++11, we can safely force it on unconditionally so that
-  # we don't have to fight with the buggy gtest check.
-  add_definitions(-DGTEST_LANG_CXX11=1)
-  add_definitions(-DGTEST_HAS_TR1_TUPLE=0)
-
-  include_directories(${LLVM_MAIN_SRC_DIR}/utils/unittest/googletest/include)
-  include_directories(${LLVM_MAIN_SRC_DIR}/utils/unittest/googlemock/include)
-  if (NOT LLVM_ENABLE_THREADS)
-    list(APPEND LLVM_COMPILE_DEFINITIONS GTEST_HAS_PTHREAD=0)
-  endif ()
 
   if (SUPPORTS_VARIADIC_MACROS_FLAG)
     list(APPEND LLVM_COMPILE_FLAGS "-Wno-variadic-macros")

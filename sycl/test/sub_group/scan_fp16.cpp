@@ -20,7 +20,7 @@ int main() {
     std::cout << "Skipping test\n";
     return 0;
   }
-  check<cl::sycl::half>(Queue);
+  check<class KernelName_dlpo, cl::sycl::half>(Queue);
   std::cout << "Test passed." << std::endl;
   return 0;
 }

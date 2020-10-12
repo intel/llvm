@@ -3,6 +3,7 @@
 
 declare float @llvm.fabs.f32(float)
 declare float @llvm.copysign.f32(float, float)
+declare float @llvm.maxnum.f32(float, float)
 declare <3 x double> @llvm.copysign.v3f64(<3 x double>, <3 x double>)
 
 define float @positive_sign_arg(float %x) {
@@ -63,6 +64,19 @@ define <3 x double> @known_positive_sign_arg_vec(<3 x double> %x, <3 x i32> %y) 
   ret <3 x double> %r
 }
 
+; maxnum(-0.0, 0.0) can return -0.0.
+
+define float @not_known_positive_sign_arg(float %x, float %y) {
+; CHECK-LABEL: @not_known_positive_sign_arg(
+; CHECK-NEXT:    [[MAX:%.*]] = call float @llvm.maxnum.f32(float [[X:%.*]], float 0.000000e+00)
+; CHECK-NEXT:    [[R:%.*]] = call ninf float @llvm.copysign.f32(float [[Y:%.*]], float [[MAX]])
+; CHECK-NEXT:    ret float [[R]]
+;
+  %max = call float @llvm.maxnum.f32(float %x, float 0.0)
+  %r = call ninf float @llvm.copysign.f32(float %y, float %max)
+  ret float %r
+}
+
 ; The magnitude operand of the 1st copysign is irrelevant.
 ; copysign(x, copysign(y, z)) --> copysign(x, z)
 
@@ -73,5 +87,25 @@ define float @copysign_sign_arg(float %x, float %y, float %z) {
 ;
   %s = call reassoc float @llvm.copysign.f32(float %y, float %z)
   %r = call ninf float @llvm.copysign.f32(float %x, float %s)
+  ret float %r
+}
+
+define float @fneg_mag(float %x, float %y) {
+; CHECK-LABEL: @fneg_mag(
+; CHECK-NEXT:    [[R:%.*]] = call float @llvm.copysign.f32(float [[X:%.*]], float [[Y:%.*]])
+; CHECK-NEXT:    ret float [[R]]
+;
+  %n = fneg float %x
+  %r = call float @llvm.copysign.f32(float %n, float %y)
+  ret float %r
+}
+
+define float @fabs_mag(float %x, float %y) {
+; CHECK-LABEL: @fabs_mag(
+; CHECK-NEXT:    [[R:%.*]] = call float @llvm.copysign.f32(float [[X:%.*]], float [[Y:%.*]])
+; CHECK-NEXT:    ret float [[R]]
+;
+  %a = call float @llvm.fabs.f32(float %x)
+  %r = call float @llvm.copysign.f32(float %a, float %y)
   ret float %r
 }

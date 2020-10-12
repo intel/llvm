@@ -91,7 +91,6 @@ class HelloWorldTestCase(TestBase):
             if os.path.exists(token):
                 os.remove(token)
         popen = self.spawnSubprocess(self.getBuildArtifact(exe), [token])
-        self.addTearDownHook(self.cleanupSubprocesses)
         lldbutil.wait_for_file_on_target(self, token)
 
         listener = lldb.SBListener("my.attach.listener")
@@ -126,7 +125,6 @@ class HelloWorldTestCase(TestBase):
             if os.path.exists(token):
                 os.remove(token)
         popen = self.spawnSubprocess(self.getBuildArtifact(exe), [token])
-        self.addTearDownHook(self.cleanupSubprocesses)
         lldbutil.wait_for_file_on_target(self, token)
 
         listener = lldb.SBListener("my.attach.listener")
@@ -142,7 +140,8 @@ class HelloWorldTestCase(TestBase):
         target.ConnectRemote(listener, None, None, error)
 
         process = target.AttachToProcessWithName(listener, name, False, error)
-        self.assertTrue(error.Success() and process, PROCESS_IS_VALID)
+        self.assertSuccess(error)
+        self.assertTrue(process, PROCESS_IS_VALID)
 
         # Verify that after attach, our selected target indeed matches name.
         self.expect(

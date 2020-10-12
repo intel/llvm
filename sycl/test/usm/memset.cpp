@@ -1,9 +1,5 @@
-// XFAIL: cuda
-// piextUSM*Alloc functions for CUDA are not behaving as described in
-// https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/USM/USM.adoc
-// https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/USM/cl_intel_unified_shared_memory.asciidoc
-//
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out
+// RUN: env SYCL_DEVICE_TYPE=HOST %t1.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 
@@ -54,6 +50,11 @@ int main() {
       assert(false && "Expected error from writing to nullptr");
     } catch (runtime_error e) {
     }
+
+    // Filling to nullptr is skipped if the number of bytes to fill is 0.
+    q.submit([&](handler &cgh) { cgh.memset(nullptr, 0, 0); });
+    q.wait_and_throw();
   }
+  std::cout << "Passed\n";
   return 0;
 }

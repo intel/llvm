@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.13.4)
 
 # Add cmake directory to search for custom cmake functions.
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
@@ -90,6 +90,10 @@ option(OPENMP_ENABLE_OMPT_TOOLS "Enable building ompt based tools for OpenMP."
 if (OPENMP_ENABLE_OMPT_TOOLS)
   add_subdirectory(tools)
 endif()
+
+
+# Build documentation
+add_subdirectory(docs)
 
 # Now that we have seen all testsuites, create the check-openmp target.
 construct_check_openmp_target()

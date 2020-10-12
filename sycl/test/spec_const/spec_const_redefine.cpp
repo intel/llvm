@@ -1,12 +1,9 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// UNSUPPORTED: cuda
+//
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
 // RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
-// RUN: env SYCL_PI_TRACE=2 %ACC_RUN_PLACEHOLDER %t.out 2>&1 %ACC_CHECK_PLACEHOLDER
-// TODO: re-enable after CI drivers are updated to newer which support spec
-// constants:
-// XFAIL: linux && opencl
-// UNSUPPORTED: cuda || level0
 //
 //==----------- spec_const_redefine.cpp ------------------------------------==//
 //
@@ -71,9 +68,9 @@ int main(int argc, char **argv) {
   for (int i = 0; i < n_sc_sets; i++) {
     cl::sycl::program program(q.get_context());
     const int *sc_set = &sc_vals[i][0];
-    cl::sycl::experimental::spec_constant<int32_t, SC0> sc0 =
+    cl::sycl::ONEAPI::experimental::spec_constant<int32_t, SC0> sc0 =
         program.set_spec_constant<SC0>(sc_set[0]);
-    cl::sycl::experimental::spec_constant<int32_t, SC1> sc1 =
+    cl::sycl::ONEAPI::experimental::spec_constant<int32_t, SC1> sc1 =
         program.set_spec_constant<SC1>(sc_set[1]);
 
     program.build_with_kernel_type<KernelAAA>();
@@ -108,9 +105,9 @@ int main(int argc, char **argv) {
 }
 
 // --- Check that only two JIT compilation happened:
-// CHECK-NOT: ---> piProgramLink
-// CHECK: ---> piProgramLink
-// CHECK: ---> piProgramLink
-// CHECK-NOT: ---> piProgramLink
+// CHECK-NOT: ---> piProgramBuild
+// CHECK: ---> piProgramBuild
+// CHECK: ---> piProgramBuild
+// CHECK-NOT: ---> piProgramBuild
 // --- Check that the test completed with expected results:
 // CHECK: passed

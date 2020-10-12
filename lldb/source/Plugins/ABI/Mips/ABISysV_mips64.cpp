@@ -75,7 +75,7 @@ enum dwarf_regnums {
   dwarf_pc
 };
 
-static const RegisterInfo g_register_infos_mips64[] = {
+static RegisterInfo g_register_infos_mips64[] = {
     //  NAME      ALT    SZ OFF ENCODING        FORMAT         EH_FRAME
     //  DWARF                   GENERIC                     PROCESS PLUGIN
     //  LLDB NATIVE
@@ -542,9 +542,24 @@ static const RegisterInfo g_register_infos_mips64[] = {
 
 static const uint32_t k_num_register_infos =
     llvm::array_lengthof(g_register_infos_mips64);
+static bool g_register_info_names_constified = false;
 
 const lldb_private::RegisterInfo *
 ABISysV_mips64::GetRegisterInfoArray(uint32_t &count) {
+  // Make the C-string names and alt_names for the register infos into const
+  // C-string values by having the ConstString unique the names in the global
+  // constant C-string pool.
+  if (!g_register_info_names_constified) {
+    g_register_info_names_constified = true;
+    for (uint32_t i = 0; i < k_num_register_infos; ++i) {
+      if (g_register_infos_mips64[i].name)
+        g_register_infos_mips64[i].name =
+            ConstString(g_register_infos_mips64[i].name).GetCString();
+      if (g_register_infos_mips64[i].alt_name)
+        g_register_infos_mips64[i].alt_name =
+            ConstString(g_register_infos_mips64[i].alt_name).GetCString();
+    }
+  }
   count = k_num_register_infos;
   return g_register_infos_mips64;
 }
@@ -753,7 +768,7 @@ ValueObjectSP ABISysV_mips64::GetReturnValueObjectImpl(
   const ArchSpec target_arch = target->GetArchitecture();
   ByteOrder target_byte_order = target_arch.GetByteOrder();
   llvm::Optional<uint64_t> byte_size =
-      return_compiler_type.GetByteSize(nullptr);
+      return_compiler_type.GetByteSize(&thread);
   if (!byte_size)
     return return_valobj_sp;
   const uint32_t type_flags = return_compiler_type.GetTypeInfo(nullptr);
@@ -962,7 +977,7 @@ ValueObjectSP ABISysV_mips64::GetReturnValueObjectImpl(
                 return_compiler_type.GetFieldAtIndex(
                     idx, name, &field_bit_offset, nullptr, nullptr);
             llvm::Optional<uint64_t> field_byte_width =
-                field_compiler_type.GetByteSize(nullptr);
+                field_compiler_type.GetByteSize(&thread);
             if (!field_byte_width)
               return return_valobj_sp;
 
@@ -1034,7 +1049,7 @@ ValueObjectSP ABISysV_mips64::GetReturnValueObjectImpl(
         CompilerType field_compiler_type = return_compiler_type.GetFieldAtIndex(
             idx, name, &field_bit_offset, nullptr, nullptr);
         llvm::Optional<uint64_t> field_byte_width =
-            field_compiler_type.GetByteSize(nullptr);
+            field_compiler_type.GetByteSize(&thread);
 
         // if we don't know the size of the field (e.g. invalid type), just
         // bail out

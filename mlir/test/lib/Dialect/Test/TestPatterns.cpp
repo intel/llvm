@@ -21,8 +21,8 @@ static Value chooseOperand(Value input1, Value input2, BoolAttr choice) {
   return choice.getValue() ? input1 : input2;
 }
 
-static void createOpI(PatternRewriter &rewriter, Value input) {
-  rewriter.create<OpI>(rewriter.getUnknownLoc(), input);
+static void createOpI(PatternRewriter &rewriter, Location loc, Value input) {
+  rewriter.create<OpI>(loc, input);
 }
 
 static void handleNoResultOp(PatternRewriter &rewriter,
@@ -63,7 +63,7 @@ public:
     // upon construction. The operation being created through the folder has an
     // in-place folder, and it should be still present in the output.
     // Furthermore, the folder should not crash when attempting to recover the
-    // (unchanged) opeation result.
+    // (unchanged) operation result.
     OperationFolder folder(op->getContext());
     Value result = folder.create<TestOpInPlaceFold>(
         rewriter, op->getLoc(), rewriter.getIntegerType(32), op->getOperand(0),
@@ -111,7 +111,7 @@ static void invokeCreateWithInferredReturnType(Operation *op) {
               context, llvm::None, values, op->getAttrDictionary(),
               op->getRegions(), inferredReturnTypes))) {
         OperationState state(location, OpTy::getOperationName());
-        // TODO(jpienaar): Expand to regions.
+        // TODO: Expand to regions.
         OpTy::build(b, state, values, op->getAttrs());
         (void)b.createOperation(state);
       }
@@ -254,7 +254,7 @@ struct TestCreateBlock : public RewritePattern {
   }
 };
 
-/// A simple pattern that creates a block containing an invalid operaiton in
+/// A simple pattern that creates a block containing an invalid operation in
 /// order to trigger the block creation undo mechanism.
 struct TestCreateIllegalBlock : public RewritePattern {
   TestCreateIllegalBlock(MLIRContext *ctx)
@@ -284,7 +284,7 @@ struct TestUndoBlockArgReplace : public ConversionPattern {
                   ConversionPatternRewriter &rewriter) const final {
     auto illegalOp =
         rewriter.create<ILLegalOpF>(op->getLoc(), rewriter.getF32Type());
-    rewriter.replaceUsesOfBlockArgument(op->getRegion(0).front().getArgument(0),
+    rewriter.replaceUsesOfBlockArgument(op->getRegion(0).getArgument(0),
                                         illegalOp);
     rewriter.updateRootInPlace(op, [] {});
     return success();
@@ -457,8 +457,7 @@ struct TestBoundedRecursiveRewrite
                                 PatternRewriter &rewriter) const final {
     // Decrement the depth of the op in-place.
     rewriter.updateRootInPlace(op, [&] {
-      op.setAttr("depth",
-                 rewriter.getI64IntegerAttr(op.depth().getSExtValue() - 1));
+      op.setAttr("depth", rewriter.getI64IntegerAttr(op.depth() - 1));
     });
     return success();
   }
@@ -485,8 +484,9 @@ struct TestTypeConverter : public TypeConverter {
   using TypeConverter::TypeConverter;
   TestTypeConverter() {
     addConversion(convertType);
-    addMaterialization(materializeCast);
-    addMaterialization(materializeOneToOneCast);
+    addArgumentMaterialization(materializeCast);
+    addArgumentMaterialization(materializeOneToOneCast);
+    addSourceMaterialization(materializeCast);
   }
 
   static LogicalResult convertType(Type t, SmallVectorImpl<Type> &results) {
@@ -519,21 +519,20 @@ struct TestTypeConverter : public TypeConverter {
 
   /// Hook for materializing a conversion. This is necessary because we generate
   /// 1->N type mappings.
-  static Optional<Value> materializeCast(PatternRewriter &rewriter,
-                                         Type resultType, ValueRange inputs,
-                                         Location loc) {
+  static Optional<Value> materializeCast(OpBuilder &builder, Type resultType,
+                                         ValueRange inputs, Location loc) {
     if (inputs.size() == 1)
       return inputs[0];
-    return rewriter.create<TestCastOp>(loc, resultType, inputs).getResult();
+    return builder.create<TestCastOp>(loc, resultType, inputs).getResult();
   }
 
   /// Materialize the cast for one-to-one conversion from i64 to f64.
-  static Optional<Value> materializeOneToOneCast(PatternRewriter &rewriter,
+  static Optional<Value> materializeOneToOneCast(OpBuilder &builder,
                                                  IntegerType resultType,
                                                  ValueRange inputs,
                                                  Location loc) {
     if (resultType.getWidth() == 42 && inputs.size() == 1)
-      return rewriter.create<TestCastOp>(loc, resultType, inputs).getResult();
+      return builder.create<TestCastOp>(loc, resultType, inputs).getResult();
     return llvm::None;
   }
 };
@@ -742,6 +741,214 @@ struct TestUnknownRootOpDriver
 };
 } // end anonymous namespace
 
+//===----------------------------------------------------------------------===//
+// Test type conversions
+//===----------------------------------------------------------------------===//
+
+namespace {
+struct TestTypeConversionProducer
+    : public OpConversionPattern<TestTypeProducerOp> {
+  using OpConversionPattern<TestTypeProducerOp>::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(TestTypeProducerOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const final {
+    Type resultType = op.getType();
+    if (resultType.isa<FloatType>())
+      resultType = rewriter.getF64Type();
+    else if (resultType.isInteger(16))
+      resultType = rewriter.getIntegerType(64);
+    else
+      return failure();
+
+    rewriter.replaceOpWithNewOp<TestTypeProducerOp>(op, resultType);
+    return success();
+  }
+};
+
+struct TestTypeConversionDriver
+    : public PassWrapper<TestTypeConversionDriver, OperationPass<ModuleOp>> {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<TestDialect>();
+  }
+
+  void runOnOperation() override {
+    // Initialize the type converter.
+    TypeConverter converter;
+
+    /// Add the legal set of type conversions.
+    converter.addConversion([](Type type) -> Type {
+      // Treat F64 as legal.
+      if (type.isF64())
+        return type;
+      // Allow converting BF16/F16/F32 to F64.
+      if (type.isBF16() || type.isF16() || type.isF32())
+        return FloatType::getF64(type.getContext());
+      // Otherwise, the type is illegal.
+      return nullptr;
+    });
+    converter.addConversion([](IntegerType type, SmallVectorImpl<Type> &) {
+      // Drop all integer types.
+      return success();
+    });
+
+    /// Add the legal set of type materializations.
+    converter.addSourceMaterialization([](OpBuilder &builder, Type resultType,
+                                          ValueRange inputs,
+                                          Location loc) -> Value {
+      // Allow casting from F64 back to F32.
+      if (!resultType.isF16() && inputs.size() == 1 &&
+          inputs[0].getType().isF64())
+        return builder.create<TestCastOp>(loc, resultType, inputs).getResult();
+      // Allow producing an i32 or i64 from nothing.
+      if ((resultType.isInteger(32) || resultType.isInteger(64)) &&
+          inputs.empty())
+        return builder.create<TestTypeProducerOp>(loc, resultType);
+      // Allow producing an i64 from an integer.
+      if (resultType.isa<IntegerType>() && inputs.size() == 1 &&
+          inputs[0].getType().isa<IntegerType>())
+        return builder.create<TestCastOp>(loc, resultType, inputs).getResult();
+      // Otherwise, fail.
+      return nullptr;
+    });
+
+    // Initialize the conversion target.
+    mlir::ConversionTarget target(getContext());
+    target.addDynamicallyLegalOp<TestTypeProducerOp>([](TestTypeProducerOp op) {
+      return op.getType().isF64() || op.getType().isInteger(64);
+    });
+    target.addDynamicallyLegalOp<FuncOp>([&](FuncOp op) {
+      return converter.isSignatureLegal(op.getType()) &&
+             converter.isLegal(&op.getBody());
+    });
+    target.addDynamicallyLegalOp<TestCastOp>([&](TestCastOp op) {
+      // Allow casts from F64 to F32.
+      return (*op.operand_type_begin()).isF64() && op.getType().isF32();
+    });
+
+    // Initialize the set of rewrite patterns.
+    OwningRewritePatternList patterns;
+    patterns.insert<TestTypeConversionProducer>(converter, &getContext());
+    mlir::populateFuncOpTypeConversionPattern(patterns, &getContext(),
+                                              converter);
+
+    if (failed(applyPartialConversion(getOperation(), target, patterns)))
+      signalPassFailure();
+  }
+};
+} // end anonymous namespace
+
+namespace {
+/// A rewriter pattern that tests that blocks can be merged.
+struct TestMergeBlock : public OpConversionPattern<TestMergeBlocksOp> {
+  using OpConversionPattern<TestMergeBlocksOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(TestMergeBlocksOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const final {
+    Block &firstBlock = op.body().front();
+    Operation *branchOp = firstBlock.getTerminator();
+    Block *secondBlock = &*(std::next(op.body().begin()));
+    auto succOperands = branchOp->getOperands();
+    SmallVector<Value, 2> replacements(succOperands);
+    rewriter.eraseOp(branchOp);
+    rewriter.mergeBlocks(secondBlock, &firstBlock, replacements);
+    rewriter.updateRootInPlace(op, [] {});
+    return success();
+  }
+};
+
+/// A rewrite pattern to tests the undo mechanism of blocks being merged.
+struct TestUndoBlocksMerge : public ConversionPattern {
+  TestUndoBlocksMerge(MLIRContext *ctx)
+      : ConversionPattern("test.undo_blocks_merge", /*benefit=*/1, ctx) {}
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const final {
+    Block &firstBlock = op->getRegion(0).front();
+    Operation *branchOp = firstBlock.getTerminator();
+    Block *secondBlock = &*(std::next(op->getRegion(0).begin()));
+    rewriter.setInsertionPointToStart(secondBlock);
+    rewriter.create<ILLegalOpF>(op->getLoc(), rewriter.getF32Type());
+    auto succOperands = branchOp->getOperands();
+    SmallVector<Value, 2> replacements(succOperands);
+    rewriter.eraseOp(branchOp);
+    rewriter.mergeBlocks(secondBlock, &firstBlock, replacements);
+    rewriter.updateRootInPlace(op, [] {});
+    return success();
+  }
+};
+
+/// A rewrite mechanism to inline the body of the op into its parent, when both
+/// ops can have a single block.
+struct TestMergeSingleBlockOps
+    : public OpConversionPattern<SingleBlockImplicitTerminatorOp> {
+  using OpConversionPattern<
+      SingleBlockImplicitTerminatorOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(SingleBlockImplicitTerminatorOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const final {
+    SingleBlockImplicitTerminatorOp parentOp =
+        op.getParentOfType<SingleBlockImplicitTerminatorOp>();
+    if (!parentOp)
+      return failure();
+    Block &innerBlock = op.region().front();
+    TerminatorOp innerTerminator =
+        cast<TerminatorOp>(innerBlock.getTerminator());
+    rewriter.mergeBlockBefore(&innerBlock, op);
+    rewriter.eraseOp(innerTerminator);
+    rewriter.eraseOp(op);
+    rewriter.updateRootInPlace(op, [] {});
+    return success();
+  }
+};
+
+struct TestMergeBlocksPatternDriver
+    : public PassWrapper<TestMergeBlocksPatternDriver,
+                         OperationPass<ModuleOp>> {
+  void runOnOperation() override {
+    mlir::OwningRewritePatternList patterns;
+    MLIRContext *context = &getContext();
+    patterns
+        .insert<TestMergeBlock, TestUndoBlocksMerge, TestMergeSingleBlockOps>(
+            context);
+    ConversionTarget target(*context);
+    target.addLegalOp<FuncOp, ModuleOp, ModuleTerminatorOp, TerminatorOp,
+                      TestBranchOp, TestTypeConsumerOp, TestTypeProducerOp,
+                      TestReturnOp>();
+    target.addIllegalOp<ILLegalOpF>();
+
+    /// Expect the op to have a single block after legalization.
+    target.addDynamicallyLegalOp<TestMergeBlocksOp>(
+        [&](TestMergeBlocksOp op) -> bool {
+          return llvm::hasSingleElement(op.body());
+        });
+
+    /// Only allow `test.br` within test.merge_blocks op.
+    target.addDynamicallyLegalOp<TestBranchOp>([&](TestBranchOp op) -> bool {
+      return op.getParentOfType<TestMergeBlocksOp>();
+    });
+
+    /// Expect that all nested test.SingleBlockImplicitTerminator ops are
+    /// inlined.
+    target.addDynamicallyLegalOp<SingleBlockImplicitTerminatorOp>(
+        [&](SingleBlockImplicitTerminatorOp op) -> bool {
+          return !op.getParentOfType<SingleBlockImplicitTerminatorOp>();
+        });
+
+    DenseSet<Operation *> unlegalizedOps;
+    (void)applyPartialConversion(getOperation(), target, patterns,
+                                 &unlegalizedOps);
+    for (auto *op : unlegalizedOps)
+      op->emitRemark() << "op '" << op->getName() << "' is not legalizable";
+  }
+};
+} // namespace
+
+//===----------------------------------------------------------------------===//
+// PassRegistration
+//===----------------------------------------------------------------------===//
+
 namespace mlir {
 void registerPatternsTestPass() {
   PassRegistration<TestReturnTypeDriver>("test-return-type",
@@ -766,5 +973,13 @@ void registerPatternsTestPass() {
   PassRegistration<TestUnknownRootOpDriver>(
       "test-legalize-unknown-root-patterns",
       "Test public remapped value mechanism in ConversionPatternRewriter");
+
+  PassRegistration<TestTypeConversionDriver>(
+      "test-legalize-type-conversion",
+      "Test various type conversion functionalities in DialectConversion");
+
+  PassRegistration<TestMergeBlocksPatternDriver>{
+      "test-merge-blocks",
+      "Test Merging operation in ConversionPatternRewriter"};
 }
 } // namespace mlir

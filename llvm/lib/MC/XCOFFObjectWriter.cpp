@@ -68,7 +68,7 @@ struct Symbol {
   XCOFF::StorageClass getStorageClass() const {
     return MCSym->getStorageClass();
   }
-  StringRef getName() const { return MCSym->getName(); }
+  StringRef getSymbolTableName() const { return MCSym->getSymbolTableName(); }
   Symbol(const MCSymbolXCOFF *MCSym) : MCSym(MCSym), SymbolTableIndex(-1) {}
 };
 
@@ -81,7 +81,7 @@ struct ControlSection {
 
   SmallVector<Symbol, 1> Syms;
   SmallVector<XCOFFRelocation, 1> Relocations;
-  StringRef getName() const { return MCCsect->getName(); }
+  StringRef getSymbolTableName() const { return MCCsect->getSymbolTableName(); }
   ControlSection(const MCSectionXCOFF *MCSec)
       : MCCsect(MCSec), SymbolTableIndex(-1), Address(-1), Size(0) {}
 };
@@ -304,6 +304,7 @@ CsectGroup &XCOFFObjectWriter::getCsectGroup(const MCSectionXCOFF *MCSec) {
            "in this CsectGroup.");
     return TOCCsects;
   case XCOFF::XMC_TC:
+  case XCOFF::XMC_TE:
     assert(XCOFF::XTY_SD == MCSec->getCSectType() &&
            "Only an initialized csect can contain TC entry.");
     assert(!TOCCsects.empty() &&
@@ -334,8 +335,8 @@ void XCOFFObjectWriter::executePostLayoutBinding(MCAssembler &Asm,
 
     // If the name does not fit in the storage provided in the symbol table
     // entry, add it to the string table.
-    if (nameShouldBeInStringTable(MCSec->getName()))
-      Strings.add(MCSec->getName());
+    if (nameShouldBeInStringTable(MCSec->getSymbolTableName()))
+      Strings.add(MCSec->getSymbolTableName());
 
     CsectGroup &Group = getCsectGroup(MCSec);
     Group.emplace_back(MCSec);
@@ -354,8 +355,8 @@ void XCOFFObjectWriter::executePostLayoutBinding(MCAssembler &Asm,
       // Handle undefined symbol.
       UndefinedCsects.emplace_back(ContainingCsect);
       SectionMap[ContainingCsect] = &UndefinedCsects.back();
-      if (nameShouldBeInStringTable(ContainingCsect->getName()))
-        Strings.add(ContainingCsect->getName());
+      if (nameShouldBeInStringTable(ContainingCsect->getSymbolTableName()))
+        Strings.add(ContainingCsect->getSymbolTableName());
       continue;
     }
 
@@ -375,8 +376,8 @@ void XCOFFObjectWriter::executePostLayoutBinding(MCAssembler &Asm,
 
     // If the name does not fit in the storage provided in the symbol table
     // entry, add it to the string table.
-    if (nameShouldBeInStringTable(XSym->getName()))
-      Strings.add(XSym->getName());
+    if (nameShouldBeInStringTable(XSym->getSymbolTableName()))
+      Strings.add(XSym->getSymbolTableName());
   }
 
   Strings.finalize();
@@ -427,9 +428,18 @@ void XCOFFObjectWriter::recordRelocation(MCAssembler &Asm,
     // The FixedValue should be symbol's virtual address in this object file
     // plus any constant value that we might get.
     FixedValue = getVirtualAddress(SymA, SymASec) + Target.getConstant();
-  else if (Type == XCOFF::RelocationType::R_TOC)
-    // The FixedValue should be the TC entry offset from TOC-base.
-    FixedValue = SectionMap[SymASec]->Address - TOCCsects.front().Address;
+  else if (Type == XCOFF::RelocationType::R_TOC ||
+           Type == XCOFF::RelocationType::R_TOCL) {
+    // The FixedValue should be the TOC entry offset from the TOC-base plus any
+    // constant offset value.
+    const int64_t TOCEntryOffset = SectionMap[SymASec]->Address -
+                                   TOCCsects.front().Address +
+                                   Target.getConstant();
+    if (Type == XCOFF::RelocationType::R_TOC && !isInt<16>(TOCEntryOffset))
+      report_fatal_error("TOCEntryOffset overflows in small code model mode");
+
+    FixedValue = TOCEntryOffset;
+  }
 
   assert(
       (TargetObjectWriter->is64Bit() ||
@@ -555,7 +565,7 @@ void XCOFFObjectWriter::writeSymbolTableEntryForCsectMemberLabel(
     const Symbol &SymbolRef, const ControlSection &CSectionRef,
     int16_t SectionIndex, uint64_t SymbolOffset) {
   // Name or Zeros and string table offset
-  writeSymbolName(SymbolRef.getName());
+  writeSymbolName(SymbolRef.getSymbolTableName());
   assert(SymbolOffset <= UINT32_MAX - CSectionRef.Address &&
          "Symbol address overflows.");
   W.write<uint32_t>(CSectionRef.Address + SymbolOffset);
@@ -592,7 +602,7 @@ void XCOFFObjectWriter::writeSymbolTableEntryForControlSection(
     const ControlSection &CSectionRef, int16_t SectionIndex,
     XCOFF::StorageClass StorageClass) {
   // n_name, n_zeros, n_offset
-  writeSymbolName(CSectionRef.getName());
+  writeSymbolName(CSectionRef.getSymbolTableName());
   // n_value
   W.write<uint32_t>(CSectionRef.Address);
   // n_scnum

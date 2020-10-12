@@ -8,7 +8,7 @@
 
 // TODO: Unexpected result
 // TODO: _indexers.cpp:37: int main(): Assertion `id == -1' failed.
-// XFAIL: level0
+// XFAIL: level_zero
 
 #include <CL/sycl.hpp>
 

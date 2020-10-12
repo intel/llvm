@@ -72,9 +72,11 @@ def FeatureLOR : SubtargetFeature<
     "lor", "HasLOR", "true",
     "Enables ARM v8.1 Limited Ordering Regions extension">;
 
-def FeatureVH : SubtargetFeature<
-    "vh", "HasVH", "true",
-    "Enables ARM v8.1 Virtual Host extension">;
+def FeatureCONTEXTIDREL2 : SubtargetFeature<"CONTEXTIDREL2", "HasCONTEXTIDREL2",
+    "true", "Enable RW operand CONTEXTIDR_EL2" >;
+
+def FeatureVH : SubtargetFeature<"vh", "HasVH", "true",
+    "Enables ARM v8.1 Virtual Host extension", [FeatureCONTEXTIDREL2] >;
 
 def FeaturePerfMon : SubtargetFeature<"perfmon", "HasPerfMon", "true",
   "Enable ARMv8 PMUv3 Performance Monitors extension">;
@@ -102,6 +104,24 @@ def FeatureCCPP : SubtargetFeature<"ccpp", "HasCCPP",
 
 def FeatureSVE : SubtargetFeature<"sve", "HasSVE", "true",
   "Enable Scalable Vector Extension (SVE) instructions", [FeatureFullFP16]>;
+
+// This flag is currently still labeled as Experimental, but when fully
+// implemented this should tell the compiler to use the zeroing pseudos to
+// benefit from the reverse instructions (e.g. SUB vs SUBR) if the inactive
+// lanes are known to be zero. The pseudos will then be expanded using the
+// MOVPRFX instruction to zero the inactive lanes. This feature should only be
+// enabled if MOVPRFX instructions are known to merge with the destructive
+// operations they prefix.
+//
+// This feature could similarly be extended to support cheap merging of _any_
+// value into the inactive lanes using the MOVPRFX instruction that uses
+// merging-predication.
+def FeatureExperimentalZeroingPseudos
+    : SubtargetFeature<"use-experimental-zeroing-pseudos",
+                       "UseExperimentalZeroingPseudos", "true",
+                       "Hint to the compiler that the MOVPRFX instruction is "
+                       "merged with destructive operations",
+                       []>;
 
 def FeatureSVE2 : SubtargetFeature<"sve2", "HasSVE2", "true",
   "Enable Scalable Vector Extension 2 (SVE2) instructions", [FeatureSVE]>;
@@ -423,6 +443,22 @@ def HasV8_6aOps : SubtargetFeature<
   [HasV8_5aOps, FeatureAMVS, FeatureBF16, FeatureFineGrainedTraps,
    FeatureEnhancedCounterVirtualization, FeatureMatMulInt8]>;
 
+def HasV8_0rOps : SubtargetFeature<
+  "v8r", "HasV8_0rOps", "true", "Support ARM v8r instructions",
+  [//v8.1
+  FeatureCRC, FeaturePAN, FeatureRDM, FeatureLSE, FeatureCONTEXTIDREL2,
+  //v8.2
+  FeaturePerfMon, FeatureRAS, FeaturePsUAO, FeatureSM4,
+  FeatureSHA3, FeatureCCPP, FeatureFullFP16, FeaturePAN_RWV,
+  //v8.3
+  FeatureComplxNum, FeatureCCIDX, FeatureJS,
+  FeaturePA, FeatureRCPC,
+  //v8.4
+  FeatureDotProd, FeatureFP16FML, FeatureRASv8_4, FeatureTRACEV8_4,
+  FeatureTLB_RMI, FeatureFMI, FeatureDIT, FeatureSEL2, FeatureRCPC_IMMO,
+  //v8.5
+  FeatureSSBS, FeaturePredRes, FeatureSB, FeatureSpecRestrict]>;
+
 //===----------------------------------------------------------------------===//
 // Register File Description
 //===----------------------------------------------------------------------===//
@@ -488,6 +524,7 @@ def PAUnsupported : AArch64Unsupported {
 }
 
 include "AArch64SchedA53.td"
+include "AArch64SchedA55.td"
 include "AArch64SchedA57.td"
 include "AArch64SchedCyclone.td"
 include "AArch64SchedFalkor.td"
@@ -607,6 +644,53 @@ def ProcA76     : SubtargetFeature<"a76", "ARMProcFamily", "CortexA76",
                                     FeatureDotProd,
                                     FeatureSSBS
                                     ]>;
+
+def ProcA77     : SubtargetFeature<"a77", "ARMProcFamily", "CortexA77",
+                                   "Cortex-A77 ARM processors", [
+                                    HasV8_2aOps,
+                                    FeatureFPARMv8,
+                                    FeatureNEON, FeatureRCPC,
+                                    FeatureCrypto,
+                                    FeatureFullFP16,
+                                    FeatureDotProd
+                                    ]>;
+
+def ProcA78 : SubtargetFeature<"cortex-a78", "ARMProcFamily",
+                               "CortexA78",
+                               "Cortex-A78 ARM processors", [
+                               HasV8_2aOps,
+                               FeatureCrypto,
+                               FeatureFPARMv8,
+                               FeatureFuseAES,
+                               FeatureNEON,
+                               FeatureRCPC,
+                               FeaturePerfMon,
+                               FeaturePostRAScheduler,
+                               FeatureSPE,
+                               FeatureFullFP16,
+                               FeatureSSBS,
+                               FeatureDotProd]>;
+
+def ProcR82 : SubtargetFeature<"cortex-r82", "ARMProcFamily",
+                               "CortexR82",
+                               "Cortex-R82 ARM Processors", [
+                               // All features are implied by v8_0r ops:
+                               HasV8_0rOps,
+                               ]>;
+
+def ProcX1 : SubtargetFeature<"cortex-x1", "ARMProcFamily", "CortexX1",
+                                  "Cortex-X1 ARM processors", [
+                                  HasV8_2aOps,
+                                  FeatureCrypto,
+                                  FeatureFPARMv8,
+                                  FeatureFuseAES,
+                                  FeatureNEON,
+                                  FeatureRCPC,
+                                  FeaturePerfMon,
+                                  FeaturePostRAScheduler,
+                                  FeatureSPE,
+                                  FeatureFullFP16,
+                                  FeatureDotProd]>;
 
 def ProcA64FX : SubtargetFeature<"a64fx", "ARMProcFamily", "A64FX",
                                  "Fujitsu A64FX processors", [
@@ -940,7 +1024,11 @@ def : ProcessorModel<"generic", NoSchedModel, [
 def : ProcessorModel<"cortex-a35", CortexA53Model, [ProcA35]>;
 def : ProcessorModel<"cortex-a34", CortexA53Model, [ProcA35]>;
 def : ProcessorModel<"cortex-a53", CortexA53Model, [ProcA53]>;
+
+// FIXME: the A55 model (see AArch64SchedA55.td) needs some improvements, so
+// use the A53 model for now.
 def : ProcessorModel<"cortex-a55", CortexA53Model, [ProcA55]>;
+
 def : ProcessorModel<"cortex-a57", CortexA57Model, [ProcA57]>;
 def : ProcessorModel<"cortex-a65", CortexA53Model, [ProcA65]>;
 def : ProcessorModel<"cortex-a65ae", CortexA53Model, [ProcA65]>;
@@ -949,6 +1037,10 @@ def : ProcessorModel<"cortex-a73", CortexA57Model, [ProcA73]>;
 def : ProcessorModel<"cortex-a75", CortexA57Model, [ProcA75]>;
 def : ProcessorModel<"cortex-a76", CortexA57Model, [ProcA76]>;
 def : ProcessorModel<"cortex-a76ae", CortexA57Model, [ProcA76]>;
+def : ProcessorModel<"cortex-a77", CortexA57Model, [ProcA77]>;
+def : ProcessorModel<"cortex-a78", CortexA57Model, [ProcA78]>;
+def : ProcessorModel<"cortex-r82", CortexA55Model, [ProcR82]>;
+def : ProcessorModel<"cortex-x1", CortexA57Model, [ProcX1]>;
 def : ProcessorModel<"neoverse-e1", CortexA53Model, [ProcNeoverseE1]>;
 def : ProcessorModel<"neoverse-n1", CortexA57Model, [ProcNeoverseN1]>;
 def : ProcessorModel<"exynos-m3", ExynosM3Model, [ProcExynosM3]>;

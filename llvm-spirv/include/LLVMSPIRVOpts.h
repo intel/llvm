@@ -71,6 +71,8 @@ enum class BIsRepresentation : uint32_t { OpenCL12, OpenCL20, SPIRVFriendlyIR };
 
 enum class FPContractMode : uint32_t { On, Off, Fast };
 
+enum class DebugInfoEIS : uint32_t { SPIRV_Debug, OpenCL_DebugInfo_100 };
+
 /// \brief Helper class to manage SPIR-V translation
 class TranslatorOpts {
 public:
@@ -137,6 +139,27 @@ public:
 
   FPContractMode getFPContractMode() const { return FPCMode; }
 
+  bool isSPIRVAllowUnknownIntrinsicsEnabled() const noexcept {
+    return SPIRVAllowUnknownIntrinsics;
+  }
+
+  void
+  setSPIRVAllowUnknownIntrinsicsEnabled(bool AllowUnknownIntrinsics) noexcept {
+    SPIRVAllowUnknownIntrinsics = AllowUnknownIntrinsics;
+  }
+
+  bool allowExtraDIExpressions() const noexcept {
+    return AllowExtraDIExpressions;
+  }
+
+  void setAllowExtraDIExpressionsEnabled(bool Allow) noexcept {
+    AllowExtraDIExpressions = Allow;
+  }
+
+  DebugInfoEIS getDebugInfoEIS() const { return DebugInfoVersion; }
+
+  void setDebugInfoEIS(DebugInfoEIS EIS) { DebugInfoVersion = EIS; }
+
 private:
   // Common translation options
   VersionNumber MaxVersion = VersionNumber::MaximumVersion;
@@ -159,6 +182,16 @@ private:
   // - FPContractMode::Fast allows *all* operations to be contracted
   //   for all entry points
   FPContractMode FPCMode = FPContractMode::On;
+
+  // Unknown LLVM intrinsics will be translated as external function calls in
+  // SPIR-V
+  bool SPIRVAllowUnknownIntrinsics = false;
+
+  // Enable support for extra DIExpression opcodes not listed in the SPIR-V
+  // DebugInfo specification.
+  bool AllowExtraDIExpressions = false;
+
+  DebugInfoEIS DebugInfoVersion = DebugInfoEIS::OpenCL_DebugInfo_100;
 };
 
 } // namespace SPIRV

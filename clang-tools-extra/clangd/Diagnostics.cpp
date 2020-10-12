@@ -411,6 +411,8 @@ void toLSPDiags(
     Main.codeActions.emplace();
     for (const auto &Fix : D.Fixes)
       Main.codeActions->push_back(toCodeAction(Fix, File));
+    if (Main.codeActions->size() == 1)
+      Main.codeActions->front().isPreferred = true;
   }
   if (Opts.SendDiagnosticCategory && !D.Category.empty())
     Main.category = D.Category;
@@ -518,13 +520,17 @@ std::vector<Diag> StoreDiags::take(const clang::tidy::ClangTidyContext *Tidy) {
 }
 
 void StoreDiags::BeginSourceFile(const LangOptions &Opts,
-                                 const Preprocessor *) {
+                                 const Preprocessor *PP) {
   LangOpts = Opts;
+  if (PP) {
+    OrigSrcMgr = &PP->getSourceManager();
+  }
 }
 
 void StoreDiags::EndSourceFile() {
   flushLastDiag();
   LangOpts = None;
+  OrigSrcMgr = nullptr;
 }
 
 /// Sanitizes a piece for presenting it in a synthesized fix message. Ensures
@@ -560,6 +566,16 @@ static void fillNonLocationData(DiagnosticsEngine::Level DiagLevel,
 
 void StoreDiags::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
                                   const clang::Diagnostic &Info) {
+  // If the diagnostic was generated for a different SourceManager, skip it.
+  // This happens when a module is imported and needs to be implicitly built.
+  // The compilation of that module will use the same StoreDiags, but different
+  // SourceManager.
+  if (OrigSrcMgr && Info.hasSourceManager() &&
+      OrigSrcMgr != &Info.getSourceManager()) {
+    IgnoreDiagnostics::log(DiagLevel, Info);
+    return;
+  }
+
   DiagnosticConsumer::HandleDiagnostic(DiagLevel, Info);
   bool OriginallyError =
       Info.getDiags()->getDiagnosticIDs()->isDefaultMappingAsError(

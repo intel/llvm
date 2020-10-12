@@ -184,6 +184,10 @@ let TargetPrefix = "aarch64" in {  // All intrinsics start with "llvm.aarch64.".
                 [LLVMMatchType<0>, llvm_anyvector_ty, LLVMMatchType<1>],
                 [IntrNoMem]>;
 
+  class AdvSIMD_BF16FML_Intrinsic
+    : Intrinsic<[llvm_v4f32_ty],
+                [llvm_v4f32_ty, llvm_v8bf16_ty, llvm_v8bf16_ty],
+                [IntrNoMem]>;
 }
 
 // Arithmetic ops
@@ -466,9 +470,12 @@ let TargetPrefix = "aarch64", IntrProperties = [IntrNoMem] in {
   def int_aarch64_neon_usmmla : AdvSIMD_MatMul_Intrinsic;
   def int_aarch64_neon_usdot : AdvSIMD_Dot_Intrinsic;
   def int_aarch64_neon_bfdot : AdvSIMD_Dot_Intrinsic;
-  def int_aarch64_neon_bfmmla : AdvSIMD_MatMul_Intrinsic;
-  def int_aarch64_neon_bfmlalb : AdvSIMD_FML_Intrinsic;
-  def int_aarch64_neon_bfmlalt : AdvSIMD_FML_Intrinsic;
+  def int_aarch64_neon_bfmmla
+    : Intrinsic<[llvm_v4f32_ty],
+                [llvm_v4f32_ty, llvm_v8bf16_ty, llvm_v8bf16_ty],
+                [IntrNoMem]>;
+  def int_aarch64_neon_bfmlalb : AdvSIMD_BF16FML_Intrinsic;
+  def int_aarch64_neon_bfmlalt : AdvSIMD_BF16FML_Intrinsic;
 
 
   // v8.6-A Bfloat Intrinsics
@@ -1293,7 +1300,7 @@ class AdvSIMD_GatherLoad_VS_Intrinsic
                   llvm_anyvector_ty,
                   llvm_i64_ty
                 ],
-                [IntrReadMem, IntrArgMemOnly]>;
+                [IntrReadMem]>;
 
 class AdvSIMD_ScatterStore_SV_64b_Offsets_Intrinsic
     : Intrinsic<[],
@@ -1322,7 +1329,7 @@ class AdvSIMD_ScatterStore_VS_Intrinsic
                  LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>,
                  llvm_anyvector_ty, llvm_i64_ty
                ],
-               [IntrWriteMem, IntrArgMemOnly]>;
+               [IntrWriteMem]>;
 
 
 class SVE_gather_prf_SV

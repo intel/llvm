@@ -259,6 +259,9 @@ public:
     Function *NewFunc = Function::Create(NewFuncTy, Func->getLinkage(),
                                          Func->getAddressSpace());
 
+    // Keep original function ordering.
+    M.getFunctionList().insertAfter(Func->getIterator(), NewFunc);
+
     if (KeepOriginal) {
       // TODO: Are there better naming alternatives that allow for unmangling?
       NewFunc->setName(Func->getName() + "_with_offset");
@@ -272,7 +275,7 @@ public:
       }
 
       SmallVector<ReturnInst *, 8> Returns;
-      CloneFunctionInto(NewFunc, Func, VMap, /*ModuleLevelChanges=*/false,
+      CloneFunctionInto(NewFunc, Func, VMap, /*ModuleLevelChanges=*/true,
                         Returns);
     } else {
       NewFunc->copyAttributesFrom(Func);
@@ -297,9 +300,6 @@ public:
       for (auto MD : MDs)
         NewFunc->addMetadata(MD.first, *MD.second);
     }
-
-    // Keep original function ordering.
-    M.getFunctionList().insertAfter(Func->getIterator(), NewFunc);
 
     Value *ImplicitOffset = NewFunc->arg_begin() + (NewFunc->arg_size() - 1);
     // Add bitcast to match the return type of the intrinsic if needed.

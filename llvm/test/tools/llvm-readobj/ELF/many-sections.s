@@ -18,12 +18,11 @@
 
 --- !ELF
 FileHeader:
-  Class:    ELFCLASS64
-  Data:     ELFDATA2LSB
-  Type:     ET_REL
-  Machine:  EM_X86_64
-  SHNum:    0
-  SHStrNdx: 0xffff ## SHN_XINDEX
+  Class:     ELFCLASS64
+  Data:      ELFDATA2LSB
+  Type:      ET_REL
+  EShNum:    0
+  EShStrNdx: 0xffff ## SHN_XINDEX
 Sections:
   - Type: SHT_NULL
     Link: .shstrtab
@@ -56,13 +55,12 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class:    ELFCLASS64
-  Data:     ELFDATA2LSB
-  Type:     ET_REL
-  Machine:  EM_X86_64
-  SHOff:    0
-  SHNum:    0
-  SHStrNdx: 0xffff ## SHN_XINDEX
+  Class:     ELFCLASS64
+  Data:      ELFDATA2LSB
+  Type:      ET_REL
+  EShOff:    0
+  EShNum:    0
+  EShStrNdx: 0xffff ## SHN_XINDEX
 Sections:
   - Type: SHT_NULL
     Link: .shstrtab

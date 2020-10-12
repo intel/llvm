@@ -58,9 +58,14 @@ public:
   void inlineStackProbe(MachineFunction &MF,
                         MachineBasicBlock &PrologMBB) const override;
 
+  void
+  emitCalleeSavedFrameMoves(MachineBasicBlock &MBB,
+                            MachineBasicBlock::iterator MBBI) const override;
+
   void emitCalleeSavedFrameMoves(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator MBBI,
-                                 const DebugLoc &DL, bool IsPrologue) const;
+                                 const DebugLoc &DL,
+                                 bool IsPrologue) const override;
 
   /// emitProlog/emitEpilog - These methods insert prolog and epilog code into
   /// the function.
@@ -208,14 +213,14 @@ private:
   void emitStackProbeInlineGenericBlock(MachineFunction &MF,
                                         MachineBasicBlock &MBB,
                                         MachineBasicBlock::iterator MBBI,
-                                        const DebugLoc &DL,
-                                        uint64_t Offset) const;
+                                        const DebugLoc &DL, uint64_t Offset,
+                                        uint64_t Align) const;
 
   void emitStackProbeInlineGenericLoop(MachineFunction &MF,
                                        MachineBasicBlock &MBB,
                                        MachineBasicBlock::iterator MBBI,
-                                       const DebugLoc &DL,
-                                       uint64_t Offset) const;
+                                       const DebugLoc &DL, uint64_t Offset,
+                                       uint64_t Align) const;
 
   /// Emit a stub to later inline the target stack probe.
   MachineInstr *emitStackProbeInlineStub(MachineFunction &MF,

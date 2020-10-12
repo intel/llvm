@@ -276,6 +276,9 @@ protected:
   /// DWARF block which has been emitted to the temporary buffer.
   void finalizeEntryValue();
 
+  /// Cancel the emission of an entry value.
+  void cancelEntryValue();
+
   ~DwarfExpression() = default;
 
 public:
@@ -295,6 +298,9 @@ public:
 
   /// Emit an unsigned constant.
   void addUnsignedConstant(const APInt &Value);
+
+  /// Emit an floating point constant.
+  void addConstantFP(const APFloat &Value, const AsmPrinter &AP);
 
   /// Lock this down to become a memory location description.
   void setMemoryLocationKind() {

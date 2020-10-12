@@ -166,22 +166,22 @@ public:
     assert(N == 1 && "Invalid number of operands!");
     // The operand is actually a imm8, but we have its bitwise
     // negation in the assembly source, so twiddle it here.
-    const MCConstantExpr *CE = dyn_cast<MCConstantExpr>(getImm());
+    const auto *CE = cast<MCConstantExpr>(getImm());
     Inst.addOperand(MCOperand::createImm(~(uint8_t)CE->getValue()));
   }
 
   bool isImmCom8() const {
     if (!isImm()) return false;
-    const MCConstantExpr *CE = dyn_cast<MCConstantExpr>(getImm());
+    const auto *CE = dyn_cast<MCConstantExpr>(getImm());
     if (!CE) return false;
     int64_t Value = CE->getValue();
     return isUInt<8>(Value);
   }
 
-  bool isReg() const { return Kind == k_Register; }
-  bool isImm() const { return Kind == k_Immediate; }
-  bool isToken() const { return Kind == k_Token; }
-  bool isMem() const { return Kind == k_Memri; }
+  bool isReg() const override { return Kind == k_Register; }
+  bool isImm() const override { return Kind == k_Immediate; }
+  bool isToken() const override { return Kind == k_Token; }
+  bool isMem() const override { return Kind == k_Memri; }
   bool isMemri() const { return Kind == k_Memri; }
 
   StringRef getToken() const {
@@ -189,7 +189,7 @@ public:
     return Tok;
   }
 
-  unsigned getReg() const {
+  unsigned getReg() const override {
     assert((Kind == k_Register || Kind == k_Memri) && "Invalid access!");
 
     return RegImm.Reg;
@@ -239,10 +239,10 @@ public:
     RegImm = {RegNo, Imm};
   }
 
-  SMLoc getStartLoc() const { return Start; }
-  SMLoc getEndLoc() const { return End; }
+  SMLoc getStartLoc() const override { return Start; }
+  SMLoc getEndLoc() const override { return End; }
 
-  virtual void print(raw_ostream &O) const {
+  void print(raw_ostream &O) const override {
     switch (Kind) {
     case k_Token:
       O << "Token: \"" << getToken() << "\"";

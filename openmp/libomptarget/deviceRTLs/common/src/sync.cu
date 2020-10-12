@@ -60,8 +60,7 @@ EXTERN void __kmpc_barrier(kmp_Ident *loc_ref, int32_t tid) {
         PRINT(LD_SYNC,
               "call kmpc_barrier with %d omp threads, sync parameter %d\n",
               (int)numberOfActiveOMPThreads, (int)threads);
-        // Barrier #1 is for synchronization among active threads.
-        __kmpc_impl_named_sync(L1_BARRIER, threads);
+        __kmpc_impl_named_sync(threads);
       }
     } else {
       // Still need to flush the memory per the standard.
@@ -77,23 +76,6 @@ EXTERN void __kmpc_barrier_simple_spmd(kmp_Ident *loc_ref, int32_t tid) {
   PRINT0(LD_SYNC, "call kmpc_barrier_simple_spmd\n");
   __kmpc_impl_syncthreads();
   PRINT0(LD_SYNC, "completed kmpc_barrier_simple_spmd\n");
-}
-
-// Emit a simple barrier call in Generic mode.  Assumes the caller is in an L0
-// parallel region and that all worker threads participate.
-EXTERN void __kmpc_barrier_simple_generic(kmp_Ident *loc_ref, int32_t tid) {
-  int numberOfActiveOMPThreads = GetNumberOfThreadsInBlock() - WARPSIZE;
-  // The #threads parameter must be rounded up to the WARPSIZE.
-  int threads =
-      WARPSIZE * ((numberOfActiveOMPThreads + WARPSIZE - 1) / WARPSIZE);
-
-  PRINT(LD_SYNC,
-        "call kmpc_barrier_simple_generic with %d omp threads, sync parameter "
-        "%d\n",
-        (int)numberOfActiveOMPThreads, (int)threads);
-  // Barrier #1 is for synchronization among active threads.
-  __kmpc_impl_named_sync(L1_BARRIER, threads);
-  PRINT0(LD_SYNC, "completed kmpc_barrier_simple_generic\n");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

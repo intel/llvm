@@ -44,6 +44,9 @@
 #include "SPIRVEnum.h"
 #include "SPIRVError.h"
 #include "SPIRVIsValidEnum.h"
+
+#include <llvm/ADT/Optional.h>
+
 #include <cassert>
 #include <iostream>
 #include <map>
@@ -289,7 +292,9 @@ public:
   Op getOpCode() const { return OpCode; }
   SPIRVModule *getModule() const { return Module; }
   virtual SPIRVCapVec getRequiredCapability() const { return SPIRVCapVec(); }
-  virtual SPIRVExtSet getRequiredExtensions() const { return SPIRVExtSet(); }
+  virtual llvm::Optional<ExtensionID> getRequiredExtension() const {
+    return {};
+  }
   const std::string &getName() const { return Name; }
   bool hasDecorate(Decoration Kind, size_t Index = 0,
                    SPIRVWord *Result = 0) const;
@@ -304,6 +309,7 @@ public:
   getMemberDecorationStringLiteral(Decoration Kind,
                                    SPIRVWord MemberNumber) const;
   std::set<SPIRVWord> getDecorate(Decoration Kind, size_t Index = 0) const;
+  std::vector<SPIRVDecorate const *> getDecorations(Decoration Kind) const;
   bool hasId() const { return !(Attrib & SPIRVEA_NOID); }
   bool hasLine() const { return Line != nullptr; }
   bool hasLinkageType() const;
@@ -821,22 +827,23 @@ public:
     }
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
     switch (Kind) {
     case CapabilityDenormPreserve:
     case CapabilityDenormFlushToZero:
     case CapabilitySignedZeroInfNanPreserve:
     case CapabilityRoundingModeRTE:
     case CapabilityRoundingModeRTZ:
-      return getSet(ExtensionID::SPV_KHR_float_controls);
+      return ExtensionID::SPV_KHR_float_controls;
     case CapabilityRoundToInfinityINTEL:
     case CapabilityFloatingPointModeINTEL:
-      return getSet(ExtensionID::SPV_INTEL_float_controls2);
+    case CapabilityFunctionFloatControlINTEL:
+      return ExtensionID::SPV_INTEL_float_controls2;
     case CapabilityVectorComputeINTEL:
     case CapabilityVectorAnyINTEL:
-      return getSet(ExtensionID::SPV_INTEL_vector_compute);
+      return ExtensionID::SPV_INTEL_vector_compute;
     default:
-      return SPIRVExtSet();
+      return {};
     }
   }
 

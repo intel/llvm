@@ -72,7 +72,7 @@ public:
         llvm::size(xferOp.indices()) == 0)
       return failure();
 
-    if (!AffineMap::isMinorIdentity(xferOp.permutation_map()))
+    if (!xferOp.permutation_map().isMinorIdentity())
       return failure();
 
     // Have it handled in vector->llvm conversion pass.
@@ -103,7 +103,7 @@ public:
     // indices, so no need to calculat offset size in bytes again in
     // the MUBUF instruction.
     Value dataPtr = getDataPtr(loc, memRefType, adaptor.memref(),
-                               adaptor.indices(), rewriter, getModule());
+                               adaptor.indices(), rewriter);
 
     // 1. Create and fill a <4 x i32> dwordConfig with:
     //    1st two elements holding the address of dataPtr.

@@ -277,7 +277,7 @@ TEST(TBDv4, ReadMultipleDocuments) {
       {Targets[1], "21111111-1111-1111-1111-111111111111"},
   };
 
-  auto Document = File->documents().front();
+  TBDReexportFile Document = File->documents().front();
   EXPECT_EQ(FileType::TBD_V4, Document->getFileType());
   EXPECT_EQ(Archs, Document->getArchitectures());
   EXPECT_EQ(Uuids, Document->uuids());
@@ -505,7 +505,7 @@ TEST(TBDv4, MultipleTargets) {
 
   SmallString<4096> Buffer;
   raw_svector_ostream OS(Buffer);
-  auto WriteResult = TextAPIWriter::writeToStream(OS, *File);
+  Error WriteResult = TextAPIWriter::writeToStream(OS, *File);
   EXPECT_TRUE(!WriteResult);
   EXPECT_EQ(stripWhitespace(TBDv4MultipleTargets),
             stripWhitespace(Buffer.c_str()));
@@ -534,7 +534,7 @@ TEST(TBDv4, MultipleTargetsSameArch) {
 
   SmallString<4096> Buffer;
   raw_svector_ostream OS(Buffer);
-  auto WriteResult = TextAPIWriter::writeToStream(OS, *File);
+  Error WriteResult = TextAPIWriter::writeToStream(OS, *File);
   EXPECT_TRUE(!WriteResult);
   EXPECT_EQ(stripWhitespace(TBDv4TargetsSameArch),
             stripWhitespace(Buffer.c_str()));
@@ -559,7 +559,7 @@ TEST(TBDv4, MultipleTargetsSamePlatform) {
 
   SmallString<4096> Buffer;
   raw_svector_ostream OS(Buffer);
-  auto WriteResult = TextAPIWriter::writeToStream(OS, *File);
+  Error WriteResult = TextAPIWriter::writeToStream(OS, *File);
   EXPECT_TRUE(!WriteResult);
   EXPECT_EQ(stripWhitespace(TBDv4MultipleTargetsSamePlatform),
             stripWhitespace(Buffer.c_str()));
@@ -584,7 +584,7 @@ TEST(TBDv4, Target_maccatalyst) {
 
   SmallString<4096> Buffer;
   raw_svector_ostream OS(Buffer);
-  auto WriteResult = TextAPIWriter::writeToStream(OS, *File);
+  Error WriteResult = TextAPIWriter::writeToStream(OS, *File);
   EXPECT_TRUE(!WriteResult);
   EXPECT_EQ(stripWhitespace(TBDv4TargetMacCatalyst),
             stripWhitespace(Buffer.c_str()));
@@ -608,7 +608,7 @@ TEST(TBDv4, Target_x86_ios) {
 
   SmallString<4096> Buffer;
   raw_svector_ostream OS(Buffer);
-  auto WriteResult = TextAPIWriter::writeToStream(OS, *File);
+  Error WriteResult = TextAPIWriter::writeToStream(OS, *File);
   EXPECT_TRUE(!WriteResult);
   EXPECT_EQ(stripWhitespace(TBDv4Targetx86iOS),
             stripWhitespace(Buffer.c_str()));
@@ -632,7 +632,7 @@ TEST(TBDv4, Target_arm_bridgeOS) {
 
   SmallString<4096> Buffer;
   raw_svector_ostream OS(Buffer);
-  auto WriteResult = TextAPIWriter::writeToStream(OS, *File);
+  Error WriteResult = TextAPIWriter::writeToStream(OS, *File);
   EXPECT_TRUE(!WriteResult);
   EXPECT_EQ(stripWhitespace(TBDv4PlatformBridgeOS),
             stripWhitespace(Buffer.c_str()));
@@ -656,7 +656,7 @@ TEST(TBDv4, Target_arm_iOS) {
 
   SmallString<4096> Buffer;
   raw_svector_ostream OS(Buffer);
-  auto WriteResult = TextAPIWriter::writeToStream(OS, *File);
+  Error WriteResult = TextAPIWriter::writeToStream(OS, *File);
   EXPECT_TRUE(!WriteResult);
   EXPECT_EQ(stripWhitespace(TBDv4ArchArm64e), stripWhitespace(Buffer.c_str()));
 }
@@ -679,7 +679,7 @@ TEST(TBDv4, Target_x86_macos) {
 
   SmallString<4096> Buffer;
   raw_svector_ostream OS(Buffer);
-  auto WriteResult = TextAPIWriter::writeToStream(OS, *File);
+  Error WriteResult = TextAPIWriter::writeToStream(OS, *File);
   EXPECT_TRUE(!WriteResult);
   EXPECT_EQ(stripWhitespace(TBDv4Targetx86MacOS),
             stripWhitespace(Buffer.c_str()));
@@ -704,7 +704,7 @@ TEST(TBDv4, Target_x86_ios_simulator) {
 
   SmallString<4096> Buffer;
   raw_svector_ostream OS(Buffer);
-  auto WriteResult = TextAPIWriter::writeToStream(OS, *File);
+  Error WriteResult = TextAPIWriter::writeToStream(OS, *File);
   EXPECT_TRUE(!WriteResult);
   EXPECT_EQ(stripWhitespace(TBDv4Targetx86iOSSim),
             stripWhitespace(Buffer.c_str()));
@@ -728,7 +728,7 @@ TEST(TBDv4, Target_x86_tvos_simulator) {
 
   SmallString<4096> Buffer;
   raw_svector_ostream OS(Buffer);
-  auto WriteResult = TextAPIWriter::writeToStream(OS, *File);
+  Error WriteResult = TextAPIWriter::writeToStream(OS, *File);
   EXPECT_TRUE(!WriteResult);
   EXPECT_EQ(stripWhitespace(TBDv4x86tvOSSim), stripWhitespace(Buffer.c_str()));
 }
@@ -752,9 +752,33 @@ TEST(TBDv4, Target_i386_watchos_simulator) {
 
   SmallString<4096> Buffer;
   raw_svector_ostream OS(Buffer);
-  auto WriteResult = TextAPIWriter::writeToStream(OS, *File);
+  Error WriteResult = TextAPIWriter::writeToStream(OS, *File);
   EXPECT_TRUE(!WriteResult);
   EXPECT_EQ(stripWhitespace(TBDv4i386watchOSSim),
+            stripWhitespace(Buffer.c_str()));
+}
+
+TEST(TBDv4, Target_i386_driverkit) {
+  static const char TBDv4i386DriverKit[] = "--- !tapi-tbd\n"
+                                           "tbd-version: 4\n"
+                                           "targets: [  i386-driverkit  ]\n"
+                                           "install-name: Test.dylib\n"
+                                           "...\n";
+
+  Expected<TBDFile> Result =
+      TextAPIReader::get(MemoryBufferRef(TBDv4i386DriverKit, "Test.tbd"));
+  EXPECT_TRUE(!!Result);
+  TBDFile File = std::move(Result.get());
+  EXPECT_EQ(FileType::TBD_V4, File->getFileType());
+  EXPECT_EQ(ArchitectureSet(AK_i386), File->getArchitectures());
+  EXPECT_EQ(File->getPlatforms().size(), 1U);
+  EXPECT_EQ(PlatformKind::driverKit, *File->getPlatforms().begin());
+
+  SmallString<4096> Buffer;
+  raw_svector_ostream OS(Buffer);
+  Error WriteResult = TextAPIWriter::writeToStream(OS, *File);
+  EXPECT_TRUE(!WriteResult);
+  EXPECT_EQ(stripWhitespace(TBDv4i386DriverKit),
             stripWhitespace(Buffer.c_str()));
 }
 
@@ -811,7 +835,7 @@ TEST(TBDv4, Swift_5) {
 
   SmallString<4096> Buffer;
   raw_svector_ostream OS(Buffer);
-  auto WriteResult = TextAPIWriter::writeToStream(OS, *File);
+  Error WriteResult = TextAPIWriter::writeToStream(OS, *File);
   EXPECT_TRUE(!WriteResult);
   EXPECT_EQ(stripWhitespace(TBDv4SwiftVersion5),
             stripWhitespace(Buffer.c_str()));
@@ -834,7 +858,7 @@ TEST(TBDv4, Swift_99) {
 
   SmallString<4096> Buffer;
   raw_svector_ostream OS(Buffer);
-  auto WriteResult = TextAPIWriter::writeToStream(OS, *File);
+  Error WriteResult = TextAPIWriter::writeToStream(OS, *File);
   EXPECT_TRUE(!WriteResult);
   EXPECT_EQ(stripWhitespace(TBDv4SwiftVersion99),
             stripWhitespace(Buffer.c_str()));

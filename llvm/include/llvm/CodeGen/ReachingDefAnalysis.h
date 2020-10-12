@@ -189,6 +189,7 @@ public:
   /// definition is found, recursively search the predecessor blocks for them.
   void getLiveOuts(MachineBasicBlock *MBB, int PhysReg, InstSet &Defs,
                    BlockSet &VisitedBBs) const;
+  void getLiveOuts(MachineBasicBlock *MBB, int PhysReg, InstSet &Defs) const;
 
   /// For the given block, collect the instructions that use the live-in
   /// value of the provided register. Return whether the value is still
@@ -200,6 +201,11 @@ public:
   /// by MI.
   void getGlobalUses(MachineInstr *MI, int PhysReg,
                      InstSet &Uses) const;
+
+  /// Collect all possible definitions of the value stored in PhysReg, which is
+  /// used by MI.
+  void getGlobalReachingDefs(MachineInstr *MI, int PhysReg,
+                             InstSet &Defs) const;
 
   /// Return whether From can be moved forwards to just before To.
   bool isSafeToMoveForwards(MachineInstr *From, MachineInstr *To) const;

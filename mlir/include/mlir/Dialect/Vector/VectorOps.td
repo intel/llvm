@@ -13,12 +13,12 @@
 #ifndef VECTOR_OPS
 #define VECTOR_OPS
 
-include "mlir/Dialect/Affine/IR/AffineOpsBase.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/Interfaces/VectorInterfaces.td"
 
 def Vector_Dialect : Dialect {
   let name = "vector";
-  let cppNamespace = "vector";
+  let cppNamespace = "::mlir::vector";
   let hasConstantMaterializer = 1;
 }
 
@@ -36,13 +36,16 @@ class Vector_Op<string mnemonic, list<OpTrait> traits = []> :
   let parser = [{ return ::parse$cppClass(parser, result); }];
 }
 
-// TODO(andydavis, ntv) Add an attribute to specify a different algebra
-// with operators other than the current set: {*, +}.
+// TODO: Add an attribute to specify a different algebra with operators other
+// than the current set: {*, +}.
 def Vector_ContractionOp :
-  Vector_Op<"contract", [NoSideEffect,
-     PredOpTrait<"lhs and rhs have same element type", TCopVTEtIsSameAs<0, 1>>,
-     PredOpTrait<"third operand acc and result have same element type",
-                 TCresVTEtIsSameAsOpBase<0, 2>>]>,
+  Vector_Op<"contract", [
+      NoSideEffect,
+      PredOpTrait<"lhs and rhs have same element type", TCopVTEtIsSameAs<0, 1>>,
+      PredOpTrait<"third operand acc and result have same element type",
+                  TCresVTEtIsSameAsOpBase<0, 2>>,
+      DeclareOpInterfaceMethods<VectorUnrollOpInterface, ["getShapeForUnroll"]>
+    ]>,
     Arguments<(ins AnyVector:$lhs, AnyVector:$rhs, AnyType:$acc,
                Variadic<VectorOf<[I1]>>:$masks,
                AffineMapArrayAttr:$indexing_maps, ArrayAttr:$iterator_types)>,
@@ -87,7 +90,7 @@ def Vector_ContractionOp :
     Example:
 
     ```mlir
-    // Simple dot product (K = 0).
+    // Simple DOT product (K = 0).
     #contraction_accesses = [
      affine_map<(i) -> (i)>,
      affine_map<(i) -> (i)>,
@@ -144,13 +147,13 @@ def Vector_ContractionOp :
       : vector<10xf16>, vector<10xf16> into f32
     ```
   }];
-  let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value lhs, Value rhs, "
-    "Value acc, ArrayAttr indexingMaps, ArrayAttr iteratorTypes">,
-    OpBuilder<
-      "OpBuilder &builder, OperationState &result, Value lhs, Value rhs, "
-      "Value acc, ArrayRef<ArrayRef<AffineExpr>> indexingExprs, "
-      "ArrayRef<StringRef> iteratorTypes">];
+  let builders = [
+    OpBuilder<"Value lhs, Value rhs, Value acc, ArrayAttr indexingMaps, "
+              "ArrayAttr iteratorTypes">,
+    OpBuilder<"Value lhs, Value rhs, Value acc, "
+              "ArrayRef<ArrayRef<AffineExpr>> indexingExprs, "
+	      "ArrayRef<StringRef> iteratorTypes">
+  ];
   let extraClassDeclaration = [{
     VectorType getLhsType() {
       return lhs().getType().cast<VectorType>();
@@ -266,6 +269,7 @@ def Vector_BroadcastOp :
     }
   }];
   let assemblyFormat = "$source attr-dict `:` type($source) `to` type($vector)";
+  let hasFolder = 1;
 }
 
 def Vector_ShuffleOp :
@@ -306,8 +310,9 @@ def Vector_ShuffleOp :
                : vector<2xf32>, vector<2xf32>       ; yields vector<4xf32>
     ```
   }];
-  let builders = [OpBuilder<"OpBuilder &builder, OperationState &result,"
-                            "Value v1, Value v2, ArrayRef<int64_t>">];
+  let builders = [
+    OpBuilder<"Value v1, Value v2, ArrayRef<int64_t>">
+  ];
   let extraClassDeclaration = [{
     static StringRef getMaskAttrName() { return "mask"; }
     VectorType getV1VectorType() {
@@ -344,14 +349,18 @@ def Vector_ExtractElementOp :
     %1 = vector.extractelement %0[%c : i32]: vector<16xf32>
     ```
   }];
+  let assemblyFormat = [{
+    $vector `[` $position `:` type($position) `]` attr-dict `:` type($vector)
+  }];
+
+  let builders = [
+    OpBuilder<"Value source, int64_t position">,
+    OpBuilder<"Value source, Value position">
+  ];
   let extraClassDeclaration = [{
     VectorType getVectorType() {
       return vector().getType().cast<VectorType>();
     }
-  }];
-
-  let assemblyFormat = [{
-    $vector `[` $position `:` type($position) `]` attr-dict `:` type($vector)
   }];
 }
 
@@ -373,19 +382,19 @@ def Vector_ExtractOp :
     %2 = vector.extract %0[3, 3, 3]: vector<4x8x16xf32>
     ```
   }];
-  let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value source,"
-    "ArrayRef<int64_t> position">,
+  let builders = [
+    OpBuilder<"Value source, ArrayRef<int64_t> position">,
     // Convenience builder which assumes the values in `position` are defined by
     // ConstantIndexOp.
-    OpBuilder<"OpBuilder &builder, OperationState &result, Value source,"
-    "ValueRange position">];
+    OpBuilder<"Value source, ValueRange position">
+  ];
   let extraClassDeclaration = [{
     static StringRef getPositionAttrName() { return "position"; }
     VectorType getVectorType() {
       return vector().getType().cast<VectorType>();
     }
   }];
+  let hasFolder = 1;
 }
 
 def Vector_ExtractSlicesOp :
@@ -423,10 +432,10 @@ def Vector_ExtractSlicesOp :
                                    vector<2x2xf32>, vector<2x1xf32>>
     ```
   }];
-  let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, TupleType tupleType, " #
-    "Value vector, ArrayRef<int64_t> sizes, " #
-    "ArrayRef<int64_t> strides">];
+  let builders = [
+    OpBuilder<"TupleType tupleType, Value vector, ArrayRef<int64_t> sizes, "
+              "ArrayRef<int64_t> strides">
+  ];
   let extraClassDeclaration = [{
     VectorType getSourceVectorType() {
       return vector().getType().cast<VectorType>();
@@ -443,6 +452,73 @@ def Vector_ExtractSlicesOp :
     $vector `,` $sizes `,` $strides attr-dict `:` type($vector) `into`
     type(results)
   }];
+}
+
+def Vector_ExtractMapOp :
+  Vector_Op<"extract_map", [NoSideEffect]>,
+    Arguments<(ins AnyVector:$vector, Index:$id, I64Attr:$multiplicity)>,
+    Results<(outs AnyVector)> {
+  let summary = "vector extract map operation";
+  let description = [{
+    Takes an 1-D vector and extract a sub-part of the vector starting at id with
+    a size of `vector size / multiplicity`. This maps a given multiplicity of
+    the vector to a Value such as a loop induction variable or an SPMD id.
+
+    Similarly to vector.tuple_get, this operation is used for progressive
+    lowering and should be folded away before converting to LLVM.
+
+
+    For instance, the following code:
+    ```mlir
+    %a = vector.transfer_read %A[%c0]: memref<32xf32>, vector<32xf32>
+    %b = vector.transfer_read %B[%c0]: memref<32xf32>, vector<32xf32>
+    %c = addf %a, %b: vector<32xf32>
+    vector.transfer_write %c, %C[%c0]: memref<32xf32>, vector<32xf32>
+    ```
+    can be rewritten to:
+    ```mlir
+    %a = vector.transfer_read %A[%c0]: memref<32xf32>, vector<32xf32>
+    %b = vector.transfer_read %B[%c0]: memref<32xf32>, vector<32xf32>
+    %ea = vector.extract_map %a[%id : 32] : vector<32xf32> to vector<1xf32>
+    %eb = vector.extract_map %b[%id : 32] : vector<32xf32> to vector<1xf32>
+    %ec = addf %ea, %eb : vector<1xf32>
+    %c = vector.insert_map %ec, %id, 32 : vector<1xf32> to vector<32xf32>
+    vector.transfer_write %c, %C[%c0]: memref<32xf32>, vector<32xf32>
+    ```
+
+    Where %id can be an induction variable or an SPMD id going from 0 to 31.
+
+    And then be rewritten to:
+    ```mlir
+    %a = vector.transfer_read %A[%id]: memref<32xf32>, vector<1xf32>
+    %b = vector.transfer_read %B[%id]: memref<32xf32>, vector<1xf32>
+    %c = addf %a, %b: vector<1xf32>
+    vector.transfer_write %c, %C[%id]: memref<32xf32>, vector<1xf32>
+    ```
+
+    Example:
+
+    ```mlir
+    %ev = vector.extract_map %v[%id:32] : vector<32xf32> to vector<1xf32>
+    ```
+  }];
+  let builders = [OpBuilder<
+    "OpBuilder &builder, OperationState &result, " #
+    "Value vector, Value id, int64_t multiplicity">];
+  let extraClassDeclaration = [{
+    VectorType getSourceVectorType() {
+      return vector().getType().cast<VectorType>();
+    }
+    VectorType getResultType() {
+      return getResult().getType().cast<VectorType>();
+    }
+  }];
+  let assemblyFormat = [{
+    $vector `[` $id `:` $multiplicity `]` attr-dict `:` type($vector) `to`
+    type(results)
+  }];
+
+  let hasFolder = 1;
 }
 
 def Vector_FMAOp :
@@ -469,9 +545,10 @@ def Vector_FMAOp :
   // Fully specified by traits.
   let verifier = ?;
   let assemblyFormat = "$lhs `,` $rhs `,` $acc attr-dict `:` type($lhs)";
-  let builders = [OpBuilder<
-    "OpBuilder &b, OperationState &result, Value lhs, Value rhs, Value acc",
-    "build(b, result, lhs.getType(), lhs, rhs, acc);">];
+  let builders = [
+    OpBuilder<"Value lhs, Value rhs, Value acc",
+      "build($_builder, $_state, lhs.getType(), lhs, rhs, acc);">
+  ];
   let extraClassDeclaration = [{
     VectorType getVectorType() { return lhs().getType().cast<VectorType>(); }
   }];
@@ -503,6 +580,15 @@ def Vector_InsertElementOp :
     %1 = vector.insertelement %f, %0[%c : i32]: vector<16xf32>
     ```
   }];
+  let assemblyFormat = [{
+    $source `,` $dest `[` $position `:` type($position) `]` attr-dict `:`
+    type($result)
+  }];
+
+  let builders = [
+    OpBuilder<"Value source, Value dest, int64_t position">,
+    OpBuilder<"Value source, Value dest, Value position">
+  ];
   let extraClassDeclaration = [{
     Type getSourceType() { return source().getType(); }
     VectorType getDestVectorType() {
@@ -510,10 +596,6 @@ def Vector_InsertElementOp :
     }
   }];
 
-  let assemblyFormat = [{
-    $source `,` $dest `[` $position `:` type($position) `]` attr-dict `:`
-    type($result)
-  }];
 }
 
 def Vector_InsertOp :
@@ -540,13 +622,11 @@ def Vector_InsertOp :
     $source `,` $dest $position attr-dict `:` type($source) `into` type($dest)
   }];
 
-  let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value source, "
-    "Value dest, ArrayRef<int64_t> position">,
+  let builders = [
+    OpBuilder<"Value source, Value dest, ArrayRef<int64_t> position">,
     // Convenience builder which assumes all values are constant indices.
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value source, "
-    "Value dest, ValueRange position">];
+    OpBuilder<"Value source, Value dest, ValueRange position">
+  ];
   let extraClassDeclaration = [{
     static StringRef getPositionAttrName() { return "position"; }
     Type getSourceType() { return source().getType(); }
@@ -613,6 +693,46 @@ def Vector_InsertSlicesOp :
   }];
 }
 
+def Vector_InsertMapOp :
+  Vector_Op<"insert_map", [NoSideEffect]>,
+    Arguments<(ins AnyVector:$vector, Index:$id, I64Attr:$multiplicity)>,
+    Results<(outs AnyVector)> {
+  let summary = "vector insert map operation";
+  let description = [{
+    insert an 1-D vector and within a larger vector starting at id. The new
+    vector created will have a size of `vector size * multiplicity`. This
+    represents how a sub-part of the vector is written for a given Value such as
+    a loop induction variable or an SPMD id.
+
+    Similarly to vector.tuple_get, this operation is used for progressive
+    lowering and should be folded away before converting to LLVM.
+
+    This operations is meant to be used in combination with vector.extract_map.
+    See example in extract.map description.
+
+    Example:
+
+    ```mlir
+    %v = vector.insert_map %ev, %id, 32 : vector<1xf32> to vector<32xf32>
+    ```
+  }];
+  let builders = [OpBuilder<
+    "OpBuilder &builder, OperationState &result, " #
+    "Value vector, Value id, int64_t multiplicity">];
+  let extraClassDeclaration = [{
+    VectorType getSourceVectorType() {
+      return vector().getType().cast<VectorType>();
+    }
+    VectorType getResultType() {
+      return getResult().getType().cast<VectorType>();
+    }
+  }];
+  let assemblyFormat = [{
+    $vector `,` $id `,` $multiplicity attr-dict `:` type($vector) `to`
+    type(results)
+  }];
+}
+
 def Vector_InsertStridedSliceOp :
   Vector_Op<"insert_strided_slice", [NoSideEffect,
     PredOpTrait<"operand #0 and result have same element type",
@@ -647,9 +767,10 @@ def Vector_InsertStridedSliceOp :
     $source `,` $dest attr-dict `:` type($source) `into` type($dest)
   }];
 
-  let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value source, Value dest, " #
-    "ArrayRef<int64_t> offsets, ArrayRef<int64_t> strides">];
+  let builders = [
+    OpBuilder<"Value source, Value dest, ArrayRef<int64_t> offsets, "
+              "ArrayRef<int64_t> strides">
+  ];
   let extraClassDeclaration = [{
     static StringRef getOffsetsAttrName() { return "offsets"; }
     static StringRef getStridesAttrName() { return "strides"; }
@@ -663,19 +784,36 @@ def Vector_InsertStridedSliceOp :
 }
 
 def Vector_OuterProductOp :
-  Vector_Op<"outerproduct", [NoSideEffect, SameOperandsAndResultElementType]>,
-    Arguments<(ins AnyVector:$lhs, AnyVector:$rhs, Variadic<AnyVector>:$acc)>,
+  Vector_Op<"outerproduct", [NoSideEffect,
+    PredOpTrait<"lhs operand and result have same element type",
+                TCresVTEtIsSameAsOpBase<0, 0>>,
+    PredOpTrait<"rhs operand and result have same element type",
+                TCresVTEtIsSameAsOpBase<0, 1>>]>,
+    Arguments<(ins AnyVector:$lhs, AnyType:$rhs, Variadic<AnyVector>:$acc)>,
     Results<(outs AnyVector)> {
   let summary = "vector outerproduct with optional fused add";
   let description = [{
-    Takes 2 1-D vectors and returns the 2-D vector containing the outer-product.
+    Takes 2 1-D vectors and returns the 2-D vector containing the outer-product,
+    as illustrated below:
+    ```
+     outer |   [c, d]
+     ------+------------
+       [a, | [ [a*c, a*d],
+        b] |   [b*c, b*d] ]
+    ```
+    This operation also accepts a 1-D vector lhs and a scalar rhs. In this
+    case a simple AXPY operation is performed, which returns a 1-D vector.
+    ```
+        [a, b] * c = [a*c, b*c]
+    ```
 
-    An optional extra 2-D vector argument may be specified in which case the
-    operation returns the sum of the outer-product and the extra vector. In this
-    multiply-accumulate scenario, the rounding mode is that obtained by
-    guaranteeing that a fused-multiply add operation is emitted. When lowered to
-    the LLVMIR dialect, this form emits `llvm.intr.fma`, which is guaranteed to
-    lower to actual `fma` instructions on x86.
+    An optional extra vector argument with the same shape as the output
+    vector may be specified in which case the operation returns the sum of
+    the outer-product and the extra vector. In this multiply-accumulate
+    scenario for floating-point arguments, the rounding mode is enforced
+    by guaranteeing that a fused-multiply add operation is emitted. When
+    lowered to the LLVMIR dialect, this form emits `llvm.intr.fma`, which
+    is guaranteed to lower to actual `fma` instructions on x86.
 
     Example:
 
@@ -686,23 +824,27 @@ def Vector_OuterProductOp :
     %3 = vector.outerproduct %0, %1, %2:
       vector<4xf32>, vector<8xf32>, vector<4x8xf32>
     return %3: vector<4x8xf32>
+
+    %6 = vector.outerproduct %4, %5: vector<10xf32>, f32
+    return %6: vector<10xf32>
+
     ```
   }];
   let builders = [
     // Build an op without mask, use the type of `acc` as the return type.
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value lhs, Value rhs, "
-    "Value acc">];
+    OpBuilder<"Value lhs, Value rhs, Value acc">
+  ];
   let extraClassDeclaration = [{
     VectorType getOperandVectorTypeLHS() {
       return lhs().getType().cast<VectorType>();
     }
-    VectorType getOperandVectorTypeRHS() {
-      return rhs().getType().cast<VectorType>();
+    Type getOperandTypeRHS() {
+      return rhs().getType();
     }
     VectorType getOperandVectorTypeACC() {
-      return (llvm::size(acc()) == 0) ? VectorType() :
-        (*acc().begin()).getType().cast<VectorType>();
+      return (llvm::size(acc()) == 0)
+        ? VectorType()
+        : (*acc().begin()).getType().cast<VectorType>();
     }
     VectorType getVectorType() {
       return getResult().getType().cast<VectorType>();
@@ -710,8 +852,8 @@ def Vector_OuterProductOp :
   }];
 }
 
-// TODO(andydavis) Add transformation which decomposes ReshapeOp into an
-// optimized sequence of vector rotate/shuffle/select operations.
+// TODO: Add transformation which decomposes ReshapeOp into an optimized
+// sequence of vector rotate/shuffle/select operations.
 def Vector_ReshapeOp :
   Vector_Op<"reshape", [AttrSizedOperandSegments, NoSideEffect]>,
     Arguments<(ins AnyVector:$vector, Variadic<Index>:$input_shape,
@@ -845,7 +987,7 @@ def Vector_ExtractStridedSliceOp :
     attribute and extracts the n-D subvector at the proper offset.
 
     At the moment strides must contain only 1s.
-    // TODO(ntv) support non-1 strides.
+    // TODO: support non-1 strides.
 
     Returns an n-D vector where the first k-D dimensions match the `sizes`
     attribute. The returned subvector contains the elements starting at offset
@@ -858,15 +1000,15 @@ def Vector_ExtractStridedSliceOp :
         {offsets = [0, 2], sizes = [2, 4], strides = [1, 1]}:
       vector<4x8x16xf32> to vector<2x4x16xf32>
 
-    // TODO(ntv) Evolve to a range form syntax similar to:
+    // TODO: Evolve to a range form syntax similar to:
     %1 = vector.extract_strided_slice %0[0:2:1][2:4:1]
       vector<4x8x16xf32> to vector<2x4x16xf32>
     ```
   }];
-  let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value source, " #
-    "ArrayRef<int64_t> offsets, ArrayRef<int64_t> sizes, " #
-    "ArrayRef<int64_t> strides">];
+  let builders = [
+    OpBuilder<"Value source, ArrayRef<int64_t> offsets, "
+              "ArrayRef<int64_t> sizes, ArrayRef<int64_t> strides">
+  ];
   let extraClassDeclaration = [{
     static StringRef getOffsetsAttrName() { return "offsets"; }
     static StringRef getSizesAttrName() { return "sizes"; }
@@ -878,25 +1020,11 @@ def Vector_ExtractStridedSliceOp :
   let assemblyFormat = "$vector attr-dict `:` type($vector) `to` type(results)";
 }
 
-def Vector_TransferOpUtils {
-  code extraTransferDeclaration = [{
-    static StringRef getMaskedAttrName() { return "masked"; }
-    static StringRef getPermutationMapAttrName() { return "permutation_map"; }
-    bool isMaskedDim(unsigned dim) {
-      return !masked() ||
-        masked()->cast<ArrayAttr>()[dim].cast<BoolAttr>().getValue();
-    }
-    MemRefType getMemRefType() {
-      return memref().getType().cast<MemRefType>();
-    }
-    VectorType getVectorType() {
-      return vector().getType().cast<VectorType>();
-    }
-  }];
-}
-
 def Vector_TransferReadOp :
-  Vector_Op<"transfer_read">,
+  Vector_Op<"transfer_read", [
+      DeclareOpInterfaceMethods<VectorTransferOpInterface>,
+      DeclareOpInterfaceMethods<VectorUnrollOpInterface, ["getShapeForUnroll"]>
+    ]>,
     Arguments<(ins AnyMemRef:$memref, Variadic<Index>:$indices,
                AffineMapAttr:$permutation_map, AnyType:$padding,
                OptionalAttr<BoolArrayAttr>:$masked)>,
@@ -919,7 +1047,7 @@ def Vector_TransferReadOp :
     The permutation_map [attribute](../LangRef.md#attributes) is an
     [affine-map](Affine.md#affine-maps) which specifies the transposition on the
     slice to match the vector shape. The permutation map may be implicit and
-    ommitted from parsing and printing if it is the canonical minor identity map
+    omitted from parsing and printing if it is the canonical minor identity map
     (i.e. if it does not permute or broadcast any dimension).
 
     The size of the slice is specified by the size of the vector, given as the
@@ -1042,33 +1170,22 @@ def Vector_TransferReadOp :
 
   let builders = [
     // Builder that sets padding to zero.
-    OpBuilder<"OpBuilder &builder, OperationState &result, VectorType vector, "
-              "Value memref, ValueRange indices, AffineMap permutationMap, "
-              "ArrayRef<bool> maybeMasked = {}">,
+    OpBuilder<"VectorType vector, Value memref, ValueRange indices, "
+              "AffineMap permutationMap, ArrayRef<bool> maybeMasked = {}">,
     // Builder that sets permutation map (resp. padding) to
     // 'getMinorIdentityMap' (resp. zero).
-    OpBuilder<"OpBuilder &builder, OperationState &result, VectorType vector, "
-              "Value memref, ValueRange indices, "
+    OpBuilder<"VectorType vector, Value memref, ValueRange indices, "
               "ArrayRef<bool> maybeMasked = {}">
   ];
-
-  let extraClassDeclaration = Vector_TransferOpUtils.extraTransferDeclaration #
-  [{
-    /// Build the default minor identity map suitable for a vector transfer.
-    /// This also handles the case memref<... x vector<...>> -> vector<...> in
-    /// which the rank of the identity map must take the vector element type
-    /// into account.
-    static AffineMap getTransferMinorIdentityMap(
-      MemRefType memRefType, VectorType vectorType) {
-        return impl::getTransferMinorIdentityMap(memRefType, vectorType);
-      }
-  }];
 
   let hasFolder = 1;
 }
 
 def Vector_TransferWriteOp :
-  Vector_Op<"transfer_write">,
+  Vector_Op<"transfer_write", [
+      DeclareOpInterfaceMethods<VectorTransferOpInterface>,
+      DeclareOpInterfaceMethods<VectorUnrollOpInterface, ["getShapeForUnroll"]>
+    ]>,
     Arguments<(ins AnyVector:$vector, AnyMemRef:$memref,
                Variadic<Index>:$indices,
                AffineMapAttr:$permutation_map,
@@ -1092,7 +1209,7 @@ def Vector_TransferWriteOp :
     The permutation_map [attribute](../LangRef.md#attributes) is an
     [affine-map](Affine.md#affine-maps) which specifies the transposition on the
     slice to match the vector shape. The permutation map may be implicit and
-    ommitted from parsing and printing if it is the canonical minor identity map
+    omitted from parsing and printing if it is the canonical minor identity map
     (i.e. if it does not permute or broadcast any dimension).
 
     The size of the slice is specified by the size of the vector.
@@ -1136,26 +1253,331 @@ def Vector_TransferWriteOp :
 
   let builders = [
     // Builder that sets permutation map to 'getMinorIdentityMap'.
-    OpBuilder<"OpBuilder &builder, OperationState &result, Value vector, "
-              "Value memref, ValueRange indices, "
+    OpBuilder<"Value vector, Value memref, ValueRange indices, "
               "ArrayRef<bool> maybeMasked = {}">,
-    OpBuilder<"OpBuilder &builder, OperationState &result, Value vector, "
-              "Value memref, ValueRange indices, AffineMap permutationMap">,
+    OpBuilder<"Value vector, Value memref, ValueRange indices, "
+              "AffineMap permutationMap">,
   ];
 
-  let extraClassDeclaration = Vector_TransferOpUtils.extraTransferDeclaration #
-  [{
-    /// Build the default minor identity map suitable for a vector transfer.
-    /// This also handles the case memref<... x vector<...>> -> vector<...> in
-    /// which the rank of the identity map must take the vector element type
-    /// into account.
-    static AffineMap getTransferMinorIdentityMap(
-      MemRefType memRefType, VectorType vectorType) {
-        return impl::getTransferMinorIdentityMap(memRefType, vectorType);
-      }
-  }];
-
   let hasFolder = 1;
+}
+
+def Vector_MaskedLoadOp :
+  Vector_Op<"maskedload">,
+    Arguments<(ins AnyMemRef:$base,
+               VectorOfRankAndType<[1], [I1]>:$mask,
+               VectorOfRank<[1]>:$pass_thru)>,
+    Results<(outs VectorOfRank<[1]>:$result)> {
+
+  let summary = "loads elements from memory into a vector as defined by a mask vector";
+
+  let description = [{
+    The masked load reads elements from memory into a 1-D vector as defined
+    by a base and a 1-D mask vector. When the mask is set, the element is read
+    from memory. Otherwise, the corresponding element is taken from a 1-D
+    pass-through vector. Informally the semantics are:
+    ```
+    result[0] := mask[0] ? MEM[base+0] : pass_thru[0]
+    result[1] := mask[1] ? MEM[base+1] : pass_thru[1]
+    etc.
+    ```
+    The masked load can be used directly where applicable, or can be used
+    during progressively lowering to bring other memory operations closer to
+    hardware ISA support for a masked load. The semantics of the operation
+    closely correspond to those of the `llvm.masked.load`
+    [intrinsic](https://llvm.org/docs/LangRef.html#llvm-masked-load-intrinsics).
+
+    Example:
+
+    ```mlir
+    %0 = vector.maskedload %base, %mask, %pass_thru
+       : memref<?xf32>, vector<8xi1>, vector<8xf32> into vector<8xf32>
+    ```
+  }];
+  let extraClassDeclaration = [{
+    MemRefType getMemRefType() {
+      return base().getType().cast<MemRefType>();
+    }
+    VectorType getMaskVectorType() {
+      return mask().getType().cast<VectorType>();
+    }
+    VectorType getPassThruVectorType() {
+      return pass_thru().getType().cast<VectorType>();
+    }
+    VectorType getResultVectorType() {
+      return result().getType().cast<VectorType>();
+    }
+  }];
+  let assemblyFormat = "$base `,` $mask `,` $pass_thru attr-dict `:` "
+    "type($base) `,` type($mask) `,` type($pass_thru) `into` type($result)";
+  let hasCanonicalizer = 1;
+}
+
+def Vector_MaskedStoreOp :
+  Vector_Op<"maskedstore">,
+    Arguments<(ins AnyMemRef:$base,
+               VectorOfRankAndType<[1], [I1]>:$mask,
+               VectorOfRank<[1]>:$value)> {
+
+  let summary = "stores elements from a vector into memory as defined by a mask vector";
+
+  let description = [{
+    The masked store operation writes elements from a 1-D vector into memory
+    as defined by a base and a 1-D mask vector. When the mask is set, the
+    corresponding element from the vector is written to memory. Otherwise,
+    no action is taken for the element. Informally the semantics are:
+    ```
+    if (mask[0]) MEM[base+0] = value[0]
+    if (mask[1]) MEM[base+1] = value[1]
+    etc.
+    ```
+    The masked store can be used directly where applicable, or can be used
+    during progressively lowering to bring other memory operations closer to
+    hardware ISA support for a masked store. The semantics of the operation
+    closely correspond to those of the `llvm.masked.store`
+    [intrinsic](https://llvm.org/docs/LangRef.html#llvm-masked-store-intrinsics).
+
+    Example:
+
+    ```mlir
+    vector.maskedstore %base, %mask, %value
+      : memref<?xf32>, vector<8xi1>, vector<8xf32>
+    ```
+  }];
+  let extraClassDeclaration = [{
+    MemRefType getMemRefType() {
+      return base().getType().cast<MemRefType>();
+    }
+    VectorType getMaskVectorType() {
+      return mask().getType().cast<VectorType>();
+    }
+    VectorType getValueVectorType() {
+      return value().getType().cast<VectorType>();
+    }
+  }];
+  let assemblyFormat = "$base `,` $mask `,` $value attr-dict `:` "
+    "type($mask) `,` type($value) `into` type($base)";
+  let hasCanonicalizer = 1;
+}
+
+def Vector_GatherOp :
+  Vector_Op<"gather">,
+    Arguments<(ins AnyMemRef:$base,
+               VectorOfRankAndType<[1], [AnyInteger]>:$indices,
+               VectorOfRankAndType<[1], [I1]>:$mask,
+               Variadic<VectorOfRank<[1]>>:$pass_thru)>,
+    Results<(outs VectorOfRank<[1]>:$result)> {
+
+  let summary = "gathers elements from memory into a vector as defined by an index vector and mask";
+
+  let description = [{
+    The gather operation gathers elements from memory into a 1-D vector as
+    defined by a base and a 1-D index vector, but only if the corresponding
+    bit is set in a 1-D mask vector. Otherwise, the element is taken from a
+    1-D pass-through vector, if provided, or left undefined. Informally the
+    semantics are:
+    ```
+    if (!defined(pass_thru)) pass_thru = [undef, .., undef]
+    result[0] := mask[0] ? MEM[base + index[0]] : pass_thru[0]
+    result[1] := mask[1] ? MEM[base + index[1]] : pass_thru[1]
+    etc.
+    ```
+    The vector dialect leaves out-of-bounds behavior undefined.
+
+    The gather operation can be used directly where applicable, or can be used
+    during progressively lowering to bring other memory operations closer to
+    hardware ISA support for a gather. The semantics of the operation closely
+    correspond to those of the `llvm.masked.gather`
+    [intrinsic](https://llvm.org/docs/LangRef.html#llvm-masked-gather-intrinsics).
+
+    Example:
+
+    ```mlir
+    %g = vector.gather %base, %indices, %mask, %pass_thru
+        : (memref<?xf32>, vector<16xi32>, vector<16xi1>, vector<16xf32>) -> vector<16xf32>
+    ```
+  }];
+  let extraClassDeclaration = [{
+    MemRefType getMemRefType() {
+      return base().getType().cast<MemRefType>();
+    }
+    VectorType getIndicesVectorType() {
+      return indices().getType().cast<VectorType>();
+    }
+    VectorType getMaskVectorType() {
+      return mask().getType().cast<VectorType>();
+    }
+    VectorType getPassThruVectorType() {
+      return (llvm::size(pass_thru()) == 0)
+        ? VectorType()
+        : (*pass_thru().begin()).getType().cast<VectorType>();
+    }
+    VectorType getResultVectorType() {
+      return result().getType().cast<VectorType>();
+    }
+  }];
+  let assemblyFormat = "operands attr-dict `:` functional-type(operands, results)";
+  let hasCanonicalizer = 1;
+}
+
+def Vector_ScatterOp :
+  Vector_Op<"scatter">,
+    Arguments<(ins AnyMemRef:$base,
+               VectorOfRankAndType<[1], [AnyInteger]>:$indices,
+               VectorOfRankAndType<[1], [I1]>:$mask,
+               VectorOfRank<[1]>:$value)> {
+
+  let summary = "scatters elements from a vector into memory as defined by an index vector and mask";
+
+  let description = [{
+    The scatter operation scatters elements from a 1-D vector into memory as
+    defined by a base and a 1-D index vector, but only if the corresponding
+    bit in a 1-D mask vector is set. Otherwise, no action is taken for that
+    element. Informally the semantics are:
+    ```
+    if (mask[0]) MEM[base + index[0]] = value[0]
+    if (mask[1]) MEM[base + index[1]] = value[1]
+    etc.
+    ```
+    The vector dialect leaves out-of-bounds and repeated index behavior
+    undefined. Underlying implementations may enforce strict sequential
+    semantics for the latter, though.
+    TODO: enforce the latter always?
+
+    The scatter operation can be used directly where applicable, or can be used
+    during progressively lowering to bring other memory operations closer to
+    hardware ISA support for a scatter. The semantics of the operation closely
+    correspond to those of the `llvm.masked.scatter`
+    [intrinsic](https://llvm.org/docs/LangRef.html#llvm-masked-scatter-intrinsics).
+
+    Example:
+
+    ```mlir
+    vector.scatter %base, %indices, %mask, %value
+        : vector<16xi32>, vector<16xi1>, vector<16xf32> into memref<?xf32>
+    ```
+  }];
+  let extraClassDeclaration = [{
+    MemRefType getMemRefType() {
+      return base().getType().cast<MemRefType>();
+    }
+    VectorType getIndicesVectorType() {
+      return indices().getType().cast<VectorType>();
+    }
+    VectorType getMaskVectorType() {
+      return mask().getType().cast<VectorType>();
+    }
+    VectorType getValueVectorType() {
+      return value().getType().cast<VectorType>();
+    }
+  }];
+  let assemblyFormat = "$base `,` $indices `,` $mask `,` $value attr-dict `:` "
+    "type($indices) `,` type($mask) `,` type($value) `into` type($base)";
+  let hasCanonicalizer = 1;
+}
+
+def Vector_ExpandLoadOp :
+  Vector_Op<"expandload">,
+    Arguments<(ins AnyMemRef:$base,
+               VectorOfRankAndType<[1], [I1]>:$mask,
+               VectorOfRank<[1]>:$pass_thru)>,
+    Results<(outs VectorOfRank<[1]>:$result)> {
+
+  let summary = "reads elements from memory and spreads them into a vector as defined by a mask";
+
+  let description = [{
+    The expand load reads elements from memory into a 1-D vector as defined
+    by a base and a 1-D mask vector. When the mask is set, the next element
+    is read from memory. Otherwise, the corresponding element is taken from
+    a 1-D pass-through vector. Informally the semantics are:
+    ```
+    index = base
+    result[0] := mask[0] ? MEM[index++] : pass_thru[0]
+    result[1] := mask[1] ? MEM[index++] : pass_thru[1]
+    etc.
+    ```
+    Note that the index increment is done conditionally.
+
+    The expand load can be used directly where applicable, or can be used
+    during progressively lowering to bring other memory operations closer to
+    hardware ISA support for an expand. The semantics of the operation closely
+    correspond to those of the `llvm.masked.expandload`
+    [intrinsic](https://llvm.org/docs/LangRef.html#llvm-masked-expandload-intrinsics).
+
+    Example:
+
+    ```mlir
+    %0 = vector.expandload %base, %mask, %pass_thru
+       : memref<?xf32>, vector<8xi1>, vector<8xf32> into vector<8xf32>
+    ```
+  }];
+  let extraClassDeclaration = [{
+    MemRefType getMemRefType() {
+      return base().getType().cast<MemRefType>();
+    }
+    VectorType getMaskVectorType() {
+      return mask().getType().cast<VectorType>();
+    }
+    VectorType getPassThruVectorType() {
+      return pass_thru().getType().cast<VectorType>();
+    }
+    VectorType getResultVectorType() {
+      return result().getType().cast<VectorType>();
+    }
+  }];
+  let assemblyFormat = "$base `,` $mask `,` $pass_thru attr-dict `:` "
+    "type($base) `,` type($mask) `,` type($pass_thru) `into` type($result)";
+  let hasCanonicalizer = 1;
+}
+
+def Vector_CompressStoreOp :
+  Vector_Op<"compressstore">,
+    Arguments<(ins AnyMemRef:$base,
+               VectorOfRankAndType<[1], [I1]>:$mask,
+               VectorOfRank<[1]>:$value)> {
+
+  let summary = "writes elements selectively from a vector as defined by a mask";
+
+  let description = [{
+    The compress store operation writes elements from a 1-D vector into memory
+    as defined by a base and a 1-D mask vector. When the mask is set, the
+    corresponding element from the vector is written next to memory. Otherwise,
+    no action is taken for the element. Informally the semantics are:
+    ```
+    index = base
+    if (mask[0]) MEM[index++] = value[0]
+    if (mask[1]) MEM[index++] = value[1]
+    etc.
+    ```
+    Note that the index increment is done conditionally.
+
+    The compress store can be used directly where applicable, or can be used
+    during progressively lowering to bring other memory operations closer to
+    hardware ISA support for a compress. The semantics of the operation closely
+    correspond to those of the `llvm.masked.compressstore`
+    [intrinsic](https://llvm.org/docs/LangRef.html#llvm-masked-compressstore-intrinsics).
+
+    Example:
+
+    ```mlir
+    vector.compressstore %base, %mask, %value
+      : memref<?xf32>, vector<8xi1>, vector<8xf32>
+    ```
+  }];
+  let extraClassDeclaration = [{
+    MemRefType getMemRefType() {
+      return base().getType().cast<MemRefType>();
+    }
+    VectorType getMaskVectorType() {
+      return mask().getType().cast<VectorType>();
+    }
+    VectorType getValueVectorType() {
+      return value().getType().cast<VectorType>();
+    }
+  }];
+  let assemblyFormat = "$base `,` $mask `,` $value attr-dict `:` "
+    "type($base) `,` type($mask) `,` type($value)";
+  let hasCanonicalizer = 1;
 }
 
 def Vector_ShapeCastOp :
@@ -1215,6 +1637,41 @@ def Vector_ShapeCastOp :
   let hasFolder = 1;
 }
 
+def Vector_BitCastOp :
+  Vector_Op<"bitcast", [NoSideEffect, AllRanksMatch<["source", "result"]>]>,
+    Arguments<(ins AnyVector:$source)>,
+    Results<(outs AnyVector:$result)>{
+  let summary = "bitcast casts between vectors";
+  let description = [{
+    The bitcast operation casts between vectors of the same rank, the minor 1-D
+    vector size is casted to a vector with a different element type but same
+    bitwidth.
+
+    Example:
+
+    ```mlir
+    // Example casting to a smaller element type.
+    %1 = vector.bitcast %0 : vector<5x1x4x3xf32> to vector<5x1x4x6xi16>
+
+    // Example casting to a bigger element type.
+    %3 = vector.bitcast %2 : vector<10x12x8xi8> to vector<10x12x2xi32>
+
+    // Example casting to an element type of the same size.
+    %5 = vector.bitcast %4 : vector<5x1x4x3xf32> to vector<5x1x4x3xi32>
+    ```
+  }];
+  let extraClassDeclaration = [{
+    VectorType getSourceVectorType() {
+      return source().getType().cast<VectorType>();
+    }
+    VectorType getResultVectorType() {
+      return getResult().getType().cast<VectorType>();
+    }
+  }];
+  let assemblyFormat = "$source attr-dict `:` type($source) `to` type($result)";
+  let hasFolder = 1;
+}
+
 def Vector_TypeCastOp :
   Vector_Op<"type_cast", [NoSideEffect]>,
     Arguments<(ins StaticShapeMemRefOf<[AnyType]>:$memref)>,
@@ -1243,8 +1700,9 @@ def Vector_TypeCastOp :
 
   /// Build the canonical memRefType with a single vector.
   /// E.g. memref<4 x 5 x vector<6 x f32>> -> memref<vector<4 x 5 x 6 x f32>>.
-  let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value source">];
+  let builders = [
+    OpBuilder<"Value source">
+  ];
 
   let extraClassDeclaration = [{
     MemRefType getMemRefType() {
@@ -1397,9 +1855,9 @@ def Vector_TransposeOp :
                           [c, f] ]
     ```
   }];
-  let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value vector, "
-    "ArrayRef<int64_t> transp">];
+  let builders = [
+    OpBuilder<"Value vector, ArrayRef<int64_t> transp">
+  ];
   let extraClassDeclaration = [{
     VectorType getVectorType() {
       return vector().getType().cast<VectorType>();
@@ -1505,7 +1963,7 @@ def Vector_MatmulOp : Vector_Op<"matrix_multiply", [NoSideEffect,
         PredOpTrait<"rhs operand and result have same element type",
                     TCresVTEtIsSameAsOpBase<0, 1>>]>,
       Arguments<(
-        // TODO(ntv, fhahn): tighten vector element types that make sense.
+        // TODO: tighten vector element types that make sense.
         ins VectorOfRankAndType<[1],
               [AnySignlessInteger, AnySignedInteger, AnyFloat]>:$lhs,
             VectorOfRankAndType<[1],
@@ -1543,14 +2001,14 @@ def Vector_MatmulOp : Vector_Op<"matrix_multiply", [NoSideEffect,
     ```
   }];
   let builders = [
-   OpBuilder<"OpBuilder &builder, OperationState &result, Value lhs, Value rhs, "
-             "unsigned lhsRows, unsigned lhsColumns, unsigned rhsColumns",
+   OpBuilder<"Value lhs, Value rhs, unsigned lhsRows, unsigned lhsColumns, "
+             "unsigned rhsColumns",
    [{
-     result.addOperands({lhs, rhs});
-     result.addAttribute("lhs_rows", builder.getI32IntegerAttr(lhsRows));
-     result.addAttribute("lhs_columns", builder.getI32IntegerAttr(lhsColumns));
-     result.addAttribute("rhs_columns", builder.getI32IntegerAttr(rhsColumns));
-     result.addTypes(VectorType::get(lhsRows * rhsColumns,
+     $_state.addOperands({lhs, rhs});
+     $_state.addAttribute("lhs_rows",$_builder.getI32IntegerAttr(lhsRows));
+     $_state.addAttribute("lhs_columns",$_builder.getI32IntegerAttr(lhsColumns));
+     $_state.addAttribute("rhs_columns",$_builder.getI32IntegerAttr(rhsColumns));
+     $_state.addTypes(VectorType::get(lhsRows * rhsColumns,
        lhs.getType().cast<VectorType>().getElementType()));
    }]>,
   ];
@@ -1568,7 +2026,7 @@ def Vector_FlatTransposeOp : Vector_Op<"flat_transpose", [NoSideEffect,
   PredOpTrait<"source operand and result have same element type",
                  TCresVTEtIsSameAsOpBase<0, 0>>]>,
     Arguments<(
-      // TODO(ntv, fhahn, ajcbik): tighten vector element types that make sense.
+      // TODO: tighten vector element types that make sense.
       ins VectorOfRankAndType<[1],
             [AnySignlessInteger, AnySignedInteger, AnyFloat]>:$matrix,
           I32Attr:$rows, I32Attr:$columns)>,

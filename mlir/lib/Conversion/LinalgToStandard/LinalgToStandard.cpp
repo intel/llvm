@@ -79,8 +79,7 @@ static FlatSymbolRefAttr getLibraryCallSymbolRef(Operation *op,
   rewriter.setInsertionPoint(module.getBody(),
                              std::prev(module.getBody()->end()));
   FuncOp funcOp =
-      rewriter.create<FuncOp>(op->getLoc(), fnNameAttr.getValue(), libFnType,
-                              ArrayRef<NamedAttribute>{});
+      rewriter.create<FuncOp>(op->getLoc(), fnNameAttr.getValue(), libFnType);
   // Insert a function attribute that will trigger the emission of the
   // corresponding `_mlir_ciface_xxx` interface so that external libraries see
   // a normalized ABI. This interface is added during std to llvm conversion.
@@ -124,7 +123,7 @@ public:
       return failure();
 
     rewriter.replaceOpWithNewOp<mlir::CallOp>(
-        op, libraryCallName.getValue(), ArrayRef<Type>{},
+        op, libraryCallName.getValue(), TypeRange(),
         createTypeCanonicalizedMemRefOperands(rewriter, op.getLoc(),
                                               op.getOperands()));
     return success();
@@ -152,7 +151,7 @@ public:
       return failure();
 
     rewriter.replaceOpWithNewOp<mlir::CallOp>(
-        op, libraryCallName.getValue(), ArrayRef<Type>{},
+        op, libraryCallName.getValue(), TypeRange(),
         createTypeCanonicalizedMemRefOperands(rewriter, op.getLoc(),
                                               op.getOperands()));
     return success();
@@ -173,7 +172,7 @@ public:
     if (!libraryCallName)
       return failure();
 
-    // TODO(pifon, ntv): Use induction variables values instead of zeros, when
+    // TODO: Use induction variables values instead of zeros, when
     // IndexedGenericOp is tiled.
     auto zero = rewriter.create<mlir::ConstantOp>(
         op.getLoc(), rewriter.getIntegerAttr(rewriter.getIndexType(), 0));
@@ -186,7 +185,7 @@ public:
     for (auto operand : op.getOperands())
       operands.push_back(operand);
     rewriter.replaceOpWithNewOp<mlir::CallOp>(
-        op, libraryCallName.getValue(), ArrayRef<Type>{},
+        op, libraryCallName.getValue(), TypeRange(),
         createTypeCanonicalizedMemRefOperands(rewriter, op.getLoc(), operands));
     return success();
   }
@@ -227,7 +226,7 @@ public:
 /// Populate the given list with patterns that convert from Linalg to Standard.
 void mlir::populateLinalgToStandardConversionPatterns(
     OwningRewritePatternList &patterns, MLIRContext *ctx) {
-  // TODO(ntv) ConvOp conversion needs to export a descriptor with relevant
+  // TODO: ConvOp conversion needs to export a descriptor with relevant
   // attribute values such as kernel striding and dilation.
   // clang-format off
   patterns.insert<
@@ -237,15 +236,25 @@ void mlir::populateLinalgToStandardConversionPatterns(
       LinalgOpConversion<PoolingMinOp>,
       LinalgOpConversion<PoolingSumOp>,
       LinalgOpConversion<CopyOp>,
-      LinalgOpConversion<DotOp>,
       LinalgOpConversion<FillOp>,
       LinalgOpConversion<GenericOp>,
       LinalgOpConversion<IndexedGenericOp>>(ctx);
   // TODO: collect all auto-generated named ops with a tblgen directive.
   patterns.insert<
+      LinalgOpConversion<DotOp>,
       LinalgOpConversion<BatchMatmulOp>,
       LinalgOpConversion<MatvecOp>,
-      LinalgOpConversion<MatmulOp>>(ctx);
+      LinalgOpConversion<VecmatOp>,
+      LinalgOpConversion<MatmulOp>,
+      LinalgOpConversion<ConvWOp>,
+      LinalgOpConversion<ConvNWCOp>,
+      LinalgOpConversion<ConvNCWOp>,
+      LinalgOpConversion<ConvHWOp>,
+      LinalgOpConversion<ConvNHWCOp>,
+      LinalgOpConversion<ConvNCHWOp>,
+      LinalgOpConversion<ConvDHWOp>,
+      LinalgOpConversion<ConvNDHWCOp>,
+      LinalgOpConversion<ConvNCDHWOp>>(ctx);
   // clang-format on
 }
 

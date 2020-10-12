@@ -263,69 +263,110 @@ public:
                      access::fence_space>::type accessSpace =
                      access::fence_space::global_and_local) const {
     uint32_t flags = detail::getSPIRVMemorySemanticsMask(accessSpace);
-    // TODO: currently, there is no good way in SPIRV to set the memory
+    // TODO: currently, there is no good way in SPIR-V to set the memory
     // barrier only for load operations or only for store operations.
     // The full read-and-write barrier is used and the template parameter
-    // 'accessMode' is ignored for now. Either SPIRV or SYCL spec may be
-    // changed to address this discrepancy between SPIRV and SYCL,
+    // 'accessMode' is ignored for now. Either SPIR-V or SYCL spec may be
+    // changed to address this discrepancy between SPIR-V and SYCL,
     // or if we decide that 'accessMode' is the important feature then
     // we can fix this later, for example, by using OpenCL 1.2 functions
     // read_mem_fence() and write_mem_fence().
     __spirv_MemoryBarrier(__spv::Scope::Workgroup, flags);
   }
 
+  /// Asynchronously copies a number of elements specified by \p numElements
+  /// from the source pointed by \p src to destination pointed by \p dest
+  /// with a source stride specified by \p srcStride, and returns a SYCL
+  /// device_event which can be used to wait on the completion of the copy.
+  /// Permitted types for dataT are all scalar and vector types, except boolean.
   template <typename dataT>
-  device_event async_work_group_copy(local_ptr<dataT> dest,
-                                     global_ptr<dataT> src,
-                                     size_t numElements) const {
+  detail::enable_if_t<!detail::is_bool<dataT>::value, device_event>
+  async_work_group_copy(local_ptr<dataT> dest, global_ptr<dataT> src,
+                        size_t numElements, size_t srcStride) const {
     using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
     using SrcT = detail::ConvertToOpenCLType_t<decltype(src)>;
 
-    __ocl_event_t e = OpGroupAsyncCopyGlobalToLocal(
-        __spv::Scope::Workgroup, DestT(dest.get()), SrcT(src.get()),
-        numElements, 1, 0);
-    return device_event(&e);
-  }
-
-  template <typename dataT>
-  device_event async_work_group_copy(global_ptr<dataT> dest,
-                                     local_ptr<dataT> src,
-                                     size_t numElements) const {
-    using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
-    using SrcT = detail::ConvertToOpenCLType_t<decltype(src)>;
-
-    __ocl_event_t e = OpGroupAsyncCopyLocalToGlobal(
-        __spv::Scope::Workgroup, DestT(dest.get()), SrcT(src.get()),
-        numElements, 1, 0);
-    return device_event(&e);
-  }
-
-  template <typename dataT>
-  device_event async_work_group_copy(local_ptr<dataT> dest,
-                                     global_ptr<dataT> src,
-                                     size_t numElements,
-                                     size_t srcStride) const {
-    using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
-    using SrcT = detail::ConvertToOpenCLType_t<decltype(src)>;
-
-    __ocl_event_t e = OpGroupAsyncCopyGlobalToLocal(
+    __ocl_event_t E = OpGroupAsyncCopyGlobalToLocal(
         __spv::Scope::Workgroup, DestT(dest.get()), SrcT(src.get()),
         numElements, srcStride, 0);
-    return device_event(&e);
+    return device_event(&E);
   }
 
+  /// Asynchronously copies a number of elements specified by \p numElements
+  /// from the source pointed by \p src to destination pointed by \p dest with
+  /// the destination stride specified by \p destStride, and returns a SYCL
+  /// device_event which can be used to wait on the completion of the copy.
+  /// Permitted types for dataT are all scalar and vector types, except boolean.
   template <typename dataT>
-  device_event async_work_group_copy(global_ptr<dataT> dest,
-                                     local_ptr<dataT> src,
-                                     size_t numElements,
-                                     size_t destStride) const {
+  detail::enable_if_t<!detail::is_bool<dataT>::value, device_event>
+  async_work_group_copy(global_ptr<dataT> dest, local_ptr<dataT> src,
+                        size_t numElements, size_t destStride) const {
     using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
     using SrcT = detail::ConvertToOpenCLType_t<decltype(src)>;
 
-    __ocl_event_t e = OpGroupAsyncCopyLocalToGlobal(
+    __ocl_event_t E = OpGroupAsyncCopyLocalToGlobal(
         __spv::Scope::Workgroup, DestT(dest.get()), SrcT(src.get()),
         numElements, destStride, 0);
-    return device_event(&e);
+    return device_event(&E);
+  }
+
+  /// Specialization for scalar bool type.
+  /// Asynchronously copies a number of elements specified by \p NumElements
+  /// from the source pointed by \p Src to destination pointed by \p Dest
+  /// with a stride specified by \p Stride, and returns a SYCL device_event
+  /// which can be used to wait on the completion of the copy.
+  template <typename T, access::address_space DestS, access::address_space SrcS>
+  detail::enable_if_t<detail::is_scalar_bool<T>::value, device_event>
+  async_work_group_copy(multi_ptr<T, DestS> Dest, multi_ptr<T, SrcS> Src,
+                        size_t NumElements, size_t Stride) const {
+    static_assert(sizeof(bool) == sizeof(uint8_t),
+                  "Async copy to/from bool memory is not supported.");
+    auto DestP =
+        multi_ptr<uint8_t, DestS>(reinterpret_cast<uint8_t *>(Dest.get()));
+    auto SrcP =
+        multi_ptr<uint8_t, SrcS>(reinterpret_cast<uint8_t *>(Src.get()));
+    return async_work_group_copy(DestP, SrcP, NumElements, Stride);
+  }
+
+  /// Specialization for vector bool type.
+  /// Asynchronously copies a number of elements specified by \p NumElements
+  /// from the source pointed by \p Src to destination pointed by \p Dest
+  /// with a stride specified by \p Stride, and returns a SYCL device_event
+  /// which can be used to wait on the completion of the copy.
+  template <typename T, access::address_space DestS, access::address_space SrcS>
+  detail::enable_if_t<detail::is_vector_bool<T>::value, device_event>
+  async_work_group_copy(multi_ptr<T, DestS> Dest, multi_ptr<T, SrcS> Src,
+                        size_t NumElements, size_t Stride) const {
+    static_assert(sizeof(bool) == sizeof(uint8_t),
+                  "Async copy to/from bool memory is not supported.");
+    using VecT = detail::change_base_type_t<T, uint8_t>;
+    auto DestP = multi_ptr<VecT, DestS>(reinterpret_cast<VecT *>(Dest.get()));
+    auto SrcP = multi_ptr<VecT, SrcS>(reinterpret_cast<VecT *>(Src.get()));
+    return async_work_group_copy(DestP, SrcP, NumElements, Stride);
+  }
+
+  /// Asynchronously copies a number of elements specified by \p numElements
+  /// from the source pointed by \p src to destination pointed by \p dest and
+  /// returns a SYCL device_event which can be used to wait on the completion
+  /// of the copy.
+  /// Permitted types for dataT are all scalar and vector types.
+  template <typename dataT>
+  device_event async_work_group_copy(local_ptr<dataT> dest,
+                                     global_ptr<dataT> src,
+                                     size_t numElements) const {
+    return async_work_group_copy(dest, src, numElements, 1);
+  }
+
+  /// Asynchronously copies a number of elements specified by \p numElements
+  /// from the source pointed by \p src to destination pointed by \p dest and
+  /// returns a SYCL device_event which can be used to wait on the completion
+  /// of the copy.
+  /// Permitted types for dataT are all scalar and vector types.
+  template <typename dataT>
+  device_event async_work_group_copy(global_ptr<dataT> dest,
+                                     local_ptr<dataT> src,
+                                     size_t numElements) const {
+    return async_work_group_copy(dest, src, numElements, 1);
   }
 
   template <typename... eventTN>
@@ -375,6 +416,20 @@ protected:
                   "inconsistent group constructor arguments");
   }
 };
+
+namespace detail {
+template <int Dims> group<Dims> store_group(const group<Dims> *g) {
+  return get_or_store(g);
+}
+} // namespace detail
+
+template <int Dims> group<Dims> this_group() {
+#ifdef __SYCL_DEVICE_ONLY__
+  return detail::Builder::getElement(detail::declptr<group<Dims>>());
+#else
+  return detail::store_group<Dims>(nullptr);
+#endif
+}
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

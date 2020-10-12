@@ -1014,9 +1014,6 @@ bool DeclSpec::setFunctionSpecExplicit(SourceLocation Loc,
                                        const char *&PrevSpec, unsigned &DiagID,
                                        ExplicitSpecifier ExplicitSpec,
                                        SourceLocation CloseParenLoc) {
-  assert((ExplicitSpec.getKind() == ExplicitSpecKind::ResolvedTrue ||
-          ExplicitSpec.getExpr()) &&
-         "invalid ExplicitSpecifier");
   // 'explicit explicit' is ok, but warn as this is likely not what the user
   // intended.
   if (hasExplicitSpecifier()) {
@@ -1279,6 +1276,7 @@ void DeclSpec::Finish(Sema &S, const PrintingPolicy &Policy) {
         S.Diag(TSTLoc, diag::ext_integer_complex);
     } else if (TypeSpecType != TST_float && TypeSpecType != TST_double &&
                TypeSpecType != TST_float128) {
+      // FIXME: _Float16, __fp16?
       S.Diag(TSCLoc, diag::err_invalid_complex_spec)
         << getSpecifierName((TST)TypeSpecType, Policy);
       TypeSpecComplex = TSC_unspecified;

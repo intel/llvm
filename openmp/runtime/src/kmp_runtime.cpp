@@ -1389,13 +1389,7 @@ void __kmp_serialized_parallel(ident_t *loc, kmp_int32 global_tid) {
 int __kmp_fork_call(ident_t *loc, int gtid,
                     enum fork_context_e call_context, // Intel, GNU, ...
                     kmp_int32 argc, microtask_t microtask, launch_t invoker,
-/* TODO: revert workaround for Intel(R) 64 tracker #96 */
-#if (KMP_ARCH_X86_64 || KMP_ARCH_ARM || KMP_ARCH_AARCH64) && KMP_OS_LINUX
-                    va_list *ap
-#else
-                    va_list ap
-#endif
-                    ) {
+                    kmp_va_list ap) {
   void **argv;
   int i;
   int master_tid;
@@ -1505,17 +1499,19 @@ int __kmp_fork_call(ident_t *loc, int gtid,
       parent_team->t.t_argc = argc;
       argv = (void **)parent_team->t.t_argv;
       for (i = argc - 1; i >= 0; --i)
-/* TODO: revert workaround for Intel(R) 64 tracker #96 */
-#if (KMP_ARCH_X86_64 || KMP_ARCH_ARM || KMP_ARCH_AARCH64) && KMP_OS_LINUX
-        *argv++ = va_arg(*ap, void *);
-#else
-        *argv++ = va_arg(ap, void *);
-#endif
+        *argv++ = va_arg(kmp_va_deref(ap), void *);
       // Increment our nested depth levels, but not increase the serialization
       if (parent_team == master_th->th.th_serial_team) {
         // AC: we are in serialized parallel
         __kmpc_serialized_parallel(loc, gtid);
         KMP_DEBUG_ASSERT(parent_team->t.t_serialized > 1);
+
+        if (call_context == fork_context_gnu) {
+          // AC: need to decrement t_serialized for enquiry functions to work
+          // correctly, will restore at join time
+          parent_team->t.t_serialized--;
+          return TRUE;
+        }
 
 #if OMPT_SUPPORT
         void *dummy;
@@ -1625,6 +1621,22 @@ int __kmp_fork_call(ident_t *loc, int gtid,
       }
 #endif
 
+#if USE_ITT_BUILD
+      if (((__itt_frame_submit_v3_ptr && __itt_get_timestamp_ptr) ||
+           KMP_ITT_DEBUG) &&
+          __kmp_forkjoin_frames_mode == 3 &&
+          parent_team->t.t_active_level == 1 // only report frames at level 1
+          && master_th->th.th_teams_size.nteams == 1) {
+        kmp_uint64 tmp_time = __itt_get_timestamp();
+        master_th->th.th_frame_time = tmp_time;
+        parent_team->t.t_region_time = tmp_time;
+      }
+      if (__itt_stack_caller_create_ptr) {
+        // create new stack stitching id before entering fork barrier
+        parent_team->t.t_stack_id = __kmp_itt_stack_caller_create();
+      }
+#endif /* USE_ITT_BUILD */
+
       KF_TRACE(10, ("__kmp_fork_call: before internal fork: root=%p, team=%p, "
                     "master_th=%p, gtid=%d\n",
                     root, parent_team, master_th, gtid));
@@ -1632,6 +1644,9 @@ int __kmp_fork_call(ident_t *loc, int gtid,
       KF_TRACE(10, ("__kmp_fork_call: after internal fork: root=%p, team=%p, "
                     "master_th=%p, gtid=%d\n",
                     root, parent_team, master_th, gtid));
+
+      if (call_context == fork_context_gnu)
+        return TRUE;
 
       /* Invoke microtask for MASTER thread */
       KA_TRACE(20, ("__kmp_fork_call: T#%d(%d:0) invoke microtask = %p\n", gtid,
@@ -1804,12 +1819,7 @@ int __kmp_fork_call(ident_t *loc, int gtid,
           argv = (void **)team->t.t_argv;
           if (ap) {
             for (i = argc - 1; i >= 0; --i)
-// TODO: revert workaround for Intel(R) 64 tracker #96
-#if (KMP_ARCH_X86_64 || KMP_ARCH_ARM || KMP_ARCH_AARCH64) && KMP_OS_LINUX
-              *argv++ = va_arg(*ap, void *);
-#else
-              *argv++ = va_arg(ap, void *);
-#endif
+              *argv++ = va_arg(kmp_va_deref(ap), void *);
           } else {
             for (i = 0; i < argc; ++i)
               // Get args from parent team for teams construct
@@ -1840,12 +1850,7 @@ int __kmp_fork_call(ident_t *loc, int gtid,
         } else {
           argv = args;
           for (i = argc - 1; i >= 0; --i)
-// TODO: revert workaround for Intel(R) 64 tracker #96
-#if (KMP_ARCH_X86_64 || KMP_ARCH_ARM || KMP_ARCH_AARCH64) && KMP_OS_LINUX
-            *argv++ = va_arg(*ap, void *);
-#else
-            *argv++ = va_arg(ap, void *);
-#endif
+            *argv++ = va_arg(kmp_va_deref(ap), void *);
           KMP_MB();
 
 #if OMPT_SUPPORT
@@ -2130,12 +2135,7 @@ int __kmp_fork_call(ident_t *loc, int gtid,
     argv = (void **)team->t.t_argv;
     if (ap) {
       for (i = argc - 1; i >= 0; --i) {
-// TODO: revert workaround for Intel(R) 64 tracker #96
-#if (KMP_ARCH_X86_64 || KMP_ARCH_ARM || KMP_ARCH_AARCH64) && KMP_OS_LINUX
-        void *new_argv = va_arg(*ap, void *);
-#else
-        void *new_argv = va_arg(ap, void *);
-#endif
+        void *new_argv = va_arg(kmp_va_deref(ap), void *);
         KMP_CHECK_UPDATE(*argv, new_argv);
         argv++;
       }
@@ -2303,7 +2303,11 @@ void __kmp_join_call(ident_t *loc, int gtid
 
 #if OMPT_SUPPORT
   void *team_microtask = (void *)team->t.t_pkfn;
-  if (ompt_enabled.enabled) {
+  // For GOMP interface with serialized parallel, need the
+  // __kmpc_end_serialized_parallel to call hooks for OMPT end-implicit-task
+  // and end-parallel events.
+  if (ompt_enabled.enabled &&
+      !(team->t.t_serialized && fork_context == fork_context_gnu)) {
     master_th->th.ompt_thread_info.state = ompt_state_overhead;
   }
 #endif
@@ -2367,14 +2371,13 @@ void __kmp_join_call(ident_t *loc, int gtid
 
 #if USE_ITT_BUILD
   if (__itt_stack_caller_create_ptr) {
-    __kmp_itt_stack_caller_destroy(
-        (__itt_caller)team->t
-            .t_stack_id); // destroy the stack stitching id after join barrier
+    // destroy the stack stitching id after join barrier
+    __kmp_itt_stack_caller_destroy((__itt_caller)team->t.t_stack_id);
   }
-
   // Mark end of "parallel" region for Intel(R) VTune(TM) analyzer.
   if (team->t.t_active_level == 1 &&
-      !master_th->th.th_teams_microtask) { /* not in teams construct */
+      (!master_th->th.th_teams_microtask || /* not in teams construct */
+       master_th->th.th_teams_size.nteams == 1)) {
     master_th->th.th_ident = loc;
     // only one notification scheme (either "submit" or "forking/joined", not
     // both)
@@ -4301,6 +4304,39 @@ kmp_info_t *__kmp_allocate_thread(kmp_root_t *root, kmp_team_t *team,
 
   TCW_SYNC_PTR(__kmp_threads[new_gtid], new_thr);
 
+#if USE_ITT_BUILD && USE_ITT_NOTIFY && KMP_DEBUG
+  // suppress race conditions detection on synchronization flags in debug mode
+  // this helps to analyze library internals eliminating false positives
+  __itt_suppress_mark_range(
+      __itt_suppress_range, __itt_suppress_threading_errors,
+      &new_thr->th.th_sleep_loc, sizeof(new_thr->th.th_sleep_loc));
+  __itt_suppress_mark_range(
+      __itt_suppress_range, __itt_suppress_threading_errors,
+      &new_thr->th.th_reap_state, sizeof(new_thr->th.th_reap_state));
+#if KMP_OS_WINDOWS
+  __itt_suppress_mark_range(
+      __itt_suppress_range, __itt_suppress_threading_errors,
+      &new_thr->th.th_suspend_init, sizeof(new_thr->th.th_suspend_init));
+#else
+  __itt_suppress_mark_range(__itt_suppress_range,
+                            __itt_suppress_threading_errors,
+                            &new_thr->th.th_suspend_init_count,
+                            sizeof(new_thr->th.th_suspend_init_count));
+#endif
+  // TODO: check if we need to also suppress b_arrived flags
+  __itt_suppress_mark_range(__itt_suppress_range,
+                            __itt_suppress_threading_errors,
+                            CCAST(kmp_uint64 *, &new_thr->th.th_bar[0].bb.b_go),
+                            sizeof(new_thr->th.th_bar[0].bb.b_go));
+  __itt_suppress_mark_range(__itt_suppress_range,
+                            __itt_suppress_threading_errors,
+                            CCAST(kmp_uint64 *, &new_thr->th.th_bar[1].bb.b_go),
+                            sizeof(new_thr->th.th_bar[1].bb.b_go));
+  __itt_suppress_mark_range(__itt_suppress_range,
+                            __itt_suppress_threading_errors,
+                            CCAST(kmp_uint64 *, &new_thr->th.th_bar[2].bb.b_go),
+                            sizeof(new_thr->th.th_bar[2].bb.b_go));
+#endif /* USE_ITT_BUILD && USE_ITT_NOTIFY && KMP_DEBUG */
   if (__kmp_storage_map) {
     __kmp_print_thread_storage_map(new_thr, new_gtid);
   }
@@ -4902,12 +4938,15 @@ __kmp_allocate_team(kmp_root_t *root, int new_nproc, int max_nproc,
     }
     hot_teams = master->th.th_hot_teams;
     if (level < __kmp_hot_teams_max_level && hot_teams &&
-        hot_teams[level]
-            .hot_team) { // hot team has already been allocated for given level
+        hot_teams[level].hot_team) {
+      // hot team has already been allocated for given level
       use_hot_team = 1;
     } else {
       use_hot_team = 0;
     }
+  } else {
+    // check we won't access uninitialized hot_teams, just in case
+    KMP_DEBUG_ASSERT(new_nproc == 1);
   }
 #endif
   // Optimization to use a "hot" team

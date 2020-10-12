@@ -7,16 +7,23 @@
 //===----------------------------------------------------------------------===//
 
 #include "TestDialect.h"
+#include "TestTypes.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Transforms/FoldUtils.h"
 #include "mlir/Transforms/InliningUtils.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringSwitch.h"
 
 using namespace mlir;
+
+void mlir::registerTestDialect(DialectRegistry &registry) {
+  registry.insert<TestDialect>();
+}
 
 //===----------------------------------------------------------------------===//
 // TestDialect Interfaces
@@ -49,8 +56,8 @@ struct TestOpAsmInterface : public OpAsmDialectInterface {
   }
 };
 
-struct TestOpFolderDialectInterface : public OpFolderDialectInterface {
-  using OpFolderDialectInterface::OpFolderDialectInterface;
+struct TestDialectFoldInterface : public DialectFoldInterface {
+  using DialectFoldInterface::DialectFoldInterface;
 
   /// Registered hook to check if the given region, which is attached to an
   /// operation that is *not* isolated from above, should be used when
@@ -127,15 +134,80 @@ struct TestInlinerInterface : public DialectInlinerInterface {
 // TestDialect
 //===----------------------------------------------------------------------===//
 
-TestDialect::TestDialect(MLIRContext *context)
-    : Dialect(getDialectNamespace(), context) {
+void TestDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
 #include "TestOps.cpp.inc"
       >();
-  addInterfaces<TestOpAsmInterface, TestOpFolderDialectInterface,
+  addInterfaces<TestOpAsmInterface, TestDialectFoldInterface,
                 TestInlinerInterface>();
+  addTypes<TestType, TestRecursiveType>();
   allowUnknownOperations();
+}
+
+static Type parseTestType(DialectAsmParser &parser,
+                          llvm::SetVector<Type> &stack) {
+  StringRef typeTag;
+  if (failed(parser.parseKeyword(&typeTag)))
+    return Type();
+
+  if (typeTag == "test_type")
+    return TestType::get(parser.getBuilder().getContext());
+
+  if (typeTag != "test_rec")
+    return Type();
+
+  StringRef name;
+  if (parser.parseLess() || parser.parseKeyword(&name))
+    return Type();
+  auto rec = TestRecursiveType::get(parser.getBuilder().getContext(), name);
+
+  // If this type already has been parsed above in the stack, expect just the
+  // name.
+  if (stack.contains(rec)) {
+    if (failed(parser.parseGreater()))
+      return Type();
+    return rec;
+  }
+
+  // Otherwise, parse the body and update the type.
+  if (failed(parser.parseComma()))
+    return Type();
+  stack.insert(rec);
+  Type subtype = parseTestType(parser, stack);
+  stack.pop_back();
+  if (!subtype || failed(parser.parseGreater()) || failed(rec.setBody(subtype)))
+    return Type();
+
+  return rec;
+}
+
+Type TestDialect::parseType(DialectAsmParser &parser) const {
+  llvm::SetVector<Type> stack;
+  return parseTestType(parser, stack);
+}
+
+static void printTestType(Type type, DialectAsmPrinter &printer,
+                          llvm::SetVector<Type> &stack) {
+  if (type.isa<TestType>()) {
+    printer << "test_type";
+    return;
+  }
+
+  auto rec = type.cast<TestRecursiveType>();
+  printer << "test_rec<" << rec.getName();
+  if (!stack.contains(rec)) {
+    printer << ", ";
+    stack.insert(rec);
+    printTestType(rec.getBody(), printer, stack);
+    stack.pop_back();
+  }
+  printer << ">";
+}
+
+void TestDialect::printType(Type type, DialectAsmPrinter &printer) const {
+  llvm::SetVector<Type> stack;
+  printTestType(type, printer, stack);
 }
 
 LogicalResult TestDialect::verifyOperationAttribute(Operation *op,
@@ -183,7 +255,7 @@ struct FoldToCallOpPattern : public OpRewritePattern<FoldToCallOp> {
 
   LogicalResult matchAndRewrite(FoldToCallOp op,
                                 PatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<CallOp>(op, ArrayRef<Type>(), op.calleeAttr(),
+    rewriter.replaceOpWithNewOp<CallOp>(op, TypeRange(), op.calleeAttr(),
                                         ValueRange());
     return success();
   }
@@ -193,6 +265,175 @@ struct FoldToCallOpPattern : public OpRewritePattern<FoldToCallOp> {
 void FoldToCallOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {
   results.insert<FoldToCallOpPattern>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// Test Format* operations
+//===----------------------------------------------------------------------===//
+
+//===----------------------------------------------------------------------===//
+// Parsing
+
+static ParseResult parseCustomDirectiveOperands(
+    OpAsmParser &parser, OpAsmParser::OperandType &operand,
+    Optional<OpAsmParser::OperandType> &optOperand,
+    SmallVectorImpl<OpAsmParser::OperandType> &varOperands) {
+  if (parser.parseOperand(operand))
+    return failure();
+  if (succeeded(parser.parseOptionalComma())) {
+    optOperand.emplace();
+    if (parser.parseOperand(*optOperand))
+      return failure();
+  }
+  if (parser.parseArrow() || parser.parseLParen() ||
+      parser.parseOperandList(varOperands) || parser.parseRParen())
+    return failure();
+  return success();
+}
+static ParseResult
+parseCustomDirectiveResults(OpAsmParser &parser, Type &operandType,
+                            Type &optOperandType,
+                            SmallVectorImpl<Type> &varOperandTypes) {
+  if (parser.parseColon())
+    return failure();
+
+  if (parser.parseType(operandType))
+    return failure();
+  if (succeeded(parser.parseOptionalComma())) {
+    if (parser.parseType(optOperandType))
+      return failure();
+  }
+  if (parser.parseArrow() || parser.parseLParen() ||
+      parser.parseTypeList(varOperandTypes) || parser.parseRParen())
+    return failure();
+  return success();
+}
+static ParseResult
+parseCustomDirectiveWithTypeRefs(OpAsmParser &parser, Type operandType,
+                                 Type optOperandType,
+                                 const SmallVectorImpl<Type> &varOperandTypes) {
+  if (parser.parseKeyword("type_refs_capture"))
+    return failure();
+
+  Type operandType2, optOperandType2;
+  SmallVector<Type, 1> varOperandTypes2;
+  if (parseCustomDirectiveResults(parser, operandType2, optOperandType2,
+                                  varOperandTypes2))
+    return failure();
+
+  if (operandType != operandType2 || optOperandType != optOperandType2 ||
+      varOperandTypes != varOperandTypes2)
+    return failure();
+
+  return success();
+}
+static ParseResult parseCustomDirectiveOperandsAndTypes(
+    OpAsmParser &parser, OpAsmParser::OperandType &operand,
+    Optional<OpAsmParser::OperandType> &optOperand,
+    SmallVectorImpl<OpAsmParser::OperandType> &varOperands, Type &operandType,
+    Type &optOperandType, SmallVectorImpl<Type> &varOperandTypes) {
+  if (parseCustomDirectiveOperands(parser, operand, optOperand, varOperands) ||
+      parseCustomDirectiveResults(parser, operandType, optOperandType,
+                                  varOperandTypes))
+    return failure();
+  return success();
+}
+static ParseResult parseCustomDirectiveRegions(
+    OpAsmParser &parser, Region &region,
+    SmallVectorImpl<std::unique_ptr<Region>> &varRegions) {
+  if (parser.parseRegion(region))
+    return failure();
+  if (failed(parser.parseOptionalComma()))
+    return success();
+  std::unique_ptr<Region> varRegion = std::make_unique<Region>();
+  if (parser.parseRegion(*varRegion))
+    return failure();
+  varRegions.emplace_back(std::move(varRegion));
+  return success();
+}
+static ParseResult
+parseCustomDirectiveSuccessors(OpAsmParser &parser, Block *&successor,
+                               SmallVectorImpl<Block *> &varSuccessors) {
+  if (parser.parseSuccessor(successor))
+    return failure();
+  if (failed(parser.parseOptionalComma()))
+    return success();
+  Block *varSuccessor;
+  if (parser.parseSuccessor(varSuccessor))
+    return failure();
+  varSuccessors.append(2, varSuccessor);
+  return success();
+}
+static ParseResult parseCustomDirectiveAttributes(OpAsmParser &parser,
+                                                  IntegerAttr &attr,
+                                                  IntegerAttr &optAttr) {
+  if (parser.parseAttribute(attr))
+    return failure();
+  if (succeeded(parser.parseOptionalComma())) {
+    if (parser.parseAttribute(optAttr))
+      return failure();
+  }
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// Printing
+
+static void printCustomDirectiveOperands(OpAsmPrinter &printer, Value operand,
+                                         Value optOperand,
+                                         OperandRange varOperands) {
+  printer << operand;
+  if (optOperand)
+    printer << ", " << optOperand;
+  printer << " -> (" << varOperands << ")";
+}
+static void printCustomDirectiveResults(OpAsmPrinter &printer, Type operandType,
+                                        Type optOperandType,
+                                        TypeRange varOperandTypes) {
+  printer << " : " << operandType;
+  if (optOperandType)
+    printer << ", " << optOperandType;
+  printer << " -> (" << varOperandTypes << ")";
+}
+static void printCustomDirectiveWithTypeRefs(OpAsmPrinter &printer,
+                                             Type operandType,
+                                             Type optOperandType,
+                                             TypeRange varOperandTypes) {
+  printer << " type_refs_capture ";
+  printCustomDirectiveResults(printer, operandType, optOperandType,
+                              varOperandTypes);
+}
+static void
+printCustomDirectiveOperandsAndTypes(OpAsmPrinter &printer, Value operand,
+                                     Value optOperand, OperandRange varOperands,
+                                     Type operandType, Type optOperandType,
+                                     TypeRange varOperandTypes) {
+  printCustomDirectiveOperands(printer, operand, optOperand, varOperands);
+  printCustomDirectiveResults(printer, operandType, optOperandType,
+                              varOperandTypes);
+}
+static void printCustomDirectiveRegions(OpAsmPrinter &printer, Region &region,
+                                        MutableArrayRef<Region> varRegions) {
+  printer.printRegion(region);
+  if (!varRegions.empty()) {
+    printer << ", ";
+    for (Region &region : varRegions)
+      printer.printRegion(region);
+  }
+}
+static void printCustomDirectiveSuccessors(OpAsmPrinter &printer,
+                                           Block *successor,
+                                           SuccessorRange varSuccessors) {
+  printer << successor;
+  if (!varSuccessors.empty())
+    printer << ", " << varSuccessors.front();
+}
+static void printCustomDirectiveAttributes(OpAsmPrinter &printer,
+                                           Attribute attribute,
+                                           Attribute optAttribute) {
+  printer << attribute;
+  if (optAttribute)
+    printer << ", " << optAttribute;
 }
 
 //===----------------------------------------------------------------------===//
@@ -220,6 +461,34 @@ static void print(OpAsmPrinter &p, IsolatedRegionOp op) {
   p.printOperand(op.getOperand());
   p.shadowRegionArgs(op.region(), op.getOperand());
   p.printRegion(op.region(), /*printEntryBlockArgs=*/false);
+}
+
+//===----------------------------------------------------------------------===//
+// Test SSACFGRegionOp
+//===----------------------------------------------------------------------===//
+
+RegionKind SSACFGRegionOp::getRegionKind(unsigned index) {
+  return RegionKind::SSACFG;
+}
+
+//===----------------------------------------------------------------------===//
+// Test GraphRegionOp
+//===----------------------------------------------------------------------===//
+
+static ParseResult parseGraphRegionOp(OpAsmParser &parser,
+                                      OperationState &result) {
+  // Parse the body region, and reuse the operand info as the argument info.
+  Region *body = result.addRegion();
+  return parser.parseRegion(*body, /*arguments=*/{}, /*argTypes=*/{});
+}
+
+static void print(OpAsmPrinter &p, GraphRegionOp op) {
+  p << "test.graph_region ";
+  p.printRegion(op.region(), /*printEntryBlockArgs=*/false);
+}
+
+RegionKind GraphRegionOp::getRegionKind(unsigned index) {
+  return RegionKind::Graph;
 }
 
 //===----------------------------------------------------------------------===//
@@ -354,7 +623,7 @@ OpFoldResult TestOpInPlaceFold::fold(ArrayRef<Attribute> operands) {
   return {};
 }
 
-LogicalResult mlir::OpWithInferTypeInterfaceOp::inferReturnTypes(
+LogicalResult OpWithInferTypeInterfaceOp::inferReturnTypes(
     MLIRContext *, Optional<Location> location, ValueRange operands,
     DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
@@ -387,7 +656,7 @@ LogicalResult OpWithShapedTypeInferTypeInterfaceOp::inferReturnTypeComponents(
 LogicalResult OpWithShapedTypeInferTypeInterfaceOp::reifyReturnTypeShapes(
     OpBuilder &builder, llvm::SmallVectorImpl<Value> &shapes) {
   shapes = SmallVector<Value, 1>{
-      builder.createOrFold<mlir::DimOp>(getLoc(), getOperand(0), 0)};
+      builder.createOrFold<DimOp>(getLoc(), getOperand(0), 0)};
   return success();
 }
 
@@ -519,14 +788,79 @@ void StringAttrPrettyNameOp::getAsmResultNames(
 }
 
 //===----------------------------------------------------------------------===//
-// Dialect Registration
+// RegionIfOp
 //===----------------------------------------------------------------------===//
 
-// Static initialization for Test dialect registration.
-static mlir::DialectRegistration<mlir::TestDialect> testDialect;
+static void print(OpAsmPrinter &p, RegionIfOp op) {
+  p << RegionIfOp::getOperationName() << " ";
+  p.printOperands(op.getOperands());
+  p << ": " << op.getOperandTypes();
+  p.printArrowTypeList(op.getResultTypes());
+  p << " then";
+  p.printRegion(op.thenRegion(),
+                /*printEntryBlockArgs=*/true,
+                /*printBlockTerminators=*/true);
+  p << " else";
+  p.printRegion(op.elseRegion(),
+                /*printEntryBlockArgs=*/true,
+                /*printBlockTerminators=*/true);
+  p << " join";
+  p.printRegion(op.joinRegion(),
+                /*printEntryBlockArgs=*/true,
+                /*printBlockTerminators=*/true);
+}
+
+static ParseResult parseRegionIfOp(OpAsmParser &parser,
+                                   OperationState &result) {
+  SmallVector<OpAsmParser::OperandType, 2> operandInfos;
+  SmallVector<Type, 2> operandTypes;
+
+  result.regions.reserve(3);
+  Region *thenRegion = result.addRegion();
+  Region *elseRegion = result.addRegion();
+  Region *joinRegion = result.addRegion();
+
+  // Parse operand, type and arrow type lists.
+  if (parser.parseOperandList(operandInfos) ||
+      parser.parseColonTypeList(operandTypes) ||
+      parser.parseArrowTypeList(result.types))
+    return failure();
+
+  // Parse all attached regions.
+  if (parser.parseKeyword("then") || parser.parseRegion(*thenRegion, {}, {}) ||
+      parser.parseKeyword("else") || parser.parseRegion(*elseRegion, {}, {}) ||
+      parser.parseKeyword("join") || parser.parseRegion(*joinRegion, {}, {}))
+    return failure();
+
+  return parser.resolveOperands(operandInfos, operandTypes,
+                                parser.getCurrentLocation(), result.operands);
+}
+
+OperandRange RegionIfOp::getSuccessorEntryOperands(unsigned index) {
+  assert(index < 2 && "invalid region index");
+  return getOperands();
+}
+
+void RegionIfOp::getSuccessorRegions(
+    Optional<unsigned> index, ArrayRef<Attribute> operands,
+    SmallVectorImpl<RegionSuccessor> &regions) {
+  // We always branch to the join region.
+  if (index.hasValue()) {
+    if (index.getValue() < 2)
+      regions.push_back(RegionSuccessor(&joinRegion(), getJoinArgs()));
+    else
+      regions.push_back(RegionSuccessor(getResults()));
+    return;
+  }
+
+  // The then and else regions are the entry regions of this op.
+  regions.push_back(RegionSuccessor(&thenRegion(), getThenArgs()));
+  regions.push_back(RegionSuccessor(&elseRegion(), getElseArgs()));
+}
 
 #include "TestOpEnums.cpp.inc"
 #include "TestOpStructs.cpp.inc"
+#include "TestTypeInterfaces.cpp.inc"
 
 #define GET_OP_CLASSES
 #include "TestOps.cpp.inc"

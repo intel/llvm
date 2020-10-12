@@ -1239,103 +1239,6 @@ static void simplifySuspendPoints(coro::Shape &Shape) {
   S.resize(N);
 }
 
-/// For every local variable that has lifetime intrinsics markers, we sink
-/// their lifetime.start marker to the places where the variable is being
-/// used for the first time. Doing so minimizes the lifetime of each variable,
-/// hence minimizing the amount of data we end up putting on the frame.
-static void sinkLifetimeStartMarkers(Function &F) {
-  DominatorTree Dom(F);
-  for (Instruction &I : instructions(F)) {
-    // We look for this particular pattern:
-    //   %tmpX = alloca %.., align ...
-    //   %0 = bitcast %...* %tmpX to i8*
-    //   call void @llvm.lifetime.start.p0i8(i64 ..., i8* nonnull %0) #2
-    if (!isa<AllocaInst>(&I))
-      continue;
-    // There can be multiple lifetime start markers for the same variable.
-    SmallPtrSet<IntrinsicInst *, 1> LifetimeStartInsts;
-    // SinkBarriers stores all instructions that use this local variable.
-    // When sinking the lifetime start intrinsics, we can never sink past
-    // these barriers.
-    SmallPtrSet<Instruction *, 4> SinkBarriers;
-    bool Valid = true;
-    auto AddSinkBarrier = [&](Instruction *I) {
-      // When adding a new barrier to SinkBarriers, we maintain the case
-      // that no instruction in SinkBarriers dominates another instruction.
-      SmallPtrSet<Instruction *, 1> ToRemove;
-      bool ShouldAdd = true;
-      for (Instruction *S : SinkBarriers) {
-        if (I == S || Dom.dominates(S, I)) {
-          ShouldAdd = false;
-          break;
-        } else if (Dom.dominates(I, S)) {
-          ToRemove.insert(S);
-        }
-      }
-      if (ShouldAdd) {
-        SinkBarriers.insert(I);
-        for (Instruction *R : ToRemove) {
-          SinkBarriers.erase(R);
-        }
-      }
-    };
-    for (User *U : I.users()) {
-      if (!isa<BitCastInst>(U))
-        continue;
-      for (User *CU : U->users()) {
-        // If we see any user of CastInst that's not lifetime start/end
-        // intrinsics, give up because it's too complex.
-        if (auto *CUI = dyn_cast<IntrinsicInst>(CU)) {
-          if (CUI->getIntrinsicID() == Intrinsic::lifetime_start)
-            LifetimeStartInsts.insert(CUI);
-          else if (CUI->getIntrinsicID() == Intrinsic::lifetime_end)
-            AddSinkBarrier(CUI);
-          else
-            Valid = false;
-        } else {
-          Valid = false;
-        }
-      }
-    }
-    if (!Valid || LifetimeStartInsts.empty())
-      continue;
-
-    for (User *U : I.users()) {
-      if (isa<BitCastInst>(U))
-        continue;
-      // Every user of the variable is also a sink barrier.
-      AddSinkBarrier(cast<Instruction>(U));
-    }
-
-    // For each sink barrier, we insert a lifetime start marker right
-    // before it.
-    for (Instruction *S : SinkBarriers) {
-      if (auto *IS = dyn_cast<IntrinsicInst>(S)) {
-        if (IS->getIntrinsicID() == Intrinsic::lifetime_end) {
-          // If we have a lifetime end marker in SinkBarriers, meaning it's
-          // not dominated by any other users, we can safely delete it.
-          IS->eraseFromParent();
-          continue;
-        }
-      }
-      // We find an existing lifetime.start marker that domintes the barrier,
-      // clone it and insert it right before the barrier. We cannot clone an
-      // arbitrary lifetime.start marker because we want to make sure the
-      // BitCast instruction referred in the marker also dominates the barrier.
-      for (const IntrinsicInst *LifetimeStart : LifetimeStartInsts) {
-        if (Dom.dominates(LifetimeStart, S)) {
-          LifetimeStart->clone()->insertBefore(S);
-          break;
-        }
-      }
-    }
-    // All the old lifetime.start markers are no longer necessary.
-    for (IntrinsicInst *S : LifetimeStartInsts) {
-      S->eraseFromParent();
-    }
-  }
-}
-
 static void splitSwitchCoroutine(Function &F, coro::Shape &Shape,
                                  SmallVectorImpl<Function *> &Clones) {
   assert(Shape.ABI == coro::ABI::Switch);
@@ -1513,19 +1416,19 @@ namespace {
 }
 
 static coro::Shape splitCoroutine(Function &F,
-                                  SmallVectorImpl<Function *> &Clones) {
+                                  SmallVectorImpl<Function *> &Clones,
+                                  bool ReuseFrameSlot) {
   PrettyStackTraceFunction prettyStackTrace(F);
 
   // The suspend-crossing algorithm in buildCoroutineFrame get tripped
   // up by uses in unreachable blocks, so remove them as a first pass.
   removeUnreachableBlocks(F);
 
-  coro::Shape Shape(F);
+  coro::Shape Shape(F, ReuseFrameSlot);
   if (!Shape.CoroBegin)
     return Shape;
 
   simplifySuspendPoints(Shape);
-  sinkLifetimeStartMarkers(F);
   buildCoroutineFrame(F, Shape);
   replaceFrameSize(Shape);
 
@@ -1581,13 +1484,6 @@ static void updateCallGraphAfterCoroutineSplit(
   }
 
   postSplitCleanup(N.getFunction());
-
-  // To insert the newly created coroutine funclets 'f.resume', 'f.destroy', and
-  // 'f.cleanup' into the same SCC as the coroutine 'f' they were outlined from,
-  // we make use of the CallGraphUpdater class, which can modify the internal
-  // state of the LazyCallGraph.
-  for (Function *Clone : Clones)
-    CG.addNewFunctionIntoRefSCC(*Clone, C.getOuterRefSCC());
 
   // We've inserted instructions into coroutine 'f' that reference the three new
   // coroutine funclets. We must now update the call graph so that reference
@@ -1662,6 +1558,42 @@ static void createDevirtTriggerFunc(CallGraph &CG, CallGraphSCC &SCC) {
 }
 
 /// Replace a call to llvm.coro.prepare.retcon.
+static void replacePrepare(CallInst *Prepare, LazyCallGraph &CG,
+                           LazyCallGraph::SCC &C) {
+  auto CastFn = Prepare->getArgOperand(0); // as an i8*
+  auto Fn = CastFn->stripPointerCasts();   // as its original type
+
+  // Attempt to peephole this pattern:
+  //    %0 = bitcast [[TYPE]] @some_function to i8*
+  //    %1 = call @llvm.coro.prepare.retcon(i8* %0)
+  //    %2 = bitcast %1 to [[TYPE]]
+  // ==>
+  //    %2 = @some_function
+  for (auto UI = Prepare->use_begin(), UE = Prepare->use_end(); UI != UE;) {
+    // Look for bitcasts back to the original function type.
+    auto *Cast = dyn_cast<BitCastInst>((UI++)->getUser());
+    if (!Cast || Cast->getType() != Fn->getType())
+      continue;
+
+    // Replace and remove the cast.
+    Cast->replaceAllUsesWith(Fn);
+    Cast->eraseFromParent();
+  }
+
+  // Replace any remaining uses with the function as an i8*.
+  // This can never directly be a callee, so we don't need to update CG.
+  Prepare->replaceAllUsesWith(CastFn);
+  Prepare->eraseFromParent();
+
+  // Kill dead bitcasts.
+  while (auto *Cast = dyn_cast<BitCastInst>(CastFn)) {
+    if (!Cast->use_empty())
+      break;
+    CastFn = Cast->getOperand(0);
+    Cast->eraseFromParent();
+  }
+}
+/// Replace a call to llvm.coro.prepare.retcon.
 static void replacePrepare(CallInst *Prepare, CallGraph &CG) {
   auto CastFn = Prepare->getArgOperand(0); // as an i8*
   auto Fn = CastFn->stripPointerCasts(); // as its original type
@@ -1716,6 +1648,19 @@ static void replacePrepare(CallInst *Prepare, CallGraph &CG) {
   }
 }
 
+static bool replaceAllPrepares(Function *PrepareFn, LazyCallGraph &CG,
+                               LazyCallGraph::SCC &C) {
+  bool Changed = false;
+  for (auto PI = PrepareFn->use_begin(), PE = PrepareFn->use_end(); PI != PE;) {
+    // Intrinsics can only be used in calls.
+    auto *Prepare = cast<CallInst>((PI++)->getUser());
+    replacePrepare(Prepare, CG, C);
+    Changed = true;
+  }
+
+  return Changed;
+}
+
 /// Remove calls to llvm.coro.prepare.retcon, a barrier meant to prevent
 /// IPO from operating on calls to a retcon coroutine before it's been
 /// split.  This is only safe to do after we've split all retcon
@@ -1754,7 +1699,7 @@ PreservedAnalyses CoroSplitPass::run(LazyCallGraph::SCC &C,
     return PreservedAnalyses::all();
 
   // Check for uses of llvm.coro.prepare.retcon.
-  const auto *PrepareFn = M.getFunction("llvm.coro.prepare.retcon");
+  auto *PrepareFn = M.getFunction("llvm.coro.prepare.retcon");
   if (PrepareFn && PrepareFn->use_empty())
     PrepareFn = nullptr;
 
@@ -1768,8 +1713,7 @@ PreservedAnalyses CoroSplitPass::run(LazyCallGraph::SCC &C,
     return PreservedAnalyses::all();
 
   if (Coroutines.empty())
-    llvm_unreachable("new pass manager cannot yet handle "
-                     "'llvm.coro.prepare.retcon'");
+    replaceAllPrepares(PrepareFn, CG, C);
 
   // Split all the coroutines.
   for (LazyCallGraph::Node *N : Coroutines) {
@@ -1797,13 +1741,12 @@ PreservedAnalyses CoroSplitPass::run(LazyCallGraph::SCC &C,
     F.removeFnAttr(CORO_PRESPLIT_ATTR);
 
     SmallVector<Function *, 4> Clones;
-    const coro::Shape Shape = splitCoroutine(F, Clones);
+    const coro::Shape Shape = splitCoroutine(F, Clones, ReuseFrameSlot);
     updateCallGraphAfterCoroutineSplit(*N, Shape, Clones, C, CG, AM, UR, FAM);
   }
 
   if (PrepareFn)
-    llvm_unreachable("new pass manager cannot yet handle "
-                     "'llvm.coro.prepare.retcon'");
+    replaceAllPrepares(PrepareFn, CG, C);
 
   return PreservedAnalyses::none();
 }
@@ -1821,11 +1764,13 @@ namespace {
 struct CoroSplitLegacy : public CallGraphSCCPass {
   static char ID; // Pass identification, replacement for typeid
 
-  CoroSplitLegacy() : CallGraphSCCPass(ID) {
+  CoroSplitLegacy(bool ReuseFrameSlot = false)
+      : CallGraphSCCPass(ID), ReuseFrameSlot(ReuseFrameSlot) {
     initializeCoroSplitLegacyPass(*PassRegistry::getPassRegistry());
   }
 
   bool Run = false;
+  bool ReuseFrameSlot;
 
   // A coroutine is identified by the presence of coro.begin intrinsic, if
   // we don't have any, this pass has nothing to do.
@@ -1874,7 +1819,7 @@ struct CoroSplitLegacy : public CallGraphSCCPass {
       F->removeFnAttr(CORO_PRESPLIT_ATTR);
 
       SmallVector<Function *, 4> Clones;
-      const coro::Shape Shape = splitCoroutine(*F, Clones);
+      const coro::Shape Shape = splitCoroutine(*F, Clones, ReuseFrameSlot);
       updateCallGraphAfterCoroutineSplit(*F, Shape, Clones, CG, SCC);
     }
 
@@ -1905,4 +1850,6 @@ INITIALIZE_PASS_END(
     "Split coroutine into a set of functions driving its state machine", false,
     false)
 
-Pass *llvm::createCoroSplitLegacyPass() { return new CoroSplitLegacy(); }
+Pass *llvm::createCoroSplitLegacyPass(bool ReuseFrameSlot) {
+  return new CoroSplitLegacy(ReuseFrameSlot);
+}

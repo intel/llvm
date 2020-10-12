@@ -95,8 +95,7 @@ def SPV_AccessChainOp : SPV_Op<"AccessChain", [NoSideEffect]> {
     SPV_AnyPtr:$component_ptr
   );
 
-  let builders = [OpBuilder<[{OpBuilder &builder, OperationState &state,
-                              Value basePtr, ValueRange indices}]>];
+  let builders = [OpBuilder<[{Value basePtr, ValueRange indices}]>];
 
   let hasCanonicalizer = 1;
 }
@@ -198,7 +197,7 @@ def SPV_CopyMemoryOp : SPV_Op<"CopyMemory", []> {
     ```
     copy-memory-op ::= `spv.CopyMemory ` storage-class ssa-use
                        storage-class ssa-use
-                       (`[` memory-access `]`)?
+                       (`[` memory-access `]` (`, [` memory-access `]`)?)?
                        ` : ` spirv-element-type
     ```
 
@@ -215,12 +214,16 @@ def SPV_CopyMemoryOp : SPV_Op<"CopyMemory", []> {
     SPV_AnyPtr:$target,
     SPV_AnyPtr:$source,
     OptionalAttr<SPV_MemoryAccessAttr>:$memory_access,
-    OptionalAttr<I32Attr>:$alignment
+    OptionalAttr<I32Attr>:$alignment,
+    OptionalAttr<SPV_MemoryAccessAttr>:$source_memory_access,
+    OptionalAttr<I32Attr>:$source_alignment
   );
 
   let results = (outs);
 
   let verifier = [{ return verifyCopyMemory(*this); }];
+
+  let autogenSerialization = 0;
 }
 
 // -----
@@ -268,8 +271,7 @@ def SPV_ExecutionModeOp : SPV_Op<"ExecutionMode", [InModuleScope]> {
 
   let autogenSerialization = 0;
 
-  let builders = [OpBuilder<[{OpBuilder &builder, OperationState &state,
-                              spirv::FuncOp function,
+  let builders = [OpBuilder<[{spirv::FuncOp function,
                               spirv::ExecutionMode executionMode,
                               ArrayRef<int32_t> params}]>];
 }
@@ -323,7 +325,6 @@ def SPV_LoadOp : SPV_Op<"Load", []> {
 
   let builders = [
     OpBuilder<[{
-      OpBuilder &builder, OperationState &state,
       Value basePtr, IntegerAttr memory_access = {},
       IntegerAttr alignment = {}
     }]>
@@ -425,11 +426,11 @@ def SPV_StoreOp : SPV_Op<"Store", []> {
   let results = (outs);
 
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &state, "
+    OpBuilder<
       "Value ptr, Value value, ArrayRef<NamedAttribute> namedAttrs = {}", [{
-      state.addOperands(ptr);
-      state.addOperands(value);
-      state.addAttributes(namedAttrs);
+      $_state.addOperands(ptr);
+      $_state.addOperands(value);
+      $_state.addAttributes(namedAttrs);
     }]>
   ];
 }
@@ -486,11 +487,11 @@ def SPV_VariableOp : SPV_Op<"Variable", []> {
     Result Type must be an OpTypePointer. Its Type operand is the type of
     object in memory.
 
-    Storage Class is the Storage Class of the memory holding the object. It
-    cannot be Generic. It must be the same as the Storage Class operand of
-    the Result Type.
+    Storage Class is the Storage Class of the memory holding the object.
+    Since the op is used to model function-level variables, the storage class
+    must be the `Function` Storage Class.
 
-    Initializer is optional.  If Initializer is present, it will be the
+    Initializer is optional. If Initializer is present, it will be the
     initial value of the variable’s memory content. Initializer must be an
     <id> from a constant instruction or a global (module scope) OpVariable
     instruction. Initializer must have the same type as the type pointed to
@@ -500,14 +501,10 @@ def SPV_VariableOp : SPV_Op<"Variable", []> {
 
     ```
     variable-op ::= ssa-id `=` `spv.Variable` (`init(` ssa-use `)`)?
-                    (`bind(` integer-literal, integer-literal `)`)?
-                    (`built_in(` string-literal `)`)?
                     attribute-dict? `:` spirv-pointer-type
     ```
 
-    where `init` specifies initializer and `bind` specifies the
-    descriptor set and binding number. `built_in` specifies SPIR-V
-    BuiltIn decoration associated with the op.
+    where `init` specifies initializer.
 
     #### Example:
 
@@ -515,9 +512,7 @@ def SPV_VariableOp : SPV_Op<"Variable", []> {
     %0 = spv.constant ...
 
     %1 = spv.Variable : !spv.ptr<f32, Function>
-    %2 = spv.Variable init(%0): !spv.ptr<f32, Private>
-    %3 = spv.Variable init(%0) bind(1, 2): !spv.ptr<f32, Uniform>
-    %3 = spv.Variable built_in("GlobalInvocationID") : !spv.ptr<vector<3xi32>, Uniform>
+    %2 = spv.Variable init(%0): !spv.ptr<f32, Function>
     ```
   }];
 

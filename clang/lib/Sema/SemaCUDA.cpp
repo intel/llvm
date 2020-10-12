@@ -17,6 +17,7 @@
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Lookup.h"
+#include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaDiagnostic.h"
 #include "clang/Sema/SemaInternal.h"
@@ -714,9 +715,8 @@ bool Sema::CheckCUDACall(SourceLocation Loc, FunctionDecl *Callee) {
                                       CallerKnownEmitted] {
     switch (IdentifyCUDAPreference(Caller, Callee)) {
     case CFP_Never:
-      return DeviceDiagBuilder::K_Immediate;
     case CFP_WrongSide:
-      assert(Caller && "WrongSide calls require a non-null caller");
+      assert(Caller && "Never/wrongSide calls require a non-null caller");
       // If we know the caller will be emitted, we know this wrong-side call
       // will be emitted, so it's an immediate error.  Otherwise, defer the
       // error until we know the caller is emitted.
@@ -739,27 +739,66 @@ bool Sema::CheckCUDACall(SourceLocation Loc, FunctionDecl *Callee) {
 
   DeviceDiagBuilder(DiagKind, Loc, diag::err_ref_bad_target, Caller, *this)
       << IdentifyCUDATarget(Callee) << Callee << IdentifyCUDATarget(Caller);
-  DeviceDiagBuilder(DiagKind, Callee->getLocation(), diag::note_previous_decl,
-                    Caller, *this)
-      << Callee;
+  if (!Callee->getBuiltinID())
+    DeviceDiagBuilder(DiagKind, Callee->getLocation(), diag::note_previous_decl,
+                      Caller, *this)
+        << Callee;
   return DiagKind != DeviceDiagBuilder::K_Immediate &&
          DiagKind != DeviceDiagBuilder::K_ImmediateWithCallStack;
+}
+
+// Check the wrong-sided reference capture of lambda for CUDA/HIP.
+// A lambda function may capture a stack variable by reference when it is
+// defined and uses the capture by reference when the lambda is called. When
+// the capture and use happen on different sides, the capture is invalid and
+// should be diagnosed.
+void Sema::CUDACheckLambdaCapture(CXXMethodDecl *Callee,
+                                  const sema::Capture &Capture) {
+  // In host compilation we only need to check lambda functions emitted on host
+  // side. In such lambda functions, a reference capture is invalid only
+  // if the lambda structure is populated by a device function or kernel then
+  // is passed to and called by a host function. However that is impossible,
+  // since a device function or kernel can only call a device function, also a
+  // kernel cannot pass a lambda back to a host function since we cannot
+  // define a kernel argument type which can hold the lambda before the lambda
+  // itself is defined.
+  if (!LangOpts.CUDAIsDevice)
+    return;
+
+  // File-scope lambda can only do init captures for global variables, which
+  // results in passing by value for these global variables.
+  FunctionDecl *Caller = dyn_cast<FunctionDecl>(CurContext);
+  if (!Caller)
+    return;
+
+  // In device compilation, we only need to check lambda functions which are
+  // emitted on device side. For such lambdas, a reference capture is invalid
+  // only if the lambda structure is populated by a host function then passed
+  // to and called in a device function or kernel.
+  bool CalleeIsDevice = Callee->hasAttr<CUDADeviceAttr>();
+  bool CallerIsHost =
+      !Caller->hasAttr<CUDAGlobalAttr>() && !Caller->hasAttr<CUDADeviceAttr>();
+  bool ShouldCheck = CalleeIsDevice && CallerIsHost;
+  if (!ShouldCheck || !Capture.isReferenceCapture())
+    return;
+  auto DiagKind = DeviceDiagBuilder::K_Deferred;
+  if (Capture.isVariableCapture()) {
+    DeviceDiagBuilder(DiagKind, Capture.getLocation(),
+                      diag::err_capture_bad_target, Callee, *this)
+        << Capture.getVariable();
+  } else if (Capture.isThisCapture()) {
+    DeviceDiagBuilder(DiagKind, Capture.getLocation(),
+                      diag::err_capture_bad_target_this_ptr, Callee, *this);
+  }
+  return;
 }
 
 void Sema::CUDASetLambdaAttrs(CXXMethodDecl *Method) {
   assert(getLangOpts().CUDA && "Should only be called during CUDA compilation");
   if (Method->hasAttr<CUDAHostAttr>() || Method->hasAttr<CUDADeviceAttr>())
     return;
-  FunctionDecl *CurFn = dyn_cast<FunctionDecl>(CurContext);
-  if (!CurFn)
-    return;
-  CUDAFunctionTarget Target = IdentifyCUDATarget(CurFn);
-  if (Target == CFT_Global || Target == CFT_Device) {
-    Method->addAttr(CUDADeviceAttr::CreateImplicit(Context));
-  } else if (Target == CFT_HostDevice) {
-    Method->addAttr(CUDADeviceAttr::CreateImplicit(Context));
-    Method->addAttr(CUDAHostAttr::CreateImplicit(Context));
-  }
+  Method->addAttr(CUDADeviceAttr::CreateImplicit(Context));
+  Method->addAttr(CUDAHostAttr::CreateImplicit(Context));
 }
 
 void Sema::checkCUDATargetOverload(FunctionDecl *NewFD,

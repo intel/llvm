@@ -66,6 +66,9 @@ struct GCOVOptions {
   // Add the 'noredzone' attribute to added runtime library calls.
   bool NoRedZone;
 
+  // Use atomic profile counter increments.
+  bool Atomic = false;
+
   // Regexes separated by a semi-colon to filter the files to instrument.
   std::string Filter;
 
@@ -87,6 +90,8 @@ ModulePass *createPGOInstrumentationGenCreateVarLegacyPass(
 ModulePass *createPGOIndirectCallPromotionLegacyPass(bool InLTO = false,
                                                      bool SamplePGO = false);
 FunctionPass *createPGOMemOPSizeOptLegacyPass();
+
+ModulePass *createCGProfileLegacyPass();
 
 // The pgo-specific indirect call promotion function declared below is used by
 // the pgo-driven indirect call promotion and sample profile passes. It's a
@@ -141,9 +146,8 @@ ModulePass *createInstrProfilingLegacyPass(
 ModulePass *createInstrOrderFilePass();
 
 // Insert DataFlowSanitizer (dynamic data flow analysis) instrumentation
-ModulePass *createDataFlowSanitizerPass(
-    const std::vector<std::string> &ABIListFiles = std::vector<std::string>(),
-    void *(*getArgTLS)() = nullptr, void *(*getRetValTLS)() = nullptr);
+ModulePass *createDataFlowSanitizerLegacyPassPass(
+    const std::vector<std::string> &ABIListFiles = std::vector<std::string>());
 
 // Options for sanitizer coverage instrumentation.
 struct SanitizerCoverageOptions {

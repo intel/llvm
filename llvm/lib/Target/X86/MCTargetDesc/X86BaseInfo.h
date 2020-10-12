@@ -62,6 +62,8 @@ namespace X86 {
     IP_HAS_LOCK = 16,
     IP_HAS_NOTRACK = 32,
     IP_USE_VEX3 = 64,
+    IP_USE_DISP8 = 128,
+    IP_USE_DISP32 = 256,
   };
 
   enum OperandType : unsigned {
@@ -623,6 +625,15 @@ namespace X86II {
     /// information.  In the intel manual these are represented as /0, /1, ...
     ///
 
+    // Instructions operate on a register Reg/Opcode operand not the r/m field.
+    MRMr0 = 21,
+
+    /// MRMSrcMem - But force to use the SIB field.
+    MRMSrcMemFSIB  = 22,
+
+    /// MRMDestMem - But force to use the SIB field.
+    MRMDestMemFSIB = 23,
+
     /// MRMDestMem - This form is used for instructions that use the Mod/RM byte
     /// to specify a destination, which in this case is memory.
     ///
@@ -1082,8 +1093,10 @@ namespace X86II {
     case X86II::PrefixByte:
       return -1;
     case X86II::MRMDestMem:
+    case X86II::MRMDestMemFSIB:
       return 0;
     case X86II::MRMSrcMem:
+    case X86II::MRMSrcMemFSIB:
       // Start from 1, skip any registers encoded in VEX_VVVV or I8IMM, or a
       // mask register.
       return 1 + HasVEX_4V + HasEVEX_K;
@@ -1103,6 +1116,7 @@ namespace X86II {
     case X86II::MRMSrcRegOp4:
     case X86II::MRMSrcRegCC:
     case X86II::MRMXrCC:
+    case X86II::MRMr0:
     case X86II::MRMXr:
     case X86II::MRM0r: case X86II::MRM1r:
     case X86II::MRM2r: case X86II::MRM3r:

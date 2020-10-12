@@ -14,7 +14,6 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
-#include <detail/program_impl.hpp>
 
 #include <cassert>
 #include <memory>
@@ -62,6 +61,15 @@ public:
   /// \param ProgramImpl is a valid instance of program_impl
   kernel_impl(ContextImplPtr Context, ProgramImplPtr ProgramImpl);
 
+  // This section means the object is non-movable and non-copyable
+  // There is no need of move and copy constructors in kernel_impl.
+  // If they need to be added, piKernelRetain method for MKernel
+  // should be present.
+  kernel_impl(const kernel_impl &) = delete;
+  kernel_impl(kernel_impl &&) = delete;
+  kernel_impl &operator=(const kernel_impl &) = delete;
+  kernel_impl &operator=(kernel_impl &&) = delete;
+
   ~kernel_impl();
 
   /// Gets a valid OpenCL kernel handle
@@ -93,6 +101,27 @@ public:
   template <info::kernel param>
   typename info::param_traits<info::kernel, param>::return_type
   get_info() const;
+
+  /// Query device-specific information from a kernel object using the
+  /// info::kernel_device_specific descriptor.
+  ///
+  /// \param Device is a valid SYCL device to query info for.
+  /// \return depends on information being queried.
+  template <info::kernel_device_specific param>
+  typename info::param_traits<info::kernel_device_specific, param>::return_type
+  get_info(const device &Device) const;
+
+  /// Query device-specific information from a kernel using the
+  /// info::kernel_device_specific descriptor for a specific device and value.
+  ///
+  /// \param Device is a valid SYCL device.
+  /// \param Value depends on information being queried.
+  /// \return depends on information being queried.
+  template <info::kernel_device_specific param>
+  typename info::param_traits<info::kernel_device_specific, param>::return_type
+  get_info(const device &Device,
+           typename info::param_traits<info::kernel_device_specific,
+                                       param>::input_type Value) const;
 
   /// Query work-group information from a kernel using the
   /// info::kernel_work_group descriptor for a specific device.

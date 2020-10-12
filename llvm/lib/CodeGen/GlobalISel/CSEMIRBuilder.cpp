@@ -13,6 +13,7 @@
 
 #include "llvm/CodeGen/GlobalISel/CSEMIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 
 using namespace llvm;
 
@@ -61,6 +62,11 @@ void CSEMIRBuilder::profileDstOp(const DstOp &Op,
   case DstOp::DstType::Ty_RC:
     B.addNodeIDRegType(Op.getRegClass());
     break;
+  case DstOp::DstType::Ty_Reg: {
+    // Regs can have LLT&(RB|RC). If those exist, profile them as well.
+    B.addNodeIDReg(Op.getReg());
+    break;
+  }
   default:
     B.addNodeIDRegType(Op.getLLTTy(*getMRI()));
     break;
@@ -70,6 +76,9 @@ void CSEMIRBuilder::profileDstOp(const DstOp &Op,
 void CSEMIRBuilder::profileSrcOp(const SrcOp &Op,
                                  GISelInstProfileBuilder &B) const {
   switch (Op.getSrcOpKind()) {
+  case SrcOp::SrcType::Ty_Imm:
+    B.addNodeIDImmediate(static_cast<int64_t>(Op.getImm()));
+    break;
   case SrcOp::SrcType::Ty_Predicate:
     B.addNodeIDImmediate(static_cast<int64_t>(Op.getPredicate()));
     break;
@@ -131,6 +140,21 @@ CSEMIRBuilder::generateCopiesIfRequired(ArrayRef<DstOp> DstOps,
     if (Op.getDstOpKind() == DstOp::DstType::Ty_Reg)
       return buildCopy(Op.getReg(), MIB.getReg(0));
   }
+
+  // If we didn't generate a copy then we're re-using an existing node directly
+  // instead of emitting any code. Merge the debug location we wanted to emit
+  // into the instruction we're CSE'ing with. Debug locations arent part of the
+  // profile so we don't need to recompute it.
+  if (getDebugLoc()) {
+    GISelChangeObserver *Observer = getState().Observer;
+    if (Observer)
+      Observer->changingInstr(*MIB);
+    MIB->setDebugLoc(
+        DILocation::getMergedLocation(MIB->getDebugLoc(), getDebugLoc()));
+    if (Observer)
+      Observer->changedInstr(*MIB);
+  }
+
   return MIB;
 }
 

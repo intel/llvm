@@ -63,6 +63,13 @@ public:
       CodeGen::CodeGenModule &CGM,
       const llvm::MapVector<GlobalDecl, StringRef> &MangledDeclNames) const {}
 
+  /// Any further codegen related checks that need to be done on a function call
+  /// in a target specific manner.
+  virtual void checkFunctionCallABI(CodeGenModule &CGM, SourceLocation CallLoc,
+                                    const FunctionDecl *Caller,
+                                    const FunctionDecl *Callee,
+                                    const CallArgList &Args) const {}
+
   /// Determines the size of struct _Unwind_Exception on this platform,
   /// in 8-bit units.  The Itanium ABI defines this as:
   ///   struct _Unwind_Exception {
@@ -156,11 +163,9 @@ public:
     return "";
   }
 
-  /// Determine whether a call to objc_retainAutoreleasedReturnValue should be
-  /// marked as 'notail'.
-  virtual bool shouldSuppressTailCallsOfRetainAutoreleasedReturnValue() const {
-    return false;
-  }
+  /// Determine whether a call to objc_retainAutoreleasedReturnValue or
+  /// objc_unsafeClaimAutoreleasedReturnValue should be marked as 'notail'.
+  virtual bool markARCOptimizedReturnCallsAsNoTail() const { return false; }
 
   /// Return a constant used by UBSan as a signature to identify functions
   /// possessing type information, or 0 if the platform is unsupported.

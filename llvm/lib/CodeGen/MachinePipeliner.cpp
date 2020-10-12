@@ -268,6 +268,7 @@ bool MachinePipeliner::scheduleLoop(MachineLoop &L) {
 void MachinePipeliner::setPragmaPipelineOptions(MachineLoop &L) {
   // Reset the pragma for the next loop in iteration.
   disabledByPragma = false;
+  II_setByPragma = 0;
 
   MachineBasicBlock *LBLK = L.getTopBlock();
 
@@ -705,14 +706,13 @@ static bool isDependenceBarrier(MachineInstr &MI, AliasAnalysis *AA) {
 /// This function calls the code in ValueTracking, but first checks that the
 /// instruction has a memory operand.
 static void getUnderlyingObjects(const MachineInstr *MI,
-                                 SmallVectorImpl<const Value *> &Objs,
-                                 const DataLayout &DL) {
+                                 SmallVectorImpl<const Value *> &Objs) {
   if (!MI->hasOneMemOperand())
     return;
   MachineMemOperand *MM = *MI->memoperands_begin();
   if (!MM->getValue())
     return;
-  GetUnderlyingObjects(MM->getValue(), Objs, DL);
+  getUnderlyingObjects(MM->getValue(), Objs);
   for (const Value *V : Objs) {
     if (!isIdentifiedObject(V)) {
       Objs.clear();
@@ -736,7 +736,7 @@ void SwingSchedulerDAG::addLoopCarriedDependences(AliasAnalysis *AA) {
       PendingLoads.clear();
     else if (MI.mayLoad()) {
       SmallVector<const Value *, 4> Objs;
-      getUnderlyingObjects(&MI, Objs, MF.getDataLayout());
+      ::getUnderlyingObjects(&MI, Objs);
       if (Objs.empty())
         Objs.push_back(UnknownValue);
       for (auto V : Objs) {
@@ -745,7 +745,7 @@ void SwingSchedulerDAG::addLoopCarriedDependences(AliasAnalysis *AA) {
       }
     } else if (MI.mayStore()) {
       SmallVector<const Value *, 4> Objs;
-      getUnderlyingObjects(&MI, Objs, MF.getDataLayout());
+      ::getUnderlyingObjects(&MI, Objs);
       if (Objs.empty())
         Objs.push_back(UnknownValue);
       for (auto V : Objs) {

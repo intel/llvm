@@ -17,6 +17,7 @@ config.cuda_toolkit_include = "@CUDA_TOOLKIT_INCLUDE@"
 config.sycl_tools_src_dir = "@SYCL_TOOLS_SRC_DIR@"
 config.llvm_build_lib_dir = "@LLVM_BUILD_LIBRARY_DIRS@"
 config.llvm_build_bin_dir = "@LLVM_BUILD_BINARY_DIRS@"
+config.sycl_clang_extra_flags = "@SYCL_CLANG_EXTRA_FLAGS@"
 
 config.llvm_enable_projects = "@LLVM_ENABLE_PROJECTS@"
 

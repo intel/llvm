@@ -74,27 +74,29 @@ macro(add_libclc_builtin_set arch_suffix)
   set( obj_suffix ${arch_suffix}.bc )
 
   # Add opt target
-  add_custom_command( OUTPUT "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/builtins.opt.${obj_suffix}"
+  set( builtins_opt_path "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/builtins.opt.${obj_suffix}" )
+  add_custom_command( OUTPUT "${builtins_opt_path}"
     COMMAND ${LLVM_OPT} -O3 -o
-    "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/builtins.opt.${obj_suffix}"
+    "${builtins_opt_path}"
     "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/builtins.link.${obj_suffix}"
     DEPENDS opt "builtins.link.${arch_suffix}" )
   add_custom_target( "opt.${obj_suffix}" ALL
-    DEPENDS "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/builtins.opt.${obj_suffix}" )
+    DEPENDS "${builtins_opt_path}" )
   set_target_properties("opt.${obj_suffix}"
-    PROPERTIES TARGET_FILE "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/builtins.opt.${obj_suffix}")
+    PROPERTIES TARGET_FILE "${builtins_opt_path}")
 
   # Add prepare target
-  add_custom_command( OUTPUT "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}"
+  set( builtins_obj_path "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}" )
+  add_custom_command( OUTPUT "${builtins_obj_path}"
     COMMAND prepare_builtins -o
-    "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}"
+    "${builtins_obj_path}"
     "$<TARGET_PROPERTY:opt.${obj_suffix},TARGET_FILE>"
-    DEPENDS "opt.${obj_suffix}"
-    prepare_builtins )
+    DEPENDS ${builtins_opt_path}
+            prepare_builtins )
   add_custom_target( "prepare-${obj_suffix}" ALL
-    DEPENDS "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}" )
+    DEPENDS "${builtins_obj_path}" )
   set_target_properties("prepare-${obj_suffix}"
-    PROPERTIES TARGET_FILE "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}")
+    PROPERTIES TARGET_FILE "${builtins_obj_path}")
 
   # Add dependency to top-level pseudo target to ease making other
   # targets dependent on libclc.
@@ -212,14 +214,17 @@ function(add_libclc_sycl_binding OUT_LIST)
     file( TO_CMAKE_PATH ${LIBCLC_ROOT_DIR}/${file} SYCLDEVICE_BINDING )
     if( EXISTS ${SYCLDEVICE_BINDING} )
       set( SYCLDEVICE_BINDING_OUT ${CMAKE_CURRENT_BINARY_DIR}/sycldevice-binding-${ARG_TRIPLE}/sycldevice-binding.bc )
+      string( REGEX REPLACE "SHELL:" "" SYLCDEVICE_OPT ${ARG_COMPILE_OPT} )
       add_custom_command( OUTPUT ${SYCLDEVICE_BINDING_OUT}
+                         COMMAND ${CMAKE_COMMAND} -E make_directory
+                         ${CMAKE_CURRENT_BINARY_DIR}/sycldevice-binding-${ARG_TRIPLE}
                          COMMAND ${LLVM_CLANG}
                          -target ${ARG_TRIPLE}-sycldevice
                          -fsycl
                          -fsycl-device-only
                          -Dcl_khr_fp64
                          -I${LIBCLC_ROOT_DIR}/generic/include
-                         ${ARG_COMPILE_OPT}
+                         ${SYCLDEVICE_OPT}
                          ${SYCLDEVICE_BINDING}
                          -o ${SYCLDEVICE_BINDING_OUT}
                      MAIN_DEPENDENCY ${SYCLDEVICE_BINDING}

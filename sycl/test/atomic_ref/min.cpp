@@ -10,7 +10,7 @@
 #include <numeric>
 #include <vector>
 using namespace sycl;
-using namespace sycl::intel;
+using namespace sycl::ONEAPI;
 
 template <typename T>
 void min_test(queue q, size_t N) {
@@ -27,7 +27,9 @@ void min_test(queue q, size_t N) {
       auto out = output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = atomic_ref<T, intel::memory_order::relaxed, intel::memory_scope::device, access::address_space::global_space>(val[0]);
+        auto atm = atomic_ref<T, ONEAPI::memory_order::relaxed,
+                              ONEAPI::memory_scope::device,
+                              access::address_space::global_space>(val[0]);
         out[gid] = atm.fetch_min(T(gid));
       });
     });
@@ -55,8 +57,6 @@ int main() {
   }
 
   constexpr int N = 32;
-
-  // TODO: Enable missing tests when supported
   min_test<int>(q, N);
   min_test<unsigned int>(q, N);
   min_test<long>(q, N);
@@ -65,7 +65,6 @@ int main() {
   min_test<unsigned long long>(q, N);
   min_test<float>(q, N);
   min_test<double>(q, N);
-  //min_test<char*>(q, N);
 
   std::cout << "Test passed." << std::endl;
 }

@@ -57,6 +57,7 @@ namespace llvm {
   class MCSymbol;
   class MCSymbolELF;
   class MCSymbolWasm;
+  class MCSymbolXCOFF;
   class SMLoc;
   class SourceMgr;
 
@@ -96,6 +97,7 @@ namespace llvm {
     SpecificBumpPtrAllocator<MCSectionMachO> MachOAllocator;
     SpecificBumpPtrAllocator<MCSectionWasm> WasmAllocator;
     SpecificBumpPtrAllocator<MCSectionXCOFF> XCOFFAllocator;
+    SpecificBumpPtrAllocator<MCInst> MCInstAllocator;
 
     /// Bindings of names to symbols.
     SymbolTable Symbols;
@@ -308,6 +310,9 @@ namespace llvm {
                                        unsigned UniqueID,
                                        const MCSymbolELF *LinkedToSym);
 
+    MCSymbolXCOFF *createXCOFFSymbolImpl(const StringMapEntry<bool> *Name,
+                                         bool IsTemporary);
+
     /// Map of currently defined macros.
     StringMap<MCAsmMacro> MacroMap;
 
@@ -375,6 +380,11 @@ namespace llvm {
     void reset();
 
     /// @}
+
+    /// \name McInst Management
+
+    /// Create and return a new MC instruction.
+    MCInst *createMCInst();
 
     /// \name Symbol Management
     /// @{
@@ -555,7 +565,6 @@ namespace llvm {
     MCSectionXCOFF *getXCOFFSection(StringRef Section,
                                     XCOFF::StorageMappingClass MappingClass,
                                     XCOFF::SymbolType CSectType,
-                                    XCOFF::StorageClass StorageClass,
                                     SectionKind K,
                                     const char *BeginSymName = nullptr);
 

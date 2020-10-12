@@ -46,9 +46,11 @@
 #include <iostream>
 #include <set>
 #include <string>
-#include <unordered_map>
-#include <unordered_set>
 #include <vector>
+
+namespace llvm {
+class APInt;
+} // namespace llvm
 
 namespace SPIRV {
 
@@ -89,6 +91,7 @@ class SPIRVInstTemplateBase;
 class SPIRVAsmTargetINTEL;
 class SPIRVAsmINTEL;
 class SPIRVAsmCallINTEL;
+class SPIRVTypeBufferSurfaceINTEL;
 
 typedef SPIRVBasicBlock SPIRVLabel;
 struct SPIRVTypeImageDescriptor;
@@ -163,7 +166,6 @@ public:
   virtual void setMemoryModel(SPIRVMemoryModelKind) = 0;
   virtual void setName(SPIRVEntry *, const std::string &) = 0;
   virtual void setSourceLanguage(SourceLanguage, SPIRVWord) = 0;
-  virtual void optimizeDecorates() = 0;
   virtual void setAutoAddCapability(bool E) { AutoAddCapability = E; }
   virtual void setValidateCapability(bool E) { ValidateCapability = E; }
   virtual void setAutoAddExtensions(bool E) { AutoAddExtensions = E; }
@@ -243,13 +245,18 @@ public:
   virtual SPIRVTypePipe *addPipeType() = 0;
   virtual SPIRVType *addSubgroupAvcINTELType(Op) = 0;
   virtual SPIRVTypeVmeImageINTEL *addVmeImageINTELType(SPIRVTypeImage *) = 0;
+  virtual SPIRVTypeBufferSurfaceINTEL *
+  addBufferSurfaceINTELType(SPIRVAccessQualifierKind Access) = 0;
   virtual void createForwardPointers() = 0;
 
   // Constants creation functions
   virtual SPIRVValue *
   addCompositeConstant(SPIRVType *, const std::vector<SPIRVValue *> &) = 0;
+  virtual SPIRVValue *addConstFunctionPointerINTEL(SPIRVType *Ty,
+                                                   SPIRVFunction *F) = 0;
   virtual SPIRVValue *addConstant(SPIRVValue *) = 0;
   virtual SPIRVValue *addConstant(SPIRVType *, uint64_t) = 0;
+  virtual SPIRVValue *addConstant(SPIRVType *, llvm::APInt) = 0;
   virtual SPIRVValue *addSpecConstant(SPIRVType *, uint64_t) = 0;
   virtual SPIRVValue *addDoubleConstant(SPIRVTypeFloat *, double) = 0;
   virtual SPIRVValue *addFloatConstant(SPIRVTypeFloat *, float) = 0;
@@ -303,9 +310,6 @@ public:
   virtual SPIRVInstruction *addIndirectCallInst(SPIRVValue *, SPIRVType *,
                                                 const std::vector<SPIRVWord> &,
                                                 SPIRVBasicBlock *) = 0;
-  virtual SPIRVInstruction *addFunctionPointerINTELInst(SPIRVType *,
-                                                        SPIRVFunction *,
-                                                        SPIRVBasicBlock *) = 0;
   virtual SPIRVEntry *getOrAddAsmTargetINTEL(const std::string &) = 0;
   virtual SPIRVValue *addAsmINTEL(SPIRVTypeFunction *, SPIRVAsmTargetINTEL *,
                                   const std::string &, const std::string &) = 0;
@@ -372,6 +376,14 @@ public:
   addLoopControlINTELInst(SPIRVWord LoopControl,
                           std::vector<SPIRVWord> LoopControlParameters,
                           SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVInstruction *
+  addFixedPointIntelInst(Op OC, SPIRVType *ResTy, SPIRVValue *Input,
+                         const std::vector<SPIRVWord> &Ops,
+                         SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVInstruction *
+  addArbFloatPointIntelInst(Op OC, SPIRVType *ResTy, SPIRVValue *InA,
+                            SPIRVValue *InB, const std::vector<SPIRVWord> &Ops,
+                            SPIRVBasicBlock *BB) = 0;
   virtual SPIRVInstruction *addStoreInst(SPIRVValue *, SPIRVValue *,
                                          const std::vector<SPIRVWord> &,
                                          SPIRVBasicBlock *) = 0;
@@ -454,16 +466,6 @@ public:
     return TranslationOpts.isAllowedToUseExtension(RequestedExtension);
   }
 
-  virtual bool
-  isAllowedToUseExtensions(const SPIRVExtSet &RequestedExtensions) const final {
-    for (const auto &Ext : RequestedExtensions) {
-      if (!TranslationOpts.isAllowedToUseExtension(Ext))
-        return false;
-    }
-
-    return true;
-  }
-
   virtual bool isGenArgNameMDEnabled() const final {
     return TranslationOpts.isGenArgNameMDEnabled();
   }
@@ -474,6 +476,30 @@ public:
 
   FPContractMode getFPContractMode() const {
     return TranslationOpts.getFPContractMode();
+  }
+
+  bool isSPIRVAllowUnknownIntrinsicsEnabled() const noexcept {
+    return TranslationOpts.isSPIRVAllowUnknownIntrinsicsEnabled();
+  }
+
+  bool allowExtraDIExpressions() const noexcept {
+    return TranslationOpts.allowExtraDIExpressions();
+  }
+
+  SPIRVExtInstSetKind getDebugInfoEIS() const {
+    switch (TranslationOpts.getDebugInfoEIS()) {
+    case DebugInfoEIS::SPIRV_Debug:
+      return SPIRVEIS_Debug;
+    case DebugInfoEIS::OpenCL_DebugInfo_100:
+      return SPIRVEIS_OpenCL_DebugInfo_100;
+    default:
+      assert(false && "Unexpected debug info EIS!");
+      return SPIRVEIS_Debug;
+    }
+  }
+
+  BIsRepresentation getDesiredBIsRepresentation() const {
+    return TranslationOpts.getDesiredBIsRepresentation();
   }
 
   // I/O functions

@@ -45,7 +45,7 @@ namespace Fortran::evaluate::characteristics {
 
 using common::CopyableIndirection;
 
-// Are these procedures distinguishable for a generic name?
+// Are these procedures distinguishable for a generic name or FINAL?
 bool Distinguishable(const Procedure &, const Procedure &);
 // Are these procedures distinguishable for a generic operator or assignment?
 bool DistinguishableOpOrAssign(const Procedure &, const Procedure &);
@@ -78,6 +78,7 @@ public:
 
   bool operator==(const TypeAndShape &) const;
   bool operator!=(const TypeAndShape &that) const { return !(*this == that); }
+
   static std::optional<TypeAndShape> Characterize(
       const semantics::Symbol &, FoldingContext &);
   static std::optional<TypeAndShape> Characterize(
@@ -90,6 +91,8 @@ public:
       const semantics::ProcInterface &);
   static std::optional<TypeAndShape> Characterize(
       const semantics::DeclTypeSpec &);
+  static std::optional<TypeAndShape> Characterize(
+      const ActualArgument &, FoldingContext &);
 
   template <typename A>
   static std::optional<TypeAndShape> Characterize(
@@ -113,6 +116,24 @@ public:
       }
     }
     return std::nullopt;
+  }
+  template <typename A>
+  static std::optional<TypeAndShape> Characterize(
+      const std::optional<A> &x, FoldingContext &context) {
+    if (x) {
+      return Characterize(*x, context);
+    } else {
+      return std::nullopt;
+    }
+  }
+  template <typename A>
+  static std::optional<TypeAndShape> Characterize(
+      const A *x, FoldingContext &context) {
+    if (x) {
+      return Characterize(*x, context);
+    } else {
+      return std::nullopt;
+    }
   }
 
   DynamicType type() const { return type_; }

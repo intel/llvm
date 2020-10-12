@@ -2,11 +2,11 @@
 // expected-no-diagnostics
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/intel/esimd.hpp>
+#include <CL/sycl/INTEL/esimd.hpp>
 #include <limits>
 #include <utility>
 
-using namespace sycl::intel::gpu;
+using namespace sycl::INTEL::gpu;
 using namespace cl::sycl;
 
 void kernel() __attribute__((sycl_device)) {
@@ -15,7 +15,7 @@ void kernel() __attribute__((sycl_device)) {
 
   auto v0 = slm_load<int, 32>(offsets);
 
-  slm_fence(3);
+  esimd_fence(3);
   esimd_barrier();
 
   v0 = v0 + v1;

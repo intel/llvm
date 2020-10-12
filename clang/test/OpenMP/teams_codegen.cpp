@@ -29,7 +29,7 @@ int teams_argument_global_local(int a){
   int la = 23;
   float lc = 25.0;
 
-  // CK1: call i32 @__tgt_target_teams(i64 -1, i8* @{{[^,]+}}, i32 1, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i32 0, i32 0)
+  // CK1: call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 1, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i8** null, i32 0, i32 0)
   // CK1: call void @{{.+}}(i{{64|32}} %{{.+}})
   #pragma omp target
   #pragma omp teams
@@ -37,7 +37,7 @@ int teams_argument_global_local(int a){
     ++comp;
   }
 
-  // CK1: call i32 @__tgt_target_teams(i64 -1, i8* @{{[^,]+}}, i32 1, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i32 0, i32 0)
+  // CK1: call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 1, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i8** null, i32 0, i32 0)
   // CK1: call void @{{.+}}(i{{64|32}} %{{.+}})
   #pragma omp target
   {{{
@@ -47,7 +47,7 @@ int teams_argument_global_local(int a){
     }
   }}}
 
-  // CK1-DAG: call i32 @__tgt_target_teams(i64 -1, i8* @{{[^,]+}}, i32 2, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i32 [[NT:%[^,]+]], i32 0)
+  // CK1-DAG: call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 2, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i8** null, i32 [[NT:%[^,]+]], i32 0)
   // CK1-DAG: [[NT]] = load i32, i32* [[NTA:%[^,]+]],
 
   // CK1: call void @{{.+}}(i{{64|32}} %{{.+}})
@@ -57,7 +57,7 @@ int teams_argument_global_local(int a){
     ++comp;
   }
 
-  // CK1-DAG: call i32 @__tgt_target_teams(i64 -1, i8* @{{[^,]+}}, i32 2, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i32 0, i32 [[NT:%[^,]+]])
+  // CK1-DAG: call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 2, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i8** null, i32 0, i32 [[NT:%[^,]+]])
   // CK1-DAG: [[NT]] = load i32, i32* [[NTA:%[^,]+]],
 
   // CK1: call void @{{.+}}(i{{64|32}} %{{.+}})
@@ -67,7 +67,7 @@ int teams_argument_global_local(int a){
     ++comp;
   }
 
-  // CK1-DAG: call i32 @__tgt_target_teams(i64 -1, i8* @{{[^,]+}}, i32 5, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i32 [[NT:%[^,]+]], i32 [[TL:%[^,]+]])
+  // CK1-DAG: call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 5, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i8** null, i32 [[NT:%[^,]+]], i32 [[TL:%[^,]+]])
 
   // CK1-DAG: [[NT]] = add nsw i32 [[NTA:%[^,]+]], [[NTB:%[^,]+]]
   // CK1-DAG: [[NTA]] = load i32, i32* @Gbla,
@@ -86,7 +86,7 @@ int teams_argument_global_local(int a){
     ++comp;
   }
 
-  // CK1-DAG: call i32 @__tgt_target_teams(i64 -1, i8* @{{[^,]+}}, i32 {{.+}}, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i32 [[NT:%[^,]+]], i32 [[TL:%[^,]+]])
+  // CK1-DAG: call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 {{.+}}, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i8** null, i32 [[NT:%[^,]+]], i32 [[TL:%[^,]+]])
 
   // CK1-DAG: [[NT]] = add nsw i32 [[NTA:%[^,]+]], 1
   // CK1-DAG: [[NTA]] = load i32, i32* @Gbla,
@@ -141,7 +141,7 @@ int teams_template_arg(void) {
   SS<int> la;
   SS<long long> lb;
 
-  // CK2-DAG: call i32 @__tgt_target_teams(i64 -1, i8* @{{[^,]+}}, i32 3, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i32 [[NT:%[^,]+]], i32 [[TL:%[^,]+]])
+  // CK2-DAG: call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 3, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i8** null, i32 [[NT:%[^,]+]], i32 [[TL:%[^,]+]])
 
   // CK2-DAG: [[NT]] = load i32, i32* getelementptr inbounds ([[SSI]], [[SSI]]* @Gbla, i32 0, i32 0)
 
@@ -157,7 +157,7 @@ int teams_template_arg(void) {
     ++comp;
   }
 
-  // CK2-DAG: call i32 @__tgt_target_teams(i64 -1, i8* @{{[^,]+}}, i32 3, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i32 [[NT:%[^,]+]], i32 [[TL:%[^,]+]])
+  // CK2-DAG: call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 3, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i8** null, i32 [[NT:%[^,]+]], i32 [[TL:%[^,]+]])
 
   // CK2-DAG: [[TL]] = trunc i64 [[TLD:%[^,]+]] to i32
   // CK2-DAG: [[TLD]] = load i64, i64* getelementptr inbounds ([[SSL]], [[SSL]]* @Gblb, i32 0, i32 0),
@@ -205,7 +205,7 @@ struct SS{
   int foo(void) {
     int comp = 1;
 
-    // CK3-DAG: call i32 @__tgt_target_teams(i64 -1, i8* @{{[^,]+}}, i32 3, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* %{{[^,]+}}, i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i32 [[NT:%[^,]+]], i32 123)
+    // CK3-DAG: call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 3, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* %{{[^,]+}}, i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i8** null, i32 [[NT:%[^,]+]], i32 123)
 
     // CK3-DAG: [[NT]] = load i32, i32* [[NTA:%[^,]+]],
     // CK3-DAG: [[NTA]] = getelementptr inbounds [[SSI]], [[SSI]]* [[NTB:%[^,]+]], i32 0, i32 0
@@ -218,7 +218,7 @@ struct SS{
       ++comp;
     }
 
-    // CK3-DAG: call i32 @__tgt_target_teams(i64 -1, i8* @{{[^,]+}}, i32 3, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* %{{[^,]+}}, i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i32 456, i32 [[TL:%[^,]+]])
+    // CK3-DAG: call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 3, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* %{{[^,]+}}, i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i8** null, i32 456, i32 [[TL:%[^,]+]])
 
     // CK3-DAG: [[TL]] = add nsw i32 [[TLA:%[^,]+]], 123
     // CK3-DAG: [[TLA]] = fptosi float [[TLB:%[^,]+]] to i32
@@ -266,7 +266,7 @@ int teams_template_struct(void) {
 
 // CK4-DAG: %struct.ident_t = type { i32, i32, i32, i32, i8* }
 // CK4-DAG: [[STR:@.+]] = private unnamed_addr constant [23 x i8] c";unknown;unknown;0;0;;\00"
-// CK4-DAG: [[DEF_LOC_0:@.+]] = private unnamed_addr global %struct.ident_t { i32 0, i32 2, i32 0, i32 0, i8* getelementptr inbounds ([23 x i8], [23 x i8]* [[STR]], i32 0, i32 0) }
+// CK4-DAG: [[DEF_LOC_0:@.+]] = private unnamed_addr constant %struct.ident_t { i32 0, i32 2, i32 0, i32 0, i8* getelementptr inbounds ([23 x i8], [23 x i8]* [[STR]], i32 0, i32 0) }
 // CK4-DEBUG-DAG: [[LOC1:@.+]] = private unnamed_addr constant [{{.+}} x i8] c";{{.*}}teams_codegen.cpp;main;[[@LINE+14]];9;;\00"
 // CK4-DEBUG-DAG: [[LOC2:@.+]] = private unnamed_addr constant [{{.+}} x i8] c";{{.*}}teams_codegen.cpp;tmain;[[@LINE+7]];9;;\00"
 
@@ -327,7 +327,7 @@ int main (int argc, char **argv) {
 
 // CK5-DAG: %struct.ident_t = type { i32, i32, i32, i32, i8* }
 // CK5-DAG: [[STR:@.+]] = private unnamed_addr constant [23 x i8] c";unknown;unknown;0;0;;\00"
-// CK5-DAG: [[DEF_LOC_0:@.+]] = private unnamed_addr global %struct.ident_t { i32 0, i32 2, i32 0, i32 0, i8* getelementptr inbounds ([23 x i8], [23 x i8]* [[STR]], i32 0, i32 0) }
+// CK5-DAG: [[DEF_LOC_0:@.+]] = private unnamed_addr constant %struct.ident_t { i32 0, i32 2, i32 0, i32 0, i8* getelementptr inbounds ([23 x i8], [23 x i8]* [[STR]], i32 0, i32 0) }
 // CK5-DEBUG-DAG: [[LOC1:@.+]] = private unnamed_addr constant [{{.+}} x i8] c";{{.*}}teams_codegen.cpp;main;[[@LINE+14]];9;;\00"
 // CK5-DEBUG-DAG: [[LOC2:@.+]] = private unnamed_addr constant [{{.+}} x i8] c";{{.*}}teams_codegen.cpp;tmain;[[@LINE+7]];9;;\00"
 
@@ -414,7 +414,7 @@ int main (int argc, char **argv) {
 
 // CK6-LABEL: foo
 void foo() {
-  // CK6: call void (%struct.ident_t*, i32, void (i32*, i32*, ...)*, ...) @__kmpc_fork_teams(%struct.ident_t* @0, i32 0, void (i32*, i32*, ...)* bitcast (void (i32*, i32*)* @{{.+}} to void (i32*, i32*, ...)*))
+  // CK6: call void (%struct.ident_t*, i32, void (i32*, i32*, ...)*, ...) @__kmpc_fork_teams(%struct.ident_t* @1, i32 0, void (i32*, i32*, ...)* bitcast (void (i32*, i32*)* @{{.+}} to void (i32*, i32*, ...)*))
 #pragma omp teams
   ;
 }

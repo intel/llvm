@@ -14,6 +14,8 @@
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/event.hpp>
+#include <CL/sycl/properties/buffer_properties.hpp>
+#include <CL/sycl/properties/image_properties.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 

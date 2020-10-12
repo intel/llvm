@@ -87,9 +87,10 @@ static_library("Driver") {
     "ToolChains/RISCVToolchain.cpp",
     "ToolChains/Solaris.cpp",
     "ToolChains/TCE.cpp",
-    "ToolChains/VE.cpp",
+    "ToolChains/VEToolchain.cpp",
     "ToolChains/WebAssembly.cpp",
     "ToolChains/XCore.cpp",
+    "ToolChains/ZOS.cpp",
     "Types.cpp",
     "XRayArgs.cpp",
   ]
