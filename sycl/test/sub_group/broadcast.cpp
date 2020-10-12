@@ -1,4 +1,3 @@
-// XFAIL: cpu
 // UNSUPPORTED: cuda
 // CUDA compilation and runtime do not yet support sub-groups.
 
