@@ -26,9 +26,6 @@ class device_selector;
 namespace detail {
 class device_impl;
 }
-namespace level_zero {
-device make_device(const platform &Platform, pi_native_handle NativeHandle);
-}
 
 /// The SYCL device class encapsulates a single SYCL device on which kernels
 /// may be executed.
@@ -207,9 +204,6 @@ private:
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
-
-  friend device level_zero::make_device(const platform &Platform,
-                                        pi_native_handle NativeHandle);
 };
 
 } // namespace sycl
