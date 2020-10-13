@@ -761,7 +761,7 @@ protected:
   void allocateStreamBuffers(stream_impl *, size_t, size_t);
 
   /// Deallocate all stream buffers in the pool
-  void deallocateStreamBuffers(stream_impl*);
+  void deallocateStreamBuffers(stream_impl *);
 };
 
 } // namespace detail
