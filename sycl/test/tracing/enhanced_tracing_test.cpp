@@ -6,32 +6,32 @@
 // Test to check enhanced PI tracing
 
 // CHECK: ---> piMemBufferCreate(
-// CHECK-NEXT: 	<unknown> : 0x{{[0-9a-fA-F]*}}
+// CHECK-NEXT: 	<unknown> : {{0x?[0-9a-fA-F]*}}
 // CHECK-NEXT: 	<unknown> : 1
 // CHECK-NEXT: 	<unknown> : 40
 // CHECK-NEXT: 	<unknown> : 0
-// CHECK-NEXT: 	<unknown> : 0x{{[0-9a-fA-F]*}}
+// CHECK-NEXT: 	<unknown> : {{0x?[0-9a-fA-F]*}}
 // CHECK-NEXT: ) ---> 	pi_result : PI_SUCCESS
-// CHECK-NEXT: 	[out]void * : 0
-// CHECK-NEXT: 	[out]pi_mem * : 0x{{[0-9a-fA-F]*}}[ 0x{{[0-9a-fA-F]*}} ... ]
+// CHECK-NEXT: 	[out]void * : {{0+}}
+// CHECK-NEXT: 	[out]pi_mem * : {{0x?[0-9a-fA-F]*}}[ {{0x?[0-9a-fA-F]*}} ... ]
 //
 // CHECK: ---> piEnqueueKernelLaunch(
-// CHECK-NEXT: 	<unknown> : 0x{{[0-9a-fA-F]*}}
-// CHECK-NEXT: 	<unknown> : 0x{{[0-9a-fA-F]*}}
+// CHECK-NEXT: 	<unknown> : {{0x?[0-9a-fA-F]*}}
+// CHECK-NEXT: 	<unknown> : {{0x?[0-9a-fA-F]*}}
 // CHECK-NEXT: 	<unknown> : 1
-// CHECK-NEXT: 	<unknown> : 0x{{[0-9a-fA-F]*}}
-// CHECK-NEXT: 	<unknown> : 0x{{[0-9a-fA-F]*}}
+// CHECK-NEXT: 	<unknown> : {{0x?[0-9a-fA-F]*}}
+// CHECK-NEXT: 	<unknown> : {{0x?[0-9a-fA-F]*}}
 // CHECK-NEXT: 	<unknown> : 0
 // CHECK-NEXT: 	<unknown> : 0
-// CHECK-NEXT: 	pi_event * : 0[ nullptr ]
-// CHECK-NEXT: 	pi_event * : 0x{{[0-9a-fA-F]*}}[ 0 ... ]
+// CHECK-NEXT: 	pi_event * : {{0+}}[ nullptr ]
+// CHECK-NEXT: 	pi_event * : {{0x?[0-9a-fA-F]*}}[ {{0+}} ... ]
 // CHECK-NEXT: ) ---> 	pi_result : PI_SUCCESS
-// CHECK-NEXT: 	[out]pi_event * : 0[ nullptr ]
-// CHECK-NEXT: 	[out]pi_event * : 0x{{[0-9a-fA-F]*}}[ 0x{{[0-9a-fA-F]*}} ... ]
+// CHECK-NEXT: 	[out]pi_event * : {{0+}}[ nullptr ]
+// CHECK-NEXT: 	[out]pi_event * : {{0x?[0-9a-fA-F]*}}[ {{0x?[0-9a-fA-F]*}} ... ]
 //
 // CHECK: ---> piEventsWait(
 // CHECK-NEXT: 	<unknown> : 1
-// CHECK-NEXT: 	const pi_event * : 0x{{[0-9a-fA-F]*}}[ 0x{{[0-9a-fA-F]*}} ... ]
+// CHECK-NEXT: 	const pi_event * : {{0x?[0-9a-fA-F]*}}[ {{0x?[0-9a-fA-F]*}} ... ]
 // CHECK-NEXT: ) ---> 	pi_result : PI_SUCCESS
 
 #include <CL/sycl.hpp>
