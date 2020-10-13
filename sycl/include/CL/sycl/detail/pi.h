@@ -390,6 +390,7 @@ typedef enum {
 
 typedef enum {
   // Device-specific value opaque in PI API.
+  PI_MEM_ADVISE_UNKNOWN
 } _pi_mem_advice;
 
 typedef enum {
