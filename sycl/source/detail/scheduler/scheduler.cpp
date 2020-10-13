@@ -14,7 +14,7 @@
 #include <detail/stream_impl.hpp>
 
 #include <chrono>
-#include <cstdio>
+#include <iostream>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -153,6 +153,16 @@ void Scheduler::waitForEvent(EventImplPtr Event) {
   GraphProcessor::waitForEvent(std::move(Event));
 }
 
+static void deallocateStreams(
+    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate) {
+  // Deallocate buffers for stream objects of the finished commands. Iterate in
+  // reverse order because it is the order of commands execution.
+  for (auto StreamImplPtr = StreamsToDeallocate.rbegin();
+       StreamImplPtr != StreamsToDeallocate.rend(); ++StreamImplPtr)
+    detail::Scheduler::getInstance().deallocateStreamBuffers(
+        StreamImplPtr->get());
+}
+
 void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
   // We are going to traverse a graph of finished commands. Gather stream
   // objects from these commands if any and deallocate buffers for these stream
@@ -166,21 +176,14 @@ void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
     std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock,
                                                    std::try_to_lock);
     if (Lock.owns_lock()) {
-      Command *FinishedCmd =
-          static_cast<Command *>(FinishedEvent->getCommand());
+      auto FinishedCmd = static_cast<Command *>(FinishedEvent->getCommand());
       // The command might have been cleaned up (and set to nullptr) by another
       // thread
       if (FinishedCmd)
         MGraphBuilder.cleanupFinishedCommands(FinishedCmd, StreamsToDeallocate);
     }
   }
-  // Deallocate buffers for stream objects of the finished commands. Iterate in
-  // reverse order because it is the order of commands execution.
-  for (std::vector<std::shared_ptr<stream_impl>>::reverse_iterator
-           StreamImplPtr = StreamsToDeallocate.rbegin();
-       StreamImplPtr != StreamsToDeallocate.rend(); ++StreamImplPtr)
-    detail::Scheduler::getInstance().deallocateStreamBuffers(
-        StreamImplPtr->get());
+  deallocateStreams(StreamsToDeallocate);
 }
 
 void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
@@ -218,13 +221,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
       MGraphBuilder.removeRecordForMemObj(MemObj);
     }
   }
-  // Deallocate buffers for stream objects of the finished commands. Iterate in
-  // reverse order because it is the order of commands execution.
-  for (std::vector<std::shared_ptr<stream_impl>>::reverse_iterator
-           StreamImplPtr = StreamsToDeallocate.rbegin();
-       StreamImplPtr != StreamsToDeallocate.rend(); ++StreamImplPtr)
-    detail::Scheduler::getInstance().deallocateStreamBuffers(
-        StreamImplPtr->get());
+  deallocateStreams(StreamsToDeallocate);
 }
 
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
@@ -297,10 +294,12 @@ Scheduler::~Scheduler() {
   // resources are released only if one of the listed sync points was used for
   // the kernel. Otherwise resources for stream will not be released, issue a
   // warning in this case.
-  if (StreamBuffersPool.size() > 0)
-    printf("\nWARNING: Some commands may have not finished the execution and "
+  std::lock_guard<std::mutex> lock(StreamBuffersPoolMutex);
+  if (!StreamBuffersPool.empty())
+    std::cerr
+        << "\nWARNING: Some commands may have not finished the execution and "
            "not all resources were released. Please be sure that all kernels "
-           "have sycnhronization points.\n");
+           "have synchronization points.\n\n";
 }
 
 void Scheduler::lockSharedTimedMutex(

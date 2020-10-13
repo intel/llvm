@@ -45,9 +45,9 @@ void producer(queue &q) {
   q.submit([&](handler &cgh) {
     // Get read access to src buffer
     cl::sycl::stream out(1024, 16, cgh);
-    cgh.single_task<producer_task>([=]() {
+    cgh.single_task<producer_task>([=] {
       for (int i = 0; i < N; i++) {
-        // Non-blocking write an int to the pipe
+        // Blocking write an int to the pipe
         my_pipe::write(i);
         out << i << cl::sycl::endl;
       }
@@ -60,9 +60,9 @@ void consumer(queue &q) {
   q.submit([&](handler &cgh) {
     // Get write access to dst buffer
     cl::sycl::stream out(1024, 16, cgh);
-    cgh.single_task<consumer_task>([=]() {
+    cgh.single_task<consumer_task>([=] {
       for (int i = 0; i < N; i++) {
-        // Non-blocking read an int from the pipe
+        // Blocking read an int from the pipe
         int tmp = my_pipe::read();
         out << tmp << cl::sycl::endl;
       }
