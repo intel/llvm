@@ -3,6 +3,8 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
+// REQUIRES: level_zero
+
 #include <algorithm>
 #include <level_zero/ze_api.h>
 #include <stdio.h>
@@ -74,11 +76,19 @@ int queryFromNativeHandle(std::vector<cl::sycl::platform> *platform_list,
   int failures = 0;
   uint32_t l0_driver_count = 0;
   zeDriverGet(&l0_driver_count, nullptr);
+  if (l0_driver_count == 0) {
+  std::cout << "There is no Level Zero Driver available\n";
+    return failures;
+  }
   std::vector<ze_driver_handle_t> l0_drivers(l0_driver_count);
   zeDriverGet(&l0_driver_count, l0_drivers.data());
 
   uint32_t l0_device_count = 0;
   zeDeviceGet(l0_drivers[0], &l0_device_count, nullptr);
+  if (l0_device_count == 0) {
+    std::cout << "There is no Level Zero Device available\n";
+    return failures;
+  }
   std::vector<ze_device_handle_t> l0_devices(l0_device_count);
   zeDeviceGet(l0_drivers[0], &l0_device_count, l0_devices.data());
 

@@ -130,11 +130,10 @@ public:
   bool has(aspect Aspect) const;
 
 private:
-  platform(shared_ptr_class<detail::platform_impl> impl) : impl(impl) {}
-
   pi_native_handle getNative() const;
 
   shared_ptr_class<detail::platform_impl> impl;
+  platform(shared_ptr_class<detail::platform_impl> impl) : impl(impl) {}
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);

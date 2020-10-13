@@ -722,6 +722,7 @@ getPlatformCache(std::vector<pi_platform> const **PlatformCache) {
     ZE_CALL(zeDriverGet(&ZeDriverCount, nullptr));
     if (ZeDriverCount == 0) {
       *PlatformCache = PiPlatformsCache;
+      PiPlatformCachePopulated = true;
       return PI_SUCCESS;
     }
     ze_driver_handle_t ZeDriver;

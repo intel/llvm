@@ -192,9 +192,8 @@ public:
   bool has(aspect Aspect) const;
 
 private:
-  device(shared_ptr_class<detail::device_impl> impl) : impl(impl) {}
-
   shared_ptr_class<detail::device_impl> impl;
+  device(shared_ptr_class<detail::device_impl> impl) : impl(impl) {}
 
   pi_native_handle getNative() const;
 
