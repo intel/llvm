@@ -21,11 +21,6 @@
 // CHECK-EMPTY:
 // CHECK-NEXT: };
 
-// CHECK: static constexpr
-// CHECK-NEXT: const unsigned kernel_signature_start[] = {
-// CHECK-NEXT:  0 // _ZTSZ4mainE14wrapped_access
-// CHECK-NEXT: };
-
 // CHECK: template <> struct KernelInfo<class wrapped_access> {
 
 #include "Inputs/sycl.hpp"

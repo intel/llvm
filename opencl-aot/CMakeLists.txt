@@ -48,7 +48,7 @@ if (NOT OpenCL_LIBRARIES)
     file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/icd_build)
     ExternalProject_Add(opencl-icd
             GIT_REPOSITORY https://github.com/KhronosGroup/OpenCL-ICD-Loader.git
-            GIT_TAG origin/master
+            GIT_TAG v2020.06.16
             SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/OpenCL/icd"
             BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/icd_build"
             CMAKE_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}

@@ -126,7 +126,7 @@ struct File {
 
 struct LineTableOpcode {
   dwarf::LineNumberOps Opcode;
-  uint64_t ExtLen;
+  Optional<uint64_t> ExtLen;
   dwarf::LineNumberExtendedOps SubOpcode;
   uint64_t Data;
   int64_t SData;
@@ -214,7 +214,7 @@ struct Data {
   Optional<std::vector<StringRef>> DebugStrings;
   Optional<std::vector<StringOffsetsTable>> DebugStrOffsets;
   Optional<std::vector<ARange>> DebugAranges;
-  std::vector<Ranges> DebugRanges;
+  Optional<std::vector<Ranges>> DebugRanges;
   Optional<std::vector<AddrTableEntry>> DebugAddr;
   Optional<PubSection> PubNames;
   Optional<PubSection> PubTypes;

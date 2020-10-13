@@ -46,7 +46,7 @@ struct FuzzingOptions {
   size_t MaxNumberOfRuns = -1L;
   int ReportSlowUnits = 10;
   bool OnlyASCII = false;
-  bool Entropic = false;
+  bool Entropic = true;
   size_t EntropicFeatureFrequencyThreshold = 0xFF;
   size_t EntropicNumberOfRarestFeatures = 100;
   bool EntropicScalePerExecTime = false;
@@ -59,6 +59,7 @@ struct FuzzingOptions {
   std::string DataFlowTrace;
   std::string CollectDataFlow;
   std::string FeaturesDir;
+  std::string MutationGraphFile;
   std::string StopFile;
   bool SaveArtifacts = true;
   bool PrintNEW = true; // Print a status line when new units are found;

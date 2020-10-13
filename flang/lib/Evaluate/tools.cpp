@@ -813,8 +813,8 @@ parser::Message *AttachDeclaration(
           unhosted->detailsIf<semantics::ProcBindingDetails>()}) {
     if (binding->symbol().name() != symbol.name()) {
       message.Attach(binding->symbol().name(),
-          "Procedure '%s' is bound to '%s'"_en_US, symbol.name(),
-          binding->symbol().name());
+          "Procedure '%s' of type '%s' is bound to '%s'"_en_US, symbol.name(),
+          symbol.owner().GetName().value(), binding->symbol().name());
       return &message;
     }
     unhosted = &binding->symbol();
@@ -965,7 +965,6 @@ bool IsProcedure(const Symbol &symbol) {
           [](const GenericDetails &) { return true; },
           [](const ProcBindingDetails &) { return true; },
           [](const UseDetails &x) { return IsProcedure(x.symbol()); },
-          // TODO: FinalProcDetails?
           [](const auto &) { return false; },
       },
       symbol.details());
@@ -1004,12 +1003,8 @@ bool IsSaved(const Symbol &original) {
       return true;
     } else if (IsDummy(symbol) || IsFunctionResult(symbol)) {
       return false;
-    } else {
-      for (; !scope->IsGlobal(); scope = &scope->parent()) {
-        if (scope->hasSAVE()) {
-          return true;
-        }
-      }
+    } else if (scope->hasSAVE() ) {
+      return true;
     }
   }
   return false;

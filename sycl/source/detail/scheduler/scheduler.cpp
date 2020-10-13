@@ -8,6 +8,7 @@
 
 #include "CL/sycl/detail/sycl_mem_obj_i.hpp"
 #include <CL/sycl/device_selector.hpp>
+#include <detail/global_handler.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
@@ -101,6 +102,12 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
       if (IsKernel)
         Streams = ((ExecCGCommand *)NewCmd)->getStreams();
+
+      if (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0) {
+        NewEvent->setCommand(nullptr); // if there are no memory dependencies,
+                                       // decouple and free the command
+        delete NewCmd;
+      }
     }
   }
 
@@ -131,18 +138,9 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
   return NewCmd->getEvent();
 }
 
-#ifdef __GNUC__
-// The init_priority here causes the constructor for scheduler to run relatively
-// early, and therefore the destructor to run relatively late (after anything
-// else that has no priority set, or has a priority higher than 2000).
-Scheduler Scheduler::instance __attribute__((init_priority(2000)));
-#else
-#pragma warning(disable : 4073)
-#pragma init_seg(lib)
-Scheduler Scheduler::instance;
-#endif
-
-Scheduler &Scheduler::getInstance() { return instance; }
+Scheduler &Scheduler::getInstance() {
+  return GlobalHandler::instance().getScheduler();
+}
 
 std::vector<EventImplPtr> Scheduler::getWaitList(EventImplPtr Event) {
   std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
@@ -269,8 +267,7 @@ void Scheduler::lockSharedTimedMutex(
   // access occurs after shared access.
   // TODO: after switching to C++17, change std::shared_timed_mutex to
   // std::shared_mutex and use std::lock_guard here both for Windows and Linux.
-  while (!Lock.owns_lock()) {
-    Lock.try_lock_for(std::chrono::milliseconds(10));
+  while (!Lock.try_lock_for(std::chrono::milliseconds(10))) {
     // Without yield while loop acts like endless while loop and occupies the
     // whole CPU when multiple command groups are created in multiple host
     // threads

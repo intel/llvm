@@ -531,6 +531,9 @@ public:
       if (auto *A = FD->getAttr<SYCLIntelNumSimdWorkItemsAttr>())
         Attrs.insert(A);
 
+      if (auto *A = FD->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>())
+        Attrs.insert(A);
+
       if (auto *A = FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>())
         Attrs.insert(A);
 
@@ -2138,15 +2141,15 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
       ParamType = Pointer->getType();
     }
 
-    DRE =
-        ImplicitCastExpr::Create(SemaRef.Context, ParamType, CK_LValueToRValue,
-                                 DRE, /*BasePath=*/nullptr, VK_RValue);
+    DRE = ImplicitCastExpr::Create(SemaRef.Context, ParamType,
+                                   CK_LValueToRValue, DRE, /*BasePath=*/nullptr,
+                                   VK_RValue, FPOptionsOverride());
 
     if (PointerTy->getPointeeType().getAddressSpace() !=
         ParamType->getPointeeType().getAddressSpace())
       DRE = ImplicitCastExpr::Create(SemaRef.Context, PointerTy,
                                      CK_AddressSpaceConversion, DRE, nullptr,
-                                     VK_RValue);
+                                     VK_RValue, FPOptionsOverride());
 
     return DRE;
   }
@@ -2521,7 +2524,7 @@ public:
                                          /*IgnoreBaseAccess*/ true);
     auto Cast = ImplicitCastExpr::Create(
         SemaRef.Context, BaseTy, CK_DerivedToBase, MemberExprBases.back(),
-        /* CXXCastPath=*/&BasePath, VK_LValue);
+        /* CXXCastPath=*/&BasePath, VK_LValue, FPOptionsOverride());
     MemberExprBases.push_back(Cast);
 
     addCollectionInitListExpr(BaseTy->getAsCXXRecordDecl());
@@ -2833,10 +2836,13 @@ class SYCLKernelNameTypeVisitor
   using InnerTypeVisitor = TypeVisitor<SYCLKernelNameTypeVisitor>;
   using InnerTAVisitor =
       ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor>;
+  bool IsInvalid = false;
 
 public:
   SYCLKernelNameTypeVisitor(Sema &S, SourceLocation KernelInvocationFuncLoc)
       : S(S), KernelInvocationFuncLoc(KernelInvocationFuncLoc) {}
+
+  bool isValid() { return !IsInvalid; }
 
   void Visit(QualType T) {
     if (T.isNull())
@@ -2869,6 +2875,7 @@ public:
           << /* Unscoped enum requires fixed underlying type */ 2;
       S.Diag(ED->getSourceRange().getBegin(), diag::note_entity_declared_at)
           << ED;
+      IsInvalid = true;
     }
   }
 
@@ -2885,12 +2892,14 @@ public:
       if (KernelNameIsMissing) {
         S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
             << /* kernel name is missing */ 0;
+        IsInvalid = true;
       } else {
-        if (Tag->isCompleteDefinition())
+        if (Tag->isCompleteDefinition()) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_sycl_kernel_incorrectly_named)
               << /* kernel name is not globally-visible */ 1;
-        else
+          IsInvalid = true;
+        } else
           S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
 
         S.Diag(Tag->getSourceRange().getBegin(), diag::note_previous_decl)
@@ -2967,11 +2976,13 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   SyclKernelArgsSizeChecker ArgsSizeChecker(*this, Args[0]->getExprLoc());
 
   KernelObjVisitor Visitor{*this};
-  SYCLKernelNameTypeVisitor KernelTypeVisitor(*this, Args[0]->getExprLoc());
+  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(*this, Args[0]->getExprLoc());
+
+  DiagnosingSYCLKernel = true;
+
   // Emit diagnostics for SYCL device kernels only
   if (LangOpts.SYCLIsDevice)
-    KernelTypeVisitor.Visit(KernelNameType);
-  DiagnosingSYCLKernel = true;
+    KernelNameTypeVisitor.Visit(KernelNameType);
   Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker, DecompMarker);
   Visitor.VisitRecordFields(KernelObj, FieldChecker, UnionChecker,
                             DecompMarker);
@@ -2984,7 +2995,9 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
     Visitor.VisitRecordFields(KernelObj, ArgsSizeChecker);
   }
   DiagnosingSYCLKernel = false;
-  if (!FieldChecker.isValid() || !UnionChecker.isValid())
+  // Set the kernel function as invalid, if any of the checkers fail validation.
+  if (!FieldChecker.isValid() || !UnionChecker.isValid() ||
+      !KernelNameTypeVisitor.isValid())
     KernelFunc->setInvalidDecl();
 }
 
@@ -3166,6 +3179,7 @@ void Sema::MarkDevice(void) {
         }
         case attr::Kind::SYCLIntelKernelArgsRestrict:
         case attr::Kind::SYCLIntelNumSimdWorkItems:
+        case attr::Kind::SYCLIntelSchedulerTargetFmaxMhz:
         case attr::Kind::SYCLIntelMaxGlobalWorkDim:
         case attr::Kind::SYCLIntelNoGlobalWorkOffset:
         case attr::Kind::SYCLSimd: {
@@ -3747,30 +3761,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   }
   O << "};\n\n";
 
-  O << "// indices into the kernel_signatures array, each representing a "
-       "start"
-       " of\n";
-  O << "// kernel signature descriptor subarray of the kernel_signatures"
-       " array;\n";
-  O << "// the index order in this array corresponds to the kernel name order"
-       " in the\n";
-  O << "// kernel_names array\n";
-  O << "static constexpr\n";
-  O << "const unsigned kernel_signature_start[] = {\n";
-  unsigned CurStart = 0;
-
-  for (unsigned I = 0; I < KernelDescs.size(); I++) {
-    auto &K = KernelDescs[I];
-    O << "  " << CurStart;
-    if (I < KernelDescs.size() - 1)
-      O << ",";
-    O << " // " << K.Name << "\n";
-    CurStart += K.Params.size() + 1;
-  }
-  O << "};\n\n";
-
   O << "// Specializations of KernelInfo for kernel function types:\n";
-  CurStart = 0;
+  unsigned CurStart = 0;
 
   for (const KernelDesc &K : KernelDescs) {
     const size_t N = K.Params.size();

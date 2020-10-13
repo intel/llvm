@@ -443,16 +443,16 @@ EnableIfNativeShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
 }
 
 template <typename T>
-EnableIfNativeShuffle<T> SubgroupShuffleDown(T x, T y, id<1> local_id) {
+EnableIfNativeShuffle<T> SubgroupShuffleDown(T x, id<1> local_id) {
   using OCLT = detail::ConvertToOpenCLType_t<T>;
   return __spirv_SubgroupShuffleDownINTEL(
-      OCLT(x), OCLT(y), static_cast<uint32_t>(local_id.get(0)));
+      OCLT(x), OCLT(x), static_cast<uint32_t>(local_id.get(0)));
 }
 
 template <typename T>
-EnableIfNativeShuffle<T> SubgroupShuffleUp(T x, T y, id<1> local_id) {
+EnableIfNativeShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
   using OCLT = detail::ConvertToOpenCLType_t<T>;
-  return __spirv_SubgroupShuffleUpINTEL(OCLT(x), OCLT(y),
+  return __spirv_SubgroupShuffleUpINTEL(OCLT(x), OCLT(x),
                                         static_cast<uint32_t>(local_id.get(0)));
 }
 
@@ -488,22 +488,20 @@ EnableIfBitcastShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
 }
 
 template <typename T>
-EnableIfBitcastShuffle<T> SubgroupShuffleDown(T x, T y, id<1> local_id) {
+EnableIfBitcastShuffle<T> SubgroupShuffleDown(T x, id<1> local_id) {
   using ShuffleT = ConvertToNativeShuffleType_t<T>;
   auto ShuffleX = detail::bit_cast<ShuffleT>(x);
-  auto ShuffleY = detail::bit_cast<ShuffleT>(y);
   ShuffleT Result = __spirv_SubgroupShuffleDownINTEL(
-      ShuffleX, ShuffleY, static_cast<uint32_t>(local_id.get(0)));
+      ShuffleX, ShuffleX, static_cast<uint32_t>(local_id.get(0)));
   return detail::bit_cast<T>(Result);
 }
 
 template <typename T>
-EnableIfBitcastShuffle<T> SubgroupShuffleUp(T x, T y, id<1> local_id) {
+EnableIfBitcastShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
   using ShuffleT = ConvertToNativeShuffleType_t<T>;
   auto ShuffleX = detail::bit_cast<ShuffleT>(x);
-  auto ShuffleY = detail::bit_cast<ShuffleT>(y);
   ShuffleT Result = __spirv_SubgroupShuffleUpINTEL(
-      ShuffleX, ShuffleY, static_cast<uint32_t>(local_id.get(0)));
+      ShuffleX, ShuffleX, static_cast<uint32_t>(local_id.get(0)));
   return detail::bit_cast<T>(Result);
 }
 
@@ -550,16 +548,14 @@ EnableIfGenericShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
 }
 
 template <typename T>
-EnableIfGenericShuffle<T> SubgroupShuffleDown(T x, T y, id<1> local_id) {
+EnableIfGenericShuffle<T> SubgroupShuffleDown(T x, id<1> local_id) {
   T Result;
   char *XBytes = reinterpret_cast<char *>(&x);
-  char *YBytes = reinterpret_cast<char *>(&y);
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
-    uint64_t ShuffleX, ShuffleY, ShuffleResult;
+    uint64_t ShuffleX, ShuffleResult;
     detail::memcpy(&ShuffleX, XBytes + Offset, Size);
-    detail::memcpy(&ShuffleY, YBytes + Offset, Size);
-    ShuffleResult = SubgroupShuffleDown(ShuffleX, ShuffleY, local_id);
+    ShuffleResult = SubgroupShuffleDown(ShuffleX, local_id);
     detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);
@@ -567,16 +563,14 @@ EnableIfGenericShuffle<T> SubgroupShuffleDown(T x, T y, id<1> local_id) {
 }
 
 template <typename T>
-EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, T y, id<1> local_id) {
+EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
   T Result;
   char *XBytes = reinterpret_cast<char *>(&x);
-  char *YBytes = reinterpret_cast<char *>(&y);
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
-    uint64_t ShuffleX, ShuffleY, ShuffleResult;
+    uint64_t ShuffleX, ShuffleResult;
     detail::memcpy(&ShuffleX, XBytes + Offset, Size);
-    detail::memcpy(&ShuffleY, YBytes + Offset, Size);
-    ShuffleResult = SubgroupShuffleUp(ShuffleX, ShuffleY, local_id);
+    ShuffleResult = SubgroupShuffleUp(ShuffleX, local_id);
     detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);

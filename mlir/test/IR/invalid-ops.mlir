@@ -595,18 +595,18 @@ func @extract_element_tensor_too_few_indices(%t : tensor<2x3xf32>, %i : index) {
 // -----
 
 func @tensor_from_elements_wrong_result_type() {
-  // expected-error@+2 {{expected result type to be a ranked tensor}}
+  // expected-error@+2 {{'result' must be 1D tensor of any type values, but got 'tensor<*xi32>'}}
   %c0 = constant 0 : i32
-  %0 = tensor_from_elements(%c0) : tensor<*xi32>
+  %0 = tensor_from_elements %c0 : tensor<*xi32>
   return
 }
 
 // -----
 
 func @tensor_from_elements_wrong_elements_count() {
-  // expected-error@+2 {{expected result type to be a 1D tensor with 1 element}}
+  // expected-error@+2 {{1 operands present, but expected 2}}
   %c0 = constant 0 : index
-  %0 = tensor_from_elements(%c0) : tensor<2xindex>
+  %0 = tensor_from_elements %c0 : tensor<2xindex>
   return
 }
 
@@ -1020,6 +1020,16 @@ func @invalid_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
 
 // -----
 
+func @invalid_rank_reducing_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
+  %0 = alloc() : memref<8x16x4xf32>
+  // expected-error@+1 {{expected result type to be 'memref<8x16x4xf32, affine_map<(d0, d1, d2) -> (d0 * 64 + d1 * 4 + d2)>>'}}
+  %1 = subview %0[0, 0, 0][8, 16, 4][1, 1, 1]
+    : memref<8x16x4xf32> to memref<16x4xf32>
+  return
+}
+
+// -----
+
 func @invalid_memref_cast(%arg0 : memref<12x4x16xf32, offset:0, strides:[64, 16, 1]>) {
   // expected-error@+1{{operand type 'memref<12x4x16xf32, affine_map<(d0, d1, d2) -> (d0 * 64 + d1 * 16 + d2)>>' and result type 'memref<12x4x16xf32, affine_map<(d0, d1, d2) -> (d0 * 128 + d1 * 32 + d2 * 2)>>' are cast incompatible}}
   %0 = memref_cast %arg0 : memref<12x4x16xf32, offset:0, strides:[64, 16, 1]> to memref<12x4x16xf32, offset:0, strides:[128, 32, 2]>
@@ -1243,5 +1253,25 @@ func @real_part_from_incompatible_complex_type(%cplx: complex<f32>) {
 func @imaginary_part_from_incompatible_complex_type(%cplx: complex<f64>) {
   // expected-error@+1 {{expects different type than prior uses: 'complex<f32>' vs 'complex<f64>'}}
   std.re %cplx : complex<f32>
+  return
+}
+
+// -----
+
+func @subtensor_wrong_dynamic_type(%t: tensor<8x16x4xf32>, %idx : index) {
+      // expected-error @+1 {{expected result type to be 'tensor<4x4x4xf32>'}}
+  %0 = subtensor %t[0, 2, 0][4, 4, 4][1, 1, 1]
+    : tensor<8x16x4xf32> to tensor<?x4x4xf32>
+
+  return
+}
+
+// -----
+
+func @subtensor_wrong_static_type(%t: tensor<8x16x4xf32>, %idx : index) {
+      // expected-error @+1 {{expected result type to be 'tensor<?x3x?xf32>'}}
+  %0 = subtensor %t[0, 0, 0][%idx, 3, %idx][1, 1, 1]
+    : tensor<8x16x4xf32> to tensor<4x4x4xf32>
+
   return
 }

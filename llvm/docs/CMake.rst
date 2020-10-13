@@ -461,6 +461,10 @@ LLVM-specific variables
 **LLVM_PARALLEL_LINK_JOBS**:STRING
   Define the maximum number of concurrent link jobs.
 
+**LLVM_EXTERNALIZE_DEBUGINFO**:BOOL
+  Generate dSYM files and strip executables and libraries (Darwin Only).
+  Defaults to OFF.
+
 **LLVM_USE_CRT_{target}**:STRING
   On Windows, tells which version of the C runtime library (CRT) should be used.
   For example, -DLLVM_USE_CRT_RELEASE=MT would statically link the CRT into the
@@ -552,7 +556,7 @@ LLVM-specific variables
 **SPHINX_EXECUTABLE**:STRING
   The path to the ``sphinx-build`` executable detected by CMake.
   For installation instructions, see
-  http://www.sphinx-doc.org/en/latest/usage/installation.html
+  https://www.sphinx-doc.org/en/master/usage/installation.html
 
 **SPHINX_OUTPUT_HTML**:BOOL
   If enabled (and ``LLVM_ENABLE_SPHINX`` is enabled) then the targets for

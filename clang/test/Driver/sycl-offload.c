@@ -670,10 +670,10 @@
 // CHK-TOOLS-AOT: clang{{.*}} "-fsycl-is-device" {{.*}} "-o" "[[OUTPUT1:.+\.bc]]"
 // CHK-TOOLS-AOT: llvm-link{{.*}} "[[OUTPUT1]]" "-o" "[[OUTPUT2:.+\.bc]]"
 // CHK-TOOLS-AOT: sycl-post-link{{.*}} "-o" "[[OUTPUT2_1:.+\.bc]]" "[[OUTPUT2]]"
-// CHK-TOOLS-CPU: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.spv]]" "-spirv-max-version=1.1" "-spirv-debug-info-version=legacy" "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes" "[[OUTPUT2_1]]"
-// CHK-TOOLS-GEN: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.spv]]" "-spirv-max-version=1.1" "-spirv-debug-info-version=legacy" "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes" "[[OUTPUT2_1]]"
-// CHK-TOOLS-FPGA-USM-DISABLE: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.spv]]" "-spirv-max-version=1.1" "-spirv-debug-info-version=legacy" "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes" "[[OUTPUT2_1]]"
-// CHK-TOOLS-FPGA-USM-ENABLE: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.spv]]" "-spirv-max-version=1.1" "-spirv-debug-info-version=legacy" "-spirv-ext=+all" "[[OUTPUT2_1]]"
+// CHK-TOOLS-CPU: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.spv]]" "-spirv-max-version=1.1" "-spirv-debug-info-version=legacy" "-spirv-allow-extra-diexpressions" "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes" "[[OUTPUT2_1]]"
+// CHK-TOOLS-GEN: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.spv]]" "-spirv-max-version=1.1" "-spirv-debug-info-version=legacy" "-spirv-allow-extra-diexpressions" "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes" "[[OUTPUT2_1]]"
+// CHK-TOOLS-FPGA-USM-DISABLE: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.spv]]" "-spirv-max-version=1.1" "-spirv-debug-info-version=legacy" "-spirv-allow-extra-diexpressions" "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes" "[[OUTPUT2_1]]"
+// CHK-TOOLS-FPGA-USM-ENABLE: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.spv]]" "-spirv-max-version=1.1" "-spirv-debug-info-version=legacy" "-spirv-allow-extra-diexpressions" "-spirv-ext=+all" "[[OUTPUT2_1]]"
 // CHK-TOOLS-FPGA: aoc{{.*}} "-o" "[[OUTPUT4:.+\.aocx]]" "[[OUTPUT3]]"
 // CHK-TOOLS-GEN: ocloc{{.*}} "-output" "[[OUTPUT4:.+\.out]]" {{.*}} "[[OUTPUT3]]"
 // CHK-TOOLS-CPU: opencl-aot{{.*}} "-o=[[OUTPUT4:.+\.out]]" {{.*}} "[[OUTPUT3]]"
@@ -758,7 +758,7 @@
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS-GEN %s
 // RUN:   %clang_cl -### -fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice -Zi -Od -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS-GEN %s
-// CHK-TOOLS-IMPLIED-OPTS-GEN: ocloc{{.*}} "-options" "-g -O0" "-DFOO1" "-DFOO2"
+// CHK-TOOLS-IMPLIED-OPTS-GEN: ocloc{{.*}} "-options" "-g -cl-opt-disable" "-DFOO1" "-DFOO2"
 
 /// Check -Xsycl-target-linker option passing
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown-sycldevice -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \

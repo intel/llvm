@@ -29,10 +29,18 @@
 #ifdef OMPTARGET_DEBUG
 #define CUDA_ERR_STRING(err)                                                   \
   do {                                                                         \
-    if (getDebugLevel() > 0) {                                                      \
-      const char *errStr;                                                      \
-      cuGetErrorString(err, &errStr);                                          \
-      DP("CUDA error is: %s\n", errStr);                                       \
+    if (getDebugLevel() > 0) {                                                 \
+      const char *errStr = nullptr;                                            \
+      CUresult errStr_status = cuGetErrorString(err, &errStr);                 \
+      if (errStr_status == CUDA_ERROR_INVALID_VALUE)                           \
+        DP("Unrecognized CUDA error code: %d\n", err);                         \
+      else if (errStr_status == CUDA_SUCCESS)                                  \
+        DP("CUDA error is: %s\n", errStr);                                     \
+      else {                                                                   \
+        DP("Unresolved CUDA error code: %d\n", err);                           \
+        DP("Unsuccessful cuGetErrorString return status: %d\n",                \
+           errStr_status);                                                     \
+      }                                                                        \
     }                                                                          \
   } while (false)
 #else // OMPTARGET_DEBUG
@@ -277,14 +285,15 @@ class DeviceRTLTy {
     E.Entries.push_back(entry);
   }
 
-  // Return true if the entry is associated with device
-  bool findOffloadEntry(const int DeviceId, const void *Addr) const {
+  // Return a pointer to the entry associated with the pointer
+  const __tgt_offload_entry *getOffloadEntry(const int DeviceId,
+                                             const void *Addr) const {
     for (const __tgt_offload_entry &Itr :
          DeviceData[DeviceId].FuncGblEntries.back().Entries)
       if (Itr.addr == Addr)
-        return true;
+        return &Itr;
 
-    return false;
+    return nullptr;
   }
 
   // Return the pointer to the target entries table
@@ -492,9 +501,11 @@ public:
       DeviceData[DeviceId].BlocksPerGrid = EnvTeamLimit;
     }
 
-    DP("Max number of CUDA blocks %d, threads %d & warp size %d\n",
-       DeviceData[DeviceId].BlocksPerGrid, DeviceData[DeviceId].ThreadsPerBlock,
-       DeviceData[DeviceId].WarpSize);
+    INFO(DeviceId,
+         "Device supports up to %d CUDA blocks and %d threads with a "
+         "warp size of %d\n",
+         DeviceData[DeviceId].BlocksPerGrid,
+         DeviceData[DeviceId].ThreadsPerBlock, DeviceData[DeviceId].WarpSize);
 
     // Set default number of teams
     if (EnvNumTeams > 0) {
@@ -926,9 +937,14 @@ public:
       CudaBlocksPerGrid = TeamNum;
     }
 
-    // Run on the device.
-    DP("Launch kernel with %d blocks and %d threads\n", CudaBlocksPerGrid,
-       CudaThreadsPerBlock);
+    INFO(DeviceId,
+         "Launching kernel %s with %d blocks and %d threads in %s "
+         "mode\n",
+         (getOffloadEntry(DeviceId, TgtEntryPtr))
+             ? getOffloadEntry(DeviceId, TgtEntryPtr)->name
+             : "(null)",
+         CudaBlocksPerGrid, CudaThreadsPerBlock,
+         (KernelInfo->ExecutionMode == SPMD) ? "SPMD" : "Generic");
 
     CUstream Stream = getStream(DeviceId, AsyncInfo);
     Err = cuLaunchKernel(KernelInfo->Func, CudaBlocksPerGrid, /* gridDimY */ 1,

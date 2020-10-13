@@ -19,6 +19,7 @@
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/global_handler.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/spec_constant_impl.hpp>
@@ -47,9 +48,7 @@ enum BuildState { BS_InProgress, BS_Done, BS_Failed };
 static constexpr char UseSpvEnv[]("SYCL_USE_KERNEL_SPV");
 
 ProgramManager &ProgramManager::getInstance() {
-  // The singleton ProgramManager instance, uses the "magic static" idiom.
-  static ProgramManager Instance;
-  return Instance;
+  return GlobalHandler::instance().getProgramManager();
 }
 
 static RT::PiProgram createBinaryProgram(const ContextImplPtr Context,
@@ -388,9 +387,6 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
     // If device image is not SPIR-V, DeviceLibReqMask will be 0 which means
     // no fallback device library will be linked.
     uint32_t DeviceLibReqMask = 0;
-    // FIXME: disable the fallback device libraries online link as not all
-    // backend supports spv online link. Need to enable it when all backends
-    // support spv online link.
     if (Img.getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV &&
         !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
       DeviceLibReqMask = getDeviceLibReqMask(Img);
@@ -797,11 +793,11 @@ ProgramManager::ProgramPtr ProgramManager::build(
     LinkOpts = LinkOptions.c_str();
   }
 
-  // TODO: Because online linking isn't implemented yet on Level Zero, the
-  // compiler always links against the fallback device libraries.  Once
-  // online linking is supported on all backends, we should remove the line
-  // below and also change the compiler, so it no longer links the fallback
-  // code unconditionally.
+  // TODO: Currently, online linking isn't implemented yet on Level Zero.
+  // To enable device libraries and unify the behaviors on all backends,
+  // online linking is disabled temporarily, all fallback device libraries
+  // will be linked offline. When Level Zero supports online linking, we need
+  // to remove the line of code below and switch back to online linking.
   LinkDeviceLibs = false;
 
   // TODO: this is a temporary workaround for GPU tests for ESIMD compiler.
