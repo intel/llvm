@@ -14,7 +14,7 @@
 // CHECK-NEXT: ) ---> 	pi_result : PI_SUCCESS
 // CHECK-NEXT: 	[out]void * : 0
 // CHECK-NEXT: 	[out]pi_mem * : 0x{{[0-9a-fA-F]*}}[ 0x{{[0-9a-fA-F]*}} ... ]
-// 
+//
 // CHECK: ---> piEnqueueKernelLaunch(
 // CHECK-NEXT: 	<unknown> : 0x{{[0-9a-fA-F]*}}
 // CHECK-NEXT: 	<unknown> : 0x{{[0-9a-fA-F]*}}
@@ -28,7 +28,7 @@
 // CHECK-NEXT: ) ---> 	pi_result : PI_SUCCESS
 // CHECK-NEXT: 	[out]pi_event * : 0[ nullptr ]
 // CHECK-NEXT: 	[out]pi_event * : 0x{{[0-9a-fA-F]*}}[ 0x{{[0-9a-fA-F]*}} ... ]
-// 
+//
 // CHECK: ---> piEventsWait(
 // CHECK-NEXT: 	<unknown> : 1
 // CHECK-NEXT: 	const pi_event * : 0x{{[0-9a-fA-F]*}}[ 0x{{[0-9a-fA-F]*}} ... ]
@@ -38,13 +38,11 @@
 int main() {
   cl::sycl::queue Queue;
   cl::sycl::buffer<int, 1> Buf(10);
-  Queue.submit([&](cl::sycl::handler& cgh) {
+  Queue.submit([&](cl::sycl::handler &cgh) {
     auto Acc = Buf.template get_access<cl::sycl::access::mode::read_write>(cgh);
 
-    cgh.parallel_for<class CheckTraces>(10,
-		[=](cl::sycl::id<1> ID) {
-      Acc[ID] = 5;
-    });
+    cgh.parallel_for<class CheckTraces>(
+        10, [=](cl::sycl::id<1> ID) { Acc[ID] = 5; });
   });
   Queue.wait();
   return 0;
