@@ -149,6 +149,10 @@ static OptionalParseResult parserOptionalOperandAndTypeWithPrefix(
   return llvm::None;
 }
 
+static bool isComputeOperation(Operation *op) {
+  return isa<acc::ParallelOp>(op) || isa<acc::LoopOp>(op);
+}
+
 //===----------------------------------------------------------------------===//
 // ParallelOp
 //===----------------------------------------------------------------------===//
@@ -645,6 +649,75 @@ static LogicalResult verify(acc::DataOp dataOp) {
   if (dataOp.getOperands().size() == 0 && !dataOp.defaultAttr())
     return dataOp.emitError("at least one operand or the default attribute "
                             "must appear on the data operation");
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// InitOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(acc::InitOp initOp) {
+  Operation *currOp = initOp;
+  while ((currOp = currOp->getParentOp())) {
+    if (isComputeOperation(currOp))
+      return initOp.emitOpError("cannot be nested in a compute operation");
+  }
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// ShutdownOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(acc::ShutdownOp op) {
+  Operation *currOp = op;
+  while ((currOp = currOp->getParentOp())) {
+    if (isComputeOperation(currOp))
+      return op.emitOpError("cannot be nested in a compute operation");
+  }
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// UpdateOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(acc::UpdateOp updateOp) {
+  // At least one of host or device should have a value.
+  if (updateOp.hostOperands().size() == 0 &&
+      updateOp.deviceOperands().size() == 0)
+    return updateOp.emitError("at least one value must be present in"
+                              " hostOperands or deviceOperands");
+
+  // The async attribute represent the async clause without value. Therefore the
+  // attribute and operand cannot appear at the same time.
+  if (updateOp.asyncOperand() && updateOp.async())
+    return updateOp.emitError("async attribute cannot appear with "
+                              " asyncOperand");
+
+  // The wait attribute represent the wait clause without values. Therefore the
+  // attribute and operands cannot appear at the same time.
+  if (updateOp.waitOperands().size() > 0 && updateOp.wait())
+    return updateOp.emitError("wait attribute cannot appear with waitOperands");
+
+  if (updateOp.waitDevnum() && updateOp.waitOperands().size() == 0)
+    return updateOp.emitError("wait_devnum cannot appear without waitOperands");
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// WaitOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(acc::WaitOp waitOp) {
+  // The async attribute represent the async clause without value. Therefore the
+  // attribute and operand cannot appear at the same time.
+  if (waitOp.asyncOperand() && waitOp.async())
+    return waitOp.emitError("async attribute cannot appear with asyncOperand");
+
+  if (waitOp.waitDevnum() && waitOp.waitOperands().empty())
+    return waitOp.emitError("wait_devnum cannot appear without waitOperands");
 
   return success();
 }
