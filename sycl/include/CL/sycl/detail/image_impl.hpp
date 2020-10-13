@@ -250,10 +250,10 @@ private:
 
     // MRange<> is [width], [width,height], or [width,height,depth] (which
     // is different than MAccessRange, etc in bufffers)
-    static constexpr int x_term_pos = 0, y_term_pos = 1, z_term_pos = 2;
-    Desc.image_width = MRange[x_term_pos];
-    Desc.image_height = Dimensions > 1 ? MRange[y_term_pos] : 1;
-    Desc.image_depth = Dimensions > 2 ? MRange[z_term_pos] : 1;
+    static constexpr int XTermPos = 0, YTermPos = 1, ZTermPos = 2;
+    Desc.image_width = MRange[XTermPos];
+    Desc.image_height = Dimensions > 1 ? MRange[YTermPos] : 1;
+    Desc.image_depth = Dimensions > 2 ? MRange[ZTermPos] : 1;
 
     // TODO handle cases with IMAGE1D_ARRAY and IMAGE2D_ARRAY
     Desc.image_array_size = 0;
