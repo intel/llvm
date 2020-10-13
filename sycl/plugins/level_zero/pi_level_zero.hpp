@@ -451,6 +451,22 @@ struct _pi_event : _pi_object {
   // Level Zero event pool handle.
   ze_event_pool_handle_t ZeEventPool;
 
+  // The following are used by MemBufferMap/UnMap on integrated devices
+  // Flag to indicate that a copy is pending from a map/unmap operation
+  bool HostSyncforMap = false;
+#if 0
+  // List of incoming events to be satisfied before the copy can be done
+  std::vector<ze_event_handle_t> waitEvents;
+  // The destination of the map/unmap copy
+  void *DstBuffer = nullptr;
+  // The source of the map/unmap copy
+  void *SrcBuffer = nullptr;
+  // The size of the copy
+  size_t RetMapSize = 0;
+  // A flag that enables doing the copy only once, for a list of events
+  bool CopyPending = false;
+#endif
+
   // Level Zero command list where the command signaling this event was appended
   // to. This is currently used to remember/destroy the command list after all
   // commands in it are completed, i.e. this event signaled.
