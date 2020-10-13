@@ -13,6 +13,7 @@
 #include <CL/sycl/detail/device_filter.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/info/info_desc.hpp>
+#include <detail/global_handler.hpp>
 
 #include <algorithm>
 #include <array>
@@ -181,8 +182,7 @@ public:
 
     const char *ValStr = BaseT::getRawValue();
     if (ValStr) {
-      static device_filter_list DFL{ValStr};
-      FilterList = &DFL;
+      FilterList = &GlobalHandler::instance().getDeviceFilterList(ValStr);
     }
 
     // TODO: remove the following code when we remove the support for legacy
