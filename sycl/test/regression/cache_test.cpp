@@ -77,7 +77,7 @@ int queryFromNativeHandle(std::vector<cl::sycl::platform> *platform_list,
   uint32_t l0_driver_count = 0;
   zeDriverGet(&l0_driver_count, nullptr);
   if (l0_driver_count == 0) {
-  std::cout << "There is no Level Zero Driver available\n";
+    std::cout << "There is no Level Zero Driver available\n";
     return failures;
   }
   std::vector<ze_driver_handle_t> l0_drivers(l0_driver_count);
