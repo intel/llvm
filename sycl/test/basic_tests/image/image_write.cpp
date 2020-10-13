@@ -3,6 +3,11 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
+// UNSUPPORTED: cuda
+// TODO: re-enable on cuda device.
+// See https://github.com/intel/llvm/issues/1542#issuecomment-707877817 for more
+// details.
+
 #include "image_write.h"
 
 int main() {
