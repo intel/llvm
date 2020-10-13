@@ -13,6 +13,7 @@
 #include <detail/stream_impl.hpp>
 
 #include <chrono>
+#include <cstdio>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -161,47 +162,77 @@ void Scheduler::waitForEvent(EventImplPtr Event) {
 }
 
 void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
-  // Avoiding deadlock situation, where one thread is in the process of
-  // enqueueing (with a locked mutex) a currently blocked task that waits for
-  // another thread which is stuck at attempting cleanup.
-  std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::try_to_lock);
-  if (Lock.owns_lock()) {
-    Command *FinishedCmd = static_cast<Command *>(FinishedEvent->getCommand());
-    // The command might have been cleaned up (and set to nullptr) by another
-    // thread
-    if (FinishedCmd)
-      MGraphBuilder.cleanupFinishedCommands(FinishedCmd);
+  // We are going to traverse a graph of finished commands. Gather stream
+  // objects from these commands if any and deallocate buffers for these stream
+  // objects, this is needed to guarantee that streamed data is printed and
+  // resources are released.
+  std::vector<std::shared_ptr<stream_impl>> StreamsToDeallocate;
+  {
+    // Avoiding deadlock situation, where one thread is in the process of
+    // enqueueing (with a locked mutex) a currently blocked task that waits for
+    // another thread which is stuck at attempting cleanup.
+    std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock,
+                                                   std::try_to_lock);
+    if (Lock.owns_lock()) {
+      Command *FinishedCmd =
+          static_cast<Command *>(FinishedEvent->getCommand());
+      // The command might have been cleaned up (and set to nullptr) by another
+      // thread
+      if (FinishedCmd)
+        MGraphBuilder.cleanupFinishedCommands(FinishedCmd, StreamsToDeallocate);
+    }
   }
+  // Deallocate buffers for stream objects of the finished commands. Iterate in
+  // reverse order because it is the order of commands execution.
+  for (std::vector<std::shared_ptr<stream_impl>>::reverse_iterator
+           StreamImplPtr = StreamsToDeallocate.rbegin();
+       StreamImplPtr != StreamsToDeallocate.rend(); ++StreamImplPtr)
+    detail::Scheduler::getInstance().deallocateStreamBuffers(
+        StreamImplPtr->get());
 }
 
 void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
-  MemObjRecord *Record = nullptr;
-  std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
-
+  // We are going to traverse a graph of finished commands. Gather stream
+  // objects from these commands if any and deallocate buffers for these stream
+  // objects, this is needed to guarantee that streamed data is printed and
+  // resources are released.
+  std::vector<std::shared_ptr<stream_impl>> StreamsToDeallocate;
   {
-    lockSharedTimedMutex(Lock);
+    MemObjRecord *Record = nullptr;
+    std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
 
-    Record = MGraphBuilder.getMemObjRecord(MemObj);
-    if (!Record)
-      // No operations were performed on the mem object
-      return;
+    {
+      lockSharedTimedMutex(Lock);
 
-    Lock.unlock();
+      Record = MGraphBuilder.getMemObjRecord(MemObj);
+      if (!Record)
+        // No operations were performed on the mem object
+        return;
+
+      Lock.unlock();
+    }
+
+    {
+      // This only needs a shared mutex as it only involves enqueueing and
+      // awaiting for events
+      std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
+      waitForRecordToFinish(Record);
+    }
+
+    {
+      lockSharedTimedMutex(Lock);
+      MGraphBuilder.decrementLeafCountersForRecord(Record);
+      MGraphBuilder.cleanupCommandsForRecord(Record, StreamsToDeallocate);
+      MGraphBuilder.removeRecordForMemObj(MemObj);
+    }
   }
-
-  {
-    // This only needs a shared mutex as it only involves enqueueing and
-    // awaiting for events
-    std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
-    waitForRecordToFinish(Record);
-  }
-
-  {
-    lockSharedTimedMutex(Lock);
-    MGraphBuilder.decrementLeafCountersForRecord(Record);
-    MGraphBuilder.cleanupCommandsForRecord(Record);
-    MGraphBuilder.removeRecordForMemObj(MemObj);
-  }
+  // Deallocate buffers for stream objects of the finished commands. Iterate in
+  // reverse order because it is the order of commands execution.
+  for (std::vector<std::shared_ptr<stream_impl>>::reverse_iterator
+           StreamImplPtr = StreamsToDeallocate.rbegin();
+       StreamImplPtr != StreamsToDeallocate.rend(); ++StreamImplPtr)
+    detail::Scheduler::getInstance().deallocateStreamBuffers(
+        StreamImplPtr->get());
 }
 
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
@@ -251,12 +282,13 @@ void Scheduler::allocateStreamBuffers(stream_impl *Impl,
                                       size_t FlushBufferSize) {
   std::lock_guard<std::mutex> lock(StreamBuffersPoolMutex);
   StreamBuffersPool.insert(
-      {Impl, StreamBuffers(StreamBufferSize, FlushBufferSize)});
+      {Impl, new StreamBuffers(StreamBufferSize, FlushBufferSize)});
 }
 
-void Scheduler::deallocateStreamBuffers() {
+void Scheduler::deallocateStreamBuffers(stream_impl *Impl) {
   std::lock_guard<std::mutex> lock(StreamBuffersPoolMutex);
-  StreamBuffersPool.clear();
+  delete StreamBuffersPool[Impl];
+  StreamBuffersPool.erase(Impl);
 }
 
 Scheduler::Scheduler() {
@@ -264,6 +296,19 @@ Scheduler::Scheduler() {
   DefaultHostQueue = QueueImplPtr(
       new queue_impl(detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
                      /*PropList=*/{}));
+}
+
+Scheduler::~Scheduler() {
+  // By specification there are several possible sync points: buffer
+  // destruction, wait() method of a queue or event. Stream doesn't introduce
+  // any synchronization point. It is guaranteed that stream is flushed and
+  // resources are released only if one of the listed sync points was used for
+  // the kernel. Otherwise resources for stream will not be released, issue a
+  // warning in this case.
+  if (StreamBuffersPool.size() > 0)
+    printf("\nWARNING: Some commands may have not finished the execution and "
+           "not all resources were released. Please be sure that all kernels "
+           "have sycnhronization points.\n");
 }
 
 void Scheduler::lockSharedTimedMutex(

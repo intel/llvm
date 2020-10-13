@@ -435,6 +435,7 @@ public:
 
 protected:
   Scheduler();
+  ~Scheduler();
   static Scheduler instance;
 
   /// Provides exclusive access to std::shared_timed_mutex object with deadlock
@@ -490,7 +491,9 @@ protected:
 
     /// Removes finished non-leaf non-alloca commands from the subgraph
     /// (assuming that all its commands have been waited for).
-    void cleanupFinishedCommands(Command *FinishedCmd);
+    void cleanupFinishedCommands(
+        Command *FinishedCmd,
+        std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &);
 
     /// Reschedules the command passed using Queue provided.
     ///
@@ -513,7 +516,9 @@ protected:
     void decrementLeafCountersForRecord(MemObjRecord *Record);
 
     /// Removes commands that use the given MemObjRecord from the graph.
-    void cleanupCommandsForRecord(MemObjRecord *Record);
+    void cleanupCommandsForRecord(
+        MemObjRecord *Record,
+        std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &);
 
     /// Removes the MemObjRecord for the memory object passed.
     void removeRecordForMemObj(SYCLMemObjI *MemObject);
@@ -728,7 +733,12 @@ protected:
         : Data(StreamBufferSize, 0),
           Buf(Data.data(), range<1>(StreamBufferSize),
               {property::buffer::use_host_ptr()}),
-          FlushBuf(range<1>(FlushBufferSize)) {}
+          FlushBuf(range<1>(FlushBufferSize)) {
+      // Disable copy back on buffer destruction. Copy is scheduled as a host
+      // task which fires up as soon as kernel has completed exectuion.
+      Buf.set_write_back(false);
+      FlushBuf.set_write_back(false);
+    }
 
     // Vector on the host side which is used to initialize the stream
     // buffer
@@ -745,13 +755,13 @@ protected:
 
   // Protects stream buffers pool
   std::mutex StreamBuffersPoolMutex;
-  std::map<stream_impl *, StreamBuffers> StreamBuffersPool;
+  std::map<stream_impl *, StreamBuffers *> StreamBuffersPool;
 
   /// Allocate buffers in the pool for a provided stream
   void allocateStreamBuffers(stream_impl *, size_t, size_t);
 
   /// Deallocate all stream buffers in the pool
-  void deallocateStreamBuffers();
+  void deallocateStreamBuffers(stream_impl*);
 };
 
 } // namespace detail
