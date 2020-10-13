@@ -579,7 +579,8 @@ int main() {
 
   {
     std::allocator<float8> buf_alloc;
-    cl::sycl::shared_ptr_class<float8> data(new float8[8]);
+    cl::sycl::shared_ptr_class<float8> data(new float8[8],
+                                            [](float8 *p) { delete[] p; });
     cl::sycl::buffer<float8, 1, std::allocator<float8>>
         b(data, cl::sycl::range<1>(8), buf_alloc);
   }

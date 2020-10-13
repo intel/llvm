@@ -17,6 +17,7 @@
 #include <CL/sycl/detail/device_filter.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/config.hpp>
+#include <detail/global_handler.hpp>
 #include <detail/plugin.hpp>
 
 #include <bitset>
@@ -283,18 +284,12 @@ bool trace(TraceLevel Level) {
 // Initializes all available Plugins.
 const vector_class<plugin> &initialize() {
   static std::once_flag PluginsInitDone;
-  static vector_class<plugin> *Plugins = nullptr;
 
   std::call_once(PluginsInitDone, []() {
-    // The memory for "Plugins" is intentionally leaked because the application
-    // may call into the SYCL runtime from a global destructor, and such a call
-    // could eventually call down to initialize().  Therefore, there is no safe
-    // time when "Plugins" could be deleted.
-    Plugins = new vector_class<plugin>;
-    initializePlugins(Plugins);
+    initializePlugins(&GlobalHandler::instance().getPlugins());
   });
 
-  return *Plugins;
+  return GlobalHandler::instance().getPlugins();
 }
 
 static void initializePlugins(vector_class<plugin> *Plugins) {
