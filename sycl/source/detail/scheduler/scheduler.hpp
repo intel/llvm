@@ -768,14 +768,14 @@ protected:
   // Protects stream buffers pool
   std::mutex StreamBuffersPoolMutex;
 
-  // We need to store pointer to the structure with stream buffers because we
-  // want to avoid situation when buffers are destructed during destruction of
+  // We need to store a pointer to the structure with stream buffers because we
+  // want to avoid a situation when buffers are destructed during destruction of
   // the scheduler. Scheduler is a global object and it can be destructed after
-  // all device runtimes are unloaded. destruction of the buffers at this stage
-  // wil lead to a faliure. In the correct program there will be sync points for
-  // all kernels and all allocated resources will be released by the scheduler.
-  // If program is not correct and doesn't have necessary sync point then
-  // warning will be issued.
+  // all device runtimes are unloaded. Destruction of the buffers at this stage
+  // will lead to a faliure. In the correct program there will be sync points
+  // for all kernels and all allocated resources will be released by the
+  // scheduler. If program is not correct and doesn't have necessary sync point
+  // then warning will be issued.
   std::unordered_map<stream_impl *, StreamBuffers *> StreamBuffersPool;
 };
 
