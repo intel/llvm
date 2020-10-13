@@ -3322,11 +3322,20 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
     zePrint("ZeEvent = %lx\n", pi_cast<std::uintptr_t>(ZeEvent));
 
     // If event comes from a Map operation in integrated device, then do
-    // sync and signaling on host
-    if (EventList[I]->CommandType == PI_COMMAND_TYPE_MEM_BUFFER_MAP) {
+    // sync, memcpy, and signaling on the host
+    if (EventList[I]->HostSyncforMap) {
+#if 1
       for (auto ZeWaitEvent : EventList[I]->waitEvents) {
+        zePrint("ZeWaitEvent = %lx\n", pi_cast<std::uintptr_t>(ZeWaitEvent));
         if (ZeWaitEvent)
           ZE_CALL(zeEventHostSynchronize(ZeWaitEvent, UINT32_MAX));
+      }
+#else
+#endif
+      if (EventList[I]->CopyPending) {
+        memcpy(EventList[I]->DstBuffer, EventList[I]->SrcBuffer,
+               EventList[I]->RetMapSize);
+        EventList[I]->CopyPending = false;
       }
       ZE_CALL(zeEventHostSignal(ZeEvent));
     } else {
@@ -4012,18 +4021,11 @@ piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer, pi_bool BlockingMap,
   bool DeviceIsIntegrated = Queue->Device->ZeDeviceProperties.flags &
                             ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
 
-  // Get a new command list to be used on this call
+  // For discrete devices we don't need a commandlist
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  // We will be executing a copy on GPU for discrete devices only,
-  // so for integrated no command list is needed.
-  if (!DeviceIsIntegrated) {
-    if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
-                                                          &ZeFence))
-      return Res;
-  }
-
   ze_event_handle_t ZeEvent = nullptr;
+
   if (Event) {
     auto Res = piEventCreate(Queue->Context, Event);
     if (Res != PI_SUCCESS)
@@ -4033,22 +4035,33 @@ piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer, pi_bool BlockingMap,
     (*Event)->CommandType = PI_COMMAND_TYPE_MEM_BUFFER_MAP;
     (*Event)->ZeCommandList = ZeCommandList;
 
-    for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
-      (*Event)->waitEvents.push_back(EventWaitList[i]->ZeEvent);
-    }
-
     ZeEvent = (*Event)->ZeEvent;
   }
 
   if (DeviceIsIntegrated) {
+    (*Event)->HostSyncforMap = true;
+    for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
+      zePrint("Map added ZeWaitEvent = %lx\n",
+              pi_cast<std::uintptr_t>(EventWaitList[i]->ZeEvent));
+      (*Event)->waitEvents.push_back(EventWaitList[i]->ZeEvent);
+    }
     if (Buffer->MapHostPtr) {
       *RetMap = Buffer->MapHostPtr + Offset;
+      (*Event)->SrcBuffer = pi_cast<char *>(Buffer->getZeHandle()) + Offset;
+      (*Event)->DstBuffer = *RetMap;
+      (*Event)->RetMapSize = Size;
+      (*Event)->CopyPending = true;
     } else {
       *RetMap = pi_cast<char *>(Buffer->getZeHandle()) + Offset;
     }
 
     return Buffer->addMapping(*RetMap, Offset, Size);
   }
+
+  // For discrete devices we need a command list
+  if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
+                                                        &ZeFence))
+    return Res;
 
   ze_event_handle_t *ZeEventWaitList =
       _pi_event::createZeEventList(NumEventsInWaitList, EventWaitList);
@@ -4086,12 +4099,13 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-  // Get a new command list to be used on this call
+  bool DeviceIsIntegrated = Queue->Device->ZeDeviceProperties.flags &
+                            ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
+
+  // Integrated devices don't need a command list.
+  // If discrete we will get a commandlist later.
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
-                                                        &ZeFence))
-    return Res;
 
   // TODO: handle the case when user does not care to follow the event
   // of unmap completion.
@@ -4110,36 +4124,9 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
     ZeEvent = (*Event)->ZeEvent;
   }
 
-  ze_event_handle_t *ZeEventWaitList =
-      _pi_event::createZeEventList(NumEventsInWaitList, EventWaitList);
-
-  ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, NumEventsInWaitList,
-                                          ZeEventWaitList));
-
-  // TODO: Level Zero is missing the memory "mapping" capabilities, so we are
-  // left to doing copy (write back to the device).
-  //
-  // NOTE: Keep this in sync with the implementation of
-  // piEnqueueMemBufferMap/piEnqueueMemImageMap.
   _pi_mem::Mapping MapInfo = {};
   if (pi_result Res = MemObj->removeMapping(MappedPtr, MapInfo))
     return Res;
-
-  bool DeviceIsIntegrated = Queue->Device->ZeDeviceProperties.flags &
-                            ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
-  // For an integrated device the buffer is allocated in host shared memory
-  // therefore no copying is needed here.
-  // We add an operation so that the returned event is valid at the SYCL level.
-  if (DeviceIsIntegrated) {
-
-    ZE_CALL(zeCommandListAppendSignalEvent(ZeCommandList, ZeEvent));
-
-  } else {
-
-    ZE_CALL(zeCommandListAppendMemoryCopy(
-        ZeCommandList, pi_cast<char *>(MemObj->getZeHandle()) + MapInfo.Offset,
-        MappedPtr, MapInfo.Size, ZeEvent, 0, nullptr));
-  }
 
   // NOTE: we still have to free the host memory allocated/returned by
   // piEnqueueMemBufferMap, but can only do so after the above copy
@@ -4152,12 +4139,49 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
         (DeviceIsIntegrated ? nullptr
                             : (MemObj->MapHostPtr ? nullptr : MappedPtr));
 
-  // Execute command list asynchronously, as the event will be used
-  // to track down its completion.
-  if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence))
-    return Res;
+  if (DeviceIsIntegrated) {
+    (*Event)->HostSyncforMap = true;
+    for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
+      zePrint("UnMap Added ZeWaitEvent = %lx\n",
+              pi_cast<std::uintptr_t>(EventWaitList[i]->ZeEvent));
+      (*Event)->waitEvents.push_back(EventWaitList[i]->ZeEvent);
+    }
+    (*Event)->SrcBuffer = MappedPtr;
+    (*Event)->DstBuffer =
+        pi_cast<char *>(MemObj->getZeHandle()) + MapInfo.Offset;
+    (*Event)->RetMapSize = MapInfo.Size;
+    (*Event)->CopyPending = true;
+  } else {
 
-  _pi_event::deleteZeEventList(ZeEventWaitList);
+    if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
+                                                          &ZeFence))
+      return Res;
+
+    ze_event_handle_t *ZeEventWaitList =
+        _pi_event::createZeEventList(NumEventsInWaitList, EventWaitList);
+
+    ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, NumEventsInWaitList,
+                                            ZeEventWaitList));
+
+    // TODO: Level Zero is missing the memory "mapping" capabilities, so we are
+    // left to doing copy (write back to the device).
+    // See https://gitlab.devtools.intel.com/one-api/level_zero/issues/293. //
+    // INTEL
+    //
+    // NOTE: Keep this in sync with the implementation of
+    // piEnqueueMemBufferMap/piEnqueueMemImageMap.
+
+    ZE_CALL(zeCommandListAppendMemoryCopy(
+        ZeCommandList, pi_cast<char *>(MemObj->getZeHandle()) + MapInfo.Offset,
+        MappedPtr, MapInfo.Size, ZeEvent, 0, nullptr));
+
+    // Execute command list asynchronously, as the event will be used
+    // to track down its completion.
+    if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence))
+      return Res;
+
+    _pi_event::deleteZeEventList(ZeEventWaitList);
+  }
 
   return PI_SUCCESS;
 }
