@@ -38,12 +38,20 @@ prefix=$1
 echo "inline bool isValid(spv::$prefix V) {
   switch (V) {"
 
+  prevValue=
   cat $spirvHeader | sed -n -e "/^ *${prefix}[^a-z]/s:^ *${prefix}\([^= ][^= ]*\)[= ][= ]*\(.*\).*:\1 \2:p"  | while read a b; do
-  if [[ $a == CapabilityNone ]]; then
-    continue
-  fi
-  printf "  case ${prefix}%s:\n" $a
-done
+    if [[ "$a" == "Max" ]]; then
+      # The "Max" enum value is not valid.
+      continue
+    fi
+    if [[ "$b" == "$prevValue" ]]; then
+      # This enum value is an alias for the previous.  Skip to avoid duplicate case values.
+      continue
+    fi
+
+    printf "  case ${prefix}%s:\n" "$a"
+    prevValue=$b
+  done
 
 echo "    return true;
   default:
@@ -78,13 +86,11 @@ if [[ "$type" == NameMap ]]; then
     genNameMap $prefix
   done
 elif [[ "$type" == isValid ]]; then
-  for prefix in SourceLanguage ExecutionModel AddressingModel MemoryModel ExecutionMode StorageClass Dim SamplerAddressingMode SamplerFilterMode ImageFormat \
-      ImageChannelOrder ImageChannelDataType FPRoundingMode LinkageType AccessQualifier FunctionParameterAttribute Decoration BuiltIn Scope GroupOperation \
-      KernelEnqueueFlags Capability; do
+  for prefix in ExecutionModel AddressingModel MemoryModel StorageClass \
+      LinkageType AccessQualifier FunctionParameterAttribute BuiltIn ; do
     genIsValid $prefix
   done
-  for prefix in ImageOperandsMask FPFastMathModeMask SelectionControlMask LoopControlMask FunctionControlMask MemorySemanticsMask MemoryAccessMask \
-      KernelProfilingInfoMask; do
+  for prefix in FunctionControlMask ; do
     genMaskIsValid $prefix
   done
 else
