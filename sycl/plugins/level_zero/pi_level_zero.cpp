@@ -664,23 +664,17 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
 
   std::lock_guard<std::mutex> Lock(*PiPlatformsCacheMutex);
   if (!PiPlatformCachePopulated) {
-    // We will retrieve the Max CommandList Cache in this lamda function so that
-    // it only has to be executed once
-    static pi_uint32 CommandListCacheSizeValue = ([] {
-      const char *CommandListCacheSize =
-          std::getenv("SYCL_PI_LEVEL0_MAX_COMMAND_LIST_CACHE");
-      pi_uint32 CommandListCacheSizeValue;
-      try {
-        CommandListCacheSizeValue =
-            CommandListCacheSize ? std::stoi(CommandListCacheSize) : 20000;
-      } catch (std::exception const &) {
-        zePrint(
-            "SYCL_PI_LEVEL0_MAX_COMMAND_LIST_CACHE: invalid value provided, "
-            "default set.\n");
-        CommandListCacheSizeValue = 20000;
-      }
-      return CommandListCacheSizeValue;
-    })();
+    const char *CommandListCacheSize =
+        std::getenv("SYCL_PI_LEVEL0_MAX_COMMAND_LIST_CACHE");
+    pi_uint32 CommandListCacheSizeValue;
+    try {
+      CommandListCacheSizeValue =
+          CommandListCacheSize ? std::stoi(CommandListCacheSize) : 20000;
+    } catch (std::exception const &) {
+      zePrint("SYCL_PI_LEVEL0_MAX_COMMAND_LIST_CACHE: invalid value provided, "
+              "default set.\n");
+      CommandListCacheSizeValue = 20000;
+    }
 
     try {
 
@@ -821,8 +815,8 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
   }
 
   if (NumPlatforms) {
-    std::vector<pi_platform> PlatformCache(NumPlatforms);
-    Res = piPlatformsGet(NumPlatforms, PlatformCache.data(), nullptr);
+    std::vector<pi_platform> Platforms(NumPlatforms);
+    Res = piPlatformsGet(NumPlatforms, Platforms.data(), nullptr);
     if (Res != PI_SUCCESS) {
       return Res;
     }
@@ -832,7 +826,7 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
     // of the Level Zero drivers when we initialized the platform cache, so the
     // "NativeHandle" must already be in the cache. If it is not, this must not
     // be a valid Level Zero driver.
-    for (const pi_platform &CachedPlatform : PlatformCache) {
+    for (const pi_platform &CachedPlatform : Platforms) {
       if (CachedPlatform->ZeDriver == ZeDriver) {
         *Platform = CachedPlatform;
         return PI_SUCCESS;
