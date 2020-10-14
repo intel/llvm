@@ -127,7 +127,7 @@ private:
   AllocateDependencyF MAllocateDependency;
 
   bool addGenericCommand(value_type Cmd, EnqueueListT *ToEnqueue);
-  bool addHostAccessorCommand(EmptyCommand *Cmd);
+  bool addHostAccessorCommand(EmptyCommand *Cmd, EnqueueListT *ToEnqueue);
 
   // inserts a command to the end of list for its mem object
   void insertHostAccessorCommand(EmptyCommand *Cmd);

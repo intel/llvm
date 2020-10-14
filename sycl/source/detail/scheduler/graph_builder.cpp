@@ -167,13 +167,13 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
   const size_t LeafLimit = 8;
   LeavesCollection::AllocateDependencyF AllocateDependency =
       [this](Command *Dependant, Command *Dependency, MemObjRecord *Record,
-             std::vector<Command *> *ToEnqueue) {
+             LeavesCollection::EnqueueListT *ToEnqueue) {
         // Add the old leaf as a dependency for the new one by duplicating one
         // of the requirements for the current record
         DepDesc Dep = findDepForRecord(Dependant, Record);
         Dep.MDepCommand = Dependency;
         if (Command *ConnectionCmd = Dependant->addDep(Dep))
-          ToEnqueue.push_back(ConnectionCmd);
+          ToEnqueue->push_back(ConnectionCmd);
         Dependency->addUser(Dependant);
         --(Dependency->MLeafCounter);
       };
@@ -682,7 +682,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
     }
 
     Record->MAllocaCommands.push_back(AllocaCmd);
-    Record->MWriteLeaves.push_back(AllocaCmd);
+    Record->MWriteLeaves.push_back(AllocaCmd, &ToEnqueue);
     ++(AllocaCmd->MLeafCounter);
   }
   return AllocaCmd;
