@@ -108,31 +108,13 @@ else
 fi
 }
 
-####################
-#
-# main
-#
-####################
+genFile() {
+  outputFile=$1
+  genType=$2
+  outputBasename="$(basename ${outputFile})"
+  includeGuard="SPIRV_LIBSPIRV_`echo ${outputBasename} | tr '[:lower:]' '[:upper:]' | sed -e 's/[\.\/]/_/g'`"
 
-if [[ $# -ne 2 ]]; then
-  echo "usage: gen_spirv path_to_spirv.hpp [NameMap|isValid]"
-  exit
-fi
-
-spirvHeader=$1
-type=$2
-if [[ "$type" == NameMap ]]; then
-  outputFile="lib/SPIRV/libSPIRV/SPIRVNameMapEnum.h"
-elif [[ "$type" == isValid ]]; then
-  outputFile="lib/SPIRV/libSPIRV/SPIRVIsValidEnum.h"
-else
-  echo "Unknown type $type"
-  exit 1
-fi
-outputBasename="$(basename ${outputFile})"
-includeGuard="SPIRV_LIBSPIRV_`echo ${outputBasename} | tr '[:lower:]' '[:upper:]' | sed -e 's/[\.\/]/_/g'`"
-
-echo "//===- ${outputBasename} - SPIR-V ${type} enums ----------------*- C++ -*-===//
+  echo "//===- ${outputBasename} - SPIR-V ${genType} enums ----------------*- C++ -*-===//
 //
 //                     The LLVM/SPIRV Translator
 //
@@ -167,7 +149,7 @@ echo "//===- ${outputBasename} - SPIR-V ${type} enums ----------------*- C++ -*-
 //===----------------------------------------------------------------------===//
 /// \\file
 ///
-/// This file defines SPIR-V ${type} enums.
+/// This file defines SPIR-V ${genType} enums.
 ///
 //===----------------------------------------------------------------------===//
 // WARNING:
@@ -188,8 +170,24 @@ using namespace spv;
 namespace SPIRV {
 " > ${outputFile}
 
-gen $type >> ${outputFile}
+  gen $genType >> ${outputFile}
 
-echo "} /* namespace SPIRV */
+  echo "} /* namespace SPIRV */
 
 #endif // ${includeGuard}" >> ${outputFile}
+}
+
+####################
+#
+# main
+#
+####################
+
+if [[ $# -ne 1 ]]; then
+  echo "usage: gen_spirv path_to_spirv.hpp"
+  exit
+fi
+
+spirvHeader=$1
+genFile "lib/SPIRV/libSPIRV/SPIRVNameMapEnum.h" NameMap
+genFile "lib/SPIRV/libSPIRV/SPIRVIsValidEnum.h" isValid
