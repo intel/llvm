@@ -13,13 +13,45 @@
 //
 //===----------------------------------------------------------------------===//
 #include <CL/sycl.hpp>
+
 #include <cassert>
+#include <iostream>
 #include <memory>
 
 using namespace cl::sycl;
 
 int main() {
   bool Failed = false;
+  {
+    sycl::context Ctx;
+    cl_context OCLCtx = Ctx.get();
+
+    cl_int Error = CL_SUCCESS;
+    cl_mem OCLBuf =
+        clCreateBuffer(OCLCtx, CL_MEM_READ_WRITE, sizeof(int), nullptr, &Error);
+    CHECK_OCL_CODE(Error);
+    Error = clReleaseContext(OCLCtx);
+    CHECK_OCL_CODE(Error);
+
+    sycl::queue Q;
+
+    if (Ctx == Q.get_context()) {
+      std::cerr << "Expected different contexts" << std::endl;
+      Failed = true;
+    }
+
+    Q.submit([&](sycl::handler &CGH) {
+      auto Acc = Buf.get_access<access::mode::write>(CGH);
+      CGH.single_task<class BufferInterop_DifferentContext>(
+          [=]() { Acc[0] = 42; });
+    });
+
+    auto Acc = Buf.get_access<sycl::access::mode::read>();
+    if (Acc[0] != 42) {
+      std::cerr << "Result is incorrect" << std::endl;
+      Failed = true;
+    }
+  }
   {
     constexpr size_t Size = 32;
     int Init[Size] = {5};
@@ -29,9 +61,11 @@ int main() {
 
     queue MyQueue;
 
-    cl_mem OpenCLBuffer = clCreateBuffer(
-        MyQueue.get_context().get(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
-        Size * sizeof(int), Init, &Error);
+    cl_context OCLCtx = MyQueue.get_context().get();
+
+    cl_mem OpenCLBuffer =
+        clCreateBuffer(OCLCtx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
+                       Size * sizeof(int), Init, &Error);
     CHECK_OCL_CODE(Error);
     buffer<int, 1> Buffer{OpenCLBuffer, MyQueue.get_context()};
 
@@ -79,6 +113,8 @@ int main() {
         Failed = true;
       }
     }
+    Error = clReleaseContext(OCLCtx);
+    CHECK_OCL_CODE(Error);
   }
   // Check set_final_data
   {
@@ -88,10 +124,11 @@ int main() {
     cl_int Error = CL_SUCCESS;
 
     queue MyQueue;
+    cl_context OCLCtx = MyQueue.get_context().get();
 
-    cl_mem OpenCLBuffer = clCreateBuffer(
-        MyQueue.get_context().get(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
-        Size * sizeof(int), Init, &Error);
+    cl_mem OpenCLBuffer =
+        clCreateBuffer(OCLCtx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
+                       Size * sizeof(int), Init, &Error);
     CHECK_OCL_CODE(Error);
     {
       buffer<int, 1> Buffer{OpenCLBuffer, MyQueue.get_context()};
@@ -113,6 +150,8 @@ int main() {
         Failed = true;
       }
     }
+    Error = clReleaseContext(OCLCtx);
+    CHECK_OCL_CODE(Error);
   }
   // Check host accessor
   {
@@ -121,10 +160,11 @@ int main() {
     cl_int Error = CL_SUCCESS;
 
     queue MyQueue;
+    cl_context OCLCtx = MyQueue.get_context().get();
 
-    cl_mem OpenCLBuffer = clCreateBuffer(
-        MyQueue.get_context().get(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
-        Size * sizeof(int), Init, &Error);
+    cl_mem OpenCLBuffer =
+        clCreateBuffer(OCLCtx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
+                       Size * sizeof(int), Init, &Error);
     CHECK_OCL_CODE(Error);
     buffer<int, 1> Buffer{OpenCLBuffer, MyQueue.get_context()};
 
@@ -143,6 +183,8 @@ int main() {
       }
     }
     Error = clReleaseMemObject(OpenCLBuffer);
+    CHECK_OCL_CODE(Error);
+    Error = clReleaseContext(OCLCtx);
     CHECK_OCL_CODE(Error);
   }
   // Check interop constructor event
