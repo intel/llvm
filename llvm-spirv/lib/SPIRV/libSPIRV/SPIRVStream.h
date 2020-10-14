@@ -43,11 +43,9 @@
 #include "SPIRVDebug.h"
 #include "SPIRVExtInst.h"
 #include "SPIRVModule.h"
-#include <algorithm>
 #include <cctype>
 #include <cstdint>
 #include <iostream>
-#include <iterator>
 #include <string>
 #include <vector>
 
@@ -170,6 +168,13 @@ const SPIRVDecoder &operator>>(const SPIRVDecoder &I, std::vector<T> &V) {
 }
 
 template <typename T>
+const SPIRVDecoder &operator>>(const SPIRVDecoder &I, llvm::Optional<T> &V) {
+  if (V)
+    I >> V.getValue();
+  return I;
+}
+
+template <typename T>
 const SPIRVEncoder &operator<<(const SPIRVEncoder &O, T V) {
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
   if (SPIRVUseTextFormat) {
@@ -191,6 +196,14 @@ template <typename T>
 const SPIRVEncoder &operator<<(const SPIRVEncoder &O, const std::vector<T> &V) {
   for (size_t I = 0, E = V.size(); I != E; ++I)
     O << V[I];
+  return O;
+}
+
+template <typename T>
+const SPIRVEncoder &operator<<(const SPIRVEncoder &O,
+                               const llvm::Optional<T> &V) {
+  if (V)
+    O << V.getValue();
   return O;
 }
 

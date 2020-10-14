@@ -23,6 +23,7 @@
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
@@ -1349,6 +1350,25 @@ void SCCPSolver::handleCallResult(CallBase &CB) {
 
       return (void)mergeInValue(IV, &CB, CopyOfVal);
     }
+
+    if (ConstantRange::isIntrinsicSupported(II->getIntrinsicID())) {
+      // Compute result range for intrinsics supported by ConstantRange.
+      // Do this even if we don't know a range for all operands, as we may
+      // still know something about the result range, e.g. of abs(x).
+      SmallVector<ConstantRange, 2> OpRanges;
+      for (Value *Op : II->args()) {
+        const ValueLatticeElement &State = getValueState(Op);
+        if (State.isConstantRange())
+          OpRanges.push_back(State.getConstantRange());
+        else
+          OpRanges.push_back(
+              ConstantRange::getFull(Op->getType()->getScalarSizeInBits()));
+      }
+
+      ConstantRange Result =
+          ConstantRange::intrinsic(II->getIntrinsicID(), OpRanges);
+      return (void)mergeInValue(II, ValueLatticeElement::getRange(Result));
+    }
   }
 
   // The common case is that we aren't tracking the callee, either because we
@@ -1976,18 +1996,18 @@ bool llvm::runIPSCCP(
       // inaccessiblemem_or_argmemonly attributes do not hold any longer. Remove
       // them from both the function and callsites.
       if (ReplacedPointerArg) {
-        SmallVector<Attribute::AttrKind, 2> AttributesToRemove = {
-            Attribute::ArgMemOnly, Attribute::InaccessibleMemOrArgMemOnly};
-        for (auto Attr : AttributesToRemove)
-          F.removeFnAttr(Attr);
+        AttrBuilder AttributesToRemove;
+        AttributesToRemove.addAttribute(Attribute::ArgMemOnly);
+        AttributesToRemove.addAttribute(Attribute::InaccessibleMemOrArgMemOnly);
+        F.removeAttributes(AttributeList::FunctionIndex, AttributesToRemove);
 
         for (User *U : F.users()) {
           auto *CB = dyn_cast<CallBase>(U);
           if (!CB || CB->getCalledFunction() != &F)
             continue;
 
-          for (auto Attr : AttributesToRemove)
-            CB->removeAttribute(AttributeList::FunctionIndex, Attr);
+          CB->removeAttributes(AttributeList::FunctionIndex,
+                               AttributesToRemove);
         }
       }
     }
@@ -2112,9 +2132,27 @@ bool llvm::runIPSCCP(
   }
 
   // Zap all returns which we've identified as zap to change.
+  SmallSetVector<Function *, 8> FuncZappedReturn;
   for (unsigned i = 0, e = ReturnsToZap.size(); i != e; ++i) {
     Function *F = ReturnsToZap[i]->getParent()->getParent();
     ReturnsToZap[i]->setOperand(0, UndefValue::get(F->getReturnType()));
+    // Record all functions that are zapped.
+    FuncZappedReturn.insert(F);
+  }
+
+  // Remove the returned attribute for zapped functions and the
+  // corresponding call sites.
+  for (Function *F : FuncZappedReturn) {
+    for (Argument &A : F->args())
+      F->removeParamAttr(A.getArgNo(), Attribute::Returned);
+    for (Use &U : F->uses()) {
+      // Skip over blockaddr users.
+      if (isa<BlockAddress>(U.getUser()))
+        continue;
+      CallBase *CB = cast<CallBase>(U.getUser());
+      for (Use &Arg : CB->args())
+        CB->removeParamAttr(CB->getArgOperandNo(&Arg), Attribute::Returned);
+    }
   }
 
   // If we inferred constant or undef values for globals variables, we can

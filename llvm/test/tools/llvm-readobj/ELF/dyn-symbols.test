@@ -322,8 +322,57 @@ Sections:
           - NonDefault
 DynamicSymbols:
   - Name: foo
-  - Name: bar
-  - Name: zed
+  - Name:  [[NAME=bar]]
+    Type:  [[TYPE=STT_NOTYPE]]
+    Index: [[INDEX=<none>]]
+  - Name: [[NAME=zed]]
+    Type: [[TYPE=STT_NOTYPE]]
+
+## Check the behavior for unnamed versioned section symbols.
+# RUN: yaml2obj %s -DTYPE=STT_SECTION -DNAME="''" -DINDEX=SHN_ABS --docnum=6 -o %t6.sec.sym
+# RUN: llvm-readobj -V --dyn-symbols %t6.sec.sym 2>&1 | \
+# RUN:   FileCheck %s -DFILE=%t6.sec.sym --check-prefix=VERSIONED-SEC-SYM-LLVM
+# RUN: llvm-readelf -V --dyn-symbols %t6.sec.sym 2>&1 | \
+# RUN:   FileCheck %s -DFILE=%t6.sec.sym --check-prefix=VERSIONED-SEC-SYM-GNU
+
+# VERSIONED-SEC-SYM-LLVM: DynamicSymbols [
+# VERSIONED-SEC-SYM-LLVM:  Name: foo (12)
+# VERSIONED-SEC-SYM-LLVM: warning: '[[FILE]]': unable to get section index for symbol with st_shndx = 0xfff1 (SHN_ABS)
+# VERSIONED-SEC-SYM-LLVM:  Name: <?> (0)
+# VERSIONED-SEC-SYM-LLVM: warning: '[[FILE]]': unable to get section index for symbol with st_shndx = 0x0 (SHN_UNDEF)
+# VERSIONED-SEC-SYM-LLVM:  Name: <?> (0)
+# VERSIONED-SEC-SYM-LLVM: VersionSymbols [
+# VERSIONED-SEC-SYM-LLVM:  Name: foo
+# VERSIONED-SEC-SYM-LLVM:  Name: <?>
+# VERSIONED-SEC-SYM-LLVM:  Name: <?>
+
+# VERSIONED-SEC-SYM-GNU:     Symbol table '.dynsym' contains 4 entries:
+# VERSIONED-SEC-SYM-GNU:        Num: {{.*}} Ndx Name
+# VERSIONED-SEC-SYM-GNU:          1: {{.*}} UND foo
+# VERSIONED-SEC-SYM-GNU:      warning: '[[FILE]]': unable to get section index for symbol with st_shndx = 0xfff1 (SHN_ABS)
+# VERSIONED-SEC-SYM-GNU-NEXT:     2: {{.*}} ABS <?>
+# VERSIONED-SEC-SYM-GNU-NEXT: warning: '[[FILE]]': unable to get section index for symbol with st_shndx = 0x0 (SHN_UNDEF)
+# VERSIONED-SEC-SYM-GNU-NEXT:     3: {{.*}} UND <?>
+
+## Check we print a proper warning when an unnamed versioned section symbol has st_shndx = SHN_XINDEX, but there
+## is no SHT_SYMTAB_SHNDX section in the object.
+# RUN: yaml2obj %s -DTYPE=STT_SECTION -DNAME="''" -DINDEX=SHN_XINDEX --docnum=6 -o %t6.sec.xindex.sym
+# RUN: llvm-readobj -V --dyn-symbols %t6.sec.xindex.sym 2>&1 | \
+# RUN:   FileCheck %s -DFILE=%t6.sec.xindex.sym --check-prefix=VERSIONED-SEC-SYM-XINDEX-LLVM
+# RUN: llvm-readelf -V --dyn-symbols %t6.sec.xindex.sym 2>&1 | \
+# RUN:   FileCheck %s -DFILE=%t6.sec.xindex.sym --check-prefix=VERSIONED-SEC-SYM-XINDEX-GNU
+
+# VERSIONED-SEC-SYM-XINDEX-LLVM:       Name: (0)
+# VERSIONED-SEC-SYM-XINDEX-LLVM:       Name: foo (12)
+# VERSIONED-SEC-SYM-XINDEX-LLVM:      warning: '[[FILE]]': extended symbol index (2) is past the end of the SHT_SYMTAB_SHNDX section of size 0
+# VERSIONED-SEC-SYM-XINDEX-LLVM-NEXT: Symbol {
+# VERSIONED-SEC-SYM-XINDEX-LLVM-NEXT:  Name: <?> (0)
+# VERSIONED-SEC-SYM-XINDEX-LLVM:       Name: <?> (0)
+
+# VERSIONED-SEC-SYM-XINDEX-GNU:      Symbol table '.dynsym' contains 4 entries:
+# VERSIONED-SEC-SYM-XINDEX-GNU:         Num: {{.*}} Ndx Name
+# VERSIONED-SEC-SYM-XINDEX-GNU:      warning: '[[FILE]]': extended symbol index (2) is past the end of the SHT_SYMTAB_SHNDX section of size 0
+# VERSIONED-SEC-SYM-XINDEX-GNU-NEXT:      2: {{.*}} RSV[0xffff] <?>
 
 ## Case 8: Check what we print when:
 ## a) The dynamic symbol table does not exist.
@@ -458,8 +507,8 @@ Sections:
       - Tag:   DT_NULL
         Value: 0
 
-## Check we report a warning when the DT_STRSZ value is broken so that the dynamic string
-## table goes past the end of the file. Document we stop dumping symbols and report an error.
+## Case 10: Check we report a warning when the DT_STRSZ value is broken so that the dynamic string
+##          table goes past the end of the file. Document we stop dumping symbols and report an error.
 
 # RUN: yaml2obj %s --docnum=13 -o %t14
 # RUN: llvm-readobj --dyn-symbols %t14 2>&1 | \
@@ -539,17 +588,19 @@ ProgramHeaders:
       - Section: .dynstr
       - Section: .dynamic
 
-## Check we report a warning when the entry size of the dynamic symbol table is zero.
-# RUN: yaml2obj %s --docnum=14 -o %t15
-# RUN: llvm-readobj --dyn-symbols %t15 2>&1 | FileCheck %s -DFILE=%t15 --check-prefix=DYNSYM-ZERO-ENTSIZE-LLVM
-# RUN: llvm-readelf --dyn-symbols %t15 2>&1 | \
-# RUN:   FileCheck %s -DFILE=%t15 --check-prefix=DYNSYM-ZERO-ENTSIZE-GNU --implicit-check-not="Symbol table"
+## Case 11: check various warnings we report when fields of the SHT_DYNSYM section are broken.
+
+## a) check we report a warning when the entry size of the dynamic symbol table is zero.
+# RUN: yaml2obj %s --docnum=14 -DENTSIZE=0x0 -o %t15.entsize
+# RUN: llvm-readobj --dyn-symbols %t15.entsize 2>&1 | FileCheck %s -DFILE=%t15.entsize --check-prefix=DYNSYM-ZERO-ENTSIZE-LLVM
+# RUN: llvm-readelf --dyn-symbols %t15.entsize 2>&1 | \
+# RUN:   FileCheck %s -DFILE=%t15.entsize --check-prefix=DYNSYM-ZERO-ENTSIZE-GNU --implicit-check-not="Symbol table"
 
 # DYNSYM-ZERO-ENTSIZE-LLVM:      DynamicSymbols [
-# DYNSYM-ZERO-ENTSIZE-LLVM-NEXT:  warning: '[[FILE]]': SHT_DYNSYM section with index 1 has invalid size (0x10) or entry size (0x0)
+# DYNSYM-ZERO-ENTSIZE-LLVM-NEXT:  warning: '[[FILE]]': SHT_DYNSYM section with index 1 has invalid size (0x20) or entry size (0x0)
 # DYNSYM-ZERO-ENTSIZE-LLVM-NEXT: ]
 
-# DYNSYM-ZERO-ENTSIZE-GNU:  warning: '[[FILE]]': SHT_DYNSYM section with index 1 has invalid size (0x10) or entry size (0x0)
+# DYNSYM-ZERO-ENTSIZE-GNU:  warning: '[[FILE]]': SHT_DYNSYM section with index 1 has invalid size (0x20) or entry size (0x0)
 
 --- !ELF
 FileHeader:
@@ -557,6 +608,38 @@ FileHeader:
   Data:  ELFDATA2LSB
   Type:  ET_DYN
 Sections:
-  - Name:    .dynsym
-    Type:    SHT_DYNSYM
-    EntSize: 0x0
+  - Name:     .dynsym
+    Type:     SHT_DYNSYM
+    EntSize:  [[ENTSIZE=<none>]]
+    ShOffset: [[OFFSET=<none>]]
+    ShSize:   [[SIZE=<none>]]
+DynamicSymbols:
+  - Name: foo
+
+## b) check we report a warning when the sh_offset field of the SHT_DYNSYM section is
+##    invalid (sh_offset + sh_size is greater than the file size). Check we don't dump
+##    dynamic symbols in this case.
+# RUN: yaml2obj --docnum=14 %s -DOFFSET=0xffffffff -o %t15.offset
+# RUN: llvm-readobj %t15.offset --dyn-symbols 2>&1 | FileCheck %s -DFILE=%t15.offset \
+# RUN:   --check-prefixes=OFFSET-BROKEN,OFFSET-BROKEN-LLVM
+# RUN: llvm-readelf %t15.offset --dyn-symbols 2>&1 | FileCheck %s -DFILE=%t15.offset \
+# RUN:   --implicit-check-not="Symbol table" --check-prefix=OFFSET-BROKEN
+
+# OFFSET-BROKEN: warning: '[[FILE]]': unable to read dynamic symbols from SHT_DYNSYM section with index 1: offset (0xffffffff) + size (0x20) is greater than the file size (0x148)
+
+# OFFSET-BROKEN-LLVM:      DynamicSymbols [
+# OFFSET-BROKEN-LLVM-NEXT: ]
+
+## c) check we report a warning when the sh_size field of the SHT_DYNSYM section is
+##    invalid (sh_offset + sh_size is greater than the file size). Check we don't dump
+##    dynamic symbols in this case.
+# RUN: yaml2obj --docnum=14 %s -DSIZE=0xffffffff -o %t15.size
+# RUN: llvm-readobj %t15.size --dyn-symbols 2>&1 | FileCheck %s -DFILE=%t15.size \
+# RUN:   --check-prefixes=SIZE-BROKEN,SIZE-BROKEN-LLVM
+# RUN: llvm-readelf %t15.size --dyn-symbols 2>&1 | FileCheck %s -DFILE=%t15.size \
+# RUN:   --implicit-check-not="Symbol table" --check-prefix=SIZE-BROKEN
+
+# SIZE-BROKEN: warning: '[[FILE]]': unable to read dynamic symbols from SHT_DYNSYM section with index 1: offset (0x34) + size (0xffffffff) is greater than the file size (0x148)
+
+# SIZE-BROKEN-LLVM:      DynamicSymbols [
+# SIZE-BROKEN-LLVM-NEXT: ]

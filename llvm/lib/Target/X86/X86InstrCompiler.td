@@ -896,6 +896,30 @@ def LCMPXCHG16B_SAVE_RBX :
                                                     GR64:$rbx_save))]>;
 }
 
+// This pseudo must be used when the frame uses RBX/EBX as
+// the base pointer.
+// cf comment for LCMPXCHG16B_SAVE_RBX.
+let Defs = [EBX], Uses = [ECX, EAX, EBX],
+    Predicates = [HasMWAITX], SchedRW = [WriteSystem],
+    isCodeGenOnly = 1, isPseudo = 1, Constraints = "$rbx_save = $dst" in {
+def MWAITX_SAVE_RBX :
+    I<0, Pseudo, (outs GR64:$dst),
+      (ins GR32:$ebx_input, GR64:$rbx_save),
+      "mwaitx",
+      []>;
+}
+
+// Pseudo mwaitx instruction to use for custom insertion.
+let Predicates = [HasMWAITX], SchedRW = [WriteSystem],
+    isCodeGenOnly = 1, isPseudo = 1,
+    usesCustomInserter = 1 in {
+def MWAITX :
+    I<0, Pseudo, (outs), (ins GR32:$ecx, GR32:$eax, GR32:$ebx),
+      "mwaitx",
+      [(int_x86_mwaitx GR32:$ecx, GR32:$eax, GR32:$ebx)]>;
+}
+
+
 defm LCMPXCHG : LCMPXCHG_BinOp<0xB0, 0xB1, MRMDestMem, "cmpxchg", X86cas>;
 
 // Atomic exchange and add

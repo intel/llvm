@@ -11,7 +11,7 @@
 
 // TODO: re-enable after CI drivers are updated to newer which support spec
 // constants:
-// XFAIL: linux && opencl && accelerator
+// XFAIL: opencl && accelerator
 // UNSUPPORTED: cuda || level_zero
 #include "spec_const_hw.cpp"
 // RUN: %ACC_RUN_PLACEHOLDER %t.out

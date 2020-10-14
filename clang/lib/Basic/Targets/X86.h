@@ -127,6 +127,8 @@ class LLVM_LIBRARY_VISIBILITY X86TargetInfo : public TargetInfo {
   bool HasPTWRITE = false;
   bool HasINVPCID = false;
   bool HasENQCMD = false;
+  bool HasKL = false;      // For key locker
+  bool HasWIDEKL = false; // For wide key locker
   bool HasAMXTILE = false;
   bool HasAMXINT8 = false;
   bool HasAMXBF16 = false;
@@ -306,6 +308,9 @@ public:
   }
 
   bool isValidTuneCPUName(StringRef Name) const override {
+    if (Name == "generic")
+      return true;
+
     // Allow 32-bit only CPUs regardless of 64-bit mode unlike isValidCPUName.
     // NOTE: gcc rejects 32-bit mtune CPUs in 64-bit mode. But being lenient
     // since mtune was ignored by clang for so long.

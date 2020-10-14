@@ -150,7 +150,8 @@ bool Compilation::CleanupFileList(const TempFileList &Files,
     // Temporary file lists contain files that need to be cleaned. The
     // file containing the information is also removed
     if (File.second == types::TY_Tempfilelist ||
-        File.second == types::TY_Tempfiletable) {
+        File.second == types::TY_Tempfiletable ||
+        File.second == types::TY_FPGA_Dependencies_List) {
       // These are temporary files and need to be removed.
       bool IsTable = File.second == types::TY_Tempfiletable;
 

@@ -15,14 +15,11 @@
 using namespace sycl;
 using namespace sycl::ONEAPI;
 
-template <typename InputContainer, typename OutputContainer>
-class broadcast_kernel;
-
-template <typename InputContainer, typename OutputContainer>
+template <typename kernel_name, typename InputContainer,
+          typename OutputContainer>
 void test(queue q, InputContainer input, OutputContainer output) {
   typedef typename InputContainer::value_type InputT;
   typedef typename OutputContainer::value_type OutputT;
-  typedef class broadcast_kernel<InputContainer, OutputContainer> kernel_name;
   size_t N = input.size();
   size_t G = 4;
   range<2> R(G, G);
@@ -63,7 +60,7 @@ int main() {
     std::array<int, 3> output;
     std::iota(input.begin(), input.end(), 1);
     std::fill(output.begin(), output.end(), false);
-    test(q, input, output);
+    test<class KernelName_EFL>(q, input, output);
   }
 
   // Test pointer type
@@ -74,7 +71,7 @@ int main() {
       input[i] = static_cast<int *>(0x0) + i;
     }
     std::fill(output.begin(), output.end(), static_cast<int *>(0x0));
-    test(q, input, output);
+    test<class KernelName_NrqELzFQToOSPsRNMi>(q, input, output);
   }
 
   // Test user-defined type
@@ -88,7 +85,7 @@ int main() {
           std::complex<float>(0, 1) + (float)i * std::complex<float>(2, 2);
     }
     std::fill(output.begin(), output.end(), std::complex<float>(0, 0));
-    test(q, input, output);
+    test<class KernelName_rCblcml>(q, input, output);
   }
   {
     std::array<std::complex<double>, N> input;
@@ -98,7 +95,7 @@ int main() {
           std::complex<double>(0, 1) + (double)i * std::complex<double>(2, 2);
     }
     std::fill(output.begin(), output.end(), std::complex<float>(0, 0));
-    test(q, input, output);
+    test<class KernelName_NCWhjnQ>(q, input, output);
   }
   std::cout << "Test passed." << std::endl;
 }

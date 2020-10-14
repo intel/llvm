@@ -386,17 +386,13 @@ static bool isReachable(const MachineInstr *From,
                         const MachineInstr *To,
                         const MachineBasicBlock *CutOff,
                         MachineDominatorTree &MDT) {
-  // If either From block dominates To block or instructions are in the same
-  // block and From is higher.
   if (MDT.dominates(From, To))
     return true;
 
   const MachineBasicBlock *MBBFrom = From->getParent();
   const MachineBasicBlock *MBBTo = To->getParent();
-  if (MBBFrom == MBBTo)
-    return false;
 
-  // Instructions are in different blocks, do predecessor search.
+  // Do predecessor search.
   // We should almost never get here since we do not usually produce M0 stores
   // other than -1.
   return searchPredecessors(MBBTo, CutOff, [MBBFrom]
@@ -595,8 +591,6 @@ bool SIFixSGPRCopies::runOnMachineFunction(MachineFunction &MF) {
   TRI = ST.getRegisterInfo();
   TII = ST.getInstrInfo();
   MDT = &getAnalysis<MachineDominatorTree>();
-
-  SmallVector<MachineInstr *, 16> Worklist;
 
   for (MachineFunction::iterator BI = MF.begin(), BE = MF.end();
                                                   BI != BE; ++BI) {

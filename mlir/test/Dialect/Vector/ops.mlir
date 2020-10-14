@@ -298,6 +298,33 @@ func @shape_cast(%arg0 : vector<5x1x3x2xf32>,
   return %0, %1, %2, %3, %4 : vector<15x2xf32>, tuple<vector<20x2xf32>, vector<12x2xf32>>, vector<8xf32>, vector<16xf32>, vector<16x1xf32>
 }
 
+// CHECK-LABEL: @bitcast
+func @bitcast(%arg0 : vector<5x1x3x2xf32>,
+                 %arg1 : vector<8x1xi32>,
+                 %arg2 : vector<16x1x8xi8>)
+  -> (vector<5x1x3x4xf16>, vector<5x1x3x8xi8>, vector<8x4xi8>, vector<8x1xf32>, vector<16x1x2xi32>, vector<16x1x4xi16>) {
+
+  // CHECK: vector.bitcast %{{.*}} : vector<5x1x3x2xf32> to vector<5x1x3x4xf16>
+  %0 = vector.bitcast %arg0 : vector<5x1x3x2xf32> to vector<5x1x3x4xf16>
+
+  // CHECK-NEXT: vector.bitcast %{{.*}} : vector<5x1x3x2xf32> to vector<5x1x3x8xi8>
+  %1 = vector.bitcast %arg0 : vector<5x1x3x2xf32> to vector<5x1x3x8xi8>
+
+  // CHECK-NEXT: vector.bitcast %{{.*}} : vector<8x1xi32> to vector<8x4xi8>
+  %2 = vector.bitcast %arg1 : vector<8x1xi32> to vector<8x4xi8>
+
+  // CHECK-NEXT: vector.bitcast %{{.*}} : vector<8x1xi32> to vector<8x1xf32>
+  %3 = vector.bitcast %arg1 : vector<8x1xi32> to vector<8x1xf32>
+
+  // CHECK-NEXT: vector.bitcast %{{.*}} : vector<16x1x8xi8> to vector<16x1x2xi32>
+  %4 = vector.bitcast %arg2 : vector<16x1x8xi8> to vector<16x1x2xi32>
+
+  // CHECK-NEXT: vector.bitcast %{{.*}} : vector<16x1x8xi8> to vector<16x1x4xi16>
+  %5 = vector.bitcast %arg2 : vector<16x1x8xi8> to vector<16x1x4xi16>
+
+  return %0, %1, %2, %3, %4, %5 : vector<5x1x3x4xf16>, vector<5x1x3x8xi8>, vector<8x4xi8>, vector<8x1xf32>, vector<16x1x2xi32>, vector<16x1x4xi16>
+}
+
 // CHECK-LABEL: @vector_fma
 func @vector_fma(%a: vector<8xf32>, %b: vector<8x4xf32>) {
   // CHECK: vector.fma %{{.*}} : vector<8xf32>
@@ -405,3 +432,14 @@ func @expand_and_compress(%base: memref<?xf32>, %mask: vector<16xi1>, %passthru:
   vector.compressstore %base, %mask, %0 : memref<?xf32>, vector<16xi1>, vector<16xf32>
   return
 }
+
+// CHECK-LABEL: @extract_insert_map
+func @extract_insert_map(%v: vector<32xf32>, %id : index) -> vector<32xf32> {
+  // CHECK: %[[V:.*]] = vector.extract_map %{{.*}}[%{{.*}} : 16] : vector<32xf32> to vector<2xf32>
+  %vd = vector.extract_map %v[%id : 16] : vector<32xf32> to vector<2xf32>
+  // CHECK: %[[R:.*]] = vector.insert_map %[[V]], %{{.*}}, 16 : vector<2xf32> to vector<32xf32>
+  %r = vector.insert_map %vd, %id, 16 : vector<2xf32> to vector<32xf32>
+  // CHECK: return %[[R]] : vector<32xf32>
+  return %r : vector<32xf32>
+}
+

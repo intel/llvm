@@ -16,36 +16,36 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace INTEL {
 
-template <class name, class dataT, int32_t min_capacity = 0> class pipe {
+template <class _name, class _dataT, int32_t _min_capacity = 0> class pipe {
 public:
   // Non-blocking pipes
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
-  static dataT read(bool &Success) {
+  static _dataT read(bool &_Success) {
 #ifdef __SYCL_DEVICE_ONLY__
-    RPipeTy<dataT> RPipe =
-        __spirv_CreatePipeFromPipeStorage_read<dataT>(&m_Storage);
-    dataT TempData;
-    Success = !static_cast<bool>(
-        __spirv_ReadPipe(RPipe, &TempData, m_Size, m_Alignment));
+    RPipeTy<_dataT> _RPipe =
+        __spirv_CreatePipeFromPipeStorage_read<_dataT>(&m_Storage);
+    _dataT TempData;
+    _Success = !static_cast<bool>(
+        __spirv_ReadPipe(_RPipe, &TempData, m_Size, m_Alignment));
     return TempData;
 #else
-    (void)Success;
+    (void)_Success;
     assert(!"Pipes are not supported on a host device!");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
   // Writing to pipe is lowered to SPIR-V instruction OpWritePipe via SPIR-V
   // friendly LLVM IR.
-  static void write(const dataT &Data, bool &Success) {
+  static void write(const _dataT &_Data, bool &_Success) {
 #ifdef __SYCL_DEVICE_ONLY__
-    WPipeTy<dataT> WPipe =
-        __spirv_CreatePipeFromPipeStorage_write<dataT>(&m_Storage);
-    Success = !static_cast<bool>(
-        __spirv_WritePipe(WPipe, &Data, m_Size, m_Alignment));
+    WPipeTy<_dataT> _WPipe =
+        __spirv_CreatePipeFromPipeStorage_write<_dataT>(&m_Storage);
+    _Success = !static_cast<bool>(
+        __spirv_WritePipe(_WPipe, &_Data, m_Size, m_Alignment));
 #else
-    (void)Success;
-    (void)Data;
+    (void)_Success;
+    (void)_Data;
     assert(!"Pipes are not supported on a host device!");
 #endif // __SYCL_DEVICE_ONLY__
   }
@@ -53,12 +53,12 @@ public:
   // Blocking pipes
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
-  static dataT read() {
+  static _dataT read() {
 #ifdef __SYCL_DEVICE_ONLY__
-    RPipeTy<dataT> RPipe =
-        __spirv_CreatePipeFromPipeStorage_read<dataT>(&m_Storage);
-    dataT TempData;
-    __spirv_ReadPipeBlockingINTEL(RPipe, &TempData, m_Size, m_Alignment);
+    RPipeTy<_dataT> _RPipe =
+        __spirv_CreatePipeFromPipeStorage_read<_dataT>(&m_Storage);
+    _dataT TempData;
+    __spirv_ReadPipeBlockingINTEL(_RPipe, &TempData, m_Size, m_Alignment);
     return TempData;
 #else
     assert(!"Pipes are not supported on a host device!");
@@ -67,21 +67,21 @@ public:
 
   // Writing to pipe is lowered to SPIR-V instruction OpWritePipe via SPIR-V
   // friendly LLVM IR.
-  static void write(const dataT &Data) {
+  static void write(const _dataT &_Data) {
 #ifdef __SYCL_DEVICE_ONLY__
-    WPipeTy<dataT> WPipe =
-        __spirv_CreatePipeFromPipeStorage_write<dataT>(&m_Storage);
-    __spirv_WritePipeBlockingINTEL(WPipe, &Data, m_Size, m_Alignment);
+    WPipeTy<_dataT> _WPipe =
+        __spirv_CreatePipeFromPipeStorage_write<_dataT>(&m_Storage);
+    __spirv_WritePipeBlockingINTEL(_WPipe, &_Data, m_Size, m_Alignment);
 #else
-    (void)Data;
+    (void)_Data;
     assert(!"Pipes are not supported on a host device!");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
 private:
-  static constexpr int32_t m_Size = sizeof(dataT);
-  static constexpr int32_t m_Alignment = alignof(dataT);
-  static constexpr int32_t m_Capacity = min_capacity;
+  static constexpr int32_t m_Size = sizeof(_dataT);
+  static constexpr int32_t m_Alignment = alignof(_dataT);
+  static constexpr int32_t m_Capacity = _min_capacity;
 #ifdef __SYCL_DEVICE_ONLY__
   static constexpr struct ConstantPipeStorage m_Storage = {m_Size, m_Alignment,
                                                            m_Capacity};
@@ -99,31 +99,31 @@ struct ethernet_pipe_id {
   static constexpr int32_t id = ID;
 };
 
-template <class dataT, size_t min_capacity>
+template <class _dataT, size_t _min_capacity>
 using ethernet_read_pipe =
-  kernel_readable_io_pipe<ethernet_pipe_id<0>, dataT, min_capacity>;
+  kernel_readable_io_pipe<ethernet_pipe_id<0>, _dataT, _min_capacity>;
 
-template <class dataT, size_t min_capacity>
+template <class _dataT, size_t _min_capacity>
 using ethernet_write_pipe =
-  kernel_writeable_io_pipe<ethernet_pipe_id<1>, dataT, min_capacity>;
+  kernel_writeable_io_pipe<ethernet_pipe_id<1>, _dataT, _min_capacity>;
 } // namespace intelfpga */
 
-template <class name, class dataT, size_t min_capacity = 0>
+template <class _name, class _dataT, size_t _min_capacity = 0>
 class kernel_readable_io_pipe {
 public:
   // Non-blocking pipes
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
-  static dataT read(bool &Success) {
+  static _dataT read(bool &_Success) {
 #ifdef __SYCL_DEVICE_ONLY__
-    RPipeTy<dataT> RPipe =
-        __spirv_CreatePipeFromPipeStorage_read<dataT>(&m_Storage);
-    dataT TempData;
-    Success = !static_cast<bool>(
-        __spirv_ReadPipe(RPipe, &TempData, m_Size, m_Alignment));
+    RPipeTy<_dataT> _RPipe =
+        __spirv_CreatePipeFromPipeStorage_read<_dataT>(&m_Storage);
+    _dataT TempData;
+    _Success = !static_cast<bool>(
+        __spirv_ReadPipe(_RPipe, &TempData, m_Size, m_Alignment));
     return TempData;
 #else
-    (void)Success;
+    (void)_Success;
     assert(!"Pipes are not supported on a host device!");
 #endif // __SYCL_DEVICE_ONLY__
   }
@@ -131,12 +131,12 @@ public:
   // Blocking pipes
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
-  static dataT read() {
+  static _dataT read() {
 #ifdef __SYCL_DEVICE_ONLY__
-    RPipeTy<dataT> RPipe =
-        __spirv_CreatePipeFromPipeStorage_read<dataT>(&m_Storage);
-    dataT TempData;
-    __spirv_ReadPipeBlockingINTEL(RPipe, &TempData, m_Size, m_Alignment);
+    RPipeTy<_dataT> _RPipe =
+        __spirv_CreatePipeFromPipeStorage_read<_dataT>(&m_Storage);
+    _dataT TempData;
+    __spirv_ReadPipeBlockingINTEL(_RPipe, &TempData, m_Size, m_Alignment);
     return TempData;
 #else
     assert(!"Pipes are not supported on a host device!");
@@ -144,31 +144,31 @@ public:
   }
 
 private:
-  static constexpr int32_t m_Size = sizeof(dataT);
-  static constexpr int32_t m_Alignment = alignof(dataT);
-  static constexpr int32_t m_Capacity = min_capacity;
-  static constexpr int32_t ID = name::id;
+  static constexpr int32_t m_Size = sizeof(_dataT);
+  static constexpr int32_t m_Alignment = alignof(_dataT);
+  static constexpr int32_t m_Capacity = _min_capacity;
+  static constexpr int32_t ID = _name::id;
 #ifdef __SYCL_DEVICE_ONLY__
   static constexpr struct ConstantPipeStorage m_Storage
       __attribute__((io_pipe_id(ID))) = {m_Size, m_Alignment, m_Capacity};
 #endif // __SYCL_DEVICE_ONLY__
 };
 
-template <class name, class dataT, size_t min_capacity = 0>
+template <class _name, class _dataT, size_t _min_capacity = 0>
 class kernel_writeable_io_pipe {
 public:
   // Non-blocking pipes
   // Writing to pipe is lowered to SPIR-V instruction OpWritePipe via SPIR-V
   // friendly LLVM IR.
-  static void write(const dataT &Data, bool &Success) {
+  static void write(const _dataT &_Data, bool &_Success) {
 #ifdef __SYCL_DEVICE_ONLY__
-    WPipeTy<dataT> WPipe =
-        __spirv_CreatePipeFromPipeStorage_write<dataT>(&m_Storage);
-    Success = !static_cast<bool>(
-        __spirv_WritePipe(WPipe, &Data, m_Size, m_Alignment));
+    WPipeTy<_dataT> _WPipe =
+        __spirv_CreatePipeFromPipeStorage_write<_dataT>(&m_Storage);
+    _Success = !static_cast<bool>(
+        __spirv_WritePipe(_WPipe, &_Data, m_Size, m_Alignment));
 #else
-    (void)Data;
-    (void)Success;
+    (void)_Data;
+    (void)_Success;
     assert(!"Pipes are not supported on a host device!");
 #endif // __SYCL_DEVICE_ONLY__
   }
@@ -176,22 +176,22 @@ public:
   // Blocking pipes
   // Writing to pipe is lowered to SPIR-V instruction OpWritePipe via SPIR-V
   // friendly LLVM IR.
-  static void write(const dataT &Data) {
+  static void write(const _dataT &_Data) {
 #ifdef __SYCL_DEVICE_ONLY__
-    WPipeTy<dataT> WPipe =
-        __spirv_CreatePipeFromPipeStorage_write<dataT>(&m_Storage);
-    __spirv_WritePipeBlockingINTEL(WPipe, &Data, m_Size, m_Alignment);
+    WPipeTy<_dataT> _WPipe =
+        __spirv_CreatePipeFromPipeStorage_write<_dataT>(&m_Storage);
+    __spirv_WritePipeBlockingINTEL(_WPipe, &_Data, m_Size, m_Alignment);
 #else
-    (void)Data;
+    (void)_Data;
     assert(!"Pipes are not supported on a host device!");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
 private:
-  static constexpr int32_t m_Size = sizeof(dataT);
-  static constexpr int32_t m_Alignment = alignof(dataT);
-  static constexpr int32_t m_Capacity = min_capacity;
-  static constexpr int32_t ID = name::id;
+  static constexpr int32_t m_Size = sizeof(_dataT);
+  static constexpr int32_t m_Alignment = alignof(_dataT);
+  static constexpr int32_t m_Capacity = _min_capacity;
+  static constexpr int32_t ID = _name::id;
 #ifdef __SYCL_DEVICE_ONLY__
   static constexpr struct ConstantPipeStorage m_Storage
       __attribute__((io_pipe_id(ID))) = {m_Size, m_Alignment, m_Capacity};

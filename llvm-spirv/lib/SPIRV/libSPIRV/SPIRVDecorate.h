@@ -144,11 +144,11 @@ public:
   // Incomplete constructor
   SPIRVDecorate() : SPIRVDecorateGeneric(OC) {}
 
-  SPIRVExtSet getRequiredExtensions() const override {
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
     switch (Dec) {
     case DecorationNoSignedWrap:
     case DecorationNoUnsignedWrap:
-      return getSet(ExtensionID::SPV_KHR_no_integer_wrap_decoration);
+      return ExtensionID::SPV_KHR_no_integer_wrap_decoration;
     case DecorationRegisterINTEL:
     case DecorationMemoryINTEL:
     case DecorationNumbanksINTEL:
@@ -161,24 +161,24 @@ public:
     case DecorationMergeINTEL:
     case DecorationBankBitsINTEL:
     case DecorationForcePow2DepthINTEL:
-      return getSet(ExtensionID::SPV_INTEL_fpga_memory_attributes);
+      return ExtensionID::SPV_INTEL_fpga_memory_attributes;
     case DecorationBurstCoalesceINTEL:
     case DecorationCacheSizeINTEL:
     case DecorationDontStaticallyCoalesceINTEL:
     case DecorationPrefetchINTEL:
-      return getSet(ExtensionID::SPV_INTEL_fpga_memory_accesses);
+      return ExtensionID::SPV_INTEL_fpga_memory_accesses;
     case DecorationReferencedIndirectlyINTEL:
-      return getSet(ExtensionID::SPV_INTEL_function_pointers);
+      return ExtensionID::SPV_INTEL_function_pointers;
     case DecorationIOPipeStorageINTEL:
-      return getSet(ExtensionID::SPV_INTEL_io_pipes);
+      return ExtensionID::SPV_INTEL_io_pipes;
     case DecorationBufferLocationINTEL:
-      return getSet(ExtensionID::SPV_INTEL_fpga_buffer_location);
+      return ExtensionID::SPV_INTEL_fpga_buffer_location;
     case DecorationFunctionFloatingPointModeINTEL:
     case DecorationFunctionRoundingModeINTEL:
     case DecorationFunctionDenormModeINTEL:
-      return getSet(ExtensionID::SPV_INTEL_float_controls2);
+      return ExtensionID::SPV_INTEL_float_controls2;
     default:
-      return SPIRVExtSet();
+      return {};
     }
   }
 
@@ -258,7 +258,7 @@ public:
   SPIRVMemberDecorate()
       : SPIRVDecorateGeneric(OC), MemberNumber(SPIRVWORD_MAX) {}
 
-  SPIRVExtSet getRequiredExtensions() const override {
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
     switch (Dec) {
     case DecorationRegisterINTEL:
     case DecorationMemoryINTEL:
@@ -272,18 +272,18 @@ public:
     case DecorationMergeINTEL:
     case DecorationBankBitsINTEL:
     case DecorationForcePow2DepthINTEL:
-      return getSet(ExtensionID::SPV_INTEL_fpga_memory_attributes);
+      return ExtensionID::SPV_INTEL_fpga_memory_attributes;
     case DecorationBurstCoalesceINTEL:
     case DecorationCacheSizeINTEL:
     case DecorationDontStaticallyCoalesceINTEL:
     case DecorationPrefetchINTEL:
-      return getSet(ExtensionID::SPV_INTEL_fpga_memory_accesses);
+      return ExtensionID::SPV_INTEL_fpga_memory_accesses;
     case DecorationIOPipeStorageINTEL:
-      return getSet(ExtensionID::SPV_INTEL_io_pipes);
+      return ExtensionID::SPV_INTEL_io_pipes;
     case DecorationBufferLocationINTEL:
-      return getSet(ExtensionID::SPV_INTEL_fpga_buffer_location);
+      return ExtensionID::SPV_INTEL_fpga_buffer_location;
     default:
-      return SPIRVExtSet();
+      return {};
     }
   }
 

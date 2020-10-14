@@ -7,15 +7,16 @@ define arm_aapcs_vfpcc void @test_fadd(float* noalias nocapture readonly %A, flo
 ; CHECK-NEXT:    cmp r2, #1
 ; CHECK-NEXT:    it lt
 ; CHECK-NEXT:    bxlt lr
+; CHECK-NEXT:  .LBB0_1: @ %vector.ph
 ; CHECK-NEXT:    vmov r3, s0
-; CHECK-NEXT:  .LBB0_1: @ %vector.body
+; CHECK-NEXT:  .LBB0_2: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q0, [r0], #16
 ; CHECK-NEXT:    subs r2, #4
 ; CHECK-NEXT:    vadd.f32 q0, q0, r3
 ; CHECK-NEXT:    vstrb.8 q0, [r1], #16
-; CHECK-NEXT:    bne .LBB0_1
-; CHECK-NEXT:  @ %bb.2: @ %for.cond.cleanup
+; CHECK-NEXT:    bne .LBB0_2
+; CHECK-NEXT:  @ %bb.3: @ %for.cond.cleanup
 ; CHECK-NEXT:    bx lr
 entry:
   %0 = and i32 %n, 7
@@ -52,15 +53,16 @@ define arm_aapcs_vfpcc void @test_fadd_r(float* noalias nocapture readonly %A, f
 ; CHECK-NEXT:    cmp r2, #1
 ; CHECK-NEXT:    it lt
 ; CHECK-NEXT:    bxlt lr
+; CHECK-NEXT:  .LBB1_1: @ %vector.ph
 ; CHECK-NEXT:    vmov r3, s0
-; CHECK-NEXT:  .LBB1_1: @ %vector.body
+; CHECK-NEXT:  .LBB1_2: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q0, [r0], #16
 ; CHECK-NEXT:    subs r2, #4
 ; CHECK-NEXT:    vadd.f32 q0, q0, r3
 ; CHECK-NEXT:    vstrb.8 q0, [r1], #16
-; CHECK-NEXT:    bne .LBB1_1
-; CHECK-NEXT:  @ %bb.2: @ %for.cond.cleanup
+; CHECK-NEXT:    bne .LBB1_2
+; CHECK-NEXT:  @ %bb.3: @ %for.cond.cleanup
 ; CHECK-NEXT:    bx lr
 entry:
   %0 = and i32 %n, 7
@@ -97,15 +99,16 @@ define arm_aapcs_vfpcc void @test_fmul(float* noalias nocapture readonly %A, flo
 ; CHECK-NEXT:    cmp r2, #1
 ; CHECK-NEXT:    it lt
 ; CHECK-NEXT:    bxlt lr
+; CHECK-NEXT:  .LBB2_1: @ %vector.ph
 ; CHECK-NEXT:    vmov r3, s0
-; CHECK-NEXT:  .LBB2_1: @ %vector.body
+; CHECK-NEXT:  .LBB2_2: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q0, [r0], #16
 ; CHECK-NEXT:    subs r2, #4
 ; CHECK-NEXT:    vmul.f32 q0, q0, r3
 ; CHECK-NEXT:    vstrb.8 q0, [r1], #16
-; CHECK-NEXT:    bne .LBB2_1
-; CHECK-NEXT:  @ %bb.2: @ %for.cond.cleanup
+; CHECK-NEXT:    bne .LBB2_2
+; CHECK-NEXT:  @ %bb.3: @ %for.cond.cleanup
 ; CHECK-NEXT:    bx lr
 entry:
   %0 = and i32 %n, 7
@@ -142,15 +145,16 @@ define arm_aapcs_vfpcc void @test_fmul_r(float* noalias nocapture readonly %A, f
 ; CHECK-NEXT:    cmp r2, #1
 ; CHECK-NEXT:    it lt
 ; CHECK-NEXT:    bxlt lr
+; CHECK-NEXT:  .LBB3_1: @ %vector.ph
 ; CHECK-NEXT:    vmov r3, s0
-; CHECK-NEXT:  .LBB3_1: @ %vector.body
+; CHECK-NEXT:  .LBB3_2: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q0, [r0], #16
 ; CHECK-NEXT:    subs r2, #4
 ; CHECK-NEXT:    vmul.f32 q0, q0, r3
 ; CHECK-NEXT:    vstrb.8 q0, [r1], #16
-; CHECK-NEXT:    bne .LBB3_1
-; CHECK-NEXT:  @ %bb.2: @ %for.cond.cleanup
+; CHECK-NEXT:    bne .LBB3_2
+; CHECK-NEXT:  @ %bb.3: @ %for.cond.cleanup
 ; CHECK-NEXT:    bx lr
 entry:
   %0 = and i32 %n, 7
@@ -187,15 +191,16 @@ define arm_aapcs_vfpcc void @test_fsub(float* noalias nocapture readonly %A, flo
 ; CHECK-NEXT:    cmp r2, #1
 ; CHECK-NEXT:    it lt
 ; CHECK-NEXT:    bxlt lr
+; CHECK-NEXT:  .LBB4_1: @ %vector.ph
 ; CHECK-NEXT:    vmov r3, s0
-; CHECK-NEXT:  .LBB4_1: @ %vector.body
+; CHECK-NEXT:  .LBB4_2: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q0, [r0], #16
 ; CHECK-NEXT:    subs r2, #4
 ; CHECK-NEXT:    vsub.f32 q0, q0, r3
 ; CHECK-NEXT:    vstrb.8 q0, [r1], #16
-; CHECK-NEXT:    bne .LBB4_1
-; CHECK-NEXT:  @ %bb.2: @ %for.cond.cleanup
+; CHECK-NEXT:    bne .LBB4_2
+; CHECK-NEXT:  @ %bb.3: @ %for.cond.cleanup
 ; CHECK-NEXT:    bx lr
 entry:
   %0 = and i32 %n, 7
@@ -232,16 +237,17 @@ define arm_aapcs_vfpcc void @test_fsub_r(float* noalias nocapture readonly %A, f
 ; CHECK-NEXT:    cmp r2, #1
 ; CHECK-NEXT:    it lt
 ; CHECK-NEXT:    bxlt lr
+; CHECK-NEXT:  .LBB5_1: @ %vector.ph
 ; CHECK-NEXT:    vmov r3, s0
 ; CHECK-NEXT:    vdup.32 q0, r3
-; CHECK-NEXT:  .LBB5_1: @ %vector.body
+; CHECK-NEXT:  .LBB5_2: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q1, [r0], #16
 ; CHECK-NEXT:    subs r2, #4
 ; CHECK-NEXT:    vsub.f32 q1, q0, q1
 ; CHECK-NEXT:    vstrb.8 q1, [r1], #16
-; CHECK-NEXT:    bne .LBB5_1
-; CHECK-NEXT:  @ %bb.2: @ %for.cond.cleanup
+; CHECK-NEXT:    bne .LBB5_2
+; CHECK-NEXT:  @ %bb.3: @ %for.cond.cleanup
 ; CHECK-NEXT:    bx lr
 entry:
   %0 = and i32 %n, 7
@@ -279,16 +285,17 @@ define arm_aapcs_vfpcc void @test_fmas(float* noalias nocapture readonly %A, flo
 ; CHECK-NEXT:    cmp r3, #1
 ; CHECK-NEXT:    it lt
 ; CHECK-NEXT:    bxlt lr
+; CHECK-NEXT:  .LBB6_1: @ %vector.ph
 ; CHECK-NEXT:    vmov r12, s0
-; CHECK-NEXT:  .LBB6_1: @ %vector.body
+; CHECK-NEXT:  .LBB6_2: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q0, [r0], #16
 ; CHECK-NEXT:    vldrw.u32 q1, [r1], #16
 ; CHECK-NEXT:    subs r3, #4
 ; CHECK-NEXT:    vfmas.f32 q1, q0, r12
 ; CHECK-NEXT:    vstrb.8 q1, [r2], #16
-; CHECK-NEXT:    bne .LBB6_1
-; CHECK-NEXT:  @ %bb.2: @ %for.cond.cleanup
+; CHECK-NEXT:    bne .LBB6_2
+; CHECK-NEXT:  @ %bb.3: @ %for.cond.cleanup
 ; CHECK-NEXT:    bx lr
 entry:
   %0 = and i32 %n, 7
@@ -329,16 +336,17 @@ define arm_aapcs_vfpcc void @test_fmas_r(float* noalias nocapture readonly %A, f
 ; CHECK-NEXT:    cmp r3, #1
 ; CHECK-NEXT:    it lt
 ; CHECK-NEXT:    bxlt lr
+; CHECK-NEXT:  .LBB7_1: @ %vector.ph
 ; CHECK-NEXT:    vmov r12, s0
-; CHECK-NEXT:  .LBB7_1: @ %vector.body
+; CHECK-NEXT:  .LBB7_2: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q0, [r0], #16
 ; CHECK-NEXT:    vldrw.u32 q1, [r1], #16
 ; CHECK-NEXT:    subs r3, #4
 ; CHECK-NEXT:    vfmas.f32 q1, q0, r12
 ; CHECK-NEXT:    vstrb.8 q1, [r2], #16
-; CHECK-NEXT:    bne .LBB7_1
-; CHECK-NEXT:  @ %bb.2: @ %for.cond.cleanup
+; CHECK-NEXT:    bne .LBB7_2
+; CHECK-NEXT:  @ %bb.3: @ %for.cond.cleanup
 ; CHECK-NEXT:    bx lr
 entry:
   %0 = and i32 %n, 7
@@ -379,16 +387,17 @@ define arm_aapcs_vfpcc void @test_fma(float* noalias nocapture readonly %A, floa
 ; CHECK-NEXT:    cmp r3, #1
 ; CHECK-NEXT:    it lt
 ; CHECK-NEXT:    bxlt lr
+; CHECK-NEXT:  .LBB8_1: @ %vector.ph
 ; CHECK-NEXT:    vmov r12, s0
-; CHECK-NEXT:  .LBB8_1: @ %vector.body
+; CHECK-NEXT:  .LBB8_2: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q0, [r0], #16
 ; CHECK-NEXT:    vldrw.u32 q1, [r1], #16
 ; CHECK-NEXT:    subs r3, #4
 ; CHECK-NEXT:    vfma.f32 q1, q0, r12
 ; CHECK-NEXT:    vstrb.8 q1, [r2], #16
-; CHECK-NEXT:    bne .LBB8_1
-; CHECK-NEXT:  @ %bb.2: @ %for.cond.cleanup
+; CHECK-NEXT:    bne .LBB8_2
+; CHECK-NEXT:  @ %bb.3: @ %for.cond.cleanup
 ; CHECK-NEXT:    bx lr
 entry:
   %0 = and i32 %n, 7
@@ -429,16 +438,17 @@ define arm_aapcs_vfpcc void @test_fma_r(float* noalias nocapture readonly %A, fl
 ; CHECK-NEXT:    cmp r3, #1
 ; CHECK-NEXT:    it lt
 ; CHECK-NEXT:    bxlt lr
+; CHECK-NEXT:  .LBB9_1: @ %vector.ph
 ; CHECK-NEXT:    vmov r12, s0
-; CHECK-NEXT:  .LBB9_1: @ %vector.body
+; CHECK-NEXT:  .LBB9_2: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q0, [r0], #16
 ; CHECK-NEXT:    vldrw.u32 q1, [r1], #16
 ; CHECK-NEXT:    subs r3, #4
 ; CHECK-NEXT:    vfma.f32 q1, q0, r12
 ; CHECK-NEXT:    vstrb.8 q1, [r2], #16
-; CHECK-NEXT:    bne .LBB9_1
-; CHECK-NEXT:  @ %bb.2: @ %for.cond.cleanup
+; CHECK-NEXT:    bne .LBB9_2
+; CHECK-NEXT:  @ %bb.3: @ %for.cond.cleanup
 ; CHECK-NEXT:    bx lr
 entry:
   %0 = and i32 %n, 7
@@ -480,10 +490,11 @@ define arm_aapcs_vfpcc void @test_fmss(float* noalias nocapture readonly %A, flo
 ; CHECK-NEXT:    cmp r3, #1
 ; CHECK-NEXT:    it lt
 ; CHECK-NEXT:    bxlt lr
+; CHECK-NEXT:  .LBB10_1: @ %vector.ph
 ; CHECK-NEXT:    vmov r12, s0
 ; CHECK-NEXT:    vdup.32 q0, r12
 ; CHECK-NEXT:    vneg.f32 q0, q0
-; CHECK-NEXT:  .LBB10_1: @ %vector.body
+; CHECK-NEXT:  .LBB10_2: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q1, [r0], #16
 ; CHECK-NEXT:    vldrw.u32 q2, [r1], #16
@@ -491,8 +502,8 @@ define arm_aapcs_vfpcc void @test_fmss(float* noalias nocapture readonly %A, flo
 ; CHECK-NEXT:    subs r3, #4
 ; CHECK-NEXT:    vfma.f32 q3, q2, q1
 ; CHECK-NEXT:    vstrb.8 q3, [r2], #16
-; CHECK-NEXT:    bne .LBB10_1
-; CHECK-NEXT:  @ %bb.2: @ %for.cond.cleanup
+; CHECK-NEXT:    bne .LBB10_2
+; CHECK-NEXT:  @ %bb.3: @ %for.cond.cleanup
 ; CHECK-NEXT:    bx lr
 entry:
   %0 = and i32 %n, 7
@@ -533,9 +544,10 @@ define arm_aapcs_vfpcc void @test_fmss_r(float* noalias nocapture readonly %A, f
 ; CHECK-NEXT:    cmp r3, #1
 ; CHECK-NEXT:    it lt
 ; CHECK-NEXT:    bxlt lr
+; CHECK-NEXT:  .LBB11_1: @ %vector.ph
 ; CHECK-NEXT:    vmov r12, s0
 ; CHECK-NEXT:    vdup.32 q0, r12
-; CHECK-NEXT:  .LBB11_1: @ %vector.body
+; CHECK-NEXT:  .LBB11_2: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q1, [r0], #16
 ; CHECK-NEXT:    vldrw.u32 q2, [r1], #16
@@ -543,8 +555,8 @@ define arm_aapcs_vfpcc void @test_fmss_r(float* noalias nocapture readonly %A, f
 ; CHECK-NEXT:    subs r3, #4
 ; CHECK-NEXT:    vfms.f32 q3, q2, q1
 ; CHECK-NEXT:    vstrb.8 q3, [r2], #16
-; CHECK-NEXT:    bne .LBB11_1
-; CHECK-NEXT:  @ %bb.2: @ %for.cond.cleanup
+; CHECK-NEXT:    bne .LBB11_2
+; CHECK-NEXT:  @ %bb.3: @ %for.cond.cleanup
 ; CHECK-NEXT:    bx lr
 entry:
   %0 = and i32 %n, 7
@@ -585,8 +597,9 @@ define arm_aapcs_vfpcc void @test_fms(float* noalias nocapture readonly %A, floa
 ; CHECK-NEXT:    cmp r3, #1
 ; CHECK-NEXT:    it lt
 ; CHECK-NEXT:    bxlt lr
+; CHECK-NEXT:  .LBB12_1: @ %vector.ph
 ; CHECK-NEXT:    vmov r12, s0
-; CHECK-NEXT:  .LBB12_1: @ %vector.body
+; CHECK-NEXT:  .LBB12_2: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q0, [r1], #16
 ; CHECK-NEXT:    vldrw.u32 q1, [r0], #16
@@ -594,8 +607,8 @@ define arm_aapcs_vfpcc void @test_fms(float* noalias nocapture readonly %A, floa
 ; CHECK-NEXT:    vneg.f32 q0, q0
 ; CHECK-NEXT:    vfma.f32 q0, q1, r12
 ; CHECK-NEXT:    vstrb.8 q0, [r2], #16
-; CHECK-NEXT:    bne .LBB12_1
-; CHECK-NEXT:  @ %bb.2: @ %for.cond.cleanup
+; CHECK-NEXT:    bne .LBB12_2
+; CHECK-NEXT:  @ %bb.3: @ %for.cond.cleanup
 ; CHECK-NEXT:    bx lr
 entry:
   %0 = and i32 %n, 7
@@ -636,8 +649,9 @@ define arm_aapcs_vfpcc void @test_fms_r(float* noalias nocapture readonly %A, fl
 ; CHECK-NEXT:    cmp r3, #1
 ; CHECK-NEXT:    it lt
 ; CHECK-NEXT:    bxlt lr
+; CHECK-NEXT:  .LBB13_1: @ %vector.ph
 ; CHECK-NEXT:    vmov r12, s0
-; CHECK-NEXT:  .LBB13_1: @ %vector.body
+; CHECK-NEXT:  .LBB13_2: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q0, [r1], #16
 ; CHECK-NEXT:    vldrw.u32 q1, [r0], #16
@@ -645,8 +659,8 @@ define arm_aapcs_vfpcc void @test_fms_r(float* noalias nocapture readonly %A, fl
 ; CHECK-NEXT:    vneg.f32 q0, q0
 ; CHECK-NEXT:    vfma.f32 q0, q1, r12
 ; CHECK-NEXT:    vstrb.8 q0, [r2], #16
-; CHECK-NEXT:    bne .LBB13_1
-; CHECK-NEXT:  @ %bb.2: @ %for.cond.cleanup
+; CHECK-NEXT:    bne .LBB13_2
+; CHECK-NEXT:  @ %bb.3: @ %for.cond.cleanup
 ; CHECK-NEXT:    bx lr
 entry:
   %0 = and i32 %n, 7
@@ -1102,8 +1116,8 @@ define void @fir(%struct.arm_fir_instance_f32* nocapture readonly %S, float* noc
 ; CHECK-NEXT:  @ %bb.5: @ %for.body.preheader
 ; CHECK-NEXT:    @ in Loop: Header=BB16_4 Depth=1
 ; CHECK-NEXT:    ldr.w lr, [sp, #4] @ 4-byte Reload
-; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:    ldr r7, [sp, #8] @ 4-byte Reload
+; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB16_6: @ %for.body
 ; CHECK-NEXT:    @ Parent Loop BB16_4 Depth=1
 ; CHECK-NEXT:    @ => This Inner Loop Header: Depth=2
@@ -1421,10 +1435,10 @@ define arm_aapcs_vfpcc void @arm_biquad_cascade_stereo_df2T_f32(%struct.arm_biqu
 ; CHECK-NEXT:    vdup.32 q1, r6
 ; CHECK-NEXT:    mov r6, r2
 ; CHECK-NEXT:    vmov.f32 s6, s12
-; CHECK-NEXT:    dls lr, r3
 ; CHECK-NEXT:    vmov.f32 s10, s14
 ; CHECK-NEXT:    vmov.f32 s7, s12
 ; CHECK-NEXT:    vmov.f32 s11, s14
+; CHECK-NEXT:    dls lr, r3
 ; CHECK-NEXT:  .LBB17_3: @ Parent Loop BB17_2 Depth=1
 ; CHECK-NEXT:    @ => This Inner Loop Header: Depth=2
 ; CHECK-NEXT:    vldrw.u32 q4, [r1, q0, uxtw #2]
@@ -1575,8 +1589,8 @@ define arm_aapcs_vfpcc void @fms(float* nocapture readonly %pSrc1, float* nocapt
 ; CHECK-NEXT:    @ =>This Loop Header: Depth=1
 ; CHECK-NEXT:    @ Child Loop BB18_3 Depth 2
 ; CHECK-NEXT:    ldr r4, [r2]
-; CHECK-NEXT:    dls lr, r5
 ; CHECK-NEXT:    vdup.32 q0, r4
+; CHECK-NEXT:    dls lr, r5
 ; CHECK-NEXT:  .LBB18_3: @ %while.body
 ; CHECK-NEXT:    @ Parent Loop BB18_2 Depth=1
 ; CHECK-NEXT:    @ => This Inner Loop Header: Depth=2

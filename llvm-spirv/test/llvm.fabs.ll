@@ -8,9 +8,21 @@ target triple = "spir64-unknown-unknown"
 
 ; CHECK: ExtInstImport [[extinst_id:[0-9]+]] "OpenCL.std"
 
+; CHECK: 3 TypeFloat [[var0:[0-9]+]] 16
 ; CHECK: 3 TypeFloat [[var1:[0-9]+]] 32
 ; CHECK: 3 TypeFloat [[var2:[0-9]+]] 64
-; CHECK: 4 TypeVector [[var3:[0-9]+]] 2 4
+; CHECK: 4 TypeVector [[var3:[0-9]+]] [[var1]] 4
+
+; CHECK: Function
+; CHECK: 6 ExtInst [[var0]] {{[0-9]+}} [[extinst_id]] fabs
+; CHECK: FunctionEnd
+
+; Function Attrs: nounwind readnone
+define spir_func half @TestFabs16(half %x) local_unnamed_addr #0 {
+entry:
+  %0 = tail call half @llvm.fabs.f16(half %x)
+  ret half %0
+}
 
 ; CHECK: Function
 ; CHECK: 6 ExtInst [[var1]] {{[0-9]+}} [[extinst_id]] fabs
@@ -44,6 +56,9 @@ entry:
   %0 = tail call <4 x float> @llvm.fabs.v4f32(<4 x float> %x)
   ret <4 x float> %0
 }
+
+; Function Attrs: nounwind readnone
+declare half @llvm.fabs.f16(half) #1
 
 ; Function Attrs: nounwind readnone
 declare float @llvm.fabs.f32(float) #1

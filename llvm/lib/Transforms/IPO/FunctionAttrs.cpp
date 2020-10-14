@@ -281,16 +281,18 @@ static bool addReadAttrs(const SCCNodeSet &SCCNodes, AARGetterT &&AARGetter) {
     MadeChange = true;
 
     // Clear out any existing attributes.
-    F->removeFnAttr(Attribute::ReadOnly);
-    F->removeFnAttr(Attribute::ReadNone);
-    F->removeFnAttr(Attribute::WriteOnly);
+    AttrBuilder AttrsToRemove;
+    AttrsToRemove.addAttribute(Attribute::ReadOnly);
+    AttrsToRemove.addAttribute(Attribute::ReadNone);
+    AttrsToRemove.addAttribute(Attribute::WriteOnly);
 
     if (!WritesMemory && !ReadsMemory) {
       // Clear out any "access range attributes" if readnone was deduced.
-      F->removeFnAttr(Attribute::ArgMemOnly);
-      F->removeFnAttr(Attribute::InaccessibleMemOnly);
-      F->removeFnAttr(Attribute::InaccessibleMemOrArgMemOnly);
+      AttrsToRemove.addAttribute(Attribute::ArgMemOnly);
+      AttrsToRemove.addAttribute(Attribute::InaccessibleMemOnly);
+      AttrsToRemove.addAttribute(Attribute::InaccessibleMemOrArgMemOnly);
     }
+    F->removeAttributes(AttributeList::FunctionIndex, AttrsToRemove);
 
     // Add in the new attribute.
     if (WritesMemory && !ReadsMemory)
@@ -1343,14 +1345,6 @@ static bool inferAttrsFromFunctionBodies(const SCCNodeSet &SCCNodes) {
   return AI.run(SCCNodes);
 }
 
-static bool setDoesNotRecurse(Function &F) {
-  if (F.doesNotRecurse())
-    return false;
-  F.setDoesNotRecurse();
-  ++NumNoRecurse;
-  return true;
-}
-
 static bool addNoRecurseAttrs(const SCCNodeSet &SCCNodes) {
   // Try and identify functions that do not recurse.
 
@@ -1377,7 +1371,9 @@ static bool addNoRecurseAttrs(const SCCNodeSet &SCCNodes) {
   // Every call was to a non-recursive function other than this function, and
   // we have no indirect recursion as the SCC size is one. This function cannot
   // recurse.
-  return setDoesNotRecurse(*F);
+  F->setDoesNotRecurse();
+  ++NumNoRecurse;
+  return true;
 }
 
 template <typename AARGetterT>
@@ -1580,7 +1576,9 @@ static bool addNoRecurseAttrsTopDown(Function &F) {
     if (!CB || !CB->getParent()->getParent()->doesNotRecurse())
       return false;
   }
-  return setDoesNotRecurse(F);
+  F.setDoesNotRecurse();
+  ++NumNoRecurse;
+  return true;
 }
 
 static bool deduceFunctionAttributeInRPO(Module &M, CallGraph &CG) {

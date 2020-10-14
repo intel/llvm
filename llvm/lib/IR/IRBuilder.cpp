@@ -72,8 +72,9 @@ Value *IRBuilderBase::getCastedInt8PtrValue(Value *Ptr) {
 static CallInst *createCallHelper(Function *Callee, ArrayRef<Value *> Ops,
                                   IRBuilderBase *Builder,
                                   const Twine &Name = "",
-                                  Instruction *FMFSource = nullptr) {
-  CallInst *CI = Builder->CreateCall(Callee, Ops, Name);
+                                  Instruction *FMFSource = nullptr,
+                                  ArrayRef<OperandBundleDef> OpBundles = {}) {
+  CallInst *CI = Builder->CreateCall(Callee, Ops, OpBundles, Name);
   if (FMFSource)
     CI->copyFastMathFlags(FMFSource);
   return CI;
@@ -450,14 +451,16 @@ CallInst *IRBuilderBase::CreateInvariantStart(Value *Ptr, ConstantInt *Size) {
   return createCallHelper(TheFn, Ops, this);
 }
 
-CallInst *IRBuilderBase::CreateAssumption(Value *Cond) {
+CallInst *
+IRBuilderBase::CreateAssumption(Value *Cond,
+                                ArrayRef<OperandBundleDef> OpBundles) {
   assert(Cond->getType() == getInt1Ty() &&
          "an assumption condition must be of type i1");
 
   Value *Ops[] = { Cond };
   Module *M = BB->getParent()->getParent();
   Function *FnAssume = Intrinsic::getDeclaration(M, Intrinsic::assume);
-  return createCallHelper(FnAssume, Ops, this);
+  return createCallHelper(FnAssume, Ops, this, "", nullptr, OpBundles);
 }
 
 /// Create a call to a Masked Load intrinsic.
@@ -523,8 +526,8 @@ CallInst *IRBuilderBase::CreateMaskedIntrinsic(Intrinsic::ID Id,
 CallInst *IRBuilderBase::CreateMaskedGather(Value *Ptrs, Align Alignment,
                                             Value *Mask, Value *PassThru,
                                             const Twine &Name) {
-  auto PtrsTy = cast<VectorType>(Ptrs->getType());
-  auto PtrTy = cast<PointerType>(PtrsTy->getElementType());
+  auto *PtrsTy = cast<FixedVectorType>(Ptrs->getType());
+  auto *PtrTy = cast<PointerType>(PtrsTy->getElementType());
   unsigned NumElts = PtrsTy->getNumElements();
   auto *DataTy = FixedVectorType::get(PtrTy->getElementType(), NumElts);
 
@@ -553,8 +556,8 @@ CallInst *IRBuilderBase::CreateMaskedGather(Value *Ptrs, Align Alignment,
 ///            be accessed in memory
 CallInst *IRBuilderBase::CreateMaskedScatter(Value *Data, Value *Ptrs,
                                              Align Alignment, Value *Mask) {
-  auto PtrsTy = cast<VectorType>(Ptrs->getType());
-  auto DataTy = cast<VectorType>(Data->getType());
+  auto *PtrsTy = cast<FixedVectorType>(Ptrs->getType());
+  auto *DataTy = cast<FixedVectorType>(Data->getType());
   unsigned NumElts = PtrsTy->getNumElements();
 
 #ifndef NDEBUG
@@ -1003,7 +1006,7 @@ Value *IRBuilderBase::CreateVectorSplat(unsigned NumElts, Value *V,
 
 Value *IRBuilderBase::CreateVectorSplat(ElementCount EC, Value *V,
                                         const Twine &Name) {
-  assert(EC.Min > 0 && "Cannot splat to an empty vector!");
+  assert(EC.isNonZero() && "Cannot splat to an empty vector!");
 
   // First insert it into an undef vector so we can shuffle it.
   Type *I32Ty = getInt32Ty();
@@ -1113,63 +1116,37 @@ Value *IRBuilderBase::CreatePreserveStructAccessIndex(
   return Fn;
 }
 
-CallInst *IRBuilderBase::CreateAlignmentAssumptionHelper(
-    const DataLayout &DL, Value *PtrValue, Value *Mask, Type *IntPtrTy,
-    Value *OffsetValue, Value **TheCheck) {
-  Value *PtrIntValue = CreatePtrToInt(PtrValue, IntPtrTy, "ptrint");
-
-  if (OffsetValue) {
-    bool IsOffsetZero = false;
-    if (const auto *CI = dyn_cast<ConstantInt>(OffsetValue))
-      IsOffsetZero = CI->isZero();
-
-    if (!IsOffsetZero) {
-      if (OffsetValue->getType() != IntPtrTy)
-        OffsetValue = CreateIntCast(OffsetValue, IntPtrTy, /*isSigned*/ true,
-                                    "offsetcast");
-      PtrIntValue = CreateSub(PtrIntValue, OffsetValue, "offsetptr");
-    }
-  }
-
-  Value *Zero = ConstantInt::get(IntPtrTy, 0);
-  Value *MaskedPtr = CreateAnd(PtrIntValue, Mask, "maskedptr");
-  Value *InvCond = CreateICmpEQ(MaskedPtr, Zero, "maskcond");
-  if (TheCheck)
-    *TheCheck = InvCond;
-
-  return CreateAssumption(InvCond);
+CallInst *IRBuilderBase::CreateAlignmentAssumptionHelper(const DataLayout &DL,
+                                                         Value *PtrValue,
+                                                         Value *AlignValue,
+                                                         Value *OffsetValue) {
+  SmallVector<Value *, 4> Vals({PtrValue, AlignValue});
+  if (OffsetValue)
+    Vals.push_back(OffsetValue);
+  OperandBundleDefT<Value *> AlignOpB("align", Vals);
+  return CreateAssumption(ConstantInt::getTrue(getContext()), {AlignOpB});
 }
 
-CallInst *IRBuilderBase::CreateAlignmentAssumption(
-    const DataLayout &DL, Value *PtrValue, unsigned Alignment,
-    Value *OffsetValue, Value **TheCheck) {
+CallInst *IRBuilderBase::CreateAlignmentAssumption(const DataLayout &DL,
+                                                   Value *PtrValue,
+                                                   unsigned Alignment,
+                                                   Value *OffsetValue) {
   assert(isa<PointerType>(PtrValue->getType()) &&
          "trying to create an alignment assumption on a non-pointer?");
   assert(Alignment != 0 && "Invalid Alignment");
   auto *PtrTy = cast<PointerType>(PtrValue->getType());
   Type *IntPtrTy = getIntPtrTy(DL, PtrTy->getAddressSpace());
-
-  Value *Mask = ConstantInt::get(IntPtrTy, Alignment - 1);
-  return CreateAlignmentAssumptionHelper(DL, PtrValue, Mask, IntPtrTy,
-                                         OffsetValue, TheCheck);
+  Value *AlignValue = ConstantInt::get(IntPtrTy, Alignment);
+  return CreateAlignmentAssumptionHelper(DL, PtrValue, AlignValue, OffsetValue);
 }
 
-CallInst *IRBuilderBase::CreateAlignmentAssumption(
-    const DataLayout &DL, Value *PtrValue, Value *Alignment,
-    Value *OffsetValue, Value **TheCheck) {
+CallInst *IRBuilderBase::CreateAlignmentAssumption(const DataLayout &DL,
+                                                   Value *PtrValue,
+                                                   Value *Alignment,
+                                                   Value *OffsetValue) {
   assert(isa<PointerType>(PtrValue->getType()) &&
          "trying to create an alignment assumption on a non-pointer?");
-  auto *PtrTy = cast<PointerType>(PtrValue->getType());
-  Type *IntPtrTy = getIntPtrTy(DL, PtrTy->getAddressSpace());
-
-  if (Alignment->getType() != IntPtrTy)
-    Alignment = CreateIntCast(Alignment, IntPtrTy, /*isSigned*/ false,
-                              "alignmentcast");
-
-  Value *Mask = CreateSub(Alignment, ConstantInt::get(IntPtrTy, 1), "mask");
-
-  return CreateAlignmentAssumptionHelper(DL, PtrValue, Mask, IntPtrTy,
-                                         OffsetValue, TheCheck);
+  return CreateAlignmentAssumptionHelper(DL, PtrValue, Alignment, OffsetValue);
 }
 
 IRBuilderDefaultInserter::~IRBuilderDefaultInserter() {}

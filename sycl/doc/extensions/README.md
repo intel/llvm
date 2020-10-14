@@ -34,6 +34,7 @@ DPC++ extensions status:
 | [Sub-groups](SubGroup/SYCL_INTEL_sub_group.asciidoc)                                                                        | Supported(OpenCL)                         | |
 | [SYCL_INTEL_unnamed_kernel_lambda](UnnamedKernelLambda/SYCL_INTEL_unnamed_kernel_lambda.asciidoc)                           | Supported(OpenCL)                         | |
 | [Unified Shared Memory](USM/USM.adoc)                                                                                       | Supported(OpenCL)                         | |
+| [Use Pinned Memory Property](UsePinnedMemoryProperty/UsePinnedMemoryPropery.adoc)                                           | Supported                                 | |
 
 Legend:
 

@@ -20,6 +20,8 @@ namespace llvm {
 namespace object {
 class COFFImportFile;
 class ObjectFile;
+class XCOFFObjectFile;
+class ELFObjectFileBase;
 }
 namespace codeview {
 class GlobalTypeTableBuilder;
@@ -59,7 +61,7 @@ public:
   virtual void printNeededLibraries() { }
   virtual void printSectionAsHex(StringRef SectionName) {}
   virtual void printHashTable() { }
-  virtual void printGnuHashTable(const object::ObjectFile *Obj) {}
+  virtual void printGnuHashTable() {}
   virtual void printHashSymbols() {}
   virtual void printLoadName() {}
   virtual void printVersionInfo() {}
@@ -98,9 +100,9 @@ public:
 
   virtual void printStackMap() const = 0;
 
-  void printSectionsAsString(const object::ObjectFile *Obj,
+  void printSectionsAsString(const object::ObjectFile &Obj,
                              ArrayRef<std::string> Sections);
-  void printSectionsAsHex(const object::ObjectFile *Obj,
+  void printSectionsAsHex(const object::ObjectFile &Obj,
                           ArrayRef<std::string> Sections);
 
 protected:
@@ -113,25 +115,20 @@ private:
   virtual void printSectionMapping() {}
 };
 
-std::error_code createCOFFDumper(const object::ObjectFile *Obj,
-                                 ScopedPrinter &Writer,
-                                 std::unique_ptr<ObjDumper> &Result);
+std::unique_ptr<ObjDumper> createCOFFDumper(const object::COFFObjectFile &Obj,
+                                            ScopedPrinter &Writer);
 
-std::error_code createELFDumper(const object::ObjectFile *Obj,
-                                ScopedPrinter &Writer,
-                                std::unique_ptr<ObjDumper> &Result);
+std::unique_ptr<ObjDumper> createELFDumper(const object::ELFObjectFileBase &Obj,
+                                           ScopedPrinter &Writer);
 
-std::error_code createMachODumper(const object::ObjectFile *Obj,
-                                  ScopedPrinter &Writer,
-                                  std::unique_ptr<ObjDumper> &Result);
+std::unique_ptr<ObjDumper> createMachODumper(const object::MachOObjectFile &Obj,
+                                             ScopedPrinter &Writer);
 
-std::error_code createWasmDumper(const object::ObjectFile *Obj,
-                                 ScopedPrinter &Writer,
-                                 std::unique_ptr<ObjDumper> &Result);
+std::unique_ptr<ObjDumper> createWasmDumper(const object::WasmObjectFile &Obj,
+                                            ScopedPrinter &Writer);
 
-std::error_code createXCOFFDumper(const object::ObjectFile *Obj,
-                                  ScopedPrinter &Writer,
-                                  std::unique_ptr<ObjDumper> &Result);
+std::unique_ptr<ObjDumper> createXCOFFDumper(const object::XCOFFObjectFile &Obj,
+                                             ScopedPrinter &Writer);
 
 void dumpCOFFImportFile(const object::COFFImportFile *File,
                         ScopedPrinter &Writer);

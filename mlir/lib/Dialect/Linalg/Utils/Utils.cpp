@@ -133,11 +133,10 @@ template struct mlir::linalg::GenerateLoopNest<AffineForOp>;
 
 /// Given a list of subview ranges, extract individual values for lower, upper
 /// bounds and steps and put them into the corresponding vectors.
-static void unpackRanges(ArrayRef<SubViewOp::Range> ranges,
-                         SmallVectorImpl<Value> &lbs,
+static void unpackRanges(ArrayRef<Range> ranges, SmallVectorImpl<Value> &lbs,
                          SmallVectorImpl<Value> &ubs,
                          SmallVectorImpl<Value> &steps) {
-  for (SubViewOp::Range range : ranges) {
+  for (Range range : ranges) {
     lbs.emplace_back(range.offset);
     ubs.emplace_back(range.size);
     steps.emplace_back(range.stride);
@@ -147,23 +146,70 @@ static void unpackRanges(ArrayRef<SubViewOp::Range> ranges,
 namespace mlir {
 namespace linalg {
 
+/// Return the linearized list of all view dimensions in a linalgOp.
+SmallVector<Value, 8> getViewSizes(OpBuilder &builder, LinalgOp linalgOp) {
+  auto loc = linalgOp.getLoc();
+  SmallVector<Value, 8> res;
+  SmallVector<unsigned, 4> ranks;
+  for (auto v : linalgOp.getInputsAndOutputBuffers()) {
+    MemRefType t = v.getType().template cast<MemRefType>();
+    ranks.push_back(t.getRank());
+    for (unsigned i = 0; i < t.getRank(); ++i)
+      res.push_back(builder.create<DimOp>(loc, v, i));
+  }
+
+  auto attr = linalgOp.template getAttrOfType<IntegerAttr>("symbol_source");
+  if (attr) {
+    // Find the correct position for inserting values for symbols.
+    unsigned numSymb = ranks[attr.getInt()], symbolsPos = 0;
+    for (unsigned idx = 0; idx < attr.getInt(); idx++)
+      symbolsPos += ranks[idx];
+
+    // Append the end of the value list that corresponds to the
+    // values mapping to symbols. Since inside concatinated map symbols are
+    // repeated we have to repeat the sizes as well.
+
+    // Reserve is mandatory to avoid a potential undefined behavior with
+    // pushing back to smallvector from itself.
+    res.reserve(res.size() + ranks.size() * numSymb);
+    for (unsigned idx = 0, s = ranks.size(); idx < s; ++idx)
+      for (unsigned idx2 = 0; idx2 < numSymb; ++idx2)
+        res.push_back(res[symbolsPos + idx2]);
+  }
+  return res;
+}
+
+Optional<SmallVector<Value, 4>>
+getLoopRanges(OpBuilder &builder, LinalgOp linalgOp, OperationFolder *folder) {
+  SmallVector<Value, 8> viewSizes = getViewSizes(builder, linalgOp);
+  AffineMap invertedMap =
+      inversePermutation(concatAffineMaps(linalgOp.getIndexingMaps()));
+  if (!invertedMap)
+    return {};
+  return applyMapToValues(builder, linalgOp.getLoc(), invertedMap, viewSizes,
+                          folder);
+}
+
 /// Specialization to build an scf "for" nest.
 template <>
 void GenerateLoopNest<scf::ForOp>::doit(
-    ArrayRef<SubViewOp::Range> loopRanges, ArrayRef<Attribute> iteratorTypes,
-    function_ref<void(ValueRange)> bodyBuilderFn,
+    ArrayRef<Range> loopRanges, ValueRange iterArgInitValues,
+    ArrayRef<Attribute> iteratorTypes,
+    function_ref<scf::ValueVector(ValueRange, ValueRange)> bodyBuilderFn,
     Optional<LinalgLoopDistributionOptions>) {
   SmallVector<Value, 4> lbs, ubs, steps;
   unpackRanges(loopRanges, lbs, ubs, steps);
-  edsc::loopNestBuilder(lbs, ubs, steps, bodyBuilderFn);
+  edsc::loopNestBuilder(lbs, ubs, steps, iterArgInitValues, bodyBuilderFn);
 }
 
 /// Specialization to build affine "for" nest.
 template <>
 void GenerateLoopNest<AffineForOp>::doit(
-    ArrayRef<SubViewOp::Range> loopRanges, ArrayRef<Attribute> iteratorTypes,
-    function_ref<void(ValueRange)> bodyBuilderFn,
+    ArrayRef<Range> loopRanges, ValueRange iterArgInitValues,
+    ArrayRef<Attribute> iteratorTypes,
+    function_ref<scf::ValueVector(ValueRange, ValueRange)> bodyBuilderFn,
     Optional<LinalgLoopDistributionOptions>) {
+  assert(iterArgInitValues.empty() && "unexpected AffineForOp init values");
   SmallVector<Value, 4> lbs, ubs, steps;
   unpackRanges(loopRanges, lbs, ubs, steps);
 
@@ -176,7 +222,11 @@ void GenerateLoopNest<AffineForOp>::doit(
     constantSteps.push_back(op.getValue());
   }
 
-  edsc::affineLoopNestBuilder(lbs, ubs, constantSteps, bodyBuilderFn);
+  auto bodyBuilderWithoutIterArgsFn = [&](ValueRange ivs) {
+    bodyBuilderFn(ivs, {});
+  };
+  edsc::affineLoopNestBuilder(lbs, ubs, constantSteps,
+                              bodyBuilderWithoutIterArgsFn);
 }
 
 /// Update the `lb`, `ub` and `step` to get per processor `lb`, `ub` and `step`.
@@ -313,9 +363,11 @@ generateParallelLoopNest(ValueRange lbs, ValueRange ubs, ValueRange steps,
 /// Specialization for generating a mix of parallel and sequential scf loops.
 template <>
 void GenerateLoopNest<scf::ParallelOp>::doit(
-    ArrayRef<SubViewOp::Range> loopRanges, ArrayRef<Attribute> iteratorTypes,
-    function_ref<void(ValueRange)> bodyBuilderFn,
+    ArrayRef<Range> loopRanges, ValueRange iterArgInitValues,
+    ArrayRef<Attribute> iteratorTypes,
+    function_ref<scf::ValueVector(ValueRange, ValueRange)> bodyBuilderFn,
     Optional<LinalgLoopDistributionOptions> distributionOptions) {
+  assert(iterArgInitValues.empty() && "unexpected ParallelOp init values");
   // This function may be passed more iterator types than ranges.
   assert(iteratorTypes.size() >= loopRanges.size() &&
          "expected iterator type for all ranges");
@@ -338,7 +390,7 @@ void GenerateLoopNest<scf::ParallelOp>::doit(
     Location loc = edsc::ScopedContext::getLocation();
     distributionMethod.assign(distributionOptions->distributionMethod.begin(),
                               distributionOptions->distributionMethod.end());
-    SmallVector<SubViewOp::Range, 2> parallelLoopRanges;
+    SmallVector<Range, 2> parallelLoopRanges;
     for (auto iteratorType : enumerate(iteratorTypes)) {
       if (isParallelIteratorType(iteratorType.value()))
         parallelLoopRanges.push_back(loopRanges[iteratorType.index()]);
@@ -361,7 +413,11 @@ void GenerateLoopNest<scf::ParallelOp>::doit(
     }
   }
   ValueRange lbs(lbsStorage), ubs(ubsStorage), steps(stepsStorage);
-  generateParallelLoopNest(lbs, ubs, steps, iteratorTypes, bodyBuilderFn, ivs,
+  auto bodyBuilderWithoutIterArgsFn = [&](ValueRange ivs) {
+    bodyBuilderFn(ivs, {});
+  };
+  generateParallelLoopNest(lbs, ubs, steps, iteratorTypes,
+                           bodyBuilderWithoutIterArgsFn, ivs,
                            distributionMethod);
 
   assert(ivs.size() == iteratorTypes.size() && "did not generate enough loops");

@@ -180,6 +180,32 @@ template <> inline void print<>(PiPlatform val) {
   std::cout << "pi_platform : " << val << std::endl;
 }
 
+template <> inline void print<>(pi_buffer_region rgn) {
+  std::cout << "pi_buffer_region origin/size : " << rgn->origin << "/"
+            << rgn->size << std::endl;
+}
+
+template <> inline void print<>(pi_buff_rect_region rgn) {
+  std::cout << "pi_buff_rect_region width_bytes/height/depth : "
+            << rgn->width_bytes << "/" << rgn->height_scalar << "/"
+            << rgn->depth_scalar << std::endl;
+}
+
+template <> inline void print<>(pi_buff_rect_offset off) {
+  std::cout << "pi_buff_rect_offset x_bytes/y/z : " << off->x_bytes << "/"
+            << off->y_scalar << "/" << off->z_scalar << std::endl;
+}
+
+template <> inline void print<>(pi_image_region rgn) {
+  std::cout << "pi_image_region width/height/depth : " << rgn->width << "/"
+            << rgn->height << "/" << rgn->depth << std::endl;
+}
+
+template <> inline void print<>(pi_image_offset off) {
+  std::cout << "pi_image_offset x/y/z : " << off->x << "/" << off->y << "/"
+            << off->z << std::endl;
+}
+
 template <> inline void print<>(PiResult val) {
   std::cout << "pi_result : ";
   if (val == PI_SUCCESS)
@@ -189,7 +215,17 @@ template <> inline void print<>(PiResult val) {
 }
 
 // cout does not resolve a nullptr.
-template <> inline void print<>(std::nullptr_t val) { print<void *>(val); }
+template <> inline void print<>(std::nullptr_t) {
+  std::cout << "<nullptr>" << std::endl;
+}
+
+template <> inline void print<>(char *val) {
+  std::cout << "<char * > : " << static_cast<void *>(val) << std::endl;
+}
+
+template <> inline void print<>(const char *val) {
+  std::cout << "<const char *>: " << val << std::endl;
+}
 
 inline void printArgs(void) {}
 template <typename Arg0, typename... Args>

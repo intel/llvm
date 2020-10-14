@@ -1157,10 +1157,11 @@ Currently, only the following parameter attributes are defined:
 ``align <n>`` or ``align(<n>)``
     This indicates that the pointer value may be assumed by the optimizer to
     have the specified alignment.  If the pointer value does not have the
-    specified alignment, behavior is undefined.
+    specified alignment, behavior is undefined. ``align 1`` has no effect on
+    non-byval, non-preallocated arguments.
 
     Note that this attribute has additional semantics when combined with the
-    ``byval`` attribute, which are documented there.
+    ``byval`` or ``preallocated`` attribute, which are documented there.
 
 .. _noalias:
 
@@ -3552,10 +3553,6 @@ uses with" concept would not hold.
 
 To ensure all uses of a given register observe the same value (even if
 '``undef``'), the :ref:`freeze instruction <i_freeze>` can be used.
-A value is frozen if its uses see the same value.
-An aggregate value or vector is frozen if its elements are frozen.
-The padding of an aggregate isn't considered, since it isn't visible
-without storing it into memory and loading it with a different type.
 
 .. code-block:: llvm
 
@@ -3727,6 +3724,23 @@ Here are some examples:
       br i1 %cmp, label %end, label %end   ; undefined behavior
 
     end:
+
+.. _welldefinedvalues:
+
+Well-Defined Values
+-------------------
+
+Given a program execution, a value is *well defined* if the value does not
+have an undef bit and is not poison in the execution.
+An aggregate value or vector is well defined if its elements are well defined.
+The padding of an aggregate isn't considered, since it isn't visible
+without storing it into memory and loading it with a different type.
+
+A constant of a :ref:`single value <t_single_value>`, non-vector type is well
+defined if it is a non-undef constant. Note that there is no poison constant
+in LLVM.
+The result of :ref:`freeze instruction <i_freeze>` is well defined regardless
+of its operand.
 
 .. _blockaddress:
 
@@ -6193,7 +6207,8 @@ considered having this property if at least one of the access groups
 matches the ``llvm.loop.parallel_accesses`` list.
 
 If all memory-accessing instructions in a loop have
-``llvm.loop.parallel_accesses`` metadata that refers to that loop, then the
+``llvm.access.group`` metadata that each refer to one of the access
+groups of a loop's ``llvm.loop.parallel_accesses`` metadata, then the
 loop has no loop carried memory dependences and is considered to be a
 parallel loop.
 
@@ -6883,7 +6898,7 @@ where the first ``param`` is the number of the parameter it describes,
 which can be accessed by the function. This range does not include accesses by
 function calls from ``calls`` list.
 
-where each ``Callee`` decribes how parameter is forwared into other
+where each ``Callee`` describes how parameter is forwarded into other
 functions and looks like:
 
 .. code-block:: text
@@ -9238,6 +9253,15 @@ example, loading an ``i24`` reads at most three bytes. When loading a
 value of a type like ``i20`` with a size that is not an integral number
 of bytes, the result is undefined if the value was not originally
 written using a store of the same type.
+If the value being loaded is of aggregate type, the bytes that correspond to
+padding may be accessed but are ignored, because it is impossible to observe
+padding from the loaded aggregate value.
+
+If the pointer is not a well-defined value, all of its possible representations
+should be dereferenceable. For example, loading a byte from a pointer to an
+array of type ``[16 x i8]`` with offset ``undef & 31`` is undefined behavior.
+Loading a byte at offset ``undef & 15`` nondeterministically reads one of the
+bytes.
 
 Examples:
 """""""""
@@ -9327,6 +9351,14 @@ example, storing an ``i24`` writes at most three bytes. When writing a
 value of a type like ``i20`` with a size that is not an integral number
 of bytes, it is unspecified what happens to the extra bits that do not
 belong to the type, but they will typically be overwritten.
+If ``<value>`` is of aggregate type, padding is filled with
+:ref:`undef <undefvalues>`.
+
+If ``<pointer>`` is not a well-defined value, all of its possible
+representations should be dereferenceable. For example, storing a byte to a
+pointer to an array of type ``[16 x i8]`` with offset ``undef & 31`` is
+undefined behavior. Storing a byte to an offset ``undef & 15``
+nondeterministically stores to one of offsets from 0 to 15.
 
 Example:
 """"""""
@@ -12472,14 +12504,17 @@ very cleanly specified and it is unwise to depend on it.
 Semantics:
 """"""""""
 
-The '``llvm.memcpy.*``' intrinsics copy a block of memory from the
-source location to the destination location, which are not allowed to
-overlap. It copies "len" bytes of memory over. If the argument is known
-to be aligned to some boundary, this can be specified as an attribute on
-the argument.
+The '``llvm.memcpy.*``' intrinsics copy a block of memory from the source
+location to the destination location, which must either be equal or
+non-overlapping. It copies "len" bytes of memory over. If the argument is known
+to be aligned to some boundary, this can be specified as an attribute on the
+argument.
 
-If "len" is 0, the pointers may be NULL or dangling. However, they must still
-be appropriately aligned.
+If "len" is 0, the pointers may be NULL, dangling, ``undef``, or ``poison``
+pointers. However, they must still be appropriately aligned.
+If "len" isn't a well-defined value, all of its possible representations should
+make the behavior of this ``llvm.memcpy`` defined, otherwise the behavior is
+undefined.
 
 .. _int_memcpy_inline:
 
@@ -12535,8 +12570,8 @@ overlap. It copies "len" bytes of memory over. If the argument is known
 to be aligned to some boundary, this can be specified as an attribute on
 the argument.
 
-If "len" is 0, the pointers may be NULL or dangling. However, they must still
-be appropriately aligned.
+If "len" is 0, the pointers may be NULL, dangling, ``undef``, or ``poison``
+pointers. However, they must still be appropriately aligned.
 
 The generated code is guaranteed not to call any external functions.
 
@@ -12595,8 +12630,11 @@ copies "len" bytes of memory over. If the argument is known to be
 aligned to some boundary, this can be specified as an attribute on
 the argument.
 
-If "len" is 0, the pointers may be NULL or dangling. However, they must still
-be appropriately aligned.
+If "len" is 0, the pointers may be NULL, dangling, ``undef``, or ``poison``
+pointers. However, they must still be appropriately aligned.
+If "len" isn't a well-defined value, all of its possible representations should
+make the behavior of this ``llvm.memmove`` defined, otherwise the behavior is
+undefined.
 
 .. _int_memset:
 
@@ -12650,8 +12688,11 @@ at the destination location. If the argument is known to be
 aligned to some boundary, this can be specified as an attribute on
 the argument.
 
-If "len" is 0, the pointers may be NULL or dangling. However, they must still
-be appropriately aligned.
+If "len" is 0, the pointer may be NULL, dangling, ``undef``, or ``poison``
+pointer. However, it must still be appropriately aligned.
+If "len" isn't a well-defined value, all of its possible representations should
+make the behavior of this ``llvm.memset`` defined, otherwise the behavior is
+undefined.
 
 '``llvm.sqrt.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -15817,7 +15858,12 @@ The '``llvm.experimental.vector.reduce.fmax.*``' intrinsics do a floating-point
 ``MAX`` reduction of a vector, returning the result as a scalar. The return type
 matches the element-type of the vector input.
 
-If the intrinsic call has the ``nnan`` fast-math flag then the operation can
+This instruction has the same comparison semantics as the '``llvm.maxnum.*``'
+intrinsic. That is, the result will always be a number unless all elements of
+the vector are NaN. For a vector with maximum element magnitude 0.0 and
+containing both +0.0 and -0.0 elements, the sign of the result is unspecified.
+
+If the intrinsic call has the ``nnan`` fast-math flag, then the operation can
 assume that NaNs are not present in the input vector.
 
 Arguments:
@@ -15843,7 +15889,12 @@ The '``llvm.experimental.vector.reduce.fmin.*``' intrinsics do a floating-point
 ``MIN`` reduction of a vector, returning the result as a scalar. The return type
 matches the element-type of the vector input.
 
-If the intrinsic call has the ``nnan`` fast-math flag then the operation can
+This instruction has the same comparison semantics as the '``llvm.minnum.*``'
+intrinsic. That is, the result will always be a number unless all elements of
+the vector are NaN. For a vector with minimum element magnitude 0.0 and
+containing both +0.0 and -0.0 elements, the sign of the result is unspecified.
+
+If the intrinsic call has the ``nnan`` fast-math flag, then the operation can
 assume that NaNs are not present in the input vector.
 
 Arguments:
@@ -15945,8 +15996,8 @@ Arguments:
 """"""""""
 
 The first argument ``%Ptr`` is a pointer type to the returned vector type, and
-correponds to the start address to load from. The second argument ``%Stride``
-is a postive, constant integer with ``%Stride >= <Rows>``. ``%Stride`` is used
+corresponds to the start address to load from. The second argument ``%Stride``
+is a positive, constant integer with ``%Stride >= <Rows>``. ``%Stride`` is used
 to compute the column memory addresses. I.e., for a column ``C``, its start
 memory addresses is calculated with ``%Ptr + C * %Stride``. The third Argument
 ``<IsVolatile>`` is a boolean value.  The fourth and fifth arguments,
@@ -16930,27 +16981,28 @@ to:
 
 ::
 
-      %m[i] = icmp ule (%base + i), %n
+      %m[i] = icmp ult (%base + i), %n
 
 where ``%m`` is a vector (mask) of active/inactive lanes with its elements
 indexed by ``i``,  and ``%base``, ``%n`` are the two arguments to
-``llvm.get.active.lane.mask.*``, ``%imcp`` is an integer compare and ``ule``
-the unsigned less-than-equal comparison operator.  Overflow cannot occur in
+``llvm.get.active.lane.mask.*``, ``%icmp`` is an integer compare and ``ult``
+the unsigned less-than comparison operator.  Overflow cannot occur in
 ``(%base + i)`` and its comparison against ``%n`` as it is performed in integer
-numbers and not in machine numbers.  The above is equivalent to:
+numbers and not in machine numbers.  If ``%n`` is ``0``, then the result is a
+poison value. The above is equivalent to:
 
 ::
 
       %m = @llvm.get.active.lane.mask(%base, %n)
 
-This can, for example, be emitted by the loop vectorizer. Then, ``%base`` is
-the first element of the vector induction variable (VIV), and ``%n`` is the
-Back-edge Taken Count (BTC). Thus, these intrinsics perform an element-wise
-less than or equal comparison of VIV with BTC, producing a mask of true/false
-values representing active/inactive vector lanes, except if the VIV overflows
-in which case they return false in the lanes where the VIV overflows.  The
-arguments are scalar types to accommodate scalable vector types, for which it is
-unknown what the type of the step vector needs to be that enumerate its
+This can, for example, be emitted by the loop vectorizer in which case
+``%base`` is the first element of the vector induction variable (VIV) and
+``%n`` is the loop tripcount. Thus, these intrinsics perform an element-wise
+less than comparison of VIV with the loop tripcount, producing a mask of
+true/false values representing active/inactive vector lanes, except if the VIV
+overflows in which case they return false in the lanes where the VIV overflows.
+The arguments are scalar types to accommodate scalable vector types, for which
+it is unknown what the type of the step vector needs to be that enumerate its
 lanes without overflow.
 
 This mask ``%m`` can e.g. be used in masked load/store instructions. These

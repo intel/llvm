@@ -354,7 +354,12 @@ option(LLVM_ENABLE_LIBEDIT "Use libedit if available." ON)
 
 option(LLVM_ENABLE_LIBPFM "Use libpfm for performance counters if available." ON)
 
-option(LLVM_ENABLE_THREADS "Use threads if available." ON)
+# On z/OS, threads cannot be used because TLS is not supported.
+if (CMAKE_SYSTEM_NAME MATCHES "OS390")
+  option(LLVM_ENABLE_THREADS "Use threads if available." OFF)
+else()
+  option(LLVM_ENABLE_THREADS "Use threads if available." ON)
+endif()
 
 set(LLVM_ENABLE_ZLIB "ON" CACHE STRING "Use zlib for compression/decompression if available. Can be ON, OFF, or FORCE_ON")
 
@@ -394,7 +399,6 @@ set(LLVM_TARGETS_TO_BUILD
 list(REMOVE_DUPLICATES LLVM_TARGETS_TO_BUILD)
 
 option(LLVM_ENABLE_PIC "Build Position-Independent Code" ON)
-option(LLVM_ENABLE_WARNINGS "Enable compiler warnings." ON)
 option(LLVM_ENABLE_MODULES "Compile with C++ modules enabled." OFF)
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   option(LLVM_ENABLE_MODULE_DEBUGGING "Compile with -gmodules." ON)
@@ -507,6 +511,19 @@ set(LLVM_LIT_ARGS "${LIT_ARGS_DEFAULT}" CACHE STRING "Default options for lit")
 # On Win32 hosts, provide an option to specify the path to the GnuWin32 tools.
 if( WIN32 AND NOT CYGWIN )
   set(LLVM_LIT_TOOLS_DIR "" CACHE PATH "Path to GnuWin32 tools")
+endif()
+
+set(LLVM_INTEGRATED_CRT_ALLOC "" CACHE PATH "Replace the Windows CRT allocator with any of {rpmalloc|mimalloc|snmalloc}. Only works with /MT enabled.")
+if(LLVM_INTEGRATED_CRT_ALLOC)
+  if(NOT WIN32)
+    message(FATAL_ERROR "LLVM_INTEGRATED_CRT_ALLOC is only supported on Windows.")
+  endif()
+  if(LLVM_USE_SANITIZER)
+    message(FATAL_ERROR "LLVM_INTEGRATED_CRT_ALLOC cannot be used along with LLVM_USE_SANITIZER!")
+  endif()
+  if(CMAKE_BUILD_TYPE AND uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
+    message(FATAL_ERROR "The Debug target isn't supported along with LLVM_INTEGRATED_CRT_ALLOC!")
+  endif()
 endif()
 
 # Define options to control the inclusion and default build behavior for
@@ -624,6 +641,13 @@ endif()
 
 if (LLVM_BUILD_STATIC)
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
+  # Remove shared library suffixes from use in find_library
+  foreach (shared_lib_suffix ${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_IMPORT_LIBRARY_SUFFIX})
+    list(FIND CMAKE_FIND_LIBRARY_SUFFIXES ${shared_lib_suffix} shared_lib_suffix_idx)
+    if(NOT ${shared_lib_suffix_idx} EQUAL -1)
+      list(REMOVE_AT CMAKE_FIND_LIBRARY_SUFFIXES ${shared_lib_suffix_idx})
+    endif()
+  endforeach()
 endif()
 
 # Use libtool instead of ar if you are both on an Apple host, and targeting Apple.
@@ -671,38 +695,19 @@ option(LLVM_ENABLE_PLUGINS "Enable plugin support" ${LLVM_ENABLE_PLUGINS_default
 
 include(HandleLLVMOptions)
 
-if(CMAKE_VERSION VERSION_LESS 3.12)
-  include(FindPythonInterp)
-  if( NOT PYTHONINTERP_FOUND )
-    message(FATAL_ERROR
-  "Unable to find Python interpreter, required for builds and testing.
-
-  Please install Python or specify the PYTHON_EXECUTABLE CMake variable.")
+find_package(Python3 COMPONENTS Interpreter)
+if(NOT Python3_Interpreter_FOUND)
+  message(WARNING "Python3 not found, using python2 as a fallback")
+  find_package(Python2 COMPONENTS Interpreter REQUIRED)
+  if(Python2_VERSION VERSION_LESS 2.7)
+    message(SEND_ERROR "Python 2.7 or newer is required")
   endif()
 
-  if( ${PYTHON_VERSION_STRING} VERSION_LESS 2.7 )
-    message(FATAL_ERROR "Python 2.7 or newer is required")
-  endif()
-
+  # Treat python2 as python3
   add_executable(Python3::Interpreter IMPORTED)
   set_target_properties(Python3::Interpreter PROPERTIES
-    IMPORTED_LOCATION ${PYTHON_EXECUTABLE})
-  set(Python3_EXECUTABLE ${PYTHON_EXECUTABLE})
-else()
-  find_package(Python3 COMPONENTS Interpreter)
-  if(NOT Python3_Interpreter_FOUND)
-    message(WARNING "Python3 not found, using python2 as a fallback")
-    find_package(Python2 COMPONENTS Interpreter REQUIRED)
-    if(Python2_VERSION VERSION_LESS 2.7)
-      message(SEND_ERROR "Python 2.7 or newer is required")
-    endif()
-
-    # Treat python2 as python3
-    add_executable(Python3::Interpreter IMPORTED)
-    set_target_properties(Python3::Interpreter PROPERTIES
-      IMPORTED_LOCATION ${Python2_EXECUTABLE})
-    set(Python3_EXECUTABLE ${Python2_EXECUTABLE})
-  endif()
+    IMPORTED_LOCATION ${Python2_EXECUTABLE})
+  set(Python3_EXECUTABLE ${Python2_EXECUTABLE})
 endif()
 
 ######
@@ -824,6 +829,11 @@ configure_file(
   ${LLVM_INCLUDE_DIR}/llvm/Config/Targets.def
   )
 
+# They are not referenced. See set_output_directory().
+set( CMAKE_RUNTIME_OUTPUT_DIRECTORY ${LLVM_BINARY_DIR}/bin )
+set( CMAKE_LIBRARY_OUTPUT_DIRECTORY ${LLVM_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX} )
+set( CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${LLVM_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX} )
+
 # For up-to-date instructions for installing the Tensorflow dependency, refer to
 # the bot setup script: https://github.com/google/ml-compiler-opt/blob/master/buildbot/buildbot_init.sh
 # In this case, the latest C API library is available for download from
@@ -832,17 +842,11 @@ configure_file(
 # LLVM_HAVE_TF_API, through llvm-config.h, so that a user of the LLVM library may
 # also leverage the dependency.
 set(TENSORFLOW_C_LIB_PATH "" CACHE PATH "Path to TensorFlow C library install")
-find_library(tensorflow_c_api tensorflow PATHS ${TENSORFLOW_C_LIB_PATH}/lib)
-
-if (tensorflow_c_api)
+if (TENSORFLOW_C_LIB_PATH)
+  find_library(tensorflow_c_api tensorflow PATHS ${TENSORFLOW_C_LIB_PATH}/lib NO_DEFAULT_PATH REQUIRED)
   set(LLVM_HAVE_TF_API "ON" CACHE BOOL "Full Tensorflow API available")
   include_directories(${TENSORFLOW_C_LIB_PATH}/include)
 endif()
-
-# They are not referenced. See set_output_directory().
-set( CMAKE_RUNTIME_OUTPUT_DIRECTORY ${LLVM_BINARY_DIR}/bin )
-set( CMAKE_LIBRARY_OUTPUT_DIRECTORY ${LLVM_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX} )
-set( CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${LLVM_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX} )
 
 # For up-to-date instructions for installing the Tensorflow dependency, refer to
 # the bot setup script: https://github.com/google/ml-compiler-opt/blob/master/buildbot/buildbot_init.sh
@@ -932,19 +936,16 @@ if (UNIX AND ${CMAKE_SYSTEM_NAME} MATCHES "AIX")
   string(APPEND CMAKE_SHARED_LINKER_FLAGS " -shared")
 endif()
 
+# Build with _XOPEN_SOURCE on z/OS.
+if (CMAKE_SYSTEM_NAME MATCHES "OS390")
+  add_definitions("-D_XOPEN_SOURCE=600")
+  add_definitions("-D_OPEN_SYS") # Needed for process information.
+  add_definitions("-D_OPEN_SYS_FILE_EXT") # Needed for EBCDIC I/O.
+endif()
+
 # Build with _FILE_OFFSET_BITS=64 on Solaris to match g++ >= 9.
 if (UNIX AND ${CMAKE_SYSTEM_NAME} MATCHES "SunOS")
           add_definitions("-D_FILE_OFFSET_BITS=64")
-endif()
-
-# Work around a broken bfd ld behavior. When linking a binary with a
-# foo.so library, it will try to find any library that foo.so uses and
-# check its symbols. This is wasteful (the check was done when foo.so
-# was created) and can fail since it is not the dynamic linker and
-# doesn't know how to handle search paths correctly.
-if (UNIX AND NOT APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "SunOS|AIX")
-  set(CMAKE_EXE_LINKER_FLAGS
-      "${CMAKE_EXE_LINKER_FLAGS} -Wl,-allow-shlib-undefined")
 endif()
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)

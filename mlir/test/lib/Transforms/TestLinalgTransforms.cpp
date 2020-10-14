@@ -301,8 +301,7 @@ static void fillPromotionCallBackPatterns(MLIRContext *ctx,
 
 template <typename IdOp, typename NProcsOp>
 static SmallVector<ProcInfo, 2>
-getGpuProcIds(OpBuilder &b, Location loc,
-              ArrayRef<SubViewOp::Range> parallelLoopRanges) {
+getGpuProcIds(OpBuilder &b, Location loc, ArrayRef<Range> parallelLoopRanges) {
   Type indexType = b.getIndexType();
   SmallVector<ProcInfo, 2> procInfo(2);
   procInfo[0] = {b.create<IdOp>(loc, indexType, b.getStringAttr("y")),
@@ -449,6 +448,7 @@ static void applyContractionToVectorPatterns(FuncOp funcOp) {
   patterns.insert<LinalgVectorizationPattern<BatchMatmulOp>,
                   LinalgVectorizationPattern<MatmulOp>,
                   LinalgVectorizationPattern<MatvecOp>,
+                  LinalgVectorizationPattern<VecmatOp>,
                   LinalgVectorizationPattern<DotOp>,
                   LinalgVectorizationPattern<GenericOp>>(funcOp.getContext());
   applyPatternsAndFoldGreedily(funcOp, patterns);

@@ -368,8 +368,8 @@ struct Waitcnt {
   Waitcnt(unsigned VmCnt, unsigned ExpCnt, unsigned LgkmCnt, unsigned VsCnt)
       : VmCnt(VmCnt), ExpCnt(ExpCnt), LgkmCnt(LgkmCnt), VsCnt(VsCnt) {}
 
-  static Waitcnt allZero(const IsaVersion &Version) {
-    return Waitcnt(0, 0, 0, Version.Major >= 10 ? 0 : ~0u);
+  static Waitcnt allZero(bool HasVscnt) {
+    return Waitcnt(0, 0, 0, HasVscnt ? 0 : ~0u);
   }
   static Waitcnt allZeroExceptVsCnt() { return Waitcnt(0, 0, 0, ~0u); }
 
@@ -692,6 +692,9 @@ bool isInlinableLiteralV216(int32_t Literal, bool HasInv2Pi);
 
 LLVM_READNONE
 bool isInlinableIntLiteralV216(int32_t Literal);
+
+LLVM_READNONE
+bool isFoldableLiteralV216(int32_t Literal, bool HasInv2Pi);
 
 bool isArgPassedInSGPR(const Argument *Arg);
 

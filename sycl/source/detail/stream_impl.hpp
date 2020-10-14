@@ -26,25 +26,14 @@ public:
   stream_impl(size_t BufferSize, size_t MaxStatementSize, handler &CGH);
 
   // Method to provide an access to the global stream buffer
-  GlobalBufAccessorT accessGlobalBuf(handler &CGH) {
-    return Buf.get_access<cl::sycl::access::mode::read_write>(
-        CGH, range<1>(BufferSize_), id<1>(OffsetSize));
-  }
+  GlobalBufAccessorT accessGlobalBuf(handler &CGH);
 
   // Method to provide an accessor to the global flush buffer
-  GlobalBufAccessorT accessGlobalFlushBuf(handler &CGH) {
-    return FlushBuf.get_access<cl::sycl::access::mode::read_write>(
-        CGH, range<1>(MaxStatementSize_), id<1>(0));
-  }
+  GlobalBufAccessorT accessGlobalFlushBuf(handler &CGH);
 
   // Method to provide an atomic access to the offset in the global stream
   // buffer and offset in the flush buffer
-  GlobalOffsetAccessorT accessGlobalOffset(handler &CGH) {
-    auto OffsetSubBuf = buffer<char, 1>(Buf, id<1>(0), range<1>(OffsetSize));
-    auto ReinterpretedBuf = OffsetSubBuf.reinterpret<unsigned, 1>(range<1>(2));
-    return ReinterpretedBuf.get_access<cl::sycl::access::mode::atomic>(
-        CGH, range<1>(2), id<1>(0));
-  }
+  GlobalOffsetAccessorT accessGlobalOffset(handler &CGH);
 
   // Copy stream buffer to the host and print the contents
   void flush();
@@ -65,14 +54,6 @@ private:
   // 2 variables: offset in the stream buffer and offset in the flush buffer.
   static const size_t OffsetSize = 2 * sizeof(unsigned);
 
-  // Vector on the host side which is used to initialize the stream buffer
-  std::vector<char> Data;
-
-  // Stream buffer
-  buffer<char, 1> Buf;
-
-  // Global flush buffer
-  buffer<char, 1> FlushBuf;
 };
 
 } // namespace detail

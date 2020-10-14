@@ -14,7 +14,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace INTEL {
 
-template <typename T> T fpga_reg(const T &t) {
+template <typename _T> _T fpga_reg(const _T &t) {
 #if __has_builtin(__builtin_intel_fpga_reg)
   return __builtin_intel_fpga_reg(t);
 #else
@@ -29,7 +29,7 @@ template <typename T> T fpga_reg(const T &t) {
 // Keep it consistent with FPGA attributes like intelfpga::memory()
 // Currently clang does not support nested namespace for attributes
 namespace intelfpga {
-template <typename T> T fpga_reg(const T &t) {
+template <typename _T> _T fpga_reg(const _T &t) {
   return cl::sycl::INTEL::fpga_reg(t);
 }
 } // namespace intelfpga

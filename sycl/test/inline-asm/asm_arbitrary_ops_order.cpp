@@ -1,3 +1,4 @@
+// UNSUPPORTED: cuda
 // REQUIRES: gpu,linux
 // This test is disabled because there is a bug somewhere either in test or in
 // the inline asm support
@@ -26,7 +27,7 @@ struct KernelFunctor : WithInputBuffers<T, 3>, WithOutputBuffer<T> {
 
     cgh.parallel_for<KernelFunctor<T>>(
         cl::sycl::range<1>{this->getOutputBufferSize()}, [=
-    ](cl::sycl::id<1> wiID) [[cl::intel_reqd_sub_group_size(8)]] {
+    ](cl::sycl::id<1> wiID) [[intel::reqd_sub_group_size(8)]] {
 #if defined(INLINE_ASM) && defined(__SYCL_DEVICE_ONLY__)
           asm("mad (M1, 8) %0(0, 0)<1> %3(0, 0)<1;1,0> %1(0, 0)<1;1,0> %2(0, 0)<1;1,0>"
               : "=rw"(D[wiID])

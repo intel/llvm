@@ -656,9 +656,9 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
     VectorType *PTy = cast<VectorType>(Ty);
     ElementCount EC = PTy->getElementCount();
     OS << "<";
-    if (EC.Scalable)
+    if (EC.isScalable())
       OS << "vscale x ";
-    OS << EC.Min << " x ";
+    OS << EC.getKnownMinValue() << " x ";
     print(PTy->getElementType(), OS);
     OS << '>';
     return;
@@ -1373,9 +1373,19 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
                     "assuming that double is 64 bits!");
       APFloat apf = APF;
       // Floats are represented in ASCII IR as double, convert.
-      if (!isDouble)
+      // FIXME: We should allow 32-bit hex float and remove this.
+      if (!isDouble) {
+        // A signaling NaN is quieted on conversion, so we need to recreate the
+        // expected value after convert (quiet bit of the payload is clear).
+        bool IsSNAN = apf.isSignaling();
         apf.convert(APFloat::IEEEdouble(), APFloat::rmNearestTiesToEven,
-                          &ignored);
+                    &ignored);
+        if (IsSNAN) {
+          APInt Payload = apf.bitcastToAPInt();
+          apf = APFloat::getSNaN(APFloat::IEEEdouble(), apf.isNegative(),
+                                 &Payload);
+        }
+      }
       Out << format_hex(apf.bitcastToAPInt().getZExtValue(), 0, /*Upper=*/true);
       return;
     }
@@ -1511,7 +1521,7 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
   }
 
   if (isa<ConstantVector>(CV) || isa<ConstantDataVector>(CV)) {
-    auto *CVVTy = cast<VectorType>(CV->getType());
+    auto *CVVTy = cast<FixedVectorType>(CV->getType());
     Type *ETy = CVVTy->getElementType();
     Out << '<';
     TypePrinter.print(ETy, Out);

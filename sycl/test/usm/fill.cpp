@@ -5,8 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// XFAIL: cuda
-// piextUSM*Alloc functions for CUDA are not behaving as described in
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t1.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t1.out

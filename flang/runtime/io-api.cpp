@@ -235,6 +235,7 @@ Cookie BeginUnformattedIO(
     if (unit.access == Access::Sequential && !unit.isFixedRecordLength) {
       // Create space for (sub)record header to be completed by
       // UnformattedIoStatementState<Direction::Output>::EndIoStatement()
+      unit.recordLength.reset(); // in case of prior BACKSPACE
       io.Emit("\0\0\0\0", 4); // placeholder for record length header
     }
   }
@@ -517,7 +518,7 @@ bool IONAME(SetRec)(Cookie cookie, std::int64_t rec) {
   }
   connection.currentRecordNumber = rec;
   if (auto *unit{io.GetExternalFileUnit()}) {
-    unit->SetPosition(rec * *connection.recordLength);
+    unit->SetPosition((rec - 1) * *connection.recordLength);
   }
   return true;
 }
@@ -655,6 +656,31 @@ bool IONAME(SetAsynchronous)(
   }
 }
 
+bool IONAME(SetCarriagecontrol)(
+    Cookie cookie, const char *keyword, std::size_t length) {
+  IoStatementState &io{*cookie};
+  auto *open{io.get_if<OpenStatementState>()};
+  if (!open) {
+    io.GetIoErrorHandler().Crash(
+        "SetCarriageControl() called when not in an OPEN statement");
+  }
+  static const char *keywords[]{"LIST", "FORTRAN", "NONE", nullptr};
+  switch (IdentifyValue(keyword, length, keywords)) {
+  case 0:
+    return true;
+  case 1:
+  case 2:
+    open->SignalError(IostatErrorInKeyword,
+        "Unimplemented CARRIAGECONTROL='%.*s'", static_cast<int>(length),
+        keyword);
+    return false;
+  default:
+    open->SignalError(IostatErrorInKeyword, "Invalid CARRIAGECONTROL='%.*s'",
+        static_cast<int>(length), keyword);
+    return false;
+  }
+}
+
 bool IONAME(SetConvert)(
     Cookie cookie, const char *keyword, std::size_t length) {
   IoStatementState &io{*cookie};
@@ -708,7 +734,7 @@ bool IONAME(SetForm)(Cookie cookie, const char *keyword, std::size_t length) {
   auto *open{io.get_if<OpenStatementState>()};
   if (!open) {
     io.GetIoErrorHandler().Crash(
-        "SetEncoding() called when not in an OPEN statement");
+        "SetForm() called when not in an OPEN statement");
   }
   static const char *keywords[]{"FORMATTED", "UNFORMATTED", nullptr};
   switch (IdentifyValue(keyword, length, keywords)) {
@@ -897,14 +923,16 @@ bool IONAME(InputUnformattedBlock)(
 }
 
 bool IONAME(OutputInteger64)(Cookie cookie, std::int64_t n) {
+  cookie->CheckFormattedStmtType<Direction::Output>("OutputInteger64");
   StaticDescriptor staticDescriptor;
   Descriptor &descriptor{staticDescriptor.descriptor()};
   descriptor.Establish(
-      TypeCategory::Integer, 8, reinterpret_cast<void *>(&n), 0);
+      TypeCategory::Integer, sizeof n, reinterpret_cast<void *>(&n), 0);
   return descr::DescriptorIO<Direction::Output>(*cookie, descriptor);
 }
 
 bool IONAME(InputInteger)(Cookie cookie, std::int64_t &n, int kind) {
+  cookie->CheckFormattedStmtType<Direction::Input>("InputInteger");
   StaticDescriptor staticDescriptor;
   Descriptor &descriptor{staticDescriptor.descriptor()};
   descriptor.Establish(
@@ -913,6 +941,7 @@ bool IONAME(InputInteger)(Cookie cookie, std::int64_t &n, int kind) {
 }
 
 bool IONAME(OutputReal32)(Cookie cookie, float x) {
+  cookie->CheckFormattedStmtType<Direction::Output>("OutputReal32");
   StaticDescriptor staticDescriptor;
   Descriptor &descriptor{staticDescriptor.descriptor()};
   descriptor.Establish(TypeCategory::Real, 4, reinterpret_cast<void *>(&x), 0);
@@ -920,6 +949,7 @@ bool IONAME(OutputReal32)(Cookie cookie, float x) {
 }
 
 bool IONAME(OutputReal64)(Cookie cookie, double x) {
+  cookie->CheckFormattedStmtType<Direction::Output>("OutputReal64");
   StaticDescriptor staticDescriptor;
   Descriptor &descriptor{staticDescriptor.descriptor()};
   descriptor.Establish(TypeCategory::Real, 8, reinterpret_cast<void *>(&x), 0);
@@ -927,6 +957,7 @@ bool IONAME(OutputReal64)(Cookie cookie, double x) {
 }
 
 bool IONAME(InputReal32)(Cookie cookie, float &x) {
+  cookie->CheckFormattedStmtType<Direction::Input>("InputReal32");
   StaticDescriptor staticDescriptor;
   Descriptor &descriptor{staticDescriptor.descriptor()};
   descriptor.Establish(TypeCategory::Real, 4, reinterpret_cast<void *>(&x), 0);
@@ -934,6 +965,7 @@ bool IONAME(InputReal32)(Cookie cookie, float &x) {
 }
 
 bool IONAME(InputReal64)(Cookie cookie, double &x) {
+  cookie->CheckFormattedStmtType<Direction::Input>("InputReal64");
   StaticDescriptor staticDescriptor;
   Descriptor &descriptor{staticDescriptor.descriptor()};
   descriptor.Establish(TypeCategory::Real, 8, reinterpret_cast<void *>(&x), 0);
@@ -941,6 +973,7 @@ bool IONAME(InputReal64)(Cookie cookie, double &x) {
 }
 
 bool IONAME(OutputComplex32)(Cookie cookie, float r, float i) {
+  cookie->CheckFormattedStmtType<Direction::Output>("OutputComplex32");
   float z[2]{r, i};
   StaticDescriptor staticDescriptor;
   Descriptor &descriptor{staticDescriptor.descriptor()};
@@ -950,6 +983,7 @@ bool IONAME(OutputComplex32)(Cookie cookie, float r, float i) {
 }
 
 bool IONAME(OutputComplex64)(Cookie cookie, double r, double i) {
+  cookie->CheckFormattedStmtType<Direction::Output>("OutputComplex64");
   double z[2]{r, i};
   StaticDescriptor staticDescriptor;
   Descriptor &descriptor{staticDescriptor.descriptor()};
@@ -959,6 +993,7 @@ bool IONAME(OutputComplex64)(Cookie cookie, double r, double i) {
 }
 
 bool IONAME(InputComplex32)(Cookie cookie, float z[2]) {
+  cookie->CheckFormattedStmtType<Direction::Input>("InputComplex32");
   StaticDescriptor staticDescriptor;
   Descriptor &descriptor{staticDescriptor.descriptor()};
   descriptor.Establish(
@@ -967,6 +1002,7 @@ bool IONAME(InputComplex32)(Cookie cookie, float z[2]) {
 }
 
 bool IONAME(InputComplex64)(Cookie cookie, double z[2]) {
+  cookie->CheckFormattedStmtType<Direction::Input>("InputComplex64");
   StaticDescriptor staticDescriptor;
   Descriptor &descriptor{staticDescriptor.descriptor()};
   descriptor.Establish(
@@ -974,34 +1010,48 @@ bool IONAME(InputComplex64)(Cookie cookie, double z[2]) {
   return descr::DescriptorIO<Direction::Input>(*cookie, descriptor);
 }
 
-bool IONAME(OutputAscii)(Cookie cookie, const char *x, std::size_t length) {
+bool IONAME(OutputCharacter)(
+    Cookie cookie, const char *x, std::size_t length, int kind) {
+  cookie->CheckFormattedStmtType<Direction::Output>("OutputCharacter");
   StaticDescriptor staticDescriptor;
   Descriptor &descriptor{staticDescriptor.descriptor()};
   descriptor.Establish(
-      1, length, reinterpret_cast<void *>(const_cast<char *>(x)), 0);
+      kind, length, reinterpret_cast<void *>(const_cast<char *>(x)), 0);
   return descr::DescriptorIO<Direction::Output>(*cookie, descriptor);
 }
 
-bool IONAME(InputAscii)(Cookie cookie, char *x, std::size_t length) {
+bool IONAME(OutputAscii)(Cookie cookie, const char *x, std::size_t length) {
+  return IONAME(OutputCharacter(cookie, x, length, 1));
+}
+
+bool IONAME(InputCharacter)(
+    Cookie cookie, char *x, std::size_t length, int kind) {
+  cookie->CheckFormattedStmtType<Direction::Input>("InputCharacter");
   StaticDescriptor staticDescriptor;
   Descriptor &descriptor{staticDescriptor.descriptor()};
-  descriptor.Establish(1, length, reinterpret_cast<void *>(x), 0);
+  descriptor.Establish(kind, length, reinterpret_cast<void *>(x), 0);
   return descr::DescriptorIO<Direction::Input>(*cookie, descriptor);
 }
 
+bool IONAME(InputAscii)(Cookie cookie, char *x, std::size_t length) {
+  return IONAME(InputCharacter(cookie, x, length, 1));
+}
+
 bool IONAME(OutputLogical)(Cookie cookie, bool truth) {
+  cookie->CheckFormattedStmtType<Direction::Output>("OutputLogical");
   StaticDescriptor staticDescriptor;
   Descriptor &descriptor{staticDescriptor.descriptor()};
   descriptor.Establish(
-      TypeCategory::Logical, 1, reinterpret_cast<void *>(&truth), 0);
+      TypeCategory::Logical, sizeof truth, reinterpret_cast<void *>(&truth), 0);
   return descr::DescriptorIO<Direction::Output>(*cookie, descriptor);
 }
 
 bool IONAME(InputLogical)(Cookie cookie, bool &truth) {
+  cookie->CheckFormattedStmtType<Direction::Input>("InputLogical");
   StaticDescriptor staticDescriptor;
   Descriptor &descriptor{staticDescriptor.descriptor()};
   descriptor.Establish(
-      TypeCategory::Logical, 1, reinterpret_cast<void *>(&truth), 0);
+      TypeCategory::Logical, sizeof truth, reinterpret_cast<void *>(&truth), 0);
   return descr::DescriptorIO<Direction::Input>(*cookie, descriptor);
 }
 

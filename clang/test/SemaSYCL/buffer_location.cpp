@@ -1,7 +1,7 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -Wno-sycl-2017-compat -verify -pedantic -DTRIGGER_ERROR %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-sycl-2017-compat -verify -pedantic -DTRIGGER_ERROR %s
 
-#include "sycl.hpp"
+#include "Inputs/sycl.hpp"
 
 class another_property {};
 
@@ -9,22 +9,24 @@ template <typename... properties>
 class another_property_list {
 };
 
+template <int I>
+using buffer_location = cl::sycl::INTEL::property::buffer_location::instance<I>;
+
 struct Base {
   int A, B;
   cl::sycl::accessor<char, 1, cl::sycl::access::mode::read,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::property_list<
-                         cl::sycl::property::buffer_location<1>>>
+                     cl::sycl::ONEAPI::accessor_property_list<buffer_location<1>>>
       AccField;
 };
 
-struct Captured : Base,
-                  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read,
-                                     cl::sycl::access::target::global_buffer,
-                                     cl::sycl::access::placeholder::false_t,
-                                     cl::sycl::property_list<
-                                         cl::sycl::property::buffer_location<1>>> {
+struct Captured
+    : Base,
+      cl::sycl::accessor<char, 1, cl::sycl::access::mode::read,
+                         cl::sycl::access::target::global_buffer,
+                         cl::sycl::access::placeholder::false_t,
+                         cl::sycl::ONEAPI::accessor_property_list<buffer_location<1>>> {
   int C;
 };
 
@@ -35,28 +37,28 @@ int main() {
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::property_list<
-                         cl::sycl::property::buffer_location<2>>>
+                     cl::sycl::ONEAPI::accessor_property_list<buffer_location<2>>>
       // CHECK: SYCLIntelBufferLocationAttr {{.*}} Implicit 2
       accessorA;
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::property_list<another_property,
-                                             cl::sycl::property::buffer_location<3>>>
+                     cl::sycl::ONEAPI::accessor_property_list<
+                         another_property,
+                         buffer_location<3>>>
       // CHECK: SYCLIntelBufferLocationAttr {{.*}} Implicit 3
       accessorB;
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::property_list<another_property>>
+                     cl::sycl::ONEAPI::accessor_property_list<
+                         another_property>>
       accessorC;
 #else
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::property_list<
-                         cl::sycl::property::buffer_location<-2>>>
+                     cl::sycl::ONEAPI::accessor_property_list<buffer_location<-2>>>
       accessorD;
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
@@ -66,9 +68,9 @@ int main() {
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::property_list<
-                         cl::sycl::property::buffer_location<1>,
-                         cl::sycl::property::buffer_location<2>>>
+                     cl::sycl::ONEAPI::accessor_property_list<
+                         buffer_location<1>,
+                         buffer_location<2>>>
       accessorF;
 #endif
   cl::sycl::kernel_single_task<class kernel_function>(
@@ -82,7 +84,7 @@ int main() {
 #else
         //expected-error@+1{{buffer_location template parameter must be a non-negative integer}}
         accessorD.use();
-        //expected-error@+1{{Fifth template parameter of the accessor must be of a property_list type}}
+        //expected-error@+1{{sixth template parameter of the accessor must be of accessor_property_list type}}
         accessorE.use();
         //expected-error@+1{{Can't apply buffer_location property twice to the same accessor}}
         accessorF.use();

@@ -247,6 +247,20 @@ foo.region_op {
 This trait is an important structural property of the IR, and enables operations
 to have [passes](PassManagement.md) scheduled under them.
 
+### MemRefsNormalizable
+
+* `OpTrait::MemRefsNormalizable` -- `MemRefsNormalizable`
+
+This trait is used to flag operations that consume or produce
+values of `MemRef` type where those references can be 'normalized'.
+In cases where an associated `MemRef` has a
+non-identity memory-layout specification, such normalizable operations can be
+modified so that the `MemRef` has an identity layout specification.
+This can be implemented by associating the operation with its own
+index expression that can express the equivalent of the memory-layout
+specification of the MemRef type. See [the -normalize-memrefs pass].
+(https://mlir.llvm.org/docs/Passes/#-normalize-memrefs-normalize-memrefs)
+
 ### Single Block with Implicit Terminator
 
 *   `OpTrait::SingleBlockImplicitTerminator<typename TerminatorOpType>` :
@@ -254,13 +268,6 @@ to have [passes](PassManagement.md) scheduled under them.
 
 This trait provides APIs and verifiers for operations with regions that have a
 single block that must terminate with `TerminatorOpType`.
-
-### Symbol
-
-*   `OpTrait::Symbol` -- `Symbol`
-
-This trait is used for operations that define a
-[`Symbol`](SymbolsAndSymbolTables.md#symbol).
 
 ### SymbolTable
 

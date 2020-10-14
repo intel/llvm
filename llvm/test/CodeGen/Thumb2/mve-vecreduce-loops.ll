@@ -1512,13 +1512,10 @@ define float @fmin_f32(float* nocapture readonly %x, i32 %n) {
 ; CHECK-NEXT:    vpsel q0, q0, q1
 ; CHECK-NEXT:    le lr, .LBB15_5
 ; CHECK-NEXT:  @ %bb.6: @ %middle.block
-; CHECK-NEXT:    vmov.f32 s4, s2
+; CHECK-NEXT:    vminnm.f32 s4, s2, s3
+; CHECK-NEXT:    vminnm.f32 s0, s0, s1
+; CHECK-NEXT:    vminnm.f32 s0, s0, s4
 ; CHECK-NEXT:    cmp r2, r1
-; CHECK-NEXT:    vmov.f32 s5, s3
-; CHECK-NEXT:    vminnm.f32 q0, q0, q1
-; CHECK-NEXT:    vmov r3, s1
-; CHECK-NEXT:    vdup.32 q1, r3
-; CHECK-NEXT:    vminnm.f32 q0, q0, q1
 ; CHECK-NEXT:    beq .LBB15_9
 ; CHECK-NEXT:  .LBB15_7: @ %for.body.preheader1
 ; CHECK-NEXT:    sub.w lr, r1, r2
@@ -1526,10 +1523,10 @@ define float @fmin_f32(float* nocapture readonly %x, i32 %n) {
 ; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB15_8: @ %for.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    vldmia r0!, {s4}
-; CHECK-NEXT:    vcmp.f32 s0, s4
+; CHECK-NEXT:    vldmia r0!, {s2}
+; CHECK-NEXT:    vcmp.f32 s0, s2
 ; CHECK-NEXT:    vmrs APSR_nzcv, fpscr
-; CHECK-NEXT:    vselge.f32 s0, s4, s0
+; CHECK-NEXT:    vselge.f32 s0, s2, s0
 ; CHECK-NEXT:    le lr, .LBB15_8
 ; CHECK-NEXT:  .LBB15_9: @ %for.cond.cleanup
 ; CHECK-NEXT:    vmov r0, s0
@@ -1620,13 +1617,10 @@ define float @fmax_f32(float* nocapture readonly %x, i32 %n) {
 ; CHECK-NEXT:    vpsel q0, q0, q1
 ; CHECK-NEXT:    le lr, .LBB16_5
 ; CHECK-NEXT:  @ %bb.6: @ %middle.block
-; CHECK-NEXT:    vmov.f32 s4, s2
+; CHECK-NEXT:    vmaxnm.f32 s4, s2, s3
+; CHECK-NEXT:    vmaxnm.f32 s0, s0, s1
+; CHECK-NEXT:    vmaxnm.f32 s0, s0, s4
 ; CHECK-NEXT:    cmp r2, r1
-; CHECK-NEXT:    vmov.f32 s5, s3
-; CHECK-NEXT:    vmaxnm.f32 q0, q0, q1
-; CHECK-NEXT:    vmov r3, s1
-; CHECK-NEXT:    vdup.32 q1, r3
-; CHECK-NEXT:    vmaxnm.f32 q0, q0, q1
 ; CHECK-NEXT:    beq .LBB16_9
 ; CHECK-NEXT:  .LBB16_7: @ %for.body.preheader1
 ; CHECK-NEXT:    sub.w lr, r1, r2
@@ -1634,10 +1628,10 @@ define float @fmax_f32(float* nocapture readonly %x, i32 %n) {
 ; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB16_8: @ %for.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    vldmia r0!, {s4}
-; CHECK-NEXT:    vcmp.f32 s4, s0
+; CHECK-NEXT:    vldmia r0!, {s2}
+; CHECK-NEXT:    vcmp.f32 s2, s0
 ; CHECK-NEXT:    vmrs APSR_nzcv, fpscr
-; CHECK-NEXT:    vselge.f32 s0, s4, s0
+; CHECK-NEXT:    vselge.f32 s0, s2, s0
 ; CHECK-NEXT:    le lr, .LBB16_8
 ; CHECK-NEXT:  .LBB16_9: @ %for.cond.cleanup
 ; CHECK-NEXT:    vmov r0, s0
@@ -1730,7 +1724,7 @@ vector.ph:                                        ; preds = %entry
 vector.body:                                      ; preds = %vector.body, %vector.ph
   %index = phi i32 [ 0, %vector.ph ], [ %index.next, %vector.body ]
   %vec.phi = phi i32 [ 0, %vector.ph ], [ %4, %vector.body ]
-  %active.lane.mask = call <4 x i1> @llvm.get.active.lane.mask.v4i1.i32(i32 %index, i32 %trip.count.minus.1)
+  %active.lane.mask = call <4 x i1> @llvm.get.active.lane.mask.v4i1.i32(i32 %index, i32 %n)
   %0 = getelementptr inbounds i32, i32* %x, i32 %index
   %1 = bitcast i32* %0 to <4 x i32>*
   %wide.masked.load = call <4 x i32> @llvm.masked.load.v4i32.p0v4i32(<4 x i32>* %1, i32 4, <4 x i1> %active.lane.mask, <4 x i32> undef)
@@ -1781,7 +1775,7 @@ vector.ph:                                        ; preds = %entry
 vector.body:                                      ; preds = %vector.body, %vector.ph
   %index = phi i32 [ 0, %vector.ph ], [ %index.next, %vector.body ]
   %vec.phi = phi i32 [ 0, %vector.ph ], [ %7, %vector.body ]
-  %active.lane.mask = call <4 x i1> @llvm.get.active.lane.mask.v4i1.i32(i32 %index, i32 %trip.count.minus.1)
+  %active.lane.mask = call <4 x i1> @llvm.get.active.lane.mask.v4i1.i32(i32 %index, i32 %n)
   %0 = getelementptr inbounds i32, i32* %x, i32 %index
   %1 = bitcast i32* %0 to <4 x i32>*
   %wide.masked.load = call <4 x i32> @llvm.masked.load.v4i32.p0v4i32(<4 x i32>* %1, i32 4, <4 x i1> %active.lane.mask, <4 x i32> undef)
@@ -1835,7 +1829,7 @@ vector.ph:                                        ; preds = %entry
 vector.body:                                      ; preds = %vector.body, %vector.ph
   %index = phi i32 [ 0, %vector.ph ], [ %index.next, %vector.body ]
   %vec.phi = phi i32 [ 0, %vector.ph ], [ %5, %vector.body ]
-  %active.lane.mask = call <8 x i1> @llvm.get.active.lane.mask.v8i1.i32(i32 %index, i32 %trip.count.minus.1)
+  %active.lane.mask = call <8 x i1> @llvm.get.active.lane.mask.v8i1.i32(i32 %index, i32 %n)
   %0 = getelementptr inbounds i16, i16* %x, i32 %index
   %1 = bitcast i16* %0 to <8 x i16>*
   %wide.masked.load = call <8 x i16> @llvm.masked.load.v8i16.p0v8i16(<8 x i16>* %1, i32 2, <8 x i1> %active.lane.mask, <8 x i16> undef)
@@ -1887,7 +1881,7 @@ vector.ph:                                        ; preds = %entry
 vector.body:                                      ; preds = %vector.body, %vector.ph
   %index = phi i32 [ 0, %vector.ph ], [ %index.next, %vector.body ]
   %vec.phi = phi i32 [ 0, %vector.ph ], [ %9, %vector.body ]
-  %active.lane.mask = call <8 x i1> @llvm.get.active.lane.mask.v8i1.i32(i32 %index, i32 %trip.count.minus.1)
+  %active.lane.mask = call <8 x i1> @llvm.get.active.lane.mask.v8i1.i32(i32 %index, i32 %n)
   %0 = getelementptr inbounds i16, i16* %x, i32 %index
   %1 = bitcast i16* %0 to <8 x i16>*
   %wide.masked.load = call <8 x i16> @llvm.masked.load.v8i16.p0v8i16(<8 x i16>* %1, i32 2, <8 x i1> %active.lane.mask, <8 x i16> undef)
@@ -1943,7 +1937,7 @@ vector.ph:                                        ; preds = %entry
 vector.body:                                      ; preds = %vector.body, %vector.ph
   %index = phi i32 [ 0, %vector.ph ], [ %index.next, %vector.body ]
   %vec.phi = phi i32 [ 0, %vector.ph ], [ %5, %vector.body ]
-  %active.lane.mask = call <16 x i1> @llvm.get.active.lane.mask.v16i1.i32(i32 %index, i32 %trip.count.minus.1)
+  %active.lane.mask = call <16 x i1> @llvm.get.active.lane.mask.v16i1.i32(i32 %index, i32 %n)
   %0 = getelementptr inbounds i8, i8* %x, i32 %index
   %1 = bitcast i8* %0 to <16 x i8>*
   %wide.masked.load = call <16 x i8> @llvm.masked.load.v16i8.p0v16i8(<16 x i8>* %1, i32 1, <16 x i1> %active.lane.mask, <16 x i8> undef)
@@ -1995,7 +1989,7 @@ vector.ph:                                        ; preds = %entry
 vector.body:                                      ; preds = %vector.body, %vector.ph
   %index = phi i32 [ 0, %vector.ph ], [ %index.next, %vector.body ]
   %vec.phi = phi i32 [ 0, %vector.ph ], [ %9, %vector.body ]
-  %active.lane.mask = call <16 x i1> @llvm.get.active.lane.mask.v16i1.i32(i32 %index, i32 %trip.count.minus.1)
+  %active.lane.mask = call <16 x i1> @llvm.get.active.lane.mask.v16i1.i32(i32 %index, i32 %n)
   %0 = getelementptr inbounds i8, i8* %x, i32 %index
   %1 = bitcast i8* %0 to <16 x i8>*
   %wide.masked.load = call <16 x i8> @llvm.masked.load.v16i8.p0v16i8(<16 x i8>* %1, i32 1, <16 x i1> %active.lane.mask, <16 x i8> undef)
@@ -2051,7 +2045,7 @@ vector.ph:                                        ; preds = %entry
 vector.body:                                      ; preds = %vector.body, %vector.ph
   %index = phi i32 [ 0, %vector.ph ], [ %index.next, %vector.body ]
   %vec.phi = phi i16 [ 0, %vector.ph ], [ %4, %vector.body ]
-  %active.lane.mask = call <8 x i1> @llvm.get.active.lane.mask.v8i1.i32(i32 %index, i32 %trip.count.minus.1)
+  %active.lane.mask = call <8 x i1> @llvm.get.active.lane.mask.v8i1.i32(i32 %index, i32 %n)
   %0 = getelementptr inbounds i16, i16* %x, i32 %index
   %1 = bitcast i16* %0 to <8 x i16>*
   %wide.masked.load = call <8 x i16> @llvm.masked.load.v8i16.p0v8i16(<8 x i16>* %1, i32 2, <8 x i1> %active.lane.mask, <8 x i16> undef)
@@ -2102,7 +2096,7 @@ vector.ph:                                        ; preds = %entry
 vector.body:                                      ; preds = %vector.body, %vector.ph
   %index = phi i32 [ 0, %vector.ph ], [ %index.next, %vector.body ]
   %vec.phi = phi i16 [ 0, %vector.ph ], [ %7, %vector.body ]
-  %active.lane.mask = call <8 x i1> @llvm.get.active.lane.mask.v8i1.i32(i32 %index, i32 %trip.count.minus.1)
+  %active.lane.mask = call <8 x i1> @llvm.get.active.lane.mask.v8i1.i32(i32 %index, i32 %n)
   %0 = getelementptr inbounds i16, i16* %x, i32 %index
   %1 = bitcast i16* %0 to <8 x i16>*
   %wide.masked.load = call <8 x i16> @llvm.masked.load.v8i16.p0v8i16(<8 x i16>* %1, i32 2, <8 x i1> %active.lane.mask, <8 x i16> undef)
@@ -2156,7 +2150,7 @@ vector.ph:                                        ; preds = %entry
 vector.body:                                      ; preds = %vector.body, %vector.ph
   %index = phi i32 [ 0, %vector.ph ], [ %index.next, %vector.body ]
   %vec.phi = phi i16 [ 0, %vector.ph ], [ %5, %vector.body ]
-  %active.lane.mask = call <16 x i1> @llvm.get.active.lane.mask.v16i1.i32(i32 %index, i32 %trip.count.minus.1)
+  %active.lane.mask = call <16 x i1> @llvm.get.active.lane.mask.v16i1.i32(i32 %index, i32 %n)
   %0 = getelementptr inbounds i8, i8* %x, i32 %index
   %1 = bitcast i8* %0 to <16 x i8>*
   %wide.masked.load = call <16 x i8> @llvm.masked.load.v16i8.p0v16i8(<16 x i8>* %1, i32 1, <16 x i1> %active.lane.mask, <16 x i8> undef)
@@ -2208,7 +2202,7 @@ vector.ph:                                        ; preds = %entry
 vector.body:                                      ; preds = %vector.body, %vector.ph
   %index = phi i32 [ 0, %vector.ph ], [ %index.next, %vector.body ]
   %vec.phi = phi i16 [ 0, %vector.ph ], [ %9, %vector.body ]
-  %active.lane.mask = call <16 x i1> @llvm.get.active.lane.mask.v16i1.i32(i32 %index, i32 %trip.count.minus.1)
+  %active.lane.mask = call <16 x i1> @llvm.get.active.lane.mask.v16i1.i32(i32 %index, i32 %n)
   %0 = getelementptr inbounds i8, i8* %x, i32 %index
   %1 = bitcast i8* %0 to <16 x i8>*
   %wide.masked.load = call <16 x i8> @llvm.masked.load.v16i8.p0v16i8(<16 x i8>* %1, i32 1, <16 x i1> %active.lane.mask, <16 x i8> undef)
@@ -2264,7 +2258,7 @@ vector.ph:                                        ; preds = %entry
 vector.body:                                      ; preds = %vector.body, %vector.ph
   %index = phi i32 [ 0, %vector.ph ], [ %index.next, %vector.body ]
   %vec.phi = phi i8 [ 0, %vector.ph ], [ %4, %vector.body ]
-  %active.lane.mask = call <16 x i1> @llvm.get.active.lane.mask.v16i1.i32(i32 %index, i32 %trip.count.minus.1)
+  %active.lane.mask = call <16 x i1> @llvm.get.active.lane.mask.v16i1.i32(i32 %index, i32 %n)
   %0 = getelementptr inbounds i8, i8* %x, i32 %index
   %1 = bitcast i8* %0 to <16 x i8>*
   %wide.masked.load = call <16 x i8> @llvm.masked.load.v16i8.p0v16i8(<16 x i8>* %1, i32 1, <16 x i1> %active.lane.mask, <16 x i8> undef)
@@ -2315,7 +2309,7 @@ vector.ph:                                        ; preds = %entry
 vector.body:                                      ; preds = %vector.body, %vector.ph
   %index = phi i32 [ 0, %vector.ph ], [ %index.next, %vector.body ]
   %vec.phi = phi i8 [ 0, %vector.ph ], [ %7, %vector.body ]
-  %active.lane.mask = call <16 x i1> @llvm.get.active.lane.mask.v16i1.i32(i32 %index, i32 %trip.count.minus.1)
+  %active.lane.mask = call <16 x i1> @llvm.get.active.lane.mask.v16i1.i32(i32 %index, i32 %n)
   %0 = getelementptr inbounds i8, i8* %x, i32 %index
   %1 = bitcast i8* %0 to <16 x i8>*
   %wide.masked.load = call <16 x i8> @llvm.masked.load.v16i8.p0v16i8(<16 x i8>* %1, i32 1, <16 x i1> %active.lane.mask, <16 x i8> undef)
@@ -2371,7 +2365,7 @@ vector.ph:                                        ; preds = %entry
 vector.body:                                      ; preds = %vector.body, %vector.ph
   %index = phi i32 [ 0, %vector.ph ], [ %index.next, %vector.body ]
   %vec.phi = phi i64 [ 0, %vector.ph ], [ %5, %vector.body ]
-  %active.lane.mask = call <4 x i1> @llvm.get.active.lane.mask.v4i1.i32(i32 %index, i32 %trip.count.minus.1)
+  %active.lane.mask = call <4 x i1> @llvm.get.active.lane.mask.v4i1.i32(i32 %index, i32 %n)
   %0 = getelementptr inbounds i32, i32* %x, i32 %index
   %1 = bitcast i32* %0 to <4 x i32>*
   %wide.masked.load = call <4 x i32> @llvm.masked.load.v4i32.p0v4i32(<4 x i32>* %1, i32 4, <4 x i1> %active.lane.mask, <4 x i32> undef)
@@ -2425,7 +2419,7 @@ vector.ph:                                        ; preds = %entry
 vector.body:                                      ; preds = %vector.body, %vector.ph
   %index = phi i32 [ 0, %vector.ph ], [ %index.next, %vector.body ]
   %vec.phi = phi i64 [ 0, %vector.ph ], [ %9, %vector.body ]
-  %active.lane.mask = call <4 x i1> @llvm.get.active.lane.mask.v4i1.i32(i32 %index, i32 %trip.count.minus.1)
+  %active.lane.mask = call <4 x i1> @llvm.get.active.lane.mask.v4i1.i32(i32 %index, i32 %n)
   %0 = getelementptr inbounds i32, i32* %x, i32 %index
   %1 = bitcast i32* %0 to <4 x i32>*
   %wide.masked.load = call <4 x i32> @llvm.masked.load.v4i32.p0v4i32(<4 x i32>* %1, i32 4, <4 x i1> %active.lane.mask, <4 x i32> undef)
@@ -2484,7 +2478,7 @@ vector.ph:                                        ; preds = %entry
 vector.body:                                      ; preds = %vector.body, %vector.ph
   %index = phi i32 [ 0, %vector.ph ], [ %index.next, %vector.body ]
   %vec.phi = phi i64 [ 0, %vector.ph ], [ %9, %vector.body ]
-  %active.lane.mask = call <8 x i1> @llvm.get.active.lane.mask.v8i1.i32(i32 %index, i32 %trip.count.minus.1)
+  %active.lane.mask = call <8 x i1> @llvm.get.active.lane.mask.v8i1.i32(i32 %index, i32 %n)
   %0 = getelementptr inbounds i16, i16* %x, i32 %index
   %1 = bitcast i16* %0 to <8 x i16>*
   %wide.masked.load = call <8 x i16> @llvm.masked.load.v8i16.p0v8i16(<8 x i16>* %1, i32 2, <8 x i1> %active.lane.mask, <8 x i16> undef)

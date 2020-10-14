@@ -192,5 +192,20 @@ private:
   item<dimensions, false> localItem;
   group<dimensions> Group;
 };
+
+namespace detail {
+template <int Dims> nd_item<Dims> store_nd_item(const nd_item<Dims> *nd_i) {
+  return get_or_store(nd_i);
+}
+} // namespace detail
+
+template <int Dims> nd_item<Dims> this_nd_item() {
+#ifdef __SYCL_DEVICE_ONLY__
+  return detail::Builder::getElement(detail::declptr<nd_item<Dims>>());
+#else
+  return detail::store_nd_item<Dims>(nullptr);
+#endif
+}
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

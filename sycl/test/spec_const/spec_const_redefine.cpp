@@ -1,4 +1,4 @@
-// UNSUPPORTED: cuda || level_zero
+// UNSUPPORTED: cuda
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
@@ -105,9 +105,9 @@ int main(int argc, char **argv) {
 }
 
 // --- Check that only two JIT compilation happened:
-// CHECK-NOT: ---> piProgramLink
-// CHECK: ---> piProgramLink
-// CHECK: ---> piProgramLink
-// CHECK-NOT: ---> piProgramLink
+// CHECK-NOT: ---> piProgramBuild
+// CHECK: ---> piProgramBuild
+// CHECK: ---> piProgramBuild
+// CHECK-NOT: ---> piProgramBuild
 // --- Check that the test completed with expected results:
 // CHECK: passed

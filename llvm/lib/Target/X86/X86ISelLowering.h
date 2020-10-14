@@ -749,6 +749,9 @@ namespace llvm {
     STRICT_CVTPS2PH,
     STRICT_CVTPH2PS,
 
+    // WARNING: Only add nodes here if they are stric FP nodes. Non-memory and
+    // non-strict FP nodes should be above FIRST_TARGET_STRICTFP_OPCODE.
+
     // Compare and swap.
     LCMPXCHG_DAG = ISD::FIRST_TARGET_MEMORY_OPCODE,
     LCMPXCHG8_DAG,
@@ -822,6 +825,16 @@ namespace llvm {
     // X86 specific gather and scatter
     MGATHER,
     MSCATTER,
+
+    // Key locker nodes that produce flags.
+    AESENC128KL,
+    AESDEC128KL,
+    AESENC256KL,
+    AESDEC256KL,
+    AESENCWIDE128KL,
+    AESDECWIDE128KL,
+    AESENCWIDE256KL,
+    AESDECWIDE256KL,
 
     // WARNING: Do not add anything in the end unless you want the node to
     // have memop! In fact, starting from FIRST_TARGET_MEMORY_OPCODE all

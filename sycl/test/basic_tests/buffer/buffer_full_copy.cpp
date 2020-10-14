@@ -6,8 +6,6 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t2.out
 // RUN: %ACC_RUN_PLACEHOLDER %t2.out
 
-// XFAIL: level_zero
-
 //==------------- buffer_full_copy.cpp - SYCL buffer basic test ------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

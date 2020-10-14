@@ -175,7 +175,7 @@ bool LLVMToSPIRV::isBuiltinTransToExtInst(Function *F,
   SPIRVExtInstSetKind Set = SPIRVEIS_Count;
   if (!SPIRVExtSetShortNameMap::rfind(ExtSetName.str(), &Set))
     return false;
-  assert((Set == SPIRVEIS_OpenCL || Set == SPIRVEIS_Debug) &&
+  assert((Set == SPIRVEIS_OpenCL || Set == BM->getDebugInfoEIS()) &&
          "Unsupported extended instruction set");
 
   auto ExtOpName = S.substr(Loc + 1);
@@ -354,6 +354,13 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
           return mapType(T, BM->addQueueType());
         }
       }
+      if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute)) {
+        if (STName.startswith(kVCType::VCBufferSurface)) {
+          // VCBufferSurface always have Access Qualifier
+          auto Access = getAccessQualifier(STName);
+          return mapType(T, BM->addBufferSurfaceINTELType(Access));
+        }
+      }
 
       if (isPointerToOpaqueStructType(T)) {
         return mapType(
@@ -369,7 +376,7 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
     }
   }
 
-  if (auto *VecTy = dyn_cast<VectorType>(T))
+  if (auto *VecTy = dyn_cast<FixedVectorType>(T))
     return mapType(T, BM->addVectorType(transType(VecTy->getElementType()),
                                         VecTy->getNumElements()));
 
@@ -563,7 +570,10 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
       // Order of integer numbers in MD node follows the order of function
       // parameters on which we shall attach the appropriate decoration. Add
       // decoration only if MD value is not negative.
-      int LocID = getMDOperandAsInt(BufferLocation, ArgNo);
+      int LocID = -1;
+      if (!isa<MDString>(BufferLocation->getOperand(ArgNo)) &&
+          !isa<MDNode>(BufferLocation->getOperand(ArgNo)))
+        LocID = getMDOperandAsInt(BufferLocation, ArgNo);
       if (LocID >= 0) {
         BM->addCapability(CapabilityFPGABufferLocationINTEL);
         BA->addDecorate(DecorationBufferLocationINTEL, LocID);
@@ -674,8 +684,17 @@ SPIRVValue *LLVMToSPIRV::transConstant(Value *V) {
     return BM->addNullConstant(transType(AggType));
   }
 
-  if (auto ConstI = dyn_cast<ConstantInt>(V))
+  if (auto ConstI = dyn_cast<ConstantInt>(V)) {
+    unsigned BitWidth = ConstI->getType()->getBitWidth();
+    if (BitWidth > 64) {
+      BM->getErrorLog().checkError(
+          BM->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_arbitrary_precision_integers),
+          SPIRVEC_InvalidBitWidth, std::to_string(BitWidth));
+      return BM->addConstant(transType(V->getType()), ConstI->getValue());
+    }
     return BM->addConstant(transType(V->getType()), ConstI->getZExtValue());
+  }
 
   if (auto ConstFP = dyn_cast<ConstantFP>(V)) {
     auto BT = static_cast<SPIRVType *>(transType(V->getType()));
@@ -749,7 +768,7 @@ SPIRVValue *LLVMToSPIRV::transConstant(Value *V) {
     }
     std::vector<SPIRVValue *> BV;
     for (auto I = ConstV->op_begin(), E = ConstV->op_end(); I != E; ++I)
-      BV.push_back(transValue(*I, nullptr));
+      BV.push_back(transValue(*I, nullptr, true, FuncTransMode::Pointer));
     return BM->addCompositeConstant(transType(V->getType()), BV);
   }
 
@@ -926,9 +945,13 @@ public:
       assert(IdxGroupNode &&
              "Invalid operand in the MDNode for LLVMParallelAccessIndices");
       auto IdxGroupArrayPairIt = IndexGroupArrayMap.find(IdxGroupNode);
-      assert(IdxGroupArrayPairIt != IndexGroupArrayMap.end() &&
-             "Absent entry for this index group node");
-      ArrayVariablesVec.push_back(IdxGroupArrayPairIt->second);
+      // TODO: Some LLVM IR optimizations (e.g. loop inlining as part of
+      // the function inlining) can result in invalid parallel_access_indices
+      // metadata. Only valid cases will pass the subsequent check and
+      // survive the translation. This check should be replaced with an
+      // assertion once all known cases are handled.
+      if (IdxGroupArrayPairIt != IndexGroupArrayMap.end())
+        ArrayVariablesVec.push_back(IdxGroupArrayPairIt->second);
     }
   }
 
@@ -961,6 +984,7 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
     return spv::LoopControlMaskNone;
 
   size_t LoopControl = spv::LoopControlMaskNone;
+  std::vector<std::pair<SPIRVWord, SPIRVWord>> ParametersToSort;
 
   // Unlike with most of the cases, some loop metadata specifications
   // can occur multiple times - for these, all correspondent tokens
@@ -985,13 +1009,13 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
       else if (S == "llvm.loop.unroll.count" &&
                !(LoopControl & LoopControlDontUnrollMask)) {
         size_t I = getMDOperandAsInt(Node, 1);
-        Parameters.push_back(I);
+        ParametersToSort.emplace_back(spv::LoopControlPartialCountMask, I);
         LoopControl |= spv::LoopControlPartialCountMask;
       } else if (S == "llvm.loop.ivdep.enable")
         LoopControl |= spv::LoopControlDependencyInfiniteMask;
       else if (S == "llvm.loop.ivdep.safelen") {
         size_t I = getMDOperandAsInt(Node, 1);
-        Parameters.push_back(I);
+        ParametersToSort.emplace_back(spv::LoopControlDependencyLengthMask, I);
         LoopControl |= spv::LoopControlDependencyLengthMask;
       } else if (BM->isAllowedToUseExtension(
                      ExtensionID::SPV_INTEL_fpga_loop_controls)) {
@@ -1000,13 +1024,15 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
           size_t I = getMDOperandAsInt(Node, 1);
-          Parameters.push_back(I);
+          ParametersToSort.emplace_back(
+              spv::LoopControlInitiationIntervalINTELMask, I);
           LoopControl |= spv::LoopControlInitiationIntervalINTELMask;
         } else if (S == "llvm.loop.max_concurrency.count") {
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
           size_t I = getMDOperandAsInt(Node, 1);
-          Parameters.push_back(I);
+          ParametersToSort.emplace_back(spv::LoopControlMaxConcurrencyINTELMask,
+                                        I);
           LoopControl |= spv::LoopControlMaxConcurrencyINTELMask;
         } else if (S == "llvm.loop.parallel_access_indices") {
           // Intel FPGA IVDep loop attribute
@@ -1024,7 +1050,8 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
           size_t I = getMDOperandAsInt(Node, 1);
-          Parameters.push_back(I);
+          ParametersToSort.emplace_back(spv::LoopControlPipelineEnableINTELMask,
+                                        I);
           LoopControl |= spv::LoopControlPipelineEnableINTELMask;
         } else if (S == "llvm.loop.coalesce.enable") {
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
@@ -1034,19 +1061,22 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
           size_t I = getMDOperandAsInt(Node, 1);
-          Parameters.push_back(I);
+          ParametersToSort.emplace_back(spv::LoopControlLoopCoalesceINTELMask,
+                                        I);
           LoopControl |= spv::LoopControlLoopCoalesceINTELMask;
         } else if (S == "llvm.loop.max_interleaving.count") {
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
           size_t I = getMDOperandAsInt(Node, 1);
-          Parameters.push_back(I);
+          ParametersToSort.emplace_back(
+              spv::LoopControlMaxInterleavingINTELMask, I);
           LoopControl |= spv::LoopControlMaxInterleavingINTELMask;
         } else if (S == "llvm.loop.intel.speculated.iterations.count") {
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
           size_t I = getMDOperandAsInt(Node, 1);
-          Parameters.push_back(I);
+          ParametersToSort.emplace_back(
+              spv::LoopControlSpeculatedIterationsINTELMask, I);
           LoopControl |= spv::LoopControlSpeculatedIterationsINTELMask;
         }
       }
@@ -1058,15 +1088,26 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
   if (!DependencyArrayParameters.empty()) {
     // The first parameter states the number of <array, safelen> pairs to be
     // listed
-    Parameters.push_back(DependencyArrayParameters.size());
+    ParametersToSort.emplace_back(spv::LoopControlDependencyArrayINTELMask,
+                                  DependencyArrayParameters.size());
     for (auto &ArraySflnPair : DependencyArrayParameters) {
-      Parameters.push_back(ArraySflnPair.first);
-      Parameters.push_back(ArraySflnPair.second);
+      ParametersToSort.emplace_back(spv::LoopControlDependencyArrayINTELMask,
+                                    ArraySflnPair.first);
+      ParametersToSort.emplace_back(spv::LoopControlDependencyArrayINTELMask,
+                                    ArraySflnPair.second);
     }
     BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
     BM->addCapability(CapabilityFPGALoopControlsINTEL);
     LoopControl |= spv::LoopControlDependencyArrayINTELMask;
   }
+
+  std::sort(ParametersToSort.begin(), ParametersToSort.end(),
+            [](const std::pair<SPIRVWord, SPIRVWord> &CompareLeft,
+               const std::pair<SPIRVWord, SPIRVWord> &CompareRight) {
+              return CompareLeft.first < CompareRight.first;
+            });
+  for (auto Param : ParametersToSort)
+    Parameters.push_back(Param.second);
 
   return static_cast<spv::LoopControlMask>(LoopControl);
 }
@@ -1278,11 +1319,26 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
             transValue(Sel->getFalseValue(), BB, true, FuncTransMode::Pointer),
             BB));
 
-  if (AllocaInst *Alc = dyn_cast<AllocaInst>(V))
+  if (AllocaInst *Alc = dyn_cast<AllocaInst>(V)) {
+    if (Alc->isArrayAllocation()) {
+      if (!BM->checkExtension(ExtensionID::SPV_INTEL_variable_length_array,
+                              SPIRVEC_InvalidInstruction,
+                              toString(Alc) +
+                                  "\nTranslation of dynamic alloca requires "
+                                  "SPV_INTEL_variable_length_array extension."))
+        return nullptr;
+
+      SPIRVValue *Length = transValue(Alc->getArraySize(), BB);
+      assert(Length && "Couldn't translate array size!");
+      return mapValue(V, BM->addInstTemplate(OpVariableLengthArrayINTEL,
+                                             {Length->getId()}, BB,
+                                             transType(Alc->getType())));
+    }
     return mapValue(
         V, BM->addVariable(transType(Alc->getType()), false,
                            SPIRVLinkageTypeKind::LinkageTypeInternal, nullptr,
                            Alc->getName().str(), StorageClassFunction, BB));
+  }
 
   if (auto *Switch = dyn_cast<SwitchInst>(V)) {
     std::vector<SPIRVSwitch::PairTy> Pairs;
@@ -1522,6 +1578,11 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     return mapValue(V, transCallInst(CI, BB));
   }
 
+  if (Instruction *Inst = dyn_cast<Instruction>(V)) {
+    BM->getErrorLog().checkError(false, SPIRVEC_InvalidInstruction,
+                                 toString(Inst) + "\n", "", __FILE__, __LINE__);
+  }
+
   llvm_unreachable("Not implemented");
   return nullptr;
 }
@@ -1608,7 +1669,8 @@ bool LLVMToSPIRV::transBuiltinSet() {
   if (!BM->importBuiltinSet("OpenCL.std", &EISId))
     return false;
   if (SPIRVMDWalker(*M).getNamedMD("llvm.dbg.cu")) {
-    if (!BM->importBuiltinSet("SPIRV.debug", &EISId))
+    if (!BM->importBuiltinSet(
+            SPIRVBuiltinSetNameMap::map(BM->getDebugInfoEIS()), &EISId))
       return false;
   }
   return true;
@@ -1903,6 +1965,21 @@ bool LLVMToSPIRV::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::ctlz:
   case Intrinsic::cttz:
   case Intrinsic::expect:
+  case Intrinsic::experimental_constrained_fadd:
+  case Intrinsic::experimental_constrained_fsub:
+  case Intrinsic::experimental_constrained_fmul:
+  case Intrinsic::experimental_constrained_fdiv:
+  case Intrinsic::experimental_constrained_frem:
+  case Intrinsic::experimental_constrained_fma:
+  case Intrinsic::experimental_constrained_fptoui:
+  case Intrinsic::experimental_constrained_fptosi:
+  case Intrinsic::experimental_constrained_uitofp:
+  case Intrinsic::experimental_constrained_sitofp:
+  case Intrinsic::experimental_constrained_fptrunc:
+  case Intrinsic::experimental_constrained_fpext:
+  case Intrinsic::experimental_constrained_fcmp:
+  case Intrinsic::experimental_constrained_fcmps:
+  case Intrinsic::experimental_constrained_fmuladd:
   case Intrinsic::fmuladd:
   case Intrinsic::memset:
   case Intrinsic::memcpy:
@@ -1922,6 +1999,24 @@ bool LLVMToSPIRV::isKnownIntrinsic(Intrinsic::ID Id) {
     // Unknown intrinsics' declarations should always be translated
     return false;
   }
+}
+
+// Performs mapping of LLVM IR rounding mode to SPIR-V rounding mode
+// Value *V is metadata <rounding mode> argument of
+// llvm.experimental.constrained.* intrinsics
+SPIRVInstruction *
+LLVMToSPIRV::applyRoundingModeConstraint(Value *V, SPIRVInstruction *I) {
+  StringRef RMode =
+      cast<MDString>(cast<MetadataAsValue>(V)->getMetadata())->getString();
+  if (RMode.endswith("tonearest"))
+    I->addFPRoundingMode(FPRoundingModeRTE);
+  else if (RMode.endswith("towardzero"))
+    I->addFPRoundingMode(FPRoundingModeRTZ);
+  else if (RMode.endswith("upward"))
+    I->addFPRoundingMode(FPRoundingModeRTP);
+  else if (RMode.endswith("downward"))
+    I->addFPRoundingMode(FPRoundingModeRTN);
+  return I;
 }
 
 SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
@@ -2010,6 +2105,105 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
       return BM->addExpectINTELInst(Ty, Value, ExpectedValue, BB);
     }
     return Value;
+  }
+  case Intrinsic::experimental_constrained_fadd: {
+    auto BI = BM->addBinaryInst(OpFAdd, transType(II->getType()),
+                                transValue(II->getArgOperand(0), BB),
+                                transValue(II->getArgOperand(1), BB), BB);
+    return applyRoundingModeConstraint(II->getOperand(2), BI);
+  }
+  case Intrinsic::experimental_constrained_fsub: {
+    auto BI = BM->addBinaryInst(OpFSub, transType(II->getType()),
+                                transValue(II->getArgOperand(0), BB),
+                                transValue(II->getArgOperand(1), BB), BB);
+    return applyRoundingModeConstraint(II->getOperand(2), BI);
+  }
+  case Intrinsic::experimental_constrained_fmul: {
+    auto BI = BM->addBinaryInst(OpFMul, transType(II->getType()),
+                                transValue(II->getArgOperand(0), BB),
+                                transValue(II->getArgOperand(1), BB), BB);
+    return applyRoundingModeConstraint(II->getOperand(2), BI);
+  }
+  case Intrinsic::experimental_constrained_fdiv: {
+    auto BI = BM->addBinaryInst(OpFDiv, transType(II->getType()),
+                                transValue(II->getArgOperand(0), BB),
+                                transValue(II->getArgOperand(1), BB), BB);
+    return applyRoundingModeConstraint(II->getOperand(2), BI);
+  }
+  case Intrinsic::experimental_constrained_frem: {
+    auto BI = BM->addBinaryInst(OpFRem, transType(II->getType()),
+                                transValue(II->getArgOperand(0), BB),
+                                transValue(II->getArgOperand(1), BB), BB);
+    return applyRoundingModeConstraint(II->getOperand(2), BI);
+  }
+  case Intrinsic::experimental_constrained_fma: {
+    std::vector<SPIRVValue *> Args{transValue(II->getArgOperand(0), BB),
+                                   transValue(II->getArgOperand(1), BB),
+                                   transValue(II->getArgOperand(2), BB)};
+    auto BI = BM->addExtInst(transType(II->getType()),
+                             BM->getExtInstSetId(SPIRVEIS_OpenCL),
+                             OpenCLLIB::Fma, Args, BB);
+    return applyRoundingModeConstraint(II->getOperand(3), BI);
+  }
+  case Intrinsic::experimental_constrained_fptoui: {
+    return BM->addUnaryInst(OpConvertFToU, transType(II->getType()),
+                            transValue(II->getArgOperand(0), BB), BB);
+  }
+  case Intrinsic::experimental_constrained_fptosi: {
+    return BM->addUnaryInst(OpConvertFToS, transType(II->getType()),
+                            transValue(II->getArgOperand(0), BB), BB);
+  }
+  case Intrinsic::experimental_constrained_uitofp: {
+    auto BI = BM->addUnaryInst(OpConvertUToF, transType(II->getType()),
+                               transValue(II->getArgOperand(0), BB), BB);
+    return applyRoundingModeConstraint(II->getOperand(1), BI);
+  }
+  case Intrinsic::experimental_constrained_sitofp: {
+    auto BI = BM->addUnaryInst(OpConvertSToF, transType(II->getType()),
+                               transValue(II->getArgOperand(0), BB), BB);
+    return applyRoundingModeConstraint(II->getOperand(1), BI);
+  }
+  case Intrinsic::experimental_constrained_fpext: {
+    return BM->addUnaryInst(OpFConvert, transType(II->getType()),
+                            transValue(II->getArgOperand(0), BB), BB);
+  }
+  case Intrinsic::experimental_constrained_fptrunc: {
+    auto BI = BM->addUnaryInst(OpFConvert, transType(II->getType()),
+                               transValue(II->getArgOperand(0), BB), BB);
+    return applyRoundingModeConstraint(II->getOperand(1), BI);
+  }
+  case Intrinsic::experimental_constrained_fcmp:
+  case Intrinsic::experimental_constrained_fcmps: {
+    auto MetaMod = cast<MetadataAsValue>(II->getOperand(2))->getMetadata();
+    Op CmpTypeOp = StringSwitch<Op>(cast<MDString>(MetaMod)->getString())
+                       .Case("oeq", OpFOrdEqual)
+                       .Case("ogt", OpFOrdGreaterThan)
+                       .Case("oge", OpFOrdGreaterThanEqual)
+                       .Case("olt", OpFOrdLessThan)
+                       .Case("ole", OpFOrdLessThanEqual)
+                       .Case("one", OpFOrdNotEqual)
+                       .Case("ord", OpOrdered)
+                       .Case("ueq", OpFUnordEqual)
+                       .Case("ugt", OpFUnordGreaterThan)
+                       .Case("uge", OpFUnordGreaterThanEqual)
+                       .Case("ult", OpFUnordLessThan)
+                       .Case("ule", OpFUnordLessThanEqual)
+                       .Case("une", OpFUnordNotEqual)
+                       .Case("uno", OpUnordered)
+                       .Default(OpNop);
+    assert(CmpTypeOp != OpNop && "Invalid condition code!");
+    return BM->addCmpInst(CmpTypeOp, transType(II->getType()),
+                          transValue(II->getOperand(0), BB),
+                          transValue(II->getOperand(1), BB), BB);
+  }
+  case Intrinsic::experimental_constrained_fmuladd: {
+    SPIRVType *Ty = transType(II->getType());
+    SPIRVValue *Mul =
+        BM->addBinaryInst(OpFMul, Ty, transValue(II->getArgOperand(0), BB),
+                          transValue(II->getArgOperand(1), BB), BB);
+    auto BI = BM->addBinaryInst(OpFAdd, Ty, Mul,
+                                transValue(II->getArgOperand(2), BB), BB);
+    return applyRoundingModeConstraint(II->getOperand(3), BI);
   }
   case Intrinsic::fmuladd: {
     // For llvm.fmuladd.* fusion is not guaranteed. If a fused multiply-add
@@ -2246,6 +2440,33 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     }
     return nullptr;
   }
+  case Intrinsic::stacksave: {
+    if (BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_variable_length_array)) {
+      auto *Ty = transType(II->getType());
+      return BM->addInstTemplate(OpSaveMemoryINTEL, BB, Ty);
+    }
+    BM->getErrorLog().checkError(
+        BM->isSPIRVAllowUnknownIntrinsicsEnabled(), SPIRVEC_InvalidFunctionCall,
+        toString(II) + "\nTranslation of llvm.stacksave intrinsic requires "
+                       "SPV_INTEL_variable_length_array extension or "
+                       "-spirv-allow-unknown-intrinsics option.");
+    break;
+  }
+  case Intrinsic::stackrestore: {
+    if (BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_variable_length_array)) {
+      auto *Ptr = transValue(II->getArgOperand(0), BB);
+      return BM->addInstTemplate(OpRestoreMemoryINTEL, {Ptr->getId()}, BB,
+                                 nullptr);
+    }
+    BM->getErrorLog().checkError(
+        BM->isSPIRVAllowUnknownIntrinsicsEnabled(), SPIRVEC_InvalidFunctionCall,
+        toString(II) + "\nTranslation of llvm.restore intrinsic requires "
+                       "SPV_INTEL_variable_length_array extension or "
+                       "-spirv-allow-unknown-intrinsics option.");
+    break;
+  }
   // We can just ignore/drop some intrinsics, like optimizations hint.
   case Intrinsic::invariant_start:
   case Intrinsic::invariant_end:
@@ -2481,7 +2702,14 @@ bool LLVMToSPIRV::transGlobalVariables() {
   for (auto I = M->global_begin(), E = M->global_end(); I != E; ++I) {
     if ((*I).getName() == "llvm.global.annotations")
       transGlobalAnnotation(&(*I));
-    else if (MDNode *IO = ((*I).getMetadata("io_pipe_id")))
+    else if ((I->getName() == "llvm.global_ctors" ||
+              I->getName() == "llvm.global_dtors") &&
+             !BM->isAllowedToUseExtension(
+                 ExtensionID::SPV_INTEL_function_pointers)) {
+      // Function pointers are required to represent structor lists; do not
+      // translate the variable if function pointers are not available.
+      continue;
+    } else if (MDNode *IO = ((*I).getMetadata("io_pipe_id")))
       transGlobalIOPipeStorage(&(*I), IO);
     else if (!transValue(&(*I), nullptr))
       return false;
@@ -2649,8 +2877,16 @@ void LLVMToSPIRV::transFunction(Function *I) {
   }
 }
 
+bool isEmptyLLVMModule(Module *M) {
+  return M->empty() &&      // No functions
+         M->global_empty(); // No global variables
+}
+
 bool LLVMToSPIRV::translate() {
   BM->setGeneratorVer(KTranslatorVer);
+
+  if (isEmptyLLVMModule(M))
+    BM->addCapability(CapabilityLinkage);
 
   if (!transSourceLanguage())
     return false;
@@ -2694,7 +2930,6 @@ bool LLVMToSPIRV::translate() {
   if (!transExecutionMode())
     return false;
 
-  BM->optimizeDecorates();
   BM->resolveUnknownStructFields();
   BM->createForwardPointers();
   DbgTran->transDebugMetadata();
@@ -2752,17 +2987,26 @@ SPIRVInstruction *LLVMToSPIRV::transBuiltinToInst(StringRef DemangledName,
       !BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_blocking_pipes))
     return nullptr;
 
-  if (OpFixedSqrtINTEL <= OC && OC <= OpFixedExpINTEL &&
-      !BM->isAllowedToUseExtension(
-          ExtensionID::SPV_INTEL_arbitrary_precision_fixed_point))
-    return nullptr;
+  if (OpFixedSqrtINTEL <= OC && OC <= OpFixedExpINTEL)
+    BM->getErrorLog().checkError(
+        BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_arbitrary_precision_fixed_point),
+        SPIRVEC_InvalidInstruction,
+        CI->getCalledOperand()->getName().str() +
+            "\nFixed point instructions can't be translated correctly without "
+            "enabled SPV_INTEL_arbitrary_precision_fixed_point extension!\n");
 
-  if (((OpArbitraryFloatSinCosPiINTEL <= OC &&
-        OC <= OpArbitraryFloatCastToIntINTEL) ||
-       (OpArbitraryFloatAddINTEL <= OC && OC <= OpArbitraryFloatPowNINTEL)) &&
-      !BM->isAllowedToUseExtension(
-          ExtensionID::SPV_INTEL_arbitrary_precision_floating_point))
-    return nullptr;
+  if ((OpArbitraryFloatSinCosPiINTEL <= OC &&
+       OC <= OpArbitraryFloatCastToIntINTEL) ||
+      (OpArbitraryFloatAddINTEL <= OC && OC <= OpArbitraryFloatPowNINTEL))
+    BM->getErrorLog().checkError(
+        BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_arbitrary_precision_floating_point),
+        SPIRVEC_InvalidInstruction,
+        CI->getCalledOperand()->getName().str() +
+            "\nFloating point instructions can't be translated correctly "
+            "without enabled SPV_INTEL_arbitrary_precision_floating_point "
+            "extension!\n");
 
   auto Inst = transBuiltinToInstWithoutDecoration(OC, CI, BB);
   addDecorations(Inst, Dec);
@@ -2784,10 +3028,19 @@ bool LLVMToSPIRV::transExecutionMode() {
 
       switch (EMode) {
       case spv::ExecutionModeContractionOff:
-      case spv::ExecutionModeInitializer:
-      case spv::ExecutionModeFinalizer:
         BF->addExecutionMode(BM->add(
             new SPIRVExecutionMode(BF, static_cast<ExecutionMode>(EMode))));
+        break;
+      case spv::ExecutionModeInitializer:
+      case spv::ExecutionModeFinalizer:
+        if (BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_1)) {
+          BF->addExecutionMode(BM->add(
+              new SPIRVExecutionMode(BF, static_cast<ExecutionMode>(EMode))));
+        } else {
+          getErrorLog().checkError(false, SPIRVEC_Requires1_1,
+                                   "Initializer/Finalizer Execution Mode");
+          return false;
+        }
         break;
       case spv::ExecutionModeLocalSize:
       case spv::ExecutionModeLocalSizeHint: {
@@ -3243,7 +3496,7 @@ LLVMToSPIRV::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       auto IsVector = ResultTy->isVectorTy();
       if (IsVector)
         BoolTy = FixedVectorType::get(
-            BoolTy, cast<VectorType>(ResultTy)->getNumElements());
+            BoolTy, cast<FixedVectorType>(ResultTy)->getNumElements());
       auto BBT = transType(BoolTy);
       SPIRVInstruction *Res;
       if (isCmpOpCode(OC)) {
@@ -3363,11 +3616,10 @@ void addPassesForSPIRV(legacy::PassManager &PassMgr,
   if (Opts.isSPIRVMemToRegEnabled())
     PassMgr.add(createPromoteMemoryToRegisterPass());
   PassMgr.add(createPreprocessMetadata());
-  PassMgr.add(createOCL21ToSPIRV());
   PassMgr.add(createSPIRVLowerSPIRBlocks());
   PassMgr.add(createOCLTypeToSPIRV());
   PassMgr.add(createSPIRVLowerOCLBlocks());
-  PassMgr.add(createOCL20ToSPIRV());
+  PassMgr.add(createOCLToSPIRV());
   PassMgr.add(createSPIRVRegularizeLLVM());
   PassMgr.add(createSPIRVLowerConstExpr());
   PassMgr.add(createSPIRVLowerBool());
@@ -3378,6 +3630,9 @@ void addPassesForSPIRV(legacy::PassManager &PassMgr,
 bool isValidLLVMModule(Module *M, SPIRVErrorLog &ErrorLog) {
   if (!M)
     return false;
+
+  if (isEmptyLLVMModule(M))
+    return true;
 
   Triple TT(M->getTargetTriple());
   if (!ErrorLog.checkError(isSupportedTriple(TT), SPIRVEC_InvalidTargetTriple,

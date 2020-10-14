@@ -90,7 +90,6 @@ private:
   SDValue LowerFDIV32(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFDIV64(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFDIV(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerINT_TO_FP(SDValue Op, SelectionDAG &DAG, bool Signed) const;
   SDValue LowerSTORE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerTrig(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerATOMIC_CMP_SWAP(SDValue Op, SelectionDAG &DAG) const;
@@ -372,6 +371,8 @@ public:
   EVT getSetCCResultType(const DataLayout &DL, LLVMContext &Context,
                          EVT VT) const override;
   MVT getScalarShiftAmountTy(const DataLayout &, EVT) const override;
+  LLT getPreferredShiftAmountTy(LLT Ty) const override;
+
   bool isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
                                   EVT VT) const override;
   bool isFMADLegal(const SelectionDAG &DAG, const SDNode *N) const override;
@@ -418,6 +419,11 @@ public:
   void computeKnownBitsForFrameIndex(int FrameIdx,
                                      KnownBits &Known,
                                      const MachineFunction &MF) const override;
+  void computeKnownBitsForTargetInstr(GISelKnownBits &Analysis, Register R,
+                                      KnownBits &Known,
+                                      const APInt &DemandedElts,
+                                      const MachineRegisterInfo &MRI,
+                                      unsigned Depth = 0) const override;
 
   Align computeKnownAlignForTargetInstr(GISelKnownBits &Analysis, Register R,
                                         const MachineRegisterInfo &MRI,

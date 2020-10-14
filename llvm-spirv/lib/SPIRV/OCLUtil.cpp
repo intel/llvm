@@ -46,7 +46,6 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -805,7 +804,7 @@ unsigned encodeVecTypeHint(Type *Ty) {
       llvm_unreachable("invalid integer type");
     }
   }
-  if (VectorType *VecTy = dyn_cast<VectorType>(Ty)) {
+  if (FixedVectorType *VecTy = dyn_cast<FixedVectorType>(Ty)) {
     Type *EleTy = VecTy->getElementType();
     unsigned Size = VecTy->getNumElements();
     return Size << 16 | encodeVecTypeHint(EleTy);

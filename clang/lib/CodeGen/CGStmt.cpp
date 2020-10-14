@@ -695,8 +695,14 @@ void CodeGenFunction::EmitIfStmt(const IfStmt &S) {
   if (S.getElse())
     ElseBlock = createBasicBlock("if.else");
 
-  EmitBranchOnBoolExpr(S.getCond(), ThenBlock, ElseBlock,
-                       getProfileCount(S.getThen()));
+  // Prefer the PGO based weights over the likelihood attribute.
+  // When the build isn't optimized the metadata isn't used, so don't generate
+  // it.
+  Stmt::Likelihood LH = Stmt::LH_None;
+  uint64_t Count = getProfileCount(S.getThen());
+  if (!Count && CGM.getCodeGenOpts().OptimizationLevel)
+    LH = Stmt::getLikelihood(S.getThen(), S.getElse());
+  EmitBranchOnBoolExpr(S.getCond(), ThenBlock, ElseBlock, Count, LH);
 
   // Emit the 'then' code.
   EmitBlock(ThenBlock);

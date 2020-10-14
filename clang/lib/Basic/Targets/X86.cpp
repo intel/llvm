@@ -276,6 +276,10 @@ bool X86TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasCLDEMOTE = true;
     } else if (Feature == "+rdpid") {
       HasRDPID = true;
+    } else if (Feature == "+kl") {
+      HasKL = true;
+    } else if (Feature == "+widekl") {
+      HasWIDEKL = true;
     } else if (Feature == "+retpoline-external-thunk") {
       HasRetpolineExternalThunk = true;
     } else if (Feature == "+sahf") {
@@ -459,6 +463,7 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
   case CK_IcelakeClient:
   case CK_IcelakeServer:
   case CK_Tigerlake:
+  case CK_SapphireRapids:
     // FIXME: Historically, we defined this legacy name, it would be nice to
     // remove it at some point. We've never exposed fine-grained names for
     // recent primary x86 CPUs, and we should keep it that way.
@@ -677,6 +682,10 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__PREFETCHWT1__");
   if (HasCLZERO)
     Builder.defineMacro("__CLZERO__");
+  if (HasKL)
+    Builder.defineMacro("__KL__");
+  if (HasWIDEKL)
+    Builder.defineMacro("__WIDEKL__");
   if (HasRDPID)
     Builder.defineMacro("__RDPID__");
   if (HasCLDEMOTE)
@@ -832,6 +841,8 @@ bool X86TargetInfo::isValidFeatureName(StringRef Name) const {
       .Case("fxsr", true)
       .Case("gfni", true)
       .Case("invpcid", true)
+      .Case("kl", true)
+      .Case("widekl", true)
       .Case("lwp", true)
       .Case("lzcnt", true)
       .Case("mmx", true)
@@ -918,6 +929,8 @@ bool X86TargetInfo::hasFeature(StringRef Feature) const {
       .Case("fxsr", HasFXSR)
       .Case("gfni", HasGFNI)
       .Case("invpcid", HasINVPCID)
+      .Case("kl", HasKL)
+      .Case("widekl", HasWIDEKL)
       .Case("lwp", HasLWP)
       .Case("lzcnt", HasLZCNT)
       .Case("mm3dnow", MMX3DNowLevel >= AMD3DNow)
@@ -1269,6 +1282,7 @@ Optional<unsigned> X86TargetInfo::getCPUCacheLineSize() const {
     case CK_Cooperlake:
     case CK_Cannonlake:
     case CK_Tigerlake:
+    case CK_SapphireRapids:
     case CK_IcelakeClient:
     case CK_IcelakeServer:
     case CK_KNL:

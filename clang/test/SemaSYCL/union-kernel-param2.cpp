@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
 
 // This test checks that compiler generates correct kernel arguments for
 // a struct-with-an-array-of-unions and a array-of-struct-with-a-union.
@@ -25,7 +25,7 @@ int main() {
       float b;
       char c;
     } union_mem;
-    int d;
+    int *d;
   } struct_mem;
 
   a_kernel<class kernel_A>(
@@ -53,9 +53,9 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} 'union MyUnion':'MyUnion' lvalue ParmVar {{.*}} '_arg_' 'union MyUnion':'MyUnion'
 
 // Check kernel_B parameters
-// CHECK: FunctionDecl {{.*}}kernel_B{{.*}} 'void (union MyUnion, int)'
+// CHECK: FunctionDecl {{.*}}kernel_B{{.*}} 'void (union MyUnion, __wrapper_class)'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_union_mem 'union MyUnion':'MyStruct::MyUnion'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_d 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_d '__wrapper_class'
 
 // Check kernel_B inits
 // CHECK-NEXT: CompoundStmt
@@ -67,4 +67,6 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyStruct::MyUnion'
 // CHECK-NEXT: DeclRefExpr {{.*}} 'union MyUnion':'MyStruct::MyUnion' lvalue ParmVar {{.*}} '_arg_union_mem' 'union MyUnion':'MyStruct::MyUnion'
 // CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_d' 'int'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: MemberExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_d' '__wrapper_class'

@@ -372,6 +372,9 @@ public:
                      MachineBasicBlock::iterator &It, MachineFunction &MF,
                      const outliner::Candidate &C) const override;
 
+  /// Enable outlining by default at -Oz.
+  bool shouldOutlineFromFunctionByDefault(MachineFunction &MF) const override;
+
 private:
   /// Returns an unused general-purpose register which can be used for
   /// constructing an outlined call if one exists. Returns 0 otherwise.
@@ -448,6 +451,9 @@ private:
   /// return the defining instruction.
   MachineInstr *canFoldIntoMOVCC(Register Reg, const MachineRegisterInfo &MRI,
                                  const TargetInstrInfo *TII) const;
+
+  bool isReallyTriviallyReMaterializable(const MachineInstr &MI,
+                                         AAResults *AA) const override;
 
 private:
   /// Modeling special VFP / NEON fp MLA / MLS hazards.
@@ -632,8 +638,7 @@ static inline unsigned getTailPredVectorWidth(unsigned Opcode) {
   return 0;
 }
 
-static inline
-bool isVCTP(MachineInstr *MI) {
+static inline bool isVCTP(const MachineInstr *MI) {
   switch (MI->getOpcode()) {
   default:
     break;

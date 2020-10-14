@@ -2063,6 +2063,11 @@ public:
   /// types.
   bool areCompatibleVectorTypes(QualType FirstVec, QualType SecondVec);
 
+  /// Return true if the given types are an SVE builtin and a VectorType that
+  /// is a fixed-length representation of the SVE builtin for a specific
+  /// vector-length.
+  bool areCompatibleSveTypes(QualType FirstType, QualType SecondType);
+
   /// Return true if the type has been explicitly qualified with ObjC ownership.
   /// A type may be implicitly qualified with ownership under ObjC ARC, and in
   /// some cases the compiler treats these differently.
@@ -2119,10 +2124,6 @@ public:
     return getTypeSizeInCharsIfKnown(QualType(Ty, 0));
   }
 
-  /// Returns the bitwidth of \p T, an SVE type attributed with
-  /// 'arm_sve_vector_bits'. Should only be called if T->isVLST().
-  unsigned getBitwidthForAttributedSveType(const Type *T) const;
-
   /// Return the ABI-specified alignment of a (complete) type \p T, in
   /// bits.
   unsigned getTypeAlign(QualType T) const { return getTypeInfo(T).Align; }
@@ -2138,15 +2139,24 @@ public:
   }
   unsigned getTypeUnadjustedAlign(const Type *T) const;
 
-  /// Return the ABI-specified alignment of a type, in bits, or 0 if
+  /// Return the alignment of a type, in bits, or 0 if
   /// the type is incomplete and we cannot determine the alignment (for
-  /// example, from alignment attributes).
-  unsigned getTypeAlignIfKnown(QualType T) const;
+  /// example, from alignment attributes). The returned alignment is the
+  /// Preferred alignment if NeedsPreferredAlignment is true, otherwise is the
+  /// ABI alignment.
+  unsigned getTypeAlignIfKnown(QualType T,
+                               bool NeedsPreferredAlignment = false) const;
 
   /// Return the ABI-specified alignment of a (complete) type \p T, in
   /// characters.
   CharUnits getTypeAlignInChars(QualType T) const;
   CharUnits getTypeAlignInChars(const Type *T) const;
+
+  /// Return the PreferredAlignment of a (complete) type \p T, in
+  /// characters.
+  CharUnits getPreferredTypeAlignInChars(QualType T) const {
+    return toCharUnitsFromBits(getPreferredTypeAlign(T));
+  }
 
   /// getTypeUnadjustedAlignInChars - Return the ABI-specified alignment of a type,
   /// in characters, before alignment adjustments. This method does not work on
@@ -2170,7 +2180,12 @@ public:
   /// the current target, in bits.
   ///
   /// This can be different than the ABI alignment in cases where it is
-  /// beneficial for performance to overalign a data type.
+  /// beneficial for performance or backwards compatibility preserving to
+  /// overalign a data type. (Note: despite the name, the preferred alignment
+  /// is ABI-impacting, and not an optimization.)
+  unsigned getPreferredTypeAlign(QualType T) const {
+    return getPreferredTypeAlign(T.getTypePtr());
+  }
   unsigned getPreferredTypeAlign(const Type *T) const;
 
   /// Return the default alignment for __attribute__((aligned)) on
