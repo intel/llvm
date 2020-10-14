@@ -560,9 +560,6 @@ static pi_result copyModule(ze_context_handle_t ZeContext,
 
 static bool setEnvVar(const char *var, const char *value);
 
-static pi_result
-getPlatformCache(std::vector<pi_platform> const **PlatformCache);
-
 static pi_result populateDeviceCacheIfNeeded(pi_platform Platform);
 
 // Forward declarations for mock implementations of Level Zero APIs that
@@ -651,17 +648,90 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     return mapError(ZeResult);
   }
 
-  const std::vector<pi_platform> *PlatformCache;
-  pi_result Res = getPlatformCache(&PlatformCache);
-  if (Res != PI_SUCCESS) {
-    return Res;
+  // Cache pi_platforms for reuse in the future
+  // It solves two problems;
+  // 1. sycl::device equality issue; we always return the same pi_device.
+  // 2. performance; we can save time by immediately return from cache.
+  //
+  // Note: The memory for "PiPlatformsCache" and "PiPlatformsCacheMutex" is
+  // intentionally leaked because the application may call into the SYCL
+  // runtime from a global destructor, and such a call could eventually
+  // access these variables. Therefore, there is no safe time when
+  // "PiPlatformsCache" and "PiPlatformsCacheMutex" could be deleted.
+  static auto PiPlatformsCache = new std::vector<pi_platform>;
+  static auto PiPlatformsCacheMutex = new std::mutex;
+  static bool PiPlatformCachePopulated = false;
+
+  std::lock_guard<std::mutex> Lock(*PiPlatformsCacheMutex);
+  if (!PiPlatformCachePopulated) {
+    // We will retrieve the Max CommandList Cache in this lamda function so that
+    // it only has to be executed once
+    static pi_uint32 CommandListCacheSizeValue = ([] {
+      const char *CommandListCacheSize =
+          std::getenv("SYCL_PI_LEVEL0_MAX_COMMAND_LIST_CACHE");
+      pi_uint32 CommandListCacheSizeValue;
+      try {
+        CommandListCacheSizeValue =
+            CommandListCacheSize ? std::stoi(CommandListCacheSize) : 20000;
+      } catch (std::exception const &) {
+        zePrint(
+            "SYCL_PI_LEVEL0_MAX_COMMAND_LIST_CACHE: invalid value provided, "
+            "default set.\n");
+        CommandListCacheSizeValue = 20000;
+      }
+      return CommandListCacheSizeValue;
+    })();
+
+    try {
+
+      // Level Zero does not have concept of Platforms, but Level Zero driver is
+      // the closest match.
+      uint32_t ZeDriverCount = 0;
+      ZE_CALL(zeDriverGet(&ZeDriverCount, nullptr));
+      if (ZeDriverCount == 0) {
+        PiPlatformCachePopulated = true;
+      } else {
+        ze_driver_handle_t ZeDriver;
+        assert(ZeDriverCount == 1);
+        ZE_CALL(zeDriverGet(&ZeDriverCount, &ZeDriver));
+        pi_platform Platform = new _pi_platform(ZeDriver);
+
+        // Cache driver properties
+        ze_driver_properties_t ZeDriverProperties;
+        ZE_CALL(zeDriverGetProperties(ZeDriver, &ZeDriverProperties));
+        uint32_t ZeDriverVersion = ZeDriverProperties.driverVersion;
+        // Intel Level-Zero GPU driver stores version as:
+        // | 31 - 24 | 23 - 16 | 15 - 0 |
+        // |  Major  |  Minor  | Build  |
+        auto VersionMajor =
+            std::to_string((ZeDriverVersion & 0xFF000000) >> 24);
+        auto VersionMinor =
+            std::to_string((ZeDriverVersion & 0x00FF0000) >> 16);
+        auto VersionBuild = std::to_string(ZeDriverVersion & 0x0000FFFF);
+        Platform->ZeDriverVersion =
+            VersionMajor + "." + VersionMinor + "." + VersionBuild;
+
+        ze_api_version_t ZeApiVersion;
+        ZE_CALL(zeDriverGetApiVersion(ZeDriver, &ZeApiVersion));
+        Platform->ZeDriverApiVersion =
+            std::to_string(ZE_MAJOR_VERSION(ZeApiVersion)) + "." +
+            std::to_string(ZE_MINOR_VERSION(ZeApiVersion));
+
+        Platform->ZeMaxCommandListCache = CommandListCacheSizeValue;
+        // Save a copy in the cache for future uses.
+        PiPlatformsCache->push_back(Platform);
+        PiPlatformCachePopulated = true;
+      }
+    } catch (const std::bad_alloc &) {
+      return PI_OUT_OF_HOST_MEMORY;
+    } catch (...) {
+      return PI_ERROR_UNKNOWN;
+    }
   }
 
-  // Level Zero does not have concept of Platforms, but Level Zero driver is the
-  // closest match.
   if (Platforms && NumEntries > 0) {
     uint32_t I = 0;
-    for (const pi_platform &CachedPlatform : *PlatformCache) {
+    for (const pi_platform &CachedPlatform : *PiPlatformsCache) {
       if (I < NumEntries) {
         *Platforms++ = CachedPlatform;
         I++;
@@ -672,94 +742,8 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   }
 
   if (NumPlatforms)
-    *NumPlatforms = PlatformCache->size();
+    *NumPlatforms = PiPlatformsCache->size();
 
-  return PI_SUCCESS;
-}
-
-// Get the cached platforms, return them using the "PlatformCache" out parameter
-static pi_result
-getPlatformCache(std::vector<pi_platform> const **PlatformCache) {
-  // We will retrieve the Max CommandList Cache in this lamda function so that
-  // it only has to be executed once
-  static pi_uint32 CommandListCacheSizeValue = ([] {
-    const char *CommandListCacheSize =
-        std::getenv("SYCL_PI_LEVEL0_MAX_COMMAND_LIST_CACHE");
-    pi_uint32 CommandListCacheSizeValue;
-    try {
-      CommandListCacheSizeValue =
-          CommandListCacheSize ? std::stoi(CommandListCacheSize) : 20000;
-    } catch (std::exception const &) {
-      zePrint("SYCL_PI_LEVEL0_MAX_COMMAND_LIST_CACHE: invalid value provided, "
-              "default set.\n");
-      CommandListCacheSizeValue = 20000;
-    }
-    return CommandListCacheSizeValue;
-  })();
-
-  try {
-    // Cache pi_platforms for reuse in the future
-    // It solves two problems;
-    // 1. sycl::device equality issue; we always return the same pi_device.
-    // 2. performance; we can save time by immediately return from cache.
-    //
-    // Note: The memory for "PiPlatformsCache" and "PiPlatformsCacheMutex" is
-    // intentionally leaked because the application may call into the SYCL
-    // runtime from a global destructor, and such a call could eventually
-    // access these variables. Therefore, there is no safe time when
-    // "PiPlatformsCache" and "PiPlatformsCacheMutex" could be deleted.
-    static auto PiPlatformsCache = new std::vector<pi_platform>;
-    static auto PiPlatformsCacheMutex = new std::mutex;
-
-    static bool PiPlatformCachePopulated = false;
-    std::lock_guard<std::mutex> Lock(*PiPlatformsCacheMutex);
-    if (PiPlatformCachePopulated) {
-      *PlatformCache = PiPlatformsCache;
-      return PI_SUCCESS;
-    }
-
-    uint32_t ZeDriverCount = 0;
-    ZE_CALL(zeDriverGet(&ZeDriverCount, nullptr));
-    if (ZeDriverCount == 0) {
-      *PlatformCache = PiPlatformsCache;
-      PiPlatformCachePopulated = true;
-      return PI_SUCCESS;
-    }
-    ze_driver_handle_t ZeDriver;
-    assert(ZeDriverCount == 1);
-    ZE_CALL(zeDriverGet(&ZeDriverCount, &ZeDriver));
-    pi_platform Platform = new _pi_platform(ZeDriver);
-
-    // Cache driver properties
-    ze_driver_properties_t ZeDriverProperties;
-    ZE_CALL(zeDriverGetProperties(ZeDriver, &ZeDriverProperties));
-    uint32_t ZeDriverVersion = ZeDriverProperties.driverVersion;
-    // Intel Level-Zero GPU driver stores version as:
-    // | 31 - 24 | 23 - 16 | 15 - 0 |
-    // |  Major  |  Minor  | Build  |
-    auto VersionMajor = std::to_string((ZeDriverVersion & 0xFF000000) >> 24);
-    auto VersionMinor = std::to_string((ZeDriverVersion & 0x00FF0000) >> 16);
-    auto VersionBuild = std::to_string(ZeDriverVersion & 0x0000FFFF);
-    Platform->ZeDriverVersion =
-        VersionMajor + "." + VersionMinor + "." + VersionBuild;
-
-    ze_api_version_t ZeApiVersion;
-    ZE_CALL(zeDriverGetApiVersion(ZeDriver, &ZeApiVersion));
-    Platform->ZeDriverApiVersion =
-        std::to_string(ZE_MAJOR_VERSION(ZeApiVersion)) + "." +
-        std::to_string(ZE_MINOR_VERSION(ZeApiVersion));
-
-    Platform->ZeMaxCommandListCache = CommandListCacheSizeValue;
-    // Save a copy in the cache for future uses.
-    PiPlatformsCache->push_back(Platform);
-    // Copy the cache to the out parameter.
-    *PlatformCache = PiPlatformsCache;
-    PiPlatformCachePopulated = true;
-  } catch (const std::bad_alloc &) {
-    return PI_OUT_OF_HOST_MEMORY;
-  } catch (...) {
-    return PI_ERROR_UNKNOWN;
-  }
   return PI_SUCCESS;
 }
 
@@ -829,24 +813,33 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
   assert(Platform);
 
   auto ZeDriver = pi_cast<ze_driver_handle_t>(NativeHandle);
-  const std::vector<pi_platform> *PlatformCache;
 
-  // The SYCL spec requires that the set of platforms must remain fixed for the
-  // duration of the application's execution. We assume that we found all of the
-  // Level Zero drivers when we initialized the platform cache, so the
-  // "NativeHandle" must already be in the cache. If it is not, this must not be
-  // a valid Level Zero driver.
-  pi_result Res = getPlatformCache(&PlatformCache);
+  pi_uint32 NumPlatforms = 0;
+  pi_result Res = piPlatformsGet(0, nullptr, &NumPlatforms);
   if (Res != PI_SUCCESS) {
     return Res;
   }
 
-  for (const pi_platform &CachedPlatform : *PlatformCache) {
-    if (CachedPlatform->ZeDriver == ZeDriver) {
-      *Platform = CachedPlatform;
-      return PI_SUCCESS;
+  if (NumPlatforms) {
+    std::vector<pi_platform> PlatformCache(NumPlatforms);
+    Res = piPlatformsGet(NumPlatforms, PlatformCache.data(), nullptr);
+    if (Res != PI_SUCCESS) {
+      return Res;
+    }
+
+    // The SYCL spec requires that the set of platforms must remain fixed for
+    // the duration of the application's execution. We assume that we found all
+    // of the Level Zero drivers when we initialized the platform cache, so the
+    // "NativeHandle" must already be in the cache. If it is not, this must not
+    // be a valid Level Zero driver.
+    for (const pi_platform &CachedPlatform : PlatformCache) {
+      if (CachedPlatform->ZeDriver == ZeDriver) {
+        *Platform = CachedPlatform;
+        return PI_SUCCESS;
+      }
     }
   }
+
   return PI_INVALID_VALUE;
 }
 
