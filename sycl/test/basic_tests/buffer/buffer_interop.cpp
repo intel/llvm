@@ -33,6 +33,8 @@ int main() {
     Error = clReleaseContext(OCLCtx);
     CHECK_OCL_CODE(Error);
 
+    sycl::buffer<int, 1> Buf{OCLBuf, Ctx};
+
     sycl::queue Q;
 
     if (Ctx == Q.get_context()) {

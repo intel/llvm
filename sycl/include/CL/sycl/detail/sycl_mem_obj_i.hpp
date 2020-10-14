@@ -61,10 +61,9 @@ public:
   // Returns size of object in bytes
   virtual size_t getSize() const = 0;
 
-  // TODO: Fix the comment
-  // Returns true if a memory object has been created using interoperability
-  // constructor
-  virtual ContextImplPtr interopContext() const = 0;
+  // Returns the context which is passed if a memory object is created using
+  // interoperability constructor, nullptr otherwise.
+  virtual ContextImplPtr getInteropContext() const = 0;
 
 protected:
   // Pointer to the record that contains the memory commands. This is managed

@@ -287,7 +287,7 @@ public:
 
   DLL_LOCAL MemObjType getType() const override { return UNDEFINED; }
 
-  ContextImplPtr interopContext() const override { return MInteropContext; }
+  ContextImplPtr getInteropContext() const override { return MInteropContext; }
 
 protected:
   // Allocator used for allocation memory on host.

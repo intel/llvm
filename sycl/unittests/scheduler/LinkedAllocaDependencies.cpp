@@ -33,7 +33,7 @@ public:
   void releaseMem(ContextImplPtr, void *) {}
   void releaseHostMem(void *) {}
   size_t getSize() const override { return 10; }
-  detail::ContextImplPtr interopContext() const override { return nullptr; }
+  detail::ContextImplPtr getInteropContext() const override { return nullptr; }
 };
 
 TEST_F(SchedulerTest, LinkedAllocaDependencies) {

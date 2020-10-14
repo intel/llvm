@@ -176,11 +176,11 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
         --(Dependency->MLeafCounter);
       };
 
-  const ContextImplPtr &InteropCtxPtr = Req->MSYCLMemObj->interopContext();
+  const ContextImplPtr &InteropCtxPtr = Req->MSYCLMemObj->getInteropContext();
   if (InteropCtxPtr) {
     // The memory object has been constructed using interoperability constructor
     // which means that there is already an allocation(cl_mem) in some context.
-    // Regestering this allocation in the SYCL graph.
+    // Registering this allocation in the SYCL graph.
 
     sycl::vector_class<sycl::device> Devices =
         InteropCtxPtr->get_info<info::context::devices>();
@@ -193,11 +193,10 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
     QueueImplPtr InteropQueuePtr{new detail::queue_impl{
         Dev, InteropCtxPtr, /*AsyncHandler=*/{}, /*PropertyList=*/{}}};
 
-    MemObject->MRecord.reset(new MemObjRecord{InteropCtxPtr,
-                                            LeafLimit, AllocateDependency});
+    MemObject->MRecord.reset(
+        new MemObjRecord{InteropCtxPtr, LeafLimit, AllocateDependency});
     getOrCreateAllocaForReq(MemObject->MRecord.get(), Req, InteropQueuePtr);
-  }
-  else
+  } else
     MemObject->MRecord.reset(new MemObjRecord{Queue->getContextImplPtr(),
                                               LeafLimit, AllocateDependency});
 
