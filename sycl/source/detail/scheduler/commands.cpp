@@ -1202,7 +1202,14 @@ AllocaCommandBase *ExecCGCommand::getAllocaForReq(Requirement *Req) {
 }
 
 vector_class<StreamImplPtr> ExecCGCommand::getStreams() const {
-  return ((CGExecKernel *)MCommandGroup.get())->getStreams();
+  if (MCommandGroup->getType() == CG::KERNEL)
+    return ((CGExecKernel *)MCommandGroup.get())->getStreams();
+  return {};
+}
+
+void ExecCGCommand::clearStreams() {
+  if (MCommandGroup->getType() == CG::KERNEL)
+    ((CGExecKernel *)MCommandGroup.get())->clearStreams();
 }
 
 cl_int UpdateHostRequirementCommand::enqueueImp() {
