@@ -532,9 +532,6 @@ Option *CommandLineParser::LookupOption(SubCommand &Sub, StringRef &Arg,
   if (EqualPos == StringRef::npos) {
     // Look up the option.
     auto I = Sub.OptionsMap.find(Arg);
-    if (I == Sub.OptionsMap.end())
-      return nullptr;
-
     return I != Sub.OptionsMap.end() ? I->second : nullptr;
   }
 
