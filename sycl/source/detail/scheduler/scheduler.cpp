@@ -14,7 +14,7 @@
 #include <detail/stream_impl.hpp>
 
 #include <chrono>
-#include <iostream>
+#include <cstdio>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -294,12 +294,15 @@ Scheduler::~Scheduler() {
   // resources are released only if one of the listed sync points was used for
   // the kernel. Otherwise resources for stream will not be released, issue a
   // warning in this case.
-  std::lock_guard<std::mutex> lock(StreamBuffersPoolMutex);
-  if (!StreamBuffersPool.empty())
-    std::cerr
-        << "\nWARNING: Some commands may have not finished the execution and "
-           "not all resources were released. Please be sure that all kernels "
-           "have synchronization points.\n\n";
+  if (pi::trace(pi::TraceLevel::PI_TRACE_BASIC)) {
+    std::lock_guard<std::mutex> lock(StreamBuffersPoolMutex);
+    if (!StreamBuffersPool.empty())
+      fprintf(
+          stderr,
+          "\nWARNING: Some commands may have not finished the execution and "
+          "not all resources were released. Please be sure that all kernels "
+          "have synchronization points.\n\n");
+  }
 }
 
 void Scheduler::lockSharedTimedMutex(
