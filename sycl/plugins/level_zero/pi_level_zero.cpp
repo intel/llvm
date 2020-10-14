@@ -2105,21 +2105,12 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   if (HostPtr) {
 
     if ((Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) != 0) {
-      void *PinnedHostPtr;
-
       ze_host_mem_alloc_desc_t ZeHostDesc = {};
       ZeHostDesc.flags = 0;
     
       ZE_CALL(zeMemAllocHost(Context->ZeContext, &ZeHostDesc, Size,
                              1, // TODO: alignment
-                             &PinnedHostPtr));
-      ZE_CALL(zeCommandListAppendMemoryCopy(Context->ZeCommandListInit,
-                                            PinnedHostPtr, HostPtr, Size,
-                                            nullptr, 0, nullptr));
-      ZE_CALL(zeCommandListAppendMemoryCopy(Context->ZeCommandListInit, Ptr,
-                                            PinnedHostPtr, Size, nullptr, 0,
-                                            nullptr));
-      HostPtr = PinnedHostPtr;
+                             &HostPtr));
     } else if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0 ||
                (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) != 0) {
       // Initialize the buffer with user data
