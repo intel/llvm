@@ -490,23 +490,26 @@ pi_result _pi_device::getAvailableCommandList(
   // Level-Zero Command List and Fence for this PI call.
   // Make sure to acquire the lock before checking the size, or there
   // will be a race condition.
-  Queue->Device->ZeCommandListCacheMutex.lock();
-  if (Queue->Device->ZeCommandListCache.size() > 0) {
-    *ZeCommandList = Queue->Device->ZeCommandListCache.front();
-    *ZeFence = Queue->ZeCommandListFenceMap[*ZeCommandList];
-    if (*ZeFence == nullptr) {
-      // If there is a command list available on this device, but no fence yet
-      // associated, then we must create a fence/list reference for this Queue.
-      // Can happen if two Queues reuse a device which did not have the
-      // resources freed.
-      ZE_CALL(zeFenceCreate(Queue->ZeCommandQueue, &ZeFenceDesc, ZeFence));
-      Queue->ZeCommandListFenceMap[*ZeCommandList] = *ZeFence;
+  {
+    // lock releases when it goes out of scope.
+    std::lock_guard<std::mutex> lock(Queue->Device->ZeCommandListCacheMutex);
+
+    if (Queue->Device->ZeCommandListCache.size() > 0) {
+      *ZeCommandList = Queue->Device->ZeCommandListCache.front();
+      *ZeFence = Queue->ZeCommandListFenceMap[*ZeCommandList];
+      if (*ZeFence == nullptr) {
+        // If there is a command list available on this device, but no
+        // fence yet associated, then we must create a fence/list
+        // reference for this Queue.
+        // Can happen if two Queues reuse a device which did not have the
+        // resources freed.
+        ZE_CALL(zeFenceCreate(Queue->ZeCommandQueue, &ZeFenceDesc, ZeFence));
+        Queue->ZeCommandListFenceMap[*ZeCommandList] = *ZeFence;
+      }
+      Queue->Device->ZeCommandListCache.pop_front();
+      return PI_SUCCESS;
     }
-    Queue->Device->ZeCommandListCache.pop_front();
-    Queue->Device->ZeCommandListCacheMutex.unlock();
-    return PI_SUCCESS;
   }
-  Queue->Device->ZeCommandListCacheMutex.unlock();
 
   // If there are no available command lists in the cache, then we check for
   // command lists that have already signalled, but have not been added to the
