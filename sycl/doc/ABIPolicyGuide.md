@@ -92,7 +92,16 @@ There is a set of tests to help identifying ABI changes:
   classes for layout changes, while `symbol_size` only checks `sizeof` for API
   classes. Changing the class layout is a breaking change.
 
-## Breaking ABI
+## Changing ABI
+
+**Note (October, 2020)**: DPC++ runtime and compiler ABI is currently in frozen
+state. This means that no ABI-breaking changes will be accepted by default.
+Project maintainers may still approve breaking changes in some cases. Please,
+try to avoid any breaking changes until freeze is lifted. If you need to change
+existing functionality, consider adding new APIs instead of replacing them.
+Also, please, avoid any changes, mentioned in the [Intro](#intro) section as
+breaking. Refer to the above guide to distinguish breaking and non-breaking
+changes. If not sure, do not hesitate to ask code owners for help.
 
 Whenever you need to change the existing ABI, please, follow these steps:
 
@@ -100,5 +109,5 @@ Whenever you need to change the existing ABI, please, follow these steps:
    it is clear, why breaking ABI is necessary.
 2. Fix failing ABI tests in your Pull Request. Use aforementioned techniques to
    update test files.
-3. If Pull Request introduces a breaking change, update the library version
-   according to the policies.
+3. ~~If Pull Request introduces a breaking change, update the library version~~
+   ~~according to the policies.~~ **(See note above)**
