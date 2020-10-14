@@ -2120,9 +2120,8 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                                             PinnedHostPtr, Size, nullptr, 0,
                                             nullptr));
       HostPtr = PinnedHostPtr;
-    }
-    if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0 ||
-        (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) != 0) {
+    } else if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0 ||
+               (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) != 0) {
       // Initialize the buffer with user data
       if (DeviceIsIntegrated) {
         // Do a host to host copy
