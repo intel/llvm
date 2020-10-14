@@ -935,6 +935,11 @@ bool containsUnsignedAtomicType(StringRef Name);
 std::string mangleBuiltin(StringRef UniqName, ArrayRef<Type *> ArgTypes,
                           BuiltinFuncMangleInfo *BtnInfo);
 
+/// Mangle a function from OpenCL extended instruction set in SPIR-V friendly IR
+/// manner
+std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
+                                           ArrayRef<Type *> ArgTys);
+
 /// Remove cast from a value.
 Value *removeCast(Value *V);
 

@@ -1,15 +1,15 @@
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -disable-llvm-passes -triple spir64-unknown-unknown-sycldevice -emit-llvm -o - %s | FileCheck %s
 
 #include "Inputs/sycl.hpp"
-[[intelfpga::scheduler_target_fmax_mhz(5)]] void
+[[intel::scheduler_target_fmax_mhz(5)]] void
 func() {}
 
 template <int N>
-[[intelfpga::scheduler_target_fmax_mhz(N)]] void zoo() {}
+[[intel::scheduler_target_fmax_mhz(N)]] void zoo() {}
 
 int main() {
   cl::sycl::kernel_single_task<class test_kernel1>(
-      []() [[intelfpga::scheduler_target_fmax_mhz(2)]]{});
+      []() [[intel::scheduler_target_fmax_mhz(2)]]{});
 
   cl::sycl::kernel_single_task<class test_kernel2>(
       []() { func(); });
