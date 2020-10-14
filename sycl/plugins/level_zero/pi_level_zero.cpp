@@ -427,9 +427,9 @@ _pi_queue::resetCommandListFenceEntry(ze_command_list_handle_t ZeCommandList,
   ZE_CALL(zeFenceReset(this->ZeCommandListFenceMap[ZeCommandList]));
   ZE_CALL(zeCommandListReset(ZeCommandList));
   if (MakeAvailable) {
-    this->Device->ZeCommandListCacheMutex.lock();
+    // lock releases when it goes out of scope.
+    std::lock_guard<std::mutex> lock(this->Device->ZeCommandListCacheMutex);
     this->Device->ZeCommandListCache.push_back(ZeCommandList);
-    this->Device->ZeCommandListCacheMutex.unlock();
   }
 
   return PI_SUCCESS;
@@ -1007,12 +1007,17 @@ pi_result piDeviceRelease(pi_device Device) {
   if (Device->IsSubDevice) {
     if (--(Device->RefCount) == 0) {
       // Destroy all the command lists associated with this device.
-      Device->ZeCommandListCacheMutex.lock();
-      for (ze_command_list_handle_t &ZeCommandList :
-           Device->ZeCommandListCache) {
-        zeCommandListDestroy(ZeCommandList);
+      {
+        // lock releases when it goes out of scope.
+        std::lock_guard<std::mutex> lock(Device->ZeCommandListCacheMutex);
+
+        for (ze_command_list_handle_t &ZeCommandList :
+             Device->ZeCommandListCache) {
+          zeCommandListDestroy(ZeCommandList);
+        }
       }
-      Device->ZeCommandListCacheMutex.unlock();
+      // lock needs to have gone out of scope and released before
+      // freeing Device.
       delete Device;
     }
   }
