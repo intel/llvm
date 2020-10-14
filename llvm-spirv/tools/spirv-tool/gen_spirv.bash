@@ -3,6 +3,16 @@
 # header file spirv.hpp.
 #
 
+# The NameMaps that will be generated into SPIRVNameMapEnum.h
+nameMapEnums="LinkageType Decoration BuiltIn Capability"
+
+# The isValid functions that will be generated into SPIRVIsValidEnum.h
+isValidEnums="ExecutionModel AddressingModel MemoryModel StorageClass \
+              LinkageType AccessQualifier FunctionParameterAttribute BuiltIn"
+
+# The isValidxxxMask functions that will be generated into SPIRVIsValidEnum.h
+isValidMaskEnums="FunctionControlMask"
+
 
 ######################
 #
@@ -82,16 +92,15 @@ echo "
 gen() {
 type=$1
 if [[ "$type" == NameMap ]]; then
-  for prefix in LinkageType Decoration BuiltIn Capability; do
-    genNameMap $prefix
+  for prefix in ${nameMapEnums} ; do
+    genNameMap "$prefix"
   done
 elif [[ "$type" == isValid ]]; then
-  for prefix in ExecutionModel AddressingModel MemoryModel StorageClass \
-      LinkageType AccessQualifier FunctionParameterAttribute BuiltIn ; do
-    genIsValid $prefix
+  for prefix in ${isValidEnums} ; do
+    genIsValid "$prefix"
   done
-  for prefix in FunctionControlMask ; do
-    genMaskIsValid $prefix
+  for prefix in ${isValidMaskEnums} ; do
+    genMaskIsValid "$prefix"
   done
 else
   echo "invalid type \"$type\"."
