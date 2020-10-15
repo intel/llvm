@@ -2886,8 +2886,17 @@ public:
   void VisitTagDecl(const TagDecl *Tag) {
     bool UnnamedLambdaEnabled =
         S.getASTContext().getLangOpts().SYCLUnnamedLambda;
-    if (!Tag->getDeclContext()->isTranslationUnit() &&
-        !isa<NamespaceDecl>(Tag->getDeclContext()) && !UnnamedLambdaEnabled) {
+    const DeclContext *DC = Tag->getDeclContext();
+    if (DC) {
+      auto *NS = dyn_cast_or_null<NamespaceDecl>(DC);
+      if (NS && NS->isStdNamespace()) {
+        S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
+            << /* name cannot be a type in the std namespace */ 3;
+        IsInvalid = true;
+      }
+    }
+    if (!DC->isTranslationUnit() && !isa<NamespaceDecl>(DC) &&
+        !UnnamedLambdaEnabled) {
       const bool KernelNameIsMissing = Tag->getName().empty();
       if (KernelNameIsMissing) {
         S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
@@ -3350,12 +3359,6 @@ void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D,
 
     if (!NS) {
       break;
-    }
-
-    if (NS->isStdNamespace()) {
-      Diag.Report(KernelLocation, diag::err_sycl_kernel_incorrectly_named)
-          << /* name cannot be a type in the std namespace */ 3;
-      return;
     }
 
     ++NamespaceCnt;

@@ -70,7 +70,8 @@ public:
     });
 
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@+3 {{kernel name cannot be a type in the "std" namespace}}
+    // expected-error@Inputs/sycl.hpp:220 {{kernel name cannot be a type in the "std" namespace}}
+    // expected-note@+3{{in instantiation of function template specialization}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<std::max_align_t>([] {});
