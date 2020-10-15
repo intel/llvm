@@ -142,7 +142,7 @@ public:
 
   const plugin &getPlugin() const { return MContext->getPlugin(); }
 
-  ContextImplPtr getContextImplPtr() const { return MContext; }
+  const ContextImplPtr &getContextImplPtr() const { return MContext; }
 
   /// \return an associated SYCL device.
   device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
