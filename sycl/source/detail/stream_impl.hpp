@@ -11,6 +11,7 @@
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/buffer.hpp>
 #include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/event.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/stream.hpp>
@@ -41,6 +42,8 @@ public:
   size_t get_size() const;
 
   size_t get_max_statement_size() const;
+
+  EventImplPtr FlushEvent;
 
 private:
   // Size of the stream buffer

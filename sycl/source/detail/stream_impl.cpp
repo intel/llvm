@@ -67,7 +67,7 @@ void stream_impl::flush() {
   // finishes execution.
   auto Q = detail::createSyclObjFromImpl<queue>(
       cl::sycl::detail::Scheduler::getInstance().getDefaultHostQueue());
-  Q.submit([&](handler &cgh) {
+  auto Event = Q.submit([&](handler &cgh) {
     auto BufHostAcc =
         detail::Scheduler::getInstance()
             .StreamBuffersPool.find(this)
@@ -89,6 +89,7 @@ void stream_impl::flush() {
       fflush(stdout);
     });
   });
+  FlushEvent = detail::getSyclObjImpl(Event);
 }
 } // namespace detail
 } // namespace sycl

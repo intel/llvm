@@ -276,6 +276,8 @@ void Scheduler::allocateStreamBuffers(stream_impl *Impl,
 
 void Scheduler::deallocateStreamBuffers(stream_impl *Impl) {
   std::lock_guard<std::mutex> lock(StreamBuffersPoolMutex);
+  assert(Impl->FlushEvent != nullptr);
+  Impl->FlushEvent->wait(Impl->FlushEvent);
   delete StreamBuffersPool[Impl];
   StreamBuffersPool.erase(Impl);
 }
