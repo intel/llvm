@@ -3322,21 +3322,9 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
     ze_event_handle_t ZeEvent = EventList[I]->ZeEvent;
     zePrint("ZeEvent = %lx\n", pi_cast<std::uintptr_t>(ZeEvent));
 
-    // If event comes from a Map/UnMap operation in integrated device, then do
-    // sync, memcpy, and signaling on the host
+    // If event comes from a Map/UnMap operation on integrated device
+    // then nothing needs to be done here except signal the event.
     if (EventList[I]->HostSyncforMap) {
-#if 0
-      for (auto ZeWaitEvent : EventList[I]->waitEvents) {
-        zePrint("ZeWaitEvent = %lx\n", pi_cast<std::uintptr_t>(ZeWaitEvent));
-        if (ZeWaitEvent)
-          ZE_CALL(zeEventHostSynchronize(ZeWaitEvent, UINT32_MAX));
-      }
-      if (EventList[I]->CopyPending) {
-        memcpy(EventList[I]->DstBuffer, EventList[I]->SrcBuffer,
-               EventList[I]->RetMapSize);
-        EventList[I]->CopyPending = false;
-      }
-#endif
       ZE_CALL(zeEventHostSignal(ZeEvent));
     } else {
       ZE_CALL(zeEventHostSynchronize(ZeEvent, UINT32_MAX));
@@ -4015,9 +4003,6 @@ piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer, pi_bool BlockingMap,
   assert(Buffer);
   assert(Queue);
 
-  // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-
   // Query the buffer allocation to determine if host allocation
   ze_memory_allocation_properties_t ZeMemoryAllocationProperties = {};
   ze_device_handle_t ZeDeviceHandle;
@@ -4058,50 +4043,22 @@ piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer, pi_bool BlockingMap,
   // Can we get SYCL RT to predict/allocate in shared memory
   // from the beginning?
   if (BufferUsesHostMem) {
-    (*Event)->HostSyncforMap = true;
-#if 0
-    for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
-      zePrint("Map added ZeWaitEvent = %lx\n",
-              pi_cast<std::uintptr_t>(EventWaitList[i]->ZeEvent));
-      (*Event)->waitEvents.push_back(EventWaitList[i]->ZeEvent);
-    }
-#else
-    for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
-      auto Queue = EventWaitList[i]->Queue;
-      zePrint("Got Q\n");
-      if (Queue->RefCount > 0) {
-        zePrint("Executing commandlist\n");
-        if (auto Res = Queue->executeOpenCommandList())
-          return Res;
-      }
-    }
-    for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
-      zePrint("Going to wait on ZeWaitEvent = %lx\n",
-              pi_cast<std::uintptr_t>(EventWaitList[i]->ZeEvent));
-      auto ZeWaitEvent = EventWaitList[i]->ZeEvent;
-      if (ZeWaitEvent)
-        ZE_CALL(zeEventHostSynchronize(ZeWaitEvent, UINT32_MAX));
-    }
-#endif
+    // Wait on incoming events before doing the copy
+    piEventsWait(NumEventsInWaitList, EventWaitList);
     if (Buffer->MapHostPtr) {
       *RetMap = Buffer->MapHostPtr + Offset;
-#if 0
-      (*Event)->SrcBuffer = pi_cast<char*>(Buffer->getZeHandle()) + Offset;
-      (*Event)->DstBuffer = *RetMap;
-      (*Event)->RetMapSize = Size;
-      (*Event)->CopyPending = true;
-#else
-      zePrint("Doing memcpy %p %p %zu\n", *RetMap,
-              pi_cast<char *>(Buffer->getZeHandle()) + Offset, Size);
       memcpy(*RetMap, pi_cast<char *>(Buffer->getZeHandle()) + Offset, Size);
-      zePrint("DONE\n");
-#endif
     } else {
       *RetMap = pi_cast<char *>(Buffer->getZeHandle()) + Offset;
     }
+    // Mark this event as handled
+    (*Event)->HostSyncforMap = true;
 
     return Buffer->addMapping(*RetMap, Offset, Size);
   }
+
+  // Lock automatically releases when this goes out of scope.
+  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
   // For discrete devices we need a command list
   if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
@@ -4140,9 +4097,6 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
                             pi_uint32 NumEventsInWaitList,
                             const pi_event *EventWaitList, pi_event *Event) {
   assert(Queue);
-
-  // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
   // Query the buffer allocation to determine if host allocation
   ze_memory_allocation_properties_t ZeMemoryAllocationProperties = {};
@@ -4194,57 +4148,47 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
 
   if (BufferUsesHostMem) {
     (*Event)->HostSyncforMap = true;
-#if 0
-    for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
-      zePrint("UnMap Added ZeWaitEvent = %lx\n",
-        pi_cast<std::uintptr_t>(EventWaitList[i]->ZeEvent));
-      (*Event)->waitEvents.push_back(EventWaitList[i]->ZeEvent);
-    }
-    (*Event)->SrcBuffer = MappedPtr;
-    (*Event)->DstBuffer =
-      pi_cast<char*>(MemObj->getZeHandle()) + MapInfo.Offset;
-    (*Event)->RetMapSize = MapInfo.Size;
-    (*Event)->CopyPending = true;
-#else
-    for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
-      auto ZeWaitEvent = EventWaitList[i]->ZeEvent;
-      if (ZeWaitEvent)
-        ZE_CALL(zeEventHostSynchronize(ZeWaitEvent, UINT32_MAX));
-    }
+    // Wait on incoming events before doing the copy
+    piEventsWait(NumEventsInWaitList, EventWaitList);
     memcpy(pi_cast<char *>(MemObj->getZeHandle()) + MapInfo.Offset, MappedPtr,
            MapInfo.Size);
-#endif
-  } else {
+    // Mark this event as handled
+    (*Event)->HostSyncforMap = true;
 
-    if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
-                                                          &ZeFence))
-      return Res;
-
-    ze_event_handle_t *ZeEventWaitList =
-        _pi_event::createZeEventList(NumEventsInWaitList, EventWaitList);
-
-    ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, NumEventsInWaitList,
-                                            ZeEventWaitList));
-
-    // TODO: Level Zero is missing the memory "mapping" capabilities, so we are
-    // left to doing copy (write back to the device).
-    // See https://gitlab.devtools.intel.com/one-api/level_zero/issues/293. //
-    // INTEL
-    //
-    // NOTE: Keep this in sync with the implementation of
-    // piEnqueueMemBufferMap/piEnqueueMemImageMap.
-
-    ZE_CALL(zeCommandListAppendMemoryCopy(
-        ZeCommandList, pi_cast<char *>(MemObj->getZeHandle()) + MapInfo.Offset,
-        MappedPtr, MapInfo.Size, ZeEvent, 0, nullptr));
-
-    // Execute command list asynchronously, as the event will be used
-    // to track down its completion.
-    if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence))
-      return Res;
-
-    _pi_event::deleteZeEventList(ZeEventWaitList);
+    return PI_SUCCESS;
   }
+
+  // Lock automatically releases when this goes out of scope.
+  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+
+  if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
+                                                        &ZeFence))
+    return Res;
+
+  ze_event_handle_t *ZeEventWaitList =
+      _pi_event::createZeEventList(NumEventsInWaitList, EventWaitList);
+
+  ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, NumEventsInWaitList,
+                                          ZeEventWaitList));
+
+  // TODO: Level Zero is missing the memory "mapping" capabilities, so we are
+  // left to doing copy (write back to the device).
+  // See https://gitlab.devtools.intel.com/one-api/level_zero/issues/293. //
+  // INTEL
+  //
+  // NOTE: Keep this in sync with the implementation of
+  // piEnqueueMemBufferMap/piEnqueueMemImageMap.
+
+  ZE_CALL(zeCommandListAppendMemoryCopy(
+      ZeCommandList, pi_cast<char *>(MemObj->getZeHandle()) + MapInfo.Offset,
+      MappedPtr, MapInfo.Size, ZeEvent, 0, nullptr));
+
+  // Execute command list asynchronously, as the event will be used
+  // to track down its completion.
+  if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence))
+    return Res;
+
+  _pi_event::deleteZeEventList(ZeEventWaitList);
 
   return PI_SUCCESS;
 }
