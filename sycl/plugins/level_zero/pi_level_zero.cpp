@@ -1913,7 +1913,8 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   try {
     *RetMem = new _pi_buffer(
         Context, pi_cast<char *>(Ptr) /* Level Zero Memory Handle */,
-        HostPtrOrNull);
+        HostPtrOrNull, nullptr, 0, 0,
+        DeviceIsIntegrated /* Flag indicating allocation in host memory */);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -3996,22 +3997,6 @@ piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer, pi_bool BlockingMap,
   assert(Buffer);
   assert(Queue);
 
-  // Check if this is an integrated device
-  bool DeviceIsIntegrated = Queue->Device->ZeDeviceProperties.flags &
-                            ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
-
-  // Query the buffer allocation to determine if host allocation
-  ze_memory_allocation_properties_t ZeMemoryAllocationProperties = {};
-  ze_device_handle_t ZeDeviceHandle;
-
-  ZE_CALL(
-      zeMemGetAllocProperties(Queue->Context->ZeContext, Buffer->getZeHandle(),
-                              &ZeMemoryAllocationProperties, &ZeDeviceHandle));
-
-  bool BufferUsesHostMem =
-      DeviceIsIntegrated &&
-      (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_HOST);
-
   // For discrete devices we don't need a commandlist
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
@@ -4040,7 +4025,9 @@ piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer, pi_bool BlockingMap,
   // in shared memory and thus is accessible from the host as is.
   // Can we get SYCL RT to predict/allocate in shared memory
   // from the beginning?
-  if (BufferUsesHostMem) {
+  //
+  // On integrated devices the buffer has been allocated in host memory.
+  if (Buffer->OnHost) {
     // Wait on incoming events before doing the copy
     piEventsWait(NumEventsInWaitList, EventWaitList);
     if (Buffer->MapHostPtr) {
@@ -4097,22 +4084,6 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
                             const pi_event *EventWaitList, pi_event *Event) {
   assert(Queue);
 
-  // Check if this is an integrated device
-  bool DeviceIsIntegrated = Queue->Device->ZeDeviceProperties.flags &
-                            ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
-
-  // Query the buffer allocation to determine if host allocation
-  ze_memory_allocation_properties_t ZeMemoryAllocationProperties = {};
-  ze_device_handle_t ZeDeviceHandle;
-
-  ZE_CALL(
-      zeMemGetAllocProperties(Queue->Context->ZeContext, MemObj->getZeHandle(),
-                              &ZeMemoryAllocationProperties, &ZeDeviceHandle));
-
-  bool BufferUsesHostMem =
-      DeviceIsIntegrated &&
-      (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_HOST);
-
   // Integrated devices don't need a command list.
   // If discrete we will get a commandlist later.
   ze_command_list_handle_t ZeCommandList = nullptr;
@@ -4147,10 +4118,10 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   // any memory, so there is nothing to free. This is indicated by a nullptr.
   if (Event)
     (*Event)->CommandData =
-        (BufferUsesHostMem ? nullptr
-                           : (MemObj->MapHostPtr ? nullptr : MappedPtr));
+        (MemObj->OnHost ? nullptr : (MemObj->MapHostPtr ? nullptr : MappedPtr));
 
-  if (BufferUsesHostMem) {
+  // On integrated devices the buffer is allocated in host memory.
+  if (MemObj->OnHost) {
     // Wait on incoming events before doing the copy
     piEventsWait(NumEventsInWaitList, EventWaitList);
     memcpy(pi_cast<char *>(MemObj->getZeHandle()) + MapInfo.Offset, MappedPtr,
