@@ -3321,14 +3321,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
   for (uint32_t I = 0; I < NumEvents; I++) {
     ze_event_handle_t ZeEvent = EventList[I]->ZeEvent;
     zePrint("ZeEvent = %lx\n", pi_cast<std::uintptr_t>(ZeEvent));
-
-    // If event comes from a Map/UnMap operation on integrated device
-    // then nothing needs to be done here except signal the event.
-    if (EventList[I]->HostSyncforMap) {
-      ZE_CALL(zeEventHostSignal(ZeEvent));
-    } else {
-      ZE_CALL(zeEventHostSynchronize(ZeEvent, UINT32_MAX));
-    }
+    ZE_CALL(zeEventHostSynchronize(ZeEvent, UINT32_MAX));
 
     // NOTE: we are destroying associated command lists here to free
     // resources sooner in case RT is not calling piEventRelease soon enough.
@@ -4003,6 +3996,10 @@ piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer, pi_bool BlockingMap,
   assert(Buffer);
   assert(Queue);
 
+  // Check if this is an integrated device
+  bool DeviceIsIntegrated = Queue->Device->ZeDeviceProperties.flags &
+                            ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
+
   // Query the buffer allocation to determine if host allocation
   ze_memory_allocation_properties_t ZeMemoryAllocationProperties = {};
   ze_device_handle_t ZeDeviceHandle;
@@ -4012,6 +4009,7 @@ piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer, pi_bool BlockingMap,
                               &ZeMemoryAllocationProperties, &ZeDeviceHandle));
 
   bool BufferUsesHostMem =
+      DeviceIsIntegrated &&
       (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_HOST);
 
   // For discrete devices we don't need a commandlist
@@ -4051,8 +4049,9 @@ piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer, pi_bool BlockingMap,
     } else {
       *RetMap = pi_cast<char *>(Buffer->getZeHandle()) + Offset;
     }
-    // Mark this event as handled
-    (*Event)->HostSyncforMap = true;
+
+    // Signal this event
+    ZE_CALL(zeEventHostSignal(ZeEvent));
 
     return Buffer->addMapping(*RetMap, Offset, Size);
   }
@@ -4098,6 +4097,10 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
                             const pi_event *EventWaitList, pi_event *Event) {
   assert(Queue);
 
+  // Check if this is an integrated device
+  bool DeviceIsIntegrated = Queue->Device->ZeDeviceProperties.flags &
+                            ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
+
   // Query the buffer allocation to determine if host allocation
   ze_memory_allocation_properties_t ZeMemoryAllocationProperties = {};
   ze_device_handle_t ZeDeviceHandle;
@@ -4107,6 +4110,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
                               &ZeMemoryAllocationProperties, &ZeDeviceHandle));
 
   bool BufferUsesHostMem =
+      DeviceIsIntegrated &&
       (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_HOST);
 
   // Integrated devices don't need a command list.
@@ -4147,13 +4151,13 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
                            : (MemObj->MapHostPtr ? nullptr : MappedPtr));
 
   if (BufferUsesHostMem) {
-    (*Event)->HostSyncforMap = true;
     // Wait on incoming events before doing the copy
     piEventsWait(NumEventsInWaitList, EventWaitList);
     memcpy(pi_cast<char *>(MemObj->getZeHandle()) + MapInfo.Offset, MappedPtr,
            MapInfo.Size);
-    // Mark this event as handled
-    (*Event)->HostSyncforMap = true;
+
+    // Signal this event
+    ZE_CALL(zeEventHostSignal(ZeEvent));
 
     return PI_SUCCESS;
   }
@@ -4173,8 +4177,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
 
   // TODO: Level Zero is missing the memory "mapping" capabilities, so we are
   // left to doing copy (write back to the device).
-  // See https://gitlab.devtools.intel.com/one-api/level_zero/issues/293. //
-  // INTEL
+  // See https://gitlab.devtools.intel.com/one-api/level_zero/issues/293. // INTEL
   //
   // NOTE: Keep this in sync with the implementation of
   // piEnqueueMemBufferMap/piEnqueueMemImageMap.

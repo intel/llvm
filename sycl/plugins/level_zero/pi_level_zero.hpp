@@ -451,10 +451,6 @@ struct _pi_event : _pi_object {
   // Level Zero event pool handle.
   ze_event_pool_handle_t ZeEventPool;
 
-  // This flag is used by MemBufferMap/UnMap on integrated devices
-  // to indicate that all actions have already been done.
-  bool HostSyncforMap = false;
-
   // Level Zero command list where the command signaling this event was appended
   // to. This is currently used to remember/destroy the command list after all
   // commands in it are completed, i.e. this event signaled.
