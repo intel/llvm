@@ -78,9 +78,10 @@ struct _pi_platform {
   std::string ZeDriverApiVersion;
 
   // Cache pi_devices for reuse
-  std::vector<pi_device> PiDevicesCache;
+  std::vector<std::unique_ptr<_pi_device>> PiDevicesCache;
   std::mutex PiDevicesCacheMutex;
   pi_device getDeviceFromNativeHandle(ze_device_handle_t);
+  bool DeviceCachePopulated = false;
 
   // Maximum Number of Command Lists that can be created.
   // This Value is initialized to 20000, but can be changed by the user
