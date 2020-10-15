@@ -91,7 +91,8 @@
 #error DO NOT use defines before including third party header files.
 #endif
 
-#if !defined(_HLS_EMBEDDED_PROFILE) || (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
+#if !defined(_HLS_EMBEDDED_PROFILE) || \
+    (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
 #ifndef __ASSERT_H__
 #define __ASSERT_H__
 #include <assert.h>
@@ -169,7 +170,8 @@ inline double mgc_floor(double d) { return floor(d); }
   }
 inline void ac_assert(bool condition, const char *file = 0, int line = 0,
                       const char *msg = 0) {
-#if defined(HLS_X86) || (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
+#if defined(HLS_X86) || \
+    (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
 #ifndef AC_USER_DEFINED_ASSERT
   if (!condition) {
     std::cerr << "Assert";
@@ -535,7 +537,8 @@ constexpr ap_uint<N> bit_division(ap_uint<N> value, ap_uint<N> divisor) {
   return bit_division<N>(value, divisor, r);
 }
 
-#if !defined(_HLS_EMBEDDED_PROFILE) || (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
+#if !defined(_HLS_EMBEDDED_PROFILE) || \
+    (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
 template <int N>
 inline std::string to_string(ap_uint<N> value, int base) {
   std::string buf = "";
@@ -564,7 +567,6 @@ inline std::string to_string(ap_uint<N> value, int base) {
 template <int N>
 inline std::string to_string_u(ap_uint<N> value, int base,
                                bool sign_mag = false) {
-
   return to_string(value, base);
 }
 
@@ -664,7 +666,8 @@ class iv {
   constexpr Ulong to_uint64() const { return (Ulong)value; }
   inline double to_double() const { return (double)value; }
 
-#if !defined(_HLS_EMBEDDED_PROFILE) || (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
+#if !defined(_HLS_EMBEDDED_PROFILE) || \
+    (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
   std::string to_string(ac_base_mode mode, bool sign_mag = false) const {
     if (mode == 10) {
       // If decimal presentation, N + 1 is set to avoid regarding positive
@@ -693,7 +696,8 @@ class iv {
     else {
       if (ap_equal_zeros_from<N, N2 + 1>(v)) return;
     }
-#if !defined(_HLS_EMBEDDED_PROFILE) || (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
+#if !defined(_HLS_EMBEDDED_PROFILE) || \
+    (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
     std::cout << "warning: overflow, assign value "
               << ac_private::to_string(v, 10) << " ("
               << ac_private::to_string(v, 16) << ")"
@@ -946,7 +950,8 @@ class iv {
 #pragma clang diagnostic ignored "-Wshift-count-overflow"
   template <int N2, bool S2>
   constexpr void set_slc(unsigned lsb, int WS, const iv<N2, S2> &op2) {
-#if defined(HLS_X86) || (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
+#if defined(HLS_X86) || \
+    (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
     AC_ASSERT(N2 <= N, "Bad usage: WS greater than length of slice");
 #else
     static_assert(N2 <= N, "Bad usage: WS greater than length of slice");
@@ -1199,7 +1204,8 @@ struct c_type {
     typedef typename rt_c_type_T<T2>::template op1<T>::div2 div2;
   };
 
-#if !defined(_HLS_EMBEDDED_PROFILE) || (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
+#if !defined(_HLS_EMBEDDED_PROFILE) || \
+    (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
   inline static std::string type_name() {
     std::string r = c_type_name<T>();
     return r;
@@ -1573,7 +1579,8 @@ class ac_int : public ac_private::iv_conv<W, S, W <= 64> {
 
   constexpr int length() const { return W; }
 
-#if !defined(_HLS_EMBEDDED_PROFILE) || (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
+#if !defined(_HLS_EMBEDDED_PROFILE) || \
+    (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
   inline std::string to_string(ac_base_mode base_rep,
                                bool sign_mag = false) const {
     return Base::to_string(base_rep, sign_mag);
@@ -2258,10 +2265,13 @@ struct rt_ac_int_T<c_type<T>> {
 }  // namespace ac_private
 
 // Stream --------------------------------------------------------------------
-#if defined(__linux__) && (!defined(_HLS_EMBEDDED_PROFILE) || (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__)))
+#if defined(__linux__) &&               \
+    (!defined(_HLS_EMBEDDED_PROFILE) || \
+     (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__)))
 template <int W, bool S>
 inline std::ostream &operator<<(std::ostream &os, const ac_int<W, S> &x) {
-#if defined(HLS_X86) || (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
+#if defined(HLS_X86) || \
+    (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
   os << x.to_string(AC_DEC, S);
 #endif
   return os;
