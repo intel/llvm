@@ -39,6 +39,13 @@ entry:
   ret i64 addrspace(3)* %cast
 }
 
+define half addrspace(3)* @__clc__get_group_scratch_half() nounwind alwaysinline {
+entry:
+  %ptr = getelementptr inbounds [64 x i64], [64 x i64] addrspace(3)* @__clc__group_scratch, i64 0, i64 0
+  %cast = bitcast i64 addrspace(3)* %ptr to half addrspace(3)*
+  ret half addrspace(3)* %cast
+}
+
 define float addrspace(3)* @__clc__get_group_scratch_float() nounwind alwaysinline {
 entry:
   %ptr = getelementptr inbounds [64 x i64], [64 x i64] addrspace(3)* @__clc__group_scratch, i64 0, i64 0
