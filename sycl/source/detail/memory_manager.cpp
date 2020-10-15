@@ -250,7 +250,7 @@ struct TermPositions {
   int ZTerm;
 };
 void prepTermPositions(TermPositions &pos, int Dimensions,
-                       detail::SYCLMemObjI::MemObjType type) {
+                       detail::SYCLMemObjI::MemObjType Type) {
   // For buffers, the offsets/ranges coming from accessor are always
   // id<3>/range<3> But their organization varies by dimension:
   //  1 ==>  {width, 1, 1}
@@ -258,7 +258,7 @@ void prepTermPositions(TermPositions &pos, int Dimensions,
   //  3 ==>  {depth, height, width}
   // Some callers schedule 0 as DimDst/DimSrc.
 
-  if (type == detail::SYCLMemObjI::MemObjType::BUFFER) {
+  if (Type == detail::SYCLMemObjI::MemObjType::BUFFER) {
     if (Dimensions == 3) {
       pos.XTerm = 2, pos.YTerm = 1, pos.ZTerm = 0;
     } else if (Dimensions == 2) {
