@@ -1877,15 +1877,15 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     ze_host_mem_alloc_desc_t ZeDesc = {};
     ZeDesc.flags = 0;
 
-    ZE_CALL(zeMemAllocHost(Context->ZeContext, &ZeDesc, Size, 4096, &Ptr));
+    ZE_CALL(zeMemAllocHost(Context->ZeContext, &ZeDesc, Size, 1, &Ptr));
 
   } else {
     ze_device_mem_alloc_desc_t ZeDesc = {};
     ZeDesc.flags = 0;
     ZeDesc.ordinal = 0;
 
-    ZE_CALL(zeMemAllocDevice(Context->ZeContext, &ZeDesc, Size, 4096, ZeDevice,
-                             &Ptr));
+    ZE_CALL(
+        zeMemAllocDevice(Context->ZeContext, &ZeDesc, Size, 1, ZeDevice, &Ptr));
   }
   if (HostPtr) {
     if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0 ||
@@ -4061,7 +4061,7 @@ piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer, pi_bool BlockingMap,
     ZeDesc.flags = 0;
 
     ZE_CALL(
-        zeMemAllocHost(Queue->Context->ZeContext, &ZeDesc, Size, 4096, RetMap));
+        zeMemAllocHost(Queue->Context->ZeContext, &ZeDesc, Size, 1, RetMap));
   }
 
   ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, NumEventsInWaitList,
@@ -4124,8 +4124,9 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   if (MemObj->OnHost) {
     // Wait on incoming events before doing the copy
     piEventsWait(NumEventsInWaitList, EventWaitList);
-    memcpy(pi_cast<char *>(MemObj->getZeHandle()) + MapInfo.Offset, MappedPtr,
-           MapInfo.Size);
+    if (MemObj->MapHostPtr)
+      memcpy(pi_cast<char *>(MemObj->getZeHandle()) + MapInfo.Offset, MappedPtr,
+             MapInfo.Size);
 
     // Signal this event
     ZE_CALL(zeEventHostSignal(ZeEvent));
