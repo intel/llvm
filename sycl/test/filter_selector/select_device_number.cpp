@@ -33,8 +33,8 @@ int main() {
     cpu_selector cs;
     try {
       device d = cs.select_device();
-      std::cout << "CPU Device is found: " << std::boolalpha
-                << d.is_cpu() << std::endl;
+      std::cout << "CPU Device is found: " << std::boolalpha << d.is_cpu()
+                << std::endl;
     } catch (...) {
       std::cout << "Unexpectedly, CPU device is not found." << std::endl;
       return -1;
