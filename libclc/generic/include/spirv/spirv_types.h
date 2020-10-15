@@ -40,4 +40,10 @@ enum FPRoundingMode {
   SPV_RTN = 3,
 };
 
+enum GroupOperation {
+  Reduce = 0,
+  InclusiveScan = 1,
+  ExclusiveScan = 2,
+};
+
 #endif // CLC_SPIRV_TYPES
