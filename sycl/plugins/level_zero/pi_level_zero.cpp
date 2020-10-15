@@ -650,7 +650,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
 
   // Cache pi_platforms for reuse in the future
   // It solves two problems;
-  // 1. sycl::device equality issue; we always return the same pi_device.
+  // 1. sycl::platform equality issue; we always return the same pi_platform.
   // 2. performance; we can save time by immediately return from cache.
   //
   // Note: The memory for "PiPlatformsCache" and "PiPlatformsCacheMutex" is
