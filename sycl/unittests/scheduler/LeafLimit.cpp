@@ -44,9 +44,10 @@ TEST_F(SchedulerTest, LeafLimit) {
     Leaf->addDep(
         detail::DepDesc{MockDepCmd.get(), Leaf->getRequirement(), nullptr});
   }
+  std::vector<cl::sycl::detail::Command *> ToEnqueue;
   // Add edges as leaves and exceed the leaf limit
   for (auto &LeafPtr : LeavesToAdd) {
-    MS.addNodeToLeaves(Rec, LeafPtr.get());
+    MS.addNodeToLeaves(Rec, LeafPtr.get(), access::mode::read, ToEnqueue);
   }
   // Check that the oldest leaf has been removed from the leaf list
   // and added as a dependency of the newest one instead

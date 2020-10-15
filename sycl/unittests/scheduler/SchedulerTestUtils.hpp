@@ -20,6 +20,10 @@
 
 cl::sycl::detail::Requirement getMockRequirement();
 
+namespace cl { namespace sycl { namespace detail {
+  class Command;
+}}}
+
 class MockCommand : public cl::sycl::detail::Command {
 public:
   MockCommand(cl::sycl::detail::QueueImplPtr Queue,
@@ -103,21 +107,28 @@ public:
 
   void addNodeToLeaves(
       cl::sycl::detail::MemObjRecord *Rec, cl::sycl::detail::Command *Cmd,
-      cl::sycl::access::mode Mode = cl::sycl::access::mode::read_write) {
-    return MGraphBuilder.addNodeToLeaves(Rec, Cmd, Mode);
+      cl::sycl::access::mode Mode,
+      std::vector<cl::sycl::detail::Command *> &ToEnqueue) {
+    return MGraphBuilder.addNodeToLeaves(Rec, Cmd, Mode, ToEnqueue);
   }
 
   static bool enqueueCommand(cl::sycl::detail::Command *Cmd,
                              cl::sycl::detail::EnqueueResultT &EnqueueResult,
+                             ReadLockT &GraphReadLock,
                              cl::sycl::detail::BlockingT Blocking) {
-    return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, Blocking);
+    return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, GraphReadLock, Blocking);
   }
 
   cl::sycl::detail::AllocaCommandBase *
   getOrCreateAllocaForReq(cl::sycl::detail::MemObjRecord *Record,
                           const cl::sycl::detail::Requirement *Req,
-                          cl::sycl::detail::QueueImplPtr Queue) {
-    return MGraphBuilder.getOrCreateAllocaForReq(Record, Req, Queue);
+                          cl::sycl::detail::QueueImplPtr Queue,
+                          std::vector<cl::sycl::detail::Command *> &ToEnqueue) {
+    return MGraphBuilder.getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
+  }
+
+  ReadLockT acquireGraphReadLock() {
+    return ReadLockT{MGraphLock};
   }
 };
 

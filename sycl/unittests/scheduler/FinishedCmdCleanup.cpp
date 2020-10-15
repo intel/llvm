@@ -59,13 +59,15 @@ TEST_F(SchedulerTest, FinishedCmdCleanup) {
       detail::getSyclObjImpl(MQueue), MockReqA, Callback);
   addEdge(InnerC, &AllocaA, &AllocaA);
 
+  std::vector<detail::Command *> ToEnqueue;
+
   MockCommand LeafB{detail::getSyclObjImpl(MQueue), MockReqB};
   addEdge(&LeafB, &AllocaB, &AllocaB);
-  MS.addNodeToLeaves(RecC, &LeafB);
+  MS.addNodeToLeaves(RecC, &LeafB, access::mode::read, ToEnqueue);
 
   MockCommand LeafA{detail::getSyclObjImpl(MQueue), MockReqA};
   addEdge(&LeafA, InnerC, &AllocaA);
-  MS.addNodeToLeaves(RecC, &LeafA);
+  MS.addNodeToLeaves(RecC, &LeafA, access::mode::read, ToEnqueue);
 
   MockCommand *InnerB = new MockCommandWithCallback(
       detail::getSyclObjImpl(MQueue), MockReqB, Callback);

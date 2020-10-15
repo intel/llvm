@@ -20,9 +20,11 @@ TEST_F(SchedulerTest, FailedDependency) {
   MUser.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   MDep.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueFailed;
 
+  MockScheduler MS;
+  auto Lock = MS.acquireGraphReadLock();
   detail::EnqueueResultT Res;
   bool Enqueued =
-      MockScheduler::enqueueCommand(&MUser, Res, detail::NON_BLOCKING);
+      MockScheduler::enqueueCommand(&MUser, Res, Lock, detail::NON_BLOCKING);
 
   ASSERT_FALSE(Enqueued) << "Enqueue process must fail\n";
   ASSERT_EQ(Res.MCmd, &MDep) << "Wrong failed command\n";
