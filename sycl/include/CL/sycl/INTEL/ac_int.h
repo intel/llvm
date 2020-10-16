@@ -80,7 +80,7 @@
 #endif
 
 // for safety
-#if (defined(W) || defined(I) || defined(S) || defined(W2) || defined(I2) || \
+#if (defined(W) || defined(I) || defined(S) || defined(W2) || defined(I2) ||   \
      defined(S2))
 #error One or more of the following is defined: W, I, S, W2, I2, S2. Definition conflicts with their usage as template parameters.
 #error DO NOT use defines before including third party header files.
@@ -91,7 +91,7 @@
 #error DO NOT use defines before including third party header files.
 #endif
 
-#if !defined(_HLS_EMBEDDED_PROFILE) || \
+#if !defined(_HLS_EMBEDDED_PROFILE) ||                                         \
     (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
 #ifndef __ASSERT_H__
 #define __ASSERT_H__
@@ -106,13 +106,13 @@
 #else
 #undef DEBUG_AC_INT_ERROR
 #undef DEBUG_AC_INT_WARNING
-#endif  //_HLS_EMBEDDED_PROFILE
+#endif //_HLS_EMBEDDED_PROFILE
 
 #include "math.h"
 
 #if defined(DEBUG_AC_INT_ERROR) || defined(DEBUG_AC_INT_WARNING)
 #define DEBUG_AC_INT
-#pragma message( \
+#pragma message(                                                               \
     "using ac_int debug macros (DEBUG_AC_INT_WARNING/DEBUG_AC_INT_ERROR) may result in performance degradation when compiling for FPGA.")
 #endif
 
@@ -143,15 +143,12 @@ enum ac_special_val {
 
 static bool warned_undef = false;
 
-template <int W, bool S>
-class ac_int;
+template <int W, bool S> class ac_int;
 
 namespace ac_private {
 
-template <int Bits>
-using ap_int = _ExtInt(Bits);
-template <unsigned int Bits>
-using ap_uint = unsigned _ExtInt(Bits);
+template <int Bits> using ap_int = _ExtInt(Bits);
+template <unsigned int Bits> using ap_uint = unsigned _ExtInt(Bits);
 
 enum { long_w = sizeof(unsigned long) * 8 };
 
@@ -162,21 +159,23 @@ inline double mgc_floor(double d) { return floor(d); }
 #ifdef _HLS_EMBEDDED_PROFILE
 #define AC_ASSERT(cond, msg)
 #else
-#define AC_ASSERT(cond, msg)                                \
-  {                                                         \
-    if (!(cond)) {                                          \
-      ac_private::ac_assert(cond, __FILE__, __LINE__, msg); \
-    }                                                       \
+#define AC_ASSERT(cond, msg)                                                   \
+  {                                                                            \
+    if (!(cond)) {                                                             \
+      ac_private::ac_assert(cond, __FILE__, __LINE__, msg);                    \
+    }                                                                          \
   }
 inline void ac_assert(bool condition, const char *file = 0, int line = 0,
                       const char *msg = 0) {
-#if defined(HLS_X86) || \
+#if defined(HLS_X86) ||                                                        \
     (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
 #ifndef AC_USER_DEFINED_ASSERT
   if (!condition) {
     std::cerr << "Assert";
-    if (file) std::cerr << " in file " << file << ":" << line;
-    if (msg) std::cerr << " " << msg;
+    if (file)
+      std::cerr << " in file " << file << ":" << line;
+    if (msg)
+      std::cerr << " " << msg;
     std::cerr << std::endl;
     assert(0);
   }
@@ -185,14 +184,12 @@ inline void ac_assert(bool condition, const char *file = 0, int line = 0,
 #endif
 #endif
 }
-#endif  //_HLS_EMBEDDED_PROFILE
+#endif //_HLS_EMBEDDED_PROFILE
 
 // helper structs for statically computing log2 like functions (nbits,
 // log2_floor, log2_ceil) using recursive templates
-template <unsigned char N>
-struct s_N {
-  template <unsigned X>
-  struct s_X {
+template <unsigned char N> struct s_N {
+  template <unsigned X> struct s_X {
     enum {
       X2 = X >> N,
       N_div_2 = N >> 1,
@@ -202,59 +199,46 @@ struct s_N {
     };
   };
 };
-template <>
-struct s_N<0> {
-  template <unsigned X>
-  struct s_X {
+template <> struct s_N<0> {
+  template <unsigned X> struct s_X {
     enum { nbits = !!X };
   };
 };
 
-template <int N>
-inline double ldexpr32(double d) {
+template <int N> inline double ldexpr32(double d) {
   double d2 = d;
   if (N < 0)
-    for (int i = 0; i < -N; i++) d2 /= (Ulong)1 << 32;
+    for (int i = 0; i < -N; i++)
+      d2 /= (Ulong)1 << 32;
   else
-    for (int i = 0; i < N; i++) d2 *= (Ulong)1 << 32;
+    for (int i = 0; i < N; i++)
+      d2 *= (Ulong)1 << 32;
   return d2;
 }
-template <>
-inline double ldexpr32<0>(double d) {
-  return d;
-}
-template <>
-inline double ldexpr32<1>(double d) {
-  return d * ((Ulong)1 << 32);
-}
-template <>
-inline double ldexpr32<-1>(double d) {
+template <> inline double ldexpr32<0>(double d) { return d; }
+template <> inline double ldexpr32<1>(double d) { return d * ((Ulong)1 << 32); }
+template <> inline double ldexpr32<-1>(double d) {
   return d / ((Ulong)1 << 32);
 }
-template <>
-inline double ldexpr32<2>(double d) {
+template <> inline double ldexpr32<2>(double d) {
   return (d * ((Ulong)1 << 32)) * ((Ulong)1 << 32);
 }
-template <>
-inline double ldexpr32<-2>(double d) {
+template <> inline double ldexpr32<-2>(double d) {
   return (d / ((Ulong)1 << 32)) / ((Ulong)1 << 32);
 }
 
-template <int N>
-inline double ldexpr(double d) {
+template <int N> inline double ldexpr(double d) {
   return ldexpr32<N / 32>(N < 0 ? d / ((unsigned)1 << (-N & 31))
                                 : d * ((unsigned)1 << (N & 31)));
 }
 
-template <int N>
-inline double ldexpr1(double d) {
+template <int N> inline double ldexpr1(double d) {
   return N < 0 ? d / ((unsigned)1 << (-N)) : d * ((unsigned)1 << (N));
 }
 
 // Xn-1, Xn-2, Xn-3, Xn-4, ...X(I+W-1)..XI.., X2, X1, X0
 // Returns ap_uint<W> using:  |---------| bits from value.
-template <int W, int I, int N>
-constexpr ap_uint<W> bit_slc(ap_uint<N> value) {
+template <int W, int I, int N> constexpr ap_uint<W> bit_slc(ap_uint<N> value) {
   static_assert(N >= W, "");
   constexpr int shift_v = AC_MIN(I, N - 1);
   ap_uint<N> op = (value >> (shift_v));
@@ -264,74 +248,62 @@ constexpr ap_uint<W> bit_slc(ap_uint<N> value) {
 
 // Xn-1, Xn-2, Xn-3, Xn-4, ...X(I+W-1)..XI.., X2, X1, X0
 // Returns ap_int<W> using:   |---------| bits from value.
-template <int W, int I, int N>
-constexpr ap_int<W> bit_slc(ap_int<N> value) {
+template <int W, int I, int N> constexpr ap_int<W> bit_slc(ap_int<N> value) {
   ap_uint<N> v = value;
   return (ap_uint<W>)(bit_slc<W, I, N>(v));
 }
 
-template <int N>
-constexpr bool ap_less_zero(ap_uint<N>) {
-  return false;
-}
+template <int N> constexpr bool ap_less_zero(ap_uint<N>) { return false; }
 
-template <int N>
-constexpr bool ap_less_zero(ap_int<N> value) {
+template <int N> constexpr bool ap_less_zero(ap_int<N> value) {
   return value < static_cast<ac_private::ap_int<N>>(0);
 }
 
 // if bits [0, B-1] all 0s
-template <int B, int N>
-constexpr bool ap_equal_zeros_to(ap_uint<N> value) {
+template <int B, int N> constexpr bool ap_equal_zeros_to(ap_uint<N> value) {
   ap_uint<B> v = bit_slc<B, 0, N>(value);
   return v == static_cast<ac_private::ap_uint<B>>(0);
 }
 
-template <int B, int N>
-constexpr bool ap_equal_zeros_to(ap_int<N> value) {
+template <int B, int N> constexpr bool ap_equal_zeros_to(ap_int<N> value) {
   ap_uint<N> v = value;
   return ap_equal_zeros_to<B, N>(v);
 }
 
 // if bits [0, B-1] all 0s
-template <int B, int N>
-constexpr bool ap_equal_ones_to(ap_uint<N> value) {
+template <int B, int N> constexpr bool ap_equal_ones_to(ap_uint<N> value) {
   static_assert(N >= B, "");
-  if (!B) return true;
+  if (!B)
+    return true;
   constexpr int B1 = AC_MAX(B, 1);
   ap_uint<B1> v = bit_slc<B1, 0, N>(value);
   return (~v) == static_cast<ac_private::ap_uint<B1>>(0);
 }
 
-template <int B, int N>
-constexpr bool ap_equal_ones_to(ap_int<N> value) {
+template <int B, int N> constexpr bool ap_equal_ones_to(ap_int<N> value) {
   ap_uint<N> v = value;
   return ap_equal_ones_to<B, N>(v);
 }
 
 // if bits [B, N-1] are all ones
-template <int B, int N>
-constexpr bool ap_equal_zeros_from(ap_uint<N> value) {
+template <int B, int N> constexpr bool ap_equal_zeros_from(ap_uint<N> value) {
   constexpr int L = AC_MAX(N - B, 1);
   ap_uint<L> v = bit_slc<L, B, N>(value);
   return v == static_cast<ac_private::ap_uint<L>>(0);
 }
 
-template <int B, int N>
-constexpr bool ap_equal_zeros_from(ap_int<N> value) {
+template <int B, int N> constexpr bool ap_equal_zeros_from(ap_int<N> value) {
   ap_uint<N> v = value;
   return ap_equal_zeros_from<B, N>(v);
 }
 
-template <int B, int N>
-constexpr bool ap_equal_ones_from(ap_uint<N> value) {
+template <int B, int N> constexpr bool ap_equal_ones_from(ap_uint<N> value) {
   constexpr int L = AC_MAX(N - B, 1);
   ap_uint<L> v = bit_slc<L, B, N>(value);
   return (~v) == static_cast<ac_private::ap_uint<L>>(0);
 }
 
-template <int B, int N>
-constexpr bool ap_equal_ones_from(ap_int<N> value) {
+template <int B, int N> constexpr bool ap_equal_ones_from(ap_int<N> value) {
   ap_uint<N> v = value;
   return ap_equal_ones_from<B, N>(v);
 }
@@ -392,7 +364,7 @@ inline void ap_conv_from_fraction(double d, ap_int<N> &r, bool *qb, bool *rbits,
 
   r = tb;
   d2 *= 2;
-  bool k = (int(d2)) != 0;  // math
+  bool k = (int(d2)) != 0; // math
   d2 -= k ? 1.0 : 0.0;
   *rbits = d2 != 0.0;
   *qb = (b && *rbits) ^ k;
@@ -416,15 +388,16 @@ inline void ap_conv_from_fraction(double d, ap_int<N> &r, bool *qb, bool *rbits,
       bool sign_bit = bit_slc<1, N - 1>(k1);
       bool digi_bits_zero = ap_equal_zeros_to<N - 1>(k1);
       if (cond1)
-        *io = -1;  // cond1
+        *io = -1; // cond1
       else if (sign_bit) {
         if (digi_bits_zero)
-          *io = -2;  // cond2
+          *io = -2; // cond2
         else
-          *io = -1;  // cond3
+          *io = -1; // cond3
       }
     } else {
-      if (!ap_equal_zeros_from<N - 1>(k1)) *io = 1;
+      if (!ap_equal_zeros_from<N - 1>(k1))
+        *io = 1;
     }
   }
   *o |= b ^ ((tb < static_cast<ac_private::ap_int<N + 1>>(0)) && S);
@@ -490,8 +463,7 @@ constexpr ap_uint<N1 + N2> bit_multiply(ap_uint<N1> v1, ap_uint<N2> v2) {
 }
 
 // Helper function for pow on x86
-template <int N, int P>
-constexpr ap_uint<N * P> ap_int_pow(ap_uint<N> value) {
+template <int N, int P> constexpr ap_uint<N * P> ap_int_pow(ap_uint<N> value) {
   constexpr int Nr = N * P;
   ap_uint<Nr> base = value;
   ap_uint<Nr> r = 1;
@@ -537,10 +509,9 @@ constexpr ap_uint<N> bit_division(ap_uint<N> value, ap_uint<N> divisor) {
   return bit_division<N>(value, divisor, r);
 }
 
-#if !defined(_HLS_EMBEDDED_PROFILE) || \
+#if !defined(_HLS_EMBEDDED_PROFILE) ||                                         \
     (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
-template <int N>
-inline std::string to_string(ap_uint<N> value, int base) {
+template <int N> inline std::string to_string(ap_uint<N> value, int base) {
   std::string buf = "";
   if (base < 2 || base > 16) {
     return buf;
@@ -612,34 +583,25 @@ inline std::string to_string(ap_int<N> value, int base, bool sign_mag = false) {
     }
   }
 }
-#endif  //_HLS_EMBEDDED_PROFILE
+#endif //_HLS_EMBEDDED_PROFILE
 
-template <int W, bool S>
-struct select_type {};
+template <int W, bool S> struct select_type {};
 
 // The i++ flow type selections ...
-template <int W>
-struct select_type<W, true> {
-  typedef ap_int<W> type;
-};
+template <int W> struct select_type<W, true> { typedef ap_int<W> type; };
 
-template <int W>
-struct select_type<W, false> {
-  typedef ap_uint<W> type;
-};
+template <int W> struct select_type<W, false> { typedef ap_uint<W> type; };
 
 //////////////////////////////////////////////////////////////////////////////
 //  Integer Vector class: iv
 //////////////////////////////////////////////////////////////////////////////
-template <int N, bool S>
-class iv {
- protected:
+template <int N, bool S> class iv {
+protected:
   typedef typename select_type<N, S>::type actype;
   actype value;
 
- public:
-  template <int N2, bool S2>
-  friend class iv;
+public:
+  template <int N2, bool S2> friend class iv;
 
   constexpr iv() {}
 
@@ -666,7 +628,7 @@ class iv {
   constexpr Ulong to_uint64() const { return (Ulong)value; }
   inline double to_double() const { return (double)value; }
 
-#if !defined(_HLS_EMBEDDED_PROFILE) || \
+#if !defined(_HLS_EMBEDDED_PROFILE) ||                                         \
     (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
   std::string to_string(ac_base_mode mode, bool sign_mag = false) const {
     if (mode == 10) {
@@ -678,7 +640,7 @@ class iv {
       return ac_private::to_string<N>(value, mode, sign_mag);
     }
   }
-#endif  //_HLS_EMBEDDED_PROFILE
+#endif //_HLS_EMBEDDED_PROFILE
 
   // BEGIN: debug functions for X86 flow
   template <int N2, bool S2>
@@ -686,24 +648,28 @@ class iv {
 #if defined(DEBUG_AC_INT)
     enum { Nx = AC_MAX(N, N2 + 1) };
     ap_int<N2 + 1> v = op2.value;
-    if (N2 + 1 <= N) return;
+    if (N2 + 1 <= N)
+      return;
     // S -> S, check bits [N2 + 1, .. , N-1]
     if (S) {
-      if (ap_equal_ones_from<N - 1, N2 + 1>(v)) return;
-      if (ap_equal_zeros_from<N - 1, N2 + 1>(v)) return;
+      if (ap_equal_ones_from<N - 1, N2 + 1>(v))
+        return;
+      if (ap_equal_zeros_from<N - 1, N2 + 1>(v))
+        return;
     }
     // S -> U, check bits [N2 + 1, .. , N]
     else {
-      if (ap_equal_zeros_from<N, N2 + 1>(v)) return;
+      if (ap_equal_zeros_from<N, N2 + 1>(v))
+        return;
     }
-#if !defined(_HLS_EMBEDDED_PROFILE) || \
+#if !defined(_HLS_EMBEDDED_PROFILE) ||                                         \
     (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
     std::cout << "warning: overflow, assign value "
               << ac_private::to_string(v, 10) << " ("
               << ac_private::to_string(v, 16) << ")"
               << " to type ac_int<" << N << ", " << (S ? "true" : "false")
               << ">" << std::endl;
-#endif  //_HLS_EMBEDDED_PROFILE
+#endif //_HLS_EMBEDDED_PROFILE
 
 #ifdef DEBUG_AC_INT_ERROR
     AC_ASSERT(0, "Assert due to overflow (DEBUG_AC_INT_ERROR)");
@@ -788,8 +754,7 @@ class iv {
     constexpr value_type one = 1;
     value -= one;
   }
-  template <int Nr, bool Sr>
-  constexpr void neg(iv<Nr, Sr> &r) const {
+  template <int Nr, bool Sr> constexpr void neg(iv<Nr, Sr> &r) const {
     r.value = value;
     r.value = -r.value;
   }
@@ -920,8 +885,7 @@ class iv {
     r.value = value;
     r.value ^= static_cast<typename select_type<Nr, Sr>::type>(op2.value);
   }
-  template <int N2, bool S2>
-  constexpr bool equal(const iv<N2, S2> &op2) const {
+  template <int N2, bool S2> constexpr bool equal(const iv<N2, S2> &op2) const {
     constexpr auto Sx = AC_MAX(N, N2);
     ap_int<Sx + 1> a = (ap_int<Sx + 1>)value;
     ap_int<Sx + 1> b = (ap_int<Sx + 1>)op2.value;
@@ -950,7 +914,7 @@ class iv {
 #pragma clang diagnostic ignored "-Wshift-count-overflow"
   template <int N2, bool S2>
   constexpr void set_slc(unsigned lsb, int WS, const iv<N2, S2> &op2) {
-#if defined(HLS_X86) || \
+#if defined(HLS_X86) ||                                                        \
     (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
     AC_ASSERT(N2 <= N, "Bad usage: WS greater than length of slice");
 #else
@@ -981,100 +945,63 @@ class iv {
 
   unsigned leading_bits(bool bit) const { return 0; }
 
-  template <int Nr, bool Sr>
-  constexpr void reverse(iv<Nr, Sr> &r) const {
+  template <int Nr, bool Sr> constexpr void reverse(iv<Nr, Sr> &r) const {
     r.value = 0;
     for (int i = 0; i < N; i++) {
       r.value |= ((value >> i) & 1) << ((N - 1) - i);
     }
   }
-};  // class iv, signed
+}; // class iv, signed
 
 // add automatic conversion to Slong/Ulong depending on S and C
-template <int N, bool S, bool C>
-class iv_conv : public iv<N, S> {
- protected:
+template <int N, bool S, bool C> class iv_conv : public iv<N, S> {
+protected:
   constexpr iv_conv() {}
-  template <class T>
-  constexpr iv_conv(const T &t) : iv<N, S>(t) {}
+  template <class T> constexpr iv_conv(const T &t) : iv<N, S>(t) {}
 };
 
-template <int N>
-class iv_conv<N, false, true> : public iv<N, false> {
- public:
+template <int N> class iv_conv<N, false, true> : public iv<N, false> {
+public:
   constexpr operator Ulong() const { return iv<N, false>::to_uint64(); }
 
- protected:
+protected:
   constexpr iv_conv() {}
-  template <class T>
-  constexpr iv_conv(const T &t) : iv<N, false>(t) {}
+  template <class T> constexpr iv_conv(const T &t) : iv<N, false>(t) {}
 };
 
-template <int N>
-class iv_conv<N, true, true> : public iv<N, true> {
- public:
+template <int N> class iv_conv<N, true, true> : public iv<N, true> {
+public:
   constexpr operator Slong() const { return iv<N, true>::to_int64(); }
 
- protected:
+protected:
   constexpr iv_conv() {}
-  template <class T>
-  constexpr iv_conv(const T &t) : iv<N, true>(t) {}
+  template <class T> constexpr iv_conv(const T &t) : iv<N, true>(t) {}
 };
 
 // Set default to promote to int as this is the case for almost all types
 //  create exceptions using specializations
-template <typename T>
-struct c_prom {
-  typedef int promoted_type;
-};
-template <>
-struct c_prom<unsigned> {
-  typedef unsigned promoted_type;
-};
-template <>
-struct c_prom<long> {
-  typedef long promoted_type;
-};
-template <>
-struct c_prom<unsigned long> {
+template <typename T> struct c_prom { typedef int promoted_type; };
+template <> struct c_prom<unsigned> { typedef unsigned promoted_type; };
+template <> struct c_prom<long> { typedef long promoted_type; };
+template <> struct c_prom<unsigned long> {
   typedef unsigned long promoted_type;
 };
-template <>
-struct c_prom<Slong> {
-  typedef Slong promoted_type;
-};
-template <>
-struct c_prom<Ulong> {
-  typedef Ulong promoted_type;
-};
-template <>
-struct c_prom<float> {
-  typedef float promoted_type;
-};
-template <>
-struct c_prom<double> {
-  typedef double promoted_type;
-};
+template <> struct c_prom<Slong> { typedef Slong promoted_type; };
+template <> struct c_prom<Ulong> { typedef Ulong promoted_type; };
+template <> struct c_prom<float> { typedef float promoted_type; };
+template <> struct c_prom<double> { typedef double promoted_type; };
 
-template <typename T, typename T2>
-struct c_arith {
+template <typename T, typename T2> struct c_arith {
   // will error out for pairs of T and T2 that are not defined through
   // specialization
 };
-template <typename T>
-struct c_arith<T, T> {
-  typedef T arith_conv;
-};
+template <typename T> struct c_arith<T, T> { typedef T arith_conv; };
 
-#define C_ARITH(C_TYPE1, C_TYPE2)    \
-  template <>                        \
-  struct c_arith<C_TYPE1, C_TYPE2> { \
-    typedef C_TYPE1 arith_conv;      \
-  };                                 \
-  template <>                        \
-  struct c_arith<C_TYPE2, C_TYPE1> { \
-    typedef C_TYPE1 arith_conv;      \
-  };
+#define C_ARITH(C_TYPE1, C_TYPE2)                                              \
+  template <> struct c_arith<C_TYPE1, C_TYPE2> {                               \
+    typedef C_TYPE1 arith_conv;                                                \
+  };                                                                           \
+  template <> struct c_arith<C_TYPE2, C_TYPE1> { typedef C_TYPE1 arith_conv; };
 
 C_ARITH(double, float)
 C_ARITH(double, int)
@@ -1095,83 +1022,47 @@ C_ARITH(Slong, unsigned)
 C_ARITH(Ulong, int)
 C_ARITH(Ulong, unsigned)
 
-template <typename T>
-struct map {
-  typedef T t;
-};
-template <typename T>
-struct c_type_params {
+template <typename T> struct map { typedef T t; };
+template <typename T> struct c_type_params {
   // will error out for T for which this template struct is not specialized
 };
 
-template <typename T>
-inline const char *c_type_name() {
-  return "unknown";
-}
-template <>
-inline const char *c_type_name<bool>() {
-  return "bool";
-}
-template <>
-inline const char *c_type_name<char>() {
-  return "char";
-}
-template <>
-inline const char *c_type_name<signed char>() {
+template <typename T> inline const char *c_type_name() { return "unknown"; }
+template <> inline const char *c_type_name<bool>() { return "bool"; }
+template <> inline const char *c_type_name<char>() { return "char"; }
+template <> inline const char *c_type_name<signed char>() {
   return "signed char";
 }
-template <>
-inline const char *c_type_name<unsigned char>() {
+template <> inline const char *c_type_name<unsigned char>() {
   return "unsigned char";
 }
-template <>
-inline const char *c_type_name<signed short>() {
+template <> inline const char *c_type_name<signed short>() {
   return "signed short";
 }
-template <>
-inline const char *c_type_name<unsigned short>() {
+template <> inline const char *c_type_name<unsigned short>() {
   return "unsigned short";
 }
-template <>
-inline const char *c_type_name<int>() {
-  return "int";
-}
-template <>
-inline const char *c_type_name<unsigned>() {
-  return "unsigned";
-}
-template <>
-inline const char *c_type_name<signed long>() {
+template <> inline const char *c_type_name<int>() { return "int"; }
+template <> inline const char *c_type_name<unsigned>() { return "unsigned"; }
+template <> inline const char *c_type_name<signed long>() {
   return "signed long";
 }
-template <>
-inline const char *c_type_name<unsigned long>() {
+template <> inline const char *c_type_name<unsigned long>() {
   return "unsigned long";
 }
-template <>
-inline const char *c_type_name<signed long long>() {
+template <> inline const char *c_type_name<signed long long>() {
   return "signed long long";
 }
-template <>
-inline const char *c_type_name<unsigned long long>() {
+template <> inline const char *c_type_name<unsigned long long>() {
   return "unsigned long long";
 }
-template <>
-inline const char *c_type_name<float>() {
-  return "float";
-}
-template <>
-inline const char *c_type_name<double>() {
-  return "double";
-}
+template <> inline const char *c_type_name<float>() { return "float"; }
+template <> inline const char *c_type_name<double>() { return "double"; }
 
-template <typename T>
-struct c_type;
+template <typename T> struct c_type;
 
-template <typename T>
-struct rt_c_type_T {
-  template <typename T2>
-  struct op1 {
+template <typename T> struct rt_c_type_T {
+  template <typename T2> struct op1 {
     typedef typename T::template rt_T<c_type<T2>>::mult mult;
     typedef typename T::template rt_T<c_type<T2>>::plus plus;
     typedef typename T::template rt_T<c_type<T2>>::minus2 minus;
@@ -1181,20 +1072,15 @@ struct rt_c_type_T {
     typedef typename T::template rt_T<c_type<T2>>::div div2;
   };
 };
-template <typename T>
-struct c_type {
+template <typename T> struct c_type {
   typedef typename c_prom<T>::promoted_type c_prom_T;
   struct rt_unary {
     typedef c_prom_T neg;
     typedef c_prom_T mag_sqr;
     typedef c_prom_T mag;
-    template <unsigned N>
-    struct set {
-      typedef c_prom_T sum;
-    };
+    template <unsigned N> struct set { typedef c_prom_T sum; };
   };
-  template <typename T2>
-  struct rt_T {
+  template <typename T2> struct rt_T {
     typedef typename rt_c_type_T<T2>::template op1<T>::mult mult;
     typedef typename rt_c_type_T<T2>::template op1<T>::plus plus;
     typedef typename rt_c_type_T<T2>::template op1<T>::minus minus;
@@ -1204,20 +1090,18 @@ struct c_type {
     typedef typename rt_c_type_T<T2>::template op1<T>::div2 div2;
   };
 
-#if !defined(_HLS_EMBEDDED_PROFILE) || \
+#if !defined(_HLS_EMBEDDED_PROFILE) ||                                         \
     (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
   inline static std::string type_name() {
     std::string r = c_type_name<T>();
     return r;
   }
-#endif  //_HLS_EMBEDDED_PROFILE
+#endif //_HLS_EMBEDDED_PROFILE
 };
 // with T == c_type
-template <typename T>
-struct rt_c_type_T<c_type<T>> {
+template <typename T> struct rt_c_type_T<c_type<T>> {
   typedef typename c_prom<T>::promoted_type c_prom_T;
-  template <typename T2>
-  struct op1 {
+  template <typename T2> struct op1 {
     typedef typename c_prom<T2>::promoted_type c_prom_T2;
     typedef typename c_arith<c_prom_T, c_prom_T2>::arith_conv mult;
     typedef typename c_arith<c_prom_T, c_prom_T2>::arith_conv plus;
@@ -1229,27 +1113,22 @@ struct rt_c_type_T<c_type<T>> {
   };
 };
 
-#define C_TYPE_MAP(C_TYPE)    \
-  template <>                 \
-  struct map<C_TYPE> {        \
-    typedef c_type<C_TYPE> t; \
+#define C_TYPE_MAP(C_TYPE)                                                     \
+  template <> struct map<C_TYPE> { typedef c_type<C_TYPE> t; };
+
+#define C_TYPE_PARAMS(C_TYPE, WI, SI)                                          \
+  template <> struct c_type_params<C_TYPE> {                                   \
+    enum { W = WI, I = WI, E = 0, S = SI, floating_point = 0 };                \
   };
 
-#define C_TYPE_PARAMS(C_TYPE, WI, SI)                           \
-  template <>                                                   \
-  struct c_type_params<C_TYPE> {                                \
-    enum { W = WI, I = WI, E = 0, S = SI, floating_point = 0 }; \
-  };
-
-#define C_TYPE_MAP_INT(C_TYPE, WI, SI) \
-  C_TYPE_MAP(C_TYPE)                   \
+#define C_TYPE_MAP_INT(C_TYPE, WI, SI)                                         \
+  C_TYPE_MAP(C_TYPE)                                                           \
   C_TYPE_PARAMS(C_TYPE, WI, SI)
 
-#define C_TYPE_MAP_FLOAT(C_TYPE, FP, WFP, IFP, EFP)                    \
-  C_TYPE_MAP(C_TYPE)                                                   \
-  template <>                                                          \
-  struct c_type_params<C_TYPE> {                                       \
-    enum { W = WFP, I = IFP, E = EFP, S = true, floating_point = FP }; \
+#define C_TYPE_MAP_FLOAT(C_TYPE, FP, WFP, IFP, EFP)                            \
+  C_TYPE_MAP(C_TYPE)                                                           \
+  template <> struct c_type_params<C_TYPE> {                                   \
+    enum { W = WFP, I = IFP, E = EFP, S = true, floating_point = FP };         \
   };
 
 C_TYPE_MAP_INT(bool, 1, false)
@@ -1274,10 +1153,8 @@ C_TYPE_MAP_FLOAT(double, 2, 54, 1, 11)
 
 // specializations for following struct declared/defined after definition of
 // ac_int
-template <typename T>
-struct rt_ac_int_T {
-  template <int W, bool S>
-  struct op1 {
+template <typename T> struct rt_ac_int_T {
+  template <int W, bool S> struct op1 {
     typedef typename T::template rt_T<ac_int<W, S>>::mult mult;
     typedef typename T::template rt_T<ac_int<W, S>>::plus plus;
     typedef typename T::template rt_T<ac_int<W, S>>::minus2 minus;
@@ -1287,35 +1164,29 @@ struct rt_ac_int_T {
     typedef typename T::template rt_T<ac_int<W, S>>::div div2;
   };
 };
-}  // namespace ac_private
+} // namespace ac_private
 
 namespace ac {
 // compiler time constant for log2 like functions
-template <unsigned X>
-struct nbits {
+template <unsigned X> struct nbits {
   enum { val = ac_private::s_N<16>::s_X<X>::nbits };
 };
 
-template <unsigned X>
-struct log2_floor {
+template <unsigned X> struct log2_floor {
   enum { val = nbits<X>::val - 1 };
 };
 
 // log2 of 0 is not defined: generate compiler error
-template <>
-struct log2_floor<0> {};
+template <> struct log2_floor<0> {};
 
-template <unsigned X>
-struct log2_ceil {
+template <unsigned X> struct log2_ceil {
   enum { lf = log2_floor<X>::val, val = (X == (1 << lf) ? lf : lf + 1) };
 };
 
 // log2 of 0 is not defined: generate compiler error
-template <>
-struct log2_ceil<0> {};
+template <> struct log2_ceil<0> {};
 
-template <int LowerBound, int UpperBound>
-struct int_range {
+template <int LowerBound, int UpperBound> struct int_range {
   enum {
     l_s = LowerBound < 0,
     u_s = UpperBound < 0,
@@ -1326,7 +1197,7 @@ struct int_range {
   };
   typedef ac_int<nbits, signedness> type;
 };
-}  // namespace ac
+} // namespace ac
 
 enum ac_q_mode {
   AC_TRN,
@@ -1339,8 +1210,7 @@ enum ac_q_mode {
   AC_RND_CONV_ODD
 };
 enum ac_o_mode { AC_WRAP, AC_SAT, AC_SAT_ZERO, AC_SAT_SYM };
-template <int W2, int I2, bool S2, ac_q_mode Q2, ac_o_mode O2>
-class ac_fixed;
+template <int W2, int I2, bool S2, ac_q_mode Q2, ac_o_mode O2> class ac_fixed;
 
 //////////////////////////////////////////////////////////////////////////////
 //  Arbitrary-Length Integer: ac_int
@@ -1390,7 +1260,7 @@ class ac_int : public ac_private::iv_conv<W, S, W <= 64> {
     return fully_normalized;
   }
 
- public:
+public:
   static constexpr int width = W;
   static constexpr int i_width = W;
   static constexpr bool sign = S;
@@ -1398,8 +1268,7 @@ class ac_int : public ac_private::iv_conv<W, S, W <= 64> {
   static constexpr ac_o_mode o_mode = AC_WRAP;
   static constexpr int e_width = 0;
 
-  template <int W2, bool S2>
-  struct rt {
+  template <int W2, bool S2> struct rt {
     enum {
       mult_w = W + W2,
       mult_s = S || S2,
@@ -1423,8 +1292,7 @@ class ac_int : public ac_private::iv_conv<W, S, W <= 64> {
     typedef ac_int<W, S> arg1;
   };
 
-  template <typename T>
-  struct rt_T {
+  template <typename T> struct rt_T {
     typedef typename ac_private::map<T>::t map_T;
     typedef
         typename ac_private::rt_ac_int_T<map_T>::template op1<W, S>::mult mult;
@@ -1458,15 +1326,13 @@ class ac_int : public ac_private::iv_conv<W, S, W <= 64> {
     typedef ac_int<mag_sqr_w, mag_sqr_s> mag_sqr;
     typedef ac_int<mag_w, mag_s> mag;
     typedef ac_int<leading_sign_w, leading_sign_s> leading_sign;
-    template <unsigned N>
-    struct set {
+    template <unsigned N> struct set {
       enum { sum_w = W + ac::log2_ceil<N>::val, sum_s = S };
       typedef ac_int<sum_w, sum_s> sum;
     };
   };
 
-  template <int W2, bool S2>
-  friend class ac_int;
+  template <int W2, bool S2> friend class ac_int;
   template <int W2, int I2, bool S2, ac_q_mode Q2, ac_o_mode O2>
   friend class ac_fixed;
 
@@ -1534,8 +1400,7 @@ class ac_int : public ac_private::iv_conv<W, S, W <= 64> {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wuninitialized"
 #endif
-  template <ac_special_val V>
-  constexpr inline ac_int &set_val() {
+  template <ac_special_val V> constexpr inline ac_int &set_val() {
     if (V == AC_VAL_DC) {
       ac_int r = 0;
       Base::operator=(r);
@@ -1579,7 +1444,7 @@ class ac_int : public ac_private::iv_conv<W, S, W <= 64> {
 
   constexpr int length() const { return W; }
 
-#if !defined(_HLS_EMBEDDED_PROFILE) || \
+#if !defined(_HLS_EMBEDDED_PROFILE) ||                                         \
     (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
   inline std::string to_string(ac_base_mode base_rep,
                                bool sign_mag = false) const {
@@ -1593,40 +1458,40 @@ class ac_int : public ac_private::iv_conv<W, S, W <= 64> {
     r += tf[S];
     return r;
   }
-#endif  //_HLS_EMBEDDED_PROFILE
+#endif //_HLS_EMBEDDED_PROFILE
 
   // Arithmetic : Binary ----------------------------------------------------
   template <int W2, bool S2>
-  constexpr typename rt<W2, S2>::mult operator*(
-      const ac_int<W2, S2> &op2) const {
+  constexpr typename rt<W2, S2>::mult
+  operator*(const ac_int<W2, S2> &op2) const {
     typename rt<W2, S2>::mult r = 0;
     Base::mult(op2, r);
     return r;
   }
   template <int W2, bool S2>
-  constexpr typename rt<W2, S2>::plus operator+(
-      const ac_int<W2, S2> &op2) const {
+  constexpr typename rt<W2, S2>::plus
+  operator+(const ac_int<W2, S2> &op2) const {
     typename rt<W2, S2>::plus r = 0;
     Base::add(op2, r);
     return r;
   }
   template <int W2, bool S2>
-  constexpr typename rt<W2, S2>::minus operator-(
-      const ac_int<W2, S2> &op2) const {
+  constexpr typename rt<W2, S2>::minus
+  operator-(const ac_int<W2, S2> &op2) const {
     typename rt<W2, S2>::minus r = 0;
     Base::sub(op2, r);
     return r;
   }
   template <int W2, bool S2>
-  constexpr typename rt<W2, S2>::div operator/(
-      const ac_int<W2, S2> &op2) const {
+  constexpr typename rt<W2, S2>::div
+  operator/(const ac_int<W2, S2> &op2) const {
     typename rt<W2, S2>::div r = 0;
     Base::div(op2, r);
     return r;
   }
   template <int W2, bool S2>
-  constexpr typename rt<W2, S2>::mod operator%(
-      const ac_int<W2, S2> &op2) const {
+  constexpr typename rt<W2, S2>::mod
+  operator%(const ac_int<W2, S2> &op2) const {
     typename rt<W2, S2>::mod r = 0;
     Base::mod(op2, r);
     return r;
@@ -1638,24 +1503,24 @@ class ac_int : public ac_private::iv_conv<W, S, W <= 64> {
 #if defined(DEBUG_AC_INT)
     ac_int<W, S> temp = 0;
     switch (debug_op) {
-      case AC_DEBUG_ADD:
-        temp = (*this) + op2;
-        break;
-      case AC_DEBUG_SUB:
-        temp = (*this) - op2;
-        break;
-      case AC_DEBUG_MUL:
-        temp = (*this) * op2;
-        break;
-      case AC_DEBUG_DIV:
-        temp = (*this) / op2;
-        break;
-      case AC_DEBUG_REM:
-        temp = (*this) % op2;
-        break;
+    case AC_DEBUG_ADD:
+      temp = (*this) + op2;
+      break;
+    case AC_DEBUG_SUB:
+      temp = (*this) - op2;
+      break;
+    case AC_DEBUG_MUL:
+      temp = (*this) * op2;
+      break;
+    case AC_DEBUG_DIV:
+      temp = (*this) / op2;
+      break;
+    case AC_DEBUG_REM:
+      temp = (*this) % op2;
+      break;
 
-      default:
-        break;
+    default:
+      break;
     }
 #endif
   }
@@ -1665,15 +1530,15 @@ class ac_int : public ac_private::iv_conv<W, S, W <= 64> {
     ac_int<W, S> temp = 0;
     ac_int<2, true> op2 = 1;
     switch (debug_op) {
-      case AC_DEBUG_INCREMENT:
-        temp = (*this) + op2;
-        break;
-      case AC_DEBUG_DECREMENT:
-        temp = (*this) - op2;
-        break;
+    case AC_DEBUG_INCREMENT:
+      temp = (*this) + op2;
+      break;
+    case AC_DEBUG_DECREMENT:
+      temp = (*this) - op2;
+      break;
 
-      default:
-        break;
+    default:
+      break;
     }
 #endif
   }
@@ -1768,22 +1633,22 @@ class ac_int : public ac_private::iv_conv<W, S, W <= 64> {
   }
   // Bitwise (arithmetic): and, or, xor ----------------------------------
   template <int W2, bool S2>
-  constexpr typename rt<W2, S2>::logic operator&(
-      const ac_int<W2, S2> &op2) const {
+  constexpr typename rt<W2, S2>::logic
+  operator&(const ac_int<W2, S2> &op2) const {
     typename rt<W2, S2>::logic r = 0;
     Base::bitwise_and(op2, r);
     return r;
   }
   template <int W2, bool S2>
-  constexpr typename rt<W2, S2>::logic operator|(
-      const ac_int<W2, S2> &op2) const {
+  constexpr typename rt<W2, S2>::logic
+  operator|(const ac_int<W2, S2> &op2) const {
     typename rt<W2, S2>::logic r = 0;
     Base::bitwise_or(op2, r);
     return r;
   }
   template <int W2, bool S2>
-  constexpr typename rt<W2, S2>::logic operator^(
-      const ac_int<W2, S2> &op2) const {
+  constexpr typename rt<W2, S2>::logic
+  operator^(const ac_int<W2, S2> &op2) const {
     typename rt<W2, S2>::logic r = 0;
     Base::bitwise_xor(op2, r);
     return r;
@@ -1836,8 +1701,7 @@ class ac_int : public ac_private::iv_conv<W, S, W <= 64> {
     return r;
   }
   // Shift assign ------------------------------------------------------------
-  template <int W2>
-  constexpr ac_int &operator<<=(const ac_int<W2, true> &op2) {
+  template <int W2> constexpr ac_int &operator<<=(const ac_int<W2, true> &op2) {
     Base r = 0;
     Base::shift_l2(op2.to_int(), r);
     Base::operator=(r);
@@ -1850,8 +1714,7 @@ class ac_int : public ac_private::iv_conv<W, S, W <= 64> {
     Base::operator=(r);
     return *this;
   }
-  template <int W2>
-  constexpr ac_int &operator>>=(const ac_int<W2, true> &op2) {
+  template <int W2> constexpr ac_int &operator>>=(const ac_int<W2, true> &op2) {
     Base r = 0;
     Base::shift_r2(op2.to_int(), r);
     Base::operator=(r);
@@ -1903,8 +1766,7 @@ class ac_int : public ac_private::iv_conv<W, S, W <= 64> {
     return r;
   }
 
-  template <int WS>
-  constexpr ac_int<WS, S> slc(signed index) const {
+  template <int WS> constexpr ac_int<WS, S> slc(signed index) const {
     ac_int<W, S> op = *this;
     ac_int<WS, S> r = 0;
     AC_ASSERT(index >= 0, "Attempting to read slc with negative indices");
@@ -1913,8 +1775,7 @@ class ac_int : public ac_private::iv_conv<W, S, W <= 64> {
     r.set_val_no_overflow_warning(op);
     return r;
   }
-  template <int WS>
-  constexpr ac_int<WS, S> slc(unsigned uindex) const {
+  template <int WS> constexpr ac_int<WS, S> slc(unsigned uindex) const {
     ac_int<W, S> op = *this;
     ac_int<WS, S> r = 0;
     Base::shift_r(uindex, op);
@@ -1970,7 +1831,7 @@ class ac_int : public ac_private::iv_conv<W, S, W <= 64> {
     ac_int &d_bv;
     unsigned d_index;
 
-   public:
+  public:
     ac_bitref(ac_int *bv, unsigned index = 0) : d_bv(*bv), d_index(index) {}
 
     operator bool() const {
@@ -1984,8 +1845,7 @@ class ac_int : public ac_private::iv_conv<W, S, W <= 64> {
                  : 0;
     }
 
-    template <int W2, bool S2>
-    operator ac_int<W2, S2>() const {
+    template <int W2, bool S2> operator ac_int<W2, S2>() const {
       return operator bool();
     }
 
@@ -2016,7 +1876,7 @@ class ac_int : public ac_private::iv_conv<W, S, W <= 64> {
     ac_int d_bv;
     unsigned d_index;
 
-   public:
+  public:
     ac_bitcopy(ac_int bv, unsigned index = 0) : d_bv(bv), d_index(index) {}
 
     operator bool() const {
@@ -2028,8 +1888,7 @@ class ac_int : public ac_private::iv_conv<W, S, W <= 64> {
                  : 0;
     }
 
-    template <int W2, bool S2>
-    operator ac_int<W2, S2>() const {
+    template <int W2, bool S2> operator ac_int<W2, S2>() const {
       return operator bool();
     }
   };
@@ -2046,8 +1905,7 @@ class ac_int : public ac_private::iv_conv<W, S, W <= 64> {
     ac_bitref bvh(this, uindex);
     return bvh;
   }
-  template <int W2, bool S2>
-  ac_bitref operator[](const ac_int<W2, S2> &index) {
+  template <int W2, bool S2> ac_bitref operator[](const ac_int<W2, S2> &index) {
     AC_ASSERT(index >= 0, "Attempting to read bit with negative index");
     AC_ASSERT(index < W, "Attempting to read bit beyond MSB");
     ac_int<W2 - S2, false> uindex = index;
@@ -2087,14 +1945,12 @@ class ac_int : public ac_private::iv_conv<W, S, W <= 64> {
     return ls;
   }
   // returns false if number is denormal
-  template <int WE, bool SE>
-  bool normalize(ac_int<WE, SE> &exp) {
+  template <int WE, bool SE> bool normalize(ac_int<WE, SE> &exp) {
     return false;
   }
   // returns false if number is denormal, minimum exponent is reserved (usually
   // for encoding special values/errors)
-  template <int WE, bool SE>
-  bool normalize_RME(ac_int<WE, SE> &exp) {
+  template <int WE, bool SE> bool normalize_RME(ac_int<WE, SE> &exp) {
     return false;
   }
   bool and_reduce() const { return false; }
@@ -2192,8 +2048,7 @@ class ac_int : public ac_private::iv_conv<W, S, W <= 64> {
 };
 
 namespace ac {
-template <typename T, typename T2>
-struct rt_2T {
+template <typename T, typename T2> struct rt_2T {
   typedef typename ac_private::map<T>::t map_T;
   typedef typename ac_private::map<T2>::t map_T2;
   typedef typename map_T::template rt_T<map_T2>::mult mult;
@@ -2204,33 +2059,27 @@ struct rt_2T {
   typedef typename map_T::template rt_T<map_T2>::div div;
   typedef typename map_T::template rt_T<map_T2>::div2 div2;
 };
-}  // namespace ac
+} // namespace ac
 
 namespace ac {
-template <typename T>
-struct ac_int_represent {
+template <typename T> struct ac_int_represent {
   enum {
     t_w = ac_private::c_type_params<T>::W,
     t_s = ac_private::c_type_params<T>::S
   };
   typedef ac_int<t_w, t_s> type;
 };
-template <>
-struct ac_int_represent<float> {};
-template <>
-struct ac_int_represent<double> {};
-template <int W, bool S>
-struct ac_int_represent<ac_int<W, S>> {
+template <> struct ac_int_represent<float> {};
+template <> struct ac_int_represent<double> {};
+template <int W, bool S> struct ac_int_represent<ac_int<W, S>> {
   typedef ac_int<W, S> type;
 };
-}  // namespace ac
+} // namespace ac
 
 namespace ac_private {
-template <int W2, bool S2>
-struct rt_ac_int_T<ac_int<W2, S2>> {
+template <int W2, bool S2> struct rt_ac_int_T<ac_int<W2, S2>> {
   typedef ac_int<W2, S2> i2_t;
-  template <int W, bool S>
-  struct op1 {
+  template <int W, bool S> struct op1 {
     typedef ac_int<W, S> i_t;
     typedef typename i_t::template rt<W2, S2>::mult mult;
     typedef typename i_t::template rt<W2, S2>::plus plus;
@@ -2244,12 +2093,10 @@ struct rt_ac_int_T<ac_int<W2, S2>> {
   };
 };
 
-template <typename T>
-struct rt_ac_int_T<c_type<T>> {
+template <typename T> struct rt_ac_int_T<c_type<T>> {
   typedef typename ac::ac_int_represent<T>::type i2_t;
   enum { W2 = i2_t::width, S2 = i2_t::sign };
-  template <int W, bool S>
-  struct op1 {
+  template <int W, bool S> struct op1 {
     typedef ac_int<W, S> i_t;
     typedef typename i_t::template rt<W2, S2>::mult mult;
     typedef typename i_t::template rt<W2, S2>::plus plus;
@@ -2262,82 +2109,82 @@ struct rt_ac_int_T<c_type<T>> {
     typedef typename i2_t::template rt<W, S>::mod mod2;
   };
 };
-}  // namespace ac_private
+} // namespace ac_private
 
 // Stream --------------------------------------------------------------------
-#if defined(__linux__) &&               \
-    (!defined(_HLS_EMBEDDED_PROFILE) || \
+#if defined(__linux__) &&                                                      \
+    (!defined(_HLS_EMBEDDED_PROFILE) ||                                        \
      (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__)))
 template <int W, bool S>
 inline std::ostream &operator<<(std::ostream &os, const ac_int<W, S> &x) {
-#if defined(HLS_X86) || \
+#if defined(HLS_X86) ||                                                        \
     (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
   os << x.to_string(AC_DEC, S);
 #endif
   return os;
 }
-#endif  // linux
+#endif // linux
 
 // Macros for Binary Operators with Integers
 // --------------------------------------------
 
-#define BIN_OP_WITH_INT(BIN_OP, C_TYPE, WI, SI, RTYPE)               \
-  template <int W, bool S>                                           \
-  constexpr inline typename ac_int<WI, SI>::template rt<W, S>::RTYPE \
-  operator BIN_OP(C_TYPE i_op, const ac_int<W, S> &op) {             \
-    return ac_int<WI, SI>(i_op).operator BIN_OP(op);                 \
-  }                                                                  \
-  template <int W, bool S>                                           \
-  constexpr inline typename ac_int<W, S>::template rt<WI, SI>::RTYPE \
-  operator BIN_OP(const ac_int<W, S> &op, C_TYPE i_op) {             \
-    return op.operator BIN_OP(ac_int<WI, SI>(i_op));                 \
+#define BIN_OP_WITH_INT(BIN_OP, C_TYPE, WI, SI, RTYPE)                         \
+  template <int W, bool S>                                                     \
+  constexpr inline typename ac_int<WI, SI>::template rt<W, S>::RTYPE           \
+  operator BIN_OP(C_TYPE i_op, const ac_int<W, S> &op) {                       \
+    return ac_int<WI, SI>(i_op).operator BIN_OP(op);                           \
+  }                                                                            \
+  template <int W, bool S>                                                     \
+  constexpr inline typename ac_int<W, S>::template rt<WI, SI>::RTYPE           \
+  operator BIN_OP(const ac_int<W, S> &op, C_TYPE i_op) {                       \
+    return op.operator BIN_OP(ac_int<WI, SI>(i_op));                           \
   }
 
-#define REL_OP_WITH_INT(REL_OP, C_TYPE, W2, S2)                               \
-  template <int W, bool S>                                                    \
-  constexpr inline bool operator REL_OP(const ac_int<W, S> &op, C_TYPE op2) { \
-    return op.operator REL_OP(ac_int<W2, S2>(op2));                           \
-  }                                                                           \
-  template <int W, bool S>                                                    \
-  constexpr inline bool operator REL_OP(C_TYPE op2, const ac_int<W, S> &op) { \
-    return ac_int<W2, S2>(op2).operator REL_OP(op);                           \
+#define REL_OP_WITH_INT(REL_OP, C_TYPE, W2, S2)                                \
+  template <int W, bool S>                                                     \
+  constexpr inline bool operator REL_OP(const ac_int<W, S> &op, C_TYPE op2) {  \
+    return op.operator REL_OP(ac_int<W2, S2>(op2));                            \
+  }                                                                            \
+  template <int W, bool S>                                                     \
+  constexpr inline bool operator REL_OP(C_TYPE op2, const ac_int<W, S> &op) {  \
+    return ac_int<W2, S2>(op2).operator REL_OP(op);                            \
   }
 
-#define ASSIGN_OP_WITH_INT(ASSIGN_OP, C_TYPE, W2, S2)                 \
-  template <int W, bool S>                                            \
-  constexpr inline ac_int<W, S> &operator ASSIGN_OP(ac_int<W, S> &op, \
-                                                    C_TYPE op2) {     \
-    return op.operator ASSIGN_OP(ac_int<W2, S2>(op2));                \
+#define ASSIGN_OP_WITH_INT(ASSIGN_OP, C_TYPE, W2, S2)                          \
+  template <int W, bool S>                                                     \
+  constexpr inline ac_int<W, S> &operator ASSIGN_OP(ac_int<W, S> &op,          \
+                                                    C_TYPE op2) {              \
+    return op.operator ASSIGN_OP(ac_int<W2, S2>(op2));                         \
   }
 
-#define OPS_WITH_INT(C_TYPE, WI, SI)        \
-  BIN_OP_WITH_INT(*, C_TYPE, WI, SI, mult)  \
-  BIN_OP_WITH_INT(+, C_TYPE, WI, SI, plus)  \
-  BIN_OP_WITH_INT(-, C_TYPE, WI, SI, minus) \
-  BIN_OP_WITH_INT(/, C_TYPE, WI, SI, div)   \
-  BIN_OP_WITH_INT(%, C_TYPE, WI, SI, mod)   \
-  BIN_OP_WITH_INT(>>, C_TYPE, WI, SI, arg1) \
-  BIN_OP_WITH_INT(<<, C_TYPE, WI, SI, arg1) \
-  BIN_OP_WITH_INT(&, C_TYPE, WI, SI, logic) \
-  BIN_OP_WITH_INT(|, C_TYPE, WI, SI, logic) \
-  BIN_OP_WITH_INT(^, C_TYPE, WI, SI, logic) \
-                                            \
-  REL_OP_WITH_INT(==, C_TYPE, WI, SI)       \
-  REL_OP_WITH_INT(!=, C_TYPE, WI, SI)       \
-  REL_OP_WITH_INT(>, C_TYPE, WI, SI)        \
-  REL_OP_WITH_INT(>=, C_TYPE, WI, SI)       \
-  REL_OP_WITH_INT(<, C_TYPE, WI, SI)        \
-  REL_OP_WITH_INT(<=, C_TYPE, WI, SI)       \
-                                            \
-  ASSIGN_OP_WITH_INT(+=, C_TYPE, WI, SI)    \
-  ASSIGN_OP_WITH_INT(-=, C_TYPE, WI, SI)    \
-  ASSIGN_OP_WITH_INT(*=, C_TYPE, WI, SI)    \
-  ASSIGN_OP_WITH_INT(/=, C_TYPE, WI, SI)    \
-  ASSIGN_OP_WITH_INT(%=, C_TYPE, WI, SI)    \
-  ASSIGN_OP_WITH_INT(>>=, C_TYPE, WI, SI)   \
-  ASSIGN_OP_WITH_INT(<<=, C_TYPE, WI, SI)   \
-  ASSIGN_OP_WITH_INT(&=, C_TYPE, WI, SI)    \
-  ASSIGN_OP_WITH_INT(|=, C_TYPE, WI, SI)    \
+#define OPS_WITH_INT(C_TYPE, WI, SI)                                           \
+  BIN_OP_WITH_INT(*, C_TYPE, WI, SI, mult)                                     \
+  BIN_OP_WITH_INT(+, C_TYPE, WI, SI, plus)                                     \
+  BIN_OP_WITH_INT(-, C_TYPE, WI, SI, minus)                                    \
+  BIN_OP_WITH_INT(/, C_TYPE, WI, SI, div)                                      \
+  BIN_OP_WITH_INT(%, C_TYPE, WI, SI, mod)                                      \
+  BIN_OP_WITH_INT(>>, C_TYPE, WI, SI, arg1)                                    \
+  BIN_OP_WITH_INT(<<, C_TYPE, WI, SI, arg1)                                    \
+  BIN_OP_WITH_INT(&, C_TYPE, WI, SI, logic)                                    \
+  BIN_OP_WITH_INT(|, C_TYPE, WI, SI, logic)                                    \
+  BIN_OP_WITH_INT(^, C_TYPE, WI, SI, logic)                                    \
+                                                                               \
+  REL_OP_WITH_INT(==, C_TYPE, WI, SI)                                          \
+  REL_OP_WITH_INT(!=, C_TYPE, WI, SI)                                          \
+  REL_OP_WITH_INT(>, C_TYPE, WI, SI)                                           \
+  REL_OP_WITH_INT(>=, C_TYPE, WI, SI)                                          \
+  REL_OP_WITH_INT(<, C_TYPE, WI, SI)                                           \
+  REL_OP_WITH_INT(<=, C_TYPE, WI, SI)                                          \
+                                                                               \
+  ASSIGN_OP_WITH_INT(+=, C_TYPE, WI, SI)                                       \
+  ASSIGN_OP_WITH_INT(-=, C_TYPE, WI, SI)                                       \
+  ASSIGN_OP_WITH_INT(*=, C_TYPE, WI, SI)                                       \
+  ASSIGN_OP_WITH_INT(/=, C_TYPE, WI, SI)                                       \
+  ASSIGN_OP_WITH_INT(%=, C_TYPE, WI, SI)                                       \
+  ASSIGN_OP_WITH_INT(>>=, C_TYPE, WI, SI)                                      \
+  ASSIGN_OP_WITH_INT(<<=, C_TYPE, WI, SI)                                      \
+  ASSIGN_OP_WITH_INT(&=, C_TYPE, WI, SI)                                       \
+  ASSIGN_OP_WITH_INT(|=, C_TYPE, WI, SI)                                       \
   ASSIGN_OP_WITH_INT(^=, C_TYPE, WI, SI)
 
 // ------------------------------------- End of Macros for Binary Operators with
@@ -2361,12 +2208,11 @@ OPS_WITH_INT(Slong, 64, true)
 OPS_WITH_INT(Ulong, 64, false)
 // -----------------------------------------  End of Mixed Operators with
 // Integers
-}  // namespace ops_with_other_types
+} // namespace ops_with_other_types
 
 // Functions to fill bits
 
-template <typename T>
-constexpr T bit_fill_hex(const char *str) {
+template <typename T> constexpr T bit_fill_hex(const char *str) {
   T res;
   res.bit_fill_hex(str);
   return res;
@@ -2383,7 +2229,7 @@ inline T bit_fill(const int (&ivec)[N], bool bigendian = true) {
   return res;
 }
 
-}  // namespace ac
+} // namespace ac
 
 //  Mixed Operators with Pointers
 //  -----------------------------------------------
@@ -2537,7 +2383,7 @@ typedef ac_int<62, true> int62;
 typedef ac_int<62, false> uint62;
 typedef ac_int<63, true> int63;
 typedef ac_int<63, false> uint63;
-}  // namespace ac_intN
+} // namespace ac_intN
 
 #ifndef AC_NOT_USING_INTN
 using namespace ac_intN;
@@ -2555,34 +2401,26 @@ constexpr ac_int<W, S> value(ac_int<W, S>) {
 template <ac_special_val V, int W, int I, bool S, ac_q_mode Q, ac_o_mode O>
 constexpr ac_fixed<W, I, S, Q, O> value(ac_fixed<W, I, S, Q, O>);
 
-#define SPECIAL_VAL_FOR_INTS_DC(C_TYPE, WI, SI) \
-  template <>                                   \
-  inline C_TYPE value<AC_VAL_DC>(C_TYPE) {      \
-    C_TYPE x = 0;                               \
-    return x;                                   \
+#define SPECIAL_VAL_FOR_INTS_DC(C_TYPE, WI, SI)                                \
+  template <> inline C_TYPE value<AC_VAL_DC>(C_TYPE) {                         \
+    C_TYPE x = 0;                                                              \
+    return x;                                                                  \
   }
 
 // -- C int types
 // -----------------------------------------------------------------
-#define SPECIAL_VAL_FOR_INTS(C_TYPE, WI, SI)                     \
-  template <ac_special_val val>                                  \
-  constexpr C_TYPE value(C_TYPE);                                \
-  template <>                                                    \
-  constexpr C_TYPE value<AC_VAL_0>(C_TYPE) {                     \
-    return (C_TYPE)0;                                            \
-  }                                                              \
-  SPECIAL_VAL_FOR_INTS_DC(C_TYPE, WI, SI)                        \
-  template <>                                                    \
-  constexpr C_TYPE value<AC_VAL_QUANTUM>(C_TYPE) {               \
-    return (C_TYPE)1;                                            \
-  }                                                              \
-  template <>                                                    \
-  constexpr C_TYPE value<AC_VAL_MAX>(C_TYPE) {                   \
-    return (C_TYPE)(SI ? ~((C_TYPE)1 << (WI - 1)) : (C_TYPE)-1); \
-  }                                                              \
-  template <>                                                    \
-  constexpr C_TYPE value<AC_VAL_MIN>(C_TYPE) {                   \
-    return (C_TYPE)(SI ? (C_TYPE)1 << (WI - 1) : 0);             \
+#define SPECIAL_VAL_FOR_INTS(C_TYPE, WI, SI)                                   \
+  template <ac_special_val val> constexpr C_TYPE value(C_TYPE);                \
+  template <> constexpr C_TYPE value<AC_VAL_0>(C_TYPE) { return (C_TYPE)0; }   \
+  SPECIAL_VAL_FOR_INTS_DC(C_TYPE, WI, SI)                                      \
+  template <> constexpr C_TYPE value<AC_VAL_QUANTUM>(C_TYPE) {                 \
+    return (C_TYPE)1;                                                          \
+  }                                                                            \
+  template <> constexpr C_TYPE value<AC_VAL_MAX>(C_TYPE) {                     \
+    return (C_TYPE)(SI ? ~((C_TYPE)1 << (WI - 1)) : (C_TYPE)-1);               \
+  }                                                                            \
+  template <> constexpr C_TYPE value<AC_VAL_MIN>(C_TYPE) {                     \
+    return (C_TYPE)(SI ? (C_TYPE)1 << (WI - 1) : 0);                           \
   }
 
 SPECIAL_VAL_FOR_INTS(bool, 1, false)
@@ -2598,12 +2436,12 @@ SPECIAL_VAL_FOR_INTS(unsigned long, ac_private::long_w, false)
 SPECIAL_VAL_FOR_INTS(Slong, 64, true)
 SPECIAL_VAL_FOR_INTS(Ulong, 64, false)
 
-#define INIT_ARRAY_SPECIAL_VAL_FOR_INTS(C_TYPE) \
-  template <ac_special_val V>                   \
-  inline bool init_array(C_TYPE *a, int n) {    \
-    C_TYPE t = value<V>(*a);                    \
-    for (int i = 0; i < n; i++) a[i] = t;       \
-    return true;                                \
+#define INIT_ARRAY_SPECIAL_VAL_FOR_INTS(C_TYPE)                                \
+  template <ac_special_val V> inline bool init_array(C_TYPE *a, int n) {       \
+    C_TYPE t = value<V>(*a);                                                   \
+    for (int i = 0; i < n; i++)                                                \
+      a[i] = t;                                                                \
+    return true;                                                               \
   }
 
 namespace ac {
@@ -2612,7 +2450,8 @@ namespace ac {
 template <ac_special_val V, int W, bool S>
 inline bool init_array(ac_int<W, S> *a, int n) {
   ac_int<W, S> t = value<V>(*a);
-  for (int i = 0; i < n; i++) a[i] = t;
+  for (int i = 0; i < n; i++)
+    a[i] = t;
   return true;
 }
 
@@ -2628,9 +2467,9 @@ INIT_ARRAY_SPECIAL_VAL_FOR_INTS(signed long)
 INIT_ARRAY_SPECIAL_VAL_FOR_INTS(unsigned long)
 INIT_ARRAY_SPECIAL_VAL_FOR_INTS(signed long long)
 INIT_ARRAY_SPECIAL_VAL_FOR_INTS(unsigned long long)
-}  // namespace ac
+} // namespace ac
 
 #ifdef __AC_NAMESPACE
 }
 #endif
-#endif  // __ALTR_AC_INT_H
+#endif // __ALTR_AC_INT_H
