@@ -69,7 +69,9 @@ for env_pair in config.extra_environment.split(','):
 
 config.substitutions.append( ('%sycl_libs_dir',  config.sycl_libs_dir ) )
 config.substitutions.append( ('%sycl_include',  config.sycl_include ) )
-config.substitutions.append( ('%opencl_libs_dir',  config.opencl_libs_dir) )
+if config.opencl_libs_dir:
+  config.substitutions.append( ('%opencl_libs_dir',  config.opencl_libs_dir) )
+  config.available_features.add('opencl_icd')
 config.substitutions.append( ('%opencl_include_dir',  config.opencl_include_dir) )
 
 llvm_config.use_clang()
