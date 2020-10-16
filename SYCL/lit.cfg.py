@@ -103,7 +103,7 @@ else:
 # ESIMD-specific setup. Requires OpenCL for now.
 if "opencl" in config.available_features:
     print(config.available_features)
-    esimd_run_substitute = " env SYCL_BE=PI_OPENCL SYCL_DEVICE_TYPE=GPU SYCL_PROGRAM_COMPILE_OPTIONS=-cmc"
+    esimd_run_substitute = " env SYCL_BE=PI_OPENCL SYCL_DEVICE_TYPE=GPU SYCL_PROGRAM_COMPILE_OPTIONS=-vc-codegen"
     config.substitutions.append( ('%ESIMD_RUN_PLACEHOLDER',  esimd_run_substitute) )
     config.substitutions.append( ('%clangxx-esimd',  config.dpcpp_compiler +
                                   ' ' + '-fsycl-explicit-simd' + ' ' +
