@@ -60,11 +60,10 @@ __CLC_SUBGROUP_SHUFFLE_I32(uint);
 
 _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT ulong __clc__SubgroupShuffle(ulong x,
                                                                     uint idx) {
-  uint lo = (uint)x;
-  uint hi = (uint)(x >> 32);
-  lo = __nvvm_shfl_sync_idx_i32(__clc__membermask(), lo, idx, 0x1f);
-  hi = __nvvm_shfl_sync_idx_i32(__clc__membermask(), hi, idx, 0x1f);
-  return (((ulong)hi) << 32ul) | lo;
+  uint2 y = as_uint2(x);
+  y.lo = __nvvm_shfl_sync_idx_i32(__clc__membermask(), y.lo, idx, 0x1f);
+  y.hi = __nvvm_shfl_sync_idx_i32(__clc__membermask(), y.hi, idx, 0x1f);
+  return as_ulong(y);
 }
 
 _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT long __clc__SubgroupShuffle(long x,
@@ -102,11 +101,10 @@ __CLC_SUBGROUP_SHUFFLEUP_I32(uint);
 
 _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT ulong
 __clc__SubgroupShuffleUp(ulong x, uint delta) {
-  uint lo = (uint)x;
-  uint hi = (uint)(x >> 32);
-  lo = __nvvm_shfl_sync_up_i32(__clc__membermask(), lo, delta, 0);
-  hi = __nvvm_shfl_sync_up_i32(__clc__membermask(), hi, delta, 0);
-  return (((ulong)hi) << 32ul) | lo;
+  uint2 y = as_uint2(x);
+  y.lo = __nvvm_shfl_sync_up_i32(__clc__membermask(), y.lo, delta, 0);
+  y.hi = __nvvm_shfl_sync_up_i32(__clc__membermask(), y.hi, delta, 0);
+  return as_ulong(y);
 }
 
 _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT long
