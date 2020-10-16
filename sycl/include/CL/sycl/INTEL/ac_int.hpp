@@ -1,41 +1,28 @@
-/**************************************************************************
- *                                                                        *
- *  Algorithmic C (tm) Datatypes                                          *
- *                                                                        *
- *  Software Version: 3.7                                                 *
- *                                                                        *
- *  Release Date    : Wed Jun  1 13:21:52 PDT 2016                        *
- *  Release Type    : Production Release                                  *
- *  Release Build   : 3.7.0                                               *
- *                                                                        *
- *  Copyright 2004-2016, Mentor Graphics Corporation,                     *
- *                                                                        *
- *  All Rights Reserved.                                                  *
- *                                                                        *
- **************************************************************************
- *  Licensed under the Apache License, Version 2.0 (the "License");       *
- *  you may not use this file except in compliance with the License.      *
- *  You may obtain a copy of the License at                               *
- *                                                                        *
- *      http://www.apache.org/licenses/LICENSE-2.0                        *
- *                                                                        *
- *  Unless required by applicable law or agreed to in writing, software   *
- *  distributed under the License is distributed on an "AS IS" BASIS,     *
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or       *
- *  implied.                                                              *
- *  See the License for the specific language governing permissions and   *
- *  limitations under the License.                                        *
- **************************************************************************
- *                                                                        *
- *  This file was modified by the Intel High Level Design team to         *
- *  generate efficient hardware for the Intel High Level Synthesis        *
- *  compiler. The API remains the same as defined by Mentor Graphics      *
- *  in the documentation for ac_int.h                                     *
- *                                                                        *
- *************************************************************************/
-
-/*
-//  Source:          ac_int.h
+//==----------------- ac_int.hpp --- SYCL FPGA AC data-type ----------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+// Algorithmic C (tm) Datatypes                                         
+//                                                                      
+// Software Version: 3.7                                                
+//                                                                      
+// Release Date    : Wed Jun  1 13:21:52 PDT 2016                       
+// Release Type    : Production Release                                 
+// Release Build   : 3.7.0                                              
+//                                                                      
+// Copyright 2004-2016, Mentor Graphics Corporation,                    
+//                                                                      
+// All Rights Reserved.                                                 
+//                                                                      
+// This file was modified by the Intel High Level Design team to        
+// generate efficient hardware for the Intel High Level Synthesis       
+// compiler. The API remains the same as defined by Mentor Graphics     
+// in their documentation for the ac_int data-type.
+//                     
+//  Source:          ac_int.hpp
 //  Description:     fast arbitrary-length bit-accurate integer types:
 //                     - unsigned integer of length W:  ac_int<W,false>
 //                     - signed integer of length W:  ac_int<W,true>
@@ -43,9 +30,6 @@
 //  Modified by:     Vince Bridgers, Thor Thayer, Ajaykumar Kannan
 //
 //  Notes:
-//   - Compiler support: Works with the Intel i++ compiler. For g++, use the
-//                       original ac_int.h header file.
-//
 //   - Most frequent migration issues:
 //      - need to cast to common type when using question mark operator:
 //          (a < 0) ? -a : a;  // a is ac_int<W,true>
@@ -63,7 +47,6 @@
 //         - read:  x.slc<4>(k) =>
 //                         returns ac_int for 4-bit slice x(4+k-1 DOWNTO k)
 //         - write: x.set_slc(k,y) = writes bits of y to x starting at index k
-*/
 
 #ifndef __ALTR_AC_INT_H
 #define __ALTR_AC_INT_H
