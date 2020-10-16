@@ -10,8 +10,8 @@
 // unconditionally. Using operators specific for spirv 1.3 and higher with
 // -spirv-max-version=1.1 being set by default causes assert/check fails
 // in spirv translator.
-// RUNx: %clangxx -fsycl -fsycl-targets=%sycl_triple -DSPIRV_1_3 %s -I . -o
-// %t13.out
+// RUNx: %clangxx -fsycl -fsycl-targets=%sycl_triple -DSPIRV_1_3 %s -I . -o \
+   %t13.out
 
 #include "support.h"
 #include <CL/sycl.hpp>
