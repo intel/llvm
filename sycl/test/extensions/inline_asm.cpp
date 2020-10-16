@@ -1,4 +1,3 @@
-// This is a simple basic acceptance test for inline ASM feature
 // This is a basic acceptance test for inline ASM feature. More tests can be
 // found in https://github.com/intel/llvm-test-suite/tree/intel/SYCL/InlineAsm
 
