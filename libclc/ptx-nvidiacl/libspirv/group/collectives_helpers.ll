@@ -18,11 +18,11 @@ entry:
   ret i8 addrspace(3)* %cast
 }
 
-define i8 addrspace(3)* @__clc__get_group_scratch_short() nounwind alwaysinline {
+define i16 addrspace(3)* @__clc__get_group_scratch_short() nounwind alwaysinline {
 entry:
   %ptr = getelementptr inbounds [64 x i64], [64 x i64] addrspace(3)* @__clc__group_scratch, i64 0, i64 0
-  %cast = bitcast i64 addrspace(3)* %ptr to i8 addrspace(3)*
-  ret i8 addrspace(3)* %cast
+  %cast = bitcast i64 addrspace(3)* %ptr to i16 addrspace(3)*
+  ret i16 addrspace(3)* %cast
 }
 
 define i32 addrspace(3)* @__clc__get_group_scratch_int() nounwind alwaysinline {
