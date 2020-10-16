@@ -4051,6 +4051,11 @@ piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer, pi_bool BlockingMap,
                                                         &ZeFence))
     return Res;
 
+  // Set the commandlist in the event
+  if (Event) {
+    (*Event)->ZeCommandList = ZeCommandList;
+  }
+
   ze_event_handle_t *ZeEventWaitList =
       _pi_event::createZeEventList(NumEventsInWaitList, EventWaitList);
 
@@ -4140,6 +4145,11 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
                                                         &ZeFence))
     return Res;
+
+  // Set the commandlist in the event
+  if (Event) {
+    (*Event)->ZeCommandList = ZeCommandList;
+  }
 
   ze_event_handle_t *ZeEventWaitList =
       _pi_event::createZeEventList(NumEventsInWaitList, EventWaitList);
