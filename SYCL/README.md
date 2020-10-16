@@ -87,6 +87,11 @@ build or provided in CMake variable <APPNAME>_SRC (e.g. RSBench_SRC).
 
 ***SYCL_EXTRA_TESTS_SRC*** path to directory which contains extra LIT tests.
 
+***OpenCL_LIBRARY*** OpenCL interoperability tests require OpenCL ICD loader
+to be linked with. Make sure OpenCL ICD loader library is available in the
+system or library with full path passed to CMake configuration using the
+variable.
+
 It is asssumed that all required dependencies (OpenCL runtimes, CUDA SDK, AOT
 compilers, etc) are available in the system.
 

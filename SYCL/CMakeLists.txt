@@ -1,3 +1,7 @@
+if( NOT OpenCL_LIBRARY )
+  find_package(OpenCL)
+endif()
+
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in" "${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg")
 
 if(CHECK_SYCL_ALL)

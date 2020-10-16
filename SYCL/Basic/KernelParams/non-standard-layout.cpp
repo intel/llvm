@@ -41,5 +41,4 @@ int main() {
 
   std::cout << "Test " << (Pass ? "passed" : "FAILED") << std::endl;
   return Pass ? 0 : 1;
-
 }

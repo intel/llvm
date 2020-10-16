@@ -20,8 +20,9 @@ using namespace cl;
 
 static void replaceSpecialCharacters(std::string &Str) {
   // Replace common special symbols with '.' which matches to any character
-  std::replace_if(Str.begin(), Str.end(),
-                  [](const char Sym) { return '(' == Sym || ')' == Sym; }, '.');
+  std::replace_if(
+      Str.begin(), Str.end(),
+      [](const char Sym) { return '(' == Sym || ')' == Sym; }, '.');
 }
 
 int main() {
