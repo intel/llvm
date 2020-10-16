@@ -1,4 +1,3 @@
-// UNSUPPORTED: cuda
 // RUN: %clangxx -fsycl %s -o %t.out
 
 #include <CL/sycl.hpp>
