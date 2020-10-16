@@ -1,29 +1,6 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-int-header=%t.h -DCHECK_ERROR -verify %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -fsycl-int-header=%t.h %s
-// RUN: FileCheck -input-file=%t.h %s
-//
-// CHECK: #include <CL/sycl/detail/defines.hpp>
-// CHECK-NEXT: #include <CL/sycl/detail/kernel_desc.hpp>
-//
-// CHECK: static constexpr
-// CHECK-NEXT: const char* const kernel_names[] = {
-// CHECK-NEXT:   "_ZTSm",
-// CHECK-NEXT:   "_ZTSl"
-// CHECK-NEXT: };
-//
-// CHECK: static constexpr
-// CHECK-NEXT: const kernel_param_desc_t kernel_signatures[] = {
-// CHECK-NEXT:   //--- _ZTSm
-// CHECK-EMPTY:
-// CHECK-NEXT:   //--- _ZTSl
-// CHECK-EMPTY:
-// CHECK-NEXT: };
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -DCHECK_ERROR -verify %s
 
-// CHECK: template <> struct KernelInfo<unsigned long> {
-// CHECK: template <> struct KernelInfo<long> {
-
-void usage() {
-}
+#include "sycl.hpp"
 
 namespace std {
 typedef long unsigned int size_t;
@@ -36,22 +13,38 @@ class U;
 template <typename T>
 struct Templated_kernel_name;
 
-template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
-  kernelFunc();
-}
+using namespace cl::sycl;
+queue q;
 
 int main() {
 #ifdef CHECK_ERROR
-  kernel_single_task<std::nullptr_t>([=]() {});                        // expected-error {{kernel name cannot be a type in the "std" namespace}}
-  kernel_single_task<std::T>([=]() {});                                // expected-error {{kernel name cannot be a type in the "std" namespace}}
-  kernel_single_task<Templated_kernel_name<std::nullptr_t>>([=]() {}); // expected-error {{kernel name cannot be a type in the "std" namespace}}
-  kernel_single_task<Templated_kernel_name<std::U>>([=]() {});         // expected-error {{kernel name cannot be a type in the "std" namespace}}
+  // expected-error@Inputs/sycl.hpp:328 4 {{kernel name cannot be a type in the "std" namespace}}
+  q.submit([&](cl::sycl::handler &h) {
+    // expected-note@+1{{in instantiation of function template specialization}}
+    h.single_task<std::nullptr_t>([=] {});
+  });
+  q.submit([&](cl::sycl::handler &h) {
+    // expected-note@+1{{in instantiation of function template specialization}}
+    h.single_task<std::T>([=] {});
+  });
+  q.submit([&](cl::sycl::handler &h) {
+    // expected-note@+1{{in instantiation of function template specialization}}
+    h.single_task<Templated_kernel_name<std::nullptr_t>>([=] {});
+  });
+  q.submit([&](cl::sycl::handler &h) {
+    // expected-note@+1{{in instantiation of function template specialization}}
+    h.single_task<Templated_kernel_name<std::U>>([=] {});
+  });
+
 #endif
 
   // Although in the std namespace, these resolve to builtins such as `int` that are allowed in kernel names
-  kernel_single_task<std::size_t>([=]() {});
-  kernel_single_task<std::ptrdiff_t>([=]() {});
+  q.submit([&](cl::sycl::handler &h) {
+    h.single_task<std::size_t>([=] {});
+  });
+  q.submit([&](cl::sycl::handler &h) {
+    h.single_task<std::ptrdiff_t>([=] {});
+  });
 
   return 0;
 }

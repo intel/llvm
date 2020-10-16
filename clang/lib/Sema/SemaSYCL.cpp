@@ -2848,8 +2848,12 @@ public:
     if (T.isNull())
       return;
     const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
-    if (!RD)
+    if (!RD) {
+      if (T->isNullPtrType())
+        S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
+            << /* kernel name cannot be a type in the std namespace */ 3;
       return;
+    }
     // If KernelNameType has template args visit each template arg via
     // ConstTemplateArgumentVisitor
     if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
@@ -2887,32 +2891,33 @@ public:
     bool UnnamedLambdaEnabled =
         S.getASTContext().getLangOpts().SYCLUnnamedLambda;
     const DeclContext *DC = Tag->getDeclContext();
-    if (DC) {
+    if (DC && !UnnamedLambdaEnabled) {
       auto *NS = dyn_cast_or_null<NamespaceDecl>(DC);
       if (NS && NS->isStdNamespace()) {
         S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-            << /* name cannot be a type in the std namespace */ 3;
-        IsInvalid = true;
-      }
-    }
-    if (!DC->isTranslationUnit() && !isa<NamespaceDecl>(DC) &&
-        !UnnamedLambdaEnabled) {
-      const bool KernelNameIsMissing = Tag->getName().empty();
-      if (KernelNameIsMissing) {
-        S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-            << /* kernel name is missing */ 0;
+            << /* kernel name cannot be a type in the std namespace */ 3;
         IsInvalid = true;
       } else {
-        if (Tag->isCompleteDefinition()) {
-          S.Diag(KernelInvocationFuncLoc,
-                 diag::err_sycl_kernel_incorrectly_named)
-              << /* kernel name is not globally-visible */ 1;
-          IsInvalid = true;
-        } else
-          S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
+        if (!DC->isTranslationUnit() && !isa<NamespaceDecl>(DC)) {
+          const bool KernelNameIsMissing = Tag->getName().empty();
+          if (KernelNameIsMissing) {
+            S.Diag(KernelInvocationFuncLoc,
+                   diag::err_sycl_kernel_incorrectly_named)
+                << /* kernel name is missing */ 0;
+            IsInvalid = true;
+          } else {
+            if (Tag->isCompleteDefinition()) {
+              S.Diag(KernelInvocationFuncLoc,
+                     diag::err_sycl_kernel_incorrectly_named)
+                  << /* kernel name is not globally-visible */ 1;
+              IsInvalid = true;
+            } else
+              S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
 
-        S.Diag(Tag->getSourceRange().getBegin(), diag::note_previous_decl)
-            << Tag->getName();
+            S.Diag(Tag->getSourceRange().getBegin(), diag::note_previous_decl)
+                << Tag->getName();
+          }
+        }
       }
     }
   }
@@ -3444,10 +3449,6 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
   const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
 
   if (!RD) {
-    if (T->isNullPtrType())
-      Diag.Report(KernelLocation, diag::err_sycl_kernel_incorrectly_named)
-          << /* name cannot be a type in the std namespace */ 3;
-
     return;
   }
 
