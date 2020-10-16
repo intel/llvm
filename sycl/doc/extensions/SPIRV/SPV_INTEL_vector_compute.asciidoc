@@ -44,8 +44,8 @@ Version
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2020-10-07
-| Revision           | 8
+| Last Modified Date | 2020-10-15
+| Revision           | 9
 |========================================
 
 Dependencies
@@ -144,7 +144,9 @@ Apply to a variable to specify byte offset in general register file.
 See the client API specification for more detail.
 | *VectorComputeINTEL* | <<Literal, 'Literal'>> _Offset_
 | 6085 | *SingleElementVectorINTEL* +
-Apply to a 'Scalar' type to indicate that the type represents a single-element vector type in the high-level language.
+Apply to a function or a function parameter to indicate that function's return value or function parameter is a single-element vector in the high-level language. +
+
+Only valid on *OpFunction* or *OpFunctionParameter* whose type is <<Scalar,scalar type>> or <<Pointer,pointer type>>.
 
 See the client API specification for more detail.
 | *VectorComputeINTEL* |
@@ -208,4 +210,5 @@ Revision History
 |6|2020-08-13|Mariusz Merecki|Added *OpTypeBufferSurfaceINTEL* type and *SingleElementVectorINTEL* decoration.
 |7|2020-09-03|Mariusz Merecki|Added *Access Qualifier* operand to *OpTypeBufferSurfaceINTEL*
 |8|2020-10-07|Mariusz Merecki|Added *VectorComputeCallableFunctionINTEL*
+|9|2020-10-07|Mariusz Merecki|Added Change the description of *SingleElementVectorINTEL* to allow the decoration to be applied to function and function parameters of scalar or pointer type only.
 |========================================
