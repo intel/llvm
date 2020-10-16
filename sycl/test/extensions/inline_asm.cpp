@@ -1,6 +1,6 @@
 // This is a simple basic acceptance test for inline ASM feature
-// More test cases can be found in https://github.com/intel/llvm-test-suite/tree/intel/SYCL/InlineAsm
-// RUN: %clangxx -fsycl %s -o %t.out
+// This is a basic acceptance test for inline ASM feature. More tests can be
+// found in https://github.com/intel/llvm-test-suite/tree/intel/SYCL/InlineAsm
 
 #include <CL/sycl.hpp>
 #include <cmath>
