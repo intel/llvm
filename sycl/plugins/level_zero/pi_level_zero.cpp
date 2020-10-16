@@ -427,7 +427,7 @@ _pi_queue::resetCommandListFenceEntry(ze_command_list_handle_t ZeCommandList,
   ZE_CALL(zeFenceReset(this->ZeCommandListFenceMap[ZeCommandList]));
   ZE_CALL(zeCommandListReset(ZeCommandList));
   if (MakeAvailable) {
-    std::lock_guard <std::mutex> lock(this->Device->ZeCommandListCacheMutex);
+    std::lock_guard<std::mutex> lock(this->Device->ZeCommandListCacheMutex);
     this->Device->ZeCommandListCache.push_back(ZeCommandList);
   }
 
@@ -490,7 +490,7 @@ pi_result _pi_device::getAvailableCommandList(
   {
     // Make sure to acquire the lock before checking the size, or there
     // will be a race condition.
-    std::lock_guard <std::mutex> lock(Queue->Device->ZeCommandListCacheMutex);
+    std::lock_guard<std::mutex> lock(Queue->Device->ZeCommandListCacheMutex);
 
     if (Queue->Device->ZeCommandListCache.size() > 0) {
       *ZeCommandList = Queue->Device->ZeCommandListCache.front();
