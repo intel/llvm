@@ -19,19 +19,19 @@ queue q;
 int main() {
 #ifdef CHECK_ERROR
   // expected-error@Inputs/sycl.hpp:328 4 {{kernel name cannot be a type in the "std" namespace}}
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](handler &h) {
     // expected-note@+1{{in instantiation of function template specialization}}
     h.single_task<std::nullptr_t>([=] {});
   });
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](handler &h) {
     // expected-note@+1{{in instantiation of function template specialization}}
     h.single_task<std::T>([=] {});
   });
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](handler &h) {
     // expected-note@+1{{in instantiation of function template specialization}}
     h.single_task<Templated_kernel_name<std::nullptr_t>>([=] {});
   });
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](handler &h) {
     // expected-note@+1{{in instantiation of function template specialization}}
     h.single_task<Templated_kernel_name<std::U>>([=] {});
   });
@@ -39,10 +39,10 @@ int main() {
 #endif
 
   // Although in the std namespace, these resolve to builtins such as `int` that are allowed in kernel names
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](handler &h) {
     h.single_task<std::size_t>([=] {});
   });
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](handler &h) {
     h.single_task<std::ptrdiff_t>([=] {});
   });
 
