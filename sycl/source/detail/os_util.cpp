@@ -11,10 +11,6 @@
 
 #include <cassert>
 
-#ifdef SYCL_RT_OS_POSIX_SUPPORT
-#include <cstdlib>
-#endif
-
 #if defined(SYCL_RT_OS_LINUX)
 
 #ifndef _GNU_SOURCE
@@ -242,7 +238,8 @@ size_t OSUtil::getOSMemSize() {
 }
 
 void *OSUtil::alignedAlloc(size_t Alignment, size_t NumBytes) {
-#if defined(SYCL_RT_OS_LINUX)
+#if defined(SYCL_RT_OS_LINUX) && (defined(_GLIBCXX_HAVE_ALIGNED_ALLOC) ||      \
+                                  defined(_LIBCPP_HAS_C11_FEATURES))
   return aligned_alloc(Alignment, NumBytes);
 #elif defined(SYCL_RT_OS_POSIX_SUPPORT)
   void *Addr = nullptr;
