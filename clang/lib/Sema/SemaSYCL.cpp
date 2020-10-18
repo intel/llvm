@@ -2852,7 +2852,6 @@ public:
       if (T->isNullPtrType())
         S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
             << /* kernel name cannot be a type in the std namespace */ 3;
-      IsInvalid = true;
       return;
     }
     // If KernelNameType has template args visit each template arg via
