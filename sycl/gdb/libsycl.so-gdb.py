@@ -2,18 +2,16 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import re
 import gdb
 import gdb.xmethod
 import gdb.printing
-import itertools
-import re
 
 ### XMethod implementations ###
 
-"""
-Generalized base class for buffer index calculation
-"""
 class Accessor:
+    """Generalized base class for buffer index calculation"""
+
     def memory_range(self, dim):
         pass
 
@@ -43,10 +41,9 @@ class Accessor:
         return self.data().cast(self.result_type.pointer())[self.index(arg)]
 
 
-"""
-For Host device memory layout
-"""
 class HostAccessor(Accessor):
+    """For Host device memory layout"""
+
     def payload(self):
         return self.obj['impl']['_M_ptr'].dereference()
 
@@ -59,10 +56,9 @@ class HostAccessor(Accessor):
     def data(self):
         return self.payload()['MData']
 
-"""
-For CPU/GPU memory layout
-"""
 class DeviceAccessor(Accessor):
+    """For CPU/GPU memory layout"""
+
     def memory_range(self, dim):
         return self.obj['impl']['MemRange']['common_array'][dim]
 
@@ -73,10 +69,9 @@ class DeviceAccessor(Accessor):
         return self.obj['MData']
 
 
-"""
-Generic implementation for N-dimensional ID
-"""
 class AccessorOpIndex(gdb.xmethod.XMethodWorker):
+    """Generic implementation for N-dimensional ID"""
+
     def __init__(self, class_type, result_type, depth):
         self.class_type = class_type
         self.result_type = result_type
@@ -106,12 +101,11 @@ class AccessorOpIndex(gdb.xmethod.XMethodWorker):
         return None
 
 
-"""
-Introduces an extra overload for 1D case that takes plain size_t
-"""
 class AccessorOpIndex1D(AccessorOpIndex):
+    """Introduces an extra overload for 1D case that takes plain size_t"""
+
     def get_arg_types(self):
-        assert(self.depth == 1)
+        assert self.depth == 1
         return gdb.lookup_type('size_t')
 
 
@@ -124,7 +118,7 @@ class AccessorOpIndexMatcher(gdb.xmethod.XMethodMatcher):
             return None
 
         result = re.match('^cl::sycl::accessor<.+>$', class_type.tag)
-        if (result == None):
+        if result is None:
             return None
 
         depth = int(class_type.template_argument(1))
@@ -142,10 +136,9 @@ gdb.xmethod.register_xmethod_matcher(None, AccessorOpIndexMatcher(), replace=Tru
 
 ### Pretty-printer implementations ###
 
-"""
-Print an object deriving from cl::sycl::detail::array
-"""
 class SyclArrayPrinter:
+    """Print an object deriving from cl::sycl::detail::array"""
+
     class ElementIterator:
         def __init__(self, data, size):
             self.data = data
@@ -168,7 +161,7 @@ class SyclArrayPrinter:
 
     def __init__(self, value):
         if value.type.code == gdb.TYPE_CODE_REF:
-            if hasattr(gdb.Value,"referenced_value"):
+            if hasattr(gdb.Value, "referenced_value"):
                 value = value.referenced_value()
 
         self.value = value
@@ -182,7 +175,7 @@ class SyclArrayPrinter:
             # There is no way to return an error from this method. Return an
             # empty iterable to make GDB happy and rely on to_string method
             # to take care of formatting.
-            return [ ]
+            return []
 
     def to_string(self):
         try:
@@ -197,10 +190,9 @@ class SyclArrayPrinter:
     def display_hint(self):
         return 'array'
 
-"""
-Print a cl::sycl::buffer
-"""
 class SyclBufferPrinter:
+    """Print a cl::sycl::buffer"""
+
     def __init__(self, value):
         self.value = value
         self.type = value.type.unqualified().strip_typedefs()
@@ -217,8 +209,7 @@ class SyclBufferPrinter:
                    self.value['impl'].address))
 
 sycl_printer = gdb.printing.RegexpCollectionPrettyPrinter("SYCL")
-sycl_printer.add_printer("cl::sycl::id",     '^cl::sycl::id<.*$',     SyclArrayPrinter)
-sycl_printer.add_printer("cl::sycl::range",  '^cl::sycl::range<.*$',  SyclArrayPrinter)
+sycl_printer.add_printer("cl::sycl::id", '^cl::sycl::id<.*$', SyclArrayPrinter)
+sycl_printer.add_printer("cl::sycl::range", '^cl::sycl::range<.*$', SyclArrayPrinter)
 sycl_printer.add_printer("cl::sycl::buffer", '^cl::sycl::buffer<.*$', SyclBufferPrinter)
 gdb.printing.register_pretty_printer(None, sycl_printer, True)
-
