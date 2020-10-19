@@ -227,6 +227,8 @@ public:
     {
       std::lock_guard<mutex_class> Lock(MMutex);
       Exceptions = std::move(MExceptions);
+
+      MExceptions = exception_list{};
     }
     // Unlock the mutex before calling user-provided handler to avoid
     // potential deadlock if the same queue is somehow referenced in the
