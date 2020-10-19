@@ -215,13 +215,8 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   vector_class<event> USMEvents;
   {
     std::lock_guard<mutex_class> Lock(MMutex);
-    Events = std::move(MEventsWeak);
-    USMEvents = std::move(MEventsShared);
-
-    // moved objects are in "valid but unspecified state". It's okay to only
-    // clear the vector. Though, we'll recostruct it hust to be sure.
-    MEventsWeak = vector_class<std::weak_ptr<event_impl>>{};
-    MEventsShared = vector_class<event>{};
+    Events.swap(MEventsWeak);
+    USMEvents.swap(MEventsShared);
   }
 
   for (std::weak_ptr<event_impl> &EventImplWeakPtr : Events)
