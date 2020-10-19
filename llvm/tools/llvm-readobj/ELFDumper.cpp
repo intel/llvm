@@ -304,7 +304,6 @@ private:
   Optional<DynRegionInfo> DynSymRegion;
   DynRegionInfo DynamicTable;
   StringRef DynamicStringTable;
-  StringRef SOName = "<Not found>";
   const Elf_Hash *HashTable = nullptr;
   const Elf_GnuHash *GnuHashTable = nullptr;
   const Elf_Shdr *DotSymtabSec = nullptr;
@@ -312,6 +311,7 @@ private:
   const Elf_Shdr *DotCGProfileSec = nullptr;
   const Elf_Shdr *DotAddrsigSec = nullptr;
   ArrayRef<Elf_Word> ShndxTable;
+  Optional<uint64_t> SONameOffset;
 
   const Elf_Shdr *SymbolVersionSection = nullptr;   // .gnu.version
   const Elf_Shdr *SymbolVersionNeedSection = nullptr; // .gnu.version_r
@@ -328,6 +328,15 @@ private:
   std::string describe(const Elf_Shdr &Sec) const;
 
 public:
+  unsigned getHashTableEntSize() const {
+    // EM_S390 and ELF::EM_ALPHA platforms use 8-bytes entries in SHT_HASH
+    // sections. This violates the ELF specification.
+    if (Obj.getHeader().e_machine == ELF::EM_S390 ||
+        Obj.getHeader().e_machine == ELF::EM_ALPHA)
+      return 8;
+    return 4;
+  }
+
   Elf_Dyn_Range dynamic_table() const {
     // A valid .dynamic section contains an array of entries terminated
     // with a DT_NULL entry. However, sometimes the section content may
@@ -1772,6 +1781,7 @@ static const EnumEntry<unsigned> ElfHeaderAMDGPUFlags[] = {
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1012),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1030),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1031),
+  LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1032),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_XNACK),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_SRAM_ECC)
 };
@@ -2056,7 +2066,6 @@ void ELFDumper<ELFT>::parseDynamicTable() {
     return MappedAddrOrError.get();
   };
 
-  uint64_t SONameOffset = 0;
   const char *StringTableBegin = nullptr;
   uint64_t StringTableSize = 0;
   Optional<DynRegionInfo> DynSymFromTable;
@@ -2174,8 +2183,7 @@ void ELFDumper<ELFT>::parseDynamicTable() {
       DynamicStringTable = StringRef(StringTableBegin, StringTableSize);
   }
 
-  SOName = getDynamicString(SONameOffset);
-
+  const bool IsHashTableSupported = getHashTableEntSize() == 4;
   if (DynSymRegion) {
     // Often we find the information about the dynamic symbol table
     // location in the SHT_DYNSYM section header. However, the value in
@@ -2191,7 +2199,7 @@ void ELFDumper<ELFT>::parseDynamicTable() {
     // equal nchain". Check to see if the DT_HASH hash table nchain value
     // conflicts with the number of symbols in the dynamic symbol table
     // according to the section header.
-    if (HashTable) {
+    if (HashTable && IsHashTableSupported) {
       if (DynSymRegion->EntSize == 0)
         reportUniqueWarning(
             createError("SHT_DYNSYM section has sh_entsize == 0"));
@@ -2219,7 +2227,7 @@ void ELFDumper<ELFT>::parseDynamicTable() {
 
   // Derive the dynamic symbol table size from the DT_HASH hash table, if
   // present.
-  if (HashTable && DynSymRegion) {
+  if (HashTable && IsHashTableSupported && DynSymRegion) {
     const uint64_t FileSize = Obj.getBufSize();
     const uint64_t DerivedSize =
         (uint64_t)HashTable->nchain * DynSymRegion->EntSize;
@@ -2653,29 +2661,43 @@ template <class ELFT> void ELFDumper<ELFT>::printNeededLibraries() {
 }
 
 template <class ELFT>
-static Error checkHashTable(const ELFFile<ELFT> &Obj,
+static Error checkHashTable(const ELFDumper<ELFT> &Dumper,
                             const typename ELFT::Hash *H,
                             bool *IsHeaderValid = nullptr) {
-  auto MakeError = [&](uint64_t Off, const Twine &Msg = "") {
-    return createError("the hash table at offset 0x" + Twine::utohexstr(Off) +
+  const ELFFile<ELFT> &Obj = *Dumper.getElfObject().getELFFile();
+  const uint64_t SecOffset = (const uint8_t *)H - Obj.base();
+  if (Dumper.getHashTableEntSize() == 8) {
+    auto It = llvm::find_if(ElfMachineType, [&](const EnumEntry<unsigned> &E) {
+      return E.Value == Obj.getHeader().e_machine;
+    });
+    if (IsHeaderValid)
+      *IsHeaderValid = false;
+    return createError("the hash table at 0x" + Twine::utohexstr(SecOffset) +
+                       " is not supported: it contains non-standard 8 "
+                       "byte entries on " +
+                       It->AltName + " platform");
+  }
+
+  auto MakeError = [&](const Twine &Msg = "") {
+    return createError("the hash table at offset 0x" +
+                       Twine::utohexstr(SecOffset) +
                        " goes past the end of the file (0x" +
                        Twine::utohexstr(Obj.getBufSize()) + ")" + Msg);
   };
 
   // Each SHT_HASH section starts from two 32-bit fields: nbucket and nchain.
   const unsigned HeaderSize = 2 * sizeof(typename ELFT::Word);
-  const uint64_t SecOffset = (const uint8_t *)H - Obj.base();
 
   if (IsHeaderValid)
     *IsHeaderValid = Obj.getBufSize() - SecOffset >= HeaderSize;
 
   if (Obj.getBufSize() - SecOffset < HeaderSize)
-    return MakeError(SecOffset);
+    return MakeError();
 
   if (Obj.getBufSize() - SecOffset - HeaderSize <
       ((uint64_t)H->nbucket + H->nchain) * sizeof(typename ELFT::Word))
-    return MakeError(SecOffset, ", nbucket = " + Twine(H->nbucket) +
-                                    ", nchain = " + Twine(H->nchain));
+    return MakeError(", nbucket = " + Twine(H->nbucket) +
+                     ", nchain = " + Twine(H->nchain));
   return Error::success();
 }
 
@@ -2706,7 +2728,7 @@ template <typename ELFT> void ELFDumper<ELFT>::printHashTable() {
     return;
 
   bool IsHeaderValid;
-  Error Err = checkHashTable(Obj, HashTable, &IsHeaderValid);
+  Error Err = checkHashTable(*this, HashTable, &IsHeaderValid);
   if (IsHeaderValid) {
     W.printNumber("Num Buckets", HashTable->nbucket);
     W.printNumber("Num Chains", HashTable->nchain);
@@ -2795,6 +2817,9 @@ void ELFDumper<ELFT>::printGnuHashTable() {
 }
 
 template <typename ELFT> void ELFDumper<ELFT>::printLoadName() {
+  StringRef SOName = "<Not found>";
+  if (SONameOffset)
+    SOName = getDynamicString(*SONameOffset);
   W.printString("LoadName", SOName);
 }
 
@@ -4112,7 +4137,7 @@ void GNUStyle<ELFT>::printGnuHashTableSymbols(const Elf_GnuHash &GnuHash) {
 template <class ELFT> void GNUStyle<ELFT>::printHashSymbols() {
   if (const Elf_Hash *SysVHash = this->dumper().getHashTable()) {
     OS << "\n Symbol table of .hash for image:\n";
-    if (Error E = checkHashTable<ELFT>(this->Obj, SysVHash))
+    if (Error E = checkHashTable<ELFT>(this->dumper(), SysVHash))
       this->reportUniqueWarning(std::move(E));
     else
       printHashTableSymbols(*SysVHash);
@@ -4742,7 +4767,7 @@ void GNUStyle<ELFT>::printGnuHashHistogram(const Elf_GnuHash &GnuHashTable) {
 template <class ELFT> void GNUStyle<ELFT>::printHashHistograms() {
   // Print histogram for the .hash section.
   if (const Elf_Hash *HashTable = this->dumper().getHashTable()) {
-    if (Error E = checkHashTable<ELFT>(this->Obj, HashTable))
+    if (Error E = checkHashTable<ELFT>(this->dumper(), HashTable))
       this->reportUniqueWarning(std::move(E));
     else
       printHashHistogram(*HashTable);
@@ -5084,10 +5109,10 @@ static AMDGPUNote getAMDGPUNote(uint32_t NoteType, ArrayRef<uint8_t> Desc) {
       return {"AMDGPU Metadata", "Invalid AMDGPU Metadata"};
 
     AMDGPU::HSAMD::V3::MetadataVerifier Verifier(true);
-    if (!Verifier.verify(MsgPackDoc.getRoot()))
-      return {"AMDGPU Metadata", "Invalid AMDGPU Metadata"};
-
     std::string HSAMetadataString;
+    if (!Verifier.verify(MsgPackDoc.getRoot()))
+      HSAMetadataString = "Invalid AMDGPU Metadata\n";
+
     raw_string_ostream StrOS(HSAMetadataString);
     MsgPackDoc.toYAML(StrOS);
 
@@ -5535,7 +5560,7 @@ template <class ELFT> void GNUStyle<ELFT>::printDependentLibs() {
        << format_hex(Current.Offset, 1) << " contains " << SecEntries.size()
        << " entries:\n";
     for (NameOffset Entry : SecEntries)
-      OS << "  [" << format("%6tx", Entry.Offset) << "]  " << Entry.Name
+      OS << "  [" << format("%6" PRIx64, Entry.Offset) << "]  " << Entry.Name
          << "\n";
     OS << "\n";
     SecEntries.clear();
