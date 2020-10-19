@@ -125,21 +125,16 @@ void *MemoryManager::allocateInteropMemObject(
     ContextImplPtr TargetContext, void *UserPtr,
     const EventImplPtr &InteropEvent, const ContextImplPtr &InteropContext,
     const sycl::property_list &, RT::PiEvent &OutEventToWait) {
-  // If memory object is created with interop c'tor.
-  // Return cl_mem as is if contexts match.
-  if (TargetContext == InteropContext) {
-    OutEventToWait = InteropEvent->getHandleRef();
-    // Retain the event since it will be released during alloca command
-    // destruction
-    if (nullptr != OutEventToWait) {
-      const detail::plugin &Plugin = InteropEvent->getPlugin();
-      Plugin.call<PiApiKind::piEventRetain>(OutEventToWait);
-    }
-    return UserPtr;
+  // If memory object is created with interop c'tor return cl_mem as is.
+  assert(TargetContext == InteropContext && "Expected matching contexts");
+  OutEventToWait = InteropEvent->getHandleRef();
+  // Retain the event since it will be released during alloca command
+  // destruction
+  if (nullptr != OutEventToWait) {
+    const detail::plugin &Plugin = InteropEvent->getPlugin();
+    Plugin.call<PiApiKind::piEventRetain>(OutEventToWait);
   }
-  // Allocate new cl_mem and initialize from user provided one.
-  assert(false && "Not implemented");
-  return nullptr;
+  return UserPtr;
 }
 
 void *MemoryManager::allocateImageObject(ContextImplPtr TargetContext,

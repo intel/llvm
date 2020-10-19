@@ -38,6 +38,7 @@ int main(int argc, char *argv[]) {
       out << item.get_linear_id() << cl::sycl::endl;
     });
   });
+  q.wait();
 
   return 0;
 }
