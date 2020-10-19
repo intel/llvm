@@ -427,9 +427,8 @@ _pi_queue::resetCommandListFenceEntry(ze_command_list_handle_t ZeCommandList,
   ZE_CALL(zeFenceReset(this->ZeCommandListFenceMap[ZeCommandList]));
   ZE_CALL(zeCommandListReset(ZeCommandList));
   if (MakeAvailable) {
-    this->Device->ZeCommandListCacheMutex.lock();
+    std::lock_guard<std::mutex> lock(this->Device->ZeCommandListCacheMutex);
     this->Device->ZeCommandListCache.push_back(ZeCommandList);
-    this->Device->ZeCommandListCacheMutex.unlock();
   }
 
   return PI_SUCCESS;
@@ -488,21 +487,25 @@ pi_result _pi_device::getAvailableCommandList(
   // Initally, we need to check if a command list has already been created
   // on this device that is available for use. If so, then reuse that
   // Level-Zero Command List and Fence for this PI call.
-  if (Queue->Device->ZeCommandListCache.size() > 0) {
-    Queue->Device->ZeCommandListCacheMutex.lock();
-    *ZeCommandList = Queue->Device->ZeCommandListCache.front();
-    *ZeFence = Queue->ZeCommandListFenceMap[*ZeCommandList];
-    if (*ZeFence == nullptr) {
-      // If there is a command list available on this device, but no fence yet
-      // associated, then we must create a fence/list reference for this Queue.
-      // Can happen if two Queues reuse a device which did not have the
-      // resources freed.
-      ZE_CALL(zeFenceCreate(Queue->ZeCommandQueue, &ZeFenceDesc, ZeFence));
-      Queue->ZeCommandListFenceMap[*ZeCommandList] = *ZeFence;
+  {
+    // Make sure to acquire the lock before checking the size, or there
+    // will be a race condition.
+    std::lock_guard<std::mutex> lock(Queue->Device->ZeCommandListCacheMutex);
+
+    if (Queue->Device->ZeCommandListCache.size() > 0) {
+      *ZeCommandList = Queue->Device->ZeCommandListCache.front();
+      *ZeFence = Queue->ZeCommandListFenceMap[*ZeCommandList];
+      if (*ZeFence == nullptr) {
+        // If there is a command list available on this device, but no
+        // fence yet associated, then we must create a fence/list
+        // reference for this Queue. This can happen if two Queues reuse
+        // a device which did not have the resources freed.
+        ZE_CALL(zeFenceCreate(Queue->ZeCommandQueue, &ZeFenceDesc, ZeFence));
+        Queue->ZeCommandListFenceMap[*ZeCommandList] = *ZeFence;
+      }
+      Queue->Device->ZeCommandListCache.pop_front();
+      return PI_SUCCESS;
     }
-    Queue->Device->ZeCommandListCache.pop_front();
-    Queue->Device->ZeCommandListCacheMutex.unlock();
-    return PI_SUCCESS;
   }
 
   // If there are no available command lists in the cache, then we check for
@@ -641,8 +644,7 @@ static pi_result copyModule(ze_context_handle_t ZeContext,
 
 static bool setEnvVar(const char *var, const char *value);
 
-static pi_result getOrCreatePlatform(ze_driver_handle_t ZeDriver,
-                                     pi_platform *Platform);
+static pi_result populateDeviceCacheIfNeeded(pi_platform Platform);
 
 // Forward declarations for mock implementations of Level Zero APIs that
 // do not yet work in the driver.
@@ -730,40 +732,22 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     return mapError(ZeResult);
   }
 
-  // Level Zero does not have concept of Platforms, but Level Zero driver is the
-  // closest match.
-  if (Platforms && NumEntries > 0) {
-    uint32_t ZeDriverCount = 0;
-    ZE_CALL(zeDriverGet(&ZeDriverCount, nullptr));
-    if (ZeDriverCount == 0) {
-      assert(NumPlatforms != 0);
-      *NumPlatforms = 0;
-      return PI_SUCCESS;
-    }
-    ze_driver_handle_t ZeDriver;
-    assert(ZeDriverCount == 1);
-    ZE_CALL(zeDriverGet(&ZeDriverCount, &ZeDriver));
+  // Cache pi_platforms for reuse in the future
+  // It solves two problems;
+  // 1. sycl::platform equality issue; we always return the same pi_platform.
+  // 2. performance; we can save time by immediately return from cache.
+  //
+  // Note: The memory for "PiPlatformsCache" and "PiPlatformsCacheMutex" is
+  // intentionally leaked because the application may call into the SYCL
+  // runtime from a global destructor, and such a call could eventually
+  // access these variables. Therefore, there is no safe time when
+  // "PiPlatformsCache" and "PiPlatformsCacheMutex" could be deleted.
+  static auto PiPlatformsCache = new std::vector<pi_platform>;
+  static auto PiPlatformsCacheMutex = new std::mutex;
+  static bool PiPlatformCachePopulated = false;
 
-    pi_result Res = getOrCreatePlatform(ZeDriver, Platforms);
-    if (Res != PI_SUCCESS) {
-      return Res;
-    }
-  }
-
-  if (NumPlatforms)
-    *NumPlatforms = 1;
-
-  return PI_SUCCESS;
-}
-
-// Retrieve a cached Platform that has a matching driver handle or use the
-// driver handle to create and initialize a new Platform.
-static pi_result getOrCreatePlatform(ze_driver_handle_t ZeDriver,
-                                     pi_platform *Platform) {
-
-  // We will retrieve the Max CommandList Cache in this lamda function so that
-  // it only has to be executed once
-  static pi_uint32 CommandListCacheSizeValue = ([] {
+  std::lock_guard<std::mutex> Lock(*PiPlatformsCacheMutex);
+  if (!PiPlatformCachePopulated) {
     const char *CommandListCacheSize =
         std::getenv("SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE");
     pi_uint32 CommandListCacheSizeValue;
@@ -776,61 +760,68 @@ static pi_result getOrCreatePlatform(ze_driver_handle_t ZeDriver,
           "default set.\n");
       CommandListCacheSizeValue = 20000;
     }
-    return CommandListCacheSizeValue;
-  })();
 
-  try {
-    // Cache pi_platforms for reuse in the future
-    // It solves two problems;
-    // 1. sycl::device equality issue; we always return the same pi_device.
-    // 2. performance; we can save time by immediately return from cache.
-    //
-    // Note: The memory for "PiPlatformsCache" and "PiPlatformsCacheMutex" is
-    // intentionally leaked because the application may call into the SYCL
-    // runtime from a global destructor, and such a call could eventually
-    // access these variables. Therefore, there is no safe time when
-    // "PiPlatformsCache" and "PiPlatformsCacheMutex" could be deleted.
-    static auto PiPlatformsCache = new std::vector<pi_platform>;
-    static auto PiPlatformsCacheMutex = new std::mutex;
+    try {
 
-    std::lock_guard<std::mutex> Lock(*PiPlatformsCacheMutex);
+      // Level Zero does not have concept of Platforms, but Level Zero driver is
+      // the closest match.
+      uint32_t ZeDriverCount = 0;
+      ZE_CALL(zeDriverGet(&ZeDriverCount, nullptr));
+      if (ZeDriverCount == 0) {
+        PiPlatformCachePopulated = true;
+      } else {
+        ze_driver_handle_t ZeDriver;
+        assert(ZeDriverCount == 1);
+        ZE_CALL(zeDriverGet(&ZeDriverCount, &ZeDriver));
+        pi_platform Platform = new _pi_platform(ZeDriver);
+
+        // Cache driver properties
+        ze_driver_properties_t ZeDriverProperties;
+        ZE_CALL(zeDriverGetProperties(ZeDriver, &ZeDriverProperties));
+        uint32_t ZeDriverVersion = ZeDriverProperties.driverVersion;
+        // Intel Level-Zero GPU driver stores version as:
+        // | 31 - 24 | 23 - 16 | 15 - 0 |
+        // |  Major  |  Minor  | Build  |
+        auto VersionMajor =
+            std::to_string((ZeDriverVersion & 0xFF000000) >> 24);
+        auto VersionMinor =
+            std::to_string((ZeDriverVersion & 0x00FF0000) >> 16);
+        auto VersionBuild = std::to_string(ZeDriverVersion & 0x0000FFFF);
+        Platform->ZeDriverVersion =
+            VersionMajor + "." + VersionMinor + "." + VersionBuild;
+
+        ze_api_version_t ZeApiVersion;
+        ZE_CALL(zeDriverGetApiVersion(ZeDriver, &ZeApiVersion));
+        Platform->ZeDriverApiVersion =
+            std::to_string(ZE_MAJOR_VERSION(ZeApiVersion)) + "." +
+            std::to_string(ZE_MINOR_VERSION(ZeApiVersion));
+
+        Platform->ZeMaxCommandListCache = CommandListCacheSizeValue;
+        // Save a copy in the cache for future uses.
+        PiPlatformsCache->push_back(Platform);
+        PiPlatformCachePopulated = true;
+      }
+    } catch (const std::bad_alloc &) {
+      return PI_OUT_OF_HOST_MEMORY;
+    } catch (...) {
+      return PI_ERROR_UNKNOWN;
+    }
+  }
+
+  if (Platforms && NumEntries > 0) {
+    uint32_t I = 0;
     for (const pi_platform &CachedPlatform : *PiPlatformsCache) {
-      if (CachedPlatform->ZeDriver == ZeDriver) {
-        Platform[0] = CachedPlatform;
-        return PI_SUCCESS;
+      if (I < NumEntries) {
+        *Platforms++ = CachedPlatform;
+        I++;
+      } else {
+        break;
       }
     }
-
-    // TODO: figure out how/when to release this memory
-    *Platform = new _pi_platform(ZeDriver);
-
-    // Cache driver properties
-    ze_driver_properties_t ZeDriverProperties;
-    ZE_CALL(zeDriverGetProperties(ZeDriver, &ZeDriverProperties));
-    uint32_t ZeDriverVersion = ZeDriverProperties.driverVersion;
-    // Intel Level-Zero GPU driver stores version as:
-    // | 31 - 24 | 23 - 16 | 15 - 0 |
-    // |  Major  |  Minor  | Build  |
-    auto VersionMajor = std::to_string((ZeDriverVersion & 0xFF000000) >> 24);
-    auto VersionMinor = std::to_string((ZeDriverVersion & 0x00FF0000) >> 16);
-    auto VersionBuild = std::to_string(ZeDriverVersion & 0x0000FFFF);
-    Platform[0]->ZeDriverVersion =
-        VersionMajor + "." + VersionMinor + "." + VersionBuild;
-
-    ze_api_version_t ZeApiVersion;
-    ZE_CALL(zeDriverGetApiVersion(ZeDriver, &ZeApiVersion));
-    Platform[0]->ZeDriverApiVersion =
-        std::to_string(ZE_MAJOR_VERSION(ZeApiVersion)) + "." +
-        std::to_string(ZE_MINOR_VERSION(ZeApiVersion));
-
-    Platform[0]->ZeMaxCommandListCache = CommandListCacheSizeValue;
-    // save a copy in the cache for future uses.
-    PiPlatformsCache->push_back(Platform[0]);
-  } catch (const std::bad_alloc &) {
-    return PI_OUT_OF_HOST_MEMORY;
-  } catch (...) {
-    return PI_ERROR_UNKNOWN;
   }
+
+  if (NumPlatforms)
+    *NumPlatforms = PiPlatformsCache->size();
 
   return PI_SUCCESS;
 }
@@ -900,10 +891,35 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
   assert(NativeHandle);
   assert(Platform);
 
-  // Create PI platform from the given Level Zero driver handle or retrieve it
-  // from the cache.
   auto ZeDriver = pi_cast<ze_driver_handle_t>(NativeHandle);
-  return getOrCreatePlatform(ZeDriver, Platform);
+
+  pi_uint32 NumPlatforms = 0;
+  pi_result Res = piPlatformsGet(0, nullptr, &NumPlatforms);
+  if (Res != PI_SUCCESS) {
+    return Res;
+  }
+
+  if (NumPlatforms) {
+    std::vector<pi_platform> Platforms(NumPlatforms);
+    Res = piPlatformsGet(NumPlatforms, Platforms.data(), nullptr);
+    if (Res != PI_SUCCESS) {
+      return Res;
+    }
+
+    // The SYCL spec requires that the set of platforms must remain fixed for
+    // the duration of the application's execution. We assume that we found all
+    // of the Level Zero drivers when we initialized the platform cache, so the
+    // "NativeHandle" must already be in the cache. If it is not, this must not
+    // be a valid Level Zero driver.
+    for (const pi_platform &CachedPlatform : Platforms) {
+      if (CachedPlatform->ZeDriver == ZeDriver) {
+        *Platform = CachedPlatform;
+        return PI_SUCCESS;
+      }
+    }
+  }
+
+  return PI_INVALID_VALUE;
 }
 
 // Get the cahched PI device created for the L0 device handle.
@@ -912,9 +928,11 @@ pi_device _pi_platform::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
 
   std::lock_guard<std::mutex> Lock(this->PiDevicesCacheMutex);
   auto it = std::find_if(PiDevicesCache.begin(), PiDevicesCache.end(),
-                         [&](pi_device &D) { return D->ZeDevice == ZeDevice; });
+                         [&](std::unique_ptr<_pi_device> &D) {
+                           return D.get()->ZeDevice == ZeDevice;
+                         });
   if (it != PiDevicesCache.end()) {
-    return *it;
+    return (*it).get();
   }
   return nullptr;
 }
@@ -924,19 +942,19 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
                        pi_uint32 *NumDevices) {
 
   assert(Platform);
-  ze_driver_handle_t ZeDriver = Platform->ZeDriver;
 
   // Get number of devices supporting Level Zero
   uint32_t ZeDeviceCount = 0;
   std::lock_guard<std::mutex> Lock(Platform->PiDevicesCacheMutex);
-  ZeDeviceCount = Platform->PiDevicesCache.size();
 
+  pi_result Res = populateDeviceCacheIfNeeded(Platform);
+  if (Res != PI_SUCCESS) {
+    return Res;
+  }
+
+  ZeDeviceCount = Platform->PiDevicesCache.size();
   const bool AskingForGPU = (DeviceType & PI_DEVICE_TYPE_GPU);
   const bool AskingForDefault = (DeviceType == PI_DEVICE_TYPE_DEFAULT);
-
-  if (ZeDeviceCount == 0) {
-    ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, nullptr));
-  }
 
   if (ZeDeviceCount == 0 || !(AskingForGPU || AskingForDefault)) {
     if (NumDevices)
@@ -953,34 +971,53 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
     return PI_SUCCESS;
   }
 
-  // if devices are already captured in cache, return them from the cache.
-  for (const pi_device CachedDevice : Platform->PiDevicesCache) {
-    *Devices++ = CachedDevice;
+  // Return the devices from the cache.
+  uint32_t I = 0;
+  for (const std::unique_ptr<_pi_device> &CachedDevice :
+       Platform->PiDevicesCache) {
+    if (I < NumEntries) {
+      *Devices++ = CachedDevice.get();
+      I++;
+    } else {
+      break;
+    }
   }
-  if (!Platform->PiDevicesCache.empty()) {
+
+  return PI_SUCCESS;
+}
+
+// Check the device cache and load it if necessary. The PiDevicesCacheMutex must
+// be locked before calling this function to prevent any synchronization issues.
+static pi_result populateDeviceCacheIfNeeded(pi_platform Platform) {
+
+  if (Platform->DeviceCachePopulated) {
     return PI_SUCCESS;
   }
+
+  ze_driver_handle_t ZeDriver = Platform->ZeDriver;
+  uint32_t ZeDeviceCount = 0;
+  ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, nullptr));
 
   try {
     std::vector<ze_device_handle_t> ZeDevices(ZeDeviceCount);
     ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, ZeDevices.data()));
 
     for (uint32_t I = 0; I < ZeDeviceCount; ++I) {
-      if (I < NumEntries) {
-        Devices[I] = new _pi_device(ZeDevices[I], Platform);
-        pi_result Result = Devices[I]->initialize();
-        if (Result != PI_SUCCESS) {
-          return Result;
-        }
-        // save a copy in the cache for future uses.
-        Platform->PiDevicesCache.push_back(Devices[I]);
+      std::unique_ptr<_pi_device> Device(
+          new _pi_device(ZeDevices[I], Platform));
+      pi_result Result = Device->initialize();
+      if (Result != PI_SUCCESS) {
+        return Result;
       }
+      // save a copy in the cache for future uses.
+      Platform->PiDevicesCache.push_back(std::move(Device));
     }
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
+  Platform->DeviceCachePopulated = true;
   return PI_SUCCESS;
 }
 
@@ -1583,11 +1620,28 @@ pi_result piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
   assert(Device);
   assert(Platform);
 
-  // Create PI device from the given Level Zero device handle.
-  // TODO: get the device from the devices' cache.
+  std::lock_guard<std::mutex> Lock(Platform->PiDevicesCacheMutex);
+  pi_result Res = populateDeviceCacheIfNeeded(Platform);
+  if (Res != PI_SUCCESS) {
+    return Res;
+  }
+
   auto ZeDevice = pi_cast<ze_device_handle_t>(NativeHandle);
-  *Device = new _pi_device(ZeDevice, Platform);
-  return (*Device)->initialize();
+
+  // The SYCL spec requires that the set of devices must remain fixed for the
+  // duration of the application's execution. We assume that we found all of the
+  // Level Zero devices when we initialized the device cache, so the
+  // "NativeHandle" must already be in the cache. If it is not, this must not be
+  // a valid Level Zero device.
+  for (const std::unique_ptr<_pi_device> &CachedDevice :
+       Platform->PiDevicesCache) {
+    if (CachedDevice->ZeDevice == ZeDevice) {
+      *Device = CachedDevice.get();
+      return PI_SUCCESS;
+    }
+  }
+
+  return PI_INVALID_VALUE;
 }
 
 pi_result piContextCreate(const pi_context_properties *Properties,
@@ -3283,6 +3337,38 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
   return PI_SUCCESS;
 }
 
+// Recycle the command list associated with this event.
+static void recycleEventCommandList(pi_event Event) {
+  // The implementation of this is slightly tricky.  The same event
+  // can be referred to by multiple threads, so it is possible to
+  // have a race condition between the read of ZeCommandList and
+  // it being reset to nullptr in another thread.
+  // But, since the ZeCommandList is uniquely associated with the queue
+  // for the event, we use the locking that we already have to do on the
+  // queue to also serve as the thread safety mechanism for the
+  // Event's ZeCommandList.
+  auto Queue = Event->Queue;
+
+  // Lock automatically releases when this goes out of scope.
+  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+
+  auto EventCommandList = Event->ZeCommandList;
+
+  if (EventCommandList) {
+    // Event has been signaled: If the fence for the associated command list
+    // is signalled, then reset the fence and command list and add them to the
+    // available list for reuse in PI calls.
+    if (Queue->RefCount > 0) {
+      ze_result_t ZeResult = ZE_CALL_NOCHECK(
+          zeFenceQueryStatus(Queue->ZeCommandListFenceMap[EventCommandList]));
+      if (ZeResult == ZE_RESULT_SUCCESS) {
+        Queue->resetCommandListFenceEntry(EventCommandList, true);
+        Event->ZeCommandList = nullptr;
+      }
+    }
+  }
+}
+
 pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
 
   if (NumEvents && !EventList) {
@@ -3309,26 +3395,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
 
     // NOTE: we are destroying associated command lists here to free
     // resources sooner in case RT is not calling piEventRelease soon enough.
-    if (EventList[I]->ZeCommandList) {
-      // Event has been signaled: If the fence for the associated command list
-      // is signalled, then reset the fence and command list and add them to the
-      // available list for reuse in PI calls.
-      auto Queue = EventList[I]->Queue;
-
-      // Lock automatically releases when this goes out of scope.
-      std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-
-      if (Queue->RefCount > 0) {
-        ze_result_t ZeResult = ZE_CALL_NOCHECK(zeFenceQueryStatus(
-            EventList[I]
-                ->Queue->ZeCommandListFenceMap[EventList[I]->ZeCommandList]));
-        if (ZeResult == ZE_RESULT_SUCCESS) {
-          EventList[I]->Queue->resetCommandListFenceEntry(
-              EventList[I]->ZeCommandList, true);
-          EventList[I]->ZeCommandList = nullptr;
-        }
-      }
-    }
+    recycleEventCommandList(EventList[I]);
   }
   return PI_SUCCESS;
 }
@@ -3355,24 +3422,8 @@ pi_result piEventRetain(pi_event Event) {
 pi_result piEventRelease(pi_event Event) {
   assert(Event);
   if (--(Event->RefCount) == 0) {
-    if (Event->ZeCommandList) {
-      // If the fence associated with this command list has signalled, then
-      // Reset the Command List Used in this event and put it back on the
-      // available list.
-      auto Queue = Event->Queue;
+    recycleEventCommandList(Event);
 
-      // Lock automatically releases when this goes out of scope.
-      std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-
-      if (Queue->RefCount > 0) {
-        ze_result_t ZeResult = ZE_CALL_NOCHECK(zeFenceQueryStatus(
-            Event->Queue->ZeCommandListFenceMap[Event->ZeCommandList]));
-        if (ZeResult == ZE_RESULT_SUCCESS) {
-          Event->Queue->resetCommandListFenceEntry(Event->ZeCommandList, true);
-        }
-      }
-      Event->ZeCommandList = nullptr;
-    }
     if (Event->CommandType == PI_COMMAND_TYPE_MEM_BUFFER_UNMAP &&
         Event->CommandData) {
       // Free the memory allocated in the piEnqueueMemBufferMap.
@@ -4794,36 +4845,7 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-  ze_memory_advice_t ZeAdvice = {};
-  switch (Advice) {
-  case PI_MEM_ADVICE_SET_READ_MOSTLY:
-    ZeAdvice = ZE_MEMORY_ADVICE_SET_READ_MOSTLY;
-    break;
-  case PI_MEM_ADVICE_CLEAR_READ_MOSTLY:
-    ZeAdvice = ZE_MEMORY_ADVICE_CLEAR_READ_MOSTLY;
-    break;
-  case PI_MEM_ADVICE_SET_PREFERRED_LOCATION:
-    ZeAdvice = ZE_MEMORY_ADVICE_SET_PREFERRED_LOCATION;
-    break;
-  case PI_MEM_ADVICE_CLEAR_PREFERRED_LOCATION:
-    ZeAdvice = ZE_MEMORY_ADVICE_CLEAR_PREFERRED_LOCATION;
-    break;
-  case PI_MEM_ADVICE_SET_NON_ATOMIC_MOSTLY:
-    ZeAdvice = ZE_MEMORY_ADVICE_SET_NON_ATOMIC_MOSTLY;
-    break;
-  case PI_MEM_ADVICE_CLEAR_NON_ATOMIC_MOSTLY:
-    ZeAdvice = ZE_MEMORY_ADVICE_CLEAR_NON_ATOMIC_MOSTLY;
-    break;
-  case PI_MEM_ADVICE_BIAS_CACHED:
-    ZeAdvice = ZE_MEMORY_ADVICE_BIAS_CACHED;
-    break;
-  case PI_MEM_ADVICE_BIAS_UNCACHED:
-    ZeAdvice = ZE_MEMORY_ADVICE_BIAS_UNCACHED;
-    break;
-  default:
-    zePrint("piextUSMEnqueueMemAdvise: unexpected memory advise\n");
-    return PI_INVALID_VALUE;
-  }
+  auto ZeAdvice = pi_cast<ze_memory_advice_t>(Advice);
 
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;

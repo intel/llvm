@@ -13,6 +13,7 @@
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/util.hpp>
+#include <CL/sycl/device.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/spec_constant_impl.hpp>
 
@@ -134,9 +135,10 @@ public:
                              const device &Device, pi::PiProgram NativePrg,
                              const string_class &KernelName, bool KnownProgram);
 
-private:
   ProgramManager();
   ~ProgramManager() = default;
+
+private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
 
