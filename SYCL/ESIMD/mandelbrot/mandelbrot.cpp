@@ -8,7 +8,7 @@
 // TODO enable on Windows and Level Zero
 // REQUIRES: linux && gpu && opencl
 // RUN: %clangxx-esimd -fsycl %s -I%S/.. -o %t.out
-// RUN: %ESIMD_RUN_PLACEHOLDER %t.out %S/output.ppm %S/golden_hw.ppm
+// RUN: %ESIMD_RUN_PLACEHOLDER %t.out %T/output.ppm %S/golden_hw.ppm
 
 #include "esimd_test_utils.hpp"
 #include <CL/sycl.hpp>

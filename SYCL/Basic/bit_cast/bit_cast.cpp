@@ -12,11 +12,9 @@
 
 constexpr cl::sycl::access::mode sycl_write = cl::sycl::access::mode::write;
 
-template <typename To, typename From>
-class BitCastKernel;
+template <typename To, typename From> class BitCastKernel;
 
-template <typename To, typename From>
-To doBitCast(const From &ValueToConvert) {
+template <typename To, typename From> To doBitCast(const From &ValueToConvert) {
   std::vector<To> Vec(1);
   {
     sycl::buffer<To, 1> Buf(Vec.data(), 1);
@@ -32,21 +30,25 @@ To doBitCast(const From &ValueToConvert) {
   return Vec[0];
 }
 
-template <typename To, typename From>
-int test(const From &Value) {
+template <typename To, typename From> int test(const From &Value) {
   auto ValueConvertedTwoTimes = doBitCast<From>(doBitCast<To>(Value));
   bool isOriginalValueEqualsToConvertedTwoTimes = false;
   if (std::is_integral<From>::value) {
     isOriginalValueEqualsToConvertedTwoTimes = Value == ValueConvertedTwoTimes;
-  } else if ((std::is_floating_point<From>::value) || std::is_same<From, cl::sycl::half>::value) {
+  } else if ((std::is_floating_point<From>::value) ||
+             std::is_same<From, cl::sycl::half>::value) {
     static const float Epsilon = 0.0000001f;
-    isOriginalValueEqualsToConvertedTwoTimes = fabs(Value - ValueConvertedTwoTimes) < Epsilon;
+    isOriginalValueEqualsToConvertedTwoTimes =
+        fabs(Value - ValueConvertedTwoTimes) < Epsilon;
   } else {
-    std::cerr << "Type " << typeid(From).name() << " neither integral nor floating point nor cl::sycl::half\n";
+    std::cerr << "Type " << typeid(From).name()
+              << " neither integral nor floating point nor cl::sycl::half\n";
     return 1;
   }
   if (!isOriginalValueEqualsToConvertedTwoTimes) {
-    std::cerr << "FAIL: Original value which is " << Value << " != value converted two times which is " << ValueConvertedTwoTimes << "\n";
+    std::cerr << "FAIL: Original value which is " << Value
+              << " != value converted two times which is "
+              << ValueConvertedTwoTimes << "\n";
     return 1;
   }
   std::cout << "PASS\n";
