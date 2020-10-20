@@ -3588,13 +3588,15 @@ class SYCLKernelNameTypePrinter
     }
   }
 
+  void VisitQualifiers(Qualifiers Quals) {
+    Quals.print(O, P, /*appendSpaceIfNotEmpty*/ true);
+  }
+
 public:
   SYCLKernelNameTypePrinter(raw_ostream &Out, PrintingPolicy &P)
       : Out(Out), P(P), O(Buf) {}
 
-  ~SYCLKernelNameTypePrinter() {
-    emitWithoutAnonNamespaces(Out, O.str());
-  }
+  ~SYCLKernelNameTypePrinter() { emitWithoutAnonNamespaces(Out, O.str()); }
 
   void Visit(QualType T) {
     if (T.isNull())
@@ -3604,10 +3606,6 @@ public:
     VisitQualifiers(CT.getQualifiers());
 
     InnerTypeVisitor::Visit(CT.getTypePtr());
-  }
-
-  void VisitQualifiers(Qualifiers Quals) {
-    Quals.print(O, P, /*appendSpaceIfNotEmpty*/ true);
   }
 
   void VisitType(const Type *T) {
