@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-dead-args-optimization -I %sycl_source_dir %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: env SYCL_DEVICE_TYPE=host %t.out
 #include <CL/sycl.hpp>
 #include <array>
 
