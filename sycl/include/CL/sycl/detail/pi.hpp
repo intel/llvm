@@ -206,6 +206,16 @@ template <> inline void print<>(pi_image_offset off) {
             << off->z << std::endl;
 }
 
+template <> inline void print<>(const pi_image_desc *desc) {
+  std::cout << "image_desc w/h/d : " << desc->image_width << " / "
+            << desc->image_height << " / " << desc->image_depth
+            << "  --  arrSz/row/slice : " << desc->image_array_size << " / "
+            << desc->image_row_pitch << " / " << desc->image_slice_pitch
+            << "  --  num_mip_lvls/num_smpls/image_type : "
+            << desc->num_mip_levels << " / " << desc->num_samples << " / "
+            << desc->image_type << std::endl;
+}
+
 template <> inline void print<>(PiResult val) {
   std::cout << "pi_result : ";
   if (val == PI_SUCCESS)
