@@ -3566,12 +3566,10 @@ class SYCLKernelNameTypePrinter
     : public TypeVisitor<SYCLKernelNameTypePrinter>,
       public ConstTemplateArgumentVisitor<SYCLKernelNameTypePrinter> {
   using InnerTypeVisitor = TypeVisitor<SYCLKernelNameTypePrinter>;
-  using InnerTAVisitor =
+  using InnerTemplArgVisitor =
       ConstTemplateArgumentVisitor<SYCLKernelNameTypePrinter>;
-  raw_ostream &Out;
-  SmallString<64> Buf;
+  raw_ostream &O;
   PrintingPolicy &P;
-  llvm::raw_svector_ostream O;
 
   void printTemplateArgs(ArrayRef<TemplateArgument> Args) {
     for (size_t I = 0, E = Args.size(); I < E; ++I) {
@@ -3594,9 +3592,7 @@ class SYCLKernelNameTypePrinter
 
 public:
   SYCLKernelNameTypePrinter(raw_ostream &Out, PrintingPolicy &P)
-      : Out(Out), P(P), O(Buf) {}
-
-  ~SYCLKernelNameTypePrinter() { emitWithoutAnonNamespaces(Out, O.str()); }
+      : O(Out), P(P) {}
 
   void Visit(QualType T) {
     if (T.isNull())
@@ -3615,7 +3611,7 @@ public:
   void Visit(const TemplateArgument &TA) {
     if (TA.isNull())
       return;
-    InnerTAVisitor::Visit(TA);
+    InnerTemplArgVisitor::Visit(TA);
   }
 
   void VisitTagType(const TagType *T) {
@@ -3632,10 +3628,10 @@ public:
 
       return;
     }
-    // Q: Next part of code results in printing of "class" keyword before class
-    // name in case if kernel name doesn't belong to some namespace. Do we have
-    // to print it? It seems if we don't print it, the integration header still
-    // represents valid c++ code.
+    // TODO: Next part of code results in printing of "class" keyword before
+    // class name in case if kernel name doesn't belong to some namespace. It
+    // seems if we don't print it, the integration header still represents valid
+    // c++ code. Probably we don't need to print it at all.
     if (RD->getDeclContext()->isFunctionOrMethod()) {
       O << QualType::getAsString(T, Qualifiers(), P);
       return;
@@ -3648,11 +3644,6 @@ public:
   void VisitTemplateArgument(const TemplateArgument &TA) { TA.print(P, O); }
 
   void VisitTypeTemplateArgument(const TemplateArgument &TA) {
-    // Q: SuppressTagKeyword property of printing policy removes "class" keyword
-    // so without it any class without namespace would be printed like
-    // KernelName3<class KernelName5>, where KernelName5 is a class without
-    // namespace. So this thing is added to save previous behaviour. However I'm
-    // not sure if we need to print "class" keyword at all.
     P.SuppressTagKeyword = true;
     QualType T = TA.getAsType();
     Visit(T);
@@ -3663,11 +3654,10 @@ public:
     QualType T = TA.getIntegralType();
     if (const EnumType *ET = T->getAs<EnumType>()) {
       const llvm::APSInt &Val = TA.getAsIntegral();
-      O << "static_cast<"
-        << ET->getDecl()->getQualifiedNameAsString(
-               /*WithGlobalNsPrefix*/ true)
-        << ">"
-        << "(" << Val << ")";
+      O << "static_cast<";
+      ET->getDecl()->printQualifiedName(O, P,
+                                        /*WithGlobalNsPrefix*/ true);
+      O << ">(" << Val << ")";
     } else {
       TA.print(P, O);
     }
@@ -3675,7 +3665,7 @@ public:
 
   void VisitTemplateTemplateArgument(const TemplateArgument &TA) {
     TemplateDecl *TD = TA.getAsTemplate().getAsTemplateDecl();
-    O << TD->getQualifiedNameAsString();
+    TD->printQualifiedName(O, P);
   }
 
   void VisitPackTemplateArgument(const TemplateArgument &TA) {
@@ -3780,12 +3770,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       LangOptions LO;
       PrintingPolicy P(LO);
       P.SuppressTypedefs = true;
+      P.SuppressUnwrittenScope = true;
       O << "template <> struct KernelInfo<";
       {
         // SYCLKernelNameTypePrinter flushes internal buffer during destruction,
         // so make sure that it is destructed before we print the next '>'.
-        // Q: that is probably not the best solution, but it allows to call
-        // emitWithoutAnonNamespaces only once.
         SYCLKernelNameTypePrinter Printer(O, P);
         Printer.Visit(K.NameType);
       }
