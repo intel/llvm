@@ -625,6 +625,15 @@ void LLVMToSPIRV::transVectorComputeMetadata(Function *F) {
     BF->addDecorate(DecorationVectorComputeCallableFunctionINTEL);
   }
 
+  if (Attrs.hasAttribute(AttributeList::ReturnIndex,
+                         kVCMetadata::VCSingleElementVector)) {
+    auto *RT = BF->getType();
+    assert(RT->isTypeBool() || RT->isTypeFloat() || RT->isTypeInt() ||
+           RT->isTypePointer() &&
+               "This decoration is valid only for Scalar or Pointer types");
+    BF->addDecorate(DecorationSingleElementVectorINTEL);
+  }
+
   for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
        ++I) {
     auto ArgNo = I->getArgNo();
@@ -635,6 +644,13 @@ void LLVMToSPIRV::transVectorComputeMetadata(Function *F) {
           .getValueAsString()
           .getAsInteger(0, Kind);
       BA->addDecorate(DecorationFuncParamIOKind, Kind);
+    }
+    if (Attrs.hasAttribute(ArgNo + 1, kVCMetadata::VCSingleElementVector)) {
+      auto *AT = BA->getType();
+      assert(AT->isTypeBool() || AT->isTypeFloat() || AT->isTypeInt() ||
+             AT->isTypePointer() &&
+                 "This decoration is valid only for Scalar or Pointer types");
+      BA->addDecorate(DecorationSingleElementVectorINTEL);
     }
     if (Attrs.hasAttribute(ArgNo + 1, kVCMetadata::VCArgumentKind)) {
       SPIRVWord Kind;
