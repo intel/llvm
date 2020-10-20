@@ -3743,6 +3743,16 @@ class OffloadingActionBuilder final {
           for (auto SDA : SYCLDeviceActions)
             SYCLLinkBinaryList.push_back(SDA);
           if (WrapDeviceOnlyBinary) {
+            // If used without -fintelfpga, -fsycl-link is used to wrap device
+            // objects for future host link. Device libraries should be linked
+            // by default to resolve any undefined reference.
+            if (!Args.hasArg(options::OPT_fintelfpga)) {
+              const auto *TC = ToolChains.front();
+              addSYCLDeviceLibs(TC, SYCLLinkBinaryList, true,
+                                C.getDefaultToolChain()
+                                    .getTriple()
+                                    .isWindowsMSVCEnvironment());
+            }
             // -fsycl-link behavior does the following to the unbundled device
             // binaries:
             //   1) Link them together using llvm-link

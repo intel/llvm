@@ -287,6 +287,8 @@ public:
 
   DLL_LOCAL MemObjType getType() const override { return UNDEFINED; }
 
+  ContextImplPtr getInteropContext() const override { return MInteropContext; }
+
 protected:
   // Allocator used for allocation memory on host.
   unique_ptr_class<SYCLMemObjAllocator> MAllocator;
