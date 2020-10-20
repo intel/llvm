@@ -3772,12 +3772,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       P.SuppressTypedefs = true;
       P.SuppressUnwrittenScope = true;
       O << "template <> struct KernelInfo<";
-      {
-        // SYCLKernelNameTypePrinter flushes internal buffer during destruction,
-        // so make sure that it is destructed before we print the next '>'.
-        SYCLKernelNameTypePrinter Printer(O, P);
-        Printer.Visit(K.NameType);
-      }
+      SYCLKernelNameTypePrinter Printer(O, P);
+      Printer.Visit(K.NameType);
       O << "> {\n";
     }
     O << "  DLL_LOCAL\n";
