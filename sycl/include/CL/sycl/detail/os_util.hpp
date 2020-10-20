@@ -14,7 +14,7 @@
 #include <CL/sycl/detail/export.hpp>
 
 #include <cstdint>
-#include <stdlib.h>
+#include <cstdlib>
 #include <string>
 
 #ifdef _WIN32

@@ -40,6 +40,7 @@
 // DEFAULT: "-triple" "spir64-unknown-{{.*}}-sycldevice{{.*}}" "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
 // DEFAULT: "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
 // DEFAULT: "-internal-isystem" "{{.*lib.*clang.*include}}"
+// DEFAULT: "-std=c++17"
 // DEFAULT-NOT: "{{.*}}llvm-spirv"{{.*}} "-spirv-max-version=1.1"{{.*}} "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes"
 // DEFAULT-NOT: "-std=c++11"
 // DEFAULT-NOT: "-std=c++14"
@@ -49,6 +50,19 @@
 // COMBINED: "-triple" "spir64-unknown-{{.*}}-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
 // TEXTUAL: "-triple" "spir64-unknown-{{.*}}-sycldevice{{.*}}" "-fsycl-is-device"{{.*}} "-emit-llvm"
 
+/// -fsycl-device-only triple checks
+// RUN: %clang -fsycl-device-only -target x86_64-unknown-linux-gnu -### %s 2>&1 \
+// RUN:  | FileCheck --check-prefix=DEVICE-64 %s
+// RUN: %clang_cl -fsycl-device-only --target=x86_64-unknown-linux-gnu -### %s 2>&1 \
+// RUN:  | FileCheck --check-prefix=DEVICE-64 %s
+// DEVICE-64: clang{{.*}} "-triple" "spir64-unknown-unknown-sycldevice" {{.*}} "-aux-triple" "x86_64-unknown-linux-gnu"
+
+// RUN: %clang -fsycl-device-only -target i386-unknown-linux-gnu -### %s 2>&1 \
+// RUN:  | FileCheck --check-prefix=DEVICE-32 %s
+// RUN: %clang_cl -fsycl-device-only --target=i386-unknown-linux-gnu -### %s 2>&1 \
+// RUN:  | FileCheck --check-prefix=DEVICE-32 %s
+// DEVICE-32: clang{{.*}} "-triple" "spir-unknown-unknown-sycldevice" {{.*}} "-aux-triple" "i386-unknown-linux-gnu"
+
 /// Verify that the sycl header directory is before /usr/include
 // RUN: %clangxx -### -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=HEADER_ORDER
 // RUN: %clangxx -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=HEADER_ORDER
@@ -56,8 +70,8 @@
 
 /// Verify -fsycl-device-only phases
 // RUN: %clang -### -ccc-print-phases -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT-PHASES
-// DEFAULT-PHASES: 0: input, "{{.*}}", c
-// DEFAULT-PHASES: 1: preprocessor, {0}, cpp-output
+// DEFAULT-PHASES: 0: input, "{{.*}}", c++
+// DEFAULT-PHASES: 1: preprocessor, {0}, c++-cpp-output
 // DEFAULT-PHASES: 2: compiler, {1}, ir
 // DEFAULT-PHASES: 3: backend, {2}, ir
 // DEFAULT-PHASES-NOT: linker
