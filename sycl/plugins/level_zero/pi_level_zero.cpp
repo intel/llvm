@@ -2106,7 +2106,6 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     // As of now, zeMemAllocHost() does not support allocation of pinned
     // host memory. So even if PI_MEM_FLAGS_HOST_PTR_ALLOC set, it allocates
     // pageable host memory.
-    // TODO: 
     if ((Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) != 0) {
       ze_host_mem_alloc_desc_t ZeHostDesc = {};
       ZeHostDesc.flags = 0;
