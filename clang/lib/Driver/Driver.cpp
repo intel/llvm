@@ -2679,7 +2679,7 @@ static SmallVector<const char *, 16> getLinkerArgs(Compilation &C,
         A->getOption().matches(options::OPT_Xlinker)) {
       // Parse through additional linker arguments that are meant to go
       // directly to the linker.
-      std::string PrevArg;
+      static std::string PrevArg;
       for (const std::string &Value : A->getValues()) {
         auto addKnownValues = [&](const StringRef &V) {
           // Only add named static libs objects and --whole-archive options.
