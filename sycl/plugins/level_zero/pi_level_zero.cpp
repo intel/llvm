@@ -2103,7 +2103,10 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
         zeMemAllocDevice(Context->ZeContext, &ZeDesc, Size, 1, ZeDevice, &Ptr));
   }
   if (HostPtr) {
-
+    // As of now, zeMemAllocHost() does not support allocation of pinned
+    // host memory. So even if PI_MEM_FLAGS_HOST_PTR_ALLOC set, it allocates
+    // pageable host memory.
+    // TODO: 
     if ((Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) != 0) {
       ze_host_mem_alloc_desc_t ZeHostDesc = {};
       ZeHostDesc.flags = 0;
@@ -2111,6 +2114,9 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
       ZE_CALL(zeMemAllocHost(Context->ZeContext, &ZeHostDesc, Size,
                              1, // TODO: alignment
                              &HostPtr));
+      ZE_CALL(zeCommandListAppendMemoryCopy(Context->ZeCommandListInit, Ptr,
+                                            HostPtr, Size, nullptr, 0,
+                                            nullptr));
     } else if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0 ||
                (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) != 0) {
       // Initialize the buffer with user data
