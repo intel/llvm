@@ -3562,122 +3562,118 @@ static void emitCPPTypeString(raw_ostream &OS, QualType Ty) {
   emitWithoutAnonNamespaces(OS, Ty.getAsString(P));
 }
 
-static void printArguments(ASTContext &Ctx, raw_ostream &ArgOS,
-                           ArrayRef<TemplateArgument> Args,
-                           const PrintingPolicy &P);
+class SYCLKernelNameTypePrinter
+    : public TypeVisitor<SYCLKernelNameTypePrinter>,
+      public ConstTemplateArgumentVisitor<SYCLKernelNameTypePrinter> {
+  using InnerTypeVisitor = TypeVisitor<SYCLKernelNameTypePrinter>;
+  using InnerTemplArgVisitor =
+      ConstTemplateArgumentVisitor<SYCLKernelNameTypePrinter>;
+  raw_ostream &OS;
+  PrintingPolicy &Policy;
 
-static void emitKernelNameType(QualType T, ASTContext &Ctx, raw_ostream &OS,
-                               const PrintingPolicy &TypePolicy);
+  void printTemplateArgs(ArrayRef<TemplateArgument> Args) {
+    for (size_t I = 0, E = Args.size(); I < E; ++I) {
+      const TemplateArgument &Arg = Args[I];
+      // If argument is an empty pack argument, skip printing comma and
+      // argument.
+      if (Arg.getKind() == TemplateArgument::ArgKind::Pack && !Arg.pack_size())
+        continue;
 
-static void printArgument(ASTContext &Ctx, raw_ostream &ArgOS,
-                          TemplateArgument Arg, const PrintingPolicy &P) {
-  switch (Arg.getKind()) {
-  case TemplateArgument::ArgKind::Pack: {
-    printArguments(Ctx, ArgOS, Arg.getPackAsArray(), P);
-    break;
-  }
-  case TemplateArgument::ArgKind::Integral: {
-    QualType T = Arg.getIntegralType();
-    const EnumType *ET = T->getAs<EnumType>();
+      if (I)
+        OS << ", ";
 
-    if (ET) {
-      const llvm::APSInt &Val = Arg.getAsIntegral();
-      ArgOS << "static_cast<"
-            << ET->getDecl()->getQualifiedNameAsString(
-                   /*WithGlobalNsPrefix*/ true)
-            << ">"
-            << "(" << Val << ")";
-    } else {
-      Arg.print(P, ArgOS);
+      Visit(Arg);
     }
-    break;
-  }
-  case TemplateArgument::ArgKind::Type: {
-    LangOptions LO;
-    PrintingPolicy TypePolicy(LO);
-    TypePolicy.SuppressTypedefs = true;
-    TypePolicy.SuppressTagKeyword = true;
-    QualType T = Arg.getAsType();
-
-    emitKernelNameType(T, Ctx, ArgOS, TypePolicy);
-    break;
-  }
-  case TemplateArgument::ArgKind::Template: {
-    TemplateDecl *TD = Arg.getAsTemplate().getAsTemplateDecl();
-    ArgOS << TD->getQualifiedNameAsString();
-    break;
-  }
-  default:
-    Arg.print(P, ArgOS);
-  }
-}
-
-static void printArguments(ASTContext &Ctx, raw_ostream &ArgOS,
-                           ArrayRef<TemplateArgument> Args,
-                           const PrintingPolicy &P) {
-  for (unsigned I = 0; I < Args.size(); I++) {
-    const TemplateArgument &Arg = Args[I];
-
-    // If argument is an empty pack argument, skip printing comma and argument.
-    if (Arg.getKind() == TemplateArgument::ArgKind::Pack && !Arg.pack_size())
-      continue;
-
-    if (I != 0)
-      ArgOS << ", ";
-
-    printArgument(Ctx, ArgOS, Arg, P);
-  }
-}
-
-static void printTemplateArguments(ASTContext &Ctx, raw_ostream &ArgOS,
-                                   ArrayRef<TemplateArgument> Args,
-                                   const PrintingPolicy &P) {
-  ArgOS << "<";
-  printArguments(Ctx, ArgOS, Args, P);
-  ArgOS << ">";
-}
-
-static void emitRecordType(raw_ostream &OS, QualType T, const CXXRecordDecl *RD,
-                           const PrintingPolicy &TypePolicy) {
-  SmallString<64> Buf;
-  llvm::raw_svector_ostream RecOS(Buf);
-  T.getCanonicalType().getQualifiers().print(RecOS, TypePolicy,
-                                             /*appendSpaceIfNotEmpty*/ true);
-  if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
-
-    // Print template class name
-    TSD->printQualifiedName(RecOS, TypePolicy, /*WithGlobalNsPrefix*/ true);
-
-    // Print template arguments substituting enumerators
-    ASTContext &Ctx = RD->getASTContext();
-    const TemplateArgumentList &Args = TSD->getTemplateArgs();
-    printTemplateArguments(Ctx, RecOS, Args.asArray(), TypePolicy);
-
-    emitWithoutAnonNamespaces(OS, RecOS.str());
-    return;
-  }
-  if (RD->getDeclContext()->isFunctionOrMethod()) {
-    emitWithoutAnonNamespaces(OS, T.getCanonicalType().getAsString(TypePolicy));
-    return;
   }
 
-  const NamespaceDecl *NS = dyn_cast<NamespaceDecl>(RD->getDeclContext());
-  RD->printQualifiedName(RecOS, TypePolicy,
-                         !(NS && NS->isAnonymousNamespace()));
-  emitWithoutAnonNamespaces(OS, RecOS.str());
-}
-
-static void emitKernelNameType(QualType T, ASTContext &Ctx, raw_ostream &OS,
-                               const PrintingPolicy &TypePolicy) {
-  if (T->isRecordType()) {
-    emitRecordType(OS, T, T->getAsCXXRecordDecl(), TypePolicy);
-    return;
+  void VisitQualifiers(Qualifiers Quals) {
+    Quals.print(OS, Policy, /*appendSpaceIfNotEmpty*/ true);
   }
 
-  if (T->isEnumeralType())
-    OS << "::";
-  emitWithoutAnonNamespaces(OS, T.getCanonicalType().getAsString(TypePolicy));
-}
+public:
+  SYCLKernelNameTypePrinter(raw_ostream &OS, PrintingPolicy &Policy)
+      : OS(OS), Policy(Policy) {}
+
+  void Visit(QualType T) {
+    if (T.isNull())
+      return;
+
+    QualType CT = T.getCanonicalType();
+    VisitQualifiers(CT.getQualifiers());
+
+    InnerTypeVisitor::Visit(CT.getTypePtr());
+  }
+
+  void VisitType(const Type *T) {
+    OS << QualType::getAsString(T, Qualifiers(), Policy);
+  }
+
+  void Visit(const TemplateArgument &TA) {
+    if (TA.isNull())
+      return;
+    InnerTemplArgVisitor::Visit(TA);
+  }
+
+  void VisitTagType(const TagType *T) {
+    TagDecl *RD = T->getDecl();
+    if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
+
+      // Print template class name
+      TSD->printQualifiedName(OS, Policy, /*WithGlobalNsPrefix*/ true);
+
+      ArrayRef<TemplateArgument> Args = TSD->getTemplateArgs().asArray();
+      OS << "<";
+      printTemplateArgs(Args);
+      OS << ">";
+
+      return;
+    }
+    // TODO: Next part of code results in printing of "class" keyword before
+    // class name in case if kernel name doesn't belong to some namespace. It
+    // seems if we don't print it, the integration header still represents valid
+    // c++ code. Probably we don't need to print it at all.
+    if (RD->getDeclContext()->isFunctionOrMethod()) {
+      OS << QualType::getAsString(T, Qualifiers(), Policy);
+      return;
+    }
+
+    const NamespaceDecl *NS = dyn_cast<NamespaceDecl>(RD->getDeclContext());
+    RD->printQualifiedName(OS, Policy, !(NS && NS->isAnonymousNamespace()));
+  }
+
+  void VisitTemplateArgument(const TemplateArgument &TA) {
+    TA.print(Policy, OS);
+  }
+
+  void VisitTypeTemplateArgument(const TemplateArgument &TA) {
+    Policy.SuppressTagKeyword = true;
+    QualType T = TA.getAsType();
+    Visit(T);
+    Policy.SuppressTagKeyword = false;
+  }
+
+  void VisitIntegralTemplateArgument(const TemplateArgument &TA) {
+    QualType T = TA.getIntegralType();
+    if (const EnumType *ET = T->getAs<EnumType>()) {
+      const llvm::APSInt &Val = TA.getAsIntegral();
+      OS << "static_cast<";
+      ET->getDecl()->printQualifiedName(OS, Policy,
+                                        /*WithGlobalNsPrefix*/ true);
+      OS << ">(" << Val << ")";
+    } else {
+      TA.print(Policy, OS);
+    }
+  }
+
+  void VisitTemplateTemplateArgument(const TemplateArgument &TA) {
+    TemplateDecl *TD = TA.getAsTemplate().getAsTemplateDecl();
+    TD->printQualifiedName(OS, Policy);
+  }
+
+  void VisitPackTemplateArgument(const TemplateArgument &TA) {
+    printTemplateArgs(TA.getPackAsArray());
+  }
+};
 
 void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "// This is auto-generated SYCL integration header.\n";
@@ -3776,8 +3772,10 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       LangOptions LO;
       PrintingPolicy P(LO);
       P.SuppressTypedefs = true;
+      P.SuppressUnwrittenScope = true;
       O << "template <> struct KernelInfo<";
-      emitKernelNameType(K.NameType, S.getASTContext(), O, P);
+      SYCLKernelNameTypePrinter Printer(O, P);
+      Printer.Visit(K.NameType);
       O << "> {\n";
     }
     O << "  DLL_LOCAL\n";
