@@ -8,11 +8,10 @@
 
 #pragma once
 
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/export.hpp> // for DLL_LOCAL used in int. header
+// This header file must not include any standard C++ header files.
 
-#include <cstddef>
+#include <CL/sycl/detail/defines_elementary.hpp>
+#include <CL/sycl/detail/export.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -67,6 +66,8 @@ template <char...> struct KernelInfoData {
   }
   static constexpr const char *getName() { return ""; }
 };
+
+using size_t = decltype((__builtin_strlen("")));
 
 // C++14 like index_sequence and make_index_sequence
 // not needed C++14 members (value_type, size) not implemented
