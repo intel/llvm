@@ -1701,6 +1701,11 @@ struct DSEState {
       return {MemoryLocation::getForDest(MTI)};
 
     if (auto *CB = dyn_cast<CallBase>(I)) {
+      // If the functions may write to memory we do not know about, bail out.
+      if (!CB->onlyAccessesArgMemory() &&
+          !CB->onlyAccessesInaccessibleMemOrArgMem())
+        return None;
+
       LibFunc LF;
       if (TLI.getLibFunc(*CB, LF) && TLI.has(LF)) {
         switch (LF) {
@@ -2135,16 +2140,20 @@ struct DSEState {
         continue;
       }
 
+      // A memory terminator kills all preceeding MemoryDefs and all succeeding
+      // MemoryAccesses. We do not have to check it's users.
+      if (isMemTerminator(DefLoc, KillingI, UseInst)) {
+        LLVM_DEBUG(
+            dbgs()
+            << " ... skipping, memterminator invalidates following accesses\n");
+        continue;
+      }
+
       if (isNoopIntrinsic(cast<MemoryUseOrDef>(UseAccess)->getMemoryInst())) {
         LLVM_DEBUG(dbgs() << "    ... adding uses of intrinsic\n");
         PushMemUses(UseAccess);
         continue;
       }
-
-      // A memory terminator kills all preceeding MemoryDefs and all succeeding
-      // MemoryAccesses. We do not have to check it's users.
-      if (isMemTerminator(DefLoc, KillingI, UseInst))
-        continue;
 
       if (UseInst->mayThrow() && !isInvisibleToCallerBeforeRet(DefUO)) {
         LLVM_DEBUG(dbgs() << "  ... found throwing instruction\n");

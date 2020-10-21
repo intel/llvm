@@ -49,28 +49,22 @@ using llvm::MemoryBuffer;
 // SourceManager Helper Classes
 //===----------------------------------------------------------------------===//
 
-ContentCache::~ContentCache() {
-  if (shouldFreeBuffer())
-    delete Buffer.getPointer();
-}
-
 /// getSizeBytesMapped - Returns the number of bytes actually mapped for this
 /// ContentCache. This can be 0 if the MemBuffer was not actually expanded.
 unsigned ContentCache::getSizeBytesMapped() const {
-  return Buffer.getPointer() ? Buffer.getPointer()->getBufferSize() : 0;
+  return Buffer ? Buffer->getBufferSize() : 0;
 }
 
 /// Returns the kind of memory used to back the memory buffer for
 /// this content cache.  This is used for performance analysis.
 llvm::MemoryBuffer::BufferKind ContentCache::getMemoryBufferKind() const {
-  assert(Buffer.getPointer());
+  assert(Buffer);
 
   // Should be unreachable, but keep for sanity.
-  if (!Buffer.getPointer())
+  if (!Buffer)
     return llvm::MemoryBuffer::MemoryBuffer_Malloc;
 
-  const llvm::MemoryBuffer *buf = Buffer.getPointer();
-  return buf->getBufferKind();
+  return Buffer->getBufferKind();
 }
 
 /// getSize - Returns the size of the content encapsulated by this ContentCache.
@@ -78,21 +72,8 @@ llvm::MemoryBuffer::BufferKind ContentCache::getMemoryBufferKind() const {
 ///  scratch buffer.  If the ContentCache encapsulates a source file, that
 ///  file is not lazily brought in from disk to satisfy this query.
 unsigned ContentCache::getSize() const {
-  return Buffer.getPointer() ? (unsigned) Buffer.getPointer()->getBufferSize()
-                             : (unsigned) ContentsEntry->getSize();
-}
-
-void ContentCache::replaceBuffer(const llvm::MemoryBuffer *B, bool DoNotFree) {
-  if (B && B == Buffer.getPointer()) {
-    assert(0 && "Replacing with the same buffer");
-    Buffer.setInt(DoNotFree? DoNotFreeFlag : 0);
-    return;
-  }
-
-  if (shouldFreeBuffer())
-    delete Buffer.getPointer();
-  Buffer.setPointer(B);
-  Buffer.setInt((B && DoNotFree) ? DoNotFreeFlag : 0);
+  return Buffer ? (unsigned)Buffer->getBufferSize()
+                : (unsigned)ContentsEntry->getSize();
 }
 
 const char *ContentCache::getInvalidBOM(StringRef BufStr) {
@@ -121,22 +102,18 @@ const char *ContentCache::getInvalidBOM(StringRef BufStr) {
 llvm::Optional<llvm::MemoryBufferRef>
 ContentCache::getBufferOrNone(DiagnosticsEngine &Diag, FileManager &FM,
                               SourceLocation Loc) const {
-  if (auto *B = getBufferPointer(Diag, FM, Loc))
-    return B->getMemBufferRef();
-  return None;
-}
-
-const llvm::MemoryBuffer *
-ContentCache::getBufferPointer(DiagnosticsEngine &Diag, FileManager &FM,
-                               SourceLocation Loc) const {
   // Lazily create the Buffer for ContentCaches that wrap files.  If we already
   // computed it, just return what we have.
-  if (isBufferInvalid())
-    return nullptr;
-  if (auto *B = Buffer.getPointer())
-    return B;
+  if (IsBufferInvalid)
+    return None;
+  if (Buffer)
+    return Buffer->getMemBufferRef();
   if (!ContentsEntry)
-    return nullptr;
+    return None;
+
+  // Start with the assumption that the buffer is invalid to simplify early
+  // return paths.
+  IsBufferInvalid = true;
 
   // Check that the file's size fits in an 'unsigned' (with room for a
   // past-the-end value). This is deeply regrettable, but various parts of
@@ -152,8 +129,7 @@ ContentCache::getBufferPointer(DiagnosticsEngine &Diag, FileManager &FM,
       Diag.Report(Loc, diag::err_file_too_large)
         << ContentsEntry->getName();
 
-    Buffer.setInt(Buffer.getInt() | InvalidFlag);
-    return nullptr;
+    return None;
   }
 
   auto BufferOrError = FM.getBufferForFile(ContentsEntry, IsFileVolatile);
@@ -172,11 +148,10 @@ ContentCache::getBufferPointer(DiagnosticsEngine &Diag, FileManager &FM,
       Diag.Report(Loc, diag::err_cannot_open_file)
           << ContentsEntry->getName() << BufferOrError.getError().message();
 
-    Buffer.setInt(Buffer.getInt() | InvalidFlag);
-    return nullptr;
+    return None;
   }
 
-  Buffer.setPointer(BufferOrError->release());
+  Buffer = std::move(*BufferOrError);
 
   // Check that the file's size is the same as in the file entry (which may
   // have come from a stat cache).
@@ -188,24 +163,24 @@ ContentCache::getBufferPointer(DiagnosticsEngine &Diag, FileManager &FM,
       Diag.Report(Loc, diag::err_file_modified)
         << ContentsEntry->getName();
 
-    Buffer.setInt(Buffer.getInt() | InvalidFlag);
-    return nullptr;
+    return None;
   }
 
   // If the buffer is valid, check to see if it has a UTF Byte Order Mark
   // (BOM).  We only support UTF-8 with and without a BOM right now.  See
   // http://en.wikipedia.org/wiki/Byte_order_mark for more information.
-  StringRef BufStr = Buffer.getPointer()->getBuffer();
+  StringRef BufStr = Buffer->getBuffer();
   const char *InvalidBOM = getInvalidBOM(BufStr);
 
   if (InvalidBOM) {
     Diag.Report(Loc, diag::err_unsupported_bom)
       << InvalidBOM << ContentsEntry->getName();
-    Buffer.setInt(Buffer.getInt() | InvalidFlag);
-    return nullptr;
+    return None;
   }
 
-  return Buffer.getPointer();
+  // Buffer has been validated.
+  IsBufferInvalid = false;
+  return Buffer->getMemBufferRef();
 }
 
 unsigned LineTableInfo::getLineTableFilenameID(StringRef Name) {
@@ -388,7 +363,7 @@ void SourceManager::initializeForReplay(const SourceManager &Old) {
     Clone->BufferOverridden = Cache->BufferOverridden;
     Clone->IsFileVolatile = Cache->IsFileVolatile;
     Clone->IsTransient = Cache->IsTransient;
-    Clone->replaceBuffer(Cache->getRawBuffer(), /*DoNotFree*/true);
+    Clone->setUnownedBuffer(Cache->getRawBuffer());
     return Clone;
   };
 
@@ -443,14 +418,13 @@ SourceManager::getOrCreateContentCache(const FileEntry *FileEnt,
 
 /// Create a new ContentCache for the specified memory buffer.
 /// This does no caching.
-const ContentCache *
-SourceManager::createMemBufferContentCache(const llvm::MemoryBuffer *Buffer,
-                                           bool DoNotFree) {
+const ContentCache *SourceManager::createMemBufferContentCache(
+    std::unique_ptr<llvm::MemoryBuffer> Buffer) {
   // Add a new ContentCache to the MemBufferInfos list and return it.
   ContentCache *Entry = ContentCacheAlloc.Allocate<ContentCache>();
   new (Entry) ContentCache();
   MemBufferInfos.push_back(Entry);
-  Entry->replaceBuffer(Buffer, DoNotFree);
+  Entry->setBuffer(std::move(Buffer));
   return Entry;
 }
 
@@ -502,8 +476,7 @@ const SrcMgr::ContentCache *
 SourceManager::getFakeContentCacheForRecovery() const {
   if (!FakeContentCacheForRecovery) {
     FakeContentCacheForRecovery = std::make_unique<SrcMgr::ContentCache>();
-    FakeContentCacheForRecovery->replaceBuffer(getFakeBufferForRecovery(),
-                                               /*DoNotFree=*/true);
+    FakeContentCacheForRecovery->setUnownedBuffer(getFakeBufferForRecovery());
   }
   return FakeContentCacheForRecovery.get();
 }
@@ -585,22 +558,20 @@ FileID SourceManager::createFileID(std::unique_ptr<llvm::MemoryBuffer> Buffer,
                                    int LoadedID, unsigned LoadedOffset,
                                    SourceLocation IncludeLoc) {
   StringRef Name = Buffer->getBufferIdentifier();
-  return createFileID(
-      createMemBufferContentCache(Buffer.release(), /*DoNotFree*/ false),
-      Name, IncludeLoc, FileCharacter, LoadedID, LoadedOffset);
+  return createFileID(createMemBufferContentCache(std::move(Buffer)), Name,
+                      IncludeLoc, FileCharacter, LoadedID, LoadedOffset);
 }
 
 /// Create a new FileID that represents the specified memory buffer.
 ///
 /// This does not take ownership of the MemoryBuffer. The memory buffer must
 /// outlive the SourceManager.
-FileID SourceManager::createFileID(UnownedTag, const llvm::MemoryBuffer *Buffer,
+FileID SourceManager::createFileID(const llvm::MemoryBufferRef &Buffer,
                                    SrcMgr::CharacteristicKind FileCharacter,
                                    int LoadedID, unsigned LoadedOffset,
                                    SourceLocation IncludeLoc) {
-  return createFileID(createMemBufferContentCache(Buffer, /*DoNotFree*/ true),
-		      Buffer->getBufferIdentifier(), IncludeLoc,
-		      FileCharacter, LoadedID, LoadedOffset);
+  return createFileID(llvm::MemoryBuffer::getMemBuffer(Buffer), FileCharacter,
+                      LoadedID, LoadedOffset, IncludeLoc);
 }
 
 /// Get the FileID for \p SourceFile if it exists. Otherwise, create a
@@ -704,24 +675,21 @@ SourceManager::createExpansionLocImpl(const ExpansionInfo &Info,
   return SourceLocation::getMacroLoc(NextLocalOffset - (TokLength + 1));
 }
 
-const llvm::MemoryBuffer *
-SourceManager::getMemoryBufferForFile(const FileEntry *File, bool *Invalid) {
+llvm::Optional<llvm::MemoryBufferRef>
+SourceManager::getMemoryBufferForFileOrNone(const FileEntry *File) {
   const SrcMgr::ContentCache *IR = getOrCreateContentCache(File);
   assert(IR && "getOrCreateContentCache() cannot return NULL");
-  auto *B = IR->getBufferPointer(Diag, getFileManager(), SourceLocation());
-  if (Invalid)
-    *Invalid = !B;
-  return B ? B : getFakeBufferForRecovery();
+  return IR->getBufferOrNone(Diag, getFileManager(), SourceLocation());
 }
 
-void SourceManager::overrideFileContents(const FileEntry *SourceFile,
-                                         llvm::MemoryBuffer *Buffer,
-                                         bool DoNotFree) {
-  const SrcMgr::ContentCache *IR = getOrCreateContentCache(SourceFile);
+void SourceManager::overrideFileContents(
+    const FileEntry *SourceFile, std::unique_ptr<llvm::MemoryBuffer> Buffer) {
+  auto *IR =
+      const_cast<SrcMgr::ContentCache *>(getOrCreateContentCache(SourceFile));
   assert(IR && "getOrCreateContentCache() cannot return NULL");
 
-  const_cast<SrcMgr::ContentCache *>(IR)->replaceBuffer(Buffer, DoNotFree);
-  const_cast<SrcMgr::ContentCache *>(IR)->BufferOverridden = true;
+  IR->setBuffer(std::move(Buffer));
+  IR->BufferOverridden = true;
 
   getOverriddenFilesInfo().OverriddenFilesWithBuffer.insert(SourceFile);
 }
