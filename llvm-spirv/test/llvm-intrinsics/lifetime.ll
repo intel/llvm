@@ -19,6 +19,8 @@
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-unknown"
 
+%class.anon = type { i8 }
+
 ; Function Attrs: nounwind
 define spir_kernel void @lifetime_simple(i32 addrspace(1)* nocapture %res, i32 addrspace(1)* nocapture %lhs, i32 addrspace(1)* nocapture %rhs) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !5 !kernel_arg_type_qual !4 {
   %1 = alloca i32
@@ -37,6 +39,26 @@ define spir_kernel void @lifetime_simple(i32 addrspace(1)* nocapture %res, i32 a
   call void @llvm.lifetime.end.p0i8(i64 -1, i8* %10)
   %12 = getelementptr inbounds i32, i32 addrspace(1)* %res, i64 %4
   store i32 %11, i32 addrspace(1)* %12, align 4
+  ret void
+}
+
+define spir_kernel void @lifetime_sized() #0 !kernel_arg_addr_space !8 !kernel_arg_access_qual !8 !kernel_arg_type !8 !kernel_arg_base_type !8 !kernel_arg_type_qual !8 {
+entry:
+  %0 = alloca %class.anon, align 1
+  %1 = bitcast %class.anon* %0 to i8*
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %1) #0
+  call spir_func void @foo(%class.anon* %0)
+  %2 = bitcast %class.anon* %0 to i8*
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %2) #0
+  ret void
+}
+
+; Function Attrs: inlinehint nounwind
+define internal spir_func void @foo(%class.anon* %this) #0 align 2 {
+entry:
+  %this.addr = alloca %class.anon*, align 8
+  store %class.anon* %this, %class.anon** %this.addr, align 8
+  %this1 = load %class.anon*, %class.anon** %this.addr, align 8
   ret void
 }
 
