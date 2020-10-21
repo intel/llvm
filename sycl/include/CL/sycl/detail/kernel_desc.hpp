@@ -70,8 +70,8 @@ template <char...> struct KernelInfoData {
 // C++14 like index_sequence and make_index_sequence
 // not needed C++14 members (value_type, size) not implemented
 template <class T, T...> struct integer_sequence {};
-template <unsigned long long... I> using index_sequence =
-    integer_sequence<unsigned long long, I...>;
+template <unsigned long long... I>
+using index_sequence = integer_sequence<unsigned long long, I...>;
 template <unsigned long long N>
 using make_index_sequence =
     __make_integer_seq<integer_sequence, unsigned long long, N>;
