@@ -1627,7 +1627,8 @@ pi_result cuda_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
 /// \TODO Implement USE_HOST_PTR using cuHostRegister
 ///
 pi_result cuda_piMemBufferCreate(pi_context context, pi_mem_flags flags,
-                                 size_t size, void *host_ptr, pi_mem *ret_mem) {
+                                 size_t size, void *host_ptr, pi_mem *ret_mem,
+                                 const cl_mem_properties_intel *properties) {
   // Need input memory object
   assert(ret_mem != nullptr);
   // Currently, USE_HOST_PTR is not implemented using host register

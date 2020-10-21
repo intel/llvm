@@ -53,6 +53,8 @@ CONSTFIX char clHostMemAllocName[] = "clHostMemAllocINTEL";
 CONSTFIX char clDeviceMemAllocName[] = "clDeviceMemAllocINTEL";
 CONSTFIX char clSharedMemAllocName[] = "clSharedMemAllocINTEL";
 CONSTFIX char clMemFreeName[] = "clMemFreeINTEL";
+CONSTFIX char clCreateBufferWithPropertiesName[] =
+    "clCreateBufferWithPropertiesINTEL";
 CONSTFIX char clSetKernelArgMemPointerName[] = "clSetKernelArgMemPointerINTEL";
 CONSTFIX char clEnqueueMemsetName[] = "clEnqueueMemsetINTEL";
 CONSTFIX char clEnqueueMemcpyName[] = "clEnqueueMemcpyINTEL";
@@ -516,12 +518,25 @@ pi_result piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
 }
 
 pi_result piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
-                            void *host_ptr, pi_mem *ret_mem) {
+                            void *host_ptr, pi_mem *ret_mem,
+                            const cl_mem_properties_intel *properties) {
   pi_result ret_err = PI_INVALID_OPERATION;
-  *ret_mem = cast<pi_mem>(clCreateBuffer(cast<cl_context>(context),
-                                         cast<cl_mem_flags>(flags), size,
-                                         host_ptr, cast<cl_int *>(&ret_err)));
+  clCreateBufferWithPropertiesINTEL_fn FuncPtr = nullptr;
 
+  if (properties)
+    // First we need to look up the function pointer
+    ret_err = getExtFuncFromContext<clCreateBufferWithPropertiesName,
+                                    clCreateBufferWithPropertiesINTEL_fn>(
+        context, &FuncPtr);
+
+  if (FuncPtr)
+    *ret_mem = cast<pi_mem>(FuncPtr(cast<cl_context>(context), properties,
+                                    cast<cl_mem_flags>(flags), size, host_ptr,
+                                    cast<cl_int *>(&ret_err)));
+  else
+    *ret_mem = cast<pi_mem>(clCreateBuffer(cast<cl_context>(context),
+                                           cast<cl_mem_flags>(flags), size,
+                                           host_ptr, cast<cl_int *>(&ret_err)));
   return ret_err;
 }
 
