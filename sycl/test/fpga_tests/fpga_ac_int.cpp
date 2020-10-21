@@ -5,7 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
+// RUN: %clangxx -fsycl %s -o %t.out
+// env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %ACC_RUN_PLACEHOLDER %t.out
 #include <CL/sycl.hpp>
 #include <CL/sycl/INTEL/ac_int.hpp>
 #include <CL/sycl/INTEL/fpga_extensions.hpp>
