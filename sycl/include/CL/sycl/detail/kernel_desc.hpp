@@ -67,19 +67,19 @@ template <char...> struct KernelInfoData {
   static constexpr const char *getName() { return ""; }
 };
 
-using size_t = decltype(sizeof(int));
-
 // C++14 like index_sequence and make_index_sequence
 // not needed C++14 members (value_type, size) not implemented
 template <class T, T...> struct integer_sequence {};
-template <size_t... I> using index_sequence = integer_sequence<size_t, I...>;
-template <size_t N>
-using make_index_sequence = __make_integer_seq<integer_sequence, size_t, N>;
+template <unsigned long long... I> using index_sequence =
+    integer_sequence<unsigned long long, I...>;
+template <unsigned long long N>
+using make_index_sequence =
+    __make_integer_seq<integer_sequence, unsigned long long, N>;
 
 template <typename T> struct KernelInfoImpl {
 private:
   static constexpr auto n = __builtin_unique_stable_name(T);
-  template <size_t... I>
+  template <unsigned long long... I>
   static KernelInfoData<n[I]...> impl(index_sequence<I...>) {
     return {};
   }
