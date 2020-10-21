@@ -1,11 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
-// REQUIRES: opencl
-// TODO enable test on GPUs once drivers are fixed
-// UNSUPPORTED: gpu
+// RUN: env SYCL_DEVICE_TYPE=host %t.out
 
 // SYCL runtime may construct global objects at function scope. The test ensures
 // such objects do not cause problems if the first call to SYCL is inside main
