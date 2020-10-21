@@ -59,7 +59,7 @@ destruction of nested `std::unique_ptr`s.
 
 On Linux DPC++ runtime uses `__attribute__((destructor))` property with maximum
 possible priority value 65535. This approach does not guarantee, that
-`GlobalHandler` destructor is the lats thing to run, as user code may contain
+`GlobalHandler` destructor is the last thing to run, as user code may contain
 a similar function with the same priority value.
 
 Another approach would be to leak global objects. This would guarantee user,
