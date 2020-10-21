@@ -67,7 +67,7 @@ template <char...> struct KernelInfoData {
   static constexpr const char *getName() { return ""; }
 };
 
-using size_t = decltype((__builtin_strlen("")));
+using size_t = decltype(sizeof(int));
 
 // C++14 like index_sequence and make_index_sequence
 // not needed C++14 members (value_type, size) not implemented
