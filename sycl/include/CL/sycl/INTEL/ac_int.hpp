@@ -710,7 +710,9 @@ public:
     // The inputs must fit in 128 bits.
     static_assert(N2 + S2 <= 128, "");
     static_assert(N + S <= 128, "");
-    typedef typename select_type<Sr ? AC_MAX(N, N2) + 1 : AC_MAX(N, N2), Sr>::type opdivtype;
+    typedef
+        typename select_type<Sr ? AC_MAX(N, N2) + 1 : AC_MAX(N, N2), Sr>::type
+            opdivtype;
     typedef typename select_type<Nr, Sr>::type resdivtype;
     opdivtype a = static_cast<opdivtype>(value);
     opdivtype b = static_cast<opdivtype>(op2.value);
@@ -2102,8 +2104,7 @@ inline std::ostream &operator<<(std::ostream &os, const ac_int<W, S> &x) {
 }
 #endif // linux && !_HLS_EMBEDDED_PROFILE
 
-// Macros for Binary Operators with Integers
-// --------------------------------------------
+// Macros for Binary Operators with Integers -----------------------------------
 
 #define BIN_OP_WITH_INT(BIN_OP, C_TYPE, WI, SI, RTYPE)                         \
   template <int W, bool S>                                                     \
@@ -2164,13 +2165,11 @@ inline std::ostream &operator<<(std::ostream &os, const ac_int<W, S> &x) {
   ASSIGN_OP_WITH_INT(|=, C_TYPE, WI, SI)                                       \
   ASSIGN_OP_WITH_INT(^=, C_TYPE, WI, SI)
 
-// ------------------------------------- End of Macros for Binary Operators with
-// Integers
+// ---------------------------- End of Macros for Binary Operators with Integers
 
 namespace ac {
 namespace ops_with_other_types {
-//  Mixed Operators with Integers
-//  -----------------------------------------------
+//  Mixed Operators with Integers ----------------------------------------------
 OPS_WITH_INT(bool, 1, false)
 OPS_WITH_INT(char, 8, true)
 OPS_WITH_INT(signed char, 8, true)
@@ -2183,8 +2182,7 @@ OPS_WITH_INT(long, ac_private::long_w, true)
 OPS_WITH_INT(unsigned long, ac_private::long_w, false)
 OPS_WITH_INT(Slong, 64, true)
 OPS_WITH_INT(Ulong, 64, false)
-// -----------------------------------------  End of Mixed Operators with
-// Integers
+// ---------------------------------------  End of Mixed Operators with Integers
 } // namespace ops_with_other_types
 
 // Functions to fill bits
@@ -2208,8 +2206,7 @@ inline T bit_fill(const int (&ivec)[N], bool bigendian = true) {
 
 } // namespace ac
 
-//  Mixed Operators with Pointers
-//  -----------------------------------------------
+//  Mixed Operators with Pointers ----------------------------------------------
 
 // Addition of ac_int and  pointer
 template <typename T, int W, bool S>
@@ -2225,8 +2222,7 @@ template <typename T, int W, bool S>
 T *operator-(T *ptr, const ac_int<W, S> &op2) {
   return ptr - op2.to_int64();
 }
-// -----------------------------------------  End of Mixed Operators with
-// Pointers
+// ---------------------------------------  End of Mixed Operators with Pointers
 
 using namespace ac::ops_with_other_types;
 
