@@ -5,23 +5,23 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Algorithmic C (tm) Datatypes                                         
-//                                                                      
-// Software Version: 3.7                                                
-//                                                                      
-// Release Date    : Wed Jun  1 13:21:52 PDT 2016                       
-// Release Type    : Production Release                                 
-// Release Build   : 3.7.0                                              
-//                                                                      
-// Copyright 2004-2016, Mentor Graphics Corporation,                    
-//                                                                      
-// All Rights Reserved.                                                 
-//                                                                      
-// This file was modified by the Intel High Level Design team to        
-// generate efficient hardware for the Intel High Level Synthesis       
-// compiler. The API remains the same as defined by Mentor Graphics     
+// Algorithmic C (tm) Datatypes
+//
+// Software Version: 3.7
+//
+// Release Date    : Wed Jun  1 13:21:52 PDT 2016
+// Release Type    : Production Release
+// Release Build   : 3.7.0
+//
+// Copyright 2004-2016, Mentor Graphics Corporation,
+//
+// All Rights Reserved.
+//
+// This file was modified by the Intel High Level Design team to
+// generate efficient hardware for the Intel High Level Synthesis
+// compiler. The API remains the same as defined by Mentor Graphics
 // in their documentation for the ac_int data-type.
-//                     
+//
 //  Source:          ac_int.hpp
 //  Description:     fast arbitrary-length bit-accurate integer types:
 //                     - unsigned integer of length W:  ac_int<W,false>
@@ -74,8 +74,12 @@
 #error DO NOT use defines before including third party header files.
 #endif
 
-#if !defined(_HLS_EMBEDDED_PROFILE) ||                                         \
-    (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
+#if defined(HLS_X86) ||                                                        \
+    ((defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__)))
+#define __EMULATION_FLOW__
+#endif
+
+#if !defined(_HLS_EMBEDDED_PROFILE)
 #ifndef __ASSERT_H__
 #define __ASSERT_H__
 #include <assert.h>
@@ -137,7 +141,11 @@ enum { long_w = sizeof(unsigned long) * 8 };
 
 // PRIVATE FUNCTIONS in namespace: for implementing ac_int/ac_fixed
 
+#ifdef __SYCL_COMPILER_VERSION
+inline double mgc_floor(double d) { return cl::sycl::floor(d); }
+#else
 inline double mgc_floor(double d) { return floor(d); }
+#endif
 
 #ifdef _HLS_EMBEDDED_PROFILE
 #define AC_ASSERT(cond, msg)
@@ -150,8 +158,7 @@ inline double mgc_floor(double d) { return floor(d); }
   }
 inline void ac_assert(bool condition, const char *file = 0, int line = 0,
                       const char *msg = 0) {
-#if defined(HLS_X86) ||                                                        \
-    (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
+#ifdef __EMULATION_FLOW__
 #ifndef AC_USER_DEFINED_ASSERT
   if (!condition) {
     std::cerr << "Assert";
@@ -164,8 +171,8 @@ inline void ac_assert(bool condition, const char *file = 0, int line = 0,
   }
 #else
   AC_USER_DEFINED_ASSERT(condition, file, line, msg);
-#endif
-#endif
+#endif // AC_USER_DEFINED_ASSERT
+#endif // __EMULATION_FLOW__
 }
 #endif //_HLS_EMBEDDED_PROFILE
 
@@ -309,19 +316,19 @@ inline void ap_conv_from_fraction(double d, ap_int<N> &r, bool *qb, bool *rbits,
   // for performance purpose, manually unroll the loop when shift_amount <= 64
   if (shift_amount <= 32) {
     d2 *= u64_1 << shift_amount;
-    k1 = (unsigned int)floor(d2);
+    k1 = (unsigned int)mgc_floor(d2);
     tb = b ? ~k1 : k1;
-    d2 -= k1;
+    d2 = static_cast<ap_uint<container_length>>(d2) - k1;
   } else if (shift_amount <= 64) {
     d2 *= u64_1 << 32;
-    unsigned int temp = (unsigned int)floor(d2);
+    unsigned int temp = (unsigned int)mgc_floor(d2);
     k1 = temp;
     d2 -= temp;
     const int shift_next = AC_MAX(shift_amount - 32, 0);
     d2 *= u64_1 << shift_next;
-    temp = (unsigned int)floor(d2);
+    temp = (unsigned int)mgc_floor(d2);
     k1 <<= shift_next;
-    k1 |= temp;
+    k1 = k1 | static_cast<ap_uint<container_length>>(temp);
     d2 -= temp;
     tb = b ? ~k1 : k1;
   } else {
@@ -331,28 +338,28 @@ inline void ap_conv_from_fraction(double d, ap_int<N> &r, bool *qb, bool *rbits,
     while (to_shift >= 32) {
       to_shift -= 32;
       d2 *= u64_1 << 32;
-      temp = (unsigned int)floor(d2);
+      temp = (unsigned int)mgc_floor(d2);
       k1 <<= 32;
-      k1 |= temp;
+      k1 = k1 | static_cast<ap_uint<container_length>>(temp);
       d2 -= temp;
     }
     const int shift_next = AC_MAX(to_shift % 32, 0);
     d2 *= u64_1 << shift_next;
-    temp = (unsigned int)floor(d2);
+    temp = (unsigned int)mgc_floor(d2);
     k1 <<= shift_next;
-    k1 |= temp;
+    k1 = k1 | static_cast<ap_uint<container_length>>(temp);
     d2 -= temp;
     tb = b ? ~k1 : k1;
   }
 
   r = tb;
   d2 *= 2;
-  bool k = (int(d2)) != 0; // math
+  bool k = (int(d2)) != 0;
   d2 -= k ? 1.0 : 0.0;
   *rbits = d2 != 0.0;
   *qb = (b && *rbits) ^ k;
   if (b && !*rbits && !*qb) {
-    r += 1;
+    r += static_cast<ap_int<N>>(1);
   }
   *io = 0;
   bool cond1 = !ap_equal_zeros_from<N>(k1);
@@ -492,8 +499,7 @@ constexpr ap_uint<N> bit_division(ap_uint<N> value, ap_uint<N> divisor) {
   return bit_division<N>(value, divisor, r);
 }
 
-#if !defined(_HLS_EMBEDDED_PROFILE) ||                                         \
-    (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
+#if !defined(_HLS_EMBEDDED_PROFILE)
 template <int N> inline std::string to_string(ap_uint<N> value, int base) {
   std::string buf = "";
   if (base < 2 || base > 16) {
@@ -611,8 +617,7 @@ public:
   constexpr Ulong to_uint64() const { return (Ulong)value; }
   inline double to_double() const { return (double)value; }
 
-#if !defined(_HLS_EMBEDDED_PROFILE) ||                                         \
-    (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
+#if !defined(_HLS_EMBEDDED_PROFILE)
   std::string to_string(ac_base_mode mode, bool sign_mag = false) const {
     if (mode == 10) {
       // If decimal presentation, N + 1 is set to avoid regarding positive
@@ -645,8 +650,7 @@ public:
       if (ap_equal_zeros_from<N, N2 + 1>(v))
         return;
     }
-#if !defined(_HLS_EMBEDDED_PROFILE) ||                                         \
-    (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
+#if !defined(_HLS_EMBEDDED_PROFILE)
     std::cout << "warning: overflow, assign value "
               << ac_private::to_string(v, 10) << " ("
               << ac_private::to_string(v, 16) << ")"
@@ -706,22 +710,18 @@ public:
     // The inputs must fit in 128 bits.
     static_assert(N2 + S2 <= 128, "");
     static_assert(N + S <= 128, "");
-    typedef
-        typename select_type<Sr ? AC_MAX(N, N2) + 1 : AC_MAX(N, N2), Sr>::type
-            bdivtype;
-    typedef
-        typename select_type<Sr ? AC_MAX(N, N2) + 1 : AC_MAX(N, N2), Sr>::type
-            adivtype;
+    typedef typename select_type<Sr ? AC_MAX(N, N2) + 1 : AC_MAX(N, N2), Sr>::type opdivtype;
     typedef typename select_type<Nr, Sr>::type resdivtype;
-    adivtype a = static_cast<adivtype>(value);
-    bdivtype b = static_cast<bdivtype>(op2.value);
+    opdivtype a = static_cast<opdivtype>(value);
+    opdivtype b = static_cast<opdivtype>(op2.value);
     r.value = static_cast<resdivtype>(a / b);
   }
   template <int N2, bool S2, int Nr, bool Sr>
   constexpr void mod(const iv<N2, S2> &op2, iv<Nr, Sr> &r) const {
     typedef typename select_type<Nr, Sr>::type op2_type;
     op2_type op2_value = static_cast<op2_type>(op2.value);
-    r.value = value % op2_value;
+    r.value = value;
+    r.value %= op2_value;
   }
 
   constexpr void increment() {
@@ -897,12 +897,11 @@ public:
 #pragma clang diagnostic ignored "-Wshift-count-overflow"
   template <int N2, bool S2>
   constexpr void set_slc(unsigned lsb, int WS, const iv<N2, S2> &op2) {
-#if defined(HLS_X86) ||                                                        \
-    (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
+#ifdef __EMULATION_FLOW__
     AC_ASSERT(N2 <= N, "Bad usage: WS greater than length of slice");
 #else
     static_assert(N2 <= N, "Bad usage: WS greater than length of slice");
-#endif
+#endif // __EMULATION_FLOW__
     if (N2 == N) {
       value = op2.value;
     } else if (N2 <= N) {
@@ -1073,8 +1072,7 @@ template <typename T> struct c_type {
     typedef typename rt_c_type_T<T2>::template op1<T>::div2 div2;
   };
 
-#if !defined(_HLS_EMBEDDED_PROFILE) ||                                         \
-    (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
+#if !defined(_HLS_EMBEDDED_PROFILE)
   inline static std::string type_name() {
     std::string r = c_type_name<T>();
     return r;
@@ -1427,8 +1425,7 @@ public:
 
   constexpr int length() const { return W; }
 
-#if !defined(_HLS_EMBEDDED_PROFILE) ||                                         \
-    (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
+#if !defined(_HLS_EMBEDDED_PROFILE)
   inline std::string to_string(ac_base_mode base_rep,
                                bool sign_mag = false) const {
     return Base::to_string(base_rep, sign_mag);
@@ -2095,18 +2092,15 @@ template <typename T> struct rt_ac_int_T<c_type<T>> {
 } // namespace ac_private
 
 // Stream --------------------------------------------------------------------
-#if defined(__linux__) &&                                                      \
-    (!defined(_HLS_EMBEDDED_PROFILE) ||                                        \
-     (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__)))
+#if defined(__linux__) && !defined(_HLS_EMBEDDED_PROFILE)
 template <int W, bool S>
 inline std::ostream &operator<<(std::ostream &os, const ac_int<W, S> &x) {
-#if defined(HLS_X86) ||                                                        \
-    (defined(__SYCL_COMPILER_VERSION) && !defined(__SYCL_DEVICE_ONLY__))
+#ifdef __EMULATION_FLOW__
   os << x.to_string(AC_DEC, S);
-#endif
+#endif // __EMULATION_FLOW__
   return os;
 }
-#endif // linux
+#endif // linux && !_HLS_EMBEDDED_PROFILE
 
 // Macros for Binary Operators with Integers
 // --------------------------------------------
