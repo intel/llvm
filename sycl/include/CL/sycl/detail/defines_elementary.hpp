@@ -20,17 +20,13 @@
 
 #ifndef __has_builtin
 #define __has_builtin(x) 0
-#endif
+#endif // __has_builtin
 
 #if __has_attribute(always_inline)
 #define ALWAYS_INLINE __attribute__((always_inline))
 #else
 #define ALWAYS_INLINE
 #endif
-
-#ifndef __has_builtin
-#define __has_builtin(x) 0
-#endif // __has_builtin
 
 #ifndef SYCL_EXTERNAL
 #define SYCL_EXTERNAL
