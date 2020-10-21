@@ -2103,8 +2103,8 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
         zeMemAllocDevice(Context->ZeContext, &ZeDesc, Size, 1, ZeDevice, &Ptr));
   }
   if (HostPtr) {
-    // As of now, zeMemAllocHost() does not support allocation of pinned
-    // host memory. So even if PI_MEM_FLAGS_HOST_PTR_ALLOC set, it allocates
+    // Currently zeMemAllocHost() does not support allocation of pinned
+    // host memory. So for PI_MEM_FLAGS_HOST_PTR_ALLOC flag, it allocates
     // pageable host memory.
     if ((Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) != 0) {
       ze_host_mem_alloc_desc_t ZeHostDesc = {};
@@ -2136,7 +2136,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     }
   }
 
-  auto HostPtrOrNull =
+  auto HostPtrOrNull = (Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) ||
       (Flags & PI_MEM_FLAGS_HOST_PTR_USE) ? pi_cast<char *>(HostPtr) : nullptr;
   try {
     *RetMem = new _pi_buffer(
