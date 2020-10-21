@@ -52,4 +52,3 @@
 #else
 #define __SYCL_INLINE_CONSTEXPR static constexpr
 #endif
-
