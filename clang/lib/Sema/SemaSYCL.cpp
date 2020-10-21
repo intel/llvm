@@ -3568,8 +3568,8 @@ class SYCLKernelNameTypePrinter
   using InnerTypeVisitor = TypeVisitor<SYCLKernelNameTypePrinter>;
   using InnerTemplArgVisitor =
       ConstTemplateArgumentVisitor<SYCLKernelNameTypePrinter>;
-  raw_ostream &O;
-  PrintingPolicy &P;
+  raw_ostream &OS;
+  PrintingPolicy &Policy;
 
   void printTemplateArgs(ArrayRef<TemplateArgument> Args) {
     for (size_t I = 0, E = Args.size(); I < E; ++I) {
@@ -3580,19 +3580,19 @@ class SYCLKernelNameTypePrinter
         continue;
 
       if (I)
-        O << ", ";
+        OS << ", ";
 
       Visit(Arg);
     }
   }
 
   void VisitQualifiers(Qualifiers Quals) {
-    Quals.print(O, P, /*appendSpaceIfNotEmpty*/ true);
+    Quals.print(OS, Policy, /*appendSpaceIfNotEmpty*/ true);
   }
 
 public:
-  SYCLKernelNameTypePrinter(raw_ostream &Out, PrintingPolicy &P)
-      : O(Out), P(P) {}
+  SYCLKernelNameTypePrinter(raw_ostream &OS, PrintingPolicy &Policy)
+      : OS(OS), Policy(Policy) {}
 
   void Visit(QualType T) {
     if (T.isNull())
@@ -3605,7 +3605,7 @@ public:
   }
 
   void VisitType(const Type *T) {
-    O << QualType::getAsString(T, Qualifiers(), P);
+    OS << QualType::getAsString(T, Qualifiers(), Policy);
   }
 
   void Visit(const TemplateArgument &TA) {
@@ -3619,12 +3619,12 @@ public:
     if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
 
       // Print template class name
-      TSD->printQualifiedName(O, P, /*WithGlobalNsPrefix*/ true);
+      TSD->printQualifiedName(OS, Policy, /*WithGlobalNsPrefix*/ true);
 
       ArrayRef<TemplateArgument> Args = TSD->getTemplateArgs().asArray();
-      O << "<";
+      OS << "<";
       printTemplateArgs(Args);
-      O << ">";
+      OS << ">";
 
       return;
     }
@@ -3633,39 +3633,41 @@ public:
     // seems if we don't print it, the integration header still represents valid
     // c++ code. Probably we don't need to print it at all.
     if (RD->getDeclContext()->isFunctionOrMethod()) {
-      O << QualType::getAsString(T, Qualifiers(), P);
+      OS << QualType::getAsString(T, Qualifiers(), Policy);
       return;
     }
 
     const NamespaceDecl *NS = dyn_cast<NamespaceDecl>(RD->getDeclContext());
-    RD->printQualifiedName(O, P, !(NS && NS->isAnonymousNamespace()));
+    RD->printQualifiedName(OS, Policy, !(NS && NS->isAnonymousNamespace()));
   }
 
-  void VisitTemplateArgument(const TemplateArgument &TA) { TA.print(P, O); }
+  void VisitTemplateArgument(const TemplateArgument &TA) {
+    TA.print(Policy, OS);
+  }
 
   void VisitTypeTemplateArgument(const TemplateArgument &TA) {
-    P.SuppressTagKeyword = true;
+    Policy.SuppressTagKeyword = true;
     QualType T = TA.getAsType();
     Visit(T);
-    P.SuppressTagKeyword = false;
+    Policy.SuppressTagKeyword = false;
   }
 
   void VisitIntegralTemplateArgument(const TemplateArgument &TA) {
     QualType T = TA.getIntegralType();
     if (const EnumType *ET = T->getAs<EnumType>()) {
       const llvm::APSInt &Val = TA.getAsIntegral();
-      O << "static_cast<";
-      ET->getDecl()->printQualifiedName(O, P,
+      OS << "static_cast<";
+      ET->getDecl()->printQualifiedName(OS, Policy,
                                         /*WithGlobalNsPrefix*/ true);
-      O << ">(" << Val << ")";
+      OS << ">(" << Val << ")";
     } else {
-      TA.print(P, O);
+      TA.print(Policy, OS);
     }
   }
 
   void VisitTemplateTemplateArgument(const TemplateArgument &TA) {
     TemplateDecl *TD = TA.getAsTemplate().getAsTemplateDecl();
-    TD->printQualifiedName(O, P);
+    TD->printQualifiedName(OS, Policy);
   }
 
   void VisitPackTemplateArgument(const TemplateArgument &TA) {
