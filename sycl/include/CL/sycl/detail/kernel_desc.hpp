@@ -10,7 +10,7 @@
 
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/export.hpp> // for DLL_LOCAL used in int. header
+#include <CL/sycl/detail/export.hpp> // for __SYCL_DLL_LOCAL used in int. header
 
 #include <cstddef>
 

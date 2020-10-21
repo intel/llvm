@@ -1579,7 +1579,7 @@ piextDeviceSelectBinary(pi_device Device, // TODO: does this need to be context?
   // plugin for platform/device the ctx was created for.
 
   // Look for GEN binary, which we known can only be handled by Level-Zero now.
-  const char *BinaryTarget = PI_DEVICE_BINARY_TARGET_SPIRV64_GEN;
+  const char *BinaryTarget = __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN;
 
   // Find the appropriate device image, fallback to spirv if not found
   constexpr pi_uint32 InvalidInd = std::numeric_limits<pi_uint32>::max();
@@ -1591,7 +1591,7 @@ piextDeviceSelectBinary(pi_device Device, // TODO: does this need to be context?
       return PI_SUCCESS;
     }
     if (strcmp(Binaries[i]->DeviceTargetSpec,
-               PI_DEVICE_BINARY_TARGET_SPIRV64) == 0)
+               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0)
       Spirv = i;
   }
   // Points to a spirv image, if such indeed was found
