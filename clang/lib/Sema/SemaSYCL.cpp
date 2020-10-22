@@ -2852,6 +2852,7 @@ public:
       if (T->isNullPtrType())
         S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
             << /* kernel name cannot be a type in the std namespace */ 3;
+      IsInvalid = true;
       return;
     }
     // If KernelNameType has template args visit each template arg via
@@ -2890,21 +2891,23 @@ public:
   void VisitTagDecl(const TagDecl *Tag) {
     bool UnnamedLambdaEnabled =
         S.getASTContext().getLangOpts().SYCLUnnamedLambda;
-    const DeclContext *DC = Tag->getDeclContext();
-    if (DC && !UnnamedLambdaEnabled) {
-      auto *NS = dyn_cast_or_null<NamespaceDecl>(DC);
-      if (NS && NS->isStdNamespace()) {
+    const DeclContext *DeclCtx = Tag->getDeclContext();
+    if (DeclCtx && !UnnamedLambdaEnabled) {
+      auto *NameSpace = dyn_cast_or_null<NamespaceDecl>(DeclCtx);
+      if (NameSpace && NameSpace->isStdNamespace()) {
         S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
             << /* kernel name cannot be a type in the std namespace */ 3;
         IsInvalid = true;
+        return;
       } else {
-        if (!DC->isTranslationUnit() && !isa<NamespaceDecl>(DC)) {
+        if (!DeclCtx->isTranslationUnit() && !isa<NamespaceDecl>(DeclCtx)) {
           const bool KernelNameIsMissing = Tag->getName().empty();
           if (KernelNameIsMissing) {
             S.Diag(KernelInvocationFuncLoc,
                    diag::err_sycl_kernel_incorrectly_named)
                 << /* kernel name is missing */ 0;
             IsInvalid = true;
+            return;
           } else {
             if (Tag->isCompleteDefinition()) {
               S.Diag(KernelInvocationFuncLoc,
