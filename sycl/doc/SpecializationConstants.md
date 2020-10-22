@@ -17,9 +17,9 @@ ordinal number. This complicates the design, as the compiler
 
 Simple source code example:
 
-```
+```c++
 class MyInt32Const;
-...
+// ...
   sycl::program p(q.get_context());
   sycl::ONEAPI::experimental::spec_constant<int32_t, MyInt32Const> i32 =
       p.set_spec_constant<MyInt32Const>(rt_val);
@@ -34,7 +34,7 @@ class MyInt32Const;
           acc[0] = i32.get();
         });
   });
-...
+// ...
 ```
 
 ## Design
@@ -46,9 +46,9 @@ primitive numeric types. POD types support is described further in the document.
 
 Key `spec_constant::get()` function implementation for the device code:
 
-```
+```c++
 template <typename T, typename ID = T> class spec_constant {
-...
+// ...
 public:
   T get() const { // explicit access.
 #ifdef __SYCL_DEVICE_ONLY__
@@ -87,9 +87,9 @@ After this pass the sycl-post-link tool will output the
 attaching this info to the device binary image via the offload wrapper tool as
 a property set:
 
-```
+```c++
 struct pi_device_binary_struct {
-...
+  // ...
   // Array of preperty sets; e.g. specialization constants symbol-int ID map is
   // propagated to runtime with this mechanism.
   pi_device_binary_property_set PropertySetsBegin;
@@ -152,7 +152,7 @@ unaware of the clang-specific built-ins.
 Before JIT-ing a program, the runtime "flushes" the spec constants: it iterates
 through the value map and invokes the
 
-```
+```c++
 pi_result piextProgramSetSpecializationConstant(pi_program prog,
                                                 pi_uint32 spec_id,
                                                 size_t spec_size,
@@ -167,7 +167,7 @@ Plugin Interface function for each entry, taking the `spec_id` from the ID map.
 
 Say, the POD type is
 
-```
+```c++
 struct A {
   int x;
   float y;
@@ -181,7 +181,7 @@ struct POD {
 
 and the user says
 
-```
+```c++
   POD gold{
     {
       { goldi, goldf },
