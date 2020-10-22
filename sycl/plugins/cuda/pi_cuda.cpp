@@ -672,7 +672,7 @@ pi_result cuda_piPlatformGetInfo(pi_platform platform,
     return getInfo(param_value_size, param_value, param_value_size_ret, "");
   }
   default:
-    PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
+    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
   cl::sycl::detail::pi::die("Platform info request not implemented");
   return {};
@@ -731,7 +731,7 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    context->get_reference_count());
   default:
-    PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
+    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
 
   return PI_OUT_OF_RESOURCES;
@@ -777,7 +777,7 @@ pi_result cuda_piextDeviceSelectBinary(pi_device device,
   // found
   for (pi_uint32 i = 0; i < num_binaries; i++) {
     if (strcmp(binaries[i]->DeviceTargetSpec,
-               PI_DEVICE_BINARY_TARGET_NVPTX64) == 0) {
+               __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64) == 0) {
       *selected_binary = i;
       return PI_SUCCESS;
     }
@@ -1425,7 +1425,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
 
   default:
-    PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
+    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
   cl::sycl::detail::pi::die("Device info request not implemented");
   return {};
@@ -1466,12 +1466,13 @@ pi_result cuda_piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
 ///
 /// By default creates a scoped context and keeps the last active CUDA context
 /// on top of the CUDA context stack.
-/// With the PI_CONTEXT_PROPERTIES_CUDA_PRIMARY key/id and a value of PI_TRUE
-/// creates a primary CUDA context and activates it on the CUDA context stack.
+/// With the __SYCL_PI_CONTEXT_PROPERTIES_CUDA_PRIMARY key/id and a value of
+/// PI_TRUE creates a primary CUDA context and activates it on the CUDA context
+/// stack.
 ///
 /// \param[in] properties 0 terminated array of key/id-value combinations. Can
-/// be nullptr. Only accepts property key/id PI_CONTEXT_PROPERTIES_CUDA_PRIMARY
-/// with a pi_bool value.
+/// be nullptr. Only accepts property key/id
+/// __SYCL_PI_CONTEXT_PROPERTIES_CUDA_PRIMARY with a pi_bool value.
 /// \param[in] num_devices Number of devices to create the context for.
 /// \param[in] devices Devices to create the context for.
 /// \param[in] pfn_notify Callback, currently unused.
@@ -1505,7 +1506,7 @@ pi_result cuda_piContextCreate(const pi_context_properties *properties,
     pi_context_properties value = *properties;
     ++properties;
     switch (id) {
-    case PI_CONTEXT_PROPERTIES_CUDA_PRIMARY:
+    case __SYCL_PI_CONTEXT_PROPERTIES_CUDA_PRIMARY:
       assert(value == PI_FALSE || value == PI_TRUE);
       property_cuda_primary = static_cast<bool>(value);
       break;
@@ -1863,8 +1864,8 @@ pi_result cuda_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
 
 /// Creates a `pi_queue` object on the CUDA backend.
 /// Valid properties
-/// * PI_CUDA_USE_DEFAULT_STREAM -> CU_STREAM_DEFAULT
-/// * PI_CUDA_SYNC_WITH_DEFAULT -> CU_STREAM_NON_BLOCKING
+/// * __SYCL_PI_CUDA_USE_DEFAULT_STREAM -> CU_STREAM_DEFAULT
+/// * __SYCL_PI_CUDA_SYNC_WITH_DEFAULT -> CU_STREAM_NON_BLOCKING
 /// \return Pi queue object mapping to a CUStream
 ///
 pi_result cuda_piQueueCreate(pi_context context, pi_device device,
@@ -1884,9 +1885,9 @@ pi_result cuda_piQueueCreate(pi_context context, pi_device device,
     CUstream cuStream;
     unsigned int flags = 0;
 
-    if (properties == PI_CUDA_USE_DEFAULT_STREAM) {
+    if (properties == __SYCL_PI_CUDA_USE_DEFAULT_STREAM) {
       flags = CU_STREAM_DEFAULT;
-    } else if (properties == PI_CUDA_SYNC_WITH_DEFAULT) {
+    } else if (properties == __SYCL_PI_CUDA_SYNC_WITH_DEFAULT) {
       flags = 0;
     } else {
       flags = CU_STREAM_NON_BLOCKING;
@@ -1932,7 +1933,7 @@ pi_result cuda_piQueueGetInfo(pi_queue command_queue, pi_queue_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    command_queue->properties_);
   default:
-    PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
+    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
   cl::sycl::detail::pi::die("Queue info request not implemented");
   return {};
@@ -2680,7 +2681,7 @@ pi_result cuda_piProgramGetInfo(pi_program program, pi_program_info param_name,
                    getKernelNames(program).c_str());
   }
   default:
-    PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
+    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
   cl::sycl::detail::pi::die("Program info request not implemented");
   return {};
@@ -2797,7 +2798,7 @@ pi_result cuda_piProgramGetBuildInfo(pi_program program, pi_device device,
     return getInfoArray(program->MAX_LOG_SIZE, param_value_size, param_value,
                         param_value_size_ret, program->infoLog_);
   default:
-    PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
+    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
   cl::sycl::detail::pi::die("Program Build info request not implemented");
   return {};
@@ -2899,7 +2900,7 @@ pi_result cuda_piKernelGetInfo(pi_kernel kernel, pi_kernel_info param_name,
       return getInfo(param_value_size, param_value, param_value_size_ret, "");
     }
     default: {
-      PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
+      __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
     }
     }
   }
@@ -2965,7 +2966,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
                      pi_uint64(bytes));
     }
     default:
-      PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
+      __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
     }
   }
 
@@ -3053,7 +3054,7 @@ pi_result cuda_piEventGetInfo(pi_event event, pi_event_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    event->get_context());
   default:
-    PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
+    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
 
   return PI_INVALID_EVENT;
@@ -3086,7 +3087,7 @@ pi_result cuda_piEventGetProfilingInfo(pi_event event,
     return getInfo<pi_uint64>(param_value_size, param_value,
                               param_value_size_ret, event->get_end_time());
   default:
-    PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
+    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
   cl::sycl::detail::pi::die("Event Profiling info request not implemented");
   return {};
@@ -3306,7 +3307,7 @@ pi_result cuda_piSamplerGetInfo(pi_sampler sampler, cl_sampler_info param_name,
                    addressing_prop);
   }
   default:
-    PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
+    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
   return {};
 }

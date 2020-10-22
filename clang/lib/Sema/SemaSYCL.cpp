@@ -3757,12 +3757,12 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       Printer.Visit(K.NameType);
       O << "> {\n";
     }
-    O << "  DLL_LOCAL\n";
+    O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr const char* getName() { return \"" << K.Name
       << "\"; }\n";
-    O << "  DLL_LOCAL\n";
+    O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr unsigned getNumParams() { return " << N << "; }\n";
-    O << "  DLL_LOCAL\n";
+    O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr const kernel_param_desc_t& ";
     O << "getParamDesc(unsigned i) {\n";
     O << "    return kernel_signatures[i+" << CurStart << "];\n";

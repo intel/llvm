@@ -128,13 +128,13 @@ device::get_info() const {
   return impl->template get_info<param>();
 }
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
   template __SYCL_EXPORT ret_type device::get_info<info::param_type::param>()  \
       const;
 
 #include <CL/sycl/info/device_traits.def>
 
-#undef PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC
 
 pi_native_handle device::getNative() const { return impl->getNative(); }
 

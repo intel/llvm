@@ -218,9 +218,10 @@ bool findPlugins(vector_class<std::pair<std::string, backend>> &PluginNames) {
   //
   device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
   if (!FilterList) {
-    PluginNames.emplace_back(OPENCL_PLUGIN_NAME, backend::opencl);
-    PluginNames.emplace_back(LEVEL_ZERO_PLUGIN_NAME, backend::level_zero);
-    PluginNames.emplace_back(CUDA_PLUGIN_NAME, backend::cuda);
+    PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
+    PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
+                             backend::level_zero);
+    PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::cuda);
   } else {
     std::vector<device_filter> Filters = FilterList->get();
     bool OpenCLFound = false;
@@ -230,15 +231,16 @@ bool findPlugins(vector_class<std::pair<std::string, backend>> &PluginNames) {
       backend Backend = Filter.Backend;
       if (!OpenCLFound &&
           (Backend == backend::opencl || Backend == backend::all)) {
-        PluginNames.emplace_back(OPENCL_PLUGIN_NAME, backend::opencl);
+        PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
         OpenCLFound = true;
       } else if (!LevelZeroFound &&
                  (Backend == backend::level_zero || Backend == backend::all)) {
-        PluginNames.emplace_back(LEVEL_ZERO_PLUGIN_NAME, backend::level_zero);
+        PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
+                                 backend::level_zero);
         LevelZeroFound = true;
       } else if (!CudaFound &&
                  (Backend == backend::cuda || Backend == backend::all)) {
-        PluginNames.emplace_back(CUDA_PLUGIN_NAME, backend::cuda);
+        PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::cuda);
         CudaFound = true;
       }
     }
@@ -588,9 +590,9 @@ void DeviceBinaryImage::init(pi_device_binary Bin) {
     // try to determine the format; may remain "NONE"
     Format = getBinaryImageFormat(Bin->BinaryStart, getSize());
 
-  SpecConstIDMap.init(Bin, PI_PROPERTY_SET_SPEC_CONST_MAP);
-  DeviceLibReqMask.init(Bin, PI_PROPERTY_SET_DEVICELIB_REQ_MASK);
-  KernelParamOptInfo.init(Bin, PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
+  SpecConstIDMap.init(Bin, __SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP);
+  DeviceLibReqMask.init(Bin, __SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK);
+  KernelParamOptInfo.init(Bin, __SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
 }
 
 } // namespace pi

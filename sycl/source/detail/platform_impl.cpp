@@ -394,11 +394,11 @@ bool platform_impl::has(aspect Aspect) const {
   return true;
 }
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
   template ret_type platform_impl::get_info<info::param_type::param>() const;
 
 #include <CL/sycl/info/platform_traits.def>
-#undef PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC
 
 } // namespace detail
 } // namespace sycl
