@@ -498,7 +498,9 @@ unit)
 TBD
 
 ##### Specialization constants lowering
-TBD
+
+See [corresponding documentation](SpecializationConstants.md)
+
 
 #### CUDA support
 
