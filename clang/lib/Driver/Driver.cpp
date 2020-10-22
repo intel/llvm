@@ -1263,17 +1263,6 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
     T.setObjectFormat(llvm::Triple::COFF);
     TargetTriple = T.str();
   }
-  if (Args.hasArg(options::OPT_fsycl_device_only)) {
-    // -fsycl-device-only implies spir arch and SYCL Device
-    llvm::Triple T(TargetTriple);
-    // FIXME: defaults to spir64, should probably have a way to set spir
-    // possibly new -sycl-target option
-    T.setArch(llvm::Triple::spir64);
-    T.setVendor(llvm::Triple::UnknownVendor);
-    T.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
-    T.setEnvironment(llvm::Triple::SYCLDevice);
-    TargetTriple = T.str();
-  }
   if (const Arg *A = Args.getLastArg(options::OPT_target))
     TargetTriple = A->getValue();
   if (const Arg *A = Args.getLastArg(options::OPT_ccc_install_dir))
@@ -2384,7 +2373,9 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
   // actually use it, so we warn about unused -x arguments.
   types::ID InputType = types::TY_Nothing;
   Arg *InputTypeArg = nullptr;
-  bool IsSYCL = Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false);
+  bool IsSYCL =
+      Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) ||
+      Args.hasArg(options::OPT_fsycl_device_only);
 
   // The last /TC or /TP option sets the input type to C or C++ globally.
   if (Arg *TCTP = Args.getLastArgNoClaim(options::OPT__SLASH_TC,
@@ -2688,7 +2679,11 @@ static SmallVector<const char *, 16> getLinkerArgs(Compilation &C,
         A->getOption().matches(options::OPT_Xlinker)) {
       // Parse through additional linker arguments that are meant to go
       // directly to the linker.
-      std::string PrevArg;
+      // Keep the previous arg even if it is a new argument, for example:
+      //   -Xlinker -rpath -Xlinker <dir>.
+      // Without this history, we do not know that <dir> was assocated with
+      // -rpath and is processed incorrectly.
+      static std::string PrevArg;
       for (const std::string &Value : A->getValues()) {
         auto addKnownValues = [&](const StringRef &V) {
           // Only add named static libs objects and --whole-archive options.

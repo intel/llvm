@@ -53,6 +53,7 @@
 #include "VectorComputeUtil.h"
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/IR/Constants.h"
@@ -803,8 +804,8 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
            "Missing loop control parameter!");
   }
   if (LC & LoopControlDependencyArrayINTELMask) {
-    // Collect array variable <-> safelen information
-    std::map<Value *, unsigned> ArraySflnMap;
+    // Collect pointer variable <-> safelen information
+    std::map<Value *, unsigned> PointerSflnMap;
     unsigned NumOperandPairs = LoopControlParameters[NumParam];
     unsigned OperandsEndIndex = NumParam + NumOperandPairs * 2;
     assert(OperandsEndIndex <= LoopControlParameters.size() &&
@@ -812,9 +813,9 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     SPIRVModule *M = LM->getModule();
     while (NumParam < OperandsEndIndex) {
       SPIRVId ArraySPIRVId = LoopControlParameters[++NumParam];
-      Value *ArrayVar = ValueMap[M->getValue(ArraySPIRVId)];
+      Value *PointerVar = ValueMap[M->getValue(ArraySPIRVId)];
       unsigned Safelen = LoopControlParameters[++NumParam];
-      ArraySflnMap.emplace(ArrayVar, Safelen);
+      PointerSflnMap.emplace(PointerVar, Safelen);
     }
 
     // A single run over the loop to retrieve all GetElementPtr instructions
@@ -826,24 +827,54 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
         if (!GEP)
           continue;
 
-        Value *AccessedArray = GEP->getPointerOperand();
-        auto ArraySflnIt = ArraySflnMap.find(AccessedArray);
-        if (ArraySflnIt != ArraySflnMap.end())
-          ArrayGEPMap[AccessedArray].push_back(GEP);
+        Value *AccessedPointer = GEP->getPointerOperand();
+        auto PointerSflnIt = PointerSflnMap.find(AccessedPointer);
+        if (PointerSflnIt != PointerSflnMap.end()) {
+          ArrayGEPMap[AccessedPointer].push_back(GEP);
+        }
       }
     }
 
-    // Create index group metadata nodes - one per each array
+    // Create index group metadata nodes - one per each of the array
     // variables. Mark each GEP accessing a particular array variable
     // into a corresponding index group
-    std::map<unsigned, std::vector<MDNode *>> SafelenIdxGroupMap;
-    for (auto &ArrayGEPIt : ArrayGEPMap) {
-      // Emit a distinct index group that will be referenced from
-      // llvm.loop.parallel_access_indices metadata
-      auto *CurrentDepthIdxGroup = llvm::MDNode::getDistinct(*Context, None);
-      unsigned Safelen = ArraySflnMap.find(ArrayGEPIt.first)->second;
-      SafelenIdxGroupMap[Safelen].push_back(CurrentDepthIdxGroup);
+    std::map<unsigned, SmallSet<MDNode *, 4>> SafelenIdxGroupMap;
+    // Whenever a kernel closure field access is pointed to instead of
+    // an array/pointer variable, ensure that all GEPs to that memory
+    // share the same index group by hashing the newly added index groups.
+    // "Memory offset info" represents a handle to the whole closure block
+    // + an integer offset to a particular captured parameter.
+    using MemoryOffsetInfo = std::pair<Value *, unsigned>;
+    std::map<MemoryOffsetInfo, MDNode *> OffsetIdxGroupMap;
 
+    for (auto &ArrayGEPIt : ArrayGEPMap) {
+      MDNode *CurrentDepthIdxGroup = nullptr;
+      if (auto *PrecedingGEP = dyn_cast<GetElementPtrInst>(ArrayGEPIt.first)) {
+        Value *ClosureFieldPointer = PrecedingGEP->getPointerOperand();
+        unsigned Offset =
+            cast<ConstantInt>(PrecedingGEP->getOperand(2))->getZExtValue();
+        MemoryOffsetInfo Info{ClosureFieldPointer, Offset};
+        auto OffsetIdxGroupIt = OffsetIdxGroupMap.find(Info);
+        if (OffsetIdxGroupIt == OffsetIdxGroupMap.end()) {
+          // This is the first GEP encountered for this closure field.
+          // Emit a distinct index group that will be referenced from
+          // llvm.loop.parallel_access_indices metadata; hash the new
+          // MDNode for future accesses to the same memory.
+          CurrentDepthIdxGroup = llvm::MDNode::getDistinct(*Context, None);
+          OffsetIdxGroupMap.emplace(Info, CurrentDepthIdxGroup);
+        } else {
+          // Previous accesses to that field have already been indexed,
+          // just use the already-existing metadata.
+          CurrentDepthIdxGroup = OffsetIdxGroupIt->second;
+        }
+      } else /* Regular kernel-scope array/pointer variable */ {
+        // Emit a distinct index group that will be referenced from
+        // llvm.loop.parallel_access_indices metadata
+        CurrentDepthIdxGroup = llvm::MDNode::getDistinct(*Context, None);
+      }
+
+      unsigned Safelen = PointerSflnMap.find(ArrayGEPIt.first)->second;
+      SafelenIdxGroupMap[Safelen].insert(CurrentDepthIdxGroup);
       for (auto *GEP : ArrayGEPIt.second) {
         StringRef IdxGroupMDName("llvm.index.group");
         llvm::MDNode *PreviousIdxGroup = GEP->getMetadata(IdxGroupMDName);
@@ -3987,6 +4018,8 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
   SPIRVWord SIMTMode = 0;
   if (BF->hasDecorate(DecorationSIMTCallINTEL, 0, &SIMTMode))
     F->addFnAttr(kVCMetadata::VCSIMTCall, std::to_string(SIMTMode));
+  if (BF->hasDecorate(DecorationVectorComputeCallableFunctionINTEL))
+    F->addFnAttr(kVCMetadata::VCCallable);
 
   for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
        ++I) {
@@ -4225,6 +4258,8 @@ Instruction *SPIRVToLLVM::transOCLBuiltinFromExtInst(SPIRVExtInst *BC,
     F->setCallingConv(CallingConv::SPIR_FUNC);
     if (isFuncNoUnwind())
       F->addFnAttr(Attribute::NoUnwind);
+    if (isFuncReadNone(UnmangledName))
+      F->addFnAttr(Attribute::ReadNone);
   }
   auto Args = transValue(BC->getValues(BArgs), F, BB);
   SPIRVDBG(dbgs() << "[transOCLBuiltinFromExtInst] Function: " << *F
@@ -4536,3 +4571,34 @@ bool llvm::getSpecConstInfo(std::istream &IS,
   }
   return !IS.fail();
 }
+
+// clang-format off
+const StringSet<> SPIRVToLLVM::BuiltInConstFunc {
+  "convert", "get_work_dim", "get_global_size", "sub_group_ballot_bit_count",
+  "get_global_id", "get_local_size", "get_local_id", "get_num_groups",
+  "get_group_id", "get_global_offset", "acos", "acosh", "acospi",
+  "asin", "asinh", "asinpi", "atan", "atan2", "atanh", "atanpi",
+  "atan2pi", "cbrt", "ceil", "copysign", "cos", "cosh", "cospi",
+  "erfc", "erf", "exp", "exp2", "exp10", "expm1", "fabs", "fdim",
+  "floor", "fma", "fmax", "fmin", "fmod", "ilogb", "ldexp", "lgamma",
+  "log", "log2", "log10", "log1p", "logb", "mad", "maxmag", "minmag",
+  "nan", "nextafter", "pow", "pown", "powr", "remainder", "rint",
+  "rootn", "round", "rsqrt", "sin", "sinh", "sinpi", "sqrt", "tan",
+  "tanh", "tanpi", "tgamma", "trunc", "half_cos", "half_divide", "half_exp",
+  "half_exp2", "half_exp10", "half_log", "half_log2", "half_log10", "half_powr",
+  "half_recip", "half_rsqrt", "half_sin", "half_sqrt", "half_tan", "native_cos",
+  "native_divide", "native_exp", "native_exp2", "native_exp10", "native_log",
+  "native_log2", "native_log10", "native_powr", "native_recip", "native_rsqrt",
+  "native_sin", "native_sqrt", "native_tan", "abs", "abs_diff", "add_sat", "hadd",
+  "rhadd", "clamp", "clz", "mad_hi", "mad_sat", "max", "min", "mul_hi", "rotate",
+  "sub_sat", "upsample", "popcount", "mad24", "mul24", "degrees", "mix", "radians",
+  "step", "smoothstep", "sign", "cross", "dot", "distance", "length", "normalize",
+  "fast_distance", "fast_length", "fast_normalize", "isequal", "isnotequal",
+  "isgreater", "isgreaterequal", "isless", "islessequal", "islessgreater",
+  "isfinite", "isinf", "isnan", "isnormal", "isordered", "isunordered", "signbit",
+  "any", "all", "bitselect", "select", "shuffle", "shuffle2", "get_image_width",
+  "get_image_height", "get_image_depth", "get_image_channel_data_type",
+  "get_image_channel_order", "get_image_dim", "get_image_array_size",
+  "get_image_array_size", "sub_group_inverse_ballot", "sub_group_ballot_bit_extract",
+};
+// clang-format on

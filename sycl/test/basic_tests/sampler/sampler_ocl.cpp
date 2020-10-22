@@ -48,7 +48,7 @@ int main() {
   if (Err == CL_INVALID_OPERATION)
     return 0;
 
-  CHECK_OCL_CODE(Err);
+  assert(Err == CL_SUCCESS);
   B = sycl::sampler(ClSampler, Queue.get_context());
 
   assert(B.get_addressing_mode() == sycl::addressing_mode::repeat);

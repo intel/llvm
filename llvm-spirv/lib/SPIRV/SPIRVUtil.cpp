@@ -1533,7 +1533,8 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
   switch (II->getIntrinsicID()) {
   case Intrinsic::fabs:
   case Intrinsic::ceil:
-  case Intrinsic::maxnum: {
+  case Intrinsic::maxnum:
+  case Intrinsic::nearbyint: {
     Type *Ty = II->getType();
     if (II->getArgOperand(0)->getType() != Ty)
       return false;
@@ -1548,6 +1549,21 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
                                    II->getCalledOperand()->getName().str(), "",
                                    __FILE__, __LINE__);
       return false;
+    }
+    break;
+  }
+  case Intrinsic::abs: {
+    Type *Ty = II->getType();
+    int NumElems = 1;
+    if (auto *VecTy = dyn_cast<FixedVectorType>(Ty)) {
+      NumElems = VecTy->getNumElements();
+      Ty = VecTy->getElementType();
+    }
+    if ((!Ty->isIntegerTy()) ||
+        ((NumElems > 4) && (NumElems != 8) && (NumElems != 16))) {
+      BM->getErrorLog().checkError(false, SPIRVEC_InvalidFunctionCall,
+                                   II->getCalledOperand()->getName().str(), "",
+                                   __FILE__, __LINE__);
     }
     break;
   }
