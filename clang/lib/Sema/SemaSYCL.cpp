@@ -3657,7 +3657,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "// This is auto-generated SYCL integration header.\n";
   O << "\n";
 
-  O << "#include <CL/sycl/detail/defines.hpp>\n";
+  O << "#include <CL/sycl/detail/defines_elementary.hpp>\n";
   O << "#include <CL/sycl/detail/kernel_desc.hpp>\n";
 
   O << "\n";
