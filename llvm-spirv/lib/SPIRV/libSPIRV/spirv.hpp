@@ -523,6 +523,7 @@ enum Decoration {
   DecorationBufferLocationINTEL = 5921,
   DecorationIOPipeStorageINTEL = 5944,
   DecorationFunctionFloatingPointModeINTEL = 6080,
+  DecorationVectorComputeCallableFunctionINTEL = 6087,
   DecorationMax = 0x7fffffff,
 };
 

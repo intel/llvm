@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <detail/config.hpp>
 
@@ -13,9 +14,6 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
-
-#define STRINGIFY_LINE_HELP(s) #s
-#define STRINGIFY_LINE(s) STRINGIFY_LINE_HELP(s)
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -29,8 +27,9 @@ namespace detail {
   const char *SYCLConfigBase<Name>::MValueFromFile = nullptr;                  \
   char SYCLConfigBase<Name>::MStorage[MaxSize + 1];                            \
   const char *const SYCLConfigBase<Name>::MCompileTimeDef =                    \
-      getStrOrNullptr(STRINGIFY_LINE(CompileTimeDef));                         \
-  const char *const SYCLConfigBase<Name>::MConfigName = STRINGIFY_LINE(Name);
+      getStrOrNullptr(__SYCL_STRINGIFY_LINE(CompileTimeDef));                  \
+  const char *const SYCLConfigBase<Name>::MConfigName =                        \
+      __SYCL_STRINGIFY_LINE(Name);
 #include "detail/config.def"
 #undef CONFIG
 
@@ -115,6 +114,3 @@ void dumpConfig() {
 } // __SYCL_INLINE_NAMESPACE(cl)
 } // namespace sycl
 } // namespace detail
-
-#undef STRINGIFY_LINE_HELP
-#undef STRINGIFY_LINE
