@@ -3364,17 +3364,17 @@ class SYCLFwdDeclEmitter
   using InnerTypeVisitor = TypeVisitor<SYCLFwdDeclEmitter>;
   using InnerTemplArgVisitor = ConstTemplateArgumentVisitor<SYCLFwdDeclEmitter>;
   raw_ostream &OS;
-  llvm::SmallPtrSetImpl<const void *> &Printed;
+  llvm::SmallPtrSet<const NamedDecl *, 4> Printed;
   PrintingPolicy Policy;
 
-  void printForwardDecl(Decl *D) {
+  void printForwardDecl(NamedDecl *D) {
     // wrap the declaration into namespaces if needed
     unsigned NamespaceCnt = 0;
     std::string NSStr = "";
     const DeclContext *DC = D->getDeclContext();
 
     while (DC) {
-      auto *NS = dyn_cast_or_null<NamespaceDecl>(DC);
+      const auto *NS = dyn_cast_or_null<NamespaceDecl>(DC);
 
       if (!NS)
         break;
@@ -3411,7 +3411,7 @@ class SYCLFwdDeclEmitter
   }
 
   // Checks if we've already printed forward declaration and prints it if not.
-  void checkAndEmitForwardDecl(Decl *D) {
+  void checkAndEmitForwardDecl(NamedDecl *D) {
     if (Printed.insert(D).second)
       printForwardDecl(D);
   }
@@ -3422,10 +3422,7 @@ class SYCLFwdDeclEmitter
   }
 
 public:
-  SYCLFwdDeclEmitter(raw_ostream &OS,
-                     llvm::SmallPtrSetImpl<const void *> &Printed,
-                     LangOptions LO)
-      : OS(OS), Printed(Printed), Policy(LO) {
+  SYCLFwdDeclEmitter(raw_ostream &OS, LangOptions LO) : OS(OS), Policy(LO) {
     Policy.adjustForCPlusPlusFwdDecl();
     Policy.SuppressTypedefs = true;
     Policy.SuppressUnwrittenScope = true;
@@ -3688,8 +3685,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   if (!UnnamedLambdaSupport) {
     O << "// Forward declarations of templated kernel function types:\n";
 
-    llvm::SmallPtrSet<const void *, 4> Printed;
-    SYCLFwdDeclEmitter FwdDeclEmitter(O, Printed, S.getLangOpts());
+    SYCLFwdDeclEmitter FwdDeclEmitter(O, S.getLangOpts());
     for (const KernelDesc &K : KernelDescs)
       FwdDeclEmitter.Visit(K.NameType);
   }
