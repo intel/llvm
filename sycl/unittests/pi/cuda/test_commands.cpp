@@ -77,7 +77,8 @@ TEST_F(CudaCommandsTest, PIEnqueueReadBufferBlocking) {
 
   pi_mem memObj;
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemBufferCreate>(
-                context_, PI_MEM_FLAGS_ACCESS_RW, bytes, nullptr, &memObj)),
+                context_, PI_MEM_FLAGS_ACCESS_RW, bytes, nullptr, &memObj,
+                nullptr)),
             PI_SUCCESS);
 
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferWrite>(
@@ -106,7 +107,8 @@ TEST_F(CudaCommandsTest, PIEnqueueReadBufferNonBlocking) {
 
   pi_mem memObj;
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemBufferCreate>(
-                context_, PI_MEM_FLAGS_ACCESS_RW, bytes, nullptr, &memObj)),
+                context_, PI_MEM_FLAGS_ACCESS_RW, bytes, nullptr, &memObj,
+                nullptr)),
             PI_SUCCESS);
 
   pi_event cpIn, cpOut;
