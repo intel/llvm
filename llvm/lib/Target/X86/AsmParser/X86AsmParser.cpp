@@ -164,7 +164,7 @@ private:
     SmallVector<InfixCalculatorTok, 4> InfixOperatorStack;
     SmallVector<ICToken, 4> PostfixStack;
 
-    bool isUnaryOperator(const InfixCalculatorTok Op) {
+    bool isUnaryOperator(InfixCalculatorTok Op) const {
       return Op == IC_NEG || Op == IC_NOT;
     }
 
@@ -395,25 +395,25 @@ private:
           MemExpr(false), OffsetOperator(false) {}
 
     void addImm(int64_t imm) { Imm += imm; }
-    short getBracCount() { return BracCount; }
-    bool isMemExpr() { return MemExpr; }
-    bool isOffsetOperator() { return OffsetOperator; }
-    SMLoc getOffsetLoc() { return OffsetOperatorLoc; }
-    unsigned getBaseReg() { return BaseReg; }
-    unsigned getIndexReg() { return IndexReg; }
-    unsigned getScale() { return Scale; }
-    const MCExpr *getSym() { return Sym; }
-    StringRef getSymName() { return SymName; }
-    StringRef getType() { return CurType.Name; }
-    unsigned getSize() { return CurType.Size; }
-    unsigned getElementSize() { return CurType.ElementSize; }
-    unsigned getLength() { return CurType.Length; }
+    short getBracCount() const { return BracCount; }
+    bool isMemExpr() const { return MemExpr; }
+    bool isOffsetOperator() const { return OffsetOperator; }
+    SMLoc getOffsetLoc() const { return OffsetOperatorLoc; }
+    unsigned getBaseReg() const { return BaseReg; }
+    unsigned getIndexReg() const { return IndexReg; }
+    unsigned getScale() const { return Scale; }
+    const MCExpr *getSym() const { return Sym; }
+    StringRef getSymName() const { return SymName; }
+    StringRef getType() const { return CurType.Name; }
+    unsigned getSize() const { return CurType.Size; }
+    unsigned getElementSize() const { return CurType.ElementSize; }
+    unsigned getLength() const { return CurType.Length; }
     int64_t getImm() { return Imm + IC.execute(); }
-    bool isValidEndState() {
+    bool isValidEndState() const {
       return State == IES_RBRAC || State == IES_INTEGER;
     }
-    bool hadError() { return State == IES_ERROR; }
-    InlineAsmIdentifierInfo &getIdentifierInfo() { return Info; }
+    bool hadError() const { return State == IES_ERROR; }
+    const InlineAsmIdentifierInfo &getIdentifierInfo() const { return Info; }
 
     void onOr() {
       IntelExprState CurrState = State;
@@ -1210,8 +1210,6 @@ bool X86AsmParser::MatchRegisterByName(unsigned &RegNo, StringRef RegName,
     // FIXME: This should be done using Requires<Not64BitMode> and
     // Requires<In64BitMode> so "eiz" usage in 64-bit instructions can be also
     // checked.
-    // FIXME: Check AH, CH, DH, BH cannot be used in an instruction requiring a
-    // REX prefix.
     if (RegNo == X86::RIZ || RegNo == X86::RIP ||
         X86MCRegisterClasses[X86::GR64RegClassID].contains(RegNo) ||
         X86II::isX86_64NonExtLowByteReg(RegNo) ||
@@ -2315,7 +2313,7 @@ bool X86AsmParser::ParseIntelOperand(OperandVector &Operands) {
   // and we are parsing a segment override
   if (!SM.isMemExpr() && !RegNo) {
     if (isParsingMSInlineAsm() && SM.isOffsetOperator()) {
-      const InlineAsmIdentifierInfo Info = SM.getIdentifierInfo();
+      const InlineAsmIdentifierInfo &Info = SM.getIdentifierInfo();
       if (Info.isKind(InlineAsmIdentifierInfo::IK_Var)) {
         // Disp includes the address of a variable; make sure this is recorded
         // for later handling.
@@ -3619,6 +3617,33 @@ bool X86AsmParser::validateInstruction(MCInst &Inst, const OperandVector &Ops) {
   }
   }
 
+  const MCInstrDesc &MCID = MII.get(Inst.getOpcode());
+  // Check that we aren't mixing AH/BH/CH/DH with REX prefix. We only need to
+  // check this with the legacy encoding, VEX/EVEX/XOP don't use REX.
+  if ((MCID.TSFlags & X86II::EncodingMask) == 0) {
+    MCPhysReg HReg = X86::NoRegister;
+    bool UsesRex = MCID.TSFlags & X86II::REX_W;
+    unsigned NumOps = Inst.getNumOperands();
+    for (unsigned i = 0; i != NumOps; ++i) {
+      const MCOperand &MO = Inst.getOperand(i);
+      if (!MO.isReg())
+        continue;
+      unsigned Reg = MO.getReg();
+      if (Reg == X86::AH || Reg == X86::BH || Reg == X86::CH || Reg == X86::DH)
+        HReg = Reg;
+      if (X86II::isX86_64NonExtLowByteReg(Reg) ||
+          X86II::isX86_64ExtendedReg(Reg))
+        UsesRex = true;
+    }
+
+    if (UsesRex && HReg != X86::NoRegister) {
+      StringRef RegName = X86IntelInstPrinter::getRegisterName(HReg);
+      return Error(Ops[0]->getStartLoc(),
+                   "can't encode '" + RegName + "' in an instruction requiring "
+                   "REX prefix");
+    }
+  }
+
   return false;
 }
 
@@ -3989,6 +4014,8 @@ bool X86AsmParser::MatchAndEmitATTInstruction(SMLoc IDLoc, unsigned &Opcode,
   unsigned NumSuccessfulMatches =
       std::count(std::begin(Match), std::end(Match), Match_Success);
   if (NumSuccessfulMatches == 1) {
+    if (!MatchingInlineAsm && validateInstruction(Inst, Operands))
+      return true;
     // Some instructions need post-processing to, for example, tweak which
     // encoding is selected. Loop on it while changes happen so the
     // individual transformations can chain off each other.

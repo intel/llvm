@@ -28,14 +28,9 @@ def IsCPSRDefinedAndPredicatedPred :
 // Cortex A57 rev. r1p0 or later (false = r0px)
 def IsR1P0AndLaterPred : SchedPredicate<[{false}]>;
 
-// If Addrmode3 contains register offset (not immediate)
-def IsLdrAm3RegOffPred :
-  SchedPredicate<[{!TII->isAddrMode3OpImm(*MI, 1)}]>;
-// The same predicate with operand offset 2 and 3:
-def IsLdrAm3RegOffPredX2 :
-  SchedPredicate<[{!TII->isAddrMode3OpImm(*MI, 2)}]>;
-def IsLdrAm3RegOffPredX3 :
-  SchedPredicate<[{!TII->isAddrMode3OpImm(*MI, 3)}]>;
+def IsLdrAm3RegOffPred : MCSchedPredicate<CheckInvalidRegOperand<2>>;
+def IsLdrAm3RegOffPredX2 : MCSchedPredicate<CheckInvalidRegOperand<3>>;
+def IsLdrAm3RegOffPredX3 : MCSchedPredicate<CheckInvalidRegOperand<4>>;
 
 // If Addrmode3 contains "minus register"
 def IsLdrAm3NegRegOffPred :
@@ -54,11 +49,7 @@ def IsLdstsoScaledNotOptimalPred :
 def IsLdstsoScaledNotOptimalPredX2 :
   SchedPredicate<[{TII->isLdstScaledRegNotPlusLsl2(*MI, 2)}]>;
 
-// Load, scaled register offset
-def IsLdstsoScaledPred :
-  SchedPredicate<[{TII->isLdstScaledReg(*MI, 1)}]>;
-def IsLdstsoScaledPredX2 :
-  SchedPredicate<[{TII->isLdstScaledReg(*MI, 2)}]>;
+def IsLdstsoScaledPredX2 : MCSchedPredicate<CheckNot<CheckExtNoShift>>;
 
 def IsLdstsoMinusRegPredX0 :
   SchedPredicate<[{TII->isLdstSoMinusReg(*MI, 0)}]>;
