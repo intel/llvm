@@ -240,7 +240,8 @@ TEST_F(CudaKernelsTest, PIKernelSetMemObj) {
   size_t memSize = 1024u;
   pi_mem memObj;
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemBufferCreate>(
-                context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj)),
+                context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj,
+                nullptr)),
             PI_SUCCESS);
 
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piKernelSetArg>(
