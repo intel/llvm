@@ -274,9 +274,9 @@ public:
 
   /// Test the validity of a rename operation.
   ///
-  /// The returned result describes edits in the main-file only (all
-  /// occurrences of the renamed symbol are simply deleted.
+  /// If NewName is provided, it performs a name validation.
   void prepareRename(PathRef File, Position Pos,
+                     llvm::Optional<std::string> NewName,
                      const RenameOptions &RenameOpts,
                      Callback<RenameResult> CB);
 
