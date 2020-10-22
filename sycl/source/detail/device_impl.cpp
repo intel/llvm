@@ -70,6 +70,9 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
     Platform = platform_impl::getPlatformFromPiDevice(MDevice, Plugin);
   }
   MPlatform = Platform;
+
+  // set MPlugin
+  MPlugin = std::make_shared<plugin>(Plugin);
 }
 
 device_impl::~device_impl() {
@@ -101,7 +104,10 @@ cl_device_id device_impl::get() const {
 }
 
 platform device_impl::get_platform() const {
-  return createSyclObjFromImpl<platform>(MPlatform);
+  if (PlatformImplPtr Platform = MPlatform.lock())
+    return createSyclObjFromImpl<platform>(Platform);
+  else
+    return platform();
 }
 
 bool device_impl::has_extension(const string_class &ExtensionName) const {
@@ -139,12 +145,14 @@ device_impl::create_sub_devices(const cl_device_partition_property *Properties,
   // times with the same arguments?
   //
   vector_class<device> res;
-  std::for_each(SubDevices.begin(), SubDevices.end(),
-                [&res, this](const RT::PiDevice &a_pi_device) {
-                  device sycl_device = detail::createSyclObjFromImpl<device>(
-                      MPlatform->getOrMakeDeviceImpl(a_pi_device, MPlatform));
-                  res.push_back(sycl_device);
-                });
+  if (PlatformImplPtr Platform = MPlatform.lock()) {
+    std::for_each(SubDevices.begin(), SubDevices.end(),
+                  [&res, this, &Platform](const RT::PiDevice &a_pi_device) {
+                    device sycl_device = detail::createSyclObjFromImpl<device>(
+                        Platform->getOrMakeDeviceImpl(a_pi_device, Platform));
+                    res.push_back(sycl_device);
+                  });
+  }
   return res;
 }
 

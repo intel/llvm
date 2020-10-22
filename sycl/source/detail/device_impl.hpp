@@ -27,6 +27,7 @@ namespace detail {
 // Forward declaration
 class platform_impl;
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
+using PlatformImplWeakPtr = std::weak_ptr<platform_impl>;
 
 // TODO: Make code thread-safe
 class device_impl {
@@ -119,7 +120,14 @@ public:
   platform get_platform() const;
 
   /// \return the associated plugin with this device.
-  const plugin &getPlugin() const { return MPlatform->getPlugin(); }
+  const plugin &getPlugin() const {
+    if (PlatformImplPtr Platform = MPlatform.lock())
+      return Platform->getPlugin(); // return whatever plugin the platform has
+                                    // (might be changed by unit testing Mocks)
+    else
+      return *MPlugin; // return the plugin with which this device was
+                       // initialized.
+  }
 
   /// Check SYCL extension support by device
   ///
@@ -229,7 +237,8 @@ private:
   RT::PiDeviceType MType;
   bool MIsRootDevice = false;
   bool MIsHostDevice;
-  PlatformImplPtr MPlatform;
+  PlatformImplWeakPtr MPlatform;
+  std::shared_ptr<plugin> MPlugin;
 }; // class device_impl
 
 } // namespace detail
