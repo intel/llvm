@@ -621,6 +621,10 @@ void LLVMToSPIRV::transVectorComputeMetadata(Function *F) {
     BF->addDecorate(DecorationSIMTCallINTEL, SIMTMode);
   }
 
+  if (Attrs.hasFnAttribute(kVCMetadata::VCCallable)) {
+    BF->addDecorate(DecorationVectorComputeCallableFunctionINTEL);
+  }
+
   for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
        ++I) {
     auto ArgNo = I->getArgNo();
@@ -951,7 +955,8 @@ public:
       // survive the translation. This check should be replaced with an
       // assertion once all known cases are handled.
       if (IdxGroupArrayPairIt != IndexGroupArrayMap.end())
-        ArrayVariablesVec.push_back(IdxGroupArrayPairIt->second);
+        for (SPIRVId ArrayAccessId : IdxGroupArrayPairIt->second)
+          ArrayVariablesVec.push_back(ArrayAccessId);
     }
   }
 
@@ -1476,13 +1481,13 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
       // 1) The metadata node has no operands. It will be directly referenced
       //    from within the optimization hint metadata.
       if (NumOperands == 0)
-        IndexGroupArrayMap[IndexGroup] = AccessedArrayId;
+        IndexGroupArrayMap[IndexGroup].insert(AccessedArrayId);
       // 2) The metadata node has several operands. It serves to link an index
       //    group specific to some embedded loop with other index groups that
       //    mark the same array variable for the outer loop(s).
       for (unsigned I = 0; I < NumOperands; ++I) {
         auto *ContainedIndexGroup = getMDOperandAsMDNode(IndexGroup, I);
-        IndexGroupArrayMap[ContainedIndexGroup] = AccessedArrayId;
+        IndexGroupArrayMap[ContainedIndexGroup].insert(AccessedArrayId);
       }
     }
 
@@ -1961,7 +1966,9 @@ bool LLVMToSPIRV::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::bitreverse:
   case Intrinsic::sqrt:
   case Intrinsic::fabs:
+  case Intrinsic::abs:
   case Intrinsic::ceil:
+  case Intrinsic::ctpop:
   case Intrinsic::ctlz:
   case Intrinsic::cttz:
   case Intrinsic::expect:
@@ -1983,6 +1990,7 @@ bool LLVMToSPIRV::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::fmuladd:
   case Intrinsic::memset:
   case Intrinsic::memcpy:
+  case Intrinsic::nearbyint:
   case Intrinsic::lifetime_start:
   case Intrinsic::lifetime_end:
   case Intrinsic::dbg_declare:
@@ -2075,6 +2083,17 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
                           BB);
   }
+  case Intrinsic::abs: {
+    if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
+      break;
+    // LLVM has only one version of abs and it is only for signed integers. We
+    // unconditionally choose SAbs here
+    SPIRVWord ExtOp = OpenCLLIB::SAbs;
+    SPIRVType *STy = transType(II->getType());
+    std::vector<SPIRVValue *> Ops(1, transValue(II->getArgOperand(0), BB));
+    return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
+                          BB);
+  }
   case Intrinsic::ceil: {
     if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
       break;
@@ -2083,6 +2102,10 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     std::vector<SPIRVValue *> Ops(1, transValue(II->getArgOperand(0), BB));
     return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
                           BB);
+  }
+  case Intrinsic::ctpop: {
+    return BM->addUnaryInst(OpBitCount, transType(II->getType()),
+                            transValue(II->getArgOperand(0), BB), BB);
   }
   case Intrinsic::ctlz:
   case Intrinsic::cttz: {
@@ -2297,6 +2320,13 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     if (Size == -1)
       Size = 0;
     return BM->addLifetimeInst(OC, transValue(II->getOperand(1), BB), Size, BB);
+  }
+  case Intrinsic::nearbyint: {
+    if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
+      break;
+    return BM->addExtInst(transType(II->getType()),
+                          BM->getExtInstSetId(SPIRVEIS_OpenCL), OpenCLLIB::Rint,
+                          {transValue(II->getOperand(0), BB)}, BB);
   }
   // We don't want to mix translation of regular code and debug info, because
   // it creates a mess, therefore translation of debug intrinsics is
