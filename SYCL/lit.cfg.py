@@ -102,7 +102,6 @@ else:
 
 # ESIMD-specific setup. Requires OpenCL for now.
 if "opencl" in config.available_features:
-    print(config.available_features)
     esimd_run_substitute = " env SYCL_BE=PI_OPENCL SYCL_DEVICE_TYPE=GPU SYCL_PROGRAM_COMPILE_OPTIONS=-vc-codegen"
     config.substitutions.append( ('%ESIMD_RUN_PLACEHOLDER',  esimd_run_substitute) )
     config.substitutions.append( ('%clangxx-esimd',  config.dpcpp_compiler +
@@ -197,11 +196,7 @@ config.substitutions.append( ('%GPU_CHECK_ON_LINUX_PLACEHOLDER',  gpu_check_on_l
 
 acc_run_substitute = "true"
 acc_check_substitute = ""
-# Tests executed with FPGA emu on Windows are not stable
-# Disabled until FPGA emulator is fixed
-if platform.system() == "Windows":
-    lit_config.warning("Accelerator device is disabled on Windows because of instability")
-elif 'acc' in config.target_devices.split(','):
+if 'acc' in config.target_devices.split(','):
     found_at_least_one_device = True
     lit_config.note("Tests accelerator device")
     acc_run_substitute = " env SYCL_DEVICE_TYPE=ACC "
