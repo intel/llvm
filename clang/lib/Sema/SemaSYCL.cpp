@@ -3322,21 +3322,6 @@ static const char *paramKind2Str(KernelParamKind K) {
 #undef CASE
 }
 
-// Removes all "(anonymous namespace)::" substrings from given string, and emits
-// it.
-static void emitWithoutAnonNamespaces(llvm::raw_ostream &OS, StringRef Source) {
-  const char S1[] = "(anonymous namespace)::";
-
-  size_t Pos;
-
-  while ((Pos = Source.find(S1)) != StringRef::npos) {
-    OS << Source.take_front(Pos);
-    Source = Source.drop_front(Pos + sizeof(S1) - 1);
-  }
-
-  OS << Source;
-}
-
 // Emits a forward declaration
 void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D,
                                         SourceLocation KernelLocation) {
@@ -3555,13 +3540,6 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
   }
 }
 
-static void emitCPPTypeString(raw_ostream &OS, QualType Ty) {
-  LangOptions LO;
-  PrintingPolicy P(LO);
-  P.SuppressTypedefs = true;
-  emitWithoutAnonNamespaces(OS, Ty.getAsString(P));
-}
-
 class SYCLKernelNameTypePrinter
     : public TypeVisitor<SYCLKernelNameTypePrinter>,
       public ConstTemplateArgumentVisitor<SYCLKernelNameTypePrinter> {
@@ -3684,6 +3662,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   O << "\n";
 
+  LangOptions LO;
+  PrintingPolicy Policy(LO);
+  Policy.SuppressTypedefs = true;
+  Policy.SuppressUnwrittenScope = true;
+
   if (SpecConsts.size() > 0) {
     // Remove duplicates.
     std::sort(SpecConsts.begin(), SpecConsts.end(),
@@ -3701,7 +3684,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "// Specialization constants IDs:\n";
     for (const auto &P : llvm::make_range(SpecConsts.begin(), End)) {
       O << "template <> struct sycl::detail::SpecConstantInfo<";
-      emitCPPTypeString(O, P.first);
+      O << P.first.getAsString(Policy);
       O << "> {\n";
       O << "  static constexpr const char* getName() {\n";
       O << "    return \"" << P.second << "\";\n";
@@ -3769,12 +3752,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         O << "', '" << c;
       O << "'> {\n";
     } else {
-      LangOptions LO;
-      PrintingPolicy P(LO);
-      P.SuppressTypedefs = true;
-      P.SuppressUnwrittenScope = true;
       O << "template <> struct KernelInfo<";
-      SYCLKernelNameTypePrinter Printer(O, P);
+      SYCLKernelNameTypePrinter Printer(O, Policy);
       Printer.Visit(K.NameType);
       O << "> {\n";
     }
