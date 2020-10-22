@@ -8,10 +8,10 @@ with some restrictions. See this [document](https://github.com/intel/llvm/blob/s
 - must work with separate compilation and linking
 - must support AOT compilation
 
-Implementaion is based on SPIR-V specialization constants. But there is one
-important difference between SYCL and SPIR-V: in SYCL speciazation constants are
-identified by a type ID which is mapped to a symbolic name, in SPIR-V - by an
-ordinal number. This complicates the design, as the compiler
+Implementation is based on SPIR-V specialization constants. But there is one
+important difference between SYCL and SPIR-V: in SYCL specialization constants
+are identified by a type ID which is mapped to a symbolic name, in SPIR-V - by
+an ordinal number. This complicates the design, as the compiler
 1) needs to propagate symbolic =\> numeric ID correspondence to the runtime
 2) can assign numeric IDs only when linking due to the separate compilation
 
@@ -66,7 +66,7 @@ recognized by a special LLVM pass later.
 
 Compilation and subsequent linkage of device code results in a number of
 `__sycl_getSpecConstantValue` calls whose arguments are symbolic spec constant
-IDs. Before generating the a device binary, each linked device code LLVMIR
+IDs. Before generating a device binary, each linked device code LLVMIR
 module undergoes processing by the sycl-post-link tool which can run LLVMIR
 passes before passing the module onto the llvm-spirv translator.
 
