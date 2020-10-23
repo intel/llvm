@@ -239,7 +239,7 @@ spec constants, because its defined by its members instead.
 ##### The post-link tool changes
 
 For composite specialization constants the post link tool will additionally
-generate linearized list of \<leaf spec ID,type,offset,size\> tuples (descriptors),
+generate linearized list of \<leaf spec ID,offset,size\> tuples (descriptors),
 where each tuple describes a leaf field, and store it together with the
 existing meta-information associated with the specialization constants and
 passed to the runtime. Also, for a composite specialization constant there is
@@ -247,7 +247,7 @@ no ID map entry within the meta information, and the composite constant is
 referenced by its symbolic ID. For example:
 
 ```
-MyConst_mangled [10,int,0,4],[11,float,4,4],[12,int,8,4],[13,float,12,4],[14,int,16,4]
+MyConst_mangled [10,0,4],[11,4,4],[12,8,4],[13,12,4],[14,16,4]
 ```
 
 #### SYCL runtime
