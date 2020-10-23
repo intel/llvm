@@ -467,6 +467,7 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
       Builder.defineMacro("CL_SYCL_LANGUAGE_VERSION", "121");
       Builder.defineMacro("SYCL_LANGUAGE_VERSION", "201707");
     } else if (LangOpts.SYCLVersion == 2020) {
+      Builder.defineMacro("CL_SYCL_LANGUAGE_VERSION", "2020");
       Builder.defineMacro("SYCL_LANGUAGE_VERSION", "202001");
     }
 
