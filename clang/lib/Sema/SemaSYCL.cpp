@@ -2838,6 +2838,11 @@ class SYCLKernelNameTypeVisitor
       ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor>;
   bool IsInvalid = false;
 
+  void VisitTemplateArgs(ArrayRef<TemplateArgument> Args) {
+    for (size_t I = 0, E = Args.size(); I < E; ++I)
+      Visit(Args[I]);
+  }
+
 public:
   SYCLKernelNameTypeVisitor(Sema &S, SourceLocation KernelInvocationFuncLoc)
       : S(S), KernelInvocationFuncLoc(KernelInvocationFuncLoc) {}
@@ -2849,19 +2854,18 @@ public:
       return;
     const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
     if (!RD) {
-      if (T->isNullPtrType())
+      if (T->isNullPtrType()) {
         S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
             << /* kernel name cannot be a type in the std namespace */ 3;
-      IsInvalid = true;
+        IsInvalid = true;
+      }
       return;
     }
     // If KernelNameType has template args visit each template arg via
     // ConstTemplateArgumentVisitor
     if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
-      const TemplateArgumentList &Args = TSD->getTemplateArgs();
-      for (unsigned I = 0; I < Args.size(); I++) {
-        Visit(Args[I]);
-      }
+      ArrayRef<TemplateArgument> Args = TSD->getTemplateArgs().asArray();
+      VisitTemplateArgs(Args);
     } else {
       InnerTypeVisitor::Visit(T.getTypePtr());
     }
@@ -2948,6 +2952,10 @@ public:
         if (const EnumType *ET = TemplateParam->getType()->getAs<EnumType>())
           VisitEnumType(ET);
     }
+  }
+
+  void VisitPackTemplateArgument(const TemplateArgument &TA) {
+    VisitTemplateArgs(TA.getPackAsArray());
   }
 };
 
@@ -3452,6 +3460,7 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
   const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
 
   if (!RD) {
+
     return;
   }
 

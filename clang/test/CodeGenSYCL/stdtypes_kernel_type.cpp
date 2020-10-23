@@ -13,12 +13,14 @@ class U;
 template <typename T>
 struct Templated_kernel_name;
 
+template <typename T, typename... Args> class TemplParamPack;
+
 using namespace cl::sycl;
 queue q;
 
 int main() {
 #ifdef CHECK_ERROR
-  // expected-error@Inputs/sycl.hpp:328 4 {{kernel name cannot be a type in the "std" namespace}}
+  // expected-error@Inputs/sycl.hpp:328 5 {{kernel name cannot be a type in the "std" namespace}}
   q.submit([&](handler &h) {
     // expected-note@+1{{in instantiation of function template specialization}}
     h.single_task<std::nullptr_t>([=] {});
@@ -35,7 +37,10 @@ int main() {
     // expected-note@+1{{in instantiation of function template specialization}}
     h.single_task<Templated_kernel_name<std::U>>([=] {});
   });
-
+  q.submit([&](handler &cgh) {
+    // expected-note@+1{{in instantiation of function template specialization}}
+    cgh.single_task<TemplParamPack<int, float, std::nullptr_t, double>>([]() {});
+  });
 #endif
 
   // Although in the std namespace, these resolve to builtins such as `int` that are allowed in kernel names
