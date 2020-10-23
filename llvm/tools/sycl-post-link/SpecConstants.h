@@ -24,6 +24,15 @@
 
 using namespace llvm;
 
+using ScalarSpecIDMapTy = std::map<StringRef, unsigned>;
+struct CompositeSpecConstDescriptor {
+  unsigned ID;
+  unsigned Offset;
+  unsigned Size;
+};
+using CompositeSpecIDMapTy =
+    std::map<StringRef, std::vector<CompositeSpecConstDescriptor>>;
+
 class SpecConstantsPass : public PassInfoMixin<SpecConstantsPass> {
 public:
   // SetValAtRT parameter controls spec constant lowering mode:
@@ -34,9 +43,13 @@ public:
 
   // Searches given module for occurences of specialization constant-specific
   // metadata at call instructions and builds a
-  // "spec constant name" -> "spec constant int ID" map from this information.
+  // "spec constant name" -> "spec constant int ID" map for scalar spec
+  // constants and
+  // "spec constant name" -> vector<"spec constant int ID"> map for composite
+  // spec constants
   static bool collectSpecConstantMetadata(Module &M,
-                                          std::map<StringRef, unsigned> &IDMap);
+                                          ScalarSpecIDMapTy &ScalarIDMap,
+                                          CompositeSpecIDMapTy &CompositeIDMap);
 
 private:
   bool SetValAtRT;
