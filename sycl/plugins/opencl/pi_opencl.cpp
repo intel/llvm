@@ -519,7 +519,7 @@ pi_result piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
 
 pi_result piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
                             void *host_ptr, pi_mem *ret_mem,
-                            const cl_mem_properties_intel *properties) {
+                            const pi_mem_properties *properties) {
   pi_result ret_err = PI_INVALID_OPERATION;
   clCreateBufferWithPropertiesINTEL_fn FuncPtr = nullptr;
 
