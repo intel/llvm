@@ -1823,8 +1823,8 @@ cl_int ExecCGCommand::enqueueImp() {
     std::vector<void *> ArgsBlob(HostTask->MArgs.size() + 2);
     ArgsBlob[0] = (void *)HostTask;
     {
-      int MayDeleteCG =
-          static_cast<int>(MDeps.size() == 0 && MUsers.size() == 0);
+      std::intptr_t MayDeleteCG =
+          static_cast<std::intptr_t>(MDeps.size() == 0 && MUsers.size() == 0);
       ArgsBlob[1] = reinterpret_cast<void *>(MayDeleteCG);
     }
     void **NextArg = ArgsBlob.data() + 2;
