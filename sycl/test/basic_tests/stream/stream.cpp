@@ -290,6 +290,7 @@ int main() {
         ostream << "global id " << it.get_global_id(0) << stream_manipulator::endl;
       });
     });
+    Queue.wait();
     // CHECK: global id {{[0-9]+}}
     // CHECK: global id {{[0-9]+}}
     // CHECK: global id {{[0-9]+}}

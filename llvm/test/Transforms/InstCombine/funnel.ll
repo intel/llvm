@@ -3,16 +3,14 @@
 
 target datalayout = "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:32:64-v64:64:64-v128:128:128-a0:0:64-f80:128:128"
 
-; TODO: Canonicalize or(shl,lshr) by constant to funnel shift intrinsics.
+; Canonicalize or(shl,lshr) by constant to funnel shift intrinsics.
 ; This should help cost modeling for vectorization, inlining, etc.
 ; If a target does not have a fshl instruction, the expansion will
 ; be exactly these same 3 basic ops (shl/lshr/or).
 
 define i32 @fshl_i32_constant(i32 %x, i32 %y) {
 ; CHECK-LABEL: @fshl_i32_constant(
-; CHECK-NEXT:    [[SHL:%.*]] = shl i32 [[X:%.*]], 11
-; CHECK-NEXT:    [[SHR:%.*]] = lshr i32 [[Y:%.*]], 21
-; CHECK-NEXT:    [[R:%.*]] = or i32 [[SHR]], [[SHL]]
+; CHECK-NEXT:    [[R:%.*]] = call i32 @llvm.fshl.i32(i32 [[X:%.*]], i32 [[Y:%.*]], i32 11)
 ; CHECK-NEXT:    ret i32 [[R]]
 ;
   %shl = shl i32 %x, 11
@@ -23,24 +21,20 @@ define i32 @fshl_i32_constant(i32 %x, i32 %y) {
 
 define i42 @fshr_i42_constant(i42 %x, i42 %y) {
 ; CHECK-LABEL: @fshr_i42_constant(
-; CHECK-NEXT:    [[SHL:%.*]] = shl i42 [[X:%.*]], 31
-; CHECK-NEXT:    [[SHR:%.*]] = lshr i42 [[Y:%.*]], 11
-; CHECK-NEXT:    [[R:%.*]] = or i42 [[SHR]], [[SHL]]
+; CHECK-NEXT:    [[R:%.*]] = call i42 @llvm.fshl.i42(i42 [[Y:%.*]], i42 [[X:%.*]], i42 11)
 ; CHECK-NEXT:    ret i42 [[R]]
 ;
-  %shl = shl i42 %x, 31
-  %shr = lshr i42 %y, 11
+  %shr = lshr i42 %x, 31
+  %shl = shl i42 %y, 11
   %r = or i42 %shr, %shl
   ret i42 %r
 }
 
-; TODO: Vector types are allowed.
+; Vector types are allowed.
 
 define <2 x i16> @fshl_v2i16_constant_splat(<2 x i16> %x, <2 x i16> %y) {
 ; CHECK-LABEL: @fshl_v2i16_constant_splat(
-; CHECK-NEXT:    [[SHL:%.*]] = shl <2 x i16> [[X:%.*]], <i16 1, i16 1>
-; CHECK-NEXT:    [[SHR:%.*]] = lshr <2 x i16> [[Y:%.*]], <i16 15, i16 15>
-; CHECK-NEXT:    [[R:%.*]] = or <2 x i16> [[SHL]], [[SHR]]
+; CHECK-NEXT:    [[R:%.*]] = call <2 x i16> @llvm.fshl.v2i16(<2 x i16> [[X:%.*]], <2 x i16> [[Y:%.*]], <2 x i16> <i16 1, i16 1>)
 ; CHECK-NEXT:    ret <2 x i16> [[R]]
 ;
   %shl = shl <2 x i16> %x, <i16 1, i16 1>
@@ -51,9 +45,7 @@ define <2 x i16> @fshl_v2i16_constant_splat(<2 x i16> %x, <2 x i16> %y) {
 
 define <2 x i16> @fshl_v2i16_constant_splat_undef0(<2 x i16> %x, <2 x i16> %y) {
 ; CHECK-LABEL: @fshl_v2i16_constant_splat_undef0(
-; CHECK-NEXT:    [[SHL:%.*]] = shl <2 x i16> [[X:%.*]], <i16 undef, i16 1>
-; CHECK-NEXT:    [[SHR:%.*]] = lshr <2 x i16> [[Y:%.*]], <i16 15, i16 15>
-; CHECK-NEXT:    [[R:%.*]] = or <2 x i16> [[SHL]], [[SHR]]
+; CHECK-NEXT:    [[R:%.*]] = call <2 x i16> @llvm.fshl.v2i16(<2 x i16> [[X:%.*]], <2 x i16> [[Y:%.*]], <2 x i16> <i16 1, i16 1>)
 ; CHECK-NEXT:    ret <2 x i16> [[R]]
 ;
   %shl = shl <2 x i16> %x, <i16 undef, i16 1>
@@ -64,9 +56,7 @@ define <2 x i16> @fshl_v2i16_constant_splat_undef0(<2 x i16> %x, <2 x i16> %y) {
 
 define <2 x i16> @fshl_v2i16_constant_splat_undef1(<2 x i16> %x, <2 x i16> %y) {
 ; CHECK-LABEL: @fshl_v2i16_constant_splat_undef1(
-; CHECK-NEXT:    [[SHL:%.*]] = shl <2 x i16> [[X:%.*]], <i16 1, i16 1>
-; CHECK-NEXT:    [[SHR:%.*]] = lshr <2 x i16> [[Y:%.*]], <i16 15, i16 undef>
-; CHECK-NEXT:    [[R:%.*]] = or <2 x i16> [[SHL]], [[SHR]]
+; CHECK-NEXT:    [[R:%.*]] = call <2 x i16> @llvm.fshl.v2i16(<2 x i16> [[X:%.*]], <2 x i16> [[Y:%.*]], <2 x i16> <i16 1, i16 1>)
 ; CHECK-NEXT:    ret <2 x i16> [[R]]
 ;
   %shl = shl <2 x i16> %x, <i16 1, i16 1>
@@ -75,43 +65,37 @@ define <2 x i16> @fshl_v2i16_constant_splat_undef1(<2 x i16> %x, <2 x i16> %y) {
   ret <2 x i16> %r
 }
 
-; TODO: Non-power-of-2 vector types are allowed.
+; Non-power-of-2 vector types are allowed.
 
 define <2 x i17> @fshr_v2i17_constant_splat(<2 x i17> %x, <2 x i17> %y) {
 ; CHECK-LABEL: @fshr_v2i17_constant_splat(
-; CHECK-NEXT:    [[SHL:%.*]] = shl <2 x i17> [[X:%.*]], <i17 12, i17 12>
-; CHECK-NEXT:    [[SHR:%.*]] = lshr <2 x i17> [[Y:%.*]], <i17 5, i17 5>
-; CHECK-NEXT:    [[R:%.*]] = or <2 x i17> [[SHR]], [[SHL]]
+; CHECK-NEXT:    [[R:%.*]] = call <2 x i17> @llvm.fshl.v2i17(<2 x i17> [[Y:%.*]], <2 x i17> [[X:%.*]], <2 x i17> <i17 5, i17 5>)
 ; CHECK-NEXT:    ret <2 x i17> [[R]]
 ;
-  %shl = shl <2 x i17> %x, <i17 12, i17 12>
-  %shr = lshr <2 x i17> %y, <i17 5, i17 5>
+  %shr = lshr <2 x i17> %x, <i17 12, i17 12>
+  %shl = shl <2 x i17> %y, <i17 5, i17 5>
   %r = or <2 x i17> %shr, %shl
   ret <2 x i17> %r
 }
 
 define <2 x i17> @fshr_v2i17_constant_splat_undef0(<2 x i17> %x, <2 x i17> %y) {
 ; CHECK-LABEL: @fshr_v2i17_constant_splat_undef0(
-; CHECK-NEXT:    [[SHL:%.*]] = shl <2 x i17> [[X:%.*]], <i17 12, i17 undef>
-; CHECK-NEXT:    [[SHR:%.*]] = lshr <2 x i17> [[Y:%.*]], <i17 undef, i17 5>
-; CHECK-NEXT:    [[R:%.*]] = or <2 x i17> [[SHR]], [[SHL]]
+; CHECK-NEXT:    [[R:%.*]] = call <2 x i17> @llvm.fshl.v2i17(<2 x i17> [[Y:%.*]], <2 x i17> [[X:%.*]], <2 x i17> <i17 5, i17 5>)
 ; CHECK-NEXT:    ret <2 x i17> [[R]]
 ;
-  %shl = shl <2 x i17> %x, <i17 12, i17 undef>
-  %shr = lshr <2 x i17> %y, <i17 undef, i17 5>
+  %shr = lshr <2 x i17> %x, <i17 12, i17 undef>
+  %shl = shl <2 x i17> %y, <i17 undef, i17 5>
   %r = or <2 x i17> %shr, %shl
   ret <2 x i17> %r
 }
 
 define <2 x i17> @fshr_v2i17_constant_splat_undef1(<2 x i17> %x, <2 x i17> %y) {
 ; CHECK-LABEL: @fshr_v2i17_constant_splat_undef1(
-; CHECK-NEXT:    [[SHL:%.*]] = shl <2 x i17> [[X:%.*]], <i17 12, i17 undef>
-; CHECK-NEXT:    [[SHR:%.*]] = lshr <2 x i17> [[Y:%.*]], <i17 5, i17 undef>
-; CHECK-NEXT:    [[R:%.*]] = or <2 x i17> [[SHR]], [[SHL]]
+; CHECK-NEXT:    [[R:%.*]] = call <2 x i17> @llvm.fshl.v2i17(<2 x i17> [[Y:%.*]], <2 x i17> [[X:%.*]], <2 x i17> <i17 5, i17 5>)
 ; CHECK-NEXT:    ret <2 x i17> [[R]]
 ;
-  %shl = shl <2 x i17> %x, <i17 12, i17 undef>
-  %shr = lshr <2 x i17> %y, <i17 5, i17 undef>
+  %shr = lshr <2 x i17> %x, <i17 12, i17 undef>
+  %shl = shl <2 x i17> %y, <i17 5, i17 undef>
   %r = or <2 x i17> %shr, %shl
   ret <2 x i17> %r
 }
@@ -120,39 +104,39 @@ define <2 x i17> @fshr_v2i17_constant_splat_undef1(<2 x i17> %x, <2 x i17> %y) {
 
 define <2 x i32> @fshr_v2i32_constant_nonsplat(<2 x i32> %x, <2 x i32> %y) {
 ; CHECK-LABEL: @fshr_v2i32_constant_nonsplat(
-; CHECK-NEXT:    [[SHL:%.*]] = shl <2 x i32> [[X:%.*]], <i32 17, i32 19>
-; CHECK-NEXT:    [[SHR:%.*]] = lshr <2 x i32> [[Y:%.*]], <i32 15, i32 13>
+; CHECK-NEXT:    [[SHR:%.*]] = lshr <2 x i32> [[X:%.*]], <i32 17, i32 19>
+; CHECK-NEXT:    [[SHL:%.*]] = shl <2 x i32> [[Y:%.*]], <i32 15, i32 13>
 ; CHECK-NEXT:    [[R:%.*]] = or <2 x i32> [[SHL]], [[SHR]]
 ; CHECK-NEXT:    ret <2 x i32> [[R]]
 ;
-  %shl = shl <2 x i32> %x, <i32 17, i32 19>
-  %shr = lshr <2 x i32> %y, <i32 15, i32 13>
+  %shr = lshr <2 x i32> %x, <i32 17, i32 19>
+  %shl = shl <2 x i32> %y, <i32 15, i32 13>
   %r = or <2 x i32> %shl, %shr
   ret <2 x i32> %r
 }
 
 define <2 x i32> @fshr_v2i32_constant_nonsplat_undef0(<2 x i32> %x, <2 x i32> %y) {
 ; CHECK-LABEL: @fshr_v2i32_constant_nonsplat_undef0(
-; CHECK-NEXT:    [[SHL:%.*]] = shl <2 x i32> [[X:%.*]], <i32 undef, i32 19>
-; CHECK-NEXT:    [[SHR:%.*]] = lshr <2 x i32> [[Y:%.*]], <i32 15, i32 13>
+; CHECK-NEXT:    [[SHR:%.*]] = lshr <2 x i32> [[X:%.*]], <i32 undef, i32 19>
+; CHECK-NEXT:    [[SHL:%.*]] = shl <2 x i32> [[Y:%.*]], <i32 15, i32 13>
 ; CHECK-NEXT:    [[R:%.*]] = or <2 x i32> [[SHL]], [[SHR]]
 ; CHECK-NEXT:    ret <2 x i32> [[R]]
 ;
-  %shl = shl <2 x i32> %x, <i32 undef, i32 19>
-  %shr = lshr <2 x i32> %y, <i32 15, i32 13>
+  %shr = lshr <2 x i32> %x, <i32 undef, i32 19>
+  %shl = shl <2 x i32> %y, <i32 15, i32 13>
   %r = or <2 x i32> %shl, %shr
   ret <2 x i32> %r
 }
 
 define <2 x i32> @fshr_v2i32_constant_nonsplat_undef1(<2 x i32> %x, <2 x i32> %y) {
 ; CHECK-LABEL: @fshr_v2i32_constant_nonsplat_undef1(
-; CHECK-NEXT:    [[SHL:%.*]] = shl <2 x i32> [[X:%.*]], <i32 17, i32 19>
-; CHECK-NEXT:    [[SHR:%.*]] = lshr <2 x i32> [[Y:%.*]], <i32 15, i32 undef>
+; CHECK-NEXT:    [[SHR:%.*]] = lshr <2 x i32> [[X:%.*]], <i32 17, i32 19>
+; CHECK-NEXT:    [[SHL:%.*]] = shl <2 x i32> [[Y:%.*]], <i32 15, i32 undef>
 ; CHECK-NEXT:    [[R:%.*]] = or <2 x i32> [[SHL]], [[SHR]]
 ; CHECK-NEXT:    ret <2 x i32> [[R]]
 ;
-  %shl = shl <2 x i32> %x, <i32 17, i32 19>
-  %shr = lshr <2 x i32> %y, <i32 15, i32 undef>
+  %shr = lshr <2 x i32> %x, <i32 17, i32 19>
+  %shl = shl <2 x i32> %y, <i32 15, i32 undef>
   %r = or <2 x i32> %shl, %shr
   ret <2 x i32> %r
 }
@@ -181,4 +165,59 @@ define <3 x i36> @fshl_v3i36_constant_nonsplat_undef0(<3 x i36> %x, <3 x i36> %y
   %shr = lshr <3 x i36> %y, <i36 15, i36 25, i36 undef>
   %r = or <3 x i36> %shl, %shr
   ret <3 x i36> %r
+}
+
+; Fold or(shl(x,a),lshr(y,bw-a)) -> fshl(x,y,a) iff a < bw
+
+define i64 @fshl_sub_mask(i64 %x, i64 %y, i64 %a) {
+; CHECK-LABEL: @fshl_sub_mask(
+; CHECK-NEXT:    [[MASK:%.*]] = and i64 [[A:%.*]], 63
+; CHECK-NEXT:    [[SHL:%.*]] = shl i64 [[X:%.*]], [[MASK]]
+; CHECK-NEXT:    [[SUB:%.*]] = sub nuw nsw i64 64, [[MASK]]
+; CHECK-NEXT:    [[SHR:%.*]] = lshr i64 [[Y:%.*]], [[SUB]]
+; CHECK-NEXT:    [[R:%.*]] = or i64 [[SHL]], [[SHR]]
+; CHECK-NEXT:    ret i64 [[R]]
+;
+  %mask = and i64 %a, 63
+  %shl = shl i64 %x, %mask
+  %sub = sub nuw nsw i64 64, %mask
+  %shr = lshr i64 %y, %sub
+  %r = or i64 %shl, %shr
+  ret i64 %r
+}
+
+; Fold or(lshr(v,a),shl(v,bw-a)) -> fshr(y,x,a) iff a < bw
+
+define i64 @fshr_sub_mask(i64 %x, i64 %y, i64 %a) {
+; CHECK-LABEL: @fshr_sub_mask(
+; CHECK-NEXT:    [[MASK:%.*]] = and i64 [[A:%.*]], 63
+; CHECK-NEXT:    [[SHR:%.*]] = lshr i64 [[X:%.*]], [[MASK]]
+; CHECK-NEXT:    [[SUB:%.*]] = sub nuw nsw i64 64, [[MASK]]
+; CHECK-NEXT:    [[SHL:%.*]] = shl i64 [[Y:%.*]], [[SUB]]
+; CHECK-NEXT:    [[R:%.*]] = or i64 [[SHL]], [[SHR]]
+; CHECK-NEXT:    ret i64 [[R]]
+;
+  %mask = and i64 %a, 63
+  %shr = lshr i64 %x, %mask
+  %sub = sub nuw nsw i64 64, %mask
+  %shl = shl i64 %y, %sub
+  %r = or i64 %shl, %shr
+  ret i64 %r
+}
+
+define <2 x i64> @fshr_sub_mask_vector(<2 x i64> %x, <2 x i64> %y, <2 x i64> %a) {
+; CHECK-LABEL: @fshr_sub_mask_vector(
+; CHECK-NEXT:    [[MASK:%.*]] = and <2 x i64> [[A:%.*]], <i64 63, i64 63>
+; CHECK-NEXT:    [[SHR:%.*]] = lshr <2 x i64> [[X:%.*]], [[MASK]]
+; CHECK-NEXT:    [[SUB:%.*]] = sub nuw nsw <2 x i64> <i64 64, i64 64>, [[MASK]]
+; CHECK-NEXT:    [[SHL:%.*]] = shl <2 x i64> [[Y:%.*]], [[SUB]]
+; CHECK-NEXT:    [[R:%.*]] = or <2 x i64> [[SHL]], [[SHR]]
+; CHECK-NEXT:    ret <2 x i64> [[R]]
+;
+  %mask = and <2 x i64> %a, <i64 63, i64 63>
+  %shr = lshr <2 x i64> %x, %mask
+  %sub = sub nuw nsw <2 x i64> <i64 64, i64 64>, %mask
+  %shl = shl <2 x i64> %y, %sub
+  %r = or <2 x i64> %shl, %shr
+  ret <2 x i64> %r
 }

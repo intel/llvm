@@ -26,9 +26,8 @@ __SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle) {
   Plugin.call<PiApiKind::piextPlatformCreateWithNativeHandle>(NativeHandle,
                                                               &PiPlatform);
 
-  // Construct the SYCL platform from PI platfrom.
   return detail::createSyclObjFromImpl<platform>(
-      std::make_shared<platform_impl>(PiPlatform, Plugin));
+      platform_impl::getOrMakePlatformImpl(PiPlatform, Plugin));
 }
 
 //----------------------------------------------------------------------------
@@ -41,9 +40,9 @@ __SYCL_EXPORT device make_device(const platform &Platform,
   pi::PiDevice PiDevice;
   Plugin.call<PiApiKind::piextDeviceCreateWithNativeHandle>(
       NativeHandle, PlatformImpl->getHandleRef(), &PiDevice);
-  // Construct the SYCL device from PI device.
+
   return detail::createSyclObjFromImpl<device>(
-      std::make_shared<device_impl>(PiDevice, PlatformImpl));
+      PlatformImpl->getOrMakeDeviceImpl(PiDevice, PlatformImpl));
 }
 
 //----------------------------------------------------------------------------

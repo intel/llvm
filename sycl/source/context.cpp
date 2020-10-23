@@ -84,7 +84,7 @@ context::context(cl_context ClContext, async_handler AsyncHandler) {
       detail::pi::cast<detail::RT::PiContext>(ClContext), AsyncHandler, Plugin);
 }
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
   template <>                                                                  \
   __SYCL_EXPORT ret_type context::get_info<info::param_type::param>() const {  \
     return impl->get_info<info::param_type::param>();                          \
@@ -92,24 +92,24 @@ context::context(cl_context ClContext, async_handler AsyncHandler) {
 
 #include <CL/sycl/info/context_traits.def>
 
-#undef PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC
 
-#define PARAM_TRAITS_SPEC(param_type)                                          \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
   template <> __SYCL_EXPORT bool context::has_property<param_type>() const {   \
     return impl->has_property<param_type>();                                   \
   }
 #include <CL/sycl/detail/properties_traits.def>
 
-#undef PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC
 
-#define PARAM_TRAITS_SPEC(param_type)                                          \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
   template <>                                                                  \
   __SYCL_EXPORT param_type context::get_property<param_type>() const {         \
     return impl->get_property<param_type>();                                   \
   }
 #include <CL/sycl/detail/properties_traits.def>
 
-#undef PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC
 
 cl_context context::get() const { return impl->get(); }
 

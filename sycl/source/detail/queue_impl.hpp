@@ -142,7 +142,7 @@ public:
 
   const plugin &getPlugin() const { return MContext->getPlugin(); }
 
-  ContextImplPtr getContextImplPtr() const { return MContext; }
+  const ContextImplPtr &getContextImplPtr() const { return MContext; }
 
   /// \return an associated SYCL device.
   device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
@@ -226,7 +226,7 @@ public:
     exception_list Exceptions;
     {
       std::lock_guard<mutex_class> Lock(MMutex);
-      Exceptions = std::move(MExceptions);
+      std::swap(Exceptions, MExceptions);
     }
     // Unlock the mutex before calling user-provided handler to avoid
     // potential deadlock if the same queue is somehow referenced in the

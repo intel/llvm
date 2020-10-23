@@ -492,6 +492,8 @@ public:
 
   vector_class<StreamImplPtr> getStreams() const;
 
+  void clearStreams();
+
   void printDot(std::ostream &Stream) const final override;
   void emitInstrumentationData() final override;
 

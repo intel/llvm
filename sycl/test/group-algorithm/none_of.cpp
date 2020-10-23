@@ -1,12 +1,10 @@
-// UNSUPPORTED: cuda
-// OpenCL C 2.x alike work-group functions not yet supported by CUDA.
-//
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -I . -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
+#include "support.h"
 #include <CL/sycl.hpp>
 #include <algorithm>
 #include <cassert>
@@ -32,7 +30,7 @@ void test(queue q, InputContainer input, OutputContainer output,
           Predicate pred) {
   typedef class none_of_kernel<Predicate> kernel_name;
   size_t N = input.size();
-  size_t G = 16;
+  size_t G = 64;
   {
     buffer<int> in_buf(input.data(), input.size());
     buffer<bool> out_buf(output.data(), output.size());
@@ -57,13 +55,12 @@ void test(queue q, InputContainer input, OutputContainer output,
 
 int main() {
   queue q;
-  std::string version = q.get_device().get_info<info::device::version>();
-  if (version < std::string("2.0")) {
+  if (!isSupportedDevice(q.get_device())) {
     std::cout << "Skipping test\n";
     return 0;
   }
 
-  constexpr int N = 32;
+  constexpr int N = 128;
   std::array<int, N> input;
   std::array<bool, 3> output;
   std::iota(input.begin(), input.end(), 0);

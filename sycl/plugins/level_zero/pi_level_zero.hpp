@@ -78,9 +78,10 @@ struct _pi_platform {
   std::string ZeDriverApiVersion;
 
   // Cache pi_devices for reuse
-  std::vector<pi_device> PiDevicesCache;
+  std::vector<std::unique_ptr<_pi_device>> PiDevicesCache;
   std::mutex PiDevicesCacheMutex;
   pi_device getDeviceFromNativeHandle(ze_device_handle_t);
+  bool DeviceCachePopulated = false;
 
   // Maximum Number of Command Lists that can be created.
   // This Value is initialized to 20000, but can be changed by the user
@@ -354,6 +355,9 @@ struct _pi_mem : _pi_object {
   // piEnqueueMemBufferMap for details).
   char *MapHostPtr;
 
+  // Flag to indicate that this memory is allocated in host memory
+  bool OnHost;
+
   // Supplementary data to keep track of the mappings of this memory
   // created with piEnqueueMemBufferMap and piEnqueueMemImageMap.
   struct Mapping {
@@ -381,8 +385,8 @@ struct _pi_mem : _pi_object {
   pi_result removeMapping(void *MappedTo, Mapping &MapInfo);
 
 protected:
-  _pi_mem(pi_context Ctx, char *HostPtr)
-      : Context{Ctx}, MapHostPtr{HostPtr}, Mappings{} {}
+  _pi_mem(pi_context Ctx, char *HostPtr, bool MemOnHost = false)
+      : Context{Ctx}, MapHostPtr{HostPtr}, OnHost{MemOnHost}, Mappings{} {}
 
 private:
   // The key is the host pointer representing an active mapping.
@@ -398,8 +402,10 @@ private:
 struct _pi_buffer final : _pi_mem {
   // Buffer/Sub-buffer constructor
   _pi_buffer(pi_context Ctx, char *Mem, char *HostPtr,
-             _pi_mem *Parent = nullptr, size_t Origin = 0, size_t Size = 0)
-      : _pi_mem(Ctx, HostPtr), ZeMem{Mem}, SubBuffer{Parent, Origin, Size} {}
+             _pi_mem *Parent = nullptr, size_t Origin = 0, size_t Size = 0,
+             bool MemOnHost = false)
+      : _pi_mem(Ctx, HostPtr, MemOnHost), ZeMem{Mem}, SubBuffer{Parent, Origin,
+                                                                Size} {}
 
   void *getZeHandle() override { return ZeMem; }
 
