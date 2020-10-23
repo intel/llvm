@@ -33,14 +33,13 @@ constexpr char SPIRV_GET_SPEC_CONST_VAL[] = "__spirv_SpecConstant";
 // original symbolic spec constant ID.
 constexpr char SPEC_CONST_SYM_ID_MD_STRING[] = "SYCL_SPEC_CONST_SYM_ID";
 
-static void AssertRelease(bool Cond, const char *Msg) {
+void AssertRelease(bool Cond, const char *Msg) {
   if (!Cond)
     report_fatal_error((Twine("SpecConstants.cpp: ") + Msg).str().c_str());
 }
 
 StringRef getStringLiteralArg(const CallInst *CI, unsigned ArgNo,
-                              SmallVectorImpl<Instruction *> &DelInsts,
-                              GlobalVariable *&SymGlob) {
+                              SmallVectorImpl<Instruction *> &DelInsts) {
   Value *V = CI->getArgOperand(ArgNo)->stripPointerCasts();
 
   if (auto *L = dyn_cast<LoadInst>(V)) {
@@ -95,7 +94,6 @@ StringRef getStringLiteralArg(const CallInst *CI, unsigned ArgNo,
     V = Store->getValueOperand()->stripPointerCasts();
   }
   const Constant *Init = cast<GlobalVariable>(V)->getInitializer();
-  SymGlob = cast<GlobalVariable>(V);
   StringRef Res = cast<ConstantDataArray>(Init)->getAsString();
   if (Res.size() > 0 && Res[Res.size() - 1] == '\0')
     Res = Res.substr(0, Res.size() - 1);
@@ -104,16 +102,16 @@ StringRef getStringLiteralArg(const CallInst *CI, unsigned ArgNo,
 
 // TODO support spec constant types other than integer or
 // floating-point.
-Value *genDefaultValue(Type *T, Instruction *At) {
+Value *getDefaultCPPValue(Type *T) {
   if (T->isIntegerTy())
-    return ConstantInt::get(T, 0);
+    return Constant::getIntegerValue(T, APInt(T->getScalarSizeInBits(), 0));
   if (T->isFloatingPointTy())
     return ConstantFP::get(T, 0.0);
   llvm_unreachable("non-numeric specialization constants are NYI");
   return nullptr;
 }
 
-std::string manglePrimitiveType(Type *T) {
+std::string manglePrimitiveType(const Type *T) {
   if (T->isFloatTy())
     return "f";
   if (T->isDoubleTy())
@@ -139,7 +137,7 @@ std::string manglePrimitiveType(Type *T) {
 
 // This is a very basic mangler which can mangle non-templated and non-member
 // functions with primitive types in the signature.
-std::string mangleFuncItanium(StringRef BaseName, FunctionType *FT) {
+std::string mangleFuncItanium(StringRef BaseName, const FunctionType *FT) {
   std::string Res =
       (Twine("_Z") + Twine(BaseName.size()) + Twine(BaseName)).str();
   for (unsigned I = 0; I < FT->getNumParams(); ++I)
@@ -156,7 +154,7 @@ void setSpecConstMetadata(Instruction *I, StringRef SymID, int IntID) {
   I->setMetadata(SPEC_CONST_SYM_ID_MD_STRING, Entry);
 }
 
-std::pair<StringRef, unsigned> getSpecConstMetadata(Instruction *I) {
+std::pair<StringRef, unsigned> getSpecConstMetadata(const Instruction *I) {
   const MDNode *N = I->getMetadata(SPEC_CONST_SYM_ID_MD_STRING);
   if (!N)
     return std::make_pair("", 0);
@@ -167,13 +165,28 @@ std::pair<StringRef, unsigned> getSpecConstMetadata(Instruction *I) {
   return std::make_pair(MDSym->getString(), ID);
 }
 
-static Value *getDefaultCPPValue(Type *T) {
-  if (T->isIntegerTy())
-    return Constant::getIntegerValue(T, APInt(T->getScalarSizeInBits(), 0));
-  if (T->isFloatingPointTy())
-    return ConstantFP::get(T, 0);
-  llvm_unreachable("unsupported spec const type");
-  return nullptr;
+Instruction *emitSpecConstant(int NumericID, Type *Ty,
+                              Instruction *InsertBefore) {
+  Function *F = InsertBefore->getFunction();
+  // Generate arguments needed by the SPIRV version of the intrinsic
+  // - integer constant ID:
+  Value *ID = ConstantInt::get(Type::getInt32Ty(F->getContext()), NumericID);
+  // - default value:
+  Value *Def = getDefaultCPPValue(Ty);
+  // ... Now replace the call with SPIRV intrinsic version.
+  Value *Args[] = {ID, Def};
+  constexpr size_t NArgs = sizeof(Args) / sizeof(Args[0]);
+  Type *ArgTys[NArgs] = {nullptr};
+  for (unsigned int I = 0; I < NArgs; ++I)
+    ArgTys[I] = Args[I]->getType();
+  FunctionType *FT = FunctionType::get(Ty, ArgTys, false /*isVarArg*/);
+  Module *M = F->getParent();
+  std::string SPIRVName = mangleFuncItanium(SPIRV_GET_SPEC_CONST_VAL, FT);
+  FunctionCallee FC = M->getOrInsertFunction(SPIRVName, FT);
+  assert(FC.getCallee() && "SPIRV intrinsic creation failed");
+  CallInst *SpecConstant =
+      CallInst::Create(FT, FC.getCallee(), Args, "", InsertBefore);
+  return SpecConstant;
 }
 
 } // namespace
@@ -198,10 +211,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
 
     SmallVector<CallInst *, 32> SCIntrCalls;
     for (auto *U : F.users()) {
-      auto *CI = dyn_cast<CallInst>(U);
-      if (!CI)
-        continue;
-      SCIntrCalls.push_back(CI);
+      if (auto *CI = dyn_cast<CallInst>(U))
+        SCIntrCalls.push_back(CI);
     }
 
     IRModified = IRModified || (SCIntrCalls.size() > 0);
@@ -213,8 +224,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       // code can't use this intrinsic directly.
       SmallVector<Instruction *, 3> DelInsts;
       DelInsts.push_back(CI);
-      GlobalVariable *SymGlob = nullptr;
-      StringRef SymID = getStringLiteralArg(CI, 0, DelInsts, SymGlob);
+      StringRef SymID = getStringLiteralArg(CI, 0, DelInsts);
       Type *SCTy = CI->getType();
 
       if (SetValAtRT) {
@@ -225,25 +235,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         if (Ins.second)
           Ins.first->second = NextID++;
         //  3. Transform to spirv intrinsic _Z*__spirv_SpecConstant*.
-        LLVMContext &Ctx = F.getContext();
-        // Generate arguments needed by the SPIRV version of the intrinsic
-        // - integer constant ID:
-        Value *ID = ConstantInt::get(Type::getInt32Ty(Ctx), NextID - 1);
-        // - default value:
-        Value *Def = genDefaultValue(SCTy, CI);
-        // ... Now replace the call with SPIRV intrinsic version.
-        Value *Args[] = {ID, Def};
-        constexpr size_t NArgs = sizeof(Args) / sizeof(Args[0]);
-        Type *ArgTys[NArgs] = {nullptr};
-        for (unsigned int I = 0; I < NArgs; ++I)
-          ArgTys[I] = Args[I]->getType();
-        FunctionType *FT = FunctionType::get(SCTy, ArgTys, false /*isVarArg*/);
-        Module &M = *F.getParent();
-        std::string SPIRVName = mangleFuncItanium(SPIRV_GET_SPEC_CONST_VAL, FT);
-        FunctionCallee FC = M.getOrInsertFunction(SPIRVName, FT);
-        assert(FC.getCallee() && "SPIRV intrinsic creation failed");
-        CallInst *SPIRVCall =
-            CallInst::Create(FT, FC.getCallee(), Args, "", CI);
+        auto *SPIRVCall = emitSpecConstant(NextID - 1, SCTy, CI);
         CI->replaceAllUsesWith(SPIRVCall);
         // Mark the instruction with <symbolic_id, int_id> pair for later
         // recollection by collectSpecConstantMetadata method.
@@ -261,8 +253,6 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         I->removeFromParent();
         I->deleteValue();
       }
-      // Don't delete SymGlob here, as it may be referenced from multiple
-      // functions if __sycl_getSpecConstantValue is inlined.
     }
   }
   return IRModified ? PreservedAnalyses::none() : PreservedAnalyses::all();
