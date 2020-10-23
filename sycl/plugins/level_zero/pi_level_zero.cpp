@@ -2079,6 +2079,10 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   void *Ptr;
   ze_device_handle_t ZeDevice = Context->Devices[0]->ZeDevice;
 
+  ze_device_mem_alloc_desc_t ZeDeviceMemDesc = {};
+  ZeDeviceMemDesc.flags = 0;
+  ZeDeviceMemDesc.ordinal = 0;
+
   // We treat integrated devices (physical memory shared with the CPU)
   // differently from discrete devices (those with distinct memories).
   // For integrated devices, allocating the buffer in host shared memory
@@ -2088,36 +2092,36 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                             Context->Devices[0]->ZeDeviceProperties.flags &
                                 ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
 
+  bool AllocHostPtr = Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC;
+
   if (DeviceIsIntegrated) {
     ze_host_mem_alloc_desc_t ZeDesc = {};
     ZeDesc.flags = 0;
 
     ZE_CALL(zeMemAllocHost(Context->ZeContext, &ZeDesc, Size, 1, &Ptr));
 
-  } else {
-    ze_device_mem_alloc_desc_t ZeDesc = {};
-    ZeDesc.flags = 0;
-    ZeDesc.ordinal = 0;
-
-    ZE_CALL(
-        zeMemAllocDevice(Context->ZeContext, &ZeDesc, Size, 1, ZeDevice, &Ptr));
-  }
-  if (HostPtr) {
-    // Currently zeMemAllocHost() does not support allocation of pinned
+  } else if (AllocHostPtr){
+    // Currently L0 does not support allocation of pinned
     // host memory. So for PI_MEM_FLAGS_HOST_PTR_ALLOC flag, it allocates
-    // pageable host memory.
-    if ((Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) != 0) {
-      ze_host_mem_alloc_desc_t ZeHostDesc = {};
-      ZeHostDesc.flags = 0;
-    
-      ZE_CALL(zeMemAllocHost(Context->ZeContext, &ZeHostDesc, Size,
-                             1, // TODO: alignment
-                             &HostPtr));
-      ZE_CALL(zeCommandListAppendMemoryCopy(Context->ZeCommandListInit, Ptr,
-                                            HostPtr, Size, nullptr, 0,
-                                            nullptr));
-    } else if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0 ||
-               (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) != 0) {
+    // from host accessible memory.
+    ze_host_mem_alloc_desc_t ZeHostMemDesc = {};
+    ZeHostMemDesc.flags = 0;
+
+    ZE_CALL(zeMemAllocShared(Context->ZeContext, &ZeDeviceMemDesc,
+                           &ZeHostMemDesc, Size,
+                           1,       // TODO: alignment
+                           nullptr, // not bound to any device
+                           &Ptr));
+
+  } else {
+    ZE_CALL(
+        zeMemAllocDevice(Context->ZeContext, &ZeDeviceMemDesc, Size, 1,
+                         ZeDevice, &Ptr));
+  }
+
+  if (HostPtr) {
+    if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0 ||
+        (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) != 0) {
       // Initialize the buffer with user data
       if (DeviceIsIntegrated) {
         // Do a host to host copy
@@ -2129,6 +2133,8 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                                               HostPtr, Size, nullptr, 0,
                                               nullptr));
       }
+    } else if ((Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) != 0) {
+      // Nothing more to do.
     } else if (Flags == 0 || (Flags == PI_MEM_FLAGS_ACCESS_RW)) {
       // Nothing more to do.
     } else {
@@ -2136,7 +2142,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     }
   }
 
-  auto HostPtrOrNull = (Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) ||
+  auto HostPtrOrNull =
       (Flags & PI_MEM_FLAGS_HOST_PTR_USE) ? pi_cast<char *>(HostPtr) : nullptr;
   try {
     *RetMem = new _pi_buffer(
