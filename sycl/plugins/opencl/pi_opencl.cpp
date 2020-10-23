@@ -238,18 +238,18 @@ pi_result piextDeviceSelectBinary(pi_device device, pi_device_binary *images,
     // from a SPIR-V image into an image specific for:
 
   case CL_DEVICE_TYPE_CPU: // OpenCL 64-bit CPU
-    image_target = PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
+    image_target = __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
     break;
   case CL_DEVICE_TYPE_GPU: // OpenCL 64-bit GEN GPU
-    image_target = PI_DEVICE_BINARY_TARGET_SPIRV64_GEN;
+    image_target = __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN;
     break;
   case CL_DEVICE_TYPE_ACCELERATOR: // OpenCL 64-bit FPGA
-    image_target = PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA;
+    image_target = __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA;
     break;
   default:
     // Otherwise, we'll attempt to find and JIT-compile
     // a device-independent SPIR-V image
-    image_target = PI_DEVICE_BINARY_TARGET_SPIRV64;
+    image_target = __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64;
     break;
   }
 
@@ -260,8 +260,8 @@ pi_result piextDeviceSelectBinary(pi_device device, pi_device_binary *images,
       *selected_image_ind = i;
       return PI_SUCCESS;
     }
-    if (strcmp(images[i]->DeviceTargetSpec, PI_DEVICE_BINARY_TARGET_SPIRV64) ==
-        0)
+    if (strcmp(images[i]->DeviceTargetSpec,
+               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0)
       fallback = i;
   }
   // Points to a spirv image, if such indeed was found

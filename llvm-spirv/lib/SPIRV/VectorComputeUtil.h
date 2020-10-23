@@ -110,6 +110,7 @@ const static char VCByteOffset[] = "VCByteOffset";
 const static char VCSIMTCall[] = "VCSIMTCall";
 const static char VCArgumentKind[] = "VCArgumentKind";
 const static char VCArgumentDesc[] = "VCArgumentDesc";
+const static char VCCallable[] = "VCCallable";
 } // namespace kVCMetadata
 
 namespace kVCType {

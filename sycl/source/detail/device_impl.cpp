@@ -77,7 +77,7 @@ device_impl::~device_impl() {
     // TODO catch an exception and put it to list of asynchronous exceptions
     const detail::plugin &Plugin = getPlugin();
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piDeviceRelease>(MDevice);
-    CHECK_OCL_CODE_NO_EXC(Err);
+    __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
   }
 }
 
