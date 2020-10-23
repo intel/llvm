@@ -1724,16 +1724,18 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
 void DispatchNativeKernel(void *Blob) {
   // First value is a pointer to Corresponding CGExecKernel object.
   CGExecKernel *HostTask = *(CGExecKernel **)Blob;
+  bool MayDeleteCG = static_cast<bool>(*((void **)Blob + 1));
 
   // Other value are pointer to the buffers.
-  void **NextArg = (void **)Blob + 1;
+  void **NextArg = (void **)Blob + 2;
   for (detail::Requirement *Req : HostTask->MRequirements)
     Req->MData = *(NextArg++);
   HostTask->MHostKernel->call(HostTask->MNDRDesc, nullptr);
 
   // The command group will (if not already was) be released in scheduler.
   // Hence we're free to deallocate it here.
-  delete HostTask;
+  if (MayDeleteCG)
+    delete HostTask;
 }
 
 cl_int ExecCGCommand::enqueueImp() {
@@ -1818,9 +1820,14 @@ cl_int ExecCGCommand::enqueueImp() {
     // piEnqueueNativeKernel takes arguments blob which is passes to user
     // function.
     // Reserve extra space for the pointer to CGExecKernel to restore context.
-    std::vector<void *> ArgsBlob(HostTask->MArgs.size() + 1);
+    std::vector<void *> ArgsBlob(HostTask->MArgs.size() + 2);
     ArgsBlob[0] = (void *)HostTask;
-    void **NextArg = ArgsBlob.data() + 1;
+    {
+      int MayDeleteCG =
+          static_cast<int>(MDeps.size() == 0 && MUsers.size() == 0);
+      ArgsBlob[1] = reinterpret_cast<void *>(MayDeleteCG);
+    }
+    void **NextArg = ArgsBlob.data() + 2;
 
     if (MQueue->is_host()) {
       for (ArgDesc &Arg : HostTask->MArgs) {
