@@ -106,11 +106,13 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
         Streams = ((ExecCGCommand *)NewCmd)->getStreams();
 
       // If there are no memory dependencies decouple and free the command.
-      // Though, don't remove command if it's a native kernel as it's resources
-      // may be in use by backend and synchronization point here is at waiting
-      // of event.
-      if (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0 &&
-          !IsHostKernel) {
+      // Though, dismiss ownership of native kernel command group as it's
+      // resources may be in use by backend and synchronization point here is
+      // at native kernel execution finish.
+      if (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0) {
+        if (IsHostKernel)
+          static_cast<ExecCGCommand *>(NewCmd)->releaseCG();
+
         NewEvent->setCommand(nullptr);
         delete NewCmd;
       }

@@ -1730,6 +1730,10 @@ void DispatchNativeKernel(void *Blob) {
   for (detail::Requirement *Req : HostTask->MRequirements)
     Req->MData = *(NextArg++);
   HostTask->MHostKernel->call(HostTask->MNDRDesc, nullptr);
+
+  // The command group will (if not already was) be released in scheduler.
+  // Hence we're free to deallocate it here.
+  delete HostTask;
 }
 
 cl_int ExecCGCommand::enqueueImp() {
