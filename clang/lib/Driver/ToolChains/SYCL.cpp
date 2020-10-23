@@ -516,7 +516,7 @@ static void addImpliedArgs(const llvm::Triple &Triple,
                            options::OPT_funsafe_math_optimizations,
                            options::OPT_fno_unsafe_math_optimizations);
   if (A && (A->getOption().getID() == options::OPT_ffast_math ||
-      A->getOption().getID() == options::OPT_funsafe_math_optimizations))
+            A->getOption().getID() == options::OPT_funsafe_math_optimizations))
     BeArgs.push_back("-cl-fast-relaxed-math");
   if (BeArgs.empty())
     return;
