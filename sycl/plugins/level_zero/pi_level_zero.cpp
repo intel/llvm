@@ -308,7 +308,7 @@ static pi_result mapError(ze_result_t ZeResult) {
 static pi_result
 enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
                      pi_bool BlockingWrite, size_t Size, const void *Src,
-                     pi_uint32 NumEventsInWaitList,
+                     bool HostCopy, pi_uint32 NumEventsInWaitList,
                      const pi_event *EventWaitList, pi_event *Event);
 
 static pi_result enqueueMemCopyRectHelper(
@@ -3674,12 +3674,10 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
   assert(Src);
   assert(Queue);
 
-  // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-
   return enqueueMemCopyHelper(PI_COMMAND_TYPE_MEM_BUFFER_READ, Queue, Dst,
                               BlockingRead, Size,
                               pi_cast<char *>(Src->getZeHandle()) + Offset,
+                              Src->OnHost, // Whether memcpy on host can be used
                               NumEventsInWaitList, EventWaitList, Event);
 }
 
@@ -3711,15 +3709,12 @@ pi_result piEnqueueMemBufferReadRect(
 static pi_result
 enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
                      pi_bool BlockingWrite, size_t Size, const void *Src,
-                     pi_uint32 NumEventsInWaitList,
+                     bool HostCopy, pi_uint32 NumEventsInWaitList,
                      const pi_event *EventWaitList, pi_event *Event) {
 
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
-                                                        &ZeFence))
-    return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
   if (Event) {
@@ -3732,6 +3727,31 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
     (*Event)->ZeCommandList = ZeCommandList;
 
     ZeEvent = (*Event)->ZeEvent;
+  }
+
+  // On integrated devices the buffer has been allocated in host memory.
+  if (HostCopy) {
+    // Wait on incoming events before doing the copy
+    piEventsWait(NumEventsInWaitList, EventWaitList);
+    memcpy(Dst, Src, Size);
+
+    // Signal this event, if it is requested
+    if (Event) {
+      ZE_CALL(zeEventHostSignal(ZeEvent));
+
+      return PI_SUCCESS;
+    }
+  }
+
+  // Lock automatically releases when this goes out of scope.
+  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+
+  if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
+                                                        &ZeFence))
+    return Res;
+
+  if (Event) {
+    (*Event)->ZeCommandList = ZeCommandList;
   }
 
   ze_event_handle_t *ZeEventWaitList =
@@ -3875,15 +3895,13 @@ pi_result piEnqueueMemBufferWrite(pi_queue Queue, pi_mem Buffer,
   assert(Buffer);
   assert(Queue);
 
-  // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-
-  return enqueueMemCopyHelper(PI_COMMAND_TYPE_MEM_BUFFER_WRITE, Queue,
-                              pi_cast<char *>(Buffer->getZeHandle()) +
-                                  Offset, // dst
-                              BlockingWrite, Size,
-                              Ptr, // src
-                              NumEventsInWaitList, EventWaitList, Event);
+  return enqueueMemCopyHelper(
+      PI_COMMAND_TYPE_MEM_BUFFER_WRITE, Queue,
+      pi_cast<char *>(Buffer->getZeHandle()) + Offset, // dst
+      BlockingWrite, Size,
+      Ptr,            // src
+      Buffer->OnHost, // Whether memcpy on host can be used
+      NumEventsInWaitList, EventWaitList, Event);
 }
 
 pi_result piEnqueueMemBufferWriteRect(
@@ -3918,14 +3936,13 @@ pi_result piEnqueueMemBufferCopy(pi_queue Queue, pi_mem SrcBuffer,
   assert(DstBuffer);
   assert(Queue);
 
-  // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-
   return enqueueMemCopyHelper(
       PI_COMMAND_TYPE_MEM_BUFFER_COPY, Queue,
       pi_cast<char *>(DstBuffer->getZeHandle()) + DstOffset,
       false, // blocking
       Size, pi_cast<char *>(SrcBuffer->getZeHandle()) + SrcOffset,
+      SrcBuffer->OnHost &&
+          DstBuffer->OnHost, // Whether memcpy on host can be used
       NumEventsInWaitList, EventWaitList, Event);
 }
 
@@ -4820,12 +4837,11 @@ pi_result piextUSMEnqueueMemcpy(pi_queue Queue, pi_bool Blocking, void *DstPtr,
 
   assert(Queue);
 
-  // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-
   return enqueueMemCopyHelper(
       // TODO: do we need a new command type for this?
+      // Currently we use host memcpy so probably not.
       PI_COMMAND_TYPE_MEM_BUFFER_COPY, Queue, DstPtr, Blocking, Size, SrcPtr,
+      true, // Use host mempcy
       NumEventsInWaitlist, EventsWaitlist, Event);
 }
 
