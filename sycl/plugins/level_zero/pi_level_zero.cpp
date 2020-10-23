@@ -4841,7 +4841,7 @@ pi_result piextUSMEnqueueMemcpy(pi_queue Queue, pi_bool Blocking, void *DstPtr,
       // TODO: do we need a new command type for this?
       // Currently we use host memcpy so probably not.
       PI_COMMAND_TYPE_MEM_BUFFER_COPY, Queue, DstPtr, Blocking, Size, SrcPtr,
-      true, // Use host mempcy
+      false, // Use host mempcy
       NumEventsInWaitlist, EventsWaitlist, Event);
 }
 
