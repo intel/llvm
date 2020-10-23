@@ -508,9 +508,7 @@ public:
   // This function is only usable for native kernel to prevent access to free'd
   // memory in DispatchNativeKernel.
   // TODO remove when native kernel support is terminated.
-  void releaseCG() {
-    MCommandGroup.release();
-  }
+  void releaseCG() { MCommandGroup.release(); }
 
 private:
   cl_int enqueueImp() final override;
