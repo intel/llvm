@@ -9,7 +9,9 @@
 // REQUIRES: aoc, accelerator
 
 /// E2E test for AOCX creation/use/run for FPGA
-// Produce an archive with device (AOCX) image
+// Produce an archive with device (AOCX) image. Pre-create a file to avoid appending objects to
+// leftover archives.
+// RUN: touch %t_image.a
 // RUN: %clangxx -fsycl -fintelfpga -fsycl-link=image %S/Inputs/fpga_device.cpp -o %t_image.a
 // Produce a host object
 // RUN: %clangxx -fsycl -fintelfpga %S/Inputs/fpga_host.cpp -c -o %t.o
