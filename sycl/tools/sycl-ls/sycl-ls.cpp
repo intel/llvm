@@ -73,8 +73,9 @@ static void printDeviceInfo(const device &Device, const std::string &Prepend) {
   } else {
     auto DevicePlatform = Device.get_info<info::device::platform>();
     auto DevicePlatformName = DevicePlatform.get_info<info::platform::name>();
-    std::cout << Prepend << DeviceTypeName << ": " << DevicePlatformName << " " << DeviceVersion << " ["
-              << DeviceDriverVersion << "]" << std::endl;
+    std::cout << Prepend << DeviceTypeName << ": " << DevicePlatformName << " "
+              << DeviceVersion << " [" << DeviceDriverVersion << "]"
+              << std::endl;
   }
 }
 
