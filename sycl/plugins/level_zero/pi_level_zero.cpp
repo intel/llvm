@@ -3665,6 +3665,21 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   return PI_SUCCESS;
 }
 
+static bool piHostCopyablePtr(pi_queue Queue, const void *Ptr) {
+  ze_device_handle_t ZeDeviceHandle;
+  ze_memory_allocation_properties_t ZeMemoryAllocationProperties = {};
+
+  ZE_CALL(zeMemGetAllocProperties(Queue->Context->ZeContext, Ptr,
+                                  &ZeMemoryAllocationProperties,
+                                  &ZeDeviceHandle));
+
+  return ZeMemoryAllocationProperties.type != ZE_MEMORY_TYPE_DEVICE;
+}
+
+static bool piHostCopyableMem(pi_queue Queue, pi_mem Mem) {
+  return piHostCopyablePtr(Queue, pi_cast<const void *>(Mem->getZeHandle()));
+}
+
 pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
                                  pi_bool BlockingRead, size_t Offset,
                                  size_t Size, void *Dst,
@@ -3674,11 +3689,12 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
   assert(Src);
   assert(Queue);
 
-  return enqueueMemCopyHelper(PI_COMMAND_TYPE_MEM_BUFFER_READ, Queue, Dst,
-                              BlockingRead, Size,
-                              pi_cast<char *>(Src->getZeHandle()) + Offset,
-                              Src->OnHost, // Whether memcpy on host can be used
-                              NumEventsInWaitList, EventWaitList, Event);
+  return enqueueMemCopyHelper(
+      PI_COMMAND_TYPE_MEM_BUFFER_READ, Queue, Dst, BlockingRead, Size,
+      pi_cast<char *>(Src->getZeHandle()) + Offset,
+      piHostCopyableMem(Queue, Src) &&
+          piHostCopyablePtr(Queue, Dst), // Whether memcpy on host can be used
+      NumEventsInWaitList, EventWaitList, Event);
 }
 
 pi_result piEnqueueMemBufferReadRect(
@@ -3899,8 +3915,9 @@ pi_result piEnqueueMemBufferWrite(pi_queue Queue, pi_mem Buffer,
       PI_COMMAND_TYPE_MEM_BUFFER_WRITE, Queue,
       pi_cast<char *>(Buffer->getZeHandle()) + Offset, // dst
       BlockingWrite, Size,
-      Ptr,            // src
-      Buffer->OnHost, // Whether memcpy on host can be used
+      Ptr, // src
+      piHostCopyableMem(Queue, Buffer) &&
+          piHostCopyablePtr(Queue, Ptr), // Whether memcpy on host can be used
       NumEventsInWaitList, EventWaitList, Event);
 }
 
@@ -3941,8 +3958,9 @@ pi_result piEnqueueMemBufferCopy(pi_queue Queue, pi_mem SrcBuffer,
       pi_cast<char *>(DstBuffer->getZeHandle()) + DstOffset,
       false, // blocking
       Size, pi_cast<char *>(SrcBuffer->getZeHandle()) + SrcOffset,
-      SrcBuffer->OnHost &&
-          DstBuffer->OnHost, // Whether memcpy on host can be used
+      piHostCopyableMem(Queue, SrcBuffer) &&
+          piHostCopyableMem(Queue,
+                            DstBuffer), // Whether memcpy on host can be used
       NumEventsInWaitList, EventWaitList, Event);
 }
 
@@ -4841,7 +4859,9 @@ pi_result piextUSMEnqueueMemcpy(pi_queue Queue, pi_bool Blocking, void *DstPtr,
       // TODO: do we need a new command type for this?
       // Currently we use host memcpy so probably not.
       PI_COMMAND_TYPE_MEM_BUFFER_COPY, Queue, DstPtr, Blocking, Size, SrcPtr,
-      false, // Use host mempcy
+      piHostCopyablePtr(Queue, DstPtr) &&
+          piHostCopyablePtr(Queue,
+                            SrcPtr), // Use host mempcy
       NumEventsInWaitlist, EventsWaitlist, Event);
 }
 
