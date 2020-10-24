@@ -511,12 +511,18 @@ static void addImpliedArgs(const llvm::Triple &Triple,
       BeArgs.push_back("-g");
   if (Args.getLastArg(options::OPT_O0))
     BeArgs.push_back("-cl-opt-disable");
-  // Check if -ffast-math or -funsafe-math.
+  // Check if floating pointing optimizations are allowed.
+  bool isFastMath = isOptimizationLevelFast(Args);
   Arg *A = Args.getLastArg(options::OPT_ffast_math, options::OPT_fno_fast_math,
                            options::OPT_funsafe_math_optimizations,
                            options::OPT_fno_unsafe_math_optimizations);
-  if (A && (A->getOption().getID() == options::OPT_ffast_math ||
-            A->getOption().getID() == options::OPT_funsafe_math_optimizations))
+  isFastMath =
+      isFastMath || (A && (A->getOption().getID() == options::OPT_ffast_math ||
+                           A->getOption().getID() ==
+                               options::OPT_funsafe_math_optimizations));
+  A = Args.getLastArg(options::OPT_ffp_model_EQ);
+  isFastMath = isFastMath || (A && StringRef(A->getValue()).equals("fast"));
+  if (isFastMath)
     BeArgs.push_back("-cl-fast-relaxed-math");
   if (BeArgs.empty())
     return;

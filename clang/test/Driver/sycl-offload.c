@@ -907,6 +907,8 @@
 // Bypass -cl-fast-relaxed-math to SPIR-V compiler.
 // RUN: %clang -### -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -ffast-math %s 2>&1 | FileCheck -check-prefix=CHECK-FAST-MATH-OPT %s
 // RUN: %clang -### -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -funsafe-math-optimizations %s 2>&1 | FileCheck -check-prefix=CHECK-FAST-MATH-OPT %s
+// RUN: %clang -### -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -Ofast %s 2>&1 | FileCheck -check-prefix=CHECK-FAST-MATH-OPT %s
+// RUN: %clang -### -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -ffp-model=fast %s 2>&1 | FileCheck -check-prefix=CHECK-FAST-MATH-OPT %s
 // RUN: %clang_cl -### -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice /fp:fast %s 2>&1 | FileCheck -check-prefix=CHECK-FAST-MATH-OPT %s
 // CHECK-FAST-MATH-OPT: clang-offload-wrapper{{.*}} "-compile-opts=-cl-fast-relaxed-math"
 
