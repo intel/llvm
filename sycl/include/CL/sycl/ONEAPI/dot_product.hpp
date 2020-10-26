@@ -12,65 +12,65 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace intel {
+namespace ONEAPI {
 
 union Us {
   char s[4];
-  int i;
+  int32_t i;
 };
 union Uu {
   unsigned char s[4];
-  int i;
+  uint32_t i;
 };
 
-int dot_acc(int pa, int pb, int c) {
+int32_t dot_acc(int32_t pa, int32_t pb, int32_t c) {
   Us a = *(reinterpret_cast<Us *>(&pa));
   Us b = *(reinterpret_cast<Us *>(&pb));
   return a.s[0] * b.s[0] + a.s[1] * b.s[1] + a.s[2] * b.s[2] + a.s[3] * b.s[3] +
          c;
 }
 
-int dot_acc(unsigned int pa, unsigned int pb, int c) {
+int32_t dot_acc(uint32_t pa, uint32_t pb, int32_t c) {
   Uu a = *(reinterpret_cast<Uu *>(&pa));
   Uu b = *(reinterpret_cast<Uu *>(&pb));
   return a.s[0] * b.s[0] + a.s[1] * b.s[1] + a.s[2] * b.s[2] + a.s[3] * b.s[3] +
          c;
 }
 
-int dot_acc(int pa, unsigned int pb, int c) {
+int32_t dot_acc(int32_t pa, uint32_t pb, int32_t c) {
   Us a = *(reinterpret_cast<Us *>(&pa));
   Uu b = *(reinterpret_cast<Uu *>(&pb));
   return a.s[0] * b.s[0] + a.s[1] * b.s[1] + a.s[2] * b.s[2] + a.s[3] * b.s[3] +
          c;
 }
 
-int dot_acc(unsigned int pa, int pb, int c) {
+int32_t dot_acc(uint32_t pa, int32_t pb, int32_t c) {
   Uu a = *(reinterpret_cast<Uu *>(&pa));
   Us b = *(reinterpret_cast<Us *>(&pb));
   return a.s[0] * b.s[0] + a.s[1] * b.s[1] + a.s[2] * b.s[2] + a.s[3] * b.s[3] +
          c;
 }
 
-int dot_acc(vec<int8_t, 4> a, vec<int8_t, 4> b, int32_t c) {
+int32_t dot_acc(vec<int8_t, 4> a, vec<int8_t, 4> b, int32_t c) {
   return a.s0() * b.s0() + a.s1() * b.s1() + a.s2() * b.s2() + a.s3() * b.s3() +
          c;
 }
 
-int dot_acc(vec<uint8_t, 4> a, vec<uint8_t, 4> b, int32_t c) {
+int32_t dot_acc(vec<uint8_t, 4> a, vec<uint8_t, 4> b, int32_t c) {
   return a.s0() * b.s0() + a.s1() * b.s1() + a.s2() * b.s2() + a.s3() * b.s3() +
          c;
 }
 
-int dot_acc(vec<uint8_t, 4> a, vec<int8_t, 4> b, int32_t c) {
+int32_t dot_acc(vec<uint8_t, 4> a, vec<int8_t, 4> b, int32_t c) {
   return a.s0() * b.s0() + a.s1() * b.s1() + a.s2() * b.s2() + a.s3() * b.s3() +
          c;
 }
 
-int dot_acc(vec<int8_t, 4> a, vec<uint8_t, 4> b, int32_t c) {
+int32_t dot_acc(vec<int8_t, 4> a, vec<uint8_t, 4> b, int32_t c) {
   return a.s0() * b.s0() + a.s1() * b.s1() + a.s2() * b.s2() + a.s3() * b.s3() +
          c;
 }
 
-} // namespace intel
+} // namespace ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

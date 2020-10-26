@@ -8,7 +8,7 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/dot_product.hpp>
+#include <CL/sycl/ONEAPI/dot_product.hpp>
 #include <iostream>
 #include <memory>
 #include <stdio.h>
@@ -19,7 +19,7 @@ static int passCount;
 
 using namespace cl::sycl;
 using namespace cl::sycl::detail::gtl;
-using namespace cl::sycl::intel;
+using namespace cl::sycl::ONEAPI;
 
 constexpr int RangeLength = 100;
 
