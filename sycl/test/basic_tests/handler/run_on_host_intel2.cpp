@@ -12,7 +12,7 @@ int main(void) {
   int *Ptr = new int;
 
   auto E = Q.submit([&](cl::sycl::handler &CGH) {
-    CGH.run_on_host_intel([=]{ *Ptr = 5; });
+    CGH.run_on_host_intel([=] { *Ptr = 5; });
   });
 
   E.wait();
