@@ -18,6 +18,7 @@
 #include <queue>
 #include <set>
 #include <shared_mutex>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -429,11 +430,24 @@ public:
   /// \return a vector of "immediate" dependencies for the Event given.
   std::vector<EventImplPtr> getWaitList(EventImplPtr Event);
 
+  /// Allocate buffers in the pool for a provided stream
+  ///
+  /// \param Pointer to the stream object
+  /// \param Size of the stream buffer
+  /// \param Size of the flush buffer for a single work item
+  void allocateStreamBuffers(stream_impl *, size_t, size_t);
+
+  /// Deallocate all stream buffers in the pool
+  ///
+  /// \param Pointer to the stream object
+  void deallocateStreamBuffers(stream_impl *);
+
   QueueImplPtr getDefaultHostQueue() { return DefaultHostQueue; }
 
   static MemObjRecord *getMemObjRecord(const Requirement *const Req);
 
   Scheduler();
+  ~Scheduler();
 
 protected:
   /// Provides exclusive access to std::shared_timed_mutex object with deadlock
@@ -489,7 +503,9 @@ protected:
 
     /// Removes finished non-leaf non-alloca commands from the subgraph
     /// (assuming that all its commands have been waited for).
-    void cleanupFinishedCommands(Command *FinishedCmd);
+    void cleanupFinishedCommands(
+        Command *FinishedCmd,
+        std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &);
 
     /// Reschedules the command passed using Queue provided.
     ///
@@ -512,7 +528,9 @@ protected:
     void decrementLeafCountersForRecord(MemObjRecord *Record);
 
     /// Removes commands that use the given MemObjRecord from the graph.
-    void cleanupCommandsForRecord(MemObjRecord *Record);
+    void cleanupCommandsForRecord(
+        MemObjRecord *Record,
+        std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &);
 
     /// Removes the MemObjRecord for the memory object passed.
     void removeRecordForMemObj(SYCLMemObjI *MemObject);
@@ -727,7 +745,12 @@ protected:
         : Data(StreamBufferSize, 0),
           Buf(Data.data(), range<1>(StreamBufferSize),
               {property::buffer::use_host_ptr()}),
-          FlushBuf(range<1>(FlushBufferSize)) {}
+          FlushBuf(range<1>(FlushBufferSize)) {
+      // Disable copy back on buffer destruction. Copy is scheduled as a host
+      // task which fires up as soon as kernel has completed exectuion.
+      Buf.set_write_back(false);
+      FlushBuf.set_write_back(false);
+    }
 
     // Vector on the host side which is used to initialize the stream
     // buffer
@@ -744,13 +767,16 @@ protected:
 
   // Protects stream buffers pool
   std::mutex StreamBuffersPoolMutex;
-  std::map<stream_impl *, StreamBuffers> StreamBuffersPool;
 
-  /// Allocate buffers in the pool for a provided stream
-  void allocateStreamBuffers(stream_impl *, size_t, size_t);
-
-  /// Deallocate buffers in the pool for a provided stream
-  void deallocateStreamBuffers(stream_impl *);
+  // We need to store a pointer to the structure with stream buffers because we
+  // want to avoid a situation when buffers are destructed during destruction of
+  // the scheduler. Scheduler is a global object and it can be destructed after
+  // all device runtimes are unloaded. Destruction of the buffers at this stage
+  // will lead to a faliure. In the correct program there will be sync points
+  // for all kernels and all allocated resources will be released by the
+  // scheduler. If program is not correct and doesn't have necessary sync point
+  // then warning will be issued.
+  std::unordered_map<stream_impl *, StreamBuffers *> StreamBuffersPool;
 };
 
 } // namespace detail

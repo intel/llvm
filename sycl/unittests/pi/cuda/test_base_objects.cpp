@@ -92,8 +92,8 @@ TEST_F(CudaBaseObjectsTest, piContextCreatePrimaryTrue) {
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piDevicesGet>(
                 platform, PI_DEVICE_TYPE_GPU, 1, &device, nullptr)),
             PI_SUCCESS);
-  pi_context_properties properties[] = {PI_CONTEXT_PROPERTIES_CUDA_PRIMARY,
-                                        PI_TRUE, 0};
+  pi_context_properties properties[] = {
+      __SYCL_PI_CONTEXT_PROPERTIES_CUDA_PRIMARY, PI_TRUE, 0};
 
   pi_context ctxt;
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piContextCreate>(
@@ -137,8 +137,8 @@ TEST_F(CudaBaseObjectsTest, piContextCreatePrimaryFalse) {
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piDevicesGet>(
                 platform, PI_DEVICE_TYPE_GPU, 1, &device, nullptr)),
             PI_SUCCESS);
-  pi_context_properties properties[] = {PI_CONTEXT_PROPERTIES_CUDA_PRIMARY,
-                                        PI_FALSE, 0};
+  pi_context_properties properties[] = {
+      __SYCL_PI_CONTEXT_PROPERTIES_CUDA_PRIMARY, PI_FALSE, 0};
 
   pi_context ctxt;
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piContextCreate>(

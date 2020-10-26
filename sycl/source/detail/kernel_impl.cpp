@@ -138,44 +138,46 @@ kernel_impl::get_sub_group_info(
       Device, Value);
 }
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
   template ret_type kernel_impl::get_info<info::param_type::param>() const;
 
 #include <CL/sycl/info/kernel_traits.def>
 
-#undef PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
   template ret_type kernel_impl::get_info<info::param_type::param>(            \
       const device &) const;
-#define PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type, in_type)     \
+#define __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type,       \
+                                            in_type)                           \
   template ret_type kernel_impl::get_info<info::param_type::param>(            \
       const device &, in_type) const;
 
 #include <CL/sycl/info/kernel_device_specific_traits.def>
 
-#undef PARAM_TRAITS_SPEC
-#undef PARAM_TRAITS_SPEC_WITH_INPUT
+#undef __SYCL_PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
   template ret_type kernel_impl::get_work_group_info<info::param_type::param>( \
       const device &) const;
 
 #include <CL/sycl/info/kernel_work_group_traits.def>
 
-#undef PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
   template ret_type kernel_impl::get_sub_group_info<info::param_type::param>(  \
       const device &) const;
-#define PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type, in_type)     \
+#define __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type,       \
+                                            in_type)                           \
   template ret_type kernel_impl::get_sub_group_info<info::param_type::param>(  \
       const device &, in_type) const;
 
 #include <CL/sycl/info/kernel_sub_group_traits.def>
 
-#undef PARAM_TRAITS_SPEC
-#undef PARAM_TRAITS_SPEC_WITH_INPUT
+#undef __SYCL_PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
 
 bool kernel_impl::isCreatedFromSource() const {
   // TODO it is not clear how to understand whether the SYCL kernel is created
