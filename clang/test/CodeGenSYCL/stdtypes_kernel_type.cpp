@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -DCHECK_ERROR -verify %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -sycl-std=2020 -DCHECK_ERROR -verify %s
 
-#include "sycl.hpp"
+#include "Inputs/sycl.hpp"
 
 namespace std {
 typedef long unsigned int size_t;
@@ -21,6 +21,7 @@ queue q;
 int main() {
 #ifdef CHECK_ERROR
   // expected-error@Inputs/sycl.hpp:328 5 {{kernel name cannot be a type in the "std" namespace}}
+  // expected-note@Inputs/sycl.hpp:328 3 {{nullptr is a prvalue of type std::nullptr_t}}
   q.submit([&](handler &h) {
     // expected-note@+1{{in instantiation of function template specialization}}
     h.single_task<std::nullptr_t>([=] {});

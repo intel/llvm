@@ -2834,13 +2834,13 @@ class SYCLKernelNameTypeVisitor
   Sema &S;
   SourceLocation KernelInvocationFuncLoc;
   using InnerTypeVisitor = TypeVisitor<SYCLKernelNameTypeVisitor>;
-  using InnerTAVisitor =
+  using InnerTemplArgVisitor =
       ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor>;
   bool IsInvalid = false;
 
   void VisitTemplateArgs(ArrayRef<TemplateArgument> Args) {
-    for (size_t I = 0, E = Args.size(); I < E; ++I)
-      Visit(Args[I]);
+    for (auto &A : Args)
+      Visit(A);
   }
 
 public:
@@ -2857,6 +2857,7 @@ public:
       if (T->isNullPtrType()) {
         S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
             << /* kernel name cannot be a type in the std namespace */ 3;
+        S.Diag(KernelInvocationFuncLoc, diag::note_nullptr_used);
         IsInvalid = true;
       }
       return;
@@ -2874,7 +2875,7 @@ public:
   void Visit(const TemplateArgument &TA) {
     if (TA.isNull())
       return;
-    InnerTAVisitor::Visit(TA);
+    InnerTemplArgVisitor::Visit(TA);
   }
 
   void VisitEnumType(const EnumType *T) {
@@ -2903,7 +2904,7 @@ public:
             << /* kernel name cannot be a type in the std namespace */ 3;
         IsInvalid = true;
         return;
-      } else {
+      }
         if (!DeclCtx->isTranslationUnit() && !isa<NamespaceDecl>(DeclCtx)) {
           const bool KernelNameIsMissing = Tag->getName().empty();
           if (KernelNameIsMissing) {
@@ -2912,7 +2913,7 @@ public:
                 << /* kernel name is missing */ 0;
             IsInvalid = true;
             return;
-          } else {
+          }
             if (Tag->isCompleteDefinition()) {
               S.Diag(KernelInvocationFuncLoc,
                      diag::err_sycl_kernel_incorrectly_named)
@@ -2923,9 +2924,7 @@ public:
 
             S.Diag(Tag->getSourceRange().getBegin(), diag::note_previous_decl)
                 << Tag->getName();
-          }
         }
-      }
     }
   }
 
