@@ -12,7 +12,7 @@
 /// E2E test for AOCX creation/use/run for FPGA
 // Produce an archive with device (AOCX) image. Pre-create a file to avoid
 // appending objects to leftover archives.
-// RUN: touch %t_image.lib
+// RUN: if [ -f %t_image.a ]; then rm %t_image.a; fi
 // RUN: %clang_cl -fsycl -fintelfpga -fsycl-link=image %S/Inputs/fpga_device.cpp -o %t_image.lib
 // Produce a host object
 // RUN: %clang_cl -fsycl -fintelfpga -DHOST_PART %S/Inputs/fpga_host.cpp -c -o %t.obj
