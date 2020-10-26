@@ -2,11 +2,11 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // XFAIL: opencl
 // REQUIRES: level_zero
-//==------------------- non-uniform-wk-gp-test.cpp
-//--------------------------==//
-// This is a diagnostic test which verifies that for loops with non-uniform work
-//  groups size errors are handled correctly.
-//==--------------------------------------------------------------------------==//
+//==------- non-uniform-wk-gp-test.cpp -------==//
+// This is a diagnostic test which verifies that
+// for loops with non-uniform work groups size
+// errors are handled correctly.
+//==------------------------------------------==//
 
 #include <CL/sycl.hpp>
 #include <iostream>
@@ -21,20 +21,17 @@ int test() {
     std::cout << " Device Name: " << deviceName << std::endl;
 
     const int N = 1;
-    {
-      q.submit([&](handler &cgh) {
-        cgh.parallel_for<class test_kernel>(
-            nd_range<3>(range<3>{1, 1, N}, range<3>{1, 1, 16}),
-            [=](nd_item<3> itm) {
-              int i = itm.get_global_id(0);
-              int j = itm.get_global_id(1);
-              int k = itm.get_global_id(2);
-            });
-      });
-    }
-  }
+    q.submit([&](handler &cgh) {
+      cl::sycl::stream kernelout(108 * 64 + 128, 64, cgh);
+      cgh.parallel_for<class test_kernel>(
+          nd_range<3>(range<3>{1, 1, N}, range<3>{1, 1, 16}),
+          [=](nd_item<3> itm) {
+            kernelout << "Coordinates: " << itm.get_global_id()
+                      << cl::sycl::endl;
+          });
+    });
 
-  catch (runtime_error &E) {
+  } catch (sycl::runtime_error &E) {
     if (std::string(E.what()).find(
             "Specified local size doesn't match the required work-group size "
             "specified in the program source") != std::string::npos) {
@@ -55,7 +52,6 @@ int test() {
 int main() {
 
   int pltCount = 0, ret;
-  std::cout << "Program started.." << std::endl;
   for (const auto &plt : platform::get_platforms()) {
     if (!plt.has(aspect::host)) {
       std::cout << "Platform #" << pltCount++ << ":" << std::endl;
