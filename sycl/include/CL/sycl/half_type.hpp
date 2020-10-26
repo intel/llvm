@@ -246,9 +246,6 @@ template <> struct numeric_limits<cl::sycl::half> {
   static constexpr bool has_denorm_loss = false;
   static constexpr bool tinyness_before = false;
   static constexpr bool traps = false;
-  static constexpr float half_min = 6.103515625e-05f;
-  static constexpr float half_max = 65504.0f;
-  static constexpr float half_eps = 9.765625e-04f;
   static constexpr int max_exponent10 = 4;
   static constexpr int max_exponent = 16;
   static constexpr int min_exponent10 = -4;
@@ -263,24 +260,24 @@ template <> struct numeric_limits<cl::sycl::half> {
   static constexpr float_round_style round_style = round_to_nearest;
 
   static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half(min)() noexcept {
-    return half_min;
+    return 6.103515625e-05f; // half minimum value
   }
 
   static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half(max)() noexcept {
-    return half_max;
+    return 65504.0f; // half maximum value
   }
 
   static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half lowest() noexcept {
-    return -half_max;
+    return -65504.0f; // -1*(half maximum value)
   }
 
   static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half epsilon() noexcept {
-    return half_eps;
+    return 9.765625e-04f; // half epsilon
   }
 
   static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half
   round_error() noexcept {
-    return 0.5F;
+    return 0.5f;
   }
 
   static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half infinity() noexcept {
@@ -297,7 +294,7 @@ template <> struct numeric_limits<cl::sycl::half> {
   }
 
   static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half denorm_min() noexcept {
-    return 5.96046e-08F;
+    return 5.96046e-08f;
   }
 };
 
