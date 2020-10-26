@@ -2100,7 +2100,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
 
     ZE_CALL(zeMemAllocHost(Context->ZeContext, &ZeDesc, Size, 1, &Ptr));
 
-  } else if (AllocHostPtr){
+  } else if (AllocHostPtr) {
     // Currently L0 does not support allocation of pinned
     // host memory. So for PI_MEM_FLAGS_HOST_PTR_ALLOC flag, it allocates
     // from host accessible memory.
@@ -2108,15 +2108,14 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     ZeHostMemDesc.flags = 0;
 
     ZE_CALL(zeMemAllocShared(Context->ZeContext, &ZeDeviceMemDesc,
-                           &ZeHostMemDesc, Size,
-                           1,       // TODO: alignment
-                           nullptr, // not bound to any device
-                           &Ptr));
+                             &ZeHostMemDesc, Size,
+                             1,       // TODO: alignment
+                             nullptr, // not bound to any device
+                             &Ptr));
 
   } else {
-    ZE_CALL(
-        zeMemAllocDevice(Context->ZeContext, &ZeDeviceMemDesc, Size, 1,
-                         ZeDevice, &Ptr));
+    ZE_CALL(zeMemAllocDevice(Context->ZeContext, &ZeDeviceMemDesc, Size, 1,
+                             ZeDevice, &Ptr));
   }
 
   if (HostPtr) {
