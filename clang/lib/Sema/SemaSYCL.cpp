@@ -2905,26 +2905,25 @@ public:
         IsInvalid = true;
         return;
       }
-        if (!DeclCtx->isTranslationUnit() && !isa<NamespaceDecl>(DeclCtx)) {
-          const bool KernelNameIsMissing = Tag->getName().empty();
-          if (KernelNameIsMissing) {
-            S.Diag(KernelInvocationFuncLoc,
-                   diag::err_sycl_kernel_incorrectly_named)
-                << /* kernel name is missing */ 0;
-            IsInvalid = true;
-            return;
-          }
-            if (Tag->isCompleteDefinition()) {
-              S.Diag(KernelInvocationFuncLoc,
-                     diag::err_sycl_kernel_incorrectly_named)
-                  << /* kernel name is not globally-visible */ 1;
-              IsInvalid = true;
-            } else
-              S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
-
-            S.Diag(Tag->getSourceRange().getBegin(), diag::note_previous_decl)
-                << Tag->getName();
+      if (!DeclCtx->isTranslationUnit() && !isa<NamespaceDecl>(DeclCtx)) {
+        const bool KernelNameIsMissing = Tag->getName().empty();
+        if (KernelNameIsMissing) {
+          S.Diag(KernelInvocationFuncLoc,
+                 diag::err_sycl_kernel_incorrectly_named)
+              << /* kernel name is missing */ 0;
+          IsInvalid = true;
+          return;
         }
+        if (Tag->isCompleteDefinition()) {
+          S.Diag(KernelInvocationFuncLoc,
+                 diag::err_sycl_kernel_incorrectly_named)
+              << /* kernel name is not globally-visible */ 1;
+          IsInvalid = true;
+        } else
+          S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
+        S.Diag(Tag->getSourceRange().getBegin(), diag::note_previous_decl)
+            << Tag->getName();
+      }
     }
   }
 
