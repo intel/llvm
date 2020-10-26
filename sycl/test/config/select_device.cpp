@@ -1,5 +1,6 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 //
+// 
 // RUN: env WRITE_DEVICE_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
 // RUN: env READ_DEVICE_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
 //
