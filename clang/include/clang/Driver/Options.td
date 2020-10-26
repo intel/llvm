@@ -60,6 +60,10 @@ def LinkOption : OptionFlag;
 // flang mode.
 def FlangOption : OptionFlag;
 
+// FlangOnlyOption - This option should only be used by Flang (i.e. it is not
+// available for Clang)
+def FlangOnlyOption : OptionFlag;
+
 // FC1Option - This option should be accepted by flang -fc1.
 def FC1Option : OptionFlag;
 
@@ -2194,8 +2198,8 @@ def gno_embed_source : Flag<["-"], "gno-embed-source">, Group<g_flags_Group>,
     Flags<[DriverOption]>,
     HelpText<"Restore the default behavior of not embedding source text in DWARF debug sections">;
 def headerpad__max__install__names : Joined<["-"], "headerpad_max_install_names">;
-def help : Flag<["-", "--"], "help">, Flags<[CC1Option,CC1AsOption, FC1Option, FlangOption]>,
-  HelpText<"Display available options">;
+def help : Flag<["-", "--"], "help">, Flags<[CC1Option,CC1AsOption, FC1Option,
+    FlangOption]>, HelpText<"Display available options">;
 def ibuiltininc : Flag<["-"], "ibuiltininc">,
   HelpText<"Enable builtin #include directories even when -nostdinc is used "
            "before or after -ibuiltininc. "
@@ -2877,7 +2881,8 @@ def nostdlibxx : Flag<["-"], "nostdlib++">;
 def nolibsycl : Flag<["-"], "nolibsycl">, Flags<[DriverOption, CoreOption]>,
   HelpText<"Do not link SYCL runtime library">;
 def object : Flag<["-"], "object">;
-def o : JoinedOrSeparate<["-"], "o">, Flags<[DriverOption, RenderAsInput, CC1Option, CC1AsOption]>,
+def o : JoinedOrSeparate<["-"], "o">, Flags<[DriverOption, RenderAsInput,
+  CC1Option, CC1AsOption, FC1Option, FlangOption]>,
   HelpText<"Write output to <file>">, MetaVarName<"<file>">;
 def pagezero__size : JoinedOrSeparate<["-"], "pagezero_size">;
 def pass_exit_codes : Flag<["-", "--"], "pass-exit-codes">, Flags<[Unsupported]>;
@@ -3633,6 +3638,12 @@ def fno_sycl_device_lib_EQ : CommaJoined<["-"], "fno-sycl-device-lib=">, Group<s
   Values<"libc, libm-fp32, libm-fp64, all">, HelpText<"Control exclusion of "
   "device libraries from device binary linkage. Valid arguments "
   "are libc, libm-fp32, libm-fp64, all">;
+
+//===----------------------------------------------------------------------===//
+// FlangOption and FC1 Options
+//===----------------------------------------------------------------------===//
+def test_io : Flag<["-"], "test-io">, Flags<[HelpHidden, FlangOption, FC1Option, FlangOnlyOption]>, Group<Action_Group>,
+  HelpText<"Run the InputOuputTest action. Use for development and testing only.">;
 
 //===----------------------------------------------------------------------===//
 // CC1 Options
