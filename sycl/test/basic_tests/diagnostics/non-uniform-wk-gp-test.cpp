@@ -2,8 +2,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // XFAIL: opencl
 // REQUIRES: level_zero
-//==------------------- non-uniform-wk-gp-test.cpp
-//--------------------------==//
+//==------------------- non-uniform-wk-gp-test.cpp --------------------------==//
 // This is a diagnostic test which verifies that for loops with non-uniform work
 //  groups size errors are handled correctly.
 //==--------------------------------------------------------------------------==//
