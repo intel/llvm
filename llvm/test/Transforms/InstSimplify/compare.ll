@@ -2067,4 +2067,283 @@ define i1 @icmp_nsw_nonpos2(i32 %V) {
   ret i1 %cmp
 }
 
+declare i11 @llvm.ctpop.i11(i11)
+declare i73 @llvm.ctpop.i73(i73)
+declare <2 x i13> @llvm.ctpop.v2i13(<2 x i13>)
+
+define i1 @ctpop_sgt_bitwidth(i11 %x) {
+; CHECK-LABEL: @ctpop_sgt_bitwidth(
+; CHECK-NEXT:    ret i1 false
+;
+  %pop = call i11 @llvm.ctpop.i11(i11 %x)
+  %cmp = icmp sgt i11 %pop, 11
+  ret i1 %cmp
+}
+
+define i1 @ctpop_sle_minus1(i11 %x) {
+; CHECK-LABEL: @ctpop_sle_minus1(
+; CHECK-NEXT:    ret i1 false
+;
+  %pop = call i11 @llvm.ctpop.i11(i11 %x)
+  %cmp = icmp sle i11 %pop, -1
+  ret i1 %cmp
+}
+
+define i1 @ctpop_ugt_bitwidth(i73 %x) {
+; CHECK-LABEL: @ctpop_ugt_bitwidth(
+; CHECK-NEXT:    ret i1 false
+;
+  %pop = call i73 @llvm.ctpop.i73(i73 %x)
+  %cmp = icmp ugt i73 %pop, 73
+  ret i1 %cmp
+}
+
+; Negative test - does not simplify, but instcombine could reduce this.
+
+define i1 @ctpop_ugt_bitwidth_minus1(i73 %x) {
+; CHECK-LABEL: @ctpop_ugt_bitwidth_minus1(
+; CHECK-NEXT:    [[POP:%.*]] = call i73 @llvm.ctpop.i73(i73 [[X:%.*]])
+; CHECK-NEXT:    [[CMP:%.*]] = icmp ugt i73 [[POP]], 72
+; CHECK-NEXT:    ret i1 [[CMP]]
+;
+  %pop = call i73 @llvm.ctpop.i73(i73 %x)
+  %cmp = icmp ugt i73 %pop, 72
+  ret i1 %cmp
+}
+
+define <2 x i1> @ctpop_sgt_bitwidth_splat(<2 x i13> %x) {
+; CHECK-LABEL: @ctpop_sgt_bitwidth_splat(
+; CHECK-NEXT:    ret <2 x i1> zeroinitializer
+;
+  %pop = call <2 x i13> @llvm.ctpop.v2i13(<2 x i13> %x)
+  %cmp = icmp sgt <2 x i13> %pop, <i13 13, i13 13>
+  ret <2 x i1> %cmp
+}
+
+define i1 @ctpop_ult_plus1_bitwidth(i11 %x) {
+; CHECK-LABEL: @ctpop_ult_plus1_bitwidth(
+; CHECK-NEXT:    ret i1 true
+;
+  %pop = call i11 @llvm.ctpop.i11(i11 %x)
+  %cmp = icmp ult i11 %pop, 12
+  ret i1 %cmp
+}
+
+define i1 @ctpop_ne_big_bitwidth(i73 %x) {
+; CHECK-LABEL: @ctpop_ne_big_bitwidth(
+; CHECK-NEXT:    ret i1 true
+;
+  %pop = call i73 @llvm.ctpop.i73(i73 %x)
+  %cmp = icmp ne i73 %pop, 75
+  ret i1 %cmp
+}
+
+define <2 x i1> @ctpop_slt_bitwidth_plus1_splat(<2 x i13> %x) {
+; CHECK-LABEL: @ctpop_slt_bitwidth_plus1_splat(
+; CHECK-NEXT:    ret <2 x i1> <i1 true, i1 true>
+;
+  %pop = call <2 x i13> @llvm.ctpop.v2i13(<2 x i13> %x)
+  %cmp = icmp slt <2 x i13> %pop, <i13 14, i13 14>
+  ret <2 x i1> %cmp
+}
+
+; Negative test - does not simplify, but instcombine could reduce this.
+
+define <2 x i1> @ctpop_slt_bitwidth_splat(<2 x i13> %x) {
+; CHECK-LABEL: @ctpop_slt_bitwidth_splat(
+; CHECK-NEXT:    [[POP:%.*]] = call <2 x i13> @llvm.ctpop.v2i13(<2 x i13> [[X:%.*]])
+; CHECK-NEXT:    [[CMP:%.*]] = icmp slt <2 x i13> [[POP]], <i13 13, i13 13>
+; CHECK-NEXT:    ret <2 x i1> [[CMP]]
+;
+  %pop = call <2 x i13> @llvm.ctpop.v2i13(<2 x i13> %x)
+  %cmp = icmp slt <2 x i13> %pop, <i13 13, i13 13>
+  ret <2 x i1> %cmp
+}
+
+declare i11 @llvm.ctlz.i11(i11)
+declare i73 @llvm.ctlz.i73(i73)
+declare <2 x i13> @llvm.ctlz.v2i13(<2 x i13>)
+
+define i1 @ctlz_sgt_bitwidth(i11 %x) {
+; CHECK-LABEL: @ctlz_sgt_bitwidth(
+; CHECK-NEXT:    ret i1 false
+;
+  %pop = call i11 @llvm.ctlz.i11(i11 %x)
+  %cmp = icmp sgt i11 %pop, 11
+  ret i1 %cmp
+}
+
+define i1 @ctlz_sle_minus1(i11 %x) {
+; CHECK-LABEL: @ctlz_sle_minus1(
+; CHECK-NEXT:    ret i1 false
+;
+  %pop = call i11 @llvm.ctlz.i11(i11 %x)
+  %cmp = icmp sle i11 %pop, -1
+  ret i1 %cmp
+}
+
+define i1 @ctlz_ugt_bitwidth(i73 %x) {
+; CHECK-LABEL: @ctlz_ugt_bitwidth(
+; CHECK-NEXT:    ret i1 false
+;
+  %pop = call i73 @llvm.ctlz.i73(i73 %x)
+  %cmp = icmp ugt i73 %pop, 73
+  ret i1 %cmp
+}
+
+; Negative test - does not simplify, but instcombine could reduce this.
+
+define i1 @ctlz_ugt_bitwidth_minus1(i73 %x) {
+; CHECK-LABEL: @ctlz_ugt_bitwidth_minus1(
+; CHECK-NEXT:    [[POP:%.*]] = call i73 @llvm.ctlz.i73(i73 [[X:%.*]], i1 false)
+; CHECK-NEXT:    [[CMP:%.*]] = icmp ugt i73 [[POP]], 72
+; CHECK-NEXT:    ret i1 [[CMP]]
+;
+  %pop = call i73 @llvm.ctlz.i73(i73 %x)
+  %cmp = icmp ugt i73 %pop, 72
+  ret i1 %cmp
+}
+
+define <2 x i1> @ctlz_sgt_bitwidth_splat(<2 x i13> %x) {
+; CHECK-LABEL: @ctlz_sgt_bitwidth_splat(
+; CHECK-NEXT:    ret <2 x i1> zeroinitializer
+;
+  %pop = call <2 x i13> @llvm.ctlz.v2i13(<2 x i13> %x)
+  %cmp = icmp sgt <2 x i13> %pop, <i13 13, i13 13>
+  ret <2 x i1> %cmp
+}
+
+define i1 @ctlz_ult_plus1_bitwidth(i11 %x) {
+; CHECK-LABEL: @ctlz_ult_plus1_bitwidth(
+; CHECK-NEXT:    ret i1 true
+;
+  %pop = call i11 @llvm.ctlz.i11(i11 %x)
+  %cmp = icmp ult i11 %pop, 12
+  ret i1 %cmp
+}
+
+define i1 @ctlz_ne_big_bitwidth(i73 %x) {
+; CHECK-LABEL: @ctlz_ne_big_bitwidth(
+; CHECK-NEXT:    ret i1 true
+;
+  %pop = call i73 @llvm.ctlz.i73(i73 %x)
+  %cmp = icmp ne i73 %pop, 75
+  ret i1 %cmp
+}
+
+define <2 x i1> @ctlz_slt_bitwidth_plus1_splat(<2 x i13> %x) {
+; CHECK-LABEL: @ctlz_slt_bitwidth_plus1_splat(
+; CHECK-NEXT:    ret <2 x i1> <i1 true, i1 true>
+;
+  %pop = call <2 x i13> @llvm.ctlz.v2i13(<2 x i13> %x)
+  %cmp = icmp slt <2 x i13> %pop, <i13 14, i13 14>
+  ret <2 x i1> %cmp
+}
+
+; Negative test - does not simplify, but instcombine could reduce this.
+
+define <2 x i1> @ctlz_slt_bitwidth_splat(<2 x i13> %x) {
+; CHECK-LABEL: @ctlz_slt_bitwidth_splat(
+; CHECK-NEXT:    [[POP:%.*]] = call <2 x i13> @llvm.ctlz.v2i13(<2 x i13> [[X:%.*]], i1 false)
+; CHECK-NEXT:    [[CMP:%.*]] = icmp slt <2 x i13> [[POP]], <i13 13, i13 13>
+; CHECK-NEXT:    ret <2 x i1> [[CMP]]
+;
+  %pop = call <2 x i13> @llvm.ctlz.v2i13(<2 x i13> %x)
+  %cmp = icmp slt <2 x i13> %pop, <i13 13, i13 13>
+  ret <2 x i1> %cmp
+}
+
+declare i11 @llvm.cttz.i11(i11)
+declare i73 @llvm.cttz.i73(i73)
+declare <2 x i13> @llvm.cttz.v2i13(<2 x i13>)
+
+define i1 @cttz_sgt_bitwidth(i11 %x) {
+; CHECK-LABEL: @cttz_sgt_bitwidth(
+; CHECK-NEXT:    ret i1 false
+;
+  %pop = call i11 @llvm.cttz.i11(i11 %x)
+  %cmp = icmp sgt i11 %pop, 11
+  ret i1 %cmp
+}
+
+define i1 @cttz_sle_minus1(i11 %x) {
+; CHECK-LABEL: @cttz_sle_minus1(
+; CHECK-NEXT:    ret i1 false
+;
+  %pop = call i11 @llvm.cttz.i11(i11 %x)
+  %cmp = icmp sle i11 %pop, -1
+  ret i1 %cmp
+}
+
+define i1 @cttz_ugt_bitwidth(i73 %x) {
+; CHECK-LABEL: @cttz_ugt_bitwidth(
+; CHECK-NEXT:    ret i1 false
+;
+  %pop = call i73 @llvm.cttz.i73(i73 %x)
+  %cmp = icmp ugt i73 %pop, 73
+  ret i1 %cmp
+}
+
+; Negative test - does not simplify, but instcombine could reduce this.
+
+define i1 @cttz_ugt_bitwidth_minus1(i73 %x) {
+; CHECK-LABEL: @cttz_ugt_bitwidth_minus1(
+; CHECK-NEXT:    [[POP:%.*]] = call i73 @llvm.cttz.i73(i73 [[X:%.*]], i1 false)
+; CHECK-NEXT:    [[CMP:%.*]] = icmp ugt i73 [[POP]], 72
+; CHECK-NEXT:    ret i1 [[CMP]]
+;
+  %pop = call i73 @llvm.cttz.i73(i73 %x)
+  %cmp = icmp ugt i73 %pop, 72
+  ret i1 %cmp
+}
+
+define <2 x i1> @cttz_sgt_bitwidth_splat(<2 x i13> %x) {
+; CHECK-LABEL: @cttz_sgt_bitwidth_splat(
+; CHECK-NEXT:    ret <2 x i1> zeroinitializer
+;
+  %pop = call <2 x i13> @llvm.cttz.v2i13(<2 x i13> %x)
+  %cmp = icmp sgt <2 x i13> %pop, <i13 13, i13 13>
+  ret <2 x i1> %cmp
+}
+
+define i1 @cttz_ult_plus1_bitwidth(i11 %x) {
+; CHECK-LABEL: @cttz_ult_plus1_bitwidth(
+; CHECK-NEXT:    ret i1 true
+;
+  %pop = call i11 @llvm.cttz.i11(i11 %x)
+  %cmp = icmp ult i11 %pop, 12
+  ret i1 %cmp
+}
+
+define i1 @cttz_ne_big_bitwidth(i73 %x) {
+; CHECK-LABEL: @cttz_ne_big_bitwidth(
+; CHECK-NEXT:    ret i1 true
+;
+  %pop = call i73 @llvm.cttz.i73(i73 %x)
+  %cmp = icmp ne i73 %pop, 75
+  ret i1 %cmp
+}
+
+define <2 x i1> @cttz_slt_bitwidth_plus1_splat(<2 x i13> %x) {
+; CHECK-LABEL: @cttz_slt_bitwidth_plus1_splat(
+; CHECK-NEXT:    ret <2 x i1> <i1 true, i1 true>
+;
+  %pop = call <2 x i13> @llvm.cttz.v2i13(<2 x i13> %x)
+  %cmp = icmp slt <2 x i13> %pop, <i13 14, i13 14>
+  ret <2 x i1> %cmp
+}
+
+; Negative test - does not simplify, but instcombine could reduce this.
+
+define <2 x i1> @cttz_slt_bitwidth_splat(<2 x i13> %x) {
+; CHECK-LABEL: @cttz_slt_bitwidth_splat(
+; CHECK-NEXT:    [[POP:%.*]] = call <2 x i13> @llvm.cttz.v2i13(<2 x i13> [[X:%.*]], i1 false)
+; CHECK-NEXT:    [[CMP:%.*]] = icmp slt <2 x i13> [[POP]], <i13 13, i13 13>
+; CHECK-NEXT:    ret <2 x i1> [[CMP]]
+;
+  %pop = call <2 x i13> @llvm.cttz.v2i13(<2 x i13> %x)
+  %cmp = icmp slt <2 x i13> %pop, <i13 13, i13 13>
+  ret <2 x i1> %cmp
+}
+
 attributes #0 = { null_pointer_is_valid }

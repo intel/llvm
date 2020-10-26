@@ -419,7 +419,7 @@ void initializeStripGCRelocatesLegacyPass(PassRegistry &);
 void initializeStripNonDebugSymbolsPass(PassRegistry&);
 void initializeStripNonLineTableDebugLegacyPassPass(PassRegistry &);
 void initializeStripSymbolsPass(PassRegistry&);
-void initializeStructurizeCFGPass(PassRegistry&);
+void initializeStructurizeCFGLegacyPassPass(PassRegistry &);
 void initializeSYCLLowerWGScopeLegacyPassPass(PassRegistry &);
 void initializeSYCLLowerESIMDLegacyPassPass(PassRegistry &);
 void initializeESIMDLowerLoadStorePass(PassRegistry &);

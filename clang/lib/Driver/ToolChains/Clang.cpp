@@ -5119,6 +5119,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (D.CCGenDiagnostics)
     CmdArgs.push_back("-disable-pragma-debug-crash");
 
+  if (RawTriple.isOSAIX())
+    if (Arg *A = Args.getLastArg(options::OPT_G))
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << A->getSpelling() << RawTriple.str();
+
   bool UseSeparateSections = isUseSeparateSections(Triple);
 
   if (Args.hasFlag(options::OPT_ffunction_sections,
@@ -5824,9 +5829,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                        (RTTIMode == ToolChain::RM_Disabled)))
     CmdArgs.push_back("-fno-rtti");
 
-  // -fshort-enums=0 is default for all architectures except Hexagon.
+  // -fshort-enums=0 is default for all architectures except Hexagon and z/OS.
   if (Args.hasFlag(options::OPT_fshort_enums, options::OPT_fno_short_enums,
-                   TC.getArch() == llvm::Triple::hexagon))
+                   TC.getArch() == llvm::Triple::hexagon || Triple.isOSzOS()))
     CmdArgs.push_back("-fshort-enums");
 
   RenderCharacterOptions(Args, AuxTriple ? *AuxTriple : RawTriple, CmdArgs);
