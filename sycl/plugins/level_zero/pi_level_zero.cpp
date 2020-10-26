@@ -1908,12 +1908,15 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
 }
 
 pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
-                            void *HostPtr, pi_mem *RetMem) {
+                            void *HostPtr, pi_mem *RetMem,
+                            const pi_mem_properties *properties) {
 
   // TODO: implement read-only, write-only
   assert((Flags & PI_MEM_FLAGS_ACCESS_RW) != 0);
   assert(Context);
   assert(RetMem);
+  assert(properties == nullptr &&
+         "no mem properties goes to Level-Zero RT yet");
 
   void *Ptr;
   ze_device_handle_t ZeDevice = Context->Devices[0]->ZeDevice;

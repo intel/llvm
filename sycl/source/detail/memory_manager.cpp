@@ -171,8 +171,9 @@ MemoryManager::allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
 
   RT::PiMem NewMem = nullptr;
   const detail::plugin &Plugin = TargetContext->getPlugin();
-  Plugin.call<PiApiKind::piMemBufferCreate>(
-      TargetContext->getHandleRef(), CreationFlags, Size, UserPtr, &NewMem);
+  Plugin.call<PiApiKind::piMemBufferCreate>(TargetContext->getHandleRef(),
+                                            CreationFlags, Size, UserPtr,
+                                            &NewMem, nullptr);
   return NewMem;
 }
 

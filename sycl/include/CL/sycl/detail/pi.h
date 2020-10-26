@@ -494,6 +494,12 @@ constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_USE = CL_MEM_USE_HOST_PTR;
 constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_COPY = CL_MEM_COPY_HOST_PTR;
 constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_ALLOC = CL_MEM_ALLOC_HOST_PTR;
 
+// NOTE: this is made 64-bit to match the size of cl_mem_properties_intel to
+// make the translation to OpenCL transparent.
+// TODO: populate
+//
+using pi_mem_properties = pi_bitfield;
+
 // NOTE: queue properties are implemented this way to better support bit
 // manipulations
 using pi_queue_properties = pi_bitfield;
@@ -982,9 +988,9 @@ __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
 //
 // Memory
 //
-__SYCL_EXPORT pi_result piMemBufferCreate(pi_context context,
-                                          pi_mem_flags flags, size_t size,
-                                          void *host_ptr, pi_mem *ret_mem);
+__SYCL_EXPORT pi_result piMemBufferCreate(
+    pi_context context, pi_mem_flags flags, size_t size, void *host_ptr,
+    pi_mem *ret_mem, const pi_mem_properties *properties = nullptr);
 
 __SYCL_EXPORT pi_result piMemImageCreate(pi_context context, pi_mem_flags flags,
                                          const pi_image_format *image_format,
