@@ -106,5 +106,5 @@ Add an entry for the new aspect to Table 4.20: Device aspects defined by the cor
 [options="header"]
 |========================================
 |Rev|Date|Author|Changes
-|1|2020-05-27|Joe Garvey|*Initial public draft*
+|1|2020-10-26|Joe Garvey|*Initial public draft*
 |========================================
