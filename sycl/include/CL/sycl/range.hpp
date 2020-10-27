@@ -62,6 +62,11 @@ public:
     return size;
   }
 
+  // Adjust only the first dim of the range
+  void set_range(const size_t dim0) {
+    this->common_array[0] = dim0;
+  }
+
   range(const range<dimensions> &rhs) = default;
   range(range<dimensions> &&rhs) = default;
   range<dimensions> &operator=(const range<dimensions> &rhs) = default;

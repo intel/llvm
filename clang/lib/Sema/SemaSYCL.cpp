@@ -507,6 +507,9 @@ public:
       FunctionDecl *FD = WorkList.back().first;
       FunctionDecl *ParentFD = WorkList.back().second;
 
+      if ((ParentFD == KernelBody) && isSYCLKernelBodyFunction(FD)) {
+        KernelBody = FD;
+      }
       if ((ParentFD == SYCLKernel) && isSYCLKernelBodyFunction(FD)) {
         assert(!KernelBody && "inconsistent call graph - only one kernel body "
                               "function can be called");

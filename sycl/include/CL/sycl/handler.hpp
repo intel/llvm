@@ -683,16 +683,50 @@ private:
   void parallel_for_lambda_impl(range<Dims> NumWorkItems,
                                 KernelType KernelFunc) {
     throwIfActionIsCreated();
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
+
+    // If 1D kernel argument is an integral type, convert it to sycl::item<1>
     using TransformedArgType =
         typename std::conditional<std::is_integral<LambdaArgType>::value &&
                                       Dims == 1,
                                   item<Dims>, LambdaArgType>::type;
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    constexpr size_t GoodLocalSizeX = 32;
+    std::string KName = typeid(NameT *).name();
+    bool foundit = KName.find("OPT_PFWGS_DISABLE") != std::string::npos;
+    if (getenv("OPT_PFWGS") != nullptr && !foundit &&
+        NumWorkItems[0] % GoodLocalSizeX != 0) {
+      // Not a multiple
+      size_t NewValX =
+          ((NumWorkItems[0] + GoodLocalSizeX - 1) / GoodLocalSizeX) *
+          GoodLocalSizeX;
+      if (getenv("OPT_PFWGS_TRACE") != nullptr)
+        std::cerr << "***** Adjusted size from " << NumWorkItems[0] << " to "
+                  << NewValX << " *****\n";
+      auto Wrapper = [=](TransformedArgType Arg) {
+        if (Arg[0] >= NumWorkItems[0])
+          return;
+        Arg.set_allowed_range(NumWorkItems);
+        KernelFunc(Arg);
+      };
+
+      using NameWT = NameT *;
+      range<Dims> AdjustedRange = NumWorkItems;
+      AdjustedRange.set_range(NewValX);
 #ifdef __SYCL_DEVICE_ONLY__
-    (void)NumWorkItems;
-    kernel_parallel_for<NameT, TransformedArgType>(KernelFunc);
+      kernel_parallel_for<NameWT, TransformedArgType>(Wrapper);
+#else
+      detail::checkValueRange<Dims>(AdjustedRange);
+      MNDRDesc.set(std::move(AdjustedRange));
+      StoreLambda<NameWT, decltype(Wrapper), Dims, TransformedArgType>(
+          std::move(Wrapper));
+      MCGType = detail::CG::KERNEL;
+#endif
+    } else {
+#ifdef __SYCL_DEVICE_ONLY__
+      (void)NumWorkItems;
+      kernel_parallel_for<NameT, TransformedArgType>(KernelFunc);
 #else
     detail::checkValueRange<Dims>(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
@@ -700,6 +734,7 @@ private:
         std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
 #endif
+    }
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range.
