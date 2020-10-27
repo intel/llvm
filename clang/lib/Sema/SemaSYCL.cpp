@@ -2857,7 +2857,6 @@ public:
       if (T->isNullPtrType()) {
         S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
             << /* kernel name cannot be a type in the std namespace */ 3;
-        S.Diag(KernelInvocationFuncLoc, diag::note_nullptr_used);
         IsInvalid = true;
       }
       return;

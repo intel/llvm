@@ -14,7 +14,6 @@ let Component = "Sema" in {
 let CategoryName = "Semantic Issue" in {
 def note_previous_decl : Note<"%0 declared here">;
 def note_entity_declared_at : Note<"%0 declared here">;
-def note_nullptr_used : Note<"nullptr is a prvalue of type std::nullptr_t">;
 def note_callee_decl : Note<"%0 declared here">;
 def note_defined_here : Note<"%0 defined here">;
 
