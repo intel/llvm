@@ -21,6 +21,10 @@ TEST(CanonicalIncludesTest, CStandardLibrary) {
   CI.addSystemHeadersMapping(Language);
   // Usual standard library symbols are mapped correctly.
   EXPECT_EQ("<stdio.h>", CI.mapHeader("path/stdio.h", "printf"));
+  // Suffix mapping isn't available for C, instead of mapping to `<cstdio> we
+  // just leave the header as-is.
+  EXPECT_EQ("include/stdio.h",
+            CI.mapHeader("include/stdio.h", "unknown_symbol"));
 }
 
 TEST(CanonicalIncludesTest, CXXStandardLibrary) {
@@ -32,9 +36,9 @@ TEST(CanonicalIncludesTest, CXXStandardLibrary) {
   // Usual standard library symbols are mapped correctly.
   EXPECT_EQ("<vector>", CI.mapHeader("path/vector.h", "std::vector"));
   EXPECT_EQ("<cstdio>", CI.mapHeader("path/stdio.h", "std::printf"));
-  // std::move is ambiguous, currently mapped only based on path
-  EXPECT_EQ("<utility>", CI.mapHeader("libstdc++/bits/move.h", "std::move"));
-  EXPECT_EQ("path/utility.h", CI.mapHeader("path/utility.h", "std::move"));
+  // std::move is ambiguous, currently always mapped to <utility>
+  EXPECT_EQ("<utility>",
+            CI.mapHeader("libstdc++/bits/stl_algo.h", "std::move"));
   // Unknown std symbols aren't mapped.
   EXPECT_EQ("foo/bar.h", CI.mapHeader("foo/bar.h", "std::notathing"));
   // iosfwd declares some symbols it doesn't own.

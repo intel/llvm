@@ -708,6 +708,55 @@ multiclass MIMG_Gather <bits<8> op, AMDGPUSampleVariant sample, bit wqm = 0,
 multiclass MIMG_Gather_WQM <bits<8> op, AMDGPUSampleVariant sample>
     : MIMG_Gather<op, sample, 1>;
 
+class MIMG_IntersectRay_gfx10<int op, string opcode, RegisterClass AddrRC, bit A16>
+    : MIMG_gfx10<op, (outs VReg_128:$vdata), "AMDGPU"> {
+
+  let InOperandList = !con((ins AddrRC:$vaddr0, SReg_128:$srsrc),
+                           !if(!eq(A16,1), (ins GFX10A16:$a16), (ins)));
+  let AsmString = opcode#" $vdata, $vaddr0, $srsrc"#!if(!eq(A16,1), "$a16", "");
+
+  let nsa = 0;
+}
+
+class MIMG_IntersectRay_nsa_gfx10<int op, string opcode, int num_addrs, bit A16>
+    : MIMG_nsa_gfx10<op, (outs VReg_128:$vdata), num_addrs, "AMDGPU"> {
+  let InOperandList = !con(nsah.AddrIns,
+                           (ins SReg_128:$srsrc),
+                           !if(!eq(A16,1), (ins GFX10A16:$a16), (ins)));
+  let AsmString = opcode#" $vdata, "#nsah.AddrAsm#", $srsrc"#!if(!eq(A16,1), "$a16", "");
+}
+
+multiclass MIMG_IntersectRay<int op, string opcode, int num_addrs, bit A16> {
+  def "" : MIMGBaseOpcode;
+  let SubtargetPredicate = HasGFX10_BEncoding,
+      AssemblerPredicate = HasGFX10_BEncoding,
+      AsmMatchConverter = !if(!eq(A16,1), "cvtIntersectRay", ""),
+      dmask = 0xf,
+      unorm = 1,
+      d16 = 0,
+      glc = 0,
+      slc = 0,
+      dlc = 0,
+      tfe = 0,
+      lwe = 0,
+      r128 = 1,
+      ssamp = 0,
+      dim = {0, 0, 0},
+      a16 = A16,
+      d16 = 0,
+      BaseOpcode = !cast<MIMGBaseOpcode>(NAME),
+      VDataDwords = 4 in {
+    // TODO: MIMGAddrSize will choose VReg_512 which is a 16 register tuple,
+    // when we only need 9, 11 or 12 depending on A16 field and ptr size.
+    def "_sa" : MIMG_IntersectRay_gfx10<op, opcode, MIMGAddrSize<num_addrs, 0>.RegClass, A16> {
+      let VAddrDwords = !srl(MIMGAddrSize<num_addrs, 0>.RegClass.Size, 5);
+    }
+    def _nsa : MIMG_IntersectRay_nsa_gfx10<op, opcode, num_addrs, A16> {
+      let VAddrDwords = num_addrs;
+    }
+  }
+}
+
 //===----------------------------------------------------------------------===//
 // MIMG Instructions
 //===----------------------------------------------------------------------===//
@@ -832,6 +881,11 @@ defm IMAGE_SAMPLE_C_CD_CL_O_G16 : MIMG_Sampler <0x000000ef, AMDGPUSample_c_cd_cl
 let SubtargetPredicate = HasGFX10_BEncoding in
 defm IMAGE_MSAA_LOAD : MIMG_NoSampler <0x00000080, "image_msaa_load", 1>;
 
+defm IMAGE_BVH_INTERSECT_RAY       : MIMG_IntersectRay<0xe6, "image_bvh_intersect_ray", 11, 0>;
+defm IMAGE_BVH_INTERSECT_RAY_a16   : MIMG_IntersectRay<0xe6, "image_bvh_intersect_ray", 8, 1>;
+defm IMAGE_BVH64_INTERSECT_RAY     : MIMG_IntersectRay<0xe7, "image_bvh64_intersect_ray", 12, 0>;
+defm IMAGE_BVH64_INTERSECT_RAY_a16 : MIMG_IntersectRay<0xe7, "image_bvh64_intersect_ray", 9, 1>;
+
 /********** ========================================= **********/
 /********** Table of dimension-aware image intrinsics **********/
 /********** ========================================= **********/
@@ -842,9 +896,25 @@ class ImageDimIntrinsicInfo<AMDGPUImageDimIntrinsic I> {
   AMDGPUDimProps Dim = I.P.Dim;
   AMDGPUImageDimIntrinsicEval DimEval = AMDGPUImageDimIntrinsicEval<I.P>;
 
+  bits<8> NumGradients = DimEval.NumGradientArgs;
+  bits<8> NumDmask = DimEval.NumDmaskArgs;
+  bits<8> NumData = DimEval.NumDataArgs;
+  bits<8> NumVAddrs = DimEval.NumVAddrArgs;
+  bits<8> NumArgs = !add(DimEval.CachePolicyArgIndex, 1);
+
+  bits<8> DMaskIndex = DimEval.DmaskArgIndex;
+  bits<8> VAddrStart = DimEval.VAddrArgIndex;
   bits<8> GradientStart = DimEval.GradientArgIndex;
   bits<8> CoordStart = DimEval.CoordArgIndex;
+  bits<8> LodIndex = DimEval.LodArgIndex;
+  bits<8> MipIndex = DimEval.MipArgIndex;
   bits<8> VAddrEnd = !add(DimEval.VAddrArgIndex, DimEval.NumVAddrArgs);
+  bits<8> RsrcIndex = DimEval.RsrcArgIndex;
+  bits<8> SampIndex = DimEval.SampArgIndex;
+  bits<8> UnormIndex = DimEval.UnormArgIndex;
+  bits<8> TexFailCtrlIndex = DimEval.TexFailCtrlArgIndex;
+  bits<8> CachePolicyIndex = DimEval.CachePolicyArgIndex;
+
   bits<8> GradientTyArg = !add(I.P.NumRetAndDataAnyTypes,
     !foldl(0, I.P.ExtraAddrArgs, cnt, arg, !add(cnt, arg.Type.isAny)));
   bits<8> CoordTyArg = !add(GradientTyArg, !if(I.P.Gradients, 1, 0));
@@ -852,7 +922,10 @@ class ImageDimIntrinsicInfo<AMDGPUImageDimIntrinsic I> {
 
 def ImageDimIntrinsicTable : GenericTable {
   let FilterClass = "ImageDimIntrinsicInfo";
-  let Fields = ["Intr", "BaseOpcode", "Dim", "GradientStart", "CoordStart", "VAddrEnd", "GradientTyArg", "CoordTyArg"];
+  let Fields = ["Intr", "BaseOpcode", "Dim", "NumGradients", "NumDmask", "NumData", "NumVAddrs", "NumArgs",
+    "DMaskIndex", "VAddrStart", "GradientStart", "CoordStart", "LodIndex", "MipIndex", "VAddrEnd",
+    "RsrcIndex", "SampIndex", "UnormIndex", "TexFailCtrlIndex", "CachePolicyIndex",
+    "GradientTyArg", "CoordTyArg"];
   GenericEnum TypeOf_BaseOpcode = MIMGBaseOpcode;
   GenericEnum TypeOf_Dim = MIMGDim;
 

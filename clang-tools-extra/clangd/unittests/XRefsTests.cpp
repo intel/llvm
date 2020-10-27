@@ -1118,17 +1118,18 @@ TEST(LocateSymbol, Alias) {
       // decls.
       R"cpp(
       namespace ns { class [[Foo]] {}; }
-      using ns::F^oo;
+      // FIXME: don't return the using decl if it touches the cursor position.
+      using ns::[[F^oo]];
     )cpp",
 
       R"cpp(
       namespace ns { int [[x]](char); int [[x]](double); }
-      using ns::^x;
+      using ns::[[^x]];
     )cpp",
 
       R"cpp(
       namespace ns { int [[x]](char); int x(double); }
-      using ns::x;
+      using ns::[[x]];
       int y = ^x('a');
     )cpp",
 
@@ -1156,7 +1157,7 @@ TEST(LocateSymbol, Alias) {
       };
       template <typename T>
       struct Derived : Base<T> {
-        using Base<T>::w^aldo;
+        using Base<T>::[[w^aldo]];
       };
     )cpp",
   };
@@ -1428,6 +1429,11 @@ TEST(LocateSymbol, NearbyIdentifier) {
 
 
       // h^i
+
+
+
+
+      int x = hi;
     )cpp",
       R"cpp(
       // prefer nearest occurrence even if several matched tokens
@@ -1581,6 +1587,19 @@ TEST(FindReferences, WithinAST) {
           Foo f;
           f.[[^~]]Foo();
         }
+      )cpp",
+      R"cpp(// Lambda capture initializer
+        void foo() {
+          int [[w^aldo]] = 42;
+          auto lambda = [x = [[waldo]]](){};
+        }
+      )cpp",
+      R"cpp(// Renaming alias
+        template <typename> class Vector {};
+        using [[^X]] = Vector<int>;
+        [[X]] x1;
+        Vector<int> x2;
+        Vector<double> y;
       )cpp",
   };
   for (const char *Test : Tests) {

@@ -246,7 +246,8 @@ enum IIT_Info {
   IIT_SUBDIVIDE4_ARG = 45,
   IIT_VEC_OF_BITCASTS_TO_INT = 46,
   IIT_V128 = 47,
-  IIT_BF16 = 48
+  IIT_BF16 = 48,
+  IIT_STRUCT9 = 49
 };
 
 static void EncodeFixedValueType(MVT::SimpleValueType VT,
@@ -469,6 +470,7 @@ static void ComputeFixedEncoding(const CodeGenIntrinsic &Int,
       case 6: TypeSig.push_back(IIT_STRUCT6); break;
       case 7: TypeSig.push_back(IIT_STRUCT7); break;
       case 8: TypeSig.push_back(IIT_STRUCT8); break;
+      case 9: TypeSig.push_back(IIT_STRUCT9); break;
       default: llvm_unreachable("Unhandled case in struct");
     }
 
@@ -685,6 +687,12 @@ void IntrinsicEmitter::EmitAttributes(const CodeGenIntrinsicTable &Ints,
             if (addComma)
               OS << ",";
             OS << "Attribute::NoAlias";
+            addComma = true;
+            break;
+          case CodeGenIntrinsic::NoUndef:
+            if (addComma)
+              OS << ",";
+            OS << "Attribute::NoUndef";
             addComma = true;
             break;
           case CodeGenIntrinsic::Returned:

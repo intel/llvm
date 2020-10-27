@@ -1619,6 +1619,16 @@ collectLocalBranchTargets(ArrayRef<uint8_t> Bytes, const MCInstrAnalysis *MIA,
   }
 }
 
+static StringRef getSegmentName(const MachOObjectFile *MachO,
+                                const SectionRef &Section) {
+  if (MachO) {
+    DataRefImpl DR = Section.getRawDataRefImpl();
+    StringRef SegmentName = MachO->getSectionFinalSegmentName(DR);
+    return SegmentName;
+  }
+  return "";
+}
+
 static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
                               MCContext &Ctx, MCDisassembler *PrimaryDisAsm,
                               MCDisassembler *SecondaryDisAsm,
@@ -1727,8 +1737,8 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
   // the output.
   StringSet<> FoundDisasmSymbolSet;
   for (std::pair<const SectionRef, SectionSymbolsTy> &SecSyms : AllSymbols)
-    stable_sort(SecSyms.second);
-  stable_sort(AbsoluteSymbols);
+    llvm::stable_sort(SecSyms.second);
+  llvm::stable_sort(AbsoluteSymbols);
 
   std::unique_ptr<DWARFContext> DICtx;
   LiveVariablePrinter LVP(*Ctx.getRegisterInfo(), *STI);
@@ -1783,12 +1793,7 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
       }
     }
 
-    StringRef SegmentName = "";
-    if (MachO) {
-      DataRefImpl DR = Section.getRawDataRefImpl();
-      SegmentName = MachO->getSectionFinalSegmentName(DR);
-    }
-
+    StringRef SegmentName = getSegmentName(MachO, Section);
     StringRef SectionName = unwrapOrError(Section.getName(), Obj->getFileName());
     // If the section has no symbol at the start, just insert a dummy one.
     if (Symbols.empty() || Symbols[0].Addr != 0) {
@@ -1847,23 +1852,6 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
         if (!SegmentName.empty())
           outs() << SegmentName << ",";
         outs() << SectionName << ":\n";
-      }
-
-      if (Obj->isELF() && Obj->getArch() == Triple::amdgcn) {
-        if (Symbols[SI].Type == ELF::STT_AMDGPU_HSA_KERNEL) {
-          // skip amd_kernel_code_t at the begining of kernel symbol (256 bytes)
-          Start += 256;
-        }
-        if (SI == SE - 1 ||
-            Symbols[SI + 1].Type == ELF::STT_AMDGPU_HSA_KERNEL) {
-          // cut trailing zeroes at the end of kernel
-          // cut up to 256 bytes
-          const uint64_t EndAlign = 256;
-          const auto Limit = End - (std::min)(EndAlign, End - Start);
-          while (End > Limit &&
-            *reinterpret_cast<const support::ulittle32_t*>(&Bytes[End - 4]) == 0)
-            End -= 4;
-        }
       }
 
       outs() << '\n';
@@ -2388,6 +2376,8 @@ void objdump::printSectionHeaders(const ObjectFile *Obj) {
 }
 
 void objdump::printSectionContents(const ObjectFile *Obj) {
+  const MachOObjectFile *MachO = dyn_cast<const MachOObjectFile>(Obj);
+
   for (const SectionRef &Section : ToolSectionFilter(*Obj)) {
     StringRef Name = unwrapOrError(Section.getName(), Obj->getFileName());
     uint64_t BaseAddr = Section.getAddress();
@@ -2395,7 +2385,11 @@ void objdump::printSectionContents(const ObjectFile *Obj) {
     if (!Size)
       continue;
 
-    outs() << "Contents of section " << Name << ":\n";
+    outs() << "Contents of section ";
+    StringRef SegmentName = getSegmentName(MachO, Section);
+    if (!SegmentName.empty())
+      outs() << SegmentName << ",";
+    outs() << Name << ":\n";
     if (Section.isBSS()) {
       outs() << format("<skipping contents of bss section at [%04" PRIx64
                        ", %04" PRIx64 ")>\n",
@@ -2553,11 +2547,9 @@ void objdump::printSymbol(const ObjectFile *O, const SymbolRef &Symbol,
   } else if (Section == O->section_end()) {
     outs() << "*UND*";
   } else {
-    if (MachO) {
-      DataRefImpl DR = Section->getRawDataRefImpl();
-      StringRef SegmentName = MachO->getSectionFinalSegmentName(DR);
+    StringRef SegmentName = getSegmentName(MachO, *Section);
+    if (!SegmentName.empty())
       outs() << SegmentName << ",";
-    }
     StringRef SectionName = unwrapOrError(Section->getName(), FileName);
     outs() << SectionName;
   }

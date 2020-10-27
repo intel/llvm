@@ -23,6 +23,7 @@
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/FormatVariadic.h"
 
 #define DEBUG_TYPE "spirv-to-llvm-pattern"
 
@@ -554,6 +555,66 @@ public:
   }
 };
 
+/// Converts `spv.CompositeExtract` to `llvm.extractvalue` if the container type
+/// is an aggregate type (struct or array). Otherwise, converts to
+/// `llvm.extractelement` that operates on vectors.
+class CompositeExtractPattern
+    : public SPIRVToLLVMConversion<spirv::CompositeExtractOp> {
+public:
+  using SPIRVToLLVMConversion<spirv::CompositeExtractOp>::SPIRVToLLVMConversion;
+
+  LogicalResult
+  matchAndRewrite(spirv::CompositeExtractOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto dstType = this->typeConverter.convertType(op.getType());
+    if (!dstType)
+      return failure();
+
+    Type containerType = op.composite().getType();
+    if (containerType.isa<VectorType>()) {
+      Location loc = op.getLoc();
+      IntegerAttr value = op.indices()[0].cast<IntegerAttr>();
+      Value index = createI32ConstantOf(loc, rewriter, value.getInt());
+      rewriter.replaceOpWithNewOp<LLVM::ExtractElementOp>(
+          op, dstType, op.composite(), index);
+      return success();
+    }
+    rewriter.replaceOpWithNewOp<LLVM::ExtractValueOp>(
+        op, dstType, op.composite(), op.indices());
+    return success();
+  }
+};
+
+/// Converts `spv.CompositeInsert` to `llvm.insertvalue` if the container type
+/// is an aggregate type (struct or array). Otherwise, converts to
+/// `llvm.insertelement` that operates on vectors.
+class CompositeInsertPattern
+    : public SPIRVToLLVMConversion<spirv::CompositeInsertOp> {
+public:
+  using SPIRVToLLVMConversion<spirv::CompositeInsertOp>::SPIRVToLLVMConversion;
+
+  LogicalResult
+  matchAndRewrite(spirv::CompositeInsertOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto dstType = this->typeConverter.convertType(op.getType());
+    if (!dstType)
+      return failure();
+
+    Type containerType = op.composite().getType();
+    if (containerType.isa<VectorType>()) {
+      Location loc = op.getLoc();
+      IntegerAttr value = op.indices()[0].cast<IntegerAttr>();
+      Value index = createI32ConstantOf(loc, rewriter, value.getInt());
+      rewriter.replaceOpWithNewOp<LLVM::InsertElementOp>(
+          op, dstType, op.composite(), op.object(), index);
+      return success();
+    }
+    rewriter.replaceOpWithNewOp<LLVM::InsertValueOp>(
+        op, dstType, op.composite(), op.object(), op.indices());
+    return success();
+  }
+};
+
 /// Converts SPIR-V operations that have straightforward LLVM equivalent
 /// into LLVM dialect operations.
 template <typename SPIRVOp, typename LLVMOp>
@@ -765,9 +826,8 @@ public:
     case spirv::MemoryAccess::None:
     case spirv::MemoryAccess::Nontemporal:
     case spirv::MemoryAccess::Volatile: {
-      unsigned alignment = memoryAccess == spirv::MemoryAccess::Aligned
-                               ? op.alignment().getValue().getZExtValue()
-                               : 0;
+      unsigned alignment =
+          memoryAccess == spirv::MemoryAccess::Aligned ? *op.alignment() : 0;
       bool isNonTemporal = memoryAccess == spirv::MemoryAccess::Nontemporal;
       bool isVolatile = memoryAccess == spirv::MemoryAccess::Volatile;
       replaceWithLoadOrStore(op, rewriter, this->typeConverter, alignment,
@@ -1332,8 +1392,6 @@ void mlir::populateSPIRVToLLVMConversionPatterns(
       // TODO: Support EntryPoint/ExecutionMode properly.
       ErasePattern<spirv::EntryPointOp>, ErasePattern<spirv::ExecutionModeOp>,
 
-      // Function Call op
-
       // GLSL extended instruction set ops
       DirectConversionPattern<spirv::GLSLCeilOp, LLVM::FCeilOp>,
       DirectConversionPattern<spirv::GLSLCosOp, LLVM::CosOp>,
@@ -1362,6 +1420,7 @@ void mlir::populateSPIRVToLLVMConversionPatterns(
       VariablePattern,
 
       // Miscellaneous ops
+      CompositeExtractPattern, CompositeInsertPattern,
       DirectConversionPattern<spirv::SelectOp, LLVM::SelectOp>,
       DirectConversionPattern<spirv::UndefOp, LLVM::UndefOp>,
 
@@ -1385,4 +1444,43 @@ void mlir::populateSPIRVToLLVMModuleConversionPatterns(
     OwningRewritePatternList &patterns) {
   patterns.insert<ModuleConversionPattern, ModuleEndConversionPattern>(
       context, typeConverter);
+}
+
+//===----------------------------------------------------------------------===//
+// Pre-conversion hooks
+//===----------------------------------------------------------------------===//
+
+/// Hook for descriptor set and binding number encoding.
+static constexpr StringRef kBinding = "binding";
+static constexpr StringRef kDescriptorSet = "descriptor_set";
+void mlir::encodeBindAttribute(ModuleOp module) {
+  auto spvModules = module.getOps<spirv::ModuleOp>();
+  for (auto spvModule : spvModules) {
+    spvModule.walk([&](spirv::GlobalVariableOp op) {
+      IntegerAttr descriptorSet = op.getAttrOfType<IntegerAttr>(kDescriptorSet);
+      IntegerAttr binding = op.getAttrOfType<IntegerAttr>(kBinding);
+      // For every global variable in the module, get the ones with descriptor
+      // set and binding numbers.
+      if (descriptorSet && binding) {
+        // Encode these numbers into the variable's symbolic name. If the
+        // SPIR-V module has a name, add it at the beginning.
+        auto moduleAndName = spvModule.getName().hasValue()
+                                 ? spvModule.getName().getValue().str() + "_" +
+                                       op.sym_name().str()
+                                 : op.sym_name().str();
+        std::string name =
+            llvm::formatv("{0}_descriptor_set{1}_binding{2}", moduleAndName,
+                          std::to_string(descriptorSet.getInt()),
+                          std::to_string(binding.getInt()));
+
+        // Replace all symbol uses and set the new symbol name. Finally, remove
+        // descriptor set and binding attributes.
+        if (failed(SymbolTable::replaceAllSymbolUses(op, name, spvModule)))
+          op.emitError("unable to replace all symbol uses for ") << name;
+        SymbolTable::setSymbolName(op, name);
+        op.removeAttr(kDescriptorSet);
+        op.removeAttr(kBinding);
+      }
+    });
+  }
 }

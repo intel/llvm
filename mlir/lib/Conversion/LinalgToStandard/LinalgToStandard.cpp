@@ -123,7 +123,7 @@ public:
       return failure();
 
     rewriter.replaceOpWithNewOp<mlir::CallOp>(
-        op, libraryCallName.getValue(), ArrayRef<Type>{},
+        op, libraryCallName.getValue(), TypeRange(),
         createTypeCanonicalizedMemRefOperands(rewriter, op.getLoc(),
                                               op.getOperands()));
     return success();
@@ -151,7 +151,7 @@ public:
       return failure();
 
     rewriter.replaceOpWithNewOp<mlir::CallOp>(
-        op, libraryCallName.getValue(), ArrayRef<Type>{},
+        op, libraryCallName.getValue(), TypeRange(),
         createTypeCanonicalizedMemRefOperands(rewriter, op.getLoc(),
                                               op.getOperands()));
     return success();
@@ -185,7 +185,7 @@ public:
     for (auto operand : op.getOperands())
       operands.push_back(operand);
     rewriter.replaceOpWithNewOp<mlir::CallOp>(
-        op, libraryCallName.getValue(), ArrayRef<Type>{},
+        op, libraryCallName.getValue(), TypeRange(),
         createTypeCanonicalizedMemRefOperands(rewriter, op.getLoc(), operands));
     return success();
   }
@@ -206,12 +206,12 @@ public:
     // If either inputPerm or outputPerm are non-identities, insert transposes.
     auto inputPerm = op.inputPermutation();
     if (inputPerm.hasValue() && !inputPerm->isIdentity())
-      in = rewriter.create<linalg::TransposeOp>(op.getLoc(), in,
-                                                AffineMapAttr::get(*inputPerm));
+      in = rewriter.create<TransposeOp>(op.getLoc(), in,
+                                        AffineMapAttr::get(*inputPerm));
     auto outputPerm = op.outputPermutation();
     if (outputPerm.hasValue() && !outputPerm->isIdentity())
-      out = rewriter.create<linalg::TransposeOp>(
-          op.getLoc(), out, AffineMapAttr::get(*outputPerm));
+      out = rewriter.create<TransposeOp>(op.getLoc(), out,
+                                         AffineMapAttr::get(*outputPerm));
 
     // If nothing was transposed, fail and let the conversion kick in.
     if (in == op.input() && out == op.output())
@@ -244,6 +244,7 @@ void mlir::populateLinalgToStandardConversionPatterns(
       LinalgOpConversion<DotOp>,
       LinalgOpConversion<BatchMatmulOp>,
       LinalgOpConversion<MatvecOp>,
+      LinalgOpConversion<VecmatOp>,
       LinalgOpConversion<MatmulOp>,
       LinalgOpConversion<ConvWOp>,
       LinalgOpConversion<ConvNWCOp>,
@@ -269,7 +270,7 @@ void ConvertLinalgToStandardPass::runOnOperation() {
   ConversionTarget target(getContext());
   target.addLegalDialect<AffineDialect, scf::SCFDialect, StandardOpsDialect>();
   target.addLegalOp<ModuleOp, FuncOp, ModuleTerminatorOp, ReturnOp>();
-  target.addLegalOp<linalg::TransposeOp, linalg::ReshapeOp, linalg::RangeOp>();
+  target.addLegalOp<linalg::ReshapeOp, linalg::RangeOp>();
   OwningRewritePatternList patterns;
   populateLinalgToStandardConversionPatterns(patterns, &getContext());
   if (failed(applyFullConversion(module, target, patterns)))

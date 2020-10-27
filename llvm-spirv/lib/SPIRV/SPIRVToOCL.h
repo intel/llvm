@@ -43,7 +43,7 @@
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/Pass.h"
 
-#include <cstring>
+#include <string>
 
 namespace SPIRV {
 class SPIRVToOCL : public ModulePass, public InstVisitor<SPIRVToOCL> {

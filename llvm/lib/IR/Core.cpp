@@ -781,7 +781,7 @@ unsigned LLVMGetPointerAddressSpace(LLVMTypeRef PointerTy) {
 }
 
 unsigned LLVMGetVectorSize(LLVMTypeRef VectorTy) {
-  return unwrap<VectorType>(VectorTy)->getNumElements();
+  return unwrap<VectorType>(VectorTy)->getElementCount().getKnownMinValue();
 }
 
 /*--.. Operations on other types ...........................................--*/
@@ -3952,6 +3952,19 @@ LLVMValueRef LLVMBuildAtomicCmpXchg(LLVMBuilderRef B, LLVMValueRef Ptr,
                 singleThread ? SyncScope::SingleThread : SyncScope::System));
 }
 
+unsigned LLVMGetNumMaskElements(LLVMValueRef SVInst) {
+  Value *P = unwrap<Value>(SVInst);
+  ShuffleVectorInst *I = cast<ShuffleVectorInst>(P);
+  return I->getShuffleMask().size();
+}
+
+int LLVMGetMaskValue(LLVMValueRef SVInst, unsigned Elt) {
+  Value *P = unwrap<Value>(SVInst);
+  ShuffleVectorInst *I = cast<ShuffleVectorInst>(P);
+  return I->getMaskValue(Elt);
+}
+
+int LLVMGetUndefMaskElem(void) { return UndefMaskElem; }
 
 LLVMBool LLVMIsAtomicSingleThread(LLVMValueRef AtomicInst) {
   Value *P = unwrap<Value>(AtomicInst);

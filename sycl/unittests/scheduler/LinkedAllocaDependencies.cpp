@@ -33,6 +33,7 @@ public:
   void releaseMem(ContextImplPtr, void *) {}
   void releaseHostMem(void *) {}
   size_t getSize() const override { return 10; }
+  detail::ContextImplPtr getInteropContext() const override { return nullptr; }
 };
 
 TEST_F(SchedulerTest, LinkedAllocaDependencies) {
@@ -54,9 +55,12 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
       detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
       /*PropList=*/{}));
 
+  auto AllocaDep = [](cl::sycl::detail::Command *, cl::sycl::detail::Command *,
+                      cl::sycl::detail::MemObjRecord *) {};
+
   std::shared_ptr<cl::sycl::detail::MemObjRecord> Record{
       new cl::sycl::detail::MemObjRecord(DefaultHostQueue->getContextImplPtr(),
-                                         10)};
+                                         10, AllocaDep)};
 
   MemObjMock MemObj(Record);
   Req.MSYCLMemObj = &MemObj;

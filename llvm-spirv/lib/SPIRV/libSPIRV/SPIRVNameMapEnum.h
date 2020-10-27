@@ -163,6 +163,8 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationFunctionDenormModeINTEL, "FunctionDenormModeINTEL");
   add(DecorationFunctionFloatingPointModeINTEL,
       "FunctionFloatingPointModeINTEL");
+  add(DecorationVectorComputeCallableFunctionINTEL,
+      "VectorComputeCallableFunctionINTEL");
   add(DecorationMax, "Max");
 }
 SPIRV_DEF_NAMEMAP(Decoration, SPIRVDecorationNameMap)
@@ -479,6 +481,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
       "SubgroupAvcMotionEstimationIntraINTEL");
   add(CapabilitySubgroupAvcMotionEstimationChromaINTEL,
       "SubgroupAvcMotionEstimationChromaINTEL");
+  add(CapabilityVariableLengthArrayINTEL, "VariableLengthArrayINTEL");
   add(CapabilityRoundToInfinityINTEL, "RoundToInfinityINTEL");
   add(CapabilityFloatingPointModeINTEL, "FloatingPointModeINTEL");
   add(CapabilityFPGAMemoryAttributesINTEL, "FPGAMemoryAttributesINTEL");

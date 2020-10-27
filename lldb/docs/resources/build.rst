@@ -71,10 +71,16 @@ commands below.
 ::
 
   > yum install libedit-devel libxml2-devel ncurses-devel python-devel swig
-  > sudo apt-get install build-essential subversion swig python2.7-dev libedit-dev libncurses5-dev
+  > sudo apt-get install build-essential subversion swig python3-dev libedit-dev libncurses5-dev
   > pkg install swig python
   > pkgin install swig python27 cmake ninja-build
   > brew install swig cmake ninja
+
+Note that there's an `incompatibility
+<https://github.com/swig/swig/issues/1321>` between Python version 3.7 and later
+and swig versions older than 4.0.0 which makes builds of LLDB using debug
+versions of python unusable. This primarily affects Windows, as debug builds of
+LLDB must use debug python as well.
 
 Windows
 *******
@@ -83,10 +89,9 @@ Windows
 * The latest Windows SDK.
 * The Active Template Library (ATL).
 * `GnuWin32 <http://gnuwin32.sourceforge.net/>`_ for CoreUtils and Make.
-* `Python 3.6 or 3.8 <https://www.python.org/downloads/windows/>`_. Python 3.7
-  is known to be incompatible. Make sure to (1) get the x64 variant if that's
-  what you're targetting and (2) install the debug library if you want to build
-  a debug lldb.
+* `Python 3 <https://www.python.org/downloads/windows/>`_.  Make sure to (1) get
+  the x64 variant if that's what you're targetting and (2) install the debug
+  library if you want to build a debug lldb.
 * `Python Tools for Visual Studio
   <https://github.com/Microsoft/PTVS/releases>`_. If you plan to debug test
   failures or even write new tests at all, PTVS is an indispensable debugging
@@ -244,7 +249,7 @@ Windows
 
 On Windows the LLDB test suite requires lld. Either add ``lld`` to
 ``LLVM_ENABLE_PROJECTS`` or disable the test suite with
-``LLDB_ENABLE_TESTS=OFF``.
+``LLDB_INCLUDE_TESTS=OFF``.
 
 Although the following CMake variables are by no means Windows specific, they
 are commonly used on Windows.
@@ -300,7 +305,7 @@ macOS
 
 On macOS the LLDB test suite requires libc++. Either add ``libcxx`` to
 ``LLVM_ENABLE_PROJECTS`` or disable the test suite with
-``LLDB_ENABLE_TESTS=OFF``. Further useful options:
+``LLDB_INCLUDE_TESTS=OFF``. Further useful options:
 
 * ``LLDB_BUILD_FRAMEWORK:BOOL``: Builds the LLDB.framework.
 * ``LLDB_CODESIGN_IDENTITY:STRING``: Set the identity to use for code-signing
@@ -575,8 +580,11 @@ Code Signing on macOS
 
 To use the in-tree debug server on macOS, lldb needs to be code signed. The
 Debug, DebugClang and Release builds are set to code sign using a code signing
-certificate named ``lldb_codesign``. This document explains how to set up the
-signing certificate.
+certificate named ``lldb_codesign``.
+
+Automatic setup, run:
+
+* ``scripts/macos-setup-codesign.sh``
 
 Note that it's possible to build and use lldb on macOS without setting up code
 signing by using the system's debug server. To configure lldb in this way with
@@ -588,56 +596,6 @@ and private key. Reboot after deleting them. You will also need to delete and
 build folders that contained old signed items. The darwin kernel will cache
 code signing using the executable's file system node, so you will need to
 delete the file so the kernel clears its cache.
-
-Automatic setup:
-
-* Run ``scripts/macos-setup-codesign.sh``
-
-Manual setup steps:
-
-* Launch /Applications/Utilities/Keychain Access.app
-* In Keychain Access select the ``login`` keychain in the ``Keychains`` list in
-  the upper left hand corner of the window.
-* Select the following menu item: Keychain Access->Certificate Assistant->Create a Certificate...
-* Set the following settings
-
-::
-
-	Name = lldb_codesign
-	Identity Type = Self Signed Root
-	Certificate Type = Code Signing
-
-* Click Create
-* Click Continue
-* Click Done
-* Click on the "My Certificates"
-* Double click on your new ``lldb_codesign`` certificate
-* Turn down the "Trust" disclosure triangle, scroll to the "Code Signing" trust
-  pulldown menu and select "Always Trust" and authenticate as needed using your
-  username and password.
-* Drag the new ``lldb_codesign`` code signing certificate (not the public or
-  private keys of the same name) from the ``login`` keychain to the ``System``
-  keychain in the Keychains pane on the left hand side of the main Keychain
-  Access window. This will move this certificate to the ``System`` keychain.
-  You'll have to authorize a few more times, set it to be "Always trusted" when
-  asked.
-* Remove ``~/Desktop/lldb_codesign.cer`` file on your desktop if there is one.
-* In the Keychain Access GUI, click and drag ``lldb_codesign`` in the
-  ``System`` keychain onto the desktop. The drag will create a
-  ``Desktop/lldb_codesign.cer`` file used in the next step.
-* Switch to Terminal, and run the following:
-
-::
-
-  sudo security add-trust -d -r trustRoot -p basic -p codeSign -k /Library/Keychains/System.keychain ~/Desktop/lldb_codesign.cer
-  rm -f ~/Desktop/lldb_codesign.cer
-
-* Drag the ``lldb_codesign`` certificate from the ``System`` keychain back into
-  the ``login`` keychain
-* Quit Keychain Access
-* Reboot
-* Clean by removing all previously creating code signed binaries and rebuild
-  lldb and you should be able to debug.
 
 When you build your LLDB for the first time, the Xcode GUI will prompt you for
 permission to use the ``lldb_codesign`` keychain. Be sure to click "Always

@@ -9,7 +9,7 @@
 #include <clc/clc.h>
 #include <spirv/spirv.h>
 
-_CLC_DEF size_t get_num_groups(uint dim) {
+_CLC_DEF _CLC_OVERLOAD size_t get_num_groups(uint dim) {
   switch (dim) {
     case 0:  return __spirv_NumWorkgroups_x();
     case 1:  return __spirv_NumWorkgroups_y();

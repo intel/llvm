@@ -1199,6 +1199,43 @@ Instruction *InstCombinerImpl::
   return TruncInst::CreateTruncOrBitCast(NewAShr, I.getType());
 }
 
+/// This is a specialization of a more general transform from
+/// SimplifyUsingDistributiveLaws. If that code can be made to work optimally
+/// for multi-use cases or propagating nsw/nuw, then we would not need this.
+static Instruction *factorizeMathWithShlOps(BinaryOperator &I,
+                                            InstCombiner::BuilderTy &Builder) {
+  // TODO: Also handle mul by doubling the shift amount?
+  assert((I.getOpcode() == Instruction::Add ||
+          I.getOpcode() == Instruction::Sub) &&
+         "Expected add/sub");
+  auto *Op0 = dyn_cast<BinaryOperator>(I.getOperand(0));
+  auto *Op1 = dyn_cast<BinaryOperator>(I.getOperand(1));
+  if (!Op0 || !Op1 || !(Op0->hasOneUse() || Op1->hasOneUse()))
+    return nullptr;
+
+  Value *X, *Y, *ShAmt;
+  if (!match(Op0, m_Shl(m_Value(X), m_Value(ShAmt))) ||
+      !match(Op1, m_Shl(m_Value(Y), m_Specific(ShAmt))))
+    return nullptr;
+
+  // No-wrap propagates only when all ops have no-wrap.
+  bool HasNSW = I.hasNoSignedWrap() && Op0->hasNoSignedWrap() &&
+                Op1->hasNoSignedWrap();
+  bool HasNUW = I.hasNoUnsignedWrap() && Op0->hasNoUnsignedWrap() &&
+                Op1->hasNoUnsignedWrap();
+
+  // add/sub (X << ShAmt), (Y << ShAmt) --> (add/sub X, Y) << ShAmt
+  Value *NewMath = Builder.CreateBinOp(I.getOpcode(), X, Y);
+  if (auto *NewI = dyn_cast<BinaryOperator>(NewMath)) {
+    NewI->setHasNoSignedWrap(HasNSW);
+    NewI->setHasNoUnsignedWrap(HasNUW);
+  }
+  auto *NewShl = BinaryOperator::CreateShl(NewMath, ShAmt);
+  NewShl->setHasNoSignedWrap(HasNSW);
+  NewShl->setHasNoUnsignedWrap(HasNUW);
+  return NewShl;
+}
+
 Instruction *InstCombinerImpl::visitAdd(BinaryOperator &I) {
   if (Value *V = SimplifyAddInst(I.getOperand(0), I.getOperand(1),
                                  I.hasNoSignedWrap(), I.hasNoUnsignedWrap(),
@@ -1214,6 +1251,9 @@ Instruction *InstCombinerImpl::visitAdd(BinaryOperator &I) {
   // (A*B)+(A*C) -> A*(B+C) etc
   if (Value *V = SimplifyUsingDistributiveLaws(I))
     return replaceInstUsesWith(I, V);
+
+  if (Instruction *R = factorizeMathWithShlOps(I, Builder))
+    return R;
 
   if (Instruction *X = foldAddWithConstant(I))
     return X;
@@ -1425,6 +1465,14 @@ Instruction *InstCombinerImpl::visitAdd(BinaryOperator &I) {
   if (Instruction *SatAdd = foldToUnsignedSaturatedAdd(I))
     return SatAdd;
 
+  // usub.sat(A, B) + B => umax(A, B)
+  if (match(&I, m_c_BinOp(
+          m_OneUse(m_Intrinsic<Intrinsic::usub_sat>(m_Value(A), m_Value(B))),
+          m_Deferred(B)))) {
+    return replaceInstUsesWith(I,
+        Builder.CreateIntrinsic(Intrinsic::umax, {I.getType()}, {A, B}));
+  }
+
   return Changed ? &I : nullptr;
 }
 
@@ -1607,43 +1655,27 @@ Value *InstCombinerImpl::OptimizePointerDifference(Value *LHS, Value *RHS,
   // this.
   bool Swapped = false;
   GEPOperator *GEP1 = nullptr, *GEP2 = nullptr;
+  if (!isa<GEPOperator>(LHS) && isa<GEPOperator>(RHS)) {
+    std::swap(LHS, RHS);
+    Swapped = true;
+  }
 
-  // For now we require one side to be the base pointer "A" or a constant
-  // GEP derived from it.
-  if (GEPOperator *LHSGEP = dyn_cast<GEPOperator>(LHS)) {
+  // Require at least one GEP with a common base pointer on both sides.
+  if (auto *LHSGEP = dyn_cast<GEPOperator>(LHS)) {
     // (gep X, ...) - X
     if (LHSGEP->getOperand(0) == RHS) {
       GEP1 = LHSGEP;
-      Swapped = false;
-    } else if (GEPOperator *RHSGEP = dyn_cast<GEPOperator>(RHS)) {
+    } else if (auto *RHSGEP = dyn_cast<GEPOperator>(RHS)) {
       // (gep X, ...) - (gep X, ...)
       if (LHSGEP->getOperand(0)->stripPointerCasts() ==
-            RHSGEP->getOperand(0)->stripPointerCasts()) {
-        GEP2 = RHSGEP;
+          RHSGEP->getOperand(0)->stripPointerCasts()) {
         GEP1 = LHSGEP;
-        Swapped = false;
-      }
-    }
-  }
-
-  if (GEPOperator *RHSGEP = dyn_cast<GEPOperator>(RHS)) {
-    // X - (gep X, ...)
-    if (RHSGEP->getOperand(0) == LHS) {
-      GEP1 = RHSGEP;
-      Swapped = true;
-    } else if (GEPOperator *LHSGEP = dyn_cast<GEPOperator>(LHS)) {
-      // (gep X, ...) - (gep X, ...)
-      if (RHSGEP->getOperand(0)->stripPointerCasts() ==
-            LHSGEP->getOperand(0)->stripPointerCasts()) {
-        GEP2 = LHSGEP;
-        GEP1 = RHSGEP;
-        Swapped = true;
+        GEP2 = RHSGEP;
       }
     }
   }
 
   if (!GEP1)
-    // No GEP found.
     return nullptr;
 
   if (GEP2) {
@@ -1683,7 +1715,7 @@ Value *InstCombinerImpl::OptimizePointerDifference(Value *LHS, Value *RHS,
   // pointer, subtract it from the offset we have.
   if (GEP2) {
     Value *Offset = EmitGEPOffset(GEP2);
-    Result = Builder.CreateSub(Result, Offset);
+    Result = Builder.CreateSub(Result, Offset, "gepdiff");
   }
 
   // If we have p - gep(p, ...)  then we have to negate the result.
@@ -1761,6 +1793,9 @@ Instruction *InstCombinerImpl::visitSub(BinaryOperator &I) {
   if (Value *V = SimplifyUsingDistributiveLaws(I))
     return replaceInstUsesWith(I, V);
 
+  if (Instruction *R = factorizeMathWithShlOps(I, Builder))
+    return R;
+
   if (I.getType()->isIntOrIntVectorTy(1))
     return BinaryOperator::CreateXor(Op0, Op1);
 
@@ -1789,8 +1824,7 @@ Instruction *InstCombinerImpl::visitSub(BinaryOperator &I) {
   }
 
   auto m_AddRdx = [](Value *&Vec) {
-    return m_OneUse(
-        m_Intrinsic<Intrinsic::experimental_vector_reduce_add>(m_Value(Vec)));
+    return m_OneUse(m_Intrinsic<Intrinsic::vector_reduce_add>(m_Value(Vec)));
   };
   Value *V0, *V1;
   if (match(Op0, m_AddRdx(V0)) && match(Op1, m_AddRdx(V1)) &&
@@ -1798,8 +1832,8 @@ Instruction *InstCombinerImpl::visitSub(BinaryOperator &I) {
     // Difference of sums is sum of differences:
     // add_rdx(V0) - add_rdx(V1) --> add_rdx(V0 - V1)
     Value *Sub = Builder.CreateSub(V0, V1);
-    Value *Rdx = Builder.CreateIntrinsic(
-        Intrinsic::experimental_vector_reduce_add, {Sub->getType()}, {Sub});
+    Value *Rdx = Builder.CreateIntrinsic(Intrinsic::vector_reduce_add,
+                                         {Sub->getType()}, {Sub});
     return replaceInstUsesWith(I, Rdx);
   }
 
@@ -2245,9 +2279,8 @@ Instruction *InstCombinerImpl::visitFSub(BinaryOperator &I) {
     }
 
     auto m_FaddRdx = [](Value *&Sum, Value *&Vec) {
-      return m_OneUse(
-          m_Intrinsic<Intrinsic::experimental_vector_reduce_v2_fadd>(
-              m_Value(Sum), m_Value(Vec)));
+      return m_OneUse(m_Intrinsic<Intrinsic::vector_reduce_fadd>(m_Value(Sum),
+                                                                 m_Value(Vec)));
     };
     Value *A0, *A1, *V0, *V1;
     if (match(Op0, m_FaddRdx(A0, V0)) && match(Op1, m_FaddRdx(A1, V1)) &&
@@ -2255,9 +2288,8 @@ Instruction *InstCombinerImpl::visitFSub(BinaryOperator &I) {
       // Difference of sums is sum of differences:
       // add_rdx(A0, V0) - add_rdx(A1, V1) --> add_rdx(A0, V0 - V1) - A1
       Value *Sub = Builder.CreateFSubFMF(V0, V1, &I);
-      Value *Rdx = Builder.CreateIntrinsic(
-          Intrinsic::experimental_vector_reduce_v2_fadd,
-          {A0->getType(), Sub->getType()}, {A0, Sub}, &I);
+      Value *Rdx = Builder.CreateIntrinsic(Intrinsic::vector_reduce_fadd,
+                                           {Sub->getType()}, {A0, Sub}, &I);
       return BinaryOperator::CreateFSubFMF(Rdx, A1, &I);
     }
 

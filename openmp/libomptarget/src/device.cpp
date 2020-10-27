@@ -17,6 +17,7 @@
 
 #include <cassert>
 #include <climits>
+#include <cstdio>
 #include <string>
 
 /// Map between Device ID (i.e. openmp device id) and its DeviceTy.
@@ -50,7 +51,12 @@ DeviceTy::DeviceTy(RTLInfoTy *RTL)
       ShadowPtrMap(), DataMapMtx(), PendingGlobalsMtx(), ShadowMtx(),
       MemoryManager(nullptr) {}
 
-DeviceTy::~DeviceTy() = default;
+DeviceTy::~DeviceTy() {
+  if (DeviceID == -1 || getInfoLevel() < 1)
+    return;
+
+  dumpTargetPointerMappings(*this);
+}
 
 int DeviceTy::associatePtr(void *HstPtrBegin, void *TgtPtrBegin, int64_t Size) {
   DataMapMtx.lock();
@@ -67,8 +73,8 @@ int DeviceTy::associatePtr(void *HstPtrBegin, void *TgtPtrBegin, int64_t Size) {
          "host ptr, nothing to do\n");
       return OFFLOAD_SUCCESS;
     } else {
-      DP("Not allowed to re-associate a different device ptr+offset with the "
-         "same host ptr\n");
+      REPORT("Not allowed to re-associate a different device ptr+offset with "
+             "the same host ptr\n");
       return OFFLOAD_FAIL;
     }
   }
@@ -103,14 +109,14 @@ int DeviceTy::disassociatePtr(void *HstPtrBegin) {
       DataMapMtx.unlock();
       return OFFLOAD_SUCCESS;
     } else {
-      DP("Trying to disassociate a pointer which was not mapped via "
-         "omp_target_associate_ptr\n");
+      REPORT("Trying to disassociate a pointer which was not mapped via "
+             "omp_target_associate_ptr\n");
     }
   }
 
   // Mapping not found
   DataMapMtx.unlock();
-  DP("Association not found\n");
+  REPORT("Association not found\n");
   return OFFLOAD_FAIL;
 }
 
@@ -214,11 +220,13 @@ void *DeviceTy::getOrAllocTgtPtr(void *HstPtrBegin, void *HstPtrBase,
       HT.incRefCount();
 
     uintptr_t tp = HT.TgtPtrBegin + ((uintptr_t)HstPtrBegin - HT.HstPtrBegin);
-    DP("Mapping exists%s with HstPtrBegin=" DPxMOD ", TgtPtrBegin=" DPxMOD ", "
-        "Size=%" PRId64 ",%s RefCount=%s\n", (IsImplicit ? " (implicit)" : ""),
-        DPxPTR(HstPtrBegin), DPxPTR(tp), Size,
-        (UpdateRefCount ? " updated" : ""),
-        HT.isRefCountInf() ? "INF" : std::to_string(HT.getRefCount()).c_str());
+    INFO(DeviceID,
+         "Mapping exists%s with HstPtrBegin=" DPxMOD ", TgtPtrBegin=" DPxMOD
+         ", "
+         "Size=%" PRId64 ",%s RefCount=%s\n",
+         (IsImplicit ? " (implicit)" : ""), DPxPTR(HstPtrBegin), DPxPTR(tp),
+         Size, (UpdateRefCount ? " updated" : ""),
+         HT.isRefCountInf() ? "INF" : std::to_string(HT.getRefCount()).c_str());
     rc = (void *)tp;
   } else if ((lr.Flags.ExtendsBefore || lr.Flags.ExtendsAfter) && !IsImplicit) {
     // Explicit extension of mapped data - not allowed.
@@ -348,8 +356,9 @@ int DeviceTy::deallocTgtPtr(void *HstPtrBegin, int64_t Size, bool ForceDelete,
     }
     rc = OFFLOAD_SUCCESS;
   } else {
-    DP("Section to delete (hst addr " DPxMOD ") does not exist in the allocated"
-       " memory\n", DPxPTR(HstPtrBegin));
+    REPORT("Section to delete (hst addr " DPxMOD ") does not exist in the"
+           " allocated memory\n",
+           DPxPTR(HstPtrBegin));
     rc = OFFLOAD_FAIL;
   }
 

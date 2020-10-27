@@ -302,9 +302,9 @@ write_cmake_config("config") {
   }
 
   if (llvm_enable_libxml2) {
-    values += [ "LLVM_LIBXML2_ENABLED=1" ]
+    values += [ "LLVM_ENABLE_LIBXML2=1" ]
   } else {
-    values += [ "LLVM_LIBXML2_ENABLED=" ]
+    values += [ "LLVM_ENABLE_LIBXML2=" ]
   }
 }
 
@@ -337,9 +337,15 @@ write_cmake_config("llvm-config") {
   ]
 
   if (current_os == "win") {
-    values += [ "LLVM_ON_UNIX=" ]
+    values += [
+      "HAVE_SYSEXITS_H=",
+      "LLVM_ON_UNIX=",
+    ]
   } else {
-    values += [ "LLVM_ON_UNIX=1" ]
+    values += [
+      "HAVE_SYSEXITS_H=1",
+      "LLVM_ON_UNIX=1",
+    ]
   }
 
   if (llvm_enable_threads) {

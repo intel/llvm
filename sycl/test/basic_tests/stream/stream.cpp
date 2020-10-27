@@ -1,7 +1,5 @@
-// TODO: Enable compilation w/o -fno-sycl-early-optimizations option.
-// See https://github.com/intel/llvm/issues/2264 for more details.
 
-// RUN: %clangxx -fsycl -fno-sycl-early-optimizations -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out | FileCheck %s
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 // RUN: %GPU_RUN_ON_LINUX_PLACEHOLDER %t.out %GPU_CHECK_ON_LINUX_PLACEHOLDER
@@ -292,6 +290,7 @@ int main() {
         ostream << "global id " << it.get_global_id(0) << stream_manipulator::endl;
       });
     });
+    Queue.wait();
     // CHECK: global id {{[0-9]+}}
     // CHECK: global id {{[0-9]+}}
     // CHECK: global id {{[0-9]+}}

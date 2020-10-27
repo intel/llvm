@@ -33,12 +33,19 @@ struct PlatformInfo {
 struct Configuration {
   Symbol *entry;
   bool hasReexports = false;
+  bool allLoad = false;
+  bool forceLoadObjC = false;
+  bool staticLink = false;
+  bool isPic = false;
+  bool headerPadMaxInstallNames = false;
+  bool searchDylibsFirst = false;
   uint32_t headerPad;
   llvm::StringRef installName;
   llvm::StringRef outputFile;
   llvm::MachO::Architecture arch;
   PlatformInfo platform;
   llvm::MachO::HeaderFileType outputType;
+  std::vector<llvm::StringRef> systemLibraryRoots;
   std::vector<llvm::StringRef> librarySearchPaths;
   std::vector<llvm::StringRef> frameworkSearchPaths;
   std::vector<llvm::StringRef> runtimePaths;

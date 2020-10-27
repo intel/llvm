@@ -117,7 +117,7 @@ static bool queryOpenCL(cl_device_type deviceType, cl_uint &deviceCount,
 static bool queryLevelZero(cl_device_type deviceType, cl_uint &deviceCount,
                            std::string &msg) {
   deviceCount = 0u;
-  ze_result_t zeResult = zeInit(ZE_INIT_FLAG_NONE);
+  ze_result_t zeResult = zeInit(ZE_INIT_FLAG_GPU_ONLY);
   if (zeResult != ZE_RESULT_SUCCESS) {
     msg = "ERROR: Level Zero initialization error";
     return true;

@@ -5,6 +5,7 @@ set(LLVM_OPTIONAL_SOURCES
   Liveness.cpp
   LoopAnalysis.cpp
   NestedMatcher.cpp
+  PresburgerSet.cpp
   SliceAnalysis.cpp
   Utils.cpp
   )
@@ -21,11 +22,10 @@ add_mlir_library(MLIRAnalysis
   mlir-headers
 
   LINK_LIBS PUBLIC
-  MLIRAffineOps
+  MLIRAffine
   MLIRCallInterfaces
   MLIRControlFlowInterfaces
   MLIRInferTypeOpInterface
-  MLIRPresburger
   MLIRSCF
   )
 
@@ -34,6 +34,7 @@ add_mlir_library(MLIRLoopAnalysis
   AffineStructures.cpp
   LoopAnalysis.cpp
   NestedMatcher.cpp
+  PresburgerSet.cpp
   Utils.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -43,7 +44,7 @@ add_mlir_library(MLIRLoopAnalysis
   mlir-headers
 
   LINK_LIBS PUBLIC
-  MLIRAffineOps
+  MLIRAffine
   MLIRCallInterfaces
   MLIRControlFlowInterfaces
   MLIRInferTypeOpInterface

@@ -146,7 +146,7 @@ public:
   splitBufferOffsets(MachineIRBuilder &B, Register OrigOffset) const;
 
   Register handleD16VData(MachineIRBuilder &B, MachineRegisterInfo &MRI,
-                          Register Reg) const;
+                          Register Reg, bool ImageStore = false) const;
   bool legalizeRawBufferStore(MachineInstr &MI, MachineRegisterInfo &MRI,
                               MachineIRBuilder &B, bool IsFormat) const;
   bool legalizeRawBufferLoad(MachineInstr &MI, MachineRegisterInfo &MRI,
@@ -158,10 +158,12 @@ public:
                            MachineIRBuilder &B, bool IsTyped,
                            bool IsFormat) const;
   bool legalizeBufferLoad(MachineInstr &MI, MachineRegisterInfo &MRI,
-                          MachineIRBuilder &B, bool IsTyped,
-                          bool IsFormat) const;
+                          MachineIRBuilder &B, bool IsFormat,
+                          bool IsTyped) const;
   bool legalizeBufferAtomic(MachineInstr &MI, MachineIRBuilder &B,
                             Intrinsic::ID IID) const;
+
+  bool legalizeBVHIntrinsic(MachineInstr &MI, MachineIRBuilder &B) const;
 
   bool legalizeImageIntrinsic(
       MachineInstr &MI, MachineIRBuilder &B,

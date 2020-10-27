@@ -9,14 +9,12 @@
 #include "llvm/Support/CrashRecoveryContext.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/ExitCodes.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/ThreadLocal.h"
 #include <mutex>
 #include <setjmp.h>
-#if LLVM_ON_UNIX
-#include <sysexits.h> // EX_IOERR
-#endif
 
 using namespace llvm;
 
@@ -96,6 +94,13 @@ static void installExceptionOrSignalHandlers();
 static void uninstallExceptionOrSignalHandlers();
 
 CrashRecoveryContextCleanup::~CrashRecoveryContextCleanup() {}
+
+CrashRecoveryContext::CrashRecoveryContext() {
+  // On Windows, if abort() was previously triggered (and caught by a previous
+  // CrashRecoveryContext) the Windows CRT removes our installed signal handler,
+  // so we need to install it again.
+  sys::DisableSystemDialogsOnCrash();
+}
 
 CrashRecoveryContext::~CrashRecoveryContext() {
   // Reclaim registered resources.
@@ -370,9 +375,10 @@ static void CrashRecoverySignalHandler(int Signal) {
   sigaddset(&SigMask, Signal);
   sigprocmask(SIG_UNBLOCK, &SigMask, nullptr);
 
-  // As per convention, -2 indicates a crash or timeout as opposed to failure to
-  // execute (see llvm/include/llvm/Support/Program.h)
-  int RetCode = -2;
+  // Return the same error code as if the program crashed, as mentioned in the
+  // section "Exit Status for Commands":
+  // https://pubs.opengroup.org/onlinepubs/9699919799/xrat/V4_xcu_chap02.html
+  int RetCode = 128 + Signal;
 
   // Don't consider a broken pipe as a crash (see clang/lib/Driver/Driver.cpp)
   if (Signal == SIGPIPE)

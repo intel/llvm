@@ -140,8 +140,7 @@
 /// 1) Lower
 ///      longjmp(buf, value)
 ///    into
-///      emscripten_longjmp_jmpbuf(buf, value)
-///    emscripten_longjmp_jmpbuf will be lowered to emscripten_longjmp later.
+///      emscripten_longjmp(buf, value)
 ///
 /// In case calls to setjmp() exists
 ///
@@ -196,19 +195,16 @@
 ///    stored in saveSetjmp. testSetjmp returns a setjmp label, a unique ID to
 ///    each setjmp callsite. Label 0 means this longjmp buffer does not
 ///    correspond to one of the setjmp callsites in this function, so in this
-///    case we just chain the longjmp to the caller. (Here we call
-///    emscripten_longjmp, which is different from emscripten_longjmp_jmpbuf.
-///    emscripten_longjmp_jmpbuf takes jmp_buf as its first argument, while
-///    emscripten_longjmp takes an int. Both of them will eventually be lowered
-///    to emscripten_longjmp in s2wasm, but here we need two signatures - we
-///    can't translate an int value to a jmp_buf.)
-///    Label -1 means no longjmp occurred. Otherwise we jump to the right
-///    post-setjmp BB based on the label.
+///    case we just chain the longjmp to the caller. Label -1 means no longjmp
+///    occurred. Otherwise we jump to the right post-setjmp BB based on the
+///    label.
 ///
 ///===----------------------------------------------------------------------===//
 
 #include "WebAssembly.h"
+#include "WebAssemblyTargetMachine.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRBuilder.h"
@@ -239,7 +235,6 @@ class WebAssemblyLowerEmscriptenEHSjLj final : public ModulePass {
   Function *ResumeF = nullptr;
   Function *EHTypeIDF = nullptr;
   Function *EmLongjmpF = nullptr;
-  Function *EmLongjmpJmpbufF = nullptr;
   Function *SaveSetjmpF = nullptr;
   Function *TestSetjmpF = nullptr;
 
@@ -314,13 +309,23 @@ static bool canThrow(const Value *V) {
 // Get a global variable with the given name.  If it doesn't exist declare it,
 // which will generate an import and asssumes that it will exist at link time.
 static GlobalVariable *getGlobalVariableI32(Module &M, IRBuilder<> &IRB,
+                                            WebAssemblyTargetMachine &TM,
                                             const char *Name) {
-
-  auto *GV =
-      dyn_cast<GlobalVariable>(M.getOrInsertGlobal(Name, IRB.getInt32Ty()));
+  auto Int32Ty = IRB.getInt32Ty();
+  auto *GV = dyn_cast<GlobalVariable>(M.getOrInsertGlobal(Name, Int32Ty));
   if (!GV)
     report_fatal_error(Twine("unable to create global: ") + Name);
 
+  // If the target supports TLS, make this variable thread-local. We can't just
+  // unconditionally make it thread-local and depend on
+  // CoalesceFeaturesAndStripAtomics to downgrade it, because stripping TLS has
+  // the side effect of disallowing the object from being linked into a
+  // shared-memory module, which we don't want to be responsible for.
+  auto *Subtarget = TM.getSubtargetImpl();
+  auto TLS = Subtarget->hasAtomics() && Subtarget->hasBulkMemory()
+                 ? GlobalValue::LocalExecTLSModel
+                 : GlobalValue::NotThreadLocal;
+  GV->setThreadLocalMode(TLS);
   return GV;
 }
 
@@ -630,6 +635,30 @@ void WebAssemblyLowerEmscriptenEHSjLj::rebuildSSA(Function &F) {
   }
 }
 
+// Replace uses of longjmp with emscripten_longjmp. emscripten_longjmp takes
+// arguments of type {i32, i32} and longjmp takes {jmp_buf*, i32}, so we need a
+// ptrtoint instruction here to make the type match. jmp_buf* will eventually be
+// lowered to i32 in the wasm backend.
+static void replaceLongjmpWithEmscriptenLongjmp(Function *LongjmpF,
+                                                Function *EmLongjmpF) {
+  SmallVector<CallInst *, 8> ToErase;
+  LLVMContext &C = LongjmpF->getParent()->getContext();
+  IRBuilder<> IRB(C);
+  for (User *U : LongjmpF->users()) {
+    auto *CI = dyn_cast<CallInst>(U);
+    if (!CI)
+      report_fatal_error("Does not support indirect calls to longjmp");
+    IRB.SetInsertPoint(CI);
+    Value *Jmpbuf =
+        IRB.CreatePtrToInt(CI->getArgOperand(0), IRB.getInt32Ty(), "jmpbuf");
+    IRB.CreateCall(EmLongjmpF, {Jmpbuf, CI->getArgOperand(1)});
+    ToErase.push_back(CI);
+  }
+
+  for (auto *I : ToErase)
+    I->eraseFromParent();
+}
+
 bool WebAssemblyLowerEmscriptenEHSjLj::runOnModule(Module &M) {
   LLVM_DEBUG(dbgs() << "********** Lower Emscripten EH & SjLj **********\n");
 
@@ -642,11 +671,19 @@ bool WebAssemblyLowerEmscriptenEHSjLj::runOnModule(Module &M) {
   bool LongjmpUsed = LongjmpF && !LongjmpF->use_empty();
   bool DoSjLj = EnableSjLj && (SetjmpUsed || LongjmpUsed);
 
+  if ((EnableEH || DoSjLj) &&
+      Triple(M.getTargetTriple()).getArch() == Triple::wasm64)
+    report_fatal_error("Emscripten EH/SjLj is not supported with wasm64 yet");
+
+  auto *TPC = getAnalysisIfAvailable<TargetPassConfig>();
+  assert(TPC && "Expected a TargetPassConfig");
+  auto &TM = TPC->getTM<WebAssemblyTargetMachine>();
+
   // Declare (or get) global variables __THREW__, __threwValue, and
   // getTempRet0/setTempRet0 function which are used in common for both
   // exception handling and setjmp/longjmp handling
-  ThrewGV = getGlobalVariableI32(M, IRB, "__THREW__");
-  ThrewValueGV = getGlobalVariableI32(M, IRB, "__threwValue");
+  ThrewGV = getGlobalVariableI32(M, IRB, TM, "__THREW__");
+  ThrewValueGV = getGlobalVariableI32(M, IRB, TM, "__threwValue");
   GetTempRet0Func = getEmscriptenFunction(
       FunctionType::get(IRB.getInt32Ty(), false), "getTempRet0", &M);
   SetTempRet0Func = getEmscriptenFunction(
@@ -680,22 +717,21 @@ bool WebAssemblyLowerEmscriptenEHSjLj::runOnModule(Module &M) {
   if (DoSjLj) {
     Changed = true; // We have setjmp or longjmp somewhere
 
-    if (LongjmpF) {
-      // Replace all uses of longjmp with emscripten_longjmp_jmpbuf, which is
-      // defined in JS code
-      EmLongjmpJmpbufF = getEmscriptenFunction(LongjmpF->getFunctionType(),
-                                               "emscripten_longjmp_jmpbuf", &M);
-      LongjmpF->replaceAllUsesWith(EmLongjmpJmpbufF);
-    }
+    // Register emscripten_longjmp function
+    FunctionType *FTy = FunctionType::get(
+        IRB.getVoidTy(), {IRB.getInt32Ty(), IRB.getInt32Ty()}, false);
+    EmLongjmpF = getEmscriptenFunction(FTy, "emscripten_longjmp", &M);
+
+    if (LongjmpF)
+      replaceLongjmpWithEmscriptenLongjmp(LongjmpF, EmLongjmpF);
 
     if (SetjmpF) {
       // Register saveSetjmp function
       FunctionType *SetjmpFTy = SetjmpF->getFunctionType();
-      FunctionType *FTy =
-          FunctionType::get(Type::getInt32PtrTy(C),
-                            {SetjmpFTy->getParamType(0), IRB.getInt32Ty(),
-                             Type::getInt32PtrTy(C), IRB.getInt32Ty()},
-                            false);
+      FTy = FunctionType::get(Type::getInt32PtrTy(C),
+                              {SetjmpFTy->getParamType(0), IRB.getInt32Ty(),
+                               Type::getInt32PtrTy(C), IRB.getInt32Ty()},
+                              false);
       SaveSetjmpF = getEmscriptenFunction(FTy, "saveSetjmp", &M);
 
       // Register testSetjmp function
@@ -703,10 +739,6 @@ bool WebAssemblyLowerEmscriptenEHSjLj::runOnModule(Module &M) {
           IRB.getInt32Ty(),
           {IRB.getInt32Ty(), Type::getInt32PtrTy(C), IRB.getInt32Ty()}, false);
       TestSetjmpF = getEmscriptenFunction(FTy, "testSetjmp", &M);
-
-      FTy = FunctionType::get(IRB.getVoidTy(),
-                              {IRB.getInt32Ty(), IRB.getInt32Ty()}, false);
-      EmLongjmpF = getEmscriptenFunction(FTy, "emscripten_longjmp", &M);
 
       // Only traverse functions that uses setjmp in order not to insert
       // unnecessary prep / cleanup code in every function

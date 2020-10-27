@@ -2313,11 +2313,17 @@ bool Type::isVLSTBuiltinType() const {
   return false;
 }
 
-bool Type::isVLST() const {
-  if (!isVLSTBuiltinType())
-    return false;
+QualType Type::getSveEltType(const ASTContext &Ctx) const {
+  assert(isVLSTBuiltinType() && "unsupported type!");
 
-  return hasAttr(attr::ArmSveVectorBits);
+  const BuiltinType *BTy = getAs<BuiltinType>();
+  if (BTy->getKind() == BuiltinType::SveBool)
+    // Represent predicates as i8 rather than i1 to avoid any layout issues.
+    // The type is bitcasted to a scalable predicate type when casting between
+    // scalable and fixed-length vectors.
+    return Ctx.UnsignedCharTy;
+  else
+    return Ctx.getBuiltinVectorTypeInfo(BTy).ElementType;
 }
 
 bool QualType::isPODType(const ASTContext &Context) const {
@@ -2587,6 +2593,22 @@ bool Type::isLiteralType(const ASTContext &Ctx) const {
   if (isa<AutoType>(BaseTy->getCanonicalTypeInternal()))
     return true;
 
+  return false;
+}
+
+bool Type::isStructuralType() const {
+  // C++20 [temp.param]p6:
+  //   A structural type is one of the following:
+  //   -- a scalar type; or
+  //   -- a vector type [Clang extension]; or
+  if (isScalarType() || isVectorType())
+    return true;
+  //   -- an lvalue reference type; or
+  if (isLValueReferenceType())
+    return true;
+  //  -- a literal class type [...under some conditions]
+  if (const CXXRecordDecl *RD = getAsCXXRecordDecl())
+    return RD->isStructural();
   return false;
 }
 

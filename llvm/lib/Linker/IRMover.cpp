@@ -242,15 +242,6 @@ Type *TypeMapTy::get(Type *Ty, SmallPtrSet<StructType *, 8> &Visited) {
   bool IsUniqued = !isa<StructType>(Ty) || cast<StructType>(Ty)->isLiteral();
 
   if (!IsUniqued) {
-    StructType *STy = cast<StructType>(Ty);
-    // This is actually a type from the destination module, this can be reached
-    // when this type is loaded in another module, added to DstStructTypesSet,
-    // and then we reach the same type in another module where it has not been
-    // added to MappedTypes. (PR37684)
-    if (STy->getContext().isODRUniquingDebugTypes() && !STy->isOpaque() &&
-        DstStructTypesSet.hasType(STy))
-      return *Entry = STy;
-
 #ifndef NDEBUG
     for (auto &Pair : MappedTypes) {
       assert(!(Pair.first != Ty && Pair.second == Ty) &&
@@ -258,7 +249,7 @@ Type *TypeMapTy::get(Type *Ty, SmallPtrSet<StructType *, 8> &Visited) {
     }
 #endif
 
-    if (!Visited.insert(STy).second) {
+    if (!Visited.insert(cast<StructType>(Ty)).second) {
       StructType *DTy = StructType::create(Ty->getContext());
       return *Entry = DTy;
     }
@@ -577,6 +568,13 @@ Value *LocalValueMaterializer::materialize(Value *SGV) {
 Value *IRLinker::materialize(Value *V, bool ForIndirectSymbol) {
   auto *SGV = dyn_cast<GlobalValue>(V);
   if (!SGV)
+    return nullptr;
+
+  // When linking a global from other modules than source & dest, skip
+  // materializing it because it would be mapped later when its containing
+  // module is linked. Linking it now would potentially pull in many types that
+  // may not be mapped properly.
+  if (SGV->getParent() != &DstM && SGV->getParent() != SrcM.get())
     return nullptr;
 
   Expected<Constant *> NewProto = linkGlobalValueProto(SGV, ForIndirectSymbol);
@@ -1126,14 +1124,13 @@ void IRLinker::prepareCompileUnitsForImport() {
     assert(CU && "Expected valid compile unit");
     // Enums, macros, and retained types don't need to be listed on the
     // imported DICompileUnit. This means they will only be imported
-    // if reached from the mapped IR. Do this by setting their value map
-    // entries to nullptr, which will automatically prevent their importing
-    // when reached from the DICompileUnit during metadata mapping.
-    ValueMap.MD()[CU->getRawEnumTypes()].reset(nullptr);
-    ValueMap.MD()[CU->getRawMacros()].reset(nullptr);
-    ValueMap.MD()[CU->getRawRetainedTypes()].reset(nullptr);
+    // if reached from the mapped IR.
+    CU->replaceEnumTypes(nullptr);
+    CU->replaceMacros(nullptr);
+    CU->replaceRetainedTypes(nullptr);
+
     // The original definition (or at least its debug info - if the variable is
-    // internalized an optimized away) will remain in the source module, so
+    // internalized and optimized away) will remain in the source module, so
     // there's no need to import them.
     // If LLVM ever does more advanced optimizations on global variables
     // (removing/localizing write operations, for instance) that can track
@@ -1141,7 +1138,7 @@ void IRLinker::prepareCompileUnitsForImport() {
     // with care when it comes to debug info size. Emitting small CUs containing
     // only a few imported entities into every destination module may be very
     // size inefficient.
-    ValueMap.MD()[CU->getRawGlobalVariables()].reset(nullptr);
+    CU->replaceGlobalVariables(nullptr);
 
     // Imported entities only need to be mapped in if they have local
     // scope, as those might correspond to an imported entity inside a
@@ -1174,7 +1171,7 @@ void IRLinker::prepareCompileUnitsForImport() {
       else
         // If there were no local scope imported entities, we can map
         // the whole list to nullptr.
-        ValueMap.MD()[CU->getRawImportedEntities()].reset(nullptr);
+        CU->replaceImportedEntities(nullptr);
     }
   }
 }

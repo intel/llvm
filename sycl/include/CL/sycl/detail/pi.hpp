@@ -57,14 +57,14 @@ enum TraceLevel {
 // Return true if we want to trace PI related activities.
 bool trace(TraceLevel level);
 
-#ifdef SYCL_RT_OS_WINDOWS
-#define OPENCL_PLUGIN_NAME "pi_opencl.dll"
-#define LEVEL_ZERO_PLUGIN_NAME "pi_level_zero.dll"
-#define CUDA_PLUGIN_NAME "pi_cuda.dll"
+#ifdef __SYCL_RT_OS_WINDOWS
+#define __SYCL_OPENCL_PLUGIN_NAME "pi_opencl.dll"
+#define __SYCL_LEVEL_ZERO_PLUGIN_NAME "pi_level_zero.dll"
+#define __SYCL_CUDA_PLUGIN_NAME "pi_cuda.dll"
 #else
-#define OPENCL_PLUGIN_NAME "libpi_opencl.so"
-#define LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.so"
-#define CUDA_PLUGIN_NAME "libpi_cuda.so"
+#define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.so"
+#define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.so"
+#define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.so"
 #endif
 
 // Report error and no return (keeps compiler happy about no return statements).
@@ -85,7 +85,7 @@ void handleUnknownParamName(const char *functionName, T parameter) {
 // This macro is used to report invalid enumerators being passed to PI API
 // GetInfo functions. It will print the name of the function that invoked it
 // and the value of the unknown enumerator.
-#define PI_HANDLE_UNKNOWN_PARAM_NAME(parameter)                                \
+#define __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(parameter)                         \
   { cl::sycl::detail::pi::handleUnknownParamName(__func__, parameter); }
 
 using PiPlugin = ::pi_plugin;
@@ -180,6 +180,42 @@ template <> inline void print<>(PiPlatform val) {
   std::cout << "pi_platform : " << val << std::endl;
 }
 
+template <> inline void print<>(pi_buffer_region rgn) {
+  std::cout << "pi_buffer_region origin/size : " << rgn->origin << "/"
+            << rgn->size << std::endl;
+}
+
+template <> inline void print<>(pi_buff_rect_region rgn) {
+  std::cout << "pi_buff_rect_region width_bytes/height/depth : "
+            << rgn->width_bytes << "/" << rgn->height_scalar << "/"
+            << rgn->depth_scalar << std::endl;
+}
+
+template <> inline void print<>(pi_buff_rect_offset off) {
+  std::cout << "pi_buff_rect_offset x_bytes/y/z : " << off->x_bytes << "/"
+            << off->y_scalar << "/" << off->z_scalar << std::endl;
+}
+
+template <> inline void print<>(pi_image_region rgn) {
+  std::cout << "pi_image_region width/height/depth : " << rgn->width << "/"
+            << rgn->height << "/" << rgn->depth << std::endl;
+}
+
+template <> inline void print<>(pi_image_offset off) {
+  std::cout << "pi_image_offset x/y/z : " << off->x << "/" << off->y << "/"
+            << off->z << std::endl;
+}
+
+template <> inline void print<>(const pi_image_desc *desc) {
+  std::cout << "image_desc w/h/d : " << desc->image_width << " / "
+            << desc->image_height << " / " << desc->image_depth
+            << "  --  arrSz/row/slice : " << desc->image_array_size << " / "
+            << desc->image_row_pitch << " / " << desc->image_slice_pitch
+            << "  --  num_mip_lvls/num_smpls/image_type : "
+            << desc->num_mip_levels << " / " << desc->num_samples << " / "
+            << desc->image_type << std::endl;
+}
+
 template <> inline void print<>(PiResult val) {
   std::cout << "pi_result : ";
   if (val == PI_SUCCESS)
@@ -189,7 +225,17 @@ template <> inline void print<>(PiResult val) {
 }
 
 // cout does not resolve a nullptr.
-template <> inline void print<>(std::nullptr_t val) { print<void *>(val); }
+template <> inline void print<>(std::nullptr_t) {
+  std::cout << "<nullptr>" << std::endl;
+}
+
+template <> inline void print<>(char *val) {
+  std::cout << "<char * > : " << static_cast<void *>(val) << std::endl;
+}
+
+template <> inline void print<>(const char *val) {
+  std::cout << "<const char *>: " << val << std::endl;
+}
 
 inline void printArgs(void) {}
 template <typename Arg0, typename... Args>

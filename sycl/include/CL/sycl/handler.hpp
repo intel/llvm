@@ -143,7 +143,7 @@ public:
 
 __SYCL_EXPORT device getDeviceFromHandler(handler &);
 
-#if defined(__SYCL_ID_QUERIES_FIT_IN_INT__)
+#if __SYCL_ID_QUERIES_FIT_IN_INT__
 template <typename T> struct NotIntMsg;
 
 template <int Dims> struct NotIntMsg<range<Dims>> {
@@ -159,16 +159,65 @@ template <int Dims> struct NotIntMsg<id<Dims>> {
 };
 #endif
 
+#if __SYCL_ID_QUERIES_FIT_IN_INT__
+template <typename T, typename ValT>
+typename std::enable_if<std::is_same<ValT, size_t>::value ||
+                        std::is_same<ValT, unsigned long long>::value>::type
+checkValueRangeImpl(ValT V) {
+  static constexpr size_t Limit =
+      static_cast<size_t>((std::numeric_limits<int>::max)());
+  if (V > Limit)
+    throw runtime_error(NotIntMsg<T>::Msg, PI_INVALID_VALUE);
+}
+#endif
+
 template <int Dims, typename T>
 typename std::enable_if<std::is_same<T, range<Dims>>::value ||
                         std::is_same<T, id<Dims>>::value>::type
 checkValueRange(const T &V) {
-#if defined(__SYCL_ID_QUERIES_FIT_IN_INT__)
-  static constexpr size_t Limit =
-      static_cast<size_t>((std::numeric_limits<int>::max)());
+#if __SYCL_ID_QUERIES_FIT_IN_INT__
   for (size_t Dim = 0; Dim < Dims; ++Dim)
-    if (V[Dim] > Limit)
-      throw runtime_error(NotIntMsg<T>::Msg, PI_INVALID_VALUE);
+    checkValueRangeImpl<T>(V[Dim]);
+
+  {
+    unsigned long long Product = 1;
+    for (size_t Dim = 0; Dim < Dims; ++Dim) {
+      Product *= V[Dim];
+      // check value now to prevent product overflow in the end
+      checkValueRangeImpl<T>(Product);
+    }
+  }
+#else
+  (void)V;
+#endif
+}
+
+template <int Dims>
+void checkValueRange(const range<Dims> &R, const id<Dims> &O) {
+#if __SYCL_ID_QUERIES_FIT_IN_INT__
+  checkValueRange<Dims>(R);
+  checkValueRange<Dims>(O);
+
+  for (size_t Dim = 0; Dim < Dims; ++Dim) {
+    unsigned long long Sum = R[Dim] + O[Dim];
+
+    checkValueRangeImpl<range<Dims>>(Sum);
+  }
+#else
+  (void)R;
+  (void)O;
+#endif
+}
+
+template <int Dims, typename T>
+typename std::enable_if<std::is_same<T, nd_range<Dims>>::value>::type
+checkValueRange(const T &V) {
+#if __SYCL_ID_QUERIES_FIT_IN_INT__
+  checkValueRange<Dims>(V.get_global_range());
+  checkValueRange<Dims>(V.get_local_range());
+  checkValueRange<Dims>(V.get_offset());
+
+  checkValueRange<Dims>(V.get_global_range(), V.get_offset());
 #else
   (void)V;
 #endif
@@ -413,16 +462,16 @@ private:
   }
 
   static id<2> getDelinearizedIndex(const range<2> Range, const size_t Index) {
-    size_t x = Index / Range[1];
-    size_t y = Index % Range[1];
-    return {x, y};
+    size_t x = Index % Range[1];
+    size_t y = Index / Range[1];
+    return {y, x};
   }
 
   static id<3> getDelinearizedIndex(const range<3> Range, const size_t Index) {
-    size_t x = Index / (Range[1] * Range[2]);
+    size_t z = Index / (Range[1] * Range[2]);
     size_t y = (Index / Range[2]) % Range[1];
-    size_t z = Index % Range[2];
-    return {x, y, z};
+    size_t x = Index % Range[2];
+    return {z, y, x};
   }
 
   /// Stores lambda to the template-free object
@@ -592,9 +641,7 @@ private:
     range<Dim> Range = Src.get_range();
     parallel_for<class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
         (Range, [=](id<Dim> Index) {
-      size_t LinearIndex = Index[0];
-      for (int I = 1; I < Dim; ++I)
-        LinearIndex += Range[I] * Index[I];
+      const size_t LinearIndex = detail::getLinearIndex(Index, Range);
       using TSrcNonConst = typename std::remove_const<TSrc>::type;
       (reinterpret_cast<TSrcNonConst *>(Dst))[LinearIndex] = Src[Index];
     });
@@ -629,9 +676,7 @@ private:
     range<Dim> Range = Dst.get_range();
     parallel_for<class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
         (Range, [=](id<Dim> Index) {
-      size_t LinearIndex = Index[0];
-      for (int I = 1; I < Dim; ++I)
-        LinearIndex += Range[I] * Index[I];
+      const size_t LinearIndex = detail::getLinearIndex(Index, Range);
       Dst[Index] = (reinterpret_cast<const TDst *>(Src))[LinearIndex];
     });
   }
@@ -779,8 +824,7 @@ private:
 #else
   kernel_parallel_for(const KernelType &KernelFunc) {
 #endif
-    KernelFunc(
-        detail::Builder::getElement(static_cast<ElementType *>(nullptr)));
+    KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
   }
 
   // NOTE: the name of this function - "kernel_parallel_for_work_group" - is
@@ -792,8 +836,7 @@ private:
 #else
   kernel_parallel_for_work_group(const KernelType &KernelFunc) {
 #endif
-    KernelFunc(
-        detail::Builder::getElement(static_cast<ElementType *>(nullptr)));
+    KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
   }
 
 #endif
@@ -1019,8 +1062,7 @@ public:
     (void)WorkItemOffset;
     kernel_parallel_for<NameT, LambdaArgType>(KernelFunc);
 #else
-    detail::checkValueRange<Dims>(NumWorkItems);
-    detail::checkValueRange<Dims>(WorkItemOffset);
+    detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
@@ -1052,9 +1094,7 @@ public:
     (void)ExecutionRange;
     kernel_parallel_for<NameT, LambdaArgType>(KernelFunc);
 #else
-    detail::checkValueRange<Dims>(ExecutionRange.get_global_range());
-    detail::checkValueRange<Dims>(ExecutionRange.get_local_range());
-    detail::checkValueRange<Dims>(ExecutionRange.get_offset());
+    detail::checkValueRange<Dims>(ExecutionRange);
     MNDRDesc.set(std::move(ExecutionRange));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
@@ -1262,9 +1302,7 @@ public:
 #else
     nd_range<Dims> ExecRange =
         nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize);
-    detail::checkValueRange<Dims>(ExecRange.get_global_range());
-    detail::checkValueRange<Dims>(ExecRange.get_local_range());
-    detail::checkValueRange<Dims>(ExecRange.get_offset());
+    detail::checkValueRange<Dims>(ExecRange);
     MNDRDesc.set(std::move(ExecRange));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
@@ -1315,8 +1353,7 @@ public:
     throwIfActionIsCreated();
     verifyKernelInvoc(Kernel);
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    detail::checkValueRange<Dims>(NumWorkItems);
-    detail::checkValueRange<Dims>(WorkItemOffset);
+    detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
@@ -1335,9 +1372,7 @@ public:
     throwIfActionIsCreated();
     verifyKernelInvoc(Kernel);
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    detail::checkValueRange<Dims>(NDRange.get_global_range());
-    detail::checkValueRange<Dims>(NDRange.get_local_range());
-    detail::checkValueRange<Dims>(NDRange.get_offset());
+    detail::checkValueRange<Dims>(NDRange);
     MNDRDesc.set(std::move(NDRange));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
@@ -1437,8 +1472,7 @@ public:
     (void)WorkItemOffset;
     kernel_parallel_for<NameT, LambdaArgType>(KernelFunc);
 #else
-    detail::checkValueRange<Dims>(NumWorkItems);
-    detail::checkValueRange<Dims>(WorkItemOffset);
+    detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
@@ -1474,9 +1508,7 @@ public:
     (void)NDRange;
     kernel_parallel_for<NameT, LambdaArgType>(KernelFunc);
 #else
-    detail::checkValueRange<Dims>(NDRange.get_global_range());
-    detail::checkValueRange<Dims>(NDRange.get_local_range());
-    detail::checkValueRange<Dims>(NDRange.get_offset());
+    detail::checkValueRange<Dims>(NDRange);
     MNDRDesc.set(std::move(NDRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
@@ -1557,9 +1589,7 @@ public:
 #else
     nd_range<Dims> ExecRange =
         nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize);
-    detail::checkValueRange<Dims>(ExecRange.get_global_range());
-    detail::checkValueRange<Dims>(ExecRange.get_local_range());
-    detail::checkValueRange<Dims>(ExecRange.get_offset());
+    detail::checkValueRange<Dims>(ExecRange);
     MNDRDesc.set(std::move(ExecRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
@@ -1590,7 +1620,7 @@ public:
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
     MSharedPtrStorage.push_back(Dst);
-    T_Dst *RawDstPtr = Dst.get();
+    typename shared_ptr_class<T_Dst>::element_type *RawDstPtr = Dst.get();
     copy(Src, RawDstPtr);
   }
 
@@ -1613,7 +1643,7 @@ public:
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
     MSharedPtrStorage.push_back(Src);
-    T_Src *RawSrcPtr = Src.get();
+    typename shared_ptr_class<T_Src>::element_type *RawSrcPtr = Src.get();
     copy(RawSrcPtr, Dst);
   }
 
@@ -1768,9 +1798,12 @@ public:
   /// \param Pattern is a value to be used to fill the memory.
   template <typename T, int Dims, access::mode AccessMode,
             access::target AccessTarget,
-            access::placeholder IsPlaceholder = access::placeholder::false_t>
-  void fill(accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder> Dst,
-            const T &Pattern) {
+            access::placeholder IsPlaceholder = access::placeholder::false_t,
+            typename PropertyListT = property_list>
+  void
+  fill(accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder, PropertyListT>
+           Dst,
+       const T &Pattern) {
     throwIfActionIsCreated();
     // TODO add check:T must be an integral scalar value or a SYCL vector type
     static_assert(isValidTargetForExplicitOp(AccessTarget),
@@ -1919,7 +1952,8 @@ private:
   friend class detail::queue_impl;
   // Make accessor class friend to keep the list of associated accessors.
   template <typename DataT, int Dims, access::mode AccMode,
-            access::target AccTarget, access::placeholder isPlaceholder>
+            access::target AccTarget, access::placeholder isPlaceholder,
+            typename PropertyListT>
   friend class accessor;
   friend device detail::getDeviceFromHandler(handler &);
 

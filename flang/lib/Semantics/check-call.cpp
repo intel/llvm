@@ -74,22 +74,24 @@ static void CheckImplicitInterfaceArg(
 // we extend them on the right with spaces and a warning.
 static void PadShortCharacterActual(evaluate::Expr<evaluate::SomeType> &actual,
     const characteristics::TypeAndShape &dummyType,
-    const characteristics::TypeAndShape &actualType,
-    parser::ContextualMessages &messages) {
+    characteristics::TypeAndShape &actualType,
+    evaluate::FoldingContext &context, parser::ContextualMessages &messages) {
   if (dummyType.type().category() == TypeCategory::Character &&
       actualType.type().category() == TypeCategory::Character &&
       dummyType.type().kind() == actualType.type().kind() &&
       GetRank(actualType.shape()) == 0) {
-    if (auto dummyLEN{ToInt64(dummyType.LEN())}) {
-      if (auto actualLEN{ToInt64(actualType.LEN())}) {
-        if (*actualLEN < *dummyLEN) {
-          messages.Say(
-              "Actual length '%jd' is less than expected length '%jd'"_en_US,
-              *actualLEN, *dummyLEN);
-          auto converted{ConvertToType(dummyType.type(), std::move(actual))};
-          CHECK(converted);
-          actual = std::move(*converted);
-        }
+    if (dummyType.LEN() && actualType.LEN()) {
+      auto dummyLength{ToInt64(Fold(context, common::Clone(*dummyType.LEN())))};
+      auto actualLength{
+          ToInt64(Fold(context, common::Clone(*actualType.LEN())))};
+      if (dummyLength && actualLength && *actualLength < *dummyLength) {
+        messages.Say(
+            "Actual length '%jd' is less than expected length '%jd'"_en_US,
+            *actualLength, *dummyLength);
+        auto converted{ConvertToType(dummyType.type(), std::move(actual))};
+        CHECK(converted);
+        actual = std::move(*converted);
+        actualType.set_LEN(SubscriptIntExpr{*dummyLength});
       }
     }
   }
@@ -142,10 +144,9 @@ static void CheckExplicitDataArg(const characteristics::DummyDataObject &dummy,
 
   // Basic type & rank checking
   parser::ContextualMessages &messages{context.messages()};
-  PadShortCharacterActual(actual, dummy.type, actualType, messages);
+  PadShortCharacterActual(actual, dummy.type, actualType, context, messages);
   ConvertIntegerActual(actual, dummy.type, actualType, messages);
-  bool typesCompatible{
-      dummy.type.type().IsTypeCompatibleWith(actualType.type())};
+  bool typesCompatible{dummy.type.type().IsTkCompatibleWith(actualType.type())};
   if (typesCompatible) {
     if (isElemental) {
     } else if (dummy.type.attrs().test(
@@ -215,13 +216,17 @@ static void CheckExplicitDataArg(const characteristics::DummyDataObject &dummy,
             "Actual argument associated with TYPE(*) %s may not have type-bound procedure '%s'"_err_en_US,
             dummyName, tbp->name());
       }
-      if (const Symbol *
-          finalizer{FindImmediateComponent(*derived, [](const Symbol &symbol) {
-            return symbol.has<FinalProcDetails>();
-          })}) { // 15.5.2.4(2)
-        evaluate::SayWithDeclaration(messages, *finalizer,
-            "Actual argument associated with TYPE(*) %s may not have FINAL subroutine '%s'"_err_en_US,
-            dummyName, finalizer->name());
+      const auto &finals{
+          derived->typeSymbol().get<DerivedTypeDetails>().finals()};
+      if (!finals.empty()) { // 15.5.2.4(2)
+        if (auto *msg{messages.Say(
+                "Actual argument associated with TYPE(*) %s may not have derived type '%s' with FINAL subroutine '%s'"_err_en_US,
+                dummyName, derived->typeSymbol().name(),
+                finals.begin()->first)}) {
+          msg->Attach(finals.begin()->first,
+              "FINAL subroutine '%s' in derived type '%s'"_en_US,
+              finals.begin()->first, derived->typeSymbol().name());
+        }
       }
     }
     if (actualIsCoindexed) {
@@ -431,14 +436,14 @@ static void CheckExplicitDataArg(const characteristics::DummyDataObject &dummy,
             "If a POINTER or ALLOCATABLE dummy or actual argument is polymorphic, both must be so"_err_en_US);
       }
     } else if (!actualIsUnlimited && typesCompatible) {
-      if (!actualType.type().IsTypeCompatibleWith(dummy.type.type())) {
+      if (!actualType.type().IsTkCompatibleWith(dummy.type.type())) {
         if (dummy.intent == common::Intent::In) {
           // extension: allow with warning, rule is only relevant for definables
           messages.Say(
-              "POINTER or ALLOCATABLE dummy and actual arguments should have the same declared type"_en_US);
+              "POINTER or ALLOCATABLE dummy and actual arguments should have the same declared type and kind"_en_US);
         } else {
           messages.Say(
-              "POINTER or ALLOCATABLE dummy and actual arguments must have the same declared type"_err_en_US);
+              "POINTER or ALLOCATABLE dummy and actual arguments must have the same declared type and kind"_err_en_US);
         }
       }
       if (const auto *derived{

@@ -14,8 +14,9 @@ func @memref_cast(%a: index, %b: index) -> memref<?x?xf32> {
   // CHECK:  linalg.slice {{.*}} : memref<16x16xf32>, !linalg.range, !linalg.range, memref<?x?xf32>
   %4 = linalg.slice %3[%r0, %r0] : memref<?x?xf32>, !linalg.range, !linalg.range, memref<?x?xf32>
 
-  // CHECK:  linalg.matmul{{.*}}: (memref<16x16xf32>, memref<16x16xf32>, memref<16x16xf32>)
-  linalg.matmul %3, %3, %3 : (memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>)
+  // CHECK:  linalg.matmul ins({{.*}}memref<16x16xf32>, memref<16x16xf32>) outs({{.*}}memref<16x16xf32>)
+  linalg.matmul ins(%3, %3: memref<?x?xf32>, memref<?x?xf32>)
+               outs(%3: memref<?x?xf32>)
   return %4: memref<?x?xf32>
 }
 
@@ -181,8 +182,6 @@ func @no_fold_memref_reshape(%arg0 : memref<?x?xf32>) -> memref<?x?xf32>
 ]
 
 #trait = {
-  args_in = 1,
-  args_out = 1,
   indexing_maps = #accesses,
   iterator_types = ["parallel"]
 }
@@ -192,10 +191,10 @@ func @dce_zero_memref(%arg0 : memref<0xf32>, %arg1: tensor<0xf32>) -> tensor<0xf
   linalg.copy(%arg0, %arg0): memref<0xf32>, memref<0xf32>
 
   // tensor<0xf32> cannot be dce'ed
-  %1 = linalg.generic #trait %arg1 {
+  %1 = linalg.generic #trait ins(%arg1 : tensor<0xf32>) {
   ^bb(%0: f32) :
     linalg.yield %0 : f32
-  } : tensor<0xf32> -> tensor<0xf32>
+  } -> tensor<0xf32>
 
   return %1: tensor<0xf32>
 }
@@ -260,3 +259,23 @@ func @reshape_splat_constant_float64() -> tensor<2x4x2xf64>
 //       CHECK:   %[[CST:.*]] = constant dense<{{.*}}> : tensor<2x4x2xf64>
 //   CHECK-NOT:   linalg.tensor_reshape
 //       CHECK:   return %[[CST]]
+
+// -----
+
+// CHECK-LABEL: func @tensor_cast(
+func @tensor_cast(%a : tensor<3x4xf32>, %b : tensor<4x?xf32>, %c : tensor<3x?xf32>)
+  -> tensor<3x?xf32>
+{
+  %ta = tensor_cast %a : tensor<3x4xf32> to tensor<?x?xf32>
+  %tb = tensor_cast %b : tensor<4x?xf32> to tensor<?x?xf32>
+  %tc = tensor_cast %c : tensor<3x?xf32> to tensor<?x?xf32>
+
+  //      CHECK:  linalg.matmul ins({{.*}}tensor<3x4xf32>, tensor<4x?xf32>)
+  // CHECK-SAME:    init({{.*}}tensor<3x?xf32>) -> tensor<3x?xf32>
+  %0 = linalg.matmul ins(%ta, %tb: tensor<?x?xf32>, tensor<?x?xf32>)
+               init(%tc: tensor<?x?xf32>) -> tensor<?x?xf32>
+
+  %1 = tensor_cast %0 : tensor<?x?xf32> to tensor<3x?xf32>
+
+  return %1: tensor<3x?xf32>
+}

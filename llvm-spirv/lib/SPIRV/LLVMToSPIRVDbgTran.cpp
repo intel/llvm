@@ -39,6 +39,7 @@
 #include "SPIRVWriter.h"
 
 #include "llvm/IR/DebugInfo.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 
 using namespace SPIRV;
 
@@ -86,7 +87,7 @@ SPIRVValue *LLVMToSPIRVDbgTran::createDebugDeclarePlaceholder(
   DbgDeclareIntrinsics.push_back(DbgDecl);
   using namespace SPIRVDebug::Operand::DebugDeclare;
   SPIRVWordVec Ops(OperandCount, getDebugInfoNoneId());
-  SPIRVId ExtSetId = BM->getExtInstSetId(SPIRVEIS_Debug);
+  SPIRVId ExtSetId = BM->getExtInstSetId(BM->getDebugInfoEIS());
   return BM->addExtInst(getVoidTy(), ExtSetId, SPIRVDebug::Declare, Ops, BB);
 }
 
@@ -94,9 +95,9 @@ void LLVMToSPIRVDbgTran::finalizeDebugDeclare(
     const DbgVariableIntrinsic *DbgDecl) {
   SPIRVValue *V = SPIRVWriter->getTranslatedValue(DbgDecl);
   assert(V && "llvm.dbg.declare intrinsic isn't mapped to a SPIRV instruction");
-  assert(V->isExtInst(SPIRV::SPIRVEIS_Debug, SPIRVDebug::Declare) &&
+  assert(V->isExtInst(BM->getDebugInfoEIS(), SPIRVDebug::Declare) &&
          "llvm.dbg.declare intrinsic has been translated wrong!");
-  if (!V || !V->isExtInst(SPIRV::SPIRVEIS_Debug, SPIRVDebug::Declare))
+  if (!V || !V->isExtInst(BM->getDebugInfoEIS(), SPIRVDebug::Declare))
     return;
   SPIRVExtInst *DD = static_cast<SPIRVExtInst *>(V);
   SPIRVBasicBlock *BB = DD->getBasicBlock();
@@ -121,7 +122,7 @@ SPIRVValue *LLVMToSPIRVDbgTran::createDebugValuePlaceholder(
   DbgValueIntrinsics.push_back(DbgValue);
   using namespace SPIRVDebug::Operand::DebugValue;
   SPIRVWordVec Ops(MinOperandCount, getDebugInfoNone()->getId());
-  SPIRVId ExtSetId = BM->getExtInstSetId(SPIRVEIS_Debug);
+  SPIRVId ExtSetId = BM->getExtInstSetId(BM->getDebugInfoEIS());
   return BM->addExtInst(getVoidTy(), ExtSetId, SPIRVDebug::Value, Ops, BB);
 }
 
@@ -129,9 +130,9 @@ void LLVMToSPIRVDbgTran::finalizeDebugValue(
     const DbgVariableIntrinsic *DbgValue) {
   SPIRVValue *V = SPIRVWriter->getTranslatedValue(DbgValue);
   assert(V && "llvm.dbg.value intrinsic isn't mapped to a SPIRV instruction");
-  assert(V->isExtInst(SPIRV::SPIRVEIS_Debug, SPIRVDebug::Value) &&
+  assert(V->isExtInst(BM->getDebugInfoEIS(), SPIRVDebug::Value) &&
          "llvm.dbg.value intrinsic has been translated wrong!");
-  if (!V || !V->isExtInst(SPIRV::SPIRVEIS_Debug, SPIRVDebug::Value))
+  if (!V || !V->isExtInst(BM->getDebugInfoEIS(), SPIRVDebug::Value))
     return;
   SPIRVExtInst *DV = static_cast<SPIRVExtInst *>(V);
   SPIRVBasicBlock *BB = DV->getBasicBlock();
@@ -888,7 +889,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgScope(const DIScope *S) {
 SPIRVEntry *LLVMToSPIRVDbgTran::transDebugLoc(const DebugLoc &Loc,
                                               SPIRVBasicBlock *BB,
                                               SPIRVInstruction *InsertBefore) {
-  SPIRVId ExtSetId = BM->getExtInstSetId(SPIRVEIS_Debug);
+  SPIRVId ExtSetId = BM->getExtInstSetId(BM->getDebugInfoEIS());
   if (!Loc.get())
     return BM->addExtInst(getVoidTy(), ExtSetId, SPIRVDebug::NoScope,
                           std::vector<SPIRVWord>(), BB, InsertBefore);
@@ -959,10 +960,14 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgExpression(const DIExpression *Expr) {
   for (unsigned I = 0, N = Expr->getNumElements(); I < N; ++I) {
     using namespace SPIRVDebug::Operand::Operation;
     auto DWARFOpCode = static_cast<dwarf::LocationAtom>(Expr->getElement(I));
+
     SPIRVDebug::ExpressionOpCode OC =
         SPIRV::DbgExpressionOpCodeMap::map(DWARFOpCode);
-    assert(OpCountMap.find(OC) != OpCountMap.end() &&
-           "unhandled opcode found in DIExpression");
+    if (OpCountMap.find(OC) == OpCountMap.end())
+      report_fatal_error("unknown opcode found in DIExpression");
+    if (OC > SPIRVDebug::Fragment && !BM->allowExtraDIExpressions())
+      report_fatal_error("unsupported opcode found in DIExpression");
+
     unsigned OpCount = OpCountMap[OC];
     SPIRVWordVec Op(OpCount);
     Op[OpCodeIdx] = OC;

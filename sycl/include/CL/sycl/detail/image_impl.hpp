@@ -28,7 +28,8 @@ enum class image_channel_type : unsigned int;
 
 template <int Dimensions, typename AllocatorT> class image;
 template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder>
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename property_listT>
 class accessor;
 class handler;
 
@@ -81,6 +82,7 @@ private:
     size_t WHD[3] = {1, 1, 1}; // Width, Height, Depth.
     for (int I = 0; I < Dimensions; I++)
       WHD[I] = MRange[I];
+
     MRowPitch = MElementSize * WHD[0];
     MSlicePitch = MRowPitch * WHD[1];
     BaseT::MSizeInBytes = MSlicePitch * WHD[2];
@@ -94,6 +96,7 @@ private:
     // NumSlices is depth when dim==3, and height when dim==2.
     size_t NumSlices =
         (Dimensions == 3) ? MRange[2] : MRange[1]; // Dimensions will be 2/3.
+
     BaseT::MSizeInBytes = MSlicePitch * NumSlices;
   }
 
@@ -244,15 +247,19 @@ private:
   RT::PiMemImageDesc getImageDesc(bool InitFromHostPtr) {
     RT::PiMemImageDesc Desc;
     Desc.image_type = getImageType();
-    Desc.image_width = MRange[0];
-    Desc.image_height = Dimensions > 1 ? MRange[1] : 1;
-    Desc.image_depth = Dimensions > 2 ? MRange[2] : 1;
+
+    // MRange<> is [width], [width,height], or [width,height,depth] (which
+    // is different than MAccessRange, etc in bufffers)
+    static constexpr int XTermPos = 0, YTermPos = 1, ZTermPos = 2;
+    Desc.image_width = MRange[XTermPos];
+    Desc.image_height = Dimensions > 1 ? MRange[YTermPos] : 1;
+    Desc.image_depth = Dimensions > 2 ? MRange[ZTermPos] : 1;
+
     // TODO handle cases with IMAGE1D_ARRAY and IMAGE2D_ARRAY
     Desc.image_array_size = 0;
     // Pitches must be 0 if host ptr is not provided.
     Desc.image_row_pitch = InitFromHostPtr ? MRowPitch : 0;
     Desc.image_slice_pitch = InitFromHostPtr ? MSlicePitch : 0;
-
     Desc.num_mip_levels = 0;
     Desc.num_samples = 0;
     Desc.buffer = nullptr;

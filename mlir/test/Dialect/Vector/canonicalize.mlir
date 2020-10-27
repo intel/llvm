@@ -348,6 +348,54 @@ func @fold_extract_transpose(
 
 // -----
 
+// CHECK-LABEL: fold_extract_broadcast
+//  CHECK-SAME:   %[[A:.*]]: f32
+//       CHECK:   return %[[A]] : f32
+func @fold_extract_broadcast(%a : f32) -> f32 {
+  %b = vector.broadcast %a : f32 to vector<1x2x4xf32>
+  %r = vector.extract %b[0, 1, 2] : vector<1x2x4xf32>
+  return %r : f32
+}
+
+// -----
+
+// CHECK-LABEL: fold_extract_broadcast_vector
+//  CHECK-SAME:   %[[A:.*]]: vector<4xf32>
+//       CHECK:   return %[[A]] : vector<4xf32>
+func @fold_extract_broadcast_vector(%a : vector<4xf32>) -> vector<4xf32> {
+  %b = vector.broadcast %a : vector<4xf32> to vector<1x2x4xf32>
+  %r = vector.extract %b[0, 1] : vector<1x2x4xf32>
+  return %r : vector<4xf32>
+}
+
+// -----
+
+// CHECK-LABEL: fold_extract_broadcast
+//  CHECK-SAME:   %[[A:.*]]: vector<4xf32>
+//       CHECK:   %[[R:.*]] = vector.extract %[[A]][2] : vector<4xf32>
+//       CHECK:   return %[[R]] : f32
+func @fold_extract_broadcast(%a : vector<4xf32>) -> f32 {
+  %b = vector.broadcast %a : vector<4xf32> to vector<1x2x4xf32>
+  %r = vector.extract %b[0, 1, 2] : vector<1x2x4xf32>
+  return %r : f32
+}
+
+// -----
+
+// Negative test for extract_op folding when the type of broadcast source
+// doesn't match the type of vector.extract.
+// CHECK-LABEL: fold_extract_broadcast_negative
+//       CHECK:   %[[B:.*]] = vector.broadcast %{{.*}} : f32 to vector<1x2x4xf32>
+//       CHECK:   %[[R:.*]] = vector.extract %[[B]][0, 1] : vector<1x2x4xf32>
+//       CHECK:   return %[[R]] : vector<4xf32>
+func @fold_extract_broadcast_negative(%a : f32) -> vector<4xf32> {
+  %b = vector.broadcast %a : f32 to vector<1x2x4xf32>
+  %r = vector.extract %b[0, 1] : vector<1x2x4xf32>
+  return %r : vector<4xf32>
+}
+
+// -----
+
 // CHECK-LABEL: fold_vector_transfers
 func @fold_vector_transfers(%A: memref<?x8xf32>) -> (vector<4x8xf32>, vector<4x9xf32>) {
   %c0 = constant 0 : index
@@ -371,4 +419,42 @@ func @fold_vector_transfers(%A: memref<?x8xf32>) -> (vector<4x8xf32>, vector<4x9
 
   // CHECK: return
   return %1, %2 : vector<4x8xf32>, vector<4x9xf32>
+}
+
+// -----
+
+// CHECK-LABEL: bitcast_folding
+//  CHECK-SAME:   %[[A:.*]]: vector<4x8xf32>
+//  CHECK-SAME:   %[[B:.*]]: vector<2xi32>
+//  CHECK:        return %[[A]], %[[B]] : vector<4x8xf32>, vector<2xi32>
+func @bitcast_folding(%I1: vector<4x8xf32>, %I2: vector<2xi32>) -> (vector<4x8xf32>, vector<2xi32>) {
+  %0 = vector.bitcast %I1 : vector<4x8xf32> to vector<4x8xf32>
+  %1 = vector.bitcast %I2 : vector<2xi32> to vector<4xi16>
+  %2 = vector.bitcast %1 : vector<4xi16> to vector<2xi32>
+  return %0, %2 : vector<4x8xf32>, vector<2xi32>
+}
+
+// -----
+
+// CHECK-LABEL: broadcast_folding1
+//       CHECK: %[[CST:.*]] = constant dense<42> : vector<4xi32>
+//   CHECK-NOT: vector.broadcast
+//       CHECK: return %[[CST]]
+func @broadcast_folding1() -> vector<4xi32> {
+  %0 = constant 42 : i32
+  %1 = vector.broadcast %0 : i32 to vector<4xi32>
+  return %1 : vector<4xi32>
+}
+
+// -----
+
+// CHECK-LABEL: @broadcast_folding2
+//       CHECK: %[[CST:.*]] = constant dense<42> : vector<4x16xi32>
+//   CHECK-NOT: vector.broadcast
+//       CHECK: return %[[CST]]
+func @broadcast_folding2() -> vector<4x16xi32> {
+  %0 = constant 42 : i32
+  %1 = vector.broadcast %0 : i32 to vector<16xi32>
+  %2 = vector.broadcast %1 : vector<16xi32> to vector<4x16xi32>
+  return %2 : vector<4x16xi32>
 }

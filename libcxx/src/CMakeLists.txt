@@ -11,7 +11,6 @@ set(LIBCXX_SOURCES
   chrono.cpp
   condition_variable.cpp
   condition_variable_destructor.cpp
-  debug.cpp
   exception.cpp
   functional.cpp
   future.cpp
@@ -55,6 +54,12 @@ set(LIBCXX_SOURCES
   variant.cpp
   vector.cpp
   )
+
+if (LIBCXX_ENABLE_DEBUG_MODE)
+  list(APPEND LIBCXX_SOURCES
+    debug.cpp
+    )
+endif()
 
 if(WIN32)
   list(APPEND LIBCXX_SOURCES
@@ -213,16 +218,9 @@ if (LIBCXX_ENABLE_SHARED)
       "-Wl,-force_symbols_not_weak_list,${CMAKE_CURRENT_SOURCE_DIR}/../lib/notweak.exp"
       "-Wl,-force_symbols_weak_list,${CMAKE_CURRENT_SOURCE_DIR}/../lib/weak.exp")
 
-    if (LIBCXX_ENABLE_EXCEPTIONS)
-      if ("${CMAKE_OSX_ARCHITECTURES}" MATCHES "^(armv6|armv7|armv7s)$")
-        target_link_libraries(cxx_shared PRIVATE "-Wl,-reexported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/../lib/libc++abi-exceptions.sjlj.exp")
-      else()
-        target_link_libraries(cxx_shared PRIVATE "-Wl,-reexported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/../lib/libc++abi-exceptions.exp")
-      endif()
-    endif()
-
     if (NOT LIBCXX_ENABLE_NEW_DELETE_DEFINITIONS)
-      target_link_libraries(cxx_shared PRIVATE "-Wl,-reexported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/../lib/libc++abi-new-delete.exp")
+      target_link_libraries(cxx_shared PRIVATE
+        "-Wl,-reexported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/../../libcxxabi/lib/new-delete.exp")
     endif()
   endif()
 
@@ -323,7 +321,8 @@ endif()
 
 
 if (LIBCXX_BUILD_EXTERNAL_THREAD_LIBRARY)
-  file(GLOB LIBCXX_EXTERNAL_THREADING_SUPPORT_SOURCES ../test/support/external_threads.cpp)
+  set(LIBCXX_EXTERNAL_THREADING_SUPPORT_SOURCES
+      "${CMAKE_CURRENT_SOURCE_DIR}/../test/support/external_threads.cpp")
 
   if (LIBCXX_ENABLE_SHARED)
     add_library(cxx_external_threads SHARED ${LIBCXX_EXTERNAL_THREADING_SUPPORT_SOURCES})
@@ -337,6 +336,8 @@ if (LIBCXX_BUILD_EXTERNAL_THREAD_LIBRARY)
       COMPILE_FLAGS "${LIBCXX_COMPILE_FLAGS}"
       OUTPUT_NAME   "c++external_threads"
   )
+
+  target_link_libraries(cxx_external_threads PRIVATE cxx-headers)
 endif()
 
 if (LIBCXX_INSTALL_LIBRARY)

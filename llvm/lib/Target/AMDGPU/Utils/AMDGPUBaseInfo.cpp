@@ -1078,6 +1078,10 @@ bool isGFX9(const MCSubtargetInfo &STI) {
   return STI.getFeatureBits()[AMDGPU::FeatureGFX9];
 }
 
+bool isGFX9Plus(const MCSubtargetInfo &STI) {
+  return isGFX9(STI) || isGFX10(STI);
+}
+
 bool isGFX10(const MCSubtargetInfo &STI) {
   return STI.getFeatureBits()[AMDGPU::FeatureGFX10];
 }
@@ -1378,6 +1382,19 @@ bool isInlinableIntLiteralV216(int32_t Literal) {
   if (!(Literal & 0xffff))
     return isInlinableIntLiteral(Hi16);
   return Lo16 == Hi16 && isInlinableIntLiteral(Lo16);
+}
+
+bool isFoldableLiteralV216(int32_t Literal, bool HasInv2Pi) {
+  assert(HasInv2Pi);
+
+  int16_t Lo16 = static_cast<int16_t>(Literal);
+  if (isInt<16>(Literal) || isUInt<16>(Literal))
+    return true;
+
+  int16_t Hi16 = static_cast<int16_t>(Literal >> 16);
+  if (!(Literal & 0xffff))
+    return true;
+  return Lo16 == Hi16;
 }
 
 bool isArgPassedInSGPR(const Argument *A) {

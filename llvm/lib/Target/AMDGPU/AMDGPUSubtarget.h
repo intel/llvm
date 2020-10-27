@@ -78,7 +78,7 @@ protected:
   bool EnablePromoteAlloca;
   bool HasTrigReducedRange;
   unsigned MaxWavesPerEU;
-  int LocalMemorySize;
+  unsigned LocalMemorySize;
   char WavefrontSizeLog2;
 
 public:
@@ -202,7 +202,7 @@ public:
     return WavefrontSizeLog2;
   }
 
-  int getLocalMemorySize() const {
+  unsigned getLocalMemorySize() const {
     return LocalMemorySize;
   }
 
@@ -239,7 +239,11 @@ public:
   /// subtarget without any kind of limitation.
   unsigned getMaxWavesPerEU() const { return MaxWavesPerEU; }
 
-  /// Creates value range metadata on an workitemid.* inrinsic call or load.
+  /// Return the maximum workitem ID value in the function, for the given (0, 1,
+  /// 2) dimension.
+  unsigned getMaxWorkitemID(const Function &Kernel, unsigned Dimension) const;
+
+  /// Creates value range metadata on an workitemid.* intrinsic call or load.
   bool makeLIDRangeMetadata(Instruction *I) const;
 
   /// \returns Number of bytes of arguments that are passed to a shader or
@@ -314,6 +318,7 @@ protected:
   bool AutoWaitcntBeforeBarrier;
   bool CodeObjectV3;
   bool UnalignedScratchAccess;
+  bool UnalignedBufferAccess;
   bool UnalignedAccessMode;
   bool HasApertureRegs;
   bool EnableXNACK;
@@ -394,7 +399,6 @@ protected:
   bool HasMFMAInlineLiteralBug;
   bool HasVertexCache;
   short TexVTXClauseSize;
-  bool UnalignedBufferAccess;
   bool UnalignedDSAccess;
   bool ScalarizeGlobal;
 
@@ -407,6 +411,8 @@ protected:
   bool HasNSAtoVMEMBug;
   bool HasOffset3fBug;
   bool HasFlatSegmentOffsetBug;
+  bool HasImageStoreD16Bug;
+  bool HasImageGather4D16Bug;
 
   // Dummy feature to use for assembler in tablegen.
   bool FeatureDisable;
@@ -702,24 +708,16 @@ public:
     return UnalignedBufferAccess;
   }
 
-  bool hasUnalignedBufferAccessEnabled() const {
-    return UnalignedBufferAccess && UnalignedAccessMode;
-  }
-
-  bool hasUnalignedDSAccess() const {
-    return UnalignedDSAccess;
-  }
-
-  bool hasUnalignedDSAccessEnabled() const {
-    return UnalignedDSAccess && UnalignedAccessMode;
-  }
-
   bool hasUnalignedScratchAccess() const {
     return UnalignedScratchAccess;
   }
 
   bool hasUnalignedAccessMode() const {
     return UnalignedAccessMode;
+  }
+
+  bool hasUnalignedDSAccess() const {
+    return UnalignedDSAccess;
   }
 
   bool hasApertureRegs() const {
@@ -1029,9 +1027,11 @@ public:
     return HasOffset3fBug;
   }
 
-  bool hasNSAEncoding() const {
-    return HasNSAEncoding;
-  }
+  bool hasImageStoreD16Bug() const { return HasImageStoreD16Bug; }
+
+  bool hasImageGather4D16Bug() const { return HasImageGather4D16Bug; }
+
+  bool hasNSAEncoding() const { return HasNSAEncoding; }
 
   bool hasGFX10_BEncoding() const {
     return GFX10_BEncoding;

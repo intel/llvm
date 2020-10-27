@@ -93,15 +93,16 @@
 /// test behaviors for special case handling of -z and -rpath
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -z anystring -L/dummy/dir %t.o -Wl,-rpath,nopass -Wl,-z,nopass %t.a %t_2.a -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefixes=WL_CHECK
-// WL_CHECK-NOT: ld{{.*}} "-r" {{.*}} "anystring"
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -z anystring -L/dummy/dir %t.o -Wl,-rpath -Wl,nopass -Xlinker -z -Xlinker nopass %t.a %t_2.a -### 2>&1 \
+// WL_CHECK-NOT: ld{{.*}} "-r" {{.*}} "anystring" {{.*}} "nopass"
 // WL_CHECK: ld{{.*}} "-z" "anystring" {{.*}} "-rpath" "nopass" "-z" "nopass"
 
 /// ###########################################################################
 
 /// test behaviors of static lib with no source/object
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L/dummy/dir %t.a -### 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -L/dummy/dir %t.a -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_NOSRC -DINPUTLIB=%t.a
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L/dummy/dir %t.lo -### 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -L/dummy/dir %t.lo -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_NOSRC -DINPUTLIB=%t.lo
 // STATIC_LIB_NOSRC: clang-offload-bundler{{.*}} "-type=ao" "-targets=host-x86_64-unknown-linux-gnu" "-inputs=[[INPUTLIB]]" "-check-section"
 // STATIC_LIB_NOSRC: ld{{.*}} "-r" "-o" "[[PARTIALOBJ:.+\.o]]" "{{.*}}crt1.o" {{.*}} "-L/dummy/dir" {{.*}} "[[INPUTLIB]]"

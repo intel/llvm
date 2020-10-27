@@ -59,6 +59,7 @@
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -80,6 +81,7 @@
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/GlobalValue.h"
@@ -3834,10 +3836,14 @@ void LSRInstance::GenerateConstantOffsetsImpl(
   F.BaseOffset = (uint64_t)F.BaseOffset + Imm;
   if (!isLegalUse(TTI, LU.MinOffset, LU.MaxOffset, LU.Kind, LU.AccessTy, F))
     return;
-  if (IsScaledReg)
+  if (IsScaledReg) {
     F.ScaledReg = G;
-  else
+  } else {
     F.BaseRegs[Idx] = G;
+    // We may generate non canonical Formula if G is a recurrent expr reg
+    // related with current loop while F.ScaledReg is not.
+    F.canonicalize(*L);
+  }
   (void)InsertFormula(LU, LUIdx, F);
 }
 
@@ -5378,10 +5384,11 @@ void LSRInstance::RewriteForPHI(
           // Split the critical edge.
           BasicBlock *NewBB = nullptr;
           if (!Parent->isLandingPad()) {
-            NewBB = SplitCriticalEdge(BB, Parent,
-                                      CriticalEdgeSplittingOptions(&DT, &LI)
-                                          .setMergeIdenticalEdges()
-                                          .setKeepOneInputPHIs());
+            NewBB =
+                SplitCriticalEdge(BB, Parent,
+                                  CriticalEdgeSplittingOptions(&DT, &LI, MSSAU)
+                                      .setMergeIdenticalEdges()
+                                      .setKeepOneInputPHIs());
           } else {
             SmallVector<BasicBlock*, 2> NewBBs;
             SplitLandingPadPredecessors(Parent, BB, "", "", NewBBs, &DT, &LI);
@@ -5614,7 +5621,7 @@ LSRInstance::LSRInstance(Loop *L, IVUsers &IU, ScalarEvolution &SE,
   if (IU.empty()) return;
 
   // Skip nested loops until we can model them better with formulae.
-  if (!L->empty()) {
+  if (!L->isInnermost()) {
     LLVM_DEBUG(dbgs() << "LSR skipping outer loop " << *L << "\n");
     return;
   }
@@ -5771,6 +5778,27 @@ static bool ReduceLoopStrength(Loop *L, IVUsers &IU, ScalarEvolution &SE,
   if (MSSA)
     MSSAU = std::make_unique<MemorySSAUpdater>(MSSA);
 
+  // Debug preservation - record all llvm.dbg.value from the loop as well as
+  // the SCEV of their variable location. Since salvageDebugInfo may change the
+  // DIExpression we need to store the original here as well (i.e. it needs to
+  // be in sync with the SCEV).
+  SmallVector<
+      std::tuple<DbgValueInst *, const Type *, const SCEV *, DIExpression *>,
+      32>
+      DbgValues;
+  for (auto &B : L->getBlocks()) {
+    for (auto &I : *B) {
+      if (DbgValueInst *D = dyn_cast<DbgValueInst>(&I)) {
+        auto V = D->getVariableLocation();
+        if (!V || !SE.isSCEVable(V->getType()))
+          continue;
+        auto DS = SE.getSCEV(V);
+        DbgValues.push_back(
+            std::make_tuple(D, V->getType(), DS, D->getExpression()));
+      }
+    }
+  }
+
   // Run the main LSR transformation.
   Changed |=
       LSRInstance(L, IU, SE, DT, LI, TTI, AC, TLI, MSSAU.get()).getChanged();
@@ -5790,6 +5818,40 @@ static bool ReduceLoopStrength(Loop *L, IVUsers &IU, ScalarEvolution &SE,
       RecursivelyDeleteTriviallyDeadInstructionsPermissive(DeadInsts, &TLI,
                                                            MSSAU.get());
       DeleteDeadPHIs(L->getHeader(), &TLI, MSSAU.get());
+    }
+  }
+  // Debug preservation - go through all recorded llvm.dbg.value and for those
+  // that now have an undef variable location use the recorded SCEV to try and
+  // update it. Compare with SCEV of Phi-nodes of loop header to find a
+  // suitable update candidate. SCEV match with constant offset is allowed and
+  // will be compensated for in the DIExpression.
+  if (Changed) {
+    for (auto &D : DbgValues) {
+      auto DbgValue = std::get<DbgValueInst *>(D);
+      auto DbgValueType = std::get<const Type *>(D);
+      auto DbgValueSCEV = std::get<const SCEV *>(D);
+      auto DbgDIExpr = std::get<DIExpression *>(D);
+      if (!isa<UndefValue>(DbgValue->getVariableLocation()))
+        continue;
+      for (PHINode &Phi : L->getHeader()->phis()) {
+        if (DbgValueType != Phi.getType())
+          continue;
+        if (!SE.isSCEVable(Phi.getType()))
+          continue;
+        auto PhiSCEV = SE.getSCEV(&Phi);
+        if (Optional<APInt> Offset =
+                SE.computeConstantDifference(DbgValueSCEV, PhiSCEV)) {
+          auto &Ctx = DbgValue->getContext();
+          DbgValue->setOperand(
+              0, MetadataAsValue::get(Ctx, ValueAsMetadata::get(&Phi)));
+          if (Offset.getValue().getSExtValue()) {
+            SmallVector<uint64_t, 8> Ops;
+            DIExpression::appendOffset(Ops, Offset.getValue().getSExtValue());
+            DbgDIExpr = DIExpression::prependOpcodes(DbgDIExpr, Ops, true);
+          }
+          DbgValue->setOperand(2, MetadataAsValue::get(Ctx, DbgDIExpr));
+        }
+      }
     }
   }
   return Changed;

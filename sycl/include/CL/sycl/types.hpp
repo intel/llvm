@@ -520,9 +520,9 @@ convertImpl(T Value) {
 #pragma message ("Alignment of class vec is not in accordance with SYCL \
 specification requirements, a limitation of the MSVC compiler(Error C2719).\
 Applied default alignment.")
-#define SYCL_ALIGNAS(x)
+#define __SYCL_ALIGNAS(x)
 #else
-#define SYCL_ALIGNAS(N) alignas(N)
+#define __SYCL_ALIGNAS(N) alignas(N)
 #endif
 
 /// Provides a cross-patform vector class template that works efficiently on
@@ -550,7 +550,7 @@ template <typename Type, int NumElements> class vec {
                       SizeChecker<Counter + 1, MaxValue, tail...>,
                       std::false_type> {};
 
-#define ALLOW_VECTOR_SIZES(num_elements)                                       \
+#define __SYCL_ALLOW_VECTOR_SIZES(num_elements)                                \
   template <int Counter, int MaxValue, typename DataT_, class... tail>         \
   struct SizeChecker<Counter, MaxValue, vec<DataT_, num_elements>, tail...>    \
       : detail::conditional_t<                                                 \
@@ -580,13 +580,13 @@ template <typename Type, int NumElements> class vec {
             SizeChecker<Counter + sizeof...(T5), MaxValue, tail...>,           \
             std::false_type> {};
 
-  ALLOW_VECTOR_SIZES(1)
-  ALLOW_VECTOR_SIZES(2)
-  ALLOW_VECTOR_SIZES(3)
-  ALLOW_VECTOR_SIZES(4)
-  ALLOW_VECTOR_SIZES(8)
-  ALLOW_VECTOR_SIZES(16)
-#undef ALLOW_VECTOR_SIZES
+  __SYCL_ALLOW_VECTOR_SIZES(1)
+  __SYCL_ALLOW_VECTOR_SIZES(2)
+  __SYCL_ALLOW_VECTOR_SIZES(3)
+  __SYCL_ALLOW_VECTOR_SIZES(4)
+  __SYCL_ALLOW_VECTOR_SIZES(8)
+  __SYCL_ALLOW_VECTOR_SIZES(16)
+#undef __SYCL_ALLOW_VECTOR_SIZES
 
   template <class...> struct conjunction : std::true_type {};
   template <class B1, class... tail>
@@ -596,7 +596,7 @@ template <typename Type, int NumElements> class vec {
   // TypeChecker is needed for vec(const argTN &... args) ctor to validate args.
   template <typename T, typename DataT_>
   struct TypeChecker : std::is_convertible<T, DataT_> {};
-#define ALLOW_VECTOR_TYPES(num_elements)                                       \
+#define __SYCL_ALLOW_VECTOR_TYPES(num_elements)                                \
   template <typename DataT_>                                                   \
   struct TypeChecker<vec<DataT_, num_elements>, DataT_> : std::true_type {};   \
   template <typename DataT_, typename T2, typename T3,                         \
@@ -610,13 +610,13 @@ template <typename Type, int NumElements> class vec {
       detail::SwizzleOp<const vec<DataT_, num_elements>, T2, T3, T4, T5...>,   \
       DataT_> : std::true_type {};
 
-  ALLOW_VECTOR_TYPES(1)
-  ALLOW_VECTOR_TYPES(2)
-  ALLOW_VECTOR_TYPES(3)
-  ALLOW_VECTOR_TYPES(4)
-  ALLOW_VECTOR_TYPES(8)
-  ALLOW_VECTOR_TYPES(16)
-#undef ALLOW_VECTOR_TYPES
+  __SYCL_ALLOW_VECTOR_TYPES(1)
+  __SYCL_ALLOW_VECTOR_TYPES(2)
+  __SYCL_ALLOW_VECTOR_TYPES(3)
+  __SYCL_ALLOW_VECTOR_TYPES(4)
+  __SYCL_ALLOW_VECTOR_TYPES(8)
+  __SYCL_ALLOW_VECTOR_TYPES(16)
+#undef __SYCL_ALLOW_VECTOR_TYPES
 
   template <int... Indexes>
   using Swizzle =
@@ -899,9 +899,12 @@ public:
     load(Offset, ConstPtr);
   }
   template <int Dimensions, access::mode Mode,
-            access::placeholder IsPlaceholder, access::target Target>
-  void load(size_t Offset,
-            accessor<DataT, Dimensions, Mode, Target, IsPlaceholder> Acc) {
+            access::placeholder IsPlaceholder, access::target Target,
+            typename PropertyListT>
+  void
+  load(size_t Offset,
+       accessor<DataT, Dimensions, Mode, Target, IsPlaceholder, PropertyListT>
+           Acc) {
     multi_ptr<const DataT, detail::TargetToAS<Target>::AS> MultiPtr(Acc);
     load(Offset, MultiPtr);
   }
@@ -912,9 +915,12 @@ public:
     }
   }
   template <int Dimensions, access::mode Mode,
-            access::placeholder IsPlaceholder, access::target Target>
-  void store(size_t Offset,
-             accessor<DataT, Dimensions, Mode, Target, IsPlaceholder> Acc) {
+            access::placeholder IsPlaceholder, access::target Target,
+            typename PropertyListT>
+  void
+  store(size_t Offset,
+        accessor<DataT, Dimensions, Mode, Target, IsPlaceholder, PropertyListT>
+            Acc) {
     multi_ptr<DataT, detail::TargetToAS<Target>::AS> MultiPtr(Acc);
     store(Offset, MultiPtr);
   }
@@ -1303,12 +1309,12 @@ private:
   }
 
   // fields
-  // Used "SYCL_ALIGNAS" instead "alignas" to handle MSVC compiler.
+  // Used "__SYCL_ALIGNAS" instead "alignas" to handle MSVC compiler.
   // For MSVC compiler max alignment is 64, e.g. vec<double, 16> required
   // alignment of 128 and MSVC compiler cann't align a parameter with requested
   // alignment of 128.
-  SYCL_ALIGNAS((detail::vector_alignment<DataT, NumElements>::value))
-      DataType m_Data;
+  __SYCL_ALIGNAS((detail::vector_alignment<DataT, NumElements>::value))
+  DataType m_Data;
 
   // friends
   template <typename T1, typename T2, typename T3, template <typename> class T4,
@@ -2002,56 +2008,56 @@ __SYCL_RELLOGOP(||)
 
 
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
-#define DECLARE_TYPE_VIA_CL_T(type)                                            \
-using __##type##_t       = cl::sycl::cl_##type;        \
-using __##type##2_vec_t  = cl::sycl::cl_##type         \
-                 __attribute__((ext_vector_type(2)));  \
-using __##type##3_vec_t  = cl::sycl::cl_##type         \
-                 __attribute__((ext_vector_type(3)));  \
-using __##type##4_vec_t  = cl::sycl::cl_##type         \
-                 __attribute__((ext_vector_type(4)));  \
-using __##type##8_vec_t  = cl::sycl::cl_##type         \
-                 __attribute__((ext_vector_type(8)));  \
-using __##type##16_vec_t = cl::sycl::cl_##type         \
-                 __attribute__((ext_vector_type(16)));
+#define __SYCL_DECLARE_TYPE_VIA_CL_T(type)                                     \
+  using __##type##_t = cl::sycl::cl_##type;                                    \
+  using __##type##2_vec_t =                                                    \
+      cl::sycl::cl_##type __attribute__((ext_vector_type(2)));                 \
+  using __##type##3_vec_t =                                                    \
+      cl::sycl::cl_##type __attribute__((ext_vector_type(3)));                 \
+  using __##type##4_vec_t =                                                    \
+      cl::sycl::cl_##type __attribute__((ext_vector_type(4)));                 \
+  using __##type##8_vec_t =                                                    \
+      cl::sycl::cl_##type __attribute__((ext_vector_type(8)));                 \
+  using __##type##16_vec_t =                                                   \
+      cl::sycl::cl_##type __attribute__((ext_vector_type(16)));
 
-#define DECLARE_TYPE_T(type)                                                   \
-using __##type##_t       = cl::sycl::type;             \
-using __##type##2_vec_t  = cl::sycl::type              \
-                 __attribute__((ext_vector_type(2)));  \
-using __##type##3_vec_t  = cl::sycl::type              \
-                 __attribute__((ext_vector_type(3)));  \
-using __##type##4_vec_t  = cl::sycl::type              \
-                 __attribute__((ext_vector_type(4)));  \
-using __##type##8_vec_t  = cl::sycl::type              \
-                 __attribute__((ext_vector_type(8)));  \
-using __##type##16_vec_t = cl::sycl::type              \
-                 __attribute__((ext_vector_type(16)));
+#define __SYCL_DECLARE_TYPE_T(type)                                            \
+  using __##type##_t = cl::sycl::type;                                         \
+  using __##type##2_vec_t =                                                    \
+      cl::sycl::type __attribute__((ext_vector_type(2)));                      \
+  using __##type##3_vec_t =                                                    \
+      cl::sycl::type __attribute__((ext_vector_type(3)));                      \
+  using __##type##4_vec_t =                                                    \
+      cl::sycl::type __attribute__((ext_vector_type(4)));                      \
+  using __##type##8_vec_t =                                                    \
+      cl::sycl::type __attribute__((ext_vector_type(8)));                      \
+  using __##type##16_vec_t =                                                   \
+      cl::sycl::type __attribute__((ext_vector_type(16)));
 
-DECLARE_TYPE_VIA_CL_T(char);
-DECLARE_TYPE_T(schar);
-DECLARE_TYPE_VIA_CL_T(uchar);
-DECLARE_TYPE_VIA_CL_T(short);
-DECLARE_TYPE_VIA_CL_T(ushort);
-DECLARE_TYPE_VIA_CL_T(int);
-DECLARE_TYPE_VIA_CL_T(uint);
-DECLARE_TYPE_VIA_CL_T(long);
-DECLARE_TYPE_VIA_CL_T(ulong);
-DECLARE_TYPE_T(longlong);
-DECLARE_TYPE_T(ulonglong);
+__SYCL_DECLARE_TYPE_VIA_CL_T(char);
+__SYCL_DECLARE_TYPE_T(schar);
+__SYCL_DECLARE_TYPE_VIA_CL_T(uchar);
+__SYCL_DECLARE_TYPE_VIA_CL_T(short);
+__SYCL_DECLARE_TYPE_VIA_CL_T(ushort);
+__SYCL_DECLARE_TYPE_VIA_CL_T(int);
+__SYCL_DECLARE_TYPE_VIA_CL_T(uint);
+__SYCL_DECLARE_TYPE_VIA_CL_T(long);
+__SYCL_DECLARE_TYPE_VIA_CL_T(ulong);
+__SYCL_DECLARE_TYPE_T(longlong);
+__SYCL_DECLARE_TYPE_T(ulonglong);
 // Note: halfs are not declared here, because they have different representation
 // between host and device, see separate handling below
-DECLARE_TYPE_VIA_CL_T(float);
-DECLARE_TYPE_VIA_CL_T(double);
+__SYCL_DECLARE_TYPE_VIA_CL_T(float);
+__SYCL_DECLARE_TYPE_VIA_CL_T(double);
 
-#define GET_CL_TYPE(target, num) __##target##num##_vec_t
-#define GET_SCALAR_CL_TYPE(target) target
+#define __SYCL_GET_CL_TYPE(target, num) __##target##num##_vec_t
+#define __SYCL_GET_SCALAR_CL_TYPE(target) target
 
-#undef DECLARE_TYPE_VIA_CL_T
-#undef DECLARE_TYPE_T
+#undef __SYCL_DECLARE_TYPE_VIA_CL_T
+#undef __SYCL_DECLARE_TYPE_T
 #else // __SYCL_USE_EXT_VECTOR_TYPE__
-#define GET_CL_TYPE(target, num) ::cl_##target##num
-#define GET_SCALAR_CL_TYPE(target) ::cl_##target
+#define __SYCL_GET_CL_TYPE(target, num) ::cl_##target##num
+#define __SYCL_GET_SCALAR_CL_TYPE(target) ::cl_##target
 #endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
 using __half_t = cl::sycl::detail::half_impl::StorageT;
@@ -2060,7 +2066,7 @@ using __half3_vec_t = cl::sycl::detail::half_impl::Vec3StorageT;
 using __half4_vec_t = cl::sycl::detail::half_impl::Vec4StorageT;
 using __half8_vec_t = cl::sycl::detail::half_impl::Vec8StorageT;
 using __half16_vec_t = cl::sycl::detail::half_impl::Vec16StorageT;
-#define GET_CL_HALF_TYPE(target, num) __##target##num##_vec_t
+#define __SYCL_GET_CL_HALF_TYPE(target, num) __##target##num##_vec_t
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -2074,170 +2080,198 @@ using select_apply_cl_t =
   conditional_t<sizeof(T) == 4, T32, T64>>>;
 } // detail
 
-#define DECLARE_CONVERTER(base, num)                                           \
+#define __SYCL_DECLARE_CONVERTER(base, num)                                    \
   template <> class BaseCLTypeConverter<base, num> {                           \
   public:                                                                      \
-    using DataType = GET_CL_TYPE(base, num);                                   \
+    using DataType = __SYCL_GET_CL_TYPE(base, num);                            \
   };
 
-#define DECLARE_SIGNED_INTEGRAL_CONVERTER(base, num)                           \
+#define __SYCL_DECLARE_SIGNED_INTEGRAL_CONVERTER(base, num)                    \
   template <> class BaseCLTypeConverter<base, num> {                           \
   public:                                                                      \
-    using DataType = detail::select_apply_cl_t<base, GET_CL_TYPE(char, num),   \
-      GET_CL_TYPE(short, num), GET_CL_TYPE(int, num), GET_CL_TYPE(long, num)>; \
+    using DataType = detail::select_apply_cl_t<                                \
+        base, __SYCL_GET_CL_TYPE(char, num), __SYCL_GET_CL_TYPE(short, num),   \
+        __SYCL_GET_CL_TYPE(int, num), __SYCL_GET_CL_TYPE(long, num)>;          \
   };
 
-#define DECLARE_UNSIGNED_INTEGRAL_CONVERTER(base, num)                         \
+#define __SYCL_DECLARE_UNSIGNED_INTEGRAL_CONVERTER(base, num)                  \
   template <> class BaseCLTypeConverter<base, num> {                           \
   public:                                                                      \
-    using DataType = detail::select_apply_cl_t<base, GET_CL_TYPE(uchar, num),  \
-      GET_CL_TYPE(ushort, num), GET_CL_TYPE(uint, num),                        \
-      GET_CL_TYPE(ulong, num)>;                                                \
+    using DataType = detail::select_apply_cl_t<                                \
+        base, __SYCL_GET_CL_TYPE(uchar, num), __SYCL_GET_CL_TYPE(ushort, num), \
+        __SYCL_GET_CL_TYPE(uint, num), __SYCL_GET_CL_TYPE(ulong, num)>;        \
   };
 
-#define DECLARE_FLOAT_CONVERTER(base, num)                                     \
+#define __SYCL_DECLARE_FLOAT_CONVERTER(base, num)                              \
   template <> class BaseCLTypeConverter<base, num> {                           \
   public:                                                                      \
-    using DataType = detail::select_apply_cl_t<base, std::false_type,          \
-      GET_CL_HALF_TYPE(half, num), GET_CL_TYPE(float, num),                    \
-      GET_CL_TYPE(double, num)>;                                               \
+    using DataType = detail::select_apply_cl_t<                                \
+        base, std::false_type, __SYCL_GET_CL_HALF_TYPE(half, num),             \
+        __SYCL_GET_CL_TYPE(float, num), __SYCL_GET_CL_TYPE(double, num)>;      \
   };
 
-#define DECLARE_LONGLONG_CONVERTER(base, num)                                  \
+#define __SYCL_DECLARE_LONGLONG_CONVERTER(base, num)                           \
   template <> class BaseCLTypeConverter<base##long, num> {                     \
   public:                                                                      \
-    using DataType = GET_CL_TYPE(base, num);                                   \
+    using DataType = __SYCL_GET_CL_TYPE(base, num);                            \
   };
 
-#define DECLARE_SCHAR_CONVERTER(num)                                           \
+#define __SYCL_DECLARE_SCHAR_CONVERTER(num)                                    \
   template <> class BaseCLTypeConverter<schar, num> {                          \
   public:                                                                      \
     using DataType = detail::select_apply_cl_t<                                \
-        schar, GET_CL_TYPE(char, num), GET_CL_TYPE(short, num),                \
-        GET_CL_TYPE(int, num), GET_CL_TYPE(long, num)>;                        \
+        schar, __SYCL_GET_CL_TYPE(char, num), __SYCL_GET_CL_TYPE(short, num),  \
+        __SYCL_GET_CL_TYPE(int, num), __SYCL_GET_CL_TYPE(long, num)>;          \
   };
 
-#define DECLARE_HALF_CONVERTER(base, num)                                      \
+#define __SYCL_DECLARE_BOOL_CONVERTER(num)                                     \
+  template <> class BaseCLTypeConverter<bool, num> {                           \
+  public:                                                                      \
+    using DataType = detail::select_apply_cl_t<                                \
+        bool, __SYCL_GET_CL_TYPE(char, num), __SYCL_GET_CL_TYPE(short, num),   \
+        __SYCL_GET_CL_TYPE(int, num), __SYCL_GET_CL_TYPE(long, num)>;          \
+  };
+
+#define __SYCL_DECLARE_HALF_CONVERTER(base, num)                               \
   template <> class BaseCLTypeConverter<base, num> {                           \
   public:                                                                      \
-    using DataType = GET_CL_HALF_TYPE(base, num);                              \
+    using DataType = __SYCL_GET_CL_HALF_TYPE(base, num);                       \
   };
 
-#define DECLARE_SCALAR_SCHAR_CONVERTER                                         \
+#define __SYCL_DECLARE_SCALAR_SCHAR_CONVERTER                                  \
   template <> class BaseCLTypeConverter<schar, 1> {                            \
   public:                                                                      \
     using DataType = schar;                                                    \
   };
 
-#define DECLARE_SCALAR_CONVERTER(base)                                         \
-  template <> class BaseCLTypeConverter<base, 1> {                             \
+#define __SYCL_DECLARE_SCALAR_BOOL_CONVERTER                                   \
+  template <> class BaseCLTypeConverter<bool, 1> {                             \
   public:                                                                      \
-    using DataType = GET_SCALAR_CL_TYPE(base);                                 \
+    using DataType = bool;                                                     \
   };
 
-#define DECLARE_VECTOR_CONVERTERS(base)                                        \
+#define __SYCL_DECLARE_SCALAR_CONVERTER(base)                                  \
+  template <> class BaseCLTypeConverter<base, 1> {                             \
+  public:                                                                      \
+    using DataType = __SYCL_GET_SCALAR_CL_TYPE(base);                          \
+  };
+
+#define __SYCL_DECLARE_VECTOR_CONVERTERS(base)                                 \
   namespace detail {                                                           \
-  DECLARE_CONVERTER(base, 2)                                                   \
-  DECLARE_CONVERTER(base, 3)                                                   \
-  DECLARE_CONVERTER(base, 4)                                                   \
-  DECLARE_CONVERTER(base, 8)                                                   \
-  DECLARE_CONVERTER(base, 16)                                                  \
-  DECLARE_SCALAR_CONVERTER(base)                                               \
+  __SYCL_DECLARE_CONVERTER(base, 2)                                            \
+  __SYCL_DECLARE_CONVERTER(base, 3)                                            \
+  __SYCL_DECLARE_CONVERTER(base, 4)                                            \
+  __SYCL_DECLARE_CONVERTER(base, 8)                                            \
+  __SYCL_DECLARE_CONVERTER(base, 16)                                           \
+  __SYCL_DECLARE_SCALAR_CONVERTER(base)                                        \
   } // namespace detail
 
-#define DECLARE_SIGNED_INTEGRAL_VECTOR_CONVERTERS(base)                        \
+#define __SYCL_DECLARE_SIGNED_INTEGRAL_VECTOR_CONVERTERS(base)                 \
   namespace detail {                                                           \
-  DECLARE_SIGNED_INTEGRAL_CONVERTER(base, 2)                                   \
-  DECLARE_SIGNED_INTEGRAL_CONVERTER(base, 3)                                   \
-  DECLARE_SIGNED_INTEGRAL_CONVERTER(base, 4)                                   \
-  DECLARE_SIGNED_INTEGRAL_CONVERTER(base, 8)                                   \
-  DECLARE_SIGNED_INTEGRAL_CONVERTER(base, 16)                                  \
-  DECLARE_SCALAR_CONVERTER(base)                                               \
+  __SYCL_DECLARE_SIGNED_INTEGRAL_CONVERTER(base, 2)                            \
+  __SYCL_DECLARE_SIGNED_INTEGRAL_CONVERTER(base, 3)                            \
+  __SYCL_DECLARE_SIGNED_INTEGRAL_CONVERTER(base, 4)                            \
+  __SYCL_DECLARE_SIGNED_INTEGRAL_CONVERTER(base, 8)                            \
+  __SYCL_DECLARE_SIGNED_INTEGRAL_CONVERTER(base, 16)                           \
+  __SYCL_DECLARE_SCALAR_CONVERTER(base)                                        \
   } // namespace detail
 
-#define DECLARE_UNSIGNED_INTEGRAL_VECTOR_CONVERTERS(base)                      \
+#define __SYCL_DECLARE_UNSIGNED_INTEGRAL_VECTOR_CONVERTERS(base)               \
   namespace detail {                                                           \
-  DECLARE_UNSIGNED_INTEGRAL_CONVERTER(base, 2)                                 \
-  DECLARE_UNSIGNED_INTEGRAL_CONVERTER(base, 3)                                 \
-  DECLARE_UNSIGNED_INTEGRAL_CONVERTER(base, 4)                                 \
-  DECLARE_UNSIGNED_INTEGRAL_CONVERTER(base, 8)                                 \
-  DECLARE_UNSIGNED_INTEGRAL_CONVERTER(base, 16)                                \
-  DECLARE_SCALAR_CONVERTER(base)                                               \
+  __SYCL_DECLARE_UNSIGNED_INTEGRAL_CONVERTER(base, 2)                          \
+  __SYCL_DECLARE_UNSIGNED_INTEGRAL_CONVERTER(base, 3)                          \
+  __SYCL_DECLARE_UNSIGNED_INTEGRAL_CONVERTER(base, 4)                          \
+  __SYCL_DECLARE_UNSIGNED_INTEGRAL_CONVERTER(base, 8)                          \
+  __SYCL_DECLARE_UNSIGNED_INTEGRAL_CONVERTER(base, 16)                         \
+  __SYCL_DECLARE_SCALAR_CONVERTER(base)                                        \
   } // namespace detail
 
-#define DECLARE_FLOAT_VECTOR_CONVERTERS(base)                                  \
+#define __SYCL_DECLARE_FLOAT_VECTOR_CONVERTERS(base)                           \
   namespace detail {                                                           \
-  DECLARE_FLOAT_CONVERTER(base, 2)                                             \
-  DECLARE_FLOAT_CONVERTER(base, 3)                                             \
-  DECLARE_FLOAT_CONVERTER(base, 4)                                             \
-  DECLARE_FLOAT_CONVERTER(base, 8)                                             \
-  DECLARE_FLOAT_CONVERTER(base, 16)                                            \
-  DECLARE_SCALAR_CONVERTER(base)                                               \
+  __SYCL_DECLARE_FLOAT_CONVERTER(base, 2)                                      \
+  __SYCL_DECLARE_FLOAT_CONVERTER(base, 3)                                      \
+  __SYCL_DECLARE_FLOAT_CONVERTER(base, 4)                                      \
+  __SYCL_DECLARE_FLOAT_CONVERTER(base, 8)                                      \
+  __SYCL_DECLARE_FLOAT_CONVERTER(base, 16)                                     \
+  __SYCL_DECLARE_SCALAR_CONVERTER(base)                                        \
   } // namespace detail
 
-
-#define DECLARE_HALF_VECTOR_CONVERTERS(base)                                   \
+#define __SYCL_DECLARE_HALF_VECTOR_CONVERTERS(base)                            \
   namespace detail {                                                           \
-  DECLARE_HALF_CONVERTER(base, 2)                                              \
-  DECLARE_HALF_CONVERTER(base, 3)                                              \
-  DECLARE_HALF_CONVERTER(base, 4)                                              \
-  DECLARE_HALF_CONVERTER(base, 8)                                              \
-  DECLARE_HALF_CONVERTER(base, 16)                                             \
+  __SYCL_DECLARE_HALF_CONVERTER(base, 2)                                       \
+  __SYCL_DECLARE_HALF_CONVERTER(base, 3)                                       \
+  __SYCL_DECLARE_HALF_CONVERTER(base, 4)                                       \
+  __SYCL_DECLARE_HALF_CONVERTER(base, 8)                                       \
+  __SYCL_DECLARE_HALF_CONVERTER(base, 16)                                      \
   template <> class BaseCLTypeConverter<base, 1> {                             \
   public:                                                                      \
     using DataType = __half_t;                                                 \
   };                                                                           \
   } // namespace detail
 
-#define DECLARE_VECTOR_LONGLONG_CONVERTERS(base)                               \
+#define __SYCL_DECLARE_VECTOR_LONGLONG_CONVERTERS(base)                        \
   namespace detail {                                                           \
-  DECLARE_LONGLONG_CONVERTER(base, 2)                                          \
-  DECLARE_LONGLONG_CONVERTER(base, 3)                                          \
-  DECLARE_LONGLONG_CONVERTER(base, 4)                                          \
-  DECLARE_LONGLONG_CONVERTER(base, 8)                                          \
-  DECLARE_LONGLONG_CONVERTER(base, 16)                                         \
+  __SYCL_DECLARE_LONGLONG_CONVERTER(base, 2)                                   \
+  __SYCL_DECLARE_LONGLONG_CONVERTER(base, 3)                                   \
+  __SYCL_DECLARE_LONGLONG_CONVERTER(base, 4)                                   \
+  __SYCL_DECLARE_LONGLONG_CONVERTER(base, 8)                                   \
+  __SYCL_DECLARE_LONGLONG_CONVERTER(base, 16)                                  \
   template <> class BaseCLTypeConverter<base##long, 1> {                       \
   public:                                                                      \
     using DataType = base##long;                                               \
   };                                                                           \
   } // namespace detail
 
-#define DECLARE_SCHAR_VECTOR_CONVERTERS                                        \
+#define __SYCL_DECLARE_SCHAR_VECTOR_CONVERTERS                                 \
   namespace detail {                                                           \
-  DECLARE_SCHAR_CONVERTER(2)                                                   \
-  DECLARE_SCHAR_CONVERTER(3)                                                   \
-  DECLARE_SCHAR_CONVERTER(4)                                                   \
-  DECLARE_SCHAR_CONVERTER(8)                                                   \
-  DECLARE_SCHAR_CONVERTER(16)                                                  \
-  DECLARE_SCALAR_SCHAR_CONVERTER                                               \
+  __SYCL_DECLARE_SCHAR_CONVERTER(2)                                            \
+  __SYCL_DECLARE_SCHAR_CONVERTER(3)                                            \
+  __SYCL_DECLARE_SCHAR_CONVERTER(4)                                            \
+  __SYCL_DECLARE_SCHAR_CONVERTER(8)                                            \
+  __SYCL_DECLARE_SCHAR_CONVERTER(16)                                           \
+  __SYCL_DECLARE_SCALAR_SCHAR_CONVERTER                                        \
   } // namespace detail
 
-DECLARE_VECTOR_CONVERTERS(char)
-DECLARE_SCHAR_VECTOR_CONVERTERS
-DECLARE_UNSIGNED_INTEGRAL_VECTOR_CONVERTERS(uchar)
-DECLARE_SIGNED_INTEGRAL_VECTOR_CONVERTERS(short)
-DECLARE_UNSIGNED_INTEGRAL_VECTOR_CONVERTERS(ushort)
-DECLARE_SIGNED_INTEGRAL_VECTOR_CONVERTERS(int)
-DECLARE_UNSIGNED_INTEGRAL_VECTOR_CONVERTERS(uint)
-DECLARE_SIGNED_INTEGRAL_VECTOR_CONVERTERS(long)
-DECLARE_UNSIGNED_INTEGRAL_VECTOR_CONVERTERS(ulong)
-DECLARE_VECTOR_LONGLONG_CONVERTERS(long)
-DECLARE_VECTOR_LONGLONG_CONVERTERS(ulong)
-DECLARE_HALF_VECTOR_CONVERTERS(half)
-DECLARE_FLOAT_VECTOR_CONVERTERS(float)
-DECLARE_FLOAT_VECTOR_CONVERTERS(double)
+#define __SYCL_DECLARE_BOOL_VECTOR_CONVERTERS                                  \
+  namespace detail {                                                           \
+  __SYCL_DECLARE_BOOL_CONVERTER(2)                                             \
+  __SYCL_DECLARE_BOOL_CONVERTER(3)                                             \
+  __SYCL_DECLARE_BOOL_CONVERTER(4)                                             \
+  __SYCL_DECLARE_BOOL_CONVERTER(8)                                             \
+  __SYCL_DECLARE_BOOL_CONVERTER(16)                                            \
+  __SYCL_DECLARE_SCALAR_BOOL_CONVERTER                                         \
+  } // namespace detail
 
-#undef GET_CL_TYPE
-#undef GET_SCALAR_CL_TYPE
-#undef DECLARE_CONVERTER
-#undef DECLARE_VECTOR_CONVERTERS
-#undef DECLARE_SYCL_VEC
-#undef DECLARE_SYCL_VEC_WO_CONVERTERS
-#undef DECLARE_SCHAR_VECTOR_CONVERTERS
-#undef DECLARE_SCHAR_CONVERTER
-#undef DECLARE_SCALAR_SCHAR_CONVERTER
+__SYCL_DECLARE_VECTOR_CONVERTERS(char)
+__SYCL_DECLARE_SCHAR_VECTOR_CONVERTERS
+__SYCL_DECLARE_BOOL_VECTOR_CONVERTERS
+__SYCL_DECLARE_UNSIGNED_INTEGRAL_VECTOR_CONVERTERS(uchar)
+__SYCL_DECLARE_SIGNED_INTEGRAL_VECTOR_CONVERTERS(short)
+__SYCL_DECLARE_UNSIGNED_INTEGRAL_VECTOR_CONVERTERS(ushort)
+__SYCL_DECLARE_SIGNED_INTEGRAL_VECTOR_CONVERTERS(int)
+__SYCL_DECLARE_UNSIGNED_INTEGRAL_VECTOR_CONVERTERS(uint)
+__SYCL_DECLARE_SIGNED_INTEGRAL_VECTOR_CONVERTERS(long)
+__SYCL_DECLARE_UNSIGNED_INTEGRAL_VECTOR_CONVERTERS(ulong)
+__SYCL_DECLARE_VECTOR_LONGLONG_CONVERTERS(long)
+__SYCL_DECLARE_VECTOR_LONGLONG_CONVERTERS(ulong)
+__SYCL_DECLARE_HALF_VECTOR_CONVERTERS(half)
+__SYCL_DECLARE_FLOAT_VECTOR_CONVERTERS(float)
+__SYCL_DECLARE_FLOAT_VECTOR_CONVERTERS(double)
+
+#undef __SYCL_GET_CL_TYPE
+#undef __SYCL_GET_SCALAR_CL_TYPE
+#undef __SYCL_DECLARE_CONVERTER
+#undef __SYCL_DECLARE_VECTOR_CONVERTERS
+#undef __SYCL_DECLARE_SYCL_VEC
+#undef __SYCL_DECLARE_SYCL_VEC_WO_CONVERTERS
+#undef __SYCL_DECLARE_SCHAR_VECTOR_CONVERTERS
+#undef __SYCL_DECLARE_SCHAR_CONVERTER
+#undef __SYCL_DECLARE_SCALAR_SCHAR_CONVERTER
+#undef __SYCL_DECLARE_BOOL_VECTOR_CONVERTERS
+#undef __SYCL_DECLARE_BOOL_CONVERTER
+#undef __SYCL_DECLARE_SCALAR_BOOL_CONVERTER
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-#undef SYCL_ALIGNAS
+#undef __SYCL_ALIGNAS

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -fsycl-int-header=%t.h %s -o %t.out
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -fsycl-int-header=%t.h %s -o %t.out
 // RUN: FileCheck -input-file=%t.h %s
 
 // This test checks the integration header generated when
@@ -23,11 +23,6 @@
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 12, 0 },
 // CHECK-EMPTY:
 // CHECK-NEXT:};
-
-// CHECK: static constexpr
-// CHECK-NEXT: const unsigned kernel_signature_start[] = {
-// CHECK-NEXT:  0 // _ZTSZ4mainE8kernel_A
-// CHECK-NEXT: };
 
 // CHECK: template <> struct KernelInfo<class kernel_A> {
 

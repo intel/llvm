@@ -122,12 +122,16 @@ public:
   /// \param Blocking if this argument is true, function will wait for the
   ///        command to be unblocked before calling enqueueImp.
   /// \return true if the command is enqueued.
-  bool enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking);
+  virtual bool enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking);
 
   bool isFinished();
 
   bool isSuccessfullyEnqueued() const {
     return MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess;
+  }
+
+  bool isEnqueueBlocked() const {
+    return MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked;
   }
 
   std::shared_ptr<queue_impl> getQueue() const { return MQueue; }
@@ -213,6 +217,10 @@ protected:
   friend class DispatchHostTask;
 
 public:
+  const std::vector<EventImplPtr> getPreparedHostDepsEvents() const {
+    return MPreparedHostDepsEvents;
+  }
+
   /// Contains list of dependencies(edges)
   std::vector<DepDesc> MDeps;
   /// Contains list of commands that depend on the command.
@@ -484,16 +492,27 @@ public:
 
   vector_class<StreamImplPtr> getStreams() const;
 
+  void clearStreams();
+
   void printDot(std::ostream &Stream) const final override;
   void emitInstrumentationData() final override;
 
   detail::CG &getCG() const { return *MCommandGroup; }
 
-  // MEmptyCmd one is only employed if this command refers to host-task.
-  // MEmptyCmd due to unreliable mechanism of lookup for single EmptyCommand
-  // amongst users of host-task-representing command. This unreliability roots
-  // in cleanup process.
+  // MEmptyCmd is only employed if this command refers to host-task.
+  // The mechanism of lookup for single EmptyCommand amongst users of
+  // host-task-representing command is unreliable. This unreliability roots in
+  // the cleanup process.
   EmptyCommand *MEmptyCmd = nullptr;
+
+  // This function is only usable for native kernel to prevent access to free'd
+  // memory in DispatchNativeKernel.
+  // TODO remove when native kernel support is terminated.
+  void releaseCG() {
+    assert(MCommandGroup->getType() == CG::RUN_ON_HOST_INTEL &&
+           "Only 'native kernel' is allowed to release command group");
+    MCommandGroup.release();
+  }
 
 private:
   cl_int enqueueImp() final override;

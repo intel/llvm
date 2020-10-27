@@ -45,10 +45,11 @@ template <typename DataT, int Dimensions, memory_order DefaultOrder,
           access::placeholder IsPlaceholder = access::placeholder::false_t>
 class atomic_accessor
     : public accessor<DataT, Dimensions, access::mode::read_write, AccessTarget,
-                      IsPlaceholder> {
+                      IsPlaceholder, ONEAPI::accessor_property_list<>> {
 
-  using AccessorT = accessor<DataT, Dimensions, access::mode::read_write,
-                             AccessTarget, IsPlaceholder>;
+  using AccessorT =
+      accessor<DataT, Dimensions, access::mode::read_write, AccessTarget,
+               IsPlaceholder, ONEAPI::accessor_property_list<>>;
 
 private:
   using AccessorT::getLinearIndex;

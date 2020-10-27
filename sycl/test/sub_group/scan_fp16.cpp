@@ -1,10 +1,7 @@
-// TODO: Enable compilation w/o -fno-sycl-early-optimizations option.
-// See https://github.com/intel/llvm/issues/2264 for more details.
-
 // UNSUPPORTED: cuda
 // CUDA compilation and runtime do not yet support sub-groups.
 //
-// RUN: %clangxx -fsycl -fno-sycl-early-optimizations -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 //==--------------- scan_fp16.cpp - SYCL sub_group scan test --------*- C++ -*---==//
@@ -23,7 +20,7 @@ int main() {
     std::cout << "Skipping test\n";
     return 0;
   }
-  check<cl::sycl::half>(Queue);
+  check<class KernelName_dlpo, cl::sycl::half>(Queue);
   std::cout << "Test passed." << std::endl;
   return 0;
 }

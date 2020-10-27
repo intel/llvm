@@ -1280,10 +1280,27 @@ TEST_F(SymbolCollectorTest, CanonicalSTLHeader) {
   Language.CPlusPlus = true;
   Includes.addSystemHeadersMapping(Language);
   CollectorOpts.Includes = &Includes;
-  runSymbolCollector("namespace std { class string {}; }", /*Main=*/"");
-  EXPECT_THAT(Symbols,
-              Contains(AllOf(QName("std::string"), DeclURI(TestHeaderURI),
-                             IncludeHeader("<string>"))));
+  runSymbolCollector(
+      R"cpp(
+      namespace std {
+        class string {};
+        // Move overloads have special handling.
+        template <typename T> T&& move(T&&);
+        template <typename I, typename O> O move(I, I, O);
+      }
+      )cpp",
+      /*Main=*/"");
+  for (const auto &S : Symbols)
+    llvm::errs() << S.Scope << S.Name << " in " << S.IncludeHeaders.size()
+                 << "\n";
+  EXPECT_THAT(
+      Symbols,
+      UnorderedElementsAre(
+          QName("std"),
+          AllOf(QName("std::string"), DeclURI(TestHeaderURI),
+                IncludeHeader("<string>")),
+          AllOf(Labeled("move(T &&)"), IncludeHeader("<utility>")),
+          AllOf(Labeled("move(I, I, O)"), IncludeHeader("<algorithm>"))));
 }
 
 TEST_F(SymbolCollectorTest, IWYUPragma) {
@@ -1606,11 +1623,11 @@ TEST_F(SymbolCollectorTest, BadUTF8) {
   // Extracted from boost/spirit/home/support/char_encoding/iso8859_1.hpp
   // This looks like UTF-8 and fools clang, but has high-ISO-8859-1 comments.
   const char *Header = "int PUNCT = 0;\n"
-                       "int types[] = { /* \xa1 */PUNCT };";
+                       "/* \xa1 */ int types[] = { /* \xa1 */PUNCT };";
   CollectorOpts.RefFilter = RefKind::All;
   CollectorOpts.RefsInHeaders = true;
   runSymbolCollector(Header, "");
-  EXPECT_THAT(Symbols, Contains(QName("types")));
+  EXPECT_THAT(Symbols, Contains(AllOf(QName("types"), Doc("\xef\xbf\xbd "))));
   EXPECT_THAT(Symbols, Contains(QName("PUNCT")));
   // Reference is stored, although offset within line is not reliable.
   EXPECT_THAT(Refs, Contains(Pair(findSymbol(Symbols, "PUNCT").ID, _)));

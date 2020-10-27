@@ -111,12 +111,24 @@ mlir::linalg::LinalgBaseTilingPattern::LinalgBaseTilingPattern(
     : RewritePattern(opName, {}, benefit, context), marker(marker),
       options(options) {}
 
-LogicalResult mlir::linalg::LinalgBaseTilingPattern::matchAndRewrite(
-    Operation *op, PatternRewriter &rewriter) const {
+LogicalResult mlir::linalg::LinalgBaseTilingPattern::matchAndRewriteBase(
+    Operation *op, PatternRewriter &rewriter,
+    SmallVectorImpl<Value> &tensorResults) const {
   LinalgOp linalgOp = dyn_cast<LinalgOp>(op);
   if (!linalgOp)
     return failure();
   if (failed(marker.checkAndNotify(rewriter, linalgOp)))
+    return failure();
+
+  // If LinalgOp has results, they must all be tied to init tensors.
+  // We enforce this to ensure all tiled ops have been rewritten in
+  // "init tensor" form. This ensures tiling has anchor values into which to
+  // subtensor / subtensor_insert. Otherwise tiling would need to allocate which
+  // is not acceptable.
+  // This would not be the case with a special terminator op that generates the
+  // whole tensor (instead of inserting a subtensor). But the generator-based
+  // abstraction has other issues.
+  if (linalgOp.getNumInitTensors() != linalgOp.getOperation()->getNumResults())
     return failure();
 
   Optional<TiledLinalgOp> res = tileLinalgOp(rewriter, linalgOp, options);
@@ -124,10 +136,48 @@ LogicalResult mlir::linalg::LinalgBaseTilingPattern::matchAndRewrite(
   if (!res)
     return failure();
 
+  // Return relevant information to derived pattern.
+  tensorResults = res->tensorResults;
+
   // New marker if specified.
   marker.replaceLinalgMarker(rewriter, res->op.getOperation());
+  return success();
+}
 
-  rewriter.eraseOp(op);
+mlir::linalg::LinalgBaseTileAndFusePattern::LinalgBaseTileAndFusePattern(
+    StringRef opName, MLIRContext *context,
+    const LinalgDependenceGraph &dependenceGraph,
+    LinalgTilingOptions tilingOptions, LinalgFusionOptions fusionOptions,
+    LinalgMarker marker, LinalgMarker fusedOpMarker,
+    LinalgMarker originalOpMarker, PatternBenefit benefit)
+    : RewritePattern(opName, {}, benefit, context),
+      dependenceGraph(dependenceGraph), tilingOptions(tilingOptions),
+      fusionOptions(fusionOptions), marker(marker),
+      fusedOpMarker(fusedOpMarker), originalOpMarker(originalOpMarker) {}
+
+LogicalResult mlir::linalg::LinalgBaseTileAndFusePattern::matchAndRewrite(
+    Operation *op, PatternRewriter &rewriter) const {
+  LinalgOp linalgOp = dyn_cast<LinalgOp>(op);
+  if (!linalgOp)
+    return failure();
+  if (failed(marker.checkAndNotify(rewriter, linalgOp)))
+    return failure();
+  if (!linalgOp.hasBufferSemantics())
+    return failure();
+
+  Optional<TiledAndFusedLinalgOps> tiledAndFusedOps = tileAndFuseLinalgOps(
+      rewriter, op, dependenceGraph, tilingOptions, fusionOptions);
+  if (!tiledAndFusedOps)
+    return failure();
+  marker.replaceLinalgMarker(rewriter, tiledAndFusedOps->op.getOperation());
+  for (auto fusedOp : tiledAndFusedOps->fusedProducers) {
+    fusedOpMarker.replaceLinalgMarker(rewriter, fusedOp.getOperation());
+  }
+  for (auto origProducerOp : tiledAndFusedOps->originalProducers)
+    originalOpMarker.replaceLinalgMarker(rewriter,
+                                         origProducerOp.getOperation());
+  rewriter.updateRootInPlace(
+      op, [&]() { originalOpMarker.replaceLinalgMarker(rewriter, op); });
   return success();
 }
 

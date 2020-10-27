@@ -1,10 +1,4 @@
-// TODO: Enable compilation w/o -fno-sycl-early-optimizations option.
-// See https://github.com/intel/llvm/issues/2264 for more details.
-
-// UNSUPPORTED: cuda
-// CUDA compilation and runtime do not yet support sub-groups.
-//
-// RUN: %clangxx -fsycl -fno-sycl-early-optimizations -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -22,14 +16,12 @@
 
 int main() {
   queue Queue;
-  if (!Queue.get_device().has_extension("cl_intel_subgroups")) {
+  if (Queue.get_device().is_host()) {
     std::cout << "Skipping test\n";
     return 0;
   }
-  if (Queue.get_device().has_extension("cl_intel_subgroups_short")) {
-    check<short>(Queue);
-    check<unsigned short>(Queue);
-  }
+  check<short>(Queue);
+  check<unsigned short>(Queue);
   check<int>(Queue);
   check<int, 2>(Queue);
   check<int, 4>(Queue);

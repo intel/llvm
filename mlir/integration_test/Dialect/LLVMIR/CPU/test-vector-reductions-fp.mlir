@@ -4,8 +4,8 @@
 
 // End-to-end test of all fp reduction intrinsics (not exhaustive unit tests).
 module {
-  llvm.func @print_newline()
-  llvm.func @print_f32(!llvm.float)
+  llvm.func @printNewline()
+  llvm.func @printF32(!llvm.float)
   llvm.func @entry() {
     // Setup (1,2,3,4).
     %0 = llvm.mlir.constant(1.000000e+00 : f32) : !llvm.float
@@ -24,64 +24,64 @@ module {
     %12 = llvm.mlir.constant(3 : i64) : !llvm.i64
     %v = llvm.insertelement %3, %11[%12 : !llvm.i64] : !llvm.vec<4 x float>
 
-    %max = "llvm.intr.experimental.vector.reduce.fmax"(%v)
+    %max = "llvm.intr.vector.reduce.fmax"(%v)
         : (!llvm.vec<4 x float>) -> !llvm.float
-    llvm.call @print_f32(%max) : (!llvm.float) -> ()
-    llvm.call @print_newline() : () -> ()
+    llvm.call @printF32(%max) : (!llvm.float) -> ()
+    llvm.call @printNewline() : () -> ()
     // CHECK: 4
 
-    %min = "llvm.intr.experimental.vector.reduce.fmin"(%v)
+    %min = "llvm.intr.vector.reduce.fmin"(%v)
         : (!llvm.vec<4 x float>) -> !llvm.float
-    llvm.call @print_f32(%min) : (!llvm.float) -> ()
-    llvm.call @print_newline() : () -> ()
+    llvm.call @printF32(%min) : (!llvm.float) -> ()
+    llvm.call @printNewline() : () -> ()
     // CHECK: 1
 
-    %add1 = "llvm.intr.experimental.vector.reduce.v2.fadd"(%0, %v)
+    %add1 = "llvm.intr.vector.reduce.fadd"(%0, %v)
         : (!llvm.float, !llvm.vec<4 x float>) -> !llvm.float
-    llvm.call @print_f32(%add1) : (!llvm.float) -> ()
-    llvm.call @print_newline() : () -> ()
+    llvm.call @printF32(%add1) : (!llvm.float) -> ()
+    llvm.call @printNewline() : () -> ()
     // CHECK: 11
 
-    %add1r = "llvm.intr.experimental.vector.reduce.v2.fadd"(%0, %v)
+    %add1r = "llvm.intr.vector.reduce.fadd"(%0, %v)
         {reassoc = true} : (!llvm.float, !llvm.vec<4 x float>) -> !llvm.float
-    llvm.call @print_f32(%add1r) : (!llvm.float) -> ()
-    llvm.call @print_newline() : () -> ()
+    llvm.call @printF32(%add1r) : (!llvm.float) -> ()
+    llvm.call @printNewline() : () -> ()
     // CHECK: 11
 
-    %add2 = "llvm.intr.experimental.vector.reduce.v2.fadd"(%1, %v)
+    %add2 = "llvm.intr.vector.reduce.fadd"(%1, %v)
         : (!llvm.float, !llvm.vec<4 x float>) -> !llvm.float
-    llvm.call @print_f32(%add2) : (!llvm.float) -> ()
-    llvm.call @print_newline() : () -> ()
+    llvm.call @printF32(%add2) : (!llvm.float) -> ()
+    llvm.call @printNewline() : () -> ()
     // CHECK: 12
 
-    %add2r = "llvm.intr.experimental.vector.reduce.v2.fadd"(%1, %v)
+    %add2r = "llvm.intr.vector.reduce.fadd"(%1, %v)
         {reassoc = true} : (!llvm.float, !llvm.vec<4 x float>) -> !llvm.float
-    llvm.call @print_f32(%add2r) : (!llvm.float) -> ()
-    llvm.call @print_newline() : () -> ()
+    llvm.call @printF32(%add2r) : (!llvm.float) -> ()
+    llvm.call @printNewline() : () -> ()
     // CHECK: 12
 
-    %mul1 = "llvm.intr.experimental.vector.reduce.v2.fmul"(%0, %v)
+    %mul1 = "llvm.intr.vector.reduce.fmul"(%0, %v)
         : (!llvm.float, !llvm.vec<4 x float>) -> !llvm.float
-    llvm.call @print_f32(%mul1) : (!llvm.float) -> ()
-    llvm.call @print_newline() : () -> ()
+    llvm.call @printF32(%mul1) : (!llvm.float) -> ()
+    llvm.call @printNewline() : () -> ()
     // CHECK: 24
 
-    %mul1r = "llvm.intr.experimental.vector.reduce.v2.fmul"(%0, %v)
+    %mul1r = "llvm.intr.vector.reduce.fmul"(%0, %v)
         {reassoc = true} : (!llvm.float, !llvm.vec<4 x float>) -> !llvm.float
-    llvm.call @print_f32(%mul1r) : (!llvm.float) -> ()
-    llvm.call @print_newline() : () -> ()
+    llvm.call @printF32(%mul1r) : (!llvm.float) -> ()
+    llvm.call @printNewline() : () -> ()
     // CHECK: 24
 
-    %mul2 = "llvm.intr.experimental.vector.reduce.v2.fmul"(%1, %v)
+    %mul2 = "llvm.intr.vector.reduce.fmul"(%1, %v)
         : (!llvm.float, !llvm.vec<4 x float>) -> !llvm.float
-    llvm.call @print_f32(%mul2) : (!llvm.float) -> ()
-    llvm.call @print_newline() : () -> ()
+    llvm.call @printF32(%mul2) : (!llvm.float) -> ()
+    llvm.call @printNewline() : () -> ()
     // CHECK: 48
 
-    %mul2r = "llvm.intr.experimental.vector.reduce.v2.fmul"(%1, %v)
+    %mul2r = "llvm.intr.vector.reduce.fmul"(%1, %v)
         {reassoc = true} : (!llvm.float, !llvm.vec<4 x float>) -> !llvm.float
-    llvm.call @print_f32(%mul2r) : (!llvm.float) -> ()
-    llvm.call @print_newline() : () -> ()
+    llvm.call @printF32(%mul2r) : (!llvm.float) -> ()
+    llvm.call @printNewline() : () -> ()
     // CHECK: 48
 
     llvm.return

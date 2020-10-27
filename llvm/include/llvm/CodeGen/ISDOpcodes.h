@@ -86,7 +86,16 @@ enum NodeType {
   /// the parent's frame or return address, and so on.
   FRAMEADDR,
   RETURNADDR,
+
+  /// ADDROFRETURNADDR - Represents the llvm.addressofreturnaddress intrinsic.
+  /// This node takes no operand, returns a target-specific pointer to the
+  /// place in the stack frame where the return address of the current
+  /// function is stored.
   ADDROFRETURNADDR,
+
+  /// SPONENTRY - Represents the llvm.sponentry intrinsic. Takes no argument
+  /// and returns the stack pointer value at the entry of the current
+  /// function calling this intrinsic.
   SPONENTRY,
 
   /// LOCAL_RECOVER - Represents the llvm.localrecover intrinsic.
@@ -598,6 +607,7 @@ enum NodeType {
   CTLZ,
   CTPOP,
   BITREVERSE,
+  PARITY,
 
   /// Bit counting operators with an undefined result for zero inputs.
   CTTZ_ZERO_UNDEF,
@@ -1093,12 +1103,25 @@ enum NodeType {
 
   /// Generic reduction nodes. These nodes represent horizontal vector
   /// reduction operations, producing a scalar result.
-  /// The STRICT variants perform reductions in sequential order. The first
+  /// The SEQ variants perform reductions in sequential order. The first
   /// operand is an initial scalar accumulator value, and the second operand
   /// is the vector to reduce.
-  VECREDUCE_STRICT_FADD,
-  VECREDUCE_STRICT_FMUL,
-  /// These reductions are non-strict, and have a single vector operand.
+  /// E.g. RES = VECREDUCE_SEQ_FADD f32 ACC, <4 x f32> SRC_VEC
+  ///  ... is equivalent to
+  /// RES = (((ACC + SRC_VEC[0]) + SRC_VEC[1]) + SRC_VEC[2]) + SRC_VEC[3]
+  VECREDUCE_SEQ_FADD,
+  VECREDUCE_SEQ_FMUL,
+
+  /// These reductions have relaxed evaluation order semantics, and have a
+  /// single vector operand. The order of evaluation is unspecified. For
+  /// pow-of-2 vectors, one valid legalizer expansion is to use a tree
+  /// reduction, i.e.:
+  /// For RES = VECREDUCE_FADD <8 x f16> SRC_VEC
+  ///   PART_RDX = FADD SRC_VEC[0:3], SRC_VEC[4:7]
+  ///   PART_RDX2 = FADD PART_RDX[0:1], PART_RDX[2:3]
+  ///   RES = FADD PART_RDX2[0], PART_RDX2[1]
+  /// For non-pow-2 vectors, this can be computed by extracting each element
+  /// and performing the operation as if it were scalarized.
   VECREDUCE_FADD,
   VECREDUCE_FMUL,
   /// FMIN/FMAX nodes can have flags, for NaN/NoNaN variants.

@@ -1,9 +1,9 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
 
 // This test checks that compiler generates correct initialization for arguments
 // that have cl::sycl::half type inside the OpenCL kernel
 
-#include <sycl.hpp>
+#include "Inputs/sycl.hpp"
 
 int main() {
   cl::sycl::half HostHalf;

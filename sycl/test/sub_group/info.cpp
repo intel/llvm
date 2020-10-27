@@ -63,11 +63,23 @@ int main() {
         bool Expected =
             std::find(sg_sizes.begin(), sg_sizes.end(), Res) != sg_sizes.end();
         exit_if_not_equal<bool>(Expected, true, "max_sub_group_size");
+
+        Res = Kernel.get_info<info::kernel_device_specific::max_sub_group_size>(
+            Device, r);
+        Expected =
+            std::find(sg_sizes.begin(), sg_sizes.end(), Res) != sg_sizes.end();
+        exit_if_not_equal<bool>(Expected, true, "max_sub_group_size");
       }
     }
 
     Res = Kernel.get_sub_group_info<
         info::kernel_sub_group::compile_num_sub_groups>(Device);
+
+    /* Sub-group size is not specified in kernel or IL*/
+    exit_if_not_equal<uint32_t>(Res, 0, "compile_num_sub_groups");
+
+    Res = Kernel.get_info<info::kernel_device_specific::compile_num_sub_groups>(
+        Device);
 
     /* Sub-group size is not specified in kernel or IL*/
     exit_if_not_equal<uint32_t>(Res, 0, "compile_num_sub_groups");
@@ -79,6 +91,13 @@ int main() {
         Device.has_extension("cl_intel_required_subgroup_size")) {
       Res = Kernel.get_sub_group_info<
           info::kernel_sub_group::compile_sub_group_size>(Device);
+
+      /* Required sub-group size is not specified in kernel or IL*/
+      exit_if_not_equal<uint32_t>(Res, 0, "compile_sub_group_size");
+
+      Res =
+          Kernel.get_info<info::kernel_device_specific::compile_sub_group_size>(
+              Device);
 
       /* Required sub-group size is not specified in kernel or IL*/
       exit_if_not_equal<uint32_t>(Res, 0, "compile_sub_group_size");

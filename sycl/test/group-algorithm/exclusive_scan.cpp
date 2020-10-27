@@ -1,7 +1,4 @@
-// UNSUPPORTED: cuda
-// OpenCL C 2.x alike work-group functions not yet supported by CUDA.
-//
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -I . -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -13,8 +10,10 @@
 // unconditionally. Using operators specific for spirv 1.3 and higher with
 // -spirv-max-version=1.1 being set by default causes assert/check fails
 // in spirv translator.
-// RUNx: %clangxx -fsycl -fsycl-targets=%sycl_triple -DSPIRV_1_3 %s -o %t13.out
+// RUNx: %clangxx -fsycl -fsycl-targets=%sycl_triple -DSPIRV_1_3 %s -I . -o \
+   %t13.out
 
+#include "support.h"
 #include <CL/sycl.hpp>
 #include <algorithm>
 #include <cassert>
@@ -24,7 +23,7 @@
 using namespace sycl;
 using namespace sycl::ONEAPI;
 
-template <class BinaryOperation, int TestNumber>
+template <class SpecializationKernelName, int TestNumber>
 class exclusive_scan_kernel;
 
 // std::exclusive_scan isn't implemented yet, so use serial implementation
@@ -44,20 +43,20 @@ OutputIterator exclusive_scan(InputIterator first, InputIterator last,
 }
 } // namespace emu
 
-template <typename InputContainer, typename OutputContainer,
-          class BinaryOperation>
+template <typename SpecializationKernelName, typename InputContainer,
+          typename OutputContainer, class BinaryOperation>
 void test(queue q, InputContainer input, OutputContainer output,
           BinaryOperation binary_op,
           typename OutputContainer::value_type identity) {
   typedef typename InputContainer::value_type InputT;
   typedef typename OutputContainer::value_type OutputT;
-  typedef class exclusive_scan_kernel<BinaryOperation, 0> kernel_name0;
-  typedef class exclusive_scan_kernel<BinaryOperation, 1> kernel_name1;
-  typedef class exclusive_scan_kernel<BinaryOperation, 2> kernel_name2;
-  typedef class exclusive_scan_kernel<BinaryOperation, 3> kernel_name3;
+  typedef class exclusive_scan_kernel<SpecializationKernelName, 0> kernel_name0;
+  typedef class exclusive_scan_kernel<SpecializationKernelName, 1> kernel_name1;
+  typedef class exclusive_scan_kernel<SpecializationKernelName, 2> kernel_name2;
+  typedef class exclusive_scan_kernel<SpecializationKernelName, 3> kernel_name3;
   OutputT init = 42;
   size_t N = input.size();
-  size_t G = 16;
+  size_t G = 64;
   std::vector<OutputT> expected(N);
   {
     buffer<InputT> in_buf(input.data(), input.size());
@@ -128,24 +127,6 @@ void test(queue q, InputContainer input, OutputContainer output,
   assert(std::equal(output.begin(), output.begin() + N, expected.begin()));
 }
 
-bool isSupportedDevice(device D) {
-  std::string PlatformName = D.get_platform().get_info<info::platform::name>();
-  if (PlatformName.find("Level-Zero") != std::string::npos)
-    return true;
-
-  if (PlatformName.find("OpenCL") != std::string::npos) {
-    std::string Version = D.get_info<info::device::version>();
-    size_t Offset = Version.find("OpenCL");
-    if (Offset == std::string::npos)
-      return false;
-    Version = Version.substr(Offset + 7, 3);
-    if (Version >= std::string("2.0"))
-      return true;
-  }
-
-  return false;
-}
-
 int main() {
   queue q;
   if (!isSupportedDevice(q.get_device())) {
@@ -153,25 +134,30 @@ int main() {
     return 0;
   }
 
-  constexpr int N = 32;
+  constexpr int N = 128;
   std::array<int, N> input;
   std::array<int, N> output;
   std::iota(input.begin(), input.end(), 0);
   std::fill(output.begin(), output.end(), 0);
 
-  test(q, input, output, plus<>(), 0);
-  test(q, input, output, minimum<>(), std::numeric_limits<int>::max());
-  test(q, input, output, maximum<>(), std::numeric_limits<int>::lowest());
+  test<class KernelNamePlusV>(q, input, output, plus<>(), 0);
+  test<class KernelNameMinimumV>(q, input, output, minimum<>(),
+                                 std::numeric_limits<int>::max());
+  test<class KernelNameMaximumV>(q, input, output, maximum<>(),
+                                 std::numeric_limits<int>::lowest());
 
-  test(q, input, output, plus<int>(), 0);
-  test(q, input, output, minimum<int>(), std::numeric_limits<int>::max());
-  test(q, input, output, maximum<int>(), std::numeric_limits<int>::lowest());
+  test<class KernelNamePlusI>(q, input, output, plus<int>(), 0);
+  test<class KernelNameMinimumI>(q, input, output, minimum<int>(),
+                                 std::numeric_limits<int>::max());
+  test<class KernelNameMaximumI>(q, input, output, maximum<int>(),
+                                 std::numeric_limits<int>::lowest());
 
 #ifdef SPIRV_1_3
-  test(q, input, output, multiplies<int>(), 1);
-  test(q, input, output, bit_or<int>(), 0);
-  test(q, input, output, bit_xor<int>(), 0);
-  test(q, input, output, bit_and<int>(), ~0);
+  test<class KernelName_VzAPutpBRRJrQPB>(q, input, output, multiplies<int>(),
+                                         1);
+  test<class KernelName_UXdGbr>(q, input, output, bit_or<int>(), 0);
+  test<class KernelName_saYaodNyJknrPW>(q, input, output, bit_xor<int>(), 0);
+  test<class KernelName_GPcuAlvAOjrDyP>(q, input, output, bit_and<int>(), ~0);
 #endif // SPIRV_1_3
 
   std::cout << "Test passed." << std::endl;

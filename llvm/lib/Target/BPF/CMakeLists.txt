@@ -14,7 +14,9 @@ add_public_tablegen_target(BPFCommonTableGen)
 
 add_llvm_target(BPFCodeGen
   BPFAbstractMemberAccess.cpp
+  BPFAdjustOpt.cpp
   BPFAsmPrinter.cpp
+  BPFCheckAndAdjustIR.cpp
   BPFFrameLowering.cpp
   BPFInstrInfo.cpp
   BPFISelDAGToDAG.cpp

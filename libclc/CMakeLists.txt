@@ -191,26 +191,26 @@ if( ENABLE_RUNTIME_SUBNORMAL )
 		DESTINATION ${CMAKE_INSTALL_DATADIR}/clc )
 endif()
 
-find_program( PYTHON python )
+find_package( Python3 REQUIRED COMPONENTS Interpreter )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/gen_convert.py clc_script_loc )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/libspirv/gen_core_convert.py core_script_loc )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/libspirv/gen_convert.py spirv_script_loc )
 
 add_custom_command(
 	OUTPUT convert-core.cl
-	COMMAND ${PYTHON} ${core_script_loc} > convert-core.cl
+	COMMAND ${Python3_EXECUTABLE} ${core_script_loc} > convert-core.cl
 	DEPENDS ${core_script_loc} )
 add_custom_target( "generate_convert_core.cl" DEPENDS convert-core.cl )
 
 add_custom_command(
 	OUTPUT convert-spirv.cl
-	COMMAND ${PYTHON} ${spirv_script_loc} > convert-spirv.cl
+	COMMAND ${Python3_EXECUTABLE} ${spirv_script_loc} > convert-spirv.cl
 	DEPENDS ${spirv_script_loc} )
 add_custom_target( "generate_convert_spirv.cl" DEPENDS convert-spirv.cl )
 
 add_custom_command(
 	OUTPUT convert-clc.cl
-	COMMAND ${PYTHON} ${clc_script_loc} > convert-clc.cl
+	COMMAND ${Python3_EXECUTABLE} ${clc_script_loc} > convert-clc.cl
 	DEPENDS ${clc_script_loc} )
 add_custom_target( "generate_convert_clc.cl" DEPENDS convert-clc.cl )
 
@@ -261,10 +261,13 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 	foreach( d ${${t}_devices} )
 		# Some targets don't have a specific GPU to target
 		if( ${d} STREQUAL "none" OR ${ARCH} STREQUAL "spirv" OR ${ARCH} STREQUAL "spirv64" )
-			set( mcpu )
+			# FIXME: Ideally we would not be tied to a specific PTX ISA version
+			if( ${ARCH} STREQUAL nvptx OR ${ARCH} STREQUAL nvptx64 )
+				set( flags "SHELL:-Xclang -target-feature" "SHELL:-Xclang +ptx64")
+			endif()
 			set( arch_suffix "${t}" )
 		else()
-			set( mcpu "-mcpu=${d}" )
+			set( flags "-mcpu=${d}" )
 			set( arch_suffix "${d}-${t}" )
 		endif()
 		message( "    DEVICE: ${d} ( ${${d}_aliases} )" )
@@ -276,14 +279,14 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 		if( ${ARCH} STREQUAL nvptx OR ${ARCH} STREQUAL nvptx64 )
 			add_libclc_sycl_binding(libspirv_files
 				TRIPLE ${t}
-				COMPILE_OPT ${mcpu}
+				COMPILE_OPT ${flags}
 				FILES generic/libspirv/sycldevice-binding.cpp)
 		endif()
 
 		add_libclc_builtin_set(libspirv-${arch_suffix}
 			TRIPLE ${t}
 			TARGET_ENV libspirv
-			COMPILE_OPT ${mcpu}
+			COMPILE_OPT ${flags}
 			FILES ${libspirv_files}
 			ALIASES ${${d}_aliases}
 			GENERATE_TARGET "generate_convert_spirv.cl" "generate_convert_core.cl"
@@ -292,7 +295,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 		add_libclc_builtin_set(clc-${arch_suffix}
 			TRIPLE ${t}
 			TARGET_ENV clc
-			COMPILE_OPT ${mcpu}
+			COMPILE_OPT ${flags}
 			FILES ${lib_files}
 			LIB_DEP libspirv-${arch_suffix}
 			ALIASES ${${d}_aliases}

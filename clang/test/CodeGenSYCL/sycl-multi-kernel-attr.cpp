@@ -2,7 +2,7 @@
 
 class Functor {
 public:
-  [[cl::intel_reqd_sub_group_size(4), cl::reqd_work_group_size(32, 16, 16)]] void operator()() const {}
+  [[intel::reqd_sub_group_size(4), cl::reqd_work_group_size(32, 16, 16)]] void operator()() const {}
 };
 
 template <typename Name, typename Func>

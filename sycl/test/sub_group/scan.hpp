@@ -10,11 +10,11 @@
 #include <CL/sycl.hpp>
 #include <limits>
 
-template <typename T, class BinaryOperation> class sycl_subgr;
+template <typename... Ts> class sycl_subgr;
 
 using namespace cl::sycl;
 
-template <typename T, class BinaryOperation>
+template <typename SpecializationKernelName, typename T, class BinaryOperation>
 void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
               size_t G = 256, size_t L = 64) {
   try {
@@ -25,7 +25,7 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
       auto exacc = exbuf.template get_access<access::mode::read_write>(cgh);
       auto inacc = inbuf.template get_access<access::mode::read_write>(cgh);
-      cgh.parallel_for<sycl_subgr<T, BinaryOperation>>(
+      cgh.parallel_for<SpecializationKernelName>(
           NdRange, [=](nd_item<1> NdItem) {
             ONEAPI::sub_group sg = NdItem.get_sub_group();
             if (skip_init) {
@@ -72,58 +72,83 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
   }
 }
 
-template <typename T> void check(queue &Queue, size_t G = 256, size_t L = 64) {
+template <typename SpecializationKernelName, typename T>
+void check(queue &Queue, size_t G = 256, size_t L = 64) {
   // limit data range for half to avoid rounding issues
   if (std::is_same<T, cl::sycl::half>::value) {
     G = 64;
     L = 32;
   }
 
-  check_op<T>(Queue, T(L), ONEAPI::plus<T>(), false, G, L);
-  check_op<T>(Queue, T(0), ONEAPI::plus<T>(), true, G, L);
+  check_op<sycl_subgr<SpecializationKernelName, class KernelName_UdKabTMplbvM>,
+           T>(Queue, T(L), ONEAPI::plus<T>(), false, G, L);
+  check_op<sycl_subgr<SpecializationKernelName, class KernelName_hYvJ>, T>(
+      Queue, T(0), ONEAPI::plus<T>(), true, G, L);
 
-  check_op<T>(Queue, T(0), ONEAPI::minimum<T>(), false, G, L);
+  check_op<
+      sycl_subgr<SpecializationKernelName, class KernelName_eozPcciiaOmKkKUEp>,
+      T>(Queue, T(0), ONEAPI::minimum<T>(), false, G, L);
   if (std::is_floating_point<T>::value ||
       std::is_same<T, cl::sycl::half>::value) {
-    check_op<T>(Queue, std::numeric_limits<T>::infinity(), ONEAPI::minimum<T>(),
-                true, G, L);
+    check_op<
+        sycl_subgr<SpecializationKernelName, class KernelName_LylCkHSTmrFhMH>,
+        T>(Queue, std::numeric_limits<T>::infinity(), ONEAPI::minimum<T>(),
+           true, G, L);
   } else {
-    check_op<T>(Queue, std::numeric_limits<T>::max(), ONEAPI::minimum<T>(),
+    check_op<sycl_subgr<SpecializationKernelName,
+                        class KernelName_gYWXQQXGnzJEpaftEQly>,
+             T>(Queue, std::numeric_limits<T>::max(), ONEAPI::minimum<T>(),
                 true, G, L);
   }
 
-  check_op<T>(Queue, T(G), ONEAPI::maximum<T>(), false, G, L);
+  check_op<
+      sycl_subgr<SpecializationKernelName, class KernelName_NEgmAHtvPAWDyXPoo>,
+      T>(Queue, T(G), ONEAPI::maximum<T>(), false, G, L);
   if (std::is_floating_point<T>::value ||
       std::is_same<T, cl::sycl::half>::value) {
-    check_op<T>(Queue, -std::numeric_limits<T>::infinity(),
-                ONEAPI::maximum<T>(), true, G, L);
+    check_op<
+        sycl_subgr<SpecializationKernelName, class KernelName_EBNigvpxbxYEyRcl>,
+        T>(Queue, -std::numeric_limits<T>::infinity(), ONEAPI::maximum<T>(),
+           true, G, L);
   } else {
-    check_op<T>(Queue, std::numeric_limits<T>::min(), ONEAPI::maximum<T>(),
-                true, G, L);
+    check_op<sycl_subgr<SpecializationKernelName, class KernelName_KayihC>, T>(
+        Queue, std::numeric_limits<T>::min(), ONEAPI::maximum<T>(), true, G, L);
   }
 
 #if __cplusplus >= 201402L
-  check_op<T>(Queue, T(L), ONEAPI::plus<>(), false, G, L);
-  check_op<T>(Queue, T(0), ONEAPI::plus<>(), true, G, L);
+  check_op<sycl_subgr<SpecializationKernelName, class KernelName_TPWS>, T>(
+      Queue, T(L), ONEAPI::plus<>(), false, G, L);
+  check_op<sycl_subgr<SpecializationKernelName, class KernelName_hWZv>, T>(
+      Queue, T(0), ONEAPI::plus<>(), true, G, L);
 
-  check_op<T>(Queue, T(0), ONEAPI::minimum<>(), false, G, L);
+  check_op<
+      sycl_subgr<SpecializationKernelName, class KernelName_MdoesLriZMCljse>,
+      T>(Queue, T(0), ONEAPI::minimum<>(), false, G, L);
   if (std::is_floating_point<T>::value ||
       std::is_same<T, cl::sycl::half>::value) {
-    check_op<T>(Queue, std::numeric_limits<T>::infinity(), ONEAPI::minimum<>(),
-                true, G, L);
+    check_op<
+        sycl_subgr<SpecializationKernelName, class KernelName_fgMMknFqTMGts>,
+        T>(Queue, std::numeric_limits<T>::infinity(), ONEAPI::minimum<>(), true,
+           G, L);
   } else {
-    check_op<T>(Queue, std::numeric_limits<T>::max(), ONEAPI::minimum<>(), true,
+    check_op<sycl_subgr<SpecializationKernelName,
+                        class KernelName_FVbXDSctbMnggHMCz>,
+             T>(Queue, std::numeric_limits<T>::max(), ONEAPI::minimum<>(), true,
                 G, L);
   }
 
-  check_op<T>(Queue, T(G), ONEAPI::maximum<>(), false, G, L);
+  check_op<sycl_subgr<SpecializationKernelName, class KernelName_zzvRru>, T>(
+      Queue, T(G), ONEAPI::maximum<>(), false, G, L);
   if (std::is_floating_point<T>::value ||
       std::is_same<T, cl::sycl::half>::value) {
-    check_op<T>(Queue, -std::numeric_limits<T>::infinity(), ONEAPI::maximum<>(),
-                true, G, L);
+    check_op<sycl_subgr<SpecializationKernelName, class KernelName_NJh>, T>(
+        Queue, -std::numeric_limits<T>::infinity(), ONEAPI::maximum<>(), true,
+        G, L);
   } else {
-    check_op<T>(Queue, std::numeric_limits<T>::min(), ONEAPI::maximum<>(), true,
-                G, L);
+    check_op<
+        sycl_subgr<SpecializationKernelName, class KernelName_XjMHvRfLSQerFi>,
+        T>(Queue, std::numeric_limits<T>::min(), ONEAPI::maximum<>(), true, G,
+           L);
   }
 #endif
 }

@@ -58,7 +58,10 @@ def do_dependency(args):
     # fetch and build OpenCL ICD loader
     icd_loader_dir = os.path.join(args.obj_dir, "OpenCL-ICD-Loader")
     if not os.path.isdir(icd_loader_dir):
-        clone_cmd = ["git", "clone", "https://github.com/KhronosGroup/OpenCL-ICD-Loader", "OpenCL-ICD-Loader"]
+        clone_cmd = ["git", "clone",
+                     "https://github.com/KhronosGroup/OpenCL-ICD-Loader",
+                     "OpenCL-ICD-Loader", "-b", "v2020.06.16"]
+
         subprocess.check_call(clone_cmd, cwd=args.obj_dir)
     else:
         fetch_cmd = ["git", "pull", "--ff", "--ff-only", "origin"]

@@ -1,3 +1,6 @@
+def SDTVecUnaryOp:
+  SDTypeProfile<1, 1, [SDTCisVec<0>, SDTCisVec<1>]>;
+
 def SDTVecBinOp:
   SDTypeProfile<1, 2, [SDTCisVec<0>, SDTCisVec<1>, SDTCisSameAs<1,2>]>;
 
@@ -37,6 +40,9 @@ def HexagonVZERO:      SDNode<"HexagonISD::VZERO",      SDTVecLeaf>;
 def HexagonQCAT:       SDNode<"HexagonISD::QCAT",       SDTVecBinOp>;
 def HexagonQTRUE:      SDNode<"HexagonISD::QTRUE",      SDTVecLeaf>;
 def HexagonQFALSE:     SDNode<"HexagonISD::QFALSE",     SDTVecLeaf>;
+def HexagonVPACKL:     SDNode<"HexagonISD::VPACKL",     SDTVecUnaryOp>;
+def HexagonVUNPACK:    SDNode<"HexagonISD::VUNPACK",    SDTVecUnaryOp>;
+def HexagonVUNPACKU:   SDNode<"HexagonISD::VUNPACKU",   SDTVecUnaryOp>;
 
 def vzero:  PatFrag<(ops), (HexagonVZERO)>;
 def qtrue:  PatFrag<(ops), (HexagonQTRUE)>;
@@ -44,7 +50,10 @@ def qfalse: PatFrag<(ops), (HexagonQFALSE)>;
 def qcat:   PatFrag<(ops node:$Qs, node:$Qt),
                     (HexagonQCAT node:$Qs, node:$Qt)>;
 
-def qnot: PatFrag<(ops node:$Qs), (xor node:$Qs, qtrue)>;
+def qnot:     PatFrag<(ops node:$Qs), (xor node:$Qs, qtrue)>;
+def vpackl:   PatFrag<(ops node:$Vs), (HexagonVPACKL node:$Vs)>;
+def vunpack:  PatFrag<(ops node:$Vs), (HexagonVUNPACK node:$Vs)>;
+def vunpacku: PatFrag<(ops node:$Vs), (HexagonVUNPACKU node:$Vs)>;
 
 def VSxtb: OutPatFrag<(ops node:$Vs), (V6_vunpackb  $Vs)>;
 def VSxth: OutPatFrag<(ops node:$Vs), (V6_vunpackh  $Vs)>;
@@ -308,6 +317,20 @@ let Predicates = [UseHVX] in {
 }
 
 let Predicates = [UseHVX] in {
+  // For i8 vectors Vs = (a0, a1, ...), Vt = (b0, b1, ...),
+  // V6_vmpybv Vs, Vt produces a pair of i16 vectors Hi:Lo,
+  // where Lo = (a0*b0, a2*b2, ...), Hi = (a1*b1, a3*b3, ...).
+  def: Pat<(mul HVI8:$Vs, HVI8:$Vt),
+           (V6_vshuffeb (HiVec (V6_vmpybv HvxVR:$Vs, HvxVR:$Vt)),
+                        (LoVec (V6_vmpybv HvxVR:$Vs, HvxVR:$Vt)))>;
+  def: Pat<(mul HVI16:$Vs, HVI16:$Vt),
+           (V6_vmpyih HvxVR:$Vs, HvxVR:$Vt)>;
+  def: Pat<(mul HVI32:$Vs, HVI32:$Vt),
+           (V6_vmpyiewuh_acc (V6_vmpyieoh HvxVR:$Vs, HvxVR:$Vt),
+                             HvxVR:$Vs, HvxVR:$Vt)>;
+}
+
+let Predicates = [UseHVX] in {
   def: Pat<(VecPI16 (sext HVI8:$Vs)),  (VSxtb $Vs)>;
   def: Pat<(VecPI32 (sext HVI16:$Vs)), (VSxth $Vs)>;
   def: Pat<(VecPI16 (zext HVI8:$Vs)),  (VZxtb $Vs)>;
@@ -364,6 +387,14 @@ let Predicates = [UseHVX] in {
              (V6_vasrw (V6_vaslw HVI32:$Vs, (A2_tfrsi 16)), (A2_tfrsi 16))>;
   }
 
+  // Take a pair of vectors Vt:Vs and shift them towards LSB by (Rt & HwLen).
+  def: Pat<(VecI8 (valign HVI8:$Vt, HVI8:$Vs, I32:$Rt)),
+           (LoVec (V6_valignb HvxVR:$Vt, HvxVR:$Vs, I32:$Rt))>;
+  def: Pat<(VecI16 (valign HVI16:$Vt, HVI16:$Vs, I32:$Rt)),
+           (LoVec (V6_valignb HvxVR:$Vt, HvxVR:$Vs, I32:$Rt))>;
+  def: Pat<(VecI32 (valign HVI32:$Vt, HVI32:$Vs, I32:$Rt)),
+           (LoVec (V6_valignb HvxVR:$Vt, HvxVR:$Vs, I32:$Rt))>;
+
   def: Pat<(HexagonVASL HVI8:$Vs, I32:$Rt),
            (V6_vpackeb (V6_vaslh (HiVec (VZxtb HvxVR:$Vs)), I32:$Rt),
                        (V6_vaslh (LoVec (VZxtb HvxVR:$Vs)), I32:$Rt))>;
@@ -392,6 +423,31 @@ let Predicates = [UseHVX] in {
   def: Pat<(sra HVI32:$Vs, HVI32:$Vt), (V6_vasrwv HvxVR:$Vs, HvxVR:$Vt)>;
   def: Pat<(srl HVI16:$Vs, HVI16:$Vt), (V6_vlsrhv HvxVR:$Vs, HvxVR:$Vt)>;
   def: Pat<(srl HVI32:$Vs, HVI32:$Vt), (V6_vlsrwv HvxVR:$Vs, HvxVR:$Vt)>;
+
+  // Vpackl is a pseudo-op that is used when legalizing widened truncates.
+  // It should never be produced with a register pair in the output, but
+  // it can happen to have a pair as an input.
+  def: Pat<(VecI8  (vpackl HVI16:$Vs)), (V6_vdealb HvxVR:$Vs)>;
+  def: Pat<(VecI8  (vpackl HVI32:$Vs)), (V6_vdealb4w (IMPLICIT_DEF), HvxVR:$Vs)>;
+  def: Pat<(VecI16 (vpackl HVI32:$Vs)), (V6_vdealh HvxVR:$Vs)>;
+  def: Pat<(VecI8  (vpackl HWI16:$Vs)), (V6_vpackeb (HiVec $Vs), (LoVec $Vs))>;
+  def: Pat<(VecI8  (vpackl HWI32:$Vs)),
+           (V6_vpackeb (IMPLICIT_DEF), (V6_vpackeh (HiVec $Vs), (LoVec $Vs)))>;
+  def: Pat<(VecI16 (vpackl HWI32:$Vs)), (V6_vpackeh (HiVec $Vs), (LoVec $Vs))>;
+
+  def: Pat<(VecI16  (vunpack   HVI8:$Vs)), (LoVec (VSxtb $Vs))>;
+  def: Pat<(VecI32  (vunpack   HVI8:$Vs)), (LoVec (VSxth (LoVec (VSxtb $Vs))))>;
+  def: Pat<(VecI32  (vunpack  HVI16:$Vs)), (LoVec (VSxth $Vs))>;
+  def: Pat<(VecPI16 (vunpack   HVI8:$Vs)), (VSxtb $Vs)>;
+  def: Pat<(VecPI32 (vunpack   HVI8:$Vs)), (VSxth (LoVec (VSxtb $Vs)))>;
+  def: Pat<(VecPI32 (vunpack  HVI32:$Vs)), (VSxth $Vs)>;
+
+  def: Pat<(VecI16  (vunpacku  HVI8:$Vs)), (LoVec (VZxtb $Vs))>;
+  def: Pat<(VecI32  (vunpacku  HVI8:$Vs)), (LoVec (VZxth (LoVec (VZxtb $Vs))))>;
+  def: Pat<(VecI32  (vunpacku HVI16:$Vs)), (LoVec (VZxth $Vs))>;
+  def: Pat<(VecPI16 (vunpacku  HVI8:$Vs)), (VZxtb $Vs)>;
+  def: Pat<(VecPI32 (vunpacku  HVI8:$Vs)), (VZxth (LoVec (VZxtb $Vs)))>;
+  def: Pat<(VecPI32 (vunpacku HVI32:$Vs)), (VZxth $Vs)>;
 
   def: Pat<(VecI16 (bswap HVI16:$Vs)),
            (V6_vdelta HvxVR:$Vs, (V6_lvsplatw (A2_tfrsi 0x01010101)))>;

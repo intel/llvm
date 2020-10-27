@@ -26,9 +26,13 @@ define dso_local [2 x i64] @"?f2"() {
 entry:
 ; FIXME: Missed optimization, the entire SP push/pop could be removed
 ; CHECK-LABEL: f2
-; CHECK:         stp     xzr, xzr, [sp, #-16]!
+; CHECK:         sub     sp, sp, #16
+; CHECK-NEXT:    .seh_stackalloc 16
+; CHECK-NEXT:    .seh_endprologue
+; CHECK-NEXT:    stp     xzr, xzr, [sp]
 ; CHECK-NEXT:    mov     x0, xzr
 ; CHECK-NEXT:    mov     x1, xzr
+; CHECK-NEXT:    .seh_startepilogue
 ; CHECK-NEXT:    add     sp, sp, #16
 
   %retval = alloca %struct.S2, align 4

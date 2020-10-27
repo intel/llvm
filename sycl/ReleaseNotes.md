@@ -1,9 +1,148 @@
+# September'20 release notes
+
+Release notes for commit range 5976ff0..1fc0e4f
+
+## New features
+
+## Improvements
+### SYCL Compiler
+  - Assigned the source location of the kernel caller function to the artificial
+    initialization code generated in the kernel body. It enables profiling tools
+    to meaningfully attribute the initialization code [6744364]
+  - Provided compile-time warning if size of kernel arguments exceeds 2KiB in
+    GPU AOT mode [e00ab74]
+  - Changed default SYCL standard to SYCL-2020 [67acf81]
+  - Removed deprecated `[[cl::intel_reqd_sub_group_size(N)]]` attribute
+    [9dda36f]
+  - Enable USM address spaces by default for the FPGA hardware [7896819]
+  - Assume SYCL device functions are convergent [047e2ec]
+  - Added Dead Argument Elimination optimization [b0d98dc] [f53ede9]
+  - Simplified the error checking of arrays by only visiting once [c709986]
+  - Stop emitting kernel arguments metadata [f658918]
+  - Enabled `-f[no-]sycl-early-optimizations` on Windows [e1e3658]
+  - Mutable kernel functions are now explicitly forbidden in SYCL 2020
+    [1dbc358]
+  - Moved hardware targeted extensions to `INTEL` namespace [3084982]
+  - Added support for union types as kernel parameters [5adfd79]
+  - Renamed `-fsycl-std-optimizations` to `-fsycl-early-optimizations` [077a507]
+  - Added support for `-f[no-]sycl-id-queries-fit-in-int`. Enabling this will
+    make compiler define `_SYCL_ID_QUERIES_FIT_IN_INT_` macro which will signal
+    runtime to emit `__builtin_assume()` for execution range less than `INT_MAX`
+    limitation [3e4da3c]
+  - Enabled template trail for kernel diagnostics [c767edc]
+  - Disabled createIndVarSimplifyPass for SPIR target in SYCL mode [76ffef7]
+  - Run Dead Argument Elimination when LLVM optimizations are applied as well
+    [cf10351]
+
+### SYCL Library
+  - Eliminated circular dependency between `event` and `queue` classes [31843cc]
+  - Added `ONEAPI::filter_selector` [174fd168f18]
+  - Added CPU-agnostic code path to the host device runtime (validated on
+    AArch64 systems) [2f632f8]
+  - Added support for `bool2`, `bool3`, `bool4`, `bool8`, `bool16` [4dfd500]
+  - Allowed for creating lots of host accessors [b206293]
+  - Improved execution graph traversal [f2eaa23]
+  - Improved `SYCL_PI_TRACE` [4d468f1]
+  - Added implementation for `SYCL_INTEL_free_function_queries` [b6d7792]
+  - Allowed for building program for multiple devices within single context
+    (esp. for FPGA devices) [2f64227]
+  - Cache devices and platforms [d392b51]
+  - Reuse devices and platforms in Level Zero PI plugin [43ba606]
+  - Added group algorithms for MUL/OR/XOR/AND operations [96da39e]
+  - Moved general language extensions to `ONEAPI` namespace [a73369d]
+  - Added CMake option `SYCL_DISABLE_STL_ASSERTIONS` to disable assertions
+    [ec2ec99]
+  - Implemented USM fill operation as defined in SYCL-2020 provisional [4993646]
+  - Added runtime support for device code argument elimination [63ac3d3]
+  - Imporved implementation of stream class when used in FPGA device code
+    [13e8dae]
+  - Imporved error reporting in Level Zero plugin [257658c]
+  - Improved kernel demangling in graph printing [62192a6]
+  - Improved error handling in `parallel_for` [7c73c11]
+  - Fixed segfault in interop constructors of context, device, platform classes
+    [c4c3494]
+
+### Documentation
+  - Added documentation for [`SPV_INTEL_usm_storage_classes`](doc/extensions/SPIRV/SPV_INTEL_usm_storage_classes.asciidoc)
+    and [SYCL_INTEL_usm_address_spaces](doc/extensions/USMAddressSpaces/usm_address_spaces.asciidoc) [781fbfc]
+  - Fixed SPIR-V format name spelling [6e9bf3b]
+  - Added extension [LocalMemory](doc/extensions/LocalMemory/SYCL_INTEL_local_memory.asciidoc) draft specification [4b5308a]
+  - Added extension [free functions queries](doc/extensions/FreeFunctionQueries/SYCL_INTEL_free_function_queries.asciidoc) draft specification [8953bfd]
+  - Removed documentation for implicit attribute `buffer_location` [71a56e7]
+
+## Bug fixes
+### SYCL Compiler
+  - Fixed crash when array of pointers is a kernel argument [1fc0e4f]
+  - Allowed for `-P -fsycl` to be used on Windows when offloading [a21d7ef]
+  - Fixed looking for tools (e.g. aoc, ocloc, opencl-aot) with full name on
+    Windows (i.e. with `.exe` suffix) [78a86da]
+  - Eliminated compiler crash if invalid declaration is used as kernel argument
+    [0c220ca]
+  - Switch SPIRV debug info to legacy mode to support old OpenCL RTs [500a0b8]
+  - Disabled vectorizers in SYCL device code when early optimizations are
+    enabled [20921b1]
+  - Fixed crash when kernel argument is a multi-dimensional array [36f6ab6]
+  - Fixed `cl::sycl::INTELlsu::load()` method to return value instead of
+    reference [82e5323]
+  - Disabled "early" optimizations for Intel FPGA by default [f8902b8]
+  - Fixed regression on unused non-USM pointers inside struct type kernel
+    arguments [926eb32]
+  - Fixed NULL-pointer dereference in some cases [bdc2b85]
+  - Adjusted AUX targets with lang options [43862a3]
+
+### SYCL Library
+  - Eliminated circular dependency between command group and stream buffers,
+    which caused memory leaking [841e1e7]
+  - Added early exit from enqueue process when trying to enqueue blocked
+    commands. This eliminated hang in host-task when used along with multiple
+    buffers [bc8f0a4]
+  - Fixed overflow when casting glbal memory size in Level Zero plugin [82893b2]
+  - Fixed waiting for events on Level Zero [e503662]
+  - Added missing constructors and propety methods for context, program and
+    sampler[30b8acc]
+  - Fixed printing types of variables by GDB in some cases [93e1387]
+  - Aligned `cl::sycl::handler::require` API with the SYCL specification
+    [68c275c]
+  - Fixed undefined behaviour in memory management intrinsics [4ff2eee]
+  - Fixed race condition when using sampler in parallel [34f0c10]
+  - Fixed race condition in `ProgramManager` class, which lead to hang [e6fd911]
+  - Fixed thread-safety issue, which took place when using stream class [4688cb3]
+  - Unified usm `queue`'s `memcpy`/`memset` methods behavior for corner cases
+    [7b7bab6]
+  - Enabled USM indirect access for interoperability kernels [ebf5c4e]
+
+## API/ABI breakages
+  - Added missing constructors and propety methods for context, program and
+    sampler[30b8acc]
+
+## Known issues
+  - The format of the object files produced by the compiler can change between
+    versions. The workaround is to rebuild the application.
+  - The SYCL library doesn't guarantee stable API/ABI, so applications compiled
+    with older version of the SYCL library may not work with new one.
+    The workaround is to rebuild the application.
+    [ABI policy guide](doc/ABIPolicyGuide.md)
+  - Using `cl::sycl::program` API to refer to a kernel defined in another
+    translation unit leads to undefined behavior
+  - Linkage errors with the following message:
+    `error LNK2005: "bool const std::_Is_integral<bool>" (??$_Is_integral@_N@std@@3_NB) already defined`
+    can happen when a SYCL application is built using MS Visual Studio 2019
+    version below 16.3.0 and user specifies `-std=c++14` or `/std:c++14`.
+  - Employing read sampler for image accessor may result in sporadic issues with
+    Level Zero plugin/backend [2c50c03]
+  - Printing internal defines isn't supported on Windows [50628db]
+  - Group algorithms for MUL/AND/OR/XOR cannot be enabled for group scope due to
+    SPIR-V limitations, and are not enabled for sub-group scope yet as the
+    SPIR-V version isn't automatically raised from 1.1 to 1.3 [96da39e]
+  - We cannot run Dead Argument Elimination for ESIMD since the pointers to SPIR
+    kernel functions are saved in `!genx.kernels metadata` [cf10351]
+
 # August'20 release notes
 
 Release notes for the commit range 75b3dc2..5976ff0
 
 ## New features
-  - Implemented basic support for the [Explicit SIMD extension](./sycl/doc/extensions/ExplicitSIMD/dpcpp-explicit-simd.md)
+  - Implemented basic support for the [Explicit SIMD extension](doc/extensions/ExplicitSIMD/dpcpp-explicit-simd.md)
     for low-level GPU performance tuning [84bf234] [32bf607] [a lot of others]
   - Implemented support for the [SYCL_INTEL_usm_address_spaces extension](https://github.com/intel/llvm/pull/1840)
   - Implemented support for the [Use Pinned Host Memory Property extension](doc/extensions/UsePinnedMemoryProperty/UsePinnedMemoryPropery.adoc) [e5ea144][aee2d6c][396759d]

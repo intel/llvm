@@ -124,7 +124,7 @@ static void printAllocaOp(OpAsmPrinter &p, AllocaOp &op) {
                                   op.getContext());
 
   p << op.getOperationName() << ' ' << op.arraySize() << " x " << elemTy;
-  if (op.alignment().hasValue() && op.alignment()->getSExtValue() != 0)
+  if (op.alignment().hasValue() && *op.alignment() != 0)
     p.printOptionalAttrDict(op.getAttrs());
   else
     p.printOptionalAttrDict(op.getAttrs(), {"alignment"});
@@ -247,7 +247,7 @@ void StoreOp::build(OpBuilder &builder, OperationState &result, Value value,
                     Value addr, unsigned alignment, bool isVolatile,
                     bool isNonTemporal) {
   result.addOperands({value, addr});
-  result.addTypes(ArrayRef<Type>{});
+  result.addTypes({});
   if (isVolatile)
     result.addAttribute(kVolatileAttrName, builder.getUnitAttr());
   if (isNonTemporal)
@@ -531,8 +531,82 @@ static ParseResult parseLandingpadOp(OpAsmParser &parser,
 }
 
 //===----------------------------------------------------------------------===//
-// Printing/parsing for LLVM::CallOp.
+// Verifying/Printing/parsing for LLVM::CallOp.
 //===----------------------------------------------------------------------===//
+
+static LogicalResult verify(CallOp &op) {
+  if (op.getNumResults() > 1)
+    return op.emitOpError("must have 0 or 1 result");
+
+  // Type for the callee, we'll get it differently depending if it is a direct
+  // or indirect call.
+  LLVMType fnType;
+
+  bool isIndirect = false;
+
+  // If this is an indirect call, the callee attribute is missing.
+  Optional<StringRef> calleeName = op.callee();
+  if (!calleeName) {
+    isIndirect = true;
+    if (!op.getNumOperands())
+      return op.emitOpError(
+          "must have either a `callee` attribute or at least an operand");
+    fnType = op.getOperand(0).getType().dyn_cast<LLVMType>();
+    if (!fnType)
+      return op.emitOpError("indirect call to a non-llvm type: ")
+             << op.getOperand(0).getType();
+    auto ptrType = fnType.dyn_cast<LLVMPointerType>();
+    if (!ptrType)
+      return op.emitOpError("indirect call expects a pointer as callee: ")
+             << fnType;
+    fnType = ptrType.getElementType();
+  } else {
+    Operation *callee = SymbolTable::lookupNearestSymbolFrom(op, *calleeName);
+    if (!callee)
+      return op.emitOpError()
+             << "'" << *calleeName
+             << "' does not reference a symbol in the current scope";
+    auto fn = dyn_cast<LLVMFuncOp>(callee);
+    if (!fn)
+      return op.emitOpError() << "'" << *calleeName
+                              << "' does not reference a valid LLVM function";
+
+    fnType = fn.getType();
+  }
+  if (!fnType.isFunctionTy())
+    return op.emitOpError("callee does not have a functional type: ") << fnType;
+
+  // Verify that the operand and result types match the callee.
+
+  if (!fnType.isFunctionVarArg() &&
+      fnType.getFunctionNumParams() != (op.getNumOperands() - isIndirect))
+    return op.emitOpError()
+           << "incorrect number of operands ("
+           << (op.getNumOperands() - isIndirect)
+           << ") for callee (expecting: " << fnType.getFunctionNumParams()
+           << ")";
+
+  if (fnType.getFunctionNumParams() > (op.getNumOperands() - isIndirect))
+    return op.emitOpError() << "incorrect number of operands ("
+                            << (op.getNumOperands() - isIndirect)
+                            << ") for varargs callee (expecting at least: "
+                            << fnType.getFunctionNumParams() << ")";
+
+  for (unsigned i = 0, e = fnType.getFunctionNumParams(); i != e; ++i)
+    if (op.getOperand(i + isIndirect).getType() !=
+        fnType.getFunctionParamType(i))
+      return op.emitOpError() << "operand type mismatch for operand " << i
+                              << ": " << op.getOperand(i + isIndirect).getType()
+                              << " != " << fnType.getFunctionParamType(i);
+
+  if (op.getNumResults() &&
+      op.getResult(0).getType() != fnType.getFunctionResultType())
+    return op.emitOpError()
+           << "result type mismatch: " << op.getResult(0).getType()
+           << " != " << fnType.getFunctionResultType();
+
+  return success();
+}
 
 static void printCallOp(OpAsmPrinter &p, CallOp &op) {
   auto callee = op.callee();
@@ -914,9 +988,8 @@ static LogicalResult verify(AddressOfOp op) {
     return op.emitOpError(
         "must reference a global defined by 'llvm.mlir.global' or 'llvm.func'");
 
-  if (global &&
-      global.getType().getPointerTo(global.addr_space().getZExtValue()) !=
-          op.getResult().getType())
+  if (global && global.getType().getPointerTo(global.addr_space()) !=
+                    op.getResult().getType())
     return op.emitOpError(
         "the type must be a pointer to the type of the referenced global");
 
@@ -1534,8 +1607,6 @@ static ParseResult parseAtomicRMWOp(OpAsmParser &parser,
 
 static LogicalResult verify(AtomicRMWOp op) {
   auto ptrType = op.ptr().getType().cast<LLVM::LLVMType>();
-  if (!ptrType.isPointerTy())
-    return op.emitOpError("expected LLVM IR pointer type for operand #0");
   auto valType = op.val().getType().cast<LLVM::LLVMType>();
   if (valType != ptrType.getPointerElementTy())
     return op.emitOpError("expected LLVM IR element type for operand #0 to "
@@ -1790,7 +1861,7 @@ Value mlir::LLVM::createGlobalString(Location loc, OpBuilder &builder,
       loc, LLVM::LLVMType::getInt64Ty(ctx),
       builder.getIntegerAttr(builder.getIndexType(), 0));
   return builder.create<LLVM::GEPOp>(loc, LLVM::LLVMType::getInt8PtrTy(ctx),
-                                     globalPtr, ArrayRef<Value>({cst0, cst0}));
+                                     globalPtr, ValueRange{cst0, cst0});
 }
 
 bool mlir::LLVM::satisfiesLLVMModule(Operation *op) {

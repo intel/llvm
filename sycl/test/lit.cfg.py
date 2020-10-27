@@ -169,7 +169,7 @@ if gpu_count > 0:
         gpu_run_on_linux_substitute = "env SYCL_DEVICE_TYPE=GPU SYCL_BE={SYCL_BE} ".format(SYCL_BE=backend)
         gpu_check_on_linux_substitute = "| FileCheck %s"
     # ESIMD-specific setup. Requires OpenCL for now.
-    esimd_run_substitute = " env SYCL_BE=PI_OPENCL SYCL_DEVICE_TYPE=GPU SYCL_PROGRAM_COMPILE_OPTIONS=-cmc"
+    esimd_run_substitute = " env SYCL_BE=PI_OPENCL SYCL_DEVICE_TYPE=GPU SYCL_PROGRAM_COMPILE_OPTIONS=-vc-codegen"
     config.substitutions.append( ('%ESIMD_RUN_PLACEHOLDER',  esimd_run_substitute) )
     config.substitutions.append( ('%clangxx-esimd',  "clang++ -fsycl-explicit-simd" ) )
 else:
@@ -182,7 +182,7 @@ config.substitutions.append( ('%GPU_CHECK_ON_LINUX_PLACEHOLDER',  gpu_check_on_l
 
 acc_run_substitute = "true"
 acc_check_substitute = ""
-if getDeviceCount("accelerator")[0] and platform.system() == "Linux":
+if getDeviceCount("accelerator")[0]:
     found_at_least_one_device = True
     lit_config.note("Found available accelerator device")
     acc_run_substitute = " env SYCL_DEVICE_TYPE=ACC "

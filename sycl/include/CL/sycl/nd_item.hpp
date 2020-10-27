@@ -39,13 +39,13 @@ public:
 
   id<dimensions> get_global_id() const { return globalItem.get_id(); }
 
-  size_t ALWAYS_INLINE get_global_id(int dimension) const {
+  size_t __SYCL_ALWAYS_INLINE get_global_id(int dimension) const {
     size_t Id = globalItem.get_id(dimension);
     __SYCL_ASSUME_INT(Id);
     return Id;
   }
 
-  size_t ALWAYS_INLINE get_global_linear_id() const {
+  size_t __SYCL_ALWAYS_INLINE get_global_linear_id() const {
     size_t Id = globalItem.get_linear_id();
     __SYCL_ASSUME_INT(Id);
     return Id;
@@ -53,7 +53,7 @@ public:
 
   id<dimensions> get_local_id() const { return localItem.get_id(); }
 
-  size_t ALWAYS_INLINE get_local_id(int dimension) const {
+  size_t __SYCL_ALWAYS_INLINE get_local_id(int dimension) const {
     size_t Id = localItem.get_id(dimension);
     __SYCL_ASSUME_INT(Id);
     return Id;
@@ -69,13 +69,13 @@ public:
 
   ONEAPI::sub_group get_sub_group() const { return ONEAPI::sub_group(); }
 
-  size_t ALWAYS_INLINE get_group(int dimension) const {
+  size_t __SYCL_ALWAYS_INLINE get_group(int dimension) const {
     size_t Size = Group[dimension];
     __SYCL_ASSUME_INT(Size);
     return Size;
   }
 
-  size_t ALWAYS_INLINE get_group_linear_id() const {
+  size_t __SYCL_ALWAYS_INLINE get_group_linear_id() const {
     size_t Id = Group.get_linear_id();
     __SYCL_ASSUME_INT(Id);
     return Id;
@@ -85,7 +85,7 @@ public:
     return Group.get_global_range() / Group.get_local_range();
   }
 
-  size_t ALWAYS_INLINE get_group_range(int dimension) const {
+  size_t __SYCL_ALWAYS_INLINE get_group_range(int dimension) const {
     size_t Range =
         Group.get_global_range(dimension) / Group.get_local_range(dimension);
     __SYCL_ASSUME_INT(Range);
@@ -192,5 +192,20 @@ private:
   item<dimensions, false> localItem;
   group<dimensions> Group;
 };
+
+namespace detail {
+template <int Dims> nd_item<Dims> store_nd_item(const nd_item<Dims> *nd_i) {
+  return get_or_store(nd_i);
+}
+} // namespace detail
+
+template <int Dims> nd_item<Dims> this_nd_item() {
+#ifdef __SYCL_DEVICE_ONLY__
+  return detail::Builder::getElement(detail::declptr<nd_item<Dims>>());
+#else
+  return detail::store_nd_item<Dims>(nullptr);
+#endif
+}
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

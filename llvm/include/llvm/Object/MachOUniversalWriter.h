@@ -19,7 +19,10 @@
 #include "llvm/Object/MachO.h"
 
 namespace llvm {
+class LLVMContext;
+
 namespace object {
+class IRObjectFile;
 
 class Slice {
   const Binary *B;
@@ -32,12 +35,24 @@ class Slice {
   // file size can be calculated before creating the output buffer.
   uint32_t P2Alignment;
 
+  Slice(const IRObjectFile &IRO, uint32_t CPUType, uint32_t CPUSubType,
+        std::string ArchName, uint32_t Align);
+
 public:
   explicit Slice(const MachOObjectFile &O);
 
   Slice(const MachOObjectFile &O, uint32_t Align);
 
-  static Expected<Slice> create(const Archive *A);
+  /// This constructor takes prespecified \param CPUType, \param CPUSubType,
+  /// \param ArchName, \param Align instead of inferring them from the archive
+  /// memebers.
+  Slice(const Archive &A, uint32_t CPUType, uint32_t CPUSubType,
+        std::string ArchName, uint32_t Align);
+
+  static Expected<Slice> create(const Archive &A,
+                                LLVMContext *LLVMCtx = nullptr);
+
+  static Expected<Slice> create(const IRObjectFile &IRO, uint32_t Align);
 
   void setP2Alignment(uint32_t Align) { P2Alignment = Align; }
 
@@ -76,6 +91,9 @@ public:
 };
 
 Error writeUniversalBinary(ArrayRef<Slice> Slices, StringRef OutputFileName);
+
+Expected<std::unique_ptr<MemoryBuffer>>
+writeUniversalBinaryToBuffer(ArrayRef<Slice> Slices);
 
 } // end namespace object
 

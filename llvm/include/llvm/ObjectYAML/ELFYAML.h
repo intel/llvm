@@ -153,6 +153,7 @@ struct Chunk {
     StackSizes,
     SymtabShndxSection,
     Symver,
+    ARMIndexTable,
     MipsABIFlags,
     Addrsig,
     Fill,
@@ -443,13 +444,13 @@ struct VerdefSection : Section {
   static bool classof(const Chunk *S) { return S->Kind == ChunkKind::Verdef; }
 };
 
-struct Group : Section {
+struct GroupSection : Section {
   // Members of a group contain a flag and a list of section indices
   // that are part of the group.
   std::vector<SectionOrType> Members;
   Optional<StringRef> Signature; /* Info */
 
-  Group() : Section(ChunkKind::Group) {}
+  GroupSection() : Section(ChunkKind::Group) {}
 
   static bool classof(const Chunk *S) { return S->Kind == ChunkKind::Group; }
 };
@@ -490,6 +491,23 @@ struct SymtabShndxSection : Section {
 
   static bool classof(const Chunk *S) {
     return S->Kind == ChunkKind::SymtabShndxSection;
+  }
+};
+
+struct ARMIndexTableEntry {
+  llvm::yaml::Hex32 Offset;
+  llvm::yaml::Hex32 Value;
+};
+
+struct ARMIndexTableSection : Section {
+  Optional<std::vector<ARMIndexTableEntry>> Entries;
+  Optional<yaml::BinaryRef> Content;
+  Optional<llvm::yaml::Hex64> Size;
+
+  ARMIndexTableSection() : Section(ChunkKind::ARMIndexTable) {}
+
+  static bool classof(const Chunk *S) {
+    return S->Kind == ChunkKind::ARMIndexTable;
   }
 };
 
@@ -575,6 +593,7 @@ LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::VerneedEntry)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::Relocation)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::SectionOrType)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::SectionName)
+LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::ARMIndexTableEntry)
 
 namespace llvm {
 namespace yaml {
@@ -755,6 +774,10 @@ template <> struct MappingTraits<ELFYAML::CallGraphEntry> {
 
 template <> struct MappingTraits<ELFYAML::Relocation> {
   static void mapping(IO &IO, ELFYAML::Relocation &Rel);
+};
+
+template <> struct MappingTraits<ELFYAML::ARMIndexTableEntry> {
+  static void mapping(IO &IO, ELFYAML::ARMIndexTableEntry &E);
 };
 
 template <> struct MappingTraits<std::unique_ptr<ELFYAML::Chunk>> {

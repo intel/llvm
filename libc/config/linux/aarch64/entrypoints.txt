@@ -64,6 +64,7 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.frexp
     libc.src.math.frexpf
     libc.src.math.frexpl
+    libc.src.math.hypotf
     libc.src.math.logb
     libc.src.math.logbf
     libc.src.math.logbl
@@ -75,6 +76,9 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.roundl
     libc.src.math.sincosf
     libc.src.math.sinf
+    libc.src.math.sqrt
+    libc.src.math.sqrtf
+    libc.src.math.sqrtl
     libc.src.math.trunc
     libc.src.math.truncf
     libc.src.math.truncl

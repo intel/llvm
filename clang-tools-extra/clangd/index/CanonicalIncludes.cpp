@@ -90,6 +90,8 @@ void CanonicalIncludes::addSystemHeadersMapping(const LangOptions &Language) {
     static const auto *Symbols = new llvm::StringMap<llvm::StringRef>({
 #define SYMBOL(Name, NameSpace, Header) {#NameSpace #Name, #Header},
 #include "StdSymbolMap.inc"
+        // There are two std::move()s, this is by far the most common.
+        SYMBOL(move, std::, <utility>)
 #undef SYMBOL
     });
     StdSymbolMapping = Symbols;
@@ -772,7 +774,10 @@ void CanonicalIncludes::addSystemHeadersMapping(const LangOptions &Language) {
                   MaxSuffixComponents;
          }) != SystemHeaderMap->keys().end());
 
-  StdSuffixHeaderMapping = SystemHeaderMap;
+  // FIXME: Suffix mapping contains invalid entries for C, so only enable it for
+  // CPP.
+  if (Language.CPlusPlus)
+    StdSuffixHeaderMapping = SystemHeaderMap;
 }
 
 } // namespace clangd

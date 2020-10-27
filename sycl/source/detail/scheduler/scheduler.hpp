@@ -10,13 +10,15 @@
 
 #include <CL/sycl/detail/cg.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
-#include <detail/circular_buffer.hpp>
 #include <detail/scheduler/commands.hpp>
+#include <detail/scheduler/leaves_collection.hpp>
 
 #include <cstddef>
 #include <memory>
+#include <queue>
 #include <set>
 #include <shared_mutex>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -189,18 +191,19 @@ using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 ///
 /// \ingroup sycl_graph
 struct MemObjRecord {
-  MemObjRecord(ContextImplPtr CurContext, std::size_t LeafLimit)
-      : MReadLeaves{LeafLimit}, MWriteLeaves{LeafLimit}, MCurContext{
-                                                             CurContext} {}
+  MemObjRecord(ContextImplPtr Ctx, std::size_t LeafLimit,
+               LeavesCollection::AllocateDependencyF AllocateDependency)
+      : MReadLeaves{this, LeafLimit, AllocateDependency},
+        MWriteLeaves{this, LeafLimit, AllocateDependency}, MCurContext{Ctx} {}
 
   // Contains all allocation commands for the memory object.
   std::vector<AllocaCommandBase *> MAllocaCommands;
 
   // Contains latest read only commands working with memory object.
-  CircularBuffer<Command *> MReadLeaves;
+  LeavesCollection MReadLeaves;
 
   // Contains latest write commands working with memory object.
-  CircularBuffer<Command *> MWriteLeaves;
+  LeavesCollection MWriteLeaves;
 
   // The context which has the latest state of the memory object.
   ContextImplPtr MCurContext;
@@ -427,12 +430,26 @@ public:
   /// \return a vector of "immediate" dependencies for the Event given.
   std::vector<EventImplPtr> getWaitList(EventImplPtr Event);
 
+  /// Allocate buffers in the pool for a provided stream
+  ///
+  /// \param Pointer to the stream object
+  /// \param Size of the stream buffer
+  /// \param Size of the flush buffer for a single work item
+  void allocateStreamBuffers(stream_impl *, size_t, size_t);
+
+  /// Deallocate all stream buffers in the pool
+  ///
+  /// \param Pointer to the stream object
+  void deallocateStreamBuffers(stream_impl *);
+
   QueueImplPtr getDefaultHostQueue() { return DefaultHostQueue; }
 
-protected:
-  Scheduler();
-  static Scheduler instance;
+  static MemObjRecord *getMemObjRecord(const Requirement *const Req);
 
+  Scheduler();
+  ~Scheduler();
+
+protected:
   /// Provides exclusive access to std::shared_timed_mutex object with deadlock
   /// avoidance
   ///
@@ -486,7 +503,9 @@ protected:
 
     /// Removes finished non-leaf non-alloca commands from the subgraph
     /// (assuming that all its commands have been waited for).
-    void cleanupFinishedCommands(Command *FinishedCmd);
+    void cleanupFinishedCommands(
+        Command *FinishedCmd,
+        std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &);
 
     /// Reschedules the command passed using Queue provided.
     ///
@@ -509,7 +528,9 @@ protected:
     void decrementLeafCountersForRecord(MemObjRecord *Record);
 
     /// Removes commands that use the given MemObjRecord from the graph.
-    void cleanupCommandsForRecord(MemObjRecord *Record);
+    void cleanupCommandsForRecord(
+        MemObjRecord *Record,
+        std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &);
 
     /// Removes the MemObjRecord for the memory object passed.
     void removeRecordForMemObj(SYCLMemObjI *MemObject);
@@ -590,6 +611,10 @@ protected:
 
     void markModifiedIfWrite(MemObjRecord *Record, Requirement *Req);
 
+    /// Used to track commands that need to be visited during graph traversal.
+    std::queue<Command *> MCmdsToVisit;
+    /// Used to track commands that have been visited during graph traversal.
+    std::vector<Command *> MVisitedCmds;
     /// Prints contents of graph to text file in DOT format
     ///
     /// \param ModeName is a stringified printing mode name to be used
@@ -604,7 +629,7 @@ protected:
       AfterAddHostAcc,
       Size
     };
-    std::array<bool, PrintOptions::Size> MPrintOptionsArray;
+    std::array<bool, PrintOptions::Size> MPrintOptionsArray{false};
   };
 
   /// Graph Processor provides interfaces for enqueueing commands and their
@@ -707,6 +732,51 @@ protected:
 
   friend class Command;
   friend class DispatchHostTask;
+
+  /// Stream buffers structure.
+  ///
+  /// The structure contains all buffers for a stream object.
+  struct StreamBuffers {
+    StreamBuffers(size_t StreamBufferSize, size_t FlushBufferSize)
+        // Initialize stream buffer with zeros, this is needed for two reasons:
+        // 1. We don't need to care about end of line when printing out
+        // streamed data.
+        // 2. Offset is properly initialized.
+        : Data(StreamBufferSize, 0),
+          Buf(Data.data(), range<1>(StreamBufferSize),
+              {property::buffer::use_host_ptr()}),
+          FlushBuf(range<1>(FlushBufferSize)) {
+      // Disable copy back on buffer destruction. Copy is scheduled as a host
+      // task which fires up as soon as kernel has completed exectuion.
+      Buf.set_write_back(false);
+      FlushBuf.set_write_back(false);
+    }
+
+    // Vector on the host side which is used to initialize the stream
+    // buffer
+    std::vector<char> Data;
+
+    // Stream buffer
+    buffer<char, 1> Buf;
+
+    // Global flush buffer
+    buffer<char, 1> FlushBuf;
+  };
+
+  friend class stream_impl;
+
+  // Protects stream buffers pool
+  std::mutex StreamBuffersPoolMutex;
+
+  // We need to store a pointer to the structure with stream buffers because we
+  // want to avoid a situation when buffers are destructed during destruction of
+  // the scheduler. Scheduler is a global object and it can be destructed after
+  // all device runtimes are unloaded. Destruction of the buffers at this stage
+  // will lead to a faliure. In the correct program there will be sync points
+  // for all kernels and all allocated resources will be released by the
+  // scheduler. If program is not correct and doesn't have necessary sync point
+  // then warning will be issued.
+  std::unordered_map<stream_impl *, StreamBuffers *> StreamBuffersPool;
 };
 
 } // namespace detail

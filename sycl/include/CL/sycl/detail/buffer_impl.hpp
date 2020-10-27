@@ -27,7 +27,8 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 // Forward declarations
 template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder>
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename PropertyListT>
 class accessor;
 template <typename T, int Dimensions, typename AllocatorT, typename Enable>
 class buffer;

@@ -248,6 +248,8 @@ public:
   const std::list<SourceName> &paramNames() const { return paramNames_; }
   const SymbolVector &paramDecls() const { return paramDecls_; }
   bool sequence() const { return sequence_; }
+  std::map<SourceName, SymbolRef> &finals() { return finals_; }
+  const std::map<SourceName, SymbolRef> &finals() const { return finals_; }
   bool isForwardReferenced() const { return isForwardReferenced_; }
   void add_paramName(const SourceName &name) { paramNames_.push_back(name); }
   void add_paramDecl(const Symbol &symbol) { paramDecls_.push_back(symbol); }
@@ -279,6 +281,7 @@ private:
   // These are the names of the derived type's components in component
   // order.  A parent component, if any, appears first in this list.
   std::list<SourceName> componentNames_;
+  std::map<SourceName, SymbolRef> finals_; // FINAL :: subr
   bool sequence_{false};
   bool isForwardReferenced_{false};
   friend llvm::raw_ostream &operator<<(
@@ -321,8 +324,6 @@ private:
   MaybeExpr bindName_;
   std::size_t alignment_{0}; // required alignment in bytes
 };
-
-class FinalProcDetails {}; // TODO
 
 class MiscDetails {
 public:
@@ -386,6 +387,8 @@ class HostAssocDetails {
 public:
   HostAssocDetails(const Symbol &symbol) : symbol_{symbol} {}
   const Symbol &symbol() const { return symbol_; }
+  bool implicitOrSpecExprError{false};
+  bool implicitOrExplicitTypeError{false};
 
 private:
   SymbolRef symbol_;
@@ -469,18 +472,18 @@ using Details = std::variant<UnknownDetails, MainProgramDetails, ModuleDetails,
     ObjectEntityDetails, ProcEntityDetails, AssocEntityDetails,
     DerivedTypeDetails, UseDetails, UseErrorDetails, HostAssocDetails,
     GenericDetails, ProcBindingDetails, NamelistDetails, CommonBlockDetails,
-    FinalProcDetails, TypeParamDetails, MiscDetails>;
+    TypeParamDetails, MiscDetails>;
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Details &);
 std::string DetailsToString(const Details &);
 
 class Symbol {
 public:
   ENUM_CLASS(Flag,
-      Error, // an error has been reported on this symbol
       Function, // symbol is a function
       Subroutine, // symbol is a subroutine
       StmtFunction, // symbol is a statement function (Function is set too)
       Implicit, // symbol is implicitly typed
+      ImplicitOrError, // symbol must be implicitly typed or it's an error
       ModFile, // symbol came from .mod file
       ParentComp, // symbol is the "parent component" of an extended type
       CrayPointer, CrayPointee,
@@ -488,22 +491,20 @@ public:
       LocalityLocalInit, // named in LOCAL_INIT locality-spec
       LocalityShared, // named in SHARED locality-spec
       InDataStmt, // initialized in a DATA statement
-
       // OpenACC data-sharing attribute
       AccPrivate, AccFirstPrivate, AccShared,
       // OpenACC data-mapping attribute
       AccCopyIn, AccCopyOut, AccCreate, AccDelete, AccPresent,
       // OpenACC miscellaneous flags
       AccCommonBlock, AccThreadPrivate, AccReduction, AccNone, AccPreDetermined,
-
       // OpenMP data-sharing attribute
       OmpShared, OmpPrivate, OmpLinear, OmpFirstPrivate, OmpLastPrivate,
       // OpenMP data-mapping attribute
       OmpMapTo, OmpMapFrom, OmpMapAlloc, OmpMapRelease, OmpMapDelete,
       // OpenMP miscellaneous flags
-      OmpCommonBlock, OmpReduction, OmpDeclareSimd, OmpDeclareTarget,
-      OmpThreadprivate, OmpDeclareReduction, OmpFlushed, OmpCriticalLock,
-      OmpIfSpecified, OmpNone, OmpPreDetermined);
+      OmpCommonBlock, OmpReduction, OmpAllocate, OmpDeclareSimd,
+      OmpDeclareTarget, OmpThreadprivate, OmpDeclareReduction, OmpFlushed,
+      OmpCriticalLock, OmpIfSpecified, OmpNone, OmpPreDetermined);
   using Flags = common::EnumSet<Flag, Flag_enumSize>;
 
   const Scope &owner() const { return *owner_; }

@@ -44,12 +44,12 @@
 // CHECK-NOT: __ARM_BF16_FORMAT_ALTERNATIVE 1
 // CHECK-NOT: __ARM_FEATURE_BF16 1
 // CHECK-NOT: __ARM_FEATURE_BF16_VECTOR_ARITHMETIC 1
-// CHECK-NOT: __ARM_FEATURE_SVE_BITS_EXPERIMENTAL 0
-// CHECK-NOT: __ARM_FEATURE_SVE_BITS_EXPERIMENTAL 128
-// CHECK-NOT: __ARM_FEATURE_SVE_BITS_EXPERIMENTAL 256
-// CHECK-NOT: __ARM_FEATURE_SVE_BITS_EXPERIMENTAL 512
-// CHECK-NOT: __ARM_FEATURE_SVE_BITS_EXPERIMENTAL 1024
-// CHECK-NOT: __ARM_FEATURE_SVE_BITS_EXPERIMENTAL 2048
+// CHECK-NOT: __ARM_FEATURE_SVE_BITS 0
+// CHECK-NOT: __ARM_FEATURE_SVE_BITS 128
+// CHECK-NOT: __ARM_FEATURE_SVE_BITS 256
+// CHECK-NOT: __ARM_FEATURE_SVE_BITS 512
+// CHECK-NOT: __ARM_FEATURE_SVE_BITS 1024
+// CHECK-NOT: __ARM_FEATURE_SVE_BITS 2048
 
 // RUN: %clang -target aarch64_be-eabi -x c -E -dM %s -o - | FileCheck %s -check-prefix CHECK-BIGENDIAN
 // CHECK-BIGENDIAN: __ARM_BIG_ENDIAN 1
@@ -219,6 +219,7 @@
 // RUN: %clang -target aarch64 -mcpu=cortex-a57 -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-A57 %s
 // RUN: %clang -target aarch64 -mcpu=cortex-a72 -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-A72 %s
 // RUN: %clang -target aarch64 -mcpu=cortex-a73 -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-CORTEX-A73 %s
+// RUN: %clang -target aarch64 -mcpu=cortex-r82 -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-CORTEX-R82 %s
 // RUN: %clang -target aarch64 -mcpu=exynos-m3 -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-M1 %s
 // RUN: %clang -target aarch64 -mcpu=exynos-m4 -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-M4 %s
 // RUN: %clang -target aarch64 -mcpu=exynos-m5 -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-M4 %s
@@ -237,6 +238,7 @@
 // CHECK-MCPU-A57: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto"
 // CHECK-MCPU-A72: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto"
 // CHECK-MCPU-CORTEX-A73: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto"
+// CHECK-MCPU-CORTEX-R82: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8r" "-target-feature" "+fp-armv8" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+dotprod" "-target-feature" "+fp16fml" "-target-feature" "+ras" "-target-feature" "+rdm" "-target-feature" "+rcpc" "-target-feature" "+fullfp16" "-target-feature" "+sm4" "-target-feature" "+sha3" "-target-feature" "+sha2" "-target-feature" "+aes"
 // CHECK-MCPU-M1: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto"
 // CHECK-MCPU-M4: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+dotprod" "-target-feature" "+fullfp16"
 // CHECK-MCPU-KRYO: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto"
@@ -444,10 +446,8 @@
 // RUN: %clang -target aarch64-arm-none-eabi -march=armv8-a+sve -msve-vector-bits=1024 -x c -E -dM %s -o - 2>&1 | FileCheck -check-prefix=CHECK-SVE-VECTOR-BITS-1024 %s
 // RUN: %clang -target aarch64-arm-none-eabi -march=armv8-a+sve -msve-vector-bits=2048 -x c -E -dM %s -o - 2>&1 | FileCheck -check-prefix=CHECK-SVE-VECTOR-BITS-2048 %s
 // RUN: %clang -target aarch64-arm-none-eabi -march=armv8-a+sve -msve-vector-bits=2048 -x c -E -dM %s -o - 2>&1 | FileCheck -check-prefix=CHECK-SVE-VECTOR-BITS-2048 %s
-// NOTE: The __ARM_FEATURE_SVE_BITS feature macro is experimental until the
-// feature is complete.
-// CHECK-SVE-VECTOR-BITS-128: __ARM_FEATURE_SVE_BITS_EXPERIMENTAL 128
-// CHECK-SVE-VECTOR-BITS-256: __ARM_FEATURE_SVE_BITS_EXPERIMENTAL 256
-// CHECK-SVE-VECTOR-BITS-512: __ARM_FEATURE_SVE_BITS_EXPERIMENTAL 512
-// CHECK-SVE-VECTOR-BITS-1024: __ARM_FEATURE_SVE_BITS_EXPERIMENTAL 1024
-// CHECK-SVE-VECTOR-BITS-2048: __ARM_FEATURE_SVE_BITS_EXPERIMENTAL 2048
+// CHECK-SVE-VECTOR-BITS-128: __ARM_FEATURE_SVE_BITS 128
+// CHECK-SVE-VECTOR-BITS-256: __ARM_FEATURE_SVE_BITS 256
+// CHECK-SVE-VECTOR-BITS-512: __ARM_FEATURE_SVE_BITS 512
+// CHECK-SVE-VECTOR-BITS-1024: __ARM_FEATURE_SVE_BITS 1024
+// CHECK-SVE-VECTOR-BITS-2048: __ARM_FEATURE_SVE_BITS 2048

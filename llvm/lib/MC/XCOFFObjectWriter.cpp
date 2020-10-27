@@ -68,11 +68,6 @@ struct Symbol {
   XCOFF::StorageClass getStorageClass() const {
     return MCSym->getStorageClass();
   }
-
-  XCOFF::VisibilityType getVisibilityType() const {
-    return MCSym->getVisibilityType();
-  }
-
   StringRef getSymbolTableName() const { return MCSym->getSymbolTableName(); }
   Symbol(const MCSymbolXCOFF *MCSym) : MCSym(MCSym), SymbolTableIndex(-1) {}
 };
@@ -309,6 +304,7 @@ CsectGroup &XCOFFObjectWriter::getCsectGroup(const MCSectionXCOFF *MCSec) {
            "in this CsectGroup.");
     return TOCCsects;
   case XCOFF::XMC_TC:
+  case XCOFF::XMC_TE:
     assert(XCOFF::XTY_SD == MCSec->getCSectType() &&
            "Only an initialized csect can contain TC entry.");
     assert(!TOCCsects.empty() &&
@@ -432,9 +428,18 @@ void XCOFFObjectWriter::recordRelocation(MCAssembler &Asm,
     // The FixedValue should be symbol's virtual address in this object file
     // plus any constant value that we might get.
     FixedValue = getVirtualAddress(SymA, SymASec) + Target.getConstant();
-  else if (Type == XCOFF::RelocationType::R_TOC)
-    // The FixedValue should be the TC entry offset from TOC-base.
-    FixedValue = SectionMap[SymASec]->Address - TOCCsects.front().Address;
+  else if (Type == XCOFF::RelocationType::R_TOC ||
+           Type == XCOFF::RelocationType::R_TOCL) {
+    // The FixedValue should be the TOC entry offset from the TOC-base plus any
+    // constant offset value.
+    const int64_t TOCEntryOffset = SectionMap[SymASec]->Address -
+                                   TOCCsects.front().Address +
+                                   Target.getConstant();
+    if (Type == XCOFF::RelocationType::R_TOC && !isInt<16>(TOCEntryOffset))
+      report_fatal_error("TOCEntryOffset overflows in small code model mode");
+
+    FixedValue = TOCEntryOffset;
+  }
 
   assert(
       (TargetObjectWriter->is64Bit() ||
@@ -566,12 +571,13 @@ void XCOFFObjectWriter::writeSymbolTableEntryForCsectMemberLabel(
   W.write<uint32_t>(CSectionRef.Address + SymbolOffset);
   W.write<int16_t>(SectionIndex);
   // Basic/Derived type. See the description of the n_type field for symbol
-  // table entries for a detailed description. Since we support visibility, and
-  // all other bits are either optionally set or reserved, we only set bits 0-3
-  // for symbol's visibility and leave other bits to zero.
+  // table entries for a detailed description. Since we don't yet support
+  // visibility, and all other bits are either optionally set or reserved, this
+  // is always zero.
+  // TODO FIXME How to assert a symbol's visibilty is default?
   // TODO Set the function indicator (bit 10, 0x0020) for functions
   // when debugging is enabled.
-  W.write<uint16_t>(SymbolRef.getVisibilityType());
+  W.write<uint16_t>(0);
   W.write<uint8_t>(SymbolRef.getStorageClass());
   // Always 1 aux entry for now.
   W.write<uint8_t>(1);
@@ -602,12 +608,13 @@ void XCOFFObjectWriter::writeSymbolTableEntryForControlSection(
   // n_scnum
   W.write<int16_t>(SectionIndex);
   // Basic/Derived type. See the description of the n_type field for symbol
-  // table entries for a detailed description. Since we support visibility, and
-  // all other bits are either optionally set or reserved, we only set bits 0-3
-  // for symbol's visibility and leave other bits to zero.
+  // table entries for a detailed description. Since we don't yet support
+  // visibility, and all other bits are either optionally set or reserved, this
+  // is always zero.
+  // TODO FIXME How to assert a symbol's visibilty is default?
   // TODO Set the function indicator (bit 10, 0x0020) for functions
   // when debugging is enabled.
-  W.write<uint16_t>(CSectionRef.MCCsect->getVisibilityType());
+  W.write<uint16_t>(0);
   // n_sclass
   W.write<uint8_t>(StorageClass);
   // Always 1 aux entry for now.

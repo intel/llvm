@@ -1,10 +1,10 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
 
-#include <sycl.hpp>
+#include "Inputs/sycl.hpp"
 
 class second_base {
 public:
-  int e;
+  int *e;
 };
 
 class InnerFieldBase {
@@ -40,13 +40,11 @@ int main() {
 }
 
 // Check declaration of the kernel
-// CHECK: derived{{.*}} 'void (int, int, int, int, int)'
+// CHECK: derived{{.*}} 'void (base, __wrapper_class, int)
 
 // Check parameters of the kernel
-// CHECK: ParmVarDecl {{.*}} used _arg_b 'int'
-// CHECK: ParmVarDecl {{.*}} used _arg_d 'int'
-// CHECK: ParmVarDecl {{.*}} used _arg_c 'int'
-// CHECK: ParmVarDecl {{.*}} used _arg_e 'int'
+// CHECK: ParmVarDecl {{.*}} used _arg__base 'base'
+// CHECK: ParmVarDecl {{.*}} used _arg_e '__wrapper_class'
 // CHECK: ParmVarDecl {{.*}} used _arg_a 'int'
 
 // Check initializers for derived and base classes.
@@ -54,17 +52,13 @@ int main() {
 // Base classes should be initialized first.
 // CHECK: VarDecl {{.*}} derived 'derived' cinit
 // CHECK-NEXT: InitListExpr {{.*}} 'derived'
-// CHECK-NEXT: InitListExpr {{.*}} 'base'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
-// CHECK-NEXT: DeclRefExpr {{.*}} lvalue ParmVar {{.*}} '_arg_b' 'int'
-// CHECK-NEXT: InitListExpr {{.*}} 'InnerField'
-// CHECK-NEXT: InitListExpr {{.*}} 'InnerFieldBase'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
-// CHECK-NEXT: DeclRefExpr {{.*}} lvalue ParmVar {{.*}} '_arg_d' 'int'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
-// CHECK-NEXT: DeclRefExpr {{.*}} lvalue ParmVar {{.*}} '_arg_c' 'int'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'base' 'void (const base &) noexcept'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const base' lvalue <NoOp>
+// CHECK-NEXT: DeclRefExpr {{.*}} lvalue ParmVar {{.*}} '_arg__base' 'base'
 // CHECK-NEXT: InitListExpr {{.*}} 'second_base'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
-// CHECK-NEXT: DeclRefExpr {{.*}} lvalue ParmVar {{.*}} '_arg_e' 'int'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// CHECK-NEXT: MemberExpr {{.*}} '__global int *' lvalue .
+// CHECK-NEXT: DeclRefExpr {{.*}} lvalue ParmVar {{.*}} '_arg_e' '__wrapper_class'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} lvalue ParmVar {{.*}} '_arg_a' 'int'

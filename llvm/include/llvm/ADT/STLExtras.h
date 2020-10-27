@@ -193,9 +193,15 @@ public:
   template <typename Callable>
   function_ref(
       Callable &&callable,
+      // This is not the copy-constructor.
       std::enable_if_t<
           !std::is_same<std::remove_cv_t<std::remove_reference_t<Callable>>,
-                        function_ref>::value> * = nullptr)
+                        function_ref>::value> * = nullptr,
+      // Functor must be callable and return a suitable type.
+      std::enable_if_t<std::is_void<Ret>::value ||
+                       std::is_convertible<
+                           std::result_of_t<Callable(Params...)>, Ret>::value>
+          * = nullptr)
       : callback(callback_fn<typename std::remove_reference<Callable>::type>),
         callable(reinterpret_cast<intptr_t>(&callable)) {}
 
@@ -1236,6 +1242,15 @@ public:
     return DerivedT::dereference(base.first, base.second + index);
   }
 };
+
+/// Given a container of pairs, return a range over the first elements.
+template <typename ContainerTy> auto make_first_range(ContainerTy &&c) {
+  return llvm::map_range(
+      std::forward<ContainerTy>(c),
+      [](decltype((*std::begin(c))) elt) -> decltype((elt.first)) {
+        return elt.first;
+      });
+}
 
 /// Given a container of pairs, return a range over the second elements.
 template <typename ContainerTy> auto make_second_range(ContainerTy &&c) {

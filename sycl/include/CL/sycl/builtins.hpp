@@ -1551,11 +1551,23 @@ extern SYCL_EXTERNAL void __assert_fail(const char *expr, const char *file,
 }
 #elif defined(_WIN32)
 extern "C" {
+// TODO: documented C runtime library APIs must be recognized as
+//       builtins by FE. This includes _dpcomp, _dsign, _dtest,
+//       _fdpcomp, _fdsign, _fdtest, _hypotf, _wassert.
+//       APIs used by STL, such as _Cosh, are undocumented, even though
+//       they are open-sourced. Recognizing them as builtins is not
+//       straightforward currently.
 extern SYCL_EXTERNAL double _Cosh(double x, double y);
+extern SYCL_EXTERNAL int _dpcomp(double x, double y);
+extern SYCL_EXTERNAL int _dsign(double x);
 extern SYCL_EXTERNAL short _Dtest(double *px);
+extern SYCL_EXTERNAL short _dtest(double *px);
 extern SYCL_EXTERNAL short _Exp(double *px, double y, short eoff);
 extern SYCL_EXTERNAL float _FCosh(float x, float y);
+extern SYCL_EXTERNAL int _fdpcomp(float x, float y);
+extern SYCL_EXTERNAL int _fdsign(float x);
 extern SYCL_EXTERNAL short _FDtest(float *px);
+extern SYCL_EXTERNAL short _fdtest(float *px);
 extern SYCL_EXTERNAL short _FExp(float *px, float y, short eoff);
 extern SYCL_EXTERNAL float _FSinh(float x, float y);
 extern SYCL_EXTERNAL double _Sinh(double x, double y);

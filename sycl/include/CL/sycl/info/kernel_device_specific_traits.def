@@ -1,0 +1,12 @@
+__SYCL_PARAM_TRAITS_SPEC(kernel_device_specific, compile_work_group_size,
+                  cl::sycl::range<3>)
+__SYCL_PARAM_TRAITS_SPEC(kernel_device_specific, global_work_size, cl::sycl::range<3>)
+__SYCL_PARAM_TRAITS_SPEC(kernel_device_specific,
+                  preferred_work_group_size_multiple, size_t)
+__SYCL_PARAM_TRAITS_SPEC(kernel_device_specific, private_mem_size, cl_ulong)
+__SYCL_PARAM_TRAITS_SPEC(kernel_device_specific, work_group_size, size_t)
+__SYCL_PARAM_TRAITS_SPEC_WITH_INPUT(kernel_device_specific, max_sub_group_size,
+                             uint32_t, cl::sycl::range<3>)
+__SYCL_PARAM_TRAITS_SPEC(kernel_device_specific, max_num_sub_groups, uint32_t)
+__SYCL_PARAM_TRAITS_SPEC(kernel_device_specific, compile_num_sub_groups, uint32_t)
+__SYCL_PARAM_TRAITS_SPEC(kernel_device_specific, compile_sub_group_size, uint32_t)

@@ -424,8 +424,8 @@ namespace llvm {
     MVT getHalfNumVectorElementsVT() const {
       MVT EltVT = getVectorElementType();
       auto EltCnt = getVectorElementCount();
-      assert(!(EltCnt.Min & 1) && "Splitting vector, but not in half!");
-      return getVectorVT(EltVT, EltCnt / 2);
+      assert(EltCnt.isKnownEven() && "Splitting vector, but not in half!");
+      return getVectorVT(EltVT, EltCnt.divideCoefficientBy(2));
     }
 
     /// Returns true if the given vector is a power of 2.
@@ -742,7 +742,7 @@ namespace llvm {
 
     /// Given a vector type, return the minimum number of elements it contains.
     unsigned getVectorMinNumElements() const {
-      return getVectorElementCount().Min;
+      return getVectorElementCount().getKnownMinValue();
     }
 
     /// Returns the size of the specified MVT in bits.
@@ -923,8 +923,14 @@ namespace llvm {
       }
     }
 
-    TypeSize getScalarSizeInBits() const {
-      return getScalarType().getSizeInBits();
+    /// Return the size of the specified fixed width value type in bits. The
+    /// function will assert if the type is scalable.
+    uint64_t getFixedSizeInBits() const {
+      return getSizeInBits().getFixedSize();
+    }
+
+    uint64_t getScalarSizeInBits() const {
+      return getScalarType().getSizeInBits().getFixedSize();
     }
 
     /// Return the number of bytes overwritten by a store of the specified value
@@ -954,24 +960,54 @@ namespace llvm {
       return getSizeInBits().isByteSized();
     }
 
+    /// Return true if we know at compile time this has more bits than VT.
+    bool knownBitsGT(MVT VT) const {
+      return TypeSize::isKnownGT(getSizeInBits(), VT.getSizeInBits());
+    }
+
+    /// Return true if we know at compile time this has more than or the same
+    /// bits as VT.
+    bool knownBitsGE(MVT VT) const {
+      return TypeSize::isKnownGE(getSizeInBits(), VT.getSizeInBits());
+    }
+
+    /// Return true if we know at compile time this has fewer bits than VT.
+    bool knownBitsLT(MVT VT) const {
+      return TypeSize::isKnownLT(getSizeInBits(), VT.getSizeInBits());
+    }
+
+    /// Return true if we know at compile time this has fewer than or the same
+    /// bits as VT.
+    bool knownBitsLE(MVT VT) const {
+      return TypeSize::isKnownLE(getSizeInBits(), VT.getSizeInBits());
+    }
+
     /// Return true if this has more bits than VT.
     bool bitsGT(MVT VT) const {
-      return getSizeInBits() > VT.getSizeInBits();
+      assert(isScalableVector() == VT.isScalableVector() &&
+             "Comparison between scalable and fixed types");
+      return knownBitsGT(VT);
     }
 
     /// Return true if this has no less bits than VT.
     bool bitsGE(MVT VT) const {
-      return getSizeInBits() >= VT.getSizeInBits();
+      assert(isScalableVector() == VT.isScalableVector() &&
+             "Comparison between scalable and fixed types");
+      return knownBitsGE(VT);
     }
 
     /// Return true if this has less bits than VT.
     bool bitsLT(MVT VT) const {
-      return getSizeInBits() < VT.getSizeInBits();
+      assert(isScalableVector() == VT.isScalableVector() &&
+             "Comparison between scalable and fixed types");
+      return knownBitsLT(VT);
     }
 
     /// Return true if this has no more bits than VT.
     bool bitsLE(MVT VT) const {
-      return getSizeInBits() <= VT.getSizeInBits();
+      assert(isScalableVector() == VT.isScalableVector() &&
+             "Comparison between scalable and fixed types");
+      return knownBitsLE(VT);
     }
 
     static MVT getFloatingPointVT(unsigned BitWidth) {
@@ -1207,9 +1243,9 @@ namespace llvm {
     }
 
     static MVT getVectorVT(MVT VT, ElementCount EC) {
-      if (EC.Scalable)
-        return getScalableVectorVT(VT, EC.Min);
-      return getVectorVT(VT, EC.Min);
+      if (EC.isScalable())
+        return getScalableVectorVT(VT, EC.getKnownMinValue());
+      return getVectorVT(VT, EC.getKnownMinValue());
     }
 
     /// Return the value type corresponding to the specified type.  This returns

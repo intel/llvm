@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Error.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
+#include "llvm/DebugInfo/DWARF/DWARFDebugAddr.h"
 #include "llvm/DebugInfo/DWARF/DWARFDebugArangeSet.h"
 #include "llvm/DebugInfo/DWARF/DWARFDebugPubTable.h"
 #include "llvm/DebugInfo/DWARF/DWARFDebugRangeList.h"
@@ -47,13 +47,52 @@ void dumpDebugAbbrev(DWARFContext &DCtx, DWARFYAML::Data &Y) {
   }
 }
 
-void dumpDebugStrings(DWARFContext &DCtx, DWARFYAML::Data &Y) {
-  StringRef RemainingTable = DCtx.getDWARFObj().getStrSection();
-  while (RemainingTable.size() > 0) {
-    auto SymbolPair = RemainingTable.split('\0');
-    RemainingTable = SymbolPair.second;
-    Y.DebugStrings.push_back(SymbolPair.first);
+Error dumpDebugAddr(DWARFContext &DCtx, DWARFYAML::Data &Y) {
+  DWARFDebugAddrTable AddrTable;
+  DWARFDataExtractor AddrData(DCtx.getDWARFObj(),
+                              DCtx.getDWARFObj().getAddrSection(),
+                              DCtx.isLittleEndian(), /*AddrSize=*/0);
+  std::vector<DWARFYAML::AddrTableEntry> AddrTables;
+  uint64_t Offset = 0;
+  while (AddrData.isValidOffset(Offset)) {
+    // We ignore any errors that don't prevent parsing the section, since we can
+    // still represent such sections.
+    if (Error Err = AddrTable.extractV5(AddrData, &Offset, /*CUAddrSize=*/0,
+                                        consumeError))
+      return Err;
+    AddrTables.emplace_back();
+    for (uint64_t Addr : AddrTable.getAddressEntries()) {
+      // Currently, the parser doesn't support parsing an address table with non
+      // linear addresses (segment_selector_size != 0). The segment selectors
+      // are specified to be zero.
+      AddrTables.back().SegAddrPairs.push_back(
+          {/*SegmentSelector=*/0, /*Address=*/Addr});
+    }
+
+    AddrTables.back().Format = AddrTable.getFormat();
+    AddrTables.back().Length = AddrTable.getLength();
+    AddrTables.back().Version = AddrTable.getVersion();
+    AddrTables.back().AddrSize = AddrTable.getAddressSize();
+    AddrTables.back().SegSelectorSize = AddrTable.getSegmentSelectorSize();
   }
+  Y.DebugAddr = std::move(AddrTables);
+  return Error::success();
+}
+
+Error dumpDebugStrings(DWARFContext &DCtx, DWARFYAML::Data &Y) {
+  DataExtractor StrData = DCtx.getStringExtractor();
+  uint64_t Offset = 0;
+  std::vector<StringRef> DebugStr;
+  Error Err = Error::success();
+  while (StrData.isValidOffset(Offset)) {
+    const char *CStr = StrData.getCStr(&Offset, &Err);
+    if (Err)
+      return Err;
+    DebugStr.push_back(CStr);
+  }
+
+  Y.DebugStrings = DebugStr;
+  return Err;
 }
 
 Error dumpDebugARanges(DWARFContext &DCtx, DWARFYAML::Data &Y) {
@@ -108,6 +147,7 @@ Error dumpDebugRanges(DWARFContext &DCtx, DWARFYAML::Data &Y) {
                           DCtx.isLittleEndian(), AddrSize);
   uint64_t Offset = 0;
   DWARFDebugRangeList DwarfRanges;
+  std::vector<DWARFYAML::Ranges> DebugRanges;
 
   while (Data.isValidOffset(Offset)) {
     DWARFYAML::Ranges YamlRanges;
@@ -117,8 +157,10 @@ Error dumpDebugRanges(DWARFContext &DCtx, DWARFYAML::Data &Y) {
       return E;
     for (const auto &RLE : DwarfRanges.getEntries())
       YamlRanges.Entries.push_back({RLE.StartAddress, RLE.EndAddress});
-    Y.DebugRanges.push_back(std::move(YamlRanges));
+    DebugRanges.push_back(std::move(YamlRanges));
   }
+
+  Y.DebugRanges = DebugRanges;
   return ErrorSuccess();
 }
 
@@ -318,13 +360,15 @@ void dumpDebugLines(DWARFContext &DCtx, DWARFYAML::Data &Y) {
         DebugLines.Format = dwarf::DWARF32;
         DebugLines.Length = LengthOrDWARF64Prefix;
       }
-      uint64_t LineTableLength = DebugLines.Length;
+      assert(DebugLines.Length);
+      uint64_t LineTableLength = *DebugLines.Length;
       uint64_t SizeOfPrologueLength =
           DebugLines.Format == dwarf::DWARF64 ? 8 : 4;
       DebugLines.Version = LineData.getU16(&Offset);
       DebugLines.PrologueLength =
           LineData.getUnsigned(&Offset, SizeOfPrologueLength);
-      const uint64_t EndPrologue = DebugLines.PrologueLength + Offset;
+      assert(DebugLines.PrologueLength);
+      const uint64_t EndPrologue = *DebugLines.PrologueLength + Offset;
 
       DebugLines.MinInstLength = LineData.getU8(&Offset);
       if (DebugLines.Version >= 4)
@@ -375,7 +419,7 @@ void dumpDebugLines(DWARFContext &DCtx, DWARFYAML::Data &Y) {
           case dwarf::DW_LNE_end_sequence:
             break;
           default:
-            while (Offset < StartExt + NewOp.ExtLen)
+            while (Offset < StartExt + *NewOp.ExtLen)
               NewOp.UnknownOpcodeData.push_back(LineData.getU8(&Offset));
           }
         } else if (NewOp.Opcode < DebugLines.OpcodeBase) {

@@ -23,6 +23,10 @@ template <> struct interop<backend::level_zero, device> {
   using type = ze_device_handle_t;
 };
 
+template <> struct interop<backend::level_zero, context> {
+  using type = ze_context_handle_t;
+};
+
 template <> struct interop<backend::level_zero, queue> {
   using type = ze_command_queue_handle_t;
 };

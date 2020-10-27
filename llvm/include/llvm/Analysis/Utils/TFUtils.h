@@ -90,8 +90,73 @@ private:
   size_t ElementCount = 0;
 };
 
+/// Construct a TensorSpec from a JSON dictionary of the form:
+/// { "name": <string>,
+///   "port": <int>,
+///   "type": <string. Use LLVM's types, e.g. float, double, int64_t>,
+///   "shape": <array of ints> }
+/// For the "type" field, see the C++ primitive types used in
+/// TFUTILS_SUPPORTED_TYPES.
 Optional<TensorSpec> getTensorSpecFromJSON(LLVMContext &Ctx,
                                            const json::Value &Value);
+
+/// Logging utility - given an ordered specification of features, and assuming
+/// a scalar reward, allow logging feature values and rewards, and then print
+/// as tf.train.SequenceExample text protobuf.
+/// The assumption is that, for an event to be logged (i.e. a set of feature
+/// values and a reward), the user calls the log* API for each feature exactly
+/// once, providing the index matching the position in the feature spec list
+/// provided at construction:
+/// event 0:
+///   logTensorValue(0, ...)
+///   logTensorValue(1, ...)
+///   ...
+///   logReward(...)
+/// event 1:
+///   logTensorValue(0, ...)
+///   logTensorValue(1, ...)
+///   ...
+///   logReward(...)
+///
+/// At the end, call print to generate the protobuf.
+class Logger final {
+public:
+  struct LoggedFeatureSpec {
+    TensorSpec Spec;
+    Optional<std::string> LoggingName;
+  };
+
+  /// Construct a Logger. If IncludeReward is false, then logReward shouldn't
+  /// be called, and the reward feature won't be printed out.
+  Logger(const std::vector<LoggedFeatureSpec> &FeatureSpecs,
+         const TensorSpec &RewardSpec, bool IncludeReward)
+      : FeatureSpecs(FeatureSpecs), RewardSpec(RewardSpec),
+        RawLogData(FeatureSpecs.size() + IncludeReward),
+        IncludeReward(IncludeReward) {}
+
+  template <typename T> void logReward(T Value) {
+    assert(IncludeReward);
+    logTensorValue(RawLogData.size() - 1, &Value);
+  }
+
+  template <typename T>
+  void logTensorValue(size_t FeatureID, const T *Value, size_t Size = 1) {
+    const char *Start = reinterpret_cast<const char *>(Value);
+    const char *End = Start + sizeof(T) * Size;
+    RawLogData[FeatureID].insert(RawLogData[FeatureID].end(), Start, End);
+  }
+
+  void print(raw_ostream &OS);
+
+private:
+  std::vector<LoggedFeatureSpec> FeatureSpecs;
+  TensorSpec RewardSpec;
+  /// RawData has one entry per feature, plus one more for the reward.
+  /// Each feature's values are then stored in a vector, in succession.
+  /// This means the ith event is stored at [*][i]
+  std::vector<std::vector<char>> RawLogData;
+  const bool IncludeReward;
+};
 
 class TFModelEvaluator final {
 public:
@@ -155,23 +220,22 @@ private:
   std::unique_ptr<TFModelEvaluatorImpl> Impl;
 };
 
-/// List of supported types, as a triple:
-/// C++ type
-/// short name (for strings, for instance)
-/// capitalized short name (for enums, for instance)
+/// List of supported types, as a pair:
+/// - C++ type
+/// - enum name (implementation-specific)
 #define TFUTILS_SUPPORTED_TYPES(M)                                             \
-  M(float, float, FLOAT)                                                       \
-  M(double, double, DOUBLE)                                                    \
-  M(int8_t, int8, INT8)                                                        \
-  M(uint8_t, uint8, UINT8)                                                     \
-  M(int16_t, int16, INT16)                                                     \
-  M(uint16_t, uint16, UINT16)                                                  \
-  M(int32_t, int32, INT32)                                                     \
-  M(uint32_t, uint32, UINT32)                                                  \
-  M(int64_t, int64, INT64)                                                     \
-  M(uint64_t, uint64, UINT64)
+  M(float, TF_FLOAT)                                                           \
+  M(double, TF_DOUBLE)                                                         \
+  M(int8_t, TF_INT8)                                                           \
+  M(uint8_t, TF_UINT8)                                                         \
+  M(int16_t, TF_INT16)                                                         \
+  M(uint16_t, TF_UINT16)                                                       \
+  M(int32_t, TF_INT32)                                                         \
+  M(uint32_t, TF_UINT32)                                                       \
+  M(int64_t, TF_INT64)                                                         \
+  M(uint64_t, TF_UINT64)
 
-#define TFUTILS_GETDATATYPE_DEF(T, S, C)                                       \
+#define TFUTILS_GETDATATYPE_DEF(T, E)                                          \
   template <> int TensorSpec::getDataType<T>();
 
 TFUTILS_SUPPORTED_TYPES(TFUTILS_GETDATATYPE_DEF)

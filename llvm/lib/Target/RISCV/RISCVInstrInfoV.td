@@ -293,6 +293,29 @@ class VALUVs2<bits<6> funct6, bits<5> vs1, RISCVVFormat opv, string opcodestr>
                opcodestr, "$vd, $vs2$vm">;
 } // hasSideEffects = 0, mayLoad = 0, mayStore = 0
 
+let hasSideEffects = 0, mayLoad = 1, mayStore = 1 in {
+// vamo vd, (rs1), vs2, vd, vm
+class VAMOWd<RISCVAMOOP amoop, RISCVWidth width, string opcodestr>
+    : RVInstVAMO<amoop, width.Value{2-0}, (outs VRegOp:$vd_wd),
+            (ins GPR:$rs1, VRegOp:$vs2, VRegOp:$vd, VMaskOp:$vm),
+            opcodestr, "$vd_wd, (${rs1}), $vs2, $vd$vm"> {
+    let Constraints = "$vd_wd = $vd";
+    let wd = 1;
+    bits<5> vd;
+    let Inst{11-7} = vd;
+}
+
+// vamo x0, (rs1), vs2, vs3, vm
+class VAMONoWd<RISCVAMOOP amoop, RISCVWidth width, string opcodestr>
+    : RVInstVAMO<amoop, width.Value{2-0}, (outs),
+            (ins GPR:$rs1, VRegOp:$vs2, VRegOp:$vs3, VMaskOp:$vm),
+            opcodestr, "x0, (${rs1}), $vs2, $vs3$vm"> {
+    bits<5> vs3;
+    let Inst{11-7} = vs3;
+}
+
+} // hasSideEffects = 0, mayLoad = 1, mayStore = 1
+
 //===----------------------------------------------------------------------===//
 // Combination of instruction classes.
 // Use these multiclasses to define instructions more easily.
@@ -398,6 +421,11 @@ multiclass VALU_FV_V<string opcodestr, bits<6> funct6> {
 
 multiclass VALU_FV_VS2<string opcodestr, bits<6> funct6, bits<5> vs1> {
   def "" : VALUVs2<funct6, vs1, OPFVV, opcodestr>;
+}
+
+multiclass VAMO<RISCVAMOOP amoop, RISCVWidth width, string opcodestr> {
+  def _WD : VAMOWd<amoop, width, opcodestr>;
+  def _UNWD : VAMONoWd<amoop, width, opcodestr>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -600,6 +628,46 @@ def : InstAlias<"vmsgeu.vi $vd, $va, $imm$vm",
 def : InstAlias<"vmsge.vi $vd, $va, $imm$vm",
                 (VMSGT_VI VRegOp:$vd, VRegOp:$va, simm5_plus1:$imm,
                  VMaskOp:$vm), 0>;
+
+let isAsmParserOnly = 1, hasSideEffects = 0, mayLoad = 0, mayStore = 0 in {
+def PseudoVMSGEU_VX : Pseudo<(outs VRegOp:$vd),
+                             (ins VRegOp:$vs2, GPR:$rs1),
+                             [], "vmsgeu.vx", "$vd, $vs2, $rs1">;
+def PseudoVMSGE_VX : Pseudo<(outs VRegOp:$vd),
+                            (ins VRegOp:$vs2, GPR:$rs1),
+                            [], "vmsge.vx", "$vd, $vs2, $rs1">;
+def PseudoVMSGEU_VX_M : Pseudo<(outs VRNoV0:$vd),
+                               (ins VRegOp:$vs2, GPR:$rs1, VMaskOp:$vm),
+                               [], "vmsgeu.vx", "$vd, $vs2, $rs1$vm">;
+def PseudoVMSGE_VX_M : Pseudo<(outs VRNoV0:$vd),
+                              (ins VRegOp:$vs2, GPR:$rs1, VMaskOp:$vm),
+                              [], "vmsge.vx", "$vd, $vs2, $rs1$vm">;
+def PseudoVMSGEU_VX_M_T : Pseudo<(outs VMV0:$vd, VRegOp:$scratch),
+                                 (ins VRegOp:$vs2, GPR:$rs1, VMaskOp:$vm),
+                                 [], "vmsgeu.vx", "$vd, $vs2, $rs1$vm, $scratch">;
+def PseudoVMSGE_VX_M_T : Pseudo<(outs VMV0:$vd, VRegOp:$scratch),
+                                (ins VRegOp:$vs2, GPR:$rs1, VMaskOp:$vm),
+                                [], "vmsge.vx", "$vd, $vs2, $rs1$vm, $scratch">;
+}
+
+// This apparently unnecessary alias prevents matching `vmsge{u}.vx vd, vs2, vs1` as if
+// it were an unmasked (i.e. $vm = RISCV::NoRegister) PseudoVMSGE{U}_VX_M.
+def : InstAlias<"vmsgeu.vx $vd, $va, $rs1",
+                (PseudoVMSGEU_VX VRegOp:$vd, VRegOp:$va, GPR:$rs1), 0>;
+def : InstAlias<"vmsge.vx $vd, $va, $rs1",
+                (PseudoVMSGE_VX VRegOp:$vd, VRegOp:$va, GPR:$rs1), 0>;
+def : InstAlias<"vmsgeu.vx v0, $va, $rs1, $vm, $vt",
+                (PseudoVMSGEU_VX_M_T V0, VRegOp:$vt, VRegOp:$va, GPR:$rs1,
+                                     VMaskOp:$vm), 0>;
+def : InstAlias<"vmsge.vx v0, $va, $rs1, $vm, $vt",
+                (PseudoVMSGE_VX_M_T V0, VRegOp:$vt, VRegOp:$va, GPR:$rs1,
+                                    VMaskOp:$vm), 0>;
+def : InstAlias<"vmsgeu.vx $vd, $va, $rs1, $vm",
+                (PseudoVMSGEU_VX_M VRNoV0:$vd, VRegOp:$va, GPR:$rs1,
+                                   VMaskOp:$vm), 0>;
+def : InstAlias<"vmsge.vx $vd, $va, $rs1, $vm",
+                (PseudoVMSGE_VX_M VRNoV0:$vd, VRegOp:$va, GPR:$rs1,
+                                  VMaskOp:$vm), 0>;
 
 // Vector Integer Min/Max Instructions
 defm VMINU_V : VALU_IV_V_X<"vminu", 0b000100>;
@@ -1021,3 +1089,53 @@ let Predicates = [HasStdExtZvlsseg] in {
     def VSXSEG#nf#EI1024_V : VIndexedSegmentStore<!add(nf, -1), LSWidth1024, "vsxseg"#nf#"ei1024.v">;
   }
 } // Predicates = [HasStdExtZvlsseg]
+
+let Predicates = [HasStdExtZvamo, HasStdExtA] in {
+  defm VAMOSWAPEI8 : VAMO<AMOOPVamoSwap, LSWidth8, "vamoswapei8.v">;
+  defm VAMOSWAPEI16 : VAMO<AMOOPVamoSwap, LSWidth16, "vamoswapei16.v">;
+  defm VAMOSWAPEI32 : VAMO<AMOOPVamoSwap, LSWidth32, "vamoswapei32.v">;
+
+  defm VAMOADDEI8 : VAMO<AMOOPVamoAdd, LSWidth8, "vamoaddei8.v">;
+  defm VAMOADDEI16 : VAMO<AMOOPVamoAdd, LSWidth16, "vamoaddei16.v">;
+  defm VAMOADDEI32 : VAMO<AMOOPVamoAdd, LSWidth32, "vamoaddei32.v">;
+
+  defm VAMOXOREI8 : VAMO<AMOOPVamoXor, LSWidth8, "vamoxorei8.v">;
+  defm VAMOXOREI16 : VAMO<AMOOPVamoXor, LSWidth16, "vamoxorei16.v">;
+  defm VAMOXOREI32 : VAMO<AMOOPVamoXor, LSWidth32, "vamoxorei32.v">;
+
+  defm VAMOANDEI8 : VAMO<AMOOPVamoAnd, LSWidth8, "vamoandei8.v">;
+  defm VAMOANDEI16 : VAMO<AMOOPVamoAnd, LSWidth16, "vamoandei16.v">;
+  defm VAMOANDEI32 : VAMO<AMOOPVamoAnd, LSWidth32, "vamoandei32.v">;
+
+  defm VAMOOREI8 : VAMO<AMOOPVamoOr, LSWidth8, "vamoorei8.v">;
+  defm VAMOOREI16 : VAMO<AMOOPVamoOr, LSWidth16, "vamoorei16.v">;
+  defm VAMOOREI32 : VAMO<AMOOPVamoOr, LSWidth32, "vamoorei32.v">;
+
+  defm VAMOMINEI8 : VAMO<AMOOPVamoMin, LSWidth8, "vamominei8.v">;
+  defm VAMOMINEI16 : VAMO<AMOOPVamoMin, LSWidth16, "vamominei16.v">;
+  defm VAMOMINEI32 : VAMO<AMOOPVamoMin, LSWidth32, "vamominei32.v">;
+
+  defm VAMOMAXEI8 : VAMO<AMOOPVamoMax, LSWidth8, "vamomaxei8.v">;
+  defm VAMOMAXEI16 : VAMO<AMOOPVamoMax, LSWidth16, "vamomaxei16.v">;
+  defm VAMOMAXEI32 : VAMO<AMOOPVamoMax, LSWidth32, "vamomaxei32.v">;
+
+  defm VAMOMINUEI8 : VAMO<AMOOPVamoMinu, LSWidth8, "vamominuei8.v">;
+  defm VAMOMINUEI16 : VAMO<AMOOPVamoMinu, LSWidth16, "vamominuei16.v">;
+  defm VAMOMINUEI32 : VAMO<AMOOPVamoMinu, LSWidth32, "vamominuei32.v">;
+
+  defm VAMOMAXUEI8 : VAMO<AMOOPVamoMaxu, LSWidth8, "vamomaxuei8.v">;
+  defm VAMOMAXUEI16 : VAMO<AMOOPVamoMaxu, LSWidth16, "vamomaxuei16.v">;
+  defm VAMOMAXUEI32 : VAMO<AMOOPVamoMaxu, LSWidth32, "vamomaxuei32.v">;
+} // Predicates = [HasStdExtZvamo, HasStdExtA]
+
+let Predicates = [HasStdExtZvamo, HasStdExtA, IsRV64] in {
+  defm VAMOSWAPEI64 : VAMO<AMOOPVamoSwap, LSWidth64, "vamoswapei64.v">;
+  defm VAMOADDEI64 : VAMO<AMOOPVamoAdd, LSWidth64, "vamoaddei64.v">;
+  defm VAMOXOREI64 : VAMO<AMOOPVamoXor, LSWidth64, "vamoxorei64.v">;
+  defm VAMOANDEI64 : VAMO<AMOOPVamoAnd, LSWidth64, "vamoandei64.v">;
+  defm VAMOOREI64 : VAMO<AMOOPVamoOr, LSWidth64, "vamoorei64.v">;
+  defm VAMOMINEI64 : VAMO<AMOOPVamoMin, LSWidth64, "vamominei64.v">;
+  defm VAMOMAXEI64 : VAMO<AMOOPVamoMax, LSWidth64, "vamomaxei64.v">;
+  defm VAMOMINUEI64 : VAMO<AMOOPVamoMinu, LSWidth64, "vamominuei64.v">;
+  defm VAMOMAXUEI64 : VAMO<AMOOPVamoMaxu, LSWidth64, "vamomaxuei64.v">;
+} // Predicates = [HasStdExtZvamo, HasStdExtA, IsRV64]

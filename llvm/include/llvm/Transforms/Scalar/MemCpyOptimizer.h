@@ -30,6 +30,8 @@ class Instruction;
 class MemCpyInst;
 class MemMoveInst;
 class MemoryDependenceResults;
+class MemorySSA;
+class MemorySSAUpdater;
 class MemSetInst;
 class StoreInst;
 class TargetLibraryInfo;
@@ -38,9 +40,10 @@ class Value;
 class MemCpyOptPass : public PassInfoMixin<MemCpyOptPass> {
   MemoryDependenceResults *MD = nullptr;
   TargetLibraryInfo *TLI = nullptr;
-  std::function<AliasAnalysis &()> LookupAliasAnalysis;
-  std::function<AssumptionCache &()> LookupAssumptionCache;
-  std::function<DominatorTree &()> LookupDomTree;
+  AliasAnalysis *AA = nullptr;
+  AssumptionCache *AC = nullptr;
+  DominatorTree *DT = nullptr;
+  MemorySSAUpdater *MSSAU = nullptr;
 
 public:
   MemCpyOptPass() = default;
@@ -49,10 +52,8 @@ public:
 
   // Glue for the old PM.
   bool runImpl(Function &F, MemoryDependenceResults *MD_,
-               TargetLibraryInfo *TLI_,
-               std::function<AliasAnalysis &()> LookupAliasAnalysis_,
-               std::function<AssumptionCache &()> LookupAssumptionCache_,
-               std::function<DominatorTree &()> LookupDomTree_);
+               TargetLibraryInfo *TLI_, AliasAnalysis *AA_,
+               AssumptionCache *AC_, DominatorTree *DT_, MemorySSA *MSSA_);
 
 private:
   // Helper functions
@@ -60,15 +61,18 @@ private:
   bool processMemSet(MemSetInst *SI, BasicBlock::iterator &BBI);
   bool processMemCpy(MemCpyInst *M, BasicBlock::iterator &BBI);
   bool processMemMove(MemMoveInst *M);
-  bool performCallSlotOptzn(Instruction *cpy, Value *cpyDst, Value *cpySrc,
-                            uint64_t cpyLen, Align cpyAlign, CallInst *C);
+  bool performCallSlotOptzn(Instruction *cpyLoad, Instruction *cpyStore,
+                            Value *cpyDst, Value *cpySrc, uint64_t cpyLen,
+                            Align cpyAlign, CallInst *C);
   bool processMemCpyMemCpyDependence(MemCpyInst *M, MemCpyInst *MDep);
   bool processMemSetMemCpyDependence(MemCpyInst *MemCpy, MemSetInst *MemSet);
   bool performMemCpyToMemSetOptzn(MemCpyInst *MemCpy, MemSetInst *MemSet);
   bool processByValArgument(CallBase &CB, unsigned ArgNo);
   Instruction *tryMergingIntoMemset(Instruction *I, Value *StartPtr,
                                     Value *ByteVal);
+  bool moveUp(StoreInst *SI, Instruction *P, const LoadInst *LI);
 
+  void eraseInstruction(Instruction *I);
   bool iterateOnFunction(Function &F);
 };
 
