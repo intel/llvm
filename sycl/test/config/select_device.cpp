@@ -76,28 +76,15 @@ struct DevDescT {
   std::string platVer;
 };
 
-static void replaceSpecialCharacters(std::string &str) {
-  std::string lparen("(");
-  std::string rparen(")");
-  std::string esclparen("\\(");
-  std::string escrparen("\\)");
-  std::string period(".");
-  std::string escperiod("\\.");
-
-  size_t pos = 0;
-  while ((pos = str.find(lparen, pos)) != std::string::npos) {
-    str.replace(pos, lparen.size(), esclparen);
-    pos += esclparen.size();
-  }
-  pos = 0;
-  while ((pos = str.find(rparen, pos)) != std::string::npos) {
-    str.replace(pos, rparen.size(), escrparen);
-    pos += escrparen.size();
-  }
-  pos = 0;
-  while ((pos = str.find(period, pos)) != std::string::npos) {
-    str.replace(pos, period.size(), escperiod);
-    pos += escperiod.size();
+static void addEscapeSymbolToSpecialCharacters(std::string &str) {
+  std::vector<std::string> specialCharacters{"(", ")", "[", "]", "."};
+  for (const auto &character : specialCharacters) {
+    size_t pos = 0;
+    while ((pos = str.find(character, pos)) != std::string::npos) {
+      std::string modifiedCharacter("\\" + character);
+      str.replace(pos, character.size(), modifiedCharacter);
+      pos += modifiedCharacter.size();
+    }
   }
 }
 
@@ -201,7 +188,7 @@ int main() {
           for (const auto &dev : plt.get_devices()) {
             if (dev.has(aspect::gpu)) {
               std::string name = dev.get_info<info::device::name>();
-              replaceSpecialCharacters(name);
+              addEscapeSymbolToSpecialCharacters(name);
               std::string ver = dev.get_info<info::device::driver_version>();
               if ((plt.get_backend() == backend::opencl) &&
                   (sycl_be.find("OPENCL") != std::string::npos)) {
@@ -261,7 +248,7 @@ int main() {
       for (const auto &plt : platform::get_platforms()) {
         if (plt.has(aspect::gpu)) {
           std::string name = plt.get_info<info::platform::name>();
-          replaceSpecialCharacters(name);
+          addEscapeSymbolToSpecialCharacters(name);
           std::string ver = plt.get_info<info::platform::version>();
           if (((plt.get_backend() == backend::opencl) &&
                (sycl_be.find("OPENCL") != std::string::npos)) ||
@@ -317,7 +304,7 @@ int main() {
           for (const auto &dev : plt.get_devices()) {
             if (dev.has(aspect::gpu)) {
               std::string name = dev.get_info<info::device::name>();
-              replaceSpecialCharacters(name);
+              addEscapeSymbolToSpecialCharacters(name);
               std::string ver("98.76.54321");
               if (((plt.get_backend() == backend::opencl) &&
                    (sycl_be.find("OPENCL") != std::string::npos)) ||
@@ -371,7 +358,7 @@ int main() {
       for (const auto &plt : platform::get_platforms()) {
         if (plt.has(aspect::gpu)) {
           std::string name = plt.get_info<info::platform::name>();
-          replaceSpecialCharacters(name);
+          addEscapeSymbolToSpecialCharacters(name);
           if ((plt.get_backend() == backend::opencl) &&
               (sycl_be.find("OPENCL") != std::string::npos)) {
             std::string ver("OpenCL 12.34");
@@ -430,7 +417,7 @@ int main() {
           for (const auto &dev : plt.get_devices()) {
             if (dev.has(aspect::gpu)) {
               std::string name = dev.get_info<info::device::name>();
-              replaceSpecialCharacters(name);
+              addEscapeSymbolToSpecialCharacters(name);
               std::string ver = dev.get_info<info::device::driver_version>();
               size_t pos = 0;
               if ((pos = ver.find(".")) == std::string::npos) {
@@ -498,7 +485,7 @@ int main() {
           for (const auto &dev : plt.get_devices()) {
             if (dev.has(aspect::gpu)) {
               std::string name = dev.get_info<info::device::name>();
-              replaceSpecialCharacters(name);
+              addEscapeSymbolToSpecialCharacters(name);
               if (((plt.get_backend() == backend::opencl) &&
                    (sycl_be.find("OPENCL") != std::string::npos)) ||
                   ((plt.get_backend() == backend::level_zero) &&
@@ -547,7 +534,7 @@ int main() {
       for (const auto &plt : platform::get_platforms()) {
         if (plt.has(aspect::gpu)) {
           std::string name = plt.get_info<info::platform::name>();
-          replaceSpecialCharacters(name);
+          addEscapeSymbolToSpecialCharacters(name);
           if (((plt.get_backend() == backend::opencl) &&
                (sycl_be.find("OPENCL") != std::string::npos)) ||
               ((plt.get_backend() == backend::level_zero) &&
@@ -599,7 +586,7 @@ int main() {
           for (const auto &dev : plt.get_devices()) {
             if (dev.has(aspect::gpu)) {
               std::string name = dev.get_info<info::device::name>();
-              replaceSpecialCharacters(name);
+              addEscapeSymbolToSpecialCharacters(name);
               std::string ver = dev.get_info<info::device::driver_version>();
               if (((plt.get_backend() == backend::opencl) &&
                    (sycl_be.find("OPENCL") != std::string::npos)) ||
@@ -662,7 +649,7 @@ int main() {
           for (const auto &dev : plt.get_devices()) {
             if (dev.has(aspect::gpu)) {
               std::string name = dev.get_info<info::device::name>();
-              replaceSpecialCharacters(name);
+              addEscapeSymbolToSpecialCharacters(name);
               if (((plt.get_backend() == backend::opencl) &&
                    (sycl_be.find("OPENCL") != std::string::npos)) ||
                   ((plt.get_backend() == backend::level_zero) &&
@@ -715,7 +702,7 @@ int main() {
       for (const auto &plt : platform::get_platforms()) {
         if (plt.has(aspect::gpu)) {
           std::string name = plt.get_info<info::platform::name>();
-          replaceSpecialCharacters(name);
+          addEscapeSymbolToSpecialCharacters(name);
           if (((plt.get_backend() == backend::opencl) &&
                (sycl_be.find("OPENCL") != std::string::npos)) ||
               ((plt.get_backend() == backend::level_zero) &&
@@ -768,7 +755,7 @@ int main() {
           for (const auto &dev : plt.get_devices()) {
             if (dev.has(aspect::gpu)) {
               std::string name = dev.get_info<info::device::name>();
-              replaceSpecialCharacters(name);
+              addEscapeSymbolToSpecialCharacters(name);
               std::string ver = dev.get_info<info::device::driver_version>();
               if (((plt.get_backend() == backend::opencl) &&
                    (sycl_be.find("OPENCL") != std::string::npos)) ||
@@ -823,7 +810,7 @@ int main() {
       for (const auto &plt : platform::get_platforms()) {
         if (plt.has(aspect::gpu)) {
           std::string name = plt.get_info<info::platform::name>();
-          replaceSpecialCharacters(name);
+          addEscapeSymbolToSpecialCharacters(name);
           std::string ver = plt.get_info<info::platform::version>();
           if (((plt.get_backend() == backend::opencl) &&
                (sycl_be.find("OPENCL") != std::string::npos)) ||
