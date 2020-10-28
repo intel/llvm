@@ -223,6 +223,8 @@
 // RUN:  touch %t.cpp
 // RUN:  %clangxx -### -reuse-exe=testing -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %t.cpp 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-REUSE-EXE %s
+// RUN:  %clang_cl -### -reuse-exe=testing -fsycl -fintelfpga %t.cpp 2>&1 \
+// RUN:  | FileCheck -check-prefixes=CHK-FPGA-REUSE-EXE %s
 // CHK-FPGA-REUSE-EXE: aoc{{.*}} "-o" {{.*}} "-sycl" {{.*}} "-reuse-exe=testing"
 
 /// -fintelfpga dependency file generation test
