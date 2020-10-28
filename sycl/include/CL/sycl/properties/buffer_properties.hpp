@@ -39,6 +39,17 @@ public:
 private:
   sycl::context MCtx;
 };
+
+class mem_channel : public detail::PropertyWithData<
+                        detail::PropWithDataKind::BufferMemChannel> {
+public:
+  mem_channel(cl_uint Channel) : m_Channel(Channel) {}
+  cl_uint get_channel() const { return m_Channel; }
+
+private:
+  cl_uint m_Channel;
+};
+
 } // namespace buffer
 } // namespace property
 

@@ -40,6 +40,7 @@ enum PropWithDataKind {
   BufferContextBound,
   ImageUseMutex,
   ImageContextBound,
+  BufferMemChannel,
   PropWithDataKindSize
 };
 

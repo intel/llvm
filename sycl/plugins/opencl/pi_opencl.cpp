@@ -523,22 +523,62 @@ pi_result piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
                             void *host_ptr, pi_mem *ret_mem,
                             const pi_mem_properties *properties) {
   pi_result ret_err = PI_INVALID_OPERATION;
-  clCreateBufferWithPropertiesINTEL_fn FuncPtr = nullptr;
-
-  if (properties)
+  if (properties) {
+    clCreateBufferWithPropertiesINTEL_fn FuncPtr = nullptr;
+    const size_t propSize = sizeof(properties) / sizeof(pi_mem_properties);
     // First we need to look up the function pointer
     ret_err = getExtFuncFromContext<clCreateBufferWithPropertiesName,
                                     clCreateBufferWithPropertiesINTEL_fn>(
         context, &FuncPtr);
+    if (FuncPtr) {
+      std::vector<pi_mem_properties> supported(properties,
+                                               properties + propSize);
+      // Go through buffer properties. If there is one, that shall be propagated
+      // to an OpenCL runtime - check if this property is being supported.
+      for (auto prop = supported.begin(); prop != supported.end(); ++prop) {
+        // Check if PI_MEM_CHANNEL_INTEL property is supported. If it's not -
+        // just ignore it, as it's an optimization hint.
+        if (*prop == PI_MEM_CHANNEL_INTEL) {
+          size_t deviceCount;
+          cl_int ret_err =
+              clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_DEVICES, 0,
+                               nullptr, &deviceCount);
+          if (ret_err != CL_SUCCESS || deviceCount < 1)
+            return PI_INVALID_CONTEXT;
+          std::vector<cl_device_id> devicesInCtx(deviceCount);
+          ret_err = clGetContextInfo(
+              cast<cl_context>(context), CL_CONTEXT_DEVICES,
+              deviceCount * sizeof(cl_device_id), devicesInCtx.data(), nullptr);
 
-  if (FuncPtr)
-    *ret_mem = cast<pi_mem>(FuncPtr(cast<cl_context>(context), properties,
-                                    cast<cl_mem_flags>(flags), size, host_ptr,
-                                    cast<cl_int *>(&ret_err)));
-  else
-    *ret_mem = cast<pi_mem>(clCreateBuffer(cast<cl_context>(context),
-                                           cast<cl_mem_flags>(flags), size,
-                                           host_ptr, cast<cl_int *>(&ret_err)));
+          size_t retSize;
+          ret_err = clGetDeviceInfo(devicesInCtx[0], CL_DEVICE_EXTENSIONS, 0,
+                                    nullptr, &retSize);
+          if (ret_err != CL_SUCCESS)
+            return PI_INVALID_DEVICE;
+          std::string extensions(retSize, '\0');
+          ret_err = clGetDeviceInfo(devicesInCtx[0], CL_DEVICE_EXTENSIONS,
+                                    retSize, &extensions[0], nullptr);
+          if (ret_err != CL_SUCCESS)
+            return PI_INVALID_DEVICE;
+
+          size_t pos = extensions.find("cl_intel_mem_channel_property");
+          if (pos == std::string::npos)
+            supported.erase(prop);
+        }
+      }
+      if (!supported.empty()) {
+        *ret_mem =
+            cast<pi_mem>(FuncPtr(cast<cl_context>(context), supported.data(),
+                                 cast<cl_mem_flags>(flags), size, host_ptr,
+                                 cast<cl_int *>(&ret_err)));
+        return ret_err;
+      }
+    }
+  }
+
+  *ret_mem = cast<pi_mem>(clCreateBuffer(cast<cl_context>(context),
+                                         cast<cl_mem_flags>(flags), size,
+                                         host_ptr, cast<cl_int *>(&ret_err)));
   return ret_err;
 }
 

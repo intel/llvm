@@ -30,7 +30,8 @@ enum class aspect {
   usm_host_allocations,
   usm_shared_allocations,
   usm_restricted_shared_allocations,
-  usm_system_allocator
+  usm_system_allocator,
+  ext_intel_mem_channel
 };
 
 } // namespace sycl
