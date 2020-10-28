@@ -739,14 +739,14 @@ private:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     constexpr size_t GoodLocalSizeX = 32;
     std::string KName = typeid(NameT *).name();
-    bool foundit = KName.find("OPT_PFWGS_DISABLE") != std::string::npos;
-    if (getenv("OPT_PFWGS") != nullptr && !foundit &&
-        NumWorkItems[0] % GoodLocalSizeX != 0) {
+    bool DisableRounding =
+        KName.find("SYCL_OPT_PFWGS_DISABLE") != std::string::npos;
+    if (!DisableRounding && NumWorkItems[0] % GoodLocalSizeX != 0) {
       // Not a multiple
       size_t NewValX =
           ((NumWorkItems[0] + GoodLocalSizeX - 1) / GoodLocalSizeX) *
           GoodLocalSizeX;
-      if (getenv("OPT_PFWGS_TRACE") != nullptr)
+      if (getenv("SYCL_OPT_PFWGS_TRACE") != nullptr)
         std::cerr << "***** Adjusted size from " << NumWorkItems[0] << " to "
                   << NewValX << " *****\n";
       auto Wrapper = [=](TransformedArgType Arg) {
@@ -773,11 +773,11 @@ private:
       (void)NumWorkItems;
       kernel_parallel_for<NameT, TransformedArgType>(KernelFunc);
 #else
-    detail::checkValueRange<Dims>(NumWorkItems);
-    MNDRDesc.set(std::move(NumWorkItems));
-    StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
-        std::move(KernelFunc));
-    MCGType = detail::CG::KERNEL;
+      detail::checkValueRange<Dims>(NumWorkItems);
+      MNDRDesc.set(std::move(NumWorkItems));
+      StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
+          std::move(KernelFunc));
+      MCGType = detail::CG::KERNEL;
 #endif
     }
   }
