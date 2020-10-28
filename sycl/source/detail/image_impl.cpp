@@ -307,15 +307,17 @@ template <int Dimensions>
 void *image_impl<Dimensions>::allocateMem(ContextImplPtr Context,
                                           bool InitFromUserData, void *HostPtr,
                                           RT::PiEvent &OutEventToWait) {
+  // Assume a read-write pointer unless reusing a user pointer.
+  bool HostPtrReadOnly = false;
+  if (InitFromUserData) {
+    assert(!HostPtr && "Cannot init from user data and reuse host ptr provided "
+                       "simultaneously");
+    HostPtr = BaseT::getUserPtr();
+    HostPtrReadOnly = BaseT::MHostPtrReadOnly;
+  }
 
-  assert(!(InitFromUserData && HostPtr) &&
-         "Cannot init from user data and reuse host ptr provided "
-         "simultaneously");
-
-  void *UserPtr = InitFromUserData ? BaseT::getUserPtr() : HostPtr;
-
-  RT::PiMemImageDesc Desc = getImageDesc(UserPtr != nullptr);
-  assert(checkImageDesc(Desc, Context, UserPtr) &&
+  RT::PiMemImageDesc Desc = getImageDesc(HostPtr != nullptr);
+  assert(checkImageDesc(Desc, Context, HostPtr) &&
          "The check an image desc failed.");
 
   RT::PiMemImageFormat Format = getImageFormat();
@@ -323,9 +325,9 @@ void *image_impl<Dimensions>::allocateMem(ContextImplPtr Context,
          "The check an image format failed.");
 
   return MemoryManager::allocateMemImage(
-      std::move(Context), this, UserPtr, BaseT::MHostPtrReadOnly,
-      BaseT::getSize(), Desc, Format, BaseT::MInteropEvent,
-      BaseT::MInteropContext, MProps, OutEventToWait);
+      std::move(Context), this, HostPtr, HostPtrReadOnly, BaseT::getSize(),
+      Desc, Format, BaseT::MInteropEvent, BaseT::MInteropContext, MProps,
+      OutEventToWait);
 }
 
 template <int Dimensions>
