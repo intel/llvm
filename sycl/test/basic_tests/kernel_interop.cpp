@@ -26,47 +26,46 @@ using namespace cl::sycl;
 
 int main() {
   queue Queue;
-  if (!Queue.is_host()) {
+  if (Queue.is_host())
+    return 0;
 
-    context Context = Queue.get_context();
+  context Context = Queue.get_context();
 
-    cl_context ClContext = Context.get();
+  cl_context ClContext = Context.get();
 
-    const size_t CountSources = 1;
-    const char *Sources[CountSources] = {
-        "kernel void foo1(global float* Array, global int* Value) { *Array = "
-        "42; *Value = 1; }\n",
-    };
+  const size_t CountSources = 1;
+  const char *Sources[CountSources] = {
+      "kernel void foo1(global float* Array, global int* Value) { *Array = "
+      "42; *Value = 1; }\n",
+  };
 
-    cl_int Err;
-    cl_program ClProgram = clCreateProgramWithSource(ClContext, CountSources,
-                                                     Sources, nullptr, &Err);
-    CHECK_OCL_CODE(Err);
+  cl_int Err;
+  cl_program ClProgram = clCreateProgramWithSource(ClContext, CountSources,
+                                                   Sources, nullptr, &Err);
+  assert(Err == CL_SUCCESS);
 
-    Err = clBuildProgram(ClProgram, 0, nullptr, nullptr, nullptr, nullptr);
-    CHECK_OCL_CODE(Err);
+  Err = clBuildProgram(ClProgram, 0, nullptr, nullptr, nullptr, nullptr);
+  assert(Err == CL_SUCCESS);
 
-    cl_kernel ClKernel = clCreateKernel(ClProgram, "foo1", &Err);
-    CHECK_OCL_CODE(Err);
+  cl_kernel ClKernel = clCreateKernel(ClProgram, "foo1", &Err);
+  assert(Err == CL_SUCCESS);
 
-    // Try to create kernel with another context
-    bool Pass = false;
-    queue Queue1;
-    context Context1 = Queue1.get_context();
-    try {
-      kernel Kernel(ClKernel, Context1);
-    } catch (cl::sycl::invalid_parameter_error e) {
-      Pass = true;
-    }
-    assert(Pass);
-
-    kernel Kernel(ClKernel, Context);
-
-
-    CHECK_OCL_CODE(clReleaseKernel(ClKernel));
-    CHECK_OCL_CODE(clReleaseContext(ClContext));
-    CHECK_OCL_CODE(clReleaseProgram(ClProgram));
-
+  // Try to create kernel with another context
+  bool Pass = false;
+  queue Queue1;
+  context Context1 = Queue1.get_context();
+  try {
+    kernel Kernel(ClKernel, Context1);
+  } catch (cl::sycl::invalid_parameter_error e) {
+    Pass = true;
   }
+  assert(Pass);
+
+  kernel Kernel(ClKernel, Context);
+
+  assert(clReleaseKernel(ClKernel) == CL_SUCCESS);
+  assert(clReleaseContext(ClContext) == CL_SUCCESS);
+  assert(clReleaseProgram(ClProgram) == CL_SUCCESS);
+
   return 0;
 }

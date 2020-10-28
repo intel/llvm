@@ -83,6 +83,17 @@ template <> inline void print<>(pi_image_offset off) {
             << off->z << std::endl;
 }
 
+template <> inline void print<>(const pi_image_desc *desc) {
+  std::cout << "image_desc w/h/d : " << desc->image_width << " / "
+            << desc->image_height << " / " << desc->image_depth
+            << "  --  arrSz/row/slice : " << desc->image_array_size << " / "
+            << desc->image_row_pitch << " / " << desc->image_slice_pitch
+            << "  --  num_mip_lvls/num_smpls/image_type : "
+            << desc->num_mip_levels << " / " << desc->num_samples << " / "
+            << desc->image_type << std::endl;
+}
+
+
 template <> inline void print<>(PiResult val) {
   std::cout << "pi_result : ";
   if (val == PI_SUCCESS)
@@ -92,7 +103,17 @@ template <> inline void print<>(PiResult val) {
 }
 
 // cout does not resolve a nullptr.
-template <> inline void print<>(std::nullptr_t val) { print<void *>(val); }
+template <> inline void print<>(std::nullptr_t) {
+  std::cout << "<nullptr>" << std::endl;
+}
+
+template <> inline void print<>(char *val) {
+  std::cout << "<char * > : " << static_cast<void *>(val) << std::endl;
+}
+
+template <> inline void print<>(const char *val) {
+  std::cout << "<const char *>: " << val << std::endl;
+}
 
 inline void printArgs(void) {}
 template <typename Arg0, typename... Args>

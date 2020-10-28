@@ -300,9 +300,11 @@ std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
 
   // If we've already seen this device, return the impl
-  for (const std::shared_ptr<device_impl> &Device : MDeviceCache) {
-    if (Device->getHandleRef() == PiDevice)
-      return Device;
+  for (const std::weak_ptr<device_impl> &DeviceWP : MDeviceCache) {
+    if (std::shared_ptr<device_impl> Device = DeviceWP.lock()) {
+      if (Device->getHandleRef() == PiDevice)
+        return Device;
+    }
   }
 
   // Otherwise make the impl
@@ -394,11 +396,11 @@ bool platform_impl::has(aspect Aspect) const {
   return true;
 }
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
   template ret_type platform_impl::get_info<info::param_type::param>() const;
 
 #include <CL/sycl/info/platform_traits.def>
-#undef PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC
 
 } // namespace detail
 } // namespace sycl

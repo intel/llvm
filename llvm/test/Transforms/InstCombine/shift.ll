@@ -448,7 +448,6 @@ bb2:
   ret i8 %i2
 }
 
-
 define i32 @test29(i64 %d18) {
 ; CHECK-LABEL: @test29(
 ; CHECK-NEXT:  entry:
@@ -463,6 +462,49 @@ entry:
   ret i32 %i10
 }
 
+define <2 x i32> @test29_uniform(<2 x i64> %d18) {
+; CHECK-LABEL: @test29_uniform(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[I916:%.*]] = lshr <2 x i64> [[D18:%.*]], <i64 63, i64 63>
+; CHECK-NEXT:    [[I10:%.*]] = trunc <2 x i64> [[I916]] to <2 x i32>
+; CHECK-NEXT:    ret <2 x i32> [[I10]]
+;
+entry:
+  %i916 = lshr <2 x i64> %d18, <i64 32, i64 32>
+  %i917 = trunc <2 x i64> %i916 to <2 x i32>
+  %i10 = lshr <2 x i32> %i917, <i32 31, i32 31>
+  ret <2 x i32> %i10
+}
+
+define <2 x i32> @test29_nonuniform(<2 x i64> %d18) {
+; CHECK-LABEL: @test29_nonuniform(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[I916:%.*]] = lshr <2 x i64> [[D18:%.*]], <i64 32, i64 15>
+; CHECK-NEXT:    [[I917:%.*]] = trunc <2 x i64> [[I916]] to <2 x i32>
+; CHECK-NEXT:    [[I10:%.*]] = lshr <2 x i32> [[I917]], <i32 31, i32 22>
+; CHECK-NEXT:    ret <2 x i32> [[I10]]
+;
+entry:
+  %i916 = lshr <2 x i64> %d18, <i64 32, i64 15>
+  %i917 = trunc <2 x i64> %i916 to <2 x i32>
+  %i10 = lshr <2 x i32> %i917, <i32 31, i32 22>
+  ret <2 x i32> %i10
+}
+
+define <2 x i32> @test29_undef(<2 x i64> %d18) {
+; CHECK-LABEL: @test29_undef(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[I916:%.*]] = lshr <2 x i64> [[D18:%.*]], <i64 32, i64 undef>
+; CHECK-NEXT:    [[I917:%.*]] = trunc <2 x i64> [[I916]] to <2 x i32>
+; CHECK-NEXT:    [[I10:%.*]] = lshr <2 x i32> [[I917]], <i32 31, i32 undef>
+; CHECK-NEXT:    ret <2 x i32> [[I10]]
+;
+entry:
+  %i916 = lshr <2 x i64> %d18, <i64 32, i64 undef>
+  %i917 = trunc <2 x i64> %i916 to <2 x i32>
+  %i10 = lshr <2 x i32> %i917, <i32 31, i32 undef>
+  ret <2 x i32> %i10
+}
 
 define i32 @test30(i32 %A, i32 %B, i32 %C) {
 ; CHECK-LABEL: @test30(
@@ -601,6 +643,37 @@ define i32 @test38(i32 %x) nounwind readnone {
   %rem = srem i32 %x, 32
   %shl = shl i32 1, %rem
   ret i32 %shl
+}
+
+define <2 x i32> @test38_uniform(<2 x i32> %x) nounwind readnone {
+; CHECK-LABEL: @test38_uniform(
+; CHECK-NEXT:    [[REM1:%.*]] = and <2 x i32> [[X:%.*]], <i32 31, i32 31>
+; CHECK-NEXT:    [[SHL:%.*]] = shl <2 x i32> <i32 1, i32 1>, [[REM1]]
+; CHECK-NEXT:    ret <2 x i32> [[SHL]]
+;
+  %rem = srem <2 x i32> %x, <i32 32, i32 32>
+  %shl = shl <2 x i32> <i32 1, i32 1>, %rem
+  ret <2 x i32> %shl
+}
+
+define <3 x i32> @test38_nonuniform(<3 x i32> %x) nounwind readnone {
+; CHECK-LABEL: @test38_nonuniform(
+; CHECK-NEXT:    [[REM1:%.*]] = and <3 x i32> [[X:%.*]], <i32 31, i32 15, i32 0>
+; CHECK-NEXT:    [[SHL:%.*]] = shl <3 x i32> <i32 1, i32 1, i32 1>, [[REM1]]
+; CHECK-NEXT:    ret <3 x i32> [[SHL]]
+;
+  %rem = srem <3 x i32> %x, <i32 32, i32 16, i32 1>
+  %shl = shl <3 x i32> <i32 1, i32 1, i32 1>, %rem
+  ret <3 x i32> %shl
+}
+
+define <2 x i32> @test38_undef(<2 x i32> %x) nounwind readnone {
+; CHECK-LABEL: @test38_undef(
+; CHECK-NEXT:    ret <2 x i32> undef
+;
+  %rem = srem <2 x i32> %x, <i32 32, i32 undef>
+  %shl = shl <2 x i32> <i32 1, i32 1>, %rem
+  ret <2 x i32> %shl
 }
 
 ; <rdar://problem/8756731>
@@ -1684,3 +1757,29 @@ define void @ashr_out_of_range(i177* %A) {
   ret void
 }
 
+; OSS Fuzz #26135
+; https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=26135
+define void @ashr_out_of_range_1(i177* %A) {
+; CHECK-LABEL: @ashr_out_of_range_1(
+; CHECK-NEXT:    [[L:%.*]] = load i177, i177* [[A:%.*]], align 4
+; CHECK-NEXT:    [[G11:%.*]] = getelementptr i177, i177* [[A]], i64 -1
+; CHECK-NEXT:    [[B24_LOBIT:%.*]] = ashr i177 [[L]], 175
+; CHECK-NEXT:    [[TMP1:%.*]] = trunc i177 [[B24_LOBIT]] to i64
+; CHECK-NEXT:    [[G62:%.*]] = getelementptr i177, i177* [[G11]], i64 [[TMP1]]
+; CHECK-NEXT:    store i177 0, i177* [[G62]], align 4
+; CHECK-NEXT:    ret void
+;
+  %L = load i177, i177* %A, align 4
+  %B5 = udiv i177 %L, -1
+  %B4 = add i177 %B5, -1
+  %B = and i177 %B4, %L
+  %B2 = add i177 %B, -1
+  %G11 = getelementptr i177, i177* %A, i177 %B2
+  %B6 = mul i177 %B5, %B2
+  %B24 = ashr i177 %L, %B6
+  %C17 = icmp sgt i177 %B, %B24
+  %G62 = getelementptr i177, i177* %G11, i1 %C17
+  %B28 = urem i177 %B24, %B6
+  store i177 %B28, i177* %G62, align 4
+  ret void
+}

@@ -326,7 +326,7 @@ private:
   Instruction *narrowBinOp(TruncInst &Trunc);
   Instruction *narrowMaskedBinOp(BinaryOperator &And);
   Instruction *narrowMathIfNoOverflow(BinaryOperator &I);
-  Instruction *narrowRotate(TruncInst &Trunc);
+  Instruction *narrowFunnelShift(TruncInst &Trunc);
   Instruction *optimizeBitCastFromPhi(CastInst &CI, PHINode *PN);
   Instruction *matchSAddSubSat(SelectInst &MinMax1);
 
@@ -761,6 +761,8 @@ class Negator final {
 
   using Result = std::pair<ArrayRef<Instruction *> /*NewInstructions*/,
                            Value * /*NegatedRoot*/>;
+
+  std::array<Value *, 2> getSortedOperandsOfBinOp(Instruction *I);
 
   LLVM_NODISCARD Value *visitImpl(Value *V, unsigned Depth);
 

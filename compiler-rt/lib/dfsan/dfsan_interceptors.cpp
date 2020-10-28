@@ -20,7 +20,11 @@
 
 using namespace __sanitizer;
 
-static bool interceptors_initialized;
+namespace {
+
+bool interceptors_initialized;
+
+}  // namespace
 
 INTERCEPTOR(void *, mmap, void *addr, SIZE_T length, int prot, int flags,
             int fd, OFF_T offset) {
@@ -34,7 +38,7 @@ INTERCEPTOR(void *, mmap, void *addr, SIZE_T length, int prot, int flags,
     res = REAL(mmap)(addr, length, prot, flags, fd, offset);
 
   if (res != (void *)-1)
-    dfsan_set_label(0, res, RoundUpTo(length, GetPageSize()));
+    dfsan_set_label(0, res, RoundUpTo(length, GetPageSizeCached()));
   return res;
 }
 
@@ -42,19 +46,14 @@ INTERCEPTOR(void *, mmap64, void *addr, SIZE_T length, int prot, int flags,
             int fd, OFF64_T offset) {
   void *res = REAL(mmap64)(addr, length, prot, flags, fd, offset);
   if (res != (void *)-1)
-    dfsan_set_label(0, res, RoundUpTo(length, GetPageSize()));
+    dfsan_set_label(0, res, RoundUpTo(length, GetPageSizeCached()));
   return res;
 }
 
 INTERCEPTOR(int, munmap, void *addr, SIZE_T length) {
   int res = REAL(munmap)(addr, length);
-  if (res != -1) {
-    uptr beg_shadow_addr = (uptr)__dfsan::shadow_for(addr);
-    void *end_addr =
-        (void *)((uptr)addr + RoundUpTo(length, GetPageSizeCached()));
-    uptr end_shadow_addr = (uptr)__dfsan::shadow_for(end_addr);
-    ReleaseMemoryPagesToOS(beg_shadow_addr, end_shadow_addr);
-  }
+  if (res != -1)
+    dfsan_set_label(0, addr, RoundUpTo(length, GetPageSizeCached()));
   return res;
 }
 

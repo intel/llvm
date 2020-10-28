@@ -2214,6 +2214,10 @@ SDValue SelectionDAG::FoldSetCC(EVT VT, SDValue N1, SDValue N2,
 /// SimplifyMultipleUseDemandedBits and not generate any new nodes.
 SDValue SelectionDAG::GetDemandedBits(SDValue V, const APInt &DemandedBits) {
   EVT VT = V.getValueType();
+
+  if (VT.isScalableVector())
+    return SDValue();
+
   APInt DemandedElts = VT.isVector()
                            ? APInt::getAllOnesValue(VT.getVectorNumElements())
                            : APInt(1, 1);
@@ -2306,6 +2310,9 @@ bool SelectionDAG::isSplatValue(SDValue V, const APInt &DemandedElts,
   // vector types.
   switch (V.getOpcode()) {
   case ISD::SPLAT_VECTOR:
+    UndefElts = V.getOperand(0).isUndef()
+                    ? APInt::getAllOnesValue(DemandedElts.getBitWidth())
+                    : APInt(DemandedElts.getBitWidth(), 0);
     return true;
   case ISD::ADD:
   case ISD::SUB:
@@ -7135,7 +7142,8 @@ SDValue SelectionDAG::getTruncStore(SDValue Chain, const SDLoc &dl, SDValue Val,
 
   MachineFunction &MF = getMachineFunction();
   MachineMemOperand *MMO = MF.getMachineMemOperand(
-      PtrInfo, MMOFlags, SVT.getStoreSize(), Alignment, AAInfo);
+      PtrInfo, MMOFlags, MemoryLocation::getSizeOrUnknown(SVT.getStoreSize()),
+      Alignment, AAInfo);
   return getTruncStore(Chain, dl, Val, Ptr, SVT, MMO);
 }
 
@@ -7156,7 +7164,7 @@ SDValue SelectionDAG::getTruncStore(SDValue Chain, const SDLoc &dl, SDValue Val,
   assert(VT.isVector() == SVT.isVector() &&
          "Cannot use trunc store to convert to or from a vector!");
   assert((!VT.isVector() ||
-          VT.getVectorNumElements() == SVT.getVectorNumElements()) &&
+          VT.getVectorElementCount() == SVT.getVectorElementCount()) &&
          "Cannot use trunc store to change the number of vector elements!");
 
   SDVTList VTs = getVTList(MVT::Other);

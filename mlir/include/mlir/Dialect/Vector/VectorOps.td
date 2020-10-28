@@ -15,6 +15,7 @@
 
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/VectorInterfaces.td"
+include "mlir/Interfaces/ViewLikeInterface.td"
 
 def Vector_Dialect : Dialect {
   let name = "vector";
@@ -207,7 +208,7 @@ def Vector_ReductionOp :
     Note that these operations are restricted to 1-D vectors to remain
     close to the corresponding LLVM intrinsics:
 
-    http://llvm.org/docs/LangRef.html#experimental-vector-reduction-intrinsics
+    http://llvm.org/docs/LangRef.html#vector-reduction-intrinsics
 
     Example:
 
@@ -503,7 +504,6 @@ def Vector_ExtractMapOp :
     ```
   }];
   let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, " #
     "Value vector, Value id, int64_t multiplicity">];
   let extraClassDeclaration = [{
     VectorType getSourceVectorType() {
@@ -717,7 +717,6 @@ def Vector_InsertMapOp :
     ```
   }];
   let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, " #
     "Value vector, Value id, int64_t multiplicity">];
   let extraClassDeclaration = [{
     VectorType getSourceVectorType() {
@@ -1673,7 +1672,7 @@ def Vector_BitCastOp :
 }
 
 def Vector_TypeCastOp :
-  Vector_Op<"type_cast", [NoSideEffect]>,
+  Vector_Op<"type_cast", [NoSideEffect, ViewLikeOpInterface]>,
     Arguments<(ins StaticShapeMemRefOf<[AnyType]>:$memref)>,
     Results<(outs AnyMemRef:$result)> {
   let summary = "type_cast op converts a scalar memref to a vector memref";
@@ -1711,6 +1710,8 @@ def Vector_TypeCastOp :
     MemRefType getResultMemRefType() {
       return getResult().getType().cast<MemRefType>();
     }
+    // Implement ViewLikeOpInterface.
+    Value getViewSource() { return memref(); }
   }];
 
   let assemblyFormat = [{

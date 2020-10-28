@@ -740,34 +740,33 @@ Block *BranchOp::getSuccessorForOperands(ArrayRef<Attribute>) { return dest(); }
 // CallOp
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verify(CallOp op) {
+LogicalResult CallOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
   // Check that the callee attribute was specified.
-  auto fnAttr = op.getAttrOfType<FlatSymbolRefAttr>("callee");
+  auto fnAttr = getAttrOfType<FlatSymbolRefAttr>("callee");
   if (!fnAttr)
-    return op.emitOpError("requires a 'callee' symbol reference attribute");
-  auto fn =
-      op.getParentOfType<ModuleOp>().lookupSymbol<FuncOp>(fnAttr.getValue());
+    return emitOpError("requires a 'callee' symbol reference attribute");
+  FuncOp fn = symbolTable.lookupNearestSymbolFrom<FuncOp>(*this, fnAttr);
   if (!fn)
-    return op.emitOpError() << "'" << fnAttr.getValue()
-                            << "' does not reference a valid function";
+    return emitOpError() << "'" << fnAttr.getValue()
+                         << "' does not reference a valid function";
 
   // Verify that the operand and result types match the callee.
   auto fnType = fn.getType();
-  if (fnType.getNumInputs() != op.getNumOperands())
-    return op.emitOpError("incorrect number of operands for callee");
+  if (fnType.getNumInputs() != getNumOperands())
+    return emitOpError("incorrect number of operands for callee");
 
   for (unsigned i = 0, e = fnType.getNumInputs(); i != e; ++i)
-    if (op.getOperand(i).getType() != fnType.getInput(i))
-      return op.emitOpError("operand type mismatch: expected operand type ")
+    if (getOperand(i).getType() != fnType.getInput(i))
+      return emitOpError("operand type mismatch: expected operand type ")
              << fnType.getInput(i) << ", but provided "
-             << op.getOperand(i).getType() << " for operand number " << i;
+             << getOperand(i).getType() << " for operand number " << i;
 
-  if (fnType.getNumResults() != op.getNumResults())
-    return op.emitOpError("incorrect number of results for callee");
+  if (fnType.getNumResults() != getNumResults())
+    return emitOpError("incorrect number of results for callee");
 
   for (unsigned i = 0, e = fnType.getNumResults(); i != e; ++i)
-    if (op.getResult(i).getType() != fnType.getResult(i))
-      return op.emitOpError("result type mismatch");
+    if (getResult(i).getType() != fnType.getResult(i))
+      return emitOpError("result type mismatch");
 
   return success();
 }
@@ -1064,12 +1063,58 @@ struct SimplifyCondBranchIdenticalSuccessors
     return success();
   }
 };
+
+///   ...
+///   cond_br %cond, ^bb1(...), ^bb2(...)
+/// ...
+/// ^bb1: // has single predecessor
+///   ...
+///   cond_br %cond, ^bb3(...), ^bb4(...)
+///
+/// ->
+///
+///   ...
+///   cond_br %cond, ^bb1(...), ^bb2(...)
+/// ...
+/// ^bb1: // has single predecessor
+///   ...
+///   br ^bb3(...)
+///
+struct SimplifyCondBranchFromCondBranchOnSameCondition
+    : public OpRewritePattern<CondBranchOp> {
+  using OpRewritePattern<CondBranchOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(CondBranchOp condbr,
+                                PatternRewriter &rewriter) const override {
+    // Check that we have a single distinct predecessor.
+    Block *currentBlock = condbr.getOperation()->getBlock();
+    Block *predecessor = currentBlock->getSinglePredecessor();
+    if (!predecessor)
+      return failure();
+
+    // Check that the predecessor terminates with a conditional branch to this
+    // block and that it branches on the same condition.
+    auto predBranch = dyn_cast<CondBranchOp>(predecessor->getTerminator());
+    if (!predBranch || condbr.getCondition() != predBranch.getCondition())
+      return failure();
+
+    // Fold this branch to an unconditional branch.
+    if (currentBlock == predBranch.trueDest())
+      rewriter.replaceOpWithNewOp<BranchOp>(condbr, condbr.trueDest(),
+                                            condbr.trueDestOperands());
+    else
+      rewriter.replaceOpWithNewOp<BranchOp>(condbr, condbr.falseDest(),
+                                            condbr.falseDestOperands());
+    return success();
+  }
+};
 } // end anonymous namespace
 
 void CondBranchOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {
   results.insert<SimplifyConstCondBranchPred, SimplifyPassThroughCondBranch,
-                 SimplifyCondBranchIdenticalSuccessors>(context);
+                 SimplifyCondBranchIdenticalSuccessors,
+                 SimplifyCondBranchFromCondBranchOnSameCondition>(context);
 }
 
 Optional<MutableOperandRange>
@@ -2531,8 +2576,10 @@ parseListOfOperandsOrIntegers(OpAsmParser &parser, OperationState &result,
   if (failed(parser.parseLSquare()))
     return failure();
   // 0-D.
-  if (succeeded(parser.parseOptionalRSquare()))
+  if (succeeded(parser.parseOptionalRSquare())) {
+    result.addAttribute(attrName, parser.getBuilder().getArrayAttr({}));
     return success();
+  }
 
   SmallVector<int64_t, 4> attrVals;
   while (true) {
@@ -2823,19 +2870,54 @@ static SmallVector<int64_t, 4> extractFromI64ArrayAttr(Attribute attr) {
       }));
 }
 
+llvm::Optional<SmallVector<bool, 4>>
+mlir::computeRankReductionMask(ArrayRef<int64_t> originalShape,
+                               ArrayRef<int64_t> reducedShape) {
+  size_t originalRank = originalShape.size(), reducedRank = reducedShape.size();
+  SmallVector<bool, 4> mask(originalRank);
+  unsigned reducedIdx = 0;
+  for (unsigned originalIdx = 0; originalIdx < originalRank; ++originalIdx) {
+    // Skip matching dims greedily.
+    mask[originalIdx] =
+        (reducedIdx < reducedRank) &&
+        (originalShape[originalIdx] == reducedShape[reducedIdx]);
+    if (mask[originalIdx])
+      reducedIdx++;
+    // 1 is the only non-matching allowed.
+    else if (originalShape[originalIdx] != 1)
+      return {};
+  }
+
+  if (reducedIdx != reducedRank)
+    return {};
+
+  return mask;
+}
+
+enum SubViewVerificationResult {
+  Success,
+  RankTooLarge,
+  SizeMismatch,
+  StrideMismatch,
+  ElemTypeMismatch,
+  MemSpaceMismatch,
+  AffineMapMismatch
+};
+
 /// Checks if `original` Type type can be rank reduced to `reduced` type.
 /// This function is slight variant of `is subsequence` algorithm where
 /// not matching dimension must be 1.
-static bool isRankReducedType(Type originalType, Type reducedType) {
+static SubViewVerificationResult isRankReducedType(Type originalType,
+                                                   Type reducedType) {
   if (originalType == reducedType)
-    return true;
+    return SubViewVerificationResult::Success;
   if (!originalType.isa<RankedTensorType>() && !originalType.isa<MemRefType>())
-    return true;
+    return SubViewVerificationResult::Success;
   if (originalType.isa<RankedTensorType>() &&
       !reducedType.isa<RankedTensorType>())
-    return true;
+    return SubViewVerificationResult::Success;
   if (originalType.isa<MemRefType>() && !reducedType.isa<MemRefType>())
-    return true;
+    return SubViewVerificationResult::Success;
 
   ShapedType originalShapedType = originalType.cast<ShapedType>();
   ShapedType reducedShapedType = reducedType.cast<ShapedType>();
@@ -2846,53 +2928,82 @@ static bool isRankReducedType(Type originalType, Type reducedType) {
   unsigned originalRank = originalShape.size(),
            reducedRank = reducedShape.size();
   if (reducedRank > originalRank)
-    return false;
+    return SubViewVerificationResult::RankTooLarge;
 
-  unsigned reducedIdx = 0;
-  SmallVector<bool, 4> keepMask(originalRank);
-  for (unsigned originalIdx = 0; originalIdx < originalRank; ++originalIdx) {
-    // -2 is never used as a dim size so it will never match.
-    int reducedVal = reducedIdx < reducedRank ? reducedShape[reducedIdx] : -2;
-    // Skip matching dims greedily.
-    if ((keepMask[originalIdx] = originalShape[originalIdx] == reducedVal))
-      reducedIdx++;
-    // 1 is the only non-matching allowed.
-    else if (originalShape[originalIdx] != 1)
-      return false;
-  }
-  // Must match the reduced rank.
-  if (reducedIdx != reducedRank)
-    return false;
+  auto optionalMask = computeRankReductionMask(originalShape, reducedShape);
+
+  // Sizes cannot be matched in case empty vector is returned.
+  if (!optionalMask.hasValue())
+    return SubViewVerificationResult::SizeMismatch;
 
   // We are done for the tensor case.
   if (originalType.isa<RankedTensorType>())
-    return true;
+    return SubViewVerificationResult::Success;
 
   // Strided layout logic is relevant for MemRefType only.
   MemRefType original = originalType.cast<MemRefType>();
   MemRefType reduced = reducedType.cast<MemRefType>();
   MLIRContext *c = original.getContext();
-  int64_t originalOffset, symCounter = 0, dimCounter = 0;
-  SmallVector<int64_t, 4> originalStrides;
+  int64_t originalOffset, reducedOffset;
+  SmallVector<int64_t, 4> originalStrides, reducedStrides, keepStrides;
+  SmallVector<bool, 4> keepMask = optionalMask.getValue();
   getStridesAndOffset(original, originalStrides, originalOffset);
-  auto getSymbolOrConstant = [&](int64_t offset) {
-    return offset == ShapedType::kDynamicStrideOrOffset
-               ? getAffineSymbolExpr(symCounter++, c)
-               : getAffineConstantExpr(offset, c);
-  };
+  getStridesAndOffset(reduced, reducedStrides, reducedOffset);
 
-  AffineExpr expr = getSymbolOrConstant(originalOffset);
-  for (unsigned i = 0, e = originalStrides.size(); i < e; i++) {
-    if (keepMask[i])
-      expr = expr + getSymbolOrConstant(originalStrides[i]) *
-                        getAffineDimExpr(dimCounter++, c);
+  // Filter strides based on the mask and check that they are the same
+  // as reduced ones.
+  unsigned reducedIdx = 0;
+  for (unsigned originalIdx = 0; originalIdx < originalRank; ++originalIdx) {
+    if (keepMask[originalIdx]) {
+      if (originalStrides[originalIdx] != reducedStrides[reducedIdx++])
+        return SubViewVerificationResult::StrideMismatch;
+      keepStrides.push_back(originalStrides[originalIdx]);
+    }
   }
 
-  auto reducedMap = AffineMap::get(dimCounter, symCounter, expr, c);
-  return original.getElementType() == reduced.getElementType() &&
-         original.getMemorySpace() == reduced.getMemorySpace() &&
-         (reduced.getAffineMaps().empty() ||
-          reducedMap == reduced.getAffineMaps().front());
+  if (original.getElementType() != reduced.getElementType())
+    return SubViewVerificationResult::ElemTypeMismatch;
+
+  if (original.getMemorySpace() != reduced.getMemorySpace())
+    return SubViewVerificationResult::MemSpaceMismatch;
+
+  auto reducedMap = makeStridedLinearLayoutMap(keepStrides, originalOffset, c);
+  if (!reduced.getAffineMaps().empty() &&
+      reducedMap != reduced.getAffineMaps().front())
+    return SubViewVerificationResult::AffineMapMismatch;
+
+  return SubViewVerificationResult::Success;
+}
+
+template <typename OpTy>
+static LogicalResult produceSubViewErrorMsg(SubViewVerificationResult result,
+                                            OpTy op, Type expectedType) {
+  auto memrefType = expectedType.cast<ShapedType>();
+  switch (result) {
+  case SubViewVerificationResult::Success:
+    return success();
+  case SubViewVerificationResult::RankTooLarge:
+    return op.emitError("expected result rank to be smaller or equal to ")
+           << "the source rank.";
+  case SubViewVerificationResult::SizeMismatch:
+    return op.emitError("expected result type to be ")
+           << expectedType
+           << " or a rank-reduced version. (mismatch of result sizes)";
+  case SubViewVerificationResult::StrideMismatch:
+    return op.emitError("expected result type to be ")
+           << expectedType
+           << " or a rank-reduced version. (mismatch of result strides)";
+  case SubViewVerificationResult::ElemTypeMismatch:
+    return op.emitError("expected result element type to be ")
+           << memrefType.getElementType();
+  case SubViewVerificationResult::MemSpaceMismatch:
+    return op.emitError("expected result and source memory spaces to match.");
+  case SubViewVerificationResult::AffineMapMismatch:
+    return op.emitError("expected result type to be ")
+           << expectedType
+           << " or a rank-reduced version. (mismatch of result affine map)";
+  }
+  llvm_unreachable("unexpected subview verification result");
 }
 
 template <typename OpType>
@@ -2937,11 +3048,9 @@ static LogicalResult verify(SubViewOp op) {
       baseType, extractFromI64ArrayAttr(op.static_offsets()),
       extractFromI64ArrayAttr(op.static_sizes()),
       extractFromI64ArrayAttr(op.static_strides()));
-  if (!isRankReducedType(expectedType, subViewType))
-    return op.emitError("expected result type to be ")
-           << expectedType << " or a rank-reduced version.";
 
-  return success();
+  auto result = isRankReducedType(expectedType, subViewType);
+  return produceSubViewErrorMsg(result, op, expectedType);
 }
 
 raw_ostream &mlir::operator<<(raw_ostream &os, Range &range) {
@@ -3157,6 +3266,60 @@ bool mlir::canFoldIntoConsumerOp(MemRefCastOp castOp) {
   return true;
 }
 
+/// Counterpart of `canFoldIntoConsumerOp(MemRefCastOp castOp)` for tensors.
+/// Determines whether TensorCastOp casts to a more dynamic version of the
+/// source tensor. This is useful to fold a tensor_cast into a consuming op and
+/// implement canonicalization patterns for ops in different dialects that may
+/// consume the results of tensor_cast operations. Such foldable tensor_cast
+/// operations are typically inserted as `subtensor` ops and are canonicalized,
+/// to preserve the type compatibility of their uses.
+///
+/// Returns true when all conditions are met:
+/// 1. source and result are ranked tensors with same element type and rank.
+/// 2. the tensor type has more static information than the result
+///
+/// Example:
+/// ```mlir
+///   %1 = tensor_cast %0 : tensor<8x16xf32> to tensor<?x?xf32>
+///   %2 = consumer %1 ... : tensor<?x?xf32> ...
+/// ```
+///
+/// folds into:
+///
+/// ```mlir
+///   %2 = consumer %0 ... : tensor<8x16xf32> ...
+/// ```
+bool mlir::canFoldIntoConsumerOp(TensorCastOp castOp) {
+  if (!castOp)
+    return false;
+
+  RankedTensorType sourceType =
+      castOp.source().getType().dyn_cast<RankedTensorType>();
+  RankedTensorType resultType = castOp.getType().dyn_cast<RankedTensorType>();
+
+  // Requires RankedTensorType.
+  if (!sourceType || !resultType)
+    return false;
+
+  // Requires same elemental type.
+  if (sourceType.getElementType() != resultType.getElementType())
+    return false;
+
+  // Requires same rank.
+  if (sourceType.getRank() != resultType.getRank())
+    return false;
+
+  // If cast is towards more static sizes along any dimension, don't fold.
+  for (auto it : llvm::zip(sourceType.getShape(), resultType.getShape())) {
+    auto ss = std::get<0>(it), st = std::get<1>(it);
+    if (ss != st)
+      if (ShapedType::isDynamic(ss) && !ShapedType::isDynamic(st))
+        return false;
+  }
+
+  return true;
+}
+
 namespace {
 /// Pattern to rewrite a subview op with MemRefCast arguments.
 /// This essentially pushes memref_cast past its consuming subview when
@@ -3216,6 +3379,13 @@ void SubViewOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                             MLIRContext *context) {
   results.insert<OpWithOffsetSizesAndStridesConstantArgumentFolder<SubViewOp>,
                  SubViewOpMemRefCastFolder>(context);
+}
+
+OpFoldResult SubViewOp::fold(ArrayRef<Attribute> operands) {
+  if (getResultRank() == 0 && getSourceRank() == 0)
+    return getViewSource();
+
+  return {};
 }
 
 //===----------------------------------------------------------------------===//
@@ -3298,11 +3468,8 @@ static LogicalResult verify(SubTensorOp op) {
       op.getSourceType(), extractFromI64ArrayAttr(op.static_offsets()),
       extractFromI64ArrayAttr(op.static_sizes()),
       extractFromI64ArrayAttr(op.static_strides()));
-  if (!isRankReducedType(expectedType, op.getType()))
-    return op.emitError("expected result type to be ")
-           << expectedType << " or a rank-reduced version.";
-
-  return success();
+  auto result = isRankReducedType(expectedType, op.getType());
+  return produceSubViewErrorMsg(result, op, expectedType);
 }
 
 void SubTensorOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
@@ -3480,7 +3647,7 @@ void TensorCastOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
-// Helpers for Tensor[Load|Store]Op
+// Helpers for Tensor[Load|Store]Op and TensorToMemrefOp
 //===----------------------------------------------------------------------===//
 
 static Type getTensorTypeFromMemRefType(Type type) {
@@ -3489,6 +3656,117 @@ static Type getTensorTypeFromMemRefType(Type type) {
   if (auto memref = type.dyn_cast<UnrankedMemRefType>())
     return UnrankedTensorType::get(memref.getElementType());
   return NoneType::get(type.getContext());
+}
+
+//===----------------------------------------------------------------------===//
+// TensorLoadOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult TensorLoadOp::fold(ArrayRef<Attribute>) {
+  if (auto tensorToMemref = memref().getDefiningOp<TensorToMemrefOp>())
+    return tensorToMemref.tensor();
+  return {};
+}
+
+//===----------------------------------------------------------------------===//
+// TensorToMemrefOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult TensorToMemrefOp::fold(ArrayRef<Attribute>) {
+  if (auto tensorLoad = tensor().getDefiningOp<TensorLoadOp>())
+    if (tensorLoad.memref().getType() == getType())
+      return tensorLoad.memref();
+  return {};
+}
+
+//===----------------------------------------------------------------------===//
+// TransposeOp
+//===----------------------------------------------------------------------===//
+
+/// Build a strided memref type by applying `permutationMap` tp `memRefType`.
+static MemRefType inferTransposeResultType(MemRefType memRefType,
+                                           AffineMap permutationMap) {
+  auto rank = memRefType.getRank();
+  auto originalSizes = memRefType.getShape();
+  // Compute permuted sizes.
+  SmallVector<int64_t, 4> sizes(rank, 0);
+  for (auto en : llvm::enumerate(permutationMap.getResults()))
+    sizes[en.index()] =
+        originalSizes[en.value().cast<AffineDimExpr>().getPosition()];
+
+  // Compute permuted strides.
+  int64_t offset;
+  SmallVector<int64_t, 4> strides;
+  auto res = getStridesAndOffset(memRefType, strides, offset);
+  assert(succeeded(res) && strides.size() == static_cast<unsigned>(rank));
+  (void)res;
+  auto map =
+      makeStridedLinearLayoutMap(strides, offset, memRefType.getContext());
+  map = permutationMap ? map.compose(permutationMap) : map;
+  return MemRefType::Builder(memRefType).setShape(sizes).setAffineMaps(map);
+}
+
+void TransposeOp::build(OpBuilder &b, OperationState &result, Value in,
+                        AffineMapAttr permutation,
+                        ArrayRef<NamedAttribute> attrs) {
+  auto permutationMap = permutation.getValue();
+  assert(permutationMap);
+
+  auto memRefType = in.getType().cast<MemRefType>();
+  // Compute result type.
+  MemRefType resultType = inferTransposeResultType(memRefType, permutationMap);
+
+  build(b, result, resultType, in, attrs);
+  result.addAttribute(TransposeOp::getPermutationAttrName(), permutation);
+}
+
+// transpose $in $permutation attr-dict : type($in) `to` type(results)
+static void print(OpAsmPrinter &p, TransposeOp op) {
+  p << "transpose " << op.in() << " " << op.permutation();
+  p.printOptionalAttrDict(op.getAttrs(),
+                          {TransposeOp::getPermutationAttrName()});
+  p << " : " << op.in().getType() << " to " << op.getType();
+}
+
+static ParseResult parseTransposeOp(OpAsmParser &parser,
+                                    OperationState &result) {
+  OpAsmParser::OperandType in;
+  AffineMap permutation;
+  MemRefType srcType, dstType;
+  if (parser.parseOperand(in) || parser.parseAffineMap(permutation) ||
+      parser.parseOptionalAttrDict(result.attributes) ||
+      parser.parseColonType(srcType) ||
+      parser.resolveOperand(in, srcType, result.operands) ||
+      parser.parseKeywordType("to", dstType) ||
+      parser.addTypeToList(dstType, result.types))
+    return failure();
+
+  result.addAttribute(TransposeOp::getPermutationAttrName(),
+                      AffineMapAttr::get(permutation));
+  return success();
+}
+
+static LogicalResult verify(TransposeOp op) {
+  if (!op.permutation().isPermutation())
+    return op.emitOpError("expected a permutation map");
+  if (op.permutation().getNumDims() != op.getShapedType().getRank())
+    return op.emitOpError(
+        "expected a permutation map of same rank as the input");
+
+  auto srcType = op.in().getType().cast<MemRefType>();
+  auto dstType = op.getType().cast<MemRefType>();
+  auto transposedType = inferTransposeResultType(srcType, op.permutation());
+  if (dstType != transposedType)
+    return op.emitOpError("output type ")
+           << dstType << " does not match transposed input type " << srcType
+           << ", " << transposedType;
+  return success();
+}
+
+OpFoldResult TransposeOp::fold(ArrayRef<Attribute>) {
+  if (succeeded(foldMemRefCast(*this)))
+    return getResult();
+  return {};
 }
 
 //===----------------------------------------------------------------------===//

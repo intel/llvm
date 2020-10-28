@@ -44,6 +44,7 @@ int main() {
       out << cl::sycl::native::recip(a.x()) << cl::sycl::endl;
     });
   });
+  Q.wait();
 
   // Test that there is no ambiguity in overload resolution.
   cl::sycl::float4 a = {1.0, 2.0, 3.0, 4.0};

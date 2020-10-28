@@ -416,9 +416,9 @@
 
 /// Check -fsycl-link behaviors unbundle
 // RUN:   touch %t.o
-// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -o %t.out -fsycl-link %t.o 2>&1 \
+// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -o %t.out -fsycl-link -fno-sycl-device-lib=all %t.o 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-UB %s
-// RUN:   %clang_cl -### -ccc-print-phases -fsycl -o %t.out -fsycl-link %t.o 2>&1 \
+// RUN:   %clang_cl -### -ccc-print-phases -fsycl -o %t.out -fsycl-link -fno-sycl-device-lib=all %t.o 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-UB %s
 // CHK-LINK-UB: 0: input, "[[INPUT:.+\.o]]", object
 // CHK-LINK-UB: 1: clang-offload-unbundler, {0}, object
@@ -431,9 +431,9 @@
 /// ###########################################################################
 
 /// Check -fsycl-link behaviors from source
-// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -o %t.out -fsycl-link %s 2>&1 \
+// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -o %t.out -fsycl-link -fno-sycl-device-lib=all %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK %s
-// RUN:   %clang_cl -### -ccc-print-phases -fsycl -o %t.out -fsycl-link %s 2>&1 \
+// RUN:   %clang_cl -### -ccc-print-phases -fsycl -o %t.out -fsycl-link -fno-sycl-device-lib=all %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK %s
 // CHK-LINK: 0: input, "[[INPUT:.+\.c]]", c++, (device-sycl)
 // CHK-LINK: 1: preprocessor, {0}, c++-cpp-output, (device-sycl)
@@ -903,6 +903,14 @@
 // CHECK-STD-OVR: clang{{.*}} "-fsyntax-only" {{.*}} "-std=c++14"
 // CHECK-STD-OVR: clang{{.*}} "-emit-obj" {{.*}} "-std=c++14"
 // CHECK-STD-OVR-NOT: clang{{.*}} "-std=c++17"
+
+// Bypass -cl-fast-relaxed-math to SPIR-V compiler.
+// RUN: %clang -### -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -ffast-math %s 2>&1 | FileCheck -check-prefix=CHECK-FAST-MATH-OPT %s
+// RUN: %clang -### -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -funsafe-math-optimizations %s 2>&1 | FileCheck -check-prefix=CHECK-FAST-MATH-OPT %s
+// RUN: %clang -### -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -Ofast %s 2>&1 | FileCheck -check-prefix=CHECK-FAST-MATH-OPT %s
+// RUN: %clang -### -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -ffp-model=fast %s 2>&1 | FileCheck -check-prefix=CHECK-FAST-MATH-OPT %s
+// RUN: %clang_cl -### -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice /fp:fast %s 2>&1 | FileCheck -check-prefix=CHECK-FAST-MATH-OPT %s
+// CHECK-FAST-MATH-OPT: clang-offload-wrapper{{.*}} "-compile-opts=-cl-fast-relaxed-math"
 
 // TODO: SYCL specific fail - analyze and enable
 // XFAIL: windows-msvc
