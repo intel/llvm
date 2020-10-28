@@ -2564,6 +2564,9 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
           RetTy = Int8PtrTyPrivate;
           ValAsArg = Builder.CreateBitCast(Val, Int8PtrTyPrivate);
         }
+        Value *Args[] = {ValAsArg, GS, UndefInt8Ptr, UndefInt32, UndefInt8Ptr};
+        auto *IntrinsicCall = Builder.CreateIntrinsic(IID, RetTy, Args);
+        return mapValue(BV, IntrinsicCall);
       }
     }
 
@@ -3601,7 +3604,7 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
           llvm::Value *Args[] = {
               Builder.CreateBitCast(GEP, IntTy, GEP->getName()),
               Builder.CreateBitCast(GS, Int8PtrTyPrivate), UndefInt8Ptr,
-              UndefInt32};
+              UndefInt32, UndefInt8Ptr};
           Builder.CreateCall(AnnotationFn, Args);
         }
       }
@@ -3623,7 +3626,7 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
 
       llvm::Value *Args[] = {BaseInst,
                              Builder.CreateBitCast(GS, Int8PtrTyPrivate),
-                             UndefInt8Ptr, UndefInt32};
+                             UndefInt8Ptr, UndefInt32, UndefInt8Ptr};
       Builder.CreateCall(AnnotationFn, Args);
     }
   } else if (auto *GV = dyn_cast<GlobalVariable>(V)) {
@@ -3659,9 +3662,10 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
     Type *Int8PtrTyPrivate = Type::getInt8PtrTy(*Context, SPIRAS_Private);
     IntegerType *Int32Ty = Type::getInt32Ty(*Context);
 
-    llvm::Constant *Fields[4] = {
+    llvm::Constant *Fields[5] = {
         C, ConstantExpr::getBitCast(GS, Int8PtrTyPrivate),
-        UndefValue::get(Int8PtrTyPrivate), UndefValue::get(Int32Ty)};
+        UndefValue::get(Int8PtrTyPrivate), UndefValue::get(Int32Ty),
+        UndefValue::get(Int8PtrTyPrivate)};
 
     GlobalAnnotations.push_back(ConstantStruct::getAnon(Fields));
   }
@@ -3692,9 +3696,10 @@ void SPIRVToLLVM::transUserSemantic(SPIRV::SPIRVFunction *Fun) {
     Type *Int8PtrTyPrivate = Type::getInt8PtrTy(*Context, SPIRAS_Private);
     IntegerType *Int32Ty = Type::getInt32Ty(*Context);
 
-    llvm::Constant *Fields[4] = {
+    llvm::Constant *Fields[5] = {
         C, ConstantExpr::getBitCast(GS, Int8PtrTyPrivate),
-        UndefValue::get(Int8PtrTyPrivate), UndefValue::get(Int32Ty)};
+        UndefValue::get(Int8PtrTyPrivate), UndefValue::get(Int32Ty),
+        UndefValue::get(Int8PtrTyPrivate)};
     GlobalAnnotations.push_back(ConstantStruct::getAnon(Fields));
   }
 }
