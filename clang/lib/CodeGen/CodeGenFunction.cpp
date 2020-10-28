@@ -2321,6 +2321,14 @@ llvm::Value *CodeGenFunction::EmitAnnotationCall(llvm::Function *AnnotationFn,
   };
   if (Attr)
     Args.push_back(CGM.EmitAnnotationArgs(Attr));
+  else {
+    assert(AnnotationFn->isIntrinsic() &&
+           "Annotation call must be an intrinsic");
+    const llvm::Intrinsic::ID ID = AnnotationFn->getIntrinsicID();
+    if (ID == llvm::Intrinsic::ptr_annotation ||
+        ID == llvm::Intrinsic::var_annotation)
+      Args.push_back(llvm::ConstantPointerNull::get(Int8PtrTy));
+  }
   return Builder.CreateCall(AnnotationFn, Args);
 }
 

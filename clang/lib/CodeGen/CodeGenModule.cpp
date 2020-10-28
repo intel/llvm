@@ -4286,10 +4286,11 @@ void CodeGenModule::addGlobalIntelFPGAAnnotation(const VarDecl *VD,
           GV, GV->getValueType()->getPointerTo(0));
 
     // Create the ConstantStruct for the global annotation.
-    llvm::Constant *Fields[4] = {
+    llvm::Constant *Fields[5] = {
         llvm::ConstantExpr::getBitCast(ASZeroGV, Int8PtrTy),
         llvm::ConstantExpr::getBitCast(AnnoGV, Int8PtrTy),
-        llvm::ConstantExpr::getBitCast(UnitGV, Int8PtrTy), LineNoCst};
+        llvm::ConstantExpr::getBitCast(UnitGV, Int8PtrTy), LineNoCst,
+        llvm::ConstantPointerNull::get(Int8PtrTy)};
     Annotations.push_back(llvm::ConstantStruct::getAnon(Fields));
   }
 }
