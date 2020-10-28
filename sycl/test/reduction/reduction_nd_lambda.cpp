@@ -50,7 +50,7 @@ void test(T Identity, BinaryOperation BOp, size_t WGSize, size_t NWItems) {
 
 int main() {
   test<class AddTestName, int>(
-      0, [](auto x, auto y) { return (x + y); }, 8, 32);
+      0, [](auto x, auto y) { return (x + y); }, 1, 1024);
   test<class MulTestName, int>(
       0, [](auto x, auto y) { return (x * y); }, 8, 32);
 
