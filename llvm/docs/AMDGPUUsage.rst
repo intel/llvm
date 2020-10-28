@@ -129,10 +129,10 @@ names from both the *Processor* and *Alternative Processor* can be used.
      **GCN GFX6 (Southern Islands (SI))** [AMD-GCN-GFX6]_
      -----------------------------------------------------------------------------------------------
      ``gfx600``  - ``tahiti``    ``amdgcn``   dGPU
-     ``gfx601``  - ``hainan``    ``amdgcn``   dGPU
-                 - ``oland``
-                 - ``pitcairn``
+     ``gfx601``  - ``pitcairn``  ``amdgcn``   dGPU
                  - ``verde``
+     ``gfx602``  - ``hainan``    ``amdgcn``   dGPU
+                 - ``oland``
      **GCN GFX7 (Sea Islands (CI))** [AMD-GCN-GFX7]_
      -----------------------------------------------------------------------------------------------
      ``gfx700``  - ``kaveri``    ``amdgcn``   APU                             - A6-7000
@@ -166,6 +166,7 @@ names from both the *Processor* and *Alternative Processor* can be used.
                                                                               - Radeon HD 8770
                                                                               - R7 260
                                                                               - R7 260X
+     ``gfx705``                  ``amdgcn``   APU
      **GCN GFX8 (Volcanic Islands (VI))** [AMD-GCN-GFX8]_
      -----------------------------------------------------------------------------------------------
      ``gfx801``  - ``carrizo``   ``amdgcn``   APU   - xnack                   - A6-8500P
@@ -186,14 +187,9 @@ names from both the *Processor* and *Alternative Processor* can be used.
      \                           ``amdgcn``   APU   - xnack                   - E2-9010
                                                       [on]                    - A6-9210
                                                                               - A9-9410
-     ``gfx802``  - ``iceland``   ``amdgcn``   dGPU  - xnack           ROCm    - FirePro S7150
-                 - ``tonga``                          [off]                   - FirePro S7100
-                                                                              - FirePro W7100
-                                                                              - Radeon R285
-                                                                              - Radeon R9 380
+     ``gfx802``  - ``iceland``   ``amdgcn``   dGPU  - xnack           ROCm    - Radeon R285
+                 - ``tonga``                          [off]                   - Radeon R9 380
                                                                               - Radeon R9 385
-                                                                              - Mobile FirePro
-                                                                                M7170
      ``gfx803``  - ``fiji``      ``amdgcn``   dGPU  - xnack           ROCm    - Radeon R9 Nano
                                                       [off]                   - Radeon R9 Fury
                                                                               - Radeon R9 FuryX
@@ -205,6 +201,11 @@ names from both the *Processor* and *Alternative Processor* can be used.
                                                                               - Radeon Instinct MI6
      \           - ``polaris11`` ``amdgcn``   dGPU  - xnack           ROCm    - Radeon RX 460
                                                       [off]
+     ``gfx805``  - ``tongapro``  ``amdgcn``   dGPU  - xnack           ROCm    - FirePro S7150
+                                                      [off]                   - FirePro S7100
+                                                                              - FirePro W7100
+                                                                              - Mobile FirePro
+                                                                                M7170
      ``gfx810``  - ``stoney``    ``amdgcn``   APU   - xnack
                                                       [on]
      **GCN GFX9** [AMD-GCN-GFX9]_
@@ -244,15 +245,18 @@ names from both the *Processor* and *Alternative Processor* can be used.
      ``gfx1010``                 ``amdgcn``   dGPU  - xnack                   - Radeon RX 5700
                                                       [off]                   - Radeon RX 5700 XT
                                                     - wavefrontsize64         - Radeon Pro 5600 XT
-                                                      [off]
+                                                      [off]                   - Radeon Pro 5600M
                                                     - cumode
                                                       [off]
-     ``gfx1011``                 ``amdgcn``   dGPU  - xnack                   - Radeon Pro 5600M
+     ``gfx1011``                 ``amdgcn``   dGPU  - xnack                   *TBA*
                                                       [off]
                                                     - wavefrontsize64
                                                       [off]
                                                     - cumode
                                                       [off]
+                                                                              .. TODO
+                                                                                 Add product
+                                                                                 names.
      ``gfx1012``                 ``amdgcn``   dGPU  - xnack                   - Radeon RX 5500
                                                       [off]                   - Radeon RX 5500 XT
                                                     - wavefrontsize64
@@ -267,6 +271,13 @@ names from both the *Processor* and *Alternative Processor* can be used.
                                                                                  Add product
                                                                                  names.
      ``gfx1031``                 ``amdgcn``   dGPU  - wavefrontsize64         *TBA*
+                                                      [off]
+                                                    - cumode
+                                                      [off]
+                                                                              .. TODO
+                                                                                 Add product
+                                                                                 names.
+     ``gfx1032``                 ``amdgcn``   dGPU  - wavefrontsize64         *TBA*
                                                       [off]
                                                     - cumode
                                                       [off]
@@ -818,6 +829,11 @@ The AMDGPU backend uses the following ELF header:
      ``EF_AMDGPU_MACH_AMDGCN_GFX1012`` 0x035      ``gfx1012``
      ``EF_AMDGPU_MACH_AMDGCN_GFX1030`` 0x036      ``gfx1030``
      ``EF_AMDGPU_MACH_AMDGCN_GFX1031`` 0x037      ``gfx1031``
+     ``EF_AMDGPU_MACH_AMDGCN_GFX1032`` 0x038      ``gfx1032``
+     *reserved*                        0x039      Reserved.
+     ``EF_AMDGPU_MACH_AMDGCN_GFX602``  0x03a      ``gfx602``
+     ``EF_AMDGPU_MACH_AMDGCN_GFX705``  0x03b      ``gfx705``
+     ``EF_AMDGPU_MACH_AMDGCN_GFX805``  0x03c      ``gfx805``
      ================================= ========== =============================
 
 Sections
@@ -898,15 +914,16 @@ alignment.
 
 .. _amdgpu-note-records-v2:
 
-Code Object V2 Note Records (-mattr=-code-object-v3)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Code Object V2 Note Records (--amdhsa-code-object-version=2)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. warning:: Code Object V2 is not the default code object version emitted by
   this version of LLVM. For a description of the notes generated with the
   default configuration (Code Object V3) see :ref:`amdgpu-note-records-v3`.
 
 The AMDGPU backend code object uses the following ELF note record in the
-``.note`` section when compiling for Code Object V2 (-mattr=-code-object-v3).
+``.note`` section when compiling for Code Object
+V2 (--amdhsa-code-object-version=2).
 
 Additional note records may be present, but any which are not documented here
 are deprecated and should not be used.
@@ -942,11 +959,12 @@ are deprecated and should not be used.
 
 .. _amdgpu-note-records-v3:
 
-Code Object V3 Note Records (-mattr=+code-object-v3)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Code Object V3 Note Records (--amdhsa-code-object-version=3)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The AMDGPU backend code object uses the following ELF note record in the
-``.note`` section when compiling for Code Object V3 (-mattr=+code-object-v3).
+``.note`` section when compiling for Code Object V3
+(--amdhsa-code-object-version=3).
 
 Additional note records may be present, but any which are not documented here
 are deprecated and should not be used.
@@ -2063,8 +2081,8 @@ OpenCL runtime records kernel argument information.
 
 .. _amdgpu-amdhsa-code-object-metadata-v2:
 
-Code Object V2 Metadata (-mattr=-code-object-v3)
-++++++++++++++++++++++++++++++++++++++++++++++++
+Code Object V2 Metadata (--amdhsa-code-object-version=2)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 .. warning:: Code Object V2 is not the default code object version emitted by
   this version of LLVM. For a description of the metadata generated with the
@@ -2484,8 +2502,8 @@ non-AMD key names should be prefixed by "*vendor-name*.".
 
 .. _amdgpu-amdhsa-code-object-metadata-v3:
 
-Code Object V3 Metadata (-mattr=+code-object-v3)
-++++++++++++++++++++++++++++++++++++++++++++++++
+Code Object V3 Metadata (--amdhsa-code-object-version=3)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 Code object V3 metadata is specified by the ``NT_AMDGPU_METADATA`` note record
 (see :ref:`amdgpu-note-records-v3`).
@@ -7274,8 +7292,8 @@ For full list of supported instructions, refer to "Vector ALU instructions".
 
 .. _amdgpu-amdhsa-assembler-predefined-symbols-v2:
 
-Code Object V2 Predefined Symbols (-mattr=-code-object-v3)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Code Object V2 Predefined Symbols (--amdhsa-code-object-version=2)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. warning:: Code Object V2 is not the default code object version emitted by
   this version of LLVM. For a description of the predefined symbols available
@@ -7331,8 +7349,8 @@ one.
 
 .. _amdgpu-amdhsa-assembler-directives-v2:
 
-Code Object V2 Directives (-mattr=-code-object-v3)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Code Object V2 Directives (--amdhsa-code-object-version=2)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. warning:: Code Object V2 is not the default code object version emitted by
   this version of LLVM. For a description of the directives supported with
@@ -7406,8 +7424,8 @@ comments in lib/Target/AMDGPU/AmdKernelCodeT.h and test/CodeGen/AMDGPU/hsa.s.
 
 .. _amdgpu-amdhsa-assembler-example-v2:
 
-Code Object V2 Example Source Code (-mattr=-code-object-v3)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Code Object V2 Example Source Code (--amdhsa-code-object-version=2)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. warning:: Code Object V2 is not the default code object version emitted by
   this version of LLVM. For a description of the directives supported with
@@ -7452,8 +7470,8 @@ Here is an example of a minimal assembly source file, defining one HSA kernel:
 
 .. _amdgpu-amdhsa-assembler-predefined-symbols-v3:
 
-Code Object V3 Predefined Symbols (-mattr=+code-object-v3)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Code Object V3 Predefined Symbols (--amdhsa-code-object-version=3)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The AMDGPU assembler defines and updates some symbols automatically. These
 symbols do not affect code generation.
@@ -7514,8 +7532,8 @@ May be set at any time, e.g. manually set to zero at the start of each kernel.
 
 .. _amdgpu-amdhsa-assembler-directives-v3:
 
-Code Object V3 Directives (-mattr=+code-object-v3)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Code Object V3 Directives (--amdhsa-code-object-version=3)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Directives which begin with ``.amdgcn`` are valid for all ``amdgcn``
 architecture processors, and are not OS-specific. Directives which begin with
@@ -7669,8 +7687,8 @@ This directive is terminated by an ``.end_amdgpu_metadata`` directive.
 
 .. _amdgpu-amdhsa-assembler-example-v3:
 
-Code Object V3 Example Source Code (-mattr=+code-object-v3)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Code Object V3 Example Source Code (--amdhsa-code-object-version=3)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Here is an example of a minimal assembly source file, defining one HSA kernel:
 

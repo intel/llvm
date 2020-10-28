@@ -57,6 +57,8 @@ config.available_features.add(compiler_id)
 # If needed, add cflag for shadow scale.
 if config.asan_shadow_scale != '':
   config.target_cflags += " -mllvm -asan-mapping-scale=" + config.asan_shadow_scale
+if config.memprof_shadow_scale != '':
+  config.target_cflags += " -mllvm -memprof-mapping-scale=" + config.memprof_shadow_scale
 
 # BFD linker in 64-bit android toolchains fails to find libc++_shared.so, which
 # is a transitive shared library dependency (via asan runtime).
@@ -132,9 +134,21 @@ if config.host_os == 'NetBSD':
 else:
   config.substitutions.append( ('%run_nomprotect', '%run') )
 
+# Copied from libcxx's config.py
+def get_lit_conf(name, default=None):
+    # Allow overriding on the command line using --param=<name>=<val>
+    val = lit_config.params.get(name, None)
+    if val is None:
+        val = getattr(config, name, None)
+        if val is None:
+            val = default
+    return val
+
+emulator = get_lit_conf('emulator', None)
+
 # Allow tests to be executed on a simulator or remotely.
-if config.emulator:
-  config.substitutions.append( ('%run', config.emulator) )
+if emulator:
+  config.substitutions.append( ('%run', emulator) )
   config.substitutions.append( ('%env ', "env ") )
   # TODO: Implement `%device_rm` to perform removal of files in the emulator.
   # For now just make it a no-op.
@@ -541,6 +555,11 @@ if config.asan_shadow_scale:
   config.available_features.add("shadow-scale-%s" % config.asan_shadow_scale)
 else:
   config.available_features.add("shadow-scale-3")
+
+if config.memprof_shadow_scale:
+  config.available_features.add("memprof-shadow-scale-%s" % config.memprof_shadow_scale)
+else:
+  config.available_features.add("memprof-shadow-scale-3")
 
 if config.expensive_checks:
   config.available_features.add("expensive_checks")

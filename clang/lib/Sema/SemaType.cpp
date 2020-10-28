@@ -2205,7 +2205,8 @@ QualType Sema::BuildExtIntType(bool IsUnsigned, Expr *BitWidth,
     return Context.getDependentExtIntType(IsUnsigned, BitWidth);
 
   llvm::APSInt Bits(32);
-  ExprResult ICE = VerifyIntegerConstantExpression(BitWidth, &Bits);
+  ExprResult ICE =
+      VerifyIntegerConstantExpression(BitWidth, &Bits, /*FIXME*/ AllowFold);
 
   if (ICE.isInvalid())
     return QualType();
@@ -2281,9 +2282,8 @@ static ExprResult checkArraySize(Sema &S, Expr *&ArraySize,
     }
   } Diagnoser(VLADiag, VLAIsError);
 
-  ExprResult R = S.VerifyIntegerConstantExpression(
-      ArraySize, &SizeVal, Diagnoser,
-      (S.LangOpts.GNUMode || S.LangOpts.OpenCL));
+  ExprResult R =
+      S.VerifyIntegerConstantExpression(ArraySize, &SizeVal, Diagnoser);
   if (Diagnoser.IsVLA)
     return ExprResult();
   return R;
@@ -4145,7 +4145,8 @@ static FileID getNullabilityCompletenessCheckFileID(Sema &S,
 
 /// Creates a fix-it to insert a C-style nullability keyword at \p pointerLoc,
 /// taking into account whitespace before and after.
-static void fixItNullability(Sema &S, DiagnosticBuilder &Diag,
+template <typename DiagBuilderT>
+static void fixItNullability(Sema &S, DiagBuilderT &Diag,
                              SourceLocation PointerLoc,
                              NullabilityKind Nullability) {
   assert(PointerLoc.isValid());
