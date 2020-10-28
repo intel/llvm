@@ -1628,9 +1628,11 @@ pi_result cuda_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
 /// \TODO Implement USE_HOST_PTR using cuHostRegister
 ///
 pi_result cuda_piMemBufferCreate(pi_context context, pi_mem_flags flags,
-                                 size_t size, void *host_ptr, pi_mem *ret_mem) {
+                                 size_t size, void *host_ptr, pi_mem *ret_mem,
+                                 const pi_mem_properties *properties) {
   // Need input memory object
   assert(ret_mem != nullptr);
+  assert(properties == nullptr && "no mem properties goes to cuda RT yet");
   // Currently, USE_HOST_PTR is not implemented using host register
   // since this triggers a weird segfault after program ends.
   // Setting this constant to true enables testing that behavior.

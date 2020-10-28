@@ -300,9 +300,11 @@ std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
 
   // If we've already seen this device, return the impl
-  for (const std::shared_ptr<device_impl> &Device : MDeviceCache) {
-    if (Device->getHandleRef() == PiDevice)
-      return Device;
+  for (const std::weak_ptr<device_impl> &DeviceWP : MDeviceCache) {
+    if (std::shared_ptr<device_impl> Device = DeviceWP.lock()) {
+      if (Device->getHandleRef() == PiDevice)
+        return Device;
+    }
   }
 
   // Otherwise make the impl
