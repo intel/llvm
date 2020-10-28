@@ -325,7 +325,7 @@ def SI_IF: CFPseudoInstSI <
 
 def SI_ELSE : CFPseudoInstSI <
   (outs SReg_1:$dst),
-  (ins SReg_1:$src, brtarget:$target, i1imm:$execfix), [], 1, 1> {
+  (ins SReg_1:$src, brtarget:$target), [], 1, 1> {
   let Size = 12;
   let hasSideEffects = 1;
 }
@@ -745,7 +745,7 @@ def : GCNPat<
 
 def : GCNPat<
   (AMDGPUelse i1:$src, bb:$target),
-  (SI_ELSE $src, $target, 0)
+  (SI_ELSE $src, $target)
 >;
 
 def : Pat <
@@ -866,7 +866,8 @@ def : GCNPat <
 // VOP2 Patterns
 //===----------------------------------------------------------------------===//
 
-// TODO: Check only no src2 mods?
+// NoMods pattern used for mac. If there are any source modifiers then it's
+// better to select mad instead of mac.
 class FMADPat <ValueType vt, Instruction inst, SDPatternOperator node>
   : GCNPat <(vt (node (vt (VOP3NoMods vt:$src0)),
                       (vt (VOP3NoMods vt:$src1)),
@@ -875,18 +876,41 @@ class FMADPat <ValueType vt, Instruction inst, SDPatternOperator node>
           SRCMODS.NONE, $src2, DSTCLAMP.NONE, DSTOMOD.NONE)
 >;
 
-
 // Prefer mac form when there are no modifiers.
 let AddedComplexity = 9 in {
+let OtherPredicates = [HasMadMacF32Insts] in {
 def : FMADPat <f32, V_MAC_F32_e64, fmad>;
 def : FMADPat <f32, V_MAC_F32_e64, AMDGPUfmad_ftz>;
+} // OtherPredicates = [HasMadMacF32Insts]
+
+// Don't allow source modifiers. If there are any source modifiers then it's
+// better to select mad instead of mac.
+let SubtargetPredicate = isGFX6GFX7GFX10,
+    OtherPredicates = [HasMadMacF32Insts, NoFP32Denormals] in
+def : GCNPat <
+      (f32 (fadd (AMDGPUfmul_legacy (VOP3NoMods f32:$src0),
+                                    (VOP3NoMods f32:$src1)),
+                 (VOP3NoMods f32:$src2))),
+      (V_MAC_LEGACY_F32_e64 SRCMODS.NONE, $src0, SRCMODS.NONE, $src1,
+                            SRCMODS.NONE, $src2, DSTCLAMP.NONE, DSTOMOD.NONE)
+>;
+
+// Don't allow source modifiers. If there are any source modifiers then it's
+// better to select fma instead of fmac.
+let SubtargetPredicate = HasNoMadMacF32Insts in
+def : GCNPat <
+      (f32 (int_amdgcn_fma_legacy (VOP3NoMods f32:$src0),
+                                  (VOP3NoMods f32:$src1),
+                                  (VOP3NoMods f32:$src2))),
+      (V_FMAC_LEGACY_F32_e64 SRCMODS.NONE, $src0, SRCMODS.NONE, $src1,
+                             SRCMODS.NONE, $src2, DSTCLAMP.NONE, DSTOMOD.NONE)
+>;
 
 let SubtargetPredicate = Has16BitInsts in {
 def : FMADPat <f16, V_MAC_F16_e64, fmad>;
 def : FMADPat <f16, V_MAC_F16_e64, AMDGPUfmad_ftz>;
-}
-
-}
+} // SubtargetPredicate = Has16BitInsts
+} // AddedComplexity = 9
 
 class FMADModsPat<ValueType Ty, Instruction inst, SDPatternOperator mad_opr>
   : GCNPat<
@@ -897,11 +921,20 @@ class FMADModsPat<ValueType Ty, Instruction inst, SDPatternOperator mad_opr>
   $src2_mod, $src2, DSTCLAMP.NONE, DSTOMOD.NONE)
 >;
 
-let SubtargetPredicate = HasMadMacF32Insts in
+let OtherPredicates = [HasMadMacF32Insts] in
 def : FMADModsPat<f32, V_MAD_F32, AMDGPUfmad_ftz>;
-def : FMADModsPat<f16, V_MAD_F16, AMDGPUfmad_ftz> {
-  let SubtargetPredicate = Has16BitInsts;
-}
+
+let OtherPredicates = [HasMadMacF32Insts, NoFP32Denormals] in
+def : GCNPat <
+      (f32 (fadd (AMDGPUfmul_legacy (VOP3Mods f32:$src0, i32:$src0_mod),
+                                    (VOP3Mods f32:$src1, i32:$src1_mod)),
+                 (VOP3Mods f32:$src2, i32:$src2_mod))),
+      (V_MAD_LEGACY_F32 $src0_mod, $src0, $src1_mod, $src1,
+                        $src2_mod, $src2, DSTCLAMP.NONE, DSTOMOD.NONE)
+>;
+
+let SubtargetPredicate = Has16BitInsts in
+def : FMADModsPat<f16, V_MAD_F16, AMDGPUfmad_ftz>;
 
 class VOPSelectModsPat <ValueType vt> : GCNPat <
   (vt (select i1:$src0, (VOP3Mods vt:$src1, i32:$src1_mods),

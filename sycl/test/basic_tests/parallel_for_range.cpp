@@ -2,7 +2,7 @@
 // UNSUPPORTED: windows
 // Level0 testing times out on Windows.
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
+// RUN: %clangxx -fsycl -fno-sycl-id-queries-fit-in-int -fsycl-targets=%sycl_triple  %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out

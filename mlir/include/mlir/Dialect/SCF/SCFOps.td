@@ -238,30 +238,31 @@ def IfOp : SCF_Op<"if",
     OpBuilder<"Value cond, bool withElseRegion">,
     OpBuilder<"TypeRange resultTypes, Value cond, bool withElseRegion">,
     OpBuilder<
-        "OpBuilder &builder, OperationState &result, TypeRange resultTypes, "
-        "Value cond, "
+        "TypeRange resultTypes, Value cond, "
         "function_ref<void(OpBuilder &, Location)> thenBuilder "
         "    = buildTerminatedBody, "
         "function_ref<void(OpBuilder &, Location)> elseBuilder = nullptr">,
     OpBuilder<
-        "OpBuilder &builder, OperationState &result, Value cond, "
+        "Value cond, "
         "function_ref<void(OpBuilder &, Location)> thenBuilder "
         "    = buildTerminatedBody, "
         "function_ref<void(OpBuilder &, Location)> elseBuilder = nullptr">
   ];
 
   let extraClassDeclaration = [{
-    OpBuilder getThenBodyBuilder() {
+    OpBuilder getThenBodyBuilder(OpBuilder::Listener *listener = nullptr) {
       Block* body = getBody(0);
-      return results().empty() ? OpBuilder::atBlockTerminator(body)
-                               : OpBuilder::atBlockEnd(body);
+      return results().empty() ? OpBuilder::atBlockTerminator(body, listener)
+                               : OpBuilder::atBlockEnd(body, listener);
     }
-    OpBuilder getElseBodyBuilder() {
+    OpBuilder getElseBodyBuilder(OpBuilder::Listener *listener = nullptr) {
       Block* body = getBody(1);
-      return results().empty() ? OpBuilder::atBlockTerminator(body)
-                               : OpBuilder::atBlockEnd(body);
+      return results().empty() ? OpBuilder::atBlockTerminator(body, listener)
+                               : OpBuilder::atBlockEnd(body, listener);
     }
   }];
+
+  let hasCanonicalizer = 1;
 }
 
 def ParallelOp : SCF_Op<"parallel",
@@ -429,8 +430,7 @@ def YieldOp : SCF_Op<"yield", [NoSideEffect, ReturnLike, Terminator,
 
   let arguments = (ins Variadic<AnyType>:$results);
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &result",
-              [{ /* nothing to do */ }]>
+    OpBuilder<"", [{ /* nothing to do */ }]>
   ];
   // Override default verifier (defined in SCF_Op), no custom verification
   // needed.

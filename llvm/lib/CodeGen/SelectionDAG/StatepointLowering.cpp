@@ -544,9 +544,7 @@ lowerStatepointMetaArgs(SmallVectorImpl<SDValue> &Ops,
     SI.StatepointFlags & (uint64_t)StatepointFlags::DeoptLiveIn;
 
   // Decide which deriver pointers will go on VRegs
-  const unsigned MaxTiedRegs = 15; // Max  number of tied regs MI can have.
-  unsigned MaxVRegPtrs =
-      std::min(MaxTiedRegs, MaxRegistersForGCPointers.getValue());
+  unsigned MaxVRegPtrs = MaxRegistersForGCPointers.getValue();
 
   LLVM_DEBUG(dbgs() << "Deciding how to lower GC Pointers:\n");
 
@@ -557,6 +555,10 @@ lowerStatepointMetaArgs(SmallVectorImpl<SDValue> &Ops,
 
   unsigned CurNumVRegs = 0;
 
+  auto canPassGCPtrOnVReg = [&](SDValue SDV) {
+    return !(willLowerDirectly(SDV) || SDV.getValueType().isVector());
+  };
+
   auto processGCPtr = [&](const Value *V) {
     SDValue PtrSD = Builder.getValue(V);
     if (!LoweredGCPtrs.insert(PtrSD))
@@ -566,7 +568,9 @@ lowerStatepointMetaArgs(SmallVectorImpl<SDValue> &Ops,
     assert(!LowerAsVReg.count(PtrSD) && "must not have been seen");
     if (LowerAsVReg.size() == MaxVRegPtrs)
       return;
-    if (willLowerDirectly(PtrSD) || V->getType()->isVectorTy()) {
+    assert(V->getType()->isVectorTy() == PtrSD.getValueType().isVector() &&
+           "IR and SD types disagree");
+    if (!canPassGCPtrOnVReg(PtrSD)) {
       LLVM_DEBUG(dbgs() << "direct/spill "; PtrSD.dump(&Builder.DAG));
       return;
     }
@@ -593,8 +597,12 @@ lowerStatepointMetaArgs(SmallVectorImpl<SDValue> &Ops,
   };
 
   auto requireSpillSlot = [&](const Value *V) {
-    if (isGCValue(V))
-      return !LowerAsVReg.count(Builder.getValue(V));
+    if (isGCValue(V)) {
+      SDValue SDV = Builder.getValue(V);
+      if (!LoweredGCPtrs.empty())
+        return !LowerAsVReg.count(SDV);
+      return !MaxVRegPtrs || !canPassGCPtrOnVReg(SDV);
+    }
     return !(LiveInDeopt || UseRegistersForDeoptValues);
   };
 
