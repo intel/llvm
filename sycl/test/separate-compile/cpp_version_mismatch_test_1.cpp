@@ -7,7 +7,8 @@
 // >> ---- diagnostics correctness check
 // CHECK: C++ version (std=c++11 or less) for host compilation cannot be matched with C++ version (std=c++14 or greater) for device compilation
 
-//==----------- cpp_version_mismatch_test_1.cpp - SYCL separate compilation cpp version mismatch test -----------------==//
+//==----------- cpp_version_mismatch_test_1.cpp - SYCL separate compilation cpp
+//version mismatch test -----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -28,9 +29,8 @@ int main(int argc, char **argv) {
 
   // Run empty kernel
   sycl::queue deviceQueue;
-  deviceQueue.submit([&](sycl::handler& cgh) {
-    cgh.single_task<class kernel_a>([=]() { });
-  });
+  deviceQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<class kernel_a>([=]() {}); });
 
   return 0;
 }
