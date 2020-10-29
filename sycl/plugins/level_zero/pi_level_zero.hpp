@@ -328,8 +328,10 @@ struct _pi_queue : _pi_object {
   // Attach a command list to this queue and allow it to remain open
   // and used for further batching.  It may be executed immediately,
   // or it may be left open for other future command to be batched into.
+  // OKToBatchKernel indicates whether for this particular kernel in the
+  // command list whether batching is allowed.
   pi_result batchCommandList(ze_command_list_handle_t ZeCommandList,
-                             ze_fence_handle_t ZeFence);
+                             ze_fence_handle_t ZeFence, bool OKToBatchKernel);
 
   // Attach a command list to this queue, close, and execute it.
   // Note that this command list cannot be appended to after this.
