@@ -1136,6 +1136,12 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     if (Arg *MF = Args.getLastArg(options::OPT_MF)) {
       DepFile = MF->getValue();
       C.addFailureResultFile(DepFile, &JA);
+      // Populate the named dependency file to be used in the bundle
+      // or passed to the offline compilation.
+      if (Args.hasArg(options::OPT_fintelfpga) &&
+          JA.isDeviceOffloading(Action::OFK_SYCL))
+        C.getDriver().addFPGATempDepFile(
+            DepFile, Clang::getBaseInputName(Args, Inputs[0]));
     } else if (Output.getType() == types::TY_Dependencies) {
       DepFile = Output.getFilename();
     } else if (!ArgMD) {
