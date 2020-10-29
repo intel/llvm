@@ -70,9 +70,27 @@ git clone https://github.com/KhronosGroup/SPIRV-LLVM-Translator.git
 Run (or re-run) cmake as usual for LLVM. After that you should have `llvm-spirv` and `check-llvm-spirv` targets available.
 ```
 mkdir llvm-project/build && cd llvm-project/build
-cmake ../llvm
+cmake ../llvm -DLLVM_ENABLE_PROJECTS="clang"
 make llvm-spirv -j`nproc`
 ```
+
+Note on enabling the `clang` project: there are tests in the translator that depend
+on `clang` binary, which makes clang a required dependency (search for
+`LLVM_SPIRV_TEST_DEPS` in [test/CMakeLists.txt](test/CMakeLists.txt)) for
+`check-llvm-spirv` target.
+
+Building clang from sources takes time and resources and it can be avoided:
+- if you are not interested in launching unit-tests for the translator after
+  build, you can disable generation of test targets by passing
+  `-DLLVM_INCLUDE_TESTS=OFF` option.
+- if you are interested in launching unit-tests, but don't want to build clang
+  you can pass `-DSPIRV_SKIP_CLANG_BUILD` cmake option to avoid adding `clang`
+  as dependency for `check-llvm-spirv` target. However, LIT will search for
+  `clang` binary when tests are launched and it should be available at this
+  point.
+- building and testing completely without `clang` is not supported at the
+  moment, see [KhronosGroup/SPIRV-LLVM-Translator#477](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/issues/477)
+  to track progress, discuss and contribute.
 
 ## Test instructions
 

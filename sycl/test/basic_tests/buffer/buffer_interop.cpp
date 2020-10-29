@@ -29,9 +29,9 @@ int main() {
     cl_int Error = CL_SUCCESS;
     cl_mem OCLBuf =
         clCreateBuffer(OCLCtx, CL_MEM_READ_WRITE, sizeof(int), nullptr, &Error);
-    CHECK_OCL_CODE(Error);
+    assert(Error == CL_SUCCESS);
     Error = clReleaseContext(OCLCtx);
-    CHECK_OCL_CODE(Error);
+    assert(Error == CL_SUCCESS);
 
     sycl::buffer<int, 1> Buf{OCLBuf, Ctx};
 
@@ -68,7 +68,7 @@ int main() {
     cl_mem OpenCLBuffer =
         clCreateBuffer(OCLCtx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
                        Size * sizeof(int), Init, &Error);
-    CHECK_OCL_CODE(Error);
+    assert(Error == CL_SUCCESS);
     buffer<int, 1> Buffer{OpenCLBuffer, MyQueue.get_context()};
 
     if (Buffer.get_range() != InteropRange) {
@@ -105,7 +105,7 @@ int main() {
     }
 
     Error = clReleaseMemObject(OpenCLBuffer);
-    CHECK_OCL_CODE(Error);
+    assert(Error == CL_SUCCESS);
 
     for (size_t i = 0; i < Size; ++i) {
       if (Result[i] != 20) {
@@ -116,7 +116,7 @@ int main() {
       }
     }
     Error = clReleaseContext(OCLCtx);
-    CHECK_OCL_CODE(Error);
+    assert(Error == CL_SUCCESS);
   }
   // Check set_final_data
   {
@@ -131,7 +131,7 @@ int main() {
     cl_mem OpenCLBuffer =
         clCreateBuffer(OCLCtx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
                        Size * sizeof(int), Init, &Error);
-    CHECK_OCL_CODE(Error);
+    assert(Error == CL_SUCCESS);
     {
       buffer<int, 1> Buffer{OpenCLBuffer, MyQueue.get_context()};
       Buffer.set_final_data(Result);
@@ -143,7 +143,7 @@ int main() {
       });
     }
     Error = clReleaseMemObject(OpenCLBuffer);
-    CHECK_OCL_CODE(Error);
+    assert(Error == CL_SUCCESS);
     for (size_t i = 0; i < Size; ++i) {
       if (Result[i] != 10) {
         std::cout << " array[" << i << "] is " << Result[i] << " expected "
@@ -153,7 +153,7 @@ int main() {
       }
     }
     Error = clReleaseContext(OCLCtx);
-    CHECK_OCL_CODE(Error);
+    assert(Error == CL_SUCCESS);
   }
   // Check host accessor
   {
@@ -167,7 +167,7 @@ int main() {
     cl_mem OpenCLBuffer =
         clCreateBuffer(OCLCtx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
                        Size * sizeof(int), Init, &Error);
-    CHECK_OCL_CODE(Error);
+    assert(Error == CL_SUCCESS);
     buffer<int, 1> Buffer{OpenCLBuffer, MyQueue.get_context()};
 
     MyQueue.submit([&](handler &CGH) {
@@ -185,9 +185,9 @@ int main() {
       }
     }
     Error = clReleaseMemObject(OpenCLBuffer);
-    CHECK_OCL_CODE(Error);
+    assert(Error == CL_SUCCESS);
     Error = clReleaseContext(OCLCtx);
-    CHECK_OCL_CODE(Error);
+    assert(Error == CL_SUCCESS);
   }
   // Check interop constructor event
   {
@@ -200,10 +200,10 @@ int main() {
     cl_mem OpenCLBuffer =
         clCreateBuffer(OpenCLContext, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
                        sizeof(int), &Val, &Error);
-    CHECK_OCL_CODE(Error);
+    assert(Error == CL_SUCCESS);
     cl_event OpenCLEvent = clCreateUserEvent(OpenCLContext, &Error);
-    CHECK_OCL_CODE(Error);
-    CHECK_OCL_CODE(clSetUserEventStatus(OpenCLEvent, CL_COMPLETE));
+    assert(Error == CL_SUCCESS);
+    assert(clSetUserEventStatus(OpenCLEvent, CL_COMPLETE) == CL_SUCCESS);
 
     {
       event Event(OpenCLEvent, OpenCLContext);
@@ -221,9 +221,9 @@ int main() {
       }
     }
 
-    CHECK_OCL_CODE(clReleaseMemObject(OpenCLBuffer));
-    CHECK_OCL_CODE(clReleaseContext(OpenCLContext));
-    CHECK_OCL_CODE(clReleaseEvent(OpenCLEvent));
+    assert(clReleaseMemObject(OpenCLBuffer) == CL_SUCCESS);
+    assert(clReleaseContext(OpenCLContext) == CL_SUCCESS);
+    assert(clReleaseEvent(OpenCLEvent) == CL_SUCCESS);
   }
 
   {

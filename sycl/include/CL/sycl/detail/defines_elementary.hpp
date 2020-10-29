@@ -23,9 +23,9 @@
 #endif // __has_builtin
 
 #if __has_attribute(always_inline)
-#define ALWAYS_INLINE __attribute__((always_inline))
+#define __SYCL_ALWAYS_INLINE __attribute__((always_inline))
 #else
-#define ALWAYS_INLINE
+#define __SYCL_ALWAYS_INLINE
 #endif
 
 #ifndef SYCL_EXTERNAL

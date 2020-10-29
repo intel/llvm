@@ -19,3 +19,4 @@ int main() {
 //CHECK: ---> piContextRelease(
 //CHECK: ---> piKernelRelease(
 //CHECK: ---> piProgramRelease(
+//CHECK: ---> piDeviceRelease(

@@ -36,7 +36,12 @@ enum {
   ZeSerializeBlock =
       2, // blocking ZE calls, where supported (usually in enqueue commands)
 };
-static pi_uint32 ZeSerialize = 0;
+static const pi_uint32 ZeSerialize = [] {
+  const char *SerializeMode = std::getenv("ZE_SERIALIZE");
+  const pi_uint32 SerializeModeValue =
+      SerializeMode ? std::atoi(SerializeMode) : 0;
+  return SerializeModeValue;
+}();
 
 // This class encapsulates actions taken along with a call to Level Zero API.
 class ZeCall {
@@ -693,11 +698,6 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
       ZeValidationLayer = true;
   }
 
-  static const char *SerializeMode = std::getenv("ZE_SERIALIZE");
-  static const pi_uint32 SerializeModeValue =
-      SerializeMode ? std::atoi(SerializeMode) : 0;
-  ZeSerialize = SerializeModeValue;
-
   if (NumEntries == 0 && Platforms != nullptr) {
     return PI_INVALID_VALUE;
   }
@@ -1216,9 +1216,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_IMAGE_SUPPORT:
     return ReturnValue(pi_bool{ZeDeviceImageProperties.maxImageDims1D > 0});
   case PI_DEVICE_INFO_HOST_UNIFIED_MEMORY:
-    return ReturnValue(
-        // TODO[1.0]: how to query for USM support now?
-        pi_bool{true});
+    return ReturnValue(pi_bool{(Device->ZeDeviceProperties.flags &
+                                ZE_DEVICE_PROPERTY_FLAG_INTEGRATED) != 0});
   case PI_DEVICE_INFO_AVAILABLE:
     return ReturnValue(pi_bool{ZeDevice ? true : false});
   case PI_DEVICE_INFO_VENDOR:
@@ -1579,7 +1578,7 @@ piextDeviceSelectBinary(pi_device Device, // TODO: does this need to be context?
   // plugin for platform/device the ctx was created for.
 
   // Look for GEN binary, which we known can only be handled by Level-Zero now.
-  const char *BinaryTarget = PI_DEVICE_BINARY_TARGET_SPIRV64_GEN;
+  const char *BinaryTarget = __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN;
 
   // Find the appropriate device image, fallback to spirv if not found
   constexpr pi_uint32 InvalidInd = std::numeric_limits<pi_uint32>::max();
@@ -1591,7 +1590,7 @@ piextDeviceSelectBinary(pi_device Device, // TODO: does this need to be context?
       return PI_SUCCESS;
     }
     if (strcmp(Binaries[i]->DeviceTargetSpec,
-               PI_DEVICE_BINARY_TARGET_SPIRV64) == 0)
+               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0)
       Spirv = i;
   }
   // Points to a spirv image, if such indeed was found
@@ -1908,12 +1907,15 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
 }
 
 pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
-                            void *HostPtr, pi_mem *RetMem) {
+                            void *HostPtr, pi_mem *RetMem,
+                            const pi_mem_properties *properties) {
 
   // TODO: implement read-only, write-only
   assert((Flags & PI_MEM_FLAGS_ACCESS_RW) != 0);
   assert(Context);
   assert(RetMem);
+  assert(properties == nullptr &&
+         "no mem properties goes to Level-Zero RT yet");
 
   void *Ptr;
   ze_device_handle_t ZeDevice = Context->Devices[0]->ZeDevice;
