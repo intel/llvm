@@ -8,7 +8,7 @@
 // CHECK: C++ version (std=c++11 or less) for host compilation cannot be matched with C++ version (std=c++14 or greater) for device compilation
 
 //==----------- cpp_version_mismatch_test_1.cpp - SYCL separate compilation cpp
-//version mismatch test -----------------==//
+// version mismatch test -----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

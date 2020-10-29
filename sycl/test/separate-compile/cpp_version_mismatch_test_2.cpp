@@ -10,7 +10,7 @@
 // compilation" CHECK-NEXT: #endif
 
 //==----------- cpp_version_mismatch_test_2.cpp - SYCL separate compilation cpp
-//version mismatch test -----------------==//
+// version mismatch test -----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
