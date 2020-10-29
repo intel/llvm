@@ -104,6 +104,8 @@ public:
 
   bool operator!=(const item &rhs) const { return rhs.MImpl != MImpl; }
 
+  void set_allowed_range(const range<dimensions> rnwi) { MImpl.MExtent = rnwi; }
+
 protected:
   template <bool has_offset = with_offset>
   item(detail::enable_if_t<has_offset, const range<dimensions>> &extent,

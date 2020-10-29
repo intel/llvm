@@ -94,6 +94,8 @@ public:
     return result;
   }
 
+  void set_allowed_range(range<dimensions> rnwi) { (void)rnwi[0]; }
+
 #ifndef __SYCL_DISABLE_ID_TO_INT_CONV__
   /* Template operator is not allowed because it disables further type
    * conversion. For example, the next code will not work in case of template
