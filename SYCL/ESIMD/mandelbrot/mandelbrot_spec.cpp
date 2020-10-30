@@ -155,7 +155,7 @@ int main(int argc, char *argv[]) {
   }
 
   char *out_file = argv[1];
-  FILE *dumpfile = fopen(out_file, "w");
+  FILE *dumpfile = fopen(out_file, "wb");
   if (!dumpfile) {
     std::cerr << "Cannot open " << out_file << std::endl;
     return -2;
