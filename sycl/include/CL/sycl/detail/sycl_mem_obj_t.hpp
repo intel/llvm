@@ -150,7 +150,7 @@ public:
 
   __SYCL_DLL_LOCAL void set_final_data_from_storage() {
     MUploadDataFunctor = [this]() {
-      if (MSharedPtrStorage.use_count() == 1) {
+      if (MSharedPtrStorage.use_count() > 1) {
         void *FinalData = const_cast<void *>(MSharedPtrStorage.get());
         updateHostMemory(FinalData);
       }
