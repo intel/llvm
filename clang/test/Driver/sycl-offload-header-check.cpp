@@ -12,4 +12,4 @@
 // CHECK-HEADER: clang{{.*}} "-fsycl-int-header=[[HEADER:.+\.h]]"
 // CHECK-HEADER: {{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
 // CHECK-HEADER-NOT: clang{{.*}} "-include" "[[HEADER]]"
-// CHECK-HEADER: clang{{.*}} "-include" "{{.*}}_DiRnAmE{{.+}}.h"
+// CHECK-HEADER: clang{{.*}} "-include" "{{.*}}_dirname{{.+}}.h"
