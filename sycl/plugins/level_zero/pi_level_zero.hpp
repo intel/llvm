@@ -325,22 +325,20 @@ struct _pi_queue : _pi_object {
   pi_result resetCommandListFenceEntry(ze_command_list_handle_t ZeCommandList,
                                        bool MakeAvailable);
 
-  // Attach a command list to this queue and allow it to remain open
-  // and used for further batching.  It may be executed immediately,
-  // or it may be left open for other future command to be batched into.
-  // OKToBatchKernel indicates whether for this particular kernel in the
-  // command list whether batching is allowed.
-  pi_result batchCommandList(ze_command_list_handle_t ZeCommandList,
-                             ze_fence_handle_t ZeFence, bool OKToBatchKernel);
-
   // Attach a command list to this queue, close, and execute it.
   // Note that this command list cannot be appended to after this.
-  // The "IsBlocking" tells if the wait for completion is requested.
+  // The "IsBlocking" tells if the wait for completion is required.
   // The "ZeFence" passed is used to track when the command list passed
   // has completed execution on the device and can be reused.
+  // If OKToBatchCommand is true, then this command list may be executed
+  // immediately, or it may be left open for other future command to be
+  // batched into.
+  // If IsBlocking is true, then batching will not be allowed regardless
+  // of the value of OKToBatchCommand
   pi_result executeCommandList(ze_command_list_handle_t ZeCommandList,
                                ze_fence_handle_t ZeFence,
-                               bool IsBlocking = false);
+                               bool IsBlocking = false,
+                               bool OKToBatchCommand = false);
 
   // If there is an open command list associated with this queue,
   // close it, exceute it, and reset ZeOpenCommandList, ZeCommandListFence,
