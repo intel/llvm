@@ -61,7 +61,8 @@ constexpr To bit_cast(const From &from) noexcept {
   static_assert(std::is_trivially_default_constructible<To>::value,
                 "To must be trivially default constructible");
   To to;
-  sycl::detail::memcpy(&to, &from, sizeof(To));
+  using F = typename std::remove_const<From>::type;
+  to = *(reinterpret_cast<To *>((const_cast<F *>(&from))));
   return to;
 #endif // __has_builtin(__builtin_bit_cast)
 
