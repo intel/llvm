@@ -219,7 +219,7 @@ function(add_libclc_sycl_binding OUT_LIST)
                          COMMAND ${CMAKE_COMMAND} -E make_directory
                          ${CMAKE_CURRENT_BINARY_DIR}/sycldevice-binding-${ARG_TRIPLE}
                          COMMAND ${LLVM_CLANG}
-                         -target ${ARG_TRIPLE}-sycldevice
+                         -fsycl-targets=${ARG_TRIPLE}-sycldevice
                          -fsycl
                          -fsycl-device-only
                          -Dcl_khr_fp64
