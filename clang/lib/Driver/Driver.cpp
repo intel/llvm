@@ -3721,8 +3721,8 @@ class OffloadingActionBuilder final {
                              options::OPT_fsycl_use_bitcode, false)) {
               auto *BackendAction =
                   C.MakeAction<BackendJobAction>(A, types::TY_LLVM_BC);
-              A = C.MakeAction<SPIRVTranslatorJobAction>(
-                  BackendAction, types::TY_SPIRV);
+              A = C.MakeAction<SPIRVTranslatorJobAction>(BackendAction,
+                                                         types::TY_SPIRV);
               break;
             }
           }
