@@ -26,8 +26,8 @@ constexpr unsigned int VL = 1024 * 128;
 using Ty = float;
 
 int main() {
-  Ty data0[VL] = {0};
-  Ty data1[VL] = {0};
+  Ty *data0 = new float[VL];
+  Ty *data1 = new float[VL];
   constexpr Ty VAL = 5;
 
   for (int i = 0; i < VL; i++) {
@@ -88,6 +88,10 @@ int main() {
                   << " != " << gold1 << "(gold)\n";
     }
   }
+
+  delete[] data0;
+  delete[] data1;
+
   if (err_cnt == 0) {
     std::cout << "Passed\n";
     return 0;
