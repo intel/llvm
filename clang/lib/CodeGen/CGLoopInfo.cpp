@@ -671,8 +671,7 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       Attrs.UnrollEnable == LoopAttributes::Unspecified &&
       Attrs.UnrollAndJamEnable == LoopAttributes::Unspecified &&
       Attrs.DistributeEnable == LoopAttributes::Unspecified && !StartLoc &&
-      Attrs.SYCLNofusionEnable == false &&
-      !EndLoc)
+      Attrs.SYCLNofusionEnable == false && !EndLoc)
     return;
 
   TempLoopID = MDNode::getTemporary(Header->getContext(), None);

@@ -12,16 +12,15 @@ void foo() {
 
   // CHECK: AttributedStmt
   // CHECK-NEXT: SYCLIntelFPGANofusionAttr {{.*}}
-  int i = 0; 
-  [[intel::nofusion]] do {
-    a1[i] += 4;
-  } 
-  while (i < 10);
+  int i = 0;
+  [[intel::nofusion]] while (i < 10) {
+    a1[i] += 3;
+  }
 
   // CHECK: AttributedStmt
   // CHECK-NEXT: SYCLIntelFPGANofusionAttr {{.*}}
-  [[intel::nofusion]] for (int i = 0; i < 10; ++i) {
-    for (int j = 0; j < 10; ++j) {
+  for (int i = 0; i < 10; ++i) {
+    [[intel::nofusion]] for (int j = 0; j < 10; ++j) {
       a1[i] += a1[j];
     }
   }

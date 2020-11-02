@@ -23,17 +23,18 @@ void nofusion() {
 
   [[intel::nofusion]] do {
     a[i] += 4;
-  } 
-  while (i < 10);
+  }
+  while (i < 10)
+    ; 
 
   [[intel::nofusion]] for (int i = 0; i < 10; ++i) {
     for (int j = 0; j < 10; ++j) {
       a[i] += a[j];
     }
   }
-  
+
   int k = 0;
-  [[intel::nofusion]] for (auto k: a) {
+  [[intel::nofusion]] for (auto k : a) {
     k += 2;
   }
 
