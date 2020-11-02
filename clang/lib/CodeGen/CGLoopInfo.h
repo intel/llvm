@@ -149,6 +149,9 @@ struct LoopAttributes {
 
   /// Value for llvm.loop.pipeline.iicount metadata.
   unsigned PipelineInitiationInterval;
+
+  /// Flag for llvm.loop.fusion.disable metatdata.
+  bool SYCLNofusionEnable;
 };
 
 /// Information used when generating a structured loop.
@@ -405,6 +408,10 @@ public:
     StagedAttrs.PipelineInitiationInterval = C;
   }
 
+  /// Set flag of nofusion for the next loop pushed.
+  void setSYCLNofusionEnable() {
+    StagedAttrs.SYCLNofusionEnable = true;
+  }
 private:
   /// Returns true if there is LoopInfo on the stack.
   bool hasInfo() const { return !Active.empty(); }

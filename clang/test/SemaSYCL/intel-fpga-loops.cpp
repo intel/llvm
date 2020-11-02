@@ -25,6 +25,8 @@ void foo() {
   [[intel::max_interleaving(4)]] int i[10];
   // expected-error@+1 {{intelfpga loop attributes must be applied to for, while, or do statements}}
   [[intel::speculated_iterations(6)]] int j[10];
+  // expected-error@+1 {{intelfpga loop attributes must be applied to for, while, or do statements}}
+  [[intel::nofusion]] int k[10];
 }
 
 // Test for deprecated spelling of Intel FPGA loop attributes
@@ -114,6 +116,9 @@ void boo() {
   // expected-warning@+1 {{'speculated_iterations' attribute takes no more than 1 argument - attribute ignored}}
   [[intel::speculated_iterations(1, 2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+  // expected-warning@+1 {{'nofusion' attribute takes no more than 0 arguments - attribute ignored}}
+  [[intel::nofusion(0)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 // Test for incorrect argument value for Intel FPGA loop attributes
@@ -187,6 +192,10 @@ void goo() {
   // no diagnostics are expected
   [[intel::ivdep(2, s.ptr)]] for (int i = 0; i != 10; ++i)
       s.ptr[i] = 0;
+
+  // no diagnostics are expected
+  [[intel::nofusion]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 // Test for Intel FPGA loop attributes duplication
@@ -290,6 +299,11 @@ void zoo() {
   // expected-note@+1 {{previous attribute is here}}
   [[intel::ivdep(a, 3)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  [[intel::nofusion]]
+  // expected-error@-1 {{duplicate Intel FPGA loop attribute 'nofusion'}}
+  [[intel::nofusion]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 // Test for Intel FPGA loop attributes compatibility
@@ -318,6 +332,10 @@ void loop_attrs_compatibility() {
   // expected-error@+1 {{disable_loop_pipelining and ivdep attributes are not compatible}}
   [[intel::disable_loop_pipelining]]
   [[intel::ivdep]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // no diagnostics are expected
+  [[intel::disable_loop_pipelining]]
+  [[intel::nofusion]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
 
