@@ -247,8 +247,6 @@ static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
         if (!std::regex_match(PlatformName, std::regex(Desc.PlatName))) {
           PlatNameState = MatchState::NOMATCH;
           continue;
-        } else {
-          PlatNameState = MatchState::MATCH;
         }
       }
 
@@ -256,8 +254,6 @@ static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
         if (!std::regex_match(PlatformVer, std::regex(Desc.PlatVer))) {
           PlatVerState = MatchState::NOMATCH;
           continue;
-        } else {
-          PlatVerState = MatchState::MATCH;
         }
       }
 
@@ -265,8 +261,6 @@ static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
         if (!std::regex_match(DeviceName, std::regex(Desc.DevName))) {
           DevNameState = MatchState::NOMATCH;
           continue;
-        } else {
-          DevNameState = MatchState::MATCH;
         }
       }
 
@@ -274,8 +268,6 @@ static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
         if (!std::regex_match(DeviceDriverVer, std::regex(Desc.DevDriverVer))) {
           DevVerState = MatchState::NOMATCH;
           continue;
-        } else {
-          DevVerState = MatchState::MATCH;
         }
       }
 
@@ -283,11 +275,12 @@ static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
       break;
     }
   }
-  if (DevNameState == MatchState::MATCH && DevVerState == MatchState::NOMATCH) {
+  if (DevNameState == MatchState::NOMATCH &&
+      DevVerState == MatchState::NOMATCH) {
     throw sycl::runtime_error("Requested SYCL device not found",
                               PI_DEVICE_NOT_FOUND);
   }
-  if (PlatNameState == MatchState::MATCH &&
+  if (PlatNameState == MatchState::NOMATCH &&
       PlatVerState == MatchState::NOMATCH) {
     throw sycl::runtime_error("Requested SYCL platform not found",
                               PI_DEVICE_NOT_FOUND);
