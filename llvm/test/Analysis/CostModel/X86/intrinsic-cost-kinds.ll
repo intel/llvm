@@ -213,11 +213,11 @@ define void @reduce_fmax(<16 x float> %va) {
 ; LATE-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: ret void
 ;
 ; SIZE-LABEL: 'reduce_fmax'
-; SIZE-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: %v = call float @llvm.vector.reduce.fmax.v16f32(<16 x float> %va)
+; SIZE-NEXT:  Cost Model: Found an estimated cost of 7 for instruction: %v = call float @llvm.vector.reduce.fmax.v16f32(<16 x float> %va)
 ; SIZE-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: ret void
 ;
 ; SIZE_LATE-LABEL: 'reduce_fmax'
-; SIZE_LATE-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: %v = call float @llvm.vector.reduce.fmax.v16f32(<16 x float> %va)
+; SIZE_LATE-NEXT:  Cost Model: Found an estimated cost of 7 for instruction: %v = call float @llvm.vector.reduce.fmax.v16f32(<16 x float> %va)
 ; SIZE_LATE-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: ret void
 ;
   %v = call float @llvm.vector.reduce.fmax.v16f32(<16 x float> %va)
@@ -226,7 +226,7 @@ define void @reduce_fmax(<16 x float> %va) {
 
 define void @memcpy(i8* %a, i8* %b, i32 %c) {
 ; THRU-LABEL: 'memcpy'
-; THRU-NEXT:  Cost Model: Found an estimated cost of 1 for instruction: call void @llvm.memcpy.p0i8.p0i8.i32(i8* align 1 %a, i8* align 1 %b, i32 32, i1 false)
+; THRU-NEXT:  Cost Model: Found an estimated cost of 4 for instruction: call void @llvm.memcpy.p0i8.p0i8.i32(i8* align 1 %a, i8* align 1 %b, i32 32, i1 false)
 ; THRU-NEXT:  Cost Model: Found an estimated cost of 0 for instruction: ret void
 ;
 ; LATE-LABEL: 'memcpy'

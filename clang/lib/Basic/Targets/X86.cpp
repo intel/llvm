@@ -310,6 +310,8 @@ bool X86TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasSERIALIZE = true;
     } else if (Feature == "+tsxldtrk") {
       HasTSXLDTRK = true;
+    } else if (Feature == "+uintr") {
+      HasUINTR = true;
     }
 
     X86SSEEnum Level = llvm::StringSwitch<X86SSEEnum>(Feature)
@@ -466,6 +468,7 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
   case CK_IcelakeServer:
   case CK_Tigerlake:
   case CK_SapphireRapids:
+  case CK_Alderlake:
     // FIXME: Historically, we defined this legacy name, it would be nice to
     // remove it at some point. We've never exposed fine-grained names for
     // recent primary x86 CPUs, and we should keep it that way.
@@ -539,6 +542,9 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
     break;
   case CK_ZNVER2:
     defineCPUMacros(Builder, "znver2");
+    break;
+  case CK_ZNVER3:
+    defineCPUMacros(Builder, "znver3");
     break;
   case CK_Geode:
     defineCPUMacros(Builder, "geode");
@@ -726,6 +732,8 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__SERIALIZE__");
   if (HasTSXLDTRK)
     Builder.defineMacro("__TSXLDTRK__");
+  if (HasUINTR)
+    Builder.defineMacro("__UINTR__");
 
   // Each case falls through to the previous one here.
   switch (SSELevel) {
@@ -889,6 +897,7 @@ bool X86TargetInfo::isValidFeatureName(StringRef Name) const {
       .Case("sse4a", true)
       .Case("tbm", true)
       .Case("tsxldtrk", true)
+      .Case("uintr", true)
       .Case("vaes", true)
       .Case("vpclmulqdq", true)
       .Case("wbnoinvd", true)
@@ -980,6 +989,7 @@ bool X86TargetInfo::hasFeature(StringRef Feature) const {
       .Case("sse4a", XOPLevel >= SSE4A)
       .Case("tbm", HasTBM)
       .Case("tsxldtrk", HasTSXLDTRK)
+      .Case("uintr", HasUINTR)
       .Case("vaes", HasVAES)
       .Case("vpclmulqdq", HasVPCLMULQDQ)
       .Case("wbnoinvd", HasWBNOINVD)
@@ -1299,6 +1309,7 @@ Optional<unsigned> X86TargetInfo::getCPUCacheLineSize() const {
     case CK_SapphireRapids:
     case CK_IcelakeClient:
     case CK_IcelakeServer:
+    case CK_Alderlake:
     case CK_KNL:
     case CK_KNM:
     // K7
@@ -1319,6 +1330,7 @@ Optional<unsigned> X86TargetInfo::getCPUCacheLineSize() const {
     // Zen
     case CK_ZNVER1:
     case CK_ZNVER2:
+    case CK_ZNVER3:
     // Deprecated
     case CK_x86_64:
     case CK_x86_64_v2:

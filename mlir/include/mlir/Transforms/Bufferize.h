@@ -28,6 +28,7 @@
 #ifndef MLIR_TRANSFORMS_BUFFERIZE_H
 #define MLIR_TRANSFORMS_BUFFERIZE_H
 
+#include "mlir/Analysis/BufferAliasAnalysis.h"
 #include "mlir/Analysis/Liveness.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
@@ -142,6 +143,15 @@ private:
   SmallVector<DecomposeValueConversionCallFn, 2> decomposeValueConversions;
   SmallVector<DecomposeTypeConversionCallFn, 2> decomposeTypeConversions;
 };
+
+/// Marks ops used by bufferization for type conversion materializations as
+/// "legal" in the given ConversionTarget.
+///
+/// This function should be called by all bufferization passes using
+/// BufferizeTypeConverter so that materializations work proprely. One exception
+/// is bufferization passes doing "full" conversions, where it can be desirable
+/// for even the materializations to remain illegal so that they are eliminated.
+void populateBufferizeMaterializationLegality(ConversionTarget &target);
 
 /// Helper conversion pattern that encapsulates a BufferizeTypeConverter
 /// instance.
@@ -279,46 +289,6 @@ populateWithBufferizeOpConversionPatterns(MLIRContext *context,
   // clang-format on
 }
 
-/// A straight-forward alias analysis which ensures that all aliases of all
-/// values will be determined. This is a requirement for the BufferPlacement
-/// class since you need to determine safe positions to place alloc and
-/// deallocs.
-class BufferPlacementAliasAnalysis {
-public:
-  using ValueSetT = SmallPtrSet<Value, 16>;
-  using ValueMapT = llvm::DenseMap<Value, ValueSetT>;
-
-public:
-  /// Constructs a new alias analysis using the op provided.
-  BufferPlacementAliasAnalysis(Operation *op);
-
-  /// Find all immediate aliases this value could potentially have.
-  ValueMapT::const_iterator find(Value value) const {
-    return aliases.find(value);
-  }
-
-  /// Returns the begin iterator to iterate over all aliases.
-  ValueMapT::const_iterator begin() const { return aliases.begin(); }
-
-  /// Returns the end iterator that can be used in combination with find.
-  ValueMapT::const_iterator end() const { return aliases.end(); }
-
-  /// Find all immediate and indirect aliases this value could potentially
-  /// have. Note that the resulting set will also contain the value provided as
-  /// it is an alias of itself.
-  ValueSetT resolve(Value value) const;
-
-  /// Removes the given values from all alias sets.
-  void remove(const SmallPtrSetImpl<Value> &aliasValues);
-
-private:
-  /// This function constructs a mapping from values to its immediate aliases.
-  void build(Operation *op);
-
-  /// Maps values to all immediate aliases this value can have.
-  ValueMapT aliases;
-};
-
 /// A simple analysis that detects allocation operations.
 class BufferPlacementAllocs {
 public:
@@ -369,7 +339,7 @@ private:
 /// The base class for all BufferPlacement transformations.
 class BufferPlacementTransformationBase {
 public:
-  using ValueSetT = BufferPlacementAliasAnalysis::ValueSetT;
+  using ValueSetT = BufferAliasAnalysis::ValueSetT;
 
   /// Finds a common dominator for the given value while taking the positions
   /// of the values in the value set into account. It supports dominator and
@@ -404,7 +374,7 @@ public:
 
 protected:
   /// Alias information that can be updated during the insertion of copies.
-  BufferPlacementAliasAnalysis aliases;
+  BufferAliasAnalysis aliases;
 
   /// Stores all internally managed allocations.
   BufferPlacementAllocs allocs;

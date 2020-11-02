@@ -1698,25 +1698,27 @@ static Value *simplifyAndOrOfICmpsWithLimitConst(ICmpInst *Cmp0, ICmpInst *Cmp1,
   if (!Cmp0->isEquality())
     return nullptr;
 
-  // The equality compare must be against a constant. Convert the 'null' pointer
-  // constant to an integer zero value.
-  APInt MinMaxC;
-  const APInt *C;
-  if (match(Cmp0->getOperand(1), m_APInt(C)))
-    MinMaxC = *C;
-  else if (isa<ConstantPointerNull>(Cmp0->getOperand(1)))
-    MinMaxC = APInt::getNullValue(8);
-  else
-    return nullptr;
-
   // The non-equality compare must include a common operand (X). Canonicalize
   // the common operand as operand 0 (the predicate is swapped if the common
   // operand was operand 1).
   ICmpInst::Predicate Pred0 = Cmp0->getPredicate();
   Value *X = Cmp0->getOperand(0);
   ICmpInst::Predicate Pred1;
-  if (!match(Cmp1, m_c_ICmp(Pred1, m_Specific(X), m_Value())) ||
-      ICmpInst::isEquality(Pred1))
+  bool HasNotOp = match(Cmp1, m_c_ICmp(Pred1, m_Not(m_Specific(X)), m_Value()));
+  if (!HasNotOp && !match(Cmp1, m_c_ICmp(Pred1, m_Specific(X), m_Value())))
+    return nullptr;
+  if (ICmpInst::isEquality(Pred1))
+    return nullptr;
+
+  // The equality compare must be against a constant. Flip bits if we matched
+  // a bitwise not. Convert a null pointer constant to an integer zero value.
+  APInt MinMaxC;
+  const APInt *C;
+  if (match(Cmp0->getOperand(1), m_APInt(C)))
+    MinMaxC = HasNotOp ? ~*C : *C;
+  else if (isa<ConstantPointerNull>(Cmp0->getOperand(1)))
+    MinMaxC = APInt::getNullValue(8);
+  else
     return nullptr;
 
   // DeMorganize if this is 'or': P0 || P1 --> !P0 && !P1.
@@ -2849,6 +2851,42 @@ static Value *simplifyICmpWithBinOpOnLHS(
   return nullptr;
 }
 
+
+// If only one of the icmp's operands has NSW flags, try to prove that:
+//
+//   icmp slt (x + C1), (x +nsw C2)
+//
+// is equivalent to:
+//
+//   icmp slt C1, C2
+//
+// which is true if x + C2 has the NSW flags set and:
+// *) C1 < C2 && C1 >= 0, or
+// *) C2 < C1 && C1 <= 0.
+//
+static bool trySimplifyICmpWithAdds(CmpInst::Predicate Pred, Value *LHS,
+                                    Value *RHS) {
+  // TODO: only support icmp slt for now.
+  if (Pred != CmpInst::ICMP_SLT)
+    return false;
+
+  // Canonicalize nsw add as RHS.
+  if (!match(RHS, m_NSWAdd(m_Value(), m_Value())))
+    std::swap(LHS, RHS);
+  if (!match(RHS, m_NSWAdd(m_Value(), m_Value())))
+    return false;
+
+  Value *X;
+  const APInt *C1, *C2;
+  if (!match(LHS, m_c_Add(m_Value(X), m_APInt(C1))) ||
+      !match(RHS, m_c_Add(m_Specific(X), m_APInt(C2))))
+    return false;
+
+  return (C1->slt(*C2) && C1->isNonNegative()) ||
+         (C2->slt(*C1) && C1->isNonPositive());
+}
+
+
 /// TODO: A large part of this logic is duplicated in InstCombine's
 /// foldICmpBinOp(). We should be able to share that and avoid the code
 /// duplication.
@@ -2898,8 +2936,9 @@ static Value *simplifyICmpWithBinOp(CmpInst::Predicate Pred, Value *LHS,
         return V;
 
     // icmp (X+Y), (X+Z) -> icmp Y,Z for equalities or if there is no overflow.
-    if (A && C && (A == C || A == D || B == C || B == D) && NoLHSWrapProblem &&
-        NoRHSWrapProblem) {
+    bool CanSimplify = (NoLHSWrapProblem && NoRHSWrapProblem) ||
+                       trySimplifyICmpWithAdds(Pred, LHS, RHS);
+    if (A && C && (A == C || A == D || B == C || B == D) && CanSimplify) {
       // Determine Y and Z in the form icmp (X+Y), (X+Z).
       Value *Y, *Z;
       if (A == C) {
