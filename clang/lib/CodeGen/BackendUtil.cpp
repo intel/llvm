@@ -942,7 +942,8 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
     PerModulePasses.add(createDeadArgEliminationSYCLPass());
 
   if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD)
-    PerModulePasses.add(createGenXSPIRVWriterAdaptorPass());
+    PerModulePasses.add(
+        createGenXSPIRVWriterAdaptorPass(/*RewriteTypes=*/true));
 
   switch (Action) {
   case Backend_EmitNothing:
