@@ -26,8 +26,7 @@ MDNode *
 LoopInfo::createLoopPropertiesMetadata(ArrayRef<Metadata *> LoopProperties) {
   LLVMContext &Ctx = Header->getContext();
   SmallVector<Metadata *, 4> NewLoopProperties;
-  TempMDTuple TempNode = MDNode::getTemporary(Ctx, None);
-  NewLoopProperties.push_back(TempNode.get());
+  NewLoopProperties.push_back(nullptr);
   NewLoopProperties.append(LoopProperties.begin(), LoopProperties.end());
 
   MDNode *LoopID = MDNode::getDistinct(Ctx, NewLoopProperties);
@@ -60,8 +59,7 @@ MDNode *LoopInfo::createPipeliningMetadata(const LoopAttributes &Attrs,
   }
 
   SmallVector<Metadata *, 4> Args;
-  TempMDTuple TempNode = MDNode::getTemporary(Ctx, None);
-  Args.push_back(TempNode.get());
+  Args.push_back(nullptr);
   Args.append(LoopProperties.begin(), LoopProperties.end());
 
   if (Attrs.PipelineInitiationInterval > 0) {
@@ -115,8 +113,7 @@ LoopInfo::createPartialUnrollMetadata(const LoopAttributes &Attrs,
                                               FollowupHasTransforms);
 
   SmallVector<Metadata *, 4> Args;
-  TempMDTuple TempNode = MDNode::getTemporary(Ctx, None);
-  Args.push_back(TempNode.get());
+  Args.push_back(nullptr);
   Args.append(LoopProperties.begin(), LoopProperties.end());
 
   // Setting unroll.count
@@ -178,8 +175,7 @@ LoopInfo::createUnrollAndJamMetadata(const LoopAttributes &Attrs,
                                                  FollowupHasTransforms);
 
   SmallVector<Metadata *, 4> Args;
-  TempMDTuple TempNode = MDNode::getTemporary(Ctx, None);
-  Args.push_back(TempNode.get());
+  Args.push_back(nullptr);
   Args.append(LoopProperties.begin(), LoopProperties.end());
 
   // Setting unroll_and_jam.count
@@ -252,8 +248,7 @@ LoopInfo::createLoopVectorizeMetadata(const LoopAttributes &Attrs,
                                                 FollowupHasTransforms);
 
   SmallVector<Metadata *, 4> Args;
-  TempMDTuple TempNode = MDNode::getTemporary(Ctx, None);
-  Args.push_back(TempNode.get());
+  Args.push_back(nullptr);
   Args.append(LoopProperties.begin(), LoopProperties.end());
 
   // Setting vectorize.predicate
@@ -309,7 +304,7 @@ LoopInfo::createLoopVectorizeMetadata(const LoopAttributes &Attrs,
         Ctx,
         {MDString::get(Ctx, "llvm.loop.vectorize.followup_all"), Followup}));
 
-  MDNode *LoopID = MDNode::get(Ctx, Args);
+  MDNode *LoopID = MDNode::getDistinct(Ctx, Args);
   LoopID->replaceOperandWith(0, LoopID);
   HasUserTransforms = true;
   return LoopID;
@@ -346,8 +341,7 @@ LoopInfo::createLoopDistributeMetadata(const LoopAttributes &Attrs,
       createLoopVectorizeMetadata(Attrs, LoopProperties, FollowupHasTransforms);
 
   SmallVector<Metadata *, 4> Args;
-  TempMDTuple TempNode = MDNode::getTemporary(Ctx, None);
-  Args.push_back(TempNode.get());
+  Args.push_back(nullptr);
   Args.append(LoopProperties.begin(), LoopProperties.end());
 
   Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.distribute.enable"),
@@ -361,7 +355,7 @@ LoopInfo::createLoopDistributeMetadata(const LoopAttributes &Attrs,
         Ctx,
         {MDString::get(Ctx, "llvm.loop.distribute.followup_all"), Followup}));
 
-  MDNode *LoopID = MDNode::get(Ctx, Args);
+  MDNode *LoopID = MDNode::getDistinct(Ctx, Args);
   LoopID->replaceOperandWith(0, LoopID);
   HasUserTransforms = true;
   return LoopID;
@@ -391,8 +385,7 @@ MDNode *LoopInfo::createFullUnrollMetadata(const LoopAttributes &Attrs,
   }
 
   SmallVector<Metadata *, 4> Args;
-  TempMDTuple TempNode = MDNode::getTemporary(Ctx, None);
-  Args.push_back(TempNode.get());
+  Args.push_back(nullptr);
   Args.append(LoopProperties.begin(), LoopProperties.end());
   Args.push_back(MDNode::get(Ctx, MDString::get(Ctx, "llvm.loop.unroll.full")));
 
