@@ -7,6 +7,8 @@
 // CHECK: br label %for.cond41, !llvm.loop ![[MD_NF_5:[0-9]+]]
 // CHECK: br label %for.cond50, !llvm.loop ![[MD_NF_6:[0-9]+]]
 
+#include "Inputs/sycl.hpp"
+
 void nofusion() {
   int a[10];
 
@@ -43,13 +45,8 @@ void nofusion() {
   }
 }
 
-template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
-  kernelFunc();
-}
-
 int main() {
-  kernel_single_task<class kernel_function>([]() {
+  cl::sycl::kernel_single_task<class kernel_function>([]() {
     nofusion();
   });
   return 0;

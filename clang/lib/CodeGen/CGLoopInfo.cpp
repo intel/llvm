@@ -1048,9 +1048,8 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
               ->getSExtValue());
     }
 
-    if (IntelFPGANofusion) {
+    if (IntelFPGANofusion)
       setSYCLNofusionEnable();
-    }
   }
 
   if (CGOpts.OptimizationLevel > 0)
