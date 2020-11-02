@@ -25,7 +25,7 @@ void nofusion() {
     a[i] += 4;
   }
   while (i < 10)
-    ; 
+    ;
 
   [[intel::nofusion]] for (int i = 0; i < 10; ++i) {
     for (int j = 0; j < 10; ++j) {
