@@ -1136,6 +1136,12 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     if (Arg *MF = Args.getLastArg(options::OPT_MF)) {
       DepFile = MF->getValue();
       C.addFailureResultFile(DepFile, &JA);
+      // Populate the named dependency file to be used in the bundle
+      // or passed to the offline compilation.
+      if (Args.hasArg(options::OPT_fintelfpga) &&
+          JA.isDeviceOffloading(Action::OFK_SYCL))
+        C.getDriver().addFPGATempDepFile(
+            DepFile, Clang::getBaseInputName(Args, Inputs[0]));
     } else if (Output.getType() == types::TY_Dependencies) {
       DepFile = Output.getFilename();
     } else if (!ArgMD) {
@@ -1232,8 +1238,7 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   if (JA.isOffloading(Action::OFK_HIP))
     getToolChain().AddHIPIncludeArgs(Args, CmdArgs);
 
-  if (JA.isOffloading(Action::OFK_SYCL) ||
-      Args.hasArg(options::OPT_fsycl_device_only))
+  if (JA.isOffloading(Action::OFK_SYCL))
     toolchains::SYCLToolChain::AddSYCLIncludeArgs(D, Args, CmdArgs);
 
   // If we are offloading to a target via OpenMP we need to include the
@@ -4013,28 +4018,29 @@ static void RenderDebugOptions(const ToolChain &TC, const Driver &D,
   RenderDebugInfoCompressionArgs(Args, CmdArgs, D, TC);
 }
 
+/// Check whether the given input tree contains any wrapper actions
+static bool ContainsWrapperAction(const Action *A) {
+  if (isa<OffloadWrapperJobAction>(A))
+    return true;
+  for (const auto &AI : A->inputs())
+    if (ContainsWrapperAction(AI))
+      return true;
+
+  return false;
+}
+
 void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                          const InputInfo &Output, const InputInfoList &Inputs,
                          const ArgList &Args, const char *LinkingOutput) const {
   const auto &TC = getToolChain();
   const llvm::Triple &RawTriple = TC.getTriple();
-  llvm::Triple Triple = TC.getEffectiveTriple();
+  const llvm::Triple &Triple = TC.getEffectiveTriple();
+  const std::string &TripleStr = Triple.getTriple();
 
   bool KernelOrKext =
       Args.hasArg(options::OPT_mkernel, options::OPT_fapple_kext);
   const Driver &D = TC.getDriver();
   ArgStringList CmdArgs;
-
-  // -fsycl-device-only implies a SPIRV arch triple.  Do not set if current
-  // effective triple is SYCLDevice
-  if (Args.hasArg(options::OPT_fsycl_device_only) &&
-      Triple.getEnvironment() != llvm::Triple::SYCLDevice) {
-    const char *SYCLTargetArch = "spir64";
-    if (C.getDefaultToolChain().getTriple().getArch() == llvm::Triple::x86)
-      SYCLTargetArch = "spir";
-    Triple = C.getDriver().MakeSYCLDeviceTriple(SYCLTargetArch);
-  }
-  const std::string &TripleStr = Triple.getTriple();
 
   // Check number of inputs for sanity. We need at least one input.
   assert(Inputs.size() >= 1 && "Must have at least one input.");
@@ -4050,8 +4056,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   bool IsHIP = JA.isOffloading(Action::OFK_HIP);
   bool IsOpenMPDevice = JA.isDeviceOffloading(Action::OFK_OpenMP);
   bool IsSYCLOffloadDevice = JA.isDeviceOffloading(Action::OFK_SYCL);
-  bool IsSYCL = JA.isOffloading(Action::OFK_SYCL) ||
-                Args.hasArg(options::OPT_fsycl_device_only);
+  bool IsSYCL = JA.isOffloading(Action::OFK_SYCL);
   bool IsHeaderModulePrecompile = isa<HeaderModulePrecompileJobAction>(JA);
   assert((IsCuda || IsHIP || (IsOpenMPDevice && Inputs.size() == 2) || IsSYCL ||
           IsHeaderModulePrecompile || Inputs.size() == 1) &&
@@ -4107,9 +4112,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // step, and being part of the SYCL tool chain causes the incorrect target.
   // FIXME - Is it possible to retain host environment when on a target
   // device toolchain.
-  bool UseSYCLTriple =
-      IsSYCLDevice && (!IsSYCL || IsSYCLOffloadDevice ||
-                       Args.hasArg(options::OPT_fsycl_device_only));
+  bool UseSYCLTriple = IsSYCLDevice && (!IsSYCL || IsSYCLOffloadDevice);
 
   // Adjust IsWindowsXYZ for CUDA/HIP/SYCL compilations.  Even when compiling in
   // device mode (i.e., getToolchain().getTriple() is NVPTX/AMDGCN, not
@@ -4211,9 +4214,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Pass the triple of host when doing SYCL
     llvm::Triple AuxT = C.getDefaultToolChain().getTriple();
-    if (Args.hasArg(options::OPT_fsycl_device_only) &&
-        RawTriple.getEnvironment() == llvm::Triple::SYCLDevice)
-      AuxT = llvm::Triple(llvm::sys::getProcessTriple());
     std::string NormalizedTriple = AuxT.normalize();
     CmdArgs.push_back("-aux-triple");
     CmdArgs.push_back(Args.MakeArgString(NormalizedTriple));
@@ -5177,13 +5177,17 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // preprocessed inputs and configure concludes that -fPIC is not supported.
   Args.ClaimAllArgs(options::OPT_D);
 
+  bool SkipO =
+      Args.hasArg(options::OPT_fsycl_link_EQ) && ContainsWrapperAction(&JA);
+  const Arg *OArg = Args.getLastArg(options::OPT_O_Group);
   // Manually translate -O4 to -O3; let clang reject others.
-  if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
-    if (A->getOption().matches(options::OPT_O4)) {
+  // When compiling a wrapped binary, do not optimize.
+  if (!SkipO && OArg) {
+    if (OArg->getOption().matches(options::OPT_O4)) {
       CmdArgs.push_back("-O3");
       D.Diag(diag::warn_O4_is_O3);
     } else {
-      A->render(Args, CmdArgs);
+      OArg->render(Args, CmdArgs);
     }
   }
 
@@ -6350,8 +6354,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         // SYCL library is guaranteed to work correctly only with dynamic
         // MSVC runtime.
         llvm::Triple AuxT = C.getDefaultToolChain().getTriple();
-        if (Args.hasFlag(options::OPT_fsycl_device_only, OptSpecifier(), false))
-          AuxT = llvm::Triple(llvm::sys::getProcessTriple());
         if (AuxT.isWindowsMSVCEnvironment()) {
           CmdArgs.push_back("-D_MT");
           CmdArgs.push_back("-D_DLL");
@@ -6876,7 +6878,6 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
   unsigned RTOptionID = options::OPT__SLASH_MT;
   bool isNVPTX = getToolChain().getTriple().isNVPTX();
   bool isSYCLDevice =
-      Args.hasArg(options::OPT_fsycl_device_only) ||
       getToolChain().getTriple().getEnvironment() == llvm::Triple::SYCLDevice;
   bool isSYCL = Args.hasArg(options::OPT_fsycl) || isSYCLDevice;
   // For SYCL Windows, /MD is the default.
@@ -7891,8 +7892,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
 
   TranslatorArgs.push_back("-o");
   TranslatorArgs.push_back(Output.getFilename());
-  if (getToolChain().getTriple().isSYCLDeviceEnvironment() ||
-      TCArgs.hasArg(options::OPT_fsycl_device_only)) {
+  if (getToolChain().getTriple().isSYCLDeviceEnvironment()) {
     TranslatorArgs.push_back("-spirv-max-version=1.1");
     TranslatorArgs.push_back("-spirv-debug-info-version=legacy");
     // Prevent crash in the translator if input IR contains DIExpression

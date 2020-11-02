@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-int-header=%t.h -fsyntax-only -Wno-sycl-2017-compat -verify %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-int-header=%t.h -fsycl-unnamed-lambda -fsyntax-only -Wno-sycl-2017-compat -verify %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -Wno-sycl-2017-compat -verify %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-unnamed-lambda -fsyntax-only -Wno-sycl-2017-compat -verify %s
 #include "Inputs/sycl.hpp"
 
 #ifdef __SYCL_UNNAMED_LAMBDA__
@@ -70,7 +70,8 @@ public:
     });
 
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@+3 {{kernel name cannot be a type in the "std" namespace}}
+    // expected-error@Inputs/sycl.hpp:220 {{kernel name cannot be a type in the "std" namespace}}
+    // expected-note@+3{{in instantiation of function template specialization}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<std::max_align_t>([] {});
