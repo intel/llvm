@@ -269,6 +269,8 @@
 // RUN: touch %t-1.cpp
 // RUN: %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %t-1.cpp -c -o dummy.o 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-DEP-FILES3,CHK-FPGA-DEP-FILES3-LIN %s
+// RUN: %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %t-1.cpp -c -MMD -MF"dummy.d" 2>&1 \
+// RUN:  | FileCheck -check-prefixes=CHK-FPGA-DEP-FILES3,CHK-FPGA-DEP-FILES3-LIN %s
 // RUN: %clang_cl -### -fsycl -fintelfpga %t-1.cpp -c -Fodummy.obj 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-DEP-FILES3,CHK-FPGA-DEP-FILES3-WIN %s
 // CHK-FPGA-DEP-FILES3: clang{{.*}} "-dependency-file" "[[OUTPUT:.+\.d]]"
