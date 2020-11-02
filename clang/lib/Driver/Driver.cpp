@@ -3714,16 +3714,15 @@ class OffloadingActionBuilder final {
               C.MakeAction<CompileJobAction>(A, types::TY_SYCL_Header);
           types::ID OutputType = types::TY_LLVM_BC;
           if (SYCLDeviceOnly) {
-            if (Args.hasArg(options::OPT_S)) {
+            if (Args.hasArg(options::OPT_S))
               OutputType = types::TY_LLVM_IR;
-            }
             if (Args.hasFlag(options::OPT_fno_sycl_use_bitcode,
                              options::OPT_fsycl_use_bitcode, false)) {
-              auto *BackendAction =
-                  C.MakeAction<BackendJobAction>(A, types::TY_LLVM_BC);
-              A = C.MakeAction<SPIRVTranslatorJobAction>(BackendAction,
+              auto *CompileAction =
+                  C.MakeAction<CompileJobAction>(A, types::TY_LLVM_BC);
+              A = C.MakeAction<SPIRVTranslatorJobAction>(CompileAction,
                                                          types::TY_SPIRV);
-              break;
+              continue;
             }
           }
           A = C.MakeAction<CompileJobAction>(A, OutputType);
