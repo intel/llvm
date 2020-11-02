@@ -16,7 +16,11 @@ namespace sycl {
 namespace detail {
 void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
                   void *HostPtr, RT::PiEvent &OutEventToWait) {
-  // Assume a read-write pointer unless reusing a user pointer.
+  // The host pointer for the allocation can be provided in 2 ways:
+  // 1. Initialize the allocation from user data. Check if the user pointer is
+  // read-only.
+  // 2. Use a HostPtr allocated by the runtime. Assume any such pointer to be
+  // read-write.
   bool HostPtrReadOnly = false;
   if (InitFromUserData) {
     assert(!HostPtr && "Cannot init from user data and reuse host ptr provided "
