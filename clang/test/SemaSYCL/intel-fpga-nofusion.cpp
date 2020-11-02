@@ -6,28 +6,25 @@ void foo() {
 
   // CHECK: AttributedStmt
   // CHECK-NEXT: SYCLIntelFPGANofusionAttr {{.*}}
-  [[intel::nofusion]]
-  for (int p = 0; p < 10; ++p) {
+  [[intel::nofusion]] for (int p = 0; p < 10; ++p) {
     a1[p] = a2[p] = 0;
   }
 
   // CHECK: AttributedStmt
   // CHECK-NEXT: SYCLIntelFPGANofusionAttr {{.*}}
-  int i=0; 
-  [[intel::nofusion]]
-  do {
+  int i = 0; 
+  [[intel::nofusion]] do {
     a1[i] += 4;
-  } while (i < 10);
+  } 
+  while (i < 10);
 
   // CHECK: AttributedStmt
   // CHECK-NEXT: SYCLIntelFPGANofusionAttr {{.*}}
-  [[intel::nofusion]]
-  for (int i = 0; i < 10; ++i) {
+  [[intel::nofusion]] for (int i = 0; i < 10; ++i) {
     for (int j = 0; j < 10; ++j) {
       a1[i] += a1[j];
     }
   }
-
 }
 
 template <typename name, typename Func>
@@ -41,4 +38,3 @@ int main() {
   });
   return 0;
 }
-

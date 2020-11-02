@@ -638,7 +638,7 @@ void LoopAttributes::clear() {
   DistributeEnable = LoopAttributes::Unspecified;
   PipelineDisabled = false;
   PipelineInitiationInterval = 0;
-  SYCLNofusionEnable =  false;
+  SYCLNofusionEnable = false;
 }
 
 LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
@@ -664,7 +664,6 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       Attrs.SYCLMaxInterleavingNInvocations == 0 &&
       Attrs.SYCLSpeculatedIterationsEnable == false &&
       Attrs.SYCLSpeculatedIterationsNIterations == 0 &&
-      Attrs.SYCLNofusionEnable == false &&
       Attrs.UnrollCount == 0 && Attrs.UnrollAndJamCount == 0 &&
       !Attrs.PipelineDisabled && Attrs.PipelineInitiationInterval == 0 &&
       Attrs.VectorizePredicateEnable == LoopAttributes::Unspecified &&
@@ -672,6 +671,7 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       Attrs.UnrollEnable == LoopAttributes::Unspecified &&
       Attrs.UnrollAndJamEnable == LoopAttributes::Unspecified &&
       Attrs.DistributeEnable == LoopAttributes::Unspecified && !StartLoc &&
+      Attrs.SYCLNofusionEnable == false &&
       !EndLoc)
     return;
 
@@ -998,12 +998,12 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
     const SYCLIntelFPGASpeculatedIterationsAttr *IntelFPGASpeculatedIterations =
         dyn_cast<SYCLIntelFPGASpeculatedIterationsAttr>(Attr);
     const SYCLIntelFPGANofusionAttr *IntelFPGANofusion =
-      dyn_cast<SYCLIntelFPGANofusionAttr>(Attr);
+        dyn_cast<SYCLIntelFPGANofusionAttr>(Attr);
 
     if (!IntelFPGAIVDep && !IntelFPGAII && !IntelFPGAMaxConcurrency &&
         !IntelFPGALoopCoalesce && !IntelFPGADisableLoopPipelining &&
         !IntelFPGAMaxInterleaving && !IntelFPGASpeculatedIterations &&
-	!IntelFPGANofusion)
+        !IntelFPGANofusion)
       continue;
 
     if (IntelFPGAIVDep)
@@ -1052,7 +1052,6 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
     if (IntelFPGANofusion) {
       setSYCLNofusionEnable();
     }
-
   }
 
   if (CGOpts.OptimizationLevel > 0)

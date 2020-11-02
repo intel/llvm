@@ -409,9 +409,8 @@ public:
   }
 
   /// Set flag of nofusion for the next loop pushed.
-  void setSYCLNofusionEnable() {
-    StagedAttrs.SYCLNofusionEnable = true;
-  }
+  void setSYCLNofusionEnable() { StagedAttrs.SYCLNofusionEnable = true; }
+
 private:
   /// Returns true if there is LoopInfo on the stack.
   bool hasInfo() const { return !Active.empty(); }

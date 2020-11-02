@@ -11,41 +11,35 @@ void nofusion() {
   int a[10];
 
   int i = 0;
-  [[intel::nofusion]]
-  while (i < 10) {
+  [[intel::nofusion]] while (i < 10) {
     a[i] += 7;
   }
 
   for (int i = 0; i < 10; ++i) {
-    [[intel::nofusion]]
-    for (int j = 0; j < 10; ++j) {
+    [[intel::nofusion]] for (int j = 0; j < 10; ++j) {
       a[i] += a[j];
     }
   }
 
-  [[intel::nofusion]]
-  do {
+  [[intel::nofusion]] do {
     a[i] += 4;
-  } while (i < 10);
+  } 
+  while (i < 10);
 
-  [[intel::nofusion]]
-  for (int i = 0; i < 10; ++i) {
+  [[intel::nofusion]] for (int i = 0; i < 10; ++i) {
     for (int j = 0; j < 10; ++j) {
       a[i] += a[j];
     }
   }
   
-  int k=0;
-  [[intel::nofusion]]
-  for (auto k: a) {
+  int k = 0;
+  [[intel::nofusion]] for (auto k: a) {
     k += 2;
   }
 
-  [[intel::nofusion]]
-  for (int i = 0; i < 10; ++i) {
+  [[intel::nofusion]] for (int i = 0; i < 10; ++i) {
     a[i] += 3;
   }
-
 }
 
 template <typename name, typename Func>
