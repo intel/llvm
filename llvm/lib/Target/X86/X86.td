@@ -291,6 +291,8 @@ def FeatureSERIALIZE : SubtargetFeature<"serialize", "HasSERIALIZE", "true",
                                         "Has serialize instruction">;
 def FeatureTSXLDTRK : SubtargetFeature<"tsxldtrk", "HasTSXLDTRK", "true",
                                        "Support TSXLDTRK instructions">;
+def FeatureUINTR : SubtargetFeature<"uintr", "HasUINTR", "true",
+                                    "Has UINTR Instructions">;
 // On some processors, instructions that implicitly take two memory operands are
 // slow. In practice, this means that CALL, PUSH, and POP with memory operands
 // should be avoided in favor of a MOV + register CALL/PUSH/POP.
@@ -772,10 +774,21 @@ def ProcessorFeatures {
                                                   FeatureSHSTK,
                                                   FeatureVP2INTERSECT,
                                                   FeatureMOVDIRI,
-                                                  FeatureMOVDIR64B];
+                                                  FeatureMOVDIR64B,
+                                                  FeatureUINTR];
   list<SubtargetFeature> SPRTuning = ICXTuning;
   list<SubtargetFeature> SPRFeatures =
     !listconcat(ICXFeatures, SPRAdditionalFeatures);
+
+  // Alderlake
+  list<SubtargetFeature> ADLAdditionalFeatures = [FeatureCLDEMOTE,
+                                                  FeatureHRESET,
+                                                  FeaturePTWRITE,
+                                                  FeatureSERIALIZE,
+                                                  FeatureWAITPKG];
+  list<SubtargetFeature> ADLTuning = SKLTuning;
+  list<SubtargetFeature> ADLFeatures =
+    !listconcat(SKLFeatures, ADLAdditionalFeatures);
 
   // Atom
   list<SubtargetFeature> AtomFeatures = [FeatureX87,
@@ -1053,6 +1066,13 @@ def ProcessorFeatures {
   list<SubtargetFeature> ZN2Tuning = ZNTuning;
   list<SubtargetFeature> ZN2Features =
     !listconcat(ZNFeatures, ZN2AdditionalFeatures);
+  list<SubtargetFeature> ZN3AdditionalFeatures = [FeatureINVPCID,
+                                                  FeaturePKU,
+                                                  FeatureVAES,
+                                                  FeatureVPCLMULQDQ];
+  list<SubtargetFeature> ZN3Tuning = ZNTuning;
+  list<SubtargetFeature> ZN3Features =
+    !listconcat(ZN2Features, ZN3AdditionalFeatures);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1271,6 +1291,8 @@ def : ProcModel<"tigerlake", SkylakeServerModel,
                 ProcessorFeatures.TGLFeatures, ProcessorFeatures.TGLTuning>;
 def : ProcModel<"sapphirerapids", SkylakeServerModel,
                 ProcessorFeatures.SPRFeatures, ProcessorFeatures.SPRTuning>;
+def : ProcModel<"alderlake", SkylakeClientModel,
+                ProcessorFeatures.ADLFeatures, ProcessorFeatures.ADLTuning>;
 
 // AMD CPUs.
 
@@ -1337,6 +1359,8 @@ def : ProcModel<"znver1", Znver1Model, ProcessorFeatures.ZNFeatures,
                 ProcessorFeatures.ZNTuning>;
 def : ProcModel<"znver2", Znver2Model, ProcessorFeatures.ZN2Features,
                 ProcessorFeatures.ZN2Tuning>;
+def : ProcModel<"znver3", Znver2Model, ProcessorFeatures.ZN3Features,
+                ProcessorFeatures.ZN3Tuning>;
 
 def : Proc<"geode",           [FeatureX87, FeatureCMPXCHG8B, Feature3DNowA],
                               [FeatureSlowUAMem16, FeatureInsertVZEROUPPER]>;

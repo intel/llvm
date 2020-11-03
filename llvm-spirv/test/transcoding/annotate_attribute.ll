@@ -70,16 +70,16 @@ entry:
   %0 = bitcast i32* %var_one to i8*
   call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #4
   %var_one1 = bitcast i32* %var_one to i8*
-  ; CHECK-LLVM: call void @llvm.var.annotation(i8* %[[VAR1:[a-zA-Z0-9_]+]], i8* getelementptr inbounds ([3 x i8], [3 x i8]* [[STR]], i32 0, i32 0), i8* undef, i32 undef)
-  call void @llvm.var.annotation(i8* %var_one1, i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 2)
+  ; CHECK-LLVM: call void @llvm.var.annotation(i8* %[[VAR1:[a-zA-Z0-9_]+]], i8* getelementptr inbounds ([3 x i8], [3 x i8]* [[STR]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
+  call void @llvm.var.annotation(i8* %var_one1, i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 2, i8* undef)
   %1 = bitcast i32* %var_two to i8*
   call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #4
   %var_two2 = bitcast i32* %var_two to i8*
-  ; CHECK-LLVM: call void @llvm.var.annotation(i8* %[[VAR2:[a-zA-Z0-9_]+]], i8* getelementptr inbounds ([6 x i8], [6 x i8]* [[STR2]], i32 0, i32 0), i8* undef, i32 undef)
-  call void @llvm.var.annotation(i8* %var_two2, i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str.2, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 3)
+  ; CHECK-LLVM: call void @llvm.var.annotation(i8* %[[VAR2:[a-zA-Z0-9_]+]], i8* getelementptr inbounds ([6 x i8], [6 x i8]* [[STR2]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
+  call void @llvm.var.annotation(i8* %var_two2, i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str.2, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 3, i8* undef)
   call void @llvm.lifetime.start.p0i8(i64 1, i8* %var_three) #4
-  ; CHECK-LLVM: call void @llvm.var.annotation(i8* %[[VAR3:[a-zA-Z0-9_]+]], i8* getelementptr inbounds ([4 x i8], [4 x i8]* [[STR3]], i32 0, i32 0), i8* undef, i32 undef)
-  call void @llvm.var.annotation(i8* %var_three, i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str.3, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 4)
+  ; CHECK-LLVM: call void @llvm.var.annotation(i8* %[[VAR3:[a-zA-Z0-9_]+]], i8* getelementptr inbounds ([4 x i8], [4 x i8]* [[STR3]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
+  call void @llvm.var.annotation(i8* %var_three, i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str.3, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 4, i8* undef)
   call void @llvm.lifetime.end.p0i8(i64 1, i8* %var_three) #4
   %2 = bitcast i32* %var_two to i8*
   call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #4
@@ -89,7 +89,7 @@ entry:
 }
 
 ; Function Attrs: nounwind
-declare void @llvm.var.annotation(i8*, i8*, i8*, i32) #4
+declare void @llvm.var.annotation(i8*, i8*, i8*, i32, i8*) #4
 
 ; Function Attrs: nounwind
 define spir_func void @_Z3bazv() #3 {
@@ -100,19 +100,19 @@ entry:
   ; CHECK-LLVM: %[[FIELD1:.*]] = getelementptr inbounds %struct.bar, %struct.bar* %{{[a-zA-Z0-9]+}}, i32 0, i32 0
   ; CHECK-LLVM: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FIELD1]]{{.*}}[[STR4]]
   %f1 = getelementptr inbounds %struct.bar, %struct.bar* %s1, i32 0, i32 0
-  %1 = call i32* @llvm.ptr.annotation.p0i32(i32* %f1, i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str.4, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 8)
+  %1 = call i32* @llvm.ptr.annotation.p0i32(i32* %f1, i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str.4, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 8, i8* undef)
   store i32 0, i32* %1, align 4, !tbaa !9
   ; CHECK-LLVM: %[[FIELD2:.*]] = getelementptr inbounds %struct.bar, %struct.bar* %{{[a-zA-Z0-9]+}}, i32 0, i32 1
   ; CHECK-LLVM: call i8* @llvm.ptr.annotation.p0i8{{.*}}%[[FIELD2]]{{.*}}[[STR5]]
   %f2 = getelementptr inbounds %struct.bar, %struct.bar* %s1, i32 0, i32 1
-  %2 = call i8* @llvm.ptr.annotation.p0i8(i8* %f2, i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str.5, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 9)
+  %2 = call i8* @llvm.ptr.annotation.p0i8(i8* %f2, i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str.5, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 9, i8* undef)
   store i8 0, i8* %2, align 4, !tbaa !13
   ; CHECK-LLVM: %[[FIELD3:.*]] = getelementptr inbounds %struct.bar, %struct.bar* %{{[a-zA-Z0-9]+}}, i32 0, i32 2
   ; CHECK-LLVM: %[[CAST3:.*]] = bitcast{{.*}}%[[FIELD3]]
   ; CHECK-LLVM: call i8* @llvm.ptr.annotation.p0i8{{.*}}%[[CAST3]]{{.*}}[[STR6]]
   %f3 = getelementptr inbounds %struct.bar, %struct.bar* %s1, i32 0, i32 2
   %3 = bitcast float* %f3 to i8*
-  %4 = call i8* @llvm.ptr.annotation.p0i8(i8* %3, i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str.6, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 9)
+  %4 = call i8* @llvm.ptr.annotation.p0i8(i8* %3, i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str.6, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 9, i8* undef)
   %5 = bitcast i8* %4 to float*
   store float 0.000000e+00, float* %5, align 4, !tbaa !14
   %6 = bitcast %struct.bar* %s1 to i8*
@@ -121,10 +121,10 @@ entry:
 }
 
 ; Function Attrs: nounwind
-declare i8* @llvm.ptr.annotation.p0i8(i8*, i8*, i8*, i32) #4
+declare i8* @llvm.ptr.annotation.p0i8(i8*, i8*, i8*, i32, i8*) #4
 
 ; Function Attrs: nounwind
-declare i32* @llvm.ptr.annotation.p0i32(i32*, i8*, i8*, i32) #4
+declare i32* @llvm.ptr.annotation.p0i32(i32*, i8*, i8*, i32, i8*) #4
 
 attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind }

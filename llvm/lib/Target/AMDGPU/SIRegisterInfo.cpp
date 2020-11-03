@@ -98,9 +98,10 @@ SIRegisterInfo::SIRegisterInfo(const GCNSubtarget &ST)
       Width = SubRegFromChannelTableWidthMap[Width];
       if (Width == 0)
         continue;
-      assert((Width - 1) < SubRegFromChannelTable.size());
-      assert(Offset < SubRegFromChannelTable[Width].size());
-      SubRegFromChannelTable[Width - 1][Offset] = Idx;
+      unsigned TableIdx = Width - 1;
+      assert(TableIdx < SubRegFromChannelTable.size());
+      assert(Offset < SubRegFromChannelTable[TableIdx].size());
+      SubRegFromChannelTable[TableIdx][Offset] = Idx;
     }
   };
 
@@ -149,6 +150,10 @@ const uint32_t *SIRegisterInfo::getCallPreservedMask(const MachineFunction &MF,
   default:
     return nullptr;
   }
+}
+
+const uint32_t *SIRegisterInfo::getNoPreservedMask() const {
+  return CSR_AMDGPU_NoRegs_RegMask;
 }
 
 Register SIRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
@@ -332,9 +337,8 @@ BitVector SIRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   for (MCPhysReg Reg : MFI->getVGPRSpillAGPRs())
     reserveRegisterTuples(Reserved, Reg);
 
-  if (MFI->VGPRReservedForSGPRSpill)
-    for (auto SSpill : MFI->getSGPRSpillVGPRs())
-      reserveRegisterTuples(Reserved, SSpill.VGPR);
+  for (auto SSpill : MFI->getSGPRSpillVGPRs())
+    reserveRegisterTuples(Reserved, SSpill.VGPR);
 
   return Reserved;
 }
@@ -474,9 +478,10 @@ void SIRegisterInfo::resolveFrameIndex(MachineInstr &MI, Register BaseReg,
   assert(TII->isMUBUF(MI));
 
   MachineOperand *SOffset = TII->getNamedOperand(MI, AMDGPU::OpName::soffset);
-  assert(SOffset->getReg() ==
-             MF->getInfo<SIMachineFunctionInfo>()->getStackPtrOffsetReg() &&
-         "should only be seeing stack pointer offset relative FrameIndex");
+  assert((SOffset->isReg() &&
+          SOffset->getReg() ==
+              MF->getInfo<SIMachineFunctionInfo>()->getStackPtrOffsetReg()) ||
+         (SOffset->isImm() && SOffset->getImm() == 0));
 
   MachineOperand *OffsetOp = TII->getNamedOperand(MI, AMDGPU::OpName::offset);
   int64_t NewOffset = OffsetOp->getImm() + Offset;
@@ -485,10 +490,6 @@ void SIRegisterInfo::resolveFrameIndex(MachineInstr &MI, Register BaseReg,
 
   FIOp->ChangeToRegister(BaseReg, false);
   OffsetOp->setImm(NewOffset);
-
-  // The move materializing the base address will be an absolute stack address,
-  // so clear the base offset.
-  SOffset->ChangeToImmediate(0);
 }
 
 bool SIRegisterInfo::isFrameOffsetLegal(const MachineInstr *MI,
@@ -1451,6 +1452,8 @@ void SIRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
           } else {
             SOffset.setReg(FrameReg);
           }
+        } else if (SOffset.isImm() && FrameReg != AMDGPU::NoRegister) {
+          SOffset.ChangeToRegister(FrameReg, false);
         }
 
         int64_t Offset = FrameInfo.getObjectOffset(Index);

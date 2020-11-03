@@ -79,9 +79,6 @@ public:
     return LibDeviceMap.lookup(Gpu);
   }
   void WarnIfUnsupportedVersion();
-
-private:
-  void ParseCudaVersionFile(llvm::StringRef V);
 };
 
 namespace tools {

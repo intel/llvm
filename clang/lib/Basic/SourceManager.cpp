@@ -155,7 +155,7 @@ ContentCache::getBufferOrNone(DiagnosticsEngine &Diag, FileManager &FM,
 
   // Check that the file's size is the same as in the file entry (which may
   // have come from a stat cache).
-  if (getRawBuffer()->getBufferSize() != (size_t)ContentsEntry->getSize()) {
+  if (Buffer->getBufferSize() != (size_t)ContentsEntry->getSize()) {
     if (Diag.isDiagnosticInFlight())
       Diag.SetDelayedDiagnostic(diag::err_file_modified,
                                 ContentsEntry->getName());
@@ -345,12 +345,11 @@ void SourceManager::clearIDTables() {
   createExpansionLoc(SourceLocation(), SourceLocation(), SourceLocation(), 1);
 }
 
-bool SourceManager::isMainFile(FileEntryRef SourceFile) {
+bool SourceManager::isMainFile(const FileEntry &SourceFile) {
   assert(MainFileID.isValid() && "expected initialized SourceManager");
-  auto FE = getFileEntryRefForID(MainFileID);
-  if (!FE)
-    return false;
-  return FE->getUID() == SourceFile.getUID();
+  if (auto *FE = getFileEntryForID(MainFileID))
+    return FE->getUID() == SourceFile.getUID();
+  return false;
 }
 
 void SourceManager::initializeForReplay(const SourceManager &Old) {
@@ -363,7 +362,7 @@ void SourceManager::initializeForReplay(const SourceManager &Old) {
     Clone->BufferOverridden = Cache->BufferOverridden;
     Clone->IsFileVolatile = Cache->IsFileVolatile;
     Clone->IsTransient = Cache->IsTransient;
-    Clone->setUnownedBuffer(Cache->getRawBuffer());
+    Clone->setUnownedBuffer(Cache->getBufferIfLoaded());
     return Clone;
   };
 
@@ -438,7 +437,7 @@ const SrcMgr::SLocEntry &SourceManager::loadSLocEntry(unsigned Index,
     if (!SLocEntryLoaded[Index]) {
       // Try to recover; create a SLocEntry so the rest of clang can handle it.
       LoadedSLocEntryTable[Index] = SLocEntry::get(
-          0, FileInfo::get(SourceLocation(), getFakeContentCacheForRecovery(),
+          0, FileInfo::get(SourceLocation(), *getFakeContentCacheForRecovery(),
                            SrcMgr::C_User, ""));
     }
   }
@@ -476,7 +475,8 @@ const SrcMgr::ContentCache *
 SourceManager::getFakeContentCacheForRecovery() const {
   if (!FakeContentCacheForRecovery) {
     FakeContentCacheForRecovery = std::make_unique<SrcMgr::ContentCache>();
-    FakeContentCacheForRecovery->setUnownedBuffer(getFakeBufferForRecovery());
+    FakeContentCacheForRecovery->setUnownedBuffer(
+        getFakeBufferForRecovery()->getMemBufferRef());
   }
   return FakeContentCacheForRecovery.get();
 }
@@ -534,7 +534,7 @@ FileID SourceManager::createFileID(const FileEntry *SourceFile,
   const SrcMgr::ContentCache *IR =
       getOrCreateContentCache(SourceFile, isSystem(FileCharacter));
   assert(IR && "getOrCreateContentCache() cannot return NULL");
-  return createFileID(IR, SourceFile->getName(), IncludePos, FileCharacter,
+  return createFileIDImpl(*IR, SourceFile->getName(), IncludePos, FileCharacter,
 		      LoadedID, LoadedOffset);
 }
 
@@ -545,8 +545,8 @@ FileID SourceManager::createFileID(FileEntryRef SourceFile,
   const SrcMgr::ContentCache *IR = getOrCreateContentCache(
       &SourceFile.getFileEntry(), isSystem(FileCharacter));
   assert(IR && "getOrCreateContentCache() cannot return NULL");
-  return createFileID(IR, SourceFile.getName(), IncludePos, FileCharacter,
-		      LoadedID, LoadedOffset);
+  return createFileIDImpl(*IR, SourceFile.getName(), IncludePos, FileCharacter,
+                          LoadedID, LoadedOffset);
 }
 
 /// Create a new FileID that represents the specified memory buffer.
@@ -558,8 +558,8 @@ FileID SourceManager::createFileID(std::unique_ptr<llvm::MemoryBuffer> Buffer,
                                    int LoadedID, unsigned LoadedOffset,
                                    SourceLocation IncludeLoc) {
   StringRef Name = Buffer->getBufferIdentifier();
-  return createFileID(createMemBufferContentCache(std::move(Buffer)), Name,
-                      IncludeLoc, FileCharacter, LoadedID, LoadedOffset);
+  return createFileIDImpl(*createMemBufferContentCache(std::move(Buffer)), Name,
+                          IncludeLoc, FileCharacter, LoadedID, LoadedOffset);
 }
 
 /// Create a new FileID that represents the specified memory buffer.
@@ -587,10 +587,11 @@ SourceManager::getOrCreateFileID(const FileEntry *SourceFile,
 /// createFileID - Create a new FileID for the specified ContentCache and
 /// include position.  This works regardless of whether the ContentCache
 /// corresponds to a file or some other input source.
-FileID SourceManager::createFileID(const ContentCache *File, StringRef Filename,
-                                   SourceLocation IncludePos,
-                                   SrcMgr::CharacteristicKind FileCharacter,
-                                   int LoadedID, unsigned LoadedOffset) {
+FileID SourceManager::createFileIDImpl(const ContentCache &File,
+                                       StringRef Filename,
+                                       SourceLocation IncludePos,
+                                       SrcMgr::CharacteristicKind FileCharacter,
+                                       int LoadedID, unsigned LoadedOffset) {
   if (LoadedID < 0) {
     assert(LoadedID != -1 && "Loading sentinel FileID");
     unsigned Index = unsigned(-LoadedID) - 2;
@@ -601,7 +602,7 @@ FileID SourceManager::createFileID(const ContentCache *File, StringRef Filename,
     SLocEntryLoaded[Index] = true;
     return FileID::get(LoadedID);
   }
-  unsigned FileSize = File->getSize();
+  unsigned FileSize = File.getSize();
   if (!(NextLocalOffset + FileSize + 1 > NextLocalOffset &&
         NextLocalOffset + FileSize + 1 <= CurrentLoadedOffset)) {
     Diag.Report(IncludePos, diag::err_include_too_large);
@@ -725,16 +726,12 @@ void SourceManager::setFileIsTransient(const FileEntry *File) {
   const_cast<SrcMgr::ContentCache *>(CC)->IsTransient = true;
 }
 
-Optional<FileEntryRef> SourceManager::getFileEntryRefForID(FileID FID) const {
-  bool Invalid = false;
-  const SrcMgr::SLocEntry &Entry = getSLocEntry(FID, &Invalid);
-  if (Invalid || !Entry.isFile())
-    return None;
-
-  const SrcMgr::ContentCache *Content = Entry.getFile().getContentCache();
-  if (!Content || !Content->OrigEntry)
-    return None;
-  return FileEntryRef(Entry.getFile().getName(), *Content->OrigEntry);
+Optional<StringRef>
+SourceManager::getNonBuiltinFilenameForID(FileID FID) const {
+  if (const SrcMgr::SLocEntry *Entry = getSLocEntryForFile(FID))
+    if (Entry->getFile().getContentCache().OrigEntry)
+      return Entry->getFile().getName();
+  return None;
 }
 
 StringRef SourceManager::getBufferData(FileID FID, bool *Invalid) const {
@@ -746,26 +743,16 @@ StringRef SourceManager::getBufferData(FileID FID, bool *Invalid) const {
 
 llvm::Optional<StringRef>
 SourceManager::getBufferDataIfLoaded(FileID FID) const {
-  bool MyInvalid = false;
-  const SLocEntry &SLoc = getSLocEntry(FID, &MyInvalid);
-  if (!SLoc.isFile() || MyInvalid)
-    return None;
-
-  if (const llvm::MemoryBuffer *Buf =
-          SLoc.getFile().getContentCache()->getRawBuffer())
-    return Buf->getBuffer();
+  if (const SrcMgr::SLocEntry *Entry = getSLocEntryForFile(FID))
+    return Entry->getFile().getContentCache().getBufferDataIfLoaded();
   return None;
 }
 
 llvm::Optional<StringRef> SourceManager::getBufferDataOrNone(FileID FID) const {
-  bool MyInvalid = false;
-  const SLocEntry &SLoc = getSLocEntry(FID, &MyInvalid);
-  if (!SLoc.isFile() || MyInvalid)
-    return None;
-
-  if (auto B = SLoc.getFile().getContentCache()->getBufferOrNone(
-          Diag, getFileManager(), SourceLocation()))
-    return B->getBuffer();
+  if (const SrcMgr::SLocEntry *Entry = getSLocEntryForFile(FID))
+    if (auto B = Entry->getFile().getContentCache().getBufferOrNone(
+            Diag, getFileManager(), SourceLocation()))
+      return B->getBuffer();
   return None;
 }
 
@@ -1184,8 +1171,8 @@ const char *SourceManager::getCharacterData(SourceLocation SL,
     return "<<<<INVALID BUFFER>>>>";
   }
   llvm::Optional<llvm::MemoryBufferRef> Buffer =
-      Entry.getFile().getContentCache()->getBufferOrNone(Diag, getFileManager(),
-                                                         SourceLocation());
+      Entry.getFile().getContentCache().getBufferOrNone(Diag, getFileManager(),
+                                                        SourceLocation());
   if (Invalid)
     *Invalid = !Buffer;
   return Buffer ? Buffer->getBufferStart() + LocInfo.second
@@ -1213,10 +1200,10 @@ unsigned SourceManager::getColumnNumber(FileID FID, unsigned FilePos,
   const char *Buf = MemBuf->getBufferStart();
   // See if we just calculated the line number for this FilePos and can use
   // that to lookup the start of the line instead of searching for it.
-  if (LastLineNoFileIDQuery == FID &&
-      LastLineNoContentCache->SourceLineCache != nullptr &&
-      LastLineNoResult < LastLineNoContentCache->NumLines) {
-    unsigned *SourceLineCache = LastLineNoContentCache->SourceLineCache;
+  if (LastLineNoFileIDQuery == FID && LastLineNoContentCache->SourceLineCache &&
+      LastLineNoResult < LastLineNoContentCache->SourceLineCache.size()) {
+    const unsigned *SourceLineCache =
+        LastLineNoContentCache->SourceLineCache.begin();
     unsigned LineStart = SourceLineCache[LastLineNoResult - 1];
     unsigned LineEnd = SourceLineCache[LastLineNoResult];
     if (FilePos >= LineStart && FilePos < LineEnd) {
@@ -1273,20 +1260,8 @@ unsigned SourceManager::getPresumedColumnNumber(SourceLocation Loc,
 #include <emmintrin.h>
 #endif
 
-static LLVM_ATTRIBUTE_NOINLINE void
-ComputeLineNumbers(DiagnosticsEngine &Diag, ContentCache *FI,
-                   llvm::BumpPtrAllocator &Alloc,
-                   const SourceManager &SM, bool &Invalid);
-static void ComputeLineNumbers(DiagnosticsEngine &Diag, ContentCache *FI,
-                               llvm::BumpPtrAllocator &Alloc,
-                               const SourceManager &SM, bool &Invalid) {
-  // Note that calling 'getBuffer()' may lazily page in the file.
-  llvm::Optional<llvm::MemoryBufferRef> Buffer =
-      FI->getBufferOrNone(Diag, SM.getFileManager(), SourceLocation());
-  Invalid = !Buffer;
-  if (Invalid)
-    return;
-
+LineOffsetMapping LineOffsetMapping::get(llvm::MemoryBufferRef Buffer,
+                                         llvm::BumpPtrAllocator &Alloc) {
   // Find the file offsets of all of the *physical* source lines.  This does
   // not look at trigraphs, escaped newlines, or anything else tricky.
   SmallVector<unsigned, 256> LineOffsets;
@@ -1294,8 +1269,8 @@ static void ComputeLineNumbers(DiagnosticsEngine &Diag, ContentCache *FI,
   // Line #1 starts at char 0.
   LineOffsets.push_back(0);
 
-  const unsigned char *Buf = (const unsigned char *)Buffer->getBufferStart();
-  const unsigned char *End = (const unsigned char *)Buffer->getBufferEnd();
+  const unsigned char *Buf = (const unsigned char *)Buffer.getBufferStart();
+  const unsigned char *End = (const unsigned char *)Buffer.getBufferEnd();
   const std::size_t BufLen = End - Buf;
   unsigned I = 0;
   while (I < BufLen) {
@@ -1310,10 +1285,14 @@ static void ComputeLineNumbers(DiagnosticsEngine &Diag, ContentCache *FI,
     ++I;
   }
 
-  // Copy the offsets into the FileInfo structure.
-  FI->NumLines = LineOffsets.size();
-  FI->SourceLineCache = Alloc.Allocate<unsigned>(LineOffsets.size());
-  std::copy(LineOffsets.begin(), LineOffsets.end(), FI->SourceLineCache);
+  return LineOffsetMapping(LineOffsets, Alloc);
+}
+
+LineOffsetMapping::LineOffsetMapping(ArrayRef<unsigned> LineOffsets,
+                                     llvm::BumpPtrAllocator &Alloc)
+    : Storage(Alloc.Allocate<unsigned>(LineOffsets.size() + 1)) {
+  Storage[0] = LineOffsets.size();
+  std::copy(LineOffsets.begin(), LineOffsets.end(), Storage + 1);
 }
 
 /// getLineNumber - Given a SourceLocation, return the spelling line number
@@ -1328,7 +1307,7 @@ unsigned SourceManager::getLineNumber(FileID FID, unsigned FilePos,
     return 1;
   }
 
-  ContentCache *Content;
+  const ContentCache *Content;
   if (LastLineNoFileIDQuery == FID)
     Content = LastLineNoContentCache;
   else {
@@ -1340,26 +1319,29 @@ unsigned SourceManager::getLineNumber(FileID FID, unsigned FilePos,
       return 1;
     }
 
-    Content = const_cast<ContentCache*>(Entry.getFile().getContentCache());
+    Content = &Entry.getFile().getContentCache();
   }
 
   // If this is the first use of line information for this buffer, compute the
   /// SourceLineCache for it on demand.
   if (!Content->SourceLineCache) {
-    bool MyInvalid = false;
-    ComputeLineNumbers(Diag, Content, ContentCacheAlloc, *this, MyInvalid);
+    llvm::Optional<llvm::MemoryBufferRef> Buffer =
+        Content->getBufferOrNone(Diag, getFileManager(), SourceLocation());
     if (Invalid)
-      *Invalid = MyInvalid;
-    if (MyInvalid)
+      *Invalid = !Buffer;
+    if (!Buffer)
       return 1;
+
+    Content->SourceLineCache =
+        LineOffsetMapping::get(*Buffer, ContentCacheAlloc);
   } else if (Invalid)
     *Invalid = false;
 
   // Okay, we know we have a line number table.  Do a binary search to find the
   // line number that this character position lands on.
-  unsigned *SourceLineCache = Content->SourceLineCache;
-  unsigned *SourceLineCacheStart = SourceLineCache;
-  unsigned *SourceLineCacheEnd = SourceLineCache + Content->NumLines;
+  const unsigned *SourceLineCache = Content->SourceLineCache.begin();
+  const unsigned *SourceLineCacheStart = SourceLineCache;
+  const unsigned *SourceLineCacheEnd = Content->SourceLineCache.end();
 
   unsigned QueriedFilePos = FilePos+1;
 
@@ -1398,13 +1380,13 @@ unsigned SourceManager::getLineNumber(FileID FID, unsigned FilePos,
         }
       }
     } else {
-      if (LastLineNoResult < Content->NumLines)
+      if (LastLineNoResult < Content->SourceLineCache.size())
         SourceLineCacheEnd = SourceLineCache+LastLineNoResult+1;
     }
   }
 
-  unsigned *Pos
-    = std::lower_bound(SourceLineCache, SourceLineCacheEnd, QueriedFilePos);
+  const unsigned *Pos =
+      std::lower_bound(SourceLineCache, SourceLineCacheEnd, QueriedFilePos);
   unsigned LineNo = Pos-SourceLineCacheStart;
 
   LastLineNoFileIDQuery = FID;
@@ -1445,12 +1427,11 @@ SrcMgr::CharacteristicKind
 SourceManager::getFileCharacteristic(SourceLocation Loc) const {
   assert(Loc.isValid() && "Can't get file characteristic of invalid loc!");
   std::pair<FileID, unsigned> LocInfo = getDecomposedExpansionLoc(Loc);
-  bool Invalid = false;
-  const SLocEntry &SEntry = getSLocEntry(LocInfo.first, &Invalid);
-  if (Invalid || !SEntry.isFile())
+  const SLocEntry *SEntry = getSLocEntryForFile(LocInfo.first);
+  if (!SEntry)
     return C_User;
 
-  const SrcMgr::FileInfo &FI = SEntry.getFile();
+  const SrcMgr::FileInfo &FI = SEntry->getFile();
 
   // If there are no #line directives in this file, just return the whole-file
   // state.
@@ -1502,7 +1483,7 @@ PresumedLoc SourceManager::getPresumedLoc(SourceLocation Loc,
     return PresumedLoc();
 
   const SrcMgr::FileInfo &FI = Entry.getFile();
-  const SrcMgr::ContentCache *C = FI.getContentCache();
+  const SrcMgr::ContentCache *C = &FI.getContentCache();
 
   // To get the source name, first consult the FileEntry (if one exists)
   // before the MemBuffer as this will avoid unnecessarily paging in the
@@ -1571,12 +1552,11 @@ bool SourceManager::isInMainFile(SourceLocation Loc) const {
   // Presumed locations are always for expansion points.
   std::pair<FileID, unsigned> LocInfo = getDecomposedExpansionLoc(Loc);
 
-  bool Invalid = false;
-  const SLocEntry &Entry = getSLocEntry(LocInfo.first, &Invalid);
-  if (Invalid || !Entry.isFile())
+  const SLocEntry *Entry = getSLocEntryForFile(LocInfo.first);
+  if (!Entry)
     return false;
 
-  const SrcMgr::FileInfo &FI = Entry.getFile();
+  const SrcMgr::FileInfo &FI = Entry->getFile();
 
   // Check if there is a line directive for this location.
   if (FI.hasLineDirectives())
@@ -1641,9 +1621,7 @@ FileID SourceManager::translateFile(const FileEntry *SourceFile) const {
       return FileID();
 
     if (MainSLoc.isFile()) {
-      const ContentCache *MainContentCache =
-          MainSLoc.getFile().getContentCache();
-      if (MainContentCache && MainContentCache->OrigEntry == SourceFile)
+      if (MainSLoc.getFile().getContentCache().OrigEntry == SourceFile)
         return MainFileID;
     }
   }
@@ -1652,16 +1630,16 @@ FileID SourceManager::translateFile(const FileEntry *SourceFile) const {
   // through all of the local source locations.
   for (unsigned I = 0, N = local_sloc_entry_size(); I != N; ++I) {
     const SLocEntry &SLoc = getLocalSLocEntry(I);
-    if (SLoc.isFile() && SLoc.getFile().getContentCache() &&
-        SLoc.getFile().getContentCache()->OrigEntry == SourceFile)
+    if (SLoc.isFile() &&
+        SLoc.getFile().getContentCache().OrigEntry == SourceFile)
       return FileID::get(I);
   }
 
   // If that still didn't help, try the modules.
   for (unsigned I = 0, N = loaded_sloc_entry_size(); I != N; ++I) {
     const SLocEntry &SLoc = getLoadedSLocEntry(I);
-    if (SLoc.isFile() && SLoc.getFile().getContentCache() &&
-        SLoc.getFile().getContentCache()->OrigEntry == SourceFile)
+    if (SLoc.isFile() &&
+        SLoc.getFile().getContentCache().OrigEntry == SourceFile)
       return FileID::get(-int(I) - 2);
   }
 
@@ -1693,26 +1671,19 @@ SourceLocation SourceManager::translateLineCol(FileID FID,
   if (Line == 1 && Col == 1)
     return FileLoc;
 
-  ContentCache *Content
-    = const_cast<ContentCache *>(Entry.getFile().getContentCache());
-  if (!Content)
-    return SourceLocation();
+  const ContentCache *Content = &Entry.getFile().getContentCache();
 
   // If this is the first use of line information for this buffer, compute the
   // SourceLineCache for it on demand.
-  if (!Content->SourceLineCache) {
-    bool MyInvalid = false;
-    ComputeLineNumbers(Diag, Content, ContentCacheAlloc, *this, MyInvalid);
-    if (MyInvalid)
-      return SourceLocation();
-  }
-
   llvm::Optional<llvm::MemoryBufferRef> Buffer =
       Content->getBufferOrNone(Diag, getFileManager());
   if (!Buffer)
     return SourceLocation();
+  if (!Content->SourceLineCache)
+    Content->SourceLineCache =
+        LineOffsetMapping::get(*Buffer, ContentCacheAlloc);
 
-  if (Line > Content->NumLines) {
+  if (Line > Content->SourceLineCache.size()) {
     unsigned Size = Buffer->getBufferSize();
     if (Size > 0)
       --Size;
@@ -1763,7 +1734,12 @@ void SourceManager::computeMacroArgsCache(MacroArgsMap &MacroArgsCache,
     if (Invalid)
       return;
     if (Entry.isFile()) {
-      SourceLocation IncludeLoc = Entry.getFile().getIncludeLoc();
+      auto& File = Entry.getFile();
+      if (File.getFileCharacteristic() == C_User_ModuleMap ||
+          File.getFileCharacteristic() == C_System_ModuleMap)
+        continue;
+
+      SourceLocation IncludeLoc = File.getIncludeLoc();
       bool IncludedInFID =
           (IncludeLoc.isValid() && isInFileID(IncludeLoc, FID)) ||
           // Predefined header doesn't have a valid include location in main
@@ -2119,7 +2095,7 @@ void SourceManager::PrintStats() const {
   unsigned NumLineNumsComputed = 0;
   unsigned NumFileBytesMapped = 0;
   for (fileinfo_iterator I = fileinfo_begin(), E = fileinfo_end(); I != E; ++I){
-    NumLineNumsComputed += I->second->SourceLineCache != nullptr;
+    NumLineNumsComputed += bool(I->second->SourceLineCache);
     NumFileBytesMapped  += I->second->getSizeBytesMapped();
   }
   unsigned NumMacroArgsComputed = MacroArgsCacheMap.size();
@@ -2149,16 +2125,15 @@ LLVM_DUMP_METHOD void SourceManager::dump() const {
             << ">\n";
       if (FI.getIncludeLoc().isValid())
         out << "  included from " << FI.getIncludeLoc().getOffset() << "\n";
-      if (auto *CC = FI.getContentCache()) {
-        out << "  for " << (CC->OrigEntry ? CC->OrigEntry->getName() : "<none>")
+      auto &CC = FI.getContentCache();
+      out << "  for " << (CC.OrigEntry ? CC.OrigEntry->getName() : "<none>")
+          << "\n";
+      if (CC.BufferOverridden)
+        out << "  contents overridden\n";
+      if (CC.ContentsEntry != CC.OrigEntry) {
+        out << "  contents from "
+            << (CC.ContentsEntry ? CC.ContentsEntry->getName() : "<none>")
             << "\n";
-        if (CC->BufferOverridden)
-          out << "  contents overridden\n";
-        if (CC->ContentsEntry != CC->OrigEntry) {
-          out << "  contents from "
-              << (CC->ContentsEntry ? CC->ContentsEntry->getName() : "<none>")
-              << "\n";
-        }
       }
     } else {
       auto &EI = Entry.getExpansion();

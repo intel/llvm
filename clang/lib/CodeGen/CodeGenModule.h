@@ -420,6 +420,9 @@ private:
   /// Map used to get unique annotation strings.
   llvm::StringMap<llvm::Constant*> AnnotationStrings;
 
+  /// Used for uniquing of annotation arguments.
+  llvm::DenseMap<unsigned, llvm::Constant *> AnnotationArgs;
+
   llvm::StringMap<llvm::GlobalVariable *> CFConstantStringMap;
 
   llvm::DenseMap<llvm::Constant *, llvm::GlobalVariable *> ConstantStringMap;
@@ -873,6 +876,10 @@ public:
   /// Get the address of a GUID.
   ConstantAddress GetAddrOfMSGuidDecl(const MSGuidDecl *GD);
 
+  /// Get the address of a template parameter object.
+  ConstantAddress
+  GetAddrOfTemplateParamObject(const TemplateParamObjectDecl *TPO);
+
   /// Get the address of the thunk for the given global decl.
   llvm::Constant *GetAddrOfThunk(StringRef Name, llvm::Type *FnTy,
                                  GlobalDecl GD);
@@ -1145,6 +1152,10 @@ public:
   /// definition.
   void SetLLVMFunctionAttributesForDefinition(const Decl *D, llvm::Function *F);
 
+  /// Set the LLVM function attributes that represent floating point
+  /// environment.
+  void setLLVMFunctionFEnvAttributes(const FunctionDecl *D, llvm::Function *F);
+
   /// Return true iff the given type uses 'sret' when used as a return type.
   bool ReturnTypeUsesSRet(const CGFunctionInfo &FI);
 
@@ -1250,6 +1261,9 @@ public:
 
   /// Emit the annotation line number.
   llvm::Constant *EmitAnnotationLineNo(SourceLocation L);
+
+  /// Emit additional args of the annotation.
+  llvm::Constant *EmitAnnotationArgs(const AnnotateAttr *Attr);
 
   /// Generate the llvm::ConstantStruct which contains the annotation
   /// information for a given GlobalValue. The annotation struct is
