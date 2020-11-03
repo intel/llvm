@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl.hpp>
+#include <algorithm>
 
 using namespace cl::sycl;
 
