@@ -1162,6 +1162,19 @@ def SYCLRegisterNum : InheritableAttr {
   let PragmaAttributeSupport = 0;
 }
 
+// Used to mark kernel pointer parameters which correspond to the original
+// lambda's captured accessor. FE turns it to some metadata required by the
+// ESIMD Back-End.
+// Not supposed to be used directly in the source - SYCL device compiler FE
+// automatically adds it for ESIMD kernels.
+def SYCLSimdAccessorPtr : InheritableAttr {
+  let Spellings = [GNU<"esimd_acc_ptr">, Declspec<"esimd_acc_ptr">];
+  let Subjects = SubjectList<[ParmVar]>;
+  let LangOpts = [SYCLExplicitSIMD];
+  let Documentation = [SYCLSimdAccessorPtrDocs];
+  let PragmaAttributeSupport = 0;
+}
+
 def SYCLScope : Attr {
   // No spelling, as this attribute can't be created in the source code.
   let Spellings = [];
