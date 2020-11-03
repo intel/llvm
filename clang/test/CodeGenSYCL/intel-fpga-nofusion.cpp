@@ -30,7 +30,7 @@ void nofusion() {
   }
 
   int k;
-  [[intel::nofusion]] for (auto k: a) {
+  [[intel::nofusion]] for (auto k : a) {
     // CHECK: br label %{{.*}}, !llvm.loop ![[MD_NF_5:.*]]
     k += 4;
   }
