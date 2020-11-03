@@ -1,53 +1,57 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -fsycl -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -fsycl -fsycl-is-device -internal-isystem %S/Inputs -emit-llvm %s -o - | FileCheck %s
 
-// CHECK: br label %while.cond, !llvm.loop ![[MD_NF_1:[0-9]+]]
-// CHECK: br label %for.cond3, !llvm.loop ![[MD_NF_2:[0-9]+]]
-// CHECK: i1 %cmp18, label %do.body, label %do.end, !llvm.loop ![[MD_NF_3:[0-9]+]]
-// CHECK: br label %for.cond20, !llvm.loop ![[MD_NF_4:[0-9]+]]
-// CHECK: br label %for.cond41, !llvm.loop ![[MD_NF_5:[0-9]+]]
-// CHECK: br label %for.cond50, !llvm.loop ![[MD_NF_6:[0-9]+]]
+#include "sycl.hpp"
 
-#include "Inputs/sycl.hpp"
+using namespace cl::sycl;
+queue q;
 
 void nofusion() {
   int a[10];
 
   int i = 0;
   [[intel::nofusion]] while (i < 10) {
-    a[i] += 7;
-  }
-
-  for (int i = 0; i < 10; ++i) {
-    [[intel::nofusion]] for (int j = 0; j < 10; ++j) {
-      a[i] += a[j];
-    }
+    // CHECK: br label {{.*}}, !llvm.loop ![[MD_NF_1:.*]]
+    a[i] += 2;
   }
 
   [[intel::nofusion]] do {
-    a[i] += 4;
+    // CHECK: br i1 %{{.*}}, !llvm.loop ![[MD_NF_2:.*]]
+    a[i] += 3;
   }
   while (i < 10)
     ;
 
   [[intel::nofusion]] for (int i = 0; i < 10; ++i) {
+    // CHECK: br label %{{.*}}, !llvm.loop ![[MD_NF_3:.*]]
     for (int j = 0; j < 10; ++j) {
+      // CHECK-NOT: br label %{{.*}}, !llvm.loop !{{.*}}
       a[i] += a[j];
     }
   }
 
-  int k = 0;
-  [[intel::nofusion]] for (auto k : a) {
-    k += 2;
+  int k;
+  [[intel::nofusion]] for (auto k: a) {
+    // CHECK: br label %{{.*}}, !llvm.loop ![[MD_NF_5:.*]]
+    k += 4;
   }
 
   [[intel::nofusion]] for (int i = 0; i < 10; ++i) {
-    a[i] += 3;
+    // CHECK: br label %{{.*}}, !llvm.loop ![[MD_NF_6:.*]]
+    a[i] += 5;
+  }
+
+  for (int i = 0; i < 10; ++i) {
+    // CHECK-NOT: br label %{{.*}}, !llvm.loop !{{.*}}
+    [[intel::nofusion]] for (int j = 0; j < 10; ++j) {
+      // CHECK: br label %{{.*}}, !llvm.loop ![[MD_NF_8:.*]]
+      a[i] += a[j];
+    }
   }
 }
 
 int main() {
-  cl::sycl::kernel_single_task<class kernel_function>([]() {
-    nofusion();
+  q.submit([&](handler &h) {
+    h.single_task<class kernel_function>([]() { nofusion(); });
   });
   return 0;
 }
@@ -56,6 +60,6 @@ int main() {
 // CHECK: ![[MD_Nofusion]] = !{!"llvm.loop.fusion.disable"}
 // CHECK: ![[MD_NF_2]] = distinct !{![[MD_NF_2]], ![[MD_Nofusion]]}
 // CHECK: ![[MD_NF_3]] = distinct !{![[MD_NF_3]], ![[MD_Nofusion]]}
-// CHECK: ![[MD_NF_4]] = distinct !{![[MD_NF_4]], ![[MD_Nofusion]]}
 // CHECK: ![[MD_NF_5]] = distinct !{![[MD_NF_5]], ![[MD_Nofusion]]}
 // CHECK: ![[MD_NF_6]] = distinct !{![[MD_NF_6]], ![[MD_Nofusion]]}
+// CHECK: ![[MD_NF_8]] = distinct !{![[MD_NF_8]], ![[MD_Nofusion]]}

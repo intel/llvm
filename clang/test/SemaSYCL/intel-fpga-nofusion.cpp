@@ -1,7 +1,10 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -ast-dump -Wno-sycl-2017-compat -verify %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -ast-dump -Wno-sycl-2017-compat -verify %s | FileCheck %s
 // expected-no-diagnostics
 
-#include "Inputs/sycl.hpp"
+#include "sycl.hpp"
+
+using namespace cl::sycl;
+queue q;
 
 void nofusion() {
   int a1[10], a2[10];
@@ -29,8 +32,8 @@ void nofusion() {
 }
 
 int main() {
-  cl::sycl::kernel_single_task<class kernel_function>([]() {
-    nofusion();
+  q.submit([&](handler &h) {
+    h.single_task<class kernel_function>([]() { nofusion(); });
   });
   return 0;
 }
