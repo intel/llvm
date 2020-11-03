@@ -211,7 +211,7 @@ static std::vector<DevDescT> getAllowListDesc() {
   return DecDescs;
 }
 
-enum MatchState { UNKNOWN, MATCH, NOMATCH };
+enum MatchState { UNKNOWN, NOMATCH };
 
 static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
                             RT::PiPlatform PiPlatform, const plugin &Plugin) {
@@ -271,19 +271,13 @@ static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
         }
       }
 
-      PiDevices[InsertIDx++] = Device;
+      if (DevNameState != MatchState::NOMATCH ||
+          DevVerState != MatchState::NOMATCH ||
+          PlatNameState != MatchState::NOMATCH ||
+          PlatVerState != MatchState::NOMATCH)
+        PiDevices[InsertIDx++] = Device;
       break;
     }
-  }
-  if (DevNameState == MatchState::NOMATCH &&
-      DevVerState == MatchState::NOMATCH) {
-    throw sycl::runtime_error("Requested SYCL device not found",
-                              PI_DEVICE_NOT_FOUND);
-  }
-  if (PlatNameState == MatchState::NOMATCH &&
-      PlatVerState == MatchState::NOMATCH) {
-    throw sycl::runtime_error("Requested SYCL platform not found",
-                              PI_DEVICE_NOT_FOUND);
   }
   PiDevices.resize(InsertIDx);
 }
