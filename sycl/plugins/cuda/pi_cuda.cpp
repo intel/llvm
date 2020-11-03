@@ -4504,8 +4504,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piProgramGetBuildInfo, cuda_piProgramGetBuildInfo)
   _PI_CL(piProgramRetain, cuda_piProgramRetain)
   _PI_CL(piProgramRelease, cuda_piProgramRelease)
-  _PI_CL(piextMemGetNativeHandle, cuda_piextMemGetNativeHandle)
-  _PI_CL(piextMemCreateWithNativeHandle, cuda_piextMemCreateWithNativeHandle)
+  _PI_CL(piextProgramGetNativeHandle, cuda_piextProgramGetNativeHandle)
+  _PI_CL(piextProgramCreateWithNativeHandle, cuda_piextProgramCreateWithNativeHandle)
   // Kernel
   _PI_CL(piKernelCreate, cuda_piKernelCreate)
   _PI_CL(piKernelSetArg, cuda_piKernelSetArg)
