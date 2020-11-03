@@ -35,14 +35,6 @@ __attribute__((sycl_device)) int *func0() { return nullptr; }
 
 __attribute__((sycl_device)) void func2(int *) {}
 
-__attribute__((sycl_device)) int *func3() { return nullptr; }
-
-__attribute__((sycl_device)) void func4(int *) {}
-
-__attribute__((sycl_device)) int *func5() { return nullptr; }
-
-__attribute__((sycl_device)) void func6(int *) {}
-
 #else // NO_SYCL
 __attribute__((sycl_device)) // expected-warning {{'sycl_device' attribute ignored}}
 void baz() {}
