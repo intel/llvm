@@ -3124,6 +3124,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
                       const pi_event *EventWaitList, pi_event *Event) {
   assert(Kernel);
   assert(Queue);
+  assert(Event);
   assert((WorkDim > 0) && (WorkDim < 4));
   if (GlobalWorkOffset != NULL) {
     for (pi_uint32 i = 0; i < WorkDim; i++) {
@@ -3198,44 +3199,34 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-  // It is only OK to batch this kernel if there is an event that can be used
-  // to release the kernel once it has been executed.  So we will not allow
-  // these to be batched, only executed immediately.
-  // Should this also force a synchronize immediately?  That would also
-  // ensure that the kernel had completed execution before it could be
-  // released, but that may really hurt performance.
-  bool BatchingThisCommandOK = (Event);
-
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Device->getAvailableCommandList(
-          Queue, &ZeCommandList, &ZeFence, BatchingThisCommandOK))
+  if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
+                                                        &ZeFence, true))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
-  if (Event) {
-    auto Res = piEventCreate(Kernel->Program->Context, Event);
-    if (Res != PI_SUCCESS)
-      return Res;
+  auto Res = piEventCreate(Kernel->Program->Context, Event);
+  if (Res != PI_SUCCESS)
+    return Res;
 
-    (*Event)->Queue = Queue;
-    (*Event)->CommandType = PI_COMMAND_TYPE_NDRANGE_KERNEL;
-    (*Event)->ZeCommandList = ZeCommandList;
+  (*Event)->Queue = Queue;
+  (*Event)->CommandType = PI_COMMAND_TYPE_NDRANGE_KERNEL;
+  (*Event)->ZeCommandList = ZeCommandList;
 
-    // Save the kernel in the event, so that when the event is signalled
-    // the code can do a piKernelRelease on this kernel.
-    (*Event)->CommandData = (void *)Kernel;
+  // Save the kernel in the event, so that when the event is signalled
+  // the code can do a piKernelRelease on this kernel.
+  (*Event)->CommandData = (void *)Kernel;
 
-    // Use piKernelRetain to increment the reference count and indicate
-    // that the Kernel is in use. Once the event has been signalled, the
-    // code in cleanupAfterEvent will do a piReleaseKernel to update
-    // the reference count on the kernel, using the kernel saved
-    // in CommandData.
-    piKernelRetain(Kernel);
+  // Use piKernelRetain to increment the reference count and indicate
+  // that the Kernel is in use. Once the event has been signalled, the
+  // code in cleanupAfterEvent will do a piReleaseKernel to update
+  // the reference count on the kernel, using the kernel saved
+  // in CommandData.
+  piKernelRetain(Kernel);
 
-    ZeEvent = (*Event)->ZeEvent;
-  }
+  ZeEvent = (*Event)->ZeEvent;
 
   ze_event_handle_t *ZeEventWaitList =
       _pi_event::createZeEventList(NumEventsInWaitList, EventWaitList);
@@ -3258,8 +3249,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
-  if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence, false,
-                                           BatchingThisCommandOK))
+  if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence, false, true))
     return Res;
 
   _pi_event::deleteZeEventList(ZeEventWaitList);
