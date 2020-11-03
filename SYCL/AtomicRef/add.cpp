@@ -2,7 +2,6 @@
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 #include <CL/sycl.hpp>
 #include <algorithm>
@@ -178,10 +177,6 @@ template <> void add_test<double>(queue q, size_t N) {
 int main() {
   queue q;
   std::string version = q.get_device().get_info<info::device::version>();
-  if (version < std::string("2.0")) {
-    std::cout << "Skipping test\n";
-    return 0;
-  }
 
   constexpr int N = 32;
   add_test<int>(q, N);
