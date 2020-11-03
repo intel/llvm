@@ -400,7 +400,6 @@ enum FPOperationMode {
 enum LinkageType {
     LinkageTypeExport = 0,
     LinkageTypeImport = 1,
-    LinkageTypeInternal = 2, /* internal use only */
     LinkageTypeMax = 0x7fffffff,
 };
 
@@ -1335,7 +1334,6 @@ enum Op {
   OpPtrEqual = 401,
   OpPtrNotEqual = 402,
   OpPtrDiff = 403,
-  OpForward = 1024, /* internal use only */
   OpSubgroupBallotKHR = 4421,
   OpSubgroupFirstInvocationKHR = 4422,
   OpSubgroupAllKHR = 4428,

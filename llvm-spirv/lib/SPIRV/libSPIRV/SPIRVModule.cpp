@@ -653,7 +653,7 @@ SPIRVEntry *SPIRVModuleImpl::addEntry(SPIRVEntry *Entry) {
     assert(Entry->getId() != SPIRVID_INVALID && "Invalid id");
     SPIRVEntry *Mapped = nullptr;
     if (exist(Id, &Mapped)) {
-      if (Mapped->getOpCode() == OpForward) {
+      if (Mapped->getOpCode() == internal::OpForward) {
         replaceForward(static_cast<SPIRVForward *>(Mapped), Entry);
       } else {
         assert(Mapped == Entry && "Id used twice");
@@ -1523,7 +1523,7 @@ SPIRVInstruction *SPIRVModuleImpl::addExpectINTELInst(SPIRVType *ResultTy,
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addVariable(
-    SPIRVType *Type, bool IsConstant, SPIRVLinkageTypeKind LinkageType,
+    SPIRVType *Type, bool IsConstant, SPIRVLinkageTypeKind LinkageTy,
     SPIRVValue *Initializer, const std::string &Name,
     SPIRVStorageClassKind StorageClass, SPIRVBasicBlock *BB) {
   SPIRVVariable *Variable = new SPIRVVariable(Type, getId(), Initializer, Name,
@@ -1532,8 +1532,8 @@ SPIRVInstruction *SPIRVModuleImpl::addVariable(
     return addInstruction(Variable, BB);
 
   add(Variable);
-  if (LinkageType != LinkageTypeInternal)
-    Variable->setLinkageType(LinkageType);
+  if (LinkageTy != internal::LinkageTypeInternal)
+    Variable->setLinkageType(LinkageTy);
   Variable->setIsConstant(IsConstant);
   return Variable;
 }
