@@ -8037,6 +8037,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // OPT_fsycl_device_code_split is not checked as it is an alias to
   // -fsycl-device-code-split=per_source
 
+  auto *SYCLPostLink = llvm::dyn_cast<SYCLPostLinkJobAction>(&JA);
   // Turn on Dead Parameter Elimination Optimization with early optimizations
   if (!getToolChain().getTriple().isNVPTX() &&
       TCArgs.hasFlag(options::OPT_fsycl_dead_args_optimization,
@@ -8047,6 +8048,10 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     // transformations (like specialization constant intrinsic lowering) and
     // output LLVMIR
     addArgs(CmdArgs, TCArgs, {"-ir-output-only"});
+    // DeadFunctionElimination must work with IROutputOnly to clean the
+    // original LLVMIR
+    if (SYCLPostLink && SYCLPostLink->getDeadFunctionElimination())
+      addArgs(CmdArgs, TCArgs, {"--dead-function-elimination"});
   } else {
     assert(JA.getType() == types::TY_Tempfiletable);
     // Symbol file and specialization constant info generation is mandatory -
@@ -8054,7 +8059,6 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     addArgs(CmdArgs, TCArgs, {"-symbols"});
   }
   // specialization constants processing is mandatory
-  auto *SYCLPostLink = llvm::dyn_cast<SYCLPostLinkJobAction>(&JA);
   if (SYCLPostLink && SYCLPostLink->getRTSetsSpecConstants())
     addArgs(CmdArgs, TCArgs, {"-spec-const=rt"});
   else

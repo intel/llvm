@@ -124,6 +124,10 @@ static cl::opt<bool> EmitKernelParamInfo{
     "emit-param-info", cl::desc("emit kernel parameter optimization info"),
     cl::cat(PostLinkCat)};
 
+static cl::opt<bool> DeadFunctionElimination{
+    "dead-function-elimination",
+    cl::desc("Eliminate dead functions in device image"), cl::cat(PostLinkCat)};
+
 struct ImagePropSaveInfo {
   bool NeedDeviceLibReqMask;
   bool DoSpecConst;
@@ -566,6 +570,32 @@ static string_vector saveResultSymbolsLists(string_vector &ResSymbolsLists) {
   return std::move(Res);
 }
 
+// Eliminate 'dead' functions which are not called in device LLVM IR module,
+// there is one execption: functions with 'reference-indirectly' attribute
+// can't be eliminated since they will be called indirectly via function ptr.
+static void eliminateDeadFunctions(Module &M) {
+  std::vector<Function *> DeadFunctions;
+  bool NoDeadFunction = false;
+  while (!NoDeadFunction) {
+    DeadFunctions.clear();
+    for (Function &F : M) {
+      if (F.user_empty() && (F.getCallingConv() == CallingConv::SPIR_FUNC) &&
+          !F.getAttributes().hasFnAttribute("referenced-indirectly")) {
+        F.deleteBody();
+        DeadFunctions.push_back(&F);
+      }
+    }
+
+    if (!DeadFunctions.empty()) {
+      for (Function *F : DeadFunctions) {
+        M.getFunctionList().remove(F);
+      }
+      NoDeadFunction = false;
+    } else
+      NoDeadFunction = true;
+  }
+}
+
 #define CHECK_AND_EXIT(E)                                                      \
   {                                                                            \
     Error LocE = std::move(E);                                                 \
@@ -612,11 +642,18 @@ int main(int argc, char **argv) {
       "will produce single output file example_p.bc suitable for SPIRV\n"
       "translation.\n");
 
-  bool DoSplit = SplitMode.getNumOccurrences() > 0;
-  bool DoSpecConst = SpecConstLower.getNumOccurrences() > 0;
-  bool DoParamInfo = EmitKernelParamInfo.getNumOccurrences() > 0;
+  // DeadFunctionElimination is used for removing some unused function in
+  // ORIGINAL IR, it must work with IROutputOnly and can't work with other
+  // options such as DoSplit, DoSpecConst, DoParamInfo...
+  bool DoSplit =
+      (SplitMode.getNumOccurrences() > 0 && !DeadFunctionElimination);
+  bool DoSpecConst =
+      (SpecConstLower.getNumOccurrences() > 0 && !DeadFunctionElimination);
+  bool DoParamInfo =
+      (EmitKernelParamInfo.getNumOccurrences() > 0 && !DeadFunctionElimination);
 
-  if (!DoSplit && !DoSpecConst && !DoSymGen && !DoParamInfo) {
+  if (!DoSplit && !DoSpecConst && !DoSymGen && !DoParamInfo &&
+      !DeadFunctionElimination) {
     errs() << "no actions specified; try --help for usage info\n";
     return 1;
   }
@@ -647,6 +684,12 @@ int main(int argc, char **argv) {
   }
   if (OutputFilename.getNumOccurrences() == 0)
     OutputFilename = (Twine(sys::path::stem(InputFilename)) + ".files").str();
+
+  if (DeadFunctionElimination && IROutputOnly) {
+    eliminateDeadFunctions(*MPtr);
+    saveModule(*MPtr, OutputFilename);
+    return 0;
+  }
 
   std::map<StringRef, std::vector<Function *>> GlobalsSet;
 

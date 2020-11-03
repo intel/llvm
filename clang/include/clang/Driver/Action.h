@@ -687,8 +687,13 @@ public:
 
   bool getRTSetsSpecConstants() const { return RTSetsSpecConsts; }
 
+  void setDeadFunctionElimination(bool Val) { DeadFunctionElimination = Val; }
+
+  bool getDeadFunctionElimination() const { return DeadFunctionElimination; }
+
 private:
   bool RTSetsSpecConsts = true;
+  bool DeadFunctionElimination = false;
 };
 
 class PartialLinkJobAction : public JobAction {
