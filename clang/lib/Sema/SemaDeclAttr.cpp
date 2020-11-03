@@ -8209,6 +8209,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_SYCLRegisterNum:
     handleSYCLRegisterNumAttr(S, D, AL);
     break;
+  case ParsedAttr::AT_SYCLSimdAccessorPtr:
+    handleSimpleAttribute<SYCLSimdAccessorPtrAttr>(S, D, AL);
+    break;
   case ParsedAttr::AT_Format:
     handleFormatAttr(S, D, AL);
     break;

@@ -1439,6 +1439,10 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
   // MDNode for the intel_buffer_location attribute.
   SmallVector<llvm::Metadata *, 8> argSYCLBufferLocationAttr;
 
+  // MDNode for listing ESIMD kernel pointer arguments originating from
+  // accessors
+  SmallVector<llvm::Metadata *, 8> argESIMDAccPtrs;
+
   if (FD && CGF)
     for (unsigned i = 0, e = FD->getNumParams(); i != e; ++i) {
       const ParmVarDecl *parm = FD->getParamDecl(i);
@@ -1570,6 +1574,10 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
               ? llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(
                     SYCLBufferLocationAttr->getLocationID()))
               : llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(-1)));
+
+      argESIMDAccPtrs.push_back(
+          llvm::ConstantAsMetadata::get(CGF->Builder.getInt1(
+              parm->getAttr<SYCLSimdAccessorPtrAttr>() != nullptr)));
     }
 
   if (LangOpts.SYCLIsDevice && !LangOpts.SYCLExplicitSIMD)
@@ -1586,6 +1594,8 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
                     llvm::MDNode::get(VMContext, argBaseTypeNames));
     Fn->setMetadata("kernel_arg_type_qual",
                     llvm::MDNode::get(VMContext, argTypeQuals));
+    Fn->setMetadata("kernel_arg_accessor_ptr",
+                    llvm::MDNode::get(VMContext, argESIMDAccPtrs));
     if (getCodeGenOpts().EmitOpenCLArgMetadata)
       Fn->setMetadata("kernel_arg_name",
                       llvm::MDNode::get(VMContext, argNames));
