@@ -26,7 +26,7 @@ SYCL_EXTERNAL void hostAcc(accessor<int, 1, access::mode::read, access::target::
 // CHECK-NEXT: 16 |     class cl::sycl::range<1> MemRange
 // CHECK-NEXT: 16 |       class cl::sycl::detail::array<1> (base)
 // CHECK-NEXT: 16 |         size_t [1] common_array
-// CHECK-NEXT: 24 |   union cl::sycl::accessor<int, 1, cl::sycl::access::mode::read, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t, class cl::sycl::ONEAPI::accessor_property_list<> >::(anonymous at /localdisk2/abatashe/repos/llvm/build/bin/../include/sycl/CL/sycl/accessor.hpp:866:3) 
+// CHECK-NEXT: 24 |   union cl::sycl::accessor<int, 1, cl::sycl::access::mode::read, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t, class cl::sycl::ONEAPI::accessor_property_list<> > 
 // CHECK-NEXT: 24 |     cl::sycl::accessor<int, 1, cl::sycl::access::mode::read, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t, class cl::sycl::ONEAPI::accessor_property_list<> >::ConcreteASPtrType MData
 // CHECK-NEXT:     | [sizeof=32, dsize=32, align=8,
 // CHECK-NEXT:     |  nvsize=32, nvalign=8]
