@@ -307,6 +307,9 @@ template <int Dimensions>
 void *image_impl<Dimensions>::allocateMem(ContextImplPtr Context,
                                           bool InitFromUserData, void *HostPtr,
                                           RT::PiEvent &OutEventToWait) {
+  // Always attempt to reuse a read-write user pointer for the host allocation.
+  if (Context->is_host() && !BaseT::MOpenCLInterop && !BaseT::MHostPtrReadOnly)
+    InitFromUserData = true;
   // The host pointer for the allocation can be provided in 2 ways:
   // 1. Initialize the allocation from user data. Check if the user pointer is
   // read-only.

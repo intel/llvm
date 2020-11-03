@@ -137,16 +137,39 @@ void *MemoryManager::allocateInteropMemObject(
   return UserPtr;
 }
 
+RT::PiMemFlags getMemObjCreationFlags(ContextImplPtr TargetContext,
+                                      void *UserPtr, bool HostPtrReadOnly) {
+  // Create read_write mem object to handle arbitrary uses.
+  RT::PiMemFlags Result = PI_MEM_FLAGS_ACCESS_RW;
+  if (UserPtr) {
+    if (HostPtrReadOnly)
+      Result |= PI_MEM_FLAGS_HOST_PTR_COPY;
+    else {
+      // Create the memory object using the host pointer only if the device
+      // supports host_unified_memory to avoid potential copy overhead.
+      // TODO This check duplicates the one performed in the GraphBuilder during
+      // AllocaCommand creation. This information should be propagated here
+      // instead, which would be a breaking ABI change.
+      bool HostUnifiedMemory = true;
+      for (device Device : TargetContext->getDevices()) {
+        if (!Device.get_info<info::device::host_unified_memory>())
+          HostUnifiedMemory = false;
+      }
+      Result |= HostUnifiedMemory ? PI_MEM_FLAGS_HOST_PTR_USE
+                                  : PI_MEM_FLAGS_HOST_PTR_COPY;
+    }
+  }
+
+  return Result;
+}
+
 void *MemoryManager::allocateImageObject(ContextImplPtr TargetContext,
                                          void *UserPtr, bool HostPtrReadOnly,
                                          const RT::PiMemImageDesc &Desc,
                                          const RT::PiMemImageFormat &Format,
                                          const sycl::property_list &) {
-  // Create read_write mem object by default to handle arbitrary uses.
-  RT::PiMemFlags CreationFlags = PI_MEM_FLAGS_ACCESS_RW;
-  if (UserPtr)
-    CreationFlags |= HostPtrReadOnly ? PI_MEM_FLAGS_HOST_PTR_COPY
-                                     : PI_MEM_FLAGS_HOST_PTR_USE;
+  RT::PiMemFlags CreationFlags =
+      getMemObjCreationFlags(TargetContext, UserPtr, HostPtrReadOnly);
 
   RT::PiMem NewMem;
   const detail::plugin &Plugin = TargetContext->getPlugin();
@@ -160,13 +183,10 @@ void *
 MemoryManager::allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
                                     bool HostPtrReadOnly, const size_t Size,
                                     const sycl::property_list &PropsList) {
-  // Create read_write mem object by default to handle arbitrary uses.
-  RT::PiMemFlags CreationFlags = PI_MEM_FLAGS_ACCESS_RW;
-  if (UserPtr)
-    CreationFlags |= HostPtrReadOnly ? PI_MEM_FLAGS_HOST_PTR_COPY
-                                     : PI_MEM_FLAGS_HOST_PTR_USE;
-  else if (PropsList.has_property<
-               sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
+  RT::PiMemFlags CreationFlags =
+      getMemObjCreationFlags(TargetContext, UserPtr, HostPtrReadOnly);
+  if (PropsList.has_property<
+          sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
     CreationFlags |= PI_MEM_FLAGS_HOST_PTR_ALLOC;
 
   RT::PiMem NewMem = nullptr;

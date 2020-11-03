@@ -9,6 +9,8 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
+#include <helpers/PiMock.hpp>
+
 using namespace cl::sycl;
 
 class MemObjMock : public cl::sycl::detail::SYCLMemObjI {
@@ -36,9 +38,20 @@ public:
   detail::ContextImplPtr getInteropContext() const override { return nullptr; }
 };
 
+static pi_result redefinedDeviceGetInfo(pi_device Device,
+                                        pi_device_info ParamName,
+                                        size_t ParamValueSize, void *ParamValue,
+                                        size_t *ParamValueSizeRet) {
+  if (ParamName != PI_DEVICE_INFO_HOST_UNIFIED_MEMORY) {
+    auto *Result = reinterpret_cast<bool *>(ParamValue);
+    *Result = true;
+  }
+  return PI_SUCCESS;
+}
+
 TEST_F(SchedulerTest, LinkedAllocaDependencies) {
-  default_selector Selector{};
-  if (Selector.select_device().is_host()) {
+  platform Plt{default_selector()};
+  if (Plt.is_host()) {
     std::cerr << "Not run due to host-only environment\n";
     return;
   }
@@ -46,6 +59,10 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
   // 1. create two commands: alloca + alloca and link them
   // 2. call Scheduler::GraphBuilder::getOrCreateAllocaForReq
   detail::Requirement Req = getMockRequirement();
+
+  // Commands are linked only if the device supports host unified memory.
+  unittest::PiMock Mock{Plt};
+  Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
 
   cl::sycl::queue Queue1;
   cl::sycl::detail::QueueImplPtr Q1 = cl::sycl::detail::getSyclObjImpl(Queue1);
