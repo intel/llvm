@@ -1,9 +1,6 @@
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify %s
 // RUN: %clang_cc1 -verify -DNO_SYCL %s
 
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify -DNOT_STRICT -Wno-error=sycl-strict -Wno-sycl-strict %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify -DWARN_STRICT -Wno-error=sycl-strict %s
-
 #ifndef NO_SYCL
 
 __attribute__((sycl_device)) // expected-warning {{'sycl_device' attribute only applies to functions}}
@@ -34,21 +31,17 @@ public:
   __attribute__((sycl_device)) virtual void bar() = 0;
 };
 
-#if defined(NOT_STRICT)
-__attribute__((sycl_device))
-int* func3() { return nullptr; }
+__attribute__((sycl_device)) int *func0() { return nullptr; }
 
-__attribute__((sycl_device))
-void func3(int *) {}
-#elif defined(WARN_STRICT)
+__attribute__((sycl_device)) void func2(int *) {}
+
 __attribute__((sycl_device)) int *func3() { return nullptr; }
 
-__attribute__((sycl_device)) void func3(int *) {}
-#else
-__attribute__((sycl_device)) int *func3() { return nullptr; }
+__attribute__((sycl_device)) void func4(int *) {}
 
-__attribute__((sycl_device)) void func3(int *) {}
-#endif
+__attribute__((sycl_device)) int *func5() { return nullptr; }
+
+__attribute__((sycl_device)) void func6(int *) {}
 
 #else // NO_SYCL
 __attribute__((sycl_device)) // expected-warning {{'sycl_device' attribute ignored}}
