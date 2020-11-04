@@ -457,7 +457,8 @@ public:
     T expected;
     T desired;
     do {
-      expected = load(load_order, scope);
+      expected =
+          load(load_order, scope); // performs better with load in CAS loop.
       desired = expected + operand;
     } while (!compare_exchange_weak(expected, desired, order, scope));
     return expected;
