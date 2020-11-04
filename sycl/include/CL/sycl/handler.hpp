@@ -120,6 +120,14 @@ template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
   using name = Type;
 };
 
+// Used when parallel_for range is rounded-up.
+template <typename Type> class __pf_wrapper_kernel;
+
+template <typename Type> struct get_kernel_wrapper_name_t {
+  using name = __pf_wrapper_kernel<
+      typename get_kernel_name_t<detail::auto_name, Type>::name>;
+};
+
 template <typename, typename T> struct check_fn_signature {
   static_assert(std::integral_constant<T, false>::value,
                 "Second template parameter is required to be of function type");
@@ -738,48 +746,31 @@ private:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     constexpr size_t GoodLocalSizeX = 32;
-    std::string KName = typeid(NameT *).name();
-    bool DisableRounding =
-        KName.find("SYCL_OPT_PFWGS_DISABLE") != std::string::npos;
-    if (!DisableRounding && NumWorkItems[0] % GoodLocalSizeX != 0) {
-      // Not a multiple
-      size_t NewValX =
-          ((NumWorkItems[0] + GoodLocalSizeX - 1) / GoodLocalSizeX) *
-          GoodLocalSizeX;
-      if (getenv("SYCL_OPT_PFWGS_TRACE") != nullptr)
-        std::cerr << "***** Adjusted size from " << NumWorkItems[0] << " to "
-                  << NewValX << " *****\n";
-      auto Wrapper = [=](TransformedArgType Arg) {
-        if (Arg[0] >= NumWorkItems[0])
-          return;
-        Arg.set_allowed_range(NumWorkItems);
-        KernelFunc(Arg);
-      };
+    // Round-up just the first dimension of the range.
+    // Even for multi-dimensional ranges the total number of work items will
+    // be a multiple of the rounding factor since any multiple of a rounded-up
+    // first dimension will also be a rounded-up value.
+    size_t NewValX = ((NumWorkItems[0] + GoodLocalSizeX - 1) / GoodLocalSizeX) *
+                     GoodLocalSizeX;
+    auto Wrapper = [=](TransformedArgType Arg) {
+      if (Arg[0] >= NumWorkItems[0])
+        return;
+      Arg.set_allowed_range(NumWorkItems);
+      KernelFunc(Arg);
+    };
 
-      using NameWT = NameT *;
-      range<Dims> AdjustedRange = NumWorkItems;
-      AdjustedRange.set_range(NewValX);
+    using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
+    range<Dims> AdjustedRange = NumWorkItems;
+    AdjustedRange.set_range(NewValX);
 #ifdef __SYCL_DEVICE_ONLY__
-      kernel_parallel_for<NameWT, TransformedArgType>(Wrapper);
+    kernel_parallel_for<NameWT, TransformedArgType>(Wrapper);
 #else
-      detail::checkValueRange<Dims>(AdjustedRange);
-      MNDRDesc.set(std::move(AdjustedRange));
-      StoreLambda<NameWT, decltype(Wrapper), Dims, TransformedArgType>(
-          std::move(Wrapper));
-      MCGType = detail::CG::KERNEL;
+    detail::checkValueRange<Dims>(AdjustedRange);
+    MNDRDesc.set(std::move(AdjustedRange));
+    StoreLambda<NameWT, decltype(Wrapper), Dims, TransformedArgType>(
+        std::move(Wrapper));
+    MCGType = detail::CG::KERNEL;
 #endif
-    } else {
-#ifdef __SYCL_DEVICE_ONLY__
-      (void)NumWorkItems;
-      kernel_parallel_for<NameT, TransformedArgType>(KernelFunc);
-#else
-      detail::checkValueRange<Dims>(NumWorkItems);
-      MNDRDesc.set(std::move(NumWorkItems));
-      StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
-          std::move(KernelFunc));
-      MCGType = detail::CG::KERNEL;
-#endif
-    }
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range.
