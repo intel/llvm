@@ -11066,12 +11066,15 @@ def err_ext_int_max_size : Error<"%select{signed|unsigned}0 _ExtInt of bit "
 def err_esimd_glob_cant_init : Error<
   "SYCL explicit SIMD does not permit private global variable to have an initializer">;
 
+def err_sycl_kernel_name_missing : Error<"kernel name is missing">;
 def err_sycl_kernel_incorrectly_named : Error<
-  "kernel %select{name is missing"
-  "|needs to have a globally-visible name"
-  "|name is invalid. Unscoped enum requires fixed underlying type"
-  "|name cannot be a type in the \"std\" namespace"
-  "}0">;
+  "invalid type %0 used in kernel name. "
+  "%select{Kernel name should be globally-visible"
+  "|Unscoped enum requires fixed underlying type"
+  "|Type cannot be in the \"std\" namespace"
+  "}1">;
+def note_kernel_name: Note<"Invalid kernel name is %0">;
+
 def err_sycl_kernel_not_function_object
     : Error<"kernel parameter must be a lambda or function object">;
 def err_sycl_restrict : Error<

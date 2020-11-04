@@ -1,6 +1,6 @@
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-int-header=%t.h -fsyntax-only -Wno-sycl-2017-compat -verify %s
 
-// expected-error@Inputs/sycl.hpp:220 2{{kernel name is invalid. Unscoped enum requires fixed underlying type}}
+// expected-error@Inputs/sycl.hpp:220 2{{invalid type 'unscoped_enum_no_type_set' used in kernel name. Unscoped enum requires fixed underlying type}}
 #include "Inputs/sycl.hpp"
 
 enum unscoped_enum_int : int {
@@ -69,11 +69,13 @@ int main() {
   });
 
   q.submit([&](cl::sycl::handler &cgh) {
+    // expected-note@Inputs/sycl.hpp:220 {{Invalid kernel name is 'dummy_functor_2<val_3>'}}
     // expected-note@+1{{in instantiation of function template specialization}}
     cgh.single_task(f2);
   });
 
   q.submit([&](cl::sycl::handler &cgh) {
+    // expected-note@Inputs/sycl.hpp:220 {{Invalid kernel name is 'templated_functor<dummy_functor_2>'}}
     // expected-note@+1{{in instantiation of function template specialization}}
     cgh.single_task(f5);
   });

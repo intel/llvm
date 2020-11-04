@@ -1,4 +1,3 @@
-//===- SemaSYCL.cpp - Semantic Analysis for SYCL constructs ---------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -2833,6 +2832,7 @@ class SYCLKernelNameTypeVisitor
       public ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor> {
   Sema &S;
   SourceLocation KernelInvocationFuncLoc;
+  QualType KernelNameType;
   using InnerTypeVisitor = TypeVisitor<SYCLKernelNameTypeVisitor>;
   using InnerTemplArgVisitor =
       ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor>;
@@ -2844,8 +2844,10 @@ class SYCLKernelNameTypeVisitor
   }
 
 public:
-  SYCLKernelNameTypeVisitor(Sema &S, SourceLocation KernelInvocationFuncLoc)
-      : S(S), KernelInvocationFuncLoc(KernelInvocationFuncLoc) {}
+  SYCLKernelNameTypeVisitor(Sema &S, SourceLocation KernelInvocationFuncLoc,
+                            QualType KernelNameType)
+      : S(S), KernelInvocationFuncLoc(KernelInvocationFuncLoc),
+        KernelNameType(KernelNameType) {}
 
   bool isValid() { return !IsInvalid; }
 
@@ -2856,7 +2858,9 @@ public:
     if (!RD) {
       if (T->isNullPtrType()) {
         S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-            << /* kernel name cannot be a type in the std namespace */ 3;
+            << T << /* kernel name cannot be a type in the std namespace */ 2;
+        S.Diag(KernelInvocationFuncLoc, diag::note_kernel_name)
+            << KernelNameType;
         IsInvalid = true;
       }
       return;
@@ -2881,7 +2885,9 @@ public:
     const EnumDecl *ED = T->getDecl();
     if (!ED->isScoped() && !ED->isFixed()) {
       S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-          << /* Unscoped enum requires fixed underlying type */ 2;
+          << QualType(ED->getTypeForDecl(), 0)
+          << /* Unscoped enum requires fixed underlying type */ 1;
+      S.Diag(KernelInvocationFuncLoc, diag::note_kernel_name) << KernelNameType;
       S.Diag(ED->getSourceRange().getBegin(), diag::note_entity_declared_at)
           << ED;
       IsInvalid = true;
@@ -2900,23 +2906,29 @@ public:
       auto *NameSpace = dyn_cast_or_null<NamespaceDecl>(DeclCtx);
       if (NameSpace && NameSpace->isStdNamespace()) {
         S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-            << /* kernel name cannot be a type in the std namespace */ 3;
+            << QualType(Tag->getTypeForDecl(), 0)
+            << /* kernel name cannot be a type in the std namespace */ 2;
+        S.Diag(KernelInvocationFuncLoc, diag::note_kernel_name)
+            << KernelNameType;
         IsInvalid = true;
         return;
       }
       if (!DeclCtx->isTranslationUnit() && !isa<NamespaceDecl>(DeclCtx)) {
         const bool KernelNameIsMissing = Tag->getName().empty();
         if (KernelNameIsMissing) {
-          S.Diag(KernelInvocationFuncLoc,
-                 diag::err_sycl_kernel_incorrectly_named)
-              << /* kernel name is missing */ 0;
+          S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_name_missing);
+          S.Diag(KernelInvocationFuncLoc, diag::note_kernel_name)
+              << KernelNameType;
           IsInvalid = true;
           return;
         }
         if (Tag->isCompleteDefinition()) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_sycl_kernel_incorrectly_named)
-              << /* kernel name is not globally-visible */ 1;
+              << QualType(Tag->getTypeForDecl(), 0)
+              << /* kernel name is not globally-visible */ 0;
+          S.Diag(KernelInvocationFuncLoc, diag::note_kernel_name)
+              << KernelNameType;
           IsInvalid = true;
         } else
           S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
@@ -2998,7 +3010,8 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   SyclKernelArgsSizeChecker ArgsSizeChecker(*this, Args[0]->getExprLoc());
 
   KernelObjVisitor Visitor{*this};
-  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(*this, Args[0]->getExprLoc());
+  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(*this, Args[0]->getExprLoc(),
+                                                  KernelNameType);
 
   DiagnosingSYCLKernel = true;
 
