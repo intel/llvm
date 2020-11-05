@@ -44,6 +44,6 @@ int main() {
     // CHECK:       SYCLIntelStallEnableAttr {{.*}}
     h.single_task<class test_kernel3>(
         []() { func_do_not_ignore(); });
-    });
+  });
   return 0;
 }

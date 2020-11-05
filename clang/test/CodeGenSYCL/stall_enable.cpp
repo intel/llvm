@@ -19,7 +19,7 @@ int main() {
 
     h.single_task<class test_kernel2>(
         []() [[intel::stall_enable]]{});
-    });
+  });
   return 0;
 }
 
