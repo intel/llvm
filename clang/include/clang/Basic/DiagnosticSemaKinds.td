@@ -11137,11 +11137,6 @@ def warn_sycl_pass_by_value_deprecated
 def warn_sycl_pass_by_reference_future 
     : Warning<"Passing of kernel functions by reference is a SYCL 2020 extension">,
       InGroup<Sycl2017Compat>, ShowInSystemHeader;
-def warn_sycl_attibute_function_raw_ptr
-    : Warning<"SYCL 1.2.1 specification does not allow %0 attribute applied "
-              "to a function with a raw pointer "
-              "%select{return type|parameter type}1">,
-      InGroup<SyclStrict>, DefaultError;
 def warn_sycl_implicit_decl
     : Warning<"SYCL 1.2.1 specification requires an explicit forward "
               "declaration for a kernel type name; your program may not "
