@@ -84,7 +84,12 @@ function(add_sycl_rt_library LIB_NAME)
     PUBLIC
       $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:USE_PI_CUDA>)
 
-  add_common_options(${LIB_NAME})
+  if (SYCL_USE_LIBCXX)
+    add_libcxx_compile_options(${LIB_OBJ_NAME})
+    add_libcxx_link_options(${LIB_NAME})
+  else()
+    add_common_options(${LIB_NAME})
+  endif()
 
   set_target_properties(${LIB_NAME} PROPERTIES
                         VERSION ${SYCL_VERSION_STRING}
