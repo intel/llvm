@@ -33,9 +33,8 @@ public:
   void test() {
     cl::sycl::queue q;
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@Inputs/sycl.hpp:220 {{invalid type 'InvalidKernelName1' used in kernel name. Kernel name should be globally-visible}}
-    // expected-note@Inputs/sycl.hpp:220 {{Invalid kernel name is 'InvalidKernelName1'}}
-    // expected-note@+3 {{InvalidKernelName1 declared here}}
+    // expected-error@Inputs/sycl.hpp:220 {{'InvalidKernelName1' is an invalid kernel name type}}
+    // expected-note@Inputs/sycl.hpp:220 {{'InvalidKernelName1' should be globally-visible}}
     // expected-note@+4{{in instantiation of function template specialization}}
 #endif
     class InvalidKernelName1 {};
@@ -44,9 +43,8 @@ public:
     });
 
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@Inputs/sycl.hpp:220 {{invalid type 'InvalidKernelName2' used in kernel name. Kernel name should be globally-visible}}
-    // expected-note@Inputs/sycl.hpp:220 {{Invalid kernel name is 'namespace1::KernelName<InvalidKernelName2>'}}
-    // expected-note@+3 {{InvalidKernelName2 declared here}}
+    // expected-error@Inputs/sycl.hpp:220 {{'namespace1::KernelName<InvalidKernelName2>' is an invalid kernel name type}}
+    // expected-note@Inputs/sycl.hpp:220 {{'InvalidKernelName2' should be globally-visible}}
     // expected-note@+4{{in instantiation of function template specialization}}
 #endif
     class InvalidKernelName2 {};
@@ -55,9 +53,8 @@ public:
     });
 
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@Inputs/sycl.hpp:220 {{invalid type 'MyWrapper::InvalidKernelName0' used in kernel name. Kernel name should be globally-visible}}
-    // expected-note@Inputs/sycl.hpp:220 {{Invalid kernel name is 'MyWrapper::InvalidKernelName0'}}
-    // expected-note@27 {{InvalidKernelName0 declared here}}
+    // expected-error@Inputs/sycl.hpp:220 {{'MyWrapper::InvalidKernelName0' is an invalid kernel name type}}
+    // expected-note@Inputs/sycl.hpp:220 {{'MyWrapper::InvalidKernelName0' should be globally-visible}}
     // expected-note@+3{{in instantiation of function template specialization}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
@@ -65,9 +62,8 @@ public:
     });
 
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@Inputs/sycl.hpp:220 {{invalid type 'MyWrapper::InvalidKernelName3' used in kernel name. Kernel name should be globally-visible}}
-    // expected-note@Inputs/sycl.hpp:220 {{Invalid kernel name is 'namespace1::KernelName<MyWrapper::InvalidKernelName3>'}}
-    // expected-note@28 {{InvalidKernelName3 declared here}}
+    // expected-error@Inputs/sycl.hpp:220 {{'namespace1::KernelName<MyWrapper::InvalidKernelName3>' is an invalid kernel name type}}
+    // expected-note@Inputs/sycl.hpp:220 {{'MyWrapper::InvalidKernelName3' should be globally-visible}}
     // expected-note@+3{{in instantiation of function template specialization}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
@@ -80,8 +76,8 @@ public:
     });
 
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@Inputs/sycl.hpp:220 {{invalid type 'std::max_align_t' used in kernel name. Type cannot be in the "std" namespace}}
-    // expected-note@Inputs/sycl.hpp:220 {{Invalid kernel name is 'std::max_align_t'}}
+    // expected-error@Inputs/sycl.hpp:220 {{'std::max_align_t' is an invalid kernel name type}}
+    // expected-note@Inputs/sycl.hpp:220 {{type 'std::max_align_t' cannot be in the "std" namespace}}
     // expected-note@+3{{in instantiation of function template specialization}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
@@ -90,9 +86,8 @@ public:
 
     using InvalidAlias = InvalidKernelName4;
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@Inputs/sycl.hpp:220 {{invalid type 'MyWrapper::InvalidKernelName4' used in kernel name. Kernel name should be globally-visible}}
-    // expected-note@Inputs/sycl.hpp:220 {{Invalid kernel name is 'MyWrapper::InvalidKernelName4'}}
-    // expected-note@29 {{InvalidKernelName4 declared here}}
+    // expected-error@Inputs/sycl.hpp:220 {{'MyWrapper::InvalidKernelName4' is an invalid kernel name type}}
+    // expected-note@Inputs/sycl.hpp:220 {{'MyWrapper::InvalidKernelName4' should be globally-visible}}
     // expected-note@+3{{in instantiation of function template specialization}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
@@ -101,18 +96,16 @@ public:
 
     using InvalidAlias1 = InvalidKernelName5;
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@Inputs/sycl.hpp:220 {{invalid type 'MyWrapper::InvalidKernelName5' used in kernel name. Kernel name should be globally-visible}}
-    // expected-note@Inputs/sycl.hpp:220 {{Invalid kernel name is 'namespace1::KernelName<MyWrapper::InvalidKernelName5>'}}
-    // expected-note@30 {{InvalidKernelName5 declared here}}
+    // expected-error@Inputs/sycl.hpp:220 {{'namespace1::KernelName<MyWrapper::InvalidKernelName5>' is an invalid kernel name type}}
+    // expected-note@Inputs/sycl.hpp:220 {{'MyWrapper::InvalidKernelName5' should be globally-visible}}
     // expected-note@+3{{in instantiation of function template specialization}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<namespace1::KernelName<InvalidAlias1>>([] {});
     });
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@Inputs/sycl.hpp:220 {{invalid type 'InvalidKernelName1' used in kernel name. Kernel name should be globally-visible}}
-    // expected-note@Inputs/sycl.hpp:220 {{Invalid kernel name is 'Templated_kernel_name2<Templated_kernel_name<InvalidKernelName1>>'}}
-    // expected-note@41 {{InvalidKernelName1 declared here}}
+    // expected-error@Inputs/sycl.hpp:220 {{'Templated_kernel_name2<Templated_kernel_name<InvalidKernelName1>>' is an invalid kernel name type}}
+    // expected-note@Inputs/sycl.hpp:220 {{'InvalidKernelName1' should be globally-visible}}
     // expected-note@+3{{in instantiation of function template specialization}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
@@ -124,8 +117,8 @@ public:
 int main() {
   cl::sycl::queue q;
 #ifndef __SYCL_UNNAMED_LAMBDA__
-  // expected-error@Inputs/sycl.hpp:220 {{kernel name is missing}}
-  // expected-note-re@Inputs/sycl.hpp:220 {{Invalid kernel name is '(lambda at {{.*}}unnamed-kernel.cpp{{.*}}'}}
+  // expected-error-re@Inputs/sycl.hpp:220 {{'(lambda at {{.*}}unnamed-kernel.cpp{{.*}}' is an invalid kernel name type}}
+  // expected-note@Inputs/sycl.hpp:220 {{kernel name is missing}}
   // expected-note@+2{{in instantiation of function template specialization}}
 #endif
   q.submit([&](cl::sycl::handler &h) { h.single_task([] {}); });

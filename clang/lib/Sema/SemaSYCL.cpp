@@ -1,3 +1,4 @@
+//===- SemaSYCL.cpp - Semantic Analysis for SYCL constructs ---------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -2858,9 +2859,9 @@ public:
     if (!RD) {
       if (T->isNullPtrType()) {
         S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-            << T << /* kernel name cannot be a type in the std namespace */ 2;
-        S.Diag(KernelInvocationFuncLoc, diag::note_kernel_name)
             << KernelNameType;
+        S.Diag(KernelInvocationFuncLoc, diag::note_invalid_type_in_sycl_kernel)
+            << /* kernel name cannot be a type in the std namespace */ 2 << T;
         IsInvalid = true;
       }
       return;
@@ -2885,11 +2886,10 @@ public:
     const EnumDecl *ED = T->getDecl();
     if (!ED->isScoped() && !ED->isFixed()) {
       S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-          << QualType(ED->getTypeForDecl(), 0)
-          << /* Unscoped enum requires fixed underlying type */ 1;
-      S.Diag(KernelInvocationFuncLoc, diag::note_kernel_name) << KernelNameType;
-      S.Diag(ED->getSourceRange().getBegin(), diag::note_entity_declared_at)
-          << ED;
+          << KernelNameType;
+      S.Diag(KernelInvocationFuncLoc, diag::note_invalid_type_in_sycl_kernel)
+          << /* Unscoped enum requires fixed underlying type */ 1
+          << QualType(ED->getTypeForDecl(), 0);
       IsInvalid = true;
     }
   }
@@ -2906,34 +2906,39 @@ public:
       auto *NameSpace = dyn_cast_or_null<NamespaceDecl>(DeclCtx);
       if (NameSpace && NameSpace->isStdNamespace()) {
         S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-            << QualType(Tag->getTypeForDecl(), 0)
-            << /* kernel name cannot be a type in the std namespace */ 2;
-        S.Diag(KernelInvocationFuncLoc, diag::note_kernel_name)
             << KernelNameType;
+        S.Diag(KernelInvocationFuncLoc, diag::note_invalid_type_in_sycl_kernel)
+            << /* kernel name cannot be a type in the std namespace */ 2
+            << QualType(Tag->getTypeForDecl(), 0);
         IsInvalid = true;
         return;
       }
       if (!DeclCtx->isTranslationUnit() && !isa<NamespaceDecl>(DeclCtx)) {
         const bool KernelNameIsMissing = Tag->getName().empty();
         if (KernelNameIsMissing) {
-          S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_name_missing);
-          S.Diag(KernelInvocationFuncLoc, diag::note_kernel_name)
+          S.Diag(KernelInvocationFuncLoc,
+                 diag::err_sycl_kernel_incorrectly_named)
               << KernelNameType;
+          S.Diag(KernelInvocationFuncLoc,
+                 diag::note_invalid_type_in_sycl_kernel)
+              << /* kernel name is missing */ 3;
           IsInvalid = true;
           return;
         }
         if (Tag->isCompleteDefinition()) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_sycl_kernel_incorrectly_named)
-              << QualType(Tag->getTypeForDecl(), 0)
-              << /* kernel name is not globally-visible */ 0;
-          S.Diag(KernelInvocationFuncLoc, diag::note_kernel_name)
               << KernelNameType;
+          S.Diag(KernelInvocationFuncLoc,
+                 diag::note_invalid_type_in_sycl_kernel)
+              << /* kernel name is not globally-visible */ 0
+              << QualType(Tag->getTypeForDecl(), 0);
           IsInvalid = true;
-        } else
+        } else {
           S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
-        S.Diag(Tag->getSourceRange().getBegin(), diag::note_previous_decl)
-            << Tag->getName();
+          S.Diag(Tag->getSourceRange().getBegin(), diag::note_previous_decl)
+              << Tag->getName();
+        }
       }
     }
   }
