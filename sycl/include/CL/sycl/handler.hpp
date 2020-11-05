@@ -745,13 +745,17 @@ private:
                                   item<Dims>, LambdaArgType>::type;
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    constexpr size_t GoodLocalSizeX = 32;
+
     // Round-up just the first dimension of the range.
     // Even for multi-dimensional ranges the total number of work items will
     // be a multiple of the rounding factor since any multiple of a rounded-up
     // first dimension will also be a rounded-up value.
+    constexpr size_t GoodLocalSizeX = 32;
+    range<Dims> AdjustedRange = NumWorkItems;
     size_t NewValX = ((NumWorkItems[0] + GoodLocalSizeX - 1) / GoodLocalSizeX) *
                      GoodLocalSizeX;
+    AdjustedRange.set_range(NewValX);
+
     auto Wrapper = [=](TransformedArgType Arg) {
       if (Arg[0] >= NumWorkItems[0])
         return;
@@ -759,15 +763,12 @@ private:
       KernelFunc(Arg);
     };
 
-    using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
-    range<Dims> AdjustedRange = NumWorkItems;
-    AdjustedRange.set_range(NewValX);
 #ifdef __SYCL_DEVICE_ONLY__
-    kernel_parallel_for<NameWT, TransformedArgType>(Wrapper);
+    kernel_parallel_for<NameT, TransformedArgType>(Wrapper);
 #else
     detail::checkValueRange<Dims>(AdjustedRange);
     MNDRDesc.set(std::move(AdjustedRange));
-    StoreLambda<NameWT, decltype(Wrapper), Dims, TransformedArgType>(
+    StoreLambda<NameT, decltype(Wrapper), Dims, TransformedArgType>(
         std::move(Wrapper));
     MCGType = detail::CG::KERNEL;
 #endif

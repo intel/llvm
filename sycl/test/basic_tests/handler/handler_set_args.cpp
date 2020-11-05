@@ -115,7 +115,7 @@ int main() {
         getPrebuiltKernel<ParallelForRangeIdFunctor<NoOffset>>(Queue);
 
     checkApiCall(Queue, [&](cl::sycl::handler &cgh, AccessorT acc) {
-      cgh.set_args(acc);
+      cgh.set_args(Range, acc);
       cgh.parallel_for(Range, preBuiltKernel);
     });
   }
@@ -135,7 +135,7 @@ int main() {
         getPrebuiltKernel<ParallelForRangeItemFunctor<NoOffset>>(Queue);
 
     checkApiCall(Queue, [&](cl::sycl::handler &cgh, AccessorT acc) {
-      cgh.set_args(acc);
+      cgh.set_args(Range, acc);
       cgh.parallel_for(Range, preBuiltKernel);
     });
   }
@@ -174,7 +174,7 @@ int main() {
         getPrebuiltKernel<ParallelForRangeIdFunctor<NoOffset>>(Queue);
 
     checkApiCall(Queue, [&](cl::sycl::handler &cgh, AccessorT acc) {
-      cgh.set_args(acc);
+      cgh.set_args(Range, acc);
       cgh.parallel_for<class OtherKernelName2>(
           preBuiltKernel, Range, [=](cl::sycl::id<1> id) { acc[0] = 10; });
     });
@@ -197,7 +197,7 @@ int main() {
         getPrebuiltKernel<ParallelForRangeItemFunctor<NoOffset>>(Queue);
 
     checkApiCall(Queue, [&](cl::sycl::handler &cgh, AccessorT acc) {
-      cgh.set_args(acc);
+      cgh.set_args(Range, acc);
       cgh.parallel_for<class OtherKernelName4>(
           preBuiltKernel, Range, [=](cl::sycl::item<1> item) { acc[0] = 10; });
     });
