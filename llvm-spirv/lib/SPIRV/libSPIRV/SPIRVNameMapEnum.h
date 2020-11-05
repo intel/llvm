@@ -163,6 +163,7 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationIOPipeStorageINTEL, "IOPipeStorageINTEL");
   add(DecorationFunctionFloatingPointModeINTEL,
       "FunctionFloatingPointModeINTEL");
+  add(DecorationSingleElementVectorINTEL, "SingleElementVectorINTEL");
   add(DecorationVectorComputeCallableFunctionINTEL,
       "VectorComputeCallableFunctionINTEL");
   add(DecorationMax, "Max");

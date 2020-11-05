@@ -426,7 +426,7 @@ pi_result _pi_device::initialize() {
 pi_result
 _pi_queue::resetCommandListFenceEntry(ze_command_list_handle_t ZeCommandList,
                                       bool MakeAvailable) {
-  // Event has been signaled: If the fence for the associated command list
+  // Event has been signalled: If the fence for the associated command list
   // is signalled, then reset the fence and command list and add them to the
   // available list for ruse in PI calls.
   ZE_CALL(zeFenceReset(this->ZeCommandListFenceMap[ZeCommandList]));
@@ -552,28 +552,9 @@ pi_result _pi_device::getAvailableCommandList(
 
 pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
                                         ze_fence_handle_t ZeFence,
-                                        bool IsBlocking) {
-  // Close the command list and have it ready for dispatch.
-  ZE_CALL(zeCommandListClose(ZeCommandList));
-  // Offload command list to the GPU for asynchronous execution
-  ZE_CALL(zeCommandQueueExecuteCommandLists(ZeCommandQueue, 1, &ZeCommandList,
-                                            ZeFence));
-
-  // Check global control to make every command blocking for debugging.
-  if (IsBlocking || (ZeSerialize & ZeSerializeBlock) != 0) {
-    // Wait until command lists attached to the command queue are executed.
-    ZE_CALL(zeCommandQueueSynchronize(ZeCommandQueue, UINT32_MAX));
-  }
-  return PI_SUCCESS;
-}
-
-bool _pi_queue::isBatchingAllowed() {
-  return (this->QueueBatchSize > 1 && ((ZeSerialize & ZeSerializeBlock) == 0));
-}
-
-pi_result _pi_queue::batchCommandList(ze_command_list_handle_t ZeCommandList,
-                                      ze_fence_handle_t ZeFence) {
-  if (this->isBatchingAllowed()) {
+                                        bool IsBlocking,
+                                        bool OKToBatchCommand) {
+  if (OKToBatchCommand && this->isBatchingAllowed()) {
     assert(this->ZeOpenCommandList == nullptr ||
            this->ZeOpenCommandList == ZeCommandList);
 
@@ -596,7 +577,22 @@ pi_result _pi_queue::batchCommandList(ze_command_list_handle_t ZeCommandList,
     this->ZeOpenCommandListSize = 0;
   }
 
-  return executeCommandList(ZeCommandList, ZeFence);
+  // Close the command list and have it ready for dispatch.
+  ZE_CALL(zeCommandListClose(ZeCommandList));
+  // Offload command list to the GPU for asynchronous execution
+  ZE_CALL(zeCommandQueueExecuteCommandLists(ZeCommandQueue, 1, &ZeCommandList,
+                                            ZeFence));
+
+  // Check global control to make every command blocking for debugging.
+  if (IsBlocking || (ZeSerialize & ZeSerializeBlock) != 0) {
+    // Wait until command lists attached to the command queue are executed.
+    ZE_CALL(zeCommandQueueSynchronize(ZeCommandQueue, UINT32_MAX));
+  }
+  return PI_SUCCESS;
+}
+
+bool _pi_queue::isBatchingAllowed() {
+  return (this->QueueBatchSize > 1 && ((ZeSerialize & ZeSerializeBlock) == 0));
 }
 
 pi_result _pi_queue::executeOpenCommandList() {
@@ -2759,11 +2755,15 @@ pi_result piextProgramCreateWithNativeHandle(pi_native_handle NativeHandle,
 }
 
 _pi_program::~_pi_program() {
-  if (ZeModule) {
-    ZE_CALL_NOCHECK(zeModuleDestroy(ZeModule));
-  }
+  // According to Level Zero Specification, all kernels and build logs
+  // must be destroyed before the Module can be destroyed.  So, be sure
+  // to destroy build log before destroying the module.
   if (ZeBuildLog) {
     ZE_CALL_NOCHECK(zeModuleBuildLogDestroy(ZeBuildLog));
+  }
+
+  if (ZeModule) {
+    ZE_CALL_NOCHECK(zeModuleDestroy(ZeModule));
   }
 }
 
@@ -2902,6 +2902,10 @@ pi_result piKernelCreate(pi_program Program, const char *KernelName,
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
+
+  // Update the refcount of the program to show its use by this kernel.
+  piProgramRetain(Program);
+
   return PI_SUCCESS;
 }
 
@@ -3091,16 +3095,24 @@ pi_result piKernelRetain(pi_kernel Kernel) {
 
   assert(Kernel);
   ++(Kernel->RefCount);
+  // When retaining a kernel, you are also retaining the program it is part of.
+  piProgramRetain(Kernel->Program);
   return PI_SUCCESS;
 }
 
 pi_result piKernelRelease(pi_kernel Kernel) {
 
   assert(Kernel);
+  auto KernelProgram = Kernel->Program;
+
   if (--(Kernel->RefCount) == 0) {
     zeKernelDestroy(Kernel->ZeKernel);
     delete Kernel;
   }
+
+  // do a release on the program this kernel was part of
+  piProgramRelease(KernelProgram);
+
   return PI_SUCCESS;
 }
 
@@ -3112,6 +3124,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
                       const pi_event *EventWaitList, pi_event *Event) {
   assert(Kernel);
   assert(Queue);
+  assert(Event);
   assert((WorkDim > 0) && (WorkDim < 4));
   if (GlobalWorkOffset != NULL) {
     for (pi_uint32 i = 0; i < WorkDim; i++) {
@@ -3194,17 +3207,26 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
-  if (Event) {
-    auto Res = piEventCreate(Kernel->Program->Context, Event);
-    if (Res != PI_SUCCESS)
-      return Res;
+  auto Res = piEventCreate(Kernel->Program->Context, Event);
+  if (Res != PI_SUCCESS)
+    return Res;
 
-    (*Event)->Queue = Queue;
-    (*Event)->CommandType = PI_COMMAND_TYPE_NDRANGE_KERNEL;
-    (*Event)->ZeCommandList = ZeCommandList;
+  (*Event)->Queue = Queue;
+  (*Event)->CommandType = PI_COMMAND_TYPE_NDRANGE_KERNEL;
+  (*Event)->ZeCommandList = ZeCommandList;
 
-    ZeEvent = (*Event)->ZeEvent;
-  }
+  // Save the kernel in the event, so that when the event is signalled
+  // the code can do a piKernelRelease on this kernel.
+  (*Event)->CommandData = (void *)Kernel;
+
+  // Use piKernelRetain to increment the reference count and indicate
+  // that the Kernel is in use. Once the event has been signalled, the
+  // code in cleanupAfterEvent will do a piReleaseKernel to update
+  // the reference count on the kernel, using the kernel saved
+  // in CommandData.
+  piKernelRetain(Kernel);
+
+  ZeEvent = (*Event)->ZeEvent;
 
   ze_event_handle_t *ZeEventWaitList =
       _pi_event::createZeEventList(NumEventsInWaitList, EventWaitList);
@@ -3227,7 +3249,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
-  if (auto Res = Queue->batchCommandList(ZeCommandList, ZeFence))
+  if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence, false, true))
     return Res;
 
   _pi_event::deleteZeEventList(ZeEventWaitList);
@@ -3356,25 +3378,30 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
   return PI_SUCCESS;
 }
 
-// Recycle the command list associated with this event.
-static void recycleEventCommandList(pi_event Event) {
+// Perform any necessary cleanup after an event has been signalled.
+// This currently recycles the associate command list, and also makes
+// sure to release any kernel that may have been used by the event.
+static void cleanupAfterEvent(pi_event Event) {
   // The implementation of this is slightly tricky.  The same event
   // can be referred to by multiple threads, so it is possible to
-  // have a race condition between the read of ZeCommandList and
-  // it being reset to nullptr in another thread.
-  // But, since the ZeCommandList is uniquely associated with the queue
+  // have a race condition between the read of fields of the event,
+  // and reseting those fields in some other thread.
+  // But, since the event is uniquely associated with the queue
   // for the event, we use the locking that we already have to do on the
   // queue to also serve as the thread safety mechanism for the
-  // Event's ZeCommandList.
+  // any of the Event's data members that need to be read/reset as
+  // part of the cleanup operations.
   auto Queue = Event->Queue;
 
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
+  // Cleanup the command list associated with the event if it hasn't
+  // been cleaned up already.
   auto EventCommandList = Event->ZeCommandList;
 
   if (EventCommandList) {
-    // Event has been signaled: If the fence for the associated command list
+    // Event has been signalled: If the fence for the associated command list
     // is signalled, then reset the fence and command list and add them to the
     // available list for reuse in PI calls.
     if (Queue->RefCount > 0) {
@@ -3385,6 +3412,13 @@ static void recycleEventCommandList(pi_event Event) {
         Event->ZeCommandList = nullptr;
       }
     }
+  }
+
+  // Release the kernel associated with this event if there is one.
+  if (Event->CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL &&
+      Event->CommandData) {
+    piKernelRelease(pi_cast<pi_kernel>(Event->CommandData));
+    Event->CommandData = nullptr;
   }
 }
 
@@ -3412,9 +3446,9 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
     zePrint("ZeEvent = %lx\n", pi_cast<std::uintptr_t>(ZeEvent));
     ZE_CALL(zeEventHostSynchronize(ZeEvent, UINT32_MAX));
 
-    // NOTE: we are destroying associated command lists here to free
-    // resources sooner in case RT is not calling piEventRelease soon enough.
-    recycleEventCommandList(EventList[I]);
+    // NOTE: we are cleaning up after the event here to free resources
+    // sooner in case run-time is not calling piEventRelease soon enough.
+    cleanupAfterEvent(EventList[I]);
   }
   return PI_SUCCESS;
 }
@@ -3441,7 +3475,7 @@ pi_result piEventRetain(pi_event Event) {
 pi_result piEventRelease(pi_event Event) {
   assert(Event);
   if (--(Event->RefCount) == 0) {
-    recycleEventCommandList(Event);
+    cleanupAfterEvent(Event);
 
     if (Event->CommandType == PI_COMMAND_TYPE_MEM_BUFFER_UNMAP &&
         Event->CommandData) {
