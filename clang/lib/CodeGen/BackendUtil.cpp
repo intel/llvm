@@ -689,7 +689,7 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
   if (LangOpts.Coroutines)
     addCoroutinePassesToExtensionPoints(PMBuilder);
 
-  if (CodeGenOpts.MemProf) {
+  if (!CodeGenOpts.MemoryProfileOutput.empty()) {
     PMBuilder.addExtension(PassManagerBuilder::EP_OptimizerLast,
                            addMemProfilerPasses);
     PMBuilder.addExtension(PassManagerBuilder::EP_EnabledOnOptLevel0,
@@ -1241,7 +1241,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
   PassInstrumentationCallbacks PIC;
   StandardInstrumentations SI(CodeGenOpts.DebugPassManager);
   SI.registerCallbacks(PIC);
-  PassBuilder PB(TM.get(), PTO, PGOOpt, &PIC);
+  PassBuilder PB(CodeGenOpts.DebugPassManager, TM.get(), PTO, PGOOpt, &PIC);
 
   // Attempt to load pass plugins and register their callbacks with PB.
   for (auto &PluginFN : CodeGenOpts.PassPlugins) {
@@ -1279,9 +1279,6 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
   PB.registerLoopAnalyses(LAM);
   PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
-  if (TM)
-    TM->registerPassBuilderCallbacks(PB, CodeGenOpts.DebugPassManager);
-
   ModulePassManager MPM(CodeGenOpts.DebugPassManager);
 
   if (!CodeGenOpts.DisableLLVMPasses) {
@@ -1318,7 +1315,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
       if (PGOOpt && (PGOOpt->Action == PGOOptions::IRInstr ||
                      PGOOpt->Action == PGOOptions::IRUse))
         PB.addPGOInstrPassesForO0(
-            MPM, CodeGenOpts.DebugPassManager,
+            MPM,
             /* RunProfileGen */ (PGOOpt->Action == PGOOptions::IRInstr),
             /* IsCS */ false, PGOOpt->ProfileFile,
             PGOOpt->ProfileRemappingFile);
@@ -1343,16 +1340,18 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
       // test assume sequences inserted for whole program vtables so that
       // codegen doesn't complain.
       if (!CodeGenOpts.ThinLTOIndexFile.empty())
-        PB.registerPipelineStartEPCallback([](ModulePassManager &MPM) {
-          MPM.addPass(LowerTypeTestsPass(/*ExportSummary=*/nullptr,
-                                         /*ImportSummary=*/nullptr,
-                                         /*DropTypeTests=*/true));
-        });
+        PB.registerPipelineStartEPCallback(
+            [](ModulePassManager &MPM, PassBuilder::OptimizationLevel Level) {
+              MPM.addPass(LowerTypeTestsPass(/*ExportSummary=*/nullptr,
+                                             /*ImportSummary=*/nullptr,
+                                             /*DropTypeTests=*/true));
+            });
 
-      PB.registerPipelineStartEPCallback([](ModulePassManager &MPM) {
-        MPM.addPass(createModuleToFunctionPassAdaptor(
-            EntryExitInstrumenterPass(/*PostInlining=*/false)));
-      });
+      PB.registerPipelineStartEPCallback(
+          [](ModulePassManager &MPM, PassBuilder::OptimizationLevel Level) {
+            MPM.addPass(createModuleToFunctionPassAdaptor(
+                EntryExitInstrumenterPass(/*PostInlining=*/false)));
+          });
 
       // Register callbacks to schedule sanitizer passes at the appropriate part of
       // the pipeline.
@@ -1435,28 +1434,29 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
       }
 
       if (Optional<GCOVOptions> Options = getGCOVOptions(CodeGenOpts, LangOpts))
-        PB.registerPipelineStartEPCallback([Options](ModulePassManager &MPM) {
-          MPM.addPass(GCOVProfilerPass(*Options));
-        });
+        PB.registerPipelineStartEPCallback(
+            [Options](ModulePassManager &MPM,
+                      PassBuilder::OptimizationLevel Level) {
+              MPM.addPass(GCOVProfilerPass(*Options));
+            });
       if (Optional<InstrProfOptions> Options =
               getInstrProfOptions(CodeGenOpts, LangOpts))
-        PB.registerPipelineStartEPCallback([Options](ModulePassManager &MPM) {
-          MPM.addPass(InstrProfiling(*Options, false));
-        });
+        PB.registerPipelineStartEPCallback(
+            [Options](ModulePassManager &MPM,
+                      PassBuilder::OptimizationLevel Level) {
+              MPM.addPass(InstrProfiling(*Options, false));
+            });
 
       if (IsThinLTO) {
-        MPM = PB.buildThinLTOPreLinkDefaultPipeline(
-            Level, CodeGenOpts.DebugPassManager);
+        MPM = PB.buildThinLTOPreLinkDefaultPipeline(Level);
         MPM.addPass(CanonicalizeAliasesPass());
         MPM.addPass(NameAnonGlobalPass());
       } else if (IsLTO) {
-        MPM = PB.buildLTOPreLinkDefaultPipeline(Level,
-                                                CodeGenOpts.DebugPassManager);
+        MPM = PB.buildLTOPreLinkDefaultPipeline(Level);
         MPM.addPass(CanonicalizeAliasesPass());
         MPM.addPass(NameAnonGlobalPass());
       } else {
-        MPM = PB.buildPerModuleDefaultPipeline(Level,
-                                               CodeGenOpts.DebugPassManager);
+        MPM = PB.buildPerModuleDefaultPipeline(Level);
       }
     }
 
@@ -1465,7 +1465,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
     if (CodeGenOpts.UniqueInternalLinkageNames)
       MPM.addPass(UniqueInternalLinkageNamesPass());
 
-    if (CodeGenOpts.MemProf) {
+    if (!CodeGenOpts.MemoryProfileOutput.empty()) {
       MPM.addPass(createModuleToFunctionPassAdaptor(MemProfilerPass()));
       MPM.addPass(ModuleMemProfilerPass());
     }

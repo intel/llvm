@@ -226,6 +226,10 @@ OptionalParseResult Parser::parseOptionalAttribute(ArrayAttr &attribute,
                                                    Type type) {
   return parseOptionalAttributeWithToken(Token::l_square, attribute, type);
 }
+OptionalParseResult Parser::parseOptionalAttribute(StringAttr &attribute,
+                                                   Type type) {
+  return parseOptionalAttributeWithToken(Token::string, attribute, type);
+}
 
 /// Attribute dictionary.
 ///
@@ -249,7 +253,8 @@ ParseResult Parser::parseAttributeDict(NamedAttrList &attributes) {
     else
       return emitError("expected attribute name");
     if (!seenKeys.insert(*nameId).second)
-      return emitError("duplicate key in dictionary attribute");
+      return emitError("duplicate key '")
+             << *nameId << "' in dictionary attribute";
     consumeToken();
 
     // Lazy load a dialect in the context if there is a possible namespace.
@@ -807,6 +812,7 @@ ParseResult TensorLiteralParser::parseList(SmallVectorImpl<int64_t> &dims) {
 
 /// Parse a dense elements attribute.
 Attribute Parser::parseDenseElementsAttr(Type attrType) {
+  auto attribLoc = getToken().getLoc();
   consumeToken(Token::kw_dense);
   if (parseToken(Token::less, "expected '<' after 'dense'"))
     return nullptr;
@@ -819,11 +825,14 @@ Attribute Parser::parseDenseElementsAttr(Type attrType) {
       return nullptr;
   }
 
-  auto typeLoc = getToken().getLoc();
+  // If the type is specified `parseElementsLiteralType` will not parse a type.
+  // Use the attribute location as the location for error reporting in that
+  // case.
+  auto loc = attrType ? attribLoc : getToken().getLoc();
   auto type = parseElementsLiteralType(attrType);
   if (!type)
     return nullptr;
-  return literalParser.getAttr(typeLoc, type);
+  return literalParser.getAttr(loc, type);
 }
 
 /// Parse an opaque elements attribute.

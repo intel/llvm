@@ -528,6 +528,56 @@ define <4 x i32> @trunc_sat_u_v4i32(<4 x float> %x) {
 ; ==============================================================================
 ; 2 x i64
 ; ==============================================================================
+; CHECK-LABEL: eq_v2i64:
+; SIMD128-NEXT: .functype eq_v2i64 (v128, v128) -> (v128){{$}}
+; SIMD128-NEXT: i64x2.eq $push[[R:[0-9]+]]=, $0, $1{{$}}
+; SIMD128-NEXT: return $pop[[R]]{{$}}
+declare <2 x i64> @llvm.wasm.eq(<2 x i64>, <2 x i64>)
+define <2 x i64> @eq_v2i64(<2 x i64> %x, <2 x i64> %y) {
+  %a = call <2 x i64> @llvm.wasm.eq(<2 x i64> %x, <2 x i64> %y)
+  ret <2 x i64> %a
+}
+
+; CHECK-LABEL: widen_low_s_v2i64:
+; SIMD128-NEXT: .functype widen_low_s_v2i64 (v128) -> (v128){{$}}
+; SIMD128-NEXT: i64x2.widen_low_i32x4_s $push[[R:[0-9]+]]=, $0{{$}}
+; SIMD128-NEXT: return $pop[[R]]{{$}}
+declare <2 x i64> @llvm.wasm.widen.low.signed(<4 x i32>)
+define <2 x i64> @widen_low_s_v2i64(<4 x i32> %x) {
+  %a = call <2 x i64> @llvm.wasm.widen.low.signed(<4 x i32> %x)
+  ret <2 x i64> %a
+}
+
+; CHECK-LABEL: widen_high_s_v2i64:
+; SIMD128-NEXT: .functype widen_high_s_v2i64 (v128) -> (v128){{$}}
+; SIMD128-NEXT: i64x2.widen_high_i32x4_s $push[[R:[0-9]+]]=, $0{{$}}
+; SIMD128-NEXT: return $pop[[R]]{{$}}
+declare <2 x i64> @llvm.wasm.widen.high.signed(<4 x i32>)
+define <2 x i64> @widen_high_s_v2i64(<4 x i32> %x) {
+  %a = call <2 x i64> @llvm.wasm.widen.high.signed(<4 x i32> %x)
+  ret <2 x i64> %a
+}
+
+; CHECK-LABEL: widen_low_u_v2i64:
+; SIMD128-NEXT: .functype widen_low_u_v2i64 (v128) -> (v128){{$}}
+; SIMD128-NEXT: i64x2.widen_low_i32x4_u $push[[R:[0-9]+]]=, $0{{$}}
+; SIMD128-NEXT: return $pop[[R]]{{$}}
+declare <2 x i64> @llvm.wasm.widen.low.unsigned(<4 x i32>)
+define <2 x i64> @widen_low_u_v2i64(<4 x i32> %x) {
+  %a = call <2 x i64> @llvm.wasm.widen.low.unsigned(<4 x i32> %x)
+  ret <2 x i64> %a
+}
+
+; CHECK-LABEL: widen_high_u_v2i64:
+; SIMD128-NEXT: .functype widen_high_u_v2i64 (v128) -> (v128){{$}}
+; SIMD128-NEXT: i64x2.widen_high_i32x4_u $push[[R:[0-9]+]]=, $0{{$}}
+; SIMD128-NEXT: return $pop[[R]]{{$}}
+declare <2 x i64> @llvm.wasm.widen.high.unsigned(<4 x i32>)
+define <2 x i64> @widen_high_u_v2i64(<4 x i32> %x) {
+  %a = call <2 x i64> @llvm.wasm.widen.high.unsigned(<4 x i32> %x)
+  ret <2 x i64> %a
+}
+
 ; CHECK-LABEL: extmul_low_s_v2i64:
 ; SIMD128-NEXT: .functype extmul_low_s_v2i64 (v128, v128) -> (v128){{$}}
 ; SIMD128-NEXT: i64x2.extmul_low_i32x4_s $push[[R:[0-9]+]]=, $0, $1{{$}}
@@ -593,6 +643,16 @@ define i32 @any_v2i64(<2 x i64> %x) {
 declare i32 @llvm.wasm.alltrue.v2i64(<2 x i64>)
 define i32 @all_v2i64(<2 x i64> %x) {
   %a = call i32 @llvm.wasm.alltrue.v2i64(<2 x i64> %x)
+  ret i32 %a
+}
+
+; CHECK-LABEL: bitmask_v2i64:
+; SIMD128-NEXT: .functype bitmask_v2i64 (v128) -> (i32){{$}}
+; SIMD128-NEXT: i64x2.bitmask $push[[R:[0-9]+]]=, $0{{$}}
+; SIMD128-NEXT: return $pop[[R]]{{$}}
+declare i32 @llvm.wasm.bitmask.v2i64(<2 x i64>)
+define i32 @bitmask_v2i64(<2 x i64> %x) {
+  %a = call i32 @llvm.wasm.bitmask.v2i64(<2 x i64> %x)
   ret i32 %a
 }
 

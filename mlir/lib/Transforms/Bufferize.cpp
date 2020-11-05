@@ -27,13 +27,13 @@ BufferizeTypeConverter::BufferizeTypeConverter() {
   addConversion([](UnrankedTensorType type) -> Type {
     return UnrankedMemRefType::get(type.getElementType(), 0);
   });
-  addSourceMaterialization([](OpBuilder &builder, RankedTensorType type,
+  addSourceMaterialization([](OpBuilder &builder, TensorType type,
                               ValueRange inputs, Location loc) -> Value {
     assert(inputs.size() == 1);
     assert(inputs[0].getType().isa<BaseMemRefType>());
     return builder.create<TensorLoadOp>(loc, type, inputs[0]);
   });
-  addTargetMaterialization([](OpBuilder &builder, MemRefType type,
+  addTargetMaterialization([](OpBuilder &builder, BaseMemRefType type,
                               ValueRange inputs, Location loc) -> Value {
     assert(inputs.size() == 1);
     assert(inputs[0].getType().isa<TensorType>());
@@ -74,6 +74,45 @@ BufferizeTypeConverter::getResultConversionKind(Type origin, Type converted) {
 
 void mlir::populateBufferizeMaterializationLegality(ConversionTarget &target) {
   target.addLegalOp<TensorLoadOp, TensorToMemrefOp>();
+}
+
+namespace {
+// In a finalizing bufferize conversion, we know that all tensors have been
+// converted to memrefs, thus, this op becomes an identity.
+class BufferizeTensorLoadOp : public OpConversionPattern<TensorLoadOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(TensorLoadOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    TensorLoadOp::Adaptor adaptor(operands);
+    rewriter.replaceOp(op, adaptor.memref());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// In a finalizing bufferize conversion, we know that all tensors have been
+// converted to memrefs, thus, this op becomes an identity.
+class BufferizeTensorToMemrefOp : public OpConversionPattern<TensorToMemrefOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(TensorToMemrefOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    TensorToMemrefOp::Adaptor adaptor(operands);
+    rewriter.replaceOp(op, adaptor.tensor());
+    return success();
+  }
+};
+} // namespace
+
+void mlir::populateEliminateBufferizeMaterializationsPatterns(
+    MLIRContext *context, BufferizeTypeConverter &typeConverter,
+    OwningRewritePatternList &patterns) {
+  patterns.insert<BufferizeTensorLoadOp, BufferizeTensorToMemrefOp>(
+      typeConverter, context);
 }
 
 //===----------------------------------------------------------------------===//

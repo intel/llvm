@@ -9,6 +9,33 @@
 from libcxx.test.dsl import *
 
 _allStandards = ['c++03', 'c++11', 'c++14', 'c++17', 'c++2a']
+_warningFlags = [
+  '-Werror',
+  '-Wall',
+  '-Wextra',
+  '-Wshadow',
+  '-Wno-unused-command-line-argument',
+  '-Wno-attributes',
+  '-Wno-pessimizing-move',
+  '-Wno-c++11-extensions',
+  '-Wno-user-defined-literals',
+  '-Wno-noexcept-type',
+  '-Wno-aligned-allocation-unavailable',
+  '-Wno-atomic-alignment',
+
+  # GCC warns about places where we might want to add sized allocation/deallocation
+  # functions, but we know better what we're doing/testing in the test suite.
+  '-Wno-sized-deallocation',
+
+  # These warnings should be enabled in order to support the MSVC
+  # team using the test suite; They enable the warnings below and
+  # expect the test suite to be clean.
+  '-Wsign-compare',
+  '-Wunused-variable',
+  '-Wunused-parameter',
+  '-Wunreachable-code',
+  '-Wno-unused-local-typedef',
+]
 
 DEFAULT_PARAMETERS = [
   # Core parameters of the test suite
@@ -38,6 +65,24 @@ DEFAULT_PARAMETERS = [
             help="The C++ Standard Library implementation being tested.",
             actions=lambda stdlib: [
               AddFeature(stdlib)
+            ]),
+
+  Parameter(name='enable_warnings', choices=[True, False], type=bool, default=True,
+            help="Whether to enable warnings when compiling the test suite.",
+            actions=lambda warnings: [] if not warnings else [
+              AddOptionalWarningFlag(w) for w in _warningFlags
+            ]),
+
+  Parameter(name='use_system_cxx_lib', choices=[True, False], type=bool, default=False,
+            help="Whether the test suite is being *run* against the library shipped on "
+                 "the target triple in use, as opposed to the trunk library.",
+            actions=lambda useSystem: [
+              # TODO: Remove this, see comment in features.py
+              AddFeature('use_system_cxx_lib')
+            ] if useSystem else [
+              # If we're testing upstream libc++, disable availability markup,
+              # which is not relevant for non-shipped flabors of libc++.
+              AddCompileFlag('-D_LIBCPP_DISABLE_AVAILABILITY')
             ]),
 
   # Parameters to enable or disable parts of the test suite

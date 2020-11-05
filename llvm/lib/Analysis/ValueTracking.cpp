@@ -6004,7 +6004,8 @@ llvm::canConvertToMinOrMaxIntrinsic(ArrayRef<Value *> VL) {
         auto CurrentPattern = matchSelectPattern(I, LHS, RHS);
         if (!SelectPatternResult::isMinOrMax(CurrentPattern.Flavor) ||
             CurrentPattern.Flavor == SPF_FMINNUM ||
-            CurrentPattern.Flavor == SPF_FMAXNUM)
+            CurrentPattern.Flavor == SPF_FMAXNUM ||
+            !I->getType()->isIntOrIntVectorTy())
           return false;
         if (SelectPattern.Flavor != SPF_UNKNOWN &&
             SelectPattern.Flavor != CurrentPattern.Flavor)

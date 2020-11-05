@@ -116,7 +116,7 @@ walk(Operation *op, FuncTy &&callback) {
     if (auto derivedOp = dyn_cast<ArgT>(op))
       callback(derivedOp);
   };
-  return walk(op, function_ref<RetT(Operation *)>(wrapperFn));
+  return detail::walk(op, function_ref<RetT(Operation *)>(wrapperFn));
 }
 
 /// Walk all of the operations of type 'ArgT' nested under and including the
@@ -142,7 +142,7 @@ walk(Operation *op, FuncTy &&callback) {
       return callback(derivedOp);
     return WalkResult::advance();
   };
-  return walk(op, function_ref<RetT(Operation *)>(wrapperFn));
+  return detail::walk(op, function_ref<RetT(Operation *)>(wrapperFn));
 }
 
 /// Utility to provide the return type of a templated walk method.

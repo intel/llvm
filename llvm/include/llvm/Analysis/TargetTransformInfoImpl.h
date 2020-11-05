@@ -954,8 +954,10 @@ public:
     case Instruction::ICmp:
     case Instruction::FCmp: {
       Type *ValTy = U->getOperand(0)->getType();
+      // TODO: Also handle ICmp/FCmp constant expressions.
       return TargetTTI->getCmpSelInstrCost(Opcode, ValTy, U->getType(),
-                                           cast<CmpInst>(U)->getPredicate(),
+                                           I ? cast<CmpInst>(I)->getPredicate()
+                                             : CmpInst::BAD_ICMP_PREDICATE,
                                            CostKind, I);
     }
     case Instruction::InsertElement: {

@@ -1,11 +1,11 @@
-/*===- ir.c - Simple test of C APIs ---------------------------------------===*\
-|*                                                                            *|
-|* Part of the LLVM Project, under the Apache License v2.0 with LLVM          *|
-|* Exceptions.                                                                *|
-|* See https://llvm.org/LICENSE.txt for license information.                  *|
-|* SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception                    *|
-|*                                                                            *|
-\*===----------------------------------------------------------------------===*/
+//===- ir.c - Simple test of C APIs ---------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 
 /* RUN: mlir-capi-ir-test 2>&1 | FileCheck %s
  */
@@ -280,6 +280,19 @@ static void printFirstOfEach(MlirContext ctx, MlirOperation operation) {
   fprintf(stderr, "First operation: ");
   mlirOperationPrint(operation, printToStderr, NULL);
   fprintf(stderr, "\n");
+
+  // Get the operation name and print it.
+  MlirIdentifier ident = mlirOperationGetName(operation);
+  MlirStringRef identStr = mlirIdentifierStr(ident);
+  fprintf(stderr, "Operation name: '");
+  for (size_t i = 0; i < identStr.length; ++i)
+    fputc(identStr.data[i], stderr);
+  fprintf(stderr, "'\n");
+
+  // Get the identifier again and verify equal.
+  MlirIdentifier identAgain = mlirIdentifierGet(ctx, identStr);
+  fprintf(stderr, "Identifier equal: %d\n",
+          mlirIdentifierEqual(ident, identAgain));
 
   // Get the block terminator and print it.
   MlirOperation terminator = mlirBlockGetTerminator(block);
@@ -1127,6 +1140,8 @@ int main() {
   // CHECK:   }
   // CHECK: return
   // CHECK: First operation: {{.*}} = constant 0 : index
+  // CHECK: Operation name: 'std.constant'
+  // CHECK: Identifier equal: 1
   // CHECK: Terminator: return
   // CHECK: Get attr 0: 0 : index
   // CHECK: Get attr 0 by name: 0 : index
