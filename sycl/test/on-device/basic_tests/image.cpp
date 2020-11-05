@@ -16,7 +16,7 @@
 #include <iostream>
 #include <vector>
 
-#include "../helpers.hpp"
+#include "../../helpers.hpp"
 
 using namespace cl;
 
