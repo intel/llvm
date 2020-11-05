@@ -2212,6 +2212,36 @@ device kernel, the attribute is ignored and it is not propagated to a kernel.
   }];
 }
 
+def SYCLIntelStallEnableAttrDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "intel::stall_enable";
+  let Content = [{
+Applies to a lambda function, or function definition. Requests, to the extent
+possible, that statically-scheduled clusters handle stalls using a stall-enable
+signal to freeze computation within the cluster. This attribute can be applied
+to any lambda or function definition, it does not have to be a device
+function/kernel.
+
+.. code-block:: c++
+
+  [[intel::stall_enable]] void foo1() {}
+
+  class Functor
+  {
+      [[intel::stall_enable]] void operator()(item<1> item)
+      {
+          /* kernel code */
+      }
+  }
+
+  kernel<class kernel_name>(
+  []() [[intel::stall_enable]] {
+       /* kernel code */
+  });
+
+  }];
+}
+
 def ReqdWorkGroupSizeAttrDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "reqd_work_group_size";

@@ -165,7 +165,8 @@ public:
         ParsedAttr == AT_SYCLIntelSchedulerTargetFmaxMhz ||
         ParsedAttr == AT_SYCLIntelMaxWorkGroupSize ||
         ParsedAttr == AT_SYCLIntelMaxGlobalWorkDim ||
-        ParsedAttr == AT_SYCLIntelNoGlobalWorkOffset)
+        ParsedAttr == AT_SYCLIntelNoGlobalWorkOffset ||
+	ParsedAttr == AT_SYCLIntelStallEnable)
       return true;
 
     return false;

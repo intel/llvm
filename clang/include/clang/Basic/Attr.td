@@ -1226,6 +1226,19 @@ def SYCLIntelNumSimdWorkItems : InheritableAttr {
   let PragmaAttributeSupport = 0;
 }
 
+def SYCLIntelStallEnable : InheritableAttr {
+  let Spellings = [CXX11<"intel","stall_enable">];
+  let LangOpts = [OpenCL, SYCLIsDevice, SYCLIsHost];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let AdditionalMembers = [{
+    static const char *getName() {
+      return "stall_enable";
+    }
+  }];
+  let Documentation = [SYCLIntelStallEnableAttrDocs];
+  let PragmaAttributeSupport = 0;
+}
+
 def SYCLIntelSchedulerTargetFmaxMhz : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","scheduler_target_fmax_mhz">,
                    CXX11<"intel","scheduler_target_fmax_mhz">];
