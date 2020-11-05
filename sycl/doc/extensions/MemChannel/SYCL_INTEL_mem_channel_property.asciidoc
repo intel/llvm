@@ -1,0 +1,110 @@
+= SYCL_INTEL_mem_channel_property
+
+== Introduction
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
+
+This document describes an extension that adds a property to SYCL to indicate in what region of memory a buffer should be allocated. 
+
+== Contributors
+Joe Garvey, Intel
+
+== Notice
+
+Copyright (c) 2020 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products.
+
+== Version
+
+Built On: {docdate} +
+Revision: 1
+
+== Dependencies
+
+This extension is written against the SYCL 2020 provisional specification, Revision 1.
+
+The use of this extension requires a target that supports cl_intel_mem_channel_property or equivalent if OpenCL is used as the underlying device runtime.  
+
+== Overview
+
+On some targets manual assignment of buffers to memory regions can improve memory bandwidth.  This extension adds a buffer property to indicate in which memory channel a particular buffer should be allocated.  This information is an optimization hint to the runtime and thus it is legal to ignore.  
+
+== Modifications to the SYCL Specification, Version 2020 provisional revision 1
+
+=== Section 4.7.2.2 Buffer properties
+
+Add a new property to Table 4.33: Properties supported by the SYCL buffer class as follows:
+
+--
+[options="header"]
+|===
+| Property | Description
+| property::buffer::mem_channel | The `mem_channel` property is a hint to the SYCL runtime that the buffer should be stored in a particular memory channel provided to the property.  
+|===
+--
+
+Add a new constructor to Table 4.34: Constructors of the buffer property classes as follows:
+
+--
+[options="header"]
+|===
+| Constructor | Description
+| property::buffer::mem_channel::mem_channel(cl_uint channel) | Constructs a SYCL `mem_channel` property instance with the specified channel ID.  The range of valid values depends on the target and is implementation defined.  Invalid values do not need to result in an error as the property is only a hint.  
+|===
+--
+
+Add a new member function to Table 4.35: Member functions of the buffer property classes as follows:
+
+--
+[options="header"]
+|===
+| Member function | Description
+| cl_uint property::buffer::mem_channel::get_channel() const | Returns the cl_uint which was specified when constructing this SYCL `mem_channel` property.  
+|===
+--
+
+=== Section 4.6.4.3 Device aspects
+
+Add a new ext_intel_mem_channel aspect to the aspect enum:
+
+```c++
+namespace sycl {
+
+enum class aspect {
+    host,
+    cpu,
+    ...
+    usm_system_allocator,
+    ext_intel_mem_channel
+};
+
+} // namespace sycl
+```
+
+Add an entry for the new aspect to Table 4.20: Device aspects defined by the core SYCL specification:
+
+--
+[options="header"]
+|===
+| Aspect | Description
+| aspect::ext_intel_mem_channel | Indicates that the device supports the mem_channel buffer property
+|===
+--
+
+== Issues
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2020-10-26|Joe Garvey|*Initial public draft*
+|========================================
