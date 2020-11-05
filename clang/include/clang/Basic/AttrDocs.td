@@ -2435,6 +2435,15 @@ used on the same loop in conjunction with disable_loop_pipelining.
   }];
 }
 
+def SYCLIntelFPGANofusionAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "intel::nofusion";
+  let Content = [{
+This attribute applies to a loop. Indicates that the annotated
+loop should not be fused with any adjacent loop.
+  }];
+}
+
 def SYCLDeviceIndirectlyCallableDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "intel::device_indirectly_callable";

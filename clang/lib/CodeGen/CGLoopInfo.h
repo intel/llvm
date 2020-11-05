@@ -150,6 +150,9 @@ struct LoopAttributes {
   /// Value for llvm.loop.pipeline.iicount metadata.
   unsigned PipelineInitiationInterval;
 
+  /// Flag for llvm.loop.fusion.disable metatdata.
+  bool SYCLNofusionEnable;
+
   /// Value for whether the loop is required to make progress.
   bool MustProgress;
 };
@@ -407,6 +410,9 @@ public:
   void setPipelineInitiationInterval(unsigned C) {
     StagedAttrs.PipelineInitiationInterval = C;
   }
+
+  /// Set flag of nofusion for the next loop pushed.
+  void setSYCLNofusionEnable() { StagedAttrs.SYCLNofusionEnable = true; }
 
   /// Set no progress for the next loop pushed.
   void setMustProgress(bool P) { StagedAttrs.MustProgress = P; }

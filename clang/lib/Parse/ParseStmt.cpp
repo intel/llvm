@@ -2582,7 +2582,8 @@ bool Parser::ParseSYCLLoopAttributes(ParsedAttributes &Attrs) {
       Attrs.begin()->getKind() != ParsedAttr::AT_SYCLIntelFPGAMaxInterleaving &&
       Attrs.begin()->getKind() !=
           ParsedAttr::AT_SYCLIntelFPGASpeculatedIterations &&
-      Attrs.begin()->getKind() != ParsedAttr::AT_LoopUnrollHint)
+      Attrs.begin()->getKind() != ParsedAttr::AT_LoopUnrollHint &&
+      Attrs.begin()->getKind() != ParsedAttr::AT_SYCLIntelFPGANofusion)
     return true;
 
   bool IsIntelFPGAAttribute = (Attrs.begin()->getKind() != ParsedAttr::AT_LoopUnrollHint);
