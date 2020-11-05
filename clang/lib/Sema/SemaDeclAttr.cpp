@@ -3029,7 +3029,7 @@ static void handleNumSimdWorkItemsAttr(Sema &S, Decl *D,
                                                                      E);
 }
 
-//Handles stall_enable
+// Handles stall_enable
 static void handleStallEnableAttr(Sema &S, Decl *D, const ParsedAttr &Attr) {
   if (D->isInvalidDecl())
     return;

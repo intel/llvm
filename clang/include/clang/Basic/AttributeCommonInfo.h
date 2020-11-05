@@ -166,7 +166,7 @@ public:
         ParsedAttr == AT_SYCLIntelMaxWorkGroupSize ||
         ParsedAttr == AT_SYCLIntelMaxGlobalWorkDim ||
         ParsedAttr == AT_SYCLIntelNoGlobalWorkOffset ||
-	ParsedAttr == AT_SYCLIntelStallEnable)
+        ParsedAttr == AT_SYCLIntelStallEnable)
       return true;
 
     return false;

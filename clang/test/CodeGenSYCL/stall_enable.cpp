@@ -14,13 +14,12 @@ public:
 
 int main() {
   q.submit([&](handler &h) {
+    Foo boo;
+    h.single_task<class test_kernel1>(boo);
 
-  Foo boo;
-  h.single_task<class test_kernel1>(boo);
-
-  h.single_task<class test_kernel2>(
-    []() [[intel::stall_enable]]{});
- });
+    h.single_task<class test_kernel2>(
+        []() [[intel::stall_enable]]{});
+    });
   return 0;
 }
 

@@ -680,8 +680,7 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
   if (FD->hasAttr<SYCLIntelStallEnableAttr>()) {
     llvm::Metadata *AttrMDArgs[] = {
         llvm::ConstantAsMetadata::get(Builder.getInt32(1))};
-    Fn->setMetadata("stall_enable",
-                   llvm::MDNode::get(Context, AttrMDArgs));
+    Fn->setMetadata("stall_enable", llvm::MDNode::get(Context, AttrMDArgs));
   }
 }
 
