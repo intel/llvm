@@ -732,6 +732,8 @@ private:
   ///
   /// \param NumWorkItems is a range defining indexing space.
   /// \param KernelFunc is a SYCL kernel function.
+#ifndef __SYCL_PFWG_ROUNDED_SIZE_DISABLE__
+#define __SYCL_PFWG_ROUNDED_SIZE__ 32
   template <typename KernelName, typename KernelType, int Dims>
   void parallel_for_lambda_impl(range<Dims> NumWorkItems,
                                 KernelType KernelFunc) {
@@ -750,7 +752,7 @@ private:
     // Even for multi-dimensional ranges the total number of work items will
     // be a multiple of the rounding factor since any multiple of a rounded-up
     // first dimension will also be a rounded-up value.
-    constexpr size_t GoodLocalSizeX = 32;
+    constexpr size_t GoodLocalSizeX = __SYCL_PFWG_ROUNDED_SIZE__;
     range<Dims> AdjustedRange = NumWorkItems;
     size_t NewValX = ((NumWorkItems[0] + GoodLocalSizeX - 1) / GoodLocalSizeX) *
                      GoodLocalSizeX;
@@ -773,6 +775,30 @@ private:
     MCGType = detail::CG::KERNEL;
 #endif
   }
+#else // __SYCL_PFWG_ROUNDED_SIZE_DISABLE__
+  template <typename KernelName, typename KernelType, int Dims>
+  void parallel_for_lambda_impl(range<Dims> NumWorkItems,
+                                KernelType KernelFunc) {
+    throwIfActionIsCreated();
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
+    using TransformedArgType =
+        typename std::conditional<std::is_integral<LambdaArgType>::value &&
+                                      Dims == 1,
+                                  item<Dims>, LambdaArgType>::type;
+#ifdef __SYCL_DEVICE_ONLY__
+    (void)NumWorkItems;
+    kernel_parallel_for<NameT, TransformedArgType>(KernelFunc);
+#else
+    detail::checkValueRange<Dims>(NumWorkItems);
+    MNDRDesc.set(std::move(NumWorkItems));
+    StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
+        std::move(KernelFunc));
+    MCGType = detail::CG::KERNEL;
+#endif
+  }
+#endif // __SYCL_PFWG_ROUNDED_SIZE_DISABLE__
 
   /// Defines and invokes a SYCL kernel function for the specified range.
   ///
