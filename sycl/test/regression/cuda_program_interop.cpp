@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=GPU %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
 // REQUIRES: cuda
 
 #include <CL/sycl.hpp>
