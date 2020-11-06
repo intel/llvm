@@ -1849,6 +1849,18 @@ def SYCLIntelFPGASpeculatedIterations : Attr {
   let Documentation = [SYCLIntelFPGASpeculatedIterationsAttrDocs];
 }
 
+def SYCLIntelFPGANofusion : Attr {
+  let Spellings = [CXX11<"intel","nofusion">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let HasCustomTypeTransform = 1;
+  let AdditionalMembers = [{
+    static const char *getName() {
+      return "nofusion";
+    }
+  }];
+  let Documentation = [SYCLIntelFPGANofusionAttrDocs];
+}
+
 def IntelFPGALocalNonConstVar : SubsetSubject<Var,
                               [{S->hasLocalStorage() &&
                                 S->getKind() != Decl::ImplicitParam &&
