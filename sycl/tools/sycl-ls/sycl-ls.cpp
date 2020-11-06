@@ -106,7 +106,7 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  auto Platforms = platform::get_platforms();
+  const auto &Platforms = platform::get_platforms();
   if (verbose)
     std::cout << "Platforms: " << Platforms.size() << std::endl;
 
@@ -122,7 +122,7 @@ int main(int argc, char **argv) {
       std::cout << "    Name     : " << PlatformName << std::endl;
       std::cout << "    Vendor   : " << PlatformVendor << std::endl;
     }
-    auto Devices = Platform.get_devices();
+    const auto &Devices = Platform.get_devices();
     if (verbose)
       std::cout << "    Devices  : " << Devices.size() << std::endl;
     uint32_t DeviceNum = 0;
