@@ -748,7 +748,7 @@ def AnalyzerNoReturn : InheritableAttr {
 
 def Annotate : InheritableParamAttr {
   let Spellings = [Clang<"annotate">];
-  let Args = [StringArgument<"Annotation">];
+  let Args = [StringArgument<"Annotation">, VariadicExprArgument<"Args">];
   // Ensure that the annotate attribute can be used with
   // '#pragma clang attribute' even though it has no subject list.
   let PragmaAttributeSupport = 1;
@@ -1849,6 +1849,18 @@ def SYCLIntelFPGASpeculatedIterations : Attr {
   let Documentation = [SYCLIntelFPGASpeculatedIterationsAttrDocs];
 }
 
+def SYCLIntelFPGANofusion : Attr {
+  let Spellings = [CXX11<"intel","nofusion">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let HasCustomTypeTransform = 1;
+  let AdditionalMembers = [{
+    static const char *getName() {
+      return "nofusion";
+    }
+  }];
+  let Documentation = [SYCLIntelFPGANofusionAttrDocs];
+}
+
 def IntelFPGALocalNonConstVar : SubsetSubject<Var,
                               [{S->hasLocalStorage() &&
                                 S->getKind() != Decl::ImplicitParam &&
@@ -2806,6 +2818,14 @@ def PragmaClangRelroSection : InheritableAttr {
   let Spellings = [];
   let Args = [StringArgument<"Name">];
   let Subjects = SubjectList<[GlobalVar], ErrorDiag>;
+  let Documentation = [Undocumented];
+}
+
+def StrictFP : InheritableAttr {
+  // This attribute has no spellings as it is only ever created implicitly.
+  // Function uses strict floating point operations.
+  let Spellings = [];
+  let Subjects = SubjectList<[Function]>;
   let Documentation = [Undocumented];
 }
 

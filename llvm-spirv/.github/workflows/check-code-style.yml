@@ -25,7 +25,7 @@ env:
 
 jobs:
   clang-format-and-tidy:
-    name: Run clang-format & clang-tidy
+    name: clang-format & clang-tidy
     runs-on: ubuntu-latest
     steps:
     - name: Checkout sources
@@ -96,6 +96,28 @@ jobs:
         sed -i '/^$/d' clang-tidy.log
         if [ -s clang-tidy.log ]; then
           if ! grep -q "No relevant changes found." clang-tidy.log; then
+            # Emit annotations
+            while read -r line; do
+              type="error"
+              if [[ $line == *"warning:"* ]]; then
+                type="warning"
+              elif [[ $line == *"error:"* ]]; then
+                type="error"
+              else
+                continue
+              fi
+
+              absolute_path=$(echo $line | grep -Po "^[\w\d-./]+(?=:)")
+              relative_path=${absolute_path##"${{ github.workspace }}"}
+
+              line_number=$(echo $line | grep -Po "(?<=:)\d+(?=:\d)")
+
+              message=$(echo $line | grep -Po "(?<=${type}: ).*$")
+
+              # see [workflow-commands] for documentation
+              echo "::${type} file=${relative_path},line=${line_number}::${message}"
+            done < clang-tidy.log
+
             echo "clang-tidy found incorrectly written code:"
             cat clang-tidy.log
             exit 1

@@ -2418,6 +2418,15 @@ used on the same loop in conjunction with disable_loop_pipelining.
   }];
 }
 
+def SYCLIntelFPGANofusionAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "intel::nofusion";
+  let Content = [{
+This attribute applies to a loop. Indicates that the annotated
+loop should not be fused with any adjacent loop.
+  }];
+}
+
 def SYCLDeviceIndirectlyCallableDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "intel::device_indirectly_callable";
@@ -4404,6 +4413,10 @@ option.
     foo (int x); // stack protection will be disabled for foo.
 
     int bar(int y); // bar can be built with the stack protector.
+
+A callee that has a stack protector will not be inlined into a
+``__attribute__((no_stack_protector))`` caller, and vice-versa, even if the
+callee is marked ``__attribute__((always_inline))``.
 
     }];
 }

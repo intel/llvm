@@ -517,6 +517,8 @@ def err_decomp_decl_inaccessible_base : Error<
 def err_decomp_decl_inaccessible_field : Error<
   "cannot decompose %select{private|protected}0 member %1 of %3">,
   AccessControl;
+def err_decomp_decl_lambda : Error<
+  "cannot decompose lambda closure type">;
 def err_decomp_decl_anon_union_member : Error<
   "cannot decompose class type %0 because it has an anonymous "
   "%select{struct|union}1 member">;
@@ -2025,8 +2027,8 @@ def err_destructor_template : Error<
 
 // C++ initialization
 def err_init_conversion_failed : Error<
-  "cannot initialize %select{a variable|a parameter|return object|"
-  "statement expression result|an "
+  "cannot initialize %select{a variable|a parameter|template parameter|"
+  "return object|statement expression result|an "
   "exception object|a member subobject|an array element|a new value|a value|a "
   "base class|a constructor delegation|a vector element|a block element|a "
   "block element|a complex element|a lambda capture|a compound literal "
@@ -2168,7 +2170,7 @@ def warn_unsequenced_mod_use : Warning<
   "unsequenced modification and access to %0">, InGroup<Unsequenced>;
 
 def select_initialized_entity_kind : TextSubstitution<
-  "%select{copying variable|copying parameter|"
+  "%select{copying variable|copying parameter|initializing template parameter|"
   "returning object|initializing statement expression result|"
   "throwing object|copying member subobject|copying array element|"
   "allocating object|copying temporary|initializing base subobject|"
@@ -2899,7 +2901,7 @@ def err_attribute_sizeless_type : Error<
   "%0 attribute cannot be applied to sizeless type %1">;
 def err_attribute_argument_n_type : Error<
   "%0 attribute requires parameter %1 to be %select{int or bool|an integer "
-  "constant|a string|an identifier}2">;
+  "constant|a string|an identifier|a constant expression}2">;
 def err_attribute_argument_type : Error<
   "%0 attribute requires %select{int or bool|an integer "
   "constant|a string|an identifier}1">;
@@ -4533,6 +4535,10 @@ def note_not_structural_rvalue_ref_field : Note<
 def note_not_structural_subobject : Note<
   "%0 is not a structural type because it has a "
   "%select{non-static data member|base class}1 of non-structural type %2">;
+def warn_cxx17_compat_template_nontype_parm_type : Warning<
+  "non-type template parameter of type %0 is incompatible with "
+  "C++ standards before C++20">,
+  DefaultIgnore, InGroup<CXXPre20Compat>;
 def warn_cxx14_compat_template_nontype_parm_auto_type : Warning<
   "non-type template parameters declared with %0 are incompatible with C++ "
   "standards before C++17">,
@@ -11131,11 +11137,6 @@ def warn_sycl_pass_by_value_deprecated
 def warn_sycl_pass_by_reference_future 
     : Warning<"Passing of kernel functions by reference is a SYCL 2020 extension">,
       InGroup<Sycl2017Compat>, ShowInSystemHeader;
-def warn_sycl_attibute_function_raw_ptr
-    : Warning<"SYCL 1.2.1 specification does not allow %0 attribute applied "
-              "to a function with a raw pointer "
-              "%select{return type|parameter type}1">,
-      InGroup<SyclStrict>, DefaultError;
 def warn_sycl_implicit_decl
     : Warning<"SYCL 1.2.1 specification requires an explicit forward "
               "declaration for a kernel type name; your program may not "
