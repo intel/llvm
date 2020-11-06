@@ -337,7 +337,8 @@ int main() {
           device dev = deviceQueue.get_device();
           const auto &plt = dev.get_platform();
         } catch (sycl::runtime_error &E) {
-          const std::string expectedMsg("Requested SYCL device not found");
+          const std::string expectedMsg(
+              "No device of requested type available");
           const std::string gotMessage(E.what());
           if (gotMessage.find(expectedMsg) != std::string::npos) {
             passed = true;
@@ -394,7 +395,8 @@ int main() {
           device dev = deviceQueue.get_device();
           const auto &plt = dev.get_platform();
         } catch (sycl::runtime_error &E) {
-          const std::string expectedMsg("Requested SYCL platform not found");
+          const std::string expectedMsg(
+              "No device of requested type available");
           const std::string gotMessage(E.what());
           if (gotMessage.find(expectedMsg) != std::string::npos) {
             passed = true;
