@@ -43,187 +43,187 @@
 // and then the test will print Test Passed 8 times, once for each kernel
 // validation check.
 // Pattern starts first set of kernel executions.
-//CKALL: ---> piEnqueueKernelLaunch(
-//CKALL: ZE ---> zeCommandListAppendLaunchKernel(
-//CKB1:  ZE ---> zeCommandListClose(
-//CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKALL: ---> piEnqueueKernelLaunch(
-//CKALL: ZE ---> zeCommandListAppendLaunchKernel(
-//CKB1:  ZE ---> zeCommandListClose(
-//CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKALL: ---> piEnqueueKernelLaunch(
-//CKALL: ZE ---> zeCommandListAppendLaunchKernel(
-//CKB1:  ZE ---> zeCommandListClose(
-//CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB3:  ZE ---> zeCommandListClose(
-//CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKALL: ---> piEnqueueKernelLaunch(
-//CKALL: ZE ---> zeCommandListAppendLaunchKernel(
-//CKB1:  ZE ---> zeCommandListClose(
-//CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB4:  ZE ---> zeCommandListClose(
-//CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKALL: ---> piEnqueueKernelLaunch(
-//CKALL: ZE ---> zeCommandListAppendLaunchKernel(
-//CKB1:  ZE ---> zeCommandListClose(
-//CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB5:  ZE ---> zeCommandListClose(
-//CKB5:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKALL: ---> piEnqueueKernelLaunch(
-//CKALL: ZE ---> zeCommandListAppendLaunchKernel(
-//CKB1:  ZE ---> zeCommandListClose(
-//CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB3:  ZE ---> zeCommandListClose(
-//CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKALL: ---> piEnqueueKernelLaunch(
-//CKALL: ZE ---> zeCommandListAppendLaunchKernel(
-//CKB1:  ZE ---> zeCommandListClose(
-//CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB7:  ZE ---> zeCommandListClose(
-//CKB7:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKALL: ---> piEnqueueKernelLaunch(
-//CKALL: ZE ---> zeCommandListAppendLaunchKernel(
-//CKB1:  ZE ---> zeCommandListClose(
-//CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB4:  ZE ---> zeCommandListClose(
-//CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB8:  ZE ---> zeCommandListClose(
-//CKB8:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKALL: ---> piEventsWait(
-//CKB3:  ZE ---> zeCommandListClose(
-//CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB5:  ZE ---> zeCommandListClose(
-//CKB5:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB7:  ZE ---> zeCommandListClose(
-//CKB7:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB9:  ZE ---> zeCommandListClose(
-//CKB9:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ZE ---> zeCommandListAppendLaunchKernel(
+// CKB1:  ZE ---> zeCommandListClose(
+// CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ZE ---> zeCommandListAppendLaunchKernel(
+// CKB1:  ZE ---> zeCommandListClose(
+// CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ZE ---> zeCommandListAppendLaunchKernel(
+// CKB1:  ZE ---> zeCommandListClose(
+// CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB3:  ZE ---> zeCommandListClose(
+// CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ZE ---> zeCommandListAppendLaunchKernel(
+// CKB1:  ZE ---> zeCommandListClose(
+// CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB4:  ZE ---> zeCommandListClose(
+// CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ZE ---> zeCommandListAppendLaunchKernel(
+// CKB1:  ZE ---> zeCommandListClose(
+// CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB5:  ZE ---> zeCommandListClose(
+// CKB5:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ZE ---> zeCommandListAppendLaunchKernel(
+// CKB1:  ZE ---> zeCommandListClose(
+// CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB3:  ZE ---> zeCommandListClose(
+// CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ZE ---> zeCommandListAppendLaunchKernel(
+// CKB1:  ZE ---> zeCommandListClose(
+// CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB7:  ZE ---> zeCommandListClose(
+// CKB7:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ZE ---> zeCommandListAppendLaunchKernel(
+// CKB1:  ZE ---> zeCommandListClose(
+// CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB4:  ZE ---> zeCommandListClose(
+// CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB8:  ZE ---> zeCommandListClose(
+// CKB8:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEventsWait(
+// CKB3:  ZE ---> zeCommandListClose(
+// CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB5:  ZE ---> zeCommandListClose(
+// CKB5:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB7:  ZE ---> zeCommandListClose(
+// CKB7:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB9:  ZE ---> zeCommandListClose(
+// CKB9:  ZE ---> zeCommandQueueExecuteCommandLists(
 // Pattern starts 2nd set of kernel executions
-//CKALL: ---> piEnqueueKernelLaunch(
-//CKALL: ZE ---> zeCommandListAppendLaunchKernel(
-//CKB1:  ZE ---> zeCommandListClose(
-//CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKALL: ---> piEnqueueKernelLaunch(
-//CKALL: ZE ---> zeCommandListAppendLaunchKernel(
-//CKB1:  ZE ---> zeCommandListClose(
-//CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKALL: ---> piEnqueueKernelLaunch(
-//CKALL: ZE ---> zeCommandListAppendLaunchKernel(
-//CKB1:  ZE ---> zeCommandListClose(
-//CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB3:  ZE ---> zeCommandListClose(
-//CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKALL: ---> piEnqueueKernelLaunch(
-//CKALL: ZE ---> zeCommandListAppendLaunchKernel(
-//CKB1:  ZE ---> zeCommandListClose(
-//CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB4:  ZE ---> zeCommandListClose(
-//CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKALL: ---> piEnqueueKernelLaunch(
-//CKALL: ZE ---> zeCommandListAppendLaunchKernel(
-//CKB1:  ZE ---> zeCommandListClose(
-//CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB5:  ZE ---> zeCommandListClose(
-//CKB5:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKALL: ---> piEnqueueKernelLaunch(
-//CKALL: ZE ---> zeCommandListAppendLaunchKernel(
-//CKB1:  ZE ---> zeCommandListClose(
-//CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB3:  ZE ---> zeCommandListClose(
-//CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKALL: ---> piEnqueueKernelLaunch(
-//CKALL: ZE ---> zeCommandListAppendLaunchKernel(
-//CKB1:  ZE ---> zeCommandListClose(
-//CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB7:  ZE ---> zeCommandListClose(
-//CKB7:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKALL: ---> piEnqueueKernelLaunch(
-//CKALL: ZE ---> zeCommandListAppendLaunchKernel(
-//CKB1:  ZE ---> zeCommandListClose(
-//CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB4:  ZE ---> zeCommandListClose(
-//CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB8:  ZE ---> zeCommandListClose(
-//CKB8:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKALL: ---> piEventsWait(
-//CKB3:  ZE ---> zeCommandListClose(
-//CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB5:  ZE ---> zeCommandListClose(
-//CKB5:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB7:  ZE ---> zeCommandListClose(
-//CKB7:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB9:  ZE ---> zeCommandListClose(
-//CKB9:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ZE ---> zeCommandListAppendLaunchKernel(
+// CKB1:  ZE ---> zeCommandListClose(
+// CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ZE ---> zeCommandListAppendLaunchKernel(
+// CKB1:  ZE ---> zeCommandListClose(
+// CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ZE ---> zeCommandListAppendLaunchKernel(
+// CKB1:  ZE ---> zeCommandListClose(
+// CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB3:  ZE ---> zeCommandListClose(
+// CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ZE ---> zeCommandListAppendLaunchKernel(
+// CKB1:  ZE ---> zeCommandListClose(
+// CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB4:  ZE ---> zeCommandListClose(
+// CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ZE ---> zeCommandListAppendLaunchKernel(
+// CKB1:  ZE ---> zeCommandListClose(
+// CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB5:  ZE ---> zeCommandListClose(
+// CKB5:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ZE ---> zeCommandListAppendLaunchKernel(
+// CKB1:  ZE ---> zeCommandListClose(
+// CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB3:  ZE ---> zeCommandListClose(
+// CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ZE ---> zeCommandListAppendLaunchKernel(
+// CKB1:  ZE ---> zeCommandListClose(
+// CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB7:  ZE ---> zeCommandListClose(
+// CKB7:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ZE ---> zeCommandListAppendLaunchKernel(
+// CKB1:  ZE ---> zeCommandListClose(
+// CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB4:  ZE ---> zeCommandListClose(
+// CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB8:  ZE ---> zeCommandListClose(
+// CKB8:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEventsWait(
+// CKB3:  ZE ---> zeCommandListClose(
+// CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB5:  ZE ---> zeCommandListClose(
+// CKB5:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB7:  ZE ---> zeCommandListClose(
+// CKB7:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB9:  ZE ---> zeCommandListClose(
+// CKB9:  ZE ---> zeCommandQueueExecuteCommandLists(
 // Pattern starts 3rd set of kernel executions
-//CKALL: ---> piEnqueueKernelLaunch(
-//CKALL: ZE ---> zeCommandListAppendLaunchKernel(
-//CKB1:  ZE ---> zeCommandListClose(
-//CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKALL: ---> piEnqueueKernelLaunch(
-//CKALL: ZE ---> zeCommandListAppendLaunchKernel(
-//CKB1:  ZE ---> zeCommandListClose(
-//CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKALL: ---> piEnqueueKernelLaunch(
-//CKALL: ZE ---> zeCommandListAppendLaunchKernel(
-//CKB1:  ZE ---> zeCommandListClose(
-//CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB3:  ZE ---> zeCommandListClose(
-//CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKALL: ---> piEnqueueKernelLaunch(
-//CKALL: ZE ---> zeCommandListAppendLaunchKernel(
-//CKB1:  ZE ---> zeCommandListClose(
-//CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB4:  ZE ---> zeCommandListClose(
-//CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKALL: ---> piEnqueueKernelLaunch(
-//CKALL: ZE ---> zeCommandListAppendLaunchKernel(
-//CKB1:  ZE ---> zeCommandListClose(
-//CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB5:  ZE ---> zeCommandListClose(
-//CKB5:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKALL: ---> piEnqueueKernelLaunch(
-//CKALL: ZE ---> zeCommandListAppendLaunchKernel(
-//CKB1:  ZE ---> zeCommandListClose(
-//CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB3:  ZE ---> zeCommandListClose(
-//CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKALL: ---> piEnqueueKernelLaunch(
-//CKALL: ZE ---> zeCommandListAppendLaunchKernel(
-//CKB1:  ZE ---> zeCommandListClose(
-//CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB7:  ZE ---> zeCommandListClose(
-//CKB7:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKALL: ---> piEnqueueKernelLaunch(
-//CKALL: ZE ---> zeCommandListAppendLaunchKernel(
-//CKB1:  ZE ---> zeCommandListClose(
-//CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB4:  ZE ---> zeCommandListClose(
-//CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB8:  ZE ---> zeCommandListClose(
-//CKB8:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKALL: ---> piEventsWait(
-//CKB3:  ZE ---> zeCommandListClose(
-//CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB5:  ZE ---> zeCommandListClose(
-//CKB5:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB7:  ZE ---> zeCommandListClose(
-//CKB7:  ZE ---> zeCommandQueueExecuteCommandLists(
-//CKB9:  ZE ---> zeCommandListClose(
-//CKB9:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ZE ---> zeCommandListAppendLaunchKernel(
+// CKB1:  ZE ---> zeCommandListClose(
+// CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ZE ---> zeCommandListAppendLaunchKernel(
+// CKB1:  ZE ---> zeCommandListClose(
+// CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ZE ---> zeCommandListAppendLaunchKernel(
+// CKB1:  ZE ---> zeCommandListClose(
+// CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB3:  ZE ---> zeCommandListClose(
+// CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ZE ---> zeCommandListAppendLaunchKernel(
+// CKB1:  ZE ---> zeCommandListClose(
+// CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB4:  ZE ---> zeCommandListClose(
+// CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ZE ---> zeCommandListAppendLaunchKernel(
+// CKB1:  ZE ---> zeCommandListClose(
+// CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB5:  ZE ---> zeCommandListClose(
+// CKB5:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ZE ---> zeCommandListAppendLaunchKernel(
+// CKB1:  ZE ---> zeCommandListClose(
+// CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB3:  ZE ---> zeCommandListClose(
+// CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ZE ---> zeCommandListAppendLaunchKernel(
+// CKB1:  ZE ---> zeCommandListClose(
+// CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB7:  ZE ---> zeCommandListClose(
+// CKB7:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ZE ---> zeCommandListAppendLaunchKernel(
+// CKB1:  ZE ---> zeCommandListClose(
+// CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB4:  ZE ---> zeCommandListClose(
+// CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB8:  ZE ---> zeCommandListClose(
+// CKB8:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKALL: ---> piEventsWait(
+// CKB3:  ZE ---> zeCommandListClose(
+// CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB5:  ZE ---> zeCommandListClose(
+// CKB5:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB7:  ZE ---> zeCommandListClose(
+// CKB7:  ZE ---> zeCommandQueueExecuteCommandLists(
+// CKB9:  ZE ---> zeCommandListClose(
+// CKB9:  ZE ---> zeCommandQueueExecuteCommandLists(
 // Now just check for 8 Test Pass kernel validations.
-//CKALL: Test Pass
-//CKALL: Test Pass
-//CKALL: Test Pass
-//CKALL: Test Pass
-//CKALL: Test Pass
-//CKALL: Test Pass
-//CKALL: Test Pass
-//CKALL: Test Pass
+// CKALL: Test Pass
+// CKALL: Test Pass
+// CKALL: Test Pass
+// CKALL: Test Pass
+// CKALL: Test Pass
+// CKALL: Test Pass
+// CKALL: Test Pass
+// CKALL: Test Pass
 
-#include <iostream>
-#include <cmath>
-#include <chrono>
 #include "CL/sycl.hpp"
+#include <chrono>
+#include <cmath>
+#include <iostream>
 
 namespace sycl = cl::sycl;
 
@@ -240,25 +240,24 @@ void validate(uint32_t *result, uint32_t *expect, size_t n) {
   error > 0 ? printf("Error: %d\n", error) : printf("Test Pass\n");
 }
 
-int main(int argc, char * argv[])
-{
+int main(int argc, char *argv[]) {
   size_t M = 65536;
-  size_t N = 512 /4;
+  size_t N = 512 / 4;
   size_t AL = M * N * sizeof(uint32_t);
 
   sycl::queue q(sycl::default_selector{});
   auto ctx = q.get_context();
   auto dev = q.get_device();
 
-  uint32_t *Y1 = static_cast<uint32_t*>(sycl::malloc_shared(AL, dev, ctx));
-  uint32_t *Z1 = static_cast<uint32_t*>(sycl::malloc_shared(AL, dev, ctx));
-  uint32_t *Z2 = static_cast<uint32_t*>(sycl::malloc_shared(AL, dev, ctx));
-  uint32_t *Z3 = static_cast<uint32_t*>(sycl::malloc_shared(AL, dev, ctx));
-  uint32_t *Z4 = static_cast<uint32_t*>(sycl::malloc_shared(AL, dev, ctx));
-  uint32_t *Z5 = static_cast<uint32_t*>(sycl::malloc_shared(AL, dev, ctx));
-  uint32_t *Z6 = static_cast<uint32_t*>(sycl::malloc_shared(AL, dev, ctx));
-  uint32_t *Z7 = static_cast<uint32_t*>(sycl::malloc_shared(AL, dev, ctx));
-  uint32_t *Z8 = static_cast<uint32_t*>(sycl::malloc_shared(AL, dev, ctx));
+  uint32_t *Y1 = static_cast<uint32_t *>(sycl::malloc_shared(AL, dev, ctx));
+  uint32_t *Z1 = static_cast<uint32_t *>(sycl::malloc_shared(AL, dev, ctx));
+  uint32_t *Z2 = static_cast<uint32_t *>(sycl::malloc_shared(AL, dev, ctx));
+  uint32_t *Z3 = static_cast<uint32_t *>(sycl::malloc_shared(AL, dev, ctx));
+  uint32_t *Z4 = static_cast<uint32_t *>(sycl::malloc_shared(AL, dev, ctx));
+  uint32_t *Z5 = static_cast<uint32_t *>(sycl::malloc_shared(AL, dev, ctx));
+  uint32_t *Z6 = static_cast<uint32_t *>(sycl::malloc_shared(AL, dev, ctx));
+  uint32_t *Z7 = static_cast<uint32_t *>(sycl::malloc_shared(AL, dev, ctx));
+  uint32_t *Z8 = static_cast<uint32_t *>(sycl::malloc_shared(AL, dev, ctx));
 
   for (size_t i = 0; i < M * N; i++) {
     Y1[i] = i % 255;
@@ -275,61 +274,69 @@ int main(int argc, char * argv[])
 
   {
     for (size_t j = 0; j < 3; j++) {
-      q.submit([&](sycl::handler& h) {
-          h.parallel_for<class u32_copy1>( sycl::range<2>{M, N}, [=] (sycl::id<2> it) {
-              const int m = it[0];
-              const int n = it[1];
-              Z1[m * N + n] = Y1[m * N + n];
-          });
+      q.submit([&](sycl::handler &h) {
+        h.parallel_for<class u32_copy1>(sycl::range<2>{M, N},
+                                        [=](sycl::id<2> it) {
+                                          const int m = it[0];
+                                          const int n = it[1];
+                                          Z1[m * N + n] = Y1[m * N + n];
+                                        });
       });
-      q.submit([&](sycl::handler& h) {
-          h.parallel_for<class u32_copy2>( sycl::range<2>{M, N}, [=] (sycl::id<2> it) {
-              const int m = it[0];
-              const int n = it[1];
-              Z2[m * N + n] = Y1[m * N + n];
-          });
+      q.submit([&](sycl::handler &h) {
+        h.parallel_for<class u32_copy2>(sycl::range<2>{M, N},
+                                        [=](sycl::id<2> it) {
+                                          const int m = it[0];
+                                          const int n = it[1];
+                                          Z2[m * N + n] = Y1[m * N + n];
+                                        });
       });
-      q.submit([&](sycl::handler& h) {
-          h.parallel_for<class u32_copy3>( sycl::range<2>{M, N}, [=] (sycl::id<2> it) {
-              const int m = it[0];
-              const int n = it[1];
-              Z3[m * N + n] = Y1[m * N + n];
-          });
+      q.submit([&](sycl::handler &h) {
+        h.parallel_for<class u32_copy3>(sycl::range<2>{M, N},
+                                        [=](sycl::id<2> it) {
+                                          const int m = it[0];
+                                          const int n = it[1];
+                                          Z3[m * N + n] = Y1[m * N + n];
+                                        });
       });
-      q.submit([&](sycl::handler& h) {
-          h.parallel_for<class u32_copy4>( sycl::range<2>{M, N}, [=] (sycl::id<2> it) {
-              const int m = it[0];
-              const int n = it[1];
-              Z4[m * N + n] = Y1[m * N + n];
-          });
+      q.submit([&](sycl::handler &h) {
+        h.parallel_for<class u32_copy4>(sycl::range<2>{M, N},
+                                        [=](sycl::id<2> it) {
+                                          const int m = it[0];
+                                          const int n = it[1];
+                                          Z4[m * N + n] = Y1[m * N + n];
+                                        });
       });
-      q.submit([&](sycl::handler& h) {
-          h.parallel_for<class u32_copy5>( sycl::range<2>{M, N}, [=] (sycl::id<2> it) {
-              const int m = it[0];
-              const int n = it[1];
-              Z5[m * N + n] = Y1[m * N + n];
-          });
+      q.submit([&](sycl::handler &h) {
+        h.parallel_for<class u32_copy5>(sycl::range<2>{M, N},
+                                        [=](sycl::id<2> it) {
+                                          const int m = it[0];
+                                          const int n = it[1];
+                                          Z5[m * N + n] = Y1[m * N + n];
+                                        });
       });
-      q.submit([&](sycl::handler& h) {
-          h.parallel_for<class u32_copy6>( sycl::range<2>{M, N}, [=] (sycl::id<2> it) {
-              const int m = it[0];
-              const int n = it[1];
-              Z6[m * N + n] = Y1[m * N + n];
-          });
+      q.submit([&](sycl::handler &h) {
+        h.parallel_for<class u32_copy6>(sycl::range<2>{M, N},
+                                        [=](sycl::id<2> it) {
+                                          const int m = it[0];
+                                          const int n = it[1];
+                                          Z6[m * N + n] = Y1[m * N + n];
+                                        });
       });
-      q.submit([&](sycl::handler& h) {
-          h.parallel_for<class u32_copy7>( sycl::range<2>{M, N}, [=] (sycl::id<2> it) {
-              const int m = it[0];
-              const int n = it[1];
-              Z7[m * N + n] = Y1[m * N + n];
-          });
+      q.submit([&](sycl::handler &h) {
+        h.parallel_for<class u32_copy7>(sycl::range<2>{M, N},
+                                        [=](sycl::id<2> it) {
+                                          const int m = it[0];
+                                          const int n = it[1];
+                                          Z7[m * N + n] = Y1[m * N + n];
+                                        });
       });
-      q.submit([&](sycl::handler& h) {
-          h.parallel_for<class u32_copy8>( sycl::range<2>{M, N}, [=] (sycl::id<2> it) {
-              const int m = it[0];
-              const int n = it[1];
-              Z8[m * N + n] = Y1[m * N + n];
-          });
+      q.submit([&](sycl::handler &h) {
+        h.parallel_for<class u32_copy8>(sycl::range<2>{M, N},
+                                        [=](sycl::id<2> it) {
+                                          const int m = it[0];
+                                          const int n = it[1];
+                                          Z8[m * N + n] = Y1[m * N + n];
+                                        });
       });
 
       q.wait();
@@ -356,5 +363,3 @@ int main(int argc, char * argv[])
 
   return 0;
 }
-
-
