@@ -15,7 +15,7 @@
 #include <CL/sycl.hpp>
 #include <CL/sycl/backend/opencl.hpp>
 
-#include "../../helpers.hpp"
+#include "../../../helpers.hpp"
 #include <chrono>
 #include <thread>
 
