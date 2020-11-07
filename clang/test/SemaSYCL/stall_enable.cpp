@@ -10,14 +10,19 @@ queue q;
 // CHECK: FunctionDecl{{.*}}foo1
 // CHECK: SYCLIntelStallEnableAttr
 
+[[intel::stall_enable]] void foo2(int x) {}
+// CHECK: FunctionDecl{{.*}}foo2
+// CHECK: SYCLIntelStallEnableAttr
+
 #ifdef TRIGGER_ERROR
 [[intel::stall_enable(1)]] void bar1() {} // expected-error{{'stall_enable' attribute takes no arguments}}
+[[intel::stall_enable]] int N; // expected-error{{'stall_enable' attribute only applies to functions}}
 #endif
 
-void foo2() {
+void foo3() {
   auto lambda = []() [[intel::stall_enable]]{};
   lambda();
-  // CHECK: FunctionDecl{{.*}}foo2
+  // CHECK: FunctionDecl{{.*}}foo3
   // CHECK: LambdaExpr
   // CHECK: SYCLIntelStallEnableAttr
 }
@@ -27,6 +32,25 @@ struct FuncObj {
 };
 
 [[intel::stall_enable]] void func_do_not_ignore() {}
+
+class Functor16 {
+public:
+  [[intel::stall_enable]] void operator()() const {}
+};
+
+class Functor8 {
+public:
+  [[intel::stall_enable]] void operator()() const {
+    foo1();
+  }
+};
+
+class test {
+  [[intel::stall_enable]] void bar() {}
+  // CHECK: CXXRecordDecl{{.*}}implicit class test
+  // CHECK: CXXMethodDecl{{.*}}bar 'void ()'
+  // CHECK: SYCLIntelStallEnableAttr
+};
 
 int main() {
   q.submit([&](handler &h) {
@@ -44,6 +68,16 @@ int main() {
     // CHECK:       SYCLIntelStallEnableAttr {{.*}}
     h.single_task<class test_kernel3>(
         []() { func_do_not_ignore(); });
+
+    Functor16 f16;
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4
+    // CHECK:       SYCLIntelStallEnableAttr {{.*}}
+    h.single_task<class test_kernel4>(f16);
+
+    Functor8 f8;
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel5
+    // CHECK:       SYCLIntelStallEnableAttr {{.*}}
+    h.single_task<class test_kernel5>(f8);
   });
   return 0;
 }

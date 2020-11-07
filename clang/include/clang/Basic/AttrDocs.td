@@ -2219,12 +2219,17 @@ def SYCLIntelStallEnableAttrDocs : Documentation {
 Applies to a lambda function, or function definition. Requests, to the extent
 possible, that statically-scheduled clusters handle stalls using a stall-enable
 signal to freeze computation within the cluster. This attribute can be applied
-to any lambda or function definition, it does not have to be a device
-function/kernel.
+to device function/kernel and not to arbitrary device functions. This takes no
+argument and LLVM IR function metadata should simply be i32 1.
 
 .. code-block:: c++
 
   [[intel::stall_enable]] void foo1() {}
+
+  class f
+  {
+      [[intel::stall_enable]] void foo2() {}
+  };
 
   class Functor
   {

@@ -14,10 +14,13 @@ public:
 
 int main() {
   q.submit([&](handler &h) {
-    Foo boo;
-    h.single_task<class test_kernel1>(boo);
+    Foo f;
+    h.single_task<class test_kernel1>(f);
 
     h.single_task<class test_kernel2>(
+        []() { test(); });
+
+    h.single_task<class test_kernel3>(
         []() [[intel::stall_enable]]{});
   });
   return 0;
@@ -25,4 +28,5 @@ int main() {
 
 // CHECK: define spir_kernel void @"{{.*}}test_kernel1"() #0 {{.*}} !stall_enable [[FOO:![0-9]+]]
 // CHECK: define spir_kernel void @"{{.*}}test_kernel2"() #0 {{.*}} !stall_enable [[FOO:![0-9]+]]
+// CHECK: define spir_kernel void @"{{.*}}test_kernel3"() #0 {{.*}} !stall_enable [[FOO:![0-9]+]]
 // CHECK: [[FOO]] = !{i32 1}
