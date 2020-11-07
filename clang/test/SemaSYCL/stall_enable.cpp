@@ -16,7 +16,7 @@ queue q;
 
 #ifdef TRIGGER_ERROR
 [[intel::stall_enable(1)]] void bar1() {} // expected-error{{'stall_enable' attribute takes no arguments}}
-[[intel::stall_enable]] int N; // expected-error{{'stall_enable' attribute only applies to functions}}
+[[intel::stall_enable]] int N;            // expected-error{{'stall_enable' attribute only applies to functions}}
 #endif
 
 void foo3() {
