@@ -26,7 +26,7 @@ int main() {
   return 0;
 }
 
-// CHECK: define spir_kernel void @"{{.*}}test_kernel1"() #0 {{.*}} !stall_enable [[FOO:![0-9]+]]
-// CHECK: define spir_kernel void @"{{.*}}test_kernel2"() #0 {{.*}} !stall_enable [[FOO:![0-9]+]]
-// CHECK: define spir_kernel void @"{{.*}}test_kernel3"() #0 {{.*}} !stall_enable [[FOO:![0-9]+]]
-// CHECK: [[FOO]] = !{i32 1}
+// CHECK: define spir_kernel void @"{{.*}}test_kernel1"() #0 {{.*}} !stall_enable ![[NUM5:[0-9]+]]
+// CHECK: define spir_kernel void @"{{.*}}test_kernel2"() #0 {{.*}} !stall_enable ![[NUM5]]
+// CHECK: define spir_kernel void @"{{.*}}test_kernel3"() #0 {{.*}} !stall_enable ![[NUM5]]
+// CHECK: ![[NUM5]] = !{i32 1}
