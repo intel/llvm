@@ -5,8 +5,6 @@
 using namespace cl::sycl;
 queue q;
 
-[[intel::stall_enable]] void test() {}
-
 class Foo {
 public:
   [[intel::stall_enable]] void operator()() const {}
@@ -18,9 +16,6 @@ int main() {
     h.single_task<class test_kernel1>(f);
 
     h.single_task<class test_kernel2>(
-        []() { test(); });
-
-    h.single_task<class test_kernel3>(
         []() [[intel::stall_enable]]{});
   });
   return 0;
@@ -28,5 +23,4 @@ int main() {
 
 // CHECK: define spir_kernel void @"{{.*}}test_kernel1"() #0 {{.*}} !stall_enable ![[NUM5:[0-9]+]]
 // CHECK: define spir_kernel void @"{{.*}}test_kernel2"() #0 {{.*}} !stall_enable ![[NUM5]]
-// CHECK: define spir_kernel void @"{{.*}}test_kernel3"() #0 {{.*}} !stall_enable ![[NUM5]]
 // CHECK: ![[NUM5]] = !{i32 1}

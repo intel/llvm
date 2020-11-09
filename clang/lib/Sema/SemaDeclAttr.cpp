@@ -3034,9 +3034,6 @@ static void handleStallEnableAttr(Sema &S, Decl *D, const ParsedAttr &Attr) {
   if (D->isInvalidDecl())
     return;
 
-  if (S.LangOpts.SYCLIsHost)
-    return;
-
   unsigned NumArgs = Attr.getNumArgs();
   if (NumArgs > 0) {
     S.Diag(Attr.getLoc(), diag::warn_attribute_too_many_arguments) << Attr << 0;

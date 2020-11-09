@@ -2216,9 +2216,10 @@ def SYCLIntelStallEnableAttrDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "intel::stall_enable";
   let Content = [{
-Applies to a device function/lambda function. Requests, to the extent
-possible, that statically-scheduled clusters handle stalls using a
-stall-enable signal to freeze computation within the cluster.
+When applied to a lambda or function call operator (of a function object)
+on device, this requests, to the extent possible, that statically-scheduled
+clusters handle stalls using a stall-enable signal to freeze computation
+within the cluster.
 
 If ``intel::stall_enable`` is applied to a function called from a device
 kernel, the attribute is ignored and it is not propagated to a kernel.

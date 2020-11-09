@@ -15,8 +15,6 @@ struct FuncObj {
   [[intel::stall_enable]] void operator()() const {}
 };
 
-[[intel::stall_enable]] void func_do_not_ignore() {}
-
 class Functor16 {
 public:
   [[intel::stall_enable]] void operator()() const {}
@@ -34,15 +32,10 @@ int main() {
     h.single_task<class test_kernel2>(
         []() [[intel::stall_enable]]{});
 
+    Functor16 f16;
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
     // CHECK:       SYCLIntelStallEnableAttr {{.*}}
-    h.single_task<class test_kernel3>(
-        []() { func_do_not_ignore(); });
-
-    Functor16 f16;
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4
-    // CHECK:       SYCLIntelStallEnableAttr {{.*}}
-    h.single_task<class test_kernel4>(f16);
+    h.single_task<class test_kernel3>(f16);
   });
   return 0;
 }
