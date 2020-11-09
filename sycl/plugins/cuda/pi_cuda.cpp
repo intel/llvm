@@ -244,6 +244,34 @@ int getAttribute(pi_device device, CUdevice_attribute attribute) {
 }
 /// \endcond
 
+// Determine local work sizes that result in uniform work groups.
+// The default threadsPerBlock only require handling the first work_dim
+// dimension.
+void guessLocalWorkSize(int *threadsPerBlock, const size_t *global_work_size,
+                        const size_t maxThreadsPerBlock[3], pi_kernel kernel) {
+  assert(threadsPerBlock != nullptr);
+  assert(global_work_size != nullptr);
+  assert(kernel != nullptr);
+  int recommendedBlockSize, minGrid;
+
+  PI_CHECK_ERROR(cuOccupancyMaxPotentialBlockSize(
+      &minGrid, &recommendedBlockSize, kernel->get(), NULL,
+      kernel->get_local_size(), maxThreadsPerBlock[0]));
+
+  (void)minGrid; // Not used, avoid warnings
+
+  threadsPerBlock[0] =
+      std::min(static_cast<int>(maxThreadsPerBlock[0]),
+               std::min(static_cast<int>(global_work_size[0]),
+                        static_cast<int>(recommendedBlockSize)));
+
+  // Find a local work group size that is a divisor of the global
+  // work group size to produce uniform work groups.
+  while (0u != (global_work_size[0] % threadsPerBlock[0])) {
+    --threadsPerBlock[0];
+  }
+}
+
 } // anonymous namespace
 
 /// ------ Error handling, matching OpenCL plugin semantics.
@@ -2277,54 +2305,51 @@ pi_result cuda_piEnqueueKernelLaunch(
   // Set the number of threads per block to the number of threads per warp
   // by default unless user has provided a better number
   int threadsPerBlock[3] = {32, 1, 1};
+  size_t maxWorkGroupSize = 0u;
+  size_t maxThreadsPerBlock[3] = {};
+  bool providedLocalWorkGroupSize = (local_work_size != nullptr);
 
   {
-    size_t maxThreadsPerBlock[3] = {};
     pi_result retError = cuda_piDeviceGetInfo(
         command_queue->device_, PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
         sizeof(maxThreadsPerBlock), maxThreadsPerBlock, nullptr);
     assert(retError == PI_SUCCESS);
     (void)retError;
-    size_t maxWorkGroupSize = 0;
+
     retError = cuda_piDeviceGetInfo(
         command_queue->device_, PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
         sizeof(maxWorkGroupSize), &maxWorkGroupSize, nullptr);
     assert(retError == PI_SUCCESS);
 
-    if (local_work_size) {
-      for (size_t i = 0; i < work_dim; i++) {
-        if (local_work_size[i] > maxThreadsPerBlock[i])
+    if (providedLocalWorkGroupSize) {
+      auto isValid = [&](int dim) {
+        if (local_work_size[dim] > maxThreadsPerBlock[dim])
           return PI_INVALID_WORK_ITEM_SIZE;
         // Checks that local work sizes are a divisor of the global work sizes
         // which includes that the local work sizes are neither larger than the
         // global work sizes and not 0.
-        if (0u == local_work_size[i])
+        if (0u == local_work_size[dim])
           return PI_INVALID_WORK_GROUP_SIZE;
-        if (0u != (global_work_size[i] % local_work_size[i]))
+        if (0u != (global_work_size[dim] % local_work_size[dim]))
           return PI_INVALID_WORK_GROUP_SIZE;
-        threadsPerBlock[i] = static_cast<int>(local_work_size[i]);
-      }
-      if (maxWorkGroupSize < size_t(threadsPerBlock[0] * threadsPerBlock[1] *
-                                    threadsPerBlock[2])) {
-        return PI_INVALID_WORK_GROUP_SIZE;
+        threadsPerBlock[dim] = static_cast<int>(local_work_size[dim]);
+        return PI_SUCCESS;
+      };
+
+      for (size_t dim = 0; dim < work_dim; dim++) {
+        auto err = isValid(dim);
+        if (err != PI_SUCCESS)
+          return err;
       }
     } else {
-      // Determine local work sizes that result in uniform work groups.
-      // The default threadsPerBlock only require handling the first work_dim
-      // dimension.
-      threadsPerBlock[0] =
-          std::min(static_cast<int>(maxThreadsPerBlock[0]),
-                   std::min(static_cast<int>(global_work_size[0]),
-                            static_cast<int>(threadsPerBlock[0])));
-      // Find a local work group size that is a divisor of the global
-      // work group size to produce uniform work groups.
-      while (0u != (global_work_size[0] % threadsPerBlock[0])) {
-        --threadsPerBlock[0];
-      }
-      assert(
-          maxWorkGroupSize >=
-          size_t(threadsPerBlock[0] * threadsPerBlock[1] * threadsPerBlock[2]));
+      guessLocalWorkSize(threadsPerBlock, global_work_size, maxThreadsPerBlock,
+                         kernel);
     }
+  }
+
+  if (maxWorkGroupSize <
+      size_t(threadsPerBlock[0] * threadsPerBlock[1] * threadsPerBlock[2])) {
+    return PI_INVALID_WORK_GROUP_SIZE;
   }
 
   int blocksPerGrid[3] = {1, 1, 1};
@@ -2340,8 +2365,8 @@ pi_result cuda_piEnqueueKernelLaunch(
 
   try {
     ScopedContext active(command_queue->get_context());
-    CUfunction cuFunc = kernel->get();
     CUstream cuStream = command_queue->get();
+    CUfunction cuFunc = kernel->get();
 
     retError = cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
                                         event_wait_list, nullptr);

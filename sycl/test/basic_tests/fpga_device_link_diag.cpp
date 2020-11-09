@@ -11,6 +11,8 @@
 // RUN: %clangxx -fsycl -fintelfpga %s -c -o test_obj.o
 // RUN: touch dummy.cpp
 // RUN: %clangxx -fsycl -fintelfpga dummy.cpp -c
+// To avoid appending objects to leftover archives, remove one if exists.
+// RUN: rm dummy_arch.a || true
 // RUN: %clangxx -fsycl -fintelfpga -fsycl-link=image dummy.o -o dummy_arch.a
 // RUN: not %clangxx -fsycl -fintelfpga test_obj.o dummy_arch.a 2>&1 | FileCheck %s --check-prefix=CHK-FPGA-LINK-DIAG
 // CHK-FPGA-LINK-DIAG: note: diagnostic msg: The FPGA image does not include all device kernels from test_obj.o. Please re-generate the image

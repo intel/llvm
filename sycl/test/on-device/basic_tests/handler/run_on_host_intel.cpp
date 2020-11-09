@@ -13,7 +13,7 @@
 #include "CL/sycl/access/access.hpp"
 #include <CL/sycl.hpp>
 
-#include "../../helpers.hpp"
+#include "../../../helpers.hpp"
 
 using namespace cl;
 
