@@ -2216,11 +2216,16 @@ def SYCLIntelStallEnableAttrDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "intel::stall_enable";
   let Content = [{
-Applies to a lambda function, or function definition. Requests, to the extent
-possible, that statically-scheduled clusters handle stalls using a stall-enable
-signal to freeze computation within the cluster. This attribute can be applied
-to device function/kernel and not to arbitrary device functions. This takes no
-argument and LLVM IR function metadata should simply be i32 1.
+Applies to a device function/lambda function. Requests, to the extent
+possible, that statically-scheduled clusters handle stalls using a
+stall-enable signal to freeze computation within the cluster.
+
+If ``intel::stall_enable`` is applied to a function called from a device
+kernel, the attribute is ignored and it is not propagated to a kernel.
+
+The ``intel::stall_enable`` attribute has an effect when applied to a
+function, and no effect otherwise. This attribute takes no argument and
+LLVM IR function metadata should simply be i32 1.
 
 .. code-block:: c++
 
