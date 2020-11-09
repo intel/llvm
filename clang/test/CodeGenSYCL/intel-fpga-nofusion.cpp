@@ -56,10 +56,11 @@ int main() {
   return 0;
 }
 
-// CHECK: ![[MD_NF_1]] = distinct !{![[MD_NF_1]], ![[MD_Nofusion:[0-9]+]]}
+// CHECK: ![[MD_NF_1]] = distinct !{![[MD_NF_1]], ![[MP:[0-9]+]], ![[MD_Nofusion:[0-9]+]]}
+// CHECK-NEXT: ![[MP]] = !{!"llvm.loop.mustprogress"}
 // CHECK: ![[MD_Nofusion]] = !{!"llvm.loop.fusion.disable"}
-// CHECK: ![[MD_NF_2]] = distinct !{![[MD_NF_2]], ![[MD_Nofusion]]}
+// CHECK: ![[MD_NF_2]] = distinct !{![[MD_NF_2]], ![[MP]], ![[MD_Nofusion]]}
 // CHECK: ![[MD_NF_3]] = distinct !{![[MD_NF_3]], ![[MD_Nofusion]]}
-// CHECK: ![[MD_NF_5]] = distinct !{![[MD_NF_5]], ![[MD_Nofusion]]}
+// CHECK: ![[MD_NF_5]] = distinct !{![[MD_NF_5]], ![[MP]], ![[MD_Nofusion]]}
 // CHECK: ![[MD_NF_6]] = distinct !{![[MD_NF_6]], ![[MD_Nofusion]]}
-// CHECK: ![[MD_NF_8]] = distinct !{![[MD_NF_8]], ![[MD_Nofusion]]}
+// CHECK: ![[MD_NF_8]] = distinct !{![[MD_NF_8]], ![[MP]], ![[MD_Nofusion]]}
