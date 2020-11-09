@@ -681,7 +681,7 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 [cols="10", width="100%"]
 |=====
-9+<|*OpArbitraryFloatExp1mINTEL* +
+9+<|*OpArbitraryFloatExpm1INTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The `(e^A)-1` of _A_ is returned as _Result_.
