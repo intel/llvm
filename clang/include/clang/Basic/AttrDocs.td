@@ -2229,13 +2229,6 @@ LLVM IR function metadata should simply be i32 1.
 
 .. code-block:: c++
 
-  [[intel::stall_enable]] void foo1() {}
-
-  class f
-  {
-      [[intel::stall_enable]] void foo2() {}
-  };
-
   class Functor
   {
       [[intel::stall_enable]] void operator()(item<1> item)
