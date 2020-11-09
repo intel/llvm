@@ -72,6 +72,15 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
   const bool IsKernel = CommandGroup->getType() == CG::KERNEL;
   const bool IsHostKernel = CommandGroup->getType() == CG::RUN_ON_HOST_INTEL;
   vector_class<StreamImplPtr> Streams;
+
+  if (IsKernel) {
+    Streams = ((CGExecKernel *)CommandGroup.get())->getStreams();
+    // Initializing stream's flush buffer on the host side.
+    for (auto StreamImplPtr : Streams) {
+      StreamImplPtr->fill(Queue);
+    }
+  }
+
   {
     std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
     lockSharedTimedMutex(Lock);
@@ -101,9 +110,6 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
         throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
-
-      if (IsKernel)
-        Streams = ((ExecCGCommand *)NewCmd)->getStreams();
 
       // If there are no memory dependencies decouple and free the command.
       // Though, dismiss ownership of native kernel command group as it's

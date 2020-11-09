@@ -1,4 +1,3 @@
-
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out | FileCheck %s
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
@@ -19,6 +18,8 @@
 #include <cassert>
 
 using namespace cl::sycl;
+
+void dev_func(stream out) { out << "dev_func print\n"; }
 
 int main() {
   {
@@ -249,11 +250,12 @@ int main() {
                 [&](h_item<3> Item) { Out << Item << endl; });
           });
     });
-// CHECK-NEXT: h_item(
-// CHECK-NEXT:   global item(range: {1, 1, 1}, id: {0, 0, 0})
-// CHECK-NEXT:   logical local item(range: {1, 1, 1}, id: {0, 0, 0})
-// CHECK-NEXT:   physical local item(range: {1, 1, 1}, id: {0, 0, 0})
-// CHECK-NEXT: )
+    Queue.wait();
+    // CHECK-NEXT: h_item(
+    // CHECK-NEXT:   global item(range: {1, 1, 1}, id: {0, 0, 0})
+    // CHECK-NEXT:   logical local item(range: {1, 1, 1}, id: {0, 0, 0})
+    // CHECK-NEXT:   physical local item(range: {1, 1, 1}, id: {0, 0, 0})
+    // CHECK-NEXT: )
 
     // Multiple streams in command group
     Queue.submit([&](handler &CGH) {
@@ -307,6 +309,30 @@ int main() {
     // CHECK: global id {{[0-9]+}}
     // CHECK: global id {{[0-9]+}}
     // CHECK: global id {{[0-9]+}}
+
+    Queue.submit([&](handler &cgh) {
+      stream stream1(1024, 80, cgh);
+      cgh.parallel_for<class test_dev_func_stream>(
+          nd_range<1>(range<1>(2), range<1>(1)), [=](sycl::nd_item<1> it) {
+            stream1 << "stream1 print 1\n";
+            dev_func(stream1);
+            stream1 << "stream1 print 2" << sycl::endl;
+            sycl::stream stream2 = stream1;
+            stream2 << "stream2 print 1\n";
+            stream1 << "stream1 print 3" << sycl::endl;
+          });
+    });
+    Queue.wait();
+    // CHECK-NEXT: stream1 print 1
+    // CHECK-NEXT: dev_func print
+    // CHECK-NEXT: stream1 print 2
+    // CHECK-NEXT: stream2 print 1
+    // CHECK-NEXT: stream1 print 3
+    // CHECK-NEXT: stream1 print 1
+    // CHECK-NEXT: dev_func print
+    // CHECK-NEXT: stream1 print 2
+    // CHECK-NEXT: stream2 print 1
+    // CHECK-NEXT: stream1 print 3
   }
 
   return 0;

@@ -27,7 +27,7 @@ stream_impl::stream_impl(size_t BufferSize, size_t MaxStatementSize,
   // the end of line symbol.
   detail::Scheduler::getInstance().allocateStreamBuffers(
       this, BufferSize + OffsetSize + 1 /* size of the stream buffer */,
-      MaxStatementSize /* size of the flush buffer */);
+      MaxStatementSize + FLUSH_BUF_OFFSET_SIZE /* size of the flush buffer */);
 }
 
 // Method to provide an access to the global stream buffer
@@ -43,7 +43,7 @@ GlobalBufAccessorT stream_impl::accessGlobalFlushBuf(handler &CGH) {
   return detail::Scheduler::getInstance()
       .StreamBuffersPool.find(this)
       ->second->FlushBuf.get_access<cl::sycl::access::mode::read_write>(
-          CGH, range<1>(MaxStatementSize_), id<1>(0));
+          CGH, range<1>(MaxStatementSize_ + FLUSH_BUF_OFFSET_SIZE), id<1>(0));
 }
 
 // Method to provide an atomic access to the offset in the global stream
@@ -61,6 +61,29 @@ size_t stream_impl::get_size() const { return BufferSize_; }
 
 size_t stream_impl::get_max_statement_size() const { return MaxStatementSize_; }
 
+void stream_impl::fill(QueueImplPtr Queue) {
+  auto Q = detail::createSyclObjFromImpl<queue>(Queue);
+  Q.submit([&](handler &cgh) {
+    auto StreamBuf =
+        detail::Scheduler::getInstance().StreamBuffersPool.find(this);
+    assert((StreamBuf !=
+            detail::Scheduler::getInstance().StreamBuffersPool.end()) &&
+           "Stream is unexpectedly not found in pool");
+    auto &FlushBuf = StreamBuf->second->FlushBuf;
+    // Only size of buffer_impl object has been resized.
+    // Value of Range field of FlushBuf instance is still equal to
+    // MaxStatementSize only.
+    size_t FlushBufSize = detail::getSyclObjImpl(FlushBuf)->get_count();
+    auto FlushBufAcc = FlushBuf.get_access<access::mode::read_write,
+                                           access::target::global_buffer>(
+        cgh, range<1>(FlushBufSize), id<1>(0));
+    cgh.codeplay_host_task([=] {
+      char *FlushBufPtr = FlushBufAcc.get_pointer();
+      std::memset(FlushBufPtr, 0, FlushBufAcc.get_size());
+    });
+  });
+}
+
 void stream_impl::flush() {
   // We don't want stream flushing to be blocking operation that is why submit a
   // host task to print stream buffer. It will fire up as soon as the kernel
@@ -76,7 +99,7 @@ void stream_impl::flush() {
                 cgh, range<1>(BufferSize_), id<1>(OffsetSize));
     // Create accessor to the flush buffer even if not using it yet. Otherwise
     // kernel will be a leaf for the flush buffer and scheduler will not be able
-    // to cleanup the kernel. TODO: git rid of finalize method by using host
+    // to cleanup the kernel. TODO: get rid of finalize method by using host
     // accessor to the flush buffer.
     auto FlushBufHostAcc =
         detail::Scheduler::getInstance()
