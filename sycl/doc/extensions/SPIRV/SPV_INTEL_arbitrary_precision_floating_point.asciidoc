@@ -982,7 +982,7 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 [cols="12", width="100%"]
 |=====
-11+<|*OpArbitraryFloatTan2INTEL* +
+11+<|*OpArbitraryFloatATan2INTEL* +
 
 Two `OpTypeInts` representing two arbitrary precision floating point numbers (ihc_float) are passed in as _A_ and _B_.
 The `arctan2(A,B) = arctan(A/B)` is returned as _Result_.
