@@ -8,7 +8,7 @@
 // TODO enable on Windows and Level Zero
 // REQUIRES: linux && gpu && opencl
 // RUN: %clangxx-esimd -fsycl %s -I%S/.. -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out %S/points.big.json
+// RUN: %HOST_RUN_PLACEHOLDER %t.out %S/points.big.json
 // RUN: %ESIMD_RUN_PLACEHOLDER %t.out %S/points.big.json
 //
 
