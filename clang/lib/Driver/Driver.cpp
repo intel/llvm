@@ -3962,7 +3962,7 @@ class OffloadingActionBuilder final {
         StringRef devicelib_option;
       };
 
-      bool NumOfDeviceLibLinked = 0;
+      int NumOfDeviceLibLinked = 0;
       bool NoDeviceLibs = false;
       // Currently, libc, libm-fp32 will be linked in by default. In order
       // to use libm-fp64, -fsycl-device-lib=libm-fp64/all should be used.
