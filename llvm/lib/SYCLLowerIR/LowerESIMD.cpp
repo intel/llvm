@@ -1148,11 +1148,15 @@ void SYCLLowerESIMDLegacyPass::generateKernelMetadata(Module &M) {
 
         if (Arg.getType()->isPointerTy()) {
           const auto *IsAccMD =
-              cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx));
+              KernelArgAccPtrs
+                  ? cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx))
+                  : nullptr;
           unsigned IsAcc =
-              static_cast<unsigned>(cast<ConstantInt>(IsAccMD->getValue())
-                                        ->getValue()
-                                        .getZExtValue());
+              IsAccMD
+                  ? static_cast<unsigned>(cast<ConstantInt>(IsAccMD->getValue())
+                                              ->getValue()
+                                              .getZExtValue())
+                  : 0;
           if (IsAcc) {
             ArgDesc = "buffer_t";
             Kind = AK_SURFACE;
