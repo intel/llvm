@@ -467,7 +467,9 @@ void SIFrameLowering::emitEntryFunctionPrologue(MachineFunction &MF,
   //
   // This will return `Register()` in cases where there are no actual
   // uses of the SRSRC.
-  Register ScratchRsrcReg = getEntryFunctionReservedScratchRsrcReg(MF);
+  Register ScratchRsrcReg;
+  if (!ST.enableFlatScratch())
+    ScratchRsrcReg = getEntryFunctionReservedScratchRsrcReg(MF);
 
   // Make the selected register live throughout the function.
   if (ScratchRsrcReg) {
@@ -1159,12 +1161,13 @@ static bool allSGPRSpillsAreDead(const MachineFunction &MF) {
 }
 #endif
 
-int SIFrameLowering::getFrameIndexReference(const MachineFunction &MF, int FI,
-                                            Register &FrameReg) const {
+StackOffset SIFrameLowering::getFrameIndexReference(const MachineFunction &MF,
+                                                    int FI,
+                                                    Register &FrameReg) const {
   const SIRegisterInfo *RI = MF.getSubtarget<GCNSubtarget>().getRegisterInfo();
 
   FrameReg = RI->getFrameRegister(MF);
-  return MF.getFrameInfo().getObjectOffset(FI);
+  return StackOffset::getFixed(MF.getFrameInfo().getObjectOffset(FI));
 }
 
 void SIFrameLowering::processFunctionBeforeFrameFinalized(
