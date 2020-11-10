@@ -1,7 +1,3 @@
-
-// UNSUPPORTED: cuda
-// CUDA compilation and runtime do not yet support sub-groups.
-//
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -std=c++14 %s -o %t.out
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple -std=c++14 -D SG_GPU %s -o %t_gpu.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
