@@ -50,8 +50,7 @@ int main() {
     assert(AccMin[0] == 0.5);
     assert(AccMax[0].x() == 2.3f && AccMax[0].y() == 2.5f);
     assert(s::min(0.5f, 2.3f) == 0.5);
-    auto Res = s::max(s::int4{5, 2, 1, 5},
-                      s::int4{3, 3, 4, 2});
+    auto Res = s::max(s::int4{5, 2, 1, 5}, s::int4{3, 3, 4, 2});
     assert(Res.x() == 5 && Res.y() == 3 && Res.z() == 4 && Res.w() == 5);
   }
 
