@@ -2921,7 +2921,7 @@ public:
               << KernelNameType;
           S.Diag(KernelInvocationFuncLoc,
                  diag::note_invalid_type_in_sycl_kernel)
-              << /* Unnamed type used in a SYCL kernel name */ 3;
+              << /* unnamed type used in a SYCL kernel name */ 3;
           IsInvalid = true;
           return;
         }
