@@ -2041,8 +2041,7 @@ public:
 };
 
 static const CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
-  for (const auto *D : Rec->decls()) {
-    if (const CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(D))
+  for (const auto *MD : Rec->methods()) {
       if (MD->getOverloadedOperator() == OO_Call)
         return MD;
   }
