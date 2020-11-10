@@ -1228,7 +1228,7 @@ def SYCLIntelNumSimdWorkItems : InheritableAttr {
 
 def SYCLIntelStallEnable : InheritableAttr {
   let Spellings = [CXX11<"intel","stall_enable">];
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsHost, SYCLIsDevice];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let AdditionalMembers = [{
     static const char *getName() {

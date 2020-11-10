@@ -6,6 +6,8 @@
 using namespace cl::sycl;
 queue q;
 
+[[intel::stall_enable]] void test() {}    //expected-warning{{'stall_enable' attribute ignored}}
+
 #ifdef TRIGGER_ERROR
 [[intel::stall_enable(1)]] void bar1() {} // expected-error{{'stall_enable' attribute takes no arguments}}
 [[intel::stall_enable]] int N;            // expected-error{{'stall_enable' attribute only applies to functions}}
@@ -36,6 +38,12 @@ int main() {
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
     // CHECK:       SYCLIntelStallEnableAttr {{.*}}
     h.single_task<class test_kernel3>(f16);
+
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4
+    // CHECK-NOT:   SYCLIntelStallEnableAttr {{.*}}
+    h.single_task<class test_kernel4>(
+        []() { test(); });
+
   });
   return 0;
 }

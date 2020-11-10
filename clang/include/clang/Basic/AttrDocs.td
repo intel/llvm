@@ -2224,9 +2224,8 @@ within the cluster.
 If ``intel::stall_enable`` is applied to a function called from a device
 kernel, the attribute is ignored and it is not propagated to a kernel.
 
-The ``intel::stall_enable`` attribute has an effect when applied to a
-function, and no effect otherwise. This attribute takes no argument and
-LLVM IR function metadata should simply be i32 1.
+The ``intel::stall_enable`` attribute takes no argument and has an effect
+when applied to a function, and no effect otherwise.
 
 .. code-block:: c++
 
