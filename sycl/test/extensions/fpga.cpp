@@ -11,7 +11,7 @@ using ethernet_read_pipe =
     sycl::INTEL::kernel_readable_io_pipe<ethernet_pipe_id<0>, int, 0>;
 using ethernet_write_pipe =
     sycl::INTEL::kernel_writeable_io_pipe<ethernet_pipe_id<1>, int, 0>;
-}
+} // namespace intelfpga
 
 int main() {
   sycl::queue Queue;
@@ -58,7 +58,7 @@ int main() {
 
   /*Check LSU interface*/
   {
-    cl::sycl::buffer<int, 1> output_buffer( 1);
+    cl::sycl::buffer<int, 1> output_buffer(1);
     cl::sycl::buffer<int, 1> input_buffer(1);
 
     Queue.submit([&](cl::sycl::handler &cgh) {

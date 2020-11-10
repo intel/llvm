@@ -19,8 +19,7 @@
 using namespace sycl;
 using namespace sycl::ONEAPI;
 
-template <class Predicate>
-class none_of_kernel;
+template <class Predicate> class none_of_kernel;
 
 struct GeZero {
   bool operator()(int i) const { return i >= 0; }
@@ -54,15 +53,15 @@ void test(queue q, InputContainer input, OutputContainer output,
             group<1> g = it.get_group();
             int lid = it.get_local_id(0);
             out[0] = reduce(g, in[lid], binary_op);
-	    out[1] = none_of(g, in[lid], pred);
-	    out[2] = inclusive_scan(g, in[lid], binary_op);
+            out[1] = none_of(g, in[lid], pred);
+            out[2] = inclusive_scan(g, in[lid], binary_op);
             out[3] = exclusive_scan(g, in[lid], binary_op);
-	    out[4] = broadcast(g, in[lid]);
-	    out[5] = any_of(g, in.get_pointer(), in.get_pointer() + N, pred);
-	    out[6] = all_of(g, pred(in[lid]));
-	    if(leader(g)) {
-	      out[7]++;
-	    }
+            out[4] = broadcast(g, in[lid]);
+            out[5] = any_of(g, in.get_pointer(), in.get_pointer() + N, pred);
+            out[6] = all_of(g, pred(in[lid]));
+            if (leader(g)) {
+              out[7]++;
+            }
           });
     });
   }
