@@ -1,6 +1,3 @@
-// XFAIL: cuda
-// CUDA compilation and runtime do not yet support sub-groups.
-
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
@@ -16,10 +13,11 @@
 
 int main() {
   queue Queue;
-  if (!core_sg_supported(Queue.get_device())) {
+  if (Queue.get_device().is_host()) {
     std::cout << "Skipping test\n";
     return 0;
   }
   check<cl::sycl::half>(Queue);
+  std::cout << "Test passed." << std::endl;
   return 0;
 }
