@@ -2219,7 +2219,7 @@ def SYCLIntelStallEnableAttrDocs : Documentation {
 When applied to a lambda or function call operator (of a function object)
 on device, this requests, to the extent possible, that statically-scheduled
 clusters handle stalls using a stall-enable signal to freeze computation
-within the cluster.
+within the cluster. This attribute is ignored on the host.
 
 If ``intel::stall_enable`` is applied to a function called from a device
 kernel, the attribute is ignored and it is not propagated to a kernel.
