@@ -445,6 +445,10 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
   MPM.add(createCFGSimplificationPass());
   MPM.add(createInstructionCombiningPass());
   // We resume loop passes creating a second loop pipeline here.
+  if (EnableLoopFlatten) {
+    MPM.add(createLoopFlattenPass()); // Flatten loops
+    MPM.add(createLoopSimplifyCFGPass());
+  }
   // TODO: this pass hurts performance due to promotions of induction variables
   // from 32-bit value to 64-bit values. I assume it's because SPIR is a virtual
   // target with unlimited # of registers and pass doesn't take into account
@@ -457,10 +461,6 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
 
   if (EnableLoopInterchange)
     MPM.add(createLoopInterchangePass()); // Interchange loops
-  if (EnableLoopFlatten) {
-    MPM.add(createLoopFlattenPass()); // Flatten loops
-    MPM.add(createLoopSimplifyCFGPass());
-  }
 
   // Unroll small loops
   MPM.add(createSimpleLoopUnrollPass(OptLevel, DisableUnrollLoops,
@@ -1054,16 +1054,17 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
   PM.add(createMergedLoadStoreMotionPass()); // Merge ld/st in diamonds.
 
   // More loops are countable; try to optimize them.
+  if (EnableLoopFlatten)
+    PM.add(createLoopFlattenPass());
   PM.add(createIndVarSimplifyPass());
   PM.add(createLoopDeletionPass());
   if (EnableLoopInterchange)
     PM.add(createLoopInterchangePass());
-  if (EnableLoopFlatten)
-    PM.add(createLoopFlattenPass());
 
   // Unroll small loops
   PM.add(createSimpleLoopUnrollPass(OptLevel, DisableUnrollLoops,
                                     ForgetAllSCEVInLoopUnroll));
+  PM.add(createLoopDistributePass());
   PM.add(createLoopVectorizePass(true, !LoopVectorize));
   // The vectorizer may have significantly shortened a loop body; unroll again.
   PM.add(createLoopUnrollPass(OptLevel, DisableUnrollLoops,
