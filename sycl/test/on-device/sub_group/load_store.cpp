@@ -1,5 +1,6 @@
 
-// UNSUPPORTED: cpu
+// UNSUPPORTED: cuda || cpu
+// CUDA compilation and runtime do not yet support sub-groups.
 // #2252 Disable until all variants of built-ins are available in OpenCL CPU
 // runtime for every supported ISA
 //
