@@ -49,10 +49,10 @@ int main() {
 
     assert(AccMin[0] == 0.5);
     assert(AccMax[0].x() == 2.3f && AccMax[0].y() == 2.5f);
-    assert(s::min(s::float{0.5f}, s::float{2.3f}) == 0.5);
-    auto Res = s::max(s::int4{0.5f, 2.5f, 1.5f, 4.5f},
-                      s::int4{2.3f, 2.3f, 4.3f, 3.2f});
-    assert(Res.x() == 2.3f && Res.y() == 2.5, Res.xy) == 4.3f && Res.y() == 4.5ff);
+    assert(s::min(0.5f, 2.3f) == 0.5);
+    auto Res = s::max(s::int4{5, 2, 1, 5},
+                      s::int4{3, 3, 4, 2});
+    assert(Res.x() == 5 && Res.y() == 3 && Res.z() == 4 && Res.w() == 5);
   }
 
   return 0;
