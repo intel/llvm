@@ -321,6 +321,7 @@ built with DPC++ compiler (defined in
 pull request should be created under
 [KhronosGroup/SYCL-CTS](https://github.com/KhronosGroup/SYCL-CTS) with required
 patch.
+
 #### Run in-source LIT tests
 
 To verify that built DPC++ toolchain is working correctly, run:
