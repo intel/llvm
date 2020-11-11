@@ -22,8 +22,8 @@ for more information.
 
 **NB**: A change in compiler and runtime should be accompanied with
 corresponding test change.
-See [DPC++ test toolchain](sycl/doc/GetStartedGuide.md#test-dpc-toolchain)
-for more information.
+See [Test DPC++ toolchain](sycl/doc/GetStartedGuide.md#test-dpc-toolchain)
+section of Get Started guide for more information.
 
 **Note (October, 2020)**: DPC++ runtime and compiler ABI is currently in frozen
 state. This means that no ABI-breaking changes will be accepted by default.
