@@ -167,22 +167,16 @@ void add_test(queue q, size_t N) {
 // Floating-point types do not support pre- or post-increment
 template <> void add_test<float>(queue q, size_t N) {
   add_fetch_test<float>(q, N);
-  // CHECK-LLVM: declare dso_local spir_func i32
-  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicLoad
-  // CHECK-LLVM-SAME: (i32 addrspace(1)*, i32, i32)
-  // CHECK-LLVM: declare dso_local spir_func i32
-  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicCompareExchange
-  // CHECK-LLVM-SAME: (i32 addrspace(1)*, i32, i32, i32, i32, i32)
+  // CHECK-LLVM: declare dso_local spir_func float
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicFAddEXT
+  // CHECK-LLVM-SAME: (float addrspace(1)*, i32, i32, float)
   add_plus_equal_test<float>(q, N);
 }
 template <> void add_test<double>(queue q, size_t N) {
   add_fetch_test<double>(q, N);
-  // CHECK-LLVM: declare dso_local spir_func i64
-  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicLoad
-  // CHECK-LLVM-SAME: (i64 addrspace(1)*, i32, i32)
-  // CHECK-LLVM: declare dso_local spir_func i64
-  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicCompareExchange
-  // CHECK-LLVM-SAME: (i64 addrspace(1)*, i32, i32, i32, i64, i64)
+  // CHECK-LLVM: declare dso_local spir_func double
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicFAddEXT
+  // CHECK-LLVM-SAME: double addrspace(1)*, i32, i32, double)
   add_plus_equal_test<double>(q, N);
 }
 
@@ -219,9 +213,15 @@ int main() {
   // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicIAdd
   // CHECK-LLVM-SAME: (i64 addrspace(1)*, i32, i32, i64)
   add_test<unsigned long long>(q, N);
-  // The remaining functions have been instantiated earlier
+  // Floating point-typed functions have been instantiated earlier
   add_test<float>(q, N);
   add_test<double>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func i64
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicLoad
+  // CHECK-LLVM-SAME: i64 addrspace(1)*, i32, i32)
+  // CHECK-LLVM: declare dso_local spir_func i64
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicCompareExchange
+  // CHECK-LLVM-SAME: i64 addrspace(1)*, i32, i32, i32, i64, i64)
   add_test<char *, ptrdiff_t>(q, N);
 
   std::cout << "Test passed." << std::endl;
