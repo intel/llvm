@@ -281,7 +281,7 @@ command:
 ### Test DPC++ toolchain
 
 There are 3 types of tests which are used for DPC++ toolchain validation:
-* DPC++ in-source LIT tests including [check-llvm](../../llvm/test),
+* DPC++ in-tree LIT tests including [check-llvm](../../llvm/test),
 [check-clang](../../clang/test), [check-llvm-spirv](../../llvm-spirv/test) and
 [check-sycl](../../sycl/test) targets stored in this repository. These tests
 should be not have hardware or external software dependencies (e.g OpenCL,
@@ -294,7 +294,7 @@ These tests cover full DPC++ stack including all dependencies (e.g. OpenCL,
 Level Zero, CUDA runtimes).
 
 * SYCL-CTS are official [Khronos\* SYCL\* conformance tests](https://github.com/KhronosGroup/SYCL-CTS).
-They verify SYCL 1.2.1 specification compatibility. All implementation details
+They verify SYCL specification compatibility. All implementation details
 or extensions are out of scope for the tests.
 
 #### Contribution to DPC++ tests
@@ -304,7 +304,7 @@ Every product change should be accompanied with corresponding test modification
 The test location is selected depending on test nature:
 
  - A test which depends only on tools and libraries produced during build of
-the repository can be put to in-source LIT. Also the tests for a feature under
+the repository can be put to in-tree LIT. Also the tests for a feature under
 active development requiring atomic change for tests and product can be put to
 [sycl/test/on-device](../../sycl/test/on-device) temporarily. It is developer
 responsibility to move the tests to DPC++ E2E test suite once feature is
@@ -321,8 +321,6 @@ built with DPC++ compiler (defined in
 pull request should be created under
 [KhronosGroup/SYCL-CTS](https://github.com/KhronosGroup/SYCL-CTS) with required
 patch.
-
-
 #### Run in-source LIT tests
 
 To verify that built DPC++ toolchain is working correctly, run:
