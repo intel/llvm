@@ -14,6 +14,7 @@ add_tablegen(clang-tblgen CLANG
   ClangProgModelBuiltinEmitter.cpp
   ClangOptionDocEmitter.cpp
   ClangSACheckersEmitter.cpp
+  ClangSyntaxEmitter.cpp
   ClangTypeNodesEmitter.cpp
   MveEmitter.cpp
   NeonEmitter.cpp
