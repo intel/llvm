@@ -4246,7 +4246,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                       options::OPT_fno_sycl_early_optimizations,
                       Triple.getSubArch() != llvm::Triple::SPIRSubArch_fpga))
       CmdArgs.push_back("-fno-sycl-early-optimizations");
-    else if (IsSYCLDevice) {
+    else if (IsSYCLDevice &&
+             !Args.hasFlag(options::OPT_fsycl_esimd,
+                           options::OPT_fno_sycl_esimd, false)) {
       // Set `sycl-opt` option to configure LLVM passes for SPIR target
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-sycl-opt");
