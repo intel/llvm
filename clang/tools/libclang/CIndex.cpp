@@ -4367,9 +4367,8 @@ const char *clang_getFileContents(CXTranslationUnit TU, CXFile file,
 
   const SourceManager &SM = cxtu::getASTUnit(TU)->getSourceManager();
   FileID fid = SM.translateFile(static_cast<FileEntry *>(file));
-  bool Invalid = true;
-  const llvm::MemoryBuffer *buf = SM.getBuffer(fid, &Invalid);
-  if (Invalid) {
+  llvm::Optional<llvm::MemoryBufferRef> buf = SM.getBufferOrNone(fid);
+  if (!buf) {
     if (size)
       *size = 0;
     return nullptr;
@@ -6382,6 +6381,7 @@ CXCursor clang_getCursorDefinition(CXCursor C) {
   case Decl::Binding:
   case Decl::MSProperty:
   case Decl::MSGuid:
+  case Decl::TemplateParamObject:
   case Decl::IndirectField:
   case Decl::ObjCIvar:
   case Decl::ObjCAtDefsField:

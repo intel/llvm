@@ -27,9 +27,11 @@
 #include "lldb/Core/StreamFile.h"
 #include "lldb/Core/StructuredDataImpl.h"
 #include "lldb/Core/ValueObject.h"
+#include "lldb/Expression/DiagnosticManager.h"
 #include "lldb/Expression/ExpressionVariable.h"
 #include "lldb/Expression/REPL.h"
 #include "lldb/Expression/UserExpression.h"
+#include "lldb/Expression/UtilityFunction.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Host/PosixApi.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
@@ -2242,27 +2244,29 @@ FunctionCaller *Target::GetFunctionCallerForLanguage(
   return persistent_fn;
 }
 
-UtilityFunction *
-Target::GetUtilityFunctionForLanguage(const char *text,
-                                      lldb::LanguageType language,
-                                      const char *name, Status &error) {
+llvm::Expected<std::unique_ptr<UtilityFunction>>
+Target::CreateUtilityFunction(std::string expression, std::string name,
+                              lldb::LanguageType language,
+                              ExecutionContext &exe_ctx) {
   auto type_system_or_err = GetScratchTypeSystemForLanguage(language);
+  if (!type_system_or_err)
+    return type_system_or_err.takeError();
 
-  if (auto err = type_system_or_err.takeError()) {
-    error.SetErrorStringWithFormat(
-        "Could not find type system for language %s: %s",
-        Language::GetNameForLanguageType(language),
-        llvm::toString(std::move(err)).c_str());
-    return nullptr;
-  }
-
-  auto *utility_fn = type_system_or_err->GetUtilityFunction(text, name);
+  std::unique_ptr<UtilityFunction> utility_fn =
+      type_system_or_err->CreateUtilityFunction(std::move(expression),
+                                                std::move(name));
   if (!utility_fn)
-    error.SetErrorStringWithFormat(
-        "Could not create an expression for language %s",
-        Language::GetNameForLanguageType(language));
+    return llvm::make_error<llvm::StringError>(
+        llvm::StringRef("Could not create an expression for language") +
+            Language::GetNameForLanguageType(language),
+        llvm::inconvertibleErrorCode());
 
-  return utility_fn;
+  DiagnosticManager diagnostics;
+  if (!utility_fn->Install(diagnostics, exe_ctx))
+    return llvm::make_error<llvm::StringError>(diagnostics.GetString(),
+                                               llvm::inconvertibleErrorCode());
+
+  return std::move(utility_fn);
 }
 
 void Target::SettingsInitialize() { Process::SettingsInitialize(); }
@@ -2996,6 +3000,10 @@ Status Target::Launch(ProcessLaunchInfo &launch_info, Stream *stream) {
   }
   return error;
 }
+
+void Target::SetTrace(const TraceSP &trace_sp) { m_trace_sp = trace_sp; }
+
+const TraceSP &Target::GetTrace() { return m_trace_sp; }
 
 Status Target::Attach(ProcessAttachInfo &attach_info, Stream *stream) {
   auto state = eStateInvalid;
@@ -4020,6 +4028,12 @@ llvm::StringRef TargetProperties::GetExpressionPrefixContents() {
           data_sp->GetByteSize());
   }
   return "";
+}
+
+uint64_t TargetProperties::GetExprErrorLimit() const {
+  const uint32_t idx = ePropertyExprErrorLimit;
+  return m_collection_sp->GetPropertyAtIndexAsUInt64(
+      nullptr, idx, g_target_properties[idx].default_uint_value);
 }
 
 bool TargetProperties::GetBreakpointsConsultPlatformAvoidList() {

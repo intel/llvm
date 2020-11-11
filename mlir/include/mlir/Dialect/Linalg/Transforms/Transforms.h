@@ -13,11 +13,12 @@
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/IR/Identifier.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/Transforms/Bufferize.h"
 #include "llvm/ADT/SmallBitVector.h"
 
 namespace mlir {
 
-class BufferAssignmentTypeConverter;
+class BufferizeTypeConverter;
 
 namespace linalg {
 
@@ -48,11 +49,10 @@ void populateConvVectorizationPatterns(
     MLIRContext *context, SmallVectorImpl<OwningRewritePatternList> &patterns,
     ArrayRef<int64_t> tileSizes);
 
-/// Populates the given list with patterns to convert Linalg operations on
-/// tensors to buffers.
-void populateConvertLinalgOnTensorsToBuffersPatterns(
-    MLIRContext *context, BufferAssignmentTypeConverter *converter,
-    OwningRewritePatternList *patterns);
+/// Populates the given list with patterns to bufferize linalg ops.
+void populateLinalgBufferizePatterns(MLIRContext *context,
+                                     BufferizeTypeConverter &converter,
+                                     OwningRewritePatternList &patterns);
 
 /// Performs standalone tiling of a single LinalgOp by `tileSizes`.
 /// and permute the loop nest according to `interchangeVector`
@@ -347,9 +347,7 @@ struct LinalgTilingOptions {
   /// values must not fold away when tiling. Otherwise, use a more robust
   /// `tileSizeComputationFunction`.
   LinalgTilingOptions &setTileSizes(SmallVector<Value, 4> ts) {
-    tileSizeComputationFunction = [=](OpBuilder &, Operation *) {
-      return ts;
-    };
+    tileSizeComputationFunction = [=](OpBuilder &, Operation *) { return ts; };
     return *this;
   }
   /// Convenience function to set the `tileSizeComputationFunction` to a
@@ -747,6 +745,98 @@ public:
 
   LogicalResult matchAndRewrite(ConvOp minOp,
                                 PatternRewriter &rewriter) const override;
+};
+
+//===----------------------------------------------------------------------===//
+// Patterns to convert a LinalgOp to std.call @external library implementation.
+//===----------------------------------------------------------------------===//
+// Create a new call to the type-canonicalized `LinalgOp::getLibraryCallName()`
+// function. The implementation of the function can be either in the same module
+// or in an externally linked library.
+// This is a generic entry point for all LinalgOp, except for CopyOp and
+// IndexedGenericOp, for which omre specialized patterns are provided.
+class LinalgOpToLibraryCallRewrite : public RewritePattern {
+public:
+  LinalgOpToLibraryCallRewrite()
+      : RewritePattern(/*benefit=*/1, MatchAnyOpTypeTag()) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override;
+};
+
+/// Rewrite pattern specialization for CopyOp, kicks in when both input and
+/// output permutations are left unspecified or are the identity.
+class CopyOpToLibraryCallRewrite : public OpRewritePattern<CopyOp> {
+public:
+  using OpRewritePattern<CopyOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(CopyOp op,
+                                PatternRewriter &rewriter) const override;
+};
+
+/// Rewrite CopyOp with permutations into a sequence of TransposeOp and
+/// permutation-free CopyOp. This interplays with TransposeOpConversion and
+/// LinalgConversion<CopyOp> to create a path to the LLVM dialect.
+class CopyTransposeRewrite : public OpRewritePattern<CopyOp> {
+public:
+  using OpRewritePattern<CopyOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(CopyOp op,
+                                PatternRewriter &rewriter) const override;
+};
+
+/// Conversion pattern specialization for IndexedGenericOp, has special handling
+/// for the extra index operands.
+class IndexedGenericOpToLibraryCallRewrite
+    : public OpRewritePattern<IndexedGenericOp> {
+public:
+  using OpRewritePattern<IndexedGenericOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(IndexedGenericOp op,
+                                PatternRewriter &rewriter) const override;
+};
+
+/// Populate the given list with patterns that convert from Linalg to Standard.
+void populateLinalgToStandardConversionPatterns(
+    OwningRewritePatternList &patterns, MLIRContext *ctx);
+
+//===----------------------------------------------------------------------===//
+// Buffer allocation patterns.
+//===----------------------------------------------------------------------===//
+
+/// Generic BufferizeConversionPattern that matches any Operation* and
+/// dispatches internally. This avoids template instantiating one pattern for
+/// each LinalgOp op.
+class LinalgOpConverter : public BufferizeConversionPattern {
+public:
+  LinalgOpConverter(MLIRContext *context, BufferizeTypeConverter &converter)
+      : BufferizeConversionPattern(context, converter) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const final;
+};
+
+/// TensorConstantOp conversion inserts a linearized 1-D vector constant that is
+/// stored in memory. A linalg.reshape is introduced to convert to the desired
+/// n-D buffer form.
+class TensorConstantOpConverter
+    : public BufferizeOpConversionPattern<ConstantOp> {
+public:
+  using BufferizeOpConversionPattern<ConstantOp>::BufferizeOpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(ConstantOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const final;
+};
+
+/// TensorCastOp converts 1-1 to MemRefCastOp.
+class TensorCastOpConverter
+    : public BufferizeOpConversionPattern<TensorCastOp> {
+public:
+  using BufferizeOpConversionPattern<
+      TensorCastOp>::BufferizeOpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(TensorCastOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const final;
 };
 
 //===----------------------------------------------------------------------===//

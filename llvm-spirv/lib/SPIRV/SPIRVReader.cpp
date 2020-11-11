@@ -291,7 +291,14 @@ Value *SPIRVToLLVM::mapFunction(SPIRVFunction *BF, Function *F) {
 // %d = extractelement <3 x i64> %5, i32 idx
 bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
                                               SPIRVBuiltinVariableKind Kind) {
-  std::string FuncName = SPIRSPIRVBuiltinVariableMap::rmap(Kind);
+  std::string FuncName;
+  // TODO: we should always produce SPIR-V friendly IR and apply lowering later
+  // if needed
+  if (BM->getDesiredBIsRepresentation() != BIsRepresentation::SPIRVFriendlyIR) {
+    FuncName = SPIRSPIRVBuiltinVariableMap::rmap(Kind);
+  } else {
+    FuncName = std::string(GV->getName());
+  }
   Type *ReturnTy = GV->getType()->getPointerElementType();
   // Some SPIR-V builtin variables are translated to a function with an index
   // argument.
@@ -1672,18 +1679,20 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto Ty = transType(BVar->getType()->getPointerElementType());
     bool IsConst = BVar->isConstant();
     llvm::GlobalValue::LinkageTypes LinkageTy = transLinkageType(BVar);
+    SPIRVStorageClassKind BS = BVar->getStorageClass();
     Constant *Initializer = nullptr;
     SPIRVValue *Init = BVar->getInitializer();
     if (Init)
       Initializer = dyn_cast<Constant>(transValue(Init, F, BB, false));
     else if (LinkageTy == GlobalValue::CommonLinkage)
-      // In LLVM variables with common linkage type must be initilized by 0
+      // In LLVM, variables with common linkage type must be initialized to 0.
       Initializer = Constant::getNullValue(Ty);
-    else if (BVar->getStorageClass() ==
-             SPIRVStorageClassKind::StorageClassWorkgroup)
+    else if (BS == SPIRVStorageClassKind::StorageClassWorkgroup)
       Initializer = dyn_cast<Constant>(UndefValue::get(Ty));
+    else if ((LinkageTy != GlobalValue::ExternalLinkage) &&
+             (BS == SPIRVStorageClassKind::StorageClassCrossWorkgroup))
+      Initializer = Constant::getNullValue(Ty);
 
-    SPIRVStorageClassKind BS = BVar->getStorageClass();
     if (BS == StorageClassFunction && !Init) {
       assert(BB && "Invalid BB");
       return mapValue(BV, new AllocaInst(Ty, 0, BV->getName(), BB));
@@ -2555,6 +2564,9 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
           RetTy = Int8PtrTyPrivate;
           ValAsArg = Builder.CreateBitCast(Val, Int8PtrTyPrivate);
         }
+        Value *Args[] = {ValAsArg, GS, UndefInt8Ptr, UndefInt32, UndefInt8Ptr};
+        auto *IntrinsicCall = Builder.CreateIntrinsic(IID, RetTy, Args);
+        return mapValue(BV, IntrinsicCall);
       }
     }
 
@@ -3592,7 +3604,7 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
           llvm::Value *Args[] = {
               Builder.CreateBitCast(GEP, IntTy, GEP->getName()),
               Builder.CreateBitCast(GS, Int8PtrTyPrivate), UndefInt8Ptr,
-              UndefInt32};
+              UndefInt32, UndefInt8Ptr};
           Builder.CreateCall(AnnotationFn, Args);
         }
       }
@@ -3614,7 +3626,7 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
 
       llvm::Value *Args[] = {BaseInst,
                              Builder.CreateBitCast(GS, Int8PtrTyPrivate),
-                             UndefInt8Ptr, UndefInt32};
+                             UndefInt8Ptr, UndefInt32, UndefInt8Ptr};
       Builder.CreateCall(AnnotationFn, Args);
     }
   } else if (auto *GV = dyn_cast<GlobalVariable>(V)) {
@@ -3650,9 +3662,10 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
     Type *Int8PtrTyPrivate = Type::getInt8PtrTy(*Context, SPIRAS_Private);
     IntegerType *Int32Ty = Type::getInt32Ty(*Context);
 
-    llvm::Constant *Fields[4] = {
+    llvm::Constant *Fields[5] = {
         C, ConstantExpr::getBitCast(GS, Int8PtrTyPrivate),
-        UndefValue::get(Int8PtrTyPrivate), UndefValue::get(Int32Ty)};
+        UndefValue::get(Int8PtrTyPrivate), UndefValue::get(Int32Ty),
+        UndefValue::get(Int8PtrTyPrivate)};
 
     GlobalAnnotations.push_back(ConstantStruct::getAnon(Fields));
   }
@@ -3683,9 +3696,10 @@ void SPIRVToLLVM::transUserSemantic(SPIRV::SPIRVFunction *Fun) {
     Type *Int8PtrTyPrivate = Type::getInt8PtrTy(*Context, SPIRAS_Private);
     IntegerType *Int32Ty = Type::getInt32Ty(*Context);
 
-    llvm::Constant *Fields[4] = {
+    llvm::Constant *Fields[5] = {
         C, ConstantExpr::getBitCast(GS, Int8PtrTyPrivate),
-        UndefValue::get(Int8PtrTyPrivate), UndefValue::get(Int32Ty)};
+        UndefValue::get(Int8PtrTyPrivate), UndefValue::get(Int32Ty),
+        UndefValue::get(Int8PtrTyPrivate)};
     GlobalAnnotations.push_back(ConstantStruct::getAnon(Fields));
   }
 }
@@ -4021,6 +4035,10 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
   if (BF->hasDecorate(DecorationVectorComputeCallableFunctionINTEL))
     F->addFnAttr(kVCMetadata::VCCallable);
 
+  auto SEVAttr = Attribute::get(*Context, kVCMetadata::VCSingleElementVector);
+  if (BF->hasDecorate(DecorationSingleElementVectorINTEL))
+    F->addAttribute(AttributeList::ReturnIndex, SEVAttr);
+
   for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
        ++I) {
     auto ArgNo = I->getArgNo();
@@ -4036,6 +4054,8 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
                                       std::to_string(Kind));
       F->addAttribute(ArgNo + 1, Attr);
     }
+    if (BA->hasDecorate(DecorationSingleElementVectorINTEL))
+      F->addAttribute(ArgNo + 1, SEVAttr);
     if (BA->hasDecorate(DecorationFuncParamDescINTEL)) {
       auto Desc =
           BA->getDecorationStringLiteral(DecorationFuncParamDescINTEL).front();

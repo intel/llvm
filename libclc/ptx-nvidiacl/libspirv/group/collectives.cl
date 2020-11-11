@@ -385,6 +385,10 @@ long __clc__3d_to_linear_local_id(ulong3 id) {
       uint scope, TYPE x, ulong3 local_id) {                                   \
     ulong linear_local_id = __clc__3d_to_linear_local_id(local_id);            \
     return __spirv_GroupBroadcast(scope, x, linear_local_id);                  \
+  }                                                                            \
+  _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __spirv_GroupBroadcast(          \
+      uint scope, TYPE x, uint local_id) {                                     \
+    return __spirv_GroupBroadcast(scope, x, (ulong)local_id);                  \
   }
 __CLC_GROUP_BROADCAST(char);
 __CLC_GROUP_BROADCAST(uchar);
@@ -410,6 +414,10 @@ _Z17__spirv_GroupBroadcastjDF16_Dv2_m(uint scope, half x, ulong2 local_id) {
 _CLC_DECL _CLC_CONVERGENT half
 _Z17__spirv_GroupBroadcastjDF16_Dv3_m(uint scope, half x, ulong3 local_id) {
   return __spirv_GroupBroadcast(scope, x, local_id);
+}
+_CLC_DECL _CLC_CONVERGENT half
+_Z22__spirv_GroupBroadcastjDF16_j(uint scope, half x, uint local_id) {
+  return __spirv_GroupBroadcast(scope, x, (ulong)local_id);
 }
 
 #undef __CLC_GROUP_BROADCAST

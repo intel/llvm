@@ -402,6 +402,7 @@ namespace llvm {
 
     // Bit field extract.
     BEXTR,
+    BEXTRI,
 
     // Zero High Bits Starting with Specified Bit Position.
     BZHI,
@@ -709,6 +710,9 @@ namespace llvm {
 
     // For avx512-vp2intersect
     VP2INTERSECT,
+
+    // User level interrupts - testui
+    TESTUI,
 
     /// X86 strict FP compare instructions.
     STRICT_FCMP = ISD::FIRST_TARGET_STRICTFP_OPCODE,

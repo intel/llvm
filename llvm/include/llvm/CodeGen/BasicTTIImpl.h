@@ -264,6 +264,10 @@ public:
     return TargetTransformInfoImplBase::isLSRCostLess(C1, C2);
   }
 
+  bool isRegNumMajorCostOfLSR() {
+    return TargetTransformInfoImplBase::isRegNumMajorCostOfLSR();
+  }
+
   bool isProfitableLSRChainElement(Instruction *I) {
     return TargetTransformInfoImplBase::isProfitableLSRChainElement(I);
   }
@@ -944,7 +948,11 @@ public:
       return Cost;
 
     if (Src->isVectorTy() &&
-        Src->getPrimitiveSizeInBits() < LT.second.getSizeInBits()) {
+        // In practice it's not currently possible to have a change in lane
+        // length for extending loads or truncating stores so both types should
+        // have the same scalable property.
+        TypeSize::isKnownLT(Src->getPrimitiveSizeInBits(),
+                            LT.second.getSizeInBits())) {
       // This is a vector load that legalizes to a larger type than the vector
       // itself. Unless the corresponding extending load or truncating store is
       // legal, then this will scalarize.
@@ -1125,32 +1133,14 @@ public:
     if (BaseT::getIntrinsicInstrCost(ICA, CostKind) == 0)
       return 0;
 
-    // Special case some scalar intrinsics.
-    Intrinsic::ID IID = ICA.getID();
-    if (CostKind != TTI::TCK_RecipThroughput) {
-      switch (IID) {
-      default:
-        break;
-      case Intrinsic::cttz:
-        if (getTLI()->isCheapToSpeculateCttz())
-          return TargetTransformInfo::TCC_Basic;
-        break;
-      case Intrinsic::ctlz:
-        if (getTLI()->isCheapToSpeculateCtlz())
-          return TargetTransformInfo::TCC_Basic;
-        break;
-      case Intrinsic::memcpy:
-        return thisT()->getMemcpyCost(ICA.getInst());
-        // TODO: other libc intrinsics.
-      }
-      return BaseT::getIntrinsicInstrCost(ICA, CostKind);
-    }
-
-    // TODO: Combine these two logic paths.
     if (ICA.isTypeBasedOnly())
       return getTypeBasedIntrinsicInstrCost(ICA, CostKind);
 
+    // TODO: Handle scalable vectors?
     Type *RetTy = ICA.getReturnType();
+    if (isa<ScalableVectorType>(RetTy))
+      return BaseT::getIntrinsicInstrCost(ICA, CostKind);
+
     unsigned VF = ICA.getVectorFactor();
     unsigned RetVF =
         (RetTy->isVectorTy() ? cast<FixedVectorType>(RetTy)->getNumElements()
@@ -1159,10 +1149,29 @@ public:
     const IntrinsicInst *I = ICA.getInst();
     const SmallVectorImpl<const Value *> &Args = ICA.getArgs();
     FastMathFlags FMF = ICA.getFlags();
-
+    Intrinsic::ID IID = ICA.getID();
     switch (IID) {
     default:
+      // FIXME: all cost kinds should default to the same thing?
+      if (CostKind != TTI::TCK_RecipThroughput)
+        return BaseT::getIntrinsicInstrCost(ICA, CostKind);
       break;
+
+    case Intrinsic::cttz:
+      // FIXME: If necessary, this should go in target-specific overrides.
+      if (VF == 1 && RetVF == 1 && getTLI()->isCheapToSpeculateCttz())
+        return TargetTransformInfo::TCC_Basic;
+      break;
+
+    case Intrinsic::ctlz:
+      // FIXME: If necessary, this should go in target-specific overrides.
+      if (VF == 1 && RetVF == 1 && getTLI()->isCheapToSpeculateCtlz())
+        return TargetTransformInfo::TCC_Basic;
+      break;
+
+    case Intrinsic::memcpy:
+      return thisT()->getMemcpyCost(ICA.getInst());
+
     case Intrinsic::masked_scatter: {
       assert(VF == 1 && "Can't vectorize types here.");
       const Value *Mask = Args[3];
@@ -1185,8 +1194,6 @@ public:
     case Intrinsic::vector_reduce_and:
     case Intrinsic::vector_reduce_or:
     case Intrinsic::vector_reduce_xor:
-    case Intrinsic::vector_reduce_fadd:
-    case Intrinsic::vector_reduce_fmul:
     case Intrinsic::vector_reduce_smax:
     case Intrinsic::vector_reduce_smin:
     case Intrinsic::vector_reduce_fmax:
@@ -1194,10 +1201,22 @@ public:
     case Intrinsic::vector_reduce_umax:
     case Intrinsic::vector_reduce_umin: {
       IntrinsicCostAttributes Attrs(IID, RetTy, Args[0]->getType(), FMF, 1, I);
-      return getIntrinsicInstrCost(Attrs, CostKind);
+      return getTypeBasedIntrinsicInstrCost(Attrs, CostKind);
+    }
+    case Intrinsic::vector_reduce_fadd:
+    case Intrinsic::vector_reduce_fmul: {
+      // FIXME: all cost kinds should default to the same thing?
+      if (CostKind != TTI::TCK_RecipThroughput)
+        return BaseT::getIntrinsicInstrCost(ICA, CostKind);
+      IntrinsicCostAttributes Attrs(
+        IID, RetTy, {Args[0]->getType(), Args[1]->getType()}, FMF, 1, I);
+      return getTypeBasedIntrinsicInstrCost(Attrs, CostKind);
     }
     case Intrinsic::fshl:
     case Intrinsic::fshr: {
+      // FIXME: all cost kinds should default to the same thing?
+      if (CostKind != TTI::TCK_RecipThroughput)
+        return BaseT::getIntrinsicInstrCost(ICA, CostKind);
       const Value *X = Args[0];
       const Value *Y = Args[1];
       const Value *Z = Args[2];
@@ -1260,9 +1279,8 @@ public:
       ScalarizationCost += getOperandsScalarizationOverhead(Args, VF);
     }
 
-    IntrinsicCostAttributes Attrs(IID, RetTy, Types, FMF,
-                                  ScalarizationCost, I);
-    return thisT()->getIntrinsicInstrCost(Attrs, CostKind);
+    IntrinsicCostAttributes Attrs(IID, RetTy, Types, FMF, ScalarizationCost, I);
+    return thisT()->getTypeBasedIntrinsicInstrCost(Attrs, CostKind);
   }
 
   /// Get intrinsic cost based on argument types.
@@ -1278,7 +1296,17 @@ public:
     unsigned ScalarizationCostPassed = ICA.getScalarizationCost();
     bool SkipScalarizationCost = ICA.skipScalarizationCost();
 
-    auto *VecOpTy = Tys.empty() ? nullptr : dyn_cast<VectorType>(Tys[0]);
+    VectorType *VecOpTy = nullptr;
+    if (!Tys.empty()) {
+      // The vector reduction operand is operand 0 except for fadd/fmul.
+      // Their operand 0 is a scalar start value, so the vector op is operand 1.
+      unsigned VecTyIndex = 0;
+      if (IID == Intrinsic::vector_reduce_fadd ||
+          IID == Intrinsic::vector_reduce_fmul)
+        VecTyIndex = 1;
+      assert(Tys.size() > VecTyIndex && "Unexpected IntrinsicCostAttributes");
+      VecOpTy = dyn_cast<VectorType>(Tys[VecTyIndex]);
+    }
 
     SmallVector<unsigned, 2> ISDs;
     unsigned SingleCallCost = 10; // Library call cost. Make it expensive.

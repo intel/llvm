@@ -151,8 +151,34 @@ def : PredicateProlog<[{
   (void)STI;
 }]>;
 
-def IsPredicatedPred : SchedPredicate<[{TII->isPredicated(*MI)}]>;
+def IsPredicated : CheckFunctionPredicateWithTII<
+  "ARM_MC::isPredicated",
+  "isPredicated"
+>;
+def IsPredicatedPred : MCSchedPredicate<IsPredicated>;
 
+def IsCPSRDefined : CheckFunctionPredicateWithTII<
+  "ARM_MC::isCPSRDefined",
+  "ARMBaseInstrInfo::isCPSRDefined"
+>;
+
+def IsCPSRDefinedPred : MCSchedPredicate<IsCPSRDefined>;
+
+let FunctionMapper = "ARM_AM::getAM2ShiftOpc" in {
+  class CheckAM2NoShift<int n> : CheckImmOperand_s<n, "ARM_AM::no_shift">;
+}
+
+let FunctionMapper = "ARM_AM::getAM2Op" in {
+  class CheckAM2OpSub<int n> : CheckImmOperand_s<n, "ARM_AM::sub"> {}
+}
+
+def IsLDMBaseRegInList : CheckFunctionPredicate<
+  "ARM_MC::isLDMBaseRegInList", "ARM_MC::isLDMBaseRegInList"
+>;
+
+let FunctionMapper = "ARM_AM::getAM3Op" in {
+  class CheckAM3OpSub<int n> : CheckImmOperand_s<n, "ARM_AM::sub"> {}
+}
 //===----------------------------------------------------------------------===//
 // Instruction Itinerary classes used for ARM
 //
@@ -414,14 +440,3 @@ def IIC_VTBX2      : InstrItinClass;
 def IIC_VTBX3      : InstrItinClass;
 def IIC_VTBX4      : InstrItinClass;
 def IIC_VDOTPROD   : InstrItinClass;
-
-//===----------------------------------------------------------------------===//
-// Processor instruction itineraries.
-
-include "ARMScheduleV6.td"
-include "ARMScheduleA8.td"
-include "ARMScheduleA9.td"
-include "ARMScheduleSwift.td"
-include "ARMScheduleR52.td"
-include "ARMScheduleA57.td"
-include "ARMScheduleM4.td"

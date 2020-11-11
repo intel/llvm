@@ -1748,13 +1748,23 @@ It isn't allowed to annotate a single statement with both ``likely`` and
 statement with the same likelihood attribute will result in a diagnostic and
 the attributes are ignored on both branches.
 
+In a ``switch`` statement it's allowed to annotate multiple ``case`` labels
+or the ``default`` label with the same likelihood attribute. This makes
+* all labels without an attribute have a neutral likelihood,
+* all labels marked ``[[likely]]`` have an equally positive likelihood, and
+* all labels marked ``[[unlikely]]`` have an equally negative likelihood.
+The neutral likelihood is the more likely of path execution than the negative
+likelihood. The positive likelihood is the more likely of path of execution
+than the neutral likelihood.
+
 These attributes have no effect on the generated code when using
 PGO (Profile-Guided Optimization) or at optimization level 0.
 
-In Clang, the attributes will be ignored if they're not placed on the
-substatement of an ``if`` or ``else`` statement. The C++ Standard recommends
-to honor them on every statement in the path of execution, but that can be
-confusing:
+In Clang, the attributes will be ignored if they're not placed on
+* the ``case`` or ``default`` label of a ``switch`` statement,
+* or on the substatement of an ``if`` or ``else`` statement.
+The C++ Standard recommends to honor them on every statement in the
+path of execution, but that can be confusing:
 
 .. code-block:: c++
 
@@ -1783,8 +1793,8 @@ confusing:
   }
 
 
-At the moment the attribute only has effect when used in an ``if`` or ``else``
-statement.
+At the moment the attributes only have effect when used in an ``if``, ``else``,
+or ``switch`` statement.
 
 .. code-block:: c++
 
@@ -1825,6 +1835,44 @@ statement.
   if (b)
     [[likely]] int i = 5; // Issues a diagnostic since the attribute
                           // isn't allowed on a declaration.
+
+  switch (i) {
+    [[likely]] case 1:    // This value is likely
+      ...
+      break;
+
+    [[unlikely]] case 2:  // This value is unlikely
+      ...
+      [[fallthrough]];
+
+    case 3:               // No likelihood attribute
+      ...
+      [[likely]] break;   // No effect
+
+    case 4: [[likely]] {  // attribute on substatement has no effect
+      ...
+      break;
+      }
+
+    [[unlikely]] default: // All other values are unlikely
+      ...
+      break;
+  }
+
+  switch (i) {
+    [[likely]] case 0:    // This value and code path is likely
+      ...
+      [[fallthrough]];
+
+    case 1:               // No likelihood attribute, code path is neutral
+      break;              // falling through has no effect on the likelihood
+
+    case 2:               // No likelihood attribute, code path is neutral
+      [[fallthrough]];
+
+    [[unlikely]] default: // This value and code path are both unlikely
+      break;
+  }
 
   }];
 }
@@ -1878,7 +1926,7 @@ Clang supports the ``__attribute__((preserve_access_index))``
 attribute for the BPF target. This attribute may be attached to a
 struct or union declaration, where if -g is specified, it enables
 preserving struct or union member access debuginfo indices of this
-struct or union, similar to clang ``__builtin_preserve_acceess_index()``.
+struct or union, similar to clang ``__builtin_preserve_access_index()``.
   }];
 }
 
@@ -2164,6 +2212,39 @@ device kernel, the attribute is ignored and it is not propagated to a kernel.
   }];
 }
 
+def SYCLIntelStallEnableAttrDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "intel::stall_enable";
+  let Content = [{
+When applied to a lambda or function call operator (of a function object)
+on device, this requests, to the extent possible, that statically-scheduled
+clusters handle stalls using a stall-enable signal to freeze computation
+within the cluster. This attribute is ignored on the host.
+
+If ``intel::stall_enable`` is applied to a function called from a device
+kernel, the attribute is ignored and it is not propagated to a kernel.
+
+The ``intel::stall_enable`` attribute takes no argument and has an effect
+when applied to a function, and no effect otherwise.
+
+.. code-block:: c++
+
+  class Functor
+  {
+      [[intel::stall_enable]] void operator()(item<1> item)
+      {
+          /* kernel code */
+      }
+  }
+
+  kernel<class kernel_name>(
+  []() [[intel::stall_enable]] {
+       /* kernel code */
+  });
+
+  }];
+}
+
 def ReqdWorkGroupSizeAttrDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "reqd_work_group_size";
@@ -2367,6 +2448,15 @@ iterations that will be in flight for a loop invocation (i.e. the exit
 condition for these iterations will not have been evaluated yet).
 Parameter N is mandatory, and may either be 0, or a positive integer. Cannot be
 used on the same loop in conjunction with disable_loop_pipelining.
+  }];
+}
+
+def SYCLIntelFPGANofusionAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "intel::nofusion";
+  let Content = [{
+This attribute applies to a loop. Indicates that the annotated
+loop should not be fused with any adjacent loop.
   }];
 }
 
@@ -4356,6 +4446,10 @@ option.
     foo (int x); // stack protection will be disabled for foo.
 
     int bar(int y); // bar can be built with the stack protector.
+
+A callee that has a stack protector will not be inlined into a
+``__attribute__((no_stack_protector))`` caller, and vice-versa, even if the
+callee is marked ``__attribute__((always_inline))``.
 
     }];
 }

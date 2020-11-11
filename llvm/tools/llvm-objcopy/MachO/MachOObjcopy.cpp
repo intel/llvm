@@ -137,8 +137,14 @@ static Error processLoadCommands(const CopyConfig &Config, Object &Obj) {
   DenseSet<StringRef> RPathsToRemove(Config.RPathsToRemove.begin(),
                                      Config.RPathsToRemove.end());
 
-  LoadCommandPred RemovePred = [&RPathsToRemove](const LoadCommand &LC) {
+  LoadCommandPred RemovePred = [&RPathsToRemove,
+                                &Config](const LoadCommand &LC) {
     if (LC.MachOLoadCommand.load_command_data.cmd == MachO::LC_RPATH) {
+      // When removing all RPaths we don't need to care
+      // about what it contains
+      if (Config.RemoveAllRpaths)
+        return true;
+
       StringRef RPath = getPayloadString(LC);
       if (RPathsToRemove.count(RPath)) {
         RPathsToRemove.erase(RPath);
@@ -221,6 +227,22 @@ static Error processLoadCommands(const CopyConfig &Config, Object &Obj) {
     RPaths.insert(RPath);
     Obj.LoadCommands.push_back(buildRPathLoadCommand(RPath));
   }
+
+  for (StringRef RPath : Config.RPathToPrepend) {
+    if (RPaths.count(RPath) != 0)
+      return createStringError(errc::invalid_argument,
+                               "rpath " + RPath +
+                                   " would create a duplicate load command");
+
+    RPaths.insert(RPath);
+    Obj.LoadCommands.insert(Obj.LoadCommands.begin(),
+                            buildRPathLoadCommand(RPath));
+  }
+
+  // Unlike appending rpaths, the indexes of subsequent load commands must
+  // be recalculated after prepending one.
+  if (!Config.RPathToPrepend.empty())
+    Obj.updateLoadCommandIndexes();
 
   return Error::success();
 }

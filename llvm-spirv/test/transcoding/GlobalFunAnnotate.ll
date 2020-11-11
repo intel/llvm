@@ -7,14 +7,14 @@
 ;CHECK-SPIRV: Decorate {{[0-9]+}} UserSemantic "annotation_on_function"
 
 ;CHECK-LLVM: @0 = private unnamed_addr constant [23 x i8] c"annotation_on_function\00", section "llvm.metadata"
-;CHECK-LLVM: @llvm.global.annotations = appending global [1 x { i8*, i8*, i8*, i32 }] [{ i8*, i8*, i8*, i32 } { i8* bitcast (void ()* @foo to i8*), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @0, i32 0, i32 0), i8* undef, i32 undef }], section "llvm.metadata"
+;CHECK-LLVM: @llvm.global.annotations = appending global [1 x { i8*, i8*, i8*, i32, i8* }] [{ i8*, i8*, i8*, i32, i8* } { i8* bitcast (void ()* @foo to i8*), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @0, i32 0, i32 0), i8* undef, i32 undef, i8* undef }], section "llvm.metadata"
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-linux-sycldevice"
 
 @.str = private unnamed_addr constant [23 x i8] c"annotation_on_function\00", section "llvm.metadata"
 @.str.1 = private unnamed_addr constant [6 x i8] c"an.cl\00", section "llvm.metadata"
-@llvm.global.annotations = appending global [1 x { i8*, i8*, i8*, i32 }] [{ i8*, i8*, i8*, i32 } { i8* bitcast (void ()* @foo to i8*), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str.1, i32 0, i32 0), i32 2 }], section "llvm.metadata"
+@llvm.global.annotations = appending global [1 x { i8*, i8*, i8*, i32, i8* }] [{ i8*, i8*, i8*, i32, i8* } { i8* bitcast (void ()* @foo to i8*), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str.1, i32 0, i32 0), i32 2, i8* null }], section "llvm.metadata"
 
 ; Function Attrs: convergent norecurse nounwind
 define dso_local spir_func void @foo() #0 {

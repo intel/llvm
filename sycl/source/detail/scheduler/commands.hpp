@@ -505,6 +505,15 @@ public:
   // the cleanup process.
   EmptyCommand *MEmptyCmd = nullptr;
 
+  // This function is only usable for native kernel to prevent access to free'd
+  // memory in DispatchNativeKernel.
+  // TODO remove when native kernel support is terminated.
+  void releaseCG() {
+    assert(MCommandGroup->getType() == CG::RUN_ON_HOST_INTEL &&
+           "Only 'native kernel' is allowed to release command group");
+    MCommandGroup.release();
+  }
+
 private:
   cl_int enqueueImp() final override;
 

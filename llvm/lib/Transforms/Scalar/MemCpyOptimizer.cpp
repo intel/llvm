@@ -67,6 +67,11 @@ using namespace llvm;
 
 #define DEBUG_TYPE "memcpyopt"
 
+// TODO: Actually implement MemorySSA-based MemCpyOpt.
+static cl::opt<bool>
+    EnableMemorySSA("enable-memcpyopt-memoryssa", cl::init(false), cl::Hidden,
+                    cl::desc("Use MemorySSA-backed MemCpyOpt."));
+
 STATISTIC(NumMemCpyInstr, "Number of memcpy instructions deleted");
 STATISTIC(NumMemSetInfer, "Number of memsets inferred");
 STATISTIC(NumMoveToCpy,   "Number of memmoves converted to memcpy");
@@ -282,6 +287,8 @@ private:
     AU.addPreserved<MemoryDependenceWrapperPass>();
     AU.addRequired<AAResultsWrapperPass>();
     AU.addPreserved<AAResultsWrapperPass>();
+    if (EnableMemorySSA)
+      AU.addRequired<MemorySSAWrapperPass>();
     AU.addPreserved<MemorySSAWrapperPass>();
   }
 };
@@ -303,6 +310,22 @@ INITIALIZE_PASS_DEPENDENCY(AAResultsWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(GlobalsAAWrapperPass)
 INITIALIZE_PASS_END(MemCpyOptLegacyPass, "memcpyopt", "MemCpy Optimization",
                     false, false)
+
+// Check that V is either not accessible by the caller, or unwinding cannot
+// occur between Start and End.
+static bool mayBeVisibleThroughUnwinding(Value *V, Instruction *Start,
+                                         Instruction *End) {
+  assert(Start->getParent() == End->getParent() && "Must be in same block");
+  if (!Start->getFunction()->doesNotThrow() &&
+      !isa<AllocaInst>(getUnderlyingObject(V))) {
+    for (const Instruction &I :
+         make_range(Start->getIterator(), End->getIterator())) {
+      if (I.mayThrow())
+        return true;
+    }
+  }
+  return false;
+}
 
 void MemCpyOptPass::eraseInstruction(Instruction *I) {
   if (MSSAU)
@@ -478,7 +501,7 @@ bool MemCpyOptPass::moveUp(StoreInst *SI, Instruction *P, const LoadInst *LI) {
       Args.insert(Ptr);
 
   // Instruction to lift before P.
-  SmallVector<Instruction*, 8> ToLift;
+  SmallVector<Instruction *, 8> ToLift{SI};
 
   // Memory locations of lifted instructions.
   SmallVector<MemoryLocation, 8> MemLocs{StoreLoc};
@@ -490,6 +513,11 @@ bool MemCpyOptPass::moveUp(StoreInst *SI, Instruction *P, const LoadInst *LI) {
 
   for (auto I = --SI->getIterator(), E = P->getIterator(); I != E; --I) {
     auto *C = &*I;
+
+    // Make sure hoisting does not perform a store that was not guaranteed to
+    // happen.
+    if (!isGuaranteedToTransferExecutionToSuccessor(C))
+      return false;
 
     bool MayAlias = isModOrRefSet(AA->getModRefInfo(C, None));
 
@@ -544,10 +572,40 @@ bool MemCpyOptPass::moveUp(StoreInst *SI, Instruction *P, const LoadInst *LI) {
       }
   }
 
-  // We made it, we need to lift
+  // Find MSSA insertion point. Normally P will always have a corresponding
+  // memory access before which we can insert. However, with non-standard AA
+  // pipelines, there may be a mismatch between AA and MSSA, in which case we
+  // will scan for a memory access before P. In either case, we know for sure
+  // that at least the load will have a memory access.
+  // TODO: Simplify this once P will be determined by MSSA, in which case the
+  // discrepancy can no longer occur.
+  MemoryUseOrDef *MemInsertPoint = nullptr;
+  if (MSSAU) {
+    if (MemoryUseOrDef *MA = MSSAU->getMemorySSA()->getMemoryAccess(P)) {
+      MemInsertPoint = cast<MemoryUseOrDef>(--MA->getIterator());
+    } else {
+      const Instruction *ConstP = P;
+      for (const Instruction &I : make_range(++ConstP->getReverseIterator(),
+                                             ++LI->getReverseIterator())) {
+        if (MemoryUseOrDef *MA = MSSAU->getMemorySSA()->getMemoryAccess(&I)) {
+          MemInsertPoint = MA;
+          break;
+        }
+      }
+    }
+  }
+
+  // We made it, we need to lift.
   for (auto *I : llvm::reverse(ToLift)) {
     LLVM_DEBUG(dbgs() << "Lifting " << *I << " before " << *P << "\n");
     I->moveBefore(P);
+    if (MSSAU) {
+      assert(MemInsertPoint && "Must have found insert point");
+      if (MemoryUseOrDef *MA = MSSAU->getMemorySSA()->getMemoryAccess(I)) {
+        MSSAU->moveAfter(MA, MemInsertPoint);
+        MemInsertPoint = MA;
+      }
+    }
   }
 
   return true;
@@ -631,9 +689,8 @@ bool MemCpyOptPass::processStore(StoreInst *SI, BasicBlock::iterator &BBI) {
                             << *M << "\n");
 
           if (MSSAU) {
-            assert(isa<MemoryDef>(MSSAU->getMemorySSA()->getMemoryAccess(P)));
             auto *LastDef =
-                cast<MemoryDef>(MSSAU->getMemorySSA()->getMemoryAccess(P));
+                cast<MemoryDef>(MSSAU->getMemorySSA()->getMemoryAccess(SI));
             auto *NewAccess =
                 MSSAU->createMemoryAccessAfter(M, LastDef, LastDef);
             MSSAU->insertDef(cast<MemoryDef>(NewAccess), /*RenameUses=*/true);
@@ -807,16 +864,8 @@ bool MemCpyOptPass::performCallSlotOptzn(Instruction *cpyLoad,
   //     guaranteed to be executed if C is. As it is a non-atomic access, it
   //     renders accesses from other threads undefined.
   //     TODO: This is currently not checked.
-  // TODO: Check underlying object, so we can look through GEPs.
-  if (!isa<AllocaInst>(cpyDest)) {
-    assert(C->getParent() == cpyStore->getParent() &&
-           "call and copy must be in the same block");
-    for (const Instruction &I : make_range(C->getIterator(),
-                                           cpyStore->getIterator())) {
-      if (I.mayThrow())
-        return false;
-    }
-  }
+  if (mayBeVisibleThroughUnwinding(cpyDest, C, cpyStore))
+    return false;
 
   // Check that dest points to memory that is at least as aligned as src.
   Align srcAlign = srcAlloca->getAlign();
@@ -864,10 +913,15 @@ bool MemCpyOptPass::performCallSlotOptzn(Instruction *cpyLoad,
 
   // Since we're changing the parameter to the callsite, we need to make sure
   // that what would be the new parameter dominates the callsite.
-  // TODO: Support moving instructions like GEPs upwards.
-  if (Instruction *cpyDestInst = dyn_cast<Instruction>(cpyDest))
-    if (!DT->dominates(cpyDestInst, C))
+  if (!DT->dominates(cpyDest, C)) {
+    // Support moving a constant index GEP before the call.
+    auto *GEP = dyn_cast<GetElementPtrInst>(cpyDest);
+    if (GEP && GEP->hasAllConstantIndices() &&
+        DT->dominates(GEP->getPointerOperand(), C))
+      GEP->moveBefore(C);
+    else
       return false;
+  }
 
   // In addition to knowing that the call does not access src in some
   // unexpected manner, for example via a global, which we deduce from
@@ -1033,6 +1087,14 @@ bool MemCpyOptPass::processMemSetMemCpyDependence(MemCpyInst *MemCpy,
   if (MemSet->getDest() != MemCpy->getDest())
     return false;
 
+  // Check that src and dst of the memcpy aren't the same. While memcpy
+  // operands cannot partially overlap, exact equality is allowed.
+  if (!AA->isNoAlias(MemoryLocation(MemCpy->getSource(),
+                                    LocationSize::precise(1)),
+                     MemoryLocation(MemCpy->getDest(),
+                                    LocationSize::precise(1))))
+    return false;
+
   // Check that there are no other dependencies on the memset destination.
   MemDepResult DstDepInfo =
       MD->getPointerDependencyFrom(MemoryLocation::getForDest(MemSet), false,
@@ -1044,6 +1106,9 @@ bool MemCpyOptPass::processMemSetMemCpyDependence(MemCpyInst *MemCpy,
   Value *Dest = MemCpy->getRawDest();
   Value *DestSize = MemSet->getLength();
   Value *SrcSize = MemCpy->getLength();
+
+  if (mayBeVisibleThroughUnwinding(Dest, MemSet, MemCpy))
+    return false;
 
   // By default, create an unaligned memset.
   unsigned Align = 1;
@@ -1424,7 +1489,8 @@ PreservedAnalyses MemCpyOptPass::run(Function &F, FunctionAnalysisManager &AM) {
   auto *AA = &AM.getResult<AAManager>(F);
   auto *AC = &AM.getResult<AssumptionAnalysis>(F);
   auto *DT = &AM.getResult<DominatorTreeAnalysis>(F);
-  auto *MSSA = AM.getCachedResult<MemorySSAAnalysis>(F);
+  auto *MSSA = EnableMemorySSA ? &AM.getResult<MemorySSAAnalysis>(F)
+                               : AM.getCachedResult<MemorySSAAnalysis>(F);
 
   bool MadeChange =
       runImpl(F, &MD, &TLI, AA, AC, DT, MSSA ? &MSSA->getMSSA() : nullptr);
@@ -1481,7 +1547,9 @@ bool MemCpyOptLegacyPass::runOnFunction(Function &F) {
   auto *AA = &getAnalysis<AAResultsWrapperPass>().getAAResults();
   auto *AC = &getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F);
   auto *DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-  auto *MSSAWP = getAnalysisIfAvailable<MemorySSAWrapperPass>();
+  auto *MSSAWP = EnableMemorySSA
+      ? &getAnalysis<MemorySSAWrapperPass>()
+      : getAnalysisIfAvailable<MemorySSAWrapperPass>();
 
   return Impl.runImpl(F, MD, TLI, AA, AC, DT,
                       MSSAWP ? &MSSAWP->getMSSA() : nullptr);

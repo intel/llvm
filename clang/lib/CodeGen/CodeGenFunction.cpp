@@ -676,6 +676,12 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
     if (A->getEnabled())
       Fn->setMetadata("no_global_work_offset", llvm::MDNode::get(Context, {}));
   }
+
+  if (FD->hasAttr<SYCLIntelStallEnableAttr>()) {
+    llvm::Metadata *AttrMDArgs[] = {
+        llvm::ConstantAsMetadata::get(Builder.getInt32(1))};
+    Fn->setMetadata("stall_enable", llvm::MDNode::get(Context, AttrMDArgs));
+  }
 }
 
 /// Determine whether the function F ends with a return stmt.
@@ -987,8 +993,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   }
 
   if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D)) {
-    Builder.setIsFPConstrained(FD->usesFPIntrin());
-    if (FD->usesFPIntrin())
+    Builder.setIsFPConstrained(FD->hasAttr<StrictFPAttr>());
+    if (FD->hasAttr<StrictFPAttr>())
       Fn->addFnAttr(llvm::Attribute::StrictFP);
   }
 
@@ -1555,21 +1561,6 @@ bool CodeGenFunction::ConstantFoldsToSimpleInteger(const Expr *Cond,
   return true;
 }
 
-static Optional<std::pair<uint32_t, uint32_t>>
-getLikelihoodWeights(Stmt::Likelihood LH) {
-  switch (LH) {
-  case Stmt::LH_Unlikely:
-    return std::pair<uint32_t, uint32_t>(llvm::UnlikelyBranchWeight,
-                                         llvm::LikelyBranchWeight);
-  case Stmt::LH_None:
-    return None;
-  case Stmt::LH_Likely:
-    return std::pair<uint32_t, uint32_t>(llvm::LikelyBranchWeight,
-                                         llvm::UnlikelyBranchWeight);
-  }
-  llvm_unreachable("Unknown Likelihood");
-}
-
 /// EmitBranchOnBoolExpr - Emit a branch on a boolean condition (e.g. for an if
 /// statement) to the specified blocks.  Based on the condition, this might try
 /// to simplify the codegen of the conditional based on the branch.
@@ -1769,12 +1760,7 @@ void CodeGenFunction::EmitBranchOnBoolExpr(const Expr *Cond,
     }
   }
 
-  llvm::MDNode *Weights = nullptr;
-  Optional<std::pair<uint32_t, uint32_t>> LHW = getLikelihoodWeights(LH);
-  if (LHW) {
-    llvm::MDBuilder MDHelper(CGM.getLLVMContext());
-    Weights = MDHelper.createBranchWeights(LHW->first, LHW->second);
-  }
+  llvm::MDNode *Weights = createBranchWeights(LH);
   if (!Weights) {
     uint64_t CurrentCount = std::max(getCurrentProfileCount(), TrueCount);
     Weights = createProfileWeights(TrueCount, CurrentCount - TrueCount);
@@ -2331,13 +2317,24 @@ void CodeGenFunction::emitAlignmentAssumption(llvm::Value *PtrValue,
 llvm::Value *CodeGenFunction::EmitAnnotationCall(llvm::Function *AnnotationFn,
                                                  llvm::Value *AnnotatedVal,
                                                  StringRef AnnotationStr,
-                                                 SourceLocation Location) {
-  llvm::Value *Args[4] = {
-    AnnotatedVal,
-    Builder.CreateBitCast(CGM.EmitAnnotationString(AnnotationStr), Int8PtrTy),
-    Builder.CreateBitCast(CGM.EmitAnnotationUnit(Location), Int8PtrTy),
-    CGM.EmitAnnotationLineNo(Location)
+                                                 SourceLocation Location,
+                                                 const AnnotateAttr *Attr) {
+  SmallVector<llvm::Value *, 5> Args = {
+      AnnotatedVal,
+      Builder.CreateBitCast(CGM.EmitAnnotationString(AnnotationStr), Int8PtrTy),
+      Builder.CreateBitCast(CGM.EmitAnnotationUnit(Location), Int8PtrTy),
+      CGM.EmitAnnotationLineNo(Location),
   };
+  if (Attr)
+    Args.push_back(CGM.EmitAnnotationArgs(Attr));
+  else {
+    assert(AnnotationFn->isIntrinsic() &&
+           "Annotation call must be an intrinsic");
+    const llvm::Intrinsic::ID ID = AnnotationFn->getIntrinsicID();
+    if (ID == llvm::Intrinsic::ptr_annotation ||
+        ID == llvm::Intrinsic::var_annotation)
+      Args.push_back(llvm::ConstantPointerNull::get(Int8PtrTy));
+  }
   return Builder.CreateCall(AnnotationFn, Args);
 }
 
@@ -2348,7 +2345,7 @@ void CodeGenFunction::EmitVarAnnotations(const VarDecl *D, llvm::Value *V) {
   for (const auto *I : D->specific_attrs<AnnotateAttr>())
     EmitAnnotationCall(CGM.getIntrinsic(llvm::Intrinsic::var_annotation),
                        Builder.CreateBitCast(V, CGM.Int8PtrTy, V->getName()),
-                       I->getAnnotation(), D->getLocation());
+                       I->getAnnotation(), D->getLocation(), I);
 }
 
 Address CodeGenFunction::EmitFieldAnnotations(const FieldDecl *D,
@@ -2363,7 +2360,7 @@ Address CodeGenFunction::EmitFieldAnnotations(const FieldDecl *D,
     llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, VTy);
 
     for (const auto *I : D->specific_attrs<AnnotateAttr>())
-      V = EmitAnnotationCall(F, V, I->getAnnotation(), D->getLocation());
+      V = EmitAnnotationCall(F, V, I->getAnnotation(), D->getLocation(), I);
 
     return Address(V, Addr.getAlignment());
   }
@@ -2373,7 +2370,7 @@ Address CodeGenFunction::EmitFieldAnnotations(const FieldDecl *D,
 
   for (const auto *I : D->specific_attrs<AnnotateAttr>()) {
     V = Builder.CreateBitCast(V, CGM.Int8PtrTy);
-    V = EmitAnnotationCall(F, V, I->getAnnotation(), D->getLocation());
+    V = EmitAnnotationCall(F, V, I->getAnnotation(), D->getLocation(), I);
     V = Builder.CreateBitCast(V, VTy);
   }
 
@@ -2685,4 +2682,28 @@ llvm::DebugLoc CodeGenFunction::SourceLocToDebugLoc(SourceLocation Location) {
     return DI->SourceLocToDebugLoc(Location);
 
   return llvm::DebugLoc();
+}
+
+static Optional<std::pair<uint32_t, uint32_t>>
+getLikelihoodWeights(Stmt::Likelihood LH) {
+  switch (LH) {
+  case Stmt::LH_Unlikely:
+    return std::pair<uint32_t, uint32_t>(llvm::UnlikelyBranchWeight,
+                                         llvm::LikelyBranchWeight);
+  case Stmt::LH_None:
+    return None;
+  case Stmt::LH_Likely:
+    return std::pair<uint32_t, uint32_t>(llvm::LikelyBranchWeight,
+                                         llvm::UnlikelyBranchWeight);
+  }
+  llvm_unreachable("Unknown Likelihood");
+}
+
+llvm::MDNode *CodeGenFunction::createBranchWeights(Stmt::Likelihood LH) const {
+  Optional<std::pair<uint32_t, uint32_t>> LHW = getLikelihoodWeights(LH);
+  if (!LHW)
+    return nullptr;
+
+  llvm::MDBuilder MDHelper(CGM.getLLVMContext());
+  return MDHelper.createBranchWeights(LHW->first, LHW->second);
 }

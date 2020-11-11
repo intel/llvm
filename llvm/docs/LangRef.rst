@@ -1057,8 +1057,8 @@ Currently, only the following parameter attributes are defined:
     ``byval`` parameters). This is not a valid attribute for return
     values.
 
-    The byval attribute also supports an optional type argument, which must be
-    the same as the pointee type of the argument.
+    The byval attribute also supports an optional type argument, which
+    must be the same as the pointee type of the argument.
 
     The byval attribute also supports specifying an alignment with the
     align attribute. It indicates the alignment of the stack slot to
@@ -1144,13 +1144,17 @@ Currently, only the following parameter attributes are defined:
     See :doc:`InAlloca` for more information on how to use this
     attribute.
 
-``sret``
+``sret`` or ``sret(<ty>)``
     This indicates that the pointer parameter specifies the address of a
     structure that is the return value of the function in the source
     program. This pointer must be guaranteed by the caller to be valid:
     loads and stores to the structure may be assumed by the callee not
     to trap and to be properly aligned. This is not a valid attribute
     for return values.
+
+    The sret attribute also supports an optional type argument, which
+    must be the same as the pointee type of the argument. In the
+    future this will be required.
 
 .. _attr_align:
 
@@ -1820,6 +1824,22 @@ example:
     undefined behavior, the undefined behavior may be observed even
     if the call site is dead code.
 
+``nossp``
+    This attribute indicates the function should not emit a stack smashing
+    protector. This is useful for code that intentionally manipulates the stack
+    canary, such as operating system kernel code that must save/restore such
+    canary values on context switch.
+
+    If a function with the ``nossp`` attribute calls a callee function that has
+    a stack protector function attribute, such as ``ssp``, ``sspreq``, or
+    ``sspstrong`` (or vice-versa), then the callee will not be inline
+    substituted into the caller. Even when the callee is ``alwaysinline``, the
+    above holds.
+
+    Such inlining might break assumptions in the function that was built
+    without stack protection. This permits the functions that would have stack
+    protection to retain their stack protector.
+
 ``ssp``
     This attribute indicates that the function should emit a stack
     smashing protector. It is in the form of a "canary" --- a random value
@@ -1954,6 +1974,18 @@ example:
     the function. The instrumentation checks that the return address for the
     function has not changed between the function prolog and epilog. It is
     currently x86_64-specific.
+``mustprogress``
+    This attribute indicates that the function is required to return, unwind,
+    or interact with the environment in an observable way e.g. via a volatile
+    memory access, I/O, or other synchronization.  The ``mustprogress``
+    attribute is intended to model the requirements of the first section of
+    [intro.progress] of the C++ Standard. As a consequence, a loop in a
+    function with the `mustprogress` attribute can be assumed to terminate if
+    it does not interact with the environment in an observable way, and
+    terminating loops without side-effects can be removed. If a `mustprogress`
+    function does not satisfy this contract, the behavior is undefined.  This
+    attribute does not apply transitively to callees, but does apply to call
+    sites within the function. Note that `willreturn` implies `mustprogress`. 
 
 Call Site Attributes
 ----------------------
@@ -4906,7 +4938,9 @@ arrays which can be attached to actual arrays, this attachment between pointer
 and pointee is called association.  The optional ``associated`` is a
 DIExpression that describes whether the pointer array is currently associated.
 The optional ``allocated`` is a DIExpression that describes whether the
-allocatable array is currently allocated.
+allocatable array is currently allocated.  The optional ``rank`` is a
+DIExpression that describes the rank (number of dimensions) of fortran assumed
+rank array (rank is known at runtime).
 
 For ``DW_TAG_enumeration_type``, the ``elements:`` should be :ref:`enumerator
 descriptors <DIEnumerator>`, each representing the definition of an enumeration
@@ -5043,13 +5077,13 @@ a :ref:`compile unit <DICompileUnit>`.
 DISubprogram
 """"""""""""
 
-``DISubprogram`` nodes represent functions from the source language. A
-distinct ``DISubprogram`` may be attached to a function definition using
-``!dbg`` metadata. A unique ``DISubprogram`` may be attached to a function
-declaration used for call site debug info. The ``variables:`` field points at
-:ref:`variables <DILocalVariable>` that must be retained, even if their IR
-counterparts are optimized out of the IR. The ``type:`` field must point at an
-:ref:`DISubroutineType`.
+``DISubprogram`` nodes represent functions from the source language. A distinct
+``DISubprogram`` may be attached to a function definition using ``!dbg``
+metadata. A unique ``DISubprogram`` may be attached to a function declaration
+used for call site debug info. The ``retainedNodes:`` field is a list of
+:ref:`variables <DILocalVariable>` and :ref:`labels <DILabel>` that must be
+retained, even if their IR counterparts are optimized out of the IR. The
+``type:`` field must point at an :ref:`DISubroutineType`.
 
 .. _DISubprogramDeclaration:
 
@@ -5072,7 +5106,8 @@ and ``scope:``.
                                 virtuality: DW_VIRTUALITY_pure_virtual,
                                 virtualIndex: 10, flags: DIFlagPrototyped,
                                 isOptimized: true, unit: !5, templateParams: !6,
-                                declaration: !7, variables: !8, thrownTypes: !9)
+                                declaration: !7, retainedNodes: !8,
+                                thrownTypes: !9)
 
 .. _DILexicalBlock:
 
@@ -5203,6 +5238,10 @@ The current supported opcode vocabulary is limited:
 - ``DW_OP_push_object_address`` pushes the address of the object which can then
   serve as a descriptor in subsequent calculation. This opcode can be used to
   calculate bounds of fortran allocatable array which has array descriptors.
+- ``DW_OP_over`` duplicates the entry currently second in the stack at the top
+  of the stack. This opcode can be used to calculate bounds of fortran assumed
+  rank array which has rank known at run time and current dimension number is
+  implicitly first element of the stack.
 
 DWARF specifies three kinds of simple location descriptions: Register, memory,
 and implicit location descriptions.  Note that a location description is
@@ -5296,6 +5335,22 @@ appear in the included source file.
 
    !2 = !DIMacroFile(macinfo: DW_MACINFO_start_file, line: 7, file: !2,
                      nodes: !3)
+
+.. _DILabel:
+
+DILabel
+"""""""
+
+``DILabel`` nodes represent labels within a :ref:`DISubprogram`. All fields of
+a ``DILabel`` are mandatory. The ``scope:`` field must be one of either a
+:ref:`DILexicalBlockFile`, a :ref:`DILexicalBlock`, or a :ref:`DISubprogram`.
+The ``name:`` field is the label identifier. The ``file:`` field is the
+:ref:`DIFile` the label is present in. The ``line:`` field is the source line
+within the file where the label is declared.
+
+.. code-block:: text
+
+  !2 = !DILabel(scope: !0, name: "foo", file: !1, line: 7)
 
 '``tbaa``' Metadata
 ^^^^^^^^^^^^^^^^^^^
@@ -9149,10 +9204,11 @@ Syntax:
 
 ::
 
-      <result> = load [volatile] <ty>, <ty>* <pointer>[, align <alignment>][, !nontemporal !<index>][, !invariant.load !<index>][, !invariant.group !<index>][, !nonnull !<index>][, !dereferenceable !<deref_bytes_node>][, !dereferenceable_or_null !<deref_bytes_node>][, !align !<align_node>]
-      <result> = load atomic [volatile] <ty>, <ty>* <pointer> [syncscope("<target-scope>")] <ordering>, align <alignment> [, !invariant.group !<index>]
-      !<index> = !{ i32 1 }
-      !<deref_bytes_node> = !{i64 <dereferenceable_bytes>}
+      <result> = load [volatile] <ty>, <ty>* <pointer>[, align <alignment>][, !nontemporal !<nontemp_node>][, !invariant.load !<empty_node>][, !invariant.group !<empty_node>][, !nonnull !<empty_node>][, !dereferenceable !<deref_bytes_node>][, !dereferenceable_or_null !<deref_bytes_node>][, !align !<align_node>][, !noundef !<empty_node>]
+      <result> = load atomic [volatile] <ty>, <ty>* <pointer> [syncscope("<target-scope>")] <ordering>, align <alignment> [, !invariant.group !<empty_node>]
+      !<nontemp_node> = !{ i32 1 }
+      !<empty_node> = !{}
+      !<deref_bytes_node> = !{ i64 <dereferenceable_bytes> }
       !<align_node> = !{ i64 <value_alignment> }
 
 Overview:
@@ -9196,7 +9252,7 @@ tools, so should not be accessed if the function has the
 ``sanitize_thread`` or ``sanitize_address`` attributes.
 
 The optional ``!nontemporal`` metadata must reference a single
-metadata name ``<index>`` corresponding to a metadata node with one
+metadata name ``<nontemp_node>`` corresponding to a metadata node with one
 ``i32`` entry of value 1. The existence of the ``!nontemporal``
 metadata on the instruction tells the optimizer and code generator
 that this load is not expected to be reused in the cache. The code
@@ -9204,7 +9260,7 @@ generator may select special instructions to save cache bandwidth, such
 as the ``MOVNT`` instruction on x86.
 
 The optional ``!invariant.load`` metadata must reference a single
-metadata name ``<index>`` corresponding to a metadata node with no
+metadata name ``<empty_node>`` corresponding to a metadata node with no
 entries. If a load instruction tagged with the ``!invariant.load``
 metadata is executed, the optimizer may assume the memory location
 referenced by the load contains the same value at all points in the
@@ -9212,11 +9268,11 @@ program where the memory location is known to be dereferenceable;
 otherwise, the behavior is undefined.
 
 The optional ``!invariant.group`` metadata must reference a single metadata name
- ``<index>`` corresponding to a metadata node with no entries.
- See ``invariant.group`` metadata :ref:`invariant.group <md_invariant.group>`
+ ``<empty_node>`` corresponding to a metadata node with no entries.
+ See ``invariant.group`` metadata :ref:`invariant.group <md_invariant.group>`.
 
 The optional ``!nonnull`` metadata must reference a single
-metadata name ``<index>`` corresponding to a metadata node with no
+metadata name ``<empty_node>`` corresponding to a metadata node with no
 entries. The existence of the ``!nonnull`` metadata on the
 instruction tells the optimizer that the value loaded is known to
 never be null. If the value is null at runtime, the behavior is undefined.
@@ -9226,13 +9282,13 @@ values. This metadata can only be applied to loads of a pointer type.
 The optional ``!dereferenceable`` metadata must reference a single metadata
 name ``<deref_bytes_node>`` corresponding to a metadata node with one ``i64``
 entry.
-See ``dereferenceable`` metadata :ref:`dereferenceable <md_dereferenceable>`
+See ``dereferenceable`` metadata :ref:`dereferenceable <md_dereferenceable>`.
 
 The optional ``!dereferenceable_or_null`` metadata must reference a single
 metadata name ``<deref_bytes_node>`` corresponding to a metadata node with one
 ``i64`` entry.
 See ``dereferenceable_or_null`` metadata :ref:`dereferenceable_or_null
-<md_dereferenceable_or_null>`
+<md_dereferenceable_or_null>`.
 
 The optional ``!align`` metadata must reference a single metadata name
 ``<align_node>`` corresponding to a metadata node with one ``i64`` entry.
@@ -9242,6 +9298,12 @@ by the integer value in the metadata node. The alignment must be a power of 2.
 This is analogous to the ''align'' attribute on parameters and return values.
 This metadata can only be applied to loads of a pointer type. If the returned
 value is not appropriately aligned at runtime, the behavior is undefined.
+
+The optional ``!noundef`` metadata must reference a single metadata name
+``<empty_node>`` corresponding to a node with no entries. The existence of
+``!noundef`` metadata on the instruction tells the optimizer that the value
+loaded is known to be :ref:`well defined <welldefinedvalues>`.
+If the value isn't well defined, the behavior is undefined.
 
 Semantics:
 """"""""""
@@ -9282,8 +9344,10 @@ Syntax:
 
 ::
 
-      store [volatile] <ty> <value>, <ty>* <pointer>[, align <alignment>][, !nontemporal !<index>][, !invariant.group !<index>]        ; yields void
-      store atomic [volatile] <ty> <value>, <ty>* <pointer> [syncscope("<target-scope>")] <ordering>, align <alignment> [, !invariant.group !<index>] ; yields void
+      store [volatile] <ty> <value>, <ty>* <pointer>[, align <alignment>][, !nontemporal !<nontemp_node>][, !invariant.group !<empty_node>]        ; yields void
+      store atomic [volatile] <ty> <value>, <ty>* <pointer> [syncscope("<target-scope>")] <ordering>, align <alignment> [, !invariant.group !<empty_node>] ; yields void
+      !<nontemp_node> = !{ i32 1 }
+      !<empty_node> = !{}
 
 Overview:
 """""""""
@@ -9330,15 +9394,15 @@ even in situations where a data race is known to not exist if the
 function has the ``sanitize_address`` attribute.
 
 The optional ``!nontemporal`` metadata must reference a single metadata
-name ``<index>`` corresponding to a metadata node with one ``i32`` entry of
-value 1. The existence of the ``!nontemporal`` metadata on the instruction
+name ``<nontemp_node>`` corresponding to a metadata node with one ``i32`` entry
+of value 1. The existence of the ``!nontemporal`` metadata on the instruction
 tells the optimizer and code generator that this load is not expected to
 be reused in the cache. The code generator may select special
 instructions to save cache bandwidth, such as the ``MOVNT`` instruction on
 x86.
 
 The optional ``!invariant.group`` metadata must reference a
-single metadata name ``<index>``. See ``invariant.group`` metadata.
+single metadata name ``<empty_node>``. See ``invariant.group`` metadata.
 
 Semantics:
 """"""""""
@@ -10246,7 +10310,7 @@ Syntax:
 
 ::
 
-      <result> = inttoptr <ty> <value> to <ty2>[, !dereferenceable !<deref_bytes_node>][, !dereferenceable_or_null !<deref_bytes_node]             ; yields ty2
+      <result> = inttoptr <ty> <value> to <ty2>[, !dereferenceable !<deref_bytes_node>][, !dereferenceable_or_null !<deref_bytes_node>]             ; yields ty2
 
 Overview:
 """""""""
@@ -15438,8 +15502,8 @@ This is an overloaded intrinsic.
 
 ::
 
-      declare void @llvm.test.set.loop.iterations.i32(i32)
-      declare void @llvm.test.set.loop.iterations.i64(i64)
+      declare i1 @llvm.test.set.loop.iterations.i32(i32)
+      declare i1 @llvm.test.set.loop.iterations.i64(i64)
 
 Overview:
 """""""""
@@ -15463,6 +15527,7 @@ The '``llvm.test.set.loop.iterations.*``' intrinsics do not perform any
 arithmetic on their operand. It's a hint to the backend that can use this to
 set up the hardware-loop count with a target specific instruction, usually a
 move of this value to a special register or a hardware-loop instruction.
+The result is the conditional value of whether the given count is not zero.
 
 '``llvm.loop.decrement.reg.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -20290,7 +20355,9 @@ Lowering:
 
 In the most general case call to the '``llvm.memcpy.element.unordered.atomic.*``' is
 lowered to a call to the symbol ``__llvm_memcpy_element_unordered_atomic_*``. Where '*'
-is replaced with an actual element size.
+is replaced with an actual element size. See :ref:`RewriteStatepointsForGC intrinsic
+lowering <RewriteStatepointsForGC_intrinsic_lowering>` for details on GC specific
+lowering.
 
 Optimizer is allowed to inline memory copy when it's profitable to do so.
 
@@ -20367,7 +20434,9 @@ Lowering:
 In the most general case call to the
 '``llvm.memmove.element.unordered.atomic.*``' is lowered to a call to the symbol
 ``__llvm_memmove_element_unordered_atomic_*``. Where '*' is replaced with an
-actual element size.
+actual element size. See :ref:`RewriteStatepointsForGC intrinsic lowering
+<RewriteStatepointsForGC_intrinsic_lowering>` for details on GC specific
+lowering.
 
 The optimizer is allowed to inline the memory copy when it's profitable to do so.
 
