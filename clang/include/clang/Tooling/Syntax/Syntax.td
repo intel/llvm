@@ -27,14 +27,59 @@
 //
 //===----------------------------------------------------------------------===//
 
+// Syntax is any constraint on constructs that can appear somewhere.
+class Syntax;
+class Optional<Syntax inner_> : Syntax { Syntax inner = inner_; }
+class AnyToken<list<string> kinds_> : Syntax { list<string> kinds = kinds_; }
+class Token<string kind_> : AnyToken<[kind_]>;
+class Keyword<string kw> : Token<!strconcat("kw_", kw)>;
+
 // Defs derived from NodeType correspond to syntax tree node types.
-class NodeType {
+// NodeType is also a syntax constraint: one node of this type.
+class NodeType : Syntax {
   // The NodeType that this node is derived from in the Node class hierarchy.
   NodeType base = ?;
+  // Documentation for this Node subclass.
+  string documentation;
 }
 
 // A node type which is defined in Nodes.h rather than by generated code.
 // We merely specify the inheritance hierarchy here.
 class External<NodeType base_> : NodeType { let base = base_; }
 
-// FIXME: add sequence, list, and alternative archetypes.
+// Special nodes defined here.
+def Node : External<?> {}
+def Leaf : External<Node> {}
+def Tree : External<Node> {}
+
+// An abstract node type which merely serves as a base for more specific types.
+//
+// This corresponds to an alternative rule in the grammar, such as:
+//   Statement = IfStatement | ForStatement | ...
+// Statement is modeled using Alternatives, and IfStatement.base is Statement.
+class Alternatives<NodeType base_ = Tree> : NodeType { let base = base_; }
+
+// A node type which may contain anything and has no specific accessors.
+// These are generally placeholders for a more precise implementation.
+class Unconstrained<NodeType base_ = Tree> : NodeType { let base = base_; }
+
+class Role<string role_, Syntax syntax_> {
+  string role = role_;
+  Syntax syntax = syntax_;
+}
+
+// A node which contains a fixed sequence of children in a particular order.
+//
+// Each child is characterized by a role (unique within the sequence), and
+// has an allowed base type for the node.
+// The role sequence and role/type match are enforced invariants of the class.
+//
+// We also record whether the child is required to be present, and which tokens
+// are permitted (for Leaf nodes). These invariants are not enforced.
+class Sequence<NodeType base_ = Tree> : NodeType {
+  let base = base_;
+  // Children must be Role or have a default role derived from the NodeType.
+  list<Role> children;
+}
+
+// FIXME: add list archetype.

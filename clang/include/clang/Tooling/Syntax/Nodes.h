@@ -114,67 +114,7 @@ enum class NodeRole : uint8_t {
 /// For debugging purposes.
 raw_ostream &operator<<(raw_ostream &OS, NodeRole R);
 
-class SimpleDeclarator;
-
-/// A root node for a translation unit. Parent is always null.
-class TranslationUnit final : public Tree {
-public:
-  TranslationUnit() : Tree(NodeKind::TranslationUnit) {}
-  static bool classof(const Node *N);
-};
-
-/// A base class for all expressions. Note that expressions are not statements,
-/// even though they are in clang.
-class Expression : public Tree {
-public:
-  Expression(NodeKind K) : Tree(K) {}
-  static bool classof(const Node *N);
-};
-
-/// A sequence of these specifiers make a `nested-name-specifier`.
-/// e.g. the `std` or `vector<int>` in `std::vector<int>::size`.
-class NameSpecifier : public Tree {
-public:
-  NameSpecifier(NodeKind K) : Tree(K) {}
-  static bool classof(const Node *N);
-};
-
-/// The global namespace name specifier, this specifier doesn't correspond to a
-/// token instead an absence of tokens before a `::` characterizes it, in
-/// `::std::vector<int>` it would be characterized by the absence of a token
-/// before the first `::`
-class GlobalNameSpecifier final : public NameSpecifier {
-public:
-  GlobalNameSpecifier() : NameSpecifier(NodeKind::GlobalNameSpecifier) {}
-  static bool classof(const Node *N);
-};
-
-/// A name specifier holding a decltype, of the form: `decltype ( expression ) `
-/// e.g. the `decltype(s)` in `decltype(s)::size`.
-class DecltypeNameSpecifier final : public NameSpecifier {
-public:
-  DecltypeNameSpecifier() : NameSpecifier(NodeKind::DecltypeNameSpecifier) {}
-  static bool classof(const Node *N);
-};
-
-/// A identifier name specifier, of the form `identifier`
-/// e.g. the `std` in `std::vector<int>::size`.
-class IdentifierNameSpecifier final : public NameSpecifier {
-public:
-  IdentifierNameSpecifier()
-      : NameSpecifier(NodeKind::IdentifierNameSpecifier) {}
-  static bool classof(const Node *N);
-};
-
-/// A name specifier with a simple-template-id, of the form `template_opt
-/// identifier < template-args >` e.g. the `vector<int>` in
-/// `std::vector<int>::size`.
-class SimpleTemplateNameSpecifier final : public NameSpecifier {
-public:
-  SimpleTemplateNameSpecifier()
-      : NameSpecifier(NodeKind::SimpleTemplateNameSpecifier) {}
-  static bool classof(const Node *N);
-};
+#include "clang/Tooling/Syntax/NodeClasses.inc"
 
 /// Models a `nested-name-specifier`. C++ [expr.prim.id.qual]
 /// e.g. the `std::vector<int>::` in `std::vector<int>::size`.
@@ -195,36 +135,12 @@ public:
   static bool classof(const Node *N);
 };
 
-/// Models an `id-expression`, e.g. `std::vector<int>::size`.
-/// C++ [expr.prim.id]
-/// id-expression:
-///   unqualified-id
-///   qualified-id
-/// qualified-id:
-///   nested-name-specifier template_opt unqualified-id
-class IdExpression final : public Expression {
-public:
-  IdExpression() : Expression(NodeKind::IdExpression) {}
-  static bool classof(const Node *N);
-  NestedNameSpecifier *getQualifier();
-  Leaf *getTemplateKeyword();
-  UnqualifiedId *getUnqualifiedId();
-};
-
 /// An expression of an unknown kind, i.e. one not currently handled by the
 /// syntax tree.
 class UnknownExpression final : public Expression {
 public:
   UnknownExpression() : Expression(NodeKind::UnknownExpression) {}
   static bool classof(const Node *N);
-};
-
-/// Models a this expression `this`. C++ [expr.prim.this]
-class ThisExpression final : public Expression {
-public:
-  ThisExpression() : Expression(NodeKind::ThisExpression) {}
-  static bool classof(const Node *N);
-  Leaf *getThisKeyword();
 };
 
 /// Models arguments of a function call.
@@ -238,49 +154,6 @@ public:
   static bool classof(const Node *N);
   std::vector<Expression *> getArguments();
   std::vector<List::ElementAndDelimiter<Expression>> getArgumentsAndCommas();
-};
-
-/// A function call. C++ [expr.call]
-/// call-expression:
-///   expression '(' call-arguments ')'
-/// e.g `f(1, '2')` or `this->Base::f()`
-class CallExpression final : public Expression {
-public:
-  CallExpression() : Expression(NodeKind::CallExpression) {}
-  static bool classof(const Node *N);
-  Expression *getCallee();
-  Leaf *getOpenParen();
-  CallArguments *getArguments();
-  Leaf *getCloseParen();
-};
-
-/// Models a parenthesized expression `(E)`. C++ [expr.prim.paren]
-/// e.g. `(3 + 2)` in `a = 1 + (3 + 2);`
-class ParenExpression final : public Expression {
-public:
-  ParenExpression() : Expression(NodeKind::ParenExpression) {}
-  static bool classof(const Node *N);
-  Leaf *getOpenParen();
-  Expression *getSubExpression();
-  Leaf *getCloseParen();
-};
-
-/// Models a class member access. C++ [expr.ref]
-/// member-expression:
-///   expression -> template_opt id-expression
-///   expression .  template_opt id-expression
-/// e.g. `x.a`, `xp->a`
-///
-/// Note: An implicit member access inside a class, i.e. `a` instead of
-/// `this->a`, is an `id-expression`.
-class MemberExpression final : public Expression {
-public:
-  MemberExpression() : Expression(NodeKind::MemberExpression) {}
-  static bool classof(const Node *N);
-  Expression *getObject();
-  Leaf *getAccessToken();
-  Leaf *getTemplateKeyword();
-  IdExpression *getMember();
 };
 
 /// Expression for literals. C++ [lex.literal]

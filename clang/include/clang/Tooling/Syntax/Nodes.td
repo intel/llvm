@@ -17,19 +17,43 @@
 
 include "clang/Tooling/Syntax/Syntax.td"
 
-def Node : External<?> {}
-def Leaf : External<Node> {}
-def Tree : External<Node> {}
+def TranslationUnit : Unconstrained {
+  let documentation = [{
+    A root node for a translation unit. Parent is always null.
+  }];
+}
 
-def TranslationUnit : External<Tree> {}
+def UnqualifiedId : External<Tree> {}
 
-def Expression : External<Tree> {}
+// Lists
+def List : External<Tree> {}
+def DeclaratorList : External<List> {}
+def ParameterDeclarationList : External<List> {}
+def CallArguments : External<List> {}
+def NestedNameSpecifier : External<List> {}
+
+def Expression : Alternatives {
+  let documentation = [{
+    A base class for all expressions. Note that expressions are not statements,
+    even though they are in clang.
+  }];
+}
 def UnknownExpression : External<Expression> {}
 def UnaryOperatorExpression : External<Tree> {}
 def PrefixUnaryOperatorExpression : External<UnaryOperatorExpression> {}
 def PostfixUnaryOperatorExpression : External<UnaryOperatorExpression> {}
 def BinaryOperatorExpression : External<Expression> {}
-def ParenExpression : External<Expression> {}
+def ParenExpression : Sequence<Expression> {
+  let documentation = [{
+    Models a parenthesized expression `(E)`. C++ [expr.prim.paren]
+    e.g. `(3 + 2)` in `a = 1 + (3 + 2);`
+  }];
+  let children = [
+    Role<"OpenParen", Token<"l_paren">>,
+    Role<"SubExpression", Expression>,
+    Role<"CloseParen", Token<"r_paren">>,
+  ];
+}
 def LiteralExpression : External<Expression> {}
 def IntegerLiteralExpression : External<LiteralExpression> {}
 def CharacterLiteralExpression : External<LiteralExpression> {}
@@ -42,10 +66,62 @@ def IntegerUserDefinedLiteralExpression : External<UserDefinedLiteralExpression>
 def FloatUserDefinedLiteralExpression : External<UserDefinedLiteralExpression> {}
 def CharUserDefinedLiteralExpression : External<UserDefinedLiteralExpression> {}
 def StringUserDefinedLiteralExpression : External<UserDefinedLiteralExpression> {}
-def IdExpression : External<Expression> {}
-def MemberExpression : External<Expression> {}
-def ThisExpression : External<Expression> {}
-def CallExpression : External<Expression> {}
+def IdExpression : Sequence<Expression> {
+  let documentation = [{
+    Models an `id-expression`, e.g. `std::vector<int>::size`.
+    C++ [expr.prim.id]
+    id-expression:
+      unqualified-id
+      qualified-id
+    qualified-id:
+      nested-name-specifier template_opt unqualified-id
+  }];
+  let children = [
+    Role<"Qualifier", Optional<NestedNameSpecifier>>,
+    Role<"TemplateKeyword", Optional<Keyword<"template">>>,
+    Role<"UnqualifiedId", UnqualifiedId>,
+  ];
+}
+def MemberExpression : Sequence<Expression> {
+  let documentation = [{
+    Models a class member access. C++ [expr.ref]
+    member-expression:
+      expression -> template_opt id-expression
+      expression .  template_opt id-expression
+    e.g. `x.a`, `xp->a`
+
+    Note: An implicit member access inside a class, i.e. `a` instead of
+    `this->a`, is an `id-expression`.
+  }];
+  let children = [
+    Role<"Object", Expression>,
+    Role<"AccessToken", AnyToken<["period","arrow"]>>,
+    Role<"TemplateKeyword", Optional<Keyword<"template">>>,
+    Role<"Member", IdExpression>,
+  ];
+}
+def ThisExpression : Sequence<Expression> {
+  let documentation = [{
+    Models a this expression `this`. C++ [expr.prim.this]
+  }];
+  let children = [
+    Role<"IntroducerKeyword", Keyword<"this">>,
+  ];
+}
+def CallExpression : Sequence<Expression> {
+  let documentation = [{
+    A function call. C++ [expr.call]
+    call-expression:
+      expression '(' call-arguments ')'
+    e.g `f(1, '2')` or `this->Base::f()`
+  }];
+  let children = [
+    Role<"Callee", Expression>,
+    Role<"OpenParen", Token<"l_paren">>,
+    Role<"Arguments", CallArguments>,
+    Role<"CloseParen", Token<"r_paren">>,
+  ];
+}
 
 // Statements.
 def Statement : External<Tree> {}
@@ -89,18 +165,38 @@ def ArraySubscript : External<Tree> {}
 def TrailingReturnType : External<Tree> {}
 def ParametersAndQualifiers : External<Tree> {}
 def MemberPointer : External<Tree> {}
-def UnqualifiedId : External<Tree> {}
-
-// Lists
-def List : External<Tree> {}
-def DeclaratorList : External<List> {}
-def ParameterDeclarationList : External<List> {}
-def CallArguments : External<List> {}
-def NestedNameSpecifier : External<List> {}
 
 // Name Specifiers.
-def NameSpecifier : External<Tree> {}
-def GlobalNameSpecifier : External<NameSpecifier> {}
-def DecltypeNameSpecifier : External<NameSpecifier> {}
-def IdentifierNameSpecifier : External<NameSpecifier> {}
-def SimpleTemplateNameSpecifier : External<NameSpecifier> {}
+def NameSpecifier : Alternatives {
+  let documentation = [{
+    A sequence of these specifiers make a `nested-name-specifier`.
+    e.g. the `std` or `vector<int>` in `std::vector<int>::size`.
+  }];
+}
+def GlobalNameSpecifier : Unconstrained<NameSpecifier> {
+  let documentation = [{
+    The global namespace name specifier, this specifier doesn't correspond to a
+    token instead an absence of tokens before a `::` characterizes it, in
+    `::std::vector<int>` it would be characterized by the absence of a token
+    before the first `::`
+  }];
+}
+def DecltypeNameSpecifier : Unconstrained<NameSpecifier> {
+  let documentation = [{
+    A name specifier holding a decltype, of the form: `decltype ( expression ) `
+    e.g. the `decltype(s)` in `decltype(s)::size`.
+  }];
+}
+def IdentifierNameSpecifier : Unconstrained<NameSpecifier> {
+  let documentation = [{
+    A identifier name specifier, of the form `identifier`
+    e.g. the `std` in `std::vector<int>::size`.
+  }];
+}
+def SimpleTemplateNameSpecifier : Unconstrained<NameSpecifier> {
+  let documentation = [{
+    A name specifier with a simple-template-id, of the form `template_opt
+    identifier < template-args >` e.g. the `vector<int>` in
+    `std::vector<int>::size`.
+  }];
+}
