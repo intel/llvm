@@ -230,7 +230,7 @@ public:
     return traverse(TAL);
   }
   bool TraverseLambdaExpr(LambdaExpr *Node) {
-    if (!Finder->isTraversalAsIs())
+    if (Finder->isTraversalAsIs())
       return VisitorBase::TraverseLambdaExpr(Node);
     if (!Node)
       return true;
