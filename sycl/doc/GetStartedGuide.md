@@ -284,8 +284,8 @@ There are 3 types of tests which are used for DPC++ toolchain validation:
 * DPC++ in-tree LIT tests including [check-llvm](../../llvm/test),
 [check-clang](../../clang/test), [check-llvm-spirv](../../llvm-spirv/test) and
 [check-sycl](../../sycl/test) targets stored in this repository. These tests
-should be not have hardware or external software dependencies (e.g OpenCL,
-Level Zero, CUDA runtimes). All test which do not follow this approach should
+should be not have hardware (e.g. GPU, FPGA, etc.) or external software dependencies (e.g OpenCL,
+Level Zero, CUDA runtimes). All tests not following this approach should
 be moved to DPC++ end-to-end tests.
 
 * DPC++ end-to-end (E2E) tests which are extension to
