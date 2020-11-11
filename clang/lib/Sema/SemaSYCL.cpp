@@ -545,6 +545,20 @@ public:
 
       if (auto *A = FD->getAttr<SYCLSimdAttr>())
         Attrs.insert(A);
+
+      // Allow the kernel attribute "stall_enable" only on lambda functions
+      // and function objects that are called directly from a kernel
+      // (i.e. the one passed to the single_task or parallel_for functions).
+      // For all other cases, emit a warning and ignore.
+      if (auto *A = FD->getAttr<SYCLIntelStallEnableAttr>()) {
+        if (ParentFD == SYCLKernel) {
+          Attrs.insert(A);
+        } else {
+          SemaRef.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
+          FD->dropAttr<SYCLIntelStallEnableAttr>();
+        }
+      }
+
       // Propagate the explicit SIMD attribute through call graph - it is used
       // to distinguish ESIMD code in ESIMD LLVM passes.
       if (KernelBody && KernelBody->hasAttr<SYCLSimdAttr>() &&
@@ -2833,6 +2847,7 @@ class SYCLKernelNameTypeVisitor
       public ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor> {
   Sema &S;
   SourceLocation KernelInvocationFuncLoc;
+  QualType KernelNameType;
   using InnerTypeVisitor = TypeVisitor<SYCLKernelNameTypeVisitor>;
   using InnerTemplArgVisitor =
       ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor>;
@@ -2844,8 +2859,10 @@ class SYCLKernelNameTypeVisitor
   }
 
 public:
-  SYCLKernelNameTypeVisitor(Sema &S, SourceLocation KernelInvocationFuncLoc)
-      : S(S), KernelInvocationFuncLoc(KernelInvocationFuncLoc) {}
+  SYCLKernelNameTypeVisitor(Sema &S, SourceLocation KernelInvocationFuncLoc,
+                            QualType KernelNameType)
+      : S(S), KernelInvocationFuncLoc(KernelInvocationFuncLoc),
+        KernelNameType(KernelNameType) {}
 
   bool isValid() { return !IsInvalid; }
 
@@ -2856,7 +2873,9 @@ public:
     if (!RD) {
       if (T->isNullPtrType()) {
         S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-            << /* kernel name cannot be a type in the std namespace */ 3;
+            << KernelNameType;
+        S.Diag(KernelInvocationFuncLoc, diag::note_invalid_type_in_sycl_kernel)
+            << /* kernel name cannot be a type in the std namespace */ 2 << T;
         IsInvalid = true;
       }
       return;
@@ -2881,9 +2900,10 @@ public:
     const EnumDecl *ED = T->getDecl();
     if (!ED->isScoped() && !ED->isFixed()) {
       S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-          << /* Unscoped enum requires fixed underlying type */ 2;
-      S.Diag(ED->getSourceRange().getBegin(), diag::note_entity_declared_at)
-          << ED;
+          << KernelNameType;
+      S.Diag(KernelInvocationFuncLoc, diag::note_invalid_type_in_sycl_kernel)
+          << /* Unscoped enum requires fixed underlying type */ 1
+          << QualType(ED->getTypeForDecl(), 0);
       IsInvalid = true;
     }
   }
@@ -2900,7 +2920,10 @@ public:
       auto *NameSpace = dyn_cast_or_null<NamespaceDecl>(DeclCtx);
       if (NameSpace && NameSpace->isStdNamespace()) {
         S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-            << /* kernel name cannot be a type in the std namespace */ 3;
+            << KernelNameType;
+        S.Diag(KernelInvocationFuncLoc, diag::note_invalid_type_in_sycl_kernel)
+            << /* kernel name cannot be a type in the std namespace */ 2
+            << QualType(Tag->getTypeForDecl(), 0);
         IsInvalid = true;
         return;
       }
@@ -2909,19 +2932,27 @@ public:
         if (KernelNameIsMissing) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_sycl_kernel_incorrectly_named)
-              << /* kernel name is missing */ 0;
+              << KernelNameType;
+          S.Diag(KernelInvocationFuncLoc,
+                 diag::note_invalid_type_in_sycl_kernel)
+              << /* unnamed type used in a SYCL kernel name */ 3;
           IsInvalid = true;
           return;
         }
         if (Tag->isCompleteDefinition()) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_sycl_kernel_incorrectly_named)
-              << /* kernel name is not globally-visible */ 1;
+              << KernelNameType;
+          S.Diag(KernelInvocationFuncLoc,
+                 diag::note_invalid_type_in_sycl_kernel)
+              << /* kernel name is not globally-visible */ 0
+              << QualType(Tag->getTypeForDecl(), 0);
           IsInvalid = true;
-        } else
+        } else {
           S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
-        S.Diag(Tag->getSourceRange().getBegin(), diag::note_previous_decl)
-            << Tag->getName();
+          S.Diag(Tag->getSourceRange().getBegin(), diag::note_previous_decl)
+              << Tag->getName();
+        }
       }
     }
   }
@@ -2998,7 +3029,8 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   SyclKernelArgsSizeChecker ArgsSizeChecker(*this, Args[0]->getExprLoc());
 
   KernelObjVisitor Visitor{*this};
-  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(*this, Args[0]->getExprLoc());
+  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(*this, Args[0]->getExprLoc(),
+                                                  KernelNameType);
 
   DiagnosingSYCLKernel = true;
 
@@ -3204,6 +3236,7 @@ void Sema::MarkDevice(void) {
         case attr::Kind::SYCLIntelSchedulerTargetFmaxMhz:
         case attr::Kind::SYCLIntelMaxGlobalWorkDim:
         case attr::Kind::SYCLIntelNoGlobalWorkOffset:
+        case attr::Kind::SYCLIntelStallEnable:
         case attr::Kind::SYCLSimd: {
           if ((A->getKind() == attr::Kind::SYCLSimd) && KernelBody &&
               !KernelBody->getAttr<SYCLSimdAttr>()) {

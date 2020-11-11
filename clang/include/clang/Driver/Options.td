@@ -1937,7 +1937,9 @@ def fsycl_link : Flag<["-"], "fsycl-link">, Alias<fsycl_link_EQ>,
 def fsycl_unnamed_lambda : Flag<["-"], "fsycl-unnamed-lambda">,
   Flags<[CC1Option, CoreOption]>, HelpText<"Allow unnamed SYCL lambda kernels">;
 def fsycl_help_EQ : Joined<["-"], "fsycl-help=">,
-  Flags<[NoXarchOption, CoreOption]>, HelpText<"Emit help information from the related offline compilation tool">, Values<"all,fpga,gen,x86_64">;
+  Flags<[NoXarchOption, CoreOption]>, HelpText<"Emit help information from the "
+  "related offline compilation tool. Valid values: all, fpga, gen, x86_64.">,
+  Values<"all,fpga,gen,x86_64">;
 def fsycl_help : Flag<["-"], "fsycl-help">, Alias<fsycl_help_EQ>,
   Flags<[NoXarchOption, CoreOption]>, AliasArgs<["all"]>, HelpText<"Emit help information "
   "from all of the offline compilation tools">;
