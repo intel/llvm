@@ -3029,6 +3029,20 @@ static void handleNumSimdWorkItemsAttr(Sema &S, Decl *D,
                                                                      E);
 }
 
+// Handles stall_enable
+static void handleStallEnableAttr(Sema &S, Decl *D, const ParsedAttr &Attr) {
+  if (D->isInvalidDecl())
+    return;
+
+  unsigned NumArgs = Attr.getNumArgs();
+  if (NumArgs > 0) {
+    S.Diag(Attr.getLoc(), diag::warn_attribute_too_many_arguments) << Attr << 0;
+    return;
+  }
+
+  handleSimpleAttribute<SYCLIntelStallEnableAttr>(S, D, Attr);
+}
+
 // Add scheduler_target_fmax_mhz
 void Sema::addSYCLIntelSchedulerTargetFmaxMhzAttr(
     Decl *D, const AttributeCommonInfo &Attr, Expr *E) {
@@ -8387,6 +8401,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_SYCLIntelNoGlobalWorkOffset:
     handleNoGlobalWorkOffsetAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLIntelStallEnable:
+    handleStallEnableAttr(S, D, AL);
     break;
   case ParsedAttr::AT_VecTypeHint:
     handleVecTypeHint(S, D, AL);
