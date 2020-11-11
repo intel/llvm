@@ -11071,7 +11071,7 @@ def note_invalid_type_in_sycl_kernel : Note<
   "%select{%1 should be globally-visible"
   "|unscoped enum %1 requires fixed underlying type"
   "|type %1 cannot be in the \"std\" namespace"
-  "|kernel name is missing"
+  "|unnamed type used in a SYCL kernel name"
   "}0">;
 
 def err_sycl_kernel_not_function_object
