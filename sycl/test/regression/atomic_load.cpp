@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 #include <CL/sycl.hpp>
 using namespace cl::sycl;
 

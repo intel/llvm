@@ -500,6 +500,12 @@ public:
     return getEnvironment() == Triple::MacABI;
   }
 
+  /// Returns true for targets that run on a macOS machine.
+  bool isTargetMachineMac() const {
+    return isMacOSX() || (isOSDarwin() && (isSimulatorEnvironment() ||
+                                           isMacCatalystEnvironment()));
+  }
+
   bool isOSNetBSD() const {
     return getOS() == Triple::NetBSD;
   }
@@ -783,6 +789,11 @@ public:
   /// Tests whether the target uses emulated TLS as default.
   bool hasDefaultEmulatedTLS() const {
     return isAndroid() || isOSOpenBSD() || isWindowsCygwinEnvironment();
+  }
+
+  /// Tests whether the target uses -data-sections as default.
+  bool hasDefaultDataSections() const {
+    return isOSBinFormatXCOFF() || isWasm();
   }
 
   /// @}

@@ -57,17 +57,17 @@ TYPE_PARSER("AUTO" >> construct<AccClause>(construct<AccClause::Auto>()) ||
                     parenthesized(Parser<AccObjectList>{}))) ||
     "DEVICEPTR" >> construct<AccClause>(construct<AccClause::Deviceptr>(
                        parenthesized(Parser<AccObjectList>{}))) ||
-    "DEVICENUM" >> construct<AccClause>(construct<AccClause::DeviceNum>(
-                       parenthesized(scalarIntConstantExpr))) ||
+    "DEVICE_NUM" >> construct<AccClause>(construct<AccClause::DeviceNum>(
+                        parenthesized(scalarIntExpr))) ||
     "DEVICE_RESIDENT" >>
         construct<AccClause>(construct<AccClause::DeviceResident>(
             parenthesized(Parser<AccObjectList>{}))) ||
     ("DEVICE_TYPE"_tok || "DTYPE"_tok) >>
         construct<AccClause>(construct<AccClause::DeviceType>(parenthesized(
-            "*" >> construct<std::optional<std::list<Name>>>()))) ||
+            "*" >> construct<std::optional<std::list<ScalarIntExpr>>>()))) ||
     ("DEVICE_TYPE"_tok || "DTYPE"_tok) >>
         construct<AccClause>(construct<AccClause::DeviceType>(
-            parenthesized(maybe(nonemptyList(name))))) ||
+            parenthesized(maybe(nonemptyList(scalarIntExpr))))) ||
     "FINALIZE" >> construct<AccClause>(construct<AccClause::Finalize>()) ||
     "FIRSTPRIVATE" >> construct<AccClause>(construct<AccClause::Firstprivate>(
                           parenthesized(Parser<AccObjectList>{}))) ||
@@ -242,10 +242,11 @@ TYPE_PARSER("ATOMIC" >>
         statement(assignmentStmt), statement(assignmentStmt),
         Parser<AccEndAtomic>{} / endAccLine))
 
-TYPE_PARSER(construct<OpenACCAtomicConstruct>(Parser<AccAtomicRead>{}) ||
-    construct<OpenACCAtomicConstruct>(Parser<AccAtomicCapture>{}) ||
-    construct<OpenACCAtomicConstruct>(Parser<AccAtomicWrite>{}) ||
-    construct<OpenACCAtomicConstruct>(Parser<AccAtomicUpdate>{}))
+TYPE_PARSER(
+    sourced(construct<OpenACCAtomicConstruct>(Parser<AccAtomicRead>{})) ||
+    sourced(construct<OpenACCAtomicConstruct>(Parser<AccAtomicCapture>{})) ||
+    sourced(construct<OpenACCAtomicConstruct>(Parser<AccAtomicWrite>{})) ||
+    sourced(construct<OpenACCAtomicConstruct>(Parser<AccAtomicUpdate>{})))
 
 // 2.13 Declare constructs
 TYPE_PARSER(sourced(construct<AccDeclarativeDirective>(

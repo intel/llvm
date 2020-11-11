@@ -155,6 +155,7 @@ public:
   vector_class<shared_ptr_class<detail::stream_impl>> getStreams() const {
     return MStreams;
   }
+  void clearStreams() { MStreams.clear(); }
 };
 
 /// "Copy memory" command group class.

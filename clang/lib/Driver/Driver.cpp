@@ -212,6 +212,11 @@ InputArgList Driver::ParseArgStrings(ArrayRef<const char *> ArgStrings,
   std::tie(IncludedFlagsBitmask, ExcludedFlagsBitmask) =
       getIncludeExcludeOptionFlagMasks(IsClCompatMode);
 
+  // Make sure that Flang-only options don't pollute the Clang output
+  // TODO: Make sure that Clang-only options don't pollute Flang output
+  if (!IsFlangMode())
+    ExcludedFlagsBitmask |= options::FlangOnlyOption;
+
   unsigned MissingArgIndex, MissingArgCount;
   InputArgList Args =
       getOpts().ParseArgs(ArgStrings, MissingArgIndex, MissingArgCount,
@@ -792,9 +797,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // the -fsycl-targets, -fsycl-add-targets or -fsycl-link-targets option.
   // If -fsycl is supplied without any of these we will assume SPIR-V.
   // Use of -fsycl-device-only overrides -fsycl.
-  bool HasValidSYCLRuntime = (C.getInputArgs().hasFlag(options::OPT_fsycl,
-      options::OPT_fno_sycl, false) &&
-      !C.getInputArgs().hasArg(options::OPT_fsycl_device_only));
+  bool HasValidSYCLRuntime =
+      (C.getInputArgs().hasFlag(options::OPT_fsycl, options::OPT_fno_sycl,
+                                false) ||
+       C.getInputArgs().hasArg(options::OPT_fsycl_device_only));
 
   // A mechanism for retrieving SYCL-specific options, erroring out
   // if SYCL offloading wasn't enabled prior to that
@@ -913,11 +919,18 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   } else {
     // If -fsycl is supplied without -fsycl-*targets we will assume SPIR-V
     // unless -fintelfpga is supplied, which uses SPIR-V with fpga AOT.
-    if (HasValidSYCLRuntime) {
+    // For -fsycl-device-only, we also setup the implied triple as needed.
+    StringRef SYCLTargetArch;
+    if (C.getInputArgs().hasArg(options::OPT_fsycl_device_only))
+      if (C.getDefaultToolChain().getTriple().getArch() == llvm::Triple::x86)
+        SYCLTargetArch = "spir";
+      else
+        SYCLTargetArch = "spir64";
+    else if (HasValidSYCLRuntime)
       // Triple for -fintelfpga is spir64_fpga-unknown-unknown-sycldevice.
-      const char *SYCLTargetArch = SYCLfpga ? "spir64_fpga" : "spir64";
+      SYCLTargetArch = SYCLfpga ? "spir64_fpga" : "spir64";
+    if (!SYCLTargetArch.empty())
       UniqueSYCLTriplesVec.push_back(MakeSYCLDeviceTriple(SYCLTargetArch));
-    }
   }
   // We'll need to use the SYCL and host triples as the key into
   // getOffloadingDeviceToolChain, because the device toolchains we're
@@ -1261,17 +1274,6 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
     T.setVendor(llvm::Triple::PC);
     T.setEnvironment(llvm::Triple::MSVC);
     T.setObjectFormat(llvm::Triple::COFF);
-    TargetTriple = T.str();
-  }
-  if (Args.hasArg(options::OPT_fsycl_device_only)) {
-    // -fsycl-device-only implies spir arch and SYCL Device
-    llvm::Triple T(TargetTriple);
-    // FIXME: defaults to spir64, should probably have a way to set spir
-    // possibly new -sycl-target option
-    T.setArch(llvm::Triple::spir64);
-    T.setVendor(llvm::Triple::UnknownVendor);
-    T.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
-    T.setEnvironment(llvm::Triple::SYCLDevice);
     TargetTriple = T.str();
   }
   if (const Arg *A = Args.getLastArg(options::OPT_target))
@@ -1763,6 +1765,8 @@ void Driver::PrintHelp(bool ShowHidden) const {
 
   if (IsFlangMode())
     IncludedFlagsBitmask |= options::FlangOption;
+  else
+    ExcludedFlagsBitmask |= options::FlangOnlyOption;
 
   std::string Usage = llvm::formatv("{0} [options] file...", Name).str();
   getOpts().PrintHelp(llvm::outs(), Usage.c_str(), DriverTitle.c_str(),
@@ -1878,6 +1882,11 @@ void Driver::HandleAutocompletions(StringRef PassedFlags) const {
 
   unsigned int DisableFlags =
       options::NoDriverOption | options::Unsupported | options::Ignored;
+
+  // Make sure that Flang-only options don't pollute the Clang output
+  // TODO: Make sure that Clang-only options don't pollute Flang output
+  if (!IsFlangMode())
+    DisableFlags |= options::FlangOnlyOption;
 
   // Distinguish "--autocomplete=-someflag" and "--autocomplete=-someflag,"
   // because the latter indicates that the user put space before pushing tab
@@ -2384,7 +2393,9 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
   // actually use it, so we warn about unused -x arguments.
   types::ID InputType = types::TY_Nothing;
   Arg *InputTypeArg = nullptr;
-  bool IsSYCL = Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false);
+  bool IsSYCL =
+      Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) ||
+      Args.hasArg(options::OPT_fsycl_device_only);
 
   // The last /TC or /TP option sets the input type to C or C++ globally.
   if (Arg *TCTP = Args.getLastArgNoClaim(options::OPT__SLASH_TC,
@@ -2688,7 +2699,11 @@ static SmallVector<const char *, 16> getLinkerArgs(Compilation &C,
         A->getOption().matches(options::OPT_Xlinker)) {
       // Parse through additional linker arguments that are meant to go
       // directly to the linker.
-      std::string PrevArg;
+      // Keep the previous arg even if it is a new argument, for example:
+      //   -Xlinker -rpath -Xlinker <dir>.
+      // Without this history, we do not know that <dir> was assocated with
+      // -rpath and is processed incorrectly.
+      static std::string PrevArg;
       for (const std::string &Value : A->getValues()) {
         auto addKnownValues = [&](const StringRef &V) {
           // Only add named static libs objects and --whole-archive options.
@@ -3705,10 +3720,24 @@ class OffloadingActionBuilder final {
       // The host depends on the generated integrated header from the device
       // compilation.
       if (CurPhase == phases::Compile) {
+        bool SYCLDeviceOnly = Args.hasArg(options::OPT_fsycl_device_only);
         for (Action *&A : SYCLDeviceActions) {
           DeviceCompilerInput =
               C.MakeAction<CompileJobAction>(A, types::TY_SYCL_Header);
-          A = C.MakeAction<CompileJobAction>(A, types::TY_LLVM_BC);
+          types::ID OutputType = types::TY_LLVM_BC;
+          if (SYCLDeviceOnly) {
+            if (Args.hasArg(options::OPT_S))
+              OutputType = types::TY_LLVM_IR;
+            if (Args.hasFlag(options::OPT_fno_sycl_use_bitcode,
+                             options::OPT_fsycl_use_bitcode, false)) {
+              auto *CompileAction =
+                  C.MakeAction<CompileJobAction>(A, types::TY_LLVM_BC);
+              A = C.MakeAction<SPIRVTranslatorJobAction>(CompileAction,
+                                                         types::TY_SPIRV);
+              continue;
+            }
+          }
+          A = C.MakeAction<CompileJobAction>(A, OutputType);
         }
         const auto *TC = ToolChains.front();
         const char *BoundArch = nullptr;
@@ -3718,7 +3747,7 @@ class OffloadingActionBuilder final {
         // Clear the input file, it is already a dependence to a host
         // action.
         DeviceCompilerInput = nullptr;
-        return ABRT_Success;
+        return SYCLDeviceOnly ? ABRT_Ignore_Host : ABRT_Success;
       }
 
       // Backend/Assemble actions are obsolete for the SYCL device side
@@ -3743,6 +3772,16 @@ class OffloadingActionBuilder final {
           for (auto SDA : SYCLDeviceActions)
             SYCLLinkBinaryList.push_back(SDA);
           if (WrapDeviceOnlyBinary) {
+            // If used without -fintelfpga, -fsycl-link is used to wrap device
+            // objects for future host link. Device libraries should be linked
+            // by default to resolve any undefined reference.
+            if (!Args.hasArg(options::OPT_fintelfpga)) {
+              const auto *TC = ToolChains.front();
+              addSYCLDeviceLibs(TC, SYCLLinkBinaryList, true,
+                                C.getDefaultToolChain()
+                                    .getTriple()
+                                    .isWindowsMSVCEnvironment());
+            }
             // -fsycl-link behavior does the following to the unbundled device
             // binaries:
             //   1) Link them together using llvm-link
@@ -4346,8 +4385,8 @@ class OffloadingActionBuilder final {
       Arg *SYCLTargets =
               C.getInputArgs().getLastArg(options::OPT_fsycl_targets_EQ);
       Arg *SYCLAddTargets = Args.getLastArg(options::OPT_fsycl_add_targets_EQ);
-      bool HasValidSYCLRuntime = C.getInputArgs().hasFlag(options::OPT_fsycl,
-                                              options::OPT_fno_sycl, false);
+      bool HasValidSYCLRuntime = C.getInputArgs().hasFlag(
+          options::OPT_fsycl, options::OPT_fno_sycl, false);
       bool SYCLfpgaTriple = false;
       if (SYCLTargets || SYCLAddTargets) {
         if (SYCLTargets) {
@@ -5405,19 +5444,6 @@ Action *Driver::ConstructPhaseAction(
       types::ID Output =
           Args.hasArg(options::OPT_S) ? types::TY_LLVM_IR : types::TY_LLVM_BC;
       return C.MakeAction<BackendJobAction>(Input, Output);
-    }
-    if (Args.hasArg(options::OPT_fsycl_device_only)) {
-      types::ID OutputType =
-          Args.hasArg(options::OPT_S) ? types::TY_LLVM_IR : types::TY_LLVM_BC;
-      if (Args.hasFlag(options::OPT_fsycl_use_bitcode,
-                       options::OPT_fno_sycl_use_bitcode, true))
-        return C.MakeAction<BackendJobAction>(Input, OutputType);
-      // Use of -fsycl-device-only creates a bitcode file, we need to translate
-      // that to a SPIR-V file with -fno-sycl-use-bitcode
-      auto *BackendAction =
-          C.MakeAction<BackendJobAction>(Input, types::TY_LLVM_BC);
-      return C.MakeAction<SPIRVTranslatorJobAction>(BackendAction,
-                                                    types::TY_SPIRV);
     }
     return C.MakeAction<BackendJobAction>(Input, types::TY_PP_Asm);
   }

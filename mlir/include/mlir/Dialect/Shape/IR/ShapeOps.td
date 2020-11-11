@@ -483,9 +483,9 @@ def Shape_YieldOp : Shape_Op<"yield",
 
   let arguments = (ins Variadic<AnyType>:$operands);
 
-  let builders = [OpBuilder<
-    "OpBuilder &b, OperationState &result", [{ build(b, result, llvm::None); }]
-  >];
+  let builders = [
+    OpBuilder<"", [{ build($_builder, $_state, llvm::None); }]>
+  ];
 
   let verifier = [{ return ::verify(*this); }];
   let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
@@ -635,6 +635,7 @@ def Shape_AssumingOp : Shape_Op<"assuming",
 
   let printer = [{ return ::print(p, *this); }];
   let parser = [{ return ::parse$cppClass(parser, result); }];
+  let verifier = [{ return RegionBranchOpInterface::verifyTypes(*this); }];
 
   let extraClassDeclaration = [{
     // Inline the region into the region containing the AssumingOp and delete
@@ -660,8 +661,7 @@ def Shape_AssumingYieldOp : Shape_Op<"assuming_yield",
   let arguments = (ins Variadic<AnyType>:$operands);
 
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &result",
-    [{ /* nothing to do */ }]>
+    OpBuilder<"", [{ /* nothing to do */ }]>
   ];
 
   let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";

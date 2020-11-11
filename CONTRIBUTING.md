@@ -20,6 +20,11 @@ is strongly encouraged that you submit the patch to https://llvm.org/ directly.
 See [LLVM contribution guidelines](https://llvm.org/docs/Contributing.html)
 for more information.
 
+**Note (October, 2020)**: DPC++ runtime and compiler ABI is currently in frozen
+state. This means that no ABI-breaking changes will be accepted by default.
+Project maintainers may still approve breaking changes in some cases. Please,
+see [ABI Policy Guide](sycl/doc/ABIPolicyGuide.md) for more information.
+
 - Create a personal fork of the project on GitHub
   - For the DPC++ Compiler project, use **sycl** branch as baseline for your
     changes. See [Get Started Guide](sycl/doc/GetStartedGuide.md).

@@ -22,6 +22,7 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Module.h"
 #include "mlir/IR/StandardTypes.h"
+#include "mlir/InitAllDialects.h"
 #include "mlir/Parser.h"
 #include "mlir/Support/FileUtilities.h"
 
@@ -259,8 +260,8 @@ int mlir::JitRunnerMain(
     }
   }
 
-  MLIRContext context(/*loadAllDialects=*/false);
-  registerAllDialects(&context);
+  MLIRContext context;
+  registerAllDialects(context.getDialectRegistry());
 
   auto m = parseMLIRInput(options.inputFilename, &context);
   if (!m) {
@@ -291,7 +292,7 @@ int mlir::JitRunnerMain(
       Error (*)(Options &, ModuleOp, StringRef,
                 std::function<llvm::Error(llvm::Module *)>);
   auto compileAndExecuteFn =
-      llvm::StringSwitch<CompileAndExecuteFnT>(options.mainFuncType.getValue())
+      StringSwitch<CompileAndExecuteFnT>(options.mainFuncType.getValue())
           .Case("i32", compileAndExecuteSingleReturnFunction<int32_t>)
           .Case("i64", compileAndExecuteSingleReturnFunction<int64_t>)
           .Case("f32", compileAndExecuteSingleReturnFunction<float>)

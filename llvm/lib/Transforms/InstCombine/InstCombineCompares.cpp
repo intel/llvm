@@ -314,7 +314,7 @@ InstCombinerImpl::foldCmpLoadFromIndexedGlobal(GetElementPtrInst *GEP,
   if (!GEP->isInBounds()) {
     Type *IntPtrTy = DL.getIntPtrType(GEP->getType());
     unsigned PtrSize = IntPtrTy->getIntegerBitWidth();
-    if (Idx->getType()->getPrimitiveSizeInBits() > PtrSize)
+    if (Idx->getType()->getPrimitiveSizeInBits().getFixedSize() > PtrSize)
       Idx = Builder.CreateTrunc(Idx, IntPtrTy);
   }
 
@@ -487,7 +487,8 @@ static Value *evaluateGEPOffsetExpression(User *GEP, InstCombinerImpl &IC,
     // Cast to intptrty in case a truncation occurs.  If an extension is needed,
     // we don't need to bother extending: the extension won't affect where the
     // computation crosses zero.
-    if (VariableIdx->getType()->getPrimitiveSizeInBits() > IntPtrWidth) {
+    if (VariableIdx->getType()->getPrimitiveSizeInBits().getFixedSize() >
+        IntPtrWidth) {
       VariableIdx = IC.Builder.CreateTrunc(VariableIdx, IntPtrTy);
     }
     return VariableIdx;
@@ -552,7 +553,7 @@ static bool canRewriteGEPAsOffset(Value *Start, Value *Base,
         return false;
 
       if (isa<IntToPtrInst>(V) || isa<PtrToIntInst>(V)) {
-        auto *CI = dyn_cast<CastInst>(V);
+        auto *CI = cast<CastInst>(V);
         if (!CI->isNoopCast(DL))
           return false;
 
@@ -942,8 +943,8 @@ Instruction *InstCombinerImpl::foldGEPICmp(GEPOperator *GEPLHS, Value *RHS,
         Type *LHSIndexTy = LOffset->getType();
         Type *RHSIndexTy = ROffset->getType();
         if (LHSIndexTy != RHSIndexTy) {
-          if (LHSIndexTy->getPrimitiveSizeInBits() <
-              RHSIndexTy->getPrimitiveSizeInBits()) {
+          if (LHSIndexTy->getPrimitiveSizeInBits().getFixedSize() <
+              RHSIndexTy->getPrimitiveSizeInBits().getFixedSize()) {
             ROffset = Builder.CreateTrunc(ROffset, LHSIndexTy);
           } else
             LOffset = Builder.CreateTrunc(LOffset, RHSIndexTy);

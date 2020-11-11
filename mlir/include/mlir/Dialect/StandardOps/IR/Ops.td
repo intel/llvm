@@ -15,6 +15,7 @@
 
 include "mlir/Dialect/StandardOps/IR/StandardOpsBase.td"
 include "mlir/IR/OpAsmInterface.td"
+include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
@@ -198,6 +199,201 @@ class AllocLikeOp<string mnemonic,
   let parser = [{ return ::parseAllocLikeOp(parser, result); }];
 
   let hasCanonicalizer = 1;
+}
+
+// Base class for ops with static/dynamic offset, sizes and strides
+// attributes/arguments.
+class BaseOpWithOffsetSizesAndStrides<string mnemonic, list<OpTrait> traits = []> :
+    Std_Op<mnemonic,
+           !listconcat(traits, [NoSideEffect, AttrSizedOperandSegments])> {
+  code extraBaseClassDeclaration = [{
+    /// Returns the number of dynamic offset operands.
+    int64_t getNumOffsets() { return llvm::size(offsets()); }
+
+    /// Returns the number of dynamic size operands.
+    int64_t getNumSizes() { return llvm::size(sizes()); }
+
+    /// Returns the number of dynamic stride operands.
+    int64_t getNumStrides() { return llvm::size(strides()); }
+
+    /// Returns the dynamic sizes for this subview operation if specified.
+    operand_range getDynamicSizes() { return sizes(); }
+
+    /// Returns in `staticStrides` the static value of the stride
+    /// operands. Returns failure() if the static value of the stride
+    /// operands could not be retrieved.
+    LogicalResult getStaticStrides(SmallVectorImpl<int64_t> &staticStrides) {
+      if (!strides().empty())
+        return failure();
+      staticStrides.reserve(static_strides().size());
+      for (auto s : static_strides().getAsValueRange<IntegerAttr>())
+        staticStrides.push_back(s.getZExtValue());
+      return success();
+    }
+
+    /// Return the list of Range (i.e. offset, size, stride). Each
+    /// Range entry contains either the dynamic value or a ConstantIndexOp
+    /// constructed with `b` at location `loc`.
+    SmallVector<Range, 8> getOrCreateRanges(OpBuilder &b, Location loc);
+
+    /// Return the offsets as Values. Each Value is either the dynamic
+    /// value specified in the op or a ConstantIndexOp constructed
+    /// with `b` at location `loc`
+    SmallVector<Value, 4> getOrCreateOffsets(OpBuilder &b, Location loc) {
+      unsigned dynamicIdx = 1;
+      return llvm::to_vector<4>(llvm::map_range(
+        static_offsets().cast<ArrayAttr>(), [&](Attribute a) -> Value {
+          int64_t staticOffset = a.cast<IntegerAttr>().getInt();
+          if (ShapedType::isDynamicStrideOrOffset(staticOffset))
+            return getOperand(dynamicIdx++);
+          else
+            return b.create<ConstantOp>(
+              loc, b.getIndexType(), b.getIndexAttr(staticOffset));
+        }));
+    }
+
+    /// Return the sizes as Values. Each Value is either the dynamic
+    /// value specified in the op or a ConstantIndexOp constructed
+    /// with `b` at location `loc`
+    SmallVector<Value, 4> getOrCreateSizes(OpBuilder &b, Location loc) {
+      unsigned dynamicIdx = 1 + offsets().size();
+      return llvm::to_vector<4>(llvm::map_range(
+        static_sizes().cast<ArrayAttr>(), [&](Attribute a) -> Value {
+          int64_t staticSize = a.cast<IntegerAttr>().getInt();
+          if (ShapedType::isDynamic(staticSize))
+            return getOperand(dynamicIdx++);
+          else
+            return b.create<ConstantOp>(
+              loc, b.getIndexType(), b.getIndexAttr(staticSize));
+        }));
+    }
+
+    /// Return the strides as Values. Each Value is either the dynamic
+    /// value specified in the op or a ConstantIndexOp constructed with
+    /// `b` at location `loc`
+    SmallVector<Value, 4> getOrCreateStrides(OpBuilder &b, Location loc) {
+      unsigned dynamicIdx = 1 + offsets().size() + sizes().size();
+      return llvm::to_vector<4>(llvm::map_range(
+        static_strides().cast<ArrayAttr>(), [&](Attribute a) -> Value {
+          int64_t staticStride = a.cast<IntegerAttr>().getInt();
+          if (ShapedType::isDynamicStrideOrOffset(staticStride))
+            return getOperand(dynamicIdx++);
+          else
+            return b.create<ConstantOp>(
+              loc, b.getIndexType(), b.getIndexAttr(staticStride));
+        }));
+    }
+
+    /// Return the rank of the source ShapedType.
+    unsigned getSourceRank() {
+      return source().getType().cast<ShapedType>().getRank();
+    }
+
+    /// Return the rank of the result ShapedType.
+    unsigned getResultRank() { return getType().getRank(); }
+
+    /// Return true if the offset `idx` is a static constant.
+    bool isDynamicOffset(unsigned idx) {
+      APInt v = *(static_offsets().getAsValueRange<IntegerAttr>().begin() + idx);
+      return ShapedType::isDynamicStrideOrOffset(v.getSExtValue());
+    }
+    /// Return true if the size `idx` is a static constant.
+    bool isDynamicSize(unsigned idx) {
+      APInt v = *(static_sizes().getAsValueRange<IntegerAttr>().begin() + idx);
+      return ShapedType::isDynamic(v.getSExtValue());
+    }
+
+    /// Return true if the stride `idx` is a static constant.
+    bool isDynamicStride(unsigned idx) {
+      APInt v = *(static_strides().getAsValueRange<IntegerAttr>().begin() + idx);
+      return ShapedType::isDynamicStrideOrOffset(v.getSExtValue());
+    }
+
+    /// Assert the offset `idx` is a static constant and return its value.
+    int64_t getStaticOffset(unsigned idx) {
+      assert(!isDynamicOffset(idx) && "expected static offset");
+      APInt v = *(static_offsets().getAsValueRange<IntegerAttr>().begin() + idx);
+      return v.getSExtValue();
+    }
+    /// Assert the size `idx` is a static constant and return its value.
+    int64_t getStaticSize(unsigned idx) {
+      assert(!isDynamicSize(idx) && "expected static size");
+      APInt v = *(static_sizes().getAsValueRange<IntegerAttr>().begin() + idx);
+      return v.getSExtValue();
+    }
+    /// Assert the stride `idx` is a static constant and return its value.
+    int64_t getStaticStride(unsigned idx) {
+      assert(!isDynamicStride(idx) && "expected static stride");
+      APInt v = *(static_strides().getAsValueRange<IntegerAttr>().begin() + idx);
+      return v.getSExtValue();
+    }
+
+    unsigned getNumDynamicEntriesUpToIdx(ArrayAttr attr,
+        llvm::function_ref<bool(int64_t)> isDynamic, unsigned idx) {
+      return std::count_if(
+        attr.getValue().begin(), attr.getValue().begin() + idx,
+        [&](Attribute attr) {
+          return isDynamic(attr.cast<IntegerAttr>().getInt());
+        });
+    }
+    /// Assert the offset `idx` is dynamic and return the position of the
+    /// corresponding operand.
+    unsigned getIndexOfDynamicOffset(unsigned idx) {
+      assert(isDynamicOffset(idx) && "expected static offset");
+      auto numDynamic =
+          getNumDynamicEntriesUpToIdx(static_offsets().cast<ArrayAttr>(),
+                                      ShapedType::isDynamicStrideOrOffset, idx);
+      return 1 + numDynamic;
+    }
+    /// Assert the size `idx` is dynamic and return the position of the
+    /// corresponding operand.
+    unsigned getIndexOfDynamicSize(unsigned idx) {
+      assert(isDynamicSize(idx) && "expected static size");
+      auto numDynamic = getNumDynamicEntriesUpToIdx(
+          static_sizes().cast<ArrayAttr>(), ShapedType::isDynamic, idx);
+      return 1 + offsets().size() + numDynamic;
+    }
+    /// Assert the stride `idx` is dynamic and return the position of the
+    /// corresponding operand.
+    unsigned getIndexOfDynamicStride(unsigned idx) {
+      assert(isDynamicStride(idx) && "expected static stride");
+      auto numDynamic =
+          getNumDynamicEntriesUpToIdx(static_strides().cast<ArrayAttr>(),
+                                      ShapedType::isDynamicStrideOrOffset, idx);
+      return 1 + offsets().size() + sizes().size() + numDynamic;
+    }
+
+    /// Assert the offset `idx` is dynamic and return its value.
+    Value getDynamicOffset(unsigned idx) {
+      return getOperand(getIndexOfDynamicOffset(idx));
+    }
+    /// Assert the size `idx` is dynamic and return its value.
+    Value getDynamicSize(unsigned idx) {
+      return getOperand(getIndexOfDynamicSize(idx));
+    }
+    /// Assert the stride `idx` is dynamic and return its value.
+    Value getDynamicStride(unsigned idx) {
+      return getOperand(getIndexOfDynamicStride(idx));
+    }
+
+    static StringRef getStaticOffsetsAttrName() {
+      return "static_offsets";
+    }
+    static StringRef getStaticSizesAttrName() {
+      return "static_sizes";
+    }
+    static StringRef getStaticStridesAttrName() {
+      return "static_strides";
+    }
+    static ArrayRef<StringRef> getSpecialAttrNames() {
+      static SmallVector<StringRef, 4> names{
+        getStaticOffsetsAttrName(),
+        getStaticSizesAttrName(),
+        getStaticStridesAttrName(),
+        getOperandSegmentSizeAttr()};
+      return names;
+   }
+  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -619,7 +815,7 @@ def GenericAtomicRMWOp : Std_Op<"generic_atomic_rmw", [
     ]> {
   let summary = "atomic read-modify-write operation with a region";
   let description = [{
-    The `atomic_rmw` operation provides a way to perform a read-modify-write
+    The `generic_atomic_rmw` operation provides a way to perform a read-modify-write
     sequence that is free from data races. The memref operand represents the
     buffer that the read and write will be performed against, as accessed by
     the specified indices. The arity of the indices is the rank of the memref.
@@ -733,7 +929,9 @@ def BranchOp : Std_Op<"br",
 // CallOp
 //===----------------------------------------------------------------------===//
 
-def CallOp : Std_Op<"call", [CallOpInterface, MemRefsNormalizable]> {
+def CallOp : Std_Op<"call",
+    [CallOpInterface, MemRefsNormalizable,
+     DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
   let summary = "call operation";
   let description = [{
     The `call` operation represents a direct call to a function that is within
@@ -788,6 +986,7 @@ def CallOp : Std_Op<"call", [CallOpInterface, MemRefsNormalizable]> {
   let assemblyFormat = [{
     $callee `(` $operands `)` attr-dict `:` functional-type($operands, results)
   }];
+  let verifier = ?;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1556,7 +1755,9 @@ def DynamicTensorFromElementsOp : Std_Op<"dynamic_tensor_from_elements",
 
     The body region defines the tensor's elements. It takes index operands as
     its region arguments that span the index space. The element at the given
-    position is yielded with the `yield` operation (see `YieldOp`).
+    position is yielded with the `yield` operation (see `YieldOp`). There is
+    no defined ordering to the invocations of the body. It is conceptually
+    a "parallel map" operation.
 
     Example:
 
@@ -2013,6 +2214,116 @@ def MemRefCastOp : CastOp<"memref_cast", [
 
     /// The result of a memref_cast is always a memref.
     Type getType() { return getResult().getType(); }
+  }];
+}
+
+
+//===----------------------------------------------------------------------===//
+// MemRefReinterpretCastOp
+//===----------------------------------------------------------------------===//
+
+def MemRefReinterpretCastOp:
+    BaseOpWithOffsetSizesAndStrides<"memref_reinterpret_cast", [
+      NoSideEffect, ViewLikeOpInterface
+    ]> {
+  let summary = "memref reinterpret cast operation";
+  let description = [{
+    Modify offset, sizes and strides of an unranked/ranked memref.
+
+    Example:
+    ```mlir
+    memref_reinterpret_cast %ranked to
+      offset: [0],
+      sizes: [%size0, 10],
+      strides: [1, %stride1]
+    : memref<?x?xf32> to memref<?x10xf32, offset: 0, strides: [1, ?]>
+
+    memref_reinterpret_cast %unranked to
+      offset: [%offset],
+      sizes: [%size0, %size1],
+      strides: [%stride0, %stride1]
+    : memref<*xf32> to memref<?x?xf32, offset: ?, strides: [?, ?]>
+    ```
+  }];
+
+  let arguments = (ins
+    Arg<AnyRankedOrUnrankedMemRef, "", []>:$source,
+    Variadic<Index>:$offsets,
+    Variadic<Index>:$sizes,
+    Variadic<Index>:$strides,
+    I64ArrayAttr:$static_offsets,
+    I64ArrayAttr:$static_sizes,
+    I64ArrayAttr:$static_strides
+  );
+  let results = (outs AnyMemRef:$result);
+  let extraClassDeclaration = extraBaseClassDeclaration # [{
+    // The result of the op is always a ranked memref.
+    MemRefType getType() { return getResult().getType().cast<MemRefType>(); }
+    Value getViewSource() { return source(); }
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// MemRefReshapeOp
+//===----------------------------------------------------------------------===//
+
+def MemRefReshapeOp: Std_Op<"memref_reshape", [
+    ViewLikeOpInterface, NoSideEffect]>  {
+  let summary = "memref reshape operation";
+  let description = [{
+    The `memref_reshape` operation converts a memref from one type to an
+    equivalent type with a provided shape. The data is never copied or
+    modified.  The source and destination types are compatible if both have the
+    same element type, same number of elements, address space and identity
+    layout map. The following combinations are possible:
+
+    a. Source type is ranked or unranked. Shape argument has static size.
+    Result type is ranked.
+
+    ```mlir
+    // Reshape statically-shaped memref.
+    %dst = memref_reshape %src(%shape)
+             : (memref<4x1xf32>, memref<1xi32>) to memref<4xf32>
+    %dst0 = memref_reshape %src(%shape0)
+             : (memref<4x1xf32>, memref<2xi32>) to memref<2x2xf32>
+    // Flatten unranked memref.
+    %dst = memref_reshape %src(%shape)
+             : (memref<*xf32>, memref<1xi32>) to memref<?xf32>
+    ```
+
+    a. Source type is ranked or unranked. Shape argument has dynamic size.
+    Result type is unranked.
+
+    ```mlir
+    // Reshape dynamically-shaped 1D memref.
+    %dst = memref_reshape %src(%shape)
+             : (memref<?xf32>, memref<?xi32>) to memref<*xf32>
+    // Reshape unranked memref.
+    %dst = memref_reshape %src(%shape)
+             : (memref<*xf32>, memref<?xi32>) to memref<*xf32>
+    ```
+  }];
+
+  let arguments = (ins
+    AnyRankedOrUnrankedMemRef:$source,
+    MemRefRankOf<[AnySignlessInteger], [1]>:$shape
+  );
+  let results = (outs AnyRankedOrUnrankedMemRef:$result);
+
+  let builders = [OpBuilder<
+     "MemRefType resultType, Value operand, Value shape", [{
+       $_state.addOperands(operand);
+       $_state.addOperands(shape);
+       $_state.addTypes(resultType);
+     }]>];
+
+  let extraClassDeclaration = [{
+    MemRefType getType() { return getResult().getType().cast<MemRefType>(); }
+    Value getViewSource() { return source(); }
+  }];
+
+  let assemblyFormat = [{
+    $source `(` $shape `)` attr-dict `:` functional-type(operands, results)
   }];
 }
 
@@ -2706,212 +3017,6 @@ def SubIOp : IntArithmeticOp<"subi"> {
 // SubViewOp
 //===----------------------------------------------------------------------===//
 
-class BaseOpWithOffsetSizesAndStrides<string mnemonic, list<OpTrait> traits = []> :
-    Std_Op<mnemonic,
-           !listconcat(traits, [NoSideEffect, AttrSizedOperandSegments])> {
-  let builders = [
-    // Build a SubViewOp with mixed static and dynamic entries.
-    OpBuilder<
-      "Value source, ArrayRef<int64_t> staticOffsets, "
-      "ArrayRef<int64_t> staticSizes, ArrayRef<int64_t> staticStrides, "
-      "ValueRange offsets, ValueRange sizes, ValueRange strides, "
-      "ArrayRef<NamedAttribute> attrs = {}">,
-    // Build a SubViewOp with all dynamic entries.
-    OpBuilder<
-      "Value source, ValueRange offsets, ValueRange sizes, ValueRange strides, "
-      "ArrayRef<NamedAttribute> attrs = {}">
-  ];
-
-  code extraBaseClassDeclaration = [{
-    /// Returns the number of dynamic offset operands.
-    int64_t getNumOffsets() { return llvm::size(offsets()); }
-
-    /// Returns the number of dynamic size operands.
-    int64_t getNumSizes() { return llvm::size(sizes()); }
-
-    /// Returns the number of dynamic stride operands.
-    int64_t getNumStrides() { return llvm::size(strides()); }
-
-    /// Returns the dynamic sizes for this subview operation if specified.
-    operand_range getDynamicSizes() { return sizes(); }
-
-    /// Returns in `staticStrides` the static value of the stride
-    /// operands. Returns failure() if the static value of the stride
-    /// operands could not be retrieved.
-    LogicalResult getStaticStrides(SmallVectorImpl<int64_t> &staticStrides) {
-      if (!strides().empty())
-        return failure();
-      staticStrides.reserve(static_strides().size());
-      for (auto s : static_strides().getAsValueRange<IntegerAttr>())
-        staticStrides.push_back(s.getZExtValue());
-      return success();
-    }
-
-    /// Return the list of Range (i.e. offset, size, stride). Each
-    /// Range entry contains either the dynamic value or a ConstantIndexOp
-    /// constructed with `b` at location `loc`.
-    SmallVector<Range, 8> getOrCreateRanges(OpBuilder &b, Location loc);
-
-    /// Return the offsets as Values. Each Value is either the dynamic
-    /// value specified in the op or a ConstantIndexOp constructed
-    /// with `b` at location `loc`
-    SmallVector<Value, 4> getOrCreateOffsets(OpBuilder &b, Location loc) {
-      unsigned dynamicIdx = 1;
-      return llvm::to_vector<4>(llvm::map_range(
-        static_offsets().cast<ArrayAttr>(), [&](Attribute a) -> Value {
-          int64_t staticOffset = a.cast<IntegerAttr>().getInt();
-          if (ShapedType::isDynamicStrideOrOffset(staticOffset))
-            return getOperand(dynamicIdx++);
-          else
-            return b.create<ConstantOp>(
-              loc, b.getIndexType(), b.getIndexAttr(staticOffset));
-        }));
-    }
-
-    /// Return the sizes as Values. Each Value is either the dynamic
-    /// value specified in the op or a ConstantIndexOp constructed
-    /// with `b` at location `loc`
-    SmallVector<Value, 4> getOrCreateSizes(OpBuilder &b, Location loc) {
-      unsigned dynamicIdx = 1 + offsets().size();
-      return llvm::to_vector<4>(llvm::map_range(
-        static_sizes().cast<ArrayAttr>(), [&](Attribute a) -> Value {
-          int64_t staticSize = a.cast<IntegerAttr>().getInt();
-          if (ShapedType::isDynamic(staticSize))
-            return getOperand(dynamicIdx++);
-          else
-            return b.create<ConstantOp>(
-              loc, b.getIndexType(), b.getIndexAttr(staticSize));
-        }));
-    }
-
-    /// Return the strides as Values. Each Value is either the dynamic
-    /// value specified in the op or a ConstantIndexOp constructed with
-    /// `b` at location `loc`
-    SmallVector<Value, 4> getOrCreateStrides(OpBuilder &b, Location loc) {
-      unsigned dynamicIdx = 1 + offsets().size() + sizes().size();
-      return llvm::to_vector<4>(llvm::map_range(
-        static_strides().cast<ArrayAttr>(), [&](Attribute a) -> Value {
-          int64_t staticStride = a.cast<IntegerAttr>().getInt();
-          if (ShapedType::isDynamicStrideOrOffset(staticStride))
-            return getOperand(dynamicIdx++);
-          else
-            return b.create<ConstantOp>(
-              loc, b.getIndexType(), b.getIndexAttr(staticStride));
-        }));
-    }
-
-    /// Return the rank of the source ShapedType.
-    unsigned getSourceRank() {
-      return source().getType().cast<ShapedType>().getRank();
-    }
-
-    /// Return the rank of the result ShapedType.
-    unsigned getResultRank() { return getType().getRank(); }
-
-    /// Return true if the offset `idx` is a static constant.
-    bool isDynamicOffset(unsigned idx) {
-      APInt v = *(static_offsets().getAsValueRange<IntegerAttr>().begin() + idx);
-      return ShapedType::isDynamicStrideOrOffset(v.getSExtValue());
-    }
-    /// Return true if the size `idx` is a static constant.
-    bool isDynamicSize(unsigned idx) {
-      APInt v = *(static_sizes().getAsValueRange<IntegerAttr>().begin() + idx);
-      return ShapedType::isDynamic(v.getSExtValue());
-    }
-
-    /// Return true if the stride `idx` is a static constant.
-    bool isDynamicStride(unsigned idx) {
-      APInt v = *(static_strides().getAsValueRange<IntegerAttr>().begin() + idx);
-      return ShapedType::isDynamicStrideOrOffset(v.getSExtValue());
-    }
-
-    /// Assert the offset `idx` is a static constant and return its value.
-    int64_t getStaticOffset(unsigned idx) {
-      assert(!isDynamicOffset(idx) && "expected static offset");
-      APInt v = *(static_offsets().getAsValueRange<IntegerAttr>().begin() + idx);
-      return v.getSExtValue();
-    }
-    /// Assert the size `idx` is a static constant and return its value.
-    int64_t getStaticSize(unsigned idx) {
-      assert(!isDynamicSize(idx) && "expected static size");
-      APInt v = *(static_sizes().getAsValueRange<IntegerAttr>().begin() + idx);
-      return v.getSExtValue();
-    }
-    /// Assert the stride `idx` is a static constant and return its value.
-    int64_t getStaticStride(unsigned idx) {
-      assert(!isDynamicStride(idx) && "expected static stride");
-      APInt v = *(static_strides().getAsValueRange<IntegerAttr>().begin() + idx);
-      return v.getSExtValue();
-    }
-
-    unsigned getNumDynamicEntriesUpToIdx(ArrayAttr attr,
-        llvm::function_ref<bool(int64_t)> isDynamic, unsigned idx) {
-      return std::count_if(
-        attr.getValue().begin(), attr.getValue().begin() + idx,
-        [&](Attribute attr) {
-          return isDynamic(attr.cast<IntegerAttr>().getInt());
-        });
-    }
-    /// Assert the offset `idx` is dynamic and return the position of the
-    /// corresponding operand.
-    unsigned getIndexOfDynamicOffset(unsigned idx) {
-      assert(isDynamicOffset(idx) && "expected static offset");
-      auto numDynamic =
-          getNumDynamicEntriesUpToIdx(static_offsets().cast<ArrayAttr>(),
-                                      ShapedType::isDynamicStrideOrOffset, idx);
-      return 1 + numDynamic;
-    }
-    /// Assert the size `idx` is dynamic and return the position of the
-    /// corresponding operand.
-    unsigned getIndexOfDynamicSize(unsigned idx) {
-      assert(isDynamicSize(idx) && "expected static size");
-      auto numDynamic = getNumDynamicEntriesUpToIdx(
-          static_sizes().cast<ArrayAttr>(), ShapedType::isDynamic, idx);
-      return 1 + offsets().size() + numDynamic;
-    }
-    /// Assert the stride `idx` is dynamic and return the position of the
-    /// corresponding operand.
-    unsigned getIndexOfDynamicStride(unsigned idx) {
-      assert(isDynamicStride(idx) && "expected static stride");
-      auto numDynamic =
-          getNumDynamicEntriesUpToIdx(static_strides().cast<ArrayAttr>(),
-                                      ShapedType::isDynamicStrideOrOffset, idx);
-      return 1 + offsets().size() + sizes().size() + numDynamic;
-    }
-
-    /// Assert the offset `idx` is dynamic and return its value.
-    Value getDynamicOffset(unsigned idx) {
-      return getOperand(getIndexOfDynamicOffset(idx));
-    }
-    /// Assert the size `idx` is dynamic and return its value.
-    Value getDynamicSize(unsigned idx) {
-      return getOperand(getIndexOfDynamicSize(idx));
-    }
-    /// Assert the stride `idx` is dynamic and return its value.
-    Value getDynamicStride(unsigned idx) {
-      return getOperand(getIndexOfDynamicStride(idx));
-    }
-
-    static StringRef getStaticOffsetsAttrName() {
-      return "static_offsets";
-    }
-    static StringRef getStaticSizesAttrName() {
-      return "static_sizes";
-    }
-    static StringRef getStaticStridesAttrName() {
-      return "static_strides";
-    }
-    static ArrayRef<StringRef> getSpecialAttrNames() {
-      static SmallVector<StringRef, 4> names{
-        getStaticOffsetsAttrName(),
-        getStaticSizesAttrName(),
-        getStaticStridesAttrName(),
-        getOperandSegmentSizeAttr()};
-      return names;
-   }
-  }];
-}
-
 def SubViewOp : BaseOpWithOffsetSizesAndStrides<
     "subview", [DeclareOpInterfaceMethods<ViewLikeOpInterface>] >  {
   let summary = "memref subview operation";
@@ -2935,7 +3040,7 @@ def SubViewOp : BaseOpWithOffsetSizesAndStrides<
     `static_offsets`, `static_sizes` and `static_strides` arguments. A special
     sentinel value ShapedType::kDynamicSize and
     ShapedType::kDynamicStrideOrOffset encodes that the corresponding entry has
-    a static value.
+    a dynamic value.
 
     A subview operation may additionally reduce the rank of the resulting view
     by removing dimensions that are statically known to be of size 1.
@@ -3028,10 +3133,11 @@ def SubViewOp : BaseOpWithOffsetSizesAndStrides<
     // memref is "inbounds" w.r.t to base memref. It is upto the client
     // to ensure that the subview is accessed in a manner that is
     // in-bounds.
+    ```
 
     Example 5:
 
-    ```
+    ```mlir
     // Rank-reducing subview.
     %1 = subview %0[0, 0, 0][1, 16, 4][1, 1, 1] :
       memref<8x16x4xf32> to memref<16x4xf32>
@@ -3061,21 +3167,19 @@ def SubViewOp : BaseOpWithOffsetSizesAndStrides<
       "ArrayRef<NamedAttribute> attrs = {}">,
     // Build a SubViewOp with all dynamic entries.
     OpBuilder<
-      "OpBuilder &b, OperationState &result, Value source, "
-      "ValueRange offsets, ValueRange sizes, ValueRange strides, "
+      "Value source, ValueRange offsets, ValueRange sizes, ValueRange strides, "
       "ArrayRef<NamedAttribute> attrs = {}">,
     // Build a SubViewOp with mixed static and dynamic entries
     // and custom result type.
     OpBuilder<
-      "OpBuilder &b, OperationState &result, MemRefType resultType, "
-      "Value source, ArrayRef<int64_t> staticOffsets, "
+      "MemRefType resultType, Value source, ArrayRef<int64_t> staticOffsets, "
       "ArrayRef<int64_t> staticSizes, ArrayRef<int64_t> staticStrides, "
       "ValueRange offsets, ValueRange sizes, "
       "ValueRange strides, ArrayRef<NamedAttribute> attrs = {}">,
     // Build a SubViewOp with all dynamic entries and custom result type.
     OpBuilder<
-      "OpBuilder &b, OperationState &result, MemRefType resultType, "
-      "Value source, ValueRange offsets, ValueRange sizes, ValueRange strides, "
+      "MemRefType resultType, Value source, ValueRange offsets, "
+      "ValueRange sizes, ValueRange strides, "
       "ArrayRef<NamedAttribute> attrs = {}">
   ];
 
@@ -3098,6 +3202,7 @@ def SubViewOp : BaseOpWithOffsetSizesAndStrides<
   }];
 
   let hasCanonicalizer = 1;
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -3117,7 +3222,7 @@ def SubTensorOp : BaseOpWithOffsetSizesAndStrides<"subtensor"> {
                to extract the subtensor.
     * sizes: tensor-rank number of sizes which specify the sizes of the result
              tensor type.
-    * strides: tensor-rank number of strides specifying subsampling in each 
+    * strides: tensor-rank number of strides specifying subsampling in each
                dimension.
 
     The representation based on offsets, sizes and strides support a
@@ -3125,7 +3230,7 @@ def SubTensorOp : BaseOpWithOffsetSizesAndStrides<"subtensor"> {
     `static_offsets`, `static_sizes` and `static_strides` arguments. A special
     sentinel value ShapedType::kDynamicSize and
     ShapedType::kDynamicStrideOrOffset encodes that the corresponding entry has
-    a static value.
+    a dynamic value.
 
     After buffer-allocation, the "subtensor" op is expected to lower into a
     "subview" op.
@@ -3221,7 +3326,7 @@ def SubTensorInsertOp : BaseOpWithOffsetSizesAndStrides<"subtensor_insert"> {
     `static_offsets`, `static_sizes` and `static_strides` arguments. A special
     sentinel value ShapedType::kDynamicSize and
     ShapedType::kDynamicStrideOrOffset encodes that the corresponding entry has
-    a static value.
+    a dynamic value.
 
     After buffer-allocation, the "subtensor_insert" op is expected to become
     an in-place buffer update.
@@ -3333,7 +3438,7 @@ def TensorCastOp : CastOp<"tensor_cast"> {
     ```
   }];
 
-  let arguments = (ins AnyTensor);
+  let arguments = (ins AnyTensor:$source);
   let results = (outs AnyTensor);
 
   let extraClassDeclaration = [{
@@ -3362,6 +3467,10 @@ def TensorLoadOp : Std_Op<"tensor_load",
     Create a tensor from a memref, making an independent copy of the element
     data. The result value is a tensor whose shape and element type match the
     memref operand.
+
+    The opposite of this op is tensor_to_memref. Together, these two ops are
+    useful for source/target materializations when doing type conversions
+    involving tensors and memrefs.
 
     Example:
 
@@ -3394,6 +3503,8 @@ def TensorLoadOp : Std_Op<"tensor_load",
   }];
 
   let assemblyFormat = "$memref attr-dict `:` type($memref)";
+
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -3426,6 +3537,79 @@ def TensorStoreOp : Std_Op<"tensor_store",
   let verifier = ?;
 
   let assemblyFormat = "$tensor `,` $memref attr-dict `:` type($memref)";
+}
+
+//===----------------------------------------------------------------------===//
+// TensorToMemrefOp
+//===----------------------------------------------------------------------===//
+
+def TensorToMemrefOp : Std_Op<"tensor_to_memref",
+    [SameOperandsAndResultShape, SameOperandsAndResultElementType,
+     TypesMatchWith<"type of 'tensor' is the tensor equivalent of 'memref'",
+                    "memref", "tensor",
+                    "getTensorTypeFromMemRefType($_self)">]> {
+  let summary = "tensor to memref operation";
+  let description = [{
+    Create a memref from a tensor. This is equivalent to allocating a new
+    memref of the appropriate (possibly dynamic) shape, and then copying the
+    elements (as if by a tensor_store op) into the newly allocated memref.
+
+    The opposite of this op is tensor_load. Together, these two ops are useful
+    for source/target materializations when doing type conversions involving
+    tensors and memrefs.
+
+    Note: This op takes the memref type in its pretty form because the tensor
+    type can always be inferred from the memref type, but the reverse is not
+    true. For example, the memref might have a layout map or memory space which
+    cannot be inferred from the tensor type.
+
+    ```mlir
+    // Result type is tensor<4x?xf32>
+    %12 = tensor_to_memref %10 :  memref<4x?xf32, #map0, 42>
+    ```
+  }];
+
+  let arguments = (ins AnyTensor:$tensor);
+  let results = (outs Res<AnyRankedOrUnrankedMemRef,
+                      "the memref to create", [MemAlloc]>:$memref);
+  // This op is fully verified by traits.
+  let verifier = ?;
+
+  let assemblyFormat = "$tensor attr-dict `:` type($memref)";
+
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// TransposeOp
+//===----------------------------------------------------------------------===//
+
+def TransposeOp : Std_Op<"transpose", [NoSideEffect]>,
+    Arguments<(ins AnyStridedMemRef:$in, AffineMapAttr:$permutation)>,
+    Results<(outs AnyStridedMemRef)> {
+  let summary = "`transpose` produces a new strided memref (metadata-only)";
+  let description = [{
+    The `transpose` op produces a strided memref whose sizes and strides
+    are a permutation of the original `in` memref. This is purely a metadata
+    transformation.
+
+    Example:
+
+    ```mlir
+    %1 = transpose %0 (i, j) -> (j, i) : memref<?x?xf32> to memref<?x?xf32, affine_map<(d0, d1)[s0] -> (d1 * s0 + d0)>>
+    ```
+  }];
+
+  let builders = [OpBuilder<
+    "Value in, AffineMapAttr permutation, "
+    "ArrayRef<NamedAttribute> attrs = {}">];
+
+  let extraClassDeclaration = [{
+    static StringRef getPermutationAttrName() { return "permutation"; }
+    ShapedType getShapedType() { return in().getType().cast<ShapedType>(); }
+  }];
+
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//

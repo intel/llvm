@@ -55,13 +55,15 @@ inline std::string text(llvm::ArrayRef<FormatToken *> Tokens) {
 
 class TestLexer {
 public:
-  TestLexer() : SourceMgr("test.cpp", "") {}
+  TestLexer(FormatStyle Style = getLLVMStyle())
+      : Style(Style), SourceMgr("test.cpp", ""),
+        IdentTable(getFormattingLangOpts(Style)) {}
 
   TokenList lex(llvm::StringRef Code) {
     Buffers.push_back(
         llvm::MemoryBuffer::getMemBufferCopy(Code, "<scratch space>"));
-    clang::FileID FID = SourceMgr.get().createFileID(SourceManager::Unowned,
-                                                     Buffers.back().get());
+    clang::FileID FID =
+        SourceMgr.get().createFileID(Buffers.back()->getMemBufferRef());
     FormatTokenLexer Lex(SourceMgr.get(), FID, 0, Style, Encoding, Allocator,
                          IdentTable);
     auto Result = Lex.lex();
@@ -74,7 +76,7 @@ public:
     return Result[0];
   }
 
-  FormatStyle Style = getLLVMStyle();
+  FormatStyle Style;
   encoding::Encoding Encoding = encoding::Encoding_UTF8;
   std::vector<std::unique_ptr<llvm::MemoryBuffer>> Buffers;
   clang::SourceManagerForFile SourceMgr;

@@ -2145,7 +2145,7 @@ void CodeGenModule::ConstructAttributeList(
   // Attach attributes to sret.
   if (IRFunctionArgs.hasSRetArg()) {
     llvm::AttrBuilder SRETAttrs;
-    SRETAttrs.addAttribute(llvm::Attribute::StructRet);
+    SRETAttrs.addStructRetAttr(getTypes().ConvertTypeForMem(RetTy));
     hasUsedSRet = true;
     if (RetAI.getInReg())
       SRETAttrs.addAttribute(llvm::Attribute::InReg);
@@ -2280,7 +2280,7 @@ void CodeGenModule::ConstructAttributeList(
       // Add 'sret' if we haven't already used it for something, but
       // only if the result is void.
       if (!hasUsedSRet && RetTy->isVoidType()) {
-        Attrs.addAttribute(llvm::Attribute::StructRet);
+        Attrs.addStructRetAttr(getTypes().ConvertTypeForMem(ParamType));
         hasUsedSRet = true;
       }
 
@@ -2291,8 +2291,8 @@ void CodeGenModule::ConstructAttributeList(
       auto PTy = ParamType->getPointeeType();
       if (!PTy->isIncompleteType() && PTy->isConstantSizeType()) {
         auto info = getContext().getTypeInfoInChars(PTy);
-        Attrs.addDereferenceableAttr(info.first.getQuantity());
-        Attrs.addAlignmentAttr(info.second.getAsAlign());
+        Attrs.addDereferenceableAttr(info.Width.getQuantity());
+        Attrs.addAlignmentAttr(info.Align.getAsAlign());
       }
       break;
     }
@@ -4871,7 +4871,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
                              /*AttrOnCallSite=*/true);
 
   if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(CurFuncDecl))
-    if (FD->usesFPIntrin())
+    if (FD->hasAttr<StrictFPAttr>())
       // All calls within a strictfp function are marked strictfp
       Attrs =
         Attrs.addAttribute(getLLVMContext(), llvm::AttributeList::FunctionIndex,
@@ -4936,7 +4936,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       getBundlesForFunclet(CalleePtr);
 
   if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(CurFuncDecl))
-    if (FD->usesFPIntrin())
+    if (FD->hasAttr<StrictFPAttr>())
       // All calls within a strictfp function are marked strictfp
       Attrs =
         Attrs.addAttribute(getLLVMContext(), llvm::AttributeList::FunctionIndex,

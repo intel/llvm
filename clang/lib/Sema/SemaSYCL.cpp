@@ -2833,14 +2833,22 @@ class SYCLKernelNameTypeVisitor
       public ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor> {
   Sema &S;
   SourceLocation KernelInvocationFuncLoc;
+  QualType KernelNameType;
   using InnerTypeVisitor = TypeVisitor<SYCLKernelNameTypeVisitor>;
-  using InnerTAVisitor =
+  using InnerTemplArgVisitor =
       ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor>;
   bool IsInvalid = false;
 
+  void VisitTemplateArgs(ArrayRef<TemplateArgument> Args) {
+    for (auto &A : Args)
+      Visit(A);
+  }
+
 public:
-  SYCLKernelNameTypeVisitor(Sema &S, SourceLocation KernelInvocationFuncLoc)
-      : S(S), KernelInvocationFuncLoc(KernelInvocationFuncLoc) {}
+  SYCLKernelNameTypeVisitor(Sema &S, SourceLocation KernelInvocationFuncLoc,
+                            QualType KernelNameType)
+      : S(S), KernelInvocationFuncLoc(KernelInvocationFuncLoc),
+        KernelNameType(KernelNameType) {}
 
   bool isValid() { return !IsInvalid; }
 
@@ -2848,15 +2856,21 @@ public:
     if (T.isNull())
       return;
     const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
-    if (!RD)
+    if (!RD) {
+      if (T->isNullPtrType()) {
+        S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
+            << KernelNameType;
+        S.Diag(KernelInvocationFuncLoc, diag::note_invalid_type_in_sycl_kernel)
+            << /* kernel name cannot be a type in the std namespace */ 2 << T;
+        IsInvalid = true;
+      }
       return;
+    }
     // If KernelNameType has template args visit each template arg via
     // ConstTemplateArgumentVisitor
     if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
-      const TemplateArgumentList &Args = TSD->getTemplateArgs();
-      for (unsigned I = 0; I < Args.size(); I++) {
-        Visit(Args[I]);
-      }
+      ArrayRef<TemplateArgument> Args = TSD->getTemplateArgs().asArray();
+      VisitTemplateArgs(Args);
     } else {
       InnerTypeVisitor::Visit(T.getTypePtr());
     }
@@ -2865,16 +2879,17 @@ public:
   void Visit(const TemplateArgument &TA) {
     if (TA.isNull())
       return;
-    InnerTAVisitor::Visit(TA);
+    InnerTemplArgVisitor::Visit(TA);
   }
 
   void VisitEnumType(const EnumType *T) {
     const EnumDecl *ED = T->getDecl();
     if (!ED->isScoped() && !ED->isFixed()) {
       S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-          << /* Unscoped enum requires fixed underlying type */ 2;
-      S.Diag(ED->getSourceRange().getBegin(), diag::note_entity_declared_at)
-          << ED;
+          << KernelNameType;
+      S.Diag(KernelInvocationFuncLoc, diag::note_invalid_type_in_sycl_kernel)
+          << /* Unscoped enum requires fixed underlying type */ 1
+          << QualType(ED->getTypeForDecl(), 0);
       IsInvalid = true;
     }
   }
@@ -2886,24 +2901,44 @@ public:
   void VisitTagDecl(const TagDecl *Tag) {
     bool UnnamedLambdaEnabled =
         S.getASTContext().getLangOpts().SYCLUnnamedLambda;
-    if (!Tag->getDeclContext()->isTranslationUnit() &&
-        !isa<NamespaceDecl>(Tag->getDeclContext()) && !UnnamedLambdaEnabled) {
-      const bool KernelNameIsMissing = Tag->getName().empty();
-      if (KernelNameIsMissing) {
+    const DeclContext *DeclCtx = Tag->getDeclContext();
+    if (DeclCtx && !UnnamedLambdaEnabled) {
+      auto *NameSpace = dyn_cast_or_null<NamespaceDecl>(DeclCtx);
+      if (NameSpace && NameSpace->isStdNamespace()) {
         S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-            << /* kernel name is missing */ 0;
+            << KernelNameType;
+        S.Diag(KernelInvocationFuncLoc, diag::note_invalid_type_in_sycl_kernel)
+            << /* kernel name cannot be a type in the std namespace */ 2
+            << QualType(Tag->getTypeForDecl(), 0);
         IsInvalid = true;
-      } else {
+        return;
+      }
+      if (!DeclCtx->isTranslationUnit() && !isa<NamespaceDecl>(DeclCtx)) {
+        const bool KernelNameIsMissing = Tag->getName().empty();
+        if (KernelNameIsMissing) {
+          S.Diag(KernelInvocationFuncLoc,
+                 diag::err_sycl_kernel_incorrectly_named)
+              << KernelNameType;
+          S.Diag(KernelInvocationFuncLoc,
+                 diag::note_invalid_type_in_sycl_kernel)
+              << /* kernel name is missing */ 3;
+          IsInvalid = true;
+          return;
+        }
         if (Tag->isCompleteDefinition()) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_sycl_kernel_incorrectly_named)
-              << /* kernel name is not globally-visible */ 1;
+              << KernelNameType;
+          S.Diag(KernelInvocationFuncLoc,
+                 diag::note_invalid_type_in_sycl_kernel)
+              << /* kernel name is not globally-visible */ 0
+              << QualType(Tag->getTypeForDecl(), 0);
           IsInvalid = true;
-        } else
+        } else {
           S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
-
-        S.Diag(Tag->getSourceRange().getBegin(), diag::note_previous_decl)
-            << Tag->getName();
+          S.Diag(Tag->getSourceRange().getBegin(), diag::note_previous_decl)
+              << Tag->getName();
+        }
       }
     }
   }
@@ -2931,6 +2966,10 @@ public:
         if (const EnumType *ET = TemplateParam->getType()->getAs<EnumType>())
           VisitEnumType(ET);
     }
+  }
+
+  void VisitPackTemplateArgument(const TemplateArgument &TA) {
+    VisitTemplateArgs(TA.getPackAsArray());
   }
 };
 
@@ -2976,7 +3015,8 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   SyclKernelArgsSizeChecker ArgsSizeChecker(*this, Args[0]->getExprLoc());
 
   KernelObjVisitor Visitor{*this};
-  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(*this, Args[0]->getExprLoc());
+  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(*this, Args[0]->getExprLoc(),
+                                                  KernelNameType);
 
   DiagnosingSYCLKernel = true;
 
@@ -3215,21 +3255,21 @@ void Sema::MarkDevice(void) {
 // SYCL device specific diagnostics implementation
 // -----------------------------------------------------------------------------
 
-Sema::DeviceDiagBuilder Sema::SYCLDiagIfDeviceCode(SourceLocation Loc,
-                                                   unsigned DiagID) {
+Sema::SemaDiagnosticBuilder Sema::SYCLDiagIfDeviceCode(SourceLocation Loc,
+                                                       unsigned DiagID) {
   assert(getLangOpts().SYCLIsDevice &&
          "Should only be called during SYCL compilation");
   FunctionDecl *FD = dyn_cast<FunctionDecl>(getCurLexicalContext());
-  DeviceDiagBuilder::Kind DiagKind = [this, FD] {
+  SemaDiagnosticBuilder::Kind DiagKind = [this, FD] {
     if (DiagnosingSYCLKernel)
-      return DeviceDiagBuilder::K_ImmediateWithCallStack;
+      return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
     if (!FD)
-      return DeviceDiagBuilder::K_Nop;
+      return SemaDiagnosticBuilder::K_Nop;
     if (getEmissionStatus(FD) == Sema::FunctionEmissionStatus::Emitted)
-      return DeviceDiagBuilder::K_ImmediateWithCallStack;
-    return DeviceDiagBuilder::K_Deferred;
+      return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
+    return SemaDiagnosticBuilder::K_Deferred;
   }();
-  return DeviceDiagBuilder(DiagKind, Loc, DiagID, FD, *this);
+  return SemaDiagnosticBuilder(DiagKind, Loc, DiagID, FD, *this);
 }
 
 bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
@@ -3247,18 +3287,18 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
   if (!Caller)
     return true;
 
-  DeviceDiagBuilder::Kind DiagKind = DeviceDiagBuilder::K_Nop;
+  SemaDiagnosticBuilder::Kind DiagKind = SemaDiagnosticBuilder::K_Nop;
 
   // TODO Set DiagKind to K_Immediate/K_Deferred to emit diagnostics for Callee
 
-  DeviceDiagBuilder(DiagKind, Loc, diag::err_sycl_restrict, Caller, *this)
+  SemaDiagnosticBuilder(DiagKind, Loc, diag::err_sycl_restrict, Caller, *this)
       << Sema::KernelCallUndefinedFunction;
-  DeviceDiagBuilder(DiagKind, Callee->getLocation(), diag::note_previous_decl,
+  SemaDiagnosticBuilder(DiagKind, Callee->getLocation(), diag::note_previous_decl,
                     Caller, *this)
       << Callee;
 
-  return DiagKind != DeviceDiagBuilder::K_Immediate &&
-         DiagKind != DeviceDiagBuilder::K_ImmediateWithCallStack;
+  return DiagKind != SemaDiagnosticBuilder::K_Immediate &&
+         DiagKind != SemaDiagnosticBuilder::K_ImmediateWithCallStack;
 }
 
 void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
@@ -3322,79 +3362,6 @@ static const char *paramKind2Str(KernelParamKind K) {
 #undef CASE
 }
 
-// Removes all "(anonymous namespace)::" substrings from given string, and emits
-// it.
-static void emitWithoutAnonNamespaces(llvm::raw_ostream &OS, StringRef Source) {
-  const char S1[] = "(anonymous namespace)::";
-
-  size_t Pos;
-
-  while ((Pos = Source.find(S1)) != StringRef::npos) {
-    OS << Source.take_front(Pos);
-    Source = Source.drop_front(Pos + sizeof(S1) - 1);
-  }
-
-  OS << Source;
-}
-
-// Emits a forward declaration
-void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D,
-                                        SourceLocation KernelLocation) {
-  // wrap the declaration into namespaces if needed
-  unsigned NamespaceCnt = 0;
-  std::string NSStr = "";
-  const DeclContext *DC = D->getDeclContext();
-
-  while (DC) {
-    auto *NS = dyn_cast_or_null<NamespaceDecl>(DC);
-
-    if (!NS) {
-      break;
-    }
-
-    if (NS->isStdNamespace()) {
-      Diag.Report(KernelLocation, diag::err_sycl_kernel_incorrectly_named)
-          << /* name cannot be a type in the std namespace */ 3;
-      return;
-    }
-
-    ++NamespaceCnt;
-    const StringRef NSInlinePrefix = NS->isInline() ? "inline " : "";
-    NSStr.insert(
-        0, Twine(NSInlinePrefix + "namespace " + NS->getName() + " { ").str());
-    DC = NS->getDeclContext();
-  }
-  O << NSStr;
-  if (NamespaceCnt > 0)
-    O << "\n";
-  // print declaration into a string:
-  PrintingPolicy P(D->getASTContext().getLangOpts());
-  P.adjustForCPlusPlusFwdDecl();
-  P.SuppressTypedefs = true;
-  P.SuppressUnwrittenScope = true;
-  std::string S;
-  llvm::raw_string_ostream SO(S);
-  D->print(SO, P);
-  O << SO.str();
-
-  if (const auto *ED = dyn_cast<EnumDecl>(D)) {
-    QualType T = ED->getIntegerType();
-    // Backup since getIntegerType() returns null for enum forward
-    // declaration with no fixed underlying type
-    if (T.isNull())
-      T = ED->getPromotionType();
-    O << " : " << T.getAsString();
-  }
-
-  O << ";\n";
-
-  // print closing braces for namespaces if needed
-  for (unsigned I = 0; I < NamespaceCnt; ++I)
-    O << "}";
-  if (NamespaceCnt > 0)
-    O << "\n";
-}
-
 // Emits forward declarations of classes and template classes on which
 // declaration of given type depends.
 // For example, consider SimpleVadd
@@ -3431,262 +3398,303 @@ void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D,
 //   template <typename T> class MyTmplClass;
 //   template <typename T1, unsigned int N, typename ...T2> class SimpleVadd;
 //
-void SYCLIntegrationHeader::emitForwardClassDecls(
-    raw_ostream &O, QualType T, SourceLocation KernelLocation,
-    llvm::SmallPtrSetImpl<const void *> &Printed) {
+class SYCLFwdDeclEmitter
+    : public TypeVisitor<SYCLFwdDeclEmitter>,
+      public ConstTemplateArgumentVisitor<SYCLFwdDeclEmitter> {
+  using InnerTypeVisitor = TypeVisitor<SYCLFwdDeclEmitter>;
+  using InnerTemplArgVisitor = ConstTemplateArgumentVisitor<SYCLFwdDeclEmitter>;
+  raw_ostream &OS;
+  llvm::SmallPtrSet<const NamedDecl *, 4> Printed;
+  PrintingPolicy Policy;
 
-  // peel off the pointer types and get the class/struct type:
-  for (; T->isPointerType(); T = T->getPointeeType())
-    ;
-  const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
+  void printForwardDecl(NamedDecl *D) {
+    // wrap the declaration into namespaces if needed
+    unsigned NamespaceCnt = 0;
+    std::string NSStr = "";
+    const DeclContext *DC = D->getDeclContext();
 
-  if (!RD) {
-    if (T->isNullPtrType())
-      Diag.Report(KernelLocation, diag::err_sycl_kernel_incorrectly_named)
-          << /* name cannot be a type in the std namespace */ 3;
+    while (DC) {
+      const auto *NS = dyn_cast_or_null<NamespaceDecl>(DC);
 
-    return;
+      if (!NS)
+        break;
+
+      ++NamespaceCnt;
+      const StringRef NSInlinePrefix = NS->isInline() ? "inline " : "";
+      NSStr.insert(
+          0,
+          Twine(NSInlinePrefix + "namespace " + NS->getName() + " { ").str());
+      DC = NS->getDeclContext();
+    }
+    OS << NSStr;
+    if (NamespaceCnt > 0)
+      OS << "\n";
+
+    D->print(OS, Policy);
+
+    if (const auto *ED = dyn_cast<EnumDecl>(D)) {
+      QualType T = ED->getIntegerType();
+      // Backup since getIntegerType() returns null for enum forward
+      // declaration with no fixed underlying type
+      if (T.isNull())
+        T = ED->getPromotionType();
+      OS << " : " << T.getAsString();
+    }
+
+    OS << ";\n";
+
+    // print closing braces for namespaces if needed
+    for (unsigned I = 0; I < NamespaceCnt; ++I)
+      OS << "}";
+    if (NamespaceCnt > 0)
+      OS << "\n";
   }
 
-  // see if this is a template specialization ...
-  if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
-    // ... yes, it is template specialization:
-    // - first, recurse into template parameters and emit needed forward
-    //   declarations
-    const TemplateArgumentList &Args = TSD->getTemplateArgs();
+  // Checks if we've already printed forward declaration and prints it if not.
+  void checkAndEmitForwardDecl(NamedDecl *D) {
+    if (Printed.insert(D).second)
+      printForwardDecl(D);
+  }
 
-    for (unsigned I = 0; I < Args.size(); I++) {
+  void VisitTemplateArgs(ArrayRef<TemplateArgument> Args) {
+    for (size_t I = 0, E = Args.size(); I < E; ++I)
+      Visit(Args[I]);
+  }
+
+public:
+  SYCLFwdDeclEmitter(raw_ostream &OS, LangOptions LO) : OS(OS), Policy(LO) {
+    Policy.adjustForCPlusPlusFwdDecl();
+    Policy.SuppressTypedefs = true;
+    Policy.SuppressUnwrittenScope = true;
+  }
+
+  void Visit(QualType T) {
+    if (T.isNull())
+      return;
+    InnerTypeVisitor::Visit(T.getTypePtr());
+  }
+
+  void Visit(const TemplateArgument &TA) {
+    if (TA.isNull())
+      return;
+    InnerTemplArgVisitor::Visit(TA);
+  }
+
+  void VisitPointerType(const PointerType *T) {
+    // Peel off the pointer types.
+    QualType PT = T->getPointeeType();
+    while (PT->isPointerType())
+      PT = PT->getPointeeType();
+    Visit(PT);
+  }
+
+  void VisitTagType(const TagType *T) {
+    TagDecl *TD = T->getDecl();
+    if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(TD)) {
+      // - first, recurse into template parameters and emit needed forward
+      //   declarations
+      ArrayRef<TemplateArgument> Args = TSD->getTemplateArgs().asArray();
+      VisitTemplateArgs(Args);
+      // - second, emit forward declaration for the template class being
+      //   specialized
+      ClassTemplateDecl *CTD = TSD->getSpecializedTemplate();
+      assert(CTD && "template declaration must be available");
+
+      checkAndEmitForwardDecl(CTD);
+      return;
+    }
+    checkAndEmitForwardDecl(TD);
+  }
+
+  void VisitTypeTemplateArgument(const TemplateArgument &TA) {
+    QualType T = TA.getAsType();
+    Visit(T);
+  }
+
+  void VisitIntegralTemplateArgument(const TemplateArgument &TA) {
+    QualType T = TA.getIntegralType();
+    if (const EnumType *ET = T->getAs<EnumType>())
+      VisitTagType(ET);
+  }
+
+  void VisitTemplateTemplateArgument(const TemplateArgument &TA) {
+    // recursion is not required, since the maximum possible nesting level
+    // equals two for template argument
+    //
+    // for example:
+    //   template <typename T> class Bar;
+    //   template <template <typename> class> class Baz;
+    //   template <template <template <typename> class> class T>
+    //   class Foo;
+    //
+    // The Baz is a template class. The Baz<Bar> is a class. The class Foo
+    // should be specialized with template class, not a class. The correct
+    // specialization of template class Foo is Foo<Baz>. The incorrect
+    // specialization of template class Foo is Foo<Baz<Bar>>. In this case
+    // template class Foo specialized by class Baz<Bar>, not a template
+    // class template <template <typename> class> class T as it should.
+    TemplateDecl *TD = TA.getAsTemplate().getAsTemplateDecl();
+    TemplateParameterList *TemplateParams = TD->getTemplateParameters();
+    for (NamedDecl *P : *TemplateParams) {
+      // If template template parameter type has an enum value template
+      // parameter, forward declaration of enum type is required. Only enum
+      // values (not types) need to be handled. For example, consider the
+      // following kernel name type:
+      //
+      // template <typename EnumTypeOut, template <EnumValueIn EnumValue,
+      // typename TypeIn> class T> class Foo;
+      //
+      // The correct specialization for Foo (with enum type) is:
+      // Foo<EnumTypeOut, Baz>, where Baz is a template class.
+      //
+      // Therefore the forward class declarations generated in the
+      // integration header are:
+      // template <EnumValueIn EnumValue, typename TypeIn> class Baz;
+      // template <typename EnumTypeOut, template <EnumValueIn EnumValue,
+      // typename EnumTypeIn> class T> class Foo;
+      //
+      // This requires the following enum forward declarations:
+      // enum class EnumTypeOut : int; (Used to template Foo)
+      // enum class EnumValueIn : int; (Used to template Baz)
+      if (NonTypeTemplateParmDecl *TemplateParam =
+              dyn_cast<NonTypeTemplateParmDecl>(P))
+        if (const EnumType *ET = TemplateParam->getType()->getAs<EnumType>())
+          VisitTagType(ET);
+    }
+    checkAndEmitForwardDecl(TD);
+  }
+
+  void VisitPackTemplateArgument(const TemplateArgument &TA) {
+    VisitTemplateArgs(TA.getPackAsArray());
+  }
+};
+
+class SYCLKernelNameTypePrinter
+    : public TypeVisitor<SYCLKernelNameTypePrinter>,
+      public ConstTemplateArgumentVisitor<SYCLKernelNameTypePrinter> {
+  using InnerTypeVisitor = TypeVisitor<SYCLKernelNameTypePrinter>;
+  using InnerTemplArgVisitor =
+      ConstTemplateArgumentVisitor<SYCLKernelNameTypePrinter>;
+  raw_ostream &OS;
+  PrintingPolicy &Policy;
+
+  void printTemplateArgs(ArrayRef<TemplateArgument> Args) {
+    for (size_t I = 0, E = Args.size(); I < E; ++I) {
       const TemplateArgument &Arg = Args[I];
+      // If argument is an empty pack argument, skip printing comma and
+      // argument.
+      if (Arg.getKind() == TemplateArgument::ArgKind::Pack && !Arg.pack_size())
+        continue;
 
-      switch (Arg.getKind()) {
-      case TemplateArgument::ArgKind::Type:
-      case TemplateArgument::ArgKind::Integral: {
-        QualType T = (Arg.getKind() == TemplateArgument::ArgKind::Type)
-                         ? Arg.getAsType()
-                         : Arg.getIntegralType();
+      if (I)
+        OS << ", ";
 
-        // Handle Kernel Name Type templated using enum type and value.
-        if (const auto *ET = T->getAs<EnumType>()) {
-          const EnumDecl *ED = ET->getDecl();
-            emitFwdDecl(O, ED, KernelLocation);
-        } else if (Arg.getKind() == TemplateArgument::ArgKind::Type)
-          emitForwardClassDecls(O, T, KernelLocation, Printed);
-        break;
-      }
-      case TemplateArgument::ArgKind::Pack: {
-        ArrayRef<TemplateArgument> Pack = Arg.getPackAsArray();
-
-        for (const auto &T : Pack) {
-          if (T.getKind() == TemplateArgument::ArgKind::Type) {
-            emitForwardClassDecls(O, T.getAsType(), KernelLocation, Printed);
-          }
-        }
-        break;
-      }
-      case TemplateArgument::ArgKind::Template: {
-        // recursion is not required, since the maximum possible nesting level
-        // equals two for template argument
-        //
-        // for example:
-        //   template <typename T> class Bar;
-        //   template <template <typename> class> class Baz;
-        //   template <template <template <typename> class> class T>
-        //   class Foo;
-        //
-        // The Baz is a template class. The Baz<Bar> is a class. The class Foo
-        // should be specialized with template class, not a class. The correct
-        // specialization of template class Foo is Foo<Baz>. The incorrect
-        // specialization of template class Foo is Foo<Baz<Bar>>. In this case
-        // template class Foo specialized by class Baz<Bar>, not a template
-        // class template <template <typename> class> class T as it should.
-        TemplateDecl *TD = Arg.getAsTemplate().getAsTemplateDecl();
-        TemplateParameterList *TemplateParams = TD->getTemplateParameters();
-        for (NamedDecl *P : *TemplateParams) {
-          // If template template paramter type has an enum value template
-          // parameter, forward declaration of enum type is required. Only enum
-          // values (not types) need to be handled. For example, consider the
-          // following kernel name type:
-          //
-          // template <typename EnumTypeOut, template <EnumValueIn EnumValue,
-          // typename TypeIn> class T> class Foo;
-          //
-          // The correct specialization for Foo (with enum type) is:
-          // Foo<EnumTypeOut, Baz>, where Baz is a template class.
-          //
-          // Therefore the forward class declarations generated in the
-          // integration header are:
-          // template <EnumValueIn EnumValue, typename TypeIn> class Baz;
-          // template <typename EnumTypeOut, template <EnumValueIn EnumValue,
-          // typename EnumTypeIn> class T> class Foo;
-          //
-          // This requires the following enum forward declarations:
-          // enum class EnumTypeOut : int; (Used to template Foo)
-          // enum class EnumValueIn : int; (Used to template Baz)
-          if (NonTypeTemplateParmDecl *TemplateParam =
-                  dyn_cast<NonTypeTemplateParmDecl>(P)) {
-            QualType T = TemplateParam->getType();
-            if (const auto *ET = T->getAs<EnumType>()) {
-              const EnumDecl *ED = ET->getDecl();
-                emitFwdDecl(O, ED, KernelLocation);
-            }
-          }
-        }
-        if (Printed.insert(TD).second) {
-          emitFwdDecl(O, TD, KernelLocation);
-        }
-        break;
-      }
-      default:
-        break; // nop
-      }
+      Visit(Arg);
     }
-    // - second, emit forward declaration for the template class being
-    //   specialized
-    ClassTemplateDecl *CTD = TSD->getSpecializedTemplate();
-    assert(CTD && "template declaration must be available");
+  }
 
-    if (Printed.insert(CTD).second) {
-      emitFwdDecl(O, CTD, KernelLocation);
+  void VisitQualifiers(Qualifiers Quals) {
+    Quals.print(OS, Policy, /*appendSpaceIfNotEmpty*/ true);
+  }
+
+public:
+  SYCLKernelNameTypePrinter(raw_ostream &OS, PrintingPolicy &Policy)
+      : OS(OS), Policy(Policy) {}
+
+  void Visit(QualType T) {
+    if (T.isNull())
+      return;
+
+    QualType CT = T.getCanonicalType();
+    VisitQualifiers(CT.getQualifiers());
+
+    InnerTypeVisitor::Visit(CT.getTypePtr());
+  }
+
+  void VisitType(const Type *T) {
+    OS << QualType::getAsString(T, Qualifiers(), Policy);
+  }
+
+  void Visit(const TemplateArgument &TA) {
+    if (TA.isNull())
+      return;
+    InnerTemplArgVisitor::Visit(TA);
+  }
+
+  void VisitTagType(const TagType *T) {
+    TagDecl *RD = T->getDecl();
+    if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
+
+      // Print template class name
+      TSD->printQualifiedName(OS, Policy, /*WithGlobalNsPrefix*/ true);
+
+      ArrayRef<TemplateArgument> Args = TSD->getTemplateArgs().asArray();
+      OS << "<";
+      printTemplateArgs(Args);
+      OS << ">";
+
+      return;
     }
-  } else if (Printed.insert(RD).second) {
-    // emit forward declarations for "leaf" classes in the template parameter
-    // tree;
-    emitFwdDecl(O, RD, KernelLocation);
+    // TODO: Next part of code results in printing of "class" keyword before
+    // class name in case if kernel name doesn't belong to some namespace. It
+    // seems if we don't print it, the integration header still represents valid
+    // c++ code. Probably we don't need to print it at all.
+    if (RD->getDeclContext()->isFunctionOrMethod()) {
+      OS << QualType::getAsString(T, Qualifiers(), Policy);
+      return;
+    }
+
+    const NamespaceDecl *NS = dyn_cast<NamespaceDecl>(RD->getDeclContext());
+    RD->printQualifiedName(OS, Policy, !(NS && NS->isAnonymousNamespace()));
   }
-}
 
-static void emitCPPTypeString(raw_ostream &OS, QualType Ty) {
-  LangOptions LO;
-  PrintingPolicy P(LO);
-  P.SuppressTypedefs = true;
-  emitWithoutAnonNamespaces(OS, Ty.getAsString(P));
-}
-
-static void printArguments(ASTContext &Ctx, raw_ostream &ArgOS,
-                           ArrayRef<TemplateArgument> Args,
-                           const PrintingPolicy &P);
-
-static void emitKernelNameType(QualType T, ASTContext &Ctx, raw_ostream &OS,
-                               const PrintingPolicy &TypePolicy);
-
-static void printArgument(ASTContext &Ctx, raw_ostream &ArgOS,
-                          TemplateArgument Arg, const PrintingPolicy &P) {
-  switch (Arg.getKind()) {
-  case TemplateArgument::ArgKind::Pack: {
-    printArguments(Ctx, ArgOS, Arg.getPackAsArray(), P);
-    break;
+  void VisitTemplateArgument(const TemplateArgument &TA) {
+    TA.print(Policy, OS);
   }
-  case TemplateArgument::ArgKind::Integral: {
-    QualType T = Arg.getIntegralType();
-    const EnumType *ET = T->getAs<EnumType>();
 
-    if (ET) {
-      const llvm::APSInt &Val = Arg.getAsIntegral();
-      ArgOS << "static_cast<"
-            << ET->getDecl()->getQualifiedNameAsString(
-                   /*WithGlobalNsPrefix*/ true)
-            << ">"
-            << "(" << Val << ")";
+  void VisitTypeTemplateArgument(const TemplateArgument &TA) {
+    Policy.SuppressTagKeyword = true;
+    QualType T = TA.getAsType();
+    Visit(T);
+    Policy.SuppressTagKeyword = false;
+  }
+
+  void VisitIntegralTemplateArgument(const TemplateArgument &TA) {
+    QualType T = TA.getIntegralType();
+    if (const EnumType *ET = T->getAs<EnumType>()) {
+      const llvm::APSInt &Val = TA.getAsIntegral();
+      OS << "static_cast<";
+      ET->getDecl()->printQualifiedName(OS, Policy,
+                                        /*WithGlobalNsPrefix*/ true);
+      OS << ">(" << Val << ")";
     } else {
-      Arg.print(P, ArgOS);
+      TA.print(Policy, OS);
     }
-    break;
-  }
-  case TemplateArgument::ArgKind::Type: {
-    LangOptions LO;
-    PrintingPolicy TypePolicy(LO);
-    TypePolicy.SuppressTypedefs = true;
-    TypePolicy.SuppressTagKeyword = true;
-    QualType T = Arg.getAsType();
-
-    emitKernelNameType(T, Ctx, ArgOS, TypePolicy);
-    break;
-  }
-  case TemplateArgument::ArgKind::Template: {
-    TemplateDecl *TD = Arg.getAsTemplate().getAsTemplateDecl();
-    ArgOS << TD->getQualifiedNameAsString();
-    break;
-  }
-  default:
-    Arg.print(P, ArgOS);
-  }
-}
-
-static void printArguments(ASTContext &Ctx, raw_ostream &ArgOS,
-                           ArrayRef<TemplateArgument> Args,
-                           const PrintingPolicy &P) {
-  for (unsigned I = 0; I < Args.size(); I++) {
-    const TemplateArgument &Arg = Args[I];
-
-    // If argument is an empty pack argument, skip printing comma and argument.
-    if (Arg.getKind() == TemplateArgument::ArgKind::Pack && !Arg.pack_size())
-      continue;
-
-    if (I != 0)
-      ArgOS << ", ";
-
-    printArgument(Ctx, ArgOS, Arg, P);
-  }
-}
-
-static void printTemplateArguments(ASTContext &Ctx, raw_ostream &ArgOS,
-                                   ArrayRef<TemplateArgument> Args,
-                                   const PrintingPolicy &P) {
-  ArgOS << "<";
-  printArguments(Ctx, ArgOS, Args, P);
-  ArgOS << ">";
-}
-
-static void emitRecordType(raw_ostream &OS, QualType T, const CXXRecordDecl *RD,
-                           const PrintingPolicy &TypePolicy) {
-  SmallString<64> Buf;
-  llvm::raw_svector_ostream RecOS(Buf);
-  T.getCanonicalType().getQualifiers().print(RecOS, TypePolicy,
-                                             /*appendSpaceIfNotEmpty*/ true);
-  if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
-
-    // Print template class name
-    TSD->printQualifiedName(RecOS, TypePolicy, /*WithGlobalNsPrefix*/ true);
-
-    // Print template arguments substituting enumerators
-    ASTContext &Ctx = RD->getASTContext();
-    const TemplateArgumentList &Args = TSD->getTemplateArgs();
-    printTemplateArguments(Ctx, RecOS, Args.asArray(), TypePolicy);
-
-    emitWithoutAnonNamespaces(OS, RecOS.str());
-    return;
-  }
-  if (RD->getDeclContext()->isFunctionOrMethod()) {
-    emitWithoutAnonNamespaces(OS, T.getCanonicalType().getAsString(TypePolicy));
-    return;
   }
 
-  const NamespaceDecl *NS = dyn_cast<NamespaceDecl>(RD->getDeclContext());
-  RD->printQualifiedName(RecOS, TypePolicy,
-                         !(NS && NS->isAnonymousNamespace()));
-  emitWithoutAnonNamespaces(OS, RecOS.str());
-}
-
-static void emitKernelNameType(QualType T, ASTContext &Ctx, raw_ostream &OS,
-                               const PrintingPolicy &TypePolicy) {
-  if (T->isRecordType()) {
-    emitRecordType(OS, T, T->getAsCXXRecordDecl(), TypePolicy);
-    return;
+  void VisitTemplateTemplateArgument(const TemplateArgument &TA) {
+    TemplateDecl *TD = TA.getAsTemplate().getAsTemplateDecl();
+    TD->printQualifiedName(OS, Policy);
   }
 
-  if (T->isEnumeralType())
-    OS << "::";
-  emitWithoutAnonNamespaces(OS, T.getCanonicalType().getAsString(TypePolicy));
-}
+  void VisitPackTemplateArgument(const TemplateArgument &TA) {
+    printTemplateArgs(TA.getPackAsArray());
+  }
+};
 
 void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "// This is auto-generated SYCL integration header.\n";
   O << "\n";
 
-  O << "#include <CL/sycl/detail/defines.hpp>\n";
+  O << "#include <CL/sycl/detail/defines_elementary.hpp>\n";
   O << "#include <CL/sycl/detail/kernel_desc.hpp>\n";
 
   O << "\n";
+
+  LangOptions LO;
+  PrintingPolicy Policy(LO);
+  Policy.SuppressTypedefs = true;
+  Policy.SuppressUnwrittenScope = true;
 
   if (SpecConsts.size() > 0) {
     // Remove duplicates.
@@ -3705,7 +3713,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "// Specialization constants IDs:\n";
     for (const auto &P : llvm::make_range(SpecConsts.begin(), End)) {
       O << "template <> struct sycl::detail::SpecConstantInfo<";
-      emitCPPTypeString(O, P.first);
+      O << P.first.getAsString(Policy);
       O << "> {\n";
       O << "  static constexpr const char* getName() {\n";
       O << "    return \"" << P.second << "\";\n";
@@ -3717,10 +3725,9 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   if (!UnnamedLambdaSupport) {
     O << "// Forward declarations of templated kernel function types:\n";
 
-    llvm::SmallPtrSet<const void *, 4> Printed;
-    for (const KernelDesc &K : KernelDescs) {
-      emitForwardClassDecls(O, K.NameType, K.KernelLocation, Printed);
-    }
+    SYCLFwdDeclEmitter FwdDeclEmitter(O, S.getLangOpts());
+    for (const KernelDesc &K : KernelDescs)
+      FwdDeclEmitter.Visit(K.NameType);
   }
   O << "\n";
 
@@ -3773,19 +3780,17 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         O << "', '" << c;
       O << "'> {\n";
     } else {
-      LangOptions LO;
-      PrintingPolicy P(LO);
-      P.SuppressTypedefs = true;
       O << "template <> struct KernelInfo<";
-      emitKernelNameType(K.NameType, S.getASTContext(), O, P);
+      SYCLKernelNameTypePrinter Printer(O, Policy);
+      Printer.Visit(K.NameType);
       O << "> {\n";
     }
-    O << "  DLL_LOCAL\n";
+    O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr const char* getName() { return \"" << K.Name
       << "\"; }\n";
-    O << "  DLL_LOCAL\n";
+    O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr unsigned getNumParams() { return " << N << "; }\n";
-    O << "  DLL_LOCAL\n";
+    O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr const kernel_param_desc_t& ";
     O << "getParamDesc(unsigned i) {\n";
     O << "    return kernel_signatures[i+" << CurStart << "];\n";

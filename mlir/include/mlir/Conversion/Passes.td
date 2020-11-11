@@ -85,12 +85,28 @@ def ConvertAVX512ToLLVM : Pass<"convert-avx512-to-llvm", "ModuleOp"> {
 }
 
 //===----------------------------------------------------------------------===//
+// AsyncToLLVM
+//===----------------------------------------------------------------------===//
+
+def ConvertAsyncToLLVM : Pass<"convert-async-to-llvm", "ModuleOp"> {
+  let summary = "Convert the operations from the async dialect into the LLVM "
+                "dialect";
+  let description = [{
+    Convert `async.execute` operations to LLVM coroutines and use async runtime
+    API to execute them.
+  }];
+  let constructor = "mlir::createConvertAsyncToLLVMPass()";
+  let dependentDialects = ["LLVM::LLVMDialect"];
+}
+
+//===----------------------------------------------------------------------===//
 // GPUCommon
 //===----------------------------------------------------------------------===//
 
 def GpuToLLVMConversionPass : Pass<"gpu-to-llvm", "ModuleOp"> {
   let summary = "Convert GPU dialect to LLVM dialect with GPU runtime calls";
   let constructor = "mlir::createGpuToLLVMConversionPass()";
+  let dependentDialects = ["LLVM::LLVMDialect"];
   let options = [
     Option<"gpuBinaryAnnotation", "gpu-binary-annotation", "std::string",
            "", "Annotation attribute string for GPU binary">,
@@ -379,6 +395,17 @@ def ConvertVectorToROCDL : Pass<"convert-vector-to-rocdl", "ModuleOp"> {
                 "dialect";
   let constructor = "mlir::createConvertVectorToROCDLPass()";
   let dependentDialects = ["ROCDL::ROCDLDialect"];
+}
+
+//===----------------------------------------------------------------------===//
+// VectorToSPIRV
+//===----------------------------------------------------------------------===//
+
+def ConvertVectorToSPIRV : Pass<"convert-vector-to-spirv", "ModuleOp"> {
+  let summary = "Lower the operations from the vector dialect into the SPIR-V "
+                "dialect";
+  let constructor = "mlir::createConvertVectorToSPIRVPass()";
+  let dependentDialects = ["spirv::SPIRVDialect"];
 }
 
 #endif // MLIR_CONVERSION_PASSES

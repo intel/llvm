@@ -402,6 +402,7 @@ namespace llvm {
 
     // Bit field extract.
     BEXTR,
+    BEXTRI,
 
     // Zero High Bits Starting with Specified Bit Position.
     BZHI,
@@ -710,6 +711,9 @@ namespace llvm {
     // For avx512-vp2intersect
     VP2INTERSECT,
 
+    // User level interrupts - testui
+    TESTUI,
+
     /// X86 strict FP compare instructions.
     STRICT_FCMP = ISD::FIRST_TARGET_STRICTFP_OPCODE,
     STRICT_FCMPS,
@@ -756,7 +760,6 @@ namespace llvm {
     LCMPXCHG_DAG = ISD::FIRST_TARGET_MEMORY_OPCODE,
     LCMPXCHG8_DAG,
     LCMPXCHG16_DAG,
-    LCMPXCHG8_SAVE_EBX_DAG,
     LCMPXCHG16_SAVE_RBX_DAG,
 
     /// LOCK-prefixed arithmetic read-modify-write instructions.

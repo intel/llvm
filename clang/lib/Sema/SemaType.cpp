@@ -2205,7 +2205,8 @@ QualType Sema::BuildExtIntType(bool IsUnsigned, Expr *BitWidth,
     return Context.getDependentExtIntType(IsUnsigned, BitWidth);
 
   llvm::APSInt Bits(32);
-  ExprResult ICE = VerifyIntegerConstantExpression(BitWidth, &Bits);
+  ExprResult ICE =
+      VerifyIntegerConstantExpression(BitWidth, &Bits, /*FIXME*/ AllowFold);
 
   if (ICE.isInvalid())
     return QualType();
@@ -2281,9 +2282,8 @@ static ExprResult checkArraySize(Sema &S, Expr *&ArraySize,
     }
   } Diagnoser(VLADiag, VLAIsError);
 
-  ExprResult R = S.VerifyIntegerConstantExpression(
-      ArraySize, &SizeVal, Diagnoser,
-      (S.LangOpts.GNUMode || S.LangOpts.OpenCL));
+  ExprResult R =
+      S.VerifyIntegerConstantExpression(ArraySize, &SizeVal, Diagnoser);
   if (Diagnoser.IsVLA)
     return ExprResult();
   return R;
@@ -3386,8 +3386,9 @@ static QualType GetDeclSpecTypeForDeclarator(TypeProcessingState &state,
       Error = 7; // Exception declaration
       break;
     case DeclaratorContext::TemplateParamContext:
-      if (isa<DeducedTemplateSpecializationType>(Deduced))
-        Error = 19; // Template parameter
+      if (isa<DeducedTemplateSpecializationType>(Deduced) &&
+          !SemaRef.getLangOpts().CPlusPlus20)
+        Error = 19; // Template parameter (until C++20)
       else if (!SemaRef.getLangOpts().CPlusPlus17)
         Error = 8; // Template parameter (until C++17)
       break;
@@ -4145,7 +4146,8 @@ static FileID getNullabilityCompletenessCheckFileID(Sema &S,
 
 /// Creates a fix-it to insert a C-style nullability keyword at \p pointerLoc,
 /// taking into account whitespace before and after.
-static void fixItNullability(Sema &S, DiagnosticBuilder &Diag,
+template <typename DiagBuilderT>
+static void fixItNullability(Sema &S, DiagBuilderT &Diag,
                              SourceLocation PointerLoc,
                              NullabilityKind Nullability) {
   assert(PointerLoc.isValid());
@@ -8977,7 +8979,17 @@ static QualType getDecltypeForExpr(Sema &S, Expr *E) {
 
   // C++11 [dcl.type.simple]p4:
   //   The type denoted by decltype(e) is defined as follows:
-  //
+
+  // C++20:
+  //     - if E is an unparenthesized id-expression naming a non-type
+  //       template-parameter (13.2), decltype(E) is the type of the
+  //       template-parameter after performing any necessary type deduction
+  // Note that this does not pick up the implicit 'const' for a template
+  // parameter object. This rule makes no difference before C++20 so we apply
+  // it unconditionally.
+  if (const auto *SNTTPE = dyn_cast<SubstNonTypeTemplateParmExpr>(E))
+    return SNTTPE->getParameterType(S.Context);
+
   //     - if e is an unparenthesized id-expression or an unparenthesized class
   //       member access (5.2.5), decltype(e) is the type of the entity named
   //       by e. If there is no such entity, or if e names a set of overloaded
@@ -8986,6 +8998,8 @@ static QualType getDecltypeForExpr(Sema &S, Expr *E) {
   // We apply the same rules for Objective-C ivar and property references.
   if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
     const ValueDecl *VD = DRE->getDecl();
+    if (auto *TPO = dyn_cast<TemplateParamObjectDecl>(VD))
+      return TPO->getType().getUnqualifiedType();
     return VD->getType();
   } else if (const MemberExpr *ME = dyn_cast<MemberExpr>(E)) {
     if (const ValueDecl *VD = ME->getMemberDecl())

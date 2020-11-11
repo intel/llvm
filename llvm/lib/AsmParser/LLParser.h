@@ -166,8 +166,8 @@ namespace llvm {
         : Context(Context), Lex(F, SM, Err, Context), M(M), Index(Index),
           Slots(Slots), BlockAddressPFS(nullptr) {}
     bool Run(
-        bool UpgradeDebugInfo,
-        DataLayoutCallbackTy DataLayoutCallback = [](Module *) {});
+        bool UpgradeDebugInfo, DataLayoutCallbackTy DataLayoutCallback =
+                                   [](StringRef) { return None; });
 
     bool parseStandaloneConstantValue(Constant *&C, const SlotMapping *Slots);
 
@@ -332,8 +332,7 @@ namespace llvm {
     bool ParseFnAttributeValuePairs(AttrBuilder &B,
                                     std::vector<unsigned> &FwdRefAttrGrps,
                                     bool inAttrGrp, LocTy &BuiltinLoc);
-    bool ParseByValWithOptionalType(Type *&Result);
-
+    bool ParseOptionalTypeAttr(Type *&Result, lltok::Kind AttrName);
     bool ParseRequiredTypeAttr(Type *&Result, lltok::Kind AttrName);
     bool ParsePreallocated(Type *&Result);
     bool ParseByRef(Type *&Result);

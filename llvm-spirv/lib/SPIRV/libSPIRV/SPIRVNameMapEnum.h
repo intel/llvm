@@ -139,6 +139,8 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationHlslSemanticGOOGLE, "HlslSemanticGOOGLE");
   add(DecorationUserSemantic, "UserSemantic");
   add(DecorationUserTypeGOOGLE, "UserTypeGOOGLE");
+  add(DecorationFunctionRoundingModeINTEL, "FunctionRoundingModeINTEL");
+  add(DecorationFunctionDenormModeINTEL, "FunctionDenormModeINTEL");
   add(DecorationRegisterINTEL, "RegisterINTEL");
   add(DecorationMemoryINTEL, "MemoryINTEL");
   add(DecorationNumbanksINTEL, "NumbanksINTEL");
@@ -159,10 +161,11 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationFuncParamDescINTEL, "FuncParamDescINTEL");
   add(DecorationBufferLocationINTEL, "BufferLocationINTEL");
   add(DecorationIOPipeStorageINTEL, "IOPipeStorageINTEL");
-  add(DecorationFunctionRoundingModeINTEL, "FunctionRoundingModeINTEL");
-  add(DecorationFunctionDenormModeINTEL, "FunctionDenormModeINTEL");
   add(DecorationFunctionFloatingPointModeINTEL,
       "FunctionFloatingPointModeINTEL");
+  add(DecorationSingleElementVectorINTEL, "SingleElementVectorINTEL");
+  add(DecorationVectorComputeCallableFunctionINTEL,
+      "VectorComputeCallableFunctionINTEL");
   add(DecorationMax, "Max");
 }
 SPIRV_DEF_NAMEMAP(Decoration, SPIRVDecorationNameMap)
@@ -466,6 +469,8 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilitySubgroupImageBlockIOINTEL, "SubgroupImageBlockIOINTEL");
   add(CapabilitySubgroupImageMediaBlockIOINTEL,
       "SubgroupImageMediaBlockIOINTEL");
+  add(CapabilityRoundToInfinityINTEL, "RoundToInfinityINTEL");
+  add(CapabilityFloatingPointModeINTEL, "FloatingPointModeINTEL");
   add(CapabilityIntegerFunctions2INTEL, "IntegerFunctions2INTEL");
   add(CapabilityFunctionPointersINTEL, "FunctionPointersINTEL");
   add(CapabilityIndirectReferencesINTEL, "IndirectReferencesINTEL");
@@ -480,8 +485,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilitySubgroupAvcMotionEstimationChromaINTEL,
       "SubgroupAvcMotionEstimationChromaINTEL");
   add(CapabilityVariableLengthArrayINTEL, "VariableLengthArrayINTEL");
-  add(CapabilityRoundToInfinityINTEL, "RoundToInfinityINTEL");
-  add(CapabilityFloatingPointModeINTEL, "FloatingPointModeINTEL");
+  add(CapabilityFunctionFloatControlINTEL, "FunctionFloatControlINTEL");
   add(CapabilityFPGAMemoryAttributesINTEL, "FPGAMemoryAttributesINTEL");
   add(CapabilityArbitraryPrecisionIntegersINTEL,
       "ArbitraryPrecisionIntegersINTEL");
@@ -499,9 +503,6 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityUSMStorageClassesINTEL, "USMStorageClassesINTEL");
   add(CapabilityFPGAMemoryAccessesINTEL, "FPGAMemoryAccessesINTEL");
   add(CapabilityIOPipeINTEL, "IOPipeINTEL");
-  add(CapabilityArbitraryPrecisionFloatingPointINTEL,
-      "ArbitraryPrecisionFloatingPointINTEL");
-  add(CapabilityFunctionFloatControlINTEL, "FunctionFloatControlINTEL");
   add(CapabilityMax, "Max");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)

@@ -77,7 +77,7 @@ device_impl::~device_impl() {
     // TODO catch an exception and put it to list of asynchronous exceptions
     const detail::plugin &Plugin = getPlugin();
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piDeviceRelease>(MDevice);
-    CHECK_OCL_CODE_NO_EXC(Err);
+    __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
   }
 }
 
@@ -225,6 +225,8 @@ bool device_impl::has(aspect Aspect) const {
     return is_gpu();
   case aspect::accelerator:
     return is_accelerator();
+  case aspect::custom:
+    return false;
   case aspect::fp16:
     return has_extension("cl_khr_fp16");
   case aspect::fp64:
@@ -241,6 +243,16 @@ bool device_impl::has(aspect Aspect) const {
     return get_info<info::device::is_linker_available>();
   case aspect::queue_profiling:
     return get_info<info::device::queue_profiling>();
+  case aspect::usm_device_allocations:
+    return get_info<info::device::usm_device_allocations>();
+  case aspect::usm_host_allocations:
+    return get_info<info::device::usm_host_allocations>();
+  case aspect::usm_shared_allocations:
+    return get_info<info::device::usm_shared_allocations>();
+  case aspect::usm_restricted_shared_allocations:
+    return get_info<info::device::usm_restricted_shared_allocations>();
+  case aspect::usm_system_allocator:
+    return get_info<info::device::usm_system_allocator>();
   default:
     throw runtime_error("This device aspect has not been implemented yet.",
                         PI_INVALID_DEVICE);
