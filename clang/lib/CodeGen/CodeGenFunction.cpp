@@ -693,6 +693,12 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
     if (A->getEnabled())
       Fn->setMetadata("no_global_work_offset", llvm::MDNode::get(Context, {}));
   }
+
+  if (FD->hasAttr<SYCLIntelStallEnableAttr>()) {
+    llvm::Metadata *AttrMDArgs[] = {
+        llvm::ConstantAsMetadata::get(Builder.getInt32(1))};
+    Fn->setMetadata("stall_enable", llvm::MDNode::get(Context, AttrMDArgs));
+  }
 }
 
 /// Determine whether the function F ends with a return stmt.
