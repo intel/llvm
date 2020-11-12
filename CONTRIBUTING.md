@@ -21,7 +21,7 @@ See [LLVM contribution guidelines](https://llvm.org/docs/Contributing.html)
 for more information.
 
 **NB**: A change in compiler and runtime should be accompanied with
-corresponding test change.
+corresponding test changes.
 See [Test DPC++ toolchain](sycl/doc/GetStartedGuide.md#test-dpc-toolchain)
 section of Get Started guide for more information.
 
