@@ -2504,8 +2504,7 @@ used on the same loop in conjunction with disable_loop_pipelining.
 
   void foo() {
     int var = 0;
-    [[intel::speculated_iterations(4)]]
-    for (int i = 0; i < 10; ++i) var++;
+    [[intel::speculated_iterations(4)]] for (int i = 0; i < 10; ++i) var++;
   }
 
   }];
