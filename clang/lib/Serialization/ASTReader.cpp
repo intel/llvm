@@ -1538,11 +1538,11 @@ bool ASTReader::ReadSLocEntry(int ID) {
                                                              NumFileDecls));
     }
 
-    const SrcMgr::ContentCache *ContentCache
-      = SourceMgr.getOrCreateContentCache(File, isSystem(FileCharacter));
-    if (OverriddenBuffer && !ContentCache->BufferOverridden &&
-        ContentCache->ContentsEntry == ContentCache->OrigEntry &&
-        !ContentCache->getBufferIfLoaded()) {
+    const SrcMgr::ContentCache &ContentCache =
+        SourceMgr.getOrCreateContentCache(File, isSystem(FileCharacter));
+    if (OverriddenBuffer && !ContentCache.BufferOverridden &&
+        ContentCache.ContentsEntry == ContentCache.OrigEntry &&
+        !ContentCache.getBufferIfLoaded()) {
       auto Buffer = ReadBuffer(SLocEntryCursor, File->getName());
       if (!Buffer)
         return true;
@@ -3921,7 +3921,7 @@ ASTReader::ReadModuleMapFileBlock(RecordData &Record, ModuleFile &F,
     // Don't emit module relocation error if we have -fno-validate-pch
     if (!PP.getPreprocessorOpts().DisablePCHValidation && !ModMap) {
       if ((ClientLoadCapabilities & ARR_OutOfDate) == 0) {
-        if (auto *ASTFE = M ? M->getASTFile() : nullptr) {
+        if (auto ASTFE = M ? M->getASTFile() : None) {
           // This module was defined by an imported (explicit) module.
           Diag(diag::err_module_file_conflict) << F.ModuleName << F.FileName
                                                << ASTFE->getName();
@@ -7046,6 +7046,11 @@ QualType ASTReader::GetType(TypeID ID) {
       T = Context.SingletonId; \
       break;
 #include "clang/Basic/AArch64SVEACLETypes.def"
+#define PPC_MMA_VECTOR_TYPE(Name, Id, Size) \
+    case PREDEF_TYPE_##Id##_ID: \
+      T = Context.Id##Ty; \
+      break;
+#include "clang/Basic/PPCTypes.def"
     }
 
     assert(!T.isNull() && "Unknown predefined type");

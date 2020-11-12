@@ -10,6 +10,11 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 
 include(AddMLIR)
 
+# Forbid implicit function declaration: this may lead to subtle bugs and we
+# don't have a reason to support this.
+check_c_compiler_flag("-Werror=implicit-function-declaration" C_SUPPORTS_WERROR_IMPLICIT_FUNCTION_DECLARATION)
+append_if(C_SUPPORTS_WERROR_IMPLICIT_FUNCTION_DECLARATION "-Werror=implicit-function-declaration" CMAKE_C_FLAGS)
+
 # Installing the headers and docs needs to depend on generating any public
 # tablegen'd targets.
 # mlir-generic-headers are dialect-independent.
@@ -42,6 +47,7 @@ add_definitions(-DMLIR_ROCM_CONVERSIONS_ENABLED=${MLIR_ROCM_CONVERSIONS_ENABLED}
 
 set(MLIR_CUDA_RUNNER_ENABLED 0 CACHE BOOL "Enable building the mlir CUDA runner")
 set(MLIR_ROCM_RUNNER_ENABLED 0 CACHE BOOL "Enable building the mlir ROCm runner")
+set(MLIR_SPIRV_CPU_RUNNER_ENABLED 0 CACHE BOOL "Enable building the mlir SPIR-V cpu runner")
 set(MLIR_VULKAN_RUNNER_ENABLED 0 CACHE BOOL "Enable building the mlir Vulkan runner")
 
 option(MLIR_INCLUDE_TESTS

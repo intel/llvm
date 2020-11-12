@@ -121,11 +121,6 @@ cl::desc("don't always align innermost loop to 32 bytes on ppc"), cl::Hidden);
 static cl::opt<bool> UseAbsoluteJumpTables("ppc-use-absolute-jumptables",
 cl::desc("use absolute jump tables on ppc"), cl::Hidden);
 
-static cl::opt<bool> EnablePPCPCRelTLS(
-    "enable-ppc-pcrel-tls",
-    cl::desc("enable the use of PC relative memops in TLS instructions on PPC"),
-    cl::Hidden);
-
 STATISTIC(NumTailCalls, "Number of tail calls");
 STATISTIC(NumSiblingCalls, "Number of sibling calls");
 STATISTIC(ShufflesHandledWithVPERM, "Number of shuffles lowered to a VPERM");
@@ -1468,7 +1463,7 @@ const char *PPCTargetLowering::getTargetNodeName(unsigned Opcode) const {
   case PPCISD::ANDI_rec_1_GT_BIT:
     return "PPCISD::ANDI_rec_1_GT_BIT";
   case PPCISD::VCMP:            return "PPCISD::VCMP";
-  case PPCISD::VCMPo:           return "PPCISD::VCMPo";
+  case PPCISD::VCMP_rec:        return "PPCISD::VCMP_rec";
   case PPCISD::LBRX:            return "PPCISD::LBRX";
   case PPCISD::STBRX:           return "PPCISD::STBRX";
   case PPCISD::LFIWAX:          return "PPCISD::LFIWAX";
@@ -3015,9 +3010,6 @@ SDValue PPCTargetLowering::LowerGlobalTLSAddress(SDValue Op,
   // which is the most useful form.  Eventually support for small and
   // large models could be added if users need it, at the cost of
   // additional complexity.
-  if (Subtarget.isUsingPCRelativeCalls() && !EnablePPCPCRelTLS)
-    report_fatal_error("Thread local storage is not supported with pc-relative"
-                       " addressing - please compile with -mno-pcrel");
   GlobalAddressSDNode *GA = cast<GlobalAddressSDNode>(Op);
   if (DAG.getTarget().useEmulatedTLS())
     return LowerToTLSEmulatedModel(GA, DAG);
@@ -9215,7 +9207,12 @@ SDValue PPCTargetLowering::LowerBUILD_VECTOR(SDValue Op,
       // Checking for a single use of this load, we have to check for vector
       // width (128 bits) / ElementSize uses (since each operand of the
       // BUILD_VECTOR is a separate use of the value.
-      if (InputLoad->getNode()->hasNUsesOfValue(128 / ElementSize, 0) &&
+      unsigned NumUsesOfInputLD = 128 / ElementSize;
+      for (SDValue BVInOp : Op->ops())
+        if (BVInOp.isUndef())
+          NumUsesOfInputLD--;
+      assert(NumUsesOfInputLD > 0 && "No uses of input LD of a build_vector?");
+      if (InputLoad->getNode()->hasNUsesOfValue(NumUsesOfInputLD, 0) &&
           ((Subtarget.hasVSX() && ElementSize == 64) ||
            (Subtarget.hasP9Vector() && ElementSize == 32))) {
         SDValue Ops[] = {
@@ -9223,10 +9220,14 @@ SDValue PPCTargetLowering::LowerBUILD_VECTOR(SDValue Op,
           LD->getBasePtr(),  // Ptr
           DAG.getValueType(Op.getValueType()) // VT
         };
-        return
-          DAG.getMemIntrinsicNode(PPCISD::LD_SPLAT, dl,
-                                  DAG.getVTList(Op.getValueType(), MVT::Other),
-                                  Ops, LD->getMemoryVT(), LD->getMemOperand());
+        SDValue LdSplt = DAG.getMemIntrinsicNode(
+            PPCISD::LD_SPLAT, dl, DAG.getVTList(Op.getValueType(), MVT::Other),
+            Ops, LD->getMemoryVT(), LD->getMemOperand());
+        // Replace all uses of the output chain of the original load with the
+        // output chain of the new load.
+        DAG.ReplaceAllUsesOfValueWith(InputLoad->getValue(1),
+                                      LdSplt.getValue(1));
+        return LdSplt;
       }
     }
 
@@ -9868,6 +9869,7 @@ SDValue PPCTargetLowering::LowerVECTOR_SHUFFLE(SDValue Op,
       SDValue LdSplt =
         DAG.getMemIntrinsicNode(PPCISD::LD_SPLAT, dl, VTL,
                                 Ops, LD->getMemoryVT(), LD->getMemOperand());
+      DAG.ReplaceAllUsesOfValueWith(InputLoad->getValue(1), LdSplt.getValue(1));
       if (LdSplt.getValueType() != SVOp->getValueType(0))
         LdSplt = DAG.getBitcast(SVOp->getValueType(0), LdSplt);
       return LdSplt;
@@ -10458,7 +10460,7 @@ SDValue PPCTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
     DAG.getConstant(CompareOpc, dl, MVT::i32)
   };
   EVT VTs[] = { Op.getOperand(2).getValueType(), MVT::Glue };
-  SDValue CompNode = DAG.getNode(PPCISD::VCMPo, dl, VTs, Ops);
+  SDValue CompNode = DAG.getNode(PPCISD::VCMP_rec, dl, VTs, Ops);
 
   // Now that we have the comparison, emit a copy from the CR to a GPR.
   // This is flagged to the above dot comparison.
@@ -15146,43 +15148,43 @@ SDValue PPCTargetLowering::PerformDAGCombine(SDNode *N,
     }
     break;
   case PPCISD::VCMP:
-    // If a VCMPo node already exists with exactly the same operands as this
-    // node, use its result instead of this node (VCMPo computes both a CR6 and
-    // a normal output).
+    // If a VCMP_rec node already exists with exactly the same operands as this
+    // node, use its result instead of this node (VCMP_rec computes both a CR6
+    // and a normal output).
     //
     if (!N->getOperand(0).hasOneUse() &&
         !N->getOperand(1).hasOneUse() &&
         !N->getOperand(2).hasOneUse()) {
 
-      // Scan all of the users of the LHS, looking for VCMPo's that match.
-      SDNode *VCMPoNode = nullptr;
+      // Scan all of the users of the LHS, looking for VCMP_rec's that match.
+      SDNode *VCMPrecNode = nullptr;
 
       SDNode *LHSN = N->getOperand(0).getNode();
       for (SDNode::use_iterator UI = LHSN->use_begin(), E = LHSN->use_end();
            UI != E; ++UI)
-        if (UI->getOpcode() == PPCISD::VCMPo &&
+        if (UI->getOpcode() == PPCISD::VCMP_rec &&
             UI->getOperand(1) == N->getOperand(1) &&
             UI->getOperand(2) == N->getOperand(2) &&
             UI->getOperand(0) == N->getOperand(0)) {
-          VCMPoNode = *UI;
+          VCMPrecNode = *UI;
           break;
         }
 
-      // If there is no VCMPo node, or if the flag value has a single use, don't
-      // transform this.
-      if (!VCMPoNode || VCMPoNode->hasNUsesOfValue(0, 1))
+      // If there is no VCMP_rec node, or if the flag value has a single use,
+      // don't transform this.
+      if (!VCMPrecNode || VCMPrecNode->hasNUsesOfValue(0, 1))
         break;
 
       // Look at the (necessarily single) use of the flag value.  If it has a
       // chain, this transformation is more complex.  Note that multiple things
       // could use the value result, which we should ignore.
       SDNode *FlagUser = nullptr;
-      for (SDNode::use_iterator UI = VCMPoNode->use_begin();
+      for (SDNode::use_iterator UI = VCMPrecNode->use_begin();
            FlagUser == nullptr; ++UI) {
-        assert(UI != VCMPoNode->use_end() && "Didn't find user!");
+        assert(UI != VCMPrecNode->use_end() && "Didn't find user!");
         SDNode *User = *UI;
         for (unsigned i = 0, e = User->getNumOperands(); i != e; ++i) {
-          if (User->getOperand(i) == SDValue(VCMPoNode, 1)) {
+          if (User->getOperand(i) == SDValue(VCMPrecNode, 1)) {
             FlagUser = User;
             break;
           }
@@ -15192,7 +15194,7 @@ SDValue PPCTargetLowering::PerformDAGCombine(SDNode *N,
       // If the user is a MFOCRF instruction, we know this is safe.
       // Otherwise we give up for right now.
       if (FlagUser->getOpcode() == PPCISD::MFOCRF)
-        return SDValue(VCMPoNode, 0);
+        return SDValue(VCMPrecNode, 0);
     }
     break;
   case ISD::BRCOND: {
@@ -15281,7 +15283,7 @@ SDValue PPCTargetLowering::PerformDAGCombine(SDNode *N,
         DAG.getConstant(CompareOpc, dl, MVT::i32)
       };
       EVT VTs[] = { LHS.getOperand(2).getValueType(), MVT::Glue };
-      SDValue CompNode = DAG.getNode(PPCISD::VCMPo, dl, VTs, Ops);
+      SDValue CompNode = DAG.getNode(PPCISD::VCMP_rec, dl, VTs, Ops);
 
       // Unpack the result based on how the target uses it.
       PPC::Predicate CompOpc;
