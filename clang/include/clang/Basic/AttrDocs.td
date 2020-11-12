@@ -2391,6 +2391,11 @@ the no-array ivdep's safelen, with the correspondent treatment by the backend.
     [[intel::ivdep(a, 2)]] for (int i = 0; i != 10; ++i) { }
   }
 
+  template<int N>
+  void bar() {
+    [[intel::ivdep(N)]] for(;;) { }
+  }
+
   }];
 }
 
@@ -2407,6 +2412,11 @@ applied multiple times to the same loop.
   void foo() {
     int var = 0;
     [[intel::ii(4)]] for (int i = 0; i < 10; ++i) var++;
+  }
+
+  template<int N>
+  void bar() {
+    [[intel::ii(N)]] for(;;) { }
   }
 
   }];
@@ -2428,6 +2438,11 @@ be applied multiple times to the same loop.
     [[intel::max_concurrency(2)]] for (int i = 0; i != 10; ++i) a[i] = 0;
   }
 
+  template<int N>
+  void bar() {
+    [[intel::max_concurrency(N)]] for(;;) { }
+  }
+
   }];
 }
 
@@ -2445,6 +2460,11 @@ of the nested loop levels should be coalesced.
   void foo() {
     int a[10];
     [[intel::loop_coalesce]] for (int i = 0; i != 10; ++i) a[i] = 0;
+  }
+
+  template<int N>
+  void bar() {
+    [[intel::loop_coalesce(N)]] for(;;) { }
   }
 
   }];
@@ -2487,6 +2507,11 @@ used on the same loop in conjunction with disable_loop_pipelining.
     [[intel::max_interleaving(4)]] for (int i = 0; i != 10; ++i) a[i] = 0;
   }
 
+  template<int N>
+  void bar() {
+    [[intel::max_interleaving(N)]] for(;;) { }
+  }
+
   }];
 }
 
@@ -2505,6 +2530,11 @@ used on the same loop in conjunction with disable_loop_pipelining.
   void foo() {
     int var = 0;
     [[intel::speculated_iterations(4)]] for (int i = 0; i < 10; ++i) var++;
+  }
+
+  template<int N>
+  void bar() {
+    [[intel::speculated_iterations(N)]] for(;;) { }
   }
 
   }];
