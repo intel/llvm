@@ -81,7 +81,7 @@ int main() {
       std::cerr << "device::create_sub_device(info::partition_affinity_domain) "
                    "should have thrown an exception"
                 << std::endl;
-
+      return -1;
     } catch (const cl::sycl::feature_not_supported &e) {
     } catch (...) {
       std::cerr << "device::create_sub_device(info::partition_affinity_domain) "
