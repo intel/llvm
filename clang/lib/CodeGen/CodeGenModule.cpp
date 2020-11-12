@@ -1576,9 +1576,8 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
               : llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(-1)));
 
       if (FD->hasAttr<SYCLSimdAttr>())
-        argESIMDAccPtrs.push_back(
-            llvm::ConstantAsMetadata::get(CGF->Builder.getInt1(
-                parm->getAttr<SYCLSimdAccessorPtrAttr>() != nullptr)));
+        argESIMDAccPtrs.push_back(llvm::ConstantAsMetadata::get(
+            CGF->Builder.getInt1(parm->hasAttr<SYCLSimdAccessorPtrAttr>())));
     }
 
   if (LangOpts.SYCLIsDevice && !LangOpts.SYCLExplicitSIMD)
