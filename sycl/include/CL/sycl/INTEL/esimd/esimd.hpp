@@ -328,8 +328,9 @@ public:
   //
   // @return 1 if any element is set, 0 otherwise
 
-  template <typename T1 = element_type, typename T2 = Ty,
-            typename = std::enable_if_t<std::is_integral<T1>::value, T2>>
+  template <
+      typename T1 = element_type, typename T2 = Ty,
+      typename = sycl::detail::enable_if_t<std::is_integral<T1>::value, T2>>
   uint16_t any() {
     return __esimd_any<Ty, N>(data());
   }
@@ -338,8 +339,9 @@ public:
   //
   // @return 1 if all elements are set, 0 otherwise
 
-  template <typename T1 = element_type, typename T2 = Ty,
-            typename = std::enable_if_t<std::is_integral<T1>::value, T2>>
+  template <
+      typename T1 = element_type, typename T2 = Ty,
+      typename = sycl::detail::enable_if_t<std::is_integral<T1>::value, T2>>
   uint16_t all() {
     return __esimd_all<Ty, N>(data());
   }
