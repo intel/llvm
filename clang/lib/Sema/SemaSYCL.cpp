@@ -1815,7 +1815,9 @@ public:
                               QualType FieldTy) final {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
-    const std::string MethodName = KernelDecl->hasAttr<SYCLSimdAttr>() ? InitESIMDMethodName : InitMethodName;
+    const std::string MethodName = KernelDecl->hasAttr<SYCLSimdAttr>()
+                                       ? InitESIMDMethodName
+                                       : InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The accessor/sampler must have the __init method");
 
@@ -1958,7 +1960,8 @@ class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
   bool handleSpecialType(QualType FieldTy) {
     const CXXRecordDecl *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
-    const std::string &MethodName = IsSIMD ? InitESIMDMethodName : InitMethodName;
+    const std::string &MethodName =
+        IsSIMD ? InitESIMDMethodName : InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The accessor/sampler must have the __init method");
     for (const ParmVarDecl *Param : InitMethod->parameters())
@@ -2045,8 +2048,8 @@ public:
 
 static const CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
   for (const auto *MD : Rec->methods()) {
-      if (MD->getOverloadedOperator() == OO_Call)
-        return MD;
+    if (MD->getOverloadedOperator() == OO_Call)
+      return MD;
   }
   return nullptr;
 }
@@ -2371,7 +2374,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     return VD;
   }
 
-  const std::string& getInitMethodName() const {
+  const std::string &getInitMethodName() const {
     bool IsSIMDKernel = isESIMDKernelType(KernelObj);
     return IsSIMDKernel ? InitESIMDMethodName : InitMethodName;
   }

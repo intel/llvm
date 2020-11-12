@@ -332,7 +332,8 @@ public:
   ///  Signals that subsequent parameter descriptor additions will go to
   ///  the kernel with given name. Starts new kernel invocation descriptor.
   void startKernel(StringRef KernelName, QualType KernelNameType,
-                   StringRef KernelStableName, SourceLocation Loc, bool IsESIMD);
+                   StringRef KernelStableName, SourceLocation Loc,
+                   bool IsESIMD);
 
   /// Adds a kernel parameter descriptor to current kernel invocation
   /// descriptor.
