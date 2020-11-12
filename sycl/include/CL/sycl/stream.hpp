@@ -422,6 +422,8 @@ inline void flushBuffer(GlobalOffsetAccessorT &GlobalOffset,
                         GlobalBufAccessorT &GlobalBuf,
                         GlobalBufAccessorT &GlobalFlushBuf, unsigned WIOffset) {
   unsigned Offset = GetFlushBufOffset(GlobalFlushBuf, WIOffset);
+  if (Offset == 0)
+    return;
 
   unsigned Cur = 0;
   if (!updateOffset(GlobalOffset, GlobalBuf, Offset, Cur))
