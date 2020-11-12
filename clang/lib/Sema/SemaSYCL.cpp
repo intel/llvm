@@ -1701,7 +1701,10 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
                          bool isAccessorType = false) {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
-    const std::string &MethodName = KernelDecl->hasAttr<SYCLSimdAttr>() && isAccessorType ? InitESIMDMethodName : InitMethodName;
+    const std::string &MethodName =
+        KernelDecl->hasAttr<SYCLSimdAttr>() && isAccessorType
+            ? InitESIMDMethodName
+            : InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The accessor/sampler must have the __init method");
 
@@ -2048,6 +2051,11 @@ static const CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
   return nullptr;
 }
 
+static bool isESIMDKernelType(const CXXRecordDecl *KernelObjType) {
+  const CXXMethodDecl *OpParens = getOperatorParens(KernelObjType);
+  return (OpParens != nullptr) && OpParens->hasAttr<SYCLSimdAttr>();
+}
+
 class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   SyclKernelDeclCreator &DeclCreator;
   llvm::SmallVector<Stmt *, 16> BodyStmts;
@@ -2364,9 +2372,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   }
 
   const std::string& getInitMethodName() const {
-    const CXXMethodDecl *OpParens = getOperatorParens(KernelObj);
-    bool IsSIMDKernel =
-      (OpParens != nullptr) && OpParens->hasAttr<SYCLSimdAttr>();
+    bool IsSIMDKernel = isESIMDKernelType(KernelObj);
     return IsSIMDKernel ? InitESIMDMethodName : InitMethodName;
   }
 
@@ -2670,11 +2676,9 @@ public:
                              const CXXRecordDecl *KernelObj, QualType NameType,
                              StringRef Name, StringRef StableName)
       : SyclKernelFieldHandler(S), Header(H) {
-    const CXXMethodDecl *OpParens = getOperatorParens(KernelObj);
-    bool IsSIMDKernel =
-      (OpParens != nullptr) && OpParens->hasAttr<SYCLSimdAttr>();
-
-    Header.startKernel(Name, NameType, StableName, KernelObj->getLocation(), IsSIMDKernel);
+    bool IsSIMDKernel = isESIMDKernelType(KernelObj);
+    Header.startKernel(Name, NameType, StableName, KernelObj->getLocation(),
+                       IsSIMDKernel);
   }
 
   bool handleSyclAccessorType(const CXXRecordDecl *RD,
@@ -3042,9 +3046,9 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   SyclKernelFieldChecker FieldChecker(*this);
   SyclKernelUnionChecker UnionChecker(*this);
 
-  const CXXMethodDecl *OpParens = getOperatorParens(KernelObj);
-  bool IsSIMD = (OpParens != nullptr) && OpParens->hasAttr<SYCLSimdAttr>();
-  SyclKernelArgsSizeChecker ArgsSizeChecker(*this, Args[0]->getExprLoc(), IsSIMD);
+  bool IsSIMDKernel = isESIMDKernelType(KernelObj);
+  SyclKernelArgsSizeChecker ArgsSizeChecker(*this, Args[0]->getExprLoc(),
+                                            IsSIMDKernel);
 
   KernelObjVisitor Visitor{*this};
   SYCLKernelNameTypeVisitor KernelNameTypeVisitor(*this, Args[0]->getExprLoc(),
@@ -3105,9 +3109,7 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   if (KernelObj->isInvalidDecl())
     return;
 
-  const CXXMethodDecl *OpParens = getOperatorParens(KernelObj);
-  bool IsSIMDKernel =
-      (OpParens != nullptr) && OpParens->hasAttr<SYCLSimdAttr>();
+  bool IsSIMDKernel = isESIMDKernelType(KernelObj);
 
   // Calculate both names, since Integration headers need both.
   std::string CalculatedName, StableName;
@@ -3832,7 +3834,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "    return kernel_signatures[i+" << CurStart << "];\n";
     O << "  }\n";
     O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr bool isESIMD() { return " << K.IsESIMD << "; }\n";
+    O << "  static constexpr bool isESIMD() { return " << K.IsESIMDKernel
+      << "; }\n";
     O << "};\n";
     CurStart += N;
   }
@@ -3869,7 +3872,7 @@ void SYCLIntegrationHeader::startKernel(StringRef KernelName,
   KernelDescs.back().NameType = KernelNameType;
   KernelDescs.back().StableName = std::string(KernelStableName);
   KernelDescs.back().KernelLocation = KernelLocation;
-  KernelDescs.back().IsESIMD = IsESIMDKernel;
+  KernelDescs.back().IsESIMDKernel = IsESIMDKernel;
 }
 
 void SYCLIntegrationHeader::addParamDesc(kernel_param_kind_t Kind, int Info,

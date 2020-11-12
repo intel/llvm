@@ -376,7 +376,7 @@ private:
     SourceLocation KernelLocation;
 
     /// Whether this kernel is an ESIMD one.
-    bool IsESIMD;
+    bool IsESIMDKernel;
 
     /// Descriptor of kernel actual parameters.
     SmallVector<KernelParamDesc, 8> Params;
