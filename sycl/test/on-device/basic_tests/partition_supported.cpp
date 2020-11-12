@@ -70,6 +70,7 @@ int main() {
         std::cerr << "device::create_sub_device(info::partition_affinity_"
                      "domain) should have returned at least 2 devices"
                   << std::endl;
+        return -1;
       }
     }
   } else {
@@ -86,6 +87,7 @@ int main() {
       std::cerr << "device::create_sub_device(info::partition_affinity_domain) "
                    "should have thrown cl::sycl::feature_not_supported"
                 << std::endl;
+      return -1;
     }
   }
   return 0;
