@@ -75,7 +75,8 @@ using GlobalOffsetAccessorT =
 
 inline unsigned GetFlushBufOffset(const GlobalBufAccessorT &GlobalFlushBuf,
                                   unsigned WIOffset) {
-  return ((GlobalFlushBuf[WIOffset] << 8) + GlobalFlushBuf[WIOffset + 1]);
+  return (((uint8_t)GlobalFlushBuf[WIOffset]) << 8) +
+         (uint8_t)GlobalFlushBuf[WIOffset + 1];
 }
 
 inline void SetFlushBufOffset(GlobalBufAccessorT &GlobalFlushBuf,
