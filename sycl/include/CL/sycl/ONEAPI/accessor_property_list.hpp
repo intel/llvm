@@ -86,7 +86,7 @@ class accessor_property_list : protected sycl::detail::PropertyListBase {
             auto... Args>
   struct ContainsPropertyInstance
       : detail::conditional_t<
-            !std::is_same_v<typename ContainerT::Head, void> &&
+            !detail::is_same_v<typename ContainerT::Head, void> &&
                 AreSameTemplate<PropT<Args...>,
                                 typename ContainerT::Head>::value,
             std::true_type,

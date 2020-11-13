@@ -20,7 +20,7 @@
 #include <type_traits>
 
 #define __SYCL_STATIC_ASSERT_NOT_FLOAT(T)                                      \
-  static_assert(!std::is_same<T, float>::value,                                \
+  static_assert(!detail::is_same_v<T, float>,                                  \
                 "SYCL atomic function not available for float type")
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -38,11 +38,10 @@ using memory_order = cl::sycl::memory_order;
 
 template <typename T> struct IsValidAtomicType {
   static constexpr bool value =
-      (std::is_same<T, int>::value || std::is_same<T, unsigned int>::value ||
-       std::is_same<T, long>::value || std::is_same<T, unsigned long>::value ||
-       std::is_same<T, long long>::value ||
-       std::is_same<T, unsigned long long>::value ||
-       std::is_same<T, float>::value);
+      (detail::is_same_v<T, int> || detail::is_same_v<T, unsigned int> ||
+       detail::is_same_v<T, long> || detail::is_same_v<T, unsigned long> ||
+       detail::is_same_v<T, long long> ||
+       detail::is_same_v<T, unsigned long long> || detail::is_same_v<T, float>);
 };
 
 template <cl::sycl::access::address_space AS> struct IsValidAtomicAddressSpace {
@@ -224,13 +223,13 @@ public:
 
 #ifdef __SYCL_DEVICE_ONLY__
   template <typename T2 = T>
-  detail::enable_if_t<!std::is_same<cl_float, T2>::value, T>
+  detail::enable_if_t<!detail::is_same_v<cl_float, T2>, T>
   load(memory_order Order = memory_order::relaxed) const {
     return __spirv_AtomicLoad(Ptr, SpirvScope,
                               detail::getSPIRVMemorySemanticsMask(Order));
   }
   template <typename T2 = T>
-  detail::enable_if_t<std::is_same<cl_float, T2>::value, T>
+  detail::enable_if_t<detail::is_same_v<cl_float, T2>, T>
   load(memory_order Order = memory_order::relaxed) const {
     auto *TmpPtr =
         reinterpret_cast<typename multi_ptr<cl_int, addressSpace>::pointer_t>(

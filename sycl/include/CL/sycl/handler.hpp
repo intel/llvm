@@ -161,8 +161,8 @@ template <int Dims> struct NotIntMsg<id<Dims>> {
 
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
 template <typename T, typename ValT>
-typename detail::enable_if_t<std::is_same<ValT, size_t>::value ||
-                             std::is_same<ValT, unsigned long long>::value>
+typename detail::enable_if_t<detail::is_same_v<ValT, size_t> ||
+                             detail::is_same_v<ValT, unsigned long long>>
 checkValueRangeImpl(ValT V) {
   static constexpr size_t Limit =
       static_cast<size_t>((std::numeric_limits<int>::max)());
@@ -172,8 +172,8 @@ checkValueRangeImpl(ValT V) {
 #endif
 
 template <int Dims, typename T>
-typename detail::enable_if_t<std::is_same<T, range<Dims>>::value ||
-                             std::is_same<T, id<Dims>>::value>
+typename detail::enable_if_t<detail::is_same_v<T, range<Dims>> ||
+                             detail::is_same_v<T, id<Dims>>>
 checkValueRange(const T &V) {
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
   for (size_t Dim = 0; Dim < Dims; ++Dim)
@@ -210,7 +210,7 @@ void checkValueRange(const range<Dims> &R, const id<Dims> &O) {
 }
 
 template <int Dims, typename T>
-typename detail::enable_if_t<std::is_same<T, nd_range<Dims>>::value>
+typename detail::enable_if_t<detail::is_same_v<T, nd_range<Dims>>>
 checkValueRange(const T &V) {
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
   checkValueRange<Dims>(V.get_global_range());
@@ -430,7 +430,7 @@ private:
   template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
     auto StoredArg = static_cast<void *>(storePlainArg(Arg));
 
-    if (!std::is_same<cl_mem, T>::value && std::is_pointer<T>::value) {
+    if (!detail::is_same_v<cl_mem, T> && std::is_pointer<T>::value) {
       MArgs.emplace_back(detail::kernel_param_kind_t::kind_pointer, StoredArg,
                          sizeof(T), ArgIndex);
     } else {
@@ -852,7 +852,8 @@ public:
       typename detail::remove_cv_t<detail::remove_reference_t<T>>;
 
   template <typename U, typename T>
-  using is_same_type = std::is_same<remove_cv_ref_t<U>, remove_cv_ref_t<T>>;
+  static constexpr bool is_same_type_v =
+      detail::is_same_v<remove_cv_ref_t<U>, remove_cv_ref_t<T>>;
 
   template <typename T> struct ShouldEnableSetArg {
     static constexpr bool value =
@@ -860,10 +861,10 @@ public:
 #if SYCL_LANGUAGE_VERSION && SYCL_LANGUAGE_VERSION <= 201707
             && std::is_standard_layout<detail::remove_reference_t<T>>::value
 #endif
-        || is_same_type<sampler, T>::value // Sampler
-        || (!is_same_type<cl_mem, T>::value &&
+        || is_same_type_v<sampler, T> // Sampler
+        || (!is_same_type_v<cl_mem, T> &&
             std::is_pointer<remove_cv_ref_t<T>>::value) // USM
-        || is_same_type<cl_mem, T>::value;              // Interop
+        || is_same_type_v<cl_mem, T>;                   // Interop
   };
 
   /// Sets argument for OpenCL interoperability kernels.

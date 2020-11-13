@@ -55,9 +55,9 @@ constexpr size_t MAX_ARRAY_SIZE =
 
 template <class F, class T = void>
 using EnableIfFP =
-    typename detail::enable_if_t<std::is_same<F, float>::value ||
-                                     std::is_same<F, double>::value ||
-                                     std::is_same<F, half>::value,
+    typename detail::enable_if_t<detail::is_same_v<F, float> ||
+                                     detail::is_same_v<F, double> ||
+                                     detail::is_same_v<F, half>,
                                  T>;
 
 using GlobalBufAccessorT = accessor<char, 1, cl::sycl::access::mode::read_write,
@@ -186,7 +186,7 @@ inline unsigned append(char *Dst, const char *Src) {
 
 template <typename T>
 inline typename detail::enable_if_t<
-    std::is_same<T, float>::value || std::is_same<T, double>::value, unsigned>
+    detail::is_same_v<T, float> || detail::is_same_v<T, double>, unsigned>
 checkForInfNan(char *Buf, T Val) {
   if (isnan(Val))
     return append(Buf, "nan");
@@ -199,7 +199,7 @@ checkForInfNan(char *Buf, T Val) {
 }
 
 template <typename T>
-inline typename detail::enable_if_t<std::is_same<T, half>::value, unsigned>
+inline typename detail::enable_if_t<detail::is_same_v<T, half>, unsigned>
 checkForInfNan(char *Buf, T Val) {
   if (Val != Val)
     return append(Buf, "nan");

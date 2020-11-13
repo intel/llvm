@@ -25,9 +25,8 @@ template <typename... T> struct type_list;
 using empty_type_list = type_list<>;
 
 template <typename T>
-struct is_empty_type_list
-    : conditional_t<std::is_same<T, empty_type_list>::value, std::true_type,
-                    std::false_type> {};
+struct is_empty_type_list : conditional_t<detail::is_same_v<T, empty_type_list>,
+                                          std::true_type, std::false_type> {};
 
 template <> struct type_list<> {};
 
@@ -52,7 +51,7 @@ public:
 // is_contained
 template <typename T, typename L>
 struct is_contained
-    : conditional_t<std::is_same<remove_cv_t<T>, head_t<L>>::value,
+    : conditional_t<detail::is_same_v<remove_cv_t<T>, head_t<L>>,
                     std::true_type, is_contained<T, tail_t<L>>> {};
 
 template <typename T>

@@ -36,6 +36,9 @@ using remove_reference_t = typename std::remove_reference<T>::type;
 
 template <typename T> using add_pointer_t = typename std::add_pointer<T>::type;
 
+template <typename T, typename U>
+constexpr bool is_same_v = std::is_same<T, U>::value;
+
 // C++17
 template <bool V> using bool_constant = std::integral_constant<bool, V>;
 

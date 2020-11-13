@@ -583,7 +583,7 @@ protected:
 
     template <typename T>
     typename detail::enable_if_t<
-        std::is_same<typename std::remove_cv_t<T>, Requirement>::value,
+        detail::is_same_v<typename std::remove_cv_t<T>, Requirement>,
         EmptyCommand *>
     addEmptyCmd(Command *Cmd, const std::vector<T *> &Req,
                 const QueueImplPtr &Queue, Command::BlockReason Reason);

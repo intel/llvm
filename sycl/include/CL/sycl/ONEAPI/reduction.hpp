@@ -36,38 +36,38 @@ using cl::sycl::detail::remove_AS;
 
 template <typename T, class BinaryOperation>
 using IsReduPlus = detail::bool_constant<
-    std::is_same<BinaryOperation, ONEAPI::plus<T>>::value ||
-    std::is_same<BinaryOperation, ONEAPI::plus<void>>::value>;
+    detail::is_same_v<BinaryOperation, ONEAPI::plus<T>> ||
+    detail::is_same_v<BinaryOperation, ONEAPI::plus<void>>>;
 
 template <typename T, class BinaryOperation>
 using IsReduMultiplies = detail::bool_constant<
-    std::is_same<BinaryOperation, std::multiplies<T>>::value ||
-    std::is_same<BinaryOperation, std::multiplies<void>>::value>;
+    detail::is_same_v<BinaryOperation, std::multiplies<T>> ||
+    detail::is_same_v<BinaryOperation, std::multiplies<void>>>;
 
 template <typename T, class BinaryOperation>
 using IsReduMinimum = detail::bool_constant<
-    std::is_same<BinaryOperation, ONEAPI::minimum<T>>::value ||
-    std::is_same<BinaryOperation, ONEAPI::minimum<void>>::value>;
+    detail::is_same_v<BinaryOperation, ONEAPI::minimum<T>> ||
+    detail::is_same_v<BinaryOperation, ONEAPI::minimum<void>>>;
 
 template <typename T, class BinaryOperation>
 using IsReduMaximum = detail::bool_constant<
-    std::is_same<BinaryOperation, ONEAPI::maximum<T>>::value ||
-    std::is_same<BinaryOperation, ONEAPI::maximum<void>>::value>;
+    detail::is_same_v<BinaryOperation, ONEAPI::maximum<T>> ||
+    detail::is_same_v<BinaryOperation, ONEAPI::maximum<void>>>;
 
 template <typename T, class BinaryOperation>
 using IsReduBitOR = detail::bool_constant<
-    std::is_same<BinaryOperation, ONEAPI::bit_or<T>>::value ||
-    std::is_same<BinaryOperation, ONEAPI::bit_or<void>>::value>;
+    detail::is_same_v<BinaryOperation, ONEAPI::bit_or<T>> ||
+    detail::is_same_v<BinaryOperation, ONEAPI::bit_or<void>>>;
 
 template <typename T, class BinaryOperation>
 using IsReduBitXOR = detail::bool_constant<
-    std::is_same<BinaryOperation, ONEAPI::bit_xor<T>>::value ||
-    std::is_same<BinaryOperation, ONEAPI::bit_xor<void>>::value>;
+    detail::is_same_v<BinaryOperation, ONEAPI::bit_xor<T>> ||
+    detail::is_same_v<BinaryOperation, ONEAPI::bit_xor<void>>>;
 
 template <typename T, class BinaryOperation>
 using IsReduBitAND = detail::bool_constant<
-    std::is_same<BinaryOperation, ONEAPI::bit_and<T>>::value ||
-    std::is_same<BinaryOperation, ONEAPI::bit_and<void>>::value>;
+    detail::is_same_v<BinaryOperation, ONEAPI::bit_and<T>> ||
+    detail::is_same_v<BinaryOperation, ONEAPI::bit_and<void>>>;
 
 template <typename T, class BinaryOperation>
 using IsReduOptForFastAtomicFetch =
@@ -81,13 +81,12 @@ using IsReduOptForFastAtomicFetch =
                            IsReduBitAND<T, BinaryOperation>::value)>;
 
 template <typename T, class BinaryOperation>
-using IsReduOptForFastReduce = detail::bool_constant<
-    (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value ||
-     std::is_same<T, half>::value || std::is_same<T, float>::value ||
-     std::is_same<T, double>::value) &&
-    (IsReduPlus<T, BinaryOperation>::value ||
-     IsReduMinimum<T, BinaryOperation>::value ||
-     IsReduMaximum<T, BinaryOperation>::value)>;
+using IsReduOptForFastReduce = detail::bool_constant<(
+    is_geninteger32bit<T>::value || is_geninteger64bit<T>::value ||
+    detail::is_same_v<T, half> || detail::is_same_v<T, float> ||
+    detail::is_same_v<T, double>) && (IsReduPlus<T, BinaryOperation>::value ||
+                                     IsReduMinimum<T, BinaryOperation>::value ||
+                                     IsReduMaximum<T, BinaryOperation>::value)>;
 
 // Identity = 0
 template <typename T, class BinaryOperation>
@@ -97,18 +96,16 @@ using IsZeroIdentityOp = bool_constant<
      (IsReduPlus<T, BinaryOperation>::value ||
       IsReduBitOR<T, BinaryOperation>::value ||
       IsReduBitXOR<T, BinaryOperation>::value)) ||
-    ((std::is_same<T, half>::value || std::is_same<T, float>::value ||
-      std::is_same<T, double>::value) &&
-     IsReduPlus<T, BinaryOperation>::value)>;
+    ((detail::is_same_v<T, half> || detail::is_same_v<T, float> ||
+      detail::is_same_v<T, double>) && IsReduPlus<T, BinaryOperation>::value)>;
 
 // Identity = 1
 template <typename T, class BinaryOperation>
-using IsOneIdentityOp = bool_constant<
-    (is_geninteger8bit<T>::value || is_geninteger16bit<T>::value ||
-     is_geninteger32bit<T>::value || is_geninteger64bit<T>::value ||
-     std::is_same<T, half>::value || std::is_same<T, float>::value ||
-     std::is_same<T, double>::value) &&
-    IsReduMultiplies<T, BinaryOperation>::value>;
+using IsOneIdentityOp = bool_constant<(
+    is_geninteger8bit<T>::value || is_geninteger16bit<T>::value ||
+    is_geninteger32bit<T>::value || is_geninteger64bit<T>::value ||
+    detail::is_same_v<T, half> || detail::is_same_v<T, float> ||
+    detail::is_same_v<T, double>) && IsReduMultiplies<T, BinaryOperation>::value>;
 
 // Identity = ~0
 template <typename T, class BinaryOperation>
@@ -119,21 +116,19 @@ using IsOnesIdentityOp = bool_constant<
 
 // Identity = <max possible value>
 template <typename T, class BinaryOperation>
-using IsMinimumIdentityOp = bool_constant<
-    (is_geninteger8bit<T>::value || is_geninteger16bit<T>::value ||
-     is_geninteger32bit<T>::value || is_geninteger64bit<T>::value ||
-     std::is_same<T, half>::value || std::is_same<T, float>::value ||
-     std::is_same<T, double>::value) &&
-    IsReduMinimum<T, BinaryOperation>::value>;
+using IsMinimumIdentityOp = bool_constant<(
+    is_geninteger8bit<T>::value || is_geninteger16bit<T>::value ||
+    is_geninteger32bit<T>::value || is_geninteger64bit<T>::value ||
+    detail::is_same_v<T, half> || detail::is_same_v<T, float> ||
+    detail::is_same_v<T, double>)&&IsReduMinimum<T, BinaryOperation>::value>;
 
 // Identity = <min possible value>
 template <typename T, class BinaryOperation>
-using IsMaximumIdentityOp = bool_constant<
-    (is_geninteger8bit<T>::value || is_geninteger16bit<T>::value ||
-     is_geninteger32bit<T>::value || is_geninteger64bit<T>::value ||
-     std::is_same<T, half>::value || std::is_same<T, float>::value ||
-     std::is_same<T, double>::value) &&
-    IsReduMaximum<T, BinaryOperation>::value>;
+using IsMaximumIdentityOp = bool_constant<(
+    is_geninteger8bit<T>::value || is_geninteger16bit<T>::value ||
+    is_geninteger32bit<T>::value || is_geninteger64bit<T>::value ||
+    detail::is_same_v<T, half> || detail::is_same_v<T, float> ||
+    detail::is_same_v<T, double>) && IsReduMaximum<T, BinaryOperation>::value>;
 
 template <typename T, class BinaryOperation>
 using IsKnownIdentityOp =
@@ -232,8 +227,7 @@ public:
   }
 
   template <typename _T = T>
-  enable_if_t<std::is_same<_T, T>::value &&
-                  IsReduPlus<T, BinaryOperation>::value,
+  enable_if_t<detail::is_same_v<_T, T> && IsReduPlus<T, BinaryOperation>::value,
               reducer &>
   operator+=(const _T &Partial) {
     combine(Partial);
@@ -241,7 +235,7 @@ public:
   }
 
   template <typename _T = T>
-  enable_if_t<std::is_same<_T, T>::value &&
+  enable_if_t<detail::is_same_v<_T, T> &&
                   IsReduMultiplies<T, BinaryOperation>::value,
               reducer &>
   operator*=(const _T &Partial) {
@@ -250,7 +244,7 @@ public:
   }
 
   template <typename _T = T>
-  enable_if_t<std::is_same<_T, T>::value &&
+  enable_if_t<detail::is_same_v<_T, T> &&
                   IsReduBitOR<T, BinaryOperation>::value,
               reducer &>
   operator|=(const _T &Partial) {
@@ -259,7 +253,7 @@ public:
   }
 
   template <typename _T = T>
-  enable_if_t<std::is_same<_T, T>::value &&
+  enable_if_t<detail::is_same_v<_T, T> &&
                   IsReduBitXOR<T, BinaryOperation>::value,
               reducer &>
   operator^=(const _T &Partial) {
@@ -268,7 +262,7 @@ public:
   }
 
   template <typename _T = T>
-  enable_if_t<std::is_same<_T, T>::value &&
+  enable_if_t<detail::is_same_v<_T, T> &&
                   IsReduBitAND<T, BinaryOperation>::value,
               reducer &>
   operator&=(const _T &Partial) {
@@ -278,7 +272,7 @@ public:
 
   /// Atomic ADD operation: *ReduVarPtr += MValue;
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
-  enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
+  enable_if_t<detail::is_same_v<typename remove_AS<_T>::type, T> &&
               (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value) &&
               IsReduPlus<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
@@ -288,7 +282,7 @@ public:
 
   /// Atomic BITWISE OR operation: *ReduVarPtr |= MValue;
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
-  enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
+  enable_if_t<detail::is_same_v<typename remove_AS<_T>::type, T> &&
               (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value) &&
               IsReduBitOR<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
@@ -298,7 +292,7 @@ public:
 
   /// Atomic BITWISE XOR operation: *ReduVarPtr ^= MValue;
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
-  enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
+  enable_if_t<detail::is_same_v<typename remove_AS<_T>::type, T> &&
               (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value) &&
               IsReduBitXOR<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
@@ -308,7 +302,7 @@ public:
 
   /// Atomic BITWISE AND operation: *ReduVarPtr &= MValue;
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
-  enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
+  enable_if_t<detail::is_same_v<typename remove_AS<_T>::type, T> &&
               (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value) &&
               IsReduBitAND<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
@@ -318,7 +312,7 @@ public:
 
   /// Atomic MIN operation: *ReduVarPtr = ONEAPI::minimum(*ReduVarPtr, MValue);
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
-  enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
+  enable_if_t<detail::is_same_v<typename remove_AS<_T>::type, T> &&
               (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value) &&
               IsReduMinimum<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
@@ -328,7 +322,7 @@ public:
 
   /// Atomic MAX operation: *ReduVarPtr = ONEAPI::maximum(*ReduVarPtr, MValue);
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
-  enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
+  enable_if_t<detail::is_same_v<typename remove_AS<_T>::type, T> &&
               (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value) &&
               IsReduMaximum<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
@@ -554,14 +548,14 @@ public:
   }
 
   template <typename AccT>
-  enable_if_t<std::is_same<AccT, rw_accessor_type>::value ||
-                  std::is_same<AccT, accessor_type>::value,
+  enable_if_t<detail::is_same_v<AccT, rw_accessor_type> ||
+                  detail::is_same_v<AccT, accessor_type>,
               result_type *> static inline getOutPointer(const AccT &OutAcc) {
     return OutAcc.get_pointer().get();
   }
 
   template <typename ResT>
-  enable_if_t<std::is_same<ResT, result_type>::value,
+  enable_if_t<detail::is_same_v<ResT, result_type>,
               result_type *> static inline getOutPointer(ResT *OutPtr) {
     return OutPtr;
   }

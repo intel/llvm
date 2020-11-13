@@ -57,7 +57,7 @@ public:
                           std::input_iterator_tag>::value>;
   template <typename ItA, typename ItB>
   using EnableIfSameNonConstIterators = typename detail::enable_if_t<
-      std::is_same<ItA, ItB>::value && !std::is_const<ItA>::value, ItA>;
+      detail::is_same_v<ItA, ItB> && !std::is_const<ItA>::value, ItA>;
 
   buffer(const range<dimensions> &bufferRange,
          const property_list &propList = {})

@@ -195,13 +195,13 @@ public:
   char *getPtr() override { return reinterpret_cast<char *>(&MKernel); }
 
   template <class ArgT = KernelArgType>
-  typename detail::enable_if_t<std::is_same<ArgT, void>::value>
+  typename detail::enable_if_t<detail::is_same_v<ArgT, void>>
   runOnHost(const NDRDescT &) {
     MKernel();
   }
 
   template <class ArgT = KernelArgType>
-  typename detail::enable_if_t<std::is_same<ArgT, sycl::id<Dims>>::value>
+  typename detail::enable_if_t<detail::is_same_v<ArgT, sycl::id<Dims>>>
   runOnHost(const NDRDescT &NDRDesc) {
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
     sycl::id<Dims> Offset;
@@ -221,7 +221,7 @@ public:
 
   template <class ArgT = KernelArgType>
   typename detail::enable_if_t<
-      std::is_same<ArgT, item<Dims, /*Offset=*/false>>::value>
+      detail::is_same_v<ArgT, item<Dims, /*Offset=*/false>>>
   runOnHost(const NDRDescT &NDRDesc) {
     sycl::id<Dims> ID;
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
@@ -240,7 +240,7 @@ public:
 
   template <class ArgT = KernelArgType>
   typename detail::enable_if_t<
-      std::is_same<ArgT, item<Dims, /*Offset=*/true>>::value>
+      detail::is_same_v<ArgT, item<Dims, /*Offset=*/true>>>
   runOnHost(const NDRDescT &NDRDesc) {
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
     sycl::id<Dims> Offset;
@@ -260,7 +260,7 @@ public:
   }
 
   template <class ArgT = KernelArgType>
-  typename detail::enable_if_t<std::is_same<ArgT, nd_item<Dims>>::value>
+  typename detail::enable_if_t<detail::is_same_v<ArgT, nd_item<Dims>>>
   runOnHost(const NDRDescT &NDRDesc) {
     sycl::range<Dims> GroupSize(InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I) {
@@ -305,7 +305,7 @@ public:
   }
 
   template <typename ArgT = KernelArgType>
-  enable_if_t<std::is_same<ArgT, cl::sycl::group<Dims>>::value>
+  enable_if_t<detail::is_same_v<ArgT, cl::sycl::group<Dims>>>
   runOnHost(const NDRDescT &NDRDesc) {
     sycl::range<Dims> NGroups(InitializedVal<Dims, range>::template get<0>());
 

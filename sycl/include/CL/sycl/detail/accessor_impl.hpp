@@ -225,27 +225,24 @@ constexpr access::mode deduceAccessMode() {
   // property_list = {} is not properly detected by deduction guide,
   // when parameter is passed without curly braces: access(buffer, noinit)
   // thus simplest approach is to check 2 last arguments for being a tag
-  if constexpr (std::is_same<MayBeTag1,
-                             mode_tag_t<access::mode::read>>::value ||
-                std::is_same<MayBeTag2,
-                             mode_tag_t<access::mode::read>>::value) {
+  if constexpr (detail::is_same_v<MayBeTag1, mode_tag_t<access::mode::read>> ||
+                detail::is_same_v<MayBeTag2, mode_tag_t<access::mode::read>>) {
     return access::mode::read;
   }
 
-  if constexpr (std::is_same<MayBeTag1,
-                             mode_tag_t<access::mode::write>>::value ||
-                std::is_same<MayBeTag2,
-                             mode_tag_t<access::mode::write>>::value) {
+  if constexpr (detail::is_same_v<MayBeTag1, mode_tag_t<access::mode::write>> ||
+                detail::is_same_v<MayBeTag2, mode_tag_t<access::mode::write>>) {
     return access::mode::write;
   }
 
-  if constexpr (
-      std::is_same<MayBeTag1,
-                   mode_target_tag_t<access::mode::read,
-                                     access::target::constant_buffer>>::value ||
-      std::is_same<MayBeTag2,
-                   mode_target_tag_t<access::mode::read,
-                                     access::target::constant_buffer>>::value) {
+  if constexpr (detail::is_same_v<
+                    MayBeTag1,
+                    mode_target_tag_t<access::mode::read,
+                                      access::target::constant_buffer>> ||
+                detail::is_same_v<
+                    MayBeTag2,
+                    mode_target_tag_t<access::mode::read,
+                                      access::target::constant_buffer>>) {
     return access::mode::read;
   }
 
@@ -254,13 +251,14 @@ constexpr access::mode deduceAccessMode() {
 
 template <typename MayBeTag1, typename MayBeTag2>
 constexpr access::target deduceAccessTarget(access::target defaultTarget) {
-  if constexpr (
-      std::is_same<MayBeTag1,
-                   mode_target_tag_t<access::mode::read,
-                                     access::target::constant_buffer>>::value ||
-      std::is_same<MayBeTag2,
-                   mode_target_tag_t<access::mode::read,
-                                     access::target::constant_buffer>>::value) {
+  if constexpr (detail::is_same_v<
+                    MayBeTag1,
+                    mode_target_tag_t<access::mode::read,
+                                      access::target::constant_buffer>> ||
+                detail::is_same_v<
+                    MayBeTag2,
+                    mode_target_tag_t<access::mode::read,
+                                      access::target::constant_buffer>>) {
     return access::target::constant_buffer;
   }
 

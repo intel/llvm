@@ -209,8 +209,8 @@ struct is_vector_arithmetic
 
 // is_bool
 template <typename T>
-struct is_scalar_bool
-    : bool_constant<std::is_same<remove_cv_t<T>, bool>::value> {};
+struct is_scalar_bool : bool_constant<detail::is_same_v<remove_cv_t<T>, bool>> {
+};
 
 template <typename T>
 struct is_vector_bool
@@ -299,7 +299,7 @@ template <typename T, int N> struct make_larger_impl<vec<T, N>, vec<T, N>> {
   using base_type = vector_element_t<vec<T, N>>;
   using upper_type = typename make_larger_impl<base_type, base_type>::type;
   using new_type = vec<upper_type, N>;
-  static constexpr bool found = !std::is_same<upper_type, void>::value;
+  static constexpr bool found = !detail::is_same_v<upper_type, void>;
   using type = conditional_t<found, new_type, void>;
 };
 

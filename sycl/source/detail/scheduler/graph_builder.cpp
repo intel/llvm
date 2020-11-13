@@ -688,7 +688,7 @@ void Scheduler::GraphBuilder::markModifiedIfWrite(MemObjRecord *Record,
 
 template <typename T>
 typename detail::enable_if_t<
-    std::is_same<typename std::remove_cv_t<T>, Requirement>::value,
+    detail::is_same_v<typename std::remove_cv_t<T>, Requirement>,
     EmptyCommand *>
 Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
                                      const QueueImplPtr &Queue,

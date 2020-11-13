@@ -29,9 +29,9 @@ class accessor;
 template <typename ElementType, access::address_space Space> class multi_ptr {
 public:
   using element_type =
-      detail::conditional_t<std::is_same<ElementType, half>::value,
-                    cl::sycl::detail::half_impl::BIsRepresentationT,
-                    ElementType>;
+      detail::conditional_t<detail::is_same_v<ElementType, half>,
+                            cl::sycl::detail::half_impl::BIsRepresentationT,
+                            ElementType>;
   using difference_type = std::ptrdiff_t;
 
   // Implementation defined pointer and reference types that correspond to
@@ -156,15 +156,14 @@ public:
 
   // Only if Space == global_space || global_device_space and element type is
   // const
-  template <
-      int dimensions, access::mode Mode, access::placeholder isPlaceholder,
-      typename PropertyListT, access::address_space _Space = Space,
-      typename ET = ElementType,
-      typename = typename detail::enable_if_t<
-          _Space == Space &&
-          (Space == access::address_space::global_space ||
-           Space == access::address_space::global_device_space) &&
-          std::is_const<ET>::value && std::is_same<ET, ElementType>::value>>
+  template <int dimensions, access::mode Mode,
+            access::placeholder isPlaceholder, typename PropertyListT,
+            access::address_space _Space = Space, typename ET = ElementType,
+            typename = typename detail::enable_if_t<
+                _Space == Space &&
+                (Space == access::address_space::global_space ||
+                 Space == access::address_space::global_device_space) &&
+                std::is_const<ET>::value && detail::is_same_v<ET, ElementType>>>
   multi_ptr(
       accessor<typename detail::remove_const_t<ET>, dimensions, Mode,
                access::target::global_buffer, isPlaceholder, PropertyListT>
@@ -178,7 +177,7 @@ public:
       typename ET = ElementType,
       typename = typename detail::enable_if_t<
           _Space == Space && Space == access::address_space::local_space &&
-          std::is_const<ET>::value && std::is_same<ET, ElementType>::value>>
+          std::is_const<ET>::value && detail::is_same_v<ET, ElementType>>>
   multi_ptr(accessor<typename detail::remove_const_t<ET>, dimensions, Mode,
                      access::target::local, isPlaceholder, PropertyListT>
                 Accessor)
@@ -191,7 +190,7 @@ public:
       typename ET = ElementType,
       typename = typename detail::enable_if_t<
           _Space == Space && Space == access::address_space::constant_space &&
-          std::is_const<ET>::value && std::is_same<ET, ElementType>::value>>
+          std::is_const<ET>::value && detail::is_same_v<ET, ElementType>>>
   multi_ptr(
       accessor<typename detail::remove_const_t<ET>, dimensions, Mode,
                access::target::constant_buffer, isPlaceholder, PropertyListT>
@@ -206,7 +205,7 @@ public:
   //   multi_ptr<ElementType, Space> -> multi_ptr<const ElementTYpe, Space>
   template <typename ET = ElementType>
   multi_ptr(typename detail::enable_if_t<
-            std::is_const<ET>::value && std::is_same<ET, ElementType>::value,
+            std::is_const<ET>::value && detail::is_same_v<ET, ElementType>,
             const multi_ptr<typename detail::remove_const_t<ET>, Space>> &ETP)
       : m_Pointer(ETP.get()) {}
 
@@ -220,7 +219,7 @@ public:
   // Only available when ElementType is not const-qualified
   template <typename ET = ElementType>
   operator multi_ptr<
-      typename detail::enable_if_t<std::is_same<ET, ElementType>::value &&
+      typename detail::enable_if_t<detail::is_same_v<ET, ElementType> &&
                                        !std::is_const<ET>::value,
                                    void>::type,
       Space>() const {
@@ -232,7 +231,7 @@ public:
   // Only available when ElementType is const-qualified
   template <typename ET = ElementType>
   operator multi_ptr<
-      typename detail::enable_if_t<std::is_same<ET, ElementType>::value &&
+      typename detail::enable_if_t<detail::is_same_v<ET, ElementType> &&
                                        std::is_const<ET>::value,
                                    const void>::type,
       Space>() const {

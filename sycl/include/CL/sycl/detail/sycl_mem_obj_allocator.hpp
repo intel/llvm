@@ -37,11 +37,11 @@ class SYCLMemObjAllocatorHolder : public SYCLMemObjAllocator {
 
   template <typename T>
   using EnableIfDefaultAllocator =
-      enable_if_t<std::is_same<T, sycl_memory_object_allocator>::value>;
+      enable_if_t<detail::is_same_v<T, sycl_memory_object_allocator>>;
 
   template <typename T>
   using EnableIfNonDefaultAllocator =
-      enable_if_t<!std::is_same<T, sycl_memory_object_allocator>::value>;
+      enable_if_t<!detail::is_same_v<T, sycl_memory_object_allocator>>;
 
 public:
   SYCLMemObjAllocatorHolder(AllocatorT Allocator)

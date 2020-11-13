@@ -67,36 +67,36 @@ __SYCL_EXPORT queue make_queue(const context &Context,
 
 // Construction of SYCL platform.
 template <typename T, typename detail::enable_if_t<
-                          std::is_same<T, platform>::value> * = nullptr>
+                          detail::is_same_v<T, platform>> * = nullptr>
 T make(typename interop<backend::opencl, T>::type Interop) {
   return make_platform(detail::pi::cast<pi_native_handle>(Interop));
 }
 
 // Construction of SYCL device.
-template <typename T, typename detail::enable_if_t<
-                          std::is_same<T, device>::value> * = nullptr>
+template <typename T, typename detail::enable_if_t<detail::is_same_v<T, device>>
+                          * = nullptr>
 T make(typename interop<backend::opencl, T>::type Interop) {
   return make_device(detail::pi::cast<pi_native_handle>(Interop));
 }
 
 // Construction of SYCL context.
 template <typename T, typename detail::enable_if_t<
-                          std::is_same<T, context>::value> * = nullptr>
+                          detail::is_same_v<T, context>> * = nullptr>
 T make(typename interop<backend::opencl, T>::type Interop) {
   return make_context(detail::pi::cast<pi_native_handle>(Interop));
 }
 
 // Construction of SYCL program.
 template <typename T, typename detail::enable_if_t<
-                          std::is_same<T, program>::value> * = nullptr>
+                          detail::is_same_v<T, program>> * = nullptr>
 T make(const context &Context,
        typename interop<backend::opencl, T>::type Interop) {
   return make_program(Context, detail::pi::cast<pi_native_handle>(Interop));
 }
 
 // Construction of SYCL queue.
-template <typename T, typename detail::enable_if_t<
-                          std::is_same<T, queue>::value> * = nullptr>
+template <typename T,
+          typename detail::enable_if_t<detail::is_same_v<T, queue>> * = nullptr>
 T make(const context &Context,
        typename interop<backend::opencl, T>::type Interop) {
   return make_queue(Context, detail::pi::cast<pi_native_handle>(Interop));

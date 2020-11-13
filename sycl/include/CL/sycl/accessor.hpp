@@ -402,12 +402,12 @@ private:
   constexpr static bool IsImageAccessAnyRead =
       (IsImageAccessReadOnly || AccessMode == access::mode::read_write);
 
-  static_assert(std::is_same<DataT, cl_int4>::value ||
-                      std::is_same<DataT, cl_uint4>::value ||
-                      std::is_same<DataT, cl_float4>::value ||
-                      std::is_same<DataT, cl_half4>::value,
-                  "The data type of an image accessor must be only cl_int4, "
-                  "cl_uint4, cl_float4 or cl_half4 from SYCL namespace");
+  static_assert(detail::is_same_v<DataT, cl_int4> ||
+                    detail::is_same_v<DataT, cl_uint4> ||
+                    detail::is_same_v<DataT, cl_float4> ||
+                    detail::is_same_v<DataT, cl_half4>,
+                "The data type of an image accessor must be only cl_int4, "
+                "cl_uint4, cl_float4 or cl_half4 from SYCL namespace");
 
   static_assert(IsImageAcc || IsHostImageAcc || IsImageArrayAcc,
                 "Expected image type");
@@ -672,7 +672,7 @@ class __image_array_slice__ {
   getAdjustedCoords(const CoordT &Coords) const {
     CoordElemType LastCoord = 0;
 
-    if (std::is_same<float, CoordElemType>::value) {
+    if (detail::is_same_v<float, CoordElemType>) {
       sycl::vec<int, Dimensions + 1> Size = MBaseAcc.getRangeInternal();
       LastCoord =
           MIdx / static_cast<float>(Size.template swizzle<Dimensions>());
@@ -819,7 +819,7 @@ protected:
   }
 
   template <typename T, int Dims> static constexpr bool IsSameAsBuffer() {
-    return std::is_same<T, DataT>::value && (Dims > 0) && (Dims == Dimensions);
+    return detail::is_same_v<T, DataT> && (Dims > 0) && (Dims == Dimensions);
   }
 
   static access::mode getAdjustedMode(const PropertyListT &PropertyList) {
@@ -839,9 +839,8 @@ protected:
 #if __cplusplus > 201402L
 
   template <typename TagT> static constexpr bool IsValidTag() {
-    return std::is_same<TagT, mode_tag_t<AccessMode>>::value ||
-           std::is_same<TagT,
-                        mode_target_tag_t<AccessMode, AccessTarget>>::value;
+    return detail::is_same_v<TagT, mode_tag_t<AccessMode>> ||
+           detail::is_same_v<TagT, mode_target_tag_t<AccessMode, AccessTarget>>;
   }
 
 #endif
@@ -959,7 +958,7 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
-                std::is_same<T, DataT>::value && Dims == 0 &&
+                detail::is_same_v<T, DataT> && Dims == 0 &&
                 ((!IsPlaceH && IsHostBuf) ||
                  (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))> * = nullptr>
   accessor(buffer<T, 1, AllocatorT> &BufferRef,
@@ -984,7 +983,7 @@ public:
             typename... PropTypes,
             typename detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
-                std::is_same<T, DataT>::value && Dims == 0 &&
+                detail::is_same_v<T, DataT> && Dims == 0 &&
                 ((!IsPlaceH && IsHostBuf) ||
                  (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))> * = nullptr>
   accessor(
@@ -1009,7 +1008,7 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = typename detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
-                std::is_same<T, DataT>::value && (Dims == 0) &&
+                detail::is_same_v<T, DataT> && (Dims == 0) &&
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
   accessor(buffer<T, 1, AllocatorT> &BufferRef, handler &CommandGroupHandler,
            const property_list &PropertyList = {})
@@ -1034,7 +1033,7 @@ public:
             typename... PropTypes,
             typename = typename detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
-                std::is_same<T, DataT>::value && (Dims == 0) &&
+                detail::is_same_v<T, DataT> && (Dims == 0) &&
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
   accessor(
       buffer<T, 1, AllocatorT> &BufferRef, handler &CommandGroupHandler,
@@ -2051,13 +2050,13 @@ protected:
   constexpr static int AdjustedDim = Dimensions == 0 ? 1 : Dimensions;
 
   template <typename T, int Dims> static constexpr bool IsSameAsBuffer() {
-    return std::is_same<T, DataT>::value && (Dims > 0) && (Dims == Dimensions);
+    return detail::is_same_v<T, DataT> && (Dims > 0) && (Dims == Dimensions);
   }
 
 #if __cplusplus > 201402L
 
   template <typename TagT> static constexpr bool IsValidTag() {
-    return std::is_same<TagT, mode_tag_t<AccessMode>>::value;
+    return detail::is_same_v<TagT, mode_tag_t<AccessMode>>;
   }
 
 #endif
@@ -2098,7 +2097,7 @@ public:
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = typename detail::enable_if_t<
-                std::is_same<T, DataT>::value && Dims == 0>>
+                detail::is_same_v<T, DataT> && Dims == 0>>
   host_accessor(buffer<T, 1, AllocatorT> &BufferRef,
                 const property_list &PropertyList = {})
       : AccessorT(BufferRef, PropertyList) {}

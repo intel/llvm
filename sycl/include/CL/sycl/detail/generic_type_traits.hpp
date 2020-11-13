@@ -296,7 +296,7 @@ template <typename T> class TryToGetPointerT {
 public:
   using type = decltype(check(T()));
   static constexpr bool value =
-      std::is_pointer<T>::value || !std::is_same<T, type>::value;
+      std::is_pointer<T>::value || !detail::is_same_v<T, type>;
 };
 
 // Try to get element_type, otherwise T
@@ -306,7 +306,7 @@ template <typename T> class TryToGetElementType {
 
 public:
   using type = decltype(check(T()));
-  static constexpr bool value = !std::is_same<T, type>::value;
+  static constexpr bool value = !detail::is_same_v<T, type>;
 };
 
 // Try to get vector_t, otherwise T
@@ -316,7 +316,7 @@ template <typename T> class TryToGetVectorT {
 
 public:
   using type = decltype(check(T()));
-  static constexpr bool value = !std::is_same<T, type>::value;
+  static constexpr bool value = !detail::is_same_v<T, type>;
 };
 
 // Try to get pointer_t (if pointer_t indicates on the type with_remainder
@@ -395,7 +395,7 @@ using select_cl_scalar_t = conditional_t<
         std::is_floating_point<T>::value, select_cl_scalar_float_t<T>,
         // half is a special case: it is implemented differently on host and
         // device and therefore, might lower to different types
-        conditional_t<std::is_same<T, half>::value,
+        conditional_t<detail::is_same_v<T, half>,
                       cl::sycl::detail::half_impl::BIsRepresentationT, T>>>;
 
 // select_cl_vector_or_scalar does cl_* type selection for element type of
@@ -410,7 +410,7 @@ struct select_cl_vector_or_scalar<
       // select_cl_scalar_t returns _Float16, so, we try to instantiate vec
       // class with _Float16 DataType, which is not expected there
       // So, leave vector<half, N> as-is
-      vec<conditional_t<std::is_same<typename T::element_type, half>::value,
+      vec<conditional_t<detail::is_same_v<typename T::element_type, half>,
                         typename T::element_type,
                         select_cl_scalar_t<typename T::element_type>>,
           T::get_count()>;

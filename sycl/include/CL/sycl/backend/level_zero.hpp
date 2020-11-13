@@ -59,14 +59,14 @@ queue make_queue(const context &Context, pi_native_handle InteropHandle);
 
 // Construction of SYCL platform.
 template <typename T, typename detail::enable_if_t<
-                          std::is_same<T, platform>::value> * = nullptr>
+                          detail::is_same_v<T, platform>> * = nullptr>
 T make(typename interop<backend::level_zero, T>::type Interop) {
   return make_platform(reinterpret_cast<pi_native_handle>(Interop));
 }
 
 // Construction of SYCL device.
-template <typename T, typename detail::enable_if_t<
-                          std::is_same<T, device>::value> * = nullptr>
+template <typename T, typename detail::enable_if_t<detail::is_same_v<T, device>>
+                          * = nullptr>
 T make(const platform &Platform,
        typename interop<backend::level_zero, T>::type Interop) {
   return make_device(Platform, reinterpret_cast<pi_native_handle>(Interop));
@@ -74,15 +74,15 @@ T make(const platform &Platform,
 
 // Construction of SYCL program.
 template <typename T, typename detail::enable_if_t<
-                          std::is_same<T, program>::value> * = nullptr>
+                          detail::is_same_v<T, program>> * = nullptr>
 T make(const context &Context,
        typename interop<backend::level_zero, T>::type Interop) {
   return make_program(Context, reinterpret_cast<pi_native_handle>(Interop));
 }
 
 // Construction of SYCL queue.
-template <typename T, typename detail::enable_if_t<
-                          std::is_same<T, queue>::value> * = nullptr>
+template <typename T,
+          typename detail::enable_if_t<detail::is_same_v<T, queue>> * = nullptr>
 T make(const context &Context,
        typename interop<backend::level_zero, T>::type Interop) {
   return make_queue(Context, reinterpret_cast<pi_native_handle>(Interop));
