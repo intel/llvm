@@ -9,8 +9,7 @@
 #pragma once
 
 #include <CL/sycl.hpp>
-// This header should be included by users.
-//#include <level_zero/ze_api.h>
+#include <level_zero/ze_api.h>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -52,10 +51,15 @@ struct interop<backend::level_zero, accessor<DataT, Dimensions, AccessMode,
 namespace level_zero {
 
 // Implementation of various "make" functions resides in libsycl.so
-platform make_platform(pi_native_handle NativeHandle);
-device make_device(const platform &Platform, pi_native_handle NativeHandle);
-program make_program(const context &Context, pi_native_handle NativeHandle);
-queue make_queue(const context &Context, pi_native_handle InteropHandle);
+__SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle);
+__SYCL_EXPORT device make_device(const platform &Platform,
+                                 pi_native_handle NativeHandle);
+__SYCL_EXPORT context make_context(const vector_class<device> &DeviceList,
+                                   pi_native_handle NativeHandle);
+__SYCL_EXPORT program make_program(const context &Context,
+                                   pi_native_handle NativeHandle);
+__SYCL_EXPORT queue make_queue(const context &Context,
+                               pi_native_handle InteropHandle);
 
 // Construction of SYCL platform.
 template <typename T, typename std::enable_if<
@@ -70,6 +74,14 @@ template <typename T, typename std::enable_if<
 T make(const platform &Platform,
        typename interop<backend::level_zero, T>::type Interop) {
   return make_device(Platform, reinterpret_cast<pi_native_handle>(Interop));
+}
+
+// Construction of SYCL context.
+template <typename T, typename std::enable_if<
+                          std::is_same<T, context>::value>::type * = nullptr>
+T make(const vector_class<device> &DeviceList,
+       typename interop<backend::level_zero, T>::type Interop) {
+  return make_context(DeviceList, detail::pi::cast<pi_native_handle>(Interop));
 }
 
 // Construction of SYCL program.

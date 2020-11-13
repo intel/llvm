@@ -1726,9 +1726,38 @@ pi_result piextContextGetNativeHandle(pi_context Context,
   return PI_SUCCESS;
 }
 
-pi_result piextContextCreateWithNativeHandle(pi_native_handle NativeHandle,
-                                             pi_context *Context) {
-  die("piextContextCreateWithNativeHandle: not supported");
+pi_result piextContextCreateWithNativeHandle(pi_uint32 NumDevices,
+                                             const pi_device *Devices,
+                                             pi_native_handle NativeHandle,
+                                             pi_context *RetContext) {
+  assert(NativeHandle);
+  assert(RetContext);
+
+  if (!Devices || !NumDevices) {
+    return PI_INVALID_VALUE;
+  }
+
+  try {
+    *RetContext = new _pi_context(NumDevices, Devices);
+  } catch (const std::bad_alloc &) {
+    return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  (*RetContext)->ZeContext = pi_cast<ze_context_handle_t>(NativeHandle);
+
+  // Create the immediate command list to be used for initializations
+  // Created as synchronous so level-zero performs implicit synchronization and
+  // there is no need to query for completion in the plugin
+  ze_command_queue_desc_t ZeCommandQueueDesc = {};
+  ZeCommandQueueDesc.ordinal = (*Devices)->ZeComputeQueueGroupIndex;
+  ZeCommandQueueDesc.index = 0;
+  ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS;
+  ZE_CALL(zeCommandListCreateImmediate(
+      (*RetContext)->ZeContext, (*Devices)->ZeDevice, &ZeCommandQueueDesc,
+      (&(*RetContext)->ZeCommandListInit)));
+
   return PI_SUCCESS;
 }
 

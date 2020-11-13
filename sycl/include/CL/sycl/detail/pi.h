@@ -944,10 +944,16 @@ piextContextGetNativeHandle(pi_context context, pi_native_handle *nativeHandle);
 
 /// Creates PI context object from a native handle.
 /// NOTE: The created PI object takes ownership of the native handle.
+/// NOTE: The number of devices and the list of devices is needed for Level Zero
+/// backend because there is no possilibity to query this information from
+/// context handle for Level Zero.
 ///
+/// \param numDevices is the number of devices in the context.
+/// \param devices is the list of devices in the context.
 /// \param nativeHandle is the native handle to create PI context from.
 /// \param context is the PI context created from the native handle.
 __SYCL_EXPORT pi_result piextContextCreateWithNativeHandle(
+    pi_uint32 numDevices, const pi_device *devices,
     pi_native_handle nativeHandle, pi_context *context);
 
 //
