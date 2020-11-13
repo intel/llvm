@@ -12,6 +12,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
   * [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
 * [Use DPC++ toolchain](#use-dpc-toolchain)
   * [Install low level runtime](#install-low-level-runtime)
+  * [Obtain prerequisites for ahead of time (AOT) compilation](#obtain-prerequisites-for-ahead-of-time-aot-compilation)
   * [Test DPC++ toolchain](#test-dpc-toolchain)
   * [Run simple DPC++ application](#run-simple-dpc-application)
 * [C++ standard](#c-standard)
@@ -97,9 +98,6 @@ You can use the following flags with `configure.py`:
 * `-t` -> Build type (debug or release)
 * `-o` -> Path to build directory
 * `--cmake-gen` -> Set build system type (e.g. `--cmake-gen "Unix Makefiles"`)
-
-Ahead-of-time compilation for the Intel&reg; processors is enabled by default.
-For more, see [opencl-aot documentation](../../opencl-aot/README.md).
 
 ### Build DPC++ toolchain with libc++ library
 
@@ -278,6 +276,50 @@ command:
     c:\oclcpu_rt_<cpu_version>\install.bat c:\tbb_<tbb_version>\tbb\bin\intel64\vc14
     ```
 
+### Obtain prerequisites for ahead of time (AOT) compilation
+
+[Ahead of time compilation](CompilerAndRuntimeDesign.md#ahead-of-time-aot-compilation)
+requires OpenCL ahead of time compiler available in `PATH`. There is
+AOT compiler for each OpenCL device type (`GPU`, `CPU` and `ACC`
+(accelerator)).
+
+#### GPU
+
+* Linux
+
+  There are two ways how to obtain AOT GPU compiler `ocloc`:
+  * (Ubuntu) Download and install intel-ocloc_***.deb package from
+    [intel/compute-runtime releases](https://github.com/intel/compute-runtime/releases).
+    This package should have the same version as OpenCL GPU runtime installed
+    on the system.
+  * (other distros) `ocloc` is a part of
+    [Intel&reg; software packages for general purpose GPU capabilities](https://dgpu-docs.intel.com/index.html).
+
+* Windows
+
+  * AOT GPU compiler `ocloc` is a part of
+    [Intel&reg; oneAPI Base Toolkit](https://software.intel.com/content/www/us/en/develop/tools/oneapi/base-toolkit.html)
+    (Intel&reg; oneAPI DPC++/C++ Compiler component).  
+    Make sure that the following path to `ocloc` binary is available in `PATH`
+    environment variable:
+
+    * `<oneAPI installation location>/compiler/<version>/windows/lib/ocloc`
+
+#### CPU
+
+* AOT CPU compiler `opencl-aot` is enabled by default. For more, see
+[opencl-aot documentation](../../opencl-aot/README.md).
+
+#### ACC
+
+* AOT ACC compiler `aoc` is a part of
+[Intel&reg; oneAPI Base Toolkit](https://software.intel.com/content/www/us/en/develop/tools/oneapi/base-toolkit.html)
+(Intel&reg; oneAPI DPC++/C++ Compiler component).  
+Make sure that these binaries are available in `PATH` environment variable:
+
+  * `aoc` from `<oneAPI installation location>/compiler/<version>/<OS>/lib/oclfpga/bin`
+  * `aocl-ioc64` from `<oneAPI installation location>/compiler/<version>/<OS>/bin`
+
 ### Test DPC++ toolchain
 
 #### Run regression tests
@@ -439,7 +481,32 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda-sycldevice \
   simple-sycl-app.cpp -o simple-sycl-app-cuda.exe
 ```
 
-This `simple-sycl-app.exe` application doesn't specify SYCL device for
+To build simple-sycl-app ahead of time for GPU, CPU or ACC devices, specify
+the target architecture:
+
+```-fsycl-targets=spir64_gen-unknown-unknown-sycldevice``` for GPU,  
+```-fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice``` for CPU,  
+```-fsycl-targets=spir64_fpga-unknown-unknown-sycldevice``` for ACC.
+
+Multiple target architectures are supported.
+
+E.g., this command builds simple-sycl-app for GPU and CPU devices in
+ahead of time mode:
+
+```bash
+clang++ -fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice,spir64_x86_64-unknown-unknown-sycldevice simple-sycl-app.cpp -o simple-sycl-app-aot.exe
+```
+
+Additionally, user can pass specific options of AOT compiler to
+the DPC++ compiler using ```-Xsycl-target-backend``` option, see
+[Device code formats](CompilerAndRuntimeDesign.md#device-code-formats) for
+more. To find available options, execute:
+
+```bash
+clang++ -fsycl-help
+```
+
+The `simple-sycl-app.exe` application doesn't specify SYCL device for
 execution, so SYCL runtime will use `default_selector` logic to select one
 of accelerators available in the system or SYCL host device.
 In this case, the behavior of the `default_selector` can be altered
