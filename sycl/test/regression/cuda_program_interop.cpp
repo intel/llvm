@@ -11,10 +11,11 @@ int main() {
       [](sycl::handler &CGH) { CGH.single_task<class TestKernel>([] {}); });
 
   sycl::program Prog{Queue.get_context()};
+  Prog.build_with_kernel_type<class TestKernel>();
 
   auto NativeProgram = Prog.get_native<sycl::backend::cuda>();
 
-  assert(NativeProgram == 0 && "CUmodule is zero");
+  assert(NativeProgram != 0);
 
   // TODO check program interop constructor, once it is available.
 
