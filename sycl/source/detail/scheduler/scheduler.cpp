@@ -75,9 +75,11 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
   if (IsKernel) {
     Streams = ((CGExecKernel *)CommandGroup.get())->getStreams();
-    // Initializing stream's flush buffer on the host side.
-    for (auto StreamImplPtr : Streams) {
-      StreamImplPtr->fill(Queue);
+    if (Queue->is_host()) {
+      // Initializing stream's flush buffer on the host side.
+      for (auto StreamImplPtr : Streams) {
+        StreamImplPtr->fill(Queue);
+      }
     }
   }
 

@@ -841,6 +841,7 @@ private:
     // overhead on FPGA target. That is why use global atomic variable to
     // calculate offsets.
     WIOffset = GlobalOffset[1].fetch_add(FlushBufferSize);
+    SetFlushBufOffset(GlobalFlushBuf, WIOffset, 0);
   }
 
   void __finalize() {
