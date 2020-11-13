@@ -15,8 +15,7 @@ namespace sycl {
 
 // Maximum possible size of a flush buffer statement in bytes
 static constexpr size_t MAX_STATEMENT_SIZE =
-    (1 << (CHAR_BIT * detail::FLUSH_BUF_OFFSET_SIZE)) -
-    detail::FLUSH_BUF_OFFSET_SIZE;
+    (1 << (CHAR_BIT * detail::FLUSH_BUF_OFFSET_SIZE)) - 1;
 
 stream::stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH)
     : impl(std::make_shared<detail::stream_impl>(BufferSize, MaxStatementSize,
