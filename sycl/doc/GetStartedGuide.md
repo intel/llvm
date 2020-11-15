@@ -218,7 +218,7 @@ folder:
       /opt/intel/oclfpgaemu_<fpga_version>/x64
     ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so
       /opt/intel/oclfpgaemu_<fpga_version>/x64
-    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbb.so.2
+    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbb.so.12
       /opt/intel/oclfpgaemu_<fpga_version>/x64
     ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so.2
       /opt/intel/oclfpgaemu_<fpga_version>/x64
@@ -227,7 +227,7 @@ folder:
       /opt/intel/oclcpuexp_<cpu_version>/x64
     ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so
       /opt/intel/oclcpuexp_<cpu_version>/x64
-    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbb.so.2
+    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbb.so.12
       /opt/intel/oclcpuexp_<cpu_version>/x64
     ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so.2
       /opt/intel/oclcpuexp_<cpu_version>/x64
