@@ -858,16 +858,17 @@ void PassManagerBuilder::populateModulePassManager(
     // Unroll small loops
     MPM.add(createLoopUnrollPass(OptLevel, DisableUnrollLoops,
                                  ForgetAllSCEVInLoopUnroll));
-  }
-  if (!DisableUnrollLoops) {
-    // LoopUnroll may generate some redundency to cleanup.
-    MPM.add(createInstructionCombiningPass());
 
-    // Runtime unrolling will introduce runtime check in loop prologue. If the
-    // unrolled loop is a inner loop, then the prologue will be inside the
-    // outer loop. LICM pass can help to promote the runtime check out if the
-    // checked value is loop invariant.
-    MPM.add(createLICMPass(LicmMssaOptCap, LicmMssaNoAccForPromotionCap));
+    if (!DisableUnrollLoops) {
+      // LoopUnroll may generate some redundency to cleanup.
+      MPM.add(createInstructionCombiningPass());
+
+      // Runtime unrolling will introduce runtime check in loop prologue. If the
+      // unrolled loop is a inner loop, then the prologue will be inside the
+      // outer loop. LICM pass can help to promote the runtime check out if the
+      // checked value is loop invariant.
+      MPM.add(createLICMPass(LicmMssaOptCap, LicmMssaNoAccForPromotionCap));
+    }
   }
 
   MPM.add(createWarnMissedTransformationsPass());
