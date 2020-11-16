@@ -952,7 +952,6 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     // Add metadata for a kernel function.
     if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D)) {
       EmitOpenCLKernelSubGroupMetadata(FD, Fn);
-
     }
   }
 
