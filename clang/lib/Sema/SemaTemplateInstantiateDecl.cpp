@@ -6196,7 +6196,8 @@ static void processSYCLKernel(Sema &S, FunctionDecl *FD, MangleContext &MC) {
     QualType KernelParamTy = (*FD->param_begin())->getType();
     const CXXRecordDecl *CRD;
     if (KernelParamTy->isReferenceType())
-      CRD = KernelParamTy->getPointeeCXXRecordDecl();
+      CRD = const_cast<CXXRecordDecl *>(KernelParamTy->
+		                        getPointeeCXXRecordDecl());
     else
       CRD = KernelParamTy->getAsCXXRecordDecl();
     for (auto *Method : CRD->methods())

@@ -634,6 +634,18 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
     Fn->setMetadata("reqd_work_group_size", llvm::MDNode::get(Context, AttrMDArgs));
   }
 
+  if (const IntelReqdSubGroupSizeAttr *A =
+          FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
+    llvm::LLVMContext &Context = getLLVMContext();
+    Optional<llvm::APSInt> ArgVal =
+        A->getValue()->getIntegerConstantExpr(FD->getASTContext());
+    assert(ArgVal.hasValue() && "Not an integer constant expression");
+    llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
+        Builder.getInt32(ArgVal->getSExtValue()))};
+    Fn->setMetadata("intel_reqd_sub_group_size",
+                    llvm::MDNode::get(Context, AttrMDArgs));
+  }
+
   if (FD->hasAttr<SYCLSimdAttr>()) {
     Fn->setMetadata("sycl_explicit_simd", llvm::MDNode::get(Context, {}));
     llvm::Metadata *AttrMDArgs[] = {
