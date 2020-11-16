@@ -690,7 +690,6 @@ private:
   const CXXRecordDecl *LambdaObjTy;
 };
 
-
 class MarkWIScopeFnVisitor : public RecursiveASTVisitor<MarkWIScopeFnVisitor> {
 public:
   MarkWIScopeFnVisitor(ASTContext &Ctx) : Ctx(Ctx) {}
