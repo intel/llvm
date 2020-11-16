@@ -659,14 +659,14 @@ private:
 
 // Searches for a call to PF lambda function and captures it.
 class FindPFLambdaFnVisitor
-  : public RecursiveASTVisitor<FindPFLambdaFnVisitor> {
+    : public RecursiveASTVisitor<FindPFLambdaFnVisitor> {
 public:
   // LambdaObjTy - lambda type of the PF lambda object
-  FindPFLambdaFnVisitor(const CXXRecordDecl* LambdaObjTy)
-    : LambdaFn(nullptr), LambdaObjTy(LambdaObjTy) {}
+  FindPFLambdaFnVisitor(const CXXRecordDecl *LambdaObjTy)
+      : LambdaFn(nullptr), LambdaObjTy(LambdaObjTy) {}
 
-  bool VisitCallExpr(CallExpr* Call) {
-    auto* M = dyn_cast<CXXMethodDecl>(Call->getDirectCallee());
+  bool VisitCallExpr(CallExpr *Call) {
+    auto *M = dyn_cast<CXXMethodDecl>(Call->getDirectCallee());
     if (!M || (M->getOverloadedOperator() != OO_Call))
       return true;
     const int NumPFLambdaArgs = 2; // range and lambda obj
@@ -683,11 +683,11 @@ public:
   }
 
   // Returns the captured lambda function or nullptr;
-  CXXMethodDecl* getLambdaFn() const { return LambdaFn; }
+  CXXMethodDecl *getLambdaFn() const { return LambdaFn; }
 
 private:
-  CXXMethodDecl* LambdaFn;
-  const CXXRecordDecl* LambdaObjTy;
+  CXXMethodDecl *LambdaFn;
+  const CXXRecordDecl *LambdaObjTy;
 };
 
 
@@ -2754,7 +2754,8 @@ public:
   static constexpr const bool VisitInsideSimpleContainers = false;
   SyclKernelIntHeaderCreator(Sema &S, SYCLIntegrationHeader &H,
                              const CXXRecordDecl *KernelObj, QualType NameType,
-                             StringRef Name, StringRef StableName, FunctionDecl* KernelFunc)
+                             StringRef Name, StringRef StableName,
+                             FunctionDecl *KernelFunc)
       : SyclKernelFieldHandler(S), Header(H) {
     Header.startKernel(Name, NameType, StableName, KernelObj->getLocation());
     setThisItemIsCalled(KernelObj, KernelFunc);
