@@ -56,6 +56,7 @@ template <class KernelNameType> struct KernelInfo {
     return Dummy;
   }
   static constexpr const char *getName() { return ""; }
+  static bool callsThisItem() { return false; }
 };
 #else
 template <char...> struct KernelInfoData {
@@ -65,6 +66,7 @@ template <char...> struct KernelInfoData {
     return Dummy;
   }
   static constexpr const char *getName() { return ""; }
+  static bool callsThisItem() { return false; }
 };
 
 // C++14 like index_sequence and make_index_sequence

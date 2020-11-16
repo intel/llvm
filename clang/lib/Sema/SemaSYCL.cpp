@@ -510,7 +510,7 @@ public:
       FunctionDecl *FD = WorkList.back().first;
       FunctionDecl *ParentFD = WorkList.back().second;
 
-      // To implement rounding-up of a parallel-for range (Jira 20239)
+      // To implement rounding-up of a parallel-for range
       // a kernel call is modified like this:
       // auto Wrapper = [=](TransformedArgType Arg) {
       //  if (Arg[0] >= NumWorkItems[0])
@@ -642,6 +642,40 @@ private:
   CXXMethodDecl *LambdaFn;
   const CXXRecordDecl *LambdaObjTy;
 };
+
+// Searches for a call to PF lambda function and captures it.
+class FindPFLambdaFnVisitor
+  : public RecursiveASTVisitor<FindPFLambdaFnVisitor> {
+public:
+  // LambdaObjTy - lambda type of the PF lambda object
+  FindPFLambdaFnVisitor(const CXXRecordDecl* LambdaObjTy)
+    : LambdaFn(nullptr), LambdaObjTy(LambdaObjTy) {}
+
+  bool VisitCallExpr(CallExpr* Call) {
+    auto* M = dyn_cast<CXXMethodDecl>(Call->getDirectCallee());
+    if (!M || (M->getOverloadedOperator() != OO_Call))
+      return true;
+    const int NumPFLambdaArgs = 2; // range and lambda obj
+    if (Call->getNumArgs() != NumPFLambdaArgs)
+      return true;
+    QualType Range = Call->getArg(1)->getType();
+    if (!Util::isSyclType(Range, "id", true /*Tmpl*/) &&
+        !Util::isSyclType(Range, "item", true /*Tmpl*/))
+      return true;
+    if (Call->getArg(0)->getType()->getAsCXXRecordDecl() != LambdaObjTy)
+      return true;
+    LambdaFn = M; // call to PF lambda found - record the lambda
+    return false; // ... and stop searching
+  }
+
+  // Returns the captured lambda function or nullptr;
+  CXXMethodDecl* getLambdaFn() const { return LambdaFn; }
+
+private:
+  CXXMethodDecl* LambdaFn;
+  const CXXRecordDecl* LambdaObjTy;
+};
+
 
 class MarkWIScopeFnVisitor : public RecursiveASTVisitor<MarkWIScopeFnVisitor> {
 public:
@@ -2655,13 +2689,61 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
     return !SemaRef.getASTContext().hasSameType(FD->getType(), Ty);
   }
 
+  // Sets a flag if the kernel is a parallel_for that calls the
+  // free function API "this_item".
+  void setThisItemIsCalled(const CXXRecordDecl *KernelObj,
+                           FunctionDecl *KernelFunc) {
+    if (getKernelInvocationKind(KernelFunc) != InvokeParallelFor)
+      return;
+
+    FindPFLambdaFnVisitor V(KernelObj);
+    V.TraverseStmt(KernelFunc->getBody());
+    CXXMethodDecl *WGLambdaFn = V.getLambdaFn();
+    if (!WGLambdaFn)
+      return;
+
+    // The call graph for this translation unit.
+    CallGraph SYCLCG;
+    SYCLCG.addToCallGraph(SemaRef.getASTContext().getTranslationUnitDecl());
+    typedef std::pair<FunctionDecl *, FunctionDecl *> ChildParentPair;
+    llvm::SmallPtrSet<FunctionDecl *, 16> Visited;
+    llvm::SmallVector<ChildParentPair, 16> WorkList;
+    WorkList.push_back({WGLambdaFn, nullptr});
+
+    while (!WorkList.empty()) {
+      FunctionDecl *FD = WorkList.back().first;
+      WorkList.pop_back();
+      if (!Visited.insert(FD).second)
+        continue; // We've already seen this Decl
+
+      if (FD->isFunctionOrMethod() && FD->getIdentifier() &&
+          !FD->getName().empty() && "this_item" == FD->getName()) {
+        Header.setCallsThisItem(true);
+        return;
+      }
+
+      CallGraphNode *N = SYCLCG.getNode(FD);
+      if (!N)
+        continue;
+
+      for (const CallGraphNode *CI : *N) {
+        if (auto *Callee = dyn_cast<FunctionDecl>(CI->getDecl())) {
+          Callee = Callee->getMostRecentDecl();
+          if (!Visited.count(Callee))
+            WorkList.push_back({Callee, FD});
+        }
+      }
+    }
+  }
+
 public:
   static constexpr const bool VisitInsideSimpleContainers = false;
   SyclKernelIntHeaderCreator(Sema &S, SYCLIntegrationHeader &H,
                              const CXXRecordDecl *KernelObj, QualType NameType,
-                             StringRef Name, StringRef StableName)
+                             StringRef Name, StringRef StableName, FunctionDecl* KernelFunc)
       : SyclKernelFieldHandler(S), Header(H) {
     Header.startKernel(Name, NameType, StableName, KernelObj->getLocation());
+    setThisItemIsCalled(KernelObj, KernelFunc);
   }
 
   bool handleSyclAccessorType(const CXXRecordDecl *RD,
@@ -3085,7 +3167,7 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   SyclKernelIntHeaderCreator int_header(
       *this, getSyclIntegrationHeader(), KernelObj,
       calculateKernelNameType(Context, KernelCallerFunc), KernelName,
-      StableName);
+      StableName, KernelCallerFunc);
 
   KernelObjVisitor Visitor{*this};
   Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body, int_header);
@@ -3793,6 +3875,9 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "getParamDesc(unsigned i) {\n";
     O << "    return kernel_signatures[i+" << CurStart << "];\n";
     O << "  }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr bool callsThisItem() { return ";
+    O << K.CallsThisItem << "; }\n";
     O << "};\n";
     CurStart += N;
   }
@@ -3847,6 +3932,12 @@ void SYCLIntegrationHeader::endKernel() {
 
 void SYCLIntegrationHeader::addSpecConstant(StringRef IDName, QualType IDType) {
   SpecConsts.emplace_back(std::make_pair(IDType, IDName.str()));
+}
+
+void SYCLIntegrationHeader::setCallsThisItem(bool B) {
+  auto *K = getCurKernelDesc();
+  assert(K && "no kernels");
+  K->CallsThisItem = B;
 }
 
 SYCLIntegrationHeader::SYCLIntegrationHeader(DiagnosticsEngine &_Diag,
