@@ -2071,6 +2071,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   }
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
   PI_ASSERT(RetMem, PI_INVALID_VALUE);
+  PI_ASSERT(HostPtr && PI_MEM_FLAGS_HOST_PTR_ALLOC, PI_INVALID_VALUE);
 
   if (properties != nullptr) {
     die("piMemBufferCreate: no mem properties goes to Level-Zero RT yet");
@@ -2132,8 +2133,6 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                                               HostPtr, Size, nullptr, 0,
                                               nullptr));
       }
-    } else if ((Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) != 0) {
-      // Nothing more to do.
     } else if (Flags == 0 || (Flags == PI_MEM_FLAGS_ACCESS_RW)) {
       // Nothing more to do.
     } else {
