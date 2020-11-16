@@ -2,8 +2,9 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// XFAIL:gpu
 
+// Expected exception is generated for OpenCL backend only.
+// REQUIRES: opencl
 #include <CL/sycl.hpp>
 #include <array>
 
@@ -13,7 +14,7 @@ constexpr access::mode sycl_read = access::mode::read;
 constexpr access::mode sycl_write = access::mode::write;
 
 constexpr unsigned MAX_WG_SIZE = 4;
-constexpr unsigned SIZE = 5;
+constexpr unsigned SIZE = 8;
 using ArrayType = std::array<unsigned, SIZE>;
 
 class kernelCompute;

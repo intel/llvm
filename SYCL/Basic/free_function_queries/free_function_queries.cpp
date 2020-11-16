@@ -5,7 +5,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 // TODO: Support global work offset on Level Zero.
-// XFAIL: level_zero
+// UNSUPPORTED: level_zero
 
 //==- free_function_queries.cpp - SYCL free function queries test -=//
 //

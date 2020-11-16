@@ -9,7 +9,6 @@
 // REQUIRES: linux && gpu && opencl
 // RUN: %clangxx-esimd -fsycl %s -o %t.out
 // RUN: %ESIMD_RUN_PLACEHOLDER %t.out
-// XFAIL: linux
 
 #include "esimd_test_utils.hpp"
 
