@@ -569,11 +569,6 @@ void CodeGenFunction::EmitOpenCLKernelSubGroupMetadata(const FunctionDecl *FD,
   if (!FD->hasAttr<OpenCLKernelAttr>())
     return;
 
-  // TODO Module identifier is not reliable for this purpose since two modules
-  // can have the same ID, needs improvement
-  if (getLangOpts().SYCLIsDevice)
-    Fn->addFnAttr("sycl-module-id", Fn->getParent()->getModuleIdentifier());
-
   CGM.GenOpenCLArgMetadata(Fn, FD, this);
   if (const IntelReqdSubGroupSizeAttr *A =
           FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
@@ -953,8 +948,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   if (getLangOpts().SYCLIsHost && D && D->hasAttr<SYCLKernelAttr>())
     Fn->addFnAttr("sycl_kernel");
 
-  if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice ||
-      getLangOpts().SYCLIsHost) {
+  if (getLangOpts().OpenCL || getLangOpts().SYCLIsHost) {
     // Add metadata for a kernel function.
     if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D)) {
       EmitOpenCLKernelSubGroupMetadata(FD, Fn);
