@@ -2463,8 +2463,23 @@ of the nested loop levels should be coalesced.
   }
 
   template<int N>
-  void bar() {
-    [[intel::loop_coalesce(N)]] for(;;) { }
+  void loop_coalesce() {
+    int j = 0, n = 48;
+    [[intel::loop_coalesce(N)]]
+    while (j < n) {
+      if (j % 4) {
+        ++j;
+        continue;
+      }
+    }
+    j = 0;
+    [[intel::loop_coalesce]]
+    while (j < n) {
+      if (j % 6) {
+        ++j;
+        continue;
+      }
+    }
   }
 
   }];
@@ -2551,6 +2566,14 @@ loop should not be fused with any adjacent loop.
 
   void foo() {
     [[intel::nofusion]] for (int i=0; i<10;++i) { }
+  }
+
+  void nofusion() {
+    int a1[10];
+    for (int i = 0; i < 10; ++i) {
+    [[intel::nofusion]] for (int j = 0; j < 10; ++j) {
+      a1[i] += a1[j];
+    }
   }
 
   }];
