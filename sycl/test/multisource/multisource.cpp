@@ -11,9 +11,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -c -o %t.main.o %s -DMAIN_APP
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %t.kernel.o %t.main.o -o %t.fat
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.fat
-// RUN: %CPU_RUN_PLACEHOLDER %t.fat
-// RUN: %GPU_RUN_PLACEHOLDER %t.fat
-// RUN: %ACC_RUN_PLACEHOLDER %t.fat
 
 // Multiple sources with kernel code
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -c -o %t.init.o %s -DINIT_KERNEL
@@ -21,9 +18,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -c -o %t.main.o %s -DMAIN_APP
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %t.init.o %t.calc.o %t.main.o -o %t.fat
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.fat
-// RUN: %CPU_RUN_PLACEHOLDER %t.fat
-// RUN: %GPU_RUN_PLACEHOLDER %t.fat
-// RUN: %ACC_RUN_PLACEHOLDER %t.fat
 
 
 #include <CL/sycl.hpp>

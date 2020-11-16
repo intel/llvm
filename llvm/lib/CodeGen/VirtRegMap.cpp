@@ -104,7 +104,7 @@ bool VirtRegMap::hasPreferredPhys(Register VirtReg) {
     return false;
   if (Hint.isVirtual())
     Hint = getPhys(Hint);
-  return getPhys(VirtReg) == Hint;
+  return Register(getPhys(VirtReg)) == Hint;
 }
 
 bool VirtRegMap::hasKnownPreference(Register VirtReg) {
@@ -187,7 +187,7 @@ class VirtRegRewriter : public MachineFunctionPass {
   void addLiveInsForSubRanges(const LiveInterval &LI, Register PhysReg) const;
   void handleIdentityCopy(MachineInstr &MI) const;
   void expandCopyBundle(MachineInstr &MI) const;
-  bool subRegLiveThrough(const MachineInstr &MI, Register SuperPhysReg) const;
+  bool subRegLiveThrough(const MachineInstr &MI, MCRegister SuperPhysReg) const;
 
 public:
   static char ID;
@@ -452,7 +452,7 @@ void VirtRegRewriter::expandCopyBundle(MachineInstr &MI) const {
       // instruction, the bundle will have been completely undone.
       if (BundledMI != BundleStart) {
         BundledMI->removeFromBundle();
-        MBB.insert(FirstMI, BundledMI);
+        MBB.insert(BundleStart, BundledMI);
       } else if (BundledMI->isBundledWithSucc()) {
         BundledMI->unbundleFromSucc();
         BundleStart = &*std::next(BundledMI->getIterator());
@@ -468,7 +468,7 @@ void VirtRegRewriter::expandCopyBundle(MachineInstr &MI) const {
 /// \pre \p MI defines a subregister of a virtual register that
 /// has been assigned to \p SuperPhysReg.
 bool VirtRegRewriter::subRegLiveThrough(const MachineInstr &MI,
-                                        Register SuperPhysReg) const {
+                                        MCRegister SuperPhysReg) const {
   SlotIndex MIIndex = LIS->getInstructionIndex(MI);
   SlotIndex BeforeMIUses = MIIndex.getBaseIndex();
   SlotIndex AfterMIDefs = MIIndex.getBoundaryIndex();
@@ -515,7 +515,7 @@ void VirtRegRewriter::rewrite() {
         if (!MO.isReg() || !MO.getReg().isVirtual())
           continue;
         Register VirtReg = MO.getReg();
-        Register PhysReg = VRM->getPhys(VirtReg);
+        MCRegister PhysReg = VRM->getPhys(VirtReg);
         assert(PhysReg != VirtRegMap::NO_PHYS_REG &&
                "Instruction uses unmapped VirtReg");
         assert(!MRI->isReserved(PhysReg) && "Reserved register assignment");

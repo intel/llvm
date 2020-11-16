@@ -252,6 +252,15 @@ public:
         {"flat_write", {"svm.scatter", {ai1(3), a(2), a(0), a(1)}}},
         {"flat_write4",
          {"svm.scatter4.scaled", {ai1(2), t(2), c16(0), c64(0), a(0), a(1)}}},
+
+        // surface index-based gather/scatter:
+        // num blocks, scale, surface index, global offset, elem offsets
+        {"surf_read", {"gather.scaled2", {t(3), c16(0), aSI(1), a(2), a(3)}}},
+        // pred, num blocks, scale, surface index, global offset, elem offsets,
+        // data to write
+        {"surf_write",
+         {"scatter.scaled", {ai1(0), t(3), c16(0), aSI(2), a(3), a(4), a(5)}}},
+
         // intrinsics to query thread's coordinates:
         {"group_id_x", {"group.id.x", {}}},
         {"group_id_y", {"group.id.y", {}}},

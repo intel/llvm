@@ -88,6 +88,8 @@ protected:
       "mgpuModuleLoad",
       llvmPointerType /* void *module */,
       {llvmPointerType /* void *cubin */}};
+  FunctionCallBuilder moduleUnloadCallBuilder = {
+      "mgpuModuleUnload", llvmVoidType, {llvmPointerType /* void *module */}};
   FunctionCallBuilder moduleGetFunctionCallBuilder = {
       "mgpuModuleGetFunction",
       llvmPointerType /* void *function */,
@@ -113,10 +115,28 @@ protected:
       }};
   FunctionCallBuilder streamCreateCallBuilder = {
       "mgpuStreamCreate", llvmPointerType /* void *stream */, {}};
+  FunctionCallBuilder streamDestroyCallBuilder = {
+      "mgpuStreamDestroy", llvmVoidType, {llvmPointerType /* void *stream */}};
   FunctionCallBuilder streamSynchronizeCallBuilder = {
       "mgpuStreamSynchronize",
       llvmVoidType,
       {llvmPointerType /* void *stream */}};
+  FunctionCallBuilder streamWaitEventCallBuilder = {
+      "mgpuStreamWaitEvent",
+      llvmVoidType,
+      {llvmPointerType /* void *stream */, llvmPointerType /* void *event */}};
+  FunctionCallBuilder eventCreateCallBuilder = {
+      "mgpuEventCreate", llvmPointerType /* void *event */, {}};
+  FunctionCallBuilder eventDestroyCallBuilder = {
+      "mgpuEventDestroy", llvmVoidType, {llvmPointerType /* void *event */}};
+  FunctionCallBuilder eventSynchronizeCallBuilder = {
+      "mgpuEventSynchronize",
+      llvmVoidType,
+      {llvmPointerType /* void *event */}};
+  FunctionCallBuilder eventRecordCallBuilder = {
+      "mgpuEventRecord",
+      llvmVoidType,
+      {llvmPointerType /* void *event */, llvmPointerType /* void *stream */}};
   FunctionCallBuilder hostRegisterCallBuilder = {
       "mgpuMemHostRegisterMemRef",
       llvmVoidType,
@@ -132,6 +152,34 @@ class ConvertHostRegisterOpToGpuRuntimeCallPattern
 public:
   ConvertHostRegisterOpToGpuRuntimeCallPattern(LLVMTypeConverter &typeConverter)
       : ConvertOpToGpuRuntimeCallPattern<gpu::HostRegisterOp>(typeConverter) {}
+
+private:
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override;
+};
+
+/// A rewrite pattern to convert gpu.wait operations into a GPU runtime
+/// call. Currently it supports CUDA and ROCm (HIP).
+class ConvertWaitOpToGpuRuntimeCallPattern
+    : public ConvertOpToGpuRuntimeCallPattern<gpu::WaitOp> {
+public:
+  ConvertWaitOpToGpuRuntimeCallPattern(LLVMTypeConverter &typeConverter)
+      : ConvertOpToGpuRuntimeCallPattern<gpu::WaitOp>(typeConverter) {}
+
+private:
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override;
+};
+
+/// A rewrite pattern to convert gpu.wait async operations into a GPU runtime
+/// call. Currently it supports CUDA and ROCm (HIP).
+class ConvertWaitAsyncOpToGpuRuntimeCallPattern
+    : public ConvertOpToGpuRuntimeCallPattern<gpu::WaitOp> {
+public:
+  ConvertWaitAsyncOpToGpuRuntimeCallPattern(LLVMTypeConverter &typeConverter)
+      : ConvertOpToGpuRuntimeCallPattern<gpu::WaitOp>(typeConverter) {}
 
 private:
   LogicalResult
@@ -194,7 +242,8 @@ void GpuToLLVMConversionPass::runOnOperation() {
   populateGpuToLLVMConversionPatterns(converter, patterns, gpuBinaryAnnotation);
 
   LLVMConversionTarget target(getContext());
-  if (failed(applyPartialConversion(getOperation(), target, patterns)))
+  if (failed(
+          applyPartialConversion(getOperation(), target, std::move(patterns))))
     signalPassFailure();
 }
 
@@ -239,6 +288,69 @@ LogicalResult ConvertHostRegisterOpToGpuRuntimeCallPattern::matchAndRewrite(
   return success();
 }
 
+// Converts `gpu.wait` to runtime calls. The operands are all CUDA or ROCm
+// streams (i.e. void*). The converted op synchronizes the host with every
+// stream and then destroys it. That is, it assumes that the stream is not used
+// afterwards. In case this isn't correct, we will get a runtime error.
+// Eventually, we will have a pass that guarantees this property.
+LogicalResult ConvertWaitOpToGpuRuntimeCallPattern::matchAndRewrite(
+    Operation *op, ArrayRef<Value> operands,
+    ConversionPatternRewriter &rewriter) const {
+  if (cast<gpu::WaitOp>(op).asyncToken())
+    return rewriter.notifyMatchFailure(op, "Cannot convert async op.");
+
+  Location loc = op->getLoc();
+
+  for (auto asyncDependency : operands)
+    streamSynchronizeCallBuilder.create(loc, rewriter, {asyncDependency});
+  for (auto asyncDependency : operands)
+    streamDestroyCallBuilder.create(loc, rewriter, {asyncDependency});
+
+  rewriter.eraseOp(op);
+  return success();
+}
+
+// Converts `gpu.wait async` to runtime calls. The result is a new stream that
+// is synchronized with all operands, which are CUDA or ROCm streams (i.e.
+// void*). We create and record an event after the definition of the stream
+// and make the new stream wait on that event before destroying it again. This
+// assumes that there is no other use between the definition and this op, and
+// the plan is to have a pass that guarantees this property.
+LogicalResult ConvertWaitAsyncOpToGpuRuntimeCallPattern::matchAndRewrite(
+    Operation *op, ArrayRef<Value> operands,
+    ConversionPatternRewriter &rewriter) const {
+  if (!cast<gpu::WaitOp>(op).asyncToken())
+    return rewriter.notifyMatchFailure(op, "Can only convert async op.");
+
+  Location loc = op->getLoc();
+
+  auto insertionPoint = rewriter.saveInsertionPoint();
+  SmallVector<Value, 1> events;
+  for (auto pair : llvm::zip(op->getOperands(), operands)) {
+    auto token = std::get<0>(pair);
+    if (auto *defOp = token.getDefiningOp()) {
+      rewriter.setInsertionPointAfter(defOp);
+    } else {
+      // If we can't find the defining op, we record the event at block start,
+      // which is late and therefore misses parallelism, but still valid.
+      rewriter.setInsertionPointToStart(op->getBlock());
+    }
+    auto event = eventCreateCallBuilder.create(loc, rewriter, {}).getResult(0);
+    auto stream = std::get<1>(pair);
+    eventRecordCallBuilder.create(loc, rewriter, {event, stream});
+    events.push_back(event);
+  }
+  rewriter.restoreInsertionPoint(insertionPoint);
+  auto stream = streamCreateCallBuilder.create(loc, rewriter, {}).getResult(0);
+  for (auto event : events)
+    streamWaitEventCallBuilder.create(loc, rewriter, {stream, event});
+  for (auto event : events)
+    eventDestroyCallBuilder.create(loc, rewriter, {event});
+  rewriter.replaceOp(op, {stream});
+
+  return success();
+}
+
 // Creates a struct containing all kernel parameters on the stack and returns
 // an array of type-erased pointers to the fields of the struct. The array can
 // then be passed to the CUDA / ROCm (HIP) kernel launch calls.
@@ -279,9 +391,9 @@ Value ConvertLaunchFuncOpToGpuRuntimeCallPattern::generateParamsArray(
   for (auto en : llvm::enumerate(arguments)) {
     auto index = builder.create<LLVM::ConstantOp>(
         loc, llvmInt32Type, builder.getI32IntegerAttr(en.index()));
-    auto fieldPtr =
-        builder.create<LLVM::GEPOp>(loc, structType.getPointerTo(), structPtr,
-                                    ArrayRef<Value>{zero, index.getResult()});
+    auto fieldPtr = builder.create<LLVM::GEPOp>(
+        loc, argumentTypes[en.index()].getPointerTo(), structPtr,
+        ArrayRef<Value>{zero, index.getResult()});
     builder.create<LLVM::StoreOp>(loc, en.value(), fieldPtr);
     auto elementPtr = builder.create<LLVM::GEPOp>(loc, llvmPointerPointerType,
                                                   arrayPtr, index.getResult());
@@ -328,6 +440,11 @@ Value ConvertLaunchFuncOpToGpuRuntimeCallPattern::generateKernelNameConstant(
 // %5 = <see generateParamsArray>
 // call %launchKernel(%3, <launchOp operands 0..5>, 0, %4, %5, nullptr)
 // call %streamSynchronize(%4)
+// call %streamDestroy(%4)
+// call %moduleUnload(%1)
+//
+// If the op is async, the stream corresponds to the (single) async dependency
+// as well as the async token the op produces.
 LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
     Operation *op, ArrayRef<Value> operands,
     ConversionPatternRewriter &rewriter) const {
@@ -336,6 +453,18 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
         op, "Cannot convert if operands aren't of LLVM type.");
 
   auto launchOp = cast<gpu::LaunchFuncOp>(op);
+
+  if (launchOp.asyncDependencies().size() > 1)
+    return rewriter.notifyMatchFailure(
+        op, "Cannot convert with more than one async dependency.");
+
+  // Fail when the synchronous version of the op has async dependencies. The
+  // lowering destroys the stream, and we do not want to check that there is no
+  // use of the stream after this op.
+  if (!launchOp.asyncToken() && !launchOp.asyncDependencies().empty())
+    return rewriter.notifyMatchFailure(
+        op, "Cannot convert non-async op with async dependencies.");
+
   Location loc = launchOp.getLoc();
 
   // Create an LLVM global with CUBIN extracted from the kernel annotation and
@@ -366,8 +495,11 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
       loc, rewriter, {module.getResult(0), kernelName});
   auto zero = rewriter.create<LLVM::ConstantOp>(loc, llvmInt32Type,
                                                 rewriter.getI32IntegerAttr(0));
-  // Grab the global stream needed for execution.
-  auto stream = streamCreateCallBuilder.create(loc, rewriter, {});
+  auto adaptor = gpu::LaunchFuncOpAdaptor(operands, op->getAttrDictionary());
+  Value stream =
+      adaptor.asyncDependencies().empty()
+          ? streamCreateCallBuilder.create(loc, rewriter, {}).getResult(0)
+          : adaptor.asyncDependencies().front();
   // Create array of pointers to kernel arguments.
   auto kernelParams = generateParamsArray(launchOp, operands, rewriter);
   auto nullpointer = rewriter.create<LLVM::NullOp>(loc, llvmPointerPointerType);
@@ -375,13 +507,22 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
       loc, rewriter,
       {function.getResult(0), launchOp.gridSizeX(), launchOp.gridSizeY(),
        launchOp.gridSizeZ(), launchOp.blockSizeX(), launchOp.blockSizeY(),
-       launchOp.blockSizeZ(), zero, /* sharedMemBytes */
-       stream.getResult(0),         /* stream */
-       kernelParams,                /* kernel params */
-       nullpointer /* extra */});
-  streamSynchronizeCallBuilder.create(loc, rewriter, stream.getResult(0));
+       launchOp.blockSizeZ(), /*sharedMemBytes=*/zero, stream, kernelParams,
+       /*extra=*/nullpointer});
 
-  rewriter.eraseOp(op);
+  if (launchOp.asyncToken()) {
+    // Async launch: make dependent ops use the same stream.
+    rewriter.replaceOp(op, {stream});
+  } else {
+    // Synchronize with host and destroy stream. This must be the stream created
+    // above (with no other uses) because we check that the synchronous version
+    // does not have any async dependencies.
+    streamSynchronizeCallBuilder.create(loc, rewriter, stream);
+    streamDestroyCallBuilder.create(loc, rewriter, stream);
+    rewriter.eraseOp(op);
+  }
+  moduleUnloadCallBuilder.create(loc, rewriter, module.getResult(0));
+
   return success();
 }
 
@@ -393,7 +534,13 @@ mlir::createGpuToLLVMConversionPass(StringRef gpuBinaryAnnotation) {
 void mlir::populateGpuToLLVMConversionPatterns(
     LLVMTypeConverter &converter, OwningRewritePatternList &patterns,
     StringRef gpuBinaryAnnotation) {
-  patterns.insert<ConvertHostRegisterOpToGpuRuntimeCallPattern>(converter);
+  converter.addConversion(
+      [context = &converter.getContext()](gpu::AsyncTokenType type) -> Type {
+        return LLVM::LLVMType::getInt8PtrTy(context);
+      });
+  patterns.insert<ConvertHostRegisterOpToGpuRuntimeCallPattern,
+                  ConvertWaitOpToGpuRuntimeCallPattern,
+                  ConvertWaitAsyncOpToGpuRuntimeCallPattern>(converter);
   patterns.insert<ConvertLaunchFuncOpToGpuRuntimeCallPattern>(
       converter, gpuBinaryAnnotation);
   patterns.insert<EraseGpuModuleOpPattern>(&converter.getContext());

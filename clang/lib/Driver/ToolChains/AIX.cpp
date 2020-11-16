@@ -71,7 +71,7 @@ void aix::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
 
   const char *Exec = Args.MakeArgString(getToolChain().GetProgramPath("as"));
   C.addCommand(std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
-                                         Exec, CmdArgs, Inputs));
+                                         Exec, CmdArgs, Inputs, Output));
 }
 
 void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
@@ -151,6 +151,7 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // Add directory to library search path.
   Args.AddAllArgs(CmdArgs, options::OPT_L);
   ToolChain.AddFilePathLibArgs(Args, CmdArgs);
+  ToolChain.addProfileRTLibs(Args, CmdArgs);
 
   if (getToolChain().ShouldLinkCXXStdlib(Args))
     getToolChain().AddCXXStdlibLibArgs(Args, CmdArgs);
@@ -170,7 +171,7 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   const char *Exec = Args.MakeArgString(ToolChain.GetLinkerPath());
   C.addCommand(std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
-                                         Exec, CmdArgs, Inputs));
+                                         Exec, CmdArgs, Inputs, Output));
 }
 
 /// AIX - AIX tool chain which can call as(1) and ld(1) directly.

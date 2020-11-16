@@ -13,6 +13,7 @@
 #include "lld/Common/LLVM.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/Triple.h"
 #include "llvm/LTO/LTO.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/Wasm.h"
@@ -60,8 +61,17 @@ public:
 
   MutableArrayRef<Symbol *> getMutableSymbols() { return symbols; }
 
+  // An InputFile is considered live if any of the symbols defined by it
+  // are live.
+  void markLive() { live = true; }
+  bool isLive() const { return live; }
+
 protected:
-  InputFile(Kind k, MemoryBufferRef m) : mb(m), fileKind(k) {}
+  InputFile(Kind k, MemoryBufferRef m)
+      : mb(m), fileKind(k), live(!config->gcSections) {}
+
+  void checkArch(llvm::Triple::ArchType arch) const;
+
   MemoryBufferRef mb;
 
   // List of all symbols referenced or defined by this file.
@@ -69,6 +79,7 @@ protected:
 
 private:
   const Kind fileKind;
+  bool live;
 };
 
 // .a file (ar archive)
@@ -92,6 +103,10 @@ public:
   explicit ObjFile(MemoryBufferRef m, StringRef archiveName)
       : InputFile(ObjectKind, m) {
     this->archiveName = std::string(archiveName);
+
+    // If this isn't part of an archive, it's eagerly linked, so mark it live.
+    if (archiveName.empty())
+      markLive();
   }
   static bool classof(const InputFile *f) { return f->kind() == ObjectKind; }
 
@@ -156,6 +171,10 @@ public:
   explicit BitcodeFile(MemoryBufferRef m, StringRef archiveName)
       : InputFile(BitcodeKind, m) {
     this->archiveName = std::string(archiveName);
+
+    // If this isn't part of an archive, it's eagerly linked, so mark it live.
+    if (archiveName.empty())
+      markLive();
   }
   static bool classof(const InputFile *f) { return f->kind() == BitcodeKind; }
 

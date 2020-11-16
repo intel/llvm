@@ -412,6 +412,10 @@ template <> inline void SPIRVMap<Decoration, SPIRVCapVec>::init() {
                {CapabilityFunctionFloatControlINTEL});
   ADD_VEC_INIT(DecorationFunctionFloatingPointModeINTEL,
                {CapabilityFunctionFloatControlINTEL});
+  ADD_VEC_INIT(DecorationSingleElementVectorINTEL,
+               {CapabilityVectorComputeINTEL});
+  ADD_VEC_INIT(DecorationVectorComputeCallableFunctionINTEL,
+               {CapabilityVectorComputeINTEL});
 }
 
 template <> inline void SPIRVMap<BuiltIn, SPIRVCapVec>::init() {

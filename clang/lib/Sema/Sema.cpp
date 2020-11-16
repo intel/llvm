@@ -397,6 +397,13 @@ void Sema::Initialize() {
 #include "clang/Basic/AArch64SVEACLETypes.def"
   }
 
+  if (Context.getTargetInfo().getTriple().isPPC64() &&
+      Context.getTargetInfo().hasFeature("mma")) {
+#define PPC_MMA_VECTOR_TYPE(Name, Id, Size) \
+    addImplicitTypedef(#Name, Context.Id##Ty);
+#include "clang/Basic/PPCTypes.def"
+  }
+
   if (Context.getTargetInfo().hasBuiltinMSVaList()) {
     DeclarationName MSVaList = &Context.Idents.get("__builtin_ms_va_list");
     if (IdResolver.begin(MSVaList) == IdResolver.end())
@@ -1475,11 +1482,24 @@ void Sema::EmitCurrentDiagnostic(unsigned DiagID) {
 }
 
 Sema::SemaDiagnosticBuilder
-Sema::Diag(SourceLocation Loc, const PartialDiagnostic& PD) {
-  SemaDiagnosticBuilder Builder(Diag(Loc, PD.getDiagID()));
-  PD.Emit(Builder);
+Sema::Diag(SourceLocation Loc, const PartialDiagnostic &PD, bool DeferHint) {
+  return Diag(Loc, PD.getDiagID(), DeferHint) << PD;
+}
 
-  return Builder;
+bool Sema::hasUncompilableErrorOccurred() const {
+  if (getDiagnostics().hasUncompilableErrorOccurred())
+    return true;
+  auto *FD = dyn_cast<FunctionDecl>(CurContext);
+  if (!FD)
+    return false;
+  auto Loc = DeviceDeferredDiags.find(FD);
+  if (Loc == DeviceDeferredDiags.end())
+    return false;
+  for (auto PDAt : Loc->second) {
+    if (DiagnosticIDs::isDefaultMappingAsError(PDAt.second.getDiagID()))
+      return true;
+  }
+  return false;
 }
 
 // Print notes showing how we can reach FD starting from an a priori
@@ -1696,9 +1716,9 @@ void Sema::emitDeferredDiags() {
 // until we discover that the function is known-emitted, at which point we take
 // it out of this map and emit the diagnostic.
 
-Sema::DeviceDiagBuilder::DeviceDiagBuilder(Kind K, SourceLocation Loc,
-                                           unsigned DiagID, FunctionDecl *Fn,
-                                           Sema &S)
+Sema::SemaDiagnosticBuilder::SemaDiagnosticBuilder(Kind K, SourceLocation Loc,
+                                                   unsigned DiagID,
+                                                   FunctionDecl *Fn, Sema &S)
     : S(S), Loc(Loc), DiagID(DiagID), Fn(Fn),
       ShowCallStack(K == K_ImmediateWithCallStack || K == K_Deferred) {
   switch (K) {
@@ -1706,7 +1726,8 @@ Sema::DeviceDiagBuilder::DeviceDiagBuilder(Kind K, SourceLocation Loc,
     break;
   case K_Immediate:
   case K_ImmediateWithCallStack:
-    ImmediateDiag.emplace(S.Diag(Loc, DiagID));
+    ImmediateDiag.emplace(
+        ImmediateDiagBuilder(S.Diags.Report(Loc, DiagID), S, DiagID));
     break;
   case K_Deferred:
     assert(Fn && "Must have a function to attach the deferred diag to.");
@@ -1717,7 +1738,7 @@ Sema::DeviceDiagBuilder::DeviceDiagBuilder(Kind K, SourceLocation Loc,
   }
 }
 
-Sema::DeviceDiagBuilder::DeviceDiagBuilder(DeviceDiagBuilder &&D)
+Sema::SemaDiagnosticBuilder::SemaDiagnosticBuilder(SemaDiagnosticBuilder &&D)
     : S(D.S), Loc(D.Loc), DiagID(D.DiagID), Fn(D.Fn),
       ShowCallStack(D.ShowCallStack), ImmediateDiag(D.ImmediateDiag),
       PartialDiagId(D.PartialDiagId) {
@@ -1727,7 +1748,7 @@ Sema::DeviceDiagBuilder::DeviceDiagBuilder(DeviceDiagBuilder &&D)
   D.PartialDiagId.reset();
 }
 
-Sema::DeviceDiagBuilder::~DeviceDiagBuilder() {
+Sema::SemaDiagnosticBuilder::~SemaDiagnosticBuilder() {
   if (ImmediateDiag) {
     // Emit our diagnostic and, if it was a warning or error, output a callstack
     // if Fn isn't a priori known-emitted.
@@ -1742,7 +1763,8 @@ Sema::DeviceDiagBuilder::~DeviceDiagBuilder() {
   }
 }
 
-Sema::DeviceDiagBuilder Sema::targetDiag(SourceLocation Loc, unsigned DiagID) {
+Sema::SemaDiagnosticBuilder Sema::targetDiag(SourceLocation Loc,
+                                             unsigned DiagID) {
   if (LangOpts.OpenMP)
     return LangOpts.OpenMPIsDevice ? diagIfOpenMPDeviceCode(Loc, DiagID)
                                    : diagIfOpenMPHostCode(Loc, DiagID);
@@ -1753,8 +1775,32 @@ Sema::DeviceDiagBuilder Sema::targetDiag(SourceLocation Loc, unsigned DiagID) {
   if (getLangOpts().SYCLIsDevice)
     return SYCLDiagIfDeviceCode(Loc, DiagID);
 
-  return DeviceDiagBuilder(DeviceDiagBuilder::K_Immediate, Loc, DiagID,
-                           getCurFunctionDecl(), *this);
+  return SemaDiagnosticBuilder(SemaDiagnosticBuilder::K_Immediate, Loc, DiagID,
+                               getCurFunctionDecl(), *this);
+}
+
+Sema::SemaDiagnosticBuilder Sema::Diag(SourceLocation Loc, unsigned DiagID,
+                                       bool DeferHint) {
+  bool IsError = Diags.getDiagnosticIDs()->isDefaultMappingAsError(DiagID);
+  bool ShouldDefer = getLangOpts().CUDA && LangOpts.GPUDeferDiag &&
+                     DiagnosticIDs::isDeferrable(DiagID) &&
+                     (DeferHint || !IsError);
+  auto SetIsLastErrorImmediate = [&](bool Flag) {
+    if (IsError)
+      IsLastErrorImmediate = Flag;
+  };
+  if (!ShouldDefer) {
+    SetIsLastErrorImmediate(true);
+    return SemaDiagnosticBuilder(SemaDiagnosticBuilder::K_Immediate, Loc,
+                                 DiagID, getCurFunctionDecl(), *this);
+  }
+
+  SemaDiagnosticBuilder DB =
+      getLangOpts().CUDAIsDevice
+          ? CUDADiagIfDeviceCode(Loc, DiagID)
+          : CUDADiagIfHostCode(Loc, DiagID);
+  SetIsLastErrorImmediate(DB.isImmediate());
+  return DB;
 }
 
 void Sema::checkDeviceDecl(const ValueDecl *D, SourceLocation Loc) {

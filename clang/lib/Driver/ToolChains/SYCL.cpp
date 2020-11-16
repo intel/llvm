@@ -510,7 +510,7 @@ static void addImpliedArgs(const llvm::Triple &Triple,
     if (!A->getOption().matches(options::OPT_g0))
       BeArgs.push_back("-g");
   if (Args.getLastArg(options::OPT_O0))
-    BeArgs.push_back(IsGen ? "-O0" : "-cl-opt-disable");
+    BeArgs.push_back("-cl-opt-disable");
   if (BeArgs.empty())
     return;
   if (Triple.getSubArch() == llvm::Triple::NoSubArch ||

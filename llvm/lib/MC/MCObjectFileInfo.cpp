@@ -752,6 +752,11 @@ void MCObjectFileInfo::initCOFFMCObjectFileInfo(const Triple &T) {
                                          COFF::IMAGE_SCN_MEM_READ,
                                      SectionKind::getMetadata());
 
+  GIATsSection = Ctx->getCOFFSection(".giats$y",
+                                     COFF::IMAGE_SCN_CNT_INITIALIZED_DATA |
+                                         COFF::IMAGE_SCN_MEM_READ,
+                                     SectionKind::getMetadata());
+
   GLJMPSection = Ctx->getCOFFSection(".gljmp$y",
                                      COFF::IMAGE_SCN_CNT_INITIALIZED_DATA |
                                          COFF::IMAGE_SCN_MEM_READ,
@@ -958,9 +963,14 @@ MCSection *MCObjectFileInfo::getDwarfComdatSection(const char *Name,
   case Triple::ELF:
     return Ctx->getELFSection(Name, ELF::SHT_PROGBITS, ELF::SHF_GROUP, 0,
                               utostr(Hash));
+  case Triple::Wasm:
+    // FIXME: When using dwarf 5, the .debug_info section is used for type units
+    // but that section already exists, so attempting to get it as a comdate
+    // section triggers an assert.
+    return Ctx->getWasmSection(Name, SectionKind::getMetadata(), utostr(Hash),
+                               MCContext::GenericSectionID);
   case Triple::MachO:
   case Triple::COFF:
-  case Triple::Wasm:
   case Triple::GOFF:
   case Triple::XCOFF:
   case Triple::UnknownObjectFormat:
@@ -1002,7 +1012,7 @@ MCObjectFileInfo::getBBAddrMapSection(const MCSection &TextSec) const {
     Flags |= ELF::SHF_GROUP;
   }
 
-  return Ctx->getELFSection(".bb_addr_map", ELF::SHT_PROGBITS, Flags, 0,
-                            GroupName, MCSection::NonUniqueID,
+  return Ctx->getELFSection(".llvm_bb_addr_map", ELF::SHT_LLVM_BB_ADDR_MAP,
+                            Flags, 0, GroupName, MCSection::NonUniqueID,
                             cast<MCSymbolELF>(TextSec.getBeginSymbol()));
 }

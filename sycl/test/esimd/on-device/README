@@ -1,6 +1,0 @@
-The tests from these directory are moved to LLVM test suite reporitory:
-[SYCL/ESIMD](https://github.com/intel/llvm-test-suite/tree/intel/SYCL/ESIMD).
-
-Contribution process is described in [CONTRIBUTING.md](https://github.com/intel/llvm-test-suite/blob/intel/CONTRIBUTING.md)
-
-These tests are run as part of post-commit testing.

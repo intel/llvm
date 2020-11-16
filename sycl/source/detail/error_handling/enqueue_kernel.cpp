@@ -57,8 +57,8 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
   if (Platform.get_backend() == cl::sycl::backend::opencl) {
     string_class VersionString = DeviceImpl.get_info<info::device::version>();
     IsOpenCL = true;
-    IsOpenCLV1x = (VersionString.find("OpenCL 1.") == 0);
-    IsOpenCLV20 = (VersionString.find("OpenCL 2.0") == 0);
+    IsOpenCLV1x = (VersionString.find("1.") == 0);
+    IsOpenCLV20 = (VersionString.find("2.0") == 0);
   }
 
   size_t CompileWGSize[3] = {0};

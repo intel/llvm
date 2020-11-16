@@ -35,6 +35,30 @@ namespace {
 struct TestOpAsmInterface : public OpAsmDialectInterface {
   using OpAsmDialectInterface::OpAsmDialectInterface;
 
+  LogicalResult getAlias(Attribute attr, raw_ostream &os) const final {
+    StringAttr strAttr = attr.dyn_cast<StringAttr>();
+    if (!strAttr)
+      return failure();
+
+    // Check the contents of the string attribute to see what the test alias
+    // should be named.
+    Optional<StringRef> aliasName =
+        StringSwitch<Optional<StringRef>>(strAttr.getValue())
+            .Case("alias_test:dot_in_name", StringRef("test.alias"))
+            .Case("alias_test:trailing_digit", StringRef("test_alias0"))
+            .Case("alias_test:prefixed_digit", StringRef("0_test_alias"))
+            .Case("alias_test:sanitize_conflict_a",
+                  StringRef("test_alias_conflict0"))
+            .Case("alias_test:sanitize_conflict_b",
+                  StringRef("test_alias_conflict0_"))
+            .Default(llvm::None);
+    if (!aliasName)
+      return failure();
+
+    os << *aliasName;
+    return success();
+  }
+
   void getAsmResultNames(Operation *op,
                          OpAsmSetValueNameFn setNameFn) const final {
     if (auto asmOp = dyn_cast<AsmDialectInterfaceOp>(op))
@@ -77,11 +101,17 @@ struct TestInlinerInterface : public DialectInlinerInterface {
   // Analysis Hooks
   //===--------------------------------------------------------------------===//
 
-  bool isLegalToInline(Region *, Region *, BlockAndValueMapping &) const final {
+  bool isLegalToInline(Operation *call, Operation *callable,
+                       bool wouldBeCloned) const final {
+    // Don't allow inlining calls that are marked `noinline`.
+    return !call->hasAttr("noinline");
+  }
+  bool isLegalToInline(Region *, Region *, bool,
+                       BlockAndValueMapping &) const final {
     // Inlining into test dialect regions is legal.
     return true;
   }
-  bool isLegalToInline(Operation *, Region *,
+  bool isLegalToInline(Operation *, Region *, bool,
                        BlockAndValueMapping &) const final {
     return true;
   }
@@ -141,15 +171,22 @@ void TestDialect::initialize() {
       >();
   addInterfaces<TestOpAsmInterface, TestDialectFoldInterface,
                 TestInlinerInterface>();
-  addTypes<TestType, TestRecursiveType>();
+  addTypes<TestType, TestRecursiveType,
+#define GET_TYPEDEF_LIST
+#include "TestTypeDefs.cpp.inc"
+           >();
   allowUnknownOperations();
 }
 
-static Type parseTestType(DialectAsmParser &parser,
+static Type parseTestType(MLIRContext *ctxt, DialectAsmParser &parser,
                           llvm::SetVector<Type> &stack) {
   StringRef typeTag;
   if (failed(parser.parseKeyword(&typeTag)))
     return Type();
+
+  auto genType = generatedTypeParser(ctxt, parser, typeTag);
+  if (genType != Type())
+    return genType;
 
   if (typeTag == "test_type")
     return TestType::get(parser.getBuilder().getContext());
@@ -174,7 +211,7 @@ static Type parseTestType(DialectAsmParser &parser,
   if (failed(parser.parseComma()))
     return Type();
   stack.insert(rec);
-  Type subtype = parseTestType(parser, stack);
+  Type subtype = parseTestType(ctxt, parser, stack);
   stack.pop_back();
   if (!subtype || failed(parser.parseGreater()) || failed(rec.setBody(subtype)))
     return Type();
@@ -184,11 +221,13 @@ static Type parseTestType(DialectAsmParser &parser,
 
 Type TestDialect::parseType(DialectAsmParser &parser) const {
   llvm::SetVector<Type> stack;
-  return parseTestType(parser, stack);
+  return parseTestType(getContext(), parser, stack);
 }
 
 static void printTestType(Type type, DialectAsmPrinter &printer,
                           llvm::SetVector<Type> &stack) {
+  if (succeeded(generatedTypePrinter(type, printer)))
+    return;
   if (type.isa<TestType>()) {
     printer << "test_type";
     return;
@@ -376,19 +415,24 @@ static ParseResult parseCustomDirectiveAttributes(OpAsmParser &parser,
   return success();
 }
 
+static ParseResult parseCustomDirectiveAttrDict(OpAsmParser &parser,
+                                                NamedAttrList &attrs) {
+  return parser.parseOptionalAttrDict(attrs);
+}
+
 //===----------------------------------------------------------------------===//
 // Printing
 
-static void printCustomDirectiveOperands(OpAsmPrinter &printer, Value operand,
-                                         Value optOperand,
+static void printCustomDirectiveOperands(OpAsmPrinter &printer, Operation *,
+                                         Value operand, Value optOperand,
                                          OperandRange varOperands) {
   printer << operand;
   if (optOperand)
     printer << ", " << optOperand;
   printer << " -> (" << varOperands << ")";
 }
-static void printCustomDirectiveResults(OpAsmPrinter &printer, Type operandType,
-                                        Type optOperandType,
+static void printCustomDirectiveResults(OpAsmPrinter &printer, Operation *,
+                                        Type operandType, Type optOperandType,
                                         TypeRange varOperandTypes) {
   printer << " : " << operandType;
   if (optOperandType)
@@ -396,23 +440,23 @@ static void printCustomDirectiveResults(OpAsmPrinter &printer, Type operandType,
   printer << " -> (" << varOperandTypes << ")";
 }
 static void printCustomDirectiveWithTypeRefs(OpAsmPrinter &printer,
-                                             Type operandType,
+                                             Operation *op, Type operandType,
                                              Type optOperandType,
                                              TypeRange varOperandTypes) {
   printer << " type_refs_capture ";
-  printCustomDirectiveResults(printer, operandType, optOperandType,
+  printCustomDirectiveResults(printer, op, operandType, optOperandType,
                               varOperandTypes);
 }
-static void
-printCustomDirectiveOperandsAndTypes(OpAsmPrinter &printer, Value operand,
-                                     Value optOperand, OperandRange varOperands,
-                                     Type operandType, Type optOperandType,
-                                     TypeRange varOperandTypes) {
-  printCustomDirectiveOperands(printer, operand, optOperand, varOperands);
-  printCustomDirectiveResults(printer, operandType, optOperandType,
+static void printCustomDirectiveOperandsAndTypes(
+    OpAsmPrinter &printer, Operation *op, Value operand, Value optOperand,
+    OperandRange varOperands, Type operandType, Type optOperandType,
+    TypeRange varOperandTypes) {
+  printCustomDirectiveOperands(printer, op, operand, optOperand, varOperands);
+  printCustomDirectiveResults(printer, op, operandType, optOperandType,
                               varOperandTypes);
 }
-static void printCustomDirectiveRegions(OpAsmPrinter &printer, Region &region,
+static void printCustomDirectiveRegions(OpAsmPrinter &printer, Operation *,
+                                        Region &region,
                                         MutableArrayRef<Region> varRegions) {
   printer.printRegion(region);
   if (!varRegions.empty()) {
@@ -421,14 +465,14 @@ static void printCustomDirectiveRegions(OpAsmPrinter &printer, Region &region,
       printer.printRegion(region);
   }
 }
-static void printCustomDirectiveSuccessors(OpAsmPrinter &printer,
+static void printCustomDirectiveSuccessors(OpAsmPrinter &printer, Operation *,
                                            Block *successor,
                                            SuccessorRange varSuccessors) {
   printer << successor;
   if (!varSuccessors.empty())
     printer << ", " << varSuccessors.front();
 }
-static void printCustomDirectiveAttributes(OpAsmPrinter &printer,
+static void printCustomDirectiveAttributes(OpAsmPrinter &printer, Operation *,
                                            Attribute attribute,
                                            Attribute optAttribute) {
   printer << attribute;
@@ -436,6 +480,10 @@ static void printCustomDirectiveAttributes(OpAsmPrinter &printer,
     printer << ", " << optAttribute;
 }
 
+static void printCustomDirectiveAttrDict(OpAsmPrinter &printer, Operation *op,
+                                         MutableDictionaryAttr attrs) {
+  printer.printOptionalAttrDict(attrs.getAttrs());
+}
 //===----------------------------------------------------------------------===//
 // Test IsolatedRegionOp - parse passthrough region arguments.
 //===----------------------------------------------------------------------===//
@@ -606,6 +654,10 @@ OpFoldResult TestOpWithRegionFold::fold(ArrayRef<Attribute> operands) {
   return operand();
 }
 
+OpFoldResult TestOpConstant::fold(ArrayRef<Attribute> operands) {
+  return getValue();
+}
+
 LogicalResult TestOpWithVariadicResultsAndFolder::fold(
     ArrayRef<Attribute> operands, SmallVectorImpl<OpFoldResult> &results) {
   for (Value input : this->operands()) {
@@ -685,7 +737,7 @@ void SideEffectOp::getEffects(
 
     // Get the specific memory effect.
     MemoryEffects::Effect *effect =
-        llvm::StringSwitch<MemoryEffects::Effect *>(
+        StringSwitch<MemoryEffects::Effect *>(
             effectElement.get("effect").cast<StringAttr>().getValue())
             .Case("allocate", MemoryEffects::Allocate::get())
             .Case("free", MemoryEffects::Free::get())

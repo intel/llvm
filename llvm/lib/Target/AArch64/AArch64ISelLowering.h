@@ -225,6 +225,10 @@ enum NodeType : unsigned {
   SRHADD,
   URHADD,
 
+  // Absolute difference
+  UABD,
+  SABD,
+
   // Vector across-lanes min/max
   // Only the lower result lane is defined.
   SMINV,
@@ -241,9 +245,6 @@ enum NodeType : unsigned {
   ORV_PRED,
   EORV_PRED,
   ANDV_PRED,
-
-  // Vector bitwise negation
-  NOT,
 
   // Vector bitwise insertion
   BIT,
@@ -931,8 +932,10 @@ private:
   SDValue LowerFixedLengthVectorIntExtendToSVE(SDValue Op,
                                                SelectionDAG &DAG) const;
   SDValue LowerFixedLengthVectorLoadToSVE(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerFixedLengthReductionToSVE(unsigned Opcode, SDValue ScalarOp,
-                                         SelectionDAG &DAG) const;
+  SDValue LowerVECREDUCE_SEQ_FADD(SDValue ScalarOp, SelectionDAG &DAG) const;
+  SDValue LowerPredReductionToSVE(SDValue ScalarOp, SelectionDAG &DAG) const;
+  SDValue LowerReductionToSVE(unsigned Opcode, SDValue ScalarOp,
+                              SelectionDAG &DAG) const;
   SDValue LowerFixedLengthVectorSelectToSVE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFixedLengthVectorSetccToSVE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFixedLengthVectorStoreToSVE(SDValue Op, SelectionDAG &DAG) const;

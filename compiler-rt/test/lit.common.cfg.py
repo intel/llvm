@@ -57,18 +57,8 @@ config.available_features.add(compiler_id)
 # If needed, add cflag for shadow scale.
 if config.asan_shadow_scale != '':
   config.target_cflags += " -mllvm -asan-mapping-scale=" + config.asan_shadow_scale
-
-# BFD linker in 64-bit android toolchains fails to find libc++_shared.so, which
-# is a transitive shared library dependency (via asan runtime).
-if config.android:
-  # Prepend the flag so that it can be overridden.
-  config.target_cflags = "-pie -fuse-ld=gold " + config.target_cflags
-  if config.android_ndk_version < 19:
-    # With a new compiler and NDK < r19 this flag ends up meaning "link against
-    # libc++", but NDK r19 makes this mean "link against the stub libstdc++ that
-    # just contains a handful of ABI functions", which makes most C++ code fail
-    # to link. In r19 and later we just use the default which is libc++.
-    config.cxx_mode_flags.append('-stdlib=libstdc++')
+if config.memprof_shadow_scale != '':
+  config.target_cflags += " -mllvm -memprof-mapping-scale=" + config.memprof_shadow_scale
 
 config.environment = dict(os.environ)
 
@@ -132,9 +122,21 @@ if config.host_os == 'NetBSD':
 else:
   config.substitutions.append( ('%run_nomprotect', '%run') )
 
+# Copied from libcxx's config.py
+def get_lit_conf(name, default=None):
+    # Allow overriding on the command line using --param=<name>=<val>
+    val = lit_config.params.get(name, None)
+    if val is None:
+        val = getattr(config, name, None)
+        if val is None:
+            val = default
+    return val
+
+emulator = get_lit_conf('emulator', None)
+
 # Allow tests to be executed on a simulator or remotely.
-if config.emulator:
-  config.substitutions.append( ('%run', config.emulator) )
+if emulator:
+  config.substitutions.append( ('%run', emulator) )
   config.substitutions.append( ('%env ', "env ") )
   # TODO: Implement `%device_rm` to perform removal of files in the emulator.
   # For now just make it a no-op.
@@ -343,8 +345,17 @@ if config.android:
     config.environment['ANDROID_SERIAL'] = config.android_serial
 
   adb = os.environ.get('ADB', 'adb')
+
+  # These are needed for tests to upload/download temp files, such as
+  # suppression-files, to device.
+  config.substitutions.append( ('%device_rundir', "/data/local/tmp/Output") )
+  config.substitutions.append( ('%push_to_device', "%s -s '%s' push " % (adb, env['ANDROID_SERIAL']) ) )
+  config.substitutions.append( ('%pull_from_device', "%s -s '%s' pull " % (adb, env['ANDROID_SERIAL']) ) )
+  config.substitutions.append( ('%adb_shell ', "%s -s '%s' shell " % (adb, env['ANDROID_SERIAL']) ) )
+
   try:
     android_api_level_str = subprocess.check_output([adb, "shell", "getprop", "ro.build.version.sdk"], env=env).rstrip()
+    android_api_codename = subprocess.check_output([adb, "shell", "getprop", "ro.build.version.codename"], env=env).rstrip().decode("utf-8")
   except (subprocess.CalledProcessError, OSError):
     lit_config.fatal("Failed to read ro.build.version.sdk (using '%s' as adb)" % adb)
   try:
@@ -355,12 +366,19 @@ if config.android:
     config.available_features.add('android-26')
   if android_api_level >= 28:
     config.available_features.add('android-28')
+  if android_api_level >= 31 or android_api_codename == 'S':
+    config.available_features.add('android-thread-properties-api')
 
   # Prepare the device.
   android_tmpdir = '/data/local/tmp/Output'
   subprocess.check_call([adb, "shell", "mkdir", "-p", android_tmpdir], env=env)
   for file in config.android_files_to_push:
     subprocess.check_call([adb, "push", file, android_tmpdir], env=env)
+else:
+  config.substitutions.append( ('%device_rundir', "") )
+  config.substitutions.append( ('%push_to_device', "echo ") )
+  config.substitutions.append( ('%pull_from_device', "echo ") )
+  config.substitutions.append( ('%adb_shell', "echo ") )
 
 if config.host_os == 'Linux':
   # detect whether we are using glibc, and which version
@@ -370,7 +388,7 @@ if config.host_os == 'Linux':
                                  env={'LANG': 'C'})
   sout, _ = ldd_ver_cmd.communicate()
   ver_line = sout.splitlines()[0]
-  if ver_line.startswith(b"ldd "):
+  if not config.android and ver_line.startswith(b"ldd "):
     from distutils.version import LooseVersion
     ver = LooseVersion(ver_line.split()[-1].decode())
     # 2.27 introduced some incompatibilities
@@ -541,6 +559,11 @@ if config.asan_shadow_scale:
   config.available_features.add("shadow-scale-%s" % config.asan_shadow_scale)
 else:
   config.available_features.add("shadow-scale-3")
+
+if config.memprof_shadow_scale:
+  config.available_features.add("memprof-shadow-scale-%s" % config.memprof_shadow_scale)
+else:
+  config.available_features.add("memprof-shadow-scale-3")
 
 if config.expensive_checks:
   config.available_features.add("expensive_checks")

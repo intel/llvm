@@ -462,16 +462,16 @@ private:
   }
 
   static id<2> getDelinearizedIndex(const range<2> Range, const size_t Index) {
-    size_t x = Index / Range[1];
-    size_t y = Index % Range[1];
-    return {x, y};
+    size_t x = Index % Range[1];
+    size_t y = Index / Range[1];
+    return {y, x};
   }
 
   static id<3> getDelinearizedIndex(const range<3> Range, const size_t Index) {
-    size_t x = Index / (Range[1] * Range[2]);
+    size_t z = Index / (Range[1] * Range[2]);
     size_t y = (Index / Range[2]) % Range[1];
-    size_t z = Index % Range[2];
-    return {x, y, z};
+    size_t x = Index % Range[2];
+    return {z, y, x};
   }
 
   /// Stores lambda to the template-free object
@@ -641,9 +641,7 @@ private:
     range<Dim> Range = Src.get_range();
     parallel_for<class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
         (Range, [=](id<Dim> Index) {
-      size_t LinearIndex = Index[0];
-      for (int I = 1; I < Dim; ++I)
-        LinearIndex += Range[I] * Index[I];
+      const size_t LinearIndex = detail::getLinearIndex(Index, Range);
       using TSrcNonConst = typename std::remove_const<TSrc>::type;
       (reinterpret_cast<TSrcNonConst *>(Dst))[LinearIndex] = Src[Index];
     });
@@ -678,9 +676,7 @@ private:
     range<Dim> Range = Dst.get_range();
     parallel_for<class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
         (Range, [=](id<Dim> Index) {
-      size_t LinearIndex = Index[0];
-      for (int I = 1; I < Dim; ++I)
-        LinearIndex += Range[I] * Index[I];
+      const size_t LinearIndex = detail::getLinearIndex(Index, Range);
       Dst[Index] = (reinterpret_cast<const TDst *>(Src))[LinearIndex];
     });
   }

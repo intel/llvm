@@ -108,7 +108,7 @@ static Value createFPConstant(Location loc, Type srcType, Type dstType,
       loc, dstType, rewriter.getFloatAttr(floatType, value));
 }
 
-/// Utility function for bitfiled ops:
+/// Utility function for bitfield ops:
 ///   - `BitFieldInsert`
 ///   - `BitFieldSExtract`
 ///   - `BitFieldUExtract`
@@ -163,7 +163,7 @@ static Value optionallyBroadcast(Location loc, Value value, Type srcType,
   return value;
 }
 
-/// Utility function for bitfiled ops: `BitFieldInsert`, `BitFieldSExtract` and
+/// Utility function for bitfield ops: `BitFieldInsert`, `BitFieldSExtract` and
 /// `BitFieldUExtract`.
 /// Broadcast `Offset` and `Count` to match the type of `Base`. If `Base` is of
 /// a vector type, construct a vector that has:
@@ -555,6 +555,66 @@ public:
   }
 };
 
+/// Converts `spv.CompositeExtract` to `llvm.extractvalue` if the container type
+/// is an aggregate type (struct or array). Otherwise, converts to
+/// `llvm.extractelement` that operates on vectors.
+class CompositeExtractPattern
+    : public SPIRVToLLVMConversion<spirv::CompositeExtractOp> {
+public:
+  using SPIRVToLLVMConversion<spirv::CompositeExtractOp>::SPIRVToLLVMConversion;
+
+  LogicalResult
+  matchAndRewrite(spirv::CompositeExtractOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto dstType = this->typeConverter.convertType(op.getType());
+    if (!dstType)
+      return failure();
+
+    Type containerType = op.composite().getType();
+    if (containerType.isa<VectorType>()) {
+      Location loc = op.getLoc();
+      IntegerAttr value = op.indices()[0].cast<IntegerAttr>();
+      Value index = createI32ConstantOf(loc, rewriter, value.getInt());
+      rewriter.replaceOpWithNewOp<LLVM::ExtractElementOp>(
+          op, dstType, op.composite(), index);
+      return success();
+    }
+    rewriter.replaceOpWithNewOp<LLVM::ExtractValueOp>(
+        op, dstType, op.composite(), op.indices());
+    return success();
+  }
+};
+
+/// Converts `spv.CompositeInsert` to `llvm.insertvalue` if the container type
+/// is an aggregate type (struct or array). Otherwise, converts to
+/// `llvm.insertelement` that operates on vectors.
+class CompositeInsertPattern
+    : public SPIRVToLLVMConversion<spirv::CompositeInsertOp> {
+public:
+  using SPIRVToLLVMConversion<spirv::CompositeInsertOp>::SPIRVToLLVMConversion;
+
+  LogicalResult
+  matchAndRewrite(spirv::CompositeInsertOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto dstType = this->typeConverter.convertType(op.getType());
+    if (!dstType)
+      return failure();
+
+    Type containerType = op.composite().getType();
+    if (containerType.isa<VectorType>()) {
+      Location loc = op.getLoc();
+      IntegerAttr value = op.indices()[0].cast<IntegerAttr>();
+      Value index = createI32ConstantOf(loc, rewriter, value.getInt());
+      rewriter.replaceOpWithNewOp<LLVM::InsertElementOp>(
+          op, dstType, op.composite(), op.object(), index);
+      return success();
+    }
+    rewriter.replaceOpWithNewOp<LLVM::InsertValueOp>(
+        op, dstType, op.composite(), op.object(), op.indices());
+    return success();
+  }
+};
+
 /// Converts SPIR-V operations that have straightforward LLVM equivalent
 /// into LLVM dialect operations.
 template <typename SPIRVOp, typename LLVMOp>
@@ -911,8 +971,8 @@ public:
 
     Location loc = loopOp.getLoc();
 
-    // Split the current block after `spv.loop`. The remaing ops will be used in
-    // `endBlock`.
+    // Split the current block after `spv.loop`. The remaining ops will be used
+    // in `endBlock`.
     Block *currentBlock = rewriter.getBlock();
     auto position = Block::iterator(loopOp);
     Block *endBlock = rewriter.splitBlock(currentBlock, position);
@@ -968,7 +1028,7 @@ public:
 
     Location loc = op.getLoc();
 
-    // Split the current block after `spv.selection`. The remaing ops will be
+    // Split the current block after `spv.selection`. The remaining ops will be
     // used in `continueBlock`.
     auto *currentBlock = rewriter.getInsertionBlock();
     rewriter.setInsertionPointAfter(op);
@@ -1327,7 +1387,7 @@ void mlir::populateSPIRVToLLVMConversionPatterns(
 
       // Entry points and execution mode
       // Module generated from SPIR-V could have other "internal" functions, so
-      // having entry point and execution mode metadat can be useful. For now,
+      // having entry point and execution mode metadata can be useful. For now,
       // simply remove them.
       // TODO: Support EntryPoint/ExecutionMode properly.
       ErasePattern<spirv::EntryPointOp>, ErasePattern<spirv::ExecutionModeOp>,
@@ -1360,6 +1420,7 @@ void mlir::populateSPIRVToLLVMConversionPatterns(
       VariablePattern,
 
       // Miscellaneous ops
+      CompositeExtractPattern, CompositeInsertPattern,
       DirectConversionPattern<spirv::SelectOp, LLVM::SelectOp>,
       DirectConversionPattern<spirv::UndefOp, LLVM::UndefOp>,
 

@@ -1281,6 +1281,7 @@ void CodeGenSchedModels::inferFromInstRWs(unsigned SCIdx) {
     findRWs(Rec->getValueAsListOfDefs("OperandReadWrites"), Writes, Reads);
     unsigned PIdx = getProcModel(Rec->getValueAsDef("SchedModel")).Index;
     inferFromRW(Writes, Reads, SCIdx, PIdx); // May mutate SchedClasses.
+    SchedClasses[SCIdx].InstRWProcIndices.insert(PIdx);
   }
 }
 
@@ -1314,6 +1315,16 @@ struct PredTransition {
   SmallVector<SmallVector<unsigned,4>, 16> WriteSequences;
   SmallVector<SmallVector<unsigned,4>, 16> ReadSequences;
   SmallVector<unsigned, 4> ProcIndices;
+
+  PredTransition() = default;
+  PredTransition(ArrayRef<PredCheck> PT) {
+    PredTerm.assign(PT.begin(), PT.end());
+    ProcIndices.assign(1, 0);
+  }
+  PredTransition(ArrayRef<PredCheck> PT, ArrayRef<unsigned> PIds) {
+    PredTerm.assign(PT.begin(), PT.end());
+    ProcIndices.assign(PIds.begin(), PIds.end());
+  }
 };
 
 // Encapsulate a set of partially constructed transitions.
@@ -1327,7 +1338,8 @@ public:
   PredTransitions(CodeGenSchedModels &sm): SchedModels(sm) {}
 
   void substituteVariantOperand(const SmallVectorImpl<unsigned> &RWSeq,
-                                bool IsRead, unsigned StartIdx);
+                                bool IsRead, bool IsForAnyCPU,
+                                unsigned StartIdx);
 
   void substituteVariants(const PredTransition &Trans);
 
@@ -1567,7 +1579,20 @@ pushVariant(const TransVariant &VInfo, bool IsRead) {
 // starts. RWSeq must be applied to all transitions between StartIdx and the end
 // of TransVec.
 void PredTransitions::substituteVariantOperand(
-  const SmallVectorImpl<unsigned> &RWSeq, bool IsRead, unsigned StartIdx) {
+    const SmallVectorImpl<unsigned> &RWSeq, bool IsRead, bool IsForAnyCPU,
+    unsigned StartIdx) {
+
+  auto CollectAndAddVariants = [&](unsigned TransIdx,
+                                   const CodeGenSchedRW &SchedRW) {
+    // Distribute this partial PredTransition across intersecting variants.
+    // This will push a copies of TransVec[TransIdx] on the back of TransVec.
+    std::vector<TransVariant> IntersectingVariants;
+    getIntersectingVariants(SchedRW, TransIdx, IntersectingVariants);
+    // Now expand each variant on top of its copy of the transition.
+    for (const TransVariant &IV : IntersectingVariants)
+      pushVariant(IV, IsRead);
+    return !IntersectingVariants.empty();
+  };
 
   // Visit each original RW within the current sequence.
   for (SmallVectorImpl<unsigned>::const_iterator
@@ -1576,6 +1601,7 @@ void PredTransitions::substituteVariantOperand(
     // Push this RW on all partial PredTransitions or distribute variants.
     // New PredTransitions may be pushed within this loop which should not be
     // revisited (TransEnd must be loop invariant).
+    bool HasAliases = false, WasPushed = false;
     for (unsigned TransIdx = StartIdx, TransEnd = TransVec.size();
          TransIdx != TransEnd; ++TransIdx) {
       // In the common case, push RW onto the current operand's sequence.
@@ -1586,17 +1612,22 @@ void PredTransitions::substituteVariantOperand(
           TransVec[TransIdx].WriteSequences.back().push_back(*RWI);
         continue;
       }
-      // Distribute this partial PredTransition across intersecting variants.
-      // This will push a copies of TransVec[TransIdx] on the back of TransVec.
-      std::vector<TransVariant> IntersectingVariants;
-      getIntersectingVariants(SchedRW, TransIdx, IntersectingVariants);
-      // Now expand each variant on top of its copy of the transition.
-      for (std::vector<TransVariant>::const_iterator
-             IVI = IntersectingVariants.begin(),
-             IVE = IntersectingVariants.end();
-           IVI != IVE; ++IVI) {
-        pushVariant(*IVI, IsRead);
-      }
+      HasAliases = true;
+      WasPushed |= CollectAndAddVariants(TransIdx, SchedRW);
+    }
+    if (IsRead && IsForAnyCPU && HasAliases && !WasPushed) {
+      // If we're here this means that in some sched class:
+      // a) We have read variant for CPU A
+      // b) We have write variant for CPU B
+      // b) We don't have write variant for CPU A
+      // d) We must expand all read/write variants (IsForAnyCPU is true)
+      // e) We couldn't expand SchedRW because TransVec doesn't have
+      //    any transition with compatible CPU ID.
+      // In such case we create new empty transition with zero (AnyCPU)
+      // index.
+      TransVec.emplace_back(TransVec[StartIdx].PredTerm);
+      TransVec.back().ReadSequences.emplace_back();
+      CollectAndAddVariants(TransVec.size() - 1, SchedRW);
     }
   }
 }
@@ -1611,10 +1642,9 @@ void PredTransitions::substituteVariants(const PredTransition &Trans) {
   // Build up a set of partial results starting at the back of
   // PredTransitions. Remember the first new transition.
   unsigned StartIdx = TransVec.size();
-  TransVec.emplace_back();
-  TransVec.back().PredTerm = Trans.PredTerm;
-  TransVec.back().ProcIndices = Trans.ProcIndices;
+  TransVec.emplace_back(Trans.PredTerm, Trans.ProcIndices);
 
+  bool IsForAnyCPU = llvm::count(Trans.ProcIndices, 0);
   // Visit each original write sequence.
   for (SmallVectorImpl<SmallVector<unsigned,4>>::const_iterator
          WSI = Trans.WriteSequences.begin(), WSE = Trans.WriteSequences.end();
@@ -1624,7 +1654,7 @@ void PredTransitions::substituteVariants(const PredTransition &Trans) {
            TransVec.begin() + StartIdx, E = TransVec.end(); I != E; ++I) {
       I->WriteSequences.emplace_back();
     }
-    substituteVariantOperand(*WSI, /*IsRead=*/false, StartIdx);
+    substituteVariantOperand(*WSI, /*IsRead=*/false, IsForAnyCPU, StartIdx);
   }
   // Visit each original read sequence.
   for (SmallVectorImpl<SmallVector<unsigned,4>>::const_iterator
@@ -1635,10 +1665,28 @@ void PredTransitions::substituteVariants(const PredTransition &Trans) {
            TransVec.begin() + StartIdx, E = TransVec.end(); I != E; ++I) {
       I->ReadSequences.emplace_back();
     }
-    substituteVariantOperand(*RSI, /*IsRead=*/true, StartIdx);
+    substituteVariantOperand(*RSI, /*IsRead=*/true, IsForAnyCPU, StartIdx);
   }
 }
 
+static void addSequences(CodeGenSchedModels &SchedModels,
+                         const SmallVectorImpl<SmallVector<unsigned, 4>> &Seqs,
+                         IdxVec &Result, bool IsRead) {
+  for (const auto &S : Seqs)
+    if (!S.empty())
+      Result.push_back(SchedModels.findOrInsertRW(S, IsRead));
+}
+
+static void dumpTransition(const CodeGenSchedModels &SchedModels,
+                           const CodeGenSchedClass &FromSC,
+                           const CodeGenSchedTransition &SCTrans) {
+  LLVM_DEBUG(dbgs() << "Adding transition from " << FromSC.Name << "("
+                    << FromSC.Index << ") to "
+                    << SchedModels.getSchedClass(SCTrans.ToClassIdx).Name << "("
+                    << SCTrans.ToClassIdx << ")"
+                    << " on processor indices: (";
+             dumpIdxVec(SCTrans.ProcIndices); dbgs() << ")\n");
+}
 // Create a new SchedClass for each variant found by inferFromRW. Pass
 static void inferFromTransitions(ArrayRef<PredTransition> LastTransitions,
                                  unsigned FromClassIdx,
@@ -1647,21 +1695,24 @@ static void inferFromTransitions(ArrayRef<PredTransition> LastTransitions,
   // requires creating a new SchedClass.
   for (ArrayRef<PredTransition>::iterator
          I = LastTransitions.begin(), E = LastTransitions.end(); I != E; ++I) {
-    IdxVec OperWritesVariant;
-    transform(I->WriteSequences, std::back_inserter(OperWritesVariant),
-              [&SchedModels](ArrayRef<unsigned> WS) {
-                return SchedModels.findOrInsertRW(WS, /*IsRead=*/false);
-              });
-    IdxVec OperReadsVariant;
-    transform(I->ReadSequences, std::back_inserter(OperReadsVariant),
-              [&SchedModels](ArrayRef<unsigned> RS) {
-                return SchedModels.findOrInsertRW(RS, /*IsRead=*/true);
-              });
+    IdxVec OperWritesVariant, OperReadsVariant;
+    addSequences(SchedModels, I->WriteSequences, OperWritesVariant, false);
+    addSequences(SchedModels, I->ReadSequences, OperReadsVariant, true);
     CodeGenSchedTransition SCTrans;
+
+    // Transition should not contain processor indices already assigned to
+    // InstRWs in this scheduling class.
+    const CodeGenSchedClass &FromSC = SchedModels.getSchedClass(FromClassIdx);
+    llvm::copy_if(I->ProcIndices, std::back_inserter(SCTrans.ProcIndices),
+                  [&FromSC](unsigned PIdx) {
+                    return !FromSC.InstRWProcIndices.count(PIdx);
+                  });
+    if (SCTrans.ProcIndices.empty())
+      continue;
     SCTrans.ToClassIdx =
-      SchedModels.addSchedClass(/*ItinClassDef=*/nullptr, OperWritesVariant,
-                                OperReadsVariant, I->ProcIndices);
-    SCTrans.ProcIndices.assign(I->ProcIndices.begin(), I->ProcIndices.end());
+        SchedModels.addSchedClass(/*ItinClassDef=*/nullptr, OperWritesVariant,
+                                  OperReadsVariant, I->ProcIndices);
+    dumpTransition(SchedModels, FromSC, SCTrans);
     // The final PredTerm is unique set of predicates guarding the transition.
     RecVec Preds;
     transform(I->PredTerm, std::back_inserter(Preds),
@@ -1684,7 +1735,6 @@ void CodeGenSchedModels::inferFromRW(ArrayRef<unsigned> OperWrites,
                                      ArrayRef<unsigned> ProcIndices) {
   LLVM_DEBUG(dbgs() << "INFER RW proc("; dumpIdxVec(ProcIndices);
              dbgs() << ") ");
-
   // Create a seed transition with an empty PredTerm and the expanded sequences
   // of SchedWrites for the current SchedClass.
   std::vector<PredTransition> LastTransitions;
@@ -2189,13 +2239,14 @@ void CodeGenSchedClass::dump(const CodeGenSchedModels* SchedModels) const {
       dbgs().indent(10);
     }
   }
-  dbgs() << "\n  ProcIdx: "; dumpIdxVec(ProcIndices); dbgs() << '\n';
+  dbgs() << "\n  ProcIdx: "; dumpIdxVec(ProcIndices);
   if (!Transitions.empty()) {
     dbgs() << "\n Transitions for Proc ";
     for (const CodeGenSchedTransition &Transition : Transitions) {
       dumpIdxVec(Transition.ProcIndices);
     }
   }
+  dbgs() << '\n';
 }
 
 void PredTransitions::dump() const {

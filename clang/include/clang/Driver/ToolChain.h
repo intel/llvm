@@ -397,9 +397,10 @@ public:
   virtual bool useRelaxRelocations() const;
 
   /// GetDefaultStackProtectorLevel - Get the default stack protector level for
-  /// this tool chain (0=off, 1=on, 2=strong, 3=all).
-  virtual unsigned GetDefaultStackProtectorLevel(bool KernelOrKext) const {
-    return 0;
+  /// this tool chain.
+  virtual LangOptions::StackProtectorMode
+  GetDefaultStackProtectorLevel(bool KernelOrKext) const {
+    return LangOptions::SSPOff;
   }
 
   /// Get the default trivial automatic variable initialization.
@@ -434,10 +435,10 @@ public:
   getCompilerRTArgString(const llvm::opt::ArgList &Args, StringRef Component,
                          FileType Type = ToolChain::FT_Static) const;
 
-  std::string getCompilerRTBasename(const llvm::opt::ArgList &Args,
-                                    StringRef Component,
-                                    FileType Type = ToolChain::FT_Static,
-                                    bool AddArch = true) const;
+  virtual std::string
+  getCompilerRTBasename(const llvm::opt::ArgList &Args, StringRef Component,
+                        FileType Type = ToolChain::FT_Static,
+                        bool AddArch = true) const;
 
   // Returns target specific runtime path if it exists.
   virtual Optional<std::string> getRuntimePath() const;
@@ -450,7 +451,7 @@ public:
   std::string getArchSpecificLibPath() const;
 
   // Returns <OSname> part of above.
-  StringRef getOSLibName() const;
+  virtual StringRef getOSLibName() const;
 
   /// needsProfileRT - returns true if instrumentation profile is on.
   static bool needsProfileRT(const llvm::opt::ArgList &Args);

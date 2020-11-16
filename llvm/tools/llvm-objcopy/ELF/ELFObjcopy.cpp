@@ -184,10 +184,9 @@ findBuildID(const CopyConfig &Config, const object::ELFFile<ELFT> &In) {
       return createFileError(Config.InputFilename, std::move(Err));
   }
 
-  return createFileError(
-      Config.InputFilename,
-      createStringError(llvm::errc::invalid_argument,
-                        "could not find build ID"));
+  return createFileError(Config.InputFilename,
+                         createStringError(llvm::errc::invalid_argument,
+                                           "could not find build ID"));
 }
 
 static Expected<ArrayRef<uint8_t>>
@@ -205,7 +204,8 @@ findBuildID(const CopyConfig &Config, const object::ELFObjectFileBase &In) {
 }
 
 template <class... Ts>
-static Error makeStringError(std::error_code EC, const Twine &Msg, Ts &&... Args) {
+static Error makeStringError(std::error_code EC, const Twine &Msg,
+                             Ts &&... Args) {
   std::string FullMsg = (EC.message() + ": " + Msg).str();
   return createStringError(EC, FullMsg.c_str(), std::forward<Ts>(Args)...);
 }
@@ -318,20 +318,20 @@ static bool isCompressable(const SectionBase &Sec) {
 
 static Error replaceDebugSections(
     Object &Obj, SectionPred &RemovePred,
-    function_ref<bool(const SectionBase &)> shouldReplace,
-    function_ref<Expected<SectionBase *>(const SectionBase *)> addSection) {
+    function_ref<bool(const SectionBase &)> ShouldReplace,
+    function_ref<Expected<SectionBase *>(const SectionBase *)> AddSection) {
   // Build a list of the debug sections we are going to replace.
   // We can't call `AddSection` while iterating over sections,
   // because it would mutate the sections array.
   SmallVector<SectionBase *, 13> ToReplace;
   for (auto &Sec : Obj.sections())
-    if (shouldReplace(Sec))
+    if (ShouldReplace(Sec))
       ToReplace.push_back(&Sec);
 
   // Build a mapping from original section to a new one.
   DenseMap<SectionBase *, SectionBase *> FromTo;
   for (SectionBase *S : ToReplace) {
-    Expected<SectionBase *> NewSection = addSection(S);
+    Expected<SectionBase *> NewSection = AddSection(S);
     if (!NewSection)
       return NewSection.takeError();
 
@@ -344,8 +344,8 @@ static Error replaceDebugSections(
   for (auto &Sec : Obj.sections())
     Sec.replaceSectionReferences(FromTo);
 
-  RemovePred = [shouldReplace, RemovePred](const SectionBase &Sec) {
-    return shouldReplace(Sec) || RemovePred(Sec);
+  RemovePred = [ShouldReplace, RemovePred](const SectionBase &Sec) {
+    return ShouldReplace(Sec) || RemovePred(Sec);
   };
 
   return Error::success();
@@ -719,16 +719,6 @@ static Error handleArgs(const CopyConfig &Config, Object &Obj,
     }
   }
 
-  if (!Config.SetSectionFlags.empty()) {
-    for (auto &Sec : Obj.sections()) {
-      const auto Iter = Config.SetSectionFlags.find(Sec.Name);
-      if (Iter != Config.SetSectionFlags.end()) {
-        const SectionFlagsUpdate &SFU = Iter->second;
-        setSectionFlagsAndType(Sec, SFU.NewFlags);
-      }
-    }
-  }
-
   if (Config.OnlyKeepDebug)
     for (auto &Sec : Obj.sections())
       if (Sec.Flags & SHF_ALLOC && Sec.Type != SHT_NOTE)
@@ -770,6 +760,17 @@ static Error handleArgs(const CopyConfig &Config, Object &Obj,
         Sec ? (uint16_t)SYMBOL_SIMPLE_INDEX : (uint16_t)SHN_ABS, 0);
   }
 
+  // --set-section-flags works with sections added by --add-section.
+  if (!Config.SetSectionFlags.empty()) {
+    for (auto &Sec : Obj.sections()) {
+      const auto Iter = Config.SetSectionFlags.find(Sec.Name);
+      if (Iter != Config.SetSectionFlags.end()) {
+        const SectionFlagsUpdate &SFU = Iter->second;
+        setSectionFlagsAndType(Sec, SFU.NewFlags);
+      }
+    }
+  }
+
   if (Config.EntryExpr)
     Obj.Entry = Config.EntryExpr(Obj.Entry);
   return Error::success();
@@ -792,7 +793,7 @@ Error executeObjcopyOnIHex(const CopyConfig &Config, MemoryBuffer &In,
     return Obj.takeError();
 
   const ElfType OutputElfType =
-    getOutputElfType(Config.OutputArch.getValueOr(MachineInfo()));
+      getOutputElfType(Config.OutputArch.getValueOr(MachineInfo()));
   if (Error E = handleArgs(Config, **Obj, Reader, OutputElfType))
     return E;
   return writeOutput(Config, **Obj, Out, OutputElfType);

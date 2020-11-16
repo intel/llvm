@@ -361,10 +361,11 @@ public:
       return !VD->needsDestruction(getContext()) && InitDecl->evaluateValue();
 
     // Otherwise, we need a thread wrapper unless we know that every
-    // translation unit will emit the value as a constant. We rely on
-    // ICE-ness not varying between translation units, which isn't actually
+    // translation unit will emit the value as a constant. We rely on the
+    // variable being constant-initialized in every translation unit if it's
+    // constant-initialized in any translation unit, which isn't actually
     // guaranteed by the standard but is necessary for sanity.
-    return InitDecl->isInitKnownICE() && InitDecl->isInitICE();
+    return InitDecl->hasConstantInitialization();
   }
 
   bool usesThreadWrapperFunction(const VarDecl *VD) const override {
@@ -3097,6 +3098,9 @@ static bool TypeInfoIsInStandardLibrary(const BuiltinType *Ty) {
 #define SVE_TYPE(Name, Id, SingletonId) \
     case BuiltinType::Id:
 #include "clang/Basic/AArch64SVEACLETypes.def"
+#define PPC_MMA_VECTOR_TYPE(Name, Id, Size) \
+    case BuiltinType::Id:
+#include "clang/Basic/PPCTypes.def"
     case BuiltinType::ShortAccum:
     case BuiltinType::Accum:
     case BuiltinType::LongAccum:

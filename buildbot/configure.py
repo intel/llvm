@@ -32,15 +32,15 @@ def do_configure(args):
 
     icd_loader_lib = os.path.join(icd_loader_lib, "libOpenCL.so" if platform.system() == 'Linux' else "OpenCL.lib")
 
+    # replace not append, so ARM ^ X86
+    if args.arm:
+        llvm_targets_to_build = 'ARM;AArch64'
+
     if args.cuda:
         llvm_targets_to_build += ';NVPTX'
         llvm_enable_projects += ';libclc'
         libclc_targets_to_build = 'nvptx64--;nvptx64--nvidiacl'
         sycl_build_pi_cuda = 'ON'
-
-    # replace not append, so ARM ^ X86
-    if args.arm:
-        llvm_targets_to_build = 'ARM;AArch64'
 
     if args.no_werror:
         sycl_werror = 'OFF'

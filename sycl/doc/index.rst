@@ -28,3 +28,5 @@ Developing oneAPI DPC++ Compiler
    PluginInterface
    ABIPolicyGuide
    SpecializationConstants
+   KernelProgramCache
+   GlobalObjectsInRuntime

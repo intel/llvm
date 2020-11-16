@@ -215,8 +215,8 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   vector_class<event> USMEvents;
   {
     std::lock_guard<mutex_class> Lock(MMutex);
-    Events = std::move(MEventsWeak);
-    USMEvents = std::move(MEventsShared);
+    Events.swap(MEventsWeak);
+    USMEvents.swap(MEventsShared);
   }
 
   for (std::weak_ptr<event_impl> &EventImplWeakPtr : Events)

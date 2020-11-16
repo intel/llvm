@@ -516,7 +516,7 @@ def system(commands, **kwargs):
                 "command": shellCommand
             }
             raise cpe
-        output = output + this_output.decode("utf-8")
+        output = output + this_output.decode("utf-8", errors='ignore')
     return output
 
 
@@ -1927,6 +1927,7 @@ class TestBase(Base):
             header.startswith("SB") and header.endswith(".h"))]
         includes = '\n'.join(list)
         new_content = content.replace('%include_SB_APIs%', includes)
+        new_content = new_content.replace('%SOURCE_DIR%', self.getSourceDir())
         src = os.path.join(self.getBuildDir(), source)
         with open(src, 'w') as f:
             f.write(new_content)
@@ -2424,6 +2425,22 @@ FileCheck output:
         set to False, the 'str' is treated as a string to be matched/not-matched
         against the golden input.
         """
+        # Catch cases where `expect` has been miscalled. Specifically, prevent
+        # this easy to make mistake:
+        #     self.expect("lldb command", "some substr")
+        # The `msg` parameter is used only when a failed match occurs. A failed
+        # match can only occur when one of `patterns`, `startstr`, `endstr`, or
+        # `substrs` has been given. Thus, if a `msg` is given, it's an error to
+        # not also provide one of the matcher parameters.
+        if msg and not (patterns or startstr or endstr or substrs or error):
+            assert False, "expect() missing a matcher argument"
+
+        # Check `patterns` and `substrs` are not accidentally given as strings.
+        assert not isinstance(patterns, six.string_types), \
+            "patterns must be a collection of strings"
+        assert not isinstance(substrs, six.string_types), \
+            "substrs must be a collection of strings"
+
         trace = (True if traceAlways else trace)
 
         if exe:

@@ -28,6 +28,7 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Function.h"
 #include "llvm/MC/MCAsmInfo.h"
+#include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Target/TargetOptions.h"
@@ -148,60 +149,6 @@ static unsigned getLEArOpcode(bool IsLP64) {
   return IsLP64 ? X86::LEA64r : X86::LEA32r;
 }
 
-/// findDeadCallerSavedReg - Return a caller-saved register that isn't live
-/// when it reaches the "return" instruction. We can then pop a stack object
-/// to this register without worry about clobbering it.
-static unsigned findDeadCallerSavedReg(MachineBasicBlock &MBB,
-                                       MachineBasicBlock::iterator &MBBI,
-                                       const X86RegisterInfo *TRI,
-                                       bool Is64Bit) {
-  const MachineFunction *MF = MBB.getParent();
-  if (MF->callsEHReturn())
-    return 0;
-
-  const TargetRegisterClass &AvailableRegs = *TRI->getGPRsForTailCall(*MF);
-
-  if (MBBI == MBB.end())
-    return 0;
-
-  switch (MBBI->getOpcode()) {
-  default: return 0;
-  case TargetOpcode::PATCHABLE_RET:
-  case X86::RET:
-  case X86::RETL:
-  case X86::RETQ:
-  case X86::RETIL:
-  case X86::RETIQ:
-  case X86::TCRETURNdi:
-  case X86::TCRETURNri:
-  case X86::TCRETURNmi:
-  case X86::TCRETURNdi64:
-  case X86::TCRETURNri64:
-  case X86::TCRETURNmi64:
-  case X86::EH_RETURN:
-  case X86::EH_RETURN64: {
-    SmallSet<uint16_t, 8> Uses;
-    for (unsigned i = 0, e = MBBI->getNumOperands(); i != e; ++i) {
-      MachineOperand &MO = MBBI->getOperand(i);
-      if (!MO.isReg() || MO.isDef())
-        continue;
-      Register Reg = MO.getReg();
-      if (!Reg)
-        continue;
-      for (MCRegAliasIterator AI(Reg, TRI, true); AI.isValid(); ++AI)
-        Uses.insert(*AI);
-    }
-
-    for (auto CS : AvailableRegs)
-      if (!Uses.count(CS) && CS != X86::RIP && CS != X86::RSP &&
-          CS != X86::ESP)
-        return CS;
-  }
-  }
-
-  return 0;
-}
-
 static bool isEAXLiveIn(MachineBasicBlock &MBB) {
   for (MachineBasicBlock::RegisterMaskPair RegMask : MBB.liveins()) {
     unsigned Reg = RegMask.PhysReg;
@@ -288,7 +235,7 @@ void X86FrameLowering::emitSPUpdate(MachineBasicBlock &MBB,
     if (isSub && !isEAXLiveIn(MBB))
       Reg = Rax;
     else
-      Reg = findDeadCallerSavedReg(MBB, MBBI, TRI, Is64Bit);
+      Reg = TRI->findDeadCallerSavedReg(MBB, MBBI);
 
     unsigned MovRIOpc = Is64Bit ? X86::MOV64ri : X86::MOV32ri;
     unsigned AddSubRROpc =
@@ -345,7 +292,7 @@ void X86FrameLowering::emitSPUpdate(MachineBasicBlock &MBB,
       // need to find a dead register when using pop.
       unsigned Reg = isSub
         ? (unsigned)(Is64Bit ? X86::RAX : X86::EAX)
-        : findDeadCallerSavedReg(MBB, MBBI, TRI, Is64Bit);
+        : TRI->findDeadCallerSavedReg(MBB, MBBI);
       if (Reg) {
         unsigned Opc = isSub
           ? (Is64Bit ? X86::PUSH64r : X86::PUSH32r)
@@ -3310,10 +3257,14 @@ bool X86FrameLowering::canUseAsEpilogue(const MachineBasicBlock &MBB) const {
 bool X86FrameLowering::enableShrinkWrapping(const MachineFunction &MF) const {
   // If we may need to emit frameless compact unwind information, give
   // up as this is currently broken: PR25614.
-  return (MF.getFunction().hasFnAttribute(Attribute::NoUnwind) || hasFP(MF)) &&
-         // The lowering of segmented stack and HiPE only support entry blocks
-         // as prologue blocks: PR26107.
-         // This limitation may be lifted if we fix:
+  bool CompactUnwind =
+      MF.getMMI().getContext().getObjectFileInfo()->getCompactUnwindSection() !=
+      nullptr;
+  return (MF.getFunction().hasFnAttribute(Attribute::NoUnwind) || hasFP(MF) ||
+          !CompactUnwind) &&
+         // The lowering of segmented stack and HiPE only support entry
+         // blocks as prologue blocks: PR26107. This limitation may be
+         // lifted if we fix:
          // - adjustForSegmentedStacks
          // - adjustForHiPEPrologue
          MF.getFunction().getCallingConv() != CallingConv::HiPE &&
@@ -3416,7 +3367,7 @@ struct X86FrameSortingObject {
 // at the end of our list.
 struct X86FrameSortingComparator {
   inline bool operator()(const X86FrameSortingObject &A,
-                         const X86FrameSortingObject &B) {
+                         const X86FrameSortingObject &B) const {
     uint64_t DensityAScaled, DensityBScaled;
 
     // For consistency in our comparison, all invalid objects are placed

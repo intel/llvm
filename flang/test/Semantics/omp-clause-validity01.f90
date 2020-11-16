@@ -163,6 +163,22 @@ use omp_lib
   !ERROR: Unmatched END TARGET directive
   !$omp end target
 
+  ! OMP 5.0 - 2.6 Restriction point 1
+  outofparallel: do k =1, 10
+  !$omp parallel
+  !$omp do
+  outer: do i=0, 10
+    inner: do j=1, 10
+      exit
+      exit outer
+      !ERROR: EXIT to construct 'outofparallel' outside of PARALLEL construct is not allowed
+      exit outofparallel
+    end do inner
+  end do outer
+  !$end omp do
+  !$omp end parallel
+  end do outofparallel
+
 ! 2.7.1  do-clause -> private-clause |
 !                     firstprivate-clause |
 !                     lastprivate-clause |
@@ -261,6 +277,17 @@ use omp_lib
   d = 2
   !ERROR: NUM_THREADS clause is not allowed on the END SECTIONS directive
   !$omp end sections num_threads(4)
+
+  !$omp parallel
+  !$omp sections
+    b = 1
+  !$omp section
+    c = 1
+    d = 2
+  !ERROR: At most one NOWAIT clause can appear on the END SECTIONS directive
+  !$omp end sections nowait nowait
+  !$omp end parallel
+
   !$omp end parallel
 
 ! 2.11.2 parallel-sections-clause -> parallel-clause |

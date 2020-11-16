@@ -58,7 +58,8 @@ static LogicalResult performActions(raw_ostream &os, bool verifyDiagnostics,
     return failure();
 
   // Apply any pass manager command line options.
-  PassManager pm(context, verifyPasses);
+  PassManager pm(context, OpPassManager::Nesting::Implicit);
+  pm.enableVerifier(verifyPasses);
   applyPassManagerCLOptions(pm);
 
   // Build the provided pipeline.
@@ -89,7 +90,7 @@ static LogicalResult processBuffer(raw_ostream &os,
   sourceMgr.AddNewSourceBuffer(std::move(ownedBuffer), SMLoc());
 
   // Parse the input file.
-  MLIRContext context(/*loadAllDialects=*/preloadDialectsInContext);
+  MLIRContext context;
   registry.appendTo(context.getDialectRegistry());
   if (preloadDialectsInContext)
     registry.loadAll(&context);

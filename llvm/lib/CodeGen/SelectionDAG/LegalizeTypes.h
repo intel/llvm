@@ -337,6 +337,7 @@ private:
   SDValue PromoteIntRes_TRUNCATE(SDNode *N);
   SDValue PromoteIntRes_UADDSUBO(SDNode *N, unsigned ResNo);
   SDValue PromoteIntRes_ADDSUBCARRY(SDNode *N, unsigned ResNo);
+  SDValue PromoteIntRes_SADDSUBO_CARRY(SDNode *N, unsigned ResNo);
   SDValue PromoteIntRes_UNDEF(SDNode *N);
   SDValue PromoteIntRes_VAARG(SDNode *N);
   SDValue PromoteIntRes_VSCALE(SDNode *N);
@@ -429,6 +430,7 @@ private:
   void ExpandIntRes_ADDSUBC           (SDNode *N, SDValue &Lo, SDValue &Hi);
   void ExpandIntRes_ADDSUBE           (SDNode *N, SDValue &Lo, SDValue &Hi);
   void ExpandIntRes_ADDSUBCARRY       (SDNode *N, SDValue &Lo, SDValue &Hi);
+  void ExpandIntRes_SADDSUBO_CARRY    (SDNode *N, SDValue &Lo, SDValue &Hi);
   void ExpandIntRes_BITREVERSE        (SDNode *N, SDValue &Lo, SDValue &Hi);
   void ExpandIntRes_BSWAP             (SDNode *N, SDValue &Lo, SDValue &Hi);
   void ExpandIntRes_PARITY            (SDNode *N, SDValue &Lo, SDValue &Hi);
@@ -549,6 +551,7 @@ private:
   SDValue SoftenFloatRes_VAARG(SDNode *N);
   SDValue SoftenFloatRes_XINT_TO_FP(SDNode *N);
   SDValue SoftenFloatRes_VECREDUCE(SDNode *N);
+  SDValue SoftenFloatRes_VECREDUCE_SEQ(SDNode *N);
 
   // Convert Float Operand to Integer.
   bool SoftenFloatOperand(SDNode *N, unsigned OpNo);
@@ -668,6 +671,7 @@ private:
   SDValue BitcastToInt_ATOMIC_SWAP(SDNode *N);
   SDValue PromoteFloatRes_XINT_TO_FP(SDNode *N);
   SDValue PromoteFloatRes_VECREDUCE(SDNode *N);
+  SDValue PromoteFloatRes_VECREDUCE_SEQ(SDNode *N);
 
   bool PromoteFloatOperand(SDNode *N, unsigned OpNo);
   SDValue PromoteFloatOp_BITCAST(SDNode *N, unsigned OpNo);
@@ -706,6 +710,7 @@ private:
   SDValue SoftPromoteHalfRes_XINT_TO_FP(SDNode *N);
   SDValue SoftPromoteHalfRes_UNDEF(SDNode *N);
   SDValue SoftPromoteHalfRes_VECREDUCE(SDNode *N);
+  SDValue SoftPromoteHalfRes_VECREDUCE_SEQ(SDNode *N);
 
   bool SoftPromoteHalfOperand(SDNode *N, unsigned OpNo);
   SDValue SoftPromoteHalfOp_BITCAST(SDNode *N);
@@ -772,6 +777,7 @@ private:
   SDValue ScalarizeVecOp_FP_ROUND(SDNode *N, unsigned OpNo);
   SDValue ScalarizeVecOp_STRICT_FP_ROUND(SDNode *N, unsigned OpNo);
   SDValue ScalarizeVecOp_VECREDUCE(SDNode *N);
+  SDValue ScalarizeVecOp_VECREDUCE_SEQ(SDNode *N);
 
   //===--------------------------------------------------------------------===//
   // Vector Splitting Support: LegalizeVectorTypes.cpp
@@ -827,6 +833,7 @@ private:
   bool SplitVectorOperand(SDNode *N, unsigned OpNo);
   SDValue SplitVecOp_VSELECT(SDNode *N, unsigned OpNo);
   SDValue SplitVecOp_VECREDUCE(SDNode *N, unsigned OpNo);
+  SDValue SplitVecOp_VECREDUCE_SEQ(SDNode *N);
   SDValue SplitVecOp_UnaryOp(SDNode *N);
   SDValue SplitVecOp_TruncateHelper(SDNode *N);
 
@@ -913,6 +920,7 @@ private:
   SDValue WidenVecOp_Convert(SDNode *N);
   SDValue WidenVecOp_FCOPYSIGN(SDNode *N);
   SDValue WidenVecOp_VECREDUCE(SDNode *N);
+  SDValue WidenVecOp_VECREDUCE_SEQ(SDNode *N);
 
   /// Helper function to generate a set of operations to perform
   /// a vector operation for a wider type.

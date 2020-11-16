@@ -529,14 +529,7 @@ public:
     if (Version <= CGF.CGM.getTarget().getPlatformMinVersion())
       return llvm::ConstantInt::get(Builder.getInt1Ty(), 1);
 
-    Optional<unsigned> Min = Version.getMinor(), SMin = Version.getSubminor();
-    llvm::Value *Args[] = {
-        llvm::ConstantInt::get(CGF.CGM.Int32Ty, Version.getMajor()),
-        llvm::ConstantInt::get(CGF.CGM.Int32Ty, Min ? *Min : 0),
-        llvm::ConstantInt::get(CGF.CGM.Int32Ty, SMin ? *SMin : 0),
-    };
-
-    return CGF.EmitBuiltinAvailable(Args);
+    return CGF.EmitBuiltinAvailable(Version);
   }
 
   Value *VisitArraySubscriptExpr(ArraySubscriptExpr *E);
@@ -2264,6 +2257,8 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
   case CK_IntegralToFloating:
   case CK_FloatingToIntegral:
   case CK_FloatingCast:
+  case CK_FixedPointToFloating:
+  case CK_FloatingToFixedPoint:
     return EmitScalarConversion(Visit(E), E->getType(), DestTy,
                                 CE->getExprLoc());
   case CK_BooleanToSignedIntegral: {

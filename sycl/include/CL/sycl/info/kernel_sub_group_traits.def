@@ -1,5 +1,5 @@
-PARAM_TRAITS_SPEC_WITH_INPUT(kernel_sub_group, max_sub_group_size,
+__SYCL_PARAM_TRAITS_SPEC_WITH_INPUT(kernel_sub_group, max_sub_group_size,
                              uint32_t, cl::sycl::range<3>)
-PARAM_TRAITS_SPEC(kernel_sub_group, max_num_sub_groups, uint32_t)
-PARAM_TRAITS_SPEC(kernel_sub_group, compile_num_sub_groups, uint32_t)
-PARAM_TRAITS_SPEC(kernel_sub_group, compile_sub_group_size, uint32_t)
+__SYCL_PARAM_TRAITS_SPEC(kernel_sub_group, max_num_sub_groups, uint32_t)
+__SYCL_PARAM_TRAITS_SPEC(kernel_sub_group, compile_num_sub_groups, uint32_t)
+__SYCL_PARAM_TRAITS_SPEC(kernel_sub_group, compile_sub_group_size, uint32_t)

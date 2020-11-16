@@ -293,10 +293,10 @@ void Writer::layoutMemory() {
   if (WasmSym::dataEnd)
     WasmSym::dataEnd->setVirtualAddress(memoryPtr);
 
-  log("mem: static data = " + Twine(memoryPtr - dataStart));
-
-  if (config->shared) {
-    out.dylinkSec->memSize = memoryPtr;
+  uint64_t staticDataSize = memoryPtr - dataStart;
+  log("mem: static data = " + Twine(staticDataSize));
+  if (config->isPic) {
+    out.dylinkSec->memSize = staticDataSize;
     return;
   }
 
@@ -323,7 +323,6 @@ void Writer::layoutMemory() {
             Twine(maxMemorySetting));
     memoryPtr = config->initialMemory;
   }
-  out.dylinkSec->memSize = memoryPtr;
   out.memorySec->numMemoryPages =
       alignTo(memoryPtr, WasmPageSize) / WasmPageSize;
   log("mem: total pages = " + Twine(out.memorySec->numMemoryPages));
@@ -965,9 +964,17 @@ void Writer::createApplyRelocationsFunction() {
   {
     raw_string_ostream os(bodyContent);
     writeUleb128(os, 0, "num locals");
+
+    // First apply relocations to any internalized GOT entries.  These
+    // are the result of relaxation when building with -Bsymbolic.
+    out.globalSec->generateRelocationCode(os);
+
+    // Next apply any realocation to the data section by reading GOT entry
+    // globals.
     for (const OutputSegment *seg : segments)
       for (const InputSegment *inSeg : seg->inputSegments)
         inSeg->generateRelocationCode(os);
+
     writeU8(os, WASM_OPCODE_END, "END");
   }
 
@@ -1104,9 +1111,8 @@ void Writer::calculateInitFunctions() {
     for (const WasmInitFunc &f : l.InitFunctions) {
       FunctionSymbol *sym = file->getFunctionSymbol(f.Symbol);
       // comdat exclusions can cause init functions be discarded.
-      if (sym->isDiscarded())
+      if (sym->isDiscarded() || !sym->isLive())
         continue;
-      assert(sym->isLive());
       if (sym->signature->Params.size() != 0)
         error("constructor functions cannot take arguments: " + toString(*sym));
       LLVM_DEBUG(dbgs() << "initFunctions: " << toString(*sym) << "\n");

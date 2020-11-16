@@ -126,19 +126,21 @@ Value *SCEVExpander::InsertNoopCastOfTo(Value *V, Type *Ty) {
   assert(SE.getTypeSizeInBits(V->getType()) == SE.getTypeSizeInBits(Ty) &&
          "InsertNoopCastOfTo cannot change sizes!");
 
-  auto *PtrTy = dyn_cast<PointerType>(Ty);
   // inttoptr only works for integral pointers. For non-integral pointers, we
   // can create a GEP on i8* null  with the integral value as index. Note that
   // it is safe to use GEP of null instead of inttoptr here, because only
   // expressions already based on a GEP of null should be converted to pointers
   // during expansion.
-  if (Op == Instruction::IntToPtr && DL.isNonIntegralPointerType(PtrTy)) {
-    auto *Int8PtrTy = Builder.getInt8PtrTy(PtrTy->getAddressSpace());
-    assert(DL.getTypeAllocSize(Int8PtrTy->getElementType()) == 1 &&
-           "alloc size of i8 must by 1 byte for the GEP to be correct");
-    auto *GEP = Builder.CreateGEP(
-        Builder.getInt8Ty(), Constant::getNullValue(Int8PtrTy), V, "uglygep");
-    return Builder.CreateBitCast(GEP, Ty);
+  if (Op == Instruction::IntToPtr) {
+    auto *PtrTy = cast<PointerType>(Ty);
+    if (DL.isNonIntegralPointerType(PtrTy)) {
+      auto *Int8PtrTy = Builder.getInt8PtrTy(PtrTy->getAddressSpace());
+      assert(DL.getTypeAllocSize(Int8PtrTy->getElementType()) == 1 &&
+             "alloc size of i8 must by 1 byte for the GEP to be correct");
+      auto *GEP = Builder.CreateGEP(
+          Builder.getInt8Ty(), Constant::getNullValue(Int8PtrTy), V, "uglygep");
+      return Builder.CreateBitCast(GEP, Ty);
+    }
   }
   // Short-circuit unnecessary bitcasts.
   if (Op == Instruction::BitCast) {
@@ -1661,6 +1663,12 @@ Value *SCEVExpander::visitAddRecExpr(const SCEVAddRecExpr *S) {
   return expand(T);
 }
 
+Value *SCEVExpander::visitPtrToIntExpr(const SCEVPtrToIntExpr *S) {
+  Value *V =
+      expandCodeForImpl(S->getOperand(), S->getOperand()->getType(), false);
+  return Builder.CreatePtrToInt(V, S->getType());
+}
+
 Value *SCEVExpander::visitTruncateExpr(const SCEVTruncateExpr *S) {
   Type *Ty = SE.getEffectiveSCEVType(S->getType());
   Value *V = expandCodeForImpl(
@@ -2020,8 +2028,8 @@ SCEVExpander::replaceCongruentIVs(Loop *L, const DominatorTree *DT,
       // Put pointers at the back and make sure pointer < pointer = false.
       if (!LHS->getType()->isIntegerTy() || !RHS->getType()->isIntegerTy())
         return RHS->getType()->isIntegerTy() && !LHS->getType()->isIntegerTy();
-      return RHS->getType()->getPrimitiveSizeInBits() <
-             LHS->getType()->getPrimitiveSizeInBits();
+      return RHS->getType()->getPrimitiveSizeInBits().getFixedSize() <
+             LHS->getType()->getPrimitiveSizeInBits().getFixedSize();
     });
 
   unsigned NumElim = 0;
@@ -2230,17 +2238,20 @@ template<typename T> static int costAndCollectOperands(
                         unsigned MinIdx, unsigned MaxIdx) {
     Operations.emplace_back(Opcode, MinIdx, MaxIdx);
     Type *OpType = S->getOperand(0)->getType();
-    return NumRequired *
-      TTI.getCmpSelInstrCost(Opcode, OpType,
-                             CmpInst::makeCmpResultType(OpType), CostKind);
+    return NumRequired * TTI.getCmpSelInstrCost(
+                             Opcode, OpType, CmpInst::makeCmpResultType(OpType),
+                             CmpInst::BAD_ICMP_PREDICATE, CostKind);
   };
 
   switch (S->getSCEVType()) {
-  default:
-    llvm_unreachable("No other scev expressions possible.");
+  case scCouldNotCompute:
+    llvm_unreachable("Attempt to use a SCEVCouldNotCompute object!");
   case scUnknown:
   case scConstant:
     return 0;
+  case scPtrToInt:
+    Cost = CastCost(Instruction::PtrToInt);
+    break;
   case scTruncate:
     Cost = CastCost(Instruction::Trunc);
     break;
@@ -2345,31 +2356,37 @@ bool SCEVExpander::isHighCostExpansionHelper(
   if (getRelatedExistingExpansion(S, &At, L))
     return false; // Consider the expression to be free.
 
-  // Assume to be zero-cost.
-  if (isa<SCEVUnknown>(S))
-    return false;
-
   TargetTransformInfo::TargetCostKind CostKind =
-    L->getHeader()->getParent()->hasMinSize()
-    ? TargetTransformInfo::TCK_CodeSize
-    : TargetTransformInfo::TCK_RecipThroughput;
+      L->getHeader()->getParent()->hasMinSize()
+          ? TargetTransformInfo::TCK_CodeSize
+          : TargetTransformInfo::TCK_RecipThroughput;
 
-  if (auto *Constant = dyn_cast<SCEVConstant>(S)) {
+  switch (S->getSCEVType()) {
+  case scCouldNotCompute:
+    llvm_unreachable("Attempt to use a SCEVCouldNotCompute object!");
+  case scUnknown:
+    // Assume to be zero-cost.
+    return false;
+  case scConstant: {
     // Only evalulate the costs of constants when optimizing for size.
     if (CostKind != TargetTransformInfo::TCK_CodeSize)
       return 0;
-    const APInt &Imm = Constant->getAPInt();
+    const APInt &Imm = cast<SCEVConstant>(S)->getAPInt();
     Type *Ty = S->getType();
-    BudgetRemaining -=
-      TTI.getIntImmCostInst(WorkItem.ParentOpcode, WorkItem.OperandIdx,
-                            Imm, Ty, CostKind);
+    BudgetRemaining -= TTI.getIntImmCostInst(
+        WorkItem.ParentOpcode, WorkItem.OperandIdx, Imm, Ty, CostKind);
     return BudgetRemaining < 0;
-  } else if (isa<SCEVCastExpr>(S)) {
+  }
+  case scTruncate:
+  case scPtrToInt:
+  case scZeroExtend:
+  case scSignExtend: {
     int Cost =
-      costAndCollectOperands<SCEVCastExpr>(WorkItem, TTI, CostKind, Worklist);
+        costAndCollectOperands<SCEVCastExpr>(WorkItem, TTI, CostKind, Worklist);
     BudgetRemaining -= Cost;
     return false; // Will answer upon next entry into this function.
-  } else if (isa<SCEVUDivExpr>(S)) {
+  }
+  case scUDivExpr: {
     // UDivExpr is very likely a UDiv that ScalarEvolution's HowFarToZero or
     // HowManyLessThans produced to compute a precise expression, rather than a
     // UDiv from the user's code. If we can't find a UDiv in the code with some
@@ -2383,27 +2400,35 @@ bool SCEVExpander::isHighCostExpansionHelper(
       return false; // Consider it to be free.
 
     int Cost =
-      costAndCollectOperands<SCEVUDivExpr>(WorkItem, TTI, CostKind, Worklist);
+        costAndCollectOperands<SCEVUDivExpr>(WorkItem, TTI, CostKind, Worklist);
     // Need to count the cost of this UDiv.
     BudgetRemaining -= Cost;
     return false; // Will answer upon next entry into this function.
-  } else if (const SCEVNAryExpr *NAry = dyn_cast<SCEVNAryExpr>(S)) {
-    assert(NAry->getNumOperands() > 1 &&
+  }
+  case scAddExpr:
+  case scMulExpr:
+  case scUMaxExpr:
+  case scSMaxExpr:
+  case scUMinExpr:
+  case scSMinExpr: {
+    assert(cast<SCEVNAryExpr>(S)->getNumOperands() > 1 &&
            "Nary expr should have more than 1 operand.");
     // The simple nary expr will require one less op (or pair of ops)
     // than the number of it's terms.
     int Cost =
-      costAndCollectOperands<SCEVNAryExpr>(WorkItem, TTI, CostKind, Worklist);
+        costAndCollectOperands<SCEVNAryExpr>(WorkItem, TTI, CostKind, Worklist);
     BudgetRemaining -= Cost;
     return BudgetRemaining < 0;
-  } else if (isa<SCEVAddRecExpr>(S)) {
+  }
+  case scAddRecExpr: {
     assert(cast<SCEVAddRecExpr>(S)->getNumOperands() >= 2 &&
            "Polynomial should be at least linear");
     BudgetRemaining -= costAndCollectOperands<SCEVAddRecExpr>(
-      WorkItem, TTI, CostKind, Worklist);
+        WorkItem, TTI, CostKind, Worklist);
     return BudgetRemaining < 0;
-  } else
-    llvm_unreachable("No other scev expressions possible.");
+  }
+  }
+  llvm_unreachable("Unknown SCEV kind!");
 }
 
 Value *SCEVExpander::expandCodeForPredicate(const SCEVPredicate *Pred,

@@ -339,6 +339,14 @@ def add_p2i_to_ptradd : GICombineRule<
   (apply [{ return Helper.applyCombineAddP2IToPtrAdd(*${root}, ${info}); }])
 >;
 
+// Fold (ptr_add (int2ptr C1), C2) -> C1 + C2
+def const_ptradd_to_i2p_matchinfo : GIDefMatchData<"int64_t">;
+def const_ptradd_to_i2p: GICombineRule<
+  (defs root:$root, const_ptradd_to_i2p_matchinfo:$info),
+  (match (wip_match_opcode G_PTR_ADD):$root,
+    [{ return Helper.matchCombineConstPtrAddToI2P(*${root}, ${info}); }]),
+  (apply [{ return Helper.applyCombineConstPtrAddToI2P(*${root}, ${info}); }])
+>;
 
 // Simplify: (logic_op (op x...), (op y...)) -> (op (logic_op x, y))
 def hoist_logic_op_with_same_opcode_hands: GICombineRule <
@@ -490,6 +498,24 @@ def xor_of_and_with_same_reg: GICombineRule <
   (apply [{ return Helper.applyXorOfAndWithSameReg(*${root}, ${matchinfo}); }])
 >;
 
+// Transform (ptr_add 0, x) -> (int_to_ptr x)
+def ptr_add_with_zero: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_PTR_ADD):$root,
+         [{ return Helper.matchPtrAddZero(*${root}); }]),
+  (apply [{ return Helper.applyPtrAddZero(*${root}); }])>;
+
+def regs_small_vec : GIDefMatchData<"SmallVector<Register, 4>">;
+def combine_insert_vec_elts_build_vector : GICombineRule<
+  (defs root:$root, regs_small_vec:$info),
+  (match (wip_match_opcode G_INSERT_VECTOR_ELT):$root,
+    [{ return Helper.matchCombineInsertVecElts(*${root}, ${info}); }]),
+  (apply [{ return Helper.applyCombineInsertVecElts(*${root}, ${info}); }])>;
+
+// Currently only the one combine above.
+def insert_vec_elt_combines : GICombineGroup<
+                            [combine_insert_vec_elts_build_vector]>;
+
 // FIXME: These should use the custom predicate feature once it lands.
 def undef_combines : GICombineGroup<[undef_to_fp_zero, undef_to_int_zero,
                                      undef_to_negative_one,
@@ -505,6 +531,8 @@ def identity_combines : GICombineGroup<[select_same_val, right_identity_zero,
                                         i2p_to_p2i, anyext_trunc_fold,
                                         fneg_fneg_fold, right_identity_one]>;
 
+def const_combines : GICombineGroup<[constant_fp_op, const_ptradd_to_i2p]>;
+
 def known_bits_simplifications : GICombineGroup<[
   and_trivial_mask, redundant_sext_inreg]>;
 
@@ -515,9 +543,9 @@ def select_combines : GICombineGroup<[select_undef_cmp, select_constant_cmp]>;
 def trivial_combines : GICombineGroup<[copy_prop, mul_to_shl, add_p2i_to_ptradd,
                                        mul_by_neg_one]>;
 
-def all_combines : GICombineGroup<[trivial_combines, ptr_add_immed_chain,
-    combines_for_extload, combine_indexed_load_store, undef_combines,
-    identity_combines, simplify_add_to_sub,
+def all_combines : GICombineGroup<[trivial_combines, insert_vec_elt_combines,
+    ptr_add_immed_chain, combines_for_extload, combine_indexed_load_store,
+    undef_combines, identity_combines, simplify_add_to_sub,
     hoist_logic_op_with_same_opcode_hands,
     shl_ashr_to_sext_inreg, sext_inreg_of_load,
     width_reduction_combines, select_combines,
@@ -525,4 +553,4 @@ def all_combines : GICombineGroup<[trivial_combines, ptr_add_immed_chain,
     not_cmp_fold, opt_brcond_by_inverting_cond,
     unmerge_merge, fabs_fabs_fold, unmerge_cst, unmerge_dead_to_trunc,
     unmerge_zext_to_zext, trunc_ext_fold, trunc_shl,
-    constant_fp_op, xor_of_and_with_same_reg]>;
+    const_combines, xor_of_and_with_same_reg, ptr_add_with_zero]>;

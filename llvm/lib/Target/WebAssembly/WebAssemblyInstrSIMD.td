@@ -16,7 +16,9 @@ multiclass SIMD_I<dag oops_r, dag iops_r, dag oops_s, dag iops_s,
                   list<dag> pattern_r, string asmstr_r = "",
                   string asmstr_s = "", bits<32> simdop = -1> {
   defm "" : I<oops_r, iops_r, oops_s, iops_s, pattern_r, asmstr_r, asmstr_s,
-              !or(0xfd00, !and(0xff, simdop))>,
+              !if(!ge(simdop, 0x100),
+                  !or(0xfd0000, !and(0xffff, simdop)),
+                  !or(0xfd00, !and(0xff, simdop)))>,
             Requires<[HasSIMD128]>;
 }
 
@@ -53,7 +55,7 @@ defm LOAD_V128_A64 :
          "v128.load\t$off$p2align", 0>;
 }
 
-// Def load and store patterns from WebAssemblyInstrMemory.td for vector types
+// Def load patterns from WebAssemblyInstrMemory.td for vector types
 foreach vec_t = [v16i8, v8i16, v4i32, v2i64, v4f32, v2f64] in {
 defm : LoadPatNoOffset<vec_t, load, "LOAD_V128">;
 defm : LoadPatImmOff<vec_t, load, regPlusImm, "LOAD_V128">;
@@ -201,6 +203,51 @@ defm : LoadPatOffsetOnly<v2i64, int_wasm_load64_zero, "LOAD_ZERO_v2i64">;
 defm : LoadPatGlobalAddrOffOnly<v4i32, int_wasm_load32_zero, "LOAD_ZERO_v4i32">;
 defm : LoadPatGlobalAddrOffOnly<v2i64, int_wasm_load64_zero, "LOAD_ZERO_v2i64">;
 
+// Load lane
+multiclass SIMDLoadLane<ValueType vec_t, string name, bits<32> simdop> {
+  let mayLoad = 1, UseNamedOperandTable = 1 in {
+  defm LOAD_LANE_#vec_t#_A32 :
+    SIMD_I<(outs V128:$dst),
+           (ins P2Align:$p2align, offset32_op:$off, vec_i8imm_op:$idx,
+                I32:$addr, V128:$vec),
+           (outs), (ins P2Align:$p2align, offset32_op:$off, vec_i8imm_op:$idx),
+           [], name#"\t$dst, ${off}(${addr})$p2align, $vec, $idx",
+           name#"\t$off$p2align, $idx", simdop>;
+  defm LOAD_LANE_#vec_t#_A64 :
+    SIMD_I<(outs V128:$dst),
+           (ins P2Align:$p2align, offset64_op:$off, vec_i8imm_op:$idx,
+                I64:$addr, V128:$vec),
+           (outs), (ins P2Align:$p2align, offset64_op:$off, vec_i8imm_op:$idx),
+           [], name#"\t$dst, ${off}(${addr})$p2align, $vec, $idx",
+           name#"\t$off$p2align, $idx", simdop>;
+  } // mayLoad = 1, UseNamedOperandTable = 1
+}
+
+// TODO: Also support v4f32 and v2f64 once the instructions are merged
+// to the proposal
+defm "" : SIMDLoadLane<v16i8, "v128.load8_lane", 88>;
+defm "" : SIMDLoadLane<v8i16, "v128.load16_lane", 89>;
+defm "" : SIMDLoadLane<v4i32, "v128.load32_lane", 90>;
+defm "" : SIMDLoadLane<v2i64, "v128.load64_lane", 91>;
+
+// Select loads with no constant offset.
+multiclass LoadLanePatNoOffset<ValueType ty, PatFrag kind, ImmLeaf lane_imm_t> {
+  def : Pat<(ty (kind (i32 I32:$addr), (ty V128:$vec), (i32 lane_imm_t:$idx))),
+            (!cast<NI>("LOAD_LANE_"#ty#"_A32") 0, 0, imm:$idx, I32:$addr, V128:$vec)>,
+        Requires<[HasAddr32]>;
+  def : Pat<(ty (kind (i64 I64:$addr), (ty V128:$vec), (i32 lane_imm_t:$idx))),
+            (!cast<NI>("LOAD_LANE_"#ty#"_A64") 0, 0, imm:$idx, I64:$addr, V128:$vec)>,
+        Requires<[HasAddr64]>;
+}
+
+defm : LoadLanePatNoOffset<v16i8, int_wasm_load8_lane, LaneIdx16>;
+defm : LoadLanePatNoOffset<v8i16, int_wasm_load16_lane, LaneIdx8>;
+defm : LoadLanePatNoOffset<v4i32, int_wasm_load32_lane, LaneIdx4>;
+defm : LoadLanePatNoOffset<v2i64, int_wasm_load64_lane, LaneIdx2>;
+
+// TODO: Also support the other load patterns for load_lane once the instructions
+// are merged to the proposal.
+
 // Store: v128.store
 let mayStore = 1, UseNamedOperandTable = 1 in {
 defm STORE_V128_A32 :
@@ -214,14 +261,62 @@ defm STORE_V128_A64 :
          "v128.store\t${off}(${addr})$p2align, $vec",
          "v128.store\t$off$p2align", 11>;
 }
+
+// Def store patterns from WebAssemblyInstrMemory.td for vector types
 foreach vec_t = [v16i8, v8i16, v4i32, v2i64, v4f32, v2f64] in {
-// Def load and store patterns from WebAssemblyInstrMemory.td for vector types
 defm : StorePatNoOffset<vec_t, store, "STORE_V128">;
 defm : StorePatImmOff<vec_t, store, regPlusImm, "STORE_V128">;
 defm : StorePatImmOff<vec_t, store, or_is_add, "STORE_V128">;
 defm : StorePatOffsetOnly<vec_t, store, "STORE_V128">;
 defm : StorePatGlobalAddrOffOnly<vec_t, store, "STORE_V128">;
 }
+
+// Store lane
+multiclass SIMDStoreLane<ValueType vec_t, string name, bits<32> simdop> {
+  let mayStore = 1, UseNamedOperandTable = 1 in {
+  defm STORE_LANE_#vec_t#_A32 :
+    SIMD_I<(outs),
+           (ins P2Align:$p2align, offset32_op:$off, vec_i8imm_op:$idx,
+                I32:$addr, V128:$vec),
+           (outs), (ins P2Align:$p2align, offset32_op:$off, vec_i8imm_op:$idx),
+           [], name#"\t${off}(${addr})$p2align, $vec, $idx",
+           name#"\t$off$p2align, $idx", simdop>;
+  defm STORE_LANE_#vec_t#_A64 :
+    SIMD_I<(outs V128:$dst),
+           (ins P2Align:$p2align, offset64_op:$off, vec_i8imm_op:$idx,
+                I64:$addr, V128:$vec),
+           (outs), (ins P2Align:$p2align, offset64_op:$off, vec_i8imm_op:$idx),
+           [], name#"\t${off}(${addr})$p2align, $vec, $idx",
+           name#"\t$off$p2align, $idx", simdop>;
+  } // mayStore = 1, UseNamedOperandTable = 1
+}
+
+// TODO: Also support v4f32 and v2f64 once the instructions are merged
+// to the proposal
+defm "" : SIMDStoreLane<v16i8, "v128.store8_lane", 92>;
+defm "" : SIMDStoreLane<v8i16, "v128.store16_lane", 93>;
+defm "" : SIMDStoreLane<v4i32, "v128.store32_lane", 94>;
+defm "" : SIMDStoreLane<v2i64, "v128.store64_lane", 95>;
+
+// Select stores with no constant offset.
+multiclass StoreLanePatNoOffset<ValueType ty, PatFrag kind, ImmLeaf lane_imm_t> {
+  def : Pat<(kind (i32 I32:$addr), (ty V128:$vec), (i32 lane_imm_t:$idx)),
+            (!cast<NI>("STORE_LANE_"#ty#"_A32")
+              0, 0, imm:$idx, I32:$addr, ty:$vec)>,
+        Requires<[HasAddr32]>;
+  def : Pat<(kind (i64 I64:$addr), (ty V128:$vec), (i32 lane_imm_t:$idx)),
+            (!cast<NI>("STORE_LANE_"#ty#"_A64")
+              0, 0, imm:$idx, I64:$addr, ty:$vec)>,
+        Requires<[HasAddr64]>;
+}
+
+defm : StoreLanePatNoOffset<v16i8, int_wasm_store8_lane, LaneIdx16>;
+defm : StoreLanePatNoOffset<v8i16, int_wasm_store16_lane, LaneIdx8>;
+defm : StoreLanePatNoOffset<v4i32, int_wasm_store32_lane, LaneIdx4>;
+defm : StoreLanePatNoOffset<v2i64, int_wasm_store64_lane, LaneIdx2>;
+
+// TODO: Also support the other store patterns for store_lane once the
+// instructions are merged to the proposal.
 
 //===----------------------------------------------------------------------===//
 // Constructing SIMD values
@@ -546,6 +641,14 @@ foreach nodes = [[seteq, EQ_v2f64], [setne, NE_v2f64], [setlt, LT_v2f64],
 def : Pat<(v2i64 (nodes[0] (v2f64 V128:$lhs), (v2f64 V128:$rhs))),
           (v2i64 (nodes[1] (v2f64 V128:$lhs), (v2f64 V128:$rhs)))>;
 
+// Prototype i64x2.eq
+defm EQ_v2i64 :
+  SIMD_I<(outs V128:$dst), (ins V128:$lhs, V128:$rhs), (outs), (ins),
+         [(set (v2i64 V128:$dst),
+           (int_wasm_eq (v2i64 V128:$lhs), (v2i64 V128:$rhs))
+         )],
+         "i64x2.eq\t$dst, $lhs, $rhs", "i64x2.eq", 192>;
+
 
 //===----------------------------------------------------------------------===//
 // Bitwise operations
@@ -652,6 +755,23 @@ def : Pat<(select
           )>;
 } // foreach vec_t
 
+// Sign select
+multiclass SIMDSignSelect<ValueType vec_t, string vec, bits<32> simdop> {
+  defm SIGNSELECT_#vec_t :
+    SIMD_I<(outs V128:$dst), (ins V128:$v1, V128:$v2, V128:$c), (outs), (ins),
+           [(set (vec_t V128:$dst),
+             (vec_t (int_wasm_signselect
+               (vec_t V128:$v1), (vec_t V128:$v2), (vec_t V128:$c)
+             ))
+           )],
+           vec#".signselect\t$dst, $v1, $v2, $c", vec#".signselect", simdop>;
+}
+
+defm : SIMDSignSelect<v16i8, "i8x16", 125>;
+defm : SIMDSignSelect<v8i16, "i16x8", 126>;
+defm : SIMDSignSelect<v4i32, "i32x4", 127>;
+defm : SIMDSignSelect<v2i64, "i64x2", 148>;
+
 //===----------------------------------------------------------------------===//
 // Integer unary arithmetic
 //===----------------------------------------------------------------------===//
@@ -692,6 +812,9 @@ defm ANYTRUE : SIMDReduce<int_wasm_anytrue, "any_true", 98>;
 // All lanes true: all_true
 defm ALLTRUE : SIMDReduce<int_wasm_alltrue, "all_true", 99>;
 
+// Population count: popcnt
+defm POPCNT : SIMDUnary<v16i8, "i8x16", int_wasm_popcnt, "popcnt", 124>;
+
 // Reductions already return 0 or 1, so and 1, setne 0, and seteq 1
 // can be folded out
 foreach reduction =
@@ -725,6 +848,7 @@ multiclass SIMDBitmask<ValueType vec_t, string vec, bits<32> simdop> {
 defm BITMASK : SIMDBitmask<v16i8, "i8x16", 100>;
 defm BITMASK : SIMDBitmask<v8i16, "i16x8", 132>;
 defm BITMASK : SIMDBitmask<v4i32, "i32x4", 164>;
+defm BITMASK : SIMDBitmask<v2i64, "i64x2", 196>;
 
 //===----------------------------------------------------------------------===//
 // Bit shifts
@@ -839,6 +963,57 @@ defm DOT : SIMD_I<(outs V128:$dst), (ins V128:$lhs, V128:$rhs), (outs), (ins),
                   "i32x4.dot_i16x8_s\t$dst, $lhs, $rhs", "i32x4.dot_i16x8_s",
                   186>;
 
+// Extending multiplication: extmul_{low,high}_P, extmul_high
+multiclass SIMDExtBinary<ValueType vec_t, ValueType arg_t, string vec,
+                         SDNode node, string name, bits<32> simdop> {
+  defm _#vec_t : SIMD_I<(outs V128:$dst), (ins V128:$lhs, V128:$rhs),
+                        (outs), (ins),
+                        [(set (vec_t V128:$dst),
+                          (node (arg_t V128:$lhs), (arg_t V128:$rhs))
+                        )],
+                        vec#"."#name#"\t$dst, $lhs, $rhs", vec#"."#name,
+                        simdop>;
+}
+
+defm EXTMUL_LOW_S :
+  SIMDExtBinary<v8i16, v16i8, "i16x8", int_wasm_extmul_low_signed,
+                "extmul_low_i8x16_s", 154>;
+defm EXTMUL_HIGH_S :
+  SIMDExtBinary<v8i16, v16i8, "i16x8", int_wasm_extmul_high_signed,
+                "extmul_high_i8x16_s", 157>;
+defm EXTMUL_LOW_U :
+  SIMDExtBinary<v8i16, v16i8, "i16x8", int_wasm_extmul_low_unsigned,
+                "extmul_low_i8x16_u", 158>;
+defm EXTMUL_HIGH_U :
+  SIMDExtBinary<v8i16, v16i8, "i16x8", int_wasm_extmul_high_unsigned,
+                "extmul_high_i8x16_u", 159>;
+
+defm EXTMUL_LOW_S :
+  SIMDExtBinary<v4i32, v8i16, "i32x4", int_wasm_extmul_low_signed,
+                "extmul_low_i16x8_s", 187>;
+defm EXTMUL_HIGH_S :
+  SIMDExtBinary<v4i32, v8i16, "i32x4", int_wasm_extmul_high_signed,
+                "extmul_high_i16x8_s", 189>;
+defm EXTMUL_LOW_U :
+  SIMDExtBinary<v4i32, v8i16, "i32x4", int_wasm_extmul_low_unsigned,
+                "extmul_low_i16x8_u", 190>;
+defm EXTMUL_HIGH_U :
+  SIMDExtBinary<v4i32, v8i16, "i32x4", int_wasm_extmul_high_unsigned,
+                "extmul_high_i16x8_u", 191>;
+
+defm EXTMUL_LOW_S :
+  SIMDExtBinary<v2i64, v4i32, "i64x2", int_wasm_extmul_low_signed,
+                "extmul_low_i32x4_s", 210>;
+defm EXTMUL_HIGH_S :
+  SIMDExtBinary<v2i64, v4i32, "i64x2", int_wasm_extmul_high_signed,
+                "extmul_high_i32x4_s", 211>;
+defm EXTMUL_LOW_U :
+  SIMDExtBinary<v2i64, v4i32, "i64x2", int_wasm_extmul_low_unsigned,
+               "extmul_low_i32x4_u", 214>;
+defm EXTMUL_HIGH_U :
+  SIMDExtBinary<v2i64, v4i32, "i64x2", int_wasm_extmul_high_unsigned,
+                "extmul_high_i32x4_u", 215>;
+
 //===----------------------------------------------------------------------===//
 // Floating-point unary arithmetic
 //===----------------------------------------------------------------------===//
@@ -949,6 +1124,15 @@ multiclass SIMDWiden<ValueType vec_t, string vec, ValueType arg_t, string arg,
 
 defm "" : SIMDWiden<v8i16, "i16x8", v16i8, "i8x16", 135>;
 defm "" : SIMDWiden<v4i32, "i32x4", v8i16, "i16x8", 167>;
+
+defm "" : SIMDConvert<v2i64, v4i32, int_wasm_widen_low_signed,
+                      "i64x2.widen_low_i32x4_s", 199>;
+defm "" : SIMDConvert<v2i64, v4i32, int_wasm_widen_high_signed,
+                      "i64x2.widen_high_i32x4_s", 200>;
+defm "" : SIMDConvert<v2i64, v4i32, int_wasm_widen_low_unsigned,
+                      "i64x2.widen_low_i32x4_u", 201>;
+defm "" : SIMDConvert<v2i64, v4i32, int_wasm_widen_high_unsigned,
+                      "i64x2.widen_high_i32x4_u", 202>;
 
 // Narrowing operations
 multiclass SIMDNarrow<ValueType vec_t, string vec, ValueType arg_t, string arg,
@@ -1093,3 +1277,11 @@ multiclass SIMDQFM<ValueType vec_t, string vec, bits<32> simdopA,
 
 defm "" : SIMDQFM<v4f32, "f32x4", 180, 212>;
 defm "" : SIMDQFM<v2f64, "f64x2", 254, 255>;
+
+//===----------------------------------------------------------------------===//
+// Saturating Rounding Q-Format Multiplication
+//===----------------------------------------------------------------------===//
+
+defm Q15MULR_SAT_S :
+  SIMDBinary<v8i16, "i16x8", int_wasm_q15mulr_saturate_signed, "q15mulr_sat_s",
+             156>;

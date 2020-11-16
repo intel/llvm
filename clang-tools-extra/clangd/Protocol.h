@@ -25,6 +25,7 @@
 
 #include "URI.h"
 #include "index/SymbolID.h"
+#include "support/MemoryTree.h"
 #include "clang/Index/IndexSymbol.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/Support/JSON.h"
@@ -862,8 +863,19 @@ struct PublishDiagnosticsParams {
 llvm::json::Value toJSON(const PublishDiagnosticsParams &);
 
 struct CodeActionContext {
-  /// An array of diagnostics.
+  /// An array of diagnostics known on the client side overlapping the range
+  /// provided to the `textDocument/codeAction` request. They are provided so
+  /// that the server knows which errors are currently presented to the user for
+  /// the given range. There is no guarantee that these accurately reflect the
+  /// error state of the resource. The primary parameter to compute code actions
+  /// is the provided range.
   std::vector<Diagnostic> diagnostics;
+
+  /// Requested kind of actions to return.
+  ///
+  /// Actions not of this kind are filtered out by the client before being
+  /// shown. So servers can omit computing them.
+  std::vector<std::string> only;
 };
 bool fromJSON(const llvm::json::Value &, CodeActionContext &, llvm::json::Path);
 
@@ -1015,6 +1027,14 @@ struct SymbolInformation {
 
   /// The name of the symbol containing this symbol.
   std::string containerName;
+
+  /// The score that clangd calculates to rank the returned symbols.
+  /// This excludes the fuzzy-matching score between `name` and the query.
+  /// (Specifically, the last ::-separated component).
+  /// This can be used to re-rank results as the user types, using client-side
+  /// fuzzy-matching (that score should be multiplied with this one).
+  /// This is a clangd extension, set only for workspace/symbol responses.
+  llvm::Optional<float> score;
 };
 llvm::json::Value toJSON(const SymbolInformation &);
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, const SymbolInformation &);
@@ -1033,7 +1053,7 @@ struct SymbolDetails {
   /// (See USRGeneration.h)
   std::string USR;
 
-  llvm::Optional<SymbolID> ID;
+  SymbolID ID;
 };
 llvm::json::Value toJSON(const SymbolDetails &);
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, const SymbolDetails &);
@@ -1175,11 +1195,11 @@ struct CompletionItem {
   /// Indicates if this item is deprecated.
   bool deprecated = false;
 
-  /// This is Clangd extension.
-  /// The score that Clangd calculates to rank completion items. This score can
-  /// be used to adjust the ranking on the client side.
-  /// NOTE: This excludes fuzzy matching score which is typically calculated on
-  /// the client side.
+  /// The score that clangd calculates to rank the returned completions.
+  /// This excludes the fuzzy-match between `filterText` and the partial word.
+  /// This can be used to re-rank results as the user types, using client-side
+  /// fuzzy-matching (that score should be multiplied with this one).
+  /// This is a clangd extension.
   float score = 0.f;
 
   // TODO: Add custom commitCharacters for some of the completion items. For
@@ -1567,6 +1587,27 @@ struct FoldingRange {
   llvm::Optional<std::string> kind;
 };
 llvm::json::Value toJSON(const FoldingRange &Range);
+
+/// Keys starting with an underscore(_) represent leaves, e.g. _total or _self
+/// for memory usage of whole subtree or only that specific node in bytes. All
+/// other keys represents children. An example:
+///   {
+///     "_self": 0,
+///     "_total": 8,
+///     "child1": {
+///       "_self": 4,
+///       "_total": 4,
+///     }
+///     "child2": {
+///       "_self": 2,
+///       "_total": 4,
+///       "child_deep": {
+///         "_self": 2,
+///         "_total": 2,
+///       }
+///     }
+///   }
+llvm::json::Value toJSON(const MemoryTree &MT);
 
 } // namespace clangd
 } // namespace clang

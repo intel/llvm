@@ -724,11 +724,6 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
     }
     LI->destroy(L);
   }
-
-#ifndef NDEBUG
-  if (SE)
-    SE->verify();
-#endif
 }
 
 /// Checks if \p L has single exit through latch block except possibly
@@ -988,7 +983,7 @@ Value *llvm::createSimpleTargetReduction(
   case Instruction::FAdd:
     BuildFunc = [&]() {
       auto Rdx = Builder.CreateFAddReduce(
-          Constant::getNullValue(SrcVTy->getElementType()), Src);
+          ConstantFP::getNegativeZero(SrcVTy->getElementType()), Src);
       return Rdx;
     };
     break;

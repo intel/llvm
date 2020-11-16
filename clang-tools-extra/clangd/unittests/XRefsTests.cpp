@@ -1128,7 +1128,7 @@ TEST(LocateSymbol, Alias) {
 
       R"cpp(
       namespace ns { int [[x]](char); int x(double); }
-      using ns::x;
+      using ns::[[x]];
       int y = ^x('a');
     )cpp",
 

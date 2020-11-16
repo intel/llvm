@@ -220,138 +220,92 @@ inline float cast_if_host_half(half_impl::half val) {
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-using half = cl::sycl::detail::half_impl::half;
-
 // Partial specialization of some functions in namespace `std`
 namespace std {
 
-
 // Partial specialization of `std::hash<cl::sycl::half>`
-template <> struct hash<half> {
-  size_t operator()(half const &Key) const noexcept {
+template <> struct hash<cl::sycl::half> {
+  size_t operator()(cl::sycl::half const &Key) const noexcept {
     return hash<uint16_t>{}(reinterpret_cast<const uint16_t &>(Key));
   }
 };
 
 // Partial specialization of `std::numeric<cl::sycl::half>`
+template <> struct numeric_limits<cl::sycl::half> {
+  // All following values are either calculated based on description of each
+  // function/value on https://en.cppreference.com/w/cpp/types/numeric_limits,
+  // or cl_platform.h.
+  static constexpr bool is_specialized = true;
+  static constexpr bool is_signed = true;
+  static constexpr bool is_integer = false;
+  static constexpr bool is_exact = false;
+  static constexpr bool has_infinity = true;
+  static constexpr bool has_quiet_NaN = true;
+  static constexpr bool has_signaling_NaN = true;
+  static constexpr float_denorm_style has_denorm = denorm_present;
+  static constexpr bool has_denorm_loss = false;
+  static constexpr bool tinyness_before = false;
+  static constexpr bool traps = false;
+  static constexpr int max_exponent10 = 4;
+  static constexpr int max_exponent = 16;
+  static constexpr int min_exponent10 = -4;
+  static constexpr int min_exponent = -13;
+  static constexpr int radix = 2;
+  static constexpr int max_digits10 = 5;
+  static constexpr int digits = 11;
+  static constexpr bool is_bounded = true;
+  static constexpr int digits10 = 3;
+  static constexpr bool is_modulo = false;
+  static constexpr bool is_iec559 = true;
+  static constexpr float_round_style round_style = round_to_nearest;
 
-// All following values are either calculated based on description of each
-// function/value on https://en.cppreference.com/w/cpp/types/numeric_limits, or
-// cl_platform.h.
-#define SYCL_HLF_MIN 6.103515625e-05F
-
-#define SYCL_HLF_MAX 65504.0F
-
-#define SYCL_HLF_MAX_10_EXP 4
-
-#define SYCL_HLF_MAX_EXP 16
-
-#define SYCL_HLF_MIN_10_EXP (-4)
-
-#define SYCL_HLF_MIN_EXP (-13)
-
-#define SYCL_HLF_MANT_DIG 11
-
-#define SYCL_HLF_DIG 3
-
-#define SYCL_HLF_DECIMAL_DIG 5
-
-#define SYCL_HLF_EPSILON 9.765625e-04F
-
-#define SYCL_HLF_RADIX 2
-
-template <> struct numeric_limits<half> {
-  static constexpr const bool is_specialized = true;
-
-  static constexpr const bool is_signed = true;
-
-  static constexpr const bool is_integer = false;
-
-  static constexpr const bool is_exact = false;
-
-  static constexpr const bool has_infinity = true;
-
-  static constexpr const bool has_quiet_NaN = true;
-
-  static constexpr const bool has_signaling_NaN = true;
-
-  static constexpr const float_denorm_style has_denorm = denorm_present;
-
-  static constexpr const bool has_denorm_loss = false;
-
-  static constexpr const bool tinyness_before = false;
-
-  static constexpr const bool traps = false;
-
-  static constexpr const int max_exponent10 = SYCL_HLF_MAX_10_EXP;
-
-  static constexpr const int max_exponent = SYCL_HLF_MAX_EXP;
-
-  static constexpr const int min_exponent10 = SYCL_HLF_MIN_10_EXP;
-
-  static constexpr const int min_exponent = SYCL_HLF_MIN_EXP;
-
-  static constexpr const int radix = SYCL_HLF_RADIX;
-
-  static constexpr const int max_digits10 = SYCL_HLF_DECIMAL_DIG;
-
-  static constexpr const int digits = SYCL_HLF_MANT_DIG;
-
-  static constexpr const bool is_bounded = true;
-
-  static constexpr const int digits10 = SYCL_HLF_DIG;
-
-  static constexpr const bool is_modulo = false;
-
-  static constexpr const bool is_iec559 = true;
-
-  static constexpr const float_round_style round_style = round_to_nearest;
-
-  static __SYCL_CONSTEXPR_ON_DEVICE const half(min)() noexcept {
-    return SYCL_HLF_MIN;
+  static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half(min)() noexcept {
+    return 6.103515625e-05f; // half minimum value
   }
 
-  static __SYCL_CONSTEXPR_ON_DEVICE const half(max)() noexcept {
-    return SYCL_HLF_MAX;
+  static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half(max)() noexcept {
+    return 65504.0f; // half maximum value
   }
 
-  static __SYCL_CONSTEXPR_ON_DEVICE const half lowest() noexcept {
-    return -SYCL_HLF_MAX;
+  static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half lowest() noexcept {
+    return -65504.0f; // -1*(half maximum value)
   }
 
-  static __SYCL_CONSTEXPR_ON_DEVICE const half epsilon() noexcept {
-    return SYCL_HLF_EPSILON;
+  static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half epsilon() noexcept {
+    return 9.765625e-04f; // half epsilon
   }
 
-  static __SYCL_CONSTEXPR_ON_DEVICE const half round_error() noexcept {
-    return 0.5F;
+  static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half
+  round_error() noexcept {
+    return 0.5f;
   }
 
-  static __SYCL_CONSTEXPR_ON_DEVICE const half infinity() noexcept {
+  static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half infinity() noexcept {
     return __builtin_huge_valf();
   }
 
-  static __SYCL_CONSTEXPR_ON_DEVICE const half quiet_NaN() noexcept {
+  static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half quiet_NaN() noexcept {
     return __builtin_nanf("");
   }
 
-  static __SYCL_CONSTEXPR_ON_DEVICE const half signaling_NaN() noexcept {
+  static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half
+  signaling_NaN() noexcept {
     return __builtin_nansf("");
   }
 
-  static __SYCL_CONSTEXPR_ON_DEVICE const half denorm_min() noexcept {
-    return 5.96046e-08F;
+  static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half denorm_min() noexcept {
+    return 5.96046e-08f;
   }
 };
 
 } // namespace std
 
-inline std::ostream &operator<<(std::ostream &O, half const &rhs) {
+inline std::ostream &operator<<(std::ostream &O, cl::sycl::half const &rhs) {
   O << static_cast<float>(rhs);
   return O;
 }
 
-inline std::istream &operator>>(std::istream &I, half &rhs) {
+inline std::istream &operator>>(std::istream &I, cl::sycl::half &rhs) {
   float ValFloat = 0.0f;
   I >> ValFloat;
   rhs = ValFloat;

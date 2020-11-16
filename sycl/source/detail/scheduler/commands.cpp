@@ -1202,7 +1202,14 @@ AllocaCommandBase *ExecCGCommand::getAllocaForReq(Requirement *Req) {
 }
 
 vector_class<StreamImplPtr> ExecCGCommand::getStreams() const {
-  return ((CGExecKernel *)MCommandGroup.get())->getStreams();
+  if (MCommandGroup->getType() == CG::KERNEL)
+    return ((CGExecKernel *)MCommandGroup.get())->getStreams();
+  return {};
+}
+
+void ExecCGCommand::clearStreams() {
+  if (MCommandGroup->getType() == CG::KERNEL)
+    ((CGExecKernel *)MCommandGroup.get())->clearStreams();
 }
 
 cl_int UpdateHostRequirementCommand::enqueueImp() {
@@ -1613,20 +1620,7 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, RT::PiKernel Kernel,
       get(Kernel, DeviceImpl.getHandleRef(), DeviceImpl.getPlugin());
 
   if (WGSize[0] == 0) {
-    // kernel does not request specific workgroup shape - set one
-    id<3> MaxWGSizes =
-        get_device_info<id<3>, cl::sycl::info::device::max_work_item_sizes>::
-            get(DeviceImpl.getHandleRef(), DeviceImpl.getPlugin());
-
-    size_t WGSize1D = get_kernel_device_specific_info<
-        size_t, cl::sycl::info::kernel_device_specific::work_group_size>::
-        get(Kernel, DeviceImpl.getHandleRef(), DeviceImpl.getPlugin());
-
-    assert(MaxWGSizes[2] != 0);
-
-    // Set default work-group size in the Z-direction to either the max
-    // number of work-items or the maximum work-group size in the Z-direction.
-    WGSize = {1, 1, min(WGSize1D, MaxWGSizes[2])};
+    WGSize = {1, 1, 1};
   }
   NDR.set(NDR.Dims, nd_range<3>(NDR.NumWorkGroups * WGSize, WGSize));
 }
@@ -1730,12 +1724,18 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
 void DispatchNativeKernel(void *Blob) {
   // First value is a pointer to Corresponding CGExecKernel object.
   CGExecKernel *HostTask = *(CGExecKernel **)Blob;
+  bool ShouldDeleteCG = static_cast<void **>(Blob)[1] != nullptr;
 
   // Other value are pointer to the buffers.
-  void **NextArg = (void **)Blob + 1;
+  void **NextArg = static_cast<void **>(Blob) + 2;
   for (detail::Requirement *Req : HostTask->MRequirements)
     Req->MData = *(NextArg++);
   HostTask->MHostKernel->call(HostTask->MNDRDesc, nullptr);
+
+  // The command group will (if not already was) be released in scheduler.
+  // Hence we're free to deallocate it here.
+  if (ShouldDeleteCG)
+    delete HostTask;
 }
 
 cl_int ExecCGCommand::enqueueImp() {
@@ -1820,9 +1820,14 @@ cl_int ExecCGCommand::enqueueImp() {
     // piEnqueueNativeKernel takes arguments blob which is passes to user
     // function.
     // Reserve extra space for the pointer to CGExecKernel to restore context.
-    std::vector<void *> ArgsBlob(HostTask->MArgs.size() + 1);
+    std::vector<void *> ArgsBlob(HostTask->MArgs.size() + 2);
     ArgsBlob[0] = (void *)HostTask;
-    void **NextArg = ArgsBlob.data() + 1;
+    {
+      std::intptr_t ShouldDeleteCG =
+          static_cast<std::intptr_t>(MDeps.size() == 0 && MUsers.size() == 0);
+      ArgsBlob[1] = reinterpret_cast<void *>(ShouldDeleteCG);
+    }
+    void **NextArg = ArgsBlob.data() + 2;
 
     if (MQueue->is_host()) {
       for (ArgDesc &Arg : HostTask->MArgs) {

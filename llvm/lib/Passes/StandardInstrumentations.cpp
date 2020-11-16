@@ -22,6 +22,7 @@
 #include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassInstrumentation.h"
+#include "llvm/IR/Verifier.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -33,7 +34,7 @@ using namespace llvm;
 
 // TODO: remove once all required passes are marked as such.
 static cl::opt<bool>
-    EnableOptnone("enable-npm-optnone", cl::init(false),
+    EnableOptnone("enable-npm-optnone", cl::init(true),
                   cl::desc("Enable skipping optional passes optnone functions "
                            "under new pass manager"));
 
@@ -233,19 +234,19 @@ void unwrapAndPrint(raw_ostream &OS, Any IR, StringRef Banner,
 }
 
 // Return true when this is a pass for which changes should be ignored
-inline bool isIgnored(StringRef PassID) {
+bool isIgnored(StringRef PassID) {
   return isSpecialPass(PassID,
                        {"PassManager", "PassAdaptor", "AnalysisManagerProxy"});
 }
 
 // Return true when this is a defined function for which printing
 // of changes is desired.
-inline bool isInterestingFunction(const Function &F) {
+bool isInterestingFunction(const Function &F) {
   return llvm::isFunctionInPrintList(F.getName());
 }
 
 // Return true when this is a pass for which printing of changes is desired.
-inline bool isInterestingPass(StringRef PassID) {
+bool isInterestingPass(StringRef PassID) {
   if (isIgnored(PassID))
     return false;
 
@@ -346,10 +347,8 @@ void IRChangePrinter::registerCallbacks(PassInstrumentationCallbacks &PIC) {
   if (!PrintChanged)
     return;
 
-  PIC.registerBeforePassCallback([this](StringRef P, Any IR) {
-    saveIRBeforePass(IR, P);
-    return true;
-  });
+  PIC.registerBeforeNonSkippedPassCallback(
+      [this](StringRef P, Any IR) { saveIRBeforePass(IR, P); });
 
   PIC.registerAfterPassCallback(
       [this](StringRef P, Any IR, const PreservedAnalyses &) {
@@ -520,11 +519,11 @@ void PrintIRInstrumentation::registerCallbacks(
 
 void OptNoneInstrumentation::registerCallbacks(
     PassInstrumentationCallbacks &PIC) {
-  PIC.registerBeforePassCallback(
-      [this](StringRef P, Any IR) { return this->skip(P, IR); });
+  PIC.registerShouldRunOptionalPassCallback(
+      [this](StringRef P, Any IR) { return this->shouldRun(P, IR); });
 }
 
-bool OptNoneInstrumentation::skip(StringRef PassID, Any IR) {
+bool OptNoneInstrumentation::shouldRun(StringRef PassID, Any IR) {
   if (!EnableOptnone)
     return true;
   const Function *F = nullptr;
@@ -533,7 +532,12 @@ bool OptNoneInstrumentation::skip(StringRef PassID, Any IR) {
   } else if (any_isa<const Loop *>(IR)) {
     F = any_cast<const Loop *>(IR)->getHeader()->getParent();
   }
-  return !(F && F->hasOptNone());
+  bool ShouldRun = !(F && F->hasOptNone());
+  if (!ShouldRun && DebugLogging) {
+    errs() << "Skipping pass " << PassID << " on " << F->getName()
+           << " due to optnone attribute\n";
+  }
+  return ShouldRun;
 }
 
 void PrintPassInstrumentation::registerCallbacks(
@@ -724,6 +728,42 @@ void PreservedCFGCheckerInstrumentation::registerCallbacks(
   });
 }
 
+void VerifyInstrumentation::registerCallbacks(
+    PassInstrumentationCallbacks &PIC) {
+  PIC.registerAfterPassCallback(
+      [this](StringRef P, Any IR, const PreservedAnalyses &PassPA) {
+        if (isIgnored(P) || P == "VerifierPass")
+          return;
+        if (any_isa<const Function *>(IR) || any_isa<const Loop *>(IR)) {
+          const Function *F;
+          if (any_isa<const Loop *>(IR))
+            F = any_cast<const Loop *>(IR)->getHeader()->getParent();
+          else
+            F = any_cast<const Function *>(IR);
+          if (DebugLogging)
+            dbgs() << "Verifying function " << F->getName() << "\n";
+
+          if (verifyFunction(*F))
+            report_fatal_error("Broken function found, compilation aborted!");
+        } else if (any_isa<const Module *>(IR) ||
+                   any_isa<const LazyCallGraph::SCC *>(IR)) {
+          const Module *M;
+          if (any_isa<const LazyCallGraph::SCC *>(IR))
+            M = any_cast<const LazyCallGraph::SCC *>(IR)
+                    ->begin()
+                    ->getFunction()
+                    .getParent();
+          else
+            M = any_cast<const Module *>(IR);
+          if (DebugLogging)
+            dbgs() << "Verifying module " << M->getName() << "\n";
+
+          if (verifyModule(*M))
+            report_fatal_error("Broken module found, compilation aborted!");
+        }
+      });
+}
+
 void StandardInstrumentations::registerCallbacks(
     PassInstrumentationCallbacks &PIC) {
   PrintIR.registerCallbacks(PIC);
@@ -732,4 +772,6 @@ void StandardInstrumentations::registerCallbacks(
   OptNone.registerCallbacks(PIC);
   PreservedCFGChecker.registerCallbacks(PIC);
   PrintChangedIR.registerCallbacks(PIC);
+  if (VerifyEach)
+    Verify.registerCallbacks(PIC);
 }

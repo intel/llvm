@@ -35,29 +35,41 @@ template <> struct group_scope<::cl::sycl::ONEAPI::sub_group> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
 };
 
-// Generic shuffles and broadcasts may require multiple calls to SPIR-V
+// Generic shuffles and broadcasts may require multiple calls to
 // intrinsics, and should use the fewest broadcasts possible
-// - Loop over 64-bit chunks until remaining bytes < 64-bit
+// - Loop over chunks until remaining bytes < chunk size
 // - At most one 32-bit, 16-bit and 8-bit chunk left over
+#ifndef __NVPTX__
+using ShuffleChunkT = uint64_t;
+#else
+using ShuffleChunkT = uint32_t;
+#endif
 template <typename T, typename Functor>
 void GenericCall(const Functor &ApplyToBytes) {
-  if (sizeof(T) >= sizeof(uint64_t)) {
+  if (sizeof(T) >= sizeof(ShuffleChunkT)) {
 #pragma unroll
-    for (size_t Offset = 0; Offset < sizeof(T); Offset += sizeof(uint64_t)) {
-      ApplyToBytes(Offset, sizeof(uint64_t));
+    for (size_t Offset = 0; Offset < sizeof(T);
+         Offset += sizeof(ShuffleChunkT)) {
+      ApplyToBytes(Offset, sizeof(ShuffleChunkT));
     }
   }
-  if (sizeof(T) % sizeof(uint64_t) >= sizeof(uint32_t)) {
-    size_t Offset = sizeof(T) / sizeof(uint64_t) * sizeof(uint64_t);
-    ApplyToBytes(Offset, sizeof(uint32_t));
+  if (sizeof(ShuffleChunkT) >= sizeof(uint64_t)) {
+    if (sizeof(T) % sizeof(uint64_t) >= sizeof(uint32_t)) {
+      size_t Offset = sizeof(T) / sizeof(uint64_t) * sizeof(uint64_t);
+      ApplyToBytes(Offset, sizeof(uint32_t));
+    }
   }
-  if (sizeof(T) % sizeof(uint32_t) >= sizeof(uint16_t)) {
-    size_t Offset = sizeof(T) / sizeof(uint32_t) * sizeof(uint32_t);
-    ApplyToBytes(Offset, sizeof(uint16_t));
+  if (sizeof(ShuffleChunkT) >= sizeof(uint32_t)) {
+    if (sizeof(T) % sizeof(uint32_t) >= sizeof(uint16_t)) {
+      size_t Offset = sizeof(T) / sizeof(uint32_t) * sizeof(uint32_t);
+      ApplyToBytes(Offset, sizeof(uint16_t));
+    }
   }
-  if (sizeof(T) % sizeof(uint16_t) >= sizeof(uint8_t)) {
-    size_t Offset = sizeof(T) / sizeof(uint16_t) * sizeof(uint16_t);
-    ApplyToBytes(Offset, sizeof(uint8_t));
+  if (sizeof(ShuffleChunkT) >= sizeof(uint16_t)) {
+    if (sizeof(T) % sizeof(uint16_t) >= sizeof(uint8_t)) {
+      size_t Offset = sizeof(T) / sizeof(uint16_t) * sizeof(uint16_t);
+      ApplyToBytes(Offset, sizeof(uint8_t));
+    }
   }
 }
 
@@ -423,41 +435,118 @@ AtomicMax(multi_ptr<T, AddressSpace> MPtr, ONEAPI::memory_scope Scope,
   return __spirv_AtomicMax(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
-// Native shuffles map directly to a SPIR-V SubgroupShuffle intrinsic
+// Native shuffles map directly to a shuffle intrinsic:
+// - The Intel SPIR-V extension natively supports all arithmetic types
+// - The CUDA shfl intrinsics do not support vectors, and we use the _i32
+//   variants for all scalar types
+#ifndef __NVPTX__
 template <typename T>
 using EnableIfNativeShuffle =
     detail::enable_if_t<detail::is_arithmetic<T>::value, T>;
+#else
+template <typename T>
+using EnableIfNativeShuffle = detail::enable_if_t<
+    std::is_integral<T>::value && (sizeof(T) <= sizeof(int32_t)), T>;
+
+template <typename T>
+using EnableIfVectorShuffle =
+    detail::enable_if_t<detail::is_vector_arithmetic<T>::value, T>;
+#endif
+
+#ifdef __NVPTX__
+inline uint32_t membermask() {
+  uint32_t FULL_MASK = 0xFFFFFFFF;
+  uint32_t max_size = __spirv_SubgroupMaxSize();
+  uint32_t sg_size = __spirv_SubgroupSize();
+  return FULL_MASK >> (max_size - sg_size);
+}
+#endif
 
 template <typename T>
 EnableIfNativeShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
+#ifndef __NVPTX__
   using OCLT = detail::ConvertToOpenCLType_t<T>;
   return __spirv_SubgroupShuffleINTEL(OCLT(x),
                                       static_cast<uint32_t>(local_id.get(0)));
+#else
+  return __nvvm_shfl_sync_idx_i32(membermask(), x, local_id.get(0), 0x1f);
+#endif
 }
 
 template <typename T>
 EnableIfNativeShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
+#ifndef __NVPTX__
   using OCLT = detail::ConvertToOpenCLType_t<T>;
   return __spirv_SubgroupShuffleXorINTEL(
       OCLT(x), static_cast<uint32_t>(local_id.get(0)));
+#else
+  return __nvvm_shfl_sync_bfly_i32(membermask(), x, local_id.get(0), 0x1f);
+#endif
 }
 
 template <typename T>
-EnableIfNativeShuffle<T> SubgroupShuffleDown(T x, T y, id<1> local_id) {
+EnableIfNativeShuffle<T> SubgroupShuffleDown(T x, id<1> local_id) {
+#ifndef __NVPTX__
   using OCLT = detail::ConvertToOpenCLType_t<T>;
   return __spirv_SubgroupShuffleDownINTEL(
-      OCLT(x), OCLT(y), static_cast<uint32_t>(local_id.get(0)));
+      OCLT(x), OCLT(x), static_cast<uint32_t>(local_id.get(0)));
+#else
+  return __nvvm_shfl_sync_down_i32(membermask(), x, local_id.get(0), 0x1f);
+#endif
 }
 
 template <typename T>
-EnableIfNativeShuffle<T> SubgroupShuffleUp(T x, T y, id<1> local_id) {
+EnableIfNativeShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
+#ifndef __NVPTX__
   using OCLT = detail::ConvertToOpenCLType_t<T>;
-  return __spirv_SubgroupShuffleUpINTEL(OCLT(x), OCLT(y),
+  return __spirv_SubgroupShuffleUpINTEL(OCLT(x), OCLT(x),
                                         static_cast<uint32_t>(local_id.get(0)));
+#else
+  return __nvvm_shfl_sync_up_i32(membermask(), x, local_id.get(0), 0);
+#endif
 }
 
-// Bitcast shuffles can be implemented using a single SPIR-V SubgroupShuffle
+#ifdef __NVPTX__
+template <typename T>
+EnableIfVectorShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
+  T result;
+  for (int s = 0; s < x.get_size(); ++s) {
+    result[s] = SubgroupShuffle(x[s], local_id);
+  }
+  return result;
+}
+
+template <typename T>
+EnableIfVectorShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
+  T result;
+  for (int s = 0; s < x.get_size(); ++s) {
+    result[s] = SubgroupShuffleXor(x[s], local_id);
+  }
+  return result;
+}
+
+template <typename T>
+EnableIfVectorShuffle<T> SubgroupShuffleDown(T x, id<1> local_id) {
+  T result;
+  for (int s = 0; s < x.get_size(); ++s) {
+    result[s] = SubgroupShuffleDown(x[s], local_id);
+  }
+  return result;
+}
+
+template <typename T>
+EnableIfVectorShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
+  T result;
+  for (int s = 0; s < x.get_size(); ++s) {
+    result[s] = SubgroupShuffleUp(x[s], local_id);
+  }
+  return result;
+}
+#endif
+
+// Bitcast shuffles can be implemented using a single SubgroupShuffle
 // intrinsic, but require type-punning via an appropriate integer type
+#ifndef __NVPTX__
 template <typename T>
 using EnableIfBitcastShuffle =
     detail::enable_if_t<!detail::is_arithmetic<T>::value &&
@@ -465,6 +554,15 @@ using EnableIfBitcastShuffle =
                              (sizeof(T) == 1 || sizeof(T) == 2 ||
                               sizeof(T) == 4 || sizeof(T) == 8)),
                         T>;
+#else
+template <typename T>
+using EnableIfBitcastShuffle = detail::enable_if_t<
+    !(std::is_integral<T>::value && (sizeof(T) <= sizeof(int32_t))) &&
+        !detail::is_vector_arithmetic<T>::value &&
+        (std::is_trivially_copyable<T>::value &&
+         (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4)),
+    T>;
+#endif
 
 template <typename T>
 using ConvertToNativeShuffleType_t = select_cl_scalar_integral_unsigned_t<T>;
@@ -473,8 +571,13 @@ template <typename T>
 EnableIfBitcastShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
   using ShuffleT = ConvertToNativeShuffleType_t<T>;
   auto ShuffleX = detail::bit_cast<ShuffleT>(x);
+#ifndef __NVPTX__
   ShuffleT Result = __spirv_SubgroupShuffleINTEL(
       ShuffleX, static_cast<uint32_t>(local_id.get(0)));
+#else
+  ShuffleT Result =
+      __nvvm_shfl_sync_idx_i32(membermask(), ShuffleX, local_id.get(0), 0x1f);
+#endif
   return detail::bit_cast<T>(Result);
 }
 
@@ -482,35 +585,49 @@ template <typename T>
 EnableIfBitcastShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
   using ShuffleT = ConvertToNativeShuffleType_t<T>;
   auto ShuffleX = detail::bit_cast<ShuffleT>(x);
+#ifndef __NVPTX__
   ShuffleT Result = __spirv_SubgroupShuffleXorINTEL(
       ShuffleX, static_cast<uint32_t>(local_id.get(0)));
+#else
+  ShuffleT Result =
+      __nvvm_shfl_sync_bfly_i32(membermask(), ShuffleX, local_id.get(0), 0x1f);
+#endif
   return detail::bit_cast<T>(Result);
 }
 
 template <typename T>
-EnableIfBitcastShuffle<T> SubgroupShuffleDown(T x, T y, id<1> local_id) {
+EnableIfBitcastShuffle<T> SubgroupShuffleDown(T x, id<1> local_id) {
   using ShuffleT = ConvertToNativeShuffleType_t<T>;
   auto ShuffleX = detail::bit_cast<ShuffleT>(x);
-  auto ShuffleY = detail::bit_cast<ShuffleT>(y);
+#ifndef __NVPTX__
   ShuffleT Result = __spirv_SubgroupShuffleDownINTEL(
-      ShuffleX, ShuffleY, static_cast<uint32_t>(local_id.get(0)));
+      ShuffleX, ShuffleX, static_cast<uint32_t>(local_id.get(0)));
+#else
+  ShuffleT Result =
+      __nvvm_shfl_sync_down_i32(membermask(), ShuffleX, local_id.get(0), 0x1f);
+#endif
   return detail::bit_cast<T>(Result);
 }
 
 template <typename T>
-EnableIfBitcastShuffle<T> SubgroupShuffleUp(T x, T y, id<1> local_id) {
+EnableIfBitcastShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
   using ShuffleT = ConvertToNativeShuffleType_t<T>;
   auto ShuffleX = detail::bit_cast<ShuffleT>(x);
-  auto ShuffleY = detail::bit_cast<ShuffleT>(y);
+#ifndef __NVPTX__
   ShuffleT Result = __spirv_SubgroupShuffleUpINTEL(
-      ShuffleX, ShuffleY, static_cast<uint32_t>(local_id.get(0)));
+      ShuffleX, ShuffleX, static_cast<uint32_t>(local_id.get(0)));
+#else
+  ShuffleT Result =
+      __nvvm_shfl_sync_up_i32(membermask(), ShuffleX, local_id.get(0), 0);
+#endif
   return detail::bit_cast<T>(Result);
 }
 
-// Generic shuffles may require multiple calls to SPIR-V SubgroupShuffle
+// Generic shuffles may require multiple calls to SubgroupShuffle
 // intrinsics, and should use the fewest shuffles possible:
 // - Loop over 64-bit chunks until remaining bytes < 64-bit
 // - At most one 32-bit, 16-bit and 8-bit chunk left over
+#ifndef __NVPTX__
 template <typename T>
 using EnableIfGenericShuffle =
     detail::enable_if_t<!detail::is_arithmetic<T>::value &&
@@ -518,6 +635,15 @@ using EnableIfGenericShuffle =
                               (sizeof(T) == 1 || sizeof(T) == 2 ||
                                sizeof(T) == 4 || sizeof(T) == 8)),
                         T>;
+#else
+template <typename T>
+using EnableIfGenericShuffle = detail::enable_if_t<
+    !(std::is_integral<T>::value && (sizeof(T) <= sizeof(int32_t))) &&
+        !detail::is_vector_arithmetic<T>::value &&
+        !(std::is_trivially_copyable<T>::value &&
+          (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4)),
+    T>;
+#endif
 
 template <typename T>
 EnableIfGenericShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
@@ -525,7 +651,7 @@ EnableIfGenericShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
   char *XBytes = reinterpret_cast<char *>(&x);
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
-    uint64_t ShuffleX, ShuffleResult;
+    ShuffleChunkT ShuffleX, ShuffleResult;
     detail::memcpy(&ShuffleX, XBytes + Offset, Size);
     ShuffleResult = SubgroupShuffle(ShuffleX, local_id);
     detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
@@ -540,7 +666,7 @@ EnableIfGenericShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
   char *XBytes = reinterpret_cast<char *>(&x);
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
-    uint64_t ShuffleX, ShuffleResult;
+    ShuffleChunkT ShuffleX, ShuffleResult;
     detail::memcpy(&ShuffleX, XBytes + Offset, Size);
     ShuffleResult = SubgroupShuffleXor(ShuffleX, local_id);
     detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
@@ -550,16 +676,14 @@ EnableIfGenericShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
 }
 
 template <typename T>
-EnableIfGenericShuffle<T> SubgroupShuffleDown(T x, T y, id<1> local_id) {
+EnableIfGenericShuffle<T> SubgroupShuffleDown(T x, id<1> local_id) {
   T Result;
   char *XBytes = reinterpret_cast<char *>(&x);
-  char *YBytes = reinterpret_cast<char *>(&y);
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
-    uint64_t ShuffleX, ShuffleY, ShuffleResult;
+    ShuffleChunkT ShuffleX, ShuffleResult;
     detail::memcpy(&ShuffleX, XBytes + Offset, Size);
-    detail::memcpy(&ShuffleY, YBytes + Offset, Size);
-    ShuffleResult = SubgroupShuffleDown(ShuffleX, ShuffleY, local_id);
+    ShuffleResult = SubgroupShuffleDown(ShuffleX, local_id);
     detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);
@@ -567,16 +691,14 @@ EnableIfGenericShuffle<T> SubgroupShuffleDown(T x, T y, id<1> local_id) {
 }
 
 template <typename T>
-EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, T y, id<1> local_id) {
+EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
   T Result;
   char *XBytes = reinterpret_cast<char *>(&x);
-  char *YBytes = reinterpret_cast<char *>(&y);
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
-    uint64_t ShuffleX, ShuffleY, ShuffleResult;
+    ShuffleChunkT ShuffleX, ShuffleResult;
     detail::memcpy(&ShuffleX, XBytes + Offset, Size);
-    detail::memcpy(&ShuffleY, YBytes + Offset, Size);
-    ShuffleResult = SubgroupShuffleUp(ShuffleX, ShuffleY, local_id);
+    ShuffleResult = SubgroupShuffleUp(ShuffleX, local_id);
     detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);

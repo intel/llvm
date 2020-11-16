@@ -81,6 +81,92 @@ SYCL_EXTERNAL void __esimd_flat_write4(
     sycl::INTEL::gpu::vector_type_t<Ty, N * NumChannels(Mask)> vals,
     sycl::INTEL::gpu::vector_type_t<uint16_t, N> pred = 1);
 
+// Low-level surface-based gather. Collects elements located at given offsets in
+// a surface and returns them as a single \ref simd object. Element can be
+// 1, 2 or 4-byte value, but is always returned as a 4-byte value within the
+// resulting simd object, with upper 2 or 3 bytes undefined.
+// Template (compile-time constant) parameters:
+// @tparam Ty - element type; can only be a 4-byte integer or \c float,
+// @tparam N  - the number of elements
+// @tparam SurfIndAliasTy - "surface index alias" type - internal type in the
+//   accessor used to denote the surface
+// @tparam TySizeLog2 - Log2 of the number of bytes read per element:
+//   0 - 1 byte, 1 - 2 bytes, 2 - 4 bytes
+// @tparam L1H - L1 cache hint
+// @tparam L3H - L3 cache hint
+//
+// Formal parameters:
+// @param scale - the scale; must be 0
+// @param surf_ind - the surface index, taken from the SYCL memory object
+// @param global_offset - offset added to each individual element's offset to
+//   compute actual memory access offset for that element
+// @param elem_offsets - per-element offsets
+//
+template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
+          sycl::INTEL::gpu::CacheHint L1H = sycl::INTEL::gpu::CacheHint::None,
+          sycl::INTEL::gpu::CacheHint L3H = sycl::INTEL::gpu::CacheHint::None>
+SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<Ty, N>
+__esimd_surf_read(int16_t scale, SurfIndAliasTy surf_ind,
+                  uint32_t global_offset,
+                  sycl::INTEL::gpu::vector_type_t<uint32_t, N> elem_offsets)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  static_assert(N == 1 || N == 8 || N == 16);
+  static_assert(TySizeLog2 <= 2);
+  static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
+  throw cl::sycl::feature_not_supported();
+}
+#endif // __SYCL_DEVICE_ONLY__
+
+// Low-level surface-based scatter. Writes elements of a \ref simd object into a
+// surface at given offsets. Element can be a 1, 2 or 4-byte value, but it is
+// always represented as a 4-byte value within the input simd object,
+// unused (not written) upper bytes are ignored.
+// Template (compile-time constant) parameters:
+// @tparam Ty - element type; can only be a 4-byte integer or \c float,
+// @tparam N  - the number of elements to write
+// @tparam SurfIndAliasTy - "surface index alias" type - internal type in the
+//   accessor used to denote the surface
+// @tparam TySizeLog2 - Log2 of the number of bytes written per element:
+//   0 - 1 byte, 1 - 2 bytes, 2 - 4 bytes
+// @tparam L1H - L1 cache hint
+// @tparam L3H - L3 cache hint
+//
+// Formal parameters:
+// @param pred - per-element predicates; elements with zero corresponding
+//   predicates are not written
+// @param scale - the scale; must be 0
+// @param surf_ind - the surface index, taken from the SYCL memory object
+// @param global_offset - offset added to each individual element's offset to
+//   compute actual memory access offset for that element
+// @param elem_offsets - per-element offsets
+// @param vals - values to write
+//
+template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
+          sycl::INTEL::gpu::CacheHint L1H = sycl::INTEL::gpu::CacheHint::None,
+          sycl::INTEL::gpu::CacheHint L3H = sycl::INTEL::gpu::CacheHint::None>
+SYCL_EXTERNAL void
+__esimd_surf_write(sycl::INTEL::gpu::vector_type_t<uint16_t, N> pred,
+                   int16_t scale, SurfIndAliasTy surf_ind,
+                   uint32_t global_offset,
+                   sycl::INTEL::gpu::vector_type_t<uint32_t, N> elem_offsets,
+                   sycl::INTEL::gpu::vector_type_t<Ty, N> vals)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  static_assert(N == 1 || N == 8 || N == 16);
+  static_assert(TySizeLog2 <= 2);
+  static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
+  throw cl::sycl::feature_not_supported();
+}
+#endif // __SYCL_DEVICE_ONLY__
+
+// TODO bring the parameter order of __esimd* intrinsics in accordance with the
+// correponsing BE intrinsicics parameter order.
+
 // flat_atomic: flat-address atomic
 template <sycl::INTEL::gpu::EsimdAtomicOpType Op, typename Ty, int N,
           sycl::INTEL::gpu::CacheHint L1H = sycl::INTEL::gpu::CacheHint::None,

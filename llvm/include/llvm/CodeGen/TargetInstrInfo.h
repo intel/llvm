@@ -80,6 +80,15 @@ struct RegImmPair {
   RegImmPair(Register Reg, int64_t Imm) : Reg(Reg), Imm(Imm) {}
 };
 
+/// Used to describe addressing mode similar to ExtAddrMode in CodeGenPrepare.
+/// It holds the register values, the scale value and the displacement.
+struct ExtAddrMode {
+  Register BaseReg;
+  Register ScaledReg;
+  int64_t Scale;
+  int64_t Displacement;
+};
+
 //---------------------------------------------------------------------------
 ///
 /// TargetInstrInfo - Interface to description of machine instruction set
@@ -968,6 +977,15 @@ public:
     return None;
   }
 
+  /// Returns true if MI is an instruction that defines Reg to have a constant
+  /// value and the value is recorded in ImmVal. The ImmVal is a result that
+  /// should be interpreted as modulo size of Reg.
+  virtual bool getConstValDefinedInReg(const MachineInstr &MI,
+                                       const Register Reg,
+                                       int64_t &ImmVal) const {
+    return false;
+  }
+
   /// Store the specified register of the given register class to the specified
   /// stack frame index. The store instruction is to be added to the given
   /// machine basic block before the specified machine instruction. If isKill
@@ -1270,6 +1288,16 @@ public:
     return false;
   }
 
+  /// Target dependent implementation to get the values constituting the address
+  /// MachineInstr that is accessing memory. These values are returned as a
+  /// struct ExtAddrMode which contains all relevant information to make up the
+  /// address.
+  virtual Optional<ExtAddrMode>
+  getAddrModeFromMemoryOp(const MachineInstr &MemI,
+                          const TargetRegisterInfo *TRI) const {
+    return None;
+  }
+
   /// Returns true if MI's Def is NullValueReg, and the MI
   /// does not change the Zero value. i.e. cases such as rax = shr rax, X where
   /// NullValueReg = rax. Note that if the NullValueReg is non-zero, this
@@ -1314,6 +1342,11 @@ public:
   /// Insert a noop into the instruction stream at the specified point.
   virtual void insertNoop(MachineBasicBlock &MBB,
                           MachineBasicBlock::iterator MI) const;
+
+  /// Insert noops into the instruction stream at the specified point.
+  virtual void insertNoops(MachineBasicBlock &MBB,
+                           MachineBasicBlock::iterator MI,
+                           unsigned Quantity) const;
 
   /// Return the noop instruction to use for a noop.
   virtual void getNoop(MCInst &NopInst) const;
@@ -1366,8 +1399,13 @@ public:
   /// If the specified instruction defines any predicate
   /// or condition code register(s) used for predication, returns true as well
   /// as the definition predicate(s) by reference.
-  virtual bool DefinesPredicate(MachineInstr &MI,
-                                std::vector<MachineOperand> &Pred) const {
+  /// SkipDead should be set to false at any point that dead
+  /// predicate instructions should be considered as being defined.
+  /// A dead predicate instruction is one that is guaranteed to be removed
+  /// after a call to PredicateInstruction.
+  virtual bool ClobbersPredicate(MachineInstr &MI,
+                                 std::vector<MachineOperand> &Pred,
+                                 bool SkipDead) const {
     return false;
   }
 
@@ -1698,6 +1736,21 @@ public:
     // behavior.
     return 5;
   }
+
+  /// Return the maximal number of alias checks on memory operands. For
+  /// instructions with more than one memory operands, the alias check on a
+  /// single MachineInstr pair has quadratic overhead and results in
+  /// unacceptable performance in the worst case. The limit here is to clamp
+  /// that maximal checks performed. Usually, that's the product of memory
+  /// operand numbers from that pair of MachineInstr to be checked. For
+  /// instance, with two MachineInstrs with 4 and 5 memory operands
+  /// correspondingly, a total of 20 checks are required. With this limit set to
+  /// 16, their alias check is skipped. We choose to limit the product instead
+  /// of the individual instruction as targets may have special MachineInstrs
+  /// with a considerably high number of memory operands, such as `ldm` in ARM.
+  /// Setting this limit per MachineInstr would result in either too high
+  /// overhead or too rigid restriction.
+  virtual unsigned getMemOperandAACheckLimit() const { return 16; }
 
   /// Return an array that contains the ids of the target indices (used for the
   /// TargetIndex machine operand) and their names.

@@ -37,13 +37,13 @@ kernel::get_info() const {
   return impl->get_info<param>();
 }
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
   template __SYCL_EXPORT ret_type kernel::get_info<info::param_type::param>()  \
       const;
 
 #include <CL/sycl/info/kernel_traits.def>
 
-#undef PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC
 
 template <info::kernel_device_specific param>
 typename info::param_traits<info::kernel_device_specific, param>::return_type
@@ -59,17 +59,18 @@ kernel::get_info(const device &Device,
   return impl->get_info<param>(Device, Value);
 }
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
   template __SYCL_EXPORT ret_type kernel::get_info<info::param_type::param>(   \
       const device &) const;
-#define PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type, in_type)     \
+#define __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type,       \
+                                            in_type)                           \
   template __SYCL_EXPORT ret_type kernel::get_info<info::param_type::param>(   \
       const device &, in_type) const;
 
 #include <CL/sycl/info/kernel_device_specific_traits.def>
 
-#undef PARAM_TRAITS_SPEC
-#undef PARAM_TRAITS_SPEC_WITH_INPUT
+#undef __SYCL_PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
 
 template <info::kernel_work_group param>
 typename info::param_traits<info::kernel_work_group, param>::return_type
@@ -77,13 +78,13 @@ kernel::get_work_group_info(const device &dev) const {
   return impl->get_work_group_info<param>(dev);
 }
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
   template __SYCL_EXPORT ret_type                                              \
   kernel::get_work_group_info<info::param_type::param>(const device &) const;
 
 #include <CL/sycl/info/kernel_work_group_traits.def>
 
-#undef PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC
 
 template <info::kernel_sub_group param>
 typename info::param_traits<info::kernel_sub_group, param>::return_type
@@ -100,18 +101,19 @@ kernel::get_sub_group_info(
   return impl->get_sub_group_info<param>(dev, val);
 }
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
   template __SYCL_EXPORT ret_type                                              \
   kernel::get_sub_group_info<info::param_type::param>(const device &) const;
-#define PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type, in_type)     \
+#define __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type,       \
+                                            in_type)                           \
   template __SYCL_EXPORT ret_type                                              \
   kernel::get_sub_group_info<info::param_type::param>(const device &, in_type) \
       const;
 
 #include <CL/sycl/info/kernel_sub_group_traits.def>
 
-#undef PARAM_TRAITS_SPEC
-#undef PARAM_TRAITS_SPEC_WITH_INPUT
+#undef __SYCL_PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
 
 kernel::kernel(std::shared_ptr<detail::kernel_impl> Impl) : impl(Impl) {}
 

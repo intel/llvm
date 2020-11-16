@@ -502,6 +502,26 @@ public:
   /// True if the current statement has nomerge attribute.
   bool InNoMergeAttributedStmt = false;
 
+  /// True if the current function should be marked mustprogress.
+  bool FnIsMustProgress = false;
+
+  /// True if the C++ Standard Requires Progress.
+  bool CPlusPlusWithProgress() {
+    return getLangOpts().CPlusPlus11 || getLangOpts().CPlusPlus14 ||
+           getLangOpts().CPlusPlus17 || getLangOpts().CPlusPlus20;
+  }
+
+  /// True if the C Standard Requires Progress.
+  bool CWithProgress() {
+    return getLangOpts().C11 || getLangOpts().C17 || getLangOpts().C2x;
+  }
+
+  /// True if the language standard requires progress in functions or
+  /// in infinite loops with non-constant conditionals.
+  bool LanguageRequiresProgress() {
+    return CWithProgress() || CPlusPlusWithProgress();
+  }
+
   const CodeGen::CGBlockInfo *BlockInfo = nullptr;
   llvm::Value *BlockPointer = nullptr;
 
@@ -1395,13 +1415,24 @@ private:
   };
   OpenMPCancelExitStack OMPCancelStack;
 
+  /// Calculate branch weights for the likelihood attribute
+  llvm::MDNode *createBranchWeights(Stmt::Likelihood LH) const;
+
   CodeGenPGO PGO;
 
   /// Calculate branch weights appropriate for PGO data
-  llvm::MDNode *createProfileWeights(uint64_t TrueCount, uint64_t FalseCount);
-  llvm::MDNode *createProfileWeights(ArrayRef<uint64_t> Weights);
+  llvm::MDNode *createProfileWeights(uint64_t TrueCount,
+                                     uint64_t FalseCount) const;
+  llvm::MDNode *createProfileWeights(ArrayRef<uint64_t> Weights) const;
   llvm::MDNode *createProfileWeightsForLoop(const Stmt *Cond,
-                                            uint64_t LoopCount);
+                                            uint64_t LoopCount) const;
+
+  /// Calculate the branch weight for PGO data or the likelihood attribute.
+  /// The function tries to get the weight of \ref createProfileWeightsForLoop.
+  /// If that fails it gets the weight of \ref createBranchWeights.
+  llvm::MDNode *createProfileOrBranchWeightsForLoop(const Stmt *Cond,
+                                                    uint64_t LoopCount,
+                                                    const Stmt *Body) const;
 
 public:
   /// Increment the profiler's counter for the given statement by \p StepV.
@@ -1438,6 +1469,9 @@ private:
   llvm::SwitchInst *SwitchInsn = nullptr;
   /// The branch weights of SwitchInsn when doing instrumentation based PGO.
   SmallVector<uint64_t, 16> *SwitchWeights = nullptr;
+
+  /// The likelihood attributes of the SwitchCase.
+  SmallVector<Stmt::Likelihood, 16> *SwitchLikelihood = nullptr;
 
   /// CaseRangeBlock - This block holds if condition check for last case
   /// statement range in current switch instruction.
@@ -3080,7 +3114,7 @@ public:
   /// statements.
   ///
   /// \return True if the statement was handled.
-  bool EmitSimpleStmt(const Stmt *S);
+  bool EmitSimpleStmt(const Stmt *S, ArrayRef<const Attr *> Attrs);
 
   Address EmitCompoundStmt(const CompoundStmt &S, bool GetLast = false,
                            AggValueSlot AVS = AggValueSlot::ignored());
@@ -3109,9 +3143,9 @@ public:
   void EmitBreakStmt(const BreakStmt &S);
   void EmitContinueStmt(const ContinueStmt &S);
   void EmitSwitchStmt(const SwitchStmt &S);
-  void EmitDefaultStmt(const DefaultStmt &S);
-  void EmitCaseStmt(const CaseStmt &S);
-  void EmitCaseStmtRange(const CaseStmt &S);
+  void EmitDefaultStmt(const DefaultStmt &S, ArrayRef<const Attr *> Attrs);
+  void EmitCaseStmt(const CaseStmt &S, ArrayRef<const Attr *> Attrs);
+  void EmitCaseStmtRange(const CaseStmt &S, ArrayRef<const Attr *> Attrs);
   void EmitAsmStmt(const AsmStmt &S);
 
   void EmitObjCForCollectionStmt(const ObjCForCollectionStmt &S);
@@ -4097,7 +4131,7 @@ private:
 public:
   llvm::Value *EmitMSVCBuiltinExpr(MSVCIntrin BuiltinID, const CallExpr *E);
 
-  llvm::Value *EmitBuiltinAvailable(ArrayRef<llvm::Value *> Args);
+  llvm::Value *EmitBuiltinAvailable(const VersionTuple &Version);
 
   llvm::Value *EmitObjCProtocolExpr(const ObjCProtocolExpr *E);
   llvm::Value *EmitObjCStringLiteral(const ObjCStringLiteral *E);
@@ -4328,7 +4362,8 @@ public:
   llvm::Value *EmitAnnotationCall(llvm::Function *AnnotationFn,
                                   llvm::Value *AnnotatedVal,
                                   StringRef AnnotationStr,
-                                  SourceLocation Location);
+                                  SourceLocation Location,
+                                  const AnnotateAttr *Attr = nullptr);
 
   /// Emit local annotations for the local variable V, declared by D.
   void EmitVarAnnotations(const VarDecl *D, llvm::Value *V);
@@ -4694,6 +4729,77 @@ private:
   llvm::Value *EmitX86CpuSupports(uint64_t Mask);
   llvm::Value *EmitX86CpuInit();
   llvm::Value *FormResolverCondition(const MultiVersionResolverOption &RO);
+};
+
+/// TargetFeatures - This class is used to check whether the builtin function
+/// has the required tagert specific features. It is able to support the
+/// combination of ','(and), '|'(or), and '()'. By default, the priority of
+/// ',' is higher than that of '|' .
+/// E.g:
+/// A,B|C means the builtin function requires both A and B, or C.
+/// If we want the builtin function requires both A and B, or both A and C,
+/// there are two ways: A,B|A,C or A,(B|C).
+/// The FeaturesList should not contain spaces, and brackets must appear in
+/// pairs.
+class TargetFeatures {
+  struct FeatureListStatus {
+    bool HasFeatures;
+    StringRef CurFeaturesList;
+  };
+
+  const llvm::StringMap<bool> &CallerFeatureMap;
+
+  FeatureListStatus getAndFeatures(StringRef FeatureList) {
+    int InParentheses = 0;
+    bool HasFeatures = true;
+    size_t SubexpressionStart = 0;
+    for (size_t i = 0, e = FeatureList.size(); i < e; ++i) {
+      char CurrentToken = FeatureList[i];
+      switch (CurrentToken) {
+      default:
+        break;
+      case '(':
+        if (InParentheses == 0)
+          SubexpressionStart = i + 1;
+        ++InParentheses;
+        break;
+      case ')':
+        --InParentheses;
+        assert(InParentheses >= 0 && "Parentheses are not in pair");
+        LLVM_FALLTHROUGH;
+      case '|':
+      case ',':
+        if (InParentheses == 0) {
+          if (HasFeatures && i != SubexpressionStart) {
+            StringRef F = FeatureList.slice(SubexpressionStart, i);
+            HasFeatures = CurrentToken == ')' ? hasRequiredFeatures(F)
+                                              : CallerFeatureMap.lookup(F);
+          }
+          SubexpressionStart = i + 1;
+          if (CurrentToken == '|') {
+            return {HasFeatures, FeatureList.substr(SubexpressionStart)};
+          }
+        }
+        break;
+      }
+    }
+    assert(InParentheses == 0 && "Parentheses are not in pair");
+    if (HasFeatures && SubexpressionStart != FeatureList.size())
+      HasFeatures =
+          CallerFeatureMap.lookup(FeatureList.substr(SubexpressionStart));
+    return {HasFeatures, StringRef()};
+  }
+
+public:
+  bool hasRequiredFeatures(StringRef FeatureList) {
+    FeatureListStatus FS = {false, FeatureList};
+    while (!FS.HasFeatures && !FS.CurFeaturesList.empty())
+      FS = getAndFeatures(FS.CurFeaturesList);
+    return FS.HasFeatures;
+  }
+
+  TargetFeatures(const llvm::StringMap<bool> &CallerFeatureMap)
+      : CallerFeatureMap(CallerFeatureMap) {}
 };
 
 inline DominatingLLVMValue::saved_type

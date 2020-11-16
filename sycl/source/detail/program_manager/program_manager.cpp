@@ -19,6 +19,7 @@
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/global_handler.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/spec_constant_impl.hpp>
@@ -47,9 +48,7 @@ enum BuildState { BS_InProgress, BS_Done, BS_Failed };
 static constexpr char UseSpvEnv[]("SYCL_USE_KERNEL_SPV");
 
 ProgramManager &ProgramManager::getInstance() {
-  // The singleton ProgramManager instance, uses the "magic static" idiom.
-  static ProgramManager Instance;
-  return Instance;
+  return GlobalHandler::instance().getProgramManager();
 }
 
 static RT::PiProgram createBinaryProgram(const ContextImplPtr Context,
@@ -682,11 +681,11 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
     // If the image is already compiled with AOT, throw an exception.
     const pi_device_binary_struct &RawImg = Imgs[ImgInd]->getRawData();
     if ((strcmp(RawImg.DeviceTargetSpec,
-                PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
-        (strcmp(RawImg.DeviceTargetSpec, PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) ==
-         0) ||
+                __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
         (strcmp(RawImg.DeviceTargetSpec,
-                PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)) {
+                __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
+        (strcmp(RawImg.DeviceTargetSpec,
+                __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)) {
       throw feature_not_supported("Recompiling AOT image is not supported",
                                   PI_INVALID_OPERATION);
     }

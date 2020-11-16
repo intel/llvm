@@ -376,8 +376,8 @@ def TargetRISCV : TargetArch<["riscv32", "riscv64"]>;
 def TargetX86 : TargetArch<["x86"]>;
 def TargetAnyX86 : TargetArch<["x86", "x86_64"]>;
 def TargetWebAssembly : TargetArch<["wasm32", "wasm64"]>;
-def TargetWindows : TargetArch<["x86", "x86_64", "arm", "thumb", "aarch64"]> {
-  let OSes = ["Win32"];
+def TargetHasDLLImportExport : TargetSpec {
+  let CustomCode = [{ Target.getTriple().hasDLLImportExport() }];
 }
 def TargetItaniumCXXABI : TargetSpec {
   let CustomCode = [{ Target.getCXXABI().isItaniumFamily() }];
@@ -748,7 +748,7 @@ def AnalyzerNoReturn : InheritableAttr {
 
 def Annotate : InheritableParamAttr {
   let Spellings = [Clang<"annotate">];
-  let Args = [StringArgument<"Annotation">];
+  let Args = [StringArgument<"Annotation">, VariadicExprArgument<"Args">];
   // Ensure that the annotate attribute can be used with
   // '#pragma clang attribute' even though it has no subject list.
   let PragmaAttributeSupport = 1;
@@ -1226,6 +1226,19 @@ def SYCLIntelNumSimdWorkItems : InheritableAttr {
   let PragmaAttributeSupport = 0;
 }
 
+def SYCLIntelStallEnable : InheritableAttr {
+  let Spellings = [CXX11<"intel","stall_enable">];
+  let LangOpts = [SYCLIsHost, SYCLIsDevice];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let AdditionalMembers = [{
+    static const char *getName() {
+      return "stall_enable";
+    }
+  }];
+  let Documentation = [SYCLIntelStallEnableAttrDocs];
+  let PragmaAttributeSupport = 0;
+}
+
 def SYCLIntelSchedulerTargetFmaxMhz : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","scheduler_target_fmax_mhz">,
                    CXX11<"intel","scheduler_target_fmax_mhz">];
@@ -1474,14 +1487,12 @@ def FallThrough : StmtAttr {
 }
 
 def Likely : StmtAttr {
-  // FIXME: Change the date to 201803 once the implementation is finished.
-  let Spellings = [CXX11<"", "likely", 2>, C2x<"clang", "likely">];
+  let Spellings = [CXX11<"", "likely", 201803>, C2x<"clang", "likely">];
   let Documentation = [LikelihoodDocs];
 }
 
 def Unlikely : StmtAttr {
-  // FIXME: Change the date to 201803 once the implementation is finished.
-  let Spellings = [CXX11<"", "unlikely", 2>, C2x<"clang", "unlikely">];
+  let Spellings = [CXX11<"", "unlikely", 201803>, C2x<"clang", "unlikely">];
   let Documentation = [LikelihoodDocs];
 }
 
@@ -1849,6 +1860,18 @@ def SYCLIntelFPGASpeculatedIterations : Attr {
     }
   }];
   let Documentation = [SYCLIntelFPGASpeculatedIterationsAttrDocs];
+}
+
+def SYCLIntelFPGANofusion : Attr {
+  let Spellings = [CXX11<"intel","nofusion">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let HasCustomTypeTransform = 1;
+  let AdditionalMembers = [{
+    static const char *getName() {
+      return "nofusion";
+    }
+  }];
+  let Documentation = [SYCLIntelFPGANofusionAttrDocs];
 }
 
 def IntelFPGALocalNonConstVar : SubsetSubject<Var,
@@ -2811,6 +2834,14 @@ def PragmaClangRelroSection : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+def StrictFP : InheritableAttr {
+  // This attribute has no spellings as it is only ever created implicitly.
+  // Function uses strict floating point operations.
+  let Spellings = [];
+  let Subjects = SubjectList<[Function]>;
+  let Documentation = [Undocumented];
+}
+
 def PragmaClangTextSection : InheritableAttr {
   // This attribute has no spellings as it is only ever created implicitly.
   let Spellings = [];
@@ -3680,24 +3711,24 @@ def MSStruct : InheritableAttr {
   let SimpleHandler = 1;
 }
 
-def DLLExport : InheritableAttr, TargetSpecificAttr<TargetWindows> {
+def DLLExport : InheritableAttr, TargetSpecificAttr<TargetHasDLLImportExport> {
   let Spellings = [Declspec<"dllexport">, GCC<"dllexport">];
   let Subjects = SubjectList<[Function, Var, CXXRecord, ObjCInterface]>;
   let Documentation = [DLLExportDocs];
 }
 
-def DLLExportStaticLocal : InheritableAttr, TargetSpecificAttr<TargetWindows> {
+def DLLExportStaticLocal : InheritableAttr, TargetSpecificAttr<TargetHasDLLImportExport> {
   // This attribute is used internally only when -fno-dllexport-inlines is
-  // passed. This attribute is added to inline function of class having
-  // dllexport attribute. And if the function has static local variables, this
-  // attribute is used to whether the variables are exported or not. Also if
-  // function has local static variables, the function is dllexported too.
+  // passed. This attribute is added to inline functions of a class having the
+  // dllexport attribute. If the function has static local variables, this
+  // attribute is used to determine whether the variables are exported or not. If
+  // the function has local static variables, the function is dllexported too.
   let Spellings = [];
   let Subjects = SubjectList<[Function]>;
   let Documentation = [Undocumented];
 }
 
-def DLLImport : InheritableAttr, TargetSpecificAttr<TargetWindows> {
+def DLLImport : InheritableAttr, TargetSpecificAttr<TargetHasDLLImportExport> {
   let Spellings = [Declspec<"dllimport">, GCC<"dllimport">];
   let Subjects = SubjectList<[Function, Var, CXXRecord, ObjCInterface]>;
   let Documentation = [DLLImportDocs];
@@ -3713,11 +3744,11 @@ public:
   }];
 }
 
-def DLLImportStaticLocal : InheritableAttr, TargetSpecificAttr<TargetWindows> {
+def DLLImportStaticLocal : InheritableAttr, TargetSpecificAttr<TargetHasDLLImportExport> {
   // This attribute is used internally only when -fno-dllexport-inlines is
-  // passed. This attribute is added to inline function of class having
-  // dllimport attribute. And if the function has static local variables, this
-  // attribute is used to whether the variables are imported or not.
+  // passed. This attribute is added to inline functions of a class having the
+  // dllimport attribute. If the function has static local variables, this
+  // attribute is used to determine whether the variables are imported or not.
   let Spellings = [];
   let Subjects = SubjectList<[Function]>;
   let Documentation = [Undocumented];

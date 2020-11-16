@@ -15,8 +15,6 @@ class PlatformMacOSX : public PlatformDarwin {
 public:
   PlatformMacOSX(bool is_host);
 
-  ~PlatformMacOSX() override;
-
   // Class functions
   static lldb::PlatformSP CreateInstance(bool force,
                                          const lldb_private::ArchSpec *arch);
@@ -40,7 +38,7 @@ public:
   GetSharedModule(const lldb_private::ModuleSpec &module_spec,
                   lldb_private::Process *process, lldb::ModuleSP &module_sp,
                   const lldb_private::FileSpecList *module_search_paths_ptr,
-                  lldb::ModuleSP *old_module_sp_ptr,
+                  llvm::SmallVectorImpl<lldb::ModuleSP> *old_modules,
                   bool *did_create_ptr) override;
 
   const char *GetDescription() override {
@@ -77,9 +75,6 @@ public:
   }
 
 private:
-  PlatformMacOSX(const PlatformMacOSX &) = delete;
-  const PlatformMacOSX &operator=(const PlatformMacOSX &) = delete;
-
 #if defined(__arm__) || defined(__arm64__) || defined(__aarch64__)
   uint32_t m_num_arm_arches = 0;
 #endif

@@ -78,9 +78,10 @@ struct _pi_platform {
   std::string ZeDriverApiVersion;
 
   // Cache pi_devices for reuse
-  std::vector<pi_device> PiDevicesCache;
+  std::vector<std::unique_ptr<_pi_device>> PiDevicesCache;
   std::mutex PiDevicesCacheMutex;
   pi_device getDeviceFromNativeHandle(ze_device_handle_t);
+  bool DeviceCachePopulated = false;
 
   // Maximum Number of Command Lists that can be created.
   // This Value is initialized to 20000, but can be changed by the user
@@ -324,20 +325,20 @@ struct _pi_queue : _pi_object {
   pi_result resetCommandListFenceEntry(ze_command_list_handle_t ZeCommandList,
                                        bool MakeAvailable);
 
-  // Attach a command list to this queue and allow it to remain open
-  // and used for further batching.  It may be executed immediately,
-  // or it may be left open for other future command to be batched into.
-  pi_result batchCommandList(ze_command_list_handle_t ZeCommandList,
-                             ze_fence_handle_t ZeFence);
-
   // Attach a command list to this queue, close, and execute it.
   // Note that this command list cannot be appended to after this.
-  // The "IsBlocking" tells if the wait for completion is requested.
+  // The "IsBlocking" tells if the wait for completion is required.
   // The "ZeFence" passed is used to track when the command list passed
   // has completed execution on the device and can be reused.
+  // If OKToBatchCommand is true, then this command list may be executed
+  // immediately, or it may be left open for other future command to be
+  // batched into.
+  // If IsBlocking is true, then batching will not be allowed regardless
+  // of the value of OKToBatchCommand
   pi_result executeCommandList(ze_command_list_handle_t ZeCommandList,
                                ze_fence_handle_t ZeFence,
-                               bool IsBlocking = false);
+                               bool IsBlocking = false,
+                               bool OKToBatchCommand = false);
 
   // If there is an open command list associated with this queue,
   // close it, exceute it, and reset ZeOpenCommandList, ZeCommandListFence,
@@ -353,6 +354,9 @@ struct _pi_mem : _pi_object {
   // if created with PI_MEM_FLAGS_HOST_PTR_USE (see
   // piEnqueueMemBufferMap for details).
   char *MapHostPtr;
+
+  // Flag to indicate that this memory is allocated in host memory
+  bool OnHost;
 
   // Supplementary data to keep track of the mappings of this memory
   // created with piEnqueueMemBufferMap and piEnqueueMemImageMap.
@@ -381,8 +385,8 @@ struct _pi_mem : _pi_object {
   pi_result removeMapping(void *MappedTo, Mapping &MapInfo);
 
 protected:
-  _pi_mem(pi_context Ctx, char *HostPtr)
-      : Context{Ctx}, MapHostPtr{HostPtr}, Mappings{} {}
+  _pi_mem(pi_context Ctx, char *HostPtr, bool MemOnHost = false)
+      : Context{Ctx}, MapHostPtr{HostPtr}, OnHost{MemOnHost}, Mappings{} {}
 
 private:
   // The key is the host pointer representing an active mapping.
@@ -398,8 +402,10 @@ private:
 struct _pi_buffer final : _pi_mem {
   // Buffer/Sub-buffer constructor
   _pi_buffer(pi_context Ctx, char *Mem, char *HostPtr,
-             _pi_mem *Parent = nullptr, size_t Origin = 0, size_t Size = 0)
-      : _pi_mem(Ctx, HostPtr), ZeMem{Mem}, SubBuffer{Parent, Origin, Size} {}
+             _pi_mem *Parent = nullptr, size_t Origin = 0, size_t Size = 0,
+             bool MemOnHost = false)
+      : _pi_mem(Ctx, HostPtr, MemOnHost), ZeMem{Mem}, SubBuffer{Parent, Origin,
+                                                                Size} {}
 
   void *getZeHandle() override { return ZeMem; }
 

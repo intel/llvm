@@ -14,7 +14,6 @@
 #define LLVM_ADT_SMALLVECTOR_H
 
 #include "llvm/ADT/iterator_range.h"
-#include "llvm/Support/AlignOf.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
@@ -97,8 +96,9 @@ using SmallVectorSizeType =
 
 /// Figure out the offset of the first element.
 template <class T, typename = void> struct SmallVectorAlignmentAndSize {
-  AlignedCharArrayUnion<SmallVectorBase<SmallVectorSizeType<T>>> Base;
-  AlignedCharArrayUnion<T> FirstEl;
+  alignas(SmallVectorBase<SmallVectorSizeType<T>>) char Base[sizeof(
+      SmallVectorBase<SmallVectorSizeType<T>>)];
+  alignas(T) char FirstEl[sizeof(T)];
 };
 
 /// This is the part of SmallVectorTemplateBase which does not depend on whether
@@ -422,6 +422,12 @@ public:
   void reserve(size_type N) {
     if (this->capacity() < N)
       this->grow(N);
+  }
+
+  void pop_back_n(size_type NumItems) {
+    assert(this->size() >= NumItems);
+    this->destroy_range(this->end() - NumItems, this->end());
+    this->set_size(this->size() - NumItems);
   }
 
   LLVM_NODISCARD T pop_back_val() {
@@ -870,13 +876,13 @@ SmallVectorImpl<T> &SmallVectorImpl<T>::operator=(SmallVectorImpl<T> &&RHS) {
 /// to avoid allocating unnecessary storage.
 template <typename T, unsigned N>
 struct SmallVectorStorage {
-  AlignedCharArrayUnion<T> InlineElts[N];
+  alignas(T) char InlineElts[N * sizeof(T)];
 };
 
 /// We need the storage to be properly aligned even for small-size of 0 so that
 /// the pointer math in \a SmallVectorTemplateCommon::getFirstEl() is
 /// well-defined.
-template <typename T> struct alignas(alignof(T)) SmallVectorStorage<T, 0> {};
+template <typename T> struct alignas(T) SmallVectorStorage<T, 0> {};
 
 /// This is a 'vector' (really, a variable-sized array), optimized
 /// for the case when the array is small.  It contains some number of elements
@@ -925,7 +931,7 @@ public:
       SmallVectorImpl<T>::operator=(RHS);
   }
 
-  const SmallVector &operator=(const SmallVector &RHS) {
+  SmallVector &operator=(const SmallVector &RHS) {
     SmallVectorImpl<T>::operator=(RHS);
     return *this;
   }
@@ -940,17 +946,17 @@ public:
       SmallVectorImpl<T>::operator=(::std::move(RHS));
   }
 
-  const SmallVector &operator=(SmallVector &&RHS) {
+  SmallVector &operator=(SmallVector &&RHS) {
     SmallVectorImpl<T>::operator=(::std::move(RHS));
     return *this;
   }
 
-  const SmallVector &operator=(SmallVectorImpl<T> &&RHS) {
+  SmallVector &operator=(SmallVectorImpl<T> &&RHS) {
     SmallVectorImpl<T>::operator=(::std::move(RHS));
     return *this;
   }
 
-  const SmallVector &operator=(std::initializer_list<T> IL) {
+  SmallVector &operator=(std::initializer_list<T> IL) {
     this->assign(IL);
     return *this;
   }

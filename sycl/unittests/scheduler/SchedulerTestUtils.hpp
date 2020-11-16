@@ -11,9 +11,11 @@
 #include <CL/sycl/detail/cl.h>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/stream_impl.hpp>
 
 #include <functional>
 #include <gmock/gmock.h>
+#include <vector>
 
 // This header contains a few common classes/methods used in
 // execution graph testing.
@@ -98,7 +100,9 @@ public:
   }
 
   void cleanupCommandsForRecord(cl::sycl::detail::MemObjRecord *Rec) {
-    MGraphBuilder.cleanupCommandsForRecord(Rec);
+    std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>>
+        StreamsToDeallocate;
+    MGraphBuilder.cleanupCommandsForRecord(Rec, StreamsToDeallocate);
   }
 
   void addNodeToLeaves(

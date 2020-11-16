@@ -44,6 +44,10 @@ def warn_drv_avr_libc_not_found: Warning<
 def warn_drv_avr_family_linking_stdlibs_not_implemented: Warning<
   "support for linking stdlibs for microcontroller '%0' is not implemented">,
   InGroup<AVRRtlibLinkingQuirks>;
+def warn_drv_avr_linker_section_addresses_not_implemented: Warning<
+  "support for passing the data section address to the linker for "
+  "microcontroller '%0' is not implemented">,
+  InGroup<AVRRtlibLinkingQuirks>;
 def warn_drv_avr_stdlib_not_linked: Warning<
   "standard library not linked and so no interrupt vector table or "
   "compiler runtime routines will be linked">,
@@ -69,7 +73,7 @@ def err_drv_cuda_version_unsupported : Error<
   "install, pass a different GPU arch with --cuda-gpu-arch, or pass "
   "--no-cuda-version-check.">;
 def warn_drv_unknown_cuda_version: Warning<
-  "Unknown CUDA version %0. Assuming the latest supported version %1">,
+  "Unknown CUDA version. %0 Assuming the latest supported version %1">,
   InGroup<CudaUnknownVersion>;
 def err_drv_cuda_host_arch : Error<"unsupported architecture '%0' for host compilation.">;
 def err_drv_no_sycl_libspirv : Error<
@@ -120,8 +124,6 @@ def err_drv_missing_argument : Error<
   "argument to '%0' is missing (expected %1 value%s1)">;
 def err_drv_invalid_Xarch_argument_with_args : Error<
   "invalid Xarch argument: '%0', options requiring arguments are unsupported">;
-def err_drv_invalid_Xarch_argument_isdriver : Error<
-  "invalid Xarch argument: '%0', cannot change driver behavior inside Xarch argument">;
 def err_drv_Xopenmp_target_missing_triple : Error<
   "cannot deduce implicit triple value for -Xopenmp-target, specify triple using -Xopenmp-target=<triple>">;
 def err_drv_invalid_Xopenmp_target_with_args : Error<
@@ -223,6 +225,7 @@ def err_drv_dllexport_inlines_and_fallback : Error<
 
 def err_drv_invalid_value : Error<"invalid value '%1' in '%0'">;
 def err_drv_invalid_int_value : Error<"invalid integral value '%1' in '%0'">;
+def err_drv_invalid_value_with_suggestion : Error<"invalid value '%1' in '%0','%2'">;
 def err_drv_invalid_remap_file : Error<
     "invalid option '%0' not of the form <from-file>;<to-file>">;
 def err_drv_invalid_gcc_output_type : Error<
@@ -264,6 +267,7 @@ def err_drv_optimization_remark_format : Error<
 def err_drv_no_neon_modifier : Error<"[no]neon is not accepted as modifier, please use [no]simd instead">;
 def err_drv_invalid_omp_target : Error<"OpenMP target is invalid: '%0'">;
 def err_drv_invalid_sycl_target : Error<"SYCL target is invalid: '%0'">;
+def err_drv_incompatible_omp_arch : Error<"OpenMP target architecture '%0' pointer size is incompatible with host '%1'">;
 def err_drv_option_conflict : Error<"The option %0 conflicts with %1">;
 def err_drv_omp_host_ir_file_not_found : Error<
   "The provided host compiler IR file '%0' is required to generate code for OpenMP target regions but cannot be found.">;

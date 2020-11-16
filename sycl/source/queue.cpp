@@ -113,13 +113,13 @@ queue::get_info() const {
   return impl->get_info<Param>();
 }
 
-#define PARAM_TRAITS_SPEC(ParamType, Param, RetType)                           \
+#define __SYCL_PARAM_TRAITS_SPEC(ParamType, Param, RetType)                    \
   template __SYCL_EXPORT RetType queue::get_info<info::ParamType::Param>()     \
       const;
 
 #include <CL/sycl/info/queue_traits.def>
 
-#undef PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC
 
 template <typename PropertyT> bool queue::has_property() const {
   return impl->has_property<PropertyT>();

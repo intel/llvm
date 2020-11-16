@@ -85,6 +85,20 @@ public:
   /// @spirv.llvm_memset_* and replace it with @llvm.memset.
   void lowerMemset(MemSetInst *MSI);
 
+  /// No SPIR-V counterpart for @llvm.fshl.i* intrinsic. It will be lowered
+  /// to a newly generated @spirv.llvm_fshl_i* function.
+  /// Conceptually, FSHL:
+  /// 1. concatenates the ints, the first one being the more significant;
+  /// 2. performs a left shift-rotate on the resulting doubled-sized int;
+  /// 3. returns the most significant bits of the shift-rotate result,
+  ///    the number of bits being equal to the size of the original integers.
+  /// The actual implementation algorithm will be slightly different to speed
+  /// things up.
+  void lowerFunnelShiftLeft(IntrinsicInst *FSHLIntrinsic);
+  void buildFunnelShiftLeftFunc(Function *FSHLFunc);
+
+  static std::string lowerLLVMIntrinsicName(IntrinsicInst *II);
+
   static char ID;
 
 private:
@@ -94,17 +108,22 @@ private:
 
 char SPIRVRegularizeLLVM::ID = 0;
 
-void SPIRVRegularizeLLVM::lowerMemset(MemSetInst *MSI) {
-  if (isa<Constant>(MSI->getValue()) && isa<ConstantInt>(MSI->getLength()))
-    return; // To be handled in LLVMToSPIRV::transIntrinsicInst
-  Function *IntrinsicFunc = MSI->getCalledFunction();
+std::string SPIRVRegularizeLLVM::lowerLLVMIntrinsicName(IntrinsicInst *II) {
+  Function *IntrinsicFunc = II->getCalledFunction();
   assert(IntrinsicFunc && "Missing function");
   std::string FuncName = IntrinsicFunc->getName().str();
   std::replace(FuncName.begin(), FuncName.end(), '.', '_');
   FuncName = "spirv." + FuncName;
+  return FuncName;
+}
+
+void SPIRVRegularizeLLVM::lowerMemset(MemSetInst *MSI) {
+  if (isa<Constant>(MSI->getValue()) && isa<ConstantInt>(MSI->getLength()))
+    return; // To be handled in LLVMToSPIRV::transIntrinsicInst
+
+  std::string FuncName = lowerLLVMIntrinsicName(MSI);
   if (MSI->isVolatile())
     FuncName += ".volatile";
-
   // Redirect @llvm.memset.* call to @spirv.llvm_memset_*
   Function *F = M->getFunction(FuncName);
   if (F) {
@@ -135,6 +154,75 @@ void SPIRVRegularizeLLVM::lowerMemset(MemSetInst *MSI) {
   expandMemSetAsLoop(cast<MemSetInst>(MemSet));
   MemSet->eraseFromParent();
   return;
+}
+
+void SPIRVRegularizeLLVM::buildFunnelShiftLeftFunc(Function *FSHLFunc) {
+  if (!FSHLFunc->empty())
+    return;
+
+  auto *IntTy = dyn_cast<IntegerType>(FSHLFunc->getReturnType());
+  assert(IntTy && "llvm.fshl: expected an integer return type");
+  assert(FSHLFunc->arg_size() == 3 && "llvm.fshl: expected 3 arguments");
+  for (Argument &Arg : FSHLFunc->args())
+    assert(Arg.getType()->getTypeID() == IntTy->getTypeID() &&
+           "llvm.fshl: mismatched return type and argument types");
+
+  // Our function will require 3 basic blocks; the purpose of each will be
+  // clarified below.
+  auto *CondBB = BasicBlock::Create(M->getContext(), "cond", FSHLFunc);
+  auto *RotateBB =
+      BasicBlock::Create(M->getContext(), "rotate", FSHLFunc); // Main logic
+  auto *PhiBB = BasicBlock::Create(M->getContext(), "phi", FSHLFunc);
+
+  IRBuilder<> Builder(CondBB);
+  // If the number of bits to rotate for is divisible by the bitsize,
+  // the shift becomes useless, and we should bypass the main logic in that
+  // case.
+  unsigned BitWidth = IntTy->getIntegerBitWidth();
+  ConstantInt *BitWidthConstant = Builder.getInt({BitWidth, BitWidth});
+  auto *RotateModVal =
+      Builder.CreateURem(/*Rotate*/ FSHLFunc->getArg(2), BitWidthConstant);
+  ConstantInt *ZeroConstant = Builder.getInt({BitWidth, 0});
+  auto *CheckRotateModIfZero = Builder.CreateICmpEQ(RotateModVal, ZeroConstant);
+  Builder.CreateCondBr(CheckRotateModIfZero, /*True*/ PhiBB,
+                       /*False*/ RotateBB);
+
+  // Build the actual funnel shift rotate logic.
+  Builder.SetInsertPoint(RotateBB);
+  // Shift the more significant number left, the "rotate" number of bits
+  // will be 0-filled on the right as a result of this regular shift.
+  auto *ShiftLeft = Builder.CreateShl(FSHLFunc->getArg(0), RotateModVal);
+  // We want the "rotate" number of the second int's MSBs to occupy the
+  // rightmost "0 space" left by the previous operation. Therefore,
+  // subtract the "rotate" number from the integer bitsize...
+  auto *SubRotateVal = Builder.CreateSub(BitWidthConstant, RotateModVal);
+  // ...and right-shift the second int by this number, zero-filling the MSBs.
+  auto *ShiftRight = Builder.CreateLShr(FSHLFunc->getArg(1), SubRotateVal);
+  // A simple binary addition of the shifted ints yields the final result.
+  auto *FunnelShiftRes = Builder.CreateOr(ShiftLeft, ShiftRight);
+  Builder.CreateBr(PhiBB);
+
+  // PHI basic block. If no actual rotate was required, return the first, more
+  // significant int. E.g. for 32-bit integers, it's equivalent to concatenating
+  // the 2 ints and taking 32 MSBs.
+  Builder.SetInsertPoint(PhiBB);
+  PHINode *Phi = Builder.CreatePHI(IntTy, 0);
+  Phi->addIncoming(FunnelShiftRes, RotateBB);
+  Phi->addIncoming(FSHLFunc->getArg(0), CondBB);
+  Builder.CreateRet(Phi);
+}
+
+void SPIRVRegularizeLLVM::lowerFunnelShiftLeft(IntrinsicInst *FSHLIntrinsic) {
+  // Get a separate function - otherwise, we'd have to rework the CFG of the
+  // current one. Then simply replace the intrinsic uses with a call to the new
+  // function.
+  FunctionType *FSHLFuncTy = FSHLIntrinsic->getFunctionType();
+  Type *FSHLRetTy = FSHLFuncTy->getReturnType();
+  const std::string FuncName = lowerLLVMIntrinsicName(FSHLIntrinsic);
+  Function *FSHLFunc =
+      getOrCreateFunction(M, FSHLRetTy, FSHLFuncTy->params(), FuncName);
+  buildFunnelShiftLeftFunc(FSHLFunc);
+  FSHLIntrinsic->setCalledFunction(FSHLFunc);
 }
 
 bool SPIRVRegularizeLLVM::runOnModule(Module &Module) {
@@ -170,8 +258,11 @@ bool SPIRVRegularizeLLVM::regularize() {
           Function *CF = Call->getCalledFunction();
           if (CF && CF->isIntrinsic()) {
             removeFnAttr(Call, Attribute::NoUnwind);
-            if (auto *MSI = dyn_cast<MemSetInst>(Call))
+            auto *II = cast<IntrinsicInst>(Call);
+            if (auto *MSI = dyn_cast<MemSetInst>(II))
               lowerMemset(MSI);
+            else if (II->getIntrinsicID() == Intrinsic::fshl)
+              lowerFunnelShiftLeft(II);
           }
         }
 
@@ -254,7 +345,7 @@ bool SPIRVRegularizeLLVM::regularize() {
       }
     }
     for (Instruction *V : ToErase) {
-      assert(V->user_empty());
+      assert(V->user_empty() && "User non-empty\n");
       V->eraseFromParent();
     }
   }

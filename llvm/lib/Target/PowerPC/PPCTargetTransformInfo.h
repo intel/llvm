@@ -68,12 +68,14 @@ public:
   bool canSaveCmp(Loop *L, BranchInst **BI, ScalarEvolution *SE, LoopInfo *LI,
                   DominatorTree *DT, AssumptionCache *AC,
                   TargetLibraryInfo *LibInfo);
+  bool getTgtMemIntrinsic(IntrinsicInst *Inst, MemIntrinsicInfo &Info);
   void getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
                                TTI::UnrollingPreferences &UP);
   void getPeelingPreferences(Loop *L, ScalarEvolution &SE,
                              TTI::PeelingPreferences &PP);
   bool isLSRCostLess(TargetTransformInfo::LSRCost &C1,
                      TargetTransformInfo::LSRCost &C2);
+  bool isNumRegsMajorCostOfLSR();
 
   /// @}
 
@@ -111,6 +113,7 @@ public:
                        const Instruction *I = nullptr);
   int getCFInstrCost(unsigned Opcode, TTI::TargetCostKind CostKind);
   int getCmpSelInstrCost(unsigned Opcode, Type *ValTy, Type *CondTy,
+                         CmpInst::Predicate VecPred,
                          TTI::TargetCostKind CostKind,
                          const Instruction *I = nullptr);
   int getVectorInstrCost(unsigned Opcode, Type *Val, unsigned Index);

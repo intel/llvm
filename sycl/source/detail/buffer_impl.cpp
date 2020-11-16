@@ -16,21 +16,26 @@ namespace sycl {
 namespace detail {
 void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
                   void *HostPtr, RT::PiEvent &OutEventToWait) {
+  // The host pointer for the allocation can be provided in 2 ways:
+  // 1. Initialize the allocation from user data. Check if the user pointer is
+  // read-only.
+  // 2. Use a HostPtr allocated by the runtime. Assume any such pointer to be
+  // read-write.
+  bool HostPtrReadOnly = false;
+  if (InitFromUserData) {
+    assert(!HostPtr && "Cannot init from user data and reuse host ptr provided "
+                       "simultaneously");
+    HostPtr = BaseT::getUserPtr();
+    HostPtrReadOnly = BaseT::MHostPtrReadOnly;
+  }
 
-  assert(!(InitFromUserData && HostPtr) &&
-          "Cannot init from user data and reuse host ptr provided "
-          "simultaneously");
-
-  void *UserPtr = InitFromUserData ? BaseT::getUserPtr() : HostPtr;
-
-  assert(!(nullptr == UserPtr && BaseT::useHostPtr() && Context->is_host()) &&
-          "Internal error. Allocating memory on the host "
-          "while having use_host_ptr property");
+  assert(!(nullptr == HostPtr && BaseT::useHostPtr() && Context->is_host()) &&
+         "Internal error. Allocating memory on the host "
+         "while having use_host_ptr property");
 
   return MemoryManager::allocateMemBuffer(
-      std::move(Context), this, UserPtr, BaseT::MHostPtrReadOnly,
-      BaseT::getSize(), BaseT::MInteropEvent, BaseT::MInteropContext, MProps,
-      OutEventToWait);
+      std::move(Context), this, HostPtr, HostPtrReadOnly, BaseT::getSize(),
+      BaseT::MInteropEvent, BaseT::MInteropContext, MProps, OutEventToWait);
 }
 } // namespace detail
 } // namespace sycl

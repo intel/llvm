@@ -30,14 +30,17 @@ public:
   /// Add a new node with a specified role.
   static void addAfter(syntax::Node *Anchor, syntax::Node *New, NodeRole Role) {
     assert(Anchor != nullptr);
+    assert(Anchor->Parent != nullptr);
     assert(New->Parent == nullptr);
     assert(New->NextSibling == nullptr);
-    assert(!New->isDetached());
+    assert(New->PreviousSibling == nullptr);
+    assert(New->isDetached());
     assert(Role != NodeRole::Detached);
 
     New->setRole(Role);
     auto *P = Anchor->getParent();
-    P->replaceChildRangeLowLevel(Anchor, Anchor, New);
+    P->replaceChildRangeLowLevel(Anchor->getNextSibling(),
+                                 Anchor->getNextSibling(), New);
 
     P->assertInvariants();
   }
@@ -49,35 +52,28 @@ public:
     assert(Old->canModify());
     assert(New->Parent == nullptr);
     assert(New->NextSibling == nullptr);
+    assert(New->PreviousSibling == nullptr);
     assert(New->isDetached());
 
     New->Role = Old->Role;
     auto *P = Old->getParent();
-    P->replaceChildRangeLowLevel(findPrevious(Old), Old->getNextSibling(), New);
+    P->replaceChildRangeLowLevel(Old, Old->getNextSibling(), New);
 
     P->assertInvariants();
   }
 
   /// Completely remove the node from its parent.
   static void remove(syntax::Node *N) {
+    assert(N != nullptr);
+    assert(N->Parent != nullptr);
+    assert(N->canModify());
+
     auto *P = N->getParent();
-    P->replaceChildRangeLowLevel(findPrevious(N), N->getNextSibling(),
+    P->replaceChildRangeLowLevel(N, N->getNextSibling(),
                                  /*New=*/nullptr);
 
     P->assertInvariants();
     N->assertInvariants();
-  }
-
-private:
-  static syntax::Node *findPrevious(syntax::Node *N) {
-    if (N->getParent()->getFirstChild() == N)
-      return nullptr;
-    for (syntax::Node *C = N->getParent()->getFirstChild(); C != nullptr;
-         C = C->getNextSibling()) {
-      if (C->getNextSibling() == N)
-        return C;
-    }
-    llvm_unreachable("could not find a child node");
   }
 };
 

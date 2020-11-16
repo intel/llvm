@@ -257,13 +257,14 @@ template <typename T, T param> class param_traits {};
 
 template <typename T, T param> struct compatibility_param_traits {};
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
   template <> class param_traits<param_type, param_type::param> {              \
   public:                                                                      \
     using return_type = ret_type;                                              \
   };
 
-#define PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type, in_type)     \
+#define __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type,       \
+                                            in_type)                           \
   template <> class param_traits<param_type, param_type::param> {              \
   public:                                                                      \
     using return_type = ret_type;                                              \
@@ -289,16 +290,17 @@ template <typename T, T param> struct compatibility_param_traits {};
 
 #include <CL/sycl/info/queue_traits.def>
 
-#undef PARAM_TRAITS_SPEC
-#undef PARAM_TRAITS_SPEC_WITH_INPUT
+#undef __SYCL_PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
   template <>                                                                  \
   struct compatibility_param_traits<param_type, param_type::param> {           \
     static constexpr auto value = kernel_device_specific::param;               \
   };
 
-#define PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type, in_type)     \
+#define __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type,       \
+                                            in_type)                           \
   template <>                                                                  \
   struct compatibility_param_traits<param_type, param_type::param> {           \
     static constexpr auto value = kernel_device_specific::param;               \
@@ -307,8 +309,8 @@ template <typename T, T param> struct compatibility_param_traits {};
 #include <CL/sycl/info/kernel_sub_group_traits.def>
 #include <CL/sycl/info/kernel_work_group_traits.def>
 
-#undef PARAM_TRAITS_SPEC
-#undef PARAM_TRAITS_SPEC_WITH_INPUT
+#undef __SYCL_PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
 
 } // namespace info
 } // namespace sycl

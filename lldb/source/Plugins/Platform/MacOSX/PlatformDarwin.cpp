@@ -221,7 +221,7 @@ BringInRemoteFile(Platform *platform,
 lldb_private::Status PlatformDarwin::GetSharedModuleWithLocalCache(
     const lldb_private::ModuleSpec &module_spec, lldb::ModuleSP &module_sp,
     const lldb_private::FileSpecList *module_search_paths_ptr,
-    lldb::ModuleSP *old_module_sp_ptr, bool *did_create_ptr) {
+    llvm::SmallVectorImpl<lldb::ModuleSP> *old_modules, bool *did_create_ptr) {
 
   Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PLATFORM));
   LLDB_LOGF(log,
@@ -254,15 +254,15 @@ lldb_private::Status PlatformDarwin::GetSharedModuleWithLocalCache(
       ModuleSpec shared_cache_spec(module_spec.GetFileSpec(), image_info.uuid,
                                    image_info.data_sp);
       err = ModuleList::GetSharedModule(shared_cache_spec, module_sp,
-                                        module_search_paths_ptr,
-                                        old_module_sp_ptr, did_create_ptr);
+                                        module_search_paths_ptr, old_modules,
+                                        did_create_ptr);
       if (module_sp)
         return err;
     }
   }
 
   err = ModuleList::GetSharedModule(module_spec, module_sp,
-                                    module_search_paths_ptr, old_module_sp_ptr,
+                                    module_search_paths_ptr, old_modules,
                                     did_create_ptr);
   if (module_sp)
     return err;
@@ -365,8 +365,8 @@ lldb_private::Status PlatformDarwin::GetSharedModuleWithLocalCache(
 
 Status PlatformDarwin::GetSharedModule(
     const ModuleSpec &module_spec, Process *process, ModuleSP &module_sp,
-    const FileSpecList *module_search_paths_ptr, ModuleSP *old_module_sp_ptr,
-    bool *did_create_ptr) {
+    const FileSpecList *module_search_paths_ptr,
+    llvm::SmallVectorImpl<ModuleSP> *old_modules, bool *did_create_ptr) {
   Status error;
   module_sp.reset();
 
@@ -375,16 +375,16 @@ Status PlatformDarwin::GetSharedModule(
     // module first.
     if (m_remote_platform_sp) {
       error = m_remote_platform_sp->GetSharedModule(
-          module_spec, process, module_sp, module_search_paths_ptr,
-          old_module_sp_ptr, did_create_ptr);
+          module_spec, process, module_sp, module_search_paths_ptr, old_modules,
+          did_create_ptr);
     }
   }
 
   if (!module_sp) {
     // Fall back to the local platform and find the file locally
     error = Platform::GetSharedModule(module_spec, process, module_sp,
-                                      module_search_paths_ptr,
-                                      old_module_sp_ptr, did_create_ptr);
+                                      module_search_paths_ptr, old_modules,
+                                      did_create_ptr);
 
     const FileSpec &platform_file = module_spec.GetFileSpec();
     if (!module_sp && module_search_paths_ptr && platform_file) {
@@ -397,7 +397,7 @@ Status PlatformDarwin::GetSharedModule(
           new_module_spec.GetFileSpec() = bundle_directory;
           if (Host::ResolveExecutableInBundle(new_module_spec.GetFileSpec())) {
             Status new_error(Platform::GetSharedModule(
-                new_module_spec, process, module_sp, nullptr, old_module_sp_ptr,
+                new_module_spec, process, module_sp, nullptr, old_modules,
                 did_create_ptr));
 
             if (module_sp)
@@ -424,8 +424,8 @@ Status PlatformDarwin::GetSharedModule(
                 ModuleSpec new_module_spec(module_spec);
                 new_module_spec.GetFileSpec() = new_file_spec;
                 Status new_error(Platform::GetSharedModule(
-                    new_module_spec, process, module_sp, nullptr,
-                    old_module_sp_ptr, did_create_ptr));
+                    new_module_spec, process, module_sp, nullptr, old_modules,
+                    did_create_ptr));
 
                 if (module_sp) {
                   module_sp->SetPlatformFileSpec(new_file_spec);
@@ -1197,7 +1197,7 @@ BreakpointSP PlatformDarwin::SetThreadCreationBreakpoint(Target &target) {
   return bp_sp;
 }
 
-int32_t
+uint32_t
 PlatformDarwin::GetResumeCountForLaunchInfo(ProcessLaunchInfo &launch_info) {
   const FileSpec &shell = launch_info.GetShell();
   if (!shell)
@@ -1224,6 +1224,33 @@ PlatformDarwin::GetResumeCountForLaunchInfo(ProcessLaunchInfo &launch_info) {
     return 2;
   } else
     return 1;
+}
+
+lldb::ProcessSP
+PlatformDarwin::DebugProcess(ProcessLaunchInfo &launch_info, Debugger &debugger,
+                             Target *target, // Can be NULL, if NULL create
+                                             // a new target, else use existing
+                                             // one
+                             Status &error) {
+  ProcessSP process_sp;
+
+  if (IsHost()) {
+    // We are going to hand this process off to debugserver which will be in
+    // charge of setting the exit status.  However, we still need to reap it
+    // from lldb. So, make sure we use a exit callback which does not set exit
+    // status.
+    const bool monitor_signals = false;
+    launch_info.SetMonitorProcessCallback(
+        &ProcessLaunchInfo::NoOpMonitorCallback, monitor_signals);
+    process_sp = Platform::DebugProcess(launch_info, debugger, target, error);
+  } else {
+    if (m_remote_platform_sp)
+      process_sp = m_remote_platform_sp->DebugProcess(launch_info, debugger,
+                                                      target, error);
+    else
+      error.SetErrorString("the platform is not currently connected");
+  }
+  return process_sp;
 }
 
 void PlatformDarwin::CalculateTrapHandlerSymbolNames() {
@@ -1297,6 +1324,12 @@ FileSpec PlatformDarwin::GetSDKDirectoryForModules(XcodeSDK::Type sdk_type) {
     break;
   case XcodeSDK::Type::iPhoneOS:
     sdks_spec.AppendPathComponent("iPhoneOS.platform");
+    break;
+  case XcodeSDK::Type::WatchSimulator:
+    sdks_spec.AppendPathComponent("WatchSimulator.platform");
+    break;
+  case XcodeSDK::Type::AppleTVSimulator:
+    sdks_spec.AppendPathComponent("AppleTVSimulator.platform");
     break;
   default:
     llvm_unreachable("unsupported sdk");
@@ -1488,25 +1521,20 @@ void PlatformDarwin::AddClangModuleCompilationOptionsForSDKType(
 
   StreamString minimum_version_option;
   bool use_current_os_version = false;
+  // If the SDK type is for the host OS, use its version number.
+  auto get_host_os = []() { return HostInfo::GetTargetTriple().getOS(); };
   switch (sdk_type) {
-  case XcodeSDK::Type::iPhoneOS:
-#if defined(__arm__) || defined(__arm64__) || defined(__aarch64__)
-    use_current_os_version = true;
-#else
-    use_current_os_version = false;
-#endif
-    break;
-
-  case XcodeSDK::Type::iPhoneSimulator:
-    use_current_os_version = false;
-    break;
-
   case XcodeSDK::Type::MacOSX:
-#if defined(__i386__) || defined(__x86_64__)
-    use_current_os_version = true;
-#else
-    use_current_os_version = false;
-#endif
+    use_current_os_version = get_host_os() == llvm::Triple::MacOSX;
+    break;
+  case XcodeSDK::Type::iPhoneOS:
+    use_current_os_version = get_host_os() == llvm::Triple::IOS;
+    break;
+  case XcodeSDK::Type::AppleTVOS:
+    use_current_os_version = get_host_os() == llvm::Triple::TvOS;
+    break;
+  case XcodeSDK::Type::watchOS:
+    use_current_os_version = get_host_os() == llvm::Triple::WatchOS;
     break;
   default:
     break;
@@ -1526,24 +1554,49 @@ void PlatformDarwin::AddClangModuleCompilationOptionsForSDKType(
     }
   }
   // Only add the version-min options if we got a version from somewhere
-  if (!version.empty()) {
+  if (!version.empty() && sdk_type != XcodeSDK::Type::Linux) {
+#define OPTION(PREFIX, NAME, VAR, ...)                                         \
+  const char *opt_##VAR = NAME;                                                \
+  (void)opt_##VAR;
+#include "clang/Driver/Options.inc"
+#undef OPTION
+    minimum_version_option << '-';
     switch (sdk_type) {
-    case XcodeSDK::Type::iPhoneOS:
-      minimum_version_option.PutCString("-mios-version-min=");
-      minimum_version_option.PutCString(version.getAsString());
+    case XcodeSDK::Type::MacOSX:
+      minimum_version_option << opt_mmacosx_version_min_EQ;
       break;
     case XcodeSDK::Type::iPhoneSimulator:
-      minimum_version_option.PutCString("-mios-simulator-version-min=");
-      minimum_version_option.PutCString(version.getAsString());
+      minimum_version_option << opt_mios_simulator_version_min_EQ;
       break;
-    case XcodeSDK::Type::MacOSX:
-      minimum_version_option.PutCString("-mmacosx-version-min=");
-      minimum_version_option.PutCString(version.getAsString());
+    case XcodeSDK::Type::iPhoneOS:
+      minimum_version_option << opt_mios_version_min_EQ;
       break;
-    default:
-      llvm_unreachable("unsupported sdk");
+    case XcodeSDK::Type::AppleTVSimulator:
+      minimum_version_option << opt_mtvos_simulator_version_min_EQ;
+      break;
+    case XcodeSDK::Type::AppleTVOS:
+      minimum_version_option << opt_mtvos_version_min_EQ;
+      break;
+    case XcodeSDK::Type::WatchSimulator:
+      minimum_version_option << opt_mwatchos_simulator_version_min_EQ;
+      break;
+    case XcodeSDK::Type::watchOS:
+      minimum_version_option << opt_mwatchos_version_min_EQ;
+      break;
+    case XcodeSDK::Type::bridgeOS:
+    case XcodeSDK::Type::Linux:
+    case XcodeSDK::Type::unknown:
+      if (lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_HOST)) {
+        XcodeSDK::Info info;
+        info.type = sdk_type;
+        LLDB_LOGF(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_HOST),
+                  "Clang modules on %s are not supported",
+                  XcodeSDK::GetCanonicalName(info).c_str());
+      }
+      return;
     }
-    options.push_back(std::string(minimum_version_option.GetString()));
+    minimum_version_option << version.getAsString();
+    options.emplace_back(std::string(minimum_version_option.GetString()));
   }
 
   FileSpec sysroot_spec;
@@ -1674,8 +1727,8 @@ PlatformDarwin::LaunchProcess(lldb_private::ProcessLaunchInfo &launch_info) {
 
 lldb_private::Status PlatformDarwin::FindBundleBinaryInExecSearchPaths(
     const ModuleSpec &module_spec, Process *process, ModuleSP &module_sp,
-    const FileSpecList *module_search_paths_ptr, ModuleSP *old_module_sp_ptr,
-    bool *did_create_ptr) {
+    const FileSpecList *module_search_paths_ptr,
+    llvm::SmallVectorImpl<ModuleSP> *old_modules, bool *did_create_ptr) {
   const FileSpec &platform_file = module_spec.GetFileSpec();
   // See if the file is present in any of the module_search_paths_ptr
   // directories.
@@ -1732,9 +1785,9 @@ lldb_private::Status PlatformDarwin::FindBundleBinaryInExecSearchPaths(
         if (FileSystem::Instance().Exists(path_to_try)) {
           ModuleSpec new_module_spec(module_spec);
           new_module_spec.GetFileSpec() = path_to_try;
-          Status new_error(Platform::GetSharedModule(
-              new_module_spec, process, module_sp, nullptr, old_module_sp_ptr,
-              did_create_ptr));
+          Status new_error(
+              Platform::GetSharedModule(new_module_spec, process, module_sp,
+                                        nullptr, old_modules, did_create_ptr));
 
           if (module_sp) {
             module_sp->SetPlatformFileSpec(path_to_try);

@@ -44,6 +44,7 @@
 #include "SPIRVModule.h"
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/IR/GlobalValue.h" // llvm::GlobalValue::LinkageTypes
 
 namespace llvm {
@@ -76,6 +77,7 @@ class SPIRVToLLVM {
 public:
   SPIRVToLLVM(Module *LLVMModule, SPIRVModule *TheSPIRVModule);
 
+  static const StringSet<> BuiltInConstFunc;
   std::string getOCLBuiltinName(SPIRVInstruction *BI);
   std::string getOCLConvertBuiltinName(SPIRVInstruction *BI);
   std::string getOCLGenericCastToPtrName(SPIRVInstruction *BI);
@@ -220,6 +222,11 @@ private:
   // OpenCL function always has NoUnwind attribute.
   // Change this if it is no longer true.
   bool isFuncNoUnwind() const { return true; }
+
+  bool isFuncReadNone(const std::string &Name) const {
+    return BuiltInConstFunc.count(Name);
+  }
+
   bool isSPIRVCmpInstTransToLLVMInst(SPIRVInstruction *BI) const;
   bool isDirectlyTranslatedToOCL(Op OpCode) const;
   bool transOCLBuiltinsFromVariables();

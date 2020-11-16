@@ -593,8 +593,9 @@ static unsigned getElSizeLog2Diff(Type *Ty0, Type *Ty1) {
 unsigned SystemZTTIImpl::
 getVectorTruncCost(Type *SrcTy, Type *DstTy) {
   assert (SrcTy->isVectorTy() && DstTy->isVectorTy());
-  assert (SrcTy->getPrimitiveSizeInBits() > DstTy->getPrimitiveSizeInBits() &&
-          "Packing must reduce size of vector type.");
+  assert(SrcTy->getPrimitiveSizeInBits().getFixedSize() >
+             DstTy->getPrimitiveSizeInBits().getFixedSize() &&
+         "Packing must reduce size of vector type.");
   assert(cast<FixedVectorType>(SrcTy)->getNumElements() ==
              cast<FixedVectorType>(DstTy)->getNumElements() &&
          "Packing should not change number of elements.");
@@ -846,11 +847,11 @@ static unsigned getOperandsExtensionCost(const Instruction *I) {
 }
 
 int SystemZTTIImpl::getCmpSelInstrCost(unsigned Opcode, Type *ValTy,
-                                       Type *CondTy,
+                                       Type *CondTy, CmpInst::Predicate VecPred,
                                        TTI::TargetCostKind CostKind,
                                        const Instruction *I) {
   if (CostKind != TTI::TCK_RecipThroughput)
-    return BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, CostKind);
+    return BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, VecPred, CostKind);
 
   if (!ValTy->isVectorTy()) {
     switch (Opcode) {
@@ -926,7 +927,7 @@ int SystemZTTIImpl::getCmpSelInstrCost(unsigned Opcode, Type *ValTy,
     }
   }
 
-  return BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, CostKind);
+  return BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, VecPred, CostKind);
 }
 
 int SystemZTTIImpl::

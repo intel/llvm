@@ -672,6 +672,7 @@ bool PPCInstrInfo::isReallyTriviallyReMaterializable(const MachineInstr &MI,
   case PPC::V_SETALLONES:
   case PPC::CRSET:
   case PPC::CRUNSET:
+  case PPC::XXSETACCZ:
     return true;
   }
   return false;
@@ -1340,6 +1341,22 @@ void PPCInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   else if (PPC::VSFRCRegClass.contains(DestReg, SrcReg) ||
            PPC::VSSRCRegClass.contains(DestReg, SrcReg))
     Opc = (Subtarget.hasP9Vector()) ? PPC::XSCPSGNDP : PPC::XXLORf;
+  else if (Subtarget.pairedVectorMemops() &&
+           PPC::VSRpRCRegClass.contains(DestReg, SrcReg)) {
+    if (SrcReg > PPC::VSRp15)
+      SrcReg = PPC::V0 + (SrcReg - PPC::VSRp16) * 2;
+    else
+      SrcReg = PPC::VSL0 + (SrcReg - PPC::VSRp0) * 2;
+    if (DestReg > PPC::VSRp15)
+      DestReg = PPC::V0 + (DestReg - PPC::VSRp16) * 2;
+    else
+      DestReg = PPC::VSL0 + (DestReg - PPC::VSRp0) * 2;
+    BuildMI(MBB, I, DL, get(PPC::XXLOR), DestReg).
+      addReg(SrcReg).addReg(SrcReg, getKillRegState(KillSrc));
+    BuildMI(MBB, I, DL, get(PPC::XXLOR), DestReg + 1).
+      addReg(SrcReg + 1).addReg(SrcReg + 1, getKillRegState(KillSrc));
+    return;
+  }
   else if (PPC::CRBITRCRegClass.contains(DestReg, SrcReg))
     Opc = PPC::CROR;
   else if (PPC::SPERCRegClass.contains(DestReg, SrcReg))
@@ -1785,8 +1802,9 @@ bool PPCInstrInfo::SubsumesPredicate(ArrayRef<MachineOperand> Pred1,
   return false;
 }
 
-bool PPCInstrInfo::DefinesPredicate(MachineInstr &MI,
-                                    std::vector<MachineOperand> &Pred) const {
+bool PPCInstrInfo::ClobbersPredicate(MachineInstr &MI,
+                                     std::vector<MachineOperand> &Pred,
+                                     bool SkipDead) const {
   // Note: At the present time, the contents of Pred from this function is
   // unused by IfConversion. This implementation follows ARM by pushing the
   // CR-defining operand. Because the 'DZ' and 'DNZ' count as types of
@@ -3170,6 +3188,143 @@ bool PPCInstrInfo::convertToImmediateForm(MachineInstr &MI,
     return true;
 
   return false;
+}
+
+bool PPCInstrInfo::combineRLWINM(MachineInstr &MI,
+                                 MachineInstr **ToErase) const {
+  MachineRegisterInfo *MRI = &MI.getParent()->getParent()->getRegInfo();
+  unsigned FoldingReg = MI.getOperand(1).getReg();
+  if (!Register::isVirtualRegister(FoldingReg))
+    return false;
+  MachineInstr *SrcMI = MRI->getVRegDef(FoldingReg);
+  if (SrcMI->getOpcode() != PPC::RLWINM &&
+      SrcMI->getOpcode() != PPC::RLWINM_rec &&
+      SrcMI->getOpcode() != PPC::RLWINM8 &&
+      SrcMI->getOpcode() != PPC::RLWINM8_rec)
+    return false;
+  assert((MI.getOperand(2).isImm() && MI.getOperand(3).isImm() &&
+          MI.getOperand(4).isImm() && SrcMI->getOperand(2).isImm() &&
+          SrcMI->getOperand(3).isImm() && SrcMI->getOperand(4).isImm()) &&
+         "Invalid PPC::RLWINM Instruction!");
+  uint64_t SHSrc = SrcMI->getOperand(2).getImm();
+  uint64_t SHMI = MI.getOperand(2).getImm();
+  uint64_t MBSrc = SrcMI->getOperand(3).getImm();
+  uint64_t MBMI = MI.getOperand(3).getImm();
+  uint64_t MESrc = SrcMI->getOperand(4).getImm();
+  uint64_t MEMI = MI.getOperand(4).getImm();
+
+  assert((MEMI < 32 && MESrc < 32 && MBMI < 32 && MBSrc < 32) &&
+         "Invalid PPC::RLWINM Instruction!");
+  // If MBMI is bigger than MEMI, we always can not get run of ones.
+  // RotatedSrcMask non-wrap:
+  //                 0........31|32........63
+  // RotatedSrcMask:   B---E        B---E
+  // MaskMI:         -----------|--E  B------
+  // Result:           -----          ---      (Bad candidate)
+  //
+  // RotatedSrcMask wrap:
+  //                 0........31|32........63
+  // RotatedSrcMask: --E   B----|--E    B----
+  // MaskMI:         -----------|--E  B------
+  // Result:         ---   -----|---    -----  (Bad candidate)
+  //
+  // One special case is RotatedSrcMask is a full set mask.
+  // RotatedSrcMask full:
+  //                 0........31|32........63
+  // RotatedSrcMask: ------EB---|-------EB---
+  // MaskMI:         -----------|--E  B------
+  // Result:         -----------|---  -------  (Good candidate)
+
+  // Mark special case.
+  bool SrcMaskFull = (MBSrc - MESrc == 1) || (MBSrc == 0 && MESrc == 31);
+
+  // For other MBMI > MEMI cases, just return.
+  if ((MBMI > MEMI) && !SrcMaskFull)
+    return false;
+
+  // Handle MBMI <= MEMI cases.
+  APInt MaskMI = APInt::getBitsSetWithWrap(32, 32 - MEMI - 1, 32 - MBMI);
+  // In MI, we only need low 32 bits of SrcMI, just consider about low 32
+  // bit of SrcMI mask. Note that in APInt, lowerest bit is at index 0,
+  // while in PowerPC ISA, lowerest bit is at index 63.
+  APInt MaskSrc = APInt::getBitsSetWithWrap(32, 32 - MESrc - 1, 32 - MBSrc);
+
+  APInt RotatedSrcMask = MaskSrc.rotl(SHMI);
+  APInt FinalMask = RotatedSrcMask & MaskMI;
+  uint32_t NewMB, NewME;
+  bool Simplified = false;
+
+  // If final mask is 0, MI result should be 0 too.
+  if (FinalMask.isNullValue()) {
+    bool Is64Bit =
+        (MI.getOpcode() == PPC::RLWINM8 || MI.getOpcode() == PPC::RLWINM8_rec);
+    Simplified = true;
+    LLVM_DEBUG(dbgs() << "Replace Instr: ");
+    LLVM_DEBUG(MI.dump());
+
+    if (MI.getOpcode() == PPC::RLWINM || MI.getOpcode() == PPC::RLWINM8) {
+      // Replace MI with "LI 0"
+      MI.RemoveOperand(4);
+      MI.RemoveOperand(3);
+      MI.RemoveOperand(2);
+      MI.getOperand(1).ChangeToImmediate(0);
+      MI.setDesc(get(Is64Bit ? PPC::LI8 : PPC::LI));
+    } else {
+      // Replace MI with "ANDI_rec reg, 0"
+      MI.RemoveOperand(4);
+      MI.RemoveOperand(3);
+      MI.getOperand(2).setImm(0);
+      MI.setDesc(get(Is64Bit ? PPC::ANDI8_rec : PPC::ANDI_rec));
+      MI.getOperand(1).setReg(SrcMI->getOperand(1).getReg());
+      if (SrcMI->getOperand(1).isKill()) {
+        MI.getOperand(1).setIsKill(true);
+        SrcMI->getOperand(1).setIsKill(false);
+      } else
+        // About to replace MI.getOperand(1), clear its kill flag.
+        MI.getOperand(1).setIsKill(false);
+    }
+
+    LLVM_DEBUG(dbgs() << "With: ");
+    LLVM_DEBUG(MI.dump());
+
+  } else if ((isRunOfOnes((unsigned)(FinalMask.getZExtValue()), NewMB, NewME) &&
+              NewMB <= NewME) ||
+             SrcMaskFull) {
+    // Here we only handle MBMI <= MEMI case, so NewMB must be no bigger
+    // than NewME. Otherwise we get a 64 bit value after folding, but MI
+    // return a 32 bit value.
+    Simplified = true;
+    LLVM_DEBUG(dbgs() << "Converting Instr: ");
+    LLVM_DEBUG(MI.dump());
+
+    uint16_t NewSH = (SHSrc + SHMI) % 32;
+    MI.getOperand(2).setImm(NewSH);
+    // If SrcMI mask is full, no need to update MBMI and MEMI.
+    if (!SrcMaskFull) {
+      MI.getOperand(3).setImm(NewMB);
+      MI.getOperand(4).setImm(NewME);
+    }
+    MI.getOperand(1).setReg(SrcMI->getOperand(1).getReg());
+    if (SrcMI->getOperand(1).isKill()) {
+      MI.getOperand(1).setIsKill(true);
+      SrcMI->getOperand(1).setIsKill(false);
+    } else
+      // About to replace MI.getOperand(1), clear its kill flag.
+      MI.getOperand(1).setIsKill(false);
+
+    LLVM_DEBUG(dbgs() << "To: ");
+    LLVM_DEBUG(MI.dump());
+  }
+  if (Simplified & MRI->use_nodbg_empty(FoldingReg) &&
+      !SrcMI->hasImplicitDef()) {
+    // If FoldingReg has no non-debug use and it has no implicit def (it
+    // is not RLWINMO or RLWINM8o), it's safe to delete its def SrcMI.
+    // Otherwise keep it.
+    *ToErase = SrcMI;
+    LLVM_DEBUG(dbgs() << "Delete dead instruction: ");
+    LLVM_DEBUG(SrcMI->dump());
+  }
+  return Simplified;
 }
 
 bool PPCInstrInfo::instrHasImmForm(unsigned Opc, bool IsVFReg,

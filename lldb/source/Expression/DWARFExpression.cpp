@@ -89,8 +89,8 @@ void DWARFExpression::DumpLocation(Stream *s, const DataExtractor &data,
                                    lldb::DescriptionLevel level,
                                    ABI *abi) const {
   llvm::DWARFExpression(data.GetAsLLVM(), data.GetAddressByteSize())
-      .print(s->AsRawOstream(), abi ? &abi->GetMCRegisterInfo() : nullptr,
-             nullptr);
+      .print(s->AsRawOstream(), llvm::DIDumpOptions(),
+             abi ? &abi->GetMCRegisterInfo() : nullptr, nullptr);
 }
 
 void DWARFExpression::SetLocationListAddresses(addr_t cu_file_addr,
@@ -2153,20 +2153,6 @@ bool DWARFExpression::Evaluate(
                                          ap_int.getNumWords()};
             curr_piece.GetScalar() = Scalar(llvm::APInt(bit_size, buf));
           } break;
-
-          case Value::eValueTypeVector: {
-            if (curr_piece_source_value.GetVector().length >= piece_byte_size)
-              curr_piece_source_value.GetVector().length = piece_byte_size;
-            else {
-              if (error_ptr)
-                error_ptr->SetErrorStringWithFormat(
-                    "unable to extract %" PRIu64 " bytes from a %" PRIu64
-                    " byte vector value.",
-                    piece_byte_size,
-                    (uint64_t)curr_piece_source_value.GetVector().length);
-              return false;
-            }
-          } break;
           }
 
           // Check if this is the first piece?
@@ -2235,18 +2221,32 @@ bool DWARFExpression::Evaluate(
                 piece_bit_size, piece_bit_offset);
           }
           return false;
-
-        case Value::eValueTypeVector:
-          if (error_ptr) {
-            error_ptr->SetErrorStringWithFormat(
-                "unable to extract DW_OP_bit_piece(bit_size = %" PRIu64
-                ", bit_offset = %" PRIu64 ") from a vector value.",
-                piece_bit_size, piece_bit_offset);
-          }
-          return false;
         }
       }
       break;
+
+    // OPCODE: DW_OP_implicit_value
+    // OPERANDS: 2
+    //      ULEB128  size of the value block in bytes
+    //      uint8_t* block bytes encoding value in target's memory
+    //      representation
+    // DESCRIPTION: Value is immediately stored in block in the debug info with
+    // the memory representation of the target.
+    case DW_OP_implicit_value: {
+      const uint32_t len = opcodes.GetULEB128(&offset);
+      const void *data = opcodes.GetData(&offset, len);
+
+      if (!data) {
+        LLDB_LOG(log, "Evaluate_DW_OP_implicit_value: could not be read data");
+        LLDB_ERRORF(error_ptr, "Could not evaluate %s.",
+                    DW_OP_value_to_name(op));
+        return false;
+      }
+
+      Value result(data, len);
+      stack.push_back(result);
+      break;
+    }
 
     // OPCODE: DW_OP_push_object_address
     // OPERANDS: none

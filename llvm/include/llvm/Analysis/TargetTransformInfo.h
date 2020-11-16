@@ -21,6 +21,7 @@
 #ifndef LLVM_ANALYSIS_TARGETTRANSFORMINFO_H
 #define LLVM_ANALYSIS_TARGETTRANSFORMINFO_H
 
+#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
@@ -613,6 +614,11 @@ public:
   bool isLSRCostLess(TargetTransformInfo::LSRCost &C1,
                      TargetTransformInfo::LSRCost &C2) const;
 
+  /// Return true if LSR major cost is number of registers. Targets which
+  /// implement their own isLSRCostLess and unset number of registers as major
+  /// cost should return false, otherwise return true.
+  bool isNumRegsMajorCostOfLSR() const;
+
   /// \returns true if LSR should not optimize a chain that includes \p I.
   bool isProfitableLSRChainElement(Instruction *I) const;
 
@@ -1087,10 +1093,14 @@ public:
 
   /// \returns The expected cost of compare and select instructions. If there
   /// is an existing instruction that holds Opcode, it may be passed in the
-  /// 'I' parameter.
-  int getCmpSelInstrCost(unsigned Opcode, Type *ValTy, Type *CondTy = nullptr,
-                         TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput,
-                         const Instruction *I = nullptr) const;
+  /// 'I' parameter. The \p VecPred parameter can be used to indicate the select
+  /// is using a compare with the specified predicate as condition. When vector
+  /// types are passed, \p VecPred must be used for all lanes.
+  int getCmpSelInstrCost(
+      unsigned Opcode, Type *ValTy, Type *CondTy = nullptr,
+      CmpInst::Predicate VecPred = CmpInst::BAD_ICMP_PREDICATE,
+      TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput,
+      const Instruction *I = nullptr) const;
 
   /// \return The expected cost of vector Insert and Extract.
   /// Use -1 to indicate that there is no information on the index value.
@@ -1410,6 +1420,7 @@ public:
                                      Instruction *I) = 0;
   virtual bool isLSRCostLess(TargetTransformInfo::LSRCost &C1,
                              TargetTransformInfo::LSRCost &C2) = 0;
+  virtual bool isNumRegsMajorCostOfLSR() = 0;
   virtual bool isProfitableLSRChainElement(Instruction *I) = 0;
   virtual bool canMacroFuseCmp() = 0;
   virtual bool canSaveCmp(Loop *L, BranchInst **BI, ScalarEvolution *SE,
@@ -1528,6 +1539,7 @@ public:
   virtual int getCFInstrCost(unsigned Opcode,
                              TTI::TargetCostKind CostKind) = 0;
   virtual int getCmpSelInstrCost(unsigned Opcode, Type *ValTy, Type *CondTy,
+                                 CmpInst::Predicate VecPred,
                                  TTI::TargetCostKind CostKind,
                                  const Instruction *I) = 0;
   virtual int getVectorInstrCost(unsigned Opcode, Type *Val,
@@ -1730,6 +1742,9 @@ public:
   bool isLSRCostLess(TargetTransformInfo::LSRCost &C1,
                      TargetTransformInfo::LSRCost &C2) override {
     return Impl.isLSRCostLess(C1, C2);
+  }
+  bool isNumRegsMajorCostOfLSR() override {
+    return Impl.isNumRegsMajorCostOfLSR();
   }
   bool isProfitableLSRChainElement(Instruction *I) override {
     return Impl.isProfitableLSRChainElement(I);
@@ -1966,9 +1981,10 @@ public:
     return Impl.getCFInstrCost(Opcode, CostKind);
   }
   int getCmpSelInstrCost(unsigned Opcode, Type *ValTy, Type *CondTy,
+                         CmpInst::Predicate VecPred,
                          TTI::TargetCostKind CostKind,
                          const Instruction *I) override {
-    return Impl.getCmpSelInstrCost(Opcode, ValTy, CondTy, CostKind, I);
+    return Impl.getCmpSelInstrCost(Opcode, ValTy, CondTy, VecPred, CostKind, I);
   }
   int getVectorInstrCost(unsigned Opcode, Type *Val, unsigned Index) override {
     return Impl.getVectorInstrCost(Opcode, Val, Index);
