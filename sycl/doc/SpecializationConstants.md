@@ -208,8 +208,8 @@ The SpecConstants pass in the post-link will have the following IR as input
 ```
 
 `__sycl_getCompositeSpecConstantValue` is a new "intrinsic" (in addition to
-`__sycl_getSpecConstantValue`) recognized by `SpecConstants` pass, which creates
-a value of a composite (of non-primitive type) specialization constant.
+`__sycl_getSpecConstantValue`) recognized by the `SpecConstants` pass, which
+creates a value of a composite (of non-primitive type) specialization constant.
 It does not need a default value, because its default value consists of default
 values of its leaf specialization constants (see below).
 
@@ -217,7 +217,7 @@ values of its leaf specialization constants (see below).
 `__spirv_SpecConstant` calls for each member of its return type plus one
 `__spirv_SpecConstantComposite` to gather members back into a single composite.
 If any composite member is another composite, then it will be also represented
-by number of `__spirv_SpecConstant` plus one `__spirv_SpecConstantComposite`:
+by number of `__spirv_SpecConstant` plus one `__spirv_SpecConstantComposite`.
 
 ```
 %gold_POD_A0_x = call i32 __spirv_SpecConstant(i32 10, i32 0)
@@ -241,13 +241,15 @@ by number of `__spirv_SpecConstant` plus one `__spirv_SpecConstantComposite`:
 ```
 
 Spec ID for the composite spec constant is not needed, as runtime will never use
-it - it will use IDs of the leaves instead.
-Yet, the SPIR-V specification does not allow `SpecID` decoration for composite
-spec constants, because its defined by its members instead.
+it - it will use IDs of the leaves instead, which are being assigned by the
+`SpecConstants` pass during replacement of SYCL intrinsics with SPIR-V
+intrinsics.
+Besides, the SPIR-V specification does not allow `SpecID` decoration for
+composite spec constants, because its defined by its members instead.
 
-`__spirv_SpecConstantComposite` is a new "intrinsic", which represents composite
-specialization constant. Its arguments are LLVM IR valures corresponding to
-elements of composite type of the constant.
+`__spirv_SpecConstantComposite` is a new SPIR-V intrinsic, which represents
+composite specialization constant. Its arguments are LLVM IR valures
+corresponding to elements of composite type of the constant.
 
 ##### LLVM -> SPIR-V translation
 
