@@ -2066,7 +2066,8 @@ bool Sema::CheckAttrTarget(const ParsedAttr &AL) {
   if (!(AL.existsInTarget(Context.getTargetInfo()) ||
         (Context.getLangOpts().SYCLIsDevice &&
          Aux && AL.existsInTarget(*Aux)))) {
-    Diag(AL.getLoc(), diag::warn_unknown_attribute_ignored) << AL;
+    Diag(AL.getLoc(), diag::warn_unknown_attribute_ignored)
+        << AL << AL.getRange();
     AL.setInvalid();
     return true;
   }
@@ -3873,7 +3874,7 @@ void Sema::AddAnnotationAttr(Decl *D, const AttributeCommonInfo &CI,
                              StringRef Str, MutableArrayRef<Expr *> Args) {
   auto *Attr = AnnotateAttr::Create(Context, Str, Args.data(), Args.size(), CI);
   llvm::SmallVector<PartialDiagnosticAt, 8> Notes;
-  for (unsigned Idx = 1; Idx < Attr->args_size(); Idx++) {
+  for (unsigned Idx = 0; Idx < Attr->args_size(); Idx++) {
     Expr *&E = Attr->args_begin()[Idx];
     assert(E && "error are handled before");
     if (E->isValueDependent() || E->isTypeDependent())
@@ -3905,7 +3906,7 @@ void Sema::AddAnnotationAttr(Decl *D, const AttributeCommonInfo &CI,
     /// current language mode.
     if (!Result || !Notes.empty()) {
       Diag(E->getBeginLoc(), diag::err_attribute_argument_n_type)
-          << CI << Idx << AANT_ArgumentConstantExpr;
+          << CI << (Idx + 1) << AANT_ArgumentConstantExpr;
       for (auto &Note : Notes)
         Diag(Note.first, Note.second);
       return;
@@ -3924,8 +3925,8 @@ static void handleAnnotateAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
 
   llvm::SmallVector<Expr *, 4> Args;
-  Args.reserve(AL.getNumArgs());
-  for (unsigned Idx = 0; Idx < AL.getNumArgs(); Idx++) {
+  Args.reserve(AL.getNumArgs() - 1);
+  for (unsigned Idx = 1; Idx < AL.getNumArgs(); Idx++) {
     assert(!AL.isArgIdent(Idx));
     Args.push_back(AL.getArgAsExpr(Idx));
   }
@@ -6122,7 +6123,8 @@ static void handleNSErrorDomain(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
   }
 
-  if (!isNSStringType(VD->getType(), S.Context)) {
+  if (!isNSStringType(VD->getType(), S.Context) &&
+      !isCFStringType(VD->getType(), S.Context)) {
     S.Diag(Loc, diag::err_nserrordomain_wrong_type) << VD;
     return;
   }
@@ -8059,7 +8061,7 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
            AL.isDeclspecAttribute()
                ? (unsigned)diag::warn_unhandled_ms_attribute_ignored
                : (unsigned)diag::warn_unknown_attribute_ignored)
-        << AL;
+        << AL << AL.getRange();
     return;
   }
 

@@ -2580,12 +2580,11 @@ private:
   bool TrySkipAttributes();
 
 public:
-  TypeResult ParseTypeName(SourceRange *Range = nullptr,
-                           DeclaratorContext Context
-                             = DeclaratorContext::TypeNameContext,
-                           AccessSpecifier AS = AS_none,
-                           Decl **OwnedType = nullptr,
-                           ParsedAttributes *Attrs = nullptr);
+  TypeResult
+  ParseTypeName(SourceRange *Range = nullptr,
+                DeclaratorContext Context = DeclaratorContext::TypeName,
+                AccessSpecifier AS = AS_none, Decl **OwnedType = nullptr,
+                ParsedAttributes *Attrs = nullptr);
 
 private:
   void ParseBlockId(SourceLocation CaretLoc);

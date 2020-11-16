@@ -9640,7 +9640,7 @@ def err_nsreturns_retained_attribute_mismatch : Error<
 def err_nserrordomain_invalid_decl : Error<
   "domain argument %select{|%1 }0does not refer to global constant">;
 def err_nserrordomain_wrong_type : Error<
-  "domain argument %0 does not point to an NSString constant">;
+  "domain argument %0 does not point to an NSString or CFString constant">;
 
 def warn_nsconsumed_attribute_mismatch : Warning<
   err_nsconsumed_attribute_mismatch.Text>, InGroup<NSConsumedMismatch>;
@@ -9983,6 +9983,8 @@ def err_omp_bit_fields_forbidden_in_clause : Error<
   "bit fields cannot be used to specify storage in a '%0' clause">;
 def err_array_section_does_not_specify_contiguous_storage : Error<
   "array section does not specify contiguous storage">;
+def err_array_section_does_not_specify_length : Error<
+  "array section does not specify length for outermost dimension">;
 def err_omp_union_type_not_allowed : Error<
   "mapping of union members is not allowed">;
 def err_omp_expected_access_to_data_field : Error<
