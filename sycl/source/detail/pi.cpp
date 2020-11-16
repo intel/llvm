@@ -16,6 +16,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/device_filter.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/stl_type_traits.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/plugin.hpp>
@@ -566,7 +567,7 @@ RT::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
               {PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE, 0xDEC04342}};
 
   if (ImgSize >= sizeof(Fmts[0].Magic)) {
-    std::remove_const<decltype(Fmts[0].Magic)>::type Hdr = 0;
+    detail::remove_const_t<decltype(Fmts[0].Magic)> Hdr = 0;
     std::copy(ImgData, ImgData + sizeof(Hdr), reinterpret_cast<char *>(&Hdr));
 
     for (const auto &Fmt : Fmts) {
