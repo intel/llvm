@@ -953,8 +953,6 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D)) {
       EmitOpenCLKernelSubGroupMetadata(FD, Fn);
 
-      if (getLangOpts().SYCLIsDevice)
-        CGM.getSYCLRuntime().actOnFunctionStart(*FD, *Fn);
     }
   }
 
