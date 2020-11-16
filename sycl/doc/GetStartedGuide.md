@@ -280,8 +280,7 @@ command:
 
 [Ahead of time compilation](CompilerAndRuntimeDesign.md#ahead-of-time-aot-compilation)
 requires OpenCL ahead of time compiler available in `PATH`. There is
-AOT compiler for each OpenCL device type (`GPU`, `CPU` and `ACC`
-(accelerator)).
+AOT compiler for each OpenCL device type (`GPU`, `CPU` and `Accelerator`).
 
 #### GPU
 
@@ -310,9 +309,9 @@ AOT compiler for each OpenCL device type (`GPU`, `CPU` and `ACC`
 * AOT CPU compiler `opencl-aot` is enabled by default. For more, see
 [opencl-aot documentation](../../opencl-aot/README.md).
 
-#### ACC
+#### Accelerator
 
-* AOT ACC compiler `aoc` is a part of
+* AOT Accelerator compiler `aoc` is a part of
 [Intel&reg; oneAPI Base Toolkit](https://software.intel.com/content/www/us/en/develop/tools/oneapi/base-toolkit.html)
 (Intel&reg; oneAPI DPC++/C++ Compiler component).  
 Make sure that these binaries are available in `PATH` environment variable:
@@ -486,7 +485,7 @@ the target architecture:
 
 ```-fsycl-targets=spir64_gen-unknown-unknown-sycldevice``` for GPU,  
 ```-fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice``` for CPU,  
-```-fsycl-targets=spir64_fpga-unknown-unknown-sycldevice``` for ACC.
+```-fsycl-targets=spir64_fpga-unknown-unknown-sycldevice``` for Accelerator.
 
 Multiple target architectures are supported.
 
