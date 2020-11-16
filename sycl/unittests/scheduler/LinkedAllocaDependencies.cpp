@@ -9,8 +9,6 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/PiMock.hpp>
-
 using namespace cl::sycl;
 
 class MemObjMock : public cl::sycl::detail::SYCLMemObjI {
@@ -38,21 +36,18 @@ public:
   detail::ContextImplPtr getInteropContext() const override { return nullptr; }
 };
 
-static pi_result redefinedDeviceGetInfo(pi_device Device,
-                                        pi_device_info ParamName,
-                                        size_t ParamValueSize, void *ParamValue,
-                                        size_t *ParamValueSizeRet) {
-  if (ParamName != PI_DEVICE_INFO_HOST_UNIFIED_MEMORY) {
-    auto *Result = reinterpret_cast<bool *>(ParamValue);
-    *Result = true;
+static cl::sycl::device getDeviceWithHostUnifiedMemory() {
+  for (cl::sycl::device &D : cl::sycl::device::get_devices()) {
+    if (!D.is_host() && D.get_info<cl::sycl::info::device::host_unified_memory>())
+      return D;
   }
-  return PI_SUCCESS;
+  return {};
 }
 
 TEST_F(SchedulerTest, LinkedAllocaDependencies) {
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Not run due to host-only environment\n";
+  cl::sycl::device Dev = getDeviceWithHostUnifiedMemory();
+  if (Dev.is_host()) {
+    std::cerr << "Not run: no non-host devices with host unified memory support" << std::endl;
     return;
   }
 
@@ -61,10 +56,8 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
   detail::Requirement Req = getMockRequirement();
 
   // Commands are linked only if the device supports host unified memory.
-  unittest::PiMock Mock{Plt};
-  Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
 
-  cl::sycl::queue Queue1;
+  cl::sycl::queue Queue1{Dev};
   cl::sycl::detail::QueueImplPtr Q1 = cl::sycl::detail::getSyclObjImpl(Queue1);
 
   sycl::device HostDevice;
