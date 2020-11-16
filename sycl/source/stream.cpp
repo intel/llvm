@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+//#include <CL/sycl/exception.hpp>
 #include <CL/sycl/stream.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/stream_impl.hpp>
@@ -25,8 +26,12 @@ stream::stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH)
       // Allocate the flush buffer, which contains space for each work item
       GlobalFlushBuf(impl->accessGlobalFlushBuf(CGH)),
       FlushBufferSize(MaxStatementSize + detail::FLUSH_BUF_OFFSET_SIZE) {
-  assert((MaxStatementSize <= MAX_STATEMENT_SIZE) &&
-         "Maximum statement size too large.");
+  if (MaxStatementSize > MAX_STATEMENT_SIZE) {
+    throw invalid_parameter_error("Maximum statement size exceeds limit of " +
+                                      std::to_string(MAX_STATEMENT_SIZE) +
+                                      " bytes.",
+                                  PI_INVALID_VALUE);
+  }
 
   // Save stream implementation in the handler so that stream will be alive
   // during kernel execution

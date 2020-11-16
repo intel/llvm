@@ -73,16 +73,26 @@ using GlobalOffsetAccessorT =
              cl::sycl::access::target::global_buffer,
              cl::sycl::access::placeholder::false_t>;
 
+// Read first 2 bytes of flush buffer to get buffer offset.
+// TODO: Should be optimized to the following:
+//   return *reinterpret_cast<uint16_t *>(&GlobalFlushBuf[WIOffset]);
+// when an issue with device code compilation using this optimization is fixed.
 inline unsigned GetFlushBufOffset(const GlobalBufAccessorT &GlobalFlushBuf,
                                   unsigned WIOffset) {
-  return (((uint8_t)GlobalFlushBuf[WIOffset]) << 8) +
-         (uint8_t)GlobalFlushBuf[WIOffset + 1];
+  return ((static_cast<unsigned>(static_cast<uint8_t>(GlobalFlushBuf[WIOffset]))
+           << 8) +
+          static_cast<uint8_t>(GlobalFlushBuf[WIOffset + 1]));
 }
 
+// Write flush buffer's offset into first 2 bytes of that buffer.
+// TODO: Should be optimized to the following:
+//   *reinterpret_cast<uint16_t *>(&GlobalFlushBuf[WIOffset]) =
+//       static_cast<uint16_t>(Offset);
+// when an issue with device code compilation using this optimization is fixed.
 inline void SetFlushBufOffset(GlobalBufAccessorT &GlobalFlushBuf,
                               unsigned WIOffset, unsigned Offset) {
-  GlobalFlushBuf[WIOffset] = (Offset >> 8) & 0xff;
-  GlobalFlushBuf[WIOffset + 1] = Offset & 0xff;
+  GlobalFlushBuf[WIOffset] = static_cast<char>((Offset >> 8) & 0xff);
+  GlobalFlushBuf[WIOffset + 1] = static_cast<char>(Offset & 0xff);
 }
 
 inline void write(GlobalBufAccessorT &GlobalFlushBuf, size_t FlushBufferSize,
@@ -719,6 +729,7 @@ inline __width_manipulator__ setw(int Width) {
 /// \ingroup sycl_api
 class __SYCL_EXPORT stream {
 public:
+  // Throws exception in case of invalid input parameters
   stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH);
 
   size_t get_size() const;
@@ -841,6 +852,10 @@ private:
     // overhead on FPGA target. That is why use global atomic variable to
     // calculate offsets.
     WIOffset = GlobalOffset[1].fetch_add(FlushBufferSize);
+
+    // Initialize flush subbuffer's offset for each work item on device.
+    // Initialization on host device is performed via submition of additional
+    // host task.
     SetFlushBufOffset(GlobalFlushBuf, WIOffset, 0);
   }
 

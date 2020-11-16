@@ -61,29 +61,6 @@ size_t stream_impl::get_size() const { return BufferSize_; }
 
 size_t stream_impl::get_max_statement_size() const { return MaxStatementSize_; }
 
-void stream_impl::fill(QueueImplPtr Queue) {
-  auto Q = detail::createSyclObjFromImpl<queue>(Queue);
-  Q.submit([&](handler &cgh) {
-    auto StreamBuf =
-        detail::Scheduler::getInstance().StreamBuffersPool.find(this);
-    assert((StreamBuf !=
-            detail::Scheduler::getInstance().StreamBuffersPool.end()) &&
-           "Stream is unexpectedly not found in pool");
-    auto &FlushBuf = StreamBuf->second->FlushBuf;
-    // Only size of buffer_impl object has been resized.
-    // Value of Range field of FlushBuf instance is still equal to
-    // MaxStatementSize only.
-    size_t FlushBufSize = detail::getSyclObjImpl(FlushBuf)->get_count();
-    auto FlushBufAcc = FlushBuf.get_access<access::mode::read_write,
-                                           access::target::global_buffer>(
-        cgh, range<1>(FlushBufSize), id<1>(0));
-    cgh.codeplay_host_task([=] {
-      char *FlushBufPtr = FlushBufAcc.get_pointer();
-      std::memset(FlushBufPtr, 0, FlushBufAcc.get_size());
-    });
-  });
-}
-
 void stream_impl::flush() {
   // We don't want stream flushing to be blocking operation that is why submit a
   // host task to print stream buffer. It will fire up as soon as the kernel

@@ -11,6 +11,7 @@
 #include <detail/global_handler.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/scheduler/scheduler_helpers.hpp>
 #include <detail/stream_impl.hpp>
 
 #include <chrono>
@@ -75,10 +76,12 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
   if (IsKernel) {
     Streams = ((CGExecKernel *)CommandGroup.get())->getStreams();
+    // Stream's flush buffer memeory is mainly initialized in stream's __init
+    // method. However, this method is not available on host device.
+    // Initializing stream's flush buffer on the host side in a separate task.
     if (Queue->is_host()) {
-      // Initializing stream's flush buffer on the host side.
-      for (auto StreamImplPtr : Streams) {
-        StreamImplPtr->fill(Queue);
+      for (const StreamImplPtr &Stream : Streams) {
+        initStream(Stream, Queue);
       }
     }
   }
