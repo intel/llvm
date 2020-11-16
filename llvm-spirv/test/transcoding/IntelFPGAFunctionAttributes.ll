@@ -6,6 +6,7 @@
 ;;     intel::max_work_group_size(1,1,1),
 ;;     intel::num_simd_work_items(8)
 ;;     intel::stall_enable]] void operator()() {}
+;;     intel::scheduler_target_fmax_mhz(1000)]] void operator()() {}
 ;; };
 ;;
 ;; template <typename name, typename Func>
@@ -37,15 +38,17 @@
 ; CHECK-SPIRV: 4 ExecutionMode [[FUNCENTRY]] 5894 1
 ; CHECK-SPIRV: 3 ExecutionMode [[FUNCENTRY]] 5895
 ; CHECK-SPIRV: 4 ExecutionMode [[FUNCENTRY]] 5896 8
+; CHECK-SPIRV: 4 ExecutionMode [[FUNCENTRY]] 5903 1000
 ; CHECK-SPIRV: 3 Decorate [[FUNCENTRY]] StallEnableINTEL
 ; CHECK-SPIRV: 5 Function {{.*}} [[FUNCENTRY]] {{.*}}
 
-; CHECK-LLVM: define spir_kernel void {{.*}}kernel_name() {{.*}} !stall_enable ![[ONEMD:[0-9]+]] !max_work_group_size ![[MAXWG:[0-9]+]] !no_global_work_offset ![[OFFSET:[0-9]+]] !max_global_work_dim ![[ONEMD:[0-9]+]] !num_simd_work_items ![[NUMSIMD:[0-9]+]]
+; CHECK-LLVM: define spir_kernel void {{.*}}kernel_name() {{.*}} !stall_enable ![[ONEMD:[0-9]+]] !max_work_group_size ![[MAXWG:[0-9]+]] !no_global_work_offset ![[OFFSET:[0-9]+]] !max_global_work_dim ![[ONEMD:[0-9]+]] !num_simd_work_items ![[NUMSIMD:[0-9]+]] !scheduler_target_fmax_mhz ![[MAXMHZ:[0-9]+]]
 ; CHECK-LLVM-NOT: define spir_kernel void {{.*}}kernel_name2 {{.*}} !no_global_work_offset {{.*}}
 ; CHECK-LLVM: ![[OFFSET]] = !{}
 ; CHECK-LLVM: ![[ONEMD]] = !{i32 1}
 ; CHECK-LLVM: ![[MAXWG]] = !{i32 1, i32 1, i32 1}
 ; CHECK-LLVM: ![[NUMSIMD]] = !{i32 8}
+; CHECK-LLVM: ![[MAXMHZ]] = !{i32 1000}
 
 ; ModuleID = 'kernel-attrs.cpp'
 source_filename = "kernel-attrs.cpp"
@@ -58,7 +61,7 @@ target triple = "spir64-unknown-linux-sycldevice"
 $_ZN3FooclEv = comdat any
 
 ; Function Attrs: nounwind
-define spir_kernel void @_ZTSZ3barvE11kernel_name() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 !num_simd_work_items !5 !max_work_group_size !6 !max_global_work_dim !7 !no_global_work_offset !4 !stall_enable !7 {
+define spir_kernel void @_ZTSZ3barvE11kernel_name() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 !num_simd_work_items !5 !max_work_group_size !6 !max_global_work_dim !7 !no_global_work_offset !4 !stall_enable !7 !scheduler_target_fmax_mhz !12 {
 entry:
   %Foo = alloca %class._ZTS3Foo.Foo, align 1
   %0 = bitcast %class._ZTS3Foo.Foo* %Foo to i8*
@@ -128,3 +131,4 @@ attributes #4 = { nounwind }
 !9 = !{!"any pointer", !10, i64 0}
 !10 = !{!"omnipotent char", !11, i64 0}
 !11 = !{!"Simple C++ TBAA"}
+!12 = !{i32 1000}
