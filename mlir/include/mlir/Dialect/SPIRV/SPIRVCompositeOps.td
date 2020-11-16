@@ -111,7 +111,7 @@ def SPV_CompositeExtractOp : SPV_Op<"CompositeExtract", [NoSideEffect]> {
   );
 
   let builders = [
-    OpBuilder<[{Value composite, ArrayRef<int32_t> indices}]>
+    OpBuilderDAG<(ins "Value":$composite, "ArrayRef<int32_t>":$indices)>
   ];
 
   let hasFolder = 1;
@@ -163,8 +163,66 @@ def SPV_CompositeInsertOp : SPV_Op<"CompositeInsert", [NoSideEffect]> {
   );
 
   let builders = [
-    OpBuilder<[{Value object, Value composite, ArrayRef<int32_t> indices}]>
+    OpBuilderDAG<(ins "Value":$object, "Value":$composite,
+      "ArrayRef<int32_t>":$indices)>
   ];
 }
+
+// -----
+
+def SPV_VectorExtractDynamicOp : SPV_Op<"VectorExtractDynamic",
+            [NoSideEffect, TypesMatchWith<"type of 'value' matches element type of 'vector'",
+                     "vector", "result",
+                     "$_self.cast<mlir::VectorType>().getElementType()">]> {
+  let summary = [{
+    Extract a single, dynamically selected, component of a vector.
+  }];
+
+  let description = [{
+    Result Type must be a scalar type.
+
+    Vector must have a type OpTypeVector whose Component Type is Result
+    Type.
+
+    Index must be a scalar integer. It is interpreted as a 0-based index of
+    which component of Vector to extract.
+
+    Behavior is undefined if Index's value is less than zero or greater than
+    or equal to the number of components in Vector.
+
+    <!-- End of AutoGen section -->
+
+    ```
+	scalar-type ::= integer-type | float-type | boolean-type 
+    vector-extract-dynamic-op ::= `spv.VectorExtractDynamic ` ssa-use `[` ssa-use `]`
+                                    `:` `vector<` integer-literal `x` scalar-type `>` `,`
+                                    integer-type
+    ```mlir
+
+    #### Example:
+
+    ```
+    %2 = spv.VectorExtractDynamic %0[%1] : vector<8xf32>, i32
+    ```
+  }];
+
+  let arguments = (ins
+    SPV_Vector:$vector,
+    SPV_Integer:$index
+  );
+
+  let results = (outs
+    SPV_Scalar:$result
+  );
+  
+  let verifier = [{ return success(); }];
+  
+  let assemblyFormat = [{
+    $vector `[` $index `]` attr-dict `:` type($vector) `,` type($index) 
+  }];
+  
+}
+
+// -----
 
 #endif // SPIRV_COMPOSITE_OPS

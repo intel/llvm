@@ -170,8 +170,21 @@ void SPIRVLowerConstExpr::visit(Module *M) {
           }
           II->replaceUsesOfWith(Op, Repl);
           WorkList.splice(WorkList.begin(), ReplList);
-        } else if (auto CE = dyn_cast<ConstantExpr>(Op))
+        } else if (auto CE = dyn_cast<ConstantExpr>(Op)) {
           WorkList.push_front(cast<Instruction>(LowerOp(CE)));
+        } else if (auto MDAsVal = dyn_cast<MetadataAsValue>(Op)) {
+          Metadata *MD = MDAsVal->getMetadata();
+          if (auto ConstMD = dyn_cast<ConstantAsMetadata>(MD)) {
+            Constant *C = ConstMD->getValue();
+            if (auto CE = dyn_cast<ConstantExpr>(C)) {
+              Value *RepInst = LowerOp(CE);
+              Metadata *RepMD = ValueAsMetadata::get(RepInst);
+              Value *RepMDVal = MetadataAsValue::get(M->getContext(), RepMD);
+              II->setOperand(OI, RepMDVal);
+              WorkList.push_front(cast<Instruction>(RepInst));
+            }
+          }
+        }
       }
     }
   }

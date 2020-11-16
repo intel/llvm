@@ -1451,8 +1451,9 @@ void TCParser::printODS(llvm::raw_ostream &os, StringRef cppOpName,
                         StringRef linalgOpName,
                         ComprehensionParsingState &state) {
   const char *header = R"FMT(  def {0} : LinalgStructuredBase_Op<"{1}", [
-    NamedStructuredOpTrait,
     AttrSizedOperandSegments,
+    DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
+    NamedStructuredOpTrait,
     SingleBlockImplicitTerminator<"YieldOp">]> {
       let arguments = (ins Variadic<AnyShaped>:$inputs,
                            Variadic<AnyMemRef>:$output_buffers,
@@ -1461,8 +1462,8 @@ void TCParser::printODS(llvm::raw_ostream &os, StringRef cppOpName,
       let regions = (region AnyRegion:$region);
 
       let skipDefaultBuilders = 1;
-      let builders = [ OpBuilder<
-        "ValueRange inputs, ValueRange outputBuffers",
+      let builders = [ OpBuilderDAG<
+        (ins "ValueRange":$inputs, "ValueRange":$outputBuffers),
         [{{
           $_state.addOperands(inputs);
           $_state.addOperands(outputBuffers);
@@ -1479,9 +1480,9 @@ void TCParser::printODS(llvm::raw_ostream &os, StringRef cppOpName,
             TypeRange(outputBuffers),
             TypeRange(),
             TypeRange());
-        }]>, OpBuilder<
-        "TypeRange resultTensorTypes, ValueRange inputs, "
-        "ValueRange outputBuffers, ValueRange initTensors",
+        }]>, OpBuilderDAG<
+        (ins "TypeRange":$resultTensorTypes, "ValueRange":$inputs,
+             "ValueRange":$outputBuffers, "ValueRange":$initTensors),
         [{{
           $_state.addOperands(inputs);
           $_state.addOperands(outputBuffers);
@@ -1500,8 +1501,9 @@ void TCParser::printODS(llvm::raw_ostream &os, StringRef cppOpName,
             TypeRange(outputBuffers),
             TypeRange(initTensors),
             resultTensorTypes);
-        }]>, OpBuilder<
-        "TypeRange resultTensorTypes, ValueRange operands, ArrayRef<NamedAttribute> attributes = {{}",
+        }]>, OpBuilderDAG<
+        (ins "TypeRange":$resultTensorTypes, "ValueRange":$operands,
+             CArg<"ArrayRef<NamedAttribute>", "{{}">:$attributes),
         [{{
           $_state.addOperands(operands);
           $_state.addAttributes(attributes);
@@ -1588,6 +1590,11 @@ void TCParser::printCanonicalizersAndFolders(llvm::raw_ostream &os,
     LogicalResult {0}::fold(ArrayRef<Attribute>,
                             SmallVectorImpl<OpFoldResult> &) {{
       return foldMemRefCast(*this);
+    }
+    void {0}::getEffects(SmallVectorImpl<
+        SideEffects::EffectInstance<MemoryEffects::Effect> >&effects) {{
+      getGenericEffectsImpl(effects,
+        getOperation()->getResults(), getInputBuffers(), getOutputBuffers());
     })FMT";
   os << llvm::formatv(canonicalizersAndFoldersFmt, cppOpName);
 }
@@ -1757,7 +1764,7 @@ int main(int argc, char **argv) {
   if (testEmitIncludeTdHeader)
     output->os() << "include \"mlir/Dialect/Linalg/IR/LinalgStructuredOps.td\"";
 
-  MLIRContext context(/*loadAllDialects=*/false);
+  MLIRContext context;
   llvm::SourceMgr mgr;
   mgr.AddNewSourceBuffer(std::move(file), llvm::SMLoc());
   Parser parser(mgr, &context);

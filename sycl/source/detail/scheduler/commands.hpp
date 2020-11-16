@@ -509,8 +509,6 @@ public:
   // memory in DispatchNativeKernel.
   // TODO remove when native kernel support is terminated.
   void releaseCG() {
-    assert(MCommandGroup->getType() == CG::RUN_ON_HOST_INTEL &&
-           "Only 'native kernel' is allowed to release command group");
     MCommandGroup.release();
   }
 

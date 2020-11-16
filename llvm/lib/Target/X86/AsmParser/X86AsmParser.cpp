@@ -83,6 +83,7 @@ class X86AsmParser : public MCTargetAsmParser {
   enum VEXEncoding {
     VEXEncoding_Default,
     VEXEncoding_VEX,
+    VEXEncoding_VEX2,
     VEXEncoding_VEX3,
     VEXEncoding_EVEX,
   };
@@ -164,7 +165,7 @@ private:
     SmallVector<InfixCalculatorTok, 4> InfixOperatorStack;
     SmallVector<ICToken, 4> PostfixStack;
 
-    bool isUnaryOperator(const InfixCalculatorTok Op) {
+    bool isUnaryOperator(InfixCalculatorTok Op) const {
       return Op == IC_NEG || Op == IC_NOT;
     }
 
@@ -395,25 +396,25 @@ private:
           MemExpr(false), OffsetOperator(false) {}
 
     void addImm(int64_t imm) { Imm += imm; }
-    short getBracCount() { return BracCount; }
-    bool isMemExpr() { return MemExpr; }
-    bool isOffsetOperator() { return OffsetOperator; }
-    SMLoc getOffsetLoc() { return OffsetOperatorLoc; }
-    unsigned getBaseReg() { return BaseReg; }
-    unsigned getIndexReg() { return IndexReg; }
-    unsigned getScale() { return Scale; }
-    const MCExpr *getSym() { return Sym; }
-    StringRef getSymName() { return SymName; }
-    StringRef getType() { return CurType.Name; }
-    unsigned getSize() { return CurType.Size; }
-    unsigned getElementSize() { return CurType.ElementSize; }
-    unsigned getLength() { return CurType.Length; }
+    short getBracCount() const { return BracCount; }
+    bool isMemExpr() const { return MemExpr; }
+    bool isOffsetOperator() const { return OffsetOperator; }
+    SMLoc getOffsetLoc() const { return OffsetOperatorLoc; }
+    unsigned getBaseReg() const { return BaseReg; }
+    unsigned getIndexReg() const { return IndexReg; }
+    unsigned getScale() const { return Scale; }
+    const MCExpr *getSym() const { return Sym; }
+    StringRef getSymName() const { return SymName; }
+    StringRef getType() const { return CurType.Name; }
+    unsigned getSize() const { return CurType.Size; }
+    unsigned getElementSize() const { return CurType.ElementSize; }
+    unsigned getLength() const { return CurType.Length; }
     int64_t getImm() { return Imm + IC.execute(); }
-    bool isValidEndState() {
+    bool isValidEndState() const {
       return State == IES_RBRAC || State == IES_INTEGER;
     }
-    bool hadError() { return State == IES_ERROR; }
-    InlineAsmIdentifierInfo &getIdentifierInfo() { return Info; }
+    bool hadError() const { return State == IES_ERROR; }
+    const InlineAsmIdentifierInfo &getIdentifierInfo() const { return Info; }
 
     void onOr() {
       IntelExprState CurrState = State;
@@ -1695,6 +1696,17 @@ bool X86AsmParser::ParseIntelExpression(IntelExprStateMachine &SM, SMLoc &End) {
     case AsmToken::At:
     case AsmToken::String:
     case AsmToken::Identifier: {
+      if (Parser.isParsingMasm() && Tok.is(AsmToken::String)) {
+        // Single-character strings should be treated as integer constants. This
+        // includes MASM escapes for quotes.
+        char Quote = Tok.getString().front();
+        StringRef Contents = Tok.getStringContents();
+        if (Contents.size() == 1 || Contents == std::string(2, Quote)) {
+          if (SM.onInteger(Contents.front(), ErrMsg))
+            return Error(Tok.getLoc(), ErrMsg);
+          break;
+        }
+      }
       SMLoc IdentLoc = Tok.getLoc();
       StringRef Identifier = Tok.getString();
       UpdateLocLex = false;
@@ -2313,7 +2325,7 @@ bool X86AsmParser::ParseIntelOperand(OperandVector &Operands) {
   // and we are parsing a segment override
   if (!SM.isMemExpr() && !RegNo) {
     if (isParsingMSInlineAsm() && SM.isOffsetOperator()) {
-      const InlineAsmIdentifierInfo Info = SM.getIdentifierInfo();
+      const InlineAsmIdentifierInfo &Info = SM.getIdentifierInfo();
       if (Info.isKind(InlineAsmIdentifierInfo::IK_Var)) {
         // Disp includes the address of a variable; make sure this is recorded
         // for later handling.
@@ -2818,8 +2830,10 @@ bool X86AsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
         return Error(Parser.getTok().getLoc(), "Expected '}'");
       Parser.Lex(); // Eat curly.
 
-      if (Prefix == "vex" || Prefix == "vex2")
+      if (Prefix == "vex")
         ForcedVEXEncoding = VEXEncoding_VEX;
+      else if (Prefix == "vex2")
+        ForcedVEXEncoding = VEXEncoding_VEX2;
       else if (Prefix == "vex3")
         ForcedVEXEncoding = VEXEncoding_VEX3;
       else if (Prefix == "evex")
@@ -3640,7 +3654,7 @@ bool X86AsmParser::validateInstruction(MCInst &Inst, const OperandVector &Ops) {
       StringRef RegName = X86IntelInstPrinter::getRegisterName(HReg);
       return Error(Ops[0]->getStartLoc(),
                    "can't encode '" + RegName + "' in an instruction requiring "
-                   "REX prefix.");
+                   "REX prefix");
     }
   }
 
@@ -3837,8 +3851,16 @@ unsigned X86AsmParser::checkTargetMatchPredicate(MCInst &Inst) {
     return Match_Unsupported;
 
   if ((ForcedVEXEncoding == VEXEncoding_VEX ||
+       ForcedVEXEncoding == VEXEncoding_VEX2 ||
        ForcedVEXEncoding == VEXEncoding_VEX3) &&
       (MCID.TSFlags & X86II::EncodingMask) != X86II::VEX)
+    return Match_Unsupported;
+
+  // These instructions are only available with {vex}, {vex2} or {vex3} prefix
+  if (MCID.TSFlags & X86II::ExplicitVEXPrefix &&
+      (ForcedVEXEncoding != VEXEncoding_VEX &&
+       ForcedVEXEncoding != VEXEncoding_VEX2 &&
+       ForcedVEXEncoding != VEXEncoding_VEX3))
     return Match_Unsupported;
 
   // These instructions match ambiguously with their VEX encoded counterparts
@@ -3879,10 +3901,16 @@ bool X86AsmParser::MatchAndEmitATTInstruction(SMLoc IDLoc, unsigned &Opcode,
 
   MCInst Inst;
 
-  // If VEX3 encoding is forced, we need to pass the USE_VEX3 flag to the
-  // encoder.
-  if (ForcedVEXEncoding == VEXEncoding_VEX3)
+  // If VEX/EVEX encoding is forced, we need to pass the USE_* flag to the
+  // encoder and printer.
+  if (ForcedVEXEncoding == VEXEncoding_VEX)
+    Prefixes |= X86::IP_USE_VEX;
+  else if (ForcedVEXEncoding == VEXEncoding_VEX2)
+    Prefixes |= X86::IP_USE_VEX2;
+  else if (ForcedVEXEncoding == VEXEncoding_VEX3)
     Prefixes |= X86::IP_USE_VEX3;
+  else if (ForcedVEXEncoding == VEXEncoding_EVEX)
+    Prefixes |= X86::IP_USE_EVEX;
 
   // Set encoded flags for {disp8} and {disp32}.
   if (ForcedDispEncoding == DispEncoding_Disp8)

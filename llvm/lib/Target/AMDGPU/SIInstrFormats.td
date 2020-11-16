@@ -110,9 +110,9 @@ class InstSI <dag outs, dag ins, string asm = "",
   // This bit indicates that this is a D16 buffer instruction.
   field bit D16Buf = 0;
 
-  // This field indicates that FLAT instruction accesses FLAT_GLBL or
-  // FLAT_SCRATCH segment. Must be 0 for non-FLAT instructions.
-  field bit IsNonFlatSeg = 0;
+  // This field indicates that FLAT instruction accesses FLAT_GLBL segment.
+  // Must be 0 for non-FLAT instructions.
+  field bit IsFlatGlobal = 0;
 
   // Reads the mode register, usually for FP environment.
   field bit ReadsModeReg = 0;
@@ -129,6 +129,10 @@ class InstSI <dag outs, dag ins, string asm = "",
 
   // This bit indicates that this is one of DOT instructions.
   field bit IsDOT = 0;
+
+  // This field indicates that FLAT instruction accesses FLAT_SCRATCH segment.
+  // Must be 0 for non-FLAT instructions.
+  field bit IsFlatScratch = 0;
 
   // These need to be kept in sync with the enum in SIInstrFlags.
   let TSFlags{0} = SALU;
@@ -187,7 +191,7 @@ class InstSI <dag outs, dag ins, string asm = "",
 
   let TSFlags{50} = D16Buf;
 
-  let TSFlags{51} = IsNonFlatSeg;
+  let TSFlags{51} = IsFlatGlobal;
 
   let TSFlags{52} = FPDPRounding;
 
@@ -197,17 +201,19 @@ class InstSI <dag outs, dag ins, string asm = "",
 
   let TSFlags{55} = IsDOT;
 
+  let TSFlags{56} = IsFlatScratch;
+
   let SchedRW = [Write32Bit];
 
   field bits<1> DisableSIDecoder = 0;
   field bits<1> DisableVIDecoder = 0;
   field bits<1> DisableDecoder = 0;
 
-  let isAsmParserOnly = !if(!eq(DisableDecoder{0}, {0}), 0, 1);
+  let isAsmParserOnly = !ne(DisableDecoder{0}, {0});
   let AsmVariantName = AMDGPUAsmVariants.Default;
 
   // Avoid changing source registers in a way that violates constant bus read limitations.
-  let hasExtraSrcRegAllocReq = !if(VOP1,1,!if(VOP2,1,!if(VOP3,1,!if(VOPC,1,!if(SDWA,1, !if(VALU,1,0))))));
+  let hasExtraSrcRegAllocReq = !or(VOP1, VOP2, VOP3, VOPC, SDWA, VALU);
 }
 
 class PseudoInstSI<dag outs, dag ins, list<dag> pattern = [], string asm = "">

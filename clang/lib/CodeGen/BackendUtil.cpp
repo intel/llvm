@@ -373,6 +373,16 @@ static TargetLibraryInfoImpl *createTLII(llvm::Triple &TargetTriple,
   case CodeGenOptions::Accelerate:
     TLII->addVectorizableFunctionsFromVecLib(TargetLibraryInfoImpl::Accelerate);
     break;
+  case CodeGenOptions::LIBMVEC:
+    switch(TargetTriple.getArch()) {
+      default:
+        break;
+      case llvm::Triple::x86_64:
+        TLII->addVectorizableFunctionsFromVecLib
+                (TargetLibraryInfoImpl::LIBMVEC_X86);
+        break;
+    }
+    break;
   case CodeGenOptions::MASSV:
     TLII->addVectorizableFunctionsFromVecLib(TargetLibraryInfoImpl::MASSV);
     break;
@@ -523,6 +533,14 @@ static void initTargetOptions(DiagnosticsEngine &Diags,
   Options.UniqueSectionNames = CodeGenOpts.UniqueSectionNames;
   Options.UniqueBasicBlockSectionNames =
       CodeGenOpts.UniqueBasicBlockSectionNames;
+  Options.StackProtectorGuard =
+      llvm::StringSwitch<llvm::StackProtectorGuards>(CodeGenOpts
+          .StackProtectorGuard)
+          .Case("tls", llvm::StackProtectorGuards::TLS)
+          .Case("global", llvm::StackProtectorGuards::Global)
+          .Default(llvm::StackProtectorGuards::None);
+  Options.StackProtectorGuardOffset = CodeGenOpts.StackProtectorGuardOffset;
+  Options.StackProtectorGuardReg = CodeGenOpts.StackProtectorGuardReg;
   Options.TLSSize = CodeGenOpts.TLSSize;
   Options.EmulatedTLS = CodeGenOpts.EmulatedTLS;
   Options.ExplicitEmulatedTLS = CodeGenOpts.ExplicitEmulatedTLS;
@@ -671,7 +689,7 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
   if (LangOpts.Coroutines)
     addCoroutinePassesToExtensionPoints(PMBuilder);
 
-  if (CodeGenOpts.MemProf) {
+  if (!CodeGenOpts.MemoryProfileOutput.empty()) {
     PMBuilder.addExtension(PassManagerBuilder::EP_OptimizerLast,
                            addMemProfilerPasses);
     PMBuilder.addExtension(PassManagerBuilder::EP_EnabledOnOptLevel0,
@@ -1035,6 +1053,9 @@ static PassBuilder::OptimizationLevel mapToLevel(const CodeGenOptions &Opts) {
   default:
     llvm_unreachable("Invalid optimization level!");
 
+  case 0:
+    return PassBuilder::OptimizationLevel::O0;
+
   case 1:
     return PassBuilder::OptimizationLevel::O1;
 
@@ -1223,7 +1244,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
   PassInstrumentationCallbacks PIC;
   StandardInstrumentations SI(CodeGenOpts.DebugPassManager);
   SI.registerCallbacks(PIC);
-  PassBuilder PB(TM.get(), PTO, PGOOpt, &PIC);
+  PassBuilder PB(CodeGenOpts.DebugPassManager, TM.get(), PTO, PGOOpt, &PIC);
 
   // Attempt to load pass plugins and register their callbacks with PB.
   for (auto &PluginFN : CodeGenOpts.PassPlugins) {
@@ -1261,12 +1282,13 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
   PB.registerLoopAnalyses(LAM);
   PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
-  if (TM)
-    TM->registerPassBuilderCallbacks(PB, CodeGenOpts.DebugPassManager);
-
   ModulePassManager MPM(CodeGenOpts.DebugPassManager);
 
   if (!CodeGenOpts.DisableLLVMPasses) {
+    // Map our optimization levels into one of the distinct levels used to
+    // configure the pipeline.
+    PassBuilder::OptimizationLevel Level = mapToLevel(CodeGenOpts);
+
     bool IsThinLTO = CodeGenOpts.PrepareForThinLTO;
     bool IsLTO = CodeGenOpts.PrepareForLTO;
 
@@ -1300,7 +1322,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
       if (PGOOpt && (PGOOpt->Action == PGOOptions::IRInstr ||
                      PGOOpt->Action == PGOOptions::IRUse))
         PB.addPGOInstrPassesForO0(
-            MPM, CodeGenOpts.DebugPassManager,
+            MPM,
             /* RunProfileGen */ (PGOOpt->Action == PGOOptions::IRInstr),
             /* IsCS */ false, PGOOpt->ProfileFile,
             PGOOpt->ProfileRemappingFile);
@@ -1315,26 +1337,24 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
         MPM.addPass(NameAnonGlobalPass());
       }
     } else {
-      // Map our optimization levels into one of the distinct levels used to
-      // configure the pipeline.
-      PassBuilder::OptimizationLevel Level = mapToLevel(CodeGenOpts);
-
       // If we reached here with a non-empty index file name, then the index
       // file was empty and we are not performing ThinLTO backend compilation
       // (used in testing in a distributed build environment). Drop any the type
       // test assume sequences inserted for whole program vtables so that
       // codegen doesn't complain.
       if (!CodeGenOpts.ThinLTOIndexFile.empty())
-        PB.registerPipelineStartEPCallback([](ModulePassManager &MPM) {
-          MPM.addPass(LowerTypeTestsPass(/*ExportSummary=*/nullptr,
-                                         /*ImportSummary=*/nullptr,
-                                         /*DropTypeTests=*/true));
-        });
+        PB.registerPipelineStartEPCallback(
+            [](ModulePassManager &MPM, PassBuilder::OptimizationLevel Level) {
+              MPM.addPass(LowerTypeTestsPass(/*ExportSummary=*/nullptr,
+                                             /*ImportSummary=*/nullptr,
+                                             /*DropTypeTests=*/true));
+            });
 
-      PB.registerPipelineStartEPCallback([](ModulePassManager &MPM) {
-        MPM.addPass(createModuleToFunctionPassAdaptor(
-            EntryExitInstrumenterPass(/*PostInlining=*/false)));
-      });
+      PB.registerPipelineStartEPCallback(
+          [](ModulePassManager &MPM, PassBuilder::OptimizationLevel Level) {
+            MPM.addPass(createModuleToFunctionPassAdaptor(
+                EntryExitInstrumenterPass(/*PostInlining=*/false)));
+          });
 
       // Register callbacks to schedule sanitizer passes at the appropriate part of
       // the pipeline.
@@ -1417,28 +1437,29 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
       }
 
       if (Optional<GCOVOptions> Options = getGCOVOptions(CodeGenOpts, LangOpts))
-        PB.registerPipelineStartEPCallback([Options](ModulePassManager &MPM) {
-          MPM.addPass(GCOVProfilerPass(*Options));
-        });
+        PB.registerPipelineStartEPCallback(
+            [Options](ModulePassManager &MPM,
+                      PassBuilder::OptimizationLevel Level) {
+              MPM.addPass(GCOVProfilerPass(*Options));
+            });
       if (Optional<InstrProfOptions> Options =
               getInstrProfOptions(CodeGenOpts, LangOpts))
-        PB.registerPipelineStartEPCallback([Options](ModulePassManager &MPM) {
-          MPM.addPass(InstrProfiling(*Options, false));
-        });
+        PB.registerPipelineStartEPCallback(
+            [Options](ModulePassManager &MPM,
+                      PassBuilder::OptimizationLevel Level) {
+              MPM.addPass(InstrProfiling(*Options, false));
+            });
 
       if (IsThinLTO) {
-        MPM = PB.buildThinLTOPreLinkDefaultPipeline(
-            Level, CodeGenOpts.DebugPassManager);
+        MPM = PB.buildThinLTOPreLinkDefaultPipeline(Level);
         MPM.addPass(CanonicalizeAliasesPass());
         MPM.addPass(NameAnonGlobalPass());
       } else if (IsLTO) {
-        MPM = PB.buildLTOPreLinkDefaultPipeline(Level,
-                                                CodeGenOpts.DebugPassManager);
+        MPM = PB.buildLTOPreLinkDefaultPipeline(Level);
         MPM.addPass(CanonicalizeAliasesPass());
         MPM.addPass(NameAnonGlobalPass());
       } else {
-        MPM = PB.buildPerModuleDefaultPipeline(Level,
-                                               CodeGenOpts.DebugPassManager);
+        MPM = PB.buildPerModuleDefaultPipeline(Level);
       }
     }
 
@@ -1447,12 +1468,14 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
     if (CodeGenOpts.UniqueInternalLinkageNames)
       MPM.addPass(UniqueInternalLinkageNamesPass());
 
-    if (CodeGenOpts.MemProf) {
+    if (!CodeGenOpts.MemoryProfileOutput.empty()) {
       MPM.addPass(createModuleToFunctionPassAdaptor(MemProfilerPass()));
       MPM.addPass(ModuleMemProfilerPass());
     }
 
     if (CodeGenOpts.OptimizationLevel == 0) {
+      PB.runRegisteredEPCallbacks(MPM, Level, CodeGenOpts.DebugPassManager);
+
       // FIXME: the backends do not handle matrix intrinsics currently. Make
       // sure they are also lowered in O0. A lightweight version of the pass
       // should run in the backend pipeline on demand.
@@ -1645,7 +1668,7 @@ static void runThinLTOBackend(
   if (Error E =
           thinBackend(Conf, -1, AddStream, *M, *CombinedIndex, ImportList,
                       ModuleToDefinedGVSummaries[M->getModuleIdentifier()],
-                      ModuleMap, &CGOpts.CmdArgs)) {
+                      ModuleMap, CGOpts.CmdArgs)) {
     handleAllErrors(std::move(E), [&](ErrorInfoBase &EIB) {
       errs() << "Error running ThinLTO backend: " << EIB.message() << '\n';
     });
@@ -1729,5 +1752,5 @@ void clang::EmbedBitcode(llvm::Module *M, const CodeGenOptions &CGOpts,
   llvm::EmbedBitcodeInModule(
       *M, Buf, CGOpts.getEmbedBitcode() != CodeGenOptions::Embed_Marker,
       CGOpts.getEmbedBitcode() != CodeGenOptions::Embed_Bitcode,
-      &CGOpts.CmdArgs);
+      CGOpts.CmdArgs);
 }

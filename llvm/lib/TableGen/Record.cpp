@@ -801,7 +801,7 @@ Init *UnOpInit::Fold(Record *CurRec, bool IsFinal) const {
       return IntInit::get(LHSs->getValue().empty());
     break;
 
-  case GETOP:
+  case GETDAGOP:
     if (DagInit *Dag = dyn_cast<DagInit>(LHS)) {
       DefInit *DI = DefInit::get(Dag->getOperatorAsDef({}));
       if (!DI->getType()->typeIsA(getType())) {
@@ -837,7 +837,7 @@ std::string UnOpInit::getAsString() const {
   case TAIL: Result = "!tail"; break;
   case SIZE: Result = "!size"; break;
   case EMPTY: Result = "!empty"; break;
-  case GETOP: Result = "!getop"; break;
+  case GETDAGOP: Result = "!getdagop"; break;
   }
   return Result + "(" + LHS->getAsString() + ")";
 }
@@ -878,6 +878,34 @@ static StringInit *ConcatStringInits(const StringInit *I0,
   return StringInit::get(Concat);
 }
 
+static StringInit *interleaveStringList(const ListInit *List,
+                                        const StringInit *Delim) {
+  if (List->size() == 0)
+    return StringInit::get("");
+  SmallString<80> Result(dyn_cast<StringInit>(List->getElement(0))->getValue());
+  
+  for (unsigned I = 1, E = List->size(); I < E; ++I) {
+    Result.append(Delim->getValue());
+    Result.append(dyn_cast<StringInit>(List->getElement(I))->getValue());
+  }
+  return StringInit::get(Result);
+}
+
+static StringInit *interleaveIntList(const ListInit *List,
+                                     const StringInit *Delim) {
+  if (List->size() == 0)
+    return StringInit::get("");
+  SmallString<80> Result(dyn_cast<IntInit>(List->getElement(0)->
+                             getCastTo(IntRecTy::get()))->getAsString());
+  
+  for (unsigned I = 1, E = List->size(); I < E; ++I) {
+    Result.append(Delim->getValue());
+    Result.append(dyn_cast<IntInit>(List->getElement(I)->
+                      getCastTo(IntRecTy::get()))->getAsString());
+  }
+  return StringInit::get(Result);
+}
+
 Init *BinOpInit::getStrConcat(Init *I0, Init *I1) {
   // Shortcut for the common case of concatenating two strings.
   if (const StringInit *I0s = dyn_cast<StringInit>(I0))
@@ -902,10 +930,6 @@ Init *BinOpInit::getListConcat(TypedInit *LHS, Init *RHS) {
      if (const ListInit *RHSList = dyn_cast<ListInit>(RHS))
        return ConcatListInits(LHSList, RHSList);
    return BinOpInit::get(BinOpInit::LISTCONCAT, LHS, RHS, LHS->getType());
-}
-
-Init *BinOpInit::getListSplat(TypedInit *LHS, Init *RHS) {
-  return BinOpInit::get(BinOpInit::LISTSPLAT, LHS, RHS, LHS->getType());
 }
 
 Init *BinOpInit::Fold(Record *CurRec) const {
@@ -969,6 +993,17 @@ Init *BinOpInit::Fold(Record *CurRec) const {
       return ConcatStringInits(LHSs, RHSs);
     break;
   }
+  case INTERLEAVE: {
+    ListInit *List = dyn_cast<ListInit>(LHS);
+    StringInit *Delim = dyn_cast<StringInit>(RHS);
+    if (List && Delim) {
+      if (isa<StringRecTy>(List->getElementType()))
+        return interleaveStringList(List, Delim);
+      else
+        return interleaveIntList(List, Delim);
+    }
+    break;
+  }
   case EQ:
   case NE:
   case LE:
@@ -1009,7 +1044,7 @@ Init *BinOpInit::Fold(Record *CurRec) const {
 
     break;
   }
-  case SETOP: {
+  case SETDAGOP: {
     DagInit *Dag = dyn_cast<DagInit>(LHS);
     DefInit *Op = dyn_cast<DefInit>(RHS);
     if (Dag && Op) {
@@ -1024,6 +1059,7 @@ Init *BinOpInit::Fold(Record *CurRec) const {
     break;
   }
   case ADD:
+  case SUB:
   case MUL:
   case AND:
   case OR:
@@ -1040,9 +1076,10 @@ Init *BinOpInit::Fold(Record *CurRec) const {
       int64_t Result;
       switch (getOpcode()) {
       default: llvm_unreachable("Bad opcode!");
-      case ADD: Result = LHSv +  RHSv; break;
-      case MUL: Result = LHSv *  RHSv; break;
-      case AND: Result = LHSv &  RHSv; break;
+      case ADD: Result = LHSv + RHSv; break;
+      case SUB: Result = LHSv - RHSv; break;
+      case MUL: Result = LHSv * RHSv; break;
+      case AND: Result = LHSv & RHSv; break;
       case OR:  Result = LHSv | RHSv; break;
       case XOR: Result = LHSv ^ RHSv; break;
       case SHL: Result = (uint64_t)LHSv << (uint64_t)RHSv; break;
@@ -1072,6 +1109,7 @@ std::string BinOpInit::getAsString() const {
   switch (getOpcode()) {
   case CONCAT: Result = "!con"; break;
   case ADD: Result = "!add"; break;
+  case SUB: Result = "!sub"; break;
   case MUL: Result = "!mul"; break;
   case AND: Result = "!and"; break;
   case OR: Result = "!or"; break;
@@ -1088,7 +1126,8 @@ std::string BinOpInit::getAsString() const {
   case LISTCONCAT: Result = "!listconcat"; break;
   case LISTSPLAT: Result = "!listsplat"; break;
   case STRCONCAT: Result = "!strconcat"; break;
-  case SETOP: Result = "!setop"; break;
+  case INTERLEAVE: Result = "!interleave"; break;
+  case SETDAGOP: Result = "!setdagop"; break;
   }
   return Result + "(" + LHS->getAsString() + ", " + RHS->getAsString() + ")";
 }

@@ -61,6 +61,20 @@ func @extract_element(%arg0: tensor<?xf32>, %arg1: index) -> f32 {
   return %0 : f32
 }
 
+// CHECK-LABEL:   func @select(
+// CHECK-SAME:                 %[[PRED:.*]]: i1,
+// CHECK-SAME:                 %[[TRUE_VAL:.*]]: tensor<f32>,
+// CHECK-SAME:                 %[[FALSE_VAL:.*]]: tensor<f32>) -> tensor<f32> {
+// CHECK:           %[[TRUE_VAL_MEMREF:.*]] = tensor_to_memref %[[TRUE_VAL]] : memref<f32>
+// CHECK:           %[[FALSE_VAL_MEMREF:.*]] = tensor_to_memref %[[FALSE_VAL]] : memref<f32>
+// CHECK:           %[[RET_MEMREF:.*]] = select %[[PRED]], %[[TRUE_VAL_MEMREF]], %[[FALSE_VAL_MEMREF]] : memref<f32>
+// CHECK:           %[[RET:.*]] = tensor_load %[[RET_MEMREF]] : memref<f32>
+// CHECK:           return %[[RET]] : tensor<f32>
+func @select(%arg0: i1, %arg1: tensor<f32>, %arg2: tensor<f32>) -> tensor<f32> {
+  %0 = select %arg0, %arg1, %arg2 : tensor<f32>
+  return %0 : tensor<f32>
+}
+
 // CHECK-LABEL:   func @tensor_cast(
 // CHECK-SAME:                      %[[TENSOR:.*]]: tensor<?xindex>) -> tensor<2xindex> {
 // CHECK:           %[[MEMREF:.*]] = tensor_to_memref %[[TENSOR]]
@@ -70,6 +84,28 @@ func @extract_element(%arg0: tensor<?xf32>, %arg1: index) -> f32 {
 func @tensor_cast(%arg0: tensor<?xindex>) -> tensor<2xindex> {
   %0 = tensor_cast %arg0 : tensor<?xindex> to tensor<2xindex>
   return %0 : tensor<2xindex>
+}
+
+// CHECK-LABEL:   func @tensor_cast_from_unranked(
+// CHECK-SAME:                                    %[[TENSOR:.*]]: tensor<*xf32>) -> tensor<2xf32> {
+// CHECK:           %[[MEMREF:.*]] = tensor_to_memref %[[TENSOR]] : memref<*xf32>
+// CHECK:           %[[CASTED_MEMREF:.*]] = memref_cast %[[MEMREF]] : memref<*xf32> to memref<2xf32>
+// CHECK:           %[[RET:.*]] = tensor_load %[[CASTED_MEMREF]] : memref<2xf32>
+// CHECK:           return %[[RET]] : tensor<2xf32>
+func @tensor_cast_from_unranked(%arg0: tensor<*xf32>) -> tensor<2xf32> {
+  %0 = tensor_cast %arg0 : tensor<*xf32> to tensor<2xf32>
+  return %0 : tensor<2xf32>
+}
+
+// CHECK-LABEL:   func @tensor_cast_to_unranked(
+// CHECK-SAME:                                  %[[TENSOR:.*]]: tensor<2xf32>) -> tensor<*xf32> {
+// CHECK:           %[[MEMREF:.*]] = tensor_to_memref %[[TENSOR]] : memref<2xf32>
+// CHECK:           %[[CASTED_MEMREF:.*]] = memref_cast %[[MEMREF]] : memref<2xf32> to memref<*xf32>
+// CHECK:           %[[RET:.*]] = tensor_load %[[CASTED_MEMREF]] : memref<*xf32>
+// CHECK:           return %[[RET]] : tensor<*xf32>
+func @tensor_cast_to_unranked(%arg0: tensor<2xf32>) -> tensor<*xf32> {
+  %0 = tensor_cast %arg0 : tensor<2xf32> to tensor<*xf32>
+  return %0 : tensor<*xf32>
 }
 
 // CHECK-LABEL:   func @tensor_from_elements(

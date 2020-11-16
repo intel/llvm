@@ -953,11 +953,11 @@ def int_eh_sjlj_setup_dispatch  : Intrinsic<[], []>;
 //
 def int_var_annotation : DefaultAttrsIntrinsic<[],
                                    [llvm_ptr_ty, llvm_ptr_ty,
-                                    llvm_ptr_ty, llvm_i32_ty],
+                                    llvm_ptr_ty, llvm_i32_ty, llvm_ptr_ty],
                                    [IntrWillReturn], "llvm.var.annotation">;
 def int_ptr_annotation : DefaultAttrsIntrinsic<[LLVMAnyPointerType<llvm_anyint_ty>],
                                    [LLVMMatchType<0>, llvm_ptr_ty, llvm_ptr_ty,
-                                    llvm_i32_ty],
+                                    llvm_i32_ty, llvm_ptr_ty],
                                    [IntrWillReturn], "llvm.ptr.annotation">;
 def int_annotation : DefaultAttrsIntrinsic<[llvm_anyint_ty],
                                [LLVMMatchType<0>, llvm_ptr_ty,
@@ -1187,6 +1187,21 @@ def int_coro_id_retcon_once : Intrinsic<[llvm_token_ty],
      llvm_ptr_ty, llvm_ptr_ty, llvm_ptr_ty],
     []>;
 def int_coro_alloc : Intrinsic<[llvm_i1_ty], [llvm_token_ty], []>;
+def int_coro_id_async : Intrinsic<[llvm_token_ty],
+  [llvm_i32_ty, llvm_i32_ty, llvm_ptr_ty, llvm_ptr_ty],
+  []>;
+def int_coro_async_context_alloc : Intrinsic<[llvm_ptr_ty],
+    [llvm_ptr_ty, llvm_ptr_ty],
+    []>;
+def int_coro_async_context_dealloc : Intrinsic<[],
+    [llvm_ptr_ty],
+    []>;
+def int_coro_async_resume : Intrinsic<[llvm_ptr_ty],
+    [],
+    []>;
+def int_coro_suspend_async : Intrinsic<[llvm_ptr_ty, llvm_ptr_ty, llvm_ptr_ty],
+    [llvm_ptr_ty, llvm_ptr_ty, llvm_vararg_ty],
+    []>;
 def int_coro_begin : Intrinsic<[llvm_ptr_ty], [llvm_token_ty, llvm_ptr_ty],
                                [WriteOnly<ArgIndex<1>>]>;
 

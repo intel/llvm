@@ -40,6 +40,13 @@ std::unique_ptr<Pass> createBufferHoistingPass();
 /// reallocations inside of loops.
 std::unique_ptr<Pass> createBufferLoopHoistingPass();
 
+/// Creates a pass that promotes heap-based allocations to stack-based ones.
+std::unique_ptr<Pass>
+createPromoteBuffersToStackPass(unsigned maxAllocSizeInBytes = 1024);
+
+/// Creates a pass that converts memref function results to out-params.
+std::unique_ptr<Pass> createBufferResultsToOutParamsPass();
+
 /// Creates an instance of the Canonicalizer pass.
 std::unique_ptr<Pass> createCanonicalizerPass();
 
@@ -87,7 +94,7 @@ std::unique_ptr<Pass> createStripDebugInfoPass();
 
 /// Creates a pass which prints the list of ops and the number of occurrences in
 /// the module.
-std::unique_ptr<OperationPass<ModuleOp>> createPrintOpStatsPass();
+std::unique_ptr<Pass> createPrintOpStatsPass();
 
 /// Creates a pass which inlines calls and callable operations as defined by
 /// the CallGraph.

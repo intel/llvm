@@ -401,7 +401,7 @@ protected:
 
 class SPIRVForward : public SPIRVValue, public SPIRVComponentExecutionModes {
 public:
-  const static Op OC = OpForward;
+  const static Op OC = internal::OpForward;
   // Complete constructor
   SPIRVForward(SPIRVModule *TheModule, SPIRVType *TheTy, SPIRVId TheId)
       : SPIRVValue(TheModule, 0, OC, TheId) {

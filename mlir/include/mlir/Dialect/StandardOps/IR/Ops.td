@@ -50,10 +50,11 @@ class CastOp<string mnemonic, list<OpTrait> traits = []> :
 
   let results = (outs AnyType);
 
-  let builders = [OpBuilder<
-    "Value source, Type destType", [{
+  let builders = [
+    OpBuilderDAG<(ins "Value":$source, "Type":$destType), [{
        impl::buildCastOp($_builder, $_state, source, destType);
-  }]>];
+    }]>
+  ];
 
   let parser = [{
     return impl::parseCastOp(parser, result);
@@ -162,18 +163,17 @@ class AllocLikeOp<string mnemonic,
                    Confined<OptionalAttr<I64Attr>, [IntMinValue<0>]>:$alignment);
   let results = (outs Res<AnyMemRef, "", [MemAlloc<resource>]>);
 
-  let builders = [OpBuilder<
-    "MemRefType memrefType", [{
-       $_state.types.push_back(memrefType);
-     }]>,
-    OpBuilder<
-    "MemRefType memrefType, ValueRange operands, "
-    "IntegerAttr alignment = IntegerAttr()", [{
-       $_state.addOperands(operands);
-       $_state.types.push_back(memrefType);
-       if (alignment)
-         $_state.addAttribute(getAlignmentAttrName(), alignment);
-     }]>];
+  let builders = [
+    OpBuilderDAG<(ins "MemRefType":$memrefType), [{
+      $_state.types.push_back(memrefType);
+    }]>,
+    OpBuilderDAG<(ins "MemRefType":$memrefType, "ValueRange":$operands,
+      CArg<"IntegerAttr", "IntegerAttr()">:$alignment), [{
+      $_state.addOperands(operands);
+      $_state.types.push_back(memrefType);
+      if (alignment)
+        $_state.addAttribute(getAlignmentAttrName(), alignment);
+    }]>];
 
   let extraClassDeclaration = [{
     static StringRef getAlignmentAttrName() { return "alignment"; }
@@ -847,9 +847,7 @@ def GenericAtomicRMWOp : Std_Op<"generic_atomic_rmw", [
   let regions = (region AnyRegion:$body);
 
   let skipDefaultBuilders = 1;
-  let builders = [
-    OpBuilder<"Value memref, ValueRange ivs">
-  ];
+  let builders = [OpBuilderDAG<(ins "Value":$memref, "ValueRange":$ivs)>];
 
   let extraClassDeclaration = [{
     // The value stored in memref[ivs].
@@ -903,10 +901,12 @@ def BranchOp : Std_Op<"br",
   let arguments = (ins Variadic<AnyType>:$destOperands);
   let successors = (successor AnySuccessor:$dest);
 
-  let builders = [OpBuilder<"Block *dest, ValueRange destOperands = {}", [{
-    $_state.addSuccessors(dest);
-    $_state.addOperands(destOperands);
-  }]>];
+  let builders = [
+    OpBuilderDAG<(ins "Block *":$dest,
+                  CArg<"ValueRange", "{}">:$destOperands), [{
+      $_state.addSuccessors(dest);
+      $_state.addOperands(destOperands);
+    }]>];
 
   // BranchOp is fully verified by traits.
   let verifier = ?;
@@ -949,21 +949,23 @@ def CallOp : Std_Op<"call",
   let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<AnyType>:$operands);
   let results = (outs Variadic<AnyType>);
 
-  let builders = [OpBuilder<
-    "FuncOp callee, ValueRange operands = {}", [{
+  let builders = [
+    OpBuilderDAG<(ins "FuncOp":$callee, CArg<"ValueRange", "{}">:$operands), [{
       $_state.addOperands(operands);
       $_state.addAttribute("callee",$_builder.getSymbolRefAttr(callee));
       $_state.addTypes(callee.getType().getResults());
-  }]>, OpBuilder<
-    "SymbolRefAttr callee, TypeRange results, ValueRange operands = {}", [{
+    }]>,
+    OpBuilderDAG<(ins "SymbolRefAttr":$callee, "TypeRange":$results,
+      CArg<"ValueRange", "{}">:$operands), [{
       $_state.addOperands(operands);
       $_state.addAttribute("callee", callee);
       $_state.addTypes(results);
-  }]>, OpBuilder<
-    "StringRef callee, TypeRange results, ValueRange operands = {}", [{
+    }]>,
+    OpBuilderDAG<(ins "StringRef":$callee, "TypeRange":$results,
+      CArg<"ValueRange", "{}">:$operands), [{
       build($_builder, $_state, $_builder.getSymbolRefAttr(callee), results,
             operands);
-  }]>];
+    }]>];
 
   let extraClassDeclaration = [{
     StringRef getCallee() { return callee(); }
@@ -1023,12 +1025,12 @@ def CallIndirectOp : Std_Op<"call_indirect", [
   let arguments = (ins FunctionType:$callee, Variadic<AnyType>:$operands);
   let results = (outs Variadic<AnyType>:$results);
 
-  let builders = [OpBuilder<
-    "Value callee, ValueRange operands = {}", [{
+  let builders = [
+    OpBuilderDAG<(ins "Value":$callee, CArg<"ValueRange", "{}">:$operands), [{
       $_state.operands.push_back(callee);
       $_state.addOperands(operands);
       $_state.addTypes(callee.getType().cast<FunctionType>().getResults());
-  }]>];
+    }]>];
 
   let extraClassDeclaration = [{
     Value getCallee() { return getOperand(0); }
@@ -1188,10 +1190,11 @@ def CmpFOp : Std_Op<"cmpf",
   );
   let results = (outs BoolLike:$result);
 
-  let builders = [OpBuilder<
-    "CmpFPredicate predicate, Value lhs, Value rhs", [{
+  let builders = [
+    OpBuilderDAG<(ins "CmpFPredicate":$predicate, "Value":$lhs,
+                  "Value":$rhs), [{
       ::buildCmpFOp($_builder, $_state, predicate, lhs, rhs);
-  }]>];
+    }]>];
 
   let extraClassDeclaration = [{
     static StringRef getPredicateAttrName() { return "predicate"; }
@@ -1309,10 +1312,11 @@ def CmpIOp : Std_Op<"cmpi",
   );
   let results = (outs BoolLike:$result);
 
-  let builders = [OpBuilder<
-    "CmpIPredicate predicate, Value lhs, Value rhs", [{
+  let builders = [
+    OpBuilderDAG<(ins "CmpIPredicate":$predicate, "Value":$lhs,
+                 "Value":$rhs), [{
       ::buildCmpIOp($_builder, $_state, predicate, lhs, rhs);
-  }]>];
+    }]>];
 
   let extraClassDeclaration = [{
     static StringRef getPredicateAttrName() { return "predicate"; }
@@ -1406,17 +1410,18 @@ def CondBranchOp : Std_Op<"cond_br",
                        Variadic<AnyType>:$falseDestOperands);
   let successors = (successor AnySuccessor:$trueDest, AnySuccessor:$falseDest);
 
-  let builders = [OpBuilder<
-    "Value condition, Block *trueDest, ValueRange trueOperands,"
-    "Block *falseDest, ValueRange falseOperands", [{
+  let builders = [
+    OpBuilderDAG<(ins "Value":$condition, "Block *":$trueDest,
+      "ValueRange":$trueOperands, "Block *":$falseDest,
+      "ValueRange":$falseOperands), [{
       build($_builder, $_state, condition, trueOperands, falseOperands, trueDest,
             falseDest);
-  }]>, OpBuilder<
-    "Value condition, Block *trueDest, Block *falseDest, "
-    "ValueRange falseOperands = {}", [{
+    }]>,
+    OpBuilderDAG<(ins "Value":$condition, "Block *":$trueDest,
+      "Block *":$falseDest, CArg<"ValueRange", "{}">:$falseOperands), [{
       build($_builder, $_state, condition, trueDest, ValueRange(), falseDest,
             falseOperands);
-  }]>];
+    }]>];
 
   // CondBranchOp is fully verified by traits.
   let verifier = ?;
@@ -1539,7 +1544,8 @@ def ConstantOp : Std_Op<"constant",
   let arguments = (ins AnyAttr:$value);
   let results = (outs AnyType);
 
-  let builders = [OpBuilder<"Attribute value",
+  let builders = [
+    OpBuilderDAG<(ins "Attribute":$value),
     [{ build($_builder, $_state, value.getType(), value); }]>];
 
   let extraClassDeclaration = [{
@@ -1722,8 +1728,8 @@ def DimOp : Std_Op<"dim", [NoSideEffect]> {
   }];
 
   let builders = [
-    OpBuilder<"Value memrefOrTensor, int64_t index">,
-    OpBuilder<"Value memrefOrTensor, Value index">
+    OpBuilderDAG<(ins "Value":$memrefOrTensor, "int64_t":$index)>,
+    OpBuilderDAG<(ins "Value":$memrefOrTensor, "Value":$index)>
   ];
 
   let extraClassDeclaration = [{
@@ -1776,8 +1782,8 @@ def DynamicTensorFromElementsOp : Std_Op<"dynamic_tensor_from_elements",
 
   let builders = [
     // Build op and populate its body per callback function.
-    OpBuilder<"Type resultTy, ValueRange dynamicExtents, "
-              "function_ref<void(OpBuilder &, Location, ValueRange)>">,
+    OpBuilderDAG<(ins "Type":$resultTy, "ValueRange":$dynamicExtents,
+      "function_ref<void(OpBuilder &, Location, ValueRange)>")>,
   ];
 
   let hasCanonicalizer = 1;
@@ -1854,8 +1860,8 @@ def ExtractElementOp : Std_Op<"extract_element",
                        Variadic<Index>:$indices);
   let results = (outs AnyType:$result);
 
-  let builders = [OpBuilder<
-    "Value aggregate, ValueRange indices = {}", [{
+  let builders = [
+    OpBuilderDAG<(ins "Value":$aggregate, CArg<"ValueRange", "{}">:$indices), [{
       auto resType = aggregate.getType().cast<ShapedType>()
                                          .getElementType();
       build($_builder, $_state, resType, aggregate, indices);
@@ -1908,9 +1914,9 @@ def TensorFromElementsOp : Std_Op<"tensor_from_elements", [
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<"Type elementType, ValueRange elements">,
+    OpBuilderDAG<(ins "Type":$elementType, "ValueRange":$elements)>,
     // Special case builder for when `elements` has size >=1.
-    OpBuilder<"ValueRange elements">
+    OpBuilderDAG<(ins "ValueRange":$elements)>
   ];
 
   let hasCanonicalizer = 1;
@@ -1997,6 +2003,98 @@ def FPTruncOp : CastOp<"fptrunc">, Arguments<(ins AnyType:$in)> {
   }];
 
   let hasFolder = 0;
+}
+
+//===----------------------------------------------------------------------===//
+// GlobalMemrefOp
+//===----------------------------------------------------------------------===//
+
+def GlobalMemrefOp : Std_Op<"global_memref", [Symbol]> {
+  let summary = "declare or define a global memref variable";
+  let description = [{
+    The `global_memref` operation declares or defines a named global variable.
+    The backing memory for the variable is allocated statically and is described
+    by the type of the variable (which should be a statically shaped memref
+    type). The operation is a declaration if no `inital_value` is specified,
+    else it is a definition. The `initial_value` can either be a unit attribute
+    to represent a definition of an uninitialized global variable, or an
+    elements attribute to represent the definition of a global variable with an
+    initial value. The global variable can also be marked constant using the
+    `constant` unit attribute. Writing to such constant global variables is
+    undefined.
+
+    The global variable can be accessed by using the `get_global_memref` to
+    retrieve the memref for the global variable. Note that the memref
+    for such global variable itself is immutable (i.e., get_global_memref for a
+    given global variable will always return the same memref descriptor).
+
+    Example:
+
+    ```mlir
+    // Private variable with an initial value.
+    global_memref "private" @x : memref<2xf32> = dense<0.0,2.0>
+
+    // Declaration of an external variable.
+    global_memref "private" @y : memref<4xi32>
+
+    // Uninitialized externally visible variable.
+    global_memref @z : memref<3xf16> = uninitialized
+
+    // Externally visibile constant variable.
+    global_memref constant @c : memref<2xi32> = dense<1, 4>
+    ```
+  }];
+
+  let arguments = (ins
+      SymbolNameAttr:$sym_name,
+      OptionalAttr<StrAttr>:$sym_visibility,
+      TypeAttr:$type,
+      OptionalAttr<AnyAttr>:$initial_value,
+      UnitAttr:$constant
+  );
+
+  let assemblyFormat = [{
+       ($sym_visibility^)?
+       (`constant` $constant^)?
+       $sym_name `:`
+       custom<GlobalMemrefOpTypeAndInitialValue>($type, $initial_value)
+       attr-dict
+  }];
+
+  let extraClassDeclaration = [{
+     bool isExternal() { return !initial_value(); }
+     bool isUninitialized() {
+       return !isExternal() && initial_value().getValue().isa<UnitAttr>();
+     }
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// GetGlobalMemrefOp
+//===----------------------------------------------------------------------===//
+
+def GetGlobalMemrefOp : Std_Op<"get_global_memref",
+    [NoSideEffect, DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
+  let summary = "get the memref pointing to a global variable";
+  let description = [{
+     The `get_global_memref` operation retrieves the memref pointing to a
+     named global variable. If the global variable is marked constant, writing
+     to the result memref (such as through a `std.store` operation) is
+     undefined.
+
+     Example:
+
+     ```mlir
+     %x = get_global_memref @foo : memref<2xf32>
+     ```
+  }];
+
+  let arguments = (ins FlatSymbolRefAttr:$name);
+  let results = (outs AnyStaticShapeMemRef:$result);
+  let assemblyFormat = "$name `:` type($result) attr-dict";
+
+  // `GetGlobalMemrefOp` is fully verified by its traits.
+  let verifier = ?;
 }
 
 //===----------------------------------------------------------------------===//
@@ -2102,13 +2200,13 @@ def LoadOp : Std_Op<"load",
                        Variadic<Index>:$indices);
   let results = (outs AnyType:$result);
 
-  let builders = [OpBuilder<
-    "Value memref, ValueRange indices = {}", [{
+  let builders = [
+    OpBuilderDAG<(ins "Value":$memref, CArg<"ValueRange", "{}">:$indices), [{
       auto memrefType = memref.getType().cast<MemRefType>();
       $_state.addOperands(memref);
       $_state.addOperands(indices);
       $_state.types.push_back(memrefType.getElementType());
-  }]>];
+    }]>];
 
   let extraClassDeclaration = [{
     Value getMemRef() { return getOperand(0); }
@@ -2214,6 +2312,130 @@ def MemRefCastOp : CastOp<"memref_cast", [
 
     /// The result of a memref_cast is always a memref.
     Type getType() { return getResult().getType(); }
+  }];
+}
+
+
+//===----------------------------------------------------------------------===//
+// MemRefReinterpretCastOp
+//===----------------------------------------------------------------------===//
+
+def MemRefReinterpretCastOp:
+    BaseOpWithOffsetSizesAndStrides<"memref_reinterpret_cast", [
+      NoSideEffect, ViewLikeOpInterface
+    ]> {
+  let summary = "memref reinterpret cast operation";
+  let description = [{
+    Modify offset, sizes and strides of an unranked/ranked memref.
+
+    Example:
+    ```mlir
+    memref_reinterpret_cast %ranked to
+      offset: [0],
+      sizes: [%size0, 10],
+      strides: [1, %stride1]
+    : memref<?x?xf32> to memref<?x10xf32, offset: 0, strides: [1, ?]>
+
+    memref_reinterpret_cast %unranked to
+      offset: [%offset],
+      sizes: [%size0, %size1],
+      strides: [%stride0, %stride1]
+    : memref<*xf32> to memref<?x?xf32, offset: ?, strides: [?, ?]>
+    ```
+  }];
+
+  let arguments = (ins
+    Arg<AnyRankedOrUnrankedMemRef, "", []>:$source,
+    Variadic<Index>:$offsets,
+    Variadic<Index>:$sizes,
+    Variadic<Index>:$strides,
+    I64ArrayAttr:$static_offsets,
+    I64ArrayAttr:$static_sizes,
+    I64ArrayAttr:$static_strides
+  );
+  let results = (outs AnyMemRef:$result);
+
+  let builders = [
+    // Build a ReinterpretCastOp with mixed static and dynamic entries.
+    OpBuilderDAG<(ins "MemRefType":$resultType, "Value":$source,
+      "int64_t":$staticOffset, "ArrayRef<int64_t>":$staticSizes,
+      "ArrayRef<int64_t>":$staticStrides, "ValueRange":$offset,
+      "ValueRange":$sizes, "ValueRange":$strides,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
+    // Build a ReinterpretCastOp with all dynamic entries.
+    OpBuilderDAG<(ins "MemRefType":$resultType, "Value":$source,
+      "Value":$offset, "ValueRange":$sizes, "ValueRange":$strides,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
+  ];
+
+  let extraClassDeclaration = extraBaseClassDeclaration # [{
+    // The result of the op is always a ranked memref.
+    MemRefType getType() { return getResult().getType().cast<MemRefType>(); }
+    Value getViewSource() { return source(); }
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// MemRefReshapeOp
+//===----------------------------------------------------------------------===//
+
+def MemRefReshapeOp: Std_Op<"memref_reshape", [
+    ViewLikeOpInterface, NoSideEffect]>  {
+  let summary = "memref reshape operation";
+  let description = [{
+    The `memref_reshape` operation converts a memref from one type to an
+    equivalent type with a provided shape. The data is never copied or
+    modified.  The source and destination types are compatible if both have the
+    same element type, same number of elements, address space and identity
+    layout map. The following combinations are possible:
+
+    a. Source type is ranked or unranked. Shape argument has static size.
+    Result type is ranked.
+
+    ```mlir
+    // Reshape statically-shaped memref.
+    %dst = memref_reshape %src(%shape)
+             : (memref<4x1xf32>, memref<1xi32>) to memref<4xf32>
+    %dst0 = memref_reshape %src(%shape0)
+             : (memref<4x1xf32>, memref<2xi32>) to memref<2x2xf32>
+    // Flatten unranked memref.
+    %dst = memref_reshape %src(%shape)
+             : (memref<*xf32>, memref<1xi32>) to memref<?xf32>
+    ```
+
+    a. Source type is ranked or unranked. Shape argument has dynamic size.
+    Result type is unranked.
+
+    ```mlir
+    // Reshape dynamically-shaped 1D memref.
+    %dst = memref_reshape %src(%shape)
+             : (memref<?xf32>, memref<?xi32>) to memref<*xf32>
+    // Reshape unranked memref.
+    %dst = memref_reshape %src(%shape)
+             : (memref<*xf32>, memref<?xi32>) to memref<*xf32>
+    ```
+  }];
+
+  let arguments = (ins
+    AnyRankedOrUnrankedMemRef:$source,
+    MemRefRankOf<[AnySignlessInteger, Index], [1]>:$shape
+  );
+  let results = (outs AnyRankedOrUnrankedMemRef:$result);
+
+  let builders = [OpBuilderDAG<
+     (ins "MemRefType":$resultType, "Value":$operand, "Value":$shape), [{
+       $_state.addOperands(operand);
+       $_state.addOperands(shape);
+       $_state.addTypes(resultType);
+     }]>];
+
+  let extraClassDeclaration = [{
+    MemRefType getType() { return getResult().getType().cast<MemRefType>(); }
+    Value getViewSource() { return source(); }
+  }];
+
+  let assemblyFormat = [{
+    $source `(` $shape `)` attr-dict `:` functional-type(operands, results)
   }];
 }
 
@@ -2393,8 +2615,8 @@ def RankOp : Std_Op<"rank", [NoSideEffect]> {
   let results = (outs Index);
   let verifier = ?;
 
-  let builders = [OpBuilder<
-    "Value tensor", [{
+  let builders = [
+    OpBuilderDAG<(ins "Value":$tensor), [{
       auto indexType = $_builder.getIndexType();
       build($_builder, $_state, indexType, tensor);
     }]>];
@@ -2466,7 +2688,9 @@ def ReturnOp : Std_Op<"return", [NoSideEffect, HasParent<"FuncOp">,
 
   let arguments = (ins Variadic<AnyType>:$operands);
 
-  let builders = [OpBuilder<"", [{ build($_builder, $_state, llvm::None); }]>];
+  let builders = [
+    OpBuilderDAG<(ins),
+    [{ build($_builder, $_state, llvm::None); }]>];
 
   let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
 }
@@ -2529,11 +2753,12 @@ def SelectOp : Std_Op<"select", [NoSideEffect,
                        AnyType:$false_value);
   let results = (outs AnyType:$result);
 
-  let builders = [OpBuilder<
-    "Value condition, Value trueValue, Value falseValue", [{
+  let builders = [
+    OpBuilderDAG<(ins "Value":$condition, "Value":$trueValue,
+      "Value":$falseValue), [{
       $_state.addOperands({condition, trueValue, falseValue});
       $_state.addTypes(trueValue.getType());
-  }]>];
+    }]>];
 
   let extraClassDeclaration = [{
       Value getCondition() { return condition(); }
@@ -2594,6 +2819,63 @@ def SignedDivIOp : IntArithmeticOp<"divi_signed"> {
 
     // Tensor element-wise integer division.
     %x = divis %y, %z : tensor<4x?xi8>
+    ```
+  }];
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// SignedFloorDivIOp
+//===----------------------------------------------------------------------===//
+
+def SignedFloorDivIOp : IntArithmeticOp<"floordivi_signed"> {
+  let summary = "signed floor integer division operation";
+  let description = [{
+    Syntax:
+
+    ```
+    operation ::= ssa-id `=` `floordivi_signed` ssa-use `,` ssa-use `:` type
+    ```
+
+    Signed integer division. Rounds towards negative infinity, i.e. `5 / -2 = -3`.
+
+    Note: the semantics of division by zero or signed division overflow (minimum
+    value divided by -1) is TBD; do NOT assume any specific behavior.
+
+    Example:
+
+    ```mlir
+    // Scalar signed integer division.
+    %a = floordivi_signed %b, %c : i64
+
+    ```
+  }];
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// SignedCeilDivIOp
+//===----------------------------------------------------------------------===//
+
+def SignedCeilDivIOp : IntArithmeticOp<"ceildivi_signed"> {
+  let summary = "signed ceil integer division operation";
+  let description = [{
+    Syntax:
+
+    ```
+    operation ::= ssa-id `=` `ceildivi_signed` ssa-use `,` ssa-use `:` type
+    ```
+
+    Signed integer division. Rounds towards positive infinity, i.e. `7 / -2 = -3`.
+
+    Note: the semantics of division by zero or signed division overflow (minimum
+    value divided by -1) is TBD; do NOT assume any specific behavior.
+
+    Example:
+
+    ```mlir
+    // Scalar signed integer division.
+    %a = ceildivi_signed %b, %c : i64
     ```
   }];
   let hasFolder = 1;
@@ -2687,10 +2969,11 @@ def SignExtendIOp : Std_Op<"sexti",
   let arguments = (ins SignlessIntegerLike:$value);
   let results = (outs SignlessIntegerLike);
 
-  let builders = [OpBuilder<"Value value, Type destType", [{
+  let builders = [
+    OpBuilderDAG<(ins "Value":$value, "Type":$destType), [{
       $_state.addOperands(value);
       $_state.addTypes(destType);
-  }]>];
+    }]>];
 
   let parser = [{
     return impl::parseCastOp(parser, result);
@@ -2760,9 +3043,9 @@ def SplatOp : Std_Op<"splat", [NoSideEffect,
                                  "integer or float type">:$input);
   let results = (outs AnyTypeOf<[AnyVector, AnyStaticShapeTensor]>:$aggregate);
 
-  let builders =
-      [OpBuilder<"Value element, Type aggregateType",
-                  [{ build($_builder, $_state, aggregateType, element); }]>];
+  let builders = [
+    OpBuilderDAG<(ins "Value":$element, "Type":$aggregateType),
+    [{ build($_builder, $_state, aggregateType, element); }]>];
 
   let hasFolder = 1;
 
@@ -2838,11 +3121,11 @@ def StoreOp : Std_Op<"store",
                            [MemWrite]>:$memref,
                        Variadic<Index>:$indices);
 
-  let builders = [OpBuilder<
-    "Value valueToStore, Value memref", [{
+  let builders = [
+    OpBuilderDAG<(ins "Value":$valueToStore, "Value":$memref), [{
       $_state.addOperands(valueToStore);
       $_state.addOperands(memref);
-  }]>];
+    }]>];
 
   let extraClassDeclaration = [{
       Value getValueToStore() { return getOperand(0); }
@@ -3050,27 +3333,25 @@ def SubViewOp : BaseOpWithOffsetSizesAndStrides<
 
   let builders = [
     // Build a SubViewOp with mixed static and dynamic entries.
-    OpBuilder<
-      "Value source, ArrayRef<int64_t> staticOffsets, "
-      "ArrayRef<int64_t> staticSizes, ArrayRef<int64_t> staticStrides, "
-      "ValueRange offsets, ValueRange sizes, ValueRange strides, "
-      "ArrayRef<NamedAttribute> attrs = {}">,
+    OpBuilderDAG<(ins "Value":$source, "ArrayRef<int64_t>":$staticOffsets,
+      "ArrayRef<int64_t>":$staticSizes, "ArrayRef<int64_t>":$staticStrides,
+      "ValueRange":$offsets, "ValueRange":$sizes, "ValueRange":$strides,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
     // Build a SubViewOp with all dynamic entries.
-    OpBuilder<
-      "Value source, ValueRange offsets, ValueRange sizes, ValueRange strides, "
-      "ArrayRef<NamedAttribute> attrs = {}">,
+    OpBuilderDAG<(ins "Value":$source, "ValueRange":$offsets,
+      "ValueRange":$sizes, "ValueRange":$strides,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
     // Build a SubViewOp with mixed static and dynamic entries
     // and custom result type.
-    OpBuilder<
-      "MemRefType resultType, Value source, ArrayRef<int64_t> staticOffsets, "
-      "ArrayRef<int64_t> staticSizes, ArrayRef<int64_t> staticStrides, "
-      "ValueRange offsets, ValueRange sizes, "
-      "ValueRange strides, ArrayRef<NamedAttribute> attrs = {}">,
+    OpBuilderDAG<(ins "MemRefType":$resultType, "Value":$source,
+      "ArrayRef<int64_t>":$staticOffsets, "ArrayRef<int64_t>":$staticSizes,
+      "ArrayRef<int64_t>":$staticStrides, "ValueRange":$offsets,
+      "ValueRange":$sizes, "ValueRange":$strides,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
     // Build a SubViewOp with all dynamic entries and custom result type.
-    OpBuilder<
-      "MemRefType resultType, Value source, ValueRange offsets, "
-      "ValueRange sizes, ValueRange strides, "
-      "ArrayRef<NamedAttribute> attrs = {}">
+    OpBuilderDAG<(ins "MemRefType":$resultType, "Value":$source,
+      "ValueRange":$offsets, "ValueRange":$sizes, "ValueRange":$strides,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>
   ];
 
   let extraClassDeclaration = extraBaseClassDeclaration # [{
@@ -3152,15 +3433,14 @@ def SubTensorOp : BaseOpWithOffsetSizesAndStrides<"subtensor"> {
 
   let builders = [
     // Build a SubViewOp with mixed static and dynamic entries.
-    OpBuilder<
-      "Value source, ArrayRef<int64_t> staticOffsets, "
-      "ArrayRef<int64_t> staticSizes, ArrayRef<int64_t> staticStrides, "
-      "ValueRange offsets, ValueRange sizes, ValueRange strides, "
-      "ArrayRef<NamedAttribute> attrs = {}">,
+    OpBuilderDAG<(ins "Value":$source, "ArrayRef<int64_t>":$staticOffsets,
+      "ArrayRef<int64_t>":$staticSizes, "ArrayRef<int64_t>":$staticStrides,
+      "ValueRange":$offsets, "ValueRange":$sizes, "ValueRange":$strides,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
     // Build a SubViewOp with all dynamic entries.
-    OpBuilder<
-      "Value source, ValueRange offsets, ValueRange sizes, ValueRange strides, "
-      "ArrayRef<NamedAttribute> attrs = {}">
+    OpBuilderDAG<(ins "Value":$source, "ValueRange":$offsets,
+      "ValueRange":$sizes, "ValueRange":$strides,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>
   ];
 
   let extraClassDeclaration = extraBaseClassDeclaration # [{
@@ -3236,15 +3516,15 @@ def SubTensorInsertOp : BaseOpWithOffsetSizesAndStrides<"subtensor_insert"> {
 
   let builders = [
     // Build a SubViewOp with mixed static and dynamic entries.
-    OpBuilder<
-      "Value source, Value dest, ArrayRef<int64_t> staticOffsets, "
-      "ArrayRef<int64_t> staticSizes, ArrayRef<int64_t> staticStrides, "
-      "ValueRange offsets, ValueRange sizes, ValueRange strides, "
-      "ArrayRef<NamedAttribute> attrs = {}">,
+    OpBuilderDAG<(ins "Value":$source, "Value":$dest,
+      "ArrayRef<int64_t>":$staticOffsets, "ArrayRef<int64_t>":$staticSizes,
+      "ArrayRef<int64_t>":$staticStrides, "ValueRange":$offsets,
+      "ValueRange":$sizes, "ValueRange":$strides,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
     // Build a SubViewOp with all dynamic entries.
-    OpBuilder<
-      "Value source, Value dest, ValueRange offsets, ValueRange sizes, "
-      "ValueRange strides, ArrayRef<NamedAttribute> attrs = {}">
+    OpBuilderDAG<(ins "Value":$source, "Value":$dest, "ValueRange":$offsets,
+      "ValueRange":$sizes, "ValueRange":$strides,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>
   ];
 
   let extraClassDeclaration = extraBaseClassDeclaration # [{
@@ -3376,11 +3656,11 @@ def TensorLoadOp : Std_Op<"tensor_load",
   // TensorLoadOp is fully verified by traits.
   let verifier = ?;
 
-  let builders = [OpBuilder<
-    "Value memref", [{
+  let builders = [
+    OpBuilderDAG<(ins "Value":$memref), [{
       $_state.addOperands(memref);
       $_state.addTypes(getTensorTypeFromMemRefType(memref.getType()));
-  }]>];
+    }]>];
 
   let extraClassDeclaration = [{
     /// The result of a tensor_load is always a tensor.
@@ -3490,9 +3770,9 @@ def TransposeOp : Std_Op<"transpose", [NoSideEffect]>,
     ```
   }];
 
-  let builders = [OpBuilder<
-    "Value in, AffineMapAttr permutation, "
-    "ArrayRef<NamedAttribute> attrs = {}">];
+  let builders = [
+    OpBuilderDAG<(ins "Value":$in, "AffineMapAttr":$permutation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>];
 
   let extraClassDeclaration = [{
     static StringRef getPermutationAttrName() { return "permutation"; }
@@ -3528,11 +3808,11 @@ def TruncateIOp : Std_Op<"trunci", [NoSideEffect, SameOperandsAndResultShape]> {
   let arguments = (ins SignlessIntegerLike:$value);
   let results = (outs SignlessIntegerLike);
 
-  let builders = [OpBuilder<
-    "Value value, Type destType", [{
+  let builders = [
+    OpBuilderDAG<(ins "Value":$value, "Type":$destType), [{
       $_state.addOperands(value);
       $_state.addTypes(destType);
-  }]>];
+    }]>];
 
   let parser = [{
     return impl::parseCastOp(parser, result);
@@ -3796,11 +4076,11 @@ def ZeroExtendIOp : Std_Op<"zexti", [NoSideEffect, SameOperandsAndResultShape]> 
   let arguments = (ins SignlessIntegerLike:$value);
   let results = (outs SignlessIntegerLike);
 
-  let builders = [OpBuilder<
-    "Value value, Type destType", [{
+  let builders = [
+    OpBuilderDAG<(ins "Value":$value, "Type":$destType), [{
       $_state.addOperands(value);
       $_state.addTypes(destType);
-  }]>];
+    }]>];
 
   let parser = [{
     return impl::parseCastOp(parser, result);

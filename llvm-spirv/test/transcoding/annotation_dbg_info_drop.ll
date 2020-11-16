@@ -60,7 +60,7 @@ entry:
   call void @llvm.lifetime.start.p0i8(i64 1, i8* %0) #5, !dbg !72
   call void @llvm.dbg.declare(metadata [1 x i8]* %Buf, metadata !52, metadata !DIExpression()), !dbg !73
   %Buf2 = bitcast [1 x i8]* %Buf to i8*, !dbg !72
-  call void @llvm.var.annotation(i8* %Buf2, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([29 x i8], [29 x i8]* @.str.1, i32 0, i32 0), i32 15), !dbg !72
+  call void @llvm.var.annotation(i8* %Buf2, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([29 x i8], [29 x i8]* @.str.1, i32 0, i32 0), i32 15, i8* null), !dbg !72
 ; CHECK:      {{[0-9]+}} ExtInst {{[0-9 ]+}} DebugNoScope
 ; CHECK-NEXT: {{[0-9]+}} InBoundsPtrAccessChain {{[0-9]+}} {{[0-9]+}} [[ANNO_PUMP_ID]]
 ; CHECK-NEXT: {{[0-9]+}} InBoundsPtrAccessChain {{[0-9]+}} {{[0-9]+}} [[FILE_ID]]
@@ -104,7 +104,7 @@ entry:
   call void @llvm.dbg.declare(metadata %"struct._ZTSZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlvE_clEvE3s_d.s_d"* %d, metadata !56, metadata !DIExpression()), !dbg !88
   %mem = getelementptr inbounds %"struct._ZTSZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlvE_clEvE3s_d.s_d", %"struct._ZTSZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlvE_clEvE3s_d.s_d"* %d, i32 0, i32 0, !dbg !89
   %10 = bitcast [8 x i32]* %mem to i8*, !dbg !89
-  %11 = call i8* @llvm.ptr.annotation.p0i8(i8* %10, i8* getelementptr inbounds ([29 x i8], [29 x i8]* @.str.3, i32 0, i32 0), i8* getelementptr inbounds ([29 x i8], [29 x i8]* @.str.1, i32 0, i32 0), i32 21), !dbg !89
+  %11 = call i8* @llvm.ptr.annotation.p0i8(i8* %10, i8* getelementptr inbounds ([29 x i8], [29 x i8]* @.str.3, i32 0, i32 0), i8* getelementptr inbounds ([29 x i8], [29 x i8]* @.str.1, i32 0, i32 0), i32 21, i8* null), !dbg !89
 ; CHECK:      {{[0-9]+}} ExtInst {{[0-9 ]+}} DebugNoScope
 ; CHECK-NEXT: {{[0-9]+}} InBoundsPtrAccessChain {{[0-9]+}} {{[0-9]+}} [[ANNO_NUMBANKS_ID]]
   %12 = bitcast i8* %11 to [8 x i32]*, !dbg !89
@@ -125,7 +125,7 @@ entry:
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 4 %15, i8* align 4 %16, i64 16, i1 false), !dbg !96, !tbaa.struct !97
   %17 = bitcast %"struct._ZTSZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlvE_clEvE3s_e.s_e"* %agg-temp to i8*, !dbg !99
 ; CHECK:      {{[0-9]+}} Bitcast {{[0-9]+}} {{[0-9]+}} [[AGG_TMP_ID]]
-  %18 = call i8* @llvm.ptr.annotation.p0i8(i8* %17, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.2, i32 0, i32 0), i8* getelementptr inbounds ([29 x i8], [29 x i8]* @.str.1, i32 0, i32 0), i32 27), !dbg !99
+  %18 = call i8* @llvm.ptr.annotation.p0i8(i8* %17, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.2, i32 0, i32 0), i8* getelementptr inbounds ([29 x i8], [29 x i8]* @.str.1, i32 0, i32 0), i32 27, i8* null), !dbg !99
 ; -- No change of debug scope after the call in both cases with or without SPV_INTEL_fpga_reg extension.
 ; CHECK-SPV-FPGA_REG-NEXT: {{[0-9]+}} FPGARegINTEL
   %19 = bitcast i8* %18 to %"struct._ZTSZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlvE_clEvE3s_e.s_e"*, !dbg !99
@@ -188,7 +188,7 @@ declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #2
 declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #2
 
 ; Function Attrs: nounwind
-declare void @llvm.var.annotation(i8*, i8*, i8*, i32) #5
+declare void @llvm.var.annotation(i8*, i8*, i8*, i32, i8*) #5
 
 ; Function Attrs: nounwind
 declare i32 @llvm.annotation.i32(i32, i8*, i8*, i32) #5
@@ -197,7 +197,7 @@ declare i32 @llvm.annotation.i32(i32, i8*, i8*, i32) #5
 declare i64 @llvm.annotation.i64(i64, i8*, i8*, i32) #5
 
 ; Function Attrs: nounwind
-declare i8* @llvm.ptr.annotation.p0i8(i8*, i8*, i8*, i32) #5
+declare i8* @llvm.ptr.annotation.p0i8(i8*, i8*, i8*, i32, i8*) #5
 
 ; Function Attrs: argmemonly nounwind
 declare void @llvm.memcpy.p0i8.p0i8.i64(i8* nocapture writeonly, i8* nocapture readonly, i64, i1 immarg) #2

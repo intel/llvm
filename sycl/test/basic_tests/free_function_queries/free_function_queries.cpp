@@ -47,8 +47,7 @@ int main() {
 
           auto that_item = sycl::this_item<1>();
           results_acc[1] = that_item.get_id() == i;
-          results_acc[2] = that_item.get_range() ==
-                           sycl::range<1>(__SYCL_PFWG_ROUNDED_SIZE__);
+          results_acc[2] = that_item.get_range() == sycl::range<1>(n);
           acc[i]++;
         });
       });
@@ -82,8 +81,6 @@ int main() {
           auto that_id = sycl::this_id<1>();
           results_acc[0] = i.get_id() == that_id;
           auto that_item = sycl::this_item<1>();
-          i.set_allowed_range(__SYCL_PFWG_ROUNDED_SIZE__);
-          that_item.set_allowed_range(__SYCL_PFWG_ROUNDED_SIZE__);
           results_acc[1] = i == that_item;
           acc[i]++;
         });

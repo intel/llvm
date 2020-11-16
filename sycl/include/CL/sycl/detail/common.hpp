@@ -12,10 +12,10 @@
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/detail/stl_type_traits.hpp>
 
 #include <cstdint>
 #include <string>
-#include <type_traits>
 
 #define __SYCL_STRINGIFY_LINE_HELP(s) #s
 #define __SYCL_STRINGIFY_LINE(s) __SYCL_STRINGIFY_LINE_HELP(s)
@@ -173,7 +173,7 @@ template <class Obj> decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject) {
 // must make sure the returned pointer is not captured in a field or otherwise
 // stored - i.e. must live only as on-stack value.
 template <class T>
-typename std::add_pointer<typename decltype(T::impl)::element_type>::type
+typename detail::add_pointer_t<typename decltype(T::impl)::element_type>
 getRawSyclObjImpl(const T &SyclObject) {
   return SyclObject.impl.get();
 }

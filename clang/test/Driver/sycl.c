@@ -72,7 +72,7 @@
 // HEADER_ORDER-NOT: clang{{.*}} "/usr/include"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}
 
 /// Verify -fsycl-device-only phases
-// RUN: %clang -### -ccc-print-phases -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT-PHASES
+// RUN: %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT-PHASES
 // DEFAULT-PHASES: 0: input, "{{.*}}", c++, (device-sycl)
 // DEFAULT-PHASES: 1: preprocessor, {0}, c++-cpp-output, (device-sycl)
 // DEFAULT-PHASES: 2: compiler, {1}, ir, (device-sycl)

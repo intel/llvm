@@ -143,7 +143,7 @@ public:
   // @return the representing region object.
   //
   template <int Size, int Stride, typename T = simd_view,
-            typename = std::enable_if_t<T::is1D()>>
+            typename = sycl::detail::enable_if_t<T::is1D()>>
   auto select(uint16_t Offset = 0) {
     using TopRegionTy = region1d_t<element_type, Size, Stride>;
     using NewRegionTy = std::pair<TopRegionTy, RegionTy>;
@@ -171,7 +171,8 @@ public:
   // @return the representing region object.
   //
   template <int SizeY, int StrideY, int SizeX, int StrideX,
-            typename T = simd_view, typename = std::enable_if_t<T::is2D()>>
+            typename T = simd_view,
+            typename = sycl::detail::enable_if_t<T::is2D()>>
   auto select(uint16_t OffsetY = 0, uint16_t OffsetX = 0) {
     using TopRegionTy =
         region2d_t<element_type, SizeY, StrideY, SizeX, StrideX>;
@@ -263,19 +264,22 @@ public:
   }
 
   // Reference a row from a 2D region. This returns a 1D region.
-  template <typename T = simd_view, typename = std::enable_if_t<T::is2D()>>
+  template <typename T = simd_view,
+            typename = sycl::detail::enable_if_t<T::is2D()>>
   auto row(int i) {
     return select<1, 0, getSizeX(), 1>(i, 0).template format<element_type>();
   }
 
   // Reference a column from a 2D region. This returns a 2D region.
-  template <typename T = simd_view, typename = std::enable_if_t<T::is2D()>>
+  template <typename T = simd_view,
+            typename = sycl::detail::enable_if_t<T::is2D()>>
   auto column(int i) {
     return select<getSizeY(), 1, 1, 0>(0, i);
   }
 
   // Read a single element from a 1D region, by value only.
-  template <typename T = simd_view, typename = std::enable_if_t<T::is1D()>>
+  template <typename T = simd_view,
+            typename = sycl::detail::enable_if_t<T::is1D()>>
   element_type operator[](int i) const {
     return read()[i];
   }
@@ -336,8 +340,9 @@ public:
   //
   // @return 1 if any element is set, 0 otherwise
 
-  template <typename T1 = element_type, typename T2 = BaseTy,
-            typename = std::enable_if_t<std::is_integral<T1>::value, T2>>
+  template <
+      typename T1 = element_type, typename T2 = BaseTy,
+      typename = sycl::detail::enable_if_t<std::is_integral<T1>::value, T2>>
   uint16_t any() {
     return read().any();
   }
@@ -346,8 +351,9 @@ public:
   //
   // @return 1 if all elements are set, 0 otherwise
 
-  template <typename T1 = element_type, typename T2 = BaseTy,
-            typename = std::enable_if_t<std::is_integral<T1>::value, T2>>
+  template <
+      typename T1 = element_type, typename T2 = BaseTy,
+      typename = sycl::detail::enable_if_t<std::is_integral<T1>::value, T2>>
   uint16_t all() {
     return read().all();
   }

@@ -7,6 +7,12 @@ TableGen Programmer's Reference
 .. contents::
    :local:
 
+.. toctree::
+   :hidden:
+
+   BackEnds
+   BackGuide
+
 Introduction
 ============
 
@@ -21,8 +27,11 @@ and generate one or more output files. These output files are typically
 developer needs.
 
 This document describes the LLVM TableGen facility in detail. It is intended
-for the programmer who is using TableGen to produce tables for a project. If
-you are looking for a simple overview, check out :doc:`TableGen Overview <./index>`.
+for the programmer who is using TableGen to produce code for a project. If
+you are looking for a simple overview, check out the :doc:`TableGen Overview
+<./index>`.  The various ``xxx-tblgen`` commands used to invoke TableGen are
+described in :doc:`xxx-tblgen: Target Description to C++ Code
+<../CommandGuide/tblgen>`.
 
 An example of a backend is ``RegisterInfo``, which generates the register
 file information for a particular target machine, for use by the LLVM
@@ -103,7 +112,7 @@ multiple concrete records all at once. A multiclass can inherit from other
 multiclasses, which means that the multiclass inherits all the definitions
 from its parent multiclasses.
 
-`Appendix B: Sample Record`_ illustrates a complex record in the Intel X86
+`Appendix C: Sample Record`_ illustrates a complex record in the Intel X86
 target and the simple way in which it is defined.
 
 Source Files
@@ -206,13 +215,13 @@ TableGen provides "bang operators" that have a wide variety of uses:
 
 .. productionlist::
    BangOperator: one of
-               : !add     !and         !cast        !con         !dag
-               : !empty   !eq          !foldl       !foreach     !ge
-               : !getop   !gt          !head        !if          !isa
-               : !le      !listconcat  !listsplat   !lt          !mul
-               : !ne      !not         !or          !setop       !shl
-               : !size    !sra         !srl         !strconcat   !subst
-               : !tail    !xor
+               : !add        !and         !cast        !con         !dag 
+               : !empty      !eq          !foldl       !foreach     !ge
+               : !getdagop   !gt          !head        !if          !interleave
+               : !isa        !le          !listconcat  !listsplat   !lt
+               : !mul        !ne          !not         !or          !setdagop
+               : !shl        !size        !sra         !srl         !strconcat
+               : !sub        !subst       !tail        !xor
 
 The ``!cond`` operator has a slightly different
 syntax compared to other bang operators, so it is defined separately:
@@ -313,8 +322,9 @@ Values and Expressions
 There are many contexts in TableGen statements where a value is required. A
 common example is in the definition of a record, where each field is
 specified by a name and an optional value. TableGen allows for a reasonable
-number of different forms when building up values. These forms allow the
-TableGen file to be written in a syntax that is natural for the application.
+number of different forms when building up value expressions. These forms
+allow the TableGen file to be written in a syntax that is natural for the
+application.
 
 Note that all of the values have rules for converting them from one type to
 another. For example, these rules allow you to assign a value like ``7``
@@ -322,6 +332,7 @@ to an entity of type ``bits<4>``.
 
 .. productionlist::
    Value: `SimpleValue` `ValueSuffix`*
+        :| `Value` "#" `Value`
    ValueSuffix: "{" `RangeList` "}"
               :| "[" `RangeList` "]"
               :| "." `TokIdentifier`
@@ -490,6 +501,28 @@ primary value. Here are the possible suffixes for some primary *value*.
     The final value is the value of the specified *field* in the specified
     record *value*.
 
+The paste operator
+------------------
+
+The paste operator (``#``) is the only infix operator availabe in TableGen
+expressions. It allows you to concatenate strings or lists, but has a few
+unusual features.
+
+The paste operator can be used when specifying the record name in a
+:token:`Def` or :token:`Defm` statement, in which case it must construct a
+string. If an operand is an undefined name (:token:`TokIdentifier`) or the
+name of a global :token:`Defvar` or :token:`Defset`, it is treated as a
+verbatim string of characters. The value of a global name is not used.
+
+The paste operator can be used in all other value expressions, in which case
+it can construct a string or a list. Rather oddly, but consistent with the
+previous case, if the *right-hand-side* operand is an undefined name or a
+global name, it is treated as a verbatim string of characters. The
+left-hand-side operand is treated normally.
+
+`Appendix B: Paste Operator Examples`_ presents examples of the behavior of
+the paste operator.
+
 Statements
 ==========
 
@@ -611,11 +644,11 @@ A ``def`` statement defines a new concrete record.
 
 .. productionlist::
    Def: "def" [`NameValue`] `RecordBody`
-   NameValue: `Value`
+   NameValue: `Value` (parsed in a special manner)
 
 The name value is optional. If specified, it is parsed in a special mode
 where undefined (unrecognized) identifiers are interpreted as literal
-strings.  In particular, global identifiers are considered unrecognized.
+strings. In particular, global identifiers are considered unrecognized.
 These include global variables defined by ``defvar`` and ``defset``.
 
 If no name value is given, the record is *anonymous*. The final name of an
@@ -1243,7 +1276,7 @@ or to associate an argument in one DAG with a like-named argument in another
 DAG.
 
 The following bang operators are useful for working with DAGs:
-``!con``, ``!dag``, ``!empty``, ``!foreach``, ``!getop``, ``!setop``, ``!size``.
+``!con``, ``!dag``, ``!empty``, ``!foreach``, ``!getdagop``, ``!setdagop``, ``!size``.
 
 Defvar in a record body
 -----------------------
@@ -1445,6 +1478,10 @@ operator produces a boolean result, the result value will be 1 for true or 0
 for false. When an operator tests a boolean argument, it interprets 0 as false
 and non-0 as true.
 
+.. warning::
+  The ``!getop`` and ``!setop`` bang operators are deprecated in favor of
+  ``!getdagop`` and ``!setdagop``.
+
 ``!add(``\ *a*\ ``,`` *b*\ ``, ...)``
     This operator adds *a*, *b*, etc., and produces the sum.
 
@@ -1544,26 +1581,27 @@ and non-0 as true.
     The arguments must be ``bit``, ``int``, or ``string`` values.
     Use ``!cast<string>`` to compare other types of objects.
 
-``!getop(``\ *dag*\ ``)`` --or-- ``!getop<``\ *type*\ ``>(``\ *dag*\ ``)``
+``!getdagop(``\ *dag*\ ``)`` --or-- ``!getdagop<``\ *type*\ ``>(``\ *dag*\ ``)``
     This operator produces the operator of the given *dag* node.
-    Example: ``!getop((foo 1, 2))`` results in ``foo``.
+    Example: ``!getdagop((foo 1, 2))`` results in ``foo``. Recall that
+    DAG operators are always records.
 
-    The result of ``!getop`` can be used directly in a context where
-    any record value at all is acceptable (typically placing it into
+    The result of ``!getdagop`` can be used directly in a context where
+    any record class at all is acceptable (typically placing it into
     another dag value). But in other contexts, it must be explicitly
-    cast to a particular class type. The ``<``\ *type*\ ``>`` syntax is
+    cast to a particular class. The ``<``\ *type*\ ``>`` syntax is
     provided to make this easy.
 
     For example, to assign the result to a value of type ``BaseClass``, you
     could write either of these::
 
-      BaseClass b = !getop<BaseClass>(someDag);
-      BaseClass b = !cast<BaseClass>(!getop(someDag));
+      BaseClass b = !getdagop<BaseClass>(someDag);
+      BaseClass b = !cast<BaseClass>(!getdagop(someDag));
 
     But to create a new DAG node that reuses the operator from another, no
     cast is necessary::
 
-      dag d = !dag(!getop(someDag), args, names);
+      dag d = !dag(!getdagop(someDag), args, names);
 
 ``!gt(``\ *a*\ `,` *b*\ ``)``
     This operator produces 1 if *a* is greater than *b*; 0 otherwise.
@@ -1578,6 +1616,12 @@ and non-0 as true.
   This operator evaluates the *test*, which must produce a ``bit`` or
   ``int``. If the result is not 0, the *then* expression is produced; otherwise
   the *else* expression is produced.
+
+``!interleave(``\ *list*\ ``,`` *delim*\ ``)``
+    This operator concatenates the items in the *list*, interleaving the
+    *delim* string between each pair, and produces the resulting string.
+    The list can be a list of string, int, bits, or bit. An empty list
+    results in an empty string. The delimiter can be the empty string.
 
 ``!isa<``\ *type*\ ``>(``\ *a*\ ``)``
     This operator produces 1 if the type of *a* is a subtype of the given *type*; 0
@@ -1620,11 +1664,11 @@ and non-0 as true.
     result. A logical OR can be performed if all the arguments are either
     0 or 1.
 
-``!setop(``\ *dag*\ ``,`` *op*\ ``)``
+``!setdagop(``\ *dag*\ ``,`` *op*\ ``)``
     This operator produces a DAG node with the same arguments as *dag*, but with its
     operator replaced with *op*.
 
-    Example: ``!setop((foo 1, 2), bar)`` results in ``(bar 1, 2)``.
+    Example: ``!setdagop((foo 1, 2), bar)`` results in ``(bar 1, 2)``.
 
 ``!shl(``\ *a*\ ``,`` *count*\ ``)``
     This operator shifts *a* left logically by *count* bits and produces the resulting
@@ -1649,17 +1693,15 @@ and non-0 as true.
     This operator concatenates the string arguments *str1*, *str2*, etc., and
     produces the resulting string.
 
-*str1*\ ``#``\ *str2*
-    The paste operator (``#``) is a shorthand for
-    ``!strconcat`` with two arguments.  It can be used to concatenate operands that
-    are not strings, in which
-    case an implicit ``!cast<string>`` is done on those operands.
+``!sub(``\ *a*\ ``,`` *b*\ ``)``
+    This operator subtracts *b* from *a* and produces the arithmetic difference.
 
 ``!subst(``\ *target*\ ``,`` *repl*\ ``,`` *value*\ ``)``
     This operator replaces all occurrences of the *target* in the *value* with
-    the *repl* and produces the resulting value. For strings, this is straightforward.
+    the *repl* and produces the resulting value. The *value* can
+    be a string, in which case substring substitution is performed.
 
-    If the arguments are record names, the function produces the *repl*
+    The *value* can be a record name, in which case the operator produces the *repl*
     record if the *target* record name equals the *value* record name; otherwise it
     produces the *value*.
 
@@ -1672,8 +1714,61 @@ and non-0 as true.
     the result. A logical XOR can be performed if all the arguments are either
     0 or 1.
 
+Appendix B: Paste Operator Examples
+===================================
 
-Appendix B: Sample Record
+Here is an example illustrating the use of the paste operator in record names.
+
+.. code-block:: text
+
+  defvar suffix = "_suffstring";
+  defvar some_ints = [0, 1, 2, 3];
+
+  def name # suffix {
+  }
+
+  foreach i = [1, 2] in {
+  def rec # i {
+  }
+  }
+
+The first ``def`` does not use the value of the ``suffix`` variable. The
+second def does use the value of the ``i`` iterator variable, because it is not a
+global name. The following records are produced.
+
+.. code-block:: text
+
+  def namesuffix {
+  }
+  def rec1 {
+  }
+  def rec2 {
+  }
+
+Here is a second example illustrating the paste operator in field value expressions.
+
+.. code-block:: text
+
+  def test {
+    string strings = suffix # suffix;
+    list<int> integers = some_ints # [4, 5, 6];
+  }
+
+The ``strings`` field expression uses ``suffix`` on both sides of the paste
+operator. It is evaluated normally on the left hand side, but taken verbatim
+on the right hand side. The ``integers`` field expression uses the value of
+the ``some_ints`` variable and a literal list. The following record is
+produced.
+
+.. code-block:: text
+
+  def test {
+    string strings = "_suffstringsuffix";
+    list<int> ints = [0, 1, 2, 3, 4, 5, 6];
+  }
+
+
+Appendix C: Sample Record
 =========================
 
 One target machine supported by LLVM is the Intel x86. The following output

@@ -48,6 +48,7 @@
 
 #include "SPIRVEnum.h"
 #include "spirv.hpp"
+#include "spirv_internal.hpp"
 
 using namespace spv;
 
@@ -56,7 +57,7 @@ namespace SPIRV {
 template <> inline void SPIRVMap<LinkageType, std::string>::init() {
   add(LinkageTypeExport, "Export");
   add(LinkageTypeImport, "Import");
-  add(LinkageTypeInternal, "Internal");
+  add(internal::LinkageTypeInternal, "Internal");
   add(LinkageTypeMax, "Max");
 }
 SPIRV_DEF_NAMEMAP(LinkageType, SPIRVLinkageTypeNameMap)
@@ -163,6 +164,7 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationIOPipeStorageINTEL, "IOPipeStorageINTEL");
   add(DecorationFunctionFloatingPointModeINTEL,
       "FunctionFloatingPointModeINTEL");
+  add(DecorationSingleElementVectorINTEL, "SingleElementVectorINTEL");
   add(DecorationVectorComputeCallableFunctionINTEL,
       "VectorComputeCallableFunctionINTEL");
   add(DecorationMax, "Max");

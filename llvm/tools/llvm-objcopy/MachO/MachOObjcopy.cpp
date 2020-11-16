@@ -183,8 +183,8 @@ static Error processLoadCommands(const CopyConfig &Config, Object &Obj) {
                                "no LC_RPATH load command with path: " + Old);
     if (RPaths.count(New) != 0)
       return createStringError(errc::invalid_argument,
-                               "rpath " + New +
-                                   " would create a duplicate load command");
+                               "rpath '" + New +
+                                   "' would create a duplicate load command");
   }
 
   // Update load commands.
@@ -222,11 +222,27 @@ static Error processLoadCommands(const CopyConfig &Config, Object &Obj) {
   for (StringRef RPath : Config.RPathToAdd) {
     if (RPaths.count(RPath) != 0)
       return createStringError(errc::invalid_argument,
-                               "rpath " + RPath +
-                                   " would create a duplicate load command");
+                               "rpath '" + RPath +
+                                   "' would create a duplicate load command");
     RPaths.insert(RPath);
     Obj.LoadCommands.push_back(buildRPathLoadCommand(RPath));
   }
+
+  for (StringRef RPath : Config.RPathToPrepend) {
+    if (RPaths.count(RPath) != 0)
+      return createStringError(errc::invalid_argument,
+                               "rpath '" + RPath +
+                                   "' would create a duplicate load command");
+
+    RPaths.insert(RPath);
+    Obj.LoadCommands.insert(Obj.LoadCommands.begin(),
+                            buildRPathLoadCommand(RPath));
+  }
+
+  // Unlike appending rpaths, the indexes of subsequent load commands must
+  // be recalculated after prepending one.
+  if (!Config.RPathToPrepend.empty())
+    Obj.updateLoadCommandIndexes();
 
   return Error::success();
 }
@@ -289,7 +305,7 @@ static Error addSection(StringRef SecName, StringRef Filename, Object &Obj) {
 // isValidMachOCannonicalName returns success if Name is a MachO cannonical name
 // ("<segment>,<section>") and lengths of both segment and section names are
 // valid.
-Error isValidMachOCannonicalName(StringRef Name) {
+static Error isValidMachOCannonicalName(StringRef Name) {
   if (Name.count(',') != 1)
     return createStringError(errc::invalid_argument,
                              "invalid section name '%s' (should be formatted "

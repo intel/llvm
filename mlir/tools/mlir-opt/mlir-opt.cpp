@@ -44,7 +44,6 @@ void registerTestAffineDataCopyPass();
 void registerTestAffineLoopParametricTilingPass();
 void registerTestAffineLoopUnswitchingPass();
 void registerTestAllReduceLoweringPass();
-void registerTestBufferPlacementPreparationPass();
 void registerTestCallGraphPass();
 void registerTestConstantFold();
 void registerTestConvVectorization();
@@ -53,13 +52,16 @@ void registerTestConvertGPUKernelToHsacoPass();
 void registerTestDominancePass();
 void registerTestDialect(DialectRegistry &);
 void registerTestDynamicPipelinePass();
+void registerTestExpandMemRefReshapePass();
 void registerTestExpandTanhPass();
+void registerTestFinalizingBufferizePass();
 void registerTestFunc();
 void registerTestGpuMemoryPromotionPass();
 void registerTestGpuParallelLoopMappingPass();
 void registerTestInterfaces();
 void registerTestLinalgCodegenStrategy();
 void registerTestLinalgFusionTransforms();
+void registerTestLinalgGreedyFusion();
 void registerTestLinalgHoisting();
 void registerTestLinalgTransforms();
 void registerTestLivenessPass();
@@ -77,6 +79,7 @@ void registerTestPrintNestingPass();
 void registerTestRecursiveTypesPass();
 void registerTestReducer();
 void registerTestSpirvEntryPointABIPass();
+void registerTestSpirvModuleCombinerPass();
 void registerTestSCFUtilsPass();
 void registerTestTraitsPass();
 void registerTestVectorConversions();
@@ -110,15 +113,17 @@ void registerTestPasses() {
   registerTestConvertGPUKernelToHsacoPass();
 #endif
   registerTestAffineLoopParametricTilingPass();
-  registerTestBufferPlacementPreparationPass();
   registerTestDominancePass();
   registerTestDynamicPipelinePass();
+  registerTestFinalizingBufferizePass();
   registerTestFunc();
   registerTestExpandTanhPass();
+  registerTestExpandMemRefReshapePass();
   registerTestGpuMemoryPromotionPass();
   registerTestInterfaces();
   registerTestLinalgCodegenStrategy();
   registerTestLinalgFusionTransforms();
+  registerTestLinalgGreedyFusion();
   registerTestLinalgHoisting();
   registerTestLinalgTransforms();
   registerTestLivenessPass();
@@ -136,6 +141,7 @@ void registerTestPasses() {
   registerTestReducer();
   registerTestGpuParallelLoopMappingPass();
   registerTestSpirvEntryPointABIPass();
+  registerTestSpirvModuleCombinerPass();
   registerTestSCFUtilsPass();
   registerTestTraitsPass();
   registerTestVectorConversions();
@@ -144,7 +150,6 @@ void registerTestPasses() {
 #endif
 
 int main(int argc, char **argv) {
-  registerAllDialects();
   registerAllPasses();
 #ifdef MLIR_INCLUDE_TESTS
   registerTestPasses();
