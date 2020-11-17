@@ -1172,6 +1172,16 @@ def SYCLRegisterNum : InheritableAttr {
   let PragmaAttributeSupport = 0;
 }
 
+// Used to mark ESIMD kernel pointer parameters originating from accessors.
+def SYCLSimdAccessorPtr : InheritableAttr {
+  // No spelling, as this attribute can't be created in the source code.
+  let Spellings = [];
+  let Subjects = SubjectList<[ParmVar]>;
+  let LangOpts = [SYCLExplicitSIMD];
+  let Documentation = [SYCLSimdAccessorPtrDocs];
+  let PragmaAttributeSupport = 0;
+}
+
 def SYCLScope : Attr {
   // No spelling, as this attribute can't be created in the source code.
   let Spellings = [];
