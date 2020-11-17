@@ -16,21 +16,8 @@ namespace sycl {
 namespace detail {
 void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
                   void *HostPtr, RT::PiEvent &OutEventToWait) {
-  // Always attempt to reuse a read-write user pointer for the host allocation.
-  if (Context->is_host() && !BaseT::MOpenCLInterop && !BaseT::MHostPtrReadOnly)
-    InitFromUserData = true;
-  // The host pointer for the allocation can be provided in 2 ways:
-  // 1. Initialize the allocation from user data. Check if the user pointer is
-  // read-only.
-  // 2. Use a HostPtr allocated by the runtime. Assume any such pointer to be
-  // read-write.
-  bool HostPtrReadOnly = false;
-  if (InitFromUserData) {
-    assert(!HostPtr && "Cannot init from user data and reuse host ptr provided "
-                       "simultaneously");
-    HostPtr = BaseT::getUserPtr();
-    HostPtrReadOnly = BaseT::MHostPtrReadOnly;
-  }
+  bool HostPtrReadOnly;
+  BaseT::determineHostPtr(Context, InitFromUserData, HostPtr, HostPtrReadOnly);
 
   assert(!(nullptr == HostPtr && BaseT::useHostPtr() && Context->is_host()) &&
          "Internal error. Allocating memory on the host "

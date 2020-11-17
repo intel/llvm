@@ -605,7 +605,7 @@ Scheduler::GraphBuilder::findAllocaForReq(MemObjRecord *Record,
   return (Record->MAllocaCommands.end() != It) ? *It : nullptr;
 }
 
-static bool checkHostUnifiedMemory(ContextImplPtr Ctx) {
+static bool checkHostUnifiedMemory(const ContextImplPtr &Ctx) {
   for (device Device : Ctx->getDevices()) {
     if (!Device.get_info<info::device::host_unified_memory>())
       return false;
@@ -643,15 +643,18 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
                                 Req->MSYCLMemObj, Req->MDims, Req->MElemSize,
                                 0 /*ReMOffsetInBytes*/, false /*MIsSubBuffer*/,
                                 Req->MIsESIMDAcc);
-      // Can reuse user data for the first allocation. If the underlying device
-      // does not support unified host memory the data will be copied rather
-      // than used, check if the access mode allows the copy to be skipped.
+      // Can reuse user data for the first allocation. Do so if host unified
+      // memory is supported regardless of the access mode (the pointer will be
+      // reused) or if it's not and the access mode is not discard (the pointer
+      // will be copied).
+      // TODO the case where the first alloca is made with a discard mode and
+      // the user pointer is read-only is still not handled: it leads to
+      // unnecessary copy on devices with unified host memory support.
       const bool InitFromUserData =
           Record->MAllocaCommands.empty() &&
-          !(!Queue->is_host() &&
-            !checkHostUnifiedMemory(Queue->getContextImplPtr()) &&
-            (Req->MAccessMode == access::mode::discard_write ||
-             Req->MAccessMode == access::mode::discard_read_write));
+          (checkHostUnifiedMemory(Queue->getContextImplPtr()) ||
+           (Req->MAccessMode != access::mode::discard_write &&
+            Req->MAccessMode != access::mode::discard_read_write));
 
       AllocaCommandBase *LinkedAllocaCmd = nullptr;
       // If it is not the first allocation, try to setup a link
