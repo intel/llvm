@@ -161,8 +161,8 @@ template <int Dims> struct NotIntMsg<id<Dims>> {
 
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
 template <typename T, typename ValT>
-typename std::enable_if<std::is_same<ValT, size_t>::value ||
-                        std::is_same<ValT, unsigned long long>::value>::type
+typename detail::enable_if_t<std::is_same<ValT, size_t>::value ||
+                             std::is_same<ValT, unsigned long long>::value>
 checkValueRangeImpl(ValT V) {
   static constexpr size_t Limit =
       static_cast<size_t>((std::numeric_limits<int>::max)());
@@ -172,8 +172,8 @@ checkValueRangeImpl(ValT V) {
 #endif
 
 template <int Dims, typename T>
-typename std::enable_if<std::is_same<T, range<Dims>>::value ||
-                        std::is_same<T, id<Dims>>::value>::type
+typename detail::enable_if_t<std::is_same<T, range<Dims>>::value ||
+                             std::is_same<T, id<Dims>>::value>
 checkValueRange(const T &V) {
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
   for (size_t Dim = 0; Dim < Dims; ++Dim)
@@ -210,7 +210,7 @@ void checkValueRange(const range<Dims> &R, const id<Dims> &O) {
 }
 
 template <int Dims, typename T>
-typename std::enable_if<std::is_same<T, nd_range<Dims>>::value>::type
+typename detail::enable_if_t<std::is_same<T, nd_range<Dims>>::value>
 checkValueRange(const T &V) {
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
   checkValueRange<Dims>(V.get_global_range());
@@ -299,8 +299,8 @@ private:
       : MQueue(std::move(Queue)), MIsHost(IsHost) {}
 
   /// Stores copy of Arg passed to the MArgsStorage.
-  template <typename T, typename F = typename std::remove_const<
-                            typename std::remove_reference<T>::type>::type>
+  template <typename T, typename F = typename detail::remove_const_t<
+                            typename detail::remove_reference_t<T>>>
   F *storePlainArg(T &&Arg) {
     MArgsStorage.emplace_back(sizeof(T));
     auto Storage = reinterpret_cast<F *>(MArgsStorage.back().data());
@@ -411,7 +411,7 @@ private:
   // setArgHelper for non local accessor argument.
   template <typename DataT, int Dims, access::mode AccessMode,
             access::target AccessTarget, access::placeholder IsPlaceholder>
-  typename std::enable_if<AccessTarget != access::target::local, void>::type
+  typename detail::enable_if_t<AccessTarget != access::target::local, void>
   setArgHelper(
       int ArgIndex,
       accessor<DataT, Dims, AccessMode, AccessTarget, IsPlaceholder> &&Arg) {
@@ -642,7 +642,7 @@ private:
     parallel_for<class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
         (Range, [=](id<Dim> Index) {
       const size_t LinearIndex = detail::getLinearIndex(Index, Range);
-      using TSrcNonConst = typename std::remove_const<TSrc>::type;
+      using TSrcNonConst = typename detail::remove_const_t<TSrc>;
       (reinterpret_cast<TSrcNonConst *>(Dst))[LinearIndex] = Src[Index];
     });
   }
@@ -659,7 +659,7 @@ private:
                    TDst *Dst) {
     single_task<class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
         ([=]() {
-      using TSrcNonConst = typename std::remove_const<TSrc>::type;
+      using TSrcNonConst = typename detail::remove_const_t<TSrc>;
       *(reinterpret_cast<TSrcNonConst *>(Dst)) = readFromFirstAccElement(Src);
     });
   }
@@ -732,9 +732,9 @@ private:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
     using TransformedArgType =
-        typename std::conditional<std::is_integral<LambdaArgType>::value &&
-                                      Dims == 1,
-                                  item<Dims>, LambdaArgType>::type;
+        typename detail::conditional_t<std::is_integral<LambdaArgType>::value &&
+                                           Dims == 1,
+                                       item<Dims>, LambdaArgType>;
 #ifdef __SYCL_DEVICE_ONLY__
     (void)NumWorkItems;
     kernel_parallel_for<NameT, TransformedArgType>(KernelFunc);
@@ -849,7 +849,7 @@ public:
 
   template <typename T>
   using remove_cv_ref_t =
-      typename std::remove_cv<detail::remove_reference_t<T>>::type;
+      typename detail::remove_cv_t<detail::remove_reference_t<T>>;
 
   template <typename U, typename T>
   using is_same_type = std::is_same<remove_cv_ref_t<U>, remove_cv_ref_t<T>>;
@@ -873,7 +873,7 @@ public:
   /// \param ArgIndex is a positional number of argument to be set.
   /// \param Arg is an argument value to be set.
   template <typename T>
-  typename std::enable_if<ShouldEnableSetArg<T>::value, void>::type
+  typename detail::enable_if_t<ShouldEnableSetArg<T>::value, void>
   set_arg(int ArgIndex, T &&Arg) {
     setArgHelper(ArgIndex, std::move(Arg));
   }

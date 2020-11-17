@@ -195,13 +195,13 @@ public:
   char *getPtr() override { return reinterpret_cast<char *>(&MKernel); }
 
   template <class ArgT = KernelArgType>
-  typename std::enable_if<std::is_same<ArgT, void>::value>::type
+  typename detail::enable_if_t<std::is_same<ArgT, void>::value>
   runOnHost(const NDRDescT &) {
     MKernel();
   }
 
   template <class ArgT = KernelArgType>
-  typename std::enable_if<std::is_same<ArgT, sycl::id<Dims>>::value>::type
+  typename detail::enable_if_t<std::is_same<ArgT, sycl::id<Dims>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
     sycl::id<Dims> Offset;
@@ -220,8 +220,8 @@ public:
   }
 
   template <class ArgT = KernelArgType>
-  typename std::enable_if<
-      std::is_same<ArgT, item<Dims, /*Offset=*/false>>::value>::type
+  typename detail::enable_if_t<
+      std::is_same<ArgT, item<Dims, /*Offset=*/false>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
     sycl::id<Dims> ID;
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
@@ -239,8 +239,8 @@ public:
   }
 
   template <class ArgT = KernelArgType>
-  typename std::enable_if<
-      std::is_same<ArgT, item<Dims, /*Offset=*/true>>::value>::type
+  typename detail::enable_if_t<
+      std::is_same<ArgT, item<Dims, /*Offset=*/true>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
     sycl::id<Dims> Offset;
@@ -260,7 +260,7 @@ public:
   }
 
   template <class ArgT = KernelArgType>
-  typename std::enable_if<std::is_same<ArgT, nd_item<Dims>>::value>::type
+  typename detail::enable_if_t<std::is_same<ArgT, nd_item<Dims>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
     sycl::range<Dims> GroupSize(InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I) {

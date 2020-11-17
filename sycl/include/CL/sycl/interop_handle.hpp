@@ -44,11 +44,11 @@ public:
   /// asynchronously.
   template <backend BackendName = backend::opencl, typename DataT, int Dims,
             access::mode Mode, access::target Target, access::placeholder IsPlh>
-  typename std::enable_if<
+  typename detail::enable_if_t<
       Target == access::target::global_buffer ||
           Target == access::target::constant_buffer,
       typename interop<BackendName,
-                       accessor<DataT, Dims, Mode, Target, IsPlh>>::type>::type
+                       accessor<DataT, Dims, Mode, Target, IsPlh>>::type>
   get_native_mem(const accessor<DataT, Dims, Mode, Target, IsPlh> &Acc) const {
 #ifndef __SYCL_DEVICE_ONLY__
     const auto *AccBase = static_cast<const detail::AccessorBaseHost *>(&Acc);
@@ -63,12 +63,12 @@ public:
 
   template <backend BackendName = backend::opencl, typename DataT, int Dims,
             access::mode Mode, access::target Target, access::placeholder IsPlh>
-  typename std::enable_if<
+  typename detail::enable_if_t<
       !(Target == access::target::global_buffer ||
         Target == access::target::constant_buffer),
-      typename interop<BackendName, accessor<DataT, Dims, Mode,
-                                             access::target::global_buffer,
-                                             IsPlh>>::type>::type
+      typename interop<BackendName,
+                       accessor<DataT, Dims, Mode,
+                                access::target::global_buffer, IsPlh>>::type>
   get_native_mem(const accessor<DataT, Dims, Mode, Target, IsPlh> &) const {
     throw invalid_object_error("Getting memory object out of accessor for "
                                "specified target is not allowed",
