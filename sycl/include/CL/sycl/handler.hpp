@@ -765,8 +765,13 @@ private:
         (KI::getName() == nullptr || KI::getName()[0] == '\0') ||
         (KI::callsThisItem());
 
+    // Perform range rounding if rounding-up is enabled
+    // and the user-specified range is not a multiple of a "good" value.
     if (!DisableRounding && NumWorkItems[0] % GoodLocalSizeX != 0) {
-      // Range is not a multiple and rounding-up is allowed
+      // It is sufficient to round up just the first dimension.
+      // Multiplying the rounded-up value of the first dimension
+      // by the values of the remaining dimensions (if any)
+      // will yield a rounded-up value for the total range.
       size_t NewValX =
           ((NumWorkItems[0] + GoodLocalSizeX - 1) / GoodLocalSizeX) *
           GoodLocalSizeX;
