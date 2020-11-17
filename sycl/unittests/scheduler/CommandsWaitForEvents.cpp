@@ -71,7 +71,6 @@ TEST_F(SchedulerTest, CommandsWaitForEvents) {
     return;
   }
 
-
   platform Plt{Selector};
   unittest::PiMock Mock{Plt};
 
