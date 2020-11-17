@@ -4206,7 +4206,7 @@ class OffloadingActionBuilder final {
               C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment());
         }
 
-        Action* FullDeviceLinkAction = nullptr;
+        Action *FullDeviceLinkAction = nullptr;
         if (SYCLDeviceLibLinked)
           FullDeviceLinkAction =
               C.MakeAction<LinkJobAction>(FullLinkObjects, types::TY_LLVM_BC);
