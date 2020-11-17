@@ -1,7 +1,6 @@
 // UNSUPPORTED: windows
-// UNSUPPORTED: cuda || level_zero
+// UNSUPPORTED: cuda
 // CUDA does not support the function pointer as kernel argument extension.
-// Hangs on level zero
 
 // RUN: %clangxx -Xclang -fsycl-allow-func-ptr -std=c++14 -fsycl %s -o %t.out
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
