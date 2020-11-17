@@ -38,7 +38,8 @@ public:
 
 static cl::sycl::device getDeviceWithHostUnifiedMemory() {
   for (cl::sycl::device &D : cl::sycl::device::get_devices()) {
-    if (!D.is_host() && D.get_info<cl::sycl::info::device::host_unified_memory>())
+    if (!D.is_host() &&
+        D.get_info<cl::sycl::info::device::host_unified_memory>())
       return D;
   }
   return {};
@@ -47,7 +48,8 @@ static cl::sycl::device getDeviceWithHostUnifiedMemory() {
 TEST_F(SchedulerTest, LinkedAllocaDependencies) {
   cl::sycl::device Dev = getDeviceWithHostUnifiedMemory();
   if (Dev.is_host()) {
-    std::cerr << "Not run: no non-host devices with host unified memory support" << std::endl;
+    std::cerr << "Not run: no non-host devices with host unified memory support"
+              << std::endl;
     return;
   }
 
