@@ -279,24 +279,25 @@ command:
 ### Obtain prerequisites for ahead of time (AOT) compilation
 
 [Ahead of time compilation](CompilerAndRuntimeDesign.md#ahead-of-time-aot-compilation)
-requires OpenCL ahead of time compiler available in `PATH`. There is
-AOT compiler for each OpenCL device type (`GPU`, `CPU` and `Accelerator`).
+requires ahead of time compiler available in `PATH`. There is
+AOT compiler for each device type (`GPU`, `CPU` and `Accelerator` (FPGA or
+FPGA emulation)).
 
 #### GPU
 
 * Linux
 
-  There are two ways how to obtain AOT GPU compiler `ocloc`:
+  There are two ways how to obtain GPU AOT compiler `ocloc`:
   * (Ubuntu) Download and install intel-ocloc_***.deb package from
     [intel/compute-runtime releases](https://github.com/intel/compute-runtime/releases).
-    This package should have the same version as OpenCL GPU runtime installed
-    on the system.
+    This package should have the same version as Level Zero / OpenCL GPU
+    runtimes installed on the system.
   * (other distros) `ocloc` is a part of
     [Intel&reg; software packages for general purpose GPU capabilities](https://dgpu-docs.intel.com/index.html).
 
 * Windows
 
-  * AOT GPU compiler `ocloc` is a part of
+  * GPU AOT compiler `ocloc` is a part of
     [Intel&reg; oneAPI Base Toolkit](https://software.intel.com/content/www/us/en/develop/tools/oneapi/base-toolkit.html)
     (Intel&reg; oneAPI DPC++/C++ Compiler component).  
     Make sure that the following path to `ocloc` binary is available in `PATH`
@@ -306,12 +307,12 @@ AOT compiler for each OpenCL device type (`GPU`, `CPU` and `Accelerator`).
 
 #### CPU
 
-* AOT CPU compiler `opencl-aot` is enabled by default. For more, see
+* CPU AOT compiler `opencl-aot` is enabled by default. For more, see
 [opencl-aot documentation](../../opencl-aot/README.md).
 
 #### Accelerator
 
-* AOT Accelerator compiler `aoc` is a part of
+* Accelerator AOT compiler `aoc` is a part of
 [Intel&reg; oneAPI Base Toolkit](https://software.intel.com/content/www/us/en/develop/tools/oneapi/base-toolkit.html)
 (Intel&reg; oneAPI DPC++/C++ Compiler component).  
 Make sure that these binaries are available in `PATH` environment variable:
@@ -480,8 +481,8 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda-sycldevice \
   simple-sycl-app.cpp -o simple-sycl-app-cuda.exe
 ```
 
-To build simple-sycl-app ahead of time for GPU, CPU or ACC devices, specify
-the target architecture:
+To build simple-sycl-app ahead of time for GPU, CPU or Accelerator devices,
+specify the target architecture:
 
 ```-fsycl-targets=spir64_gen-unknown-unknown-sycldevice``` for GPU,  
 ```-fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice``` for CPU,  
@@ -501,9 +502,9 @@ the DPC++ compiler using ```-Xsycl-target-backend``` option, see
 [Device code formats](CompilerAndRuntimeDesign.md#device-code-formats) for
 more. To find available options, execute:
 
-```bash
-clang++ -fsycl-help
-```
+```ocloc compile --help``` for GPU,
+```opencl-aot --help``` for CPU,
+```aoc -help -sycl``` for Accelerator.
 
 The `simple-sycl-app.exe` application doesn't specify SYCL device for
 execution, so SYCL runtime will use `default_selector` logic to select one
