@@ -50,14 +50,9 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
     DEPENDEES install
   )
 
-  install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/level_zero_loader_install/lib/"
-    DESTINATION "lib"
+  install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/level_zero_loader_install/"
+    DESTINATION "."
     COMPONENT level-zero-loader
-  )
-
-  install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/level_zero_loader_install/include/"
-    DESTINATION "include/sycl/"
-    COMPONENT level-zero-headers
   )
 
   set(LEVEL_ZERO_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/level_zero_loader_install/include/)
@@ -82,16 +77,6 @@ else()
       DEPENDS
 	  ${LEVEL_ZERO_LIBRARY}
           ${LEVEL_ZERO_INCLUDE_DIR}
-  )
-
-  install(FILES ${LEVEL_ZERO_LIBRARY_SRC}
-    DESTINATION "lib"
-    COMPONENT level-zero-loader
-  )
-
-  install(DIRECTORY ${LEVEL_ZERO_INCLUDE_DIR}/level_zero
-    DESTINATION "include/sycl"
-    COMPONENT level-zero-headers
   )
 endif()
 

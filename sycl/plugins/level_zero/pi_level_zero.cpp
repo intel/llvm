@@ -423,6 +423,20 @@ pi_result _pi_device::initialize() {
   return PI_SUCCESS;
 }
 
+pi_result _pi_context::initialize() {
+  // Create the immediate command list to be used for initializations
+  // Created as synchronous so level-zero performs implicit synchronization and
+  // there is no need to query for completion in the plugin
+  ze_command_queue_desc_t ZeCommandQueueDesc = {};
+  ZeCommandQueueDesc.ordinal = Devices[0]->ZeComputeQueueGroupIndex;
+  ZeCommandQueueDesc.index = 0;
+  ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS;
+  ZE_CALL(zeCommandListCreateImmediate(ZeContext, Devices[0]->ZeDevice,
+                                       &ZeCommandQueueDesc,
+                                       &ZeCommandListInit));
+  return PI_SUCCESS;
+}
+
 pi_result
 _pi_queue::resetCommandListFenceEntry(ze_command_list_handle_t ZeCommandList,
                                       bool MakeAvailable) {
@@ -1658,28 +1672,18 @@ pi_result piContextCreate(const pi_context_properties *Properties,
 
   assert(RetContext);
 
+  ze_context_desc_t ContextDesc = {ZE_STRUCTURE_TYPE_CONTEXT_DESC, nullptr, 0};
+  ze_context_handle_t ZeContext;
+  ZE_CALL(zeContextCreate((*Devices)->Platform->ZeDriver, &ContextDesc,
+                          &ZeContext));
   try {
-    *RetContext = new _pi_context(NumDevices, Devices);
+    *RetContext = new _pi_context(NumDevices, Devices, ZeContext);
+    (*RetContext)->initialize();
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
-
-  ze_context_desc_t ContextDesc = {ZE_STRUCTURE_TYPE_CONTEXT_DESC, nullptr, 0};
-  ZE_CALL(zeContextCreate((*Devices)->Platform->ZeDriver, &ContextDesc,
-                          &((*RetContext)->ZeContext)));
-
-  // Create the immediate command list to be used for initializations
-  // Created as synchronous so level-zero performs implicit synchronization and
-  // there is no need to query for completion in the plugin
-  ze_command_queue_desc_t ZeCommandQueueDesc = {};
-  ZeCommandQueueDesc.ordinal = (*Devices)->ZeComputeQueueGroupIndex;
-  ZeCommandQueueDesc.index = 0;
-  ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS;
-  ZE_CALL(zeCommandListCreateImmediate(
-      (*RetContext)->ZeContext, (*Devices)->ZeDevice, &ZeCommandQueueDesc,
-      (&(*RetContext)->ZeCommandListInit)));
 
   return PI_SUCCESS;
 }
@@ -1738,25 +1742,14 @@ pi_result piextContextCreateWithNativeHandle(pi_uint32 NumDevices,
   }
 
   try {
-    *RetContext = new _pi_context(NumDevices, Devices);
+    *RetContext = new _pi_context(NumDevices, Devices,
+                                  pi_cast<ze_context_handle_t>(NativeHandle));
+    (*RetContext)->initialize();
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
-
-  (*RetContext)->ZeContext = pi_cast<ze_context_handle_t>(NativeHandle);
-
-  // Create the immediate command list to be used for initializations
-  // Created as synchronous so level-zero performs implicit synchronization and
-  // there is no need to query for completion in the plugin
-  ze_command_queue_desc_t ZeCommandQueueDesc = {};
-  ZeCommandQueueDesc.ordinal = (*Devices)->ZeComputeQueueGroupIndex;
-  ZeCommandQueueDesc.index = 0;
-  ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS;
-  ZE_CALL(zeCommandListCreateImmediate(
-      (*RetContext)->ZeContext, (*Devices)->ZeDevice, &ZeCommandQueueDesc,
-      (&(*RetContext)->ZeCommandListInit)));
 
   return PI_SUCCESS;
 }

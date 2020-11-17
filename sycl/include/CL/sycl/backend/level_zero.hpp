@@ -9,7 +9,8 @@
 #pragma once
 
 #include <CL/sycl.hpp>
-#include <level_zero/ze_api.h>
+// This header should be included by users.
+//#include <level_zero/ze_api.h>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -76,7 +77,11 @@ T make(const platform &Platform,
   return make_device(Platform, reinterpret_cast<pi_native_handle>(Interop));
 }
 
-// Construction of SYCL context.
+/// Construction of SYCL context.
+/// \param DeviceList is a vector of devices which must be encapsulated by
+///        created SYCL context. Provided devices and native context handle must
+///        be associated with the same platform.
+/// \param Interop is a Level Zero native context handle.
 template <typename T, typename std::enable_if<
                           std::is_same<T, context>::value>::type * = nullptr>
 T make(const vector_class<device> &DeviceList,

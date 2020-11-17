@@ -51,7 +51,7 @@ __SYCL_EXPORT context make_context(const vector_class<device> &DeviceList,
                                    pi_native_handle NativeHandle) {
   const auto &Plugin = pi::getPlugin<backend::level_zero>();
   // Create PI context first.
-  pi::PiContext PiContext;
+  pi_context PiContext;
   vector_class<pi_device> DeviceHandles;
   for (auto Dev : DeviceList) {
     DeviceHandles.push_back(detail::getSyclObjImpl(Dev)->getHandleRef());
