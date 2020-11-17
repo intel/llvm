@@ -60,6 +60,8 @@ static pi_result redefinedEnqueueMemBufferWriteRect(
   return PI_SUCCESS;
 }
 
+static pi_result redefinedMemRelease(pi_mem mem) { return PI_SUCCESS; }
+
 TEST_F(SchedulerTest, NoUnifiedHostMemory) {
   platform Plt{default_selector()};
   if (Plt.is_host()) {
@@ -75,6 +77,7 @@ TEST_F(SchedulerTest, NoUnifiedHostMemory) {
       redefinedEnqueueMemBufferReadRect);
   Mock.redefine<detail::PiApiKind::piEnqueueMemBufferWriteRect>(
       redefinedEnqueueMemBufferWriteRect);
+  Mock.redefine<detail::PiApiKind::piMemRelease>(redefinedMemRelease);
   cl::sycl::detail::QueueImplPtr QImpl = detail::getSyclObjImpl(Q);
 
   device HostDevice;
