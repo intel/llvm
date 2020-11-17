@@ -5,7 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
 #include "SYCL.h"
 #include "CommonArgs.h"
 #include "InputInfo.h"
@@ -101,6 +100,17 @@ const char *SYCL::Linker::constructLLVMLinkCommand(Compilation &C,
     StringRef SubArchName, StringRef OutputFilePrefix,
     const InputInfoList &InputFiles) const {
   ArgStringList CmdArgs;
+
+  bool LinkSYCLDeviceLibs = false;
+  bool IsMSVCEnv = C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
+  for (const auto &II : InputFiles) {
+    StringRef InputFilename = llvm::sys::path::filename(StringRef(II.getFilename()));
+    StringRef InputSuffix = IsMSVCEnv ? ".obj" : ".o";
+    if(InputFilename.startswith("libsycl-") && InputFilename.endswith(InputSuffix)) {
+      LinkSYCLDeviceLibs = true;
+      break;
+    }
+  }
   // Add the input bc's created by compile step.
   // When offloading, the input file(s) could be from unbundled partially
   // linked archives.  The unbundled information is a list of files and not
@@ -109,6 +119,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(Compilation &C,
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
+    if (LinkSYCLDeviceLibs)
+      CmdArgs.push_back("-only-needed");
     for (const auto &II : InputFiles) {
       if (II.getType() == types::TY_Tempfilelist) {
         // Pass the unbundled list with '@' to be processed.
