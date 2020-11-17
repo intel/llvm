@@ -286,7 +286,7 @@ void LinkerDriver::addLibrary(StringRef name) {
   if (Optional<std::string> path = searchLibrary(name))
     addFile(*path, /*withLOption=*/true);
   else
-    error("unable to find library -l" + name);
+    error("unable to find library -l" + name, ErrorTag::LibNotFound, {name});
 }
 
 // This function is called on startup. We need this for LTO since
@@ -944,6 +944,10 @@ static void readConfigs(opt::InputArgList &args) {
   config->enableNewDtags =
       args.hasFlag(OPT_enable_new_dtags, OPT_disable_new_dtags, true);
   config->entry = args.getLastArgValue(OPT_entry);
+
+  errorHandler().errorHandlingScript =
+      args.getLastArgValue(OPT_error_handling_script);
+
   config->executeOnly =
       args.hasFlag(OPT_execute_only, OPT_no_execute_only, false);
   config->exportDynamic =
@@ -1992,7 +1996,7 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
   // Handle -u/--undefined before input files. If both a.a and b.so define foo,
   // -u foo a.a b.so will fetch a.a.
   for (StringRef name : config->undefined)
-    addUnusedUndefined(name);
+    addUnusedUndefined(name)->referenced = true;
 
   // Add all files to the symbol table. This will add almost all
   // symbols that we need to the symbol table. This process might

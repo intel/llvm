@@ -145,6 +145,70 @@ KnownBits KnownBits::smin(const KnownBits &LHS, const KnownBits &RHS) {
   return Flip(umax(Flip(LHS), Flip(RHS)));
 }
 
+KnownBits KnownBits::shl(const KnownBits &LHS, const KnownBits &RHS) {
+  unsigned BitWidth = LHS.getBitWidth();
+  KnownBits Known(BitWidth);
+
+  // If the shift amount is a valid constant then transform LHS directly.
+  if (RHS.isConstant() && RHS.getConstant().ult(BitWidth)) {
+    unsigned Shift = RHS.getConstant().getZExtValue();
+    Known = LHS;
+    Known.Zero <<= Shift;
+    Known.One <<= Shift;
+    // Low bits are known zero.
+    Known.Zero.setLowBits(Shift);
+    return Known;
+  }
+
+  // Minimum shift amount low bits are known zero.
+  if (RHS.getMinValue().ult(BitWidth))
+    Known.Zero.setLowBits(RHS.getMinValue().getZExtValue());
+
+  // No matter the shift amount, the trailing zeros will stay zero.
+  Known.Zero.setLowBits(LHS.countMinTrailingZeros());
+  return Known;
+}
+
+KnownBits KnownBits::lshr(const KnownBits &LHS, const KnownBits &RHS) {
+  unsigned BitWidth = LHS.getBitWidth();
+  KnownBits Known(BitWidth);
+
+  if (RHS.isConstant() && RHS.getConstant().ult(BitWidth)) {
+    unsigned Shift = RHS.getConstant().getZExtValue();
+    Known = LHS;
+    Known.Zero.lshrInPlace(Shift);
+    Known.One.lshrInPlace(Shift);
+    // High bits are known zero.
+    Known.Zero.setHighBits(Shift);
+    return Known;
+  }
+
+  // Minimum shift amount high bits are known zero.
+  if (RHS.getMinValue().ult(BitWidth))
+    Known.Zero.setHighBits(RHS.getMinValue().getZExtValue());
+
+  // No matter the shift amount, the leading zeros will stay zero.
+  Known.Zero.setHighBits(LHS.countMinLeadingZeros());
+  return Known;
+}
+
+KnownBits KnownBits::ashr(const KnownBits &LHS, const KnownBits &RHS) {
+  unsigned BitWidth = LHS.getBitWidth();
+  KnownBits Known(BitWidth);
+
+  if (RHS.isConstant() && RHS.getConstant().ult(BitWidth)) {
+    unsigned Shift = RHS.getConstant().getZExtValue();
+    Known = LHS;
+    Known.Zero.ashrInPlace(Shift);
+    Known.One.ashrInPlace(Shift);
+    return Known;
+  }
+
+  // TODO: Minimum shift amount high bits are known sign bits.
+  // TODO: No matter the shift amount, the leading sign bits will stay.
+  return Known;
+}
+
 KnownBits KnownBits::abs() const {
   // If the source's MSB is zero then we know the rest of the bits already.
   if (isNonNegative())
@@ -161,6 +225,85 @@ KnownBits KnownBits::abs() const {
     KnownAbs.Zero.setSignBit();
 
   return KnownAbs;
+}
+
+KnownBits KnownBits::computeForMul(const KnownBits &LHS, const KnownBits &RHS) {
+  unsigned BitWidth = LHS.getBitWidth();
+
+  assert(!LHS.hasConflict() && !RHS.hasConflict());
+  // Compute a conservative estimate for high known-0 bits.
+  unsigned LeadZ =
+      std::max(LHS.countMinLeadingZeros() + RHS.countMinLeadingZeros(),
+               BitWidth) -
+      BitWidth;
+  LeadZ = std::min(LeadZ, BitWidth);
+
+  // The result of the bottom bits of an integer multiply can be
+  // inferred by looking at the bottom bits of both operands and
+  // multiplying them together.
+  // We can infer at least the minimum number of known trailing bits
+  // of both operands. Depending on number of trailing zeros, we can
+  // infer more bits, because (a*b) <=> ((a/m) * (b/n)) * (m*n) assuming
+  // a and b are divisible by m and n respectively.
+  // We then calculate how many of those bits are inferrable and set
+  // the output. For example, the i8 mul:
+  //  a = XXXX1100 (12)
+  //  b = XXXX1110 (14)
+  // We know the bottom 3 bits are zero since the first can be divided by
+  // 4 and the second by 2, thus having ((12/4) * (14/2)) * (2*4).
+  // Applying the multiplication to the trimmed arguments gets:
+  //    XX11 (3)
+  //    X111 (7)
+  // -------
+  //    XX11
+  //   XX11
+  //  XX11
+  // XX11
+  // -------
+  // XXXXX01
+  // Which allows us to infer the 2 LSBs. Since we're multiplying the result
+  // by 8, the bottom 3 bits will be 0, so we can infer a total of 5 bits.
+  // The proof for this can be described as:
+  // Pre: (C1 >= 0) && (C1 < (1 << C5)) && (C2 >= 0) && (C2 < (1 << C6)) &&
+  //      (C7 == (1 << (umin(countTrailingZeros(C1), C5) +
+  //                    umin(countTrailingZeros(C2), C6) +
+  //                    umin(C5 - umin(countTrailingZeros(C1), C5),
+  //                         C6 - umin(countTrailingZeros(C2), C6)))) - 1)
+  // %aa = shl i8 %a, C5
+  // %bb = shl i8 %b, C6
+  // %aaa = or i8 %aa, C1
+  // %bbb = or i8 %bb, C2
+  // %mul = mul i8 %aaa, %bbb
+  // %mask = and i8 %mul, C7
+  //   =>
+  // %mask = i8 ((C1*C2)&C7)
+  // Where C5, C6 describe the known bits of %a, %b
+  // C1, C2 describe the known bottom bits of %a, %b.
+  // C7 describes the mask of the known bits of the result.
+  const APInt &Bottom0 = LHS.One;
+  const APInt &Bottom1 = RHS.One;
+
+  // How many times we'd be able to divide each argument by 2 (shr by 1).
+  // This gives us the number of trailing zeros on the multiplication result.
+  unsigned TrailBitsKnown0 = (LHS.Zero | LHS.One).countTrailingOnes();
+  unsigned TrailBitsKnown1 = (RHS.Zero | RHS.One).countTrailingOnes();
+  unsigned TrailZero0 = LHS.countMinTrailingZeros();
+  unsigned TrailZero1 = RHS.countMinTrailingZeros();
+  unsigned TrailZ = TrailZero0 + TrailZero1;
+
+  // Figure out the fewest known-bits operand.
+  unsigned SmallestOperand =
+      std::min(TrailBitsKnown0 - TrailZero0, TrailBitsKnown1 - TrailZero1);
+  unsigned ResultBitsKnown = std::min(SmallestOperand + TrailZ, BitWidth);
+
+  APInt BottomKnown =
+      Bottom0.getLoBits(TrailBitsKnown0) * Bottom1.getLoBits(TrailBitsKnown1);
+
+  KnownBits Res(BitWidth);
+  Res.Zero.setHighBits(LeadZ);
+  Res.Zero |= (~BottomKnown).getLoBits(ResultBitsKnown);
+  Res.One = BottomKnown.getLoBits(ResultBitsKnown);
+  return Res;
 }
 
 KnownBits &KnownBits::operator&=(const KnownBits &RHS) {

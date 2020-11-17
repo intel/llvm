@@ -60,8 +60,7 @@ static const SanitizerMask AlwaysRecoverable =
     SanitizerKind::KernelAddress | SanitizerKind::KernelHWAddress;
 static const SanitizerMask NeedsLTO = SanitizerKind::CFI;
 static const SanitizerMask TrappingSupported =
-    (SanitizerKind::Undefined & ~SanitizerKind::Vptr) |
-    SanitizerKind::UnsignedIntegerOverflow | SanitizerKind::ImplicitConversion |
+    (SanitizerKind::Undefined & ~SanitizerKind::Vptr) | SanitizerKind::Integer |
     SanitizerKind::Nullability | SanitizerKind::LocalBounds |
     SanitizerKind::CFI | SanitizerKind::FloatDivideByZero |
     SanitizerKind::ObjCCast;
@@ -869,6 +868,7 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
                     D.CCCIsCXX();
 
   NeedsMemProfRt = Args.hasFlag(options::OPT_fmemory_profile,
+                                options::OPT_fmemory_profile_EQ,
                                 options::OPT_fno_memory_profile, false);
 
   // Finally, initialize the set of available and recoverable sanitizers.

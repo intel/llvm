@@ -13,11 +13,12 @@
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/IR/Identifier.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/Transforms/Bufferize.h"
 #include "llvm/ADT/SmallBitVector.h"
 
 namespace mlir {
-
-class BufferAssignmentTypeConverter;
+class BufferizeTypeConverter;
+class FrozenRewritePatternList;
 
 namespace linalg {
 
@@ -48,11 +49,10 @@ void populateConvVectorizationPatterns(
     MLIRContext *context, SmallVectorImpl<OwningRewritePatternList> &patterns,
     ArrayRef<int64_t> tileSizes);
 
-/// Populates the given list with patterns to convert Linalg operations on
-/// tensors to buffers.
-void populateConvertLinalgOnTensorsToBuffersPatterns(
-    MLIRContext *context, BufferAssignmentTypeConverter *converter,
-    OwningRewritePatternList *patterns);
+/// Populates the given list with patterns to bufferize linalg ops.
+void populateLinalgBufferizePatterns(MLIRContext *context,
+                                     BufferizeTypeConverter &converter,
+                                     OwningRewritePatternList &patterns);
 
 /// Performs standalone tiling of a single LinalgOp by `tileSizes`.
 /// and permute the loop nest according to `interchangeVector`
@@ -331,25 +331,26 @@ enum class LinalgTilingLoopType {
   AffineLoops = 1,
   ParallelLoops = 2,
 };
+
 using TileSizeComputationFunction =
     std::function<SmallVector<Value, 4>(OpBuilder &, Operation *)>;
+
 struct LinalgTilingOptions {
   /// Computation function that returns the tile sizes for each operation.
   /// Delayed construction of constant tile sizes should occur to interoperate
   /// with folding.
   TileSizeComputationFunction tileSizeComputationFunction = nullptr;
+
   LinalgTilingOptions &
-  setTileSizeComputationFunction(TileSizeComputationFunction &fun) {
-    tileSizeComputationFunction = fun;
+  setTileSizeComputationFunction(TileSizeComputationFunction fun) {
+    tileSizeComputationFunction = std::move(fun);
     return *this;
   }
   /// Set the `tileSizeComputationFunction` to return the values `ts`. The
   /// values must not fold away when tiling. Otherwise, use a more robust
   /// `tileSizeComputationFunction`.
   LinalgTilingOptions &setTileSizes(SmallVector<Value, 4> ts) {
-    tileSizeComputationFunction = [=](OpBuilder &, Operation *) {
-      return ts;
-    };
+    tileSizeComputationFunction = [=](OpBuilder &, Operation *) { return ts; };
     return *this;
   }
   /// Convenience function to set the `tileSizeComputationFunction` to a
@@ -358,13 +359,16 @@ struct LinalgTilingOptions {
   LinalgTilingOptions &setTileSizes(ArrayRef<int64_t> ts);
 
   /// The interchange vector to reorder the tiled loops.
-  SmallVector<unsigned, 4> interchangeVector{};
+  SmallVector<unsigned, 4> interchangeVector = {};
+
   LinalgTilingOptions &setInterchange(ArrayRef<unsigned> interchange) {
     interchangeVector.assign(interchange.begin(), interchange.end());
     return *this;
   }
+
   /// The type of tile loops to generate.
-  LinalgTilingLoopType loopType{LinalgTilingLoopType::Loops};
+  LinalgTilingLoopType loopType = LinalgTilingLoopType::Loops;
+
   LinalgTilingOptions &setLoopType(LinalgTilingLoopType lt) {
     loopType = lt;
     return *this;
@@ -373,9 +377,10 @@ struct LinalgTilingOptions {
   /// When specified, specifies distribution of generated tile loops to
   /// processors.
   Optional<LinalgLoopDistributionOptions> distribution = None;
+
   LinalgTilingOptions &
-  setDistributionOptions(LinalgLoopDistributionOptions &distributionOptions) {
-    distribution = distributionOptions;
+  setDistributionOptions(LinalgLoopDistributionOptions distributionOptions) {
+    distribution = std::move(distributionOptions);
     return *this;
   }
 };
@@ -754,8 +759,8 @@ public:
 //===----------------------------------------------------------------------===//
 /// Helper function to allow applying rewrite patterns, interleaved with more
 /// global transformations, in a staged fashion:
-///   1. the first stage consists of a list of OwningRewritePatternList. Each
-///   OwningRewritePatternList in this list is applied once, in order.
+///   1. the first stage consists of a list of FrozenRewritePatternList. Each
+///   FrozenRewritePatternList in this list is applied once, in order.
 ///   2. the second stage consists of a single OwningRewritePattern that is
 ///   applied greedily until convergence.
 ///   3. the third stage consists of applying a lambda, generally used for
@@ -763,8 +768,8 @@ public:
 ///   transformations where patterns can be ordered and applied at a finer
 ///   granularity than a sequence of traditional compiler passes.
 LogicalResult applyStagedPatterns(
-    Operation *op, ArrayRef<OwningRewritePatternList> stage1Patterns,
-    const OwningRewritePatternList &stage2Patterns,
+    Operation *op, ArrayRef<FrozenRewritePatternList> stage1Patterns,
+    const FrozenRewritePatternList &stage2Patterns,
     function_ref<LogicalResult(Operation *)> stage3Lambda = nullptr);
 
 } // namespace linalg

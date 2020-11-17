@@ -108,10 +108,13 @@ extern "C" void LLVM_EXTERNAL_VISIBILITY LLVMInitializeAMDGPUAsmPrinter() {
 AMDGPUAsmPrinter::AMDGPUAsmPrinter(TargetMachine &TM,
                                    std::unique_ptr<MCStreamer> Streamer)
   : AsmPrinter(TM, std::move(Streamer)) {
-    if (IsaInfo::hasCodeObjectV3(getGlobalSTI()))
-      HSAMetadataStream.reset(new MetadataStreamerV3());
-    else
+  if (TM.getTargetTriple().getOS() == Triple::AMDHSA) {
+    if (isHsaAbiVersion2(getGlobalSTI())) {
       HSAMetadataStream.reset(new MetadataStreamerV2());
+    } else {
+      HSAMetadataStream.reset(new MetadataStreamerV3());
+    }
+  }
 }
 
 StringRef AMDGPUAsmPrinter::getPassName() const {
@@ -129,7 +132,7 @@ AMDGPUTargetStreamer* AMDGPUAsmPrinter::getTargetStreamer() const {
 }
 
 void AMDGPUAsmPrinter::emitStartOfAsmFile(Module &M) {
-  if (IsaInfo::hasCodeObjectV3(getGlobalSTI())) {
+  if (isHsaAbiVersion3(getGlobalSTI())) {
     std::string ExpectedTarget;
     raw_string_ostream ExpectedTargetOS(ExpectedTarget);
     IsaInfo::streamIsaVersion(getGlobalSTI(), ExpectedTargetOS);
@@ -147,7 +150,7 @@ void AMDGPUAsmPrinter::emitStartOfAsmFile(Module &M) {
   if (TM.getTargetTriple().getOS() == Triple::AMDPAL)
     getTargetStreamer()->getPALMetadata()->readFromIR(M);
 
-  if (IsaInfo::hasCodeObjectV3(getGlobalSTI()))
+  if (isHsaAbiVersion3(getGlobalSTI()))
     return;
 
   // HSA emits NT_AMDGPU_HSA_CODE_OBJECT_VERSION for code objects v2.
@@ -165,7 +168,8 @@ void AMDGPUAsmPrinter::emitEndOfAsmFile(Module &M) {
   if (!getTargetStreamer())
     return;
 
-  if (!IsaInfo::hasCodeObjectV3(getGlobalSTI())) {
+  if (TM.getTargetTriple().getOS() != Triple::AMDHSA ||
+      isHsaAbiVersion2(getGlobalSTI())) {
     // Emit ISA Version (NT_AMD_AMDGPU_ISA).
     std::string ISAVersionString;
     raw_string_ostream ISAVersionStream(ISAVersionString);
@@ -203,7 +207,7 @@ void AMDGPUAsmPrinter::emitFunctionBodyStart() {
 
   const GCNSubtarget &STM = MF->getSubtarget<GCNSubtarget>();
   const Function &F = MF->getFunction();
-  if (!STM.hasCodeObjectV3() && STM.isAmdHsaOrMesa(F) &&
+  if ((STM.isMesaKernel(F) || isHsaAbiVersion2(getGlobalSTI())) &&
       (F.getCallingConv() == CallingConv::AMDGPU_KERNEL ||
        F.getCallingConv() == CallingConv::SPIR_KERNEL)) {
     amd_kernel_code_t KernelCode;
@@ -220,8 +224,8 @@ void AMDGPUAsmPrinter::emitFunctionBodyEnd() {
   if (!MFI.isEntryFunction())
     return;
 
-  if (!IsaInfo::hasCodeObjectV3(getGlobalSTI()) ||
-      TM.getTargetTriple().getOS() != Triple::AMDHSA)
+  if (TM.getTargetTriple().getOS() != Triple::AMDHSA ||
+      isHsaAbiVersion2(getGlobalSTI()))
     return;
 
   auto &Streamer = getTargetStreamer()->getStreamer();
@@ -256,8 +260,8 @@ void AMDGPUAsmPrinter::emitFunctionBodyEnd() {
 }
 
 void AMDGPUAsmPrinter::emitFunctionEntryLabel() {
-  if (IsaInfo::hasCodeObjectV3(getGlobalSTI()) &&
-      TM.getTargetTriple().getOS() == Triple::AMDHSA) {
+  if (TM.getTargetTriple().getOS() == Triple::AMDHSA &&
+      isHsaAbiVersion3(getGlobalSTI())) {
     AsmPrinter::emitFunctionEntryLabel();
     return;
   }
@@ -410,12 +414,12 @@ amdhsa::kernel_descriptor_t AMDGPUAsmPrinter::getAmdhsaKernelDescriptor(
   memset(&KernelDescriptor, 0x0, sizeof(KernelDescriptor));
 
   assert(isUInt<32>(PI.ScratchSize));
-  assert(isUInt<32>(PI.ComputePGMRSrc1));
+  assert(isUInt<32>(PI.getComputePGMRSrc1()));
   assert(isUInt<32>(PI.ComputePGMRSrc2));
 
   KernelDescriptor.group_segment_fixed_size = PI.LDSSize;
   KernelDescriptor.private_segment_fixed_size = PI.ScratchSize;
-  KernelDescriptor.compute_pgm_rsrc1 = PI.ComputePGMRSrc1;
+  KernelDescriptor.compute_pgm_rsrc1 = PI.getComputePGMRSrc1();
   KernelDescriptor.compute_pgm_rsrc2 = PI.ComputePGMRSrc2;
   KernelDescriptor.kernel_code_properties = getAmdhsaKernelCodeProperties(MF);
 
@@ -741,7 +745,7 @@ AMDGPUAsmPrinter::SIFunctionResourceInfo AMDGPUAsmPrinter::analyzeResourceUsage(
           llvm_unreachable("src_pops_exiting_wave_id should not be used");
 
         case AMDGPU::NoRegister:
-          assert(MI.isDebugInstr());
+          assert(MI.isDebugInstr() && "Instruction uses invalid noreg register");
           continue;
 
         case AMDGPU::VCC:
@@ -989,7 +993,9 @@ void AMDGPUAsmPrinter::getSIProgramInfo(SIProgramInfo &ProgInfo,
   ProgInfo.FlatUsed = Info.UsesFlatScratch;
   ProgInfo.DynamicCallStack = Info.HasDynamicallySizedStack || Info.HasRecursion;
 
-  if (!isUInt<32>(ProgInfo.ScratchSize)) {
+  const uint64_t MaxScratchPerWorkitem =
+      GCNSubtarget::MaxWaveScratchSize / STM.getWavefrontSize();
+  if (ProgInfo.ScratchSize > MaxScratchPerWorkitem) {
     DiagnosticInfoStackSize DiagStackSize(MF.getFunction(),
                                           ProgInfo.ScratchSize, DS_Error);
     MF.getFunction().getContext().diagnose(DiagStackSize);
@@ -1129,18 +1135,6 @@ void AMDGPUAsmPrinter::getSIProgramInfo(SIProgramInfo &ProgInfo,
     ProgInfo.MemOrdered = 1;
   }
 
-  ProgInfo.ComputePGMRSrc1 =
-      S_00B848_VGPRS(ProgInfo.VGPRBlocks) |
-      S_00B848_SGPRS(ProgInfo.SGPRBlocks) |
-      S_00B848_PRIORITY(ProgInfo.Priority) |
-      S_00B848_FLOAT_MODE(ProgInfo.FloatMode) |
-      S_00B848_PRIV(ProgInfo.Priv) |
-      S_00B848_DX10_CLAMP(ProgInfo.DX10Clamp) |
-      S_00B848_DEBUG_MODE(ProgInfo.DebugMode) |
-      S_00B848_IEEE_MODE(ProgInfo.IEEEMode) |
-      S_00B848_WGP_MODE(ProgInfo.WgpMode) |
-      S_00B848_MEM_ORDERED(ProgInfo.MemOrdered);
-
   // 0 = X, 1 = XY, 2 = XYZ
   unsigned TIDIGCompCnt = 0;
   if (MFI->hasWorkItemIDZ())
@@ -1189,7 +1183,7 @@ void AMDGPUAsmPrinter::EmitProgramInfoSI(const MachineFunction &MF,
   if (AMDGPU::isCompute(MF.getFunction().getCallingConv())) {
     OutStreamer->emitInt32(R_00B848_COMPUTE_PGM_RSRC1);
 
-    OutStreamer->emitInt32(CurrentProgramInfo.ComputePGMRSrc1);
+    OutStreamer->emitInt32(CurrentProgramInfo.getComputePGMRSrc1());
 
     OutStreamer->emitInt32(R_00B84C_COMPUTE_PGM_RSRC2);
     OutStreamer->emitInt32(CurrentProgramInfo.ComputePGMRSrc2);
@@ -1238,12 +1232,10 @@ void AMDGPUAsmPrinter::EmitPALMetadata(const MachineFunction &MF,
   MD->setEntryPoint(CC, MF.getFunction().getName());
   MD->setNumUsedVgprs(CC, CurrentProgramInfo.NumVGPRsForWavesPerEU);
   MD->setNumUsedSgprs(CC, CurrentProgramInfo.NumSGPRsForWavesPerEU);
-  if (AMDGPU::isCompute(MF.getFunction().getCallingConv())) {
-    MD->setRsrc1(CC, CurrentProgramInfo.ComputePGMRSrc1);
+  MD->setRsrc1(CC, CurrentProgramInfo.getPGMRSrc1(CC));
+  if (AMDGPU::isCompute(CC)) {
     MD->setRsrc2(CC, CurrentProgramInfo.ComputePGMRSrc2);
   } else {
-    MD->setRsrc1(CC, S_00B028_VGPRS(CurrentProgramInfo.VGPRBlocks) |
-        S_00B028_SGPRS(CurrentProgramInfo.SGPRBlocks));
     if (CurrentProgramInfo.ScratchBlocks > 0)
       MD->setRsrc2(CC, S_00B84C_SCRATCH_EN(1));
   }
@@ -1287,7 +1279,7 @@ void AMDGPUAsmPrinter::getAmdKernelCode(amd_kernel_code_t &Out,
   AMDGPU::initDefaultAMDKernelCodeT(Out, &STM);
 
   Out.compute_pgm_resource_registers =
-      CurrentProgramInfo.ComputePGMRSrc1 |
+      CurrentProgramInfo.getComputePGMRSrc1() |
       (CurrentProgramInfo.ComputePGMRSrc2 << 32);
   Out.code_properties |= AMD_CODE_PROPERTY_IS_PTR64;
 

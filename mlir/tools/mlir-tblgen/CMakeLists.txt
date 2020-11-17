@@ -2,7 +2,7 @@ set(LLVM_LINK_COMPONENTS
   Demangle
   Support
   TableGen
-  )
+)
 
 add_tablegen(mlir-tblgen MLIR
   DialectGen.cpp
@@ -15,11 +15,13 @@ add_tablegen(mlir-tblgen MLIR
   OpFormatGen.cpp
   OpInterfacesGen.cpp
   OpenMPCommonGen.cpp
-  PassGen.cpp
+  PassCAPIGen.cpp
   PassDocGen.cpp
+  PassGen.cpp
   RewriterGen.cpp
   SPIRVUtilsGen.cpp
   StructsGen.cpp
+  TypeDefGen.cpp
   )
 
 set_target_properties(mlir-tblgen PROPERTIES FOLDER "Tablegenning")

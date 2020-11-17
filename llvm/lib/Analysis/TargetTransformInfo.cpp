@@ -377,6 +377,10 @@ bool TargetTransformInfo::isLSRCostLess(LSRCost &C1, LSRCost &C2) const {
   return TTIImpl->isLSRCostLess(C1, C2);
 }
 
+bool TargetTransformInfo::isNumRegsMajorCostOfLSR() const {
+  return TTIImpl->isNumRegsMajorCostOfLSR();
+}
+
 bool TargetTransformInfo::isProfitableLSRChainElement(Instruction *I) const {
   return TTIImpl->isProfitableLSRChainElement(I);
 }
@@ -803,11 +807,13 @@ int TargetTransformInfo::getCFInstrCost(unsigned Opcode,
 
 int TargetTransformInfo::getCmpSelInstrCost(unsigned Opcode, Type *ValTy,
                                             Type *CondTy,
+                                            CmpInst::Predicate VecPred,
                                             TTI::TargetCostKind CostKind,
                                             const Instruction *I) const {
   assert((I == nullptr || I->getOpcode() == Opcode) &&
          "Opcode should reflect passed instruction.");
-  int Cost = TTIImpl->getCmpSelInstrCost(Opcode, ValTy, CondTy, CostKind, I);
+  int Cost =
+      TTIImpl->getCmpSelInstrCost(Opcode, ValTy, CondTy, VecPred, CostKind, I);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }

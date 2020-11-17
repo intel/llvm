@@ -602,8 +602,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
       const Requirement FullReq(/*Offset*/ {0, 0, 0}, Req->MMemoryRange,
                                 Req->MMemoryRange, access::mode::read_write,
                                 Req->MSYCLMemObj, Req->MDims, Req->MElemSize,
-                                0 /*ReMOffsetInBytes*/, false /*MIsSubBuffer*/,
-                                Req->MIsESIMDAcc);
+                                0 /*ReMOffsetInBytes*/, false /*MIsSubBuffer*/);
       // Can reuse user data for the first allocation
       const bool InitFromUserData = Record->MAllocaCommands.empty();
 
@@ -687,9 +686,9 @@ void Scheduler::GraphBuilder::markModifiedIfWrite(MemObjRecord *Record,
 }
 
 template <typename T>
-typename std::enable_if<
-    std::is_same<typename std::remove_cv<T>::type, Requirement>::value,
-    EmptyCommand *>::type
+typename detail::enable_if_t<
+    std::is_same<typename std::remove_cv_t<T>, Requirement>::value,
+    EmptyCommand *>
 Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
                                      const QueueImplPtr &Queue,
                                      Command::BlockReason Reason) {

@@ -87,8 +87,14 @@ static InputKind ParseFrontendArgs(FrontendOptions &opts,
     default: {
       llvm_unreachable("Invalid option in group!");
     }
+    case clang::driver::options::OPT_test_io:
+      opts.programAction_ = InputOutputTest;
+      break;
+    case clang::driver::options::OPT_E:
+      opts.programAction_ = PrintPreprocessedInput;
+      break;
+
       // TODO:
-      // case clang::driver::options::OPT_E:
       // case clang::driver::options::OPT_emit_obj:
       // case calng::driver::options::OPT_emit_llvm:
       // case clang::driver::options::OPT_emit_llvm_only:
@@ -98,6 +104,7 @@ static InputKind ParseFrontendArgs(FrontendOptions &opts,
     }
   }
 
+  opts.outputFile_ = args.getLastArgValue(clang::driver::options::OPT_o);
   opts.showHelp_ = args.hasArg(clang::driver::options::OPT_help);
   opts.showVersion_ = args.hasArg(clang::driver::options::OPT_version);
 
@@ -122,6 +129,26 @@ static InputKind ParseFrontendArgs(FrontendOptions &opts,
           << a->getAsString(args) << a->getValue();
   }
 
+  // Collect the input files and save them in our instance of FrontendOptions.
+  std::vector<std::string> inputs =
+      args.getAllArgValues(clang::driver::options::OPT_INPUT);
+  opts.inputs_.clear();
+  if (inputs.empty())
+    // '-' is the default input if none is given.
+    inputs.push_back("-");
+  for (unsigned i = 0, e = inputs.size(); i != e; ++i) {
+    InputKind ik = dashX;
+    if (ik.IsUnknown()) {
+      ik = FrontendOptions::GetInputKindForExtension(
+          llvm::StringRef(inputs[i]).rsplit('.').second);
+      if (ik.IsUnknown())
+        ik = Language::Unknown;
+      if (i == 0)
+        dashX = ik;
+    }
+
+    opts.inputs_.emplace_back(std::move(inputs[i]), ik);
+  }
   return dashX;
 }
 
@@ -152,7 +179,16 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &res,
   }
 
   // Parse the frontend args
-  ParseFrontendArgs(res.GetFrontendOpts(), args, diags);
+  ParseFrontendArgs(res.frontendOpts(), args, diags);
 
   return success;
+}
+
+void CompilerInvocation::SetDefaultFortranOpts() {
+  auto fortranOptions = fortranOpts();
+
+  // These defaults are based on the defaults in f18/f18.cpp.
+  std::vector<std::string> searchDirectories{"."s};
+  fortranOptions.searchDirectories = searchDirectories;
+  fortranOptions.isFixedForm = false;
 }

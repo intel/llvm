@@ -516,7 +516,7 @@ def system(commands, **kwargs):
                 "command": shellCommand
             }
             raise cpe
-        output = output + this_output.decode("utf-8")
+        output = output + this_output.decode("utf-8", errors='ignore')
     return output
 
 
@@ -1927,6 +1927,7 @@ class TestBase(Base):
             header.startswith("SB") and header.endswith(".h"))]
         includes = '\n'.join(list)
         new_content = content.replace('%include_SB_APIs%', includes)
+        new_content = new_content.replace('%SOURCE_DIR%', self.getSourceDir())
         src = os.path.join(self.getBuildDir(), source)
         with open(src, 'w') as f:
             f.write(new_content)

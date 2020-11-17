@@ -252,6 +252,15 @@ public:
         {"flat_write", {"svm.scatter", {ai1(3), a(2), a(0), a(1)}}},
         {"flat_write4",
          {"svm.scatter4.scaled", {ai1(2), t(2), c16(0), c64(0), a(0), a(1)}}},
+
+        // surface index-based gather/scatter:
+        // num blocks, scale, surface index, global offset, elem offsets
+        {"surf_read", {"gather.scaled2", {t(3), c16(0), aSI(1), a(2), a(3)}}},
+        // pred, num blocks, scale, surface index, global offset, elem offsets,
+        // data to write
+        {"surf_write",
+         {"scatter.scaled", {ai1(0), t(3), c16(0), aSI(2), a(3), a(4), a(5)}}},
+
         // intrinsics to query thread's coordinates:
         {"group_id_x", {"group.id.x", {}}},
         {"group_id_y", {"group.id.y", {}}},
@@ -1127,6 +1136,7 @@ void SYCLLowerESIMDLegacyPass::generateKernelMetadata(Module &M) {
     SmallVector<Metadata *, 8> ArgTypeDescs;
 
     auto *KernelArgTypes = F.getMetadata("kernel_arg_type");
+    auto *KernelArgAccPtrs = F.getMetadata("kernel_arg_accessor_ptr");
     unsigned Idx = 0;
 
     // Iterate argument list to gather argument kinds and generate argument
@@ -1139,14 +1149,29 @@ void SYCLLowerESIMDLegacyPass::generateKernelMetadata(Module &M) {
 
       if (ArgType.find("image1d_t") != std::string::npos ||
           ArgType.find("image2d_t") != std::string::npos ||
-          ArgType.find("image3d_t") != std::string::npos ||
-          ArgType.find("image1d_buffer_t") != std::string::npos) {
+          ArgType.find("image3d_t") != std::string::npos) {
         Kind = AK_SURFACE;
         ArgTypeDescs.push_back(MDString::get(Ctx, ArgType));
       } else {
         StringRef ArgDesc = "";
-        if (Arg.getType()->isPointerTy())
-          ArgDesc = "svmptr_t";
+
+        if (Arg.getType()->isPointerTy()) {
+          const auto *IsAccMD =
+              KernelArgAccPtrs
+                  ? cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx))
+                  : nullptr;
+          unsigned IsAcc =
+              IsAccMD
+                  ? static_cast<unsigned>(cast<ConstantInt>(IsAccMD->getValue())
+                                              ->getValue()
+                                              .getZExtValue())
+                  : 0;
+          if (IsAcc) {
+            ArgDesc = "buffer_t";
+            Kind = AK_SURFACE;
+          } else
+            ArgDesc = "svmptr_t";
+        }
         ArgTypeDescs.push_back(MDString::get(Ctx, ArgDesc));
       }
 

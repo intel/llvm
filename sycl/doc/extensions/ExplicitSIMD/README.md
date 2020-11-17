@@ -6,7 +6,7 @@ yet allows to write explicitly vectorized device code. This helps programmer to
 have more control over the generated code and depend less on compiler
 optimizations. The [specification](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/ExplicitSIMD/dpcpp-explicit-simd.md),
 [documented ESIMD APIs headers](https://github.com/intel/llvm/tree/sycl/sycl/include/CL/sycl/INTEL/esimd) and
-[working code examples](https://github.com/intel/llvm/blob/sycl/sycl/test/esimd/on-device) are available on the Intel DPC++ project's github.
+[working code examples](https://github.com/intel/llvm-test-suite/tree/intel/SYCL/ESIMD) are available on the Intel DPC++ project's github.
 
 **_NOTE:_** _This extension is under active development and lots of APIs are
 subject to change. There are currenly a number of restrictions specified
@@ -53,7 +53,7 @@ kernel is a ESIMD one and ESIMD APIs can be used inside it. Here the `simd`
 objects and `block_load`/`block_store` intrinsics are used which are avaiable
 only in the ESIMD extension.
 Full runnable code sample can be found on the
-[github repo](https://github.com/intel/llvm/blob/sycl/sycl/test/esimd/on-device/vadd_usm.cpp).
+[github repo](https://github.com/intel/llvm-test-suite/blob/intel/SYCL/ESIMD/vadd_usm.cpp).
 
 #### Compiling and running ESIMD code.
 To compile a code which uses the ESIMD extension, a special compiler switch

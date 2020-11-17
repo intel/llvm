@@ -23,7 +23,9 @@
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/Location.h"
 #include "mlir/IR/Module.h"
+#include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Types.h"
+#include "mlir/Support/ThreadLocalCache.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SetVector.h"
@@ -85,6 +87,22 @@ void mlir::registerMLIRContextCLOptions() {
 //===----------------------------------------------------------------------===//
 
 namespace {
+struct BuiltinOpAsmDialectInterface : public OpAsmDialectInterface {
+  using OpAsmDialectInterface::OpAsmDialectInterface;
+
+  LogicalResult getAlias(Attribute attr, raw_ostream &os) const override {
+    if (attr.isa<AffineMapAttr>()) {
+      os << "map";
+      return success();
+    }
+    if (attr.isa<IntegerSetAttr>()) {
+      os << "set";
+      return success();
+    }
+    return failure();
+  }
+};
+
 /// A builtin dialect to define types/etc that are necessary for the validity of
 /// the IR.
 struct BuiltinDialect : public Dialect {
@@ -101,6 +119,7 @@ struct BuiltinDialect : public Dialect {
                   UnitAttr>();
     addAttributes<CallSiteLoc, FileLineColLoc, FusedLoc, NameLoc, OpaqueLoc,
                   UnknownLoc>();
+    addInterfaces<BuiltinOpAsmDialectInterface>();
 
     // TODO: These operations should be moved to a different dialect when they
     // have been fully decoupled from the core.
@@ -291,8 +310,12 @@ public:
   /// operations.
   llvm::StringMap<AbstractOperation> registeredOperations;
 
-  /// These are identifiers uniqued into this MLIRContext.
+  /// Identifiers are uniqued by string value and use the internal string set
+  /// for storage.
   llvm::StringSet<llvm::BumpPtrAllocator &> identifiers;
+  /// A thread local cache of identifiers to reduce lock contention.
+  ThreadLocalCache<llvm::StringMap<llvm::StringMapEntry<llvm::NoneType> *>>
+      localIdentifierCache;
 
   /// An allocator used for AbstractAttribute and AbstractType objects.
   llvm::BumpPtrAllocator abstractDialectSymbolAllocator;
@@ -356,7 +379,7 @@ public:
 };
 } // end namespace mlir
 
-MLIRContext::MLIRContext(bool loadAllDialects) : impl(new MLIRContextImpl()) {
+MLIRContext::MLIRContext() : impl(new MLIRContextImpl()) {
   // Initialize values based on the command line flags if they were provided.
   if (clOptions.isConstructed()) {
     disableMultithreading(clOptions->disableThreading);
@@ -364,10 +387,8 @@ MLIRContext::MLIRContext(bool loadAllDialects) : impl(new MLIRContextImpl()) {
     printStackTraceOnDiagnostic(clOptions->printStackTraceOnDiagnostic);
   }
 
-  // Register dialects with this context.
+  // Ensure the builtin dialect is always pre-loaded.
   getOrLoadDialect<BuiltinDialect>();
-  if (loadAllDialects)
-    loadAllGloballyRegisteredDialects();
 
   // Initialize several common attributes and types to avoid the need to lock
   // the context when accessing them.
@@ -515,12 +536,6 @@ MLIRContext::getOrLoadDialect(StringRef dialectNamespace, TypeID dialectID,
   return dialect.get();
 }
 
-void MLIRContext::loadAllGloballyRegisteredDialects() {
-  if (!isGlobalDialectRegistryEnabled())
-    return;
-  getGlobalDialectRegistry().loadAll(this);
-}
-
 bool MLIRContext::allowsUnregisteredDialects() {
   return impl->allowUnregisteredDialects;
 }
@@ -606,22 +621,6 @@ bool MLIRContext::isOperationRegistered(StringRef name) {
   return impl->registeredOperations.count(name);
 }
 
-void Dialect::addOperation(AbstractOperation opInfo) {
-  assert((getNamespace().empty() || opInfo.dialect.name == getNamespace()) &&
-         "op name doesn't start with dialect namespace");
-  assert(&opInfo.dialect == this && "Dialect object mismatch");
-  auto &impl = context->getImpl();
-  assert(impl.multiThreadedExecutionContext == 0 &&
-         "Registering a new operation kind while in a multi-threaded execution "
-         "context");
-  StringRef opName = opInfo.name;
-  if (!impl.registeredOperations.insert({opName, std::move(opInfo)}).second) {
-    llvm::errs() << "error: operation named '" << opInfo.name
-                 << "' is already registered.\n";
-    abort();
-  }
-}
-
 void Dialect::addType(TypeID typeID, AbstractType &&typeInfo) {
   auto &impl = context->getImpl();
   assert(impl.multiThreadedExecutionContext == 0 &&
@@ -646,6 +645,10 @@ void Dialect::addAttribute(TypeID typeID, AbstractAttribute &&attrInfo) {
     llvm::report_fatal_error("Dialect Attribute already registered.");
 }
 
+//===----------------------------------------------------------------------===//
+// AbstractAttribute
+//===----------------------------------------------------------------------===//
+
 /// Get the dialect that registered the attribute with the provided typeid.
 const AbstractAttribute &AbstractAttribute::lookup(TypeID typeID,
                                                    MLIRContext *context) {
@@ -657,8 +660,17 @@ const AbstractAttribute &AbstractAttribute::lookup(TypeID typeID,
   return *it->second;
 }
 
+//===----------------------------------------------------------------------===//
+// AbstractOperation
+//===----------------------------------------------------------------------===//
+
+ParseResult AbstractOperation::parseAssembly(OpAsmParser &parser,
+                                             OperationState &result) const {
+  return parseAssemblyFn(parser, result);
+}
+
 /// Look up the specified operation in the operation set and return a pointer
-/// to it if present.  Otherwise, return a null pointer.
+/// to it if present. Otherwise, return a null pointer.
 const AbstractOperation *AbstractOperation::lookup(StringRef opName,
                                                    MLIRContext *context) {
   auto &impl = context->getImpl();
@@ -668,26 +680,45 @@ const AbstractOperation *AbstractOperation::lookup(StringRef opName,
   return nullptr;
 }
 
+void AbstractOperation::insert(
+    StringRef name, Dialect &dialect, OperationProperties opProperties,
+    TypeID typeID, ParseAssemblyFn parseAssembly, PrintAssemblyFn printAssembly,
+    VerifyInvariantsFn verifyInvariants, FoldHookFn foldHook,
+    GetCanonicalizationPatternsFn getCanonicalizationPatterns,
+    detail::InterfaceMap &&interfaceMap, HasTraitFn hasTrait) {
+  AbstractOperation opInfo(name, dialect, opProperties, typeID, parseAssembly,
+                           printAssembly, verifyInvariants, foldHook,
+                           getCanonicalizationPatterns, std::move(interfaceMap),
+                           hasTrait);
+
+  auto &impl = dialect.getContext()->getImpl();
+  assert(impl.multiThreadedExecutionContext == 0 &&
+         "Registering a new operation kind while in a multi-threaded execution "
+         "context");
+  if (!impl.registeredOperations.insert({name, std::move(opInfo)}).second) {
+    llvm::errs() << "error: operation named '" << name
+                 << "' is already registered.\n";
+    abort();
+  }
+}
+
 AbstractOperation::AbstractOperation(
     StringRef name, Dialect &dialect, OperationProperties opProperties,
-    TypeID typeID,
-    ParseResult (&parseAssembly)(OpAsmParser &parser, OperationState &result),
-    void (&printAssembly)(Operation *op, OpAsmPrinter &p),
-    LogicalResult (&verifyInvariants)(Operation *op),
-    LogicalResult (&foldHook)(Operation *op, ArrayRef<Attribute> operands,
-                              SmallVectorImpl<OpFoldResult> &results),
-    void (&getCanonicalizationPatterns)(OwningRewritePatternList &results,
-                                        MLIRContext *context),
-    detail::InterfaceMap &&interfaceMap, bool (&hasTrait)(TypeID traitID))
+    TypeID typeID, ParseAssemblyFn parseAssembly, PrintAssemblyFn printAssembly,
+    VerifyInvariantsFn verifyInvariants, FoldHookFn foldHook,
+    GetCanonicalizationPatternsFn getCanonicalizationPatterns,
+    detail::InterfaceMap &&interfaceMap, HasTraitFn hasTrait)
     : name(Identifier::get(name, dialect.getContext())), dialect(dialect),
-      typeID(typeID), parseAssembly(parseAssembly),
-      printAssembly(printAssembly), verifyInvariants(verifyInvariants),
-      foldHook(foldHook),
-      getCanonicalizationPatterns(getCanonicalizationPatterns),
-      opProperties(opProperties), interfaceMap(std::move(interfaceMap)),
-      hasRawTrait(hasTrait) {}
+      typeID(typeID), opProperties(opProperties),
+      interfaceMap(std::move(interfaceMap)), foldHookFn(foldHook),
+      getCanonicalizationPatternsFn(getCanonicalizationPatterns),
+      hasTraitFn(hasTrait), parseAssemblyFn(parseAssembly),
+      printAssemblyFn(printAssembly), verifyInvariantsFn(verifyInvariants) {}
 
-/// Get the dialect that registered the type with the provided typeid.
+//===----------------------------------------------------------------------===//
+// AbstractType
+//===----------------------------------------------------------------------===//
+
 const AbstractType &AbstractType::lookup(TypeID typeID, MLIRContext *context) {
   auto &impl = context->getImpl();
   auto it = impl.registeredTypes.find(typeID);
@@ -703,16 +734,6 @@ const AbstractType &AbstractType::lookup(TypeID typeID, MLIRContext *context) {
 
 /// Return an identifier for the specified string.
 Identifier Identifier::get(StringRef str, MLIRContext *context) {
-  auto &impl = context->getImpl();
-
-  // Check for an existing identifier in read-only mode.
-  if (context->isMultithreadingEnabled()) {
-    llvm::sys::SmartScopedReader<true> contextLock(impl.identifierMutex);
-    auto it = impl.identifiers.find(str);
-    if (it != impl.identifiers.end())
-      return Identifier(&*it);
-  }
-
   // Check invariants after seeing if we already have something in the
   // identifier table - if we already had it in the table, then it already
   // passed invariant checks.
@@ -720,10 +741,30 @@ Identifier Identifier::get(StringRef str, MLIRContext *context) {
   assert(str.find('\0') == StringRef::npos &&
          "Cannot create an identifier with a nul character");
 
+  auto &impl = context->getImpl();
+  if (!context->isMultithreadingEnabled())
+    return Identifier(&*impl.identifiers.insert(str).first);
+
+  // Check for an existing instance in the local cache.
+  auto *&localEntry = (*impl.localIdentifierCache)[str];
+  if (localEntry)
+    return Identifier(localEntry);
+
+  // Check for an existing identifier in read-only mode.
+  {
+    llvm::sys::SmartScopedReader<true> contextLock(impl.identifierMutex);
+    auto it = impl.identifiers.find(str);
+    if (it != impl.identifiers.end()) {
+      localEntry = &*it;
+      return Identifier(localEntry);
+    }
+  }
+
   // Acquire a writer-lock so that we can safely create the new instance.
-  ScopedWriterLock contextLock(impl.identifierMutex, impl.threadingIsEnabled);
+  llvm::sys::SmartScopedWriter<true> contextLock(impl.identifierMutex);
   auto it = impl.identifiers.insert(str).first;
-  return Identifier(&*it);
+  localEntry = &*it;
+  return Identifier(localEntry);
 }
 
 //===----------------------------------------------------------------------===//

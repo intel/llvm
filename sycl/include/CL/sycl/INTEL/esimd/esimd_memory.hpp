@@ -24,8 +24,8 @@ namespace INTEL {
 namespace gpu {
 
 template <int ElemsPerAddr,
-          typename = std::enable_if_t<(ElemsPerAddr == 1 || ElemsPerAddr == 2 ||
-                                       ElemsPerAddr == 4)>>
+          typename = sycl::detail::enable_if_t<
+              (ElemsPerAddr == 1 || ElemsPerAddr == 2 || ElemsPerAddr == 4)>>
 constexpr unsigned int ElemsPerAddrEncoding() {
   // encoding requires log2 of ElemsPerAddr
   if constexpr (ElemsPerAddr == 1)
@@ -83,12 +83,11 @@ constexpr unsigned int ElemsPerAddrEncoding() {
 /// flat-address gather
 template <typename T, int n, int ElemsPerAddr = 1,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
-ESIMD_INLINE ESIMD_NODEBUG
-    typename std::enable_if<((n == 8 || n == 16 || n == 32) &&
-                             (ElemsPerAddr == 1 || ElemsPerAddr == 2 ||
-                              ElemsPerAddr == 4)),
-                            simd<T, n * ElemsPerAddr>>::type
-    gather(T *p, simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
+ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
+    ((n == 8 || n == 16 || n == 32) &&
+     (ElemsPerAddr == 1 || ElemsPerAddr == 2 || ElemsPerAddr == 4)),
+    simd<T, n * ElemsPerAddr>>
+gather(T *p, simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
 
   simd<uint64_t, n> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, n> addrs(reinterpret_cast<uint64_t>(p));
@@ -116,16 +115,21 @@ ESIMD_INLINE ESIMD_NODEBUG
         addrs.data(), ElemsPerAddrEncoding<ElemsPerAddr>(), pred.data());
 }
 
+// TODO bring this SVM-based scatter/gather interface in accordance with
+// accessor-based ones - remove the ElemsPerAddr template parameter as it is
+// redundant: the only allowed block size in the underlying BE intrinsics is 1
+// byte with max number of blocks being 4. This means T template parameter alone
+// can model all supported cases.
+
 /// flat-address scatter
 template <typename T, int n, int ElemsPerAddr = 1,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
-ESIMD_INLINE ESIMD_NODEBUG
-    typename std::enable_if<((n == 8 || n == 16 || n == 32) &&
-                             (ElemsPerAddr == 1 || ElemsPerAddr == 2 ||
-                              ElemsPerAddr == 4)),
-                            void>::type
-    scatter(T *p, simd<T, n * ElemsPerAddr> vals, simd<uint32_t, n> offsets,
-            simd<uint16_t, n> pred = 1) {
+ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
+    ((n == 8 || n == 16 || n == 32) &&
+     (ElemsPerAddr == 1 || ElemsPerAddr == 2 || ElemsPerAddr == 4)),
+    void>
+scatter(T *p, simd<T, n * ElemsPerAddr> vals, simd<uint32_t, n> offsets,
+        simd<uint16_t, n> pred = 1) {
   simd<uint64_t, n> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, n> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
@@ -238,6 +242,152 @@ ESIMD_INLINE ESIMD_NODEBUG void block_store(AccessorTy acc, uint32_t offset,
 #endif // __SYCL_DEVICE_ONLY__ && __SYCL_EXPLICIT_SIMD__
 }
 
+/// Accessor-based gather. Collects elements located at given offsets in
+/// an accessor and returns them as a single \ref simd object. An element can be
+/// 1, 2 or 4-byte value.
+/// Template (compile-time constant) parameters:
+/// @tparam T - element type; can only be a 1,2,4-byte integer or \c float,
+/// @tparam N  - the number of elements
+/// @tparam AccessorTy - \ref sycl::accessor type
+/// @tparam L1H - L1 cache hint
+/// @tparam L3H - L3 cache hint
+///
+/// Formal parameters:
+/// @param acc - the accessor to gather from
+/// @param offsets - per-element offsets
+/// @param glob_offset - offset added to each individual element's offset to
+///   compute actual memory access offset for that element
+///
+template <typename T, int N, typename AccessorTy,
+          CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
+ESIMD_INLINE ESIMD_NODEBUG
+    typename sycl::detail::enable_if_t<(sizeof(T) <= 4) &&
+                                           (N == 1 || N == 8 || N == 16) &&
+                                           !std::is_pointer<AccessorTy>::value,
+                                       simd<T, N>>
+    gather(AccessorTy acc, simd<uint32_t, N> offsets,
+           uint32_t glob_offset = 0) {
+
+  constexpr int TypeSizeLog2 =
+      sycl::INTEL::gpu::ElemsPerAddrEncoding<sizeof(T)>();
+  // TODO (performance) use hardware-supported scale once BE supports it
+  constexpr uint32_t scale = 0;
+  constexpr uint32_t t_scale = sizeof(T);
+  if constexpr (t_scale > 1) {
+    glob_offset *= t_scale;
+    offsets *= t_scale;
+  }
+
+  if constexpr (sizeof(T) < 4) {
+    static_assert(std::is_integral<T>::value,
+                  "only integral 1- & 2-byte types are supported");
+    using PromoT =
+        typename sycl::detail::conditional_t<std::is_signed<T>::value, int32_t,
+                                             uint32_t>;
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_EXPLICIT_SIMD__)
+    const auto surf_ind = AccessorPrivateProxy::getNativeImageObj(acc);
+    const simd<PromoT, N> promo_vals =
+        __esimd_surf_read<PromoT, N, decltype(surf_ind), TypeSizeLog2, L1H,
+                          L3H>(scale, surf_ind, glob_offset, offsets);
+#else
+    const simd<PromoT, N> promo_vals =
+        __esimd_surf_read<PromoT, N, AccessorTy, TypeSizeLog2, L1H, L3H>(
+            scale, acc, glob_offset, offsets);
+#endif
+    return sycl::INTEL::gpu::convert<T>(promo_vals);
+  } else {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_EXPLICIT_SIMD__)
+    const auto surf_ind = AccessorPrivateProxy::getNativeImageObj(acc);
+    return __esimd_surf_read<T, N, decltype(surf_ind), TypeSizeLog2, L1H, L3H>(
+        scale, surf_ind, glob_offset, offsets);
+#else
+    return __esimd_surf_read<T, N, AccessorTy, TypeSizeLog2, L1H, L3H>(
+        scale, acc, glob_offset, offsets);
+#endif
+  }
+}
+
+/// Accessor-based scatter. Writes elements of a \ref simd object into an
+/// accessor at given offsets. An element can be 1, 2 or 4-byte value.
+/// Template (compile-time constant) parameters:
+/// @tparam T - element type; can only be a 1,2,4-byte integer or \c float,
+/// @tparam N  - the number of elements
+/// @tparam AccessorTy - \ref sycl::accessor type
+/// @tparam L1H - L1 cache hint
+/// @tparam L3H - L3 cache hint
+///
+/// Formal parameters:
+/// @param acc - the accessor to scatter to
+/// @param vals - values to write
+/// @param offsets - per-element offsets
+/// @param glob_offset - offset added to each individual element's offset to
+///   compute actual memory access offset for that element
+/// @param pred - per-element predicates; elements with zero corresponding
+///   predicates are not written
+///
+template <typename T, int N, typename AccessorTy,
+          CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
+ESIMD_INLINE ESIMD_NODEBUG
+    typename sycl::detail::enable_if_t<(sizeof(T) <= 4) &&
+                                           (N == 1 || N == 8 || N == 16) &&
+                                           !std::is_pointer<AccessorTy>::value,
+                                       void>
+    scatter(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
+            uint32_t glob_offset = 0, simd<uint16_t, N> pred = 1) {
+
+  constexpr int TypeSizeLog2 =
+      sycl::INTEL::gpu::ElemsPerAddrEncoding<sizeof(T)>();
+  // TODO (performance) use hardware-supported scale once BE supports it
+  constexpr uint32_t scale = 0;
+  constexpr uint32_t t_scale = sizeof(T);
+  if constexpr (t_scale > 1) {
+    glob_offset *= t_scale;
+    offsets *= t_scale;
+  }
+
+  if constexpr (sizeof(T) < 4) {
+    static_assert(std::is_integral<T>::value,
+                  "only integral 1- & 2-byte types are supported");
+    using PromoT =
+        typename sycl::detail::conditional_t<std::is_signed<T>::value, int32_t,
+                                             uint32_t>;
+    const simd<PromoT, N> promo_vals = sycl::INTEL::gpu::convert<PromoT>(vals);
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_EXPLICIT_SIMD__)
+    const auto surf_ind = AccessorPrivateProxy::getNativeImageObj(acc);
+    __esimd_surf_write<PromoT, N, decltype(surf_ind), TypeSizeLog2, L1H, L3H>(
+        pred, scale, surf_ind, glob_offset, offsets, promo_vals);
+#else
+    __esimd_surf_write<PromoT, N, AccessorTy, TypeSizeLog2, L1H, L3H>(
+        pred, scale, acc, glob_offset, offsets, promo_vals);
+#endif
+  } else {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_EXPLICIT_SIMD__)
+    const auto surf_ind = AccessorPrivateProxy::getNativeImageObj(acc);
+    __esimd_surf_write<T, N, decltype(surf_ind), TypeSizeLog2, L1H, L3H>(
+        pred, scale, surf_ind, glob_offset, offsets, vals);
+#else
+    __esimd_surf_write<T, N, AccessorTy, TypeSizeLog2, L1H, L3H>(
+        pred, scale, acc, glob_offset, offsets, vals);
+#endif
+  }
+}
+
+/// Load a scalar value from an accessor.
+template <typename T, typename AccessorTy, CacheHint L1H = CacheHint::None,
+          CacheHint L3H = CacheHint::None>
+ESIMD_INLINE ESIMD_NODEBUG T scalar_load(AccessorTy acc, uint32_t offset) {
+  const simd<T, 1> Res = gather<T>(acc, simd<uint32_t, 1>{offset});
+  return Res[0];
+}
+
+/// Store a scalar value into an accessor.
+template <typename T, typename AccessorTy, CacheHint L1H = CacheHint::None,
+          CacheHint L3H = CacheHint::None>
+ESIMD_INLINE ESIMD_NODEBUG void scalar_store(AccessorTy acc, uint32_t offset,
+                                             T val) {
+  scatter<T>(acc, simd<T, 1>{val}, simd<uint32_t, 1>{offset});
+}
+
 // TODO @jasonsewall-intel
 // Don't use '4' in the name - instead either make it a parameter or
 // (if it must be constant) - try to deduce from other arguments.
@@ -247,8 +397,8 @@ ESIMD_INLINE ESIMD_NODEBUG void block_store(AccessorTy acc, uint32_t offset,
 template <typename T, int n, ChannelMaskType Mask,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
 ESIMD_INLINE ESIMD_NODEBUG
-    typename std::enable_if<(n == 16 || n == 32) && (sizeof(T) == 4),
-                            simd<T, n * NumChannels(Mask)>>::type
+    typename sycl::detail::enable_if_t<(n == 16 || n == 32) && (sizeof(T) == 4),
+                                       simd<T, n * NumChannels(Mask)>>
     gather4(T *p, simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
 
   simd<uint64_t, n> offsets_i = convert<uint64_t>(offsets);
@@ -261,8 +411,8 @@ ESIMD_INLINE ESIMD_NODEBUG
 template <typename T, int n, ChannelMaskType Mask,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
 ESIMD_INLINE ESIMD_NODEBUG
-    typename std::enable_if<(n == 16 || n == 32) && (sizeof(T) == 4),
-                            void>::type
+    typename sycl::detail::enable_if_t<(n == 16 || n == 32) && (sizeof(T) == 4),
+                                       void>
     scatter4(T *p, simd<T, n * NumChannels(Mask)> vals,
              simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
   simd<uint64_t, n> offsets_i = convert<uint64_t>(offsets);
@@ -382,7 +532,7 @@ constexpr bool check_atomic() {
 template <EsimdAtomicOpType Op, typename T, int n,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<check_atomic<Op, T, n, 0>(), simd<T, n>>::type
+    typename sycl::detail::enable_if_t<check_atomic<Op, T, n, 0>(), simd<T, n>>
     flat_atomic(T *p, simd<unsigned, n> offset, simd<ushort, n> pred) {
   simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(p));
   simd<uintptr_t, n> offset_i1 = convert<uintptr_t>(offset);
@@ -394,7 +544,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 template <EsimdAtomicOpType Op, typename T, int n,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<check_atomic<Op, T, n, 1>(), simd<T, n>>::type
+    typename sycl::detail::enable_if_t<check_atomic<Op, T, n, 1>(), simd<T, n>>
     flat_atomic(T *p, simd<unsigned, n> offset, simd<T, n> src0,
                 simd<ushort, n> pred) {
   simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(p));
@@ -408,7 +558,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 template <EsimdAtomicOpType Op, typename T, int n,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<check_atomic<Op, T, n, 2>(), simd<T, n>>::type
+    typename sycl::detail::enable_if_t<check_atomic<Op, T, n, 2>(), simd<T, n>>
     flat_atomic(T *p, simd<unsigned, n> offset, simd<T, n> src0,
                 simd<T, n> src1, simd<ushort, n> pred) {
   simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(p));
@@ -446,7 +596,7 @@ SYCL_EXTERNAL void slm_init(uint32_t size);
 /// only allow simd-16 and simd-32
 template <typename T, int n>
 ESIMD_INLINE ESIMD_NODEBUG
-    typename std::enable_if<(n == 16 || n == 32), simd<T, n>>::type
+    typename sycl::detail::enable_if_t<(n == 16 || n == 32), simd<T, n>>
     slm_load(simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
   return __esimd_slm_read<T, n>(offsets.data(), pred.data());
 }
@@ -454,7 +604,7 @@ ESIMD_INLINE ESIMD_NODEBUG
 /// SLM scatter
 template <typename T, int n>
 ESIMD_INLINE ESIMD_NODEBUG
-    typename std::enable_if<(n == 16 || n == 32), void>::type
+    typename sycl::detail::enable_if_t<(n == 16 || n == 32), void>
     slm_store(simd<T, n> vals, simd<uint32_t, n> offsets,
               simd<uint16_t, n> pred = 1) {
   __esimd_slm_write<T, n>(offsets.data(), vals.data(), pred.data());
@@ -464,16 +614,17 @@ ESIMD_INLINE ESIMD_NODEBUG
 /// only allow simd-8, simd-16 and simd-32
 template <typename T, int n, ChannelMaskType Mask>
 ESIMD_INLINE ESIMD_NODEBUG
-    typename std::enable_if<(n == 8 || n == 16 || n == 32) && (sizeof(T) == 4),
-                            simd<T, n * NumChannels(Mask)>>::type
+    typename sycl::detail::enable_if_t<(n == 8 || n == 16 || n == 32) &&
+                                           (sizeof(T) == 4),
+                                       simd<T, n * NumChannels(Mask)>>
     slm_load4(simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
   return __esimd_slm_read4<T, n, Mask>(offsets.data(), pred.data());
 }
 
 /// SLM scatter4
 template <typename T, int n, ChannelMaskType Mask>
-typename std::enable_if<(n == 8 || n == 16 || n == 32) && (sizeof(T) == 4),
-                        void>::type
+typename sycl::detail::enable_if_t<
+    (n == 8 || n == 16 || n == 32) && (sizeof(T) == 4), void>
 slm_store4(simd<T, n * NumChannels(Mask)> vals, simd<uint32_t, n> offsets,
            simd<uint16_t, n> pred = 1) {
   __esimd_slm_write4<T, n, Mask>(offsets.data(), vals.data(), pred.data());
@@ -514,7 +665,7 @@ ESIMD_INLINE ESIMD_NODEBUG void slm_block_store(uint32_t offset,
 /// SLM atomic, zero source operand: inc and dec
 template <EsimdAtomicOpType Op, typename T, int n>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<check_atomic<Op, T, n, 0>(), simd<T, n>>::type
+    typename sycl::detail::enable_if_t<check_atomic<Op, T, n, 0>(), simd<T, n>>
     slm_atomic(simd<uint32_t, n> offsets, simd<ushort, n> pred) {
   return __esimd_slm_atomic0<Op, T, n>(offsets.data(), pred.data());
 }
@@ -522,7 +673,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 /// SLM atomic, one source operand, add/sub/min/max etc
 template <EsimdAtomicOpType Op, typename T, int n>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<check_atomic<Op, T, n, 1>(), simd<T, n>>::type
+    typename sycl::detail::enable_if_t<check_atomic<Op, T, n, 1>(), simd<T, n>>
     slm_atomic(simd<uint32_t, n> offsets, simd<T, n> src0,
                simd<ushort, n> pred) {
   return __esimd_slm_atomic1<Op, T, n>(offsets.data(), src0.data(),
@@ -532,7 +683,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 /// SLM atomic, two source operands
 template <EsimdAtomicOpType Op, typename T, int n>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename std::enable_if<check_atomic<Op, T, n, 2>(), simd<T, n>>::type
+    typename sycl::detail::enable_if_t<check_atomic<Op, T, n, 2>(), simd<T, n>>
     slm_atomic(simd<uint32_t, n> offsets, simd<T, n> src0, simd<T, n> src1,
                simd<ushort, n> pred) {
   return __esimd_slm_atomic2<Op, T, n>(offsets.data(), src0.data(), src1.data(),

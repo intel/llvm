@@ -25,6 +25,7 @@
 #include "refactor/Tweak.h"
 #include "support/Cancellation.h"
 #include "support/Function.h"
+#include "support/MemoryTree.h"
 #include "support/ThreadsafeFS.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/Core/Replacement.h"
@@ -127,11 +128,13 @@ public:
     /// enabled.
     ClangTidyOptionsBuilder GetClangTidyOptions;
 
-    /// If true, turn on the `-frecovery-ast` clang flag.
-    bool BuildRecoveryAST = true;
+    /// If true, force -frecovery-ast flag.
+    /// If false, respect the value in clang.
+    bool BuildRecoveryAST = false;
 
-    /// If true, turn on the `-frecovery-ast-type` clang flag.
-    bool PreserveRecoveryASTType = true;
+    /// If true, force -frecovery-ast-type flag.
+    /// If false, respect the value in clang.
+    bool PreserveRecoveryASTType = false;
 
     /// Clangd's workspace root. Relevant for "workspace" operations not bound
     /// to a particular file.
@@ -162,11 +165,6 @@ public:
 
     /// Enable preview of FoldingRanges feature.
     bool FoldingRanges = false;
-
-    /// Returns true if the tweak should be enabled.
-    std::function<bool(const Tweak &)> TweakFilter = [](const Tweak &T) {
-      return !T.hidden(); // only enable non-hidden tweaks.
-    };
 
     explicit operator TUScheduler::Options() const;
   };
@@ -294,7 +292,9 @@ public:
     llvm::StringLiteral Kind;
   };
   /// Enumerate the code tweaks available to the user at a specified point.
+  /// Tweaks where Filter returns false will not be checked or included.
   void enumerateTweaks(PathRef File, Range Sel,
+                       llvm::unique_function<bool(const Tweak &)> Filter,
                        Callback<std::vector<TweakRef>> CB);
 
   /// Apply the code tweak with a specified \p ID.
@@ -340,6 +340,9 @@ public:
   LLVM_NODISCARD bool
   blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds = 10);
 
+  /// Builds a nested representation of memory used by components.
+  void profile(MemoryTree &MT) const;
+
 private:
   void formatCode(PathRef File, llvm::StringRef Code,
                   ArrayRef<tooling::Range> Ranges,
@@ -381,8 +384,6 @@ private:
   bool BuildRecoveryAST = true;
   // If true, preserve the type for recovery AST.
   bool PreserveRecoveryASTType = false;
-
-  std::function<bool(const Tweak &)> TweakFilter;
 
   // GUARDED_BY(CachedCompletionFuzzyFindRequestMutex)
   llvm::StringMap<llvm::Optional<FuzzyFindRequest>>

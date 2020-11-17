@@ -173,6 +173,8 @@ bool AMDGPUTargetInfo::initFeatureMap(
   // XXX - What does the member GPU mean if device name string passed here?
   if (isAMDGCN(getTriple())) {
     switch (llvm::AMDGPU::parseArchAMDGCN(CPU)) {
+    case GK_GFX1033:
+    case GK_GFX1032:
     case GK_GFX1031:
     case GK_GFX1030:
       Features["ci-insts"] = true;
@@ -220,6 +222,7 @@ bool AMDGPUTargetInfo::initFeatureMap(
       Features["dot1-insts"] = true;
       Features["dot2-insts"] = true;
       LLVM_FALLTHROUGH;
+    case GK_GFX90C:
     case GK_GFX909:
     case GK_GFX904:
     case GK_GFX902:
@@ -227,6 +230,7 @@ bool AMDGPUTargetInfo::initFeatureMap(
       Features["gfx9-insts"] = true;
       LLVM_FALLTHROUGH;
     case GK_GFX810:
+    case GK_GFX805:
     case GK_GFX803:
     case GK_GFX802:
     case GK_GFX801:
@@ -235,6 +239,7 @@ bool AMDGPUTargetInfo::initFeatureMap(
       Features["dpp"] = true;
       Features["s-memrealtime"] = true;
       LLVM_FALLTHROUGH;
+    case GK_GFX705:
     case GK_GFX704:
     case GK_GFX703:
     case GK_GFX702:
@@ -243,6 +248,7 @@ bool AMDGPUTargetInfo::initFeatureMap(
       Features["ci-insts"] = true;
       Features["flat-address-space"] = true;
       LLVM_FALLTHROUGH;
+    case GK_GFX602:
     case GK_GFX601:
     case GK_GFX600:
       break;

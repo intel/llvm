@@ -1303,7 +1303,7 @@ bool SITargetLowering::isLegalMUBUFAddressingMode(const AddrMode &AM) const {
   // assume those use MUBUF instructions. Scratch loads / stores are currently
   // implemented as mubuf instructions with offen bit set, so slightly
   // different than the normal addr64.
-  if (!isUInt<12>(AM.BaseOffs))
+  if (!SIInstrInfo::isLegalMUBUFImmOffset(AM.BaseOffs))
     return false;
 
   // FIXME: Since we can split immediate into soffset and immediate offset,
@@ -2298,7 +2298,8 @@ SDValue SITargetLowering::LowerFormalArguments(
     }
 
     assert(!Info->hasDispatchPtr() &&
-           !Info->hasKernargSegmentPtr() && !Info->hasFlatScratchInit() &&
+           !Info->hasKernargSegmentPtr() &&
+           (!Info->hasFlatScratchInit() || Subtarget->enableFlatScratch()) &&
            !Info->hasWorkGroupIDX() && !Info->hasWorkGroupIDY() &&
            !Info->hasWorkGroupIDZ() && !Info->hasWorkGroupInfo() &&
            !Info->hasWorkItemIDX() && !Info->hasWorkItemIDY() &&
@@ -4006,10 +4007,29 @@ MachineBasicBlock *SITargetLowering::EmitInstrWithCustomInserter(
       Src2.setReg(RegOp2);
     }
 
-    if (TRI->getRegSizeInBits(*MRI.getRegClass(Src2.getReg())) == 64) {
-      BuildMI(*BB, MII, DL, TII->get(AMDGPU::S_CMP_LG_U64))
-          .addReg(Src2.getReg())
-          .addImm(0);
+    const TargetRegisterClass *Src2RC = MRI.getRegClass(Src2.getReg());
+    if (TRI->getRegSizeInBits(*Src2RC) == 64) {
+      if (ST.hasScalarCompareEq64()) {
+        BuildMI(*BB, MII, DL, TII->get(AMDGPU::S_CMP_LG_U64))
+            .addReg(Src2.getReg())
+            .addImm(0);
+      } else {
+        const TargetRegisterClass *SubRC =
+            TRI->getSubRegClass(Src2RC, AMDGPU::sub0);
+        MachineOperand Src2Sub0 = TII->buildExtractSubRegOrImm(
+            MII, MRI, Src2, Src2RC, AMDGPU::sub0, SubRC);
+        MachineOperand Src2Sub1 = TII->buildExtractSubRegOrImm(
+            MII, MRI, Src2, Src2RC, AMDGPU::sub1, SubRC);
+        Register Src2_32 = MRI.createVirtualRegister(&AMDGPU::SReg_32RegClass);
+
+        BuildMI(*BB, MII, DL, TII->get(AMDGPU::S_OR_B32), Src2_32)
+            .add(Src2Sub0)
+            .add(Src2Sub1);
+
+        BuildMI(*BB, MII, DL, TII->get(AMDGPU::S_CMP_LG_U32))
+            .addReg(Src2_32, RegState::Kill)
+            .addImm(0);
+      }
     } else {
       BuildMI(*BB, MII, DL, TII->get(AMDGPU::S_CMPK_LG_U32))
           .addReg(Src2.getReg())
@@ -8038,9 +8058,7 @@ SDValue SITargetLowering::LowerLOAD(SDValue Op, SelectionDAG &DAG) const {
     if (!Op->isDivergent() && Alignment >= 4 && NumElements < 32) {
       if (MemVT.isPow2VectorType())
         return SDValue();
-      if (NumElements == 3)
-        return WidenVectorLoad(Op, DAG);
-      return SplitVectorLoad(Op, DAG);
+      return WidenOrSplitVectorLoad(Op, DAG);
     }
     // Non-uniform loads will be selected to MUBUF instructions, so they
     // have the same legalization requirements as global and private
@@ -8056,9 +8074,7 @@ SDValue SITargetLowering::LowerLOAD(SDValue Op, SelectionDAG &DAG) const {
         Alignment >= 4 && NumElements < 32) {
       if (MemVT.isPow2VectorType())
         return SDValue();
-      if (NumElements == 3)
-        return WidenVectorLoad(Op, DAG);
-      return SplitVectorLoad(Op, DAG);
+      return WidenOrSplitVectorLoad(Op, DAG);
     }
     // Non-uniform loads will be selected to MUBUF instructions, so they
     // have the same legalization requirements as global and private
@@ -8073,7 +8089,8 @@ SDValue SITargetLowering::LowerLOAD(SDValue Op, SelectionDAG &DAG) const {
       return SplitVectorLoad(Op, DAG);
     // v3 loads not supported on SI.
     if (NumElements == 3 && !Subtarget->hasDwordx3LoadStores())
-      return WidenVectorLoad(Op, DAG);
+      return WidenOrSplitVectorLoad(Op, DAG);
+
     // v3 and v4 loads are supported for private and global memory.
     return SDValue();
   }
@@ -8097,7 +8114,8 @@ SDValue SITargetLowering::LowerLOAD(SDValue Op, SelectionDAG &DAG) const {
         return SplitVectorLoad(Op, DAG);
       // v3 loads not supported on SI.
       if (NumElements == 3 && !Subtarget->hasDwordx3LoadStores())
-        return WidenVectorLoad(Op, DAG);
+        return WidenOrSplitVectorLoad(Op, DAG);
+
       return SDValue();
     default:
       llvm_unreachable("unsupported private_element_size");
@@ -11065,9 +11083,9 @@ SDNode *SITargetLowering::PostISelFolding(MachineSDNode *Node,
     // Satisfy the operand register constraint when one of the inputs is
     // undefined. Ordinarily each undef value will have its own implicit_def of
     // a vreg, so force these to use a single register.
-    SDValue Src0 = Node->getOperand(0);
-    SDValue Src1 = Node->getOperand(1);
-    SDValue Src2 = Node->getOperand(2);
+    SDValue Src0 = Node->getOperand(1);
+    SDValue Src1 = Node->getOperand(3);
+    SDValue Src2 = Node->getOperand(5);
 
     if ((Src0.isMachineOpcode() &&
          Src0.getMachineOpcode() != AMDGPU::IMPLICIT_DEF) &&
@@ -11102,10 +11120,10 @@ SDNode *SITargetLowering::PostISelFolding(MachineSDNode *Node,
     } else
       break;
 
-    SmallVector<SDValue, 4> Ops = { Src0, Src1, Src2 };
-    for (unsigned I = 3, N = Node->getNumOperands(); I != N; ++I)
-      Ops.push_back(Node->getOperand(I));
-
+    SmallVector<SDValue, 9> Ops(Node->op_begin(), Node->op_end());
+    Ops[1] = Src0;
+    Ops[3] = Src1;
+    Ops[5] = Src2;
     Ops.push_back(ImpDef.getValue(1));
     return DAG.getMachineNode(Opcode, SDLoc(Node), Node->getVTList(), Ops);
   }
@@ -11594,10 +11612,15 @@ void SITargetLowering::computeKnownBitsForTargetInstr(
       Known.Zero.setHighBits(countLeadingZeros(getSubtarget()->getLocalMemorySize()));
       break;
     }
-    default:
-      break;
     }
+    break;
   }
+  case AMDGPU::G_AMDGPU_BUFFER_LOAD_UBYTE:
+    Known.Zero.setHighBits(24);
+    break;
+  case AMDGPU::G_AMDGPU_BUFFER_LOAD_USHORT:
+    Known.Zero.setHighBits(16);
+    break;
   }
 }
 

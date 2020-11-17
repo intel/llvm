@@ -1,11 +1,12 @@
 // RUN: %clangxx -fsycl -c -fno-color-diagnostics -Xclang -fdump-record-layouts %s | FileCheck %s
+// RUN: %clangxx -fsycl -fsycl-device-only -c -fno-color-diagnostics -Xclang -fdump-record-layouts %s | FileCheck %s
 // REQUIRES: linux
 
 // clang-format off
 
 #include <CL/sycl/types.hpp>
 
-void foo(sycl::vec<int, 4>) {}
+SYCL_EXTERNAL void foo(sycl::vec<int, 4>) {}
 
 // CHECK: 0 | class cl::sycl::vec<int, 4>
 // CHECK-NEXT: 0 |   cl::sycl::vec<int, 4>::DataType m_Data
@@ -14,7 +15,7 @@ void foo(sycl::vec<int, 4>) {}
 
 //--------------------------------------
 
-void foo(sycl::vec<bool, 16>) {}
+SYCL_EXTERNAL void foo(sycl::vec<bool, 16>) {}
 
 // CHECK: 0 | class cl::sycl::vec<_Bool, 16>
 // CHECK-NEXT: 0 |   cl::sycl::vec<_Bool, 16>::DataType m_Data

@@ -85,6 +85,7 @@ private:
   void CheckBlockData(const Scope &);
   void CheckGenericOps(const Scope &);
   bool CheckConflicting(const Symbol &, Attr, Attr);
+  void WarnMissingFinal(const Symbol &);
   bool InPure() const {
     return innermostSymbol_ && IsPureProcedure(*innermostSymbol_);
   }
@@ -412,6 +413,7 @@ void CheckHelper::CheckObjectEntity(
   Check(details.shape());
   Check(details.coshape());
   CheckAssumedTypeEntity(symbol, details);
+  WarnMissingFinal(symbol);
   if (!details.coshape().empty()) {
     bool isDeferredShape{details.coshape().IsDeferredShape()};
     if (IsAllocatable(symbol)) {
@@ -1242,6 +1244,38 @@ bool CheckHelper::CheckConflicting(const Symbol &symbol, Attr a1, Attr a2) {
   }
 }
 
+void CheckHelper::WarnMissingFinal(const Symbol &symbol) {
+  const auto *object{symbol.detailsIf<ObjectEntityDetails>()};
+  if (!object || IsPointer(symbol)) {
+    return;
+  }
+  const DeclTypeSpec *type{object->type()};
+  const DerivedTypeSpec *derived{type ? type->AsDerived() : nullptr};
+  const Symbol *derivedSym{derived ? &derived->typeSymbol() : nullptr};
+  int rank{object->shape().Rank()};
+  const Symbol *initialDerivedSym{derivedSym};
+  while (const auto *derivedDetails{
+      derivedSym ? derivedSym->detailsIf<DerivedTypeDetails>() : nullptr}) {
+    if (!derivedDetails->finals().empty() &&
+        !derivedDetails->GetFinalForRank(rank)) {
+      if (auto *msg{derivedSym == initialDerivedSym
+                  ? messages_.Say(symbol.name(),
+                        "'%s' of derived type '%s' does not have a FINAL subroutine for its rank (%d)"_en_US,
+                        symbol.name(), derivedSym->name(), rank)
+                  : messages_.Say(symbol.name(),
+                        "'%s' of derived type '%s' extended from '%s' does not have a FINAL subroutine for its rank (%d)"_en_US,
+                        symbol.name(), initialDerivedSym->name(),
+                        derivedSym->name(), rank)}) {
+        msg->Attach(derivedSym->name(),
+            "Declaration of derived type '%s'"_en_US, derivedSym->name());
+      }
+      return;
+    }
+    derived = derivedSym->GetParentTypeSpec();
+    derivedSym = derived ? &derived->typeSymbol() : nullptr;
+  }
+}
+
 const Procedure *CheckHelper::Characterize(const Symbol &symbol) {
   auto it{characterizeCache_.find(symbol)};
   if (it == characterizeCache_.end()) {
@@ -1280,6 +1314,12 @@ void CheckHelper::CheckPointer(const Symbol &symbol) { // C852
   CheckConflicting(symbol, Attr::POINTER, Attr::TARGET);
   CheckConflicting(symbol, Attr::POINTER, Attr::ALLOCATABLE); // C751
   CheckConflicting(symbol, Attr::POINTER, Attr::INTRINSIC);
+  // Prohibit constant pointers.  The standard does not explicitly prohibit
+  // them, but the PARAMETER attribute requires a entity-decl to have an
+  // initialization that is a constant-expr, and the only form of
+  // initialization that allows a constant-expr is the one that's not a "=>"
+  // pointer initialization.  See C811, C807, and section 8.5.13.
+  CheckConflicting(symbol, Attr::POINTER, Attr::PARAMETER);
   if (symbol.Corank() > 0) {
     messages_.Say(
         "'%s' may not have the POINTER attribute because it is a coarray"_err_en_US,

@@ -276,6 +276,7 @@ def X86lock_and  : SDNode<"X86ISD::LAND",  SDTLockBinaryArithWithFlags,
                            SDNPMemOperand]>;
 
 def X86bextr  : SDNode<"X86ISD::BEXTR",  SDTIntBinOp>;
+def X86bextri : SDNode<"X86ISD::BEXTRI", SDTIntBinOp>;
 
 def X86bzhi   : SDNode<"X86ISD::BZHI",   SDTIntBinOp>;
 
@@ -314,6 +315,9 @@ def X86tpause : SDNode<"X86ISD::TPAUSE",
 def X86enqcmd : SDNode<"X86ISD::ENQCMD", SDT_X86ENQCMD,
                        [SDNPHasChain, SDNPSideEffect]>;
 def X86enqcmds : SDNode<"X86ISD::ENQCMDS", SDT_X86ENQCMD,
+                       [SDNPHasChain, SDNPSideEffect]>;
+def X86testui : SDNode<"X86ISD::TESTUI",
+                       SDTypeProfile<1, 0, [SDTCisVT<0, i32>]>,
                        [SDNPHasChain, SDNPSideEffect]>;
 
 def X86aesenc128kl : SDNode<"X86ISD::AESENC128KL", SDT_X86AESENCDECKL,
@@ -906,6 +910,8 @@ def PKU        : Predicate<"Subtarget->hasPKU()">;
 def HasVNNI    : Predicate<"Subtarget->hasVNNI()">;
 def HasVP2INTERSECT : Predicate<"Subtarget->hasVP2INTERSECT()">;
 def HasBF16      : Predicate<"Subtarget->hasBF16()">;
+def HasAVXVNNI : Predicate <"Subtarget->hasAVXVNNI()">;
+def NoVLX_Or_NoVNNI : Predicate<"!Subtarget->hasVLX() || !Subtarget->hasVNNI()">;
 
 def HasBITALG    : Predicate<"Subtarget->hasBITALG()">;
 def HasPOPCNT    : Predicate<"Subtarget->hasPOPCNT()">;
@@ -971,11 +977,13 @@ def HasPCONFIG   : Predicate<"Subtarget->hasPCONFIG()">;
 def HasENQCMD    : Predicate<"Subtarget->hasENQCMD()">;
 def HasKL        : Predicate<"Subtarget->hasKL()">;
 def HasWIDEKL    : Predicate<"Subtarget->hasWIDEKL()">;
+def HasHRESET    : Predicate<"Subtarget->hasHRESET()">;
 def HasSERIALIZE : Predicate<"Subtarget->hasSERIALIZE()">;
 def HasTSXLDTRK  : Predicate<"Subtarget->hasTSXLDTRK()">;
 def HasAMXTILE   : Predicate<"Subtarget->hasAMXTILE()">;
 def HasAMXBF16   : Predicate<"Subtarget->hasAMXBF16()">;
 def HasAMXINT8   : Predicate<"Subtarget->hasAMXINT8()">;
+def HasUINTR     : Predicate<"Subtarget->hasUINTR()">;
 def Not64BitMode : Predicate<"!Subtarget->is64Bit()">,
                              AssemblerPredicate<(all_of (not Mode64Bit)), "Not 64-bit mode">;
 def In64BitMode  : Predicate<"Subtarget->is64Bit()">,
@@ -1061,6 +1069,7 @@ def i16immSExt8  : ImmLeaf<i16, [{ return isInt<8>(Imm); }]>;
 def i32immSExt8  : ImmLeaf<i32, [{ return isInt<8>(Imm); }]>;
 def i64immSExt8  : ImmLeaf<i64, [{ return isInt<8>(Imm); }]>;
 def i64immSExt32 : ImmLeaf<i64, [{ return isInt<32>(Imm); }]>;
+def i64timmSExt32 : TImmLeaf<i64, [{ return isInt<32>(Imm); }]>;
 
 def i16relocImmSExt8 : PatLeaf<(i16 relocImm), [{
   return isSExtAbsoluteSymbolRef(8, N);
@@ -2666,11 +2675,11 @@ let Predicates = [HasBMI2] in {
 //
 let Predicates = [HasTBM], Defs = [EFLAGS] in {
 
-multiclass tbm_ternary_imm<bits<8> opc, RegisterClass RC, string OpcodeStr,
-                           X86MemOperand x86memop, PatFrag ld_frag,
-                           SDNode OpNode, Operand immtype,
-                           SDPatternOperator immoperator,
-                           X86FoldableSchedWrite Sched> {
+multiclass tbm_bextri<bits<8> opc, RegisterClass RC, string OpcodeStr,
+                      X86MemOperand x86memop, PatFrag ld_frag,
+                      SDNode OpNode, Operand immtype,
+                      SDPatternOperator immoperator,
+                      X86FoldableSchedWrite Sched> {
   def ri : Ii32<opc,  MRMSrcReg, (outs RC:$dst), (ins RC:$src1, immtype:$cntl),
                 !strconcat(OpcodeStr,
                            "\t{$cntl, $src1, $dst|$dst, $src1, $cntl}"),
@@ -2684,12 +2693,12 @@ multiclass tbm_ternary_imm<bits<8> opc, RegisterClass RC, string OpcodeStr,
                 XOP, XOPA, Sched<[Sched.Folded]>;
 }
 
-defm BEXTRI32 : tbm_ternary_imm<0x10, GR32, "bextr{l}", i32mem, loadi32,
-                                X86bextr, i32imm, imm, WriteBEXTR>;
+defm BEXTRI32 : tbm_bextri<0x10, GR32, "bextr{l}", i32mem, loadi32,
+                           X86bextri, i32imm, timm, WriteBEXTR>;
 let ImmT = Imm32S in
-defm BEXTRI64 : tbm_ternary_imm<0x10, GR64, "bextr{q}", i64mem, loadi64,
-                                X86bextr, i64i32imm,
-                                i64immSExt32, WriteBEXTR>, VEX_W;
+defm BEXTRI64 : tbm_bextri<0x10, GR64, "bextr{q}", i64mem, loadi64,
+                           X86bextri, i64i32imm,
+                           i64timmSExt32, WriteBEXTR>, VEX_W;
 
 multiclass tbm_binary_rm<bits<8> opc, Format FormReg, Format FormMem,
                          RegisterClass RC, string OpcodeStr,
@@ -2912,6 +2921,13 @@ def : InstAlias<"clzero\t{%eax|eax}", (CLZERO32r)>, Requires<[Not64BitMode]>;
 def : InstAlias<"clzero\t{%rax|rax}", (CLZERO64r)>, Requires<[In64BitMode]>;
 
 //===----------------------------------------------------------------------===//
+// HRESET Instruction
+//
+let Uses = [EAX], SchedRW = [WriteSystem] in
+  def HRESET : Ii8<0xF0, MRM_C0, (outs), (ins i32u8imm:$imm), "hreset\t$imm", []>,
+                   Requires<[HasHRESET]>, TAXS;
+
+//===----------------------------------------------------------------------===//
 // SERIALIZE Instruction
 //
 def SERIALIZE : I<0x01, MRM_E8, (outs), (ins), "serialize",
@@ -2926,6 +2942,25 @@ let Predicates = [HasTSXLDTRK] in {
                     [(int_x86_xsusldtrk)]>, XD;
   def XRESLDTRK : I<0x01, MRM_E9, (outs), (ins), "xresldtrk",
                     [(int_x86_xresldtrk)]>, XD;
+}
+
+//===----------------------------------------------------------------------===//
+// UINTR Instructions
+//
+let Predicates = [HasUINTR, In64BitMode] in {
+  def UIRET : I<0x01, MRM_EC, (outs), (ins), "uiret",
+               []>, XS;
+  def CLUI : I<0x01, MRM_EE, (outs), (ins), "clui",
+               [(int_x86_clui)]>, XS;
+  def STUI : I<0x01, MRM_EF, (outs), (ins), "stui",
+               [(int_x86_stui)]>, XS;
+
+  def SENDUIPI : I<0xC7, MRM6r, (outs), (ins GR64:$arg), "senduipi\t$arg",
+                   [(int_x86_senduipi GR64:$arg)]>, XS;
+
+  let Defs = [EFLAGS] in
+    def TESTUI : I<0x01, MRM_ED, (outs), (ins), "testui",
+                   [(set EFLAGS, (X86testui))]>, XS;
 }
 
 //===----------------------------------------------------------------------===//

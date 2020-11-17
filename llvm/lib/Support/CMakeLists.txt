@@ -143,6 +143,7 @@ add_llvm_component_library(LLVMSupport
   MathExtras.cpp
   MemAlloc.cpp
   MemoryBuffer.cpp
+  MemoryBufferRef.cpp
   MD5.cpp
   NativeFormatting.cpp
   OptimizedStructLayout.cpp

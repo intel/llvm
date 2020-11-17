@@ -1718,6 +1718,7 @@ const char *ARMTargetLowering::getTargetNodeName(unsigned Opcode) const {
   case ARMISD::VCVTL:         return "ARMISD::VCVTL";
   case ARMISD::VMULLs:        return "ARMISD::VMULLs";
   case ARMISD::VMULLu:        return "ARMISD::VMULLu";
+  case ARMISD::VQDMULH:       return "ARMISD::VQDMULH";
   case ARMISD::VADDVs:        return "ARMISD::VADDVs";
   case ARMISD::VADDVu:        return "ARMISD::VADDVu";
   case ARMISD::VADDVps:       return "ARMISD::VADDVps";
@@ -7763,17 +7764,19 @@ SDValue ARMTargetLowering::ReconstructShuffle(SDValue Op,
   for (auto &Src : Sources) {
     EVT SrcVT = Src.ShuffleVec.getValueType();
 
-    if (SrcVT.getSizeInBits() == VT.getSizeInBits())
+    uint64_t SrcVTSize = SrcVT.getFixedSizeInBits();
+    uint64_t VTSize = VT.getFixedSizeInBits();
+    if (SrcVTSize == VTSize)
       continue;
 
     // This stage of the search produces a source with the same element type as
     // the original, but with a total width matching the BUILD_VECTOR output.
     EVT EltVT = SrcVT.getVectorElementType();
-    unsigned NumSrcElts = VT.getSizeInBits() / EltVT.getSizeInBits();
+    unsigned NumSrcElts = VTSize / EltVT.getFixedSizeInBits();
     EVT DestVT = EVT::getVectorVT(*DAG.getContext(), EltVT, NumSrcElts);
 
-    if (SrcVT.getSizeInBits() < VT.getSizeInBits()) {
-      if (2 * SrcVT.getSizeInBits() != VT.getSizeInBits())
+    if (SrcVTSize < VTSize) {
+      if (2 * SrcVTSize != VTSize)
         return SDValue();
       // We can pad out the smaller vector for free, so if it's part of a
       // shuffle...
@@ -7783,7 +7786,7 @@ SDValue ARMTargetLowering::ReconstructShuffle(SDValue Op,
       continue;
     }
 
-    if (SrcVT.getSizeInBits() != 2 * VT.getSizeInBits())
+    if (SrcVTSize != 2 * VTSize)
       return SDValue();
 
     if (Src.MaxElt - Src.MinElt >= NumSrcElts) {
@@ -12204,9 +12207,93 @@ static SDValue PerformSELECTCombine(SDNode *N,
   return Reduction;
 }
 
+// A special combine for the vqdmulh family of instructions. This is one of the
+// potential set of patterns that could patch this instruction. The base pattern
+// you would expect to be min(max(ashr(mul(mul(sext(x), 2), sext(y)), 16))).
+// This matches the different min(max(ashr(mul(mul(sext(x), sext(y)), 2), 16))),
+// which llvm will have optimized to min(ashr(mul(sext(x), sext(y)), 15))) as
+// the max is unnecessary.
+static SDValue PerformVQDMULHCombine(SDNode *N, SelectionDAG &DAG) {
+  EVT VT = N->getValueType(0);
+  SDValue Shft;
+  ConstantSDNode *Clamp;
+
+  if (N->getOpcode() == ISD::SMIN) {
+    Shft = N->getOperand(0);
+    Clamp = isConstOrConstSplat(N->getOperand(1));
+  } else if (N->getOpcode() == ISD::VSELECT) {
+    // Detect a SMIN, which for an i64 node will be a vselect/setcc, not a smin.
+    SDValue Cmp = N->getOperand(0);
+    if (Cmp.getOpcode() != ISD::SETCC ||
+        cast<CondCodeSDNode>(Cmp.getOperand(2))->get() != ISD::SETLT ||
+        Cmp.getOperand(0) != N->getOperand(1) ||
+        Cmp.getOperand(1) != N->getOperand(2))
+      return SDValue();
+    Shft = N->getOperand(1);
+    Clamp = isConstOrConstSplat(N->getOperand(2));
+  } else
+    return SDValue();
+
+  if (!Clamp)
+    return SDValue();
+
+  MVT ScalarType;
+  int ShftAmt = 0;
+  switch (Clamp->getSExtValue()) {
+  case (1 << 7) - 1:
+    ScalarType = MVT::i8;
+    ShftAmt = 7;
+    break;
+  case (1 << 15) - 1:
+    ScalarType = MVT::i16;
+    ShftAmt = 15;
+    break;
+  case (1ULL << 31) - 1:
+    ScalarType = MVT::i32;
+    ShftAmt = 31;
+    break;
+  default:
+    return SDValue();
+  }
+
+  if (Shft.getOpcode() != ISD::SRA)
+    return SDValue();
+  ConstantSDNode *N1 = isConstOrConstSplat(Shft.getOperand(1));
+  if (!N1 || N1->getSExtValue() != ShftAmt)
+    return SDValue();
+
+  SDValue Mul = Shft.getOperand(0);
+  if (Mul.getOpcode() != ISD::MUL)
+    return SDValue();
+
+  SDValue Ext0 = Mul.getOperand(0);
+  SDValue Ext1 = Mul.getOperand(1);
+  if (Ext0.getOpcode() != ISD::SIGN_EXTEND ||
+      Ext1.getOpcode() != ISD::SIGN_EXTEND)
+    return SDValue();
+  EVT VecVT = Ext0.getOperand(0).getValueType();
+  if (VecVT != MVT::v4i32 && VecVT != MVT::v8i16 && VecVT != MVT::v16i8)
+    return SDValue();
+  if (Ext1.getOperand(0).getValueType() != VecVT ||
+      VecVT.getScalarType() != ScalarType ||
+      VT.getScalarSizeInBits() < ScalarType.getScalarSizeInBits() * 2)
+    return SDValue();
+
+  SDLoc DL(Mul);
+  SDValue VQDMULH = DAG.getNode(ARMISD::VQDMULH, DL, VecVT, Ext0.getOperand(0),
+                                Ext1.getOperand(0));
+  return DAG.getNode(ISD::SIGN_EXTEND, DL, VT, VQDMULH);
+}
+
 static SDValue PerformVSELECTCombine(SDNode *N,
                                      TargetLowering::DAGCombinerInfo &DCI,
                                      const ARMSubtarget *Subtarget) {
+  if (!Subtarget->hasMVEIntegerOps())
+    return SDValue();
+
+  if (SDValue V = PerformVQDMULHCombine(N, DCI.DAG))
+    return V;
+
   // Transforms vselect(not(cond), lhs, rhs) into vselect(cond, rhs, lhs).
   //
   // We need to re-implement this optimization here as the implementation in the
@@ -12216,9 +12303,6 @@ static SDValue PerformVSELECTCombine(SDNode *N,
   //
   // Currently, this is only done for MVE, as it's the only target that benefits
   // from this transformation (e.g. VPNOT+VPSEL becomes a single VPSEL).
-  if (!Subtarget->hasMVEIntegerOps())
-    return SDValue();
-
   if (N->getOperand(0).getOpcode() != ISD::XOR)
     return SDValue();
   SDValue XOR = N->getOperand(0);
@@ -14580,6 +14664,14 @@ static SDValue PerformSplittingToNarrowingStores(StoreSDNode *St,
     return true;
   };
 
+  // It may be preferable to keep the store unsplit as the trunc may end up
+  // being removed. Check that here.
+  if (Trunc.getOperand(0).getOpcode() == ISD::SMIN) {
+    if (SDValue U = PerformVQDMULHCombine(Trunc.getOperand(0).getNode(), DAG)) {
+      DAG.ReplaceAllUsesWith(Trunc.getOperand(0), U);
+      return SDValue();
+    }
+  }
   if (auto *Shuffle = dyn_cast<ShuffleVectorSDNode>(Trunc->getOperand(0)))
     if (isVMOVNOriginalMask(Shuffle->getMask(), false) ||
         isVMOVNOriginalMask(Shuffle->getMask(), true))
@@ -15552,6 +15644,9 @@ static SDValue PerformMinMaxCombine(SDNode *N, SelectionDAG &DAG,
   SDValue N0 = N->getOperand(0);
   if (!ST->hasMVEIntegerOps())
     return SDValue();
+
+  if (SDValue V = PerformVQDMULHCombine(N, DAG))
+    return V;
 
   if (VT != MVT::v4i32 && VT != MVT::v8i16)
     return SDValue();

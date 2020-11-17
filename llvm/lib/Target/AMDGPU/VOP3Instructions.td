@@ -138,7 +138,7 @@ class VOP3Inst<string OpName, VOPProfile P, SDPatternOperator node = null_frag, 
   let AsmMatchConverter =
     !if(P.HasOpSel,
         "cvtVOP3OpSel",
-        !if(!or(P.HasModifiers, !or(P.HasOMod, P.HasIntClamp)),
+        !if(!or(P.HasModifiers, P.HasOMod, P.HasIntClamp),
             "cvtVOP3",
             ""));
 }
@@ -174,7 +174,7 @@ class VOP3_Profile<VOPProfile P, VOP3Features Features = VOP3_REGULAR> : VOPProf
   let IsMAI    = !if(Features.IsMAI,    1, P.IsMAI);
   let IsPacked = !if(Features.IsPacked, 1, P.IsPacked);
 
-  let HasModifiers = !if(Features.IsPacked, !if(Features.IsMAI, 0, 1), P.HasModifiers);
+  let HasModifiers = !if(Features.IsPacked, !not(Features.IsMAI), P.HasModifiers);
 
   // FIXME: Hack to stop printing _e64
   let Outs64 = (outs DstRC.RegClass:$vdst);
@@ -193,12 +193,8 @@ class VOP3_Profile<VOPProfile P, VOP3Features Features = VOP3_REGULAR> : VOPProf
 }
 
 class VOP3b_Profile<ValueType vt> : VOPProfile<[vt, vt, vt, vt]> {
-  // v_div_scale_{f32|f64} do not support input modifiers.
-  let HasModifiers = 0;
-  let HasClamp = 0;
-  let HasOMod = 0;
   let Outs64 = (outs DstRC:$vdst, VOPDstS64orS32:$sdst);
-  let Asm64 = " $vdst, $sdst, $src0, $src1, $src2";
+  let Asm64 = " $vdst, $sdst, $src0_modifiers, $src1_modifiers, $src2_modifiers$clamp$omod";
 }
 
 def VOP3b_F32_I1_F32_F32_F32 : VOP3b_Profile<f32> {
@@ -277,7 +273,7 @@ class getInterp16Ins <bit HasSrc2, bit HasOMod,
 
 class VOP3_INTERP16 <list<ValueType> ArgVT> : VOPProfile<ArgVT> {
 
-  let HasOMod = !if(!eq(DstVT.Value, f16.Value), 0, 1);
+  let HasOMod = !ne(DstVT.Value, f16.Value);
   let HasHigh = 1;
 
   let Outs64 = (outs VGPR_32:$vdst);
@@ -297,8 +293,10 @@ def V_MAD_LEGACY_F32 : VOP3Inst <"v_mad_legacy_f32", VOP3_Profile<VOP_F32_F32_F3
 def V_MAD_F32 : VOP3Inst <"v_mad_f32", VOP3_Profile<VOP_F32_F32_F32_F32>, fmad>;
 } // End SubtargetPredicate = HasMadMacInsts
 
-let SubtargetPredicate = HasNoMadMacF32Insts in
-def V_FMA_LEGACY_F32 : VOP3Inst <"v_fma_legacy_f32", VOP3_Profile<VOP_F32_F32_F32_F32>>;
+let SubtargetPredicate = HasFmaLegacy32 in
+def V_FMA_LEGACY_F32 : VOP3Inst <"v_fma_legacy_f32",
+                                 VOP3_Profile<VOP_F32_F32_F32_F32>,
+                                 int_amdgcn_fma_legacy>;
 }
 
 def V_MAD_I32_I24 : VOP3Inst <"v_mad_i32_i24", VOP3_Profile<VOP_I32_I32_I32_I32, VOP3_CLAMP>>;
@@ -386,13 +384,11 @@ def V_LDEXP_F64 : VOP3Inst <"v_ldexp_f64", VOP3_Profile<VOP_F64_F64_I32>, AMDGPU
 let mayRaiseFPException = 0 in { // Seems suspicious but manual doesn't say it does.
 def V_DIV_SCALE_F32 : VOP3_Pseudo <"v_div_scale_f32", VOP3b_F32_I1_F32_F32_F32, [], 1> {
   let SchedRW = [WriteFloatFMA, WriteSALU];
-  let AsmMatchConverter = "";
 }
 
 // Double precision division pre-scale.
 def V_DIV_SCALE_F64 : VOP3_Pseudo <"v_div_scale_f64", VOP3b_F64_I1_F64_F64_F64, [], 1> {
   let SchedRW = [WriteDouble, WriteSALU];
-  let AsmMatchConverter = "";
   let FPDPRounding = 1;
 }
 } // End mayRaiseFPException = 0

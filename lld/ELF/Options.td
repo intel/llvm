@@ -179,6 +179,9 @@ defm error_limit:
 def error_unresolved_symbols: F<"error-unresolved-symbols">,
   HelpText<"Report unresolved symbols as errors">;
 
+defm error_handling_script: EEq<"error-handling-script",
+    "Specify an error handling script">;
+
 defm exclude_libs: Eq<"exclude-libs", "Exclude static libraries from automatic export">;
 
 defm execute_only: BB<"execute-only",
@@ -468,7 +471,7 @@ defm whole_archive: B<"whole-archive",
     "Do not force load of all members in a static library (default)">;
 
 defm wrap: Eq<"wrap", "Use wrapper functions for symbol">,
-  MetaVarName<"<symbol>=<symbol>">;
+  MetaVarName<"<symbol>">;
 
 def z: JoinedOrSeparate<["-"], "z">, MetaVarName<"<option>">,
   HelpText<"Linker option extensions">;

@@ -472,8 +472,8 @@ public:
   bool SubsumesPredicate(ArrayRef<MachineOperand> Pred1,
                          ArrayRef<MachineOperand> Pred2) const override;
 
-  bool DefinesPredicate(MachineInstr &MI,
-                        std::vector<MachineOperand> &Pred) const override;
+  bool ClobbersPredicate(MachineInstr &MI, std::vector<MachineOperand> &Pred,
+                         bool SkipDead) const override;
 
   // Comparison optimization.
 
@@ -564,6 +564,7 @@ public:
   bool convertToImmediateForm(MachineInstr &MI,
                               MachineInstr **KilledDef = nullptr) const;
   bool foldFrameOffset(MachineInstr &MI) const;
+  bool combineRLWINM(MachineInstr &MI, MachineInstr **ToErase = nullptr) const;
   bool isADDIInstrEligibleForFolding(MachineInstr &ADDIMI, int64_t &Imm) const;
   bool isADDInstrEligibleForFolding(MachineInstr &ADDMI) const;
   bool isImmInstrEligibleForFolding(MachineInstr &MI, unsigned &BaseReg,

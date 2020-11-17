@@ -76,6 +76,10 @@ enum OperandType {
   OPERAND_EVENT,
   /// A list of branch targets for br_list.
   OPERAND_BRLIST,
+  /// 32-bit unsigned table number.
+  OPERAND_TABLE,
+  /// heap type immediate for ref.null.
+  OPERAND_HEAPTYPE,
 };
 } // end namespace WebAssembly
 
@@ -138,6 +142,13 @@ enum class BlockType : unsigned {
   Multivalue = 0xffff,
 };
 
+/// Used as immediate MachineOperands for heap types, e.g. for ref.null.
+enum class HeapType : unsigned {
+  Invalid = 0x00,
+  Externref = unsigned(wasm::ValType::EXTERNREF),
+  Funcref = unsigned(wasm::ValType::FUNCREF),
+};
+
 /// Instruction opcodes emitted via means other than CodeGen.
 static const unsigned Nop = 0x01;
 static const unsigned End = 0x0b;
@@ -177,7 +188,9 @@ inline unsigned GetDefaultP2AlignAny(unsigned Opc) {
   WASM_LOAD_STORE(ATOMIC_RMW8_U_CMPXCHG_I32)
   WASM_LOAD_STORE(ATOMIC_RMW8_U_CMPXCHG_I64)
   WASM_LOAD_STORE(LOAD_SPLAT_v8x16)
-    return 0;
+  WASM_LOAD_STORE(LOAD_LANE_v16i8)
+  WASM_LOAD_STORE(STORE_LANE_v16i8)
+  return 0;
   WASM_LOAD_STORE(LOAD16_S_I32)
   WASM_LOAD_STORE(LOAD16_U_I32)
   WASM_LOAD_STORE(LOAD16_S_I64)
@@ -203,7 +216,9 @@ inline unsigned GetDefaultP2AlignAny(unsigned Opc) {
   WASM_LOAD_STORE(ATOMIC_RMW16_U_CMPXCHG_I32)
   WASM_LOAD_STORE(ATOMIC_RMW16_U_CMPXCHG_I64)
   WASM_LOAD_STORE(LOAD_SPLAT_v16x8)
-    return 1;
+  WASM_LOAD_STORE(LOAD_LANE_v8i16)
+  WASM_LOAD_STORE(STORE_LANE_v8i16)
+  return 1;
   WASM_LOAD_STORE(LOAD_I32)
   WASM_LOAD_STORE(LOAD_F32)
   WASM_LOAD_STORE(STORE_I32)
@@ -233,7 +248,9 @@ inline unsigned GetDefaultP2AlignAny(unsigned Opc) {
   WASM_LOAD_STORE(ATOMIC_WAIT_I32)
   WASM_LOAD_STORE(LOAD_SPLAT_v32x4)
   WASM_LOAD_STORE(LOAD_ZERO_v4i32)
-    return 2;
+  WASM_LOAD_STORE(LOAD_LANE_v4i32)
+  WASM_LOAD_STORE(STORE_LANE_v4i32)
+  return 2;
   WASM_LOAD_STORE(LOAD_I64)
   WASM_LOAD_STORE(LOAD_F64)
   WASM_LOAD_STORE(STORE_I64)
@@ -256,7 +273,9 @@ inline unsigned GetDefaultP2AlignAny(unsigned Opc) {
   WASM_LOAD_STORE(LOAD_EXTEND_S_v2i64)
   WASM_LOAD_STORE(LOAD_EXTEND_U_v2i64)
   WASM_LOAD_STORE(LOAD_ZERO_v2i64)
-    return 3;
+  WASM_LOAD_STORE(LOAD_LANE_v2i64)
+  WASM_LOAD_STORE(STORE_LANE_v2i64)
+  return 3;
   WASM_LOAD_STORE(LOAD_V128)
   WASM_LOAD_STORE(STORE_V128)
     return 4;

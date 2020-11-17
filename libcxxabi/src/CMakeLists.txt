@@ -202,6 +202,8 @@ if (LIBCXXABI_ENABLE_SHARED)
     list(APPEND LIBCXXABI_INSTALL_TARGETS "cxxabi_shared")
   endif()
 
+  add_library(cxxabi-reexports INTERFACE)
+
   # -exported_symbols_list is only available on Apple platforms
   if (APPLE)
     function(export_symbols file)
@@ -209,13 +211,13 @@ if (LIBCXXABI_ENABLE_SHARED)
     endfunction()
     function(reexport_symbols file)
       export_symbols("${file}")
-      target_link_libraries(cxxabi_shared INTERFACE "-Wl,-reexported_symbols_list,${file}")
+      target_link_libraries(cxxabi-reexports INTERFACE "-Wl,-reexported_symbols_list,${file}")
     endfunction()
 
     export_symbols("${CMAKE_CURRENT_SOURCE_DIR}/../lib/itanium-base.exp")
 
     if (LIBCXXABI_ENABLE_NEW_DELETE_DEFINITIONS)
-      export_symbols("${CMAKE_CURRENT_SOURCE_DIR}/../lib/new-delete.exp")
+      reexport_symbols("${CMAKE_CURRENT_SOURCE_DIR}/../lib/new-delete.exp")
     endif()
 
     if (LIBCXXABI_ENABLE_EXCEPTIONS)
@@ -283,7 +285,7 @@ if (LIBCXXABI_ENABLE_STATIC)
   # Merge the libc++abi.a and libunwind.a into one.
   if(LIBCXXABI_USE_LLVM_UNWINDER AND LIBCXXABI_STATICALLY_LINK_UNWINDER_IN_STATIC_LIBRARY)
     add_custom_command(TARGET cxxabi_static POST_BUILD
-      COMMAND ${PYTHON_EXECUTABLE} ${LIBCXXABI_LIBCXX_PATH}/utils/merge_archives.py
+      COMMAND ${Python3_EXECUTABLE} ${LIBCXXABI_LIBCXX_PATH}/utils/merge_archives.py
       ARGS
         -o "$<TARGET_LINKER_FILE:cxxabi_static>"
         --ar "${CMAKE_AR}"

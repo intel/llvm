@@ -136,22 +136,21 @@ CallInst *IRBuilderBase::CreateElementUnorderedAtomicMemSet(
   return CI;
 }
 
-CallInst *IRBuilderBase::CreateMemCpy(Value *Dst, MaybeAlign DstAlign,
-                                      Value *Src, MaybeAlign SrcAlign,
-                                      Value *Size, bool isVolatile,
-                                      MDNode *TBAATag, MDNode *TBAAStructTag,
-                                      MDNode *ScopeTag, MDNode *NoAliasTag) {
+CallInst *IRBuilderBase::CreateMemTransferInst(
+    Intrinsic::ID IntrID, Value *Dst, MaybeAlign DstAlign, Value *Src,
+    MaybeAlign SrcAlign, Value *Size, bool isVolatile, MDNode *TBAATag,
+    MDNode *TBAAStructTag, MDNode *ScopeTag, MDNode *NoAliasTag) {
   Dst = getCastedInt8PtrValue(Dst);
   Src = getCastedInt8PtrValue(Src);
 
   Value *Ops[] = {Dst, Src, Size, getInt1(isVolatile)};
   Type *Tys[] = { Dst->getType(), Src->getType(), Size->getType() };
   Module *M = BB->getParent()->getParent();
-  Function *TheFn = Intrinsic::getDeclaration(M, Intrinsic::memcpy, Tys);
+  Function *TheFn = Intrinsic::getDeclaration(M, IntrID, Tys);
 
   CallInst *CI = createCallHelper(TheFn, Ops, this);
 
-  auto* MCI = cast<MemCpyInst>(CI);
+  auto* MCI = cast<MemTransferInst>(CI);
   if (DstAlign)
     MCI->setDestAlignment(*DstAlign);
   if (SrcAlign)
@@ -654,10 +653,10 @@ CallInst *IRBuilderBase::CreateGCStatepointCall(
 
 CallInst *IRBuilderBase::CreateGCStatepointCall(
     uint64_t ID, uint32_t NumPatchBytes, Value *ActualCallee, uint32_t Flags,
-    ArrayRef<Use> CallArgs, Optional<ArrayRef<Use>> TransitionArgs,
+    ArrayRef<Value *> CallArgs, Optional<ArrayRef<Use>> TransitionArgs,
     Optional<ArrayRef<Use>> DeoptArgs, ArrayRef<Value *> GCArgs,
     const Twine &Name) {
-  return CreateGCStatepointCallCommon<Use, Use, Use, Value *>(
+  return CreateGCStatepointCallCommon<Value *, Use, Use, Value *>(
       this, ID, NumPatchBytes, ActualCallee, Flags, CallArgs, TransitionArgs,
       DeoptArgs, GCArgs, Name);
 }
@@ -712,9 +711,9 @@ InvokeInst *IRBuilderBase::CreateGCStatepointInvoke(
 InvokeInst *IRBuilderBase::CreateGCStatepointInvoke(
     uint64_t ID, uint32_t NumPatchBytes, Value *ActualInvokee,
     BasicBlock *NormalDest, BasicBlock *UnwindDest, uint32_t Flags,
-    ArrayRef<Use> InvokeArgs, Optional<ArrayRef<Use>> TransitionArgs,
+    ArrayRef<Value *> InvokeArgs, Optional<ArrayRef<Use>> TransitionArgs,
     Optional<ArrayRef<Use>> DeoptArgs, ArrayRef<Value *> GCArgs, const Twine &Name) {
-  return CreateGCStatepointInvokeCommon<Use, Use, Use, Value *>(
+  return CreateGCStatepointInvokeCommon<Value *, Use, Use, Value *>(
       this, ID, NumPatchBytes, ActualInvokee, NormalDest, UnwindDest, Flags,
       InvokeArgs, TransitionArgs, DeoptArgs, GCArgs, Name);
 }

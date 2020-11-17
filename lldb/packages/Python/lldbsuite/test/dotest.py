@@ -52,6 +52,9 @@ def is_exe(fpath):
     """Returns true if fpath is an executable."""
     if fpath == None:
         return False
+    if sys.platform == 'win32':
+        if not fpath.endswith(".exe"):
+            fpath += ".exe"
     return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
 
 
@@ -299,6 +302,11 @@ def parseOptionsAndInitTestdirs():
         configuration.sdkroot = seven.get_command_output(
             'xcrun --sdk "%s" --show-sdk-path 2> /dev/null' %
             (args.apple_sdk))
+        if not configuration.sdkroot:
+            logging.error(
+                    'No SDK found with the name %s; aborting...',
+                    args.apple_sdk)
+            sys.exit(-1)
 
     if args.arch:
         configuration.arch = args.arch

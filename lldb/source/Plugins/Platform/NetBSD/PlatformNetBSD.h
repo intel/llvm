@@ -18,8 +18,6 @@ class PlatformNetBSD : public PlatformPOSIX {
 public:
   PlatformNetBSD(bool is_host);
 
-  ~PlatformNetBSD() override;
-
   static void Initialize();
 
   static void Terminate();
@@ -44,7 +42,7 @@ public:
 
   bool GetSupportedArchitectureAtIndex(uint32_t idx, ArchSpec &arch) override;
 
-  int32_t GetResumeCountForLaunchInfo(ProcessLaunchInfo &launch_info) override;
+  uint32_t GetResumeCountForLaunchInfo(ProcessLaunchInfo &launch_info) override;
 
   bool CanDebugProcess() override;
 
@@ -54,10 +52,6 @@ public:
                                   lldb::addr_t length, unsigned prot,
                                   unsigned flags, lldb::addr_t fd,
                                   lldb::addr_t offset) override;
-
-private:
-  PlatformNetBSD(const PlatformNetBSD &) = delete;
-  const PlatformNetBSD &operator=(const PlatformNetBSD &) = delete;
 };
 
 } // namespace platform_netbsd

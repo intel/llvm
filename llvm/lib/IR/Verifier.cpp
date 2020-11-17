@@ -926,6 +926,30 @@ void Verifier::visitDISubrange(const DISubrange &N) {
            "Stride must be signed constant or DIVariable or DIExpression", &N);
 }
 
+void Verifier::visitDIGenericSubrange(const DIGenericSubrange &N) {
+  AssertDI(N.getTag() == dwarf::DW_TAG_generic_subrange, "invalid tag", &N);
+  AssertDI(N.getRawCountNode() || N.getRawUpperBound(),
+           "GenericSubrange must contain count or upperBound", &N);
+  AssertDI(!N.getRawCountNode() || !N.getRawUpperBound(),
+           "GenericSubrange can have any one of count or upperBound", &N);
+  auto *CBound = N.getRawCountNode();
+  AssertDI(!CBound || isa<DIVariable>(CBound) || isa<DIExpression>(CBound),
+           "Count must be signed constant or DIVariable or DIExpression", &N);
+  auto *LBound = N.getRawLowerBound();
+  AssertDI(LBound, "GenericSubrange must contain lowerBound", &N);
+  AssertDI(isa<DIVariable>(LBound) || isa<DIExpression>(LBound),
+           "LowerBound must be signed constant or DIVariable or DIExpression",
+           &N);
+  auto *UBound = N.getRawUpperBound();
+  AssertDI(!UBound || isa<DIVariable>(UBound) || isa<DIExpression>(UBound),
+           "UpperBound must be signed constant or DIVariable or DIExpression",
+           &N);
+  auto *Stride = N.getRawStride();
+  AssertDI(Stride, "GenericSubrange must contain stride", &N);
+  AssertDI(isa<DIVariable>(Stride) || isa<DIExpression>(Stride),
+           "Stride must be signed constant or DIVariable or DIExpression", &N);
+}
+
 void Verifier::visitDIEnumerator(const DIEnumerator &N) {
   AssertDI(N.getTag() == dwarf::DW_TAG_enumerator, "invalid tag", &N);
 }
@@ -1055,6 +1079,11 @@ void Verifier::visitDICompositeType(const DICompositeType &N) {
   if (N.getRawAllocated()) {
     AssertDI(N.getTag() == dwarf::DW_TAG_array_type,
              "allocated can only appear in array type");
+  }
+
+  if (N.getRawRank()) {
+    AssertDI(N.getTag() == dwarf::DW_TAG_array_type,
+             "rank can only appear in array type");
   }
 }
 
@@ -1572,6 +1601,7 @@ static bool isFuncOnlyAttr(Attribute::AttrKind Kind) {
   case Attribute::NoInline:
   case Attribute::AlwaysInline:
   case Attribute::OptimizeForSize:
+  case Attribute::NoStackProtect:
   case Attribute::StackProtect:
   case Attribute::StackProtectReq:
   case Attribute::StackProtectStrong:
@@ -1608,6 +1638,7 @@ static bool isFuncOnlyAttr(Attribute::AttrKind Kind) {
   case Attribute::Speculatable:
   case Attribute::StrictFP:
   case Attribute::NullPointerIsValid:
+  case Attribute::MustProgress:
     return true;
   default:
     break;
@@ -1965,6 +1996,19 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
     if (S.getAsInteger(10, N))
       CheckFailed(
           "\"patchable-function-entry\" takes an unsigned integer: " + S, V);
+  }
+  {
+    unsigned N = 0;
+    if (Attrs.hasFnAttribute(Attribute::NoStackProtect))
+      ++N;
+    if (Attrs.hasFnAttribute(Attribute::StackProtect))
+      ++N;
+    if (Attrs.hasFnAttribute(Attribute::StackProtectReq))
+      ++N;
+    if (Attrs.hasFnAttribute(Attribute::StackProtectStrong))
+      ++N;
+    Assert(N < 2,
+           "nossp, ssp, sspreq, sspstrong fn attrs are mutually exclusive", V);
   }
 }
 

@@ -1,22 +1,22 @@
-/*===-- mlir-c/Interop.h - Constants for Python/C-API interop -----*- C -*-===*\
-|*                                                                            *|
-|* Part of the LLVM Project, under the Apache License v2.0 with LLVM          *|
-|* Exceptions.                                                                *|
-|* See https://llvm.org/LICENSE.txt for license information.                  *|
-|* SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception                    *|
-|*                                                                            *|
-|*===----------------------------------------------------------------------===*|
-|*                                                                            *|
-|* This header declares constants and helpers necessary for C-level           *|
-|* interop with the MLIR Python extension module. Since the Python bindings   *|
-|* are a thin wrapper around the MLIR C-API, a further C-API is not provided  *|
-|* specifically for the Python extension. Instead, simple facilities are      *|
-|* provided for translating between Python types and corresponding MLIR C-API *|
-|* types.                                                                     *|
-|*                                                                            *|
-|* This header is standalone, requiring nothing beyond normal linking against *|
-|* the Python implementation.                                                 *|
-\*===----------------------------------------------------------------------===*/
+//===-- mlir-c/Interop.h - Constants for Python/C-API interop -----*- C -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// This header declares constants and helpers necessary for C-level
+// interop with the MLIR Python extension module. Since the Python bindings
+// are a thin wrapper around the MLIR C-API, a further C-API is not provided
+// specifically for the Python extension. Instead, simple facilities are
+// provided for translating between Python types and corresponding MLIR C-API
+// types.
+//
+// This header is standalone, requiring nothing beyond normal linking against
+// the Python implementation.
+//===----------------------------------------------------------------------===//
 
 #ifndef MLIR_C_BINDINGS_PYTHON_INTEROP_H
 #define MLIR_C_BINDINGS_PYTHON_INTEROP_H
@@ -84,6 +84,16 @@ inline PyObject *mlirPythonModuleToCapsule(MlirModule module) {
   void *ptr = (void *)ptr;
 #endif
   return PyCapsule_New(ptr, MLIR_PYTHON_CAPSULE_MODULE, NULL);
+}
+
+/** Extracts an MlirModule from a capsule as produced from
+ * mlirPythonModuleToCapsule. If the capsule is not of the right type, then
+ * a null module is returned (as checked via mlirModuleIsNull). In such a
+ * case, the Python APIs will have already set an error. */
+inline MlirModule mlirPythonCapsuleToModule(PyObject *capsule) {
+  void *ptr = PyCapsule_GetPointer(capsule, MLIR_PYTHON_CAPSULE_MODULE);
+  MlirModule module = {ptr};
+  return module;
 }
 
 #ifdef __cplusplus

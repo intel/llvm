@@ -117,8 +117,6 @@ PlatformNetBSD::PlatformNetBSD(bool is_host)
     : PlatformPOSIX(is_host) // This is the local host platform
 {}
 
-PlatformNetBSD::~PlatformNetBSD() = default;
-
 bool PlatformNetBSD::GetSupportedArchitectureAtIndex(uint32_t idx,
                                                      ArchSpec &arch) {
   if (IsHost()) {
@@ -187,9 +185,9 @@ void PlatformNetBSD::GetStatus(Stream &strm) {
 #endif
 }
 
-int32_t
+uint32_t
 PlatformNetBSD::GetResumeCountForLaunchInfo(ProcessLaunchInfo &launch_info) {
-  int32_t resume_count = 0;
+  uint32_t resume_count = 0;
 
   // Always resume past the initial stop when we use eLaunchFlagDebug
   if (launch_info.GetFlags().Test(eLaunchFlagDebug)) {

@@ -375,6 +375,7 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-defaultlib:msvcrt");
     else
       CmdArgs.push_back("-defaultlib:libcmt");
+    CmdArgs.push_back("-defaultlib:oldnames");
   }
 
   if (!C.getDriver().IsCLMode() && !Args.hasArg(options::OPT_nostdlib) &&

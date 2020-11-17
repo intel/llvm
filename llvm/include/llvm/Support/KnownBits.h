@@ -166,6 +166,16 @@ public:
     return *this;
   }
 
+  /// Return known bits for a sign extension or truncation of the value we're
+  /// tracking.
+  KnownBits sextOrTrunc(unsigned BitWidth) const {
+    if (BitWidth > getBitWidth())
+      return sext(BitWidth);
+    if (BitWidth < getBitWidth())
+      return trunc(BitWidth);
+    return *this;
+  }
+
   /// Return a KnownBits with the extracted bits
   /// [bitPosition,bitPosition+numBits).
   KnownBits extractBits(unsigned NumBits, unsigned BitPosition) const {
@@ -245,6 +255,9 @@ public:
   static KnownBits computeForAddSub(bool Add, bool NSW, const KnownBits &LHS,
                                     KnownBits RHS);
 
+  /// Compute known bits resulting from multiplying LHS and RHS.
+  static KnownBits computeForMul(const KnownBits &LHS, const KnownBits &RHS);
+
   /// Compute known bits for umax(LHS, RHS).
   static KnownBits umax(const KnownBits &LHS, const KnownBits &RHS);
 
@@ -256,6 +269,18 @@ public:
 
   /// Compute known bits for smin(LHS, RHS).
   static KnownBits smin(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Compute known bits for shl(LHS, RHS).
+  /// NOTE: RHS (shift amount) bitwidth doesn't need to be the same as LHS.
+  static KnownBits shl(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Compute known bits for lshr(LHS, RHS).
+  /// NOTE: RHS (shift amount) bitwidth doesn't need to be the same as LHS.
+  static KnownBits lshr(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Compute known bits for ashr(LHS, RHS).
+  /// NOTE: RHS (shift amount) bitwidth doesn't need to be the same as LHS.
+  static KnownBits ashr(const KnownBits &LHS, const KnownBits &RHS);
 
   /// Insert the bits from a smaller known bits starting at bitPosition.
   void insertBits(const KnownBits &SubBits, unsigned BitPosition) {

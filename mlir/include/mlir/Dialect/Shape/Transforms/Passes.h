@@ -17,7 +17,8 @@
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
-class BufferAssignmentTypeConverter;
+class ConversionTarget;
+class TypeConverter;
 } // namespace mlir
 
 namespace mlir {
@@ -40,12 +41,27 @@ void populateRemoveShapeConstraintsPatterns(OwningRewritePatternList &patterns,
                                             MLIRContext *ctx);
 std::unique_ptr<FunctionPass> createRemoveShapeConstraintsPass();
 
-void populateShapeTypeConversionPatterns(
-    MLIRContext *ctx, BufferAssignmentTypeConverter *converter,
-    OwningRewritePatternList *patterns);
-// Collects a set of patterns to replace tensors as inputs and outputs to shape
-// operations with buffers. This only modifies the shape operations.
-std::unique_ptr<FunctionPass> createShapeTensorToMemrefPass();
+/// Populates patterns for shape dialect structural type conversions and sets up
+/// the provided ConversionTarget with the appropriate legality configuration
+/// for the ops to get converted properly.
+///
+/// A "structural" type conversion is one where the underlying ops are
+/// completely agnostic to the actual types involved and simply need to update
+/// their types consistently. An example of this is shape.assuming -- the
+/// shape.assuming op and the corresponding shape.assuming_yield op need to have
+/// consistent types, but the exact types don't matter. So all that we need to
+/// do for a structural type conversion is to update both of their types
+/// consistently to the new types prescribed by the TypeConverter.
+void populateShapeStructuralTypeConversionsAndLegality(
+    MLIRContext *context, TypeConverter &typeConverter,
+    OwningRewritePatternList &patterns, ConversionTarget &target);
+
+// Bufferizes shape dialect ops.
+//
+// Note that most shape dialect ops must be converted to std before
+// bufferization happens, as they are intended to be bufferized at the std
+// level.
+std::unique_ptr<FunctionPass> createShapeBufferizePass();
 
 //===----------------------------------------------------------------------===//
 // Registration

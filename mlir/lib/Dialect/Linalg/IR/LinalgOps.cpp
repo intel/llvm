@@ -313,6 +313,40 @@ static ParseResult parseGenericOp(OpAsmParser &parser, OperationState &result) {
   return success();
 }
 
+static void getGenericEffectsImpl(
+    SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+        &effects,
+    ValueRange results, ValueRange inputBuffers, ValueRange outputBuffers) {
+  for (Value value : results) {
+    effects.emplace_back(MemoryEffects::Allocate::get(), value,
+                         SideEffects::DefaultResource::get());
+  }
+  for (Value value : inputBuffers) {
+    effects.emplace_back(MemoryEffects::Read::get(), value,
+                         SideEffects::DefaultResource::get());
+  }
+  for (Value value : outputBuffers) {
+    effects.emplace_back(MemoryEffects::Read::get(), value,
+                         SideEffects::DefaultResource::get());
+    effects.emplace_back(MemoryEffects::Write::get(), value,
+                         SideEffects::DefaultResource::get());
+  }
+}
+
+void GenericOp::getEffects(
+    SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+        &effects) {
+  getGenericEffectsImpl(effects, getOperation()->getResults(),
+                        getInputBuffers(), getOutputBuffers());
+}
+
+void IndexedGenericOp::getEffects(
+    SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+        &effects) {
+  getGenericEffectsImpl(effects, getOperation()->getResults(),
+                        getInputBuffers(), getOutputBuffers());
+}
+
 namespace {
 template <typename GenericOpType>
 struct BlockArgsVerifier {
@@ -461,6 +495,10 @@ static LogicalResult verify(IndexedGenericOp op) { return verifyGenericOp(op); }
 static ArrayAttr collapseReassociationMaps(ArrayRef<AffineMap> mapsProducer,
                                            ArrayRef<AffineMap> mapsConsumer,
                                            MLIRContext *context) {
+  // Handle the corner case of the result being a rank 0 shaped type. Return an
+  // emtpy ArrayAttr.
+  if (mapsConsumer.empty() && !mapsProducer.empty())
+    return ArrayAttr::get(ArrayRef<Attribute>(), context);
   if (mapsProducer.empty() || mapsConsumer.empty() ||
       mapsProducer[0].getNumDims() < mapsConsumer[0].getNumDims() ||
       mapsProducer.size() != mapsConsumer[0].getNumDims())
@@ -500,8 +538,7 @@ struct CollapseReshapeOps : public OpRewritePattern<ReshapeOpTy> {
                                     ShapedType intermediateType,
                                     ShapedType smallerType) -> bool {
       return largerType.getRank() > intermediateType.getRank() &&
-             intermediateType.getRank() > smallerType.getRank() &&
-             smallerType.getRank() > 0;
+             intermediateType.getRank() > smallerType.getRank();
     };
     // Check if producer and consumer are both expanding dims.
     if (areReshapeOpsFoldable(reshapeOp.getResultType(), reshapeOp.getSrcType(),
@@ -514,9 +551,8 @@ struct CollapseReshapeOps : public OpRewritePattern<ReshapeOpTy> {
       return success();
     }
     // Check if producer and consumer are both collapsing dims.
-    else if (areReshapeOpsFoldable(srcReshapeOp.getSrcType(),
-                                   reshapeOp.getSrcType(),
-                                   reshapeOp.getResultType())) {
+    if (areReshapeOpsFoldable(srcReshapeOp.getSrcType(), reshapeOp.getSrcType(),
+                              reshapeOp.getResultType())) {
       rewriter.replaceOpWithNewOp<ReshapeOpTy>(
           reshapeOp, reshapeOp.getResultType(), srcReshapeOp.src(),
           collapseReassociationMaps(srcReshapeOp.getReassociationMaps(),
@@ -709,10 +745,10 @@ static SmallVector<SmallVector<AffineExpr, 2>, 2>
 convertReassociationIndicesToMaps(
     OpBuilder &b, ArrayRef<ReassociationIndices> reassociationIndices) {
   SmallVector<SmallVector<AffineExpr, 2>, 2> reassociationMaps;
-  for (const auto &indicies : reassociationIndices) {
+  for (const auto &indices : reassociationIndices) {
     SmallVector<AffineExpr, 2> reassociationMap;
-    reassociationMap.reserve(indicies.size());
-    for (int64_t index : indicies)
+    reassociationMap.reserve(indices.size());
+    for (int64_t index : indices)
       reassociationMap.push_back(b.getAffineDimExpr(index));
     reassociationMaps.push_back(std::move(reassociationMap));
   }
@@ -1037,12 +1073,28 @@ static LogicalResult verify(linalg::YieldOp op) {
 
 /////// Operations corresponding to library calls defined with Tablegen ////////
 
+void FillOp::getEffects(
+    SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+        &effects) {
+  effects.emplace_back(MemoryEffects::Write::get(), output(),
+                       SideEffects::DefaultResource::get());
+}
+
 static LogicalResult verify(FillOp op) {
   auto viewType = op.getOutputShapedType(0);
   auto fillType = op.value().getType();
   if (viewType.getElementType() != fillType)
     return op.emitOpError("expects fill type to match view elemental type");
   return success();
+}
+
+void CopyOp::getEffects(
+    SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+        &effects) {
+  effects.emplace_back(MemoryEffects::Read::get(), input(),
+                       SideEffects::DefaultResource::get());
+  effects.emplace_back(MemoryEffects::Write::get(), output(),
+                       SideEffects::DefaultResource::get());
 }
 
 static LogicalResult verify(CopyOp op) {
@@ -1089,6 +1141,17 @@ static LogicalResult verifyStrideOrDilation(LinalgPoolingOp op,
            << "s equal to number of window dimensions: " << attrs.size()
            << " vs " << op.getNumWindowLoops();
   return success();
+}
+
+void ConvOp::getEffects(
+    SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+        &effects) {
+  effects.emplace_back(MemoryEffects::Read::get(), input(),
+                       SideEffects::DefaultResource::get());
+  effects.emplace_back(MemoryEffects::Read::get(), filter(),
+                       SideEffects::DefaultResource::get());
+  effects.emplace_back(MemoryEffects::Write::get(), output(),
+                       SideEffects::DefaultResource::get());
 }
 
 static LogicalResult verify(ConvOp op) {
@@ -1140,6 +1203,16 @@ static LogicalResult verifySingleInputPoolingOp(PoolingOp op) {
   return success();
 }
 
+#define DEFINE_POOLING_OP_GET_EFFECTS(OP_NAME)                                 \
+  void OP_NAME::getEffects(                                                    \
+      SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>      \
+          &effects) {                                                          \
+    effects.emplace_back(MemoryEffects::Read::get(), input(),                  \
+                         SideEffects::DefaultResource::get());                 \
+    effects.emplace_back(MemoryEffects::Write::get(), output(),                \
+                         SideEffects::DefaultResource::get());                 \
+  }
+
 static LogicalResult verify(PoolingMaxOp op) {
   return verifySingleInputPoolingOp(op);
 }
@@ -1149,6 +1222,15 @@ static LogicalResult verify(PoolingMinOp op) {
 static LogicalResult verify(PoolingSumOp op) {
   return verifySingleInputPoolingOp(op);
 }
+
+DEFINE_POOLING_OP_GET_EFFECTS(PoolingMaxOp);
+DEFINE_POOLING_OP_GET_EFFECTS(PoolingMinOp);
+DEFINE_POOLING_OP_GET_EFFECTS(PoolingSumOp);
+
+namespace {
+struct EraseDeadLinalgOp;
+struct FoldTensorCastOp;
+} // namespace
 
 #include "mlir/Dialect/Linalg/IR/LinalgStructuredOpsInterfaces.cpp.inc"
 
@@ -1449,7 +1531,8 @@ static void printNamedStructuredOpResults(OpAsmPrinter &p,
 template <typename NamedStructuredOpType>
 static void printCommonStructuredOpParts(OpAsmPrinter &p,
                                          NamedStructuredOpType op) {
-  p << " ins(" << op.inputs() << " : " << op.inputs().getTypes() << ")";
+  if (!op.inputs().empty())
+    p << " ins(" << op.inputs() << " : " << op.inputs().getTypes() << ")";
   if (!op.output_buffers().empty())
     p << " outs(" << op.output_buffers() << " : "
       << op.output_buffers().getTypes() << ")";
@@ -1464,7 +1547,8 @@ static void printNamedStructuredOp(OpAsmPrinter &p, NamedStructuredOpType op) {
   p.printOptionalAttrDict(op.getAttrs(),
                           /*elidedAttrs=*/{"operand_segment_sizes"});
 
-  // Printing is shared with generic ops, except for the region and attributes.
+  // Printing is shared with generic ops, except for the region and
+  // attributes.
   printCommonStructuredOpParts(p, op);
 
   // Results printing.
@@ -1578,18 +1662,5 @@ CANONICALIZERS_AND_FOLDERS(FillOp)
 CANONICALIZERS_AND_FOLDERS(GenericOp)
 CANONICALIZERS_AND_FOLDERS(IndexedGenericOp)
 
-// TODO: Determine whether we can generate the folders and verifiers.
-CANONICALIZERS_AND_FOLDERS(BatchMatmulOp)
-CANONICALIZERS_AND_FOLDERS(DotOp)
-CANONICALIZERS_AND_FOLDERS(MatmulOp)
-CANONICALIZERS_AND_FOLDERS(MatvecOp)
-CANONICALIZERS_AND_FOLDERS(VecmatOp)
-CANONICALIZERS_AND_FOLDERS(ConvWOp)
-CANONICALIZERS_AND_FOLDERS(ConvNWCOp)
-CANONICALIZERS_AND_FOLDERS(ConvNCWOp)
-CANONICALIZERS_AND_FOLDERS(ConvHWOp)
-CANONICALIZERS_AND_FOLDERS(ConvNHWCOp)
-CANONICALIZERS_AND_FOLDERS(ConvNCHWOp)
-CANONICALIZERS_AND_FOLDERS(ConvDHWOp)
-CANONICALIZERS_AND_FOLDERS(ConvNDHWCOp)
-CANONICALIZERS_AND_FOLDERS(ConvNCDHWOp)
+// All named ops canonicalizers and folders are auto-generated in the
+// .cpp.inc.

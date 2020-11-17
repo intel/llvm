@@ -25,6 +25,7 @@
 
 #include "URI.h"
 #include "index/SymbolID.h"
+#include "support/MemoryTree.h"
 #include "clang/Index/IndexSymbol.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/Support/JSON.h"
@@ -862,8 +863,19 @@ struct PublishDiagnosticsParams {
 llvm::json::Value toJSON(const PublishDiagnosticsParams &);
 
 struct CodeActionContext {
-  /// An array of diagnostics.
+  /// An array of diagnostics known on the client side overlapping the range
+  /// provided to the `textDocument/codeAction` request. They are provided so
+  /// that the server knows which errors are currently presented to the user for
+  /// the given range. There is no guarantee that these accurately reflect the
+  /// error state of the resource. The primary parameter to compute code actions
+  /// is the provided range.
   std::vector<Diagnostic> diagnostics;
+
+  /// Requested kind of actions to return.
+  ///
+  /// Actions not of this kind are filtered out by the client before being
+  /// shown. So servers can omit computing them.
+  std::vector<std::string> only;
 };
 bool fromJSON(const llvm::json::Value &, CodeActionContext &, llvm::json::Path);
 
@@ -1041,7 +1053,7 @@ struct SymbolDetails {
   /// (See USRGeneration.h)
   std::string USR;
 
-  llvm::Optional<SymbolID> ID;
+  SymbolID ID;
 };
 llvm::json::Value toJSON(const SymbolDetails &);
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, const SymbolDetails &);
@@ -1575,6 +1587,27 @@ struct FoldingRange {
   llvm::Optional<std::string> kind;
 };
 llvm::json::Value toJSON(const FoldingRange &Range);
+
+/// Keys starting with an underscore(_) represent leaves, e.g. _total or _self
+/// for memory usage of whole subtree or only that specific node in bytes. All
+/// other keys represents children. An example:
+///   {
+///     "_self": 0,
+///     "_total": 8,
+///     "child1": {
+///       "_self": 4,
+///       "_total": 4,
+///     }
+///     "child2": {
+///       "_self": 2,
+///       "_total": 4,
+///       "child_deep": {
+///         "_self": 2,
+///         "_total": 2,
+///       }
+///     }
+///   }
+llvm::json::Value toJSON(const MemoryTree &MT);
 
 } // namespace clangd
 } // namespace clang

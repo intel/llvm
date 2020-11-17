@@ -35,6 +35,7 @@ set(files
   avx512vnniintrin.h
   avx512vlvnniintrin.h
   avxintrin.h
+  avxvnniintrin.h
   bmi2intrin.h
   bmiintrin.h
   __clang_cuda_builtin_vars.h
@@ -65,6 +66,7 @@ set(files
   fmaintrin.h
   fxsrintrin.h
   gfniintrin.h
+  hresetintrin.h
   htmintrin.h
   htmxlintrin.h
   ia32intrin.h
@@ -112,6 +114,7 @@ set(files
   tgmath.h
   tmmintrin.h
   tsxldtrkintrin.h
+  uintrintrin.h
   unwind.h
   vadefs.h
   vaesintrin.h
@@ -124,6 +127,7 @@ set(files
   wmmintrin.h
   __wmmintrin_aes.h
   __wmmintrin_pclmul.h
+  x86gprintrin.h
   x86intrin.h
   xmmintrin.h
   xopintrin.h

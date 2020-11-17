@@ -2504,6 +2504,9 @@ public:
 // SVE Types
 #define SVE_TYPE(Name, Id, SingletonId) Id,
 #include "clang/Basic/AArch64SVEACLETypes.def"
+// PPC MMA Types
+#define PPC_MMA_VECTOR_TYPE(Name, Id, Size) Id,
+#include "clang/Basic/PPCTypes.def"
 // All other builtin types
 #define BUILTIN_TYPE(Id, SingletonId) Id,
 #define LAST_BUILTIN_TYPE(Id) LastKind = Id
@@ -7106,55 +7109,28 @@ inline const Type *Type::getPointeeOrArrayElementType() const {
     return type->getBaseElementTypeUnsafe();
   return type;
 }
-/// Insertion operator for diagnostics. This allows sending address spaces into
-/// a diagnostic with <<.
-inline const DiagnosticBuilder &operator<<(const DiagnosticBuilder &DB,
-                                           LangAS AS) {
-  DB.AddTaggedVal(static_cast<std::underlying_type_t<LangAS>>(AS),
-                  DiagnosticsEngine::ArgumentKind::ak_addrspace);
-  return DB;
-}
-
 /// Insertion operator for partial diagnostics. This allows sending adress
 /// spaces into a diagnostic with <<.
-inline const PartialDiagnostic &operator<<(const PartialDiagnostic &PD,
-                                           LangAS AS) {
+inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &PD,
+                                             LangAS AS) {
   PD.AddTaggedVal(static_cast<std::underlying_type_t<LangAS>>(AS),
                   DiagnosticsEngine::ArgumentKind::ak_addrspace);
   return PD;
 }
 
-/// Insertion operator for diagnostics. This allows sending Qualifiers into a
-/// diagnostic with <<.
-inline const DiagnosticBuilder &operator<<(const DiagnosticBuilder &DB,
-                                           Qualifiers Q) {
-  DB.AddTaggedVal(Q.getAsOpaqueValue(),
-                  DiagnosticsEngine::ArgumentKind::ak_qual);
-  return DB;
-}
-
 /// Insertion operator for partial diagnostics. This allows sending Qualifiers
 /// into a diagnostic with <<.
-inline const PartialDiagnostic &operator<<(const PartialDiagnostic &PD,
-                                           Qualifiers Q) {
+inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &PD,
+                                             Qualifiers Q) {
   PD.AddTaggedVal(Q.getAsOpaqueValue(),
                   DiagnosticsEngine::ArgumentKind::ak_qual);
   return PD;
 }
 
-/// Insertion operator for diagnostics.  This allows sending QualType's into a
-/// diagnostic with <<.
-inline const DiagnosticBuilder &operator<<(const DiagnosticBuilder &DB,
-                                           QualType T) {
-  DB.AddTaggedVal(reinterpret_cast<intptr_t>(T.getAsOpaquePtr()),
-                  DiagnosticsEngine::ak_qualtype);
-  return DB;
-}
-
 /// Insertion operator for partial diagnostics.  This allows sending QualType's
 /// into a diagnostic with <<.
-inline const PartialDiagnostic &operator<<(const PartialDiagnostic &PD,
-                                           QualType T) {
+inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &PD,
+                                             QualType T) {
   PD.AddTaggedVal(reinterpret_cast<intptr_t>(T.getAsOpaquePtr()),
                   DiagnosticsEngine::ak_qualtype);
   return PD;

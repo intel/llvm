@@ -16,11 +16,22 @@
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
+/// Replaces `gpu.launch` with `gpu.launch_func` by moving the region into
+/// a separate kernel function.
 std::unique_ptr<OperationPass<ModuleOp>> createGpuKernelOutliningPass();
 
-/// Collect a set of patterns to rewrite ops within the GPU dialect.
-void populateGpuRewritePatterns(MLIRContext *context,
-                                OwningRewritePatternList &patterns);
+/// Rewrites a function region so that GPU ops execute asynchronously.
+std::unique_ptr<OperationPass<FuncOp>> createGpuAsyncRegionPass();
+
+/// Collect a set of patterns to rewrite all-reduce ops within the GPU dialect.
+void populateGpuAllReducePatterns(MLIRContext *context,
+                                  OwningRewritePatternList &patterns);
+
+/// Collect all patterns to rewrite ops within the GPU dialect.
+inline void populateGpuRewritePatterns(MLIRContext *context,
+                                       OwningRewritePatternList &patterns) {
+  populateGpuAllReducePatterns(context, patterns);
+}
 
 //===----------------------------------------------------------------------===//
 // Registration

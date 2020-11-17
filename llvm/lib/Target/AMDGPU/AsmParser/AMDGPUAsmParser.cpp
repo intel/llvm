@@ -1133,7 +1133,7 @@ public:
       // AsmParser::parseDirectiveSet() cannot be specialized for specific target.
       AMDGPU::IsaVersion ISA = AMDGPU::getIsaVersion(getSTI().getCPU());
       MCContext &Ctx = getContext();
-      if (ISA.Major >= 6 && AMDGPU::IsaInfo::hasCodeObjectV3(&getSTI())) {
+      if (ISA.Major >= 6 && isHsaAbiVersion3(&getSTI())) {
         MCSymbol *Sym =
             Ctx.getOrCreateSymbol(Twine(".amdgcn.gfx_generation_number"));
         Sym->setVariableValue(MCConstantExpr::create(ISA.Major, Ctx));
@@ -1150,7 +1150,7 @@ public:
         Sym = Ctx.getOrCreateSymbol(Twine(".option.machine_version_stepping"));
         Sym->setVariableValue(MCConstantExpr::create(ISA.Stepping, Ctx));
       }
-      if (ISA.Major >= 6 && AMDGPU::IsaInfo::hasCodeObjectV3(&getSTI())) {
+      if (ISA.Major >= 6 && isHsaAbiVersion3(&getSTI())) {
         initializeGprCountSymbol(IS_VGPR);
         initializeGprCountSymbol(IS_SGPR);
       } else
@@ -1369,6 +1369,7 @@ private:
   bool validateVccOperand(unsigned Reg) const;
   bool validateVOP3Literal(const MCInst &Inst) const;
   bool validateMAIAccWrite(const MCInst &Inst);
+  bool validateDivScale(const MCInst &Inst);
   unsigned getConstantBusLimit(unsigned Opcode) const;
   bool usesConstantBus(const MCInst &Inst, unsigned OpIdx);
   bool isInlineConstant(const MCInst &Inst, unsigned OpIdx) const;
@@ -2491,7 +2492,7 @@ AMDGPUAsmParser::parseRegister(bool RestoreOnFailure) {
   if (!ParseAMDGPURegister(RegKind, Reg, RegNum, RegWidth)) {
     return nullptr;
   }
-  if (AMDGPU::IsaInfo::hasCodeObjectV3(&getSTI())) {
+  if (isHsaAbiVersion3(&getSTI())) {
     if (!updateGprCountSymbols(RegKind, RegNum, RegWidth))
       return nullptr;
   } else
@@ -2993,7 +2994,8 @@ bool AMDGPUAsmParser::usesConstantBus(const MCInst &Inst, unsigned OpIdx) {
   } else if (MO.isReg()) {
     auto Reg = MO.getReg();
     const MCRegisterInfo *TRI = getContext().getRegisterInfo();
-    return isSGPR(mc2PseudoReg(Reg), TRI) && Reg != SGPR_NULL;
+    auto PReg = mc2PseudoReg(Reg);
+    return isSGPR(PReg, TRI) && PReg != SGPR_NULL;
   } else {
     return true;
   }
@@ -3304,6 +3306,35 @@ bool AMDGPUAsmParser::validateMAIAccWrite(const MCInst &Inst) {
   return true;
 }
 
+bool AMDGPUAsmParser::validateDivScale(const MCInst &Inst) {
+  switch (Inst.getOpcode()) {
+  default:
+    return true;
+  case V_DIV_SCALE_F32_gfx6_gfx7:
+  case V_DIV_SCALE_F32_vi:
+  case V_DIV_SCALE_F32_gfx10:
+  case V_DIV_SCALE_F64_gfx6_gfx7:
+  case V_DIV_SCALE_F64_vi:
+  case V_DIV_SCALE_F64_gfx10:
+    break;
+  }
+
+  // TODO: Check that src0 = src1 or src2.
+
+  for (auto Name : {AMDGPU::OpName::src0_modifiers,
+                    AMDGPU::OpName::src2_modifiers,
+                    AMDGPU::OpName::src2_modifiers}) {
+    if (Inst.getOperand(AMDGPU::getNamedOperandIdx(Inst.getOpcode(), Name))
+            .getImm() &
+        SISrcMods::ABS) {
+      Error(getLoc(), "ABS not allowed in VOP3B instructions");
+      return false;
+    }
+  }
+
+  return true;
+}
+
 bool AMDGPUAsmParser::validateMIMGD16(const MCInst &Inst) {
 
   const unsigned Opc = Inst.getOpcode();
@@ -3535,7 +3566,7 @@ bool AMDGPUAsmParser::validateFlatOffset(const MCInst &Inst,
   // For FLAT segment the offset must be positive;
   // MSB is ignored and forced to zero.
   unsigned OffsetSize = isGFX9() ? 13 : 12;
-  if (TSFlags & SIInstrFlags::IsNonFlatSeg) {
+  if (TSFlags & (SIInstrFlags::IsFlatGlobal | SIInstrFlags::IsFlatScratch)) {
     if (!isIntN(OffsetSize, Op.getImm())) {
       Error(getFlatOffsetLoc(Operands),
             isGFX9() ? "expected a 13-bit signed offset" :
@@ -3775,6 +3806,9 @@ bool AMDGPUAsmParser::validateInstruction(const MCInst &Inst,
     return false;
   }
   if (!validateMAIAccWrite(Inst)) {
+    return false;
+  }
+  if (!validateDivScale(Inst)) {
     return false;
   }
 
@@ -4449,8 +4483,8 @@ bool AMDGPUAsmParser::ParseDirectiveAMDGPUHsaKernel() {
   getTargetStreamer().EmitAMDGPUSymbolType(KernelName,
                                            ELF::STT_AMDGPU_HSA_KERNEL);
   Lex();
-  if (!AMDGPU::IsaInfo::hasCodeObjectV3(&getSTI()))
-    KernelScope.initialize(getContext());
+
+  KernelScope.initialize(getContext());
   return false;
 }
 
@@ -4483,7 +4517,7 @@ bool AMDGPUAsmParser::ParseDirectiveHSAMetadata() {
   const char *AssemblerDirectiveBegin;
   const char *AssemblerDirectiveEnd;
   std::tie(AssemblerDirectiveBegin, AssemblerDirectiveEnd) =
-      AMDGPU::IsaInfo::hasCodeObjectV3(&getSTI())
+      isHsaAbiVersion3(&getSTI())
           ? std::make_tuple(HSAMD::V3::AssemblerDirectiveBegin,
                             HSAMD::V3::AssemblerDirectiveEnd)
           : std::make_tuple(HSAMD::AssemblerDirectiveBegin,
@@ -4500,7 +4534,7 @@ bool AMDGPUAsmParser::ParseDirectiveHSAMetadata() {
                           HSAMetadataString))
     return true;
 
-  if (IsaInfo::hasCodeObjectV3(&getSTI())) {
+  if (isHsaAbiVersion3(&getSTI())) {
     if (!getTargetStreamer().EmitHSAMetadataV3(HSAMetadataString))
       return Error(getParser().getTok().getLoc(), "invalid HSA metadata");
   } else {
@@ -4657,7 +4691,7 @@ bool AMDGPUAsmParser::ParseDirectiveAMDGPULDS() {
 bool AMDGPUAsmParser::ParseDirective(AsmToken DirectiveID) {
   StringRef IDVal = DirectiveID.getString();
 
-  if (AMDGPU::IsaInfo::hasCodeObjectV3(&getSTI())) {
+  if (isHsaAbiVersion3(&getSTI())) {
     if (IDVal == ".amdgcn_target")
       return ParseDirectiveAMDGCNTarget();
 
@@ -6889,9 +6923,12 @@ void AMDGPUAsmParser::cvtVOP3(MCInst &Inst, const OperandVector &Operands,
   if (Opc == AMDGPU::V_MAC_F32_e64_gfx6_gfx7 ||
       Opc == AMDGPU::V_MAC_F32_e64_gfx10 ||
       Opc == AMDGPU::V_MAC_F32_e64_vi ||
+      Opc == AMDGPU::V_MAC_LEGACY_F32_e64_gfx6_gfx7 ||
+      Opc == AMDGPU::V_MAC_LEGACY_F32_e64_gfx10 ||
       Opc == AMDGPU::V_MAC_F16_e64_vi ||
       Opc == AMDGPU::V_FMAC_F32_e64_gfx10 ||
       Opc == AMDGPU::V_FMAC_F32_e64_vi ||
+      Opc == AMDGPU::V_FMAC_LEGACY_F32_e64_gfx10 ||
       Opc == AMDGPU::V_FMAC_F16_e64_gfx10) {
     auto it = Inst.begin();
     std::advance(it, AMDGPU::getNamedOperandIdx(Opc, AMDGPU::OpName::src2_modifiers));

@@ -372,24 +372,23 @@ void SymbolFileDWARF::GetTypes(SymbolContextScope *sc_scope,
   TypeSet type_set;
 
   CompileUnit *comp_unit = nullptr;
-  DWARFUnit *dwarf_cu = nullptr;
   if (sc_scope)
     comp_unit = sc_scope->CalculateSymbolContextCompileUnit();
 
-  if (comp_unit) {
-    dwarf_cu = GetDWARFCompileUnit(comp_unit);
-    if (!dwarf_cu)
+  const auto &get = [&](DWARFUnit *unit) {
+    if (!unit)
       return;
-    GetTypes(dwarf_cu->DIE(), dwarf_cu->GetOffset(),
-             dwarf_cu->GetNextUnitOffset(), type_mask, type_set);
+    unit = &unit->GetNonSkeletonUnit();
+    GetTypes(unit->DIE(), unit->GetOffset(), unit->GetNextUnitOffset(),
+             type_mask, type_set);
+  };
+  if (comp_unit) {
+    get(GetDWARFCompileUnit(comp_unit));
   } else {
     DWARFDebugInfo &info = DebugInfo();
     const size_t num_cus = info.GetNumUnits();
-    for (size_t cu_idx = 0; cu_idx < num_cus; ++cu_idx) {
-      dwarf_cu = info.GetUnitAtIndex(cu_idx);
-      if (dwarf_cu)
-        GetTypes(dwarf_cu->DIE(), 0, UINT32_MAX, type_mask, type_set);
-    }
+    for (size_t cu_idx = 0; cu_idx < num_cus; ++cu_idx)
+      get(info.GetUnitAtIndex(cu_idx));
   }
 
   std::set<CompilerType> compiler_type_set;
@@ -632,8 +631,7 @@ DWARFDebugInfo &SymbolFileDWARF::DebugInfo() {
   return *m_info;
 }
 
-DWARFUnit *
-SymbolFileDWARF::GetDWARFCompileUnit(lldb_private::CompileUnit *comp_unit) {
+DWARFCompileUnit *SymbolFileDWARF::GetDWARFCompileUnit(CompileUnit *comp_unit) {
   if (!comp_unit)
     return nullptr;
 
@@ -641,7 +639,9 @@ SymbolFileDWARF::GetDWARFCompileUnit(lldb_private::CompileUnit *comp_unit) {
   DWARFUnit *dwarf_cu = DebugInfo().GetUnitAtIndex(comp_unit->GetID());
   if (dwarf_cu && dwarf_cu->GetUserData() == nullptr)
     dwarf_cu->SetUserData(comp_unit);
-  return dwarf_cu;
+
+  // It must be DWARFCompileUnit when it created a CompileUnit.
+  return llvm::cast_or_null<DWARFCompileUnit>(dwarf_cu);
 }
 
 DWARFDebugRanges *SymbolFileDWARF::GetDebugRanges() {
@@ -1267,9 +1267,10 @@ user_id_t SymbolFileDWARF::GetUID(DIERef ref) {
   if (GetDebugMapSymfile())
     return GetID() | ref.die_offset();
 
-  return user_id_t(GetDwoNum().getValueOr(0x7fffffff)) << 32 |
-         ref.die_offset() |
-         (lldb::user_id_t(ref.section() == DIERef::Section::DebugTypes) << 63);
+  lldbassert(GetDwoNum().getValueOr(0) <= 0x3fffffff);
+  return user_id_t(GetDwoNum().getValueOr(0)) << 32 | ref.die_offset() |
+         lldb::user_id_t(GetDwoNum().hasValue()) << 62 |
+         lldb::user_id_t(ref.section() == DIERef::Section::DebugTypes) << 63;
 }
 
 llvm::Optional<SymbolFileDWARF::DecodedUID>
@@ -1297,9 +1298,10 @@ SymbolFileDWARF::DecodeUID(lldb::user_id_t uid) {
   DIERef::Section section =
       uid >> 63 ? DIERef::Section::DebugTypes : DIERef::Section::DebugInfo;
 
-  llvm::Optional<uint32_t> dwo_num = uid >> 32 & 0x7fffffff;
-  if (*dwo_num == 0x7fffffff)
-    dwo_num = llvm::None;
+  llvm::Optional<uint32_t> dwo_num;
+  bool dwo_valid = uid >> 62 & 1;
+  if (dwo_valid)
+    dwo_num = uid >> 32 & 0x3fffffff;
 
   return DecodedUID{*this, {dwo_num, section, die_offset}};
 }
@@ -1599,8 +1601,7 @@ static uint64_t GetDWOId(DWARFCompileUnit &dwarf_cu,
 llvm::Optional<uint64_t> SymbolFileDWARF::GetDWOId() {
   if (GetNumCompileUnits() == 1) {
     if (auto comp_unit = GetCompileUnitAtIndex(0))
-      if (DWARFCompileUnit *cu = llvm::dyn_cast_or_null<DWARFCompileUnit>(
-              GetDWARFCompileUnit(comp_unit.get())))
+      if (DWARFCompileUnit *cu = GetDWARFCompileUnit(comp_unit.get()))
         if (DWARFDebugInfoEntry *cu_die = cu->DIE().GetDIE())
           if (uint64_t dwo_id = ::GetDWOId(*cu, *cu_die))
             return dwo_id;
@@ -1811,7 +1812,8 @@ void SymbolFileDWARF::ResolveFunctionAndBlock(lldb::addr_t file_vm_addr,
                                               bool lookup_block,
                                               SymbolContext &sc) {
   assert(sc.comp_unit);
-  DWARFUnit &cu = GetDWARFCompileUnit(sc.comp_unit)->GetNonSkeletonUnit();
+  DWARFCompileUnit &cu =
+      GetDWARFCompileUnit(sc.comp_unit)->GetNonSkeletonUnit();
   DWARFDIE function_die = cu.LookupAddress(file_vm_addr);
   DWARFDIE block_die;
   if (function_die) {
@@ -3418,9 +3420,7 @@ VariableSP SymbolFileDWARF::ParseVariableDIE(const SymbolContext &sc,
     var_sp = std::make_shared<Variable>(
         die.GetID(), name, mangled, type_sp, scope, symbol_context_scope,
         scope_ranges, &decl, location, is_external, is_artificial,
-        is_static_member);
-
-    var_sp->SetLocationIsConstantValueData(location_is_const_value_data);
+        location_is_const_value_data, is_static_member);
   } else {
     // Not ready to parse this variable yet. It might be a global or static
     // variable that is in a function scope and the function in the symbol

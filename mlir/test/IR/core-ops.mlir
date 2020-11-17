@@ -569,6 +569,30 @@ func @standard_instrs(tensor<4x4x?xf32>, f32, i32, index, i64, f16) {
   // CHECK: %{{[0-9]+}} = floorf %arg0 : tensor<4x4x?xf32>
   %166 = floorf %t : tensor<4x4x?xf32>
 
+  // CHECK: %{{[0-9]+}} = floordivi_signed %arg2, %arg2 : i32
+  %167 = floordivi_signed %i, %i : i32
+
+  // CHECK: %{{[0-9]+}} = floordivi_signed %arg3, %arg3 : index
+  %168 = floordivi_signed %idx, %idx : index
+
+  // CHECK: %{{[0-9]+}} = floordivi_signed %cst_5, %cst_5 : vector<42xi32>
+  %169 = floordivi_signed %vci32, %vci32 : vector<42 x i32>
+
+  // CHECK: %{{[0-9]+}} = floordivi_signed %cst_4, %cst_4 : tensor<42xi32>
+  %170 = floordivi_signed %tci32, %tci32 : tensor<42 x i32>
+
+  // CHECK: %{{[0-9]+}} = ceildivi_signed %arg2, %arg2 : i32
+  %171 = ceildivi_signed %i, %i : i32
+
+  // CHECK: %{{[0-9]+}} = ceildivi_signed %arg3, %arg3 : index
+  %172 = ceildivi_signed %idx, %idx : index
+
+  // CHECK: %{{[0-9]+}} = ceildivi_signed %cst_5, %cst_5 : vector<42xi32>
+  %173 = ceildivi_signed %vci32, %vci32 : vector<42 x i32>
+
+  // CHECK: %{{[0-9]+}} = ceildivi_signed %cst_4, %cst_4 : tensor<42xi32>
+  %174 = ceildivi_signed %tci32, %tci32 : tensor<42 x i32>
+
   return
 }
 
@@ -827,6 +851,9 @@ func @memref_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
   %21 = subview %20[0, 0, 0][1, 16, 4][1, 1, 1] : memref<8x16x4xf32> to memref<16x4xf32>
 
   %22 = subview %20[3, 4, 2][1, 6, 3][1, 1, 1] : memref<8x16x4xf32> to memref<6x3xf32, offset: 210, strides: [4, 1]>
+
+  %23 = alloc() : memref<f32>
+  %78 = subview %23[] [] []  : memref<f32> to memref<f32>
   return
 }
 

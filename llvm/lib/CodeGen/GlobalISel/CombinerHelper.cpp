@@ -1999,6 +1999,35 @@ bool CombinerHelper::applyCombineAddP2IToPtrAdd(
   return true;
 }
 
+bool CombinerHelper::matchCombineConstPtrAddToI2P(MachineInstr &MI,
+                                                  int64_t &NewCst) {
+  assert(MI.getOpcode() == TargetOpcode::G_PTR_ADD && "Expected a G_PTR_ADD");
+  Register LHS = MI.getOperand(1).getReg();
+  Register RHS = MI.getOperand(2).getReg();
+  MachineRegisterInfo &MRI = Builder.getMF().getRegInfo();
+
+  if (auto RHSCst = getConstantVRegVal(RHS, MRI)) {
+    int64_t Cst;
+    if (mi_match(LHS, MRI, m_GIntToPtr(m_ICst(Cst)))) {
+      NewCst = Cst + *RHSCst;
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool CombinerHelper::applyCombineConstPtrAddToI2P(MachineInstr &MI,
+                                                  int64_t &NewCst) {
+  assert(MI.getOpcode() == TargetOpcode::G_PTR_ADD && "Expected a G_PTR_ADD");
+  Register Dst = MI.getOperand(0).getReg();
+
+  Builder.setInstrAndDebugLoc(MI);
+  Builder.buildConstant(Dst, NewCst);
+  MI.eraseFromParent();
+  return true;
+}
+
 bool CombinerHelper::matchCombineAnyExtTrunc(MachineInstr &MI, Register &Reg) {
   assert(MI.getOpcode() == TargetOpcode::G_ANYEXT && "Expected a G_ANYEXT");
   Register DstReg = MI.getOperand(0).getReg();
@@ -2402,6 +2431,67 @@ bool CombinerHelper::matchSimplifyAddToSub(
   return CheckFold(LHS, RHS) || CheckFold(RHS, LHS);
 }
 
+bool CombinerHelper::matchCombineInsertVecElts(
+    MachineInstr &MI, SmallVectorImpl<Register> &MatchInfo) {
+  assert(MI.getOpcode() == TargetOpcode::G_INSERT_VECTOR_ELT &&
+         "Invalid opcode");
+  Register DstReg = MI.getOperand(0).getReg();
+  LLT DstTy = MRI.getType(DstReg);
+  assert(DstTy.isVector() && "Invalid G_INSERT_VECTOR_ELT?");
+  unsigned NumElts = DstTy.getNumElements();
+  // If this MI is part of a sequence of insert_vec_elts, then
+  // don't do the combine in the middle of the sequence.
+  if (MRI.hasOneUse(DstReg) && MRI.use_instr_begin(DstReg)->getOpcode() ==
+                                   TargetOpcode::G_INSERT_VECTOR_ELT)
+    return false;
+  MachineInstr *CurrInst = &MI;
+  MachineInstr *TmpInst;
+  int64_t IntImm;
+  Register TmpReg;
+  MatchInfo.resize(NumElts);
+  while (mi_match(
+      CurrInst->getOperand(0).getReg(), MRI,
+      m_GInsertVecElt(m_MInstr(TmpInst), m_Reg(TmpReg), m_ICst(IntImm)))) {
+    if (IntImm >= NumElts)
+      return false;
+    if (!MatchInfo[IntImm])
+      MatchInfo[IntImm] = TmpReg;
+    CurrInst = TmpInst;
+  }
+  // Variable index.
+  if (CurrInst->getOpcode() == TargetOpcode::G_INSERT_VECTOR_ELT)
+    return false;
+  if (TmpInst->getOpcode() == TargetOpcode::G_BUILD_VECTOR) {
+    for (unsigned I = 1; I < TmpInst->getNumOperands(); ++I) {
+      if (!MatchInfo[I - 1].isValid())
+        MatchInfo[I - 1] = TmpInst->getOperand(I).getReg();
+    }
+    return true;
+  }
+  // If we didn't end in a G_IMPLICIT_DEF, bail out.
+  return TmpInst->getOpcode() == TargetOpcode::G_IMPLICIT_DEF;
+}
+
+bool CombinerHelper::applyCombineInsertVecElts(
+    MachineInstr &MI, SmallVectorImpl<Register> &MatchInfo) {
+  Builder.setInstr(MI);
+  Register UndefReg;
+  auto GetUndef = [&]() {
+    if (UndefReg)
+      return UndefReg;
+    LLT DstTy = MRI.getType(MI.getOperand(0).getReg());
+    UndefReg = Builder.buildUndef(DstTy.getScalarType()).getReg(0);
+    return UndefReg;
+  };
+  for (unsigned I = 0; I < MatchInfo.size(); ++I) {
+    if (!MatchInfo[I])
+      MatchInfo[I] = GetUndef();
+  }
+  Builder.buildBuildVector(MI.getOperand(0).getReg(), MatchInfo);
+  MI.eraseFromParent();
+  return true;
+}
+
 bool CombinerHelper::applySimplifyAddToSub(
     MachineInstr &MI, std::tuple<Register, Register> &MatchInfo) {
   Builder.setInstr(MI);
@@ -2763,6 +2853,32 @@ bool CombinerHelper::applyXorOfAndWithSameReg(
   MI.getOperand(1).setReg(Not->getOperand(0).getReg());
   MI.getOperand(2).setReg(Y);
   Observer.changedInstr(MI);
+  return true;
+}
+
+bool CombinerHelper::matchPtrAddZero(MachineInstr &MI) {
+  Register DstReg = MI.getOperand(0).getReg();
+  LLT Ty = MRI.getType(DstReg);
+  const DataLayout &DL = Builder.getMF().getDataLayout();
+
+  if (DL.isNonIntegralAddressSpace(Ty.getScalarType().getAddressSpace()))
+    return false;
+
+  if (Ty.isPointer()) {
+    auto ConstVal = getConstantVRegVal(MI.getOperand(1).getReg(), MRI);
+    return ConstVal && *ConstVal == 0;
+  }
+
+  assert(Ty.isVector() && "Expecting a vector type");
+  const MachineInstr *VecMI = MRI.getVRegDef(MI.getOperand(1).getReg());
+  return isBuildVectorAllZeros(*VecMI, MRI);
+}
+
+bool CombinerHelper::applyPtrAddZero(MachineInstr &MI) {
+  assert(MI.getOpcode() == TargetOpcode::G_PTR_ADD);
+  Builder.setInstrAndDebugLoc(MI);
+  Builder.buildIntToPtr(MI.getOperand(0), MI.getOperand(2));
+  MI.eraseFromParent();
   return true;
 }
 

@@ -36,8 +36,10 @@
 // RUN: %clang -### -fsycl-device-only -c -emit-llvm %s 2>&1 | FileCheck %s --check-prefix=COMBINED
 // RUN: %clangxx -### -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
 // RUN: %clang_cl -### -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
+// RUN: %clangxx -### -fsycl-device-only -fsycl-unnamed-lambda %s 2>&1 | FileCheck %s --check-prefix=CHECK-LAMBDA
+// RUN: %clang_cl -### -fsycl-device-only -fsycl-unnamed-lambda %s 2>&1 | FileCheck %s --check-prefix=CHECK-LAMBDA
 
-// DEFAULT: "-triple" "spir64-unknown-{{.*}}-sycldevice{{.*}}" "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
+// DEFAULT: "-triple" "spir64-unknown-{{.*}}-sycldevice{{.*}}" "-fsycl-is-device"{{.*}} "-sycl-std=2020"{{.*}} "-emit-llvm-bc"
 // DEFAULT: "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
 // DEFAULT: "-internal-isystem" "{{.*lib.*clang.*include}}"
 // DEFAULT: "-std=c++17"
@@ -49,6 +51,7 @@
 // TARGET: "-triple" "spir64-unknown-linux-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
 // COMBINED: "-triple" "spir64-unknown-{{.*}}-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
 // TEXTUAL: "-triple" "spir64-unknown-{{.*}}-sycldevice{{.*}}" "-fsycl-is-device"{{.*}} "-emit-llvm"
+// CHECK-LAMBDA: "-fsycl-unnamed-lambda"
 
 /// -fsycl-device-only triple checks
 // RUN: %clang -fsycl-device-only -target x86_64-unknown-linux-gnu -### %s 2>&1 \
@@ -69,11 +72,11 @@
 // HEADER_ORDER-NOT: clang{{.*}} "/usr/include"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}
 
 /// Verify -fsycl-device-only phases
-// RUN: %clang -### -ccc-print-phases -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT-PHASES
-// DEFAULT-PHASES: 0: input, "{{.*}}", c++
-// DEFAULT-PHASES: 1: preprocessor, {0}, c++-cpp-output
-// DEFAULT-PHASES: 2: compiler, {1}, ir
-// DEFAULT-PHASES: 3: backend, {2}, ir
+// RUN: %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT-PHASES
+// DEFAULT-PHASES: 0: input, "{{.*}}", c++, (device-sycl)
+// DEFAULT-PHASES: 1: preprocessor, {0}, c++-cpp-output, (device-sycl)
+// DEFAULT-PHASES: 2: compiler, {1}, ir, (device-sycl)
+// DEFAULT-PHASES: 3: offload, "device-sycl (spir64-unknown-unknown-sycldevice)" {2}, ir
 // DEFAULT-PHASES-NOT: linker
 
 // -fsycl-help tests
