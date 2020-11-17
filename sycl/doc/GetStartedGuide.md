@@ -280,8 +280,11 @@ command:
 
 [Ahead of time compilation](CompilerAndRuntimeDesign.md#ahead-of-time-aot-compilation)
 requires ahead of time compiler available in `PATH`. There is
-AOT compiler for each device type (`GPU`, `CPU` and `Accelerator` (FPGA or
-FPGA emulation)).
+AOT compiler for each device type:
+
+* `GPU`, Level Zero and OpenCL runtimes are supported,
+* `CPU`, OpenCL runtime is supported,
+* `Accelerator` (FPGA or FPGA emulation), OpenCL runtime is supported.
 
 #### GPU
 
