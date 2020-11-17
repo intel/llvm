@@ -1100,3 +1100,74 @@ define <2 x i8> @lowmask_add_splat(<2 x i8> %x, <2 x i8>* %p) {
   %r = and <2 x i8> %a, <i8 32, i8 32> ; 0x20
   ret <2 x i8> %r
 }
+
+define <2 x i8> @lowmask_add_splat_undef(<2 x i8> %x, <2 x i8>* %p) {
+; CHECK-LABEL: @lowmask_add_splat_undef(
+; CHECK-NEXT:    [[A:%.*]] = add <2 x i8> [[X:%.*]], <i8 -64, i8 undef>
+; CHECK-NEXT:    store <2 x i8> [[A]], <2 x i8>* [[P:%.*]], align 2
+; CHECK-NEXT:    [[R:%.*]] = and <2 x i8> [[A]], <i8 undef, i8 32>
+; CHECK-NEXT:    ret <2 x i8> [[R]]
+;
+  %a = add <2 x i8> %x, <i8 -64, i8 undef> ; 0xc0
+  store <2 x i8> %a, <2 x i8>* %p
+  %r = and <2 x i8> %a, <i8 undef, i8 32> ; 0x20
+  ret <2 x i8> %r
+}
+
+define <2 x i8> @lowmask_add_vec(<2 x i8> %x, <2 x i8>* %p) {
+; CHECK-LABEL: @lowmask_add_vec(
+; CHECK-NEXT:    [[A:%.*]] = add <2 x i8> [[X:%.*]], <i8 -96, i8 -64>
+; CHECK-NEXT:    store <2 x i8> [[A]], <2 x i8>* [[P:%.*]], align 2
+; CHECK-NEXT:    [[R:%.*]] = and <2 x i8> [[A]], <i8 16, i8 32>
+; CHECK-NEXT:    ret <2 x i8> [[R]]
+;
+  %a = add <2 x i8> %x, <i8 -96, i8 -64> ; 0xe0, 0xc0
+  store <2 x i8> %a, <2 x i8>* %p
+  %r = and <2 x i8> %a, <i8 16, i8 32> ; 0x10, 0x20
+  ret <2 x i8> %r
+}
+
+; Only one bit set
+define i8 @flip_masked_bit(i8 %A) {
+; CHECK-LABEL: @flip_masked_bit(
+; CHECK-NEXT:    [[B:%.*]] = and i8 [[A:%.*]], 16
+; CHECK-NEXT:    [[C:%.*]] = xor i8 [[B]], 16
+; CHECK-NEXT:    ret i8 [[C]]
+;
+  %B = add i8 %A, 16
+  %C = and i8 %B, 16
+  ret i8 %C
+}
+
+define <2 x i8> @flip_masked_bit_uniform(<2 x i8> %A) {
+; CHECK-LABEL: @flip_masked_bit_uniform(
+; CHECK-NEXT:    [[B:%.*]] = add <2 x i8> [[A:%.*]], <i8 16, i8 16>
+; CHECK-NEXT:    [[C:%.*]] = and <2 x i8> [[B]], <i8 16, i8 16>
+; CHECK-NEXT:    ret <2 x i8> [[C]]
+;
+  %B = add <2 x i8> %A, <i8 16, i8 16>
+  %C = and <2 x i8> %B, <i8 16, i8 16>
+  ret <2 x i8> %C
+}
+
+define <2 x i8> @flip_masked_bit_undef(<2 x i8> %A) {
+; CHECK-LABEL: @flip_masked_bit_undef(
+; CHECK-NEXT:    [[B:%.*]] = add <2 x i8> [[A:%.*]], <i8 16, i8 undef>
+; CHECK-NEXT:    [[C:%.*]] = and <2 x i8> [[B]], <i8 16, i8 undef>
+; CHECK-NEXT:    ret <2 x i8> [[C]]
+;
+  %B = add <2 x i8> %A, <i8 16, i8 undef>
+  %C = and <2 x i8> %B, <i8 16, i8 undef>
+  ret <2 x i8> %C
+}
+
+define <2 x i8> @flip_masked_bit_nonuniform(<2 x i8> %A) {
+; CHECK-LABEL: @flip_masked_bit_nonuniform(
+; CHECK-NEXT:    [[B:%.*]] = add <2 x i8> [[A:%.*]], <i8 16, i8 4>
+; CHECK-NEXT:    [[C:%.*]] = and <2 x i8> [[B]], <i8 16, i8 4>
+; CHECK-NEXT:    ret <2 x i8> [[C]]
+;
+  %B = add <2 x i8> %A, <i8 16, i8 4>
+  %C = and <2 x i8> %B, <i8 16, i8 4>
+  ret <2 x i8> %C
+}

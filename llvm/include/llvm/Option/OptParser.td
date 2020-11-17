@@ -13,7 +13,7 @@
 
 // Define the kinds of options.
 
-class OptionKind<string name, int precedence = 0, bit sentinel = 0> {
+class OptionKind<string name, int precedence = 0, bit sentinel = false> {
   string Name = name;
   // The kind precedence, kinds with lower precedence are matched first.
   int Precedence = precedence;
@@ -24,9 +24,9 @@ class OptionKind<string name, int precedence = 0, bit sentinel = 0> {
 // An option group.
 def KIND_GROUP : OptionKind<"Group">;
 // The input option kind.
-def KIND_INPUT : OptionKind<"Input", 1, 1>;
+def KIND_INPUT : OptionKind<"Input", 1, true>;
 // The unknown option kind.
-def KIND_UNKNOWN : OptionKind<"Unknown", 2, 1>;
+def KIND_UNKNOWN : OptionKind<"Unknown", 2, true>;
 // A flag with no values.
 def KIND_FLAG : OptionKind<"Flag">;
 // An option which prefixes its (single) value.
@@ -97,9 +97,10 @@ class Option<list<string> prefixes, string name, OptionKind kind> {
   OptionGroup Group = ?;
   Option Alias = ?;
   list<string> AliasArgs = [];
+  string MarshallingInfoKind = ?;
   code KeyPath = ?;
   code DefaultValue = ?;
-  bit ShouldAlwaysEmit = 0;
+  bit ShouldAlwaysEmit = false;
   code NormalizerRetTy = ?;
   code NormalizedValuesScope = "";
   code Normalizer = "";
@@ -107,6 +108,8 @@ class Option<list<string> prefixes, string name, OptionKind kind> {
   code ValueMerger = "mergeForwardValue";
   code ValueExtractor = "extractForwardValue";
   list<code> NormalizedValues = ?;
+  // Used for BooleanFlagKind
+  Option NegOption = ?;
 }
 
 // Helpers for defining options.
@@ -148,6 +151,7 @@ class DefaultAnyOf<list<Option> options, string default = "false", string separa
 }
 
 class MarshallingInfo<code keypath, code defaultvalue> {
+  string MarshallingInfoKind = "Default";
   code KeyPath = keypath;
   code DefaultValue = defaultvalue;
 }
@@ -161,6 +165,7 @@ class MarshallingInfoFlag<code keypath, DefaultAnyOf defaults = DefaultAnyOf<[]>
   : MarshallingInfo<keypath, defaults.DefaultValue> {
   code NormalizerRetTy = ty;
   code Normalizer = "normalizeSimpleFlag";
+  code Denormalizer = "denormalizeSimpleFlag";
 }
 
 class MarshallingInfoBitfieldFlag<code keypath, code value>
@@ -170,12 +175,21 @@ class MarshallingInfoBitfieldFlag<code keypath, code value>
   code ValueExtractor = "(extractMaskValue<unsigned, decltype("#value#"), "#value#">)";
 }
 
+class MarshallingInfoBooleanFlag<code keypath, code defaultvalue, Option negopt>
+  : MarshallingInfoFlag<keypath, DefaultAnyOf<[], defaultvalue>> {
+  bit ShouldAlwaysEmit = 1;
+  string MarshallingInfoKind = "BooleanFlag";
+  code Normalizer = "normalizeBooleanFlag";
+  code Denormalizer = "denormalizeBooleanFlag";
+  Option NegOption = negopt;
+}
+
 // Mixins for additional marshalling attributes.
 
 class IsNegative {
   // todo: create & apply a normalizer for negative flags
 }
-class AlwaysEmit { bit ShouldAlwaysEmit = 1; }
+class AlwaysEmit { bit ShouldAlwaysEmit = true; }
 class Normalizer<code normalizer> { code Normalizer = normalizer; }
 class Denormalizer<code denormalizer> { code Denormalizer = denormalizer; }
 class NormalizedValuesScope<code scope> { code NormalizedValuesScope = scope; }
