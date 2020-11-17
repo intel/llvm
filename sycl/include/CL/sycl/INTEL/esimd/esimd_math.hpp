@@ -73,8 +73,8 @@ __esimd_abs_common_internal(T1 src0, int flag = GENX_NOSAT) {
 
 template <typename T0, typename T1, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
-    !sycl::detail::is_same_v<typename sycl::detail::remove_const_t<T0>,
-                             typename sycl::detail::remove_const_t<T1>>,
+    !csd::is_same_v<typename sycl::detail::remove_const_t<T0>,
+                    typename sycl::detail::remove_const_t<T1>>,
     simd<T0, SZ>>
 esimd_abs(simd<T1, SZ> src0, int flag = GENX_NOSAT) {
   return detail::__esimd_abs_common_internal<T0, T1, SZ>(src0, flag);
@@ -82,8 +82,8 @@ esimd_abs(simd<T1, SZ> src0, int flag = GENX_NOSAT) {
 
 template <typename T0, typename T1>
 ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
-    !sycl::detail::is_same_v<typename sycl::detail::remove_const_t<T0>,
-                             typename sycl::detail::remove_const_t<T1>> &&
+    !csd::is_same_v<typename sycl::detail::remove_const_t<T0>,
+                    typename sycl::detail::remove_const_t<T1>> &&
         detail::is_esimd_scalar<T0>::value &&
         detail::is_esimd_scalar<T1>::value,
     typename sycl::detail::remove_const_t<T0>>
@@ -1905,12 +1905,11 @@ ESIMD_INLINE ESIMD_NODEBUG T0 hmin(simd<T1, SZ> v) {
 
 template <typename T0, typename T1, int SZ, typename BinaryOperation>
 ESIMD_INLINE ESIMD_NODEBUG T0 reduce(simd<T1, SZ> v, BinaryOperation op) {
-  if constexpr (sycl::detail::is_same_v<remove_cvref_t<BinaryOperation>,
-                                        std::plus<>>) {
+  if constexpr (csd::is_same_v<remove_cvref_t<BinaryOperation>, std::plus<>>) {
     T0 retv = detail::esimd_sum<T0>(v);
     return retv;
-  } else if constexpr (sycl::detail::is_same_v<remove_cvref_t<BinaryOperation>,
-                                               std::multiplies<>>) {
+  } else if constexpr (csd::is_same_v<remove_cvref_t<BinaryOperation>,
+                                      std::multiplies<>>) {
     T0 retv = detail::esimd_prod<T0>(v);
     return retv;
   }

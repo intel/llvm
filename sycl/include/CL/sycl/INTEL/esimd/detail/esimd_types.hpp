@@ -209,7 +209,7 @@ template <typename U> constexpr bool is_type() { return false; }
 template <typename U, typename T, typename... Ts> constexpr bool is_type() {
   using UU = typename detail::remove_const_t<U>;
   using TT = typename detail::remove_const_t<T>;
-  return sycl::detail::is_same_v<UU, TT> || is_type<UU, Ts...>();
+  return csd::is_same_v<UU, TT> || is_type<UU, Ts...>();
 }
 
 // calculates the number of elements in "To" type
@@ -228,13 +228,12 @@ struct bitcast_helper {
 template <typename ToEltTy, typename FromEltTy, int FromN,
           typename = csd::enable_if_t<is_vectorizable<ToEltTy>::value>>
 ESIMD_INLINE typename detail::conditional_t<
-    sycl::detail::is_same_v<FromEltTy, ToEltTy>,
-    vector_type_t<FromEltTy, FromN>,
+    csd::is_same_v<FromEltTy, ToEltTy>, vector_type_t<FromEltTy, FromN>,
     vector_type_t<ToEltTy,
                   bitcast_helper<ToEltTy, FromEltTy, FromN>::nToElems()>>
 bitcast(vector_type_t<FromEltTy, FromN> Val) {
   // Noop.
-  if constexpr (sycl::detail::is_same_v<FromEltTy, ToEltTy>)
+  if constexpr (csd::is_same_v<FromEltTy, ToEltTy>)
     return Val;
 
   // Bitcast

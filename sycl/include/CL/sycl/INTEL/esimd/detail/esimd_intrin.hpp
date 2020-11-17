@@ -179,7 +179,7 @@ readRegion(const vector_type_t<BT, BN> &Base, std::pair<T, U> Region) {
     return readRegion<BT1, BN1>(Base1, Region.first);
   else {
     static_assert(T::Is_2D);
-    static_assert(sycl::detail::is_same_v<ElemTy, BT1>);
+    static_assert(csd::is_same_v<ElemTy, BT1>);
     // To read a 2D region, we need the parent region
     // Read full rows with non-trivial vertical and horizontal stride = 1.
     constexpr int M = T::Size_y * PaTy::Size_x;

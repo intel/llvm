@@ -100,11 +100,10 @@ struct is_esimd_scalar
 template <typename T>
 struct is_dword_type
     : std::integral_constant<
-          bool,
-          sycl::detail::is_same_v<int,
-                                  typename sycl::detail::remove_const_t<T>> ||
-              sycl::detail::is_same_v<
-                  unsigned int, typename sycl::detail::remove_const_t<T>>> {};
+          bool, csd::is_same_v<int, typename sycl::detail::remove_const_t<T>> ||
+                    csd::is_same_v<unsigned int,
+                                   typename sycl::detail::remove_const_t<T>>> {
+};
 
 template <typename T, int N>
 struct is_dword_type<sycl::INTEL::gpu::vector_type<T, N>> {
@@ -120,10 +119,9 @@ template <typename T>
 struct is_word_type
     : std::integral_constant<
           bool,
-          sycl::detail::is_same_v<short,
-                                  typename sycl::detail::remove_const_t<T>> ||
-              sycl::detail::is_same_v<
-                  unsigned short, typename sycl::detail::remove_const_t<T>>> {};
+          csd::is_same_v<short, typename sycl::detail::remove_const_t<T>> ||
+              csd::is_same_v<unsigned short,
+                             typename sycl::detail::remove_const_t<T>>> {};
 
 template <typename T, int N>
 struct is_word_type<sycl::INTEL::gpu::vector_type<T, N>> {
@@ -138,10 +136,9 @@ template <typename T>
 struct is_byte_type
     : std::integral_constant<
           bool,
-          sycl::detail::is_same_v<char,
-                                  typename sycl::detail::remove_const_t<T>> ||
-              sycl::detail::is_same_v<
-                  unsigned char, typename sycl::detail::remove_const_t<T>>> {};
+          csd::is_same_v<char, typename sycl::detail::remove_const_t<T>> ||
+              csd::is_same_v<unsigned char,
+                             typename sycl::detail::remove_const_t<T>>> {};
 
 template <typename T, int N>
 struct is_byte_type<sycl::INTEL::gpu::vector_type<T, N>> {
@@ -155,34 +152,31 @@ template <typename T, int N> struct is_byte_type<sycl::INTEL::gpu::simd<T, N>> {
 template <typename T>
 struct is_fp_type
     : std::integral_constant<
-          bool, sycl::detail::is_same_v<
-                    float, typename sycl::detail::remove_const_t<T>>> {};
+          bool,
+          csd::is_same_v<float, typename sycl::detail::remove_const_t<T>>> {};
 
 template <typename T>
 struct is_df_type
     : std::integral_constant<
-          bool, sycl::detail::is_same_v<
-                    double, typename sycl::detail::remove_const_t<T>>> {};
+          bool,
+          csd::is_same_v<double, typename sycl::detail::remove_const_t<T>>> {};
 
 template <typename T>
 struct is_fp_or_dword_type
     : std::integral_constant<
           bool,
-          sycl::detail::is_same_v<float,
-                                  typename sycl::detail::remove_const_t<T>> ||
-              sycl::detail::is_same_v<
-                  int, typename sycl::detail::remove_const_t<T>> ||
-              sycl::detail::is_same_v<
-                  unsigned int, typename sycl::detail::remove_const_t<T>>> {};
+          csd::is_same_v<float, typename sycl::detail::remove_const_t<T>> ||
+              csd::is_same_v<int, typename sycl::detail::remove_const_t<T>> ||
+              csd::is_same_v<unsigned int,
+                             typename sycl::detail::remove_const_t<T>>> {};
 
 template <typename T>
 struct is_qword_type
     : std::integral_constant<
-          bool, sycl::detail::is_same_v<
-                    long long, typename sycl::detail::remove_const_t<T>> ||
-                    sycl::detail::is_same_v<
-                        unsigned long long,
-                        typename sycl::detail::remove_const_t<T>>> {};
+          bool,
+          csd::is_same_v<long long, typename sycl::detail::remove_const_t<T>> ||
+              csd::is_same_v<unsigned long long,
+                             typename sycl::detail::remove_const_t<T>>> {};
 
 template <typename T, int N>
 struct is_qword_type<sycl::INTEL::gpu::vector_type<T, N>> {

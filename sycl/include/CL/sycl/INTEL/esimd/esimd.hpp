@@ -403,7 +403,7 @@ public:
         Base1 = __esimd_wrregion<ElemTy, BN1, M,
                                  /*VS*/ 0, M, Stride>(Base1, Val, Offset);
       } else {
-        static_assert(sycl::detail::is_same_v<ElemTy, BT>);
+        static_assert(csd::is_same_v<ElemTy, BT>);
         // Read columns with non-trivial horizontal stride.
         constexpr int M = TR::length;
         constexpr int VS = PaTy::Size_x * TR::Stride_y;
