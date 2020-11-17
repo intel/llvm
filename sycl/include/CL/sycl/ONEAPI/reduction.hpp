@@ -84,9 +84,9 @@ template <typename T, class BinaryOperation>
 using IsReduOptForFastReduce = detail::bool_constant<(
     is_geninteger32bit<T>::value || is_geninteger64bit<T>::value ||
     detail::is_same_v<T, half> || detail::is_same_v<T, float> ||
-    detail::is_same_v<T, double>) && (IsReduPlus<T, BinaryOperation>::value ||
-                                     IsReduMinimum<T, BinaryOperation>::value ||
-                                     IsReduMaximum<T, BinaryOperation>::value)>;
+    detail::is_same_v<T, double>)&&(IsReduPlus<T, BinaryOperation>::value ||
+                                    IsReduMinimum<T, BinaryOperation>::value ||
+                                    IsReduMaximum<T, BinaryOperation>::value)>;
 
 // Identity = 0
 template <typename T, class BinaryOperation>
@@ -97,7 +97,7 @@ using IsZeroIdentityOp = bool_constant<
       IsReduBitOR<T, BinaryOperation>::value ||
       IsReduBitXOR<T, BinaryOperation>::value)) ||
     ((detail::is_same_v<T, half> || detail::is_same_v<T, float> ||
-      detail::is_same_v<T, double>) && IsReduPlus<T, BinaryOperation>::value)>;
+      detail::is_same_v<T, double>)&&IsReduPlus<T, BinaryOperation>::value)>;
 
 // Identity = 1
 template <typename T, class BinaryOperation>
@@ -105,7 +105,7 @@ using IsOneIdentityOp = bool_constant<(
     is_geninteger8bit<T>::value || is_geninteger16bit<T>::value ||
     is_geninteger32bit<T>::value || is_geninteger64bit<T>::value ||
     detail::is_same_v<T, half> || detail::is_same_v<T, float> ||
-    detail::is_same_v<T, double>) && IsReduMultiplies<T, BinaryOperation>::value>;
+    detail::is_same_v<T, double>)&&IsReduMultiplies<T, BinaryOperation>::value>;
 
 // Identity = ~0
 template <typename T, class BinaryOperation>
@@ -128,7 +128,7 @@ using IsMaximumIdentityOp = bool_constant<(
     is_geninteger8bit<T>::value || is_geninteger16bit<T>::value ||
     is_geninteger32bit<T>::value || is_geninteger64bit<T>::value ||
     detail::is_same_v<T, half> || detail::is_same_v<T, float> ||
-    detail::is_same_v<T, double>) && IsReduMaximum<T, BinaryOperation>::value>;
+    detail::is_same_v<T, double>)&&IsReduMaximum<T, BinaryOperation>::value>;
 
 template <typename T, class BinaryOperation>
 using IsKnownIdentityOp =
