@@ -1215,7 +1215,8 @@ void KernelObjVisitor::visitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
                                    QualType RecordTy,
                                    HandlerTys &... Handlers) {
   RecordDecl *RD = RecordTy->getAsRecordDecl();
-  if (RD && RD->hasAttr<SYCLRequiresDecompositionAttr>()) {
+  assert(RD && "should not be null.");
+  if (RD->hasAttr<SYCLRequiresDecompositionAttr>()) {
     // If this container requires decomposition, we have to visit it as
     // 'complex', so all handlers are called in this case with the 'complex'
     // case.
@@ -1352,7 +1353,8 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   void checkBufferLocationType(QualType PropTy, SourceLocation Loc) {
     const auto *PropDecl =
         cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
-    if (PropDecl && PropDecl->getTemplateArgs().size() != 1) {
+    assert(PropDecl && "should not be null.");
+    if (PropDecl->getTemplateArgs().size() != 1) {
       SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_param_number)
           << "buffer_location";
       return;
@@ -1584,7 +1586,8 @@ public:
   bool leaveStruct(const CXXRecordDecl *, FieldDecl *, QualType Ty) final {
     if (CollectionStack.pop_back_val()) {
       RecordDecl *RD = Ty->getAsRecordDecl();
-      if (RD && !RD->hasAttr<SYCLRequiresDecompositionAttr>())
+      assert(RD && "should not be null.");
+      if (!RD->hasAttr<SYCLRequiresDecompositionAttr>())
         RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
             SemaRef.getASTContext()));
       CollectionStack.back() = true;
@@ -1602,7 +1605,8 @@ public:
                    QualType Ty) final {
     if (CollectionStack.pop_back_val()) {
       RecordDecl *RD = Ty->getAsRecordDecl();
-      if (RD && !RD->hasAttr<SYCLRequiresDecompositionAttr>())
+      assert(RD && "should not be null.");
+      if (!RD->hasAttr<SYCLRequiresDecompositionAttr>())
         RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
             SemaRef.getASTContext()));
       CollectionStack.back() = true;
@@ -2704,8 +2708,7 @@ public:
                               QualType FieldTy) final {
     const auto *AccTy =
         cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
-    if (!AccTy)
-      return false;
+    assert(AccTy && "should not be null.");
     assert(AccTy->getTemplateArgs().size() >= 2 &&
            "Incorrect template args for Accessor Type");
     int Dims = static_cast<int>(
@@ -2720,8 +2723,7 @@ public:
   bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
     const auto *AccTy =
         cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
-    if (!AccTy)
-      return false;
+    assert(AccTy && "should not be null.");
     assert(AccTy->getTemplateArgs().size() >= 2 &&
            "Incorrect template args for Accessor Type");
     int Dims = static_cast<int>(
