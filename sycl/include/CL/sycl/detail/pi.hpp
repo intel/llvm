@@ -359,11 +359,23 @@ public:
     return Format;
   }
 
-  /// Gets the iterator range over specialization constants in this this binary
-  /// image. For each property pointed to by an iterator within the range, the
-  /// name of the property is the specializaion constant symbolic ID and the
-  /// value is 32-bit unsigned integer ID.
-  const PropertyRange &getSpecConstants() const { return SpecConstIDMap; }
+  /// Gets the iterator range over scalar specialization constants in this this
+  /// binary image. For each property pointed to by an iterator within the
+  /// range, the name of the property is the specializaion constant symbolic ID
+  /// and the value is 32-bit unsigned integer ID.
+  const PropertyRange &getScalarSpecConstants() const {
+    return ScalarSpecConstIDMap;
+  }
+  /// Gets the iterator range over composite specialization constants in this
+  /// this binary image. For each property pointed to by an iterator within the
+  /// range, the name of the property is the specializaion constant symbolic ID
+  /// and the value is a list of tuples of 32-bit unsigned integer values, which
+  /// encode scalar specialization constants, that form a composite one.
+  /// Each tuple consist of ID of scalar specialization constant, its location
+  /// within a composite (offset in bytes from the beginning) and its size.
+  const PropertyRange &getCompositeSpecConstants() const {
+    return CompositeSpecConstIDMap;
+  }
   const PropertyRange &getDeviceLibReqMask() const { return DeviceLibReqMask; }
   const PropertyRange &getKernelParamOptInfo() const {
     return KernelParamOptInfo;
@@ -376,7 +388,8 @@ protected:
 
   pi_device_binary Bin;
   pi::PiDeviceBinaryType Format = PI_DEVICE_BINARY_TYPE_NONE;
-  DeviceBinaryImage::PropertyRange SpecConstIDMap;
+  DeviceBinaryImage::PropertyRange ScalarSpecConstIDMap;
+  DeviceBinaryImage::PropertyRange CompositeSpecConstIDMap;
   DeviceBinaryImage::PropertyRange DeviceLibReqMask;
   DeviceBinaryImage::PropertyRange KernelParamOptInfo;
 };
