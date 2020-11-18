@@ -547,8 +547,8 @@ public:
       if (auto *A = FD->getAttr<SYCLSimdAttr>())
         Attrs.insert(A);
 
-      // Allow the kernel attribute "use_stall_enable_clusters" only on lambda functions
-      // and function objects that are called directly from a kernel
+      // Allow the kernel attribute "use_stall_enable_clusters" only on lambda
+      // functions and function objects that are called directly from a kernel
       // (i.e. the one passed to the single_task or parallel_for functions).
       // For all other cases, emit a warning and ignore.
       if (auto *A = FD->getAttr<SYCLIntelUseStallEnableClustersAttr>()) {
