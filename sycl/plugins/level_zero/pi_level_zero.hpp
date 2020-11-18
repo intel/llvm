@@ -277,6 +277,11 @@ struct _pi_queue : _pi_object {
       : ZeCommandQueue{Queue}, Context{Context}, Device{Device},
         QueueBatchSize{QueueBatchSize} {}
 
+  typedef enum {
+    CommandListClosedEarly,
+    CommandListClosedFull
+  } command_list_closure_t;
+
   // Level Zero command queue handle.
   ze_command_queue_handle_t ZeCommandQueue;
 
@@ -310,6 +315,13 @@ struct _pi_queue : _pi_object {
   // is thread safe because of the locking of the queue that occurs.
   pi_uint32 QueueBatchSize = {0};
 
+  // These two members are used to keep track of how often the
+  // batching closes and executes a command list before reaching the
+  // QueueBatchSize limit, versus how often we reach the limit.
+  // This info might be used to vary the QueueBatchSize value.
+  pi_uint32 NumTimesClosedEarly = {0};
+  pi_uint32 NumTimesClosedFull = {0};
+
   // Map of all Command lists created with their associated Fence used for
   // tracking when the command list is available for use again.
   std::map<ze_command_list_handle_t, ze_fence_handle_t> ZeCommandListFenceMap;
@@ -317,6 +329,9 @@ struct _pi_queue : _pi_object {
   // Returns true if any commands for this queue are allowed to
   // be batched together.
   bool isBatchingAllowed();
+
+  //
+  void updateBatchSize(command_list_closure_t HowClosed);
 
   // Resets the Command List and Associated fence in the ZeCommandListFenceMap.
   // If the reset command list should be made available, then MakeAvailable
