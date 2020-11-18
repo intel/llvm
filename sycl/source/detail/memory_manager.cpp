@@ -47,8 +47,8 @@ void MemoryManager::release(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
 
 void MemoryManager::releaseImageBuffer(ContextImplPtr TargetContext,
                                        void *ImageBuf) {
-  auto PIObj = reinterpret_cast<pi_mem>(ImageBuf);
-  TargetContext->getPlugin().call<PiApiKind::piMemRelease>(PIObj);
+  // TODO remove when ABI breaking changes are allowed.
+  throw runtime_error("Deprecated release operation", PI_INVALID_OPERATION);
 }
 
 void MemoryManager::releaseMemObj(ContextImplPtr TargetContext,
@@ -81,28 +81,10 @@ void *MemoryManager::allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
                              OutEvent);
 }
 
-// Creates an image1d buffer wrapper object around given memory object.
 void *MemoryManager::wrapIntoImageBuffer(ContextImplPtr TargetContext,
                                          void *MemBuf, SYCLMemObjI *MemObj) {
-  // Image format: 1 channel per pixel, each pixel 8 bit, Size pixels occupies
-  // Size bytes.
-  pi_image_format Format = {PI_IMAGE_CHANNEL_ORDER_R,
-                            PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8};
-
-  // Image descriptor - request wrapper image1d creation.
-  pi_image_desc Desc = {};
-  Desc.image_type = PI_MEM_TYPE_IMAGE1D_BUFFER;
-  Desc.image_width = MemObj->getSize();
-  Desc.buffer = reinterpret_cast<pi_mem>(MemBuf);
-
-  // Create the image object.
-  const detail::plugin &Plugin = TargetContext->getPlugin();
-  pi_mem Res = nullptr;
-  pi_mem_flags Flags = 0;
-  // Do not ref count the context handle, as it is not captured by the call.
-  Plugin.call<PiApiKind::piMemImageCreate>(TargetContext->getHandleRef(), Flags,
-                                           &Format, &Desc, nullptr, &Res);
-  return Res;
+  // TODO remove when ABI breaking changes are allowed.
+  throw runtime_error("Deprecated allocation operation", PI_INVALID_OPERATION);
 }
 
 void *MemoryManager::allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,

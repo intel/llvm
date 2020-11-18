@@ -859,6 +859,9 @@ protected:
   detail::AccessorImplDevice<AdjustedDim> impl;
 
 #ifdef __SYCL_EXPLICIT_SIMD__
+  // TODO all the Image1dBuffer* stuff, including the union with MData field
+  // below is not used anymore and is left temporarily to avoid ABI breaking
+  // changes.
   using OCLImage1dBufferTy =
       typename detail::opencl_image1d_buffer_type<AccessMode>::type;
 #endif // __SYCL_EXPLICIT_SIMD__
@@ -870,15 +873,9 @@ protected:
 #endif // __SYCL_EXPLICIT_SIMD__
   };
 
-#ifdef __SYCL_EXPLICIT_SIMD__
-  // TODO In ESIMD accessors usage is limited for now - access range, mem
-  // range and offset are not supported. The cl_mem object allocated for
-  // a global accessor is always wrapped into a 1d image buffer to enable
-  // surface index-based addressing.
-  void __init(OCLImage1dBufferTy ImgBuf) { ImageBuffer = ImgBuf; }
+  // TODO replace usages with getQualifiedPtr
+  const ConcreteASPtrType getNativeImageObj() const { return MData; }
 
-  const OCLImage1dBufferTy getNativeImageObj() const { return ImageBuffer; }
-#else
   void __init(ConcreteASPtrType Ptr, range<AdjustedDim> AccessRange,
               range<AdjustedDim> MemRange, id<AdjustedDim> Offset) {
     MData = Ptr;
@@ -893,7 +890,12 @@ protected:
     if (1 == AdjustedDim)
       MData += Offset[0];
   }
-#endif // __SYCL_EXPLICIT_SIMD__
+
+  // __init variant used by the device compiler for ESIMD kernels.
+  // TODO In ESIMD accessors usage is limited for now - access range, mem
+  // range and offset are not supported.
+  void __init_esimd(ConcreteASPtrType Ptr) { MData = Ptr; }
+
   ConcreteASPtrType getQualifiedPtr() const { return MData; }
 
   template <typename, int, access::mode, access::target, access::placeholder,
@@ -1963,6 +1965,9 @@ private:
   // It does not call the base class's init method.
   void __init(OCLImageTy Image) { this->imageAccessorInit(Image); }
 
+  // __init variant used by the device compiler for ESIMD kernels.
+  void __init_esimd(OCLImageTy Image) { this->imageAccessorInit(Image); }
+
 public:
   // Default constructor for objects later initialized with __init member.
   accessor() = default;
@@ -2013,6 +2018,9 @@ private:
   // Front End requires this method to be defined in the accessor class.
   // It does not call the base class's init method.
   void __init(OCLImageTy Image) { this->imageAccessorInit(Image); }
+
+  // __init variant used by the device compiler for ESIMD kernels.
+  void __init_esimd(OCLImageTy Image) { this->imageAccessorInit(Image); }
 
 public:
   // Default constructor for objects later initialized with __init member.

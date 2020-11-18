@@ -626,8 +626,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
       const Requirement FullReq(/*Offset*/ {0, 0, 0}, Req->MMemoryRange,
                                 Req->MMemoryRange, access::mode::read_write,
                                 Req->MSYCLMemObj, Req->MDims, Req->MElemSize,
-                                0 /*ReMOffsetInBytes*/, false /*MIsSubBuffer*/,
-                                Req->MIsESIMDAcc);
+                                0 /*ReMOffsetInBytes*/, false /*MIsSubBuffer*/);
       // Can reuse user data for the first allocation. Do so if host unified
       // memory is supported regardless of the access mode (the pointer will be
       // reused) or if it's not and the access mode is not discard (the pointer
