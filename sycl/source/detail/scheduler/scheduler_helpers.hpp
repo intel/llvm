@@ -16,22 +16,32 @@ namespace sycl {
 namespace detail {
 
 void initStream(StreamImplPtr Stream, QueueImplPtr Queue) {
-  auto StreamBuf =
-      Scheduler::getInstance().StreamBuffersPool.find(Stream.get());
-  assert((StreamBuf != Scheduler::getInstance().StreamBuffersPool.end()) &&
-         "Stream is unexpectedly not found in pool.");
+  Scheduler::StreamBuffers *StrBufs{};
 
-  auto &FlushBuf = StreamBuf->second->FlushBuf;
-  // Only size of buffer_impl object has been resized.
-  // Value of Range field of FlushBuf instance is still equal to
-  // MaxStatementSize only.
-  size_t FlushBufSize = getSyclObjImpl(FlushBuf)->get_count();
+  {
+    std::lock_guard<std::mutex> lock(
+        Scheduler::getInstance().StreamBuffersPoolMutex);
+
+    auto StreamBuf =
+        Scheduler::getInstance().StreamBuffersPool.find(Stream.get());
+    assert((StreamBuf != Scheduler::getInstance().StreamBuffersPool.end()) &&
+           "Stream is unexpectedly not found in pool.");
+
+    StrBufs = StreamBuf->second;
+  }
+
+  assert(StrBufs && "No buffers for a stream.");
+
+  // Real size of full flush buffer is saved only in buffer_impl field of
+  // FlushBuf object.
+  size_t FlushBufSize = getSyclObjImpl(StrBufs->FlushBuf)->get_count();
 
   auto Q = createSyclObjFromImpl<queue>(Queue);
   Q.submit([&](handler &cgh) {
-    auto FlushBufAcc = FlushBuf.get_access<access::mode::discard_write,
-                                           access::target::host_buffer>(
-        cgh, range<1>(FlushBufSize), id<1>(0));
+    auto FlushBufAcc =
+        StrBufs->FlushBuf.get_access<access::mode::discard_write,
+                                     access::target::host_buffer>(
+            cgh, range<1>(FlushBufSize), id<1>(0));
     cgh.codeplay_host_task([=] {
       char *FlushBufPtr = FlushBufAcc.get_pointer();
       std::memset(FlushBufPtr, 0, FlushBufAcc.get_size());
