@@ -74,29 +74,14 @@ static access::mode combineAccessModes(access::mode A, access::mode B) {
   if (A == B)
     return A;
 
-  switch (A) {
-  case access::mode::read:
-    return access::mode::read_write;
-  case access::mode::write:
-    if (B == access::mode::discard_write)
-      return access::mode::write;
-    else
-      return access::mode::read_write;
-  case access::mode::read_write:
-  case access::mode::atomic:
-    return access::mode::read_write;
-  case access::mode::discard_write:
-    if (B == access::mode::discard_read_write || B == access::mode::write)
-      return B;
-    else
-      return access::mode::read_write;
-  case access::mode::discard_read_write:
-    if (B == access::mode::discard_write)
-      return access::mode::discard_read_write;
-    else
-      return access::mode::read_write;
-  }
-  assert(false);
+  if (A == access::mode::discard_write &&
+      (B == access::mode::discard_read_write || B == access::mode::write))
+    return B;
+
+  if (B == access::mode::discard_write &&
+      (A == access::mode::discard_read_write || A == access::mode::write))
+    return A;
+
   return access::mode::read_write;
 }
 
@@ -606,7 +591,7 @@ Scheduler::GraphBuilder::findAllocaForReq(MemObjRecord *Record,
 }
 
 static bool checkHostUnifiedMemory(const ContextImplPtr &Ctx) {
-  for (device Device : Ctx->getDevices()) {
+  for (const device &Device : Ctx->getDevices()) {
     if (!Device.get_info<info::device::host_unified_memory>())
       return false;
   }
@@ -671,9 +656,9 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
           // plugin runtime and that can lead to unnecessary copy overhead on
           // devices that do not support host unified memory. Do not link the
           // allocations in this case.
-          ContextImplPtr NonHostCtx = Queue->is_host()
-                                          ? Record->MCurContext
-                                          : Queue->getContextImplPtr();
+          const ContextImplPtr &NonHostCtx = Queue->is_host()
+                                                 ? Record->MCurContext
+                                                 : Queue->getContextImplPtr();
           if (checkHostUnifiedMemory(NonHostCtx)) {
             AllocaCommandBase *LinkedAllocaCmdCand =
                 findAllocaForReq(Record, Req, Record->MCurContext);

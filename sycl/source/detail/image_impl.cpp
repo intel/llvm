@@ -307,7 +307,7 @@ template <int Dimensions>
 void *image_impl<Dimensions>::allocateMem(ContextImplPtr Context,
                                           bool InitFromUserData, void *HostPtr,
                                           RT::PiEvent &OutEventToWait) {
-  bool HostPtrReadOnly;
+  bool HostPtrReadOnly = false;
   BaseT::determineHostPtr(Context, InitFromUserData, HostPtr, HostPtrReadOnly);
 
   RT::PiMemImageDesc Desc = getImageDesc(HostPtr != nullptr);

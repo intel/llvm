@@ -16,7 +16,7 @@ namespace sycl {
 namespace detail {
 void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
                   void *HostPtr, RT::PiEvent &OutEventToWait) {
-  bool HostPtrReadOnly;
+  bool HostPtrReadOnly = false;
   BaseT::determineHostPtr(Context, InitFromUserData, HostPtr, HostPtrReadOnly);
 
   assert(!(nullptr == HostPtr && BaseT::useHostPtr() && Context->is_host()) &&
