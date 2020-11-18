@@ -1353,7 +1353,6 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   void checkBufferLocationType(QualType PropTy, SourceLocation Loc) {
     const auto *PropDecl =
         cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
-    assert(PropDecl && "should not be null.");
     if (PropDecl->getTemplateArgs().size() != 1) {
       SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_param_number)
           << "buffer_location";
@@ -2708,7 +2707,6 @@ public:
                               QualType FieldTy) final {
     const auto *AccTy =
         cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
-    assert(AccTy && "should not be null.");
     assert(AccTy->getTemplateArgs().size() >= 2 &&
            "Incorrect template args for Accessor Type");
     int Dims = static_cast<int>(
@@ -2723,7 +2721,6 @@ public:
   bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
     const auto *AccTy =
         cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
-    assert(AccTy && "should not be null.");
     assert(AccTy->getTemplateArgs().size() >= 2 &&
            "Incorrect template args for Accessor Type");
     int Dims = static_cast<int>(
