@@ -295,6 +295,10 @@ public:
   ContextImplPtr getInteropContext() const override { return MInteropContext; }
 
 protected:
+  // An allocateMem helper that determines which host ptr to use
+  void determineHostPtr(const ContextImplPtr &Context, bool InitFromUserData,
+                        void *&HostPtr, bool &HostPtrReadOnly);
+
   // Allocator used for allocation memory on host.
   unique_ptr_class<SYCLMemObjAllocator> MAllocator;
   // Properties passed by user.

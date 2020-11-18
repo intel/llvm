@@ -944,6 +944,8 @@ public:
     return true;
   }
 
+  bool useAA() const override;
+
   bool enableSubRegLiveness() const override {
     return true;
   }
@@ -958,6 +960,8 @@ public:
   bool enableEarlyIfConversion() const override {
     return true;
   }
+
+  bool enableFlatScratch() const;
 
   void overrideSchedPolicy(MachineSchedPolicy &Policy,
                            unsigned NumRegionInstrs) const override;

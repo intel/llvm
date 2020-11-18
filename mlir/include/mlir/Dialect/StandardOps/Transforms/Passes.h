@@ -25,6 +25,9 @@ class OwningRewritePatternList;
 /// Creates an instance of the ExpandAtomic pass.
 std::unique_ptr<Pass> createExpandAtomicPass();
 
+void populateExpandMemRefReshapePattern(OwningRewritePatternList &patterns,
+                                        MLIRContext *ctx);
+
 void populateExpandTanhPattern(OwningRewritePatternList &patterns,
                                MLIRContext *ctx);
 
@@ -34,6 +37,19 @@ void populateStdBufferizePatterns(MLIRContext *context,
 
 /// Creates an instance of std bufferization pass.
 std::unique_ptr<Pass> createStdBufferizePass();
+
+/// Creates an instance of func bufferization pass.
+std::unique_ptr<Pass> createFuncBufferizePass();
+
+/// Creates an instance of the StdExpandDivs pass that legalizes Std
+/// dialect Divs to be convertible to StaLLVMndard. For example,
+/// `std.ceildivi_signed` get transformed to a number of std operations,
+/// which can be lowered to LLVM.
+std::unique_ptr<Pass> createStdExpandDivsPass();
+
+/// Collects a set of patterns to rewrite ops within the Std dialect.
+void populateStdExpandDivsRewritePatterns(MLIRContext *context,
+                                        OwningRewritePatternList &patterns);
 
 //===----------------------------------------------------------------------===//
 // Registration

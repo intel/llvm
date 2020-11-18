@@ -3645,13 +3645,32 @@ Sema::DiagnoseMultipleUserDefinedConversion(Expr *From, QualType ToType) {
   return true;
 }
 
+// Helper for compareConversionFunctions that gets the FunctionType that the
+// conversion-operator return  value 'points' to, or nullptr.
+static const FunctionType *
+getConversionOpReturnTyAsFunction(CXXConversionDecl *Conv) {
+  const FunctionType *ConvFuncTy = Conv->getType()->castAs<FunctionType>();
+  const PointerType *RetPtrTy =
+      ConvFuncTy->getReturnType()->getAs<PointerType>();
+
+  if (!RetPtrTy)
+    return nullptr;
+
+  return RetPtrTy->getPointeeType()->getAs<FunctionType>();
+}
+
 /// Compare the user-defined conversion functions or constructors
 /// of two user-defined conversion sequences to determine whether any ordering
 /// is possible.
 static ImplicitConversionSequence::CompareKind
 compareConversionFunctions(Sema &S, FunctionDecl *Function1,
                            FunctionDecl *Function2) {
-  if (!S.getLangOpts().ObjC || !S.getLangOpts().CPlusPlus11)
+  CXXConversionDecl *Conv1 = dyn_cast_or_null<CXXConversionDecl>(Function1);
+  CXXConversionDecl *Conv2 = dyn_cast_or_null<CXXConversionDecl>(Function2);
+  if (!Conv1 || !Conv2)
+    return ImplicitConversionSequence::Indistinguishable;
+
+  if (!Conv1->getParent()->isLambda() || !Conv2->getParent()->isLambda())
     return ImplicitConversionSequence::Indistinguishable;
 
   // Objective-C++:
@@ -3660,20 +3679,45 @@ compareConversionFunctions(Sema &S, FunctionDecl *Function1,
   //   respectively, always prefer the conversion to a function pointer,
   //   because the function pointer is more lightweight and is more likely
   //   to keep code working.
-  CXXConversionDecl *Conv1 = dyn_cast_or_null<CXXConversionDecl>(Function1);
-  if (!Conv1)
-    return ImplicitConversionSequence::Indistinguishable;
-
-  CXXConversionDecl *Conv2 = dyn_cast<CXXConversionDecl>(Function2);
-  if (!Conv2)
-    return ImplicitConversionSequence::Indistinguishable;
-
-  if (Conv1->getParent()->isLambda() && Conv2->getParent()->isLambda()) {
+  if (S.getLangOpts().ObjC && S.getLangOpts().CPlusPlus11) {
     bool Block1 = Conv1->getConversionType()->isBlockPointerType();
     bool Block2 = Conv2->getConversionType()->isBlockPointerType();
     if (Block1 != Block2)
       return Block1 ? ImplicitConversionSequence::Worse
                     : ImplicitConversionSequence::Better;
+  }
+
+  // In order to support multiple calling conventions for the lambda conversion
+  // operator (such as when the free and member function calling convention is
+  // different), prefer the 'free' mechanism, followed by the calling-convention
+  // of operator(). The latter is in place to support the MSVC-like solution of
+  // defining ALL of the possible conversions in regards to calling-convention.
+  const FunctionType *Conv1FuncRet = getConversionOpReturnTyAsFunction(Conv1);
+  const FunctionType *Conv2FuncRet = getConversionOpReturnTyAsFunction(Conv2);
+
+  if (Conv1FuncRet && Conv2FuncRet &&
+      Conv1FuncRet->getCallConv() != Conv2FuncRet->getCallConv()) {
+    CallingConv Conv1CC = Conv1FuncRet->getCallConv();
+    CallingConv Conv2CC = Conv2FuncRet->getCallConv();
+
+    CXXMethodDecl *CallOp = Conv2->getParent()->getLambdaCallOperator();
+    const FunctionProtoType *CallOpProto =
+        CallOp->getType()->getAs<FunctionProtoType>();
+
+    CallingConv CallOpCC =
+        CallOp->getType()->getAs<FunctionType>()->getCallConv();
+    CallingConv DefaultFree = S.Context.getDefaultCallingConvention(
+        CallOpProto->isVariadic(), /*IsCXXMethod=*/false);
+    CallingConv DefaultMember = S.Context.getDefaultCallingConvention(
+        CallOpProto->isVariadic(), /*IsCXXMethod=*/true);
+
+    CallingConv PrefOrder[] = {DefaultFree, DefaultMember, CallOpCC};
+    for (CallingConv CC : PrefOrder) {
+      if (Conv1CC == CC)
+        return ImplicitConversionSequence::Better;
+      if (Conv2CC == CC)
+        return ImplicitConversionSequence::Worse;
+    }
   }
 
   return ImplicitConversionSequence::Indistinguishable;
@@ -10180,6 +10224,22 @@ void Sema::NoteOverloadCandidate(NamedDecl *Found, FunctionDecl *Fn,
   if (Fn->isMultiVersion() && Fn->hasAttr<TargetAttr>() &&
       !Fn->getAttr<TargetAttr>()->isDefaultVersion())
     return;
+  if (isa<CXXConversionDecl>(Fn) &&
+      cast<CXXRecordDecl>(Fn->getParent())->isLambda()) {
+    // Don't print candidates other than the one that matches the calling
+    // convention of the call operator, since that is guaranteed to exist.
+    const auto *RD = cast<CXXRecordDecl>(Fn->getParent());
+    CXXMethodDecl *CallOp = RD->getLambdaCallOperator();
+    CallingConv CallOpCC =
+        CallOp->getType()->getAs<FunctionType>()->getCallConv();
+    CXXConversionDecl *ConvD = cast<CXXConversionDecl>(Fn);
+    QualType ConvRTy = ConvD->getType()->getAs<FunctionType>()->getReturnType();
+    CallingConv ConvToCC =
+        ConvRTy->getPointeeType()->getAs<FunctionType>()->getCallConv();
+
+    if (ConvToCC != CallOpCC)
+      return;
+  }
 
   std::string FnDesc;
   std::pair<OverloadCandidateKind, OverloadCandidateSelect> KSPair =
@@ -12735,8 +12795,6 @@ public:
 }
 
 /// Attempts to recover from a call where no functions were found.
-///
-/// Returns true if new candidates were found.
 static ExprResult
 BuildRecoveryCallExpr(Sema &SemaRef, Scope *S, Expr *Fn,
                       UnresolvedLookupExpr *ULE,
@@ -12793,7 +12851,7 @@ BuildRecoveryCallExpr(Sema &SemaRef, Scope *S, Expr *Fn,
     return ExprError();
   }
 
-  // Build an implicit member call if appropriate.  Just drop the
+  // Build an implicit member access expression if appropriate. Just drop the
   // casts and such from the call, we don't really care.
   ExprResult NewFn = ExprError();
   if ((*R.begin())->isCXXClassMember())
@@ -12808,12 +12866,19 @@ BuildRecoveryCallExpr(Sema &SemaRef, Scope *S, Expr *Fn,
   if (NewFn.isInvalid())
     return ExprError();
 
-  // This shouldn't cause an infinite loop because we're giving it
-  // an expression with viable lookup results, which should never
-  // end up here.
-  return SemaRef.BuildCallExpr(/*Scope*/ nullptr, NewFn.get(), LParenLoc,
-                               MultiExprArg(Args.data(), Args.size()),
-                               RParenLoc);
+  auto CallE =
+      SemaRef.BuildCallExpr(/*Scope*/ nullptr, NewFn.get(), LParenLoc,
+                            MultiExprArg(Args.data(), Args.size()), RParenLoc);
+  if (CallE.isInvalid())
+    return ExprError();
+  // We now have recovered a callee. However, building a real call may lead to
+  // incorrect secondary diagnostics if our recovery wasn't correct.
+  // We keep the recovery behavior but suppress all following diagnostics by
+  // using RecoveryExpr. We deliberately drop the return type of the recovery
+  // function, and rely on clang's dependent mechanism to suppress following
+  // diagnostics.
+  return SemaRef.CreateRecoveryExpr(CallE.get()->getBeginLoc(),
+                                    CallE.get()->getEndLoc(), {CallE.get()});
 }
 
 /// Constructs and populates an OverloadedCandidateSet from

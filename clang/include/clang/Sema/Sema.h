@@ -332,7 +332,8 @@ public:
   ///  Signals that subsequent parameter descriptor additions will go to
   ///  the kernel with given name. Starts new kernel invocation descriptor.
   void startKernel(StringRef KernelName, QualType KernelNameType,
-                   StringRef KernelStableName, SourceLocation Loc);
+                   StringRef KernelStableName, SourceLocation Loc,
+                   bool IsESIMD);
 
   /// Adds a kernel parameter descriptor to current kernel invocation
   /// descriptor.
@@ -374,6 +375,9 @@ private:
     std::string StableName;
 
     SourceLocation KernelLocation;
+
+    /// Whether this kernel is an ESIMD one.
+    bool IsESIMDKernel;
 
     /// Descriptor of kernel actual parameters.
     SmallVector<KernelParamDesc, 8> Params;
@@ -6741,7 +6745,8 @@ public:
   /// Get the return type to use for a lambda's conversion function(s) to
   /// function pointer type, given the type of the call operator.
   QualType
-  getLambdaConversionFunctionResultType(const FunctionProtoType *CallOpType);
+  getLambdaConversionFunctionResultType(const FunctionProtoType *CallOpType,
+                                        CallingConv CC);
 
   /// Define the "body" of the conversion from a lambda object to a
   /// function pointer.
@@ -10039,6 +10044,10 @@ public:
   /// \#pragma STDC FENV_ACCESS
   void ActOnPragmaFEnvAccess(SourceLocation Loc, bool IsEnabled);
 
+  /// Called on well formed '\#pragma clang fp' that has option 'exceptions'.
+  void ActOnPragmaFPExceptions(SourceLocation Loc,
+                               LangOptions::FPExceptionModeKind);
+
   /// Called to set constant rounding mode for floating point operations.
   void setRoundingMode(SourceLocation Loc, llvm::RoundingMode);
 
@@ -12517,6 +12526,9 @@ private:
                                 int ArgNum, unsigned ExpectedFieldNum,
                                 bool AllowName);
   bool SemaBuiltinARMMemoryTaggingCall(unsigned BuiltinID, CallExpr *TheCall);
+  bool SemaBuiltinPPCMMACall(CallExpr *TheCall, const char *TypeDesc);
+
+  bool CheckPPCMMAType(QualType Type, SourceLocation TypeLoc);
 
   // Matrix builtin handling.
   ExprResult SemaBuiltinMatrixTranspose(CallExpr *TheCall,
@@ -12573,6 +12585,8 @@ private:
 
   void CheckStrncatArguments(const CallExpr *Call,
                              IdentifierInfo *FnName);
+
+  void CheckFreeArguments(const CallExpr *E);
 
   void CheckReturnValExpr(Expr *RetValExp, QualType lhsType,
                           SourceLocation ReturnLoc,

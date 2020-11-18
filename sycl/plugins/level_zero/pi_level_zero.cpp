@@ -1232,11 +1232,18 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_REFERENCE_COUNT:
     return ReturnValue(pi_uint32{Device->RefCount});
   case PI_DEVICE_INFO_PARTITION_PROPERTIES: {
+    // SYCL spec says: if this SYCL device cannot be partitioned into at least
+    // two sub devices then the returned vector must be empty.
+    uint32_t ZeSubDeviceCount = 0;
+    ZE_CALL(zeDeviceGetSubDevices(ZeDevice, &ZeSubDeviceCount, nullptr));
+    if (ZeSubDeviceCount < 2) {
+      return ReturnValue(pi_device_partition_property{0});
+    }
     // It is debatable if SYCL sub-device and partitioning APIs sufficient to
     // expose Level Zero sub-devices?  We start with support of
-    // "partition_by_affinity_domain" and "numa" but if that doesn't seem to
-    // be a good fit we could look at adding a more descriptive partitioning
-    // type.
+    // "partition_by_affinity_domain" and "next_partitionable" but if that
+    // doesn't seem to be a good fit we could look at adding a more descriptive
+    // partitioning type.
     struct {
       pi_device_partition_property Arr[2];
     } PartitionProperties = {{PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN, 0}};

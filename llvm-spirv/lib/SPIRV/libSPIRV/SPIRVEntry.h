@@ -321,7 +321,7 @@ public:
                  const SPIRVWord ExtOp) const;
   bool isDecorate() const { return OpCode == OpDecorate; }
   bool isMemberDecorate() const { return OpCode == OpMemberDecorate; }
-  bool isForward() const { return OpCode == OpForward; }
+  bool isForward() const { return OpCode == internal::OpForward; }
   bool isLabel() const { return OpCode == OpLabel; }
   bool isUndef() const { return OpCode == OpUndef; }
   bool isControlBarrier() const { return OpCode == OpControlBarrier; }
@@ -415,7 +415,7 @@ protected:
       MemberDecorateMapType;
 
   bool canHaveMemberDecorates() const {
-    return OpCode == OpTypeStruct || OpCode == OpForward;
+    return OpCode == OpTypeStruct || OpCode == internal::OpForward;
   }
   MemberDecorateMapType &getMemberDecorates() {
     assert(canHaveMemberDecorates());

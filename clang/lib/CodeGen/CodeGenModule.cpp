@@ -417,6 +417,41 @@ void InstrProfStats::reportDiagnostics(DiagnosticsEngine &Diags,
   }
 }
 
+static void setVisibilityFromDLLStorageClass(const clang::LangOptions &LO,
+                                             llvm::Module &M) {
+  if (!LO.VisibilityFromDLLStorageClass)
+    return;
+
+  llvm::GlobalValue::VisibilityTypes DLLExportVisibility =
+      CodeGenModule::GetLLVMVisibility(LO.getDLLExportVisibility());
+  llvm::GlobalValue::VisibilityTypes NoDLLStorageClassVisibility =
+      CodeGenModule::GetLLVMVisibility(LO.getNoDLLStorageClassVisibility());
+  llvm::GlobalValue::VisibilityTypes ExternDeclDLLImportVisibility =
+      CodeGenModule::GetLLVMVisibility(LO.getExternDeclDLLImportVisibility());
+  llvm::GlobalValue::VisibilityTypes ExternDeclNoDLLStorageClassVisibility =
+      CodeGenModule::GetLLVMVisibility(
+          LO.getExternDeclNoDLLStorageClassVisibility());
+
+  for (llvm::GlobalValue &GV : M.global_values()) {
+    if (GV.hasAppendingLinkage() || GV.hasLocalLinkage())
+      continue;
+
+    if (GV.isDeclarationForLinker()) {
+      GV.setVisibility(GV.getDLLStorageClass() ==
+                               llvm::GlobalValue::DLLImportStorageClass
+                           ? ExternDeclDLLImportVisibility
+                           : ExternDeclNoDLLStorageClassVisibility);
+    } else {
+      GV.setVisibility(GV.getDLLStorageClass() ==
+                               llvm::GlobalValue::DLLExportStorageClass
+                           ? DLLExportVisibility
+                           : NoDLLStorageClassVisibility);
+    }
+
+    GV.setDLLStorageClass(llvm::GlobalValue::DefaultStorageClass);
+  }
+}
+
 void CodeGenModule::Release() {
   EmitDeferred();
   EmitVTablesOpportunistically();
@@ -623,6 +658,13 @@ void CodeGenModule::Release() {
                               !LangOpts.isSignReturnAddressWithAKey());
   }
 
+  if (!CodeGenOpts.MemoryProfileOutput.empty()) {
+    llvm::LLVMContext &Ctx = TheModule.getContext();
+    getModule().addModuleFlag(
+        llvm::Module::Error, "MemProfProfileFilename",
+        llvm::MDString::get(Ctx, CodeGenOpts.MemoryProfileOutput));
+  }
+
   if (LangOpts.CUDAIsDevice && getTriple().isNVPTX()) {
     // Indicate whether __nvvm_reflect should be configured to flush denormal
     // floating point values to 0.  (This corresponds to its "__CUDA_FTZ"
@@ -724,6 +766,12 @@ void CodeGenModule::Release() {
   getTargetCodeGenInfo().emitTargetMetadata(*this, MangledDeclNames);
 
   EmitBackendOptionsMetadata(getCodeGenOpts());
+
+  // Set visibility from DLL storage class
+  // We do this at the end of LLVM IR generation; after any operation
+  // that might affect the DLL storage class or the visibility, and
+  // before anything that might act on these.
+  setVisibilityFromDLLStorageClass(LangOpts, getModule());
 }
 
 void CodeGenModule::EmitOpenCLMetadata() {
@@ -1439,6 +1487,10 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
   // MDNode for the intel_buffer_location attribute.
   SmallVector<llvm::Metadata *, 8> argSYCLBufferLocationAttr;
 
+  // MDNode for listing ESIMD kernel pointer arguments originating from
+  // accessors
+  SmallVector<llvm::Metadata *, 8> argESIMDAccPtrs;
+
   if (FD && CGF)
     for (unsigned i = 0, e = FD->getNumParams(); i != e; ++i) {
       const ParmVarDecl *parm = FD->getParamDecl(i);
@@ -1570,6 +1622,10 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
               ? llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(
                     SYCLBufferLocationAttr->getLocationID()))
               : llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(-1)));
+
+      if (FD->hasAttr<SYCLSimdAttr>())
+        argESIMDAccPtrs.push_back(llvm::ConstantAsMetadata::get(
+            CGF->Builder.getInt1(parm->hasAttr<SYCLSimdAccessorPtrAttr>())));
     }
 
   if (LangOpts.SYCLIsDevice && !LangOpts.SYCLExplicitSIMD)
@@ -1586,6 +1642,9 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
                     llvm::MDNode::get(VMContext, argBaseTypeNames));
     Fn->setMetadata("kernel_arg_type_qual",
                     llvm::MDNode::get(VMContext, argTypeQuals));
+    if (FD && FD->hasAttr<SYCLSimdAttr>())
+      Fn->setMetadata("kernel_arg_accessor_ptr",
+                      llvm::MDNode::get(VMContext, argESIMDAccPtrs));
     if (getCodeGenOpts().EmitOpenCLArgMetadata)
       Fn->setMetadata("kernel_arg_name",
                       llvm::MDNode::get(VMContext, argNames));
@@ -4728,13 +4787,16 @@ llvm::GlobalValue::LinkageTypes CodeGenModule::getLLVMLinkageForDeclarator(
   // and must all be equivalent. However, we are not allowed to
   // throw away these explicit instantiations.
   //
-  // We don't currently support CUDA device code spread out across multiple TUs,
+  // CUDA/HIP: For -fno-gpu-rdc case, device code is limited to one TU,
   // so say that CUDA templates are either external (for kernels) or internal.
-  // This lets llvm perform aggressive inter-procedural optimizations.
+  // This lets llvm perform aggressive inter-procedural optimizations. For
+  // -fgpu-rdc case, device function calls across multiple TU's are allowed,
+  // therefore we need to follow the normal linkage paradigm.
   if (Linkage == GVA_StrongODR) {
-    if (Context.getLangOpts().AppleKext)
+    if (getLangOpts().AppleKext)
       return llvm::Function::ExternalLinkage;
-    if (Context.getLangOpts().CUDA && Context.getLangOpts().CUDAIsDevice)
+    if (getLangOpts().CUDA && getLangOpts().CUDAIsDevice &&
+        !getLangOpts().GPURelocatableDeviceCode)
       return D->hasAttr<CUDAGlobalAttr>() ? llvm::Function::ExternalLinkage
                                           : llvm::Function::InternalLinkage;
     return llvm::Function::WeakODRLinkage;
@@ -4979,8 +5041,10 @@ void CodeGenModule::EmitAliasDefinition(GlobalDecl GD) {
     AS = ArgInfoAddressSpace(GetGlobalVarAddressSpace(/*D=*/nullptr));
     Aliasee = GetOrCreateLLVMGlobal(AA->getAliasee(), DeclTy->getPointerTo(AS),
                                     /*D=*/nullptr);
-    LT = getLLVMLinkageVarDefinition(cast<VarDecl>(GD.getDecl()),
-                                     D->getType().isConstQualified());
+    if (const auto *VD = dyn_cast<VarDecl>(GD.getDecl()))
+      LT = getLLVMLinkageVarDefinition(VD, D->getType().isConstQualified());
+    else
+      LT = getFunctionLinkage(GD);
   }
 
   // Create the new alias itself, but don't set a name yet.

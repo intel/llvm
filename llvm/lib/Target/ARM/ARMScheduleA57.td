@@ -42,21 +42,26 @@ def IsLdrAm3NegRegOffPredX2 : Am3NegativeRegOffset<3>;
 def IsLdrAm3NegRegOffPredX3 : Am3NegativeRegOffset<4>;
 
 // Load, scaled register offset, not plus LSL2
-def IsLdstsoScaledNotOptimalPredX0 :
-  SchedPredicate<[{TII->isLdstScaledRegNotPlusLsl2(*MI, 0)}]>;
-def IsLdstsoScaledNotOptimalPred :
-  SchedPredicate<[{TII->isLdstScaledRegNotPlusLsl2(*MI, 1)}]>;
-def IsLdstsoScaledNotOptimalPredX2 :
-  SchedPredicate<[{TII->isLdstScaledRegNotPlusLsl2(*MI, 2)}]>;
+class ScaledRegNotPlusLsl2<int n> : CheckNot<
+                                      CheckAny<[
+                                        CheckAM2NoShift<n>,
+                                        CheckAll<[
+                                          CheckAM2OpAdd<n>,
+                                          CheckAM2ShiftLSL<n>,
+                                          CheckAM2Offset<n, 2>
+                                        ]>
+                                      ]>
+                                    >;
+
+def IsLdstsoScaledNotOptimalPredX0 : MCSchedPredicate<ScaledRegNotPlusLsl2<2>>;
+def IsLdstsoScaledNotOptimalPred : MCSchedPredicate<ScaledRegNotPlusLsl2<3>>;
+def IsLdstsoScaledNotOptimalPredX2 : MCSchedPredicate<ScaledRegNotPlusLsl2<4>>;
 
 def IsLdstsoScaledPredX2 : MCSchedPredicate<CheckNot<CheckAM2NoShift<4>>>;
 
 def IsLdstsoMinusRegPredX0 : MCSchedPredicate<CheckAM2OpSub<2>>;
 def IsLdstsoMinusRegPred : MCSchedPredicate<CheckAM2OpSub<3>>;
 def IsLdstsoMinusRegPredX2 : MCSchedPredicate<CheckAM2OpSub<4>>;
-
-// LDM, base reg in list
-def IsLDMBaseRegInListPred : MCSchedPredicate<IsLDMBaseRegInList>;
 
 class A57WriteLMOpsListType<list<SchedWriteRes> writes> {
   list <SchedWriteRes> Writes = writes;
@@ -265,7 +270,11 @@ def : ReadAdvance<ReadMUL, 0>;
 // from similar μops, allowing a typical sequence of multiply-accumulate μops
 // to issue one every 1 cycle (sched advance = 2).
 def A57WriteMLA : SchedWriteRes<[A57UnitM]> { let Latency = 3; }
-def A57WriteMLAL : SchedWriteRes<[A57UnitM]> { let Latency = 4; }
+def A57WriteMLAL : SchedWriteVariant<[
+  SchedVar<IsCPSRDefinedPred, [A57Write_5cyc_1I_1M]>,
+  SchedVar<NoSchedPred,       [A57Write_4cyc_1M]>
+]>;
+
 def A57ReadMLA  : SchedReadAdvance<2, [A57WriteMLA, A57WriteMLAL]>;
 
 def : InstRW<[A57WriteMLA],

@@ -1012,6 +1012,9 @@ public:
 #define SVE_TYPE(Name, Id, SingletonId) \
   CanQualType SingletonId;
 #include "clang/Basic/AArch64SVEACLETypes.def"
+#define PPC_MMA_VECTOR_TYPE(Name, Id, Size) \
+  CanQualType Id##Ty;
+#include "clang/Basic/PPCTypes.def"
 
   // Types for deductions in C++0x [stmt.ranged]'s desugaring. Built on demand.
   mutable QualType AutoDeductTy;     // Deduction against 'auto'.
@@ -2048,6 +2051,10 @@ public:
     /// Missing a type from <ucontext.h>
     GE_Missing_ucontext
   };
+
+  QualType DecodeTypeStr(const char *&Str, const ASTContext &Context,
+                         ASTContext::GetBuiltinTypeError &Error,
+                         bool &RequireICE, bool AllowTypeModifiers) const;
 
   /// Return the type for the specified builtin.
   ///
