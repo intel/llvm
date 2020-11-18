@@ -74,6 +74,8 @@ Release notes for commit range c9d50752..5d7e0925
   - Improved performance of float atomic_ref [0b7dacf1]
   - Made CUDA backend try to find a better block size using
     cuOccupancyMaxPotentialBlockSize function from the CUDA driver [4fabfd16a]
+  - Supported GroupBroadcast with 32-bit id to cover broadcast algorithm with
+    the sub_group class [6e3f2440]
 
 ### Documentation
   - Added specification for SPV_INTEL_variable_length_array extension [9e4c51c4]
@@ -97,7 +99,7 @@ Release notes for commit range c9d50752..5d7e0925
   - Fixed crash of compiler on invalid kernel type argument. [0c220ca5e]
   - Made clang search for the full executable name as opposed to just the case
     name for the AOT tools (aoc, ocloc, opencl-aot) to avoid directory calls
-    [78a86da3][244e874b]
+    [78a86da3], [244e874b]
   - Linked SYCL device libraries by default as not all backends support SPIRV
     online linkage [9dd18ca8]
   - Fixed assertion when /P option is used on windows[a21d7ef4]
@@ -117,8 +119,6 @@ Release notes for commit range c9d50752..5d7e0925
   - Enabled `-reuse-exe` support for Windows [43f2d4ba]
   - Fixed missing dependency file when compiling for `-fintelfpga` and using a named
     dependency output file [df5f1ab67]
-  - Set default work group size to {1, 1, 1} to fix out-of-memory crashes on
-    some configurations [4d76de43]
 
 ### SYCL Library
   - Fixed build log preserving for L0 plugin [638b71b1]
@@ -137,10 +137,10 @@ Release notes for commit range c9d50752..5d7e0925
   - Fixed a problem in Level Zero plugin with kernels and programs destruction
     while they can be used [b9bf9f5f]
   - Fixed wrong exception raised by ALLOWLIST mechanism [d81081f7]
-  - Supported GroupBroadcast with 32-bit id to cover broadcast algorithm with
-    the sub_group class [6e3f2440]
   - Fixed reporting supported device partitioning in Level Zero [766367be]
   - Aligned get_info<info::device::version>() with the SYCL spec [4644e639]
+  - Set default work group size to {1, 1, 1} to fix out-of-memory crashes on
+    some configurations [4d76de43]
 
 ### Documentation
   - Fixed path to FPGA device selector [ca33f7f7]
@@ -149,10 +149,7 @@ Release notes for commit range c9d50752..5d7e0925
   - Clarified --system-ocl key in GetStartedGuide.md [e31b94e5]
 
 ## API/ABI breakages
-  - Implemented SYCL_INTEL_device_specific_kernel_queries [24ae95b3]
-  - Implemented accessor_properties extension [f7d073d1]
-  - Added ONEAPI::filter_selector that accepts one or more filters for device
-    selection [174fd168]
+  - Implemented accessor_properties extension for accessor class [f7d073d1]
 
 ## Known issues
   - GlobalWorkOffset is not supported by Level Zero backend [6f9e9a76]
