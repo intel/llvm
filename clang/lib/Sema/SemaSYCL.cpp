@@ -1214,8 +1214,8 @@ void KernelObjVisitor::visitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
                                    const CXXRecordDecl *Wrapper,
                                    QualType RecordTy,
                                    HandlerTys &... Handlers) {
-  if (RecordTy->getAsRecordDecl() != nullptr &&
-      RecordTy->getAsRecordDecl()->hasAttr<SYCLRequiresDecompositionAttr>()) {
+  RecordDecl *RD = RecordTy->getAsRecordDecl();
+  if (RD && RD->hasAttr<SYCLRequiresDecompositionAttr>()) {
     // If this container requires decomposition, we have to visit it as
     // 'complex', so all handlers are called in this case with the 'complex'
     // case.
@@ -1352,7 +1352,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   void checkBufferLocationType(QualType PropTy, SourceLocation Loc) {
     const auto *PropDecl =
         cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
-    if (PropDecl != nullptr && PropDecl->getTemplateArgs().size() != 1) {
+    if (PropDecl && PropDecl->getTemplateArgs().size() != 1) {
       SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_param_number)
           << "buffer_location";
       return;
@@ -1584,7 +1584,7 @@ public:
   bool leaveStruct(const CXXRecordDecl *, FieldDecl *, QualType Ty) final {
     if (CollectionStack.pop_back_val()) {
       RecordDecl *RD = Ty->getAsRecordDecl();
-      if (RD != nullptr && !RD->hasAttr<SYCLRequiresDecompositionAttr>())
+      if (RD && !RD->hasAttr<SYCLRequiresDecompositionAttr>())
         RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
             SemaRef.getASTContext()));
       CollectionStack.back() = true;
@@ -1602,7 +1602,7 @@ public:
                    QualType Ty) final {
     if (CollectionStack.pop_back_val()) {
       RecordDecl *RD = Ty->getAsRecordDecl();
-      if (RD != nullptr && !RD->hasAttr<SYCLRequiresDecompositionAttr>())
+      if (RD && !RD->hasAttr<SYCLRequiresDecompositionAttr>())
         RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
             SemaRef.getASTContext()));
       CollectionStack.back() = true;
