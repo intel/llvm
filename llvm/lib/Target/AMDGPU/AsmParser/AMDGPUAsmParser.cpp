@@ -1369,6 +1369,7 @@ private:
   bool validateVccOperand(unsigned Reg) const;
   bool validateVOP3Literal(const MCInst &Inst) const;
   bool validateMAIAccWrite(const MCInst &Inst);
+  bool validateDivScale(const MCInst &Inst);
   unsigned getConstantBusLimit(unsigned Opcode) const;
   bool usesConstantBus(const MCInst &Inst, unsigned OpIdx);
   bool isInlineConstant(const MCInst &Inst, unsigned OpIdx) const;
@@ -2993,7 +2994,8 @@ bool AMDGPUAsmParser::usesConstantBus(const MCInst &Inst, unsigned OpIdx) {
   } else if (MO.isReg()) {
     auto Reg = MO.getReg();
     const MCRegisterInfo *TRI = getContext().getRegisterInfo();
-    return isSGPR(mc2PseudoReg(Reg), TRI) && Reg != SGPR_NULL;
+    auto PReg = mc2PseudoReg(Reg);
+    return isSGPR(PReg, TRI) && PReg != SGPR_NULL;
   } else {
     return true;
   }
@@ -3304,6 +3306,35 @@ bool AMDGPUAsmParser::validateMAIAccWrite(const MCInst &Inst) {
   return true;
 }
 
+bool AMDGPUAsmParser::validateDivScale(const MCInst &Inst) {
+  switch (Inst.getOpcode()) {
+  default:
+    return true;
+  case V_DIV_SCALE_F32_gfx6_gfx7:
+  case V_DIV_SCALE_F32_vi:
+  case V_DIV_SCALE_F32_gfx10:
+  case V_DIV_SCALE_F64_gfx6_gfx7:
+  case V_DIV_SCALE_F64_vi:
+  case V_DIV_SCALE_F64_gfx10:
+    break;
+  }
+
+  // TODO: Check that src0 = src1 or src2.
+
+  for (auto Name : {AMDGPU::OpName::src0_modifiers,
+                    AMDGPU::OpName::src2_modifiers,
+                    AMDGPU::OpName::src2_modifiers}) {
+    if (Inst.getOperand(AMDGPU::getNamedOperandIdx(Inst.getOpcode(), Name))
+            .getImm() &
+        SISrcMods::ABS) {
+      Error(getLoc(), "ABS not allowed in VOP3B instructions");
+      return false;
+    }
+  }
+
+  return true;
+}
+
 bool AMDGPUAsmParser::validateMIMGD16(const MCInst &Inst) {
 
   const unsigned Opc = Inst.getOpcode();
@@ -3535,7 +3566,7 @@ bool AMDGPUAsmParser::validateFlatOffset(const MCInst &Inst,
   // For FLAT segment the offset must be positive;
   // MSB is ignored and forced to zero.
   unsigned OffsetSize = isGFX9() ? 13 : 12;
-  if (TSFlags & SIInstrFlags::IsNonFlatSeg) {
+  if (TSFlags & (SIInstrFlags::IsFlatGlobal | SIInstrFlags::IsFlatScratch)) {
     if (!isIntN(OffsetSize, Op.getImm())) {
       Error(getFlatOffsetLoc(Operands),
             isGFX9() ? "expected a 13-bit signed offset" :
@@ -3775,6 +3806,9 @@ bool AMDGPUAsmParser::validateInstruction(const MCInst &Inst,
     return false;
   }
   if (!validateMAIAccWrite(Inst)) {
+    return false;
+  }
+  if (!validateDivScale(Inst)) {
     return false;
   }
 

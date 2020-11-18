@@ -2955,6 +2955,13 @@ void CGOpenMPRuntime::OffloadEntriesInfoManagerTy::
     Entry.setID(ID);
     Entry.setFlags(Flags);
   } else {
+    if (Flags ==
+            OffloadEntriesInfoManagerTy::OMPTargetRegionEntryTargetRegion &&
+        hasTargetRegionEntryInfo(DeviceID, FileID, ParentName, LineNum,
+                                 /*IgnoreAddressId*/ true))
+      return;
+    assert(!hasTargetRegionEntryInfo(DeviceID, FileID, ParentName, LineNum) &&
+           "Target region entry already registered!");
     OffloadEntryInfoTargetRegion Entry(OffloadingEntriesNum, Addr, ID, Flags);
     OffloadEntriesTargetRegion[DeviceID][FileID][ParentName][LineNum] = Entry;
     ++OffloadingEntriesNum;
@@ -2962,8 +2969,8 @@ void CGOpenMPRuntime::OffloadEntriesInfoManagerTy::
 }
 
 bool CGOpenMPRuntime::OffloadEntriesInfoManagerTy::hasTargetRegionEntryInfo(
-    unsigned DeviceID, unsigned FileID, StringRef ParentName,
-    unsigned LineNum) const {
+    unsigned DeviceID, unsigned FileID, StringRef ParentName, unsigned LineNum,
+    bool IgnoreAddressId) const {
   auto PerDevice = OffloadEntriesTargetRegion.find(DeviceID);
   if (PerDevice == OffloadEntriesTargetRegion.end())
     return false;
@@ -2977,7 +2984,8 @@ bool CGOpenMPRuntime::OffloadEntriesInfoManagerTy::hasTargetRegionEntryInfo(
   if (PerLine == PerParentName->second.end())
     return false;
   // Fail if this entry is already registered.
-  if (PerLine->second.getAddress() || PerLine->second.getID())
+  if (!IgnoreAddressId &&
+      (PerLine->second.getAddress() || PerLine->second.getID()))
     return false;
   return true;
 }
@@ -7989,7 +7997,7 @@ public:
         }))
       CombinedInfo.Types.back() |= OMP_MAP_PRESENT;
     // Remove TARGET_PARAM flag from the first element
-    (*CurTypes.begin()) &= ~OMP_MAP_TARGET_PARAM;
+    CurTypes.front() &= ~OMP_MAP_TARGET_PARAM;
 
     // All other current entries will be MEMBER_OF the combined entry
     // (except for PTR_AND_OBJ entries which do not have a placeholder value
@@ -8870,10 +8878,8 @@ namespace {
 /// Additional arguments for emitOffloadingArraysArgument function.
 struct ArgumentsOptions {
   bool ForEndCall = false;
-  bool IsTask = false;
   ArgumentsOptions() = default;
-  ArgumentsOptions(bool ForEndCall, bool IsTask)
-      : ForEndCall(ForEndCall), IsTask(IsTask) {}
+  ArgumentsOptions(bool ForEndCall) : ForEndCall(ForEndCall) {}
 };
 } // namespace
 
@@ -8909,9 +8915,9 @@ static void emitOffloadingArraysArgument(
                                                     : Info.MapTypesArray,
         /*Idx0=*/0,
         /*Idx1=*/0);
-    // Always emit the mapper array address in case of a target task for
-    // privatization.
-    if (!Options.IsTask && !Info.HasMapper)
+    // If there is no user-defined mapper, set the mapper array to nullptr to
+    // avoid an unnecessary data privatization
+    if (!Info.HasMapper)
       MappersArrayArg = llvm::ConstantPointerNull::get(CGM.VoidPtrPtrTy);
     else
       MappersArrayArg =
@@ -9664,11 +9670,9 @@ void CGOpenMPRuntime::emitTargetCall(
     TargetDataInfo Info;
     // Fill up the arrays and create the arguments.
     emitOffloadingArrays(CGF, CombinedInfo, Info);
-    bool HasDependClauses = D.hasClausesOfKind<OMPDependClause>();
-    emitOffloadingArraysArgument(CGF, Info.BasePointersArray,
-                                 Info.PointersArray, Info.SizesArray,
-                                 Info.MapTypesArray, Info.MappersArray, Info,
-                                 {/*ForEndTask=*/false, HasDependClauses});
+    emitOffloadingArraysArgument(
+        CGF, Info.BasePointersArray, Info.PointersArray, Info.SizesArray,
+        Info.MapTypesArray, Info.MappersArray, Info, {/*ForEndTask=*/false});
     InputInfo.NumberOfTargetItems = Info.NumberOfPtrs;
     InputInfo.BasePointersArray =
         Address(Info.BasePointersArray, CGM.getPointerAlign());
@@ -10319,8 +10323,7 @@ void CGOpenMPRuntime::emitTargetDataCalls(
     llvm::Value *MappersArrayArg = nullptr;
     emitOffloadingArraysArgument(CGF, BasePointersArrayArg, PointersArrayArg,
                                  SizesArrayArg, MapTypesArrayArg,
-                                 MappersArrayArg, Info,
-                                 {/*ForEndCall=*/true, /*IsTask=*/false});
+                                 MappersArrayArg, Info, {/*ForEndCall=*/true});
 
     // Emit device ID if any.
     llvm::Value *DeviceID = nullptr;
@@ -10518,11 +10521,11 @@ void CGOpenMPRuntime::emitTargetDataStandAloneCall(
     TargetDataInfo Info;
     // Fill up the arrays and create the arguments.
     emitOffloadingArrays(CGF, CombinedInfo, Info);
-    bool HasDependClauses = D.hasClausesOfKind<OMPDependClause>();
-    emitOffloadingArraysArgument(CGF, Info.BasePointersArray,
-                                 Info.PointersArray, Info.SizesArray,
-                                 Info.MapTypesArray, Info.MappersArray, Info,
-                                 {/*ForEndTask=*/false, HasDependClauses});
+    bool RequiresOuterTask = D.hasClausesOfKind<OMPDependClause>() ||
+                             D.hasClausesOfKind<OMPNowaitClause>();
+    emitOffloadingArraysArgument(
+        CGF, Info.BasePointersArray, Info.PointersArray, Info.SizesArray,
+        Info.MapTypesArray, Info.MappersArray, Info, {/*ForEndTask=*/false});
     InputInfo.NumberOfTargetItems = Info.NumberOfPtrs;
     InputInfo.BasePointersArray =
         Address(Info.BasePointersArray, CGM.getPointerAlign());
@@ -10532,7 +10535,7 @@ void CGOpenMPRuntime::emitTargetDataStandAloneCall(
         Address(Info.SizesArray, CGM.getPointerAlign());
     InputInfo.MappersArray = Address(Info.MappersArray, CGM.getPointerAlign());
     MapTypesArray = Info.MapTypesArray;
-    if (HasDependClauses)
+    if (RequiresOuterTask)
       CGF.EmitOMPTargetTaskBasedDirective(D, ThenGen, InputInfo);
     else
       emitInlinedDirective(CGF, D.getDirectiveKind(), ThenGen);

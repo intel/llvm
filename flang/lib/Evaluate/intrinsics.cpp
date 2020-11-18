@@ -207,26 +207,28 @@ struct IntrinsicDummyArgument {
 // KIND(0), KIND(0.0), KIND(''), &c. value for the function result.
 static constexpr IntrinsicDummyArgument DefaultingKIND{"kind",
     {IntType, KindCode::kindArg}, Rank::scalar,
-    Optionality::defaultsToDefaultForResult};
+    Optionality::defaultsToDefaultForResult, common::Intent::In};
 // MatchingDefaultKIND is a KIND= argument whose default value is the
 // kind of any "Same" function argument (viz., the one whose kind pattern is
 // "same").
 static constexpr IntrinsicDummyArgument MatchingDefaultKIND{"kind",
-    {IntType, KindCode::kindArg}, Rank::scalar,
-    Optionality::defaultsToSameKind};
+    {IntType, KindCode::kindArg}, Rank::scalar, Optionality::defaultsToSameKind,
+    common::Intent::In};
 // SizeDefaultKind is a KIND= argument whose default value should be
 // the kind of INTEGER used for address calculations, and can be
 // set so with a compiler flag; but the standard mandates the
 // kind of default INTEGER.
 static constexpr IntrinsicDummyArgument SizeDefaultKIND{"kind",
-    {IntType, KindCode::kindArg}, Rank::scalar,
-    Optionality::defaultsToSizeKind};
-static constexpr IntrinsicDummyArgument RequiredDIM{
-    "dim", {IntType, KindCode::dimArg}, Rank::scalar, Optionality::required};
-static constexpr IntrinsicDummyArgument OptionalDIM{
-    "dim", {IntType, KindCode::dimArg}, Rank::scalar, Optionality::optional};
-static constexpr IntrinsicDummyArgument OptionalMASK{
-    "mask", AnyLogical, Rank::conformable, Optionality::optional};
+    {IntType, KindCode::kindArg}, Rank::scalar, Optionality::defaultsToSizeKind,
+    common::Intent::In};
+static constexpr IntrinsicDummyArgument RequiredDIM{"dim",
+    {IntType, KindCode::dimArg}, Rank::scalar, Optionality::required,
+    common::Intent::In};
+static constexpr IntrinsicDummyArgument OptionalDIM{"dim",
+    {IntType, KindCode::dimArg}, Rank::scalar, Optionality::optional,
+    common::Intent::In};
+static constexpr IntrinsicDummyArgument OptionalMASK{"mask", AnyLogical,
+    Rank::conformable, Optionality::optional, common::Intent::In};
 
 struct IntrinsicInterface {
   static constexpr int maxArguments{7}; // if not a MAX/MIN(...)
@@ -1616,6 +1618,8 @@ public:
   }
 
   bool IsIntrinsic(const std::string &) const;
+  bool IsIntrinsicFunction(const std::string &) const;
+  bool IsIntrinsicSubroutine(const std::string &) const;
 
   IntrinsicClass GetIntrinsicClass(const std::string &) const;
   std::string GetGenericIntrinsicName(const std::string &) const;
@@ -1641,7 +1645,7 @@ private:
   std::multimap<std::string, const IntrinsicInterface *> subroutines_;
 };
 
-bool IntrinsicProcTable::Implementation::IsIntrinsic(
+bool IntrinsicProcTable::Implementation::IsIntrinsicFunction(
     const std::string &name) const {
   auto specificRange{specificFuncs_.equal_range(name)};
   if (specificRange.first != specificRange.second) {
@@ -1651,12 +1655,21 @@ bool IntrinsicProcTable::Implementation::IsIntrinsic(
   if (genericRange.first != genericRange.second) {
     return true;
   }
+  // special cases
+  return name == "null";
+}
+bool IntrinsicProcTable::Implementation::IsIntrinsicSubroutine(
+    const std::string &name) const {
   auto subrRange{subroutines_.equal_range(name)};
   if (subrRange.first != subrRange.second) {
     return true;
   }
   // special cases
-  return name == "null" || name == "__builtin_c_f_pointer";
+  return name == "__builtin_c_f_pointer";
+}
+bool IntrinsicProcTable::Implementation::IsIntrinsic(
+    const std::string &name) const {
+  return IsIntrinsicFunction(name) || IsIntrinsicSubroutine(name);
 }
 
 IntrinsicClass IntrinsicProcTable::Implementation::GetIntrinsicClass(
@@ -2083,6 +2096,11 @@ std::optional<SpecificCall> IntrinsicProcTable::Implementation::Probe(
         return specificCall;
       }
     }
+    if (IsIntrinsicFunction(call.name)) {
+      context.messages().Say(
+          "Cannot use intrinsic function '%s' as a subroutine"_err_en_US,
+          call.name);
+    }
     return std::nullopt; // TODO
   }
 
@@ -2171,6 +2189,13 @@ std::optional<SpecificCall> IntrinsicProcTable::Implementation::Probe(
     }
   }
 
+  if (specificBuffer.empty() && genericBuffer.empty() &&
+      IsIntrinsicSubroutine(call.name)) {
+    context.messages().Say(
+        "Cannot use intrinsic subroutine '%s' as a function"_err_en_US,
+        call.name);
+  }
+
   // No match; report the right errors, if any
   if (finalBuffer) {
     if (specificBuffer.empty()) {
@@ -2232,6 +2257,12 @@ IntrinsicProcTable IntrinsicProcTable::Configure(
 
 bool IntrinsicProcTable::IsIntrinsic(const std::string &name) const {
   return DEREF(impl_).IsIntrinsic(name);
+}
+bool IntrinsicProcTable::IsIntrinsicFunction(const std::string &name) const {
+  return DEREF(impl_).IsIntrinsicFunction(name);
+}
+bool IntrinsicProcTable::IsIntrinsicSubroutine(const std::string &name) const {
+  return DEREF(impl_).IsIntrinsicSubroutine(name);
 }
 
 IntrinsicClass IntrinsicProcTable::GetIntrinsicClass(

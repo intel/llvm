@@ -151,10 +151,10 @@ int loadAndProcessMLIR(mlir::MLIRContext &context,
   }
 
   if (isLoweringToAffine) {
-    // Partially lower the toy dialect with a few cleanups afterwards.
-    pm.addPass(mlir::toy::createLowerToAffinePass());
-
     mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
+
+    // Partially lower the toy dialect with a few cleanups afterwards.
+    optPM.addPass(mlir::toy::createLowerToAffinePass());
     optPM.addPass(mlir::createCanonicalizerPass());
     optPM.addPass(mlir::createCSEPass());
 
@@ -227,7 +227,8 @@ int runJit(mlir::ModuleOp module) {
 
   // Create an MLIR execution engine. The execution engine eagerly JIT-compiles
   // the module.
-  auto maybeEngine = mlir::ExecutionEngine::create(module, optPipeline);
+  auto maybeEngine = mlir::ExecutionEngine::create(
+      module, /*llvmModuleBuilder=*/nullptr, optPipeline);
   assert(maybeEngine && "failed to construct an execution engine");
   auto &engine = maybeEngine.get();
 

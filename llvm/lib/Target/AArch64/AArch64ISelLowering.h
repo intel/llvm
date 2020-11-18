@@ -246,9 +246,6 @@ enum NodeType : unsigned {
   EORV_PRED,
   ANDV_PRED,
 
-  // Vector bitwise negation
-  NOT,
-
   // Vector bitwise insertion
   BIT,
 
@@ -780,14 +777,6 @@ public:
     return !useSVEForFixedLengthVectors();
   }
 
-  // FIXME: Move useSVEForFixedLengthVectors*() back to private scope once
-  // reduction legalization is complete.      
-  bool useSVEForFixedLengthVectors() const;
-  // Normally SVE is only used for byte size vectors that do not fit within a
-  // NEON vector. This changes when OverrideNEON is true, allowing SVE to be
-  // used for 64bit and 128bit vectors as well.
-  bool useSVEForFixedLengthVectorVT(EVT VT, bool OverrideNEON = false) const;
-
 private:
   /// Keep a pointer to the AArch64Subtarget around so that we can
   /// make the right decision when generating code for different targets.
@@ -944,8 +933,9 @@ private:
                                                SelectionDAG &DAG) const;
   SDValue LowerFixedLengthVectorLoadToSVE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVECREDUCE_SEQ_FADD(SDValue ScalarOp, SelectionDAG &DAG) const;
-  SDValue LowerFixedLengthReductionToSVE(unsigned Opcode, SDValue ScalarOp,
-                                         SelectionDAG &DAG) const;
+  SDValue LowerPredReductionToSVE(SDValue ScalarOp, SelectionDAG &DAG) const;
+  SDValue LowerReductionToSVE(unsigned Opcode, SDValue ScalarOp,
+                              SelectionDAG &DAG) const;
   SDValue LowerFixedLengthVectorSelectToSVE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFixedLengthVectorSetccToSVE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFixedLengthVectorStoreToSVE(SDValue Op, SelectionDAG &DAG) const;
@@ -1015,6 +1005,12 @@ private:
 
   bool shouldLocalize(const MachineInstr &MI,
                       const TargetTransformInfo *TTI) const override;
+
+  bool useSVEForFixedLengthVectors() const;
+  // Normally SVE is only used for byte size vectors that do not fit within a
+  // NEON vector. This changes when OverrideNEON is true, allowing SVE to be
+  // used for 64bit and 128bit vectors as well.
+  bool useSVEForFixedLengthVectorVT(EVT VT, bool OverrideNEON = false) const;
 };
 
 namespace AArch64 {

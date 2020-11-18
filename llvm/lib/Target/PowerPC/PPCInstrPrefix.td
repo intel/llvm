@@ -2316,9 +2316,9 @@ let Predicates = [IsISA3_1] in {
   def VCMPEQUQ : VCMP <455, "vcmpequq $vD, $vA, $vB" , v1i128>;
   def VCMPGTSQ : VCMP <903, "vcmpgtsq $vD, $vA, $vB" , v1i128>;
   def VCMPGTUQ : VCMP <647, "vcmpgtuq $vD, $vA, $vB" , v1i128>;
-  def VCMPEQUQ_rec : VCMPo <455, "vcmpequq. $vD, $vA, $vB" , v1i128>;
-  def VCMPGTSQ_rec : VCMPo <903, "vcmpgtsq. $vD, $vA, $vB" , v1i128>;
-  def VCMPGTUQ_rec : VCMPo <647, "vcmpgtuq. $vD, $vA, $vB" , v1i128>;
+  def VCMPEQUQ_rec : VCMP_rec <455, "vcmpequq. $vD, $vA, $vB" , v1i128>;
+  def VCMPGTSQ_rec : VCMP_rec <903, "vcmpgtsq. $vD, $vA, $vB" , v1i128>;
+  def VCMPGTUQ_rec : VCMP_rec <647, "vcmpgtuq. $vD, $vA, $vB" , v1i128>;
   def VMODSQ : VXForm_1<1803, (outs vrrc:$vD), (ins vrrc:$vA, vrrc:$vB),
                         "vmodsq $vD, $vA, $vB", IIC_VecGeneral,
                         [(set v1i128:$vD, (srem v1i128:$vA, v1i128:$vB))]>;
@@ -2356,6 +2356,113 @@ let Predicates = [IsISA3_1] in {
 let Predicates = [IsISA3_1, HasVSX] in {
   def XVCVSPBF16 : XX2_XT6_XO5_XB6<60, 17, 475, "xvcvspbf16", vsrc, []>;
   def XVCVBF16SPN : XX2_XT6_XO5_XB6<60, 16, 475, "xvcvbf16spn", vsrc, []>;
+}
+
+// Multiclass defining patterns for Set Boolean Extension Reverse Instructions.
+// This is analogous to the CRNotPat multiclass but specifically for Power10
+// and newer subtargets since the extended forms use Set Boolean instructions.
+// The first two anonymous patterns defined are actually a duplicate of those
+// in CRNotPat, but it is preferable to define both multiclasses as complete
+// ones rather than pulling that small common section out.
+multiclass P10ReverseSetBool<dag pattern, dag result> {
+  def : Pat<pattern, (crnot result)>;
+  def : Pat<(not pattern), result>;
+
+  def : Pat<(i32 (zext pattern)),
+            (SETBCR result)>;
+  def : Pat<(i64 (zext pattern)),
+            (SETBCR8 result)>;
+
+  def : Pat<(i32 (sext pattern)),
+            (SETNBCR result)>;
+  def : Pat<(i64 (sext pattern)),
+            (SETNBCR8 result)>;
+
+  def : Pat<(i32 (anyext pattern)),
+            (SETBCR result)>;
+  def : Pat<(i64 (anyext pattern)),
+            (SETBCR8 result)>;
+}
+
+multiclass IntSetP10RevSetBool<SDNode SetCC, ValueType Ty, ImmLeaf ZExtTy,
+                               ImmLeaf SExtTy, PatLeaf Cmpi, PatLeaf Cmpli,
+                               PatLeaf Cmp, PatLeaf Cmpl> {
+  defm : P10ReverseSetBool<(i1 (SetCC Ty:$s1, Ty:$s2, SETUGE)),
+                           (EXTRACT_SUBREG (Cmpl $s1, $s2), sub_lt)>;
+  defm : P10ReverseSetBool<(i1 (SetCC Ty:$s1, Ty:$s2, SETGE)),
+                           (EXTRACT_SUBREG (Cmp $s1, $s2), sub_lt)>;
+  defm : P10ReverseSetBool<(i1 (SetCC Ty:$s1, Ty:$s2, SETULE)),
+                           (EXTRACT_SUBREG (Cmpl $s1, $s2), sub_gt)>;
+  defm : P10ReverseSetBool<(i1 (SetCC Ty:$s1, Ty:$s2, SETLE)),
+                           (EXTRACT_SUBREG (Cmp $s1, $s2), sub_gt)>;
+  defm : P10ReverseSetBool<(i1 (SetCC Ty:$s1, Ty:$s2, SETNE)),
+                           (EXTRACT_SUBREG (Cmp $s1, $s2), sub_eq)>;
+
+  defm : P10ReverseSetBool<(i1 (SetCC Ty:$s1, ZExtTy:$imm, SETUGE)),
+                           (EXTRACT_SUBREG (Cmpli $s1, imm:$imm), sub_lt)>;
+  defm : P10ReverseSetBool<(i1 (SetCC Ty:$s1, SExtTy:$imm, SETGE)),
+                           (EXTRACT_SUBREG (Cmpi $s1, imm:$imm), sub_lt)>;
+  defm : P10ReverseSetBool<(i1 (SetCC Ty:$s1, ZExtTy:$imm, SETULE)),
+                           (EXTRACT_SUBREG (Cmpli $s1, imm:$imm), sub_gt)>;
+  defm : P10ReverseSetBool<(i1 (SetCC Ty:$s1, SExtTy:$imm, SETLE)),
+                           (EXTRACT_SUBREG (Cmpi $s1, imm:$imm), sub_gt)>;
+  defm : P10ReverseSetBool<(i1 (SetCC Ty:$s1, SExtTy:$imm, SETNE)),
+                           (EXTRACT_SUBREG (Cmpi $s1, imm:$imm), sub_eq)>;
+  defm : P10ReverseSetBool<(i1 (SetCC Ty:$s1, ZExtTy:$imm, SETNE)),
+                           (EXTRACT_SUBREG (Cmpli $s1, imm:$imm), sub_eq)>;
+}
+
+multiclass FSetP10RevSetBool<SDNode SetCC, ValueType Ty, PatLeaf FCmp> {
+  defm : P10ReverseSetBool<(i1 (SetCC Ty:$s1, Ty:$s2, SETUGE)),
+                           (EXTRACT_SUBREG (FCmp $s1, $s2), sub_lt)>;
+  defm : P10ReverseSetBool<(i1 (SetCC Ty:$s1, Ty:$s2, SETGE)),
+                           (EXTRACT_SUBREG (FCmp $s1, $s2), sub_lt)>;
+  defm : P10ReverseSetBool<(i1 (SetCC Ty:$s1, Ty:$s2, SETULE)),
+                           (EXTRACT_SUBREG (FCmp $s1, $s2), sub_gt)>;
+  defm : P10ReverseSetBool<(i1 (SetCC Ty:$s1, Ty:$s2, SETLE)),
+                           (EXTRACT_SUBREG (FCmp $s1, $s2), sub_gt)>;
+  defm : P10ReverseSetBool<(i1 (SetCC Ty:$s1, Ty:$s2, SETUNE)),
+                           (EXTRACT_SUBREG (FCmp $s1, $s2), sub_eq)>;
+  defm : P10ReverseSetBool<(i1 (SetCC Ty:$s1, Ty:$s2, SETNE)),
+                           (EXTRACT_SUBREG (FCmp $s1, $s2), sub_eq)>;
+  defm : P10ReverseSetBool<(i1 (SetCC Ty:$s1, Ty:$s2, SETO)),
+                           (EXTRACT_SUBREG (FCmp $s1, $s2), sub_un)>;
+}
+
+let Predicates = [IsISA3_1] in {
+  def : Pat<(i32 (zext i1:$in)),
+            (SETBC $in)>;
+  def : Pat<(i64 (zext i1:$in)),
+            (SETBC8 $in)>;
+  def : Pat<(i32 (sext i1:$in)),
+            (SETNBC $in)>;
+  def : Pat<(i64 (sext i1:$in)),
+            (SETNBC8 $in)>;
+  def : Pat<(i32 (anyext i1:$in)),
+            (SETBC $in)>;
+  def : Pat<(i64 (anyext i1:$in)),
+            (SETBC8 $in)>;
+
+  // Instantiation of the set boolean reverse patterns for 32-bit integers.
+  defm : IntSetP10RevSetBool<setcc, i32, immZExt16, imm32SExt16,
+                             CMPWI, CMPLWI, CMPW, CMPLW>;
+  defm : P10ReverseSetBool<(i1 (setcc i32:$s1, imm:$imm, SETNE)),
+                           (EXTRACT_SUBREG (CMPLWI (XORIS $s1, (HI16 imm:$imm)),
+                                           (LO16 imm:$imm)), sub_eq)>;
+
+  // Instantiation of the set boolean reverse patterns for 64-bit integers.
+  defm : IntSetP10RevSetBool<setcc, i64, immZExt16, imm64SExt16,
+                             CMPDI, CMPLDI, CMPD, CMPLD>;
+  defm : P10ReverseSetBool<(i1 (setcc i64:$s1, imm64ZExt32:$imm, SETNE)),
+                           (EXTRACT_SUBREG (CMPLDI (XORIS8 $s1, (HI16 imm:$imm)),
+                                           (LO16 imm:$imm)), sub_eq)>;
+}
+
+// Instantiation of the set boolean reverse patterns for f32, f64, f128.
+let Predicates = [IsISA3_1, HasFPU] in {
+  defm : FSetP10RevSetBool<setcc, f32, FCMPUS>;
+  defm : FSetP10RevSetBool<setcc, f64, FCMPUD>;
+  defm : FSetP10RevSetBool<setcc, f128, XSCMPUQP>;
 }
 
 //---------------------------- Anonymous Patterns ----------------------------//
