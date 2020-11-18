@@ -3,161 +3,157 @@
 Release notes for commit range c9d50752..5d7e0925
 
 ## New features
+  - Implemented support for new loop attribute(intel::nofusion) for FPGA
+    [68ab67ad]
+  - Implemented support for new FPGA function attribute stall_enable [8fbf4bbe]
+  - Implemented accessor-based gather/scatter and scalar mem access for ESIMD
+    feature [0aac708a]
+  - Implemented support for dot_product API [6cc97d2a]
+  - Implemented ONEAPI::filter_selector that accepts one or more filters for
+    device selection [174fd168]
+  - Introduced SYCL_DEVICE_FILTER environment variable allowing to filter
+    available devices [14e227c4], [ccdf8475]
+  - Implemented accessor_properties extension [f7d073d1]
+  - Implemented SYCL_INTEL_device_specific_kernel_querie [24ae95b3]
+  - Implemented support for group algorithms on CUDA backend [909459ba]
+  - Implemented support for sub_group extension in CUDA backend [baed6a5b],
+    [551d7067], [f189e413]
+  - Implemented support for USM extension in CUDA plugin [da8929e0]
+  - Implemented support for cl_intel_create_buffer_with_properties extension [b8a7b012]
+  - Implemented support for sycl::info::device::host_unified_memory [08066b24]
+  - Added clang support for FPGA kernel attribute scheduler_target_fmax_mhz
+    [20013e23]
 
 ## Improvements
 ### SYCL Compiler
-  - Enable USM address space by default for the FPGA hardware [7896819d]
-  - Emit the warning when size kernel arguments exceeds 2kb for all devices
-    [e00ab746], [4960fc90]
-  - Change default SYCL version to be 2020 [67acf814]
-  - Add diagnostics when the translator encounters an unknow or unsupported
-    LLVM instruction[5a28d4e5]
-  - Add diagnostic for attempt to pass a pointer to variable length array as
+  - Enabled USM address space by default for the FPGA hardware [7896819d]
+  - Added emitting the warning when size kernel arguments exceeds 2kB for all
+    devices [e00ab746], [4960fc90]
+  - Changed default SYCL standard version to 2020 [67acf814]
+  - Added diagnostics when the translator encounters an unknown or unsupported
+    LLVM instruction [5a28d4e5]
+  - Added diagnostic for attempt to pass a pointer to variable length array as
     kernel argument [538c4c9c]
-  - Improve FPGA AOT help output with -fsycl-help [dc8a0593]
-  - Link SYCL device libraries by default as not all backends support SPIRV
-    online linkage [9dd18ca8]
-  - Make /MD the default option of compiler on Windows and make driver
-    generate error if /MT is passed to it. SYCL library is designed such a way
+  - Improved FPGA AOT help output with -fsycl-help [dc8a0593]
+  - Made /MD the default option of compiler on Windows and made driver
+    generate error if /MT was passed to it. SYCL library is designed such a way
     that STL objects must cross the sycl.dll boundary, which is guaranteed to
     work safe on Windows only if the runtime in the app using sycl.dll and in
     sycl.dll is the same and is dynamic [d31184e1], [8735bb81], [0092d4da]
-  - Enforce C++ for C source files when compiling in SYCL mode [adc2ac72]
-  - Add use of template parameter in [[intelfpga::num_simd_work_items()]]
+  - Enforced C++ for C source files when compiling in SYCL mode [adc2ac72]
+  - Added use of template parameter in [[intelfpga::num_simd_work_items()]]
     attribute [678911a8]
-  - Add clang support for FPGA kernel attribute scheduler_target_fmax_mh
-    [20013e23]
-  - Add new spellings for SYCL FPGA attributes [5949228d], [b1cf776e9]
-  - All definitions used for compiler needs marker with underscore prefix
+  - Added new spellings for SYCL FPGA attributes [5949228d], [b1cf776e9]
+  - All definitions used for compiler needs were marked with underscore prefix
     [51d3c205]
-  - Add propagation of floating point optimizations flags by mapping Clang's
-    `-ffast-math`, `-Ofast`, `-ffp-model=fast` and `-funsafe-math-optimizations`
-    to this SPIR-V compiler option [ce088899]
-  - Disable diagnostic about use of functions with raw pointer in kernels
+  - Disabled diagnostic about use of functions with raw pointer in kernels
     [b4a3f03f]
-  - Add support for new loop attribute(intel::nofusion) for FPGA [68ab67ad]
-  - Improve diagnostics for invalid SYCL kernel names [cb5ddb49], [89fd4284]
-  - Add support for new FPGA function attribute stall_enable [8fbf4bbe]
-  - Implement accessor-based gather/scatter and scalar mem access for ESIMD
-    [0aac708a]
+  - Improved diagnostics for invalid SYCL kernel names [cb5ddb49], [89fd4284]
 
 ### SYCL Library
-  - Remove deprecated spelling ([[cl::intel_reqd_sub_group_size()]]) of
+  - Removed deprecated spelling ([[cl::intel_reqd_sub_group_size()]]) of
     IntelReqdSubGroupSize attribute [9dda36fe]
-  - Add ONEAPI::filter_selector that accepts one or more filters for device
-    selection [174fd168]
-  - Add support for USM shared memory allocator for Level Zero backend
+  - Added support for USM shared memory allocator for Level Zero backend
     [db5037ca]
-  - Add support for a context with multiple device in Level Zero backend
+  - Added support for a context with multiple device in Level Zero backend
     [129ee442]
-  - Introduce SYCL_DEVICE_FILTER environment variable allowing to filter
-    available devices [14e227c4], [ccdf8475]
-  - Add disagnostic for deprecated environment variables: SYCL_BE and
+  - Added diagnostics for deprecated environment variables: SYCL_BE and
     SYCL_DEVICE_TYPE [6242160b]
-  - Make spec_constant default constructor public and available on host
+  - Made spec_constant default constructor public and available on host
     [53d909e2]
-  - Implement accessor_properties extension [f7d073d1]
-  - Add constraints instead of static asserts and is_native_function_object()
+  - Added constraints instead of static asserts and is_native_function_object()
     for group algorithms [97bec247]
-  - Add support for L0 loader validation layer [4c6cda3f]
-  - Add basic support for USM extension in CUDA plugin [da8929e0]
-  - Implement SYCL_INTEL_device_specific_kernel_querie [24ae95b3]
-  - Add multi-device and multi-platform support for SYCL_DEVICE_ALLOWLIST
+  - Added support for L0 loader validation layer [4c6cda3f]
+  - Added multi-device and multi-platform support for SYCL_DEVICE_ALLOWLIST
     [dbf31c3c]
-  - Add support for sub_group extension in CUDA backend [baed6a5b], [551d7067],
-    [f189e413]
-  - Remove two-input sub-group shuffles [ef969c14]
-  - Add support for group algorithms on CUDA backend [909459ba]
-  - Enable inspecting values wrapped into private_memory<T> by evaluating
+  - Removed two-input sub-group shuffles [ef969c14]
+  - Enabled inspecting values wrapped into private_memory<T> by evaluating
     `operator()` from GDB [31c23ddc]
-  - Align get_info<info::device::version>() with the SYCL spec [4644e639]
-  - Use host shared memory when buffer is allocated for integrated GPU under
+  - Used host shared memory when buffer was allocated for integrated GPU under
     Level Zero plugin [2ae1bc9e]
-  - Add support for cl_intel_create_buffer_with_properties extension [b8a7b012]
-  - Add support for sycl::info::device::host_unified_memory [08066b24]
-  - Implement queue::parallel_for() accepting reduction [ffdadc2e]
-  - Add support for USM aspects defined by the SYCL 2020 Provisional
-    Specification [ce3ac0986]
-  - Add support for dot_product [6cc97d2a]
-  - Improve performance of float atomic_ref [0b7dacf1]
-  - CUDA backend tries to find a better block size using
+  - Implemented queue::parallel_for() accepting reduction [ffdadc2e]
+  - Improved performance of float atomic_ref [0b7dacf1]
+  - Made CUDA backend try to find a better block size using
     cuOccupancyMaxPotentialBlockSize function from the CUDA driver [4fabfd16a]
 
 ### Documentation
-  - Add specification for SPV_INTEL_variable_length_array extension [9e4c51c4]
-  - Add specification for accessor_properties and buffer_location extensions
+  - Added specification for SPV_INTEL_variable_length_array extension [9e4c51c4]
+  - Added specification for accessor_properties and buffer_location extensions
     [f90614c5]
-  - Move specification for Unified Shared Memory to Khronos specification
+  - Moved specification for Unified Shared Memory to Khronos specification
     [a7ffe039]
-  - Add documentation for filter_selector [c3f5cfba]
-  - Update C-CXX-StandardLibrary extension specification [0b6f8cd8]
-  - Add ESIMD extention introduction document [c36a1411]
-  - Add specialization constants extension introduction document [d88ef3b6]
-  - Add specialization constant feature design doc [15cac431]
-  - Document kernel-program caching mechanism [5947cde81]
-  - Add the SYCL_INTEL_mem_channel_property extension specification [5cf8088c]
-  - Provide detailed description for guaranteed sub-group sizes[542c32ae]
-  - Document test-related processes [ff90e06d]
-  - Add code examples for all SYCL FPGA loop attributes [6b958205]
+  - Added documentation for filter_selector [c3f5cfba]
+  - Updated C-CXX-StandardLibrary extension specification [0b6f8cd8]
+  - Added ESIMD extension introduction document [c36a1411]
+  - Added specialization constants extension introduction document [d88ef3b6]
+  - Added specialization constant feature design doc [15cac431]
+  - Documented kernel-program caching mechanism [5947cde81]
+  - Added the SYCL_INTEL_mem_channel_property extension specification [5cf8088c]
+  - Provided detailed description for guaranteed sub-group sizes[542c32ae]
+  - Documented test-related processes [ff90e06d]
+  - Added code examples for all SYCL FPGA loop attributes [6b958205]
   
 ## Bug fixes
 ### SYCL Compiler
-  - Fix crash of compiler on invalid kerenl type argument. [0c220ca5e]
-  - Make clang search for the full executable name as opposed to just the case
+  - Fixed crash of compiler on invalid kernel type argument. [0c220ca5e]
+  - Made clang search for the full executable name as opposed to just the case
     name for the AOT tools (aoc, ocloc, opencl-aot) to avoid directory calls
     instead [78a86da3][244e874b]
-  - Fix assertion when /P option is used on windows[a21d7ef4]
-  - Fix crash when array of pointers is passed in kernel[1fc0e4f84]
-  - Fix issues with use of type from std namespace in kernel type names
+  - Linked SYCL device libraries by default as not all backends support SPIRV
+    online linkage [9dd18ca8]
+  - Fixed assertion when /P option is used on windows[a21d7ef4]
+  - Fixed crash when array of pointers is passed in kernel[1fc0e4f84]
+  - Fixed issues with use of type from std namespace in kernel type names
     [dd7fec83]
-  - Fix debug information missed for work-item builtin translation [9c06d429]
-  - Emit warnings which have been suppressed for SYCL headers [e6eed1a7]
-  - Correct optimization disabling option for gen to use -cl-opt-disable
+  - Fixed debug information missed for work-item builtin translation [9c06d429]
+  - Added warnings emission which had been suppressed for SYCL headers [e6eed1a7]
+  - Fixed optimization disabling option for gen to use -cl-opt-disable
     [ba4e567fe]
-  - Emulate "funnel shift left" which is not supported in the OpenCL
+  - Emulated "funnel shift left" which was not supported in the OpenCL
     ExtInst set on SPIRV translator side [97d7eec5]
-  - Fix build issue when use TBB and libstdc++ 10.X caused by including std C++
-    headers in integration header file [63369132]
-  - Fix processing for partial link step with static archives by passing linker
+  - Fixed build issue when TBB and libstdc++ 10.X were used caused by including
+    std C++ headers in integration header file [63369132]
+  - Fixed processing for partial link step with static archives by passing linker
     specific arguments there [3ab8cc82]
-  - Enable -reuse-exe support for Windows [43f2d4ba]
-  - Fix missing dependency file when compiling for -fintelfpga and using a named
+  - Enabled -reuse-exe support for Windows [43f2d4ba]
+  - Fixed missing dependency file when compiling for -fintelfpga and using a named
     dependency output file [df5f1ab67]
   - Set default work group size to {1, 1, 1} to fix out-of-memory crashes on
     some configurations [4d76de43]
 
 ### SYCL Library
-  - Fix build log preserving for L0 plugin [638b71b1]
-  - Add missing math APIs for devicelib [e438bc814]
-  - Enable async_work_group_copy for scalar and vector bool types [bb78d2cb]
-  - Align image class constructors with the SYCL specification [049ae996]
-  - Remove half type alias causing name conflicts with CUDA headers [c00c1fa3]
-  - Fix explicit copy operation for host device [f20fd4de]
-  - Make stream flush operation non-blocking [e7492fb2]
-  - Fix image arguments order when passing to PI routines [70d6f87b]
-  - Fix circular dependency between the device_impl and the platform_impl
+  - Fixed build log preserving for L0 plugin [638b71b1]
+  - Added missing math APIs for devicelib [e438bc814]
+  - Enabled async_work_group_copy for scalar and vector bool types [bb78d2cb]
+  - Aligned image class constructors with the SYCL specification [049ae996]
+  - Removed half type alias causing name conflicts with CUDA headers [c00c1fa3]
+  - Fixed explicit copy operation for host device [f20fd4de]
+  - Made stream flush operation non-blocking [e7492fb2]
+  - Fixed image arguments order when passing to PI routines [70d6f87b]
+  - Fixed circular dependency between the device_impl and the platform_impl
     causing handler leak [255f304f]
-  - Fix work-group size selection in reductions [2ae49f57e]
-  - Fix compilation with --std=c++20 [ecd0adbb]
-  - Fix treating all allocations of host pointers as read only causing double
+  - Fixed work-group size selection in reductions [2ae49f57e]
+  - Fixed compilation errors when built with --std=c++20 [ecd0adbb]
+  - Fixed treating all allocations of host pointers as read only causing double
     free issue [8b5506255]
-  - Fix a problem in Level Zero plugin with kernels and programs destruction
+  - Fixed a problem in Level Zero plugin with kernels and programs destruction
     while they can be used [b9bf9f5f]
-  - Fix wrong exception raised by ALLOWLIST mechanism [d81081f7]
-  - Support GroupBroadcast with 32-bit id to cover broadcast algorithm with
+  - Fixed wrong exception raised by ALLOWLIST mechanism [d81081f7]
+  - Supported GroupBroadcast with 32-bit id to cover broadcast algorithm with
     the sub_group class [6e3f2440]
-  - Fix reporting supported device partitioning in Level Zero [766367be]
+  - Fixed reporting supported device partitioning in Level Zero [766367be]
+  - Aligned get_info<info::device::version>() with the SYCL spec [4644e639]
 
 ### Documentation
-  - Fix path to FPGA device selector [ca33f7f7]
-  - Rename LEVEL0 environment variable to LEVEL_ZERO in documents and code
+  - Fixed path to FPGA device selector [ca33f7f7]
+  - Renamed LEVEL0 environment variable to LEVEL_ZERO in documents and code
     comments following source code change [2c3908b4]
-  - Clarify --system-ocl key in GetStartedGuide.md [e31b94e5]
+  - Clarified --system-ocl key in GetStartedGuide.md [e31b94e5]
 
 ## API/ABI breakages
-  - Implement SYCL_INTEL_device_specific_kernel_queries [24ae95b3]
-  - Implement accessor_properties extension [f7d073d1]
-  - Add ONEAPI::filter_selector that accepts one or more filters for device
+  - Implemented SYCL_INTEL_device_specific_kernel_queries [24ae95b3]
+  - Implemented accessor_properties extension [f7d073d1]
+  - Added ONEAPI::filter_selector that accepts one or more filters for device
     selection [174fd168]
 
 ## Known issues
