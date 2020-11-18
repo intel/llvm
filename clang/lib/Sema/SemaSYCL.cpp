@@ -2704,7 +2704,8 @@ public:
                               QualType FieldTy) final {
     const auto *AccTy =
         cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
-    if (!AccTy) return false;
+    if (!AccTy)
+      return false;
     assert(AccTy->getTemplateArgs().size() >= 2 &&
            "Incorrect template args for Accessor Type");
     int Dims = static_cast<int>(
@@ -2719,7 +2720,8 @@ public:
   bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
     const auto *AccTy =
         cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
-    if (!AccTy) return false;
+    if (!AccTy)
+      return false;
     assert(AccTy->getTemplateArgs().size() >= 2 &&
            "Incorrect template args for Accessor Type");
     int Dims = static_cast<int>(
