@@ -14,7 +14,7 @@ Release notes for commit range c9d50752..5d7e0925
   - Introduced SYCL_DEVICE_FILTER environment variable allowing to filter
     available devices [14e227c4], [ccdf8475]
   - Implemented accessor_properties extension [f7d073d1]
-  - Implemented SYCL_INTEL_device_specific_kernel_querie [24ae95b3]
+  - Implemented SYCL_INTEL_device_specific_kernel_queries [24ae95b3]
   - Implemented support for group algorithms on CUDA backend [909459ba]
   - Implemented support for sub_group extension in CUDA backend [baed6a5b],
     [551d7067], [f189e413]
@@ -27,7 +27,7 @@ Release notes for commit range c9d50752..5d7e0925
 ## Improvements
 ### SYCL Compiler
   - Enabled USM address space by default for the FPGA hardware [7896819d]
-  - Added emitting the warning when size kernel arguments exceeds 2kB for all
+  - Added emitting of a warning when size of kernel arguments exceeds 2kB for all
     devices [e00ab746], [4960fc90]
   - Changed default SYCL standard version to 2020 [67acf814]
   - Added diagnostics when the translator encounters an unknown or unsupported
@@ -36,7 +36,7 @@ Release notes for commit range c9d50752..5d7e0925
     kernel argument [538c4c9c]
   - Improved FPGA AOT help output with -fsycl-help [dc8a0593]
   - Made /MD the default option of compiler on Windows and made driver
-    generate error if /MT was passed to it. SYCL library is designed such a way
+    generate error if /MT was passed to it. SYCL library is designed in such a way
     that STL objects must cross the sycl.dll boundary, which is guaranteed to
     work safe on Windows only if the runtime in the app using sycl.dll and in
     sycl.dll is the same and is dynamic [d31184e1], [8735bb81], [0092d4da]
@@ -69,9 +69,8 @@ Release notes for commit range c9d50752..5d7e0925
   - Removed two-input sub-group shuffles [ef969c14]
   - Enabled inspecting values wrapped into private_memory<T> by evaluating
     `operator()` from GDB [31c23ddc]
-  - Used host shared memory when buffer was allocated for integrated GPU under
-    Level Zero plugin [2ae1bc9e]
-  - Implemented queue::parallel_for() accepting reduction [ffdadc2e]
+  - Changed buffer allocation in the Level Zero plugin to use host shared memory for integrated GPUs [2ae1bc9e]
+  - Implemented `queue::parallel_for()` accepting reduction [ffdadc2e]
   - Improved performance of float atomic_ref [0b7dacf1]
   - Made CUDA backend try to find a better block size using
     cuOccupancyMaxPotentialBlockSize function from the CUDA driver [4fabfd16a]
@@ -98,14 +97,14 @@ Release notes for commit range c9d50752..5d7e0925
   - Fixed crash of compiler on invalid kernel type argument. [0c220ca5e]
   - Made clang search for the full executable name as opposed to just the case
     name for the AOT tools (aoc, ocloc, opencl-aot) to avoid directory calls
-    instead [78a86da3][244e874b]
+    [78a86da3][244e874b]
   - Linked SYCL device libraries by default as not all backends support SPIRV
     online linkage [9dd18ca8]
   - Fixed assertion when /P option is used on windows[a21d7ef4]
-  - Fixed crash when array of pointers is passed in kernel[1fc0e4f84]
+  - Fixed crash when array of pointers is passed to kernel[1fc0e4f84]
   - Fixed issues with use of type from std namespace in kernel type names
     [dd7fec83]
-  - Fixed debug information missed for work-item builtin translation [9c06d429]
+  - Fixed debug information missed for work-item built-in translation [9c06d429]
   - Added warnings emission which had been suppressed for SYCL headers [e6eed1a7]
   - Fixed optimization disabling option for gen to use -cl-opt-disable
     [ba4e567fe]
@@ -115,8 +114,8 @@ Release notes for commit range c9d50752..5d7e0925
     std C++ headers in integration header file [63369132]
   - Fixed processing for partial link step with static archives by passing linker
     specific arguments there [3ab8cc82]
-  - Enabled -reuse-exe support for Windows [43f2d4ba]
-  - Fixed missing dependency file when compiling for -fintelfpga and using a named
+  - Enabled `-reuse-exe` support for Windows [43f2d4ba]
+  - Fixed missing dependency file when compiling for `-fintelfpga` and using a named
     dependency output file [df5f1ab67]
   - Set default work group size to {1, 1, 1} to fix out-of-memory crashes on
     some configurations [4d76de43]
@@ -134,8 +133,7 @@ Release notes for commit range c9d50752..5d7e0925
     causing handler leak [255f304f]
   - Fixed work-group size selection in reductions [2ae49f57e]
   - Fixed compilation errors when built with --std=c++20 [ecd0adbb]
-  - Fixed treating all allocations of host pointers as read only causing double
-    free issue [8b5506255]
+  - Fixed treating internal allocations of host memory as read only for memory objects created with const pointer, causing double free issue [8b5506255]
   - Fixed a problem in Level Zero plugin with kernels and programs destruction
     while they can be used [b9bf9f5f]
   - Fixed wrong exception raised by ALLOWLIST mechanism [d81081f7]
@@ -157,7 +155,7 @@ Release notes for commit range c9d50752..5d7e0925
     selection [174fd168]
 
 ## Known issues
-  - GlobalWorkOffset is not supporetd by Level Zero backend [6f9e9a76]
+  - GlobalWorkOffset is not supported by Level Zero backend [6f9e9a76]
   - The code with function pointer is hanging on Level Zero [d384295e]
   - If an application uses std::* math function in the kernel code the
     -fsycl-device-lib=libm-fp64 option should be passed to the compiler.
@@ -168,7 +166,7 @@ Release notes for commit range c9d50752..5d7e0925
     execution. Creating a context opens the device associated with the context
     and places a lock on it for that process. No other process may use that
     device. Some queries about the device through device.get_info<>() also
-    opens up the device and locks it to that process since the runtime needs
+    open up the device and lock it to that process since the runtime needs
     to query the actual device to obtain that information.
   - On Windows, DPC++ compiler enforces using dynamic C++ runtime for
     application linked with SYCL library by:
