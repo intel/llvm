@@ -302,13 +302,14 @@ MyConst_mangled [10,0,4],[11,4,4],[12,8,4],[13,12,4],[14,16,4]
 ```
 
 This tuple is needed, because at SYCL runtime level, composite constants are set
-by user as a single entity and we have to break it down to its members and set a
-value for each leaf as for a separate specialization constant. It contains the
-following data:
-- ID of composite constants leaf, i.e. ID of scalar spec constant
+by user as a byte array and we have to break it down to the leaf members of the
+composite and set a value for each leaf as for a separate scalar specialization
+constant. Each tuple contains the following data:
+- ID of composite constant leaf, i.e. ID of a scalar specialization constant
 - Offset from the beginning of composite, which points to the location of a
-  scalar value within the composite
-- Size of the scalar value
+  scalar value within the composite, i.e. the position where scalar
+  specialization constant resides within the byte array supplied by the user
+- Size of the scalar specialization constant
 
 #### SYCL runtime
 
