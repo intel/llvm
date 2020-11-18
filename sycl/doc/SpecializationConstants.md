@@ -195,7 +195,7 @@ and the user says
 
 #### Compiler
 
-##### The SpecConstant pass changes
+##### The SpecConstants pass
 
 The SpecConstants pass in the post-link will have the following IR as input
 (`sret` conversion is omitted for clarity):
@@ -248,8 +248,8 @@ Besides, the SPIR-V specification does not allow `SpecID` decoration for
 composite spec constants, because its defined by its members instead.
 
 `__spirv_SpecConstantComposite` is a new SPIR-V intrinsic, which represents
-composite specialization constant. Its arguments are LLVM IR valures
-corresponding to elements of composite type of the constant.
+composite specialization constant. Its arguments are LLVM IR values
+corresponding to elements of the composite constant.
 
 ##### LLVM -> SPIR-V translation
 
@@ -263,7 +263,7 @@ Given the `__spirv_SpecConstantComposite` intrinsic calls produced by the
 define dso_local spir_func void @get(%struct.A* sret %ret.ptr) local_unnamed_addr #0 {
   ; args are "ID" and "default value":
   %1 = tail call spir_func i32 @_Z20__spirv_SpecConstantii(i32 42, i32 0)
-  %2 = tail call spir_func i32 @_Z20__spirv_SpecConstantif(i32 43, float 0.000000e+00)
+  %2 = tail call spir_func float @_Z20__spirv_SpecConstantif(i32 43, float 0.000000e+00)
   %ret = tail call spir_func %struct.A @_Z29__spirv_SpecConstantCompositeif(%1, %2)
   store %struct.A %ret, %struct.A* %ret.ptr
   ret void
@@ -274,11 +274,11 @@ the translator will generate `OpSpecConstant` and `OpSpecConstantComposite`
 SPIR-V instructions with proper `SpecId` decorations:
 
 ```
-              OpDecorate %i32 SpecId 42                        ; ID
-              OpDecorate %float SpecId 43                      ; ID
-       %i32 = OpSpecConstant %int.type 0                       ; Default value
-     %float = OpSpecConstant %float.type 0.0                   ; Default value
-    %struct = OpSpecConstantComposite %struct.type %i32 %float ; No ID, defined by its elements
+              OpDecorate %i32 SpecId 42                        ; ID of the 1st member
+              OpDecorate %float SpecId 43                      ; ID of the 2nd member
+       %i32 = OpSpecConstant %int.type 0                       ; 1st member with default value
+     %float = OpSpecConstant %float.type 0.0                   ; 2nd member with default value
+    %struct = OpSpecConstantComposite %struct.type %i32 %float ; Composite doens't need IDs or default value
          %1 = OpTypeFunction %struct.type
 
        %get = OpFunction %struct.type None %1
@@ -300,6 +300,15 @@ referenced by its symbolic ID. For example:
 ```
 MyConst_mangled [10,0,4],[11,4,4],[12,8,4],[13,12,4],[14,16,4]
 ```
+
+This tuple is needed, because at SYCL runtime level, composite constants are set
+by user as a single entity and we have to break it down to its members and set a
+value for each leaf as for a separate specialization constant. It contains the
+following data:
+- ID of composite constants leaf, i.e. ID of scalar spec constant
+- Offset from the beginning of composite, which points to the location of a
+  scalar value within the composite
+- Size of the scalar value
 
 #### SYCL runtime
 
