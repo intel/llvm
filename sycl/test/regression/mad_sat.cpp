@@ -3,7 +3,6 @@
 
 #include <CL/sycl.hpp>
 
-
 int main() {
   cl::sycl::queue testQueue;
 
