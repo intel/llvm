@@ -932,16 +932,17 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
            "Missing loop control parameter!");
   }
   if (LC & LoopControlLoopCoalesceINTELMask) {
-    // If LoopCoalesce has no parameters
-    if (LoopControlParameters.empty()) {
+    // If LoopCoalesce has a parameter of '0'
+    if (!LoopControlParameters[NumParam]) {
       Metadata.push_back(llvm::MDNode::get(
           *Context, getMetadataFromName("llvm.loop.coalesce.enable")));
     } else {
       Metadata.push_back(llvm::MDNode::get(
           *Context,
           getMetadataFromNameAndParameter("llvm.loop.coalesce.count",
-                                          LoopControlParameters[NumParam++])));
+                                          LoopControlParameters[NumParam])));
     }
+    ++NumParam;
     assert(NumParam <= LoopControlParameters.size() &&
            "Missing loop control parameter!");
   }

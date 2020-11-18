@@ -341,9 +341,9 @@ while.end:                                        ; preds = %while.cond
   br label %while.cond1
 
 ; Per SPIR-V spec, LoopControlLoopCoalesceINTELMask = 0x100000 (1048576)
-; CHECK-SPIRV: 4 LoopMerge {{[0-9]+}} {{[0-9]+}} 1048576
+; CHECK-SPIRV: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 1048576 0
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
-; CHECK-SPIRV-NEGATIVE-NOT: 4 LoopMerge {{[0-9]+}} {{[0-9]+}} 1048576
+; CHECK-SPIRV-NEGATIVE-NOT: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 1048576 0
 while.cond1:                                      ; preds = %if.end8, %if.then6, %while.end
   %4 = load i32, i32* %i, align 4
   %5 = load i32, i32* %m, align 4
