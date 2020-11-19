@@ -1,9 +1,6 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST SYCL_OPT_PFWGS_TRACE=1 %t.out 2> %t.errout
-// RUN: %ACC_RUN_PLACEHOLDER SYCL_OPT_PFWGS_TRACE=1 %t.out 2> %t.errout
-// RUN: %CPU_RUN_PLACEHOLDER SYCL_OPT_PFWGS_TRACE=1 %t.out 2> %t.errout
-// RUN: %GPU_RUN_PLACEHOLDER SYCL_OPT_PFWGS_TRACE=1 %t.out 2> %t.errout
-// RUN: cat %t.errout | FileCheck %s
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
+// RUN: env SYCL_OPT_PFWGS_TRACE=1 %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
+// RUN: env SYCL_OPT_PFWGS_TRACE=1 %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 
 #include <CL/sycl.hpp>
 
@@ -45,6 +42,7 @@ int try_item(size_t size) {
         AccSizes[0].ItemGlobalSize = ITEM.get_range(0);
       });
     });
+    myQueue.wait();
   }
 
   check("Size seen by user = ", SInfo.ItemGlobalSize.get(0), size);
@@ -73,6 +71,7 @@ int try_id(size_t size) {
         AccSizes[0].ItemGlobalSize = ID[0];
       });
     });
+    myQueue.wait();
   }
   check("Counter = ", Counter, size);
 
@@ -90,6 +89,7 @@ int try_id(size_t size) {
         AccSizes[0].ItemGlobalSize = ID[0];
       });
     });
+    myQueue.wait();
   }
   check("Counter = ", Counter, size);
 
@@ -102,12 +102,22 @@ int main() {
   x = 10;
   try_item(x);
   try_id(x);
-  // CHECK: ***** Adjusted size from 10 to 32 *****
-  // CHECK: ***** Adjusted size from 10 to 32 *****
-  // CHECK: ***** Adjusted size from 10 to 32 *****
+
   x = 256;
   try_item(x);
   try_id(x);
 
   return 0;
 }
+
+// CHECK:       ***** Adjusted size from 10 to 32 *****
+// CHECK-NEXT:  Size seen by user = 10
+// CHECK-NEXT:  Counter = 10
+// CHECK-NEXT:  ***** Adjusted size from 10 to 32 *****
+// CHECK-NEXT:  Counter = 10
+// CHECK-NEXT:  ***** Adjusted size from 10 to 32 *****
+// CHECK-NEXT:  Counter = 10
+// CHECK-NEXT:  Size seen by user = 256
+// CHECK-NEXT:  Counter = 256
+// CHECK-NEXT:  Counter = 256
+// CHECK-NEXT:  Counter = 256

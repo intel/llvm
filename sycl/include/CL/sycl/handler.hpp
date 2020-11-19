@@ -791,7 +791,7 @@ private:
           GoodLocalSizeX;
       using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
       if (getenv("SYCL_OPT_PFWGS_TRACE") != nullptr)
-        std::cerr << "***** Adjusted size from " << NumWorkItems[0] << " to "
+        std::cout << "***** Adjusted size from " << NumWorkItems[0] << " to "
                   << NewValX << " *****\n";
       auto Wrapper = [=](TransformedArgType Arg) {
         if (Arg[0] >= NumWorkItems[0])

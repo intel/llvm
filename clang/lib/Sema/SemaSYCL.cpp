@@ -81,6 +81,10 @@ public:
   static bool isSyclStreamType(const QualType &Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
+  /// item class.
+  static bool isSyclItemType(const QualType &Ty);
+
+  /// Checks whether given clang type is a full specialization of the SYCL
   /// half class.
   static bool isSyclHalfType(const QualType &Ty);
 
@@ -511,8 +515,8 @@ public:
       FunctionDecl *FD = WorkList.back().first;
       FunctionDecl *ParentFD = WorkList.back().second;
 
-      // To implement rounding-up of a parallel-for range
-      // a kernel call is modified like this:
+      // To implement rounding-up of a parallel-for range the
+      // SYCL header implementation modifies the kernel call like this:
       // auto Wrapper = [=](TransformedArgType Arg) {
       //  if (Arg[0] >= NumWorkItems[0])
       //    return;
@@ -523,9 +527,8 @@ public:
       // This transformation leads to a condition where a kernel body
       // function becomes callable from a new kernel body function.
       // Hence this test.
-      if ((ParentFD == KernelBody) && isSYCLKernelBodyFunction(FD)) {
+      if ((ParentFD == KernelBody) && isSYCLKernelBodyFunction(FD))
         KernelBody = FD;
-      }
 
       if ((ParentFD == SYCLKernel) && isSYCLKernelBodyFunction(FD)) {
         assert(!KernelBody && "inconsistent call graph - only one kernel body "
@@ -2752,7 +2755,7 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
     // The call graph for this translation unit.
     CallGraph SYCLCG;
     SYCLCG.addToCallGraph(SemaRef.getASTContext().getTranslationUnitDecl());
-    typedef std::pair<FunctionDecl *, FunctionDecl *> ChildParentPair;
+    using ChildParentPair = std::pair<FunctionDecl *, FunctionDecl *>;
     llvm::SmallPtrSet<FunctionDecl *, 16> Visited;
     llvm::SmallVector<ChildParentPair, 16> WorkList;
     WorkList.push_back({WGLambdaFn, nullptr});
@@ -2764,7 +2767,8 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
         continue; // We've already seen this Decl
 
       if (FD->isFunctionOrMethod() && FD->getIdentifier() &&
-          !FD->getName().empty() && "this_item" == FD->getName()) {
+          !FD->getName().empty() && "this_item" == FD->getName() &&
+          Util::isSyclItemType(FD->getReturnType())) {
         Header.setCallsThisItem(true);
         return;
       }
@@ -3952,9 +3956,10 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr bool isESIMD() { return " << K.IsESIMDKernel
       << "; }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr bool callsThisItem() { return ";
     O << K.CallsThisItem << "; }\n";
-    O << "} ;\n";
+    O << "};\n";
     CurStart += N;
   }
   O << "\n";
@@ -4013,7 +4018,7 @@ void SYCLIntegrationHeader::addSpecConstant(StringRef IDName, QualType IDType) {
 }
 
 void SYCLIntegrationHeader::setCallsThisItem(bool B) {
-  auto *K = getCurKernelDesc();
+  KernelDesc *K = getCurKernelDesc();
   assert(K && "no kernels");
   K->CallsThisItem = B;
 }
@@ -4037,6 +4042,10 @@ bool Util::isSyclSamplerType(const QualType &Ty) {
 
 bool Util::isSyclStreamType(const QualType &Ty) {
   return isSyclType(Ty, "stream");
+}
+
+bool Util::isSyclItemType(const QualType &Ty) {
+  return isSyclType(Ty, "item", true /*Tmpl*/);
 }
 
 bool Util::isSyclHalfType(const QualType &Ty) {
