@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %HOST_RUN_PLACEHOLDER %t.out
+// RUN: %RUN_ON_HOST %t.out
 
 // This performs basic checks such as reduction creation, getIdentity() method,
 // and the combine() method of the aux class 'reducer'.

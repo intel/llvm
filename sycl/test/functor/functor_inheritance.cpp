@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -o %t.out %s
-// RUN: %HOST_RUN_PLACEHOLDER %t.out
+// RUN: %RUN_ON_HOST %t.out
 
 #include <CL/sycl.hpp>
 #include <cassert>

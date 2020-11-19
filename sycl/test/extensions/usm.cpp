@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out
-// RUN: %HOST_RUN_PLACEHOLDER %t1.out
+// RUN: %RUN_ON_HOST %t1.out
 
 //==---------- allocator_equal.cpp - Allocator Equality test ---------------==//
 //

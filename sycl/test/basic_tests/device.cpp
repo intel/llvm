@@ -1,5 +1,5 @@
 // RUN: %clangxx %s -o %t.out -I %sycl_include -lsycl
-// RUN: %HOST_RUN_PLACEHOLDER %t.out
+// RUN: %RUN_ON_HOST %t.out
 
 //==--------------- device.cpp - SYCL device test --------------------------==//
 //

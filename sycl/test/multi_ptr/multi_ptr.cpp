@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-dead-args-optimization %s -o %t.out
-// RUN: %HOST_RUN_PLACEHOLDER %t.out
+// RUN: %RUN_ON_HOST %t.out
 // RUN: %clangxx -DRESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR -fsycl -fsycl-targets=%sycl_triple -fsycl-dead-args-optimization %s -o %t1.out
-// RUN: %HOST_RUN_PLACEHOLDER %t1.out
+// RUN: %RUN_ON_HOST %t1.out
 
 //==--------------- multi_ptr.cpp - SYCL multi_ptr test --------------------==//
 //

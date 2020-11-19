@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -D__SYCL_DISABLE_NAMESPACE_INLINE__ %s -o %t.out
-// RUN: %HOST_RUN_PLACEHOLDER %t.out
+// RUN: %RUN_ON_HOST %t.out
 
 //==------- kernel_name_inside_sycl_namespace.cpp - Regression test --------==//
 //

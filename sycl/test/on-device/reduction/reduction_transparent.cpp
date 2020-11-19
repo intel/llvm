@@ -3,7 +3,7 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 
-// RUNx: %HOST_RUN_PLACEHOLDER %t.out
+// RUNx: %RUN_ON_HOST %t.out
 // TODO: Enable the test for HOST when it supports ONEAPI::reduce() and
 // barrier()
 
