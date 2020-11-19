@@ -189,8 +189,8 @@ void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
       if (FinishedCmd)
         MGraphBuilder.cleanupFinishedCommands(FinishedCmd, StreamsToDeallocate);
     }
+    deallocateStreams(StreamsToDeallocate);
   }
-  deallocateStreams(StreamsToDeallocate);
 }
 
 void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
@@ -226,9 +226,9 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
       MGraphBuilder.decrementLeafCountersForRecord(Record);
       MGraphBuilder.cleanupCommandsForRecord(Record, StreamsToDeallocate);
       MGraphBuilder.removeRecordForMemObj(MemObj);
+      deallocateStreams(StreamsToDeallocate);
     }
   }
-  deallocateStreams(StreamsToDeallocate);
 }
 
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
