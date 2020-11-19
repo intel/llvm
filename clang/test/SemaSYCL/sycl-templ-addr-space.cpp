@@ -1,15 +1,17 @@
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64 -verify %s
 
-template <int b> 
-struct c { 
-  static constexpr int d = b; 
+// Test that an error is issued instead of an assertion for this test case.
+
+template <int b>
+struct c {
+  static constexpr int d = b;
 };
 template <typename ab>
-ab&& l(int);
+ab &&l(int);
 // expected-error@+2 {{reference of type 'ah &&' cannot bind to a temporary object because of address space mismatch}}
 template <typename ab>
 auto ac(l<ab>(0));
-template <typename n, typename s> 
+template <typename n, typename s>
 class o {
   // expected-note-re@+2 {{in instantiation {{.*}} requested here}}
   // expected-note-re@+1 {{while substituting prior template arguments {{.*}}}}
@@ -24,8 +26,8 @@ class o {
 template <typename n>
 struct q : o<n, int> {
 };
-template <typename ab> 
-struct r { 
+template <typename ab>
+struct r {
   typedef ab i;
 };
 // expected-note@+1{{passing argument to parameter here}}
@@ -50,8 +52,8 @@ template <int> class v {
 struct x {
   v<1> ay() {
     ai::i *pi;
-  // expected-error@+2 {{no viable conversion from returned value of type 'ai::i' (aka '__global ah') to function return type 'v<1>'}}
-  // expected-note-re@+1 2{{while substituting {{.*}}}}
+    // expected-error@+2 {{no viable conversion from returned value of type 'ai::i' (aka '__global ah') to function return type 'v<1>'}}
+    // expected-note-re@+1 2{{while substituting {{.*}}}}
     return pi[0];
   }
 };

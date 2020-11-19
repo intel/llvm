@@ -670,16 +670,14 @@ void Sema::PrintInstantiationStack() {
         TemplateParams =
           cast<ClassTemplatePartialSpecializationDecl>(Active->Template)
                                                       ->getTemplateParameters();
-      SourceLocation Loc = Active->PointOfInstantiation.isValid() ?
-                           Active->PointOfInstantiation :
-                           Active->Entity->getLocation();
+      SourceLocation Loc = Active->PointOfInstantiation.isValid()
+                               ? Active->PointOfInstantiation
+                               : Active->Entity->getLocation();
       Diags.Report(Loc, diag::note_prior_template_arg_substitution)
-        << isa<TemplateTemplateParmDecl>(Parm)
-        << Name
-        << getTemplateArgumentBindingsText(TemplateParams,
-                                           Active->TemplateArgs,
-                                           Active->NumTemplateArgs)
-        << Active->InstantiationRange;
+          << isa<TemplateTemplateParmDecl>(Parm) << Name
+          << getTemplateArgumentBindingsText(
+                 TemplateParams, Active->TemplateArgs, Active->NumTemplateArgs)
+          << Active->InstantiationRange;
       break;
     }
 
