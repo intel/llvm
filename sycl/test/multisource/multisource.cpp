@@ -19,7 +19,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %t.init.o %t.calc.o %t.main.o -o %t.fat
 // RUN: %HOST_RUN_PLACEHOLDER %t.fat
 
-
 #include <CL/sycl.hpp>
 
 #include <iostream>
@@ -27,9 +26,9 @@
 using namespace cl::sycl;
 
 #ifdef MAIN_APP
-void init_buf(queue &q, buffer<int, 1> &b, range<1> &r, int i) ;
+void init_buf(queue &q, buffer<int, 1> &b, range<1> &r, int i);
 #elif INIT_KERNEL
-void init_buf(queue &q, buffer<int, 1> &b, range<1> &r, int i){
+void init_buf(queue &q, buffer<int, 1> &b, range<1> &r, int i) {
   q.submit([&](handler &cgh) {
     auto B = b.get_access<access::mode::write>(cgh);
     cgh.parallel_for<class init>(r, [=](id<1> index) { B[index] = i; });
@@ -38,11 +37,11 @@ void init_buf(queue &q, buffer<int, 1> &b, range<1> &r, int i){
 #endif
 
 #ifdef MAIN_APP
-void calc_buf(queue &q, buffer<int, 1> &a, buffer<int, 1> &b,
-              buffer<int, 1> &c, range<1> &r);
+void calc_buf(queue &q, buffer<int, 1> &a, buffer<int, 1> &b, buffer<int, 1> &c,
+              range<1> &r);
 #elif CALC_KERNEL
-void calc_buf(queue &q, buffer<int, 1> &a, buffer<int, 1> &b,
-              buffer<int, 1> &c, range<1> &r){
+void calc_buf(queue &q, buffer<int, 1> &a, buffer<int, 1> &b, buffer<int, 1> &c,
+              range<1> &r) {
   q.submit([&](handler &cgh) {
     auto A = a.get_access<access::mode::read>(cgh);
     auto B = b.get_access<access::mode::read>(cgh);
@@ -83,4 +82,3 @@ int main() {
   return 0;
 }
 #endif
-
