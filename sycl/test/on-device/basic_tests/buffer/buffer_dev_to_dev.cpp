@@ -29,7 +29,6 @@ int main() {
     queue FirstQueue(Selector);
     queue SecondQueue(Selector);
 
-    assert(FirstQueue.get_context() != SecondQueue.get_context());
     FirstQueue.submit([&](handler &Cgh) {
       auto Accessor = Buffer.get_access<access::mode::read_write>(Cgh);
       Cgh.parallel_for<class init_b>(

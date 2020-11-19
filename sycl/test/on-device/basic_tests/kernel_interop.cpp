@@ -52,7 +52,8 @@ int main() {
 
   // Try to create kernel with another context
   bool Pass = false;
-  queue Queue1;
+  device Device = Queue.get_device();
+  queue Queue1(context(Device), Device);
   context Context1 = Queue1.get_context();
   try {
     kernel Kernel(ClKernel, Context1);
