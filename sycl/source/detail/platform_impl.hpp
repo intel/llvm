@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/info/info_desc.hpp>
@@ -191,12 +192,18 @@ public:
   static std::shared_ptr<platform_impl>
   getPlatformFromPiDevice(RT::PiDevice PiDevice, const plugin &Plugin);
 
+  context getDefaultContext();
+
+  void pushDefaultContext(context Context);
+  void popDefaultContext();
+
 private:
   bool MHostPlatform = false;
   RT::PiPlatform MPlatform = 0;
   std::shared_ptr<plugin> MPlugin;
   std::vector<std::weak_ptr<device_impl>> MDeviceCache;
   std::mutex MDeviceMapMutex;
+  std::vector<context> MDefaultContextStack;
 };
 
 } // namespace detail

@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <mutex>
 #include <regex>
 #include <string>
 #include <vector>
@@ -388,6 +389,24 @@ bool platform_impl::has(aspect Aspect) const {
 
 #include <CL/sycl/info/platform_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
+
+context platform_impl::getDefaultContext() {
+  if (!MDefaultContextStack.empty())
+    return MDefaultContextStack.back();
+  else {
+    auto Devices = get_devices();
+    context DefaultContext(Devices);
+    MDefaultContextStack.push_back(DefaultContext);
+
+    return DefaultContext;
+  }
+}
+
+void platform_impl::pushDefaultContext(context Context) {
+  MDefaultContextStack.push_back(Context);
+}
+
+void platform_impl::popDefaultContext() { MDefaultContextStack.pop_back(); }
 
 } // namespace detail
 } // namespace sycl

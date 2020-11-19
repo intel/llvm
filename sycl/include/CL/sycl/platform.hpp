@@ -126,6 +126,22 @@ public:
   /// given feature.
   bool has(aspect Aspect) const;
 
+  /// Return this platform's default context
+  ///
+  /// \return the default context
+  context get_default_context() const;
+
+  /// Pushes a new default context
+  ///
+  /// \param the new default context
+  void push_default_context(context Context);
+
+  /// Pops the current default context, setting the default
+  /// context to the previous context.
+  /// Throws an error if popping would result in no
+  /// default context.
+  void pop_default_context();
+
 private:
   pi_native_handle getNative() const;
 

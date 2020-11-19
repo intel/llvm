@@ -63,5 +63,15 @@ bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
+context platform::get_default_context() const {
+  return impl->getDefaultContext();
+}
+
+void platform::push_default_context(context Context) {
+  impl->pushDefaultContext(Context);
+}
+
+void platform::pop_default_context() { impl->popDefaultContext(); }
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
