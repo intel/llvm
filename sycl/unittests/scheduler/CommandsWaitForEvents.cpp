@@ -72,7 +72,8 @@ TEST_F(SchedulerTest, CommandsWaitForEvents) {
   }
 
   queue Q1;
-  queue Q2;
+  auto Device = Q1.get_device();
+  queue Q2(context(Device), Device);
 
   unittest::PiMock Mock1(Q1);
   unittest::PiMock Mock2(Q2);
