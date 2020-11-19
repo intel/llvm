@@ -13,7 +13,7 @@
 // level_zero_dynamic_batch_test.cpp
 //
 // This tests the level zero plugin's kernel dyanmic batchi size adjustment
-// code. 
+// code.
 // This test enqueues 8 kernels and then does a wait. And it does this 5 times.
 // Expected output when we start batching at 1 will be that the batch size
 // gets increased from 1 to 2, and then from 2 to 3.
@@ -39,7 +39,7 @@
 
 namespace sycl = cl::sycl;
 
-void validate(uint32_t *result, uint32_t *expect, size_t n) {
+VOid validate(uint32_t *result, uint32_t *expect, size_t n) {
   int error = 0;
   for (int i = 0; i < n; i++) {
     if (result[i] != expect[i]) {
