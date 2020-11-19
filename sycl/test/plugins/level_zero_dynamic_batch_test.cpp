@@ -39,7 +39,7 @@
 
 namespace sycl = cl::sycl;
 
-VOid validate(uint32_t *result, uint32_t *expect, size_t n) {
+void validate(uint32_t *result, uint32_t *expect, size_t n) {
   int error = 0;
   for (int i = 0; i < n; i++) {
     if (result[i] != expect[i]) {
