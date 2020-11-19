@@ -1911,7 +1911,7 @@ pi_result piQueueRelease(pi_queue Queue) {
     Queue->ZeCommandQueue = nullptr;
 
     zePrint("piQueueRelease NumTimesClosedFull %d, NumTimesClosedEarly %d\n",
-             Queue->NumTimesClosedFull, Queue->NumTimesClosedEarly);
+            Queue->NumTimesClosedFull, Queue->NumTimesClosedEarly);
   }
   return PI_SUCCESS;
 }
