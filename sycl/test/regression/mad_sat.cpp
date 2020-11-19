@@ -9,7 +9,7 @@ int main() {
   {
     const cl::sycl::longlong3 verification3(
         9223372036854775807LL, 9223372036854775807LL, -9223372036854775808LL);
-   
+
     cl::sycl::longlong3 inputData_0(
         1152105081885725616LL, 8383539663869980295LL, -3013159033463244495LL);
     cl::sycl::longlong3 inputData_1(9169239286331099647LL,
@@ -77,7 +77,6 @@ int main() {
         3388848179800138438LL, 9095634920776267157LL, 3909069092545608647LL,
         -6551917618131929798LL, -5283018165188606431LL);
 
-
     cl::sycl::buffer<cl::sycl::longlong8, 1> buffer(1);
 
     testQueue.submit([&](cl::sycl::handler &h) {
@@ -135,5 +134,5 @@ int main() {
     const auto HostAccessor = buffer.get_access<cl::sycl::access::mode::read>();
     for (int i = 0; i < 16; i++)
       assert((HostAccessor[0][i] == verification16[i]) && "Incorrect result");
-  } 
+  }
 }
