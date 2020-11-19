@@ -77,19 +77,17 @@
 
 using namespace cl::sycl;
 
+SYCL_EXTERNAL item<1> g() { return this_item<1>(); }
+SYCL_EXTERNAL item<1> f() { return g(); }
+
 int main() {
-  ::queue myQueue;
+  queue myQueue;
   myQueue.submit([&](::handler &cgh) {
-    cgh.parallel_for<class GNU>(::range<1>(1),
-                                [=](::item<1> I) {});
-    cgh.parallel_for<class EMU>(
-        ::range<1>(1),
-        [=](::item<1> I) { ::this_item<1>(); });
-    cgh.parallel_for<class OWL>(::range<1>(1),
-                                [=](::id<1> I) {});
-    cgh.parallel_for<class RAT>(::range<1>(1), [=](::id<1> I) {
-      ::this_item<1>();
-    });
+    cgh.parallel_for<class GNU>(range<1>(1), [=](item<1> I) {});
+    cgh.parallel_for<class EMU>(range<1>(1),
+                                [=](::item<1> I) { this_item<1>(); });
+    cgh.parallel_for<class OWL>(range<1>(1), [=](id<1> I) {});
+    cgh.parallel_for<class RAT>(range<1>(1), [=](id<1> I) { f(); });
   });
 
   return 0;
