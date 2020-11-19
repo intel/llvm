@@ -1,5 +1,5 @@
 // RUN: %clangxx %s -o %t.out -lsycl -I%sycl_include
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %HOST_RUN_PLACEHOLDER %t.out
 //
 // CHECK: PASSED
 //==--------------- property_list.cpp - SYCL property list test ------------==//

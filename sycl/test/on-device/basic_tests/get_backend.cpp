@@ -3,7 +3,8 @@
 //
 //==----------------- get_backend.cpp ------------------------==//
 // This is a test of get_backend().
-// Do not set SYCL_BE.  We do not want the preferred backend.
+// Do not set SYCL_DEVICE_FILTER. We do not want the preferred
+// backend.
 //==----------------------------------------------------------==//
 
 #include <CL/sycl.hpp>

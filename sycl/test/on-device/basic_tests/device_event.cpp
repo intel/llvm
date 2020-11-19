@@ -2,7 +2,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.run
 // RUN: %CPU_RUN_PLACEHOLDER %t.run
 // RUN: %ACC_RUN_PLACEHOLDER %t.run
-// RUNx (TODO: nd_item::barrier() is not implemented on HOST): env SYCL_DEVICE_TYPE=HOST %t.run
+// RUNx (TODO: nd_item::barrier() is not implemented on HOST): %HOST_RUN_PLACEHOLDER %t.run
 
 //==--------device_event.cpp - SYCL class device_event test ----------------==//
 //

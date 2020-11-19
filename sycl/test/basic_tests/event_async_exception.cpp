@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %HOST_RUN_PLACEHOLDER %t.out
 
 //==---- event_async_exception.cpp - Test for event async exceptions -------==//
 //

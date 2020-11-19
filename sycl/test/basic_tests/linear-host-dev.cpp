@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out | FileCheck %s
+// RUN: %HOST_RUN_PLACEHOLDER %t.out | FileCheck %s
 
 #include <CL/sycl.hpp>
 #include <algorithm>

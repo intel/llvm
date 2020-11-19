@@ -1,6 +1,6 @@
 // TODO ESIMD enable host device under -fsycl
 // RUN: %clangxx -I %sycl_include %s -o %t.out -lsycl
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %HOST_RUN_PLACEHOLDER %t.out
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/INTEL/esimd.hpp>
@@ -9,19 +9,19 @@
 using namespace cl::sycl;
 
 class ESIMDSelector : public device_selector {
-  // Require GPU device unless HOST is requested in SYCL_DEVICE_TYPE env
+  // Require GPU device unless HOST is requested in SYCL_DEVICE_FILTER env
   virtual int operator()(const device &device) const {
-    if (const char *dev_type = getenv("SYCL_DEVICE_TYPE")) {
-      if (!strcmp(dev_type, "GPU"))
+    if (const char *dev_type = getenv("SYCL_DEVICE_FILTER")) {
+      if (!strcmp(dev_type, "gpu"))
         return device.is_gpu() ? 1000 : -1;
-      if (!strcmp(dev_type, "HOST"))
+      if (!strcmp(dev_type, "host"))
         return device.is_host() ? 1000 : -1;
-      std::cerr << "Supported 'SYCL_DEVICE_TYPE' env var values are 'GPU' and "
-                   "'HOST', '"
+      std::cerr << "Supported 'SYCL_DEVICE_FILTER' env var values are 'gpu' and "
+                   "'host', '"
                 << dev_type << "' is not.\n";
       return -1;
     }
-    // If "SYCL_DEVICE_TYPE" not defined, only allow gpu device
+    // If "SYCL_DEVICE_FILTER" not defined, only allow gpu device
     return device.is_gpu() ? 1000 : -1;
   }
 };
