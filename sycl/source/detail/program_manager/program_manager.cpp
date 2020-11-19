@@ -441,7 +441,7 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
       [&Program](const Locked<KernelCacheT> &LockedCache) -> KernelByNameT & {
     return LockedCache.get()[Program];
   };
-  auto BuildF = [this, &Program, &KernelName, &Ctx] {
+  auto BuildF = [&Program, &KernelName, &Ctx] {
     PiKernelT *Result = nullptr;
 
     // TODO need some user-friendly error/exception
