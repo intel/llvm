@@ -9,7 +9,6 @@ int main() {
   {
     const cl::sycl::longlong3 verification3(
         9223372036854775807LL, 9223372036854775807LL, -9223372036854775808LL);
-
     cl::sycl::longlong3 inputData_0(
         1152105081885725616LL, 8383539663869980295LL, -3013159033463244495LL);
     cl::sycl::longlong3 inputData_1(9169239286331099647LL,
