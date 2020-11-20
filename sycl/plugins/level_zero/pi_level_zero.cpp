@@ -440,10 +440,8 @@ _pi_queue::resetCommandListFenceEntry(ze_command_list_handle_t ZeCommandList,
 }
 
 static const pi_uint32 ZeCommandListBatchSize = [] {
-  // Default value of 4. This has been seen as a good tradeoff between
-  // lower overhead of number of enqueue and fence calls, and getting
-  // commands seen as soon possible (i.e. lazy vs eager submission).
-  pi_uint32 BatchSizeVal = 4;
+  // Default value of 0. This specifies to use dynamic batch size adjustment.
+  pi_uint32 BatchSizeVal = 0;
   const auto BatchSizeStr = std::getenv("SYCL_PI_LEVEL_ZERO_BATCH_SIZE");
   if (BatchSizeStr) {
     pi_int32 BatchSizeStrVal = std::atoi(BatchSizeStr);
@@ -550,6 +548,49 @@ pi_result _pi_device::getAvailableCommandList(
   return pi_result;
 }
 
+void _pi_queue::adjustBatchSizeForFullBatch() {
+  // QueueBatchSize of 0 means never allow batching.
+  if (QueueBatchSize == 0 || !UseDynamicBatching)
+    return;
+
+  NumTimesClosedFull += 1;
+
+  // If the number of times the list has been closed early is low, and
+  // the number of times it has been closed full is high, then raise
+  // the batching size slowly. Don't raise it if it is already pretty
+  // high.
+  if (NumTimesClosedEarly <= 2 && NumTimesClosedFull > 10) {
+    if (QueueBatchSize < 16) {
+      QueueBatchSize = QueueBatchSize + 1;
+      zePrint("Raising QueueBatchSize to %d\n", QueueBatchSize);
+    }
+    NumTimesClosedEarly = 0;
+    NumTimesClosedFull = 0;
+  }
+}
+
+void _pi_queue::adjustBatchSizeForPartialBatch(pi_uint32 PartialBatchSize) {
+  // QueueBatchSize of 0 means never allow batching.
+  if (QueueBatchSize == 0 || !UseDynamicBatching)
+    return;
+
+  NumTimesClosedEarly += 1;
+
+  // If we are closing early more than about 3x the number of times
+  // it is closing full, lower the batch size to the value of the
+  // current open command list. This is trying to quickly get to a
+  // batch size that will be able to be closed full at least once
+  // in a while.
+  if (NumTimesClosedEarly > (NumTimesClosedFull + 1) * 3) {
+    QueueBatchSize = PartialBatchSize - 1;
+    if (QueueBatchSize < 1)
+      QueueBatchSize = 1;
+    zePrint("Lowering QueueBatchSize to %d\n", QueueBatchSize);
+    NumTimesClosedEarly = 0;
+    NumTimesClosedFull = 0;
+  }
+}
+
 pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
                                         ze_fence_handle_t ZeFence,
                                         bool IsBlocking,
@@ -572,6 +613,8 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
       return PI_SUCCESS;
     }
 
+    adjustBatchSizeForFullBatch();
+
     this->ZeOpenCommandList = nullptr;
     this->ZeOpenCommandListFence = nullptr;
     this->ZeOpenCommandListSize = 0;
@@ -592,7 +635,7 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
 }
 
 bool _pi_queue::isBatchingAllowed() {
-  return (this->QueueBatchSize > 1 && ((ZeSerialize & ZeSerializeBlock) == 0));
+  return (this->QueueBatchSize > 0 && ((ZeSerialize & ZeSerializeBlock) == 0));
 }
 
 pi_result _pi_queue::executeOpenCommandList() {
@@ -601,6 +644,8 @@ pi_result _pi_queue::executeOpenCommandList() {
   auto OpenList = this->ZeOpenCommandList;
   if (OpenList) {
     auto OpenListFence = this->ZeOpenCommandListFence;
+
+    adjustBatchSizeForPartialBatch(this->ZeOpenCommandListSize);
 
     this->ZeOpenCommandList = nullptr;
     this->ZeOpenCommandListFence = nullptr;
@@ -1860,6 +1905,9 @@ pi_result piQueueRelease(pi_queue Queue) {
     Queue->ZeCommandListFenceMap.clear();
     ZE_CALL(zeCommandQueueDestroy(Queue->ZeCommandQueue));
     Queue->ZeCommandQueue = nullptr;
+
+    zePrint("piQueueRelease NumTimesClosedFull %d, NumTimesClosedEarly %d\n",
+            Queue->NumTimesClosedFull, Queue->NumTimesClosedEarly);
   }
   return PI_SUCCESS;
 }
