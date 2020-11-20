@@ -564,8 +564,8 @@ CodeGenFunction::DecodeAddrUsedInPrologue(llvm::Value *F,
                             "decoded_addr");
 }
 
-void CodeGenFunction::EmitOpenCLKernelSubGroupMetadata(const FunctionDecl *FD,
-                                                       llvm::Function *Fn) {
+void CodeGenFunction::EmitSubGroupMetadata(const FunctionDecl *FD,
+                                           llvm::Function *Fn) {
   if (const IntelReqdSubGroupSizeAttr *A =
           FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
     llvm::LLVMContext &Context = getLLVMContext();
@@ -942,8 +942,9 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     Fn->addFnAttr("cfi-canonical-jump-table");
 
   if (getLangOpts().SYCLIsHost) {
+    // Add metadata for a function on Host.
     if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D)) {
-      EmitOpenCLKernelSubGroupMetadata(FD, Fn);
+      EmitSubGroupMetadata(FD, Fn);
     }
   }
 
