@@ -163,8 +163,9 @@ void testcopyH2DImage() {
                                  ImgSize_1D);
     sycl::image<1> image_to_1D(data_to_1D.data(), ChanOrder, ChanType,
                                ImgSize_1D);
-    queue Q;
-    queue otherQueue;
+    auto Device = default_selector().select_device();
+    queue Q(context(Device), Device);
+    queue otherQueue(context(Device), Device);
     // first op
     Q.submit([&](sycl::handler &CGH) {
       auto readAcc = image_from_1D.get_access<sycl::float4, SYCLRead>(CGH);
@@ -198,8 +199,9 @@ void testcopyH2DImage() {
                                  ImgSize_2D);
     sycl::image<2> image_to_2D(data_to_2D.data(), ChanOrder, ChanType,
                                ImgSize_2D);
-    queue Q;
-    queue otherQueue;
+    auto Device = default_selector().select_device();
+    queue Q(context(Device), Device);
+    queue otherQueue(context(Device), Device);
     Q.submit([&](sycl::handler &CGH) {
       auto readAcc = image_from_2D.get_access<sycl::float4, SYCLRead>(CGH);
       auto writeAcc = image_to_2D.get_access<sycl::float4, SYCLWrite>(CGH);
@@ -232,8 +234,9 @@ void testcopyH2DImage() {
                                  ImgSize_3D);
     sycl::image<3> image_to_3D(data_to_3D.data(), ChanOrder, ChanType,
                                ImgSize_3D);
-    queue Q;
-    queue otherQueue;
+    auto Device = default_selector().select_device();
+    queue Q(context(Device), Device);
+    queue otherQueue(context(Device), Device);
     Q.submit([&](sycl::handler &CGH) {
       auto readAcc = image_from_3D.get_access<sycl::float4, SYCLRead>(CGH);
       auto writeAcc = image_to_3D.get_access<sycl::float4, SYCLWrite>(CGH);
