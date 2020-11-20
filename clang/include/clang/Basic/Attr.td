@@ -1246,8 +1246,8 @@ def SYCLIntelNumSimdWorkItems : InheritableAttr {
   let PragmaAttributeSupport = 0;
 }
 
-def SYCLIntelStallEnable : InheritableAttr {
-  let Spellings = [CXX11<"intel","stall_enable">];
+def SYCLIntelUseStallEnableClusters : InheritableAttr {
+  let Spellings = [CXX11<"intel","use_stall_enable_clusters">];
   let LangOpts = [SYCLIsHost, SYCLIsDevice];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let AdditionalMembers = [{
@@ -1255,7 +1255,7 @@ def SYCLIntelStallEnable : InheritableAttr {
       return "stall_enable";
     }
   }];
-  let Documentation = [SYCLIntelStallEnableAttrDocs];
+  let Documentation = [SYCLIntelUseStallEnableClustersAttrDocs];
   let PragmaAttributeSupport = 0;
 }
 

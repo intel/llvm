@@ -2241,33 +2241,33 @@ device kernel, the attribute is ignored and it is not propagated to a kernel.
   }];
 }
 
-def SYCLIntelStallEnableAttrDocs : Documentation {
+def SYCLIntelUseStallEnableClustersAttrDocs : Documentation {
   let Category = DocCatFunction;
-  let Heading = "intel::stall_enable";
+  let Heading = "intel::use_stall_enable_clusters";
   let Content = [{
 When applied to a lambda or function call operator (of a function object)
 on device, this requests, to the extent possible, that statically-scheduled
 clusters handle stalls using a stall-enable signal to freeze computation
 within the cluster. This attribute is ignored on the host.
 
-If ``intel::stall_enable`` is applied to a function called from a device
+If ``intel::use_stall_enable_clusters`` is applied to a function called from a device
 kernel, the attribute is ignored and it is not propagated to a kernel.
 
-The ``intel::stall_enable`` attribute takes no argument and has an effect
+The ``intel::use_stall_enable_clusters`` attribute takes no argument and has an effect
 when applied to a function, and no effect otherwise.
 
 .. code-block:: c++
 
   class Functor
   {
-      [[intel::stall_enable]] void operator()(item<1> item)
+      [[intel::use_stall_enable_clusters]] void operator()(item<1> item)
       {
           /* kernel code */
       }
   }
 
   kernel<class kernel_name>(
-  []() [[intel::stall_enable]] {
+  []() [[intel::use_stall_enable_clusters]] {
        /* kernel code */
   });
 
