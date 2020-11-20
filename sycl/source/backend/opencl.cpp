@@ -51,7 +51,7 @@ __SYCL_EXPORT context make_context(pi_native_handle NativeHandle) {
   // Create PI context first.
   pi::PiContext PiContext;
   Plugin.call<PiApiKind::piextContextCreateWithNativeHandle>(
-      0, nullptr, NativeHandle, &PiContext);
+      NativeHandle, 0, nullptr, &PiContext);
   // Construct the SYCL context from PI context.
   return detail::createSyclObjFromImpl<context>(
       std::make_shared<context_impl>(PiContext, async_handler{}, Plugin));

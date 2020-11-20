@@ -949,13 +949,13 @@ piextContextGetNativeHandle(pi_context context, pi_native_handle *nativeHandle);
 /// context handle for Level Zero. If backend has API to query a list of devices
 /// from the context native handle then these parameters are ignored.
 ///
+/// \param nativeHandle is the native handle to create PI context from.
 /// \param numDevices is the number of devices in the context. Parameter is
 ///        ignored if number of devices can be queried from the context native
 ///        handle for a backend.
 /// \param devices is the list of devices in the context. Parameter is ignored
 ///        if devices can be queried from the context native handle for a
 ///        backend.
-/// \param nativeHandle is the native handle to create PI context from.
 /// \param context is the PI context created from the native handle.
 /// \return PI_SUCCESS if successfully created pi_context from the handle.
 ///         PI_OUT_OF_HOST_MEMORY if can't allocate memory for the pi_context
@@ -963,8 +963,8 @@ piextContextGetNativeHandle(pi_context context, pi_native_handle *nativeHandle);
 ///         backend doesn't have API to query a list of devices from the context
 ///         native handle. PI_UNKNOWN_ERROR in case of another error.
 __SYCL_EXPORT pi_result piextContextCreateWithNativeHandle(
-    pi_uint32 numDevices, const pi_device *devices,
-    pi_native_handle nativeHandle, pi_context *context);
+    pi_native_handle nativeHandle, pi_uint32 numDevices,
+    const pi_device *devices, pi_context *context);
 
 //
 // Queue

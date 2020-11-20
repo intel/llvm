@@ -192,8 +192,8 @@ struct _pi_device : _pi_object {
 };
 
 struct _pi_context : _pi_object {
-  _pi_context(pi_uint32 NumDevices, const pi_device *Devs,
-              ze_context_handle_t ZeContext)
+  _pi_context(ze_context_handle_t ZeContext, pi_uint32 NumDevices,
+              const pi_device *Devs)
       : ZeContext{ZeContext}, Devices{Devs, Devs + NumDevices},
         ZeCommandListInit{nullptr}, ZeEventPool{nullptr},
         NumEventsAvailableInEventPool{}, NumEventsLiveInEventPool{} {

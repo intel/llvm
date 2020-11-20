@@ -1677,7 +1677,7 @@ pi_result piContextCreate(const pi_context_properties *Properties,
   ZE_CALL(zeContextCreate((*Devices)->Platform->ZeDriver, &ContextDesc,
                           &ZeContext));
   try {
-    *RetContext = new _pi_context(NumDevices, Devices, ZeContext);
+    *RetContext = new _pi_context(ZeContext, NumDevices, Devices);
     (*RetContext)->initialize();
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
@@ -1730,9 +1730,9 @@ pi_result piextContextGetNativeHandle(pi_context Context,
   return PI_SUCCESS;
 }
 
-pi_result piextContextCreateWithNativeHandle(pi_uint32 NumDevices,
+pi_result piextContextCreateWithNativeHandle(pi_native_handle NativeHandle,
+                                             pi_uint32 NumDevices,
                                              const pi_device *Devices,
-                                             pi_native_handle NativeHandle,
                                              pi_context *RetContext) {
   assert(NativeHandle);
   assert(RetContext);
@@ -1742,8 +1742,8 @@ pi_result piextContextCreateWithNativeHandle(pi_uint32 NumDevices,
   }
 
   try {
-    *RetContext = new _pi_context(NumDevices, Devices,
-                                  pi_cast<ze_context_handle_t>(NativeHandle));
+    *RetContext = new _pi_context(pi_cast<ze_context_handle_t>(NativeHandle),
+                                  NumDevices, Devices);
     (*RetContext)->initialize();
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;

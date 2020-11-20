@@ -57,7 +57,7 @@ __SYCL_EXPORT context make_context(const vector_class<device> &DeviceList,
     DeviceHandles.push_back(detail::getSyclObjImpl(Dev)->getHandleRef());
   }
   Plugin.call<PiApiKind::piextContextCreateWithNativeHandle>(
-      DeviceHandles.size(), DeviceHandles.data(), NativeHandle, &PiContext);
+      NativeHandle, DeviceHandles.size(), DeviceHandles.data(), &PiContext);
   // Construct the SYCL context from PI context.
   return detail::createSyclObjFromImpl<context>(
       std::make_shared<context_impl>(PiContext, async_handler{}, Plugin));
