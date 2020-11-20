@@ -1377,9 +1377,6 @@ bool LLParser::parseFnAttributeValuePairs(AttrBuilder &B,
     case lltok::kw_returns_twice:
       B.addAttribute(Attribute::ReturnsTwice); break;
     case lltok::kw_speculatable: B.addAttribute(Attribute::Speculatable); break;
-    case lltok::kw_nossp:
-      B.addAttribute(Attribute::NoStackProtect);
-      break;
     case lltok::kw_ssp: B.addAttribute(Attribute::StackProtect); break;
     case lltok::kw_sspreq: B.addAttribute(Attribute::StackProtectReq); break;
     case lltok::kw_sspstrong:
@@ -1791,7 +1788,6 @@ bool LLParser::parseOptionalParamAttrs(AttrBuilder &B) {
     case lltok::kw_sanitize_memory:
     case lltok::kw_sanitize_thread:
     case lltok::kw_speculative_load_hardening:
-    case lltok::kw_nossp:
     case lltok::kw_ssp:
     case lltok::kw_sspreq:
     case lltok::kw_sspstrong:
@@ -1900,7 +1896,6 @@ bool LLParser::parseOptionalReturnAttrs(AttrBuilder &B) {
     case lltok::kw_sanitize_memory:
     case lltok::kw_sanitize_thread:
     case lltok::kw_speculative_load_hardening:
-    case lltok::kw_nossp:
     case lltok::kw_ssp:
     case lltok::kw_sspreq:
     case lltok::kw_sspstrong:
@@ -3492,6 +3487,39 @@ bool LLParser::parseValID(ValID &ID, PerFunctionState *PFS) {
     }
 
     ID.ConstantVal = BlockAddress::get(F, BB);
+    ID.Kind = ValID::t_Constant;
+    return false;
+  }
+
+  case lltok::kw_dso_local_equivalent: {
+    // ValID ::= 'dso_local_equivalent' @foo
+    Lex.Lex();
+
+    ValID Fn;
+
+    if (parseValID(Fn))
+      return true;
+
+    if (Fn.Kind != ValID::t_GlobalID && Fn.Kind != ValID::t_GlobalName)
+      return error(Fn.Loc,
+                   "expected global value name in dso_local_equivalent");
+
+    // Try to find the function (but skip it if it's forward-referenced).
+    GlobalValue *GV = nullptr;
+    if (Fn.Kind == ValID::t_GlobalID) {
+      if (Fn.UIntVal < NumberedVals.size())
+        GV = NumberedVals[Fn.UIntVal];
+    } else if (!ForwardRefVals.count(Fn.StrVal)) {
+      GV = M->getNamedValue(Fn.StrVal);
+    }
+
+    assert(GV && "Could not find a corresponding global variable");
+
+    if (!GV->getValueType()->isFunctionTy())
+      return error(Fn.Loc, "expected a function, alias to function, or ifunc "
+                           "in dso_local_equivalent");
+
+    ID.ConstantVal = DSOLocalEquivalent::get(GV);
     ID.Kind = ValID::t_Constant;
     return false;
   }
