@@ -6194,7 +6194,7 @@ static void processSYCLKernel(Sema &S, FunctionDecl *FD, MangleContext &MC) {
     S.ConstructOpenCLKernel(FD, MC);
   } else if (S.LangOpts.SYCLIsHost) {
     QualType KernelParamTy = (*FD->param_begin())->getType();
-    const CXXRecordDecl *CRD;
+    CXXRecordDecl *CRD;
     if (KernelParamTy->isReferenceType())
       CRD =
           const_cast<CXXRecordDecl *>(KernelParamTy->getPointeeCXXRecordDecl());
