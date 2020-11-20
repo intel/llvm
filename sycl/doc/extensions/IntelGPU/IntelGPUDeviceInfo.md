@@ -4,7 +4,7 @@
 
 **NOTE**: Khronos(R) is a registered trademark and SYCL(TM) is a trademark of the Khronos Group, Inc.
 
-An internal team at Intel has requested a new device descriptors to provide access to low-level hardware details about Intel GPU devices.  This information will be useful to developers tuning specifically for those devices.
+New device descriptors will be added to provide access to low-level hardware details about Intel GPU devices.  This information will be useful to developers tuning specifically for those devices.
 
 This proposal details what is required to provide this information as a SYCL extensions.
 
