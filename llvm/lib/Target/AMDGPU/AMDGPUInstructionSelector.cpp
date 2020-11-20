@@ -633,7 +633,6 @@ bool AMDGPUInstructionSelector::selectG_BUILD_VECTOR_TRUNC(
 
   Register ShiftSrc0;
   Register ShiftSrc1;
-  int64_t ShiftAmt;
 
   // With multiple uses of the shift, this will duplicate the shift and
   // increase register pressure.
@@ -645,14 +644,11 @@ bool AMDGPUInstructionSelector::selectG_BUILD_VECTOR_TRUNC(
   // (build_vector_trunc $src0, $src1)
   //  => (S_PACK_LL_B32_B16 $src0, $src1)
 
-  // FIXME: This is an inconvenient way to check a specific value
   bool Shift0 = mi_match(
-    Src0, *MRI, m_OneUse(m_GLShr(m_Reg(ShiftSrc0), m_ICst(ShiftAmt)))) &&
-    ShiftAmt == 16;
+      Src0, *MRI, m_OneUse(m_GLShr(m_Reg(ShiftSrc0), m_SpecificICst(16))));
 
   bool Shift1 = mi_match(
-    Src1, *MRI, m_OneUse(m_GLShr(m_Reg(ShiftSrc1), m_ICst(ShiftAmt)))) &&
-    ShiftAmt == 16;
+      Src1, *MRI, m_OneUse(m_GLShr(m_Reg(ShiftSrc1), m_SpecificICst(16))));
 
   unsigned Opc = AMDGPU::S_PACK_LL_B32_B16;
   if (Shift0 && Shift1) {
@@ -1353,8 +1349,8 @@ bool AMDGPUInstructionSelector::selectDSGWSIntrinsic(MachineInstr &MI,
     BuildMI(*MBB, &MI, DL, TII.get(AMDGPU::S_MOV_B32), AMDGPU::M0)
       .addImm(0);
   } else {
-    std::tie(BaseOffset, ImmOffset, OffsetDef)
-      = AMDGPU::getBaseWithConstantOffset(*MRI, BaseOffset);
+    std::tie(BaseOffset, ImmOffset) =
+        AMDGPU::getBaseWithConstantOffset(*MRI, BaseOffset);
 
     if (Readfirstlane) {
       // We have the constant offset now, so put the readfirstlane back on the
@@ -2393,6 +2389,7 @@ bool AMDGPUInstructionSelector::selectG_AMDGPU_ATOMIC_CMPXCHG(
     MIB.addImm(0);
 
   MIB.addImm(Offset);
+  MIB.addImm(1); // glc
   MIB.addImm(0); // slc
   MIB.cloneMemRefs(MI);
 
@@ -2572,10 +2569,8 @@ computeIndirectRegIndex(MachineRegisterInfo &MRI,
                         unsigned EltSize) {
   Register IdxBaseReg;
   int Offset;
-  MachineInstr *Unused;
 
-  std::tie(IdxBaseReg, Offset, Unused)
-    = AMDGPU::getBaseWithConstantOffset(MRI, IdxReg);
+  std::tie(IdxBaseReg, Offset) = AMDGPU::getBaseWithConstantOffset(MRI, IdxReg);
   if (IdxBaseReg == AMDGPU::NoRegister) {
     // This will happen if the index is a known constant. This should ordinarily
     // be legalized out, but handle it as a register just in case.
@@ -3475,9 +3470,7 @@ static Register matchZeroExtendFromS32(MachineRegisterInfo &MRI, Register Reg) {
   if (Def->getOpcode() != AMDGPU::G_MERGE_VALUES)
     return false;
 
-  int64_t MergeRHS;
-  if (mi_match(Def->getOperand(2).getReg(), MRI, m_ICst(MergeRHS)) &&
-      MergeRHS == 0) {
+  if (mi_match(Def->getOperand(2).getReg(), MRI, m_ZeroInt())) {
     return Def->getOperand(1).getReg();
   }
 

@@ -122,12 +122,12 @@ public:
   size_t operator[](int dimension) const { return index[dimension]; }
 
   template <int dims = Dimensions>
-  typename std::enable_if<(dims == 1), size_t>::type get_linear_id() const {
+  typename detail::enable_if_t<(dims == 1), size_t> get_linear_id() const {
     return index[0];
   }
 
   template <int dims = Dimensions>
-  typename std::enable_if<(dims == 2), size_t>::type get_linear_id() const {
+  typename detail::enable_if_t<(dims == 2), size_t> get_linear_id() const {
     return index[0] * groupRange[1] + index[1];
   }
 
@@ -142,7 +142,7 @@ public:
   //    Get a linearized version of the work-group id. Calculating a linear
   //    work-group id from a multi-dimensional index follows the equation 4.3.
   template <int dims = Dimensions>
-  typename std::enable_if<(dims == 3), size_t>::type get_linear_id() const {
+  typename detail::enable_if_t<(dims == 3), size_t> get_linear_id() const {
     return (index[0] * groupRange[1] * groupRange[2]) +
            (index[1] * groupRange[2]) + index[2];
   }
@@ -256,12 +256,12 @@ public:
   /// Executes a work-group mem-fence with memory ordering on the local address
   /// space, global address space or both based on the value of \p accessSpace.
   template <access::mode accessMode = access::mode::read_write>
-  void mem_fence(typename std::enable_if<
-                     accessMode == access::mode::read ||
-                     accessMode == access::mode::write ||
-                     accessMode == access::mode::read_write,
-                     access::fence_space>::type accessSpace =
-                     access::fence_space::global_and_local) const {
+  void mem_fence(
+      typename detail::enable_if_t<accessMode == access::mode::read ||
+                                       accessMode == access::mode::write ||
+                                       accessMode == access::mode::read_write,
+                                   access::fence_space>
+          accessSpace = access::fence_space::global_and_local) const {
     uint32_t flags = detail::getSPIRVMemorySemanticsMask(accessSpace);
     // TODO: currently, there is no good way in SPIR-V to set the memory
     // barrier only for load operations or only for store operations.

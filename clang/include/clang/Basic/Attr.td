@@ -751,6 +751,16 @@ def Annotate : InheritableParamAttr {
   let Args = [StringArgument<"Annotation">, VariadicExprArgument<"Args">];
   // Ensure that the annotate attribute can be used with
   // '#pragma clang attribute' even though it has no subject list.
+  let AdditionalMembers = [{
+  static AnnotateAttr *Create(ASTContext &Ctx, llvm::StringRef Annotation, \
+              const AttributeCommonInfo &CommonInfo) {
+    return AnnotateAttr::Create(Ctx, Annotation, nullptr, 0, CommonInfo);
+  }
+  static AnnotateAttr *CreateImplicit(ASTContext &Ctx, llvm::StringRef Annotation, \
+              const AttributeCommonInfo &CommonInfo = {SourceRange{}}) {
+    return AnnotateAttr::CreateImplicit(Ctx, Annotation, nullptr, 0, CommonInfo);
+  }
+  }];
   let PragmaAttributeSupport = 1;
   let Documentation = [Undocumented];
 }
@@ -1162,6 +1172,16 @@ def SYCLRegisterNum : InheritableAttr {
   let PragmaAttributeSupport = 0;
 }
 
+// Used to mark ESIMD kernel pointer parameters originating from accessors.
+def SYCLSimdAccessorPtr : InheritableAttr {
+  // No spelling, as this attribute can't be created in the source code.
+  let Spellings = [];
+  let Subjects = SubjectList<[ParmVar]>;
+  let LangOpts = [SYCLExplicitSIMD];
+  let Documentation = [SYCLSimdAccessorPtrDocs];
+  let PragmaAttributeSupport = 0;
+}
+
 def SYCLScope : Attr {
   // No spelling, as this attribute can't be created in the source code.
   let Spellings = [];
@@ -1226,8 +1246,8 @@ def SYCLIntelNumSimdWorkItems : InheritableAttr {
   let PragmaAttributeSupport = 0;
 }
 
-def SYCLIntelStallEnable : InheritableAttr {
-  let Spellings = [CXX11<"intel","stall_enable">];
+def SYCLIntelUseStallEnableClusters : InheritableAttr {
+  let Spellings = [CXX11<"intel","use_stall_enable_clusters">];
   let LangOpts = [SYCLIsHost, SYCLIsDevice];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let AdditionalMembers = [{
@@ -1235,7 +1255,7 @@ def SYCLIntelStallEnable : InheritableAttr {
       return "stall_enable";
     }
   }];
-  let Documentation = [SYCLIntelStallEnableAttrDocs];
+  let Documentation = [SYCLIntelUseStallEnableClustersAttrDocs];
   let PragmaAttributeSupport = 0;
 }
 

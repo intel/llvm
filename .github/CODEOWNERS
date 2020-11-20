@@ -8,7 +8,7 @@ llvm-spirv/ @AlexeySotkin @AlexeySachkov
 
 opencl-aot/ @dm-vodopyanov @AlexeySachkov @romanovvlad
 
-libdevice/ @asavonic @vzakhari
+libdevice/ @vzakhari
 
 sycl/ @intel/llvm-reviewers-runtime
 

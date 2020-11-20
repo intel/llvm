@@ -388,7 +388,7 @@ void CodeGenModule::checkAliases() {
   for (const GlobalDecl &GD : Aliases) {
     StringRef MangledName = getMangledName(GD);
     llvm::GlobalValue *Entry = GetGlobalValue(MangledName);
-    auto *Alias = dyn_cast<llvm::GlobalIndirectSymbol>(Entry);
+    auto *Alias = cast<llvm::GlobalIndirectSymbol>(Entry);
     Alias->replaceAllUsesWith(llvm::UndefValue::get(Alias->getType()));
     Alias->eraseFromParent();
   }
@@ -1487,6 +1487,10 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
   // MDNode for the intel_buffer_location attribute.
   SmallVector<llvm::Metadata *, 8> argSYCLBufferLocationAttr;
 
+  // MDNode for listing ESIMD kernel pointer arguments originating from
+  // accessors
+  SmallVector<llvm::Metadata *, 8> argESIMDAccPtrs;
+
   if (FD && CGF)
     for (unsigned i = 0, e = FD->getNumParams(); i != e; ++i) {
       const ParmVarDecl *parm = FD->getParamDecl(i);
@@ -1618,6 +1622,10 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
               ? llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(
                     SYCLBufferLocationAttr->getLocationID()))
               : llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(-1)));
+
+      if (FD->hasAttr<SYCLSimdAttr>())
+        argESIMDAccPtrs.push_back(llvm::ConstantAsMetadata::get(
+            CGF->Builder.getInt1(parm->hasAttr<SYCLSimdAccessorPtrAttr>())));
     }
 
   if (LangOpts.SYCLIsDevice && !LangOpts.SYCLExplicitSIMD)
@@ -1634,6 +1642,9 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
                     llvm::MDNode::get(VMContext, argBaseTypeNames));
     Fn->setMetadata("kernel_arg_type_qual",
                     llvm::MDNode::get(VMContext, argTypeQuals));
+    if (FD && FD->hasAttr<SYCLSimdAttr>())
+      Fn->setMetadata("kernel_arg_accessor_ptr",
+                      llvm::MDNode::get(VMContext, argESIMDAccPtrs));
     if (getCodeGenOpts().EmitOpenCLArgMetadata)
       Fn->setMetadata("kernel_arg_name",
                       llvm::MDNode::get(VMContext, argNames));
@@ -2489,7 +2500,6 @@ llvm::Constant *CodeGenModule::EmitAnnotationLineNo(SourceLocation L) {
 
 llvm::Constant *CodeGenModule::EmitAnnotationArgs(const AnnotateAttr *Attr) {
   ArrayRef<Expr *> Exprs = {Attr->args_begin(), Attr->args_size()};
-  Exprs = Exprs.drop_front();
   if (Exprs.empty())
     return llvm::ConstantPointerNull::get(Int8PtrTy);
 
@@ -2735,8 +2745,29 @@ ConstantAddress CodeGenModule::GetAddrOfMSGuidDecl(const MSGuidDecl *GD) {
 
 ConstantAddress CodeGenModule::GetAddrOfTemplateParamObject(
     const TemplateParamObjectDecl *TPO) {
-  ErrorUnsupported(TPO, "template parameter object");
-  return ConstantAddress::invalid();
+  StringRef Name = getMangledName(TPO);
+  CharUnits Alignment = getNaturalTypeAlignment(TPO->getType());
+
+  if (llvm::GlobalVariable *GV = getModule().getNamedGlobal(Name))
+    return ConstantAddress(GV, Alignment);
+
+  ConstantEmitter Emitter(*this);
+  llvm::Constant *Init = Emitter.emitForInitializer(
+        TPO->getValue(), TPO->getType().getAddressSpace(), TPO->getType());
+
+  if (!Init) {
+    ErrorUnsupported(TPO, "template parameter object");
+    return ConstantAddress::invalid();
+  }
+
+  auto *GV = new llvm::GlobalVariable(
+      getModule(), Init->getType(),
+      /*isConstant=*/true, llvm::GlobalValue::LinkOnceODRLinkage, Init, Name);
+  if (supportsCOMDAT())
+    GV->setComdat(TheModule.getOrInsertComdat(GV->getName()));
+  Emitter.finalize(GV);
+
+  return ConstantAddress(GV, Alignment);
 }
 
 ConstantAddress CodeGenModule::GetWeakRefReference(const ValueDecl *VD) {
@@ -6491,16 +6522,17 @@ CharUnits CodeGenModule::getNaturalTypeAlignment(QualType T,
     *BaseInfo = LValueBaseInfo(AlignmentSource::Type);
 
   CharUnits Alignment;
-  // For C++ class pointees, we don't know whether we're pointing at a
-  // base or a complete object, so we generally need to use the
-  // non-virtual alignment.
   const CXXRecordDecl *RD;
-  if (forPointeeType && !AlignForArray && (RD = T->getAsCXXRecordDecl())) {
+  if (T.getQualifiers().hasUnaligned()) {
+    Alignment = CharUnits::One();
+  } else if (forPointeeType && !AlignForArray &&
+             (RD = T->getAsCXXRecordDecl())) {
+    // For C++ class pointees, we don't know whether we're pointing at a
+    // base or a complete object, so we generally need to use the
+    // non-virtual alignment.
     Alignment = getClassPointerAlignment(RD);
   } else {
     Alignment = getContext().getTypeAlignInChars(T);
-    if (T.getQualifiers().hasUnaligned())
-      Alignment = CharUnits::One();
   }
 
   // Cap to the global maximum type alignment unless the alignment

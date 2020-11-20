@@ -16,7 +16,6 @@
 #include <CL/sycl/half_type.hpp>
 
 #include <limits>
-#include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -336,8 +335,8 @@ public:
   using type = decltype(check(T()));
 };
 
-template <typename T, typename = typename std::enable_if<
-                          TryToGetPointerT<T>::value, std::true_type>::type>
+template <typename T, typename = typename detail::enable_if_t<
+                          TryToGetPointerT<T>::value, std::true_type>>
 typename TryToGetPointerVecT<T>::type TryToGetPointer(T &t) {
   // TODO find the better way to get the pointer to underlying data from vec
   // class
@@ -351,8 +350,8 @@ typename TryToGetPointerVecT<T *>::type TryToGetPointer(T *t) {
   return reinterpret_cast<typename TryToGetPointerVecT<T *>::type>(t);
 }
 
-template <typename T, typename = typename std::enable_if<
-                          !TryToGetPointerT<T>::value, std::false_type>::type>
+template <typename T, typename = typename detail::enable_if_t<
+                          !TryToGetPointerT<T>::value, std::false_type>>
 T TryToGetPointer(T &t) {
   return t;
 }
@@ -406,7 +405,7 @@ template <typename T, typename Enable = void> struct select_cl_vector_or_scalar;
 
 template <typename T>
 struct select_cl_vector_or_scalar<
-    T, typename std::enable_if<is_vgentype<T>::value>::type> {
+    T, typename detail::enable_if_t<is_vgentype<T>::value>> {
   using type =
       // select_cl_scalar_t returns _Float16, so, we try to instantiate vec
       // class with _Float16 DataType, which is not expected there
@@ -419,7 +418,7 @@ struct select_cl_vector_or_scalar<
 
 template <typename T>
 struct select_cl_vector_or_scalar<
-    T, typename std::enable_if<!is_vgentype<T>::value>::type> {
+    T, typename detail::enable_if_t<!is_vgentype<T>::value>> {
   using type = select_cl_scalar_t<T>;
 };
 
@@ -432,8 +431,8 @@ struct select_cl_mptr_or_vector_or_scalar;
 
 template <typename T>
 struct select_cl_mptr_or_vector_or_scalar<
-    T, typename std::enable_if<is_genptr<T>::value &&
-                               !std::is_pointer<T>::value>::type> {
+    T, typename detail::enable_if_t<is_genptr<T>::value &&
+                                    !std::is_pointer<T>::value>> {
   using type = multi_ptr<
       typename select_cl_vector_or_scalar<typename T::element_type>::type,
       T::address_space>;
@@ -441,8 +440,8 @@ struct select_cl_mptr_or_vector_or_scalar<
 
 template <typename T>
 struct select_cl_mptr_or_vector_or_scalar<
-    T, typename std::enable_if<!is_genptr<T>::value ||
-                               std::is_pointer<T>::value>::type> {
+    T, typename detail::enable_if_t<!is_genptr<T>::value ||
+                                    std::is_pointer<T>::value>> {
   using type = typename select_cl_vector_or_scalar<T>::type;
 };
 
@@ -465,17 +464,19 @@ using ConvertToOpenCLType_t = conditional_t<
 // convertDataToType() function converts data from FROM type to TO type using
 // 'as' method for vector type and copy otherwise.
 template <typename FROM, typename TO>
-typename std::enable_if<is_vgentype<FROM>::value && is_vgentype<TO>::value &&
-                            sizeof(TO) == sizeof(FROM),
-                        TO>::type
+typename detail::enable_if_t<is_vgentype<FROM>::value &&
+                                 is_vgentype<TO>::value &&
+                                 sizeof(TO) == sizeof(FROM),
+                             TO>
 convertDataToType(FROM t) {
   return t.template as<TO>();
 }
 
 template <typename FROM, typename TO>
-typename std::enable_if<!(is_vgentype<FROM>::value && is_vgentype<TO>::value) &&
-                            sizeof(TO) == sizeof(FROM),
-                        TO>::type
+typename detail::enable_if_t<!(is_vgentype<FROM>::value &&
+                               is_vgentype<TO>::value) &&
+                                 sizeof(TO) == sizeof(FROM),
+                             TO>
 convertDataToType(FROM t) {
   return TryToGetPointer(t);
 }
@@ -502,12 +503,12 @@ template <typename T, typename Enable = void> struct TryToGetNumElements;
 
 template <typename T>
 struct TryToGetNumElements<
-    T, typename std::enable_if<TryToGetVectorT<T>::value>::type> {
+    T, typename detail::enable_if_t<TryToGetVectorT<T>::value>> {
   static constexpr int value = T::get_count();
 };
 template <typename T>
 struct TryToGetNumElements<
-    T, typename std::enable_if<!TryToGetVectorT<T>::value>::type> {
+    T, typename detail::enable_if_t<!TryToGetVectorT<T>::value>> {
   static constexpr int value = 1;
 };
 
@@ -545,7 +546,7 @@ template <typename T, typename Enable = void> struct RelConverter;
 
 template <typename T>
 struct RelConverter<
-    T, typename std::enable_if<TryToGetElementType<T>::value>::type> {
+    T, typename detail::enable_if_t<TryToGetElementType<T>::value>> {
   static const int N = T::get_count();
 #ifdef __SYCL_DEVICE_ONLY__
   using bool_t = typename Boolean<N>::vector_t;
@@ -570,7 +571,7 @@ struct RelConverter<
 
 template <typename T>
 struct RelConverter<
-    T, typename std::enable_if<!TryToGetElementType<T>::value>::type> {
+    T, typename detail::enable_if_t<!TryToGetElementType<T>::value>> {
   using R = rel_ret_t<T>;
 #ifdef __SYCL_DEVICE_ONLY__
   using value_t = bool;

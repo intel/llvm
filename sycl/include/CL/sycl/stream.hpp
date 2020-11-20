@@ -54,10 +54,11 @@ constexpr size_t MAX_ARRAY_SIZE =
     MAX_INTEGRAL_DIGITS * MAX_DIMENSIONS + 2 * (MAX_DIMENSIONS - 1) + 2;
 
 template <class F, class T = void>
-using EnableIfFP = typename std::enable_if<std::is_same<F, float>::value ||
-                                               std::is_same<F, double>::value ||
-                                               std::is_same<F, half>::value,
-                                           T>::type;
+using EnableIfFP =
+    typename detail::enable_if_t<std::is_same<F, float>::value ||
+                                     std::is_same<F, double>::value ||
+                                     std::is_same<F, half>::value,
+                                 T>;
 
 using GlobalBufAccessorT = accessor<char, 1, cl::sycl::access::mode::read_write,
                                     cl::sycl::access::target::global_buffer,
@@ -112,7 +113,7 @@ inline char digitToChar(const int Digit) {
 }
 
 template <typename T>
-inline typename std::enable_if<std::is_integral<T>::value, unsigned>::type
+inline typename detail::enable_if_t<std::is_integral<T>::value, unsigned>
 integralToBase(T Val, int Base, char *Digits) {
   unsigned NumDigits = 0;
 
@@ -126,7 +127,7 @@ integralToBase(T Val, int Base, char *Digits) {
 
 // Returns number of symbols written to the buffer
 template <typename T>
-inline typename std::enable_if<std::is_integral<T>::value, unsigned>::type
+inline typename detail::enable_if_t<std::is_integral<T>::value, unsigned>
 ScalarToStr(const T &Val, char *Buf, unsigned Flags, int, int Precision = -1) {
   (void)Precision;
   int Base = 10;
@@ -184,9 +185,8 @@ inline unsigned append(char *Dst, const char *Src) {
 }
 
 template <typename T>
-inline typename std::enable_if<std::is_same<T, float>::value ||
-                                   std::is_same<T, double>::value,
-                               unsigned>::type
+inline typename detail::enable_if_t<
+    std::is_same<T, float>::value || std::is_same<T, double>::value, unsigned>
 checkForInfNan(char *Buf, T Val) {
   if (isnan(Val))
     return append(Buf, "nan");
@@ -199,7 +199,7 @@ checkForInfNan(char *Buf, T Val) {
 }
 
 template <typename T>
-inline typename std::enable_if<std::is_same<T, half>::value, unsigned>::type
+inline typename detail::enable_if_t<std::is_same<T, half>::value, unsigned>
 checkForInfNan(char *Buf, T Val) {
   if (Val != Val)
     return append(Buf, "nan");
@@ -356,7 +356,7 @@ ScalarToStr(const T &Val, char *Buf, unsigned Flags, int, int Precision = -1) {
 }
 
 template <typename T>
-inline typename std::enable_if<std::is_integral<T>::value>::type
+inline typename detail::enable_if_t<std::is_integral<T>::value>
 writeIntegral(GlobalBufAccessorT &GlobalFlushBuf, size_t FlushBufferSize,
               unsigned WIOffset, unsigned &Offset, unsigned Flags, int Width,
               const T &Val) {
@@ -415,16 +415,16 @@ inline void flushBuffer(GlobalOffsetAccessorT &GlobalOffset,
 }
 
 template <typename T, int VecLength>
-typename std::enable_if<(VecLength == 1), unsigned>::type
+typename detail::enable_if_t<(VecLength == 1), unsigned>
 VecToStr(const vec<T, VecLength> &Vec, char *VecStr, unsigned Flags, int Width,
          int Precision) {
   return ScalarToStr(static_cast<T>(Vec.x()), VecStr, Flags, Width, Precision);
 }
 
 template <typename T, int VecLength>
-typename std::enable_if<(VecLength == 2 || VecLength == 4 || VecLength == 8 ||
-                         VecLength == 16),
-                        unsigned>::type
+typename detail::enable_if_t<(VecLength == 2 || VecLength == 4 ||
+                              VecLength == 8 || VecLength == 16),
+                             unsigned>
 VecToStr(const vec<T, VecLength> &Vec, char *VecStr, unsigned Flags, int Width,
          int Precision) {
   unsigned Len =
@@ -436,7 +436,7 @@ VecToStr(const vec<T, VecLength> &Vec, char *VecStr, unsigned Flags, int Width,
 }
 
 template <typename T, int VecLength>
-typename std::enable_if<(VecLength == 3), unsigned>::type
+typename detail::enable_if_t<(VecLength == 3), unsigned>
 VecToStr(const vec<T, VecLength> &Vec, char *VecStr, unsigned Flags, int Width,
          int Precision) {
   unsigned Len = VecToStr<T, 2>(Vec.lo(), VecStr, Flags, Width, Precision);
@@ -610,8 +610,8 @@ struct IsSwizzleOp<cl::sycl::detail::SwizzleOp<
 
 template <typename T>
 using EnableIfSwizzleVec =
-    typename std::enable_if<IsSwizzleOp<T>::value,
-                            typename IsSwizzleOp<T>::Type>::type;
+    typename detail::enable_if_t<IsSwizzleOp<T>::value,
+                                 typename IsSwizzleOp<T>::Type>;
 
 } // namespace detail
 
@@ -836,8 +836,8 @@ private:
   friend const stream &operator<<(const stream &, const char);
   friend const stream &operator<<(const stream &, const char *);
   template <typename ValueType>
-  friend typename std::enable_if<std::is_integral<ValueType>::value,
-                                 const stream &>::type
+  friend typename detail::enable_if_t<std::is_integral<ValueType>::value,
+                                      const stream &>
   operator<<(const stream &, const ValueType &);
   friend const stream &operator<<(const stream &, const float &);
   friend const stream &operator<<(const stream &, const double &);
@@ -912,8 +912,8 @@ inline const stream &operator<<(const stream &Out, const bool &RHS) {
 
 // Integral
 template <typename ValueType>
-inline typename std::enable_if<std::is_integral<ValueType>::value,
-                               const stream &>::type
+inline typename detail::enable_if_t<std::is_integral<ValueType>::value,
+                                    const stream &>
 operator<<(const stream &Out, const ValueType &RHS) {
   detail::writeIntegral(Out.GlobalFlushBuf, Out.FlushBufferSize, Out.WIOffset,
                         Out.Offset, Out.get_flags(), Out.get_width(), RHS);
