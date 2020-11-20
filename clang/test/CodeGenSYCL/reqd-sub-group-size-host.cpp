@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-host -triple spir64 -disable-llvm-passes %s -emit-llvm -o -  | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-host -triple -x86_64-unknown-linux-gnu -disable-llvm-passes %s -emit-llvm -o -  | FileCheck %s
 
 class Functor16 {
 public:
@@ -39,10 +39,10 @@ void bar() {
   kernel<class kernel_name4>(f5);
 }
 
-// CHECK: define spir_func void @_Z3foov() #0 !intel_reqd_sub_group_size ![[SGSIZE8:[0-9]+]]
-// CHECK: define linkonce_odr spir_func void @_ZNK9Functor16clEv(%class.Functor16* %this) #2 comdat align 2 !intel_reqd_sub_group_size ![[SGSIZE16:[0-9]+]]
-// CHECK: define internal spir_func void @"_ZZ3barvENK3$_0clEv"(%class.anon* %this) #2 align 2 !intel_reqd_sub_group_size ![[SGSIZE4:[0-9]+]]
-// CHECK: define linkonce_odr spir_func void @_ZNK8Functor5ILi2EEclEv(%class.Functor5* %this) #2 comdat align 2 !intel_reqd_sub_group_size ![[SGSIZE2:[0-9]+]]
+// CHECK: define void @_Z3foov() #0 !intel_reqd_sub_group_size ![[SGSIZE8:[0-9]+]]
+// CHECK: define linkonce_odr void @_ZNK9Functor16clEv(%class.Functor16* %this) #2 comdat align 2 !intel_reqd_sub_group_size ![[SGSIZE16:[0-9]+]]
+// CHECK: define internal void @"_ZZ3barvENK3$_0clEv"(%class.anon* %this) #2 align 2 !intel_reqd_sub_group_size ![[SGSIZE4:[0-9]+]]
+// CHECK: define linkonce_odr void @_ZNK8Functor5ILi2EEclEv(%class.Functor5* %this) #2 comdat align 2 !intel_reqd_sub_group_size ![[SGSIZE2:[0-9]+]]
 // CHECK: ![[SGSIZE8]] = !{i32 8}
 // CHECK: ![[SGSIZE16]] = !{i32 16}
 // CHECK: ![[SGSIZE4]] = !{i32 4}
