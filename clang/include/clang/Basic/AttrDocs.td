@@ -380,6 +380,18 @@ def SYCLRegisterNumDocs : Documentation {
   }];
 }
 
+def SYCLSimdAccessorPtrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+    The ``__attribute__((esimd_acc_ptr))`` attribute is used by FE to mark ESIMD
+    kernel pointer parameters which correspond to the original
+    lambda's captured accessors. FE turns the attribute to some metadata
+    required by the ESIMD Back-End.
+    Not supposed to be used directly in the source - SYCL device compiler FE
+    automatically adds it for ESIMD kernels.
+  }];
+}
+
 def C11NoReturnDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
@@ -2229,33 +2241,33 @@ device kernel, the attribute is ignored and it is not propagated to a kernel.
   }];
 }
 
-def SYCLIntelStallEnableAttrDocs : Documentation {
+def SYCLIntelUseStallEnableClustersAttrDocs : Documentation {
   let Category = DocCatFunction;
-  let Heading = "intel::stall_enable";
+  let Heading = "intel::use_stall_enable_clusters";
   let Content = [{
 When applied to a lambda or function call operator (of a function object)
 on device, this requests, to the extent possible, that statically-scheduled
 clusters handle stalls using a stall-enable signal to freeze computation
 within the cluster. This attribute is ignored on the host.
 
-If ``intel::stall_enable`` is applied to a function called from a device
+If ``intel::use_stall_enable_clusters`` is applied to a function called from a device
 kernel, the attribute is ignored and it is not propagated to a kernel.
 
-The ``intel::stall_enable`` attribute takes no argument and has an effect
+The ``intel::use_stall_enable_clusters`` attribute takes no argument and has an effect
 when applied to a function, and no effect otherwise.
 
 .. code-block:: c++
 
   class Functor
   {
-      [[intel::stall_enable]] void operator()(item<1> item)
+      [[intel::use_stall_enable_clusters]] void operator()(item<1> item)
       {
           /* kernel code */
       }
   }
 
   kernel<class kernel_name>(
-  []() [[intel::stall_enable]] {
+  []() [[intel::use_stall_enable_clusters]] {
        /* kernel code */
   });
 
@@ -2397,6 +2409,22 @@ is unspecified and is therefore considered infinite.
 In case of ivdep being applied both w/o an array variable and for a particular
 array, the array variables that were not designated a separate ivdep will receive
 the no-array ivdep's safelen, with the correspondent treatment by the backend.
+
+.. code-block:: c++
+
+  void foo() {
+    int a[10];
+    [[intel::ivdep]] for (int i = 0; i != 10; ++i) { }
+    [[intel::ivdep(2)]] for (int i = 0; i != 10; ++i) { }
+    [[intel::ivdep(a)]] for (int i = 0; i != 10; ++i) { }
+    [[intel::ivdep(a, 2)]] for (int i = 0; i != 10; ++i) { }
+  }
+
+  template<int N>
+  void bar() {
+    [[intel::ivdep(N)]] for(;;) { }
+  }
+
   }];
 }
 
@@ -2407,6 +2435,19 @@ def SYCLIntelFPGAIIAttrDocs : Documentation {
 This attribute applies to a loop. Indicates that the loop should be pipelined
 with an initiation interval of N. N must be a positive integer. Cannot be
 applied multiple times to the same loop.
+
+.. code-block:: c++
+
+  void foo() {
+    int var = 0;
+    [[intel::ii(4)]] for (int i = 0; i < 10; ++i) var++;
+  }
+
+  template<int N>
+  void bar() {
+    [[intel::ii(N)]] for(;;) { }
+  }
+
   }];
 }
 
@@ -2418,6 +2459,19 @@ This attribute applies to a loop. Indicates that the loop should allow no more
 than N threads or iterations to execute it simultaneously. N must be a non
 negative integer. '0' indicates the max_concurrency case to be unbounded. Cannot
 be applied multiple times to the same loop.
+
+.. code-block:: c++
+
+  void foo() {
+    int a[10];
+    [[intel::max_concurrency(2)]] for (int i = 0; i != 10; ++i) a[i] = 0;
+  }
+
+  template<int N>
+  void bar() {
+    [[intel::max_concurrency(N)]] for(;;) { }
+  }
+
   }];
 }
 
@@ -2429,6 +2483,34 @@ This attribute applies to a loop. Indicates that the loop nest should be
 coalesced into a single loop without affecting functionality. Parameter N is
 optional. If specified, it shall be a positive integer, and indicates how many
 of the nested loop levels should be coalesced.
+
+.. code-block:: c++
+
+  void foo() {
+    int a[10];
+    [[intel::loop_coalesce]] for (int i = 0; i != 10; ++i) a[i] = 0;
+  }
+
+  template<int N>
+  void loop_coalesce() {
+    int j = 0, n = 48;
+    [[intel::loop_coalesce(N)]]
+    while (j < n) {
+      if (j % 4) {
+        ++j;
+        continue;
+      }
+    }
+    j = 0;
+    [[intel::loop_coalesce]]
+    while (j < n) {
+      if (j % 6) {
+        ++j;
+        continue;
+      }
+    }
+  }
+
   }];
 }
 
@@ -2440,6 +2522,14 @@ This attribute applies to a loop. Disables pipelining of the loop data path,
 causing the loop to be executed serially. Cannot be used on the same loop in
 conjunction with max_interleaving, speculated_iterations, max_concurrency, ii
 or ivdep.
+
+.. code-block:: c++
+
+  void foo() {
+    int var = 0;
+    [[intel::disable_loop_pipelining] for (int i = 0; i < 10; ++i) var++;
+  }
+
   }];
 }
 
@@ -2453,6 +2543,19 @@ mean that this attribute can only be applied to inner loops in user code - outer
 loops in user code may still be contained in an implicit loop due to NDRange).
 Parameter N is mandatory, and shall be non-negative integer. Cannot be
 used on the same loop in conjunction with disable_loop_pipelining.
+
+.. code-block:: c++
+
+  void foo() {
+    int a[10];
+    [[intel::max_interleaving(4)]] for (int i = 0; i != 10; ++i) a[i] = 0;
+  }
+
+  template<int N>
+  void bar() {
+    [[intel::max_interleaving(N)]] for(;;) { }
+  }
+
   }];
 }
 
@@ -2465,6 +2568,19 @@ iterations that will be in flight for a loop invocation (i.e. the exit
 condition for these iterations will not have been evaluated yet).
 Parameter N is mandatory, and may either be 0, or a positive integer. Cannot be
 used on the same loop in conjunction with disable_loop_pipelining.
+
+.. code-block:: c++
+
+  void foo() {
+    int var = 0;
+    [[intel::speculated_iterations(4)]] for (int i = 0; i < 10; ++i) var++;
+  }
+
+  template<int N>
+  void bar() {
+    [[intel::speculated_iterations(N)]] for(;;) { }
+  }
+
   }];
 }
 
@@ -2474,6 +2590,21 @@ def SYCLIntelFPGANofusionAttrDocs : Documentation {
   let Content = [{
 This attribute applies to a loop. Indicates that the annotated
 loop should not be fused with any adjacent loop.
+
+.. code-block:: c++
+
+  void foo() {
+    [[intel::nofusion]] for (int i=0; i<10;++i) { }
+  }
+
+  void nofusion() {
+    int a1[10];
+    for (int i = 0; i < 10; ++i) {
+    [[intel::nofusion]] for (int j = 0; j < 10; ++j) {
+      a1[i] += a1[j];
+    }
+  }
+
   }];
 }
 
