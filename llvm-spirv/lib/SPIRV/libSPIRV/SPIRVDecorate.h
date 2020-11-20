@@ -177,6 +177,8 @@ public:
     case DecorationFunctionRoundingModeINTEL:
     case DecorationFunctionDenormModeINTEL:
       return ExtensionID::SPV_INTEL_float_controls2;
+    case DecorationStallEnableINTEL:
+      return ExtensionID::SPV_INTEL_fpga_cluster_attributes;
     default:
       return {};
     }
@@ -608,6 +610,13 @@ public:
   spv::FPOperationMode getOperationMode() const {
     return static_cast<spv::FPOperationMode>(Literals.at(1));
   };
+};
+
+class SPIRVDecorateStallEnableINTEL : public SPIRVDecorate {
+public:
+  // Complete constructor for SPIRVDecorateStallEnableINTEL
+  SPIRVDecorateStallEnableINTEL(SPIRVEntry *TheTarget)
+      : SPIRVDecorate(spv::DecorationStallEnableINTEL, TheTarget){};
 };
 
 } // namespace SPIRV

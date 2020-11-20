@@ -593,6 +593,10 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
   if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
     transVectorComputeMetadata(F);
 
+  if (BM->isAllowedToUseExtension(
+          ExtensionID::SPV_INTEL_fpga_cluster_attributes))
+    transFPGAFunctionMetadata(BF, F);
+
   SPIRVDBG(dbgs() << "[transFunction] " << *F << " => ";
            spvdbgs() << *BF << '\n';)
   return BF;
@@ -686,6 +690,15 @@ void LLVMToSPIRV::transVectorComputeMetadata(Function *F) {
           BF->addDecorate(new SPIRVDecorateFunctionFloatingPointModeINTEL(
               BF, TargetWidth, getFPOperationMode(Mode)));
         });
+  }
+}
+
+void LLVMToSPIRV::transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F) {
+  if (MDNode *StallEnable = F->getMetadata(kSPIR2MD::StallEnable)) {
+    if (getMDOperandAsInt(StallEnable, 0)) {
+      BM->addCapability(CapabilityFPGAClusterAttributesINTEL);
+      BF->addDecorate(new SPIRVDecorateStallEnableINTEL(BF));
+    }
   }
 }
 
