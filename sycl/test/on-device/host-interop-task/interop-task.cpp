@@ -118,15 +118,16 @@ void test2() {
   buffer<int, 1> Buffer1{BUFFER_SIZE};
   buffer<int, 1> Buffer2{BUFFER_SIZE};
 
+  auto Device = default_selector().select_device();
   // init the buffer with a'priori invalid data
   {
-    queue Q;
+    queue Q(context(Device), Device);
     init<int, -1, -2>(Buffer1, Buffer2, Q);
   }
 
   // Repeat a couple of times
   for (size_t Idx = 0; Idx < COUNT; ++Idx) {
-    queue Q;
+    queue Q(context(Device), Device);
     copy(Buffer1, Buffer2, Q);
     modify(Buffer2, Q);
     copy(Buffer2, Buffer1, Q);
