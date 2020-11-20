@@ -1,8 +1,6 @@
 // RUN: %clangxx -fsycl -c -fno-color-diagnostics -Xclang -fdump-record-layouts %s | FileCheck %s
 // REQUIRES: linux
 
-// clang-format off
-
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/queue.hpp>
 
@@ -12,6 +10,8 @@ void foo() {
     CGH.single_task<class Test>([]() {});
   });
 }
+
+// clang-format off
 
 // The order of field declarations and their types are important.
 
