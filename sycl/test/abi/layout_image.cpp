@@ -18,7 +18,7 @@ sycl::image<2> Img{sycl::image_channel_order::rgba, sycl::image_channel_type::fp
 // CHECK-NEXT: 16 |           class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
 // CHECK-NEXT: 16 |             _Sp_counted_base<(enum __gnu_cxx::_Lock_policy)2U> * _M_pi
 // CHECK-NEXT: 24 |     class std::unique_ptr<class sycl::detail::SYCLMemObjAllocator> MAllocator
-// CHECK: 24 |         class std::__uniq_ptr_impl<class sycl::detail::SYCLMemObjAllocator, struct std::default_delete<class sycl::detail::SYCLMemObjAllocator> > _M_t
+// CHECK: 24 |         class std::__uniq_ptr_impl<class sycl::detail::SYCLMemObjAllocator, struct std::default_delete<class sycl::detail::SYCLMemObjAllocator> >
 // CHECK-NEXT: 24 |           class std::tuple<class sycl::detail::SYCLMemObjAllocator *, struct std::default_delete<class sycl::detail::SYCLMemObjAllocator> > _M_t
 // CHECK-NEXT: 24 |             struct std::_Tuple_impl<0, class sycl::detail::SYCLMemObjAllocator *, struct std::default_delete<class sycl::detail::SYCLMemObjAllocator> > (base)
 // CHECK-NEXT: 24 |               struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::SYCLMemObjAllocator> > (base) (empty)
