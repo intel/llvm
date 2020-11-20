@@ -1576,8 +1576,10 @@ InstrRefBasedLDV::extractSpillBaseRegAndOffset(const MachineInstr &MI) {
   int FI = cast<FixedStackPseudoSourceValue>(PVal)->getFrameIndex();
   const MachineBasicBlock *MBB = MI.getParent();
   Register Reg;
-  int Offset = TFI->getFrameIndexReference(*MBB->getParent(), FI, Reg);
-  return {Reg, Offset};
+  StackOffset Offset = TFI->getFrameIndexReference(*MBB->getParent(), FI, Reg);
+  assert(!Offset.getScalable() &&
+         "Frame offsets with a scalable component are not supported");
+  return {Reg, static_cast<int>(Offset.getFixed())};
 }
 
 /// End all previous ranges related to @MI and start a new range from @MI
@@ -1966,13 +1968,6 @@ bool InstrRefBasedLDV::transferSpillOrRestoreInst(MachineInstr &MI) {
     if (TTracker)
       TTracker->transferMlocs(MTracker->getRegMLoc(Reg), SpillLocIdx,
                               MI.getIterator());
-
-    // VarLocBasedImpl would, at this point, stop tracking the source
-    // register of the store.
-    if (EmulateOldLDV) {
-      for (MCRegAliasIterator RAI(Reg, TRI, true); RAI.isValid(); ++RAI)
-        MTracker->defReg(*RAI, CurBB, CurInst);
-    }
   } else {
     if (!(Loc = isRestoreInstruction(MI, MF, Reg)))
       return false;

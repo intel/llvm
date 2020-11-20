@@ -6,31 +6,31 @@
 using namespace cl::sycl;
 queue q;
 
-[[intel::stall_enable]] void test() {} //expected-warning{{'stall_enable' attribute ignored}}
+[[intel::use_stall_enable_clusters]] void test() {} //expected-warning{{'use_stall_enable_clusters' attribute ignored}}
 
 #ifdef TRIGGER_ERROR
-[[intel::stall_enable(1)]] void bar1() {} // expected-error{{'stall_enable' attribute takes no arguments}}
-[[intel::stall_enable]] int N;            // expected-error{{'stall_enable' attribute only applies to functions}}
+[[intel::use_stall_enable_clusters(1)]] void bar1() {} // expected-error{{'use_stall_enable_clusters' attribute takes no arguments}}
+[[intel::use_stall_enable_clusters]] int N;            // expected-error{{'use_stall_enable_clusters' attribute only applies to functions}}
 #endif
 
 struct FuncObj {
-  [[intel::stall_enable]] void operator()() const {}
+  [[intel::use_stall_enable_clusters]] void operator()() const {}
 };
 
 int main() {
   q.submit([&](handler &h) {
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel1
-    // CHECK:       SYCLIntelStallEnableAttr {{.*}}
+    // CHECK:       SYCLIntelUseStallEnableClustersAttr {{.*}}
     h.single_task<class test_kernel1>(
         FuncObj());
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
-    // CHECK:       SYCLIntelStallEnableAttr {{.*}}
+    // CHECK:       SYCLIntelUseStallEnableClustersAttr {{.*}}
     h.single_task<class test_kernel2>(
-        []() [[intel::stall_enable]]{});
+        []() [[intel::use_stall_enable_clusters]]{});
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
-    // CHECK-NOT:   SYCLIntelStallEnableAttr {{.*}}
+    // CHECK-NOT:   SYCLIntelUseStallEnableClustersAttr {{.*}}
     h.single_task<class test_kernel3>(
         []() { test(); });
   });

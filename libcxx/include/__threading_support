@@ -11,9 +11,14 @@
 #define _LIBCPP_THREADING_SUPPORT
 
 #include <__config>
+#include <__availability>
 #include <chrono>
 #include <iosfwd>
 #include <errno.h>
+
+#ifdef __MVS__
+# include <support/ibm/nanosleep.h>
+#endif
 
 #ifndef _LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER
 #pragma GCC system_header
