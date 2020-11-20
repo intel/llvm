@@ -1,6 +1,8 @@
 // RUN: %clangxx -fsycl -c -fno-color-diagnostics -Xclang -fdump-record-layouts %s | FileCheck %s
 // REQUIRES: linux
 
+// clang-format off
+
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/queue.hpp>
 
