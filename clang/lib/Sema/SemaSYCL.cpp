@@ -661,39 +661,6 @@ private:
   const CXXRecordDecl *LambdaObjTy;
 };
 
-// Searches for a call to PF lambda function and captures it.
-class FindPFLambdaFnVisitor
-    : public RecursiveASTVisitor<FindPFLambdaFnVisitor> {
-public:
-  // LambdaObjTy - lambda type of the PF lambda object
-  FindPFLambdaFnVisitor(const CXXRecordDecl *LambdaObjTy)
-      : LambdaFn(nullptr), LambdaObjTy(LambdaObjTy) {}
-
-  bool VisitCallExpr(CallExpr *Call) {
-    auto *M = dyn_cast<CXXMethodDecl>(Call->getDirectCallee());
-    if (!M || (M->getOverloadedOperator() != OO_Call))
-      return true;
-    const int NumPFLambdaArgs = 2; // range and lambda obj
-    if (Call->getNumArgs() != NumPFLambdaArgs)
-      return true;
-    QualType Range = Call->getArg(1)->getType();
-    if (!Util::isSyclType(Range, "id", true /*Tmpl*/) &&
-        !Util::isSyclType(Range, "item", true /*Tmpl*/))
-      return true;
-    if (Call->getArg(0)->getType()->getAsCXXRecordDecl() != LambdaObjTy)
-      return true;
-    LambdaFn = M; // call to PF lambda found - record the lambda
-    return false; // ... and stop searching
-  }
-
-  // Returns the captured lambda function or nullptr;
-  CXXMethodDecl *getLambdaFn() const { return LambdaFn; }
-
-private:
-  CXXMethodDecl *LambdaFn;
-  const CXXRecordDecl *LambdaObjTy;
-};
-
 class MarkWIScopeFnVisitor : public RecursiveASTVisitor<MarkWIScopeFnVisitor> {
 public:
   MarkWIScopeFnVisitor(ASTContext &Ctx) : Ctx(Ctx) {}
@@ -2746,22 +2713,21 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
     if (getKernelInvocationKind(KernelFunc) != InvokeParallelFor)
       return;
 
-    FindPFLambdaFnVisitor V(KernelObj);
-    V.TraverseStmt(KernelFunc->getBody());
-    CXXMethodDecl *WGLambdaFn = V.getLambdaFn();
+    const CXXMethodDecl *WGLambdaFn = getOperatorParens(KernelObj);
     if (!WGLambdaFn)
       return;
 
     // The call graph for this translation unit.
     CallGraph SYCLCG;
     SYCLCG.addToCallGraph(SemaRef.getASTContext().getTranslationUnitDecl());
-    using ChildParentPair = std::pair<FunctionDecl *, FunctionDecl *>;
-    llvm::SmallPtrSet<FunctionDecl *, 16> Visited;
+    using ChildParentPair =
+        std::pair<const FunctionDecl *, const FunctionDecl *>;
+    llvm::SmallPtrSet<const FunctionDecl *, 16> Visited;
     llvm::SmallVector<ChildParentPair, 16> WorkList;
     WorkList.push_back({WGLambdaFn, nullptr});
 
     while (!WorkList.empty()) {
-      FunctionDecl *FD = WorkList.back().first;
+      const FunctionDecl *FD = WorkList.back().first;
       WorkList.pop_back();
       if (!Visited.insert(FD).second)
         continue; // We've already seen this Decl

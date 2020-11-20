@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
-// RUN: env SYCL_OPT_PFWGS_TRACE=1 %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
-// RUN: env SYCL_OPT_PFWGS_TRACE=1 %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
+// RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
+// RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 
 #include <CL/sycl.hpp>
 
@@ -110,12 +110,12 @@ int main() {
   return 0;
 }
 
-// CHECK:       ***** Adjusted size from 10 to 32 *****
+// CHECK:       parallel_for range adjusted from 10 to 32
 // CHECK-NEXT:  Size seen by user = 10
 // CHECK-NEXT:  Counter = 10
-// CHECK-NEXT:  ***** Adjusted size from 10 to 32 *****
+// CHECK-NEXT:  parallel_for range adjusted from 10 to 32
 // CHECK-NEXT:  Counter = 10
-// CHECK-NEXT:  ***** Adjusted size from 10 to 32 *****
+// CHECK-NEXT:  parallel_for range adjusted from 10 to 32
 // CHECK-NEXT:  Counter = 10
 // CHECK-NEXT:  Size seen by user = 256
 // CHECK-NEXT:  Counter = 256

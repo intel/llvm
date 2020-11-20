@@ -766,16 +766,27 @@ private:
     // Disable the rounding-up optimizations under these conditions:
     // 1. The env var SYCL_OPT_PFWGS_DISABLE is set
     // 2. When the string SYCL_OPT_PFWGS_DISABLE is in the kernel name.
-    // 3. The kernel is created and invoked without an integration header entry.
+    // 3. The kernel is provided via an interoperability method.
     // 4. The API "this_item" is used inside the kernel.
     // 5. The range is already a multiple of the rounding factor.
+    //
+    // Cases 3 and 4 could be supported with extra effort.
+    // As an optimization for the common case it is an
+    // implementation choice to not support those scenarios.
+    // Note that "this_item" is a free function, i.e. not tied to any
+    // specific id or item. When concurrent parallel_fors are executing
+    // on a device it is difficult to tell which parallel_for the call is
+    // being made from. One could replicate portions of the
+    // call-graph to make this_item calls kernel-specific but this is
+    // not considered worthwhile.
 
     // Get the kernal name to check condition 3.
     std::string KName = typeid(NameT *).name();
     using KI = detail::KernelInfo<KernelName>;
     bool DisableRounding =
-        (getenv("SYCL_OPT_PFWGS_DISABLE") != nullptr) ||
-        (KName.find("SYCL_OPT_PFWGS_DISABLE") != std::string::npos) ||
+        (getenv("SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING") != nullptr) ||
+        (KName.find("SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING") !=
+         std::string::npos) ||
         (KI::getName() == nullptr || KI::getName()[0] == '\0') ||
         (KI::callsThisItem());
 
@@ -790,9 +801,9 @@ private:
           ((NumWorkItems[0] + GoodLocalSizeX - 1) / GoodLocalSizeX) *
           GoodLocalSizeX;
       using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
-      if (getenv("SYCL_OPT_PFWGS_TRACE") != nullptr)
-        std::cout << "***** Adjusted size from " << NumWorkItems[0] << " to "
-                  << NewValX << " *****\n";
+      if (getenv("SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE") != nullptr)
+        std::cout << "parallel_for range adjusted from " << NumWorkItems[0]
+                  << " to " << NewValX << std::endl;
       auto Wrapper = [=](TransformedArgType Arg) {
         if (Arg[0] >= NumWorkItems[0])
           return;
