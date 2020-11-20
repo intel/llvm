@@ -560,7 +560,7 @@ void _pi_queue::adjustBatchSizeForFullBatch() {
   // the batching size slowly. Don't raise it if it is already pretty
   // high.
   if (NumTimesClosedEarly <= 2 && NumTimesClosedFull > 10) {
-    if (QueueBatchSize < 32) {
+    if (QueueBatchSize < 16) {
       QueueBatchSize = QueueBatchSize + 1;
       zePrint("Raising QueueBatchSize to %d\n", QueueBatchSize);
     }
