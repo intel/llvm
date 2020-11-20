@@ -11,6 +11,8 @@ void foo() {
   });
 }
 
+// clang-format off
+
 // The order of field declarations and their types are important.
 
 // CHECK: 0 | class sycl::handler
@@ -104,7 +106,7 @@ void foo() {
 // CHECK-NEXT: 312 |         class __gnu_cxx::new_allocator<char> (base) (empty)
 // CHECK-NEXT: 312 |       std::basic_string<char>::pointer _M_p
 // CHECK-NEXT: 320 |     std::basic_string<char>::size_type _M_string_length
-// CHECK-NEXT: 328 |     union std::basic_string<char>::(anonymous at /usr/lib/gcc/x86_64-linux-gnu/7.4.0/../../../../include/c++/7.4.0/bits/basic_string.h:160:7) 
+// CHECK-NEXT: 328 |     union std::basic_string<char>::(anonymous at {{.*}}) 
 // CHECK-NEXT: 328 |       char [16] _M_local_buf
 // CHECK-NEXT: 328 |       std::basic_string<char>::size_type _M_allocated_capacity
 // CHECK-NEXT: 344 |   class std::shared_ptr<class sycl::detail::kernel_impl> MKernel
@@ -126,7 +128,7 @@ void foo() {
 // CHECK-NEXT: 400 |         std::_Vector_base<char, class std::allocator<char> >::pointer _M_finish
 // CHECK-NEXT: 408 |         std::_Vector_base<char, class std::allocator<char> >::pointer _M_end_of_storage
 // CHECK-NEXT: 416 |   class std::unique_ptr<class sycl::detail::HostKernelBase> MHostKernel
-// CHECK: 416 |     class std::__uniq_ptr_impl<class sycl::detail::HostKernelBase, struct std::default_delete<class sycl::detail::HostKernelBase> > _M_t
+// CHECK: 416 |     class std::__uniq_ptr_impl<class sycl::detail::HostKernelBase, struct std::default_delete<class sycl::detail::HostKernelBase> >
 // CHECK-NEXT: 416 |       class std::tuple<class sycl::detail::HostKernelBase *, struct std::default_delete<class sycl::detail::HostKernelBase> > _M_t
 // CHECK-NEXT: 416 |         struct std::_Tuple_impl<0, class sycl::detail::HostKernelBase *, struct std::default_delete<class sycl::detail::HostKernelBase> > (base)
 // CHECK-NEXT: 416 |           struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::HostKernelBase> > (base) (empty)
@@ -135,7 +137,7 @@ void foo() {
 // CHECK-NEXT: 416 |           struct std::_Head_base<0, class sycl::detail::HostKernelBase *, false> (base)
 // CHECK-NEXT: 416 |             class sycl::detail::HostKernelBase * _M_head_impl
 // CHECK-NEXT: 424 |   class std::unique_ptr<class sycl::detail::HostTask> MHostTask
-// CHECK: 424 |     class std::__uniq_ptr_impl<class sycl::detail::HostTask, struct std::default_delete<class sycl::detail::HostTask> > _M_t
+// CHECK: 424 |     class std::__uniq_ptr_impl<class sycl::detail::HostTask, struct std::default_delete<class sycl::detail::HostTask> >
 // CHECK-NEXT: 424 |       class std::tuple<class sycl::detail::HostTask *, struct std::default_delete<class sycl::detail::HostTask> > _M_t
 // CHECK-NEXT: 424 |         struct std::_Tuple_impl<0, class sycl::detail::HostTask *, struct std::default_delete<class sycl::detail::HostTask> > (base)
 // CHECK-NEXT: 424 |           struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::HostTask> > (base) (empty)
@@ -145,7 +147,7 @@ void foo() {
 // CHECK-NEXT: 424 |             class sycl::detail::HostTask * _M_head_impl
 // CHECK-NEXT: 432 |   detail::OSModuleHandle MOSModuleHandle
 // CHECK-NEXT: 440 |   class std::unique_ptr<class sycl::detail::InteropTask> MInteropTask
-// CHECK: 440 |     class std::__uniq_ptr_impl<class sycl::detail::InteropTask, struct std::default_delete<class sycl::detail::InteropTask> > _M_t
+// CHECK: 440 |     class std::__uniq_ptr_impl<class sycl::detail::InteropTask, struct std::default_delete<class sycl::detail::InteropTask> >
 // CHECK-NEXT: 440 |       class std::tuple<class sycl::detail::InteropTask *, struct std::default_delete<class sycl::detail::InteropTask> > _M_t
 // CHECK-NEXT: 440 |         struct std::_Tuple_impl<0, class sycl::detail::InteropTask *, struct std::default_delete<class sycl::detail::InteropTask> > (base)
 // CHECK-NEXT: 440 |           struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::InteropTask> > (base) (empty)
