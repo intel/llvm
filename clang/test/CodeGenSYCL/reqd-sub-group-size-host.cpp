@@ -39,11 +39,9 @@ void bar() {
   kernel<class kernel_name4>(f5);
 }
 
-// CHECK: define spir_kernel void @{{.*}}kernel_name1() {{.*}} !intel_reqd_sub_group_size ![[SGSIZE16:[0-9]+]]
-// CHECK: define spir_kernel void @{{.*}}kernel_name2() {{.*}} !intel_reqd_sub_group_size ![[SGSIZE8:[0-9]+]]
-// CHECK: define spir_kernel void @{{.*}}kernel_name3() {{.*}} !intel_reqd_sub_group_size ![[SGSIZE4:[0-9]+]]
-// CHECK: define spir_kernel void @{{.*}}kernel_name4() {{.*}} !intel_reqd_sub_group_size ![[SGSIZE2:[0-9]+]]
-// CHECK: ![[SGSIZE16]] = !{i32 16}
+// CHECK: define spir_func void @_Z3foov() #0 !intel_reqd_sub_group_size ![[SGSIZE8:[0-9]+]]
+// CHECK: define linkonce_odr spir_func void @_ZNK9Functor16clEv(%class.Functor16* %this) #2 comdat align 2 !intel_reqd_sub_group_size ![[SGSIZE16:[0-9]+]]
+// CHECK: define linkonce_odr spir_func void @_ZNK8Functor5ILi2EEclEv(%class.Functor5* %this) #2 comdat align 2 !intel_reqd_sub_group_size ![[SGSIZE2:[0-9]+]]
 // CHECK: ![[SGSIZE8]] = !{i32 8}
-// CHECK: ![[SGSIZE4]] = !{i32 4}
+// CHECK: ![[SGSIZE16]] = !{i32 16}
 // CHECK: ![[SGSIZE2]] = !{i32 2}

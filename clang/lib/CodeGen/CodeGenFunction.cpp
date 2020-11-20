@@ -566,10 +566,6 @@ CodeGenFunction::DecodeAddrUsedInPrologue(llvm::Value *F,
 
 void CodeGenFunction::EmitOpenCLKernelSubGroupMetadata(const FunctionDecl *FD,
                                                        llvm::Function *Fn) {
-  if (!FD->hasAttr<OpenCLKernelAttr>())
-    return;
-
-  CGM.GenOpenCLArgMetadata(Fn, FD, this);
   if (const IntelReqdSubGroupSizeAttr *A =
           FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
     llvm::LLVMContext &Context = getLLVMContext();
@@ -945,15 +941,14 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   if (D && D->hasAttr<CFICanonicalJumpTableAttr>())
     Fn->addFnAttr("cfi-canonical-jump-table");
 
-  if (getLangOpts().SYCLIsHost && D && D->hasAttr<SYCLKernelAttr>())
-    Fn->addFnAttr("sycl_kernel");
-
-  if (getLangOpts().OpenCL || getLangOpts().SYCLIsHost) {
-    // Add metadata for a kernel function.
+  if (getLangOpts().SYCLIsHost) {
     if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D)) {
       EmitOpenCLKernelSubGroupMetadata(FD, Fn);
     }
   }
+
+  if (getLangOpts().SYCLIsHost && D && D->hasAttr<SYCLKernelAttr>())
+    Fn->addFnAttr("sycl_kernel");
 
   if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) {
     // Add metadata for a kernel function.

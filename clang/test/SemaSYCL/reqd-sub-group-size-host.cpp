@@ -36,12 +36,18 @@ void bar() {
   kernel<class kernel_name3>(f4);
 }
 
-// CHECK: FunctionDecl {{.*}} {{.*}}kernel_name1
-// CHECK: IntelReqdSubGroupSizeAttr {{.*}}
-// CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}
-// CHECK: FunctionDecl {{.*}} {{.*}}kernel_name2
-// CHECK: IntelReqdSubGroupSizeAttr {{.*}}
-// CHECK-NEXT: IntegerLiteral{{.*}}16{{$}}
-// CHECK: FunctionDecl {{.*}} {{.*}}kernel_name3
-// CHECK: IntelReqdSubGroupSizeAttr {{.*}}
-// CHECK-NEXT: IntegerLiteral{{.*}}12{{$}}
+// CHECK: FunctionDecl {{.*}} {{.*}} fun 'void ()'
+// CHECK: IntelReqdSubGroupSizeAttr {{.*}} reqd_sub_group_size
+// CHECK-NEXT: IntegerLiteral{{.*}} 'int' 8
+// CHECK: CXXRecordDecl {{.*}} implicit class Functor
+// CHECK: CXXMethodDecl {{.*}} operator() 'void () const'
+// CHECK: IntelReqdSubGroupSizeAttr {{.*}} reqd_sub_group_size
+// CHECK-NEXT: IntegerLiteral{{.*}} 'int' 16
+// CHECK: CXXRecordDecl {{.*}} implicit class Functor16
+// CHECK: CXXMethodDecl {{.*}} operator() 'void () const'
+// CHECK: IntelReqdSubGroupSizeAttr {{.*}} reqd_sub_group_size
+// CHECK-NEXT: IntegerLiteral{{.*}}'int' 4
+// CXXRecordDecl {{.*}} implicit class Functor4
+// CHECK: CXXMethodDecl {{.*}} operator() 'void () const'
+// CHECK: IntelReqdSubGroupSizeAttr {{.*}} reqd_sub_group_size
+// CHECK-NEXT: IntegerLiteral{{.*}} 'int' 12
