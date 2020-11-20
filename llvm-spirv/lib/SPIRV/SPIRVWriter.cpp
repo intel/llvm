@@ -1101,6 +1101,10 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
           ParametersToSort.emplace_back(
               spv::LoopControlSpeculatedIterationsINTELMask, I);
           LoopControl |= spv::LoopControlSpeculatedIterationsINTELMask;
+        } else if (S == "llvm.loop.fusion.disable") {
+          BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
+          BM->addCapability(CapabilityFPGALoopControlsINTEL);
+          LoopControl |= spv::LoopControlNoFusionINTELMask;
         }
       }
     }
