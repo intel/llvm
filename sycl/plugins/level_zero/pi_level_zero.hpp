@@ -271,16 +271,15 @@ private:
   std::mutex NumEventsLiveInEventPoolMutex;
 };
 
+// If doing dynamic batching, start batch size at 4.
+const pi_uint32 DynamicBatchStartSize = 4;
+
 struct _pi_queue : _pi_object {
   _pi_queue(ze_command_queue_handle_t Queue, pi_context Context,
-            pi_device Device, pi_uint32 QueueBatchSize)
+            pi_device Device, pi_uint32 BatchSize)
       : ZeCommandQueue{Queue}, Context{Context}, Device{Device},
-        QueueBatchSize{QueueBatchSize} {}
-
-  typedef enum {
-    CommandListClosedEarly,
-    CommandListClosedFull
-  } command_list_closure_t;
+        QueueBatchSize{BatchSize > 0 ? BatchSize : DynamicBatchStartSize},
+        UseDynamicBatching{BatchSize == 0} {}
 
   // Level Zero command queue handle.
   ze_command_queue_handle_t ZeCommandQueue;
@@ -315,6 +314,11 @@ struct _pi_queue : _pi_object {
   // is thread safe because of the locking of the queue that occurs.
   pi_uint32 QueueBatchSize = {0};
 
+  // specifies whether this queue will be using dynamic batch size adjustment
+  // or not.  This is set only at queue creation time, and is therefore
+  // const for the life of the queue.
+  const bool UseDynamicBatching;
+
   // These two members are used to keep track of how often the
   // batching closes and executes a command list before reaching the
   // QueueBatchSize limit, versus how often we reach the limit.
@@ -330,8 +334,14 @@ struct _pi_queue : _pi_object {
   // be batched together.
   bool isBatchingAllowed();
 
-  //
-  void updateBatchSize(command_list_closure_t HowClosed);
+  // adjust the queue's batch size, knowing that the current command list
+  // is being closed with a full batch.
+  void adjustBatchSizeForFullBatch();
+
+  // adjust the queue's batch size, knowing that the current command list
+  // is being closed with only a partial batch of commands.  How many commands
+  // are in this partial closure is passed as the parameter.
+  void adjustBatchSizeForPartialBatch(pi_uint32 PartialBatchSize);
 
   // Resets the Command List and Associated fence in the ZeCommandListFenceMap.
   // If the reset command list should be made available, then MakeAvailable

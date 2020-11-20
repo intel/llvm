@@ -2,31 +2,33 @@
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
 
-// Set batching to 1 explicitly.
 // Check that dynamic batching increases batch size
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=1 SYCL_PI_TRACE=2 ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYNUP %s
-
-// Set batching to 16 explicitly.
-// Check that dynamic batching lowers batch size
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=16 SYCL_PI_TRACE=2 ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYNDOWN %s
+// RUN: env SYCL_PI_TRACE=2 ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYNUP %s
 
 // level_zero_dynamic_batch_test.cpp
 //
-// This tests the level zero plugin's kernel dyanmic batchi size adjustment
+// This tests the level zero plugin's kernel dyanmic batch size adjustment
 // code.
-// This test enqueues 8 kernels and then does a wait. And it does this 5 times.
-// Expected output when we start batching at 1 will be that the batch size
-// gets increased from 1 to 2, and then from 2 to 3.
-// Expected output when we start batching at 16 will be that it should be
-// decreased once to 8.
-// CKDYNUP: Raising QueueBatchSize to 2
-// CKDYNUP: Raising QueueBatchSize to 3
-// CKDYNUP-NOT: Raising QueueBatchSize
-// CKDYNDOWN: Lowering QueueBatchSize to 7
-// CKDYNDOWN-NOT: Lowering QueueBatchSize
+// It starts out by enqueing 40 kernels before it does a wait, and it does
+// this 5 times.  That should cause the dynamic batch size adjustment to
+// raise the batch size up several times.
+//
+// Then the test starts enqueueing only 4 kernels before doing a wait, and
+// it does that 5 times as well.  That should cause the batch size to
+// be lowered, just once to be less than 4.
+//
+// CKDYN: Raising QueueBatchSize to 5
+// CKDYN: Raising QueueBatchSize to 6
+// CKDYN-NOT: Raising QueueBatchSize
 // CKALL: Test Pass
 // CKALL: Test Pass
 // CKALL: Test Pass
+// CKALL: Test Pass
+// CKALL: Test Pass
+// CKALL: Test Pass
+// CKALL: Test Pass
+// CKDYN: Lowering QueueBatchSize to 3
+// CKDYN-NOT: Lowering QueueBatchSize
 // CKALL: Test Pass
 // CKALL: Test Pass
 // CKALL: Test Pass
@@ -84,7 +86,7 @@ int main(int argc, char *argv[]) {
   memset(Z7, '\0', AL);
   memset(Z8, '\0', AL);
 
-  {
+  for (size_t i = 0; i < 5; i++) {
     for (size_t j = 0; j < 5; j++) {
       q.submit([&](sycl::handler &h) {
         h.parallel_for<class u32_copy1>(sycl::range<2>{M, N},
@@ -150,10 +152,10 @@ int main(int argc, char *argv[]) {
                                           Z8[m * N + n] = Y1[m * N + n];
                                         });
       });
-
-      q.wait();
     }
+    q.wait();
   }
+
   validate(Y1, Z1, M * N);
   validate(Y1, Z2, M * N);
   validate(Y1, Z3, M * N);
@@ -162,6 +164,46 @@ int main(int argc, char *argv[]) {
   validate(Y1, Z6, M * N);
   validate(Y1, Z7, M * N);
   validate(Y1, Z8, M * N);
+
+  for (size_t i = 0; i < 5; i++) {
+    q.submit([&](sycl::handler &h) {
+      h.parallel_for<class u32_copy9>(sycl::range<2>{M, N},
+                                      [=](sycl::id<2> it) {
+                                        const int m = it[0];
+                                        const int n = it[1];
+                                        Z1[m * N + n] = Y1[m * N + n];
+                                      });
+    });
+    q.submit([&](sycl::handler &h) {
+      h.parallel_for<class u32_copy10>(sycl::range<2>{M, N},
+                                       [=](sycl::id<2> it) {
+                                         const int m = it[0];
+                                         const int n = it[1];
+                                         Z2[m * N + n] = Y1[m * N + n];
+                                       });
+    });
+    q.submit([&](sycl::handler &h) {
+      h.parallel_for<class u32_copy11>(sycl::range<2>{M, N},
+                                       [=](sycl::id<2> it) {
+                                         const int m = it[0];
+                                         const int n = it[1];
+                                         Z3[m * N + n] = Y1[m * N + n];
+                                       });
+    });
+    q.submit([&](sycl::handler &h) {
+      h.parallel_for<class u32_copy12>(sycl::range<2>{M, N},
+                                       [=](sycl::id<2> it) {
+                                         const int m = it[0];
+                                         const int n = it[1];
+                                         Z4[m * N + n] = Y1[m * N + n];
+                                       });
+    });
+    q.wait();
+  }
+  validate(Y1, Z1, M * N);
+  validate(Y1, Z2, M * N);
+  validate(Y1, Z3, M * N);
+  validate(Y1, Z4, M * N);
 
   sycl::free(Y1, ctx);
   sycl::free(Z1, ctx);

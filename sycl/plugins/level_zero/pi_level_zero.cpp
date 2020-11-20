@@ -440,10 +440,8 @@ _pi_queue::resetCommandListFenceEntry(ze_command_list_handle_t ZeCommandList,
 }
 
 static const pi_uint32 ZeCommandListBatchSize = [] {
-  // Default value of 4. This has been seen as a good tradeoff between
-  // lower overhead of number of enqueue and fence calls, and getting
-  // commands seen as soon possible (i.e. lazy vs eager submission).
-  pi_uint32 BatchSizeVal = 4;
+  // Default value of 0. This specifies to use dynamic batch size adjustment.
+  pi_uint32 BatchSizeVal = 0;
   const auto BatchSizeStr = std::getenv("SYCL_PI_LEVEL_ZERO_BATCH_SIZE");
   if (BatchSizeStr) {
     pi_int32 BatchSizeStrVal = std::atoi(BatchSizeStr);
@@ -455,10 +453,6 @@ static const pi_uint32 ZeCommandListBatchSize = [] {
       BatchSizeVal = BatchSizeStrVal;
   }
   return BatchSizeVal;
-}();
-
-static const bool ZeUseDynamicBatching = [] {
-  return std::getenv("SYCL_PI_LEVEL_ZERO_DISABLE_DYNAMIC_BATCH") == nullptr;
 }();
 
 // Retrieve an available command list to be used in a PI call
@@ -554,31 +548,11 @@ pi_result _pi_device::getAvailableCommandList(
   return pi_result;
 }
 
-void _pi_queue::updateBatchSize(command_list_closure_t HowClosed) {
+void _pi_queue::adjustBatchSizeForFullBatch() {
   // QueueBatchSize of 0 means never allow batching.
-  if (QueueBatchSize == 0 || !ZeUseDynamicBatching)
+  if (QueueBatchSize == 0 || !UseDynamicBatching)
     return;
 
-  if (HowClosed == CommandListClosedEarly) {
-    NumTimesClosedEarly += 1;
-
-    // If we are closing early more than about 3x the number of times
-    // it is closing full, lower the batch size to the value of the
-    // current open command list. This is trying to quickly get to a
-    // batch size that will be able to be closed full at least once
-    // in a while.
-    if (NumTimesClosedEarly > (NumTimesClosedFull + 1) * 3) {
-      QueueBatchSize = ZeOpenCommandListSize - 1;
-      if (QueueBatchSize < 1)
-        QueueBatchSize = 1;
-      zePrint("Lowering QueueBatchSize to %d\n", QueueBatchSize);
-      NumTimesClosedEarly = 0;
-      NumTimesClosedFull = 0;
-    }
-    return;
-  }
-
-  // HowClosed == CommandListClosedFull
   NumTimesClosedFull += 1;
 
   // If the number of times the list has been closed early is low, and
@@ -590,6 +564,28 @@ void _pi_queue::updateBatchSize(command_list_closure_t HowClosed) {
       QueueBatchSize = QueueBatchSize + 1;
       zePrint("Raising QueueBatchSize to %d\n", QueueBatchSize);
     }
+    NumTimesClosedEarly = 0;
+    NumTimesClosedFull = 0;
+  }
+}
+
+void _pi_queue::adjustBatchSizeForPartialBatch(pi_uint32 PartialBatchSize) {
+  // QueueBatchSize of 0 means never allow batching.
+  if (QueueBatchSize == 0 || !UseDynamicBatching)
+    return;
+
+  NumTimesClosedEarly += 1;
+
+  // If we are closing early more than about 3x the number of times
+  // it is closing full, lower the batch size to the value of the
+  // current open command list. This is trying to quickly get to a
+  // batch size that will be able to be closed full at least once
+  // in a while.
+  if (NumTimesClosedEarly > (NumTimesClosedFull + 1) * 3) {
+    QueueBatchSize = PartialBatchSize - 1;
+    if (QueueBatchSize < 1)
+      QueueBatchSize = 1;
+    zePrint("Lowering QueueBatchSize to %d\n", QueueBatchSize);
     NumTimesClosedEarly = 0;
     NumTimesClosedFull = 0;
   }
@@ -617,7 +613,7 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
       return PI_SUCCESS;
     }
 
-    updateBatchSize(CommandListClosedFull);
+    adjustBatchSizeForFullBatch();
 
     this->ZeOpenCommandList = nullptr;
     this->ZeOpenCommandListFence = nullptr;
@@ -649,7 +645,7 @@ pi_result _pi_queue::executeOpenCommandList() {
   if (OpenList) {
     auto OpenListFence = this->ZeOpenCommandListFence;
 
-    updateBatchSize(CommandListClosedEarly);
+    adjustBatchSizeForPartialBatch(this->ZeOpenCommandListSize);
 
     this->ZeOpenCommandList = nullptr;
     this->ZeOpenCommandListFence = nullptr;
