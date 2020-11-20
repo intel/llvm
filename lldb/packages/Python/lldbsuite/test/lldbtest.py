@@ -126,6 +126,8 @@ OBJECT_PRINTED_CORRECTLY = "Object printed correctly"
 
 SOURCE_DISPLAYED_CORRECTLY = "Source code displayed correctly"
 
+STEP_IN_SUCCEEDED = "Thread step-in succeeded"
+
 STEP_OUT_SUCCEEDED = "Thread step-out succeeded"
 
 STOPPED_DUE_TO_EXC_BAD_ACCESS = "Process should be stopped due to bad access exception"
@@ -1591,6 +1593,10 @@ class Base(unittest2.TestCase):
         """Platform specific way to build the default binaries."""
         testdir = self.mydir
         testname = self.getBuildDirBasename()
+
+        if not architecture and configuration.arch:
+            architecture = configuration.arch
+
         if self.getDebugInfo():
             raise Exception("buildDefault tests must set NO_DEBUG_INFO_TESTCASE")
         module = builder_module()
@@ -2109,7 +2115,7 @@ class TestBase(Base):
         return status.
         """
         # Fail fast if 'cmd' is not meaningful.
-        if not cmd or len(cmd) == 0:
+        if cmd is None:
             raise Exception("Bad 'cmd' parameter encountered")
 
         trace = (True if traceAlways else trace)
@@ -2586,6 +2592,35 @@ FileCheck output:
         value_check.check_value(self, eval_result, str(eval_result))
         return eval_result
 
+    def expect_var_path(
+            self,
+            var_path,
+            summary=None,
+            value=None,
+            type=None,
+            children=None
+            ):
+        """
+        Evaluates the given variable path and verifies the result.
+        See also 'frame variable' and SBFrame.GetValueForVariablePath.
+        :param var_path: The variable path as a string.
+        :param summary: The summary that the variable should have. None if the summary should not be checked.
+        :param value: The value that the variable should have. None if the value should not be checked.
+        :param type: The type that the variable result should have. None if the type should not be checked.
+        :param children: The expected children of the variable  as a list of ValueChecks.
+                         None if the children shouldn't be checked.
+        """
+        self.assertTrue(var_path.strip() == var_path,
+                        "Expression contains trailing/leading whitespace: '" + var_path + "'")
+
+        frame = self.frame()
+        eval_result = frame.GetValueForVariablePath(var_path)
+
+        value_check = ValueCheck(type=type, value=value,
+                                 summary=summary, children=children)
+        value_check.check_value(self, eval_result, str(eval_result))
+        return eval_result
+
     def invoke(self, obj, name, trace=False):
         """Use reflection to call a method dynamically with no argument."""
         trace = (True if traceAlways else trace)
@@ -2606,6 +2641,9 @@ FileCheck output:
             dictionary=None):
         """Platform specific way to build the default binaries."""
         module = builder_module()
+
+        if not architecture and configuration.arch:
+            architecture = configuration.arch
 
         dictionary = lldbplatformutil.finalize_build_dictionary(dictionary)
         if self.getDebugInfo() is None:
