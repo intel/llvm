@@ -406,7 +406,14 @@ void platform_impl::pushDefaultContext(context Context) {
   MDefaultContextStack.push_back(Context);
 }
 
-void platform_impl::popDefaultContext() { MDefaultContextStack.pop_back(); }
+void platform_impl::popDefaultContext() {
+  if (MDefaultContextStack.size() == 1) {
+    throw runtime_error("Popping the platform default context would result in "
+                        "no default context",
+                        PI_INVALID_OPERATION);
+  }
+  MDefaultContextStack.pop_back();
+}
 
 } // namespace detail
 } // namespace sycl
