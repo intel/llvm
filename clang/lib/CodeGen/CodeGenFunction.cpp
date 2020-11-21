@@ -953,7 +953,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
 
   if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice ||
       getLangOpts().SYCLIsHost)
-    // Add metadata for a function on Host.
+    // Add metadata for attribute "intel::reqd_sub_group_size".
     if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D))
       EmitSubGroupMetadata(FD, Fn);
 
