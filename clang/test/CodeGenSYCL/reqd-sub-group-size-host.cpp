@@ -7,7 +7,7 @@ public:
 
 [[intel::reqd_sub_group_size(8)]] void foo() {}
 
-class Functor {
+class Functor8 {
 public:
   void operator()() const {
     foo();
@@ -15,7 +15,7 @@ public:
 };
 
 template <int SIZE>
-class Functor5 {
+class Functor2 {
 public:
   [[intel::reqd_sub_group_size(SIZE)]] void operator()() const {}
 };
@@ -29,20 +29,20 @@ void bar() {
   Functor16 f16;
   kernel<class kernel_name1>(f16);
 
-  Functor f;
-  kernel<class kernel_name2>(f);
+  Functor8 f8;
+  kernel<class kernel_name2>(f8);
 
   kernel<class kernel_name3>(
       []() [[intel::reqd_sub_group_size(4)]]{});
 
-  Functor5<2> f5;
-  kernel<class kernel_name4>(f5);
+  Functor2<2> f2;
+  kernel<class kernel_name4>(f2);
 }
 
 // CHECK: define void @_Z3foov() #0 !intel_reqd_sub_group_size ![[SGSIZE8:[0-9]+]]
 // CHECK: define linkonce_odr void @_ZNK9Functor16clEv(%class.Functor16* %this) #2 comdat align 2 !intel_reqd_sub_group_size ![[SGSIZE16:[0-9]+]]
 // CHECK: define internal void @"_ZZ3barvENK3$_0clEv"(%class.anon* %this) #2 align 2 !intel_reqd_sub_group_size ![[SGSIZE4:[0-9]+]]
-// CHECK: define linkonce_odr void @_ZNK8Functor5ILi2EEclEv(%class.Functor5* %this) #2 comdat align 2 !intel_reqd_sub_group_size ![[SGSIZE2:[0-9]+]]
+// CHECK: define linkonce_odr void @_ZNK8Functor2ILi2EEclEv(%class.Functor2* %this) #2 comdat align 2 !intel_reqd_sub_group_size ![[SGSIZE2:[0-9]+]]
 // CHECK: ![[SGSIZE8]] = !{i32 8}
 // CHECK: ![[SGSIZE16]] = !{i32 16}
 // CHECK: ![[SGSIZE4]] = !{i32 4}

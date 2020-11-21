@@ -566,6 +566,12 @@ CodeGenFunction::DecodeAddrUsedInPrologue(llvm::Value *F,
 
 void CodeGenFunction::EmitSubGroupMetadata(const FunctionDecl *FD,
                                            llvm::Function *Fn) {
+  if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) {
+    if (!FD->hasAttr<OpenCLKernelAttr>())
+      return;
+    CGM.GenOpenCLArgMetadata(Fn, FD, this);
+  }
+
   if (const IntelReqdSubGroupSizeAttr *A =
           FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
     llvm::LLVMContext &Context = getLLVMContext();
@@ -625,17 +631,8 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
     Fn->setMetadata("reqd_work_group_size", llvm::MDNode::get(Context, AttrMDArgs));
   }
 
-  if (const IntelReqdSubGroupSizeAttr *A =
-          FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
-    llvm::LLVMContext &Context = getLLVMContext();
-    Optional<llvm::APSInt> ArgVal =
-        A->getValue()->getIntegerConstantExpr(FD->getASTContext());
-    assert(ArgVal.hasValue() && "Not an integer constant expression");
-    llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
-        Builder.getInt32(ArgVal->getSExtValue()))};
-    Fn->setMetadata("intel_reqd_sub_group_size",
-                    llvm::MDNode::get(Context, AttrMDArgs));
-  }
+  if (FD->getAttr<IntelReqdSubGroupSizeAttr>())
+      EmitSubGroupMetadata(FD, Fn);
 
   if (FD->hasAttr<SYCLSimdAttr>()) {
     Fn->setMetadata("sycl_explicit_simd", llvm::MDNode::get(Context, {}));
@@ -941,13 +938,6 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   if (D && D->hasAttr<CFICanonicalJumpTableAttr>())
     Fn->addFnAttr("cfi-canonical-jump-table");
 
-  if (getLangOpts().SYCLIsHost) {
-    // Add metadata for a function on Host.
-    if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D)) {
-      EmitSubGroupMetadata(FD, Fn);
-    }
-  }
-
   if (getLangOpts().SYCLIsHost && D && D->hasAttr<SYCLKernelAttr>())
     Fn->addFnAttr("sycl_kernel");
 
@@ -960,6 +950,12 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
         CGM.getSYCLRuntime().actOnFunctionStart(*FD, *Fn);
     }
   }
+
+  if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice ||
+      getLangOpts().SYCLIsHost)
+    // Add metadata for a function on Host.
+    if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D))
+      EmitSubGroupMetadata(FD, Fn);
 
   // If we are checking function types, emit a function type signature as
   // prologue data.

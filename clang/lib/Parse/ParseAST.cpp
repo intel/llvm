@@ -168,7 +168,7 @@ void clang::ParseAST(Sema &S, bool PrintStats, bool SkipFunctionBodies) {
   for (Decl *D : S.WeakTopLevelDecls())
     Consumer->HandleTopLevelDecl(DeclGroupRef(D));
 
-  if (S.getLangOpts().SYCLIsDevice || S.getLangOpts().SYCLIsHost) {
+  if (S.getLangOpts().SYCLIsDevice) {
     for (Decl *D : S.syclDeviceDecls()) {
       Consumer->HandleTopLevelDecl(DeclGroupRef(D));
     }

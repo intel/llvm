@@ -1,4 +1,3 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-host -Wno-sycl-2017-compat -fsyntax-only -verify %s
 // RUN: %clang_cc1 -fsycl -fsycl-is-host -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
 //expected-no-diagnostics
 

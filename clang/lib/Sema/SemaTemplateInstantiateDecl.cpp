@@ -6194,12 +6194,10 @@ static void processSYCLKernel(Sema &S, FunctionDecl *FD, MangleContext &MC) {
     S.ConstructOpenCLKernel(FD, MC);
   } else if (S.LangOpts.SYCLIsHost) {
     QualType KernelParamTy = (*FD->param_begin())->getType();
-    CXXRecordDecl *CRD;
-    if (KernelParamTy->isReferenceType())
-      CRD =
-          const_cast<CXXRecordDecl *>(KernelParamTy->getPointeeCXXRecordDecl());
-    else
-      CRD = KernelParamTy->getAsCXXRecordDecl();
+    const CXXRecordDecl *CRD;
+    CRD = (KernelParamTy->isReferenceType() ?
+           KernelParamTy->getPointeeCXXRecordDecl() :
+           KernelParamTy->getAsCXXRecordDecl());
     for (auto *Method : CRD->methods())
       if (Method->getOverloadedOperator() == OO_Call &&
           !Method->hasAttr<AlwaysInlineAttr>())
