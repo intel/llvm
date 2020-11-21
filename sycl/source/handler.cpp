@@ -343,5 +343,10 @@ void handler::prefetch(const void *Ptr, size_t Count) {
   MLength = Count;
   MCGType = detail::CG::PREFETCH_USM;
 }
+
+bool handler::is_gpu(shared_ptr_class<sycl::detail::queue_impl> Queue) {
+  device Dev = Queue->get_device();
+  return Dev.is_gpu();
+}
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
