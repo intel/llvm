@@ -1,4 +1,5 @@
 set(files
+  __availability
   __bit_reference
   __bsd_locale_defaults.h
   __bsd_locale_fallbacks.h
@@ -148,6 +149,7 @@ set(files
   support/fuchsia/xlocale.h
   support/ibm/limits.h
   support/ibm/locale_mgmt_aix.h
+  support/ibm/nanosleep.h
   support/ibm/support.h
   support/ibm/xlocale.h
   support/musl/xlocale.h
