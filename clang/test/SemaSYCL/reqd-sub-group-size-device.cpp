@@ -36,7 +36,6 @@ public:
 
 int main() {
   q.submit([&](handler &h) {
-
     Functor16 f16;
     h.single_task<class kernel_name1>(f16);
 
@@ -48,15 +47,15 @@ int main() {
     h.single_task<class kernel_name3>(f8);
 
     h.single_task<class kernel_name4>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
-    foo();
-    baz();
+      foo();
+      baz();
     });
 #endif
-    
+
     h.single_task<class kernel_name5>([]() [[intel::reqd_sub_group_size(2)]]{});
     h.single_task<class kernel_name6>([]() [[intel::reqd_sub_group_size(4)]] { foo(); });
     h.single_task<class kernel_name7>([]() [[intel::reqd_sub_group_size(6)]]{});
-    
+
     Functor12 f12;
     h.single_task<class kernel_name8>(f12);
   });

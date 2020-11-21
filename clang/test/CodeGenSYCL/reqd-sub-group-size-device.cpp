@@ -27,7 +27,6 @@ public:
 
 int main() {
   q.submit([&](handler &h) {
-
     Functor16 f16;
     h.single_task<class kernel_name1>(f16);
 

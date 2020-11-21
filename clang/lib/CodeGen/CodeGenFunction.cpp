@@ -632,7 +632,7 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
   }
 
   if (FD->getAttr<IntelReqdSubGroupSizeAttr>())
-      EmitSubGroupMetadata(FD, Fn);
+    EmitSubGroupMetadata(FD, Fn);
 
   if (FD->hasAttr<SYCLSimdAttr>()) {
     Fn->setMetadata("sycl_explicit_simd", llvm::MDNode::get(Context, {}));
