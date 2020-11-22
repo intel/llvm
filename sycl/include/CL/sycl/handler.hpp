@@ -899,6 +899,12 @@ private:
 
 #endif
 
+  /// Check if the queue being used is for a GPU device
+  ///
+  /// \param Queue is the queue for this handler.
+  /// \return Whether the device is a GPU.
+  bool is_gpu(shared_ptr_class<sycl::detail::queue_impl> Queue);
+
 public:
   handler(const handler &) = delete;
   handler(handler &&) = delete;
@@ -1952,12 +1958,6 @@ public:
   /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
   /// \param Count is a number of bytes to be prefetched.
   void prefetch(const void *Ptr, size_t Count);
-
-  /// Check if the queue being used is for a GPU device
-  ///
-  /// \param Queue is the queue for this handler.
-  /// \return Whether the device is a GPU.
-  bool is_gpu(shared_ptr_class<sycl::detail::queue_impl> Queue);
 
 private:
   shared_ptr_class<detail::queue_impl> MQueue;
