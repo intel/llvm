@@ -566,16 +566,16 @@ public:
       if (auto *A = FD->getAttr<SYCLSimdAttr>())
         Attrs.insert(A);
 
-      // Allow the kernel attribute "stall_enable" only on lambda functions
-      // and function objects that are called directly from a kernel
+      // Allow the kernel attribute "use_stall_enable_clusters" only on lambda
+      // functions and function objects that are called directly from a kernel
       // (i.e. the one passed to the single_task or parallel_for functions).
       // For all other cases, emit a warning and ignore.
-      if (auto *A = FD->getAttr<SYCLIntelStallEnableAttr>()) {
+      if (auto *A = FD->getAttr<SYCLIntelUseStallEnableClustersAttr>()) {
         if (ParentFD == SYCLKernel) {
           Attrs.insert(A);
         } else {
           SemaRef.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
-          FD->dropAttr<SYCLIntelStallEnableAttr>();
+          FD->dropAttr<SYCLIntelUseStallEnableClustersAttr>();
         }
       }
 
@@ -1233,7 +1233,9 @@ void KernelObjVisitor::visitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
                                    const CXXRecordDecl *Wrapper,
                                    QualType RecordTy,
                                    HandlerTys &... Handlers) {
-  if (RecordTy->getAsRecordDecl()->hasAttr<SYCLRequiresDecompositionAttr>()) {
+  RecordDecl *RD = RecordTy->getAsRecordDecl();
+  assert(RD && "should not be null.");
+  if (RD->hasAttr<SYCLRequiresDecompositionAttr>()) {
     // If this container requires decomposition, we have to visit it as
     // 'complex', so all handlers are called in this case with the 'complex'
     // case.
@@ -1602,6 +1604,7 @@ public:
   bool leaveStruct(const CXXRecordDecl *, FieldDecl *, QualType Ty) final {
     if (CollectionStack.pop_back_val()) {
       RecordDecl *RD = Ty->getAsRecordDecl();
+      assert(RD && "should not be null.");
       if (!RD->hasAttr<SYCLRequiresDecompositionAttr>())
         RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
             SemaRef.getASTContext()));
@@ -1620,6 +1623,7 @@ public:
                    QualType Ty) final {
     if (CollectionStack.pop_back_val()) {
       RecordDecl *RD = Ty->getAsRecordDecl();
+      assert(RD && "should not be null.");
       if (!RD->hasAttr<SYCLRequiresDecompositionAttr>())
         RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
             SemaRef.getASTContext()));
@@ -3345,7 +3349,7 @@ void Sema::MarkDevice(void) {
         case attr::Kind::SYCLIntelSchedulerTargetFmaxMhz:
         case attr::Kind::SYCLIntelMaxGlobalWorkDim:
         case attr::Kind::SYCLIntelNoGlobalWorkOffset:
-        case attr::Kind::SYCLIntelStallEnable:
+        case attr::Kind::SYCLIntelUseStallEnableClusters:
         case attr::Kind::SYCLSimd: {
           if ((A->getKind() == attr::Kind::SYCLSimd) && KernelBody &&
               !KernelBody->getAttr<SYCLSimdAttr>()) {
