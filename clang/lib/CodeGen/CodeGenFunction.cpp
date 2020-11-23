@@ -945,11 +945,12 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     }
   }
 
-  if (getLangOpts().SYCLIsHost)
+  if (getLangOpts().SYCLIsHost) {
     // Add metadata for attribute "intel::reqd_sub_group_size".
-    if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D))
-      if (FD->getAttr<IntelReqdSubGroupSizeAttr>())
-        EmitSubGroupMetadata(FD, Fn);
+    const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D);
+    if (FD && FD->getAttr<IntelReqdSubGroupSizeAttr>())
+      EmitSubGroupMetadata(FD, Fn);
+  }
 
   // If we are checking function types, emit a function type signature as
   // prologue data.
