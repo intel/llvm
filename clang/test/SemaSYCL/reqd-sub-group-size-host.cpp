@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-host -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-host -Wno-sycl-2017-compat -ast-dump -verify %s | FileCheck %s
 //expected-no-diagnostics
 
 [[intel::reqd_sub_group_size(8)]] void fun() {}

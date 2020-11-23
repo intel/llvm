@@ -566,12 +566,6 @@ CodeGenFunction::DecodeAddrUsedInPrologue(llvm::Value *F,
 
 void CodeGenFunction::EmitSubGroupMetadata(const FunctionDecl *FD,
                                            llvm::Function *Fn) {
-  if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) {
-    if (!FD->hasAttr<OpenCLKernelAttr>())
-      return;
-    CGM.GenOpenCLArgMetadata(Fn, FD, this);
-  }
-
   if (const IntelReqdSubGroupSizeAttr *A =
           FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
     llvm::LLVMContext &Context = getLLVMContext();
@@ -951,11 +945,11 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     }
   }
 
-  if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice ||
-      getLangOpts().SYCLIsHost)
+  if (getLangOpts().SYCLIsHost)
     // Add metadata for attribute "intel::reqd_sub_group_size".
     if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D))
-      EmitSubGroupMetadata(FD, Fn);
+      if (FD->getAttr<IntelReqdSubGroupSizeAttr>())
+        EmitSubGroupMetadata(FD, Fn);
 
   // If we are checking function types, emit a function type signature as
   // prologue data.
