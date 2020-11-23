@@ -100,13 +100,11 @@ else:
                      config.sycl_be +
                      "' supported values are PI_OPENCL, PI_CUDA, PI_LEVEL_ZERO")
 
-# ESIMD-specific setup. Requires OpenCL for now.
-if "opencl" in config.available_features:
-    esimd_run_substitute = " env SYCL_BE=PI_OPENCL SYCL_DEVICE_TYPE=GPU SYCL_PROGRAM_COMPILE_OPTIONS=-vc-codegen"
-    config.substitutions.append( ('%ESIMD_RUN_PLACEHOLDER',  esimd_run_substitute) )
-    config.substitutions.append( ('%clangxx-esimd',  config.dpcpp_compiler +
-                                  ' ' + '-fsycl-explicit-simd' + ' ' +
-                                  config.cxx_flags ) )
+esimd_run_substitute = "env SYCL_BE={SYCL_BE} SYCL_DEVICE_TYPE=GPU SYCL_PROGRAM_COMPILE_OPTIONS=-vc-codegen".format(SYCL_BE=config.sycl_be)
+config.substitutions.append( ('%ESIMD_RUN_PLACEHOLDER',  esimd_run_substitute) )
+config.substitutions.append( ('%clangxx-esimd',  config.dpcpp_compiler +
+                              ' ' + '-fsycl-explicit-simd' + ' ' +
+                              config.cxx_flags ) )
 
 config.substitutions.append( ('%clangxx', ' '+ config.dpcpp_compiler + ' ' + config.cxx_flags ) )
 config.substitutions.append( ('%clang', ' ' + config.dpcpp_compiler + ' ' + config.c_flags ) )
