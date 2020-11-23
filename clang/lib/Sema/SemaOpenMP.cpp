@@ -3687,7 +3687,8 @@ public:
       // Skip analysis of arguments of implicitly defined map clause for target
       // directives.
       if (C && !((isa<OMPFirstprivateClause>(C) || isa<OMPMapClause>(C)) &&
-                 C->isImplicit())) {
+                 C->isImplicit() &&
+                 !isOpenMPTaskingDirective(Stack->getCurrentDirective()))) {
         for (Stmt *CC : C->children()) {
           if (CC)
             Visit(CC);
@@ -5902,8 +5903,10 @@ void Sema::ActOnStartOfFunctionDefinitionInOpenMPDeclareVariantScope(
   TypeSourceInfo *TInfo = GetTypeForDeclarator(D, S);
   QualType FType = TInfo->getType();
 
-  bool IsConstexpr = D.getDeclSpec().getConstexprSpecifier() == CSK_constexpr;
-  bool IsConsteval = D.getDeclSpec().getConstexprSpecifier() == CSK_consteval;
+  bool IsConstexpr =
+      D.getDeclSpec().getConstexprSpecifier() == ConstexprSpecKind::Constexpr;
+  bool IsConsteval =
+      D.getDeclSpec().getConstexprSpecifier() == ConstexprSpecKind::Consteval;
 
   for (auto *Candidate : Lookup) {
     auto *CandidateDecl = Candidate->getUnderlyingDecl();

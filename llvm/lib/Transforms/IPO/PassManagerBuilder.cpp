@@ -115,7 +115,7 @@ static cl::opt<bool> UseLoopVersioningLICM(
     "enable-loop-versioning-licm", cl::init(false), cl::Hidden,
     cl::desc("Enable the experimental Loop Versioning LICM pass"));
 
-static cl::opt<bool>
+cl::opt<bool>
     DisablePreInliner("disable-preinline", cl::init(false), cl::Hidden,
                       cl::desc("Disable pre-instrumentation inliner"));
 
@@ -520,6 +520,8 @@ void PassManagerBuilder::populateModulePassManager(
   // Whether this is a default or *LTO pre-link pipeline. The FullLTO post-link
   // is handled separately, so just check this is not the ThinLTO post-link.
   bool DefaultOrPreLinkPipeline = !PerformThinLTO;
+
+  MPM.add(createAnnotation2MetadataLegacyPass());
 
   if (!PGOSampleUse.empty()) {
     MPM.add(createPruneEHPass());

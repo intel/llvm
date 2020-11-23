@@ -3238,13 +3238,13 @@ static void RenderARCMigrateToolOptions(const Driver &D, const ArgList &Args,
       switch (A->getOption().getID()) {
       default: llvm_unreachable("missed a case");
       case options::OPT_ccc_arcmt_check:
-        CmdArgs.push_back("-arcmt-check");
+        CmdArgs.push_back("-arcmt-action=check");
         break;
       case options::OPT_ccc_arcmt_modify:
-        CmdArgs.push_back("-arcmt-modify");
+        CmdArgs.push_back("-arcmt-action=modify");
         break;
       case options::OPT_ccc_arcmt_migrate:
-        CmdArgs.push_back("-arcmt-migrate");
+        CmdArgs.push_back("-arcmt-action=migrate");
         CmdArgs.push_back("-mt-migrate-directory");
         CmdArgs.push_back(A->getValue());
 
@@ -6460,6 +6460,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   HandleAmdgcnLegacyOptions(D, Args, CmdArgs);
+  if (Triple.isAMDGPU()) {
+    if (Args.hasFlag(options::OPT_munsafe_fp_atomics,
+                     options::OPT_mno_unsafe_fp_atomics))
+      CmdArgs.push_back("-munsafe-fp-atomics");
+  }
 
   // For all the host OpenMP offloading compile jobs we need to pass the targets
   // information using -fopenmp-targets= option.
@@ -6622,6 +6627,23 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // Disable all outlining behaviour.
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-enable-machine-outliner=never");
+    }
+  }
+
+  if (Arg *A = Args.getLastArg(options::OPT_moutline_atomics,
+                               options::OPT_mno_outline_atomics)) {
+    if (A->getOption().matches(options::OPT_moutline_atomics)) {
+      // Option -moutline-atomics supported for AArch64 target only.
+      if (!Triple.isAArch64()) {
+        D.Diag(diag::warn_drv_moutline_atomics_unsupported_opt)
+            << Triple.getArchName();
+      } else {
+        CmdArgs.push_back("-target-feature");
+        CmdArgs.push_back("+outline-atomics");
+      }
+    } else {
+      CmdArgs.push_back("-target-feature");
+      CmdArgs.push_back("-outline-atomics");
     }
   }
 

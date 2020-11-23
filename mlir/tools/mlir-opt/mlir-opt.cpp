@@ -63,11 +63,11 @@ void registerTestConstantFold();
 void registerTestConvVectorization();
 void registerTestConvertGPUKernelToCubinPass();
 void registerTestConvertGPUKernelToHsacoPass();
+void registerTestDecomposeCallGraphTypes();
 void registerTestDialect(DialectRegistry &);
 void registerTestDominancePass();
 void registerTestDynamicPipelinePass();
 void registerTestExpandTanhPass();
-void registerTestFinalizingBufferizePass();
 void registerTestGpuParallelLoopMappingPass();
 void registerTestInterfaces();
 void registerTestLinalgCodegenStrategy();
@@ -87,6 +87,7 @@ void registerTestOpaqueLoc();
 void registerTestPreparationPassWithAllowedMemrefResults();
 void registerTestRecursiveTypesPass();
 void registerTestSCFUtilsPass();
+void registerTestSparsification();
 void registerTestVectorConversions();
 } // namespace test
 } // namespace mlir
@@ -130,10 +131,10 @@ void registerTestPasses() {
   test::registerTestConvertGPUKernelToHsacoPass();
 #endif
   test::registerTestConvVectorization();
+  test::registerTestDecomposeCallGraphTypes();
   test::registerTestDominancePass();
   test::registerTestDynamicPipelinePass();
   test::registerTestExpandTanhPass();
-  test::registerTestFinalizingBufferizePass();
   test::registerTestGpuParallelLoopMappingPass();
   test::registerTestInterfaces();
   test::registerTestLinalgCodegenStrategy();
@@ -152,6 +153,7 @@ void registerTestPasses() {
   test::registerTestOpaqueLoc();
   test::registerTestRecursiveTypesPass();
   test::registerTestSCFUtilsPass();
+  test::registerTestSparsification();
   test::registerTestVectorConversions();
 }
 #endif

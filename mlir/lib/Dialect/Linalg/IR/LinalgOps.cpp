@@ -17,9 +17,8 @@
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/Function.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Matchers.h"
-#include "mlir/IR/Module.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/StandardTypes.h"
@@ -420,6 +419,8 @@ LogicalResult AnnotationsVerifier<GenericOp>::verify(GenericOp op) {
   // Verify consistency of sparse annotations.
   if (!op.hasTensorSemantics())
     return op.emitOpError("expected sparse annotations on tensors only");
+  if (op.getNumOutputs() != 1)
+    return op.emitOpError("expected single output tensor");
   unsigned numTensors = op.getNumInputsAndOutputs();
   if (sparseAttr.size() != numTensors)
     return op.emitOpError("expected one sparse annotation for each tensor");

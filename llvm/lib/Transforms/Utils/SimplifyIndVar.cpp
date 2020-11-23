@@ -1540,6 +1540,27 @@ bool WidenIV::widenWithVariantUse(WidenIV::NarrowIVDefUse DU) {
   bool CanSignExtend = ExtKind == SignExtended && OBO->hasNoSignedWrap();
   bool CanZeroExtend = ExtKind == ZeroExtended && OBO->hasNoUnsignedWrap();
   auto AnotherOpExtKind = ExtKind;
+
+  // Check that all uses are either s/zext, or narrow def (in case of we are
+  // widening the IV increment).
+  SmallVector<Instruction *, 4> ExtUsers;
+  for (Use &U : NarrowUse->uses()) {
+    if (U.getUser() == NarrowDef)
+      continue;
+    Instruction *User = nullptr;
+    if (ExtKind == SignExtended)
+      User = dyn_cast<SExtInst>(U.getUser());
+    else
+      User = dyn_cast<ZExtInst>(U.getUser());
+    if (!User || User->getType() != WideType)
+      return false;
+    ExtUsers.push_back(User);
+  }
+  if (ExtUsers.empty()) {
+    DeadInsts.emplace_back(NarrowUse);
+    return true;
+  }
+
   if (!CanSignExtend && !CanZeroExtend) {
     // Because InstCombine turns 'sub nuw' to 'add' losing the no-wrap flag, we
     // will most likely not see it. Let's try to prove it.
@@ -1566,20 +1587,6 @@ bool WidenIV::widenWithVariantUse(WidenIV::NarrowIVDefUse DU) {
   if (!AddRecOp1 || AddRecOp1->getLoop() != L)
     return false;
 
-  // Check that all uses are either s/zext, or narrow def (in case of we are
-  // widening the IV increment).
-  for (Use &U : NarrowUse->uses()) {
-    if (U.getUser() == NarrowDef)
-      continue;
-    Instruction *User = nullptr;
-    if (ExtKind == SignExtended)
-      User = dyn_cast<SExtInst>(U.getUser());
-    else
-      User = dyn_cast<ZExtInst>(U.getUser());
-    if (!User || User->getType() != WideType)
-      return false;
-  }
-
   LLVM_DEBUG(dbgs() << "Cloning arithmetic IVUser: " << *NarrowUse << "\n");
 
   // Generating a widening use instruction.
@@ -1600,15 +1607,7 @@ bool WidenIV::widenWithVariantUse(WidenIV::NarrowIVDefUse DU) {
   WideBO->copyIRFlags(NarrowBO);
   ExtendKindMap[NarrowUse] = ExtKind;
 
-  for (Use &U : NarrowUse->uses()) {
-    // Ignore narrow def: it will be removed after the transform.
-    if (U.getUser() == NarrowDef)
-      continue;
-    Instruction *User = nullptr;
-    if (ExtKind == SignExtended)
-      User = cast<SExtInst>(U.getUser());
-    else
-      User = cast<ZExtInst>(U.getUser());
+  for (Instruction *User : ExtUsers) {
     assert(User->getType() == WideType && "Checked before!");
     LLVM_DEBUG(dbgs() << "INDVARS: eliminating " << *User << " replaced by "
                       << *WideBO << "\n");

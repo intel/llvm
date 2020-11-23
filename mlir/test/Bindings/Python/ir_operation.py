@@ -60,7 +60,7 @@ def testTraverseOpRegionBlockIterators():
   # CHECK:         BLOCK 0:
   # CHECK:           OP 0: %0 = "custom.addi"
   # CHECK:           OP 1: return
-  # CHECK:    OP 1: "module_terminator"
+  # CHECK:    OP 1: module_terminator
   walk_operations("", op)
 
 run(testTraverseOpRegionBlockIterators)
@@ -97,7 +97,7 @@ def testTraverseOpRegionBlockIndices():
   # CHECK:         BLOCK 0:
   # CHECK:           OP 0: %0 = "custom.addi"
   # CHECK:           OP 1: return
-  # CHECK:    OP 1: "module_terminator"
+  # CHECK:    OP 1: module_terminator
   walk_operations("", module.operation)
 
 run(testTraverseOpRegionBlockIndices)
@@ -320,7 +320,7 @@ def testOperationResultList():
       %0:3 = call @f2() : () -> (i32, f64, index)
       return
     }
-    func @f2() -> (i32, f64, index)
+    func private @f2() -> (i32, f64, index)
   """, ctx)
   caller = module.body.operations[0]
   call = caller.regions[0].blocks[0].operations[0]

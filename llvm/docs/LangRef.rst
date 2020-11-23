@@ -1825,22 +1825,6 @@ example:
     undefined behavior, the undefined behavior may be observed even
     if the call site is dead code.
 
-``nossp``
-    This attribute indicates the function should not emit a stack smashing
-    protector. This is useful for code that intentionally manipulates the stack
-    canary, such as operating system kernel code that must save/restore such
-    canary values on context switch.
-
-    If a function with the ``nossp`` attribute calls a callee function that has
-    a stack protector function attribute, such as ``ssp``, ``sspreq``, or
-    ``sspstrong`` (or vice-versa), then the callee will not be inline
-    substituted into the caller. Even when the callee is ``alwaysinline``, the
-    above holds.
-
-    Such inlining might break assumptions in the function that was built
-    without stack protection. This permits the functions that would have stack
-    protection to retain their stack protector.
-
 ``ssp``
     This attribute indicates that the function should emit a stack
     smashing protector. It is in the form of a "canary" --- a random value
@@ -2386,6 +2370,14 @@ as follows:
     program memory space defaults to the default address space of 0,
     which corresponds to a Von Neumann architecture that has code
     and data in the same space.
+``G<address space>``
+    Specifies the address space to be used by default when creating global
+    variables. If omitted, the globals address space defaults to the default
+    address space 0.
+    Note: variable declarations without an address space are always created in
+    address space 0, this property only affects the default value to be used
+    when creating globals without additional contextual information (e.g. in
+    LLVM passes).
 ``A<address space>``
     Specifies the address space of objects created by '``alloca``'.
     Defaults to the default address space of 0.
@@ -3798,6 +3790,43 @@ long as the original value is reconstituted before the ``indirectbr`` or
 
 Finally, some targets may provide defined semantics when using the value
 as the operand to an inline assembly, but that is target specific.
+
+.. _dso_local_equivalent:
+
+DSO Local Equivalent
+--------------------
+
+``dso_local_equivalent @func``
+
+A '``dso_local_equivalent``' constant represents a function which is
+functionally equivalent to a given function, but is always defined in the
+current linkage unit. The resulting pointer has the same type as the underlying
+function. The resulting pointer is permitted, but not required, to be different
+from a pointer to the function, and it may have different values in different
+translation units.
+
+The target function may not have ``extern_weak`` linkage.
+
+``dso_local_equivalent`` can be implemented as such:
+
+- If the function has local linkage, hidden visibility, or is
+  ``dso_local``, ``dso_local_equivalent`` can be implemented as simply a pointer
+  to the function.
+- ``dso_local_equivalent`` can be implemented with a stub that tail-calls the
+  function. Many targets support relocations that resolve at link time to either
+  a function or a stub for it, depending on if the function is defined within the
+  linkage unit; LLVM will use this when available. (This is commonly called a
+  "PLT stub".) On other targets, the stub may need to be emitted explicitly.
+
+This can be used wherever a ``dso_local`` instance of a function is needed without
+needing to explicitly make the original function ``dso_local``. An instance where
+this can be used is for static offset calculations between a function and some other
+``dso_local`` symbol. This is especially useful for the Relative VTables C++ ABI,
+where dynamic relocations for function pointers in VTables can be replaced with
+static relocations for offsets between the VTable and virtual functions which
+may not be ``dso_local``.
+
+This is currently only supported for ELF binary formats.
 
 .. _constantexprs:
 

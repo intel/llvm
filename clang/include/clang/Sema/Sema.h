@@ -11673,6 +11673,8 @@ public:
   QualType CheckMatrixMultiplyOperands(ExprResult &LHS, ExprResult &RHS,
                                        SourceLocation Loc, bool IsCompAssign);
 
+  bool isValidSveBitcast(QualType srcType, QualType destType);
+
   bool areLaxCompatibleVectorTypes(QualType srcType, QualType destType);
   bool isLaxVectorConversion(QualType srcType, QualType destType);
 

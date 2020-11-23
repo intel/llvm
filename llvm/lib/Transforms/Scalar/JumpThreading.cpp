@@ -352,6 +352,11 @@ PreservedAnalyses JumpThreadingPass::run(Function &F,
   bool Changed = runImpl(F, &TLI, &LVI, &AA, &DTU, F.hasProfileData(),
                          std::move(BFI), std::move(BPI));
 
+  if (PrintLVIAfterJumpThreading) {
+    dbgs() << "LVI for function '" << F.getName() << "':\n";
+    LVI.printLVI(F, DTU.getDomTree(), dbgs());
+  }
+
   if (!Changed)
     return PreservedAnalyses::all();
   PreservedAnalyses PA;
@@ -1697,6 +1702,8 @@ bool JumpThreadingPass::processThreadableEdges(Value *Cond, BasicBlock *BB,
       BranchInst::Create(OnlyDest, Term);
       Term->eraseFromParent();
       DTU->applyUpdatesPermissive(Updates);
+      if (HasProfileData)
+        BPI->eraseBlock(BB);
 
       // If the condition is now dead due to the removal of the old terminator,
       // erase it.
@@ -2237,12 +2244,8 @@ void JumpThreadingPass::threadThroughTwoBasicBlocks(BasicBlock *PredPredBB,
       cloneInstructions(PredBB->begin(), PredBB->end(), NewBB, PredPredBB);
 
   // Copy the edge probabilities from PredBB to NewBB.
-  if (HasProfileData) {
-    SmallVector<BranchProbability, 4> Probs;
-    for (BasicBlock *Succ : successors(PredBB))
-      Probs.push_back(BPI->getEdgeProbability(PredBB, Succ));
-    BPI->setEdgeProbability(NewBB, Probs);
-  }
+  if (HasProfileData)
+    BPI->copyEdgeProbabilities(PredBB, NewBB);
 
   // Update the terminator of PredPredBB to jump to NewBB instead of PredBB.
   // This eliminates predecessors from PredPredBB, which requires us to simplify
@@ -2672,6 +2675,8 @@ bool JumpThreadingPass::duplicateCondBranchOnPHIIntoPred(
 
   // Remove the unconditional branch at the end of the PredBB block.
   OldPredBranch->eraseFromParent();
+  if (HasProfileData)
+    BPI->copyEdgeProbabilities(BB, PredBB);
   DTU->applyUpdatesPermissive(Updates);
 
   ++NumDupes;
