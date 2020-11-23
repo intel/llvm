@@ -566,8 +566,8 @@ CodeGenFunction::DecodeAddrUsedInPrologue(llvm::Value *F,
 
 void CodeGenFunction::EmitSubGroupMetadata(const FunctionDecl *FD,
                                            llvm::Function *Fn) {
-  if (const IntelReqdSubGroupSizeAttr *A =
-          FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
+    const IntelReqdSubGroupSizeAttr *A =
+        FD->getAttr<IntelReqdSubGroupSizeAttr>();
     llvm::LLVMContext &Context = getLLVMContext();
     Optional<llvm::APSInt> ArgVal =
         A->getValue()->getIntegerConstantExpr(FD->getASTContext());
@@ -576,7 +576,6 @@ void CodeGenFunction::EmitSubGroupMetadata(const FunctionDecl *FD,
         Builder.getInt32(ArgVal->getSExtValue()))};
     Fn->setMetadata("intel_reqd_sub_group_size",
                     llvm::MDNode::get(Context, AttrMDArgs));
-  }
 }
 
 void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
