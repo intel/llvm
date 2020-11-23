@@ -192,10 +192,11 @@ struct _pi_device : _pi_object {
 };
 
 struct _pi_context : _pi_object {
-  _pi_context(pi_uint32 NumDevices, const pi_device *Devs)
-      : Devices{Devs, Devs + NumDevices}, ZeCommandListInit{nullptr},
-        ZeEventPool{nullptr}, NumEventsAvailableInEventPool{},
-        NumEventsLiveInEventPool{} {
+  _pi_context(ze_context_handle_t ZeContext, pi_uint32 NumDevices,
+              const pi_device *Devs)
+      : ZeContext{ZeContext}, Devices{Devs, Devs + NumDevices},
+        ZeCommandListInit{nullptr}, ZeEventPool{nullptr},
+        NumEventsAvailableInEventPool{}, NumEventsLiveInEventPool{} {
     // Create USM allocator context for each pair (device, context).
     for (uint32_t I = 0; I < NumDevices; I++) {
       pi_device Device = Devs[I];
@@ -207,8 +208,13 @@ struct _pi_context : _pi_object {
           std::piecewise_construct, std::make_tuple(Device),
           std::make_tuple(std::unique_ptr<SystemMemory>(
               new USMDeviceMemoryAlloc(this, Device))));
+      // NOTE: one must additionally call initialize() to complete
+      // PI context creation.
     }
   }
+
+  // Initialize the PI context.
+  pi_result initialize();
 
   // A L0 context handle is primarily used during creation and management of
   // resources that may be used by multiple devices.
@@ -271,11 +277,15 @@ private:
   std::mutex NumEventsLiveInEventPoolMutex;
 };
 
+// If doing dynamic batching, start batch size at 2.
+const pi_uint32 DynamicBatchStartSize = 2;
+
 struct _pi_queue : _pi_object {
   _pi_queue(ze_command_queue_handle_t Queue, pi_context Context,
-            pi_device Device, pi_uint32 QueueBatchSize)
+            pi_device Device, pi_uint32 BatchSize)
       : ZeCommandQueue{Queue}, Context{Context}, Device{Device},
-        QueueBatchSize{QueueBatchSize} {}
+        QueueBatchSize{BatchSize > 0 ? BatchSize : DynamicBatchStartSize},
+        UseDynamicBatching{BatchSize == 0} {}
 
   // Level Zero command queue handle.
   ze_command_queue_handle_t ZeCommandQueue;
@@ -310,6 +320,18 @@ struct _pi_queue : _pi_object {
   // is thread safe because of the locking of the queue that occurs.
   pi_uint32 QueueBatchSize = {0};
 
+  // specifies whether this queue will be using dynamic batch size adjustment
+  // or not.  This is set only at queue creation time, and is therefore
+  // const for the life of the queue.
+  const bool UseDynamicBatching;
+
+  // These two members are used to keep track of how often the
+  // batching closes and executes a command list before reaching the
+  // QueueBatchSize limit, versus how often we reach the limit.
+  // This info might be used to vary the QueueBatchSize value.
+  pi_uint32 NumTimesClosedEarly = {0};
+  pi_uint32 NumTimesClosedFull = {0};
+
   // Map of all Command lists created with their associated Fence used for
   // tracking when the command list is available for use again.
   std::map<ze_command_list_handle_t, ze_fence_handle_t> ZeCommandListFenceMap;
@@ -317,6 +339,15 @@ struct _pi_queue : _pi_object {
   // Returns true if any commands for this queue are allowed to
   // be batched together.
   bool isBatchingAllowed();
+
+  // adjust the queue's batch size, knowing that the current command list
+  // is being closed with a full batch.
+  void adjustBatchSizeForFullBatch();
+
+  // adjust the queue's batch size, knowing that the current command list
+  // is being closed with only a partial batch of commands.  How many commands
+  // are in this partial closure is passed as the parameter.
+  void adjustBatchSizeForPartialBatch(pi_uint32 PartialBatchSize);
 
   // Resets the Command List and Associated fence in the ZeCommandListFenceMap.
   // If the reset command list should be made available, then MakeAvailable
