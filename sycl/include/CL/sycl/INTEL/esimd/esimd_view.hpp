@@ -283,7 +283,7 @@ public:
     return read()[i];
   }
 
-  /// \name Replicate 
+  /// \name Replicate
   /// Replicate simd instance given a simd_view
   /// @{
   ///

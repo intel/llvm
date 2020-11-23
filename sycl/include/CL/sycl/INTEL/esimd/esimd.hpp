@@ -276,7 +276,7 @@ public:
     return Ret;
   }
 
-  /// \name Replicate 
+  /// \name Replicate
   /// Replicate simd instance given a region.
   /// @{
   ///

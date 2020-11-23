@@ -248,9 +248,9 @@ ESIMD_INLINE ESIMD_NODEBUG void block_store(AccessorTy acc, uint32_t offset,
 #endif // __SYCL_DEVICE_ONLY__ && __SYCL_EXPLICIT_SIMD__
 }
 
-/// Accessor-based gather. 
+/// Accessor-based gather.
 ///
-/// Collects elements located at given offsets in an accessor and returns them 
+/// Collects elements located at given offsets in an accessor and returns them
 /// as a single \ref simd object. An element can be 1, 2 or 4-byte value.
 ///
 /// \tparam T is element type; can only be a 1,2,4-byte integer or \c float.
@@ -313,9 +313,9 @@ ESIMD_INLINE ESIMD_NODEBUG
   }
 }
 
-/// Accessor-based scatter. 
+/// Accessor-based scatter.
 ///
-/// Writes elements of a \ref simd object into an accessor at given offsets. 
+/// Writes elements of a \ref simd object into an accessor at given offsets.
 /// An element can be 1, 2 or 4-byte value.
 ///
 /// \tparam T is element type; can only be a 1,2,4-byte integer or \c float.
@@ -821,7 +821,7 @@ ESIMD_INLINE ESIMD_NODEBUG uint32_t esimd_get_value(AccessorTy acc) {
 }
 
 /// \defgroup sycl_esimd_raw_send_api Raw send APIs
-/// APIs below are used to implement the send messages on Intel(R) processor 
+/// APIs below are used to implement the send messages on Intel(R) processor
 /// graphics, as defined in the documentation at
 /// https://01.org/sites/default/files/documentation/intel-gfx-prm-osrc-icllp-vol02a-commandreference-instructions_2.pdf
 ///
@@ -835,9 +835,9 @@ ESIMD_INLINE ESIMD_NODEBUG uint32_t esimd_get_value(AccessorTy acc) {
 /// \param msgSrc1 is the second source operand of send message.
 /// \param exDesc is the extended message descriptor.
 /// \param msgDesc is the message descriptor.
-/// \param execSize is the execution size, which must be a compile time 
+/// \param execSize is the execution size, which must be a compile time
 /// constant.
-/// \param sfid is the shared function ID, which must be a compile time 
+/// \param sfid is the shared function ID, which must be a compile time
 /// constant.
 /// \param numSrc0 is the number of GRFs for source-0, which must be a compile
 /// time constant.
@@ -921,15 +921,15 @@ esimd_raw_send_load(simd<T1, n1> msgDst, simd<T2, n2> msgSrc0, uint32_t exDesc,
 /// constant.
 /// \param sfid is the shared function ID, which must be a compile time
 /// constant.
-/// \param numSrc0 is the number of GRFs for source-0, which must be a compile 
+/// \param numSrc0 is the number of GRFs for source-0, which must be a compile
 /// time constant.
-/// \param numSrc1 is the number of GRFs for source-1, which must be a compile 
+/// \param numSrc1 is the number of GRFs for source-1, which must be a compile
 /// time constant.
-/// \param isEOT is the flag that indicates whether this is an EOT message, 
+/// \param isEOT is the flag that indicates whether this is an EOT message,
 /// which must be a compile time constant (optional - default to 0).
-/// \param isSendc is the flag that indicates whether sendc should be used, 
+/// \param isSendc is the flag that indicates whether sendc should be used,
 /// which must be a compile time constant (optional - default to 0).
-/// \param mask is the predicate to specify enabled channels (optional - default 
+/// \param mask is the predicate to specify enabled channels (optional - default
 /// to on).
 template <typename T1, int n1, typename T2, int n2, int N = 16>
 ESIMD_INLINE ESIMD_NODEBUG void
@@ -958,13 +958,13 @@ esimd_raw_sends_store(simd<T1, n1> msgSrc0, simd<T2, n2> msgSrc1,
 /// constant.
 /// \param sfid is the shared function ID, which must be a compile time
 /// constant.
-/// \param numSrc0 is the number of GRFs for source-0, which must be a compile 
+/// \param numSrc0 is the number of GRFs for source-0, which must be a compile
 /// time constant.
-/// \param isEOT is the flag that indicates whether this is an EOT message, 
+/// \param isEOT is the flag that indicates whether this is an EOT message,
 /// which must be a compile time constant (optional - default to 0).
-/// \param isSendc is the flag that indicates whether sendc should be used, 
+/// \param isSendc is the flag that indicates whether sendc should be used,
 /// which must be a compile time constant (optional - default to 0).
-/// \param mask is the predicate to specify enabled channels (optional - default 
+/// \param mask is the predicate to specify enabled channels (optional - default
 /// to on).
 template <typename T1, int n1, int N = 16>
 ESIMD_INLINE ESIMD_NODEBUG void
