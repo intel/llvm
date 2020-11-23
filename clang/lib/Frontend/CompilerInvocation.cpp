@@ -1048,12 +1048,6 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
   Opts.StrictVTablePointers = Args.hasArg(OPT_fstrict_vtable_pointers);
   Opts.ForceEmitVTables = Args.hasArg(OPT_fforce_emit_vtables);
   Opts.UnwindTables = Args.hasArg(OPT_munwind_tables);
-  Opts.ThreadModel =
-      std::string(Args.getLastArgValue(OPT_mthread_model, "posix"));
-  if (Opts.ThreadModel != "posix" && Opts.ThreadModel != "single")
-    Diags.Report(diag::err_drv_invalid_value)
-        << Args.getLastArg(OPT_mthread_model)->getAsString(Args)
-        << Opts.ThreadModel;
   Opts.TrapFuncName = std::string(Args.getLastArgValue(OPT_ftrap_function_EQ));
   Opts.UseInitArray = !Args.hasArg(OPT_fno_use_init_array);
 
@@ -3049,11 +3043,9 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
       !Args.hasArg(OPT_fno_concept_satisfaction_caching);
   if (Args.hasArg(OPT_fconcepts_ts))
     Diags.Report(diag::warn_fe_concepts_ts_flag);
-  // Recovery AST still heavily relies on dependent-type machinery.
-  Opts.RecoveryAST =
-      Args.hasFlag(OPT_frecovery_ast, OPT_fno_recovery_ast, Opts.CPlusPlus);
-  Opts.RecoveryASTType = Args.hasFlag(
-      OPT_frecovery_ast_type, OPT_fno_recovery_ast_type, Opts.CPlusPlus);
+  Opts.RecoveryAST = Args.hasFlag(OPT_frecovery_ast, OPT_fno_recovery_ast);
+  Opts.RecoveryASTType =
+      Args.hasFlag(OPT_frecovery_ast_type, OPT_fno_recovery_ast_type);
   Opts.HeinousExtensions = Args.hasArg(OPT_fheinous_gnu_extensions);
   Opts.AccessControl = !Args.hasArg(OPT_fno_access_control);
   Opts.ElideConstructors = !Args.hasArg(OPT_fno_elide_constructors);
@@ -3552,6 +3544,16 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
       Args.hasFlag(OPT_fexperimental_relative_cxx_abi_vtables,
                    OPT_fno_experimental_relative_cxx_abi_vtables,
                    /*default=*/false);
+
+  std::string ThreadModel =
+      std::string(Args.getLastArgValue(OPT_mthread_model, "posix"));
+  if (ThreadModel != "posix" && ThreadModel != "single")
+    Diags.Report(diag::err_drv_invalid_value)
+        << Args.getLastArg(OPT_mthread_model)->getAsString(Args) << ThreadModel;
+  Opts.setThreadModel(
+      llvm::StringSwitch<LangOptions::ThreadModelKind>(ThreadModel)
+          .Case("posix", LangOptions::ThreadModelKind::POSIX)
+          .Case("single", LangOptions::ThreadModelKind::Single));
 }
 
 static bool isStrictlyPreprocessorAction(frontend::ActionKind Action) {

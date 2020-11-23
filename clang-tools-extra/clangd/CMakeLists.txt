@@ -97,6 +97,7 @@ add_clang_library(clangDaemon
   index/IndexAction.cpp
   index/MemIndex.cpp
   index/Merge.cpp
+  index/ProjectAware.cpp
   index/Ref.cpp
   index/Relation.cpp
   index/Serialization.cpp
@@ -139,7 +140,6 @@ clang_target_link_libraries(clangDaemon
   clangTooling
   clangToolingCore
   clangToolingInclusions
-  clangToolingRefactoring
   clangToolingSyntax
   )
 

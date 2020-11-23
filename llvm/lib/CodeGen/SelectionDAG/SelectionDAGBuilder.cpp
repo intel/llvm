@@ -6590,6 +6590,14 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
     }
     return;
   }
+  case Intrinsic::pseudoprobe: {
+    auto Guid = cast<ConstantInt>(I.getArgOperand(0))->getZExtValue();
+    auto Index = cast<ConstantInt>(I.getArgOperand(1))->getZExtValue();
+    auto Attr = cast<ConstantInt>(I.getArgOperand(2))->getZExtValue();
+    Res = DAG.getPseudoProbeNode(sdl, getRoot(), Guid, Index, Attr);
+    DAG.setRoot(Res);
+    return;
+  }
   case Intrinsic::invariant_start:
     // Discard region information.
     setValue(&I, DAG.getUNDEF(TLI.getPointerTy(DAG.getDataLayout())));
@@ -9401,11 +9409,33 @@ TargetLowering::LowerCallTo(TargetLowering::CallLoweringInfo &CLI) const {
   return std::make_pair(Res, CLI.Chain);
 }
 
+/// Places new result values for the node in Results (their number
+/// and types must exactly match those of the original return values of
+/// the node), or leaves Results empty, which indicates that the node is not
+/// to be custom lowered after all.
 void TargetLowering::LowerOperationWrapper(SDNode *N,
                                            SmallVectorImpl<SDValue> &Results,
                                            SelectionDAG &DAG) const {
-  if (SDValue Res = LowerOperation(SDValue(N, 0), DAG))
+  SDValue Res = LowerOperation(SDValue(N, 0), DAG);
+
+  if (!Res.getNode())
+    return;
+
+  // If the original node has one result, take the return value from
+  // LowerOperation as is. It might not be result number 0.
+  if (N->getNumValues() == 1) {
     Results.push_back(Res);
+    return;
+  }
+
+  // If the original node has multiple results, then the return node should
+  // have the same number of results.
+  assert((N->getNumValues() == Res->getNumValues()) &&
+      "Lowering returned the wrong number of results!");
+
+  // Places new result values base on N result number.
+  for (unsigned I = 0, E = N->getNumValues(); I != E; ++I)
+    Results.push_back(Res.getValue(I));
 }
 
 SDValue TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {

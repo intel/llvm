@@ -126,9 +126,9 @@ template <class ELFT> struct RelSymbol {
 /// the size, entity size and virtual address are different entries in arbitrary
 /// order (DT_REL, DT_RELSZ, DT_RELENT for example).
 struct DynRegionInfo {
-  DynRegionInfo(StringRef ObjName) : FileName(ObjName) {}
-  DynRegionInfo(const uint8_t *A, uint64_t S, uint64_t ES, StringRef ObjName)
-      : Addr(A), Size(S), EntSize(ES), FileName(ObjName) {}
+  DynRegionInfo(const Binary &Owner) : Obj(&Owner) {}
+  DynRegionInfo(const Binary &Owner, const uint8_t *A, uint64_t S, uint64_t ES)
+      : Addr(A), Size(S), EntSize(ES), Obj(&Owner) {}
 
   /// Address in current address space.
   const uint8_t *Addr = nullptr;
@@ -137,8 +137,8 @@ struct DynRegionInfo {
   /// Size of each entity in the region.
   uint64_t EntSize = 0;
 
-  /// Name of the file. Used for error reporting.
-  StringRef FileName;
+  /// Owner object. Used for error reporting.
+  const Binary *Obj;
   /// Error prefix. Used for error reporting to provide more information.
   std::string Context;
   /// Region size name. Used for error reporting.
@@ -151,6 +151,22 @@ struct DynRegionInfo {
     const Type *Start = reinterpret_cast<const Type *>(Addr);
     if (!Start)
       return {Start, Start};
+
+    const uint64_t Offset =
+        Addr - (const uint8_t *)Obj->getMemoryBufferRef().getBufferStart();
+    const uint64_t ObjSize = Obj->getMemoryBufferRef().getBufferSize();
+
+    if (Size > ObjSize - Offset) {
+      reportWarning(
+          createError("unable to read data at 0x" + Twine::utohexstr(Offset) +
+                      " of size 0x" + Twine::utohexstr(Size) + " (" +
+                      SizePrintName +
+                      "): it goes past the end of the file of size 0x" +
+                      Twine::utohexstr(ObjSize)),
+          Obj->getFileName());
+      return {Start, Start};
+    }
+
     if (EntSize == sizeof(Type) && (Size % EntSize == 0))
       return {Start, Start + (Size / EntSize)};
 
@@ -165,7 +181,7 @@ struct DynRegionInfo {
           (" or " + EntSizePrintName + " (0x" + Twine::utohexstr(EntSize) + ")")
               .str();
 
-    reportWarning(createError(Msg.c_str()), FileName);
+    reportWarning(createError(Msg.c_str()), Obj->getFileName());
     return {Start, Start};
   }
 };
@@ -296,8 +312,7 @@ private:
                          ") + size (0x" + Twine::utohexstr(Size) +
                          ") is greater than the file size (0x" +
                          Twine::utohexstr(Obj.getBufSize()) + ")");
-    return DynRegionInfo(Obj.base() + Offset, Size, EntSize,
-                         ObjF.getFileName());
+    return DynRegionInfo(ObjF, Obj.base() + Offset, Size, EntSize);
   }
 
   void printAttributes();
@@ -787,6 +802,7 @@ public:
   virtual void printMipsPLT(const MipsGOTParser<ELFT> &Parser) = 0;
   virtual void printMipsABIFlags() = 0;
   const ELFDumper<ELFT> &dumper() const { return Dumper; }
+  void reportUniqueWarning(Error Err) const;
 
 protected:
   std::vector<GroupSection> getGroups();
@@ -811,8 +827,6 @@ protected:
                                        const DynRegionInfo &Reg){};
 
   StringRef getPrintableSectionName(const Elf_Shdr &Sec) const;
-
-  void reportUniqueWarning(Error Err) const;
 
   StringRef FileName;
   const ELFFile<ELFT> &Obj;
@@ -1927,7 +1941,7 @@ void ELFDumper<ELFT>::loadDynamicTable() {
   if (!DynamicPhdr && !DynamicSec)
     return;
 
-  DynRegionInfo FromPhdr(ObjF.getFileName());
+  DynRegionInfo FromPhdr(ObjF);
   bool IsPhdrTableValid = false;
   if (DynamicPhdr) {
     // Use cantFail(), because p_offset/p_filesz fields of a PT_DYNAMIC are
@@ -1943,7 +1957,7 @@ void ELFDumper<ELFT>::loadDynamicTable() {
   // Ignore sh_entsize and use the expected value for entry size explicitly.
   // This allows us to dump dynamic sections with a broken sh_entsize
   // field.
-  DynRegionInfo FromSec(ObjF.getFileName());
+  DynRegionInfo FromSec(ObjF);
   bool IsSecTableValid = false;
   if (DynamicSec) {
     Expected<DynRegionInfo> RegOrErr =
@@ -2005,10 +2019,8 @@ void ELFDumper<ELFT>::loadDynamicTable() {
 template <typename ELFT>
 ELFDumper<ELFT>::ELFDumper(const object::ELFObjectFile<ELFT> &O,
                            ScopedPrinter &Writer)
-    : ObjDumper(Writer), ObjF(O), Obj(*O.getELFFile()),
-      DynRelRegion(O.getFileName()), DynRelaRegion(O.getFileName()),
-      DynRelrRegion(O.getFileName()), DynPLTRelRegion(O.getFileName()),
-      DynamicTable(O.getFileName()) {
+    : ObjDumper(Writer), ObjF(O), Obj(*O.getELFFile()), DynRelRegion(O),
+      DynRelaRegion(O), DynRelrRegion(O), DynPLTRelRegion(O), DynamicTable(O) {
   // Dumper reports all non-critical errors as warnings.
   // It does not print the same warning more than once.
   WarningHandler = [this](const Twine &Msg) {
@@ -2125,7 +2137,7 @@ void ELFDumper<ELFT>::parseDynamicTable() {
       // If we can't map the DT_SYMTAB value to an address (e.g. when there are
       // no program headers), we ignore its value.
       if (const uint8_t *VA = toMappedAddr(Dyn.getTag(), Dyn.getPtr())) {
-        DynSymFromTable.emplace(ObjF.getFileName());
+        DynSymFromTable.emplace(ObjF);
         DynSymFromTable->Addr = VA;
         DynSymFromTable->EntSize = sizeof(Elf_Sym);
         DynSymFromTable->EntSizePrintName = "";
@@ -3569,8 +3581,21 @@ template <class ELFT> void GNUStyle<ELFT>::printFileHeaders() {
   printFields(OS, "Section header string table index:", Str);
 }
 
+template <class ELFT>
+static StringRef tryGetSectionName(const ELFFile<ELFT> &Obj,
+                                   const typename ELFT::Shdr &Sec,
+                                   DumpStyle<ELFT> &Dump) {
+  if (Expected<StringRef> SecNameOrErr = Obj.getSectionName(Sec))
+    return *SecNameOrErr;
+  else
+    Dump.reportUniqueWarning(createError("unable to get the name of the " +
+                                         describe(Obj, Sec) + ": " +
+                                         toString(SecNameOrErr.takeError())));
+  return "<?>";
+}
+
 template <class ELFT> std::vector<GroupSection> DumpStyle<ELFT>::getGroups() {
-  auto GetSignature = [&](const Elf_Sym &Sym,
+  auto GetSignature = [&](const Elf_Sym &Sym, unsigned SymNdx,
                           const Elf_Shdr &Symtab) -> StringRef {
     Expected<StringRef> StrTableOrErr = Obj.getStringTableForSymtab(Symtab);
     if (!StrTableOrErr) {
@@ -3580,8 +3605,16 @@ template <class ELFT> std::vector<GroupSection> DumpStyle<ELFT>::getGroups() {
       return "<?>";
     }
 
-    // TODO: this might lead to a crash or produce a wrong result, when the
-    // st_name goes past the end of the string table.
+    StringRef Strings = *StrTableOrErr;
+    if (Sym.st_name >= Strings.size()) {
+      reportUniqueWarning(createError(
+          "unable to get the name of the symbol with index " + Twine(SymNdx) +
+          ": st_name (0x" + Twine::utohexstr(Sym.st_name) +
+          ") is past the end of the string table of size 0x" +
+          Twine::utohexstr(Strings.size())));
+      return "<?>";
+    }
+
     return StrTableOrErr->data() + Sym.st_name;
   };
 
@@ -3592,30 +3625,59 @@ template <class ELFT> std::vector<GroupSection> DumpStyle<ELFT>::getGroups() {
     if (Sec.sh_type != ELF::SHT_GROUP)
       continue;
 
-    const Elf_Shdr *Symtab =
-        unwrapOrError(FileName, Obj.getSection(Sec.sh_link));
+    StringRef Signature = "<?>";
+    if (Expected<const Elf_Shdr *> SymtabOrErr = Obj.getSection(Sec.sh_link)) {
+      if (Expected<const Elf_Sym *> SymOrErr =
+              Obj.template getEntry<Elf_Sym>(**SymtabOrErr, Sec.sh_info))
+        Signature = GetSignature(**SymOrErr, Sec.sh_info, **SymtabOrErr);
+      else
+        reportUniqueWarning(createError(
+            "unable to get the signature symbol for " + describe(Obj, Sec) +
+            ": " + toString(SymOrErr.takeError())));
+    } else {
+      reportUniqueWarning(createError("unable to get the symbol table for " +
+                                      describe(Obj, Sec) + ": " +
+                                      toString(SymtabOrErr.takeError())));
+    }
 
-    const Elf_Sym *Sym = unwrapOrError(
-        FileName, Obj.template getEntry<Elf_Sym>(*Symtab, Sec.sh_info));
-    auto Data = unwrapOrError(
-        FileName, Obj.template getSectionContentsAsArray<Elf_Word>(Sec));
+    ArrayRef<Elf_Word> Data;
+    if (Expected<ArrayRef<Elf_Word>> ContentsOrErr =
+            Obj.template getSectionContentsAsArray<Elf_Word>(Sec)) {
+      if (ContentsOrErr->empty())
+        reportUniqueWarning(
+            createError("unable to read the section group flag from the " +
+                        describe(Obj, Sec) + ": the section is empty"));
+      else
+        Data = *ContentsOrErr;
+    } else {
+      reportUniqueWarning(createError("unable to get the content of the " +
+                                      describe(Obj, Sec) + ": " +
+                                      toString(ContentsOrErr.takeError())));
+    }
 
-    StringRef Name = unwrapOrError(FileName, Obj.getSectionName(Sec));
-    StringRef Signature = GetSignature(*Sym, *Symtab);
-    Ret.push_back({Name,
+    Ret.push_back({tryGetSectionName(Obj, Sec, *this),
                    maybeDemangle(Signature),
                    Sec.sh_name,
                    I - 1,
                    Sec.sh_link,
                    Sec.sh_info,
-                   Data[0],
+                   Data.empty() ? Elf_Word(0) : Data[0],
                    {}});
+
+    if (Data.empty())
+      continue;
 
     std::vector<GroupMember> &GM = Ret.back().Members;
     for (uint32_t Ndx : Data.slice(1)) {
-      const Elf_Shdr &Sec = *unwrapOrError(FileName, Obj.getSection(Ndx));
-      const StringRef Name = unwrapOrError(FileName, Obj.getSectionName(Sec));
-      GM.push_back({Name, Ndx});
+      if (Expected<const Elf_Shdr *> SecOrErr = Obj.getSection(Ndx)) {
+        GM.push_back({tryGetSectionName(Obj, **SecOrErr, *this), Ndx});
+      } else {
+        reportUniqueWarning(
+            createError("unable to get the section with index " + Twine(Ndx) +
+                        " when dumping the " + describe(Obj, Sec) + ": " +
+                        toString(SecOrErr.takeError())));
+        GM.push_back({"<?>", Ndx});
+      }
     }
   }
   return Ret;
