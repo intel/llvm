@@ -991,6 +991,8 @@ enum Capability {
   CapabilityUSMStorageClassesINTEL = 5935,
   CapabilityFPGAMemoryAccessesINTEL = 5898,
   CapabilityIOPipeINTEL = 5943,
+  CapabilityAtomicFloat32AddEXT = 6033,
+  CapabilityAtomicFloat64AddEXT = 6034,
   CapabilityMax = 0x7fffffff,
 };
 
@@ -1589,6 +1591,7 @@ enum Op {
   OpReadPipeBlockingINTEL = 5946,
   OpWritePipeBlockingINTEL = 5947,
   OpFPGARegINTEL = 5949,
+  OpAtomicFAddEXT = 6035,
   OpTypeBufferSurfaceINTEL = 6086,
   OpMax = 0x7fffffff,
 };
@@ -1989,6 +1992,7 @@ inline void HasResultAndType(Op opcode, bool *hasResult, bool *hasResultType) {
     case OpSubgroupImageMediaBlockWriteINTEL: *hasResult = false; *hasResultType = false; break;
     case OpUCountLeadingZerosINTEL: *hasResult = true; *hasResultType = true; break;
     case OpUCountTrailingZerosINTEL: *hasResult = true; *hasResultType = true; break;
+    case OpAtomicFAddEXT: *hasResult = true; *hasResultType = true; break;
     case OpAbsISubINTEL: *hasResult = true; *hasResultType = true; break;
     case OpAbsUSubINTEL: *hasResult = true; *hasResultType = true; break;
     case OpIAddSatINTEL: *hasResult = true; *hasResultType = true; break;

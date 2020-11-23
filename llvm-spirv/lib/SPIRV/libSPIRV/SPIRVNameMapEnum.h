@@ -454,6 +454,8 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
       "PhysicalStorageBufferAddresses");
   add(CapabilityPhysicalStorageBufferAddressesEXT,
       "PhysicalStorageBufferAddressesEXT");
+  add(CapabilityAtomicFloat32AddEXT, "AtomicFloat32AddEXT");
+  add(CapabilityAtomicFloat64AddEXT, "AtomicFloat64AddEXT");
   add(CapabilityComputeDerivativeGroupLinearNV,
       "ComputeDerivativeGroupLinearNV");
   add(CapabilityCooperativeMatrixNV, "CooperativeMatrixNV");
