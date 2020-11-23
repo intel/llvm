@@ -566,16 +566,15 @@ CodeGenFunction::DecodeAddrUsedInPrologue(llvm::Value *F,
 
 void CodeGenFunction::EmitSubGroupMetadata(const FunctionDecl *FD,
                                            llvm::Function *Fn) {
-    const IntelReqdSubGroupSizeAttr *A =
-        FD->getAttr<IntelReqdSubGroupSizeAttr>();
-    llvm::LLVMContext &Context = getLLVMContext();
-    Optional<llvm::APSInt> ArgVal =
-        A->getValue()->getIntegerConstantExpr(FD->getASTContext());
-    assert(ArgVal.hasValue() && "Not an integer constant expression");
-    llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
-        Builder.getInt32(ArgVal->getSExtValue()))};
-    Fn->setMetadata("intel_reqd_sub_group_size",
-                    llvm::MDNode::get(Context, AttrMDArgs));
+  const IntelReqdSubGroupSizeAttr *A = FD->getAttr<IntelReqdSubGroupSizeAttr>();
+  llvm::LLVMContext &Context = getLLVMContext();
+  Optional<llvm::APSInt> ArgVal =
+      A->getValue()->getIntegerConstantExpr(FD->getASTContext());
+  assert(ArgVal.hasValue() && "Not an integer constant expression");
+  llvm::Metadata *AttrMDArgs[] = {
+      llvm::ConstantAsMetadata::get(Builder.getInt32(ArgVal->getSExtValue()))};
+  Fn->setMetadata("intel_reqd_sub_group_size",
+                  llvm::MDNode::get(Context, AttrMDArgs));
 }
 
 void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
