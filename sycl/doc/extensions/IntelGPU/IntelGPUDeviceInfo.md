@@ -36,14 +36,14 @@ A new aspect, ext\_intel\_gpu\_pci\_address, will be added.
 
 ## Error Condition ##
 
-The function device\:\:get_info\(\) will return an empty string if the device does not support aspect\:\:ext\_intel\_gpu\_pci\_address.
+An exception will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_pci\_address.
 
 
 ## Example Usage ##
 
 The PCI address can be obtained using the standard get\_info() interface.
 
-    if (dev.has(aspect::ext_intel_gpu_pci_address) {
+    if (dev.has(aspect::ext_intel_gpu_pci_address)) {
       auto BDF = dev.get_info<info::device::ext_intel_gpu_pci_address>();
     }
 
@@ -69,13 +69,13 @@ A new aspect, ext\_intel\_gpu\_eu\_simd\_width, will be added.
 
 ## Error Condition ##
 
-The function device\:\:get_info\(\) will return PI\_INVALID\_VALUE if the device does not support aspect\:\:ext\_intel\_gpu\_eu\_simd\_width.
+An exception will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_eu\_simd\_width.
 
 ## Example Usage ##
 
 The physical EU SIMD width can be obtained using the standard get\_info() interface.
 
-    if (dev.has(aspect::ext_intel_gpu_eu_simd_width) {
+    if (dev.has(aspect::ext_intel_gpu_eu_simd_width)) {
         auto euSimdWidth = dev.get_info<info::device::ext_intel_gpu_eu_simd_width>();
     }
 
@@ -102,12 +102,12 @@ A new aspect, ext\_intel\_gpu\_eu\_count, will be added.
 
 ## Error Condition ##
 
-The function device\:\:get_info\(\) will return PI\_INVALID\_VALUE if the device does not support aspect\:\:ext\_intel\_gpu\_eu\_count.
+An exception will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_eu\_count.
 
 ## Example Usage ##
 
 Then the number of EUs can be obtained using the standard get\_info() interface.
 
-    if (dev.has(aspect::ext_intel_gpu_eu_count) {
+    if (dev.has(aspect::ext_intel_gpu_eu_count)) {
       auto euCount = dev.get_info<info::device::ext_intel_gpu_eu_count>();
     }
