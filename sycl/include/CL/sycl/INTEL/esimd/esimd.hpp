@@ -276,8 +276,9 @@ public:
     return Ret;
   }
 
-  /// @{
+  /// \name Replicate 
   /// Replicate simd instance given a region.
+  /// @{
   ///
 
   /// \tparam Rep is number of times region has to be replicated.

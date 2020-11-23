@@ -283,8 +283,9 @@ public:
     return read()[i];
   }
 
-  /// @{
+  /// \name Replicate 
   /// Replicate simd instance given a simd_view
+  /// @{
   ///
 
   /// \tparam Rep is number of times region has to be replicated.
