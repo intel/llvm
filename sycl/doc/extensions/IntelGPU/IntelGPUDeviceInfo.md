@@ -36,7 +36,7 @@ A new aspect, ext\_intel\_gpu\_pci\_address, will be added.
 
 ## Error Condition ##
 
-An exception will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_pci\_address.
+An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_pci\_address.
 
 
 ## Example Usage ##
@@ -69,7 +69,7 @@ A new aspect, ext\_intel\_gpu\_eu\_simd\_width, will be added.
 
 ## Error Condition ##
 
-An exception will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_eu\_simd\_width.
+An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_eu\_simd\_width.
 
 ## Example Usage ##
 
@@ -102,7 +102,7 @@ A new aspect, ext\_intel\_gpu\_eu\_count, will be added.
 
 ## Error Condition ##
 
-An exception will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_eu\_count.
+An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_eu\_count.
 
 ## Example Usage ##
 
