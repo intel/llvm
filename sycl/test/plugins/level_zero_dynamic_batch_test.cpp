@@ -17,8 +17,8 @@
 // it does that 5 times as well.  That should cause the batch size to
 // be lowered, just once to be less than 4.
 //
-// CKDYN: Raising QueueBatchSize to 3
-// CKDYN: Raising QueueBatchSize to 4
+// CKDYN: Raising QueueBatchSize to 5
+// CKDYN: Raising QueueBatchSize to 6
 // CKDYN-NOT: Raising QueueBatchSize
 // CKALL: Test Pass
 // CKALL: Test Pass
