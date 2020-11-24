@@ -715,7 +715,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 /// Media block load.
 ///
 /// \tparam T is the element data type.
-/// \tparam m is the hight of the 2D block.
+/// \tparam m is the height of the 2D block.
 /// \tparam n is the width of the 2D block.
 /// \tparam AccessorTy is type of the SYCL accessor.
 /// \tparam plane is planar surface index.
@@ -757,7 +757,7 @@ media_block_load(AccessorTy acc, unsigned x, unsigned y) {
 /// Media block store.
 ///
 /// \tparam T is the element data type.
-/// \tparam m is the hight of the 2D block.
+/// \tparam m is the height of the 2D block.
 /// \tparam n is the width of the 2D block.
 /// \tparam is AccessorTy type of the SYCL accessor.
 /// \tparam plane is planar surface index.
