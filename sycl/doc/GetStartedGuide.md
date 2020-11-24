@@ -63,7 +63,7 @@ set DPCPP_HOME=%USERPROFILE%\sycl_workspace
 mkdir %DPCPP_HOME%
 cd %DPCPP_HOME%
 
-git clone https://github.com/intel/llvm -b sycl
+git clone --config core.autocrlf=false https://github.com/intel/llvm -b sycl
 ```
 
 ## Build DPC++ toolchain
