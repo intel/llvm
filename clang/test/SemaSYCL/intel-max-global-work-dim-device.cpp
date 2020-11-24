@@ -63,54 +63,51 @@ struct TRIFuncObjBad {
 
 int main() {
   q.submit([&](handler &h) {
-  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel1
-  // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
-  // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-  h.single_task<class test_kernel1>(
-      FuncObj());
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel1
+    // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    h.single_task<class test_kernel1>(FuncObj());
 
-  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
-  // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}} 
-  // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
-  // expected-warning@+3 {{attribute 'intelfpga::max_global_work_dim' is deprecated}}
-  // expected-note@+2 {{did you mean to use 'intel::max_global_work_dim' instead?}}
-  h.single_task<class test_kernel2>(
-      []() [[intelfpga::max_global_work_dim(2)]]{});
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
+    // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}} 
+    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
+    // expected-warning@+3 {{attribute 'intelfpga::max_global_work_dim' is deprecated}}
+    // expected-note@+2 {{did you mean to use 'intel::max_global_work_dim' instead?}}
+    h.single_task<class test_kernel2>(
+        []() [[intelfpga::max_global_work_dim(2)]]{});
 
-  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
-  // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
-  h.single_task<class test_kernel3>(
-      []() { func_do_not_ignore(); });
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
+    // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
+    h.single_task<class test_kernel3>(
+        []() { func_do_not_ignore(); });
 
-  h.single_task<class test_kernel4>(
-      TRIFuncObjGood1());
-  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4
-  // CHECK:       ReqdWorkGroupSizeAttr {{.*}} 1 1 1
-  // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}} 1 1 1
-  // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
-  // CHECK-NEXT:  IntegerLiteral{{.*}}0{{$}}
-  h.single_task<class test_kernel5>(
-      TRIFuncObjGood2());
-  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel5
-  // CHECK:       ReqdWorkGroupSizeAttr {{.*}} 1 1 4
-  // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}} 1 1 8
-  // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
-  // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
+    h.single_task<class test_kernel4>(TRIFuncObjGood1());
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4
+    // CHECK:       ReqdWorkGroupSizeAttr {{.*}} 1 1 1
+    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}} 1 1 1
+    // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}0{{$}}
+
+    h.single_task<class test_kernel5>(TRIFuncObjGood2());
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel5
+    // CHECK:       ReqdWorkGroupSizeAttr {{.*}} 1 1 4
+    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}} 1 1 8
+    // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
 #ifdef TRIGGER_ERROR
-  [[intel::max_global_work_dim(1)]] int Var = 0; // expected-error{{'max_global_work_dim' attribute only applies to functions}}
+    [[intel::max_global_work_dim(1)]] int Var = 0; // expected-error{{'max_global_work_dim' attribute only applies to functions}}
 
-  h.single_task<class test_kernel6>(
-      []() [[intel::max_global_work_dim(-8)]]{}); // expected-error{{'max_global_work_dim' attribute requires a positive integral compile time constant expression}}
+    h.single_task<class test_kernel6>(
+        []() [[intel::max_global_work_dim(-8)]]{}); // expected-error{{'max_global_work_dim' attribute requires a positive integral compile time constant expression}}
 
-  h.single_task<class test_kernel7>(
-      []() [[intel::max_global_work_dim(3),
-             intel::max_global_work_dim(2)]]{}); // expected-warning{{attribute 'max_global_work_dim' is already applied with different parameters}}
+    h.single_task<class test_kernel7>(
+        []() [[intel::max_global_work_dim(3),
+               intel::max_global_work_dim(2)]]{}); // expected-warning{{attribute 'max_global_work_dim' is already applied with different parameters}}
 
-  h.single_task<class test_kernel8>(
-      TRIFuncObjBad());
+    h.single_task<class test_kernel8>(TRIFuncObjBad());
 
-  h.single_task<class test_kernel9>(
-      []() [[intel::max_global_work_dim(4)]]{}); // expected-error{{The value of 'max_global_work_dim' attribute must be in range from 0 to 3}}
+    h.single_task<class test_kernel9>(
+        []() [[intel::max_global_work_dim(4)]]{}); // expected-error{{The value of 'max_global_work_dim' attribute must be in range from 0 to 3}}
 
   });
   return 0;

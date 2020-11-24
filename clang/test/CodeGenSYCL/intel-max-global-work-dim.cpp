@@ -22,12 +22,11 @@ int main() {
     h.single_task<class kernel_name1>(boo);
 
     h.single_task<class kernel_name2>(
-      []() [[intel::max_global_work_dim(2)]]{});
+        []() [[intel::max_global_work_dim(2)]]{});
 
     Functor<2> f;
     h.single_task<class kernel_name3>(f);
-
-    });
+  });
   return 0;
 }
 

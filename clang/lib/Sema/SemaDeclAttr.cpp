@@ -3094,7 +3094,6 @@ static void handleMaxGlobalWorkDimAttr(Sema &S, Decl *D,
 
   if (checkDeprecatedSYCLAttributeSpelling(S, Attr))
     S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)
-    S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)
         << "'intel::max_global_work_dim'";
 
   S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelMaxGlobalWorkDimAttr>(D, Attr,
