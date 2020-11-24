@@ -1348,7 +1348,8 @@ public:
 #endif
 
 private:
-  bool mutuallyExclusive(Record *PredDef, ArrayRef<PredCheck> Term);
+  bool mutuallyExclusive(Record *PredDef, ArrayRef<Record *> Preds,
+                         ArrayRef<PredCheck> Term);
   void getIntersectingVariants(
     const CodeGenSchedRW &SchedRW, unsigned TransIdx,
     std::vector<TransVariant> &IntersectingVariants);
@@ -1367,6 +1368,7 @@ private:
 // are always checked in the order they are defined in the .td file. Later
 // conditions implicitly negate any prior condition.
 bool PredTransitions::mutuallyExclusive(Record *PredDef,
+                                        ArrayRef<Record *> Preds,
                                         ArrayRef<PredCheck> Term) {
   for (const PredCheck &PC: Term) {
     if (PC.Predicate == PredDef)
@@ -1377,8 +1379,36 @@ bool PredTransitions::mutuallyExclusive(Record *PredDef,
     RecVec Variants = SchedRW.TheDef->getValueAsListOfDefs("Variants");
     if (any_of(Variants, [PredDef](const Record *R) {
           return R->getValueAsDef("Predicate") == PredDef;
-        }))
+        })) {
+      // To check if PredDef is mutually exclusive with PC we also need to
+      // check that PC.Predicate is exclusive with all predicates from variant
+      // we're expanding. Consider following RW sequence with two variants
+      // (1 & 2), where A, B and C are predicates from corresponding SchedVars:
+      //
+      // 1:A/B - 2:C/B
+      //
+      // Here C is not mutually exclusive with variant (1), because A doesn't
+      // exist in variant (2). This means we have possible transitions from A
+      // to C and from A to B, and fully expanded sequence would look like:
+      //
+      // if (A & C) return ...;
+      // if (A & B) return ...;
+      // if (B) return ...;
+      //
+      // Now let's consider another sequence:
+      //
+      // 1:A/B - 2:A/B
+      //
+      // Here A in variant (2) is mutually exclusive with variant (1), because
+      // A also exists in (2). This means A->B transition is impossible and
+      // expanded sequence would look like:
+      //
+      // if (A) return ...;
+      // if (B) return ...;
+      if (!count(Preds, PC.Predicate))
+        continue;
       return true;
+    }
   }
   return false;
 }
@@ -1420,6 +1450,20 @@ static bool hasVariant(ArrayRef<PredTransition> Transitions,
           return true;
   }
   return false;
+}
+
+static std::vector<Record *> getAllPredicates(ArrayRef<TransVariant> Variants,
+                                              ArrayRef<unsigned> ProcIndices) {
+  std::vector<Record *> Preds;
+  for (auto &Variant : Variants) {
+    assert(Variant.VarOrSeqDef->isSubClassOf("SchedVar"));
+    if (ProcIndices[0] && Variant.ProcIdx)
+      if (!llvm::count(ProcIndices, Variant.ProcIdx))
+        continue;
+
+    Preds.push_back(Variant.VarOrSeqDef->getValueAsDef("Predicate"));
+  }
+  return Preds;
 }
 
 // Populate IntersectingVariants with any variants or aliased sequences of the
@@ -1468,6 +1512,8 @@ void PredTransitions::getIntersectingVariants(
     if (AliasProcIdx == 0)
       GenericRW = true;
   }
+  std::vector<Record *> AllPreds =
+      getAllPredicates(Variants, TransVec[TransIdx].ProcIndices);
   for (TransVariant &Variant : Variants) {
     // Don't expand variants if the processor models don't intersect.
     // A zero processor index means any processor.
@@ -1486,11 +1532,10 @@ void PredTransitions::getIntersectingVariants(
                         " Ensure only one SchedAlias exists per RW.");
       }
     }
-    if (Variant.VarOrSeqDef->isSubClassOf("SchedVar")) {
-      Record *PredDef = Variant.VarOrSeqDef->getValueAsDef("Predicate");
-      if (mutuallyExclusive(PredDef, TransVec[TransIdx].PredTerm))
-        continue;
-    }
+    Record *PredDef = Variant.VarOrSeqDef->getValueAsDef("Predicate");
+    if (mutuallyExclusive(PredDef, AllPreds, TransVec[TransIdx].PredTerm))
+      continue;
+
     if (IntersectingVariants.empty()) {
       // The first variant builds on the existing transition.
       Variant.TransVecIdx = TransIdx;
@@ -1679,14 +1724,22 @@ static void addSequences(CodeGenSchedModels &SchedModels,
       Result.push_back(SchedModels.findOrInsertRW(S, IsRead));
 }
 
+#ifndef NDEBUG
+static void dumpRecVec(const RecVec &RV) {
+  for (const Record *R : RV)
+    dbgs() << R->getName() << ", ";
+}
+#endif
+
 static void dumpTransition(const CodeGenSchedModels &SchedModels,
                            const CodeGenSchedClass &FromSC,
-                           const CodeGenSchedTransition &SCTrans) {
+                           const CodeGenSchedTransition &SCTrans,
+                           const RecVec &Preds) {
   LLVM_DEBUG(dbgs() << "Adding transition from " << FromSC.Name << "("
                     << FromSC.Index << ") to "
                     << SchedModels.getSchedClass(SCTrans.ToClassIdx).Name << "("
-                    << SCTrans.ToClassIdx << ")"
-                    << " on processor indices: (";
+                    << SCTrans.ToClassIdx << ") on pred term: (";
+             dumpRecVec(Preds); dbgs() << ") on processor indices: (";
              dumpIdxVec(SCTrans.ProcIndices); dbgs() << ")\n");
 }
 // Create a new SchedClass for each variant found by inferFromRW. Pass
@@ -1714,7 +1767,7 @@ static void inferFromTransitions(ArrayRef<PredTransition> LastTransitions,
     SCTrans.ToClassIdx =
         SchedModels.addSchedClass(/*ItinClassDef=*/nullptr, OperWritesVariant,
                                   OperReadsVariant, I->ProcIndices);
-    dumpTransition(SchedModels, FromSC, SCTrans);
+
     // The final PredTerm is unique set of predicates guarding the transition.
     RecVec Preds;
     transform(I->PredTerm, std::back_inserter(Preds),
@@ -1722,6 +1775,7 @@ static void inferFromTransitions(ArrayRef<PredTransition> LastTransitions,
                 return P.Predicate;
               });
     Preds.erase(std::unique(Preds.begin(), Preds.end()), Preds.end());
+    dumpTransition(SchedModels, FromSC, SCTrans, Preds);
     SCTrans.PredTerm = std::move(Preds);
     SchedModels.getSchedClass(FromClassIdx)
         .Transitions.push_back(std::move(SCTrans));

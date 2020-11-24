@@ -671,10 +671,11 @@ public:
       // Check whether any of the handles were devirtualized.
       bool Devirt = llvm::any_of(UR.IndirectVHs, [](auto &P) -> bool {
         if (P.second) {
-          CallBase *CB = cast<CallBase>(P.second);
-          if (CB->getCalledFunction()) {
-            LLVM_DEBUG(dbgs() << "Found devirtualized call: " << *CB << "\n");
-            return true;
+          if (CallBase *CB = dyn_cast<CallBase>(P.second)) {
+            if (CB->getCalledFunction()) {
+              LLVM_DEBUG(dbgs() << "Found devirtualized call: " << *CB << "\n");
+              return true;
+            }
           }
         }
         return false;
