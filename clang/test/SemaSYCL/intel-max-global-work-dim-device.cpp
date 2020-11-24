@@ -69,7 +69,7 @@ int main() {
     h.single_task<class test_kernel1>(FuncObj());
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
-    // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}} 
+    // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
     // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
     // expected-warning@+3 {{attribute 'intelfpga::max_global_work_dim' is deprecated}}
     // expected-note@+2 {{did you mean to use 'intel::max_global_work_dim' instead?}}
@@ -108,7 +108,6 @@ int main() {
 
     h.single_task<class test_kernel9>(
         []() [[intel::max_global_work_dim(4)]]{}); // expected-error{{The value of 'max_global_work_dim' attribute must be in range from 0 to 3}}
-
   });
   return 0;
 #endif // TRIGGER_ERROR
