@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %RUN_ON_HOST %t.out
 
 // SYCL dependencies (i.e. low level runtimes) may have global objects of their
 // own. The test ensures, that those objects do not cause problems. When host

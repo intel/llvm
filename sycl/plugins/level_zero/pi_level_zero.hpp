@@ -277,8 +277,8 @@ private:
   std::mutex NumEventsLiveInEventPoolMutex;
 };
 
-// If doing dynamic batching, start batch size at 2.
-const pi_uint32 DynamicBatchStartSize = 2;
+// If doing dynamic batching, start batch size at 4.
+const pi_uint32 DynamicBatchStartSize = 4;
 
 struct _pi_queue : _pi_object {
   _pi_queue(ze_command_queue_handle_t Queue, pi_context Context,
