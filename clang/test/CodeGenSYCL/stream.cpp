@@ -2,8 +2,8 @@
 // RUN: FileCheck < %t.ll --enable-var-scope %s
 //
 // CHECK: define spir_kernel void @"{{.*}}StreamTester"(%"{{.*}}cl::sycl::stream"* byval(%"{{.*}}cl::sycl::stream") {{.*}}){{.*}}
-// CHECK: call spir_func void @{{.*}}__init{{.*}}(%{{.*}}cl::sycl::stream{{.*}} addrspace(4)* %{{[0-9]+}})
-// CHECK: call spir_func void @{{.*}}__finalize{{.*}}(%{{.*}}cl::sycl::stream{{.*}} addrspace(4)* %{{[0-9]+}})
+// CHECK: call spir_func void @{{.*}}__init{{.*}}(%{{.*}}cl::sycl::stream{{.*}} addrspace(4)* {{[^,]*}} %{{[0-9]+}})
+// CHECK: call spir_func void @{{.*}}__finalize{{.*}}(%{{.*}}cl::sycl::stream{{.*}} addrspace(4)* {{[^,]*}} %{{[0-9]+}})
 //
 
 #include "Inputs/sycl.hpp"

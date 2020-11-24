@@ -114,6 +114,9 @@ Modified Compiler Flags
   It produces ``SHF_COMPRESSED`` style compression of debug information. GNU
   binutils 2.26 or newer, or lld is required to link produced object files. Use
   ``-gz=zlib-gnu`` to get the old behavior.
+- Now that `this` pointers are tagged with `nonnull` and `dereferenceable(N)`,
+  `-fno-delete-null-pointer-checks` has gained the power to remove the
+  `nonnull` attribute on `this` for configurations that need it to be nullable.
 
 New Pragmas in Clang
 --------------------
@@ -227,7 +230,9 @@ release of Clang. Users of the build system should adjust accordingly.
 AST Matchers
 ------------
 
-- ...
+- The behavior of TK_IgnoreUnlessSpelledInSource with the traverse() matcher
+  has been changed to no longer match on template instantiations or on
+  implicit nodes which are not spelled in the source.
 
 clang-format
 ------------

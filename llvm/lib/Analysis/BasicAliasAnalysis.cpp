@@ -875,8 +875,9 @@ ModRefInfo BasicAAResult::getModRefInfo(const CallBase *Call,
 
       // If this is a no-capture pointer argument, see if we can tell that it
       // is impossible to alias the pointer we're checking.
-      AliasResult AR = getBestAAResults().alias(MemoryLocation(*CI),
-                                                MemoryLocation(Object), AAQI);
+      AliasResult AR = getBestAAResults().alias(
+          MemoryLocation(*CI, LocationSize::unknown()),
+          MemoryLocation(Object, LocationSize::unknown()), AAQI);
       if (AR != MustAlias)
         IsMustAlias = false;
       // Operand doesn't alias 'Object', continue looking for other aliases
@@ -922,7 +923,8 @@ ModRefInfo BasicAAResult::getModRefInfo(const CallBase *Call,
   if (isMallocOrCallocLikeFn(Call, &TLI)) {
     // Be conservative if the accessed pointer may alias the allocation -
     // fallback to the generic handling below.
-    if (getBestAAResults().alias(MemoryLocation(Call), Loc, AAQI) == NoAlias)
+    if (getBestAAResults().alias(MemoryLocation(Call, LocationSize::unknown()),
+                                 Loc, AAQI) == NoAlias)
       return ModRefInfo::NoModRef;
   }
 
@@ -957,6 +959,9 @@ ModRefInfo BasicAAResult::getModRefInfo(const CallBase *Call,
   // heap state at the point the guard is issued needs to be consistent in case
   // the guard invokes the "deopt" continuation.
   if (isIntrinsicCall(Call, Intrinsic::experimental_guard))
+    return ModRefInfo::Ref;
+  // The same applies to deoptimize which is essentially a guard(false).
+  if (isIntrinsicCall(Call, Intrinsic::experimental_deoptimize))
     return ModRefInfo::Ref;
 
   // Like assumes, invariant.start intrinsics were also marked as arbitrarily
@@ -1045,8 +1050,7 @@ static AliasResult aliasSameBasePointerGEPs(const GEPOperator *GEP1,
 
   // If we don't know the size of the accesses through both GEPs, we can't
   // determine whether the struct fields accessed can't alias.
-  if (MaybeV1Size == LocationSize::unknown() ||
-      MaybeV2Size == LocationSize::unknown())
+  if (!MaybeV1Size.hasValue() || !MaybeV2Size.hasValue())
     return MayAlias;
 
   const uint64_t V1Size = MaybeV1Size.getValue();
@@ -1088,8 +1092,6 @@ static AliasResult aliasSameBasePointerGEPs(const GEPOperator *GEP1,
 
   auto *Ty = GetElementPtrInst::getIndexedType(
     GEP1->getSourceElementType(), IntermediateIndices);
-  StructType *LastIndexedStruct = dyn_cast<StructType>(Ty);
-
   if (isa<ArrayType>(Ty) || isa<VectorType>(Ty)) {
     // We know that:
     // - both GEPs begin indexing from the exact same pointer;
@@ -1143,44 +1145,7 @@ static AliasResult aliasSameBasePointerGEPs(const GEPOperator *GEP1,
       } else if (isKnownNonEqual(GEP1LastIdx, GEP2LastIdx, DL))
         return NoAlias;
     }
-    return MayAlias;
-  } else if (!LastIndexedStruct || !C1 || !C2) {
-    return MayAlias;
   }
-
-  if (C1->getValue().getActiveBits() > 64 ||
-      C2->getValue().getActiveBits() > 64)
-    return MayAlias;
-
-  // We know that:
-  // - both GEPs begin indexing from the exact same pointer;
-  // - the last indices in both GEPs are constants, indexing into a struct;
-  // - said indices are different, hence, the pointed-to fields are different;
-  // - both GEPs only index through arrays prior to that.
-  //
-  // This lets us determine that the struct that GEP1 indexes into and the
-  // struct that GEP2 indexes into must either precisely overlap or be
-  // completely disjoint.  Because they cannot partially overlap, indexing into
-  // different non-overlapping fields of the struct will never alias.
-
-  // Therefore, the only remaining thing needed to show that both GEPs can't
-  // alias is that the fields are not overlapping.
-  const StructLayout *SL = DL.getStructLayout(LastIndexedStruct);
-  const uint64_t StructSize = SL->getSizeInBytes();
-  const uint64_t V1Off = SL->getElementOffset(C1->getZExtValue());
-  const uint64_t V2Off = SL->getElementOffset(C2->getZExtValue());
-
-  auto EltsDontOverlap = [StructSize](uint64_t V1Off, uint64_t V1Size,
-                                      uint64_t V2Off, uint64_t V2Size) {
-    return V1Off < V2Off && V1Off + V1Size <= V2Off &&
-           ((V2Off + V2Size <= StructSize) ||
-            (V2Off + V2Size - StructSize <= V1Off));
-  };
-
-  if (EltsDontOverlap(V1Off, V1Size, V2Off, V2Size) ||
-      EltsDontOverlap(V2Off, V2Size, V1Off, V1Size))
-    return NoAlias;
-
   return MayAlias;
 }
 
@@ -1219,7 +1184,7 @@ bool BasicAAResult::isGEPBaseAtNegativeOffset(const GEPOperator *GEPOp,
       const DecomposedGEP &DecompGEP, const DecomposedGEP &DecompObject,
       LocationSize MaybeObjectAccessSize) {
   // If the object access size is unknown, or the GEP isn't inbounds, bail.
-  if (MaybeObjectAccessSize == LocationSize::unknown() || !GEPOp->isInBounds())
+  if (!MaybeObjectAccessSize.hasValue() || !GEPOp->isInBounds())
     return false;
 
   const uint64_t ObjectAccessSize = MaybeObjectAccessSize.getValue();
@@ -1336,7 +1301,7 @@ AliasResult BasicAAResult::aliasGEP(
     // pointer, we know they cannot alias.
 
     // If both accesses are unknown size, we can't do anything useful here.
-    if (V1Size == LocationSize::unknown() && V2Size == LocationSize::unknown())
+    if (!V1Size.hasValue() && !V2Size.hasValue())
       return MayAlias;
 
     AliasResult R = aliasCheck(UnderlyingV1, LocationSize::unknown(),
@@ -1368,7 +1333,7 @@ AliasResult BasicAAResult::aliasGEP(
   // greater, we know they do not overlap.
   if (GEP1BaseOffset != 0 && DecompGEP1.VarIndices.empty()) {
     if (GEP1BaseOffset.sge(0)) {
-      if (V2Size != LocationSize::unknown()) {
+      if (V2Size.hasValue()) {
         if (GEP1BaseOffset.ult(V2Size.getValue()))
           return PartialAlias;
         return NoAlias;
@@ -1382,8 +1347,7 @@ AliasResult BasicAAResult::aliasGEP(
       // GEP1             V2
       // We need to know that V2Size is not unknown, otherwise we might have
       // stripped a gep with negative index ('gep <ptr>, -1, ...).
-      if (V1Size != LocationSize::unknown() &&
-          V2Size != LocationSize::unknown()) {
+      if (V1Size.hasValue() && V2Size.hasValue()) {
         if ((-GEP1BaseOffset).ult(V1Size.getValue()))
           return PartialAlias;
         return NoAlias;
@@ -1392,17 +1356,17 @@ AliasResult BasicAAResult::aliasGEP(
   }
 
   if (!DecompGEP1.VarIndices.empty()) {
-    APInt Modulo(MaxPointerSize, 0);
-    bool AllPositive = true;
+    APInt GCD;
+    bool AllNonNegative = GEP1BaseOffset.isNonNegative();
+    bool AllNonPositive = GEP1BaseOffset.isNonPositive();
     for (unsigned i = 0, e = DecompGEP1.VarIndices.size(); i != e; ++i) {
+      const APInt &Scale = DecompGEP1.VarIndices[i].Scale;
+      if (i == 0)
+        GCD = Scale.abs();
+      else
+        GCD = APIntOps::GreatestCommonDivisor(GCD, Scale.abs());
 
-      // Try to distinguish something like &A[i][1] against &A[42][0].
-      // Grab the least significant bit set in any of the scales. We
-      // don't need std::abs here (even if the scale's negative) as we'll
-      // be ^'ing Modulo with itself later.
-      Modulo |= DecompGEP1.VarIndices[i].Scale;
-
-      if (AllPositive) {
+      if (AllNonNegative || AllNonPositive) {
         // If the Value could change between cycles, then any reasoning about
         // the Value this cycle may not hold in the next cycle. We'll just
         // give up if we can't determine conditions that hold for every cycle:
@@ -1419,32 +1383,40 @@ AliasResult BasicAAResult::aliasGEP(
         SignKnownZero |= IsZExt;
         SignKnownOne &= !IsZExt;
 
-        // If the variable begins with a zero then we know it's
-        // positive, regardless of whether the value is signed or
-        // unsigned.
-        APInt Scale = DecompGEP1.VarIndices[i].Scale;
-        AllPositive =
-            (SignKnownZero && Scale.sge(0)) || (SignKnownOne && Scale.slt(0));
+        AllNonNegative &= (SignKnownZero && Scale.isNonNegative()) ||
+                          (SignKnownOne && Scale.isNonPositive());
+        AllNonPositive &= (SignKnownZero && Scale.isNonPositive()) ||
+                          (SignKnownOne && Scale.isNonNegative());
       }
     }
 
-    Modulo = Modulo ^ (Modulo & (Modulo - 1));
-
-    // We can compute the difference between the two addresses
-    // mod Modulo. Check whether that difference guarantees that the
-    // two locations do not alias.
-    APInt ModOffset = GEP1BaseOffset & (Modulo - 1);
-    if (V1Size != LocationSize::unknown() &&
-        V2Size != LocationSize::unknown() && ModOffset.uge(V2Size.getValue()) &&
-        (Modulo - ModOffset).uge(V1Size.getValue()))
+    // We now have accesses at two offsets from the same base:
+    //  1. (...)*GCD + GEP1BaseOffset with size V1Size
+    //  2. 0 with size V2Size
+    // Using arithmetic modulo GCD, the accesses are at
+    // [ModOffset..ModOffset+V1Size) and [0..V2Size). If the first access fits
+    // into the range [V2Size..GCD), then we know they cannot overlap.
+    APInt ModOffset = GEP1BaseOffset.srem(GCD);
+    if (ModOffset.isNegative())
+      ModOffset += GCD; // We want mod, not rem.
+    if (V1Size.hasValue() && V2Size.hasValue() &&
+        ModOffset.uge(V2Size.getValue()) &&
+        (GCD - ModOffset).uge(V1Size.getValue()))
       return NoAlias;
 
-    // If we know all the variables are positive, then GEP1 >= GEP1BasePtr.
-    // If GEP1BasePtr > V2 (GEP1BaseOffset > 0) then we know the pointers
-    // don't alias if V2Size can fit in the gap between V2 and GEP1BasePtr.
-    if (AllPositive && GEP1BaseOffset.sgt(0) &&
-        V2Size != LocationSize::unknown() &&
+    // If we know all the variables are non-negative, then the total offset is
+    // also non-negative and >= GEP1BaseOffset. We have the following layout:
+    // [0, V2Size) ... [TotalOffset, TotalOffer+V1Size]
+    // If GEP1BaseOffset >= V2Size, the accesses don't alias.
+    if (AllNonNegative && V2Size.hasValue() &&
         GEP1BaseOffset.uge(V2Size.getValue()))
+      return NoAlias;
+    // Similarly, if the variables are non-positive, then the total offset is
+    // also non-positive and <= GEP1BaseOffset. We have the following layout:
+    // [TotalOffset, TotalOffset+V1Size) ... [0, V2Size)
+    // If -GEP1BaseOffset >= V1Size, the accesses don't alias.
+    if (AllNonPositive && V1Size.hasValue() &&
+        (-GEP1BaseOffset).uge(V1Size.getValue()))
       return NoAlias;
 
     if (constantOffsetHeuristic(DecompGEP1.VarIndices, V1Size, V2Size,
@@ -1903,8 +1875,8 @@ bool BasicAAResult::constantOffsetHeuristic(
     const SmallVectorImpl<VariableGEPIndex> &VarIndices,
     LocationSize MaybeV1Size, LocationSize MaybeV2Size, const APInt &BaseOffset,
     AssumptionCache *AC, DominatorTree *DT) {
-  if (VarIndices.size() != 2 || MaybeV1Size == LocationSize::unknown() ||
-      MaybeV2Size == LocationSize::unknown())
+  if (VarIndices.size() != 2 || !MaybeV1Size.hasValue() ||
+      !MaybeV2Size.hasValue())
     return false;
 
   const uint64_t V1Size = MaybeV1Size.getValue();

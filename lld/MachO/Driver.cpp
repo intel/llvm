@@ -8,7 +8,6 @@
 
 #include "Driver.h"
 #include "Config.h"
-#include "DriverUtils.h"
 #include "InputFiles.h"
 #include "LTO.h"
 #include "ObjC.h"
@@ -34,7 +33,6 @@
 #include "llvm/LTO/LTO.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Option/ArgList.h"
-#include "llvm/Option/Option.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -52,44 +50,6 @@ using namespace lld;
 using namespace lld::macho;
 
 Configuration *lld::macho::config;
-
-// Create prefix string literals used in Options.td
-#define PREFIX(NAME, VALUE) const char *NAME[] = VALUE;
-#include "Options.inc"
-#undef PREFIX
-
-// Create table mapping all options defined in Options.td
-static const opt::OptTable::Info optInfo[] = {
-#define OPTION(X1, X2, ID, KIND, GROUP, ALIAS, X7, X8, X9, X10, X11, X12)      \
-  {X1, X2, X10,         X11,         OPT_##ID, opt::Option::KIND##Class,       \
-   X9, X8, OPT_##GROUP, OPT_##ALIAS, X7,       X12},
-#include "Options.inc"
-#undef OPTION
-};
-
-MachOOptTable::MachOOptTable() : OptTable(optInfo) {}
-
-opt::InputArgList MachOOptTable::parse(ArrayRef<const char *> argv) {
-  // Make InputArgList from string vectors.
-  unsigned missingIndex;
-  unsigned missingCount;
-  SmallVector<const char *, 256> vec(argv.data(), argv.data() + argv.size());
-
-  opt::InputArgList args = ParseArgs(vec, missingIndex, missingCount);
-
-  if (missingCount)
-    error(Twine(args.getArgString(missingIndex)) + ": missing argument");
-
-  for (opt::Arg *arg : args.filtered(OPT_UNKNOWN))
-    error("unknown argument: " + arg->getSpelling());
-  return args;
-}
-
-void MachOOptTable::printHelp(const char *argv0, bool showHidden) const {
-  PrintHelp(lld::outs(), (std::string(argv0) + " [options] file...").c_str(),
-            "LLVM Linker", showHidden);
-  lld::outs() << "\n";
-}
 
 static HeaderFileType getOutputType(const opt::InputArgList &args) {
   // TODO: -r, -dylinker, -preload...

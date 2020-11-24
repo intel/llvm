@@ -297,6 +297,10 @@ bool TargetTransformInfo::isNoopAddrSpaceCast(unsigned FromAS,
   return TTIImpl->isNoopAddrSpaceCast(FromAS, ToAS);
 }
 
+unsigned TargetTransformInfo::getAssumedAddrSpace(const Value *V) const {
+  return TTIImpl->getAssumedAddrSpace(V);
+}
+
 Value *TargetTransformInfo::rewriteIntrinsicWithAddressSpace(
     IntrinsicInst *II, Value *OldV, Value *NewV) const {
   return TTIImpl->rewriteIntrinsicWithAddressSpace(II, OldV, NewV);
@@ -480,6 +484,10 @@ bool TargetTransformInfo::useAA() const { return TTIImpl->useAA(); }
 
 bool TargetTransformInfo::isTypeLegal(Type *Ty) const {
   return TTIImpl->isTypeLegal(Ty);
+}
+
+unsigned TargetTransformInfo::getRegUsageForType(Type *Ty) const {
+  return TTIImpl->getRegUsageForType(Ty);
 }
 
 bool TargetTransformInfo::shouldBuildLookupTables() const {
