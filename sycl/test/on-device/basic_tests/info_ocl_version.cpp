@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %RUN_ON_HOST %t.out
 // RUN: env %CPU_RUN_PLACEHOLDER %t.out
 // RUN: env %GPU_RUN_PLACEHOLDER %t.out
 // RUN: env %ACC_RUN_PLACEHOLDER %t.out

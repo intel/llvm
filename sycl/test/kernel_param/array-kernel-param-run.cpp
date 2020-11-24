@@ -1,7 +1,7 @@
 // This test checks kernel execution with array kernel parameters.
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %RUN_ON_HOST %t.out
 
 #include <CL/sycl.hpp>
 #include <iostream>

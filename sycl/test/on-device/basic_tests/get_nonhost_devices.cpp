@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_BE=%sycl_be %t.out
+// RUN: %BE_RUN_PLACEHOLDER %t.out
 //
 // Check that the host device is not included in devices returned by
 // get_devices() if a non-host device type is specified.
