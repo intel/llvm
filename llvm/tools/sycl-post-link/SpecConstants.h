@@ -25,13 +25,23 @@
 using namespace llvm;
 
 using ScalarSpecIDMapTy = std::map<StringRef, unsigned>;
-struct CompositeSpecConstDescriptor {
+// Represents an element of a composite speciailization constant - at SYCL RT
+// level composite specialization constants are being represented as a single
+// byte-array, while at SPIR-V level they are represented by a number of scalar
+// specialization constants.
+struct CompositeSpecConstElementDescriptor {
+  // Encodes ID of a scalar specialization constants which is a leaf of some
+  // composite specialization constant.
   unsigned ID;
+  // Encodes offset from the beginning of composite, where scalar resides, i.e.
+  // location of the scalar value within a byte-array containing the whole
+  // composite specialization constant.
   unsigned Offset;
+  // Encodes size of scalar specialization constant.
   unsigned Size;
 };
 using CompositeSpecIDMapTy =
-    std::map<StringRef, std::vector<CompositeSpecConstDescriptor>>;
+    std::map<StringRef, std::vector<CompositeSpecConstElementDescriptor>>;
 
 class SpecConstantsPass : public PassInfoMixin<SpecConstantsPass> {
 public:

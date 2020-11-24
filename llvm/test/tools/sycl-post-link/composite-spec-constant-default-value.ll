@@ -1,6 +1,10 @@
 ; RUN: sycl-post-link -spec-const=default --ir-output-only %s -S -o - \
 ; RUN: | FileCheck %s --implicit-check-not __sycl_getCompositeSpecConstantValue
 ;
+; This test checks that composite specialization constants can be correctly
+; initialized by sycl-post-link tool for AOT use-case (default initialization
+; should be used according to the type of constant)
+;
 ; TODO: consider adding a test case with vector type: the pass itself already
 ; supports this, but at the moment, sycl::vec type is not a POD type, which
 ; means we can't have it within a spec constant, i.e. we can't generate LLVM IR
