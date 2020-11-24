@@ -59,6 +59,13 @@ struct RegisterImmPair {
   int64_t Imm;
 };
 
+struct ShiftOfShiftedLogic {
+  MachineInstr *Logic;
+  MachineInstr *Shift2;
+  Register LogicNonShiftReg;
+  uint64_t ValSum;
+};
+
 using OperandBuildSteps =
     SmallVector<std::function<void(MachineInstrBuilder &)>, 4>;
 struct InstructionBuildSteps {
@@ -228,6 +235,18 @@ public:
   bool matchPtrAddImmedChain(MachineInstr &MI, PtrAddChain &MatchInfo);
   bool applyPtrAddImmedChain(MachineInstr &MI, PtrAddChain &MatchInfo);
 
+  /// Fold (shift (shift base, x), y) -> (shift base (x+y))
+  bool matchShiftImmedChain(MachineInstr &MI, RegisterImmPair &MatchInfo);
+  bool applyShiftImmedChain(MachineInstr &MI, RegisterImmPair &MatchInfo);
+
+  /// If we have a shift-by-constant of a bitwise logic op that itself has a
+  /// shift-by-constant operand with identical opcode, we may be able to convert
+  /// that into 2 independent shifts followed by the logic op.
+  bool matchShiftOfShiftedLogic(MachineInstr &MI,
+                                ShiftOfShiftedLogic &MatchInfo);
+  bool applyShiftOfShiftedLogic(MachineInstr &MI,
+                                ShiftOfShiftedLogic &MatchInfo);
+
   /// Transform a multiply by a power-of-2 value to a left shift.
   bool matchCombineMulToShl(MachineInstr &MI, unsigned &ShiftVal);
   bool applyCombineMulToShl(MachineInstr &MI, unsigned &ShiftVal);
@@ -287,6 +306,10 @@ public:
                                   std::pair<Register, bool> &PtrRegAndCommute);
   bool applyCombineAddP2IToPtrAdd(MachineInstr &MI,
                                   std::pair<Register, bool> &PtrRegAndCommute);
+
+  // Transform G_PTR_ADD (G_PTRTOINT C1), C2 -> C1 + C2
+  bool matchCombineConstPtrAddToI2P(MachineInstr &MI, int64_t &NewCst);
+  bool applyCombineConstPtrAddToI2P(MachineInstr &MI, int64_t &NewCst);
 
   /// Transform anyext(trunc(x)) to x.
   bool matchCombineAnyExtTrunc(MachineInstr &MI, Register &Reg);
@@ -400,13 +423,22 @@ public:
                                std::tuple<Register, int64_t> &MatchInfo);
   bool applyAshShlToSextInreg(MachineInstr &MI,
                               std::tuple<Register, int64_t> &MatchInfo);
-  /// \return true if \p MI is a G_AND instruction whose RHS is a mask where
-  /// LHS & mask == LHS. (E.g., an all-ones value.)
+  /// \return true if \p MI is a G_AND instruction whose operands are x and y
+  /// where x & y == x or x & y == y. (E.g., one of operands is all-ones value.)
   ///
   /// \param [in] MI - The G_AND instruction.
   /// \param [out] Replacement - A register the G_AND should be replaced with on
   /// success.
-  bool matchAndWithTrivialMask(MachineInstr &MI, Register &Replacement);
+  bool matchRedundantAnd(MachineInstr &MI, Register &Replacement);
+
+  /// \return true if \p MI is a G_OR instruction whose operands are x and y
+  /// where x | y == x or x | y == y. (E.g., one of operands is all-zeros
+  /// value.)
+  ///
+  /// \param [in] MI - The G_OR instruction.
+  /// \param [out] Replacement - A register the G_OR should be replaced with on
+  /// success.
+  bool matchRedundantOr(MachineInstr &MI, Register &Replacement);
 
   /// \return true if \p MI is a G_SEXT_INREG that can be erased.
   bool matchRedundantSExtInReg(MachineInstr &MI);
@@ -422,6 +454,16 @@ public:
   bool applyXorOfAndWithSameReg(MachineInstr &MI,
                                 std::pair<Register, Register> &MatchInfo);
   ///}
+
+  /// Combine G_PTR_ADD with nullptr to G_INTTOPTR
+  bool matchPtrAddZero(MachineInstr &MI);
+  bool applyPtrAddZero(MachineInstr &MI);
+
+  bool matchCombineInsertVecElts(MachineInstr &MI,
+                                 SmallVectorImpl<Register> &MatchInfo);
+
+  bool applyCombineInsertVecElts(MachineInstr &MI,
+                             SmallVectorImpl<Register> &MatchInfo);
 
   /// Try to transform \p MI by using all of the above
   /// combine functions. Returns true if changed.

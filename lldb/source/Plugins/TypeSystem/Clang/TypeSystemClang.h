@@ -1063,6 +1063,13 @@ public:
   }
 
 private:
+  /// Returns the PrintingPolicy used when generating the internal type names.
+  /// These type names are mostly used for the formatter selection.
+  clang::PrintingPolicy GetTypePrintingPolicy();
+  /// Returns the internal type name for the given NamedDecl using the
+  /// type printing policy.
+  std::string GetTypeNameForDecl(const clang::NamedDecl *named_decl);
+
   const clang::ClassTemplateSpecializationDecl *
   GetAsTemplateSpecialization(lldb::opaque_compiler_type_t type);
 
@@ -1134,8 +1141,8 @@ public:
                                     const ValueList &arg_value_list,
                                     const char *name) override;
 
-  UtilityFunction *GetUtilityFunction(const char *text,
-                                      const char *name) override;
+  std::unique_ptr<UtilityFunction>
+  CreateUtilityFunction(std::string text, std::string name) override;
 
   PersistentExpressionState *GetPersistentExpressionState() override;
 private:

@@ -163,6 +163,22 @@ use omp_lib
   !ERROR: Unmatched END TARGET directive
   !$omp end target
 
+  ! OMP 5.0 - 2.6 Restriction point 1
+  outofparallel: do k =1, 10
+  !$omp parallel
+  !$omp do
+  outer: do i=0, 10
+    inner: do j=1, 10
+      exit
+      exit outer
+      !ERROR: EXIT to construct 'outofparallel' outside of PARALLEL construct is not allowed
+      exit outofparallel
+    end do inner
+  end do outer
+  !$end omp do
+  !$omp end parallel
+  end do outofparallel
+
 ! 2.7.1  do-clause -> private-clause |
 !                     firstprivate-clause |
 !                     lastprivate-clause |
@@ -181,7 +197,6 @@ use omp_lib
   enddo
 
   !ERROR: A modifier may not be specified in a LINEAR clause on the DO directive
-  !ERROR: Internal: no symbol found for 'b'
   !$omp do linear(ref(b))
   do i = 1, N
      a = 3.14
@@ -201,8 +216,6 @@ use omp_lib
 
   !ERROR: The parameter of the ORDERED clause must be a constant positive integer expression
   !ERROR: A loop directive may not have both a LINEAR clause and an ORDERED clause with a parameter
-  !ERROR: Internal: no symbol found for 'b'
-  !ERROR: Internal: no symbol found for 'a'
   !$omp do ordered(1-1) private(b) linear(b) linear(a)
   do i = 1, N
      a = 3.14
@@ -261,6 +274,17 @@ use omp_lib
   d = 2
   !ERROR: NUM_THREADS clause is not allowed on the END SECTIONS directive
   !$omp end sections num_threads(4)
+
+  !$omp parallel
+  !$omp sections
+    b = 1
+  !$omp section
+    c = 1
+    d = 2
+  !ERROR: At most one NOWAIT clause can appear on the END SECTIONS directive
+  !$omp end sections nowait nowait
+  !$omp end parallel
+
   !$omp end parallel
 
 ! 2.11.2 parallel-sections-clause -> parallel-clause |
@@ -342,7 +366,6 @@ use omp_lib
   enddo
 
   !ERROR: The ALIGNMENT parameter of the ALIGNED clause must be a constant positive integer expression
-  !ERROR: Internal: no symbol found for 'b'
   !$omp simd aligned(b:-2)
   do i = 1, N
      a = 3.14
@@ -361,7 +384,6 @@ use omp_lib
 
   !ERROR: At most one PROC_BIND clause can appear on the PARALLEL DO directive
   !ERROR: A modifier may not be specified in a LINEAR clause on the PARALLEL DO directive
-  !ERROR: Internal: no symbol found for 'b'
   !$omp parallel do proc_bind(master) proc_bind(close) linear(val(b))
   do i = 1, N
      a = 3.14
@@ -531,7 +553,6 @@ use omp_lib
 
   !ERROR: The parameter of the SIMDLEN clause must be a constant positive integer expression
   !ERROR: The ALIGNMENT parameter of the ALIGNED clause must be a constant positive integer expression
-  !ERROR: Internal: no symbol found for 'a'
   !$omp taskloop simd simdlen(-1) aligned(a:-2)
   do i = 1, N
      a = 3.14

@@ -12,10 +12,10 @@ func @composite_construct_vector(%arg0: f32, %arg1: f32, %arg2 : f32) -> vector<
 
 // -----
 
-func @composite_construct_struct(%arg0: vector<3xf32>, %arg1: !spv.array<4xf32>, %arg2 : !spv.struct<f32>) -> !spv.struct<vector<3xf32>, !spv.array<4xf32>, !spv.struct<f32>> {
-  // CHECK: spv.CompositeConstruct %arg0, %arg1, %arg2 : !spv.struct<vector<3xf32>, !spv.array<4 x f32>, !spv.struct<f32>>
-  %0 = spv.CompositeConstruct %arg0, %arg1, %arg2 : !spv.struct<vector<3xf32>, !spv.array<4xf32>, !spv.struct<f32>>
-  return %0: !spv.struct<vector<3xf32>, !spv.array<4xf32>, !spv.struct<f32>>
+func @composite_construct_struct(%arg0: vector<3xf32>, %arg1: !spv.array<4xf32>, %arg2 : !spv.struct<(f32)>) -> !spv.struct<(vector<3xf32>, !spv.array<4xf32>, !spv.struct<(f32)>)> {
+  // CHECK: spv.CompositeConstruct %arg0, %arg1, %arg2 : !spv.struct<(vector<3xf32>, !spv.array<4 x f32>, !spv.struct<(f32)>)>
+  %0 = spv.CompositeConstruct %arg0, %arg1, %arg2 : !spv.struct<(vector<3xf32>, !spv.array<4xf32>, !spv.struct<(f32)>)>
+  return %0: !spv.struct<(vector<3xf32>, !spv.array<4xf32>, !spv.struct<(f32)>)>
 }
 
 // -----
@@ -28,10 +28,10 @@ func @composite_construct_coopmatrix(%arg0 : f32) -> !spv.coopmatrix<8x16xf32, S
 
 // -----
 
-func @composite_construct_empty_struct() -> !spv.struct<> {
-  // CHECK: spv.CompositeConstruct : !spv.struct<>
-  %0 = spv.CompositeConstruct : !spv.struct<>
-  return %0: !spv.struct<>
+func @composite_construct_empty_struct() -> !spv.struct<()> {
+  // CHECK: spv.CompositeConstruct : !spv.struct<()>
+  %0 = spv.CompositeConstruct : !spv.struct<()>
+  return %0: !spv.struct<()>
 }
 
 // -----
@@ -80,9 +80,9 @@ func @composite_extract_array(%arg0: !spv.array<4xf32>) -> f32 {
 
 // -----
 
-func @composite_extract_struct(%arg0 : !spv.struct<f32, !spv.array<4xf32>>) -> f32 {
-  // CHECK: {{%.*}} = spv.CompositeExtract {{%.*}}[1 : i32, 2 : i32] : !spv.struct<f32, !spv.array<4 x f32>>
-  %0 = spv.CompositeExtract %arg0[1 : i32, 2 : i32] : !spv.struct<f32, !spv.array<4xf32>>
+func @composite_extract_struct(%arg0 : !spv.struct<(f32, !spv.array<4xf32>)>) -> f32 {
+  // CHECK: {{%.*}} = spv.CompositeExtract {{%.*}}[1 : i32, 2 : i32] : !spv.struct<(f32, !spv.array<4 x f32>)>
+  %0 = spv.CompositeExtract %arg0[1 : i32, 2 : i32] : !spv.struct<(f32, !spv.array<4xf32>)>
   return %0 : f32
 }
 
@@ -156,9 +156,9 @@ func @composite_extract_2D_array_out_of_bounds_access_2(%arg0: !spv.array<4x!spv
 
 // -----
 
-func @composite_extract_struct_element_out_of_bounds_access(%arg0 : !spv.struct<f32, !spv.array<4xf32>>) -> () {
-  // expected-error @+1 {{index 2 out of bounds for '!spv.struct<f32, !spv.array<4 x f32>>'}}
-  %0 = spv.CompositeExtract %arg0[2 : i32, 0 : i32] : !spv.struct<f32, !spv.array<4xf32>>
+func @composite_extract_struct_element_out_of_bounds_access(%arg0 : !spv.struct<(f32, !spv.array<4xf32>)>) -> () {
+  // expected-error @+1 {{index 2 out of bounds for '!spv.struct<(f32, !spv.array<4 x f32>)>'}}
+  %0 = spv.CompositeExtract %arg0[2 : i32, 0 : i32] : !spv.struct<(f32, !spv.array<4xf32>)>
   return
 }
 
@@ -216,10 +216,10 @@ func @composite_insert_array(%arg0: !spv.array<4xf32>, %arg1: f32) -> !spv.array
 
 // -----
 
-func @composite_insert_struct(%arg0: !spv.struct<!spv.array<4xf32>, f32>, %arg1: !spv.array<4xf32>) -> !spv.struct<!spv.array<4xf32>, f32> {
-  // CHECK: {{%.*}} = spv.CompositeInsert {{%.*}}, {{%.*}}[0 : i32] : !spv.array<4 x f32> into !spv.struct<!spv.array<4 x f32>, f32>
-  %0 = spv.CompositeInsert %arg1, %arg0[0 : i32] : !spv.array<4xf32> into !spv.struct<!spv.array<4xf32>, f32>
-  return %0: !spv.struct<!spv.array<4xf32>, f32>
+func @composite_insert_struct(%arg0: !spv.struct<(!spv.array<4xf32>, f32)>, %arg1: !spv.array<4xf32>) -> !spv.struct<(!spv.array<4xf32>, f32)> {
+  // CHECK: {{%.*}} = spv.CompositeInsert {{%.*}}, {{%.*}}[0 : i32] : !spv.array<4 x f32> into !spv.struct<(!spv.array<4 x f32>, f32)>
+  %0 = spv.CompositeInsert %arg1, %arg0[0 : i32] : !spv.array<4xf32> into !spv.struct<(!spv.array<4xf32>, f32)>
+  return %0: !spv.struct<(!spv.array<4xf32>, f32)>
 }
 
 // -----
@@ -260,4 +260,26 @@ func @composite_insert_invalid_result_type(%arg0: !spv.array<4xf32>, %arg1 : f32
   // expected-error @+1 {{result type should be the same as the composite type, but found '!spv.array<4 x f32>' vs '!spv.array<4 x f64>'}}
   %0 = "spv.CompositeInsert"(%arg1, %arg0) {indices = [0: i32]} : (f32, !spv.array<4xf32>) -> !spv.array<4xf64>
   return %0: !spv.array<4xf64>
+}
+
+// -----
+
+//===----------------------------------------------------------------------===//
+// spv.VectorExtractDynamic
+//===----------------------------------------------------------------------===//
+
+func @vector_dynamic_extract(%vec: vector<4xf32>, %id : i32) -> f32 {
+  // CHECK: spv.VectorExtractDynamic %{{.*}}[%{{.*}}] : vector<4xf32>, i32
+  %0 = spv.VectorExtractDynamic %vec[%id] : vector<4xf32>, i32
+  return %0 : f32
+}
+
+//===----------------------------------------------------------------------===//
+// spv.VectorInsertDynamic
+//===----------------------------------------------------------------------===//
+
+func @vector_dynamic_insert(%val: f32, %vec: vector<4xf32>, %id : i32) -> vector<4xf32> {
+  // CHECK: spv.VectorInsertDynamic %{{.*}}, %{{.*}}[%{{.*}}] : vector<4xf32>, i32
+  %0 = spv.VectorInsertDynamic %val, %vec[%id] : vector<4xf32>, i32
+  return %0 : vector<4xf32>
 }

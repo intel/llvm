@@ -1,16 +1,31 @@
-// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple %itanium_abi_triple -emit-llvm %s -o - | FileCheck %s --check-prefix CHECK --check-prefix OMP45
-// RUN: %clang_cc1 -fopenmp -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple %itanium_abi_triple -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple %itanium_abi_triple -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix CHECK --check-prefix OMP45
-// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple %itanium_abi_triple -emit-llvm %s -o - | FileCheck %s --check-prefix CHECK --check-prefix OMP50
-// RUN: %clang_cc1 -fopenmp -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple %itanium_abi_triple -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple %itanium_abi_triple -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix CHECK --check-prefix OMP50
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple x86_64-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix CHECK --check-prefix OMP45
+// RUN: %clang_cc1 -fopenmp -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple x86_64-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple x86_64-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix CHECK --check-prefix OMP45
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple x86_64-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix CHECK --check-prefix OMP50
+// RUN: %clang_cc1 -fopenmp -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple x86_64-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple x86_64-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix CHECK --check-prefix OMP50
 
-// RUN: %clang_cc1 -verify -fopenmp-simd -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple %itanium_abi_triple -emit-llvm %s -o - | FileCheck %s --check-prefix SIMD-ONLY
-// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple %itanium_abi_triple -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple %itanium_abi_triple -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix SIMD-ONLY
-// RUN: %clang_cc1 -verify -fopenmp-simd -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple %itanium_abi_triple -emit-llvm %s -o - | FileCheck %s --check-prefix SIMD-ONLY
-// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple %itanium_abi_triple -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple %itanium_abi_triple -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix SIMD-ONLY
+// RUN: %clang_cc1 -verify -fopenmp-simd -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple x86_64-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix SIMD-ONLY
+// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple x86_64-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple x86_64-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix SIMD-ONLY
+// RUN: %clang_cc1 -verify -fopenmp-simd -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple x86_64-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix SIMD-ONLY
+// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple x86_64-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple x86_64-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix SIMD-ONLY
+// SIMD-ONLY-NOT: {{__kmpc|__tgt}}
+
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple aarch64-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix CHECK --check-prefix OMP45
+// RUN: %clang_cc1 -fopenmp -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple aarch64-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple aarch64-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix CHECK --check-prefix OMP45
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple aarch64-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix CHECK --check-prefix OMP50
+// RUN: %clang_cc1 -fopenmp -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple aarch64-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple aarch64-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix CHECK --check-prefix OMP50
+
+// RUN: %clang_cc1 -verify -fopenmp-simd -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple aarch64-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix SIMD-ONLY
+// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple aarch64-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple aarch64-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix SIMD-ONLY
+// RUN: %clang_cc1 -verify -fopenmp-simd -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple aarch64-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix SIMD-ONLY
+// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple aarch64-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple aarch64-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix SIMD-ONLY
 // SIMD-ONLY-NOT: {{__kmpc|__tgt}}
 
 // expected-no-diagnostics
@@ -28,11 +43,11 @@ int Arg;
 
 // CHECK-LABEL: define {{.*}}void @{{.+}}gtid_test
 void gtid_test() {
-// CHECK: call void @__kmpc_push_target_tripcount(i64 -1, i64 100)
-// CHECK: call i{{[0-9]+}} @__tgt_target_teams_mapper(
+// CHECK: call void @__kmpc_push_target_tripcount(%struct.ident_t* @{{.+}}, i64 -1, i64 100)
+// CHECK: call i{{[0-9]+}} @__tgt_target_teams_mapper(%struct.ident_t* @{{.+}},
 // CHECK: call void [[OFFLOADING_FUN_0:@.+]](
-// CHECK: call void @__kmpc_push_target_tripcount(i64 -1, i64 100)
-// CHECK: call i{{[0-9]+}} @__tgt_target_teams_mapper(
+// CHECK: call void @__kmpc_push_target_tripcount(%struct.ident_t* @{{.+}}, i64 -1, i64 100)
+// CHECK: call i{{[0-9]+}} @__tgt_target_teams_mapper(%struct.ident_t* @{{.+}},
 // CHECK: call void [[OFFLOADING_FUN_1:@.+]](
 #ifdef OMP5
 #pragma omp target teams distribute parallel for simd if(simd: true) nontemporal(Arg)
@@ -95,13 +110,13 @@ int tmain(T Arg) {
 
 // CHECK-LABEL: define {{.*}}i{{[0-9]+}} @main()
 int main() {
-// CHECK: call void @__kmpc_push_target_tripcount(i64 -1, i64 100)
-// CHECK: call i{{[0-9]+}} @__tgt_target_teams_mapper(
+// CHECK: call void @__kmpc_push_target_tripcount(%struct.ident_t* @{{.+}}, i64 -1, i64 100)
+// CHECK: call i{{[0-9]+}} @__tgt_target_teams_mapper(%struct.ident_t* @{{.+}},
 // CHECK: call void [[OFFLOADING_FUN_0:@.+]](
-// CHECK-NOT: call void @__kmpc_push_target_tripcount(i64 -1, i64 100)
+// CHECK-NOT: call void @__kmpc_push_target_tripcount(%struct.ident_t* @{{.+}}, i64 -1, i64 100)
 // CHECK: call void [[OFFLOADING_FUN_1:@.+]](
-// CHECK: call void @__kmpc_push_target_tripcount(i64 -1, i64 100)
-// CHECK: call i{{[0-9]+}} @__tgt_target_teams_mapper(
+// CHECK: call void @__kmpc_push_target_tripcount(%struct.ident_t* @{{.+}}, i64 -1, i64 100)
+// CHECK: call i{{[0-9]+}} @__tgt_target_teams_mapper(%struct.ident_t* @{{.+}},
 // CHECK: call void [[OFFLOADING_FUN_2:@.+]](
 // CHECK: = call {{.*}}i{{.+}} @{{.+}}tmain
 #pragma omp target teams distribute parallel for simd if (true)

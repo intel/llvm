@@ -167,6 +167,8 @@ Operation::Operation(Location location, OperationName name,
     : location(location), numSuccs(numSuccessors), numRegions(numRegions),
       hasOperandStorage(hasOperandStorage), hasSingleResult(false), name(name),
       attrs(attributes) {
+  assert(llvm::all_of(resultTypes, [](Type t) { return t; }) &&
+         "unexpected null result type");
   if (!resultTypes.empty()) {
     // If there is a single result it is stored in-place, otherwise use a tuple.
     hasSingleResult = resultTypes.size() == 1;
@@ -394,7 +396,7 @@ void Operation::updateOrderIfNecessary() {
   // Check to see if there is a valid order between the two.
   if (prevOrder + 1 == nextOrder)
     return block->recomputeOpOrder();
-  orderIndex = prevOrder + 1 + ((nextOrder - prevOrder) / 2);
+  orderIndex = prevOrder + ((nextOrder - prevOrder) / 2);
 }
 
 //===----------------------------------------------------------------------===//
@@ -649,7 +651,7 @@ ParseResult OpState::parse(OpAsmParser &parser, OperationState &result) {
 }
 
 // The fallback for the printer is to print in the generic assembly form.
-void OpState::print(OpAsmPrinter &p) { p.printGenericOp(getOperation()); }
+void OpState::print(Operation *op, OpAsmPrinter &p) { p.printGenericOp(op); }
 
 /// Emit an error about fatal conditions with this operation, reporting up to
 /// any diagnostic handlers that may be listening.
@@ -678,6 +680,26 @@ InFlightDiagnostic OpState::emitRemark(const Twine &message) {
 //===----------------------------------------------------------------------===//
 // Op Trait implementations
 //===----------------------------------------------------------------------===//
+
+OpFoldResult OpTrait::impl::foldIdempotent(Operation *op) {
+  auto *argumentOp = op->getOperand(0).getDefiningOp();
+  if (argumentOp && op->getName() == argumentOp->getName()) {
+    // Replace the outer operation output with the inner operation.
+    return op->getOperand(0);
+  }
+
+  return {};
+}
+
+OpFoldResult OpTrait::impl::foldInvolution(Operation *op) {
+  auto *argumentOp = op->getOperand(0).getDefiningOp();
+  if (argumentOp && op->getName() == argumentOp->getName()) {
+    // Replace the outer involutions output with inner's input.
+    return argumentOp->getOperand(0);
+  }
+
+  return {};
+}
 
 LogicalResult OpTrait::impl::verifyZeroOperands(Operation *op) {
   if (op->getNumOperands() != 0)
@@ -718,6 +740,22 @@ static Type getTensorOrVectorElementType(Type type) {
   if (auto tensor = type.dyn_cast<TensorType>())
     return getTensorOrVectorElementType(tensor.getElementType());
   return type;
+}
+
+LogicalResult OpTrait::impl::verifyIsIdempotent(Operation *op) {
+  // FIXME: Add back check for no side effects on operation.
+  // Currently adding it would cause the shared library build
+  // to fail since there would be a dependency of IR on SideEffectInterfaces
+  // which is cyclical.
+  return success();
+}
+
+LogicalResult OpTrait::impl::verifyIsInvolution(Operation *op) {
+  // FIXME: Add back check for no side effects on operation.
+  // Currently adding it would cause the shared library build
+  // to fail since there would be a dependency of IR on SideEffectInterfaces
+  // which is cyclical.
+  return success();
 }
 
 LogicalResult
@@ -1029,6 +1067,57 @@ LogicalResult OpTrait::impl::verifyNoRegionArguments(Operation *op) {
         return op->emitOpError("region should have no arguments");
     }
   }
+  return success();
+}
+
+/// Checks if two ShapedTypes are the same, ignoring the element type.
+static bool areSameShapedTypeIgnoringElementType(ShapedType a, ShapedType b) {
+  if (a.getTypeID() != b.getTypeID())
+    return false;
+  if (!a.hasRank())
+    return !b.hasRank();
+  return a.getShape() == b.getShape();
+}
+
+LogicalResult OpTrait::impl::verifyElementwiseMappable(Operation *op) {
+  auto isMappableType = [](Type type) {
+    return type.isa<VectorType, TensorType>();
+  };
+  auto resultMappableTypes = llvm::to_vector<1>(
+      llvm::make_filter_range(op->getResultTypes(), isMappableType));
+  auto operandMappableTypes = llvm::to_vector<2>(
+      llvm::make_filter_range(op->getOperandTypes(), isMappableType));
+
+  // If the op only has scalar operand/result types, then we have nothing to
+  // check.
+  if (resultMappableTypes.empty() && operandMappableTypes.empty())
+    return success();
+
+  if (!resultMappableTypes.empty() && operandMappableTypes.empty())
+    return op->emitOpError("if a result is non-scalar, then at least one "
+                           "operand must be non-scalar");
+
+  assert(!operandMappableTypes.empty());
+
+  if (resultMappableTypes.empty())
+    return op->emitOpError("if an operand is non-scalar, then there must be at "
+                           "least one non-scalar result");
+
+  if (resultMappableTypes.size() != op->getNumResults())
+    return op->emitOpError(
+        "if an operand is non-scalar, then all results must be non-scalar");
+
+  auto mustMatchType = operandMappableTypes[0].cast<ShapedType>();
+  for (auto type :
+       llvm::concat<Type>(resultMappableTypes, operandMappableTypes)) {
+    if (!areSameShapedTypeIgnoringElementType(type.cast<ShapedType>(),
+                                              mustMatchType)) {
+      return op->emitOpError() << "all non-scalar operands/results must have "
+                                  "the same shape and base type: found "
+                               << type << " and " << mustMatchType;
+    }
+  }
+
   return success();
 }
 

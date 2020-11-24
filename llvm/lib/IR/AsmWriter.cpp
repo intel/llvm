@@ -116,6 +116,15 @@ struct OrderMap {
 
 } // end anonymous namespace
 
+/// Look for a value that might be wrapped as metadata, e.g. a value in a
+/// metadata operand. Returns the input value as-is if it is not wrapped.
+static const Value *skipMetadataWrapper(const Value *V) {
+  if (const auto *MAV = dyn_cast<MetadataAsValue>(V))
+    if (const auto *VAM = dyn_cast<ValueAsMetadata>(MAV->getMetadata()))
+      return VAM->getValue();
+  return V;
+}
+
 static void orderValue(const Value *V, OrderMap &OM) {
   if (OM.lookup(V).first)
     return;
@@ -132,8 +141,6 @@ static void orderValue(const Value *V, OrderMap &OM) {
 }
 
 static OrderMap orderModule(const Module *M) {
-  // This needs to match the order used by ValueEnumerator::ValueEnumerator()
-  // and ValueEnumerator::incorporateFunction().
   OrderMap OM;
 
   for (const GlobalVariable &G : M->globals()) {
@@ -167,10 +174,12 @@ static OrderMap orderModule(const Module *M) {
     for (const BasicBlock &BB : F) {
       orderValue(&BB, OM);
       for (const Instruction &I : BB) {
-        for (const Value *Op : I.operands())
+        for (const Value *Op : I.operands()) {
+          Op = skipMetadataWrapper(Op);
           if ((isa<Constant>(*Op) && !isa<GlobalValue>(*Op)) ||
               isa<InlineAsm>(*Op))
             orderValue(Op, OM);
+        }
         orderValue(&I, OM);
       }
     }
@@ -284,9 +293,11 @@ static UseListOrderStack predictUseListOrder(const Module *M) {
       predictValueUseListOrder(&A, &F, OM, Stack);
     for (const BasicBlock &BB : F)
       for (const Instruction &I : BB)
-        for (const Value *Op : I.operands())
+        for (const Value *Op : I.operands()) {
+          Op = skipMetadataWrapper(Op);
           if (isa<Constant>(*Op) || isa<InlineAsm>(*Op)) // Visit GlobalValues.
             predictValueUseListOrder(Op, &F, OM, Stack);
+        }
     for (const BasicBlock &BB : F)
       for (const Instruction &I : BB)
         predictValueUseListOrder(&I, &F, OM, Stack);
@@ -388,6 +399,7 @@ static void PrintCallingConv(unsigned cc, raw_ostream &Out) {
   case CallingConv::AMDGPU_PS:     Out << "amdgpu_ps"; break;
   case CallingConv::AMDGPU_CS:     Out << "amdgpu_cs"; break;
   case CallingConv::AMDGPU_KERNEL: Out << "amdgpu_kernel"; break;
+  case CallingConv::AMDGPU_Gfx:    Out << "amdgpu_gfx"; break;
   }
 }
 
@@ -1443,6 +1455,13 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
     return;
   }
 
+  if (const auto *Equiv = dyn_cast<DSOLocalEquivalent>(CV)) {
+    Out << "dso_local_equivalent ";
+    WriteAsOperandInternal(Out, Equiv->getGlobalValue(), &TypePrinter, Machine,
+                           Context);
+    return;
+  }
+
   if (const ConstantArray *CA = dyn_cast<ConstantArray>(CV)) {
     Type *ETy = CA->getType()->getElementType();
     Out << '[';
@@ -1899,6 +1918,57 @@ static void writeDISubrange(raw_ostream &Out, const DISubrange *N,
   Out << ")";
 }
 
+static void writeDIGenericSubrange(raw_ostream &Out, const DIGenericSubrange *N,
+                                   TypePrinting *TypePrinter,
+                                   SlotTracker *Machine,
+                                   const Module *Context) {
+  Out << "!DIGenericSubrange(";
+  MDFieldPrinter Printer(Out, TypePrinter, Machine, Context);
+
+  auto IsConstant = [&](Metadata *Bound) -> bool {
+    if (auto *BE = dyn_cast_or_null<DIExpression>(Bound)) {
+      return BE->isSignedConstant();
+    }
+    return false;
+  };
+
+  auto GetConstant = [&](Metadata *Bound) -> int64_t {
+    assert(IsConstant(Bound) && "Expected constant");
+    auto *BE = dyn_cast_or_null<DIExpression>(Bound);
+    return static_cast<int64_t>(BE->getElement(1));
+  };
+
+  auto *Count = N->getRawCountNode();
+  if (IsConstant(Count))
+    Printer.printInt("count", GetConstant(Count),
+                     /* ShouldSkipZero */ false);
+  else
+    Printer.printMetadata("count", Count, /*ShouldSkipNull */ true);
+
+  auto *LBound = N->getRawLowerBound();
+  if (IsConstant(LBound))
+    Printer.printInt("lowerBound", GetConstant(LBound),
+                     /* ShouldSkipZero */ false);
+  else
+    Printer.printMetadata("lowerBound", LBound, /*ShouldSkipNull */ true);
+
+  auto *UBound = N->getRawUpperBound();
+  if (IsConstant(UBound))
+    Printer.printInt("upperBound", GetConstant(UBound),
+                     /* ShouldSkipZero */ false);
+  else
+    Printer.printMetadata("upperBound", UBound, /*ShouldSkipNull */ true);
+
+  auto *Stride = N->getRawStride();
+  if (IsConstant(Stride))
+    Printer.printInt("stride", GetConstant(Stride),
+                     /* ShouldSkipZero */ false);
+  else
+    Printer.printMetadata("stride", Stride, /*ShouldSkipNull */ true);
+
+  Out << ")";
+}
+
 static void writeDIEnumerator(raw_ostream &Out, const DIEnumerator *N,
                               TypePrinting *, SlotTracker *, const Module *) {
   Out << "!DIEnumerator(";
@@ -1991,6 +2061,11 @@ static void writeDICompositeType(raw_ostream &Out, const DICompositeType *N,
   Printer.printMetadata("dataLocation", N->getRawDataLocation());
   Printer.printMetadata("associated", N->getRawAssociated());
   Printer.printMetadata("allocated", N->getRawAllocated());
+  if (auto *RankConst = N->getRankConst())
+    Printer.printInt("rank", RankConst->getSExtValue(),
+                     /* ShouldSkipZero */ false);
+  else
+    Printer.printMetadata("rank", N->getRawRank(), /*ShouldSkipNull */ true);
   Out << ")";
 }
 
@@ -4298,12 +4373,15 @@ void AssemblyWriter::writeAttribute(const Attribute &Attr, bool InAttrGroup) {
   }
 
   assert((Attr.hasAttribute(Attribute::ByVal) ||
+          Attr.hasAttribute(Attribute::StructRet) ||
           Attr.hasAttribute(Attribute::ByRef) ||
           Attr.hasAttribute(Attribute::Preallocated)) &&
          "unexpected type attr");
 
   if (Attr.hasAttribute(Attribute::ByVal)) {
     Out << "byval";
+  } else if (Attr.hasAttribute(Attribute::StructRet)) {
+    Out << "sret";
   } else if (Attr.hasAttribute(Attribute::ByRef)) {
     Out << "byref";
   } else {
@@ -4398,7 +4476,7 @@ void Function::print(raw_ostream &ROS, AssemblyAnnotationWriter *AAW,
 void BasicBlock::print(raw_ostream &ROS, AssemblyAnnotationWriter *AAW,
                      bool ShouldPreserveUseListOrder,
                      bool IsForDebug) const {
-  SlotTracker SlotTable(this->getModule());
+  SlotTracker SlotTable(this->getParent());
   formatted_raw_ostream OS(ROS);
   AssemblyWriter W(OS, SlotTable, this->getModule(), AAW,
                    IsForDebug,

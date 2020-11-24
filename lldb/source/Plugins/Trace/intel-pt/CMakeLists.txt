@@ -9,9 +9,16 @@ include_directories(${LIBIPT_INCLUDE_PATH})
 
 find_library(LIBIPT_LIBRARY ipt PATHS ${LIBIPT_LIBRARY_PATH} REQUIRED)
 
+lldb_tablegen(TraceIntelPTCommandOptions.inc -gen-lldb-option-defs
+  SOURCE TraceIntelPTOptions.td
+  TARGET TraceIntelPTOptionsGen)
+
 add_lldb_library(lldbPluginTraceIntelPT PLUGIN
+  CommandObjectTraceStartIntelPT.cpp
+  DecodedThread.cpp
+  IntelPTDecoder.cpp
   TraceIntelPT.cpp
-  TraceIntelPTSettingsParser.cpp
+  TraceIntelPTSessionFileParser.cpp
 
   LINK_LIBS
     lldbCore
@@ -21,3 +28,6 @@ add_lldb_library(lldbPluginTraceIntelPT PLUGIN
   LINK_COMPONENTS
     Support
   )
+
+
+add_dependencies(lldbPluginTraceIntelPT TraceIntelPTOptionsGen)

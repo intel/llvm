@@ -1702,17 +1702,19 @@ void PPCAIXAsmPrinter::emitLinkage(const GlobalValue *GV,
   assert(LinkageAttr != MCSA_Invalid && "LinkageAttr should not MCSA_Invalid.");
 
   MCSymbolAttr VisibilityAttr = MCSA_Invalid;
-  switch (GV->getVisibility()) {
+  if (!TM.getIgnoreXCOFFVisibility()) {
+    switch (GV->getVisibility()) {
 
-  // TODO: "exported" and "internal" Visibility needs to go here.
-  case GlobalValue::DefaultVisibility:
-    break;
-  case GlobalValue::HiddenVisibility:
-    VisibilityAttr = MAI->getHiddenVisibilityAttr();
-    break;
-  case GlobalValue::ProtectedVisibility:
-    VisibilityAttr = MAI->getProtectedVisibilityAttr();
-    break;
+    // TODO: "exported" and "internal" Visibility needs to go here.
+    case GlobalValue::DefaultVisibility:
+      break;
+    case GlobalValue::HiddenVisibility:
+      VisibilityAttr = MAI->getHiddenVisibilityAttr();
+      break;
+    case GlobalValue::ProtectedVisibility:
+      VisibilityAttr = MAI->getProtectedVisibilityAttr();
+      break;
+    }
   }
 
   OutStreamer->emitXCOFFSymbolLinkageWithVisibility(GVSym, LinkageAttr,
@@ -1735,9 +1737,6 @@ void PPCAIXAsmPrinter::ValidateGV(const GlobalVariable *GV) {
   // Early error checking limiting what is supported.
   if (GV->isThreadLocal())
     report_fatal_error("Thread local not yet supported on AIX.");
-
-  if (GV->hasSection())
-    report_fatal_error("Custom section for Data not yet supported.");
 
   if (GV->hasComdat())
     report_fatal_error("COMDAT not yet supported by AIX.");
@@ -1809,10 +1808,12 @@ void PPCAIXAsmPrinter::emitGlobalVariable(const GlobalVariable *GV) {
   MCSymbol *EmittedInitSym = GVSym;
   emitLinkage(GV, EmittedInitSym);
   emitAlignment(getGVAlignment(GV, DL), GV);
+
   // When -fdata-sections is enabled, every GlobalVariable will
   // be put into its own csect; therefore, label is not necessary here.
-  if (!TM.getDataSections())
+  if (!TM.getDataSections() || GV->hasSection()) {
     OutStreamer->emitLabel(EmittedInitSym);
+  }
 
   // Emit aliasing label for global variable.
   llvm::for_each(GOAliasMap[GV], [this](const GlobalAlias *Alias) {

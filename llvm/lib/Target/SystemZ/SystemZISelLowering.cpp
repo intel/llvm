@@ -164,6 +164,8 @@ SystemZTargetLowering::SystemZTargetLowering(const TargetMachine &TM,
        ++I) {
     MVT VT = MVT::SimpleValueType(I);
     if (isTypeLegal(VT)) {
+      setOperationAction(ISD::ABS, VT, Legal);
+
       // Expand individual DIV and REMs into DIVREMs.
       setOperationAction(ISD::SDIV, VT, Expand);
       setOperationAction(ISD::UDIV, VT, Expand);
@@ -358,6 +360,7 @@ SystemZTargetLowering::SystemZTargetLowering(const TargetMachine &TM,
       setOperationAction(ISD::SUB, VT, Legal);
       if (VT != MVT::v2i64)
         setOperationAction(ISD::MUL, VT, Legal);
+      setOperationAction(ISD::ABS, VT, Legal);
       setOperationAction(ISD::AND, VT, Legal);
       setOperationAction(ISD::OR, VT, Legal);
       setOperationAction(ISD::XOR, VT, Legal);
@@ -784,10 +787,11 @@ bool SystemZVectorConstantInfo::isVectorConstantLegal(
 SystemZVectorConstantInfo::SystemZVectorConstantInfo(APFloat FPImm) {
   IntBits = FPImm.bitcastToAPInt().zextOrSelf(128);
   isFP128 = (&FPImm.getSemantics() == &APFloat::IEEEquad());
-
-  // Find the smallest splat.
   SplatBits = FPImm.bitcastToAPInt();
   unsigned Width = SplatBits.getBitWidth();
+  IntBits <<= (SystemZ::VectorBits - Width);
+
+  // Find the smallest splat.
   while (Width > 8) {
     unsigned HalfSize = Width / 2;
     APInt HighValue = SplatBits.lshr(HalfSize).trunc(HalfSize);
@@ -981,16 +985,16 @@ bool SystemZTargetLowering::isLegalAddressingMode(const DataLayout &DL,
 bool SystemZTargetLowering::isTruncateFree(Type *FromType, Type *ToType) const {
   if (!FromType->isIntegerTy() || !ToType->isIntegerTy())
     return false;
-  unsigned FromBits = FromType->getPrimitiveSizeInBits();
-  unsigned ToBits = ToType->getPrimitiveSizeInBits();
+  unsigned FromBits = FromType->getPrimitiveSizeInBits().getFixedSize();
+  unsigned ToBits = ToType->getPrimitiveSizeInBits().getFixedSize();
   return FromBits > ToBits;
 }
 
 bool SystemZTargetLowering::isTruncateFree(EVT FromVT, EVT ToVT) const {
   if (!FromVT.isInteger() || !ToVT.isInteger())
     return false;
-  unsigned FromBits = FromVT.getSizeInBits();
-  unsigned ToBits = ToVT.getSizeInBits();
+  unsigned FromBits = FromVT.getFixedSizeInBits();
+  unsigned ToBits = ToVT.getFixedSizeInBits();
   return FromBits > ToBits;
 }
 
@@ -2285,7 +2289,8 @@ static void adjustICmpTruncate(SelectionDAG &DAG, const SDLoc &DL,
       C.Op1.getOpcode() == ISD::Constant &&
       cast<ConstantSDNode>(C.Op1)->getZExtValue() == 0) {
     auto *L = cast<LoadSDNode>(C.Op0.getOperand(0));
-    if (L->getMemoryVT().getStoreSizeInBits() <= C.Op0.getValueSizeInBits()) {
+    if (L->getMemoryVT().getStoreSizeInBits().getFixedSize() <=
+        C.Op0.getValueSizeInBits().getFixedSize()) {
       unsigned Type = L->getExtensionType();
       if ((Type == ISD::ZEXTLOAD && C.ICmpType != SystemZICMP::SignedOnly) ||
           (Type == ISD::SEXTLOAD && C.ICmpType != SystemZICMP::UnsignedOnly)) {
@@ -2958,7 +2963,7 @@ static bool isAbsolute(SDValue CmpOp, SDValue Pos, SDValue Neg) {
 // Return the absolute or negative absolute of Op; IsNegative decides which.
 static SDValue getAbsolute(SelectionDAG &DAG, const SDLoc &DL, SDValue Op,
                            bool IsNegative) {
-  Op = DAG.getNode(SystemZISD::IABS, DL, Op.getValueType(), Op);
+  Op = DAG.getNode(ISD::ABS, DL, Op.getValueType(), Op);
   if (IsNegative)
     Op = DAG.getNode(ISD::SUB, DL, Op.getValueType(),
                      DAG.getConstant(0, DL, Op.getValueType()), Op);
@@ -3421,7 +3426,7 @@ lowerDYNAMIC_STACKALLOC(SDValue Op, SelectionDAG &DAG) const {
   uint64_t RequiredAlign = std::max(AlignVal, StackAlign);
   uint64_t ExtraAlignSpace = RequiredAlign - StackAlign;
 
-  unsigned SPReg = getStackPointerRegisterToSaveRestore();
+  Register SPReg = getStackPointerRegisterToSaveRestore();
   SDValue NeededSpace = Size;
 
   // Get a reference to the stack pointer.
@@ -5557,7 +5562,6 @@ const char *SystemZTargetLowering::getTargetNodeName(unsigned Opcode) const {
     OPCODE(TLS_LDCALL);
     OPCODE(PCREL_WRAPPER);
     OPCODE(PCREL_OFFSET);
-    OPCODE(IABS);
     OPCODE(ICMP);
     OPCODE(FCMP);
     OPCODE(STRICT_FCMP);
@@ -6815,8 +6819,7 @@ static void computeKnownBitsBinOp(const SDValue Op, KnownBits &Known,
       DAG.computeKnownBits(Op.getOperand(OpNo), Src0DemE, Depth + 1);
   KnownBits RHSKnown =
       DAG.computeKnownBits(Op.getOperand(OpNo + 1), Src1DemE, Depth + 1);
-  Known.Zero = LHSKnown.Zero & RHSKnown.Zero;
-  Known.One = LHSKnown.One & RHSKnown.One;
+  Known = KnownBits::commonBits(LHSKnown, RHSKnown);
 }
 
 void

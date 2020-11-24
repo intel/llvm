@@ -35,20 +35,23 @@ namespace object {
 class WasmSymbol {
 public:
   WasmSymbol(const wasm::WasmSymbolInfo &Info,
-             const wasm::WasmGlobalType *GlobalType,
+             const wasm::WasmGlobalType *GlobalType, const uint8_t TableType,
              const wasm::WasmEventType *EventType,
              const wasm::WasmSignature *Signature)
-      : Info(Info), GlobalType(GlobalType), EventType(EventType),
-        Signature(Signature) {}
+      : Info(Info), GlobalType(GlobalType), TableType(TableType),
+        EventType(EventType), Signature(Signature) {}
 
   const wasm::WasmSymbolInfo &Info;
   const wasm::WasmGlobalType *GlobalType;
+  const uint8_t TableType;
   const wasm::WasmEventType *EventType;
   const wasm::WasmSignature *Signature;
 
   bool isTypeFunction() const {
     return Info.Kind == wasm::WASM_SYMBOL_TYPE_FUNCTION;
   }
+
+  bool isTypeTable() const { return Info.Kind == wasm::WASM_SYMBOL_TYPE_TABLE; }
 
   bool isTypeData() const { return Info.Kind == wasm::WASM_SYMBOL_TYPE_DATA; }
 
@@ -146,9 +149,10 @@ public:
   ArrayRef<wasm::WasmElemSegment> elements() const { return ElemSegments; }
   ArrayRef<WasmSegment> dataSegments() const { return DataSegments; }
   ArrayRef<wasm::WasmFunction> functions() const { return Functions; }
-  ArrayRef<wasm::WasmFunctionName> debugNames() const { return DebugNames; }
+  ArrayRef<wasm::WasmDebugName> debugNames() const { return DebugNames; }
   uint32_t startFunction() const { return StartFunction; }
   uint32_t getNumImportedGlobals() const { return NumImportedGlobals; }
+  uint32_t getNumImportedTables() const { return NumImportedTables; }
   uint32_t getNumImportedFunctions() const { return NumImportedFunctions; }
   uint32_t getNumImportedEvents() const { return NumImportedEvents; }
   uint32_t getNumSections() const { return Sections.size(); }
@@ -214,10 +218,13 @@ private:
   bool isValidFunctionIndex(uint32_t Index) const;
   bool isDefinedFunctionIndex(uint32_t Index) const;
   bool isValidGlobalIndex(uint32_t Index) const;
+  bool isValidTableIndex(uint32_t Index) const;
   bool isDefinedGlobalIndex(uint32_t Index) const;
+  bool isDefinedTableIndex(uint32_t Index) const;
   bool isValidEventIndex(uint32_t Index) const;
   bool isDefinedEventIndex(uint32_t Index) const;
   bool isValidFunctionSymbol(uint32_t Index) const;
+  bool isValidTableSymbol(uint32_t Index) const;
   bool isValidGlobalSymbol(uint32_t Index) const;
   bool isValidEventSymbol(uint32_t Index) const;
   bool isValidDataSymbol(uint32_t Index) const;
@@ -277,7 +284,7 @@ private:
   llvm::Optional<size_t> DataCount;
   std::vector<wasm::WasmFunction> Functions;
   std::vector<WasmSymbol> Symbols;
-  std::vector<wasm::WasmFunctionName> DebugNames;
+  std::vector<wasm::WasmDebugName> DebugNames;
   uint32_t StartFunction = -1;
   bool HasLinkingSection = false;
   bool HasDylinkSection = false;
@@ -285,6 +292,7 @@ private:
   bool HasMemory64 = false;
   wasm::WasmLinkingData LinkingData;
   uint32_t NumImportedGlobals = 0;
+  uint32_t NumImportedTables = 0;
   uint32_t NumImportedFunctions = 0;
   uint32_t NumImportedEvents = 0;
   uint32_t CodeSection = 0;

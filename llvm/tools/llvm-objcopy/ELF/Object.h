@@ -390,8 +390,8 @@ public:
   Segment *ParentSegment = nullptr;
   uint64_t HeaderOffset = 0;
   uint32_t Index = 0;
-  bool HasSymbol = false;
 
+  uint32_t OriginalIndex = 0;
   uint64_t OriginalFlags = 0;
   uint64_t OriginalType = ELF::SHT_NULL;
   uint64_t OriginalOffset = std::numeric_limits<uint64_t>::max();
@@ -407,6 +407,7 @@ public:
   uint64_t Size = 0;
   uint64_t Type = ELF::SHT_NULL;
   ArrayRef<uint8_t> OriginalData;
+  bool HasSymbol = false;
 
   SectionBase() = default;
   SectionBase(const SectionBase &) = default;
@@ -435,9 +436,9 @@ private:
     bool operator()(const SectionBase *Lhs, const SectionBase *Rhs) const {
       // Some sections might have the same address if one of them is empty. To
       // fix this we can use the lexicographic ordering on ->Addr and the
-      // address of the actully stored section.
+      // original index.
       if (Lhs->OriginalOffset == Rhs->OriginalOffset)
-        return Lhs < Rhs;
+        return Lhs->OriginalIndex < Rhs->OriginalIndex;
       return Lhs->OriginalOffset < Rhs->OriginalOffset;
     }
   };
@@ -484,7 +485,8 @@ public:
 
   Error accept(SectionVisitor &Visitor) const override;
   Error accept(MutableSectionVisitor &Visitor) override;
-  Error removeSectionReferences(bool AllowBrokenLinks,
+  Error removeSectionReferences(
+      bool AllowBrokenLinks,
       function_ref<bool(const SectionBase *)> ToRemove) override;
   Error initialize(SectionTableRef SecTable) override;
   void finalize() override;
@@ -647,13 +649,13 @@ public:
   virtual ~SectionIndexSection() {}
   void addIndex(uint32_t Index) {
     assert(Size > 0);
-    Indexes.push_back(Index);    
+    Indexes.push_back(Index);
   }
 
   void reserve(size_t NumSymbols) {
     Indexes.reserve(NumSymbols);
     Size = NumSymbols * 4;
-  }  
+  }
   void setSymTab(SymbolTableSection *SymTab) { Symbols = SymTab; }
   Error initialize(SectionTableRef SecTable) override;
   void finalize() override;
@@ -700,7 +702,8 @@ public:
   Expected<Symbol *> getSymbolByIndex(uint32_t Index);
   void updateSymbols(function_ref<void(Symbol &)> Callable);
 
-  Error removeSectionReferences(bool AllowBrokenLinks,
+  Error removeSectionReferences(
+      bool AllowBrokenLinks,
       function_ref<bool(const SectionBase *)> ToRemove) override;
   Error initialize(SectionTableRef SecTable) override;
   void finalize() override;
@@ -770,7 +773,8 @@ public:
   void addRelocation(Relocation Rel) { Relocations.push_back(Rel); }
   Error accept(SectionVisitor &Visitor) const override;
   Error accept(MutableSectionVisitor &Visitor) override;
-  Error removeSectionReferences(bool AllowBrokenLinks,
+  Error removeSectionReferences(
+      bool AllowBrokenLinks,
       function_ref<bool(const SectionBase *)> ToRemove) override;
   Error removeSymbols(function_ref<bool(const Symbol &)> ToRemove) override;
   void markSymbols() override;

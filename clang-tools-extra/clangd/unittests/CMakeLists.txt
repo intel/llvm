@@ -51,6 +51,7 @@ add_unittest(ClangdUnitTests ClangdTests
   DexTests.cpp
   DiagnosticsTests.cpp
   DraftStoreTests.cpp
+  DumpASTTests.cpp
   ExpectedTypeTest.cpp
   FileDistanceTests.cpp
   FileIndexTests.cpp
@@ -88,6 +89,7 @@ add_unittest(ClangdUnitTests ClangdTests
   TestFS.cpp
   TestIndex.cpp
   TestTU.cpp
+  TestWorkspace.cpp
   TypeHierarchyTests.cpp
   TweakTests.cpp
   TweakTesting.cpp
@@ -99,6 +101,7 @@ add_unittest(ClangdUnitTests ClangdTests
   support/ContextTests.cpp
   support/FunctionTests.cpp
   support/MarkupTests.cpp
+  support/MemoryTreeTests.cpp
   support/ThreadingTests.cpp
   support/TestTracer.cpp
   support/TraceTests.cpp

@@ -440,7 +440,7 @@ ClassTemplateDecl::getSpecializations() const {
 }
 
 llvm::FoldingSetVector<ClassTemplatePartialSpecializationDecl> &
-ClassTemplateDecl::getPartialSpecializations() {
+ClassTemplateDecl::getPartialSpecializations() const {
   LoadLazySpecializations();
   return getCommonPtr()->PartialSpecializations;
 }
@@ -528,7 +528,7 @@ void ClassTemplateDecl::AddPartialSpecialization(
 }
 
 void ClassTemplateDecl::getPartialSpecializations(
-          SmallVectorImpl<ClassTemplatePartialSpecializationDecl *> &PS) {
+    SmallVectorImpl<ClassTemplatePartialSpecializationDecl *> &PS) const {
   llvm::FoldingSetVector<ClassTemplatePartialSpecializationDecl> &PartialSpecs
     = getPartialSpecializations();
   PS.clear();
@@ -914,10 +914,14 @@ void ClassTemplateSpecializationDecl::getNameForDiagnostic(
   const auto *PS = dyn_cast<ClassTemplatePartialSpecializationDecl>(this);
   if (const ASTTemplateArgumentListInfo *ArgsAsWritten =
           PS ? PS->getTemplateArgsAsWritten() : nullptr) {
-    printTemplateArgumentList(OS, ArgsAsWritten->arguments(), Policy);
+    printTemplateArgumentList(
+        OS, ArgsAsWritten->arguments(), Policy,
+        getSpecializedTemplate()->getTemplateParameters());
   } else {
     const TemplateArgumentList &TemplateArgs = getTemplateArgs();
-    printTemplateArgumentList(OS, TemplateArgs.asArray(), Policy);
+    printTemplateArgumentList(
+        OS, TemplateArgs.asArray(), Policy,
+        getSpecializedTemplate()->getTemplateParameters());
   }
 }
 
@@ -1142,7 +1146,7 @@ VarTemplateDecl::getSpecializations() const {
 }
 
 llvm::FoldingSetVector<VarTemplatePartialSpecializationDecl> &
-VarTemplateDecl::getPartialSpecializations() {
+VarTemplateDecl::getPartialSpecializations() const {
   LoadLazySpecializations();
   return getCommonPtr()->PartialSpecializations;
 }
@@ -1198,7 +1202,7 @@ void VarTemplateDecl::AddPartialSpecialization(
 }
 
 void VarTemplateDecl::getPartialSpecializations(
-    SmallVectorImpl<VarTemplatePartialSpecializationDecl *> &PS) {
+    SmallVectorImpl<VarTemplatePartialSpecializationDecl *> &PS) const {
   llvm::FoldingSetVector<VarTemplatePartialSpecializationDecl> &PartialSpecs =
       getPartialSpecializations();
   PS.clear();
@@ -1261,10 +1265,14 @@ void VarTemplateSpecializationDecl::getNameForDiagnostic(
   const auto *PS = dyn_cast<VarTemplatePartialSpecializationDecl>(this);
   if (const ASTTemplateArgumentListInfo *ArgsAsWritten =
           PS ? PS->getTemplateArgsAsWritten() : nullptr) {
-    printTemplateArgumentList(OS, ArgsAsWritten->arguments(), Policy);
+    printTemplateArgumentList(
+        OS, ArgsAsWritten->arguments(), Policy,
+        getSpecializedTemplate()->getTemplateParameters());
   } else {
     const TemplateArgumentList &TemplateArgs = getTemplateArgs();
-    printTemplateArgumentList(OS, TemplateArgs.asArray(), Policy);
+    printTemplateArgumentList(
+        OS, TemplateArgs.asArray(), Policy,
+        getSpecializedTemplate()->getTemplateParameters());
   }
 }
 
@@ -1430,4 +1438,37 @@ void TypeConstraint::print(llvm::raw_ostream &OS, PrintingPolicy Policy) const {
       ArgLoc.getArgument().print(Policy, OS);
     OS << ">";
   }
+}
+
+TemplateParamObjectDecl *TemplateParamObjectDecl::Create(const ASTContext &C,
+                                                         QualType T,
+                                                         const APValue &V) {
+  DeclContext *DC = C.getTranslationUnitDecl();
+  auto *TPOD = new (C, DC) TemplateParamObjectDecl(DC, T, V);
+  C.addDestruction(&TPOD->Value);
+  return TPOD;
+}
+
+TemplateParamObjectDecl *
+TemplateParamObjectDecl::CreateDeserialized(ASTContext &C, unsigned ID) {
+  auto *TPOD = new (C, ID) TemplateParamObjectDecl(nullptr, QualType(), APValue());
+  C.addDestruction(&TPOD->Value);
+  return TPOD;
+}
+
+void TemplateParamObjectDecl::printName(llvm::raw_ostream &OS) const {
+  OS << "<template param ";
+  printAsExpr(OS);
+  OS << ">";
+}
+
+void TemplateParamObjectDecl::printAsExpr(llvm::raw_ostream &OS) const {
+  const ASTContext &Ctx = getASTContext();
+  getType().getUnqualifiedType().print(OS, Ctx.getPrintingPolicy());
+  printAsInit(OS);
+}
+
+void TemplateParamObjectDecl::printAsInit(llvm::raw_ostream &OS) const {
+  const ASTContext &Ctx = getASTContext();
+  getValue().printPretty(OS, Ctx, getType());
 }

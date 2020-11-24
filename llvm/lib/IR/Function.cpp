@@ -43,6 +43,7 @@
 #include "llvm/IR/IntrinsicsR600.h"
 #include "llvm/IR/IntrinsicsRISCV.h"
 #include "llvm/IR/IntrinsicsS390.h"
+#include "llvm/IR/IntrinsicsVE.h"
 #include "llvm/IR/IntrinsicsWebAssembly.h"
 #include "llvm/IR/IntrinsicsX86.h"
 #include "llvm/IR/IntrinsicsXCore.h"
@@ -640,8 +641,12 @@ static const char * const IntrinsicNameTable[] = {
 #include "llvm/IR/IntrinsicImpl.inc"
 #undef GET_INTRINSIC_TARGET_DATA
 
+bool Function::isTargetIntrinsic(Intrinsic::ID IID) {
+  return IID > TargetInfos[0].Count;
+}
+
 bool Function::isTargetIntrinsic() const {
-  return IntID > TargetInfos[0].Count;
+  return isTargetIntrinsic(IntID);
 }
 
 /// Find the segment of \c IntrinsicNameTable for intrinsics with the same
@@ -834,7 +839,8 @@ enum IIT_Info {
   IIT_VEC_OF_BITCASTS_TO_INT = 46,
   IIT_V128 = 47,
   IIT_BF16 = 48,
-  IIT_STRUCT9 = 49
+  IIT_STRUCT9 = 49,
+  IIT_V256 = 50
 };
 
 static void DecodeIITType(unsigned &NextElt, ArrayRef<unsigned char> Infos,
@@ -926,6 +932,10 @@ static void DecodeIITType(unsigned &NextElt, ArrayRef<unsigned char> Infos,
     return;
   case IIT_V128:
     OutputTable.push_back(IITDescriptor::getVector(128, IsScalableVector));
+    DecodeIITType(NextElt, Infos, Info, OutputTable);
+    return;
+  case IIT_V256:
+    OutputTable.push_back(IITDescriptor::getVector(256, IsScalableVector));
     DecodeIITType(NextElt, Infos, Info, OutputTable);
     return;
   case IIT_V512:

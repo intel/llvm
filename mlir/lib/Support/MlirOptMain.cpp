@@ -14,11 +14,11 @@
 #include "mlir/Support/MlirOptMain.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/Location.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/Module.h"
 #include "mlir/Parser.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
@@ -58,11 +58,17 @@ static LogicalResult performActions(raw_ostream &os, bool verifyDiagnostics,
     return failure();
 
   // Apply any pass manager command line options.
-  PassManager pm(context, verifyPasses);
+  PassManager pm(context, OpPassManager::Nesting::Implicit);
+  pm.enableVerifier(verifyPasses);
   applyPassManagerCLOptions(pm);
 
+  auto errorHandler = [&](const Twine &msg) {
+    emitError(UnknownLoc::get(context)) << msg;
+    return failure();
+  };
+
   // Build the provided pipeline.
-  if (failed(passPipeline.addToPipeline(pm)))
+  if (failed(passPipeline.addToPipeline(pm, errorHandler)))
     return failure();
 
   // Run the pipeline.
@@ -89,7 +95,7 @@ static LogicalResult processBuffer(raw_ostream &os,
   sourceMgr.AddNewSourceBuffer(std::move(ownedBuffer), SMLoc());
 
   // Parse the input file.
-  MLIRContext context(/*loadAllDialects=*/preloadDialectsInContext);
+  MLIRContext context;
   registry.appendTo(context.getDialectRegistry());
   if (preloadDialectsInContext)
     registry.loadAll(&context);

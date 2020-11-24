@@ -14,8 +14,11 @@ if (NOT DEFINED CLANGD_BUILD_XPC)
   unset(CLANGD_BUILD_XPC_DEFAULT)
 endif ()
 
-llvm_canonicalize_cmake_booleans(CLANGD_BUILD_XPC)
-llvm_canonicalize_cmake_booleans(CLANGD_ENABLE_REMOTE)
+llvm_canonicalize_cmake_booleans(
+  CLANGD_BUILD_XPC
+  CLANGD_ENABLE_REMOTE
+  LLVM_ENABLE_ZLIB
+)
 
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/Features.inc.in
@@ -28,7 +31,7 @@ set(LLVM_LINK_COMPONENTS
   FrontendOpenMP
   Option
   )
-  
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/quality/CompletionModel.cmake)
 gen_decision_forest(${CMAKE_CURRENT_SOURCE_DIR}/quality/model CompletionModel clang::clangd::Example)
 
@@ -53,6 +56,7 @@ add_clang_library(clangDaemon
   ConfigYAML.cpp
   Diagnostics.cpp
   DraftStore.cpp
+  DumpAST.cpp
   ExpectedTypes.cpp
   FindSymbols.cpp
   FindTarget.cpp
@@ -111,12 +115,6 @@ add_clang_library(clangDaemon
   refactor/Rename.cpp
   refactor/Tweak.cpp
 
-  LINK_LIBS
-  clangdSupport
-  clangTidy
-  ${LLVM_PTHREAD_LIB}
-  ${ALL_CLANG_TIDY_CHECKS}
-
   DEPENDS
   omp_gen
   )
@@ -143,6 +141,16 @@ clang_target_link_libraries(clangDaemon
   clangToolingInclusions
   clangToolingRefactoring
   clangToolingSyntax
+  )
+
+target_link_libraries(clangDaemon
+  PRIVATE
+  ${LLVM_PTHREAD_LIB}
+
+  clangTidy
+  ${ALL_CLANG_TIDY_CHECKS}
+
+  clangdSupport
   )
 
 add_subdirectory(refactor/tweaks)

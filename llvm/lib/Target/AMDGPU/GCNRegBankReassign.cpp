@@ -35,6 +35,7 @@
 #include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "SIInstrInfo.h"
 #include "SIMachineFunctionInfo.h"
+#include "Utils/AMDGPUBaseInfo.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/LiveInterval.h"
@@ -239,7 +240,8 @@ private:
 
   // Search for a register in Bank unused within LI.
   // Returns phys reg or NoRegister.
-  unsigned scavengeReg(LiveInterval &LI, unsigned Bank, unsigned SubReg) const;
+  MCRegister scavengeReg(LiveInterval &LI, unsigned Bank,
+                         unsigned SubReg) const;
 
   // Try to reassign candidate. Returns number or stall cycles saved.
   unsigned tryReassign(Candidate &C);
@@ -320,7 +322,7 @@ unsigned GCNRegBankReassign::getPhysRegBank(Register Reg,
     return RegNo % NUM_VGPR_BANKS;
   }
 
-  unsigned RegNo = TRI->getEncodingValue(Reg) / 2;
+  unsigned RegNo = TRI->getEncodingValue(AMDGPU::getMCReg(Reg, *ST)) / 2;
   return RegNo % NUM_SGPR_BANKS + SGPR_BANK_OFFSET;
 }
 
@@ -365,7 +367,7 @@ uint32_t GCNRegBankReassign::getRegBankMask(Register Reg, unsigned SubReg,
   }
 
   // SGPRs have 8 banks holding 2 consequitive registers each.
-  unsigned RegNo = TRI->getEncodingValue(Reg) / 2;
+  unsigned RegNo = TRI->getEncodingValue(AMDGPU::getMCReg(Reg, *ST)) / 2;
   unsigned StartBit = AMDGPU::VGPR_32RegClass.getNumRegs();
   if (RegNo + StartBit >= RegsUsed.size())
     return 0;
@@ -648,15 +650,15 @@ unsigned GCNRegBankReassign::computeStallCycles(Register SrcReg, Register Reg,
   return TotalStallCycles;
 }
 
-unsigned GCNRegBankReassign::scavengeReg(LiveInterval &LI, unsigned Bank,
-                                         unsigned SubReg) const {
+MCRegister GCNRegBankReassign::scavengeReg(LiveInterval &LI, unsigned Bank,
+                                           unsigned SubReg) const {
   const TargetRegisterClass *RC = MRI->getRegClass(LI.reg());
   unsigned MaxNumRegs = (Bank < NUM_VGPR_BANKS) ? MaxNumVGPRs
                                                 : MaxNumSGPRs;
   unsigned MaxReg = MaxNumRegs + (Bank < NUM_VGPR_BANKS ? AMDGPU::VGPR0
                                                         : AMDGPU::SGPR0);
 
-  for (Register Reg : RC->getRegisters()) {
+  for (MCRegister Reg : RC->getRegisters()) {
     // Check occupancy limit.
     if (TRI->isSubRegisterEq(Reg, MaxReg))
       break;
@@ -667,7 +669,7 @@ unsigned GCNRegBankReassign::scavengeReg(LiveInterval &LI, unsigned Bank,
     for (unsigned I = 0; CSRegs[I]; ++I)
       if (TRI->isSubRegisterEq(Reg, CSRegs[I]) &&
           !LRM->isPhysRegUsed(CSRegs[I]))
-        return AMDGPU::NoRegister;
+        return MCRegister::from(AMDGPU::NoRegister);
 
     LLVM_DEBUG(dbgs() << "Trying register " << printReg(Reg) << '\n');
 
@@ -675,7 +677,7 @@ unsigned GCNRegBankReassign::scavengeReg(LiveInterval &LI, unsigned Bank,
       return Reg;
   }
 
-  return AMDGPU::NoRegister;
+  return MCRegister::from(AMDGPU::NoRegister);
 }
 
 unsigned GCNRegBankReassign::tryReassign(Candidate &C) {
@@ -720,11 +722,11 @@ unsigned GCNRegBankReassign::tryReassign(Candidate &C) {
   }
   llvm::sort(BankStalls);
 
-  Register OrigReg = VRM->getPhys(C.Reg);
+  MCRegister OrigReg = VRM->getPhys(C.Reg);
   LRM->unassign(LI);
   while (!BankStalls.empty()) {
     BankStall BS = BankStalls.pop_back_val();
-    Register Reg = scavengeReg(LI, BS.Bank, C.SubReg);
+    MCRegister Reg = scavengeReg(LI, BS.Bank, C.SubReg);
     if (Reg == AMDGPU::NoRegister) {
       LLVM_DEBUG(dbgs() << "No free registers in bank " << printBank(BS.Bank)
                    << '\n');
@@ -817,9 +819,10 @@ bool GCNRegBankReassign::runOnMachineFunction(MachineFunction &MF) {
   MaxNumSGPRs = std::min(ST->getMaxNumSGPRs(Occupancy, true), MaxNumSGPRs);
 
   CSRegs = MRI->getCalleeSavedRegs();
-
-  RegsUsed.resize(AMDGPU::VGPR_32RegClass.getNumRegs() +
-                  TRI->getEncodingValue(AMDGPU::SGPR_NULL) / 2 + 1);
+  unsigned NumRegBanks = AMDGPU::VGPR_32RegClass.getNumRegs() +
+                         // Not a tight bound
+                         AMDGPU::SReg_32RegClass.getNumRegs() / 2 + 1;
+  RegsUsed.resize(NumRegBanks);
 
   LLVM_DEBUG(dbgs() << "=== RegBanks reassign analysis on function " << MF.getName()
                << '\n');

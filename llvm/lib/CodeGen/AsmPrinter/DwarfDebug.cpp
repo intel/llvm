@@ -67,10 +67,6 @@ using namespace llvm;
 
 STATISTIC(NumCSParams, "Number of dbg call site params created");
 
-static cl::opt<bool>
-DisableDebugInfoPrinting("disable-debug-info-print", cl::Hidden,
-                         cl::desc("Disable debug info printing"));
-
 static cl::opt<bool> UseDwarfRangesBaseAddressSpecifier(
     "use-dwarf-ranges-base-address-specifier", cl::Hidden,
     cl::desc("Use base address specifiers in debug_ranges"), cl::init(false));
@@ -132,6 +128,13 @@ static cl::opt<bool>
                      cl::desc("Emit the GNU .debug_macro format with DWARF <5"),
                      cl::init(false));
 
+static cl::opt<DefaultOnOff> DwarfOpConvert(
+    "dwarf-op-convert", cl::Hidden,
+    cl::desc("Enable use of the DWARFv5 DW_OP_convert operator"),
+    cl::values(clEnumVal(Default, "Default for platform"),
+               clEnumVal(Enable, "Enabled"), clEnumVal(Disable, "Disabled")),
+    cl::init(Default));
+
 enum LinkageNameOption {
   DefaultLinkageNames,
   AllLinkageNames,
@@ -148,14 +151,10 @@ static cl::opt<LinkageNameOption>
                                             "Abstract subprograms")),
                       cl::init(DefaultLinkageNames));
 
-static const char *const DWARFGroupName = "dwarf";
-static const char *const DWARFGroupDescription = "DWARF Emission";
-static const char *const DbgTimerName = "writer";
-static const char *const DbgTimerDescription = "DWARF Debug Writer";
 static constexpr unsigned ULEB128PadSize = 4;
 
 void DebugLocDwarfExpression::emitOp(uint8_t Op, const char *Comment) {
-  getActiveStreamer().EmitInt8(
+  getActiveStreamer().emitInt8(
       Op, Comment ? Twine(Comment) + " " + dwarf::OperationEncodingString(Op)
                   : dwarf::OperationEncodingString(Op));
 }
@@ -169,7 +168,7 @@ void DebugLocDwarfExpression::emitUnsigned(uint64_t Value) {
 }
 
 void DebugLocDwarfExpression::emitData1(uint8_t Value) {
-  getActiveStreamer().EmitInt8(Value, Twine(Value));
+  getActiveStreamer().emitInt8(Value, Twine(Value));
 }
 
 void DebugLocDwarfExpression::emitBaseTypeRef(uint64_t Idx) {
@@ -178,7 +177,7 @@ void DebugLocDwarfExpression::emitBaseTypeRef(uint64_t Idx) {
 }
 
 bool DebugLocDwarfExpression::isFrameRegister(const TargetRegisterInfo &TRI,
-                                              unsigned MachineReg) {
+                                              llvm::Register MachineReg) {
   // This information is not available while emitting .debug_loc entries.
   return false;
 }
@@ -203,7 +202,7 @@ void DebugLocDwarfExpression::commitTemporaryBuffer() {
     const char *Comment = (Byte.index() < TmpBuf->Comments.size())
                               ? TmpBuf->Comments[Byte.index()].c_str()
                               : "";
-    OutBS.EmitInt8(Byte.value(), Comment);
+    OutBS.emitInt8(Byte.value(), Comment);
   }
   TmpBuf->Bytes.clear();
   TmpBuf->Comments.clear();
@@ -330,7 +329,7 @@ static AccelTableKind computeAccelTableKind(unsigned DwarfVersion,
   return AccelTableKind::None;
 }
 
-DwarfDebug::DwarfDebug(AsmPrinter *A, Module *M)
+DwarfDebug::DwarfDebug(AsmPrinter *A)
     : DebugHandlerBase(A), DebugLocs(A->OutStreamer->isVerboseAsm()),
       InfoHolder(A, "info_string", DIEValueAllocator),
       SkeletonHolder(A, "skel_string", DIEValueAllocator),
@@ -387,8 +386,9 @@ DwarfDebug::DwarfDebug(AsmPrinter *A, Module *M)
     UseSectionsAsReferences = DwarfSectionsAsReferences == Enable;
 
   // Don't generate type units for unsupported object file formats.
-  GenerateTypeUnits =
-      A->TM.getTargetTriple().isOSBinFormatELF() && GenerateDwarfTypeUnits;
+  GenerateTypeUnits = (A->TM.getTargetTriple().isOSBinFormatELF() ||
+                       A->TM.getTargetTriple().isOSBinFormatWasm()) &&
+                      GenerateDwarfTypeUnits;
 
   TheAccelTableKind = computeAccelTableKind(
       DwarfVersion, GenerateTypeUnits, DebuggerTuning, A->TM.getTargetTriple());
@@ -417,6 +417,10 @@ DwarfDebug::DwarfDebug(AsmPrinter *A, Module *M)
   // for split DWARF. For now, do not allow LLVM to emit it.
   UseDebugMacroSection =
       DwarfVersion >= 5 || (UseGNUDebugMacro && !useSplitDwarf());
+  if (DwarfOpConvert == Default)
+    EnableOpConvert = !((tuneForGDB() && useSplitDwarf()) || (tuneForLLDB() && !TT.isOSBinFormatMachO()));
+  else
+    EnableOpConvert = (DwarfOpConvert == Enable);
 
   Asm->OutStreamer->getContext().setDwarfVersion(DwarfVersion);
   Asm->OutStreamer->getContext().setDwarfFormat(Dwarf64 ? dwarf::DWARF64
@@ -695,7 +699,7 @@ static void interpretValues(const MachineInstr *CurMI,
                              ForwardedRegWorklist[ParamFwdReg], Params);
       } else if (ParamValue->first.isReg()) {
         Register RegLoc = ParamValue->first.getReg();
-        unsigned SP = TLI.getStackPointerRegisterToSaveRestore();
+        Register SP = TLI.getStackPointerRegisterToSaveRestore();
         Register FP = TRI.getFrameRegister(*MF);
         bool IsSPorFP = (RegLoc == SP) || (RegLoc == FP);
         if (TRI.isCalleeSavedPhysReg(RegLoc, *MF) || IsSPorFP) {
@@ -1111,21 +1115,17 @@ sortGlobalExprs(SmallVectorImpl<DwarfCompileUnit::GlobalExpr> &GVEs) {
 // Emit all Dwarf sections that should come prior to the content. Create
 // global DIEs and emit initial debug info sections. This is invoked by
 // the target AsmPrinter.
-void DwarfDebug::beginModule() {
-  NamedRegionTimer T(DbgTimerName, DbgTimerDescription, DWARFGroupName,
-                     DWARFGroupDescription, TimePassesIsEnabled);
-  if (DisableDebugInfoPrinting) {
-    MMI->setDebugInfoAvailability(false);
-    return;
-  }
+void DwarfDebug::beginModule(Module *M) {
+  DebugHandlerBase::beginModule(M);
 
-  const Module *M = MMI->getModule();
+  if (!Asm || !MMI->hasDebugInfo())
+    return;
 
   unsigned NumDebugCUs = std::distance(M->debug_compile_units_begin(),
                                        M->debug_compile_units_end());
-  // Tell MMI whether we have debug info.
-  assert(MMI->hasDebugInfo() == (NumDebugCUs > 0) &&
-         "DebugInfoAvailabilty initialized unexpectedly");
+  assert(NumDebugCUs > 0 && "Asm unexpectedly initialized");
+  assert(MMI->hasDebugInfo() &&
+         "DebugInfoAvailabilty unexpectedly not initialized");
   SingleCU = NumDebugCUs == 1;
   DenseMap<DIGlobalVariable *, SmallVector<DwarfCompileUnit::GlobalExpr, 1>>
       GVMap;
@@ -1277,7 +1277,7 @@ void DwarfDebug::finalizeModuleInfo() {
                       Asm->TM.Options.MCOptions.SplitDwarfFile);
       // Emit a unique identifier for this CU.
       uint64_t ID =
-          DIEHash(Asm).computeCUSignature(DWOName, TheCU.getUnitDie());
+          DIEHash(Asm, &TheCU).computeCUSignature(DWOName, TheCU.getUnitDie());
       if (getDwarfVersion() >= 5) {
         TheCU.setDWOId(ID);
         SkCU->setDWOId(ID);
@@ -1386,9 +1386,8 @@ void DwarfDebug::endModule() {
   }
 
   // If we aren't actually generating debug info (check beginModule -
-  // conditionalized on !DisableDebugInfoPrinting and the presence of the
-  // llvm.dbg.cu metadata node)
-  if (!MMI->hasDebugInfo())
+  // conditionalized on the presence of the llvm.dbg.cu metadata node)
+  if (!Asm || !MMI->hasDebugInfo())
     return;
 
   // Finalize the debug info for the module.
@@ -1899,7 +1898,8 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
   }
 
   DebugHandlerBase::beginInstruction(MI);
-  assert(CurMI);
+  if (!CurMI)
+    return;
 
   if (NoDebug)
     return;
@@ -2412,7 +2412,7 @@ void DwarfDebug::emitDebugLocEntry(ByteStreamer &Streamer,
   for (auto &Op : Expr) {
     assert(Op.getCode() != dwarf::DW_OP_const_type &&
            "3 operand ops not yet supported");
-    Streamer.EmitInt8(Op.getCode(), Comment != End ? *(Comment++) : "");
+    Streamer.emitInt8(Op.getCode(), Comment != End ? *(Comment++) : "");
     Offset++;
     for (unsigned I = 0; I < 2; ++I) {
       if (Op.getDescription().Op[I] == Encoding::SizeNA)
@@ -2428,7 +2428,7 @@ void DwarfDebug::emitDebugLocEntry(ByteStreamer &Streamer,
             Comment++;
       } else {
         for (uint64_t J = Offset; J < Op.getOperandEndOffset(I); ++J)
-          Streamer.EmitInt8(Data.getData()[J], Comment != End ? *(Comment++) : "");
+          Streamer.emitInt8(Data.getData()[J], Comment != End ? *(Comment++) : "");
       }
       Offset = Op.getOperandEndOffset(I);
     }
@@ -2469,7 +2469,7 @@ void DwarfDebug::emitDebugLocValue(const AsmPrinter &AP, const DIBasicType *BT,
       DwarfExpr.addExpression(std::move(ExprCursor));
       return;
   } else if (Value.isConstantFP()) {
-    if (AP.getDwarfVersion() >= 4 && AP.getDwarfDebug()->tuneForGDB()) {
+    if (AP.getDwarfVersion() >= 4 && !AP.getDwarfDebug()->tuneForSCE()) {
       DwarfExpr.addConstantFP(Value.getConstantFP()->getValueAPF(), AP);
       return;
     } else if (Value.getConstantFP()

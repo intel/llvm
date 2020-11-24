@@ -182,36 +182,36 @@ llvm.func @smin_test(%arg0: !llvm.i32, %arg1: !llvm.i32, %arg2: !llvm.vec<8 x i3
 
 // CHECK-LABEL: @vector_reductions
 llvm.func @vector_reductions(%arg0: !llvm.float, %arg1: !llvm.vec<8 x float>, %arg2: !llvm.vec<8 x i32>) {
-  // CHECK: call i32 @llvm.experimental.vector.reduce.add.v8i32
-  "llvm.intr.experimental.vector.reduce.add"(%arg2) : (!llvm.vec<8 x i32>) -> !llvm.i32
-  // CHECK: call i32 @llvm.experimental.vector.reduce.and.v8i32
-  "llvm.intr.experimental.vector.reduce.and"(%arg2) : (!llvm.vec<8 x i32>) -> !llvm.i32
-  // CHECK: call float @llvm.experimental.vector.reduce.fmax.v8f32
-  "llvm.intr.experimental.vector.reduce.fmax"(%arg1) : (!llvm.vec<8 x float>) -> !llvm.float
-  // CHECK: call float @llvm.experimental.vector.reduce.fmin.v8f32
-  "llvm.intr.experimental.vector.reduce.fmin"(%arg1) : (!llvm.vec<8 x float>) -> !llvm.float
-  // CHECK: call i32 @llvm.experimental.vector.reduce.mul.v8i32
-  "llvm.intr.experimental.vector.reduce.mul"(%arg2) : (!llvm.vec<8 x i32>) -> !llvm.i32
-  // CHECK: call i32 @llvm.experimental.vector.reduce.or.v8i32
-  "llvm.intr.experimental.vector.reduce.or"(%arg2) : (!llvm.vec<8 x i32>) -> !llvm.i32
-  // CHECK: call i32 @llvm.experimental.vector.reduce.smax.v8i32
-  "llvm.intr.experimental.vector.reduce.smax"(%arg2) : (!llvm.vec<8 x i32>) -> !llvm.i32
-  // CHECK: call i32 @llvm.experimental.vector.reduce.smin.v8i32
-  "llvm.intr.experimental.vector.reduce.smin"(%arg2) : (!llvm.vec<8 x i32>) -> !llvm.i32
-  // CHECK: call i32 @llvm.experimental.vector.reduce.umax.v8i32
-  "llvm.intr.experimental.vector.reduce.umax"(%arg2) : (!llvm.vec<8 x i32>) -> !llvm.i32
-  // CHECK: call i32 @llvm.experimental.vector.reduce.umin.v8i32
-  "llvm.intr.experimental.vector.reduce.umin"(%arg2) : (!llvm.vec<8 x i32>) -> !llvm.i32
-  // CHECK: call float @llvm.experimental.vector.reduce.v2.fadd.f32.v8f32
-  "llvm.intr.experimental.vector.reduce.v2.fadd"(%arg0, %arg1) : (!llvm.float, !llvm.vec<8 x float>) -> !llvm.float
-  // CHECK: call float @llvm.experimental.vector.reduce.v2.fmul.f32.v8f32
-  "llvm.intr.experimental.vector.reduce.v2.fmul"(%arg0, %arg1) : (!llvm.float, !llvm.vec<8 x float>) -> !llvm.float
-  // CHECK: call reassoc float @llvm.experimental.vector.reduce.v2.fadd.f32.v8f32
-  "llvm.intr.experimental.vector.reduce.v2.fadd"(%arg0, %arg1) {reassoc = true} : (!llvm.float, !llvm.vec<8 x float>) -> !llvm.float
-  // CHECK: call reassoc float @llvm.experimental.vector.reduce.v2.fmul.f32.v8f32
-  "llvm.intr.experimental.vector.reduce.v2.fmul"(%arg0, %arg1) {reassoc = true} : (!llvm.float, !llvm.vec<8 x float>) -> !llvm.float
-  // CHECK: call i32 @llvm.experimental.vector.reduce.xor.v8i32
-  "llvm.intr.experimental.vector.reduce.xor"(%arg2) : (!llvm.vec<8 x i32>) -> !llvm.i32
+  // CHECK: call i32 @llvm.vector.reduce.add.v8i32
+  "llvm.intr.vector.reduce.add"(%arg2) : (!llvm.vec<8 x i32>) -> !llvm.i32
+  // CHECK: call i32 @llvm.vector.reduce.and.v8i32
+  "llvm.intr.vector.reduce.and"(%arg2) : (!llvm.vec<8 x i32>) -> !llvm.i32
+  // CHECK: call float @llvm.vector.reduce.fmax.v8f32
+  "llvm.intr.vector.reduce.fmax"(%arg1) : (!llvm.vec<8 x float>) -> !llvm.float
+  // CHECK: call float @llvm.vector.reduce.fmin.v8f32
+  "llvm.intr.vector.reduce.fmin"(%arg1) : (!llvm.vec<8 x float>) -> !llvm.float
+  // CHECK: call i32 @llvm.vector.reduce.mul.v8i32
+  "llvm.intr.vector.reduce.mul"(%arg2) : (!llvm.vec<8 x i32>) -> !llvm.i32
+  // CHECK: call i32 @llvm.vector.reduce.or.v8i32
+  "llvm.intr.vector.reduce.or"(%arg2) : (!llvm.vec<8 x i32>) -> !llvm.i32
+  // CHECK: call i32 @llvm.vector.reduce.smax.v8i32
+  "llvm.intr.vector.reduce.smax"(%arg2) : (!llvm.vec<8 x i32>) -> !llvm.i32
+  // CHECK: call i32 @llvm.vector.reduce.smin.v8i32
+  "llvm.intr.vector.reduce.smin"(%arg2) : (!llvm.vec<8 x i32>) -> !llvm.i32
+  // CHECK: call i32 @llvm.vector.reduce.umax.v8i32
+  "llvm.intr.vector.reduce.umax"(%arg2) : (!llvm.vec<8 x i32>) -> !llvm.i32
+  // CHECK: call i32 @llvm.vector.reduce.umin.v8i32
+  "llvm.intr.vector.reduce.umin"(%arg2) : (!llvm.vec<8 x i32>) -> !llvm.i32
+  // CHECK: call float @llvm.vector.reduce.fadd.v8f32
+  "llvm.intr.vector.reduce.fadd"(%arg0, %arg1) : (!llvm.float, !llvm.vec<8 x float>) -> !llvm.float
+  // CHECK: call float @llvm.vector.reduce.fmul.v8f32
+  "llvm.intr.vector.reduce.fmul"(%arg0, %arg1) : (!llvm.float, !llvm.vec<8 x float>) -> !llvm.float
+  // CHECK: call reassoc float @llvm.vector.reduce.fadd.v8f32
+  "llvm.intr.vector.reduce.fadd"(%arg0, %arg1) {reassoc = true} : (!llvm.float, !llvm.vec<8 x float>) -> !llvm.float
+  // CHECK: call reassoc float @llvm.vector.reduce.fmul.v8f32
+  "llvm.intr.vector.reduce.fmul"(%arg0, %arg1) {reassoc = true} : (!llvm.float, !llvm.vec<8 x float>) -> !llvm.float
+  // CHECK: call i32 @llvm.vector.reduce.xor.v8i32
+  "llvm.intr.vector.reduce.xor"(%arg2) : (!llvm.vec<8 x i32>) -> !llvm.i32
   llvm.return
 }
 
@@ -293,6 +293,59 @@ llvm.func @memcpy_test(%arg0: !llvm.i32, %arg1: !llvm.i1, %arg2: !llvm.ptr<i8>, 
   llvm.return
 }
 
+// CHECK-LABEL: @sadd_with_overflow_test
+llvm.func @sadd_with_overflow_test(%arg0: !llvm.i32, %arg1: !llvm.i32, %arg2: !llvm.vec<8 x i32>, %arg3: !llvm.vec<8 x i32>) {
+  // CHECK: call { i32, i1 } @llvm.sadd.with.overflow.i32
+  "llvm.intr.sadd.with.overflow"(%arg0, %arg1) : (!llvm.i32, !llvm.i32) -> !llvm.struct<(i32, i1)>
+  // CHECK: call { <8 x i32>, <8 x i1> } @llvm.sadd.with.overflow.v8i32
+  "llvm.intr.sadd.with.overflow"(%arg2, %arg3) : (!llvm.vec<8 x i32>, !llvm.vec<8 x i32>) -> !llvm.struct<(vec<8 x i32>, vec<8 x i1>)>
+  llvm.return
+}
+
+// CHECK-LABEL: @uadd_with_overflow_test
+llvm.func @uadd_with_overflow_test(%arg0: !llvm.i32, %arg1: !llvm.i32, %arg2: !llvm.vec<8 x i32>, %arg3: !llvm.vec<8 x i32>) {
+  // CHECK: call { i32, i1 } @llvm.uadd.with.overflow.i32
+  "llvm.intr.uadd.with.overflow"(%arg0, %arg1) : (!llvm.i32, !llvm.i32) -> !llvm.struct<(i32, i1)>
+  // CHECK: call { <8 x i32>, <8 x i1> } @llvm.uadd.with.overflow.v8i32
+  "llvm.intr.uadd.with.overflow"(%arg2, %arg3) : (!llvm.vec<8 x i32>, !llvm.vec<8 x i32>) -> !llvm.struct<(vec<8 x i32>, vec<8 x i1>)>
+  llvm.return
+}
+
+// CHECK-LABEL: @ssub_with_overflow_test
+llvm.func @ssub_with_overflow_test(%arg0: !llvm.i32, %arg1: !llvm.i32, %arg2: !llvm.vec<8 x i32>, %arg3: !llvm.vec<8 x i32>) {
+  // CHECK: call { i32, i1 } @llvm.ssub.with.overflow.i32
+  "llvm.intr.ssub.with.overflow"(%arg0, %arg1) : (!llvm.i32, !llvm.i32) -> !llvm.struct<(i32, i1)>
+  // CHECK: call { <8 x i32>, <8 x i1> } @llvm.ssub.with.overflow.v8i32
+  "llvm.intr.ssub.with.overflow"(%arg2, %arg3) : (!llvm.vec<8 x i32>, !llvm.vec<8 x i32>) -> !llvm.struct<(vec<8 x i32>, vec<8 x i1>)>
+  llvm.return
+}
+
+// CHECK-LABEL: @usub_with_overflow_test
+llvm.func @usub_with_overflow_test(%arg0: !llvm.i32, %arg1: !llvm.i32, %arg2: !llvm.vec<8 x i32>, %arg3: !llvm.vec<8 x i32>) {
+  // CHECK: call { i32, i1 } @llvm.usub.with.overflow.i32
+  "llvm.intr.usub.with.overflow"(%arg0, %arg1) : (!llvm.i32, !llvm.i32) -> !llvm.struct<(i32, i1)>
+  // CHECK: call { <8 x i32>, <8 x i1> } @llvm.usub.with.overflow.v8i32
+  "llvm.intr.usub.with.overflow"(%arg2, %arg3) : (!llvm.vec<8 x i32>, !llvm.vec<8 x i32>) -> !llvm.struct<(vec<8 x i32>, vec<8 x i1>)>
+  llvm.return
+}
+
+// CHECK-LABEL: @smul_with_overflow_test
+llvm.func @smul_with_overflow_test(%arg0: !llvm.i32, %arg1: !llvm.i32, %arg2: !llvm.vec<8 x i32>, %arg3: !llvm.vec<8 x i32>) {
+  // CHECK: call { i32, i1 } @llvm.smul.with.overflow.i32
+  "llvm.intr.smul.with.overflow"(%arg0, %arg1) : (!llvm.i32, !llvm.i32) -> !llvm.struct<(i32, i1)>
+  // CHECK: call { <8 x i32>, <8 x i1> } @llvm.smul.with.overflow.v8i32
+  "llvm.intr.smul.with.overflow"(%arg2, %arg3) : (!llvm.vec<8 x i32>, !llvm.vec<8 x i32>) -> !llvm.struct<(vec<8 x i32>, vec<8 x i1>)>
+  llvm.return
+}
+
+// CHECK-LABEL: @umul_with_overflow_test
+llvm.func @umul_with_overflow_test(%arg0: !llvm.i32, %arg1: !llvm.i32, %arg2: !llvm.vec<8 x i32>, %arg3: !llvm.vec<8 x i32>) {
+  // CHECK: call { i32, i1 } @llvm.umul.with.overflow.i32
+  "llvm.intr.umul.with.overflow"(%arg0, %arg1) : (!llvm.i32, !llvm.i32) -> !llvm.struct<(i32, i1)>
+  // CHECK: call { <8 x i32>, <8 x i1> } @llvm.umul.with.overflow.v8i32
+  "llvm.intr.umul.with.overflow"(%arg2, %arg3) : (!llvm.vec<8 x i32>, !llvm.vec<8 x i32>) -> !llvm.struct<(vec<8 x i32>, vec<8 x i1>)>
+  llvm.return
+}
 
 // Check that intrinsics are declared with appropriate types.
 // CHECK-DAG: declare float @llvm.fma.f32(float, float, float)
@@ -330,3 +383,13 @@ llvm.func @memcpy_test(%arg0: !llvm.i32, %arg1: !llvm.i1, %arg2: !llvm.ptr<i8>, 
 // CHECK-DAG: declare void @llvm.masked.compressstore.v7f32(<7 x float>, float*, <7 x i1>)
 // CHECK-DAG: declare void @llvm.memcpy.p0i8.p0i8.i32(i8* noalias nocapture writeonly, i8* noalias nocapture readonly, i32, i1 immarg)
 // CHECK-DAG: declare void @llvm.memcpy.inline.p0i8.p0i8.i64(i8* noalias nocapture writeonly, i8* noalias nocapture readonly, i64 immarg, i1 immarg)
+// CHECK-DAG: declare { i32, i1 } @llvm.sadd.with.overflow.i32(i32, i32)
+// CHECK-DAG: declare { <8 x i32>, <8 x i1> } @llvm.sadd.with.overflow.v8i32(<8 x i32>, <8 x i32>) #0
+// CHECK-DAG: declare { i32, i1 } @llvm.uadd.with.overflow.i32(i32, i32)
+// CHECK-DAG: declare { <8 x i32>, <8 x i1> } @llvm.uadd.with.overflow.v8i32(<8 x i32>, <8 x i32>) #0
+// CHECK-DAG: declare { i32, i1 } @llvm.ssub.with.overflow.i32(i32, i32)
+// CHECK-DAG: declare { <8 x i32>, <8 x i1> } @llvm.ssub.with.overflow.v8i32(<8 x i32>, <8 x i32>) #0
+// CHECK-DAG: declare { i32, i1 } @llvm.usub.with.overflow.i32(i32, i32)
+// CHECK-DAG: declare { <8 x i32>, <8 x i1> } @llvm.usub.with.overflow.v8i32(<8 x i32>, <8 x i32>) #0
+// CHECK-DAG: declare { i32, i1 } @llvm.umul.with.overflow.i32(i32, i32)
+// CHECK-DAG: declare { <8 x i32>, <8 x i1> } @llvm.umul.with.overflow.v8i32(<8 x i32>, <8 x i32>) #0

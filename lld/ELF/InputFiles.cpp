@@ -105,6 +105,8 @@ InputFile::InputFile(Kind k, MemoryBufferRef m)
 }
 
 Optional<MemoryBufferRef> elf::readFile(StringRef path) {
+  llvm::TimeTraceScope timeScope("Load input files", path);
+
   // The --chroot option changes our virtual root directory.
   // This is useful when you are dealing with files created by --reproduce.
   if (!config->chroot.empty() && path.startswith("/"))
@@ -1517,7 +1519,7 @@ static ELFKind getBitcodeELFKind(const Triple &t) {
   return t.isArch64Bit() ? ELF64BEKind : ELF32BEKind;
 }
 
-static uint8_t getBitcodeMachineKind(StringRef path, const Triple &t) {
+static uint16_t getBitcodeMachineKind(StringRef path, const Triple &t) {
   switch (t.getArch()) {
   case Triple::aarch64:
     return EM_AARCH64;
@@ -1555,6 +1557,19 @@ static uint8_t getBitcodeMachineKind(StringRef path, const Triple &t) {
   }
 }
 
+static uint8_t getOsAbi(const Triple &t) {
+  switch (t.getOS()) {
+  case Triple::AMDHSA:
+    return ELF::ELFOSABI_AMDGPU_HSA;
+  case Triple::AMDPAL:
+    return ELF::ELFOSABI_AMDGPU_PAL;
+  case Triple::Mesa3D:
+    return ELF::ELFOSABI_AMDGPU_MESA3D;
+  default:
+    return ELF::ELFOSABI_NONE;
+  }
+}
+
 BitcodeFile::BitcodeFile(MemoryBufferRef mb, StringRef archiveName,
                          uint64_t offsetInArchive)
     : InputFile(BitcodeKind, mb) {
@@ -1582,6 +1597,7 @@ BitcodeFile::BitcodeFile(MemoryBufferRef mb, StringRef archiveName,
   Triple t(obj->getTargetTriple());
   ekind = getBitcodeELFKind(t);
   emachine = getBitcodeMachineKind(mb.getBufferIdentifier(), t);
+  osabi = getOsAbi(t);
 }
 
 static uint8_t mapVisibility(GlobalValue::VisibilityTypes gvVisibility) {

@@ -4951,6 +4951,17 @@ GlobalISelEmitter::inferRegClassFromPattern(TreePatternNode *N) {
       return None;
     return getRegClassFromLeaf(RCChild);
   }
+  if (InstName == "INSERT_SUBREG") {
+    TreePatternNode *Child0 = N->getChild(0);
+    assert(Child0->getNumTypes() == 1 && "Unexpected number of types!");
+    const TypeSetByHwMode &VTy = Child0->getExtType(0);
+    return inferSuperRegisterClassForNode(VTy, Child0, N->getChild(2));
+  }
+  if (InstName == "EXTRACT_SUBREG") {
+    assert(N->getNumTypes() == 1 && "Unexpected number of types!");
+    const TypeSetByHwMode &VTy = N->getExtType(0);
+    return inferSuperRegisterClass(VTy, N->getChild(1));
+  }
 
   // Handle destination record types that we can safely infer a register class
   // from.
@@ -5608,7 +5619,7 @@ void GlobalISelEmitter::run(raw_ostream &OS) {
 
      << "  typedef void(" << Target.getName()
      << "InstructionSelector::*CustomRendererFn)(MachineInstrBuilder &, const "
-        "MachineInstr&, int) "
+        "MachineInstr &, int) "
         "const;\n"
      << "  const ISelInfoTy<PredicateBitset, ComplexMatcherMemFn, "
         "CustomRendererFn> "
@@ -5661,7 +5672,7 @@ void GlobalISelEmitter::run(raw_ostream &OS) {
   OS << "void " << Target.getName() << "InstructionSelector"
     "::setupGeneratedPerFunctionState(MachineFunction &MF) {\n"
     "  AvailableFunctionFeatures = computeAvailableFunctionFeatures("
-    "(const " << Target.getName() << "Subtarget*)&MF.getSubtarget(), &MF);\n"
+    "(const " << Target.getName() << "Subtarget *)&MF.getSubtarget(), &MF);\n"
     "}\n";
 
   if (Target.getName() == "X86" || Target.getName() == "AArch64") {
@@ -5782,7 +5793,7 @@ void GlobalISelEmitter::run(raw_ostream &OS) {
      << "enum {\n"
      << "  GICR_Invalid,\n";
   for (const auto &Record : CustomRendererFns)
-    OS << "  GICR_" << Record->getValueAsString("RendererFn") << ", \n";
+    OS << "  GICR_" << Record->getValueAsString("RendererFn") << ",\n";
   OS << "};\n";
 
   OS << Target.getName() << "InstructionSelector::CustomRendererFn\n"

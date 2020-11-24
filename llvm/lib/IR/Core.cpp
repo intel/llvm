@@ -146,6 +146,11 @@ LLVMAttributeRef LLVMCreateEnumAttribute(LLVMContextRef C, unsigned KindID,
     return wrap(Attribute::getWithByValType(Ctx, NULL));
   }
 
+  if (AttrKind == Attribute::AttrKind::StructRet) {
+    // Same as byval.
+    return wrap(Attribute::getWithStructRetType(Ctx, NULL));
+  }
+
   return wrap(Attribute::get(Ctx, AttrKind, Val));
 }
 
@@ -759,6 +764,11 @@ LLVMTypeRef LLVMVectorType(LLVMTypeRef ElementType, unsigned ElementCount) {
   return wrap(FixedVectorType::get(unwrap(ElementType), ElementCount));
 }
 
+LLVMTypeRef LLVMScalableVectorType(LLVMTypeRef ElementType,
+                                   unsigned ElementCount) {
+  return wrap(ScalableVectorType::get(unwrap(ElementType), ElementCount));
+}
+
 LLVMTypeRef LLVMGetElementType(LLVMTypeRef WrappedTy) {
   auto *Ty = unwrap<Type>(WrappedTy);
   if (auto *PTy = dyn_cast<PointerType>(Ty))
@@ -816,6 +826,7 @@ LLVMTypeRef LLVMTypeOf(LLVMValueRef Val) {
 
 LLVMValueKind LLVMGetValueKind(LLVMValueRef Val) {
     switch(unwrap(Val)->getValueID()) {
+#define LLVM_C_API 1
 #define HANDLE_VALUE(Name) \
   case Value::Name##Val: \
     return LLVM##Name##ValueKind;
@@ -925,6 +936,7 @@ LLVMValueMetadataEntry *
 LLVMInstructionGetAllMetadataOtherThanDebugLoc(LLVMValueRef Value,
                                                size_t *NumEntries) {
   return llvm_getMetadata(NumEntries, [&Value](MetadataEntries &Entries) {
+    Entries.clear();
     unwrap<Instruction>(Value)->getAllMetadata(Entries);
   });
 }
@@ -2034,6 +2046,7 @@ void LLVMSetAlignment(LLVMValueRef V, unsigned Bytes) {
 LLVMValueMetadataEntry *LLVMGlobalCopyAllMetadata(LLVMValueRef Value,
                                                   size_t *NumEntries) {
   return llvm_getMetadata(NumEntries, [&Value](MetadataEntries &Entries) {
+    Entries.clear();
     if (Instruction *Instr = dyn_cast<Instruction>(unwrap(Value))) {
       Instr->getAllMetadata(Entries);
     } else {

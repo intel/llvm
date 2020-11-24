@@ -414,7 +414,7 @@ public:
                   ConversionPatternRewriter &rewriter) const override;
 };
 
-/// Converts integer compare operation on i1 type opearnds to SPIR-V ops.
+/// Converts integer compare operation on i1 type operands to SPIR-V ops.
 class BoolCmpIOpPattern final : public SPIRVOpLowering<CmpIOp> {
 public:
   using SPIRVOpLowering<CmpIOp>::SPIRVOpLowering;
@@ -767,8 +767,7 @@ BoolCmpIOpPattern::matchAndRewrite(CmpIOp cmpIOp, ArrayRef<Value> operands,
   CmpIOpAdaptor cmpIOpOperands(operands);
 
   Type operandType = cmpIOp.lhs().getType();
-  if (!operandType.isa<IntegerType>() ||
-      operandType.cast<IntegerType>().getWidth() != 1)
+  if (!isBoolScalarOrVector(operandType))
     return failure();
 
   switch (cmpIOp.getPredicate()) {
@@ -794,8 +793,7 @@ CmpIOpPattern::matchAndRewrite(CmpIOp cmpIOp, ArrayRef<Value> operands,
   CmpIOpAdaptor cmpIOpOperands(operands);
 
   Type operandType = cmpIOp.lhs().getType();
-  if (operandType.isa<IntegerType>() &&
-      operandType.cast<IntegerType>().getWidth() == 1)
+  if (isBoolScalarOrVector(operandType))
     return failure();
 
   switch (cmpIOp.getPredicate()) {

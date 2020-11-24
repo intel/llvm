@@ -1507,18 +1507,38 @@ CXXMethodDecl *CXXRecordDecl::getLambdaCallOperator() const {
 }
 
 CXXMethodDecl* CXXRecordDecl::getLambdaStaticInvoker() const {
-  if (!isLambda()) return nullptr;
-  DeclarationName Name =
-    &getASTContext().Idents.get(getLambdaStaticInvokerName());
-  DeclContext::lookup_result Invoker = lookup(Name);
-  if (Invoker.empty()) return nullptr;
-  assert(allLookupResultsAreTheSame(Invoker) &&
-         "More than one static invoker operator!");
-  NamedDecl *InvokerFun = Invoker.front();
-  if (const auto *InvokerTemplate = dyn_cast<FunctionTemplateDecl>(InvokerFun))
-    return cast<CXXMethodDecl>(InvokerTemplate->getTemplatedDecl());
+  CXXMethodDecl *CallOp = getLambdaCallOperator();
+  CallingConv CC = CallOp->getType()->getAs<FunctionType>()->getCallConv();
+  return getLambdaStaticInvoker(CC);
+}
 
-  return cast<CXXMethodDecl>(InvokerFun);
+static DeclContext::lookup_result
+getLambdaStaticInvokers(const CXXRecordDecl &RD) {
+  assert(RD.isLambda() && "Must be a lambda");
+  DeclarationName Name =
+      &RD.getASTContext().Idents.get(getLambdaStaticInvokerName());
+  return RD.lookup(Name);
+}
+
+static CXXMethodDecl *getInvokerAsMethod(NamedDecl *ND) {
+  if (const auto *InvokerTemplate = dyn_cast<FunctionTemplateDecl>(ND))
+    return cast<CXXMethodDecl>(InvokerTemplate->getTemplatedDecl());
+  return cast<CXXMethodDecl>(ND);
+}
+
+CXXMethodDecl *CXXRecordDecl::getLambdaStaticInvoker(CallingConv CC) const {
+  if (!isLambda())
+    return nullptr;
+  DeclContext::lookup_result Invoker = getLambdaStaticInvokers(*this);
+
+  for (NamedDecl *ND : Invoker) {
+    const FunctionType *FTy =
+        cast<ValueDecl>(ND->getAsFunction())->getType()->getAs<FunctionType>();
+    if (FTy->getCallConv() == CC)
+      return getInvokerAsMethod(ND);
+  }
+
+  return nullptr;
 }
 
 void CXXRecordDecl::getCaptureFields(
@@ -2167,10 +2187,10 @@ CXXMethodDecl *CXXMethodDecl::Create(ASTContext &C, CXXRecordDecl *RD,
 }
 
 CXXMethodDecl *CXXMethodDecl::CreateDeserialized(ASTContext &C, unsigned ID) {
-  return new (C, ID) CXXMethodDecl(
-      CXXMethod, C, nullptr, SourceLocation(), DeclarationNameInfo(),
-      QualType(), nullptr, SC_None, false, CSK_unspecified, SourceLocation(),
-      nullptr);
+  return new (C, ID)
+      CXXMethodDecl(CXXMethod, C, nullptr, SourceLocation(),
+                    DeclarationNameInfo(), QualType(), nullptr, SC_None, false,
+                    ConstexprSpecKind::Unspecified, SourceLocation(), nullptr);
 }
 
 CXXMethodDecl *CXXMethodDecl::getDevirtualizedMethod(const Expr *Base,
@@ -2459,14 +2479,8 @@ bool CXXMethodDecl::hasInlineBody() const {
 
 bool CXXMethodDecl::isLambdaStaticInvoker() const {
   const CXXRecordDecl *P = getParent();
-  if (P->isLambda()) {
-    if (const CXXMethodDecl *StaticInvoker = P->getLambdaStaticInvoker()) {
-      if (StaticInvoker == this) return true;
-      if (P->isGenericLambda() && this->isFunctionTemplateSpecialization())
-        return StaticInvoker == this->getPrimaryTemplate()->getTemplatedDecl();
-    }
-  }
-  return false;
+  return P->isLambda() && getDeclName().isIdentifier() &&
+         getName() == getLambdaStaticInvokerName();
 }
 
 CXXCtorInitializer::CXXCtorInitializer(ASTContext &Context,
@@ -2575,10 +2589,10 @@ CXXConstructorDecl *CXXConstructorDecl::CreateDeserialized(ASTContext &C,
   unsigned Extra =
       additionalSizeToAlloc<InheritedConstructor, ExplicitSpecifier>(
           isInheritingConstructor, hasTraillingExplicit);
-  auto *Result = new (C, ID, Extra)
-      CXXConstructorDecl(C, nullptr, SourceLocation(), DeclarationNameInfo(),
-                         QualType(), nullptr, ExplicitSpecifier(), false, false,
-                         CSK_unspecified, InheritedConstructor(), nullptr);
+  auto *Result = new (C, ID, Extra) CXXConstructorDecl(
+      C, nullptr, SourceLocation(), DeclarationNameInfo(), QualType(), nullptr,
+      ExplicitSpecifier(), false, false, ConstexprSpecKind::Unspecified,
+      InheritedConstructor(), nullptr);
   Result->setInheritingConstructor(isInheritingConstructor);
   Result->CXXConstructorDeclBits.HasTrailingExplicitSpecifier =
       hasTraillingExplicit;
@@ -2716,10 +2730,9 @@ void CXXDestructorDecl::anchor() {}
 
 CXXDestructorDecl *
 CXXDestructorDecl::CreateDeserialized(ASTContext &C, unsigned ID) {
-  return new (C, ID)
-      CXXDestructorDecl(C, nullptr, SourceLocation(), DeclarationNameInfo(),
-                        QualType(), nullptr, false, false, CSK_unspecified,
-                        nullptr);
+  return new (C, ID) CXXDestructorDecl(
+      C, nullptr, SourceLocation(), DeclarationNameInfo(), QualType(), nullptr,
+      false, false, ConstexprSpecKind::Unspecified, nullptr);
 }
 
 CXXDestructorDecl *CXXDestructorDecl::Create(
@@ -2752,7 +2765,8 @@ CXXConversionDecl *
 CXXConversionDecl::CreateDeserialized(ASTContext &C, unsigned ID) {
   return new (C, ID) CXXConversionDecl(
       C, nullptr, SourceLocation(), DeclarationNameInfo(), QualType(), nullptr,
-      false, ExplicitSpecifier(), CSK_unspecified, SourceLocation(), nullptr);
+      false, ExplicitSpecifier(), ConstexprSpecKind::Unspecified,
+      SourceLocation(), nullptr);
 }
 
 CXXConversionDecl *CXXConversionDecl::Create(
@@ -3333,12 +3347,7 @@ static const char *getAccessName(AccessSpecifier AS) {
   llvm_unreachable("Invalid access specifier!");
 }
 
-const DiagnosticBuilder &clang::operator<<(const DiagnosticBuilder &DB,
-                                           AccessSpecifier AS) {
-  return DB << getAccessName(AS);
-}
-
-const PartialDiagnostic &clang::operator<<(const PartialDiagnostic &DB,
-                                           AccessSpecifier AS) {
+const StreamingDiagnostic &clang::operator<<(const StreamingDiagnostic &DB,
+                                             AccessSpecifier AS) {
   return DB << getAccessName(AS);
 }

@@ -247,10 +247,10 @@ declare i64 @atoll(i8*)
 ; CHECK-NVPTX-NOT: declare i32 @bcmp(i8* nocapture, i8* nocapture, i64) [[G2]]
 declare i32 @bcmp(i8*, i8*, i64)
 
-; CHECK: declare void @bcopy(i8* nocapture readonly, i8* nocapture, i64) [[G1]]
+; CHECK: declare void @bcopy(i8* nocapture readonly, i8* nocapture writeonly, i64)  [[ARGMEMONLY_NOFREE_NOUNWIND:#[0-9]+]]
 declare void @bcopy(i8*, i8*, i64)
 
-; CHECK: declare void @bzero(i8* nocapture, i64) [[G1]]
+; CHECK: declare void @bzero(i8* nocapture writeonly, i64)  [[ARGMEMONLY_NOFREE_NOUNWIND:#[0-9]+]]
 declare void @bzero(i8*, i64)
 
 ; CHECK: declare noalias noundef i8* @calloc(i64, i64) [[G1]]
@@ -451,7 +451,7 @@ declare i32 @fputs(i8*, %opaque*)
 ; CHECK: declare noundef i64 @fread(i8* nocapture noundef, i64 noundef, i64 noundef, %opaque* nocapture noundef) [[G1]]
 declare i64 @fread(i8*, i64, i64, %opaque*)
 
-; CHECK: declare void @free(i8* nocapture noundef) [[G3:#[0-9]+]]
+; CHECK: declare void @free(i8* nocapture noundef) [[NOUNWIND:#[0-9]+]]
 declare void @free(i8*)
 
 ; CHECK: declare double @frexp(double, i32* nocapture) [[G1]]
@@ -550,13 +550,13 @@ declare i64 @labs(i64)
 ; CHECK: declare noundef i32 @lchown(i8* nocapture noundef readonly, i32 noundef, i32 noundef) [[G1]]
 declare i32 @lchown(i8*, i32, i32)
 
-; CHECK: declare double @ldexp(double, i32) [[G0]]
+; CHECK: declare double @ldexp(double, i32 signext) [[G0]]
 declare double @ldexp(double, i32)
 
-; CHECK: declare float @ldexpf(float, i32) [[G0]]
+; CHECK: declare float @ldexpf(float, i32 signext) [[G0]]
 declare float @ldexpf(float, i32)
 
-; CHECK: declare x86_fp80 @ldexpl(x86_fp80, i32) [[G0]]
+; CHECK: declare x86_fp80 @ldexpl(x86_fp80, i32 signext) [[G0]]
 declare x86_fp80 @ldexpl(x86_fp80, i32)
 
 ; CHECK: declare i64 @llabs(i64) [[G0]]
@@ -619,7 +619,7 @@ declare i8* @malloc(i64)
 ; CHECK-LINUX: declare noalias i8* @memalign(i64, i64) [[G0]]
 declare i8* @memalign(i64, i64)
 
-; CHECK: declare i8* @memccpy(i8* noalias, i8* noalias nocapture readonly, i32, i64) [[ARGMEMONLY_NOFREE_NOUNWIND:#[0-9]+]]
+; CHECK: declare i8* @memccpy(i8* noalias writeonly, i8* noalias nocapture readonly, i32, i64) [[ARGMEMONLY_NOFREE_NOUNWIND:#[0-9]+]]
 declare i8* @memccpy(i8*, i8*, i32, i64)
 
 ; CHECK-LINUX:   declare i8* @memchr(i8*, i32, i64) [[ARGMEMONLY_NOFREE_NOUNWIND_READONLY]]
@@ -630,13 +630,13 @@ declare i8* @memchr(i8*, i32, i64)
 ; CHECK: declare i32 @memcmp(i8* nocapture, i8* nocapture, i64) [[ARGMEMONLY_NOFREE_NOUNWIND_READONLY]]
 declare i32 @memcmp(i8*, i8*, i64)
 
-; CHECK: declare i8* @memcpy(i8* noalias returned, i8* noalias nocapture readonly, i64) [[ARGMEMONLY_NOFREE_NOUNWIND]]
+; CHECK: declare i8* @memcpy(i8* noalias returned writeonly, i8* noalias nocapture readonly, i64) [[ARGMEMONLY_NOFREE_NOUNWIND]]
 declare i8* @memcpy(i8*, i8*, i64)
 
-; CHECK: declare i8* @mempcpy(i8* noalias, i8* noalias nocapture readonly, i64) [[ARGMEMONLY_NOFREE_NOUNWIND]]
+; CHECK: declare i8* @mempcpy(i8* noalias writeonly, i8* noalias nocapture readonly, i64) [[ARGMEMONLY_NOFREE_NOUNWIND]]
 declare i8* @mempcpy(i8*, i8*, i64)
 
-; CHECK: declare i8* @memmove(i8* returned, i8* nocapture readonly, i64) [[ARGMEMONLY_NOFREE_NOUNWIND]]
+; CHECK: declare i8* @memmove(i8* returned writeonly, i8* nocapture readonly, i64) [[ARGMEMONLY_NOFREE_NOUNWIND]]
 declare i8* @memmove(i8*, i8*, i64)
 
 ; CHECK: declare i8* @memset(i8*, i32, i64) [[G0]]
@@ -726,7 +726,7 @@ declare i64 @read(i32, i8*, i64)
 ; CHECK: declare noundef i64 @readlink(i8* nocapture noundef readonly, i8* nocapture noundef, i64 noundef) [[G1]]
 declare i64 @readlink(i8*, i8*, i64)
 
-; CHECK: declare noalias noundef i8* @realloc(i8* nocapture, i64) [[G3]]
+; CHECK: declare noalias noundef i8* @realloc(i8* nocapture, i64) [[NOUNWIND]]
 declare i8* @realloc(i8*, i64)
 
 ; CHECK: declare noundef i8* @reallocf(i8*, i64)
@@ -795,10 +795,10 @@ declare x86_fp80 @sinhl(x86_fp80)
 ; CHECK: declare x86_fp80 @sinl(x86_fp80) [[G0]]
 declare x86_fp80 @sinl(x86_fp80)
 
-; CHECK: declare noundef i32 @snprintf(i8* noalias nocapture noundef, i64 noundef, i8* nocapture noundef readonly, ...) [[G1]]
+; CHECK: declare noundef i32 @snprintf(i8* noalias nocapture noundef writeonly, i64 noundef, i8* nocapture noundef readonly, ...) [[G1]]
 declare i32 @snprintf(i8*, i64, i8*, ...)
 
-; CHECK: declare noundef i32 @sprintf(i8* noalias nocapture noundef, i8* nocapture noundef readonly, ...) [[G1]]
+; CHECK: declare noundef i32 @sprintf(i8* noalias nocapture noundef writeonly, i8* nocapture noundef readonly, ...) [[G1]]
 declare i32 @sprintf(i8*, i8*, ...)
 
 ; CHECK: declare double @sqrt(double) [[G0]]
@@ -825,16 +825,16 @@ declare i32 @statvfs(i8*, %opaque*)
 ; CHECK-LINUX: declare noundef i32 @statvfs64(i8* nocapture noundef readonly, %opaque* nocapture noundef) [[G1]]
 declare i32 @statvfs64(i8*, %opaque*)
 
-; CHECK: declare i8* @stpcpy(i8* noalias, i8* noalias nocapture readonly) [[G1]]
+; CHECK: declare i8* @stpcpy(i8* noalias writeonly, i8* noalias nocapture readonly) [[ARGMEMONLY_NOFREE_NOUNWIND]]
 declare i8* @stpcpy(i8*, i8*)
 
-; CHECK: declare i8* @stpncpy(i8* noalias, i8* noalias nocapture readonly, i64) [[G1]]
+; CHECK: declare i8* @stpncpy(i8* noalias writeonly, i8* noalias nocapture readonly, i64) [[ARGMEMONLY_NOFREE_NOUNWIND]]
 declare i8* @stpncpy(i8*, i8*, i64)
 
 ; CHECK: declare i32 @strcasecmp(i8* nocapture, i8* nocapture) [[G2]]
 declare i32 @strcasecmp(i8*, i8*)
 
-; CHECK: declare i8* @strcat(i8* noalias returned, i8* noalias nocapture readonly) [[G1]]
+; CHECK: declare i8* @strcat(i8* noalias returned writeonly, i8* noalias nocapture readonly) [[ARGMEMONLY_NOFREE_NOUNWIND]]
 declare i8* @strcat(i8*, i8*)
 
 ; CHECK: declare i8* @strchr(i8*, i32) [[ARGMEMONLY_NOFREE_NOUNWIND_READONLY]]
@@ -846,7 +846,7 @@ declare i32 @strcmp(i8*, i8*)
 ; CHECK: declare i32 @strcoll(i8* nocapture, i8* nocapture) [[G2]]
 declare i32 @strcoll(i8*, i8*)
 
-; CHECK: declare i8* @strcpy(i8* noalias returned, i8* noalias nocapture readonly) [[G1]]
+; CHECK: declare i8* @strcpy(i8* noalias returned writeonly, i8* noalias nocapture readonly) [[ARGMEMONLY_NOFREE_NOUNWIND]]
 declare i8* @strcpy(i8*, i8*)
 
 ; CHECK: declare i64 @strcspn(i8* nocapture, i8* nocapture) [[ARGMEMONLY_NOFREE_NOUNWIND_READONLY]]
@@ -861,13 +861,13 @@ declare i64 @strlen(i8*)
 ; CHECK: declare i32 @strncasecmp(i8* nocapture, i8* nocapture, i64) [[G2]]
 declare i32 @strncasecmp(i8*, i8*, i64)
 
-; CHECK: declare i8* @strncat(i8* noalias returned, i8* noalias nocapture readonly, i64) [[G1]]
+; CHECK: declare i8* @strncat(i8* noalias returned writeonly, i8* noalias nocapture readonly, i64) [[ARGMEMONLY_NOFREE_NOUNWIND]]
 declare i8* @strncat(i8*, i8*, i64)
 
 ; CHECK: declare i32 @strncmp(i8* nocapture, i8* nocapture, i64) [[ARGMEMONLY_NOFREE_NOUNWIND_READONLY]]
 declare i32 @strncmp(i8*, i8*, i64)
 
-; CHECK: declare i8* @strncpy(i8* noalias returned, i8* noalias nocapture readonly, i64) [[G1]]
+; CHECK: declare i8* @strncpy(i8* noalias returned writeonly, i8* noalias nocapture readonly, i64) [[ARGMEMONLY_NOFREE_NOUNWIND]]
 declare i8* @strncpy(i8*, i8*, i64)
 
 ; CHECK: declare noalias i8* @strndup(i8* nocapture readonly, i64) [[G1]]
@@ -876,7 +876,7 @@ declare i8* @strndup(i8*, i64)
 ; CHECK: declare i64 @strnlen(i8*, i64) [[G0]]
 declare i64 @strnlen(i8*, i64)
 
-; CHECK: declare i8* @strpbrk(i8*, i8* nocapture) [[G2]]
+; CHECK: declare i8* @strpbrk(i8*, i8* nocapture) [[ARGMEMONLY_NOFREE_NOUNWIND:#[0-9]+]]
 declare i8* @strpbrk(i8*, i8*)
 
 ; CHECK: declare i8* @strrchr(i8*, i32) [[ARGMEMONLY_NOFREE_NOUNWIND_READONLY]]
@@ -885,7 +885,7 @@ declare i8* @strrchr(i8*, i32)
 ; CHECK: declare i64 @strspn(i8* nocapture, i8* nocapture) [[ARGMEMONLY_NOFREE_NOUNWIND_READONLY]]
 declare i64 @strspn(i8*, i8*)
 
-; CHECK: declare i8* @strstr(i8*, i8* nocapture) [[G2]]
+; CHECK: declare i8* @strstr(i8*, i8* nocapture) [[ARGMEMONLY_NOFREE_NOUNWIND]]
 declare i8* @strstr(i8*, i8*)
 
 ; CHECK: declare double @strtod(i8* readonly, i8** nocapture) [[G1]]
@@ -1007,13 +1007,23 @@ declare i64 @write(i32, i8*, i64)
 
 
 ; memset_pattern16 isn't available everywhere.
-; CHECK-DARWIN: declare void @memset_pattern16(i8* nocapture, i8* nocapture readonly, i64) [[G6:#[0-9]+]]
+; CHECK-DARWIN: declare void @memset_pattern16(i8* nocapture writeonly, i8* nocapture readonly, i64) [[ARGMEMONLY_NOFREE:#[0-9]+]]
 declare void @memset_pattern16(i8*, i8*, i64)
 
 ; CHECK: attributes [[G0]] = { nofree }
 ; CHECK: attributes [[G1]] = { nofree nounwind }
-; CHECK-DAG: attributes [[G2]] = { nofree nounwind readonly }
-; CHECK-DAG: attributes [[ARGMEMONLY_NOFREE_NOUNWIND_READONLY]] = { argmemonly nofree nounwind readonly }
-; CHECK-DAG: attributes [[G3]] = { nounwind }
-; CHECK-DAG: attributes [[ARGMEMONLY_NOFREE_NOUNWIND]] = { argmemonly nofree nounwind }
-; CHECK-DARWIN: attributes [[G6]] = { argmemonly nofree }
+; CHECK: attributes [[G2]] = { nofree nounwind readonly }
+
+; CHECK-DAG-UNKNOWN: attributes [[ARGMEMONLY_NOFREE_NOUNWIND]] = { argmemonly nofree nounwind }
+; CHECK-DAG-UNKNOWN: attributes [[NOUNWIND]] = { nounwind }
+; CHECK-DAG-UNKNOWN: attributes [[ARGMEMONLY_NOFREE_NOUNWIND_READONLY]] = { argmemonly nofree nounwind readonly }
+
+; CHECK-DAG-LINUX: attributes [[ARGMEMONLY_NOFREE_NOUNWIND_READONLY]] = { argmemonly nofree nounwind readonly }
+; CHECK-DAG-LINUX: attributes [[ARGMEMONLY_NOFREE_NOUNWIND]] = { argmemonly nofree nounwind }
+; CHECK-DAG-LINUX: attributes [[NOUNWIND]] = { nounwind }
+
+; CHECK-DAG-DARWIN: attributes [[ARGMEMONLY_NOFREE_NOUNWIND]] = { argmemonly nofree nounwind }
+; CHECK-DAG-DARWIN: attributes [[NOUNWIND]] = { nounwind }
+; CHECK-DAG-DARWIN: attributes [[ARGMEMONLY_NOFREE_NOUNWIND_READONLY]] = { argmemonly nofree nounwind readonly }
+; CHECK-DAG-DARWIN: attributes [[ARGMEMONLY_NOFREE]] = { argmemonly nofree }
+

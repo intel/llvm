@@ -41,7 +41,7 @@ struct WasmDylinkInfo {
   uint32_t MemoryAlignment;  // P2 alignment of memory
   uint32_t TableSize;  // Table size in elements
   uint32_t TableAlignment;  // P2 alignment of table
-  std::vector<StringRef> Needed; // Shared library depenedencies
+  std::vector<StringRef> Needed; // Shared library dependencies
 };
 
 struct WasmProducerInfo {
@@ -68,6 +68,7 @@ struct WasmLimits {
 };
 
 struct WasmTable {
+  uint32_t Index;
   uint8_t ElemType;
   WasmLimits Limits;
 };
@@ -194,7 +195,13 @@ struct WasmSymbolInfo {
   };
 };
 
-struct WasmFunctionName {
+enum class NameType {
+  FUNCTION,
+  GLOBAL
+};
+
+struct WasmDebugName {
+  NameType Type;
   uint32_t Index;
   StringRef Name;
 };
@@ -302,6 +309,7 @@ enum : uint8_t {
 enum : unsigned {
   WASM_NAMES_FUNCTION = 0x1,
   WASM_NAMES_LOCAL = 0x2,
+  WASM_NAMES_GLOBAL = 0x7,
 };
 
 // Kind codes used in the custom "linking" section
@@ -325,6 +333,7 @@ enum WasmSymbolType : unsigned {
   WASM_SYMBOL_TYPE_GLOBAL = 0x2,
   WASM_SYMBOL_TYPE_SECTION = 0x3,
   WASM_SYMBOL_TYPE_EVENT = 0x4,
+  WASM_SYMBOL_TYPE_TABLE = 0x5,
 };
 
 // Kinds of event attributes.
@@ -361,6 +370,7 @@ enum class ValType {
   F64 = WASM_TYPE_F64,
   V128 = WASM_TYPE_V128,
   EXNREF = WASM_TYPE_EXNREF,
+  FUNCREF = WASM_TYPE_FUNCREF,
   EXTERNREF = WASM_TYPE_EXTERNREF,
 };
 

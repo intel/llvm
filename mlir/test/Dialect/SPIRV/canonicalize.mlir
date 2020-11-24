@@ -10,8 +10,8 @@ func @combine_full_access_chain() -> f32 {
   // CHECK-NEXT: %[[PTR:.*]] = spv.AccessChain %[[VAR]][%[[INDEX]], %[[INDEX]], %[[INDEX]]]
   // CHECK-NEXT: spv.Load "Function" %[[PTR]]
   %c0 = spv.constant 0: i32
-  %0 = spv.Variable : !spv.ptr<!spv.struct<!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>>, Function>
-  %1 = spv.AccessChain %0[%c0] : !spv.ptr<!spv.struct<!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>>, Function>, i32
+  %0 = spv.Variable : !spv.ptr<!spv.struct<(!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>)>, Function>
+  %1 = spv.AccessChain %0[%c0] : !spv.ptr<!spv.struct<(!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>)>, Function>, i32
   %2 = spv.AccessChain %1[%c0, %c0] : !spv.ptr<!spv.array<4x!spv.array<4xf32>>, Function>, i32, i32
   %3 = spv.Load "Function" %2 : f32
   spv.ReturnValue %3 : f32
@@ -27,8 +27,8 @@ func @combine_access_chain_multi_use() -> !spv.array<4xf32> {
   // CHECK-NEXT: spv.Load "Function" %[[PTR_0]]
   // CHECK-NEXT: spv.Load "Function" %[[PTR_1]]
   %c0 = spv.constant 0: i32
-  %0 = spv.Variable : !spv.ptr<!spv.struct<!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>>, Function>
-  %1 = spv.AccessChain %0[%c0] : !spv.ptr<!spv.struct<!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>>, Function>, i32
+  %0 = spv.Variable : !spv.ptr<!spv.struct<(!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>)>, Function>
+  %1 = spv.AccessChain %0[%c0] : !spv.ptr<!spv.struct<(!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>)>, Function>, i32
   %2 = spv.AccessChain %1[%c0] : !spv.ptr<!spv.array<4x!spv.array<4xf32>>, Function>, i32
   %3 = spv.AccessChain %2[%c0] : !spv.ptr<!spv.array<4xf32>, Function>, i32
   %4 = spv.Load "Function" %2 : !spv.array<4xf32>
@@ -47,10 +47,10 @@ func @dont_combine_access_chain_without_common_base() -> !spv.array<4xi32> {
   // CHECK-NEXT: spv.Load "Function" %[[VAR_0_PTR]]
   // CHECK-NEXT: spv.Load "Function" %[[VAR_1_PTR]]
   %c1 = spv.constant 1: i32
-  %0 = spv.Variable : !spv.ptr<!spv.struct<!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>>, Function>
-  %1 = spv.Variable : !spv.ptr<!spv.struct<!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>>, Function>
-  %2 = spv.AccessChain %0[%c1] : !spv.ptr<!spv.struct<!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>>, Function>, i32
-  %3 = spv.AccessChain %1[%c1] : !spv.ptr<!spv.struct<!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>>, Function>, i32
+  %0 = spv.Variable : !spv.ptr<!spv.struct<(!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>)>, Function>
+  %1 = spv.Variable : !spv.ptr<!spv.struct<(!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>)>, Function>
+  %2 = spv.AccessChain %0[%c1] : !spv.ptr<!spv.struct<(!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>)>, Function>, i32
+  %3 = spv.AccessChain %1[%c1] : !spv.ptr<!spv.struct<(!spv.array<4x!spv.array<4xf32>>, !spv.array<4xi32>)>, Function>, i32
   %4 = spv.Load "Function" %2 : !spv.array<4xi32>
   %5 = spv.Load "Function" %3 : !spv.array<4xi32>
   spv.ReturnValue %4 : !spv.array<4xi32>
@@ -507,7 +507,7 @@ func @canonicalize_selection_op_scalar_type(%cond: i1) -> () {
     spv.Branch ^merge
 
   ^merge:
-    spv._merge
+    spv.mlir.merge
   }
   spv.Return
 }
@@ -538,7 +538,7 @@ func @canonicalize_selection_op_vector_type(%cond: i1) -> () {
     spv.Branch ^merge
 
   ^merge:
-    spv._merge
+    spv.mlir.merge
   }
   spv.Return
 }
@@ -575,7 +575,7 @@ func @cannot_canonicalize_selection_op_0(%cond: i1) -> () {
     spv.Branch ^merge
 
   ^merge:
-    spv._merge
+    spv.mlir.merge
   }
   spv.Return
 }
@@ -611,7 +611,7 @@ func @cannot_canonicalize_selection_op_1(%cond: i1) -> () {
     spv.Branch ^merge
 
   ^merge:
-    spv._merge
+    spv.mlir.merge
   }
   spv.Return
 }
@@ -643,7 +643,7 @@ func @cannot_canonicalize_selection_op_2(%cond: i1) -> () {
     spv.Branch ^then
 
   ^merge:
-    spv._merge
+    spv.mlir.merge
   }
   spv.Return
 }
@@ -675,7 +675,7 @@ func @cannot_canonicalize_selection_op_3(%cond: i1) -> () {
     spv.Branch ^merge
 
   ^merge:
-    spv._merge
+    spv.mlir.merge
   }
   spv.Return
 }
@@ -707,7 +707,7 @@ func @cannot_canonicalize_selection_op_4(%cond: i1) -> () {
     spv.Branch ^merge
 
   ^merge:
-    spv._merge
+    spv.mlir.merge
   }
   spv.Return
 }

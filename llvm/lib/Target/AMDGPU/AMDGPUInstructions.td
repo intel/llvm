@@ -83,9 +83,8 @@ def FalsePredicate : Predicate<"false">;
 // Add a predicate to the list if does not already exist to deduplicate it.
 class PredConcat<list<Predicate> lst, Predicate pred> {
   list<Predicate> ret =
-    !foldl([pred], lst, acc, cur,
-           !listconcat(acc, !if(!eq(!cast<string>(cur),!cast<string>(pred)),
-                                [], [cur])));
+      !listconcat([pred], !filter(item, lst,
+                                  !ne(!cast<string>(item), !cast<string>(pred))));
 }
 
 class PredicateControl {
@@ -596,53 +595,6 @@ class DwordAddrPat<ValueType vt, RegisterClass rc> : AMDGPUPat <
   (vt (AMDGPUdwordaddr (vt rc:$addr))),
   (vt rc:$addr)
 >;
-
-// Bitfield extract patterns
-
-def IMMZeroBasedBitfieldMask : ImmLeaf <i32, [{
-  return isMask_32(Imm);
-}]>;
-
-def IMMPopCount : SDNodeXForm<imm, [{
-  return CurDAG->getTargetConstant(countPopulation(N->getZExtValue()), SDLoc(N),
-                                   MVT::i32);
-}]>;
-
-multiclass BFEPattern <Instruction UBFE, Instruction SBFE, Instruction MOV> {
-  def : AMDGPUPat <
-    (i32 (and (i32 (srl i32:$src, i32:$rshift)), IMMZeroBasedBitfieldMask:$mask)),
-    (UBFE $src, $rshift, (MOV (i32 (IMMPopCount $mask))))
-  >;
-
-  // x & ((1 << y) - 1)
-  def : AMDGPUPat <
-    (and i32:$src, (add_oneuse (shl_oneuse 1, i32:$width), -1)),
-    (UBFE $src, (MOV (i32 0)), $width)
-  >;
-
-  // x & ~(-1 << y)
-  def : AMDGPUPat <
-    (and i32:$src, (xor_oneuse (shl_oneuse -1, i32:$width), -1)),
-    (UBFE $src, (MOV (i32 0)), $width)
-  >;
-
-  // x & (-1 >> (bitwidth - y))
-  def : AMDGPUPat <
-    (and i32:$src, (srl_oneuse -1, (sub 32, i32:$width))),
-    (UBFE $src, (MOV (i32 0)), $width)
-  >;
-
-  // x << (bitwidth - y) >> (bitwidth - y)
-  def : AMDGPUPat <
-    (srl (shl_oneuse i32:$src, (sub 32, i32:$width)), (sub 32, i32:$width)),
-    (UBFE $src, (MOV (i32 0)), $width)
-  >;
-
-  def : AMDGPUPat <
-    (sra (shl_oneuse i32:$src, (sub 32, i32:$width)), (sub 32, i32:$width)),
-    (SBFE $src, (MOV (i32 0)), $width)
-  >;
-}
 
 // fshr pattern
 class FSHRPattern <Instruction BIT_ALIGN> : AMDGPUPat <

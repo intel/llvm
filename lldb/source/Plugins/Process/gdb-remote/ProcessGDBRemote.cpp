@@ -817,8 +817,8 @@ Status ProcessGDBRemote::DoLaunch(lldb_private::Module *exe_module,
         // since 'O' packets can really slow down debugging if the inferior
         // does a lot of output.
         if ((!stdin_file_spec || !stdout_file_spec || !stderr_file_spec) &&
-            pty.OpenFirstAvailablePrimary(O_RDWR | O_NOCTTY, nullptr, 0)) {
-          FileSpec secondary_name{pty.GetSecondaryName(nullptr, 0)};
+            !errorToBool(pty.OpenFirstAvailablePrimary(O_RDWR | O_NOCTTY))) {
+          FileSpec secondary_name(pty.GetSecondaryName());
 
           if (!stdin_file_spec)
             stdin_file_spec = secondary_name;
@@ -1222,6 +1222,10 @@ Status ProcessGDBRemote::GetMetaData(lldb::user_id_t uid, lldb::tid_t thread_id,
 Status ProcessGDBRemote::GetTraceConfig(lldb::user_id_t uid,
                                         TraceOptions &options) {
   return m_gdb_comm.SendGetTraceConfigPacket(uid, options);
+}
+
+llvm::Expected<TraceTypeInfo> ProcessGDBRemote::GetSupportedTraceType() {
+  return m_gdb_comm.SendGetSupportedTraceType();
 }
 
 void ProcessGDBRemote::DidExit() {
@@ -2647,7 +2651,7 @@ addr_t ProcessGDBRemote::GetImageInfoAddress() {
     llvm::Expected<LoadedModuleInfoList> list = GetLoadedModuleList();
     if (!list) {
       Log *log(ProcessGDBRemoteLog::GetLogIfAllCategoriesSet(GDBR_LOG_PROCESS));
-      LLDB_LOG_ERROR(log, list.takeError(), "Failed to read module list: {0}");
+      LLDB_LOG_ERROR(log, list.takeError(), "Failed to read module list: {0}.");
     } else {
       addr = list->m_link_map;
     }

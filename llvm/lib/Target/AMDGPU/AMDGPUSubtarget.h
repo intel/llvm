@@ -313,12 +313,10 @@ protected:
   bool FastDenormalF32;
   bool HalfRate64Ops;
 
-  // Dynamially set bits that enable features.
+  // Dynamically set bits that enable features.
   bool FlatForGlobal;
   bool AutoWaitcntBeforeBarrier;
-  bool CodeObjectV3;
   bool UnalignedScratchAccess;
-  bool UnalignedBufferAccess;
   bool UnalignedAccessMode;
   bool HasApertureRegs;
   bool EnableXNACK;
@@ -399,6 +397,7 @@ protected:
   bool HasMFMAInlineLiteralBug;
   bool HasVertexCache;
   short TexVTXClauseSize;
+  bool UnalignedBufferAccess;
   bool UnalignedDSAccess;
   bool ScalarizeGlobal;
 
@@ -411,6 +410,8 @@ protected:
   bool HasNSAtoVMEMBug;
   bool HasOffset3fBug;
   bool HasFlatSegmentOffsetBug;
+  bool HasImageStoreD16Bug;
+  bool HasImageGather4D16Bug;
 
   // Dummy feature to use for assembler in tablegen.
   bool FeatureDisable;
@@ -421,10 +422,10 @@ private:
   SITargetLowering TLInfo;
   SIFrameLowering FrameLowering;
 
+public:
   // See COMPUTE_TMPRING_SIZE.WAVESIZE, 13-bit field in units of 256-dword.
   static const unsigned MaxWaveScratchSize = (256 * 4) * ((1 << 13) - 1);
 
-public:
   GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
                const GCNTargetMachine &TM);
   ~GCNSubtarget() override;
@@ -492,8 +493,8 @@ public:
     return LDSBankCount;
   }
 
-  unsigned getMaxPrivateElementSize() const {
-    return MaxPrivateElementSize;
+  unsigned getMaxPrivateElementSize(bool ForBufferRSrc = false) const {
+    return (ForBufferRSrc || !enableFlatScratch()) ? MaxPrivateElementSize : 16;
   }
 
   unsigned getConstantBusLimit(unsigned Opcode) const;
@@ -697,13 +698,20 @@ public:
     return AutoWaitcntBeforeBarrier;
   }
 
-  bool hasCodeObjectV3() const {
-    // FIXME: Need to add code object v3 support for mesa and pal.
-    return isAmdHsaOS() ? CodeObjectV3 : false;
-  }
-
   bool hasUnalignedBufferAccess() const {
     return UnalignedBufferAccess;
+  }
+
+  bool hasUnalignedBufferAccessEnabled() const {
+    return UnalignedBufferAccess && UnalignedAccessMode;
+  }
+
+  bool hasUnalignedDSAccess() const {
+    return UnalignedDSAccess;
+  }
+
+  bool hasUnalignedDSAccessEnabled() const {
+    return UnalignedDSAccess && UnalignedAccessMode;
   }
 
   bool hasUnalignedScratchAccess() const {
@@ -712,10 +720,6 @@ public:
 
   bool hasUnalignedAccessMode() const {
     return UnalignedAccessMode;
-  }
-
-  bool hasUnalignedDSAccess() const {
-    return UnalignedDSAccess;
   }
 
   bool hasApertureRegs() const {
@@ -752,6 +756,13 @@ public:
 
   bool hasFlatScratchInsts() const {
     return FlatScratchInsts;
+  }
+
+  // Check if target supports ST addressing mode with FLAT scratch instructions.
+  // The ST addressing mode means no registers are used, either VGPR or SGPR,
+  // but only immediate offset is swizzled and added to the FLAT scratch base.
+  bool hasFlatScratchSTMode() const {
+    return hasFlatScratchInsts() && hasGFX10_3Insts();
   }
 
   bool hasScalarFlatScratchInsts() const {
@@ -941,6 +952,8 @@ public:
     return true;
   }
 
+  bool useAA() const override;
+
   bool enableSubRegLiveness() const override {
     return true;
   }
@@ -955,6 +968,8 @@ public:
   bool enableEarlyIfConversion() const override {
     return true;
   }
+
+  bool enableFlatScratch() const;
 
   void overrideSchedPolicy(MachineSchedPolicy &Policy,
                            unsigned NumRegionInstrs) const override;
@@ -1025,9 +1040,11 @@ public:
     return HasOffset3fBug;
   }
 
-  bool hasNSAEncoding() const {
-    return HasNSAEncoding;
-  }
+  bool hasImageStoreD16Bug() const { return HasImageStoreD16Bug; }
+
+  bool hasImageGather4D16Bug() const { return HasImageGather4D16Bug; }
+
+  bool hasNSAEncoding() const { return HasNSAEncoding; }
 
   bool hasGFX10_BEncoding() const {
     return GFX10_BEncoding;

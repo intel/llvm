@@ -17,6 +17,7 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
@@ -33,41 +34,15 @@ using namespace llvm;
 
 namespace {
 
-class BPFPreserveDIType final : public FunctionPass {
-  bool runOnFunction(Function &F) override;
-
-public:
-  static char ID;
-  BPFPreserveDIType() : FunctionPass(ID) {}
-
-private:
-  Module *M = nullptr;
-
-  bool doTransformation(Function &F);
-};
-} // End anonymous namespace
-
-char BPFPreserveDIType::ID = 0;
-INITIALIZE_PASS(BPFPreserveDIType, DEBUG_TYPE, "BPF Preserve Debuginfo Type",
-                false, false)
-
-FunctionPass *llvm::createBPFPreserveDIType() { return new BPFPreserveDIType(); }
-
-bool BPFPreserveDIType::runOnFunction(Function &F) {
+static bool BPFPreserveDITypeImpl(Function &F) {
   LLVM_DEBUG(dbgs() << "********** preserve debuginfo type **********\n");
 
-  M = F.getParent();
-  if (!M)
-    return false;
+  Module *M = F.getParent();
 
   // Bail out if no debug info.
   if (M->debug_compile_units().empty())
     return false;
 
-  return doTransformation(F);
-}
-
-bool BPFPreserveDIType::doTransformation(Function &F) {
   std::vector<CallInst *> PreserveDITypeCalls;
 
   for (auto &BB : F) {
@@ -93,7 +68,7 @@ bool BPFPreserveDIType::doTransformation(Function &F) {
     return false;
 
   std::string BaseName = "llvm.btf_type_id.";
-  int Count = 0;
+  static int Count = 0;
   for (auto Call : PreserveDITypeCalls) {
     const ConstantInt *Flag = dyn_cast<ConstantInt>(Call->getArgOperand(1));
     assert(Flag);
@@ -115,7 +90,7 @@ bool BPFPreserveDIType::doTransformation(Function &F) {
     }
 
     BasicBlock *BB = Call->getParent();
-    IntegerType *VarType = Type::getInt32Ty(BB->getContext());
+    IntegerType *VarType = Type::getInt64Ty(BB->getContext());
     std::string GVName = BaseName + std::to_string(Count) + "$" +
         std::to_string(Reloc);
     GlobalVariable *GV = new GlobalVariable(
@@ -124,8 +99,8 @@ bool BPFPreserveDIType::doTransformation(Function &F) {
     GV->setMetadata(LLVMContext::MD_preserve_access_index, MD);
 
     // Load the global variable which represents the type info.
-    auto *LDInst = new LoadInst(Type::getInt32Ty(BB->getContext()), GV, "",
-                                Call);
+    auto *LDInst =
+        new LoadInst(Type::getInt64Ty(BB->getContext()), GV, "", Call);
     Instruction *PassThroughInst =
         BPFCoreSharedInfo::insertPassThrough(M, BB, LDInst, Call);
     Call->replaceAllUsesWith(PassThroughInst);
@@ -134,4 +109,31 @@ bool BPFPreserveDIType::doTransformation(Function &F) {
   }
 
   return true;
+}
+
+class BPFPreserveDIType final : public FunctionPass {
+  bool runOnFunction(Function &F) override;
+
+public:
+  static char ID;
+  BPFPreserveDIType() : FunctionPass(ID) {}
+};
+} // End anonymous namespace
+
+char BPFPreserveDIType::ID = 0;
+INITIALIZE_PASS(BPFPreserveDIType, DEBUG_TYPE, "BPF Preserve Debuginfo Type",
+                false, false)
+
+FunctionPass *llvm::createBPFPreserveDIType() {
+  return new BPFPreserveDIType();
+}
+
+bool BPFPreserveDIType::runOnFunction(Function &F) {
+  return BPFPreserveDITypeImpl(F);
+}
+
+PreservedAnalyses BPFPreserveDITypePass::run(Function &F,
+                                             FunctionAnalysisManager &AM) {
+  return BPFPreserveDITypeImpl(F) ? PreservedAnalyses::none()
+                                  : PreservedAnalyses::all();
 }

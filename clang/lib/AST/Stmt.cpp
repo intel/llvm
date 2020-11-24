@@ -130,21 +130,36 @@ void Stmt::EnableStatistics() {
   StatisticsEnabled = true;
 }
 
-static std::pair<Stmt::Likelihood, const Attr *> getLikelihood(const Stmt *S) {
-  if (const auto *AS = dyn_cast_or_null<AttributedStmt>(S))
-    for (const auto *A : AS->getAttrs()) {
-      if (isa<LikelyAttr>(A))
-        return std::make_pair(Stmt::LH_Likely, A);
+static std::pair<Stmt::Likelihood, const Attr *>
+getLikelihood(ArrayRef<const Attr *> Attrs) {
+  for (const auto *A : Attrs) {
+    if (isa<LikelyAttr>(A))
+      return std::make_pair(Stmt::LH_Likely, A);
 
-      if (isa<UnlikelyAttr>(A))
-        return std::make_pair(Stmt::LH_Unlikely, A);
-    }
+    if (isa<UnlikelyAttr>(A))
+      return std::make_pair(Stmt::LH_Unlikely, A);
+  }
 
   return std::make_pair(Stmt::LH_None, nullptr);
 }
 
+static std::pair<Stmt::Likelihood, const Attr *> getLikelihood(const Stmt *S) {
+  if (const auto *AS = dyn_cast_or_null<AttributedStmt>(S))
+    return getLikelihood(AS->getAttrs());
+
+  return std::make_pair(Stmt::LH_None, nullptr);
+}
+
+Stmt::Likelihood Stmt::getLikelihood(ArrayRef<const Attr *> Attrs) {
+  return ::getLikelihood(Attrs).first;
+}
+
 Stmt::Likelihood Stmt::getLikelihood(const Stmt *S) {
   return ::getLikelihood(S).first;
+}
+
+const Attr *Stmt::getLikelihoodAttr(const Stmt *S) {
+  return ::getLikelihood(S).second;
 }
 
 Stmt::Likelihood Stmt::getLikelihood(const Stmt *Then, const Stmt *Else) {
@@ -776,7 +791,27 @@ std::string GCCAsmStmt::generateAsmString(const ASTContext &C) const {
 /// Assemble final IR asm string (MS-style).
 std::string MSAsmStmt::generateAsmString(const ASTContext &C) const {
   // FIXME: This needs to be translated into the IR string representation.
-  return std::string(AsmStr);
+  SmallVector<StringRef, 8> Pieces;
+  AsmStr.split(Pieces, "\n\t");
+  std::string MSAsmString;
+  for (size_t I = 0, E = Pieces.size(); I < E; ++I) {
+    StringRef Instruction = Pieces[I];
+    // For vex/vex2/vex3/evex masm style prefix, convert it to att style
+    // since we don't support masm style prefix in backend.
+    if (Instruction.startswith("vex "))
+      MSAsmString += '{' + Instruction.substr(0, 3).str() + '}' +
+                     Instruction.substr(3).str();
+    else if (Instruction.startswith("vex2 ") ||
+             Instruction.startswith("vex3 ") || Instruction.startswith("evex "))
+      MSAsmString += '{' + Instruction.substr(0, 4).str() + '}' +
+                     Instruction.substr(4).str();
+    else
+      MSAsmString += Instruction.str();
+    // If this is not the last instruction, adding back the '\n\t'.
+    if (I < E - 1)
+      MSAsmString += "\n\t";
+  }
+  return MSAsmString;
 }
 
 Expr *MSAsmStmt::getOutputExpr(unsigned i) {

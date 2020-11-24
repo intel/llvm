@@ -5,6 +5,7 @@
 # CHECK-NEXT:  "jsonrpc": "2.0",
 # CHECK-NEXT:  "result": {
 # CHECK-NEXT:    "capabilities": {
+# CHECK-NEXT:      "astProvider": true,
 # CHECK-NEXT:      "codeActionProvider": true,
 # CHECK-NEXT:      "completionProvider": {
 # CHECK-NEXT:        "allCommitCharacters": [
@@ -66,6 +67,7 @@
 # CHECK-NEXT:        ]
 # CHECK-NEXT:      },
 # CHECK-NEXT:      "hoverProvider": true,
+# CHECK-NEXT:      "memoryUsageProvider": true
 # CHECK-NEXT:      "referencesProvider": true,
 # CHECK-NEXT:      "renameProvider": true,
 # CHECK-NEXT:      "selectionRangeProvider": true,

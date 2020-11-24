@@ -123,6 +123,13 @@ public:
                           cl::sycl::detail::QueueImplPtr Queue) {
     return MGraphBuilder.getOrCreateAllocaForReq(Record, Req, Queue);
   }
+
+  cl::sycl::detail::Command *
+  insertMemoryMove(cl::sycl::detail::MemObjRecord *Record,
+                   cl::sycl::detail::Requirement *Req,
+                   const cl::sycl::detail::QueueImplPtr &Queue) {
+    return MGraphBuilder.insertMemoryMove(Record, Req, Queue);
+  }
 };
 
 void addEdge(cl::sycl::detail::Command *User, cl::sycl::detail::Command *Dep,

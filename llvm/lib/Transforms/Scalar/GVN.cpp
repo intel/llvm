@@ -110,6 +110,9 @@ static cl::opt<bool> GVNEnablePRE("enable-pre", cl::init(true), cl::Hidden);
 static cl::opt<bool> GVNEnableLoadPRE("enable-load-pre", cl::init(true));
 static cl::opt<bool> GVNEnableLoadInLoopPRE("enable-load-in-loop-pre",
                                             cl::init(true));
+static cl::opt<bool>
+GVNEnableSplitBackedgeInLoadPRE("enable-split-backedge-in-load-pre",
+                                cl::init(true));
 static cl::opt<bool> GVNEnableMemDep("enable-gvn-memdep", cl::init(true));
 
 static cl::opt<uint32_t> MaxNumDeps(
@@ -639,6 +642,11 @@ bool GVN::isLoadInLoopPREEnabled() const {
   return Options.AllowLoadInLoopPRE.getValueOr(GVNEnableLoadInLoopPRE);
 }
 
+bool GVN::isLoadPRESplitBackedgeEnabled() const {
+  return Options.AllowLoadPRESplitBackedge.getValueOr(
+      GVNEnableSplitBackedgeInLoadPRE);
+}
+
 bool GVN::isMemDepEnabled() const {
   return Options.AllowMemDep.getValueOr(GVNEnableMemDep);
 }
@@ -1034,7 +1042,7 @@ bool GVN::AnalyzeLoadAvailability(LoadInst *LI, MemDepResult DepInfo,
 
   if (StoreInst *S = dyn_cast<StoreInst>(DepInst)) {
     // Reject loads and stores that are to the same address but are of
-    // different types if we have to. If the stored value is larger or equal to
+    // different types if we have to. If the stored value is convertable to
     // the loaded value, we can reuse it.
     if (!canCoerceMustAliasedValueToLoad(S->getValueOperand(), LI->getType(),
                                          DL))
@@ -1133,7 +1141,6 @@ bool GVN::PerformLoadPRE(LoadInst *LI, AvailValInBlkVect &ValuesPerBlock,
   // backwards through predecessors if needed.
   BasicBlock *LoadBB = LI->getParent();
   BasicBlock *TmpBB = LoadBB;
-  bool IsSafeToSpeculativelyExecute = isSafeToSpeculativelyExecute(LI);
 
   // Check that there is no implicit control flow instructions above our load in
   // its block. If there is an instruction that doesn't always pass the
@@ -1150,8 +1157,9 @@ bool GVN::PerformLoadPRE(LoadInst *LI, AvailValInBlkVect &ValuesPerBlock,
   // because if the index is out of bounds we should deoptimize rather than
   // access the array.
   // Check that there is no guard in this block above our instruction.
-  if (!IsSafeToSpeculativelyExecute && ICF->isDominatedByICFIFromSameBlock(LI))
-    return false;
+  bool MustEnsureSafetyOfSpeculativeExecution =
+      ICF->isDominatedByICFIFromSameBlock(LI);
+
   while (TmpBB->getSinglePredecessor()) {
     TmpBB = TmpBB->getSinglePredecessor();
     if (TmpBB == LoadBB) // Infinite (unreachable) loop.
@@ -1168,8 +1176,8 @@ bool GVN::PerformLoadPRE(LoadInst *LI, AvailValInBlkVect &ValuesPerBlock,
       return false;
 
     // Check that there is no implicit control flow in a block above.
-    if (!IsSafeToSpeculativelyExecute && ICF->hasICF(TmpBB))
-      return false;
+    MustEnsureSafetyOfSpeculativeExecution =
+        MustEnsureSafetyOfSpeculativeExecution || ICF->hasICF(TmpBB);
   }
 
   assert(TmpBB);
@@ -1222,6 +1230,16 @@ bool GVN::PerformLoadPRE(LoadInst *LI, AvailValInBlkVect &ValuesPerBlock,
         return false;
       }
 
+      // Do not split backedge as it will break the canonical loop form.
+      if (!isLoadPRESplitBackedgeEnabled())
+        if (DT->dominates(LoadBB, Pred)) {
+          LLVM_DEBUG(
+              dbgs()
+              << "COULD NOT PRE LOAD BECAUSE OF A BACKEDGE CRITICAL EDGE '"
+              << Pred->getName() << "': " << *LI << '\n');
+          return false;
+        }
+
       CriticalEdgePred.push_back(Pred);
     } else {
       // Only add the predecessors that will not be split for now.
@@ -1240,6 +1258,17 @@ bool GVN::PerformLoadPRE(LoadInst *LI, AvailValInBlkVect &ValuesPerBlock,
   // that one block.
   if (NumUnavailablePreds != 1)
       return false;
+
+  // Now we know where we will insert load. We must ensure that it is safe
+  // to speculatively execute the load at that points.
+  if (MustEnsureSafetyOfSpeculativeExecution) {
+    if (CriticalEdgePred.size())
+      if (!isSafeToSpeculativelyExecute(LI, LoadBB->getFirstNonPHI(), DT))
+        return false;
+    for (auto &PL : PredLoads)
+      if (!isSafeToSpeculativelyExecute(LI, PL.first->getTerminator(), DT))
+        return false;
+  }
 
   // Split critical edges, and update the unavailable predecessors accordingly.
   for (BasicBlock *OrigPred : CriticalEdgePred) {
@@ -1576,12 +1605,35 @@ bool GVN::processAssumeIntrinsic(IntrinsicInst *IntrinsicI) {
                                  Constant::getNullValue(Int8Ty->getPointerTo()),
                                  IntrinsicI);
       if (MSSAU) {
+        const MemoryUseOrDef *FirstNonDom = nullptr;
+        const auto *AL =
+            MSSAU->getMemorySSA()->getBlockAccesses(IntrinsicI->getParent());
+
+        // If there are accesses in the current basic block, find the first one
+        // that does not come before NewS. The new memory access is inserted
+        // after the found access or before the terminator if no such access is
+        // found.
+        if (AL) {
+          for (auto &Acc : *AL) {
+            if (auto *Current = dyn_cast<MemoryUseOrDef>(&Acc))
+              if (!Current->getMemoryInst()->comesBefore(NewS)) {
+                FirstNonDom = Current;
+                break;
+              }
+          }
+        }
+
         // This added store is to null, so it will never executed and we can
         // just use the LiveOnEntry def as defining access.
-        auto *NewDef = MSSAU->createMemoryAccessInBB(
-            NewS, MSSAU->getMemorySSA()->getLiveOnEntryDef(), NewS->getParent(),
-            MemorySSA::BeforeTerminator);
-        MSSAU->insertDef(cast<MemoryDef>(NewDef), /*RenameUses=*/true);
+        auto *NewDef =
+            FirstNonDom ? MSSAU->createMemoryAccessBefore(
+                              NewS, MSSAU->getMemorySSA()->getLiveOnEntryDef(),
+                              const_cast<MemoryUseOrDef *>(FirstNonDom))
+                        : MSSAU->createMemoryAccessInBB(
+                              NewS, MSSAU->getMemorySSA()->getLiveOnEntryDef(),
+                              NewS->getParent(), MemorySSA::BeforeTerminator);
+
+        MSSAU->insertDef(cast<MemoryDef>(NewDef), /*RenameUses=*/false);
       }
     }
     if (isAssumeWithEmptyBundle(*IntrinsicI))
@@ -2431,10 +2483,14 @@ bool GVN::performScalarPRE(Instruction *CurInst) {
   if (isa<GetElementPtrInst>(CurInst))
     return false;
 
-  // We don't currently value number ANY inline asm calls.
-  if (auto *CallB = dyn_cast<CallBase>(CurInst))
+  if (auto *CallB = dyn_cast<CallBase>(CurInst)) {
+    // We don't currently value number ANY inline asm calls.
     if (CallB->isInlineAsm())
       return false;
+    // Don't do PRE on convergent calls.
+    if (CallB->isConvergent())
+      return false;
+  }
 
   uint32_t ValNo = VN.lookup(CurInst);
 
@@ -2748,8 +2804,7 @@ void GVN::addDeadBlock(BasicBlock *BB) {
       if (!DeadBlocks.count(P))
         continue;
 
-      if (llvm::any_of(successors(P),
-                       [B](BasicBlock *Succ) { return Succ == B; }) &&
+      if (llvm::is_contained(successors(P), B) &&
           isCriticalEdge(P->getTerminator(), B)) {
         if (BasicBlock *S = splitCriticalEdges(P, B))
           DeadBlocks.insert(P = S);

@@ -1,3 +1,5 @@
+add_llvm_component_group(BPF)
+
 set(LLVM_TARGET_DEFINITIONS BPF.td)
 
 tablegen(LLVM BPFGenAsmMatcher.inc -gen-asm-matcher)
@@ -14,6 +16,7 @@ add_public_tablegen_target(BPFCommonTableGen)
 
 add_llvm_target(BPFCodeGen
   BPFAbstractMemberAccess.cpp
+  BPFAdjustOpt.cpp
   BPFAsmPrinter.cpp
   BPFCheckAndAdjustIR.cpp
   BPFFrameLowering.cpp
@@ -30,6 +33,22 @@ add_llvm_target(BPFCodeGen
   BPFMIChecking.cpp
   BPFMISimplifyPatchable.cpp
   BTFDebug.cpp
+
+  LINK_COMPONENTS
+  AsmPrinter
+  CodeGen
+  Core
+  MC
+  BPFDesc
+  BPFInfo
+  IPO
+  Scalar
+  SelectionDAG
+  Support
+  Target
+
+  ADD_TO_COMPONENT
+  BPF
   )
 
 add_subdirectory(AsmParser)

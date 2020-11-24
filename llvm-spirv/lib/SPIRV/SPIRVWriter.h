@@ -53,6 +53,7 @@
 #include "SPIRVType.h"
 #include "SPIRVValue.h"
 
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/IR/IntrinsicInst.h"
 
@@ -138,7 +139,7 @@ public:
 
   typedef DenseMap<Type *, SPIRVType *> LLVMToSPIRVTypeMap;
   typedef DenseMap<Value *, SPIRVValue *> LLVMToSPIRVValueMap;
-  typedef DenseMap<MDNode *, SPIRVId> LLVMToSPIRVMetadataMap;
+  typedef DenseMap<MDNode *, SmallSet<SPIRVId, 2>> LLVMToSPIRVMetadataMap;
 
 private:
   Module *M;

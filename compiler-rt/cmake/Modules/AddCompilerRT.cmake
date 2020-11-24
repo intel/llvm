@@ -140,6 +140,7 @@ endmacro()
 #                         CFLAGS <compile flags>
 #                         LINK_FLAGS <linker flags>
 #                         DEFS <compile definitions>
+#                         DEPS <dependencies>
 #                         LINK_LIBS <linked libraries> (only for shared library)
 #                         OBJECT_LIBS <object libraries to use as sources>
 #                         PARENT_TARGET <convenience parent target>
@@ -152,7 +153,7 @@ function(add_compiler_rt_runtime name type)
   cmake_parse_arguments(LIB
     ""
     "PARENT_TARGET"
-    "OS;ARCHS;SOURCES;CFLAGS;LINK_FLAGS;DEFS;LINK_LIBS;OBJECT_LIBS;ADDITIONAL_HEADERS"
+    "OS;ARCHS;SOURCES;CFLAGS;LINK_FLAGS;DEFS;DEPS;LINK_LIBS;OBJECT_LIBS;ADDITIONAL_HEADERS"
     ${ARGN})
   set(libnames)
   # Until we support this some other way, build compiler-rt runtime without LTO
@@ -329,6 +330,9 @@ function(add_compiler_rt_runtime name type)
         RUNTIME DESTINATION ${install_dir_${libname}}
                 ${COMPONENT_OPTION})
     endif()
+    if(LIB_DEPS)
+      add_dependencies(${libname} ${LIB_DEPS})
+    endif()
     set_target_properties(${libname} PROPERTIES
         OUTPUT_NAME ${output_name_${libname}})
     set_target_properties(${libname} PROPERTIES FOLDER "Compiler-RT Runtime")
@@ -375,40 +379,6 @@ function(add_compiler_rt_runtime name type)
     add_dependencies(${LIB_PARENT_TARGET} ${libnames})
   endif()
 endfunction()
-
-# when cross compiling, COMPILER_RT_TEST_COMPILER_CFLAGS help
-# in compilation and linking of unittests.
-string(REPLACE " " ";" COMPILER_RT_UNITTEST_CFLAGS "${COMPILER_RT_TEST_COMPILER_CFLAGS}")
-set(COMPILER_RT_UNITTEST_LINK_FLAGS ${COMPILER_RT_UNITTEST_CFLAGS})
-
-# Unittests support.
-set(COMPILER_RT_GTEST_PATH ${LLVM_MAIN_SRC_DIR}/utils/unittest/googletest)
-set(COMPILER_RT_GTEST_SOURCE ${COMPILER_RT_GTEST_PATH}/src/gtest-all.cc)
-set(COMPILER_RT_GTEST_CFLAGS
-  -DGTEST_NO_LLVM_SUPPORT=1
-  -DGTEST_HAS_RTTI=0
-  -I${COMPILER_RT_GTEST_PATH}/include
-  -I${COMPILER_RT_GTEST_PATH}
-)
-
-# Mocking support.
-set(COMPILER_RT_GMOCK_PATH ${LLVM_MAIN_SRC_DIR}/utils/unittest/googlemock)
-set(COMPILER_RT_GMOCK_SOURCE ${COMPILER_RT_GMOCK_PATH}/src/gmock-all.cc)
-set(COMPILER_RT_GMOCK_CFLAGS
-  -DGTEST_NO_LLVM_SUPPORT=1
-  -DGTEST_HAS_RTTI=0
-  -I${COMPILER_RT_GMOCK_PATH}/include
-  -I${COMPILER_RT_GMOCK_PATH}
-)
-
-append_list_if(COMPILER_RT_DEBUG -DSANITIZER_DEBUG=1 COMPILER_RT_UNITTEST_CFLAGS)
-append_list_if(COMPILER_RT_HAS_WCOVERED_SWITCH_DEFAULT_FLAG -Wno-covered-switch-default COMPILER_RT_UNITTEST_CFLAGS)
-append_list_if(COMPILER_RT_HAS_WSUGGEST_OVERRIDE_FLAG -Wno-suggest-override COMPILER_RT_UNITTEST_CFLAGS)
-
-if(MSVC)
-  # gtest use a lot of stuff marked as deprecated on Windows.
-  list(APPEND COMPILER_RT_GTEST_CFLAGS -Wno-deprecated-declarations)
-endif()
 
 # Compile and register compiler-rt tests.
 # generate_compiler_rt_tests(<output object files> <test_suite> <test_name>
@@ -613,6 +583,9 @@ macro(add_custom_libcxx name prefix)
     CMAKE_OBJDUMP
     CMAKE_STRIP
     CMAKE_SYSROOT
+    PYTHON_EXECUTABLE
+    Python3_EXECUTABLE
+    Python2_EXECUTABLE
     CMAKE_SYSTEM_NAME)
   foreach(variable ${PASSTHROUGH_VARIABLES})
     get_property(is_value_set CACHE ${variable} PROPERTY VALUE SET)

@@ -339,13 +339,6 @@ public:
 
   void *MMemAllocation = nullptr;
 
-  // ESIMD-extension-specific fields.
-  struct {
-    // If this alloca corresponds to an ESIMD accessor, then this field holds
-    // an image buffer wrapping the memory allocation above.
-    void *MWrapperImage = nullptr;
-  } ESIMDExt;
-
   /// Alloca command linked with current command.
   /// Device and host alloca commands can be linked, so they may share the same
   /// memory. Only one allocation from a pair can be accessed at a time. Alloca
@@ -504,6 +497,13 @@ public:
   // host-task-representing command is unreliable. This unreliability roots in
   // the cleanup process.
   EmptyCommand *MEmptyCmd = nullptr;
+
+  // This function is only usable for native kernel to prevent access to free'd
+  // memory in DispatchNativeKernel.
+  // TODO remove when native kernel support is terminated.
+  void releaseCG() {
+    MCommandGroup.release();
+  }
 
 private:
   cl_int enqueueImp() final override;

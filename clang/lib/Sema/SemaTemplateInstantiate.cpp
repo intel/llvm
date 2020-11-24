@@ -141,7 +141,12 @@ Sema::getTemplateInstantiationArgs(NamedDecl *D,
               TSK_ExplicitSpecialization)
         break;
 
-      if (const TemplateArgumentList *TemplateArgs
+      if (!RelativeToPrimary && Function->getTemplateSpecializationKind() ==
+                                    TSK_ExplicitSpecialization) {
+        // This is an implicit instantiation of an explicit specialization. We
+        // don't get any template arguments from this function but might get
+        // some from an enclosing template.
+      } else if (const TemplateArgumentList *TemplateArgs
             = Function->getTemplateSpecializationArgs()) {
         // Add the template arguments for this specialization.
         Result.addOuterTemplateArguments(TemplateArgs);
@@ -237,7 +242,7 @@ Sema::InstantiatingTemplate::InstantiatingTemplate(
   // error have occurred. Any diagnostics we might have raised will not be
   // visible, and we do not need to construct a correct AST.
   if (SemaRef.Diags.hasFatalErrorOccurred() &&
-      SemaRef.Diags.hasUncompilableErrorOccurred()) {
+      SemaRef.hasUncompilableErrorOccurred()) {
     Invalid = true;
     return;
   }
@@ -579,7 +584,7 @@ void Sema::PrintInstantiationStack() {
 
     case CodeSynthesisContext::DefaultTemplateArgumentInstantiation: {
       TemplateDecl *Template = cast<TemplateDecl>(Active->Template);
-      SmallVector<char, 128> TemplateArgsStr;
+      SmallString<128> TemplateArgsStr;
       llvm::raw_svector_ostream OS(TemplateArgsStr);
       Template->printName(OS);
       printTemplateArgumentList(OS, Active->template_arguments(),
@@ -645,7 +650,7 @@ void Sema::PrintInstantiationStack() {
       ParmVarDecl *Param = cast<ParmVarDecl>(Active->Entity);
       FunctionDecl *FD = cast<FunctionDecl>(Param->getDeclContext());
 
-      SmallVector<char, 128> TemplateArgsStr;
+      SmallString<128> TemplateArgsStr;
       llvm::raw_svector_ostream OS(TemplateArgsStr);
       FD->printName(OS);
       printTemplateArgumentList(OS, Active->template_arguments(),
@@ -797,7 +802,7 @@ void Sema::PrintInstantiationStack() {
         assert(isa<FunctionDecl>(Active->Entity));
         DiagID = diag::note_checking_constraints_for_function_here;
       }
-      SmallVector<char, 128> TemplateArgsStr;
+      SmallString<128> TemplateArgsStr;
       llvm::raw_svector_ostream OS(TemplateArgsStr);
       cast<NamedDecl>(Active->Entity)->printName(OS);
       if (!isa<FunctionDecl>(Active->Entity))
@@ -856,6 +861,7 @@ Optional<TemplateDeductionInfo *> Sema::isSFINAEContext() const {
     case CodeSynthesisContext::DefaultTemplateArgumentInstantiation:
     case CodeSynthesisContext::PriorTemplateArgumentSubstitution:
     case CodeSynthesisContext::DefaultTemplateArgumentChecking:
+    case CodeSynthesisContext::RewritingOperatorAsSpaceship:
       // A default template argument instantiation and substitution into
       // template parameters with arguments for prior parameters may or may
       // not be a SFINAE context; look further up the stack.
@@ -874,7 +880,6 @@ Optional<TemplateDeductionInfo *> Sema::isSFINAEContext() const {
     case CodeSynthesisContext::DeclaringSpecialMember:
     case CodeSynthesisContext::DeclaringImplicitEqualityComparison:
     case CodeSynthesisContext::DefiningSynthesizedFunction:
-    case CodeSynthesisContext::RewritingOperatorAsSpaceship:
     case CodeSynthesisContext::InitializingStructuredBinding:
     case CodeSynthesisContext::MarkingClassDllexported:
       // This happens in a context unrelated to template instantiation, so
@@ -1517,9 +1522,12 @@ TemplateInstantiator::TransformTemplateParmRefExpr(DeclRefExpr *E,
       if (TargetType.isNull())
         return ExprError();
 
+      QualType ExprType = TargetType.getNonLValueExprType(SemaRef.Context);
+      if (TargetType->isRecordType())
+        ExprType.addConst();
+
       return new (SemaRef.Context) SubstNonTypeTemplateParmPackExpr(
-          TargetType.getNonLValueExprType(SemaRef.Context),
-          TargetType->isReferenceType() ? VK_LValue : VK_RValue, NTTP,
+          ExprType, TargetType->isReferenceType() ? VK_LValue : VK_RValue, NTTP,
           E->getLocation(), Arg);
     }
 
@@ -1614,15 +1622,39 @@ ExprResult TemplateInstantiator::transformNonTypeTemplateParmRef(
                                                  SourceLocation loc,
                                                  TemplateArgument arg) {
   ExprResult result;
-  QualType type;
 
-  // The template argument itself might be an expression, in which
-  // case we just return that expression.
+  // Determine the substituted parameter type. We can usually infer this from
+  // the template argument, but not always.
+  auto SubstParamType = [&] {
+    QualType T;
+    if (parm->isExpandedParameterPack())
+      T = parm->getExpansionType(SemaRef.ArgumentPackSubstitutionIndex);
+    else
+      T = parm->getType();
+    if (parm->isParameterPack() && isa<PackExpansionType>(T))
+      T = cast<PackExpansionType>(T)->getPattern();
+    return SemaRef.SubstType(T, TemplateArgs, loc, parm->getDeclName());
+  };
+
+  bool refParam = false;
+
+  // The template argument itself might be an expression, in which case we just
+  // return that expression. This happens when substituting into an alias
+  // template.
   if (arg.getKind() == TemplateArgument::Expression) {
     Expr *argExpr = arg.getAsExpr();
     result = argExpr;
-    type = argExpr->getType();
-
+    if (argExpr->isLValue()) {
+      if (argExpr->getType()->isRecordType()) {
+        // Check whether the parameter was actually a reference.
+        QualType paramType = SubstParamType();
+        if (paramType.isNull())
+          return ExprError();
+        refParam = paramType->isReferenceType();
+      } else {
+        refParam = true;
+      }
+    }
   } else if (arg.getKind() == TemplateArgument::Declaration ||
              arg.getKind() == TemplateArgument::NullPtr) {
     ValueDecl *VD;
@@ -1640,36 +1672,25 @@ ExprResult TemplateInstantiator::transformNonTypeTemplateParmRef(
       VD = nullptr;
     }
 
-    // Derive the type we want the substituted decl to have.  This had
-    // better be non-dependent, or these checks will have serious problems.
-    if (parm->isExpandedParameterPack()) {
-      type = parm->getExpansionType(SemaRef.ArgumentPackSubstitutionIndex);
-    } else if (parm->isParameterPack() &&
-               isa<PackExpansionType>(parm->getType())) {
-      type = SemaRef.SubstType(
-                        cast<PackExpansionType>(parm->getType())->getPattern(),
-                                     TemplateArgs, loc, parm->getDeclName());
-    } else {
-      type = SemaRef.SubstType(VD ? arg.getParamTypeForDecl() : arg.getNullPtrType(),
-                               TemplateArgs, loc, parm->getDeclName());
-    }
-    assert(!type.isNull() && "type substitution failed for param type");
-    assert(!type->isDependentType() && "param type still dependent");
-    result = SemaRef.BuildExpressionFromDeclTemplateArgument(arg, type, loc);
-
-    if (!result.isInvalid()) type = result.get()->getType();
+    QualType paramType = VD ? arg.getParamTypeForDecl() : arg.getNullPtrType();
+    assert(!paramType.isNull() && "type substitution failed for param type");
+    assert(!paramType->isDependentType() && "param type still dependent");
+    result = SemaRef.BuildExpressionFromDeclTemplateArgument(arg, paramType, loc);
+    refParam = paramType->isReferenceType();
   } else {
     result = SemaRef.BuildExpressionFromIntegralTemplateArgument(arg, loc);
-
-    // Note that this type can be different from the type of 'result',
-    // e.g. if it's an enum type.
-    type = arg.getIntegralType();
+    assert(result.isInvalid() ||
+           SemaRef.Context.hasSameType(result.get()->getType(),
+                                       arg.getIntegralType()));
   }
-  if (result.isInvalid()) return ExprError();
+
+  if (result.isInvalid())
+    return ExprError();
 
   Expr *resultExpr = result.get();
   return new (SemaRef.Context) SubstNonTypeTemplateParmExpr(
-      type, resultExpr->getValueKind(), loc, parm, resultExpr);
+      resultExpr->getType(), resultExpr->getValueKind(), loc, parm, refParam,
+      resultExpr);
 }
 
 ExprResult
@@ -1693,7 +1714,7 @@ TemplateInstantiator::TransformSubstNonTypeTemplateParmExpr(
   ExprResult SubstReplacement = TransformExpr(E->getReplacement());
   if (SubstReplacement.isInvalid())
     return true;
-  QualType SubstType = TransformType(E->getType());
+  QualType SubstType = TransformType(E->getParameterType(getSema().Context));
   if (SubstType.isNull())
     return true;
   // The type may have been previously dependent and not now, which means we
@@ -2812,7 +2833,10 @@ Sema::InstantiateClass(SourceLocation PointOfInstantiation,
 
     // BlockDecls can appear in a default-member-initializer. They must be the
     // child of a BlockExpr, so we only know how to instantiate them from there.
-    if (isa<BlockDecl>(Member))
+    // Similarly, lambda closure types are recreated when instantiating the
+    // corresponding LambdaExpr.
+    if (isa<BlockDecl>(Member) ||
+        (isa<CXXRecordDecl>(Member) && cast<CXXRecordDecl>(Member)->isLambda()))
       continue;
 
     if (Member->isInvalidDecl()) {

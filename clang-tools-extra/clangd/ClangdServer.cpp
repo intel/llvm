@@ -9,6 +9,7 @@
 #include "ClangdServer.h"
 #include "CodeComplete.h"
 #include "Config.h"
+#include "DumpAST.h"
 #include "FindSymbols.h"
 #include "Format.h"
 #include "HeaderSourceSwitch.h"
@@ -28,6 +29,7 @@
 #include "refactor/Tweak.h"
 #include "support/Logger.h"
 #include "support/Markup.h"
+#include "support/MemoryTree.h"
 #include "support/ThreadsafeFS.h"
 #include "support/Trace.h"
 #include "clang/Format/Format.h"
@@ -180,7 +182,7 @@ ClangdServer::ClangdServer(const GlobalCompilationDatabase &CDB,
       SuggestMissingIncludes(Opts.SuggestMissingIncludes),
       BuildRecoveryAST(Opts.BuildRecoveryAST),
       PreserveRecoveryASTType(Opts.PreserveRecoveryASTType),
-      TweakFilter(Opts.TweakFilter), WorkspaceRoot(Opts.WorkspaceRoot),
+      WorkspaceRoot(Opts.WorkspaceRoot),
       // Pass a callback into `WorkScheduler` to extract symbols from a newly
       // parsed file and rebuild the file index synchronously each time an AST
       // is parsed.
@@ -218,6 +220,7 @@ ClangdServer::ClangdServer(const GlobalCompilationDatabase &CDB,
     BGOpts.ContextProvider = [this](PathRef P) {
       return createProcessingContext(P);
     };
+    BGOpts.CollectMainFileRefs = Opts.CollectMainFileRefs;
     BackgroundIdx = std::make_unique<BackgroundIndex>(
         TFS, CDB,
         BackgroundIndexStorage::createDiskBackedStorageFactory(
@@ -399,9 +402,11 @@ void ClangdServer::formatOnType(PathRef File, llvm::StringRef Code,
 }
 
 void ClangdServer::prepareRename(PathRef File, Position Pos,
+                                 llvm::Optional<std::string> NewName,
                                  const RenameOptions &RenameOpts,
                                  Callback<RenameResult> CB) {
-  auto Action = [Pos, File = File.str(), CB = std::move(CB), RenameOpts,
+  auto Action = [Pos, File = File.str(), CB = std::move(CB),
+                 NewName = std::move(NewName), RenameOpts,
                  this](llvm::Expected<InputsAndAST> InpAST) mutable {
     if (!InpAST)
       return CB(InpAST.takeError());
@@ -412,9 +417,9 @@ void ClangdServer::prepareRename(PathRef File, Position Pos,
     //  - for cross-file rename, we deliberately pass a nullptr index to save
     //    the cost, thus the result may be incomplete as it only contains
     //    main-file occurrences;
-    auto Results = clangd::rename({Pos, /*NewName*/ "", InpAST->AST, File,
-                                   RenameOpts.AllowCrossFile ? nullptr : Index,
-                                   RenameOpts});
+    auto Results = clangd::rename(
+        {Pos, NewName.getValueOr("__clangd_rename_dummy"), InpAST->AST, File,
+         RenameOpts.AllowCrossFile ? nullptr : Index, RenameOpts});
     if (!Results) {
       // LSP says to return null on failure, but that will result in a generic
       // failure message. If we send an LSP error response, clients can surface
@@ -490,13 +495,15 @@ tweakSelection(const Range &Sel, const InputsAndAST &AST) {
   return std::move(Result);
 }
 
-void ClangdServer::enumerateTweaks(PathRef File, Range Sel,
-                                   Callback<std::vector<TweakRef>> CB) {
+void ClangdServer::enumerateTweaks(
+    PathRef File, Range Sel, llvm::unique_function<bool(const Tweak &)> Filter,
+    Callback<std::vector<TweakRef>> CB) {
   // Tracks number of times a tweak has been offered.
   static constexpr trace::Metric TweakAvailable(
       "tweak_available", trace::Metric::Counter, "tweak_id");
   auto Action = [File = File.str(), Sel, CB = std::move(CB),
-                 this](Expected<InputsAndAST> InpAST) mutable {
+                 Filter =
+                     std::move(Filter)](Expected<InputsAndAST> InpAST) mutable {
     if (!InpAST)
       return CB(InpAST.takeError());
     auto Selections = tweakSelection(Sel, *InpAST);
@@ -505,11 +512,11 @@ void ClangdServer::enumerateTweaks(PathRef File, Range Sel,
     std::vector<TweakRef> Res;
     // Don't allow a tweak to fire more than once across ambiguous selections.
     llvm::DenseSet<llvm::StringRef> PreparedTweaks;
-    auto Filter = [&](const Tweak &T) {
-      return TweakFilter(T) && !PreparedTweaks.count(T.id());
+    auto DeduplicatingFilter = [&](const Tweak &T) {
+      return Filter(T) && !PreparedTweaks.count(T.id());
     };
     for (const auto &Sel : *Selections) {
-      for (auto &T : prepareTweaks(*Sel, Filter)) {
+      for (auto &T : prepareTweaks(*Sel, DeduplicatingFilter)) {
         Res.push_back({T->id(), T->title(), T->kind()});
         PreparedTweaks.insert(T->id());
         TweakAvailable.record(1, T->id());
@@ -778,6 +785,38 @@ void ClangdServer::semanticHighlights(
                            TUScheduler::InvalidateOnUpdate);
 }
 
+void ClangdServer::getAST(PathRef File, Range R,
+                          Callback<llvm::Optional<ASTNode>> CB) {
+  auto Action =
+      [R, CB(std::move(CB))](llvm::Expected<InputsAndAST> Inputs) mutable {
+        if (!Inputs)
+          return CB(Inputs.takeError());
+        unsigned Start, End;
+        if (auto Offset = positionToOffset(Inputs->Inputs.Contents, R.start))
+          Start = *Offset;
+        else
+          return CB(Offset.takeError());
+        if (auto Offset = positionToOffset(Inputs->Inputs.Contents, R.end))
+          End = *Offset;
+        else
+          return CB(Offset.takeError());
+
+        bool Success = SelectionTree::createEach(
+            Inputs->AST.getASTContext(), Inputs->AST.getTokens(), Start, End,
+            [&](SelectionTree T) {
+              if (const SelectionTree::Node *N = T.commonAncestor()) {
+                CB(dumpAST(N->ASTNode, Inputs->AST.getTokens(),
+                           Inputs->AST.getASTContext()));
+                return true;
+              }
+              return false;
+            });
+        if (!Success)
+          CB(llvm::None);
+      };
+  WorkScheduler.runWithAST("GetAST", File, std::move(Action));
+}
+
 void ClangdServer::customAction(PathRef File, llvm::StringRef Name,
                                 Callback<InputsAndAST> Action) {
   WorkScheduler.runWithAST(Name, File, std::move(Action));
@@ -822,5 +861,12 @@ ClangdServer::blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds) {
           BackgroundIdx->blockUntilIdleForTest(TimeoutSeconds));
 }
 
+void ClangdServer::profile(MemoryTree &MT) const {
+  if (DynamicIdx)
+    DynamicIdx->profile(MT.child("dynamic_index"));
+  if (BackgroundIdx)
+    BackgroundIdx->profile(MT.child("background_index"));
+  WorkScheduler.profile(MT.child("tuscheduler"));
+}
 } // namespace clangd
 } // namespace clang

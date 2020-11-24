@@ -2219,6 +2219,12 @@ static TryCastResult TryReinterpretCast(Sema &Self, ExprResult &SrcExpr,
   bool destIsVector = DestType->isVectorType();
   bool srcIsVector = SrcType->isVectorType();
   if (srcIsVector || destIsVector) {
+    // Allow bitcasting between SVE VLATs and VLSTs, and vice-versa.
+    if (Self.isValidSveBitcast(SrcType, DestType)) {
+      Kind = CK_BitCast;
+      return TC_Success;
+    }
+
     // The non-vector type, if any, must have integral type.  This is
     // the same rule that C vector casts use; note, however, that enum
     // types are not integral in C++.
@@ -2707,6 +2713,17 @@ void CastOperation::CheckCStyleCast() {
     return;
   }
 
+  // If the type is dependent, we won't do any other semantic analysis now.
+  if (Self.getASTContext().isDependenceAllowed() &&
+      (DestType->isDependentType() || SrcExpr.get()->isTypeDependent() ||
+       SrcExpr.get()->isValueDependent())) {
+    assert((DestType->containsErrors() || SrcExpr.get()->containsErrors() ||
+            SrcExpr.get()->containsErrors()) &&
+           "should only occur in error-recovery path.");
+    assert(Kind == CK_Dependent);
+    return;
+  }
+
   // Overloads are allowed with C extensions, so we need to support them.
   if (SrcExpr.get()->getType() == Self.Context.OverloadTy) {
     DeclAccessPair DAP;
@@ -2738,6 +2755,13 @@ void CastOperation::CheckCStyleCast() {
   if (DestType->isSizelessBuiltinType() &&
       Self.Context.hasSameUnqualifiedType(DestType, SrcType)) {
     Kind = CK_NoOp;
+    return;
+  }
+
+  // Allow bitcasting between compatible SVE vector types.
+  if ((SrcType->isVectorType() || DestType->isVectorType()) &&
+      Self.isValidSveBitcast(SrcType, DestType)) {
+    Kind = CK_BitCast;
     return;
   }
 

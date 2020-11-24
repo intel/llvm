@@ -115,6 +115,8 @@ public:
   void Leave(const parser::OpenMPCancelConstruct &);
   void Enter(const parser::OpenMPCancellationPointConstruct &);
   void Leave(const parser::OpenMPCancellationPointConstruct &);
+  void Enter(const parser::OpenMPCriticalConstruct &);
+  void Leave(const parser::OpenMPCriticalConstruct &);
 
   void Leave(const parser::OmpClauseList &);
   void Enter(const parser::OmpClause &);
@@ -163,7 +165,6 @@ public:
   void Enter(const parser::OmpScheduleClause &);
 
 private:
-
   bool HasInvalidWorksharingNesting(
       const parser::CharBlock &, const OmpDirectiveSet &);
 
@@ -173,6 +174,10 @@ private:
 
   llvm::StringRef getClauseName(llvm::omp::Clause clause) override;
   llvm::StringRef getDirectiveName(llvm::omp::Directive directive) override;
+
+  void CheckDependList(const parser::DataRef &);
+  void CheckDependArraySection(
+      const common::Indirection<parser::ArrayElement> &, const parser::Name &);
 };
 } // namespace Fortran::semantics
 #endif // FORTRAN_SEMANTICS_CHECK_OMP_STRUCTURE_H_

@@ -35,6 +35,8 @@ public:
   ObjDumper(ScopedPrinter &Writer);
   virtual ~ObjDumper();
 
+  virtual bool canDumpContent() { return true; }
+
   virtual void printFileHeaders() = 0;
   virtual void printSectionHeaders() = 0;
   virtual void printRelocations() = 0;
@@ -72,7 +74,8 @@ public:
   virtual void printNotes() {}
   virtual void printELFLinkerOptions() {}
   virtual void printStackSizes() {}
-  virtual void printArchSpecificInfo() { }
+  virtual void printSectionDetails() {}
+  virtual void printArchSpecificInfo() {}
 
   // Only implemented for PE/COFF.
   virtual void printCOFFImports() { }
@@ -80,6 +83,7 @@ public:
   virtual void printCOFFDirectives() { }
   virtual void printCOFFBaseReloc() { }
   virtual void printCOFFDebugDirectory() { }
+  virtual void printCOFFTLSDirectory() {}
   virtual void printCOFFResources() {}
   virtual void printCOFFLoadConfig() { }
   virtual void printCodeViewDebugInfo() { }

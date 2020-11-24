@@ -7,14 +7,14 @@ define dso_local arm_aapcs_vfpcc i32 @minmaxval4(i32* nocapture readonly %x, i32
 ; CHECK-NEXT:    push {r7, lr}
 ; CHECK-NEXT:    vpush {d8, d9, d10, d11}
 ; CHECK-NEXT:    sub sp, #8
-; CHECK-NEXT:    adr r3, .LCPI0_0
 ; CHECK-NEXT:    mov.w lr, #3
+; CHECK-NEXT:    adr r3, .LCPI0_0
+; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:    vldrw.u32 q2, [r3]
 ; CHECK-NEXT:    vmov.i32 q0, #0x80000000
 ; CHECK-NEXT:    vmvn.i32 q1, #0x80000000
 ; CHECK-NEXT:    movs r2, #0
 ; CHECK-NEXT:    vmov.i32 q3, #0xa
-; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB0_1: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vadd.i32 q4, q2, r2
@@ -74,14 +74,14 @@ vector.body:                                      ; preds = %vector.body, %entry
   br i1 %8, label %middle.block, label %vector.body
 
 middle.block:                                     ; preds = %vector.body
-  %9 = call i32 @llvm.experimental.vector.reduce.smax.v4i32(<4 x i32> %7)
-  %10 = call i32 @llvm.experimental.vector.reduce.smin.v4i32(<4 x i32> %5)
+  %9 = call i32 @llvm.vector.reduce.smax.v4i32(<4 x i32> %7)
+  %10 = call i32 @llvm.vector.reduce.smin.v4i32(<4 x i32> %5)
   store i32 %10, i32* %minp, align 4
   ret i32 %9
 }
 
 declare <4 x i1> @llvm.get.active.lane.mask.v4i1.i32(i32, i32) #1
 declare <4 x i32> @llvm.masked.load.v4i32.p0v4i32(<4 x i32>*, i32 immarg, <4 x i1>, <4 x i32>) #2
-declare i32 @llvm.experimental.vector.reduce.smin.v4i32(<4 x i32>) #3
-declare i32 @llvm.experimental.vector.reduce.smax.v4i32(<4 x i32>) #3
+declare i32 @llvm.vector.reduce.smin.v4i32(<4 x i32>) #3
+declare i32 @llvm.vector.reduce.smax.v4i32(<4 x i32>) #3
 

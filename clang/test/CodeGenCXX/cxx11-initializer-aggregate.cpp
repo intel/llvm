@@ -1,4 +1,5 @@
 // RUN: %clang_cc1 -std=c++11 -S -emit-llvm -o - %s -triple x86_64-linux-gnu | FileCheck %s
+// RUN: %clang_cc1 -std=c++17 -S -emit-llvm -o - %s -triple x86_64-linux-gnu | FileCheck %s
 
 struct A { int a, b; int f(); };
 
@@ -54,7 +55,7 @@ int fn1(int x) {
   // CHECK: store i32 %{{.*}}, i32* %[[A]], align 4
   // CHECK: %[[B:.*]] = getelementptr inbounds %struct.A, %struct.A* %[[INITLIST]], i32 0, i32 1
   // CHECK: store i32 5, i32* %[[B]], align 4
-  // CHECK: call i32 @_ZN1A1fEv(%struct.A* %[[INITLIST]])
+  // CHECK: call i32 @_ZN1A1fEv(%struct.A* {{[^,]*}} %[[INITLIST]])
   return A{x, 5}.f();
 }
 
@@ -65,7 +66,7 @@ int &fn2(int &v) {
   // CHECK: %[[INITLIST2:.*]] = alloca %struct.B, align 8
   // CHECK: %[[R:.*]] = getelementptr inbounds %struct.B, %struct.B* %[[INITLIST2:.*]], i32 0, i32 0
   // CHECK: store i32* %{{.*}}, i32** %[[R]], align 8
-  // CHECK: call nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) i32* @_ZN1B1fEv(%struct.B* %[[INITLIST2:.*]])
+  // CHECK: call nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) i32* @_ZN1B1fEv(%struct.B* {{[^,]*}} %[[INITLIST2:.*]])
   return B{v}.f();
 }
 
@@ -118,4 +119,55 @@ namespace ZeroInit {
   // This variable must be initialized elementwise.
   Filler data_e1[1024] = {};
   // CHECK: getelementptr inbounds {{.*}} @_ZN8ZeroInit7data_e1E
+
+  struct Largeish {
+    long a, b, c;
+  };
+  // CHECK: define {{.*}}@_ZN8ZeroInit9largeish1Ev(
+  // CHECK-NOT }
+  // CHECK: call {{.*}}memset
+  Largeish largeish1() { return {}; }
+  // CHECK: define {{.*}}@_ZN8ZeroInit9largeish2Ev(
+  // CHECK-NOT }
+  // CHECK: call {{.*}}memset
+  Largeish largeish2() { return Largeish(); }
+  // CHECK: define {{.*}}@_ZN8ZeroInit9largeish3Ev(
+  // CHECK-NOT }
+  // CHECK: call {{.*}}memset
+  Largeish largeish3() { return Largeish{}; }
+  // CHECK: define {{.*}}@_ZN8ZeroInit9largeish4Ev(
+  // CHECK-NOT }
+  // CHECK: call {{.*}}memset
+  Largeish largeish4() { return (Largeish){}; }
+  // CHECK: define {{.*}}@_ZN8ZeroInit9largeish5Ev(
+  // CHECK-NOT }
+  // CHECK: call {{.*}}memset
+  Largeish largeish5() { return {0, 0, 0}; }
+
+  typedef __attribute__((ext_vector_type(4))) char CI4;
+  struct Conversions {
+    _Complex int a;
+    _Complex float b;
+    short c;
+    long double d;
+    CI4 e;
+    char f;
+    char g;
+    int *h;
+    long i;
+  };
+  // CHECK: define {{.*}}@_ZN8ZeroInit11conversionsEv(
+  // CHECK-NOT }
+  // CHECK: call {{.*}}memset
+  Conversions conversions() {
+    return {0,
+            0,
+            0,
+            0,
+            CI4(0),
+            static_cast<char>(0.0),
+            char(0 + 0i),
+            reinterpret_cast<int *>(0),
+            reinterpret_cast<long>((int *)nullptr)};
+  }
 }

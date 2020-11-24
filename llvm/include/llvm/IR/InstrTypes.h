@@ -650,8 +650,8 @@ public:
   /// DataLayout argument is to determine the pointer size when examining casts
   /// involving Integer and Pointer types. They are no-op casts if the integer
   /// is the same size as the pointer. However, pointer size varies with
-  /// platform.
-  /// Determine if the described cast is a no-op cast.
+  /// platform.  Note that a precondition of this method is that the cast is
+  /// legal - i.e. the instruction formed with these operands would verify.
   static bool isNoopCast(
     Instruction::CastOps Opcode, ///< Opcode of cast
     Type *SrcTy,         ///< SrcTy of cast
@@ -691,11 +691,14 @@ public:
   /// Return the destination type, as a convenience
   Type* getDestTy() const { return getType(); }
 
-  /// This method can be used to determine if a cast from S to DstTy using
+  /// This method can be used to determine if a cast from SrcTy to DstTy using
   /// Opcode op is valid or not.
   /// @returns true iff the proposed cast is valid.
   /// Determine if a cast is valid without creating one.
-  static bool castIsValid(Instruction::CastOps op, Value *S, Type *DstTy);
+  static bool castIsValid(Instruction::CastOps op, Type *SrcTy, Type *DstTy);
+  static bool castIsValid(Instruction::CastOps op, Value *S, Type *DstTy) {
+    return castIsValid(op, S->getType(), DstTy);
+  }
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const Instruction *I) {
@@ -888,9 +891,19 @@ public:
   /// Determine if this CmpInst is commutative.
   bool isCommutative() const;
 
-  /// This is just a convenience that dispatches to the subclasses.
   /// Determine if this is an equals/not equals predicate.
-  bool isEquality() const;
+  /// This is a static version that you can use without an instruction
+  /// available.
+  static bool isEquality(Predicate pred);
+
+  /// Determine if this is an equals/not equals predicate.
+  bool isEquality() const { return isEquality(getPredicate()); }
+
+  /// Return true if the predicate is relational (not EQ or NE).
+  static bool isRelational(Predicate P) { return !isEquality(P); }
+
+  /// Return true if the predicate is relational (not EQ or NE).
+  bool isRelational() const { return !isEquality(); }
 
   /// @returns true if the comparison is signed, false otherwise.
   /// Determine if this instruction is using a signed comparison.
@@ -915,6 +928,30 @@ public:
   /// return the signed version of a predicate
   Predicate getSignedPredicate() {
     return getSignedPredicate(getPredicate());
+  }
+
+  /// For example, SLT->ULT, SLE->ULE, SGT->UGT, SGE->UGE, ULT->Failed assert
+  /// @returns the unsigned version of the signed predicate pred.
+  static Predicate getUnsignedPredicate(Predicate pred);
+
+  /// For example, SLT->ULT, SLE->ULE, SGT->UGT, SGE->UGE, ULT->Failed assert
+  /// @returns the unsigned version of the predicate for this instruction (which
+  /// has to be an signed predicate).
+  /// return the unsigned version of a predicate
+  Predicate getUnsignedPredicate() {
+    return getUnsignedPredicate(getPredicate());
+  }
+
+  /// For example, SLT->ULT, ULT->SLT, SLE->ULE, ULE->SLE, EQ->Failed assert
+  /// @returns the unsigned version of the signed predicate pred or
+  ///          the signed version of the signed predicate pred.
+  static Predicate getFlippedSignednessPredicate(Predicate pred);
+
+  /// For example, SLT->ULT, ULT->SLT, SLE->ULE, ULE->SLE, EQ->Failed assert
+  /// @returns the unsigned version of the signed predicate pred or
+  ///          the signed version of the signed predicate pred.
+  Predicate getFlippedSignednessPredicate() {
+    return getFlippedSignednessPredicate(getPredicate());
   }
 
   /// This is just a convenience.

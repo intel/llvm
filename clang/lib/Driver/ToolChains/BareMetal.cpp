@@ -33,9 +33,12 @@ BareMetal::BareMetal(const Driver &D, const llvm::Triple &Triple,
   getProgramPaths().push_back(getDriver().getInstalledDir());
   if (getDriver().getInstalledDir() != getDriver().Dir)
     getProgramPaths().push_back(getDriver().Dir);
+  SmallString<128> SysRoot(getDriver().SysRoot);
+  if (!SysRoot.empty()) {
+    llvm::sys::path::append(SysRoot, "lib");
+    getFilePaths().push_back(std::string(SysRoot));
+  }
 }
-
-BareMetal::~BareMetal() {}
 
 /// Is the triple {arm,thumb}-none-none-{eabi,eabihf} ?
 static bool isARMBareMetal(const llvm::Triple &Triple) {
@@ -62,6 +65,13 @@ bool BareMetal::handlesTarget(const llvm::Triple &Triple) {
 
 Tool *BareMetal::buildLinker() const {
   return new tools::baremetal::Linker(*this);
+}
+
+std::string BareMetal::getCompilerRTPath() const { return getRuntimesDir(); }
+
+std::string BareMetal::getCompilerRTBasename(const llvm::opt::ArgList &,
+                                             StringRef, FileType, bool) const {
+  return ("libclang_rt.builtins-" + getTriple().getArchName() + ".a").str();
 }
 
 std::string BareMetal::getRuntimesDir() const {
@@ -184,6 +194,7 @@ void baremetal::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   CmdArgs.push_back(Args.MakeArgString("-L" + TC.getRuntimesDir()));
 
+  TC.AddFilePathLibArgs(Args, CmdArgs);
   Args.AddAllArgs(CmdArgs, {options::OPT_L, options::OPT_T_Group,
                             options::OPT_e, options::OPT_s, options::OPT_t,
                             options::OPT_Z_Flag, options::OPT_r});
@@ -202,5 +213,5 @@ void baremetal::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   C.addCommand(std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
                                          Args.MakeArgString(TC.GetLinkerPath()),
-                                         CmdArgs, Inputs));
+                                         CmdArgs, Inputs, Output));
 }

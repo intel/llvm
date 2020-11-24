@@ -12,7 +12,7 @@
 #include "MinidumpParser.h"
 #include "MinidumpTypes.h"
 
-#include "lldb/Target/Process.h"
+#include "lldb/Target/PostMortemProcess.h"
 #include "lldb/Target/StopInfo.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/ConstString.h"
@@ -26,7 +26,7 @@ namespace lldb_private {
 
 namespace minidump {
 
-class ProcessMinidump : public Process {
+class ProcessMinidump : public PostMortemProcess {
 public:
   static lldb::ProcessSP CreateInstance(lldb::TargetSP target_sp,
                                         lldb::ListenerSP listener_sp,
@@ -101,6 +101,10 @@ protected:
                         ThreadList &new_thread_list) override;
 
   void ReadModuleList();
+
+  lldb::ModuleSP GetOrCreateModule(lldb_private::UUID minidump_uuid,
+                                   llvm::StringRef name,
+                                   lldb_private::ModuleSpec module_spec);
 
   JITLoaderList &GetJITLoaders() override;
 

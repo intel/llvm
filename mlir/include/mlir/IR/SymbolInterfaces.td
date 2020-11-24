@@ -53,12 +53,6 @@ def Symbol : OpInterface<"SymbolOpInterface"> {
         return mlir::SymbolTable::getSymbolVisibility(this->getOperation());
       }]
     >,
-    InterfaceMethod<"Sets the visibility of this symbol.",
-      "void", "setVisibility", (ins "mlir::SymbolTable::Visibility":$vis), [{}],
-      /*defaultImplementation=*/[{
-        mlir::SymbolTable::setSymbolVisibility(this->getOperation(), vis);
-      }]
-    >,
     InterfaceMethod<"Returns true if this symbol has nested visibility.",
       "bool", "isNested", (ins),  [{}],
       /*defaultImplementation=*/[{
@@ -75,6 +69,30 @@ def Symbol : OpInterface<"SymbolOpInterface"> {
       "bool", "isPublic", (ins),  [{}],
       /*defaultImplementation=*/[{
         return getVisibility() == mlir::SymbolTable::Visibility::Public;
+      }]
+    >,
+    InterfaceMethod<"Sets the visibility of this symbol.",
+      "void", "setVisibility", (ins "mlir::SymbolTable::Visibility":$vis), [{}],
+      /*defaultImplementation=*/[{
+        mlir::SymbolTable::setSymbolVisibility(this->getOperation(), vis);
+      }]
+    >,
+    InterfaceMethod<"Sets the visibility of this symbol to be nested.",
+      "void", "setNested", (ins),  [{}],
+      /*defaultImplementation=*/[{
+        setVisibility(mlir::SymbolTable::Visibility::Nested);
+      }]
+    >,
+    InterfaceMethod<"Sets the visibility of this symbol to be private.",
+      "void", "setPrivate", (ins),  [{}],
+      /*defaultImplementation=*/[{
+        setVisibility(mlir::SymbolTable::Visibility::Private);
+      }]
+    >,
+    InterfaceMethod<"Sets the visibility of this symbol to be public.",
+      "void", "setPublic", (ins),  [{}],
+      /*defaultImplementation=*/[{
+        setVisibility(mlir::SymbolTable::Visibility::Public);
       }]
     >,
     InterfaceMethod<[{
@@ -130,6 +148,16 @@ def Symbol : OpInterface<"SymbolOpInterface"> {
         return getVisibility() != ::mlir::SymbolTable::Visibility::Public;
       }]
     >,
+    InterfaceMethod<[{
+        Returns true if this operation is a declaration of a symbol (as opposed
+        to a definition).
+      }],
+      "bool", "isDeclaration", (ins), [{}],
+      /*defaultImplementation=*/[{
+        // By default, assume that the operation defines a symbol.
+        return false;
+      }]
+    >,
   ];
 
   let verify = [{
@@ -139,20 +167,49 @@ def Symbol : OpInterface<"SymbolOpInterface"> {
       if(!concreteOp.getAttr(::mlir::SymbolTable::getSymbolAttrName()))
         return success();
     }
-    return ::mlir::detail::verifySymbol($_op);
+    if (::mlir::failed(::mlir::detail::verifySymbol($_op)))
+      return ::mlir::failure();
+    if (concreteOp.isDeclaration() && concreteOp.isPublic())
+      return concreteOp.emitOpError("symbol declaration cannot have public "
+             "visibility");
+    return success();
   }];
 
   let extraClassDeclaration = [{
     /// Custom classof that handles the case where the symbol is optional.
     static bool classof(Operation *op) {
-      return Base::classof(op)
-        && op->getAttr(::mlir::SymbolTable::getSymbolAttrName());
+      auto *concept = getInterfaceFor(op);
+      if (!concept)
+        return false;
+      return !concept->isOptionalSymbol(op) ||
+             op->getAttr(::mlir::SymbolTable::getSymbolAttrName());
     }
   }];
 
   let extraTraitClassDeclaration = [{
     using Visibility = mlir::SymbolTable::Visibility;
   }];
+}
+
+//===----------------------------------------------------------------------===//
+// SymbolUserOpInterface
+//===----------------------------------------------------------------------===//
+
+def SymbolUserOpInterface : OpInterface<"SymbolUserOpInterface"> {
+  let description = [{
+    This interface describes an operation that may use a `Symbol`. This
+    interface allows for users of symbols to hook into verification and other
+    symbol related utilities that are either costly or otherwise disallowed
+    within a traditional operation.
+  }];
+  let cppNamespace = "::mlir";
+
+  let methods = [
+    InterfaceMethod<"Verify the symbol uses held by this operation.",
+      "LogicalResult", "verifySymbolUses",
+      (ins "::mlir::SymbolTableCollection &":$symbolTable)
+    >,
+  ];
 }
 
 //===----------------------------------------------------------------------===//

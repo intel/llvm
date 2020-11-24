@@ -37,8 +37,6 @@
 //
 // >> ---- link the full hetero app
 // RUN: %clangxx wrapper.o a.o b.o -o app.exe -lsycl
-// RUN: env SYCL_BE=%sycl_be ./app.exe | FileCheck %s
-// CHECK: pass
 
 //==----------- test.cpp - Tests SYCL separate compilation -----------------==//
 //

@@ -70,21 +70,16 @@ MATCHER_P(IncludeHeader, P, "") {
 MATCHER_P2(IncludeHeaderWithRef, IncludeHeader, References, "") {
   return (arg.IncludeHeader == IncludeHeader) && (arg.References == References);
 }
+bool rangesMatch(const SymbolLocation &Loc, const Range &R) {
+  return std::make_tuple(Loc.Start.line(), Loc.Start.column(), Loc.End.line(),
+                         Loc.End.column()) ==
+         std::make_tuple(R.start.line, R.start.character, R.end.line,
+                         R.end.character);
+}
 MATCHER_P(DeclRange, Pos, "") {
-  return std::make_tuple(arg.CanonicalDeclaration.Start.line(),
-                         arg.CanonicalDeclaration.Start.column(),
-                         arg.CanonicalDeclaration.End.line(),
-                         arg.CanonicalDeclaration.End.column()) ==
-         std::make_tuple(Pos.start.line, Pos.start.character, Pos.end.line,
-                         Pos.end.character);
+  return rangesMatch(arg.CanonicalDeclaration, Pos);
 }
-MATCHER_P(DefRange, Pos, "") {
-  return std::make_tuple(
-             arg.Definition.Start.line(), arg.Definition.Start.column(),
-             arg.Definition.End.line(), arg.Definition.End.column()) ==
-         std::make_tuple(Pos.start.line, Pos.start.character, Pos.end.line,
-                         Pos.end.character);
-}
+MATCHER_P(DefRange, Pos, "") { return rangesMatch(arg.Definition, Pos); }
 MATCHER_P(RefCount, R, "") { return int(arg.References) == R; }
 MATCHER_P(ForCodeCompletion, IsIndexedForCodeCompletion, "") {
   return static_cast<bool>(arg.Flags & Symbol::IndexedForCodeCompletion) ==
@@ -100,10 +95,10 @@ MATCHER(VisibleOutsideFile, "") {
 MATCHER(RefRange, "") {
   const Ref &Pos = ::testing::get<0>(arg);
   const Range &Range = ::testing::get<1>(arg);
-  return std::make_tuple(Pos.Location.Start.line(), Pos.Location.Start.column(),
-                         Pos.Location.End.line(), Pos.Location.End.column()) ==
-         std::make_tuple(Range.start.line, Range.start.character,
-                         Range.end.line, Range.end.character);
+  return rangesMatch(Pos.Location, Range);
+}
+MATCHER_P2(OverriddenBy, Subject, Object, "") {
+  return arg == Relation{Subject.ID, RelationKind::OverriddenBy, Object.ID};
 }
 ::testing::Matcher<const std::vector<Ref> &>
 HaveRanges(const std::vector<Range> Ranges) {
@@ -738,6 +733,76 @@ TEST_F(SymbolCollectorTest, Refs) {
   EXPECT_THAT(Refs, Not(Contains(Pair(findSymbol(Symbols, "FUNC").ID, _))));
 }
 
+TEST_F(SymbolCollectorTest, RefContainers) {
+  Annotations Code(R"cpp(
+    int $toplevel1[[f1]](int);
+    void f2() {
+      (void) $ref1a[[f1]](1);
+      auto fptr = &$ref1b[[f1]];
+    }
+    int $toplevel2[[v1]] = $ref2[[f1]](2);
+    void f3(int arg = $ref3[[f1]](3));
+    struct S1 {
+      int $classscope1[[member1]] = $ref4[[f1]](4);
+      int $classscope2[[member2]] = 42;
+    };
+    constexpr int f4(int x) { return x + 1; }
+    template <int I = $ref5[[f4]](0)> struct S2 {};
+    S2<$ref6[[f4]](0)> v2;
+    S2<$ref7a[[f4]](0)> f5(S2<$ref7b[[f4]](0)>);
+    namespace N {
+      void $namespacescope1[[f6]]();
+      int $namespacescope2[[v3]];
+    }
+  )cpp");
+  CollectorOpts.RefFilter = RefKind::All;
+  CollectorOpts.CollectMainFileRefs = true;
+  runSymbolCollector("", Code.code());
+  auto FindRefWithRange = [&](Range R) -> Optional<Ref> {
+    for (auto &Entry : Refs) {
+      for (auto &Ref : Entry.second) {
+        if (rangesMatch(Ref.Location, R))
+          return Ref;
+      }
+    }
+    return llvm::None;
+  };
+  auto Container = [&](llvm::StringRef RangeName) {
+    auto Ref = FindRefWithRange(Code.range(RangeName));
+    EXPECT_TRUE(bool(Ref));
+    return Ref->Container;
+  };
+  EXPECT_EQ(Container("ref1a"),
+            findSymbol(Symbols, "f2").ID); // function body (call)
+  EXPECT_EQ(Container("ref1b"),
+            findSymbol(Symbols, "f2").ID); // function body (address-of)
+  EXPECT_EQ(Container("ref2"),
+            findSymbol(Symbols, "v1").ID); // variable initializer
+  EXPECT_EQ(Container("ref3"),
+            findSymbol(Symbols, "f3").ID); // function parameter default value
+  EXPECT_EQ(Container("ref4"),
+            findSymbol(Symbols, "S1::member1").ID); // member initializer
+  EXPECT_EQ(Container("ref5"),
+            findSymbol(Symbols, "S2").ID); // template parameter default value
+  EXPECT_EQ(Container("ref6"),
+            findSymbol(Symbols, "v2").ID); // type of variable
+  EXPECT_EQ(Container("ref7a"),
+            findSymbol(Symbols, "f5").ID); // return type of function
+  EXPECT_EQ(Container("ref7b"),
+            findSymbol(Symbols, "f5").ID); // parameter type of function
+
+  EXPECT_FALSE(Container("classscope1").isNull());
+  EXPECT_FALSE(Container("namespacescope1").isNull());
+
+  EXPECT_EQ(Container("toplevel1"), Container("toplevel2"));
+  EXPECT_EQ(Container("classscope1"), Container("classscope2"));
+  EXPECT_EQ(Container("namespacescope1"), Container("namespacescope2"));
+
+  EXPECT_NE(Container("toplevel1"), Container("namespacescope1"));
+  EXPECT_NE(Container("toplevel1"), Container("classscope1"));
+  EXPECT_NE(Container("classscope1"), Container("namespacescope1"));
+}
+
 TEST_F(SymbolCollectorTest, MacroRefInHeader) {
   Annotations Header(R"(
   #define $foo[[FOO]](X) (X + 1)
@@ -969,7 +1034,7 @@ TEST_F(SymbolCollectorTest, RefsInHeaders) {
                                   HaveRanges(Header.ranges("macro")))));
 }
 
-TEST_F(SymbolCollectorTest, Relations) {
+TEST_F(SymbolCollectorTest, BaseOfRelations) {
   std::string Header = R"(
   class Base {};
   class Derived : public Base {};
@@ -979,6 +1044,77 @@ TEST_F(SymbolCollectorTest, Relations) {
   const Symbol &Derived = findSymbol(Symbols, "Derived");
   EXPECT_THAT(Relations,
               Contains(Relation{Base.ID, RelationKind::BaseOf, Derived.ID}));
+}
+
+TEST_F(SymbolCollectorTest, OverrideRelationsSimpleInheritance) {
+  std::string Header = R"cpp(
+    class A {
+      virtual void foo();
+    };
+    class B : public A {
+      void foo() override;  // A::foo
+      virtual void bar();
+    };
+    class C : public B {
+      void bar() override;  // B::bar
+    };
+    class D: public C {
+      void foo() override;  // B::foo
+      void bar() override;  // C::bar
+    };
+  )cpp";
+  runSymbolCollector(Header, /*Main=*/"");
+  const Symbol &AFoo = findSymbol(Symbols, "A::foo");
+  const Symbol &BFoo = findSymbol(Symbols, "B::foo");
+  const Symbol &DFoo = findSymbol(Symbols, "D::foo");
+
+  const Symbol &BBar = findSymbol(Symbols, "B::bar");
+  const Symbol &CBar = findSymbol(Symbols, "C::bar");
+  const Symbol &DBar = findSymbol(Symbols, "D::bar");
+
+  std::vector<Relation> Result;
+  for (const Relation &R : Relations)
+    if (R.Predicate == RelationKind::OverriddenBy)
+      Result.push_back(R);
+  EXPECT_THAT(Result, UnorderedElementsAre(
+                          OverriddenBy(AFoo, BFoo), OverriddenBy(BBar, CBar),
+                          OverriddenBy(BFoo, DFoo), OverriddenBy(CBar, DBar)));
+}
+
+TEST_F(SymbolCollectorTest, OverrideRelationsMultipleInheritance) {
+  std::string Header = R"cpp(
+    class A {
+      virtual void foo();
+    };
+    class B {
+      virtual void bar();
+    };
+    class C : public B {
+      void bar() override;  // B::bar
+      virtual void baz();
+    }
+    class D : public A, C {
+      void foo() override;  // A::foo
+      void bar() override;  // C::bar
+      void baz() override;  // C::baz
+    };
+  )cpp";
+  runSymbolCollector(Header, /*Main=*/"");
+  const Symbol &AFoo = findSymbol(Symbols, "A::foo");
+  const Symbol &BBar = findSymbol(Symbols, "B::bar");
+  const Symbol &CBar = findSymbol(Symbols, "C::bar");
+  const Symbol &CBaz = findSymbol(Symbols, "C::baz");
+  const Symbol &DFoo = findSymbol(Symbols, "D::foo");
+  const Symbol &DBar = findSymbol(Symbols, "D::bar");
+  const Symbol &DBaz = findSymbol(Symbols, "D::baz");
+
+  std::vector<Relation> Result;
+  for (const Relation &R : Relations)
+    if (R.Predicate == RelationKind::OverriddenBy)
+      Result.push_back(R);
+  EXPECT_THAT(Result, UnorderedElementsAre(
+                          OverriddenBy(BBar, CBar), OverriddenBy(AFoo, DFoo),
+                          OverriddenBy(CBar, DBar), OverriddenBy(CBaz, DBaz)));
 }
 
 TEST_F(SymbolCollectorTest, CountReferences) {
@@ -1280,10 +1416,27 @@ TEST_F(SymbolCollectorTest, CanonicalSTLHeader) {
   Language.CPlusPlus = true;
   Includes.addSystemHeadersMapping(Language);
   CollectorOpts.Includes = &Includes;
-  runSymbolCollector("namespace std { class string {}; }", /*Main=*/"");
-  EXPECT_THAT(Symbols,
-              Contains(AllOf(QName("std::string"), DeclURI(TestHeaderURI),
-                             IncludeHeader("<string>"))));
+  runSymbolCollector(
+      R"cpp(
+      namespace std {
+        class string {};
+        // Move overloads have special handling.
+        template <typename T> T&& move(T&&);
+        template <typename I, typename O> O move(I, I, O);
+      }
+      )cpp",
+      /*Main=*/"");
+  for (const auto &S : Symbols)
+    llvm::errs() << S.Scope << S.Name << " in " << S.IncludeHeaders.size()
+                 << "\n";
+  EXPECT_THAT(
+      Symbols,
+      UnorderedElementsAre(
+          QName("std"),
+          AllOf(QName("std::string"), DeclURI(TestHeaderURI),
+                IncludeHeader("<string>")),
+          AllOf(Labeled("move(T &&)"), IncludeHeader("<utility>")),
+          AllOf(Labeled("move(I, I, O)"), IncludeHeader("<algorithm>"))));
 }
 
 TEST_F(SymbolCollectorTest, IWYUPragma) {

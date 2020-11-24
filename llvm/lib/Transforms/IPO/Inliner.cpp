@@ -58,6 +58,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/Utils/CallPromotionUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/ImportedFunctionsInliningStatistics.h"
@@ -90,6 +91,11 @@ STATISTIC(NumMergedAllocas, "Number of allocas merged together");
 static cl::opt<bool>
     DisableInlinedAllocaMerging("disable-inlined-alloca-merging",
                                 cl::init(false), cl::Hidden);
+
+/// Flag to disable adding AlwaysInlinerPass to ModuleInlinerWrapperPass.
+/// TODO: remove this once this has is baked in for long enough.
+static cl::opt<bool> DisableAlwaysInlinerInModuleWrapper(
+    "disable-always-inliner-in-module-wrapper", cl::init(false), cl::Hidden);
 
 namespace {
 
@@ -761,9 +767,8 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
   if (Calls.empty())
     return PreservedAnalyses::all();
 
-  // Capture updatable variables for the current SCC and RefSCC.
+  // Capture updatable variable for the current SCC.
   auto *C = &InitialC;
-  auto *RC = &C->getOuterRefSCC();
 
   // When inlining a callee produces new call sites, we want to keep track of
   // the fact that they were inlined from the callee.  This allows us to avoid
@@ -848,7 +853,8 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
           &FAM.getResult<BlockFrequencyAnalysis>(*(CB->getCaller())),
           &FAM.getResult<BlockFrequencyAnalysis>(Callee));
 
-      InlineResult IR = InlineFunction(*CB, IFI);
+      InlineResult IR =
+          InlineFunction(*CB, IFI, &FAM.getResult<AAManager>(*CB->getCaller()));
       if (!IR.isSuccess()) {
         Advice->recordUnsuccessfulInlining(IR);
         continue;
@@ -926,20 +932,6 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
       continue;
     Changed = true;
 
-    // Add all the inlined callees' edges as ref edges to the caller. These are
-    // by definition trivial edges as we always have *some* transitive ref edge
-    // chain. While in some cases these edges are direct calls inside the
-    // callee, they have to be modeled in the inliner as reference edges as
-    // there may be a reference edge anywhere along the chain from the current
-    // caller to the callee that causes the whole thing to appear like
-    // a (transitive) reference edge that will require promotion to a call edge
-    // below.
-    for (Function *InlinedCallee : InlinedCallees) {
-      LazyCallGraph::Node &CalleeN = *CG.lookup(*InlinedCallee);
-      for (LazyCallGraph::Edge &E : *CalleeN)
-        RC->insertTrivialRefEdge(N, E.getNode());
-    }
-
     // At this point, since we have made changes we have at least removed
     // a call instruction. However, in the process we do some incremental
     // simplification of the surrounding code. This simplification can
@@ -952,9 +944,8 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
     // as we're going to mutate this particular function we want to make sure
     // the proxy is in place to forward any invalidation events.
     LazyCallGraph::SCC *OldC = C;
-    C = &updateCGAndAnalysisManagerForFunctionPass(CG, *C, N, AM, UR, FAM);
+    C = &updateCGAndAnalysisManagerForCGSCCPass(CG, *C, N, AM, UR, FAM);
     LLVM_DEBUG(dbgs() << "Updated inlining SCC: " << *C << "\n");
-    RC = &C->getOuterRefSCC();
 
     // If this causes an SCC to split apart into multiple smaller SCCs, there
     // is a subtle risk we need to prepare for. Other transformations may
@@ -1055,6 +1046,8 @@ PreservedAnalyses ModuleInlinerWrapperPass::run(Module &M,
     return PreservedAnalyses::all();
   }
 
+  if (!DisableAlwaysInlinerInModuleWrapper)
+    MPM.addPass(AlwaysInlinerPass());
   // We wrap the CGSCC pipeline in a devirtualization repeater. This will try
   // to detect when we devirtualize indirect calls and iterate the SCC passes
   // in that case to try and catch knock-on inlining or function attrs

@@ -34,10 +34,10 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   Bin->Format = pi::getBinaryImageFormat(Bin->BinaryStart, DataSize);
   switch (Bin->Format) {
   case PI_DEVICE_BINARY_TYPE_SPIRV:
-    Bin->DeviceTargetSpec = PI_DEVICE_BINARY_TARGET_SPIRV64;
+    Bin->DeviceTargetSpec = __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64;
     break;
   default:
-    Bin->DeviceTargetSpec = PI_DEVICE_BINARY_TARGET_UNKNOWN;
+    Bin->DeviceTargetSpec = __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN;
   }
   init(Bin);
 }

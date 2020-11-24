@@ -37,6 +37,15 @@ class Triple;
 
 namespace AMDGPU {
 
+/// \returns HSA OS ABI Version identification.
+Optional<uint8_t> getHsaAbiVersion(const MCSubtargetInfo *STI);
+/// \returns True if HSA OS ABI Version identification is 2,
+/// false otherwise.
+bool isHsaAbiVersion2(const MCSubtargetInfo *STI);
+/// \returns True if HSA OS ABI Version identification is 3,
+/// false otherwise.
+bool isHsaAbiVersion3(const MCSubtargetInfo *STI);
+
 struct GcnBufferFormatInfo {
   unsigned Format;
   unsigned BitsPerComp;
@@ -63,10 +72,6 @@ enum {
 
 /// Streams isa version string for given subtarget \p STI into \p Stream.
 void streamIsaVersion(const MCSubtargetInfo *STI, raw_ostream &Stream);
-
-/// \returns True if given subtarget \p STI supports code object version 3,
-/// false otherwise.
-bool hasCodeObjectV3(const MCSubtargetInfo *STI);
 
 /// \returns Wavefront size for given subtarget \p STI.
 unsigned getWavefrontSize(const MCSubtargetInfo *STI);
@@ -563,6 +568,9 @@ LLVM_READNONE
 bool isShader(CallingConv::ID CC);
 
 LLVM_READNONE
+bool isGraphics(CallingConv::ID CC);
+
+LLVM_READNONE
 bool isCompute(CallingConv::ID CC);
 
 LLVM_READNONE
@@ -591,6 +599,7 @@ bool isSI(const MCSubtargetInfo &STI);
 bool isCI(const MCSubtargetInfo &STI);
 bool isVI(const MCSubtargetInfo &STI);
 bool isGFX9(const MCSubtargetInfo &STI);
+bool isGFX9Plus(const MCSubtargetInfo &STI);
 bool isGFX10(const MCSubtargetInfo &STI);
 bool isGCN3Encoding(const MCSubtargetInfo &STI);
 bool isGFX10_BEncoding(const MCSubtargetInfo &STI);
@@ -768,10 +777,8 @@ struct SIModeRegisterDefaults {
   SIModeRegisterDefaults(const Function &F);
 
   static SIModeRegisterDefaults getDefaultForCallingConv(CallingConv::ID CC) {
-    const bool IsCompute = AMDGPU::isCompute(CC);
-
     SIModeRegisterDefaults Mode;
-    Mode.IEEE = IsCompute;
+    Mode.IEEE = !AMDGPU::isShader(CC);
     return Mode;
   }
 

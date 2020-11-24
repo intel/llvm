@@ -27,9 +27,11 @@
 #include "lldb/Core/StreamFile.h"
 #include "lldb/Core/StructuredDataImpl.h"
 #include "lldb/Core/ValueObject.h"
+#include "lldb/Expression/DiagnosticManager.h"
 #include "lldb/Expression/ExpressionVariable.h"
 #include "lldb/Expression/REPL.h"
 #include "lldb/Expression/UserExpression.h"
+#include "lldb/Expression/UtilityFunction.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Host/PosixApi.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
@@ -126,13 +128,10 @@ Target::~Target() {
   DeleteCurrentProcess();
 }
 
-void Target::PrimeFromDummyTarget(Target *target) {
-  if (!target)
-    return;
+void Target::PrimeFromDummyTarget(Target &target) {
+  m_stop_hooks = target.m_stop_hooks;
 
-  m_stop_hooks = target->m_stop_hooks;
-
-  for (const auto &breakpoint_sp : target->m_breakpoint_list.Breakpoints()) {
+  for (const auto &breakpoint_sp : target.m_breakpoint_list.Breakpoints()) {
     if (breakpoint_sp->IsInternal())
       continue;
 
@@ -141,14 +140,14 @@ void Target::PrimeFromDummyTarget(Target *target) {
     AddBreakpoint(std::move(new_bp), false);
   }
 
-  for (auto bp_name_entry : target->m_breakpoint_names) {
+  for (auto bp_name_entry : target.m_breakpoint_names) {
 
     BreakpointName *new_bp_name = new BreakpointName(*bp_name_entry.second);
     AddBreakpointName(new_bp_name);
   }
 
   m_frame_recognizer_manager_up = std::make_unique<StackFrameRecognizerManager>(
-      *target->m_frame_recognizer_manager_up);
+      *target.m_frame_recognizer_manager_up);
 }
 
 void Target::Dump(Stream *s, lldb::DescriptionLevel description_level) {
@@ -1971,8 +1970,9 @@ ModuleSP Target::GetOrCreateModule(const ModuleSpec &module_spec, bool notify,
     module_sp = m_images.FindFirstModule(module_spec);
 
   if (!module_sp) {
-    ModuleSP old_module_sp; // This will get filled in if we have a new version
-                            // of the library
+    llvm::SmallVector<ModuleSP, 1>
+        old_modules; // This will get filled in if we have a new version
+                     // of the library
     bool did_create_module = false;
     FileSpecList search_paths = GetExecutableSearchPaths();
     // If there are image search path entries, try to use them first to acquire
@@ -1985,7 +1985,7 @@ ModuleSP Target::GetOrCreateModule(const ModuleSpec &module_spec, bool notify,
         transformed_spec.GetFileSpec().GetFilename() =
             module_spec.GetFileSpec().GetFilename();
         error = ModuleList::GetSharedModule(transformed_spec, module_sp,
-                                            &search_paths, &old_module_sp,
+                                            &search_paths, &old_modules,
                                             &did_create_module);
       }
     }
@@ -2003,7 +2003,7 @@ ModuleSP Target::GetOrCreateModule(const ModuleSpec &module_spec, bool notify,
         // We have a UUID, it is OK to check the global module list...
         error =
             ModuleList::GetSharedModule(module_spec, module_sp, &search_paths,
-                                        &old_module_sp, &did_create_module);
+                                        &old_modules, &did_create_module);
       }
 
       if (!module_sp) {
@@ -2012,7 +2012,7 @@ ModuleSP Target::GetOrCreateModule(const ModuleSpec &module_spec, bool notify,
         if (m_platform_sp) {
           error = m_platform_sp->GetSharedModule(
               module_spec, m_process_sp.get(), module_sp, &search_paths,
-              &old_module_sp, &did_create_module);
+              &old_modules, &did_create_module);
         } else {
           error.SetErrorString("no platform is currently set");
         }
@@ -2063,18 +2063,18 @@ ModuleSP Target::GetOrCreateModule(const ModuleSpec &module_spec, bool notify,
         // this target. So let's remove the UUID from the module list, and look
         // in the target's module list. Only do this if there is SOMETHING else
         // in the module spec...
-        if (!old_module_sp) {
-          if (module_spec.GetUUID().IsValid() &&
-              !module_spec.GetFileSpec().GetFilename().IsEmpty() &&
-              !module_spec.GetFileSpec().GetDirectory().IsEmpty()) {
-            ModuleSpec module_spec_copy(module_spec.GetFileSpec());
-            module_spec_copy.GetUUID().Clear();
+        if (module_spec.GetUUID().IsValid() &&
+            !module_spec.GetFileSpec().GetFilename().IsEmpty() &&
+            !module_spec.GetFileSpec().GetDirectory().IsEmpty()) {
+          ModuleSpec module_spec_copy(module_spec.GetFileSpec());
+          module_spec_copy.GetUUID().Clear();
 
-            ModuleList found_modules;
-            m_images.FindModules(module_spec_copy, found_modules);
-            if (found_modules.GetSize() == 1)
-              old_module_sp = found_modules.GetModuleAtIndex(0);
-          }
+          ModuleList found_modules;
+          m_images.FindModules(module_spec_copy, found_modules);
+          found_modules.ForEach([&](const ModuleSP &found_module) -> bool {
+            old_modules.push_back(found_module);
+            return true;
+          });
         }
 
         // Preload symbols outside of any lock, so hopefully we can do this for
@@ -2082,14 +2082,67 @@ ModuleSP Target::GetOrCreateModule(const ModuleSpec &module_spec, bool notify,
         if (GetPreloadSymbols())
           module_sp->PreloadSymbols();
 
-        if (old_module_sp && m_images.GetIndexForModule(old_module_sp.get()) !=
-                                 LLDB_INVALID_INDEX32) {
-          m_images.ReplaceModule(old_module_sp, module_sp);
+        llvm::SmallVector<ModuleSP, 1> replaced_modules;
+        for (ModuleSP &old_module_sp : old_modules) {
+          if (m_images.GetIndexForModule(old_module_sp.get()) !=
+              LLDB_INVALID_INDEX32) {
+            if (replaced_modules.empty())
+              m_images.ReplaceModule(old_module_sp, module_sp);
+            else
+              m_images.Remove(old_module_sp);
+
+            replaced_modules.push_back(std::move(old_module_sp));
+          }
+        }
+
+        if (replaced_modules.size() > 1) {
+          // The same new module replaced multiple old modules
+          // simultaneously.  It's not clear this should ever
+          // happen (if we always replace old modules as we add
+          // new ones, presumably we should never have more than
+          // one old one).  If there are legitimate cases where
+          // this happens, then the ModuleList::Notifier interface
+          // may need to be adjusted to allow reporting this.
+          // In the meantime, just log that this has happened; just
+          // above we called ReplaceModule on the first one, and Remove
+          // on the rest.
+          if (Log *log = GetLogIfAnyCategoriesSet(LIBLLDB_LOG_TARGET |
+                                                  LIBLLDB_LOG_MODULES)) {
+            StreamString message;
+            auto dump = [&message](Module &dump_module) -> void {
+              UUID dump_uuid = dump_module.GetUUID();
+
+              message << '[';
+              dump_module.GetDescription(message.AsRawOstream());
+              message << " (uuid ";
+
+              if (dump_uuid.IsValid())
+                dump_uuid.Dump(&message);
+              else
+                message << "not specified";
+
+              message << ")]";
+            };
+
+            message << "New module ";
+            dump(*module_sp);
+            message.AsRawOstream()
+                << llvm::formatv(" simultaneously replaced {0} old modules: ",
+                                 replaced_modules.size());
+            for (ModuleSP &replaced_module_sp : replaced_modules)
+              dump(*replaced_module_sp);
+
+            log->PutString(message.GetString());
+          }
+        }
+
+        if (replaced_modules.empty())
+          m_images.Append(module_sp, notify);
+
+        for (ModuleSP &old_module_sp : replaced_modules) {
           Module *old_module_ptr = old_module_sp.get();
           old_module_sp.reset();
           ModuleList::RemoveSharedModuleIfOrphaned(old_module_ptr);
-        } else {
-          m_images.Append(module_sp, notify);
         }
       } else
         module_sp.reset();
@@ -2242,27 +2295,29 @@ FunctionCaller *Target::GetFunctionCallerForLanguage(
   return persistent_fn;
 }
 
-UtilityFunction *
-Target::GetUtilityFunctionForLanguage(const char *text,
-                                      lldb::LanguageType language,
-                                      const char *name, Status &error) {
+llvm::Expected<std::unique_ptr<UtilityFunction>>
+Target::CreateUtilityFunction(std::string expression, std::string name,
+                              lldb::LanguageType language,
+                              ExecutionContext &exe_ctx) {
   auto type_system_or_err = GetScratchTypeSystemForLanguage(language);
+  if (!type_system_or_err)
+    return type_system_or_err.takeError();
 
-  if (auto err = type_system_or_err.takeError()) {
-    error.SetErrorStringWithFormat(
-        "Could not find type system for language %s: %s",
-        Language::GetNameForLanguageType(language),
-        llvm::toString(std::move(err)).c_str());
-    return nullptr;
-  }
-
-  auto *utility_fn = type_system_or_err->GetUtilityFunction(text, name);
+  std::unique_ptr<UtilityFunction> utility_fn =
+      type_system_or_err->CreateUtilityFunction(std::move(expression),
+                                                std::move(name));
   if (!utility_fn)
-    error.SetErrorStringWithFormat(
-        "Could not create an expression for language %s",
-        Language::GetNameForLanguageType(language));
+    return llvm::make_error<llvm::StringError>(
+        llvm::StringRef("Could not create an expression for language") +
+            Language::GetNameForLanguageType(language),
+        llvm::inconvertibleErrorCode());
 
-  return utility_fn;
+  DiagnosticManager diagnostics;
+  if (!utility_fn->Install(diagnostics, exe_ctx))
+    return llvm::make_error<llvm::StringError>(diagnostics.GetString(),
+                                               llvm::inconvertibleErrorCode());
+
+  return std::move(utility_fn);
 }
 
 void Target::SettingsInitialize() { Process::SettingsInitialize(); }
@@ -2541,25 +2596,26 @@ void Target::SetAllStopHooksActiveState(bool active_state) {
   }
 }
 
-void Target::RunStopHooks() {
+bool Target::RunStopHooks() {
   if (m_suppress_stop_hooks)
-    return;
+    return false;
 
   if (!m_process_sp)
-    return;
+    return false;
 
   // Somebody might have restarted the process:
+  // Still return false, the return value is about US restarting the target.
   if (m_process_sp->GetState() != eStateStopped)
-    return;
+    return false;
 
   // <rdar://problem/12027563> make sure we check that we are not stopped
   // because of us running a user expression since in that case we do not want
   // to run the stop-hooks
   if (m_process_sp->GetModIDRef().IsLastResumeForUserExpression())
-    return;
+    return false;
 
   if (m_stop_hooks.empty())
-    return;
+    return false;
 
   // If there aren't any active stop hooks, don't bother either.
   bool any_active_hooks = false;
@@ -2570,7 +2626,7 @@ void Target::RunStopHooks() {
     }
   }
   if (!any_active_hooks)
-    return;
+    return false;
 
   std::vector<ExecutionContext> exc_ctx_with_reasons;
 
@@ -2588,7 +2644,7 @@ void Target::RunStopHooks() {
   // If no threads stopped for a reason, don't run the stop-hooks.
   size_t num_exe_ctx = exc_ctx_with_reasons.size();
   if (num_exe_ctx == 0)
-    return;
+    return false;
 
   StreamSP output_sp = m_debugger.GetAsyncOutputStream();
 
@@ -2636,22 +2692,27 @@ void Target::RunStopHooks() {
         output_sp->Printf("-- Thread %d\n",
                           exc_ctx.GetThreadPtr()->GetIndexID());
 
-      bool this_should_stop = cur_hook_sp->HandleStop(exc_ctx, output_sp);
-      // If this hook is set to auto-continue that should override the
-      // HandleStop result...
-      if (cur_hook_sp->GetAutoContinue())
+      StopHook::StopHookResult this_result =
+          cur_hook_sp->HandleStop(exc_ctx, output_sp);
+      bool this_should_stop = true;
+
+      switch (this_result) {
+      case StopHook::StopHookResult::KeepStopped:
+        // If this hook is set to auto-continue that should override the
+        // HandleStop result...
+        if (cur_hook_sp->GetAutoContinue())
+          this_should_stop = false;
+        else
+          this_should_stop = true;
+
+        break;
+      case StopHook::StopHookResult::RequestContinue:
         this_should_stop = false;
-
-      // If anybody wanted to stop, we should all stop.
-      if (!should_stop)
-        should_stop = this_should_stop;
-
-      // We don't have a good way to prohibit people from restarting the target
-      // willy nilly in a stop hook.  So see if the private state is running
-      // here and bag out if it is.
-      // FIXME: when we are doing non-stop mode for realz we'll have to instead
-      // track each thread, and only bag out if a thread is set running.
-      if (m_process_sp->GetPrivateState() != eStateStopped) {
+        break;
+      case StopHook::StopHookResult::AlreadyContinued:
+        // We don't have a good way to prohibit people from restarting the
+        // target willy nilly in a stop hook.  If the hook did so, give a
+        // gentle suggestion here and bag out if the hook processing.
         output_sp->Printf("\nAborting stop hooks, hook %" PRIu64
                           " set the program running.\n"
                           "  Consider using '-G true' to make "
@@ -2660,16 +2721,42 @@ void Target::RunStopHooks() {
         somebody_restarted = true;
         break;
       }
+      // If we're already restarted, stop processing stop hooks.
+      // FIXME: if we are doing non-stop mode for real, we would have to
+      // check that OUR thread was restarted, otherwise we should keep
+      // processing stop hooks.
+      if (somebody_restarted)
+        break;
+
+      // If anybody wanted to stop, we should all stop.
+      if (!should_stop)
+        should_stop = this_should_stop;
     }
   }
 
   output_sp->Flush();
 
+  // If one of the commands in the stop hook already restarted the target,
+  // report that fact.
+  if (somebody_restarted)
+    return true;
+
   // Finally, if auto-continue was requested, do it now:
   // We only compute should_stop against the hook results if a hook got to run
   // which is why we have to do this conjoint test.
-  if (!somebody_restarted && ((hooks_ran && !should_stop) || auto_continue))
-    m_process_sp->PrivateResume();
+  if ((hooks_ran && !should_stop) || auto_continue) {
+    Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS));
+    Status error = m_process_sp->PrivateResume();
+    if (error.Success()) {
+      LLDB_LOG(log, "Resuming from RunStopHooks");
+      return true;
+    } else {
+      LLDB_LOG(log, "Resuming from RunStopHooks failed: {0}", error);
+      return false;
+    }
+  }
+
+  return false;
 }
 
 const TargetPropertiesSP &Target::GetGlobalProperties() {
@@ -2965,6 +3052,10 @@ Status Target::Launch(ProcessLaunchInfo &launch_info, Stream *stream) {
   return error;
 }
 
+void Target::SetTrace(const TraceSP &trace_sp) { m_trace_sp = trace_sp; }
+
+const TraceSP &Target::GetTrace() { return m_trace_sp; }
+
 Status Target::Attach(ProcessAttachInfo &attach_info, Stream *stream) {
   auto state = eStateInvalid;
   auto process_sp = GetProcessSP();
@@ -3235,16 +3326,18 @@ void Target::StopHookCommandLine::SetActionFromStrings(
     GetCommands().AppendString(string.c_str());
 }
 
-bool Target::StopHookCommandLine::HandleStop(ExecutionContext &exc_ctx,
-                                             StreamSP output_sp) {
+Target::StopHook::StopHookResult
+Target::StopHookCommandLine::HandleStop(ExecutionContext &exc_ctx,
+                                        StreamSP output_sp) {
   assert(exc_ctx.GetTargetPtr() && "Can't call PerformAction on a context "
                                    "with no target");
 
   if (!m_commands.GetSize())
-    return true;
+    return StopHookResult::KeepStopped;
 
   CommandReturnObject result(false);
   result.SetImmediateOutputStream(output_sp);
+  result.SetInteractive(false);
   Debugger &debugger = exc_ctx.GetTargetPtr()->GetDebugger();
   CommandInterpreterRunOptions options;
   options.SetStopOnContinue(true);
@@ -3260,8 +3353,11 @@ bool Target::StopHookCommandLine::HandleStop(ExecutionContext &exc_ctx,
   debugger.GetCommandInterpreter().HandleCommands(GetCommands(), &exc_ctx,
                                                   options, result);
   debugger.SetAsyncExecution(old_async);
-
-  return true;
+  lldb::ReturnStatus status = result.GetStatus();
+  if (status == eReturnStatusSuccessContinuingNoResult ||
+      status == eReturnStatusSuccessContinuingResult)
+    return StopHookResult::AlreadyContinued;
+  return StopHookResult::KeepStopped;
 }
 
 // Target::StopHookScripted
@@ -3289,20 +3385,22 @@ Status Target::StopHookScripted::SetScriptCallback(
   return error;
 }
 
-bool Target::StopHookScripted::HandleStop(ExecutionContext &exc_ctx,
-                                          StreamSP output_sp) {
+Target::StopHook::StopHookResult
+Target::StopHookScripted::HandleStop(ExecutionContext &exc_ctx,
+                                     StreamSP output_sp) {
   assert(exc_ctx.GetTargetPtr() && "Can't call HandleStop on a context "
                                    "with no target");
 
   ScriptInterpreter *script_interp =
       GetTarget()->GetDebugger().GetScriptInterpreter();
   if (!script_interp)
-    return true;
+    return StopHookResult::KeepStopped;
 
   bool should_stop = script_interp->ScriptedStopHookHandleStop(
       m_implementation_sp, exc_ctx, output_sp);
 
-  return should_stop;
+  return should_stop ? StopHookResult::KeepStopped
+                     : StopHookResult::RequestContinue;
 }
 
 void Target::StopHookScripted::GetSubclassDescription(
@@ -3982,6 +4080,12 @@ llvm::StringRef TargetProperties::GetExpressionPrefixContents() {
           data_sp->GetByteSize());
   }
   return "";
+}
+
+uint64_t TargetProperties::GetExprErrorLimit() const {
+  const uint32_t idx = ePropertyExprErrorLimit;
+  return m_collection_sp->GetPropertyAtIndexAsUInt64(
+      nullptr, idx, g_target_properties[idx].default_uint_value);
 }
 
 bool TargetProperties::GetBreakpointsConsultPlatformAvoidList() {

@@ -23,6 +23,7 @@ class MemoryCommandRegion(TestBase):
             'main.cpp',
             '// Run here before printing memory regions')
 
+    @expectedFailureAll(oslist=["freebsd"])
     def test(self):
         self.build()
 
@@ -40,6 +41,12 @@ class MemoryCommandRegion(TestBase):
         interp.HandleCommand("memory region", result)
         self.assertFalse(result.Succeeded())
         self.assertRegexpMatches(result.GetError(), "Usage: memory region ADDR")
+
+        # Test that when the address fails to parse, we show an error and do not continue
+        interp.HandleCommand("memory region not_an_address", result)
+        self.assertFalse(result.Succeeded())
+        self.assertEqual(result.GetError(),
+                "error: invalid address argument \"not_an_address\": address expression \"not_an_address\" evaluation failed\n")
 
         # Now let's print the memory region starting at 0 which should always work.
         interp.HandleCommand("memory region 0x0", result)

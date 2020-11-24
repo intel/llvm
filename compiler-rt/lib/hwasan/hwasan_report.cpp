@@ -224,7 +224,7 @@ static void PrintStackAllocations(StackAllocationsRingBuffer *sa,
     frame_desc.append("  record_addr:0x%zx record:0x%zx",
                       reinterpret_cast<uptr>(record_addr), record);
     if (SymbolizedStack *frame = Symbolizer::GetOrInit()->SymbolizePC(pc)) {
-      RenderFrame(&frame_desc, " %F %L\n", 0, frame->info,
+      RenderFrame(&frame_desc, " %F %L\n", 0, frame->info.address, &frame->info,
                   common_flags()->symbolize_vs_style,
                   common_flags()->strip_path_prefix);
       frame->ClearAll();
@@ -254,7 +254,8 @@ static bool TagsEqual(tag_t tag, tag_t *tag_ptr) {
 static uptr GetGlobalSizeFromDescriptor(uptr ptr) {
   // Find the ELF object that this global resides in.
   Dl_info info;
-  dladdr(reinterpret_cast<void *>(ptr), &info);
+  if (dladdr(reinterpret_cast<void *>(ptr), &info) == 0)
+    return 0;
   auto *ehdr = reinterpret_cast<const ElfW(Ehdr) *>(info.dli_fbase);
   auto *phdr_begin = reinterpret_cast<const ElfW(Phdr) *>(
       reinterpret_cast<const u8 *>(ehdr) + ehdr->e_phoff);

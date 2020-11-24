@@ -2162,6 +2162,66 @@ define i1 @or_icmp_eq_B_0_icmp_ult_A_B(i64 %a, i64 %b) {
   ret i1 %3
 }
 
+define <2 x i1> @or_icmp_eq_B_0_icmp_ult_A_B_uniform(<2 x i64> %a, <2 x i64> %b) {
+; CHECK-LABEL: @or_icmp_eq_B_0_icmp_ult_A_B_uniform(
+; CHECK-NEXT:    [[TMP1:%.*]] = add <2 x i64> [[B:%.*]], <i64 -1, i64 -1>
+; CHECK-NEXT:    [[TMP2:%.*]] = icmp uge <2 x i64> [[TMP1]], [[A:%.*]]
+; CHECK-NEXT:    ret <2 x i1> [[TMP2]]
+;
+  %1 = icmp eq <2 x i64> %b, zeroinitializer
+  %2 = icmp ult <2 x i64> %a, %b
+  %3 = or <2 x i1> %1, %2
+  ret <2 x i1> %3
+}
+
+define <2 x i1> @or_icmp_eq_B_0_icmp_ult_A_B_undef(<2 x i64> %a, <2 x i64> %b) {
+; CHECK-LABEL: @or_icmp_eq_B_0_icmp_ult_A_B_undef(
+; CHECK-NEXT:    [[TMP1:%.*]] = add <2 x i64> [[B:%.*]], <i64 -1, i64 -1>
+; CHECK-NEXT:    [[TMP2:%.*]] = icmp uge <2 x i64> [[TMP1]], [[A:%.*]]
+; CHECK-NEXT:    ret <2 x i1> [[TMP2]]
+;
+  %1 = icmp eq <2 x i64> %b, <i64 0, i64 undef>
+  %2 = icmp ult <2 x i64> %a, %b
+  %3 = or <2 x i1> %1, %2
+  ret <2 x i1> %3
+}
+
+define i1 @or_icmp_ne_A_0_icmp_ne_B_0(i64 %a, i64 %b) {
+; CHECK-LABEL: @or_icmp_ne_A_0_icmp_ne_B_0(
+; CHECK-NEXT:    [[TMP1:%.*]] = or i64 [[A:%.*]], [[B:%.*]]
+; CHECK-NEXT:    [[TMP2:%.*]] = icmp ne i64 [[TMP1]], 0
+; CHECK-NEXT:    ret i1 [[TMP2]]
+;
+  %1 = icmp ne i64 %a, 0
+  %2 = icmp ne i64 %b, 0
+  %3 = or i1 %1, %2
+  ret i1 %3
+}
+
+define <2 x i1> @or_icmp_ne_A_0_icmp_ne_B_0_uniform(<2 x i64> %a, <2 x i64> %b) {
+; CHECK-LABEL: @or_icmp_ne_A_0_icmp_ne_B_0_uniform(
+; CHECK-NEXT:    [[TMP1:%.*]] = or <2 x i64> [[A:%.*]], [[B:%.*]]
+; CHECK-NEXT:    [[TMP2:%.*]] = icmp ne <2 x i64> [[TMP1]], zeroinitializer
+; CHECK-NEXT:    ret <2 x i1> [[TMP2]]
+;
+  %1 = icmp ne <2 x i64> %a, zeroinitializer
+  %2 = icmp ne <2 x i64> %b, zeroinitializer
+  %3 = or <2 x i1> %1, %2
+  ret <2 x i1> %3
+}
+
+define <2 x i1> @or_icmp_ne_A_0_icmp_ne_B_0_undef(<2 x i64> %a, <2 x i64> %b) {
+; CHECK-LABEL: @or_icmp_ne_A_0_icmp_ne_B_0_undef(
+; CHECK-NEXT:    [[TMP1:%.*]] = or <2 x i64> [[A:%.*]], [[B:%.*]]
+; CHECK-NEXT:    [[TMP2:%.*]] = icmp ne <2 x i64> [[TMP1]], zeroinitializer
+; CHECK-NEXT:    ret <2 x i1> [[TMP2]]
+;
+  %1 = icmp ne <2 x i64> %a, <i64 0, i64 undef>
+  %2 = icmp ne <2 x i64> %b, <i64 0, i64 undef>
+  %3 = or <2 x i1> %1, %2
+  ret <2 x i1> %3
+}
+
 define i1 @icmp_add_ult_2(i32 %X) {
 ; CHECK-LABEL: @icmp_add_ult_2(
 ; CHECK-NEXT:    [[TMP1:%.*]] = and i32 [[X:%.*]], -2
@@ -3760,4 +3820,25 @@ define i1 @signbit_bitcast_fptrunc_ppc_fp128(ppc_fp128 %x) {
   %s3 = bitcast float %s2 to i32
   %s4 = icmp slt i32 %s3, 0
   ret i1 %s4
+}
+
+@x = external dso_local local_unnamed_addr global i32, align 4
+@y = external dso_local local_unnamed_addr global i32, align 4
+define i1 @pr47997(i32 %arg) {
+; CHECK-LABEL: @pr47997(
+; CHECK-NEXT:  bb:
+; CHECK-NEXT:    [[I:%.*]] = add nsw i32 [[ARG:%.*]], -1
+; CHECK-NEXT:    store i32 [[I]], i32* @x, align 4
+; CHECK-NEXT:    [[I1:%.*]] = sub nsw i32 1, [[ARG]]
+; CHECK-NEXT:    store i32 [[I1]], i32* @y, align 4
+; CHECK-NEXT:    ret i1 true
+;
+bb:
+  %i = add nsw i32 %arg, -1
+  store i32 %i, i32* @x
+  %i1 = sub nsw i32 1, %arg
+  store i32 %i1, i32* @y
+  %i2 = sub nsw i32 0, %i1
+  %i3 = icmp eq i32 %i, %i2
+  ret i1 %i3
 }

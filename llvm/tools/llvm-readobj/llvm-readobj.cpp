@@ -137,6 +137,11 @@ namespace opts {
   cl::opt<bool> DynRelocs("dyn-relocations",
     cl::desc("Display the dynamic relocation entries in the file"));
 
+  // --section-details
+  // Also -t in llvm-readelf mode.
+  cl::opt<bool> SectionDetails("section-details",
+                               cl::desc("Display the section details"));
+
   // --symbols
   // Also -s in llvm-readelf mode, or -t in llvm-readobj mode.
   cl::opt<bool>
@@ -271,6 +276,10 @@ namespace opts {
   cl::opt<bool>
   COFFDebugDirectory("coff-debug-directory",
                      cl::desc("Display the PE/COFF debug directory"));
+
+  // --coff-tls-directory
+  cl::opt<bool> COFFTLSDirectory("coff-tls-directory",
+                                 cl::desc("Display the PE/COFF TLS directory"));
 
   // --coff-resources
   cl::opt<bool> COFFResources("coff-resources",
@@ -449,11 +458,16 @@ createDumper(const ObjectFile &Obj, ScopedPrinter &Writer) {
 }
 
 /// Dumps the specified object file.
-static void dumpObject(const ObjectFile &Obj, ScopedPrinter &Writer,
+static void dumpObject(ObjectFile &Obj, ScopedPrinter &Writer,
                        const Archive *A = nullptr) {
   std::string FileStr =
       A ? Twine(A->getFileName() + "(" + Obj.getFileName() + ")").str()
         : Obj.getFileName().str();
+
+  std::string ContentErrString;
+  if (Error ContentErr = Obj.initContent())
+    ContentErrString = "unable to continue dumping, the file is corrupt: " +
+                       toString(std::move(ContentErr));
 
   ObjDumper *Dumper;
   Expected<std::unique_ptr<ObjDumper>> DumperOrErr = createDumper(Obj, Writer);
@@ -476,8 +490,19 @@ static void dumpObject(const ObjectFile &Obj, ScopedPrinter &Writer,
 
   if (opts::FileHeaders)
     Dumper->printFileHeaders();
-  if (opts::SectionHeaders)
-    Dumper->printSectionHeaders();
+
+  // This is only used for ELF currently. In some cases, when an object is
+  // corrupt (e.g. truncated), we can't dump anything except the file header.
+  if (!ContentErrString.empty())
+    reportError(createError(ContentErrString), FileStr);
+
+  if (opts::SectionDetails || opts::SectionHeaders) {
+    if (opts::Output == opts::GNU && opts::SectionDetails)
+      Dumper->printSectionDetails();
+    else
+      Dumper->printSectionHeaders();
+  }
+
   if (opts::HashSymbols)
     Dumper->printHashSymbols();
   if (opts::ProgramHeaders || opts::SectionMapping == cl::BOU_TRUE)
@@ -533,6 +558,8 @@ static void dumpObject(const ObjectFile &Obj, ScopedPrinter &Writer,
       Dumper->printCOFFBaseReloc();
     if (opts::COFFDebugDirectory)
       Dumper->printCOFFDebugDirectory();
+    if (opts::COFFTLSDirectory)
+      Dumper->printCOFFTLSDirectory();
     if (opts::COFFResources)
       Dumper->printCOFFResources();
     if (opts::COFFLoadConfig)
@@ -620,7 +647,8 @@ static void dumpWindowsResourceFile(WindowsResource *WinRes,
 /// Opens \a File and dumps it.
 static void dumpInput(StringRef File, ScopedPrinter &Writer) {
   // Attempt to open the binary.
-  Expected<OwningBinary<Binary>> BinaryOrErr = createBinary(File);
+  Expected<OwningBinary<Binary>> BinaryOrErr =
+      createBinary(File, /*Context=*/nullptr, /*InitContent=*/false);
   if (!BinaryOrErr)
     reportError(BinaryOrErr.takeError(), File);
   Binary &Binary = *BinaryOrErr.get().getBinary();
@@ -650,8 +678,7 @@ static void registerReadobjAliases() {
                                  cl::aliasopt(opts::SectionHeaders),
                                  cl::NotHidden);
 
-  // Only register -t in llvm-readobj, as readelf reserves it for
-  // --section-details (not implemented yet).
+  // llvm-readelf reserves it for --section-details.
   static cl::alias SymbolsShort("t", cl::desc("Alias for --symbols"),
                                 cl::aliasopt(opts::Symbols), cl::NotHidden);
 
@@ -676,6 +703,11 @@ static void registerReadelfAliases() {
   static cl::alias SymbolsShort("s", cl::desc("Alias for --symbols"),
                                 cl::aliasopt(opts::Symbols), cl::NotHidden,
                                 cl::Grouping);
+
+  // -t is here because for readobj it is an alias for --symbols.
+  static cl::alias SectionDetailsShort(
+      "t", cl::desc("Alias for --section-details"),
+      cl::aliasopt(opts::SectionDetails), cl::NotHidden);
 
   // Allow all single letter flags to be grouped together.
   for (auto &OptEntry : cl::getRegisteredOptions()) {

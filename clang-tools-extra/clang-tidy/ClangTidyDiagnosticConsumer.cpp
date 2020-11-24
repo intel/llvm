@@ -205,7 +205,7 @@ const ClangTidyOptions &ClangTidyContext::getOptions() const {
 ClangTidyOptions ClangTidyContext::getOptionsForFile(StringRef File) const {
   // Merge options on top of getDefaults() as a safeguard against options with
   // unset values.
-  return ClangTidyOptions::getDefaults().mergeWith(
+  return ClangTidyOptions::getDefaults().merge(
       OptionsProvider->getOptions(File), 0);
 }
 
@@ -305,22 +305,8 @@ static bool IsNOLINTFound(StringRef NolintDirectiveText, StringRef Line,
 
 static llvm::Optional<StringRef> getBuffer(const SourceManager &SM, FileID File,
                                            bool AllowIO) {
-  // This is similar to the implementation of SourceManager::getBufferData(),
-  // but uses ContentCache::getRawBuffer() rather than getBuffer() if
-  // AllowIO=false, to avoid triggering file I/O if the file contents aren't
-  // already mapped.
-  bool CharDataInvalid = false;
-  const SrcMgr::SLocEntry &Entry = SM.getSLocEntry(File, &CharDataInvalid);
-  if (CharDataInvalid || !Entry.isFile())
-    return llvm::None;
-  const SrcMgr::ContentCache *Cache = Entry.getFile().getContentCache();
-  const llvm::MemoryBuffer *Buffer =
-      AllowIO ? Cache->getBuffer(SM.getDiagnostics(), SM.getFileManager(),
-                                 SourceLocation(), &CharDataInvalid)
-              : Cache->getRawBuffer();
-  if (!Buffer || CharDataInvalid)
-    return llvm::None;
-  return Buffer->getBuffer();
+  return AllowIO ? SM.getBufferDataOrNone(File)
+                 : SM.getBufferDataIfLoaded(File);
 }
 
 static bool LineIsMarkedWithNOLINT(const SourceManager &SM, SourceLocation Loc,

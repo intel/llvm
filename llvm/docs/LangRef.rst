@@ -1057,8 +1057,8 @@ Currently, only the following parameter attributes are defined:
     ``byval`` parameters). This is not a valid attribute for return
     values.
 
-    The byval attribute also supports an optional type argument, which must be
-    the same as the pointee type of the argument.
+    The byval attribute also supports an optional type argument, which
+    must be the same as the pointee type of the argument.
 
     The byval attribute also supports specifying an alignment with the
     align attribute. It indicates the alignment of the stack slot to
@@ -1144,13 +1144,17 @@ Currently, only the following parameter attributes are defined:
     See :doc:`InAlloca` for more information on how to use this
     attribute.
 
-``sret``
+``sret`` or ``sret(<ty>)``
     This indicates that the pointer parameter specifies the address of a
     structure that is the return value of the function in the source
     program. This pointer must be guaranteed by the caller to be valid:
     loads and stores to the structure may be assumed by the callee not
     to trap and to be properly aligned. This is not a valid attribute
     for return values.
+
+    The sret attribute also supports an optional type argument, which
+    must be the same as the pointee type of the argument. In the
+    future this will be required.
 
 .. _attr_align:
 
@@ -1230,7 +1234,8 @@ Currently, only the following parameter attributes are defined:
     size of the pointee type. The ``nonnull`` attribute does not imply
     dereferenceability (consider a pointer to one element past the end of an
     array), however ``dereferenceable(<n>)`` does imply ``nonnull`` in
-    ``addrspace(0)`` (which is the default address space).
+    ``addrspace(0)`` (which is the default address space), except if the
+    ``null_pointer_is_valid`` function attribute is present.
 
 ``dereferenceable_or_null(<n>)``
     This indicates that the parameter or return value isn't both
@@ -1954,6 +1959,18 @@ example:
     the function. The instrumentation checks that the return address for the
     function has not changed between the function prolog and epilog. It is
     currently x86_64-specific.
+``mustprogress``
+    This attribute indicates that the function is required to return, unwind,
+    or interact with the environment in an observable way e.g. via a volatile
+    memory access, I/O, or other synchronization.  The ``mustprogress``
+    attribute is intended to model the requirements of the first section of
+    [intro.progress] of the C++ Standard. As a consequence, a loop in a
+    function with the `mustprogress` attribute can be assumed to terminate if
+    it does not interact with the environment in an observable way, and
+    terminating loops without side-effects can be removed. If a `mustprogress`
+    function does not satisfy this contract, the behavior is undefined.  This
+    attribute does not apply transitively to callees, but does apply to call
+    sites within the function. Note that `willreturn` implies `mustprogress`. 
 
 Call Site Attributes
 ----------------------
@@ -2353,6 +2370,14 @@ as follows:
     program memory space defaults to the default address space of 0,
     which corresponds to a Von Neumann architecture that has code
     and data in the same space.
+``G<address space>``
+    Specifies the address space to be used by default when creating global
+    variables. If omitted, the globals address space defaults to the default
+    address space 0.
+    Note: variable declarations without an address space are always created in
+    address space 0, this property only affects the default value to be used
+    when creating globals without additional contextual information (e.g. in
+    LLVM passes).
 ``A<address space>``
     Specifies the address space of objects created by '``alloca``'.
     Defaults to the default address space of 0.
@@ -3766,6 +3791,43 @@ long as the original value is reconstituted before the ``indirectbr`` or
 Finally, some targets may provide defined semantics when using the value
 as the operand to an inline assembly, but that is target specific.
 
+.. _dso_local_equivalent:
+
+DSO Local Equivalent
+--------------------
+
+``dso_local_equivalent @func``
+
+A '``dso_local_equivalent``' constant represents a function which is
+functionally equivalent to a given function, but is always defined in the
+current linkage unit. The resulting pointer has the same type as the underlying
+function. The resulting pointer is permitted, but not required, to be different
+from a pointer to the function, and it may have different values in different
+translation units.
+
+The target function may not have ``extern_weak`` linkage.
+
+``dso_local_equivalent`` can be implemented as such:
+
+- If the function has local linkage, hidden visibility, or is
+  ``dso_local``, ``dso_local_equivalent`` can be implemented as simply a pointer
+  to the function.
+- ``dso_local_equivalent`` can be implemented with a stub that tail-calls the
+  function. Many targets support relocations that resolve at link time to either
+  a function or a stub for it, depending on if the function is defined within the
+  linkage unit; LLVM will use this when available. (This is commonly called a
+  "PLT stub".) On other targets, the stub may need to be emitted explicitly.
+
+This can be used wherever a ``dso_local`` instance of a function is needed without
+needing to explicitly make the original function ``dso_local``. An instance where
+this can be used is for static offset calculations between a function and some other
+``dso_local`` symbol. This is especially useful for the Relative VTables C++ ABI,
+where dynamic relocations for function pointers in VTables can be replaced with
+static relocations for offsets between the VTable and virtual functions which
+may not be ``dso_local``.
+
+This is currently only supported for ELF binary formats.
+
 .. _constantexprs:
 
 Constant Expressions
@@ -4906,7 +4968,9 @@ arrays which can be attached to actual arrays, this attachment between pointer
 and pointee is called association.  The optional ``associated`` is a
 DIExpression that describes whether the pointer array is currently associated.
 The optional ``allocated`` is a DIExpression that describes whether the
-allocatable array is currently allocated.
+allocatable array is currently allocated.  The optional ``rank`` is a
+DIExpression that describes the rank (number of dimensions) of fortran assumed
+rank array (rank is known at runtime).
 
 For ``DW_TAG_enumeration_type``, the ``elements:`` should be :ref:`enumerator
 descriptors <DIEnumerator>`, each representing the definition of an enumeration
@@ -5043,13 +5107,13 @@ a :ref:`compile unit <DICompileUnit>`.
 DISubprogram
 """"""""""""
 
-``DISubprogram`` nodes represent functions from the source language. A
-distinct ``DISubprogram`` may be attached to a function definition using
-``!dbg`` metadata. A unique ``DISubprogram`` may be attached to a function
-declaration used for call site debug info. The ``variables:`` field points at
-:ref:`variables <DILocalVariable>` that must be retained, even if their IR
-counterparts are optimized out of the IR. The ``type:`` field must point at an
-:ref:`DISubroutineType`.
+``DISubprogram`` nodes represent functions from the source language. A distinct
+``DISubprogram`` may be attached to a function definition using ``!dbg``
+metadata. A unique ``DISubprogram`` may be attached to a function declaration
+used for call site debug info. The ``retainedNodes:`` field is a list of
+:ref:`variables <DILocalVariable>` and :ref:`labels <DILabel>` that must be
+retained, even if their IR counterparts are optimized out of the IR. The
+``type:`` field must point at an :ref:`DISubroutineType`.
 
 .. _DISubprogramDeclaration:
 
@@ -5072,7 +5136,8 @@ and ``scope:``.
                                 virtuality: DW_VIRTUALITY_pure_virtual,
                                 virtualIndex: 10, flags: DIFlagPrototyped,
                                 isOptimized: true, unit: !5, templateParams: !6,
-                                declaration: !7, variables: !8, thrownTypes: !9)
+                                declaration: !7, retainedNodes: !8,
+                                thrownTypes: !9)
 
 .. _DILexicalBlock:
 
@@ -5203,6 +5268,10 @@ The current supported opcode vocabulary is limited:
 - ``DW_OP_push_object_address`` pushes the address of the object which can then
   serve as a descriptor in subsequent calculation. This opcode can be used to
   calculate bounds of fortran allocatable array which has array descriptors.
+- ``DW_OP_over`` duplicates the entry currently second in the stack at the top
+  of the stack. This opcode can be used to calculate bounds of fortran assumed
+  rank array which has rank known at run time and current dimension number is
+  implicitly first element of the stack.
 
 DWARF specifies three kinds of simple location descriptions: Register, memory,
 and implicit location descriptions.  Note that a location description is
@@ -5296,6 +5365,22 @@ appear in the included source file.
 
    !2 = !DIMacroFile(macinfo: DW_MACINFO_start_file, line: 7, file: !2,
                      nodes: !3)
+
+.. _DILabel:
+
+DILabel
+"""""""
+
+``DILabel`` nodes represent labels within a :ref:`DISubprogram`. All fields of
+a ``DILabel`` are mandatory. The ``scope:`` field must be one of either a
+:ref:`DILexicalBlockFile`, a :ref:`DILexicalBlock`, or a :ref:`DISubprogram`.
+The ``name:`` field is the label identifier. The ``file:`` field is the
+:ref:`DIFile` the label is present in. The ``line:`` field is the source line
+within the file where the label is declared.
+
+.. code-block:: text
+
+  !2 = !DILabel(scope: !0, name: "foo", file: !1, line: 7)
 
 '``tbaa``' Metadata
 ^^^^^^^^^^^^^^^^^^^
@@ -6270,6 +6355,15 @@ It is also possible to have nested parallel loops:
    !3 = distinct !{} ; access group for instructions in the inner loop (which are implicitly contained in outer loop as well)
    !4 = distinct !{} ; access group for instructions in the outer, but not the inner loop
 
+'``llvm.loop.mustprogress``' Metadata
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The ``llvm.loop.mustprogress`` metadata indicates that this loop is required to
+terminate, unwind, or interact with the environment in an observable way e.g.
+via a volatile memory access, I/O, or other synchronization. If such a loop is
+not found to interact with the environment in an observable way, the loop may
+be removed. This corresponds to the ``mustprogress`` function attribute.
+
 '``irr_loop``' Metadata
 ^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -6447,6 +6541,23 @@ hashes of the 2 hottest target functions' names (this is the same hash used
 to represent function names in the profile database), and the 5th and 7th
 operands give the execution count that each of the respective prior target
 functions was called.
+
+.. _md_annotation:
+
+'``annotation``' Metadata
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The ``annotation`` metadata can be used to attach a tuple of annotation strings
+to any instruction. This metadata does not impact the semantics of the program
+and may only be used to provide additional insight about the program and
+transformations to users.
+
+Example:
+
+.. code-block:: text
+
+    %a.addr = alloca float*, align 8, !annotation !0
+    !0 = !{!"auto-init"}
 
 Module Flags Metadata
 =====================
@@ -9149,10 +9260,11 @@ Syntax:
 
 ::
 
-      <result> = load [volatile] <ty>, <ty>* <pointer>[, align <alignment>][, !nontemporal !<index>][, !invariant.load !<index>][, !invariant.group !<index>][, !nonnull !<index>][, !dereferenceable !<deref_bytes_node>][, !dereferenceable_or_null !<deref_bytes_node>][, !align !<align_node>]
-      <result> = load atomic [volatile] <ty>, <ty>* <pointer> [syncscope("<target-scope>")] <ordering>, align <alignment> [, !invariant.group !<index>]
-      !<index> = !{ i32 1 }
-      !<deref_bytes_node> = !{i64 <dereferenceable_bytes>}
+      <result> = load [volatile] <ty>, <ty>* <pointer>[, align <alignment>][, !nontemporal !<nontemp_node>][, !invariant.load !<empty_node>][, !invariant.group !<empty_node>][, !nonnull !<empty_node>][, !dereferenceable !<deref_bytes_node>][, !dereferenceable_or_null !<deref_bytes_node>][, !align !<align_node>][, !noundef !<empty_node>]
+      <result> = load atomic [volatile] <ty>, <ty>* <pointer> [syncscope("<target-scope>")] <ordering>, align <alignment> [, !invariant.group !<empty_node>]
+      !<nontemp_node> = !{ i32 1 }
+      !<empty_node> = !{}
+      !<deref_bytes_node> = !{ i64 <dereferenceable_bytes> }
       !<align_node> = !{ i64 <value_alignment> }
 
 Overview:
@@ -9196,7 +9308,7 @@ tools, so should not be accessed if the function has the
 ``sanitize_thread`` or ``sanitize_address`` attributes.
 
 The optional ``!nontemporal`` metadata must reference a single
-metadata name ``<index>`` corresponding to a metadata node with one
+metadata name ``<nontemp_node>`` corresponding to a metadata node with one
 ``i32`` entry of value 1. The existence of the ``!nontemporal``
 metadata on the instruction tells the optimizer and code generator
 that this load is not expected to be reused in the cache. The code
@@ -9204,7 +9316,7 @@ generator may select special instructions to save cache bandwidth, such
 as the ``MOVNT`` instruction on x86.
 
 The optional ``!invariant.load`` metadata must reference a single
-metadata name ``<index>`` corresponding to a metadata node with no
+metadata name ``<empty_node>`` corresponding to a metadata node with no
 entries. If a load instruction tagged with the ``!invariant.load``
 metadata is executed, the optimizer may assume the memory location
 referenced by the load contains the same value at all points in the
@@ -9212,11 +9324,11 @@ program where the memory location is known to be dereferenceable;
 otherwise, the behavior is undefined.
 
 The optional ``!invariant.group`` metadata must reference a single metadata name
- ``<index>`` corresponding to a metadata node with no entries.
- See ``invariant.group`` metadata :ref:`invariant.group <md_invariant.group>`
+ ``<empty_node>`` corresponding to a metadata node with no entries.
+ See ``invariant.group`` metadata :ref:`invariant.group <md_invariant.group>`.
 
 The optional ``!nonnull`` metadata must reference a single
-metadata name ``<index>`` corresponding to a metadata node with no
+metadata name ``<empty_node>`` corresponding to a metadata node with no
 entries. The existence of the ``!nonnull`` metadata on the
 instruction tells the optimizer that the value loaded is known to
 never be null. If the value is null at runtime, the behavior is undefined.
@@ -9226,13 +9338,13 @@ values. This metadata can only be applied to loads of a pointer type.
 The optional ``!dereferenceable`` metadata must reference a single metadata
 name ``<deref_bytes_node>`` corresponding to a metadata node with one ``i64``
 entry.
-See ``dereferenceable`` metadata :ref:`dereferenceable <md_dereferenceable>`
+See ``dereferenceable`` metadata :ref:`dereferenceable <md_dereferenceable>`.
 
 The optional ``!dereferenceable_or_null`` metadata must reference a single
 metadata name ``<deref_bytes_node>`` corresponding to a metadata node with one
 ``i64`` entry.
 See ``dereferenceable_or_null`` metadata :ref:`dereferenceable_or_null
-<md_dereferenceable_or_null>`
+<md_dereferenceable_or_null>`.
 
 The optional ``!align`` metadata must reference a single metadata name
 ``<align_node>`` corresponding to a metadata node with one ``i64`` entry.
@@ -9242,6 +9354,12 @@ by the integer value in the metadata node. The alignment must be a power of 2.
 This is analogous to the ''align'' attribute on parameters and return values.
 This metadata can only be applied to loads of a pointer type. If the returned
 value is not appropriately aligned at runtime, the behavior is undefined.
+
+The optional ``!noundef`` metadata must reference a single metadata name
+``<empty_node>`` corresponding to a node with no entries. The existence of
+``!noundef`` metadata on the instruction tells the optimizer that the value
+loaded is known to be :ref:`well defined <welldefinedvalues>`.
+If the value isn't well defined, the behavior is undefined.
 
 Semantics:
 """"""""""
@@ -9282,8 +9400,10 @@ Syntax:
 
 ::
 
-      store [volatile] <ty> <value>, <ty>* <pointer>[, align <alignment>][, !nontemporal !<index>][, !invariant.group !<index>]        ; yields void
-      store atomic [volatile] <ty> <value>, <ty>* <pointer> [syncscope("<target-scope>")] <ordering>, align <alignment> [, !invariant.group !<index>] ; yields void
+      store [volatile] <ty> <value>, <ty>* <pointer>[, align <alignment>][, !nontemporal !<nontemp_node>][, !invariant.group !<empty_node>]        ; yields void
+      store atomic [volatile] <ty> <value>, <ty>* <pointer> [syncscope("<target-scope>")] <ordering>, align <alignment> [, !invariant.group !<empty_node>] ; yields void
+      !<nontemp_node> = !{ i32 1 }
+      !<empty_node> = !{}
 
 Overview:
 """""""""
@@ -9330,15 +9450,15 @@ even in situations where a data race is known to not exist if the
 function has the ``sanitize_address`` attribute.
 
 The optional ``!nontemporal`` metadata must reference a single metadata
-name ``<index>`` corresponding to a metadata node with one ``i32`` entry of
-value 1. The existence of the ``!nontemporal`` metadata on the instruction
+name ``<nontemp_node>`` corresponding to a metadata node with one ``i32`` entry
+of value 1. The existence of the ``!nontemporal`` metadata on the instruction
 tells the optimizer and code generator that this load is not expected to
 be reused in the cache. The code generator may select special
 instructions to save cache bandwidth, such as the ``MOVNT`` instruction on
 x86.
 
 The optional ``!invariant.group`` metadata must reference a
-single metadata name ``<index>``. See ``invariant.group`` metadata.
+single metadata name ``<empty_node>``. See ``invariant.group`` metadata.
 
 Semantics:
 """"""""""
@@ -9700,17 +9820,30 @@ for the given testcase is equivalent to:
     }
 
 If the ``inbounds`` keyword is present, the result value of the
-``getelementptr`` is a :ref:`poison value <poisonvalues>` if the base
-pointer is not an *in bounds* address of an allocated object, or if any
-of the addresses that would be formed by successive addition of the
-offsets implied by the indices to the base address with infinitely
-precise signed arithmetic are not an *in bounds* address of that
-allocated object. The *in bounds* addresses for an allocated object are
-all the addresses that point into the object, plus the address one byte
-past the end. The only *in bounds* address for a null pointer in the
-default address-space is the null pointer itself. In cases where the
-base is a vector of pointers the ``inbounds`` keyword applies to each
-of the computations element-wise.
+``getelementptr`` is a :ref:`poison value <poisonvalues>` if one of the
+following rules is violated:
+
+*  The base pointer has an *in bounds* address of an allocated object, which
+   means that it points into an allocated object, or to its end. The only
+   *in bounds* address for a null pointer in the default address-space is the
+   null pointer itself.
+*  If the type of an index is larger than the pointer index type, the
+   truncation to the pointer index type preserves the signed value.
+*  The multiplication of an index by the type size does not wrap the pointer
+   index type in a signed sense (``nsw``).
+*  The successive addition of offsets (without adding the base address) does
+   not wrap the pointer index type in a signed sense (``nsw``).
+*  The successive addition of the current address, interpreted as an unsigned
+   number, and an offset, interpreted as a signed number, does not wrap the
+   unsigned address space and remains *in bounds* of the allocated object.
+   As a corollary, if the added offset is non-negative, the addition does not
+   wrap in an unsigned sense (``nuw``).
+*  In cases where the base is a vector of pointers, the ``inbounds`` keyword
+   applies to each of the computations element-wise.
+
+These rules are based on the assumption that no allocated object may cross
+the unsigned address space boundary, and no allocated object may be larger
+than half the pointer index type space.
 
 If the ``inbounds`` keyword is not present, the offsets are added to the
 base address with silently-wrapping two's complement arithmetic. If the
@@ -10246,7 +10379,7 @@ Syntax:
 
 ::
 
-      <result> = inttoptr <ty> <value> to <ty2>[, !dereferenceable !<deref_bytes_node>][, !dereferenceable_or_null !<deref_bytes_node]             ; yields ty2
+      <result> = inttoptr <ty> <value> to <ty2>[, !dereferenceable !<deref_bytes_node>][, !dereferenceable_or_null !<deref_bytes_node>]             ; yields ty2
 
 Overview:
 """""""""
@@ -15428,6 +15561,45 @@ on their operand. It's a hint to the backend that can use this to set up the
 hardware-loop count with a target specific instruction, usually a move of this
 value to a special register or a hardware-loop instruction.
 
+
+'``llvm.start.loop.iterations.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+This is an overloaded intrinsic.
+
+::
+
+      declare i32 @llvm.start.loop.iterations.i32(i32)
+      declare i64 @llvm.start.loop.iterations.i64(i64)
+
+Overview:
+"""""""""
+
+The '``llvm.start.loop.iterations.*``' intrinsics are similar to the
+'``llvm.set.loop.iterations.*``' intrinsics, used to specify the
+hardware-loop trip count but also produce a value identical to the input
+that can be used as the input to the loop. They are placed in the loop
+preheader basic block and the output is expected to be the input to the
+phi for the induction variable of the loop, decremented by the
+'``llvm.loop.decrement.reg.*``'.
+
+Arguments:
+""""""""""
+
+The integer operand is the loop trip count of the hardware-loop, and thus
+not e.g. the loop back-edge taken count.
+
+Semantics:
+""""""""""
+
+The '``llvm.start.loop.iterations.*``' intrinsics do not perform any arithmetic
+on their operand. It's a hint to the backend that can use this to set up the
+hardware-loop count with a target specific instruction, usually a move of this
+value to a special register or a hardware-loop instruction.
+
 '``llvm.test.set.loop.iterations.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -15438,8 +15610,8 @@ This is an overloaded intrinsic.
 
 ::
 
-      declare void @llvm.test.set.loop.iterations.i32(i32)
-      declare void @llvm.test.set.loop.iterations.i64(i64)
+      declare i1 @llvm.test.set.loop.iterations.i32(i32)
+      declare i1 @llvm.test.set.loop.iterations.i64(i64)
 
 Overview:
 """""""""
@@ -15463,6 +15635,7 @@ The '``llvm.test.set.loop.iterations.*``' intrinsics do not perform any
 arithmetic on their operand. It's a hint to the backend that can use this to
 set up the hardware-loop count with a target specific instruction, usually a
 move of this value to a special register or a hardware-loop instruction.
+The result is the conditional value of whether the given count is not zero.
 
 '``llvm.loop.decrement.reg.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -15543,8 +15716,8 @@ should exit, this ``SUB`` is not allowed to wrap. The result is a condition
 that is used by the conditional branch controlling the loop.
 
 
-Experimental Vector Reduction Intrinsics
-----------------------------------------
+Vector Reduction Intrinsics
+---------------------------
 
 Horizontal reductions of vectors can be expressed using the following
 intrinsics. Each one takes a vector operand as an input and applies its
@@ -15552,21 +15725,21 @@ respective operation across all elements of the vector, returning a single
 scalar result of the same element type.
 
 
-'``llvm.experimental.vector.reduce.add.*``' Intrinsic
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'``llvm.vector.reduce.add.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Syntax:
 """""""
 
 ::
 
-      declare i32 @llvm.experimental.vector.reduce.add.v4i32(<4 x i32> %a)
-      declare i64 @llvm.experimental.vector.reduce.add.v2i64(<2 x i64> %a)
+      declare i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %a)
+      declare i64 @llvm.vector.reduce.add.v2i64(<2 x i64> %a)
 
 Overview:
 """""""""
 
-The '``llvm.experimental.vector.reduce.add.*``' intrinsics do an integer ``ADD``
+The '``llvm.vector.reduce.add.*``' intrinsics do an integer ``ADD``
 reduction of a vector, returning the result as a scalar. The return type matches
 the element-type of the vector input.
 
@@ -15574,34 +15747,34 @@ Arguments:
 """"""""""
 The argument to this intrinsic must be a vector of integer values.
 
-'``llvm.experimental.vector.reduce.v2.fadd.*``' Intrinsic
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'``llvm.vector.reduce.fadd.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Syntax:
 """""""
 
 ::
 
-      declare float @llvm.experimental.vector.reduce.v2.fadd.f32.v4f32(float %start_value, <4 x float> %a)
-      declare double @llvm.experimental.vector.reduce.v2.fadd.f64.v2f64(double %start_value, <2 x double> %a)
+      declare float @llvm.vector.reduce.fadd.v4f32(float %start_value, <4 x float> %a)
+      declare double @llvm.vector.reduce.fadd.v2f64(double %start_value, <2 x double> %a)
 
 Overview:
 """""""""
 
-The '``llvm.experimental.vector.reduce.v2.fadd.*``' intrinsics do a floating-point
+The '``llvm.vector.reduce.fadd.*``' intrinsics do a floating-point
 ``ADD`` reduction of a vector, returning the result as a scalar. The return type
 matches the element-type of the vector input.
 
-If the intrinsic call has the 'reassoc' or 'fast' flags set, then the
-reduction will not preserve the associativity of an equivalent scalarized
-counterpart. Otherwise the reduction will be *ordered*, thus implying that
-the operation respects the associativity of a scalarized reduction. That is, the
-reduction begins with the start value and performs an fadd operation with consecutively
-increasing vector element indices. See the following pseudocode:
+If the intrinsic call has the 'reassoc' flag set, then the reduction will not
+preserve the associativity of an equivalent scalarized counterpart. Otherwise
+the reduction will be *sequential*, thus implying that the operation respects
+the associativity of a scalarized reduction. That is, the reduction begins with
+the start value and performs an fadd operation with consecutively increasing
+vector element indices. See the following pseudocode:
 
 ::
 
-    float ordered_fadd(start_value, input_vector)
+    float sequential_fadd(start_value, input_vector)
       result = start_value
       for i = 0 to length(input_vector)
         result = result + input_vector[i]
@@ -15614,30 +15787,33 @@ The first argument to this intrinsic is a scalar start value for the reduction.
 The type of the start value matches the element-type of the vector input.
 The second argument must be a vector of floating-point values.
 
+To ignore the start value, negative zero (``-0.0``) can be used, as it is
+the neutral value of floating point addition.
+
 Examples:
 """""""""
 
 ::
 
-      %unord = call reassoc float @llvm.experimental.vector.reduce.v2.fadd.f32.v4f32(float 0.0, <4 x float> %input) ; unordered reduction
-      %ord = call float @llvm.experimental.vector.reduce.v2.fadd.f32.v4f32(float %start_value, <4 x float> %input) ; ordered reduction
+      %unord = call reassoc float @llvm.vector.reduce.fadd.v4f32(float -0.0, <4 x float> %input) ; relaxed reduction
+      %ord = call float @llvm.vector.reduce.fadd.v4f32(float %start_value, <4 x float> %input) ; sequential reduction
 
 
-'``llvm.experimental.vector.reduce.mul.*``' Intrinsic
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'``llvm.vector.reduce.mul.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Syntax:
 """""""
 
 ::
 
-      declare i32 @llvm.experimental.vector.reduce.mul.v4i32(<4 x i32> %a)
-      declare i64 @llvm.experimental.vector.reduce.mul.v2i64(<2 x i64> %a)
+      declare i32 @llvm.vector.reduce.mul.v4i32(<4 x i32> %a)
+      declare i64 @llvm.vector.reduce.mul.v2i64(<2 x i64> %a)
 
 Overview:
 """""""""
 
-The '``llvm.experimental.vector.reduce.mul.*``' intrinsics do an integer ``MUL``
+The '``llvm.vector.reduce.mul.*``' intrinsics do an integer ``MUL``
 reduction of a vector, returning the result as a scalar. The return type matches
 the element-type of the vector input.
 
@@ -15645,34 +15821,34 @@ Arguments:
 """"""""""
 The argument to this intrinsic must be a vector of integer values.
 
-'``llvm.experimental.vector.reduce.v2.fmul.*``' Intrinsic
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'``llvm.vector.reduce.fmul.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Syntax:
 """""""
 
 ::
 
-      declare float @llvm.experimental.vector.reduce.v2.fmul.f32.v4f32(float %start_value, <4 x float> %a)
-      declare double @llvm.experimental.vector.reduce.v2.fmul.f64.v2f64(double %start_value, <2 x double> %a)
+      declare float @llvm.vector.reduce.fmul.v4f32(float %start_value, <4 x float> %a)
+      declare double @llvm.vector.reduce.fmul.v2f64(double %start_value, <2 x double> %a)
 
 Overview:
 """""""""
 
-The '``llvm.experimental.vector.reduce.v2.fmul.*``' intrinsics do a floating-point
+The '``llvm.vector.reduce.fmul.*``' intrinsics do a floating-point
 ``MUL`` reduction of a vector, returning the result as a scalar. The return type
 matches the element-type of the vector input.
 
-If the intrinsic call has the 'reassoc' or 'fast' flags set, then the
-reduction will not preserve the associativity of an equivalent scalarized
-counterpart. Otherwise the reduction will be *ordered*, thus implying that
-the operation respects the associativity of a scalarized reduction. That is, the
-reduction begins with the start value and performs an fmul operation with consecutively
-increasing vector element indices. See the following pseudocode:
+If the intrinsic call has the 'reassoc' flag set, then the reduction will not
+preserve the associativity of an equivalent scalarized counterpart. Otherwise
+the reduction will be *sequential*, thus implying that the operation respects
+the associativity of a scalarized reduction. That is, the reduction begins with
+the start value and performs an fmul operation with consecutively increasing
+vector element indices. See the following pseudocode:
 
 ::
 
-    float ordered_fmul(start_value, input_vector)
+    float sequential_fmul(start_value, input_vector)
       result = start_value
       for i = 0 to length(input_vector)
         result = result * input_vector[i]
@@ -15685,28 +15861,31 @@ The first argument to this intrinsic is a scalar start value for the reduction.
 The type of the start value matches the element-type of the vector input.
 The second argument must be a vector of floating-point values.
 
+To ignore the start value, one (``1.0``) can be used, as it is the neutral
+value of floating point multiplication.
+
 Examples:
 """""""""
 
 ::
 
-      %unord = call reassoc float @llvm.experimental.vector.reduce.v2.fmul.f32.v4f32(float 1.0, <4 x float> %input) ; unordered reduction
-      %ord = call float @llvm.experimental.vector.reduce.v2.fmul.f32.v4f32(float %start_value, <4 x float> %input) ; ordered reduction
+      %unord = call reassoc float @llvm.vector.reduce.fmul.v4f32(float 1.0, <4 x float> %input) ; relaxed reduction
+      %ord = call float @llvm.vector.reduce.fmul.v4f32(float %start_value, <4 x float> %input) ; sequential reduction
 
-'``llvm.experimental.vector.reduce.and.*``' Intrinsic
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'``llvm.vector.reduce.and.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Syntax:
 """""""
 
 ::
 
-      declare i32 @llvm.experimental.vector.reduce.and.v4i32(<4 x i32> %a)
+      declare i32 @llvm.vector.reduce.and.v4i32(<4 x i32> %a)
 
 Overview:
 """""""""
 
-The '``llvm.experimental.vector.reduce.and.*``' intrinsics do a bitwise ``AND``
+The '``llvm.vector.reduce.and.*``' intrinsics do a bitwise ``AND``
 reduction of a vector, returning the result as a scalar. The return type matches
 the element-type of the vector input.
 
@@ -15714,20 +15893,20 @@ Arguments:
 """"""""""
 The argument to this intrinsic must be a vector of integer values.
 
-'``llvm.experimental.vector.reduce.or.*``' Intrinsic
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'``llvm.vector.reduce.or.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Syntax:
 """""""
 
 ::
 
-      declare i32 @llvm.experimental.vector.reduce.or.v4i32(<4 x i32> %a)
+      declare i32 @llvm.vector.reduce.or.v4i32(<4 x i32> %a)
 
 Overview:
 """""""""
 
-The '``llvm.experimental.vector.reduce.or.*``' intrinsics do a bitwise ``OR`` reduction
+The '``llvm.vector.reduce.or.*``' intrinsics do a bitwise ``OR`` reduction
 of a vector, returning the result as a scalar. The return type matches the
 element-type of the vector input.
 
@@ -15735,20 +15914,20 @@ Arguments:
 """"""""""
 The argument to this intrinsic must be a vector of integer values.
 
-'``llvm.experimental.vector.reduce.xor.*``' Intrinsic
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'``llvm.vector.reduce.xor.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Syntax:
 """""""
 
 ::
 
-      declare i32 @llvm.experimental.vector.reduce.xor.v4i32(<4 x i32> %a)
+      declare i32 @llvm.vector.reduce.xor.v4i32(<4 x i32> %a)
 
 Overview:
 """""""""
 
-The '``llvm.experimental.vector.reduce.xor.*``' intrinsics do a bitwise ``XOR``
+The '``llvm.vector.reduce.xor.*``' intrinsics do a bitwise ``XOR``
 reduction of a vector, returning the result as a scalar. The return type matches
 the element-type of the vector input.
 
@@ -15756,20 +15935,20 @@ Arguments:
 """"""""""
 The argument to this intrinsic must be a vector of integer values.
 
-'``llvm.experimental.vector.reduce.smax.*``' Intrinsic
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'``llvm.vector.reduce.smax.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Syntax:
 """""""
 
 ::
 
-      declare i32 @llvm.experimental.vector.reduce.smax.v4i32(<4 x i32> %a)
+      declare i32 @llvm.vector.reduce.smax.v4i32(<4 x i32> %a)
 
 Overview:
 """""""""
 
-The '``llvm.experimental.vector.reduce.smax.*``' intrinsics do a signed integer
+The '``llvm.vector.reduce.smax.*``' intrinsics do a signed integer
 ``MAX`` reduction of a vector, returning the result as a scalar. The return type
 matches the element-type of the vector input.
 
@@ -15777,20 +15956,20 @@ Arguments:
 """"""""""
 The argument to this intrinsic must be a vector of integer values.
 
-'``llvm.experimental.vector.reduce.smin.*``' Intrinsic
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'``llvm.vector.reduce.smin.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Syntax:
 """""""
 
 ::
 
-      declare i32 @llvm.experimental.vector.reduce.smin.v4i32(<4 x i32> %a)
+      declare i32 @llvm.vector.reduce.smin.v4i32(<4 x i32> %a)
 
 Overview:
 """""""""
 
-The '``llvm.experimental.vector.reduce.smin.*``' intrinsics do a signed integer
+The '``llvm.vector.reduce.smin.*``' intrinsics do a signed integer
 ``MIN`` reduction of a vector, returning the result as a scalar. The return type
 matches the element-type of the vector input.
 
@@ -15798,20 +15977,20 @@ Arguments:
 """"""""""
 The argument to this intrinsic must be a vector of integer values.
 
-'``llvm.experimental.vector.reduce.umax.*``' Intrinsic
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'``llvm.vector.reduce.umax.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Syntax:
 """""""
 
 ::
 
-      declare i32 @llvm.experimental.vector.reduce.umax.v4i32(<4 x i32> %a)
+      declare i32 @llvm.vector.reduce.umax.v4i32(<4 x i32> %a)
 
 Overview:
 """""""""
 
-The '``llvm.experimental.vector.reduce.umax.*``' intrinsics do an unsigned
+The '``llvm.vector.reduce.umax.*``' intrinsics do an unsigned
 integer ``MAX`` reduction of a vector, returning the result as a scalar. The
 return type matches the element-type of the vector input.
 
@@ -15819,20 +15998,20 @@ Arguments:
 """"""""""
 The argument to this intrinsic must be a vector of integer values.
 
-'``llvm.experimental.vector.reduce.umin.*``' Intrinsic
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'``llvm.vector.reduce.umin.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Syntax:
 """""""
 
 ::
 
-      declare i32 @llvm.experimental.vector.reduce.umin.v4i32(<4 x i32> %a)
+      declare i32 @llvm.vector.reduce.umin.v4i32(<4 x i32> %a)
 
 Overview:
 """""""""
 
-The '``llvm.experimental.vector.reduce.umin.*``' intrinsics do an unsigned
+The '``llvm.vector.reduce.umin.*``' intrinsics do an unsigned
 integer ``MIN`` reduction of a vector, returning the result as a scalar. The
 return type matches the element-type of the vector input.
 
@@ -15840,21 +16019,21 @@ Arguments:
 """"""""""
 The argument to this intrinsic must be a vector of integer values.
 
-'``llvm.experimental.vector.reduce.fmax.*``' Intrinsic
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'``llvm.vector.reduce.fmax.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Syntax:
 """""""
 
 ::
 
-      declare float @llvm.experimental.vector.reduce.fmax.v4f32(<4 x float> %a)
-      declare double @llvm.experimental.vector.reduce.fmax.v2f64(<2 x double> %a)
+      declare float @llvm.vector.reduce.fmax.v4f32(<4 x float> %a)
+      declare double @llvm.vector.reduce.fmax.v2f64(<2 x double> %a)
 
 Overview:
 """""""""
 
-The '``llvm.experimental.vector.reduce.fmax.*``' intrinsics do a floating-point
+The '``llvm.vector.reduce.fmax.*``' intrinsics do a floating-point
 ``MAX`` reduction of a vector, returning the result as a scalar. The return type
 matches the element-type of the vector input.
 
@@ -15870,8 +16049,8 @@ Arguments:
 """"""""""
 The argument to this intrinsic must be a vector of floating-point values.
 
-'``llvm.experimental.vector.reduce.fmin.*``' Intrinsic
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'``llvm.vector.reduce.fmin.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Syntax:
 """""""
@@ -15879,13 +16058,13 @@ This is an overloaded intrinsic.
 
 ::
 
-      declare float @llvm.experimental.vector.reduce.fmin.v4f32(<4 x float> %a)
-      declare double @llvm.experimental.vector.reduce.fmin.v2f64(<2 x double> %a)
+      declare float @llvm.vector.reduce.fmin.v4f32(<4 x float> %a)
+      declare double @llvm.vector.reduce.fmin.v2f64(<2 x double> %a)
 
 Overview:
 """""""""
 
-The '``llvm.experimental.vector.reduce.fmin.*``' intrinsics do a floating-point
+The '``llvm.vector.reduce.fmin.*``' intrinsics do a floating-point
 ``MIN`` reduction of a vector, returning the result as a scalar. The return type
 matches the element-type of the vector input.
 
@@ -20066,6 +20245,8 @@ not overflow at link time under the medium code model if ``x`` is an
 a constant initializer folded into a function body. This intrinsic can be
 used to avoid the possibility of overflows when loading from such a constant.
 
+.. _llvm_sideeffect:
+
 '``llvm.sideeffect``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -20288,7 +20469,9 @@ Lowering:
 
 In the most general case call to the '``llvm.memcpy.element.unordered.atomic.*``' is
 lowered to a call to the symbol ``__llvm_memcpy_element_unordered_atomic_*``. Where '*'
-is replaced with an actual element size.
+is replaced with an actual element size. See :ref:`RewriteStatepointsForGC intrinsic
+lowering <RewriteStatepointsForGC_intrinsic_lowering>` for details on GC specific
+lowering.
 
 Optimizer is allowed to inline memory copy when it's profitable to do so.
 
@@ -20365,7 +20548,9 @@ Lowering:
 In the most general case call to the
 '``llvm.memmove.element.unordered.atomic.*``' is lowered to a call to the symbol
 ``__llvm_memmove_element_unordered_atomic_*``. Where '*' is replaced with an
-actual element size.
+actual element size. See :ref:`RewriteStatepointsForGC intrinsic lowering
+<RewriteStatepointsForGC_intrinsic_lowering>` for details on GC specific
+lowering.
 
 The optimizer is allowed to inline the memory copy when it's profitable to do so.
 

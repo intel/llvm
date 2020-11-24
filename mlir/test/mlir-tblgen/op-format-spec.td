@@ -309,7 +309,7 @@ def LiteralInvalidB : TestFormat_Op<"literal_invalid_b", [{
 }]>;
 // CHECK-NOT: error
 def LiteralValid : TestFormat_Op<"literal_valid", [{
-  `_` `:` `,` `=` `<` `>` `(` `)` `[` `]` `->` `abc$._`
+  `_` `:` `,` `=` `<` `>` `(` `)` `[` `]` `?` `+` `*` ` ` `` `->` `abc$._`
   attr-dict
 }]>;
 
@@ -329,7 +329,7 @@ def OptionalInvalidB : TestFormat_Op<"optional_invalid_b", [{
 def OptionalInvalidC : TestFormat_Op<"optional_invalid_c", [{
   ($attr)? attr-dict
 }]>, Arguments<(ins OptionalAttr<I64Attr>:$attr)>;
-// CHECK: error: first element of an operand group must be an attribute, literal, operand, or region
+// CHECK: error: first parsable element of an operand group must be an attribute, literal, operand, or region
 def OptionalInvalidD : TestFormat_Op<"optional_invalid_d", [{
   (type($operand) $operand^)? attr-dict
 }]>, Arguments<(ins Optional<I64>:$operand)>;
@@ -365,6 +365,15 @@ def OptionalInvalidK : TestFormat_Op<"optional_invalid_k", [{
 def OptionalInvalidL : TestFormat_Op<"optional_invalid_l", [{
   (custom<MyDirective>($arg)^)?
 }]>, Arguments<(ins I64:$arg)>;
+// CHECK: error: only variables can be used to anchor an optional group
+def OptionalInvalidM : TestFormat_Op<"optional_invalid_m", [{
+  (` `^)?
+}]>, Arguments<(ins)>;
+
+// CHECK-NOT: error
+def OptionalValidA : TestFormat_Op<"optional_valid_a", [{
+  (` ` `` $arg^)?
+}]>;
 
 //===----------------------------------------------------------------------===//
 // Variables
@@ -410,26 +419,30 @@ def VariableInvalidH : TestFormat_Op<"variable_invalid_h", [{
 def VariableInvalidI : TestFormat_Op<"variable_invalid_i", [{
   (`foo` $attr^)? `:` attr-dict
 }]>, Arguments<(ins OptionalAttr<ElementsAttr>:$attr)>;
-// CHECK: error: region 'region' is already bound
+// CHECK: error: format ambiguity caused by `:` literal found after attribute `attr` which does not have a buildable type
 def VariableInvalidJ : TestFormat_Op<"variable_invalid_j", [{
+  $attr ` ` `:` attr-dict
+}]>, Arguments<(ins ElementsAttr:$attr)>;
+// CHECK: error: region 'region' is already bound
+def VariableInvalidK : TestFormat_Op<"variable_invalid_k", [{
   $region $region attr-dict
 }]> {
   let regions = (region AnyRegion:$region);
 }
 // CHECK: error: region 'region' is already bound
-def VariableInvalidK : TestFormat_Op<"variable_invalid_K", [{
+def VariableInvalidL : TestFormat_Op<"variable_invalid_l", [{
   regions $region attr-dict
 }]> {
   let regions = (region AnyRegion:$region);
 }
 // CHECK: error: regions can only be used at the top level
-def VariableInvalidL : TestFormat_Op<"variable_invalid_l", [{
+def VariableInvalidM : TestFormat_Op<"variable_invalid_m", [{
   type($region)
 }]> {
   let regions = (region AnyRegion:$region);
 }
 // CHECK: error: region #0, named 'region', not found
-def VariableInvalidM : TestFormat_Op<"variable_invalid_m", [{
+def VariableInvalidN : TestFormat_Op<"variable_invalid_n", [{
   attr-dict
 }]> {
   let regions = (region AnyRegion:$region);

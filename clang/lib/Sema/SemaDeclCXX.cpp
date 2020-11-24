@@ -655,7 +655,8 @@ bool Sema::MergeCXXFunctionDecl(FunctionDecl *New, FunctionDecl *Old,
   // contain the constexpr specifier.
   if (New->getConstexprKind() != Old->getConstexprKind()) {
     Diag(New->getLocation(), diag::err_constexpr_redecl_mismatch)
-        << New << New->getConstexprKind() << Old->getConstexprKind();
+        << New << static_cast<int>(New->getConstexprKind())
+        << static_cast<int>(Old->getConstexprKind());
     Diag(Old->getLocation(), diag::note_previous_declaration);
     Invalid = true;
   } else if (!Old->getMostRecentDecl()->isInlined() && New->isInlined() &&
@@ -694,6 +695,17 @@ bool Sema::MergeCXXFunctionDecl(FunctionDecl *New, FunctionDecl *Old,
     Invalid = true;
   }
 
+  // C++11 [temp.friend]p4 (DR329):
+  //   When a function is defined in a friend function declaration in a class
+  //   template, the function is instantiated when the function is odr-used.
+  //   The same restrictions on multiple declarations and definitions that
+  //   apply to non-template function declarations and definitions also apply
+  //   to these implicit definitions.
+  const FunctionDecl *OldDefinition = nullptr;
+  if (New->isThisDeclarationInstantiatedFromAFriendDefinition() &&
+      Old->isDefined(OldDefinition, true))
+    CheckForFunctionRedefinition(New, OldDefinition);
+
   return Invalid;
 }
 
@@ -723,7 +735,7 @@ Sema::ActOnDecompositionDeclarator(Scope *S, Declarator &D,
   Diag(Decomp.getLSquareLoc(),
        !getLangOpts().CPlusPlus17
            ? diag::ext_decomp_decl
-           : D.getContext() == DeclaratorContext::ConditionContext
+           : D.getContext() == DeclaratorContext::Condition
                  ? diag::ext_decomp_decl_cond
                  : diag::warn_cxx14_compat_decomp_decl)
       << Decomp.getSourceRange();
@@ -1078,7 +1090,7 @@ static IsTupleLike isTupleLike(Sema &S, SourceLocation Loc, QualType T,
   if (E.isInvalid())
     return IsTupleLike::Error;
 
-  E = S.VerifyIntegerConstantExpression(E.get(), &Size, Diagnoser, false);
+  E = S.VerifyIntegerConstantExpression(E.get(), &Size, Diagnoser);
   if (E.isInvalid())
     return IsTupleLike::Error;
 
@@ -1250,8 +1262,7 @@ static bool checkTupleLikeDecomposition(Sema &S,
     if (E.isInvalid())
       return true;
     RefVD->setInit(E.get());
-    if (!E.get()->isValueDependent())
-      RefVD->checkInitIsICE();
+    S.CheckCompleteVariableDeclaration(RefVD);
 
     E = S.BuildDeclarationNameExpr(CXXScopeSpec(),
                                    DeclarationNameInfo(B->getDeclName(), Loc),
@@ -1375,11 +1386,23 @@ static bool checkMemberDecomposition(Sema &S, ArrayRef<BindingDecl*> Bindings,
     if (FD->isUnnamedBitfield())
       continue;
 
-    if (FD->isAnonymousStructOrUnion()) {
-      S.Diag(Src->getLocation(), diag::err_decomp_decl_anon_union_member)
-        << DecompType << FD->getType()->isUnionType();
-      S.Diag(FD->getLocation(), diag::note_declared_at);
-      return true;
+    // All the non-static data members are required to be nameable, so they
+    // must all have names.
+    if (!FD->getDeclName()) {
+      if (RD->isLambda()) {
+        S.Diag(Src->getLocation(), diag::err_decomp_decl_lambda);
+        S.Diag(RD->getLocation(), diag::note_lambda_decl);
+        return true;
+      }
+
+      if (FD->isAnonymousStructOrUnion()) {
+        S.Diag(Src->getLocation(), diag::err_decomp_decl_anon_union_member)
+          << DecompType << FD->getType()->isUnionType();
+        S.Diag(FD->getLocation(), diag::note_declared_at);
+        return true;
+      }
+
+      // FIXME: Are there any other ways we could have an anonymous member?
     }
 
     // We have a real field to bind.
@@ -1620,7 +1643,7 @@ static bool CheckConstexprDestructorSubobjects(Sema &SemaRef,
 
     if (Kind == Sema::CheckConstexprKind::Diagnose) {
       SemaRef.Diag(DD->getLocation(), diag::err_constexpr_dtor_subobject)
-          << DD->getConstexprKind() << !FD
+          << static_cast<int>(DD->getConstexprKind()) << !FD
           << (FD ? FD->getDeclName() : DeclarationName()) << T;
       SemaRef.Diag(Loc, diag::note_constexpr_dtor_subobject)
           << !FD << (FD ? FD->getDeclName() : DeclarationName()) << T;
@@ -2590,7 +2613,7 @@ Sema::ActOnBaseSpecifier(Decl *classdecl, SourceRange SpecifierRange,
     Diag(AL.getLoc(), AL.getKind() == ParsedAttr::UnknownAttribute
                           ? (unsigned)diag::warn_unknown_attribute_ignored
                           : (unsigned)diag::err_base_specifier_attribute)
-        << AL;
+        << AL << AL.getRange();
   }
 
   TypeSourceInfo *TInfo = nullptr;
@@ -5873,13 +5896,22 @@ static void ReferenceDllExportedMembers(Sema &S, CXXRecordDecl *Class) {
 
         // The function will be passed to the consumer when its definition is
         // encountered.
-      } else if (!MD->isTrivial() || MD->isExplicitlyDefaulted() ||
+      } else if (MD->isExplicitlyDefaulted()) {
+        // Synthesize and instantiate explicitly defaulted methods.
+        S.MarkFunctionReferenced(Class->getLocation(), MD);
+
+        if (TSK != TSK_ExplicitInstantiationDefinition) {
+          // Except for explicit instantiation defs, we will not see the
+          // definition again later, so pass it to the consumer now.
+          S.Consumer.HandleTopLevelDecl(DeclGroupRef(MD));
+        }
+      } else if (!MD->isTrivial() ||
                  MD->isCopyAssignmentOperator() ||
                  MD->isMoveAssignmentOperator()) {
-        // Synthesize and instantiate non-trivial implicit methods, explicitly
-        // defaulted methods, and the copy and move assignment operators. The
-        // latter are exported even if they are trivial, because the address of
-        // an operator can be taken and should compare equal across libraries.
+        // Synthesize and instantiate non-trivial implicit methods, and the copy
+        // and move assignment operators. The latter are exported even if they
+        // are trivial, because the address of an operator can be taken and
+        // should compare equal across libraries.
         S.MarkFunctionReferenced(Class->getLocation(), MD);
 
         // There is no later point when we will see the definition of this
@@ -6060,7 +6092,8 @@ void Sema::checkClassLevelDLLAttribute(CXXRecordDecl *Class) {
   Attr *ClassAttr = getDLLAttr(Class);
 
   // MSVC inherits DLL attributes to partial class template specializations.
-  if (Context.getTargetInfo().getCXXABI().isMicrosoft() && !ClassAttr) {
+  if ((Context.getTargetInfo().getCXXABI().isMicrosoft() || 
+       Context.getTargetInfo().getTriple().isWindowsItaniumEnvironment()) && !ClassAttr) {
     if (auto *Spec = dyn_cast<ClassTemplatePartialSpecializationDecl>(Class)) {
       if (Attr *TemplateAttr =
               getDLLAttr(Spec->getSpecializedTemplate()->getTemplatedDecl())) {
@@ -6080,7 +6113,8 @@ void Sema::checkClassLevelDLLAttribute(CXXRecordDecl *Class) {
     return;
   }
 
-  if (Context.getTargetInfo().getCXXABI().isMicrosoft() &&
+  if ((Context.getTargetInfo().getCXXABI().isMicrosoft() || 
+       Context.getTargetInfo().getTriple().isWindowsItaniumEnvironment()) &&
       !ClassAttr->isInherited()) {
     // Diagnose dll attributes on members of class with dll attribute.
     for (Decl *Member : Class->decls()) {
@@ -7335,9 +7369,10 @@ bool Sema::CheckExplicitlyDefaultedSpecialMember(CXXMethodDecl *MD,
     //   If a function is explicitly defaulted on its first declaration, it is
     //   implicitly considered to be constexpr if the implicit declaration
     //   would be.
-    MD->setConstexprKind(
-        Constexpr ? (MD->isConsteval() ? CSK_consteval : CSK_constexpr)
-                  : CSK_unspecified);
+    MD->setConstexprKind(Constexpr ? (MD->isConsteval()
+                                          ? ConstexprSpecKind::Consteval
+                                          : ConstexprSpecKind::Constexpr)
+                                   : ConstexprSpecKind::Unspecified);
 
     if (!Type->hasExceptionSpec()) {
       // C++2a [except.spec]p3:
@@ -8429,7 +8464,7 @@ bool Sema::CheckExplicitlyDefaultedComparison(Scope *S, FunctionDecl *FD,
   // FIXME: Only applying this to the first declaration seems problematic, as
   // simple reorderings can affect the meaning of the program.
   if (First && !FD->isConstexpr() && Info.Constexpr)
-    FD->setConstexprKind(CSK_constexpr);
+    FD->setConstexprKind(ConstexprSpecKind::Constexpr);
 
   // C++2a [except.spec]p3:
   //   If a declaration of a function does not have a noexcept-specifier
@@ -11111,8 +11146,8 @@ QualType Sema::CheckComparisonCategoryType(ComparisonCategoryType Kind,
     // Attempt to diagnose reasons why the STL definition of this type
     // might be foobar, including it failing to be a constant expression.
     // TODO Handle more ways the lookup or result can be invalid.
-    if (!VD->isStaticDataMember() || !VD->isConstexpr() || !VD->hasInit() ||
-        VD->isWeak() || !VD->checkInitIsICE())
+    if (!VD->isStaticDataMember() ||
+        !VD->isUsableInConstantExpressions(Context))
       return UnsupportedSTLError(USS_InvalidMember, MemName, VD);
 
     // Attempt to evaluate the var decl as a constant expression and extract
@@ -12941,7 +12976,8 @@ CXXConstructorDecl *Sema::DeclareImplicitDefaultConstructor(
       Context, ClassDecl, ClassLoc, NameInfo, /*Type*/ QualType(),
       /*TInfo=*/nullptr, ExplicitSpecifier(),
       /*isInline=*/true, /*isImplicitlyDeclared=*/true,
-      Constexpr ? CSK_constexpr : CSK_unspecified);
+      Constexpr ? ConstexprSpecKind::Constexpr
+                : ConstexprSpecKind::Unspecified);
   DefaultCon->setAccess(AS_public);
   DefaultCon->setDefaulted();
 
@@ -13062,7 +13098,7 @@ Sema::findInheritingConstructor(SourceLocation Loc,
       Context, Derived, UsingLoc, NameInfo, TInfo->getType(), TInfo,
       BaseCtor->getExplicitSpecifier(), /*isInline=*/true,
       /*isImplicitlyDeclared=*/true,
-      Constexpr ? BaseCtor->getConstexprKind() : CSK_unspecified,
+      Constexpr ? BaseCtor->getConstexprKind() : ConstexprSpecKind::Unspecified,
       InheritedConstructor(Shadow, BaseCtor),
       BaseCtor->getTrailingRequiresClause());
   if (Shadow->isInvalidDecl())
@@ -13219,7 +13255,8 @@ CXXDestructorDecl *Sema::DeclareImplicitDestructor(CXXRecordDecl *ClassDecl) {
       CXXDestructorDecl::Create(Context, ClassDecl, ClassLoc, NameInfo,
                                 QualType(), nullptr, /*isInline=*/true,
                                 /*isImplicitlyDeclared=*/true,
-                                Constexpr ? CSK_constexpr : CSK_unspecified);
+                                Constexpr ? ConstexprSpecKind::Constexpr
+                                          : ConstexprSpecKind::Unspecified);
   Destructor->setAccess(AS_public);
   Destructor->setDefaulted();
 
@@ -13854,7 +13891,8 @@ CXXMethodDecl *Sema::DeclareImplicitCopyAssignment(CXXRecordDecl *ClassDecl) {
   CXXMethodDecl *CopyAssignment = CXXMethodDecl::Create(
       Context, ClassDecl, ClassLoc, NameInfo, QualType(),
       /*TInfo=*/nullptr, /*StorageClass=*/SC_None,
-      /*isInline=*/true, Constexpr ? CSK_constexpr : CSK_unspecified,
+      /*isInline=*/true,
+      Constexpr ? ConstexprSpecKind::Constexpr : ConstexprSpecKind::Unspecified,
       SourceLocation());
   CopyAssignment->setAccess(AS_public);
   CopyAssignment->setDefaulted();
@@ -14179,7 +14217,8 @@ CXXMethodDecl *Sema::DeclareImplicitMoveAssignment(CXXRecordDecl *ClassDecl) {
   CXXMethodDecl *MoveAssignment = CXXMethodDecl::Create(
       Context, ClassDecl, ClassLoc, NameInfo, QualType(),
       /*TInfo=*/nullptr, /*StorageClass=*/SC_None,
-      /*isInline=*/true, Constexpr ? CSK_constexpr : CSK_unspecified,
+      /*isInline=*/true,
+      Constexpr ? ConstexprSpecKind::Constexpr : ConstexprSpecKind::Unspecified,
       SourceLocation());
   MoveAssignment->setAccess(AS_public);
   MoveAssignment->setDefaulted();
@@ -14563,7 +14602,8 @@ CXXConstructorDecl *Sema::DeclareImplicitCopyConstructor(
       ExplicitSpecifier(),
       /*isInline=*/true,
       /*isImplicitlyDeclared=*/true,
-      Constexpr ? CSK_constexpr : CSK_unspecified);
+      Constexpr ? ConstexprSpecKind::Constexpr
+                : ConstexprSpecKind::Unspecified);
   CopyConstructor->setAccess(AS_public);
   CopyConstructor->setDefaulted();
 
@@ -14696,7 +14736,8 @@ CXXConstructorDecl *Sema::DeclareImplicitMoveConstructor(
       ExplicitSpecifier(),
       /*isInline=*/true,
       /*isImplicitlyDeclared=*/true,
-      Constexpr ? CSK_constexpr : CSK_unspecified);
+      Constexpr ? ConstexprSpecKind::Constexpr
+                : ConstexprSpecKind::Unspecified);
   MoveConstructor->setAccess(AS_public);
   MoveConstructor->setDefaulted();
 
@@ -14798,9 +14839,13 @@ void Sema::DefineImplicitLambdaToFunctionPointerConversion(
   SynthesizedFunctionScope Scope(*this, Conv);
   assert(!Conv->getReturnType()->isUndeducedType());
 
+  QualType ConvRT = Conv->getType()->getAs<FunctionType>()->getReturnType();
+  CallingConv CC =
+      ConvRT->getPointeeType()->getAs<FunctionType>()->getCallConv();
+
   CXXRecordDecl *Lambda = Conv->getParent();
   FunctionDecl *CallOp = Lambda->getLambdaCallOperator();
-  FunctionDecl *Invoker = Lambda->getLambdaStaticInvoker();
+  FunctionDecl *Invoker = Lambda->getLambdaStaticInvoker(CC);
 
   if (auto *TemplateArgs = Conv->getTemplateSpecializationArgs()) {
     CallOp = InstantiateFunctionDeclaration(
@@ -15037,24 +15082,14 @@ ExprResult Sema::BuildCXXDefaultInitExpr(SourceLocation Loc, FieldDecl *Field) {
     DeclContext::lookup_result Lookup =
         ClassPattern->lookup(Field->getDeclName());
 
-    // Lookup can return at most two results: the pattern for the field, or the
-    // injected class name of the parent record. No other member can have the
-    // same name as the field.
-    // In modules mode, lookup can return multiple results (coming from
-    // different modules).
-    assert((getLangOpts().Modules || (!Lookup.empty() && Lookup.size() <= 2)) &&
-           "more than two lookup results for field name");
-    FieldDecl *Pattern = dyn_cast<FieldDecl>(Lookup[0]);
-    if (!Pattern) {
-      assert(isa<CXXRecordDecl>(Lookup[0]) &&
-             "cannot have other non-field member with same name");
-      for (auto L : Lookup)
-        if (isa<FieldDecl>(L)) {
-          Pattern = cast<FieldDecl>(L);
-          break;
-        }
-      assert(Pattern && "We must have set the Pattern!");
+    FieldDecl *Pattern = nullptr;
+    for (auto L : Lookup) {
+      if (isa<FieldDecl>(L)) {
+        Pattern = cast<FieldDecl>(L);
+        break;
+      }
     }
+    assert(Pattern && "We must have set the Pattern!");
 
     if (!Pattern->hasInClassInitializer() ||
         InstantiateInClassInitializer(Loc, Field, Pattern,
@@ -15509,6 +15544,18 @@ checkLiteralOperatorTemplateParameterList(Sema &SemaRef,
         SemaRef.Context.hasSameType(PmDecl->getType(), SemaRef.Context.CharTy))
       return false;
 
+    // C++20 [over.literal]p5:
+    //   A string literal operator template is a literal operator template
+    //   whose template-parameter-list comprises a single non-type
+    //   template-parameter of class type.
+    //
+    // As a DR resolution, we also allow placeholders for deduced class
+    // template specializations.
+    if (SemaRef.getLangOpts().CPlusPlus20 &&
+        !PmDecl->isTemplateParameterPack() &&
+        (PmDecl->getType()->isRecordType() ||
+         PmDecl->getType()->getAs<DeducedTemplateSpecializationType>()))
+      return false;
   } else if (TemplateParams->size() == 2) {
     TemplateTypeParmDecl *PmType =
         dyn_cast<TemplateTypeParmDecl>(TemplateParams->getParam(0));
@@ -15565,6 +15612,8 @@ bool Sema::CheckLiteralOperatorDeclaration(FunctionDecl *FnDecl) {
   // template <char...> type operator "" name() and
   // template <class T, T...> type operator "" name() are the only valid
   // template signatures, and the only valid signatures with no parameters.
+  //
+  // C++20 also allows template <SomeClass T> type operator "" name().
   if (TpDecl) {
     if (FnDecl->param_size() != 0) {
       Diag(FnDecl->getLocation(),
@@ -15994,9 +16043,10 @@ Decl *Sema::BuildStaticAssertDeclaration(SourceLocation StaticAssertLoc,
       AssertExpr = FullAssertExpr.get();
 
     llvm::APSInt Cond;
-    if (!Failed && VerifyIntegerConstantExpression(AssertExpr, &Cond,
-          diag::err_static_assert_expression_is_not_constant,
-          /*AllowFold=*/false).isInvalid())
+    if (!Failed && VerifyIntegerConstantExpression(
+                       AssertExpr, &Cond,
+                       diag::err_static_assert_expression_is_not_constant)
+                       .isInvalid())
       Failed = true;
 
     if (!Failed && !Cond) {
@@ -16288,7 +16338,7 @@ Decl *Sema::ActOnFriendTypeDecl(Scope *S, const DeclSpec &DS,
   // Try to convert the decl specifier to a type.  This works for
   // friend templates because ActOnTag never produces a ClassTemplateDecl
   // for a TUK_Friend.
-  Declarator TheDeclarator(DS, DeclaratorContext::MemberContext);
+  Declarator TheDeclarator(DS, DeclaratorContext::Member);
   TypeSourceInfo *TSI = GetTypeForDeclarator(TheDeclarator, S);
   QualType T = TSI->getType();
   if (TheDeclarator.isInvalidType())

@@ -1,4 +1,4 @@
-PARAM_TRAITS_SPEC(event_profiling, command_submit, cl_ulong)
-PARAM_TRAITS_SPEC(event_profiling, command_start, cl_ulong)
-PARAM_TRAITS_SPEC(event_profiling, command_end, cl_ulong)
+__SYCL_PARAM_TRAITS_SPEC(event_profiling, command_submit, cl_ulong)
+__SYCL_PARAM_TRAITS_SPEC(event_profiling, command_start, cl_ulong)
+__SYCL_PARAM_TRAITS_SPEC(event_profiling, command_end, cl_ulong)
 

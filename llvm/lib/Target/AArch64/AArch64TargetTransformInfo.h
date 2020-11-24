@@ -97,6 +97,9 @@ public:
     return 31;
   }
 
+  unsigned getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
+                                 TTI::TargetCostKind CostKind);
+
   unsigned getRegisterBitWidth(bool Vector) const {
     if (Vector) {
       if (ST->hasSVE())
@@ -138,11 +141,13 @@ public:
   int getAddressComputationCost(Type *Ty, ScalarEvolution *SE, const SCEV *Ptr);
 
   int getCmpSelInstrCost(unsigned Opcode, Type *ValTy, Type *CondTy,
+                         CmpInst::Predicate VecPred,
                          TTI::TargetCostKind CostKind,
                          const Instruction *I = nullptr);
 
   TTI::MemCmpExpansionOptions enableMemCmpExpansion(bool OptSize,
                                                     bool IsZeroCmp) const;
+  bool useNeonVector(const Type *Ty) const;
 
   int getMemoryOpCost(unsigned Opcode, Type *Src, MaybeAlign Alignment,
                       unsigned AddressSpace,
@@ -217,18 +222,7 @@ public:
   shouldConsiderAddressTypePromotion(const Instruction &I,
                                      bool &AllowPromotionWithoutCommonHeader);
 
-  bool shouldExpandReduction(const IntrinsicInst *II) const {
-    switch (II->getIntrinsicID()) {
-    case Intrinsic::experimental_vector_reduce_v2_fadd:
-    case Intrinsic::experimental_vector_reduce_v2_fmul:
-      // We don't have legalization support for ordered FP reductions.
-      return !II->getFastMathFlags().allowReassoc();
-
-    default:
-      // Don't expand anything else, let legalization deal with it.
-      return false;
-    }
-  }
+  bool shouldExpandReduction(const IntrinsicInst *II) const { return false; }
 
   unsigned getGISelRematGlobalCost() const {
     return 2;

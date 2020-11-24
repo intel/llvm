@@ -17,7 +17,7 @@
 #pragma warning(disable : 4251)
 #pragma warning(disable : 4275)
 
-#define DLL_LOCAL
+#define __SYCL_DLL_LOCAL
 
 #if __SYCL_BUILD_SYCL_DLL
 #define __SYCL_EXPORT __declspec(dllexport)
@@ -28,7 +28,7 @@
 #endif //__SYCL_BUILD_SYCL_DLL
 #else  // _WIN32
 
-#define DLL_LOCAL __attribute__((visibility("hidden")))
+#define __SYCL_DLL_LOCAL __attribute__((visibility("hidden")))
 
 #define __SYCL_EXPORT __attribute__((visibility("default")))
 #define __SYCL_EXPORT_DEPRECATED(x)                                            \
@@ -39,6 +39,6 @@
 #ifndef __SYCL_EXPORT
 #define __SYCL_EXPORT
 #define __SYCL_EXPORT_DEPRECATED(x)
-#define DLL_LOCAL
+#define __SYCL_DLL_LOCAL
 #endif
 #endif // __SYCL_DEVICE_ONLY__

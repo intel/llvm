@@ -540,34 +540,29 @@ void Disassembler::PrintInstructions(Debugger &debugger, const ArchSpec &arch,
 }
 
 bool Disassembler::Disassemble(Debugger &debugger, const ArchSpec &arch,
-                               const char *plugin_name, const char *flavor,
-                               const ExecutionContext &exe_ctx,
-                               uint32_t num_instructions,
-                               bool mixed_source_and_assembly,
-                               uint32_t num_mixed_context_lines,
-                               uint32_t options, Stream &strm) {
+                               StackFrame &frame, Stream &strm) {
   AddressRange range;
-  StackFrame *frame = exe_ctx.GetFramePtr();
-  if (frame) {
-    SymbolContext sc(
-        frame->GetSymbolContext(eSymbolContextFunction | eSymbolContextSymbol));
-    if (sc.function) {
-      range = sc.function->GetAddressRange();
-    } else if (sc.symbol && sc.symbol->ValueIsAddress()) {
-      range.GetBaseAddress() = sc.symbol->GetAddressRef();
-      range.SetByteSize(sc.symbol->GetByteSize());
-    } else {
-      range.GetBaseAddress() = frame->GetFrameCodeAddress();
-    }
+  SymbolContext sc(
+      frame.GetSymbolContext(eSymbolContextFunction | eSymbolContextSymbol));
+  if (sc.function) {
+    range = sc.function->GetAddressRange();
+  } else if (sc.symbol && sc.symbol->ValueIsAddress()) {
+    range.GetBaseAddress() = sc.symbol->GetAddressRef();
+    range.SetByteSize(sc.symbol->GetByteSize());
+  } else {
+    range.GetBaseAddress() = frame.GetFrameCodeAddress();
+  }
 
     if (range.GetBaseAddress().IsValid() && range.GetByteSize() == 0)
       range.SetByteSize(DEFAULT_DISASM_BYTE_SIZE);
-  }
 
-  return Disassemble(
-      debugger, arch, plugin_name, flavor, exe_ctx, range.GetBaseAddress(),
-      {Limit::Instructions, num_instructions}, mixed_source_and_assembly,
-      num_mixed_context_lines, options, strm);
+    Disassembler::Limit limit = {Disassembler::Limit::Bytes,
+                                 range.GetByteSize()};
+    if (limit.value == 0)
+      limit.value = DEFAULT_DISASM_BYTE_SIZE;
+
+    return Disassemble(debugger, arch, nullptr, nullptr, frame,
+                       range.GetBaseAddress(), limit, false, 0, 0, strm);
 }
 
 Instruction::Instruction(const Address &address, AddressClass addr_class)
@@ -955,6 +950,13 @@ InstructionSP InstructionList::GetInstructionAtIndex(size_t idx) const {
   if (idx < m_instructions.size())
     inst_sp = m_instructions[idx];
   return inst_sp;
+}
+
+InstructionSP InstructionList::GetInstructionAtAddress(const Address &address) {
+  uint32_t index = GetIndexOfInstructionAtAddress(address);
+  if (index != UINT32_MAX)
+    return GetInstructionAtIndex(index);
+  return nullptr;
 }
 
 void InstructionList::Dump(Stream *s, bool show_address, bool show_bytes,

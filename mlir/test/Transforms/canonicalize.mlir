@@ -334,6 +334,29 @@ func @memref_cast_folding(%arg0: memref<4 x f32>, %arg1: f32) -> (f32, f32) {
   return %1, %2 : f32, f32
 }
 
+// CHECK-LABEL: @fold_memref_cast_in_memref_cast
+// CHECK-SAME: (%[[ARG0:.*]]: memref<42x42xf64>)
+func @fold_memref_cast_in_memref_cast(%0: memref<42x42xf64>) {
+  // CHECK: %[[folded:.*]] = memref_cast %[[ARG0]] : memref<42x42xf64> to memref<?x?xf64>
+  %4 = memref_cast %0 : memref<42x42xf64> to memref<?x42xf64>
+  // CHECK-NOT: memref_cast
+  %5 = memref_cast %4 : memref<?x42xf64> to memref<?x?xf64>
+  // CHECK: "test.user"(%[[folded]])
+  "test.user"(%5) : (memref<?x?xf64>) -> ()
+  return
+}
+
+// CHECK-LABEL: @fold_memref_cast_chain
+// CHECK-SAME: (%[[ARG0:.*]]: memref<42x42xf64>)
+func @fold_memref_cast_chain(%0: memref<42x42xf64>) {
+  // CHECK-NOT: memref_cast
+  %4 = memref_cast %0 : memref<42x42xf64> to memref<?x42xf64>
+  %5 = memref_cast %4 : memref<?x42xf64> to memref<42x42xf64>
+  // CHECK: "test.user"(%[[ARG0]])
+  "test.user"(%5) : (memref<42x42xf64>) -> ()
+  return
+}
+
 // CHECK-LABEL: func @alloc_const_fold
 func @alloc_const_fold() -> memref<?xf32> {
   // CHECK-NEXT: %0 = alloc() : memref<4xf32>
@@ -949,6 +972,46 @@ func @tensor_divi_unsigned_by_one(%arg0: tensor<4x5xi32>) -> tensor<4x5xi32> {
 
 // -----
 
+// CHECK-LABEL: func @floordivi_signed_by_one
+// CHECK-SAME: %[[ARG:[a-zA-Z0-9]+]]
+func @floordivi_signed_by_one(%arg0: i32) -> (i32) {
+  %c1 = constant 1 : i32
+  %res = floordivi_signed %arg0, %c1 : i32
+  // CHECK: return %[[ARG]]
+  return %res : i32
+}
+
+// CHECK-LABEL: func @tensor_floordivi_signed_by_one
+// CHECK-SAME: %[[ARG:[a-zA-Z0-9]+]]
+func @tensor_floordivi_signed_by_one(%arg0: tensor<4x5xi32>) -> tensor<4x5xi32> {
+  %c1 = constant dense<1> : tensor<4x5xi32>
+  %res = floordivi_signed %arg0, %c1 : tensor<4x5xi32>
+  // CHECK: return %[[ARG]]
+  return %res : tensor<4x5xi32>
+}
+
+// -----
+
+// CHECK-LABEL: func @ceildivi_signed_by_one
+// CHECK-SAME: %[[ARG:[a-zA-Z0-9]+]]
+func @ceildivi_signed_by_one(%arg0: i32) -> (i32) {
+  %c1 = constant 1 : i32
+  %res = ceildivi_signed %arg0, %c1 : i32
+  // CHECK: return %[[ARG]]
+  return %res : i32
+}
+
+// CHECK-LABEL: func @tensor_ceildivi_signed_by_one
+// CHECK-SAME: %[[ARG:[a-zA-Z0-9]+]]
+func @tensor_ceildivi_signed_by_one(%arg0: tensor<4x5xi32>) -> tensor<4x5xi32> {
+  %c1 = constant dense<1> : tensor<4x5xi32>
+  %res = ceildivi_signed %arg0, %c1 : tensor<4x5xi32>
+  // CHECK: return %[[ARG]]
+  return %res : tensor<4x5xi32>
+}
+
+// -----
+
 // CHECK-LABEL: func @memref_cast_folding_subview
 func @memref_cast_folding_subview(%arg0: memref<4x5xf32>, %i: index) -> (memref<?x?xf32, offset:? , strides: [?, ?]>) {
   %0 = memref_cast %arg0 : memref<4x5xf32> to memref<?x?xf32>
@@ -1138,4 +1201,18 @@ func @subtensor(%t: tensor<8x16x4xf32>, %arg0 : index, %arg1 : index)
     : tensor<?x?x?xf32> to tensor<?x?x?xf32>
 
   return %2 : tensor<?x?x?xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func @extract_element_from_tensor_cast
+// CHECK-SAME: %[[TENSOR:.*]]: tensor<*xf32>
+func @extract_element_from_tensor_cast(%tensor: tensor<*xf32>) -> f32 {
+  // CHECK-NEXT: %[[C0:.*]] = constant 0 : index
+  %c0 = constant 0 : index
+  // CHECK-NOT: tensor_cast
+  %casted = tensor_cast %tensor : tensor<*xf32> to tensor<?xf32>
+  // CHECK-NEXT: extract_element %[[TENSOR]][%[[C0]]]
+  %result = extract_element %casted[%c0] : tensor<?xf32>
+  return %result : f32
 }

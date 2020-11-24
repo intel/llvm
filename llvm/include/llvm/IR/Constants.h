@@ -592,14 +592,13 @@ class ConstantDataSequential : public ConstantData {
   /// the same value but different type.  For example, 0,0,0,1 could be a 4
   /// element array of i8, or a 1-element array of i32.  They'll both end up in
   /// the same StringMap bucket, linked up.
-  ConstantDataSequential *Next;
+  std::unique_ptr<ConstantDataSequential> Next;
 
   void destroyConstantImpl();
 
 protected:
   explicit ConstantDataSequential(Type *ty, ValueTy VT, const char *Data)
-      : ConstantData(ty, VT), DataElements(Data), Next(nullptr) {}
-  ~ConstantDataSequential() { delete Next; }
+      : ConstantData(ty, VT), DataElements(Data) {}
 
   static Constant *getImpl(StringRef Bytes, Type *Ty);
 
@@ -889,6 +888,42 @@ struct OperandTraits<BlockAddress> :
 
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(BlockAddress, Value)
 
+/// Wrapper for a function that represents a value that
+/// functionally represents the original function. This can be a function,
+/// global alias to a function, or an ifunc.
+class DSOLocalEquivalent final : public Constant {
+  friend class Constant;
+
+  DSOLocalEquivalent(GlobalValue *GV);
+
+  void *operator new(size_t s) { return User::operator new(s, 1); }
+
+  void destroyConstantImpl();
+  Value *handleOperandChangeImpl(Value *From, Value *To);
+
+public:
+  /// Return a DSOLocalEquivalent for the specified global value.
+  static DSOLocalEquivalent *get(GlobalValue *GV);
+
+  /// Transparently provide more efficient getOperand methods.
+  DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
+
+  GlobalValue *getGlobalValue() const {
+    return cast<GlobalValue>(Op<0>().get());
+  }
+
+  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  static bool classof(const Value *V) {
+    return V->getValueID() == DSOLocalEquivalentVal;
+  }
+};
+
+template <>
+struct OperandTraits<DSOLocalEquivalent>
+    : public FixedNumOperandTraits<DSOLocalEquivalent, 1> {};
+
+DEFINE_TRANSPARENT_OPERAND_ACCESSORS(DSOLocalEquivalent, Value)
+
 //===----------------------------------------------------------------------===//
 /// A constant value that is initialized with an expression using
 /// other constant values.
@@ -1034,6 +1069,12 @@ public:
   static Constant *getExactLShr(Constant *C1, Constant *C2) {
     return getLShr(C1, C2, true);
   }
+
+  /// If C is a scalar/fixed width vector of known powers of 2, then this
+  /// function returns a new scalar/fixed width vector obtained from logBase2
+  /// of C. Undef vector elements are set to zero.
+  /// Return a null pointer otherwise.
+  static Constant *getExactLogBase2(Constant *C);
 
   /// Return the identity constant for a binary opcode.
   /// The identity constant C is defined as X op C = X and C op X = X for every

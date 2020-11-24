@@ -218,6 +218,8 @@ protected:
 
   unsigned HasAArch64SVETypes : 1;
 
+  unsigned AllowAMDGPUUnsafeFPAtomics : 1;
+
   unsigned ARMCDECoprocMask : 8;
 
   unsigned MaxOpenCLWorkGroupSize;
@@ -581,8 +583,9 @@ public:
   /// Determine whether constrained floating point is supported on this target.
   virtual bool hasStrictFP() const { return HasStrictFP; }
 
-  /// Return the alignment that is suitable for storing any
-  /// object with a fundamental alignment requirement.
+  /// Return the alignment that is the largest alignment ever used for any
+  /// scalar/SIMD data type on the target machine you are compiling for
+  /// (including types with an extended alignment requirement).
   unsigned getSuitableAlign() const { return SuitableAlign; }
 
   /// Return the default alignment for __attribute__((aligned)) on
@@ -855,6 +858,10 @@ public:
   /// Returns whether or not the AArch64 SVE built-in types are
   /// available on this target.
   bool hasAArch64SVETypes() const { return HasAArch64SVETypes; }
+
+  /// Returns whether or not the AMDGPU unsafe floating point atomics are
+  /// allowed.
+  bool allowAMDGPUUnsafeFPAtomics() const { return AllowAMDGPUUnsafeFPAtomics; }
 
   /// For ARM targets returns a mask defining which coprocessors are configured
   /// as Custom Datapath.

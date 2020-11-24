@@ -157,6 +157,11 @@ struct Configuration {
   // Used for /opt:lldltocachepolicy=policy
   llvm::CachePruningPolicy ltoCachePolicy;
 
+  // Used for /opt:[no]ltonewpassmanager
+  bool ltoNewPassManager = false;
+  // Used for /opt:[no]ltodebugpassmanager
+  bool ltoDebugPassManager = false;
+
   // Used for /merge:from=to (e.g. /merge:.rdata=.text)
   std::map<StringRef, StringRef> merge;
 
@@ -221,8 +226,12 @@ struct Configuration {
   uint64_t heapCommit = 4096;
   uint32_t majorImageVersion = 0;
   uint32_t minorImageVersion = 0;
+  // If changing the default os/subsys version here, update the default in
+  // the MinGW driver accordingly.
   uint32_t majorOSVersion = 6;
   uint32_t minorOSVersion = 0;
+  uint32_t majorSubsystemVersion = 6;
+  uint32_t minorSubsystemVersion = 0;
   uint32_t timestamp = 0;
   uint32_t functionPadMin = 0;
   bool dynamicBase = true;

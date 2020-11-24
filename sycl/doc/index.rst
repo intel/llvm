@@ -29,3 +29,4 @@ Developing oneAPI DPC++ Compiler
    ABIPolicyGuide
    SpecializationConstants
    KernelProgramCache
+   GlobalObjectsInRuntime

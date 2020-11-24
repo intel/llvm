@@ -761,14 +761,6 @@ cl_int AllocaCommand::enqueueImp() {
       detail::getSyclObjImpl(MQueue->get_context()), getSYCLMemObj(),
       MInitFromUserData, HostPtr, std::move(EventImpls), Event);
 
-  // if this is ESIMD accessor, wrap the allocated device memory buffer into
-  // an image buffer object.
-  // TODO Address copying SYCL/ESIMD memory between contexts.
-  if (getRequirement()->MIsESIMDAcc)
-    ESIMDExt.MWrapperImage = MemoryManager::wrapIntoImageBuffer(
-        detail::getSyclObjImpl(MQueue->get_context()), MMemAllocation,
-        getSYCLMemObj());
-
   return CL_SUCCESS;
 }
 
@@ -960,10 +952,6 @@ cl_int ReleaseCommand::enqueueImp() {
                            MAllocaCmd->getSYCLMemObj(),
                            MAllocaCmd->getMemAllocation(),
                            std::move(EventImpls), Event);
-    // Release the wrapper object if present.
-    if (void *WrapperImage = MAllocaCmd->ESIMDExt.MWrapperImage)
-      MemoryManager::releaseImageBuffer(
-          detail::getSyclObjImpl(MQueue->get_context()), WrapperImage);
   }
   return CL_SUCCESS;
 }
@@ -1670,9 +1658,7 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
     case kernel_param_kind_t::kind_accessor: {
       Requirement *Req = (Requirement *)(Arg.MPtr);
       AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
-      RT::PiMem MemArg = Req->MIsESIMDAcc
-                             ? (RT::PiMem)AllocaCmd->ESIMDExt.MWrapperImage
-                             : (RT::PiMem)AllocaCmd->getMemAllocation();
+      RT::PiMem MemArg = (RT::PiMem)AllocaCmd->getMemAllocation();
       if (Plugin.getBackend() == backend::opencl) {
         Plugin.call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex,
                                                sizeof(RT::PiMem), &MemArg);
@@ -1724,12 +1710,18 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
 void DispatchNativeKernel(void *Blob) {
   // First value is a pointer to Corresponding CGExecKernel object.
   CGExecKernel *HostTask = *(CGExecKernel **)Blob;
+  bool ShouldDeleteCG = static_cast<void **>(Blob)[1] != nullptr;
 
   // Other value are pointer to the buffers.
-  void **NextArg = (void **)Blob + 1;
+  void **NextArg = static_cast<void **>(Blob) + 2;
   for (detail::Requirement *Req : HostTask->MRequirements)
     Req->MData = *(NextArg++);
   HostTask->MHostKernel->call(HostTask->MNDRDesc, nullptr);
+
+  // The command group will (if not already was) be released in scheduler.
+  // Hence we're free to deallocate it here.
+  if (ShouldDeleteCG)
+    delete HostTask;
 }
 
 cl_int ExecCGCommand::enqueueImp() {
@@ -1814,9 +1806,14 @@ cl_int ExecCGCommand::enqueueImp() {
     // piEnqueueNativeKernel takes arguments blob which is passes to user
     // function.
     // Reserve extra space for the pointer to CGExecKernel to restore context.
-    std::vector<void *> ArgsBlob(HostTask->MArgs.size() + 1);
+    std::vector<void *> ArgsBlob(HostTask->MArgs.size() + 2);
     ArgsBlob[0] = (void *)HostTask;
-    void **NextArg = ArgsBlob.data() + 1;
+    {
+      std::intptr_t ShouldDeleteCG =
+          static_cast<std::intptr_t>(MDeps.size() == 0 && MUsers.size() == 0);
+      ArgsBlob[1] = reinterpret_cast<void *>(ShouldDeleteCG);
+    }
+    void **NextArg = ArgsBlob.data() + 2;
 
     if (MQueue->is_host()) {
       for (ArgDesc &Arg : HostTask->MArgs) {

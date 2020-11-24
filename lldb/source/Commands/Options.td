@@ -372,7 +372,7 @@ let Command = "expression" in {
     "top-level entities without a $ prefix.">;
   def expression_options_allow_jit : Option<"allow-jit", "j">, Groups<[1,2]>,
     Arg<"Boolean">,
-    Desc<"Controls whether the expression can fall back to being JITted if it's"
+    Desc<"Controls whether the expression can fall back to being JITted if it's "
     "not supported by the interpreter (defaults to true).">;
 }
 
@@ -704,6 +704,10 @@ let Command = "script import" in {
     Desc<"Allow the script to be loaded even if it was already loaded before. "
     "This argument exists for backwards compatibility, but reloading is always "
     "allowed, whether you specify it or not.">;
+  def relative_to_command_file : Option<"relative-to-command-file", "c">,
+    Group<1>, Desc<"Resolve non-absolute paths relative to the location of the "
+    "current command file. This argument can only be used when the command is "
+    "being sourced from a file.">;
 }
 
 let Command = "script add" in {
@@ -948,7 +952,7 @@ let Command = "thread step scope" in {
     EnumArg<"RunMode", "TriRunningModes()">, Desc<"Determine how to run other "
     "threads while stepping the current thread.">;
   def thread_step_scope_step_over_regexp : Option<"step-over-regexp", "r">,
-    Group<1>, Arg<"RegularExpression">, Desc<"A regular expression that defines"
+    Group<1>, Arg<"RegularExpression">, Desc<"A regular expression that defines "
     "function names to not to stop at when stepping in.">;
   def thread_step_scope_step_in_target : Option<"step-in-target", "t">,
     Group<1>, Arg<"FunctionName">, Desc<"The name of the directly called "
@@ -961,10 +965,10 @@ let Command = "thread until" in {
   def thread_until_thread : Option<"thread", "t">, Group<1>, Arg<"ThreadIndex">,
     Desc<"Thread index for the thread for until operation">;
   def thread_until_run_mode : Option<"run-mode", "m">, Group<1>,
-    EnumArg<"RunMode", "DuoRunningModes()">, Desc<"Determine how to run other"
+    EnumArg<"RunMode", "DuoRunningModes()">, Desc<"Determine how to run other "
     "threads while stepping this one">;
   def thread_until_address : Option<"address", "a">, Group<1>,
-    Arg<"AddressOrExpression">, Desc<"Run until we reach the specified address,"
+    Arg<"AddressOrExpression">, Desc<"Run until we reach the specified address, "
     "or leave the function - can be specified multiple times.">;
 }
 
@@ -1003,6 +1007,19 @@ let Command = "thread plan list" in {
     "specified more than once.">;
   def thread_plan_list_unreported : Option<"unreported", "u">, Group<1>,
     Desc<"Display thread plans for unreported threads">;
+}
+
+let Command = "thread trace dump instructions" in {
+  def thread_trace_dump_instructions_count : Option<"count", "c">, Group<1>,
+    Arg<"Count">,
+    Desc<"The number of instructions to display ending at the current position.">;
+  def thread_trace_dump_instructions_position : Option<"position", "p">,
+    Group<1>,
+    Arg<"Index">,
+    Desc<"The position to use instead of the current position of the trace.">;
+  def thread_trace_dump_instructions_raw : Option<"raw", "r">,
+    Group<1>,
+    Desc<"Dump only instruction address without disassembly nor symbol information.">;
 }
 
 let Command = "type summary add" in {
@@ -1141,7 +1158,7 @@ let Command = "watchpoint list" in {
     "brief description of the watchpoint (no location info).">;
   def watchpoint_list_full : Option<"full", "f">, Group<2>, Desc<"Give a full "
     "description of the watchpoint and its locations.">;
-  def watchpoint_list_verbose : Option<"verbose", "v">, Group<3>, Desc<"Explain"
+  def watchpoint_list_verbose : Option<"verbose", "v">, Group<3>, Desc<"Explain "
     "everything we know about the watchpoint (for debugging debugger bugs).">;
 }
 

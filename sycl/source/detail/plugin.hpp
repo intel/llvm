@@ -49,7 +49,7 @@ public:
   /// \throw Exception if pi_result is not a PI_SUCCESS.
   template <typename Exception = cl::sycl::runtime_error>
   void checkPiResult(RT::PiResult pi_result) const {
-    CHECK_OCL_CODE_THROW(pi_result, Exception);
+    __SYCL_CHECK_OCL_CODE_THROW(pi_result, Exception);
   }
 
   /// Calls the PiApi, traces the call, and returns the result.

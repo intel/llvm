@@ -126,6 +126,8 @@ OBJECT_PRINTED_CORRECTLY = "Object printed correctly"
 
 SOURCE_DISPLAYED_CORRECTLY = "Source code displayed correctly"
 
+STEP_IN_SUCCEEDED = "Thread step-in succeeded"
+
 STEP_OUT_SUCCEEDED = "Thread step-out succeeded"
 
 STOPPED_DUE_TO_EXC_BAD_ACCESS = "Process should be stopped due to bad access exception"
@@ -516,7 +518,7 @@ def system(commands, **kwargs):
                 "command": shellCommand
             }
             raise cpe
-        output = output + this_output.decode("utf-8")
+        output = output + this_output.decode("utf-8", errors='ignore')
     return output
 
 
@@ -1316,6 +1318,30 @@ class Base(unittest2.TestCase):
 
         return " sve " in cpuinfo
 
+    def hasLinuxVmFlags(self):
+        """ Check that the target machine has "VmFlags" lines in
+        its /proc/{pid}/smaps files."""
+
+        triple = self.dbg.GetSelectedPlatform().GetTriple()
+        if not re.match(".*-.*-linux", triple):
+            return False
+
+        self.runCmd('platform process list')
+        pid = None
+        for line in self.res.GetOutput().splitlines():
+            if 'lldb-server' in line:
+                pid = line.split(' ')[0]
+                break
+
+        if pid is None:
+            return False
+
+        smaps_path = self.getBuildArtifact('smaps')
+        self.runCmd('platform get-file "/proc/{}/smaps" {}'.format(pid, smaps_path))
+
+        with open(smaps_path, 'r') as f:
+            return "VmFlags" in f.read()
+
     def getArchitecture(self):
         """Returns the architecture in effect the test suite is running with."""
         module = builder_module()
@@ -1591,6 +1617,10 @@ class Base(unittest2.TestCase):
         """Platform specific way to build the default binaries."""
         testdir = self.mydir
         testname = self.getBuildDirBasename()
+
+        if not architecture and configuration.arch:
+            architecture = configuration.arch
+
         if self.getDebugInfo():
             raise Exception("buildDefault tests must set NO_DEBUG_INFO_TESTCASE")
         module = builder_module()
@@ -1927,6 +1957,7 @@ class TestBase(Base):
             header.startswith("SB") and header.endswith(".h"))]
         includes = '\n'.join(list)
         new_content = content.replace('%include_SB_APIs%', includes)
+        new_content = new_content.replace('%SOURCE_DIR%', self.getSourceDir())
         src = os.path.join(self.getBuildDir(), source)
         with open(src, 'w') as f:
             f.write(new_content)
@@ -2108,7 +2139,7 @@ class TestBase(Base):
         return status.
         """
         # Fail fast if 'cmd' is not meaningful.
-        if not cmd or len(cmd) == 0:
+        if cmd is None:
             raise Exception("Bad 'cmd' parameter encountered")
 
         trace = (True if traceAlways else trace)
@@ -2424,6 +2455,22 @@ FileCheck output:
         set to False, the 'str' is treated as a string to be matched/not-matched
         against the golden input.
         """
+        # Catch cases where `expect` has been miscalled. Specifically, prevent
+        # this easy to make mistake:
+        #     self.expect("lldb command", "some substr")
+        # The `msg` parameter is used only when a failed match occurs. A failed
+        # match can only occur when one of `patterns`, `startstr`, `endstr`, or
+        # `substrs` has been given. Thus, if a `msg` is given, it's an error to
+        # not also provide one of the matcher parameters.
+        if msg and not (patterns or startstr or endstr or substrs or error):
+            assert False, "expect() missing a matcher argument"
+
+        # Check `patterns` and `substrs` are not accidentally given as strings.
+        assert not isinstance(patterns, six.string_types), \
+            "patterns must be a collection of strings"
+        assert not isinstance(substrs, six.string_types), \
+            "substrs must be a collection of strings"
+
         trace = (True if traceAlways else trace)
 
         if exe:
@@ -2569,6 +2616,35 @@ FileCheck output:
         value_check.check_value(self, eval_result, str(eval_result))
         return eval_result
 
+    def expect_var_path(
+            self,
+            var_path,
+            summary=None,
+            value=None,
+            type=None,
+            children=None
+            ):
+        """
+        Evaluates the given variable path and verifies the result.
+        See also 'frame variable' and SBFrame.GetValueForVariablePath.
+        :param var_path: The variable path as a string.
+        :param summary: The summary that the variable should have. None if the summary should not be checked.
+        :param value: The value that the variable should have. None if the value should not be checked.
+        :param type: The type that the variable result should have. None if the type should not be checked.
+        :param children: The expected children of the variable  as a list of ValueChecks.
+                         None if the children shouldn't be checked.
+        """
+        self.assertTrue(var_path.strip() == var_path,
+                        "Expression contains trailing/leading whitespace: '" + var_path + "'")
+
+        frame = self.frame()
+        eval_result = frame.GetValueForVariablePath(var_path)
+
+        value_check = ValueCheck(type=type, value=value,
+                                 summary=summary, children=children)
+        value_check.check_value(self, eval_result, str(eval_result))
+        return eval_result
+
     def invoke(self, obj, name, trace=False):
         """Use reflection to call a method dynamically with no argument."""
         trace = (True if traceAlways else trace)
@@ -2589,6 +2665,9 @@ FileCheck output:
             dictionary=None):
         """Platform specific way to build the default binaries."""
         module = builder_module()
+
+        if not architecture and configuration.arch:
+            architecture = configuration.arch
 
         dictionary = lldbplatformutil.finalize_build_dictionary(dictionary)
         if self.getDebugInfo() is None:

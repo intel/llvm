@@ -34,6 +34,7 @@
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/PseudoSourceValue.h"
+#include "llvm/CodeGen/StackMaps.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
@@ -1100,10 +1101,12 @@ void MachineInstr::tieOperands(unsigned DefIdx, unsigned UseIdx) {
   if (DefIdx < TiedMax)
     UseMO.TiedTo = DefIdx + 1;
   else {
-    // Inline asm can use the group descriptors to find tied operands, but on
-    // normal instruction, the tied def must be within the first TiedMax
+    // Inline asm can use the group descriptors to find tied operands,
+    // statepoint tied operands are trivial to match (1-1 reg def with reg use),
+    // but on normal instruction, the tied def must be within the first TiedMax
     // operands.
-    assert(isInlineAsm() && "DefIdx out of range");
+    assert((isInlineAsm() || getOpcode() == TargetOpcode::STATEPOINT) &&
+           "DefIdx out of range");
     UseMO.TiedTo = TiedMax;
   }
 
@@ -1123,7 +1126,7 @@ unsigned MachineInstr::findTiedOperandIdx(unsigned OpIdx) const {
     return MO.TiedTo - 1;
 
   // Uses on normal instructions can be out of range.
-  if (!isInlineAsm()) {
+  if (!isInlineAsm() && getOpcode() != TargetOpcode::STATEPOINT) {
     // Normal tied defs must be in the 0..TiedMax-1 range.
     if (MO.isUse())
       return TiedMax - 1;
@@ -1132,6 +1135,25 @@ unsigned MachineInstr::findTiedOperandIdx(unsigned OpIdx) const {
       const MachineOperand &UseMO = getOperand(i);
       if (UseMO.isReg() && UseMO.isUse() && UseMO.TiedTo == OpIdx + 1)
         return i;
+    }
+    llvm_unreachable("Can't find tied use");
+  }
+
+  if (getOpcode() == TargetOpcode::STATEPOINT) {
+    // In STATEPOINT defs correspond 1-1 to GC pointer operands passed
+    // on registers.
+    StatepointOpers SO(this);
+    unsigned CurUseIdx = SO.getFirstGCPtrIdx();
+    assert(CurUseIdx != -1U && "only gc pointer statepoint operands can be tied");
+    unsigned NumDefs = getNumDefs();
+    for (unsigned CurDefIdx = 0; CurDefIdx < NumDefs; ++CurDefIdx) {
+      while (!getOperand(CurUseIdx).isReg())
+        CurUseIdx = StackMaps::getNextMetaArgIdx(this, CurUseIdx);
+      if (OpIdx == CurDefIdx)
+        return CurUseIdx;
+      if (OpIdx == CurUseIdx)
+        return CurDefIdx;
+      CurUseIdx = StackMaps::getNextMetaArgIdx(this, CurUseIdx);
     }
     llvm_unreachable("Can't find tied use");
   }
@@ -1236,6 +1258,11 @@ bool MachineInstr::mayAlias(AAResults *AA, const MachineInstr &Other,
   const TargetInstrInfo *TII = MF->getSubtarget().getInstrInfo();
   const MachineFrameInfo &MFI = MF->getFrameInfo();
 
+  // Execulde call instruction which may alter the memory but can not be handled
+  // by this function.
+  if (isCall() || Other.isCall())
+    return true;
+
   // If neither instruction stores to memory, they can't alias in any
   // meaningful way, even if they read from the same address.
   if (!mayStore() && !Other.mayStore())
@@ -1249,81 +1276,96 @@ bool MachineInstr::mayAlias(AAResults *AA, const MachineInstr &Other,
   if (TII->areMemAccessesTriviallyDisjoint(*this, Other))
     return false;
 
-  // FIXME: Need to handle multiple memory operands to support all targets.
-  if (!hasOneMemOperand() || !Other.hasOneMemOperand())
+  // Memory operations without memory operands may access anything. Be
+  // conservative and assume `MayAlias`.
+  if (memoperands_empty() || Other.memoperands_empty())
     return true;
 
-  MachineMemOperand *MMOa = *memoperands_begin();
-  MachineMemOperand *MMOb = *Other.memoperands_begin();
+  // Skip if there are too many memory operands.
+  auto NumChecks = getNumMemOperands() * Other.getNumMemOperands();
+  if (NumChecks > TII->getMemOperandAACheckLimit())
+    return true;
 
-  // The following interface to AA is fashioned after DAGCombiner::isAlias
-  // and operates with MachineMemOperand offset with some important
-  // assumptions:
-  //   - LLVM fundamentally assumes flat address spaces.
-  //   - MachineOperand offset can *only* result from legalization and
-  //     cannot affect queries other than the trivial case of overlap
-  //     checking.
-  //   - These offsets never wrap and never step outside
-  //     of allocated objects.
-  //   - There should never be any negative offsets here.
-  //
-  // FIXME: Modify API to hide this math from "user"
-  // Even before we go to AA we can reason locally about some
-  // memory objects. It can save compile time, and possibly catch some
-  // corner cases not currently covered.
+  auto HasAlias = [MFI, AA, UseTBAA](const MachineMemOperand *MMOa,
+                                     const MachineMemOperand *MMOb) {
+    // The following interface to AA is fashioned after DAGCombiner::isAlias
+    // and operates with MachineMemOperand offset with some important
+    // assumptions:
+    //   - LLVM fundamentally assumes flat address spaces.
+    //   - MachineOperand offset can *only* result from legalization and
+    //     cannot affect queries other than the trivial case of overlap
+    //     checking.
+    //   - These offsets never wrap and never step outside
+    //     of allocated objects.
+    //   - There should never be any negative offsets here.
+    //
+    // FIXME: Modify API to hide this math from "user"
+    // Even before we go to AA we can reason locally about some
+    // memory objects. It can save compile time, and possibly catch some
+    // corner cases not currently covered.
 
-  int64_t OffsetA = MMOa->getOffset();
-  int64_t OffsetB = MMOb->getOffset();
-  int64_t MinOffset = std::min(OffsetA, OffsetB);
+    int64_t OffsetA = MMOa->getOffset();
+    int64_t OffsetB = MMOb->getOffset();
+    int64_t MinOffset = std::min(OffsetA, OffsetB);
 
-  uint64_t WidthA = MMOa->getSize();
-  uint64_t WidthB = MMOb->getSize();
-  bool KnownWidthA = WidthA != MemoryLocation::UnknownSize;
-  bool KnownWidthB = WidthB != MemoryLocation::UnknownSize;
+    uint64_t WidthA = MMOa->getSize();
+    uint64_t WidthB = MMOb->getSize();
+    bool KnownWidthA = WidthA != MemoryLocation::UnknownSize;
+    bool KnownWidthB = WidthB != MemoryLocation::UnknownSize;
 
-  const Value *ValA = MMOa->getValue();
-  const Value *ValB = MMOb->getValue();
-  bool SameVal = (ValA && ValB && (ValA == ValB));
-  if (!SameVal) {
-    const PseudoSourceValue *PSVa = MMOa->getPseudoValue();
-    const PseudoSourceValue *PSVb = MMOb->getPseudoValue();
-    if (PSVa && ValB && !PSVa->mayAlias(&MFI))
-      return false;
-    if (PSVb && ValA && !PSVb->mayAlias(&MFI))
-      return false;
-    if (PSVa && PSVb && (PSVa == PSVb))
-      SameVal = true;
-  }
+    const Value *ValA = MMOa->getValue();
+    const Value *ValB = MMOb->getValue();
+    bool SameVal = (ValA && ValB && (ValA == ValB));
+    if (!SameVal) {
+      const PseudoSourceValue *PSVa = MMOa->getPseudoValue();
+      const PseudoSourceValue *PSVb = MMOb->getPseudoValue();
+      if (PSVa && ValB && !PSVa->mayAlias(&MFI))
+        return false;
+      if (PSVb && ValA && !PSVb->mayAlias(&MFI))
+        return false;
+      if (PSVa && PSVb && (PSVa == PSVb))
+        SameVal = true;
+    }
 
-  if (SameVal) {
-    if (!KnownWidthA || !KnownWidthB)
+    if (SameVal) {
+      if (!KnownWidthA || !KnownWidthB)
+        return true;
+      int64_t MaxOffset = std::max(OffsetA, OffsetB);
+      int64_t LowWidth = (MinOffset == OffsetA) ? WidthA : WidthB;
+      return (MinOffset + LowWidth > MaxOffset);
+    }
+
+    if (!AA)
       return true;
-    int64_t MaxOffset = std::max(OffsetA, OffsetB);
-    int64_t LowWidth = (MinOffset == OffsetA) ? WidthA : WidthB;
-    return (MinOffset + LowWidth > MaxOffset);
-  }
 
-  if (!AA)
-    return true;
+    if (!ValA || !ValB)
+      return true;
 
-  if (!ValA || !ValB)
-    return true;
+    assert((OffsetA >= 0) && "Negative MachineMemOperand offset");
+    assert((OffsetB >= 0) && "Negative MachineMemOperand offset");
 
-  assert((OffsetA >= 0) && "Negative MachineMemOperand offset");
-  assert((OffsetB >= 0) && "Negative MachineMemOperand offset");
+    int64_t OverlapA = KnownWidthA ? WidthA + OffsetA - MinOffset
+                                   : MemoryLocation::UnknownSize;
+    int64_t OverlapB = KnownWidthB ? WidthB + OffsetB - MinOffset
+                                   : MemoryLocation::UnknownSize;
 
-  int64_t OverlapA = KnownWidthA ? WidthA + OffsetA - MinOffset
-                                 : MemoryLocation::UnknownSize;
-  int64_t OverlapB = KnownWidthB ? WidthB + OffsetB - MinOffset
-                                 : MemoryLocation::UnknownSize;
+    AliasResult AAResult =
+        AA->alias(MemoryLocation(ValA, OverlapA,
+                                 UseTBAA ? MMOa->getAAInfo() : AAMDNodes()),
+                  MemoryLocation(ValB, OverlapB,
+                                 UseTBAA ? MMOb->getAAInfo() : AAMDNodes()));
 
-  AliasResult AAResult = AA->alias(
-      MemoryLocation(ValA, OverlapA,
-                     UseTBAA ? MMOa->getAAInfo() : AAMDNodes()),
-      MemoryLocation(ValB, OverlapB,
-                     UseTBAA ? MMOb->getAAInfo() : AAMDNodes()));
+    return (AAResult != NoAlias);
+  };
 
-  return (AAResult != NoAlias);
+  // Check each pair of memory operands from both instructions, which can't
+  // alias only if all pairs won't alias.
+  for (auto *MMOa : memoperands())
+    for (auto *MMOb : Other.memoperands())
+      if (HasAlias(MMOa, MMOb))
+        return true;
+
+  return false;
 }
 
 /// hasOrderedMemoryRef - Return true if this instruction may have an ordered
@@ -1453,6 +1495,8 @@ void MachineInstr::copyImplicitOps(MachineFunction &MF,
 
 bool MachineInstr::hasComplexRegisterTies() const {
   const MCInstrDesc &MCID = getDesc();
+  if (MCID.Opcode == TargetOpcode::STATEPOINT)
+    return true;
   for (unsigned I = 0, E = getNumOperands(); I < E; ++I) {
     const auto &Operand = getOperand(I);
     if (!Operand.isReg() || Operand.isDef())

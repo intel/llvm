@@ -22,6 +22,8 @@
 #include <set>
 #include <vector>
 
+#include "rtl.h"
+
 // Forward declarations.
 struct RTLInfoTy;
 struct __tgt_bin_desc;
@@ -29,11 +31,22 @@ struct __tgt_target_table;
 struct __tgt_async_info;
 class MemoryManagerTy;
 
+using map_var_info_t = void *;
+
+// enum for OMP_TARGET_OFFLOAD; keep in sync with kmp.h definition
+enum kmp_target_offload_kind {
+  tgt_disabled = 0,
+  tgt_default = 1,
+  tgt_mandatory = 2
+};
+typedef enum kmp_target_offload_kind kmp_target_offload_kind_t;
+
 /// Map between host data and target data.
 struct HostDataToTargetTy {
   uintptr_t HstPtrBase; // host info.
   uintptr_t HstPtrBegin;
   uintptr_t HstPtrEnd; // non-inclusive.
+  map_var_info_t HstPtrName; // Optional source name of mapped variable.
 
   uintptr_t TgtPtrBegin; // target info.
 
@@ -44,8 +57,8 @@ private:
 
 public:
   HostDataToTargetTy(uintptr_t BP, uintptr_t B, uintptr_t E, uintptr_t TB,
-      bool IsINF = false)
-      : HstPtrBase(BP), HstPtrBegin(B), HstPtrEnd(E),
+                     map_var_info_t Name = nullptr, bool IsINF = false)
+      : HstPtrBase(BP), HstPtrBegin(B), HstPtrEnd(E), HstPtrName(Name),
         TgtPtrBegin(TB), RefCount(IsINF ? INFRefCount : 1) {}
 
   uint64_t getRefCount() const {
@@ -163,9 +176,9 @@ struct DeviceTy {
   uint64_t getMapEntryRefCnt(void *HstPtrBegin);
   LookupResult lookupMapping(void *HstPtrBegin, int64_t Size);
   void *getOrAllocTgtPtr(void *HstPtrBegin, void *HstPtrBase, int64_t Size,
-                         bool &IsNew, bool &IsHostPtr, bool IsImplicit,
-                         bool UpdateRefCount, bool HasCloseModifier,
-                         bool HasPresentModifier);
+                         map_var_info_t HstPtrName, bool &IsNew,
+                         bool &IsHostPtr, bool IsImplicit, bool UpdateRefCount,
+                         bool HasCloseModifier, bool HasPresentModifier);
   void *getTgtPtrBegin(void *HstPtrBegin, int64_t Size);
   void *getTgtPtrBegin(void *HstPtrBegin, int64_t Size, bool &IsLast,
                        bool UpdateRefCount, bool &IsHostPtr,
@@ -221,8 +234,31 @@ private:
 
 /// Map between Device ID (i.e. openmp device id) and its DeviceTy.
 typedef std::vector<DeviceTy> DevicesTy;
-extern DevicesTy Devices;
 
 extern bool device_is_ready(int device_num);
+
+/// Struct for the data required to handle plugins
+struct PluginManager {
+  /// RTLs identified on the host
+  RTLsTy RTLs;
+
+  /// Devices associated with RTLs
+  DevicesTy Devices;
+  std::mutex RTLsMtx; ///< For RTLs and Devices
+
+  /// Translation table retreived from the binary
+  HostEntriesBeginToTransTableTy HostEntriesBeginToTransTable;
+  std::mutex TrlTblMtx; ///< For Translation Table
+
+  /// Map from ptrs on the host to an entry in the Translation Table
+  HostPtrToTableMapTy HostPtrToTableMap;
+  std::mutex TblMapMtx; ///< For HostPtrToTableMap
+
+  // Store target policy (disabled, mandatory, default)
+  kmp_target_offload_kind_t TargetOffloadPolicy = tgt_default;
+  std::mutex TargetOffloadMtx; ///< For TargetOffloadPolicy
+};
+
+extern PluginManager *PM;
 
 #endif

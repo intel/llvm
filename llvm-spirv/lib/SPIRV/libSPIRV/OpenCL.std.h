@@ -1,3 +1,4 @@
+// clang-format off
 /*
 ** Copyright (c) 2015 The Khronos Group Inc.
 **
@@ -229,3 +230,4 @@ enum Entrypoints {
 };
 
 } // end namespace OpenCL20
+// clang-format on

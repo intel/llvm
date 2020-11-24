@@ -681,11 +681,11 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
     // If the image is already compiled with AOT, throw an exception.
     const pi_device_binary_struct &RawImg = Imgs[ImgInd]->getRawData();
     if ((strcmp(RawImg.DeviceTargetSpec,
-                PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
-        (strcmp(RawImg.DeviceTargetSpec, PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) ==
-         0) ||
+                __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
         (strcmp(RawImg.DeviceTargetSpec,
-                PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)) {
+                __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
+        (strcmp(RawImg.DeviceTargetSpec,
+                __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)) {
       throw feature_not_supported("Recompiling AOT image is not supported",
                                   PI_INVALID_OPERATION);
     }

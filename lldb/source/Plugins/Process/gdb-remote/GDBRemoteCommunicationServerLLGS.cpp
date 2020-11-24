@@ -10,13 +10,12 @@
 
 #include "lldb/Host/Config.h"
 
-#include "GDBRemoteCommunicationServerLLGS.h"
-#include "lldb/Utility/GDBRemote.h"
 
 #include <chrono>
 #include <cstring>
 #include <thread>
 
+#include "GDBRemoteCommunicationServerLLGS.h"
 #include "lldb/Host/ConnectionFileDescriptor.h"
 #include "lldb/Host/Debug.h"
 #include "lldb/Host/File.h"
@@ -32,11 +31,13 @@
 #include "lldb/Utility/Args.h"
 #include "lldb/Utility/DataBuffer.h"
 #include "lldb/Utility/Endian.h"
+#include "lldb/Utility/GDBRemote.h"
 #include "lldb/Utility/LLDBAssert.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RegisterValue.h"
 #include "lldb/Utility/State.h"
 #include "lldb/Utility/StreamString.h"
+#include "lldb/Utility/UnimplementedError.h"
 #include "lldb/Utility/UriParser.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Support/JSON.h"
@@ -92,6 +93,10 @@ void GDBRemoteCommunicationServerLLGS::RegisterPacketHandlers() {
       &GDBRemoteCommunicationServerLLGS::Handle_memory_read);
   RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType_M,
                                 &GDBRemoteCommunicationServerLLGS::Handle_M);
+  RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType__M,
+                                &GDBRemoteCommunicationServerLLGS::Handle__M);
+  RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType__m,
+                                &GDBRemoteCommunicationServerLLGS::Handle__m);
   RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType_p,
                                 &GDBRemoteCommunicationServerLLGS::Handle_p);
   RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType_P,
@@ -186,6 +191,9 @@ void GDBRemoteCommunicationServerLLGS::RegisterPacketHandlers() {
   RegisterMemberFunctionHandler(
       StringExtractorGDBRemote::eServerPacketType_jTraceConfigRead,
       &GDBRemoteCommunicationServerLLGS::Handle_jTraceConfigRead);
+  RegisterMemberFunctionHandler(
+      StringExtractorGDBRemote::eServerPacketType_jLLDBTraceSupportedType,
+      &GDBRemoteCommunicationServerLLGS::Handle_jLLDBTraceSupportedType);
 
   RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType_g,
                                 &GDBRemoteCommunicationServerLLGS::Handle_g);
@@ -1222,6 +1230,33 @@ GDBRemoteCommunicationServerLLGS::Handle_jTraceStop(
 }
 
 GDBRemoteCommunication::PacketResult
+GDBRemoteCommunicationServerLLGS::Handle_jLLDBTraceSupportedType(
+    StringExtractorGDBRemote &packet) {
+
+  // Fail if we don't have a current process.
+  if (!m_debugged_process_up ||
+      (m_debugged_process_up->GetID() == LLDB_INVALID_PROCESS_ID))
+    return SendErrorResponse(Status("Process not running."));
+
+  llvm::Expected<TraceTypeInfo> supported_trace_type =
+      m_debugged_process_up->GetSupportedTraceType();
+  if (!supported_trace_type)
+    return SendErrorResponse(supported_trace_type.takeError());
+
+  StreamGDBRemote escaped_response;
+  StructuredData::Dictionary json_packet;
+
+  json_packet.AddStringItem("name", supported_trace_type->name);
+  json_packet.AddStringItem("description", supported_trace_type->description);
+
+  StreamString json_string;
+  json_packet.Dump(json_string, false);
+  escaped_response.PutEscapedBytes(json_string.GetData(),
+                                   json_string.GetSize());
+  return SendPacketNoLock(escaped_response.GetString());
+}
+
+GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServerLLGS::Handle_jTraceConfigRead(
     StringExtractorGDBRemote &packet) {
 
@@ -1723,6 +1758,7 @@ GDBRemoteCommunicationServerLLGS::SendStopReasonForState(
   case eStateSuspended:
   case eStateStopped:
   case eStateCrashed: {
+    assert(m_debugged_process_up != nullptr);
     lldb::tid_t tid = m_debugged_process_up->GetCurrentThreadID();
     // Make sure we set the current thread so g and p packets return the data
     // the gdb will expect.
@@ -2085,7 +2121,7 @@ GDBRemoteCommunicationServerLLGS::Handle_P(StringExtractorGDBRemote &packet) {
   StreamGDBRemote response;
 
   RegisterValue reg_value(
-      reg_bytes, reg_size,
+      makeArrayRef(reg_bytes, reg_size),
       m_debugged_process_up->GetArchitecture().GetByteOrder());
   Status error = reg_context.WriteRegister(reg_info, reg_value);
   if (error.Fail()) {
@@ -2321,6 +2357,84 @@ GDBRemoteCommunicationServerLLGS::Handle_memory_read(
 }
 
 GDBRemoteCommunication::PacketResult
+GDBRemoteCommunicationServerLLGS::Handle__M(StringExtractorGDBRemote &packet) {
+  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PROCESS));
+
+  if (!m_debugged_process_up ||
+      (m_debugged_process_up->GetID() == LLDB_INVALID_PROCESS_ID)) {
+    LLDB_LOGF(
+        log,
+        "GDBRemoteCommunicationServerLLGS::%s failed, no process available",
+        __FUNCTION__);
+    return SendErrorResponse(0x15);
+  }
+
+  // Parse out the memory address.
+  packet.SetFilePos(strlen("_M"));
+  if (packet.GetBytesLeft() < 1)
+    return SendIllFormedResponse(packet, "Too short _M packet");
+
+  const lldb::addr_t size = packet.GetHexMaxU64(false, LLDB_INVALID_ADDRESS);
+  if (size == LLDB_INVALID_ADDRESS)
+    return SendIllFormedResponse(packet, "Address not valid");
+  if (packet.GetChar() != ',')
+    return SendIllFormedResponse(packet, "Bad packet");
+  Permissions perms = {};
+  while (packet.GetBytesLeft() > 0) {
+    switch (packet.GetChar()) {
+    case 'r':
+      perms |= ePermissionsReadable;
+      break;
+    case 'w':
+      perms |= ePermissionsWritable;
+      break;
+    case 'x':
+      perms |= ePermissionsExecutable;
+      break;
+    default:
+      return SendIllFormedResponse(packet, "Bad permissions");
+    }
+  }
+
+  llvm::Expected<addr_t> addr =
+      m_debugged_process_up->AllocateMemory(size, perms);
+  if (!addr)
+    return SendErrorResponse(addr.takeError());
+
+  StreamGDBRemote response;
+  response.PutHex64(*addr);
+  return SendPacketNoLock(response.GetString());
+}
+
+GDBRemoteCommunication::PacketResult
+GDBRemoteCommunicationServerLLGS::Handle__m(StringExtractorGDBRemote &packet) {
+  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PROCESS));
+
+  if (!m_debugged_process_up ||
+      (m_debugged_process_up->GetID() == LLDB_INVALID_PROCESS_ID)) {
+    LLDB_LOGF(
+        log,
+        "GDBRemoteCommunicationServerLLGS::%s failed, no process available",
+        __FUNCTION__);
+    return SendErrorResponse(0x15);
+  }
+
+  // Parse out the memory address.
+  packet.SetFilePos(strlen("_m"));
+  if (packet.GetBytesLeft() < 1)
+    return SendIllFormedResponse(packet, "Too short m packet");
+
+  const lldb::addr_t addr = packet.GetHexMaxU64(false, LLDB_INVALID_ADDRESS);
+  if (addr == LLDB_INVALID_ADDRESS)
+    return SendIllFormedResponse(packet, "Address not valid");
+
+  if (llvm::Error Err = m_debugged_process_up->DeallocateMemory(addr))
+    return SendErrorResponse(std::move(Err));
+
+  return SendOKResponse();
+}
+
+GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServerLLGS::Handle_M(StringExtractorGDBRemote &packet) {
   Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PROCESS));
 
@@ -2488,6 +2602,17 @@ GDBRemoteCommunicationServerLLGS::Handle_qMemoryRegionInfo(
       if (region_info.GetExecutable())
         response.PutChar('x');
 
+      response.PutChar(';');
+    }
+
+    // Flags
+    MemoryRegionInfo::OptionalBool memory_tagged =
+        region_info.GetMemoryTagged();
+    if (memory_tagged != MemoryRegionInfo::eDontKnow) {
+      response.PutCString("flags:");
+      if (memory_tagged == MemoryRegionInfo::eYes) {
+        response.PutCString("mt");
+      }
       response.PutChar(';');
     }
 
@@ -2876,8 +3001,7 @@ GDBRemoteCommunicationServerLLGS::ReadXferObject(llvm::StringRef object,
   if (object == "features" && annex == "target.xml")
     return BuildTargetXml();
 
-  return llvm::make_error<PacketUnimplementedError>(
-      "Xfer object not supported");
+  return llvm::make_error<UnimplementedError>();
 }
 
 GDBRemoteCommunication::PacketResult

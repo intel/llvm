@@ -51,8 +51,8 @@ extern SYCL_EXTERNAL TempRetT __spirv_ImageSampleExplicitLod(SampledType,
                                                              TempArgT, int,
                                                              float);
 
-#define OpGroupAsyncCopyGlobalToLocal __spirv_GroupAsyncCopy
-#define OpGroupAsyncCopyLocalToGlobal __spirv_GroupAsyncCopy
+#define __SYCL_OpGroupAsyncCopyGlobalToLocal __spirv_GroupAsyncCopy
+#define __SYCL_OpGroupAsyncCopyLocalToGlobal __spirv_GroupAsyncCopy
 
 // Atomic SPIR-V builtins
 #define __SPIRV_ATOMIC_LOAD(AS, Type)                                          \
@@ -522,9 +522,9 @@ __spirv_ocl_prefetch(const __attribute__((opencl_global)) char *Ptr,
 
 template <typename dataT>
 __SYCL_CONVERGENT__ extern __ocl_event_t
-OpGroupAsyncCopyGlobalToLocal(__spv::Scope::Flag, dataT *Dest, dataT *Src,
-                              size_t NumElements, size_t Stride,
-                              __ocl_event_t) noexcept {
+__SYCL_OpGroupAsyncCopyGlobalToLocal(__spv::Scope::Flag, dataT *Dest,
+                                     dataT *Src, size_t NumElements,
+                                     size_t Stride, __ocl_event_t) noexcept {
   for (size_t i = 0; i < NumElements; i++) {
     Dest[i] = Src[i * Stride];
   }
@@ -534,9 +534,9 @@ OpGroupAsyncCopyGlobalToLocal(__spv::Scope::Flag, dataT *Dest, dataT *Src,
 
 template <typename dataT>
 __SYCL_CONVERGENT__ extern __ocl_event_t
-OpGroupAsyncCopyLocalToGlobal(__spv::Scope::Flag, dataT *Dest, dataT *Src,
-                              size_t NumElements, size_t Stride,
-                              __ocl_event_t) noexcept {
+__SYCL_OpGroupAsyncCopyLocalToGlobal(__spv::Scope::Flag, dataT *Dest,
+                                     dataT *Src, size_t NumElements,
+                                     size_t Stride, __ocl_event_t) noexcept {
   for (size_t i = 0; i < NumElements; i++) {
     Dest[i * Stride] = Src[i];
   }

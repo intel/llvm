@@ -79,22 +79,23 @@ def int_wasm_lsda : Intrinsic<[llvm_ptr_ty], [], [IntrNoMem]>;
 //===----------------------------------------------------------------------===//
 
 // wait / notify
-def int_wasm_atomic_wait_i32 :
+def int_wasm_memory_atomic_wait32 :
   Intrinsic<[llvm_i32_ty],
             [LLVMPointerType<llvm_i32_ty>, llvm_i32_ty, llvm_i64_ty],
-            [IntrInaccessibleMemOrArgMemOnly, ReadOnly<ArgIndex<0>>, NoCapture<ArgIndex<0>>,
-             IntrHasSideEffects],
-             "", [SDNPMemOperand]>;
-def int_wasm_atomic_wait_i64 :
+            [IntrInaccessibleMemOrArgMemOnly, ReadOnly<ArgIndex<0>>,
+             NoCapture<ArgIndex<0>>, IntrHasSideEffects],
+            "", [SDNPMemOperand]>;
+def int_wasm_memory_atomic_wait64 :
   Intrinsic<[llvm_i32_ty],
             [LLVMPointerType<llvm_i64_ty>, llvm_i64_ty, llvm_i64_ty],
-            [IntrInaccessibleMemOrArgMemOnly, ReadOnly<ArgIndex<0>>, NoCapture<ArgIndex<0>>,
-             IntrHasSideEffects],
-             "", [SDNPMemOperand]>;
-def int_wasm_atomic_notify:
+            [IntrInaccessibleMemOrArgMemOnly, ReadOnly<ArgIndex<0>>,
+             NoCapture<ArgIndex<0>>, IntrHasSideEffects],
+            "", [SDNPMemOperand]>;
+def int_wasm_memory_atomic_notify:
   Intrinsic<[llvm_i32_ty], [LLVMPointerType<llvm_i32_ty>, llvm_i32_ty],
-            [IntrInaccessibleMemOnly, NoCapture<ArgIndex<0>>, IntrHasSideEffects], "",
-            [SDNPMemOperand]>;
+            [IntrInaccessibleMemOnly, NoCapture<ArgIndex<0>>,
+             IntrHasSideEffects],
+            "", [SDNPMemOperand]>;
 
 //===----------------------------------------------------------------------===//
 // SIMD intrinsics
@@ -151,6 +152,7 @@ def int_wasm_dot :
   Intrinsic<[llvm_v4i32_ty],
             [llvm_v8i16_ty, llvm_v8i16_ty],
             [IntrNoMem, IntrSpeculatable]>;
+
 def int_wasm_narrow_signed :
   Intrinsic<[llvm_anyvector_ty],
             [llvm_anyvector_ty, LLVMMatchType<1>],
@@ -158,6 +160,22 @@ def int_wasm_narrow_signed :
 def int_wasm_narrow_unsigned :
   Intrinsic<[llvm_anyvector_ty],
             [llvm_anyvector_ty, LLVMMatchType<1>],
+            [IntrNoMem, IntrSpeculatable]>;
+
+// TODO: Replace these intrinsics with normal ISel patterns once i32x4 to i64x2
+// widening is merged to the proposal.
+def int_wasm_widen_low_signed :
+  Intrinsic<[llvm_v2i64_ty], [llvm_v4i32_ty], [IntrNoMem, IntrSpeculatable]>;
+def int_wasm_widen_high_signed :
+  Intrinsic<[llvm_v2i64_ty], [llvm_v4i32_ty], [IntrNoMem, IntrSpeculatable]>;
+def int_wasm_widen_low_unsigned :
+  Intrinsic<[llvm_v2i64_ty], [llvm_v4i32_ty], [IntrNoMem, IntrSpeculatable]>;
+def int_wasm_widen_high_unsigned :
+  Intrinsic<[llvm_v2i64_ty], [llvm_v4i32_ty], [IntrNoMem, IntrSpeculatable]>;
+
+def int_wasm_q15mulr_saturate_signed :
+  Intrinsic<[llvm_v8i16_ty],
+            [llvm_v8i16_ty, llvm_v8i16_ty],
             [IntrNoMem, IntrSpeculatable]>;
 
 // TODO: Replace these intrinsics with normal ISel patterns
@@ -203,6 +221,86 @@ def int_wasm_load64_zero :
             [LLVMPointerType<llvm_i64_ty>],
             [IntrReadMem, IntrArgMemOnly],
              "", [SDNPMemOperand]>;
+
+// These intrinsics do not mark their lane index arguments as immediate because
+// that changes the corresponding SDNode from ISD::Constant to
+// ISD::TargetConstant, which would require extra complications in the ISel
+// tablegen patterns. TODO: Replace these intrinsic with normal ISel patterns
+// once the load_lane instructions are merged to the proposal.
+def int_wasm_load8_lane :
+  Intrinsic<[llvm_v16i8_ty],
+            [LLVMPointerType<llvm_i8_ty>, llvm_v16i8_ty, llvm_i32_ty],
+            [IntrReadMem, IntrArgMemOnly],
+            "", [SDNPMemOperand]>;
+def int_wasm_load16_lane :
+  Intrinsic<[llvm_v8i16_ty],
+            [LLVMPointerType<llvm_i16_ty>, llvm_v8i16_ty, llvm_i32_ty],
+            [IntrReadMem, IntrArgMemOnly],
+            "", [SDNPMemOperand]>;
+def int_wasm_load32_lane :
+  Intrinsic<[llvm_v4i32_ty],
+            [LLVMPointerType<llvm_i32_ty>, llvm_v4i32_ty, llvm_i32_ty],
+            [IntrReadMem, IntrArgMemOnly],
+            "", [SDNPMemOperand]>;
+def int_wasm_load64_lane :
+  Intrinsic<[llvm_v2i64_ty],
+            [LLVMPointerType<llvm_i64_ty>, llvm_v2i64_ty, llvm_i32_ty],
+            [IntrReadMem, IntrArgMemOnly],
+            "", [SDNPMemOperand]>;
+def int_wasm_store8_lane :
+  Intrinsic<[],
+            [LLVMPointerType<llvm_i8_ty>, llvm_v16i8_ty, llvm_i32_ty],
+            [IntrWriteMem, IntrArgMemOnly],
+            "", [SDNPMemOperand]>;
+def int_wasm_store16_lane :
+  Intrinsic<[],
+            [LLVMPointerType<llvm_i16_ty>, llvm_v8i16_ty, llvm_i32_ty],
+            [IntrWriteMem, IntrArgMemOnly],
+            "", [SDNPMemOperand]>;
+def int_wasm_store32_lane :
+  Intrinsic<[],
+            [LLVMPointerType<llvm_i32_ty>, llvm_v4i32_ty, llvm_i32_ty],
+            [IntrWriteMem, IntrArgMemOnly],
+            "", [SDNPMemOperand]>;
+def int_wasm_store64_lane :
+  Intrinsic<[],
+            [LLVMPointerType<llvm_i64_ty>, llvm_v2i64_ty, llvm_i32_ty],
+            [IntrWriteMem, IntrArgMemOnly],
+            "", [SDNPMemOperand]>;
+
+// TODO: Replace this intrinsic with normal ISel patterns once popcnt is merged
+// to the proposal.
+def int_wasm_popcnt :
+  Intrinsic<[llvm_v16i8_ty], [llvm_v16i8_ty], [IntrNoMem, IntrSpeculatable]>;
+
+def int_wasm_extmul_low_signed :
+  Intrinsic<[llvm_anyvector_ty],
+            [LLVMSubdivide2VectorType<0>, LLVMSubdivide2VectorType<0>],
+            [IntrNoMem, IntrSpeculatable]>;
+def int_wasm_extmul_high_signed :
+  Intrinsic<[llvm_anyvector_ty],
+            [LLVMSubdivide2VectorType<0>, LLVMSubdivide2VectorType<0>],
+            [IntrNoMem, IntrSpeculatable]>;
+def int_wasm_extmul_low_unsigned :
+  Intrinsic<[llvm_anyvector_ty],
+            [LLVMSubdivide2VectorType<0>, LLVMSubdivide2VectorType<0>],
+            [IntrNoMem, IntrSpeculatable]>;
+def int_wasm_extmul_high_unsigned :
+  Intrinsic<[llvm_anyvector_ty],
+            [LLVMSubdivide2VectorType<0>, LLVMSubdivide2VectorType<0>],
+            [IntrNoMem, IntrSpeculatable]>;
+
+def int_wasm_signselect :
+  Intrinsic<[llvm_anyvector_ty],
+            [LLVMMatchType<0>, LLVMMatchType<0>, LLVMMatchType<0>],
+            [IntrNoMem, IntrSpeculatable]>;
+
+// TODO: Remove this intrinsic and the associated builtin if i64x2.eq gets
+// merged to the proposal.
+def int_wasm_eq :
+  Intrinsic<[llvm_v2i64_ty],
+            [llvm_v2i64_ty, llvm_v2i64_ty],
+            [IntrNoMem, IntrSpeculatable]>;
 
 //===----------------------------------------------------------------------===//
 // Thread-local storage intrinsics

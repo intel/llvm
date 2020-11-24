@@ -12,6 +12,30 @@
 
 namespace Fortran::semantics {
 
+// Use when clause falls under 'struct OmpClause' in 'parse-tree.h'.
+#define CHECK_SIMPLE_CLAUSE(X, Y) \
+  void OmpStructureChecker::Enter(const parser::OmpClause::X &) { \
+    CheckAllowed(llvm::omp::Clause::Y); \
+  }
+
+#define CHECK_REQ_CONSTANT_SCALAR_INT_CLAUSE(X, Y) \
+  void OmpStructureChecker::Enter(const parser::OmpClause::X &c) { \
+    CheckAllowed(llvm::omp::Clause::Y); \
+    RequiresConstantPositiveParameter(llvm::omp::Clause::Y, c.v); \
+  }
+
+#define CHECK_REQ_SCALAR_INT_CLAUSE(X, Y) \
+  void OmpStructureChecker::Enter(const parser::OmpClause::X &c) { \
+    CheckAllowed(llvm::omp::Clause::Y); \
+    RequiresPositiveParameter(llvm::omp::Clause::Y, c.v); \
+  }
+
+// Use when clause don't falls under 'struct OmpClause' in 'parse-tree.h'.
+#define CHECK_SIMPLE_PARSER_CLAUSE(X, Y) \
+  void OmpStructureChecker::Enter(const parser::X &) { \
+    CheckAllowed(llvm::omp::Y); \
+  }
+
 bool OmpStructureChecker::HasInvalidWorksharingNesting(
     const parser::CharBlock &source, const OmpDirectiveSet &set) {
   // set contains all the invalid closely nested directives
@@ -95,9 +119,19 @@ void OmpStructureChecker::Enter(const parser::OpenMPBlockConstruct &x) {
   const auto &endBlockDir{std::get<parser::OmpEndBlockDirective>(x.t)};
   const auto &beginDir{std::get<parser::OmpBlockDirective>(beginBlockDir.t)};
   const auto &endDir{std::get<parser::OmpBlockDirective>(endBlockDir.t)};
+  const parser::Block &block{std::get<parser::Block>(x.t)};
+
   CheckMatching<parser::OmpBlockDirective>(beginDir, endDir);
 
   PushContextAndClauseSets(beginDir.source, beginDir.v);
+
+  switch (beginDir.v) {
+  case llvm::omp::OMPD_parallel:
+    CheckNoBranching(block, llvm::omp::OMPD_parallel, beginDir.source);
+    break;
+  default:
+    break;
+  }
 }
 
 void OmpStructureChecker::Leave(const parser::OpenMPBlockConstruct &) {
@@ -127,7 +161,7 @@ void OmpStructureChecker::Enter(const parser::OmpEndSectionsDirective &x) {
     // 2.7.2 end-sections -> END SECTIONS [nowait-clause]
   case llvm::omp::Directive::OMPD_sections:
     SetContextDirectiveEnum(llvm::omp::Directive::OMPD_end_sections);
-    SetContextAllowed(OmpClauseSet{llvm::omp::Clause::OMPC_nowait});
+    SetContextAllowedOnce(OmpClauseSet{llvm::omp::Clause::OMPC_nowait});
     break;
   default:
     // no clauses are allowed
@@ -187,6 +221,15 @@ void OmpStructureChecker::Leave(const parser::OpenMPCancelConstruct &) {
   dirContext_.pop_back();
 }
 
+void OmpStructureChecker::Enter(const parser::OpenMPCriticalConstruct &x) {
+  const auto &dir{std::get<parser::OmpCriticalDirective>(x.t)};
+  PushContextAndClauseSets(dir.source, llvm::omp::Directive::OMPD_critical);
+}
+
+void OmpStructureChecker::Leave(const parser::OpenMPCriticalConstruct &) {
+  dirContext_.pop_back();
+}
+
 void OmpStructureChecker::Enter(
     const parser::OpenMPCancellationPointConstruct &x) {
   const auto &dir{std::get<parser::Verbatim>(x.t)};
@@ -222,6 +265,12 @@ void OmpStructureChecker::Enter(const parser::OmpEndBlockDirective &x) {
     break;
   }
 }
+
+// Clauses
+// Mainly categorized as
+// 1. Checks on 'OmpClauseList' from 'parse-tree.h'.
+// 2. Checks on clauses which fall under 'struct OmpClause' from parse-tree.h.
+// 3. Checks on clauses which are not in 'struct OmpClause' from parse-tree.h.
 
 void OmpStructureChecker::Leave(const parser::OmpClauseList &) {
   // 2.7 Loop Construct Restriction
@@ -321,73 +370,41 @@ void OmpStructureChecker::Enter(const parser::OmpClause &x) {
   SetContextClause(x);
 }
 
-void OmpStructureChecker::Enter(const parser::OmpNowait &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_nowait);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::Inbranch &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_inbranch);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::Mergeable &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_mergeable);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::Nogroup &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_nogroup);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::Notinbranch &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_notinbranch);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::Untied &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_untied);
-}
+// Following clauses do not have a seperate node in parse-tree.h.
+// They fall under 'struct OmpClause' in parse-tree.h.
+CHECK_SIMPLE_CLAUSE(Copyin, OMPC_copyin)
+CHECK_SIMPLE_CLAUSE(Copyprivate, OMPC_copyprivate)
+CHECK_SIMPLE_CLAUSE(Device, OMPC_device)
+CHECK_SIMPLE_CLAUSE(Final, OMPC_final)
+CHECK_SIMPLE_CLAUSE(Firstprivate, OMPC_firstprivate)
+CHECK_SIMPLE_CLAUSE(From, OMPC_from)
+CHECK_SIMPLE_CLAUSE(Inbranch, OMPC_inbranch)
+CHECK_SIMPLE_CLAUSE(IsDevicePtr, OMPC_is_device_ptr)
+CHECK_SIMPLE_CLAUSE(Lastprivate, OMPC_lastprivate)
+CHECK_SIMPLE_CLAUSE(Link, OMPC_link)
+CHECK_SIMPLE_CLAUSE(Mergeable, OMPC_mergeable)
+CHECK_SIMPLE_CLAUSE(Nogroup, OMPC_nogroup)
+CHECK_SIMPLE_CLAUSE(Notinbranch, OMPC_notinbranch)
+CHECK_SIMPLE_CLAUSE(Private, OMPC_private)
+CHECK_SIMPLE_CLAUSE(Shared, OMPC_shared)
+CHECK_SIMPLE_CLAUSE(To, OMPC_to)
+CHECK_SIMPLE_CLAUSE(Uniform, OMPC_uniform)
+CHECK_SIMPLE_CLAUSE(Untied, OMPC_untied)
+CHECK_SIMPLE_CLAUSE(UseDevicePtr, OMPC_use_device_ptr)
 
-void OmpStructureChecker::Enter(const parser::OmpClause::Collapse &x) {
-  CheckAllowed(llvm::omp::Clause::OMPC_collapse);
-  // collapse clause must have a parameter
-  RequiresConstantPositiveParameter(llvm::omp::Clause::OMPC_collapse, x.v);
-}
+CHECK_REQ_SCALAR_INT_CLAUSE(Grainsize, OMPC_grainsize)
+CHECK_REQ_SCALAR_INT_CLAUSE(NumTasks, OMPC_num_tasks)
+CHECK_REQ_SCALAR_INT_CLAUSE(NumTeams, OMPC_num_teams)
+CHECK_REQ_SCALAR_INT_CLAUSE(NumThreads, OMPC_num_threads)
+CHECK_REQ_SCALAR_INT_CLAUSE(Priority, OMPC_priority)
+CHECK_REQ_SCALAR_INT_CLAUSE(ThreadLimit, OMPC_thread_limit)
 
-void OmpStructureChecker::Enter(const parser::OmpClause::Copyin &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_copyin);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::Copyprivate &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_copyprivate);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::Device &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_device);
-}
-void OmpStructureChecker::Enter(const parser::OmpDistScheduleClause &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_dist_schedule);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::Final &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_final);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::Firstprivate &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_firstprivate);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::From &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_from);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::Grainsize &x) {
-  CheckAllowed(llvm::omp::Clause::OMPC_grainsize);
-  RequiresPositiveParameter(llvm::omp::Clause::OMPC_grainsize, x.v);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::Lastprivate &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_lastprivate);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::NumTasks &x) {
-  CheckAllowed(llvm::omp::Clause::OMPC_num_tasks);
-  RequiresPositiveParameter(llvm::omp::Clause::OMPC_num_tasks, x.v);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::NumTeams &x) {
-  CheckAllowed(llvm::omp::Clause::OMPC_num_teams);
-  RequiresPositiveParameter(llvm::omp::Clause::OMPC_num_teams, x.v);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::NumThreads &x) {
-  CheckAllowed(llvm::omp::Clause::OMPC_num_threads);
-  RequiresPositiveParameter(llvm::omp::Clause::OMPC_num_threads, x.v);
-  // if parameter is variable, defer to Expression Analysis
-}
+CHECK_REQ_CONSTANT_SCALAR_INT_CLAUSE(Collapse, OMPC_collapse)
+CHECK_REQ_CONSTANT_SCALAR_INT_CLAUSE(Safelen, OMPC_safelen)
+CHECK_REQ_CONSTANT_SCALAR_INT_CLAUSE(Simdlen, OMPC_simdlen)
 
+// Restrictions specific to each clause are implemented apart from the
+// generalized restrictions.
 void OmpStructureChecker::Enter(const parser::OmpClause::Ordered &x) {
   CheckAllowed(llvm::omp::Clause::OMPC_ordered);
   // the parameter of ordered clause is optional
@@ -403,44 +420,17 @@ void OmpStructureChecker::Enter(const parser::OmpClause::Ordered &x) {
     }
   }
 }
-void OmpStructureChecker::Enter(const parser::OmpClause::Priority &x) {
-  CheckAllowed(llvm::omp::Clause::OMPC_priority);
-  RequiresPositiveParameter(llvm::omp::Clause::OMPC_priority, x.v);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::Private &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_private);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::Safelen &x) {
-  CheckAllowed(llvm::omp::Clause::OMPC_safelen);
-  RequiresConstantPositiveParameter(llvm::omp::Clause::OMPC_safelen, x.v);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::Shared &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_shared);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::Simdlen &x) {
-  CheckAllowed(llvm::omp::Clause::OMPC_simdlen);
-  RequiresConstantPositiveParameter(llvm::omp::Clause::OMPC_simdlen, x.v);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::ThreadLimit &x) {
-  CheckAllowed(llvm::omp::Clause::OMPC_thread_limit);
-  RequiresPositiveParameter(llvm::omp::Clause::OMPC_thread_limit, x.v);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::To &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_to);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::Link &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_link);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::Uniform &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_uniform);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::UseDevicePtr &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_use_device_ptr);
-}
-void OmpStructureChecker::Enter(const parser::OmpClause::IsDevicePtr &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_is_device_ptr);
-}
 
+// Following clauses have a seperate node in parse-tree.h.
+CHECK_SIMPLE_PARSER_CLAUSE(OmpAllocateClause, OMPC_allocate)
+CHECK_SIMPLE_PARSER_CLAUSE(OmpDefaultClause, OMPC_default)
+CHECK_SIMPLE_PARSER_CLAUSE(OmpDistScheduleClause, OMPC_dist_schedule)
+CHECK_SIMPLE_PARSER_CLAUSE(OmpNowait, OMPC_nowait)
+CHECK_SIMPLE_PARSER_CLAUSE(OmpProcBindClause, OMPC_proc_bind)
+CHECK_SIMPLE_PARSER_CLAUSE(OmpReductionClause, OMPC_reduction)
+
+// Restrictions specific to each clause are implemented apart from the
+// generalized restrictions.
 void OmpStructureChecker::Enter(const parser::OmpAlignedClause &x) {
   CheckAllowed(llvm::omp::Clause::OMPC_aligned);
 
@@ -456,12 +446,6 @@ void OmpStructureChecker::Enter(const parser::OmpAlignedClause &x) {
   }
   // 2.8.1 TODO: list-item attribute check
 }
-void OmpStructureChecker::Enter(const parser::OmpAllocateClause &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_allocate);
-}
-void OmpStructureChecker::Enter(const parser::OmpDefaultClause &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_default);
-}
 void OmpStructureChecker::Enter(const parser::OmpDefaultmapClause &x) {
   CheckAllowed(llvm::omp::Clause::OMPC_defaultmap);
   using VariableCategory = parser::OmpDefaultmapClause::VariableCategory;
@@ -471,10 +455,6 @@ void OmpStructureChecker::Enter(const parser::OmpDefaultmapClause &x) {
         "clause"_err_en_US);
   }
 }
-void OmpStructureChecker::Enter(const parser::OmpDependClause &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_depend);
-}
-
 void OmpStructureChecker::Enter(const parser::OmpIfClause &x) {
   CheckAllowed(llvm::omp::Clause::OMPC_if);
 
@@ -563,12 +543,6 @@ void OmpStructureChecker::Enter(const parser::OmpMapClause &x) {
     }
   }
 }
-void OmpStructureChecker::Enter(const parser::OmpProcBindClause &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_proc_bind);
-}
-void OmpStructureChecker::Enter(const parser::OmpReductionClause &) {
-  CheckAllowed(llvm::omp::Clause::OMPC_reduction);
-}
 
 bool OmpStructureChecker::ScheduleModifierHasType(
     const parser::OmpScheduleClause &x,
@@ -603,6 +577,11 @@ void OmpStructureChecker::Enter(const parser::OmpScheduleClause &x) {
             parser::ToUpperCaseLetters(
                 parser::OmpScheduleClause::EnumToString(kind)));
       }
+      if (const auto &chunkExpr{
+              std::get<std::optional<parser::ScalarIntExpr>>(x.t)}) {
+        RequiresPositiveParameter(
+            llvm::omp::Clause::OMPC_schedule, *chunkExpr, "chunk size");
+      }
     }
 
     if (ScheduleModifierHasType(
@@ -617,6 +596,23 @@ void OmpStructureChecker::Enter(const parser::OmpScheduleClause &x) {
   }
 }
 
+void OmpStructureChecker::Enter(const parser::OmpDependClause &x) {
+  CheckAllowed(llvm::omp::Clause::OMPC_depend);
+  if (const auto *inOut{std::get_if<parser::OmpDependClause::InOut>(&x.u)}) {
+    const auto &designators{std::get<std::list<parser::Designator>>(inOut->t)};
+    for (const auto &ele : designators) {
+      if (const auto *dataRef{std::get_if<parser::DataRef>(&ele.u)}) {
+        CheckDependList(*dataRef);
+        if (const auto *arr{
+                std::get_if<common::Indirection<parser::ArrayElement>>(
+                    &dataRef->u)}) {
+          CheckDependArraySection(*arr, GetLastName(*dataRef));
+        }
+      }
+    }
+  }
+}
+
 llvm::StringRef OmpStructureChecker::getClauseName(llvm::omp::Clause clause) {
   return llvm::omp::getOpenMPClauseName(clause);
 }
@@ -624,6 +620,56 @@ llvm::StringRef OmpStructureChecker::getClauseName(llvm::omp::Clause clause) {
 llvm::StringRef OmpStructureChecker::getDirectiveName(
     llvm::omp::Directive directive) {
   return llvm::omp::getOpenMPDirectiveName(directive);
+}
+
+void OmpStructureChecker::CheckDependList(const parser::DataRef &d) {
+  std::visit(
+      common::visitors{
+          [&](const common::Indirection<parser::ArrayElement> &elem) {
+            // Check if the base element is valid on Depend Clause
+            CheckDependList(elem.value().base);
+          },
+          [&](const common::Indirection<parser::StructureComponent> &) {
+            context_.Say(GetContext().clauseSource,
+                "A variable that is part of another variable "
+                "(such as an element of a structure) but is not an array "
+                "element or an array section cannot appear in a DEPEND "
+                "clause"_err_en_US);
+          },
+          [&](const common::Indirection<parser::CoindexedNamedObject> &) {
+            context_.Say(GetContext().clauseSource,
+                "Coarrays are not supported in DEPEND clause"_err_en_US);
+          },
+          [&](const parser::Name &) { return; },
+      },
+      d.u);
+}
+
+void OmpStructureChecker::CheckDependArraySection(
+    const common::Indirection<parser::ArrayElement> &arr,
+    const parser::Name &name) {
+  for (const auto &subscript : arr.value().subscripts) {
+    if (const auto *triplet{
+            std::get_if<parser::SubscriptTriplet>(&subscript.u)}) {
+      if (std::get<2>(triplet->t)) {
+        context_.Say(GetContext().clauseSource,
+            "Stride should not be specified for array section in DEPEND "
+            "clause"_err_en_US);
+      }
+      const auto &lower{std::get<0>(triplet->t)};
+      const auto &upper{std::get<1>(triplet->t)};
+      if (lower && upper) {
+        const auto lval{GetIntValue(lower)};
+        const auto uval{GetIntValue(upper)};
+        if (lval && uval && *uval < *lval) {
+          context_.Say(GetContext().clauseSource,
+              "'%s' in DEPEND clause is a zero size array section"_err_en_US,
+              name.ToString());
+          break;
+        }
+      }
+    }
+  }
 }
 
 } // namespace Fortran::semantics

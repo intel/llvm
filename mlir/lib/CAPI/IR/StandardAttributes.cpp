@@ -15,9 +15,9 @@
 
 using namespace mlir;
 
-/*============================================================================*/
-/* Affine map attribute.                                                      */
-/*============================================================================*/
+//===----------------------------------------------------------------------===//
+// Affine map attribute.
+//===----------------------------------------------------------------------===//
 
 int mlirAttributeIsAAffineMap(MlirAttribute attr) {
   return unwrap(attr).isa<AffineMapAttr>();
@@ -31,16 +31,16 @@ MlirAffineMap mlirAffineMapAttrGetValue(MlirAttribute attr) {
   return wrap(unwrap(attr).cast<AffineMapAttr>().getValue());
 }
 
-/*============================================================================*/
-/* Array attribute.                                                           */
-/*============================================================================*/
+//===----------------------------------------------------------------------===//
+// Array attribute.
+//===----------------------------------------------------------------------===//
 
 int mlirAttributeIsAArray(MlirAttribute attr) {
   return unwrap(attr).isa<ArrayAttr>();
 }
 
 MlirAttribute mlirArrayAttrGet(MlirContext ctx, intptr_t numElements,
-                               MlirAttribute *elements) {
+                               MlirAttribute const *elements) {
   SmallVector<Attribute, 8> attrs;
   return wrap(ArrayAttr::get(
       unwrapList(static_cast<size_t>(numElements), elements, attrs),
@@ -55,16 +55,16 @@ MlirAttribute mlirArrayAttrGetElement(MlirAttribute attr, intptr_t pos) {
   return wrap(unwrap(attr).cast<ArrayAttr>().getValue()[pos]);
 }
 
-/*============================================================================*/
-/* Dictionary attribute.                                                      */
-/*============================================================================*/
+//===----------------------------------------------------------------------===//
+// Dictionary attribute.
+//===----------------------------------------------------------------------===//
 
 int mlirAttributeIsADictionary(MlirAttribute attr) {
   return unwrap(attr).isa<DictionaryAttr>();
 }
 
 MlirAttribute mlirDictionaryAttrGet(MlirContext ctx, intptr_t numElements,
-                                    MlirNamedAttribute *elements) {
+                                    MlirNamedAttribute const *elements) {
   SmallVector<NamedAttribute, 8> attributes;
   attributes.reserve(numElements);
   for (intptr_t i = 0; i < numElements; ++i)
@@ -89,9 +89,9 @@ MlirAttribute mlirDictionaryAttrGetElementByName(MlirAttribute attr,
   return wrap(unwrap(attr).cast<DictionaryAttr>().get(name));
 }
 
-/*============================================================================*/
-/* Floating point attribute.                                                  */
-/*============================================================================*/
+//===----------------------------------------------------------------------===//
+// Floating point attribute.
+//===----------------------------------------------------------------------===//
 
 int mlirAttributeIsAFloat(MlirAttribute attr) {
   return unwrap(attr).isa<FloatAttr>();
@@ -111,9 +111,9 @@ double mlirFloatAttrGetValueDouble(MlirAttribute attr) {
   return unwrap(attr).cast<FloatAttr>().getValueAsDouble();
 }
 
-/*============================================================================*/
-/* Integer attribute.                                                         */
-/*============================================================================*/
+//===----------------------------------------------------------------------===//
+// Integer attribute.
+//===----------------------------------------------------------------------===//
 
 int mlirAttributeIsAInteger(MlirAttribute attr) {
   return unwrap(attr).isa<IntegerAttr>();
@@ -127,9 +127,9 @@ int64_t mlirIntegerAttrGetValueInt(MlirAttribute attr) {
   return unwrap(attr).cast<IntegerAttr>().getInt();
 }
 
-/*============================================================================*/
-/* Bool attribute.                                                            */
-/*============================================================================*/
+//===----------------------------------------------------------------------===//
+// Bool attribute.
+//===----------------------------------------------------------------------===//
 
 int mlirAttributeIsABool(MlirAttribute attr) {
   return unwrap(attr).isa<BoolAttr>();
@@ -143,17 +143,17 @@ int mlirBoolAttrGetValue(MlirAttribute attr) {
   return unwrap(attr).cast<BoolAttr>().getValue();
 }
 
-/*============================================================================*/
-/* Integer set attribute.                                                     */
-/*============================================================================*/
+//===----------------------------------------------------------------------===//
+// Integer set attribute.
+//===----------------------------------------------------------------------===//
 
 int mlirAttributeIsAIntegerSet(MlirAttribute attr) {
   return unwrap(attr).isa<IntegerSetAttr>();
 }
 
-/*============================================================================*/
-/* Opaque attribute.                                                          */
-/*============================================================================*/
+//===----------------------------------------------------------------------===//
+// Opaque attribute.
+//===----------------------------------------------------------------------===//
 
 int mlirAttributeIsAOpaque(MlirAttribute attr) {
   return unwrap(attr).isa<OpaqueAttr>();
@@ -175,9 +175,9 @@ MlirStringRef mlirOpaqueAttrGetData(MlirAttribute attr) {
   return wrap(unwrap(attr).cast<OpaqueAttr>().getAttrData());
 }
 
-/*============================================================================*/
-/* String attribute.                                                          */
-/*============================================================================*/
+//===----------------------------------------------------------------------===//
+// String attribute.
+//===----------------------------------------------------------------------===//
 
 int mlirAttributeIsAString(MlirAttribute attr) {
   return unwrap(attr).isa<StringAttr>();
@@ -197,9 +197,9 @@ MlirStringRef mlirStringAttrGetValue(MlirAttribute attr) {
   return wrap(unwrap(attr).cast<StringAttr>().getValue());
 }
 
-/*============================================================================*/
-/* SymbolRef attribute.                                                       */
-/*============================================================================*/
+//===----------------------------------------------------------------------===//
+// SymbolRef attribute.
+//===----------------------------------------------------------------------===//
 
 int mlirAttributeIsASymbolRef(MlirAttribute attr) {
   return unwrap(attr).isa<SymbolRefAttr>();
@@ -207,7 +207,7 @@ int mlirAttributeIsASymbolRef(MlirAttribute attr) {
 
 MlirAttribute mlirSymbolRefAttrGet(MlirContext ctx, intptr_t length,
                                    const char *symbol, intptr_t numReferences,
-                                   MlirAttribute *references) {
+                                   MlirAttribute const *references) {
   SmallVector<FlatSymbolRefAttr, 4> refs;
   refs.reserve(numReferences);
   for (intptr_t i = 0; i < numReferences; ++i)
@@ -233,9 +233,9 @@ MlirAttribute mlirSymbolRefAttrGetNestedReference(MlirAttribute attr,
   return wrap(unwrap(attr).cast<SymbolRefAttr>().getNestedReferences()[pos]);
 }
 
-/*============================================================================*/
-/* Flat SymbolRef attribute.                                                  */
-/*============================================================================*/
+//===----------------------------------------------------------------------===//
+// Flat SymbolRef attribute.
+//===----------------------------------------------------------------------===//
 
 int mlirAttributeIsAFlatSymbolRef(MlirAttribute attr) {
   return unwrap(attr).isa<FlatSymbolRefAttr>();
@@ -250,9 +250,9 @@ MlirStringRef mlirFlatSymbolRefAttrGetValue(MlirAttribute attr) {
   return wrap(unwrap(attr).cast<FlatSymbolRefAttr>().getValue());
 }
 
-/*============================================================================*/
-/* Type attribute.                                                            */
-/*============================================================================*/
+//===----------------------------------------------------------------------===//
+// Type attribute.
+//===----------------------------------------------------------------------===//
 
 int mlirAttributeIsAType(MlirAttribute attr) {
   return unwrap(attr).isa<TypeAttr>();
@@ -266,9 +266,9 @@ MlirType mlirTypeAttrGetValue(MlirAttribute attr) {
   return wrap(unwrap(attr).cast<TypeAttr>().getValue());
 }
 
-/*============================================================================*/
-/* Unit attribute.                                                            */
-/*============================================================================*/
+//===----------------------------------------------------------------------===//
+// Unit attribute.
+//===----------------------------------------------------------------------===//
 
 int mlirAttributeIsAUnit(MlirAttribute attr) {
   return unwrap(attr).isa<UnitAttr>();
@@ -278,9 +278,9 @@ MlirAttribute mlirUnitAttrGet(MlirContext ctx) {
   return wrap(UnitAttr::get(unwrap(ctx)));
 }
 
-/*============================================================================*/
-/* Elements attributes.                                                       */
-/*============================================================================*/
+//===----------------------------------------------------------------------===//
+// Elements attributes.
+//===----------------------------------------------------------------------===//
 
 int mlirAttributeIsAElements(MlirAttribute attr) {
   return unwrap(attr).isa<ElementsAttr>();
@@ -302,9 +302,9 @@ int64_t mlirElementsAttrGetNumElements(MlirAttribute attr) {
   return unwrap(attr).cast<ElementsAttr>().getNumElements();
 }
 
-/*============================================================================*/
-/* Dense elements attribute.                                                  */
-/*============================================================================*/
+//===----------------------------------------------------------------------===//
+// Dense elements attribute.
+//===----------------------------------------------------------------------===//
 
 //===----------------------------------------------------------------------===//
 // IsA support.
@@ -324,7 +324,7 @@ int mlirAttributeIsADenseFPElements(MlirAttribute attr) {
 
 MlirAttribute mlirDenseElementsAttrGet(MlirType shapedType,
                                        intptr_t numElements,
-                                       MlirAttribute *elements) {
+                                       MlirAttribute const *elements) {
   SmallVector<Attribute, 8> attributes;
   return wrap(
       DenseElementsAttr::get(unwrap(shapedType).cast<ShapedType>(),
@@ -374,7 +374,7 @@ MlirAttribute mlirDenseElementsAttrDoubleSplatGet(MlirType shapedType,
 
 MlirAttribute mlirDenseElementsAttrBoolGet(MlirType shapedType,
                                            intptr_t numElements,
-                                           int *elements) {
+                                           const int *elements) {
   SmallVector<bool, 8> values(elements, elements + numElements);
   return wrap(
       DenseElementsAttr::get(unwrap(shapedType).cast<ShapedType>(), values));
@@ -383,7 +383,8 @@ MlirAttribute mlirDenseElementsAttrBoolGet(MlirType shapedType,
 /// Creates a dense attribute with elements of the type deduced by templates.
 template <typename T>
 static MlirAttribute getDenseAttribute(MlirType shapedType,
-                                       intptr_t numElements, T *elements) {
+                                       intptr_t numElements,
+                                       const T *elements) {
   return wrap(
       DenseElementsAttr::get(unwrap(shapedType).cast<ShapedType>(),
                              llvm::makeArrayRef(elements, numElements)));
@@ -391,38 +392,38 @@ static MlirAttribute getDenseAttribute(MlirType shapedType,
 
 MlirAttribute mlirDenseElementsAttrUInt32Get(MlirType shapedType,
                                              intptr_t numElements,
-                                             uint32_t *elements) {
+                                             const uint32_t *elements) {
   return getDenseAttribute(shapedType, numElements, elements);
 }
 MlirAttribute mlirDenseElementsAttrInt32Get(MlirType shapedType,
                                             intptr_t numElements,
-                                            int32_t *elements) {
+                                            const int32_t *elements) {
   return getDenseAttribute(shapedType, numElements, elements);
 }
 MlirAttribute mlirDenseElementsAttrUInt64Get(MlirType shapedType,
                                              intptr_t numElements,
-                                             uint64_t *elements) {
+                                             const uint64_t *elements) {
   return getDenseAttribute(shapedType, numElements, elements);
 }
 MlirAttribute mlirDenseElementsAttrInt64Get(MlirType shapedType,
                                             intptr_t numElements,
-                                            int64_t *elements) {
+                                            const int64_t *elements) {
   return getDenseAttribute(shapedType, numElements, elements);
 }
 MlirAttribute mlirDenseElementsAttrFloatGet(MlirType shapedType,
                                             intptr_t numElements,
-                                            float *elements) {
+                                            const float *elements) {
   return getDenseAttribute(shapedType, numElements, elements);
 }
 MlirAttribute mlirDenseElementsAttrDoubleGet(MlirType shapedType,
                                              intptr_t numElements,
-                                             double *elements) {
+                                             const double *elements) {
   return getDenseAttribute(shapedType, numElements, elements);
 }
 
 MlirAttribute mlirDenseElementsAttrStringGet(MlirType shapedType,
                                              intptr_t numElements,
-                                             intptr_t *strLengths,
+                                             intptr_t const *strLengths,
                                              const char **strs) {
   SmallVector<StringRef, 8> values;
   values.reserve(numElements);
@@ -515,17 +516,25 @@ MlirStringRef mlirDenseElementsAttrGetStringValue(MlirAttribute attr,
         pos));
 }
 
-/*============================================================================*/
-/* Opaque elements attribute.                                                 */
-/*============================================================================*/
+//===----------------------------------------------------------------------===//
+// Raw data accessors.
+
+const void *mlirDenseElementsAttrGetRawData(MlirAttribute attr) {
+  return static_cast<const void *>(
+      unwrap(attr).cast<DenseElementsAttr>().getRawData().data());
+}
+
+//===----------------------------------------------------------------------===//
+// Opaque elements attribute.
+//===----------------------------------------------------------------------===//
 
 int mlirAttributeIsAOpaqueElements(MlirAttribute attr) {
   return unwrap(attr).isa<OpaqueElementsAttr>();
 }
 
-/*============================================================================*/
-/* Sparse elements attribute.                                                 */
-/*============================================================================*/
+//===----------------------------------------------------------------------===//
+// Sparse elements attribute.
+//===----------------------------------------------------------------------===//
 
 int mlirAttributeIsASparseElements(MlirAttribute attr) {
   return unwrap(attr).isa<SparseElementsAttr>();

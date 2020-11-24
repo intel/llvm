@@ -25,6 +25,7 @@
 #include "refactor/Tweak.h"
 #include "support/Cancellation.h"
 #include "support/Function.h"
+#include "support/MemoryTree.h"
 #include "support/ThreadsafeFS.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/Core/Replacement.h"
@@ -127,11 +128,13 @@ public:
     /// enabled.
     ClangTidyOptionsBuilder GetClangTidyOptions;
 
-    /// If true, turn on the `-frecovery-ast` clang flag.
-    bool BuildRecoveryAST = true;
+    /// If true, force -frecovery-ast flag.
+    /// If false, respect the value in clang.
+    bool BuildRecoveryAST = false;
 
-    /// If true, turn on the `-frecovery-ast-type` clang flag.
-    bool PreserveRecoveryASTType = true;
+    /// If true, force -frecovery-ast-type flag.
+    /// If false, respect the value in clang.
+    bool PreserveRecoveryASTType = false;
 
     /// Clangd's workspace root. Relevant for "workspace" operations not bound
     /// to a particular file.
@@ -162,11 +165,6 @@ public:
 
     /// Enable preview of FoldingRanges feature.
     bool FoldingRanges = false;
-
-    /// Returns true if the tweak should be enabled.
-    std::function<bool(const Tweak &)> TweakFilter = [](const Tweak &T) {
-      return !T.hidden(); // only enable non-hidden tweaks.
-    };
 
     explicit operator TUScheduler::Options() const;
   };
@@ -274,9 +272,9 @@ public:
 
   /// Test the validity of a rename operation.
   ///
-  /// The returned result describes edits in the main-file only (all
-  /// occurrences of the renamed symbol are simply deleted.
+  /// If NewName is provided, it performs a name validation.
   void prepareRename(PathRef File, Position Pos,
+                     llvm::Optional<std::string> NewName,
                      const RenameOptions &RenameOpts,
                      Callback<RenameResult> CB);
 
@@ -294,7 +292,9 @@ public:
     llvm::StringLiteral Kind;
   };
   /// Enumerate the code tweaks available to the user at a specified point.
+  /// Tweaks where Filter returns false will not be checked or included.
   void enumerateTweaks(PathRef File, Range Sel,
+                       llvm::unique_function<bool(const Tweak &)> Filter,
                        Callback<std::vector<TweakRef>> CB);
 
   /// Apply the code tweak with a specified \p ID.
@@ -319,6 +319,9 @@ public:
   void semanticHighlights(PathRef File,
                           Callback<std::vector<HighlightingToken>>);
 
+  /// Describe the AST subtree for a piece of code.
+  void getAST(PathRef File, Range R, Callback<llvm::Optional<ASTNode>> CB);
+
   /// Runs an arbitrary action that has access to the AST of the specified file.
   /// The action will execute on one of ClangdServer's internal threads.
   /// The AST is only valid for the duration of the callback.
@@ -339,6 +342,9 @@ public:
   // Returns false if the timeout expires.
   LLVM_NODISCARD bool
   blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds = 10);
+
+  /// Builds a nested representation of memory used by components.
+  void profile(MemoryTree &MT) const;
 
 private:
   void formatCode(PathRef File, llvm::StringRef Code,
@@ -381,8 +387,6 @@ private:
   bool BuildRecoveryAST = true;
   // If true, preserve the type for recovery AST.
   bool PreserveRecoveryASTType = false;
-
-  std::function<bool(const Tweak &)> TweakFilter;
 
   // GUARDED_BY(CachedCompletionFuzzyFindRequestMutex)
   llvm::StringMap<llvm::Optional<FuzzyFindRequest>>

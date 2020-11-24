@@ -259,31 +259,25 @@ def SIdenorm_mode : SDNode<"AMDGPUISD::DENORM_MODE",
 // Returns 1 if the source arguments have modifiers, 0 if they do not.
 // XXX - do f16 instructions?
 class isFloatType<ValueType SrcVT> {
-  bit ret =
-    !if(!eq(SrcVT.Value, f16.Value), 1,
-    !if(!eq(SrcVT.Value, f32.Value), 1,
-    !if(!eq(SrcVT.Value, f64.Value), 1,
-    !if(!eq(SrcVT.Value, v2f16.Value), 1,
-    !if(!eq(SrcVT.Value, v4f16.Value), 1,
-    !if(!eq(SrcVT.Value, v2f32.Value), 1,
-    !if(!eq(SrcVT.Value, v2f64.Value), 1,
-    0)))))));
+  bit ret = !or(!eq(SrcVT.Value, f16.Value),
+                !eq(SrcVT.Value, f32.Value),
+                !eq(SrcVT.Value, f64.Value),
+                !eq(SrcVT.Value, v2f16.Value),
+                !eq(SrcVT.Value, v4f16.Value),
+                !eq(SrcVT.Value, v2f32.Value),
+                !eq(SrcVT.Value, v2f64.Value));
 }
 
 class isIntType<ValueType SrcVT> {
-  bit ret =
-    !if(!eq(SrcVT.Value, i16.Value), 1,
-    !if(!eq(SrcVT.Value, i32.Value), 1,
-    !if(!eq(SrcVT.Value, i64.Value), 1,
-    0)));
+  bit ret = !or(!eq(SrcVT.Value, i16.Value),
+                !eq(SrcVT.Value, i32.Value),
+                !eq(SrcVT.Value, i64.Value));
 }
 
 class isPackedType<ValueType SrcVT> {
-  bit ret =
-    !if(!eq(SrcVT.Value, v2i16.Value), 1,
-      !if(!eq(SrcVT.Value, v2f16.Value), 1,
-        !if(!eq(SrcVT.Value, v4f16.Value), 1, 0)
-    ));
+  bit ret = !or(!eq(SrcVT.Value, v2i16.Value),
+                !eq(SrcVT.Value, v2f16.Value),
+                !eq(SrcVT.Value, v4f16.Value));
 }
 
 //===----------------------------------------------------------------------===//
@@ -1047,6 +1041,12 @@ class NamedOperandBit_0<string Name, AsmOperandClass MatchClass> :
   let ParserMatchClass = MatchClass;
 }
 
+class NamedOperandBit_1<string Name, AsmOperandClass MatchClass> :
+  OperandWithDefaultOps<i1, (ops (i1 1))> {
+  let PrintMethod = "print"#Name;
+  let ParserMatchClass = MatchClass;
+}
+
 class NamedOperandU8<string Name, AsmOperandClass MatchClass> : Operand<i8> {
   let PrintMethod = "print"#Name;
   let ParserMatchClass = MatchClass;
@@ -1102,6 +1102,7 @@ def DLC_0 : NamedOperandBit_0<"DLC", NamedMatchClass<"DLC">>;
 
 def GLC : NamedOperandBit<"GLC", NamedMatchClass<"GLC">>;
 def GLC_0 : NamedOperandBit_0<"GLC", NamedMatchClass<"GLC">>;
+def GLC_1 : NamedOperandBit_1<"GLC", NamedMatchClass<"GLC_1">>;
 
 def SLC : NamedOperandBit<"SLC", NamedMatchClass<"SLC">>;
 def SLC_0 : NamedOperandBit_0<"SLC", NamedMatchClass<"SLC">>;
@@ -1393,8 +1394,8 @@ def HWREG {
 
 class getHwRegImm<int Reg, int Offset = 0, int Size = 32> {
   int ret = !and(!or(Reg,
-                  !or(!shl(Offset, 6),
-                      !shl(!add(Size, -1), 11))), 65535);
+                     !shl(Offset, 6),
+                     !shl(!add(Size, -1), 11)), 65535);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1416,56 +1417,6 @@ class getHwRegImm<int Reg, int Offset = 0, int Size = 32> {
 class SIMCInstr <string pseudo, int subtarget> {
   string PseudoInstr = pseudo;
   int Subtarget = subtarget;
-}
-
-//===----------------------------------------------------------------------===//
-// EXP classes
-//===----------------------------------------------------------------------===//
-
-class EXP_Helper<bit done> : EXPCommon<
-  (outs),
-  (ins exp_tgt:$tgt,
-       ExpSrc0:$src0, ExpSrc1:$src1, ExpSrc2:$src2, ExpSrc3:$src3,
-       exp_vm:$vm, exp_compr:$compr, i32imm:$en),
-  "exp$tgt $src0, $src1, $src2, $src3"#!if(done, " done", "")#"$compr$vm", []> {
-  let AsmMatchConverter = "cvtExp";
-}
-
-// Split EXP instruction into EXP and EXP_DONE so we can set
-// mayLoad for done=1.
-multiclass EXP_m<bit done> {
-  let mayLoad = done, DisableWQM = 1 in {
-    let isPseudo = 1, isCodeGenOnly = 1 in {
-      def "" : EXP_Helper<done>,
-               SIMCInstr <"exp"#!if(done, "_done", ""), SIEncodingFamily.NONE>;
-    }
-
-    let done = done in {
-      def _si : EXP_Helper<done>,
-                SIMCInstr <"exp"#!if(done, "_done", ""), SIEncodingFamily.SI>,
-                EXPe {
-        let AssemblerPredicate = isGFX6GFX7;
-        let DecoderNamespace = "GFX6GFX7";
-        let DisableDecoder = DisableSIDecoder;
-      }
-
-      def _vi : EXP_Helper<done>,
-                SIMCInstr <"exp"#!if(done, "_done", ""), SIEncodingFamily.VI>,
-                EXPe_vi {
-        let AssemblerPredicate = isGFX8GFX9;
-        let DecoderNamespace = "GFX8";
-        let DisableDecoder = DisableVIDecoder;
-      }
-
-      def _gfx10 : EXP_Helper<done>,
-                SIMCInstr <"exp"#!if(done, "_done", ""), SIEncodingFamily.GFX10>,
-                EXPe {
-        let AssemblerPredicate = isGFX10Plus;
-        let DecoderNamespace = "GFX10";
-        let DisableDecoder = DisableSIDecoder;
-      }
-    }
-  }
 }
 
 //===----------------------------------------------------------------------===//
@@ -1590,13 +1541,11 @@ class getVOP3SrcForVT<ValueType VT> {
 
 // Float or packed int
 class isModifierType<ValueType SrcVT> {
-  bit ret =
-    !if(!eq(SrcVT.Value, f16.Value), 1,
-    !if(!eq(SrcVT.Value, f32.Value), 1,
-    !if(!eq(SrcVT.Value, f64.Value), 1,
-    !if(!eq(SrcVT.Value, v2f16.Value), 1,
-    !if(!eq(SrcVT.Value, v2i16.Value), 1,
-    0)))));
+  bit ret = !or(!eq(SrcVT.Value, f16.Value),
+                !eq(SrcVT.Value, f32.Value),
+                !eq(SrcVT.Value, f64.Value),
+                !eq(SrcVT.Value, v2f16.Value),
+                !eq(SrcVT.Value, v2i16.Value));
 }
 
 // Return type of input modifiers operand for specified input operand
@@ -1619,7 +1568,7 @@ class getOpSelMod <ValueType VT> {
 }
 
 // Return type of input modifiers operand specified input operand for DPP
-class getSrcModExt <ValueType VT> {
+class getSrcModDPP <ValueType VT> {
   bit isFP = isFloatType<VT>.ret;
   Operand ret = !if(isFP, FPVRegInputMods, IntVRegInputMods);
 }
@@ -1651,20 +1600,20 @@ class getIns64 <RegisterOperand Src0RC, RegisterOperand Src1RC,
       (ins),
       /* else */
     !if (!eq(NumSrcArgs, 1),
-      !if (!eq(HasModifiers, 1),
+      !if (HasModifiers,
         // VOP1 with modifiers
         (ins Src0Mod:$src0_modifiers, Src0RC:$src0,
              clampmod0:$clamp, omod0:$omod)
       /* else */,
         // VOP1 without modifiers
-        !if (!eq(HasIntClamp, 1),
+        !if (HasIntClamp,
           (ins Src0RC:$src0, clampmod0:$clamp),
           (ins Src0RC:$src0))
       /* endif */ ),
     !if (!eq(NumSrcArgs, 2),
-      !if (!eq(HasModifiers, 1),
+      !if (HasModifiers,
         // VOP 2 with modifiers
-        !if( !eq(HasOMod, 1),
+        !if(HasOMod,
           (ins Src0Mod:$src0_modifiers, Src0RC:$src0,
                Src1Mod:$src1_modifiers, Src1RC:$src1,
                clampmod0:$clamp, omod0:$omod),
@@ -1673,21 +1622,21 @@ class getIns64 <RegisterOperand Src0RC, RegisterOperand Src1RC,
                clampmod0:$clamp))
       /* else */,
         // VOP2 without modifiers
-        !if (!eq(HasIntClamp, 1),
+        !if (HasIntClamp,
           (ins Src0RC:$src0, Src1RC:$src1, clampmod0:$clamp),
           (ins Src0RC:$src0, Src1RC:$src1))
 
       /* endif */ )
     /* NumSrcArgs == 3 */,
-      !if (!eq(HasModifiers, 1),
-        !if (!eq(HasSrc2Mods, 1),
+      !if (HasModifiers,
+        !if (HasSrc2Mods,
           // VOP3 with modifiers
-          !if (!eq(HasOMod, 1),
+          !if (HasOMod,
             (ins Src0Mod:$src0_modifiers, Src0RC:$src0,
                  Src1Mod:$src1_modifiers, Src1RC:$src1,
                  Src2Mod:$src2_modifiers, Src2RC:$src2,
                  clampmod0:$clamp, omod0:$omod),
-            !if (!eq(HasIntClamp, 1),
+            !if (HasIntClamp,
               (ins Src0Mod:$src0_modifiers, Src0RC:$src0,
                    Src1Mod:$src1_modifiers, Src1RC:$src1,
                    Src2Mod:$src2_modifiers, Src2RC:$src2,
@@ -1696,11 +1645,11 @@ class getIns64 <RegisterOperand Src0RC, RegisterOperand Src1RC,
                    Src1Mod:$src1_modifiers, Src1RC:$src1,
                    Src2Mod:$src2_modifiers, Src2RC:$src2))),
           // VOP3 with modifiers except src2
-          !if (!eq(HasOMod, 1),
+          !if (HasOMod,
             (ins Src0Mod:$src0_modifiers, Src0RC:$src0,
                  Src1Mod:$src1_modifiers, Src1RC:$src1,
                  Src2RC:$src2, clampmod0:$clamp, omod0:$omod),
-            !if (!eq(HasIntClamp, 1),
+            !if (HasIntClamp,
               (ins Src0Mod:$src0_modifiers, Src0RC:$src0,
                    Src1Mod:$src1_modifiers, Src1RC:$src1,
                    Src2RC:$src2, clampmod0:$clamp),
@@ -1709,7 +1658,7 @@ class getIns64 <RegisterOperand Src0RC, RegisterOperand Src1RC,
                    Src2RC:$src2))))
       /* else */,
         // VOP3 without modifiers
-        !if (!eq(HasIntClamp, 1),
+        !if (HasIntClamp,
           (ins Src0RC:$src0, Src1RC:$src1, Src2RC:$src2, clampmod0:$clamp),
           (ins Src0RC:$src0, Src1RC:$src1, Src2RC:$src2))
       /* endif */ ))));
@@ -1791,7 +1740,7 @@ class getInsDPP <RegisterOperand DstRC, RegisterClass Src0RC, RegisterClass Src1
                 (ins dpp_ctrl:$dpp_ctrl, row_mask:$row_mask,
                      bank_mask:$bank_mask, bound_ctrl:$bound_ctrl),
             !if (!eq(NumSrcArgs, 1),
-              !if (!eq(HasModifiers, 1),
+              !if (HasModifiers,
                 // VOP1_DPP with modifiers
                 (ins DstRC:$old, Src0Mod:$src0_modifiers,
                      Src0RC:$src0, dpp_ctrl:$dpp_ctrl, row_mask:$row_mask,
@@ -1803,7 +1752,7 @@ class getInsDPP <RegisterOperand DstRC, RegisterClass Src0RC, RegisterClass Src1
                      bank_mask:$bank_mask, bound_ctrl:$bound_ctrl)
               /* endif */)
               /* NumSrcArgs == 2 */,
-              !if (!eq(HasModifiers, 1),
+              !if (HasModifiers,
                 // VOP2_DPP with modifiers
                 (ins DstRC:$old,
                      Src0Mod:$src0_modifiers, Src0RC:$src0,
@@ -1834,7 +1783,7 @@ class getInsDPP8 <RegisterOperand DstRC, RegisterClass Src0RC, RegisterClass Src
                 // VOP1 without input operands (V_NOP)
                 (ins dpp8:$dpp8, FI:$fi),
             !if (!eq(NumSrcArgs, 1),
-              !if (!eq(HasModifiers, 1),
+              !if (HasModifiers,
                 // VOP1_DPP with modifiers
                 (ins DstRC:$old, Src0Mod:$src0_modifiers,
                      Src0RC:$src0, dpp8:$dpp8, FI:$fi)
@@ -1843,7 +1792,7 @@ class getInsDPP8 <RegisterOperand DstRC, RegisterClass Src0RC, RegisterClass Src
                 (ins DstRC:$old, Src0RC:$src0, dpp8:$dpp8, FI:$fi)
               /* endif */)
               /* NumSrcArgs == 2 */,
-              !if (!eq(HasModifiers, 1),
+              !if (HasModifiers,
                 // VOP2_DPP with modifiers
                 (ins DstRC:$old,
                      Src0Mod:$src0_modifiers, Src0RC:$src0,
@@ -1867,7 +1816,7 @@ class getInsSDWA <RegisterOperand Src0RC, RegisterOperand Src1RC, int NumSrcArgs
                (ins),
             !if(!eq(NumSrcArgs, 1),
                // VOP1
-               !if(!eq(HasSDWAOMod, 0),
+               !if(!not(HasSDWAOMod),
                   // VOP1_SDWA without omod
                   (ins Src0Mod:$src0_modifiers, Src0RC:$src0,
                        clampmod:$clamp,
@@ -1885,7 +1834,7 @@ class getInsSDWA <RegisterOperand Src0RC, RegisterOperand Src1RC, int NumSrcArgs
                        Src1Mod:$src1_modifiers, Src1RC:$src1,
                        clampmod:$clamp, src0_sel:$src0_sel, src1_sel:$src1_sel),
                   // VOP2_SDWA
-                  !if(!eq(HasSDWAOMod, 0),
+                  !if(!not(HasSDWAOMod),
                      // VOP2_SDWA without omod
                      (ins Src0Mod:$src0_modifiers, Src0RC:$src0,
                           Src1Mod:$src1_modifiers, Src1RC:$src1,
@@ -1901,12 +1850,12 @@ class getInsSDWA <RegisterOperand Src0RC, RegisterOperand Src1RC, int NumSrcArgs
             (ins)/* endif */)));
 }
 
-// Outs for DPP and SDWA
-class getOutsExt <bit HasDst, ValueType DstVT, RegisterOperand DstRCExt> {
+// Outs for DPP
+class getOutsDPP <bit HasDst, ValueType DstVT, RegisterOperand DstRCDPP> {
   dag ret = !if(HasDst,
                 !if(!eq(DstVT.Size, 1),
                     (outs), // no dst for VOPC, we use "vcc"-token as dst in SDWA VOPC instructions
-                    (outs DstRCExt:$vdst)),
+                    (outs DstRCDPP:$vdst)),
                 (outs)); // V_NOP
 }
 
@@ -1945,7 +1894,7 @@ class getAsm64 <bit HasDst, int NumSrcArgs, bit HasIntClamp, bit HasModifiers,
   string src2 = !if(!eq(NumSrcArgs, 3), " $src2_modifiers", "");
   string iclamp = !if(HasIntClamp, "$clamp", "");
   string ret =
-  !if(!eq(HasModifiers, 0),
+  !if(!not(HasModifiers),
       getAsm32<HasDst, NumSrcArgs, DstVT>.ret # iclamp,
       dst#", "#src0#src1#src2#"$clamp"#!if(HasOMod, "$omod", ""));
 }
@@ -2007,7 +1956,7 @@ class getAsmDPP <bit HasDst, int NumSrcArgs, bit HasModifiers, ValueType DstVT =
   string src1 = !if(!eq(NumSrcArgs, 1), "",
                    !if(!eq(NumSrcArgs, 2), " $src1_modifiers",
                                            " $src1_modifiers,"));
-  string args = !if(!eq(HasModifiers, 0),
+  string args = !if(!not(HasModifiers),
                      getAsm32<0, NumSrcArgs, DstVT>.ret,
                      ", "#src0#src1);
   string ret = dst#args#" $dpp_ctrl$row_mask$bank_mask$bound_ctrl";
@@ -2027,10 +1976,10 @@ class getAsmDPP8 <bit HasDst, int NumSrcArgs, bit HasModifiers, ValueType DstVT 
   string src1 = !if(!eq(NumSrcArgs, 1), "",
                    !if(!eq(NumSrcArgs, 2), " $src1_modifiers",
                                            " $src1_modifiers,"));
-  string args = !if(!eq(HasModifiers, 0),
+  string args = !if(!not(HasModifiers),
                      getAsm32<0, NumSrcArgs, DstVT>.ret,
                      ", "#src0#src1);
-  string ret = dst#args#"$dpp8$fi";
+  string ret = dst#args#" $dpp8$fi";
 }
 
 class getAsmSDWA <bit HasDst, int NumSrcArgs, ValueType DstVT = i32> {
@@ -2070,7 +2019,7 @@ class getAsmSDWA9 <bit HasDst, bit HasOMod, int NumSrcArgs,
                     "");
   string src0 = "$src0_modifiers";
   string src1 = "$src1_modifiers";
-  string out_mods = !if(!eq(HasOMod, 0), "$clamp", "$clamp$omod");
+  string out_mods = !if(!not(HasOMod), "$clamp", "$clamp$omod");
   string args = !if(!eq(NumSrcArgs, 0), "",
                     !if(!eq(NumSrcArgs, 1),
                         ", "#src0,
@@ -2114,14 +2063,6 @@ class getHasDPP <int NumSrcArgs, ValueType DstVT = i32, ValueType Src0VT = i32,
                 getHasExt<NumSrcArgs, DstVT, Src0VT, Src1VT>.ret);
 }
 
-class BitOr<bit a, bit b> {
-  bit ret = !if(a, 1, !if(b, 1, 0));
-}
-
-class BitAnd<bit a, bit b> {
-  bit ret = !if(a, !if(b, 1, 0), 0);
-}
-
 def PatGenMode {
   int NoPattern = 0;
   int Pattern   = 1;
@@ -2153,24 +2094,24 @@ class VOPProfile <list<ValueType> _ArgVT, bit _EnableF32SrcMods = 0,
   field Operand Src0Mod = getSrcMod<Src0VT, EnableF32SrcMods>.ret;
   field Operand Src1Mod = getSrcMod<Src1VT, EnableF32SrcMods>.ret;
   field Operand Src2Mod = getSrcMod<Src2VT, EnableF32SrcMods>.ret;
-  field Operand Src0ModDPP = getSrcModExt<Src0VT>.ret;
-  field Operand Src1ModDPP = getSrcModExt<Src1VT>.ret;
+  field Operand Src0ModDPP = getSrcModDPP<Src0VT>.ret;
+  field Operand Src1ModDPP = getSrcModDPP<Src1VT>.ret;
   field Operand Src0ModSDWA = getSrcModSDWA<Src0VT>.ret;
   field Operand Src1ModSDWA = getSrcModSDWA<Src1VT>.ret;
 
 
-  field bit HasDst = !if(!eq(DstVT.Value, untyped.Value), 0, 1);
+  field bit HasDst = !ne(DstVT.Value, untyped.Value);
   field bit HasDst32 = HasDst;
   field bit EmitDst = HasDst; // force dst encoding, see v_movreld_b32 special case
   field int NumSrcArgs = getNumSrcArgs<Src0VT, Src1VT, Src2VT>.ret;
-  field bit HasSrc0 = !if(!eq(Src0VT.Value, untyped.Value), 0, 1);
-  field bit HasSrc1 = !if(!eq(Src1VT.Value, untyped.Value), 0, 1);
-  field bit HasSrc2 = !if(!eq(Src2VT.Value, untyped.Value), 0, 1);
+  field bit HasSrc0 = !ne(Src0VT.Value, untyped.Value);
+  field bit HasSrc1 = !ne(Src1VT.Value, untyped.Value);
+  field bit HasSrc2 = !ne(Src2VT.Value, untyped.Value);
 
   // TODO: Modifiers logic is somewhat adhoc here, to be refined later
   // HasModifiers affects the normal and DPP encodings. We take note of EnableF32SrcMods, which
   // enables modifiers for i32 type.
-  field bit HasModifiers = BitOr<isModifierType<Src0VT>.ret, EnableF32SrcMods>.ret;
+  field bit HasModifiers = !or(isModifierType<Src0VT>.ret, EnableF32SrcMods);
 
   // HasSrc*FloatMods affects the SDWA encoding. We ignore EnableF32SrcMods.
   field bit HasSrc0FloatMods = isFloatType<Src0VT>.ret;
@@ -2183,15 +2124,15 @@ class VOPProfile <list<ValueType> _ArgVT, bit _EnableF32SrcMods = 0,
   field bit HasSrc2IntMods = isIntType<Src2VT>.ret;
 
   field bit HasSrc0Mods = HasModifiers;
-  field bit HasSrc1Mods = !if(HasModifiers, BitOr<HasSrc1FloatMods, HasSrc1IntMods>.ret, 0);
-  field bit HasSrc2Mods = !if(HasModifiers, BitOr<HasSrc2FloatMods, HasSrc2IntMods>.ret, 0);
+  field bit HasSrc1Mods = !if(HasModifiers, !or(HasSrc1FloatMods, HasSrc1IntMods), 0);
+  field bit HasSrc2Mods = !if(HasModifiers, !or(HasSrc2FloatMods, HasSrc2IntMods), 0);
 
-  field bit HasClamp = BitOr<isModifierType<Src0VT>.ret, EnableClamp>.ret;
+  field bit HasClamp = !or(isModifierType<Src0VT>.ret, EnableClamp);
   field bit HasSDWAClamp = EmitDst;
-  field bit HasFPClamp = BitAnd<isFloatType<DstVT>.ret, HasClamp>.ret;
+  field bit HasFPClamp = !and(isFloatType<DstVT>.ret, HasClamp);
   field bit HasIntClamp = !if(isFloatType<DstVT>.ret, 0, HasClamp);
   field bit HasClampLo = HasClamp;
-  field bit HasClampHi = BitAnd<isPackedType<DstVT>.ret, HasClamp>.ret;
+  field bit HasClampHi = !and(isPackedType<DstVT>.ret, HasClamp);
   field bit HasHigh = 0;
 
   field bit IsPacked = isPackedType<Src0VT>.ret;
@@ -2218,8 +2159,8 @@ class VOPProfile <list<ValueType> _ArgVT, bit _EnableF32SrcMods = 0,
   // output. This is manually overridden for them.
   field dag Outs32 = Outs;
   field dag Outs64 = Outs;
-  field dag OutsDPP = getOutsExt<HasDst, DstVT, DstRCDPP>.ret;
-  field dag OutsDPP8 = getOutsExt<HasDst, DstVT, DstRCDPP>.ret;
+  field dag OutsDPP = getOutsDPP<HasDst, DstVT, DstRCDPP>.ret;
+  field dag OutsDPP8 = getOutsDPP<HasDst, DstVT, DstRCDPP>.ret;
   field dag OutsSDWA = getOutsSDWA<HasDst, DstVT, DstRCSDWA>.ret;
 
   field dag Ins32 = getIns32<Src0RC32, Src1RC32, NumSrcArgs>.ret;
@@ -2388,7 +2329,6 @@ class VINTRP_Real_si <bits <2> op, string opName, dag outs, dag ins,
   VINTRPCommon <outs, ins, asm, []>,
   VINTRPe <op>,
   SIMCInstr<opName, encodingFamily> {
-  let DisableDecoder = DisableSIDecoder;
 }
 
 class VINTRP_Real_vi <bits <2> op, string opName, dag outs, dag ins,
@@ -2398,7 +2338,6 @@ class VINTRP_Real_vi <bits <2> op, string opName, dag outs, dag ins,
   SIMCInstr<opName, SIEncodingFamily.VI> {
   let AssemblerPredicate = VIAssemblerPredicate;
   let DecoderNamespace = "GFX8";
-  let DisableDecoder = DisableVIDecoder;
 }
 
 // FIXME-GFX10: WIP.
@@ -2573,12 +2512,22 @@ def getVCMPXNoSDstOp : InstrMapping {
 
 // Maps a SOPP to a SOPP with S_NOP
 def getSOPPWithRelaxation : InstrMapping {
-  let FilterClass = "Base_SOPP";
-  let RowFields = ["AsmString"];
-  let ColFields = ["Size"];
-  let KeyCol = ["4"];
-  let ValueCols = [["8"]];
+  let FilterClass = "SOPPRelaxTable";
+  let RowFields = ["KeyName"];
+  let ColFields = ["IsRelaxed"];
+  let KeyCol = ["0"];
+  let ValueCols = [["1"]];
 }
+
+// Maps flat scratch opcodes by addressing modes
+def getFlatScratchInstSTfromSS : InstrMapping {
+  let FilterClass = "FlatScratchInst";
+  let RowFields = ["SVOp"];
+  let ColFields = ["Mode"];
+  let KeyCol = ["SS"];
+  let ValueCols = [["ST"]];
+}
+
 
 include "SIInstructions.td"
 

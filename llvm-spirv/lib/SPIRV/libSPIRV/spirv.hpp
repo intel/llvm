@@ -1,3 +1,4 @@
+// clang-format off
 // Copyright (c) 2014-2019 The Khronos Group Inc.
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -399,7 +400,6 @@ enum FPOperationMode {
 enum LinkageType {
     LinkageTypeExport = 0,
     LinkageTypeImport = 1,
-    LinkageTypeInternal = 2, /* internal use only */
     LinkageTypeMax = 0x7fffffff,
 };
 
@@ -523,6 +523,8 @@ enum Decoration {
   DecorationBufferLocationINTEL = 5921,
   DecorationIOPipeStorageINTEL = 5944,
   DecorationFunctionFloatingPointModeINTEL = 6080,
+  DecorationSingleElementVectorINTEL = 6085,
+  DecorationVectorComputeCallableFunctionINTEL = 6087,
   DecorationMax = 0x7fffffff,
 };
 
@@ -1332,7 +1334,6 @@ enum Op {
   OpPtrEqual = 401,
   OpPtrNotEqual = 402,
   OpPtrDiff = 403,
-  OpForward = 1024, /* internal use only */
   OpSubgroupBallotKHR = 4421,
   OpSubgroupFirstInvocationKHR = 4422,
   OpSubgroupAllKHR = 4428,
@@ -2137,3 +2138,4 @@ inline KernelProfilingInfoMask operator|(KernelProfilingInfoMask a, KernelProfil
 }  // end namespace spv
 
 #endif  // #ifndef spirv_HPP
+// clang-format on

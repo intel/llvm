@@ -32,6 +32,7 @@
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/SubtargetFeature.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
 #include <algorithm>
@@ -47,6 +48,10 @@
 #include "AMDGPUGenInstrInfo.inc"
 #undef GET_INSTRMAP_INFO
 #undef GET_INSTRINFO_NAMED_OPS
+
+static llvm::cl::opt<unsigned> AmdhsaCodeObjectVersion(
+  "amdhsa-code-object-version", llvm::cl::Hidden,
+  llvm::cl::desc("AMDHSA Code Object Version"), llvm::cl::init(3));
 
 namespace {
 
@@ -102,6 +107,32 @@ unsigned getVmcntBitWidthHi() { return 2; }
 namespace llvm {
 
 namespace AMDGPU {
+
+Optional<uint8_t> getHsaAbiVersion(const MCSubtargetInfo *STI) {
+  if (STI && STI->getTargetTriple().getOS() != Triple::AMDHSA)
+    return None;
+
+  switch (AmdhsaCodeObjectVersion) {
+  case 2:
+    return ELF::ELFABIVERSION_AMDGPU_HSA_V2;
+  case 3:
+    return ELF::ELFABIVERSION_AMDGPU_HSA_V3;
+  default:
+    return ELF::ELFABIVERSION_AMDGPU_HSA_V3;
+  }
+}
+
+bool isHsaAbiVersion2(const MCSubtargetInfo *STI) {
+  if (const auto &&HsaAbiVer = getHsaAbiVersion(STI))
+    return HsaAbiVer.getValue() == ELF::ELFABIVERSION_AMDGPU_HSA_V2;
+  return false;
+}
+
+bool isHsaAbiVersion3(const MCSubtargetInfo *STI) {
+  if (const auto &&HsaAbiVer = getHsaAbiVersion(STI))
+    return HsaAbiVer.getValue() == ELF::ELFABIVERSION_AMDGPU_HSA_V3;
+  return false;
+}
 
 #define GET_MIMGBaseOpcodesTable_IMPL
 #define GET_MIMGDimInfoTable_IMPL
@@ -255,11 +286,6 @@ void streamIsaVersion(const MCSubtargetInfo *STI, raw_ostream &Stream) {
     Stream << "+sram-ecc";
 
   Stream.flush();
-}
-
-bool hasCodeObjectV3(const MCSubtargetInfo *STI) {
-  return STI->getTargetTriple().getOS() == Triple::AMDHSA &&
-             STI->getFeatureBits().test(FeatureCodeObjectV3);
 }
 
 unsigned getWavefrontSize(const MCSubtargetInfo *STI) {
@@ -1017,8 +1043,12 @@ bool isShader(CallingConv::ID cc) {
   }
 }
 
+bool isGraphics(CallingConv::ID cc) {
+  return isShader(cc) || cc == CallingConv::AMDGPU_Gfx;
+}
+
 bool isCompute(CallingConv::ID cc) {
-  return !isShader(cc) || cc == CallingConv::AMDGPU_CS;
+  return !isGraphics(cc) || cc == CallingConv::AMDGPU_CS;
 }
 
 bool isEntryFunctionCC(CallingConv::ID CC) {
@@ -1076,6 +1106,10 @@ bool isVI(const MCSubtargetInfo &STI) {
 
 bool isGFX9(const MCSubtargetInfo &STI) {
   return STI.getFeatureBits()[AMDGPU::FeatureGFX9];
+}
+
+bool isGFX9Plus(const MCSubtargetInfo &STI) {
+  return isGFX9(STI) || isGFX10(STI);
 }
 
 bool isGFX10(const MCSubtargetInfo &STI) {
@@ -1409,6 +1443,7 @@ bool isArgPassedInSGPR(const Argument *A) {
   case CallingConv::AMDGPU_GS:
   case CallingConv::AMDGPU_PS:
   case CallingConv::AMDGPU_CS:
+  case CallingConv::AMDGPU_Gfx:
     // For non-compute shaders, SGPR inputs are marked with either inreg or byval.
     // Everything else is in VGPRs.
     return F->getAttributes().hasParamAttribute(A->getArgNo(), Attribute::InReg) ||

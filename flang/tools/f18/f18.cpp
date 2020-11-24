@@ -99,7 +99,6 @@ struct DriverOptions {
   bool dumpParseTree{false};
   bool dumpPreFirTree{false};
   bool dumpSymbols{false};
-  bool debugResolveNames{false};
   bool debugNoSemantics{false};
   bool debugModuleWriter{false};
   bool measureTree{false};
@@ -247,9 +246,9 @@ std::string CompileFortran(std::string path, Fortran::parser::Options options,
   if (driver.measureTree) {
     MeasureParseTree(parseTree);
   }
-  if (!driver.debugNoSemantics || driver.debugResolveNames ||
-      driver.dumpSymbols || driver.dumpUnparseWithSymbols ||
-      driver.getDefinition || driver.getSymbolsSources) {
+  if (!driver.debugNoSemantics || driver.dumpSymbols ||
+      driver.dumpUnparseWithSymbols || driver.getDefinition ||
+      driver.getSymbolsSources) {
     Fortran::semantics::Semantics semantics{semanticsContext, parseTree,
         parsing.cooked().AsCharBlock(), driver.debugModuleWriter};
     semantics.Perform();
@@ -517,15 +516,12 @@ int main(int argc, char *const argv[]) {
       driver.dumpPreFirTree = true;
     } else if (arg == "-fdebug-dump-symbols") {
       driver.dumpSymbols = true;
-    } else if (arg == "-fdebug-resolve-names") {
-      driver.debugResolveNames = true;
     } else if (arg == "-fdebug-module-writer") {
       driver.debugModuleWriter = true;
     } else if (arg == "-fdebug-measure-parse-tree") {
       driver.measureTree = true;
     } else if (arg == "-fdebug-instrumented-parse") {
       options.instrumentedParse = true;
-    } else if (arg == "-fdebug-semantics") {
     } else if (arg == "-fdebug-no-semantics") {
       driver.debugNoSemantics = true;
     } else if (arg == "-funparse") {
@@ -565,8 +561,6 @@ int main(int argc, char *const argv[]) {
       } else {
         driver.F18_FCArgs.push_back("-fdefault-integer-8");
       }
-    } else if (arg == "-Mlargearray") {
-    } else if (arg == "-Mnolargearray") {
     } else if (arg == "-flarge-sizes") {
       defaultKinds.set_sizeIntegerKind(8);
     } else if (arg == "-fno-large-sizes") {
@@ -617,7 +611,8 @@ int main(int argc, char *const argv[]) {
           << "\n"
           << "Defaults:\n"
           << "  When invoked with input files, and no options to tell\n"
-          << "  it otherwise, f18 will unparse its input and pass that on to an\n"
+          << "  it otherwise, f18 will unparse its input and pass that on to "
+             "an\n"
           << "  external compiler to continue the compilation.\n"
           << "  The external compiler is specified by the F18_FC environment\n"
           << "  variable. The default is 'gfortran'.\n"
@@ -632,8 +627,6 @@ int main(int argc, char *const argv[]) {
           << "  -M[no]backslash      disable[enable] \\escapes in literals\n"
           << "  -Mstandard           enable conformance warnings\n"
           << "  -std=<standard>      enable conformance warnings\n"
-          << "  -fenable=<feature>   enable a language feature\n"
-          << "  -fdisable=<feature>  disable a language feature\n"
           << "  -r8 | -fdefault-real-8 | -i8 | -fdefault-integer-8 | "
              "-fdefault-double-8   change default kinds of intrinsic types\n"
           << "  -Werror              treat warnings as errors\n"
@@ -650,14 +643,14 @@ int main(int argc, char *const argv[]) {
           << "  -fdebug-dump-provenance\n"
           << "  -fdebug-dump-parse-tree\n"
           << "  -fdebug-dump-symbols\n"
-          << "  -fdebug-resolve-names\n"
           << "  -fdebug-instrumented-parse\n"
           << "  -fdebug-no-semantics  disable semantic checks\n"
           << "  -fget-definition\n"
           << "  -fget-symbols-sources\n"
           << "  -v -c -o -I -D -U    have their usual meanings\n"
           << "  -help                print this again\n"
-          << "Unrecognised options are passed through to the external compiler\n"
+          << "Unrecognised options are passed through to the external "
+             "compiler\n"
           << "set by F18_FC (see defaults).\n";
       return exitStatus;
     } else if (arg == "-V" || arg == "--version") {
@@ -726,7 +719,7 @@ int main(int argc, char *const argv[]) {
       objlist.push_back(relo);
     }
   }
-  if (!objlist.empty()) {
+  if (!driver.compileOnly && !objlist.empty()) {
     Link(liblist, objlist, driver);
   }
   return exitStatus;

@@ -6,9 +6,9 @@
 
 func @access_chain_struct() -> () {
   %0 = spv.constant 1: i32
-  %1 = spv.Variable : !spv.ptr<!spv.struct<f32, !spv.array<4xf32>>, Function>
-  // CHECK: spv.AccessChain {{.*}}[{{.*}}, {{.*}}] : !spv.ptr<!spv.struct<f32, !spv.array<4 x f32>>, Function>
-  %2 = spv.AccessChain %1[%0, %0] : !spv.ptr<!spv.struct<f32, !spv.array<4xf32>>, Function>, i32, i32
+  %1 = spv.Variable : !spv.ptr<!spv.struct<(f32, !spv.array<4xf32>)>, Function>
+  // CHECK: spv.AccessChain {{.*}}[{{.*}}, {{.*}}] : !spv.ptr<!spv.struct<(f32, !spv.array<4 x f32>)>, Function>
+  %2 = spv.AccessChain %1[%0, %0] : !spv.ptr<!spv.struct<(f32, !spv.array<4xf32>)>, Function>, i32, i32
   return
 }
 
@@ -111,9 +111,9 @@ func @access_chain_invalid_index_1(%index0 : i32) -> () {
 // -----
 
 func @access_chain_invalid_index_2(%index0 : i32) -> () {
-  %0 = spv.Variable : !spv.ptr<!spv.struct<f32, !spv.array<4xf32>>, Function>
+  %0 = spv.Variable : !spv.ptr<!spv.struct<(f32, !spv.array<4xf32>)>, Function>
   // expected-error @+1 {{index must be an integer spv.constant to access element of spv.struct}}
-  %1 = spv.AccessChain %0[%index0, %index0] : !spv.ptr<!spv.struct<f32, !spv.array<4xf32>>, Function>, i32, i32
+  %1 = spv.AccessChain %0[%index0, %index0] : !spv.ptr<!spv.struct<(f32, !spv.array<4xf32>)>, Function>, i32, i32
   return
 }
 
@@ -121,9 +121,9 @@ func @access_chain_invalid_index_2(%index0 : i32) -> () {
 
 func @access_chain_invalid_constant_type_1() -> () {
   %0 = std.constant 1: i32
-  %1 = spv.Variable : !spv.ptr<!spv.struct<f32, !spv.array<4xf32>>, Function>
+  %1 = spv.Variable : !spv.ptr<!spv.struct<(f32, !spv.array<4xf32>)>, Function>
   // expected-error @+1 {{index must be an integer spv.constant to access element of spv.struct, but provided std.constant}}
-  %2 = spv.AccessChain %1[%0, %0] : !spv.ptr<!spv.struct<f32, !spv.array<4xf32>>, Function>, i32, i32
+  %2 = spv.AccessChain %1[%0, %0] : !spv.ptr<!spv.struct<(f32, !spv.array<4xf32>)>, Function>, i32, i32
   return
 }
 
@@ -131,9 +131,9 @@ func @access_chain_invalid_constant_type_1() -> () {
 
 func @access_chain_out_of_bounds() -> () {
   %index0 = "spv.constant"() { value = 12: i32} : () -> i32
-  %0 = spv.Variable : !spv.ptr<!spv.struct<f32, !spv.array<4xf32>>, Function>
-  // expected-error @+1 {{'spv.AccessChain' op index 12 out of bounds for '!spv.struct<f32, !spv.array<4 x f32>>'}}
-  %1 = spv.AccessChain %0[%index0, %index0] : !spv.ptr<!spv.struct<f32, !spv.array<4xf32>>, Function>, i32, i32
+  %0 = spv.Variable : !spv.ptr<!spv.struct<(f32, !spv.array<4xf32>)>, Function>
+  // expected-error @+1 {{'spv.AccessChain' op index 12 out of bounds for '!spv.struct<(f32, !spv.array<4 x f32>)>'}}
+  %1 = spv.AccessChain %0[%index0, %index0] : !spv.ptr<!spv.struct<(f32, !spv.array<4xf32>)>, Function>, i32, i32
   return
 }
 
@@ -735,7 +735,7 @@ spv.module Logical GLSL450 {
   // CHECK_LABEL: @simple_load
   spv.func @simple_load() -> () "None" {
     // CHECK: spv.Load "Input" {{%.*}} : f32
-    %0 = spv._address_of @var0 : !spv.ptr<f32, Input>
+    %0 = spv.mlir.addressof @var0 : !spv.ptr<f32, Input>
     %1 = spv.Load "Input" %0 : f32
     spv.Return
   }
@@ -843,7 +843,7 @@ func @logicalUnary(%arg0 : i1)
 
 func @logicalUnary(%arg0 : i32)
 {
-  // expected-error @+1 {{operand #0 must be bool or vector of bool values of length 2/3/4, but got 'i32'}}
+  // expected-error @+1 {{operand #0 must be bool or vector of bool values of length 2/3/4/8/16, but got 'i32'}}
   %0 = spv.LogicalNot %arg0 : i32
   return
 }
@@ -1151,7 +1151,7 @@ func @aligned_store_incorrect_attributes(%arg0 : f32) -> () {
 spv.module Logical GLSL450 {
   spv.globalVariable @var0 : !spv.ptr<f32, Input>
   spv.func @simple_store(%arg0 : f32) -> () "None" {
-    %0 = spv._address_of @var0 : !spv.ptr<f32, Input>
+    %0 = spv.mlir.addressof @var0 : !spv.ptr<f32, Input>
     // CHECK: spv.Store  "Input" {{%.*}}, {{%.*}} : f32
     spv.Store  "Input" %0, %arg0 : f32
     spv.Return
@@ -1224,7 +1224,7 @@ func @variable_init_normal_constant() -> () {
 spv.module Logical GLSL450 {
   spv.globalVariable @global : !spv.ptr<f32, Workgroup>
   spv.func @variable_init_global_variable() -> () "None" {
-    %0 = spv._address_of @global : !spv.ptr<f32, Workgroup>
+    %0 = spv.mlir.addressof @global : !spv.ptr<f32, Workgroup>
     // CHECK: spv.Variable init({{.*}}) : !spv.ptr<!spv.ptr<f32, Workgroup>, Function>
     %1 = spv.Variable init(%0) : !spv.ptr<!spv.ptr<f32, Workgroup>, Function>
     spv.Return
@@ -1237,7 +1237,7 @@ spv.module Logical GLSL450 {
   spv.specConstant @sc = 42 : i32
   // CHECK-LABEL: @variable_init_spec_constant
   spv.func @variable_init_spec_constant() -> () "None" {
-    %0 = spv._reference_of @sc : i32
+    %0 = spv.mlir.referenceof @sc : i32
     // CHECK: spv.Variable init(%0) : !spv.ptr<i32, Function>
     %1 = spv.Variable init(%0) : !spv.ptr<i32, Function>
     spv.Return

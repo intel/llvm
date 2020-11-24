@@ -57,6 +57,17 @@ MATCHER_P(DeclNamed, Name, "") {
   return false;
 }
 
+MATCHER_P(DeclKind, Kind, "") {
+  if (NamedDecl *ND = dyn_cast<NamedDecl>(arg))
+    if (ND->getDeclKindName() == llvm::StringRef(Kind))
+      return true;
+  if (auto *Stream = result_listener->stream()) {
+    llvm::raw_os_ostream OS(*Stream);
+    arg->dump(OS);
+  }
+  return false;
+}
+
 // Matches if the Decl has template args equal to ArgName. If the decl is a
 // NamedDecl and ArgName is an empty string it also matches.
 MATCHER_P(WithTemplateArgs, ArgName, "") {
@@ -99,9 +110,15 @@ TEST(ParsedASTTest, TopLevelDecls) {
     int header1();
     int header2;
   )";
-  TU.Code = "int main();";
+  TU.Code = R"cpp(
+    int main();
+    template <typename> bool X = true;
+  )cpp";
   auto AST = TU.build();
-  EXPECT_THAT(AST.getLocalTopLevelDecls(), ElementsAre(DeclNamed("main")));
+  EXPECT_THAT(AST.getLocalTopLevelDecls(),
+              testing::UnorderedElementsAreArray(
+                  {AllOf(DeclNamed("main"), DeclKind("Function")),
+                   AllOf(DeclNamed("X"), DeclKind("VarTemplate"))}));
 }
 
 TEST(ParsedASTTest, DoesNotGetIncludedTopDecls) {

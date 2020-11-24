@@ -10,6 +10,7 @@
 // in SYCL SPEC section - 4.13.7 Relational functions.
 
 #include "builtins_helper.hpp"
+#include <CL/sycl/detail/stl_type_traits.hpp>
 
 #include <cmath>
 
@@ -76,7 +77,7 @@ template <typename T> inline T __sUnordered(T x, T y) {
 }
 
 template <typename T>
-inline typename std::enable_if<d::is_sgeninteger<T>::value, T>::type
+inline typename sycl::detail::enable_if_t<d::is_sgeninteger<T>::value, T>
 __bitselect(T a, T b, T c) {
   return (a & ~c) | (b & c);
 }
@@ -107,8 +108,8 @@ template <> union databitset<s::cl_half> {
 };
 
 template <typename T>
-typename std::enable_if<d::is_sgenfloat<T>::value, T>::type inline __bitselect(
-    T a, T b, T c) {
+typename sycl::detail::enable_if_t<d::is_sgenfloat<T>::value,
+                                   T> inline __bitselect(T a, T b, T c) {
   databitset<T> ba;
   ba.f = a;
   databitset<T> bb;

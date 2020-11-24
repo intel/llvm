@@ -11,6 +11,8 @@
 #include "llvm/ExecutionEngine/Orc/TargetProcessControl.h"
 #include "llvm/Support/MathExtras.h"
 
+#include <future>
+
 using namespace llvm;
 using namespace llvm::orc;
 
@@ -158,7 +160,7 @@ Error TPCIndirectStubsManager::createStubs(const StubInitsMap &StubInits) {
   switch (TPCIU.getABISupport().getPointerSize()) {
   case 4: {
     unsigned ASIdx = 0;
-    std::vector<TargetProcessControl::MemoryAccess::UInt32Write> PtrUpdates;
+    std::vector<tpctypes::UInt32Write> PtrUpdates;
     for (auto &SI : StubInits)
       PtrUpdates.push_back({(*AvailableStubInfos)[ASIdx++].PointerAddress,
                             static_cast<uint32_t>(SI.second.first)});
@@ -166,7 +168,7 @@ Error TPCIndirectStubsManager::createStubs(const StubInitsMap &StubInits) {
   }
   case 8: {
     unsigned ASIdx = 0;
-    std::vector<TargetProcessControl::MemoryAccess::UInt64Write> PtrUpdates;
+    std::vector<tpctypes::UInt64Write> PtrUpdates;
     for (auto &SI : StubInits)
       PtrUpdates.push_back({(*AvailableStubInfos)[ASIdx++].PointerAddress,
                             static_cast<uint64_t>(SI.second.first)});
@@ -211,11 +213,11 @@ Error TPCIndirectStubsManager::updatePointer(StringRef Name,
   auto &MemAccess = TPCIU.getTargetProcessControl().getMemoryAccess();
   switch (TPCIU.getABISupport().getPointerSize()) {
   case 4: {
-    TargetProcessControl::MemoryAccess::UInt32Write PUpdate(PtrAddr, NewAddr);
+    tpctypes::UInt32Write PUpdate(PtrAddr, NewAddr);
     return MemAccess.writeUInt32s(PUpdate);
   }
   case 8: {
-    TargetProcessControl::MemoryAccess::UInt64Write PUpdate(PtrAddr, NewAddr);
+    tpctypes::UInt64Write PUpdate(PtrAddr, NewAddr);
     return MemAccess.writeUInt64s(PUpdate);
   }
   default:
@@ -396,6 +398,25 @@ TPCIndirectionUtils::getIndirectStubs(unsigned NumStubs) {
   }
 
   return std::move(Result);
+}
+
+static JITTargetAddress reentry(JITTargetAddress LCTMAddr,
+                                JITTargetAddress TrampolineAddr) {
+  auto &LCTM = *jitTargetAddressToPointer<LazyCallThroughManager *>(LCTMAddr);
+  std::promise<JITTargetAddress> LandingAddrP;
+  auto LandingAddrF = LandingAddrP.get_future();
+  LCTM.resolveTrampolineLandingAddress(
+      TrampolineAddr,
+      [&](JITTargetAddress Addr) { LandingAddrP.set_value(Addr); });
+  return LandingAddrF.get();
+}
+
+Error setUpInProcessLCTMReentryViaTPCIU(TPCIndirectionUtils &TPCIU) {
+  auto &LCTM = TPCIU.getLazyCallThroughManager();
+  return TPCIU
+      .writeResolverBlock(pointerToJITTargetAddress(&reentry),
+                          pointerToJITTargetAddress(&LCTM))
+      .takeError();
 }
 
 } // end namespace orc

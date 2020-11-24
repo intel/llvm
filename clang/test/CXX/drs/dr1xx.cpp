@@ -4,10 +4,25 @@
 // RUN: %clang_cc1 -std=c++17 -triple x86_64-unknown-unknown %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
 
 namespace dr100 { // dr100: yes
-  template<const char *> struct A {}; // expected-note 0-1{{declared here}}
+  template<const char (*)[4]> struct A {}; // expected-note 0-1{{declared here}}
   template<const char (&)[4]> struct B {}; // expected-note 0-1{{declared here}}
-  A<"foo"> a; // expected-error {{does not refer to any declaration}}
-  B<"bar"> b; // expected-error {{does not refer to any declaration}}
+  template<const char *> struct C {}; // expected-note 0-1{{declared here}}
+  template<const char &> struct D {}; // expected-note 0-1{{declared here}}
+  A<&"foo"> a; // #100a
+  B<"bar"> b; // #100b
+  C<"baz"> c; // #100c
+  D<*"quux"> d; // #100d
+#if __cplusplus < 201703L
+  // expected-error@#100a {{does not refer to any declaration}}
+  // expected-error@#100b {{does not refer to any declaration}}
+  // expected-error@#100c {{does not refer to any declaration}}
+  // expected-error@#100d {{does not refer to any declaration}}
+#else
+  // expected-error@#100a {{pointer to string literal is not allowed in a template argument}}
+  // expected-error@#100b {{reference to string literal is not allowed in a template argument}}
+  // expected-error@#100c {{pointer to subobject of string literal is not allowed in a template argument}}
+  // expected-error@#100d {{reference to subobject of string literal is not allowed in a template argument}}
+#endif
 }
 
 namespace dr101 { // dr101: 3.5
@@ -853,7 +868,7 @@ namespace dr176 { // dr176: yes
 namespace dr177 { // dr177: yes
   struct B {};
   struct A {
-    A(A &); // expected-note 0-1{{not viable: expects an l-value}}
+    A(A &); // expected-note 0-1{{not viable: expects an lvalue}}
     A(const B &); // expected-note 0-1{{not viable: no known conversion from 'dr177::A' to}}
   };
   B b;
@@ -862,7 +877,7 @@ namespace dr177 { // dr177: yes
   // expected-error@-2 {{no viable constructor copying variable}}
 #endif
 
-  struct C { C(C&); }; // expected-note {{not viable: no known conversion from 'dr177::D' to 'dr177::C &'}}
+  struct C { C(C&); }; // expected-note {{not viable: expects an lvalue for 1st argument}}
   struct D : C {};
   struct E { operator D(); };
   E e;

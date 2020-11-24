@@ -37,6 +37,7 @@ static WasmYAML::Table makeTable(const wasm::WasmTable &Table) {
   T.TableLimits.Flags = Table.Limits.Flags;
   T.TableLimits.Initial = Table.Limits.Initial;
   T.TableLimits.Maximum = Table.Limits.Maximum;
+  T.Index = Table.Index;
   return T;
 }
 
@@ -64,11 +65,16 @@ WasmDumper::dumpCustomSection(const WasmSection &WasmSec) {
   } else if (WasmSec.Name == "name") {
     std::unique_ptr<WasmYAML::NameSection> NameSec =
         std::make_unique<WasmYAML::NameSection>();
-    for (const llvm::wasm::WasmFunctionName &Func : Obj.debugNames()) {
+    for (const llvm::wasm::WasmDebugName &Name : Obj.debugNames()) {
       WasmYAML::NameEntry NameEntry;
-      NameEntry.Name = Func.Name;
-      NameEntry.Index = Func.Index;
-      NameSec->FunctionNames.push_back(NameEntry);
+      NameEntry.Name = Name.Name;
+      NameEntry.Index = Name.Index;
+      if (Name.Type == llvm::wasm::NameType::FUNCTION) {
+        NameSec->FunctionNames.push_back(NameEntry);
+      } else {
+        assert(Name.Type == llvm::wasm::NameType::GLOBAL);
+        NameSec->GlobalNames.push_back(NameEntry);
+      }
     }
     CustomSec = std::move(NameSec);
   } else if (WasmSec.Name == "linking") {
@@ -116,6 +122,7 @@ WasmDumper::dumpCustomSection(const WasmSection &WasmSec) {
         break;
       case wasm::WASM_SYMBOL_TYPE_FUNCTION:
       case wasm::WASM_SYMBOL_TYPE_GLOBAL:
+      case wasm::WASM_SYMBOL_TYPE_TABLE:
       case wasm::WASM_SYMBOL_TYPE_EVENT:
         Info.ElementIndex = Symbol.ElementIndex;
         break;

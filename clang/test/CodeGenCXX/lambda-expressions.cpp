@@ -166,7 +166,7 @@ namespace pr28595 {
     // CHECK: br i1
     //
     // CHECK: ret void
-    //  
+    //
     // CHECK: landingpad
     // CHECK: landingpad
     // CHECK: br label %[[CLEANUP:.*]]{{$}}
@@ -178,7 +178,7 @@ namespace pr28595 {
     // CHECK: icmp eq %[[A]]* %[[DST_0_0]], %[[DST_I_J]]
     // CHECK: %[[T0:.*]] = phi %[[A]]*
     // CHECK: %[[T1:.*]] = getelementptr inbounds %[[A]], %[[A]]* %[[T0]], i64 -1
-    // CHECK: call void @_ZN7pr285951AD1Ev(%[[A]]* %[[T1]])
+    // CHECK: call void @_ZN7pr285951AD1Ev(%[[A]]* {{[^,]*}} %[[T1]])
     // CHECK: icmp eq %[[A]]* %[[T1]], %[[DST_0_0]]
     (void) [array]{};
   }
@@ -194,8 +194,8 @@ namespace pr28595 {
 // CHECK-NEXT: call i32 @"_ZZ1fvENK3$_6clEii"
 // CHECK-NEXT: ret i32
 
-// CHECK-LABEL: define internal void @"_ZZ1hvEN4$_118__invokeEv"(%struct.A* noalias sret align 1 %agg.result) {{.*}} {
-// CHECK: call void @"_ZZ1hvENK4$_11clEv"(%struct.A* sret align 1 %agg.result,
+// CHECK-LABEL: define internal void @"_ZZ1hvEN4$_118__invokeEv"(%struct.A* noalias sret(%struct.A) align 1 %agg.result) {{.*}} {
+// CHECK: call void @"_ZZ1hvENK4$_11clEv"(%struct.A* sret(%struct.A) align 1 %agg.result,
 // CHECK-NEXT: ret void
 struct A { ~A(); };
 void h() {

@@ -135,11 +135,8 @@ private:
   struct DecomposedGEP {
     // Base pointer of the GEP
     const Value *Base;
-    // Total constant offset w.r.t the base from indexing into structs
-    APInt StructOffset;
-    // Total constant offset w.r.t the base from indexing through
-    // pointers/arrays/vectors
-    APInt OtherOffset;
+    // Total constant offset from base.
+    APInt Offset;
     // Scaled variable (non-constant) indices.
     SmallVector<VariableGEPIndex, 4> VarIndices;
     // Is GEP index scale compile-time constant.
@@ -214,8 +211,8 @@ private:
                           const Value *UnderV2, AAQueryInfo &AAQI);
 
   AliasResult aliasCheck(const Value *V1, LocationSize V1Size,
-                         AAMDNodes V1AATag, const Value *V2,
-                         LocationSize V2Size, AAMDNodes V2AATag,
+                         const AAMDNodes &V1AATag, const Value *V2,
+                         LocationSize V2Size, const AAMDNodes &V2AATag,
                          AAQueryInfo &AAQI, const Value *O1 = nullptr,
                          const Value *O2 = nullptr);
 };

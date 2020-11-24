@@ -32,6 +32,9 @@ class PatternRewriter;
 namespace linalg {
 class LinalgDependenceGraph;
 
+/// A struct containing the Linalg producer before and after fusion.
+/// When operating on tensors, `fusedProducer` may feed into a `tensor_cast` op
+/// before the consumer Linalg op, until enough canonicalizations have applied.
 struct FusionInfo {
   LinalgOp originalProducer;
   LinalgOp fusedProducer;
@@ -81,48 +84,56 @@ bool isFusableInto(const LinalgDependenceGraph &graph, LinalgOp consumer,
 
 /// Fuses producer into consumer if the producer is structurally feasible and
 /// the fusion would not violate dependencies.
-/// When non-null, the optional pointer `folder` is used to call into the
-/// `createAndFold` builder method. If `folder` is null, the regular `create`
-/// method is called.
-Optional<FusionInfo> fuseProducerOf(OpBuilder &b, LinalgOp consumer,
-                                    unsigned consumerIdx,
-                                    const LinalgDependenceGraph &graph,
-                                    OperationFolder *folder = nullptr);
+/// Implements the fusion part of the "tileAndFuse on buffers"
+/// transformation and thus requires the `consumerdIdx`^th operand of `consumer`
+/// to be a `subview` op (generally obtained by applying the tiling
+/// transformation).
+Optional<FusionInfo> fuseProducerOfBuffer(OpBuilder &b, LinalgOp consumer,
+                                          unsigned consumerIdx,
+                                          const LinalgDependenceGraph &graph);
+/// Tensor counterpart of `fuseProducerOfBuffer`.
+/// This implements the fusion part of the "tileAndFuse on tensors"
+/// transformation and thus requires the `consumerdIdx`^th operand of `consumer`
+/// to be the result of a `subtensor` op (generally obtained by applying the
+/// tiling transformation).
+Optional<FusionInfo> fuseProducerOfTensor(OpBuilder &b, LinalgOp consumer,
+                                          unsigned consumerIdx);
 
 /// Fuse linalg operation on tensors, with the producer of the operand at
 /// position `consumerIdx` of the consumer.
-Operation *fuseTensorOps(PatternRewriter &rewriter, Operation *consumer,
-                         unsigned consumerIdx,
-                         OperationFolder *folder = nullptr);
+Optional<SmallVector<Value, 1>> fuseTensorOps(PatternRewriter &rewriter,
+                                              Operation *consumer,
+                                              unsigned consumerIdx);
 
-/// Returns the linearized list of all view dimensions in a `linalgOp`. Applying
-/// the inverse, concatenated loopToOperandRangeMaps to this list allows the
-/// derivation of loop ranges for any linalgOp.
-SmallVector<Value, 8> getViewSizes(OpBuilder &builder, LinalgOp linalgOp);
+/// Returns the linearized list of all shape dimensions in a `linalgOp`.
+/// Applying the inverse, concatenated loopToOperandRangeMaps to this list
+/// allows the derivation of loop ranges for any linalgOp.
+SmallVector<Value, 8> getShape(OpBuilder &builder, LinalgOp linalgOp);
 template <typename ConcreteOpTy>
-SmallVector<Value, 8> getViewSizes(OpBuilder &builder, ConcreteOpTy linalgOp) {
-  return getViewSizes(builder, cast<linalg::LinalgOp>(linalgOp.getOperation()));
+SmallVector<Value, 8> getShape(OpBuilder &builder, ConcreteOpTy linalgOp) {
+  return getShape(builder, cast<linalg::LinalgOp>(linalgOp.getOperation()));
 }
 
+/// Like `getShape`, but only returns statically-known information, without
+/// generating any new IR. For each shape dimension, returns >=0 if that
+/// dimension is statically known, or -1 otherwise.
+SmallVector<int64_t, 8> getStaticShape(LinalgOp linalgOp);
+
 /// Returns the loop ranges of the `linalgOp`. Applies the inverse of the
-/// concatenated indexing maps to the result of `getViewSizes`. Returns None if
+/// concatenated indexing maps to the result of `getShape`. Returns None if
 /// the bounds computation fails.
-Optional<SmallVector<Value, 4>>
-getLoopRanges(OpBuilder &builder, LinalgOp linalgOp,
-              OperationFolder *folder = nullptr);
+Optional<SmallVector<Value, 4>> getLoopRanges(OpBuilder &builder,
+                                              LinalgOp linalgOp);
+
+/// Returns the statically-known loop ranges of the `linalgOp`. Applies the
+/// inverse of the concatenated indexing maps to the result of `getStaticShape`.
+/// Returns None if inverting the concatenated indexing map fails. Returns -1
+/// for non-statically-known loop ranges.
+Optional<SmallVector<int64_t, 4>> getStaticLoopRanges(LinalgOp linalgOp);
 
 /// Returns the values obtained by applying `map` to the list of values.
-/// When non-null, the optional pointer `folder` is used to call into the
-/// `createAndFold` builder method. If `folder` is null, the regular `create`
-/// method is called.
 SmallVector<Value, 4> applyMapToValues(OpBuilder &b, Location loc,
-                                       AffineMap map, ValueRange values,
-                                       OperationFolder *folder = nullptr);
-
-/// Returns all the operands of `linalgOp` that are not views.
-/// Asserts that these operands are value types to allow transformations like
-/// tiling to just use the values when cloning `linalgOp`.
-SmallVector<Value, 4> getAssumedNonViewOperands(LinalgOp linalgOp);
+                                       AffineMap map, ValueRange values);
 
 /// Apply the permutation defined by `permutation` to `inVec`.
 /// Element `i` in `inVec` is mapped to location `j = permutation[i]`.

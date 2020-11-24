@@ -35,6 +35,8 @@ STATISTIC(NumReadOnly, "Number of functions inferred as readonly");
 STATISTIC(NumArgMemOnly, "Number of functions inferred as argmemonly");
 STATISTIC(NumNoUnwind, "Number of functions inferred as nounwind");
 STATISTIC(NumNoCapture, "Number of arguments inferred as nocapture");
+STATISTIC(NumWriteOnlyArg, "Number of arguments inferred as writeonly");
+STATISTIC(NumSExtArg, "Number of arguments inferred as signext");
 STATISTIC(NumReadOnlyArg, "Number of arguments inferred as readonly");
 STATISTIC(NumNoAlias, "Number of function returns inferred as noalias");
 STATISTIC(NumNoUndef, "Number of function returns inferred as noundef returns");
@@ -102,6 +104,22 @@ static bool setOnlyReadsMemory(Function &F, unsigned ArgNo) {
     return false;
   F.addParamAttr(ArgNo, Attribute::ReadOnly);
   ++NumReadOnlyArg;
+  return true;
+}
+
+static bool setOnlyWritesMemory(Function &F, unsigned ArgNo) {
+  if (F.hasParamAttribute(ArgNo, Attribute::WriteOnly))
+    return false;
+  F.addParamAttr(ArgNo, Attribute::WriteOnly);
+  ++NumWriteOnlyArg;
+  return true;
+}
+
+static bool setSignExtendedArg(Function &F, unsigned ArgNo) {
+ if (F.hasParamAttribute(ArgNo, Attribute::SExt))
+    return false;
+  F.addParamAttr(ArgNo, Attribute::SExt);
+  ++NumSExtArg;
   return true;
 }
 
@@ -217,8 +235,10 @@ bool llvm::inferLibFuncAttributes(Function &F, const TargetLibraryInfo &TLI) {
     LLVM_FALLTHROUGH;
   case LibFunc_stpcpy:
   case LibFunc_stpncpy:
+    Changed |= setOnlyAccessesArgMemory(F);
     Changed |= setDoesNotThrow(F);
     Changed |= setDoesNotCapture(F, 1);
+    Changed |= setOnlyWritesMemory(F, 0);
     Changed |= setOnlyReadsMemory(F, 1);
     Changed |= setDoesNotAlias(F, 0);
     Changed |= setDoesNotAlias(F, 1);
@@ -251,6 +271,7 @@ bool llvm::inferLibFuncAttributes(Function &F, const TargetLibraryInfo &TLI) {
     return Changed;
   case LibFunc_strstr:
   case LibFunc_strpbrk:
+    Changed |= setOnlyAccessesArgMemory(F);
     Changed |= setOnlyReadsMemory(F);
     Changed |= setDoesNotThrow(F);
     Changed |= setDoesNotCapture(F, 1);
@@ -301,6 +322,7 @@ bool llvm::inferLibFuncAttributes(Function &F, const TargetLibraryInfo &TLI) {
     Changed |= setDoesNotThrow(F);
     Changed |= setDoesNotCapture(F, 0);
     Changed |= setDoesNotAlias(F, 0);
+    Changed |= setOnlyWritesMemory(F, 0);
     Changed |= setDoesNotCapture(F, 1);
     Changed |= setOnlyReadsMemory(F, 1);
     return Changed;
@@ -309,6 +331,7 @@ bool llvm::inferLibFuncAttributes(Function &F, const TargetLibraryInfo &TLI) {
     Changed |= setDoesNotThrow(F);
     Changed |= setDoesNotCapture(F, 0);
     Changed |= setDoesNotAlias(F, 0);
+    Changed |= setOnlyWritesMemory(F, 0);
     Changed |= setDoesNotCapture(F, 2);
     Changed |= setOnlyReadsMemory(F, 2);
     return Changed;
@@ -354,6 +377,7 @@ bool llvm::inferLibFuncAttributes(Function &F, const TargetLibraryInfo &TLI) {
     Changed |= setOnlyAccessesArgMemory(F);
     Changed |= setDoesNotAlias(F, 0);
     Changed |= setReturnedArg(F, 0);
+    Changed |= setOnlyWritesMemory(F, 0);
     Changed |= setDoesNotAlias(F, 1);
     Changed |= setDoesNotCapture(F, 1);
     Changed |= setOnlyReadsMemory(F, 1);
@@ -362,6 +386,7 @@ bool llvm::inferLibFuncAttributes(Function &F, const TargetLibraryInfo &TLI) {
     Changed |= setDoesNotThrow(F);
     Changed |= setOnlyAccessesArgMemory(F);
     Changed |= setReturnedArg(F, 0);
+    Changed |= setOnlyWritesMemory(F, 0);
     Changed |= setDoesNotCapture(F, 1);
     Changed |= setOnlyReadsMemory(F, 1);
     return Changed;
@@ -370,6 +395,7 @@ bool llvm::inferLibFuncAttributes(Function &F, const TargetLibraryInfo &TLI) {
     Changed |= setDoesNotThrow(F);
     Changed |= setOnlyAccessesArgMemory(F);
     Changed |= setDoesNotAlias(F, 0);
+    Changed |= setOnlyWritesMemory(F, 0);
     Changed |= setDoesNotAlias(F, 1);
     Changed |= setDoesNotCapture(F, 1);
     Changed |= setOnlyReadsMemory(F, 1);
@@ -446,9 +472,11 @@ bool llvm::inferLibFuncAttributes(Function &F, const TargetLibraryInfo &TLI) {
     return Changed;
   case LibFunc_bcopy:
     Changed |= setDoesNotThrow(F);
+    Changed |= setOnlyAccessesArgMemory(F);
     Changed |= setDoesNotCapture(F, 0);
-    Changed |= setDoesNotCapture(F, 1);
     Changed |= setOnlyReadsMemory(F, 0);
+    Changed |= setOnlyWritesMemory(F, 1);
+    Changed |= setDoesNotCapture(F, 1);
     return Changed;
   case LibFunc_bcmp:
     Changed |= setDoesNotThrow(F);
@@ -459,7 +487,9 @@ bool llvm::inferLibFuncAttributes(Function &F, const TargetLibraryInfo &TLI) {
     return Changed;
   case LibFunc_bzero:
     Changed |= setDoesNotThrow(F);
+    Changed |= setOnlyAccessesArgMemory(F);
     Changed |= setDoesNotCapture(F, 0);
+    Changed |= setOnlyWritesMemory(F, 0);
     return Changed;
   case LibFunc_calloc:
     Changed |= setRetNoUndef(F);
@@ -918,6 +948,7 @@ bool llvm::inferLibFuncAttributes(Function &F, const TargetLibraryInfo &TLI) {
   case LibFunc_memset_pattern16:
     Changed |= setOnlyAccessesArgMemory(F);
     Changed |= setDoesNotCapture(F, 0);
+    Changed |= setOnlyWritesMemory(F, 0);
     Changed |= setDoesNotCapture(F, 1);
     Changed |= setOnlyReadsMemory(F, 1);
     return Changed;
@@ -927,7 +958,11 @@ bool llvm::inferLibFuncAttributes(Function &F, const TargetLibraryInfo &TLI) {
     Changed |= setDoesNotAccessMemory(F);
     Changed |= setDoesNotThrow(F);
     return Changed;
-
+  case LibFunc_ldexp:
+  case LibFunc_ldexpf:
+  case LibFunc_ldexpl:
+    Changed |= setSignExtendedArg(F, 1);
+    return Changed;
   default:
     // FIXME: It'd be really nice to cover all the library functions we're
     // aware of here.
@@ -1074,6 +1109,15 @@ Value *llvm::emitMemCpyChk(Value *Dst, Value *Src, Value *Len, Value *ObjSize,
           dyn_cast<Function>(MemCpy.getCallee()->stripPointerCasts()))
     CI->setCallingConv(F->getCallingConv());
   return CI;
+}
+
+Value *llvm::emitMemPCpy(Value *Dst, Value *Src, Value *Len, IRBuilderBase &B,
+                         const DataLayout &DL, const TargetLibraryInfo *TLI) {
+  LLVMContext &Context = B.GetInsertBlock()->getContext();
+  return emitLibCall(
+      LibFunc_mempcpy, B.getInt8PtrTy(),
+      {B.getInt8PtrTy(), B.getInt8PtrTy(), DL.getIntPtrType(Context)},
+      {Dst, Src, Len}, B, TLI);
 }
 
 Value *llvm::emitMemChr(Value *Ptr, Value *Val, Value *Len, IRBuilderBase &B,
@@ -1233,12 +1277,15 @@ Value *llvm::emitUnaryFloatFnCall(Value *Op, const TargetLibraryInfo *TLI,
 
 static Value *emitBinaryFloatFnCallHelper(Value *Op1, Value *Op2,
                                           StringRef Name, IRBuilderBase &B,
-                                          const AttributeList &Attrs) {
+                                          const AttributeList &Attrs,
+                                          const TargetLibraryInfo *TLI = nullptr) {
   assert((Name != "") && "Must specify Name to emitBinaryFloatFnCall");
 
   Module *M = B.GetInsertBlock()->getModule();
   FunctionCallee Callee = M->getOrInsertFunction(Name, Op1->getType(),
                                                  Op1->getType(), Op2->getType());
+  if (TLI != nullptr)
+    inferLibFuncAttributes(M, Name, *TLI);
   CallInst *CI = B.CreateCall(Callee, { Op1, Op2 }, Name);
 
   // The incoming attribute set may have come from a speculatable intrinsic, but
@@ -1274,7 +1321,7 @@ Value *llvm::emitBinaryFloatFnCall(Value *Op1, Value *Op2,
   StringRef Name = getFloatFnName(TLI, Op1->getType(),
                                   DoubleFn, FloatFn, LongDoubleFn);
 
-  return emitBinaryFloatFnCallHelper(Op1, Op2, Name, B, Attrs);
+  return emitBinaryFloatFnCallHelper(Op1, Op2, Name, B, Attrs, TLI);
 }
 
 Value *llvm::emitPutChar(Value *Char, IRBuilderBase &B,

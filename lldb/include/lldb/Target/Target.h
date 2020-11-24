@@ -173,6 +173,8 @@ public:
 
   llvm::StringRef GetExpressionPrefixContents();
 
+  uint64_t GetExprErrorLimit() const;
+
   bool GetUseHexImmediates() const;
 
   bool GetUseFastStepping() const;
@@ -210,7 +212,7 @@ public:
   bool GetInjectLocalVariables(ExecutionContext *exe_ctx) const;
 
   void SetInjectLocalVariables(ExecutionContext *exe_ctx, bool b);
-  
+
   void SetRequireHardwareBreakpoints(bool b);
 
   bool GetRequireHardwareBreakpoints() const;
@@ -218,7 +220,6 @@ public:
   bool GetAutoInstallMainExecutable() const;
 
   void UpdateLaunchInfoFromProperties();
-
 
 private:
   // Callbacks for m_launch_info.
@@ -440,6 +441,7 @@ class Target : public std::enable_shared_from_this<Target>,
                public ModuleList::Notifier {
 public:
   friend class TargetList;
+  friend class Debugger;
 
   /// Broadcaster event bits definitions.
   enum {
@@ -1072,14 +1074,10 @@ public:
                                                const ValueList &arg_value_list,
                                                const char *name, Status &error);
 
-  // Creates a UtilityFunction for the given language, the rest of the
-  // parameters have the same meaning as for the UtilityFunction constructor.
-  // Returns a new-ed object which the caller owns.
-
-  UtilityFunction *GetUtilityFunctionForLanguage(const char *expr,
-                                                 lldb::LanguageType language,
-                                                 const char *name,
-                                                 Status &error);
+  /// Creates and installs a UtilityFunction for the given language.
+  llvm::Expected<std::unique_ptr<UtilityFunction>>
+  CreateUtilityFunction(std::string expression, std::string name,
+                        lldb::LanguageType language, ExecutionContext &exe_ctx);
 
   // Install any files through the platform that need be to installed prior to
   // launching or attaching.
@@ -1104,6 +1102,20 @@ public:
                           lldb::addr_t load_addr);
 
   void ClearAllLoadedSections();
+
+  /// Set the \a Trace object containing processor trace information of this
+  /// target.
+  ///
+  /// \param[in] trace_sp
+  ///   The trace object.
+  void SetTrace(const lldb::TraceSP &trace_sp);
+
+  /// Get the \a Trace object containing processor trace information of this
+  /// target.
+  ///
+  /// \return
+  ///   The trace object. It might be undefined.
+  const lldb::TraceSP &GetTrace();
 
   // Since expressions results can persist beyond the lifetime of a process,
   // and the const expression results are available after a process is gone, we
@@ -1145,6 +1157,11 @@ public:
     virtual ~StopHook() = default;
 
     enum class StopHookKind  : uint32_t { CommandBased = 0, ScriptBased };
+    enum class StopHookResult : uint32_t {
+      KeepStopped = 0,
+      RequestContinue,
+      AlreadyContinued
+    };
 
     lldb::TargetSP &GetTarget() { return m_target_sp; }
 
@@ -1160,8 +1177,8 @@ public:
     // with a reason" thread.  It should add to the stream whatever text it
     // wants to show the user, and return False to indicate it wants the target
     // not to stop.
-    virtual bool HandleStop(ExecutionContext &exe_ctx,
-                            lldb::StreamSP output) = 0;
+    virtual StopHookResult HandleStop(ExecutionContext &exe_ctx,
+                                      lldb::StreamSP output) = 0;
 
     // Set the Thread Specifier.  The stop hook will own the thread specifier,
     // and is responsible for deleting it when we're done.
@@ -1201,8 +1218,8 @@ public:
     void SetActionFromString(const std::string &strings);
     void SetActionFromStrings(const std::vector<std::string> &strings);
 
-    bool HandleStop(ExecutionContext &exc_ctx,
-                    lldb::StreamSP output_sp) override;
+    StopHookResult HandleStop(ExecutionContext &exc_ctx,
+                              lldb::StreamSP output_sp) override;
     void GetSubclassDescription(Stream *s,
                                 lldb::DescriptionLevel level) const override;
 
@@ -1219,7 +1236,8 @@ public:
   class StopHookScripted : public StopHook {
   public:
     virtual ~StopHookScripted() = default;
-    bool HandleStop(ExecutionContext &exc_ctx, lldb::StreamSP output) override;
+    StopHookResult HandleStop(ExecutionContext &exc_ctx,
+                              lldb::StreamSP output) override;
 
     Status SetScriptCallback(std::string class_name,
                              StructuredData::ObjectSP extra_args_sp);
@@ -1234,7 +1252,7 @@ public:
     StructuredDataImpl *m_extra_args; // We own this structured data,
                                       // but the SD itself manages the UP.
     /// This holds the python callback object.
-    StructuredData::GenericSP m_implementation_sp; 
+    StructuredData::GenericSP m_implementation_sp;
 
     /// Use CreateStopHook to make a new empty stop hook. The GetCommandPointer
     /// and fill it with commands, and SetSpecifier to set the specifier shared
@@ -1254,7 +1272,9 @@ public:
   /// remove the stop hook, as it will also reset the stop hook counter.
   void UndoCreateStopHook(lldb::user_id_t uid);
 
-  void RunStopHooks();
+  // Runs the stop hooks that have been registered for this target.
+  // Returns true if the stop hooks cause the target to resume.
+  bool RunStopHooks();
 
   size_t GetStopHookSize();
 
@@ -1354,12 +1374,12 @@ protected:
   lldb::PlatformSP m_platform_sp; ///< The platform for this target.
   std::recursive_mutex m_mutex; ///< An API mutex that is used by the lldb::SB*
                                 /// classes make the SB interface thread safe
-  /// When the private state thread calls SB API's - usually because it is 
+  /// When the private state thread calls SB API's - usually because it is
   /// running OS plugin or Python ThreadPlan code - it should not block on the
   /// API mutex that is held by the code that kicked off the sequence of events
-  /// that led us to run the code.  We hand out this mutex instead when we 
+  /// that led us to run the code.  We hand out this mutex instead when we
   /// detect that code is running on the private state thread.
-  std::recursive_mutex m_private_mutex; 
+  std::recursive_mutex m_private_mutex;
   Arch m_arch;
   ModuleList m_images; ///< The list of images for this process (shared
                        /// libraries and anything dynamically loaded).
@@ -1394,6 +1414,9 @@ protected:
   bool m_suppress_stop_hooks;
   bool m_is_dummy_target;
   unsigned m_next_persistent_variable_index = 0;
+  /// An optional \a lldb_private::Trace object containing processor trace
+  /// information of this target.
+  lldb::TraceSP m_trace_sp;
   /// Stores the frame recognizers of this target.
   lldb::StackFrameRecognizerManagerUP m_frame_recognizer_manager_up;
 
@@ -1435,7 +1458,7 @@ private:
   bool ProcessIsValid();
 
   // Copy breakpoints, stop hooks and so forth from the dummy target:
-  void PrimeFromDummyTarget(Target *dummy_target);
+  void PrimeFromDummyTarget(Target &target);
 
   void AddBreakpoint(lldb::BreakpointSP breakpoint_sp, bool internal);
 

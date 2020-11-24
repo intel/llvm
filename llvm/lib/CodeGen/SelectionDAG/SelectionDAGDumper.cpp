@@ -293,6 +293,7 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::ADDC:                       return "addc";
   case ISD::ADDE:                       return "adde";
   case ISD::ADDCARRY:                   return "addcarry";
+  case ISD::SADDO_CARRY:                return "saddo_carry";
   case ISD::SADDO:                      return "saddo";
   case ISD::UADDO:                      return "uaddo";
   case ISD::SSUBO:                      return "ssubo";
@@ -302,6 +303,7 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::SUBC:                       return "subc";
   case ISD::SUBE:                       return "sube";
   case ISD::SUBCARRY:                   return "subcarry";
+  case ISD::SSUBO_CARRY:                return "ssubo_carry";
   case ISD::SHL_PARTS:                  return "shl_parts";
   case ISD::SRA_PARTS:                  return "sra_parts";
   case ISD::SRL_PARTS:                  return "srl_parts";
@@ -450,9 +452,9 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
     case ISD::SETFALSE2:                return "setfalse2";
     }
   case ISD::VECREDUCE_FADD:             return "vecreduce_fadd";
-  case ISD::VECREDUCE_STRICT_FADD:      return "vecreduce_strict_fadd";
+  case ISD::VECREDUCE_SEQ_FADD:         return "vecreduce_seq_fadd";
   case ISD::VECREDUCE_FMUL:             return "vecreduce_fmul";
-  case ISD::VECREDUCE_STRICT_FMUL:      return "vecreduce_strict_fmul";
+  case ISD::VECREDUCE_SEQ_FMUL:         return "vecreduce_seq_fmul";
   case ISD::VECREDUCE_ADD:              return "vecreduce_add";
   case ISD::VECREDUCE_MUL:              return "vecreduce_mul";
   case ISD::VECREDUCE_AND:              return "vecreduce_and";
@@ -733,7 +735,19 @@ void SDNode::print_details(raw_ostream &OS, const SelectionDAG *G) const {
       OS << ", compressing";
 
     OS << ">";
-  } else if (const MemSDNode* M = dyn_cast<MemSDNode>(this)) {
+  } else if (const auto *MScatter = dyn_cast<MaskedScatterSDNode>(this)) {
+    OS << "<";
+    printMemOperand(OS, *MScatter->getMemOperand(), G);
+
+    if (MScatter->isTruncatingStore())
+      OS << ", trunc to " << MScatter->getMemoryVT().getEVTString();
+
+    auto Signed = MScatter->isIndexSigned() ? "signed" : "unsigned";
+    auto Scaled = MScatter->isIndexScaled() ? "scaled" : "unscaled";
+    OS << ", " << Signed << " " << Scaled << " offset";
+
+    OS << ">";
+  } else if (const MemSDNode *M = dyn_cast<MemSDNode>(this)) {
     OS << "<";
     printMemOperand(OS, *M->getMemOperand(), G);
     OS << ">";

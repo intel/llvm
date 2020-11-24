@@ -15,8 +15,6 @@
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Utility/Log.h"
 
-class ProcessMonitor;
-
 class RegisterContextPOSIX_x86 : public lldb_private::RegisterContext {
 public:
   RegisterContextPOSIX_x86(lldb_private::Thread &thread,
@@ -107,6 +105,12 @@ public:
   static uint32_t g_invalidate_r13[];
   static uint32_t g_invalidate_r14[];
   static uint32_t g_invalidate_r15[];
+
+  static uint32_t g_contained_fip[];
+  static uint32_t g_contained_fdp[];
+
+  static uint32_t g_invalidate_fip[];
+  static uint32_t g_invalidate_fdp[];
 
 protected:
   struct RegInfo {

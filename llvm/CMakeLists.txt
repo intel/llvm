@@ -487,6 +487,10 @@ endif( LLVM_USE_PERF )
 set(LLVM_USE_SANITIZER "" CACHE STRING
   "Define the sanitizer used to build binaries and tests.")
 option(LLVM_OPTIMIZE_SANITIZED_BUILDS "Pass -O1 on debug sanitizer builds" ON)
+set(LLVM_UBSAN_FLAGS
+    "-fsanitize=undefined -fno-sanitize=vptr,function -fno-sanitize-recover=all"
+    CACHE STRING
+    "Compile flags set to enable UBSan. Only used if LLVM_USE_SANITIZER contains 'Undefined'.")
 set(LLVM_LIB_FUZZING_ENGINE "" CACHE PATH
   "Path to fuzzing library for linking with fuzz targets")
 
@@ -711,67 +715,6 @@ if(NOT Python3_Interpreter_FOUND)
 endif()
 
 ######
-# LLVMBuild Integration
-#
-# We use llvm-build to generate all the data required by the CMake based
-# build system in one swoop:
-#
-#  - We generate a file (a CMake fragment) in the object root which contains
-#    all the definitions that are required by CMake.
-#
-#  - We generate the library table used by llvm-config.
-#
-#  - We generate the dependencies for the CMake fragment, so that we will
-#    automatically reconfigure ourselves.
-
-set(LLVMBUILDTOOL "${LLVM_MAIN_SRC_DIR}/utils/llvm-build/llvm-build")
-set(LLVMCONFIGLIBRARYDEPENDENCIESINC
-  "${LLVM_BINARY_DIR}/tools/llvm-config/LibraryDependencies.inc")
-set(LLVMBUILDCMAKEFRAG
-  "${LLVM_BINARY_DIR}/LLVMBuild.cmake")
-
-# Create the list of optional components that are enabled
-if (LLVM_USE_INTEL_JITEVENTS)
-  set(LLVMOPTIONALCOMPONENTS IntelJITEvents)
-endif (LLVM_USE_INTEL_JITEVENTS)
-if (LLVM_USE_OPROFILE)
-  set(LLVMOPTIONALCOMPONENTS ${LLVMOPTIONALCOMPONENTS} OProfileJIT)
-endif (LLVM_USE_OPROFILE)
-if (LLVM_USE_PERF)
-  set(LLVMOPTIONALCOMPONENTS ${LLVMOPTIONALCOMPONENTS} PerfJITEvents)
-endif (LLVM_USE_PERF)
-
-message(STATUS "Constructing LLVMBuild project information")
-execute_process(
-  COMMAND "${Python3_EXECUTABLE}" -B ${LLVMBUILDTOOL}
-            --native-target "${LLVM_NATIVE_ARCH}"
-            --enable-targets "${LLVM_TARGETS_TO_BUILD}"
-            --enable-optional-components "${LLVMOPTIONALCOMPONENTS}"
-            --write-library-table ${LLVMCONFIGLIBRARYDEPENDENCIESINC}
-            --write-cmake-fragment ${LLVMBUILDCMAKEFRAG}
-            OUTPUT_VARIABLE LLVMBUILDOUTPUT
-            ERROR_VARIABLE LLVMBUILDERRORS
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-            ERROR_STRIP_TRAILING_WHITESPACE
-  RESULT_VARIABLE LLVMBUILDRESULT)
-
-# On Win32, CMake doesn't properly handle piping the default output/error
-# streams into the GUI console. So, we explicitly catch and report them.
-if( NOT "${LLVMBUILDOUTPUT}" STREQUAL "")
-  message(STATUS "llvm-build output: ${LLVMBUILDOUTPUT}")
-endif()
-if( NOT "${LLVMBUILDRESULT}" STREQUAL "0" )
-  message(FATAL_ERROR
-    "Unexpected failure executing llvm-build: ${LLVMBUILDERRORS}")
-endif()
-
-# Include the generated CMake fragment. This will define properties from the
-# LLVMBuild files in a format which is easy to consume from CMake, and will add
-# the dependencies so that CMake will reconfigure properly when the LLVMBuild
-# files change.
-include(${LLVMBUILDCMAKEFRAG})
-
-######
 
 # Configure all of the various header file fragments LLVM uses which depend on
 # configuration variables.
@@ -917,20 +860,26 @@ if (UNIX AND ${CMAKE_SYSTEM_NAME} MATCHES "AIX")
   # configuration, it is still possible the user may force it as part of a
   # compound option.
   if(CMAKE_VERSION VERSION_LESS 3.16)
-    string(REGEX REPLACE "(^|[ \t]+)-Wl,-brtl([ \t]+|$)" "" CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS}")
-    string(REGEX REPLACE "(^|[ \t]+)-Wl,-brtl([ \t]+|$)" "" CMAKE_SHARED_LINKER_FLAGS  "${CMAKE_SHARED_LINKER_FLAGS}")
-    string(REGEX REPLACE "(^|[ \t]+)-Wl,-brtl([ \t]+|$)" "" CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS}")
-    string(REGEX REPLACE "(^|[ \t]+)(-Wl,)?-G([ \t]+|$)" "" CMAKE_SHARED_LIBRARY_CREATE_C_FLAGS
+    string(REGEX REPLACE "(^|[ \t]+)-Wl,-brtl([ \t]+|$)" " " CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS}")
+    string(REGEX REPLACE "(^|[ \t]+)-Wl,-brtl([ \t]+|$)" " " CMAKE_SHARED_LINKER_FLAGS  "${CMAKE_SHARED_LINKER_FLAGS}")
+    string(REGEX REPLACE "(^|[ \t]+)-Wl,-brtl([ \t]+|$)" " " CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS}")
+    string(REGEX REPLACE "(^|[ \t]+)(-Wl,)?-G([ \t]+|$)" " " CMAKE_SHARED_LIBRARY_CREATE_C_FLAGS
       "${CMAKE_SHARED_LIBRARY_CREATE_C_FLAGS}")
-    string(REGEX REPLACE "(^|[ \t]+)(-Wl,)?-G([ \t]+|$)" "" CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS
+    string(REGEX REPLACE "(^|[ \t]+)(-Wl,)?-G([ \t]+|$)" " " CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS
       "${CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS}")
-    string(REGEX REPLACE "(^|[ \t]+)(-Wl,)?-G([ \t]+|$)" "" CMAKE_SHARED_LIBRARY_CREATE_ASM_FLAGS
+    string(REGEX REPLACE "(^|[ \t]+)(-Wl,)?-G([ \t]+|$)" " " CMAKE_SHARED_LIBRARY_CREATE_ASM_FLAGS
+      "${CMAKE_SHARED_LIBRARY_CREATE_ASM_FLAGS}")
+    string(REGEX REPLACE "(^|[ \t]+)-Wl,-G," " -Wl," CMAKE_SHARED_LIBRARY_CREATE_C_FLAGS
+      "${CMAKE_SHARED_LIBRARY_CREATE_C_FLAGS}")
+    string(REGEX REPLACE "(^|[ \t]+)-Wl,-G," " -Wl," CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS
+      "${CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS}")
+    string(REGEX REPLACE "(^|[ \t]+)-Wl,-G," " -Wl," CMAKE_SHARED_LIBRARY_CREATE_ASM_FLAGS
       "${CMAKE_SHARED_LIBRARY_CREATE_ASM_FLAGS}")
   endif()
 
-  # Modules should be built with -G, so we can use runtime linking with
-  # plugins.
-  string(APPEND CMAKE_MODULE_LINKER_FLAGS " -G")
+  # Modules should be built with -shared -Wl,-G, so we can use runtime linking
+  # with plugins.
+  string(APPEND CMAKE_MODULE_LINKER_FLAGS " -shared -Wl,-G")
 
   # Also set the correct flags for building shared libraries.
   string(APPEND CMAKE_SHARED_LINKER_FLAGS " -shared")
@@ -1104,7 +1053,6 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
     PATTERN "*.td"
     PATTERN "*.inc"
     PATTERN "LICENSE.TXT"
-    PATTERN ".svn" EXCLUDE
     )
 
   install(DIRECTORY ${LLVM_INCLUDE_DIR}/llvm ${LLVM_INCLUDE_DIR}/llvm-c
@@ -1118,7 +1066,6 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
     # Exclude include/llvm/CMakeFiles/intrinsics_gen.dir, matched by "*.def"
     PATTERN "CMakeFiles" EXCLUDE
     PATTERN "config.h" EXCLUDE
-    PATTERN ".svn" EXCLUDE
     )
 
   if (LLVM_INSTALL_MODULEMAPS)

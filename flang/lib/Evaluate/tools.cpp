@@ -69,7 +69,7 @@ auto IsVariableHelper::operator()(const ProcedureDesignator &x) const
   return symbol && symbol->attrs().test(semantics::Attr::POINTER);
 }
 
-// Conversions of complex component expressions to REAL.
+// Conversions of COMPLEX component expressions to REAL.
 ConvertRealOperandsResult ConvertRealOperands(
     parser::ContextualMessages &messages, Expr<SomeType> &&x,
     Expr<SomeType> &&y, int defaultRealKind) {
@@ -498,31 +498,14 @@ std::optional<Expr<LogicalResult>> Relate(parser::ContextualMessages &messages,
           },
           [&](Expr<SomeComplex> &&zx,
               Expr<SomeComplex> &&zy) -> std::optional<Expr<LogicalResult>> {
-            if (opr != RelationalOperator::EQ &&
-                opr != RelationalOperator::NE) {
+            if (opr == RelationalOperator::EQ ||
+                opr == RelationalOperator::NE) {
+              return PromoteAndRelate(opr, std::move(zx), std::move(zy));
+            } else {
               messages.Say(
                   "COMPLEX data may be compared only for equality"_err_en_US);
-            } else {
-              auto rr{Relate(messages, opr,
-                  AsGenericExpr(GetComplexPart(zx, false)),
-                  AsGenericExpr(GetComplexPart(zy, false)))};
-              auto ri{
-                  Relate(messages, opr, AsGenericExpr(GetComplexPart(zx, true)),
-                      AsGenericExpr(GetComplexPart(zy, true)))};
-              if (auto parts{
-                      common::AllPresent(std::move(rr), std::move(ri))}) {
-                // (a,b)==(c,d) -> (a==c) .AND. (b==d)
-                // (a,b)/=(c,d) -> (a/=c) .OR. (b/=d)
-                LogicalOperator combine{opr == RelationalOperator::EQ
-                        ? LogicalOperator::And
-                        : LogicalOperator::Or};
-                return Expr<LogicalResult>{
-                    LogicalOperation<LogicalResult::kind>{combine,
-                        std::get<0>(std::move(*parts)),
-                        std::get<1>(std::move(*parts))}};
-              }
+              return std::nullopt;
             }
-            return std::nullopt;
           },
           [&](Expr<SomeComplex> &&zx, Expr<SomeInteger> &&iy) {
             return Relate(messages, opr, std::move(x),
@@ -868,6 +851,62 @@ std::optional<std::string> FindImpureCall(
 std::optional<std::string> FindImpureCall(
     const IntrinsicProcTable &intrinsics, const ProcedureRef &proc) {
   return FindImpureCallHelper{intrinsics}(proc);
+}
+
+// Compare procedure characteristics for equality except that lhs may be
+// Pure or Elemental when rhs is not.
+static bool CharacteristicsMatch(const characteristics::Procedure &lhs,
+    const characteristics::Procedure &rhs) {
+  using Attr = characteristics::Procedure::Attr;
+  auto lhsAttrs{rhs.attrs};
+  lhsAttrs.set(
+      Attr::Pure, lhs.attrs.test(Attr::Pure) | rhs.attrs.test(Attr::Pure));
+  lhsAttrs.set(Attr::Elemental,
+      lhs.attrs.test(Attr::Elemental) | rhs.attrs.test(Attr::Elemental));
+  return lhsAttrs == rhs.attrs && lhs.functionResult == rhs.functionResult &&
+      lhs.dummyArguments == rhs.dummyArguments;
+}
+
+// Common handling for procedure pointer compatibility of left- and right-hand
+// sides.  Returns nullopt if they're compatible.  Otherwise, it returns a
+// message that needs to be augmented by the names of the left and right sides
+std::optional<parser::MessageFixedText> CheckProcCompatibility(bool isCall,
+    const std::optional<characteristics::Procedure> &lhsProcedure,
+    const characteristics::Procedure *rhsProcedure) {
+  std::optional<parser::MessageFixedText> msg;
+  if (!lhsProcedure) {
+    msg = "In assignment to object %s, the target '%s' is a procedure"
+          " designator"_err_en_US;
+  } else if (!rhsProcedure) {
+    msg = "In assignment to procedure %s, the characteristics of the target"
+          " procedure '%s' could not be determined"_err_en_US;
+  } else if (CharacteristicsMatch(*lhsProcedure, *rhsProcedure)) {
+    // OK
+  } else if (isCall) {
+    msg = "Procedure %s associated with result of reference to function '%s'"
+          " that is an incompatible procedure pointer"_err_en_US;
+  } else if (lhsProcedure->IsPure() && !rhsProcedure->IsPure()) {
+    msg = "PURE procedure %s may not be associated with non-PURE"
+          " procedure designator '%s'"_err_en_US;
+  } else if (lhsProcedure->IsFunction() && !rhsProcedure->IsFunction()) {
+    msg = "Function %s may not be associated with subroutine"
+          " designator '%s'"_err_en_US;
+  } else if (!lhsProcedure->IsFunction() && rhsProcedure->IsFunction()) {
+    msg = "Subroutine %s may not be associated with function"
+          " designator '%s'"_err_en_US;
+  } else if (lhsProcedure->HasExplicitInterface() &&
+      !rhsProcedure->HasExplicitInterface()) {
+    msg = "Procedure %s with explicit interface may not be associated with"
+          " procedure designator '%s' with implicit interface"_err_en_US;
+  } else if (!lhsProcedure->HasExplicitInterface() &&
+      rhsProcedure->HasExplicitInterface()) {
+    msg = "Procedure %s with implicit interface may not be associated with"
+          " procedure designator '%s' with explicit interface"_err_en_US;
+  } else {
+    msg = "Procedure %s associated with incompatible procedure"
+          " designator '%s'"_err_en_US;
+  }
+  return msg;
 }
 
 } // namespace Fortran::evaluate

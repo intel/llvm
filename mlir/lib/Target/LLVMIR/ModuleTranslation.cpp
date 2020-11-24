@@ -17,7 +17,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/IR/Attributes.h"
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/RegionGraphTraits.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Support/LLVM.h"
@@ -391,8 +391,8 @@ ModuleTranslation::convertOmpParallel(Operation &opInst,
 
     llvm::BasicBlock *codeGenIPBB = codeGenIP.getBlock();
     llvm::Instruction *codeGenIPBBTI = codeGenIPBB->getTerminator();
+    ompContinuationIPStack.push_back(&continuationIP);
 
-    builder.SetInsertPoint(codeGenIPBB);
     // ParallelOp has only `1` region associated with it.
     auto &region = cast<omp::ParallelOp>(opInst).getRegion();
     for (auto &bb : region) {
@@ -407,22 +407,22 @@ ModuleTranslation::convertOmpParallel(Operation &opInst,
     for (auto indexedBB : llvm::enumerate(blocks)) {
       Block *bb = indexedBB.value();
       llvm::BasicBlock *curLLVMBB = blockMapping[bb];
-      if (bb->isEntryBlock())
+      if (bb->isEntryBlock()) {
+        assert(codeGenIPBBTI->getNumSuccessors() == 1 &&
+               "OpenMPIRBuilder provided entry block has multiple successors");
+        assert(codeGenIPBBTI->getSuccessor(0) == &continuationIP &&
+               "ContinuationIP is not the successor of OpenMPIRBuilder "
+               "provided entry block");
         codeGenIPBBTI->setSuccessor(0, curLLVMBB);
+      }
 
       // TODO: Error not returned up the hierarchy
       if (failed(convertBlock(*bb, /*ignoreArguments=*/indexedBB.index() == 0)))
         return;
-
-      // If this block has the terminator then add a jump to
-      // continuation bb
-      for (auto &op : *bb) {
-        if (isa<omp::TerminatorOp>(op)) {
-          builder.SetInsertPoint(curLLVMBB);
-          builder.CreateBr(&continuationIP);
-        }
-      }
     }
+
+    ompContinuationIPStack.pop_back();
+
     // Finally, after all blocks have been traversed and values mapped,
     // connect the PHI nodes to the results of preceding blocks.
     connectPHINodes(region, valueMapping, blockMapping);
@@ -459,7 +459,7 @@ ModuleTranslation::convertOmpParallel(Operation &opInst,
   // above.
   llvm::OpenMPIRBuilder::InsertPointTy allocaIP(builder.saveIP());
   builder.restoreIP(
-      ompBuilder->CreateParallel(builder, allocaIP, bodyGenCB, privCB, finiCB,
+      ompBuilder->createParallel(builder, allocaIP, bodyGenCB, privCB, finiCB,
                                  ifCond, numThreads, pbKind, isCancellable));
   return success();
 }
@@ -475,19 +475,19 @@ ModuleTranslation::convertOmpOperation(Operation &opInst,
   }
   return llvm::TypeSwitch<Operation *, LogicalResult>(&opInst)
       .Case([&](omp::BarrierOp) {
-        ompBuilder->CreateBarrier(builder.saveIP(), llvm::omp::OMPD_barrier);
+        ompBuilder->createBarrier(builder.saveIP(), llvm::omp::OMPD_barrier);
         return success();
       })
       .Case([&](omp::TaskwaitOp) {
-        ompBuilder->CreateTaskwait(builder.saveIP());
+        ompBuilder->createTaskwait(builder.saveIP());
         return success();
       })
       .Case([&](omp::TaskyieldOp) {
-        ompBuilder->CreateTaskyield(builder.saveIP());
+        ompBuilder->createTaskyield(builder.saveIP());
         return success();
       })
       .Case([&](omp::FlushOp) {
-        // No support in Openmp runtime funciton (__kmpc_flush) to accept
+        // No support in Openmp runtime function (__kmpc_flush) to accept
         // the argument list.
         // OpenMP standard states the following:
         //  "An implementation may implement a flush with a list by ignoring
@@ -495,10 +495,13 @@ ModuleTranslation::convertOmpOperation(Operation &opInst,
         //
         // The argument list is discarded so that, flush with a list is treated
         // same as a flush without a list.
-        ompBuilder->CreateFlush(builder.saveIP());
+        ompBuilder->createFlush(builder.saveIP());
         return success();
       })
-      .Case([&](omp::TerminatorOp) { return success(); })
+      .Case([&](omp::TerminatorOp) {
+        builder.CreateBr(ompContinuationIPStack.back());
+        return success();
+      })
       .Case(
           [&](omp::ParallelOp) { return convertOmpParallel(opInst, builder); })
       .Default([&](Operation *inst) {
@@ -820,7 +823,8 @@ LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
     llvm::Argument &llvmArg = std::get<1>(kvp);
     BlockArgument mlirArg = std::get<0>(kvp);
 
-    if (auto attr = func.getArgAttrOfType<BoolAttr>(argIdx, "llvm.noalias")) {
+    if (auto attr = func.getArgAttrOfType<BoolAttr>(
+            argIdx, LLVMDialect::getNoAliasAttrName())) {
       // NB: Attribute already verified to be boolean, so check if we can indeed
       // attach the attribute to this argument, based on its type.
       auto argTy = mlirArg.getType().dyn_cast<LLVM::LLVMType>();
@@ -831,7 +835,8 @@ LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
         llvmArg.addAttr(llvm::Attribute::AttrKind::NoAlias);
     }
 
-    if (auto attr = func.getArgAttrOfType<IntegerAttr>(argIdx, "llvm.align")) {
+    if (auto attr = func.getArgAttrOfType<IntegerAttr>(
+            argIdx, LLVMDialect::getAlignAttrName())) {
       // NB: Attribute already verified to be int, so check if we can indeed
       // attach the attribute to this argument, based on its type.
       auto argTy = mlirArg.getType().dyn_cast<LLVM::LLVMType>();

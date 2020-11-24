@@ -12,13 +12,13 @@
 #include <list>
 #include <vector>
 
-#include "lldb/Target/Process.h"
+#include "lldb/Target/PostMortemProcess.h"
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/Status.h"
 
 class ThreadKDP;
 
-class ProcessMachCore : public lldb_private::Process {
+class ProcessMachCore : public lldb_private::PostMortemProcess {
 public:
   // Constructors and Destructors
   ProcessMachCore(lldb::TargetSP target_sp, lldb::ListenerSP listener,
@@ -120,9 +120,6 @@ private:
   lldb::addr_t m_dyld_addr;
   lldb::addr_t m_mach_kernel_addr;
   lldb_private::ConstString m_dyld_plugin_name;
-
-  ProcessMachCore(const ProcessMachCore &) = delete;
-  const ProcessMachCore &operator=(const ProcessMachCore &) = delete;
 };
 
 #endif // LLDB_SOURCE_PLUGINS_PROCESS_MACH_CORE_PROCESSMACHCORE_H

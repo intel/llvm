@@ -83,7 +83,7 @@ test0:
     i32.trunc_f32_s
     try         exnref
     i32.atomic.load 0
-    atomic.notify 0
+    memory.atomic.notify 0
 .LBB0_3:
     catch
     local.set   0
@@ -121,6 +121,13 @@ test0:
     .ident      "clang version 9.0.0 (trunk 364502) (llvm/trunk 364571)"
     .globaltype __stack_pointer, i32
 
+.tabletype empty_eref_table, externref
+empty_eref_table:       
+
+.tabletype empty_fref_table, funcref
+empty_fref_table:       
+
+        
 # CHECK:           .text
 # CHECK-LABEL: empty_func:
 # CHECK-NEXT:      .functype	empty_func () -> ()
@@ -194,7 +201,7 @@ test0:
 # CHECK-NEXT:      i32.trunc_f32_s
 # CHECK-NEXT:      try         exnref
 # CHECK-NEXT:      i32.atomic.load 0
-# CHECK-NEXT:      atomic.notify 0
+# CHECK-NEXT:      memory.atomic.notify 0
 # CHECK-NEXT:  .LBB0_3:
 # CHECK-NEXT:      catch
 # CHECK-NEXT:      local.set   0
@@ -228,3 +235,9 @@ test0:
 # CHECK-NEXT:      .int32      test0
 
 # CHECK:           .globaltype __stack_pointer, i32
+
+# CHECK:           .tabletype empty_eref_table, externref
+# CHECK-NEXT: empty_eref_table:
+        
+# CHECK:           .tabletype empty_fref_table, funcref
+# CHECK-NEXT: empty_fref_table:

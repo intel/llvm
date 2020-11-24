@@ -1751,9 +1751,15 @@ static ICmpInst::Predicate evaluateICmpRelation(Constant *V1, Constant *V2,
     case Instruction::FPToSI:
       break; // We can't evaluate floating point casts or truncations.
 
+    case Instruction::BitCast:
+      // If this is a global value cast, check to see if the RHS is also a
+      // GlobalValue.
+      if (const GlobalValue *GV = dyn_cast<GlobalValue>(CE1Op0))
+        if (const GlobalValue *GV2 = dyn_cast<GlobalValue>(V2))
+          return areGlobalsPotentiallyEqual(GV, GV2);
+      LLVM_FALLTHROUGH;
     case Instruction::UIToFP:
     case Instruction::SIToFP:
-    case Instruction::BitCast:
     case Instruction::ZExt:
     case Instruction::SExt:
       // We can't evaluate floating point casts or truncations.
@@ -2036,17 +2042,17 @@ Constant *llvm::ConstantFoldCompareInstruction(unsigned short pred,
     }
   } else if (auto *C1VTy = dyn_cast<VectorType>(C1->getType())) {
 
-    // Do not iterate on scalable vector. The number of elements is unknown at
-    // compile-time.
-    if (isa<ScalableVectorType>(C1VTy))
-      return nullptr;
-
     // Fast path for splatted constants.
     if (Constant *C1Splat = C1->getSplatValue())
       if (Constant *C2Splat = C2->getSplatValue())
         return ConstantVector::getSplat(
             C1VTy->getElementCount(),
             ConstantExpr::getCompare(pred, C1Splat, C2Splat));
+
+    // Do not iterate on scalable vector. The number of elements is unknown at
+    // compile-time.
+    if (isa<ScalableVectorType>(C1VTy))
+      return nullptr;
 
     // If we can constant fold the comparison of each element, constant fold
     // the whole vector comparison.

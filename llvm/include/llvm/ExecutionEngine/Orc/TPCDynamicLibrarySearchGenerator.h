@@ -20,7 +20,7 @@
 namespace llvm {
 namespace orc {
 
-class TPCDynamicLibrarySearchGenerator : public JITDylib::DefinitionGenerator {
+class TPCDynamicLibrarySearchGenerator : public DefinitionGenerator {
 public:
   using SymbolPredicate = unique_function<bool(const SymbolStringPtr &)>;
 
@@ -31,7 +31,7 @@ public:
   /// will be searched for. If the predicate is not given then all symbols will
   /// be searched for.
   TPCDynamicLibrarySearchGenerator(TargetProcessControl &TPC,
-                                   TargetProcessControl::DylibHandle H,
+                                   tpctypes::DylibHandle H,
                                    SymbolPredicate Allow = SymbolPredicate())
       : TPC(TPC), H(H), Allow(std::move(Allow)) {}
 
@@ -50,13 +50,13 @@ public:
     return Load(TPC, nullptr);
   }
 
-  Error tryToGenerate(LookupKind K, JITDylib &JD,
+  Error tryToGenerate(LookupState &LS, LookupKind K, JITDylib &JD,
                       JITDylibLookupFlags JDLookupFlags,
                       const SymbolLookupSet &Symbols) override;
 
 private:
   TargetProcessControl &TPC;
-  TargetProcessControl::DylibHandle H;
+  tpctypes::DylibHandle H;
   SymbolPredicate Allow;
 };
 

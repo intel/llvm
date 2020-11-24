@@ -2225,6 +2225,12 @@ bool ShuffleVectorInst::isExtractSubvectorMask(ArrayRef<int> Mask,
 bool ShuffleVectorInst::isIdentityWithPadding() const {
   if (isa<UndefValue>(Op<2>()))
     return false;
+
+  // FIXME: Not currently possible to express a shuffle mask for a scalable
+  // vector for this case.
+  if (isa<ScalableVectorType>(getType()))
+    return false;
+
   int NumOpElts = cast<FixedVectorType>(Op<0>()->getType())->getNumElements();
   int NumMaskElts = cast<FixedVectorType>(getType())->getNumElements();
   if (NumMaskElts <= NumOpElts)
@@ -2248,7 +2254,7 @@ bool ShuffleVectorInst::isIdentityWithExtract() const {
     return false;
 
   // FIXME: Not currently possible to express a shuffle mask for a scalable
-  // vector for this case
+  // vector for this case.
   if (isa<ScalableVectorType>(getType()))
     return false;
 
@@ -2654,6 +2660,7 @@ bool CastInst::isNoopCast(Instruction::CastOps Opcode,
                           Type *SrcTy,
                           Type *DestTy,
                           const DataLayout &DL) {
+  assert(castIsValid(Opcode, SrcTy, DestTy) && "method precondition");
   switch (Opcode) {
     default: llvm_unreachable("Invalid CastOp");
     case Instruction::Trunc:
@@ -3352,10 +3359,7 @@ CastInst::getCastOpcode(
 /// it in one place and to eliminate the redundant code for getting the sizes
 /// of the types involved.
 bool
-CastInst::castIsValid(Instruction::CastOps op, Value *S, Type *DstTy) {
-  // Check for type sanity on the arguments
-  Type *SrcTy = S->getType();
-
+CastInst::castIsValid(Instruction::CastOps op, Type *SrcTy, Type *DstTy) {
   if (!SrcTy->isFirstClassType() || !DstTy->isFirstClassType() ||
       SrcTy->isAggregateType() || DstTy->isAggregateType())
     return false;
@@ -3684,10 +3688,12 @@ bool CmpInst::isCommutative() const {
   return cast<FCmpInst>(this)->isCommutative();
 }
 
-bool CmpInst::isEquality() const {
-  if (const ICmpInst *IC = dyn_cast<ICmpInst>(this))
-    return IC->isEquality();
-  return cast<FCmpInst>(this)->isEquality();
+bool CmpInst::isEquality(Predicate P) {
+  if (ICmpInst::isIntPredicate(P))
+    return ICmpInst::isEquality(P);
+  if (FCmpInst::isFPPredicate(P))
+    return FCmpInst::isEquality(P);
+  llvm_unreachable("Unsupported predicate kind");
 }
 
 CmpInst::Predicate CmpInst::getInversePredicate(Predicate pred) {
@@ -3849,7 +3855,7 @@ CmpInst::Predicate CmpInst::getNonStrictPredicate(Predicate pred) {
 }
 
 CmpInst::Predicate CmpInst::getSignedPredicate(Predicate pred) {
-  assert(CmpInst::isUnsigned(pred) && "Call only with signed predicates!");
+  assert(CmpInst::isUnsigned(pred) && "Call only with unsigned predicates!");
 
   switch (pred) {
   default:
@@ -3862,6 +3868,23 @@ CmpInst::Predicate CmpInst::getSignedPredicate(Predicate pred) {
     return CmpInst::ICMP_SGT;
   case CmpInst::ICMP_UGE:
     return CmpInst::ICMP_SGE;
+  }
+}
+
+CmpInst::Predicate CmpInst::getUnsignedPredicate(Predicate pred) {
+  assert(CmpInst::isSigned(pred) && "Call only with signed predicates!");
+
+  switch (pred) {
+  default:
+    llvm_unreachable("Unknown predicate!");
+  case CmpInst::ICMP_SLT:
+    return CmpInst::ICMP_ULT;
+  case CmpInst::ICMP_SLE:
+    return CmpInst::ICMP_ULE;
+  case CmpInst::ICMP_SGT:
+    return CmpInst::ICMP_UGT;
+  case CmpInst::ICMP_SGE:
+    return CmpInst::ICMP_UGE;
   }
 }
 
@@ -3879,6 +3902,18 @@ bool CmpInst::isSigned(Predicate predicate) {
     case ICmpInst::ICMP_SLT: case ICmpInst::ICMP_SLE: case ICmpInst::ICMP_SGT:
     case ICmpInst::ICMP_SGE: return true;
   }
+}
+
+CmpInst::Predicate CmpInst::getFlippedSignednessPredicate(Predicate pred) {
+  assert(CmpInst::isRelational(pred) &&
+         "Call only with non-equality predicates!");
+
+  if (isSigned(pred))
+    return getUnsignedPredicate(pred);
+  if (isUnsigned(pred))
+    return getSignedPredicate(pred);
+
+  llvm_unreachable("Unknown predicate!");
 }
 
 bool CmpInst::isOrdered(Predicate predicate) {

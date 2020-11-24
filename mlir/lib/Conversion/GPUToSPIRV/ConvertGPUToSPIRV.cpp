@@ -15,7 +15,7 @@
 #include "mlir/Dialect/SPIRV/SPIRVLowering.h"
 #include "mlir/Dialect/SPIRV/SPIRVOps.h"
 #include "mlir/Dialect/SPIRV/TargetAndABI.h"
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 
 using namespace mlir;
 
@@ -34,7 +34,7 @@ public:
                   ConversionPatternRewriter &rewriter) const override;
 };
 
-/// Pattern lowering subgoup size/id to loading SPIR-V invocation
+/// Pattern lowering subgroup size/id to loading SPIR-V invocation
 /// builtin variables.
 template <typename SourceOp, spirv::BuiltIn builtin>
 class SingleDimLaunchConfigConversion : public SPIRVOpLowering<SourceOp> {
@@ -330,7 +330,7 @@ namespace {
 void mlir::populateGPUToSPIRVPatterns(MLIRContext *context,
                                       SPIRVTypeConverter &typeConverter,
                                       OwningRewritePatternList &patterns) {
-  populateWithGenerated(context, &patterns);
+  populateWithGenerated(context, patterns);
   patterns.insert<
       GPUFuncOpConversion, GPUModuleConversion, GPUReturnOpConversion,
       LaunchConfigConversion<gpu::BlockIdOp, spirv::BuiltIn::WorkgroupId>,

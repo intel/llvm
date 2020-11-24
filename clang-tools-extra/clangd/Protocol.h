@@ -25,6 +25,7 @@
 
 #include "URI.h"
 #include "index/SymbolID.h"
+#include "support/MemoryTree.h"
 #include "clang/Index/IndexSymbol.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/Support/JSON.h"
@@ -862,8 +863,19 @@ struct PublishDiagnosticsParams {
 llvm::json::Value toJSON(const PublishDiagnosticsParams &);
 
 struct CodeActionContext {
-  /// An array of diagnostics.
+  /// An array of diagnostics known on the client side overlapping the range
+  /// provided to the `textDocument/codeAction` request. They are provided so
+  /// that the server knows which errors are currently presented to the user for
+  /// the given range. There is no guarantee that these accurately reflect the
+  /// error state of the resource. The primary parameter to compute code actions
+  /// is the provided range.
   std::vector<Diagnostic> diagnostics;
+
+  /// Requested kind of actions to return.
+  ///
+  /// Actions not of this kind are filtered out by the client before being
+  /// shown. So servers can omit computing them.
+  std::vector<std::string> only;
 };
 bool fromJSON(const llvm::json::Value &, CodeActionContext &, llvm::json::Path);
 
@@ -1015,6 +1027,14 @@ struct SymbolInformation {
 
   /// The name of the symbol containing this symbol.
   std::string containerName;
+
+  /// The score that clangd calculates to rank the returned symbols.
+  /// This excludes the fuzzy-matching score between `name` and the query.
+  /// (Specifically, the last ::-separated component).
+  /// This can be used to re-rank results as the user types, using client-side
+  /// fuzzy-matching (that score should be multiplied with this one).
+  /// This is a clangd extension, set only for workspace/symbol responses.
+  llvm::Optional<float> score;
 };
 llvm::json::Value toJSON(const SymbolInformation &);
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, const SymbolInformation &);
@@ -1033,7 +1053,7 @@ struct SymbolDetails {
   /// (See USRGeneration.h)
   std::string USR;
 
-  llvm::Optional<SymbolID> ID;
+  SymbolID ID;
 };
 llvm::json::Value toJSON(const SymbolDetails &);
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, const SymbolDetails &);
@@ -1175,11 +1195,11 @@ struct CompletionItem {
   /// Indicates if this item is deprecated.
   bool deprecated = false;
 
-  /// This is Clangd extension.
-  /// The score that Clangd calculates to rank completion items. This score can
-  /// be used to adjust the ranking on the client side.
-  /// NOTE: This excludes fuzzy matching score which is typically calculated on
-  /// the client side.
+  /// The score that clangd calculates to rank the returned completions.
+  /// This excludes the fuzzy-match between `filterText` and the partial word.
+  /// This can be used to re-rank results as the user types, using client-side
+  /// fuzzy-matching (that score should be multiplied with this one).
+  /// This is a clangd extension.
   float score = 0.f;
 
   // TODO: Add custom commitCharacters for some of the completion items. For
@@ -1355,7 +1375,7 @@ struct TypeHierarchyItem {
   /// descendants. If not defined, the children have not been resolved.
   llvm::Optional<std::vector<TypeHierarchyItem>> children;
 
-  /// An optional 'data' filed, which can be used to identify a type hierarchy
+  /// An optional 'data' field, which can be used to identify a type hierarchy
   /// item in a resolve request.
   llvm::Optional<std::string> data;
 };
@@ -1376,6 +1396,83 @@ struct ResolveTypeHierarchyItemParams {
 };
 bool fromJSON(const llvm::json::Value &, ResolveTypeHierarchyItemParams &,
               llvm::json::Path);
+
+enum class SymbolTag { Deprecated = 1 };
+llvm::json::Value toJSON(SymbolTag);
+
+/// The parameter of a `textDocument/prepareCallHierarchy` request.
+struct CallHierarchyPrepareParams : public TextDocumentPositionParams {};
+
+/// Represents programming constructs like functions or constructors
+/// in the context of call hierarchy.
+struct CallHierarchyItem {
+  /// The name of this item.
+  std::string name;
+
+  /// The kind of this item.
+  SymbolKind kind;
+
+  /// Tags for this item.
+  std::vector<SymbolTag> tags;
+
+  /// More detaill for this item, e.g. the signature of a function.
+  std::string detail;
+
+  /// The resource identifier of this item.
+  URIForFile uri;
+
+  /// The range enclosing this symbol not including leading / trailing
+  /// whitespace but everything else, e.g. comments and code.
+  Range range;
+
+  /// The range that should be selected and revealed when this symbol
+  /// is being picked, e.g. the name of a function.
+  /// Must be contained by `Rng`.
+  Range selectionRange;
+
+  /// An optional 'data' field, which can be used to identify a call
+  /// hierarchy item in an incomingCalls or outgoingCalls request.
+  std::string data;
+};
+llvm::json::Value toJSON(const CallHierarchyItem &);
+bool fromJSON(const llvm::json::Value &, CallHierarchyItem &, llvm::json::Path);
+
+/// The parameter of a `callHierarchy/incomingCalls` request.
+struct CallHierarchyIncomingCallsParams {
+  CallHierarchyItem item;
+};
+bool fromJSON(const llvm::json::Value &, CallHierarchyIncomingCallsParams &,
+              llvm::json::Path);
+
+/// Represents an incoming call, e.g. a caller of a method or constructor.
+struct CallHierarchyIncomingCall {
+  /// The item that makes the call.
+  CallHierarchyItem from;
+
+  /// The range at which the calls appear.
+  /// This is relative to the caller denoted by `From`.
+  std::vector<Range> fromRanges;
+};
+llvm::json::Value toJSON(const CallHierarchyIncomingCall &);
+
+/// The parameter of a `callHierarchy/outgoingCalls` request.
+struct CallHierarchyOutgoingCallsParams {
+  CallHierarchyItem item;
+};
+bool fromJSON(const llvm::json::Value &, CallHierarchyOutgoingCallsParams &,
+              llvm::json::Path);
+
+/// Represents an outgoing call, e.g. calling a getter from a method or
+/// a method from a constructor etc.
+struct CallHierarchyOutgoingCall {
+  /// The item that is called.
+  CallHierarchyItem to;
+
+  /// The range at which this item is called.
+  /// This is the range relative to the caller, and not `To`.
+  std::vector<Range> fromRanges;
+};
+llvm::json::Value toJSON(const CallHierarchyOutgoingCall &);
 
 struct ReferenceParams : public TextDocumentPositionParams {
   // For now, no options like context.includeDeclaration are supported.
@@ -1567,6 +1664,66 @@ struct FoldingRange {
   llvm::Optional<std::string> kind;
 };
 llvm::json::Value toJSON(const FoldingRange &Range);
+
+/// Keys starting with an underscore(_) represent leaves, e.g. _total or _self
+/// for memory usage of whole subtree or only that specific node in bytes. All
+/// other keys represents children. An example:
+///   {
+///     "_self": 0,
+///     "_total": 8,
+///     "child1": {
+///       "_self": 4,
+///       "_total": 4,
+///     }
+///     "child2": {
+///       "_self": 2,
+///       "_total": 4,
+///       "child_deep": {
+///         "_self": 2,
+///         "_total": 2,
+///       }
+///     }
+///   }
+llvm::json::Value toJSON(const MemoryTree &MT);
+
+/// Payload for textDocument/ast request.
+/// This request is a clangd extension.
+struct ASTParams {
+  /// The text document.
+  TextDocumentIdentifier textDocument;
+
+  /// The position of the node to be dumped.
+  /// The highest-level node that entirely contains the range will be returned.
+  Range range;
+};
+bool fromJSON(const llvm::json::Value &, ASTParams &, llvm::json::Path);
+
+/// Simplified description of a clang AST node.
+/// This is clangd's internal representation of C++ code.
+struct ASTNode {
+  /// The general kind of node, such as "expression"
+  /// Corresponds to the base AST node type such as Expr.
+  std::string role;
+  /// The specific kind of node this is, such as "BinaryOperator".
+  /// This is usually a concrete node class (with Expr etc suffix dropped).
+  /// When there's no hierarchy (e.g. TemplateName), the variant (NameKind).
+  std::string kind;
+  /// Brief additional information, such as "||" for the particular operator.
+  /// The information included depends on the node kind, and may be empty.
+  std::string detail;
+  /// A one-line dump of detailed information about the node.
+  /// This includes role/kind/description information, but is rather cryptic.
+  /// It is similar to the output from `clang -Xclang -ast-dump`.
+  /// May be empty for certain types of nodes.
+  std::string arcana;
+  /// The range of the original source file covered by this node.
+  /// May be missing for implicit nodes, or those created by macro expansion.
+  llvm::Optional<Range> range;
+  /// Nodes nested within this one, such as the operands of a BinaryOperator.
+  std::vector<ASTNode> children;
+};
+llvm::json::Value toJSON(const ASTNode &);
+llvm::raw_ostream &operator<<(llvm::raw_ostream &, const ASTNode &);
 
 } // namespace clangd
 } // namespace clang

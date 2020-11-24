@@ -33,7 +33,7 @@ FormatTokenLexer::FormatTokenLexer(
       Encoding(Encoding), Allocator(Allocator), FirstInLineIndex(0),
       FormattingDisabled(false), MacroBlockBeginRegex(Style.MacroBlockBegin),
       MacroBlockEndRegex(Style.MacroBlockEnd) {
-  Lex.reset(new Lexer(ID, SourceMgr.getBuffer(ID), SourceMgr,
+  Lex.reset(new Lexer(ID, SourceMgr.getBufferOrFake(ID), SourceMgr,
                       getFormattingLangOpts(Style)));
   Lex->SetKeepWhitespaceMode(true);
 
@@ -121,6 +121,10 @@ void FormatTokenLexer::tryMergePreviousTokens() {
                                                                tok::period};
     static const tok::TokenKind JSNullishOperator[] = {tok::question,
                                                        tok::question};
+    static const tok::TokenKind JSNullishEqual[] = {tok::question,
+                                                    tok::question, tok::equal};
+    static const tok::TokenKind JSPipePipeEqual[] = {tok::pipepipe, tok::equal};
+    static const tok::TokenKind JSAndAndEqual[] = {tok::ampamp, tok::equal};
 
     // FIXME: Investigate what token type gives the correct operator priority.
     if (tryMergeTokens(JSIdentity, TT_BinaryOperator))
@@ -146,6 +150,13 @@ void FormatTokenLexer::tryMergePreviousTokens() {
                        TT_JsNullPropagatingOperator)) {
       // Treat like a regular "." access.
       Tokens.back()->Tok.setKind(tok::period);
+      return;
+    }
+    if (tryMergeTokens(JSAndAndEqual, TT_JsAndAndEqual) ||
+        tryMergeTokens(JSPipePipeEqual, TT_JsPipePipeEqual) ||
+        tryMergeTokens(JSNullishEqual, TT_JsNullishCoalescingEqual)) {
+      // Treat like the "=" assignment operator.
+      Tokens.back()->Tok.setKind(tok::equal);
       return;
     }
     if (tryMergeJSPrivateIdentifier())
@@ -763,7 +774,7 @@ bool FormatTokenLexer::tryMergeConflictMarkers() {
   unsigned FirstInLineOffset;
   std::tie(ID, FirstInLineOffset) = SourceMgr.getDecomposedLoc(
       Tokens[FirstInLineIndex]->getStartOfNonWhitespace());
-  StringRef Buffer = SourceMgr.getBuffer(ID)->getBuffer();
+  StringRef Buffer = SourceMgr.getBufferOrFake(ID).getBuffer();
   // Calculate the offset of the start of the current line.
   auto LineOffset = Buffer.rfind('\n', FirstInLineOffset);
   if (LineOffset == StringRef::npos) {

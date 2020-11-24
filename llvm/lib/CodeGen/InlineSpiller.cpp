@@ -153,7 +153,7 @@ public:
                             unsigned Original);
   bool rmFromMergeableSpills(MachineInstr &Spill, int StackSlot);
   void hoistAllSpills();
-  void LRE_DidCloneVirtReg(unsigned, unsigned) override;
+  void LRE_DidCloneVirtReg(Register, Register) override;
 };
 
 class InlineSpiller : public Spiller {
@@ -881,7 +881,7 @@ foldMemoryOperand(ArrayRef<std::pair<MachineInstr *, unsigned>> Ops,
     // FoldMI does not define this physreg. Remove the LI segment.
     assert(MO->isDead() && "Cannot fold physreg def");
     SlotIndex Idx = LIS.getInstructionIndex(*MI).getRegSlot();
-    LIS.removePhysRegDefAt(Reg, Idx);
+    LIS.removePhysRegDefAt(Reg.asMCReg(), Idx);
   }
 
   int FI;
@@ -1551,7 +1551,7 @@ void HoistSpillHelper::hoistAllSpills() {
 
 /// For VirtReg clone, the \p New register should have the same physreg or
 /// stackslot as the \p old register.
-void HoistSpillHelper::LRE_DidCloneVirtReg(unsigned New, unsigned Old) {
+void HoistSpillHelper::LRE_DidCloneVirtReg(Register New, Register Old) {
   if (VRM.hasPhys(Old))
     VRM.assignVirt2Phys(New, VRM.getPhys(Old));
   else if (VRM.getStackSlot(Old) != VirtRegMap::NO_STACK_SLOT)

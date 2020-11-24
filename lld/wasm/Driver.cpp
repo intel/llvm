@@ -252,8 +252,15 @@ void LinkerDriver::addFile(StringRef path) {
 
     // Handle -whole-archive.
     if (inWholeArchive) {
-      for (MemoryBufferRef &m : getArchiveMembers(mbref))
-        files.push_back(createObjectFile(m, path));
+      for (MemoryBufferRef &m : getArchiveMembers(mbref)) {
+        auto *object = createObjectFile(m, path);
+        // Mark object as live; object members are normally not
+        // live by default but -whole-archive is designed to treat
+        // them as such.
+        object->markLive();
+        files.push_back(object);
+      }
+
       return;
     }
 
@@ -324,9 +331,36 @@ static StringRef getEntry(opt::InputArgList &args) {
   return arg->getValue();
 }
 
+// Determines what we should do if there are remaining unresolved
+// symbols after the name resolution.
+static UnresolvedPolicy getUnresolvedSymbolPolicy(opt::InputArgList &args) {
+  UnresolvedPolicy errorOrWarn = args.hasFlag(OPT_error_unresolved_symbols,
+                                              OPT_warn_unresolved_symbols, true)
+                                     ? UnresolvedPolicy::ReportError
+                                     : UnresolvedPolicy::Warn;
+
+  if (auto *arg = args.getLastArg(OPT_unresolved_symbols)) {
+    StringRef s = arg->getValue();
+    if (s == "ignore-all")
+      return UnresolvedPolicy::Ignore;
+    if (s == "import-functions")
+      return UnresolvedPolicy::ImportFuncs;
+    if (s == "report-all")
+      return errorOrWarn;
+    error("unknown --unresolved-symbols value: " + s);
+  }
+
+  // Legacy --allow-undefined flag which is equivalent to
+  // --unresolve-symbols=ignore-all
+  if (args.hasArg(OPT_allow_undefined))
+    return UnresolvedPolicy::ImportFuncs;
+
+  return errorOrWarn;
+}
+
 // Initializes Config members by the command line options.
 static void readConfigs(opt::InputArgList &args) {
-  config->allowUndefined = args.hasArg(OPT_allow_undefined);
+  config->bsymbolic = args.hasArg(OPT_Bsymbolic);
   config->checkFeatures =
       args.hasFlag(OPT_check_features, OPT_no_check_features, true);
   config->compressRelocations = args.hasArg(OPT_compress_relocations);
@@ -368,6 +402,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->thinLTOCachePolicy = CHECK(
       parseCachePruningPolicy(args.getLastArgValue(OPT_thinlto_cache_policy)),
       "--thinlto-cache-policy: invalid cache policy");
+  config->unresolvedSymbols = getUnresolvedSymbolPolicy(args);
   errorHandler().verbose = args.hasArg(OPT_verbose);
   LLVM_DEBUG(errorHandler().verbose = true);
 
@@ -432,7 +467,7 @@ static void setConfigs() {
 
   if (config->shared) {
     config->importMemory = true;
-    config->allowUndefined = true;
+    config->unresolvedSymbols = UnresolvedPolicy::ImportFuncs;
   }
 }
 
@@ -490,6 +525,10 @@ static void checkOptions(opt::InputArgList &args) {
       warn("creating PIEs, with -pie, is not yet stable");
     }
   }
+
+  if (config->bsymbolic && !config->shared) {
+    warn("-Bsymbolic is only meaningful when combined with -shared");
+  }
 }
 
 // Force Sym to be entered in the output. Used for -u or equivalent.
@@ -529,21 +568,30 @@ createUndefinedGlobal(StringRef name, llvm::wasm::WasmGlobalType *type) {
   return sym;
 }
 
-static GlobalSymbol *createGlobalVariable(StringRef name, bool isMutable,
-                                          int value) {
+static InputGlobal *createGlobal(StringRef name, bool isMutable) {
   llvm::wasm::WasmGlobal wasmGlobal;
   if (config->is64.getValueOr(false)) {
     wasmGlobal.Type = {WASM_TYPE_I64, isMutable};
-    wasmGlobal.InitExpr.Value.Int64 = value;
     wasmGlobal.InitExpr.Opcode = WASM_OPCODE_I64_CONST;
+    wasmGlobal.InitExpr.Value.Int64 = 0;
   } else {
     wasmGlobal.Type = {WASM_TYPE_I32, isMutable};
-    wasmGlobal.InitExpr.Value.Int32 = value;
     wasmGlobal.InitExpr.Opcode = WASM_OPCODE_I32_CONST;
+    wasmGlobal.InitExpr.Value.Int32 = 0;
   }
   wasmGlobal.SymbolName = name;
-  return symtab->addSyntheticGlobal(name, WASM_SYMBOL_VISIBILITY_HIDDEN,
-                                    make<InputGlobal>(wasmGlobal, nullptr));
+  return make<InputGlobal>(wasmGlobal, nullptr);
+}
+
+static GlobalSymbol *createGlobalVariable(StringRef name, bool isMutable) {
+  InputGlobal *g = createGlobal(name, isMutable);
+  return symtab->addSyntheticGlobal(name, WASM_SYMBOL_VISIBILITY_HIDDEN, g);
+}
+
+static GlobalSymbol *createOptionalGlobal(StringRef name, bool isMutable) {
+  InputGlobal *g = createGlobal(name, isMutable);
+  return symtab->addOptionalGlobalSymbols(name, WASM_SYMBOL_VISIBILITY_HIDDEN,
+                                          g);
 }
 
 // Create ABI-defined synthetic symbols
@@ -590,7 +638,7 @@ static void createSyntheticSymbols() {
     WasmSym::tableBase->markLive();
   } else {
     // For non-PIC code
-    WasmSym::stackPointer = createGlobalVariable("__stack_pointer", true, 0);
+    WasmSym::stackPointer = createGlobalVariable("__stack_pointer", true);
     WasmSym::stackPointer->markLive();
   }
 
@@ -604,9 +652,9 @@ static void createSyntheticSymbols() {
     WasmSym::initMemoryFlag = symtab->addSyntheticDataSymbol(
         "__wasm_init_memory_flag", WASM_SYMBOL_VISIBILITY_HIDDEN);
     assert(WasmSym::initMemoryFlag);
-    WasmSym::tlsBase = createGlobalVariable("__tls_base", true, 0);
-    WasmSym::tlsSize = createGlobalVariable("__tls_size", false, 0);
-    WasmSym::tlsAlign = createGlobalVariable("__tls_align", false, 1);
+    WasmSym::tlsBase = createGlobalVariable("__tls_base", true);
+    WasmSym::tlsSize = createGlobalVariable("__tls_size", false);
+    WasmSym::tlsAlign = createGlobalVariable("__tls_align", false);
     WasmSym::initTLS = symtab->addSyntheticFunction(
         "__wasm_init_tls", WASM_SYMBOL_VISIBILITY_HIDDEN,
         make<SyntheticFunction>(
@@ -630,6 +678,18 @@ static void createOptionalSymbols() {
     WasmSym::definedMemoryBase = symtab->addOptionalDataSymbol("__memory_base");
     WasmSym::definedTableBase = symtab->addOptionalDataSymbol("__table_base");
   }
+
+  // For non-shared memory programs we still need to define __tls_base since we
+  // allow object files built with TLS to be linked into single threaded
+  // programs, and such object files can contains refernced to this symbol.
+  //
+  // However, in this case __tls_base is immutable and points directly to the
+  // start of the `.tdata` static segment.
+  //
+  // __tls_size and __tls_align are not needed in this case since they are only
+  // needed for __wasm_init_tls (which we do not create in this case).
+  if (!config->sharedMemory)
+    WasmSym::tlsBase = createOptionalGlobal("__tls_base", false);
 }
 
 // Reconstructs command line arguments so that so that you can re-run
@@ -906,9 +966,11 @@ void LinkerDriver::link(ArrayRef<const char *> argsArr) {
     Symbol *sym = symtab->find(arg->getValue());
     if (sym && sym->isDefined())
       sym->forceExport = true;
-    else if (!config->allowUndefined)
+    else if (config->unresolvedSymbols == UnresolvedPolicy::ReportError)
       error(Twine("symbol exported via --export not found: ") +
             arg->getValue());
+    else if (config->unresolvedSymbols == UnresolvedPolicy::Warn)
+      warn(Twine("symbol exported via --export not found: ") + arg->getValue());
   }
 
   if (!config->relocatable) {

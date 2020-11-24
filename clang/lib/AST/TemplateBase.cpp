@@ -288,10 +288,13 @@ bool TemplateArgument::structurallyEquals(const TemplateArgument &Other) const {
   case Null:
   case Type:
   case Expression:
-  case Template:
-  case TemplateExpansion:
   case NullPtr:
     return TypeOrValue.V == Other.TypeOrValue.V;
+
+  case Template:
+  case TemplateExpansion:
+    return TemplateArg.Name == Other.TemplateArg.Name &&
+           TemplateArg.NumExpansions == Other.TemplateArg.NumExpansions;
 
   case Declaration:
     return getAsDecl() == Other.getAsDecl();
@@ -352,6 +355,13 @@ void TemplateArgument::print(const PrintingPolicy &Policy,
 
   case Declaration: {
     NamedDecl *ND = getAsDecl();
+    if (getParamTypeForDecl()->isRecordType()) {
+      if (auto *TPO = dyn_cast<TemplateParamObjectDecl>(ND)) {
+        // FIXME: Include the type if it's not obvious from the context.
+        TPO->printAsInit(Out);
+        break;
+      }
+    }
     if (!getParamTypeForDecl()->isReferenceType())
       Out << '&';
     ND->printQualifiedName(Out);
@@ -448,8 +458,8 @@ SourceRange TemplateArgumentLoc::getSourceRange() const {
   llvm_unreachable("Invalid TemplateArgument Kind!");
 }
 
-const DiagnosticBuilder &clang::operator<<(const DiagnosticBuilder &DB,
-                                           const TemplateArgument &Arg) {
+template <typename T>
+static const T &DiagTemplateArg(const T &DB, const TemplateArgument &Arg) {
   switch (Arg.getKind()) {
   case TemplateArgument::Null:
     // This is bad, but not as bad as crashing because of argument
@@ -500,6 +510,11 @@ const DiagnosticBuilder &clang::operator<<(const DiagnosticBuilder &DB,
   }
 
   llvm_unreachable("Invalid TemplateArgument Kind!");
+}
+
+const StreamingDiagnostic &clang::operator<<(const StreamingDiagnostic &DB,
+                                             const TemplateArgument &Arg) {
+  return DiagTemplateArg(DB, Arg);
 }
 
 clang::TemplateArgumentLocInfo::TemplateArgumentLocInfo(

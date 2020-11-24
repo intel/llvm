@@ -1,5 +1,7 @@
 // RUN: llvm-mc -arch=amdgcn -mcpu=gfx1030 -show-encoding %s | FileCheck --check-prefix=GFX10 %s
 // RUN: llvm-mc -arch=amdgcn -mcpu=gfx1031 -show-encoding %s | FileCheck --check-prefix=GFX10 %s
+// RUN: llvm-mc -arch=amdgcn -mcpu=gfx1032 -show-encoding %s | FileCheck --check-prefix=GFX10 %s
+// RUN: llvm-mc -arch=amdgcn -mcpu=gfx1033 -show-encoding %s | FileCheck --check-prefix=GFX10 %s
 
 global_load_dword_addtid v1, s[2:3] offset:16
 // GFX10: encoding: [0x10,0x80,0x58,0xdc,0x00,0x00,0x02,0x01]
@@ -16,10 +18,10 @@ global_store_dword v254, v1, s[2:3] offset:16
 global_atomic_csub v2, v[0:1], v2, off offset:100 glc slc
 // GFX10: encoding: [0x64,0x80,0xd3,0xdc,0x00,0x02,0x7d,0x02]
 
-global_atomic_csub v2, v[0:1], v2, off
+global_atomic_csub v2, v[0:1], v2, off glc
 // GFX10: encoding: [0x00,0x80,0xd1,0xdc,0x00,0x02,0x7d,0x02]
 
-global_atomic_csub v2, v0, v2, s[2:3]
+global_atomic_csub v2, v0, v2, s[2:3] glc
 // GFX10: encoding: [0x00,0x80,0xd1,0xdc,0x00,0x02,0x02,0x02]
 
 global_atomic_csub v2, v0, v2, s[2:3] offset:100 glc slc
@@ -60,6 +62,15 @@ v_fma_legacy_f32 v0, v1, |v2|, -v3
 
 v_fma_legacy_f32 v0, s1, 2.0, -v3
 // GFX10: encoding: [0x00,0x00,0x40,0xd5,0x01,0xe8,0x0d,0x84]
+
+v_fmac_legacy_f32 v0, v1, v2
+// GFX10: encoding: [0x01,0x05,0x00,0x0c]
+
+v_fmac_legacy_f32 v0, |v1|, -v2
+// GFX10: encoding: [0x00,0x01,0x06,0xd5,0x01,0x05,0x02,0x40]
+
+v_fmac_legacy_f32 v0, s1, 2.0
+// GFX10: encoding: [0x00,0x00,0x06,0xd5,0x01,0xe8,0x01,0x00]
 
 image_bvh_intersect_ray v[4:7], v[9:24], s[4:7]
 // GFX10: encoding: [0x01,0x9f,0x98,0xf1,0x09,0x04,0x01,0x00]

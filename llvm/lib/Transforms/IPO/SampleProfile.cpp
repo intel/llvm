@@ -79,7 +79,6 @@
 #include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Utils/CallPromotionUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
-#include "llvm/Transforms/Utils/MisExpect.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -1141,10 +1140,7 @@ bool SampleProfileLoader::inlineHotFunctions(
         // top-down processing of functions' annotation.
         FunctionSamples *OutlineFS = Reader->getOrCreateSamplesFor(*Callee);
         OutlineFS->merge(*FS);
-      } else
-        assert(FS->getHeadSamples() == FS->getEntrySamples() &&
-               "Expect same head and entry sample counts for profiles already "
-               "merged.");
+      }
     } else {
       auto pair =
           notInlinedCallInfo.try_emplace(Callee, NotInlinedProfileInfo{0});
@@ -1628,8 +1624,6 @@ void SampleProfileLoader::propagateWeights(Function &F) {
         }
       }
     }
-
-    misexpect::verifyMisExpect(TI, Weights, TI->getContext());
 
     uint64_t TempWeight;
     // Only set weights if there is at least one non-zero weight.

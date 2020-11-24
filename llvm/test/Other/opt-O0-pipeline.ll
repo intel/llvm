@@ -2,6 +2,9 @@
 
 ; REQUIRES: asserts
 
+; Suppress FileCheck --allow-unused-prefixes=false diagnostics.
+; CHECK-NOEXT: {{^}}
+
 ; CHECK-LABEL: Pass Arguments:
 ; CHECK-NEXT: Target Transform Information
 ; CHECK-NEXT:   FunctionPass Manager
@@ -15,6 +18,7 @@
 ; CHECK:      Assumption Cache Tracker
 ; CHECK-NEXT: Profile summary info
 ; CHECK-NEXT:   ModulePass Manager
+; CHECK-NEXT:     Annotation2Metadata
 ; CHECK-NEXT:     Force set function attributes
 ; CHECK-NEXT:     CallGraph Construction
 ; CHECK-NEXT:     Call Graph SCC Pass Manager

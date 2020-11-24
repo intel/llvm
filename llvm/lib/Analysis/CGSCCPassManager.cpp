@@ -21,9 +21,11 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PassManagerImpl.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/TimeProfiler.h"
+#include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
 #include <iterator>
@@ -35,6 +37,11 @@ using namespace llvm;
 // Explicit template instantiations and specialization definitions for core
 // template typedefs.
 namespace llvm {
+
+static cl::opt<bool> AbortOnMaxDevirtIterationsReached(
+    "abort-on-max-devirt-iterations-reached",
+    cl::desc("Abort when the max iterations for devirtualization CGSCC repeat "
+             "pass is reached"));
 
 // Explicit instantiations for the core proxy templates.
 template class AllAnalysesOn<LazyCallGraph::SCC>;
@@ -362,6 +369,11 @@ static void updateNewSCCFunctionAnalyses(LazyCallGraph::SCC &C,
   }
 }
 
+void llvm::maxDevirtIterationsReached() {
+  if (AbortOnMaxDevirtIterationsReached)
+    report_fatal_error("Max devirtualization iterations reached");
+}
+
 /// Helper function to update both the \c CGSCCAnalysisManager \p AM and the \c
 /// CGSCCPassManager's \c CGSCCUpdateResult \p UR based on a range of newly
 /// added SCCs.
@@ -490,9 +502,9 @@ static LazyCallGraph::SCC &updateCGAndAnalysisManagerForPass(
   // Now walk all references.
   for (Instruction &I : instructions(F))
     for (Value *Op : I.operand_values())
-      if (auto *C = dyn_cast<Constant>(Op))
-        if (Visited.insert(C).second)
-          Worklist.push_back(C);
+      if (auto *OpC = dyn_cast<Constant>(Op))
+        if (Visited.insert(OpC).second)
+          Worklist.push_back(OpC);
 
   auto VisitRef = [&](Function &Referee) {
     Node *RefereeN = G.lookup(Referee);
@@ -537,15 +549,17 @@ static LazyCallGraph::SCC &updateCGAndAnalysisManagerForPass(
     // TODO: This only allows trivial edges to be added for now.
     assert((RC == &TargetRC ||
            RC->isAncestorOf(TargetRC)) && "New call edge is not trivial!");
-    RC->insertTrivialCallEdge(N, *CallTarget);
+    // Add a trivial ref edge to be promoted later on alongside
+    // PromotedRefTargets.
+    RC->insertTrivialRefEdge(N, *CallTarget);
   }
 
   // Include synthetic reference edges to known, defined lib functions.
-  for (auto *F : G.getLibFunctions())
+  for (auto *LibFn : G.getLibFunctions())
     // While the list of lib functions doesn't have repeats, don't re-visit
     // anything handled above.
-    if (!Visited.count(F))
-      VisitRef(*F);
+    if (!Visited.count(LibFn))
+      VisitRef(*LibFn);
 
   // First remove all of the edges that are no longer present in this function.
   // The first step makes these edges uniformly ref edges and accumulates them
@@ -651,6 +665,11 @@ static LazyCallGraph::SCC &updateCGAndAnalysisManagerForPass(
     C = incorporateNewSCCRange(RC->switchInternalEdgeToRef(N, *RefTarget), G, N,
                                C, AM, UR);
   }
+
+  // We added a ref edge earlier for new call edges, promote those to call edges
+  // alongside PromotedRefTargets.
+  for (Node *E : NewCallEdges)
+    PromotedRefTargets.insert(E);
 
   // Now promote ref edges into call edges.
   for (Node *CallTarget : PromotedRefTargets) {

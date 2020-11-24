@@ -262,6 +262,12 @@ public:
     return Options.FunctionSections;
   }
 
+  /// Return true if visibility attribute should not be emitted in xcoff,
+  /// corresponding to -mignore-xcoff-visibility.
+  bool getIgnoreXCOFFVisibility() const {
+    return Options.IgnoreXCOFFVisibility;
+  }
+
   /// If basic blocks should be emitted into their own section,
   /// corresponding to -fbasic-block-sections.
   llvm::BasicBlockSection getBBSectionsType() const {
@@ -277,6 +283,14 @@ public:
   virtual bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const {
     return false;
   }
+
+  /// If the specified generic pointer could be assumed as a pointer to a
+  /// specific address space, return that address space.
+  ///
+  /// Under offloading programming, the offloading target may be passed with
+  /// values only prepared on the host side and could assume certain
+  /// properties.
+  virtual unsigned getAssumedAddrSpace(const Value *V) const { return -1; }
 
   /// Get a \c TargetIRAnalysis appropriate for the target.
   ///

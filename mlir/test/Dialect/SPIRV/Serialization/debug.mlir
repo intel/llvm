@@ -1,4 +1,4 @@
-// RUN: mlir-translate -test-spirv-roundtrip-debug -mlir-print-debuginfo %s | FileCheck %s
+// RUN: mlir-translate -test-spirv-roundtrip-debug -mlir-print-debuginfo -mlir-print-local-scope %s | FileCheck %s
 
 spv.module Logical GLSL450 requires #spv.vce<v1.0, [Shader], []> {
   // CHECK: loc({{".*debug.mlir"}}:5:3)
@@ -29,9 +29,9 @@ spv.module Logical GLSL450 requires #spv.vce<v1.0, [Shader], []> {
     spv.Return
   }
 
-  spv.func @composite(%arg0 : !spv.struct<f32, !spv.struct<!spv.array<4xf32>, f32>>, %arg1: !spv.array<4xf32>, %arg2 : f32, %arg3 : f32) "None" {
+  spv.func @composite(%arg0 : !spv.struct<(f32, !spv.struct<(!spv.array<4xf32>, f32)>)>, %arg1: !spv.array<4xf32>, %arg2 : f32, %arg3 : f32) "None" {
     // CHECK: loc({{".*debug.mlir"}}:34:10)
-    %0 = spv.CompositeInsert %arg1, %arg0[1 : i32, 0 : i32] : !spv.array<4xf32> into !spv.struct<f32, !spv.struct<!spv.array<4xf32>, f32>>
+    %0 = spv.CompositeInsert %arg1, %arg0[1 : i32, 0 : i32] : !spv.array<4xf32> into !spv.struct<(f32, !spv.struct<(!spv.array<4xf32>, f32)>)>
     // CHECK: loc({{".*debug.mlir"}}:36:10)
     %1 = spv.CompositeConstruct %arg2, %arg3 : vector<2xf32>
     spv.Return
@@ -101,7 +101,7 @@ spv.module Logical GLSL450 requires #spv.vce<v1.0, [Shader], []> {
         spv.Branch ^header
       ^merge:
         // CHECK: loc({{".*debug.mlir"}}:85:7)
-        spv._merge
+        spv.mlir.merge
         // CHECK: loc({{".*debug.mlir"}}:85:7)
       }
       // CHECK: loc({{".*debug.mlir"}}:108:7)
@@ -114,7 +114,7 @@ spv.module Logical GLSL450 requires #spv.vce<v1.0, [Shader], []> {
       spv.Branch ^header
     ^merge:
       // CHECK: loc({{".*debug.mlir"}}:75:5)
-      spv._merge
+      spv.mlir.merge
     // CHECK: loc({{".*debug.mlir"}}:75:5)
     }
     spv.Return
@@ -138,7 +138,7 @@ spv.module Logical GLSL450 requires #spv.vce<v1.0, [Shader], []> {
       spv.Branch ^merge
     ^merge:
       // CHECK: loc({{".*debug.mlir"}}:128:5)
-      spv._merge
+      spv.mlir.merge
     // CHECK: loc({{".*debug.mlir"}}:128:5)
     }
     spv.Return

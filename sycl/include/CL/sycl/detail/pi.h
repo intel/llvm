@@ -35,8 +35,8 @@
 //   pi_device_binary_property_set PropertySetsEnd;
 // 2. A number of types needed to define pi_device_binary_property_set added.
 //
-#define _PI_H_VERSION_MAJOR 1
-#define _PI_H_VERSION_MINOR 2
+#define _PI_H_VERSION_MAJOR 2
+#define _PI_H_VERSION_MINOR 3
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -494,6 +494,12 @@ constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_USE = CL_MEM_USE_HOST_PTR;
 constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_COPY = CL_MEM_COPY_HOST_PTR;
 constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_ALLOC = CL_MEM_ALLOC_HOST_PTR;
 
+// NOTE: this is made 64-bit to match the size of cl_mem_properties_intel to
+// make the translation to OpenCL transparent.
+// TODO: populate
+//
+using pi_mem_properties = pi_bitfield;
+
 // NOTE: queue properties are implemented this way to better support bit
 // manipulations
 using pi_queue_properties = pi_bitfield;
@@ -617,28 +623,28 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 /// triple requires specific binary images. We need
 /// to map the image type onto the device target triple
 ///
-#define PI_DEVICE_BINARY_TARGET_UNKNOWN "<unknown>"
+#define __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN "<unknown>"
 /// SPIR-V 32-bit image <-> "spir", 32-bit OpenCL device
-#define PI_DEVICE_BINARY_TARGET_SPIRV32 "spir"
+#define __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32 "spir"
 /// SPIR-V 64-bit image <-> "spir64", 64-bit OpenCL device
-#define PI_DEVICE_BINARY_TARGET_SPIRV64 "spir64"
+#define __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64 "spir64"
 /// Device-specific binary images produced from SPIR-V 64-bit <->
 /// various "spir64_*" triples for specific 64-bit OpenCL devices
-#define PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64 "spir64_x86_64"
-#define PI_DEVICE_BINARY_TARGET_SPIRV64_GEN "spir64_gen"
-#define PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA "spir64_fpga"
+#define __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64 "spir64_x86_64"
+#define __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN "spir64_gen"
+#define __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA "spir64_fpga"
 /// PTX 64-bit image <-> "nvptx64", 64-bit NVIDIA PTX device
-#define PI_DEVICE_BINARY_TARGET_NVPTX64 "nvptx64"
+#define __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64 "nvptx64"
 
 /// Device binary image property set names recognized by the SYCL runtime.
 /// Name must be consistent with
 /// PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS defined in
 /// PropertySetIO.h
-#define PI_PROPERTY_SET_SPEC_CONST_MAP "SYCL/specialization constants"
+#define __SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP "SYCL/specialization constants"
 /// PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK defined in PropertySetIO.h
-#define PI_PROPERTY_SET_DEVICELIB_REQ_MASK "SYCL/devicelib req mask"
+#define __SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK "SYCL/devicelib req mask"
 /// PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO defined in PropertySetIO.h
-#define PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO "SYCL/kernel param opt"
+#define __SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO "SYCL/kernel param opt"
 
 /// This struct is a record of the device binary information. If the Kind field
 /// denotes a portable binary type (SPIR-V or LLVM IR), the DeviceTargetSpec
@@ -656,12 +662,15 @@ struct pi_device_binary_struct {
   uint8_t Format;
   /// null-terminated string representation of the device's target architecture
   /// which holds one of:
-  /// PI_DEVICE_BINARY_TARGET_UNKNOWN - unknown
-  /// PI_DEVICE_BINARY_TARGET_SPIRV32 - general value for 32-bit OpenCL devices
-  /// PI_DEVICE_BINARY_TARGET_SPIRV64 - general value for 64-bit OpenCL devices
-  /// PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64 - 64-bit OpenCL CPU device
-  /// PI_DEVICE_BINARY_TARGET_SPIRV64_GEN - GEN GPU device (64-bit OpenCL)
-  /// PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA - 64-bit OpenCL FPGA device
+  /// __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN - unknown
+  /// __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32 - general value for 32-bit OpenCL
+  /// devices
+  /// __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64 - general value for 64-bit OpenCL
+  /// devices
+  /// __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64 - 64-bit OpenCL CPU device
+  /// __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN - GEN GPU device (64-bit
+  /// OpenCL)
+  /// __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA - 64-bit OpenCL FPGA device
   const char *DeviceTargetSpec;
   /// a null-terminated string; target- and compiler-specific options
   /// which are suggested to use to "compile" program at runtime
@@ -935,11 +944,27 @@ piextContextGetNativeHandle(pi_context context, pi_native_handle *nativeHandle);
 
 /// Creates PI context object from a native handle.
 /// NOTE: The created PI object takes ownership of the native handle.
+/// NOTE: The number of devices and the list of devices is needed for Level Zero
+/// backend because there is no possilibity to query this information from
+/// context handle for Level Zero. If backend has API to query a list of devices
+/// from the context native handle then these parameters are ignored.
 ///
 /// \param nativeHandle is the native handle to create PI context from.
+/// \param numDevices is the number of devices in the context. Parameter is
+///        ignored if number of devices can be queried from the context native
+///        handle for a backend.
+/// \param devices is the list of devices in the context. Parameter is ignored
+///        if devices can be queried from the context native handle for a
+///        backend.
 /// \param context is the PI context created from the native handle.
+/// \return PI_SUCCESS if successfully created pi_context from the handle.
+///         PI_OUT_OF_HOST_MEMORY if can't allocate memory for the pi_context
+///         object. PI_INVALID_VALUE if numDevices == 0 or devices is NULL but
+///         backend doesn't have API to query a list of devices from the context
+///         native handle. PI_UNKNOWN_ERROR in case of another error.
 __SYCL_EXPORT pi_result piextContextCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_context *context);
+    pi_native_handle nativeHandle, pi_uint32 numDevices,
+    const pi_device *devices, pi_context *context);
 
 //
 // Queue
@@ -979,9 +1004,9 @@ __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
 //
 // Memory
 //
-__SYCL_EXPORT pi_result piMemBufferCreate(pi_context context,
-                                          pi_mem_flags flags, size_t size,
-                                          void *host_ptr, pi_mem *ret_mem);
+__SYCL_EXPORT pi_result piMemBufferCreate(
+    pi_context context, pi_mem_flags flags, size_t size, void *host_ptr,
+    pi_mem *ret_mem, const pi_mem_properties *properties = nullptr);
 
 __SYCL_EXPORT pi_result piMemImageCreate(pi_context context, pi_mem_flags flags,
                                          const pi_image_format *image_format,

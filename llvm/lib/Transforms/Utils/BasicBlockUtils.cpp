@@ -237,7 +237,7 @@ bool llvm::MergeBlockIntoPredecessor(BasicBlock *BB, DomTreeUpdater *DTU,
     // times. We add inserts before deletes here to reduce compile time.
     for (auto I = succ_begin(BB), E = succ_end(BB); I != E; ++I)
       // This successor of BB may already have PredBB as a predecessor.
-      if (llvm::find(successors(PredBB), *I) == succ_end(PredBB))
+      if (!llvm::is_contained(successors(PredBB), *I))
         Updates.push_back({DominatorTree::Insert, PredBB, *I});
     for (auto I = succ_begin(BB), E = succ_end(BB); I != E; ++I)
       Updates.push_back({DominatorTree::Delete, BB, *I});
@@ -284,11 +284,6 @@ bool llvm::MergeBlockIntoPredecessor(BasicBlock *BB, DomTreeUpdater *DTU,
   }
   // Add unreachable to now empty BB.
   new UnreachableInst(BB->getContext(), BB);
-
-  // Eliminate duplicate/redundant dbg.values. This seems to be a good place to
-  // do that since we might end up with redundant dbg.values describing the
-  // entry PHI node post-splice.
-  RemoveRedundantDbgInstrs(PredBB);
 
   // Inherit predecessors name if it exists.
   if (!PredBB->hasName())

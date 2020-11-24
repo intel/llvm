@@ -188,7 +188,7 @@ bool MVETailPredication::runOnLoop(Loop *L, LPPassManager&) {
         continue;
 
       Intrinsic::ID ID = Call->getIntrinsicID();
-      if (ID == Intrinsic::set_loop_iterations ||
+      if (ID == Intrinsic::start_loop_iterations ||
           ID == Intrinsic::test_set_loop_iterations)
         return cast<IntrinsicInst>(&I);
     }
@@ -270,7 +270,7 @@ bool MVETailPredication::IsPredicatedVectorLoop() {
       case Intrinsic::uadd_sat:
       case Intrinsic::ssub_sat:
       case Intrinsic::usub_sat:
-      case Intrinsic::experimental_vector_reduce_add:
+      case Intrinsic::vector_reduce_add:
         continue;
       case Intrinsic::fma:
       case Intrinsic::trunc:

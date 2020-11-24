@@ -19,43 +19,7 @@ include "VOPInstructions.td"
 include "SMInstructions.td"
 include "FLATInstructions.td"
 include "BUFInstructions.td"
-
-//===----------------------------------------------------------------------===//
-// EXP Instructions
-//===----------------------------------------------------------------------===//
-
-defm EXP : EXP_m<0>;
-defm EXP_DONE : EXP_m<1>;
-
-class ExpPattern<ValueType vt, Instruction Inst, int done_val> : GCNPat<
-  (int_amdgcn_exp timm:$tgt, timm:$en,
-                  (vt ExpSrc0:$src0), (vt ExpSrc1:$src1),
-                  (vt ExpSrc2:$src2), (vt ExpSrc3:$src3),
-                  done_val, timm:$vm),
-  (Inst timm:$tgt, ExpSrc0:$src0, ExpSrc1:$src1,
-        ExpSrc2:$src2, ExpSrc3:$src3, timm:$vm, 0, timm:$en)
->;
-
-class ExpComprPattern<ValueType vt, Instruction Inst, int done_val> : GCNPat<
-  (int_amdgcn_exp_compr timm:$tgt, timm:$en,
-                        (vt ExpSrc0:$src0), (vt ExpSrc1:$src1),
-                        done_val, timm:$vm),
-  (Inst timm:$tgt, ExpSrc0:$src0, ExpSrc1:$src1,
-        (IMPLICIT_DEF), (IMPLICIT_DEF), timm:$vm, 1, timm:$en)
->;
-
-// FIXME: The generated DAG matcher seems to have strange behavior
-// with a 1-bit literal to match, so use a -1 for checking a true
-// 1-bit value.
-def : ExpPattern<i32, EXP, 0>;
-def : ExpPattern<i32, EXP_DONE, -1>;
-def : ExpPattern<f32, EXP, 0>;
-def : ExpPattern<f32, EXP_DONE, -1>;
-
-def : ExpComprPattern<v2i16, EXP, 0>;
-def : ExpComprPattern<v2i16, EXP_DONE, -1>;
-def : ExpComprPattern<v2f16, EXP, 0>;
-def : ExpComprPattern<v2f16, EXP_DONE, -1>;
+include "EXPInstructions.td"
 
 //===----------------------------------------------------------------------===//
 // VINTRP Instructions
@@ -325,7 +289,7 @@ def SI_IF: CFPseudoInstSI <
 
 def SI_ELSE : CFPseudoInstSI <
   (outs SReg_1:$dst),
-  (ins SReg_1:$src, brtarget:$target, i1imm:$execfix), [], 1, 1> {
+  (ins SReg_1:$src, brtarget:$target), [], 1, 1> {
   let Size = 12;
   let hasSideEffects = 1;
 }
@@ -680,7 +644,7 @@ multiclass SI_SPILL_VGPR <RegisterClass vgpr_class, bit UsesTmp = 0> {
        SchedRW = [WriteVMEM] in {
     def _SAVE : VPseudoInstSI <
       (outs),
-      (ins vgpr_class:$vdata, i32imm:$vaddr, SReg_128:$srsrc,
+      (ins vgpr_class:$vdata, i32imm:$vaddr,
            SReg_32:$soffset, i32imm:$offset)> {
       let mayStore = 1;
       let mayLoad = 0;
@@ -692,8 +656,8 @@ multiclass SI_SPILL_VGPR <RegisterClass vgpr_class, bit UsesTmp = 0> {
 
     def _RESTORE : VPseudoInstSI <
       (outs vgpr_class:$vdata),
-      (ins i32imm:$vaddr, SReg_128:$srsrc, SReg_32:$soffset,
-           i32imm:$offset)> {
+      (ins i32imm:$vaddr,
+           SReg_32:$soffset, i32imm:$offset)> {
       let mayStore = 0;
       let mayLoad = 1;
 
@@ -745,7 +709,7 @@ def : GCNPat<
 
 def : GCNPat<
   (AMDGPUelse i1:$src, bb:$target),
-  (SI_ELSE $src, $target, 0)
+  (SI_ELSE $src, $target)
 >;
 
 def : Pat <
@@ -866,7 +830,8 @@ def : GCNPat <
 // VOP2 Patterns
 //===----------------------------------------------------------------------===//
 
-// TODO: Check only no src2 mods?
+// NoMods pattern used for mac. If there are any source modifiers then it's
+// better to select mad instead of mac.
 class FMADPat <ValueType vt, Instruction inst, SDPatternOperator node>
   : GCNPat <(vt (node (vt (VOP3NoMods vt:$src0)),
                       (vt (VOP3NoMods vt:$src1)),
@@ -875,18 +840,41 @@ class FMADPat <ValueType vt, Instruction inst, SDPatternOperator node>
           SRCMODS.NONE, $src2, DSTCLAMP.NONE, DSTOMOD.NONE)
 >;
 
-
 // Prefer mac form when there are no modifiers.
 let AddedComplexity = 9 in {
+let OtherPredicates = [HasMadMacF32Insts] in {
 def : FMADPat <f32, V_MAC_F32_e64, fmad>;
 def : FMADPat <f32, V_MAC_F32_e64, AMDGPUfmad_ftz>;
+} // OtherPredicates = [HasMadMacF32Insts]
+
+// Don't allow source modifiers. If there are any source modifiers then it's
+// better to select mad instead of mac.
+let SubtargetPredicate = isGFX6GFX7GFX10,
+    OtherPredicates = [HasMadMacF32Insts, NoFP32Denormals] in
+def : GCNPat <
+      (f32 (fadd (AMDGPUfmul_legacy (VOP3NoMods f32:$src0),
+                                    (VOP3NoMods f32:$src1)),
+                 (VOP3NoMods f32:$src2))),
+      (V_MAC_LEGACY_F32_e64 SRCMODS.NONE, $src0, SRCMODS.NONE, $src1,
+                            SRCMODS.NONE, $src2, DSTCLAMP.NONE, DSTOMOD.NONE)
+>;
+
+// Don't allow source modifiers. If there are any source modifiers then it's
+// better to select fma instead of fmac.
+let SubtargetPredicate = HasFmaLegacy32 in
+def : GCNPat <
+      (f32 (int_amdgcn_fma_legacy (VOP3NoMods f32:$src0),
+                                  (VOP3NoMods f32:$src1),
+                                  (VOP3NoMods f32:$src2))),
+      (V_FMAC_LEGACY_F32_e64 SRCMODS.NONE, $src0, SRCMODS.NONE, $src1,
+                             SRCMODS.NONE, $src2, DSTCLAMP.NONE, DSTOMOD.NONE)
+>;
 
 let SubtargetPredicate = Has16BitInsts in {
 def : FMADPat <f16, V_MAC_F16_e64, fmad>;
 def : FMADPat <f16, V_MAC_F16_e64, AMDGPUfmad_ftz>;
-}
-
-}
+} // SubtargetPredicate = Has16BitInsts
+} // AddedComplexity = 9
 
 class FMADModsPat<ValueType Ty, Instruction inst, SDPatternOperator mad_opr>
   : GCNPat<
@@ -897,11 +885,20 @@ class FMADModsPat<ValueType Ty, Instruction inst, SDPatternOperator mad_opr>
   $src2_mod, $src2, DSTCLAMP.NONE, DSTOMOD.NONE)
 >;
 
-let SubtargetPredicate = HasMadMacF32Insts in
+let OtherPredicates = [HasMadMacF32Insts] in
 def : FMADModsPat<f32, V_MAD_F32, AMDGPUfmad_ftz>;
-def : FMADModsPat<f16, V_MAD_F16, AMDGPUfmad_ftz> {
-  let SubtargetPredicate = Has16BitInsts;
-}
+
+let OtherPredicates = [HasMadMacF32Insts, NoFP32Denormals] in
+def : GCNPat <
+      (f32 (fadd (AMDGPUfmul_legacy (VOP3Mods f32:$src0, i32:$src0_mod),
+                                    (VOP3Mods f32:$src1, i32:$src1_mod)),
+                 (VOP3Mods f32:$src2, i32:$src2_mod))),
+      (V_MAD_LEGACY_F32 $src0_mod, $src0, $src1_mod, $src1,
+                        $src2_mod, $src2, DSTCLAMP.NONE, DSTOMOD.NONE)
+>;
+
+let SubtargetPredicate = Has16BitInsts in
+def : FMADModsPat<f16, V_MAD_F16, AMDGPUfmad_ftz>;
 
 class VOPSelectModsPat <ValueType vt> : GCNPat <
   (vt (select i1:$src0, (VOP3Mods vt:$src1, i32:$src1_mods),
@@ -2315,7 +2312,54 @@ multiclass BFMPatterns <ValueType vt, InstSI BFM, InstSI MOV> {
 defm : BFMPatterns <i32, S_BFM_B32, S_MOV_B32>;
 // FIXME: defm : BFMPatterns <i64, S_BFM_B64, S_MOV_B64>;
 
-defm : BFEPattern <V_BFE_U32, V_BFE_I32, S_MOV_B32>;
+// Bitfield extract patterns
+
+def IMMZeroBasedBitfieldMask : ImmLeaf <i32, [{
+  return isMask_32(Imm);
+}]>;
+
+def IMMPopCount : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(countPopulation(N->getZExtValue()), SDLoc(N),
+                                   MVT::i32);
+}]>;
+
+def : AMDGPUPat <
+  (DivergentBinFrag<and> (i32 (srl i32:$src, i32:$rshift)),
+                         IMMZeroBasedBitfieldMask:$mask),
+  (V_BFE_U32 $src, $rshift, (i32 (IMMPopCount $mask)))
+>;
+
+// x & ((1 << y) - 1)
+def : AMDGPUPat <
+  (DivergentBinFrag<and> i32:$src, (add_oneuse (shl_oneuse 1, i32:$width), -1)),
+  (V_BFE_U32 $src, (i32 0), $width)
+>;
+
+// x & ~(-1 << y)
+def : AMDGPUPat <
+  (DivergentBinFrag<and> i32:$src,
+                         (xor_oneuse (shl_oneuse -1, i32:$width), -1)),
+  (V_BFE_U32 $src, (i32 0), $width)
+>;
+
+// x & (-1 >> (bitwidth - y))
+def : AMDGPUPat <
+  (DivergentBinFrag<and> i32:$src, (srl_oneuse -1, (sub 32, i32:$width))),
+  (V_BFE_U32 $src, (i32 0), $width)
+>;
+
+// x << (bitwidth - y) >> (bitwidth - y)
+def : AMDGPUPat <
+  (DivergentBinFrag<srl> (shl_oneuse i32:$src, (sub 32, i32:$width)),
+                         (sub 32, i32:$width)),
+  (V_BFE_U32 $src, (i32 0), $width)
+>;
+
+def : AMDGPUPat <
+  (DivergentBinFrag<sra> (shl_oneuse i32:$src, (sub 32, i32:$width)),
+                         (sub 32, i32:$width)),
+  (V_BFE_I32 $src, (i32 0), $width)
+>;
 
 // SHA-256 Ma patterns
 

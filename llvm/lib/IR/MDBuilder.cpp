@@ -151,24 +151,20 @@ MDNode *MDBuilder::mergeCallbackEncodings(MDNode *ExistingCallbacks,
 }
 
 MDNode *MDBuilder::createAnonymousAARoot(StringRef Name, MDNode *Extra) {
-  // To ensure uniqueness the root node is self-referential.
-  auto Dummy = MDNode::getTemporary(Context, None);
-
-  SmallVector<Metadata *, 3> Args(1, Dummy.get());
+  SmallVector<Metadata *, 3> Args(1, nullptr);
   if (Extra)
     Args.push_back(Extra);
   if (!Name.empty())
     Args.push_back(createString(Name));
-  MDNode *Root = MDNode::get(Context, Args);
+  MDNode *Root = MDNode::getDistinct(Context, Args);
 
   // At this point we have
-  //   !0 = metadata !{}            <- dummy
-  //   !1 = metadata !{metadata !0} <- root
-  // Replace the dummy operand with the root node itself and delete the dummy.
+  //   !0 = distinct !{null} <- root
+  // Replace the reserved operand with the root node itself.
   Root->replaceOperandWith(0, Root);
 
   // We now have
-  //   !1 = metadata !{metadata !1} <- self-referential root
+  //   !0 = distinct !{!0} <- root
   return Root;
 }
 
@@ -306,18 +302,6 @@ MDNode *MDBuilder::createIrrLoopHeaderWeight(uint64_t Weight) {
   Metadata *Vals[] = {
     createString("loop_header_weight"),
     createConstant(ConstantInt::get(Type::getInt64Ty(Context), Weight)),
-  };
-  return MDNode::get(Context, Vals);
-}
-
-MDNode *MDBuilder::createMisExpect(uint64_t Index, uint64_t LikleyWeight,
-                                   uint64_t UnlikleyWeight) {
-  auto *IntType = Type::getInt64Ty(Context);
-  Metadata *Vals[] = {
-      createString("misexpect"),
-      createConstant(ConstantInt::get(IntType, Index)),
-      createConstant(ConstantInt::get(IntType, LikleyWeight)),
-      createConstant(ConstantInt::get(IntType, UnlikleyWeight)),
   };
   return MDNode::get(Context, Vals);
 }

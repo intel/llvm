@@ -832,16 +832,13 @@ def GOT : Alias<6, (outs GR64:$R1), (ins),
 
 let Defs = [CC] in {
   let CCValues = 0xF, CompareZeroCCMask = 0x8 in {
-    def LPR  : UnaryRR <"lpr",  0x10,   z_iabs, GR32, GR32>;
-    def LPGR : UnaryRRE<"lpgr", 0xB900, z_iabs, GR64, GR64>;
+    def LPR  : UnaryRR <"lpr",  0x10,   abs, GR32, GR32>;
+    def LPGR : UnaryRRE<"lpgr", 0xB900, abs, GR64, GR64>;
   }
   let CCValues = 0xE, CompareZeroCCMask = 0xE in
     def LPGFR : UnaryRRE<"lpgfr", 0xB910, null_frag, GR64, GR32>;
 }
-def : Pat<(z_iabs32 GR32:$src), (LPR  GR32:$src)>;
-def : Pat<(z_iabs64 GR64:$src), (LPGR GR64:$src)>;
-defm : SXU<z_iabs,   LPGFR>;
-defm : SXU<z_iabs64, LPGFR>;
+defm : SXU<abs, LPGFR>;
 
 let Defs = [CC] in {
   let CCValues = 0xF, CompareZeroCCMask = 0x8 in {
@@ -851,10 +848,7 @@ let Defs = [CC] in {
   let CCValues = 0xE, CompareZeroCCMask = 0xE in
     def LNGFR : UnaryRRE<"lngfr", 0xB911, null_frag, GR64, GR32>;
 }
-def : Pat<(z_inegabs32 GR32:$src), (LNR  GR32:$src)>;
-def : Pat<(z_inegabs64 GR64:$src), (LNGR GR64:$src)>;
-defm : SXU<z_inegabs,   LNGFR>;
-defm : SXU<z_inegabs64, LNGFR>;
+defm : SXU<z_inegabs, LNGFR>;
 
 let Defs = [CC] in {
   let CCValues = 0xF, CompareZeroCCMask = 0x8 in {
@@ -2246,6 +2240,31 @@ let isCodeGenOnly = 1, hasSideEffects = 1 in {
                                  (ins imm64zx48:$enc, bdaddr12only:$BD1,
                                       bdaddr12only:$BD2, AnyReg:$R3),
                                  ".insn ssf,$enc,$BD1,$BD2,$R3", []>;
+  def InsnVRI : DirectiveInsnVRI<(outs),
+                                 (ins imm64zx48:$enc, VR128:$V1, VR128:$V2,
+                                  imm32zx12:$I3, imm32zx4:$M4, imm32zx4:$M5),
+                                 ".insn vri,$enc,$V1,$V2,$I3,$M4,$M5", []>;
+  def InsnVRR : DirectiveInsnVRR<(outs),
+                                 (ins imm64zx48:$enc, VR128:$V1, VR128:$V2,
+                                  VR128:$V3, imm32zx4:$M4, imm32zx4:$M5,
+                                  imm32zx4:$M6),
+                                  ".insn vrr,$enc,$V1,$V2,$V3,$M4,$M5,$M6", []>;
+  def InsnVRS : DirectiveInsnVRS<(outs),
+                                 (ins imm64zx48:$enc, AnyReg:$R1, VR128:$V3,
+                                  bdaddr12only:$BD2, imm32zx4:$M4),
+                                 ".insn vrs,$enc,$BD2,$M4", []>;
+  def InsnVRV : DirectiveInsnVRV<(outs),
+                                 (ins imm64zx48:$enc, VR128:$V1,
+                                      bdvaddr12only:$VBD2, imm32zx4:$M3),
+                                 ".insn vrv,$enc,$V1,$VBD2,$M3", []>;
+  def InsnVRX : DirectiveInsnVRX<(outs),
+                                 (ins imm64zx48:$enc, VR128:$V1,
+                                  bdxaddr12only:$XBD2, imm32zx4:$M3),
+                                 ".insn vrx,$enc,$V1,$XBD2,$M3", []>;
+  def InsnVSI : DirectiveInsnVSI<(outs),
+                                 (ins imm64zx48:$enc, VR128:$V1,
+                                  bdaddr12only:$BD2, imm32zx8:$I3),
+                                  ".insn vsi,$enc,$V1,$BD2,$I3", []>;
 }
 
 //===----------------------------------------------------------------------===//

@@ -18,7 +18,7 @@ class AMDGPUReadPreloadRegisterIntrinsicNamed<string name>
 
 // Used to tag image and resource intrinsics with information used to generate
 // mem operands.
-class AMDGPURsrcIntrinsic<int rsrcarg, bit isimage = 0> {
+class AMDGPURsrcIntrinsic<int rsrcarg, bit isimage = false> {
   int RsrcArg = rsrcarg;
   bit IsImage = isimage;
 }
@@ -255,7 +255,17 @@ def int_amdgcn_log_clamp : Intrinsic<
 
 def int_amdgcn_fmul_legacy : GCCBuiltin<"__builtin_amdgcn_fmul_legacy">,
   Intrinsic<[llvm_float_ty], [llvm_float_ty, llvm_float_ty],
-  [IntrNoMem, IntrSpeculatable, IntrWillReturn]
+  [IntrNoMem, IntrSpeculatable, IntrWillReturn, Commutative]
+>;
+
+// Fused single-precision multiply-add with legacy behaviour for the multiply,
+// which is that +/- 0.0 * anything (even NaN or infinity) is +0.0. This is
+// intended for use on subtargets that have the v_fma_legacy_f32 and/or
+// v_fmac_legacy_f32 instructions. (Note that v_fma_legacy_f16 is unrelated and
+// has a completely different kind of legacy behaviour.)
+def int_amdgcn_fma_legacy :
+  Intrinsic<[llvm_float_ty], [llvm_float_ty, llvm_float_ty, llvm_float_ty],
+  [IntrNoMem, IntrSpeculatable, IntrWillReturn, Commutative]
 >;
 
 def int_amdgcn_rcp : Intrinsic<
@@ -544,7 +554,7 @@ class AMDGPUSampleVariant<string ucmod, string lcmod, list<AMDGPUArg> extra_addr
 
   // {offset} {bias} {z-compare}
   list<AMDGPUArg> ExtraAddrArgs = extra_addr;
-  bit Gradients = 0;
+  bit Gradients = false;
 
   // Name of the {lod} or {clamp} argument that is appended to the coordinates,
   // if any.
@@ -584,7 +594,7 @@ defset list<AMDGPUSampleVariant> AMDGPUSampleVariants = {
     defm AMDGPUSample : AMDGPUSampleHelper_Compare<"_LZ", "_lz", []>;
   }
 
-  let Gradients = 1 in {
+  let Gradients = true in {
     defm AMDGPUSample : AMDGPUSampleHelper_Clamp<"_D", "_d", []>;
     defm AMDGPUSample : AMDGPUSampleHelper_Clamp<"_CD", "_cd", []>;
   }
@@ -599,12 +609,12 @@ class AMDGPUDimProfile<string opmod,
   string OpMod = opmod; // the corresponding instruction is named IMAGE_OpMod
 
   // These are intended to be overwritten by subclasses
-  bit IsSample = 0;
-  bit IsAtomic = 0;
+  bit IsSample = false;
+  bit IsAtomic = false;
   list<LLVMType> RetTypes = [];
   list<AMDGPUArg> DataArgs = [];
   list<AMDGPUArg> ExtraAddrArgs = [];
-  bit Gradients = 0;
+  bit Gradients = false;
   string LodClampMip = "";
 
   int NumRetAndDataAnyTypes =
@@ -615,7 +625,7 @@ class AMDGPUDimProfile<string opmod,
     arglistconcat<[ExtraAddrArgs,
                    !if(Gradients, dim.GradientArgs, []),
                    !listconcat(!if(IsSample, dim.CoordSliceArgs, dim.CoordSliceIntArgs),
-                               !if(!eq(LodClampMip, ""),
+                               !if(!empty(LodClampMip),
                                    []<AMDGPUArg>,
                                    [AMDGPUArg<LLVMMatchType<0>, LodClampMip>]))],
                   NumRetAndDataAnyTypes>.ret;
@@ -645,7 +655,7 @@ class AMDGPUDimProfileCopy<AMDGPUDimProfile base> : AMDGPUDimProfile<base.OpMod,
 class AMDGPUDimSampleProfile<string opmod,
                              AMDGPUDimProps dim,
                              AMDGPUSampleVariant sample> : AMDGPUDimProfile<opmod, dim> {
-  let IsSample = 1;
+  let IsSample = true;
   let RetTypes = [llvm_any_ty];
   let ExtraAddrArgs = sample.ExtraAddrArgs;
   let Gradients = sample.Gradients;
@@ -656,7 +666,7 @@ class AMDGPUDimNoSampleProfile<string opmod,
                                AMDGPUDimProps dim,
                                list<LLVMType> retty,
                                list<AMDGPUArg> dataargs,
-                               bit Mip = 0> : AMDGPUDimProfile<opmod, dim> {
+                               bit Mip = false> : AMDGPUDimProfile<opmod, dim> {
   let RetTypes = retty;
   let DataArgs = dataargs;
   let LodClampMip = !if(Mip, "mip", "");
@@ -667,7 +677,7 @@ class AMDGPUDimAtomicProfile<string opmod,
                              list<AMDGPUArg> dataargs> : AMDGPUDimProfile<opmod, dim> {
   let RetTypes = [llvm_anyint_ty];
   let DataArgs = dataargs;
-  let IsAtomic = 1;
+  let IsAtomic = true;
 }
 
 class AMDGPUDimGetResInfoProfile<AMDGPUDimProps dim> : AMDGPUDimProfile<"GET_RESINFO", dim> {
@@ -680,7 +690,7 @@ class AMDGPUDimGetResInfoProfile<AMDGPUDimProps dim> : AMDGPUDimProfile<"GET_RES
 // Helper class for figuring out image intrinsic argument indexes.
 class AMDGPUImageDimIntrinsicEval<AMDGPUDimProfile P_> {
   int NumDataArgs = !size(P_.DataArgs);
-  int NumDmaskArgs = !if(P_.IsAtomic, 0, 1);
+  int NumDmaskArgs = !not(P_.IsAtomic);
   int NumExtraAddrArgs = !size(P_.ExtraAddrArgs);
   int NumVAddrArgs = !size(P_.AddrArgs);
   int NumGradientArgs = !if(P_.Gradients, !size(P_.Dim.GradientArgs), 0);
@@ -688,11 +698,15 @@ class AMDGPUImageDimIntrinsicEval<AMDGPUDimProfile P_> {
   int NumRSrcArgs = 1;
   int NumSampArgs = !if(P_.IsSample, 2, 0);
   int DmaskArgIndex = NumDataArgs;
-  int VAddrArgIndex = !add(NumDataArgs, NumDmaskArgs);
-  int GradientArgIndex = !add(NumDataArgs, NumDmaskArgs, NumExtraAddrArgs);
-  int CoordArgIndex = !add(NumDataArgs, NumDmaskArgs, NumExtraAddrArgs, NumGradientArgs);
-  int UnormArgIndex = !add(NumDataArgs, NumDmaskArgs, NumVAddrArgs, NumRSrcArgs, 1);
-  int TexFailCtrlArgIndex = !add(NumDataArgs, NumDmaskArgs, NumVAddrArgs, NumRSrcArgs, NumSampArgs);
+  int VAddrArgIndex = !add(DmaskArgIndex, NumDmaskArgs);
+  int GradientArgIndex = !add(VAddrArgIndex, NumExtraAddrArgs);
+  int CoordArgIndex = !add(GradientArgIndex, NumGradientArgs);
+  int LodArgIndex = !add(VAddrArgIndex, NumVAddrArgs, -1);
+  int MipArgIndex = LodArgIndex;
+  int RsrcArgIndex = !add(VAddrArgIndex, NumVAddrArgs);
+  int SampArgIndex = !add(RsrcArgIndex, NumRSrcArgs);
+  int UnormArgIndex = !add(SampArgIndex, 1);
+  int TexFailCtrlArgIndex = !add(SampArgIndex, NumSampArgs);
   int CachePolicyArgIndex = !add(TexFailCtrlArgIndex, 1);
 }
 
@@ -743,7 +757,7 @@ defset list<AMDGPUImageDimIntrinsic> AMDGPUImageDimIntrinsics = {
                                             list<AMDGPUArg> dataargs,
                                             list<IntrinsicProperty> props,
                                             list<SDNodeProperty> sdnodeprops,
-                                            bit Mip = 0> {
+                                            bit Mip = false> {
     foreach dim = AMDGPUDims.NoMsaa in {
       def !strconcat(NAME, "_", dim.Name)
         : AMDGPUImageDimIntrinsic<
@@ -757,7 +771,7 @@ defset list<AMDGPUImageDimIntrinsic> AMDGPUImageDimIntrinsics = {
                                          list<AMDGPUArg> dataargs,
                                          list<IntrinsicProperty> props,
                                          list<SDNodeProperty> sdnodeprops,
-                                         bit Mip = 0> {
+                                         bit Mip = false> {
     foreach dim = AMDGPUDims.All in {
       def !strconcat(NAME, "_", dim.Name)
         : AMDGPUImageDimIntrinsic<
@@ -792,7 +806,7 @@ defset list<AMDGPUImageDimIntrinsic> AMDGPUImageDimIntrinsics = {
   //////////////////////////////////////////////////////////////////////////
   multiclass AMDGPUImageDimSampleDims<string opmod,
                                       AMDGPUSampleVariant sample,
-                                      bit NoMem = 0> {
+                                      bit NoMem = false> {
     foreach dim = AMDGPUDims.NoMsaa in {
       def !strconcat(NAME, "_", dim.Name) : AMDGPUImageDimIntrinsic<
           AMDGPUDimSampleProfile<opmod, dim, sample>,
@@ -978,7 +992,7 @@ class AMDGPUStructBufferStore<LLVMType data_ty = llvm_any_ty> : Intrinsic <
 def int_amdgcn_struct_buffer_store_format : AMDGPUStructBufferStore;
 def int_amdgcn_struct_buffer_store : AMDGPUStructBufferStore;
 
-class AMDGPURawBufferAtomic<LLVMType data_ty = llvm_any_ty, bit NoRtn = 0> : Intrinsic <
+class AMDGPURawBufferAtomic<LLVMType data_ty = llvm_any_ty, bit NoRtn = false> : Intrinsic <
   !if(NoRtn, [], [data_ty]),
   [!if(NoRtn, data_ty, LLVMMatchType<0>),  // vdata(VGPR)
    llvm_v4i32_ty,     // rsrc(SGPR)
@@ -1013,7 +1027,7 @@ def int_amdgcn_raw_buffer_atomic_cmpswap : Intrinsic<
 // gfx908 intrinsic
 def int_amdgcn_raw_buffer_atomic_fadd : AMDGPURawBufferAtomic<llvm_anyfloat_ty>;
 
-class AMDGPUStructBufferAtomic<LLVMType data_ty = llvm_any_ty, bit NoRtn = 0> : Intrinsic <
+class AMDGPUStructBufferAtomic<LLVMType data_ty = llvm_any_ty, bit NoRtn = false> : Intrinsic <
   !if(NoRtn, [], [data_ty]),
   [!if(NoRtn, data_ty, LLVMMatchType<0>),  // vdata(VGPR)
    llvm_v4i32_ty,     // rsrc(SGPR)
@@ -1562,6 +1576,10 @@ def int_amdgcn_wqm_vote : Intrinsic<[llvm_i1_ty],
 // If false, set EXEC=0 for the current thread until the end of program.
 // FIXME: Should this be IntrNoMem, IntrHasSideEffects, or IntrWillReturn?
 def int_amdgcn_kill : Intrinsic<[], [llvm_i1_ty], []>;
+
+def int_amdgcn_endpgm : GCCBuiltin<"__builtin_amdgcn_endpgm">,
+  Intrinsic<[], [], [IntrNoReturn, IntrCold, IntrNoMem, IntrHasSideEffects]
+>;
 
 // Copies the active channels of the source value to the destination value,
 // with the guarantee that the source value is computed as if the entire
