@@ -3089,6 +3089,15 @@ static void handleMaxGlobalWorkDimAttr(Sema &S, Decl *D,
 
   Expr *E = Attr.getArgAsExpr(0);
 
+  uint32_t MaxGlobalWorkDim;
+  if (MaxGlobalWorkDim == 0) {
+    uint32_t WGSize[3] = {1, 1, 1};
+    if (!checkWorkGroupSizeValues(S, D, Attr, WGSize)) {
+      D->setInvalidDecl();
+      return;
+    }
+  }
+
   if (D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>())
     S.Diag(Attr.getLoc(), diag::warn_duplicate_attribute) << Attr;
 
