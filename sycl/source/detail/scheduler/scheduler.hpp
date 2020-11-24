@@ -766,7 +766,7 @@ protected:
   friend class stream_impl;
 
   // Protects stream buffers pool
-  std::mutex StreamBuffersPoolMutex;
+  std::recursive_mutex StreamBuffersPoolMutex;
 
   // We need to store a pointer to the structure with stream buffers because we
   // want to avoid a situation when buffers are destructed during destruction of
