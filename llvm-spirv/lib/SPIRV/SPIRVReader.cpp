@@ -748,16 +748,14 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
   if (LC & LoopControlDependencyInfiniteMask)
     Metadata.push_back(getMetadataFromName("llvm.loop.ivdep.enable"));
   if (LC & LoopControlDependencyLengthMask) {
-    if (!LoopControlParameters.empty()) {
-      Metadata.push_back(llvm::MDNode::get(
-          *Context,
-          getMetadataFromNameAndParameter("llvm.loop.ivdep.safelen",
-                                          LoopControlParameters[NumParam])));
-      ++NumParam;
-      // TODO: Fix the increment/assertion logic in all of the conditions
-      assert(NumParam <= LoopControlParameters.size() &&
-             "Missing loop control parameter!");
-    }
+    Metadata.push_back(llvm::MDNode::get(
+        *Context,
+        getMetadataFromNameAndParameter("llvm.loop.ivdep.safelen",
+                                        LoopControlParameters[NumParam])));
+    ++NumParam;
+    // TODO: Fix the increment/assertion logic in all of the conditions
+    assert(NumParam <= LoopControlParameters.size() &&
+           "Missing loop control parameter!");
   }
   // Placeholder for LoopControls added in SPIR-V 1.4 spec (see 3.23)
   if (LC & LoopControlMinIterationsMask) {
