@@ -44,8 +44,8 @@ Version
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2020-10-15
-| Revision           | 9
+| Last Modified Date | 2020-11-24
+| Revision           | 10
 |========================================
 
 Dependencies
@@ -91,6 +91,11 @@ Specifies the size of shared memory required by kernel, in bytes.
 
 See the client API specification for more detail.
 | *VectorComputeINTEL* | <<Literal, 'Literal'>> _Size_
+| 8088 | *VectorComputeFastCompositeKernelINTEL* +
+Specifies that kernel is a fast composite pipeline entry point.
+
+See the client API specification for more detail.
+| *VectorComputeINTEL* |
 |====
 --
 Modify Section 3.7, Storage Class: +
@@ -101,19 +106,28 @@ Modify Section 3.20, Decoration, add the following rows to the Decoration table:
 --
 [cols="1,20,10,10",options="header",width = "80%"]
 |====
-  2+^| Decoration  | Enabling Capabilities | Extra Operands
-| 5626 | *VectorComputeFunctionINTEL* +
-Apply to a function definition to specify that the function is a vector compute function.
+2+^| Decoration  | Enabling Capabilities | Extra Operands
+| 5599 | *SIMTCallINTEL* +
+Apply to a function definition to specify that this function must be vectorized to width specified in 'N'.
+
+'N' is an unsigned 32-bit integer.
 
 See the client API specification for more detail.
-| *VectorComputeINTEL* |
-| 6087 | *VectorComputeCallableFunctionINTEL* +
-Apply to a function definition to specify that the function is a subject to fast composite call pipelining.
-
-See the client API specification for more detail.
-| *VectorComputeINTEL* |
+| *VectorComputeINTEL* | <<Literal, 'Literal'>> _N_
 | 5624 | *VectorComputeVariableINTEL* +
 Apply to a variable to specify that the variable is a vector compute variable.
+
+See the client API specification for more detail.
+| *VectorComputeINTEL* |
+| 5625 | *FuncParamIOKindINTEL* +
+Apply to a function parameter to specify properties of the register file corresponding to the parameter.
+
+'Kind' is an unsigned 32-bit integer.
+
+See the client API specification for more detail.
+| *VectorComputeINTEL* | <<Literal, 'Literal'>> _Kind_
+| 5626 | *VectorComputeFunctionINTEL* +
+Apply to a function definition to specify that the function is a vector compute function.
 
 See the client API specification for more detail.
 | *VectorComputeINTEL* |
@@ -122,20 +136,6 @@ Apply to a function definition to specify that this function is a stack call fun
 
 See the client API specification for more detail.
 | *VectorComputeINTEL* |
-| 5599 | *SIMTCallINTEL* +
-Apply to a function definition to specify that this function must be vectorized to width specified in 'N'.
-
-'N' is an unsigned 32-bit integer.
-
-See the client API specification for more detail.
-| *VectorComputeINTEL* | <<Literal, 'Literal'>> _N_
-| 5625 | *FuncParamIOKindINTEL* +
-Apply to a function parameter to specify properties of the register file corresponding to the parameter.
-
-'Kind' is an unsigned 32-bit integer.
-
-See the client API specification for more detail.
-| *VectorComputeINTEL* | <<Literal, 'Literal'>> _Kind_
 | 5628 | *GlobalVariableOffsetINTEL* +
 Apply to a variable to specify byte offset in general register file.
 
@@ -147,6 +147,11 @@ See the client API specification for more detail.
 Apply to a function or a function parameter to indicate that function's return value or function parameter is a single-element vector in the high-level language. +
 
 Only valid on *OpFunction* or *OpFunctionParameter* whose type is <<Scalar,scalar type>> or <<Pointer,pointer type>>.
+
+See the client API specification for more detail.
+| *VectorComputeINTEL* |
+| 6087 | *VectorComputeCallableFunctionINTEL* +
+Apply to a function definition to specify that the function is a subject to fast composite call pipelining.
 
 See the client API specification for more detail.
 | *VectorComputeINTEL* |
@@ -166,7 +171,7 @@ Modify Section 3.31, Capability, add the following rows the 'Capability' table:
 |====
   2+^| Capability      |     Implicitly Declares    | Enabled by Extension
 | 5617 | *VectorComputeINTEL* +
-Enables the use of *Private* storage class, *SharedLocalMemorySizeINTEL* execution mode and *VectorComputeFunctionINTEL*, *VectorComputeCallableFunctionINTEL*, *VectorComputeVariableINTEL*, *StackCallINTEL*, *SIMTCallINTEL*, *FuncParamIOKindINTEL*, *GlobalVariableOffsetINTEL*
+Enables the use of *Private* storage class, *SharedLocalMemorySizeINTEL* and *VectorComputeFastCompositeKernelINTE* execution modes and *VectorComputeFunctionINTEL*, *VectorComputeCallableFunctionINTEL*, *VectorComputeVariableINTEL*, *StackCallINTEL*, *SIMTCallINTEL*, *FuncParamIOKindINTEL*, *GlobalVariableOffsetINTEL*
 *SingleElementVectorINTEL* decorations and *OpTypeBufferSurfaceINTEL* type.
 |*VectorAnyINTEL* | *SPV_INTEL_vector_compute*
 | 5619 | *VectorAnyINTEL* +
@@ -211,4 +216,5 @@ Revision History
 |7|2020-09-03|Mariusz Merecki|Added *Access Qualifier* operand to *OpTypeBufferSurfaceINTEL*
 |8|2020-10-07|Mariusz Merecki|Added *VectorComputeCallableFunctionINTEL*
 |9|2020-10-07|Mariusz Merecki|Added Change the description of *SingleElementVectorINTEL* to allow the decoration to be applied to function and function parameters of scalar or pointer type only.
+|10|2020-11-24|Mariusz Merecki|Added *VectorComputeFastCompositeKernelINTEL*, execution mode. Decorations sorted wrt their assigned token.
 |========================================
