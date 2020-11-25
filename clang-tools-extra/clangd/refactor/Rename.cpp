@@ -300,6 +300,7 @@ std::vector<SourceLocation> findOccurrencesWithinFile(ParsedAST &AST,
 const NamedDecl *lookupSiblingWithName(const ASTContext &Ctx,
                                        const NamedDecl &RenamedDecl,
                                        llvm::StringRef Name) {
+  trace::Span Tracer("LookupSiblingWithName");
   const auto &II = Ctx.Idents.get(Name);
   DeclarationName LookupName(&II);
   DeclContextLookupResult LookupResult;
@@ -340,6 +341,15 @@ struct InvalidName {
   Kind K;
   std::string Details;
 };
+std::string toString(InvalidName::Kind K) {
+  switch (K) {
+  case InvalidName::Keywords:
+    return "Keywords";
+  case InvalidName::Conflict:
+    return "Conflict";
+  }
+  llvm_unreachable("unhandled InvalidName kind");
+}
 
 llvm::Error makeError(InvalidName Reason) {
   auto Message = [](InvalidName Reason) {
@@ -359,18 +369,26 @@ llvm::Error makeError(InvalidName Reason) {
 // Return details if the rename would produce a conflict.
 llvm::Optional<InvalidName> checkName(const NamedDecl &RenameDecl,
                                       llvm::StringRef NewName) {
+  trace::Span Tracer("CheckName");
+  static constexpr trace::Metric InvalidNameMetric(
+      "rename_name_invalid", trace::Metric::Counter, "invalid_kind");
   auto &ASTCtx = RenameDecl.getASTContext();
+  llvm::Optional<InvalidName> Result;
   if (isKeyword(NewName, ASTCtx.getLangOpts()))
-    return InvalidName{InvalidName::Keywords, NewName.str()};
-  // Name conflict detection.
-  // Function conflicts are subtle (overloading), so ignore them.
-  if (RenameDecl.getKind() != Decl::Function) {
-    if (auto *Conflict = lookupSiblingWithName(ASTCtx, RenameDecl, NewName))
-      return InvalidName{
-          InvalidName::Conflict,
-          Conflict->getLocation().printToString(ASTCtx.getSourceManager())};
+    Result = InvalidName{InvalidName::Keywords, NewName.str()};
+  else {
+    // Name conflict detection.
+    // Function conflicts are subtle (overloading), so ignore them.
+    if (RenameDecl.getKind() != Decl::Function) {
+      if (auto *Conflict = lookupSiblingWithName(ASTCtx, RenameDecl, NewName))
+        Result = InvalidName{
+            InvalidName::Conflict,
+            Conflict->getLocation().printToString(ASTCtx.getSourceManager())};
+    }
   }
-  return llvm::None;
+  if (Result)
+    InvalidNameMetric.record(1, toString(Result->K));
+  return Result;
 }
 
 // AST-based rename, it renames all occurrences in the main file.
