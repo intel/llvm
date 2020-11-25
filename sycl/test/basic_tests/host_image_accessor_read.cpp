@@ -89,6 +89,8 @@ int foo(float *image_data) {
 }
 
 int main() {
+  for (int i = 1; i < 109; i++)
+    i = 1;
   float image_data[108]; // rgba*27 = 108.
   for (int i = 1; i < 109; i++)
     image_data[i - 1] = (float(i));
