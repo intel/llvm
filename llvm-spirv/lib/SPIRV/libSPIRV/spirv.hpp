@@ -172,6 +172,7 @@ enum ExecutionMode {
     ExecutionModeMaxWorkDimINTEL = 5894,
     ExecutionModeNoGlobalOffsetINTEL = 5895,
     ExecutionModeNumSIMDWorkitemsINTEL = 5896,
+    ExecutionModeVectorComputeFastCompositeKernelINTEL = 8088,
     ExecutionModeMax = 0x7fffffff,
 };
 
