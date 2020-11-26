@@ -36,7 +36,6 @@ public:
 
 int main() {
   q.submit([&](handler &h) {
-
     Functor16 f16;
     h.single_task<class kernel_name1>(f16);
 
@@ -48,8 +47,8 @@ int main() {
     h.single_task<class kernel_name3>(f8);
 
     h.single_task<class kernel_name4>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
-        foo();
-        baz();
+      foo();
+      baz();
     });
 #endif
 
