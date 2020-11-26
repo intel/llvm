@@ -2925,10 +2925,13 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &Attr,
     return Result;
   }
 
-  if (const auto *A = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>())
-    if (A->getValue() == 0)
+  if (const auto *A = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
+    int64_t AttrValue = A->getValue()->getIntegerConstantExpr(S.Context)->getSExtValue();
+    if (AttrValue  == 0)
       Result &= checkZeroDim(A, WGSize[0], WGSize[1], WGSize[2],
                              /*ReverseAttrs=*/true);
+    return Result;
+  }
 
   if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
     if (!(WGSize[0] <= A->getXDim() && WGSize[1] <= A->getYDim() &&
@@ -3089,13 +3092,10 @@ static void handleMaxGlobalWorkDimAttr(Sema &S, Decl *D,
 
   Expr *E = Attr.getArgAsExpr(0);
 
-  uint32_t MaxGlobalWorkDim;
-  if (MaxGlobalWorkDim == 0) {
-    uint32_t WGSize[3] = {1, 1, 1};
-    if (!checkWorkGroupSizeValues(S, D, Attr, WGSize)) {
-      D->setInvalidDecl();
-      return;
-    }
+  uint32_t WGSize[3] = {1, 1, 1};
+  if (!checkWorkGroupSizeValues(S, D, Attr, WGSize)) {
+    D->setInvalidDecl();
+    return;
   }
 
   if (D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>())

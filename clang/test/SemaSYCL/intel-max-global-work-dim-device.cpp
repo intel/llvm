@@ -13,14 +13,10 @@ struct FuncObj {
   operator()() const {}
 };
 
-template <typename name, typename Func>
-void kernel(const Func &kernelFunc) {
-  kernelFunc();
-}
-
 void foo() {
-  kernel<class test_kernel1>(
-      FuncObj());
+  q.submit([&](handler &h) {
+  h.single_task<class test_kernel1>(FuncObj());
+  });
 }
 
 #else // __SYCL_DEVICE_ONLY__
@@ -78,6 +74,7 @@ int main() {
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
     // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
     h.single_task<class test_kernel3>(
         []() { func_do_not_ignore(); });
 
@@ -108,8 +105,8 @@ int main() {
 
     h.single_task<class test_kernel9>(
         []() [[intel::max_global_work_dim(4)]]{}); // expected-error{{The value of 'max_global_work_dim' attribute must be in range from 0 to 3}}
+#endif // TRIGGER_ERROR
   });
   return 0;
-#endif // TRIGGER_ERROR
 }
 #endif // __SYCL_DEVICE_ONLY__
