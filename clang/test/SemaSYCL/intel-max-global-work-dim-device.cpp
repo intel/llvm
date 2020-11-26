@@ -15,7 +15,7 @@ struct FuncObj {
 
 void foo() {
   q.submit([&](handler &h) {
-  h.single_task<class test_kernel1>(FuncObj());
+    h.single_task<class test_kernel1>(FuncObj());
   });
 }
 
