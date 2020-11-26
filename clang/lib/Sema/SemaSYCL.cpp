@@ -81,10 +81,6 @@ public:
   static bool isSyclStreamType(const QualType &Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
-  /// item class.
-  static bool isSyclItemType(const QualType &Ty);
-
-  /// Checks whether given clang type is a full specialization of the SYCL
   /// half class.
   static bool isSyclHalfType(const QualType &Ty);
 
@@ -103,9 +99,22 @@ public:
   /// \param Tmpl  whether the class is template instantiation or simple record
   static bool isSyclType(const QualType &Ty, StringRef Name, bool Tmpl = false);
 
+  /// Checks whether given function is a standard SYCL API function with given
+  /// name.
+  /// \param FD    the function being checked.
+  /// \param Name  the function name to be checked against.
+  static bool isSyclFunction(const FunctionDecl *FD, StringRef Name);
+
   /// Checks whether given clang type is a full specialization of the SYCL
   /// specialization constant class.
   static bool isSyclSpecConstantType(const QualType &Ty);
+
+  // Checks declaration context hierarchy.
+  /// \param DC     the context of the item to be checked.
+  /// \param Scopes the declaration scopes leading from the item context to the
+  ///               translation unit (excluding the latter)
+  static bool matchContext(const DeclContext *DC,
+                           ArrayRef<Util::DeclContextDesc> Scopes);
 
   /// Checks whether given clang type is declared in the given hierarchy of
   /// declaration contexts.
@@ -2736,9 +2745,8 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
       if (!Visited.insert(FD).second)
         continue; // We've already seen this Decl
 
-      if (FD->isFunctionOrMethod() && FD->getIdentifier() &&
-          !FD->getName().empty() && "this_item" == FD->getName() &&
-          Util::isSyclItemType(FD->getReturnType())) {
+      // Check whether this call is to sycl::this_item().
+      if (Util::isSyclFunction(FD, "this_item")) {
         Header.setCallsThisItem(true);
         return;
       }
@@ -4014,10 +4022,6 @@ bool Util::isSyclStreamType(const QualType &Ty) {
   return isSyclType(Ty, "stream");
 }
 
-bool Util::isSyclItemType(const QualType &Ty) {
-  return isSyclType(Ty, "item", true /*Tmpl*/);
-}
-
 bool Util::isSyclHalfType(const QualType &Ty) {
   const StringRef &Name = "half";
   std::array<DeclContextDesc, 5> Scopes = {
@@ -4064,6 +4068,21 @@ bool Util::isSyclType(const QualType &Ty, StringRef Name, bool Tmpl) {
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
+bool Util::isSyclFunction(const FunctionDecl *FD, StringRef Name) {
+  if (!FD->isFunctionOrMethod() || !FD->getIdentifier() ||
+      FD->getName().empty() || Name != FD->getName())
+    return false;
+
+  const DeclContext *DC = FD->getDeclContext();
+  if (DC->isTranslationUnit())
+    return false;
+
+  std::array<DeclContextDesc, 2> Scopes = {
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"}};
+  return matchContext(DC, Scopes);
+}
+
 bool Util::isAccessorPropertyListType(const QualType &Ty) {
   const StringRef &Name = "accessor_property_list";
   std::array<DeclContextDesc, 4> Scopes = {
@@ -4074,21 +4093,15 @@ bool Util::isAccessorPropertyListType(const QualType &Ty) {
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
-bool Util::matchQualifiedTypeName(const QualType &Ty,
-                                  ArrayRef<Util::DeclContextDesc> Scopes) {
-  // The idea: check the declaration context chain starting from the type
+bool Util::matchContext(const DeclContext *Ctx,
+                        ArrayRef<Util::DeclContextDesc> Scopes) {
+  // The idea: check the declaration context chain starting from the item
   // itself. At each step check the context is of expected kind
   // (namespace) and name.
-  const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
-
-  if (!RecTy)
-    return false; // only classes/structs supported
-  const auto *Ctx = cast<DeclContext>(RecTy);
   StringRef Name = "";
 
   for (const auto &Scope : llvm::reverse(Scopes)) {
     clang::Decl::Kind DK = Ctx->getDeclKind();
-
     if (DK != Scope.first)
       return false;
 
@@ -4102,11 +4115,21 @@ bool Util::matchQualifiedTypeName(const QualType &Ty,
       Name = cast<NamespaceDecl>(Ctx)->getName();
       break;
     default:
-      llvm_unreachable("matchQualifiedTypeName: decl kind not supported");
+      llvm_unreachable("matchContext: decl kind not supported");
     }
     if (Name != Scope.second)
       return false;
     Ctx = Ctx->getParent();
   }
   return Ctx->isTranslationUnit();
+}
+
+bool Util::matchQualifiedTypeName(const QualType &Ty,
+                                  ArrayRef<Util::DeclContextDesc> Scopes) {
+  const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
+
+  if (!RecTy)
+    return false; // only classes/structs supported
+  const auto *Ctx = cast<DeclContext>(RecTy);
+  return Util::matchContext(Ctx, Scopes);
 }

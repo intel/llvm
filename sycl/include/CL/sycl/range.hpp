@@ -148,7 +148,7 @@ private:
   friend class detail::Builder;
 
   // Adjust the first dim of the range
-  void set_range(const size_t dim0) { this->common_array[0] = dim0; }
+  void set_range_dim0(const size_t dim0) { this->common_array[0] = dim0; }
 };
 
 #ifdef __cpp_deduction_guides

@@ -80,13 +80,33 @@ using namespace cl::sycl;
 SYCL_EXTERNAL item<1> g() { return this_item<1>(); }
 SYCL_EXTERNAL item<1> f() { return g(); }
 
+// This is a similar-looking this_item function but not the real one.
+template <int Dims> item<Dims> this_item(int i) { return item<1>{i}; }
+
+// This is a method named this_item but not the real one.
+class C {
+public:
+  template <int Dims> item<Dims> this_item() { return item<1>{66}; };
+};
+
 int main() {
   queue myQueue;
   myQueue.submit([&](::handler &cgh) {
-    cgh.parallel_for<class GNU>(range<1>(1), [=](item<1> I) {});
+    // This kernel does not call sycl::this_item
+    cgh.parallel_for<class GNU>(range<1>(1),
+                                [=](item<1> I) { this_item<1>(55); });
+
+    // This kernel calls sycl::this_item
     cgh.parallel_for<class EMU>(range<1>(1),
                                 [=](::item<1> I) { this_item<1>(); });
-    cgh.parallel_for<class OWL>(range<1>(1), [=](id<1> I) {});
+
+    // This kernel does not call sycl::this_item
+    cgh.parallel_for<class OWL>(range<1>(1), [=](id<1> I) {
+      class C c;
+      c.this_item<1>();
+    });
+
+    // This kernel calls sycl::this_item
     cgh.parallel_for<class RAT>(range<1>(1), [=](id<1> I) { f(); });
   });
 

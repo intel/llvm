@@ -816,7 +816,7 @@ private:
       };
 
       range<Dims> AdjustedRange = NumWorkItems;
-      AdjustedRange.set_range(NewValX);
+      AdjustedRange.set_range_dim0(NewValX);
 #ifdef __SYCL_DEVICE_ONLY__
       kernel_parallel_for<NameWT, TransformedArgType>(Wrapper);
 #else
