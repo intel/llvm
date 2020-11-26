@@ -5,7 +5,7 @@
 template <int SIZE>
 class KernelFunctor {
 public:
-  // expected-error@+1{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+  // expected-error@+1{{'num_simd_work_items' attribute requires a non-negative integral compile time constant expression}}
   [[intel::num_simd_work_items(SIZE)]] void operator()() {}
 };
 
