@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
+#include <iostream>
 #include "SYCL.h"
 #include "CommonArgs.h"
 #include "InputInfo.h"
@@ -417,10 +417,97 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
   getProgramPaths().push_back(getDriver().Dir);
 }
 
+static bool doLLVMBCEmit(llvm::opt::ArgStringList &CC1Args) {
+  for (auto StrArg : CC1Args)
+    if (std::string(StrArg) == "-emit-llvm-bc")
+      return true;
+  return false;
+}
+
+void SYCLToolChain::AddSYCLDeviceLibs(const llvm::opt::ArgList &Args,
+                                      llvm::opt::ArgStringList &CC1Args) const {
+  enum SYCLDeviceLibType { sycl_devicelib_wrapper, sycl_devicelib_fallback };
+  struct DeviceLibOptInfo {
+    StringRef devicelib_name;
+    StringRef devicelib_option;
+  };
+
+  bool NoDeviceLibs = false;
+  // Currently, libc, libm-fp32 will be linked in by default. In order
+  // to use libm-fp64, -fsycl-device-lib=libm-fp64/all should be used.
+  llvm::StringMap<bool> devicelib_link_info = {
+      {"libc", true}, {"libm-fp32", true}, {"libm-fp64", false}};
+  if (Arg *A = Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
+                               options::OPT_fno_sycl_device_lib_EQ)) {
+    if (A->getValues().size() == 0)
+      getDriver().Diag(diag::warn_drv_empty_joined_argument)
+          << A->getAsString(Args);
+    else {
+      if (A->getOption().matches(options::OPT_fno_sycl_device_lib_EQ))
+        NoDeviceLibs = true;
+
+      for (StringRef Val : A->getValues()) {
+        if (Val == "all") {
+          for (auto &K : devicelib_link_info.keys())
+            devicelib_link_info[K] = true && !NoDeviceLibs;
+          break;
+        }
+        auto LinkInfoIter = devicelib_link_info.find(Val);
+        if (LinkInfoIter == devicelib_link_info.end()) {
+          getDriver().Diag(diag::err_drv_unsupported_option_argument)
+              << A->getOption().getName() << Val;
+        }
+        devicelib_link_info[Val] = true && !NoDeviceLibs;
+      }
+    }
+  }
+  bool isSpirvAOT = true;
+  SmallString<128> LibLoc(getDriver().Dir);
+  llvm::sys::path::append(LibLoc, "/../lib");
+  SmallVector<DeviceLibOptInfo, 5> sycl_device_wrapper_libs = {
+      {"libsycl-crt", "libc"},
+      {"libsycl-complex", "libm-fp32"},
+      {"libsycl-complex-fp64", "libm-fp64"},
+      {"libsycl-cmath", "libm-fp32"},
+      {"libsycl-cmath-fp64", "libm-fp64"}};
+  // For AOT compilation, we need to link sycl_device_fallback_libs as
+  // default too.
+  SmallVector<DeviceLibOptInfo, 5> sycl_device_fallback_libs = {
+      {"libsycl-fallback-cassert", "libc"},
+      {"libsycl-fallback-complex", "libm-fp32"},
+      {"libsycl-fallback-complex-fp64", "libm-fp64"},
+      {"libsycl-fallback-cmath", "libm-fp32"},
+      {"libsycl-fallback-cmath-fp64", "libm-fp64"}};
+
+  auto addInputs = [&](SYCLDeviceLibType t, StringRef SYCLArchName) {
+    auto sycl_libs = (t == sycl_devicelib_wrapper) ? sycl_device_wrapper_libs
+                                                   : sycl_device_fallback_libs;
+    for (const DeviceLibOptInfo &Lib : sycl_libs) {
+      if (!devicelib_link_info[Lib.devicelib_option])
+        continue;
+      SmallString<128> LibName(LibLoc);
+      llvm::sys::path::append(LibName, Lib.devicelib_name);
+      LibName.append("-");
+      LibName.append(SYCLArchName);
+      llvm::sys::path::replace_extension(LibName, ".bc");
+      std::cout << LibName.c_str() << " **********" << std::endl;
+      if (llvm::sys::fs::exists(LibName)) {
+        CC1Args.push_back("-mlink-builtin-bitcode");
+        CC1Args.push_back(Args.MakeArgString(LibName.c_str()));
+      }
+    }
+  };
+  addInputs(sycl_devicelib_wrapper, getTriple().getArchName());
+  if (isSpirvAOT)
+    addInputs(sycl_devicelib_fallback, getTriple().getArchName());
+}
+
 void SYCLToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs,
     llvm::opt::ArgStringList &CC1Args,
     Action::OffloadKind DeviceOffloadingKind) const {
+  if (DeviceOffloadingKind == Action::OFK_SYCL && doLLVMBCEmit(CC1Args))
+    AddSYCLDeviceLibs(DriverArgs, CC1Args);
   HostTC.addClangTargetOptions(DriverArgs, CC1Args, DeviceOffloadingKind);
 }
 

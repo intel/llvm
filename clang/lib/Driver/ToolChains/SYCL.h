@@ -162,6 +162,8 @@ private:
   void TranslateTargetOpt(const llvm::opt::ArgList &Args,
       llvm::opt::ArgStringList &CmdArgs, llvm::opt::OptSpecifier Opt,
       llvm::opt::OptSpecifier Opt_EQ) const;
+  void AddSYCLDeviceLibs(const llvm::opt::ArgList &DriverArgs,
+                         llvm::opt::ArgStringList &CC1Args) const;
 };
 
 } // end namespace toolchains
