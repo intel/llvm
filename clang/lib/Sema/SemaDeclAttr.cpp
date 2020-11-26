@@ -2927,7 +2927,7 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &Attr,
 
   if (const auto *A = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
     int64_t AttrValue =
-	A->getValue()->getIntegerConstantExpr(S.Context)->getSExtValue();
+        A->getValue()->getIntegerConstantExpr(S.Context)->getSExtValue();
     if (AttrValue == 0)
       Result &= checkZeroDim(A, WGSize[0], WGSize[1], WGSize[2],
                              /*ReverseAttrs=*/true);
