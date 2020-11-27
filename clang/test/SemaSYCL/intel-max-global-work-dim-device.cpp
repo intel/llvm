@@ -104,7 +104,7 @@ int main() {
     h.single_task<class test_kernel8>(TRIFuncObjBad());
 
     h.single_task<class test_kernel9>(
-        []() [[intel::max_global_work_dim(4)]]{}); // expected-error{{The value of 'max_global_work_dim' attribute must be in range from 0 to 3}}
+        []() [[intel::max_global_work_dim(4)]]{}); // expected-error{{'max_global_work_dim' attribute requires integer constant between 0 and 3 inclusive}}
 #endif // TRIGGER_ERROR
   });
   return 0;
