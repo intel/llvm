@@ -65,6 +65,9 @@ template <typename T_Src, int Dims_Src, cl::sycl::access::mode AccessMode_Src,
           cl::sycl::access::placeholder IsPlaceholder_Dst>
 class __copyAcc2Acc;
 
+// For unit testing purposes
+class MockHandler;
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
@@ -1951,6 +1954,8 @@ private:
   friend void detail::associateWithHandler(handler &,
                                            detail::AccessorBaseHost *,
                                            access::target);
+
+  friend class ::MockHandler;
 };
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

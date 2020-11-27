@@ -8,46 +8,21 @@
 
 #pragma once
 
-#include <CL/sycl/queue.hpp>
-#include <detail/scheduler/scheduler.hpp>
+#include <CL/sycl/detail/defines_elementary.hpp>
+
+#include <memory>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-void initStream(StreamImplPtr Stream, QueueImplPtr Queue) {
-  Scheduler::StreamBuffers *StrBufs{};
+class stream_impl;
+class queue_impl;
 
-  {
-    std::lock_guard<std::mutex> lock(
-        Scheduler::getInstance().StreamBuffersPoolMutex);
+using StreamImplPtr = std::shared_ptr<detail::stream_impl>;
+using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
 
-    auto StreamBuf =
-        Scheduler::getInstance().StreamBuffersPool.find(Stream.get());
-    assert((StreamBuf != Scheduler::getInstance().StreamBuffersPool.end()) &&
-           "Stream is unexpectedly not found in pool.");
-
-    StrBufs = StreamBuf->second;
-  }
-
-  assert(StrBufs && "No buffers for a stream.");
-
-  // Real size of full flush buffer is saved only in buffer_impl field of
-  // FlushBuf object.
-  size_t FlushBufSize = getSyclObjImpl(StrBufs->FlushBuf)->get_count();
-
-  auto Q = createSyclObjFromImpl<queue>(Queue);
-  Q.submit([&](handler &cgh) {
-    auto FlushBufAcc =
-        StrBufs->FlushBuf.get_access<access::mode::discard_write,
-                                     access::target::host_buffer>(
-            cgh, range<1>(FlushBufSize), id<1>(0));
-    cgh.codeplay_host_task([=] {
-      char *FlushBufPtr = FlushBufAcc.get_pointer();
-      std::memset(FlushBufPtr, 0, FlushBufAcc.get_size());
-    });
-  });
-}
+void initStream(StreamImplPtr Stream, QueueImplPtr Queue);
 
 } // namespace detail
 } // namespace sycl
