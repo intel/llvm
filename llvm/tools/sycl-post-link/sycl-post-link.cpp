@@ -90,16 +90,18 @@ static cl::opt<bool> OutputAssembly{"S",
 
 enum IRSplitMode {
   SPLIT_PER_TU,    // one module per translation unit
-  SPLIT_PER_KERNEL // one module per kernel
+  SPLIT_PER_KERNEL, // one module per kernel
+  SPLIT_AUTO // automatically select split mode
 };
 
 static cl::opt<IRSplitMode> SplitMode(
     "split", cl::desc("split input module"), cl::Optional,
     cl::init(SPLIT_PER_TU),
-    cl::values(clEnumValN(SPLIT_PER_TU, "source",
-                          "1 output module per source (translation unit)"),
-               clEnumValN(SPLIT_PER_KERNEL, "kernel",
-                          "1 output module per kernel")),
+    cl::values(
+        clEnumValN(SPLIT_PER_TU, "source",
+                   "1 output module per source (translation unit)"),
+        clEnumValN(SPLIT_PER_KERNEL, "kernel", "1 output module per kernel"),
+        clEnumValN(SPLIT_AUTO, "auto", "Choose split mode automatically")),
     cl::cat(PostLinkCat));
 
 static cl::opt<bool> DoSymGen{"symbols",
@@ -288,6 +290,25 @@ enum KernelMapEntryScope {
   Scope_PerModule, // one entry per module
   Scope_Global     // single entry in the map for all kernels
 };
+
+static KernelMapEntryScope selectDeviceCodeSplitModeAutomatically(Module &M) {
+  // Here we can employ various heuristics to decide which way to split kernels
+  // is the best in each particular situation.
+  // At the moment, we assume that per-kernel split is the best way of splitting
+  // device code and it can be always selected unless there are functions marked
+  // with [[intel::device_indirectly_callable]] attribute, because it instructs
+  // us to make this function available to the whole program as it was compiled
+  // as a single module.
+  bool HasDeviceIndirectlyCallable = false;
+  for (auto &F : M.functions()) {
+    if (F.hasFnAttribute("referenced-indirectly"))
+      HasDeviceIndirectlyCallable = true;
+  }
+
+  if (HasDeviceIndirectlyCallable)
+    return Scope_Global;
+  return Scope_PerModule;
+}
 
 // This function decides how kernels of the input module M will be distributed
 // ("split") into multiple modules based on the command options and IR
@@ -656,8 +677,13 @@ int main(int argc, char **argv) {
 
   if (DoSplit || DoSymGen) {
     KernelMapEntryScope Scope = Scope_Global;
-    if (DoSplit)
-      Scope = SplitMode == SPLIT_PER_KERNEL ? Scope_PerKernel : Scope_PerModule;
+    if (DoSplit) {
+      if (SplitMode == SPLIT_AUTO)
+        Scope = selectDeviceCodeSplitModeAutomatically(*MPtr);
+      else
+        Scope =
+            SplitMode == SPLIT_PER_KERNEL ? Scope_PerKernel : Scope_PerModule;
+    }
     collectKernelModuleMap(*MPtr, GlobalsSet, Scope);
   }
 
