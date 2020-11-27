@@ -12978,8 +12978,7 @@ void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
         return;
       }
       if (ArgInt > 3) {
-        Diag(E->getBeginLoc(),
-             diag::err_attribute_argument_out_of_range)
+        Diag(E->getBeginLoc(), diag::err_attribute_argument_out_of_range)
             << CI.getAttrName() << 0 << 3 << E->getSourceRange();
         return;
       }
