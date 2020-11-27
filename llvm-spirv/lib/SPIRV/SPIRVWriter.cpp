@@ -593,9 +593,7 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
   if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
     transVectorComputeMetadata(F);
 
-  if (BM->isAllowedToUseExtension(
-          ExtensionID::SPV_INTEL_fpga_cluster_attributes))
-    transFPGAFunctionMetadata(BF, F);
+  transFPGAFunctionMetadata(BF, F);
 
   SPIRVDBG(dbgs() << "[transFunction] " << *F << " => ";
            spvdbgs() << *BF << '\n';)
@@ -695,9 +693,21 @@ void LLVMToSPIRV::transVectorComputeMetadata(Function *F) {
 
 void LLVMToSPIRV::transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F) {
   if (MDNode *StallEnable = F->getMetadata(kSPIR2MD::StallEnable)) {
-    if (getMDOperandAsInt(StallEnable, 0)) {
-      BM->addCapability(CapabilityFPGAClusterAttributesINTEL);
-      BF->addDecorate(new SPIRVDecorateStallEnableINTEL(BF));
+    if (BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_fpga_cluster_attributes)) {
+      if (getMDOperandAsInt(StallEnable, 0)) {
+        BM->addCapability(CapabilityFPGAClusterAttributesINTEL);
+        BF->addDecorate(new SPIRVDecorateStallEnableINTEL(BF));
+      }
+    }
+  }
+  if (MDNode *LoopFuse = F->getMetadata(kSPIR2MD::LoopFuse)) {
+    if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_loop_fuse)) {
+      size_t Depth = getMDOperandAsInt(LoopFuse, 0);
+      size_t Independent = getMDOperandAsInt(LoopFuse, 1);
+      BM->addCapability(CapabilityLoopFuseINTEL);
+      BF->addDecorate(
+          new SPIRVDecorateFuseLoopsInFunctionINTEL(BF, Depth, Independent));
     }
   }
 }

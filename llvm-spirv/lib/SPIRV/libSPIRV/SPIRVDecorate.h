@@ -179,6 +179,8 @@ public:
       return ExtensionID::SPV_INTEL_float_controls2;
     case DecorationStallEnableINTEL:
       return ExtensionID::SPV_INTEL_fpga_cluster_attributes;
+    case DecorationFuseLoopsInFunctionINTEL:
+      return ExtensionID::SPV_INTEL_loop_fuse;
     default:
       return {};
     }
@@ -617,6 +619,15 @@ public:
   // Complete constructor for SPIRVDecorateStallEnableINTEL
   SPIRVDecorateStallEnableINTEL(SPIRVEntry *TheTarget)
       : SPIRVDecorate(spv::DecorationStallEnableINTEL, TheTarget){};
+};
+
+class SPIRVDecorateFuseLoopsInFunctionINTEL : public SPIRVDecorate {
+public:
+  // Complete constructor for SPIRVDecorateFuseLoopsInFunctionINTEL
+  SPIRVDecorateFuseLoopsInFunctionINTEL(SPIRVEntry *TheTarget, SPIRVWord Depth,
+                                        SPIRVWord Independent)
+      : SPIRVDecorate(spv::DecorationFuseLoopsInFunctionINTEL, TheTarget, Depth,
+                      Independent){};
 };
 
 } // namespace SPIRV
