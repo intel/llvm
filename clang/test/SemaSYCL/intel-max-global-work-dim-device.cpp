@@ -95,7 +95,7 @@ int main() {
     [[intel::max_global_work_dim(1)]] int Var = 0; // expected-error{{'max_global_work_dim' attribute only applies to functions}}
 
     h.single_task<class test_kernel6>(
-        []() [[intel::max_global_work_dim(-8)]]{}); // expected-error{{'max_global_work_dim' attribute requires a positive integral compile time constant expression}}
+        []() [[intel::max_global_work_dim(-8)]]{}); // expected-error{{'max_global_work_dim' attribute requires a non-negative integral compile time constant expression}}
 
     h.single_task<class test_kernel7>(
         []() [[intel::max_global_work_dim(3),

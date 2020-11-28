@@ -5,7 +5,7 @@
 template <int SIZE>
 class KernelFunctor {
 public:
-  // expected-error@+1{{'max_global_work_dim' attribute requires a positive integral compile time constant expression}}
+  // expected-error@+1{{'max_global_work_dim' attribute requires a non-negative integral compile time constant expression}}
   [[intel::max_global_work_dim(SIZE)]] void operator()() {}
 };
 

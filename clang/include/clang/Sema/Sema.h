@@ -12967,14 +12967,14 @@ void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
         CI.getParsedKind() == ParsedAttr::AT_IntelReqdSubGroupSize) {
       if (ArgInt <= 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-            << CI.getAttrName() << /*non-negative*/ 1;
+            << CI.getAttrName() << /*positive*/ 0;
         return;
       }
     }
     if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
       if (ArgInt < 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-            << CI.getAttrName() << /*positive*/ 0;
+            << CI.getAttrName() << /*non-negative*/ 1;
         return;
       }
       if (ArgInt > 3) {

@@ -5,7 +5,7 @@
 template <int SIZE>
 class KernelFunctor {
 public:
-  // expected-error@+1{{'reqd_sub_group_size' attribute requires a non-negative integral compile time constant expression}}
+  // expected-error@+1{{'reqd_sub_group_size' attribute requires a positive integral compile time constant expression}}
   [[intel::reqd_sub_group_size(SIZE)]] void operator()() {}
 };
 
