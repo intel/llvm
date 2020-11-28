@@ -769,6 +769,12 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
           *this, TemplateArgs, SYCLIntelSchedulerTargetFmaxMhz, New);
       continue;
     }
+    if (const auto *SYCLIntelMaxGlobalWorkDim =
+            dyn_cast<SYCLIntelMaxGlobalWorkDimAttr>(TmplAttr)) {
+      instantiateIntelSYCLFunctionAttr<SYCLIntelMaxGlobalWorkDimAttr>(
+          *this, TemplateArgs, SYCLIntelMaxGlobalWorkDim, New);
+      continue;
+    }
     // Existing DLL attribute on the instantiation takes precedence.
     if (TmplAttr->getKind() == attr::DLLExport ||
         TmplAttr->getKind() == attr::DLLImport) {
