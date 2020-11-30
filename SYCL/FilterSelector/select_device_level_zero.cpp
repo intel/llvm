@@ -6,7 +6,7 @@
 // Checks that no device is selected when no device of desired type is
 // available.
 //
-// REQUIRES: level_zero,host,gpu
+// REQUIRES: level_zero,gpu
 
 #include <CL/sycl.hpp>
 #include <iostream>

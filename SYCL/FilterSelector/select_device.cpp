@@ -1,8 +1,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RU: env SYCL_DEVICE_FILTER="*" %t.out
-// RU: env SYCL_DEVICE_FILTER=cpu %t.out
-// RU: env SYCL_DEVICE_FILTER=level_zero:gpu %t.out
-// RU: env SYCL_DEVICE_FILTER=opencl:gpu %t.out
+// RUN: env SYCL_DEVICE_FILTER="*" %t.out
+// RUN: env SYCL_DEVICE_FILTER=cpu %t.out
+// RUN: env SYCL_DEVICE_FILTER=level_zero:gpu %t.out
+// RUN: env SYCL_DEVICE_FILTER=opencl:gpu %t.out
 // RUN: env SYCL_DEVICE_FILTER=cpu,level_zero:gpu %t.out
 // RUN: env SYCL_DEVICE_FILTER=opencl:acc:0 %t.out
 //
@@ -11,7 +11,7 @@
 // Checks that no device is selected when no device of desired type is
 // available.
 //
-// REQUIRES: opencl,level_zero,host,cpu,gpu,accelerator
+// REQUIRES: cpu,gpu,accelerator
 
 #include <CL/sycl.hpp>
 #include <iostream>

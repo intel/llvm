@@ -6,7 +6,7 @@
 // Checks that no device is selected when no device of desired type is
 // available.
 //
-// REQUIRES: cuda,host,gpu
+// REQUIRES: cuda,gpu
 
 #include <CL/sycl.hpp>
 #include <iostream>

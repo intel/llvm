@@ -6,7 +6,7 @@
 // Checks that no device is selected when no device of desired type is
 // available.
 //
-// REQUIRES: opencl,host,cpu
+// REQUIRES: opencl,cpu
 
 #include <CL/sycl.hpp>
 #include <iostream>
