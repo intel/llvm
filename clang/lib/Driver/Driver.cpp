@@ -5,7 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <iostream>
 #include "clang/Driver/Driver.h"
 #include "InputInfo.h"
 #include "ToolChains/AIX.h"
