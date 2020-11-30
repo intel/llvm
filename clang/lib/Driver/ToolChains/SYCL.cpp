@@ -5,7 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <iostream>
 #include "SYCL.h"
 #include "CommonArgs.h"
 #include "InputInfo.h"
@@ -490,7 +489,6 @@ void SYCLToolChain::AddSYCLDeviceLibs(const llvm::opt::ArgList &Args,
       LibName.append("-");
       LibName.append(SYCLArchName);
       llvm::sys::path::replace_extension(LibName, ".bc");
-      std::cout << LibName.c_str() << " **********" << std::endl;
       if (llvm::sys::fs::exists(LibName)) {
         CC1Args.push_back("-mlink-builtin-bitcode");
         CC1Args.push_back(Args.MakeArgString(LibName.c_str()));

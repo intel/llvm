@@ -1,21 +1,12 @@
 set(obj_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 if (WIN32)
-  set(lib-suffix obj)
   set(spv_binary_dir "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
-  set(lib_crt_source msvc_wrapper.cpp)
+  set(libcrt_source msvc_wrapper.cpp)
 else()
-  set(lib-suffix o)
   set(spv_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
-  set(lib_crt_source glibc_wrapper.cpp)
+  set(libcrt_source glibc_wrapper.cpp)
 endif()
 set(clang $<TARGET_FILE:clang>)
-
-string(CONCAT sycl_targets_opt
-  "-fsycl-targets="
-  "spir64_x86_64-unknown-unknown-sycldevice,"
-  "spir64_gen-unknown-unknown-sycldevice,"
-  "spir64_fpga-unknown-unknown-sycldevice,"
-  "spir64-unknown-unknown-sycldevice")
 
 set(compile_opts
   # suppress an error about SYCL_EXTERNAL being used for
@@ -29,152 +20,138 @@ set(compile_opts
   -sycl-std=2017
   )
 
-set(devicelib-obj-file ${obj_binary_dir}/libsycl-crt.${lib-suffix})
-add_custom_command(OUTPUT ${devicelib-obj-file}
-                   COMMAND ${clang} -fsycl -c
-                           ${compile_opts} ${sycl_targets_opt}
-                           ${CMAKE_CURRENT_SOURCE_DIR}/${lib_crt_source}
-                           -o ${devicelib-obj-file}
-                   MAIN_DEPENDENCY ${lib_crt_source}
-                   DEPENDS wrapper.h device.h spirv_vars.h clang clang-offload-bundler
-                   VERBATIM)
+function(BuildSYCLDeviceLib)
+  cmake_parse_arguments(DeviceLib "" "Path;Target;Source" "Depends" ${ARGN})
+  add_custom_command(OUTPUT ${DeviceLib_Path}
+                     COMMAND ${clang} -fsycl -fsycl-device-only -emit-llvm
+                             ${compile_opts} -fsycl-targets=${DeviceLib_Target}
+                             ${CMAKE_CURRENT_SOURCE_DIR}/${DeviceLib_Source}
+                             -o ${DeviceLib_Path} -fno-sycl-device-lib=all
+                     MAIN_DEPENDENCY ${DeviceLib_Source}
+                     DEPENDS ${DeviceLib_Depends}
+                     VERBATIM)
+endfunction()
 
-set(devicelib-obj-complex ${obj_binary_dir}/libsycl-complex.${lib-suffix})
-add_custom_command(OUTPUT ${devicelib-obj-complex}
-                   COMMAND ${clang} -fsycl -c
-                           ${compile_opts} ${sycl_targets_opt}
-                           ${CMAKE_CURRENT_SOURCE_DIR}/complex_wrapper.cpp
-                           -o ${devicelib-obj-complex}
-                   MAIN_DEPENDENCY complex_wrapper.cpp
-                   DEPENDS device_complex.h device.h clang clang-offload-bundler
-                   VERBATIM)
 
-set(devicelib-obj-complex-fp64 ${obj_binary_dir}/libsycl-complex-fp64.${lib-suffix})
-add_custom_command(OUTPUT ${devicelib-obj-complex-fp64}
-                   COMMAND ${clang} -fsycl -c
-                           ${compile_opts} ${sycl_targets_opt}
-                           ${CMAKE_CURRENT_SOURCE_DIR}/complex_wrapper_fp64.cpp
-                           -o ${devicelib-obj-complex-fp64}
-                   MAIN_DEPENDENCY complex_wrapper_fp64.cpp
-                   DEPENDS device_complex.h device.h clang clang-offload-bundler
-                   VERBATIM)
+set(devicelib-wrapper-crt-spir64 ${obj_binary_dir}/libsycl-crt-spir64.bc)
+BuildSYCLDeviceLib(Path ${devicelib-wrapper-crt-spir64} Target spir64-unknown-unknown-sycldevice Source ${libcrt_source} Depends wrapper.h device.h spirv_vars.h clang)
+BuildSYCLDeviceLib(Path ${obj_binary_dir}/libsycl-fallback-cassert-spir64.bc Target spir64-unknown-unknown-sycldevice Source fallback-cassert.cpp Depends wrapper.h device.h spirv_vars.h clang)
 
-set(devicelib-obj-cmath ${obj_binary_dir}/libsycl-cmath.${lib-suffix})
-add_custom_command(OUTPUT ${devicelib-obj-cmath}
-                   COMMAND ${clang} -fsycl -c
-                           ${compile_opts} ${sycl_targets_opt}
-                           ${CMAKE_CURRENT_SOURCE_DIR}/cmath_wrapper.cpp
-                           -o ${devicelib-obj-cmath}
-                   MAIN_DEPENDENCY cmath_wrapper.cpp
-                   DEPENDS device_math.h device.h clang clang-offload-bundler
-                   VERBATIM)
+set(devicelib-wrapper-crt-spir64_x86_64 ${obj_binary_dir}/libsycl-crt-spir64_x86_64.bc)
+BuildSYCLDeviceLib(Path ${devicelib-wrapper-crt-spir64_x86_64} Target spir64_x86_64-unknown-unknown-sycldevice Source ${libcrt_source} Depends wrapper.h device.h spirv_vars.h clang)
+BuildSYCLDeviceLib(Path ${obj_binary_dir}/libsycl-fallback-cassert-spir64_x86_64.bc Target spir64_x86_64-unknown-unknown-sycldevice Source fallback-cassert.cpp Depends wrapper.h device.h spirv_vars.h clang)
 
-set(devicelib-obj-cmath-fp64 ${obj_binary_dir}/libsycl-cmath-fp64.${lib-suffix})
-add_custom_command(OUTPUT ${devicelib-obj-cmath-fp64}
-                   COMMAND ${clang} -fsycl -c
-                           ${compile_opts} ${sycl_targets_opt}
-                           ${CMAKE_CURRENT_SOURCE_DIR}/cmath_wrapper_fp64.cpp
-                           -o ${devicelib-obj-cmath-fp64}
-                   MAIN_DEPENDENCY cmath_wrapper_fp64.cpp
-                   DEPENDS device_math.h device.h clang clang-offload-bundler
-                   VERBATIM)
+set(devicelib-wrapper-crt-spir64_gen ${obj_binary_dir}/libsycl-crt-spir64_gen.bc)
+BuildSYCLDeviceLib(Path ${devicelib-wrapper-crt-spir64_gen} Target spir64_gen-unknown-unknown-sycldevice Source ${libcrt_source} Depends wrapper.h device.h spirv_vars.h clang)
+BuildSYCLDeviceLib(Path ${obj_binary_dir}/libsycl-fallback-cassert-spir64_gen.bc Target spir64_gen-unknown-unknown-sycldevice Source fallback-cassert.cpp Depends wrapper.h device.h spirv_vars.h clang)
 
-add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-cassert.spv
-                   COMMAND ${clang} -S -fsycl-device-only -fno-sycl-use-bitcode
-                           ${compile_opts}
-                           ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cpp
-                           -o ${spv_binary_dir}/libsycl-fallback-cassert.spv
-                   MAIN_DEPENDENCY fallback-cassert.cpp
-                   DEPENDS wrapper.h device.h clang spirv_vars.h llvm-spirv
-                   VERBATIM)
+set(devicelib-wrapper-crt-spir64_fpga ${obj_binary_dir}/libsycl-crt-spir64_fpga.bc)
+BuildSYCLDeviceLib(Path ${devicelib-wrapper-crt-spir64_fpga} Target spir64_fpga-unknown-unknown-sycldevice Source ${libcrt_source} Depends wrapper.h device.h spirv_vars.h clang)
+BuildSYCLDeviceLib(Path ${obj_binary_dir}/libsycl-fallback-cassert-spir64_fpga.bc Target spir64_fpga-unknown-unknown-sycldevice Source fallback-cassert.cpp Depends wrapper.h device.h spirv_vars.h clang)
 
-add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-cassert.${lib-suffix}
-                   COMMAND ${clang} -fsycl -c
-                           ${compile_opts} ${sycl_targets_opt}
-                           ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cpp
-                           -o ${obj_binary_dir}/libsycl-fallback-cassert.${lib-suffix}
-                   MAIN_DEPENDENCY fallback-cassert.cpp
-                   DEPENDS wrapper.h device.h clang spirv_vars.h clang-offload-bundler
-                   VERBATIM)
+set(devicelib-wrapper-complex-spir64 ${obj_binary_dir}/libsycl-complex-spir64.bc)
+BuildSYCLDeviceLib(Path ${devicelib-wrapper-complex-spir64} Target spir64-unknown-unknown-sycldevice Source complex_wrapper.cpp Depends device_complex.h device.h clang)
+BuildSYCLDeviceLib(Path ${obj_binary_dir}/libsycl-fallback-complex-spir64.bc Target spir64-unknown-unknown-sycldevice Source fallback-complex.cpp Depends device_math.h device_complex.h device.h clang)
 
-add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-complex.spv
-                   COMMAND ${clang} -S -fsycl-device-only -fno-sycl-use-bitcode
-                           ${compile_opts}
-                           ${CMAKE_CURRENT_SOURCE_DIR}/fallback-complex.cpp
-                           -o ${spv_binary_dir}/libsycl-fallback-complex.spv
-                   MAIN_DEPENDENCY fallback-complex.cpp
-                   DEPENDS device_math.h device_complex.h device.h clang llvm-spirv
-                   VERBATIM)
+set(devicelib-wrapper-complex-spir64_x86_64 ${obj_binary_dir}/libsycl-complex-spir64_x86_64.bc)
+BuildSYCLDeviceLib(Path ${devicelib-wrapper-complex-spir64_x86_64} Target spir64_x86_64-unknown-unknown-sycldevice Source complex_wrapper.cpp Depends device_complex.h device.h clang)
+BuildSYCLDeviceLib(Path ${obj_binary_dir}/libsycl-fallback-complex-spir64_x86_64.bc Target spir64_x86_64-unknown-unknown-sycldevice Source fallback-complex.cpp Depends device_math.h device_complex.h device.h clang)
 
-add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-complex.${lib-suffix}
-                   COMMAND ${clang} -fsycl -c
-                           ${compile_opts} ${sycl_targets_opt}
-                           ${CMAKE_CURRENT_SOURCE_DIR}/fallback-complex.cpp
-                           -o ${obj_binary_dir}/libsycl-fallback-complex.${lib-suffix}
-                   MAIN_DEPENDENCY fallback-complex.cpp
-                   DEPENDS device_math.h device_complex.h device.h clang clang-offload-bundler
-                   VERBATIM)
+set(devicelib-wrapper-complex-spir64_gen ${obj_binary_dir}/libsycl-complex-spir64_gen.bc)
+BuildSYCLDeviceLib(Path ${devicelib-wrapper-complex-spir64_gen} Target spir64_gen-unknown-unknown-sycldevice Source complex_wrapper.cpp Depends device_complex.h device.h clang)
+BuildSYCLDeviceLib(Path ${obj_binary_dir}/libsycl-fallback-complex-spir64_gen.bc Target spir64_gen-unknown-unknown-sycldevice Source fallback-complex.cpp Depends device_math.h device_complex.h device.h clang)
 
-add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-complex-fp64.spv
-                   COMMAND ${clang} -S -fsycl-device-only -fno-sycl-use-bitcode
-                           ${compile_opts}
-                           ${CMAKE_CURRENT_SOURCE_DIR}/fallback-complex-fp64.cpp
-                           -o ${spv_binary_dir}/libsycl-fallback-complex-fp64.spv
-                   MAIN_DEPENDENCY fallback-complex-fp64.cpp
-                   DEPENDS device_math.h device_complex.h device.h clang llvm-spirv
-                   VERBATIM)
+set(devicelib-wrapper-complex-spir64_fpga ${obj_binary_dir}/libsycl-complex-spir64_fpga.bc)
+BuildSYCLDeviceLib(Path ${devicelib-wrapper-complex-spir64_fpga} Target spir64_fpga-unknown-unknown-sycldevice Source complex_wrapper.cpp Depends device_complex.h device.h clang)
+BuildSYCLDeviceLib(Path ${obj_binary_dir}/libsycl-fallback-complex-spir64_fpga.bc Target spir64_fpga-unknown-unknown-sycldevice Source fallback-complex.cpp Depends device_math.h device_complex.h device.h clang)
 
-add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-complex-fp64.${lib-suffix}
-                   COMMAND ${clang} -fsycl -c
-                           ${compile_opts} ${sycl_targets_opt}
-                           ${CMAKE_CURRENT_SOURCE_DIR}/fallback-complex-fp64.cpp
-                           -o ${obj_binary_dir}/libsycl-fallback-complex-fp64.${lib-suffix}
-                   MAIN_DEPENDENCY fallback-complex-fp64.cpp
-                   DEPENDS device_math.h device_complex.h device.h clang clang-offload-bundler
-                   VERBATIM)
+set(devicelib-wrapper-complex-fp64-spir64 ${obj_binary_dir}/libsycl-complex-fp64-spir64.bc)
+BuildSYCLDeviceLib(Path ${devicelib-wrapper-complex-fp64-spir64} Target spir64-unknown-unknown-sycldevice Source complex_wrapper_fp64.cpp Depends device_complex.h device.h clang)
+BuildSYCLDeviceLib(Path ${obj_binary_dir}/libsycl-fallback-complex-fp64-spir64.bc Target spir64-unknown-unknown-sycldevice Source fallback-complex-fp64.cpp Depends device_math.h device_complex.h device.h clang)
 
-add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-cmath.spv
-                   COMMAND ${clang} -S -fsycl-device-only -fno-sycl-use-bitcode
-                           ${compile_opts}
-                           ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cmath.cpp
-                           -o ${spv_binary_dir}/libsycl-fallback-cmath.spv
-                   MAIN_DEPENDENCY fallback-cmath.cpp
-                   DEPENDS device_math.h device.h clang llvm-spirv
-                   VERBATIM)
+set(devicelib-wrapper-complex-fp64-spir64_x86_64 ${obj_binary_dir}/libsycl-complex-fp64-spir64_x86_64.bc)
+BuildSYCLDeviceLib(Path ${devicelib-wrapper-complex-fp64-spir64_x86_64} Target spir64_x86_64-unknown-unknown-sycldevice Source complex_wrapper_fp64.cpp Depends device_complex.h device.h clang)
+BuildSYCLDeviceLib(Path ${obj_binary_dir}/libsycl-fallback-complex-fp64-spir64_x86_64.bc Target spir64_x86_64-unknown-unknown-sycldevice Source fallback-complex-fp64.cpp Depends device_math.h device_complex.h device.h clang)
 
-add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-cmath.${lib-suffix}
-                   COMMAND ${clang} -fsycl -c
-                           ${compile_opts} ${sycl_targets_opt}
-                           ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cmath.cpp
-                           -o ${obj_binary_dir}/libsycl-fallback-cmath.${lib-suffix}
-                   MAIN_DEPENDENCY fallback-cmath.cpp
-                   DEPENDS device_math.h device.h clang clang-offload-bundler
-                   VERBATIM)
+set(devicelib-wrapper-complex-fp64-spir64_gen ${obj_binary_dir}/libsycl-complex-fp64-spir64_gen.bc)
+BuildSYCLDeviceLib(Path ${devicelib-wrapper-complex-fp64-spir64_gen} Target spir64_gen-unknown-unknown-sycldevice Source complex_wrapper_fp64.cpp Depends device_complex.h device.h clang)
+BuildSYCLDeviceLib(Path ${obj_binary_dir}/libsycl-fallback-complex-fp64-spir64_gen.bc Target spir64_gen-unknown-unknown-sycldevice Source fallback-complex-fp64.cpp Depends device_math.h device_complex.h device.h clang)
 
-add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-cmath-fp64.spv
-                   COMMAND ${clang} -S -fsycl-device-only -fno-sycl-use-bitcode
-                           ${compile_opts}
-                           ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cmath-fp64.cpp
-                           -o ${spv_binary_dir}/libsycl-fallback-cmath-fp64.spv
-                   MAIN_DEPENDENCY fallback-cmath-fp64.cpp
-                   DEPENDS device_math.h device.h clang llvm-spirv
-                   VERBATIM)
+set(devicelib-wrapper-complex-fp64-spir64_fpga ${obj_binary_dir}/libsycl-complex-fp64-spir64_fpga.bc)
+BuildSYCLDeviceLib(Path ${devicelib-wrapper-complex-fp64-spir64_fpga} Target spir64_fpga-unknown-unknown-sycldevice Source complex_wrapper_fp64.cpp Depends device_complex.h device.h clang)
+BuildSYCLDeviceLib(Path ${obj_binary_dir}/libsycl-fallback-complex-fp64-spir64_fpga.bc Target spir64_fpga-unknown-unknown-sycldevice Source fallback-complex-fp64.cpp Depends device_math.h device_complex.h device.h clang)
 
-add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-cmath-fp64.${lib-suffix}
-                   COMMAND ${clang} -fsycl -c
-                           ${compile_opts} ${sycl_targets_opt}
-                           ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cmath-fp64.cpp
-                           -o ${obj_binary_dir}/libsycl-fallback-cmath-fp64.${lib-suffix}
-                   MAIN_DEPENDENCY fallback-cmath-fp64.cpp
-                   DEPENDS device_math.h device.h clang clang-offload-bundler
-                   VERBATIM)
+set(devicelib-wrapper-cmath-spir64 ${obj_binary_dir}/libsycl-cmath-spir64.bc)
+BuildSYCLDeviceLib(Path ${devicelib-wrapper-cmath-spir64} Target spir64-unknown-unknown-sycldevice Source cmath_wrapper.cpp Depends device_math.h device.h clang)
+BuildSYCLDeviceLib(Path ${obj_binary_dir}/libsycl-fallback-cmath-spir64.bc Target spir64-unknown-unknown-sycldevice Source fallback-cmath.cpp Depends device_math.h device.h clang)
+
+set(devicelib-wrapper-cmath-spir64_x86_64 ${obj_binary_dir}/libsycl-cmath-spir64_x86_64.bc)
+BuildSYCLDeviceLib(Path ${devicelib-wrapper-cmath-spir64_x86_64} Target spir64_x86_64-unknown-unknown-sycldevice Source cmath_wrapper.cpp Depends device_math.h device.h clang)
+BuildSYCLDeviceLib(Path ${obj_binary_dir}/libsycl-fallback-cmath-spir64_x86_64.bc Target spir64_x86_64-unknown-unknown-sycldevice Source fallback-cmath.cpp Depends device_math.h device.h clang)
+
+set(devicelib-wrapper-cmath-spir64_gen ${obj_binary_dir}/libsycl-cmath-spir64_gen.bc)
+BuildSYCLDeviceLib(Path ${devicelib-wrapper-cmath-spir64_gen} Target spir64_gen-unknown-unknown-sycldevice Source cmath_wrapper.cpp Depends device_math.h device.h clang)
+BuildSYCLDeviceLib(Path ${obj_binary_dir}/libsycl-fallback-cmath-spir64_gen.bc Target spir64_gen-unknown-unknown-sycldevice Source fallback-cmath.cpp Depends device_math.h device.h clang)
+
+set(devicelib-wrapper-cmath-spir64_fpga ${obj_binary_dir}/libsycl-cmath-spir64_fpga.bc)
+BuildSYCLDeviceLib(Path ${devicelib-wrapper-cmath-spir64_fpga} Target spir64_fpga-unknown-unknown-sycldevice Source cmath_wrapper.cpp Depends device_math.h device.h clang)
+BuildSYCLDeviceLib(Path ${obj_binary_dir}/libsycl-fallback-cmath-spir64_fpga.bc Target spir64_fpga-unknown-unknown-sycldevice Source fallback-cmath.cpp Depends device_math.h device.h clang)
+
+set(devicelib-wrapper-cmath-fp64-spir64 ${obj_binary_dir}/libsycl-cmath-fp64-spir64.bc)
+BuildSYCLDeviceLib(Path ${devicelib-wrapper-cmath-fp64-spir64} Target spir64-unknown-unknown-sycldevice Source cmath_wrapper_fp64.cpp Depends device_math.h device.h clang)
+BuildSYCLDeviceLib(Path ${obj_binary_dir}/libsycl-fallback-cmath-fp64-spir64.bc Target spir64-unknown-unknown-sycldevice Source fallback-cmath-fp64.cpp Depends device_math.h device.h clang)
+
+set(devicelib-wrapper-cmath-fp64-spir64_x86_64 ${obj_binary_dir}/libsycl-cmath-fp64-spir64_x86_64.bc)
+BuildSYCLDeviceLib(Path ${devicelib-wrapper-cmath-fp64-spir64_x86_64} Target spir64_x86_64-unknown-unknown-sycldevice Source cmath_wrapper_fp64.cpp Depends device_math.h device.h clang)
+BuildSYCLDeviceLib(Path ${obj_binary_dir}/libsycl-fallback-cmath-fp64-spir64_x86_64.bc Target spir64_x86_64-unknown-unknown-sycldevice Source fallback-cmath-fp64.cpp Depends device_math.h device.h clang)
+
+set(devicelib-wrapper-cmath-fp64-spir64_gen ${obj_binary_dir}/libsycl-cmath-fp64-spir64_gen.bc)
+BuildSYCLDeviceLib(Path ${devicelib-wrapper-cmath-fp64-spir64_gen} Target spir64_gen-unknown-unknown-sycldevice Source cmath_wrapper_fp64.cpp Depends device_math.h device.h clang)
+BuildSYCLDeviceLib(Path ${obj_binary_dir}/libsycl-fallback-cmath-fp64-spir64_gen.bc Target spir64_gen-unknown-unknown-sycldevice Source fallback-cmath-fp64.cpp Depends device_math.h device.h clang)
+
+set(devicelib-wrapper-cmath-fp64-spir64_fpga ${obj_binary_dir}/libsycl-cmath-fp64-spir64_fpga.bc)
+BuildSYCLDeviceLib(Path ${devicelib-wrapper-cmath-fp64-spir64_fpga} Target spir64_fpga-unknown-unknown-sycldevice Source cmath_wrapper_fp64.cpp Depends device_math.h device.h clang)
+BuildSYCLDeviceLib(Path ${obj_binary_dir}/libsycl-fallback-cmath-fp64-spir64_fpga.bc Target spir64_fpga-unknown-unknown-sycldevice Source fallback-cmath-fp64.cpp Depends device_math.h device.h clang)
+
+function(BuildSYCLFallbackDeviceLib)
+  cmake_parse_arguments(DeviceLib "" "Path;Source" "Depends" ${ARGN})
+  add_custom_command(OUTPUT ${DeviceLib_Path}
+                     COMMAND ${clang} -S -fsycl-device-only -fno-sycl-use-bitcode
+                             ${compile_opts}
+                             ${CMAKE_CURRENT_SOURCE_DIR}/${DeviceLib_Source}
+                             -o ${DeviceLib_Path} -fno-sycl-device-lib=all
+                     MAIN_DEPENDENCY ${DeviceLib_Source}
+                     DEPENDS ${DeviceLib_Depends}
+                     VERBATIM)
+endfunction()
+
+BuildSYCLFallbackDeviceLib(Path ${spv_binary_dir}/libsycl-fallback-cassert.spv Source fallback-cassert.cpp Depends wrapper.h device.h clang spirv_vars.h llvm-spirv)
+BuildSYCLFallbackDeviceLib(Path ${spv_binary_dir}/libsycl-fallback-complex.spv Source fallback-complex.cpp Depends device_math.h device_complex.h device.h clang llvm-spirv)
+BuildSYCLFallbackDeviceLib(Path ${spv_binary_dir}/libsycl-fallback-complex-fp64.spv Source fallback-complex-fp64.cpp Depends device_math.h device_complex.h device.h clang llvm-spirv)
+BuildSYCLFallbackDeviceLib(Path ${spv_binary_dir}/libsycl-fallback-cmath.spv Source fallback-cmath.cpp Depends device_math.h device.h clang llvm-spirv)
+BuildSYCLFallbackDeviceLib(Path ${spv_binary_dir}/libsycl-fallback-cmath-fp64.spv Source fallback-cmath-fp64.cpp Depends device_math.h device.h clang llvm-spirv)
 
 add_custom_target(libsycldevice-obj DEPENDS
-  ${devicelib-obj-file}
-  ${devicelib-obj-complex}
-  ${devicelib-obj-complex-fp64}
-  ${devicelib-obj-cmath}
-  ${devicelib-obj-cmath-fp64}
+  ${devicelib-wrapper-crt-spir64}
+  ${devicelib-wrapper-crt-spir64_x86_64}
+  ${devicelib-wrapper-crt-spir64_gen}
+  ${devicelib-wrapper-crt-spir64_fpga}
+  ${devicelib-wrapper-complex-spir64}
+  ${devicelib-wrapper-complex-spir64_x86_64}
+  ${devicelib-wrapper-complex-spir64_gen}
+  ${devicelib-wrapper-complex-spir64_fpga}
+  ${devicelib-wrapper-complex-fp64-spir64}
+  ${devicelib-wrapper-complex-fp64-spir64_x86_64}
+  ${devicelib-wrapper-complex-fp64-spir64_gen}
+  ${devicelib-wrapper-complex-fp64-spir64_fpga}
+  ${devicelib-wrapper-cmath-spir64}
+  ${devicelib-wrapper-cmath-spir64_x86_64}
+  ${devicelib-wrapper-cmath-spir64_gen}
+  ${devicelib-wrapper-cmath-spir64_fpga}
+  ${devicelib-wrapper-cmath-fp64-spir64}
+  ${devicelib-wrapper-cmath-fp64-spir64_x86_64}
+  ${devicelib-wrapper-cmath-fp64-spir64_gen}
+  ${devicelib-wrapper-cmath-fp64-spir64_fpga}
 )
 add_custom_target(libsycldevice-spv DEPENDS
   ${spv_binary_dir}/libsycl-fallback-cassert.spv
@@ -184,11 +161,26 @@ add_custom_target(libsycldevice-spv DEPENDS
   ${spv_binary_dir}/libsycl-fallback-cmath-fp64.spv
   )
 add_custom_target(libsycldevice-fallback-obj DEPENDS
-  ${obj_binary_dir}/libsycl-fallback-cassert.${lib-suffix}
-  ${obj_binary_dir}/libsycl-fallback-complex.${lib-suffix}
-  ${obj_binary_dir}/libsycl-fallback-complex-fp64.${lib-suffix}
-  ${obj_binary_dir}/libsycl-fallback-cmath.${lib-suffix}
-  ${obj_binary_dir}/libsycl-fallback-cmath-fp64.${lib-suffix}
+  ${obj_binary_dir}/libsycl-fallback-cassert-spir64.bc
+  ${obj_binary_dir}/libsycl-fallback-cassert-spir64_x86_64.bc
+  ${obj_binary_dir}/libsycl-fallback-cassert-spir64_gen.bc
+  ${obj_binary_dir}/libsycl-fallback-cassert-spir64_fpga.bc
+  ${obj_binary_dir}/libsycl-fallback-complex-spir64.bc
+  ${obj_binary_dir}/libsycl-fallback-complex-spir64_x86_64.bc
+  ${obj_binary_dir}/libsycl-fallback-complex-spir64_gen.bc
+  ${obj_binary_dir}/libsycl-fallback-complex-spir64_fpga.bc
+  ${obj_binary_dir}/libsycl-fallback-complex-fp64-spir64.bc
+  ${obj_binary_dir}/libsycl-fallback-complex-fp64-spir64_x86_64.bc
+  ${obj_binary_dir}/libsycl-fallback-complex-fp64-spir64_gen.bc
+  ${obj_binary_dir}/libsycl-fallback-complex-fp64-spir64_fpga.bc
+  ${obj_binary_dir}/libsycl-fallback-cmath-spir64.bc
+  ${obj_binary_dir}/libsycl-fallback-cmath-spir64_x86_64.bc
+  ${obj_binary_dir}/libsycl-fallback-cmath-spir64_gen.bc
+  ${obj_binary_dir}/libsycl-fallback-cmath-spir64_fpga.bc
+  ${obj_binary_dir}/libsycl-fallback-cmath-fp64-spir64.bc
+  ${obj_binary_dir}/libsycl-fallback-cmath-fp64-spir64_x86_64.bc
+  ${obj_binary_dir}/libsycl-fallback-cmath-fp64-spir64_gen.bc
+  ${obj_binary_dir}/libsycl-fallback-cmath-fp64-spir64_fpga.bc
 )
 add_custom_target(libsycldevice DEPENDS
   libsycldevice-obj
@@ -205,16 +197,46 @@ endif()
 
 set(install_dest_lib lib${LLVM_LIBDIR_SUFFIX})
 
-install(FILES ${devicelib-obj-file}
-	      ${obj_binary_dir}/libsycl-fallback-cassert.${lib-suffix}
-              ${devicelib-obj-complex}
-	      ${obj_binary_dir}/libsycl-fallback-complex.${lib-suffix}
-              ${devicelib-obj-complex-fp64}
-	      ${obj_binary_dir}/libsycl-fallback-complex-fp64.${lib-suffix}
-              ${devicelib-obj-cmath}
-              ${obj_binary_dir}/libsycl-fallback-cmath.${lib-suffix}
-              ${devicelib-obj-cmath-fp64}
-	      ${obj_binary_dir}/libsycl-fallback-cmath-fp64.${lib-suffix}
+install(FILES ${devicelib-wrapper-crt-spir64}
+              ${devicelib-wrapper-crt-spir64_x86_64}
+              ${devicelib-wrapper-crt-spir64_gen}
+              ${devicelib-wrapper-crt-spir64_fpga}
+	      ${obj_binary_dir}/libsycl-fallback-cassert-spir64.bc
+	      ${obj_binary_dir}/libsycl-fallback-cassert-spir64_x86_64.bc
+	      ${obj_binary_dir}/libsycl-fallback-cassert-spir64_gen.bc
+	      ${obj_binary_dir}/libsycl-fallback-cassert-spir64_fpga.bc
+              ${devicelib-wrapper-complex-spir64}
+              ${devicelib-wrapper-complex-spir64_x86_64}
+              ${devicelib-wrapper-complex-spir64_gen}
+              ${devicelib-wrapper-complex-spir64_fpga}
+	      ${obj_binary_dir}/libsycl-fallback-complex-spir64.bc
+	      ${obj_binary_dir}/libsycl-fallback-complex-spir64_x86_64.bc
+	      ${obj_binary_dir}/libsycl-fallback-complex-spir64_gen.bc
+	      ${obj_binary_dir}/libsycl-fallback-complex-spir64_fpga.bc
+              ${devicelib-wrapper-complex-fp64-spir64}
+              ${devicelib-wrapper-complex-fp64-spir64_x86_64}
+              ${devicelib-wrapper-complex-fp64-spir64_gen}
+              ${devicelib-wrapper-complex-fp64-spir64_fpga}
+	      ${obj_binary_dir}/libsycl-fallback-complex-fp64-spir64.bc
+	      ${obj_binary_dir}/libsycl-fallback-complex-fp64-spir64_x86_64.bc
+	      ${obj_binary_dir}/libsycl-fallback-complex-fp64-spir64_gen.bc
+	      ${obj_binary_dir}/libsycl-fallback-complex-fp64-spir64_fpga.bc
+              ${devicelib-wrapper-cmath-spir64}
+              ${devicelib-wrapper-cmath-spir64_x86_64}
+              ${devicelib-wrapper-cmath-spir64_gen}
+              ${devicelib-wrapper-cmath-spir64_fpga}
+	      ${obj_binary_dir}/libsycl-fallback-cmath-spir64.bc
+	      ${obj_binary_dir}/libsycl-fallback-cmath-spir64_x86_64.bc
+	      ${obj_binary_dir}/libsycl-fallback-cmath-spir64_gen.bc
+	      ${obj_binary_dir}/libsycl-fallback-cmath-spir64_fpga.bc
+              ${devicelib-wrapper-cmath-fp64-spir64}
+              ${devicelib-wrapper-cmath-fp64-spir64_x86_64}
+              ${devicelib-wrapper-cmath-fp64-spir64_gen}
+              ${devicelib-wrapper-cmath-fp64-spir64_fpga}
+	      ${obj_binary_dir}/libsycl-fallback-cmath-fp64-spir64.bc
+	      ${obj_binary_dir}/libsycl-fallback-cmath-fp64-spir64_x86_64.bc
+	      ${obj_binary_dir}/libsycl-fallback-cmath-fp64-spir64_gen.bc
+	      ${obj_binary_dir}/libsycl-fallback-cmath-fp64-spir64_fpga.bc
         DESTINATION ${install_dest_lib}
         COMPONENT libsycldevice)
 
