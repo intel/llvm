@@ -2071,7 +2071,6 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   }
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
   PI_ASSERT(RetMem, PI_INVALID_VALUE);
-  PI_ASSERT(HostPtr && PI_MEM_FLAGS_HOST_PTR_ALLOC, PI_INVALID_VALUE);
 
   if (properties != nullptr) {
     die("piMemBufferCreate: no mem properties goes to Level-Zero RT yet");
@@ -2079,10 +2078,6 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
 
   void *Ptr;
   ze_device_handle_t ZeDevice = Context->Devices[0]->ZeDevice;
-
-  ze_device_mem_alloc_desc_t ZeDeviceMemDesc = {};
-  ZeDeviceMemDesc.flags = 0;
-  ZeDeviceMemDesc.ordinal = 0;
 
   // We treat integrated devices (physical memory shared with the CPU)
   // differently from discrete devices (those with distinct memories).
@@ -2093,7 +2088,19 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                             Context->Devices[0]->ZeDeviceProperties.flags &
                                 ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
 
+  // PI_MEM_FLAGS_HOST_PTR_ALLOC flag indicates allocation of pinned
+  // host memory which is accessible from device.
   bool AllocHostPtr = Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC;
+
+  if (AllocHostPtr) {
+    assert(HostPtr == nullptr &&
+           "PI_MEM_FLAGS_HOST_PTR_ALLOC cannot be used with host pointer");
+
+    ze_host_mem_alloc_desc_t ZeDesc = {};
+    ZeDesc.flags = 0;
+
+    ZE_CALL(zeMemAllocHost(Context->ZeContext, &ZeDesc, Size, 1, &Ptr));
+  }
 
   if (DeviceIsIntegrated) {
     ze_host_mem_alloc_desc_t ZeDesc = {};
@@ -2101,20 +2108,11 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
 
     ZE_CALL(zeMemAllocHost(Context->ZeContext, &ZeDesc, Size, 1, &Ptr));
 
-  } else if (AllocHostPtr) {
-    // Currently L0 does not support allocation of pinned
-    // host memory. So for PI_MEM_FLAGS_HOST_PTR_ALLOC flag, it allocates
-    // from host accessible memory.
-    ze_host_mem_alloc_desc_t ZeHostMemDesc = {};
-    ZeHostMemDesc.flags = 0;
-
-    ZE_CALL(zeMemAllocShared(Context->ZeContext, &ZeDeviceMemDesc,
-                             &ZeHostMemDesc, Size,
-                             1,       // TODO: alignment
-                             nullptr, // not bound to any device
-                             &Ptr));
-
   } else {
+    ze_device_mem_alloc_desc_t ZeDeviceMemDesc = {};
+    ZeDeviceMemDesc.flags = 0;
+    ZeDeviceMemDesc.ordinal = 0;
+
     ZE_CALL(zeMemAllocDevice(Context->ZeContext, &ZeDeviceMemDesc, Size, 1,
                              ZeDevice, &Ptr));
   }
