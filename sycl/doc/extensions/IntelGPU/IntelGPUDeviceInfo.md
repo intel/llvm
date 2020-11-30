@@ -8,12 +8,6 @@ New device descriptors will be added to provide access to low-level hardware det
 
 This proposal details what is required to provide this information as a SYCL extensions.
 
-## Feature Test Macro ##
-
-The same Feature Test Macro will be used for the new device descriptor support.  It will be defined as:
-
-    #define SYCL_EXT_INTEL_GPU_DEVICE_INFO 1
-
 
 
 # Intel GPU PCI Address #
@@ -27,25 +21,31 @@ This support can only be provided when using the Level Zero backend \(BE\).  Thi
 
 | Device Descriptors | Return Type | Description |
 | ------------------ | ----------- | ----------- |
-| info\:\:device\:\:ext\_intel\_gpu\_pci\_address | std\:\:string | For Level Zero BE, returns the PCI address in BDF format: `domain:bus:device.function`.|
+| info\:\:device\:\:ext\_intel\_pci\_address | std\:\:string | For Level Zero BE, returns the PCI address in BDF format: `domain:bus:device.function`.|
 
 
 ## Aspects ##
 
-A new aspect, ext\_intel\_gpu\_pci\_address, will be added.
+A new aspect, ext\_intel\_pci\_address, will be added.
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_pci\_address.
+An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_pci\_address.
 
 
 ## Example Usage ##
 
 The PCI address can be obtained using the standard get\_info() interface.
 
-    if (dev.has(aspect::ext_intel_gpu_pci_address)) {
-      auto BDF = dev.get_info<info::device::ext_intel_gpu_pci_address>();
+    if (dev.has(aspect::ext_intel_pci_address)) {
+      auto BDF = dev.get_info<info::device::ext_intel_pci_address>();
     }
+
+## Feature Test Macro ##
+
+The Feature Test Macro will be defined as:
+
+    #define SYCL_EXT_INTEL_DEVICE_INFO 1
 
 
 
@@ -79,6 +79,12 @@ The physical EU SIMD width can be obtained using the standard get\_info() interf
         auto euSimdWidth = dev.get_info<info::device::ext_intel_gpu_eu_simd_width>();
     }
 
+## Feature Test Macro ##
+
+The Feature Test Macro will be defined as:
+
+    #define SYCL_EXT_INTEL_GPU_DEVICE_INFO 1
+
 
 # Intel GPU Execution Unit Count #
 
@@ -111,3 +117,9 @@ Then the number of EUs can be obtained using the standard get\_info() interface.
     if (dev.has(aspect::ext_intel_gpu_eu_count)) {
       auto euCount = dev.get_info<info::device::ext_intel_gpu_eu_count>();
     }
+
+## Feature Test Macro ##
+
+The Feature Test Macro will be defined as:
+
+    #define SYCL_EXT_INTEL_GPU_DEVICE_INFO 1
