@@ -1127,6 +1127,10 @@ static void applyFPFastMathModeDecorations(const SPIRVValue *BV,
       FMF.setNoSignedZeros();
     if (V & FPFastMathModeAllowRecipMask)
       FMF.setAllowReciprocal();
+    if (V & FPFastMathModeAllowContractINTELMask)
+      FMF.setAllowContract();
+    if (V & FPFastMathModeAllowReassocINTELMask)
+      FMF.setAllowReassoc();
     if (V & FPFastMathModeFastMask)
       FMF.setFast();
     Inst->setFastMathFlags(FMF);
