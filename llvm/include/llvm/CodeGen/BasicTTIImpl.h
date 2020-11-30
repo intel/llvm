@@ -1172,9 +1172,6 @@ public:
     FastMathFlags FMF = ICA.getFlags();
     switch (IID) {
     default:
-      // FIXME: all cost kinds should default to the same thing?
-      if (CostKind != TTI::TCK_RecipThroughput)
-        return BaseT::getIntrinsicInstrCost(ICA, CostKind);
       break;
 
     case Intrinsic::cttz:
@@ -1324,8 +1321,9 @@ public:
       VecOpTy = dyn_cast<VectorType>(Tys[VecTyIndex]);
     }
 
+    // Library call cost - other than size, make it expensive.
+    unsigned SingleCallCost = CostKind == TTI::TCK_CodeSize ? 1 : 10;
     SmallVector<unsigned, 2> ISDs;
-    unsigned SingleCallCost = 10; // Library call cost. Make it expensive.
     switch (IID) {
     default: {
       // Assume that we need to scalarize this intrinsic.
@@ -1398,6 +1396,12 @@ public:
     case Intrinsic::maxnum:
       ISDs.push_back(ISD::FMAXNUM);
       break;
+    case Intrinsic::minimum:
+      ISDs.push_back(ISD::FMINIMUM);
+      break;
+    case Intrinsic::maximum:
+      ISDs.push_back(ISD::FMAXIMUM);
+      break;
     case Intrinsic::copysign:
       ISDs.push_back(ISD::FCOPYSIGN);
       break;
@@ -1438,6 +1442,7 @@ public:
     case Intrinsic::lifetime_start:
     case Intrinsic::lifetime_end:
     case Intrinsic::sideeffect:
+    case Intrinsic::pseudoprobe:
       return 0;
     case Intrinsic::masked_store: {
       Type *Ty = Tys[0];

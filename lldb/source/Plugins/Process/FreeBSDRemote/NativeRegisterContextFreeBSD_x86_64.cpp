@@ -215,9 +215,9 @@ static const RegisterSet g_reg_sets_i386[k_num_register_sets] = {
     {"Floating Point Registers", "fpu", k_num_fpr_registers_i386,
      g_fpu_regnums_i386},
     {"Debug Registers", "dbr", k_num_dbr_registers_i386, g_dbr_regnums_i386},
-    {"Extended AVX registers", "avx", k_num_avx_registers_i386,
+    {"Advanced Vector Extensions", "avx", k_num_avx_registers_i386,
      g_avx_regnums_i386},
-    {"Extended MPX registers", "mpx", k_num_mpx_registers_i386,
+    {"Memory Protection Extensions", "mpx", k_num_mpx_registers_i386,
      g_mpx_regnums_i386},
 };
 
@@ -229,9 +229,9 @@ static const RegisterSet g_reg_sets_x86_64[k_num_register_sets] = {
      g_fpu_regnums_x86_64},
     {"Debug Registers", "dbr", k_num_dbr_registers_x86_64,
      g_dbr_regnums_x86_64},
-    {"Extended AVX registers", "avx", k_num_avx_registers_x86_64,
+    {"Advanced Vector Extensions", "avx", k_num_avx_registers_x86_64,
      g_avx_regnums_x86_64},
-    {"Extended MPX registers", "mpx", k_num_mpx_registers_x86_64,
+    {"Memory Protection Extensions", "mpx", k_num_mpx_registers_x86_64,
      g_mpx_regnums_x86_64},
 };
 
@@ -451,10 +451,16 @@ NativeRegisterContextFreeBSD_x86_64::ReadRegister(const RegisterInfo *reg_info,
   switch (set) {
   case GPRegSet:
   case FPRegSet:
-  case DBRegSet:
-    reg_value.SetBytes(GetOffsetRegSetData(set, reg_info->byte_offset),
-                       reg_info->byte_size, endian::InlHostByteOrder());
+  case DBRegSet: {
+    void *data = GetOffsetRegSetData(set, reg_info->byte_offset);
+    FXSAVE *fpr = reinterpret_cast<FXSAVE *>(m_fpr.data());
+    if (data == &fpr->ftag) // ftag
+      reg_value.SetUInt16(
+          AbridgedToFullTagWord(fpr->ftag, fpr->fstat, fpr->stmm));
+    else
+      reg_value.SetBytes(data, reg_info->byte_size, endian::InlHostByteOrder());
     break;
+  }
   case YMMRegSet: {
     llvm::Optional<YMMSplitPtr> ymm_reg = GetYMMSplitReg(reg);
     if (!ymm_reg) {
@@ -511,10 +517,15 @@ Status NativeRegisterContextFreeBSD_x86_64::WriteRegister(
   switch (set) {
   case GPRegSet:
   case FPRegSet:
-  case DBRegSet:
-    ::memcpy(GetOffsetRegSetData(set, reg_info->byte_offset),
-             reg_value.GetBytes(), reg_value.GetByteSize());
+  case DBRegSet: {
+    void *data = GetOffsetRegSetData(set, reg_info->byte_offset);
+    FXSAVE *fpr = reinterpret_cast<FXSAVE *>(m_fpr.data());
+    if (data == &fpr->ftag) // ftag
+      fpr->ftag = FullToAbridgedTagWord(reg_value.GetAsUInt16());
+    else
+      ::memcpy(data, reg_value.GetBytes(), reg_value.GetByteSize());
     break;
+  }
   case YMMRegSet: {
     llvm::Optional<YMMSplitPtr> ymm_reg = GetYMMSplitReg(reg);
     if (!ymm_reg) {

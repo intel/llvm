@@ -572,6 +572,11 @@ static void AddNodeIDCustom(FoldingSetNodeID &ID, const SDNode *N) {
       ID.AddInteger(cast<LifetimeSDNode>(N)->getOffset());
     }
     break;
+  case ISD::PSEUDO_PROBE:
+    ID.AddInteger(cast<PseudoProbeSDNode>(N)->getGuid());
+    ID.AddInteger(cast<PseudoProbeSDNode>(N)->getIndex());
+    ID.AddInteger(cast<PseudoProbeSDNode>(N)->getAttributes());
+    break;
   case ISD::JumpTable:
   case ISD::TargetJumpTable:
     ID.AddInteger(cast<JumpTableSDNode>(N)->getIndex());
@@ -6883,6 +6888,30 @@ SDValue SelectionDAG::getLifetimeNode(bool IsStart, const SDLoc &dl,
   return V;
 }
 
+SDValue SelectionDAG::getPseudoProbeNode(const SDLoc &Dl, SDValue Chain,
+                                         uint64_t Guid, uint64_t Index,
+                                         uint32_t Attr) {
+  const unsigned Opcode = ISD::PSEUDO_PROBE;
+  const auto VTs = getVTList(MVT::Other);
+  SDValue Ops[] = {Chain};
+  FoldingSetNodeID ID;
+  AddNodeIDNode(ID, Opcode, VTs, Ops);
+  ID.AddInteger(Guid);
+  ID.AddInteger(Index);
+  void *IP = nullptr;
+  if (SDNode *E = FindNodeOrInsertPos(ID, Dl, IP))
+    return SDValue(E, 0);
+
+  auto *N = newSDNode<PseudoProbeSDNode>(
+      Opcode, Dl.getIROrder(), Dl.getDebugLoc(), VTs, Guid, Index, Attr);
+  createOperands(N, Ops);
+  CSEMap.InsertNode(N, IP);
+  InsertNode(N);
+  SDValue V(N, 0);
+  NewSDValueDbgMsg(V, "Creating new node: ", this);
+  return V;
+}
+
 /// InferPointerInfo - If the specified ptr/offset is a frame index, infer a
 /// MachinePointerInfo record from it.  This is particularly useful because the
 /// code generator has many cases where it doesn't bother passing in a
@@ -8295,6 +8324,19 @@ SDNode *SelectionDAG::getNodeIfExists(unsigned Opcode, SDVTList VTList,
     }
   }
   return nullptr;
+}
+
+/// doesNodeExist - Check if a node exists without modifying its flags.
+bool SelectionDAG::doesNodeExist(unsigned Opcode, SDVTList VTList,
+                                 ArrayRef<SDValue> Ops) {
+  if (VTList.VTs[VTList.NumVTs - 1] != MVT::Glue) {
+    FoldingSetNodeID ID;
+    AddNodeIDNode(ID, Opcode, VTList, Ops);
+    void *IP = nullptr;
+    if (FindNodeOrInsertPos(ID, SDLoc(), IP))
+      return true;
+  }
+  return false;
 }
 
 /// getDbgValue - Creates a SDDbgValue node.

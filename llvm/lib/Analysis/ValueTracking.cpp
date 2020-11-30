@@ -527,6 +527,7 @@ bool llvm::isAssumeLikeIntrinsic(const Instruction *I) {
       // FIXME: This list is repeated from NoTTI::getIntrinsicCost.
       case Intrinsic::assume:
       case Intrinsic::sideeffect:
+      case Intrinsic::pseudoprobe:
       case Intrinsic::dbg_declare:
       case Intrinsic::dbg_value:
       case Intrinsic::dbg_label:
@@ -3609,12 +3610,13 @@ Value *llvm::isBytewiseValue(Value *V, const DataLayout &DL) {
 
   if (auto *CE = dyn_cast<ConstantExpr>(C)) {
     if (CE->getOpcode() == Instruction::IntToPtr) {
-      auto PS = DL.getPointerSizeInBits(
-          cast<PointerType>(CE->getType())->getAddressSpace());
-      return isBytewiseValue(
-          ConstantExpr::getIntegerCast(CE->getOperand(0),
-                                       Type::getIntNTy(Ctx, PS), false),
-          DL);
+      if (auto *PtrTy = dyn_cast<PointerType>(CE->getType())) {
+        unsigned BitWidth = DL.getPointerSizeInBits(PtrTy->getAddressSpace());
+        return isBytewiseValue(
+            ConstantExpr::getIntegerCast(CE->getOperand(0),
+                                         Type::getIntNTy(Ctx, BitWidth), false),
+            DL);
+      }
     }
   }
 
@@ -4722,7 +4724,7 @@ static bool canCreateUndefOrPoison(const Operator *Op, bool PoisonOnly) {
     ArrayRef<int> Mask = isa<ConstantExpr>(Op)
                              ? cast<ConstantExpr>(Op)->getShuffleMask()
                              : cast<ShuffleVectorInst>(Op)->getShuffleMask();
-    return any_of(Mask, [](int Elt) { return Elt == UndefMaskElem; });
+    return is_contained(Mask, UndefMaskElem);
   }
   case Instruction::FNeg:
   case Instruction::PHI:
@@ -4876,8 +4878,7 @@ static bool isGuaranteedNotToBeUndefOrPoison(const Value *V,
       else if (PoisonOnly && isa<Operator>(Cond)) {
         // For poison, we can analyze further
         auto *Opr = cast<Operator>(Cond);
-        if (propagatesPoison(Opr) &&
-            any_of(Opr->operand_values(), [&](Value *Op) { return Op == V; }))
+        if (propagatesPoison(Opr) && is_contained(Opr->operand_values(), V))
           return true;
       }
     }

@@ -1029,14 +1029,6 @@ typedef unsigned int   char32_t;
 #  define _LIBCPP_CONSTEXPR_AFTER_CXX17
 #endif
 
-#if _LIBCPP_STD_VER > 17 && \
-    !defined(_LIBCPP_HAS_NO_CXX14_CONSTEXPR) && \
-    !defined(_LIBCPP_HAS_NO_BUILTIN_IS_CONSTANT_EVALUATED)
-#  define _LIBCPP_CONSTEXPR_AFTER_CXX17_WITH_IS_CONSTANT_EVALUATED constexpr
-#else
-#  define _LIBCPP_CONSTEXPR_AFTER_CXX17_WITH_IS_CONSTANT_EVALUATED
-#endif
-
 // The _LIBCPP_NODISCARD_ATTRIBUTE should only be used to define other
 // NODISCARD macros to the correct attribute.
 #if __has_cpp_attribute(nodiscard) || defined(_LIBCPP_COMPILER_MSVC)
@@ -1419,6 +1411,12 @@ _LIBCPP_FUNC_VIS extern "C" void __sanitizer_annotate_contiguous_container(
 // using 64-bit file offsets on LP32.
 #if defined(__BIONIC__) && defined(__USE_FILE_OFFSET64) && __ANDROID_API__ < 24
 #define _LIBCPP_HAS_NO_FGETPOS_FSETPOS
+#endif
+
+#if __has_attribute(init_priority)
+# define _LIBCPP_INIT_PRIORITY_MAX __attribute__((init_priority(101)))
+#else
+# define _LIBCPP_INIT_PRIORITY_MAX
 #endif
 
 #endif // __cplusplus
