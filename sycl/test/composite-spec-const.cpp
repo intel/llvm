@@ -74,11 +74,8 @@ int main(int argc, char **argv) {
 
     q.submit([&](cl::sycl::handler &cgh) {
       auto acci = bufi.get_access<cl::sycl::access::mode::write>(cgh);
-      cgh.single_task<Test>(
-          program.get_kernel<Test>(),
-          [=]() {
-            acci[0] = pod.get();
-          });
+      cgh.single_task<Test>(program.get_kernel<Test>(),
+                            [=]() { acci[0] = pod.get(); });
     });
   } catch (cl::sycl::exception &e) {
     std::cout << "*** Exception caught: " << e.what() << "\n";
