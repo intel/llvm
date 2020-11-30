@@ -10,7 +10,7 @@
 
 // RUN: %clangxx -fsycl %S/Inputs/filter_list_queries.cpp -o %t.out
 
-// RUN: env SYCL_DEVICE_FILTER=\* %t.out | FileCheck %s --check-prefixes=CHECK-CPU,CHECK-GPU,CHECK-ACC,CHECK-HOST
+// RUN: env SYCL_DEVICE_FILTER="*" %t.out | FileCheck %s --check-prefixes=CHECK-CPU,CHECK-GPU,CHECK-ACC,CHECK-HOST
 // RUN: env SYCL_DEVICE_FILTER=opencl %t.out | FileCheck %s --check-prefixes=CHECK-CPU,CHECK-GPU,CHECK-ACC,CHECK-HOST
 // RUN: env SYCL_DEVICE_FILTER=cpu %t.out | FileCheck %s --check-prefixes=CHECK-CPU,CHECK-GPUi-NOT,CHECK-ACC-NOT,CHECK-HOST
 // RUN: env SYCL_DEVICE_FILTER=acc %t.out | FileCheck %s --check-prefixes=CHECK-CPU-NOT,CHECK-GPU-NOT,CHECK-ACC,CHECK-HOST
