@@ -43,8 +43,8 @@ public:
       break;
     }
     default:
-      throw runtime_error("Unhandled type of command group",
-                          PI_INVALID_OPERATION);
+      throw sycl::runtime_error("Unhandled type of command group",
+                                PI_INVALID_OPERATION);
     }
 
     return CommandGroup;
@@ -53,22 +53,27 @@ public:
 
 using CmdTypeTy = cl::sycl::detail::Command::CommandType;
 
+// Function recursively checks that initial command has dependency on chain of
+// other commands that should have type DepCmdsTypes[Depth] (Depth is a distance
+// - 1 in a command dependencies tree from initial command to a currently
+// checked one) and requirement on memory object of stream's flush buffer.
 static bool ValidateDepCommandsTree(const detail::Command *Cmd,
-                                    std::queue<CmdTypeTy> DepCmdsTypes,
-                                    const detail::SYCLMemObjI *MemObj) {
-  if (DepCmdsTypes.empty())
-    return true;
-  else if (!Cmd)
-    return false;
-
-  CmdTypeTy DepCmdType = DepCmdsTypes.front();
-  DepCmdsTypes.pop();
+                                    const std::vector<CmdTypeTy> &DepCmdsTypes,
+                                    const detail::SYCLMemObjI *MemObj,
+                                    size_t Depth = 0) {
+  if (!Cmd || Depth >= DepCmdsTypes.size())
+    throw sycl::runtime_error("Command parameters are invalid",
+                              PI_INVALID_VALUE);
 
   for (const detail::DepDesc &Dep : Cmd->MDeps) {
-    if (Dep.MDepCommand && (Dep.MDepCommand->getType() == DepCmdType) &&
+    if (Dep.MDepCommand &&
+        (Dep.MDepCommand->getType() == DepCmdsTypes[Depth]) &&
         Dep.MDepRequirement && (Dep.MDepRequirement->MSYCLMemObj == MemObj) &&
-        ValidateDepCommandsTree(Dep.MDepCommand, DepCmdsTypes, MemObj))
+        ((Depth == DepCmdsTypes.size() - 1) ||
+         ValidateDepCommandsTree(Dep.MDepCommand, DepCmdsTypes, MemObj,
+                                 Depth + 1))) {
       return true;
+    }
   }
 
   return false;
@@ -114,9 +119,9 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
   // Tree of dependencies should look like:
   // [MAIN_CG] -> [EMPTY_NODE {FlushBufMemObj}] -> [FILL_CG {FlushBufMemObj}] ->
   //     [[ALLOC_TASK {FlushBufMemObj}]
-  std::queue<CmdTypeTy> DepCmdsTypes({CmdTypeTy::EMPTY_TASK,
-                                      CmdTypeTy::RUN_CG, // FILL_CG
-                                      CmdTypeTy::ALLOCA});
+  std::vector<CmdTypeTy> DepCmdsTypes({CmdTypeTy::EMPTY_TASK,
+                                       CmdTypeTy::RUN_CG, // FILL_CG
+                                       CmdTypeTy::ALLOCA});
   ASSERT_TRUE(ValidateDepCommandsTree(NewCmd, DepCmdsTypes, FlushBufMemObjPtr))
       << "Dependency on stream flush buffer initialization not found";
 }
