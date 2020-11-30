@@ -1252,3 +1252,7 @@ in addition with the pragmas or -fmax-tokens flag to get any warnings.
 def WebAssemblyExceptionSpec : DiagGroup<"wasm-exception-spec">;
 
 def RTTI : DiagGroup<"rtti">;
+
+// A warning group for warnings related to constexprs captured as
+// kernel args.
+def ConstExprKernelArg : DiagGroup<"constexpr-kernel-arg">;
