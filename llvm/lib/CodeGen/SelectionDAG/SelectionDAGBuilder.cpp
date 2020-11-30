@@ -3131,6 +3131,7 @@ void SelectionDAGBuilder::visitSelect(const User &I) {
       Cond.getValueType().isVector() ? ISD::VSELECT : ISD::SELECT;
 
   bool IsUnaryAbs = false;
+  bool Negate = false;
 
   SDNodeFlags Flags;
   if (auto *FPOp = dyn_cast<FPMathOperator>(&I))
@@ -3195,12 +3196,13 @@ void SelectionDAGBuilder::visitSelect(const User &I) {
         break;
       }
       break;
+    case SPF_NABS:
+      Negate = true;
+      LLVM_FALLTHROUGH;
     case SPF_ABS:
       IsUnaryAbs = true;
       Opc = ISD::ABS;
       break;
-    case SPF_NABS:
-      // TODO: we need to produce sub(0, abs(X)).
     default: break;
     }
 
@@ -3227,10 +3229,13 @@ void SelectionDAGBuilder::visitSelect(const User &I) {
 
   if (IsUnaryAbs) {
     for (unsigned i = 0; i != NumValues; ++i) {
+      SDLoc dl = getCurSDLoc();
+      EVT VT = LHSVal.getNode()->getValueType(LHSVal.getResNo() + i);
       Values[i] =
-          DAG.getNode(OpCode, getCurSDLoc(),
-                      LHSVal.getNode()->getValueType(LHSVal.getResNo() + i),
-                      SDValue(LHSVal.getNode(), LHSVal.getResNo() + i));
+          DAG.getNode(OpCode, dl, VT, LHSVal.getValue(LHSVal.getResNo() + i));
+      if (Negate)
+        Values[i] = DAG.getNode(ISD::SUB, dl, VT, DAG.getConstant(0, dl, VT),
+                                Values[i]);
     }
   } else {
     for (unsigned i = 0; i != NumValues; ++i) {
@@ -4353,7 +4358,7 @@ void SelectionDAGBuilder::visitMaskedLoad(const CallInst &I, bool IsExpanding) {
   // Do not serialize masked loads of constant memory with anything.
   MemoryLocation ML;
   if (VT.isScalableVector())
-    ML = MemoryLocation(PtrOperand, LocationSize::unknown());
+    ML = MemoryLocation::getAfter(PtrOperand);
   else
     ML = MemoryLocation(PtrOperand, LocationSize::precise(
                            DAG.getDataLayout().getTypeStoreSize(I.getType())),

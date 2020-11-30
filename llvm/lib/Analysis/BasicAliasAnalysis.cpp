@@ -877,8 +877,8 @@ ModRefInfo BasicAAResult::getModRefInfo(const CallBase *Call,
       // If this is a no-capture pointer argument, see if we can tell that it
       // is impossible to alias the pointer we're checking.
       AliasResult AR = getBestAAResults().alias(
-          MemoryLocation(*CI, LocationSize::unknown()),
-          MemoryLocation(Object, LocationSize::unknown()), AAQI);
+          MemoryLocation::getBeforeOrAfter(*CI),
+          MemoryLocation::getBeforeOrAfter(Object), AAQI);
       if (AR != MustAlias)
         IsMustAlias = false;
       // Operand doesn't alias 'Object', continue looking for other aliases
@@ -924,7 +924,7 @@ ModRefInfo BasicAAResult::getModRefInfo(const CallBase *Call,
   if (isMallocOrCallocLikeFn(Call, &TLI)) {
     // Be conservative if the accessed pointer may alias the allocation -
     // fallback to the generic handling below.
-    if (getBestAAResults().alias(MemoryLocation(Call, LocationSize::unknown()),
+    if (getBestAAResults().alias(MemoryLocation::getBeforeOrAfter(Call),
                                  Loc, AAQI) == NoAlias)
       return ModRefInfo::NoModRef;
   }
@@ -1245,9 +1245,9 @@ AliasResult BasicAAResult::aliasGEP(
     if (isGEPBaseAtNegativeOffset(GEP2, DecompGEP2, DecompGEP1, V1Size))
       return NoAlias;
     // Do the base pointers alias?
-    AliasResult BaseAlias =
-        aliasCheck(UnderlyingV1, LocationSize::unknown(), AAMDNodes(),
-                   UnderlyingV2, LocationSize::unknown(), AAMDNodes(), AAQI);
+    AliasResult BaseAlias = aliasCheck(
+        UnderlyingV1, LocationSize::beforeOrAfterPointer(), AAMDNodes(),
+        UnderlyingV2, LocationSize::beforeOrAfterPointer(), AAMDNodes(), AAQI);
 
     // For GEPs with identical offsets, we can preserve the size and AAInfo
     // when performing the alias check on the underlying objects.
@@ -1295,9 +1295,9 @@ AliasResult BasicAAResult::aliasGEP(
     if (!V1Size.hasValue() && !V2Size.hasValue())
       return MayAlias;
 
-    AliasResult R = aliasCheck(UnderlyingV1, LocationSize::unknown(),
-                               AAMDNodes(), V2, LocationSize::unknown(),
-                               V2AAInfo, AAQI, nullptr, UnderlyingV2);
+    AliasResult R = aliasCheck(
+        UnderlyingV1, LocationSize::beforeOrAfterPointer(), AAMDNodes(),
+        V2, V2Size, V2AAInfo, AAQI, nullptr, UnderlyingV2);
     if (R != MustAlias) {
       // If V2 may alias GEP base pointer, conservatively returns MayAlias.
       // If V2 is known not to alias GEP base pointer, then the two values
@@ -1489,8 +1489,10 @@ AliasResult BasicAAResult::aliasPHI(const PHINode *PN, LocationSize PNSize,
       // operand from outside the PHIs' cycle that is MayAlias/MustAlias or
       // there must be an operation on the PHIs within the PHIs' value cycle
       // that causes a MayAlias.
-      // Pretend the phis do not alias.
-      AliasResult Alias = NoAlias;
+      // Disable persistent caching, so intermediate results based on a
+      // possibly incorrect assumption do not get cached.
+      bool OrigDisableCache = DisableCache;
+      DisableCache = true;
       AliasResult OrigAliasResult;
       {
         // Limited lifetime iterator invalidated by the aliasCheck call below.
@@ -1501,6 +1503,7 @@ AliasResult BasicAAResult::aliasPHI(const PHINode *PN, LocationSize PNSize,
         CacheIt->second = NoAlias;
       }
 
+      AliasResult Alias = NoAlias;
       for (unsigned i = 0, e = PN->getNumIncomingValues(); i != e; ++i) {
         AliasResult ThisAlias =
             aliasCheck(PN->getIncomingValue(i), PNSize, PNAAInfo,
@@ -1514,6 +1517,7 @@ AliasResult BasicAAResult::aliasPHI(const PHINode *PN, LocationSize PNSize,
       // Reset if speculation failed.
       if (Alias != NoAlias)
         AAQI.updateResult(Locs, OrigAliasResult);
+      DisableCache = OrigDisableCache;
       return Alias;
     }
 
@@ -1588,7 +1592,11 @@ AliasResult BasicAAResult::aliasPHI(const PHINode *PN, LocationSize PNSize,
   // unknown to represent all the possible values the GEP could advance the
   // pointer to.
   if (isRecursive)
-    PNSize = LocationSize::unknown();
+    // TODO: We are checking above that the addrec GEP has a positive offset
+    // and can thus assume that all accesses happen after the base pointer.
+    // It might be better to drop the offset requirement and use
+    // beforeOrAfterPointer().
+    PNSize = LocationSize::afterPointer();
 
   // In the recursive alias queries below, we may compare values from two
   // different loop iterations. Keep track of visited phi blocks, which will
@@ -1726,6 +1734,18 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, LocationSize V1Size,
           TLI, NullIsValidLocation)))
     return NoAlias;
 
+  // If one the accesses may be before the accessed pointer, canonicalize this
+  // by using unknown after-pointer sizes for both accesses. This is
+  // equivalent, because regardless of which pointer is lower, one of them
+  // will always came after the other, as long as the underlying objects aren't
+  // disjoint. We do this so that the rest of BasicAA does not have to deal
+  // with accesses before the base pointer, and to improve cache utilization by
+  // merging equivalent states.
+  if (V1Size.mayBeBeforePointer() || V2Size.mayBeBeforePointer()) {
+    V1Size = LocationSize::afterPointer();
+    V2Size = LocationSize::afterPointer();
+  }
+
   // Check the cache before climbing up use-def chains. This also terminates
   // otherwise infinitely recursive queries.
   AAQueryInfo::LocPair Locs(MemoryLocation(V1, V1Size, V1AAInfo),
@@ -1737,59 +1757,73 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, LocationSize V1Size,
   if (!Pair.second)
     return Pair.first->second;
 
+  AliasResult Result = aliasCheckRecursive(V1, V1Size, V1AAInfo, V2, V2Size,
+                                           V2AAInfo, AAQI, O1, O2);
+
+  // If caching is disabled, remove the entry once the recursive checks are
+  // done. We only needed it to prevent infinite recursion.
+  if (DisableCache)
+    AAQI.AliasCache.erase(AAQI.AliasCache.find(Locs));
+  else if (Result != MayAlias)
+    AAQI.updateResult(Locs, Result);
+  return Result;
+}
+
+AliasResult BasicAAResult::aliasCheckRecursive(
+    const Value *V1, LocationSize V1Size, const AAMDNodes &V1AAInfo,
+    const Value *V2, LocationSize V2Size, const AAMDNodes &V2AAInfo,
+    AAQueryInfo &AAQI, const Value *O1, const Value *O2) {
   if (const GEPOperator *GV1 = dyn_cast<GEPOperator>(V1)) {
     AliasResult Result =
         aliasGEP(GV1, V1Size, V1AAInfo, V2, V2Size, V2AAInfo, O1, O2, AAQI);
     if (Result != MayAlias)
-      return AAQI.updateResult(Locs, Result);
+      return Result;
   } else if (const GEPOperator *GV2 = dyn_cast<GEPOperator>(V2)) {
     AliasResult Result =
         aliasGEP(GV2, V2Size, V2AAInfo, V1, V1Size, V1AAInfo, O2, O1, AAQI);
     if (Result != MayAlias)
-      return AAQI.updateResult(Locs, Result);
+      return Result;
   }
 
   if (const PHINode *PN = dyn_cast<PHINode>(V1)) {
     AliasResult Result =
         aliasPHI(PN, V1Size, V1AAInfo, V2, V2Size, V2AAInfo, O2, AAQI);
     if (Result != MayAlias)
-      return AAQI.updateResult(Locs, Result);
+      return Result;
   } else if (const PHINode *PN = dyn_cast<PHINode>(V2)) {
     AliasResult Result =
         aliasPHI(PN, V2Size, V2AAInfo, V1, V1Size, V1AAInfo, O1, AAQI);
     if (Result != MayAlias)
-      return AAQI.updateResult(Locs, Result);
+      return Result;
   }
 
   if (const SelectInst *S1 = dyn_cast<SelectInst>(V1)) {
     AliasResult Result =
         aliasSelect(S1, V1Size, V1AAInfo, V2, V2Size, V2AAInfo, O2, AAQI);
     if (Result != MayAlias)
-      return AAQI.updateResult(Locs, Result);
+      return Result;
   } else if (const SelectInst *S2 = dyn_cast<SelectInst>(V2)) {
     AliasResult Result =
         aliasSelect(S2, V2Size, V2AAInfo, V1, V1Size, V1AAInfo, O1, AAQI);
     if (Result != MayAlias)
-      return AAQI.updateResult(Locs, Result);
+      return Result;
   }
 
   // If both pointers are pointing into the same object and one of them
   // accesses the entire object, then the accesses must overlap in some way.
-  if (O1 == O2)
+  if (O1 == O2) {
+    bool NullIsValidLocation = NullPointerIsDefined(&F);
     if (V1Size.isPrecise() && V2Size.isPrecise() &&
         (isObjectSize(O1, V1Size.getValue(), DL, TLI, NullIsValidLocation) ||
          isObjectSize(O2, V2Size.getValue(), DL, TLI, NullIsValidLocation)))
-      return AAQI.updateResult(Locs, PartialAlias);
+      return PartialAlias;
+  }
 
   // Recurse back into the best AA results we have, potentially with refined
   // memory locations. We have already ensured that BasicAA has a MayAlias
   // cache result for these, so any recursion back into BasicAA won't loop.
-  AliasResult Result = getBestAAResults().alias(Locs.first, Locs.second, AAQI);
-  if (Result != MayAlias)
-    return AAQI.updateResult(Locs, Result);
-
-  // MayAlias is already in the cache.
-  return MayAlias;
+  return getBestAAResults().alias(MemoryLocation(V1, V1Size, V1AAInfo),
+                                  MemoryLocation(V2, V2Size, V2AAInfo), AAQI);
 }
 
 /// Check whether two Values can be considered equivalent.
