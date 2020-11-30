@@ -18,7 +18,7 @@ This test serves two purposes:
 
 The list of warnings below should NEVER grow.  It should gradually shrink to 0.
 
-CHECK: Warnings without flags (69):
+CHECK: Warnings without flags (68):
 
 CHECK-NEXT:   ext_expected_semi_decl_list
 CHECK-NEXT:   ext_explicit_specialization_storage_class
@@ -42,7 +42,6 @@ CHECK-NEXT:   warn_case_empty_range
 CHECK-NEXT:   warn_char_constant_too_large
 CHECK-NEXT:   warn_collection_expr_type
 CHECK-NEXT:   warn_conflicting_variadic
-CHECK-NEXT:   warn_constexpr_kernel_arg
 CHECK-NEXT:   warn_delete_array_type
 CHECK-NEXT:   warn_double_const_requires_fp64
 CHECK-NEXT:   warn_drv_assuming_mfloat_abi_is
