@@ -414,14 +414,13 @@ int main(int Argc, char *Argv[]) {
   CLProgramUPtr ProgramUPtr(std::move(Progs[0]));
 
   // step 7: set OpenCL build options
-  std::string BuildOptsStr;
+  std::string BuildOptions;
   if (!OptBuildOptions.empty()) {
-    BuildOptsStr = *OptBuildOptions.begin();
-    for_each(OptBuildOptions.begin() + 1, OptBuildOptions.end(),
-             [&](const std::string &s) { BuildOptsStr += ' ' + s; });
+    BuildOptions = *OptBuildOptions.begin();
+    std::for_each(OptBuildOptions.begin() + 1, OptBuildOptions.end(),
+                  [&](const std::string &s) { BuildOptions += ' ' + s; });
   }
 
-  std::string BuildOptions = BuildOptsStr;
   auto ParentDir = sys::path::parent_path(OptInputBinary);
   if (!ParentDir.empty()) {
     BuildOptions += " -I \"" + std::string(ParentDir) + '\"';
@@ -429,7 +428,7 @@ int main(int Argc, char *Argv[]) {
   std::cout << "Using build options: " << BuildOptions << '\n';
 
   // step 8: build OpenCL program
-  CLErr = clBuildProgram(ProgramUPtr.get(), 1, &DeviceId, BuildOptsStr.c_str(),
+  CLErr = clBuildProgram(ProgramUPtr.get(), 1, &DeviceId, BuildOptions.c_str(),
                          nullptr, nullptr);
 
   std::string CompilerBuildLog;
