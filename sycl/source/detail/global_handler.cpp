@@ -14,7 +14,7 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
-#ifdef WIN32
+#ifdef _WIN32
 #include <windows.h>
 #endif
 
@@ -115,7 +115,7 @@ GlobalHandler::getDeviceFilterList(const std::string &InitValue) {
 
 void shutdown() { delete &GlobalHandler::instance(); }
 
-#ifdef WIN32
+#ifdef _WIN32
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
   // Perform actions based on the reason for calling.
   switch (fdwReason) {

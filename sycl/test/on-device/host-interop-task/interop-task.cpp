@@ -150,6 +150,46 @@ void test2() {
   }
 }
 
+// Same as above but with queue constructed out of context
+void test2_1() {
+  static constexpr int COUNT = 4;
+  buffer<int, 1> Buffer1{BUFFER_SIZE};
+  buffer<int, 1> Buffer2{BUFFER_SIZE};
+
+  auto Device = default_selector().select_device();
+  auto Context = context(Device);
+  // init the buffer with a'priori invalid data
+  {
+    queue Q(Context, Device);
+    init<int, -1, -2>(Buffer1, Buffer2, Q);
+  }
+
+  // Repeat a couple of times
+  for (size_t Idx = 0; Idx < COUNT; ++Idx) {
+    queue Q(Context, Device);
+    copy(Buffer1, Buffer2, Q);
+    modify(Buffer2, Q);
+    copy(Buffer2, Buffer1, Q);
+  }
+
+  {
+    auto Acc = Buffer1.get_access<mode::read>();
+
+    for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx) {
+      std::cout << "First buffer [" << Idx << "] = " << Acc[Idx] << std::endl;
+      assert((Acc[Idx] == COUNT - 1) && "Invalid data in the first buffer");
+    }
+  }
+  {
+    auto Acc = Buffer2.get_access<mode::read>();
+
+    for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx) {
+      std::cout << "Second buffer [" << Idx << "] = " << Acc[Idx] << std::endl;
+      assert((Acc[Idx] == COUNT - 1) && "Invalid data in the second buffer");
+    }
+  }
+}
+
 // A test that does a clEnqueueWait inside the interop scope, for an event
 // captured outside the command group. The OpenCL event can be set after the
 // command group finishes. Must not deadlock according to implementation and
@@ -251,6 +291,7 @@ void test6() {
 int main() {
   test1();
   test2();
+  test2_1();
   test3();
   test4();
   test5();
