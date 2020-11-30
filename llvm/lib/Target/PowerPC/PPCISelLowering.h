@@ -265,11 +265,11 @@ namespace llvm {
     /// is VCMPGTSH.
     VCMP,
 
-    /// RESVEC, OUTFLAG = VCMPo(LHS, RHS, OPC) - Represents one of the
-    /// altivec VCMP*o instructions.  For lack of better number, we use the
+    /// RESVEC, OUTFLAG = VCMP_rec(LHS, RHS, OPC) - Represents one of the
+    /// altivec VCMP*_rec instructions.  For lack of better number, we use the
     /// opcode number encoding for the OPC field to identify the compare.  For
     /// example, 838 is VCMPGTSH.
-    VCMPo,
+    VCMP_rec,
 
     /// CHAIN = COND_BRANCH CHAIN, CRRC, OPC, DESTBB [, INFLAG] - This
     /// corresponds to the COND_BRANCH pseudo instruction.  CRRC is the
@@ -770,6 +770,8 @@ namespace llvm {
     bool SelectAddressRegImm(SDValue N, SDValue &Disp, SDValue &Base,
                              SelectionDAG &DAG,
                              MaybeAlign EncodingAlignment) const;
+    bool SelectAddressRegImm34(SDValue N, SDValue &Disp, SDValue &Base,
+                               SelectionDAG &DAG) const;
 
     /// SelectAddressRegRegOnly - Given the specified addressed, force it to be
     /// represented as an indexed [r+r] operation.
@@ -1325,6 +1327,8 @@ namespace llvm {
 
   bool isIntS16Immediate(SDNode *N, int16_t &Imm);
   bool isIntS16Immediate(SDValue Op, int16_t &Imm);
+  bool isIntS34Immediate(SDNode *N, int64_t &Imm);
+  bool isIntS34Immediate(SDValue Op, int64_t &Imm);
 
   bool convertToNonDenormSingle(APInt &ArgAPInt);
   bool convertToNonDenormSingle(APFloat &ArgAPFloat);

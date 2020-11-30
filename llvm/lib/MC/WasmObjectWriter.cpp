@@ -478,6 +478,7 @@ void WasmObjectWriter::recordRelocation(MCAssembler &Asm,
   // Currently only supported for for metadata sections.
   // See: test/MC/WebAssembly/blockaddress.ll
   if (Type == wasm::R_WASM_FUNCTION_OFFSET_I32 ||
+      Type == wasm::R_WASM_FUNCTION_OFFSET_I64 ||
       Type == wasm::R_WASM_SECTION_OFFSET_I32) {
     if (!FixupSection.getKind().isMetadata())
       report_fatal_error("relocations for function or section offsets are "
@@ -559,10 +560,12 @@ WasmObjectWriter::getProvisionalValue(const WasmRelocationEntry &RelEntry,
   case wasm::R_WASM_GLOBAL_INDEX_LEB:
   case wasm::R_WASM_GLOBAL_INDEX_I32:
   case wasm::R_WASM_EVENT_INDEX_LEB:
+  case wasm::R_WASM_TABLE_NUMBER_LEB:
     // Provisional value is function/global/event Wasm index
     assert(WasmIndices.count(RelEntry.Symbol) > 0 && "symbol not found in wasm index space");
     return WasmIndices[RelEntry.Symbol];
   case wasm::R_WASM_FUNCTION_OFFSET_I32:
+  case wasm::R_WASM_FUNCTION_OFFSET_I64:
   case wasm::R_WASM_SECTION_OFFSET_I32: {
     const auto &Section =
         static_cast<const MCSectionWasm &>(RelEntry.Symbol->getSection());
@@ -575,7 +578,8 @@ WasmObjectWriter::getProvisionalValue(const WasmRelocationEntry &RelEntry,
   case wasm::R_WASM_MEMORY_ADDR_REL_SLEB:
   case wasm::R_WASM_MEMORY_ADDR_REL_SLEB64:
   case wasm::R_WASM_MEMORY_ADDR_I32:
-  case wasm::R_WASM_MEMORY_ADDR_I64: {
+  case wasm::R_WASM_MEMORY_ADDR_I64:
+  case wasm::R_WASM_MEMORY_ADDR_TLS_SLEB: {
     // Provisional value is address of the global plus the offset
     const MCSymbolWasm *Base =
         cast<MCSymbolWasm>(Layout.getBaseSymbol(*RelEntry.Symbol));
@@ -663,6 +667,7 @@ void WasmObjectWriter::applyRelocations(
     case wasm::R_WASM_GLOBAL_INDEX_LEB:
     case wasm::R_WASM_MEMORY_ADDR_LEB:
     case wasm::R_WASM_EVENT_INDEX_LEB:
+    case wasm::R_WASM_TABLE_NUMBER_LEB:
       writePatchableLEB<5>(Stream, Value, Offset);
       break;
     case wasm::R_WASM_MEMORY_ADDR_LEB64:
@@ -677,12 +682,14 @@ void WasmObjectWriter::applyRelocations(
       break;
     case wasm::R_WASM_TABLE_INDEX_I64:
     case wasm::R_WASM_MEMORY_ADDR_I64:
+    case wasm::R_WASM_FUNCTION_OFFSET_I64:
       patchI64(Stream, Value, Offset);
       break;
     case wasm::R_WASM_TABLE_INDEX_SLEB:
     case wasm::R_WASM_TABLE_INDEX_REL_SLEB:
     case wasm::R_WASM_MEMORY_ADDR_SLEB:
     case wasm::R_WASM_MEMORY_ADDR_REL_SLEB:
+    case wasm::R_WASM_MEMORY_ADDR_TLS_SLEB:
       writePatchableSLEB<5>(Stream, Value, Offset);
       break;
     case wasm::R_WASM_TABLE_INDEX_SLEB64:
@@ -1376,9 +1383,6 @@ uint64_t WasmObjectWriter::writeOneObject(MCAssembler &Asm,
       MCSymbol *Begin = Sec.getBeginSymbol();
       if (Begin) {
         WasmIndices[cast<MCSymbolWasm>(Begin)] = CustomSections.size();
-        if (SectionName != Begin->getName())
-          report_fatal_error("section name and begin symbol should match: " +
-                             Twine(SectionName));
       }
 
       // Separate out the producers and target features sections

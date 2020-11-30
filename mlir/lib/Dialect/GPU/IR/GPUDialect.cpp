@@ -16,9 +16,9 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/FunctionImplementation.h"
-#include "mlir/IR/Module.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/StandardTypes.h"
@@ -428,32 +428,25 @@ static ParseResult parseLaunchOp(OpAsmParser &parser, OperationState &result) {
 //===----------------------------------------------------------------------===//
 
 void LaunchFuncOp::build(OpBuilder &builder, OperationState &result,
-                         GPUFuncOp kernelFunc, Value gridSizeX, Value gridSizeY,
-                         Value gridSizeZ, Value blockSizeX, Value blockSizeY,
-                         Value blockSizeZ, ValueRange kernelOperands) {
+                         GPUFuncOp kernelFunc, KernelDim3 gridSize,
+                         KernelDim3 blockSize, ValueRange kernelOperands) {
   // Add grid and block sizes as op operands, followed by the data operands.
-  result.addOperands(
-      {gridSizeX, gridSizeY, gridSizeZ, blockSizeX, blockSizeY, blockSizeZ});
+  result.addOperands({gridSize.x, gridSize.y, gridSize.z, blockSize.x,
+                      blockSize.y, blockSize.z});
   result.addOperands(kernelOperands);
   auto kernelModule = kernelFunc.getParentOfType<GPUModuleOp>();
   auto kernelSymbol = builder.getSymbolRefAttr(
       kernelModule.getName(), {builder.getSymbolRefAttr(kernelFunc.getName())});
   result.addAttribute(getKernelAttrName(), kernelSymbol);
-}
-
-void LaunchFuncOp::build(OpBuilder &builder, OperationState &result,
-                         GPUFuncOp kernelFunc, KernelDim3 gridSize,
-                         KernelDim3 blockSize, ValueRange kernelOperands) {
-  build(builder, result, kernelFunc, gridSize.x, gridSize.y, gridSize.z,
-        blockSize.x, blockSize.y, blockSize.z, kernelOperands);
-}
-
-SymbolRefAttr LaunchFuncOp::kernel() {
-  return getAttrOfType<SymbolRefAttr>(getKernelAttrName());
+  SmallVector<int32_t, 8> segmentSizes(8, 1);
+  segmentSizes.front() = 0; // Initially no async dependencies.
+  segmentSizes.back() = static_cast<int32_t>(kernelOperands.size());
+  result.addAttribute(getOperandSegmentSizeAttr(),
+                      builder.getI32VectorAttr(segmentSizes));
 }
 
 unsigned LaunchFuncOp::getNumKernelOperands() {
-  return getNumOperands() - kNumConfigOperands;
+  return getNumOperands() - asyncDependencies().size() - kNumConfigOperands;
 }
 
 StringRef LaunchFuncOp::getKernelModuleName() {
@@ -463,15 +456,17 @@ StringRef LaunchFuncOp::getKernelModuleName() {
 StringRef LaunchFuncOp::getKernelName() { return kernel().getLeafReference(); }
 
 Value LaunchFuncOp::getKernelOperand(unsigned i) {
-  return getOperation()->getOperand(i + kNumConfigOperands);
+  return getOperand(asyncDependencies().size() + kNumConfigOperands + i);
 }
 
 KernelDim3 LaunchFuncOp::getGridSizeOperandValues() {
-  return KernelDim3{getOperand(0), getOperand(1), getOperand(2)};
+  auto operands = getOperands().drop_front(asyncDependencies().size());
+  return KernelDim3{operands[0], operands[1], operands[2]};
 }
 
 KernelDim3 LaunchFuncOp::getBlockSizeOperandValues() {
-  return KernelDim3{getOperand(3), getOperand(4), getOperand(5)};
+  auto operands = getOperands().drop_front(asyncDependencies().size());
+  return KernelDim3{operands[3], operands[4], operands[5]};
 }
 
 static LogicalResult verify(LaunchFuncOp op) {
@@ -490,6 +485,33 @@ static LogicalResult verify(LaunchFuncOp op) {
                           op.getKernelAttrName() + "' must be specified");
 
   return success();
+}
+
+static ParseResult
+parseLaunchFuncOperands(OpAsmParser &parser,
+                        SmallVectorImpl<OpAsmParser::OperandType> &argNames,
+                        SmallVectorImpl<Type> &argTypes) {
+  if (parser.parseOptionalKeyword("args"))
+    return success();
+  SmallVector<NamedAttrList, 4> argAttrs;
+  bool isVariadic = false;
+  return impl::parseFunctionArgumentList(parser, /*allowAttributes=*/false,
+                                         /*allowVariadic=*/false, argNames,
+                                         argTypes, argAttrs, isVariadic);
+}
+
+static void printLaunchFuncOperands(OpAsmPrinter &printer, Operation *,
+                                    OperandRange operands, TypeRange types) {
+  if (operands.empty())
+    return;
+  printer << "args(";
+  llvm::interleaveComma(llvm::zip(operands, types), printer,
+                        [&](const auto &pair) {
+                          printer.printOperand(std::get<0>(pair));
+                          printer << " : ";
+                          printer.printType(std::get<1>(pair));
+                        });
+  printer << ")";
 }
 
 //===----------------------------------------------------------------------===//
@@ -831,7 +853,8 @@ static ParseResult parseAsyncDependencies(
                                  OpAsmParser::Delimiter::OptionalSquare);
 }
 
-static void printAsyncDependencies(OpAsmPrinter &printer, Type asyncTokenType,
+static void printAsyncDependencies(OpAsmPrinter &printer, Operation *op,
+                                   Type asyncTokenType,
                                    OperandRange asyncDependencies) {
   if (asyncTokenType)
     printer << "async ";

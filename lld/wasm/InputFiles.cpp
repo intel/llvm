@@ -11,6 +11,7 @@
 #include "InputChunks.h"
 #include "InputEvent.h"
 #include "InputGlobal.h"
+#include "OutputSegment.h"
 #include "SymbolTable.h"
 #include "lld/Common/ErrorHandler.h"
 #include "lld/Common/Memory.h"
@@ -40,6 +41,18 @@ std::string toString(const wasm::InputFile *file) {
 }
 
 namespace wasm {
+
+void InputFile::checkArch(Triple::ArchType arch) const {
+  bool is64 = arch == Triple::wasm64;
+  if (is64 && !config->is64.hasValue()) {
+    fatal(toString(this) +
+          ": must specify -mwasm64 to process wasm64 object files");
+  } else if (config->is64.getValueOr(false) != is64) {
+    fatal(toString(this) +
+          ": wasm32 object file can't be linked in wasm64 mode");
+  }
+}
+
 std::unique_ptr<llvm::TarWriter> tar;
 
 Optional<MemoryBufferRef> readFile(StringRef path) {
@@ -111,6 +124,7 @@ uint64_t ObjFile::calcNewAddend(const WasmRelocation &reloc) const {
   case R_WASM_MEMORY_ADDR_I32:
   case R_WASM_MEMORY_ADDR_I64:
   case R_WASM_FUNCTION_OFFSET_I32:
+  case R_WASM_FUNCTION_OFFSET_I64:
     return reloc.Addend;
   case R_WASM_SECTION_OFFSET_I32:
     return getSectionSymbol(reloc.Index)->section->outputOffset + reloc.Addend;
@@ -142,7 +156,8 @@ uint64_t ObjFile::calcExpectedValue(const WasmRelocation &reloc) const {
   case R_WASM_MEMORY_ADDR_REL_SLEB:
   case R_WASM_MEMORY_ADDR_REL_SLEB64:
   case R_WASM_MEMORY_ADDR_I32:
-  case R_WASM_MEMORY_ADDR_I64: {
+  case R_WASM_MEMORY_ADDR_I64:
+  case R_WASM_MEMORY_ADDR_TLS_SLEB: {
     const WasmSymbol &sym = wasmObj->syms()[reloc.Index];
     if (sym.isUndefined())
       return 0;
@@ -157,7 +172,8 @@ uint64_t ObjFile::calcExpectedValue(const WasmRelocation &reloc) const {
     else
       llvm_unreachable("unknown init expr opcode");
   }
-  case R_WASM_FUNCTION_OFFSET_I32: {
+  case R_WASM_FUNCTION_OFFSET_I32:
+  case R_WASM_FUNCTION_OFFSET_I64: {
     const WasmSymbol &sym = wasmObj->syms()[reloc.Index];
     InputFunction *f =
         functions[sym.Info.ElementIndex - wasmObj->getNumImportedFunctions()];
@@ -215,10 +231,24 @@ uint64_t ObjFile::calcNewValue(const WasmRelocation &reloc) const {
   case R_WASM_MEMORY_ADDR_REL_SLEB:
   case R_WASM_MEMORY_ADDR_REL_SLEB64:
   case R_WASM_MEMORY_ADDR_I32:
-  case R_WASM_MEMORY_ADDR_I64:
+  case R_WASM_MEMORY_ADDR_I64: {
     if (isa<UndefinedData>(sym) || sym->isUndefWeak())
       return 0;
-    return cast<DefinedData>(sym)->getVirtualAddress() + reloc.Addend;
+    auto D = cast<DefinedData>(sym);
+    // Treat non-TLS relocation against symbols that live in the TLS segment
+    // like TLS relocations.  This beaviour exists to support older object
+    // files created before we introduced TLS relocations.
+    // TODO(sbc): Remove this legacy behaviour one day.  This will break
+    // backward compat with old object files built with `-fPIC`.
+    if (D->segment && D->segment->outputSeg->name == ".tdata")
+      return D->getOutputSegmentOffset() + reloc.Addend;
+    return D->getVirtualAddress() + reloc.Addend;
+  }
+  case R_WASM_MEMORY_ADDR_TLS_SLEB:
+    if (isa<UndefinedData>(sym) || sym->isUndefWeak())
+      return 0;
+    // TLS relocations are relative to the start of the TLS output segment
+    return cast<DefinedData>(sym)->getOutputSegmentOffset() + reloc.Addend;
   case R_WASM_TYPE_INDEX_LEB:
     return typeMap[reloc.Index];
   case R_WASM_FUNCTION_INDEX_LEB:
@@ -230,7 +260,8 @@ uint64_t ObjFile::calcNewValue(const WasmRelocation &reloc) const {
     return sym->getGOTIndex();
   case R_WASM_EVENT_INDEX_LEB:
     return getEventSymbol(reloc.Index)->getEventIndex();
-  case R_WASM_FUNCTION_OFFSET_I32: {
+  case R_WASM_FUNCTION_OFFSET_I32:
+  case R_WASM_FUNCTION_OFFSET_I64: {
     auto *f = cast<DefinedFunction>(sym);
     return f->function->outputOffset +
            (f->function->getFunctionCodeOffset() + reloc.Addend);
@@ -285,6 +316,8 @@ void ObjFile::parse(bool ignoreComdats) {
 
   bin.release();
   wasmObj.reset(obj);
+
+  checkArch(obj->getArch());
 
   // Build up a map of function indices to table indices for use when
   // verifying the existing table index relocations
@@ -583,12 +616,7 @@ void BitcodeFile::parse() {
     error(toString(this) + ": machine type must be wasm32 or wasm64");
     return;
   }
-  bool is64 = t.getArch() == Triple::wasm64;
-  if (config->is64.hasValue() && *config->is64 != is64) {
-    error(toString(this) + ": machine type for all bitcode files must match");
-    return;
-  }
-  config->is64 = is64;
+  checkArch(t.getArch());
   std::vector<bool> keptComdats;
   for (StringRef s : obj->getComdatTable())
     keptComdats.push_back(symtab->addComdat(s));

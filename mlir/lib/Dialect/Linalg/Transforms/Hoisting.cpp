@@ -18,8 +18,8 @@
 #include "mlir/Dialect/SCF/Utils.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Dominance.h"
-#include "mlir/IR/Function.h"
 #include "mlir/Transforms/LoopUtils.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Debug.h"
@@ -80,7 +80,7 @@ void mlir::linalg::hoistViewAllocOps(FuncOp func) {
   }
 }
 
-/// Return true if we can prove that the transfer operations access dijoint
+/// Return true if we can prove that the transfer operations access disjoint
 /// memory.
 static bool isDisjoint(VectorTransferOpInterface transferA,
                        VectorTransferOpInterface transferB) {

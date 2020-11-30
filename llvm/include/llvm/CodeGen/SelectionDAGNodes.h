@@ -523,6 +523,7 @@ BEGIN_TWO_BYTE_PACK()
   class StoreSDNodeBitfields {
     friend class StoreSDNode;
     friend class MaskedStoreSDNode;
+    friend class MaskedScatterSDNode;
 
     uint16_t : NumLSBaseSDNodeBits;
 
@@ -1908,6 +1909,33 @@ public:
   /// the vector width and set the bits where elements are undef.
   SDValue getSplatValue(BitVector *UndefElements = nullptr) const;
 
+  /// Find the shortest repeating sequence of values in the build vector.
+  ///
+  /// e.g. { u, X, u, X, u, u, X, u } -> { X }
+  ///      { X, Y, u, Y, u, u, X, u } -> { X, Y }
+  ///
+  /// Currently this must be a power-of-2 build vector.
+  /// The DemandedElts mask indicates the elements that must be present,
+  /// undemanded elements in Sequence may be null (SDValue()). If passed a
+  /// non-null UndefElements bitvector, it will resize it to match the original
+  /// vector width and set the bits where elements are undef. If result is
+  /// false, Sequence will be empty.
+  bool getRepeatedSequence(const APInt &DemandedElts,
+                           SmallVectorImpl<SDValue> &Sequence,
+                           BitVector *UndefElements = nullptr) const;
+
+  /// Find the shortest repeating sequence of values in the build vector.
+  ///
+  /// e.g. { u, X, u, X, u, u, X, u } -> { X }
+  ///      { X, Y, u, Y, u, u, X, u } -> { X, Y }
+  ///
+  /// Currently this must be a power-of-2 build vector.
+  /// If passed a non-null UndefElements bitvector, it will resize it to match
+  /// the original vector width and set the bits where elements are undef.
+  /// If result is false, Sequence will be empty.
+  bool getRepeatedSequence(SmallVectorImpl<SDValue> &Sequence,
+                           BitVector *UndefElements = nullptr) const;
+
   /// Returns the demanded splatted constant or null if this is not a constant
   /// splat.
   ///
@@ -2363,6 +2391,9 @@ public:
   ISD::MemIndexType getIndexType() const {
     return static_cast<ISD::MemIndexType>(LSBaseSDNodeBits.AddressingMode);
   }
+  void setIndexType(ISD::MemIndexType IndexType) {
+    LSBaseSDNodeBits.AddressingMode = IndexType;
+  }
   bool isIndexScaled() const {
     return (getIndexType() == ISD::SIGNED_SCALED) ||
            (getIndexType() == ISD::UNSIGNED_SCALED);
@@ -2414,9 +2445,16 @@ public:
 
   MaskedScatterSDNode(unsigned Order, const DebugLoc &dl, SDVTList VTs,
                       EVT MemVT, MachineMemOperand *MMO,
-                      ISD::MemIndexType IndexType)
+                      ISD::MemIndexType IndexType, bool IsTrunc)
       : MaskedGatherScatterSDNode(ISD::MSCATTER, Order, dl, VTs, MemVT, MMO,
-                                  IndexType) {}
+                                  IndexType) {
+    StoreSDNodeBits.IsTruncating = IsTrunc;
+  }
+
+  /// Return true if the op does a truncation before store.
+  /// For integers this is the same as doing a TRUNCATE and storing the result.
+  /// For floats, it is the same as doing an FP_ROUND and storing the result.
+  bool isTruncatingStore() const { return StoreSDNodeBits.IsTruncating; }
 
   const SDValue &getValue() const { return getOperand(1); }
 

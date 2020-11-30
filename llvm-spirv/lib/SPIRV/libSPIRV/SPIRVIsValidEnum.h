@@ -48,6 +48,7 @@
 
 #include "SPIRVEnum.h"
 #include "spirv.hpp"
+#include "spirv_internal.hpp"
 
 using namespace spv;
 
@@ -131,10 +132,11 @@ inline bool isValid(spv::StorageClass V) {
 }
 
 inline bool isValid(spv::LinkageType V) {
-  switch (V) {
+  int LT = V;
+  switch (LT) {
   case LinkageTypeExport:
   case LinkageTypeImport:
-  case LinkageTypeInternal:
+  case internal::LinkageTypeInternal:
     return true;
   default:
     return false;

@@ -10,6 +10,11 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 
 include(AddMLIR)
 
+# Forbid implicit function declaration: this may lead to subtle bugs and we
+# don't have a reason to support this.
+check_c_compiler_flag("-Werror=implicit-function-declaration" C_SUPPORTS_WERROR_IMPLICIT_FUNCTION_DECLARATION)
+append_if(C_SUPPORTS_WERROR_IMPLICIT_FUNCTION_DECLARATION "-Werror=implicit-function-declaration" CMAKE_C_FLAGS)
+
 # Installing the headers and docs needs to depend on generating any public
 # tablegen'd targets.
 # mlir-generic-headers are dialect-independent.
@@ -42,6 +47,7 @@ add_definitions(-DMLIR_ROCM_CONVERSIONS_ENABLED=${MLIR_ROCM_CONVERSIONS_ENABLED}
 
 set(MLIR_CUDA_RUNNER_ENABLED 0 CACHE BOOL "Enable building the mlir CUDA runner")
 set(MLIR_ROCM_RUNNER_ENABLED 0 CACHE BOOL "Enable building the mlir ROCm runner")
+set(MLIR_SPIRV_CPU_RUNNER_ENABLED 0 CACHE BOOL "Enable building the mlir SPIR-V cpu runner")
 set(MLIR_VULKAN_RUNNER_ENABLED 0 CACHE BOOL "Enable building the mlir Vulkan runner")
 
 option(MLIR_INCLUDE_TESTS
@@ -72,12 +78,15 @@ set(MLIR_PYTHON_BINDINGS_VERSION_LOCKED 1 CACHE BOOL
        "Links to specific python libraries, resolving all symbols.")
 
 if(MLIR_BINDINGS_PYTHON_ENABLED)
-  find_package(PythonInterp REQUIRED)
-  find_package(PythonLibs REQUIRED)
-  message(STATUS "Found python include dirs: ${PYTHON_INCLUDE_DIRS}")
-  message(STATUS "Found ppython libraries: ${PYTHON_LIBRARIES}")
+  find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+  message(STATUS "Found python include dirs: ${Python3_INCLUDE_DIRS}")
+  message(STATUS "Found python libraries: ${Python3_LIBRARIES}")
   find_package(pybind11 CONFIG REQUIRED)
-  message(STATUS "Found pybind11 v${pybind11_VERSION}: ${pybind11_INCLUDE_DIRS}")
+  # TODO: pybind11 v2.6 switched from pybind11_INCLUDE_DIRS (plural) to
+  # pybind11_INCLUDE_DIR (singular). A lot has changed in this area since this
+  # was written and overall python config and pybind11 should be modernized.
+  set(pybind11_INCLUDE_DIR ${pybind11_INCLUDE_DIR} ${pybind11_INCLUDE_DIRS})
+  message(STATUS "Found pybind11 v${pybind11_VERSION}: ${pybind11_INCLUDE_DIR}")
   message(STATUS "Python prefix = '${PYTHON_MODULE_PREFIX}', "
                  "suffix = '${PYTHON_MODULE_SUFFIX}', "
                  "extension = '${PYTHON_MODULE_EXTENSION}")

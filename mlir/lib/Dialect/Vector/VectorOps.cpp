@@ -18,7 +18,7 @@
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/Function.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
@@ -336,7 +336,7 @@ static LogicalResult verifyOutputShape(
       VectorType v = pair.first;
       auto map = pair.second;
       for (unsigned idx = 0, e = v.getRank(); idx < e; ++idx) {
-        unsigned pos = map.getResult(idx).cast<AffineDimExpr>().getPosition();
+        unsigned pos = map.getDimPosition(idx);
         if (!extents[pos])
           extents[pos] = getAffineConstantExpr(v.getShape()[idx], ctx);
       }
@@ -785,8 +785,7 @@ static Value foldExtractOpFromInsertChainAndTranspose(ExtractOp extractOp) {
     if (insertedPos.size() == extractedPos.size()) {
       bool fold = true;
       for (unsigned idx = 0, sz = extractedPos.size(); idx < sz; ++idx) {
-        auto pos =
-            permutationMap.getResult(idx).cast<AffineDimExpr>().getPosition();
+        auto pos = permutationMap.getDimPosition(idx);
         if (pos >= sz || insertedPos[pos] != extractedPos[idx]) {
           fold = false;
           break;
@@ -843,6 +842,65 @@ static Value foldExtractFromBroadcast(ExtractOp extractOp) {
   return Value();
 }
 
+// Fold extractOp with source coming from ShapeCast op.
+static Value foldExtractFromShapeCast(ExtractOp extractOp) {
+  auto shapeCastOp = extractOp.vector().getDefiningOp<vector::ShapeCastOp>();
+  if (!shapeCastOp)
+    return Value();
+  // Get the nth dimension size starting from lowest dimension.
+  auto getDimReverse = [](VectorType type, int64_t n) {
+    return type.getShape().take_back(n+1).front();
+  };
+  int64_t destinationRank =
+      extractOp.getType().isa<VectorType>()
+          ? extractOp.getType().cast<VectorType>().getRank()
+          : 0;
+  if (destinationRank > shapeCastOp.getSourceVectorType().getRank())
+    return Value();
+  if (destinationRank > 0) {
+    auto destinationType = extractOp.getResult().getType().cast<VectorType>();
+    for (int64_t i = 0; i < destinationRank; i++) {
+      // The lowest dimension of of the destination must match the lowest
+      // dimension of the shapecast op source.
+      // TODO: This case could be support in a canonicalization pattern.
+      if (getDimReverse(shapeCastOp.getSourceVectorType(), i) !=
+          getDimReverse(destinationType, i))
+        return Value();
+    }
+  }
+  // Extract the strides associated with the extract op vector source. Then use
+  // this to calculate a linearized position for the extract.
+  auto extractedPos = extractVector<int64_t>(extractOp.position());
+  std::reverse(extractedPos.begin(), extractedPos.end());
+  SmallVector<int64_t, 4> strides;
+  int64_t stride = 1;
+  for (int64_t i = 0, e = extractedPos.size(); i < e; i++) {
+    strides.push_back(stride);
+    stride *= getDimReverse(extractOp.getVectorType(), i + destinationRank);
+  }
+
+  int64_t position = linearize(extractedPos, strides);
+  // Then extract the strides associated to the shapeCast op vector source and
+  // delinearize the position using those strides.
+  SmallVector<int64_t, 4> newStrides;
+  int64_t numDimension =
+      shapeCastOp.getSourceVectorType().getRank() - destinationRank;
+  stride = 1;
+  for (int64_t i = 0; i < numDimension; i++) {
+    newStrides.push_back(stride);
+    stride *=
+        getDimReverse(shapeCastOp.getSourceVectorType(), i + destinationRank);
+  }
+  std::reverse(newStrides.begin(), newStrides.end());
+  SmallVector<int64_t, 4> newPosition = delinearize(newStrides, position);
+  // OpBuilder is only used as a helper to build an I64ArrayAttr.
+  OpBuilder b(extractOp.getContext());
+  extractOp.setAttr(ExtractOp::getPositionAttrName(),
+                    b.getI64ArrayAttr(newPosition));
+  extractOp.setOperand(shapeCastOp.source());
+  return extractOp.getResult();
+}
+
 OpFoldResult ExtractOp::fold(ArrayRef<Attribute>) {
   if (succeeded(foldExtractOpFromExtractChain(*this)))
     return getResult();
@@ -851,6 +909,8 @@ OpFoldResult ExtractOp::fold(ArrayRef<Attribute>) {
   if (auto val = foldExtractOpFromInsertChainAndTranspose(*this))
     return val;
   if (auto val = foldExtractFromBroadcast(*this))
+    return val;
+  if (auto val = foldExtractFromShapeCast(*this))
     return val;
   return OpFoldResult();
 }
@@ -938,31 +998,78 @@ void ExtractSlicesOp::getStrides(SmallVectorImpl<int64_t> &results) {
 //===----------------------------------------------------------------------===//
 
 void ExtractMapOp::build(OpBuilder &builder, OperationState &result,
-                         Value vector, Value id, int64_t multiplicity) {
+                         Value vector, ValueRange ids,
+                         ArrayRef<int64_t> multiplicity,
+                         AffineMap permutationMap) {
+  assert(ids.size() == multiplicity.size() &&
+         ids.size() == permutationMap.getNumResults());
+  assert(permutationMap.isProjectedPermutation());
   VectorType type = vector.getType().cast<VectorType>();
-  VectorType resultType = VectorType::get(type.getNumElements() / multiplicity,
-                                          type.getElementType());
-  ExtractMapOp::build(builder, result, resultType, vector, id, multiplicity);
+  SmallVector<int64_t, 4> newShape(type.getShape().begin(),
+                                   type.getShape().end());
+  for (unsigned i = 0, e = permutationMap.getNumResults(); i < e; i++) {
+    AffineExpr expr = permutationMap.getResult(i);
+    auto dim = expr.cast<AffineDimExpr>();
+    newShape[dim.getPosition()] = newShape[dim.getPosition()] / multiplicity[i];
+  }
+  VectorType resultType = VectorType::get(newShape, type.getElementType());
+  ExtractMapOp::build(builder, result, resultType, vector, ids);
 }
 
 static LogicalResult verify(ExtractMapOp op) {
-  if (op.getSourceVectorType().getShape().size() != 1 ||
-      op.getResultType().getShape().size() != 1)
-    return op.emitOpError("expects source and destination vectors of rank 1");
-  if (op.getResultType().getNumElements() * (int64_t)op.multiplicity() !=
-      op.getSourceVectorType().getNumElements())
-    return op.emitOpError("vector sizes mismatch. Source size must be equal "
-                          "to destination size * multiplicity");
+  if (op.getSourceVectorType().getRank() != op.getResultType().getRank())
+    return op.emitOpError(
+        "expected source and destination vectors of same rank");
+  unsigned numId = 0;
+  for (unsigned i = 0, e = op.getSourceVectorType().getRank(); i < e; ++i) {
+    if (op.getSourceVectorType().getDimSize(i) %
+            op.getResultType().getDimSize(i) !=
+        0)
+      return op.emitOpError("source vector dimensions must be a multiple of "
+                            "destination vector dimensions");
+    if (op.getSourceVectorType().getDimSize(i) !=
+        op.getResultType().getDimSize(i))
+      numId++;
+  }
+  if (numId != op.ids().size())
+    return op.emitOpError("expected number of ids must match the number of "
+                          "dimensions distributed");
   return success();
 }
 
 OpFoldResult ExtractMapOp::fold(ArrayRef<Attribute> operands) {
   auto insert = vector().getDefiningOp<vector::InsertMapOp>();
-  if (insert == nullptr || multiplicity() != insert.multiplicity() ||
-      id() != insert.id())
+  if (insert == nullptr || getType() != insert.vector().getType() ||
+      ids() != insert.ids())
     return {};
   return insert.vector();
 }
+
+void ExtractMapOp::getMultiplicity(SmallVectorImpl<int64_t> &multiplicity) {
+  assert(multiplicity.empty());
+  for (unsigned i = 0, e = getSourceVectorType().getRank(); i < e; i++) {
+    if (getSourceVectorType().getDimSize(i) != getResultType().getDimSize(i))
+      multiplicity.push_back(getSourceVectorType().getDimSize(i) /
+                             getResultType().getDimSize(i));
+  }
+}
+
+template <typename MapOp>
+AffineMap calculateImplicitMap(MapOp op) {
+  SmallVector<AffineExpr, 4> perm;
+  // Check which dimension have a multiplicity greater than 1 and associated
+  // them to the IDs in order.
+  for (unsigned i = 0, e = op.getSourceVectorType().getRank(); i < e; i++) {
+    if (op.getSourceVectorType().getDimSize(i) !=
+        op.getResultType().getDimSize(i))
+      perm.push_back(getAffineDimExpr(i, op.getContext()));
+  }
+  auto map = AffineMap::get(op.getSourceVectorType().getRank(), 0, perm,
+                            op.getContext());
+  return map;
+}
+
+AffineMap ExtractMapOp::map() { return calculateImplicitMap(*this); }
 
 //===----------------------------------------------------------------------===//
 // BroadcastOp
@@ -1191,24 +1298,32 @@ void InsertSlicesOp::getStrides(SmallVectorImpl<int64_t> &results) {
 //===----------------------------------------------------------------------===//
 
 void InsertMapOp::build(OpBuilder &builder, OperationState &result,
-                        Value vector, Value id, int64_t multiplicity) {
-  VectorType type = vector.getType().cast<VectorType>();
-  VectorType resultType = VectorType::get(type.getNumElements() * multiplicity,
-                                          type.getElementType());
-  InsertMapOp::build(builder, result, resultType, vector, id, multiplicity);
+                        Value vector, Value dest, ValueRange ids) {
+  InsertMapOp::build(builder, result, dest.getType(), vector, dest, ids);
 }
 
 static LogicalResult verify(InsertMapOp op) {
-  if (op.getSourceVectorType().getShape().size() != 1 ||
-      op.getResultType().getShape().size() != 1)
-    return op.emitOpError("expected source and destination vectors of rank 1");
-  if ((int64_t)op.multiplicity() * op.getSourceVectorType().getNumElements() !=
-      op.getResultType().getNumElements())
+  if (op.getSourceVectorType().getRank() != op.getResultType().getRank())
     return op.emitOpError(
-        "vector sizes mismatch. Destination size must be equal "
-        "to source size * multiplicity");
+        "expected source and destination vectors of same rank");
+  unsigned numId = 0;
+  for (unsigned i = 0, e = op.getResultType().getRank(); i < e; i++) {
+    if (op.getResultType().getDimSize(i) %
+            op.getSourceVectorType().getDimSize(i) !=
+        0)
+      return op.emitOpError(
+          "destination vector size must be a multiple of source vector size");
+    if (op.getResultType().getDimSize(i) !=
+        op.getSourceVectorType().getDimSize(i))
+      numId++;
+  }
+  if (numId != op.ids().size())
+    return op.emitOpError("expected number of ids must match the number of "
+                          "dimensions distributed");
   return success();
 }
+
+AffineMap InsertMapOp::map() { return calculateImplicitMap(*this); }
 
 //===----------------------------------------------------------------------===//
 // InsertStridedSliceOp
@@ -1572,6 +1687,81 @@ static LogicalResult verify(ExtractStridedSliceOp op) {
   return success();
 }
 
+// When the source of ExtractStrided comes from a chain of InsertStrided ops try
+// to use the source of the InsertStrided ops if we can detect that the
+// extracted vector is a subset of one of the vector inserted.
+static LogicalResult
+foldExtractStridedOpFromInsertChain(ExtractStridedSliceOp op) {
+  // Helper to extract integer out of ArrayAttr.
+  auto getElement = [](ArrayAttr array, int idx) {
+    return array[idx].cast<IntegerAttr>().getInt();
+  };
+  ArrayAttr extractOffsets = op.offsets();
+  ArrayAttr extractStrides = op.strides();
+  ArrayAttr extractSizes = op.sizes();
+  auto insertOp = op.vector().getDefiningOp<InsertStridedSliceOp>();
+  while (insertOp) {
+    if (op.getVectorType().getRank() !=
+        insertOp.getSourceVectorType().getRank())
+      return failure();
+    ArrayAttr insertOffsets = insertOp.offsets();
+    ArrayAttr insertStrides = insertOp.strides();
+    // If the rank of extract is greater than the rank of insert, we are likely
+    // extracting a partial chunk of the vector inserted.
+    if (extractOffsets.size() > insertOffsets.size())
+      return failure();
+    bool patialoverlap = false;
+    bool disjoint = false;
+    SmallVector<int64_t, 4> offsetDiffs;
+    for (unsigned dim = 0, e = extractOffsets.size(); dim < e; ++dim) {
+      if (getElement(extractStrides, dim) != getElement(insertStrides, dim))
+        return failure();
+      int64_t start = getElement(insertOffsets, dim);
+      int64_t end = start + insertOp.getSourceVectorType().getDimSize(dim);
+      int64_t offset = getElement(extractOffsets, dim);
+      int64_t size = getElement(extractSizes, dim);
+      // Check if the start of the extract offset is in the interval inserted.
+      if (start <= offset && offset < end) {
+        // If the extract interval overlaps but is not fully included we may
+        // have a partial overlap that will prevent any folding.
+        if (offset + size > end)
+          patialoverlap = true;
+        offsetDiffs.push_back(offset - start);
+        continue;
+      }
+      disjoint = true;
+      break;
+    }
+    // The extract element chunk is a subset of the insert element.
+    if (!disjoint && !patialoverlap) {
+      op.setOperand(insertOp.source());
+      // OpBuilder is only used as a helper to build an I64ArrayAttr.
+      OpBuilder b(op.getContext());
+      op.setAttr(ExtractStridedSliceOp::getOffsetsAttrName(),
+                 b.getI64ArrayAttr(offsetDiffs));
+      return success();
+    }
+    // If the chunk extracted is disjoint from the chunk inserted, keep looking
+    // in the insert chain.
+    if (disjoint)
+      insertOp = insertOp.dest().getDefiningOp<InsertStridedSliceOp>();
+    else {
+      // The extracted vector partially overlap the inserted vector, we cannot
+      // fold.
+      return failure();
+    }
+  }
+  return failure();
+}
+
+OpFoldResult ExtractStridedSliceOp::fold(ArrayRef<Attribute> operands) {
+  if (getVectorType() == getResult().getType())
+    return vector();
+  if (succeeded(foldExtractStridedOpFromInsertChain(*this)))
+    return getResult();
+  return {};
+}
+
 void ExtractStridedSliceOp::getOffsets(SmallVectorImpl<int64_t> &results) {
   populateFromInt64AttrArray(offsets(), results);
 }
@@ -1632,13 +1822,39 @@ public:
   }
 };
 
+// Pattern to rewrite a ExtractStridedSliceOp(splat ConstantOp) -> ConstantOp.
+class StridedSliceConstantFolder final
+    : public OpRewritePattern<ExtractStridedSliceOp> {
+public:
+  using OpRewritePattern<ExtractStridedSliceOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(ExtractStridedSliceOp extractStridedSliceOp,
+                                PatternRewriter &rewriter) const override {
+    // Return if 'extractStridedSliceOp' operand is not defined by a
+    // ConstantOp.
+    auto constantOp =
+        extractStridedSliceOp.vector().getDefiningOp<ConstantOp>();
+    if (!constantOp)
+      return failure();
+    auto dense = constantOp.value().dyn_cast<SplatElementsAttr>();
+    if (!dense)
+      return failure();
+    auto newAttr = DenseElementsAttr::get(
+        extractStridedSliceOp.getType().cast<VectorType>(),
+        dense.getSplatValue());
+    rewriter.replaceOpWithNewOp<ConstantOp>(extractStridedSliceOp, newAttr);
+    return success();
+  }
+};
+
 } // end anonymous namespace
 
 void ExtractStridedSliceOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {
   // Pattern to rewrite a ExtractStridedSliceOp(ConstantMaskOp) ->
-  // ConstantMaskOp.
-  results.insert<StridedSliceConstantMaskFolder>(context);
+  // ConstantMaskOp and ExtractStridedSliceOp(ConstantOp) -> ConstantOp.
+  results.insert<StridedSliceConstantMaskFolder, StridedSliceConstantFolder>(
+      context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -2420,6 +2636,36 @@ OpFoldResult ShapeCastOp::fold(ArrayRef<Attribute> operands) {
       return otherOp.source();
 
   return {};
+}
+
+namespace {
+// Pattern to rewrite a ShapeCast(splat ConstantOp) -> ConstantOp.
+class ShapeCastConstantFolder final : public OpRewritePattern<ShapeCastOp> {
+public:
+  using OpRewritePattern<ShapeCastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(ShapeCastOp shapeCastOp,
+                                PatternRewriter &rewriter) const override {
+    auto constantOp = shapeCastOp.source().getDefiningOp<ConstantOp>();
+    if (!constantOp)
+      return failure();
+    // Only handle splat for now.
+    auto dense = constantOp.value().dyn_cast<SplatElementsAttr>();
+    if (!dense)
+      return failure();
+    auto newAttr = DenseElementsAttr::get(
+        shapeCastOp.getType().cast<VectorType>(), dense.getSplatValue());
+    rewriter.replaceOpWithNewOp<ConstantOp>(shapeCastOp, newAttr);
+    return success();
+  }
+};
+
+} // namespace
+
+void ShapeCastOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                              MLIRContext *context) {
+  // Pattern to rewrite a ShapeCastOp(ConstantOp) -> ConstantOp.
+  results.insert<ShapeCastConstantFolder>(context);
 }
 
 //===----------------------------------------------------------------------===//

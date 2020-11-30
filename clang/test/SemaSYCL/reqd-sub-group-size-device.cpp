@@ -1,5 +1,10 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -Wno-sycl-2017-compat -verify -DTRIGGER_ERROR %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -Wno-sycl-2017-compat -verify -DTRIGGER_ERROR %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+
+#include "sycl.hpp"
+
+using namespace cl::sycl;
+queue q;
 
 [[intel::reqd_sub_group_size(4)]] void foo() {} // expected-note {{conflicting attribute is here}}
 // expected-note@-1 {{conflicting attribute is here}}
@@ -29,34 +34,32 @@ public:
   }
 };
 
-template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
-  kernelFunc();
-}
+int main() {
+  q.submit([&](handler &h) {
+    Functor16 f16;
+    h.single_task<class kernel_name1>(f16);
 
-void bar() {
-  Functor16 f16;
-  kernel<class kernel_name1>(f16);
-
-  Functor f;
-  kernel<class kernel_name2>(f);
+    Functor f;
+    h.single_task<class kernel_name2>(f);
 
 #ifdef TRIGGER_ERROR
-  Functor8 f8;
-  kernel<class kernel_name3>(f8);
+    Functor8 f8;
+    h.single_task<class kernel_name3>(f8);
 
-  kernel<class kernel_name4>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
-    foo();
-    baz();
-  });
+    h.single_task<class kernel_name4>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
+      foo();
+      baz();
+    });
 #endif
 
-  kernel<class kernel_name5>([]() [[intel::reqd_sub_group_size(2)]]{});
-  kernel<class kernel_name6>([]() [[intel::reqd_sub_group_size(4)]] { foo(); });
-  kernel<class kernel_name7>([]() [[intel::reqd_sub_group_size(6)]]{});
+    h.single_task<class kernel_name5>([]() [[intel::reqd_sub_group_size(2)]]{});
+    h.single_task<class kernel_name6>([]() [[intel::reqd_sub_group_size(4)]] { foo(); });
+    h.single_task<class kernel_name7>([]() [[intel::reqd_sub_group_size(6)]]{});
 
-  Functor4 f4;
-  kernel<class kernel_name8>(f4);
+    Functor4 f4;
+    h.single_task<class kernel_name8>(f4);
+  });
+  return 0;
 }
 
 [[intel::reqd_sub_group_size(16)]] SYCL_EXTERNAL void B();

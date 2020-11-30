@@ -1,3 +1,199 @@
+# November'20 release notes
+
+Release notes for commit range c9d50752..5d7e0925
+
+## New features
+  - Implemented support for new loop attribute(intel::nofusion) for FPGA
+    [68ab67ad]
+  - Implemented support for new FPGA function attribute stall_enable [8fbf4bbe]
+  - Implemented accessor-based gather/scatter and scalar mem access for ESIMD
+    feature [0aac708a]
+  - Implemented support for dot_product API [6cc97d2a]
+  - Implemented ONEAPI::filter_selector that accepts one or more filters for
+    device selection [174fd168]
+  - Introduced SYCL_DEVICE_FILTER environment variable allowing to filter
+    available devices [14e227c4], [ccdf8475]
+  - Implemented accessor_properties extension [f7d073d1]
+  - Implemented SYCL_INTEL_device_specific_kernel_queries [24ae95b3]
+  - Implemented support for group algorithms on CUDA backend [909459ba]
+  - Implemented support for sub_group extension in CUDA backend [baed6a5b],
+    [551d7067], [f189e413]
+  - Implemented support for USM extension in CUDA plugin [da8929e0]
+  - Implemented support for cl_intel_create_buffer_with_properties extension [b8a7b012]
+  - Implemented support for sycl::info::device::host_unified_memory [08066b24]
+  - Added clang support for FPGA kernel attribute scheduler_target_fmax_mhz
+    [20013e23]
+
+## Improvements
+### SYCL Compiler
+  - Enabled USM address space by default for the FPGA hardware [7896819d]
+  - Added emitting of a warning when size of kernel arguments exceeds 2kB for all
+    devices [e00ab746], [4960fc90]
+  - Changed default SYCL standard version to 2020 [67acf814]
+  - Added diagnostics when the translator encounters an unknown or unsupported
+    LLVM instruction [5a28d4e5]
+  - Added diagnostic for attempt to pass a pointer to variable length array as
+    kernel argument [538c4c9c]
+  - Improved FPGA AOT help output with -fsycl-help [dc8a0593]
+  - Made /MD the default option of compiler on Windows and made driver
+    generate error if /MT was passed to it. SYCL library is designed in such a way
+    that STL objects must cross the sycl.dll boundary, which is guaranteed to
+    work safe on Windows only if the runtime in the app using sycl.dll and in
+    sycl.dll is the same and is dynamic [d31184e1], [8735bb81], [0092d4da]
+  - Enforced C++ for C source files when compiling in SYCL mode [adc2ac72]
+  - Added use of template parameter in [[intelfpga::num_simd_work_items()]]
+    attribute [678911a8]
+  - Added new spellings for SYCL FPGA attributes [5949228d], [b1cf776e9]
+  - All definitions used for compiler needs were marked with underscore prefix
+    [51d3c205]
+  - Disabled diagnostic about use of functions with raw pointer in kernels
+    [b4a3f03f]
+  - Improved diagnostics for invalid SYCL kernel names [cb5ddb49], [89fd4284]
+
+### SYCL Library
+  - Removed deprecated spelling ([[cl::intel_reqd_sub_group_size()]]) of
+    IntelReqdSubGroupSize attribute [9dda36fe]
+  - Added support for USM shared memory allocator for Level Zero backend
+    [db5037ca]
+  - Added support for a context with multiple device in Level Zero backend
+    [129ee442]
+  - Added diagnostics for deprecated environment variables: SYCL_BE and
+    SYCL_DEVICE_TYPE [6242160b]
+  - Made spec_constant default constructor public and available on host
+    [53d909e2]
+  - Added constraints instead of static asserts and is_native_function_object()
+    for group algorithms [97bec247]
+  - Added support for L0 loader validation layer [4c6cda3f]
+  - Added multi-device and multi-platform support for SYCL_DEVICE_ALLOWLIST
+    [dbf31c3c]
+  - Removed two-input sub-group shuffles [ef969c14]
+  - Enabled inspecting values wrapped into private_memory<T> by evaluating
+    `operator()` from GDB [31c23ddc]
+  - Changed buffer allocation in the Level Zero plugin to use host shared memory for integrated GPUs [2ae1bc9e]
+  - Implemented `queue::parallel_for()` accepting reduction [ffdadc2e]
+  - Improved performance of float atomic_ref [0b7dacf1]
+  - Made CUDA backend try to find a better block size using
+    cuOccupancyMaxPotentialBlockSize function from the CUDA driver [4fabfd16a]
+  - Supported GroupBroadcast with 32-bit id to cover broadcast algorithm with
+    the sub_group class [6e3f2440]
+
+### Documentation
+  - Added specification for SPV_INTEL_variable_length_array extension [9e4c51c4]
+  - Added specification for accessor_properties and buffer_location extensions
+    [f90614c5]
+  - Moved specification for Unified Shared Memory to Khronos specification
+    [a7ffe039]
+  - Added documentation for filter_selector [c3f5cfba]
+  - Updated C-CXX-StandardLibrary extension specification [0b6f8cd8]
+  - Added ESIMD extension introduction document [c36a1411]
+  - Added specialization constants extension introduction document [d88ef3b6]
+  - Added specialization constant feature design doc [15cac431]
+  - Documented kernel-program caching mechanism [5947cde81]
+  - Added the SYCL_INTEL_mem_channel_property extension specification [5cf8088c]
+  - Provided detailed description for guaranteed sub-group sizes[542c32ae]
+  - Documented test-related processes [ff90e06d]
+  - Added code examples for all SYCL FPGA loop attributes [6b958205]
+  
+## Bug fixes
+### SYCL Compiler
+  - Fixed crash of compiler on invalid kernel type argument. [0c220ca5e]
+  - Made clang search for the full executable name as opposed to just the case
+    name for the AOT tools (aoc, ocloc, opencl-aot) to avoid directory calls
+    [78a86da3], [244e874b]
+  - Linked SYCL device libraries by default as not all backends support SPIRV
+    online linkage [9dd18ca8]
+  - Fixed assertion when /P option is used on windows[a21d7ef4]
+  - Fixed crash when array of pointers is passed to kernel[1fc0e4f84]
+  - Fixed issues with use of type from std namespace in kernel type names
+    [dd7fec83]
+  - Fixed debug information missed for work-item built-in translation [9c06d429]
+  - Added warnings emission which had been suppressed for SYCL headers [e6eed1a7]
+  - Fixed optimization disabling option for gen to use -cl-opt-disable
+    [ba4e567fe]
+  - Emulated "funnel shift left" which was not supported in the OpenCL
+    ExtInst set on SPIRV translator side [97d7eec5]
+  - Fixed build issue when TBB and libstdc++ 10.X were used caused by including
+    std C++ headers in integration header file [63369132]
+  - Fixed processing for partial link step with static archives by passing linker
+    specific arguments there [3ab8cc82]
+  - Enabled `-reuse-exe` support for Windows [43f2d4ba]
+  - Fixed missing dependency file when compiling for `-fintelfpga` and using a named
+    dependency output file [df5f1ab67]
+
+### SYCL Library
+  - Fixed build log preserving for L0 plugin [638b71b1]
+  - Added missing math APIs for devicelib [e438bc814]
+  - Enabled async_work_group_copy for scalar and vector bool types [bb78d2cb]
+  - Aligned image class constructors with the SYCL specification [049ae996]
+  - Removed half type alias causing name conflicts with CUDA headers [c00c1fa3]
+  - Fixed explicit copy operation for host device [f20fd4de]
+  - Made stream flush operation non-blocking [e7492fb2]
+  - Fixed image arguments order when passing to PI routines [70d6f87b]
+  - Fixed circular dependency between the device_impl and the platform_impl
+    causing handler leak [255f304f]
+  - Fixed work-group size selection in reductions [2ae49f57e]
+  - Fixed compilation errors when built with --std=c++20 [ecd0adbb]
+  - Fixed treating internal allocations of host memory as read only for memory objects created with const pointer, causing double free issue [8b5506255]
+  - Fixed a problem in Level Zero plugin with kernels and programs destruction
+    while they can be used [b9bf9f5f]
+  - Fixed wrong exception raised by ALLOWLIST mechanism [d81081f7]
+  - Fixed reporting supported device partitioning in Level Zero [766367be]
+  - Aligned get_info<info::device::version>() with the SYCL spec [4644e639]
+  - Set default work group size to {1, 1, 1} to fix out-of-memory crashes on
+    some configurations [4d76de43]
+
+### Documentation
+  - Fixed path to FPGA device selector [ca33f7f7]
+  - Renamed LEVEL0 environment variable to LEVEL_ZERO in documents and code
+    comments following source code change [2c3908b4]
+  - Clarified --system-ocl key in GetStartedGuide.md [e31b94e5]
+
+## API/ABI breakages
+  - Implemented accessor_properties extension for accessor class [f7d073d1]
+
+## Known issues
+  - GlobalWorkOffset is not supported by Level Zero backend [6f9e9a76]
+  - The code with function pointer is hanging on Level Zero [d384295e]
+  - If an application uses std::* math function in the kernel code the
+    -fsycl-device-lib=libm-fp64 option should be passed to the compiler.
+  - User-defined functions with the same name and signature (exact match of
+    arguments, return type doesn't matter) as of an OpenCL C built-in
+    function, can lead to Undefined Behavior. 
+  - A DPC++ system that has FPGAs installed does not support multi-process
+    execution. Creating a context opens the device associated with the context
+    and places a lock on it for that process. No other process may use that
+    device. Some queries about the device through device.get_info<>() also
+    open up the device and lock it to that process since the runtime needs
+    to query the actual device to obtain that information.
+  - On Windows, DPC++ compiler enforces using dynamic C++ runtime for
+    application linked with SYCL library by:
+     - linking with msvcrt[d].dll when -fsycl switch is used;
+     - emitting an error on attempts to compile a program with static C++ RT
+       using -fsycl and /MT or /MTd.
+    That protects you from complicated runtime errors caused by C++ objects
+    crossing sycl[d].dll boundary and not always handled properly by different
+    versions of C++ RT used on app and sycl[d].dll sides.
+  - The format of the object files produced by the compiler can change between
+    versions. The workaround is to rebuild the application.
+  - The SYCL library doesn't guarantee stable API/ABI, so applications compiled
+    with older version of the SYCL library may not work with new one.
+    The workaround is to rebuild the application.
+    [ABI policy guide](doc/ABIPolicyGuide.md)
+  - Using `cl::sycl::program` API to refer to a kernel defined in another
+    translation unit leads to undefined behavior
+  - Linkage errors with the following message:
+    `error LNK2005: "bool const std::_Is_integral<bool>" (??$_Is_integral@_N@std@@3_NB) already defined`
+    can happen when a SYCL application is built using MS Visual Studio 2019
+    version below 16.3.0 and user specifies `-std=c++14` or `/std:c++14`.
+  - Employing read sampler for image accessor may result in sporadic issues with
+    Level Zero plugin/backend [2c50c03]
+  - Printing internal defines isn't supported on Windows [50628db]
+  - Group algorithms for MUL/AND/OR/XOR cannot be enabled for group scope due to
+    SPIR-V limitations, and are not enabled for sub-group scope yet as the
+    SPIR-V version isn't automatically raised from 1.1 to 1.3 [96da39e]
+  - We cannot run Dead Argument Elimination for ESIMD since the pointers to SPIR
+    kernel functions are saved in `!genx.kernels metadata` [cf10351]
+
 # September'20 release notes
 
 Release notes for commit range 5976ff0..1fc0e4f

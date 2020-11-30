@@ -22,7 +22,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 
 // -----
 
-def SPV_AddressOfOp : SPV_Op<"_address_of", [InFunctionScope, NoSideEffect]> {
+def SPV_AddressOfOp : SPV_Op<"mlir.addressof", [InFunctionScope, NoSideEffect]> {
   let summary = "Get the address of a global variable.";
 
   let description = [{
@@ -37,14 +37,14 @@ def SPV_AddressOfOp : SPV_Op<"_address_of", [InFunctionScope, NoSideEffect]> {
     <!-- End of AutoGen section -->
 
     ```
-    spv-address-of-op ::= ssa-id `=` `spv._address_of` symbol-ref-id
+    spv-address-of-op ::= ssa-id `=` `spv.mlir.addressof` symbol-ref-id
                                      `:` spirv-pointer-type
     ```
 
     #### Example:
 
     ```mlir
-    %0 = spv._address_of @global_var : !spv.ptr<f32, Input>
+    %0 = spv.mlir.addressof @global_var : !spv.ptr<f32, Input>
     ```
   }];
 
@@ -60,7 +60,7 @@ def SPV_AddressOfOp : SPV_Op<"_address_of", [InFunctionScope, NoSideEffect]> {
 
   let autogenSerialization = 0;
 
-  let builders = [OpBuilder<[{spirv::GlobalVariableOp var}]>];
+  let builders = [OpBuilderDAG<(ins "spirv::GlobalVariableOp":$var)>];
 
   let assemblyFormat = "$variable attr-dict `:` type($pointer)";
 }
@@ -188,9 +188,9 @@ def SPV_EntryPointOp : SPV_Op<"EntryPoint", [InModuleScope]> {
 
   let autogenSerialization = 0;
 
-  let builders = [OpBuilder<[{spirv::ExecutionModel executionModel,
-                              spirv::FuncOp function,
-                              ArrayRef<Attribute> interfaceVars}]>];
+  let builders = [
+    OpBuilderDAG<(ins "spirv::ExecutionModel":$executionModel,
+      "spirv::FuncOp":$function, "ArrayRef<Attribute>":$interfaceVars)>];
 }
 
 // -----
@@ -241,11 +241,10 @@ def SPV_FuncOp : SPV_Op<"func", [
 
   let verifier = [{ return success(); }];
 
-  let builders = [OpBuilder<[{
-    StringRef name, FunctionType type,
-    spirv::FunctionControl control = spirv::FunctionControl::None,
-    ArrayRef<NamedAttribute> attrs = {}
-  }]>];
+  let builders = [
+    OpBuilderDAG<(ins "StringRef":$name, "FunctionType":$type,
+      CArg<"spirv::FunctionControl", "spirv::FunctionControl::None">:$control,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>];
 
   let hasOpcode = 0;
 
@@ -330,14 +329,15 @@ def SPV_GlobalVariableOp : SPV_Op<"globalVariable", [InModuleScope, Symbol]> {
   let results = (outs);
 
   let builders = [
-    OpBuilder<
-      "TypeAttr type, ArrayRef<NamedAttribute> namedAttrs", [{
+    OpBuilderDAG<(ins "TypeAttr":$type, "ArrayRef<NamedAttribute>":$namedAttrs),
+    [{
       $_state.addAttribute("type", type);
       $_state.addAttributes(namedAttrs);
     }]>,
-    OpBuilder<[{Type type, StringRef name, unsigned descriptorSet,
-                unsigned binding}]>,
-    OpBuilder<[{Type type, StringRef name, spirv::BuiltIn builtin}]>
+    OpBuilderDAG<(ins "Type":$type, "StringRef":$name,
+      "unsigned":$descriptorSet, "unsigned":$binding)>,
+    OpBuilderDAG<(ins "Type":$type, "StringRef":$name,
+      "spirv::BuiltIn":$builtin)>
   ];
 
   let hasOpcode = 0;
@@ -373,7 +373,7 @@ def SPV_ModuleOp : SPV_Op<"module",
     implicitly capture values from the enclosing environment.
 
     This op has only one region, which only contains one block. The block
-    must be terminated via the `spv._module_end` op.
+    must be terminated via the `spv.mlir.endmodule` op.
 
     <!-- End of AutoGen section -->
 
@@ -413,10 +413,10 @@ def SPV_ModuleOp : SPV_Op<"module",
   let regions = (region SizedRegion<1>:$body);
 
   let builders = [
-    OpBuilder<[{Optional<StringRef> name = llvm::None}]>,
-    OpBuilder<[{spirv::AddressingModel addressing_model,
-                spirv::MemoryModel memory_model,
-                Optional<StringRef> name = llvm::None}]>
+    OpBuilderDAG<(ins CArg<"Optional<StringRef>", "llvm::None">:$name)>,
+    OpBuilderDAG<(ins "spirv::AddressingModel":$addressing_model,
+      "spirv::MemoryModel":$memory_model,
+      CArg<"Optional<StringRef>", "llvm::None">:$name)>
   ];
 
   // We need to ensure the block inside the region is properly terminated;
@@ -443,7 +443,7 @@ def SPV_ModuleOp : SPV_Op<"module",
 
 // -----
 
-def SPV_ModuleEndOp : SPV_Op<"_module_end", [InModuleScope, Terminator]> {
+def SPV_ModuleEndOp : SPV_Op<"mlir.endmodule", [InModuleScope, Terminator]> {
   let summary = "The pseudo op that ends a SPIR-V module";
 
   let description = [{
@@ -468,7 +468,7 @@ def SPV_ModuleEndOp : SPV_Op<"_module_end", [InModuleScope, Terminator]> {
 
 // -----
 
-def SPV_ReferenceOfOp : SPV_Op<"_reference_of", [NoSideEffect]> {
+def SPV_ReferenceOfOp : SPV_Op<"mlir.referenceof", [NoSideEffect]> {
   let summary = "Reference a specialization constant.";
 
   let description = [{
@@ -482,14 +482,14 @@ def SPV_ReferenceOfOp : SPV_Op<"_reference_of", [NoSideEffect]> {
     <!-- End of AutoGen section -->
 
     ```
-    spv-reference-of-op ::= ssa-id `=` `spv._reference_of` symbol-ref-id
+    spv-reference-of-op ::= ssa-id `=` `spv.mlir.referenceof` symbol-ref-id
                                        `:` spirv-scalar-type
     ```
 
     #### Example:
 
     ```mlir
-    %0 = spv._reference_of @spec_const : f32
+    %0 = spv.mlir.referenceof @spec_const : f32
     ```
 
     TODO Add support for composite specialization constants.

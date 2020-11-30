@@ -188,6 +188,7 @@ llvm::Value *CodeGenFunction::EvaluateExprAsBool(const Expr *E) {
 
   QualType BoolTy = getContext().BoolTy;
   SourceLocation Loc = E->getExprLoc();
+  CGFPOptionsRAII FPOptsRAII(*this, E);
   if (!E->getType()->isAnyComplexType())
     return EmitScalarConversion(EmitScalarExpr(E), E->getType(), BoolTy, Loc);
 
@@ -2834,6 +2835,10 @@ LValue CodeGenFunction::EmitDeclRefLValue(const DeclRefExpr *E) {
   // non-type template parameters into expressions.
   if (const auto *GD = dyn_cast<MSGuidDecl>(ND))
     return MakeAddrLValue(CGM.GetAddrOfMSGuidDecl(GD), T,
+                          AlignmentSource::Decl);
+
+  if (const auto *TPO = dyn_cast<TemplateParamObjectDecl>(ND))
+    return MakeAddrLValue(CGM.GetAddrOfTemplateParamObject(TPO), T,
                           AlignmentSource::Decl);
 
   llvm_unreachable("Unhandled DeclRefExpr");

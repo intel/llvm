@@ -339,13 +339,6 @@ public:
 
   void *MMemAllocation = nullptr;
 
-  // ESIMD-extension-specific fields.
-  struct {
-    // If this alloca corresponds to an ESIMD accessor, then this field holds
-    // an image buffer wrapping the memory allocation above.
-    void *MWrapperImage = nullptr;
-  } ESIMDExt;
-
   /// Alloca command linked with current command.
   /// Device and host alloca commands can be linked, so they may share the same
   /// memory. Only one allocation from a pair can be accessed at a time. Alloca
@@ -509,8 +502,6 @@ public:
   // memory in DispatchNativeKernel.
   // TODO remove when native kernel support is terminated.
   void releaseCG() {
-    assert(MCommandGroup->getType() == CG::RUN_ON_HOST_INTEL &&
-           "Only 'native kernel' is allowed to release command group");
     MCommandGroup.release();
   }
 

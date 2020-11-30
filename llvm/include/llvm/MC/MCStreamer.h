@@ -215,6 +215,10 @@ class MCStreamer {
   /// PushSection.
   SmallVector<std::pair<MCSectionSubPair, MCSectionSubPair>, 4> SectionStack;
 
+  /// Pointer to the parser's SMLoc if available. This is used to provide
+  /// locations for diagnostics.
+  const SMLoc *StartTokLocPtr = nullptr;
+
   /// The next unique ID to use when creating a WinCFI-related section (.pdata
   /// or .xdata). This ID ensures that we have a one-to-one mapping from
   /// code section to unwind info section, which MSVC's incremental linker
@@ -257,6 +261,11 @@ public:
 
   void setTargetStreamer(MCTargetStreamer *TS) {
     TargetStreamer.reset(TS);
+  }
+
+  void setStartTokLocPtr(const SMLoc *Loc) { StartTokLocPtr = Loc; }
+  SMLoc getStartTokLoc() const {
+    return StartTokLocPtr ? *StartTokLocPtr : SMLoc();
   }
 
   /// State management
@@ -442,6 +451,10 @@ public:
   /// Each emitted symbol will be tracked in the ordering table,
   /// so we can sort on them later.
   void AssignFragment(MCSymbol *Symbol, MCFragment *Fragment);
+
+  /// Returns the mnemonic for \p MI, if the streamer has access to a
+  /// instruction printer and returns an empty string otherwise.
+  virtual StringRef getMnemonic(MCInst &MI) { return ""; }
 
   /// Emit a label for \p Symbol into the current section.
   ///
@@ -1055,7 +1068,7 @@ public:
   /// Streamer specific finalization.
   virtual void finishImpl();
   /// Finish emission of machine code.
-  void Finish();
+  void Finish(SMLoc EndLoc = SMLoc());
 
   virtual bool mayHaveInstructions(MCSection &Sec) const { return true; }
 };

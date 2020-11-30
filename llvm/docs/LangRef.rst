@@ -1234,7 +1234,8 @@ Currently, only the following parameter attributes are defined:
     size of the pointee type. The ``nonnull`` attribute does not imply
     dereferenceability (consider a pointer to one element past the end of an
     array), however ``dereferenceable(<n>)`` does imply ``nonnull`` in
-    ``addrspace(0)`` (which is the default address space).
+    ``addrspace(0)`` (which is the default address space), except if the
+    ``null_pointer_is_valid`` function attribute is present.
 
 ``dereferenceable_or_null(<n>)``
     This indicates that the parameter or return value isn't both
@@ -2369,6 +2370,14 @@ as follows:
     program memory space defaults to the default address space of 0,
     which corresponds to a Von Neumann architecture that has code
     and data in the same space.
+``G<address space>``
+    Specifies the address space to be used by default when creating global
+    variables. If omitted, the globals address space defaults to the default
+    address space 0.
+    Note: variable declarations without an address space are always created in
+    address space 0, this property only affects the default value to be used
+    when creating globals without additional contextual information (e.g. in
+    LLVM passes).
 ``A<address space>``
     Specifies the address space of objects created by '``alloca``'.
     Defaults to the default address space of 0.
@@ -3781,6 +3790,43 @@ long as the original value is reconstituted before the ``indirectbr`` or
 
 Finally, some targets may provide defined semantics when using the value
 as the operand to an inline assembly, but that is target specific.
+
+.. _dso_local_equivalent:
+
+DSO Local Equivalent
+--------------------
+
+``dso_local_equivalent @func``
+
+A '``dso_local_equivalent``' constant represents a function which is
+functionally equivalent to a given function, but is always defined in the
+current linkage unit. The resulting pointer has the same type as the underlying
+function. The resulting pointer is permitted, but not required, to be different
+from a pointer to the function, and it may have different values in different
+translation units.
+
+The target function may not have ``extern_weak`` linkage.
+
+``dso_local_equivalent`` can be implemented as such:
+
+- If the function has local linkage, hidden visibility, or is
+  ``dso_local``, ``dso_local_equivalent`` can be implemented as simply a pointer
+  to the function.
+- ``dso_local_equivalent`` can be implemented with a stub that tail-calls the
+  function. Many targets support relocations that resolve at link time to either
+  a function or a stub for it, depending on if the function is defined within the
+  linkage unit; LLVM will use this when available. (This is commonly called a
+  "PLT stub".) On other targets, the stub may need to be emitted explicitly.
+
+This can be used wherever a ``dso_local`` instance of a function is needed without
+needing to explicitly make the original function ``dso_local``. An instance where
+this can be used is for static offset calculations between a function and some other
+``dso_local`` symbol. This is especially useful for the Relative VTables C++ ABI,
+where dynamic relocations for function pointers in VTables can be replaced with
+static relocations for offsets between the VTable and virtual functions which
+may not be ``dso_local``.
+
+This is currently only supported for ELF binary formats.
 
 .. _constantexprs:
 
@@ -6309,6 +6355,15 @@ It is also possible to have nested parallel loops:
    !3 = distinct !{} ; access group for instructions in the inner loop (which are implicitly contained in outer loop as well)
    !4 = distinct !{} ; access group for instructions in the outer, but not the inner loop
 
+'``llvm.loop.mustprogress``' Metadata
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The ``llvm.loop.mustprogress`` metadata indicates that this loop is required to
+terminate, unwind, or interact with the environment in an observable way e.g.
+via a volatile memory access, I/O, or other synchronization. If such a loop is
+not found to interact with the environment in an observable way, the loop may
+be removed. This corresponds to the ``mustprogress`` function attribute.
+
 '``irr_loop``' Metadata
 ^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -6486,6 +6541,23 @@ hashes of the 2 hottest target functions' names (this is the same hash used
 to represent function names in the profile database), and the 5th and 7th
 operands give the execution count that each of the respective prior target
 functions was called.
+
+.. _md_annotation:
+
+'``annotation``' Metadata
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The ``annotation`` metadata can be used to attach a tuple of annotation strings
+to any instruction. This metadata does not impact the semantics of the program
+and may only be used to provide additional insight about the program and
+transformations to users.
+
+Example:
+
+.. code-block:: text
+
+    %a.addr = alloca float*, align 8, !annotation !0
+    !0 = !{!"auto-init"}
 
 Module Flags Metadata
 =====================
@@ -9748,17 +9820,30 @@ for the given testcase is equivalent to:
     }
 
 If the ``inbounds`` keyword is present, the result value of the
-``getelementptr`` is a :ref:`poison value <poisonvalues>` if the base
-pointer is not an *in bounds* address of an allocated object, or if any
-of the addresses that would be formed by successive addition of the
-offsets implied by the indices to the base address with infinitely
-precise signed arithmetic are not an *in bounds* address of that
-allocated object. The *in bounds* addresses for an allocated object are
-all the addresses that point into the object, plus the address one byte
-past the end. The only *in bounds* address for a null pointer in the
-default address-space is the null pointer itself. In cases where the
-base is a vector of pointers the ``inbounds`` keyword applies to each
-of the computations element-wise.
+``getelementptr`` is a :ref:`poison value <poisonvalues>` if one of the
+following rules is violated:
+
+*  The base pointer has an *in bounds* address of an allocated object, which
+   means that it points into an allocated object, or to its end. The only
+   *in bounds* address for a null pointer in the default address-space is the
+   null pointer itself.
+*  If the type of an index is larger than the pointer index type, the
+   truncation to the pointer index type preserves the signed value.
+*  The multiplication of an index by the type size does not wrap the pointer
+   index type in a signed sense (``nsw``).
+*  The successive addition of offsets (without adding the base address) does
+   not wrap the pointer index type in a signed sense (``nsw``).
+*  The successive addition of the current address, interpreted as an unsigned
+   number, and an offset, interpreted as a signed number, does not wrap the
+   unsigned address space and remains *in bounds* of the allocated object.
+   As a corollary, if the added offset is non-negative, the addition does not
+   wrap in an unsigned sense (``nuw``).
+*  In cases where the base is a vector of pointers, the ``inbounds`` keyword
+   applies to each of the computations element-wise.
+
+These rules are based on the assumption that no allocated object may cross
+the unsigned address space boundary, and no allocated object may be larger
+than half the pointer index type space.
 
 If the ``inbounds`` keyword is not present, the offsets are added to the
 base address with silently-wrapping two's complement arithmetic. If the
@@ -15476,6 +15561,45 @@ on their operand. It's a hint to the backend that can use this to set up the
 hardware-loop count with a target specific instruction, usually a move of this
 value to a special register or a hardware-loop instruction.
 
+
+'``llvm.start.loop.iterations.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+This is an overloaded intrinsic.
+
+::
+
+      declare i32 @llvm.start.loop.iterations.i32(i32)
+      declare i64 @llvm.start.loop.iterations.i64(i64)
+
+Overview:
+"""""""""
+
+The '``llvm.start.loop.iterations.*``' intrinsics are similar to the
+'``llvm.set.loop.iterations.*``' intrinsics, used to specify the
+hardware-loop trip count but also produce a value identical to the input
+that can be used as the input to the loop. They are placed in the loop
+preheader basic block and the output is expected to be the input to the
+phi for the induction variable of the loop, decremented by the
+'``llvm.loop.decrement.reg.*``'.
+
+Arguments:
+""""""""""
+
+The integer operand is the loop trip count of the hardware-loop, and thus
+not e.g. the loop back-edge taken count.
+
+Semantics:
+""""""""""
+
+The '``llvm.start.loop.iterations.*``' intrinsics do not perform any arithmetic
+on their operand. It's a hint to the backend that can use this to set up the
+hardware-loop count with a target specific instruction, usually a move of this
+value to a special register or a hardware-loop instruction.
+
 '``llvm.test.set.loop.iterations.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -15663,12 +15787,15 @@ The first argument to this intrinsic is a scalar start value for the reduction.
 The type of the start value matches the element-type of the vector input.
 The second argument must be a vector of floating-point values.
 
+To ignore the start value, negative zero (``-0.0``) can be used, as it is
+the neutral value of floating point addition.
+
 Examples:
 """""""""
 
 ::
 
-      %unord = call reassoc float @llvm.vector.reduce.fadd.v4f32(float 0.0, <4 x float> %input) ; relaxed reduction
+      %unord = call reassoc float @llvm.vector.reduce.fadd.v4f32(float -0.0, <4 x float> %input) ; relaxed reduction
       %ord = call float @llvm.vector.reduce.fadd.v4f32(float %start_value, <4 x float> %input) ; sequential reduction
 
 
@@ -15733,6 +15860,9 @@ Arguments:
 The first argument to this intrinsic is a scalar start value for the reduction.
 The type of the start value matches the element-type of the vector input.
 The second argument must be a vector of floating-point values.
+
+To ignore the start value, one (``1.0``) can be used, as it is the neutral
+value of floating point multiplication.
 
 Examples:
 """""""""
@@ -20339,7 +20469,9 @@ Lowering:
 
 In the most general case call to the '``llvm.memcpy.element.unordered.atomic.*``' is
 lowered to a call to the symbol ``__llvm_memcpy_element_unordered_atomic_*``. Where '*'
-is replaced with an actual element size.
+is replaced with an actual element size. See :ref:`RewriteStatepointsForGC intrinsic
+lowering <RewriteStatepointsForGC_intrinsic_lowering>` for details on GC specific
+lowering.
 
 Optimizer is allowed to inline memory copy when it's profitable to do so.
 
@@ -20416,7 +20548,9 @@ Lowering:
 In the most general case call to the
 '``llvm.memmove.element.unordered.atomic.*``' is lowered to a call to the symbol
 ``__llvm_memmove_element_unordered_atomic_*``. Where '*' is replaced with an
-actual element size.
+actual element size. See :ref:`RewriteStatepointsForGC intrinsic lowering
+<RewriteStatepointsForGC_intrinsic_lowering>` for details on GC specific
+lowering.
 
 The optimizer is allowed to inline the memory copy when it's profitable to do so.
 

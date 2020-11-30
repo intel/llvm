@@ -1246,12 +1246,6 @@ void ASTReader::Error(unsigned DiagID, StringRef Arg1, StringRef Arg2,
     Diag(DiagID) << Arg1 << Arg2 << Arg3;
 }
 
-void ASTReader::Error(unsigned DiagID, StringRef Arg1, StringRef Arg2,
-                      unsigned Select) const {
-  if (!Diags.isDiagnosticInFlight())
-    Diag(DiagID) << Arg1 << Arg2 << Select;
-}
-
 void ASTReader::Error(llvm::Error &&Err) const {
   Error(toString(std::move(Err)));
 }
@@ -1538,11 +1532,11 @@ bool ASTReader::ReadSLocEntry(int ID) {
                                                              NumFileDecls));
     }
 
-    const SrcMgr::ContentCache *ContentCache
-      = SourceMgr.getOrCreateContentCache(File, isSystem(FileCharacter));
-    if (OverriddenBuffer && !ContentCache->BufferOverridden &&
-        ContentCache->ContentsEntry == ContentCache->OrigEntry &&
-        !ContentCache->getRawBuffer()) {
+    const SrcMgr::ContentCache &ContentCache =
+        SourceMgr.getOrCreateContentCache(File, isSystem(FileCharacter));
+    if (OverriddenBuffer && !ContentCache.BufferOverridden &&
+        ContentCache.ContentsEntry == ContentCache.OrigEntry &&
+        !ContentCache.getBufferIfLoaded()) {
       auto Buffer = ReadBuffer(SLocEntryCursor, File->getName());
       if (!Buffer)
         return true;
@@ -2395,7 +2389,7 @@ InputFile ASTReader::getInputFile(ModuleFile &F, unsigned ID, bool Complain) {
   auto FileChange = HasInputFileChanged();
   // For an overridden file, there is nothing to validate.
   if (!Overridden && FileChange != ModificationType::None) {
-    if (Complain) {
+    if (Complain && !Diags.isDiagnosticInFlight()) {
       // Build a list of the PCH imports that got us here (in reverse).
       SmallVector<ModuleFile *, 4> ImportStack(1, &F);
       while (!ImportStack.back()->ImportedBy.empty())
@@ -2403,20 +2397,12 @@ InputFile ASTReader::getInputFile(ModuleFile &F, unsigned ID, bool Complain) {
 
       // The top-level PCH is stale.
       StringRef TopLevelPCHName(ImportStack.back()->FileName);
-      unsigned DiagnosticKind =
-          moduleKindForDiagnostic(ImportStack.back()->Kind);
-      if (DiagnosticKind == 0)
-        Error(diag::err_fe_pch_file_modified, Filename, TopLevelPCHName,
-              (unsigned)FileChange);
-      else if (DiagnosticKind == 1)
-        Error(diag::err_fe_module_file_modified, Filename, TopLevelPCHName,
-              (unsigned)FileChange);
-      else
-        Error(diag::err_fe_ast_file_modified, Filename, TopLevelPCHName,
-              (unsigned)FileChange);
+      Diag(diag::err_fe_ast_file_modified)
+          << Filename << moduleKindForDiagnostic(ImportStack.back()->Kind)
+          << TopLevelPCHName << FileChange;
 
       // Print the import stack.
-      if (ImportStack.size() > 1 && !Diags.isDiagnosticInFlight()) {
+      if (ImportStack.size() > 1) {
         Diag(diag::note_pch_required_by)
           << Filename << ImportStack[0]->FileName;
         for (unsigned I = 1; I < ImportStack.size(); ++I)
@@ -2424,8 +2410,7 @@ InputFile ASTReader::getInputFile(ModuleFile &F, unsigned ID, bool Complain) {
             << ImportStack[I-1]->FileName << ImportStack[I]->FileName;
       }
 
-      if (!Diags.isDiagnosticInFlight())
-        Diag(diag::note_pch_rebuild_required) << TopLevelPCHName;
+      Diag(diag::note_pch_rebuild_required) << TopLevelPCHName;
     }
 
     IsOutOfDate = true;
@@ -3921,7 +3906,7 @@ ASTReader::ReadModuleMapFileBlock(RecordData &Record, ModuleFile &F,
     // Don't emit module relocation error if we have -fno-validate-pch
     if (!PP.getPreprocessorOpts().DisablePCHValidation && !ModMap) {
       if ((ClientLoadCapabilities & ARR_OutOfDate) == 0) {
-        if (auto *ASTFE = M ? M->getASTFile() : nullptr) {
+        if (auto ASTFE = M ? M->getASTFile() : None) {
           // This module was defined by an imported (explicit) module.
           Diag(diag::err_module_file_conflict) << F.ModuleName << F.FileName
                                                << ASTFE->getName();
@@ -4512,9 +4497,9 @@ ASTReader::ReadASTCore(StringRef FileName,
       return Missing;
 
     // Otherwise, return an error.
-    Diag(diag::err_module_file_not_found) << moduleKindForDiagnostic(Type)
-                                          << FileName << !ErrorStr.empty()
-                                          << ErrorStr;
+    Diag(diag::err_ast_file_not_found)
+        << moduleKindForDiagnostic(Type) << FileName << !ErrorStr.empty()
+        << ErrorStr;
     return Failure;
 
   case ModuleManager::OutOfDate:
@@ -4524,9 +4509,9 @@ ASTReader::ReadASTCore(StringRef FileName,
       return OutOfDate;
 
     // Otherwise, return an error.
-    Diag(diag::err_module_file_out_of_date) << moduleKindForDiagnostic(Type)
-                                            << FileName << !ErrorStr.empty()
-                                            << ErrorStr;
+    Diag(diag::err_ast_file_out_of_date)
+        << moduleKindForDiagnostic(Type) << FileName << !ErrorStr.empty()
+        << ErrorStr;
     return Failure;
   }
 
@@ -4547,7 +4532,7 @@ ASTReader::ReadASTCore(StringRef FileName,
 
   // Sniff for the signature.
   if (llvm::Error Err = doesntStartWithASTFileMagic(Stream)) {
-    Diag(diag::err_module_file_invalid)
+    Diag(diag::err_ast_file_invalid)
         << moduleKindForDiagnostic(Type) << FileName << std::move(Err);
     return Failure;
   }
@@ -5844,6 +5829,7 @@ bool ASTReader::ParseHeaderSearchOptions(const RecordData &Record,
   HSOpts.DisableModuleHash = Record[Idx++];
   HSOpts.ImplicitModuleMaps = Record[Idx++];
   HSOpts.ModuleMapFileHomeIsCwd = Record[Idx++];
+  HSOpts.EnablePrebuiltImplicitModules = Record[Idx++];
   HSOpts.UseBuiltinIncludes = Record[Idx++];
   HSOpts.UseStandardSystemIncludes = Record[Idx++];
   HSOpts.UseStandardCXXIncludes = Record[Idx++];
@@ -6471,8 +6457,8 @@ void TypeLocReader::VisitBuiltinTypeLoc(BuiltinTypeLoc TL) {
   TL.setBuiltinLoc(readSourceLocation());
   if (TL.needsExtraLocalData()) {
     TL.setWrittenTypeSpec(static_cast<DeclSpec::TST>(Reader.readInt()));
-    TL.setWrittenSignSpec(static_cast<DeclSpec::TSS>(Reader.readInt()));
-    TL.setWrittenWidthSpec(static_cast<DeclSpec::TSW>(Reader.readInt()));
+    TL.setWrittenSignSpec(static_cast<TypeSpecifierSign>(Reader.readInt()));
+    TL.setWrittenWidthSpec(static_cast<TypeSpecifierWidth>(Reader.readInt()));
     TL.setModeAttr(Reader.readInt());
   }
 }
@@ -7046,6 +7032,11 @@ QualType ASTReader::GetType(TypeID ID) {
       T = Context.SingletonId; \
       break;
 #include "clang/Basic/AArch64SVEACLETypes.def"
+#define PPC_MMA_VECTOR_TYPE(Name, Id, Size) \
+    case PREDEF_TYPE_##Id##_ID: \
+      T = Context.Id##Ty; \
+      break;
+#include "clang/Basic/PPCTypes.def"
     }
 
     assert(!T.isNull() && "Unknown predefined type");
@@ -8970,48 +8961,148 @@ ReadFixedPointSemantics(const SmallVectorImpl<uint64_t> &Record,
                                    HasUnsignedPadding);
 }
 
-static const llvm::fltSemantics &
-readAPFloatSemantics(ASTRecordReader &reader) {
-  return llvm::APFloatBase::EnumToSemantics(
-    static_cast<llvm::APFloatBase::Semantics>(reader.readInt()));
-}
-
 APValue ASTRecordReader::readAPValue() {
-  unsigned Kind = readInt();
-  switch ((APValue::ValueKind) Kind) {
+  auto Kind = static_cast<APValue::ValueKind>(asImpl().readUInt32());
+  switch (Kind) {
   case APValue::None:
     return APValue();
   case APValue::Indeterminate:
     return APValue::IndeterminateValue();
   case APValue::Int:
-    return APValue(readAPSInt());
+    return APValue(asImpl().readAPSInt());
   case APValue::Float: {
-    const llvm::fltSemantics &FloatSema = readAPFloatSemantics(*this);
-    return APValue(readAPFloat(FloatSema));
+    const llvm::fltSemantics &FloatSema = llvm::APFloatBase::EnumToSemantics(
+        static_cast<llvm::APFloatBase::Semantics>(asImpl().readUInt32()));
+    return APValue(asImpl().readAPFloat(FloatSema));
   }
   case APValue::FixedPoint: {
     llvm::FixedPointSemantics FPSema = ReadFixedPointSemantics(Record, Idx);
     return APValue(llvm::APFixedPoint(readAPInt(), FPSema));
   }
   case APValue::ComplexInt: {
-    llvm::APSInt First = readAPSInt();
-    return APValue(std::move(First), readAPSInt());
+    llvm::APSInt First = asImpl().readAPSInt();
+    return APValue(std::move(First), asImpl().readAPSInt());
   }
   case APValue::ComplexFloat: {
-    const llvm::fltSemantics &FloatSema1 = readAPFloatSemantics(*this);
-    llvm::APFloat First = readAPFloat(FloatSema1);
-    const llvm::fltSemantics &FloatSema2 = readAPFloatSemantics(*this);
-    return APValue(std::move(First), readAPFloat(FloatSema2));
+    const llvm::fltSemantics &FloatSema = llvm::APFloatBase::EnumToSemantics(
+        static_cast<llvm::APFloatBase::Semantics>(asImpl().readUInt32()));
+    llvm::APFloat First = readAPFloat(FloatSema);
+    return APValue(std::move(First), asImpl().readAPFloat(FloatSema));
   }
-  case APValue::LValue:
-  case APValue::Vector:
-  case APValue::Array:
-  case APValue::Struct:
-  case APValue::Union:
-  case APValue::MemberPointer:
-  case APValue::AddrLabelDiff:
-    // TODO : Handle all these APValue::ValueKind.
-    return APValue();
+  case APValue::Vector: {
+    APValue Result;
+    Result.MakeVector();
+    unsigned Length = asImpl().readUInt32();
+    (void)Result.setVectorUninit(Length);
+    for (unsigned LoopIdx = 0; LoopIdx < Length; LoopIdx++)
+      Result.getVectorElt(LoopIdx) = asImpl().readAPValue();
+    return Result;
+  }
+  case APValue::Array: {
+    APValue Result;
+    unsigned InitLength = asImpl().readUInt32();
+    unsigned TotalLength = asImpl().readUInt32();
+    Result.MakeArray(InitLength, TotalLength);
+    for (unsigned LoopIdx = 0; LoopIdx < InitLength; LoopIdx++)
+      Result.getArrayInitializedElt(LoopIdx) = asImpl().readAPValue();
+    if (Result.hasArrayFiller())
+      Result.getArrayFiller() = asImpl().readAPValue();
+    return Result;
+  }
+  case APValue::Struct: {
+    APValue Result;
+    unsigned BasesLength = asImpl().readUInt32();
+    unsigned FieldsLength = asImpl().readUInt32();
+    Result.MakeStruct(BasesLength, FieldsLength);
+    for (unsigned LoopIdx = 0; LoopIdx < BasesLength; LoopIdx++)
+      Result.getStructBase(LoopIdx) = asImpl().readAPValue();
+    for (unsigned LoopIdx = 0; LoopIdx < FieldsLength; LoopIdx++)
+      Result.getStructField(LoopIdx) = asImpl().readAPValue();
+    return Result;
+  }
+  case APValue::Union: {
+    auto *FDecl = asImpl().readDeclAs<FieldDecl>();
+    APValue Value = asImpl().readAPValue();
+    return APValue(FDecl, std::move(Value));
+  }
+  case APValue::AddrLabelDiff: {
+    auto *LHS = cast<AddrLabelExpr>(asImpl().readExpr());
+    auto *RHS = cast<AddrLabelExpr>(asImpl().readExpr());
+    return APValue(LHS, RHS);
+  }
+  case APValue::MemberPointer: {
+    APValue Result;
+    bool IsDerived = asImpl().readUInt32();
+    auto *Member = asImpl().readDeclAs<ValueDecl>();
+    unsigned PathSize = asImpl().readUInt32();
+    const CXXRecordDecl **PathArray =
+        Result.setMemberPointerUninit(Member, IsDerived, PathSize).data();
+    for (unsigned LoopIdx = 0; LoopIdx < PathSize; LoopIdx++)
+      PathArray[LoopIdx] =
+          asImpl().readDeclAs<const CXXRecordDecl>()->getCanonicalDecl();
+    return Result;
+  }
+  case APValue::LValue: {
+    uint64_t Bits = asImpl().readUInt32();
+    bool HasLValuePath = Bits & 0x1;
+    bool IsLValueOnePastTheEnd = Bits & 0x2;
+    bool IsExpr = Bits & 0x4;
+    bool IsTypeInfo = Bits & 0x8;
+    bool IsNullPtr = Bits & 0x10;
+    bool HasBase = Bits & 0x20;
+    APValue::LValueBase Base;
+    QualType ElemTy;
+    assert((!IsExpr || !IsTypeInfo) && "LValueBase cannot be both");
+    if (HasBase) {
+      if (!IsTypeInfo) {
+        unsigned CallIndex = asImpl().readUInt32();
+        unsigned Version = asImpl().readUInt32();
+        if (IsExpr) {
+          Base = APValue::LValueBase(asImpl().readExpr(), CallIndex, Version);
+          ElemTy = Base.get<const Expr *>()->getType();
+        } else {
+          Base = APValue::LValueBase(asImpl().readDeclAs<const ValueDecl>(),
+                                     CallIndex, Version);
+          ElemTy = Base.get<const ValueDecl *>()->getType();
+        }
+      } else {
+        QualType TypeInfo = asImpl().readType();
+        QualType Type = asImpl().readType();
+        Base = APValue::LValueBase::getTypeInfo(
+            TypeInfoLValue(TypeInfo.getTypePtr()), Type);
+        Base.getTypeInfoType();
+      }
+    }
+    CharUnits Offset = CharUnits::fromQuantity(asImpl().readUInt32());
+    unsigned PathLength = asImpl().readUInt32();
+    APValue Result;
+    Result.MakeLValue();
+    if (HasLValuePath) {
+      APValue::LValuePathEntry *Path =
+          Result
+              .setLValueUninit(Base, Offset, PathLength, IsLValueOnePastTheEnd,
+                               IsNullPtr)
+              .data();
+      for (unsigned LoopIdx = 0; LoopIdx < PathLength; LoopIdx++) {
+        if (ElemTy->getAs<RecordType>()) {
+          unsigned Int = asImpl().readUInt32();
+          Decl *D = asImpl().readDeclAs<Decl>();
+          if (auto *RD = dyn_cast<CXXRecordDecl>(D))
+            ElemTy = getASTContext().getRecordType(RD);
+          else
+            ElemTy = cast<ValueDecl>(D)->getType();
+          Path[LoopIdx] =
+              APValue::LValuePathEntry(APValue::BaseOrMemberType(D, Int));
+        } else {
+          ElemTy = getASTContext().getAsArrayType(ElemTy)->getElementType();
+          Path[LoopIdx] =
+              APValue::LValuePathEntry::ArrayIndex(asImpl().readUInt32());
+        }
+      }
+    } else
+      Result.setLValue(Base, Offset, APValue::NoLValuePath{}, IsNullPtr);
+    return Result;
+  }
   }
   llvm_unreachable("Invalid APValue::ValueKind");
 }
@@ -12541,10 +12632,10 @@ void OMPClauseReader::VisitOMPMapClause(OMPMapClause *C) {
   SmallVector<OMPClauseMappableExprCommon::MappableComponent, 32> Components;
   Components.reserve(TotalComponents);
   for (unsigned i = 0; i < TotalComponents; ++i) {
-    Expr *AssociatedExpr = Record.readExpr();
+    Expr *AssociatedExprPr = Record.readExpr();
     auto *AssociatedDecl = Record.readDeclAs<ValueDecl>();
-    Components.push_back(OMPClauseMappableExprCommon::MappableComponent(
-        AssociatedExpr, AssociatedDecl));
+    Components.emplace_back(AssociatedExprPr, AssociatedDecl,
+                            /*IsNonContiguous=*/false);
   }
   C->setComponents(Components, ListSizes);
 }
@@ -12664,10 +12755,10 @@ void OMPClauseReader::VisitOMPToClause(OMPToClause *C) {
   SmallVector<OMPClauseMappableExprCommon::MappableComponent, 32> Components;
   Components.reserve(TotalComponents);
   for (unsigned i = 0; i < TotalComponents; ++i) {
-    Expr *AssociatedExpr = Record.readSubExpr();
+    Expr *AssociatedExprPr = Record.readSubExpr();
+    bool IsNonContiguous = Record.readBool();
     auto *AssociatedDecl = Record.readDeclAs<ValueDecl>();
-    Components.push_back(OMPClauseMappableExprCommon::MappableComponent(
-        AssociatedExpr, AssociatedDecl));
+    Components.emplace_back(AssociatedExprPr, AssociatedDecl, IsNonContiguous);
   }
   C->setComponents(Components, ListSizes);
 }
@@ -12720,10 +12811,10 @@ void OMPClauseReader::VisitOMPFromClause(OMPFromClause *C) {
   SmallVector<OMPClauseMappableExprCommon::MappableComponent, 32> Components;
   Components.reserve(TotalComponents);
   for (unsigned i = 0; i < TotalComponents; ++i) {
-    Expr *AssociatedExpr = Record.readSubExpr();
+    Expr *AssociatedExprPr = Record.readSubExpr();
+    bool IsNonContiguous = Record.readBool();
     auto *AssociatedDecl = Record.readDeclAs<ValueDecl>();
-    Components.push_back(OMPClauseMappableExprCommon::MappableComponent(
-        AssociatedExpr, AssociatedDecl));
+    Components.emplace_back(AssociatedExprPr, AssociatedDecl, IsNonContiguous);
   }
   C->setComponents(Components, ListSizes);
 }
@@ -12770,10 +12861,10 @@ void OMPClauseReader::VisitOMPUseDevicePtrClause(OMPUseDevicePtrClause *C) {
   SmallVector<OMPClauseMappableExprCommon::MappableComponent, 32> Components;
   Components.reserve(TotalComponents);
   for (unsigned i = 0; i < TotalComponents; ++i) {
-    Expr *AssociatedExpr = Record.readSubExpr();
+    auto *AssociatedExprPr = Record.readSubExpr();
     auto *AssociatedDecl = Record.readDeclAs<ValueDecl>();
-    Components.push_back(OMPClauseMappableExprCommon::MappableComponent(
-        AssociatedExpr, AssociatedDecl));
+    Components.emplace_back(AssociatedExprPr, AssociatedDecl,
+                            /*IsNonContiguous=*/false);
   }
   C->setComponents(Components, ListSizes);
 }
@@ -12814,8 +12905,8 @@ void OMPClauseReader::VisitOMPUseDeviceAddrClause(OMPUseDeviceAddrClause *C) {
   for (unsigned i = 0; i < TotalComponents; ++i) {
     Expr *AssociatedExpr = Record.readSubExpr();
     auto *AssociatedDecl = Record.readDeclAs<ValueDecl>();
-    Components.push_back(OMPClauseMappableExprCommon::MappableComponent(
-        AssociatedExpr, AssociatedDecl));
+    Components.emplace_back(AssociatedExpr, AssociatedDecl,
+                            /*IsNonContiguous*/ false);
   }
   C->setComponents(Components, ListSizes);
 }
@@ -12857,8 +12948,8 @@ void OMPClauseReader::VisitOMPIsDevicePtrClause(OMPIsDevicePtrClause *C) {
   for (unsigned i = 0; i < TotalComponents; ++i) {
     Expr *AssociatedExpr = Record.readSubExpr();
     auto *AssociatedDecl = Record.readDeclAs<ValueDecl>();
-    Components.push_back(OMPClauseMappableExprCommon::MappableComponent(
-        AssociatedExpr, AssociatedDecl));
+    Components.emplace_back(AssociatedExpr, AssociatedDecl,
+                            /*IsNonContiguous=*/false);
   }
   C->setComponents(Components, ListSizes);
 }

@@ -17,7 +17,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 
@@ -179,7 +179,8 @@ void ConvertAVX512ToLLVMPass::runOnOperation() {
   target.addLegalDialect<LLVM::LLVMDialect>();
   target.addLegalDialect<LLVM::LLVMAVX512Dialect>();
   target.addIllegalDialect<avx512::AVX512Dialect>();
-  if (failed(applyPartialConversion(getOperation(), target, patterns))) {
+  if (failed(applyPartialConversion(getOperation(), target,
+                                    std::move(patterns)))) {
     signalPassFailure();
   }
 }

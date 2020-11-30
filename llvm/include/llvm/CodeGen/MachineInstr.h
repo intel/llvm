@@ -1333,7 +1333,8 @@ public:
   /// Return true if the MachineInstr modifies (fully define or partially
   /// define) the specified register.
   /// NOTE: It's ignoring subreg indices on virtual registers.
-  bool modifiesRegister(Register Reg, const TargetRegisterInfo *TRI) const {
+  bool modifiesRegister(Register Reg,
+                        const TargetRegisterInfo *TRI = nullptr) const {
     return findRegisterDefOperandIdx(Reg, false, true, TRI) != -1;
   }
 
@@ -1784,8 +1785,10 @@ public:
   void setDebugValueUndef() {
     assert(isDebugValue() && "Must be a debug value instruction.");
     for (MachineOperand &MO : debug_operands()) {
-      if (MO.isReg())
+      if (MO.isReg()) {
         MO.setReg(0);
+        MO.setSubReg(0);
+      }
     }
   }
 

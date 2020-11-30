@@ -1,5 +1,7 @@
 add_flang_unittest(FlangFrontendTests
   CompilerInstanceTest.cpp
+  InputOutputTest.cpp
+  PrintPreprocessedTest.cpp
 )
 
 target_link_libraries(FlangFrontendTests
@@ -7,4 +9,6 @@ target_link_libraries(FlangFrontendTests
   clangBasic
   clangFrontend
   flangFrontend
-  flangFrontendTool)
+  flangFrontendTool
+  FortranParser
+)

@@ -204,6 +204,16 @@ void Writer::writeSections() {
   });
 }
 
+static void setGlobalPtr(DefinedGlobal *g, uint64_t memoryPtr) {
+  if (config->is64.getValueOr(false)) {
+    assert(g->global->global.InitExpr.Opcode == WASM_OPCODE_I64_CONST);
+    g->global->global.InitExpr.Value.Int64 = memoryPtr;
+  } else {
+    assert(g->global->global.InitExpr.Opcode == WASM_OPCODE_I32_CONST);
+    g->global->global.InitExpr.Value.Int32 = memoryPtr;
+  }
+}
+
 // Fix the memory layout of the output binary.  This assigns memory offsets
 // to each of the input data sections as well as the explicit stack region.
 // The default memory layout is as follows, from low to high.
@@ -267,18 +277,21 @@ void Writer::layoutMemory() {
     seg->startVA = memoryPtr;
     log(formatv("mem: {0,-15} offset={1,-8} size={2,-8} align={3}", seg->name,
                 memoryPtr, seg->size, seg->alignment));
-    memoryPtr += seg->size;
 
-    if (WasmSym::tlsSize && seg->name == ".tdata") {
-      auto *tlsSize = cast<DefinedGlobal>(WasmSym::tlsSize);
-      assert(tlsSize->global->global.InitExpr.Opcode == WASM_OPCODE_I32_CONST);
-      tlsSize->global->global.InitExpr.Value.Int32 = seg->size;
+    if (seg->name == ".tdata") {
+      if (config->sharedMemory) {
+        auto *tlsSize = cast<DefinedGlobal>(WasmSym::tlsSize);
+        setGlobalPtr(tlsSize, seg->size);
 
-      auto *tlsAlign = cast<DefinedGlobal>(WasmSym::tlsAlign);
-      assert(tlsAlign->global->global.InitExpr.Opcode == WASM_OPCODE_I32_CONST);
-      tlsAlign->global->global.InitExpr.Value.Int32 = int64_t{1}
-                                                      << seg->alignment;
+        auto *tlsAlign = cast<DefinedGlobal>(WasmSym::tlsAlign);
+        setGlobalPtr(tlsAlign, int64_t{1} << seg->alignment);
+      } else {
+        auto *tlsBase = cast<DefinedGlobal>(WasmSym::tlsBase);
+        setGlobalPtr(tlsBase, memoryPtr);
+      }
     }
+
+    memoryPtr += seg->size;
   }
 
   // Make space for the memory initialization flag
@@ -293,10 +306,10 @@ void Writer::layoutMemory() {
   if (WasmSym::dataEnd)
     WasmSym::dataEnd->setVirtualAddress(memoryPtr);
 
-  log("mem: static data = " + Twine(memoryPtr - dataStart));
-
-  if (config->shared) {
-    out.dylinkSec->memSize = memoryPtr;
+  uint64_t staticDataSize = memoryPtr - dataStart;
+  log("mem: static data = " + Twine(staticDataSize));
+  if (config->isPic) {
+    out.dylinkSec->memSize = staticDataSize;
     return;
   }
 
@@ -323,7 +336,6 @@ void Writer::layoutMemory() {
             Twine(maxMemorySetting));
     memoryPtr = config->initialMemory;
   }
-  out.dylinkSec->memSize = memoryPtr;
   out.memorySec->numMemoryPages =
       alignTo(memoryPtr, WasmPageSize) / WasmPageSize;
   log("mem: total pages = " + Twine(out.memorySec->numMemoryPages));
@@ -527,6 +539,25 @@ void Writer::populateTargetFeatures() {
   }
 }
 
+static bool shouldImport(Symbol *sym) {
+  // We don't generate imports for data symbols. They however can be imported
+  // as GOT entries.
+  if (isa<DataSymbol>(sym))
+    return false;
+
+  if (config->relocatable ||
+      config->unresolvedSymbols == UnresolvedPolicy::ImportFuncs)
+    return true;
+  if (config->allowUndefinedSymbols.count(sym->getName()) != 0)
+    return true;
+  if (auto *g = dyn_cast<UndefinedGlobal>(sym))
+    return g->importName.hasValue();
+  if (auto *f = dyn_cast<UndefinedFunction>(sym))
+    return f->importName.hasValue();
+
+  return false;
+}
+
 void Writer::calculateImports() {
   for (Symbol *sym : symtab->getSymbols()) {
     if (!sym->isUndefined())
@@ -537,13 +568,10 @@ void Writer::calculateImports() {
       continue;
     if (!sym->isUsedInRegularObj)
       continue;
-    // We don't generate imports for data symbols. They however can be imported
-    // as GOT entries.
-    if (isa<DataSymbol>(sym))
-      continue;
-
-    LLVM_DEBUG(dbgs() << "import: " << sym->getName() << "\n");
-    out.importSec->addImport(sym);
+    if (shouldImport(sym)) {
+      LLVM_DEBUG(dbgs() << "import: " << sym->getName() << "\n");
+      out.importSec->addImport(sym);
+    }
   }
 }
 
@@ -737,15 +765,15 @@ void Writer::assignIndexes() {
 }
 
 static StringRef getOutputDataSegmentName(StringRef name) {
-  // With PIC code we currently only support a single data segment since
-  // we only have a single __memory_base to use as our base address.
-  if (config->isPic)
-    return ".data";
   // We only support one thread-local segment, so we must merge the segments
   // despite --no-merge-data-segments.
   // We also need to merge .tbss into .tdata so they share the same offsets.
   if (name.startswith(".tdata") || name.startswith(".tbss"))
     return ".tdata";
+  // With PIC code we currently only support a single data segment since
+  // we only have a single __memory_base to use as our base address.
+  if (config->isPic)
+    return ".data";
   if (!config->mergeDataSegments)
     return name;
   if (name.startswith(".text."))
@@ -769,7 +797,7 @@ void Writer::createOutputSegments() {
       if (s == nullptr) {
         LLVM_DEBUG(dbgs() << "new segment: " << name << "\n");
         s = make<OutputSegment>(name);
-        if (config->sharedMemory || name == ".tdata")
+        if (config->sharedMemory)
           s->initFlags = WASM_SEGMENT_IS_PASSIVE;
         // Exported memories are guaranteed to be zero-initialized, so no need
         // to emit data segments for bss sections.
@@ -1187,10 +1215,10 @@ void Writer::run() {
 
   if (!config->relocatable) {
     // Create linker synthesized functions
-    if (config->sharedMemory)
-      createInitMemoryFunction();
     if (config->isPic)
       createApplyRelocationsFunction();
+    else if (config->sharedMemory)
+      createInitMemoryFunction();
     createCallCtorsFunction();
 
     // Create export wrappers for commands if needed.

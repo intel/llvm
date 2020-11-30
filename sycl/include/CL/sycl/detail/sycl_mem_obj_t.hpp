@@ -150,7 +150,7 @@ public:
 
   __SYCL_DLL_LOCAL void set_final_data_from_storage() {
     MUploadDataFunctor = [this]() {
-      if (!MSharedPtrStorage.unique()) {
+      if (MSharedPtrStorage.use_count() > 1) {
         void *FinalData = const_cast<void *>(MSharedPtrStorage.get());
         updateHostMemory(FinalData);
       }
@@ -295,6 +295,10 @@ public:
   ContextImplPtr getInteropContext() const override { return MInteropContext; }
 
 protected:
+  // An allocateMem helper that determines which host ptr to use
+  void determineHostPtr(const ContextImplPtr &Context, bool InitFromUserData,
+                        void *&HostPtr, bool &HostPtrReadOnly);
+
   // Allocator used for allocation memory on host.
   unique_ptr_class<SYCLMemObjAllocator> MAllocator;
   // Properties passed by user.

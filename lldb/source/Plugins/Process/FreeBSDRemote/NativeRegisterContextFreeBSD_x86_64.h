@@ -18,8 +18,11 @@
 #include <machine/reg.h>
 // clang-format on
 
+#include <array>
+
 #include "Plugins/Process/FreeBSDRemote/NativeRegisterContextFreeBSD.h"
 #include "Plugins/Process/Utility/RegisterContext_x86.h"
+#include "Plugins/Process/Utility/NativeRegisterContextWatchpoint_x86.h"
 #include "Plugins/Process/Utility/lldb-x86-register-enums.h"
 
 #define LLDB_INVALID_XSAVE_OFFSET UINT32_MAX
@@ -30,7 +33,8 @@ namespace process_freebsd {
 class NativeProcessFreeBSD;
 
 class NativeRegisterContextFreeBSD_x86_64
-    : public NativeRegisterContextFreeBSD {
+    : public NativeRegisterContextFreeBSD,
+      public NativeRegisterContextWatchpoint_x86 {
 public:
   NativeRegisterContextFreeBSD_x86_64(const ArchSpec &target_arch,
                                       NativeThreadProtocol &native_thread);
@@ -48,57 +52,40 @@ public:
 
   Status WriteAllRegisterValues(const lldb::DataBufferSP &data_sp) override;
 
-  Status IsWatchpointHit(uint32_t wp_index, bool &is_hit) override;
-
-  Status GetWatchpointHitIndex(uint32_t &wp_index,
-                               lldb::addr_t trap_addr) override;
-
-  Status IsWatchpointVacant(uint32_t wp_index, bool &is_vacant) override;
-
-  bool ClearHardwareWatchpoint(uint32_t wp_index) override;
-
-  Status ClearWatchpointHit(uint32_t wp_index) override;
-
-  Status ClearAllHardwareWatchpoints() override;
-
-  Status SetHardwareWatchpointWithIndex(lldb::addr_t addr, size_t size,
-                                        uint32_t watch_flags,
-                                        uint32_t wp_index);
-
-  uint32_t SetHardwareWatchpoint(lldb::addr_t addr, size_t size,
-                                 uint32_t watch_flags) override;
-
-  lldb::addr_t GetWatchpointAddress(uint32_t wp_index) override;
-
-  uint32_t NumSupportedHardwareWatchpoints() override;
-
-  Status
+  llvm::Error
   CopyHardwareWatchpointsFrom(NativeRegisterContextFreeBSD &source) override;
 
 private:
   // Private member types.
-  enum { GPRegSet, FPRegSet, XSaveRegSet, DBRegSet };
-  enum {
-    YMMXSaveSet,
-    MaxXSaveSet = YMMXSaveSet,
+  enum RegSetKind {
+    GPRegSet,
+    FPRegSet,
+    DBRegSet,
+    YMMRegSet,
+    MPXRegSet,
+    MaxRegSet = MPXRegSet,
   };
 
   // Private member variables.
-  struct reg m_gpr;
-#if defined(__x86_64__)
-  struct fpreg m_fpr;
-#else
-  struct xmmreg m_fpr;
-#endif
-  struct dbreg m_dbr;
+  std::array<uint8_t, sizeof(struct reg)> m_gpr;
+  std::array<uint8_t, 512> m_fpr; // FXSAVE
+  std::array<uint8_t, sizeof(struct dbreg)> m_dbr;
   std::vector<uint8_t> m_xsave;
-  std::array<uint32_t, MaxXSaveSet + 1> m_xsave_offsets;
+  std::array<uint32_t, MaxRegSet + 1> m_xsave_offsets;
+  std::array<size_t, MaxRegSet + 1> m_regset_offsets;
 
-  int GetSetForNativeRegNum(int reg_num) const;
-  int GetDR(int num) const;
+  llvm::Optional<enum RegSetKind> GetSetForNativeRegNum(int reg_num) const;
 
   Status ReadRegisterSet(uint32_t set);
   Status WriteRegisterSet(uint32_t set);
+
+  uint8_t *GetOffsetRegSetData(uint32_t set, size_t reg_offset);
+
+  struct YMMSplitPtr {
+    void *xmm;
+    void *ymm_hi;
+  };
+  llvm::Optional<YMMSplitPtr> GetYMMSplitReg(uint32_t reg);
 };
 
 } // namespace process_freebsd

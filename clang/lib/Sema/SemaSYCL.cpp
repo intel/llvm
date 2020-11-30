@@ -57,6 +57,7 @@ enum KernelInvocationKind {
 };
 
 const static std::string InitMethodName = "__init";
+const static std::string InitESIMDMethodName = "__init_esimd";
 const static std::string FinalizeMethodName = "__finalize";
 constexpr unsigned MaxKernelArgsSize = 2048;
 
@@ -545,6 +546,20 @@ public:
 
       if (auto *A = FD->getAttr<SYCLSimdAttr>())
         Attrs.insert(A);
+
+      // Allow the kernel attribute "use_stall_enable_clusters" only on lambda
+      // functions and function objects that are called directly from a kernel
+      // (i.e. the one passed to the single_task or parallel_for functions).
+      // For all other cases, emit a warning and ignore.
+      if (auto *A = FD->getAttr<SYCLIntelUseStallEnableClustersAttr>()) {
+        if (ParentFD == SYCLKernel) {
+          Attrs.insert(A);
+        } else {
+          SemaRef.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
+          FD->dropAttr<SYCLIntelUseStallEnableClustersAttr>();
+        }
+      }
+
       // Propagate the explicit SIMD attribute through call graph - it is used
       // to distinguish ESIMD code in ESIMD LLVM passes.
       if (KernelBody && KernelBody->hasAttr<SYCLSimdAttr>() &&
@@ -1199,7 +1214,9 @@ void KernelObjVisitor::visitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
                                    const CXXRecordDecl *Wrapper,
                                    QualType RecordTy,
                                    HandlerTys &... Handlers) {
-  if (RecordTy->getAsRecordDecl()->hasAttr<SYCLRequiresDecompositionAttr>()) {
+  RecordDecl *RD = RecordTy->getAsRecordDecl();
+  assert(RD && "should not be null.");
+  if (RD->hasAttr<SYCLRequiresDecompositionAttr>()) {
     // If this container requires decomposition, we have to visit it as
     // 'complex', so all handlers are called in this case with the 'complex'
     // case.
@@ -1568,6 +1585,7 @@ public:
   bool leaveStruct(const CXXRecordDecl *, FieldDecl *, QualType Ty) final {
     if (CollectionStack.pop_back_val()) {
       RecordDecl *RD = Ty->getAsRecordDecl();
+      assert(RD && "should not be null.");
       if (!RD->hasAttr<SYCLRequiresDecompositionAttr>())
         RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
             SemaRef.getASTContext()));
@@ -1586,6 +1604,7 @@ public:
                    QualType Ty) final {
     if (CollectionStack.pop_back_val()) {
       RecordDecl *RD = Ty->getAsRecordDecl();
+      assert(RD && "should not be null.");
       if (!RD->hasAttr<SYCLRequiresDecompositionAttr>())
         RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
             SemaRef.getASTContext()));
@@ -1700,7 +1719,11 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
                          bool isAccessorType = false) {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
-    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
+    const std::string &MethodName =
+        KernelDecl->hasAttr<SYCLSimdAttr>() && isAccessorType
+            ? InitESIMDMethodName
+            : InitMethodName;
+    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The accessor/sampler must have the __init method");
 
     // Don't do -1 here because we count on this to be the first parameter added
@@ -1709,9 +1732,14 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     for (const ParmVarDecl *Param : InitMethod->parameters()) {
       QualType ParamTy = Param->getType();
       addParam(FD, ParamTy.getCanonicalType());
-      if (ParamTy.getTypePtr()->isPointerType() && isAccessorType)
+      if (ParamTy.getTypePtr()->isPointerType() && isAccessorType) {
         handleAccessorPropertyList(Params.back(), RecordDecl,
                                    FD->getLocation());
+        if (KernelDecl->hasAttr<SYCLSimdAttr>())
+          // In ESIMD kernels accessor's pointer argument needs to be marked
+          Params.back()->addAttr(
+              SYCLSimdAccessorPtrAttr::CreateImplicit(SemaRef.getASTContext()));
+      }
     }
     LastParamIndex = ParamIndex;
     return true;
@@ -1805,7 +1833,10 @@ public:
                               QualType FieldTy) final {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
-    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
+    const std::string MethodName = KernelDecl->hasAttr<SYCLSimdAttr>()
+                                       ? InitESIMDMethodName
+                                       : InitMethodName;
+    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The accessor/sampler must have the __init method");
 
     // Don't do -1 here because we count on this to be the first parameter added
@@ -1937,6 +1968,7 @@ public:
 class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
   SourceLocation KernelLoc;
   unsigned SizeOfParams = 0;
+  bool IsSIMD = false;
 
   void addParam(QualType ArgTy) {
     SizeOfParams +=
@@ -1946,7 +1978,9 @@ class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
   bool handleSpecialType(QualType FieldTy) {
     const CXXRecordDecl *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
-    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
+    const std::string &MethodName =
+        IsSIMD ? InitESIMDMethodName : InitMethodName;
+    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The accessor/sampler must have the __init method");
     for (const ParmVarDecl *Param : InitMethod->parameters())
       addParam(Param->getType());
@@ -1955,8 +1989,8 @@ class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
 
 public:
   static constexpr const bool VisitInsideSimpleContainers = false;
-  SyclKernelArgsSizeChecker(Sema &S, SourceLocation Loc)
-      : SyclKernelFieldHandler(S), KernelLoc(Loc) {}
+  SyclKernelArgsSizeChecker(Sema &S, SourceLocation Loc, bool IsSIMD)
+      : SyclKernelFieldHandler(S), KernelLoc(Loc), IsSIMD(IsSIMD) {}
 
   ~SyclKernelArgsSizeChecker() {
     if (SizeOfParams > MaxKernelArgsSize)
@@ -2029,6 +2063,19 @@ public:
   }
   using SyclKernelFieldHandler::handleSyclHalfType;
 };
+
+static const CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
+  for (const auto *MD : Rec->methods()) {
+    if (MD->getOverloadedOperator() == OO_Call)
+      return MD;
+  }
+  return nullptr;
+}
+
+static bool isESIMDKernelType(const CXXRecordDecl *KernelObjType) {
+  const CXXMethodDecl *OpParens = getOperatorParens(KernelObjType);
+  return (OpParens != nullptr) && OpParens->hasAttr<SYCLSimdAttr>();
+}
 
 class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   SyclKernelDeclCreator &DeclCreator;
@@ -2345,6 +2392,11 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     return VD;
   }
 
+  const std::string &getInitMethodName() const {
+    bool IsSIMDKernel = isESIMDKernelType(KernelObj);
+    return IsSIMDKernel ? InitESIMDMethodName : InitMethodName;
+  }
+
   // Default inits the type, then calls the init-method in the body.
   bool handleSpecialType(FieldDecl *FD, QualType Ty) {
     addFieldInit(FD, Ty, None,
@@ -2353,7 +2405,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     addFieldMemberExpr(FD, Ty);
 
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
-    createSpecialMethodCall(RecordDecl, InitMethodName, BodyStmts);
+    createSpecialMethodCall(RecordDecl, getInitMethodName(), BodyStmts);
 
     removeFieldMemberExpr(FD, Ty);
 
@@ -2363,7 +2415,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   bool handleSpecialType(const CXXBaseSpecifier &BS, QualType Ty) {
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
     addBaseInit(BS, Ty, InitializationKind::CreateDefault(KernelCallerSrcLoc));
-    createSpecialMethodCall(RecordDecl, InitMethodName, BodyStmts);
+    createSpecialMethodCall(RecordDecl, getInitMethodName(), BodyStmts);
     return true;
   }
 
@@ -2487,7 +2539,7 @@ public:
     // calls, so add them here instead.
     const auto *StreamDecl = Ty->getAsCXXRecordDecl();
 
-    createSpecialMethodCall(StreamDecl, InitMethodName, BodyStmts);
+    createSpecialMethodCall(StreamDecl, getInitMethodName(), BodyStmts);
     createSpecialMethodCall(StreamDecl, FinalizeMethodName, FinalizeStmts);
 
     removeFieldMemberExpr(FD, Ty);
@@ -2645,7 +2697,9 @@ public:
                              const CXXRecordDecl *KernelObj, QualType NameType,
                              StringRef Name, StringRef StableName)
       : SyclKernelFieldHandler(S), Header(H) {
-    Header.startKernel(Name, NameType, StableName, KernelObj->getLocation());
+    bool IsSIMDKernel = isESIMDKernelType(KernelObj);
+    Header.startKernel(Name, NameType, StableName, KernelObj->getLocation(),
+                       IsSIMDKernel);
   }
 
   bool handleSyclAccessorType(const CXXRecordDecl *RD,
@@ -2833,14 +2887,22 @@ class SYCLKernelNameTypeVisitor
       public ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor> {
   Sema &S;
   SourceLocation KernelInvocationFuncLoc;
+  QualType KernelNameType;
   using InnerTypeVisitor = TypeVisitor<SYCLKernelNameTypeVisitor>;
-  using InnerTAVisitor =
+  using InnerTemplArgVisitor =
       ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor>;
   bool IsInvalid = false;
 
+  void VisitTemplateArgs(ArrayRef<TemplateArgument> Args) {
+    for (auto &A : Args)
+      Visit(A);
+  }
+
 public:
-  SYCLKernelNameTypeVisitor(Sema &S, SourceLocation KernelInvocationFuncLoc)
-      : S(S), KernelInvocationFuncLoc(KernelInvocationFuncLoc) {}
+  SYCLKernelNameTypeVisitor(Sema &S, SourceLocation KernelInvocationFuncLoc,
+                            QualType KernelNameType)
+      : S(S), KernelInvocationFuncLoc(KernelInvocationFuncLoc),
+        KernelNameType(KernelNameType) {}
 
   bool isValid() { return !IsInvalid; }
 
@@ -2848,15 +2910,21 @@ public:
     if (T.isNull())
       return;
     const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
-    if (!RD)
+    if (!RD) {
+      if (T->isNullPtrType()) {
+        S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
+            << KernelNameType;
+        S.Diag(KernelInvocationFuncLoc, diag::note_invalid_type_in_sycl_kernel)
+            << /* kernel name cannot be a type in the std namespace */ 2 << T;
+        IsInvalid = true;
+      }
       return;
+    }
     // If KernelNameType has template args visit each template arg via
     // ConstTemplateArgumentVisitor
     if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
-      const TemplateArgumentList &Args = TSD->getTemplateArgs();
-      for (unsigned I = 0; I < Args.size(); I++) {
-        Visit(Args[I]);
-      }
+      ArrayRef<TemplateArgument> Args = TSD->getTemplateArgs().asArray();
+      VisitTemplateArgs(Args);
     } else {
       InnerTypeVisitor::Visit(T.getTypePtr());
     }
@@ -2865,16 +2933,17 @@ public:
   void Visit(const TemplateArgument &TA) {
     if (TA.isNull())
       return;
-    InnerTAVisitor::Visit(TA);
+    InnerTemplArgVisitor::Visit(TA);
   }
 
   void VisitEnumType(const EnumType *T) {
     const EnumDecl *ED = T->getDecl();
     if (!ED->isScoped() && !ED->isFixed()) {
       S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-          << /* Unscoped enum requires fixed underlying type */ 2;
-      S.Diag(ED->getSourceRange().getBegin(), diag::note_entity_declared_at)
-          << ED;
+          << KernelNameType;
+      S.Diag(KernelInvocationFuncLoc, diag::note_invalid_type_in_sycl_kernel)
+          << /* Unscoped enum requires fixed underlying type */ 1
+          << QualType(ED->getTypeForDecl(), 0);
       IsInvalid = true;
     }
   }
@@ -2886,24 +2955,44 @@ public:
   void VisitTagDecl(const TagDecl *Tag) {
     bool UnnamedLambdaEnabled =
         S.getASTContext().getLangOpts().SYCLUnnamedLambda;
-    if (!Tag->getDeclContext()->isTranslationUnit() &&
-        !isa<NamespaceDecl>(Tag->getDeclContext()) && !UnnamedLambdaEnabled) {
-      const bool KernelNameIsMissing = Tag->getName().empty();
-      if (KernelNameIsMissing) {
+    const DeclContext *DeclCtx = Tag->getDeclContext();
+    if (DeclCtx && !UnnamedLambdaEnabled) {
+      auto *NameSpace = dyn_cast_or_null<NamespaceDecl>(DeclCtx);
+      if (NameSpace && NameSpace->isStdNamespace()) {
         S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-            << /* kernel name is missing */ 0;
+            << KernelNameType;
+        S.Diag(KernelInvocationFuncLoc, diag::note_invalid_type_in_sycl_kernel)
+            << /* kernel name cannot be a type in the std namespace */ 2
+            << QualType(Tag->getTypeForDecl(), 0);
         IsInvalid = true;
-      } else {
+        return;
+      }
+      if (!DeclCtx->isTranslationUnit() && !isa<NamespaceDecl>(DeclCtx)) {
+        const bool KernelNameIsMissing = Tag->getName().empty();
+        if (KernelNameIsMissing) {
+          S.Diag(KernelInvocationFuncLoc,
+                 diag::err_sycl_kernel_incorrectly_named)
+              << KernelNameType;
+          S.Diag(KernelInvocationFuncLoc,
+                 diag::note_invalid_type_in_sycl_kernel)
+              << /* unnamed type used in a SYCL kernel name */ 3;
+          IsInvalid = true;
+          return;
+        }
         if (Tag->isCompleteDefinition()) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_sycl_kernel_incorrectly_named)
-              << /* kernel name is not globally-visible */ 1;
+              << KernelNameType;
+          S.Diag(KernelInvocationFuncLoc,
+                 diag::note_invalid_type_in_sycl_kernel)
+              << /* kernel name is not globally-visible */ 0
+              << QualType(Tag->getTypeForDecl(), 0);
           IsInvalid = true;
-        } else
+        } else {
           S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
-
-        S.Diag(Tag->getSourceRange().getBegin(), diag::note_previous_decl)
-            << Tag->getName();
+          S.Diag(Tag->getSourceRange().getBegin(), diag::note_previous_decl)
+              << Tag->getName();
+        }
       }
     }
   }
@@ -2924,6 +3013,7 @@ public:
 
   void VisitTemplateTemplateArgument(const TemplateArgument &TA) {
     TemplateDecl *TD = TA.getAsTemplate().getAsTemplateDecl();
+    assert(TD && "template declaration must be available");
     TemplateParameterList *TemplateParams = TD->getTemplateParameters();
     for (NamedDecl *P : *TemplateParams) {
       if (NonTypeTemplateParmDecl *TemplateParam =
@@ -2931,6 +3021,10 @@ public:
         if (const EnumType *ET = TemplateParam->getType()->getAs<EnumType>())
           VisitEnumType(ET);
     }
+  }
+
+  void VisitPackTemplateArgument(const TemplateArgument &TA) {
+    VisitTemplateArgs(TA.getPackAsArray());
   }
 };
 
@@ -2973,10 +3067,14 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   SyclKernelDecompMarker DecompMarker(*this);
   SyclKernelFieldChecker FieldChecker(*this);
   SyclKernelUnionChecker UnionChecker(*this);
-  SyclKernelArgsSizeChecker ArgsSizeChecker(*this, Args[0]->getExprLoc());
+
+  bool IsSIMDKernel = isESIMDKernelType(KernelObj);
+  SyclKernelArgsSizeChecker ArgsSizeChecker(*this, Args[0]->getExprLoc(),
+                                            IsSIMDKernel);
 
   KernelObjVisitor Visitor{*this};
-  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(*this, Args[0]->getExprLoc());
+  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(*this, Args[0]->getExprLoc(),
+                                                  KernelNameType);
 
   DiagnosingSYCLKernel = true;
 
@@ -3033,6 +3131,8 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   if (KernelObj->isInvalidDecl())
     return;
 
+  bool IsSIMDKernel = isESIMDKernelType(KernelObj);
+
   // Calculate both names, since Integration headers need both.
   std::string CalculatedName, StableName;
   std::tie(CalculatedName, StableName) =
@@ -3041,7 +3141,7 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
                                                        : CalculatedName);
   SyclKernelDeclCreator kernel_decl(*this, KernelName, KernelObj->getLocation(),
                                     KernelCallerFunc->isInlined(),
-                                    KernelCallerFunc->hasAttr<SYCLSimdAttr>());
+                                    IsSIMDKernel);
   SyclKernelBodyCreator kernel_body(*this, kernel_decl, KernelObj,
                                     KernelCallerFunc);
   SyclKernelIntHeaderCreator int_header(
@@ -3182,6 +3282,7 @@ void Sema::MarkDevice(void) {
         case attr::Kind::SYCLIntelSchedulerTargetFmaxMhz:
         case attr::Kind::SYCLIntelMaxGlobalWorkDim:
         case attr::Kind::SYCLIntelNoGlobalWorkOffset:
+        case attr::Kind::SYCLIntelUseStallEnableClusters:
         case attr::Kind::SYCLSimd: {
           if ((A->getKind() == attr::Kind::SYCLSimd) && KernelBody &&
               !KernelBody->getAttr<SYCLSimdAttr>()) {
@@ -3322,64 +3423,6 @@ static const char *paramKind2Str(KernelParamKind K) {
 #undef CASE
 }
 
-// Emits a forward declaration
-void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D,
-                                        SourceLocation KernelLocation) {
-  // wrap the declaration into namespaces if needed
-  unsigned NamespaceCnt = 0;
-  std::string NSStr = "";
-  const DeclContext *DC = D->getDeclContext();
-
-  while (DC) {
-    auto *NS = dyn_cast_or_null<NamespaceDecl>(DC);
-
-    if (!NS) {
-      break;
-    }
-
-    if (NS->isStdNamespace()) {
-      Diag.Report(KernelLocation, diag::err_sycl_kernel_incorrectly_named)
-          << /* name cannot be a type in the std namespace */ 3;
-      return;
-    }
-
-    ++NamespaceCnt;
-    const StringRef NSInlinePrefix = NS->isInline() ? "inline " : "";
-    NSStr.insert(
-        0, Twine(NSInlinePrefix + "namespace " + NS->getName() + " { ").str());
-    DC = NS->getDeclContext();
-  }
-  O << NSStr;
-  if (NamespaceCnt > 0)
-    O << "\n";
-  // print declaration into a string:
-  PrintingPolicy P(D->getASTContext().getLangOpts());
-  P.adjustForCPlusPlusFwdDecl();
-  P.SuppressTypedefs = true;
-  P.SuppressUnwrittenScope = true;
-  std::string S;
-  llvm::raw_string_ostream SO(S);
-  D->print(SO, P);
-  O << SO.str();
-
-  if (const auto *ED = dyn_cast<EnumDecl>(D)) {
-    QualType T = ED->getIntegerType();
-    // Backup since getIntegerType() returns null for enum forward
-    // declaration with no fixed underlying type
-    if (T.isNull())
-      T = ED->getPromotionType();
-    O << " : " << T.getAsString();
-  }
-
-  O << ";\n";
-
-  // print closing braces for namespaces if needed
-  for (unsigned I = 0; I < NamespaceCnt; ++I)
-    O << "}";
-  if (NamespaceCnt > 0)
-    O << "\n";
-}
-
 // Emits forward declarations of classes and template classes on which
 // declaration of given type depends.
 // For example, consider SimpleVadd
@@ -3416,129 +3459,177 @@ void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D,
 //   template <typename T> class MyTmplClass;
 //   template <typename T1, unsigned int N, typename ...T2> class SimpleVadd;
 //
-void SYCLIntegrationHeader::emitForwardClassDecls(
-    raw_ostream &O, QualType T, SourceLocation KernelLocation,
-    llvm::SmallPtrSetImpl<const void *> &Printed) {
+class SYCLFwdDeclEmitter
+    : public TypeVisitor<SYCLFwdDeclEmitter>,
+      public ConstTemplateArgumentVisitor<SYCLFwdDeclEmitter> {
+  using InnerTypeVisitor = TypeVisitor<SYCLFwdDeclEmitter>;
+  using InnerTemplArgVisitor = ConstTemplateArgumentVisitor<SYCLFwdDeclEmitter>;
+  raw_ostream &OS;
+  llvm::SmallPtrSet<const NamedDecl *, 4> Printed;
+  PrintingPolicy Policy;
 
-  // peel off the pointer types and get the class/struct type:
-  for (; T->isPointerType(); T = T->getPointeeType())
-    ;
-  const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
+  void printForwardDecl(NamedDecl *D) {
+    // wrap the declaration into namespaces if needed
+    unsigned NamespaceCnt = 0;
+    std::string NSStr = "";
+    const DeclContext *DC = D->getDeclContext();
 
-  if (!RD) {
-    if (T->isNullPtrType())
-      Diag.Report(KernelLocation, diag::err_sycl_kernel_incorrectly_named)
-          << /* name cannot be a type in the std namespace */ 3;
+    while (DC) {
+      const auto *NS = dyn_cast_or_null<NamespaceDecl>(DC);
 
-    return;
+      if (!NS)
+        break;
+
+      ++NamespaceCnt;
+      const StringRef NSInlinePrefix = NS->isInline() ? "inline " : "";
+      NSStr.insert(
+          0,
+          Twine(NSInlinePrefix + "namespace " + NS->getName() + " { ").str());
+      DC = NS->getDeclContext();
+    }
+    OS << NSStr;
+    if (NamespaceCnt > 0)
+      OS << "\n";
+
+    D->print(OS, Policy);
+
+    if (const auto *ED = dyn_cast<EnumDecl>(D)) {
+      QualType T = ED->getIntegerType();
+      // Backup since getIntegerType() returns null for enum forward
+      // declaration with no fixed underlying type
+      if (T.isNull())
+        T = ED->getPromotionType();
+      OS << " : " << T.getAsString();
+    }
+
+    OS << ";\n";
+
+    // print closing braces for namespaces if needed
+    for (unsigned I = 0; I < NamespaceCnt; ++I)
+      OS << "}";
+    if (NamespaceCnt > 0)
+      OS << "\n";
   }
 
-  // see if this is a template specialization ...
-  if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
-    // ... yes, it is template specialization:
-    // - first, recurse into template parameters and emit needed forward
-    //   declarations
-    const TemplateArgumentList &Args = TSD->getTemplateArgs();
-
-    for (unsigned I = 0; I < Args.size(); I++) {
-      const TemplateArgument &Arg = Args[I];
-
-      switch (Arg.getKind()) {
-      case TemplateArgument::ArgKind::Type:
-      case TemplateArgument::ArgKind::Integral: {
-        QualType T = (Arg.getKind() == TemplateArgument::ArgKind::Type)
-                         ? Arg.getAsType()
-                         : Arg.getIntegralType();
-
-        // Handle Kernel Name Type templated using enum type and value.
-        if (const auto *ET = T->getAs<EnumType>()) {
-          const EnumDecl *ED = ET->getDecl();
-            emitFwdDecl(O, ED, KernelLocation);
-        } else if (Arg.getKind() == TemplateArgument::ArgKind::Type)
-          emitForwardClassDecls(O, T, KernelLocation, Printed);
-        break;
-      }
-      case TemplateArgument::ArgKind::Pack: {
-        ArrayRef<TemplateArgument> Pack = Arg.getPackAsArray();
-
-        for (const auto &T : Pack) {
-          if (T.getKind() == TemplateArgument::ArgKind::Type) {
-            emitForwardClassDecls(O, T.getAsType(), KernelLocation, Printed);
-          }
-        }
-        break;
-      }
-      case TemplateArgument::ArgKind::Template: {
-        // recursion is not required, since the maximum possible nesting level
-        // equals two for template argument
-        //
-        // for example:
-        //   template <typename T> class Bar;
-        //   template <template <typename> class> class Baz;
-        //   template <template <template <typename> class> class T>
-        //   class Foo;
-        //
-        // The Baz is a template class. The Baz<Bar> is a class. The class Foo
-        // should be specialized with template class, not a class. The correct
-        // specialization of template class Foo is Foo<Baz>. The incorrect
-        // specialization of template class Foo is Foo<Baz<Bar>>. In this case
-        // template class Foo specialized by class Baz<Bar>, not a template
-        // class template <template <typename> class> class T as it should.
-        TemplateDecl *TD = Arg.getAsTemplate().getAsTemplateDecl();
-        TemplateParameterList *TemplateParams = TD->getTemplateParameters();
-        for (NamedDecl *P : *TemplateParams) {
-          // If template template paramter type has an enum value template
-          // parameter, forward declaration of enum type is required. Only enum
-          // values (not types) need to be handled. For example, consider the
-          // following kernel name type:
-          //
-          // template <typename EnumTypeOut, template <EnumValueIn EnumValue,
-          // typename TypeIn> class T> class Foo;
-          //
-          // The correct specialization for Foo (with enum type) is:
-          // Foo<EnumTypeOut, Baz>, where Baz is a template class.
-          //
-          // Therefore the forward class declarations generated in the
-          // integration header are:
-          // template <EnumValueIn EnumValue, typename TypeIn> class Baz;
-          // template <typename EnumTypeOut, template <EnumValueIn EnumValue,
-          // typename EnumTypeIn> class T> class Foo;
-          //
-          // This requires the following enum forward declarations:
-          // enum class EnumTypeOut : int; (Used to template Foo)
-          // enum class EnumValueIn : int; (Used to template Baz)
-          if (NonTypeTemplateParmDecl *TemplateParam =
-                  dyn_cast<NonTypeTemplateParmDecl>(P)) {
-            QualType T = TemplateParam->getType();
-            if (const auto *ET = T->getAs<EnumType>()) {
-              const EnumDecl *ED = ET->getDecl();
-                emitFwdDecl(O, ED, KernelLocation);
-            }
-          }
-        }
-        if (Printed.insert(TD).second) {
-          emitFwdDecl(O, TD, KernelLocation);
-        }
-        break;
-      }
-      default:
-        break; // nop
-      }
-    }
-    // - second, emit forward declaration for the template class being
-    //   specialized
-    ClassTemplateDecl *CTD = TSD->getSpecializedTemplate();
-    assert(CTD && "template declaration must be available");
-
-    if (Printed.insert(CTD).second) {
-      emitFwdDecl(O, CTD, KernelLocation);
-    }
-  } else if (Printed.insert(RD).second) {
-    // emit forward declarations for "leaf" classes in the template parameter
-    // tree;
-    emitFwdDecl(O, RD, KernelLocation);
+  // Checks if we've already printed forward declaration and prints it if not.
+  void checkAndEmitForwardDecl(NamedDecl *D) {
+    if (Printed.insert(D).second)
+      printForwardDecl(D);
   }
-}
+
+  void VisitTemplateArgs(ArrayRef<TemplateArgument> Args) {
+    for (size_t I = 0, E = Args.size(); I < E; ++I)
+      Visit(Args[I]);
+  }
+
+public:
+  SYCLFwdDeclEmitter(raw_ostream &OS, LangOptions LO) : OS(OS), Policy(LO) {
+    Policy.adjustForCPlusPlusFwdDecl();
+    Policy.SuppressTypedefs = true;
+    Policy.SuppressUnwrittenScope = true;
+  }
+
+  void Visit(QualType T) {
+    if (T.isNull())
+      return;
+    InnerTypeVisitor::Visit(T.getTypePtr());
+  }
+
+  void Visit(const TemplateArgument &TA) {
+    if (TA.isNull())
+      return;
+    InnerTemplArgVisitor::Visit(TA);
+  }
+
+  void VisitPointerType(const PointerType *T) {
+    // Peel off the pointer types.
+    QualType PT = T->getPointeeType();
+    while (PT->isPointerType())
+      PT = PT->getPointeeType();
+    Visit(PT);
+  }
+
+  void VisitTagType(const TagType *T) {
+    TagDecl *TD = T->getDecl();
+    if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(TD)) {
+      // - first, recurse into template parameters and emit needed forward
+      //   declarations
+      ArrayRef<TemplateArgument> Args = TSD->getTemplateArgs().asArray();
+      VisitTemplateArgs(Args);
+      // - second, emit forward declaration for the template class being
+      //   specialized
+      ClassTemplateDecl *CTD = TSD->getSpecializedTemplate();
+      assert(CTD && "template declaration must be available");
+
+      checkAndEmitForwardDecl(CTD);
+      return;
+    }
+    checkAndEmitForwardDecl(TD);
+  }
+
+  void VisitTypeTemplateArgument(const TemplateArgument &TA) {
+    QualType T = TA.getAsType();
+    Visit(T);
+  }
+
+  void VisitIntegralTemplateArgument(const TemplateArgument &TA) {
+    QualType T = TA.getIntegralType();
+    if (const EnumType *ET = T->getAs<EnumType>())
+      VisitTagType(ET);
+  }
+
+  void VisitTemplateTemplateArgument(const TemplateArgument &TA) {
+    // recursion is not required, since the maximum possible nesting level
+    // equals two for template argument
+    //
+    // for example:
+    //   template <typename T> class Bar;
+    //   template <template <typename> class> class Baz;
+    //   template <template <template <typename> class> class T>
+    //   class Foo;
+    //
+    // The Baz is a template class. The Baz<Bar> is a class. The class Foo
+    // should be specialized with template class, not a class. The correct
+    // specialization of template class Foo is Foo<Baz>. The incorrect
+    // specialization of template class Foo is Foo<Baz<Bar>>. In this case
+    // template class Foo specialized by class Baz<Bar>, not a template
+    // class template <template <typename> class> class T as it should.
+    TemplateDecl *TD = TA.getAsTemplate().getAsTemplateDecl();
+    assert(TD && "template declaration must be available");
+    TemplateParameterList *TemplateParams = TD->getTemplateParameters();
+    for (NamedDecl *P : *TemplateParams) {
+      // If template template parameter type has an enum value template
+      // parameter, forward declaration of enum type is required. Only enum
+      // values (not types) need to be handled. For example, consider the
+      // following kernel name type:
+      //
+      // template <typename EnumTypeOut, template <EnumValueIn EnumValue,
+      // typename TypeIn> class T> class Foo;
+      //
+      // The correct specialization for Foo (with enum type) is:
+      // Foo<EnumTypeOut, Baz>, where Baz is a template class.
+      //
+      // Therefore the forward class declarations generated in the
+      // integration header are:
+      // template <EnumValueIn EnumValue, typename TypeIn> class Baz;
+      // template <typename EnumTypeOut, template <EnumValueIn EnumValue,
+      // typename EnumTypeIn> class T> class Foo;
+      //
+      // This requires the following enum forward declarations:
+      // enum class EnumTypeOut : int; (Used to template Foo)
+      // enum class EnumValueIn : int; (Used to template Baz)
+      if (NonTypeTemplateParmDecl *TemplateParam =
+              dyn_cast<NonTypeTemplateParmDecl>(P))
+        if (const EnumType *ET = TemplateParam->getType()->getAs<EnumType>())
+          VisitTagType(ET);
+    }
+    checkAndEmitForwardDecl(TD);
+  }
+
+  void VisitPackTemplateArgument(const TemplateArgument &TA) {
+    VisitTemplateArgs(TA.getPackAsArray());
+  }
+};
 
 class SYCLKernelNameTypePrinter
     : public TypeVisitor<SYCLKernelNameTypePrinter>,
@@ -3696,10 +3787,9 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   if (!UnnamedLambdaSupport) {
     O << "// Forward declarations of templated kernel function types:\n";
 
-    llvm::SmallPtrSet<const void *, 4> Printed;
-    for (const KernelDesc &K : KernelDescs) {
-      emitForwardClassDecls(O, K.NameType, K.KernelLocation, Printed);
-    }
+    SYCLFwdDeclEmitter FwdDeclEmitter(O, S.getLangOpts());
+    for (const KernelDesc &K : KernelDescs)
+      FwdDeclEmitter.Visit(K.NameType);
   }
   O << "\n";
 
@@ -3767,6 +3857,9 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "getParamDesc(unsigned i) {\n";
     O << "    return kernel_signatures[i+" << CurStart << "];\n";
     O << "  }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr bool isESIMD() { return " << K.IsESIMDKernel
+      << "; }\n";
     O << "};\n";
     CurStart += N;
   }
@@ -3796,12 +3889,14 @@ bool SYCLIntegrationHeader::emit(const StringRef &IntHeaderName) {
 void SYCLIntegrationHeader::startKernel(StringRef KernelName,
                                         QualType KernelNameType,
                                         StringRef KernelStableName,
-                                        SourceLocation KernelLocation) {
+                                        SourceLocation KernelLocation,
+                                        bool IsESIMDKernel) {
   KernelDescs.resize(KernelDescs.size() + 1);
   KernelDescs.back().Name = std::string(KernelName);
   KernelDescs.back().NameType = KernelNameType;
   KernelDescs.back().StableName = std::string(KernelStableName);
   KernelDescs.back().KernelLocation = KernelLocation;
+  KernelDescs.back().IsESIMDKernel = IsESIMDKernel;
 }
 
 void SYCLIntegrationHeader::addParamDesc(kernel_param_kind_t Kind, int Info,

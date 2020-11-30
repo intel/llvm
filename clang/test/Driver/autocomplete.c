@@ -37,6 +37,8 @@
 
 // CLSTDALL: cl
 // CLSTDALL-NEXT: CL
+// CLSTDALL-NEXT: cl1.0
+// CLSTDALL-NEXT: CL1.0
 // CLSTDALL-NEXT: cl1.1
 // CLSTDALL-NEXT: CL1.1
 // CLSTDALL-NEXT: cl1.2
@@ -73,6 +75,7 @@
 // FLTOALL-NEXT: thin
 // RUN: %clang --autocomplete=-fveclib= | FileCheck %s -check-prefix=FVECLIBALL
 // FVECLIBALL: Accelerate
+// FVECLIBALL-NEXT: libmvec
 // FVECLIBALL-NEXT: MASSV
 // FVECLIBALL-NEXT: none
 // FVECLIBALL-NEXT: SVML

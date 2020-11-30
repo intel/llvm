@@ -288,10 +288,13 @@ bool TemplateArgument::structurallyEquals(const TemplateArgument &Other) const {
   case Null:
   case Type:
   case Expression:
-  case Template:
-  case TemplateExpansion:
   case NullPtr:
     return TypeOrValue.V == Other.TypeOrValue.V;
+
+  case Template:
+  case TemplateExpansion:
+    return TemplateArg.Name == Other.TemplateArg.Name &&
+           TemplateArg.NumExpansions == Other.TemplateArg.NumExpansions;
 
   case Declaration:
     return getAsDecl() == Other.getAsDecl();
@@ -352,6 +355,13 @@ void TemplateArgument::print(const PrintingPolicy &Policy,
 
   case Declaration: {
     NamedDecl *ND = getAsDecl();
+    if (getParamTypeForDecl()->isRecordType()) {
+      if (auto *TPO = dyn_cast<TemplateParamObjectDecl>(ND)) {
+        // FIXME: Include the type if it's not obvious from the context.
+        TPO->printAsInit(Out);
+        break;
+      }
+    }
     if (!getParamTypeForDecl()->isReferenceType())
       Out << '&';
     ND->printQualifiedName(Out);

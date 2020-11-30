@@ -171,22 +171,33 @@ SymbolLocation getPreferredLocation(const Location &ASTLoc,
   return Merged.CanonicalDeclaration;
 }
 
+std::vector<std::pair<const NamedDecl *, DeclRelationSet>>
+getDeclAtPositionWithRelations(ParsedAST &AST, SourceLocation Pos,
+                               DeclRelationSet Relations,
+                               ASTNodeKind *NodeKind = nullptr) {
+  unsigned Offset = AST.getSourceManager().getDecomposedSpellingLoc(Pos).second;
+  std::vector<std::pair<const NamedDecl *, DeclRelationSet>> Result;
+  auto ResultFromTree = [&](SelectionTree ST) {
+    if (const SelectionTree::Node *N = ST.commonAncestor()) {
+      if (NodeKind)
+        *NodeKind = N->ASTNode.getNodeKind();
+      llvm::copy_if(allTargetDecls(N->ASTNode), std::back_inserter(Result),
+                    [&](auto &Entry) { return !(Entry.second & ~Relations); });
+    }
+    return !Result.empty();
+  };
+  SelectionTree::createEach(AST.getASTContext(), AST.getTokens(), Offset,
+                            Offset, ResultFromTree);
+  return Result;
+}
+
 std::vector<const NamedDecl *>
 getDeclAtPosition(ParsedAST &AST, SourceLocation Pos, DeclRelationSet Relations,
                   ASTNodeKind *NodeKind = nullptr) {
-  unsigned Offset = AST.getSourceManager().getDecomposedSpellingLoc(Pos).second;
   std::vector<const NamedDecl *> Result;
-  SelectionTree::createEach(AST.getASTContext(), AST.getTokens(), Offset,
-                            Offset, [&](SelectionTree ST) {
-                              if (const SelectionTree::Node *N =
-                                      ST.commonAncestor()) {
-                                if (NodeKind)
-                                  *NodeKind = N->ASTNode.getNodeKind();
-                                llvm::copy(targetDecl(N->ASTNode, Relations),
-                                           std::back_inserter(Result));
-                              }
-                              return !Result.empty();
-                            });
+  for (auto &Entry :
+       getDeclAtPositionWithRelations(AST, Pos, Relations, NodeKind))
+    Result.push_back(Entry.first);
   return Result;
 }
 
@@ -310,14 +321,16 @@ locateASTReferent(SourceLocation CurLoc, const syntax::Token *TouchedIdentifier,
 
     // Record SymbolID for index lookup later.
     if (auto ID = getSymbolID(D))
-      ResultIndex[*ID] = Result.size() - 1;
+      ResultIndex[ID] = Result.size() - 1;
   };
 
   // Emit all symbol locations (declaration or definition) from AST.
   DeclRelationSet Relations =
       DeclRelation::TemplatePattern | DeclRelation::Alias;
-  for (const NamedDecl *D :
-       getDeclAtPosition(AST, CurLoc, Relations, NodeKind)) {
+  auto Candidates =
+      getDeclAtPositionWithRelations(AST, CurLoc, Relations, NodeKind);
+  for (const auto &E : Candidates) {
+    const NamedDecl *D = E.first;
     // Special case: void foo() ^override: jump to the overridden method.
     if (const auto *CMD = llvm::dyn_cast<CXXMethodDecl>(D)) {
       const InheritableAttr *Attr = D->getAttr<OverrideAttr>();
@@ -332,6 +345,18 @@ locateASTReferent(SourceLocation CurLoc, const syntax::Token *TouchedIdentifier,
         continue;
       }
     }
+
+    // Special case: the cursor is on an alias, prefer other results.
+    // This targets "using ns::^Foo", where the target is more interesting.
+    // This does not trigger on renaming aliases:
+    //   `using Foo = ^Bar` already targets Bar via a TypeLoc
+    //   `using ^Foo = Bar` has no other results, as Underlying is filtered.
+    if (E.second & DeclRelation::Alias && Candidates.size() > 1 &&
+        // beginLoc/endLoc are a token range, so rewind the identifier we're in.
+        SM.isPointWithin(TouchedIdentifier ? TouchedIdentifier->location()
+                                           : CurLoc,
+                         D->getBeginLoc(), D->getEndLoc()))
+      continue;
 
     // Special case: the point of declaration of a template specialization,
     // it's more useful to navigate to the template declaration.
@@ -488,8 +513,8 @@ locateSymbolTextually(const SpelledWord &Word, ParsedAST &AST,
       Located.Definition = *MaybeDefLoc;
     }
 
-    if (ScoredResults.size() >= 3) {
-      // If we have more than 3 results, don't return anything,
+    if (ScoredResults.size() >= 5) {
+      // If we have more than 5 results, don't return anything,
       // as confidence is too low.
       // FIXME: Alternatively, try a stricter query?
       TooMany = true;
@@ -1099,6 +1124,58 @@ std::vector<DocumentHighlight> findDocumentHighlights(ParsedAST &AST,
   return Result;
 }
 
+std::vector<LocatedSymbol> findImplementations(ParsedAST &AST, Position Pos,
+                                               const SymbolIndex *Index) {
+  // We rely on index to find the implementations in subclasses.
+  // FIXME: Index can be stale, so we may loose some latest results from the
+  // main file.
+  if (!Index)
+    return {};
+  const SourceManager &SM = AST.getSourceManager();
+  auto MainFilePath =
+      getCanonicalPath(SM.getFileEntryForID(SM.getMainFileID()), SM);
+  if (!MainFilePath) {
+    elog("Failed to get a path for the main file, so no implementations.");
+    return {};
+  }
+  auto CurLoc = sourceLocationInMainFile(SM, Pos);
+  if (!CurLoc) {
+    elog("Failed to convert position to source location: {0}",
+         CurLoc.takeError());
+    return {};
+  }
+  std::vector<LocatedSymbol> Results;
+  DeclRelationSet Relations =
+      DeclRelation::TemplatePattern | DeclRelation::Alias;
+  RelationsRequest Req;
+  Req.Predicate = RelationKind::OverriddenBy;
+  for (const NamedDecl *ND : getDeclAtPosition(AST, *CurLoc, Relations))
+    if (const CXXMethodDecl *CXXMD = llvm::dyn_cast<CXXMethodDecl>(ND))
+      if (CXXMD->isVirtual())
+        Req.Subjects.insert(getSymbolID(ND));
+
+  if (Req.Subjects.empty())
+    return Results;
+  Index->relations(Req, [&](const SymbolID &Subject, const Symbol &Object) {
+    auto DeclLoc =
+        indexToLSPLocation(Object.CanonicalDeclaration, *MainFilePath);
+    if (!DeclLoc) {
+      elog("Find implementation: {0}", DeclLoc.takeError());
+      return;
+    }
+    LocatedSymbol Loc;
+    Loc.Name = Object.Name.str();
+    Loc.PreferredDeclaration = *DeclLoc;
+    auto DefLoc = indexToLSPLocation(Object.Definition, *MainFilePath);
+    if (DefLoc)
+      Loc.Definition = *DefLoc;
+    else
+      llvm::consumeError(DefLoc.takeError());
+    Results.push_back(Loc);
+  });
+  return Results;
+}
+
 ReferencesResult findReferences(ParsedAST &AST, Position Pos, uint32_t Limit,
                                 const SymbolIndex *Index) {
   if (!Limit)
@@ -1129,7 +1206,7 @@ ReferencesResult findReferences(ParsedAST &AST, Position Pos, uint32_t Limit,
     if (auto MacroSID = getSymbolID(Macro->Name, Macro->Info, SM)) {
       // Collect macro references from main file.
       const auto &IDToRefs = AST.getMacros().MacroRefs;
-      auto Refs = IDToRefs.find(*MacroSID);
+      auto Refs = IDToRefs.find(MacroSID);
       if (Refs != IDToRefs.end()) {
         for (const auto &Ref : Refs->second) {
           Location Result;
@@ -1138,7 +1215,7 @@ ReferencesResult findReferences(ParsedAST &AST, Position Pos, uint32_t Limit,
           Results.References.push_back(std::move(Result));
         }
       }
-      Req.IDs.insert(*MacroSID);
+      Req.IDs.insert(MacroSID);
     }
   } else {
     // Handle references to Decls.
@@ -1175,7 +1252,7 @@ ReferencesResult findReferences(ParsedAST &AST, Position Pos, uint32_t Limit,
         if (D->getParentFunctionOrMethod())
           continue;
         if (auto ID = getSymbolID(D))
-          Req.IDs.insert(*ID);
+          Req.IDs.insert(ID);
       }
     }
   }
@@ -1284,8 +1361,8 @@ declToTypeHierarchyItem(ASTContext &Ctx, const NamedDecl &ND) {
       SM, Lexer::getLocForEndOfToken(NameLoc, 0, SM, Ctx.getLangOpts()));
 
   index::SymbolInfo SymInfo = index::getSymbolInfo(&ND);
-  // FIXME: this is not classifying constructors, destructors and operators
-  //        correctly (they're all "methods").
+  // FIXME: This is not classifying constructors, destructors and operators
+  // correctly.
   SymbolKind SK = indexSymbolKindToSymbolKind(SymInfo.Kind);
 
   TypeHierarchyItem THI;
@@ -1307,9 +1384,8 @@ declToTypeHierarchyItem(ASTContext &Ctx, const NamedDecl &ND) {
   // This allows typeHierarchy/resolve to be used to
   // resolve children of items returned in a previous request
   // for parents.
-  if (auto ID = getSymbolID(&ND)) {
-    THI.data = ID->str();
-  }
+  if (auto ID = getSymbolID(&ND))
+    THI.data = ID.str();
 
   return THI;
 }
@@ -1514,8 +1590,8 @@ getTypeHierarchy(ParsedAST &AST, Position Pos, int ResolveLevels,
     Result->children.emplace();
 
     if (Index) {
-      if (Optional<SymbolID> ID = getSymbolID(CXXRD))
-        fillSubTypes(*ID, *Result->children, Index, ResolveLevels, TUPath);
+      if (auto ID = getSymbolID(CXXRD))
+        fillSubTypes(ID, *Result->children, Index, ResolveLevels, TUPath);
     }
   }
 

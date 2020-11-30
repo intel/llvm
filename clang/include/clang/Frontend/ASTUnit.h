@@ -694,7 +694,7 @@ public:
       const FileSystemOptions &FileSystemOpts, bool UseDebugInfo = false,
       bool OnlyLocalDecls = false, ArrayRef<RemappedFile> RemappedFiles = None,
       CaptureDiagsKind CaptureDiagnostics = CaptureDiagsKind::None,
-      bool AllowPCHWithCompilerErrors = false,
+      bool AllowASTWithCompilerErrors = false,
       bool UserFilesAreVolatile = false);
 
 private:
@@ -756,7 +756,6 @@ public:
       CaptureDiagsKind CaptureDiagnostics = CaptureDiagsKind::None,
       unsigned PrecompilePreambleAfterNParses = 0,
       bool CacheCodeCompletionResults = false,
-      bool IncludeBriefCommentsInCodeCompletion = false,
       bool UserFilesAreVolatile = false,
       std::unique_ptr<ASTUnit> *ErrAST = nullptr);
 

@@ -15,15 +15,6 @@ namespace mlir {
 namespace detail {
 
 //===----------------------------------------------------------------------===//
-// Verifier Pass
-//===----------------------------------------------------------------------===//
-
-/// Pass to verify an operation and signal failure if necessary.
-class VerifierPass : public PassWrapper<VerifierPass, OperationPass<>> {
-  void runOnOperation() override;
-};
-
-//===----------------------------------------------------------------------===//
 // OpToOpPassAdaptor
 //===----------------------------------------------------------------------===//
 
@@ -35,6 +26,7 @@ public:
   OpToOpPassAdaptor(const OpToOpPassAdaptor &rhs) = default;
 
   /// Run the held pipeline over all operations.
+  void runOnOperation(bool verifyPasses);
   void runOnOperation() override;
 
   /// Merge the current pass adaptor into given 'rhs'.
@@ -57,19 +49,20 @@ public:
 
 private:
   /// Run this pass adaptor synchronously.
-  void runOnOperationImpl();
+  void runOnOperationImpl(bool verifyPasses);
 
   /// Run this pass adaptor asynchronously.
-  void runOnOperationAsyncImpl();
+  void runOnOperationAsyncImpl(bool verifyPasses);
 
   /// Run the given operation and analysis manager on a single pass.
-  static LogicalResult run(Pass *pass, Operation *op, AnalysisManager am);
+  static LogicalResult run(Pass *pass, Operation *op, AnalysisManager am,
+                           bool verifyPasses);
 
   /// Run the given operation and analysis manager on a provided op pass
   /// manager.
   static LogicalResult
   runPipeline(iterator_range<OpPassManager::pass_iterator> passes,
-              Operation *op, AnalysisManager am);
+              Operation *op, AnalysisManager am, bool verifyPasses);
 
   /// A set of adaptors to run.
   SmallVector<OpPassManager, 1> mgrs;

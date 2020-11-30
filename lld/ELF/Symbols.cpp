@@ -64,7 +64,8 @@ Defined *ElfSym::relaIpltStart;
 Defined *ElfSym::relaIpltEnd;
 Defined *ElfSym::riscvGlobalPointer;
 Defined *ElfSym::tlsModuleBase;
-DenseMap<const Symbol *, const InputFile *> elf::backwardReferences;
+DenseMap<const Symbol *, std::pair<const InputFile *, const InputFile *>>
+    elf::backwardReferences;
 
 static uint64_t getSymVA(const Symbol &sym, int64_t &addend) {
   switch (sym.kind()) {
@@ -376,8 +377,18 @@ bool elf::computeIsPreemptible(const Symbol &sym) {
 void elf::reportBackrefs() {
   for (auto &it : backwardReferences) {
     const Symbol &sym = *it.first;
-    warn("backward reference detected: " + sym.getName() + " in " +
-         toString(it.second) + " refers to " + toString(sym.file));
+    std::string to = toString(it.second.second);
+    // Some libraries have known problems and can cause noise. Filter them out
+    // with --warn-backrefs-exclude=. to may look like *.o or *.a(*.o).
+    bool exclude = false;
+    for (const llvm::GlobPattern &pat : config->warnBackrefsExclude)
+      if (pat.match(to)) {
+        exclude = true;
+        break;
+      }
+    if (!exclude)
+      warn("backward reference detected: " + sym.getName() + " in " +
+           toString(it.second.first) + " refers to " + to);
   }
 }
 
@@ -513,17 +524,6 @@ void Symbol::resolveUndefined(const Undefined &other) {
     // group assignment rule simulates the traditional linker's semantics.
     bool backref = config->warnBackrefs && other.file &&
                    file->groupId < other.file->groupId;
-    if (backref) {
-      // Some libraries have known problems and can cause noise. Filter them out
-      // with --warn-backrefs-exclude=.
-      StringRef name =
-          !file->archiveName.empty() ? file->archiveName : file->getName();
-      for (const llvm::GlobPattern &pat : config->warnBackrefsExclude)
-        if (pat.match(name)) {
-          backref = false;
-          break;
-        }
-    }
     fetch();
 
     // We don't report backward references to weak symbols as they can be
@@ -532,9 +532,10 @@ void Symbol::resolveUndefined(const Undefined &other) {
     // A traditional linker does not error for -ldef1 -lref -ldef2 (linking
     // sandwich), where def2 may or may not be the same as def1. We don't want
     // to warn for this case, so dismiss the warning if we see a subsequent lazy
-    // definition.
+    // definition. this->file needs to be saved because in the case of LTO it
+    // may be reset to nullptr or be replaced with a file named lto.tmp.
     if (backref && !isWeak())
-      backwardReferences.try_emplace(this, other.file);
+      backwardReferences.try_emplace(this, std::make_pair(other.file, file));
     return;
   }
 

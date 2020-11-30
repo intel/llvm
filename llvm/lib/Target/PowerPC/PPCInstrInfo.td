@@ -335,7 +335,7 @@ def PPCrfebb      : SDNode<"PPCISD::RFEBB", SDT_PPCsc,
                            [SDNPHasChain, SDNPSideEffect]>;
 
 def PPCvcmp       : SDNode<"PPCISD::VCMP" , SDT_PPCvcmp, []>;
-def PPCvcmp_o     : SDNode<"PPCISD::VCMPo", SDT_PPCvcmp, [SDNPOutGlue]>;
+def PPCvcmp_rec   : SDNode<"PPCISD::VCMP_rec", SDT_PPCvcmp, [SDNPOutGlue]>;
 
 def PPCcondbranch : SDNode<"PPCISD::COND_BRANCH", SDT_PPCcondbr,
                            [SDNPHasChain, SDNPOptInGlue]>;
@@ -1031,11 +1031,13 @@ def pred : Operand<OtherVT> {
 // Define PowerPC specific addressing mode.
 
 // d-form
-def iaddr    : ComplexPattern<iPTR, 2, "SelectAddrImm",     [], []>;  // "stb"
+def iaddr    : ComplexPattern<iPTR, 2, "SelectAddrImm",     [], []>; // "stb"
 // ds-form
-def iaddrX4  : ComplexPattern<iPTR, 2, "SelectAddrImmX4",   [], []>;  // "std"
+def iaddrX4  : ComplexPattern<iPTR, 2, "SelectAddrImmX4",   [], []>; // "std"
 // dq-form
-def iaddrX16 : ComplexPattern<iPTR, 2, "SelectAddrImmX16",  [], []>;  // "stxv"
+def iaddrX16 : ComplexPattern<iPTR, 2, "SelectAddrImmX16",  [], []>; // "stxv"
+// 8LS:d-form
+def iaddrX34 : ComplexPattern<iPTR, 2, "SelectAddrImmX34",  [], []>; // "pstxvp"
 
 // Below forms are all x-form addressing mode, use three different ones so we
 // can make a accurate check for x-form instructions in ISEL.
@@ -1081,6 +1083,7 @@ def HasExtDiv : Predicate<"Subtarget->hasExtDiv()">;
 def IsISA3_0 : Predicate<"Subtarget->isISA3_0()">;
 def HasFPU : Predicate<"Subtarget->hasFPU()">;
 def PCRelativeMemops : Predicate<"Subtarget->hasPCRelativeMemops()">;
+def IsNotISA3_1 : Predicate<"!Subtarget->isISA3_1()">;
 
 //===----------------------------------------------------------------------===//
 // PowerPC Multiclass Definitions.
@@ -3890,6 +3893,7 @@ def : Pat<(i1 (setcc i64:$s1, i64:$s2, SETGT)),
 def : Pat<(i1 (setcc i64:$s1, i64:$s2, SETEQ)),
           (EXTRACT_SUBREG (CMPD $s1, $s2), sub_eq)>;
 
+let Predicates = [IsNotISA3_1] in {
 // Instantiations of CRNotPat for i32.
 defm : CRNotPat<(i1 (setcc i32:$s1, immZExt16:$imm, SETUGE)),
                 (EXTRACT_SUBREG (CMPLWI $s1, imm:$imm), sub_lt)>;
@@ -3947,6 +3951,7 @@ defm : CRNotPat<(i1 (setcc i64:$s1, i64:$s2, SETLE)),
                 (EXTRACT_SUBREG (CMPD $s1, $s2), sub_gt)>;
 defm : CRNotPat<(i1 (setcc i64:$s1, i64:$s2, SETNE)),
                 (EXTRACT_SUBREG (CMPD $s1, $s2), sub_eq)>;
+}
 
 multiclass FSetCCPat<SDNode SetCC, ValueType Ty, PatLeaf FCmp> {
   defm : CRNotPat<(i1 (SetCC Ty:$s1, Ty:$s2, SETUGE)),

@@ -116,6 +116,8 @@ def HasStdExtZbt : Predicate<"Subtarget->hasStdExtZbt()">,
 def HasStdExtZbbOrZbp
     : Predicate<"Subtarget->hasStdExtZbb() || Subtarget->hasStdExtZbp()">,
                 AssemblerPredicate<(any_of FeatureExtZbb, FeatureExtZbp)>;
+def NotHasStdExtZbbOrZbp
+    : Predicate<"!(Subtarget->hasStdExtZbb() || Subtarget->hasStdExtZbp())">;
 
 def FeatureExtZbproposedc
     : SubtargetFeature<"experimental-zbproposedc", "HasStdExtZbproposedc", "true",
@@ -216,7 +218,7 @@ include "RISCVCallingConv.td"
 include "RISCVInstrInfo.td"
 include "RISCVRegisterBanks.td"
 include "RISCVSchedRocket.td"
-include "RISCVSchedBullet.td"
+include "RISCVSchedSiFive7.td"
 
 //===----------------------------------------------------------------------===//
 // RISC-V processors supported.
@@ -228,8 +230,8 @@ def : ProcessorModel<"generic-rv64", NoSchedModel, [Feature64Bit]>;
 def : ProcessorModel<"rocket-rv32", RocketModel, []>;
 def : ProcessorModel<"rocket-rv64", RocketModel, [Feature64Bit]>;
 
-def : ProcessorModel<"sifive-7-rv32", BulletModel, []>;
-def : ProcessorModel<"sifive-7-rv64", BulletModel, [Feature64Bit]>;
+def : ProcessorModel<"sifive-7-rv32", SiFive7Model, []>;
+def : ProcessorModel<"sifive-7-rv64", SiFive7Model, [Feature64Bit]>;
 
 def : ProcessorModel<"sifive-e31", RocketModel, [FeatureStdExtM,
                                                  FeatureStdExtA,
@@ -242,17 +244,17 @@ def : ProcessorModel<"sifive-u54", RocketModel, [Feature64Bit,
                                                  FeatureStdExtD,
                                                  FeatureStdExtC]>;
 
-def : ProcessorModel<"sifive-e76", BulletModel, [FeatureStdExtM,
-                                                 FeatureStdExtA,
-                                                 FeatureStdExtF,
-                                                 FeatureStdExtC]>;
+def : ProcessorModel<"sifive-e76", SiFive7Model, [FeatureStdExtM,
+                                                  FeatureStdExtA,
+                                                  FeatureStdExtF,
+                                                  FeatureStdExtC]>;
 
-def : ProcessorModel<"sifive-u74", BulletModel, [Feature64Bit,
-                                                 FeatureStdExtM,
-                                                 FeatureStdExtA,
-                                                 FeatureStdExtF,
-                                                 FeatureStdExtD,
-                                                 FeatureStdExtC]>;
+def : ProcessorModel<"sifive-u74", SiFive7Model, [Feature64Bit,
+                                                  FeatureStdExtM,
+                                                  FeatureStdExtA,
+                                                  FeatureStdExtF,
+                                                  FeatureStdExtD,
+                                                  FeatureStdExtC]>;
 
 //===----------------------------------------------------------------------===//
 // Define the RISC-V target.

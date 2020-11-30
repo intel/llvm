@@ -12,6 +12,8 @@
 
 #include "lldb/Core/Module.h"
 #include "lldb/Core/PluginManager.h"
+#include "lldb/Core/Section.h"
+#include "lldb/Target/SectionLoadList.h"
 #include "lldb/Target/Target.h"
 
 using namespace lldb;
@@ -41,7 +43,7 @@ bool ProcessTrace::CanDebug(TargetSP target_sp, bool plugin_specified_by_name) {
 }
 
 ProcessTrace::ProcessTrace(TargetSP target_sp, ListenerSP listener_sp)
-    : Process(target_sp, listener_sp) {}
+    : PostMortemProcess(target_sp, listener_sp) {}
 
 ProcessTrace::~ProcessTrace() {
   Clear();
@@ -121,5 +123,9 @@ bool ProcessTrace::GetProcessInfo(ProcessInstanceInfo &info) {
 
 size_t ProcessTrace::DoReadMemory(addr_t addr, void *buf, size_t size,
                                   Status &error) {
-  return 0;
+  Address resolved_address;
+  GetTarget().GetSectionLoadList().ResolveLoadAddress(addr, resolved_address);
+
+  return GetTarget().ReadMemoryFromFileCache(resolved_address, buf, size,
+                                             error);
 }

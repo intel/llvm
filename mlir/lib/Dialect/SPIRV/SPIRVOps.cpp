@@ -18,7 +18,7 @@
 #include "mlir/Dialect/SPIRV/SPIRVTypes.h"
 #include "mlir/Dialect/SPIRV/TargetAndABI.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/Function.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/StandardTypes.h"
@@ -217,9 +217,9 @@ static ParseResult parseMemoryAccessAttributes(OpAsmParser &parser,
 }
 
 // TODO Make sure to merge this and the previous function into one template
-// parameterized by memroy access attribute name and alignment. Doing so now
+// parameterized by memory access attribute name and alignment. Doing so now
 // results in VS2017 in producing an internal error (at the call site) that's
-// not detailed enough to understand what is happenning.
+// not detailed enough to understand what is happening.
 static ParseResult parseSourceMemoryAccessAttributes(OpAsmParser &parser,
                                                      OperationState &state) {
   // Parse an optional list of attributes staring with '['
@@ -274,9 +274,9 @@ static void printMemoryAccessAttribute(
 }
 
 // TODO Make sure to merge this and the previous function into one template
-// parameterized by memroy access attribute name and alignment. Doing so now
+// parameterized by memory access attribute name and alignment. Doing so now
 // results in VS2017 in producing an internal error (at the call site) that's
-// not detailed enough to understand what is happenning.
+// not detailed enough to understand what is happening.
 template <typename MemoryOpTy>
 static void printSourceMemoryAccessAttribute(
     MemoryOpTy memoryOp, OpAsmPrinter &printer,
@@ -393,9 +393,9 @@ static LogicalResult verifyMemoryAccessAttribute(MemoryOpTy memoryOp) {
 }
 
 // TODO Make sure to merge this and the previous function into one template
-// parameterized by memroy access attribute name and alignment. Doing so now
+// parameterized by memory access attribute name and alignment. Doing so now
 // results in VS2017 in producing an internal error (at the call site) that's
-// not detailed enough to understand what is happenning.
+// not detailed enough to understand what is happening.
 template <typename MemoryOpTy>
 static LogicalResult verifySourceMemoryAccessAttribute(MemoryOpTy memoryOp) {
   // ODS checks for attributes values. Just need to verify that if the
@@ -641,7 +641,7 @@ static Type getElementType(Type type, Attribute indices, OpAsmParser &parser,
   return getElementType(type, indices, errorFn);
 }
 
-/// Returns true if the given `block` only contains one `spv._merge` op.
+/// Returns true if the given `block` only contains one `spv.mlir.merge` op.
 static inline bool isMergeBlock(Block &block) {
   return !block.empty() && std::next(block.begin()) == block.end() &&
          isa<spirv::MergeOp>(block.front());
@@ -1036,7 +1036,7 @@ static LogicalResult verify(spirv::AccessChainOp accessChainOp) {
 }
 
 //===----------------------------------------------------------------------===//
-// spv._address_of
+// spv.mlir.addressof
 //===----------------------------------------------------------------------===//
 
 void spirv::AddressOfOp::build(OpBuilder &builder, OperationState &state,
@@ -2320,7 +2320,7 @@ static LogicalResult verify(spirv::LoopOp loopOp) {
   Block &merge = region.back();
   if (!isMergeBlock(merge))
     return loopOp.emitOpError(
-        "last block must be the merge block with only one 'spv._merge' op");
+        "last block must be the merge block with only one 'spv.mlir.merge' op");
 
   if (std::next(region.begin()) == region.end())
     return loopOp.emitOpError(
@@ -2397,12 +2397,12 @@ void spirv::LoopOp::addEntryAndMergeBlock() {
   body().push_back(mergeBlock);
   OpBuilder builder = OpBuilder::atBlockEnd(mergeBlock);
 
-  // Add a spv._merge op into the merge block.
+  // Add a spv.mlir.merge op into the merge block.
   builder.create<spirv::MergeOp>(getLoc());
 }
 
 //===----------------------------------------------------------------------===//
-// spv._merge
+// spv.mlir.merge
 //===----------------------------------------------------------------------===//
 
 static LogicalResult verify(spirv::MergeOp mergeOp) {
@@ -2571,7 +2571,7 @@ static LogicalResult verify(spirv::ModuleOp moduleOp) {
 }
 
 //===----------------------------------------------------------------------===//
-// spv._reference_of
+// spv.mlir.referenceof
 //===----------------------------------------------------------------------===//
 
 static LogicalResult verify(spirv::ReferenceOfOp referenceOfOp) {
@@ -2697,7 +2697,7 @@ static LogicalResult verify(spirv::SelectionOp selectionOp) {
   // The last block is the merge block.
   if (!isMergeBlock(region.back()))
     return selectionOp.emitOpError(
-        "last block must be the merge block with only one 'spv._merge' op");
+        "last block must be the merge block with only one 'spv.mlir.merge' op");
 
   if (std::next(region.begin()) == region.end())
     return selectionOp.emitOpError("must have a selection header block");
@@ -2723,7 +2723,7 @@ void spirv::SelectionOp::addMergeBlock() {
   body().push_back(mergeBlock);
   OpBuilder builder = OpBuilder::atBlockEnd(mergeBlock);
 
-  // Add a spv._merge op into the merge block.
+  // Add a spv.mlir.merge op into the merge block.
   builder.create<spirv::MergeOp>(getLoc());
 }
 

@@ -509,6 +509,9 @@ void llvm::deleteConstant(Constant *C) {
   case Constant::BlockAddressVal:
     delete static_cast<BlockAddress *>(C);
     break;
+  case Constant::DSOLocalEquivalentVal:
+    delete static_cast<DSOLocalEquivalent *>(C);
+    break;
   case Constant::UndefValueVal:
     delete static_cast<UndefValue *>(C);
     break;
@@ -654,10 +657,17 @@ bool Constant::needsRelocation() const {
           return false;
 
         // Relative pointers do not need to be dynamically relocated.
-        if (auto *LHSGV = dyn_cast<GlobalValue>(LHSOp0->stripPointerCasts()))
-          if (auto *RHSGV = dyn_cast<GlobalValue>(RHSOp0->stripPointerCasts()))
+        if (auto *RHSGV =
+                dyn_cast<GlobalValue>(RHSOp0->stripInBoundsConstantOffsets())) {
+          auto *LHS = LHSOp0->stripInBoundsConstantOffsets();
+          if (auto *LHSGV = dyn_cast<GlobalValue>(LHS)) {
             if (LHSGV->isDSOLocal() && RHSGV->isDSOLocal())
               return false;
+          } else if (isa<DSOLocalEquivalent>(LHS)) {
+            if (RHSGV->isDSOLocal())
+              return false;
+          }
+        }
       }
     }
   }
@@ -1763,6 +1773,54 @@ Value *BlockAddress::handleOperandChangeImpl(Value *From, Value *To) {
   return nullptr;
 }
 
+DSOLocalEquivalent *DSOLocalEquivalent::get(GlobalValue *GV) {
+  DSOLocalEquivalent *&Equiv = GV->getContext().pImpl->DSOLocalEquivalents[GV];
+  if (!Equiv)
+    Equiv = new DSOLocalEquivalent(GV);
+
+  assert(Equiv->getGlobalValue() == GV &&
+         "DSOLocalFunction does not match the expected global value");
+  return Equiv;
+}
+
+DSOLocalEquivalent::DSOLocalEquivalent(GlobalValue *GV)
+    : Constant(GV->getType(), Value::DSOLocalEquivalentVal, &Op<0>(), 1) {
+  setOperand(0, GV);
+}
+
+/// Remove the constant from the constant table.
+void DSOLocalEquivalent::destroyConstantImpl() {
+  const GlobalValue *GV = getGlobalValue();
+  GV->getContext().pImpl->DSOLocalEquivalents.erase(GV);
+}
+
+Value *DSOLocalEquivalent::handleOperandChangeImpl(Value *From, Value *To) {
+  assert(From == getGlobalValue() && "Changing value does not match operand.");
+  assert(To->getType() == getType() && "Mismatched types");
+  assert(isa<Constant>(To) && "Can only replace the operands with a constant");
+
+  // The replacement is with another global value.
+  if (const auto *ToObj = dyn_cast<GlobalValue>(To)) {
+    DSOLocalEquivalent *&NewEquiv =
+        getContext().pImpl->DSOLocalEquivalents[ToObj];
+    if (NewEquiv)
+      return NewEquiv;
+  }
+
+  // The replacement could be a bitcast or an alias to another function. We can
+  // replace it with a bitcast to the dso_local_equivalent of that function.
+  auto *Func = cast<Function>(To->stripPointerCastsAndAliases());
+  DSOLocalEquivalent *&NewEquiv = getContext().pImpl->DSOLocalEquivalents[Func];
+  if (NewEquiv)
+    return llvm::ConstantExpr::getBitCast(NewEquiv, getType());
+
+  // Replace this with the new one.
+  getContext().pImpl->DSOLocalEquivalents.erase(getGlobalValue());
+  NewEquiv = this;
+  setOperand(0, Func);
+  return nullptr;
+}
+
 //---- ConstantExpr::get() implementations.
 //
 
@@ -2783,56 +2841,58 @@ Constant *ConstantDataSequential::getImpl(StringRef Elements, Type *Ty) {
   // body but different types.  For example, 0,0,0,1 could be a 4 element array
   // of i8, or a 1-element array of i32.  They'll both end up in the same
   /// StringMap bucket, linked up by their Next pointers.  Walk the list.
-  ConstantDataSequential **Entry = &Slot.second;
-  for (ConstantDataSequential *Node = *Entry; Node;
-       Entry = &Node->Next, Node = *Entry)
-    if (Node->getType() == Ty)
-      return Node;
+  std::unique_ptr<ConstantDataSequential> *Entry = &Slot.second;
+  for (; *Entry; Entry = &(*Entry)->Next)
+    if ((*Entry)->getType() == Ty)
+      return Entry->get();
 
   // Okay, we didn't get a hit.  Create a node of the right class, link it in,
   // and return it.
-  if (isa<ArrayType>(Ty))
-    return *Entry = new ConstantDataArray(Ty, Slot.first().data());
+  if (isa<ArrayType>(Ty)) {
+    // Use reset because std::make_unique can't access the constructor.
+    Entry->reset(new ConstantDataArray(Ty, Slot.first().data()));
+    return Entry->get();
+  }
 
   assert(isa<VectorType>(Ty));
-  return *Entry = new ConstantDataVector(Ty, Slot.first().data());
+  // Use reset because std::make_unique can't access the constructor.
+  Entry->reset(new ConstantDataVector(Ty, Slot.first().data()));
+  return Entry->get();
 }
 
 void ConstantDataSequential::destroyConstantImpl() {
   // Remove the constant from the StringMap.
-  StringMap<ConstantDataSequential*> &CDSConstants =
-    getType()->getContext().pImpl->CDSConstants;
+  StringMap<std::unique_ptr<ConstantDataSequential>> &CDSConstants =
+      getType()->getContext().pImpl->CDSConstants;
 
-  StringMap<ConstantDataSequential*>::iterator Slot =
-    CDSConstants.find(getRawDataValues());
+  auto Slot = CDSConstants.find(getRawDataValues());
 
   assert(Slot != CDSConstants.end() && "CDS not found in uniquing table");
 
-  ConstantDataSequential **Entry = &Slot->getValue();
+  std::unique_ptr<ConstantDataSequential> *Entry = &Slot->getValue();
 
   // Remove the entry from the hash table.
   if (!(*Entry)->Next) {
     // If there is only one value in the bucket (common case) it must be this
     // entry, and removing the entry should remove the bucket completely.
-    assert((*Entry) == this && "Hash mismatch in ConstantDataSequential");
+    assert(Entry->get() == this && "Hash mismatch in ConstantDataSequential");
     getContext().pImpl->CDSConstants.erase(Slot);
-  } else {
-    // Otherwise, there are multiple entries linked off the bucket, unlink the
-    // node we care about but keep the bucket around.
-    for (ConstantDataSequential *Node = *Entry; ;
-         Entry = &Node->Next, Node = *Entry) {
-      assert(Node && "Didn't find entry in its uniquing hash table!");
-      // If we found our entry, unlink it from the list and we're done.
-      if (Node == this) {
-        *Entry = Node->Next;
-        break;
-      }
-    }
+    return;
   }
 
-  // If we were part of a list, make sure that we don't delete the list that is
-  // still owned by the uniquing map.
-  Next = nullptr;
+  // Otherwise, there are multiple entries linked off the bucket, unlink the
+  // node we care about but keep the bucket around.
+  while (true) {
+    std::unique_ptr<ConstantDataSequential> &Node = *Entry;
+    assert(Node && "Didn't find entry in its uniquing hash table!");
+    // If we found our entry, unlink it from the list and we're done.
+    if (Node.get() == this) {
+      Node = std::move(Node->Next);
+      return;
+    }
+
+    Entry = &Node->Next;
+  }
 }
 
 /// getFP() constructors - Return a constant of array type with a float

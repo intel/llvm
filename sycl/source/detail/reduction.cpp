@@ -26,17 +26,23 @@ __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
     NWorkGroups = NWorkItems / WGSize;
     size_t Rem = NWorkItems % WGSize;
     if (Rem != 0) {
-      // Let's say MaxWGSize = 128 and NWorkItems is (128+32).
+      // Let's suppose MaxWGSize = 128 and NWorkItems = (128+32).
       // It seems better to have 5 groups 32 work-items each than 2 groups with
       // 128 work-items in the 1st group and 32 work-items in the 2nd group.
       size_t NWorkGroupsAlt = NWorkItems / Rem;
       size_t RemAlt = NWorkItems % Rem;
       if (RemAlt == 0 && NWorkGroupsAlt <= MaxWGSize) {
+        // Choose smaller uniform work-groups.
+        // The condition 'NWorkGroupsAlt <= MaxWGSize' was checked to ensure
+        // that choosing smaller groups will not cause the need in additional
+        // invocations of the kernel.
         NWorkGroups = NWorkGroupsAlt;
         WGSize = Rem;
+      } else {
+        // Add 1 more group to process the remaining elements and proceed
+        // with bigger non-uniform work-groups
+        NWorkGroups++;
       }
-    } else {
-      NWorkGroups++;
     }
   }
   return WGSize;

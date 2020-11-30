@@ -13,10 +13,10 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/Module.h"
 #include "mlir/IR/StandardTypes.h"
 
 #include "llvm/ADT/StringSwitch.h"
@@ -142,6 +142,17 @@ static ParseResult parseAllocaOp(OpAsmParser &parser, OperationState &result) {
       parser.parseOptionalAttrDict(result.attributes) || parser.parseColon() ||
       parser.getCurrentLocation(&trailingTypeLoc) || parser.parseType(type))
     return failure();
+
+  Optional<NamedAttribute> alignmentAttr =
+      result.attributes.getNamed("alignment");
+  if (alignmentAttr.hasValue()) {
+    auto alignmentInt = alignmentAttr.getValue().second.dyn_cast<IntegerAttr>();
+    if (!alignmentInt)
+      return parser.emitError(parser.getNameLoc(),
+                              "expected integer alignment");
+    if (alignmentInt.getValue().isNullValue())
+      result.attributes.erase("alignment");
+  }
 
   // Extract the result type from the trailing function type.
   auto funcType = type.dyn_cast<FunctionType>();
@@ -1822,11 +1833,13 @@ LogicalResult LLVMDialect::verifyRegionArgAttribute(Operation *op,
                                                     unsigned argIdx,
                                                     NamedAttribute argAttr) {
   // Check that llvm.noalias is a boolean attribute.
-  if (argAttr.first == "llvm.noalias" && !argAttr.second.isa<BoolAttr>())
+  if (argAttr.first == LLVMDialect::getNoAliasAttrName() &&
+      !argAttr.second.isa<BoolAttr>())
     return op->emitError()
            << "llvm.noalias argument attribute of non boolean type";
   // Check that llvm.align is an integer attribute.
-  if (argAttr.first == "llvm.align" && !argAttr.second.isa<IntegerAttr>())
+  if (argAttr.first == LLVMDialect::getAlignAttrName() &&
+      !argAttr.second.isa<IntegerAttr>())
     return op->emitError()
            << "llvm.align argument attribute of non integer type";
   return success();

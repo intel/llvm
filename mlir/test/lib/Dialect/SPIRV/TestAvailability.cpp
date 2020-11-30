@@ -9,7 +9,7 @@
 #include "mlir/Dialect/SPIRV/SPIRVLowering.h"
 #include "mlir/Dialect/SPIRV/SPIRVOps.h"
 #include "mlir/Dialect/SPIRV/SPIRVTypes.h"
-#include "mlir/IR/Function.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
 
 using namespace mlir;
@@ -144,7 +144,7 @@ void ConvertToTargetEnv::runOnFunction() {
                   ConvertToGroupNonUniformBallot, ConvertToModule,
                   ConvertToSubgroupBallot>(context);
 
-  if (failed(applyPartialConversion(fn, *target, patterns)))
+  if (failed(applyPartialConversion(fn, *target, std::move(patterns))))
     return signalPassFailure();
 }
 

@@ -317,7 +317,6 @@ protected:
   bool FlatForGlobal;
   bool AutoWaitcntBeforeBarrier;
   bool UnalignedScratchAccess;
-  bool UnalignedBufferAccess;
   bool UnalignedAccessMode;
   bool HasApertureRegs;
   bool EnableXNACK;
@@ -398,6 +397,7 @@ protected:
   bool HasMFMAInlineLiteralBug;
   bool HasVertexCache;
   short TexVTXClauseSize;
+  bool UnalignedBufferAccess;
   bool UnalignedDSAccess;
   bool ScalarizeGlobal;
 
@@ -422,10 +422,10 @@ private:
   SITargetLowering TLInfo;
   SIFrameLowering FrameLowering;
 
+public:
   // See COMPUTE_TMPRING_SIZE.WAVESIZE, 13-bit field in units of 256-dword.
   static const unsigned MaxWaveScratchSize = (256 * 4) * ((1 << 13) - 1);
 
-public:
   GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
                const GCNTargetMachine &TM);
   ~GCNSubtarget() override;
@@ -493,8 +493,8 @@ public:
     return LDSBankCount;
   }
 
-  unsigned getMaxPrivateElementSize() const {
-    return MaxPrivateElementSize;
+  unsigned getMaxPrivateElementSize(bool ForBufferRSrc = false) const {
+    return (ForBufferRSrc || !enableFlatScratch()) ? MaxPrivateElementSize : 16;
   }
 
   unsigned getConstantBusLimit(unsigned Opcode) const;
@@ -702,16 +702,24 @@ public:
     return UnalignedBufferAccess;
   }
 
+  bool hasUnalignedBufferAccessEnabled() const {
+    return UnalignedBufferAccess && UnalignedAccessMode;
+  }
+
+  bool hasUnalignedDSAccess() const {
+    return UnalignedDSAccess;
+  }
+
+  bool hasUnalignedDSAccessEnabled() const {
+    return UnalignedDSAccess && UnalignedAccessMode;
+  }
+
   bool hasUnalignedScratchAccess() const {
     return UnalignedScratchAccess;
   }
 
   bool hasUnalignedAccessMode() const {
     return UnalignedAccessMode;
-  }
-
-  bool hasUnalignedDSAccess() const {
-    return UnalignedDSAccess;
   }
 
   bool hasApertureRegs() const {
@@ -944,6 +952,8 @@ public:
     return true;
   }
 
+  bool useAA() const override;
+
   bool enableSubRegLiveness() const override {
     return true;
   }
@@ -958,6 +968,8 @@ public:
   bool enableEarlyIfConversion() const override {
     return true;
   }
+
+  bool enableFlatScratch() const;
 
   void overrideSchedPolicy(MachineSchedPolicy &Policy,
                            unsigned NumRegionInstrs) const override;

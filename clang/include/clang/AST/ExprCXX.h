@@ -3470,43 +3470,43 @@ public:
   bool isListInitialization() const { return LParenLoc.isInvalid(); }
 
   /// Retrieve the number of arguments.
-  unsigned arg_size() const { return CXXUnresolvedConstructExprBits.NumArgs; }
+  unsigned getNumArgs() const { return CXXUnresolvedConstructExprBits.NumArgs; }
 
   using arg_iterator = Expr **;
   using arg_range = llvm::iterator_range<arg_iterator>;
 
   arg_iterator arg_begin() { return getTrailingObjects<Expr *>(); }
-  arg_iterator arg_end() { return arg_begin() + arg_size(); }
+  arg_iterator arg_end() { return arg_begin() + getNumArgs(); }
   arg_range arguments() { return arg_range(arg_begin(), arg_end()); }
 
   using const_arg_iterator = const Expr* const *;
   using const_arg_range = llvm::iterator_range<const_arg_iterator>;
 
   const_arg_iterator arg_begin() const { return getTrailingObjects<Expr *>(); }
-  const_arg_iterator arg_end() const { return arg_begin() + arg_size(); }
+  const_arg_iterator arg_end() const { return arg_begin() + getNumArgs(); }
   const_arg_range arguments() const {
     return const_arg_range(arg_begin(), arg_end());
   }
 
   Expr *getArg(unsigned I) {
-    assert(I < arg_size() && "Argument index out-of-range");
+    assert(I < getNumArgs() && "Argument index out-of-range");
     return arg_begin()[I];
   }
 
   const Expr *getArg(unsigned I) const {
-    assert(I < arg_size() && "Argument index out-of-range");
+    assert(I < getNumArgs() && "Argument index out-of-range");
     return arg_begin()[I];
   }
 
   void setArg(unsigned I, Expr *E) {
-    assert(I < arg_size() && "Argument index out-of-range");
+    assert(I < getNumArgs() && "Argument index out-of-range");
     arg_begin()[I] = E;
   }
 
   SourceLocation getBeginLoc() const LLVM_READONLY;
   SourceLocation getEndLoc() const LLVM_READONLY {
-    if (!RParenLoc.isValid() && arg_size() > 0)
-      return getArg(arg_size() - 1)->getEndLoc();
+    if (!RParenLoc.isValid() && getNumArgs() > 0)
+      return getArg(getNumArgs() - 1)->getEndLoc();
     return RParenLoc;
   }
 
@@ -3517,13 +3517,13 @@ public:
   // Iterators
   child_range children() {
     auto **begin = reinterpret_cast<Stmt **>(arg_begin());
-    return child_range(begin, begin + arg_size());
+    return child_range(begin, begin + getNumArgs());
   }
 
   const_child_range children() const {
     auto **begin = reinterpret_cast<Stmt **>(
         const_cast<CXXUnresolvedConstructExpr *>(this)->arg_begin());
-    return const_child_range(begin, begin + arg_size());
+    return const_child_range(begin, begin + getNumArgs());
   }
 };
 
@@ -4233,8 +4233,10 @@ class SubstNonTypeTemplateParmExpr : public Expr {
   friend class ASTReader;
   friend class ASTStmtReader;
 
-  /// The replaced parameter.
-  NonTypeTemplateParmDecl *Param;
+  /// The replaced parameter and a flag indicating if it was a reference
+  /// parameter. For class NTTPs, we can't determine that based on the value
+  /// category alone.
+  llvm::PointerIntPair<NonTypeTemplateParmDecl*, 1, bool> ParamAndRef;
 
   /// The replacement expression.
   Stmt *Replacement;
@@ -4245,10 +4247,10 @@ class SubstNonTypeTemplateParmExpr : public Expr {
 public:
   SubstNonTypeTemplateParmExpr(QualType Ty, ExprValueKind ValueKind,
                                SourceLocation Loc,
-                               NonTypeTemplateParmDecl *Param,
+                               NonTypeTemplateParmDecl *Param, bool RefParam,
                                Expr *Replacement)
       : Expr(SubstNonTypeTemplateParmExprClass, Ty, ValueKind, OK_Ordinary),
-        Param(Param), Replacement(Replacement) {
+        ParamAndRef(Param, RefParam), Replacement(Replacement) {
     SubstNonTypeTemplateParmExprBits.NameLoc = Loc;
     setDependence(computeDependence(this));
   }
@@ -4261,7 +4263,14 @@ public:
 
   Expr *getReplacement() const { return cast<Expr>(Replacement); }
 
-  NonTypeTemplateParmDecl *getParameter() const { return Param; }
+  NonTypeTemplateParmDecl *getParameter() const {
+    return ParamAndRef.getPointer();
+  }
+
+  bool isReferenceParameter() const { return ParamAndRef.getInt(); }
+
+  /// Determine the substituted type of the template parameter.
+  QualType getParameterType(const ASTContext &Ctx) const;
 
   static bool classof(const Stmt *s) {
     return s->getStmtClass() == SubstNonTypeTemplateParmExprClass;
@@ -4509,6 +4518,10 @@ public:
   bool isBoundToLvalueReference() const {
     return getValueKind() == VK_LValue;
   }
+
+  /// Determine whether this temporary object is usable in constant
+  /// expressions, as specified in C++20 [expr.const]p4.
+  bool isUsableInConstantExpressions(const ASTContext &Context) const;
 
   SourceLocation getBeginLoc() const LLVM_READONLY {
     return getSubExpr()->getBeginLoc();

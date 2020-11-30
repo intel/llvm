@@ -25,16 +25,19 @@ int main() {
     pltIdx++;
     if (plt.has(aspect::host)) {
       std::cout << "Platform #" << pltIdx
-                << " type: host supports:" << std::endl;
+                << " type: Host supports:" << std::endl;
     } else if (plt.has(aspect::cpu)) {
       std::cout << "Platform #" << pltIdx
-                << " type: cpu supports:" << std::endl;
+                << " type: CPU supports:" << std::endl;
     } else if (plt.has(aspect::gpu)) {
       std::cout << "Platform #" << pltIdx
-                << " type: gpu supports:" << std::endl;
+                << " type: GPU supports:" << std::endl;
     } else if (plt.has(aspect::accelerator)) {
       std::cout << "Platform #" << pltIdx
-                << " type: accelerator supports:" << std::endl;
+                << " type: Accelerator supports:" << std::endl;
+    } else if (plt.has(aspect::custom)) {
+      std::cout << "Platform #" << pltIdx
+                << " type: Custom supports:" << std::endl;
     } else {
       failed = true;
       std::cout << "Failed: platform #" << pltIdx << " type: unknown"
@@ -65,6 +68,21 @@ int main() {
     }
     if (plt.has(aspect::queue_profiling)) {
       std::cout << "  queue profiling" << std::endl;
+    }
+    if (plt.has(aspect::usm_device_allocations)) {
+      std::cout << "  USM allocations" << std::endl;
+    }
+    if (plt.has(aspect::usm_host_allocations)) {
+      std::cout << "  USM host allocations" << std::endl;
+    }
+    if (plt.has(aspect::usm_shared_allocations)) {
+      std::cout << "  USM shared allocations" << std::endl;
+    }
+    if (plt.has(aspect::usm_restricted_shared_allocations)) {
+      std::cout << "  USM restricted shared allocations" << std::endl;
+    }
+    if (plt.has(aspect::usm_system_allocator)) {
+      std::cout << "  USM system allocator" << std::endl;
     }
   }
   std::cout << "Passed." << std::endl;

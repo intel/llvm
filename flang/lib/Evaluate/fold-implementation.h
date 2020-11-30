@@ -1113,7 +1113,13 @@ auto ApplyElementwise(FoldingContext &context,
         if (rightExpr.Rank() > 0) {
           if (std::optional<Shape> rightShape{GetShape(context, rightExpr)}) {
             if (auto right{AsFlatArrayConstructor(rightExpr)}) {
-              CheckConformance(context.messages(), *leftShape, *rightShape);
+              if (CheckConformance(
+                      context.messages(), *leftShape, *rightShape)) {
+                return MapOperation(context, std::move(f), *leftShape,
+                    std::move(*left), std::move(*right));
+              } else {
+                return std::nullopt;
+              }
               return MapOperation(context, std::move(f), *leftShape,
                   std::move(*left), std::move(*right));
             }
@@ -1185,12 +1191,12 @@ Expr<TO> FoldOperation(
         auto &convert{msvcWorkaround.convert};
         char buffer[64];
         if (auto value{GetScalarConstantValue<Operand>(kindExpr)}) {
-          FoldingContext &context{msvcWorkaround.context};
+          FoldingContext &ctx{msvcWorkaround.context};
           if constexpr (TO::category == TypeCategory::Integer) {
             if constexpr (Operand::category == TypeCategory::Integer) {
               auto converted{Scalar<TO>::ConvertSigned(*value)};
               if (converted.overflow) {
-                context.messages().Say(
+                ctx.messages().Say(
                     "INTEGER(%d) to INTEGER(%d) conversion overflowed"_en_US,
                     Operand::kind, TO::kind);
               }
@@ -1198,11 +1204,11 @@ Expr<TO> FoldOperation(
             } else if constexpr (Operand::category == TypeCategory::Real) {
               auto converted{value->template ToInteger<Scalar<TO>>()};
               if (converted.flags.test(RealFlag::InvalidArgument)) {
-                context.messages().Say(
+                ctx.messages().Say(
                     "REAL(%d) to INTEGER(%d) conversion: invalid argument"_en_US,
                     Operand::kind, TO::kind);
               } else if (converted.flags.test(RealFlag::Overflow)) {
-                context.messages().Say(
+                ctx.messages().Say(
                     "REAL(%d) to INTEGER(%d) conversion overflowed"_en_US,
                     Operand::kind, TO::kind);
               }
@@ -1215,7 +1221,7 @@ Expr<TO> FoldOperation(
                 std::snprintf(buffer, sizeof buffer,
                     "INTEGER(%d) to REAL(%d) conversion", Operand::kind,
                     TO::kind);
-                RealFlagWarnings(context, converted.flags, buffer);
+                RealFlagWarnings(ctx, converted.flags, buffer);
               }
               return ScalarConstantToExpr(std::move(converted.value));
             } else if constexpr (Operand::category == TypeCategory::Real) {
@@ -1223,12 +1229,21 @@ Expr<TO> FoldOperation(
               if (!converted.flags.empty()) {
                 std::snprintf(buffer, sizeof buffer,
                     "REAL(%d) to REAL(%d) conversion", Operand::kind, TO::kind);
-                RealFlagWarnings(context, converted.flags, buffer);
+                RealFlagWarnings(ctx, converted.flags, buffer);
               }
-              if (context.flushSubnormalsToZero()) {
+              if (ctx.flushSubnormalsToZero()) {
                 converted.value = converted.value.FlushSubnormalToZero();
               }
               return ScalarConstantToExpr(std::move(converted.value));
+            }
+          } else if constexpr (TO::category == TypeCategory::Complex) {
+            if constexpr (Operand::category == TypeCategory::Complex) {
+              return FoldOperation(ctx,
+                  ComplexConstructor<TO::kind>{
+                      AsExpr(Convert<typename TO::Part>{AsCategoryExpr(
+                          Constant<typename Operand::Part>{value->REAL()})}),
+                      AsExpr(Convert<typename TO::Part>{AsCategoryExpr(
+                          Constant<typename Operand::Part>{value->AIMAG()})})});
             }
           } else if constexpr (TO::category == TypeCategory::Character &&
               Operand::category == TypeCategory::Character) {

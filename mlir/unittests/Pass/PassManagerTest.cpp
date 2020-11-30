@@ -8,7 +8,7 @@
 
 #include "mlir/Pass/PassManager.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/Function.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
 #include "gtest/gtest.h"
 
@@ -54,6 +54,7 @@ TEST(PassManagerTest, OpSpecificAnalysis) {
     FuncOp func =
         FuncOp::create(builder.getUnknownLoc(), name,
                        builder.getFunctionType(llvm::None, llvm::None));
+    func.setPrivate();
     module->push_back(func);
   }
 
@@ -108,13 +109,16 @@ TEST(PassManagerTest, InvalidPass) {
 
   // Instantiate and run our pass.
   PassManager pm(&context);
-  pm.addPass(std::make_unique<InvalidPass>());
+  pm.nest("invalid_op").addPass(std::make_unique<InvalidPass>());
   LogicalResult result = pm.run(module.get());
   EXPECT_TRUE(failed(result));
   ASSERT_TRUE(diagnostic.get() != nullptr);
   EXPECT_EQ(
       diagnostic->str(),
       "'invalid_op' op trying to schedule a pass on an unregistered operation");
+
+  // Check that adding the pass at the top-level triggers a fatal error.
+  ASSERT_DEATH(pm.addPass(std::make_unique<InvalidPass>()), "");
 }
 
 } // end namespace

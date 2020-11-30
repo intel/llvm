@@ -399,8 +399,9 @@ private:
   /// Get the Value associated with a result <id>.
   ///
   /// This method materializes normal constants and inserts "casting" ops
-  /// (`spv._address_of` and `spv._reference_of`) to turn an symbol into a SSA
-  /// value for handling uses of module scope constants/variables in functions.
+  /// (`spv.mlir.addressof` and `spv.mlir.referenceof`) to turn an symbol into a
+  /// SSA value for handling uses of module scope constants/variables in
+  /// functions.
   Value getValue(uint32_t id);
 
   /// Slices the first instruction out of `binary` and returns its opcode and
@@ -780,10 +781,14 @@ LogicalResult Deserializer::processDecoration(ArrayRef<uint32_t> words) {
     }
     typeDecorations[words[0]] = words[2];
     break;
+  case spirv::Decoration::Aliased:
   case spirv::Decoration::Block:
   case spirv::Decoration::BufferBlock:
   case spirv::Decoration::Flat:
+  case spirv::Decoration::NonReadable:
+  case spirv::Decoration::NonWritable:
   case spirv::Decoration::NoPerspective:
+  case spirv::Decoration::Restrict:
     if (words.size() != 2) {
       return emitError(unknownLoc, "OpDecoration with ")
              << decorationName << "needs a single target <id>";

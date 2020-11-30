@@ -324,6 +324,7 @@ void __kmpc_fork_call(ident_t *loc, kmp_int32 argc, kmpc_micro microtask, ...) {
 #if KMP_STATS_ENABLED
   if (previous_state == stats_state_e::SERIAL_REGION) {
     KMP_EXCHANGE_PARTITIONED_TIMER(OMP_serial);
+    KMP_SET_THREAD_STATE(previous_state);
   } else {
     KMP_POP_PARTITIONED_TIMER();
   }
@@ -436,6 +437,7 @@ void __kmpc_fork_teams(ident_t *loc, kmp_int32 argc, kmpc_micro microtask,
 #if KMP_STATS_ENABLED
   if (previous_state == stats_state_e::SERIAL_REGION) {
     KMP_EXCHANGE_PARTITIONED_TIMER(OMP_serial);
+    KMP_SET_THREAD_STATE(previous_state);
   } else {
     KMP_POP_PARTITIONED_TIMER();
   }
@@ -756,12 +758,12 @@ kmp_int32 __kmpc_master(ident_t *loc, kmp_int32 global_tid) {
 
 #if OMPT_SUPPORT && OMPT_OPTIONAL
   if (status) {
-    if (ompt_enabled.ompt_callback_master) {
+    if (ompt_enabled.ompt_callback_masked) {
       kmp_info_t *this_thr = __kmp_threads[global_tid];
       kmp_team_t *team = this_thr->th.th_team;
 
       int tid = __kmp_tid_from_gtid(global_tid);
-      ompt_callbacks.ompt_callback(ompt_callback_master)(
+      ompt_callbacks.ompt_callback(ompt_callback_masked)(
           ompt_scope_begin, &(team->t.ompt_team_info.parallel_data),
           &(team->t.t_implicit_task_taskdata[tid].ompt_task_info.task_data),
           OMPT_GET_RETURN_ADDRESS(0));
@@ -803,9 +805,9 @@ void __kmpc_end_master(ident_t *loc, kmp_int32 global_tid) {
 #if OMPT_SUPPORT && OMPT_OPTIONAL
   kmp_info_t *this_thr = __kmp_threads[global_tid];
   kmp_team_t *team = this_thr->th.th_team;
-  if (ompt_enabled.ompt_callback_master) {
+  if (ompt_enabled.ompt_callback_masked) {
     int tid = __kmp_tid_from_gtid(global_tid);
-    ompt_callbacks.ompt_callback(ompt_callback_master)(
+    ompt_callbacks.ompt_callback(ompt_callback_masked)(
         ompt_scope_end, &(team->t.ompt_team_info.parallel_data),
         &(team->t.t_implicit_task_taskdata[tid].ompt_task_info.task_data),
         OMPT_GET_RETURN_ADDRESS(0));
@@ -4202,9 +4204,19 @@ void __kmpc_doacross_fini(ident_t *loc, int gtid) {
   KA_TRACE(20, ("__kmpc_doacross_fini() exit: T#%d\n", gtid));
 }
 
-/* omp_alloc/omp_free only defined for C/C++, not for Fortran */
+/* omp_alloc/omp_calloc/omp_free only defined for C/C++, not for Fortran */
 void *omp_alloc(size_t size, omp_allocator_handle_t allocator) {
   return __kmpc_alloc(__kmp_entry_gtid(), size, allocator);
+}
+
+void *omp_calloc(size_t nmemb, size_t size, omp_allocator_handle_t allocator) {
+  return __kmpc_calloc(__kmp_entry_gtid(), nmemb, size, allocator);
+}
+
+void *omp_realloc(void *ptr, size_t size, omp_allocator_handle_t allocator,
+                  omp_allocator_handle_t free_allocator) {
+  return __kmpc_realloc(__kmp_entry_gtid(), ptr, size, allocator,
+                        free_allocator);
 }
 
 void omp_free(void *ptr, omp_allocator_handle_t allocator) {

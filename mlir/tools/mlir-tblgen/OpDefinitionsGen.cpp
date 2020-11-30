@@ -325,7 +325,7 @@ private:
 //   attribute (the generated function call returns an Attribute);
 // - operandGet corresponds to the name of the function with which to retrieve
 //   an operand (the generated function call returns an OperandRange);
-// - reultGet corresponds to the name of the function to get an result (the
+// - resultGet corresponds to the name of the function to get an result (the
 //   generated function call returns a ValueRange);
 static void populateSubstitutions(const Operator &op, const char *attrGet,
                                   const char *operandGet, const char *resultGet,
@@ -570,7 +570,7 @@ void OpEmitter::genAttrGetters() {
         PrintWarning(
             op.getLoc(),
             formatv(
-                "op has non-materialzable derived attributes '{0}', skipping",
+                "op has non-materializable derived attributes '{0}', skipping",
                 os.str()));
         body << formatv("  emitOpError(\"op has non-materializable derived "
                         "attributes '{0}'\");\n",
@@ -965,7 +965,7 @@ void OpEmitter::genSeparateArgParamBuilder() {
     llvm_unreachable("unhandled TypeParamKind");
   };
 
-  // Some of the build methods generated here may be amiguous, but TableGen's
+  // Some of the build methods generated here may be ambiguous, but TableGen's
   // ambiguous function detection will elide those ones.
   for (auto attrType : attrBuilderType) {
     emit(attrType, TypeParamKind::Separate, /*inferType=*/false);
@@ -1144,6 +1144,82 @@ void OpEmitter::genUseAttrAsResultTypeBuilder() {
   body << "  }\n";
 }
 
+/// Returns a signature of the builder as defined by a dag-typed initializer.
+/// Updates the context `fctx` to enable replacement of $_builder and $_state
+/// in the body. Reports errors at `loc`.
+static std::string builderSignatureFromDAG(const DagInit *init,
+                                           ArrayRef<llvm::SMLoc> loc,
+                                           FmtContext &fctx) {
+  auto *defInit = dyn_cast<DefInit>(init->getOperator());
+  if (!defInit || !defInit->getDef()->getName().equals("ins"))
+    PrintFatalError(loc, "expected 'ins' in builders");
+
+  // Inject builder and state arguments.
+  llvm::SmallVector<std::string, 8> arguments;
+  arguments.reserve(init->getNumArgs() + 2);
+  arguments.push_back(llvm::formatv("::mlir::OpBuilder &{0}", builder).str());
+  arguments.push_back(
+      llvm::formatv("::mlir::OperationState &{0}", builderOpState).str());
+
+  // Accept either a StringInit or a DefInit with two string values as dag
+  // arguments. The former corresponds to the type, the latter to the type and
+  // the default value. Similarly to C++, once an argument with a default value
+  // is detected, the following arguments must have default values as well.
+  bool seenDefaultValue = false;
+  for (unsigned i = 0, e = init->getNumArgs(); i < e; ++i) {
+    // If no name is provided, generate one.
+    StringInit *argName = init->getArgName(i);
+    std::string name =
+        argName ? argName->getValue().str() : "odsArg" + std::to_string(i);
+
+    Init *argInit = init->getArg(i);
+    StringRef type;
+    std::string defaultValue;
+    if (StringInit *strType = dyn_cast<StringInit>(argInit)) {
+      type = strType->getValue();
+    } else {
+      const Record *typeAndDefaultValue = cast<DefInit>(argInit)->getDef();
+      type = typeAndDefaultValue->getValueAsString("type");
+      StringRef defaultValueRef =
+          typeAndDefaultValue->getValueAsString("defaultValue");
+      if (!defaultValueRef.empty()) {
+        seenDefaultValue = true;
+        defaultValue = llvm::formatv(" = {0}", defaultValueRef).str();
+      }
+    }
+    if (seenDefaultValue && defaultValue.empty())
+      PrintFatalError(loc,
+                      "expected an argument with default value after other "
+                      "arguments with default values");
+    arguments.push_back(
+        llvm::formatv("{0} {1}{2}", type, name, defaultValue).str());
+  }
+
+  fctx.withBuilder(builder);
+  fctx.addSubst("_state", builderOpState);
+
+  return llvm::join(arguments, ", ");
+}
+
+// Returns a signature fo the builder as defined by a string initializer,
+// optionally injecting the builder and state arguments.
+// TODO: to be removed after the transition is complete.
+static std::string builderSignatureFromString(StringRef params,
+                                              FmtContext &fctx) {
+  bool skipParamGen = params.startswith("OpBuilder") ||
+                      params.startswith("mlir::OpBuilder") ||
+                      params.startswith("::mlir::OpBuilder");
+  if (skipParamGen)
+    return params.str();
+
+  fctx.withBuilder(builder);
+  fctx.addSubst("_state", builderOpState);
+  return std::string(llvm::formatv("::mlir::OpBuilder &{0}, "
+                                   "::mlir::OperationState &{1}{2}{3}",
+                                   builder, builderOpState,
+                                   params.empty() ? "" : ", ", params));
+}
+
 void OpEmitter::genBuilder() {
   // Handle custom builders if provided.
   // TODO: Create wrapper class for OpBuilder to hide the native
@@ -1153,35 +1229,28 @@ void OpEmitter::genBuilder() {
     if (listInit) {
       for (Init *init : listInit->getValues()) {
         Record *builderDef = cast<DefInit>(init)->getDef();
-        StringRef params = builderDef->getValueAsString("params").trim();
-        // TODO: Remove this and just generate the builder/state always.
-        bool skipParamGen = params.startswith("OpBuilder") ||
-                            params.startswith("mlir::OpBuilder") ||
-                            params.startswith("::mlir::OpBuilder");
+        llvm::Optional<StringRef> params =
+            builderDef->getValueAsOptionalString("params");
+        FmtContext fctx;
+        if (params.hasValue()) {
+          PrintWarning(op.getLoc(),
+                       "Op uses a deprecated, string-based OpBuilder format; "
+                       "use OpBuilderDAG with '(ins <...>)' instead");
+        }
+        std::string paramStr =
+            params.hasValue() ? builderSignatureFromString(params->trim(), fctx)
+                              : builderSignatureFromDAG(
+                                    builderDef->getValueAsDag("dagParams"),
+                                    op.getLoc(), fctx);
+
         StringRef body = builderDef->getValueAsString("body");
         bool hasBody = !body.empty();
-
         OpMethod::Property properties =
             hasBody ? OpMethod::MP_Static : OpMethod::MP_StaticDeclaration;
-        std::string paramStr =
-            skipParamGen ? params.str()
-                         : llvm::formatv("::mlir::OpBuilder &{0}, "
-                                         "::mlir::OperationState &{1}{2}{3}",
-                                         builder, builderOpState,
-                                         params.empty() ? "" : ", ", params)
-                               .str();
         auto *method =
             opClass.addMethodAndPrune("void", "build", properties, paramStr);
-        if (hasBody) {
-          if (skipParamGen) {
-            method->body() << body;
-          } else {
-            FmtContext fctx;
-            fctx.withBuilder(builder);
-            fctx.addSubst("_state", builderOpState);
-            method->body() << tgfmt(body, &fctx);
-          }
-        }
+        if (hasBody)
+          method->body() << tgfmt(body, &fctx);
       }
     }
     if (op.skipDefaultBuilders()) {
@@ -1558,12 +1627,12 @@ void OpEmitter::genOpInterfaceMethods() {
 }
 
 void OpEmitter::genSideEffectInterfaceMethods() {
-  enum EffectKind { Operand, Result, Static };
+  enum EffectKind { Operand, Result, Symbol, Static };
   struct EffectLocation {
     /// The effect applied.
     SideEffect effect;
 
-    /// The index if the kind is either operand or result.
+    /// The index if the kind is not static.
     unsigned index : 30;
 
     /// The kind of the location.
@@ -1592,16 +1661,28 @@ void OpEmitter::genSideEffectInterfaceMethods() {
       effects.push_back(EffectLocation{cast<SideEffect>(decorator),
                                        /*index=*/0, EffectKind::Static});
   }
-  /// Operands.
+  /// Attributes and Operands.
   for (unsigned i = 0, operandIt = 0, e = op.getNumArgs(); i != e; ++i) {
-    if (op.getArg(i).is<NamedTypeConstraint *>()) {
+    Argument arg = op.getArg(i);
+    if (arg.is<NamedTypeConstraint *>()) {
       resolveDecorators(op.getArgDecorators(i), operandIt, EffectKind::Operand);
       ++operandIt;
+      continue;
     }
+    const NamedAttribute *attr = arg.get<NamedAttribute *>();
+    if (attr->attr.getBaseAttr().isSymbolRefAttr())
+      resolveDecorators(op.getArgDecorators(i), i, EffectKind::Symbol);
   }
   /// Results.
   for (unsigned i = 0, e = op.getNumResults(); i != e; ++i)
     resolveDecorators(op.getResultDecorators(i), i, EffectKind::Result);
+
+  // The code used to add an effect instance.
+  // {0}: The effect class.
+  // {1}: Optional value or symbol reference.
+  // {1}: The resource class.
+  const char *addEffectCode =
+      "  effects.emplace_back({0}::get(), {1}{2}::get());\n";
 
   for (auto &it : interfaceEffects) {
     // Generate the 'getEffects' method.
@@ -1615,19 +1696,30 @@ void OpEmitter::genSideEffectInterfaceMethods() {
 
     // Add effect instances for each of the locations marked on the operation.
     for (auto &location : it.second) {
-      if (location.kind != EffectKind::Static) {
+      StringRef effect = location.effect.getName();
+      StringRef resource = location.effect.getResource();
+      if (location.kind == EffectKind::Static) {
+        // A static instance has no attached value.
+        body << llvm::formatv(addEffectCode, effect, "", resource).str();
+      } else if (location.kind == EffectKind::Symbol) {
+        // A symbol reference requires adding the proper attribute.
+        const auto *attr = op.getArg(location.index).get<NamedAttribute *>();
+        if (attr->attr.isOptional()) {
+          body << "  if (auto symbolRef = " << attr->name << "Attr())\n  "
+               << llvm::formatv(addEffectCode, effect, "symbolRef, ", resource)
+                      .str();
+        } else {
+          body << llvm::formatv(addEffectCode, effect, attr->name + "(), ",
+                                resource)
+                      .str();
+        }
+      } else {
+        // Otherwise this is an operand/result, so we need to attach the Value.
         body << "  for (::mlir::Value value : getODS"
              << (location.kind == EffectKind::Operand ? "Operands" : "Results")
-             << "(" << location.index << "))\n  ";
+             << "(" << location.index << "))\n  "
+             << llvm::formatv(addEffectCode, effect, "value, ", resource).str();
       }
-
-      body << "  effects.emplace_back(" << location.effect.getName()
-           << "::get()";
-
-      // If the effect isn't static, it has a specific value attached to it.
-      if (location.kind != EffectKind::Static)
-        body << ", value";
-      body << ", " << location.effect.getResource() << "::get());\n";
     }
   }
 }

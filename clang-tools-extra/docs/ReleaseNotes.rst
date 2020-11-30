@@ -85,6 +85,12 @@ New modules
 New checks
 ^^^^^^^^^^
 
+- New :doc:`altera-kernel-name-restriction
+  <clang-tidy/checks/altera-kernel-name-restriction>` check.
+
+  Finds kernel files and include directives whose filename is `kernel.cl`,
+  `Verilog.cl`, or `VHDL.cl`.
+
 - New :doc:`altera-struct-pack-align
   <clang-tidy/checks/altera-struct-pack-align>` check.
 
@@ -105,6 +111,18 @@ New checks
 
   Finds condition variables in nested ``if`` statements that were also checked
   in the outer ``if`` statement and were not changed.
+
+- New :doc:`bugprone-signal-handler
+  <clang-tidy/checks/bugprone-signal-handler>` check.
+
+  Finds functions registered as signal handlers that call non asynchronous-safe
+  functions.
+
+- New :doc:`cert-sig30-c
+  <clang-tidy/checks/cert-sig30-c>` check.
+
+  Alias to the :doc:`bugprone-signal-handler
+  <clang-tidy/checks/bugprone-signal-handler>` check.
 
 - New :doc:`readability-function-cognitive-complexity
   <clang-tidy/checks/readability-function-cognitive-complexity>` check.
@@ -133,6 +151,11 @@ Changes in existing checks
 
 - Removed `google-runtime-references` check because the rule it checks does
   not exist in the Google Style Guide anymore.
+
+- Improved :doc:`readability-redundant-string-init
+  <clang-tidy/checks/readability-redundant-string-init>` check.
+
+  Added `std::basic_string_view` to default list of ``string``-like types.
 
 Improvements to include-fixer
 -----------------------------
