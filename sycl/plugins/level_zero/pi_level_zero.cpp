@@ -2112,7 +2112,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     ze_device_mem_alloc_desc_t ZeDesc = {};
     ZeDesc.flags = 0;
     ZeDesc.ordinal = 0;
-    
+
     ZE_CALL(
         zeMemAllocDevice(Context->ZeContext, &ZeDesc, Size, 1, ZeDevice, &Ptr));
   }
