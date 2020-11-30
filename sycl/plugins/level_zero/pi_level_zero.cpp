@@ -2109,12 +2109,12 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     ZE_CALL(zeMemAllocHost(Context->ZeContext, &ZeDesc, Size, 1, &Ptr));
 
   } else {
-    ze_device_mem_alloc_desc_t ZeDeviceMemDesc = {};
-    ZeDeviceMemDesc.flags = 0;
-    ZeDeviceMemDesc.ordinal = 0;
-
-    ZE_CALL(zeMemAllocDevice(Context->ZeContext, &ZeDeviceMemDesc, Size, 1,
-                             ZeDevice, &Ptr));
+    ze_device_mem_alloc_desc_t ZeDesc = {};
+    ZeDesc.flags = 0;
+    ZeDesc.ordinal = 0;
+    
+    ZE_CALL(
+        zeMemAllocDevice(Context->ZeContext, &ZeDesc, Size, 1, ZeDevice, &Ptr));
   }
 
   if (HostPtr) {
