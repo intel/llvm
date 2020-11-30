@@ -357,8 +357,8 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
     // by copying specific range from host to device and backwards.
     NewCmd =
         new MemCpyCommand(*AllocaCmdSrc->getRequirement(), AllocaCmdSrc,
-                          *Req, AllocaCmdDst,
-                          AllocaCmdSrc->getQueue(), AllocaCmdDst->getQueue());
+                          *Req, AllocaCmdDst, AllocaCmdSrc->getQueue(),
+                          AllocaCmdDst->getQueue());
   }
 
   for (Command *Dep : Deps) {
