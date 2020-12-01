@@ -485,7 +485,7 @@ void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
 
   // 1. Async work is not supported for host device.
   // 2. The event handle can be null in case of, for example, alloca command,
-  //    which is currently synchrounious, so don't generate OpenCL event.
+  //    which is currently synchronous, so don't generate OpenCL event.
   //    Though, this event isn't host one as it's context isn't host one.
   if (DepEvent->is_host() || DepEvent->getHandleRef() == nullptr) {
     // call to waitInternal() is in waitForPreparedHostEvents() as it's called
@@ -761,14 +761,6 @@ cl_int AllocaCommand::enqueueImp() {
       detail::getSyclObjImpl(MQueue->get_context()), getSYCLMemObj(),
       MInitFromUserData, HostPtr, std::move(EventImpls), Event);
 
-  // if this is ESIMD accessor, wrap the allocated device memory buffer into
-  // an image buffer object.
-  // TODO Address copying SYCL/ESIMD memory between contexts.
-  if (getRequirement()->MIsESIMDAcc)
-    ESIMDExt.MWrapperImage = MemoryManager::wrapIntoImageBuffer(
-        detail::getSyclObjImpl(MQueue->get_context()), MMemAllocation,
-        getSYCLMemObj());
-
   return CL_SUCCESS;
 }
 
@@ -960,10 +952,6 @@ cl_int ReleaseCommand::enqueueImp() {
                            MAllocaCmd->getSYCLMemObj(),
                            MAllocaCmd->getMemAllocation(),
                            std::move(EventImpls), Event);
-    // Release the wrapper object if present.
-    if (void *WrapperImage = MAllocaCmd->ESIMDExt.MWrapperImage)
-      MemoryManager::releaseImageBuffer(
-          detail::getSyclObjImpl(MQueue->get_context()), WrapperImage);
   }
   return CL_SUCCESS;
 }
@@ -1670,9 +1658,7 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
     case kernel_param_kind_t::kind_accessor: {
       Requirement *Req = (Requirement *)(Arg.MPtr);
       AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
-      RT::PiMem MemArg = Req->MIsESIMDAcc
-                             ? (RT::PiMem)AllocaCmd->ESIMDExt.MWrapperImage
-                             : (RT::PiMem)AllocaCmd->getMemAllocation();
+      RT::PiMem MemArg = (RT::PiMem)AllocaCmd->getMemAllocation();
       if (Plugin.getBackend() == backend::opencl) {
         Plugin.call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex,
                                                sizeof(RT::PiMem), &MemArg);
@@ -2053,7 +2039,8 @@ cl_int ExecCGCommand::enqueueImp() {
             Req->MSYCLMemObj->MRecord->MAllocaCommands;
 
         for (AllocaCommandBase *AllocaCmd : AllocaCmds)
-          if (HostTask->MQueue == AllocaCmd->getQueue()) {
+          if (HostTask->MQueue->getContextImplPtr() ==
+              AllocaCmd->getQueue()->getContextImplPtr()) {
             auto MemArg =
                 reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
             ReqToMem.emplace_back(std::make_pair(Req, MemArg));

@@ -1,7 +1,7 @@
 // RUN: %clangxx %s -o %t1.out -lsycl -I %sycl_include -Wno-sycl-strict -Xclang -verify-ignore-unexpected=note,warning
-// RUN: env SYCL_DEVICE_TYPE=HOST %t1.out
+// RUN: %RUN_ON_HOST %t1.out
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t2.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t2.out
+// RUN: %RUN_ON_HOST %t2.out
 // RUN: %CPU_RUN_PLACEHOLDER %t2.out
 // RUN: %GPU_RUN_PLACEHOLDER %t2.out
 // RUN: %ACC_RUN_PLACEHOLDER %t2.out

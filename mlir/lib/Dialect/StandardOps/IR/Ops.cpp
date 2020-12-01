@@ -13,9 +13,8 @@
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/Function.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Matchers.h"
-#include "mlir/IR/Module.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/StandardTypes.h"
@@ -167,36 +166,6 @@ Operation *StandardOpsDialect::materializeConstant(OpBuilder &builder,
                                                    Attribute value, Type type,
                                                    Location loc) {
   return builder.create<ConstantOp>(loc, type, value);
-}
-
-void mlir::printDimAndSymbolList(Operation::operand_iterator begin,
-                                 Operation::operand_iterator end,
-                                 unsigned numDims, OpAsmPrinter &p) {
-  Operation::operand_range operands(begin, end);
-  p << '(' << operands.take_front(numDims) << ')';
-  if (operands.size() != numDims)
-    p << '[' << operands.drop_front(numDims) << ']';
-}
-
-// Parses dimension and symbol list, and sets 'numDims' to the number of
-// dimension operands parsed.
-// Returns 'false' on success and 'true' on error.
-ParseResult mlir::parseDimAndSymbolList(OpAsmParser &parser,
-                                        SmallVectorImpl<Value> &operands,
-                                        unsigned &numDims) {
-  SmallVector<OpAsmParser::OperandType, 8> opInfos;
-  if (parser.parseOperandList(opInfos, OpAsmParser::Delimiter::Paren))
-    return failure();
-  // Store number of dimensions for validation by caller.
-  numDims = opInfos.size();
-
-  // Parse the optional symbol operands.
-  auto indexTy = parser.getBuilder().getIndexType();
-  if (parser.parseOperandList(opInfos,
-                              OpAsmParser::Delimiter::OptionalSquare) ||
-      parser.resolveOperands(opInfos, indexTy, operands))
-    return failure();
-  return success();
 }
 
 /// Matches a ConstantIndexOp.
@@ -404,90 +373,37 @@ static LogicalResult verifyOpWithOffsetSizesAndStrides(OpType op) {
 //===----------------------------------------------------------------------===//
 
 template <typename AllocLikeOp>
-static void printAllocLikeOp(OpAsmPrinter &p, AllocLikeOp op, StringRef name) {
-  static_assert(llvm::is_one_of<AllocLikeOp, AllocOp, AllocaOp>::value,
-                "applies to only alloc or alloca");
-  p << name;
-
-  // Print dynamic dimension operands.
-  MemRefType type = op.getType();
-  printDimAndSymbolList(op.operand_begin(), op.operand_end(),
-                        type.getNumDynamicDims(), p);
-  p.printOptionalAttrDict(op.getAttrs(), /*elidedAttrs=*/{"map"});
-  p << " : " << type;
-}
-
-static void print(OpAsmPrinter &p, AllocOp op) {
-  printAllocLikeOp(p, op, "alloc");
-}
-
-static void print(OpAsmPrinter &p, AllocaOp op) {
-  printAllocLikeOp(p, op, "alloca");
-}
-
-static ParseResult parseAllocLikeOp(OpAsmParser &parser,
-                                    OperationState &result) {
-  MemRefType type;
-
-  // Parse the dimension operands and optional symbol operands, followed by a
-  // memref type.
-  unsigned numDimOperands;
-  if (parseDimAndSymbolList(parser, result.operands, numDimOperands) ||
-      parser.parseOptionalAttrDict(result.attributes) ||
-      parser.parseColonType(type))
-    return failure();
-
-  // Check numDynamicDims against number of question marks in memref type.
-  // Note: this check remains here (instead of in verify()), because the
-  // partition between dim operands and symbol operands is lost after parsing.
-  // Verification still checks that the total number of operands matches
-  // the number of symbols in the affine map, plus the number of dynamic
-  // dimensions in the memref.
-  if (numDimOperands != type.getNumDynamicDims())
-    return parser.emitError(parser.getNameLoc())
-           << "dimension operand count does not equal memref dynamic dimension "
-              "count";
-  result.types.push_back(type);
-  return success();
-}
-
-template <typename AllocLikeOp>
-static LogicalResult verify(AllocLikeOp op) {
+static LogicalResult verifyAllocLikeOp(AllocLikeOp op) {
   static_assert(llvm::is_one_of<AllocLikeOp, AllocOp, AllocaOp>::value,
                 "applies to only alloc or alloca");
   auto memRefType = op.getResult().getType().template dyn_cast<MemRefType>();
   if (!memRefType)
     return op.emitOpError("result must be a memref");
 
+  if (static_cast<int64_t>(op.dynamicSizes().size()) !=
+      memRefType.getNumDynamicDims())
+    return op.emitOpError("dimension operand count does not equal memref "
+                          "dynamic dimension count");
+
   unsigned numSymbols = 0;
-  if (!memRefType.getAffineMaps().empty()) {
-    // Store number of symbols used in affine map (used in subsequent check).
-    AffineMap affineMap = memRefType.getAffineMaps()[0];
-    numSymbols = affineMap.getNumSymbols();
-  }
-
-  // Check that the total number of operands matches the number of symbols in
-  // the affine map, plus the number of dynamic dimensions specified in the
-  // memref type.
-  unsigned numDynamicDims = memRefType.getNumDynamicDims();
-  if (op.getNumOperands() != numDynamicDims + numSymbols)
+  if (!memRefType.getAffineMaps().empty())
+    numSymbols = memRefType.getAffineMaps().front().getNumSymbols();
+  if (op.symbolOperands().size() != numSymbols)
     return op.emitOpError(
-        "operand count does not equal dimension plus symbol operand count");
+        "symbol operand count does not equal memref symbol count");
 
-  // Verify that all operands are of type Index.
-  for (auto operandType : op.getOperandTypes())
-    if (!operandType.isIndex())
-      return op.emitOpError("requires operands to be of type Index");
+  return success();
+}
 
-  if (std::is_same<AllocLikeOp, AllocOp>::value)
-    return success();
+static LogicalResult verify(AllocOp op) { return verifyAllocLikeOp(op); }
 
+static LogicalResult verify(AllocaOp op) {
   // An alloca op needs to have an ancestor with an allocation scope trait.
-  if (!op.template getParentWithTrait<OpTrait::AutomaticAllocationScope>())
+  if (!op.getParentWithTrait<OpTrait::AutomaticAllocationScope>())
     return op.emitOpError(
         "requires an ancestor op with AutomaticAllocationScope trait");
 
-  return success();
+  return verifyAllocLikeOp(op);
 }
 
 namespace {
@@ -1000,9 +916,33 @@ bool mlir::applyCmpPredicate(CmpIPredicate predicate, const APInt &lhs,
   llvm_unreachable("unknown comparison predicate");
 }
 
+// Returns true if the predicate is true for two equal operands.
+static bool applyCmpPredicateToEqualOperands(CmpIPredicate predicate) {
+  switch (predicate) {
+  case CmpIPredicate::eq:
+  case CmpIPredicate::sle:
+  case CmpIPredicate::sge:
+  case CmpIPredicate::ule:
+  case CmpIPredicate::uge:
+    return true;
+  case CmpIPredicate::ne:
+  case CmpIPredicate::slt:
+  case CmpIPredicate::sgt:
+  case CmpIPredicate::ult:
+  case CmpIPredicate::ugt:
+    return false;
+  }
+  llvm_unreachable("unknown comparison predicate");
+}
+
 // Constant folding hook for comparisons.
 OpFoldResult CmpIOp::fold(ArrayRef<Attribute> operands) {
   assert(operands.size() == 2 && "cmpi takes two arguments");
+
+  if (lhs() == rhs()) {
+    auto val = applyCmpPredicateToEqualOperands(getPredicate());
+    return BoolAttr::get(val, getContext());
+  }
 
   auto lhs = operands.front().dyn_cast_or_null<IntegerAttr>();
   auto rhs = operands.back().dyn_cast_or_null<IntegerAttr>();
@@ -1010,7 +950,7 @@ OpFoldResult CmpIOp::fold(ArrayRef<Attribute> operands) {
     return {};
 
   auto val = applyCmpPredicate(getPredicate(), lhs.getValue(), rhs.getValue());
-  return IntegerAttr::get(IntegerType::get(1, getContext()), APInt(1, val));
+  return BoolAttr::get(val, getContext());
 }
 
 //===----------------------------------------------------------------------===//
@@ -1568,6 +1508,25 @@ OpFoldResult DimOp::fold(ArrayRef<Attribute> operands) {
     return getResult();
   }
 
+  // Fold dim to the operand of dynamic_tensor_from_elements.
+  if (auto fromElements =
+          dyn_cast_or_null<DynamicTensorFromElementsOp>(definingOp)) {
+    auto resultType =
+        fromElements.getResult().getType().cast<RankedTensorType>();
+    // The case where the type encodes the size of the dimension is handled
+    // above.
+    assert(resultType.getShape()[index.getInt()] ==
+           RankedTensorType::kDynamicSize);
+
+    // Find the operand of the fromElements that corresponds to this index.
+    auto dynExtents = fromElements.dynamicExtents().begin();
+    for (auto dim : resultType.getShape().take_front(index.getInt()))
+      if (dim == RankedTensorType::kDynamicSize)
+        dynExtents++;
+
+    return Value{*dynExtents};
+  }
+
   // Fold dim to the size argument for an `AllocOp`, `ViewOp`, or `SubViewOp`.
   auto memrefType = argTy.dyn_cast<MemRefType>();
   if (!memrefType)
@@ -1594,6 +1553,34 @@ OpFoldResult DimOp::fold(ArrayRef<Attribute> operands) {
     return getResult();
 
   return {};
+}
+
+namespace {
+/// Fold dim of a memref reshape operation to a load into the reshape's shape
+/// operand.
+struct DimOfMemRefReshape : public OpRewritePattern<DimOp> {
+  using OpRewritePattern<DimOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(DimOp dim,
+                                PatternRewriter &rewriter) const override {
+    auto reshape = dim.memrefOrTensor().getDefiningOp<MemRefReshapeOp>();
+
+    if (!reshape)
+      return failure();
+
+    // Place the load directly after the reshape to ensure that the shape memref
+    // was not mutated.
+    rewriter.setInsertionPointAfter(reshape);
+    rewriter.replaceOpWithNewOp<LoadOp>(dim, reshape.shape(),
+                                        llvm::makeArrayRef({dim.index()}));
+    return success();
+  }
+};
+} // end anonymous namespace.
+
+void DimOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                        MLIRContext *context) {
+  results.insert<DimOfMemRefReshape>(context);
 }
 
 // ---------------------------------------------------------------------------
@@ -2010,12 +1997,37 @@ struct ExtractElementFromDynamicTensorFromElements
   }
 };
 
+/// Canonicalizes the pattern of the form
+///
+/// %val = tensor_cast %source : : tensor<?xi32> to tensor<2xi32>
+/// %extracted_element = extract_element %val[%c0] : tensor<2xi32>
+///
+/// to
+///
+/// %extracted_element = extract_element %source[%c0] : tensor<?xi32>
+struct ExtractElementFromTensorCast
+    : public OpRewritePattern<ExtractElementOp> {
+  using OpRewritePattern<ExtractElementOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(ExtractElementOp extract,
+                                PatternRewriter &rewriter) const final {
+    auto tensorCast = extract.aggregate().getDefiningOp<TensorCastOp>();
+    if (!tensorCast)
+      return failure();
+
+    rewriter.replaceOpWithNewOp<ExtractElementOp>(extract, tensorCast.source(),
+                                                  extract.getIndices());
+    return success();
+  }
+};
+
 } // namespace
 
 void DynamicTensorFromElementsOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {
   results.insert<ExtractElementFromDynamicTensorFromElements,
-                 StaticDynamicTensorFromElements>(context);
+                 ExtractElementFromTensorCast, StaticDynamicTensorFromElements>(
+      context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -2309,6 +2321,30 @@ OpFoldResult LoadOp::fold(ArrayRef<Attribute> cstOperands) {
   return OpFoldResult();
 }
 
+namespace {
+/// Fold a load on a tensor_to_memref operation into an extract_element on the
+/// corresponding tensor.
+struct LoadOfTensorToMemref : public OpRewritePattern<LoadOp> {
+  using OpRewritePattern<LoadOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(LoadOp load,
+                                PatternRewriter &rewriter) const override {
+    auto tensorToMemref = load.memref().getDefiningOp<TensorToMemrefOp>();
+    if (!tensorToMemref)
+      return failure();
+
+    rewriter.replaceOpWithNewOp<ExtractElementOp>(load, tensorToMemref.tensor(),
+                                                  load.indices());
+    return success();
+  }
+};
+} // end anonymous namespace.
+
+void LoadOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                         MLIRContext *context) {
+  results.insert<LoadOfTensorToMemref>(context);
+}
+
 //===----------------------------------------------------------------------===//
 // MemRefCastOp
 //===----------------------------------------------------------------------===//
@@ -2386,7 +2422,9 @@ bool MemRefCastOp::areCastCompatible(Type a, Type b) {
 }
 
 OpFoldResult MemRefCastOp::fold(ArrayRef<Attribute> operands) {
-  return impl::foldCastOp(*this);
+  if (Value folded = impl::foldCastOp(*this))
+    return folded;
+  return succeeded(foldMemRefCast(*this)) ? getResult() : Value();
 }
 
 //===----------------------------------------------------------------------===//

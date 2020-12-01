@@ -318,16 +318,29 @@ private:
 
   /// Extracts and prepares kernel arguments from the lambda using integration
   /// header.
+  /// TODO replace with the version below once ABI breaking changes are allowed.
   void
   extractArgsAndReqsFromLambda(char *LambdaPtr, size_t KernelArgsNum,
                                const detail::kernel_param_desc_t *KernelArgs);
 
+  /// Extracts and prepares kernel arguments from the lambda using integration
+  /// header.
+  void
+  extractArgsAndReqsFromLambda(char *LambdaPtr, size_t KernelArgsNum,
+                               const detail::kernel_param_desc_t *KernelArgs,
+                               bool IsESIMD);
+
   /// Extracts and prepares kernel arguments set via set_arg(s).
   void extractArgsAndReqs();
 
+  /// TODO replace with the version below once ABI breaking changes are allowed.
   void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                   const int Size, const size_t Index, size_t &IndexShift,
                   bool IsKernelCreatedFromSource);
+
+  void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
+                  const int Size, const size_t Index, size_t &IndexShift,
+                  bool IsKernelCreatedFromSource, bool IsESIMD);
 
   /// \return a string containing name of SYCL kernel.
   string_class getKernelName();
@@ -490,9 +503,10 @@ private:
     // Empty name indicates that the compilation happens without integration
     // header, so don't perform things that require it.
     if (KI::getName() != nullptr && KI::getName()[0] != '\0') {
+      // TODO support ESIMD in no-integration-header case too.
       MArgs.clear();
       extractArgsAndReqsFromLambda(MHostKernel->getPtr(), KI::getNumParams(),
-                                   &KI::getParamDesc(0));
+                                   &KI::getParamDesc(0), KI::isESIMD());
       MKernelName = KI::getName();
       MOSModuleHandle = detail::OSUtil::getOSModuleHandle(KI::getName());
     } else {

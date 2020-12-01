@@ -573,6 +573,7 @@ template <class T>
 */
 
 #include <__config>
+#include <__availability>
 #include <__threading_support>
 #include <cstddef>
 #include <cstdint>
@@ -1524,7 +1525,7 @@ struct __libcpp_atomic_wait_backoff_impl {
         else if(__elapsed > chrono::microseconds(4))
             __libcpp_thread_yield();
         else
-            ; // poll
+            {} // poll
         return false;
     }
 };

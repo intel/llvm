@@ -356,7 +356,8 @@ Error WasmObjectFile::parseDylinkSection(ReadContext &Ctx) {
 }
 
 Error WasmObjectFile::parseNameSection(ReadContext &Ctx) {
-  llvm::DenseSet<uint64_t> Seen;
+  llvm::DenseSet<uint64_t> SeenFunctions;
+  llvm::DenseSet<uint64_t> SeenGlobals;
   if (FunctionTypes.size() && !SeenCodeSection) {
     return make_error<GenericBinaryError>("Names must come after code section",
                                           object_error::parse_failed);
@@ -367,20 +368,34 @@ Error WasmObjectFile::parseNameSection(ReadContext &Ctx) {
     uint32_t Size = readVaruint32(Ctx);
     const uint8_t *SubSectionEnd = Ctx.Ptr + Size;
     switch (Type) {
-    case wasm::WASM_NAMES_FUNCTION: {
+    case wasm::WASM_NAMES_FUNCTION:
+    case wasm::WASM_NAMES_GLOBAL: {
       uint32_t Count = readVaruint32(Ctx);
       while (Count--) {
         uint32_t Index = readVaruint32(Ctx);
-        if (!Seen.insert(Index).second)
-          return make_error<GenericBinaryError>("Function named more than once",
-                                                object_error::parse_failed);
         StringRef Name = readString(Ctx);
-        if (!isValidFunctionIndex(Index) || Name.empty())
-          return make_error<GenericBinaryError>("Invalid name entry",
-                                                object_error::parse_failed);
-        DebugNames.push_back(wasm::WasmFunctionName{Index, Name});
-        if (isDefinedFunctionIndex(Index))
-          getDefinedFunction(Index).DebugName = Name;
+        if (Type == wasm::WASM_NAMES_FUNCTION) {
+          if (!SeenFunctions.insert(Index).second)
+            return make_error<GenericBinaryError>(
+                "Function named more than once", object_error::parse_failed);
+          if (!isValidFunctionIndex(Index) || Name.empty())
+            return make_error<GenericBinaryError>("Invalid name entry",
+                                                  object_error::parse_failed);
+
+          if (isDefinedFunctionIndex(Index))
+            getDefinedFunction(Index).DebugName = Name;
+        } else {
+          if (!SeenGlobals.insert(Index).second)
+            return make_error<GenericBinaryError>("Global named more than once",
+                                                  object_error::parse_failed);
+          if (!isValidGlobalIndex(Index) || Name.empty())
+            return make_error<GenericBinaryError>("Invalid name entry",
+                                                  object_error::parse_failed);
+        }
+        wasm::NameType T = Type == wasm::WASM_NAMES_FUNCTION
+                               ? wasm::NameType::FUNCTION
+                               : wasm::NameType::GLOBAL;
+        DebugNames.push_back(wasm::WasmDebugName{T, Index, Name});
       }
       break;
     }
@@ -562,7 +577,6 @@ Error WasmObjectFile::parseLinkingSectionSymtab(ReadContext &Ctx) {
           Info.Name = Import.Field;
         }
         GlobalType = &Import.Global;
-        Info.ImportName = Import.Field;
         if (!Import.Module.empty()) {
           Info.ImportModule = Import.Module;
         }
@@ -855,6 +869,7 @@ Error WasmObjectFile::parseRelocSection(StringRef Name, ReadContext &Ctx) {
     case wasm::R_WASM_MEMORY_ADDR_SLEB:
     case wasm::R_WASM_MEMORY_ADDR_I32:
     case wasm::R_WASM_MEMORY_ADDR_REL_SLEB:
+    case wasm::R_WASM_MEMORY_ADDR_TLS_SLEB:
       if (!isValidDataSymbol(Reloc.Index))
         return make_error<GenericBinaryError>("Bad relocation data index",
                                               object_error::parse_failed);
@@ -874,6 +889,12 @@ Error WasmObjectFile::parseRelocSection(StringRef Name, ReadContext &Ctx) {
         return make_error<GenericBinaryError>("Bad relocation function index",
                                               object_error::parse_failed);
       Reloc.Addend = readVarint32(Ctx);
+      break;
+    case wasm::R_WASM_FUNCTION_OFFSET_I64:
+      if (!isValidFunctionSymbol(Reloc.Index))
+        return make_error<GenericBinaryError>("Bad relocation function index",
+                                              object_error::parse_failed);
+      Reloc.Addend = readVarint64(Ctx);
       break;
     case wasm::R_WASM_SECTION_OFFSET_I32:
       if (!isValidSectionSymbol(Reloc.Index))
@@ -902,7 +923,8 @@ Error WasmObjectFile::parseRelocSection(StringRef Name, ReadContext &Ctx) {
         Reloc.Type == wasm::R_WASM_GLOBAL_INDEX_I32)
       Size = 4;
     if (Reloc.Type == wasm::R_WASM_TABLE_INDEX_I64 ||
-        Reloc.Type == wasm::R_WASM_MEMORY_ADDR_I64)
+        Reloc.Type == wasm::R_WASM_MEMORY_ADDR_I64 ||
+        Reloc.Type == wasm::R_WASM_FUNCTION_OFFSET_I64)
       Size = 8;
     if (Reloc.Offset + Size > EndOffset)
       return make_error<GenericBinaryError>("Bad relocation offset",

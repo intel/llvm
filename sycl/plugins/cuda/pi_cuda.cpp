@@ -1645,6 +1645,8 @@ pi_result cuda_piextContextGetNativeHandle(pi_context context,
 ///
 /// \return TBD
 pi_result cuda_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                  pi_uint32 num_devices,
+                                                  const pi_device *devices,
                                                   pi_context *context) {
   cl::sycl::detail::pi::die(
       "Creation of PI context from native handle not implemented");

@@ -332,7 +332,8 @@ public:
   ///  Signals that subsequent parameter descriptor additions will go to
   ///  the kernel with given name. Starts new kernel invocation descriptor.
   void startKernel(StringRef KernelName, QualType KernelNameType,
-                   StringRef KernelStableName, SourceLocation Loc);
+                   StringRef KernelStableName, SourceLocation Loc,
+                   bool IsESIMD);
 
   /// Adds a kernel parameter descriptor to current kernel invocation
   /// descriptor.
@@ -374,6 +375,9 @@ private:
     std::string StableName;
 
     SourceLocation KernelLocation;
+
+    /// Whether this kernel is an ESIMD one.
+    bool IsESIMDKernel;
 
     /// Descriptor of kernel actual parameters.
     SmallVector<KernelParamDesc, 8> Params;
@@ -9397,6 +9401,8 @@ public:
                           LateInstantiatedAttrVec *LateAttrs = nullptr,
                           LocalInstantiationScope *OuterMostScope = nullptr);
 
+  void InstantiateDefaultCtorDefaultArgs(CXXConstructorDecl *Ctor);
+
   bool usesPartialOrExplicitSpecialization(
       SourceLocation Loc, ClassTemplateSpecializationDecl *ClassTemplateSpec);
 
@@ -11667,6 +11673,8 @@ public:
   QualType CheckMatrixMultiplyOperands(ExprResult &LHS, ExprResult &RHS,
                                        SourceLocation Loc, bool IsCompAssign);
 
+  bool isValidSveBitcast(QualType srcType, QualType destType);
+
   bool areLaxCompatibleVectorTypes(QualType srcType, QualType destType);
   bool isLaxVectorConversion(QualType srcType, QualType destType);
 
@@ -12955,10 +12963,25 @@ void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
       return;
     }
     int32_t ArgInt = ArgVal->getSExtValue();
-    if (ArgInt <= 0) {
-      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << CI.getAttrName() << /*positive*/ 0;
-      return;
+    if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelNumSimdWorkItems ||
+        CI.getParsedKind() == ParsedAttr::AT_IntelReqdSubGroupSize) {
+      if (ArgInt <= 0) {
+        Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+            << CI.getAttrName() << /*positive*/ 0;
+        return;
+      }
+    }
+    if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
+      if (ArgInt < 0) {
+        Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+            << CI.getAttrName() << /*non-negative*/ 1;
+        return;
+      }
+      if (ArgInt > 3) {
+        Diag(E->getBeginLoc(), diag::err_attribute_argument_out_of_range)
+            << CI.getAttrName() << 0 << 3 << E->getSourceRange();
+        return;
+      }
     }
   }
 

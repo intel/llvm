@@ -85,6 +85,12 @@ New modules
 New checks
 ^^^^^^^^^^
 
+- New :doc:`altera-kernel-name-restriction
+  <clang-tidy/checks/altera-kernel-name-restriction>` check.
+
+  Finds kernel files and include directives whose filename is `kernel.cl`,
+  `Verilog.cl`, or `VHDL.cl`.
+
 - New :doc:`altera-struct-pack-align
   <clang-tidy/checks/altera-struct-pack-align>` check.
 
@@ -145,6 +151,11 @@ Changes in existing checks
 
 - Removed `google-runtime-references` check because the rule it checks does
   not exist in the Google Style Guide anymore.
+
+- Improved :doc:`readability-redundant-string-init
+  <clang-tidy/checks/readability-redundant-string-init>` check.
+
+  Added `std::basic_string_view` to default list of ``string``-like types.
 
 Improvements to include-fixer
 -----------------------------

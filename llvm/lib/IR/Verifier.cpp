@@ -427,6 +427,7 @@ private:
   void visitRangeMetadata(Instruction &I, MDNode *Range, Type *Ty);
   void visitDereferenceableMetadata(Instruction &I, MDNode *MD);
   void visitProfMetadata(Instruction &I, MDNode *MD);
+  void visitAnnotationMetadata(MDNode *Annotation);
 
   template <class Ty> bool isValidMetadataArray(const MDTuple &N);
 #define HANDLE_SPECIALIZED_MDNODE_LEAF(CLASS) void visit##CLASS(const CLASS &N);
@@ -1577,8 +1578,8 @@ void Verifier::visitModuleFlagCGProfileEntry(const MDOperand &MDO) {
     if (!FuncMDO)
       return;
     auto F = dyn_cast<ValueAsMetadata>(FuncMDO);
-    Assert(F && isa<Function>(F->getValue()), "expected a Function or null",
-           FuncMDO);
+    Assert(F && isa<Function>(F->getValue()->stripPointerCasts()),
+           "expected a Function or null", FuncMDO);
   };
   auto Node = dyn_cast_or_null<MDNode>(MDO);
   Assert(Node && Node->getNumOperands() == 3, "expected a MDNode triple", MDO);
@@ -1601,7 +1602,6 @@ static bool isFuncOnlyAttr(Attribute::AttrKind Kind) {
   case Attribute::NoInline:
   case Attribute::AlwaysInline:
   case Attribute::OptimizeForSize:
-  case Attribute::NoStackProtect:
   case Attribute::StackProtect:
   case Attribute::StackProtectReq:
   case Attribute::StackProtectStrong:
@@ -1996,19 +1996,6 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
     if (S.getAsInteger(10, N))
       CheckFailed(
           "\"patchable-function-entry\" takes an unsigned integer: " + S, V);
-  }
-  {
-    unsigned N = 0;
-    if (Attrs.hasFnAttribute(Attribute::NoStackProtect))
-      ++N;
-    if (Attrs.hasFnAttribute(Attribute::StackProtect))
-      ++N;
-    if (Attrs.hasFnAttribute(Attribute::StackProtectReq))
-      ++N;
-    if (Attrs.hasFnAttribute(Attribute::StackProtectStrong))
-      ++N;
-    Assert(N < 2,
-           "nossp, ssp, sspreq, sspstrong fn attrs are mutually exclusive", V);
   }
 }
 
@@ -4294,6 +4281,14 @@ void Verifier::visitProfMetadata(Instruction &I, MDNode *MD) {
   }
 }
 
+void Verifier::visitAnnotationMetadata(MDNode *Annotation) {
+  Assert(isa<MDTuple>(Annotation), "annotation must be a tuple");
+  Assert(Annotation->getNumOperands() >= 1,
+         "annotation must have at least one operand");
+  for (const MDOperand &Op : Annotation->operands())
+    Assert(isa<MDString>(Op.get()), "operands must be strings");
+}
+
 /// verifyInstruction - Verify that an instruction is well formed.
 ///
 void Verifier::visitInstruction(Instruction &I) {
@@ -4453,6 +4448,9 @@ void Verifier::visitInstruction(Instruction &I) {
 
   if (MDNode *MD = I.getMetadata(LLVMContext::MD_prof))
     visitProfMetadata(I, MD);
+
+  if (MDNode *Annotation = I.getMetadata(LLVMContext::MD_annotation))
+    visitAnnotationMetadata(Annotation);
 
   if (MDNode *N = I.getDebugLoc().getAsMDNode()) {
     AssertDI(isa<DILocation>(N), "invalid !dbg metadata attachment", &I, N);

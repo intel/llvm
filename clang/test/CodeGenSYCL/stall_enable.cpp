@@ -7,7 +7,7 @@ queue q;
 
 class Foo {
 public:
-  [[intel::stall_enable]] void operator()() const {}
+  [[intel::use_stall_enable_clusters]] void operator()() const {}
 };
 
 int main() {
@@ -16,7 +16,7 @@ int main() {
     h.single_task<class test_kernel1>(f);
 
     h.single_task<class test_kernel2>(
-        []() [[intel::stall_enable]]{});
+        []() [[intel::use_stall_enable_clusters]]{});
   });
   return 0;
 }

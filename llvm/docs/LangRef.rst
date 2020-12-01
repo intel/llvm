@@ -1825,22 +1825,6 @@ example:
     undefined behavior, the undefined behavior may be observed even
     if the call site is dead code.
 
-``nossp``
-    This attribute indicates the function should not emit a stack smashing
-    protector. This is useful for code that intentionally manipulates the stack
-    canary, such as operating system kernel code that must save/restore such
-    canary values on context switch.
-
-    If a function with the ``nossp`` attribute calls a callee function that has
-    a stack protector function attribute, such as ``ssp``, ``sspreq``, or
-    ``sspstrong`` (or vice-versa), then the callee will not be inline
-    substituted into the caller. Even when the callee is ``alwaysinline``, the
-    above holds.
-
-    Such inlining might break assumptions in the function that was built
-    without stack protection. This permits the functions that would have stack
-    protection to retain their stack protector.
-
 ``ssp``
     This attribute indicates that the function should emit a stack
     smashing protector. It is in the form of a "canary" --- a random value
@@ -2386,6 +2370,14 @@ as follows:
     program memory space defaults to the default address space of 0,
     which corresponds to a Von Neumann architecture that has code
     and data in the same space.
+``G<address space>``
+    Specifies the address space to be used by default when creating global
+    variables. If omitted, the globals address space defaults to the default
+    address space 0.
+    Note: variable declarations without an address space are always created in
+    address space 0, this property only affects the default value to be used
+    when creating globals without additional contextual information (e.g. in
+    LLVM passes).
 ``A<address space>``
     Specifies the address space of objects created by '``alloca``'.
     Defaults to the default address space of 0.
@@ -3798,6 +3790,43 @@ long as the original value is reconstituted before the ``indirectbr`` or
 
 Finally, some targets may provide defined semantics when using the value
 as the operand to an inline assembly, but that is target specific.
+
+.. _dso_local_equivalent:
+
+DSO Local Equivalent
+--------------------
+
+``dso_local_equivalent @func``
+
+A '``dso_local_equivalent``' constant represents a function which is
+functionally equivalent to a given function, but is always defined in the
+current linkage unit. The resulting pointer has the same type as the underlying
+function. The resulting pointer is permitted, but not required, to be different
+from a pointer to the function, and it may have different values in different
+translation units.
+
+The target function may not have ``extern_weak`` linkage.
+
+``dso_local_equivalent`` can be implemented as such:
+
+- If the function has local linkage, hidden visibility, or is
+  ``dso_local``, ``dso_local_equivalent`` can be implemented as simply a pointer
+  to the function.
+- ``dso_local_equivalent`` can be implemented with a stub that tail-calls the
+  function. Many targets support relocations that resolve at link time to either
+  a function or a stub for it, depending on if the function is defined within the
+  linkage unit; LLVM will use this when available. (This is commonly called a
+  "PLT stub".) On other targets, the stub may need to be emitted explicitly.
+
+This can be used wherever a ``dso_local`` instance of a function is needed without
+needing to explicitly make the original function ``dso_local``. An instance where
+this can be used is for static offset calculations between a function and some other
+``dso_local`` symbol. This is especially useful for the Relative VTables C++ ABI,
+where dynamic relocations for function pointers in VTables can be replaced with
+static relocations for offsets between the VTable and virtual functions which
+may not be ``dso_local``.
+
+This is currently only supported for ELF binary formats.
 
 .. _constantexprs:
 
@@ -6512,6 +6541,23 @@ hashes of the 2 hottest target functions' names (this is the same hash used
 to represent function names in the profile database), and the 5th and 7th
 operands give the execution count that each of the respective prior target
 functions was called.
+
+.. _md_annotation:
+
+'``annotation``' Metadata
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The ``annotation`` metadata can be used to attach a tuple of annotation strings
+to any instruction. This metadata does not impact the semantics of the program
+and may only be used to provide additional insight about the program and
+transformations to users.
+
+Example:
+
+.. code-block:: text
+
+    %a.addr = alloca float*, align 8, !annotation !0
+    !0 = !{!"auto-init"}
 
 Module Flags Metadata
 =====================
@@ -9774,17 +9820,30 @@ for the given testcase is equivalent to:
     }
 
 If the ``inbounds`` keyword is present, the result value of the
-``getelementptr`` is a :ref:`poison value <poisonvalues>` if the base
-pointer is not an *in bounds* address of an allocated object, or if any
-of the addresses that would be formed by successive addition of the
-offsets implied by the indices to the base address with infinitely
-precise signed arithmetic are not an *in bounds* address of that
-allocated object. The *in bounds* addresses for an allocated object are
-all the addresses that point into the object, plus the address one byte
-past the end. The only *in bounds* address for a null pointer in the
-default address-space is the null pointer itself. In cases where the
-base is a vector of pointers the ``inbounds`` keyword applies to each
-of the computations element-wise.
+``getelementptr`` is a :ref:`poison value <poisonvalues>` if one of the
+following rules is violated:
+
+*  The base pointer has an *in bounds* address of an allocated object, which
+   means that it points into an allocated object, or to its end. The only
+   *in bounds* address for a null pointer in the default address-space is the
+   null pointer itself.
+*  If the type of an index is larger than the pointer index type, the
+   truncation to the pointer index type preserves the signed value.
+*  The multiplication of an index by the type size does not wrap the pointer
+   index type in a signed sense (``nsw``).
+*  The successive addition of offsets (without adding the base address) does
+   not wrap the pointer index type in a signed sense (``nsw``).
+*  The successive addition of the current address, interpreted as an unsigned
+   number, and an offset, interpreted as a signed number, does not wrap the
+   unsigned address space and remains *in bounds* of the allocated object.
+   As a corollary, if the added offset is non-negative, the addition does not
+   wrap in an unsigned sense (``nuw``).
+*  In cases where the base is a vector of pointers, the ``inbounds`` keyword
+   applies to each of the computations element-wise.
+
+These rules are based on the assumption that no allocated object may cross
+the unsigned address space boundary, and no allocated object may be larger
+than half the pointer index type space.
 
 If the ``inbounds`` keyword is not present, the offsets are added to the
 base address with silently-wrapping two's complement arithmetic. If the
@@ -15498,6 +15557,45 @@ Semantics:
 """"""""""
 
 The '``llvm.set.loop.iterations.*``' intrinsics do not perform any arithmetic
+on their operand. It's a hint to the backend that can use this to set up the
+hardware-loop count with a target specific instruction, usually a move of this
+value to a special register or a hardware-loop instruction.
+
+
+'``llvm.start.loop.iterations.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+This is an overloaded intrinsic.
+
+::
+
+      declare i32 @llvm.start.loop.iterations.i32(i32)
+      declare i64 @llvm.start.loop.iterations.i64(i64)
+
+Overview:
+"""""""""
+
+The '``llvm.start.loop.iterations.*``' intrinsics are similar to the
+'``llvm.set.loop.iterations.*``' intrinsics, used to specify the
+hardware-loop trip count but also produce a value identical to the input
+that can be used as the input to the loop. They are placed in the loop
+preheader basic block and the output is expected to be the input to the
+phi for the induction variable of the loop, decremented by the
+'``llvm.loop.decrement.reg.*``'.
+
+Arguments:
+""""""""""
+
+The integer operand is the loop trip count of the hardware-loop, and thus
+not e.g. the loop back-edge taken count.
+
+Semantics:
+""""""""""
+
+The '``llvm.start.loop.iterations.*``' intrinsics do not perform any arithmetic
 on their operand. It's a hint to the backend that can use this to set up the
 hardware-loop count with a target specific instruction, usually a move of this
 value to a special register or a hardware-loop instruction.
