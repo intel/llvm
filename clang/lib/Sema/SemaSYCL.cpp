@@ -3040,16 +3040,18 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
 
   if (KernelObj->isLambda()) {
     for (const LambdaCapture &Capture : KernelObj->captures())
-      if (Capture.capturesThis() && Capture.isImplicit()) {
-        Diag(Capture.getLocation(), diag::err_implicit_this_capture);
-        Diag(CallLoc.getBegin(), diag::note_used_here);
-        KernelFunc->setInvalidDecl();
-      }
-      // Emit a warning on constexprs captured in SYCL kernels
-      else if (Capture.isImplicit() && Capture.capturesVariable()) {
-        if (Capture.getCapturedVar()->isConstexpr())
-          Diag(Capture.getLocation(), diag::warn_constexpr_kernel_arg)
-              << Capture.getCapturedVar()->getNameAsString();
+      if (Capture.isImplicit()) {
+        if (Capture.capturesThis()) {
+          Diag(Capture.getLocation(), diag::err_implicit_this_capture);
+          Diag(CallLoc.getBegin(), diag::note_used_here);
+          KernelFunc->setInvalidDecl();
+        }
+        // Emit a warning on constexprs captured in SYCL kernels
+        if (Capture.capturesVariable()) {
+          if (Capture.getCapturedVar()->isConstexpr())
+            Diag(Capture.getLocation(), diag::warn_constexpr_kernel_arg)
+                << Capture.getCapturedVar()->getNameAsString();
+        }
       }
   }
 

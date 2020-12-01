@@ -7450,7 +7450,8 @@ let CategoryName = "Lambda Issue" in {
   def err_implicit_this_capture : Error<
     "implicit capture of 'this' is not allowed for kernel functions">;
   def warn_constexpr_kernel_arg : Warning<
-    "constexpr '%0' is captured and is not a compile-time constant">, InGroup<ConstExprKernelArg>;
+    "constexpr '%0' is captured and is not a compile-time constant">,
+    InGroup<ConstExprKernelArg>;
 
   // C++14 lambda init-captures.
   def warn_cxx11_compat_init_capture : Warning<
