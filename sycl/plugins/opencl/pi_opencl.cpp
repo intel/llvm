@@ -713,6 +713,9 @@ pi_result piextUSMHostAlloc(void **result_ptr, pi_context context,
 
   *result_ptr = Ptr;
 
+  assert(alignment == 0 ||
+         (RetVal == PI_SUCCESS &&
+          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
   return RetVal;
 }
 
@@ -746,6 +749,9 @@ pi_result piextUSMDeviceAlloc(void **result_ptr, pi_context context,
 
   *result_ptr = Ptr;
 
+  assert(alignment == 0 ||
+         (RetVal == PI_SUCCESS &&
+          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
   return RetVal;
 }
 
@@ -779,6 +785,9 @@ pi_result piextUSMSharedAlloc(void **result_ptr, pi_context context,
 
   *result_ptr = Ptr;
 
+  assert(alignment == 0 ||
+         (RetVal == PI_SUCCESS &&
+          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
   return RetVal;
 }
 
