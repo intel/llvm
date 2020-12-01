@@ -38,7 +38,7 @@ int main() {
     h.single_task<class test_kernel6>([]() {
       // expected-error@+1{{'no_global_work_offset' attribute only applies to functions}}
       [[intel::no_global_work_offset(1)]] int a;
-     });
+    });
 
     // CHECK: SYCLIntelNoGlobalWorkOffsetAttr{{.*}}
     // CHECK-NEXT: IntegerLiteral {{.*}} 'int' 1
