@@ -86,3 +86,5 @@ sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
 
 xpti/ @tovinkere @andykaylor
 xptifw/ @tovinkere  @andykaylor
+
+llvm/tools/sycl-post-link/ @AlexeySachkov
