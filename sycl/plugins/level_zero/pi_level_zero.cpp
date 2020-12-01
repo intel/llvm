@@ -3566,10 +3566,11 @@ pi_result piEventRelease(pi_event Event) {
     }
     ZE_CALL(zeEventDestroy(Event->ZeEvent));
 
+    auto Context = Event->Context;
+    ZE_CALL(Context->decrementAliveEventsInPool(Event->ZeEventPool));
+
     delete Event;
   }
-  auto Context = Event->Context;
-  ZE_CALL(Context->decrementAliveEventsInPool(Event->ZeEventPool));
 
   return PI_SUCCESS;
 }
