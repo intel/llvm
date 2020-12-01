@@ -259,6 +259,9 @@ public:
                                              SPIRVBasicBlock *) override;
   SPIRVValue *addCompositeConstant(SPIRVType *,
                                    const std::vector<SPIRVValue *> &) override;
+  SPIRVValue *
+  addSpecConstantComposite(SPIRVType *Ty,
+                           const std::vector<SPIRVValue *> &Elements) override;
   SPIRVValue *addConstFunctionPointerINTEL(SPIRVType *Ty,
                                            SPIRVFunction *F) override;
   SPIRVValue *addConstant(SPIRVValue *) override;
@@ -1067,6 +1070,12 @@ SPIRVValue *SPIRVModuleImpl::addNullConstant(SPIRVType *Ty) {
 SPIRVValue *SPIRVModuleImpl::addCompositeConstant(
     SPIRVType *Ty, const std::vector<SPIRVValue *> &Elements) {
   return addConstant(new SPIRVConstantComposite(this, Ty, getId(), Elements));
+}
+
+SPIRVValue *SPIRVModuleImpl::addSpecConstantComposite(
+    SPIRVType *Ty, const std::vector<SPIRVValue *> &Elements) {
+  return addConstant(
+      new SPIRVSpecConstantComposite(this, Ty, getId(), Elements));
 }
 
 SPIRVValue *SPIRVModuleImpl::addConstFunctionPointerINTEL(SPIRVType *Ty,
