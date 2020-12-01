@@ -257,7 +257,7 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &ZePool,
     Index = MaxNumEventsPerPool - NumEventsAvailableInEventPool[ZeEventPool];
     --NumEventsAvailableInEventPool[ZeEventPool];
     std::lock_guard<std::mutex> NumEventsLiveInEventPoolGuard(
-        NumEventsLiveInEventPoolMutex, std::adopt_lock);
+        NumEventsLiveInEventPoolMutex);
     NumEventsLiveInEventPool[ZeEventPool]++;
   }
   ZePool = ZeEventPool;
@@ -268,6 +268,7 @@ ze_result_t
 _pi_context::decrementAliveEventsInPool(ze_event_pool_handle_t ZePool) {
   std::lock_guard<std::mutex> Lock(NumEventsLiveInEventPoolMutex);
   --NumEventsLiveInEventPool[ZePool];
+  ++NumEventsAvailableInEventPool[ZePool];
   if (NumEventsLiveInEventPool[ZePool] == 0) {
     return zeEventPoolDestroy(ZePool);
   }
@@ -3565,11 +3566,11 @@ pi_result piEventRelease(pi_event Event) {
     }
     ZE_CALL(zeEventDestroy(Event->ZeEvent));
 
-    auto Context = Event->Context;
-    ZE_CALL(Context->decrementAliveEventsInPool(Event->ZeEventPool));
-
     delete Event;
   }
+  auto Context = Event->Context;
+  ZE_CALL(Context->decrementAliveEventsInPool(Event->ZeEventPool));
+
   return PI_SUCCESS;
 }
 
