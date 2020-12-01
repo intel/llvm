@@ -250,12 +250,15 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &ZePool,
                               &ZeDevices[0], &ZeEventPool))
       return ZeRes;
     NumEventsAvailableInEventPool[ZeEventPool] = MaxNumEventsPerPool - 1;
-    NumEventsLiveInEventPool[ZeEventPool] = MaxNumEventsPerPool;
+    NumEventsLiveInEventPool[ZeEventPool] = 1;
   } else {
     std::lock_guard<std::mutex> NumEventsAvailableInEventPoolGuard(
         NumEventsAvailableInEventPoolMutex);
     Index = MaxNumEventsPerPool - NumEventsAvailableInEventPool[ZeEventPool];
     --NumEventsAvailableInEventPool[ZeEventPool];
+    std::lock_guard<std::mutex> NumEventsLiveInEventPoolGuard(
+        NumEventsLiveInEventPoolMutex, std::adopt_lock);
+    NumEventsLiveInEventPool[ZeEventPool]++;
   }
   ZePool = ZeEventPool;
   return ZE_RESULT_SUCCESS;
