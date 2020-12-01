@@ -1,0 +1,171 @@
+#include <CL/sycl.hpp>
+#include <CL/sycl/INTEL/online_compiler.hpp>
+
+#include <iostream>
+#include <vector>
+
+static const char *CLSource = R"===(
+__kernel void my_kernel(__global int *in, __global int *out) {
+  size_t i = get_global_id(0);
+  out[i] = in[i]*2 + 100;
+}
+)===";
+
+static const char *CLSourceSyntaxError = R"===(
+__kernel void my_kernel(__global int *in, __global int *out) {
+  syntax error here
+  size_t i = get_global_id(0);
+  out[i] = in[i]*2 + 100;
+}
+)===";
+
+static const char *CMSource = R"===(
+extern "C"
+void cm_kernel() {
+}
+)===";
+
+using namespace sycl::INTEL;
+
+void testSyclKernel(sycl::queue &Q, sycl::kernel Kernel) {
+  std::cout << "Run the kernel now:\n";
+  const int N = 4;
+  int InputArray[N] = {0, 1, 2, 3};
+  int OutputArray[N] = {};
+
+  sycl::buffer<int, 1> InputBuf(InputArray, sycl::range<1>(N));
+  sycl::buffer<int, 1> OutputBuf(OutputArray, sycl::range<1>(N));
+
+  Q.submit([&](sycl::handler &CGH) {
+     CGH.set_arg(0, InputBuf.get_access<sycl::access::mode::read>(CGH));
+     CGH.set_arg(1, OutputBuf.get_access<sycl::access::mode::write>(CGH));
+     CGH.parallel_for(sycl::range<1>{N}, Kernel);
+   }).wait();
+
+  auto Out = OutputBuf.get_access<sycl::access::mode::read>();
+  for (int I = 0; I < N; I++) {
+    std::cout << I << "*2 + 100 = " << Out[I] << "\n";
+  }
+}
+
+template <cl::sycl::INTEL::source_language Lang>
+void doCompileAndRunTest(const std::string &Source) {
+  online_compiler<Lang> Compiler;
+}
+
+int main(int argc, char **argv) {
+  cl::sycl::queue Q;
+  cl::sycl::context Context = Q.get_context();
+  cl::sycl::device Device = Q.get_device();
+
+  { // Compile and run a trivial OpenCL kernel.
+    std::cout << "Test case1\n";
+    online_compiler<source_language::opencl_c> Compiler;
+    std::vector<byte> IL;
+    try {
+      IL = Compiler.compile(
+          std::string(CLSource),
+          // Intentionally use one option twice.
+          std::vector<std::string>{std::string("-cl-fast-relaxed-math"),
+                                   std::string("-cl-fast-relaxed-math")});
+      std::cout << "IL size = " << IL.size() << "\n";
+      assert(IL.size() > 0 && "Unexpected IL size");
+    } catch (sycl::exception &e) {
+      std::cout << "Compilation to IL failed: " << std::string(e.what())
+                << "\n";
+      return 1;
+    }
+    testSyclKernel(Q, getSYCLKernelWithIL(Context, IL));
+  }
+
+  { // Compile and run a trivial OpenCL kernel using online_compiler()
+    // constructor accepting SYCL device.
+    std::cout << "Test case2\n";
+    online_compiler<source_language::opencl_c> Compiler(Device);
+    std::vector<byte> IL;
+    try {
+      IL = Compiler.compile(std::string(CLSource));
+      std::cout << "IL size = " << IL.size() << "\n";
+      assert(IL.size() > 0 && "Unexpected IL size");
+    } catch (sycl::exception &e) {
+      std::cout << "Compilation to IL failed: " << std::string(e.what())
+                << "\n";
+      return 1;
+    }
+    testSyclKernel(Q, getSYCLKernelWithIL(Context, IL));
+  }
+
+  { // Compile a trivial CM kernel.
+    std::cout << "Test case3\n";
+    online_compiler<source_language::cm> Compiler;
+    try {
+      std::vector<byte> IL = Compiler.compile(std::string(CMSource));
+
+      std::cout << "IL size = " << IL.size() << "\n";
+      assert(IL.size() > 0 && "Unexpected IL size");
+    } catch (sycl::exception &e) {
+      std::cout << "Compilation to IL failed: " << std::string(e.what())
+                << "\n";
+      return 1;
+    }
+  }
+
+  { // Compile a source with syntax errors.
+    std::cout << "Test case4\n";
+    online_compiler<source_language::opencl_c> Compiler;
+    std::vector<byte> IL;
+    bool TestPassed = false;
+    try {
+      IL = Compiler.compile(std::string(CLSourceSyntaxError));
+    } catch (sycl::exception &e) {
+      std::string Msg = e.what();
+      if (Msg.find("syntax error here") != std::string::npos)
+        TestPassed = true;
+      else
+        std::cerr << "Unexpected exception: " << Msg << "\n";
+    }
+    assert(TestPassed && "Failed to throw an exception for syntax error");
+  }
+
+  { // Compile a good CL source using unrecognized compilation options.
+    std::cout << "Test case5\n";
+    online_compiler<source_language::opencl_c> Compiler;
+    std::vector<byte> IL;
+    bool TestPassed = false;
+    try {
+      IL = Compiler.compile(
+          std::string(CLSource),
+          // Intentionally use incorrect option.
+          std::vector<std::string>{std::string("WRONG_OPTION")});
+    } catch (sycl::exception &e) {
+      std::string Msg = e.what();
+      if (Msg.find("WRONG_OPTION") != std::string::npos)
+        TestPassed = true;
+      else
+        std::cerr << "Unexpected exception: " << Msg << "\n";
+    }
+    assert(TestPassed &&
+           "Failed to throw an exception for unrecognized option");
+  }
+
+  { // Try compiling CM source with OpenCL compiler.
+    std::cout << "Test case6\n";
+    online_compiler<source_language::opencl_c> Compiler;
+    std::vector<byte> IL;
+    bool TestPassed = false;
+    try {
+      // Intentionally pass CMSource instead of CLSource.
+      IL = Compiler.compile(std::string(CMSource));
+    } catch (sycl::exception &e) {
+      std::string Msg = e.what();
+      if (Msg.find("error: expected identifier or '('") != std::string::npos)
+        TestPassed = true;
+      else
+        std::cerr << "Unexpected exception: " << Msg << "\n";
+    }
+    assert(TestPassed && "Failed to throw an exception for wrong program");
+  }
+
+  std::cout << "\nTest passed.\n";
+  return 0;
+}
