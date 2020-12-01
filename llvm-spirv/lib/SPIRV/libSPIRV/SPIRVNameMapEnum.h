@@ -480,7 +480,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityAsmINTEL, "AsmINTEL");
   add(CapabilityVectorComputeINTEL, "VectorComputeINTEL");
   add(CapabilityVectorAnyINTEL, "VectorAnyINTEL");
-  add(CapabilityOptimizationHintsINTEL, "OptimizationHintsINTEL");
+  add(internal::CapabilityOptimizationHintsINTEL, "OptimizationHintsINTEL");
   add(CapabilitySubgroupAvcMotionEstimationINTEL,
       "SubgroupAvcMotionEstimationINTEL");
   add(CapabilitySubgroupAvcMotionEstimationIntraINTEL,
