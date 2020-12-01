@@ -37,7 +37,7 @@ entry:
   %2 = bitcast %struct._ZTS3POD.POD* %ref.tmp.i to i8*
   call void @llvm.lifetime.start.p0i8(i64 24, i8* nonnull %2) #3
   %3 = addrspacecast %struct._ZTS3POD.POD* %ref.tmp.i to %struct._ZTS3POD.POD addrspace(4)*
-  call spir_func void @_Z36__sycl_getCompositeSpecConstantValueI3PODET_PKc(%struct._ZTS3POD.POD addrspace(4)* sret align 8 %3, i8 addrspace(4)* addrspacecast (i8 addrspace(1)* getelementptr inbounds ([9 x i8], [9 x i8] addrspace(1)* @__builtin_unique_stable_name._ZNK2cl4sycl6ONEAPI12experimental13spec_constantI3PODS4_E3getIS4_EENSt9enable_ifIXsr3std6is_podIT_EE5valueES8_E4typeEv, i64 0, i64 0) to i8 addrspace(4)*)) #4
+  call spir_func void @_Z36__sycl_getCompositeSpecConstantValueI3PODET_PKc(%struct._ZTS3POD.POD addrspace(4)* sret(%struct._ZTS3POD.POD) align 8 %3, i8 addrspace(4)* addrspacecast (i8 addrspace(1)* getelementptr inbounds ([9 x i8], [9 x i8] addrspace(1)* @__builtin_unique_stable_name._ZNK2cl4sycl6ONEAPI12experimental13spec_constantI3PODS4_E3getIS4_EENSt9enable_ifIXsr3std6is_podIT_EE5valueES8_E4typeEv, i64 0, i64 0) to i8 addrspace(4)*)) #4
   %4 = bitcast %struct._ZTS3POD.POD addrspace(1)* %add.ptr.i to i8 addrspace(1)*
   %5 = addrspacecast i8 addrspace(1)* %4 to i8 addrspace(4)*
   call void @llvm.memcpy.p4i8.p0i8.i64(i8 addrspace(4)* align 8 dereferenceable(24) %5, i8* nonnull align 8 dereferenceable(24) %2, i64 24, i1 false), !tbaa.struct !5
@@ -55,7 +55,7 @@ declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #1
 declare void @llvm.memcpy.p4i8.p0i8.i64(i8 addrspace(4)* noalias nocapture writeonly, i8* noalias nocapture readonly, i64, i1 immarg) #1
 
 ; Function Attrs: convergent
-declare dso_local spir_func void @_Z36__sycl_getCompositeSpecConstantValueI3PODET_PKc(%struct._ZTS3POD.POD addrspace(4)* sret align 8, i8 addrspace(4)*) local_unnamed_addr #2
+declare dso_local spir_func void @_Z36__sycl_getCompositeSpecConstantValueI3PODET_PKc(%struct._ZTS3POD.POD addrspace(4)* sret(%struct._ZTS3POD.POD) align 8, i8 addrspace(4)*) local_unnamed_addr #2
 
 attributes #0 = { convergent norecurse uwtable "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="../sycl/test/spec_const/composite.cpp" "tune-cpu"="generic" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind willreturn }
