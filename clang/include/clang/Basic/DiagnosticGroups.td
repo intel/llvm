@@ -1253,6 +1253,6 @@ def WebAssemblyExceptionSpec : DiagGroup<"wasm-exception-spec">;
 
 def RTTI : DiagGroup<"rtti">;
 
-// A warning group for warnings related to constexprs captured as
-// kernel args.
-def ConstExprKernelArg : DiagGroup<"constexpr-kernel-arg">;
+// A warning group for warnings related to non-obvious
+// performance degradation.
+def PerfImpact : DiagGroup<"perf-impact">;
