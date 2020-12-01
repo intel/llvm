@@ -724,7 +724,7 @@ class FileTableTformJobAction : public JobAction {
 
 public:
   struct Tform {
-    enum Kind { EXTRACT, EXTRACT_DROP_TITLE, REPLACE };
+    enum Kind { EXTRACT, EXTRACT_DROP_TITLE, REPLACE, RENAME };
 
     Tform() = default;
     Tform(Kind K, std::initializer_list<StringRef> Args) : TheKind(K) {
@@ -745,6 +745,10 @@ public:
   // Replaces a column with title <From> in this table with a column with title
   // <To> from another file table passed as input to this action.
   void addReplaceColumnTform(StringRef From, StringRef To);
+
+  // Renames a column with title <From> in this table with a column with title
+  // <To> passed as input to this action.
+  void addRenameColumnTform(StringRef From, StringRef To);
 
   static bool classof(const Action *A) {
     return A->getKind() == FileTableTformJobClass;

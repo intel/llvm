@@ -239,7 +239,9 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
   ArgStringList CmdArgs{"-o", Output.getFilename()};
   for (const auto &II : Inputs) {
     std::string Filename(II.getFilename());
-    if (II.getType() == types::TY_Tempfilelist)
+    StringRef Ext(llvm::sys::path::extension(Filename));
+    types::ID Ty = getToolChain().LookupTypeForExtension(Ext.drop_front());
+    if (II.getType() == types::TY_Tempfilelist || Ty == types::TY_FPGA_AOCR)
       ForeachInputs.push_back(II);
     if (II.getType() == types::TY_TempAOCOfilelist)
       // Add any FPGA library lists.  These come in as special tempfile lists.
