@@ -205,11 +205,6 @@ class InstSI <dag outs, dag ins, string asm = "",
 
   let SchedRW = [Write32Bit];
 
-  field bits<1> DisableSIDecoder = 0;
-  field bits<1> DisableVIDecoder = 0;
-  field bits<1> DisableDecoder = 0;
-
-  let isAsmParserOnly = !ne(DisableDecoder{0}, {0});
   let AsmVariantName = AMDGPUAsmVariants.Default;
 
   // Avoid changing source registers in a way that violates constant bus read limitations.
@@ -366,17 +361,6 @@ class VINTRPCommon <dag outs, dag ins, string asm, list<dag> pattern> :
   let mayStore = 0;
   let hasSideEffects = 0;
   let VALU = 1;
-}
-
-class EXPCommon<dag outs, dag ins, string asm, list<dag> pattern> :
-  InstSI<outs, ins, asm, pattern> {
-  let EXP = 1;
-  let EXP_CNT = 1;
-  let mayLoad = 0; // Set to 1 if done bit is set.
-  let mayStore = 1;
-  let UseNamedOperandTable = 1;
-  let Uses = [EXEC];
-  let SchedRW = [WriteExport];
 }
 
 } // End Uses = [EXEC]

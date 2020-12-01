@@ -2066,7 +2066,8 @@ bool Sema::CheckAttrTarget(const ParsedAttr &AL) {
   if (!(AL.existsInTarget(Context.getTargetInfo()) ||
         (Context.getLangOpts().SYCLIsDevice &&
          Aux && AL.existsInTarget(*Aux)))) {
-    Diag(AL.getLoc(), diag::warn_unknown_attribute_ignored) << AL;
+    Diag(AL.getLoc(), diag::warn_unknown_attribute_ignored)
+        << AL << AL.getRange();
     AL.setInvalid();
     return true;
   }
@@ -2924,10 +2925,13 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &Attr,
     return Result;
   }
 
-  if (const auto *A = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>())
-    if (A->getNumber() == 0)
+  if (const auto *A = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
+    int64_t AttrValue =
+        A->getValue()->getIntegerConstantExpr(S.Context)->getSExtValue();
+    if (AttrValue == 0)
       Result &= checkZeroDim(A, WGSize[0], WGSize[1], WGSize[2],
                              /*ReverseAttrs=*/true);
+  }
 
   if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
     if (!(WGSize[0] <= A->getXDim() && WGSize[1] <= A->getYDim() &&
@@ -3029,8 +3033,9 @@ static void handleNumSimdWorkItemsAttr(Sema &S, Decl *D,
                                                                      E);
 }
 
-// Handles stall_enable
-static void handleStallEnableAttr(Sema &S, Decl *D, const ParsedAttr &Attr) {
+// Handles use_stall_enable_clusters
+static void handleUseStallEnableClustersAttr(Sema &S, Decl *D,
+                                             const ParsedAttr &Attr) {
   if (D->isInvalidDecl())
     return;
 
@@ -3040,7 +3045,7 @@ static void handleStallEnableAttr(Sema &S, Decl *D, const ParsedAttr &Attr) {
     return;
   }
 
-  handleSimpleAttribute<SYCLIntelStallEnableAttr>(S, D, Attr);
+  handleSimpleAttribute<SYCLIntelUseStallEnableClustersAttr>(S, D, Attr);
 }
 
 // Add scheduler_target_fmax_mhz
@@ -3085,25 +3090,14 @@ static void handleMaxGlobalWorkDimAttr(Sema &S, Decl *D,
   if (D->isInvalidDecl())
     return;
 
-  uint32_t MaxGlobalWorkDim;
-  const Expr *E = Attr.getArgAsExpr(0);
-  if (!checkUInt32Argument(S, Attr, E, MaxGlobalWorkDim, 0,
-                           /*StrictlyUnsigned=*/true))
-    return;
+  Expr *E = Attr.getArgAsExpr(0);
 
-  if (MaxGlobalWorkDim > 3) {
-    S.Diag(Attr.getLoc(), diag::err_intel_attribute_argument_is_not_in_range)
-      << Attr;
+  uint32_t WGSize[3] = {1, 1, 1};
+  if (!checkWorkGroupSizeValues(S, D, Attr, WGSize)) {
+    D->setInvalidDecl();
     return;
   }
 
-  if (MaxGlobalWorkDim == 0) {
-    uint32_t WGSize[3] = {1, 1, 1};
-    if (!checkWorkGroupSizeValues(S, D, Attr, WGSize)) {
-      D->setInvalidDecl();
-      return;
-    }
-  }
   if (D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>())
     S.Diag(Attr.getLoc(), diag::warn_duplicate_attribute) << Attr;
 
@@ -3111,8 +3105,8 @@ static void handleMaxGlobalWorkDimAttr(Sema &S, Decl *D,
     S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)
         << "'intel::max_global_work_dim'";
 
-  D->addAttr(::new (S.Context) SYCLIntelMaxGlobalWorkDimAttr(
-        S.Context, Attr, MaxGlobalWorkDim));
+  S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelMaxGlobalWorkDimAttr>(D, Attr,
+                                                                     E);
 }
 
 static void handleVecTypeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -3873,7 +3867,7 @@ void Sema::AddAnnotationAttr(Decl *D, const AttributeCommonInfo &CI,
                              StringRef Str, MutableArrayRef<Expr *> Args) {
   auto *Attr = AnnotateAttr::Create(Context, Str, Args.data(), Args.size(), CI);
   llvm::SmallVector<PartialDiagnosticAt, 8> Notes;
-  for (unsigned Idx = 1; Idx < Attr->args_size(); Idx++) {
+  for (unsigned Idx = 0; Idx < Attr->args_size(); Idx++) {
     Expr *&E = Attr->args_begin()[Idx];
     assert(E && "error are handled before");
     if (E->isValueDependent() || E->isTypeDependent())
@@ -3905,7 +3899,7 @@ void Sema::AddAnnotationAttr(Decl *D, const AttributeCommonInfo &CI,
     /// current language mode.
     if (!Result || !Notes.empty()) {
       Diag(E->getBeginLoc(), diag::err_attribute_argument_n_type)
-          << CI << Idx << AANT_ArgumentConstantExpr;
+          << CI << (Idx + 1) << AANT_ArgumentConstantExpr;
       for (auto &Note : Notes)
         Diag(Note.first, Note.second);
       return;
@@ -3924,8 +3918,8 @@ static void handleAnnotateAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
 
   llvm::SmallVector<Expr *, 4> Args;
-  Args.reserve(AL.getNumArgs());
-  for (unsigned Idx = 0; Idx < AL.getNumArgs(); Idx++) {
+  Args.reserve(AL.getNumArgs() - 1);
+  for (unsigned Idx = 1; Idx < AL.getNumArgs(); Idx++) {
     assert(!AL.isArgIdent(Idx));
     Args.push_back(AL.getArgAsExpr(Idx));
   }
@@ -6122,7 +6116,8 @@ static void handleNSErrorDomain(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
   }
 
-  if (!isNSStringType(VD->getType(), S.Context)) {
+  if (!isNSStringType(VD->getType(), S.Context) &&
+      !isCFStringType(VD->getType(), S.Context)) {
     S.Diag(Loc, diag::err_nserrordomain_wrong_type) << VD;
     return;
   }
@@ -8059,7 +8054,7 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
            AL.isDeclspecAttribute()
                ? (unsigned)diag::warn_unhandled_ms_attribute_ignored
                : (unsigned)diag::warn_unknown_attribute_ignored)
-        << AL;
+        << AL << AL.getRange();
     return;
   }
 
@@ -8183,19 +8178,12 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     handlePassObjectSizeAttr(S, D, AL);
     break;
   case ParsedAttr::AT_Constructor:
-    if (S.Context.getTargetInfo().getTriple().isOSAIX())
-      llvm::report_fatal_error(
-          "'constructor' attribute is not yet supported on AIX");
-    else
       handleConstructorAttr(S, D, AL);
     break;
   case ParsedAttr::AT_Deprecated:
     handleDeprecatedAttr(S, D, AL);
     break;
   case ParsedAttr::AT_Destructor:
-    if (S.Context.getTargetInfo().getTriple().isOSAIX())
-      llvm::report_fatal_error("'destructor' attribute is not yet supported on AIX");
-    else
       handleDestructorAttr(S, D, AL);
     break;
   case ParsedAttr::AT_EnableIf:
@@ -8415,8 +8403,8 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_SYCLIntelNoGlobalWorkOffset:
     handleNoGlobalWorkOffsetAttr(S, D, AL);
     break;
-  case ParsedAttr::AT_SYCLIntelStallEnable:
-    handleStallEnableAttr(S, D, AL);
+  case ParsedAttr::AT_SYCLIntelUseStallEnableClusters:
+    handleUseStallEnableClustersAttr(S, D, AL);
     break;
   case ParsedAttr::AT_VecTypeHint:
     handleVecTypeHint(S, D, AL);
@@ -8952,8 +8940,8 @@ NamedDecl * Sema::DeclClonePragmaWeak(NamedDecl *ND, IdentifierInfo *II,
     NewFD = FunctionDecl::Create(
         FD->getASTContext(), FD->getDeclContext(), Loc, Loc,
         DeclarationName(II), FD->getType(), FD->getTypeSourceInfo(), SC_None,
-        false /*isInlineSpecified*/, FD->hasPrototype(), CSK_unspecified,
-        FD->getTrailingRequiresClause());
+        false /*isInlineSpecified*/, FD->hasPrototype(),
+        ConstexprSpecKind::Unspecified, FD->getTrailingRequiresClause());
     NewD = NewFD;
 
     if (FD->getQualifier())

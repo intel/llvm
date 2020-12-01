@@ -1514,6 +1514,9 @@ SDValue SelectionDAGBuilder::getValueImpl(const Value *V) {
     if (const BlockAddress *BA = dyn_cast<BlockAddress>(C))
       return DAG.getBlockAddress(BA, VT);
 
+    if (const auto *Equiv = dyn_cast<DSOLocalEquivalent>(C))
+      return getValue(Equiv->getGlobalValue());
+
     VectorType *VecTy = cast<VectorType>(V->getType());
 
     // Now that we know the number and type of the elements, get that number of
@@ -4297,12 +4300,12 @@ void SelectionDAGBuilder::visitMaskedScatter(const CallInst &I) {
   if (!UniformBase) {
     Base = DAG.getConstant(0, sdl, TLI.getPointerTy(DAG.getDataLayout()));
     Index = getValue(Ptr);
-    IndexType = ISD::SIGNED_SCALED;
+    IndexType = ISD::SIGNED_UNSCALED;
     Scale = DAG.getTargetConstant(1, sdl, TLI.getPointerTy(DAG.getDataLayout()));
   }
   SDValue Ops[] = { getMemoryRoot(), Src0, Mask, Base, Index, Scale };
   SDValue Scatter = DAG.getMaskedScatter(DAG.getVTList(MVT::Other), VT, sdl,
-                                         Ops, MMO, IndexType);
+                                         Ops, MMO, IndexType, false);
   DAG.setRoot(Scatter);
   setValue(&I, Scatter);
 }
@@ -4350,7 +4353,7 @@ void SelectionDAGBuilder::visitMaskedLoad(const CallInst &I, bool IsExpanding) {
   // Do not serialize masked loads of constant memory with anything.
   MemoryLocation ML;
   if (VT.isScalableVector())
-    ML = MemoryLocation(PtrOperand);
+    ML = MemoryLocation(PtrOperand, LocationSize::unknown());
   else
     ML = MemoryLocation(PtrOperand, LocationSize::precise(
                            DAG.getDataLayout().getTypeStoreSize(I.getType())),
@@ -8087,10 +8090,9 @@ void SelectionDAGBuilder::visitInlineAsm(const CallBase &Call) {
         OpInfo.CallOperand = getValue(OpInfo.CallOperandVal);
       }
 
-      OpInfo.ConstraintVT =
-          OpInfo
-              .getCallOperandValEVT(*DAG.getContext(), TLI, DAG.getDataLayout())
-              .getSimpleVT();
+      EVT VT = OpInfo.getCallOperandValEVT(*DAG.getContext(), TLI,
+                                           DAG.getDataLayout());
+      OpInfo.ConstraintVT = VT.isSimple() ? VT.getSimpleVT() : MVT::Other;
     } else if (OpInfo.Type == InlineAsm::isOutput && !OpInfo.isIndirect) {
       // The return value of the call is this value.  As such, there is no
       // corresponding argument.

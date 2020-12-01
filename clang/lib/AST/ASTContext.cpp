@@ -2499,6 +2499,25 @@ CharUnits ASTContext::getOffsetOfBaseWithVBPtr(const CXXRecordDecl *RD) const {
   return Offset;
 }
 
+CharUnits ASTContext::getMemberPointerPathAdjustment(const APValue &MP) const {
+  const ValueDecl *MPD = MP.getMemberPointerDecl();
+  CharUnits ThisAdjustment = CharUnits::Zero();
+  ArrayRef<const CXXRecordDecl*> Path = MP.getMemberPointerPath();
+  bool DerivedMember = MP.isMemberPointerToDerivedMember();
+  const CXXRecordDecl *RD = cast<CXXRecordDecl>(MPD->getDeclContext());
+  for (unsigned I = 0, N = Path.size(); I != N; ++I) {
+    const CXXRecordDecl *Base = RD;
+    const CXXRecordDecl *Derived = Path[I];
+    if (DerivedMember)
+      std::swap(Base, Derived);
+    ThisAdjustment += getASTRecordLayout(Derived).getBaseClassOffset(Base);
+    RD = Path[I];
+  }
+  if (DerivedMember)
+    ThisAdjustment = -ThisAdjustment;
+  return ThisAdjustment;
+}
+
 /// DeepCollectObjCIvars -
 /// This routine first collects all declared, but not synthesized, ivars in
 /// super class and then collects all ivars, including those synthesized for
@@ -7681,7 +7700,9 @@ void ASTContext::getObjCEncodingForStructureImpl(RecordDecl *RDecl,
   }
 
   unsigned i = 0;
-  for (auto *Field : RDecl->fields()) {
+  for (FieldDecl *Field : RDecl->fields()) {
+    if (!Field->isZeroLengthBitField(*this) && Field->isZeroSize(*this))
+      continue;
     uint64_t offs = layout.getFieldOffset(i);
     FieldOrBaseOffsets.insert(FieldOrBaseOffsets.upper_bound(offs),
                               std::make_pair(offs, Field));
@@ -8574,6 +8595,41 @@ bool ASTContext::areCompatibleSveTypes(QualType FirstType,
 
   return IsValidCast(FirstType, SecondType) ||
          IsValidCast(SecondType, FirstType);
+}
+
+bool ASTContext::areLaxCompatibleSveTypes(QualType FirstType,
+                                          QualType SecondType) {
+  assert(((FirstType->isSizelessBuiltinType() && SecondType->isVectorType()) ||
+          (FirstType->isVectorType() && SecondType->isSizelessBuiltinType())) &&
+         "Expected SVE builtin type and vector type!");
+
+  auto IsLaxCompatible = [this](QualType FirstType, QualType SecondType) {
+    if (!FirstType->getAs<BuiltinType>())
+      return false;
+
+    const auto *VecTy = SecondType->getAs<VectorType>();
+    if (VecTy &&
+        VecTy->getVectorKind() == VectorType::SveFixedLengthDataVector) {
+      const LangOptions::LaxVectorConversionKind LVCKind =
+          getLangOpts().getLaxVectorConversions();
+
+      // If -flax-vector-conversions=all is specified, the types are
+      // certainly compatible.
+      if (LVCKind == LangOptions::LaxVectorConversionKind::All)
+        return true;
+
+      // If -flax-vector-conversions=integer is specified, the types are
+      // compatible if the elements are integer types.
+      if (LVCKind == LangOptions::LaxVectorConversionKind::Integer)
+        return VecTy->getElementType().getCanonicalType()->isIntegerType() &&
+               FirstType->getSveEltType(*this)->isIntegerType();
+    }
+
+    return false;
+  };
+
+  return IsLaxCompatible(FirstType, SecondType) ||
+         IsLaxCompatible(SecondType, FirstType);
 }
 
 bool ASTContext::hasDirectOwnershipQualifier(QualType Ty) const {
@@ -9974,6 +10030,11 @@ QualType ASTContext::getCorrespondingUnsignedType(QualType T) const {
     return UnsignedLongLongTy;
   case BuiltinType::Int128:
     return UnsignedInt128Ty;
+  // wchar_t is special. It is either signed or not, but when it's signed,
+  // there's no matching "unsigned wchar_t". Therefore we return the unsigned
+  // version of it's underlying type instead.
+  case BuiltinType::WChar_S:
+    return getUnsignedWCharType();
 
   case BuiltinType::ShortAccum:
     return UnsignedShortAccumTy;

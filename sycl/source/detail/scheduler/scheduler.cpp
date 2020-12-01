@@ -276,13 +276,13 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req) {
 void Scheduler::allocateStreamBuffers(stream_impl *Impl,
                                       size_t StreamBufferSize,
                                       size_t FlushBufferSize) {
-  std::lock_guard<std::mutex> lock(StreamBuffersPoolMutex);
+  std::lock_guard<std::recursive_mutex> lock(StreamBuffersPoolMutex);
   StreamBuffersPool.insert(
       {Impl, new StreamBuffers(StreamBufferSize, FlushBufferSize)});
 }
 
 void Scheduler::deallocateStreamBuffers(stream_impl *Impl) {
-  std::lock_guard<std::mutex> lock(StreamBuffersPoolMutex);
+  std::lock_guard<std::recursive_mutex> lock(StreamBuffersPoolMutex);
   delete StreamBuffersPool[Impl];
   StreamBuffersPool.erase(Impl);
 }
@@ -302,7 +302,7 @@ Scheduler::~Scheduler() {
   // the kernel. Otherwise resources for stream will not be released, issue a
   // warning in this case.
   if (pi::trace(pi::TraceLevel::PI_TRACE_BASIC)) {
-    std::lock_guard<std::mutex> lock(StreamBuffersPoolMutex);
+    std::lock_guard<std::recursive_mutex> lock(StreamBuffersPoolMutex);
     if (!StreamBuffersPool.empty())
       fprintf(
           stderr,

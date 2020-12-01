@@ -58,6 +58,7 @@ if(CLANG_TEST_USE_VG)
 endif ()
 
 list(APPEND CLANG_TEST_DEPS
+  apinotes-test
   c-index-test
   clang
   clang-resource-headers
@@ -91,6 +92,7 @@ if (CLANG_BUILD_EXAMPLES)
   list(APPEND CLANG_TEST_DEPS
     Attribute
     AnnotateFunctions
+    CallSuperAttr
     clang-interpreter
     PrintFunctionNames
     )

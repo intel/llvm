@@ -22,7 +22,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 
 // -----
 
-def SPV_AddressOfOp : SPV_Op<"_address_of", [InFunctionScope, NoSideEffect]> {
+def SPV_AddressOfOp : SPV_Op<"mlir.addressof", [InFunctionScope, NoSideEffect]> {
   let summary = "Get the address of a global variable.";
 
   let description = [{
@@ -37,14 +37,14 @@ def SPV_AddressOfOp : SPV_Op<"_address_of", [InFunctionScope, NoSideEffect]> {
     <!-- End of AutoGen section -->
 
     ```
-    spv-address-of-op ::= ssa-id `=` `spv._address_of` symbol-ref-id
+    spv-address-of-op ::= ssa-id `=` `spv.mlir.addressof` symbol-ref-id
                                      `:` spirv-pointer-type
     ```
 
     #### Example:
 
     ```mlir
-    %0 = spv._address_of @global_var : !spv.ptr<f32, Input>
+    %0 = spv.mlir.addressof @global_var : !spv.ptr<f32, Input>
     ```
   }];
 
@@ -373,7 +373,7 @@ def SPV_ModuleOp : SPV_Op<"module",
     implicitly capture values from the enclosing environment.
 
     This op has only one region, which only contains one block. The block
-    must be terminated via the `spv._module_end` op.
+    must be terminated via the `spv.mlir.endmodule` op.
 
     <!-- End of AutoGen section -->
 
@@ -443,7 +443,7 @@ def SPV_ModuleOp : SPV_Op<"module",
 
 // -----
 
-def SPV_ModuleEndOp : SPV_Op<"_module_end", [InModuleScope, Terminator]> {
+def SPV_ModuleEndOp : SPV_Op<"mlir.endmodule", [InModuleScope, Terminator]> {
   let summary = "The pseudo op that ends a SPIR-V module";
 
   let description = [{
@@ -468,7 +468,7 @@ def SPV_ModuleEndOp : SPV_Op<"_module_end", [InModuleScope, Terminator]> {
 
 // -----
 
-def SPV_ReferenceOfOp : SPV_Op<"_reference_of", [NoSideEffect]> {
+def SPV_ReferenceOfOp : SPV_Op<"mlir.referenceof", [NoSideEffect]> {
   let summary = "Reference a specialization constant.";
 
   let description = [{
@@ -482,14 +482,14 @@ def SPV_ReferenceOfOp : SPV_Op<"_reference_of", [NoSideEffect]> {
     <!-- End of AutoGen section -->
 
     ```
-    spv-reference-of-op ::= ssa-id `=` `spv._reference_of` symbol-ref-id
+    spv-reference-of-op ::= ssa-id `=` `spv.mlir.referenceof` symbol-ref-id
                                        `:` spirv-scalar-type
     ```
 
     #### Example:
 
     ```mlir
-    %0 = spv._reference_of @spec_const : f32
+    %0 = spv.mlir.referenceof @spec_const : f32
     ```
 
     TODO Add support for composite specialization constants.

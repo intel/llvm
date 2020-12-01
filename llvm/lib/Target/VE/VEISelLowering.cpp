@@ -21,6 +21,7 @@
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/CodeGen/MachineJumpTableInfo.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/SelectionDAG.h"
@@ -40,14 +41,39 @@ using namespace llvm;
 
 #include "VEGenCallingConv.inc"
 
+CCAssignFn *getReturnCC(CallingConv::ID CallConv) {
+  switch (CallConv) {
+  default:
+    return RetCC_VE_C;
+  case CallingConv::Fast:
+    return RetCC_VE_Fast;
+  }
+}
+
+CCAssignFn *getParamCC(CallingConv::ID CallConv, bool IsVarArg) {
+  if (IsVarArg)
+    return CC_VE2;
+  switch (CallConv) {
+  default:
+    return CC_VE_C;
+  case CallingConv::Fast:
+    return CC_VE_Fast;
+  }
+}
+
 bool VETargetLowering::CanLowerReturn(
     CallingConv::ID CallConv, MachineFunction &MF, bool IsVarArg,
     const SmallVectorImpl<ISD::OutputArg> &Outs, LLVMContext &Context) const {
-  CCAssignFn *RetCC = RetCC_VE;
+  CCAssignFn *RetCC = getReturnCC(CallConv);
   SmallVector<CCValAssign, 16> RVLocs;
   CCState CCInfo(CallConv, IsVarArg, MF, RVLocs, Context);
   return CCInfo.CheckReturn(Outs, RetCC);
 }
+
+static const MVT AllVectorVTs[] = {MVT::v256i32, MVT::v512i32, MVT::v256i64,
+                                   MVT::v256f32, MVT::v512f32, MVT::v256f64};
+
+static const MVT AllMaskVTs[] = {MVT::v256i1, MVT::v512i1};
 
 void VETargetLowering::initRegisterClasses() {
   // Set up the register classes.
@@ -58,46 +84,10 @@ void VETargetLowering::initRegisterClasses() {
   addRegisterClass(MVT::f128, &VE::F128RegClass);
 
   if (Subtarget->enableVPU()) {
-    addRegisterClass(MVT::v2i32, &VE::V64RegClass);
-    addRegisterClass(MVT::v4i32, &VE::V64RegClass);
-    addRegisterClass(MVT::v8i32, &VE::V64RegClass);
-    addRegisterClass(MVT::v16i32, &VE::V64RegClass);
-    addRegisterClass(MVT::v32i32, &VE::V64RegClass);
-    addRegisterClass(MVT::v64i32, &VE::V64RegClass);
-    addRegisterClass(MVT::v128i32, &VE::V64RegClass);
-    addRegisterClass(MVT::v256i32, &VE::V64RegClass);
-    addRegisterClass(MVT::v512i32, &VE::V64RegClass);
-
-    addRegisterClass(MVT::v2i64, &VE::V64RegClass);
-    addRegisterClass(MVT::v4i64, &VE::V64RegClass);
-    addRegisterClass(MVT::v8i64, &VE::V64RegClass);
-    addRegisterClass(MVT::v16i64, &VE::V64RegClass);
-    addRegisterClass(MVT::v32i64, &VE::V64RegClass);
-    addRegisterClass(MVT::v64i64, &VE::V64RegClass);
-    addRegisterClass(MVT::v128i64, &VE::V64RegClass);
-    addRegisterClass(MVT::v256i64, &VE::V64RegClass);
-
-    addRegisterClass(MVT::v2f32, &VE::V64RegClass);
-    addRegisterClass(MVT::v4f32, &VE::V64RegClass);
-    addRegisterClass(MVT::v8f32, &VE::V64RegClass);
-    addRegisterClass(MVT::v16f32, &VE::V64RegClass);
-    addRegisterClass(MVT::v32f32, &VE::V64RegClass);
-    addRegisterClass(MVT::v64f32, &VE::V64RegClass);
-    addRegisterClass(MVT::v128f32, &VE::V64RegClass);
-    addRegisterClass(MVT::v256f32, &VE::V64RegClass);
-    addRegisterClass(MVT::v512f32, &VE::V64RegClass);
-
-    addRegisterClass(MVT::v2f64, &VE::V64RegClass);
-    addRegisterClass(MVT::v4f64, &VE::V64RegClass);
-    addRegisterClass(MVT::v8f64, &VE::V64RegClass);
-    addRegisterClass(MVT::v16f64, &VE::V64RegClass);
-    addRegisterClass(MVT::v32f64, &VE::V64RegClass);
-    addRegisterClass(MVT::v64f64, &VE::V64RegClass);
-    addRegisterClass(MVT::v128f64, &VE::V64RegClass);
-    addRegisterClass(MVT::v256f64, &VE::V64RegClass);
-
-    addRegisterClass(MVT::v256i1, &VE::VMRegClass);
-    addRegisterClass(MVT::v512i1, &VE::VM512RegClass);
+    for (MVT VecVT : AllVectorVTs)
+      addRegisterClass(VecVT, &VE::V64RegClass);
+    for (MVT MaskVT : AllMaskVTs)
+      addRegisterClass(MaskVT, &VE::VMRegClass);
   }
 }
 
@@ -133,6 +123,7 @@ void VETargetLowering::initSPUActions() {
   setOperationAction(ISD::GlobalAddress, PtrVT, Custom);
   setOperationAction(ISD::GlobalTLSAddress, PtrVT, Custom);
   setOperationAction(ISD::ConstantPool, PtrVT, Custom);
+  setOperationAction(ISD::JumpTable, PtrVT, Custom);
 
   /// VAARG handling {
   setOperationAction(ISD::VASTART, MVT::Other, Custom);
@@ -153,9 +144,7 @@ void VETargetLowering::initSPUActions() {
   // VE doesn't have BRCOND
   setOperationAction(ISD::BRCOND, MVT::Other, Expand);
 
-  // BRIND and BR_JT are not implemented yet.
-  // FIXME: Implement both for the scalar perforamnce.
-  setOperationAction(ISD::BRIND, MVT::Other, Expand);
+  // BR_JT is not implemented yet.
   setOperationAction(ISD::BR_JT, MVT::Other, Expand);
 
   /// } Branch
@@ -265,7 +254,8 @@ void VETargetLowering::initSPUActions() {
 }
 
 void VETargetLowering::initVPUActions() {
-  // TODO upstream vector isel
+  for (MVT LegalVecVT : AllVectorVTs)
+    setOperationAction(ISD::BUILD_VECTOR, LegalVecVT, Custom);
 }
 
 SDValue
@@ -282,7 +272,7 @@ VETargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
                  *DAG.getContext());
 
   // Analyze return values.
-  CCInfo.AnalyzeReturn(Outs, RetCC_VE);
+  CCInfo.AnalyzeReturn(Outs, getReturnCC(CallConv));
 
   SDValue Flag;
   SmallVector<SDValue, 4> RetOps(1, Chain);
@@ -363,7 +353,7 @@ SDValue VETargetLowering::LowerFormalArguments(
   CCInfo.AllocateStack(ArgsPreserved, Align(8));
   // We already allocated the preserved area, so the stack offset computed
   // by CC_VE would be correct now.
-  CCInfo.AnalyzeFormalArguments(Ins, CC_VE);
+  CCInfo.AnalyzeFormalArguments(Ins, getParamCC(CallConv, false));
 
   for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
     CCValAssign &VA = ArgLocs[i];
@@ -511,7 +501,7 @@ SDValue VETargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   CCInfo.AllocateStack(ArgsPreserved, Align(8));
   // We already allocated the preserved area, so the stack offset computed
   // by CC_VE would be correct now.
-  CCInfo.AnalyzeCallOperands(CLI.Outs, CC_VE);
+  CCInfo.AnalyzeCallOperands(CLI.Outs, getParamCC(CLI.CallConv, false));
 
   // VE requires to use both register and stack for varargs or no-prototyped
   // functions.
@@ -522,7 +512,7 @@ SDValue VETargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   CCState CCInfo2(CLI.CallConv, CLI.IsVarArg, DAG.getMachineFunction(),
                   ArgLocs2, *DAG.getContext());
   if (UseBoth)
-    CCInfo2.AnalyzeCallOperands(CLI.Outs, CC_VE2);
+    CCInfo2.AnalyzeCallOperands(CLI.Outs, getParamCC(CLI.CallConv, true));
 
   // Get the size of the outgoing arguments stack space requirement.
   unsigned ArgsSize = CCInfo.getNextStackOffset();
@@ -707,7 +697,7 @@ SDValue VETargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   if (CLI.Ins.size() == 1 && CLI.Ins[0].VT == MVT::f32 && !CLI.CB)
     CLI.Ins[0].Flags.setInReg();
 
-  RVInfo.AnalyzeCallResult(CLI.Ins, RetCC_VE);
+  RVInfo.AnalyzeCallResult(CLI.Ins, getReturnCC(CLI.CallConv));
 
   // Copy all of the result registers out of their specified physreg.
   for (unsigned i = 0; i != RVLocs.size(); ++i) {
@@ -878,6 +868,7 @@ const char *VETargetLowering::getTargetNodeName(unsigned Opcode) const {
     TARGET_NODE_CASE(GETTLSADDR)
     TARGET_NODE_CASE(MEMBARRIER)
     TARGET_NODE_CASE(CALL)
+    TARGET_NODE_CASE(VEC_BROADCAST)
     TARGET_NODE_CASE(RET_FLAG)
     TARGET_NODE_CASE(GLOBAL_BASE_REG)
   }
@@ -909,6 +900,9 @@ SDValue VETargetLowering::withTargetFlags(SDValue Op, unsigned TF,
     return DAG.getTargetExternalSymbol(ES->getSymbol(), ES->getValueType(0),
                                        TF);
 
+  if (const JumpTableSDNode *JT = dyn_cast<JumpTableSDNode>(Op))
+    return DAG.getTargetJumpTable(JT->getIndex(), JT->getValueType(0), TF);
+
   llvm_unreachable("Unhandled address SDNode");
 }
 
@@ -937,26 +931,22 @@ SDValue VETargetLowering::makeAddress(SDValue Op, SelectionDAG &DAG) const {
     MFI.setHasCalls(true);
     auto GlobalN = dyn_cast<GlobalAddressSDNode>(Op);
 
-    if (isa<ConstantPoolSDNode>(Op) ||
+    if (isa<ConstantPoolSDNode>(Op) || isa<JumpTableSDNode>(Op) ||
         (GlobalN && GlobalN->getGlobal()->hasLocalLinkage())) {
       // Create following instructions for local linkage PIC code.
-      //     lea %s35, %gotoff_lo(.LCPI0_0)
-      //     and %s35, %s35, (32)0
-      //     lea.sl %s35, %gotoff_hi(.LCPI0_0)(%s35)
-      //     adds.l %s35, %s15, %s35                  ; %s15 is GOT
-      // FIXME: use lea.sl %s35, %gotoff_hi(.LCPI0_0)(%s35, %s15)
+      //     lea %reg, label@gotoff_lo
+      //     and %reg, %reg, (32)0
+      //     lea.sl %reg, label@gotoff_hi(%reg, %got)
       SDValue HiLo = makeHiLoPair(Op, VEMCExpr::VK_VE_GOTOFF_HI32,
                                   VEMCExpr::VK_VE_GOTOFF_LO32, DAG);
       SDValue GlobalBase = DAG.getNode(VEISD::GLOBAL_BASE_REG, DL, PtrVT);
       return DAG.getNode(ISD::ADD, DL, PtrVT, GlobalBase, HiLo);
     }
     // Create following instructions for not local linkage PIC code.
-    //     lea %s35, %got_lo(.LCPI0_0)
-    //     and %s35, %s35, (32)0
-    //     lea.sl %s35, %got_hi(.LCPI0_0)(%s35)
-    //     adds.l %s35, %s15, %s35                  ; %s15 is GOT
-    //     ld     %s35, (,%s35)
-    // FIXME: use lea.sl %s35, %gotoff_hi(.LCPI0_0)(%s35, %s15)
+    //     lea %reg, label@got_lo
+    //     and %reg, %reg, (32)0
+    //     lea.sl %reg, label@got_hi(%reg)
+    //     ld %reg, (%reg, %got)
     SDValue HiLo = makeHiLoPair(Op, VEMCExpr::VK_VE_GOT_HI32,
                                 VEMCExpr::VK_VE_GOT_LO32, DAG);
     SDValue GlobalBase = DAG.getNode(VEISD::GLOBAL_BASE_REG, DL, PtrVT);
@@ -1129,6 +1119,10 @@ SDValue VETargetLowering::lowerGlobalTLSAddress(SDValue Op,
   //
   // *1: https://www.nec.com/en/global/prod/hpc/aurora/document/VE-tls_v1.1.pdf
   return lowerToTLSGeneralDynamicModel(Op, DAG);
+}
+
+SDValue VETargetLowering::lowerJumpTable(SDValue Op, SelectionDAG &DAG) const {
+  return makeAddress(Op, DAG);
 }
 
 // Lower a f128 load into two f64 loads.
@@ -1380,6 +1374,32 @@ SDValue VETargetLowering::lowerDYNAMIC_STACKALLOC(SDValue Op,
   return DAG.getMergeValues(Ops, DL);
 }
 
+static SDValue getSplatValue(SDNode *N) {
+  if (auto *BuildVec = dyn_cast<BuildVectorSDNode>(N)) {
+    return BuildVec->getSplatValue();
+  }
+  return SDValue();
+}
+
+SDValue VETargetLowering::lowerBUILD_VECTOR(SDValue Op,
+                                            SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  unsigned NumEls = Op.getValueType().getVectorNumElements();
+  MVT ElemVT = Op.getSimpleValueType().getVectorElementType();
+
+  if (SDValue ScalarV = getSplatValue(Op.getNode())) {
+    // lower to VEC_BROADCAST
+    MVT LegalResVT = MVT::getVectorVT(ElemVT, 256);
+
+    auto AVL = DAG.getConstant(NumEls, DL, MVT::i32);
+    return DAG.getNode(VEISD::VEC_BROADCAST, DL, LegalResVT, Op.getOperand(0),
+                       AVL);
+  }
+
+  // Expand
+  return SDValue();
+}
+
 SDValue VETargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   switch (Op.getOpcode()) {
   default:
@@ -1396,8 +1416,12 @@ SDValue VETargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
     return lowerGlobalAddress(Op, DAG);
   case ISD::GlobalTLSAddress:
     return lowerGlobalTLSAddress(Op, DAG);
+  case ISD::JumpTable:
+    return lowerJumpTable(Op, DAG);
   case ISD::LOAD:
     return lowerLOAD(Op, DAG);
+  case ISD::BUILD_VECTOR:
+    return lowerBUILD_VECTOR(Op, DAG);
   case ISD::STORE:
     return lowerSTORE(Op, DAG);
   case ISD::VASTART:
@@ -1407,6 +1431,63 @@ SDValue VETargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   }
 }
 /// } Custom Lower
+
+/// JumpTable for VE.
+///
+///   VE cannot generate relocatable symbol in jump table.  VE cannot
+///   generate expressions using symbols in both text segment and data
+///   segment like below.
+///             .4byte  .LBB0_2-.LJTI0_0
+///   So, we generate offset from the top of function like below as
+///   a custom label.
+///             .4byte  .LBB0_2-<function name>
+
+unsigned VETargetLowering::getJumpTableEncoding() const {
+  // Use custom label for PIC.
+  if (isPositionIndependent())
+    return MachineJumpTableInfo::EK_Custom32;
+
+  // Otherwise, use the normal jump table encoding heuristics.
+  return TargetLowering::getJumpTableEncoding();
+}
+
+const MCExpr *VETargetLowering::LowerCustomJumpTableEntry(
+    const MachineJumpTableInfo *MJTI, const MachineBasicBlock *MBB,
+    unsigned Uid, MCContext &Ctx) const {
+  assert(isPositionIndependent());
+
+  // Generate custom label for PIC like below.
+  //    .4bytes  .LBB0_2-<function name>
+  const auto *Value = MCSymbolRefExpr::create(MBB->getSymbol(), Ctx);
+  MCSymbol *Sym = Ctx.getOrCreateSymbol(MBB->getParent()->getName().data());
+  const auto *Base = MCSymbolRefExpr::create(Sym, Ctx);
+  return MCBinaryExpr::createSub(Value, Base, Ctx);
+}
+
+SDValue VETargetLowering::getPICJumpTableRelocBase(SDValue Table,
+                                                   SelectionDAG &DAG) const {
+  assert(isPositionIndependent());
+  SDLoc DL(Table);
+  Function *Function = &DAG.getMachineFunction().getFunction();
+  assert(Function != nullptr);
+  auto PtrTy = getPointerTy(DAG.getDataLayout(), Function->getAddressSpace());
+
+  // In the jump table, we have following values in PIC mode.
+  //    .4bytes  .LBB0_2-<function name>
+  // We need to add this value and the address of this function to generate
+  // .LBB0_2 label correctly under PIC mode.  So, we want to generate following
+  // instructions:
+  //     lea %reg, fun@gotoff_lo
+  //     and %reg, %reg, (32)0
+  //     lea.sl %reg, fun@gotoff_hi(%reg, %got)
+  // In order to do so, we need to genarate correctly marked DAG node using
+  // makeHiLoPair.
+  SDValue Op = DAG.getGlobalAddress(Function, DL, PtrTy);
+  SDValue HiLo = makeHiLoPair(Op, VEMCExpr::VK_VE_GOTOFF_HI32,
+                              VEMCExpr::VK_VE_GOTOFF_LO32, DAG);
+  SDValue GlobalBase = DAG.getNode(VEISD::GLOBAL_BASE_REG, DL, PtrTy);
+  return DAG.getNode(ISD::ADD, DL, PtrTy, GlobalBase, HiLo);
+}
 
 static bool isI32Insn(const SDNode *User, const SDNode *N) {
   switch (User->getOpcode()) {
@@ -1533,4 +1614,55 @@ SDValue VETargetLowering::PerformDAGCombine(SDNode *N,
   }
 
   return SDValue();
+}
+
+//===----------------------------------------------------------------------===//
+//                         VE Inline Assembly Support
+//===----------------------------------------------------------------------===//
+
+VETargetLowering::ConstraintType
+VETargetLowering::getConstraintType(StringRef Constraint) const {
+  if (Constraint.size() == 1) {
+    switch (Constraint[0]) {
+    default:
+      break;
+    case 'v': // vector registers
+      return C_RegisterClass;
+    }
+  }
+  return TargetLowering::getConstraintType(Constraint);
+}
+
+std::pair<unsigned, const TargetRegisterClass *>
+VETargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
+                                               StringRef Constraint,
+                                               MVT VT) const {
+  const TargetRegisterClass *RC = nullptr;
+  if (Constraint.size() == 1) {
+    switch (Constraint[0]) {
+    default:
+      return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
+    case 'r':
+      RC = &VE::I64RegClass;
+      break;
+    case 'v':
+      RC = &VE::V64RegClass;
+      break;
+    }
+    return std::make_pair(0U, RC);
+  }
+
+  return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
+}
+
+//===----------------------------------------------------------------------===//
+// VE Target Optimization Support
+//===----------------------------------------------------------------------===//
+
+unsigned VETargetLowering::getMinimumJumpTableEntries() const {
+  // Specify 8 for PIC model to relieve the impact of PIC load instructions.
+  if (isJumpTableRelative())
+    return 8;
+
+  return TargetLowering::getMinimumJumpTableEntries();
 }

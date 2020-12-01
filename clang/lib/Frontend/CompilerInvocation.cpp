@@ -125,6 +125,70 @@ CompilerInvocationBase::~CompilerInvocationBase() = default;
 #include "clang/Driver/Options.inc"
 #undef SIMPLE_ENUM_VALUE_TABLE
 
+static llvm::Optional<bool> normalizeSimpleFlag(OptSpecifier Opt,
+                                                unsigned TableIndex,
+                                                const ArgList &Args,
+                                                DiagnosticsEngine &Diags) {
+  if (Args.hasArg(Opt))
+    return true;
+  return None;
+}
+
+void denormalizeSimpleFlag(SmallVectorImpl<const char *> &Args,
+                           const char *Spelling,
+                           CompilerInvocation::StringAllocator SA,
+                           unsigned TableIndex, unsigned Value) {
+  Args.push_back(Spelling);
+}
+
+template <typename T, T Value>
+static llvm::Optional<T>
+normalizeFlagToValue(OptSpecifier Opt, unsigned TableIndex, const ArgList &Args,
+                     DiagnosticsEngine &Diags) {
+  if (Args.hasArg(Opt))
+    return Value;
+  return None;
+}
+
+static Optional<bool> normalizeBooleanFlag(OptSpecifier PosOpt,
+                                           OptSpecifier NegOpt,
+                                           unsigned TableIndex,
+                                           const ArgList &Args,
+                                           DiagnosticsEngine &Diags) {
+  if (const Arg *A = Args.getLastArg(PosOpt, NegOpt))
+    return A->getOption().matches(PosOpt);
+  return None;
+}
+
+static void denormalizeBooleanFlag(SmallVectorImpl<const char *> &Args,
+                                   const char *Spelling,
+                                   const char *NegSpelling,
+                                   CompilerInvocation::StringAllocator SA,
+                                   unsigned TableIndex, unsigned Value) {
+  if (Value)
+    Args.push_back(Spelling);
+  else
+    Args.push_back(NegSpelling);
+}
+
+static Optional<SimpleEnumValue>
+findValueTableByName(const SimpleEnumValueTable &Table, StringRef Name) {
+  for (int I = 0, E = Table.Size; I != E; ++I)
+    if (Name == Table.Table[I].Name)
+      return Table.Table[I];
+
+  return None;
+}
+
+static Optional<SimpleEnumValue>
+findValueTableByValue(const SimpleEnumValueTable &Table, unsigned Value) {
+  for (int I = 0, E = Table.Size; I != E; ++I)
+    if (Value == Table.Table[I].Value)
+      return Table.Table[I];
+
+  return None;
+}
+
 static llvm::Optional<unsigned> normalizeSimpleEnum(OptSpecifier Opt,
                                                     unsigned TableIndex,
                                                     const ArgList &Args,
@@ -137,31 +201,48 @@ static llvm::Optional<unsigned> normalizeSimpleEnum(OptSpecifier Opt,
     return None;
 
   StringRef ArgValue = Arg->getValue();
-  for (int I = 0, E = Table.Size; I != E; ++I)
-    if (ArgValue == Table.Table[I].Name)
-      return Table.Table[I].Value;
+  if (auto MaybeEnumVal = findValueTableByName(Table, ArgValue))
+    return MaybeEnumVal->Value;
 
   Diags.Report(diag::err_drv_invalid_value)
       << Arg->getAsString(Args) << ArgValue;
   return None;
 }
 
-static const char *denormalizeSimpleEnum(CompilerInvocation::StringAllocator SA,
-                                         unsigned TableIndex, unsigned Value) {
+static void denormalizeSimpleEnum(SmallVectorImpl<const char *> &Args,
+                                  const char *Spelling,
+                                  CompilerInvocation::StringAllocator SA,
+                                  unsigned TableIndex, unsigned Value) {
   assert(TableIndex < SimpleEnumValueTablesSize);
   const SimpleEnumValueTable &Table = SimpleEnumValueTables[TableIndex];
-  for (int I = 0, E = Table.Size; I != E; ++I)
-    if (Value == Table.Table[I].Value)
-      return Table.Table[I].Name;
-
-  llvm_unreachable("The simple enum value was not correctly defined in "
-                   "the tablegen option description");
+  if (auto MaybeEnumVal = findValueTableByValue(Table, Value)) {
+    Args.push_back(Spelling);
+    Args.push_back(MaybeEnumVal->Name);
+  } else {
+    llvm_unreachable("The simple enum value was not correctly defined in "
+                     "the tablegen option description");
+  }
 }
 
-static const char *denormalizeString(CompilerInvocation::StringAllocator SA,
-                                     unsigned TableIndex,
-                                     const std::string &Value) {
-  return SA(Value);
+static void denormalizeSimpleEnumJoined(SmallVectorImpl<const char *> &Args,
+                                        const char *Spelling,
+                                        CompilerInvocation::StringAllocator SA,
+                                        unsigned TableIndex, unsigned Value) {
+  assert(TableIndex < SimpleEnumValueTablesSize);
+  const SimpleEnumValueTable &Table = SimpleEnumValueTables[TableIndex];
+  if (auto MaybeEnumVal = findValueTableByValue(Table, Value))
+    Args.push_back(SA(Twine(Spelling) + MaybeEnumVal->Name));
+  else
+    llvm_unreachable("The simple enum value was not correctly defined in "
+                     "the tablegen option description");
+}
+
+static void denormalizeString(SmallVectorImpl<const char *> &Args,
+                              const char *Spelling,
+                              CompilerInvocation::StringAllocator SA,
+                              unsigned TableIndex, const std::string &Value) {
+  Args.push_back(Spelling);
+  Args.push_back(SA(Value));
 }
 
 static Optional<std::string> normalizeTriple(OptSpecifier Opt, int TableIndex,
@@ -171,6 +252,35 @@ static Optional<std::string> normalizeTriple(OptSpecifier Opt, int TableIndex,
   if (!Arg)
     return None;
   return llvm::Triple::normalize(Arg->getValue());
+}
+
+template <typename T, typename U>
+static T mergeForwardValue(T KeyPath, U Value) {
+  return Value;
+}
+
+template <typename T, typename U> static T mergeMaskValue(T KeyPath, U Value) {
+  return KeyPath | Value;
+}
+
+template <typename T> static T extractForwardValue(T KeyPath) {
+  return KeyPath;
+}
+
+template <typename T, typename U, U Value>
+static T extractMaskValue(T KeyPath) {
+  return KeyPath & Value;
+}
+
+static void FixupInvocation(CompilerInvocation &Invocation) {
+  LangOptions &LangOpts = *Invocation.getLangOpts();
+  DiagnosticOptions &DiagOpts = Invocation.getDiagnosticOpts();
+  CodeGenOptions &CodeGenOpts = Invocation.getCodeGenOpts();
+  CodeGenOpts.XRayInstrumentFunctions = LangOpts.XRayInstrument;
+  CodeGenOpts.XRayAlwaysEmitCustomEvents = LangOpts.XRayAlwaysEmitCustomEvents;
+  CodeGenOpts.XRayAlwaysEmitTypedEvents = LangOpts.XRayAlwaysEmitTypedEvents;
+
+  llvm::sys::Process::UseANSIEscapeCodes(DiagOpts.UseANSIEscapeCodes);
 }
 
 //===----------------------------------------------------------------------===//
@@ -345,44 +455,19 @@ static bool ParseAnalyzerArgs(AnalyzerOptions &Opts, ArgList &Args,
     }
   }
 
-  Opts.ShowCheckerHelp = Args.hasArg(OPT_analyzer_checker_help);
-  Opts.ShowCheckerHelpAlpha = Args.hasArg(OPT_analyzer_checker_help_alpha);
-  Opts.ShowCheckerHelpDeveloper =
-      Args.hasArg(OPT_analyzer_checker_help_developer);
-
-  Opts.ShowCheckerOptionList = Args.hasArg(OPT_analyzer_checker_option_help);
-  Opts.ShowCheckerOptionAlphaList =
-      Args.hasArg(OPT_analyzer_checker_option_help_alpha);
-  Opts.ShowCheckerOptionDeveloperList =
-      Args.hasArg(OPT_analyzer_checker_option_help_developer);
-
-  Opts.ShowConfigOptionsList = Args.hasArg(OPT_analyzer_config_help);
-  Opts.ShowEnabledCheckerList = Args.hasArg(OPT_analyzer_list_enabled_checkers);
   Opts.ShouldEmitErrorsOnInvalidConfigValue =
       /* negated */!llvm::StringSwitch<bool>(
                    Args.getLastArgValue(OPT_analyzer_config_compatibility_mode))
         .Case("true", true)
         .Case("false", false)
         .Default(false);
-  Opts.DisableAllCheckers = Args.hasArg(OPT_analyzer_disable_all_checks);
 
-  Opts.visualizeExplodedGraphWithGraphViz =
-    Args.hasArg(OPT_analyzer_viz_egraph_graphviz);
   Opts.DumpExplodedGraphTo =
       std::string(Args.getLastArgValue(OPT_analyzer_dump_egraph));
-  Opts.NoRetryExhausted = Args.hasArg(OPT_analyzer_disable_retry_exhausted);
-  Opts.AnalyzerWerror = Args.hasArg(OPT_analyzer_werror);
-  Opts.AnalyzeAll = Args.hasArg(OPT_analyzer_opt_analyze_headers);
-  Opts.AnalyzerDisplayProgress = Args.hasArg(OPT_analyzer_display_progress);
-  Opts.AnalyzeNestedBlocks =
-    Args.hasArg(OPT_analyzer_opt_analyze_nested_blocks);
   Opts.AnalyzeSpecificFunction =
       std::string(Args.getLastArgValue(OPT_analyze_function));
-  Opts.UnoptimizedCFG = Args.hasArg(OPT_analysis_UnoptimizedCFG);
-  Opts.TrimGraph = Args.hasArg(OPT_trim_egraph);
   Opts.maxBlockVisitOnPath =
       getLastArgIntValue(Args, OPT_analyzer_max_loop, 4, Diags);
-  Opts.PrintStats = Args.hasArg(OPT_analyzer_stats);
   Opts.InlineMaxStackDepth =
       getLastArgIntValue(Args, OPT_analyzer_inline_max_stack_depth,
                          Opts.InlineMaxStackDepth, Diags);
@@ -574,12 +659,6 @@ static void parseAnalyzerConfigs(AnalyzerOptions &AnOpts,
                                                            << "a filename";
 }
 
-static bool ParseMigratorArgs(MigratorOptions &Opts, ArgList &Args) {
-  Opts.NoNSAllocReallocError = Args.hasArg(OPT_migrator_no_nsalloc_error);
-  Opts.NoFinalizeRemoval = Args.hasArg(OPT_migrator_no_finalize_removal);
-  return true;
-}
-
 static void ParseCommentArgs(CommentOptions &Opts, ArgList &Args) {
   Opts.BlockCommandNames = Args.getAllArgValues(OPT_fcomment_block_commands);
   Opts.ParseAllComments = Args.hasArg(OPT_fparse_all_comments);
@@ -737,10 +816,6 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
         Opts.setInlining(CodeGenOptions::OnlyAlwaysInlining);
     }
   }
-
-  Opts.ExperimentalNewPassManager = Args.hasFlag(
-      OPT_fexperimental_new_pass_manager, OPT_fno_experimental_new_pass_manager,
-      /* Default */ ENABLE_EXPERIMENTAL_NEW_PASS_MANAGER);
 
   Opts.DebugPassManager =
       Args.hasFlag(OPT_fdebug_pass_manager, OPT_fno_debug_pass_manager,
@@ -945,15 +1020,8 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
   Opts.NoEscapingBlockTailCalls =
       Args.hasArg(OPT_fno_escaping_block_tail_calls);
   Opts.FloatABI = std::string(Args.getLastArgValue(OPT_mfloat_abi));
-  Opts.LessPreciseFPMAD = Args.hasArg(OPT_cl_mad_enable) ||
-                          Args.hasArg(OPT_cl_unsafe_math_optimizations) ||
-                          Args.hasArg(OPT_cl_fast_relaxed_math);
   Opts.LimitFloatPrecision =
       std::string(Args.getLastArgValue(OPT_mlimit_float_precision));
-  Opts.CorrectlyRoundedDivSqrt =
-      Args.hasArg(OPT_cl_fp32_correctly_rounded_divide_sqrt);
-  Opts.UniformWGSize =
-      Args.hasArg(OPT_cl_uniform_work_group_size);
   Opts.Reciprocals = Args.getAllArgValues(OPT_mrecip_EQ);
   Opts.StrictFloatCastOverflow =
       !Args.hasArg(OPT_fno_strict_float_cast_overflow);
@@ -1132,16 +1200,8 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
   Opts.InstrumentFunctionEntryBare =
       Args.hasArg(OPT_finstrument_function_entry_bare);
 
-  Opts.XRayInstrumentFunctions =
-      Args.hasArg(OPT_fxray_instrument);
-  Opts.XRayAlwaysEmitCustomEvents =
-      Args.hasArg(OPT_fxray_always_emit_customevents);
-  Opts.XRayAlwaysEmitTypedEvents =
-      Args.hasArg(OPT_fxray_always_emit_typedevents);
   Opts.XRayInstructionThreshold =
       getLastArgIntValue(Args, OPT_fxray_instruction_threshold_EQ, 200, Diags);
-  Opts.XRayIgnoreLoops = Args.hasArg(OPT_fxray_ignore_loops);
-  Opts.XRayOmitFunctionIndex = Args.hasArg(OPT_fno_xray_function_index);
   Opts.XRayTotalFunctionGroups =
       getLastArgIntValue(Args, OPT_fxray_function_groups, 1, Diags);
   Opts.XRaySelectedFunctionGroup =
@@ -1165,7 +1225,6 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
   Opts.MNopMCount = Args.hasArg(OPT_mnop_mcount);
   Opts.RecordMCount = Args.hasArg(OPT_mrecord_mcount);
   Opts.PackedStack = Args.hasArg(OPT_mpacked_stack);
-  Opts.EmitOpenCLArgMetadata = Args.hasArg(OPT_cl_kernel_arg_info);
 
   if (const Arg *A = Args.getLastArg(OPT_fcf_protection_EQ)) {
     StringRef Name = A->getValue();
@@ -1973,6 +2032,7 @@ static InputKind ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
   Opts.IncludeTimestamps = !Args.hasArg(OPT_fno_pch_timestamp);
   Opts.UseTemporary = !Args.hasArg(OPT_fno_temp_file);
   Opts.IsSystemModule = Args.hasArg(OPT_fsystem_module);
+  Opts.AllowPCMWithCompilerErrors = Args.hasArg(OPT_fallow_pcm_with_errors);
 
   if (Opts.ProgramAction != frontend::GenerateModule && Opts.IsSystemModule)
     Diags.Report(diag::err_drv_argument_only_allowed_with) << "-fsystem-module"
@@ -2000,60 +2060,12 @@ static InputKind ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
     Opts.AuxTargetFeatures = Args.getAllArgValues(OPT_aux_target_feature);
   Opts.StatsFile = std::string(Args.getLastArgValue(OPT_stats_file));
 
-  if (const Arg *A = Args.getLastArg(OPT_arcmt_check,
-                                     OPT_arcmt_modify,
-                                     OPT_arcmt_migrate)) {
-    switch (A->getOption().getID()) {
-    default:
-      llvm_unreachable("missed a case");
-    case OPT_arcmt_check:
-      Opts.ARCMTAction = FrontendOptions::ARCMT_Check;
-      break;
-    case OPT_arcmt_modify:
-      Opts.ARCMTAction = FrontendOptions::ARCMT_Modify;
-      break;
-    case OPT_arcmt_migrate:
-      Opts.ARCMTAction = FrontendOptions::ARCMT_Migrate;
-      break;
-    }
-  }
   Opts.MTMigrateDir =
       std::string(Args.getLastArgValue(OPT_mt_migrate_directory));
   Opts.ARCMTMigrateReportOut =
       std::string(Args.getLastArgValue(OPT_arcmt_migrate_report_output));
   Opts.ARCMTMigrateEmitARCErrors
     = Args.hasArg(OPT_arcmt_migrate_emit_arc_errors);
-
-  if (Args.hasArg(OPT_objcmt_migrate_literals))
-    Opts.ObjCMTAction |= FrontendOptions::ObjCMT_Literals;
-  if (Args.hasArg(OPT_objcmt_migrate_subscripting))
-    Opts.ObjCMTAction |= FrontendOptions::ObjCMT_Subscripting;
-  if (Args.hasArg(OPT_objcmt_migrate_property_dot_syntax))
-    Opts.ObjCMTAction |= FrontendOptions::ObjCMT_PropertyDotSyntax;
-  if (Args.hasArg(OPT_objcmt_migrate_property))
-    Opts.ObjCMTAction |= FrontendOptions::ObjCMT_Property;
-  if (Args.hasArg(OPT_objcmt_migrate_readonly_property))
-    Opts.ObjCMTAction |= FrontendOptions::ObjCMT_ReadonlyProperty;
-  if (Args.hasArg(OPT_objcmt_migrate_readwrite_property))
-    Opts.ObjCMTAction |= FrontendOptions::ObjCMT_ReadwriteProperty;
-  if (Args.hasArg(OPT_objcmt_migrate_annotation))
-    Opts.ObjCMTAction |= FrontendOptions::ObjCMT_Annotation;
-  if (Args.hasArg(OPT_objcmt_returns_innerpointer_property))
-    Opts.ObjCMTAction |= FrontendOptions::ObjCMT_ReturnsInnerPointerProperty;
-  if (Args.hasArg(OPT_objcmt_migrate_instancetype))
-    Opts.ObjCMTAction |= FrontendOptions::ObjCMT_Instancetype;
-  if (Args.hasArg(OPT_objcmt_migrate_nsmacros))
-    Opts.ObjCMTAction |= FrontendOptions::ObjCMT_NsMacros;
-  if (Args.hasArg(OPT_objcmt_migrate_protocol_conformance))
-    Opts.ObjCMTAction |= FrontendOptions::ObjCMT_ProtocolConformance;
-  if (Args.hasArg(OPT_objcmt_atomic_property))
-    Opts.ObjCMTAction |= FrontendOptions::ObjCMT_AtomicProperty;
-  if (Args.hasArg(OPT_objcmt_ns_nonatomic_iosonly))
-    Opts.ObjCMTAction |= FrontendOptions::ObjCMT_NsAtomicIOSOnlyProperty;
-  if (Args.hasArg(OPT_objcmt_migrate_designated_init))
-    Opts.ObjCMTAction |= FrontendOptions::ObjCMT_DesignatedInitializer;
-  if (Args.hasArg(OPT_objcmt_migrate_all))
-    Opts.ObjCMTAction |= FrontendOptions::ObjCMT_MigrateDecls;
 
   Opts.ObjCMTWhiteListPath =
       std::string(Args.getLastArgValue(OPT_objcmt_whitelist_dir_path));
@@ -2197,6 +2209,8 @@ static void ParseHeaderSearchArgs(HeaderSearchOptions &Opts, ArgList &Args,
       !Args.hasArg(OPT_fmodules_disable_diagnostic_validation);
   Opts.ImplicitModuleMaps = Args.hasArg(OPT_fimplicit_module_maps);
   Opts.ModuleMapFileHomeIsCwd = Args.hasArg(OPT_fmodule_map_file_home_is_cwd);
+  Opts.EnablePrebuiltImplicitModules =
+      Args.hasArg(OPT_fprebuilt_implicit_modules);
   Opts.ModuleCachePruneInterval =
       getLastArgIntValue(Args, OPT_fmodules_prune_interval, 7 * 24 * 60 * 60);
   Opts.ModuleCachePruneAfter =
@@ -2599,6 +2613,7 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
     LangStandard::Kind OpenCLLangStd
       = llvm::StringSwitch<LangStandard::Kind>(A->getValue())
         .Cases("cl", "CL", LangStandard::lang_opencl10)
+        .Cases("cl1.0", "CL1.0", LangStandard::lang_opencl10)
         .Cases("cl1.1", "CL1.1", LangStandard::lang_opencl11)
         .Cases("cl1.2", "CL1.2", LangStandard::lang_opencl12)
         .Cases("cl2.0", "CL2.0", LangStandard::lang_opencl20)
@@ -3084,8 +3099,6 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   Opts.DumpVTableLayouts = Args.hasArg(OPT_fdump_vtable_layouts);
   Opts.SpellChecking = !Args.hasArg(OPT_fno_spell_checking);
   Opts.NoBitFieldTypeAlign = Args.hasArg(OPT_fno_bitfield_type_align);
-  Opts.SinglePrecisionConstants = Args.hasArg(OPT_cl_single_precision_constant);
-  Opts.FastRelaxedMath = Args.hasArg(OPT_cl_fast_relaxed_math);
   if (Opts.FastRelaxedMath)
     Opts.setDefaultFPContractMode(LangOptions::FPM_Fast);
   Opts.HexagonQdsp6Compat = Args.hasArg(OPT_mqdsp6_compat);
@@ -3353,47 +3366,6 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
     if (InlineArg->getOption().matches(options::OPT_fno_inline))
       Opts.NoInlineDefine = true;
 
-  Opts.FastMath =
-      Args.hasArg(OPT_ffast_math) || Args.hasArg(OPT_cl_fast_relaxed_math);
-  Opts.FiniteMathOnly = Args.hasArg(OPT_ffinite_math_only) ||
-                        Args.hasArg(OPT_ffast_math) ||
-                        Args.hasArg(OPT_cl_finite_math_only) ||
-                        Args.hasArg(OPT_cl_fast_relaxed_math);
-  Opts.UnsafeFPMath = Args.hasArg(OPT_menable_unsafe_fp_math) ||
-                      Args.hasArg(OPT_ffast_math) ||
-                      Args.hasArg(OPT_cl_unsafe_math_optimizations) ||
-                      Args.hasArg(OPT_cl_fast_relaxed_math);
-  Opts.AllowFPReassoc = Args.hasArg(OPT_mreassociate) ||
-                        Args.hasArg(OPT_menable_unsafe_fp_math) ||
-                        Args.hasArg(OPT_ffast_math) ||
-                        Args.hasArg(OPT_cl_unsafe_math_optimizations) ||
-                        Args.hasArg(OPT_cl_fast_relaxed_math);
-  Opts.NoHonorNaNs =
-      Args.hasArg(OPT_menable_no_nans) || Args.hasArg(OPT_ffinite_math_only) ||
-      Args.hasArg(OPT_ffast_math) || Args.hasArg(OPT_cl_finite_math_only) ||
-      Args.hasArg(OPT_cl_fast_relaxed_math);
-  Opts.NoHonorInfs = Args.hasArg(OPT_menable_no_infinities) ||
-                     Args.hasArg(OPT_ffinite_math_only) ||
-                     Args.hasArg(OPT_ffast_math) ||
-                     Args.hasArg(OPT_cl_finite_math_only) ||
-                     Args.hasArg(OPT_cl_fast_relaxed_math);
-  Opts.NoSignedZero = Args.hasArg(OPT_fno_signed_zeros) ||
-                      Args.hasArg(OPT_menable_unsafe_fp_math) ||
-                      Args.hasArg(OPT_ffast_math) ||
-                      Args.hasArg(OPT_cl_no_signed_zeros) ||
-                      Args.hasArg(OPT_cl_unsafe_math_optimizations) ||
-                      Args.hasArg(OPT_cl_fast_relaxed_math);
-  Opts.AllowRecip = Args.hasArg(OPT_freciprocal_math) ||
-                    Args.hasArg(OPT_menable_unsafe_fp_math) ||
-                    Args.hasArg(OPT_ffast_math) ||
-                    Args.hasArg(OPT_cl_unsafe_math_optimizations) ||
-                    Args.hasArg(OPT_cl_fast_relaxed_math);
-  // Currently there's no clang option to enable this individually
-  Opts.ApproxFunc = Args.hasArg(OPT_menable_unsafe_fp_math) ||
-                    Args.hasArg(OPT_ffast_math) ||
-                    Args.hasArg(OPT_cl_unsafe_math_optimizations) ||
-                    Args.hasArg(OPT_cl_fast_relaxed_math);
-
   if (Arg *A = Args.getLastArg(OPT_ffp_contract)) {
     StringRef Val = A->getValue();
     if (Val == "fast")
@@ -3405,9 +3377,6 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
     else
       Diags.Report(diag::err_drv_invalid_value) << A->getAsString(Args) << Val;
   }
-
-  if (Args.hasArg(OPT_fexperimental_strict_floating_point))
-    Opts.ExpStrictFP = true;
 
   auto FPRM = llvm::RoundingMode::NearestTiesToEven;
   if (Args.hasArg(OPT_frounding_math)) {
@@ -3482,13 +3451,6 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   Opts.SanitizerBlacklistFiles.insert(Opts.SanitizerBlacklistFiles.end(),
                                       systemBlacklists.begin(),
                                       systemBlacklists.end());
-
-  // -fxray-instrument
-  Opts.XRayInstrument = Args.hasArg(OPT_fxray_instrument);
-  Opts.XRayAlwaysEmitCustomEvents =
-      Args.hasArg(OPT_fxray_always_emit_customevents);
-  Opts.XRayAlwaysEmitTypedEvents =
-      Args.hasArg(OPT_fxray_always_emit_typedevents);
 
   // -fxray-{always,never}-instrument= filenames.
   Opts.XRayAlwaysInstrumentFiles =
@@ -3648,7 +3610,8 @@ static void ParsePreprocessorArgs(PreprocessorOptions &Opts, ArgList &Args,
   Opts.UsePredefines = !Args.hasArg(OPT_undef);
   Opts.DetailedRecord = Args.hasArg(OPT_detailed_preprocessing_record);
   Opts.DisablePCHValidation = Args.hasArg(OPT_fno_validate_pch);
-  Opts.AllowPCHWithCompilerErrors = Args.hasArg(OPT_fallow_pch_with_errors);
+  Opts.AllowPCHWithCompilerErrors =
+      Args.hasArg(OPT_fallow_pch_with_errors, OPT_fallow_pcm_with_errors);
 
   Opts.DumpDeserializedPCHDecls = Args.hasArg(OPT_dump_deserialized_pch_decls);
   for (const auto *A : Args.filtered(OPT_error_on_deserialized_pch_decl))
@@ -3784,6 +3747,9 @@ static void ParseTargetArgs(TargetOptions &Opts, ArgList &Args,
   Opts.ForceEnableInt128 = Args.hasArg(OPT_fforce_enable_int128);
   Opts.NVPTXUseShortPointers = Args.hasFlag(
       options::OPT_fcuda_short_ptr, options::OPT_fno_cuda_short_ptr, false);
+  Opts.AllowAMDGPUUnsafeFPAtomics =
+      Args.hasFlag(options::OPT_munsafe_fp_atomics,
+                   options::OPT_mno_unsafe_fp_atomics, false);
   if (Arg *A = Args.getLastArg(options::OPT_target_sdk_version_EQ)) {
     llvm::VersionTuple Version;
     if (Version.tryParse(A->getValue()))
@@ -3796,26 +3762,34 @@ static void ParseTargetArgs(TargetOptions &Opts, ArgList &Args,
 
 bool CompilerInvocation::parseSimpleArgs(const ArgList &Args,
                                          DiagnosticsEngine &Diags) {
-#define OPTION_WITH_MARSHALLING_FLAG(PREFIX_TYPE, NAME, ID, KIND, GROUP,       \
-                                     ALIAS, ALIASARGS, FLAGS, PARAM, HELPTEXT, \
-                                     METAVAR, VALUES, SPELLING, ALWAYS_EMIT,   \
-                                     KEYPATH, DEFAULT_VALUE, IS_POSITIVE)      \
-  this->KEYPATH = Args.hasArg(OPT_##ID) && IS_POSITIVE;
-
-#define OPTION_WITH_MARSHALLING_STRING(                                        \
+#define OPTION_WITH_MARSHALLING(                                               \
     PREFIX_TYPE, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,        \
     HELPTEXT, METAVAR, VALUES, SPELLING, ALWAYS_EMIT, KEYPATH, DEFAULT_VALUE,  \
-    TYPE, NORMALIZER, DENORMALIZER, TABLE_INDEX)                               \
+    NORMALIZER, DENORMALIZER, MERGER, EXTRACTOR, TABLE_INDEX)                  \
   {                                                                            \
+    this->KEYPATH = MERGER(this->KEYPATH, DEFAULT_VALUE);                      \
     if (auto MaybeValue = NORMALIZER(OPT_##ID, TABLE_INDEX, Args, Diags))      \
-      this->KEYPATH = static_cast<TYPE>(*MaybeValue);                          \
+      this->KEYPATH = MERGER(                                                  \
+          this->KEYPATH, static_cast<decltype(this->KEYPATH)>(*MaybeValue));   \
+  }
+
+#define OPTION_WITH_MARSHALLING_BOOLEAN(                                       \
+    PREFIX_TYPE, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,        \
+    HELPTEXT, METAVAR, VALUES, SPELLING, ALWAYS_EMIT, KEYPATH, DEFAULT_VALUE,  \
+    NORMALIZER, DENORMALIZER, MERGER, EXTRACTOR, TABLE_INDEX, NEG_ID,          \
+    NEG_SPELLING)                                                              \
+  {                                                                            \
+    if (auto MaybeValue =                                                      \
+            NORMALIZER(OPT_##ID, OPT_##NEG_ID, TABLE_INDEX, Args, Diags))      \
+      this->KEYPATH = MERGER(                                                  \
+          this->KEYPATH, static_cast<decltype(this->KEYPATH)>(*MaybeValue));   \
     else                                                                       \
-      this->KEYPATH = DEFAULT_VALUE;                                           \
+      this->KEYPATH = MERGER(this->KEYPATH, DEFAULT_VALUE);                    \
   }
 
 #include "clang/Driver/Options.inc"
-#undef OPTION_WITH_MARSHALLING_STRING
-#undef OPTION_WITH_MARSHALLING_FLAG
+#undef OPTION_WITH_MARSHALLING_BOOLEAN
+#undef OPTION_WITH_MARSHALLING
   return true;
 }
 
@@ -3853,12 +3827,9 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Res,
   }
 
   Success &= Res.parseSimpleArgs(Args, Diags);
-
-  llvm::sys::Process::UseANSIEscapeCodes(
-      Res.DiagnosticOpts->UseANSIEscapeCodes);
+  FixupInvocation(Res);
 
   Success &= ParseAnalyzerArgs(*Res.getAnalyzerOpts(), Args, Diags);
-  Success &= ParseMigratorArgs(Res.getMigratorOpts(), Args);
   ParseDependencyOutputArgs(Res.getDependencyOutputOpts(), Args);
   if (!Res.getDependencyOutputOpts().OutputFile.empty() &&
       Res.getDependencyOutputOpts().Targets.empty()) {
@@ -3905,9 +3876,6 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Res,
       Res.getDiagnosticOpts().Warnings.push_back("no-stdlibcxx-not-found");
     }
   }
-
-  if (Diags.isIgnored(diag::warn_profile_data_misexpect, SourceLocation()))
-    Res.FrontendOpts.LLVMArgs.push_back("-pgo-warn-misexpect");
 
   LangOpts.FunctionAlignment =
       getLastArgIntValue(Args, OPT_function_alignment, 0, Diags);
@@ -4074,41 +4042,40 @@ std::string CompilerInvocation::getModuleHash() const {
 
 void CompilerInvocation::generateCC1CommandLine(
     SmallVectorImpl<const char *> &Args, StringAllocator SA) const {
-#define OPTION_WITH_MARSHALLING_FLAG(PREFIX_TYPE, NAME, ID, KIND, GROUP,       \
-                                     ALIAS, ALIASARGS, FLAGS, PARAM, HELPTEXT, \
-                                     METAVAR, VALUES, SPELLING, ALWAYS_EMIT,   \
-                                     KEYPATH, DEFAULT_VALUE, IS_POSITIVE)      \
-  if ((FLAGS) & options::CC1Option &&                                            \
-      (ALWAYS_EMIT || this->KEYPATH != DEFAULT_VALUE))                         \
-    Args.push_back(SPELLING);
-
-#define OPTION_WITH_MARSHALLING_STRING(                                        \
+#define OPTION_WITH_MARSHALLING(                                               \
     PREFIX_TYPE, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,        \
     HELPTEXT, METAVAR, VALUES, SPELLING, ALWAYS_EMIT, KEYPATH, DEFAULT_VALUE,  \
-    NORMALIZER_RET_TY, NORMALIZER, DENORMALIZER, TABLE_INDEX)                  \
-  if (((FLAGS) & options::CC1Option) &&                                          \
-      (ALWAYS_EMIT || this->KEYPATH != DEFAULT_VALUE)) {                       \
-    if (Option::KIND##Class == Option::SeparateClass) {                        \
-      Args.push_back(SPELLING);                                                \
-      Args.push_back(DENORMALIZER(SA, TABLE_INDEX, this->KEYPATH));            \
-    }                                                                          \
+    NORMALIZER, DENORMALIZER, MERGER, EXTRACTOR, TABLE_INDEX)                  \
+  if (((FLAGS) & options::CC1Option) &&                                        \
+      (ALWAYS_EMIT || EXTRACTOR(this->KEYPATH) != (DEFAULT_VALUE))) {          \
+    DENORMALIZER(Args, SPELLING, SA, TABLE_INDEX, EXTRACTOR(this->KEYPATH));   \
+  }
+
+#define OPTION_WITH_MARSHALLING_BOOLEAN(                                       \
+    PREFIX_TYPE, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,        \
+    HELPTEXT, METAVAR, VALUES, SPELLING, ALWAYS_EMIT, KEYPATH, DEFAULT_VALUE,  \
+    NORMALIZER, DENORMALIZER, MERGER, EXTRACTOR, TABLE_INDEX, NEG_ID,          \
+    NEG_SPELLING)                                                              \
+  if (((FLAGS)&options::CC1Option) &&                                          \
+      (ALWAYS_EMIT || EXTRACTOR(this->KEYPATH) != DEFAULT_VALUE)) {            \
+    DENORMALIZER(Args, SPELLING, NEG_SPELLING, SA, TABLE_INDEX,                \
+                 EXTRACTOR(this->KEYPATH));                                    \
   }
 
 #include "clang/Driver/Options.inc"
-#undef OPTION_WITH_MARSHALLING_STRING
-#undef OPTION_WITH_MARSHALLING_FLAG
+#undef OPTION_WITH_MARSHALLING_BOOLEAN
+#undef OPTION_WITH_MARSHALLING
 }
 
-namespace clang {
-
 IntrusiveRefCntPtr<llvm::vfs::FileSystem>
-createVFSFromCompilerInvocation(const CompilerInvocation &CI,
-                                DiagnosticsEngine &Diags) {
+clang::createVFSFromCompilerInvocation(const CompilerInvocation &CI,
+                                       DiagnosticsEngine &Diags) {
   return createVFSFromCompilerInvocation(CI, Diags,
                                          llvm::vfs::getRealFileSystem());
 }
 
-IntrusiveRefCntPtr<llvm::vfs::FileSystem> createVFSFromCompilerInvocation(
+IntrusiveRefCntPtr<llvm::vfs::FileSystem>
+clang::createVFSFromCompilerInvocation(
     const CompilerInvocation &CI, DiagnosticsEngine &Diags,
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> BaseFS) {
   if (CI.getHeaderSearchOpts().VFSOverlayFiles.empty())
@@ -4136,5 +4103,3 @@ IntrusiveRefCntPtr<llvm::vfs::FileSystem> createVFSFromCompilerInvocation(
   }
   return Result;
 }
-
-} // namespace clang

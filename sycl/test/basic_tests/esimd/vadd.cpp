@@ -1,27 +1,30 @@
 // TODO ESIMD enable host device under -fsycl
 // RUN: %clangxx -I %sycl_include %s -o %t.out -lsycl
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %RUN_ON_HOST %t.out
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/INTEL/esimd.hpp>
 #include <iostream>
+#include <string>
 
 using namespace cl::sycl;
 
 class ESIMDSelector : public device_selector {
-  // Require GPU device unless HOST is requested in SYCL_DEVICE_TYPE env
+  // Require GPU device unless HOST is requested in SYCL_DEVICE_FILTER env
   virtual int operator()(const device &device) const {
-    if (const char *dev_type = getenv("SYCL_DEVICE_TYPE")) {
-      if (!strcmp(dev_type, "GPU"))
+    if (const char *dev_filter = getenv("SYCL_DEVICE_FILTER")) {
+      std::string filter_string(dev_filter);
+      if (filter_string.find("gpu") != std::string::npos)
         return device.is_gpu() ? 1000 : -1;
-      if (!strcmp(dev_type, "HOST"))
+      if (filter_string.find("host") != std::string::npos)
         return device.is_host() ? 1000 : -1;
-      std::cerr << "Supported 'SYCL_DEVICE_TYPE' env var values are 'GPU' and "
-                   "'HOST', '"
-                << dev_type << "' is not.\n";
+      std::cerr
+          << "Supported 'SYCL_DEVICE_FILTER' env var values are 'gpu' and "
+             "'host', '"
+          << filter_string << "' does not contain such substrings.\n";
       return -1;
     }
-    // If "SYCL_DEVICE_TYPE" not defined, only allow gpu device
+    // If "SYCL_DEVICE_FILTER" not defined, only allow gpu device
     return device.is_gpu() ? 1000 : -1;
   }
 };

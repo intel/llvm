@@ -15,6 +15,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/Bufferize.h"
 #include "llvm/ADT/SmallBitVector.h"
+#include "llvm/ADT/SmallSet.h"
 
 namespace mlir {
 class BufferizeTypeConverter;
@@ -429,12 +430,10 @@ struct LinalgTilingPattern : public LinalgBaseTilingPattern {
 };
 
 struct LinalgFusionOptions {
-  /// Optional list of operands indices to use for fusion. When unspecified,
-  /// only one fusion is done, i.e., the pattern returns after the first fusion.
-  Optional<DenseSet<unsigned>> indicesToFuse = None;
+  /// List of operands indices to use for fusion.
+  llvm::SmallSet<unsigned, 1> indicesToFuse = {};
   LinalgFusionOptions &setIndicesToFuse(ArrayRef<int64_t> operands) {
-    indicesToFuse = DenseSet<unsigned>();
-    indicesToFuse->insert(operands.begin(), operands.end());
+    indicesToFuse.insert(operands.begin(), operands.end());
     return *this;
   }
 };
@@ -625,6 +624,20 @@ private:
   LinalgLoweringType loweringType;
 };
 
+/// Linalg generalization patterns
+
+/// Populates `patterns` with patterns to convert spec-generated named ops to
+/// linalg.generic ops.
+void populateLinalgNamedOpsGeneralizationPatterns(
+    MLIRContext *context, OwningRewritePatternList &patterns,
+    LinalgMarker marker = LinalgMarker());
+
+/// Populates `patterns` with patterns to convert linalg.conv ops to
+/// linalg.generic ops.
+void populateLinalgConvGeneralizationPatterns(
+    MLIRContext *context, OwningRewritePatternList &patterns,
+    LinalgMarker marker = LinalgMarker());
+
 //===----------------------------------------------------------------------===//
 // Op-specific patterns.
 //===----------------------------------------------------------------------===//
@@ -771,6 +784,12 @@ LogicalResult applyStagedPatterns(
     Operation *op, ArrayRef<FrozenRewritePatternList> stage1Patterns,
     const FrozenRewritePatternList &stage2Patterns,
     function_ref<LogicalResult(Operation *)> stage3Lambda = nullptr);
+
+//===----------------------------------------------------------------------===//
+// Support for sparse tensor code generation.
+//===----------------------------------------------------------------------===//
+void populateSparsificationPatterns(MLIRContext *context,
+                                    OwningRewritePatternList &patterns);
 
 } // namespace linalg
 } // namespace mlir

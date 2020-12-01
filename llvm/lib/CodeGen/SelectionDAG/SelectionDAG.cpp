@@ -2624,15 +2624,11 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
 
   if (auto *C = dyn_cast<ConstantSDNode>(Op)) {
     // We know all of the bits for a constant!
-    Known.One = C->getAPIntValue();
-    Known.Zero = ~Known.One;
-    return Known;
+    return KnownBits::makeConstant(C->getAPIntValue());
   }
   if (auto *C = dyn_cast<ConstantFPSDNode>(Op)) {
     // We know all of the bits for a constant fp!
-    Known.One = C->getValueAPF().bitcastToAPInt();
-    Known.Zero = ~Known.One;
-    return Known;
+    return KnownBits::makeConstant(C->getValueAPF().bitcastToAPInt());
   }
 
   if (Depth >= MaxRecursionDepth)
@@ -2667,8 +2663,7 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
       }
 
       // Known bits are the values that are shared by every demanded element.
-      Known.One &= Known2.One;
-      Known.Zero &= Known2.Zero;
+      Known = KnownBits::commonBits(Known, Known2);
 
       // If we don't know any bits, early out.
       if (Known.isUnknown())
@@ -2705,8 +2700,7 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     if (!!DemandedLHS) {
       SDValue LHS = Op.getOperand(0);
       Known2 = computeKnownBits(LHS, DemandedLHS, Depth + 1);
-      Known.One &= Known2.One;
-      Known.Zero &= Known2.Zero;
+      Known = KnownBits::commonBits(Known, Known2);
     }
     // If we don't know any bits, early out.
     if (Known.isUnknown())
@@ -2714,8 +2708,7 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     if (!!DemandedRHS) {
       SDValue RHS = Op.getOperand(1);
       Known2 = computeKnownBits(RHS, DemandedRHS, Depth + 1);
-      Known.One &= Known2.One;
-      Known.Zero &= Known2.Zero;
+      Known = KnownBits::commonBits(Known, Known2);
     }
     break;
   }
@@ -2731,8 +2724,7 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
       if (!!DemandedSub) {
         SDValue Sub = Op.getOperand(i);
         Known2 = computeKnownBits(Sub, DemandedSub, Depth + 1);
-        Known.One &= Known2.One;
-        Known.Zero &= Known2.Zero;
+        Known = KnownBits::commonBits(Known, Known2);
       }
       // If we don't know any bits, early out.
       if (Known.isUnknown())
@@ -2760,8 +2752,7 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     }
     if (!!DemandedSrcElts) {
       Known2 = computeKnownBits(Src, DemandedSrcElts, Depth + 1);
-      Known.One &= Known2.One;
-      Known.Zero &= Known2.Zero;
+      Known = KnownBits::commonBits(Known, Known2);
     }
     break;
   }
@@ -2884,18 +2875,9 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     break;
   }
   case ISD::UDIV: {
-    // For the purposes of computing leading zeros we can conservatively
-    // treat a udiv as a logical right shift by the power of 2 known to
-    // be less than the denominator.
-    Known2 = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
-    unsigned LeadZ = Known2.countMinLeadingZeros();
-
+    Known = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
     Known2 = computeKnownBits(Op.getOperand(1), DemandedElts, Depth + 1);
-    unsigned RHSMaxLeadingZeros = Known2.countMaxLeadingZeros();
-    if (RHSMaxLeadingZeros != BitWidth)
-      LeadZ = std::min(BitWidth, LeadZ + BitWidth - RHSMaxLeadingZeros - 1);
-
-    Known.Zero.setHighBits(LeadZ);
+    Known = KnownBits::udiv(Known, Known2);
     break;
   }
   case ISD::SELECT:
@@ -2907,8 +2889,7 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     Known2 = computeKnownBits(Op.getOperand(1), DemandedElts, Depth+1);
 
     // Only known if known in both the LHS and RHS.
-    Known.One &= Known2.One;
-    Known.Zero &= Known2.Zero;
+    Known = KnownBits::commonBits(Known, Known2);
     break;
   case ISD::SELECT_CC:
     Known = computeKnownBits(Op.getOperand(3), DemandedElts, Depth+1);
@@ -2918,8 +2899,7 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     Known2 = computeKnownBits(Op.getOperand(2), DemandedElts, Depth+1);
 
     // Only known if known in both the LHS and RHS.
-    Known.One &= Known2.One;
-    Known.Zero &= Known2.Zero;
+    Known = KnownBits::commonBits(Known, Known2);
     break;
   case ISD::SMULO:
   case ISD::UMULO:
@@ -3258,53 +3238,16 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     Known = KnownBits::computeForAddCarry(Known, Known2, Carry);
     break;
   }
-  case ISD::SREM:
-    if (ConstantSDNode *Rem = isConstOrConstSplat(Op.getOperand(1))) {
-      const APInt &RA = Rem->getAPIntValue().abs();
-      if (RA.isPowerOf2()) {
-        APInt LowBits = RA - 1;
-        Known2 = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
-
-        // The low bits of the first operand are unchanged by the srem.
-        Known.Zero = Known2.Zero & LowBits;
-        Known.One = Known2.One & LowBits;
-
-        // If the first operand is non-negative or has all low bits zero, then
-        // the upper bits are all zero.
-        if (Known2.isNonNegative() || LowBits.isSubsetOf(Known2.Zero))
-          Known.Zero |= ~LowBits;
-
-        // If the first operand is negative and not all low bits are zero, then
-        // the upper bits are all one.
-        if (Known2.isNegative() && LowBits.intersects(Known2.One))
-          Known.One |= ~LowBits;
-        assert((Known.Zero & Known.One) == 0&&"Bits known to be one AND zero?");
-      }
-    }
-    break;
-  case ISD::UREM: {
-    if (ConstantSDNode *Rem = isConstOrConstSplat(Op.getOperand(1))) {
-      const APInt &RA = Rem->getAPIntValue();
-      if (RA.isPowerOf2()) {
-        APInt LowBits = (RA - 1);
-        Known2 = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
-
-        // The upper bits are all zero, the lower ones are unchanged.
-        Known.Zero = Known2.Zero | ~LowBits;
-        Known.One = Known2.One & LowBits;
-        break;
-      }
-    }
-
-    // Since the result is less than or equal to either operand, any leading
-    // zero bits in either operand must also exist in the result.
+  case ISD::SREM: {
     Known = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
     Known2 = computeKnownBits(Op.getOperand(1), DemandedElts, Depth + 1);
-
-    uint32_t Leaders =
-        std::max(Known.countMinLeadingZeros(), Known2.countMinLeadingZeros());
-    Known.resetAll();
-    Known.Zero.setHighBits(Leaders);
+    Known = KnownBits::srem(Known, Known2);
+    break;
+  }
+  case ISD::UREM: {
+    Known = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
+    Known2 = computeKnownBits(Op.getOperand(1), DemandedElts, Depth + 1);
+    Known = KnownBits::urem(Known, Known2);
     break;
   }
   case ISD::EXTRACT_ELEMENT: {
@@ -3367,13 +3310,11 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     Known.Zero.setAllBits();
     if (DemandedVal) {
       Known2 = computeKnownBits(InVal, Depth + 1);
-      Known.One &= Known2.One.zextOrTrunc(BitWidth);
-      Known.Zero &= Known2.Zero.zextOrTrunc(BitWidth);
+      Known = KnownBits::commonBits(Known, Known2.zextOrTrunc(BitWidth));
     }
     if (!!DemandedVecElts) {
       Known2 = computeKnownBits(InVec, DemandedVecElts, Depth + 1);
-      Known.One &= Known2.One;
-      Known.Zero &= Known2.Zero;
+      Known = KnownBits::commonBits(Known, Known2);
     }
     break;
   }
@@ -7386,29 +7327,37 @@ SDValue SelectionDAG::getMaskedGather(SDVTList VTs, EVT VT, const SDLoc &dl,
 SDValue SelectionDAG::getMaskedScatter(SDVTList VTs, EVT VT, const SDLoc &dl,
                                        ArrayRef<SDValue> Ops,
                                        MachineMemOperand *MMO,
-                                       ISD::MemIndexType IndexType) {
+                                       ISD::MemIndexType IndexType,
+                                       bool IsTrunc) {
   assert(Ops.size() == 6 && "Incompatible number of operands");
 
   FoldingSetNodeID ID;
   AddNodeIDNode(ID, ISD::MSCATTER, VTs, Ops);
   ID.AddInteger(VT.getRawBits());
   ID.AddInteger(getSyntheticNodeSubclassData<MaskedScatterSDNode>(
-      dl.getIROrder(), VTs, VT, MMO, IndexType));
+      dl.getIROrder(), VTs, VT, MMO, IndexType, IsTrunc));
   ID.AddInteger(MMO->getPointerInfo().getAddrSpace());
   void *IP = nullptr;
   if (SDNode *E = FindNodeOrInsertPos(ID, dl, IP)) {
     cast<MaskedScatterSDNode>(E)->refineAlignment(MMO);
     return SDValue(E, 0);
   }
+
+  IndexType = TLI->getCanonicalIndexType(IndexType, VT, Ops[4]);
   auto *N = newSDNode<MaskedScatterSDNode>(dl.getIROrder(), dl.getDebugLoc(),
-                                           VTs, VT, MMO, IndexType);
+                                           VTs, VT, MMO, IndexType, IsTrunc);
   createOperands(N, Ops);
 
-  assert(N->getMask().getValueType().getVectorNumElements() ==
-             N->getValue().getValueType().getVectorNumElements() &&
+  assert(N->getMask().getValueType().getVectorElementCount() ==
+             N->getValue().getValueType().getVectorElementCount() &&
          "Vector width mismatch between mask and data");
-  assert(N->getIndex().getValueType().getVectorNumElements() >=
-             N->getValue().getValueType().getVectorNumElements() &&
+  assert(
+      N->getIndex().getValueType().getVectorElementCount().isScalable() ==
+          N->getValue().getValueType().getVectorElementCount().isScalable() &&
+      "Scalable flags of index and data do not match");
+  assert(ElementCount::isKnownGE(
+             N->getIndex().getValueType().getVectorElementCount(),
+             N->getValue().getValueType().getVectorElementCount()) &&
          "Vector width mismatch between index and data");
   assert(isa<ConstantSDNode>(N->getScale()) &&
          cast<ConstantSDNode>(N->getScale())->getAPIntValue().isPowerOf2() &&
@@ -9306,8 +9255,7 @@ bool SDNode::areOnlyUsersOf(ArrayRef<const SDNode *> Nodes, const SDNode *N) {
   bool Seen = false;
   for (SDNode::use_iterator I = N->use_begin(), E = N->use_end(); I != E; ++I) {
     SDNode *User = *I;
-    if (llvm::any_of(Nodes,
-                     [&User](const SDNode *Node) { return User == Node; }))
+    if (llvm::is_contained(Nodes, User))
       Seen = true;
     else
       return false;

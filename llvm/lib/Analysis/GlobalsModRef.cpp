@@ -367,7 +367,8 @@ bool GlobalsAAResult::AnalyzeUsesOfPointer(Value *V,
     } else if (Operator::getOpcode(I) == Instruction::GetElementPtr) {
       if (AnalyzeUsesOfPointer(I, Readers, Writers))
         return true;
-    } else if (Operator::getOpcode(I) == Instruction::BitCast) {
+    } else if (Operator::getOpcode(I) == Instruction::BitCast ||
+               Operator::getOpcode(I) == Instruction::AddrSpaceCast) {
       if (AnalyzeUsesOfPointer(I, Readers, Writers, OkayStoreDest))
         return true;
     } else if (auto *Call = dyn_cast<CallBase>(I)) {
@@ -931,8 +932,9 @@ ModRefInfo GlobalsAAResult::getModRefInfoForArgument(const CallBase *Call,
     if (!all_of(Objects, isIdentifiedObject) &&
         // Try ::alias to see if all objects are known not to alias GV.
         !all_of(Objects, [&](const Value *V) {
-          return this->alias(MemoryLocation(V), MemoryLocation(GV), AAQI) ==
-                 NoAlias;
+          return this->alias(MemoryLocation(V, LocationSize::unknown()),
+                             MemoryLocation(GV, LocationSize::unknown()),
+                             AAQI) == NoAlias;
         }))
       return ConservativeResult;
 
