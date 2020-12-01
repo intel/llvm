@@ -291,7 +291,7 @@ enum KernelMapEntryScope {
   Scope_Global     // single entry in the map for all kernels
 };
 
-static KernelMapEntryScope selectDeviceCodeSplitModeAutomatically(Module &M) {
+static KernelMapEntryScope selectDeviceCodeSplitScopeAutomatically(Module &M) {
   // Here we can employ various heuristics to decide which way to split kernels
   // is the best in each particular situation.
   // At the moment, we assume that per-kernel split is the best way of splitting
@@ -299,14 +299,18 @@ static KernelMapEntryScope selectDeviceCodeSplitModeAutomatically(Module &M) {
   // with [[intel::device_indirectly_callable]] attribute, because it instructs
   // us to make this function available to the whole program as it was compiled
   // as a single module.
-  bool HasDeviceIndirectlyCallable = false;
-  for (auto &F : M.functions()) {
-    if (F.hasFnAttribute("referenced-indirectly"))
-      HasDeviceIndirectlyCallable = true;
+  if (IROutputOnly) {
+    // We allow enabling auto split mode even in presence of -ir-output-only
+    // flag, but in this case we are limited by it so we can't do any split at
+    // all.
+    return Scope_Global;
   }
 
-  if (HasDeviceIndirectlyCallable)
-    return Scope_Global;
+  for (auto &F : M.functions()) {
+    if (F.hasFnAttribute("referenced-indirectly"))
+      return Scope_Global;
+  }
+
   return Scope_PerModule;
 }
 
@@ -645,9 +649,9 @@ int main(int argc, char **argv) {
     errs() << "no actions specified; try --help for usage info\n";
     return 1;
   }
-  if (IROutputOnly && DoSplit) {
-    errs() << "error: -" << SplitMode.ArgStr << " can't be used with -"
-           << IROutputOnly.ArgStr << "\n";
+  if (IROutputOnly && (DoSplit && SplitMode != SPLIT_AUTO)) {
+    errs() << "error: -" << SplitMode.ArgStr << "=" << SplitMode.ValueStr
+           << " can't be used with -" << IROutputOnly.ArgStr << "\n";
     return 1;
   }
   if (IROutputOnly && DoSymGen) {
@@ -679,7 +683,7 @@ int main(int argc, char **argv) {
     KernelMapEntryScope Scope = Scope_Global;
     if (DoSplit) {
       if (SplitMode == SPLIT_AUTO)
-        Scope = selectDeviceCodeSplitModeAutomatically(*MPtr);
+        Scope = selectDeviceCodeSplitScopeAutomatically(*MPtr);
       else
         Scope =
             SplitMode == SPLIT_PER_KERNEL ? Scope_PerKernel : Scope_PerModule;
