@@ -7,11 +7,12 @@ int main() {
   {
     cl::sycl::buffer<int32_t, 1> buffer(&kernelResult, ndRng);
     testQueue.submit([&](cl::sycl::handler &h) {
-    auto resultPtr = buffer.template get_access<cl::sycl::access::mode::write>(h);
+      auto resultPtr =
+          buffer.template get_access<cl::sycl::access::mode::write>(h);
       h.single_task<class kernel>([=]() {
         float inputData_0(0.1);
         float inputData_1(0.5);
-        resultPtr[0] = cl::sycl::isordered(inputData_0,inputData_1);
+        resultPtr[0] = cl::sycl::isordered(inputData_0, inputData_1);
       });
     });
   }
