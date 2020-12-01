@@ -31,7 +31,7 @@ int main() {
     // expected-note@+1 {{in instantiation of function template specialization}}
     h.single_task<LambdaKernel>(
         [=]() {
-          int A = i * V; // expected-warning {{constexpr is captured and is not a compile-time constant}}
+          int A = i * V; // expected-warning {{constexpr 'V' is captured and is not a compile-time constant}}
         });
   });
   return 0;

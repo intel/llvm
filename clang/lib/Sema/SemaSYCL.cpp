@@ -3048,7 +3048,8 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
       // Emit a warning on constexprs captured in SYCL kernels
       else if (Capture.isImplicit() && Capture.capturesVariable()) {
         if (Capture.getCapturedVar()->isConstexpr())
-          Diag(Capture.getLocation(), diag::warn_constexpr_kernel_arg);
+          Diag(Capture.getLocation(), diag::warn_constexpr_kernel_arg)
+              << Capture.getCapturedVar()->getNameAsString();
       }
   }
 
