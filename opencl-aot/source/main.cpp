@@ -416,9 +416,8 @@ int main(int Argc, char *Argv[]) {
   // step 7: set OpenCL build options
   std::string BuildOptions;
   if (!OptBuildOptions.empty()) {
-    BuildOptions = *OptBuildOptions.begin();
-    std::for_each(OptBuildOptions.begin() + 1, OptBuildOptions.end(),
-                  [&](const std::string &s) { BuildOptions += ' ' + s; });
+    for (const auto &BO : OptBuildOptions)
+      BuildOptions += BO + ' ';
   }
 
   auto ParentDir = sys::path::parent_path(OptInputBinary);
