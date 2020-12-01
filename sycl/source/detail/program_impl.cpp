@@ -561,7 +561,7 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
     // location of scalar member within the composite; size of a scalar member
     // of the composite.
     assert(((Descriptors.size() - 8) / sizeof(std::uint32_t)) % 3 == 0 &&
-        "unexpected layout of composite spec const descriptors");
+           "unexpected layout of composite spec const descriptors");
     auto *It = reinterpret_cast<const std::uint32_t *>(&Descriptors[8]);
     auto *End = reinterpret_cast<const std::uint32_t *>(&Descriptors[0] +
                                                         Descriptors.size());

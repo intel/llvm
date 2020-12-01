@@ -13,8 +13,8 @@
 #include <CL/sycl/stl.hpp>
 
 #include <iostream>
-#include <vector>
 #include <map>
+#include <vector>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

@@ -371,17 +371,17 @@ public:
   /// range, the name of the property is the specialization constant symbolic ID
   /// and the value is a list of tuples of 32-bit unsigned integer values, which
   /// encode scalar specialization constants, that form the composite one.
-  /// Each tuple consist of ID of scalar specialization constant, its location
+  /// Each tuple consists of ID of scalar specialization constant, its location
   /// within a composite (offset in bytes from the beginning) and its size.
   /// For example, for the following structure:
   /// struct A { int a; float b; };
   /// struct POD { A a[2]; int b; };
   /// List of tuples will look like:
   /// { ID0, 0, 4 },  // .a[0].a
-  //  { ID1, 4, 4 },  // .a[0].b
-  //  { ID2, 8, 4 },  // .a[1].a
-  //  { ID3, 12, 4 }, // .a[1].b
-  //  { ID4, 16, 4 }, // .b
+  /// { ID1, 4, 4 },  // .a[0].b
+  /// { ID2, 8, 4 },  // .a[1].a
+  /// { ID3, 12, 4 }, // .a[1].b
+  /// { ID4, 16, 4 }, // .b
   const PropertyRange &getCompositeSpecConstants() const {
     return CompositeSpecConstIDMap;
   }
