@@ -3314,9 +3314,6 @@ bool Sema::checkAllowedSYCLInitializer(VarDecl *VD, bool CheckValueDependent) {
     return true;
 
   const Expr *Init = VD->getInit();
-  if (Init->containsErrors())
-    return true;
-
   bool ValueDependent = CheckValueDependent && Init->isValueDependent();
   bool isConstantInit =
       Init && !ValueDependent && Init->isConstantInitializer(Context, false);
