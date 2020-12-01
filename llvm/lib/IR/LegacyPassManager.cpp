@@ -675,11 +675,9 @@ PMTopLevelManager::setLastUser(ArrayRef<Pass*> AnalysisPasses, Pass *P) {
 
     // If AP is the last user of other passes then make P last user of
     // such passes.
-    for (auto LU : LastUser) {
+    for (auto &LU : LastUser) {
       if (LU.second == AP)
-        // DenseMap iterator is not invalidated here because
-        // this is just updating existing entries.
-        LastUser[LU.first] = P;
+        LU.second = P;
     }
   }
 }
@@ -687,16 +685,12 @@ PMTopLevelManager::setLastUser(ArrayRef<Pass*> AnalysisPasses, Pass *P) {
 /// Collect passes whose last user is P
 void PMTopLevelManager::collectLastUses(SmallVectorImpl<Pass *> &LastUses,
                                         Pass *P) {
-  DenseMap<Pass *, SmallPtrSet<Pass *, 8> >::iterator DMI =
-    InversedLastUser.find(P);
+  auto DMI = InversedLastUser.find(P);
   if (DMI == InversedLastUser.end())
     return;
 
-  SmallPtrSet<Pass *, 8> &LU = DMI->second;
-  for (Pass *LUP : LU) {
-    LastUses.push_back(LUP);
-  }
-
+  auto &LU = DMI->second;
+  LastUses.append(LU.begin(), LU.end());
 }
 
 AnalysisUsage *PMTopLevelManager::findAnalysisUsage(Pass *P) {
@@ -1392,8 +1386,8 @@ PMDataManager::~PMDataManager() {
 //===----------------------------------------------------------------------===//
 // NOTE: Is this the right place to define this method ?
 // getAnalysisIfAvailable - Return analysis result or null if it doesn't exist.
-Pass *AnalysisResolver::getAnalysisIfAvailable(AnalysisID ID, bool dir) const {
-  return PM.findAnalysisPass(ID, dir);
+Pass *AnalysisResolver::getAnalysisIfAvailable(AnalysisID ID) const {
+  return PM.findAnalysisPass(ID, true);
 }
 
 std::tuple<Pass *, bool>

@@ -32,6 +32,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Module.h"
@@ -559,6 +560,41 @@ LogicalResult ModuleTranslation::convertOperation(Operation &opInst,
     return success(result->getType()->isVoidTy());
   }
 
+  if (auto inlineAsmOp = dyn_cast<LLVM::InlineAsmOp>(opInst)) {
+    // TODO: refactor function type creation which usually occurs in std-LLVM
+    // conversion.
+    SmallVector<LLVM::LLVMType, 8> operandTypes;
+    operandTypes.reserve(inlineAsmOp.operands().size());
+    for (auto t : inlineAsmOp.operands().getTypes())
+      operandTypes.push_back(t.cast<LLVM::LLVMType>());
+
+    LLVM::LLVMType resultType;
+    if (inlineAsmOp.getNumResults() == 0) {
+      resultType = LLVM::LLVMType::getVoidTy(mlirModule->getContext());
+    } else {
+      assert(inlineAsmOp.getNumResults() == 1);
+      resultType = inlineAsmOp.getResultTypes()[0].cast<LLVM::LLVMType>();
+    }
+    auto ft = LLVM::LLVMType::getFunctionTy(resultType, operandTypes,
+                                            /*isVarArg=*/false);
+    llvm::InlineAsm *inlineAsmInst =
+        inlineAsmOp.asm_dialect().hasValue()
+            ? llvm::InlineAsm::get(
+                  static_cast<llvm::FunctionType *>(convertType(ft)),
+                  inlineAsmOp.asm_string(), inlineAsmOp.constraints(),
+                  inlineAsmOp.has_side_effects(), inlineAsmOp.is_align_stack(),
+                  convertAsmDialectToLLVM(*inlineAsmOp.asm_dialect()))
+            : llvm::InlineAsm::get(
+                  static_cast<llvm::FunctionType *>(convertType(ft)),
+                  inlineAsmOp.asm_string(), inlineAsmOp.constraints(),
+                  inlineAsmOp.has_side_effects(), inlineAsmOp.is_align_stack());
+    llvm::Value *result =
+        builder.CreateCall(inlineAsmInst, lookupValues(inlineAsmOp.operands()));
+    if (opInst.getNumResults() != 0)
+      valueMapping[opInst.getResult(0)] = result;
+    return success();
+  }
+
   if (auto invOp = dyn_cast<LLVM::InvokeOp>(opInst)) {
     auto operands = lookupValues(opInst.getOperands());
     ArrayRef<llvm::Value *> operandsRef(operands);
@@ -946,6 +982,9 @@ std::unique_ptr<llvm::Module> ModuleTranslation::prepareLLVMModule(
   if (auto dataLayoutAttr =
           m->getAttr(LLVM::LLVMDialect::getDataLayoutAttrName()))
     llvmModule->setDataLayout(dataLayoutAttr.cast<StringAttr>().getValue());
+  if (auto targetTripleAttr =
+          m->getAttr(LLVM::LLVMDialect::getTargetTripleAttrName()))
+    llvmModule->setTargetTriple(targetTripleAttr.cast<StringAttr>().getValue());
 
   // Inject declarations for `malloc` and `free` functions that can be used in
   // memref allocation/deallocation coming from standard ops lowering.

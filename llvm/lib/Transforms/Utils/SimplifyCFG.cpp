@@ -159,6 +159,10 @@ STATISTIC(
     NumLookupTablesHoles,
     "Number of switch instructions turned into lookup tables (holes checked)");
 STATISTIC(NumTableCmpReuses, "Number of reused switch table lookup compares");
+STATISTIC(NumFoldValueComparisonIntoPredecessors,
+          "Number of value comparisons folded into predecessor basic blocks");
+STATISTIC(NumFoldBranchToCommonDest,
+          "Number of branches folded into predecessor basic block");
 STATISTIC(
     NumHoistCommonCode,
     "Number of common instruction 'blocks' hoisted up to the begin block");
@@ -1044,7 +1048,13 @@ bool SimplifyCFGOpt::FoldValueComparisonIntoPredecessors(Instruction *TI,
   BasicBlock *BB = TI->getParent();
   Value *CV = isValueEqualityComparison(TI); // CondVal
   assert(CV && "Not a comparison?");
+
   bool Changed = false;
+
+  auto _ = make_scope_exit([&]() {
+    if (Changed)
+      ++NumFoldValueComparisonIntoPredecessors;
+  });
 
   SmallVector<BasicBlock *, 16> Preds(pred_begin(BB), pred_end(BB));
   while (!Preds.empty()) {
@@ -2710,6 +2720,12 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, MemorySSAUpdater *MSSAU,
   const unsigned PredCount = pred_size(BB);
 
   bool Changed = false;
+
+  auto _ = make_scope_exit([&]() {
+    if (Changed)
+      ++NumFoldBranchToCommonDest;
+  });
+
   TargetTransformInfo::TargetCostKind CostKind =
     BB->getParent()->hasMinSize() ? TargetTransformInfo::TCK_CodeSize
                                   : TargetTransformInfo::TCK_SizeAndLatency;
@@ -2771,15 +2787,9 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, MemorySSAUpdater *MSSAU,
     // Ignore dbg intrinsics.
     if (isa<DbgInfoIntrinsic>(I))
       continue;
-    if (!I->hasOneUse() || !isSafeToSpeculativelyExecute(&*I))
+    // I must be safe to execute unconditionally.
+    if (!isSafeToSpeculativelyExecute(&*I))
       return Changed;
-    // I has only one use and can be executed unconditionally.
-    Instruction *User = dyn_cast<Instruction>(I->user_back());
-    if (User == nullptr || User->getParent() != BB)
-      return Changed;
-    // I is used in the same BB. Since BI uses Cond and doesn't have more slots
-    // to use any other instruction, User must be an instruction between next(I)
-    // and Cond.
 
     // Account for the cost of duplicating this instruction into each
     // predecessor.
@@ -2875,6 +2885,13 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, MemorySSAUpdater *MSSAU,
       PBI->swapSuccessors();
     }
 
+    // Before cloning instructions, notify the successor basic block that it
+    // is about to have a new predecessor. This will update PHI nodes,
+    // which will allow us to update live-out uses of bonus instructions.
+    if (BI->isConditional())
+      AddPredecessorToBlock(PBI->getSuccessor(0) == BB ? TrueDest : FalseDest,
+                            PredBlock, BB, MSSAU);
+
     // If we have bonus instructions, clone them into the predecessor block.
     // Note that there may be multiple predecessor blocks, so we cannot move
     // bonus instructions to a predecessor block.
@@ -2906,6 +2923,18 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, MemorySSAUpdater *MSSAU,
       PredBlock->getInstList().insert(PBI->getIterator(), NewBonusInst);
       NewBonusInst->takeName(&*BonusInst);
       BonusInst->setName(BonusInst->getName() + ".old");
+      BonusInst->replaceUsesWithIf(NewBonusInst, [BB](Use &U) {
+        auto *User = cast<Instruction>(U.getUser());
+        // Ignore uses in the same block as the bonus instruction itself.
+        if (User->getParent() == BB)
+          return false;
+        // We can safely update external non-PHI uses.
+        if (!isa<PHINode>(User))
+          return true;
+        // For PHI nodes, don't touch incoming values for same block
+        // as the bonus instruction itself.
+        return cast<PHINode>(User)->getIncomingBlock(U) != BB;
+      });
     }
 
     // Clone Cond into the predecessor basic block, and or/and the
@@ -2947,7 +2976,6 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, MemorySSAUpdater *MSSAU,
                                    (SuccFalseWeight + SuccTrueWeight) +
                                PredTrueWeight * SuccFalseWeight);
         }
-        AddPredecessorToBlock(TrueDest, PredBlock, BB, MSSAU);
         PBI->setSuccessor(0, TrueDest);
       }
       if (PBI->getSuccessor(1) == BB) {
@@ -2962,7 +2990,6 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, MemorySSAUpdater *MSSAU,
           // FalseWeight is FalseWeight for PBI * FalseWeight for BI.
           NewWeights.push_back(PredFalseWeight * SuccFalseWeight);
         }
-        AddPredecessorToBlock(FalseDest, PredBlock, BB, MSSAU);
         PBI->setSuccessor(1, FalseDest);
       }
       if (NewWeights.size() == 2) {

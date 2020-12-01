@@ -304,11 +304,77 @@ Value *EmitAtomicCmpXchgForMSIntrin(CodeGenFunction &CGF, const CallExpr *E,
                          AtomicOrdering::Monotonic :
                          SuccessOrdering;
 
+  // The atomic instruction is marked volatile for consistency with MSVC. This
+  // blocks the few atomics optimizations that LLVM has. If we want to optimize
+  // _Interlocked* operations in the future, we will have to remove the volatile
+  // marker.
   auto *Result = CGF.Builder.CreateAtomicCmpXchg(
                    Destination, Comparand, Exchange,
                    SuccessOrdering, FailureOrdering);
   Result->setVolatile(true);
   return CGF.Builder.CreateExtractValue(Result, 0);
+}
+
+// 64-bit Microsoft platforms support 128 bit cmpxchg operations. They are
+// prototyped like this:
+//
+// unsigned char _InterlockedCompareExchange128...(
+//     __int64 volatile * _Destination,
+//     __int64 _ExchangeHigh,
+//     __int64 _ExchangeLow,
+//     __int64 * _ComparandResult);
+static Value *EmitAtomicCmpXchg128ForMSIntrin(CodeGenFunction &CGF,
+                                              const CallExpr *E,
+                                              AtomicOrdering SuccessOrdering) {
+  assert(E->getNumArgs() == 4);
+  llvm::Value *Destination = CGF.EmitScalarExpr(E->getArg(0));
+  llvm::Value *ExchangeHigh = CGF.EmitScalarExpr(E->getArg(1));
+  llvm::Value *ExchangeLow = CGF.EmitScalarExpr(E->getArg(2));
+  llvm::Value *ComparandPtr = CGF.EmitScalarExpr(E->getArg(3));
+
+  assert(Destination->getType()->isPointerTy());
+  assert(!ExchangeHigh->getType()->isPointerTy());
+  assert(!ExchangeLow->getType()->isPointerTy());
+  assert(ComparandPtr->getType()->isPointerTy());
+
+  // For Release ordering, the failure ordering should be Monotonic.
+  auto FailureOrdering = SuccessOrdering == AtomicOrdering::Release
+                             ? AtomicOrdering::Monotonic
+                             : SuccessOrdering;
+
+  // Convert to i128 pointers and values.
+  llvm::Type *Int128Ty = llvm::IntegerType::get(CGF.getLLVMContext(), 128);
+  llvm::Type *Int128PtrTy = Int128Ty->getPointerTo();
+  Destination = CGF.Builder.CreateBitCast(Destination, Int128PtrTy);
+  Address ComparandResult(CGF.Builder.CreateBitCast(ComparandPtr, Int128PtrTy),
+                          CGF.getContext().toCharUnitsFromBits(128));
+
+  // (((i128)hi) << 64) | ((i128)lo)
+  ExchangeHigh = CGF.Builder.CreateZExt(ExchangeHigh, Int128Ty);
+  ExchangeLow = CGF.Builder.CreateZExt(ExchangeLow, Int128Ty);
+  ExchangeHigh =
+      CGF.Builder.CreateShl(ExchangeHigh, llvm::ConstantInt::get(Int128Ty, 64));
+  llvm::Value *Exchange = CGF.Builder.CreateOr(ExchangeHigh, ExchangeLow);
+
+  // Load the comparand for the instruction.
+  llvm::Value *Comparand = CGF.Builder.CreateLoad(ComparandResult);
+
+  auto *CXI = CGF.Builder.CreateAtomicCmpXchg(Destination, Comparand, Exchange,
+                                              SuccessOrdering, FailureOrdering);
+
+  // The atomic instruction is marked volatile for consistency with MSVC. This
+  // blocks the few atomics optimizations that LLVM has. If we want to optimize
+  // _Interlocked* operations in the future, we will have to remove the volatile
+  // marker.
+  CXI->setVolatile(true);
+
+  // Store the result as an outparameter.
+  CGF.Builder.CreateStore(CGF.Builder.CreateExtractValue(CXI, 0),
+                          ComparandResult);
+
+  // Get the success boolean and zero extend it to i8.
+  Value *Success = CGF.Builder.CreateExtractValue(CXI, 1);
+  return CGF.Builder.CreateZExt(Success, CGF.Int8Ty);
 }
 
 static Value *EmitAtomicIncrementValue(CodeGenFunction &CGF, const CallExpr *E,
@@ -374,6 +440,7 @@ static Value *emitUnaryMaybeConstrainedFPBuiltin(CodeGenFunction &CGF,
   llvm::Value *Src0 = CGF.EmitScalarExpr(E->getArg(0));
 
   if (CGF.Builder.getIsFPConstrained()) {
+    CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, E);
     Function *F = CGF.CGM.getIntrinsic(ConstrainedIntrinsicID, Src0->getType());
     return CGF.Builder.CreateConstrainedFPCall(F, { Src0 });
   } else {
@@ -391,6 +458,7 @@ static Value *emitBinaryMaybeConstrainedFPBuiltin(CodeGenFunction &CGF,
   llvm::Value *Src1 = CGF.EmitScalarExpr(E->getArg(1));
 
   if (CGF.Builder.getIsFPConstrained()) {
+    CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, E);
     Function *F = CGF.CGM.getIntrinsic(ConstrainedIntrinsicID, Src0->getType());
     return CGF.Builder.CreateConstrainedFPCall(F, { Src0, Src1 });
   } else {
@@ -409,6 +477,7 @@ static Value *emitTernaryMaybeConstrainedFPBuiltin(CodeGenFunction &CGF,
   llvm::Value *Src2 = CGF.EmitScalarExpr(E->getArg(2));
 
   if (CGF.Builder.getIsFPConstrained()) {
+    CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, E);
     Function *F = CGF.CGM.getIntrinsic(ConstrainedIntrinsicID, Src0->getType());
     return CGF.Builder.CreateConstrainedFPCall(F, { Src0, Src1, Src2 });
   } else {
@@ -490,6 +559,7 @@ emitMaybeConstrainedFPToIntRoundBuiltin(CodeGenFunction &CGF, const CallExpr *E,
   llvm::Value *Src0 = CGF.EmitScalarExpr(E->getArg(0));
 
   if (CGF.Builder.getIsFPConstrained()) {
+    CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, E);
     Function *F = CGF.CGM.getIntrinsic(ConstrainedIntrinsicID,
                                        {ResultType, Src0->getType()});
     return CGF.Builder.CreateConstrainedFPCall(F, {Src0});
@@ -993,6 +1063,10 @@ enum class CodeGenFunction::MSVCIntrin {
   _InterlockedCompareExchange_acq,
   _InterlockedCompareExchange_rel,
   _InterlockedCompareExchange_nf,
+  _InterlockedCompareExchange128,
+  _InterlockedCompareExchange128_acq,
+  _InterlockedCompareExchange128_rel,
+  _InterlockedCompareExchange128_nf,
   _InterlockedOr_acq,
   _InterlockedOr_rel,
   _InterlockedOr_nf,
@@ -1230,6 +1304,14 @@ translateAarch64ToMsvcIntrin(unsigned BuiltinID) {
   case AArch64::BI_InterlockedCompareExchange_nf:
   case AArch64::BI_InterlockedCompareExchange64_nf:
     return MSVCIntrin::_InterlockedCompareExchange_nf;
+  case AArch64::BI_InterlockedCompareExchange128:
+    return MSVCIntrin::_InterlockedCompareExchange128;
+  case AArch64::BI_InterlockedCompareExchange128_acq:
+    return MSVCIntrin::_InterlockedCompareExchange128_acq;
+  case AArch64::BI_InterlockedCompareExchange128_nf:
+    return MSVCIntrin::_InterlockedCompareExchange128_nf;
+  case AArch64::BI_InterlockedCompareExchange128_rel:
+    return MSVCIntrin::_InterlockedCompareExchange128_rel;
   case AArch64::BI_InterlockedOr8_acq:
   case AArch64::BI_InterlockedOr16_acq:
   case AArch64::BI_InterlockedOr_acq:
@@ -1317,6 +1399,8 @@ translateX86ToMsvcIntrin(unsigned BuiltinID) {
     return MSVCIntrin::_BitScanReverse;
   case clang::X86::BI_InterlockedAnd64:
     return MSVCIntrin::_InterlockedAnd;
+  case clang::X86::BI_InterlockedCompareExchange128:
+    return MSVCIntrin::_InterlockedCompareExchange128;
   case clang::X86::BI_InterlockedExchange64:
     return MSVCIntrin::_InterlockedExchange;
   case clang::X86::BI_InterlockedExchangeAdd64:
@@ -1423,6 +1507,15 @@ Value *CodeGenFunction::EmitMSVCBuiltinExpr(MSVCIntrin BuiltinID,
     return EmitAtomicCmpXchgForMSIntrin(*this, E, AtomicOrdering::Release);
   case MSVCIntrin::_InterlockedCompareExchange_nf:
     return EmitAtomicCmpXchgForMSIntrin(*this, E, AtomicOrdering::Monotonic);
+  case MSVCIntrin::_InterlockedCompareExchange128:
+    return EmitAtomicCmpXchg128ForMSIntrin(
+        *this, E, AtomicOrdering::SequentiallyConsistent);
+  case MSVCIntrin::_InterlockedCompareExchange128_acq:
+    return EmitAtomicCmpXchg128ForMSIntrin(*this, E, AtomicOrdering::Acquire);
+  case MSVCIntrin::_InterlockedCompareExchange128_rel:
+    return EmitAtomicCmpXchg128ForMSIntrin(*this, E, AtomicOrdering::Release);
+  case MSVCIntrin::_InterlockedCompareExchange128_nf:
+    return EmitAtomicCmpXchg128ForMSIntrin(*this, E, AtomicOrdering::Monotonic);
   case MSVCIntrin::_InterlockedOr_acq:
     return MakeBinaryAtomicValue(*this, AtomicRMWInst::Or, E,
                                  AtomicOrdering::Acquire);
@@ -2129,6 +2222,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_fmodf16:
     case Builtin::BI__builtin_fmodl:
     case Builtin::BI__builtin_fmodf128: {
+      CodeGenFunction::CGFPOptionsRAII FPOptsRAII(*this, E);
       Value *Arg1 = EmitScalarExpr(E->getArg(0));
       Value *Arg2 = EmitScalarExpr(E->getArg(1));
       return RValue::get(Builder.CreateFRem(Arg1, Arg2, "fmod"));
@@ -2739,6 +2833,8 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   case Builtin::BI__builtin_isunordered: {
     // Ordered comparisons: we know the arguments to these are matching scalar
     // floating point values.
+    CodeGenFunction::CGFPOptionsRAII FPOptsRAII(*this, E);
+    // FIXME: for strictfp/IEEE-754 we need to not trap on SNaN here.
     Value *LHS = EmitScalarExpr(E->getArg(0));
     Value *RHS = EmitScalarExpr(E->getArg(1));
 
@@ -2767,6 +2863,8 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     return RValue::get(Builder.CreateZExt(LHS, ConvertType(E->getType())));
   }
   case Builtin::BI__builtin_isnan: {
+    CodeGenFunction::CGFPOptionsRAII FPOptsRAII(*this, E);
+    // FIXME: for strictfp/IEEE-754 we need to not trap on SNaN here.
     Value *V = EmitScalarExpr(E->getArg(0));
     V = Builder.CreateFCmpUNO(V, V, "cmp");
     return RValue::get(Builder.CreateZExt(V, ConvertType(E->getType())));
@@ -2830,6 +2928,8 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     // isinf(x)    --> fabs(x) == infinity
     // isfinite(x) --> fabs(x) != infinity
     // x != NaN via the ordered compare in either case.
+    CodeGenFunction::CGFPOptionsRAII FPOptsRAII(*this, E);
+    // FIXME: for strictfp/IEEE-754 we need to not trap on SNaN here.
     Value *V = EmitScalarExpr(E->getArg(0));
     Value *Fabs = EmitFAbs(*this, V);
     Constant *Infinity = ConstantFP::getInfinity(V->getType());
@@ -2842,6 +2942,8 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
 
   case Builtin::BI__builtin_isinf_sign: {
     // isinf_sign(x) -> fabs(x) == infinity ? (signbit(x) ? -1 : 1) : 0
+    CodeGenFunction::CGFPOptionsRAII FPOptsRAII(*this, E);
+    // FIXME: for strictfp/IEEE-754 we need to not trap on SNaN here.
     Value *Arg = EmitScalarExpr(E->getArg(0));
     Value *AbsArg = EmitFAbs(*this, Arg);
     Value *IsInf = Builder.CreateFCmpOEQ(
@@ -2859,6 +2961,8 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
 
   case Builtin::BI__builtin_isnormal: {
     // isnormal(x) --> x == x && fabsf(x) < infinity && fabsf(x) >= float_min
+    CodeGenFunction::CGFPOptionsRAII FPOptsRAII(*this, E);
+    // FIXME: for strictfp/IEEE-754 we need to not trap on SNaN here.
     Value *V = EmitScalarExpr(E->getArg(0));
     Value *Eq = Builder.CreateFCmpOEQ(V, V, "iseq");
 
@@ -2887,6 +2991,8 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   }
 
   case Builtin::BI__builtin_fpclassify: {
+    CodeGenFunction::CGFPOptionsRAII FPOptsRAII(*this, E);
+    // FIXME: for strictfp/IEEE-754 we need to not trap on SNaN here.
     Value *V = EmitScalarExpr(E->getArg(5));
     llvm::Type *Ty = ConvertType(E->getArg(5)->getType());
 
@@ -14037,42 +14143,6 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
   case X86::BI_WriteBarrier: {
     return Builder.CreateFence(llvm::AtomicOrdering::SequentiallyConsistent,
                                llvm::SyncScope::SingleThread);
-  }
-  case X86::BI_InterlockedCompareExchange128: {
-    // InterlockedCompareExchange128 doesn't directly refer to 128bit ints,
-    // instead it takes pointers to 64bit ints for Destination and
-    // ComparandResult, and exchange is taken as two 64bit ints (high & low).
-    // The previous value is written to ComparandResult, and success is
-    // returned.
-
-    llvm::Type *Int128Ty = Builder.getInt128Ty();
-    llvm::Type *Int128PtrTy = Int128Ty->getPointerTo();
-
-    Value *Destination =
-        Builder.CreateBitCast(Ops[0], Int128PtrTy);
-    Value *ExchangeHigh128 = Builder.CreateZExt(Ops[1], Int128Ty);
-    Value *ExchangeLow128 = Builder.CreateZExt(Ops[2], Int128Ty);
-    Address ComparandResult(Builder.CreateBitCast(Ops[3], Int128PtrTy),
-                            getContext().toCharUnitsFromBits(128));
-
-    Value *Exchange = Builder.CreateOr(
-        Builder.CreateShl(ExchangeHigh128, 64, "", false, false),
-        ExchangeLow128);
-
-    Value *Comparand = Builder.CreateLoad(ComparandResult);
-
-    AtomicCmpXchgInst *CXI =
-        Builder.CreateAtomicCmpXchg(Destination, Comparand, Exchange,
-                                    AtomicOrdering::SequentiallyConsistent,
-                                    AtomicOrdering::SequentiallyConsistent);
-    CXI->setVolatile(true);
-
-    // Write the result back to the inout pointer.
-    Builder.CreateStore(Builder.CreateExtractValue(CXI, 0), ComparandResult);
-
-    // Get the success boolean and zero extend it to i8.
-    Value *Success = Builder.CreateExtractValue(CXI, 1);
-    return Builder.CreateZExt(Success, ConvertType(E->getType()));
   }
 
   case X86::BI_AddressOfReturnAddress: {

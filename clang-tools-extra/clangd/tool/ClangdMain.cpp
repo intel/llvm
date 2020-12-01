@@ -494,7 +494,7 @@ opt<bool> CollectMainFileRefs{
     "collect-main-file-refs",
     cat(Misc),
     desc("Store references to main-file-only symbols in the index"),
-    init(false),
+    init(ClangdServer::Options().CollectMainFileRefs),
 };
 
 #if CLANGD_ENABLE_REMOTE
@@ -529,10 +529,10 @@ public:
           "Expect URI body to be an absolute path starting with '/': {0}",
           Body);
     Body = Body.ltrim('/');
-    llvm::SmallVector<char, 16> Path(Body.begin(), Body.end());
+    llvm::SmallString<16> Path(Body);
     path::native(Path);
     fs::make_absolute(TestScheme::TestDir, Path);
-    return std::string(Path.begin(), Path.end());
+    return std::string(Path);
   }
 
   llvm::Expected<URI>

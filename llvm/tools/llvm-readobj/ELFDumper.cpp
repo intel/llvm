@@ -2204,10 +2204,9 @@ void ELFDumper<ELFT>::parseDynamicTable() {
       else if (Dyn.getVal() == DT_RELA)
         DynPLTRelRegion.EntSize = sizeof(Elf_Rela);
       else
-        reportError(createError(Twine("unknown DT_PLTREL value of ") +
-                                Twine((uint64_t)Dyn.getVal())),
-                    ObjF.getFileName());
-      DynPLTRelRegion.EntSizePrintName = "";
+        reportUniqueWarning(createError(Twine("unknown DT_PLTREL value of ") +
+                                        Twine((uint64_t)Dyn.getVal())));
+      DynPLTRelRegion.EntSizePrintName = "PLTREL entry size";
       break;
     case ELF::DT_JMPREL:
       DynPLTRelRegion.Addr = toMappedAddr(Dyn.getTag(), Dyn.getPtr());
@@ -2887,12 +2886,12 @@ template <class ELFT> void ELFDumper<ELFT>::printArchSpecificInfo() {
     printMipsReginfo();
     MipsGOTParser<ELFT> Parser(*this);
     if (Error E = Parser.findGOT(dynamic_table(), dynamic_symbols()))
-      reportError(std::move(E), ObjF.getFileName());
+      reportUniqueWarning(std::move(E));
     else if (!Parser.isGotEmpty())
       ELFDumperStyle->printMipsGOT(Parser);
 
     if (Error E = Parser.findPLT(dynamic_table()))
-      reportError(std::move(E), ObjF.getFileName());
+      reportUniqueWarning(std::move(E));
     else if (!Parser.isPltEmpty())
       ELFDumperStyle->printMipsPLT(Parser);
     break;
@@ -5559,7 +5558,7 @@ static void printNotesHelper(
       StartNotesFn(expectedToOptional(Obj.getSectionName(S)), S.sh_offset,
                    S.sh_size);
       Error Err = Error::success();
-      for (const typename ELFT::Note &Note : Obj.notes(S, Err))
+      for (const typename ELFT::Note Note : Obj.notes(S, Err))
         ProcessNoteFn(Note);
       if (Err)
         Dumper.reportUniqueWarning(

@@ -452,7 +452,7 @@ def : InstAlias<"zext.h $rd, $rs", (PACKW GPR:$rd, GPR:$rs, X0)>;
 def : InstAlias<"zext.w $rd, $rs", (PACK GPR:$rd, GPR:$rs, X0)>;
 } // Predicates = [HasStdExtZbb, IsRV64]
 
-let Predicates = [HasStdExtZbbOrZbp] in {
+let Predicates = [HasStdExtZbp] in {
 def : InstAlias<"rev.p $rd, $rs",  (GREVI GPR:$rd, GPR:$rs, 0b00001)>,
       Sched<[]>;
 def : InstAlias<"rev2.n $rd, $rs", (GREVI GPR:$rd, GPR:$rs, 0b00010)>,
@@ -519,9 +519,9 @@ def : InstAlias<"orc2.h $rd, $rs", (GORCI GPR:$rd, GPR:$rs, 0b01110)>,
       Sched<[]>;
 def : InstAlias<"orc.h $rd, $rs",  (GORCI GPR:$rd, GPR:$rs, 0b01111)>,
       Sched<[]>;
-} // Predicates = [HasStdExtZbbOrZbp]
+} // Predicates = [HasStdExtZbp]
 
-let Predicates = [HasStdExtZbbOrZbp, IsRV32] in {
+let Predicates = [HasStdExtZbp, IsRV32] in {
 def : InstAlias<"rev16 $rd, $rs", (GREVI GPR:$rd, GPR:$rs, 0b10000)>, Sched<[]>;
 def : InstAlias<"rev8 $rd, $rs",  (GREVI GPR:$rd, GPR:$rs, 0b11000)>, Sched<[]>;
 def : InstAlias<"rev4 $rd, $rs",  (GREVI GPR:$rd, GPR:$rs, 0b11100)>, Sched<[]>;
@@ -550,9 +550,9 @@ def : InstAlias<"orc8 $rd, $rs",  (GORCI GPR:$rd, GPR:$rs, 0b11000)>, Sched<[]>;
 def : InstAlias<"orc4 $rd, $rs",  (GORCI GPR:$rd, GPR:$rs, 0b11100)>, Sched<[]>;
 def : InstAlias<"orc2 $rd, $rs",  (GORCI GPR:$rd, GPR:$rs, 0b11110)>, Sched<[]>;
 def : InstAlias<"orc $rd, $rs",   (GORCI GPR:$rd, GPR:$rs, 0b11111)>, Sched<[]>;
-} // Predicates = [HasStdExtZbbOrZbp, IsRV32]
+} // Predicates = [HasStdExtZbp, IsRV32]
 
-let Predicates = [HasStdExtZbbOrZbp, IsRV64] in {
+let Predicates = [HasStdExtZbp, IsRV64] in {
 def : InstAlias<"rev16.w $rd, $rs", (GREVI GPR:$rd, GPR:$rs, 0b010000)>,
       Sched<[]>;
 def : InstAlias<"rev8.w $rd, $rs",  (GREVI GPR:$rd, GPR:$rs, 0b011000)>,
@@ -635,7 +635,7 @@ def : InstAlias<"orc2 $rd, $rs",    (GORCI GPR:$rd, GPR:$rs, 0b111110)>,
       Sched<[]>;
 def : InstAlias<"orc $rd, $rs",     (GORCI GPR:$rd, GPR:$rs, 0b111111)>,
       Sched<[]>;
-} // Predicates = [HasStdExtZbbOrZbp, IsRV64]
+} // Predicates = [HasStdExtZbp, IsRV64]
 
 //===----------------------------------------------------------------------===//
 // Compressed Instruction patterns
@@ -689,6 +689,9 @@ def : Pat<(xor (shiftop<shl> 1, GPR:$rs2), GPR:$rs1),
           (SBINV GPR:$rs1, GPR:$rs2)>;
 def : Pat<(and (shiftop<srl> GPR:$rs1, GPR:$rs2), 1),
           (SBEXT GPR:$rs1, GPR:$rs2)>;
+
+def : Pat<(shiftop<shl> 1, GPR:$rs2),
+          (SBSET X0, GPR:$rs2)>;
 }
 
 let Predicates = [HasStdExtZbb] in {
@@ -727,15 +730,9 @@ def : Pat<(riscv_gorci GPR:$rs1, timm:$shamt), (GORCI GPR:$rs1, timm:$shamt)>;
 } // Predicates = [HasStdExtZbp]
 
 let Predicates = [HasStdExtZbp, IsRV32] in {
-def : Pat<(rotr (bswap GPR:$rs1), (i32 16)), (GREVI GPR:$rs1, (i32 8))>;
-def : Pat<(bswap GPR:$rs1), (GREVI GPR:$rs1, (i32 24))>;
-def : Pat<(bitreverse GPR:$rs1), (GREVI GPR:$rs1, (i32 31))>;
+def : Pat<(rotr (riscv_grevi GPR:$rs1, (i32 24)), (i32 16)), (GREVI GPR:$rs1, 8)>;
+def : Pat<(rotl (riscv_grevi GPR:$rs1, (i32 24)), (i32 16)), (GREVI GPR:$rs1, 8)>;
 } // Predicates = [HasStdExtZbp, IsRV32]
-
-let Predicates = [HasStdExtZbp, IsRV64] in {
-def : Pat<(bswap GPR:$rs1), (GREVI GPR:$rs1, (i64 56))>;
-def : Pat<(bitreverse GPR:$rs1), (GREVI GPR:$rs1, (i64 63))>;
-} // Predicates = [HasStdExtZbp, IsRV64]
 
 let Predicates = [HasStdExtZbt] in {
 def : Pat<(or (and (not GPR:$rs2), GPR:$rs3), (and GPR:$rs2, GPR:$rs1)),
@@ -789,17 +786,9 @@ def : Pat<(sext_inreg GPR:$rs1, i16), (SEXTH GPR:$rs1)>;
 
 let Predicates = [HasStdExtZbb] in {
 def : Pat<(smin GPR:$rs1, GPR:$rs2), (MIN  GPR:$rs1, GPR:$rs2)>;
-def : Pat<(riscv_selectcc GPR:$rs1, GPR:$rs2, (XLenVT 20), GPR:$rs1, GPR:$rs2),
-          (MIN  GPR:$rs1, GPR:$rs2)>;
 def : Pat<(smax GPR:$rs1, GPR:$rs2), (MAX  GPR:$rs1, GPR:$rs2)>;
-def : Pat<(riscv_selectcc GPR:$rs2, GPR:$rs1, (XLenVT 20), GPR:$rs1, GPR:$rs2),
-          (MAX  GPR:$rs1, GPR:$rs2)>;
 def : Pat<(umin GPR:$rs1, GPR:$rs2), (MINU GPR:$rs1, GPR:$rs2)>;
-def : Pat<(riscv_selectcc GPR:$rs1, GPR:$rs2, (XLenVT 12), GPR:$rs1, GPR:$rs2),
-          (MINU  GPR:$rs1, GPR:$rs2)>;
 def : Pat<(umax GPR:$rs1, GPR:$rs2), (MAXU GPR:$rs1, GPR:$rs2)>;
-def : Pat<(riscv_selectcc GPR:$rs2, GPR:$rs1, (XLenVT 12), GPR:$rs1, GPR:$rs2),
-          (MAXU  GPR:$rs1, GPR:$rs2)>;
 } // Predicates = [HasStdExtZbb]
 
 let Predicates = [HasStdExtZbbOrZbp, IsRV32] in
@@ -901,12 +890,21 @@ def : Pat<(riscv_rolw GPR:$rs1, uimm5:$rs2),
 let Predicates = [HasStdExtZbs, IsRV64] in {
 def : Pat<(and (not (riscv_sllw 1, GPR:$rs2)), (assertsexti32 GPR:$rs1)),
           (SBCLRW GPR:$rs1, GPR:$rs2)>;
+def : Pat<(sext_inreg (and (not (riscv_sllw 1, GPR:$rs2)), GPR:$rs1), i32),
+          (SBCLRW GPR:$rs1, GPR:$rs2)>;
 def : Pat<(or (riscv_sllw 1, GPR:$rs2), (assertsexti32 GPR:$rs1)),
+          (SBSETW GPR:$rs1, GPR:$rs2)>;
+def : Pat<(sext_inreg (or (riscv_sllw 1, GPR:$rs2), GPR:$rs1), i32),
           (SBSETW GPR:$rs1, GPR:$rs2)>;
 def : Pat<(xor (riscv_sllw 1, GPR:$rs2), (assertsexti32 GPR:$rs1)),
           (SBINVW GPR:$rs1, GPR:$rs2)>;
+def : Pat<(sext_inreg (xor (riscv_sllw 1, GPR:$rs2), GPR:$rs1), i32),
+          (SBINVW GPR:$rs1, GPR:$rs2)>;
 def : Pat<(and (riscv_srlw GPR:$rs1, GPR:$rs2), 1),
           (SBEXTW GPR:$rs1, GPR:$rs2)>;
+
+def : Pat<(riscv_sllw 1, GPR:$rs2),
+          (SBSETW X0, GPR:$rs2)>;
 } // Predicates = [HasStdExtZbs, IsRV64]
 
 let Predicates = [HasStdExtZbb, IsRV64] in {
@@ -917,6 +915,8 @@ def : Pat<(SROIWPat GPR:$rs1, uimmlog2xlen:$shamt),
 } // Predicates = [HasStdExtZbb, IsRV64]
 
 let Predicates = [HasStdExtZbp, IsRV64] in {
+def : Pat<(riscv_rorw (riscv_greviw GPR:$rs1, 24), (i64 16)), (GREVIW GPR:$rs1, 8)>;
+def : Pat<(riscv_rolw (riscv_greviw GPR:$rs1, 24), (i64 16)), (GREVIW GPR:$rs1, 8)>;
 def : Pat<(riscv_greviw GPR:$rs1, timm:$shamt), (GREVIW GPR:$rs1, timm:$shamt)>;
 def : Pat<(riscv_gorciw GPR:$rs1, timm:$shamt), (GORCIW GPR:$rs1, timm:$shamt)>;
 } // Predicates = [HasStdExtZbp, IsRV64]

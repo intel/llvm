@@ -217,10 +217,17 @@ AArch64TTIImpl::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
                                       TTI::TargetCostKind CostKind) {
   auto *RetTy = ICA.getReturnType();
   switch (ICA.getID()) {
-  case Intrinsic::smin:
   case Intrinsic::umin:
-  case Intrinsic::smax:
   case Intrinsic::umax: {
+    auto LT = TLI->getTypeLegalizationCost(DL, RetTy);
+    // umin(x,y) -> sub(x,usubsat(x,y))
+    // umax(x,y) -> add(x,usubsat(y,x))
+    if (LT.second == MVT::v2i64)
+      return LT.first * 2;
+    LLVM_FALLTHROUGH;
+  }
+  case Intrinsic::smin:
+  case Intrinsic::smax: {
     static const auto ValidMinMaxTys = {MVT::v8i8,  MVT::v16i8, MVT::v4i16,
                                         MVT::v8i16, MVT::v2i32, MVT::v4i32};
     auto LT = TLI->getTypeLegalizationCost(DL, RetTy);
@@ -637,8 +644,20 @@ int AArch64TTIImpl::getArithmeticInstrCost(
     }
     return Cost;
 
-  case ISD::ADD:
   case ISD::MUL:
+    if (LT.second != MVT::v2i64)
+      return (Cost + 1) * LT.first;
+    // Since we do not have a MUL.2d instruction, a mul <2 x i64> is expensive
+    // as elements are extracted from the vectors and the muls scalarized.
+    // As getScalarizationOverhead is a bit too pessimistic, we estimate the
+    // cost for a i64 vector directly here, which is:
+    // - four i64 extracts,
+    // - two i64 inserts, and
+    // - two muls.
+    // So, for a v2i64 with LT.First = 1 the cost is 8, and for a v4i64 with
+    // LT.first = 2 the cost is 16.
+    return LT.first * 8;
+  case ISD::ADD:
   case ISD::XOR:
   case ISD::OR:
   case ISD::AND:

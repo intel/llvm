@@ -550,6 +550,7 @@ public:
   /// values in the vectorized loop.
   void vectorizeInterleaveGroup(const InterleaveGroup<Instruction> *Group,
                                 VPTransformState &State, VPValue *Addr,
+                                ArrayRef<VPValue *> StoredValues,
                                 VPValue *BlockInMask = nullptr);
 
   /// Vectorize Load and Store instructions with the base address given in \p
@@ -2322,7 +2323,7 @@ static bool useMaskedInterleavedAccesses(const TargetTransformInfo &TTI) {
 //   store <12 x i32> %interleaved.vec              ; Write 4 tuples of R,G,B
 void InnerLoopVectorizer::vectorizeInterleaveGroup(
     const InterleaveGroup<Instruction> *Group, VPTransformState &State,
-    VPValue *Addr, VPValue *BlockInMask) {
+    VPValue *Addr, ArrayRef<VPValue *> StoredValues, VPValue *BlockInMask) {
   Instruction *Instr = Group->getInsertPos();
   const DataLayout &DL = Instr->getModule()->getDataLayout();
 
@@ -2464,11 +2465,10 @@ void InnerLoopVectorizer::vectorizeInterleaveGroup(
     SmallVector<Value *, 4> StoredVecs;
     for (unsigned i = 0; i < InterleaveFactor; i++) {
       // Interleaved store group doesn't allow a gap, so each index has a member
-      Instruction *Member = Group->getMember(i);
-      assert(Member && "Fail to get a member from an interleaved store group");
+      assert(Group->getMember(i) && "Fail to get a member from an interleaved store group");
 
-      Value *StoredVec = getOrCreateVectorValue(
-          cast<StoreInst>(Member)->getValueOperand(), Part);
+      Value *StoredVec = State.get(StoredValues[i], Part);
+
       if (Group->isReverse())
         StoredVec = reverseVector(StoredVec);
 
@@ -2674,7 +2674,9 @@ void InnerLoopVectorizer::scalarizeInstruction(Instruction *Instr, VPUser &User,
   // Place the cloned scalar in the new loop.
   Builder.Insert(Cloned);
 
-  // Add the cloned scalar to the scalar map entry.
+  // TODO: Set result for VPValue of VPReciplicateRecipe. This requires
+  // representing scalar values in VPTransformState. Add the cloned scalar to
+  // the scalar map entry.
   VectorLoopValueMap.setScalarValue(Instr, Instance, Cloned);
 
   // If we just cloned a new assumption, add it the assumption cache.
@@ -4320,7 +4322,7 @@ void InnerLoopVectorizer::widenGEP(GetElementPtrInst *GEP, VPValue *VPDef,
     auto *Clone = Builder.Insert(GEP->clone());
     for (unsigned Part = 0; Part < UF; ++Part) {
       Value *EntryPart = Builder.CreateVectorSplat(VF, Clone);
-      VectorLoopValueMap.setVectorValue(GEP, Part, EntryPart);
+      State.set(VPDef, GEP, EntryPart, Part);
       addMetadata(EntryPart, GEP);
     }
   } else {
@@ -4357,7 +4359,7 @@ void InnerLoopVectorizer::widenGEP(GetElementPtrInst *GEP, VPValue *VPDef,
               : Builder.CreateGEP(GEP->getSourceElementType(), Ptr, Indices);
       assert((VF.isScalar() || NewGEP->getType()->isVectorTy()) &&
              "NewGEP is not a pointer vector");
-      VectorLoopValueMap.setVectorValue(GEP, Part, NewGEP);
+      State.set(VPDef, GEP, NewGEP, Part);
       addMetadata(NewGEP, GEP);
     }
   }
@@ -7549,6 +7551,7 @@ VPBasicBlock *VPRecipeBuilder::handleReplication(
   auto *Recipe = new VPReplicateRecipe(I, Plan->mapToVPValues(I->operands()),
                                        IsUniform, IsPredicated);
   setRecipe(I, Recipe);
+  Plan->addVPValue(I, Recipe);
 
   // Find if I uses a predicated instruction. If so, it will use its scalar
   // value. Avoid hoisting the insert-element which packs the scalar value into
@@ -7590,8 +7593,9 @@ VPRegionBlock *VPRecipeBuilder::createReplicateRegion(Instruction *Instr,
   assert(Instr->getParent() && "Predicated instruction not in any basic block");
   auto *BOMRecipe = new VPBranchOnMaskRecipe(BlockInMask);
   auto *Entry = new VPBasicBlock(Twine(RegionName) + ".entry", BOMRecipe);
-  auto *PHIRecipe =
-      Instr->getType()->isVoidTy() ? nullptr : new VPPredInstPHIRecipe(Instr);
+  auto *PHIRecipe = Instr->getType()->isVoidTy()
+                        ? nullptr
+                        : new VPPredInstPHIRecipe(Plan->getOrAddVPValue(Instr));
   auto *Exit = new VPBasicBlock(Twine(RegionName) + ".continue", PHIRecipe);
   auto *Pred = new VPBasicBlock(Twine(RegionName) + ".if", PredRecipe);
   VPRegionBlock *Region = new VPRegionBlock(Entry, Exit, RegionName, true);
@@ -7825,7 +7829,13 @@ VPlanPtr LoopVectorizationPlanner::buildVPlanWithVPRecipes(
   for (auto IG : InterleaveGroups) {
     auto *Recipe = cast<VPWidenMemoryInstructionRecipe>(
         RecipeBuilder.getRecipe(IG->getInsertPos()));
-    (new VPInterleaveRecipe(IG, Recipe->getAddr(), Recipe->getMask()))
+    SmallVector<VPValue *, 4> StoredValues;
+    for (unsigned i = 0; i < IG->getFactor(); ++i)
+      if (auto *SI = dyn_cast_or_null<StoreInst>(IG->getMember(i)))
+        StoredValues.push_back(Plan->getOrAddVPValue(SI->getOperand(0)));
+
+    (new VPInterleaveRecipe(IG, Recipe->getAddr(), StoredValues,
+                            Recipe->getMask()))
         ->insertBefore(Recipe);
 
     for (unsigned i = 0; i < IG->getFactor(); ++i)
@@ -8065,7 +8075,8 @@ void VPBlendRecipe::execute(VPTransformState &State) {
 
 void VPInterleaveRecipe::execute(VPTransformState &State) {
   assert(!State.Instance && "Interleave group being replicated.");
-  State.ILV->vectorizeInterleaveGroup(IG, State, getAddr(), getMask());
+  State.ILV->vectorizeInterleaveGroup(IG, State, getAddr(), getStoredValues(),
+                                      getMask());
 }
 
 void VPReductionRecipe::execute(VPTransformState &State) {
@@ -8103,18 +8114,20 @@ void VPReductionRecipe::execute(VPTransformState &State) {
 
 void VPReplicateRecipe::execute(VPTransformState &State) {
   if (State.Instance) { // Generate a single instance.
-    State.ILV->scalarizeInstruction(Ingredient, *this, *State.Instance,
-                                    IsPredicated, State);
+    State.ILV->scalarizeInstruction(getUnderlyingInstr(), *this,
+                                    *State.Instance, IsPredicated, State);
     // Insert scalar instance packing it into a vector.
     if (AlsoPack && State.VF.isVector()) {
       // If we're constructing lane 0, initialize to start from undef.
       if (State.Instance->Lane == 0) {
         assert(!State.VF.isScalable() && "VF is assumed to be non scalable.");
-        Value *Undef =
-            UndefValue::get(VectorType::get(Ingredient->getType(), State.VF));
-        State.ValueMap.setVectorValue(Ingredient, State.Instance->Part, Undef);
+        Value *Undef = UndefValue::get(
+            VectorType::get(getUnderlyingValue()->getType(), State.VF));
+        State.ValueMap.setVectorValue(getUnderlyingInstr(),
+                                      State.Instance->Part, Undef);
       }
-      State.ILV->packScalarIntoVectorValue(Ingredient, *State.Instance);
+      State.ILV->packScalarIntoVectorValue(getUnderlyingInstr(),
+                                           *State.Instance);
     }
     return;
   }
@@ -8125,7 +8138,7 @@ void VPReplicateRecipe::execute(VPTransformState &State) {
   unsigned EndLane = IsUniform ? 1 : State.VF.getKnownMinValue();
   for (unsigned Part = 0; Part < State.UF; ++Part)
     for (unsigned Lane = 0; Lane < EndLane; ++Lane)
-      State.ILV->scalarizeInstruction(Ingredient, *this, {Part, Lane},
+      State.ILV->scalarizeInstruction(getUnderlyingInstr(), *this, {Part, Lane},
                                       IsPredicated, State);
 }
 
@@ -8157,8 +8170,8 @@ void VPBranchOnMaskRecipe::execute(VPTransformState &State) {
 
 void VPPredInstPHIRecipe::execute(VPTransformState &State) {
   assert(State.Instance && "Predicated instruction PHI works per instance.");
-  Instruction *ScalarPredInst = cast<Instruction>(
-      State.ValueMap.getScalarValue(PredInst, *State.Instance));
+  Instruction *ScalarPredInst =
+      cast<Instruction>(State.get(getOperand(0), *State.Instance));
   BasicBlock *PredicatedBB = ScalarPredInst->getParent();
   BasicBlock *PredicatingBB = PredicatedBB->getSinglePredecessor();
   assert(PredicatingBB && "Predicated block has no single predecessor.");
@@ -8170,6 +8183,8 @@ void VPPredInstPHIRecipe::execute(VPTransformState &State) {
   // also do that packing, thereby "hoisting" the insert-element sequence.
   // Otherwise, a phi node for the scalar value is needed.
   unsigned Part = State.Instance->Part;
+  Instruction *PredInst =
+      cast<Instruction>(getOperand(0)->getUnderlyingValue());
   if (State.ValueMap.hasVectorValue(PredInst, Part)) {
     Value *VectorValue = State.ValueMap.getVectorValue(PredInst, Part);
     InsertElementInst *IEI = cast<InsertElementInst>(VectorValue);

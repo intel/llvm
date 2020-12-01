@@ -614,6 +614,10 @@ public:
     // hoisted into a VPBlockBase.
     return true;
   }
+
+  /// Replace all operands of VPUsers in the block with \p NewValue and also
+  /// replaces all uses of VPValues defined in the block with NewValue.
+  virtual void dropAllReferences(VPValue *NewValue) = 0;
 };
 
 /// VPRecipeBase is a base class modeling a sequence of one or more output IR
@@ -1031,16 +1035,24 @@ public:
 };
 
 /// VPInterleaveRecipe is a recipe for transforming an interleave group of load
-/// or stores into one wide load/store and shuffles.
+/// or stores into one wide load/store and shuffles. The first operand of a
+/// VPInterleave recipe is the address, followed by the stored values, followed
+/// by an optional mask.
 class VPInterleaveRecipe : public VPRecipeBase, public VPUser {
   const InterleaveGroup<Instruction> *IG;
 
+  bool HasMask = false;
+
 public:
   VPInterleaveRecipe(const InterleaveGroup<Instruction> *IG, VPValue *Addr,
-                     VPValue *Mask)
+                     ArrayRef<VPValue *> StoredValues, VPValue *Mask)
       : VPRecipeBase(VPInterleaveSC), VPUser({Addr}), IG(IG) {
-    if (Mask)
+    for (auto *SV : StoredValues)
+      addOperand(SV);
+    if (Mask) {
+      HasMask = true;
       addOperand(Mask);
+    }
   }
   ~VPInterleaveRecipe() override = default;
 
@@ -1058,7 +1070,16 @@ public:
   /// by a nullptr.
   VPValue *getMask() const {
     // Mask is optional and therefore the last, currently 2nd operand.
-    return getNumOperands() == 2 ? getOperand(1) : nullptr;
+    return HasMask ? getOperand(getNumOperands() - 1) : nullptr;
+  }
+
+  /// Return the VPValues stored by this interleave group. If it is a load
+  /// interleave group, return an empty ArrayRef.
+  ArrayRef<VPValue *> getStoredValues() const {
+    // The first operand is the address, followed by the stored values, followed
+    // by an optional mask.
+    return ArrayRef<VPValue *>(op_begin(), getNumOperands())
+        .slice(1, getNumOperands() - (HasMask ? 2 : 1));
   }
 
   /// Generate the wide load or store, and shuffles.
@@ -1124,10 +1145,7 @@ public:
 /// copies of the original scalar type, one per lane, instead of producing a
 /// single copy of widened type for all lanes. If the instruction is known to be
 /// uniform only one copy, per lane zero, will be generated.
-class VPReplicateRecipe : public VPRecipeBase, public VPUser {
-  /// The instruction being replicated.
-  Instruction *Ingredient;
-
+class VPReplicateRecipe : public VPRecipeBase, public VPUser, public VPValue {
   /// Indicator if only a single replica per lane is needed.
   bool IsUniform;
 
@@ -1141,8 +1159,9 @@ public:
   template <typename IterT>
   VPReplicateRecipe(Instruction *I, iterator_range<IterT> Operands,
                     bool IsUniform, bool IsPredicated = false)
-      : VPRecipeBase(VPReplicateSC), VPUser(Operands), Ingredient(I),
-        IsUniform(IsUniform), IsPredicated(IsPredicated) {
+      : VPRecipeBase(VPReplicateSC), VPUser(Operands),
+        VPValue(VPVReplicateSC, I), IsUniform(IsUniform),
+        IsPredicated(IsPredicated) {
     // Retain the previous behavior of predicateInstructions(), where an
     // insert-element of a predicated instruction got hoisted into the
     // predicated basic block iff it was its only user. This is achieved by
@@ -1158,6 +1177,10 @@ public:
     return V->getVPRecipeID() == VPRecipeBase::VPReplicateSC;
   }
 
+  static inline bool classof(const VPValue *V) {
+    return V->getVPValueID() == VPValue::VPVReplicateSC;
+  }
+
   /// Generate replicas of the desired Ingredient. Replicas will be generated
   /// for all parts and lanes unless a specific part and lane are specified in
   /// the \p State.
@@ -1168,6 +1191,8 @@ public:
   /// Print the recipe.
   void print(raw_ostream &O, const Twine &Indent,
              VPSlotTracker &SlotTracker) const override;
+
+  bool isUniform() const { return IsUniform; }
 };
 
 /// A recipe for generating conditional branches on the bits of a mask.
@@ -1212,14 +1237,13 @@ public:
 /// order to merge values that are set under such a branch and feed their uses.
 /// The phi nodes can be scalar or vector depending on the users of the value.
 /// This recipe works in concert with VPBranchOnMaskRecipe.
-class VPPredInstPHIRecipe : public VPRecipeBase {
-  Instruction *PredInst;
+class VPPredInstPHIRecipe : public VPRecipeBase, public VPUser {
 
 public:
   /// Construct a VPPredInstPHIRecipe given \p PredInst whose value needs a phi
   /// nodes after merging back from a Branch-on-Mask.
-  VPPredInstPHIRecipe(Instruction *PredInst)
-      : VPRecipeBase(VPPredInstPHISC), PredInst(PredInst) {}
+  VPPredInstPHIRecipe(VPValue *PredV)
+      : VPRecipeBase(VPPredInstPHISC), VPUser(PredV) {}
   ~VPPredInstPHIRecipe() override = default;
 
   /// Method to support type inquiry through isa, cast, and dyn_cast.
@@ -1407,12 +1431,10 @@ public:
   /// this VPBasicBlock, thereby "executing" the VPlan.
   void execute(struct VPTransformState *State) override;
 
-  /// Replace all operands of VPUsers in the block with \p NewValue and also
-  /// replaces all uses of VPValues defined in the block with NewValue.
-  void dropAllReferences(VPValue *NewValue);
-
   /// Return the position of the first non-phi node recipe in the block.
   iterator getFirstNonPhi();
+
+  void dropAllReferences(VPValue *NewValue) override;
 
 private:
   /// Create an IR BasicBlock to hold the output instructions generated by this
@@ -1454,8 +1476,11 @@ public:
         IsReplicator(IsReplicator) {}
 
   ~VPRegionBlock() override {
-    if (Entry)
+    if (Entry) {
+      VPValue DummyValue;
+      Entry->dropAllReferences(&DummyValue);
       deleteCFG(Entry);
+    }
   }
 
   /// Method to support type inquiry through isa, cast, and dyn_cast.
@@ -1500,6 +1525,8 @@ public:
   /// The method which generates the output IR instructions that correspond to
   /// this VPRegionBlock, thereby "executing" the VPlan.
   void execute(struct VPTransformState *State) override;
+
+  void dropAllReferences(VPValue *NewValue) override;
 };
 
 //===----------------------------------------------------------------------===//
@@ -1674,8 +1701,13 @@ public:
   }
 
   ~VPlan() {
-    if (Entry)
+    if (Entry) {
+      VPValue DummyValue;
+      for (VPBlockBase *Block : depth_first(Entry))
+        Block->dropAllReferences(&DummyValue);
+
       VPBlockBase::deleteCFG(Entry);
+    }
     for (VPValue *VPV : VPValuesToFree)
       delete VPV;
     if (BackedgeTakenCount)

@@ -519,7 +519,7 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
     auto ST = static_cast<SPIRVTypeStruct *>(T);
     auto Name = ST->getName();
     if (!Name.empty()) {
-      if (auto OldST = M->getTypeByName(Name))
+      if (auto OldST = StructType::getTypeByName(M->getContext(), Name))
         OldST->setName("");
     } else {
       Name = "structtype";
@@ -1465,7 +1465,7 @@ Value *SPIRVToLLVM::oclTransConstantPipeStorage(
                    kSPIRVTypeName::ConstantPipeStorage;
 
   auto Int32Ty = IntegerType::getInt32Ty(*Context);
-  auto CPSTy = M->getTypeByName(CPSName);
+  auto CPSTy = StructType::getTypeByName(M->getContext(), CPSName);
   if (!CPSTy) {
     Type *CPSElemsTy[] = {Int32Ty, Int32Ty, Int32Ty};
     CPSTy = StructType::create(*Context, CPSElemsTy, CPSName);

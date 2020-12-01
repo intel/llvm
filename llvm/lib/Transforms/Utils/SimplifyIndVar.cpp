@@ -1541,17 +1541,44 @@ bool WidenIV::widenWithVariantUse(WidenIV::NarrowIVDefUse DU) {
   bool CanZeroExtend = ExtKind == ZeroExtended && OBO->hasNoUnsignedWrap();
   auto AnotherOpExtKind = ExtKind;
 
-  // Check that all uses are either s/zext, or narrow def (in case of we are
-  // widening the IV increment).
+  // Check that all uses are either:
+  // - narrow def (in case of we are widening the IV increment);
+  // - single-input LCSSA Phis;
+  // - comparison of the chosen type;
+  // - extend of the chosen type (raison d'etre).
   SmallVector<Instruction *, 4> ExtUsers;
+  SmallVector<PHINode *, 4> LCSSAPhiUsers;
+  SmallVector<ICmpInst *, 4> ICmpUsers;
   for (Use &U : NarrowUse->uses()) {
-    if (U.getUser() == NarrowDef)
+    Instruction *User = cast<Instruction>(U.getUser());
+    if (User == NarrowDef)
       continue;
-    Instruction *User = nullptr;
+    if (!L->contains(User)) {
+      auto *LCSSAPhi = cast<PHINode>(User);
+      // Make sure there is only 1 input, so that we don't have to split
+      // critical edges.
+      if (LCSSAPhi->getNumOperands() != 1)
+        return false;
+      LCSSAPhiUsers.push_back(LCSSAPhi);
+      continue;
+    }
+    if (auto *ICmp = dyn_cast<ICmpInst>(User)) {
+      auto Pred = ICmp->getPredicate();
+      // We have 3 types of predicates: signed, unsigned and equality
+      // predicates. For equality, it's legal to widen icmp for either sign and
+      // zero extend. For sign extend, we can also do so for signed predicates,
+      // likeweise for zero extend we can widen icmp for unsigned predicates.
+      if (ExtKind == ZeroExtended && ICmpInst::isSigned(Pred))
+        return false;
+      if (ExtKind == SignExtended && ICmpInst::isUnsigned(Pred))
+        return false;
+      ICmpUsers.push_back(ICmp);
+      continue;
+    }
     if (ExtKind == SignExtended)
-      User = dyn_cast<SExtInst>(U.getUser());
+      User = dyn_cast<SExtInst>(User);
     else
-      User = dyn_cast<ZExtInst>(U.getUser());
+      User = dyn_cast<ZExtInst>(User);
     if (!User || User->getType() != WideType)
       return false;
     ExtUsers.push_back(User);
@@ -1630,6 +1657,41 @@ bool WidenIV::widenWithVariantUse(WidenIV::NarrowIVDefUse DU) {
     User->replaceAllUsesWith(WideBO);
     DeadInsts.emplace_back(User);
   }
+
+  for (PHINode *User : LCSSAPhiUsers) {
+    assert(User->getNumOperands() == 1 && "Checked before!");
+    Builder.SetInsertPoint(User);
+    auto *WidePN =
+        Builder.CreatePHI(WideBO->getType(), 1, User->getName() + ".wide");
+    BasicBlock *LoopExitingBlock = User->getParent()->getSinglePredecessor();
+    assert(LoopExitingBlock && L->contains(LoopExitingBlock) &&
+           "Not a LCSSA Phi?");
+    WidePN->addIncoming(WideBO, LoopExitingBlock);
+    Builder.SetInsertPoint(User->getParent()->getFirstNonPHI());
+    auto *TruncPN = Builder.CreateTrunc(WidePN, User->getType());
+    User->replaceAllUsesWith(TruncPN);
+    DeadInsts.emplace_back(User);
+  }
+
+  for (ICmpInst *User : ICmpUsers) {
+    Builder.SetInsertPoint(User);
+    auto ExtendedOp = [&](Value * V)->Value * {
+      if (V == NarrowUse)
+        return WideBO;
+      if (ExtKind == ZeroExtended)
+        return Builder.CreateZExt(V, WideBO->getType());
+      else
+        return Builder.CreateSExt(V, WideBO->getType());
+    };
+    auto Pred = User->getPredicate();
+    auto *LHS = ExtendedOp(User->getOperand(0));
+    auto *RHS = ExtendedOp(User->getOperand(1));
+    auto *WideCmp =
+        Builder.CreateICmp(Pred, LHS, RHS, User->getName() + ".wide");
+    User->replaceAllUsesWith(WideCmp);
+    DeadInsts.emplace_back(User);
+  }
+
   return true;
 }
 

@@ -3657,22 +3657,22 @@ input IR as well.
 Poison Values
 -------------
 
+A poison value is a result of an erroneous operation.
 In order to facilitate speculative execution, many instructions do not
 invoke immediate undefined behavior when provided with illegal operands,
 and return a poison value instead.
-
-There is currently no way of representing a poison value in the IR; they
-only exist when produced by operations such as :ref:`add <i_add>` with
-the ``nsw`` flag.
+The string '``poison``' can be used anywhere a constant is expected, and
+operations such as :ref:`add <i_add>` with the ``nsw`` flag can produce
+a poison value.
 
 Poison value behavior is defined in terms of value *dependence*:
 
--  Values other than :ref:`phi <i_phi>` nodes and :ref:`select <i_select>`
-   instructions depend on their operands.
+-  Values other than :ref:`phi <i_phi>` nodes, :ref:`select <i_select>`, and
+   :ref:`freeze <i_freeze>` instructions depend on their operands.
 -  :ref:`Phi <i_phi>` nodes depend on the operand corresponding to
    their dynamic predecessor basic block.
--  Select instructions depend on their condition operand and their
-   selected operand.
+-  :ref:`Select <i_select>` instructions depend on their condition operand and
+   their selected operand.
 -  Function arguments depend on the corresponding actual argument values
    in the dynamic callers of their functions.
 -  :ref:`Call <i_call>` instructions depend on the :ref:`ret <i_ret>`
@@ -3732,18 +3732,19 @@ Here are some examples:
 
     entry:
       %poison = sub nuw i32 0, 1           ; Results in a poison value.
+      %poison2 = sub i32 poison, 1         ; Also results in a poison value.
       %still_poison = and i32 %poison, 0   ; 0, but also poison.
       %poison_yet_again = getelementptr i32, i32* @h, i32 %still_poison
       store i32 0, i32* %poison_yet_again  ; Undefined behavior due to
                                            ; store to poison.
 
       store i32 %poison, i32* @g           ; Poison value stored to memory.
-      %poison2 = load i32, i32* @g         ; Poison value loaded back from memory.
+      %poison3 = load i32, i32* @g         ; Poison value loaded back from memory.
 
       %narrowaddr = bitcast i32* @g to i16*
       %wideaddr = bitcast i32* @g to i64*
-      %poison3 = load i16, i16* %narrowaddr ; Returns a poison value.
-      %poison4 = load i64, i64* %wideaddr   ; Returns a poison value.
+      %poison4 = load i16, i16* %narrowaddr ; Returns a poison value.
+      %poison5 = load i64, i64* %wideaddr   ; Returns a poison value.
 
       %cmp = icmp slt i32 %poison, 0       ; Returns a poison value.
       br i1 %cmp, label %end, label %end   ; undefined behavior
@@ -3762,8 +3763,7 @@ The padding of an aggregate isn't considered, since it isn't visible
 without storing it into memory and loading it with a different type.
 
 A constant of a :ref:`single value <t_single_value>`, non-vector type is well
-defined if it is a non-undef constant. Note that there is no poison constant
-in LLVM.
+defined if it is neither '``undef``' constant nor '``poison``' constant.
 The result of :ref:`freeze instruction <i_freeze>` is well defined regardless
 of its operand.
 

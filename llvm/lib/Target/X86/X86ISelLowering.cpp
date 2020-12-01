@@ -3067,8 +3067,9 @@ SDValue X86TargetLowering::LowerCallResult(
                         // This truncation won't change the value.
                         DAG.getIntPtrConstant(1, dl));
 
-    if (VA.isExtInLoc() && (VA.getValVT().getScalarType() == MVT::i1)) {
+    if (VA.isExtInLoc()) {
       if (VA.getValVT().isVector() &&
+          VA.getValVT().getScalarType() == MVT::i1 &&
           ((VA.getLocVT() == MVT::i64) || (VA.getLocVT() == MVT::i32) ||
            (VA.getLocVT() == MVT::i16) || (VA.getLocVT() == MVT::i8))) {
         // promoting a mask type (v*i1) into a register of type i64/i32/i16/i8
@@ -17590,12 +17591,14 @@ static SDValue lowerV8I64Shuffle(const SDLoc &DL, ArrayRef<int> Mask,
     return Rotate;
 
   // Try to use PALIGNR.
-  if (SDValue Rotate = lowerShuffleAsByteRotate(DL, MVT::v8i64, V1, V2, Mask,
-                                                Subtarget, DAG))
-    return Rotate;
+  if (Subtarget.hasBWI())
+    if (SDValue Rotate = lowerShuffleAsByteRotate(DL, MVT::v8i64, V1, V2, Mask,
+                                                  Subtarget, DAG))
+      return Rotate;
 
   if (SDValue Unpck = lowerShuffleWithUNPCK(DL, MVT::v8i64, Mask, V1, V2, DAG))
     return Unpck;
+
   // If we have AVX512F support, we can use VEXPAND.
   if (SDValue V = lowerShuffleToEXPAND(DL, MVT::v8i64, Zeroable, Mask, V1, V2,
                                        DAG, Subtarget))
@@ -26958,22 +26961,6 @@ static SDValue LowerMINMAX(SDValue Op, SelectionDAG &DAG) {
 
   if (VT == MVT::v32i16 || VT == MVT::v64i8)
     return splitVectorIntBinary(Op, DAG);
-
-  SDLoc DL(Op);
-  unsigned Opcode = Op.getOpcode();
-  SDValue N0 = Op.getOperand(0);
-  SDValue N1 = Op.getOperand(1);
-
-  // For pre-SSE41, we can perform UMIN/UMAX v8i16 by using psubusw.
-  if (VT == MVT::v8i16) {
-    assert((Opcode == ISD::UMIN || Opcode == ISD::UMAX) &&
-           "Unexpected MIN/MAX opcode");
-    if (Opcode == ISD::UMIN)
-      return DAG.getNode(ISD::SUB, DL, VT, N0,
-                         DAG.getNode(ISD::USUBSAT, DL, VT, N0, N1));
-    return DAG.getNode(ISD::ADD, DL, VT,
-                       DAG.getNode(ISD::USUBSAT, DL, VT, N1, N0), N0);
-  }
 
   // Default to expand.
   return SDValue();

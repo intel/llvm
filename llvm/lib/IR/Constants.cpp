@@ -418,6 +418,9 @@ Constant *Constant::getAggregateElement(unsigned Elt) const {
   if (const auto *CAZ = dyn_cast<ConstantAggregateZero>(this))
     return Elt < CAZ->getNumElements() ? CAZ->getElementValue(Elt) : nullptr;
 
+  if (const auto *PV = dyn_cast<PoisonValue>(this))
+    return Elt < PV->getNumElements() ? PV->getElementValue(Elt) : nullptr;
+
   if (const auto *UV = dyn_cast<UndefValue>(this))
     return Elt < UV->getNumElements() ? UV->getElementValue(Elt) : nullptr;
 
@@ -518,6 +521,9 @@ void llvm::deleteConstant(Constant *C) {
     break;
   case Constant::UndefValueVal:
     delete static_cast<UndefValue *>(C);
+    break;
+  case Constant::PoisonValueVal:
+    delete static_cast<PoisonValue *>(C);
     break;
   case Constant::ConstantExprVal:
     if (isa<UnaryConstantExpr>(C))
@@ -1087,6 +1093,32 @@ unsigned UndefValue::getNumElements() const {
   if (auto *VT = dyn_cast<VectorType>(Ty))
     return cast<FixedVectorType>(VT)->getNumElements();
   return Ty->getStructNumElements();
+}
+
+//===----------------------------------------------------------------------===//
+//                         PoisonValue Implementation
+//===----------------------------------------------------------------------===//
+
+PoisonValue *PoisonValue::getSequentialElement() const {
+  if (ArrayType *ATy = dyn_cast<ArrayType>(getType()))
+    return PoisonValue::get(ATy->getElementType());
+  return PoisonValue::get(cast<VectorType>(getType())->getElementType());
+}
+
+PoisonValue *PoisonValue::getStructElement(unsigned Elt) const {
+  return PoisonValue::get(getType()->getStructElementType(Elt));
+}
+
+PoisonValue *PoisonValue::getElementValue(Constant *C) const {
+  if (isa<ArrayType>(getType()) || isa<VectorType>(getType()))
+    return getSequentialElement();
+  return getStructElement(cast<ConstantInt>(C)->getZExtValue());
+}
+
+PoisonValue *PoisonValue::getElementValue(unsigned Idx) const {
+  if (isa<ArrayType>(getType()) || isa<VectorType>(getType()))
+    return getSequentialElement();
+  return getStructElement(Idx);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1696,7 +1728,26 @@ UndefValue *UndefValue::get(Type *Ty) {
 /// Remove the constant from the constant table.
 void UndefValue::destroyConstantImpl() {
   // Free the constant and any dangling references to it.
-  getContext().pImpl->UVConstants.erase(getType());
+  if (getValueID() == UndefValueVal) {
+    getContext().pImpl->UVConstants.erase(getType());
+  } else if (getValueID() == PoisonValueVal) {
+    getContext().pImpl->PVConstants.erase(getType());
+  }
+  llvm_unreachable("Not a undef or a poison!");
+}
+
+PoisonValue *PoisonValue::get(Type *Ty) {
+  std::unique_ptr<PoisonValue> &Entry = Ty->getContext().pImpl->PVConstants[Ty];
+  if (!Entry)
+    Entry.reset(new PoisonValue(Ty));
+
+  return Entry.get();
+}
+
+/// Remove the constant from the constant table.
+void PoisonValue::destroyConstantImpl() {
+  // Free the constant and any dangling references to it.
+  getContext().pImpl->PVConstants.erase(getType());
 }
 
 BlockAddress *BlockAddress::get(BasicBlock *BB) {

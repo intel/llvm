@@ -499,6 +499,7 @@ namespace clang {
     ExpectedDecl VisitCXXConstructorDecl(CXXConstructorDecl *D);
     ExpectedDecl VisitCXXDestructorDecl(CXXDestructorDecl *D);
     ExpectedDecl VisitCXXConversionDecl(CXXConversionDecl *D);
+    ExpectedDecl VisitCXXDeductionGuideDecl(CXXDeductionGuideDecl *D);
     ExpectedDecl VisitFieldDecl(FieldDecl *D);
     ExpectedDecl VisitIndirectFieldDecl(IndirectFieldDecl *D);
     ExpectedDecl VisitFriendDecl(FriendDecl *D);
@@ -3334,6 +3335,17 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
       return ToPOrErr.takeError();
   }
 
+  // Common code to import an explicit specifier of different kind of functions.
+  auto ImportExplicitExpr = [this, &Err](auto *Fun) -> ExpectedExpr {
+    Expr *ExplicitExpr = nullptr;
+    if (Fun->getExplicitSpecifier().getExpr()) {
+      ExplicitExpr = importChecked(Err, Fun->getExplicitSpecifier().getExpr());
+      if (Err)
+        return std::move(Err);
+    }
+    return ExplicitExpr;
+  };
+
   // Create the imported function.
   FunctionDecl *ToFunction = nullptr;
   if (auto *FromConstructor = dyn_cast<CXXConstructorDecl>(D)) {
@@ -3375,17 +3387,13 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
     ToDtor->setOperatorDelete(ToOperatorDelete, ToThisArg);
   } else if (CXXConversionDecl *FromConversion =
                  dyn_cast<CXXConversionDecl>(D)) {
-    Expr *ExplicitExpr = nullptr;
-    if (FromConversion->getExplicitSpecifier().getExpr()) {
-      auto Imp = import(FromConversion->getExplicitSpecifier().getExpr());
-      if (!Imp)
-        return Imp.takeError();
-      ExplicitExpr = *Imp;
-    }
+    ExpectedExpr ExplicitExpr = ImportExplicitExpr(FromConversion);
+    if (!ExplicitExpr)
+      return ExplicitExpr.takeError();
     if (GetImportedOrCreateDecl<CXXConversionDecl>(
             ToFunction, D, Importer.getToContext(), cast<CXXRecordDecl>(DC),
             ToInnerLocStart, NameInfo, T, TInfo, D->isInlineSpecified(),
-            ExplicitSpecifier(ExplicitExpr,
+            ExplicitSpecifier(*ExplicitExpr,
                               FromConversion->getExplicitSpecifier().getKind()),
             D->getConstexprKind(), SourceLocation(), TrailingRequiresClause))
       return ToFunction;
@@ -3396,6 +3404,18 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
             Method->isInlineSpecified(), D->getConstexprKind(),
             SourceLocation(), TrailingRequiresClause))
       return ToFunction;
+  } else if (auto *Guide = dyn_cast<CXXDeductionGuideDecl>(D)) {
+    ExpectedExpr ExplicitExpr = ImportExplicitExpr(Guide);
+    if (!ExplicitExpr)
+      return ExplicitExpr.takeError();
+    if (GetImportedOrCreateDecl<CXXDeductionGuideDecl>(
+            ToFunction, D, Importer.getToContext(), DC, ToInnerLocStart,
+            ExplicitSpecifier(*ExplicitExpr,
+                              Guide->getExplicitSpecifier().getKind()),
+            NameInfo, T, TInfo, ToEndLoc))
+      return ToFunction;
+    cast<CXXDeductionGuideDecl>(ToFunction)
+        ->setIsCopyDeductionCandidate(Guide->isCopyDeductionCandidate());
   } else {
     if (GetImportedOrCreateDecl(
             ToFunction, D, Importer.getToContext(), DC, ToInnerLocStart,
@@ -3521,6 +3541,11 @@ ExpectedDecl ASTNodeImporter::VisitCXXDestructorDecl(CXXDestructorDecl *D) {
 
 ExpectedDecl ASTNodeImporter::VisitCXXConversionDecl(CXXConversionDecl *D) {
   return VisitCXXMethodDecl(D);
+}
+
+ExpectedDecl
+ASTNodeImporter::VisitCXXDeductionGuideDecl(CXXDeductionGuideDecl *D) {
+  return VisitFunctionDecl(D);
 }
 
 ExpectedDecl ASTNodeImporter::VisitFieldDecl(FieldDecl *D) {
@@ -5164,8 +5189,6 @@ ASTNodeImporter::VisitTemplateTypeParmDecl(TemplateTypeParmDecl *D) {
   // context. This context will be fixed when the actual template declaration
   // is created.
 
-  // FIXME: Import default argument  and constraint expression.
-
   ExpectedSLoc BeginLocOrErr = import(D->getBeginLoc());
   if (!BeginLocOrErr)
     return BeginLocOrErr.takeError();
@@ -5212,6 +5235,14 @@ ASTNodeImporter::VisitTemplateTypeParmDecl(TemplateTypeParmDecl *D) {
         ToIDC);
   }
 
+  if (D->hasDefaultArgument()) {
+    Expected<TypeSourceInfo *> ToDefaultArgOrErr =
+        import(D->getDefaultArgumentInfo());
+    if (!ToDefaultArgOrErr)
+      return ToDefaultArgOrErr.takeError();
+    ToD->setDefaultArgument(*ToDefaultArgOrErr);
+  }
+
   return ToD;
 }
 
@@ -5227,15 +5258,22 @@ ASTNodeImporter::VisitNonTypeTemplateParmDecl(NonTypeTemplateParmDecl *D) {
   if (Err)
     return std::move(Err);
 
-  // FIXME: Import default argument.
-
   NonTypeTemplateParmDecl *ToD = nullptr;
-  (void)GetImportedOrCreateDecl(
-      ToD, D, Importer.getToContext(),
-      Importer.getToContext().getTranslationUnitDecl(),
-      ToInnerLocStart, ToLocation, D->getDepth(),
-      D->getPosition(), ToDeclName.getAsIdentifierInfo(), ToType,
-      D->isParameterPack(), ToTypeSourceInfo);
+  if (GetImportedOrCreateDecl(ToD, D, Importer.getToContext(),
+                              Importer.getToContext().getTranslationUnitDecl(),
+                              ToInnerLocStart, ToLocation, D->getDepth(),
+                              D->getPosition(),
+                              ToDeclName.getAsIdentifierInfo(), ToType,
+                              D->isParameterPack(), ToTypeSourceInfo))
+    return ToD;
+
+  if (D->hasDefaultArgument()) {
+    ExpectedExpr ToDefaultArgOrErr = import(D->getDefaultArgument());
+    if (!ToDefaultArgOrErr)
+      return ToDefaultArgOrErr.takeError();
+    ToD->setDefaultArgument(*ToDefaultArgOrErr);
+  }
+
   return ToD;
 }
 
@@ -5256,15 +5294,22 @@ ASTNodeImporter::VisitTemplateTemplateParmDecl(TemplateTemplateParmDecl *D) {
   if (!TemplateParamsOrErr)
     return TemplateParamsOrErr.takeError();
 
-  // FIXME: Import default argument.
-
   TemplateTemplateParmDecl *ToD = nullptr;
-  (void)GetImportedOrCreateDecl(
-      ToD, D, Importer.getToContext(),
-      Importer.getToContext().getTranslationUnitDecl(), *LocationOrErr,
-      D->getDepth(), D->getPosition(), D->isParameterPack(),
-      (*NameOrErr).getAsIdentifierInfo(),
-      *TemplateParamsOrErr);
+  if (GetImportedOrCreateDecl(
+          ToD, D, Importer.getToContext(),
+          Importer.getToContext().getTranslationUnitDecl(), *LocationOrErr,
+          D->getDepth(), D->getPosition(), D->isParameterPack(),
+          (*NameOrErr).getAsIdentifierInfo(), *TemplateParamsOrErr))
+    return ToD;
+
+  if (D->hasDefaultArgument()) {
+    Expected<TemplateArgumentLoc> ToDefaultArgOrErr =
+        import(D->getDefaultArgument());
+    if (!ToDefaultArgOrErr)
+      return ToDefaultArgOrErr.takeError();
+    ToD->setDefaultArgument(Importer.getToContext(), *ToDefaultArgOrErr);
+  }
+
   return ToD;
 }
 

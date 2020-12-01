@@ -880,6 +880,25 @@ TEST_P(ImportExpr, DependentSizedArrayType) {
                  has(fieldDecl(hasType(dependentSizedArrayType())))))));
 }
 
+TEST_P(ASTImporterOptionSpecificTestBase, TemplateTypeParmDeclNoDefaultArg) {
+  Decl *FromTU = getTuDecl("template<typename T> struct X {};", Lang_CXX03);
+  auto From = FirstDeclMatcher<TemplateTypeParmDecl>().match(
+      FromTU, templateTypeParmDecl(hasName("T")));
+  TemplateTypeParmDecl *To = Import(From, Lang_CXX03);
+  ASSERT_FALSE(To->hasDefaultArgument());
+}
+
+TEST_P(ASTImporterOptionSpecificTestBase, TemplateTypeParmDeclDefaultArg) {
+  Decl *FromTU =
+      getTuDecl("template<typename T = int> struct X {};", Lang_CXX03);
+  auto From = FirstDeclMatcher<TemplateTypeParmDecl>().match(
+      FromTU, templateTypeParmDecl(hasName("T")));
+  TemplateTypeParmDecl *To = Import(From, Lang_CXX03);
+  ASSERT_TRUE(To->hasDefaultArgument());
+  QualType ToArg = To->getDefaultArgument();
+  ASSERT_EQ(ToArg, QualType(To->getASTContext().IntTy));
+}
+
 TEST_P(ASTImporterOptionSpecificTestBase, ImportBeginLocOfDeclRefExpr) {
   Decl *FromTU =
       getTuDecl("class A { public: static int X; }; void f() { (void)A::X; }",
@@ -899,6 +918,60 @@ TEST_P(ASTImporterOptionSpecificTestBase, ImportBeginLocOfDeclRefExpr) {
           ->getSubExpr()
           ->getBeginLoc()
           .isValid());
+}
+
+TEST_P(ASTImporterOptionSpecificTestBase,
+       TemplateTemplateParmDeclNoDefaultArg) {
+  Decl *FromTU = getTuDecl(R"(
+                           template<template<typename> typename TT> struct Y {};
+                           )",
+                           Lang_CXX17);
+  auto From = FirstDeclMatcher<TemplateTemplateParmDecl>().match(
+      FromTU, templateTemplateParmDecl(hasName("TT")));
+  TemplateTemplateParmDecl *To = Import(From, Lang_CXX17);
+  ASSERT_FALSE(To->hasDefaultArgument());
+}
+
+TEST_P(ASTImporterOptionSpecificTestBase, TemplateTemplateParmDeclDefaultArg) {
+  Decl *FromTU = getTuDecl(R"(
+                           template<typename T> struct X {};
+                           template<template<typename> typename TT = X> struct Y {};
+                           )",
+                           Lang_CXX17);
+  auto From = FirstDeclMatcher<TemplateTemplateParmDecl>().match(
+      FromTU, templateTemplateParmDecl(hasName("TT")));
+  TemplateTemplateParmDecl *To = Import(From, Lang_CXX17);
+  ASSERT_TRUE(To->hasDefaultArgument());
+  const TemplateArgument &ToDefaultArg = To->getDefaultArgument().getArgument();
+  ASSERT_TRUE(To->isTemplateDecl());
+  TemplateDecl *ToTemplate = ToDefaultArg.getAsTemplate().getAsTemplateDecl();
+
+  // Find the default argument template 'X' in the AST and compare it against
+  // the default argument we got.
+  auto ToExpectedDecl = FirstDeclMatcher<ClassTemplateDecl>().match(
+      To->getTranslationUnitDecl(), classTemplateDecl(hasName("X")));
+  ASSERT_EQ(ToTemplate, ToExpectedDecl);
+}
+
+TEST_P(ASTImporterOptionSpecificTestBase, NonTypeTemplateParmDeclNoDefaultArg) {
+  Decl *FromTU = getTuDecl("template<int N> struct X {};", Lang_CXX03);
+  auto From = FirstDeclMatcher<NonTypeTemplateParmDecl>().match(
+      FromTU, nonTypeTemplateParmDecl(hasName("N")));
+  NonTypeTemplateParmDecl *To = Import(From, Lang_CXX03);
+  ASSERT_FALSE(To->hasDefaultArgument());
+}
+
+TEST_P(ASTImporterOptionSpecificTestBase, NonTypeTemplateParmDeclDefaultArg) {
+  Decl *FromTU = getTuDecl("template<int S = 1> struct X {};", Lang_CXX03);
+  auto From = FirstDeclMatcher<NonTypeTemplateParmDecl>().match(
+      FromTU, nonTypeTemplateParmDecl(hasName("S")));
+  NonTypeTemplateParmDecl *To = Import(From, Lang_CXX03);
+  ASSERT_TRUE(To->hasDefaultArgument());
+  Stmt *ToArg = To->getDefaultArgument();
+  ASSERT_TRUE(isa<ConstantExpr>(ToArg));
+  ToArg = *ToArg->child_begin();
+  ASSERT_TRUE(isa<IntegerLiteral>(ToArg));
+  ASSERT_EQ(cast<IntegerLiteral>(ToArg)->getValue().getLimitedValue(), 1U);
 }
 
 TEST_P(ASTImporterOptionSpecificTestBase,
@@ -5882,6 +5955,47 @@ TEST_P(ImportWithExternalSource, CompleteRecordBeforeImporting) {
   // Make sure the class was completed once.
   EXPECT_EQ(1U, CompletedTags.size());
   EXPECT_EQ(Record, CompletedTags.front());
+}
+
+TEST_P(ImportFunctions, CTADImplicit) {
+  Decl *FromTU = getTuDecl(
+      R"(
+      template <typename T> struct A {
+        A(T);
+      };
+      A a{(int)0};
+      )",
+      Lang_CXX17, "input.cc");
+  auto *FromD = FirstDeclMatcher<CXXDeductionGuideDecl>().match(
+      FromTU,
+      cxxDeductionGuideDecl(hasParameter(0, hasType(asString("A<T>")))));
+  auto *ToD = Import(FromD, Lang_CXX17);
+  ASSERT_TRUE(ToD);
+  EXPECT_TRUE(ToD->isCopyDeductionCandidate());
+  // Check that the deduced class template is also imported.
+  EXPECT_TRUE(findFromTU(FromD)->Importer->GetAlreadyImportedOrNull(
+      FromD->getDeducedTemplate()));
+}
+
+TEST_P(ImportFunctions, CTADUserDefinedExplicit) {
+  Decl *FromTU = getTuDecl(
+      R"(
+      template <typename T> struct A {
+        A(T);
+      };
+      template <typename T> explicit A(T) -> A<float>;
+      A a{(int)0}; // calls A<float>::A(float)
+      )",
+      Lang_CXX17, "input.cc");
+  auto *FromD = FirstDeclMatcher<CXXDeductionGuideDecl>().match(
+      FromTU, cxxDeductionGuideDecl(unless(isImplicit())));
+  // Not-implicit: i.e. not compiler-generated, user defined.
+  ASSERT_FALSE(FromD->isImplicit());
+  ASSERT_TRUE(FromD->isExplicit()); // Has the explicit keyword.
+  auto *ToD = Import(FromD, Lang_CXX17);
+  ASSERT_TRUE(ToD);
+  EXPECT_FALSE(FromD->isImplicit());
+  EXPECT_TRUE(ToD->isExplicit());
 }
 
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, ASTImporterLookupTableTest,

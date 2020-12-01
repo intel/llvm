@@ -1998,6 +1998,18 @@ PrintingPolicy TypeSystemClang::GetTypePrintingPolicy() {
   // and libstdc++ are differentiated by their inline namespaces).
   printing_policy.SuppressInlineNamespace = false;
   printing_policy.SuppressUnwrittenScope = false;
+  // Default arguments are also always important for type formatters. Otherwise
+  // we would need to always specify two type names for the setups where we do
+  // know the default arguments and where we don't know default arguments.
+  //
+  // For example, without this we would need to have formatters for both:
+  //   std::basic_string<char>
+  // and
+  //   std::basic_string<char, std::char_traits<char>, std::allocator<char> >
+  // to support setups where LLDB was able to reconstruct default arguments
+  // (and we then would have suppressed them from the type name) and also setups
+  // where LLDB wasn't able to reconstruct the default arguments.
+  printing_policy.SuppressDefaultTemplateArgs = false;
   return printing_policy;
 }
 
@@ -6541,8 +6553,10 @@ size_t TypeSystemClang::GetIndexOfChildMemberWithName(
           if (cxx_record_decl->lookupInBases(
                   [decl_name](const clang::CXXBaseSpecifier *specifier,
                               clang::CXXBasePath &path) {
-                    return clang::CXXRecordDecl::FindOrdinaryMember(
-                        specifier, path, decl_name);
+                    path.Decls =
+                        specifier->getType()->getAsCXXRecordDecl()->lookup(
+                            decl_name);
+                    return !path.Decls.empty();
                   },
                   paths)) {
             clang::CXXBasePaths::const_paths_iterator path,

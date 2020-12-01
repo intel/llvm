@@ -162,7 +162,8 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   }
 
   if (Subtarget.hasStdExtZbp()) {
-    setOperationAction(ISD::BITREVERSE, XLenVT, Legal);
+    setOperationAction(ISD::BITREVERSE, XLenVT, Custom);
+    setOperationAction(ISD::BSWAP, XLenVT, Custom);
 
     if (Subtarget.is64Bit()) {
       setOperationAction(ISD::BITREVERSE, MVT::i32, Custom);
@@ -172,7 +173,12 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::BSWAP, XLenVT, Expand);
   }
 
-  if (!Subtarget.hasStdExtZbb()) {
+  if (Subtarget.hasStdExtZbb()) {
+    setOperationAction(ISD::SMIN, XLenVT, Legal);
+    setOperationAction(ISD::SMAX, XLenVT, Legal);
+    setOperationAction(ISD::UMIN, XLenVT, Legal);
+    setOperationAction(ISD::UMAX, XLenVT, Legal);
+  } else {
     setOperationAction(ISD::CTTZ, XLenVT, Expand);
     setOperationAction(ISD::CTLZ, XLenVT, Expand);
     setOperationAction(ISD::CTPOP, XLenVT, Expand);
@@ -490,6 +496,20 @@ SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
   }
   case ISD::INTRINSIC_WO_CHAIN:
     return LowerINTRINSIC_WO_CHAIN(Op, DAG);
+  case ISD::BSWAP:
+  case ISD::BITREVERSE: {
+    // Convert BSWAP/BITREVERSE to GREVI to enable GREVI combinining.
+    assert(Subtarget.hasStdExtZbp() && "Unexpected custom legalisation");
+    MVT VT = Op.getSimpleValueType();
+    SDLoc DL(Op);
+    // Start with the maximum immediate value which is the bitwidth - 1.
+    unsigned Imm = VT.getSizeInBits() - 1;
+    // If this is BSWAP rather than BITREVERSE, clear the lower 3 bits.
+    if (Op.getOpcode() == ISD::BSWAP)
+      Imm &= ~0x7U;
+    return DAG.getNode(RISCVISD::GREVI, DL, VT, Op.getOperand(0),
+                       DAG.getTargetConstant(Imm, DL, Subtarget.getXLenVT()));
+  }
   }
 }
 
@@ -1217,14 +1237,15 @@ static Optional<RISCVBitmanipPat> matchRISCVBitmanipPat(SDValue Op) {
 //   (or (BITMANIP_SHL x), (BITMANIP_SRL x))
 static SDValue combineORToGREV(SDValue Op, SelectionDAG &DAG,
                                const RISCVSubtarget &Subtarget) {
-  if (Op.getSimpleValueType() == Subtarget.getXLenVT() ||
-      (Subtarget.is64Bit() && Op.getSimpleValueType() == MVT::i32)) {
+  EVT VT = Op.getValueType();
+
+  if (VT == Subtarget.getXLenVT() || (Subtarget.is64Bit() && VT == MVT::i32)) {
     auto LHS = matchRISCVBitmanipPat(Op.getOperand(0));
     auto RHS = matchRISCVBitmanipPat(Op.getOperand(1));
     if (LHS && RHS && LHS->formsPairWith(*RHS)) {
       SDLoc DL(Op);
       return DAG.getNode(
-          RISCVISD::GREVI, DL, Op.getValueType(), LHS->Op,
+          RISCVISD::GREVI, DL, VT, LHS->Op,
           DAG.getTargetConstant(LHS->ShAmt, DL, Subtarget.getXLenVT()));
     }
   }
@@ -1232,8 +1253,8 @@ static SDValue combineORToGREV(SDValue Op, SelectionDAG &DAG,
 }
 
 // Matches any the following pattern as a GORCI(W) operation
-// 1.  (or (GREVI x, shamt), x)
-// 2.  (or x, (GREVI x, shamt))
+// 1.  (or (GREVI x, shamt), x) if shamt is a power of 2
+// 2.  (or x, (GREVI x, shamt)) if shamt is a power of 2
 // 3.  (or (or (BITMANIP_SHL x), x), (BITMANIP_SRL x))
 // Note that with the variant of 3.,
 //     (or (or (BITMANIP_SHL x), (BITMANIP_SRL x)), x)
@@ -1241,8 +1262,9 @@ static SDValue combineORToGREV(SDValue Op, SelectionDAG &DAG,
 // pattern will be matched to GORC via the first rule above.
 static SDValue combineORToGORC(SDValue Op, SelectionDAG &DAG,
                                const RISCVSubtarget &Subtarget) {
-  if (Op.getSimpleValueType() == Subtarget.getXLenVT() ||
-      (Subtarget.is64Bit() && Op.getSimpleValueType() == MVT::i32)) {
+  EVT VT = Op.getValueType();
+
+  if (VT == Subtarget.getXLenVT() || (Subtarget.is64Bit() && VT == MVT::i32)) {
     SDLoc DL(Op);
     SDValue Op0 = Op.getOperand(0);
     SDValue Op1 = Op.getOperand(1);
@@ -1251,9 +1273,10 @@ static SDValue combineORToGORC(SDValue Op, SelectionDAG &DAG,
     for (const auto &OpPair :
          {std::make_pair(Op0, Op1), std::make_pair(Op1, Op0)}) {
       if (OpPair.first.getOpcode() == RISCVISD::GREVI &&
-          OpPair.first.getOperand(0) == OpPair.second)
-        return DAG.getNode(RISCVISD::GORCI, DL, Op.getValueType(),
-                           OpPair.second, OpPair.first.getOperand(1));
+          OpPair.first.getOperand(0) == OpPair.second &&
+          isPowerOf2_32(OpPair.first.getConstantOperandVal(1)))
+        return DAG.getNode(RISCVISD::GORCI, DL, VT, OpPair.second,
+                           OpPair.first.getOperand(1));
     }
 
     // OR is commutable so canonicalize its OR operand to the left
@@ -1273,11 +1296,40 @@ static SDValue combineORToGORC(SDValue Op, SelectionDAG &DAG,
     auto RHS = matchRISCVBitmanipPat(Op1);
     if (LHS && RHS && LHS->formsPairWith(*RHS) && LHS->Op == OrOp1) {
       return DAG.getNode(
-          RISCVISD::GORCI, DL, Op.getValueType(), LHS->Op,
+          RISCVISD::GORCI, DL, VT, LHS->Op,
           DAG.getTargetConstant(LHS->ShAmt, DL, Subtarget.getXLenVT()));
     }
   }
   return SDValue();
+}
+
+// Combine (GREVI (GREVI x, C2), C1) -> (GREVI x, C1^C2) when C1^C2 is
+// non-zero, and to x when it is. Any repeated GREVI stage undoes itself.
+// Combine (GORCI (GORCI x, C2), C1) -> (GORCI x, C1|C2). Repeated stage does
+// not undo itself, but they are redundant.
+static SDValue combineGREVI_GORCI(SDNode *N, SelectionDAG &DAG) {
+  unsigned ShAmt1 = N->getConstantOperandVal(1);
+  SDValue Src = N->getOperand(0);
+
+  if (Src.getOpcode() != N->getOpcode())
+    return SDValue();
+
+  unsigned ShAmt2 = Src.getConstantOperandVal(1);
+  Src = Src.getOperand(0);
+
+  unsigned CombinedShAmt;
+  if (N->getOpcode() == RISCVISD::GORCI || N->getOpcode() == RISCVISD::GORCIW)
+    CombinedShAmt = ShAmt1 | ShAmt2;
+  else
+    CombinedShAmt = ShAmt1 ^ ShAmt2;
+
+  if (CombinedShAmt == 0)
+    return Src;
+
+  SDLoc DL(N);
+  return DAG.getNode(N->getOpcode(), DL, N->getValueType(0), Src,
+                     DAG.getTargetConstant(CombinedShAmt, DL,
+                                           N->getOperand(1).getValueType()));
 }
 
 SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
@@ -1375,7 +1427,8 @@ SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
         DCI.AddToWorklist(N);
       return SDValue(N, 0);
     }
-    break;
+
+    return combineGREVI_GORCI(N, DCI.DAG);
   }
   case RISCVISD::FMV_X_ANYEXTW_RV64: {
     SDLoc DL(N);
@@ -1407,23 +1460,9 @@ SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
     return DAG.getNode(ISD::AND, DL, MVT::i64, NewFMV,
                        DAG.getConstant(~SignBit, DL, MVT::i64));
   }
-  case RISCVISD::GREVI: {
-    // Combine (GREVI (GREVI x, C2), C1) -> (GREVI x, C1^C2) when C1^C2 is
-    // non-zero, and to x when it is. Any repeated GREVI stage undoes itself.
-    SDLoc DL(N);
-    auto GREVSrc = N->getOperand(0);
-    uint64_t ShAmt1 = N->getConstantOperandVal(1);
-    if (GREVSrc->getOpcode() != RISCVISD::GREVI)
-      break;
-    uint64_t ShAmt2 = GREVSrc.getConstantOperandVal(1);
-    GREVSrc = GREVSrc->getOperand(0);
-    uint64_t CombinedShAmt = ShAmt1 ^ ShAmt2;
-    if (CombinedShAmt == 0)
-      return GREVSrc;
-    return DAG.getNode(
-        RISCVISD::GREVI, DL, N->getValueType(0), GREVSrc,
-        DAG.getTargetConstant(CombinedShAmt, DL, Subtarget.getXLenVT()));
-  }
+  case RISCVISD::GREVI:
+  case RISCVISD::GORCI:
+    return combineGREVI_GORCI(N, DCI.DAG);
   case ISD::OR:
     if (auto GREV = combineORToGREV(SDValue(N, 0), DCI.DAG, Subtarget))
       return GREV;
@@ -3358,6 +3397,25 @@ Value *RISCVTargetLowering::emitMaskedAtomicCmpXchgIntrinsic(
   if (XLen == 64)
     Result = Builder.CreateTrunc(Result, Builder.getInt32Ty());
   return Result;
+}
+
+bool RISCVTargetLowering::isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
+                                                     EVT VT) const {
+  VT = VT.getScalarType();
+
+  if (!VT.isSimple())
+    return false;
+
+  switch (VT.getSimpleVT().SimpleTy) {
+  case MVT::f32:
+    return Subtarget.hasStdExtF();
+  case MVT::f64:
+    return Subtarget.hasStdExtD();
+  default:
+    break;
+  }
+
+  return false;
 }
 
 Register RISCVTargetLowering::getExceptionPointerRegister(
