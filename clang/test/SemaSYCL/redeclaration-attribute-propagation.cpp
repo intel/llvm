@@ -51,23 +51,23 @@ func4() {} // expected-error {{'max_work_group_size' attribute conflicts with ''
 int main() {
   q.submit([&](handler &h) {
 #ifndef TRIGGER_ERROR
-  // CHECK-LABEL:  FunctionDecl {{.*}} main 'int ()'
-  // CHECK:  `-FunctionDecl {{.*}}test_kernel1 'void ()'
-  // CHECK:  -SYCLIntelMaxWorkGroupSizeAttr {{.*}} Inherited 4 4 4
-  // CHECK:  -SYCLIntelNoGlobalWorkOffsetAttr {{.*}}
-  // CHECK:  `-ReqdWorkGroupSizeAttr {{.*}} 2 2 2
-  h.single_task<class test_kernel1>(
-      []() { func1(); });
+    // CHECK-LABEL:  FunctionDecl {{.*}} main 'int ()'
+    // CHECK:  `-FunctionDecl {{.*}}test_kernel1 'void ()'
+    // CHECK:  -SYCLIntelMaxWorkGroupSizeAttr {{.*}} Inherited 4 4 4
+    // CHECK:  -SYCLIntelNoGlobalWorkOffsetAttr {{.*}}
+    // CHECK:  `-ReqdWorkGroupSizeAttr {{.*}} 2 2 2
+    h.single_task<class test_kernel1>(
+        []() { func1(); });
 
 #else
-  h.single_task<class test_kernel2>(
-      []() { func2(); }); // expected-error {{conflicting attributes applied to a SYCL kernel or SYCL_EXTERNAL function}}
+    h.single_task<class test_kernel2>(
+        []() { func2(); }); // expected-error {{conflicting attributes applied to a SYCL kernel or SYCL_EXTERNAL function}}
 
-  h.single_task<class test_kernel3>(
-      []() { func3(); });
+    h.single_task<class test_kernel3>(
+        []() { func3(); });
 
-  h.single_task<class test_kernel4>(
-      []() { func4(); });
+    h.single_task<class test_kernel4>(
+        []() { func4(); });
 #endif
   });
   return 0;

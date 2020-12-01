@@ -12973,13 +12973,14 @@ void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
     }
     if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelNoGlobalWorkOffset) {
       if (ArgInt > 1) {
-        Diag(E->getExprLoc(), diag::warn_boolean_attribute_argument_is_not_valid)
+        Diag(E->getExprLoc(),
+	     diag::warn_boolean_attribute_argument_is_not_valid)
             << CI.getAttrName();
         return;
       }
     }
     if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim ||
-	CI.getParsedKind() == ParsedAttr::AT_SYCLIntelNoGlobalWorkOffset) {
+        CI.getParsedKind() == ParsedAttr::AT_SYCLIntelNoGlobalWorkOffset) {
       if (ArgInt < 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
             << CI.getAttrName() << /*non-negative*/ 1;

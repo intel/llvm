@@ -701,7 +701,7 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
         Builder.getInt32(ArgVal->getSExtValue()))};
     Fn->setMetadata("no_global_work_offset",
-		    llvm::MDNode::get(Context, AttrMDArgs));
+                    llvm::MDNode::get(Context, AttrMDArgs));
   }
 
   if (FD->hasAttr<SYCLIntelUseStallEnableClustersAttr>()) {
