@@ -962,7 +962,7 @@ class ArchiveFileHandler final : public FileHandler {
     Unknown,
     FileList, // Output is a list file with extracted object file names
     Object,   // Output is a single object file
-    Archive   // Output is an archive wtih extracted objects
+    Archive   // Output is an archive with extracted objects
   };
   const OutputType Mode = StringSwitch<OutputType>(FilesType)
                               .Case("aoo", OutputType::FileList)
