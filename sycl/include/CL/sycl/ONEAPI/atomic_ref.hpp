@@ -453,7 +453,8 @@ public:
 
   T fetch_add(T operand, memory_order order = default_read_modify_write_order,
               memory_scope scope = default_scope) const noexcept {
-#if defined(__SYCL_DEVICE_ONLY__) && !defined(__NVPTX__)
+// TODO: Remove the emulation macro check once implemented for all backends
+#if defined(__SYCL_DEVICE_ONLY__) && !defined(__SYCL_EMULATE_FLOAT_ATOMICS__)
     return detail::spirv::AtomicFAdd(ptr, scope, order, operand);
 #else
     auto load_order = detail::getLoadOrder(order);
@@ -474,7 +475,8 @@ public:
 
   T fetch_sub(T operand, memory_order order = default_read_modify_write_order,
               memory_scope scope = default_scope) const noexcept {
-#if defined(__SYCL_DEVICE_ONLY__) && !defined(__NVPTX__)
+// TODO: Remove the emulation macro check once implemented for all backends
+#if defined(__SYCL_DEVICE_ONLY__) && !defined(__SYCL_EMULATE_FLOAT_ATOMICS__)
     return detail::spirv::AtomicFAdd(ptr, scope, order, -operand);
 #else
     auto load_order = detail::getLoadOrder(order);
