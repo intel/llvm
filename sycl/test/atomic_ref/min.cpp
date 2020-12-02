@@ -65,13 +65,13 @@ int main() {
   // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicUMin
   // CHECK-LLVM-SAME: i32 addrspace(1)*, i32, i32, i32)
   min_test<unsigned int>(q, N);
-  // CHECK-LLVM: declare dso_local spir_func i64
+  // CHECK-LLVM: declare dso_local spir_func i[[long:(32)|(64)]]
   // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicSMin
-  // CHECK-LLVM-SAME: i64 addrspace(1)*, i32, i32, i64)
+  // CHECK-LLVM-SAME: i[[long]] addrspace(1)*, i32, i32, i[[long]])
   min_test<long>(q, N);
-  // CHECK-LLVM: declare dso_local spir_func i64
+  // CHECK-LLVM: declare dso_local spir_func i[[long]]
   // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicUMin
-  // CHECK-LLVM-SAME: i64 addrspace(1)*, i32, i32, i64)
+  // CHECK-LLVM-SAME: i[[long]] addrspace(1)*, i32, i32, i[[long]])
   min_test<unsigned long>(q, N);
   // CHECK-LLVM: declare dso_local spir_func i64
   // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicSMin
