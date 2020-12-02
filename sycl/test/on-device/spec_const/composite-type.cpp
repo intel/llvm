@@ -1,13 +1,9 @@
 // UNSUPPORTED: cuda
 //
-// TODO: this test is disabled because we need two more patches (to
-// sycl-post-link and llvm-spirv) to appear in the repo in order to get this
-// feature working.
-// RUN: true
-// RUNx: %clangxx -fsycl %s -o %t.out
-// RUNx: env SYCL_DEVICE_TYPE=HOST %t.out
-// RUNx: %CPU_RUN_PLACEHOLDER %t.out
-// RUNx: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %RUN_ON_HOST %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
 // The test checks that the specialization constant feature works correctly with
 // composite types: toolchain processes them correctly and runtime can correctly
