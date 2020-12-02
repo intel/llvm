@@ -42,7 +42,9 @@ private:
   spec_constant(T Cst) : Val(Cst) {}
 
   T Val;
-#endif
+#else
+  char padding[sizeof(T)];
+#endif // __SYCL_DEVICE_ONLY__
   friend class cl::sycl::program;
 
 public:

@@ -39,6 +39,8 @@ if(SYCL_ENABLE_WERROR)
   endif()
 endif()
 
+add_definitions(-g)
+
 # Create a soft option for enabling or disabling the instrumentation
 # of the SYCL runtime and expect enabling
 option(SYCL_ENABLE_XPTI_TRACING "Enable tracing of SYCL constructs" OFF)
