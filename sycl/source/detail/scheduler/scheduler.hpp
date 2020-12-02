@@ -764,6 +764,7 @@ protected:
   };
 
   friend class stream_impl;
+  friend void initStream(StreamImplPtr, QueueImplPtr);
 
   // Protects stream buffers pool
   std::recursive_mutex StreamBuffersPoolMutex;
