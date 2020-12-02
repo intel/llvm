@@ -10193,11 +10193,6 @@ public:
   bool checkAllowedSYCLInitializer(VarDecl *VD,
                                    bool CheckValueDependent = false);
 
-  // Adds a scheduler_target_fmax_mhz attribute to a particular declaration.
-  void addSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
-                                              const AttributeCommonInfo &CI,
-                                              Expr *E);
-
   //===--------------------------------------------------------------------===//
   // C++ Coroutines TS
   //
