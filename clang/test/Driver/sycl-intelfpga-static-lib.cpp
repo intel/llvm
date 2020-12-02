@@ -6,7 +6,7 @@
 // make dummy archive
 // Build a fat static lib that will be used for all tests
 // RUN: echo "void foo(void) {}" > %t1.cpp
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fintelfpga -fsycl %t1.cpp -c -o %t1_bundle.o
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fintelfpga -fsycl -fno-sycl-device-lib=all %t1.cpp -c -o %t1_bundle.o
 // RUN: llvm-ar cr %t.a %t1_bundle.o
 
 /// Check phases with static lib

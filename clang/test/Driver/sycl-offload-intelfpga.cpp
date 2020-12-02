@@ -356,7 +356,7 @@
 // RUN:  echo "void foo2() {}" > %t2.c
 // RUN:  %clang -c -o %t.o %t.c
 // RUN:  %clang -fsycl -c -o %t2.o %t2.c
-// RUN:  %clang_cl -fsycl -c -o %t2_cl.o %t2.c
+// RUN:  %clang_cl -fsycl -c -o %t2_cl.o %t2.c -fno-sycl-device-lib=all
 // RUN:  clang-offload-wrapper -o %t-aoco.bc -host=x86_64-unknown-linux-gnu -kind=sycl -target=fpga_aoco-intel-unknown-sycldevice %t.aoco
 // RUN:  llc -filetype=obj -o %t-aoco.o %t-aoco.bc
 // RUN:  clang-offload-wrapper -o %t-aoco_cl.bc -host=x86_64-unknown-linux-gnu -kind=sycl -target=fpga_aoco-intel-unknown-sycldevice %t.aoco
