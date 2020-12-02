@@ -291,6 +291,7 @@ add_custom_target( sycl-toolchain
           llvm-objcopy
           sycl-post-link
           sycl-ls
+          xptifw
   COMMENT "Building SYCL compiler toolchain..."
 )
 
@@ -351,6 +352,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      pi_opencl
      pi_level_zero
      libsycldevice
+     xptifw
 )
 if(OpenCL_INSTALL_KHRONOS_ICD_LOADER AND TARGET ocl-icd)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS opencl-icd)
