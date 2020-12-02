@@ -61,27 +61,27 @@ int main() {
   constexpr int N = 32;
   // CHECK-LLVM: declare dso_local spir_func i32
   // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicSMax
-  // CHECK-LLVM-SAME: i32 addrspace(1)*, i32, i32, i32)
+  // CHECK-LLVM-SAME: (i32 addrspace(1)*, i32, i32, i32)
   max_test<int>(q, N);
   // CHECK-LLVM: declare dso_local spir_func i32
   // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicUMax
-  // CHECK-LLVM-SAME: i32 addrspace(1)*, i32, i32, i32)
+  // CHECK-LLVM-SAME: (i32 addrspace(1)*, i32, i32, i32)
   max_test<unsigned int>(q, N);
   // CHECK-LLVM: declare dso_local spir_func i[[long:(32)|(64)]]
   // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicSMax
-  // CHECK-LLVM-SAME: i[[long]] addrspace(1)*, i32, i32, i[[long]])
+  // CHECK-LLVM-SAME: (i[[long]] addrspace(1)*, i32, i32, i[[long]])
   max_test<long>(q, N);
   // CHECK-LLVM: declare dso_local spir_func i[[long]]
   // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicUMax
-  // CHECK-LLVM-SAME: i[[long]] addrspace(1)*, i32, i32, i[[long]])
+  // CHECK-LLVM-SAME: (i[[long]] addrspace(1)*, i32, i32, i[[long]])
   max_test<unsigned long>(q, N);
   // CHECK-LLVM: declare dso_local spir_func i64
   // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicSMax
-  // CHECK-LLVM-SAME: i64 addrspace(1)*, i32, i32, i64)
+  // CHECK-LLVM-SAME: (i64 addrspace(1)*, i32, i32, i64)
   max_test<long long>(q, N);
   // CHECK-LLVM: declare dso_local spir_func i64
   // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicUMax
-  // CHECK-LLVM-SAME: i64 addrspace(1)*, i32, i32, i64)
+  // CHECK-LLVM-SAME: (i64 addrspace(1)*, i32, i32, i64)
   max_test<unsigned long long>(q, N);
   // CHECK-LLVM: declare dso_local spir_func i32
   // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicLoad
