@@ -250,15 +250,12 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &ZePool,
                               &ZeDevices[0], &ZeEventPool))
       return ZeRes;
     NumEventsAvailableInEventPool[ZeEventPool] = MaxNumEventsPerPool - 1;
-    NumEventsLiveInEventPool[ZeEventPool] = 1;
+    NumEventsLiveInEventPool[ZeEventPool] = MaxNumEventsPerPool;
   } else {
     std::lock_guard<std::mutex> NumEventsAvailableInEventPoolGuard(
         NumEventsAvailableInEventPoolMutex);
     Index = MaxNumEventsPerPool - NumEventsAvailableInEventPool[ZeEventPool];
     --NumEventsAvailableInEventPool[ZeEventPool];
-    std::lock_guard<std::mutex> NumEventsLiveInEventPoolGuard(
-        NumEventsLiveInEventPoolMutex);
-    NumEventsLiveInEventPool[ZeEventPool]++;
   }
   ZePool = ZeEventPool;
   return ZE_RESULT_SUCCESS;
@@ -268,7 +265,6 @@ ze_result_t
 _pi_context::decrementAliveEventsInPool(ze_event_pool_handle_t ZePool) {
   std::lock_guard<std::mutex> Lock(NumEventsLiveInEventPoolMutex);
   --NumEventsLiveInEventPool[ZePool];
-  ++NumEventsAvailableInEventPool[ZePool];
   if (NumEventsLiveInEventPool[ZePool] == 0) {
     return zeEventPoolDestroy(ZePool);
   }
@@ -439,6 +435,14 @@ pi_result _pi_context::initialize() {
                                        &ZeCommandQueueDesc,
                                        &ZeCommandListInit));
   return PI_SUCCESS;
+}
+
+void _pi_context::finalize() {
+  // This function is called when pi_context is deallocated, piContextRelase.
+  // There could be some memory that may have not been deallocated.
+  // For example, zeEventPool could be still alive.
+  if (ZeEventPool && NumEventsLiveInEventPool[ZeEventPool])
+    zeEventPoolDestroy(ZeEventPool);
 }
 
 pi_result
@@ -1814,6 +1818,9 @@ pi_result piContextRelease(pi_context Context) {
 
   assert(Context);
   if (--(Context->RefCount) == 0) {
+    // Clean up any live memory associated with Context
+    Context->finalize();
+
     auto ZeContext = Context->ZeContext;
     // Destroy the command list used for initializations
     ZE_CALL(zeCommandListDestroy(Context->ZeCommandListInit));
@@ -3568,7 +3575,6 @@ pi_result piEventRelease(pi_event Event) {
 
     auto Context = Event->Context;
     ZE_CALL(Context->decrementAliveEventsInPool(Event->ZeEventPool));
-
     delete Event;
   }
 
