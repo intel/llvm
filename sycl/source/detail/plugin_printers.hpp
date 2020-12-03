@@ -6,10 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// \file pi.hpp
-/// C++ wrapper of extern "C" PI interfaces
-///
-/// \ingroup sycl_pi
+// Print functions used for the Plguin Interface tracing.
 
 #pragma once
 
@@ -20,9 +17,6 @@ namespace sycl {
 namespace detail {
 namespace pi {
 
-// Helper utilities for PI Tracing
-// The run-time tracing of PI calls.
-// Print functions used by Trace class.
 template <typename T> inline void print(T val) {
   std::cout << "<unknown> : " << val << std::endl;
 }
@@ -92,7 +86,6 @@ template <> inline void print<>(const pi_image_desc *desc) {
             << desc->num_mip_levels << " / " << desc->num_samples << " / "
             << desc->image_type << std::endl;
 }
-
 
 template <> inline void print<>(PiResult val) {
   std::cout << "pi_result : ";
