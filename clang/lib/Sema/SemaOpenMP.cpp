@@ -1931,8 +1931,13 @@ Sema::SemaDiagnosticBuilder Sema::diagIfOpenMPHostCode(SourceLocation Loc,
                                                        unsigned DiagID) {
   assert(LangOpts.OpenMP && !LangOpts.OpenMPIsDevice &&
          "Expected OpenMP host compilation.");
-  FunctionEmissionStatus FES = getEmissionStatus(getCurFunctionDecl());
+
+  FunctionDecl *FD = getCurFunctionDecl();
   SemaDiagnosticBuilder::Kind Kind = SemaDiagnosticBuilder::K_Nop;
+  if (!FD)
+    return SemaDiagnosticBuilder(Kind, Loc, DiagID, FD, *this);
+
+  FunctionEmissionStatus FES = getEmissionStatus(FD);
   switch (FES) {
   case FunctionEmissionStatus::Emitted:
     Kind = SemaDiagnosticBuilder::K_Immediate;
@@ -1947,7 +1952,7 @@ Sema::SemaDiagnosticBuilder Sema::diagIfOpenMPHostCode(SourceLocation Loc,
     break;
   }
 
-  return SemaDiagnosticBuilder(Kind, Loc, DiagID, getCurFunctionDecl(), *this);
+  return SemaDiagnosticBuilder(Kind, Loc, DiagID, FD, *this);
 }
 
 static OpenMPDefaultmapClauseKind
