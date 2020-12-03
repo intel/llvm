@@ -225,7 +225,7 @@ struct MemObjRecord {
 /// command groups. To achieve this Scheduler manages acyclic dependency graph
 /// (which can have independent sub-graphs) that consists of several types of
 /// nodes that represent specific commands:
-
+///
 /// 1. Allocate memory.
 ///    The command represents memory allocation operation. There can be
 ///    multiple allocations for a single SYCL memory object.
