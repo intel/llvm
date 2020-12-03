@@ -3262,6 +3262,9 @@ Instruction *SPIRVToLLVM::transBuiltinFromInst(const std::string &FuncName,
     Func->setCallingConv(CallingConv::SPIR_FUNC);
     if (isFuncNoUnwind())
       Func->addFnAttr(Attribute::NoUnwind);
+    auto OC = BI->getOpCode();
+    if (isGroupOpCode(OC) || isIntelSubgroupOpCode(OC))
+      Func->addFnAttr(Attribute::Convergent);
   }
   auto Call =
       CallInst::Create(Func, transValue(Ops, BB->getParent(), BB), "", BB);
