@@ -176,6 +176,11 @@ template <typename T> inline void print(T val) {
   std::cout << "<unknown> : " << val << std::endl;
 }
 
+template<typename Ret, typename...Args>
+inline void print(Ret(*val)(Args...) ) {
+  std::cout <<"<FuncPtr>" << reinterpret_cast<const void*>(val) << std::endl;
+}
+
 template <> inline void print<>(PiPlatform val) {
   std::cout << "pi_platform : " << val << std::endl;
 }
