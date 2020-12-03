@@ -38,13 +38,13 @@ int main() {
   }
 
   // CHECK: ---> piMemBufferPartition(
-  // CHECK:   pi_buffer_region origin/size : 20/8
+  // CHECK:   pi_buffer_region origin/size : 128/32
 
-  constexpr unsigned Size = 10;
+  constexpr unsigned Size = 64;
   std::vector<int> Data(Size);
   {
     cl::sycl::buffer<int, 1> Buf(Data.data(), Size);
-    cl::sycl::buffer<int, 1> SubBuf(Buf, Size / 2, {2});
+    cl::sycl::buffer<int, 1> SubBuf(Buf, Size / 2, 8);
 
     Queue.submit([&](cl::sycl::handler &CGH) {
       auto Acc = SubBuf.get_access<cl::sycl::access::mode::write>(CGH);
