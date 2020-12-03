@@ -37,7 +37,7 @@ int try_item1(size_t size) {
   return 0;
 }
 
-int try_item2(size_t size) {
+void try_item2(size_t size) {
   range<2> Size{size, size};
   int Counter = 0;
   {
@@ -57,10 +57,9 @@ int try_item2(size_t size) {
   }
   check("Size seen by user = ", Range2.get(0), size);
   check("Counter = ", Counter, size * size);
-  return 0;
 }
 
-int try_item3(size_t size) {
+void try_item3(size_t size) {
   range<3> Size{size, size, size};
   int Counter = 0;
   {
@@ -80,10 +79,9 @@ int try_item3(size_t size) {
   }
   check("Size seen by user = ", Range3.get(0), size);
   check("Counter = ", Counter, size * size * size);
-  return 0;
 }
 
-int try_id1(size_t size) {
+void try_id1(size_t size) {
   range<1> Size{size};
   int Counter = 0;
   {
@@ -102,10 +100,9 @@ int try_id1(size_t size) {
     myQueue.wait();
   }
   check("Counter = ", Counter, size);
-  return 0;
 }
 
-int try_id2(size_t size) {
+void try_id2(size_t size) {
   range<2> Size{size, size};
   int Counter = 0;
   {
@@ -124,10 +121,9 @@ int try_id2(size_t size) {
     myQueue.wait();
   }
   check("Counter = ", Counter, size * size);
-  return 0;
 }
 
-int try_id3(size_t size) {
+void try_id3(size_t size) {
   range<3> Size{size, size, size};
   int Counter = 0;
   {
@@ -146,7 +142,6 @@ int try_id3(size_t size) {
     myQueue.wait();
   }
   check("Counter = ", Counter, size * size * size);
-  return 0;
 }
 
 int main() {

@@ -903,7 +903,7 @@ private:
   ///
   /// \param Queue is the queue for this handler.
   /// \return Whether the device is a GPU.
-  bool is_gpu(shared_ptr_class<sycl::detail::queue_impl> Queue);
+  bool is_gpu(const shared_ptr_class<sycl::detail::queue_impl> Queue);
 
 public:
   handler(const handler &) = delete;
