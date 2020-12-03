@@ -4164,6 +4164,9 @@ pi_result cuda_piextUSMHostAlloc(void **result_ptr, pi_context context,
     result = error;
   }
 
+  assert(alignment == 0 ||
+         (result == PI_SUCCESS &&
+          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
   return result;
 }
 
@@ -4185,6 +4188,9 @@ pi_result cuda_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
     result = error;
   }
 
+  assert(alignment == 0 ||
+         (result == PI_SUCCESS &&
+          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
   return result;
 }
 
@@ -4207,6 +4213,9 @@ pi_result cuda_piextUSMSharedAlloc(void **result_ptr, pi_context context,
     result = error;
   }
 
+  assert(alignment == 0 ||
+         (result == PI_SUCCESS &&
+          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
   return result;
 }
 

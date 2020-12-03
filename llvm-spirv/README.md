@@ -2,6 +2,9 @@
 
 [![Build Status](https://travis-ci.org/KhronosGroup/SPIRV-LLVM-Translator.svg?branch=master)](https://travis-ci.org/KhronosGroup/SPIRV-LLVM-Translator)
 
+![Out-of-tree build & tests](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/workflows/Out-of-tree%20build%20&%20tests/badge.svg?branch=master&event=schedule)
+![In-tree build & tests](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/workflows/In-tree%20build%20&%20tests/badge.svg?branch=master&event=schedule)
+
 This repository contains source code for the LLVM/SPIR-V Bi-Directional Translator, a library and tool for translation between LLVM IR and [SPIR-V](https://www.khronos.org/registry/spir-v/).
 
 The LLVM/SPIR-V Bi-Directional Translator is open source software. You may freely distribute it under the terms of the license agreement found in LICENSE.txt.
@@ -82,7 +85,7 @@ on `clang` binary, which makes clang a required dependency (search for
 Building clang from sources takes time and resources and it can be avoided:
 - if you are not interested in launching unit-tests for the translator after
   build, you can disable generation of test targets by passing
-  `-DLLVM_INCLUDE_TESTS=OFF` option.
+  `-DLLVM_SPIRV_INCLUDE_TESTS=OFF` option.
 - if you are interested in launching unit-tests, but don't want to build clang
   you can pass `-DSPIRV_SKIP_CLANG_BUILD` cmake option to avoid adding `clang`
   as dependency for `check-llvm-spirv` target. However, LIT will search for
@@ -102,12 +105,13 @@ Execute the following command inside the build directory to run translator tests
 ```
 make test
 ```
-This requires that the `-DLLVM_INCLUDE_TESTS=ON` and
-`-DLLVM_EXTERNAL_LIT="/usr/lib/llvm-12/build/utils/lit/lit.py"` arguments were
-passed to CMake during the build step.
+This requires that the `-DLLVM_SPIRV_INCLUDE_TESTS=ON` argument is
+passed to CMake during the build step. Additionally,
+`-DLLVM_EXTERNAL_LIT="/usr/lib/llvm-12/build/utils/lit/lit.py"` is
+needed when building with a pre-installed version of LLVM.
 
 The translator test suite can be disabled by passing
-`-DLLVM_SPIRV_INCLUDE_TESTS=OFF` to cmake.
+`-DLLVM_SPIRV_INCLUDE_TESTS=OFF` to CMake.
 
 ## Run Instructions for `llvm-spirv`
 
