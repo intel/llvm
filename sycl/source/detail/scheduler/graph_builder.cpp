@@ -353,12 +353,20 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
     Record->MHostAccess = MapMode;
   } else {
 
-    // Full copy of buffer is needed to avoid loss of data that may be caused
-    // by copying specific range from host to device and backwards.
-    NewCmd =
-        new MemCpyCommand(*AllocaCmdSrc->getRequirement(), AllocaCmdSrc,
-                          *AllocaCmdDst->getRequirement(), AllocaCmdDst,
-                          AllocaCmdSrc->getQueue(), AllocaCmdDst->getQueue());
+    if (Req->MAccessMode == access::mode::discard_write) {
+      EmptyCommand *Cmd = new EmptyCommand(AllocaCmdDst->getQueue());
+      Cmd->addRequirement(/* DepCmd = */ nullptr, /* AllocaCmd = */ nullptr,
+                          Req);
+      Cmd->MBlockReason = Command::BlockReason::HostAccessor;
+      NewCmd = Cmd;
+    } else {
+      // Full copy of buffer is needed to avoid loss of data that may be caused
+      // by copying specific range from host to device and backwards.
+      NewCmd =
+          new MemCpyCommand(*AllocaCmdSrc->getRequirement(), AllocaCmdSrc,
+                            *AllocaCmdDst->getRequirement(), AllocaCmdDst,
+                            AllocaCmdSrc->getQueue(), AllocaCmdDst->getQueue());
+    }
   }
 
   for (Command *Dep : Deps) {
@@ -1058,7 +1066,8 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(
     // Update dependency users
     for (DepDesc &Dep : Cmd->MDeps) {
       Command *DepCmd = Dep.MDepCommand;
-      DepCmd->MUsers.erase(Cmd);
+      if (DepCmd)
+        DepCmd->MUsers.erase(Cmd);
     }
 
     Cmd->MMarks.MToBeDeleted = true;
