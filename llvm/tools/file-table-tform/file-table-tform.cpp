@@ -235,7 +235,7 @@ struct TformCmd {
 
 #define CHECK_AND_EXIT(E)                                                      \
   {                                                                            \
-    Error LocE = std::move(E);						\
+    Error LocE = std::move(E);                                                 \
     if (LocE) {                                                                \
       logAllUnhandledErrors(std::move(LocE), WithColor::error(errs()));        \
       return 1;                                                                \
