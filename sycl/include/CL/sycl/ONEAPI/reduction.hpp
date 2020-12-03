@@ -920,7 +920,7 @@ reduAuxCGFuncImpl(handler &CGH, size_t NWorkItems, size_t NWorkGroups,
   auto BOp = Redu.getBinaryOperation();
   using Name = typename get_reduction_aux_kernel_name_t<
       KernelName, KernelType, Reduction::is_usm, UniformPow2WG, OutputT>::name;
-  range<1> GlobalRange = { UniformPow2WG ? NWorkItems : NWorkGroups * WGSize };
+  range<1> GlobalRange = {UniformPow2WG ? NWorkItems : NWorkGroups * WGSize};
   nd_range<1> Range{GlobalRange, range<1>(WGSize)};
   CGH.parallel_for<Name>(Range, [=](nd_item<1> NDIt) {
     size_t WGSize = NDIt.get_local_range().size();
