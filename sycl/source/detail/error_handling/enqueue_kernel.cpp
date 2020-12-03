@@ -83,9 +83,8 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
         NDRDesc.LocalSize[1] != CompileWGSize[1] ||
         NDRDesc.LocalSize[2] != CompileWGSize[2])
       throw sycl::nd_range_error(
-          "The specified local size {" +
-              std::to_string(NDRDesc.LocalSize[0]) + ", " +
-              std::to_string(NDRDesc.LocalSize[1]) + ", " +
+          "The specified local size {" + std::to_string(NDRDesc.LocalSize[0]) +
+              ", " + std::to_string(NDRDesc.LocalSize[1]) + ", " +
               std::to_string(NDRDesc.LocalSize[2]) +
               "} doesn't match the required work-group size specified "
               "in the program source {" +
@@ -192,10 +191,10 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
               Opts.find("-cl-std=CL2.0") != string_class::npos;
           const bool RequiresUniformWGSize =
               Opts.find("-cl-uniform-work-group-size") != string_class::npos;
-          std::string LocalWGSize =
-              std::to_string(NDRDesc.LocalSize[0]) + ", " +
-              std::to_string(NDRDesc.LocalSize[1]) + ", " +
-              std::to_string(NDRDesc.LocalSize[2]);
+          std::string LocalWGSize = std::to_string(NDRDesc.LocalSize[0]) +
+                                    ", " +
+                                    std::to_string(NDRDesc.LocalSize[1]) +
+                                    ", " + std::to_string(NDRDesc.LocalSize[2]);
           std::string GlobalWGSize =
               std::to_string(NDRDesc.GlobalSize[0]) + ", " +
               std::to_string(NDRDesc.GlobalSize[1]) + ", " +
@@ -203,10 +202,11 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
           std::string message =
               LocalExceedsGlobal
                   ? "Local workgroup size {" + LocalWGSize +
-                    "} is greater than global range size {" + GlobalWGSize + "}"
+                        "} is greater than global range size {" + GlobalWGSize +
+                        "}"
                   : "Global work size {" + GlobalWGSize +
-                    "} is not evenly divisible by localgroup size {" +
-                    LocalWGSize + "}";
+                        "} is not evenly divisible by localgroup size {" +
+                        LocalWGSize + "}";
           if (!HasStd20)
             throw sycl::nd_range_error(
                 message.append(
