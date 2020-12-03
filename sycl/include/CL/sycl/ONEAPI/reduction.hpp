@@ -892,7 +892,8 @@ reduAuxCGFuncImpl(handler &CGH, size_t NWorkItems, size_t NWorkGroups,
 
   bool IsUpdateOfUserVar =
       Reduction::accessor_mode == access::mode::read_write && NWorkGroups == 1;
-  nd_range<1> Range{range<1>(NWorkItems), range<1>(WGSize)};
+  size_t NWorkItemsExt = ((NWorkItems + WGSize - 1) / WGSize) * WGSize;
+  nd_range<1> Range{range<1>(NWorkItemsExt), range<1>(WGSize)};
   CGH.parallel_for<Name>(Range, [=](nd_item<1> NDIt) {
     typename Reduction::binary_operation BOp;
     size_t WGID = NDIt.get_group_linear_id();
@@ -936,7 +937,8 @@ reduAuxCGFuncImpl(handler &CGH, size_t NWorkItems, size_t NWorkGroups,
   auto BOp = Redu.getBinaryOperation();
   using Name = typename get_reduction_aux_kernel_name_t<
       KernelName, KernelType, Reduction::is_usm, UniformPow2WG, OutputT>::name;
-  nd_range<1> Range{range<1>(NWorkItems), range<1>(WGSize)};
+  size_t NWorkItemsExt = ((NWorkItems + WGSize - 1) / WGSize) * WGSize;
+  nd_range<1> Range{range<1>(NWorkItemsExt), range<1>(WGSize)};
   CGH.parallel_for<Name>(Range, [=](nd_item<1> NDIt) {
     size_t WGSize = NDIt.get_local_range().size();
     size_t LID = NDIt.get_local_linear_id();
