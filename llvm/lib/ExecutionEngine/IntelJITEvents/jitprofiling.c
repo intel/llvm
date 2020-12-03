@@ -19,9 +19,7 @@
 
 #if ITT_PLATFORM==ITT_PLATFORM_WIN
 #include <windows.h>
-#if !INTEL_CUSTOMIZATION
 #pragma optimize("", off)
-#endif // !INTEL_CUSTOMIZATION
 #else  /* ITT_PLATFORM==ITT_PLATFORM_WIN */
 #include <dlfcn.h>
 #include <pthread.h>
