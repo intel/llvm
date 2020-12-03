@@ -1,6 +1,5 @@
-
 #ifndef EXT
-  #error "EXT macro must be defined"
+  #define EXT(X)
 #endif
 
 EXT(SPV_EXT_shader_atomic_float_add)
