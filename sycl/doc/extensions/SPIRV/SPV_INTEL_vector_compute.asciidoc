@@ -44,8 +44,8 @@ Version
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2020-11-24
-| Revision           | 10
+| Last Modified Date | 2020-12-03
+| Revision           | 11
 |========================================
 
 Dependencies
@@ -91,7 +91,7 @@ Specifies the size of shared memory required by kernel, in bytes.
 
 See the client API specification for more detail.
 | *VectorComputeINTEL* | <<Literal, 'Literal'>> _Size_
-| 8088 | *VectorComputeFastCompositeKernelINTEL* +
+| 6088 | *VectorComputeFastCompositeKernelINTEL* +
 Specifies that kernel is a fast composite pipeline entry point.
 
 See the client API specification for more detail.
@@ -217,4 +217,5 @@ Revision History
 |8|2020-10-07|Mariusz Merecki|Added *VectorComputeCallableFunctionINTEL*
 |9|2020-10-07|Mariusz Merecki|Added Change the description of *SingleElementVectorINTEL* to allow the decoration to be applied to function and function parameters of scalar or pointer type only.
 |10|2020-11-24|Mariusz Merecki|Added *VectorComputeFastCompositeKernelINTEL*, execution mode. Decorations sorted wrt their assigned token.
+|11|2020-12-03|Mariusz Merecki|Fix token number of *VectorComputeFastCompositeKernelINTEL*
 |========================================
