@@ -171,7 +171,7 @@ Modify Section 3.31, Capability, add the following rows the 'Capability' table:
 |====
   2+^| Capability      |     Implicitly Declares    | Enabled by Extension
 | 5617 | *VectorComputeINTEL* +
-Enables the use of *Private* storage class, *SharedLocalMemorySizeINTEL* and *VectorComputeFastCompositeKernelINTE* execution modes and *VectorComputeFunctionINTEL*, *VectorComputeCallableFunctionINTEL*, *VectorComputeVariableINTEL*, *StackCallINTEL*, *SIMTCallINTEL*, *FuncParamIOKindINTEL*, *GlobalVariableOffsetINTEL*
+Enables the use of *Private* storage class, *SharedLocalMemorySizeINTEL* and *VectorComputeFastCompositeKernelINTEL* execution modes and *VectorComputeFunctionINTEL*, *VectorComputeCallableFunctionINTEL*, *VectorComputeVariableINTEL*, *StackCallINTEL*, *SIMTCallINTEL*, *FuncParamIOKindINTEL*, *GlobalVariableOffsetINTEL*
 *SingleElementVectorINTEL* decorations and *OpTypeBufferSurfaceINTEL* type.
 |*VectorAnyINTEL* | *SPV_INTEL_vector_compute*
 | 5619 | *VectorAnyINTEL* +
