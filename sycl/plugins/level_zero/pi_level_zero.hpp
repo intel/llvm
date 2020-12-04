@@ -217,7 +217,7 @@ struct _pi_context : _pi_object {
   pi_result initialize();
 
   // Finalize the PI context
-  void finalize();
+  pi_result finalize();
 
   // A L0 context handle is primarily used during creation and management of
   // resources that may be used by multiple devices.

@@ -437,12 +437,24 @@ pi_result _pi_context::initialize() {
   return PI_SUCCESS;
 }
 
-void _pi_context::finalize() {
+pi_result _pi_context::finalize() {
   // This function is called when pi_context is deallocated, piContextRelase.
   // There could be some memory that may have not been deallocated.
   // For example, zeEventPool could be still alive.
+  std::lock_guard<std::mutex> NumEventsLiveInEventPoolGuard(
+      NumEventsLiveInEventPoolMutex, std::adopt_lock);
   if (ZeEventPool && NumEventsLiveInEventPool[ZeEventPool])
     zeEventPoolDestroy(ZeEventPool);
+
+  // Destroy the command list used for initializations
+  ZE_CALL(zeCommandListDestroy(ZeCommandListInit));
+
+  // Destruction of some members of pi_context uses L0 context
+  // and therefore it must be valid at that point.
+  // Technically it should be placed to the destructor of pi_context
+  // but this makes API error handling more complex.
+  ZE_CALL(zeContextDestroy(ZeContext));
+  return PI_SUCCESS;
 }
 
 pi_result
@@ -1820,17 +1832,7 @@ pi_result piContextRelease(pi_context Context) {
   if (--(Context->RefCount) == 0) {
     // Clean up any live memory associated with Context
     Context->finalize();
-
-    auto ZeContext = Context->ZeContext;
-    // Destroy the command list used for initializations
-    ZE_CALL(zeCommandListDestroy(Context->ZeCommandListInit));
     delete Context;
-
-    // Destruction of some members of pi_context uses L0 context
-    // and therefore it must be valid at that point.
-    // Technically it should be placed to the destructor of pi_context
-    // but this makes API error handling more complex.
-    ZE_CALL(zeContextDestroy(ZeContext));
   }
   return PI_SUCCESS;
 }
@@ -3575,9 +3577,9 @@ pi_result piEventRelease(pi_event Event) {
 
     auto Context = Event->Context;
     ZE_CALL(Context->decrementAliveEventsInPool(Event->ZeEventPool));
+
     delete Event;
   }
-
   return PI_SUCCESS;
 }
 
