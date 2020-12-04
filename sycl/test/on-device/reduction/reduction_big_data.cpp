@@ -13,6 +13,7 @@
 
 #include "reduction_utils.hpp"
 #include <CL/sycl.hpp>
+#include <algorithm>
 #include <cassert>
 
 using namespace cl::sycl;
@@ -87,7 +88,9 @@ int main() {
       getMinimumFPValue<float>(), MaxWGSize / 2, MaxWGSize * MaxWGSize + 1);
 
   size_t MaxUsableWGSize = LocalMemSize / sizeof(BigCustomVec<long long>);
-  size_t UsableWGSize = MaxUsableWGSize / 2;
+  if ((MaxUsableWGSize & (MaxUsableWGSize - 1)) != 0)
+    MaxUsableWGSize--;// Need 1 additional element in local mem if not pow of 2
+  size_t UsableWGSize = std::min(MaxUsableWGSize / 2, MaxWGSize);
   test<class KernelName_VzSVAWkAmHq, BigCustomVec<long long>, 1,
        BigCustomVecPlus<long long>>(BigCustomVec<long long>(0), UsableWGSize,
                                     UsableWGSize * MaxWGSize + 1);

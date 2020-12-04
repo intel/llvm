@@ -703,9 +703,7 @@ enable_if_t<Reduction::has_fast_atomics>
 reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
            Reduction &Redu, OutputT Out) {
 
-  size_t NWorkItems = Range.get_global_range().size();
   size_t WGSize = Range.get_local_range().size();
-  size_t NWorkGroups = Range.get_group_range().size();
 
   // If the work group size is not pow of 2, then the kernel runs some
   // additional code and checks in it.
