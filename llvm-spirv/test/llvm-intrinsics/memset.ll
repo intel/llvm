@@ -63,7 +63,7 @@ target triple = "spir"
 ; CHECK-LLVM: internal unnamed_addr addrspace(2) constant [4 x i8] c"\15\15\15\15"
 
 ; Function Attrs: nounwind
-define spir_func void @_Z5foo11v(%struct.S1 addrspace(4)* noalias nocapture sret %agg.result, i32 %s1, i64 %s2, i8 %v) #0 {
+define spir_func void @_Z5foo11v(%struct.S1 addrspace(4)* noalias nocapture sret(%struct.S1 addrspace(4)*) %agg.result, i32 %s1, i64 %s2, i8 %v) #0 {
   %x = alloca [4 x i8]
   %x.bc = bitcast [4 x i8]* %x to i8*
   %1 = bitcast %struct.S1 addrspace(4)* %agg.result to i8 addrspace(4)*

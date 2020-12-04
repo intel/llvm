@@ -57,7 +57,7 @@ The improvements are...
 Improvements to clang-query
 ---------------------------
 
-The improvements are...
+- The IgnoreImplicitCastsAndParentheses traversal mode has been removed.
 
 Improvements to clang-rename
 ----------------------------
@@ -148,6 +148,9 @@ Changes in existing checks
   
   Added support for specifying the style of scoped ``enum`` constants. If 
   unspecified, will fall back to the style for regular ``enum`` constants.
+
+  Added an option `IgnoredRegexp` per identifier type to suppress identifier
+  naming checks for names matching a regular expression.
 
 - Removed `google-runtime-references` check because the rule it checks does
   not exist in the Google Style Guide anymore.

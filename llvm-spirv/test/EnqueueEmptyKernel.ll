@@ -38,7 +38,7 @@ define spir_kernel void @test_enqueue_empty() #0 !kernel_arg_addr_space !0 !kern
 entry:
   %tmp = alloca %struct.ndrange_t, align 8
   %call = call spir_func %opencl.queue_t* @_Z17get_default_queuev() #4
-  call spir_func void @_Z10ndrange_1Dm(%struct.ndrange_t* sret %tmp, i64 1) #4
+  call spir_func void @_Z10ndrange_1Dm(%struct.ndrange_t* sret(%struct.ndrange_t*) %tmp, i64 1) #4
   %0 = call i32 @__enqueue_kernel_basic_events(%opencl.queue_t* %call, i32 1, %struct.ndrange_t* %tmp, i32 0, %opencl.clk_event_t* addrspace(4)* null, %opencl.clk_event_t* addrspace(4)* null, i8 addrspace(4)* addrspacecast (i8* bitcast (void (i8 addrspace(4)*)* @__test_enqueue_empty_block_invoke_kernel to i8*) to i8 addrspace(4)*), i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast ({ i32, i32 } addrspace(1)* @__block_literal_global to i8 addrspace(1)*) to i8 addrspace(4)*))
   ret void
 ; CHECK-SPIRV: Bitcast [[Int8Ptr]] [[Int8PtrBlock:[0-9]+]] [[Block]]
@@ -50,7 +50,7 @@ entry:
 declare spir_func %opencl.queue_t* @_Z17get_default_queuev() #1
 
 ; Function Attrs: convergent
-declare spir_func void @_Z10ndrange_1Dm(%struct.ndrange_t* sret, i64) #1
+declare spir_func void @_Z10ndrange_1Dm(%struct.ndrange_t* sret(%struct.ndrange_t*), i64) #1
 
 ; Function Attrs: convergent nounwind
 define internal spir_func void @__test_enqueue_empty_block_invoke(i8 addrspace(4)* %.block_descriptor) #2 {

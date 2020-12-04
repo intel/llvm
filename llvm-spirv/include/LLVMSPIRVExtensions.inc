@@ -3,6 +3,7 @@
   #error "EXT macro must be defined"
 #endif
 
+EXT(SPV_EXT_shader_atomic_float_add)
 EXT(SPV_KHR_no_integer_wrap_decoration)
 EXT(SPV_KHR_float_controls)
 EXT(SPV_INTEL_subgroups)
@@ -27,3 +28,4 @@ EXT(SPV_INTEL_fpga_buffer_location)
 EXT(SPV_INTEL_arbitrary_precision_fixed_point)
 EXT(SPV_INTEL_arbitrary_precision_floating_point)
 EXT(SPV_INTEL_variable_length_array)
+EXT(SPV_INTEL_fp_fast_math_mode)

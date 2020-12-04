@@ -3048,24 +3048,6 @@ static void handleUseStallEnableClustersAttr(Sema &S, Decl *D,
   handleSimpleAttribute<SYCLIntelUseStallEnableClustersAttr>(S, D, Attr);
 }
 
-// Add scheduler_target_fmax_mhz
-void Sema::addSYCLIntelSchedulerTargetFmaxMhzAttr(
-    Decl *D, const AttributeCommonInfo &Attr, Expr *E) {
-  assert(E && "Attribute must have an argument.");
-
-  SYCLIntelSchedulerTargetFmaxMhzAttr TmpAttr(Context, Attr, E);
-  if (!E->isValueDependent()) {
-    ExprResult ResultExpr;
-    if (checkRangedIntegralArgument<SYCLIntelSchedulerTargetFmaxMhzAttr>(
-            E, &TmpAttr, ResultExpr))
-      return;
-    E = ResultExpr.get();
-  }
-
-  D->addAttr(::new (Context)
-                 SYCLIntelSchedulerTargetFmaxMhzAttr(Context, Attr, E));
-}
-
 // Handle scheduler_target_fmax_mhz
 static void handleSchedulerTargetFmaxMhzAttr(Sema &S, Decl *D,
                                              const ParsedAttr &AL) {
@@ -3081,7 +3063,7 @@ static void handleSchedulerTargetFmaxMhzAttr(Sema &S, Decl *D,
     S.Diag(AL.getLoc(), diag::note_spelling_suggestion)
         << "'intel::scheduler_target_fmax_mhz'";
 
-  S.addSYCLIntelSchedulerTargetFmaxMhzAttr(D, AL, E);
+  S.AddOneConstantValueAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>(D, AL, E);
 }
 
 // Handles max_global_work_dim.

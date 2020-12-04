@@ -604,6 +604,7 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
              }},
             {"declarationProvider", true},
             {"definitionProvider", true},
+            {"implementationProvider", true},
             {"documentHighlightProvider", true},
             {"documentLinkProvider",
              llvm::json::Object{
@@ -624,6 +625,7 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
              }},
             {"typeHierarchyProvider", true},
             {"memoryUsageProvider", true}, // clangd extension.
+            {"callHierarchyProvider", true},
         }}}};
   if (Opts.Encoding)
     Result["offsetEncoding"] = *Opts.Encoding;
@@ -1223,6 +1225,26 @@ void ClangdLSPServer::onResolveTypeHierarchy(
                                std::move(Reply));
 }
 
+void ClangdLSPServer::onPrepareCallHierarchy(
+    const CallHierarchyPrepareParams &Params,
+    Callback<std::vector<CallHierarchyItem>> Reply) {
+  Server->prepareCallHierarchy(Params.textDocument.uri.file(), Params.position,
+                               std::move(Reply));
+}
+
+void ClangdLSPServer::onCallHierarchyIncomingCalls(
+    const CallHierarchyIncomingCallsParams &Params,
+    Callback<std::vector<CallHierarchyIncomingCall>> Reply) {
+  Server->incomingCalls(Params.item, std::move(Reply));
+}
+
+void ClangdLSPServer::onCallHierarchyOutgoingCalls(
+    const CallHierarchyOutgoingCallsParams &Params,
+    Callback<std::vector<CallHierarchyOutgoingCall>> Reply) {
+  // FIXME: To be implemented.
+  Reply(std::vector<CallHierarchyOutgoingCall>{});
+}
+
 void ClangdLSPServer::applyConfiguration(
     const ConfigurationSettings &Settings) {
   // Per-file update to the compilation database.
@@ -1289,6 +1311,22 @@ void ClangdLSPServer::onReference(const ReferenceParams &Params,
                              return Reply(Refs.takeError());
                            return Reply(std::move(Refs->References));
                          });
+}
+
+void ClangdLSPServer::onGoToImplementation(
+    const TextDocumentPositionParams &Params,
+    Callback<std::vector<Location>> Reply) {
+  Server->findImplementations(
+      Params.textDocument.uri.file(), Params.position,
+      [Reply = std::move(Reply)](
+          llvm::Expected<std::vector<LocatedSymbol>> Overrides) mutable {
+        if (!Overrides)
+          return Reply(Overrides.takeError());
+        std::vector<Location> Impls;
+        for (const LocatedSymbol &Sym : *Overrides)
+          Impls.push_back(Sym.PreferredDeclaration);
+        return Reply(std::move(Impls));
+      });
 }
 
 void ClangdLSPServer::onSymbolInfo(const TextDocumentPositionParams &Params,
@@ -1431,6 +1469,7 @@ ClangdLSPServer::ClangdLSPServer(class Transport &Transp,
   MsgHandler->bind("textDocument/signatureHelp", &ClangdLSPServer::onSignatureHelp);
   MsgHandler->bind("textDocument/definition", &ClangdLSPServer::onGoToDefinition);
   MsgHandler->bind("textDocument/declaration", &ClangdLSPServer::onGoToDeclaration);
+  MsgHandler->bind("textDocument/implementation", &ClangdLSPServer::onGoToImplementation);
   MsgHandler->bind("textDocument/references", &ClangdLSPServer::onReference);
   MsgHandler->bind("textDocument/switchSourceHeader", &ClangdLSPServer::onSwitchSourceHeader);
   MsgHandler->bind("textDocument/prepareRename", &ClangdLSPServer::onPrepareRename);
@@ -1450,6 +1489,9 @@ ClangdLSPServer::ClangdLSPServer(class Transport &Transp,
   MsgHandler->bind("textDocument/symbolInfo", &ClangdLSPServer::onSymbolInfo);
   MsgHandler->bind("textDocument/typeHierarchy", &ClangdLSPServer::onTypeHierarchy);
   MsgHandler->bind("typeHierarchy/resolve", &ClangdLSPServer::onResolveTypeHierarchy);
+  MsgHandler->bind("textDocument/prepareCallHierarchy", &ClangdLSPServer::onPrepareCallHierarchy);
+  MsgHandler->bind("callHierarchy/incomingCalls", &ClangdLSPServer::onCallHierarchyIncomingCalls);
+  MsgHandler->bind("callHierarchy/outgoingCalls", &ClangdLSPServer::onCallHierarchyOutgoingCalls);
   MsgHandler->bind("textDocument/selectionRange", &ClangdLSPServer::onSelectionRange);
   MsgHandler->bind("textDocument/documentLink", &ClangdLSPServer::onDocumentLink);
   MsgHandler->bind("textDocument/semanticTokens/full", &ClangdLSPServer::onSemanticTokens);

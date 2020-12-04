@@ -46,6 +46,7 @@
 // CK-HELP: {{.*}}o {{.*}}- object
 // CK-HELP: {{.*}}gch {{.*}}- precompiled-header
 // CK-HELP: {{.*}}ast {{.*}}- clang AST file
+// CK-HELP: {{.*}}a {{.*}}- archive of objects
 // CK-HELP: {{.*}}ao {{.*}}- archive with one object; output is an unbundled object
 // CK-HELP: {{.*}}aoo {{.*}}- archive; output file is a list of unbundled objects
 // CK-HELP: {{.*}}-unbundle {{.*}}- Unbundle bundled file into several output files.
@@ -340,6 +341,17 @@
 // RUN: diff %t.bc %t.res.bc
 // RUN: diff %t.tgt1 %t.res.tgt1
 // RUN: diff %t.tgt2 %t.res.tgt2
+
+// Check archive mode.
+// RUN: clang-offload-bundler -type=a -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu,openmp-x86_64-pc-linux-gnu -outputs=%t.host.a,%t.tgt1.a,%t.tgt2.a -inputs=%t.a -unbundle
+// RUN: cmp %t.host.a %t.a
+// RUN: llvm-ar t %t.tgt1.a | FileCheck %s --check-prefix=CHECK-AR-TGT1-LIST
+// RUN: llvm-ar t %t.tgt2.a | FileCheck %s --check-prefix=CHECK-AR-TGT2-LIST
+
+// CHECK-AR-TGT1-LIST: openmp-powerpc64le-ibm-linux-gnu.{{.+}}.bundle3.o
+// CHECK-AR-TGT1-LIST: openmp-powerpc64le-ibm-linux-gnu.{{.+}}.bundle4.o
+// CHECK-AR-TGT2-LIST: openmp-x86_64-pc-linux-gnu.{{.+}}.bundle3.o
+// CHECK-AR-TGT2-LIST: openmp-x86_64-pc-linux-gnu.{{.+}}.bundle4.o
 
 // Some code so that we can create a binary out of this file.
 int A = 0;
