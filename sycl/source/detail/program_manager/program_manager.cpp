@@ -477,30 +477,43 @@ ProgramManager::getPiProgramFromPiKernel(RT::PiKernel Kernel,
 
 string_class ProgramManager::getProgramBuildLog(const RT::PiProgram &Program,
                                                 const ContextImplPtr Context) {
-  size_t Size = 0;
+  size_t PIDevicesSize = 0;
   const detail::plugin &Plugin = Context->getPlugin();
   Plugin.call<PiApiKind::piProgramGetInfo>(Program, PI_PROGRAM_INFO_DEVICES, 0,
-                                           nullptr, &Size);
-  vector_class<RT::PiDevice> PIDevices(Size / sizeof(RT::PiDevice));
+                                           nullptr, &PIDevicesSize);
+  vector_class<RT::PiDevice> PIDevices(PIDevicesSize / sizeof(RT::PiDevice));
   Plugin.call<PiApiKind::piProgramGetInfo>(Program, PI_PROGRAM_INFO_DEVICES,
-                                           Size, PIDevices.data(), nullptr);
+                                           PIDevicesSize, PIDevices.data(),
+                                           nullptr);
   string_class Log = "The program was built for " +
                      std::to_string(PIDevices.size()) + " devices";
   for (RT::PiDevice &Device : PIDevices) {
+    std::string DeviceBuildInfoString;
+    size_t DeviceBuildInfoStrSize = 0;
     Plugin.call<PiApiKind::piProgramGetBuildInfo>(
-        Program, Device, CL_PROGRAM_BUILD_LOG, 0, nullptr, &Size);
-    vector_class<char> DeviceBuildInfo(Size);
-    Plugin.call<PiApiKind::piProgramGetBuildInfo>(
-        Program, Device, CL_PROGRAM_BUILD_LOG, Size, DeviceBuildInfo.data(),
-        nullptr);
-    Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_NAME, 0,
-                                            nullptr, &Size);
-    vector_class<char> DeviceName(Size);
-    Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_NAME, Size,
-                                            DeviceName.data(), nullptr);
+        Program, Device, CL_PROGRAM_BUILD_LOG, 0, nullptr,
+        &DeviceBuildInfoStrSize);
+    if (DeviceBuildInfoStrSize > 0) {
+      vector_class<char> DeviceBuildInfo(DeviceBuildInfoStrSize);
+      Plugin.call<PiApiKind::piProgramGetBuildInfo>(
+          Program, Device, CL_PROGRAM_BUILD_LOG, DeviceBuildInfoStrSize,
+          DeviceBuildInfo.data(), nullptr);
+      DeviceBuildInfoString = std::string(DeviceBuildInfo.data());
+    }
 
-    Log += "\nBuild program log for '" + string_class(DeviceName.data()) +
-           "':\n" + string_class(DeviceBuildInfo.data());
+    std::string DeviceNameString;
+    size_t DeviceNameStrSize = 0;
+    Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_NAME, 0,
+                                            nullptr, &DeviceNameStrSize);
+    if (DeviceNameStrSize > 0) {
+      vector_class<char> DeviceName(DeviceNameStrSize);
+      Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_NAME,
+                                              DeviceNameStrSize,
+                                              DeviceName.data(), nullptr);
+      DeviceNameString = std::string(DeviceName.data());
+    }
+    Log += "\nBuild program log for '" + DeviceNameString + "':\n" +
+           DeviceBuildInfoString;
   }
   return Log;
 }

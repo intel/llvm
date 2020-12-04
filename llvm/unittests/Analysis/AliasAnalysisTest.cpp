@@ -55,8 +55,8 @@ struct AATestPass : FunctionPass {
 
     for (Value *P1 : Pointers)
       for (Value *P2 : Pointers)
-        (void)AA.alias(P1, LocationSize::unknown(), P2,
-                       LocationSize::unknown());
+        (void)AA.alias(P1, LocationSize::beforeOrAfterPointer(), P2,
+                       LocationSize::beforeOrAfterPointer());
 
     return false;
   }
@@ -295,8 +295,7 @@ TEST_F(AliasAnalysisTest, BatchAAPhiAssumption) {
 
   BatchAAResults BatchAA(AA);
   EXPECT_EQ(MayAlias, BatchAA.alias(ALoc, BLoc));
-  // TODO: This is incorrect.
-  EXPECT_EQ(NoAlias, BatchAA.alias(ANextLoc, BNextLoc));
+  EXPECT_EQ(MayAlias, BatchAA.alias(ANextLoc, BNextLoc));
 }
 
 class AAPassInfraTest : public testing::Test {

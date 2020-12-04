@@ -748,16 +748,14 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
   if (LC & LoopControlDependencyInfiniteMask)
     Metadata.push_back(getMetadataFromName("llvm.loop.ivdep.enable"));
   if (LC & LoopControlDependencyLengthMask) {
-    if (!LoopControlParameters.empty()) {
-      Metadata.push_back(llvm::MDNode::get(
-          *Context,
-          getMetadataFromNameAndParameter("llvm.loop.ivdep.safelen",
-                                          LoopControlParameters[NumParam])));
-      ++NumParam;
-      // TODO: Fix the increment/assertion logic in all of the conditions
-      assert(NumParam <= LoopControlParameters.size() &&
-             "Missing loop control parameter!");
-    }
+    Metadata.push_back(llvm::MDNode::get(
+        *Context,
+        getMetadataFromNameAndParameter("llvm.loop.ivdep.safelen",
+                                        LoopControlParameters[NumParam])));
+    ++NumParam;
+    // TODO: Fix the increment/assertion logic in all of the conditions
+    assert(NumParam <= LoopControlParameters.size() &&
+           "Missing loop control parameter!");
   }
   // Placeholder for LoopControls added in SPIR-V 1.4 spec (see 3.23)
   if (LC & LoopControlMinIterationsMask) {
@@ -835,6 +833,8 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
           continue;
 
         Value *AccessedPointer = GEP->getPointerOperand();
+        if (auto *LI = dyn_cast<LoadInst>(AccessedPointer))
+          AccessedPointer = LI->getPointerOperand();
         auto PointerSflnIt = PointerSflnMap.find(AccessedPointer);
         if (PointerSflnIt != PointerSflnMap.end()) {
           ArrayGEPMap[AccessedPointer].push_back(GEP);
@@ -932,16 +932,17 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
            "Missing loop control parameter!");
   }
   if (LC & LoopControlLoopCoalesceINTELMask) {
-    // If LoopCoalesce has no parameters
-    if (LoopControlParameters.empty()) {
+    // If LoopCoalesce has a parameter of '0'
+    if (!LoopControlParameters[NumParam]) {
       Metadata.push_back(llvm::MDNode::get(
           *Context, getMetadataFromName("llvm.loop.coalesce.enable")));
     } else {
       Metadata.push_back(llvm::MDNode::get(
           *Context,
           getMetadataFromNameAndParameter("llvm.loop.coalesce.count",
-                                          LoopControlParameters[NumParam++])));
+                                          LoopControlParameters[NumParam])));
     }
+    ++NumParam;
     assert(NumParam <= LoopControlParameters.size() &&
            "Missing loop control parameter!");
   }
@@ -961,6 +962,8 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     assert(NumParam <= LoopControlParameters.size() &&
            "Missing loop control parameter!");
   }
+  if (LC & LoopControlNoFusionINTELMask)
+    Metadata.push_back(getMetadataFromName("llvm.loop.fusion.disable"));
   llvm::MDNode *Node = llvm::MDNode::get(*Context, Metadata);
 
   // Set the first operand to refer itself
@@ -1124,6 +1127,10 @@ static void applyFPFastMathModeDecorations(const SPIRVValue *BV,
       FMF.setNoSignedZeros();
     if (V & FPFastMathModeAllowRecipMask)
       FMF.setAllowReciprocal();
+    if (V & FPFastMathModeAllowContractINTELMask)
+      FMF.setAllowContract();
+    if (V & FPFastMathModeAllowReassocINTELMask)
+      FMF.setAllowReassoc();
     if (V & FPFastMathModeFastMask)
       FMF.setFast();
     Inst->setFastMathFlags(FMF);
@@ -2882,7 +2889,16 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
     BA->foreachAttr([&](SPIRVFuncParamAttrKind Kind) {
       if (Kind == FunctionParameterAttributeNoWrite)
         return;
-      F->addAttribute(I->getArgNo() + 1, SPIRSPIRVFuncParamAttrMap::rmap(Kind));
+      Attribute::AttrKind LLVMKind = SPIRSPIRVFuncParamAttrMap::rmap(Kind);
+      Type *AttrTy = nullptr;
+      if (LLVMKind == Attribute::AttrKind::ByVal)
+        AttrTy = cast<PointerType>(I->getType())->getElementType();
+      else if (LLVMKind == Attribute::AttrKind::StructRet)
+        AttrTy = I->getType();
+      // Make sure to use a correct constructor for a typed/typeless attribute
+      auto A = AttrTy ? Attribute::get(*Context, LLVMKind, AttrTy)
+                      : Attribute::get(*Context, LLVMKind);
+      I->addAttr(A);
     });
 
     SPIRVWord MaxOffset = 0;
@@ -4034,6 +4050,9 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
     F->addFnAttr(kVCMetadata::VCSIMTCall, std::to_string(SIMTMode));
   if (BF->hasDecorate(DecorationVectorComputeCallableFunctionINTEL))
     F->addFnAttr(kVCMetadata::VCCallable);
+  if (isKernel(BF) &&
+      BF->getExecutionMode(ExecutionModeVectorComputeFastCompositeKernelINTEL))
+    F->addFnAttr(kVCMetadata::VCFCEntry);
 
   auto SEVAttr = Attribute::get(*Context, kVCMetadata::VCSingleElementVector);
   if (BF->hasDecorate(DecorationSingleElementVectorINTEL))

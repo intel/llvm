@@ -1077,6 +1077,8 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
         } else if (S == "llvm.loop.coalesce.enable") {
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
+          ParametersToSort.emplace_back(spv::LoopControlLoopCoalesceINTELMask,
+                                        0);
           LoopControl |= spv::LoopControlLoopCoalesceINTELMask;
         } else if (S == "llvm.loop.coalesce.count") {
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
@@ -1099,6 +1101,10 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
           ParametersToSort.emplace_back(
               spv::LoopControlSpeculatedIterationsINTELMask, I);
           LoopControl |= spv::LoopControlSpeculatedIterationsINTELMask;
+        } else if (S == "llvm.loop.fusion.disable") {
+          BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
+          BM->addCapability(CapabilityFPGALoopControlsINTEL);
+          LoopControl |= spv::LoopControlNoFusionINTELMask;
         }
       }
     }
@@ -1131,6 +1137,32 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
     Parameters.push_back(Param.second);
 
   return static_cast<spv::LoopControlMask>(LoopControl);
+}
+
+static int transAtomicOrdering(llvm::AtomicOrdering Ordering) {
+  return OCLMemOrderMap::map(
+      static_cast<OCLMemOrderKind>(llvm::toCABI(Ordering)));
+}
+
+SPIRVValue *LLVMToSPIRV::transAtomicStore(StoreInst *ST, SPIRVBasicBlock *BB) {
+  std::vector<Value *> Ops{ST->getPointerOperand(),
+                           getUInt32(M, spv::ScopeDevice),
+                           getUInt32(M, transAtomicOrdering(ST->getOrdering())),
+                           ST->getValueOperand()};
+  std::vector<SPIRVValue *> SPIRVOps = transValue(Ops, BB);
+
+  return mapValue(ST, BM->addInstTemplate(OpAtomicStore, BM->getIds(SPIRVOps),
+                                          BB, nullptr));
+}
+
+SPIRVValue *LLVMToSPIRV::transAtomicLoad(LoadInst *LD, SPIRVBasicBlock *BB) {
+  std::vector<Value *> Ops{
+      LD->getPointerOperand(), getUInt32(M, spv::ScopeDevice),
+      getUInt32(M, transAtomicOrdering(LD->getOrdering()))};
+  std::vector<SPIRVValue *> SPIRVOps = transValue(Ops, BB);
+
+  return mapValue(LD, BM->addInstTemplate(OpAtomicLoad, BM->getIds(SPIRVOps),
+                                          BB, transType(LD->getType())));
 }
 
 /// An instruction may use an instruction from another BB which has not been
@@ -1277,6 +1309,9 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     return mapValue(V, BM->addForward(transType(V->getType())));
 
   if (StoreInst *ST = dyn_cast<StoreInst>(V)) {
+    if (ST->isAtomic())
+      return transAtomicStore(ST, BB);
+
     std::vector<SPIRVWord> MemoryAccess(1, 0);
     if (ST->isVolatile())
       MemoryAccess[0] |= MemoryAccessVolatileMask;
@@ -1297,6 +1332,9 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
   }
 
   if (LoadInst *LD = dyn_cast<LoadInst>(V)) {
+    if (LD->isAtomic())
+      return transAtomicLoad(LD, BB);
+
     std::vector<SPIRVWord> MemoryAccess(1, 0);
     if (LD->isVolatile())
       MemoryAccess[0] |= MemoryAccessVolatileMask;
@@ -1478,14 +1516,19 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     std::vector<SPIRVValue *> Indices;
     for (unsigned I = 0, E = GEP->getNumIndices(); I != E; ++I)
       Indices.push_back(transValue(GEP->getOperand(I + 1), BB));
-    auto *TransPointerOperand = transValue(GEP->getPointerOperand(), BB);
+    auto *PointerOperand = GEP->getPointerOperand();
+    auto *TransPointerOperand = transValue(PointerOperand, BB);
 
     // Certain array-related optimization hints can be expressed via
     // LLVM metadata. For the purpose of linking this metadata with
     // the accessed array variables, our GEP may have been marked into
     // a so-called index group, an MDNode by itself.
     if (MDNode *IndexGroup = GEP->getMetadata("llvm.index.group")) {
-      SPIRVId AccessedArrayId = TransPointerOperand->getId();
+      SPIRVValue *ActualMemoryPtr = TransPointerOperand;
+      if (auto *Load = dyn_cast<LoadInst>(PointerOperand)) {
+        ActualMemoryPtr = transValue(Load->getPointerOperand(), BB);
+      }
+      SPIRVId AccessedArrayId = ActualMemoryPtr->getId();
       unsigned NumOperands = IndexGroup->getNumOperands();
       // When we're working with embedded loops, it's natural that
       // the outer loop's hints apply to all code contained within.
@@ -1663,6 +1706,17 @@ bool LLVMToSPIRV::transDecoration(Value *V, SPIRVValue *BV) {
           M |= FPFastMathModeNSZMask;
         if (FMF.allowReciprocal())
           M |= FPFastMathModeAllowRecipMask;
+        if (BM->isAllowedToUseExtension(
+                ExtensionID::SPV_INTEL_fp_fast_math_mode)) {
+          if (FMF.allowContract()) {
+            M |= FPFastMathModeAllowContractINTELMask;
+            BM->addCapability(CapabilityFPFastMathModeINTEL);
+          }
+          if (FMF.allowReassoc()) {
+            M |= FPFastMathModeAllowReassocINTELMask;
+            BM->addCapability(CapabilityFPFastMathModeINTEL);
+          }
+        }
       }
       if (M != 0)
         BV->setFPFastMathMode(M);
@@ -3004,6 +3058,10 @@ SPIRVValue *LLVMToSPIRV::transBuiltinToConstant(StringRef DemangledName,
   Op OC = getSPIRVFuncOC(DemangledName);
   if (!isSpecConstantOpCode(OC))
     return nullptr;
+  if (OC == spv::OpSpecConstantComposite) {
+    return BM->addSpecConstantComposite(transType(CI->getType()),
+                                        transValue(getArguments(CI), nullptr));
+  }
   Value *V = CI->getArgOperand(1);
   Type *Ty = V->getType();
   assert(Ty == CI->getType() && "Type mismatch!");
@@ -3173,6 +3231,11 @@ bool LLVMToSPIRV::transExecutionMode() {
         N.get(TargetWidth);
         BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
             BF, static_cast<ExecutionMode>(EMode), TargetWidth)));
+      } break;
+      case spv::ExecutionModeVectorComputeFastCompositeKernelINTEL: {
+        if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
+          BF->addExecutionMode(BM->add(
+              new SPIRVExecutionMode(BF, static_cast<ExecutionMode>(EMode))));
       } break;
       default:
         llvm_unreachable("invalid execution mode");

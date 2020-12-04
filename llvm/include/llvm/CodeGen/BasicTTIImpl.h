@@ -991,6 +991,51 @@ public:
     return Cost;
   }
 
+  unsigned getGatherScatterOpCost(unsigned Opcode, Type *DataTy,
+                                  const Value *Ptr, bool VariableMask,
+                                  Align Alignment, TTI::TargetCostKind CostKind,
+                                  const Instruction *I = nullptr) {
+    auto *VT = cast<FixedVectorType>(DataTy);
+    // Assume the target does not have support for gather/scatter operations
+    // and provide a rough estimate.
+    //
+    // First, compute the cost of extracting the individual addresses and the
+    // individual memory operations.
+    int LoadCost =
+        VT->getNumElements() *
+        (getVectorInstrCost(
+             Instruction::ExtractElement,
+             FixedVectorType::get(PointerType::get(VT->getElementType(), 0),
+                                  VT->getNumElements()),
+             -1) +
+         getMemoryOpCost(Opcode, VT->getElementType(), Alignment, 0, CostKind));
+
+    // Next, compute the cost of packing the result in a vector.
+    int PackingCost = getScalarizationOverhead(VT, Opcode != Instruction::Store,
+                                               Opcode == Instruction::Store);
+
+    int ConditionalCost = 0;
+    if (VariableMask) {
+      // Compute the cost of conditionally executing the memory operations with
+      // variable masks. This includes extracting the individual conditions, a
+      // branches and PHIs to combine the results.
+      // NOTE: Estimating the cost of conditionally executing the memory
+      // operations accurately is quite difficult and the current solution
+      // provides a very rough estimate only.
+      ConditionalCost =
+          VT->getNumElements() *
+          (getVectorInstrCost(
+               Instruction::ExtractElement,
+               FixedVectorType::get(Type::getInt1Ty(DataTy->getContext()),
+                                    VT->getNumElements()),
+               -1) +
+           getCFInstrCost(Instruction::Br, CostKind) +
+           getCFInstrCost(Instruction::PHI, CostKind));
+    }
+
+    return LoadCost + PackingCost + ConditionalCost;
+  }
+
   unsigned getInterleavedMemoryOpCost(
       unsigned Opcode, Type *VecTy, unsigned Factor, ArrayRef<unsigned> Indices,
       Align Alignment, unsigned AddressSpace, TTI::TargetCostKind CostKind,
@@ -1172,9 +1217,6 @@ public:
     FastMathFlags FMF = ICA.getFlags();
     switch (IID) {
     default:
-      // FIXME: all cost kinds should default to the same thing?
-      if (CostKind != TTI::TCK_RecipThroughput)
-        return BaseT::getIntrinsicInstrCost(ICA, CostKind);
       break;
 
     case Intrinsic::cttz:
@@ -1324,8 +1366,9 @@ public:
       VecOpTy = dyn_cast<VectorType>(Tys[VecTyIndex]);
     }
 
+    // Library call cost - other than size, make it expensive.
+    unsigned SingleCallCost = CostKind == TTI::TCK_CodeSize ? 1 : 10;
     SmallVector<unsigned, 2> ISDs;
-    unsigned SingleCallCost = 10; // Library call cost. Make it expensive.
     switch (IID) {
     default: {
       // Assume that we need to scalarize this intrinsic.
@@ -1398,6 +1441,12 @@ public:
     case Intrinsic::maxnum:
       ISDs.push_back(ISD::FMAXNUM);
       break;
+    case Intrinsic::minimum:
+      ISDs.push_back(ISD::FMINIMUM);
+      break;
+    case Intrinsic::maximum:
+      ISDs.push_back(ISD::FMAXIMUM);
+      break;
     case Intrinsic::copysign:
       ISDs.push_back(ISD::FCOPYSIGN);
       break;
@@ -1438,6 +1487,7 @@ public:
     case Intrinsic::lifetime_start:
     case Intrinsic::lifetime_end:
     case Intrinsic::sideeffect:
+    case Intrinsic::pseudoprobe:
       return 0;
     case Intrinsic::masked_store: {
       Type *Ty = Tys[0];
