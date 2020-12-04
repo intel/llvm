@@ -23,6 +23,7 @@
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/IR/LLVMContext.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/ArchiveWriter.h"
 #include "llvm/Object/Binary.h"
@@ -120,6 +121,9 @@ static cl::opt<unsigned>
 
 /// Prefix of an added section name with bundle size.
 #define SIZE_SECTION_PREFIX "__CLANG_OFFLOAD_BUNDLE_SIZE__"
+
+/// Section name which holds target symbol names.
+#define SYMBOLS_SECTION_NAME ".tgtsym"
 
 /// The index of the host input in the list of inputs.
 static unsigned HostInputIndex = ~0u;
@@ -546,6 +550,62 @@ class ObjectFileHandler final : public FileHandler {
   /// Input sizes.
   SmallVector<uint64_t, 16u> InputSizes;
 
+  // Return a buffer with symbol names that are defined in target objects.
+  // Each symbol name is prefixed by a target name <kind>-<triple> to uniquely
+  // identify the target it belongs to, and symbol names are separated from each
+  // other by '\0' characters.
+  Expected<SmallVector<char, 0>> makeTargetSymbolTable() {
+    SmallVector<char, 0> SymbolsBuf;
+    raw_svector_ostream SymbolsOS(SymbolsBuf);
+
+    for (unsigned I = 0; I < NumberOfInputs; ++I) {
+      if (I == HostInputIndex)
+        continue;
+
+      // Get the list of symbols defined in the target object. Open file and
+      // check if it is a symbolic file.
+      ErrorOr<std::unique_ptr<MemoryBuffer>> BufOrErr =
+          MemoryBuffer::getFileOrSTDIN(InputFileNames[I]);
+      if (!BufOrErr)
+        return createFileError(InputFileNames[I], BufOrErr.getError());
+
+      LLVMContext Context;
+      Expected<std::unique_ptr<Binary>> BinOrErr =
+          createBinary(BufOrErr.get()->getMemBufferRef(), &Context);
+
+      // If it is not a symbolic file just ignore it since we cannot do anything
+      // with it.
+      if (!BinOrErr) {
+        if (auto Err = isNotObjectErrorInvalidFileType(BinOrErr.takeError()))
+          return std::move(Err);
+        continue;
+      }
+      auto *SF = dyn_cast<SymbolicFile>(&**BinOrErr);
+      if (!SF)
+        continue;
+
+      for (BasicSymbolRef Symbol : SF->symbols()) {
+        Expected<uint32_t> FlagsOrErr = Symbol.getFlags();
+        if (!FlagsOrErr)
+          return FlagsOrErr.takeError();
+
+        // We are interested in externally visible and defined symbols only, so
+        // ignore it if this is not such a symbol.
+        bool Undefined = *FlagsOrErr & SymbolRef::SF_Undefined;
+        bool Global = *FlagsOrErr & SymbolRef::SF_Global;
+        if (Undefined || !Global)
+          continue;
+
+        // Add symbol name with the target prefix to the buffer.
+        SymbolsOS << TargetNames[I] << ".";
+        if (Error Err = Symbol.printName(SymbolsOS))
+          return std::move(Err);
+        SymbolsOS << '\0';
+      }
+    }
+    return SymbolsBuf;
+  }
+
 public:
   ObjectFileHandler(std::unique_ptr<ObjectFile> ObjIn)
       : FileHandler(), Obj(std::move(ObjIn)),
@@ -793,6 +853,25 @@ public:
                                     SIZE_SECTION_PREFIX + TargetNames[I] + "=" +
                                     *SizeFileOrErr));
     }
+
+    // Add a section with symbol names that are defined in target objects to the
+    // output fat object.
+    Expected<SmallVector<char, 0>> SymbolsOrErr = makeTargetSymbolTable();
+    if (!SymbolsOrErr)
+      return SymbolsOrErr.takeError();
+
+    if (!SymbolsOrErr->empty()) {
+      // Add section with symbols names to fat object.
+      Expected<StringRef> SymbolsFileOrErr =
+          TempFiles.Create(makeArrayRef(*SymbolsOrErr));
+      if (!SymbolsFileOrErr)
+        return SymbolsFileOrErr.takeError();
+
+      ObjcopyArgs.push_back(SS.save(Twine("--add-section=") +
+                                    SYMBOLS_SECTION_NAME + "=" +
+                                    *SymbolsFileOrErr));
+    }
+
     ObjcopyArgs.push_back(InputFileNames[HostInputIndex]);
     ObjcopyArgs.push_back(IntermediateObj);
 
