@@ -89,7 +89,7 @@ int main() {
 
   size_t MaxUsableWGSize = LocalMemSize / sizeof(BigCustomVec<long long>);
   if ((MaxUsableWGSize & (MaxUsableWGSize - 1)) != 0)
-    MaxUsableWGSize--;// Need 1 additional element in local mem if not pow of 2
+    MaxUsableWGSize--; // Need 1 additional element in local mem if not pow of 2
   size_t UsableWGSize = std::min(MaxUsableWGSize / 2, MaxWGSize);
   test<class KernelName_VzSVAWkAmHq, BigCustomVec<long long>, 1,
        BigCustomVecPlus<long long>>(BigCustomVec<long long>(0), UsableWGSize,
