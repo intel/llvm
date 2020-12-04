@@ -435,7 +435,7 @@ void SYCLToolChain::AddSYCLDeviceLibs(const llvm::opt::ArgList &Args,
   // Currently, libc, libm-fp32 will be linked in by default. In order
   // to use libm-fp64, -fsycl-device-lib=libm-fp64/all should be used.
   llvm::StringMap<bool> devicelib_link_info = {
-      {"libc", true}, {"libm-fp32", true}, {"libm-fp64", false}};
+      {"libc", true}, {"libm-fp32", true}, {"libm-fp64", true}};
   if (Arg *A = Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
                                options::OPT_fno_sycl_device_lib_EQ)) {
     if (A->getValues().size() == 0)
