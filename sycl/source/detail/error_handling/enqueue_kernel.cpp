@@ -201,11 +201,11 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
               std::to_string(NDRDesc.GlobalSize[2]);
           std::string message =
               LocalExceedsGlobal
-                  ? "Local workgroup size {" + LocalWGSize +
+                  ? "Local work-group size {" + LocalWGSize +
                         "} is greater than global range size {" + GlobalWGSize +
                         "}"
                   : "Global work size {" + GlobalWGSize +
-                        "} is not evenly divisible by localgroup size {" +
+                        "} is not evenly divisible by local work-group size {" +
                         LocalWGSize + "}";
           if (!HasStd20)
             throw sycl::nd_range_error(
