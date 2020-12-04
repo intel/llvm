@@ -1,3 +1,5 @@
+# Linked allocations
+
 ## Brief overview of allocations for memory objects
 
 A SYCL memory object (`buffer`/`image`) can be accessed in multiple contexts
