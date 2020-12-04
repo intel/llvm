@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Driver.h"
+#include "Config.h"
 #include "InputFiles.h"
 
 #include "lld/Common/Args.h"
@@ -174,4 +175,21 @@ Optional<DylibFile *> macho::makeDylibFromTAPI(MemoryBufferRef mbref,
     return {};
   }
   return make<DylibFile>(**result, umbrella);
+}
+
+uint32_t macho::getModTime(StringRef path) {
+  fs::file_status stat;
+  if (!fs::status(path, stat))
+    if (fs::exists(stat))
+      return toTimeT(stat.getLastModificationTime());
+
+  warn("failed to get modification time of " + path);
+  return 0;
+}
+
+void macho::printWhyLoad(StringRef reason, const InputFile *f) {
+  if (!config->printWhyLoad)
+    return;
+  lld::outs() << reason << " forced load of " << toString(f)
+              << '\n';
 }
