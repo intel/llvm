@@ -1234,7 +1234,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
       continue;
     }
 
-    unsigned Index;
+    unsigned Index = 0;
     unsigned Prev;
     bool XOffloadTargetNoTriple;
 
