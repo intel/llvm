@@ -218,7 +218,7 @@ This support will only be provided when using the Level Zero backend \(BE\).  Th
 
 | Device Descriptors | Return Type | Description |
 | ------------------ | ----------- | ----------- |
-| info\:\:device\:\:ext\_intel\_max\_mem\_bandwidth | uint64\_t| Returns the maximum memory bandwidth.|
+| info\:\:device\:\:ext\_intel\_max\_mem\_bandwidth | uint64\_t| Returns the maximum memory bandwidth in units of bytes\/second.|
 
 
 ## Aspects ##
