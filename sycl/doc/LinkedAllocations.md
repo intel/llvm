@@ -6,7 +6,7 @@ during memory object construction, no allocation takes place at that point.
 Instead, memory is allocated in each context whenever the SYCL memory object
 is first accessed there:
 
-```C++
+```
   cl::sycl::buffer<int, 1> buf{cl::sycl::range<1>(1)}; // No allocation here
 
   cl::sycl::queue q;
@@ -27,7 +27,7 @@ that context, but for host allocation commands it might be the case that no
 actual memory allocation takes place: either because it is possible to reuse the
 data pointer provided by the user:
 
-```C++
+```
   int val;
   cl::sycl::buffer<int, 1> buf{&val, cl::sycl::range<1>(1)};
 
