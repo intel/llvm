@@ -34,6 +34,8 @@ config.test_source_root = os.path.dirname(__file__)
 # test_exec_root: The root path where tests should be run.
 config.test_exec_root = config.sycl_obj_root
 
+llvm_config.use_clang()
+
 # Propagate some variables from the host environment.
 llvm_config.with_system_environment(['PATH', 'OCL_ICD_FILENAMES',
     'CL_CONFIG_DEVICES', 'SYCL_DEVICE_ALLOWLIST', 'SYCL_CONFIG_FILE_NAME'])
@@ -62,10 +64,16 @@ elif platform.system() == "Darwin":
 
 llvm_config.with_environment('PATH', config.sycl_tools_dir, append_path=True)
 
-for env_pair in config.extra_environment.split(','):
-    if env_pair:
+if config.extra_environment:
+    lit_config.note("Extra environment variables")
+    for env_pair in config.extra_environment.split(','):
         [var,val]=env_pair.split("=")
-        llvm_config.with_environment(var,val)
+        if val:
+           llvm_config.with_environment(var,val)
+           lit_config.note("\t"+var+"="+val)
+        else:
+           lit_config.note("\tUnset "+var)
+           llvm_config.with_environment(var,"")
 
 config.substitutions.append( ('%sycl_libs_dir',  config.sycl_libs_dir ) )
 config.substitutions.append( ('%sycl_include',  config.sycl_include ) )
@@ -73,8 +81,6 @@ if config.opencl_libs_dir:
   config.substitutions.append( ('%opencl_libs_dir',  config.opencl_libs_dir) )
   config.available_features.add('opencl_icd')
 config.substitutions.append( ('%opencl_include_dir',  config.opencl_include_dir) )
-
-llvm_config.use_clang()
 
 llvm_config.add_tool_substitutions(['llvm-spirv'], [config.sycl_tools_dir])
 
