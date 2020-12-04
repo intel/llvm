@@ -8,6 +8,12 @@ New device descriptors will be added to provide access to low-level hardware det
 
 This proposal details what is required to provide this information as a SYCL extensions.
 
+## Feature Test Macro ##
+
+The Feature Test Macro will be defined as:
+
+    #define SYCL_EXT_INTEL_DEVICE_INFO 1
+
 
 
 # Intel GPU PCI Address #
@@ -41,12 +47,6 @@ The PCI address can be obtained using the standard get\_info() interface.
       auto BDF = dev.get_info<info::device::ext_intel_pci_address>();
     }
 
-## Feature Test Macro ##
-
-The Feature Test Macro will be defined as:
-
-    #define SYCL_EXT_INTEL_DEVICE_INFO 1
-
 
 
 # Intel GPU Execution Unit SIMD Width #
@@ -79,11 +79,6 @@ The physical EU SIMD width can be obtained using the standard get\_info() interf
         auto euSimdWidth = dev.get_info<info::device::ext_intel_gpu_eu_simd_width>();
     }
 
-## Feature Test Macro ##
-
-The Feature Test Macro will be defined as:
-
-    #define SYCL_EXT_INTEL_GPU_DEVICE_INFO 1
 
 
 # Intel GPU Execution Unit Count #
@@ -118,8 +113,127 @@ Then the number of EUs can be obtained using the standard get\_info() interface.
       auto euCount = dev.get_info<info::device::ext_intel_gpu_eu_count>();
     }
 
-## Feature Test Macro ##
 
-The Feature Test Macro will be defined as:
 
-    #define SYCL_EXT_INTEL_GPU_DEVICE_INFO 1
+# Intel GPU Number of Slices #
+
+A new device descriptor will be added which will provide the number of slices on an Intel GPU.  If the device is a subdevice, then the number of slices in the subdevice is returned.
+
+This support will only be provided when using the Level Zero backend \(BE\).  This is the default for Intel GPUs.
+
+## Device Information Descriptors ##
+
+| Device Descriptors | Return Type | Description |
+| ------------------ | ----------- | ----------- |
+| info\:\:device\:\:ext\_intel\_gpu\_slices | uint32\_t| Returns the number of slices.|
+
+
+## Aspects ##
+
+A new aspect, ext\_intel\_gpu\_slices, will be added.
+
+
+## Error Condition ##
+
+An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_slices.
+
+## Example Usage ##
+
+Then the number of slices can be obtained using the standard get\_info() interface.
+
+    if (dev.has(aspect::ext_intel_gpu_slices)) {
+      auto slices = dev.get_info<info::device::ext_intel_gpu_slices>();
+    }
+
+
+# Intel GPU Number of Subslices per Slice #
+
+A new device descriptor will be added which will provide the number of subslices per slice on an Intel GPU.  If the device is a subdevice, then the number of subslices per slice in the subdevice is returned.
+
+This support will only be provided when using the Level Zero backend \(BE\).  This is the default for Intel GPUs.
+
+## Device Information Descriptors ##
+
+| Device Descriptors | Return Type | Description |
+| ------------------ | ----------- | ----------- |
+| info\:\:device\:\:ext\_intel\_gpu\_subslices\_per\_slice | uint32\_t| Returns the number of subslices per slice.|
+
+
+## Aspects ##
+
+A new aspect, ext\_intel\_gpu\_subslices\_per\_slice, will be added.
+
+
+## Error Condition ##
+
+An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_subslices\_per\_slice.
+
+## Example Usage ##
+
+Then the number of subslices per slice can be obtained using the standard get\_info() interface.
+
+    if (dev.has(aspect::ext_intel_gpu_subslices_per_slice)) {
+      auto subslices = dev.get_info<info::device::ext_intel_gpu_subslices_per_slice>();
+    }
+
+
+# Intel GPU Number of Execution Units (EUs) per Subslice #
+
+A new device descriptor will be added which will provide the number of EUs per subslice on an Intel GPU.  If the device is a subdevice, then the number of EUs per subslice in the subdevice is returned.
+
+This support will only be provided when using the Level Zero backend \(BE\).  This is the default for Intel GPUs.
+
+## Device Information Descriptors ##
+
+| Device Descriptors | Return Type | Description |
+| ------------------ | ----------- | ----------- |
+| info\:\:device\:\:ext\_intel\_gpu\_eu\_count\_per\_subslice | uint32\_t| Returns the number of EUs in a subslice.|
+
+
+## Aspects ##
+
+A new aspect, ext\_intel\_gpu\_eu\_count\_per\_subslice, will be added.
+
+
+## Error Condition ##
+
+An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_eu\_count\_per\_subslice.
+
+## Example Usage ##
+
+Then the number of EUs per subslice can be obtained using the standard get\_info() interface.
+
+    if (dev.has(aspect::ext_intel_gpu_eu_count_per_subslice)) {
+      auto euCount = dev.get_info<info::device::ext_intel_gpu_eu_count_per_subslice>();
+    }
+
+
+# Intel GPU Maximum Memory Bandwidth #
+
+A new device descriptor will be added which will provide the maximum memory bandwidth of an Intel GPU.  If the device is a subdevice, then the maximum bandwidth of the subdevice is returned.
+
+This support will only be provided when using the Level Zero backend \(BE\).  This is the default for Intel GPUs.
+
+## Device Information Descriptors ##
+
+| Device Descriptors | Return Type | Description |
+| ------------------ | ----------- | ----------- |
+| info\:\:device\:\:ext\_intel\_max\_mem\_bandwidth | uint64\_t| Returns the maximum memory bandwidth.|
+
+
+## Aspects ##
+
+A new aspect, ext\_intel\_max\_mem\_bandwidth, will be added.
+
+
+## Error Condition ##
+
+An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_max\_mem\_bandwidth.
+
+## Example Usage ##
+
+Then the maximum memory bandwidth can be obtained using the standard get\_info() interface.
+
+    if (dev.has(aspect::ext_intel_max_mem_bandwidth)) {
+      auto maxBW = dev.get_info<info::device::ext_intel_max_mem_bandwidth>();
+    }
