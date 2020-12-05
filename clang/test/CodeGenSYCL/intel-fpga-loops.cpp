@@ -7,7 +7,7 @@
 // CHECK: br label %for.cond2,  !llvm.loop ![[MD_MC_2:[0-9]+]]
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_LC:[0-9]+]]
 // CHECK: br label %for.cond2,  !llvm.loop ![[MD_LC_2:[0-9]+]]
-// CHECK: br label %for.cond12, !llvm.loop ![[MD_LC_3:[0-9]+]]
+// CHECK: br label %for.cond13, !llvm.loop ![[MD_LC_3:[0-9]+]]
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_MI:[0-9]+]]
 // CHECK: br label %for.cond2,  !llvm.loop ![[MD_MI_2:[0-9]+]]
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_SI:[0-9]+]]
