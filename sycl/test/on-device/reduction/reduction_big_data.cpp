@@ -20,47 +20,68 @@ using namespace cl::sycl;
 
 template <typename... Ts> class KernelNameGroup;
 
-template <typename SpecializationKernelName, typename T, int Dim,
-          class BinaryOperation>
-void test(T Identity, size_t WGSize, size_t NWItems) {
-  buffer<T, 1> InBuf(NWItems);
+size_t getSafeMaxWGSize(size_t MaxWGSize, size_t MemSize, size_t OneElemSize) {
+  size_t MaxNumElems = MemSize / OneElemSize;
+  if ((MaxNumElems & (MaxNumElems - 1)) != 0)
+    MaxNumElems--; // Need 1 additional element in mem if not pow of 2
+  return std::min(MaxNumElems / 2, MaxWGSize);
+}
+
+template <typename KernelName, typename T, int Dim, class BinaryOperation>
+void test(T Identity) {
+  queue Q;
+  device Device = Q.get_device();
+
+  std::size_t MaxWGSize = Device.get_info<info::device::max_work_group_size>();
+  std::size_t LocalMemSize = Device.get_info<info::device::local_mem_size>();
+  std::cout << "Detected device::max_work_group_size = " << MaxWGSize << "\n";
+  std::cout << "Detected device::local_mem_size = " << LocalMemSize << "\n";
+
+  size_t WGSize = getSafeMaxWGSize(MaxWGSize, LocalMemSize, sizeof(T));
+
+  size_t MaxGlobalMem = 2LL * 1024 * 1024 * 1024; // Don't use more than 2 Gb
+  // Limit max global range by mem and also subtract 1 to make it non-uniform.
+  size_t MaxGlobalRange = MaxGlobalMem / sizeof(T) - 1;
+  size_t NWorkItems = std::min(WGSize * MaxWGSize + 1, MaxGlobalRange);
+
+  size_t NWorkGroups = (NWorkItems - 1) / WGSize + 1;
+  range<1> GlobalRange(NWorkGroups * WGSize);
+  range<1> LocalRange(WGSize);
+  nd_range<1> NDRange(GlobalRange, LocalRange);
+  std::cout << "Running the test with: GlobalRange = " << (NWorkGroups * WGSize)
+            << ", LocalRange = " << WGSize << ", NWorkItems = " << NWorkItems
+            << "\n";
+
+  buffer<T, 1> InBuf(NWorkItems);
   buffer<T, 1> OutBuf(1);
 
   // Initialize.
   BinaryOperation BOp;
   T CorrectOut;
-  initInputData(InBuf, CorrectOut, Identity, BOp, NWItems);
+  initInputData(InBuf, CorrectOut, Identity, BOp, NWorkItems);
 
   // Compute.
-  queue Q;
   Q.submit([&](handler &CGH) {
     auto In = InBuf.template get_access<access::mode::read>(CGH);
     accessor<T, Dim, access::mode::discard_write, access::target::global_buffer>
         Out(OutBuf, CGH);
-    size_t NWorkGroups = (NWItems - 1) / WGSize + 1;
-    range<1> GlobalRange(NWorkGroups * WGSize);
-    range<1> LocalRange(WGSize);
-    nd_range<1> NDRange(GlobalRange, LocalRange);
-    std::cout << "Running the test with: GlobalRange = "
-              << (NWorkGroups * WGSize) << ", LocalRange = " << WGSize
-              << ", NWItems = " << NWItems << "\n";
-    CGH.parallel_for<SpecializationKernelName>(
-        NDRange, ONEAPI::reduction(Out, Identity, BOp),
-        [=](nd_item<1> NDIt, auto &Sum) {
-          if (NDIt.get_global_linear_id() < NWItems)
-            Sum.combine(In[NDIt.get_global_linear_id()]);
-        });
+    CGH.parallel_for<KernelName>(NDRange, ONEAPI::reduction(Out, Identity, BOp),
+                                 [=](nd_item<1> NDIt, auto &Sum) {
+                                   if (NDIt.get_global_linear_id() < NWorkItems)
+                                     Sum.combine(
+                                         In[NDIt.get_global_linear_id()]);
+                                 });
   });
 
   // Check correctness.
   auto Out = OutBuf.template get_access<access::mode::read>();
   T ComputedOut = *(Out.get_pointer());
   if (ComputedOut != CorrectOut) {
-    std::cout << "NWItems = " << NWItems << ", WGSize = " << WGSize << "\n";
     std::cout << "Computed value: " << ComputedOut
               << ", Expected value: " << CorrectOut << "\n";
     assert(0 && "Wrong value.");
   }
+  std::cout << "Test case passed\n\n";
 }
 
 template <typename T> struct BigCustomVec : public CustomVec<T> {
@@ -78,22 +99,10 @@ template <class T> struct BigCustomVecPlus {
 };
 
 int main() {
-  device Device = queue().get_device();
-  std::size_t MaxWGSize = Device.get_info<info::device::max_work_group_size>();
-  std::size_t LocalMemSize = Device.get_info<info::device::local_mem_size>();
-  std::cout << "Detected device::max_work_group_size = " << MaxWGSize << "\n";
-  std::cout << "Detected device::local_mem_size = " << LocalMemSize << "\n";
+  test<class Test1, float, 0, ONEAPI::maximum<>>(getMinimumFPValue<float>());
 
-  test<class KernelName_slumazIfW, float, 0, ONEAPI::maximum<>>(
-      getMinimumFPValue<float>(), MaxWGSize / 2, MaxWGSize * MaxWGSize + 1);
-
-  size_t MaxUsableWGSize = LocalMemSize / sizeof(BigCustomVec<long long>);
-  if ((MaxUsableWGSize & (MaxUsableWGSize - 1)) != 0)
-    MaxUsableWGSize--; // Need 1 additional element in local mem if not pow of 2
-  size_t UsableWGSize = std::min(MaxUsableWGSize / 2, MaxWGSize);
-  test<class KernelName_VzSVAWkAmHq, BigCustomVec<long long>, 1,
-       BigCustomVecPlus<long long>>(BigCustomVec<long long>(0), UsableWGSize,
-                                    UsableWGSize * MaxWGSize + 1);
+  using BCV = BigCustomVec<long long>;
+  test<class Test2, BCV, 1, BigCustomVecPlus<long long>>(BCV(0));
 
   std::cout << "Test passed\n";
   return 0;
