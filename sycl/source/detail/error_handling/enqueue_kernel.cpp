@@ -203,10 +203,10 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
               LocalExceedsGlobal
                   ? "Local work-group size {" + LocalWGSize +
                         "} is greater than global range size {" + GlobalWGSize +
-                        "}"
+                        "}. "
                   : "Global work size {" + GlobalWGSize +
                         "} is not evenly divisible by local work-group size {" +
-                        LocalWGSize + "}";
+                        LocalWGSize + "}. ";
           if (!HasStd20)
             throw sycl::nd_range_error(
                 message.append(
