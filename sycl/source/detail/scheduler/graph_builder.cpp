@@ -508,10 +508,10 @@ Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record,
   std::vector<Command *> Visited;
   const bool ReadOnlyReq = Req->MAccessMode == access::mode::read;
 
-  std::vector<Command *> ToAnalyze{std::move(Record->MWriteLeaves.toVector())};
+  std::vector<Command *> ToAnalyze{Record->MWriteLeaves.toVector()};
 
   if (!ReadOnlyReq) {
-    std::vector<Command *> V{std::move(Record->MReadLeaves.toVector())};
+    std::vector<Command *> V{Record->MReadLeaves.toVector()};
 
     ToAnalyze.insert(ToAnalyze.begin(), V.begin(), V.end());
   }
@@ -964,8 +964,7 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(
     // Collect stream objects for a visited command.
     if (Cmd->getType() == Command::CommandType::RUN_CG) {
       auto ExecCmd = static_cast<ExecCGCommand *>(Cmd);
-      std::vector<std::shared_ptr<stream_impl>> Streams =
-          std::move(ExecCmd->getStreams());
+      std::vector<std::shared_ptr<stream_impl>> Streams = ExecCmd->getStreams();
       ExecCmd->clearStreams();
       StreamsToDeallocate.insert(StreamsToDeallocate.end(), Streams.begin(),
                                  Streams.end());
@@ -1026,8 +1025,7 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(
     // Collect stream objects for a visited command.
     if (Cmd->getType() == Command::CommandType::RUN_CG) {
       auto ExecCmd = static_cast<ExecCGCommand *>(Cmd);
-      std::vector<std::shared_ptr<stream_impl>> Streams =
-          std::move(ExecCmd->getStreams());
+      std::vector<std::shared_ptr<stream_impl>> Streams = ExecCmd->getStreams();
       ExecCmd->clearStreams();
       StreamsToDeallocate.insert(StreamsToDeallocate.end(), Streams.begin(),
                                  Streams.end());
