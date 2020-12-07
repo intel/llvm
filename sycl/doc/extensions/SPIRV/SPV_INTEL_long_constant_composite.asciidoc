@@ -36,8 +36,8 @@ Version
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2020-11-26
-| Revision           | 5
+| Last Modified Date | 2020-12-07
+| Revision           | 6
 |========================================
 
 Dependencies
@@ -52,7 +52,8 @@ Overview
 --------
 
 This extension adds new capability and instructions to allow to represent
-composite constants with number of Constituents greater than maximum WordCount.
+composite constants with number of Constituents greater than the maximum
+possible WordCount.
 
 Extension Name
 --------------
@@ -89,7 +90,7 @@ In section 3.37.6. Type-Declaration Instructions add the new instruction
 2+^|*OpTypeStructContinuedINTEL* +
 
 Continue specifying an *OpTypeStruct* with number of _Member types_
-greater than maximum possible WordCount.
+greater than the maximum possible WordCount.
 
 The previous instruction must be an *OpTypeStruct* or an
 *OpTypeStructContinuedINTEL* instruction.
@@ -107,8 +108,9 @@ Modify the description of *OpTypeStruct* instruction, adding the
 following sentence to the end:
 In case if it is not possible to specify all the _member types_ of the structure
 by one *OpTypeStruct* instruction, i.e. if number of members of the
-_Result type_ is greater than maximum possible WordCount, the remaining _member
-types_ are specified by following *OpTypeStructContinuedINTEL* instructions.
+_Result type_ is greater than the maximum possible WordCount, the remaining
+_member types_ are specified by the following *OpTypeStructContinuedINTEL*
+instructions.
 
 In section 3.37.7. Constant-Creation Instructions, add the new instructions
 [cols="3", width="100%"]
@@ -116,7 +118,7 @@ In section 3.37.7. Constant-Creation Instructions, add the new instructions
 2+^|*OpConstantCompositeContinuedINTEL* +
 
 Continue specifying an *OpConstantComposite* instruction with number of
-_Constituents_ greater than maximum possible WordCount.
+_Constituents_ greater than the maximum possible WordCount.
 
 The previous instruction must be an *OpConstantComposite* or an
 *OpConstantCompositeContinuedINTEL* instruction.
@@ -135,7 +137,7 @@ elements of an array, or components of a vector, or columns of a matrix.
 2+^|*OpSpecConstantCompositeContinuedINTEL* +
 
 Continue specifying an *OpSpecConstantComposite* instruction with number of
-_Constituents_ greater than maximum possible WordCount.
+_Constituents_ greater than the maximum possible WordCount.
 
 The previous instruction must be an *OpSpecConstantComposite* or an
 *OpSpecConstantCompositeContinuedINTEL* instruction.
@@ -159,24 +161,26 @@ Modify the description of *OpConstantComposite* instruction, adding the
 following sentence to the end:
 In case if it is not possible to specify all the _Constituents_ by one
 *OpConstantComposite* instruction, i.e. if number of members of the
-_Result type_ and corresponding _Constituents_ is greater than maximum possible
-WordCount, the remaining _Constituents_ are specified by following
+_Result type_ and corresponding _Constituents_ is greater than the maximum
+possible WordCount, the remaining _Constituents_ are specified by the following
 *OpConstantCompositeContinuedINTEL* instructions.
 
 Modify the description of *OpSpecConstantComposite* instruction, adding the
 following sentence to the end:
 In case if it is not possible to specify all the _Constituents_ by one
 *OpSpecConstantComposite* instruction, i.e. if number of members of the
-_Result type_ and corresponding _Constituents_ is greater than maximum possible
-WordCount, the remaining _Constituents_ are specified by following
+_Result type_ and corresponding _Constituents_ is greater than the maximum
+possible WordCount, the remaining _Constituents_ are specified by the following
 *OpSpecConstantCompositeContinuedINTEL* instructions.
 
 In Section 3.37.8. Memory Instructions, modify the description of the
 *OpAccessChain* instruction, adding the following sentence to the end:
 In case _Base_ is an *OpConstantComposite* instruction followed by one or
 more *OpConstantCompositeContinuedINTEL* instructions, the bounds must be bounds
-of *OpConstantComposite* and *OpConstantCompositeContinuedINTEL* instructions
-together.
+of *OpConstantComposite* and the following *OpConstantCompositeContinuedINTEL*
+instructions together. Same is applicable in case _Base_ is an
+*OpSpecConstantComposite* instruction followed be one or more
+*OpSpecConstantCompositeContinuedINTEL* instructions.
 
 Issues
 ------
@@ -214,13 +218,18 @@ Revision History
 |========================================
 |Rev|Date|Author|Changes
 |1|2020-11-09|Mariya Podchishchaeva|Initial revision
-|2|2020-11-13|Mariya Podchishchaeva|Apply comments from AlexeySo and AlexeySa +
+|2|2020-11-13|Mariya Podchishchaeva|Apply comments from Alexey Sotkin and
+Alexey Sachkov +
 - Add OpTypeStructContinuedINTEL +
 - Add OpSpecConstantCompositeContinuedINTEL +
 - Remove type and id from "continued" instructions since they are not necessary +
 - Fix several typos
 |3|2020-11-16|Mariya Podchishchaeva|Modify description of the
 OpConstantComposite and OpSpecConstantComposite instructions
-|4|2020-11-23|Mariya Podchishchaeva|Apply comments from AlexeySo and AlexeySa
-|5|2020-11-26|Mariya Podchishchaeva|Apply comments from AlexeySo
+|4|2020-11-23|Mariya Podchishchaeva|Apply comments from Alexey Sotkin and Alexey
+Sachkov
+|5|2020-11-26|Mariya Podchishchaeva|Apply comments from Alexey Sotkin and Alexey
+Sachkov
+|6|2020-12-07|Mariya Podchishchaeva|Apply comments from Alexey Sotkin and
+Mikhail Lychkov
 |========================================
