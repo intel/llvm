@@ -18,8 +18,6 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/AliasAnalysis.h"
-#include "llvm/Analysis/AssumptionCache.h"
-#include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
@@ -162,10 +160,6 @@ private:
   /// Tracks instructions visited by pointsToConstantMemory.
   SmallPtrSet<const Value *, 16> Visited;
 
-  /// Whether to disable persistent caching in AAQI. This is used to prevent
-  /// caching of results based on temporary assumptions.
-  bool DisableCache = false;
-
   static const Value *
   GetLinearExpression(const Value *V, APInt &Scale, APInt &Offset,
                       unsigned &ZExtBits, unsigned &SExtBits,
@@ -220,12 +214,6 @@ private:
                          LocationSize V2Size, const AAMDNodes &V2AATag,
                          AAQueryInfo &AAQI, const Value *O1 = nullptr,
                          const Value *O2 = nullptr);
-
-  AliasResult aliasCheckRecursive(const Value *V1, LocationSize V1Size,
-                                  const AAMDNodes &V1AATag, const Value *V2,
-                                  LocationSize V2Size, const AAMDNodes &V2AATag,
-                                  AAQueryInfo &AAQI, const Value *O1,
-                                  const Value *O2);
 };
 
 /// Analysis pass providing a never-invalidated alias analysis result.
