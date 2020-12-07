@@ -147,15 +147,21 @@ int main(int argc, char *argv[]) {
       malloc(size * TUPLE_SZ * sizeof(unsigned int)));
   compute_local_prefixsum(pInputs, pExpectOutputs, size);
 
-  auto e1 = q.submit([&](handler &cgh) {
-    cgh.parallel_for<class Accum_iterative>(
-        range<2>{size / PREFIX_ENTRIES, 1} * LocalRange,
-        [=](item<2> it) SYCL_ESIMD_KERNEL {
-          cmk_acum_iterative(pInputs, it.get_id(0), 1, PREFIX_ENTRIES);
-        });
-  });
-
-  e1.wait();
+  try {
+    auto e1 = q.submit([&](handler &cgh) {
+      cgh.parallel_for<class Accum_iterative>(
+          range<2>{size / PREFIX_ENTRIES, 1} * LocalRange,
+          [=](item<2> it) SYCL_ESIMD_KERNEL {
+            cmk_acum_iterative(pInputs, it.get_id(0), 1, PREFIX_ENTRIES);
+          });
+    });
+    e1.wait();
+  } catch (cl::sycl::exception const &e) {
+    std::cout << "SYCL exception caught: " << e.what() << '\n';
+    free(pInputs, ctxt);
+    free(pExpectOutputs);
+    return e.get_cl_code();
+  }
 
   bool pass = memcmp(pInputs, pExpectOutputs,
                      size * TUPLE_SZ * sizeof(unsigned int)) == 0;

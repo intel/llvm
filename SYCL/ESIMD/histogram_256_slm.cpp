@@ -157,7 +157,7 @@ int main() {
   auto LocalRange = cl::sycl::range<1>(NUM_BINS / 16);
   cl::sycl::nd_range<1> Range(GlobalRange, LocalRange);
 
-  {
+  try {
     auto e = q.submit([&](cl::sycl::handler &cgh) {
       cgh.parallel_for<class histogram_slm>(
           Range, [=](cl::sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
@@ -166,6 +166,9 @@ int main() {
           });
     });
     e.wait();
+  } catch (cl::sycl::exception const &e) {
+    std::cout << "SYCL exception caught: " << e.what() << '\n';
+    return e.get_cl_code();
   }
 
   std::cout << "finish GPU histogram\n";

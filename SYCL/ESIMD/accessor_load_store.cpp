@@ -53,7 +53,7 @@ template <typename T> bool test(queue q, size_t size) {
     A[i] = (T)i;
   }
 
-  {
+  try {
     buffer<T, 1> buf(A, range<1>(size));
     range<1> glob_range{size};
 
@@ -62,6 +62,10 @@ template <typename T> bool test(queue q, size_t size) {
       Kernel<T> kernel(acc);
       cgh.parallel_for(glob_range, kernel);
     });
+  } catch (cl::sycl::exception const &e) {
+    std::cout << "SYCL exception caught: " << e.what() << '\n';
+    delete[] A;
+    return e.get_cl_code();
   }
 
   int err_cnt = 0;

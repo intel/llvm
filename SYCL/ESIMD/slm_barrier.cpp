@@ -81,6 +81,7 @@ int main(void) {
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
   auto ctxt = q.get_context();
+  // TODO: release memory in the end of the test
   uint *A = static_cast<uint *>(malloc_shared(Size * sizeof(uint), dev, ctxt));
   uint *B = static_cast<uint *>(malloc_shared(Size * sizeof(uint), dev, ctxt));
 
@@ -101,34 +102,40 @@ int main(void) {
   cl::sycl::range<1> LocalRange{LOCAL_SIZE};
   cl::sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
 
-  auto e = q.submit([&](handler &cgh) {
-    cgh.parallel_for<class Test>(
-        Range, [=](cl::sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
-          simd<uint, VL> v_slmData;
-          simd<uint, VL> v_Off(0, 4);
+  try {
+    auto e = q.submit([&](handler &cgh) {
+      cgh.parallel_for<class Test>(
+          Range, [=](cl::sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+            simd<uint, VL> v_slmData;
+            simd<uint, VL> v_Off(0, 4);
 
-          uint localID = ndi.get_local_id(0);
-          uint groupSize = ndi.get_local_range(0);
-          uint globalID = ndi.get_global_id(0);
-          uint groupID = ndi.get_group(0);
+            uint localID = ndi.get_local_id(0);
+            uint groupSize = ndi.get_local_range(0);
+            uint globalID = ndi.get_global_id(0);
+            uint groupID = ndi.get_group(0);
 
-          slm_init(1024);
+            slm_init(1024);
 
-          int grpMemOffset = groupID * groupSize * VL * 4;
+            int grpMemOffset = groupID * groupSize * VL * 4;
 
-          load_to_slm(groupSize, localID, 0, (char *)A, grpMemOffset,
-                      groupSize * VL * 4);
+            load_to_slm(groupSize, localID, 0, (char *)A, grpMemOffset,
+                        groupSize * VL * 4);
 
-          auto shiftID = (localID + 1) % 4;
+            auto shiftID = (localID + 1) % 4;
 
-          v_Off = v_Off + shiftID * 64;
+            v_Off = v_Off + shiftID * 64;
 
-          v_slmData = slm_load<uint, VL>(v_Off);
+            v_slmData = slm_load<uint, VL>(v_Off);
 
-          block_store<uint, VL>(B + globalID * VL, v_slmData);
-        });
-  });
-  e.wait();
+            block_store<uint, VL>(B + globalID * VL, v_slmData);
+          });
+    });
+    e.wait();
+  } catch (cl::sycl::exception const &e) {
+    std::cout << "SYCL exception caught: " << e.what() << '\n';
+    return e.get_cl_code();
+  }
+
   std::cout << "result" << std::endl;
   int result = 0;
   for (int i = 0; i < NUM_THREADS; i++) {

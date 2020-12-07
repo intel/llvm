@@ -104,75 +104,82 @@ int main(void) {
   InitializeSquareMatrix(inputMatrix, DIM_SIZE, false);
   InitializeSquareMatrix(outputMatrix, DIM_SIZE, true);
 
-  auto e = q.submit([&](handler &cgh) {
-    cgh.parallel_for<class Stencil_kernel>(
-        GlobalRange * LocalRange, [=](item<2> it) SYCL_ESIMD_KERNEL {
-          using namespace sycl::INTEL::gpu;
-          uint h_pos = it.get_id(0);
-          uint v_pos = it.get_id(1);
+  try {
+    auto e = q.submit([&](handler &cgh) {
+      cgh.parallel_for<class Stencil_kernel>(
+          GlobalRange * LocalRange, [=](item<2> it) SYCL_ESIMD_KERNEL {
+            using namespace sycl::INTEL::gpu;
+            uint h_pos = it.get_id(0);
+            uint v_pos = it.get_id(1);
 
-          simd<float, (HEIGHT + 10) * 32> vin;
-          // matrix HEIGHT+10 x 32
-          auto in = vin.format<float, HEIGHT + 10, 32>();
+            simd<float, (HEIGHT + 10) * 32> vin;
+            // matrix HEIGHT+10 x 32
+            auto in = vin.format<float, HEIGHT + 10, 32>();
 
-          //
-          // rather than loading all data in
-          // the code will interleave data loading and compute
-          // first, we load enough data for the first 16 pixels
-          //
-          unsigned off = (v_pos * HEIGHT) * DIM_SIZE + h_pos * WIDTH;
+            //
+            // rather than loading all data in
+            // the code will interleave data loading and compute
+            // first, we load enough data for the first 16 pixels
+            //
+            unsigned off = (v_pos * HEIGHT) * DIM_SIZE + h_pos * WIDTH;
 #pragma unroll
-          for (unsigned i = 0; i < 10; i++) {
-            in.row(i) = block_load<float, 32>(inputMatrix + off);
-            off += DIM_SIZE;
-          }
+            for (unsigned i = 0; i < 10; i++) {
+              in.row(i) = block_load<float, 32>(inputMatrix + off);
+              off += DIM_SIZE;
+            }
 
-          unsigned out_off =
-              (((v_pos * HEIGHT + 5) * DIM_SIZE + (h_pos * WIDTH) + 5)) *
-              sizeof(float);
-          simd<unsigned, WIDTH> elm16(0, 1);
+            unsigned out_off =
+                (((v_pos * HEIGHT + 5) * DIM_SIZE + (h_pos * WIDTH) + 5)) *
+                sizeof(float);
+            simd<unsigned, WIDTH> elm16(0, 1);
 
 #pragma unroll
-          for (unsigned i = 0; i < HEIGHT; i++) {
+            for (unsigned i = 0; i < HEIGHT; i++) {
 
-            in.row(10 + i) = block_load<float, 32>(inputMatrix + off);
-            off += DIM_SIZE;
+              in.row(10 + i) = block_load<float, 32>(inputMatrix + off);
+              off += DIM_SIZE;
 
-            simd<float, WIDTH> sum =
-                in.row(i + 0).select<WIDTH, 1>(5) * -0.02f +
-                in.row(i + 1).select<WIDTH, 1>(5) * -0.025f +
-                in.row(i + 2).select<WIDTH, 1>(5) * -0.0333333333333f +
-                in.row(i + 3).select<WIDTH, 1>(5) * -0.05f +
-                in.row(i + 4).select<WIDTH, 1>(5) * -0.1f +
-                in.row(i + 6).select<WIDTH, 1>(5) * 0.1f +
-                in.row(i + 7).select<WIDTH, 1>(5) * 0.05f +
-                in.row(i + 8).select<WIDTH, 1>(5) * 0.0333333333333f +
-                in.row(i + 9).select<WIDTH, 1>(5) * 0.025f +
-                in.row(i + 10).select<WIDTH, 1>(5) * 0.02f +
-                in.row(i + 5).select<WIDTH, 1>(0) * -0.02f +
-                in.row(i + 5).select<WIDTH, 1>(1) * -0.025f +
-                in.row(i + 5).select<WIDTH, 1>(2) * -0.0333333333333f +
-                in.row(i + 5).select<WIDTH, 1>(3) * -0.05f +
-                in.row(i + 5).select<WIDTH, 1>(4) * -0.1f +
-                in.row(i + 5).select<WIDTH, 1>(6) * 0.1f +
-                in.row(i + 5).select<WIDTH, 1>(7) * 0.05f +
-                in.row(i + 5).select<WIDTH, 1>(8) * 0.0333333333333f +
-                in.row(i + 5).select<WIDTH, 1>(9) * 0.025f +
-                in.row(i + 5).select<WIDTH, 1>(10) * 0.02f;
+              simd<float, WIDTH> sum =
+                  in.row(i + 0).select<WIDTH, 1>(5) * -0.02f +
+                  in.row(i + 1).select<WIDTH, 1>(5) * -0.025f +
+                  in.row(i + 2).select<WIDTH, 1>(5) * -0.0333333333333f +
+                  in.row(i + 3).select<WIDTH, 1>(5) * -0.05f +
+                  in.row(i + 4).select<WIDTH, 1>(5) * -0.1f +
+                  in.row(i + 6).select<WIDTH, 1>(5) * 0.1f +
+                  in.row(i + 7).select<WIDTH, 1>(5) * 0.05f +
+                  in.row(i + 8).select<WIDTH, 1>(5) * 0.0333333333333f +
+                  in.row(i + 9).select<WIDTH, 1>(5) * 0.025f +
+                  in.row(i + 10).select<WIDTH, 1>(5) * 0.02f +
+                  in.row(i + 5).select<WIDTH, 1>(0) * -0.02f +
+                  in.row(i + 5).select<WIDTH, 1>(1) * -0.025f +
+                  in.row(i + 5).select<WIDTH, 1>(2) * -0.0333333333333f +
+                  in.row(i + 5).select<WIDTH, 1>(3) * -0.05f +
+                  in.row(i + 5).select<WIDTH, 1>(4) * -0.1f +
+                  in.row(i + 5).select<WIDTH, 1>(6) * 0.1f +
+                  in.row(i + 5).select<WIDTH, 1>(7) * 0.05f +
+                  in.row(i + 5).select<WIDTH, 1>(8) * 0.0333333333333f +
+                  in.row(i + 5).select<WIDTH, 1>(9) * 0.025f +
+                  in.row(i + 5).select<WIDTH, 1>(10) * 0.02f;
 
-            // predciate output
-            simd<ushort, WIDTH> p = (elm16 + h_pos * WIDTH) < DIM_SIZE - 10;
+              // predciate output
+              simd<ushort, WIDTH> p = (elm16 + h_pos * WIDTH) < DIM_SIZE - 10;
 
-            simd<unsigned, WIDTH> elm16_off = elm16 * sizeof(float) + out_off;
-            scatter<float, WIDTH>(outputMatrix, sum, elm16_off, p);
-            out_off += DIM_SIZE * sizeof(float);
+              simd<unsigned, WIDTH> elm16_off = elm16 * sizeof(float) + out_off;
+              scatter<float, WIDTH>(outputMatrix, sum, elm16_off, p);
+              out_off += DIM_SIZE * sizeof(float);
 
-            if (v_pos * HEIGHT + 10 + i >= DIM_SIZE - 1)
-              break;
-          }
-        });
-  });
-  e.wait();
+              if (v_pos * HEIGHT + 10 + i >= DIM_SIZE - 1)
+                break;
+            }
+          });
+    });
+    e.wait();
+  } catch (cl::sycl::exception const &e) {
+    std::cout << "SYCL exception caught: " << e.what() << '\n';
+    free(inputMatrix, ctxt);
+    free(outputMatrix, ctxt);
+    return e.get_cl_code();
+  }
 
   // check result
   bool passed = CheckResults(outputMatrix, inputMatrix);

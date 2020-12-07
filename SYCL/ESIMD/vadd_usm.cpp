@@ -29,6 +29,7 @@ int main(void) {
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
   auto ctxt = q.get_context();
+  // TODO: release memory in the end of the test
   float *A =
       static_cast<float *>(malloc_shared(Size * sizeof(float), dev, ctxt));
   float *B =
@@ -47,18 +48,25 @@ int main(void) {
 
   cl::sycl::nd_range<1> Range(GlobalRange, LocalRange);
 
-  auto e = q.submit([&](handler &cgh) {
-    cgh.parallel_for<class Test>(Range, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
-      using namespace sycl::INTEL::gpu;
+  try {
+    auto e = q.submit([&](handler &cgh) {
+      cgh.parallel_for<class Test>(
+          Range, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+            using namespace sycl::INTEL::gpu;
 
-      int i = ndi.get_global_id(0);
-      simd<float, VL> va = block_load<float, VL>(A + i * VL);
-      simd<float, VL> vb = block_load<float, VL>(B + i * VL);
-      simd<float, VL> vc = va + vb;
-      block_store<float, VL>(C + i * VL, vc);
+            int i = ndi.get_global_id(0);
+            simd<float, VL> va = block_load<float, VL>(A + i * VL);
+            simd<float, VL> vb = block_load<float, VL>(B + i * VL);
+            simd<float, VL> vc = va + vb;
+            block_store<float, VL>(C + i * VL, vc);
+          });
     });
-  });
-  e.wait();
+    e.wait();
+  } catch (cl::sycl::exception const &e) {
+    std::cout << "SYCL exception caught: " << e.what() << '\n';
+    return e.get_cl_code();
+  }
+
   int err_cnt = 0;
 
   for (unsigned i = 0; i < Size; ++i) {

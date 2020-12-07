@@ -319,31 +319,37 @@ bool runTest(unsigned MZ, unsigned block_size) {
   double kernel_times = 0;
   unsigned num_iters = 10;
 
-  // num_iters + 1, iteration#0 is for warmup
-  for (int i = 0; i <= num_iters; ++i) {
-    double etime = 0;
-    if (block_size == 16 && MZ >= 16) {
-      auto e = q.submit([&](handler &cgh) {
-        cgh.parallel_for<class Transpose16>(
-            Range, [=](nd_item<2> ndi) SYCL_ESIMD_KERNEL {
-              transpose16(M, MZ, ndi.get_global_id(0), ndi.get_global_id(1));
-            });
-      });
-      e.wait();
-      etime = report_time("kernel time", e);
-    } else if (block_size == 8) {
-      auto e = q.submit([&](handler &cgh) {
-        cgh.parallel_for<class Transpose08>(
-            Range, [=](nd_item<2> ndi) SYCL_ESIMD_KERNEL {
-              transpose8(M, MZ, ndi.get_global_id(0), ndi.get_global_id(1));
-            });
-      });
-      e.wait();
-      etime = report_time("kernel time", e);
-    }
+  try {
+    // num_iters + 1, iteration#0 is for warmup
+    for (int i = 0; i <= num_iters; ++i) {
+      double etime = 0;
+      if (block_size == 16 && MZ >= 16) {
+        auto e = q.submit([&](handler &cgh) {
+          cgh.parallel_for<class Transpose16>(
+              Range, [=](nd_item<2> ndi) SYCL_ESIMD_KERNEL {
+                transpose16(M, MZ, ndi.get_global_id(0), ndi.get_global_id(1));
+              });
+        });
+        e.wait();
+        etime = report_time("kernel time", e);
+      } else if (block_size == 8) {
+        auto e = q.submit([&](handler &cgh) {
+          cgh.parallel_for<class Transpose08>(
+              Range, [=](nd_item<2> ndi) SYCL_ESIMD_KERNEL {
+                transpose8(M, MZ, ndi.get_global_id(0), ndi.get_global_id(1));
+              });
+        });
+        e.wait();
+        etime = report_time("kernel time", e);
+      }
 
-    if (i > 0)
-      kernel_times += etime;
+      if (i > 0)
+        kernel_times += etime;
+    }
+  } catch (cl::sycl::exception const &e) {
+    std::cout << "SYCL exception caught: " << e.what() << '\n';
+    free(M, ctxt);
+    return e.get_cl_code();
   }
 
   // End timer.

@@ -40,20 +40,26 @@ int main(void) {
   int *C = static_cast<int *>(
       malloc_shared(ScalarGlobalRange.size() * sizeof(int), dev, ctxt));
 
-  auto e = q.submit([&](handler &cgh) {
-    cgh.parallel_for<class Test>(
-        GlobalRange, [=](item<3> it) SYCL_ESIMD_KERNEL {
-          using namespace sycl::INTEL::gpu;
-          auto id = it.get_id();
-          // calculate linear ID:
-          size_t lin_id = id[0] * Y * X + id[1] * X + id[2];
-          simd<int, VL> inc(0, 1);
-          int off = (int)(lin_id * VL);
-          simd<int, VL> val = inc + off;
-          block_store<int, VL>(C + off, val);
-        });
-  });
-  e.wait();
+  try {
+    auto e = q.submit([&](handler &cgh) {
+      cgh.parallel_for<class Test>(
+          GlobalRange, [=](item<3> it) SYCL_ESIMD_KERNEL {
+            using namespace sycl::INTEL::gpu;
+            auto id = it.get_id();
+            // calculate linear ID:
+            size_t lin_id = id[0] * Y * X + id[1] * X + id[2];
+            simd<int, VL> inc(0, 1);
+            int off = (int)(lin_id * VL);
+            simd<int, VL> val = inc + off;
+            block_store<int, VL>(C + off, val);
+          });
+    });
+    e.wait();
+  } catch (cl::sycl::exception const &e) {
+    std::cout << "SYCL exception caught: " << e.what() << '\n';
+    return e.get_cl_code();
+  }
+
   int err_cnt = 0;
 
   for (size_t i = 0; i < ScalarGlobalRange.size(); ++i) {

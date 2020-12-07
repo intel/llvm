@@ -601,7 +601,7 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
   cl::sycl::range<1> SortLocalRange{1};
 
   double total_time = 0;
-  {
+  try {
     buffer<uint32_t, 1> bufi(pInputs, range<1>(size));
     buffer<uint32_t, 1> bufo(pOutputs, range<1>(size));
     // enqueue sort265 kernel
@@ -616,6 +616,9 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
     });
     e.wait();
     total_time += report_time("kernel time", e, e);
+  } catch (cl::sycl::exception const &e) {
+    std::cout << "SYCL exception caught: " << e.what() << '\n';
+    return e.get_cl_code();
   }
 
   // Each HW thread swap two 256-element chunks. Hence, we only need
@@ -631,28 +634,34 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
   // this loop is for stage 8 to stage LOG2_ELEMENTS.
   event mergeEvent[(LOG2_ELEMENTS - 8) * (LOG2_ELEMENTS - 7) / 2];
   int k = 0;
-  for (int i = 8; i < LOG2_ELEMENTS; i++) {
-    // each step halves the stride distance of its prior step.
-    // 1<<j is the stride distance that the invoked step will handle.
-    // The recursive steps continue until stride distance 1 is complete.
-    // For stride distance less than 1<<8, no global synchronization
-    // is needed, i.e., all work can be done locally within HW threads.
-    // Hence, the invocation of j==8 cmk_bitonic_merge finishes stride 256
-    // compare-and-swap and then performs stride 128, 64, 32, 16, 8, 4, 2, 1
-    // locally.
-    for (int j = i; j >= 8; j--) {
-      buffer<uint32_t, 1> buf(pOutputs, range<1>(size));
-      mergeEvent[k] = pQueue_->submit([&](handler &cgh) {
-        auto acc = buf.get_access<access::mode::read_write>(cgh);
-        cgh.parallel_for<class Merge>(MergeGlobalRange * MergeLocalRange,
-                                      [=](id<1> tid) SYCL_ESIMD_KERNEL {
-                                        using namespace sycl::INTEL::gpu;
-                                        cmk_bitonic_merge(acc, j, i, tid);
-                                      });
-      });
-      k++;
+  try {
+    for (int i = 8; i < LOG2_ELEMENTS; i++) {
+      // each step halves the stride distance of its prior step.
+      // 1<<j is the stride distance that the invoked step will handle.
+      // The recursive steps continue until stride distance 1 is complete.
+      // For stride distance less than 1<<8, no global synchronization
+      // is needed, i.e., all work can be done locally within HW threads.
+      // Hence, the invocation of j==8 cmk_bitonic_merge finishes stride 256
+      // compare-and-swap and then performs stride 128, 64, 32, 16, 8, 4, 2, 1
+      // locally.
+      for (int j = i; j >= 8; j--) {
+        buffer<uint32_t, 1> buf(pOutputs, range<1>(size));
+        mergeEvent[k] = pQueue_->submit([&](handler &cgh) {
+          auto acc = buf.get_access<access::mode::read_write>(cgh);
+          cgh.parallel_for<class Merge>(MergeGlobalRange * MergeLocalRange,
+                                        [=](id<1> tid) SYCL_ESIMD_KERNEL {
+                                          using namespace sycl::INTEL::gpu;
+                                          cmk_bitonic_merge(acc, j, i, tid);
+                                        });
+        });
+        k++;
+      }
     }
+  } catch (cl::sycl::exception const &e) {
+    std::cout << "SYCL exception caught: " << e.what() << '\n';
+    return e.get_cl_code();
   }
+
   mergeEvent[k - 1].wait();
   total_time += report_time("kernel time", mergeEvent[0], mergeEvent[k - 1]);
 

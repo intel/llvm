@@ -298,76 +298,82 @@ void cmk_prefix_iterative(unsigned *buf, unsigned h_pos,
 void hierarchical_prefix(queue &q, unsigned *buf, unsigned elem_stride,
                          unsigned thrd_stride, unsigned n_entries,
                          unsigned entry_per_th) {
-  if (n_entries <= REMAINING_ENTRIES) {
-    std::cout << "... n_entries: " << n_entries
+  try {
+    if (n_entries <= REMAINING_ENTRIES) {
+      std::cout << "... n_entries: " << n_entries
+                << " elem_stide: " << elem_stride
+                << " thread_stride: " << thrd_stride
+                << " entry per thread: " << entry_per_th << std::endl;
+      // one single thread
+      q.submit([&](handler &cgh) {
+        cgh.parallel_for<class Accum_final>(
+            range<2>{1, 1} * range<2>{1, 1}, [=](item<2> it) SYCL_ESIMD_KERNEL {
+              cmk_acum_final(buf, it.get_id(0), elem_stride, n_entries);
+            });
+      });
+      return;
+    }
+
+    std::cout << "*** n_entries: " << n_entries
               << " elem_stide: " << elem_stride
               << " thread_stride: " << thrd_stride
               << " entry per thread: " << entry_per_th << std::endl;
-    // one single thread
-    q.submit([&](handler &cgh) {
-      cgh.parallel_for<class Accum_final>(
-          range<2>{1, 1} * range<2>{1, 1}, [=](item<2> it) SYCL_ESIMD_KERNEL {
-            cmk_acum_final(buf, it.get_id(0), elem_stride, n_entries);
-          });
-    });
-    return;
-  }
 
-  std::cout << "*** n_entries: " << n_entries << " elem_stide: " << elem_stride
-            << " thread_stride: " << thrd_stride
-            << " entry per thread: " << entry_per_th << std::endl;
-
-  if (entry_per_th == PREFIX_ENTRIES) {
-    q.submit([&](handler &cgh) {
-      cgh.parallel_for<class Accum_iterative1>(
-          range<2>{n_entries / entry_per_th, 1} * range<2>{1, 1},
-          [=](item<2> it) SYCL_ESIMD_KERNEL {
-            cmk_acum_iterative(buf, it.get_id(0), elem_stride, thrd_stride,
-                               PREFIX_ENTRIES);
-          });
-    });
-  } else {
-    q.submit([&](handler &cgh) {
-      cgh.parallel_for<class Accum_iterative2>(
-          range<2>{n_entries / entry_per_th, 1} * range<2>{1, 1},
-          [=](item<2> it) SYCL_ESIMD_KERNEL {
-            cmk_acum_iterative(buf, it.get_id(0), elem_stride, thrd_stride,
-                               PREFIX_ENTRIES_LOW);
-          });
-    });
-  }
-
-  // if number of remaining entries <= 4K , each thread  accumulates smaller
-  // number of entries to keep EUs saturated
-  if (n_entries / entry_per_th > 4096)
-    hierarchical_prefix(q, buf, thrd_stride, thrd_stride * PREFIX_ENTRIES,
-                        n_entries / entry_per_th, PREFIX_ENTRIES);
-  else
-    hierarchical_prefix(q, buf, thrd_stride, thrd_stride * PREFIX_ENTRIES_LOW,
-                        n_entries / entry_per_th, PREFIX_ENTRIES_LOW);
-
-  std::cout << "=== n_entries: " << n_entries << " elem_stide: " << elem_stride
-            << " thread_stride: " << thrd_stride
-            << " entry per thread: " << entry_per_th << std::endl;
-
-  if (entry_per_th == PREFIX_ENTRIES) {
-    q.submit([&](handler &cgh) {
-      cgh.parallel_for<class Prefix_iterative1>(
-          range<2>{n_entries / entry_per_th, 1} * range<2>{1, 1},
-          [=](item<2> it) SYCL_ESIMD_KERNEL {
-            cmk_prefix_iterative(buf, it.get_id(0), elem_stride, thrd_stride,
+    if (entry_per_th == PREFIX_ENTRIES) {
+      q.submit([&](handler &cgh) {
+        cgh.parallel_for<class Accum_iterative1>(
+            range<2>{n_entries / entry_per_th, 1} * range<2>{1, 1},
+            [=](item<2> it) SYCL_ESIMD_KERNEL {
+              cmk_acum_iterative(buf, it.get_id(0), elem_stride, thrd_stride,
                                  PREFIX_ENTRIES);
-          });
-    });
-  } else {
-    q.submit([&](handler &cgh) {
-      cgh.parallel_for<class Prefix_iterative2>(
-          range<2>{n_entries / entry_per_th, 1} * range<2>{1, 1},
-          [=](item<2> it) SYCL_ESIMD_KERNEL {
-            cmk_prefix_iterative(buf, it.get_id(0), elem_stride, thrd_stride,
+            });
+      });
+    } else {
+      q.submit([&](handler &cgh) {
+        cgh.parallel_for<class Accum_iterative2>(
+            range<2>{n_entries / entry_per_th, 1} * range<2>{1, 1},
+            [=](item<2> it) SYCL_ESIMD_KERNEL {
+              cmk_acum_iterative(buf, it.get_id(0), elem_stride, thrd_stride,
                                  PREFIX_ENTRIES_LOW);
-          });
-    });
+            });
+      });
+    }
+
+    // if number of remaining entries <= 4K , each thread  accumulates smaller
+    // number of entries to keep EUs saturated
+    if (n_entries / entry_per_th > 4096)
+      hierarchical_prefix(q, buf, thrd_stride, thrd_stride * PREFIX_ENTRIES,
+                          n_entries / entry_per_th, PREFIX_ENTRIES);
+    else
+      hierarchical_prefix(q, buf, thrd_stride, thrd_stride * PREFIX_ENTRIES_LOW,
+                          n_entries / entry_per_th, PREFIX_ENTRIES_LOW);
+
+    std::cout << "=== n_entries: " << n_entries
+              << " elem_stide: " << elem_stride
+              << " thread_stride: " << thrd_stride
+              << " entry per thread: " << entry_per_th << std::endl;
+
+    if (entry_per_th == PREFIX_ENTRIES) {
+      q.submit([&](handler &cgh) {
+        cgh.parallel_for<class Prefix_iterative1>(
+            range<2>{n_entries / entry_per_th, 1} * range<2>{1, 1},
+            [=](item<2> it) SYCL_ESIMD_KERNEL {
+              cmk_prefix_iterative(buf, it.get_id(0), elem_stride, thrd_stride,
+                                   PREFIX_ENTRIES);
+            });
+      });
+    } else {
+      q.submit([&](handler &cgh) {
+        cgh.parallel_for<class Prefix_iterative2>(
+            range<2>{n_entries / entry_per_th, 1} * range<2>{1, 1},
+            [=](item<2> it) SYCL_ESIMD_KERNEL {
+              cmk_prefix_iterative(buf, it.get_id(0), elem_stride, thrd_stride,
+                                   PREFIX_ENTRIES_LOW);
+            });
+      });
+    }
+  } catch (cl::sycl::exception const &e) {
+    std::cout << "SYCL exception caught: " << e.what() << '\n';
   }
 }
 

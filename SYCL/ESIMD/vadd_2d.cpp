@@ -32,7 +32,7 @@ int main(void) {
     A[i] = B[i] = i;
   }
 
-  {
+  try {
     cl::sycl::image<2> imgA(A, image_channel_order::rgba,
                             image_channel_type::unsigned_int32,
                             range<2>{Size / 4, 1});
@@ -82,6 +82,9 @@ int main(void) {
           });
     });
     e.wait();
+  } catch (cl::sycl::exception const &e) {
+    std::cout << "SYCL exception caught: " << e.what() << '\n';
+    return e.get_cl_code();
   }
 
   for (unsigned i = 0; i < Size; ++i) {

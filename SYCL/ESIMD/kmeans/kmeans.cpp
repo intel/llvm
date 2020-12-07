@@ -678,10 +678,17 @@ int main(int argc, char *argv[]) {
     kernel3_time_in_ns += report_time("kernel3", e2);
   };
 
-  for (auto i = 0; i < NUM_ITERATIONS - 1; i++) {
-    submitJobs(false);
+  try {
+    for (auto i = 0; i < NUM_ITERATIONS - 1; i++) {
+      submitJobs(false);
+    }
+    submitJobs(true);
+  } catch (cl::sycl::exception const &e) {
+    std::cout << "SYCL exception caught: " << e.what() << '\n';
+    delete cpu_points;
+    delete cpu_centroids;
+    return e.get_cl_code();
   }
-  submitJobs(true);
 
   //---
 
