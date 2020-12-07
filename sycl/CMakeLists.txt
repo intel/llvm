@@ -280,6 +280,7 @@ add_custom_target( sycl-toolchain
           clang
           clang-offload-wrapper
           clang-offload-bundler
+          clang-offload-deps
           file-table-tform
           llc
           llvm-ar
