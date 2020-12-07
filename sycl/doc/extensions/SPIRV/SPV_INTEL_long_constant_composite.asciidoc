@@ -175,7 +175,7 @@ In Section 3.37.8. Memory Instructions, modify the description of the
 *OpAccessChain* instruction, adding the following sentence to the end:
 In case _Base_ is an *OpConstantComposite* instruction followed by one or
 more *OpConstantCompositeContinuedINTEL* instructions, the bounds must be bounds
-of *OpSpecConstantComposite* and *OpConstantCompositeContinuedINTEL* instructions
+of *OpConstantComposite* and *OpConstantCompositeContinuedINTEL* instructions
 together.
 
 Issues
