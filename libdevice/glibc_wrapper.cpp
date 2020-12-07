@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "wrapper.h"
+#include "devicelib_assert.h"
 
 #ifdef __SPIR__
 DEVICE_EXTERN_C

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "wrapper.h"
+#include "devicelib_assert.h"
 
 #ifdef __SPIR__
 // Truncates a wide (16 or 32 bit) string (wstr) into an ASCII string (str).
