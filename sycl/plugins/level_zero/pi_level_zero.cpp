@@ -1831,8 +1831,9 @@ pi_result piContextRelease(pi_context Context) {
   assert(Context);
   if (--(Context->RefCount) == 0) {
     // Clean up any live memory associated with Context
-    Context->finalize();
+    pi_result Result = Context->finalize();
     delete Context;
+    return Result;
   }
   return PI_SUCCESS;
 }
