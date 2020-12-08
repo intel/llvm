@@ -775,6 +775,18 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
           *this, TemplateArgs, SYCLIntelMaxGlobalWorkDim, New);
       continue;
     }
+    if (const auto *SYCLIntelLoopFuse =
+            dyn_cast<SYCLIntelLoopFuseAttr>(TmplAttr)) {
+      instantiateIntelSYCLFunctionAttr<SYCLIntelLoopFuseAttr>(
+          *this, TemplateArgs, SYCLIntelLoopFuse, New);
+      continue;
+    }
+    if (const auto *SYCLIntelLoopFuseIndependent =
+            dyn_cast<SYCLIntelLoopFuseIndependentAttr>(TmplAttr)) {
+      instantiateIntelSYCLFunctionAttr<SYCLIntelLoopFuseIndependentAttr>(
+          *this, TemplateArgs, SYCLIntelLoopFuseIndependent, New);
+      continue;
+    }
     // Existing DLL attribute on the instantiation takes precedence.
     if (TmplAttr->getKind() == attr::DLLExport ||
         TmplAttr->getKind() == attr::DLLImport) {
@@ -6198,7 +6210,10 @@ static void processSYCLKernel(Sema &S, FunctionDecl *FD, MangleContext &MC) {
   if (S.LangOpts.SYCLIsDevice) {
     S.ConstructOpenCLKernel(FD, MC);
   } else if (S.LangOpts.SYCLIsHost) {
-    CXXRecordDecl *CRD = (*FD->param_begin())->getType()->getAsCXXRecordDecl();
+    QualType KernelParamTy = (*FD->param_begin())->getType();
+    const CXXRecordDecl *CRD = (KernelParamTy->isReferenceType()
+                                    ? KernelParamTy->getPointeeCXXRecordDecl()
+                                    : KernelParamTy->getAsCXXRecordDecl());
     for (auto *Method : CRD->methods())
       if (Method->getOverloadedOperator() == OO_Call &&
           !Method->hasAttr<AlwaysInlineAttr>())

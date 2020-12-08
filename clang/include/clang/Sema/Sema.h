@@ -3356,6 +3356,12 @@ public:
   WebAssemblyImportModuleAttr *mergeImportModuleAttr(
       Decl *D, const WebAssemblyImportModuleAttr &AL);
 
+  SYCLIntelLoopFuseAttr *
+  mergeSYCLIntelLoopFuseAttr(Decl *D, const SYCLIntelLoopFuseAttr &Attr,
+                             Expr *E);
+  SYCLIntelLoopFuseIndependentAttr *mergeSYCLIntelLoopFuseIndependentAttr(
+      Decl *D, const SYCLIntelLoopFuseIndependentAttr &Attr, Expr *E);
+
   void mergeDeclAttributes(NamedDecl *New, Decl *Old,
                            AvailabilityMergeKind AMK = AMK_Redeclaration);
   void MergeTypedefNameDecl(Scope *S, TypedefNameDecl *New,

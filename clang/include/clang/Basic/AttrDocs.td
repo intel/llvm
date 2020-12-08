@@ -2608,6 +2608,57 @@ loop should not be fused with any adjacent loop.
   }];
 }
 
+def SYCLIntelLoopFuseDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "intel::loop_fuse";
+  let Content = [{
+``[[intel::loop_fuse(N)]]`` attribute applies to a function/lambda function. It
+is a strong request, to the extent possible, to fuse the loops within the
+function, that are contained in at most N-1 other loops within the function. If
+the optional parameter N is omitted, it is a strong request, to the extent possible,
+to fuse loops within the function that are not contained in any other loop within
+the function. This attribute should be passed through to the FPGA backend and
+ignored by the emulator. ``[[intel::loop_fuse(N)]]`` should not be propagated to
+the caller.
+
+.. code-block:: c++
+
+  [[intel::loop_fuse(N)]]
+  int foo() {}
+
+``[[intel::loop_fuse(N)]]`` takes one optional parameter, a constant integral
+expression N with value greater than or equal to 0. The parameter N may be a
+template parameter.
+
+  }];
+}
+
+def SYCLIntelLoopFuseIndependentDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "intel::loop_fuse_independent";
+  let Content = [{
+``[[intel::loop_fuse_independent(N)]]`` attribute applies to a function/lambda function.
+It is a strong request, to the extent possible, to fuse the loops within the
+function, that are contained in at most N-1 other loops within the function. It also
+guarantees that fusion safety analysis can ignore negative-distance dependences between
+these loops. If the optional parameter N is omitted, it is a strong request, to the extent
+possible, to fuse loops within the function that are not contained in any other loop within
+the function. This attribute should be passed through to the FPGA backend and
+ignored by the emulator. ``[[intel::loop_fuse_independent(N)]]`` should not be propagated
+to the caller.
+
+.. code-block:: c++
+
+  [[intel::loop_fuse_independent(N)]]
+  int foo() {}
+
+``[[intel::loop_fuse_independent(N)]]`` takes one optional parameter, a constant integral
+expression N with value greater than or equal to 0. The parameter N may be a template
+parameter.
+
+  }];
+}
+
 def SYCLDeviceIndirectlyCallableDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "intel::device_indirectly_callable";

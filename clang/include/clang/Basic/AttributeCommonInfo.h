@@ -166,7 +166,9 @@ public:
         ParsedAttr == AT_SYCLIntelMaxWorkGroupSize ||
         ParsedAttr == AT_SYCLIntelMaxGlobalWorkDim ||
         ParsedAttr == AT_SYCLIntelNoGlobalWorkOffset ||
-        ParsedAttr == AT_SYCLIntelUseStallEnableClusters)
+        ParsedAttr == AT_SYCLIntelUseStallEnableClusters ||
+        ParsedAttr == AT_SYCLIntelLoopFuse ||
+        ParsedAttr == AT_SYCLIntelLoopFuseIndependent)
       return true;
 
     return false;
