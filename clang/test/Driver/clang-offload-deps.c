@@ -5,8 +5,8 @@
 //
 // RUN: clang-offload-deps --help | FileCheck %s --check-prefix CHECK-HELP
 // CHECK-HELP: {{.*}}OVERVIEW: A tool for creating dependence bitcode files for offload targets. Takes
-// CHECK-HELP: {{.*}}host image as input and produces bitcode files, one per offload target, with
-// CHECK-HELP: {{.*}}references to symbols that must be defined in target images.
+// CHECK-HELP-NEXT: {{.*}}host image as input and produces bitcode files, one per offload target, with
+// CHECK-HELP-NEXT: {{.*}}references to symbols that must be defined in target images.
 // CHECK-HELP: {{.*}}USAGE: clang-offload-deps [options] <input file>
 // CHECK-HELP: {{.*}}  --outputs=<string> - [<output file>,...]
 // CHECK-HELP: {{.*}}  --targets=<string> - [<offload kind>-<target triple>,...]
@@ -35,6 +35,19 @@
 // CHECK-DEPS-SPIR64: @bar = external global i8*
 // CHECK-DEPS-SPIR64: @foo = external global i8*
 // CHECK-DEPS-SPIR64: @llvm.used = appending global [2 x i8*] [i8* bitcast (i8** @bar to i8*), i8* bitcast (i8** @foo to i8*)], section "llvm.metadata"
+
+//
+// Check that input with no .tgtsym section is handled correctly.
+//
+// RUN: clang-offload-deps -targets=openmp-x86_64-pc-linux-gnu,sycl-spir64 -outputs=%t.empty.x86_64,%t.empty.spir64 %t.host
+// RUN: llvm-dis -o - %t.empty.x86_64 | FileCheck %s --check-prefixes=CHECK-EMPTY-X86_64
+// RUN: llvm-dis -o - %t.empty.spir64 | FileCheck %s --check-prefixes=CHECK-EMPTY-SPIR64
+
+// CHECK-EMPTY-X86_64: target triple = "x86_64-pc-linux-gnu"
+// CHECK-EMPTY-X86_64-NOT: @offload.symbols
+
+// CHECK-EMPTY-SPIR64: target triple = "spir64"
+// CHECK-EMPTY-SPIR64-NOT: @llvm.used
 
 void foo(void) {}
 void bar(void) {}
