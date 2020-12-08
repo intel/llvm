@@ -99,8 +99,9 @@ int main() {
     return 1; // We shouldn't be here, exception is expected
   } catch (nd_range_error &E) {
     if (string_class(E.what()).find(
-            "Specified local size doesn't match the required work-group size "
-            "specified in the program source") == string_class::npos) {
+            "The specified local size {8, 8, 8} doesn't match the required "
+            "work-group size specified in the program source {4, 4, 4}") ==
+        string_class::npos) {
       std::cerr
           << "Test case ReqdWGSizeNegativeA failed: unexpected nd_range_error "
              "exception: "
