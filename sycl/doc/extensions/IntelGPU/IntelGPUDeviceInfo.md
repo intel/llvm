@@ -1,4 +1,4 @@
-# SYCL(TM) Proposal: New device descriptors for Intel GPUs
+# SYCL(TM) Proposal: Intel's Extensions for Device Information
 
 **IMPORTANT**: This specification is a draft.
 
