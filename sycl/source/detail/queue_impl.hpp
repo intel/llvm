@@ -118,7 +118,7 @@ public:
   }
 
   ~queue_impl() {
-    throw_asynchronous();
+    wait_and_throw();
     if (!MHostQueue) {
       getPlugin().call<PiApiKind::piQueueRelease>(MQueues[0]);
     }
