@@ -22,6 +22,8 @@ namespace std
   public:
     using arrival_token = see below;
 
+    static constexpr ptrdiff_t max() noexcept;
+
     constexpr explicit barrier(ptrdiff_t phase_count,
                                CompletionFunction f = CompletionFunction());
     ~barrier();
@@ -57,6 +59,9 @@ namespace std
 #ifdef _LIBCPP_HAS_NO_THREADS
 # error <barrier> is not supported on this single threaded system
 #endif
+
+_LIBCPP_PUSH_MACROS
+#include <__undef_macros>
 
 #if _LIBCPP_STD_VER >= 14
 
@@ -319,5 +324,7 @@ public:
 _LIBCPP_END_NAMESPACE_STD
 
 #endif // _LIBCPP_STD_VER >= 14
+
+_LIBCPP_POP_MACROS
 
 #endif //_LIBCPP_BARRIER

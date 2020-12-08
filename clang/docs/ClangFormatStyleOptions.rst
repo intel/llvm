@@ -1382,6 +1382,18 @@ the configuration (without a prefix: ``Auto``).
 
 
 
+**BreakBeforeConceptDeclarations** (``bool``)
+  If ``true``, concept will be placed on a new line.
+
+  .. code-block:: c++
+
+    true:
+     template<typename T>
+     concept ...
+
+    false:
+     template<typename T> concept ...
+
 **BreakBeforeTernaryOperators** (``bool``)
   If ``true``, ternary operators will be placed after line breaks.
 
@@ -1707,6 +1719,9 @@ the configuration (without a prefix: ``Auto``).
   priority for order.``SortPriority`` is set to the value of ``Priority``
   as default if it is not assigned.
 
+  Each regular expression can be marked as case sensitive with the field
+  ``CaseSensitive``, per default it is not.
+
   To configure this in the .clang-format file, use:
 
   .. code-block:: yaml
@@ -1715,6 +1730,7 @@ the configuration (without a prefix: ``Auto``).
       - Regex:           '^"(llvm|llvm-c|clang|clang-c)/'
         Priority:        2
         SortPriority:    2
+        CaseSensitive:   true
       - Regex:           '^(<|"(gtest|gmock|isl|json)/)'
         Priority:        3
       - Regex:           '<[[:alnum:].]+>'
@@ -1900,6 +1916,25 @@ the configuration (without a prefix: ``Auto``).
        #endif
 
 
+
+**IndentRequires** (``bool``)
+  Indent the requires clause in a template
+
+  .. code-block:: c++
+
+     true:
+     template <typename It>
+       requires Iterator<It>
+     void sort(It begin, It end) {
+       //....
+     }
+
+     false:
+     template <typename It>
+     requires Iterator<It>
+     void sort(It begin, It end) {
+       //....
+     }
 
 **IndentWidth** (``unsigned``)
   The number of columns to use for indentation.

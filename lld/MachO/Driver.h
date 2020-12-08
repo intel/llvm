@@ -36,6 +36,8 @@ enum {
 #undef OPTION
 };
 
+void parseLCLinkerOption(InputFile*, unsigned argc, StringRef data);
+
 std::string createResponseFile(const llvm::opt::InputArgList &args);
 
 // Check for both libfoo.dylib and libfoo.tbd (in that order).
@@ -46,7 +48,7 @@ llvm::Optional<DylibFile *> makeDylibFromTAPI(llvm::MemoryBufferRef mbref,
 
 uint32_t getModTime(llvm::StringRef path);
 
-void printWhyLoad(StringRef reason, const InputFile *);
+void printArchiveMemberLoad(StringRef reason, const InputFile *);
 
 } // namespace macho
 } // namespace lld

@@ -257,7 +257,8 @@ def ACC_Atomic : Directive<"atomic"> {}
 // 2.6.5
 def ACC_Data : Directive<"data"> {
   let allowedOnceClauses = [
-    VersionedClause<ACCC_If>
+    VersionedClause<ACCC_If>,
+    VersionedClause<ACCC_Default>
   ];
   let requiredClauses = [
     VersionedClause<ACCC_Attach>,
@@ -297,7 +298,8 @@ def ACC_Kernels : Directive<"kernels"> {
     VersionedClause<ACCC_DeviceType>,
     VersionedClause<ACCC_NoCreate>,
     VersionedClause<ACCC_Present>,
-    VersionedClause<ACCC_DevicePtr>
+    VersionedClause<ACCC_DevicePtr>,
+    VersionedClause<ACCC_Wait>
   ];
   let allowedOnceClauses = [
     VersionedClause<ACCC_Async>,
@@ -306,8 +308,7 @@ def ACC_Kernels : Directive<"kernels"> {
     VersionedClause<ACCC_NumGangs>,
     VersionedClause<ACCC_NumWorkers>,
     VersionedClause<ACCC_Self>,
-    VersionedClause<ACCC_VectorLength>,
-    VersionedClause<ACCC_Wait>
+    VersionedClause<ACCC_VectorLength>
   ];
 }
 
