@@ -93,7 +93,6 @@
 // SYCL_DEVICE_LIB_INVALID_VALUE: error: unsupported argument 'dummy' to option 'fsycl-device-lib='
 // SYCL_NO_DEVICE_LIB_INVALID_VALUE: error: unsupported argument 'dummy' to option 'fno-sycl-device-lib='
 
-
 /// ###########################################################################
 /// test llvm-link behavior for linking device libraries
 // RUN: %clangxx -fsycl %s -### 2>&1 \
