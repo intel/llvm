@@ -38,7 +38,7 @@ data pointer provided by the user:
   auto acc = buf.get_access<cl::sycl::access::mode::read_write>();
 ```
 
-Or because a mapped host pointer obtained from a non-host native memory object
+Or because a mapped host pointer obtained from a native device memory object
 is used in its place (as is the case for linked commands, covered below).
 
 ## Linked allocation commands
@@ -49,8 +49,8 @@ as "linked" to another one if they satisfy these requirements:
 - Exactly one of the two commands is associated with a host context.
 - Neither of the commands is already linked.
 
-The idea behind linked commands is that the non-host allocation of the pair is
-supposed to reuse the host allocation, i. e. the host memory is requested to be
+The idea behind linked commands is that the device allocation of the pair is
+supposed to reuse the host allocation, i.e. the host memory is requested to be
 shared between the two (the underlying backend is still free to ignore that
 request and allocate additional memory if needed). The difference in handling
 linked and unlinked allocations is summarized in the table below.
@@ -59,7 +59,7 @@ linked and unlinked allocations is summarized in the table below.
 | - | -------- | ------ |
 | Native memory object creation | Created with COPY_HOST_PTR if a host pointer is available and the first access mode does not discard the data. | Created with USE_HOST_PTR if a suitable host pointer is available, regardless of the first access mode. |
 | Host allocation command behaviour | Skipped if a suitable user host pointer is available. | In addition to skipping the allocation if a suitable user pointer is provided, the allocation is also skipped if the host command is created after its linked counterpart (it's retrieved via map operation instead). |
-| Memory transfer | Performed with read/write operations, non-host to non-host transfer is done with a host allocation as an intermediary (direct transfer is not supported by PI). | Only one allocation from the pair can be active at a time, the switch is done with map/unmap operations. |
+| Memory transfer | Performed with read/write operations, device-to-device transfer is done with a host allocation as an intermediary (direct transfer is not supported by PI). | Only one allocation from the pair can be active at a time, the switch is done with map/unmap operations. Device-to-device transfer where one of the device allocations is linked is done with the host allocation from the pair as an intermediary (e.g. for transfer from unlinked device allocation A to linked device allocation B: map B -> read A to the host allocation -> unmap B). |
 
 ## Command linking approach
 
@@ -71,6 +71,6 @@ and host share the same physical memory). The motivation for this is two-fold:
 should not result in any additional device memory allocation or copying between
 the two during map/unmap operations.
 - Even if the point above makes no difference for a particular pair of
-allocations (e. g. no host pointer is available for the non-host allocation),
+allocations (e.g. no host pointer is available for the device allocation),
 it might be possible to exploit that later in the application for another device
 that does support host unified memory.
