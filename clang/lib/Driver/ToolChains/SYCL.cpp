@@ -102,12 +102,10 @@ const char *SYCL::Linker::constructLLVMLinkCommand(Compilation &C,
   ArgStringList CmdArgs;
 
   bool LinkSYCLDeviceLibs = false;
-  bool IsMSVCEnv =
-      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
   for (const auto &II : InputFiles) {
     StringRef InputFilename =
         llvm::sys::path::filename(StringRef(II.getFilename()));
-    StringRef InputSuffix = IsMSVCEnv ? ".obj" : ".o";
+    StringRef InputSuffix = ".o";
     if (InputFilename.startswith("libsycl-") &&
         InputFilename.endswith(InputSuffix)) {
       LinkSYCLDeviceLibs = true;

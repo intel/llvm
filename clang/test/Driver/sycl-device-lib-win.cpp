@@ -91,3 +91,23 @@
 // RUN:   | FileCheck %s -check-prefix=SYCL_NO_DEVICE_LIB_INVALID_VALUE
 // SYCL_DEVICE_LIB_INVALID_VALUE: error: unsupported argument 'dummy' to option 'fsycl-device-lib='
 // SYCL_NO_DEVICE_LIB_INVALID_VALUE: error: unsupported argument 'dummy' to option 'fno-sycl-device-lib='
+
+/// ###########################################################################
+/// test llvm-link behavior for linking device libraries
+// RUN: %clangxx -fsycl %s -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_LLVM_LINK_DEVICE_LIB
+// SYCL_LLVM_LINK_DEVICE_LIB: llvm-link{{.*}}  "{{.*}}.bc" "-o" "{{.*}}.bc" "--suppress-warnings"
+// SYCL_LLVM_LINK_DEVICE_LIB-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown-sycldevice" "-inputs={{.*}}libsycl-crt.obj" "-outputs={{.*}}libsycl-crt-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown-sycldevice" "-inputs={{.*}}libsycl-complex.obj" "-outputs={{.*}}libsycl-complex-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown-sycldevice" "-inputs={{.*}}libsycl-cmath.obj" "-outputs={{.*}}libsycl-cmath-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown-sycldevice" "-inputs={{.*}}libsycl-fallback-cassert.obj" "-outputs={{.*}}libsycl-fallback-cassert-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown-sycldevice" "-inputs={{.*}}libsycl-fallback-complex.obj" "-outputs={{.*}}libsycl-fallback-complex-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown-sycldevice" "-inputs={{.*}}libsycl-fallback-cmath.obj" "-outputs={{.*}}libsycl-fallback-cmath-{{.*}}.o" "-unbundle"
+// SYCL_LLVM_LINK_DEVICE_LIB-NEXT: llvm-link{{.*}} "-only-needed" "{{.*}}" "-o" "{{.*}}.bc" "--suppress-warnings"
+
+/// ###########################################################################
+/// test llvm-link behavior for fno-sycl-device-lib
+// RUN: %clangxx -fsycl -fno-sycl-device-lib=all %s -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_LLVM_LINK_NO_DEVICE_LIB
+// SYCL_LLVM_LINK_NO_DEVICE_LIB: llvm-link{{.*}}  "{{.*}}.bc" "-o" "{{.*}}.bc" "--suppress-warnings"
+// SYCL_LLVM_LINK_NO_DEVICE_LIB-NEXT: sycl-post-link{{.*}}  "-symbols" "-spec-const=rt" "-o" "{{.*}}.table" "{{.*}}.bc"
