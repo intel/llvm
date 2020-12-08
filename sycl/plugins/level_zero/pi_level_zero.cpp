@@ -817,11 +817,11 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   // runtime from a global destructor, and such a call could eventually
   // access these variables. Therefore, there is no safe time when
   // "PiPlatformsCache" and "PiPlatformsCacheMutex" could be deleted.
-  static auto PiPlatformsCache = new std::vector<pi_platform>;
-  static auto PiPlatformsCacheMutex = new std::mutex;
+  static std::vector<pi_platform> PiPlatformsCache;
+  static std::mutex PiPlatformsCacheMutex;
   static bool PiPlatformCachePopulated = false;
 
-  std::lock_guard<std::mutex> Lock(*PiPlatformsCacheMutex);
+  std::lock_guard<std::mutex> Lock(PiPlatformsCacheMutex);
   if (!PiPlatformCachePopulated) {
     const char *CommandListCacheSize =
         std::getenv("SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE");
@@ -873,7 +873,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
 
         Platform->ZeMaxCommandListCache = CommandListCacheSizeValue;
         // Save a copy in the cache for future uses.
-        PiPlatformsCache->push_back(Platform);
+        PiPlatformsCache.push_back(Platform);
         PiPlatformCachePopulated = true;
       }
     } catch (const std::bad_alloc &) {
@@ -885,7 +885,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
 
   if (Platforms && NumEntries > 0) {
     uint32_t I = 0;
-    for (const pi_platform &CachedPlatform : *PiPlatformsCache) {
+    for (const pi_platform &CachedPlatform : PiPlatformsCache) {
       if (I < NumEntries) {
         *Platforms++ = CachedPlatform;
         I++;
@@ -896,7 +896,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   }
 
   if (NumPlatforms)
-    *NumPlatforms = PiPlatformsCache->size();
+    *NumPlatforms = PiPlatformsCache.size();
 
   return PI_SUCCESS;
 }

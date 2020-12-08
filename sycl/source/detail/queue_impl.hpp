@@ -119,9 +119,10 @@ public:
 
   ~queue_impl() {
     throw_asynchronous();
-    if (!MHostQueue) {
+    //if (!MHostQueue) {
+    if (!MQueues.empty())
       getPlugin().call<PiApiKind::piQueueRelease>(MQueues[0]);
-    }
+      //}
   }
 
   /// \return an OpenCL interoperability queue handle.
