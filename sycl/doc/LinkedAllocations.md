@@ -65,7 +65,7 @@ linked and unlinked allocations is summarized in the table below.
 
 Whenever two allocation commands are considered for linking, the decision is
 made based on the following criterion: the commands are linked if and only if
-the non-host device of the pair supports host unified memory (i. e. the device
+the non-host device of the pair supports host unified memory (i.e. the device
 and host share the same physical memory). The motivation for this is two-fold:
 - If the non-host device supports host unified memory, the USE_HOST_PTR flag
 should not result in any additional device memory allocation or copying between
