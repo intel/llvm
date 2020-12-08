@@ -97,6 +97,9 @@ public:
   void lowerFunnelShiftLeft(IntrinsicInst *FSHLIntrinsic);
   void buildFunnelShiftLeftFunc(Function *FSHLFunc);
 
+  void lowerUMulWithOverflow(IntrinsicInst *UMulIntrinsic);
+  void buildUMulWithOverflowFunc(Function *UMulFunc);
+
   static std::string lowerLLVMIntrinsicName(IntrinsicInst *II);
 
   static char ID;
@@ -225,6 +228,45 @@ void SPIRVRegularizeLLVM::lowerFunnelShiftLeft(IntrinsicInst *FSHLIntrinsic) {
   FSHLIntrinsic->setCalledFunction(FSHLFunc);
 }
 
+void SPIRVRegularizeLLVM::buildUMulWithOverflowFunc(Function *UMulFunc) {
+  if (!UMulFunc->empty())
+    return;
+
+  BasicBlock *EntryBB = BasicBlock::Create(M->getContext(), "entry", UMulFunc);
+  IRBuilder<> Builder(EntryBB);
+  // Build the actual unsigned multiplication logic with the overflow
+  // indication.
+  auto *FirstArg = UMulFunc->getArg(0);
+  auto *SecondArg = UMulFunc->getArg(1);
+
+  // Do unsigned multiplication Mul = A * B.
+  // Then check if unsigned division Div = Mul / A is not equal to B.
+  // If so, then overflow has happened.
+  auto *Mul = Builder.CreateNUWMul(FirstArg, SecondArg);
+  auto *Div = Builder.CreateUDiv(Mul, FirstArg);
+  auto *Overflow = Builder.CreateICmpNE(FirstArg, Div);
+
+  // umul.with.overflow intrinsic return a structure, where the first element
+  // is the multiplication result, and the second is an overflow bit.
+  auto *StructTy = UMulFunc->getReturnType();
+  auto *Agg = Builder.CreateInsertValue(UndefValue::get(StructTy), Mul, {0});
+  auto *Res = Builder.CreateInsertValue(Agg, Overflow, {1});
+  Builder.CreateRet(Res);
+}
+
+void SPIRVRegularizeLLVM::lowerUMulWithOverflow(IntrinsicInst *UMulIntrinsic) {
+  // Get a separate function - otherwise, we'd have to rework the CFG of the
+  // current one. Then simply replace the intrinsic uses with a call to the new
+  // function.
+  FunctionType *UMulFuncTy = UMulIntrinsic->getFunctionType();
+  Type *FSHLRetTy = UMulFuncTy->getReturnType();
+  const std::string FuncName = lowerLLVMIntrinsicName(UMulIntrinsic);
+  Function *UMulFunc =
+      getOrCreateFunction(M, FSHLRetTy, UMulFuncTy->params(), FuncName);
+  buildUMulWithOverflowFunc(UMulFunc);
+  UMulIntrinsic->setCalledFunction(UMulFunc);
+}
+
 bool SPIRVRegularizeLLVM::runOnModule(Module &Module) {
   M = &Module;
   Ctx = &M->getContext();
@@ -263,6 +305,8 @@ bool SPIRVRegularizeLLVM::regularize() {
               lowerMemset(MSI);
             else if (II->getIntrinsicID() == Intrinsic::fshl)
               lowerFunnelShiftLeft(II);
+            else if (II->getIntrinsicID() == Intrinsic::umul_with_overflow)
+              lowerUMulWithOverflow(II);
           }
         }
 
