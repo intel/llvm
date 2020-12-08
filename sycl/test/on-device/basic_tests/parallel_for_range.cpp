@@ -57,10 +57,10 @@ int main() {
                "thrown\n";
         return 1; // We shouldn't be here, exception is expected
       } catch (nd_range_error &E) {
-        if (string_class(E.what()).find("Specified local size doesn't match "
-                                        "the required work-group size "
-                                        "specified in the program source") ==
-            string_class::npos) {
+        if (string_class(E.what()).find("The specified local size {8, 8, 8} "
+                                        "doesn't match the required work-group "
+                                        "size specified in the program source "
+                                        "{4, 4, 4}") == string_class::npos) {
           std::cerr
               << "Test case ReqdWGSizeNegativeA failed: unexpected exception: "
               << E.what() << std::endl;
@@ -670,7 +670,8 @@ int main() {
         }
       } catch (nd_range_error &E) {
         if (string_class(E.what()).find(
-                "Global_work_size not evenly divisible by local_work_size. "
+                "Global work size {100, 1, 1} is not evenly divisible "
+                "by local work-group size {3, 1, 1}. "
                 "Non-uniform work-groups are not allowed by when "
                 "-cl-uniform-work-group-size flag is used. Underlying "
                 "OpenCL 2.x implementation supports this feature, but it is "
@@ -720,7 +721,8 @@ int main() {
         }
       } catch (nd_range_error &E) {
         if (string_class(E.what()).find(
-                "Global_work_size not evenly divisible by local_work_size. "
+                "Global work size {16, 33, 100} is not evenly divisible by "
+                "local work-group size {5, 3, 2}. "
                 "Non-uniform work-groups are not allowed by when "
                 "-cl-uniform-work-group-size flag is used. Underlying "
                 "OpenCL 2.x implementation supports this feature, but it is "
@@ -773,7 +775,8 @@ int main() {
         }
       } catch (nd_range_error &E) {
         if (string_class(E.what()).find(
-                "Local workgroup size greater than global range size. "
+                "Local work-group size {17, 1, 1} is greater than global range "
+                "size {16, 1, 1}. "
                 "Non-uniform work-groups are not allowed by when "
                 "-cl-uniform-work-group-size flag is used. Underlying "
                 "OpenCL 2.x implementation supports this feature, but it is "
@@ -824,7 +827,8 @@ int main() {
         }
       } catch (nd_range_error &E) {
         if (string_class(E.what()).find(
-                "Local workgroup size greater than global range size. "
+                "Local work-group size {7, 2, 2} is greater than global range "
+                "size {6, 6, 6}. "
                 "Non-uniform work-groups are not allowed by when "
                 "-cl-uniform-work-group-size flag is used. Underlying "
                 "OpenCL 2.x implementation supports this feature, but it is "
