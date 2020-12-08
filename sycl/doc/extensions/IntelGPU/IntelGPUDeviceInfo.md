@@ -16,11 +16,11 @@ The Feature Test Macro will be defined as:
 
 
 
-# Intel GPU PCI Address #
+# PCI Address #
 
-A new device descriptor will be added which will provide the PCI address of an Intel GPU in BDF format.  BDF format contains the address as: `domain:bus:device.function`.
+A new device descriptor will be added which will provide the PCI address in BDF format.  BDF format contains the address as: `domain:bus:device.function`.
 
-This support can only be provided when using the Level Zero backend \(BE\).  This is the default for Intel GPUs.  The OpenCL BE does not provide the PCI address at this time.
+This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
 
 
 ## Device Information Descriptors ##
@@ -53,7 +53,8 @@ The PCI address can be obtained using the standard get\_info() interface.
 
 A new device descriptor will be added which will provide the physical SIMD width of an execution unit on an Intel GPU.  This data will be used to calculate the computational capabilities of the device.
 
-This support will only be provided when using the Level Zero backend \(BE\).  This is the default for Intel GPUs.  The OpenCL BE does not provide the physical SIMD width at this time.
+This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
+
 
 ## Device Information Descriptors ##
 
@@ -87,7 +88,8 @@ A new device descriptor will be added which will provide the number of execution
 
 This new device descriptor will provide the same information as "max\_compute\_units" does today.  We would like to have an API which is specific for Intel GPUs.
 
-This support will only be provided when using the Level Zero backend \(BE\).  This is the default for Intel GPUs.
+This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
+
 
 ## Device Information Descriptors ##
 
@@ -119,7 +121,8 @@ Then the number of EUs can be obtained using the standard get\_info() interface.
 
 A new device descriptor will be added which will provide the number of slices on an Intel GPU.  If the device is a subdevice, then the number of slices in the subdevice is returned.
 
-This support will only be provided when using the Level Zero backend \(BE\).  This is the default for Intel GPUs.
+This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
+
 
 ## Device Information Descriptors ##
 
@@ -150,7 +153,8 @@ Then the number of slices can be obtained using the standard get\_info() interfa
 
 A new device descriptor will be added which will provide the number of subslices per slice on an Intel GPU.  If the device is a subdevice, then the number of subslices per slice in the subdevice is returned.
 
-This support will only be provided when using the Level Zero backend \(BE\).  This is the default for Intel GPUs.
+This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
+
 
 ## Device Information Descriptors ##
 
@@ -181,7 +185,8 @@ Then the number of subslices per slice can be obtained using the standard get\_i
 
 A new device descriptor will be added which will provide the number of EUs per subslice on an Intel GPU.  If the device is a subdevice, then the number of EUs per subslice in the subdevice is returned.
 
-This support will only be provided when using the Level Zero backend \(BE\).  This is the default for Intel GPUs.
+This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
+
 
 ## Device Information Descriptors ##
 
@@ -208,11 +213,12 @@ Then the number of EUs per subslice can be obtained using the standard get\_info
     }
 
 
-# Intel GPU Maximum Memory Bandwidth #
+# Maximum Memory Bandwidth #
 
-A new device descriptor will be added which will provide the maximum memory bandwidth of an Intel GPU.  If the device is a subdevice, then the maximum bandwidth of the subdevice is returned.
+A new device descriptor will be added which will provide the maximum memory bandwidth.  If the device is a subdevice, then the maximum bandwidth of the subdevice is returned.
 
-This support will only be provided when using the Level Zero backend \(BE\).  This is the default for Intel GPUs.
+This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
+
 
 ## Device Information Descriptors ##
 
@@ -229,6 +235,7 @@ A new aspect, ext\_intel\_max\_mem\_bandwidth, will be added.
 ## Error Condition ##
 
 An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_max\_mem\_bandwidth.
+
 
 ## Example Usage ##
 
