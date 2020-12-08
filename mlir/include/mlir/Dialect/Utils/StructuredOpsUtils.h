@@ -46,10 +46,6 @@ inline bool isColumnMajorMatmul(ArrayAttr indexingMaps) {
   return indexingMaps == maps;
 }
 
-/// Attribute name for the IntegerAttr which encodes the index of operand
-/// whose dimensions will be propagated as symbols to the indexing maps
-constexpr StringRef getSymbolSourceAttrName() { return "symbol_source"; }
-
 /// Attribute name for the AffineArrayAttr which encodes the relationship
 /// between a structured op iterators' and its operands.
 constexpr StringRef getIndexingMapsAttrName() { return "indexing_maps"; }
@@ -65,6 +61,9 @@ constexpr StringRef getDocAttrName() { return "doc"; }
 /// Attribute name for the StrArrayAttr which encodes the external library
 /// function that implements the structured op.
 constexpr StringRef getLibraryCallAttrName() { return "library_call"; }
+
+/// Attribute name for the ArrayAttr of StrArrayAttr that encodes sparsity.
+constexpr StringRef getSparseAttrName() { return "sparse"; }
 
 /// Attribute name for the StrArrayAttr which encodes the value of strides.
 constexpr StringRef getStridesAttrName() { return "strides"; }
@@ -132,6 +131,18 @@ inline StringRef toString(IteratorType t) {
     return getReductionIteratorTypeName();
   }
   llvm_unreachable("Unsupported IteratorType");
+}
+
+/// Use to encode a dense or sparse dimension.
+constexpr StringRef getSparseDimName() { return "S"; }
+inline bool isSparseDim(Attribute attr) {
+  auto strAttr = attr.dyn_cast_or_null<StringAttr>();
+  return strAttr && strAttr.getValue() == getSparseDimName();
+}
+constexpr StringRef getDenseDimName() { return "D"; }
+inline bool isDenseDim(Attribute attr) {
+  auto strAttr = attr.dyn_cast_or_null<StringAttr>();
+  return strAttr && strAttr.getValue() == getDenseDimName();
 }
 
 } // end namespace mlir

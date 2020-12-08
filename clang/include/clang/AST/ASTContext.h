@@ -2093,6 +2093,10 @@ public:
   /// vector-length.
   bool areCompatibleSveTypes(QualType FirstType, QualType SecondType);
 
+  /// Return true if the given vector types are lax-compatible SVE vector types,
+  /// false otherwise.
+  bool areLaxCompatibleSveTypes(QualType FirstType, QualType SecondType);
+
   /// Return true if the type has been explicitly qualified with ObjC ownership.
   /// A type may be implicitly qualified with ownership under ObjC ARC, and in
   /// some cases the compiler treats these differently.
@@ -2302,6 +2306,10 @@ public:
   uint64_t lookupFieldBitOffset(const ObjCInterfaceDecl *OID,
                                 const ObjCImplementationDecl *ID,
                                 const ObjCIvarDecl *Ivar) const;
+
+  /// Find the 'this' offset for the member path in a pointer-to-member
+  /// APValue.
+  CharUnits getMemberPointerPathAdjustment(const APValue &MP) const;
 
   bool isNearlyEmpty(const CXXRecordDecl *RD) const;
 

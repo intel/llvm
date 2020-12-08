@@ -4,7 +4,7 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 // TODO: Enable the test for HOST when it supports intel::reduce() and barrier()
-// RUNx: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUNx: %RUN_ON_HOST %t.out
 
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // used with 'double' type.

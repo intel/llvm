@@ -833,7 +833,7 @@ class KernelObjVisitor {
   template <typename... Tn>
   bool handleField(FieldDecl *FD, QualType FDTy, Tn &&... tn) {
     bool result = true;
-    std::initializer_list<int>{(result = result && tn(FD, FDTy), 0)...};
+    (void)std::initializer_list<int>{(result = result && tn(FD, FDTy), 0)...};
     return result;
   }
   template <typename... Tn>
@@ -3030,6 +3030,7 @@ public:
 
   void VisitTemplateTemplateArgument(const TemplateArgument &TA) {
     TemplateDecl *TD = TA.getAsTemplate().getAsTemplateDecl();
+    assert(TD && "template declaration must be available");
     TemplateParameterList *TemplateParams = TD->getTemplateParameters();
     for (NamedDecl *P : *TemplateParams) {
       if (NonTypeTemplateParmDecl *TemplateParam =
@@ -3613,6 +3614,7 @@ public:
     // template class Foo specialized by class Baz<Bar>, not a template
     // class template <template <typename> class> class T as it should.
     TemplateDecl *TD = TA.getAsTemplate().getAsTemplateDecl();
+    assert(TD && "template declaration must be available");
     TemplateParameterList *TemplateParams = TD->getTemplateParameters();
     for (NamedDecl *P : *TemplateParams) {
       // If template template parameter type has an enum value template

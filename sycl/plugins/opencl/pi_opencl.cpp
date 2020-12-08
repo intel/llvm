@@ -511,6 +511,8 @@ pi_result piContextCreate(const pi_context_properties *properties,
 }
 
 pi_result piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                             pi_uint32 num_devices,
+                                             const pi_device *devices,
                                              pi_context *piContext) {
   assert(piContext != nullptr);
   *piContext = reinterpret_cast<pi_context>(nativeHandle);
@@ -711,6 +713,9 @@ pi_result piextUSMHostAlloc(void **result_ptr, pi_context context,
 
   *result_ptr = Ptr;
 
+  assert(alignment == 0 ||
+         (RetVal == PI_SUCCESS &&
+          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
   return RetVal;
 }
 
@@ -744,6 +749,9 @@ pi_result piextUSMDeviceAlloc(void **result_ptr, pi_context context,
 
   *result_ptr = Ptr;
 
+  assert(alignment == 0 ||
+         (RetVal == PI_SUCCESS &&
+          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
   return RetVal;
 }
 
@@ -777,6 +785,9 @@ pi_result piextUSMSharedAlloc(void **result_ptr, pi_context context,
 
   *result_ptr = Ptr;
 
+  assert(alignment == 0 ||
+         (RetVal == PI_SUCCESS &&
+          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
   return RetVal;
 }
 

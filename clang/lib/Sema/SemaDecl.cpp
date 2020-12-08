@@ -4629,10 +4629,10 @@ Sema::ParsedFreeStandingDeclSpec(Scope *S, AccessSpecifier AS, DeclSpec &DS,
     if (Tag)
       Diag(DS.getConstexprSpecLoc(), diag::err_constexpr_tag)
           << GetDiagnosticTypeSpecifierID(DS.getTypeSpecType())
-          << DS.getConstexprSpecifier();
+          << static_cast<int>(DS.getConstexprSpecifier());
     else
       Diag(DS.getConstexprSpecLoc(), diag::err_constexpr_wrong_decl_kind)
-          << DS.getConstexprSpecifier();
+          << static_cast<int>(DS.getConstexprSpecifier());
     // Don't emit warnings after this error.
     return TagD;
   }
@@ -5190,7 +5190,7 @@ Decl *Sema::BuildAnonymousStructOrUnion(Scope *S, DeclSpec &DS,
     Diag(DS.getBeginLoc(), diag::ext_no_declarators) << DS.getSourceRange();
 
   // Mock up a declarator.
-  Declarator Dc(DS, DeclaratorContext::MemberContext);
+  Declarator Dc(DS, DeclaratorContext::Member);
   TypeSourceInfo *TInfo = GetTypeForDeclarator(Dc, S);
   assert(TInfo && "couldn't build declarator info for anonymous struct/union");
 
@@ -5287,7 +5287,7 @@ Decl *Sema::BuildMicrosoftCAnonymousStruct(Scope *S, DeclSpec &DS,
   assert(Record && "expected a record!");
 
   // Mock up a declarator.
-  Declarator Dc(DS, DeclaratorContext::TypeNameContext);
+  Declarator Dc(DS, DeclaratorContext::TypeName);
   TypeSourceInfo *TInfo = GetTypeForDeclarator(Dc, S);
   assert(TInfo && "couldn't build declarator info for anonymous struct");
 
@@ -5573,7 +5573,7 @@ static bool RebuildDeclaratorInCurrentInstantiation(Sema &S, Declarator &D,
 }
 
 Decl *Sema::ActOnDeclarator(Scope *S, Declarator &D) {
-  D.setFunctionDefinitionKind(FDK_Declaration);
+  D.setFunctionDefinitionKind(FunctionDefinitionKind::Declaration);
   Decl *Dcl = HandleDeclarator(S, D, MultiTemplateParamsArg());
 
   if (OriginalLexicalContext && OriginalLexicalContext->isObjCContainer() &&
@@ -6112,7 +6112,7 @@ Sema::ActOnTypedefDeclarator(Scope* S, Declarator& D, DeclContext* DC,
         << getLangOpts().CPlusPlus17;
   if (D.getDeclSpec().hasConstexprSpecifier())
     Diag(D.getDeclSpec().getConstexprSpecLoc(), diag::err_invalid_constexpr)
-        << 1 << D.getDeclSpec().getConstexprSpecifier();
+        << 1 << static_cast<int>(D.getDeclSpec().getConstexprSpecifier());
 
   if (D.getName().Kind != UnqualifiedIdKind::IK_Identifier) {
     if (D.getName().Kind == UnqualifiedIdKind::IK_DeductionGuideName)
@@ -7160,16 +7160,16 @@ NamedDecl *Sema::ActOnVariableDeclarator(
           << Sema::KernelNonConstStaticDataVariable;
 
   switch (D.getDeclSpec().getConstexprSpecifier()) {
-  case CSK_unspecified:
+  case ConstexprSpecKind::Unspecified:
     break;
 
-  case CSK_consteval:
+  case ConstexprSpecKind::Consteval:
     Diag(D.getDeclSpec().getConstexprSpecLoc(),
-        diag::err_constexpr_wrong_decl_kind)
-      << D.getDeclSpec().getConstexprSpecifier();
+         diag::err_constexpr_wrong_decl_kind)
+        << static_cast<int>(D.getDeclSpec().getConstexprSpecifier());
     LLVM_FALLTHROUGH;
 
-  case CSK_constexpr:
+  case ConstexprSpecKind::Constexpr:
     NewVD->setConstexpr(true);
     MaybeAddCUDAConstantAttr(NewVD);
     // C++1z [dcl.spec.constexpr]p1:
@@ -7181,7 +7181,7 @@ NamedDecl *Sema::ActOnVariableDeclarator(
       NewVD->setImplicitlyInline();
     break;
 
-  case CSK_constinit:
+  case ConstexprSpecKind::Constinit:
     if (!NewVD->hasGlobalStorage())
       Diag(D.getDeclSpec().getConstexprSpecLoc(),
            diag::err_constinit_local_variable);
@@ -8460,7 +8460,7 @@ static FunctionDecl *CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
 
     NewFD = FunctionDecl::Create(SemaRef.Context, DC, D.getBeginLoc(), NameInfo,
                                  R, TInfo, SC, isInline, HasPrototype,
-                                 CSK_unspecified,
+                                 ConstexprSpecKind::Unspecified,
                                  /*TrailingRequiresClause=*/nullptr);
     if (D.isInvalidType())
       NewFD->setInvalidDecl();
@@ -8471,11 +8471,11 @@ static FunctionDecl *CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
   ExplicitSpecifier ExplicitSpecifier = D.getDeclSpec().getExplicitSpecifier();
 
   ConstexprSpecKind ConstexprKind = D.getDeclSpec().getConstexprSpecifier();
-  if (ConstexprKind == CSK_constinit) {
+  if (ConstexprKind == ConstexprSpecKind::Constinit) {
     SemaRef.Diag(D.getDeclSpec().getConstexprSpecLoc(),
                  diag::err_constexpr_wrong_decl_kind)
-        << ConstexprKind;
-    ConstexprKind = CSK_unspecified;
+        << static_cast<int>(ConstexprKind);
+    ConstexprKind = ConstexprSpecKind::Unspecified;
     D.getMutableDeclSpec().ClearConstexprSpec();
   }
   Expr *TrailingRequiresClause = D.getTrailingRequiresClause();
@@ -9139,8 +9139,8 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       }
     }
 
-    if (ConstexprSpecKind ConstexprKind =
-            D.getDeclSpec().getConstexprSpecifier()) {
+    ConstexprSpecKind ConstexprKind = D.getDeclSpec().getConstexprSpecifier();
+    if (ConstexprKind != ConstexprSpecKind::Unspecified) {
       // C++11 [dcl.constexpr]p2: constexpr functions and constexpr constructors
       // are implicitly inline.
       NewFD->setImplicitlyInline();
@@ -9149,15 +9149,18 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       // be either constructors or to return a literal type. Therefore,
       // destructors cannot be declared constexpr.
       if (isa<CXXDestructorDecl>(NewFD) &&
-          (!getLangOpts().CPlusPlus20 || ConstexprKind == CSK_consteval)) {
+          (!getLangOpts().CPlusPlus20 ||
+           ConstexprKind == ConstexprSpecKind::Consteval)) {
         Diag(D.getDeclSpec().getConstexprSpecLoc(), diag::err_constexpr_dtor)
-            << ConstexprKind;
-        NewFD->setConstexprKind(getLangOpts().CPlusPlus20 ? CSK_unspecified : CSK_constexpr);
+            << static_cast<int>(ConstexprKind);
+        NewFD->setConstexprKind(getLangOpts().CPlusPlus20
+                                    ? ConstexprSpecKind::Unspecified
+                                    : ConstexprSpecKind::Constexpr);
       }
       // C++20 [dcl.constexpr]p2: An allocation function, or a
       // deallocation function shall not be declared with the consteval
       // specifier.
-      if (ConstexprKind == CSK_consteval &&
+      if (ConstexprKind == ConstexprSpecKind::Consteval &&
           (NewFD->getOverloadedOperator() == OO_New ||
            NewFD->getOverloadedOperator() == OO_Array_New ||
            NewFD->getOverloadedOperator() == OO_Delete ||
@@ -9165,7 +9168,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
         Diag(D.getDeclSpec().getConstexprSpecLoc(),
              diag::err_invalid_consteval_decl_kind)
             << NewFD;
-        NewFD->setConstexprKind(CSK_constexpr);
+        NewFD->setConstexprKind(ConstexprSpecKind::Constexpr);
       }
     }
 
@@ -9196,17 +9199,17 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     // If a function is defined as defaulted or deleted, mark it as such now.
     // We'll do the relevant checks on defaulted / deleted functions later.
     switch (D.getFunctionDefinitionKind()) {
-      case FDK_Declaration:
-      case FDK_Definition:
-        break;
+    case FunctionDefinitionKind::Declaration:
+    case FunctionDefinitionKind::Definition:
+      break;
 
-      case FDK_Defaulted:
-        NewFD->setDefaulted();
-        break;
+    case FunctionDefinitionKind::Defaulted:
+      NewFD->setDefaulted();
+      break;
 
-      case FDK_Deleted:
-        NewFD->setDeletedAsWritten();
-        break;
+    case FunctionDefinitionKind::Deleted:
+      NewFD->setDeletedAsWritten();
+      break;
     }
 
     if (isa<CXXMethodDecl>(NewFD) && DC == CurContext &&
@@ -9903,17 +9906,17 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   // because Sema::ActOnStartOfFunctionDef has not been called yet.
   if (const auto *NBA = NewFD->getAttr<NoBuiltinAttr>())
     switch (D.getFunctionDefinitionKind()) {
-    case FDK_Defaulted:
-    case FDK_Deleted:
+    case FunctionDefinitionKind::Defaulted:
+    case FunctionDefinitionKind::Deleted:
       Diag(NBA->getLocation(),
            diag::err_attribute_no_builtin_on_defaulted_deleted_function)
           << NBA->getSpelling();
       break;
-    case FDK_Declaration:
+    case FunctionDefinitionKind::Declaration:
       Diag(NBA->getLocation(), diag::err_attribute_no_builtin_on_non_definition)
           << NBA->getSpelling();
       break;
-    case FDK_Definition:
+    case FunctionDefinitionKind::Definition:
       break;
     }
 
@@ -11020,7 +11023,7 @@ void Sema::CheckMain(FunctionDecl* FD, const DeclSpec& DS) {
     Diag(DS.getConstexprSpecLoc(), diag::err_constexpr_main)
         << FD->isConsteval()
         << FixItHint::CreateRemoval(DS.getConstexprSpecLoc());
-    FD->setConstexprKind(CSK_unspecified);
+    FD->setConstexprKind(ConstexprSpecKind::Unspecified);
   }
 
   if (getLangOpts().OpenCL) {
@@ -12822,7 +12825,7 @@ Sema::ActOnCXXForRangeIdentifier(Scope *S, SourceLocation IdentLoc,
   DS.SetTypeSpecType(DeclSpec::TST_auto, IdentLoc, PrevSpec, DiagID,
                      getPrintingPolicy());
 
-  Declarator D(DS, DeclaratorContext::ForContext);
+  Declarator D(DS, DeclaratorContext::ForInit);
   D.SetIdentifier(Ident, IdentLoc);
   D.takeAttributes(Attrs, AttrEnd);
 
@@ -13561,7 +13564,7 @@ Decl *Sema::ActOnParamDeclarator(Scope *S, Declarator &D) {
         << getLangOpts().CPlusPlus17;
   if (DS.hasConstexprSpecifier())
     Diag(DS.getConstexprSpecLoc(), diag::err_invalid_constexpr)
-        << 0 << D.getDeclSpec().getConstexprSpecifier();
+        << 0 << static_cast<int>(D.getDeclSpec().getConstexprSpecifier());
 
   DiagnoseFunctionSpecifiers(DS);
 
@@ -13805,7 +13808,7 @@ void Sema::ActOnFinishKNRParamDeclarations(Scope *S, Declarator &D,
         // Use the identifier location for the type source range.
         DS.SetRangeStart(FTI.Params[i].IdentLoc);
         DS.SetRangeEnd(FTI.Params[i].IdentLoc);
-        Declarator ParamD(DS, DeclaratorContext::KNRTypeListContext);
+        Declarator ParamD(DS, DeclaratorContext::KNRTypeList);
         ParamD.SetIdentifier(FTI.Params[i].Ident, FTI.Params[i].IdentLoc);
         FTI.Params[i].Param = ActOnParamDeclarator(S, ParamD);
       }
@@ -13833,7 +13836,7 @@ Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Declarator &D,
     ActOnStartOfFunctionDefinitionInOpenMPDeclareVariantScope(
         ParentScope, D, TemplateParameterLists, Bases);
 
-  D.setFunctionDefinitionKind(FDK_Definition);
+  D.setFunctionDefinitionKind(FunctionDefinitionKind::Definition);
   Decl *DP = HandleDeclarator(ParentScope, D, TemplateParameterLists);
   Decl *Dcl = ActOnStartOfFunctionDef(FnBodyScope, DP, SkipBody);
 
@@ -14039,6 +14042,16 @@ Decl *Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Decl *D,
     Diag(Attr->getLocation(), diag::err_alias_is_definition) << FD << 1;
     FD->dropAttr<IFuncAttr>();
     FD->setInvalidDecl();
+  }
+
+  if (auto *Ctor = dyn_cast<CXXConstructorDecl>(FD)) {
+    if (Ctor->getTemplateSpecializationKind() == TSK_ExplicitSpecialization &&
+        Ctor->isDefaultConstructor() &&
+        Context.getTargetInfo().getCXXABI().isMicrosoft()) {
+      // If this is an MS ABI dllexport default constructor, instantiate any
+      // default arguments.
+      InstantiateDefaultCtorDefaultArgs(Ctor);
+    }
   }
 
   // See if this is a redefinition. If 'will have body' (or similar) is already
@@ -14635,7 +14648,7 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
     DiscardCleanupsInEvaluationContext();
   }
 
-  if (LangOpts.OpenMP || LangOpts.CUDA || LangOpts.SYCLIsDevice) {
+  if (FD && (LangOpts.OpenMP || LangOpts.CUDA || LangOpts.SYCLIsDevice)) {
     auto ES = getEmissionStatus(FD);
     if (ES == Sema::FunctionEmissionStatus::Emitted ||
         ES == Sema::FunctionEmissionStatus::Unknown)
@@ -14742,7 +14755,7 @@ NamedDecl *Sema::ImplicitlyDefineFunction(SourceLocation Loc,
   (void)Error; // Silence warning.
   assert(!Error && "Error setting up implicit decl!");
   SourceLocation NoLoc;
-  Declarator D(DS, DeclaratorContext::BlockContext);
+  Declarator D(DS, DeclaratorContext::Block);
   D.AddTypeInfo(DeclaratorChunk::getFunction(/*HasProto=*/false,
                                              /*IsAmbiguous=*/false,
                                              /*LParenLoc=*/NoLoc,
@@ -16466,6 +16479,13 @@ ExprResult Sema::VerifyBitField(SourceLocation FieldLoc,
       << Value.toString(10);
   }
 
+  // The size of the bit-field must not exceed our maximum permitted object
+  // size.
+  if (Value.getActiveBits() > ConstantArrayType::getMaxSizeBits(Context)) {
+    return Diag(FieldLoc, diag::err_bitfield_too_wide)
+           << !FieldName << FieldName << Value.toString(10);
+  }
+
   if (!FieldTy->isDependentType()) {
     uint64_t TypeStorageSize = Context.getTypeSize(FieldTy);
     uint64_t TypeWidth = Context.getIntWidth(FieldTy);
@@ -16483,25 +16503,21 @@ ExprResult Sema::VerifyBitField(SourceLocation FieldLoc,
           CStdConstraintViolation ? TypeWidth : TypeStorageSize;
       if (FieldName)
         return Diag(FieldLoc, diag::err_bitfield_width_exceeds_type_width)
-               << FieldName << (unsigned)Value.getZExtValue()
+               << FieldName << Value.toString(10)
                << !CStdConstraintViolation << DiagWidth;
 
       return Diag(FieldLoc, diag::err_anon_bitfield_width_exceeds_type_width)
-             << (unsigned)Value.getZExtValue() << !CStdConstraintViolation
+             << Value.toString(10) << !CStdConstraintViolation
              << DiagWidth;
     }
 
     // Warn on types where the user might conceivably expect to get all
     // specified bits as value bits: that's all integral types other than
     // 'bool'.
-    if (BitfieldIsOverwide && !FieldTy->isBooleanType()) {
-      if (FieldName)
-        Diag(FieldLoc, diag::warn_bitfield_width_exceeds_type_width)
-            << FieldName << (unsigned)Value.getZExtValue()
-            << (unsigned)TypeWidth;
-      else
-        Diag(FieldLoc, diag::warn_anon_bitfield_width_exceeds_type_width)
-            << (unsigned)Value.getZExtValue() << (unsigned)TypeWidth;
+    if (BitfieldIsOverwide && !FieldTy->isBooleanType() && FieldName) {
+      Diag(FieldLoc, diag::warn_bitfield_width_exceeds_type_width)
+          << FieldName << Value.toString(10)
+          << (unsigned)TypeWidth;
     }
   }
 

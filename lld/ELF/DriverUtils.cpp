@@ -26,6 +26,7 @@
 #include "llvm/Support/Host.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
+#include "llvm/Support/TimeProfiler.h"
 
 using namespace llvm;
 using namespace llvm::sys;
@@ -132,7 +133,7 @@ opt::InputArgList ELFOptTable::parse(ArrayRef<const char *> argv) {
   if (missingCount)
     error(Twine(args.getArgString(missingIndex)) + ": missing argument");
 
-  for (auto *arg : args.filtered(OPT_UNKNOWN)) {
+  for (opt::Arg *arg : args.filtered(OPT_UNKNOWN)) {
     std::string nearest;
     if (findNearest(arg->getAsString(args), nearest) > 1)
       error("unknown argument '" + arg->getAsString(args) + "'");
@@ -238,6 +239,7 @@ Optional<std::string> elf::searchLibraryBaseName(StringRef name) {
 
 // This is for -l<namespec>.
 Optional<std::string> elf::searchLibrary(StringRef name) {
+  llvm::TimeTraceScope timeScope("Locate library", name);
   if (name.startswith(":"))
     return findFromSearchPaths(name.substr(1));
   return searchLibraryBaseName(name);

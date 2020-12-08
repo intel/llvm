@@ -1737,6 +1737,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
           } else {
             setOrigin(A, getCleanOrigin());
           }
+
+          break;
         }
 
         if (!FArgEagerCheck)
@@ -2732,14 +2734,16 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   // We copy the shadow of \p CopyOp[NumUsedElements:] to \p
   // Out[NumUsedElements:]. This means that intrinsics without \p CopyOp always
   // return a fully initialized value.
-  void handleVectorConvertIntrinsic(IntrinsicInst &I, int NumUsedElements) {
+  void handleVectorConvertIntrinsic(IntrinsicInst &I, int NumUsedElements,
+                                    bool HasRoundingMode = false) {
     IRBuilder<> IRB(&I);
     Value *CopyOp, *ConvertOp;
 
-    switch (I.getNumArgOperands()) {
-    case 3:
-      assert(isa<ConstantInt>(I.getArgOperand(2)) && "Invalid rounding mode");
-      LLVM_FALLTHROUGH;
+    assert((!HasRoundingMode ||
+            isa<ConstantInt>(I.getArgOperand(I.getNumArgOperands() - 1))) &&
+           "Invalid rounding mode");
+
+    switch (I.getNumArgOperands() - HasRoundingMode) {
     case 2:
       CopyOp = I.getArgOperand(0);
       ConvertOp = I.getArgOperand(1);
@@ -3292,6 +3296,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     case Intrinsic::x86_avx512_cvtusi2ss:
     case Intrinsic::x86_avx512_cvtusi642sd:
     case Intrinsic::x86_avx512_cvtusi642ss:
+      handleVectorConvertIntrinsic(I, 1, true);
+      break;
     case Intrinsic::x86_sse2_cvtsd2si64:
     case Intrinsic::x86_sse2_cvtsd2si:
     case Intrinsic::x86_sse2_cvtsd2ss:

@@ -5086,9 +5086,9 @@ Expected<RuleMatcher> GlobalISelEmitter::runOnPattern(const PatternToMatch &P) {
 
   if (Dst->isLeaf()) {
     Record *RCDef = getInitValueAsRegClass(Dst->getLeafValue());
-
-    const CodeGenRegisterClass &RC = Target.getRegisterClass(RCDef);
     if (RCDef) {
+      const CodeGenRegisterClass &RC = Target.getRegisterClass(RCDef);
+
       // We need to replace the def and all its uses with the specified
       // operand. However, we must also insert COPY's wherever needed.
       // For now, emit a copy and let the register allocator clean up.
@@ -5619,7 +5619,7 @@ void GlobalISelEmitter::run(raw_ostream &OS) {
 
      << "  typedef void(" << Target.getName()
      << "InstructionSelector::*CustomRendererFn)(MachineInstrBuilder &, const "
-        "MachineInstr&, int) "
+        "MachineInstr &, int) "
         "const;\n"
      << "  const ISelInfoTy<PredicateBitset, ComplexMatcherMemFn, "
         "CustomRendererFn> "
@@ -5672,7 +5672,7 @@ void GlobalISelEmitter::run(raw_ostream &OS) {
   OS << "void " << Target.getName() << "InstructionSelector"
     "::setupGeneratedPerFunctionState(MachineFunction &MF) {\n"
     "  AvailableFunctionFeatures = computeAvailableFunctionFeatures("
-    "(const " << Target.getName() << "Subtarget*)&MF.getSubtarget(), &MF);\n"
+    "(const " << Target.getName() << "Subtarget *)&MF.getSubtarget(), &MF);\n"
     "}\n";
 
   if (Target.getName() == "X86" || Target.getName() == "AArch64") {
@@ -5793,7 +5793,7 @@ void GlobalISelEmitter::run(raw_ostream &OS) {
      << "enum {\n"
      << "  GICR_Invalid,\n";
   for (const auto &Record : CustomRendererFns)
-    OS << "  GICR_" << Record->getValueAsString("RendererFn") << ", \n";
+    OS << "  GICR_" << Record->getValueAsString("RendererFn") << ",\n";
   OS << "};\n";
 
   OS << Target.getName() << "InstructionSelector::CustomRendererFn\n"

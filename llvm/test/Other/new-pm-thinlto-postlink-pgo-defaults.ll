@@ -24,6 +24,7 @@
 ; CHECK-NOEXT: {{^}}
 
 ; CHECK-O: Starting {{.*}}Module pass manager run.
+; CHECK-O-NEXT: Running pass: Annotation2Metadata
 ; CHECK-O-NEXT: Running pass: ForceFunctionAttrsPass
 ; CHECK-EP-PIPELINE-START-NEXT: Running pass: NoOpModulePass
 ; CHECK-O-NEXT: Running pass: PGOIndirectCallPromotion
@@ -119,8 +120,8 @@
 ; CHECK-O-NEXT: Running pass: LCSSAPass
 ; CHECK-O-NEXT: Finished {{.*}}Function pass manager run
 ; CHECK-O-NEXT: Starting Loop pass manager run.
-; CHECK-O-NEXT: Running pass: IndVarSimplifyPass
 ; CHECK-O-NEXT: Running pass: LoopIdiomRecognizePass
+; CHECK-O-NEXT: Running pass: IndVarSimplifyPass
 ; CHECK-O-NEXT: Running pass: LoopDeletionPass
 ; CHECK-O-NEXT: Running pass: LoopFullUnrollPass
 ; CHECK-O-NEXT: Finished Loop pass manager run.
@@ -209,6 +210,7 @@
 ; CHECK-O-NEXT: Running pass: CGProfilePass
 ; CHECK-O-NEXT: Running pass: GlobalDCEPass
 ; CHECK-O-NEXT: Running pass: ConstantMergePass
+; CHECK-O-NEXT: Running pass: AnnotationRemarksPass on foo
 ; CHECK-O-NEXT: Running pass: PrintModulePass
 
 ; Make sure we get the IR back out without changes when we print the module.

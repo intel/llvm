@@ -325,6 +325,11 @@ void RISCVFrameLowering::emitPrologue(MachineFunction &MF,
   // to determine the end of the prologue.
   DebugLoc DL;
 
+  // All calls are tail calls in GHC calling conv, and functions have no
+  // prologue/epilogue.
+  if (MF.getFunction().getCallingConv() == CallingConv::GHC)
+    return;
+
   // Emit prologue for shadow call stack.
   emitSCSPrologue(MF, MBB, MBBI, DL);
 
@@ -500,6 +505,11 @@ void RISCVFrameLowering::emitEpilogue(MachineFunction &MF,
   Register FPReg = getFPReg(STI);
   Register SPReg = getSPReg(STI);
 
+  // All calls are tail calls in GHC calling conv, and functions have no
+  // prologue/epilogue.
+  if (MF.getFunction().getCallingConv() == CallingConv::GHC)
+    return;
+
   // Get the insert location for the epilogue. If there were no terminators in
   // the block, get the last instruction.
   MachineBasicBlock::iterator MBBI = MBB.end();
@@ -564,9 +574,9 @@ void RISCVFrameLowering::emitEpilogue(MachineFunction &MF,
   emitSCSEpilogue(MF, MBB, MBBI, DL);
 }
 
-int RISCVFrameLowering::getFrameIndexReference(const MachineFunction &MF,
-                                               int FI,
-                                               Register &FrameReg) const {
+StackOffset
+RISCVFrameLowering::getFrameIndexReference(const MachineFunction &MF, int FI,
+                                           Register &FrameReg) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const TargetRegisterInfo *RI = MF.getSubtarget().getRegisterInfo();
   const auto *RVFI = MF.getInfo<RISCVMachineFunctionInfo>();
@@ -618,7 +628,7 @@ int RISCVFrameLowering::getFrameIndexReference(const MachineFunction &MF,
         Offset += RVFI->getLibCallStackSize();
     }
   }
-  return Offset;
+  return StackOffset::getFixed(Offset);
 }
 
 void RISCVFrameLowering::determineCalleeSaves(MachineFunction &MF,

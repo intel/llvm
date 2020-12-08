@@ -628,11 +628,15 @@ public:
   class CGFPOptionsRAII {
   public:
     CGFPOptionsRAII(CodeGenFunction &CGF, FPOptions FPFeatures);
+    CGFPOptionsRAII(CodeGenFunction &CGF, const Expr *E);
     ~CGFPOptionsRAII();
 
   private:
+    void ConstructorHelper(FPOptions FPFeatures);
     CodeGenFunction &CGF;
     FPOptions OldFPFeatures;
+    llvm::fp::ExceptionBehavior OldExcept;
+    llvm::RoundingMode OldRounding;
     Optional<CGBuilderTy::FastMathFlagGuard> FMFGuard;
   };
   FPOptions CurFPFeatures;
@@ -4120,10 +4124,7 @@ public:
                                  ReturnValueSlot ReturnValue);
   RValue EmitIntelFPGAMemBuiltin(const CallExpr *E);
 
-private:
   enum class MSVCIntrin;
-
-public:
   llvm::Value *EmitMSVCBuiltinExpr(MSVCIntrin BuiltinID, const CallExpr *E);
 
   llvm::Value *EmitBuiltinAvailable(const VersionTuple &Version);
@@ -4304,7 +4305,7 @@ public:
   void registerGlobalDtorWithAtExit(llvm::Constant *dtorStub);
 
   /// Call unatexit() with function dtorStub.
-  llvm::Value *unregisterGlobalDtorWithUnAtExit(llvm::Function *dtorStub);
+  llvm::Value *unregisterGlobalDtorWithUnAtExit(llvm::Constant *dtorStub);
 
   /// Emit code in this function to perform a guarded variable
   /// initialization.  Guarded initializations are used when it's not

@@ -2162,6 +2162,28 @@ void CodeGenModule::ConstructAttributeList(
         llvm::AttributeSet::get(getLLVMContext(), Attrs);
   }
 
+  // Apply `nonnull` and `dereferencable(N)` to the `this` argument.
+  if (FI.isInstanceMethod() && !IRFunctionArgs.hasInallocaArg() &&
+      !FI.arg_begin()->type->isVoidPointerType()) {
+    auto IRArgs = IRFunctionArgs.getIRArgs(0);
+
+    assert(IRArgs.second == 1 && "Expected only a single `this` pointer.");
+
+    llvm::AttrBuilder Attrs;
+
+    if (!CodeGenOpts.NullPointerIsValid &&
+        getContext().getTargetAddressSpace(FI.arg_begin()->type) == 0) {
+      Attrs.addAttribute(llvm::Attribute::NonNull);
+    }
+
+    Attrs.addDereferenceableAttr(
+        getMinimumObjectSize(
+            FI.arg_begin()->type.castAs<PointerType>()->getPointeeType())
+            .getQuantity());
+
+    ArgAttrs[IRArgs.first] = llvm::AttributeSet::get(getLLVMContext(), Attrs);
+  }
+
   unsigned ArgNo = 0;
   for (CGFunctionInfo::const_arg_iterator I = FI.arg_begin(),
                                           E = FI.arg_end();
@@ -3140,7 +3162,7 @@ llvm::Value *CodeGenFunction::EmitCMSEClearRecord(llvm::Value *Src,
   const llvm::DataLayout &DataLayout = CGM.getDataLayout();
   int Size = DataLayout.getTypeStoreSize(ITy);
   SmallVector<uint64_t, 4> Bits(Size);
-  setUsedBits(CGM, QTy->getAs<RecordType>(), 0, Bits);
+  setUsedBits(CGM, QTy->castAs<RecordType>(), 0, Bits);
 
   int CharWidth = CGM.getContext().getCharWidth();
   uint64_t Mask =
@@ -3157,7 +3179,7 @@ llvm::Value *CodeGenFunction::EmitCMSEClearRecord(llvm::Value *Src,
   const llvm::DataLayout &DataLayout = CGM.getDataLayout();
   int Size = DataLayout.getTypeStoreSize(ATy);
   SmallVector<uint64_t, 16> Bits(Size);
-  setUsedBits(CGM, QTy->getAs<RecordType>(), 0, Bits);
+  setUsedBits(CGM, QTy->castAs<RecordType>(), 0, Bits);
 
   // Clear each element of the LLVM array.
   int CharWidth = CGM.getContext().getCharWidth();

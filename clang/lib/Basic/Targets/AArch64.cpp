@@ -377,8 +377,10 @@ void AArch64TargetInfo::getTargetDefines(const LangOptions &Opts,
   Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4");
   Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_8");
 
-  if (Opts.ArmSveVectorBits)
+  if (Opts.ArmSveVectorBits) {
     Builder.defineMacro("__ARM_FEATURE_SVE_BITS", Twine(Opts.ArmSveVectorBits));
+    Builder.defineMacro("__ARM_FEATURE_SVE_VECTOR_OPERATORS");
+  }
 }
 
 ArrayRef<Builtin::Info> AArch64TargetInfo::getTargetBuiltins() const {
@@ -759,7 +761,9 @@ WindowsARM64TargetInfo::WindowsARM64TargetInfo(const llvm::Triple &Triple,
 }
 
 void WindowsARM64TargetInfo::setDataLayout() {
-  resetDataLayout("e-m:w-p:64:64-i32:32-i64:64-i128:128-n32:64-S128");
+  resetDataLayout(Triple.isOSBinFormatMachO()
+                      ? "e-m:o-i64:64-i128:128-n32:64-S128"
+                      : "e-m:w-p:64:64-i32:32-i64:64-i128:128-n32:64-S128");
 }
 
 TargetInfo::BuiltinVaListKind

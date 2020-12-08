@@ -128,13 +128,10 @@ Target::~Target() {
   DeleteCurrentProcess();
 }
 
-void Target::PrimeFromDummyTarget(Target *target) {
-  if (!target)
-    return;
+void Target::PrimeFromDummyTarget(Target &target) {
+  m_stop_hooks = target.m_stop_hooks;
 
-  m_stop_hooks = target->m_stop_hooks;
-
-  for (const auto &breakpoint_sp : target->m_breakpoint_list.Breakpoints()) {
+  for (const auto &breakpoint_sp : target.m_breakpoint_list.Breakpoints()) {
     if (breakpoint_sp->IsInternal())
       continue;
 
@@ -143,14 +140,14 @@ void Target::PrimeFromDummyTarget(Target *target) {
     AddBreakpoint(std::move(new_bp), false);
   }
 
-  for (auto bp_name_entry : target->m_breakpoint_names) {
+  for (auto bp_name_entry : target.m_breakpoint_names) {
 
     BreakpointName *new_bp_name = new BreakpointName(*bp_name_entry.second);
     AddBreakpointName(new_bp_name);
   }
 
   m_frame_recognizer_manager_up = std::make_unique<StackFrameRecognizerManager>(
-      *target->m_frame_recognizer_manager_up);
+      *target.m_frame_recognizer_manager_up);
 }
 
 void Target::Dump(Stream *s, lldb::DescriptionLevel description_level) {
@@ -202,12 +199,13 @@ void Target::DeleteCurrentProcess() {
 
 const lldb::ProcessSP &Target::CreateProcess(ListenerSP listener_sp,
                                              llvm::StringRef plugin_name,
-                                             const FileSpec *crash_file) {
+                                             const FileSpec *crash_file,
+                                             bool can_connect) {
   if (!listener_sp)
     listener_sp = GetDebugger().GetListener();
   DeleteCurrentProcess();
   m_process_sp = Process::FindPlugin(shared_from_this(), plugin_name,
-                                     listener_sp, crash_file);
+                                     listener_sp, crash_file, can_connect);
   return m_process_sp;
 }
 
@@ -2978,7 +2976,7 @@ Status Target::Launch(ProcessLaunchInfo &launch_info, Stream *stream) {
     } else {
       // Use a Process plugin to construct the process.
       const char *plugin_name = launch_info.GetProcessPluginName();
-      CreateProcess(launch_info.GetListener(), plugin_name, nullptr);
+      CreateProcess(launch_info.GetListener(), plugin_name, nullptr, false);
     }
 
     // Since we didn't have a platform launch the process, launch it here.
@@ -3106,7 +3104,7 @@ Status Target::Attach(ProcessAttachInfo &attach_info, Stream *stream) {
       const char *plugin_name = attach_info.GetProcessPluginName();
       process_sp =
           CreateProcess(attach_info.GetListenerForProcess(GetDebugger()),
-                        plugin_name, nullptr);
+                        plugin_name, nullptr, false);
       if (process_sp == nullptr) {
         error.SetErrorStringWithFormat(
             "failed to create process using plugin %s",

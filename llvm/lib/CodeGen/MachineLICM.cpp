@@ -246,8 +246,6 @@ namespace {
 
     void HoistOutOfLoop(MachineDomTreeNode *HeaderN);
 
-    void HoistRegion(MachineDomTreeNode *N, bool IsHeader);
-
     void SinkIntoLoop();
 
     void InitRegPressure(MachineBasicBlock *BB);
@@ -1042,6 +1040,13 @@ bool MachineLICMBase::IsLICMCandidate(MachineInstr &I) {
   // Stores and side effects are already checked by isSafeToMove.
   if (I.mayLoad() && !mayLoadFromGOTOrConstantPool(I) &&
       !IsGuaranteedToExecute(I.getParent()))
+    return false;
+
+  // Convergent attribute has been used on operations that involve inter-thread
+  // communication which results are implicitly affected by the enclosing
+  // control flows. It is not safe to hoist or sink such operations across
+  // control flow.
+  if (I.isConvergent())
     return false;
 
   return true;

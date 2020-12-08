@@ -2,7 +2,8 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.run
 // RUN: %CPU_RUN_PLACEHOLDER %t.run
 // RUN: %ACC_RUN_PLACEHOLDER %t.run
-// RUNx (TODO: nd_item::barrier() is not implemented on HOST): env SYCL_DEVICE_TYPE=HOST %t.run
+// TODO: nd_item::barrier() is not implemented on HOST
+// RUNx: %RUN_ON_HOST %t.run
 
 //==--------device_event.cpp - SYCL class device_event test ----------------==//
 //
@@ -17,7 +18,7 @@
 using namespace cl::sycl;
 
 // Define the number of work items to enqueue.
-const int nElems = 128*1024u;
+const int nElems = 128 * 1024u;
 const int workGroupSize = 16;
 
 // Check the result is correct.
@@ -31,8 +32,7 @@ int check_results(int *data, size_t stride) {
       if ((j % stride) == 0) {
         expectedVal = 300 + copiedVal;
         copiedVal++;
-      }
-      else {
+      } else {
         expectedVal = i + j + 700;
       }
       if (data[i + j] != expectedVal) {
@@ -62,7 +62,7 @@ int test_strideN(size_t stride) {
       for (auto ep : l) {
         try {
           std::rethrow_exception(ep);
-        } catch (std::exception& e) {
+        } catch (std::exception &e) {
           std::cout << e.what();
         }
       }
@@ -70,10 +70,10 @@ int test_strideN(size_t stride) {
 
     buffer<int, 1> out_buf(out_data, range<1>(nElems));
 
-    myQueue.submit([&](handler& cgh) {
-
+    myQueue.submit([&](handler &cgh) {
       auto out_ptr = out_buf.get_access<access::mode::write>(cgh);
-      accessor<cl::sycl::cl_int, 1, access::mode::read_write, access::target::local>
+      accessor<cl::sycl::cl_int, 1, access::mode::read_write,
+               access::target::local>
           local_acc(range<1>(16), cgh);
 
       // Create work-groups with 16 work items in each group.
@@ -100,7 +100,8 @@ int test_strideN(size_t stride) {
         item.barrier();
 
         // Copy from local memory to global memory.
-        device_event dev_event = grp.async_work_group_copy(gptr, lptr, nElemsToCopy, stride);
+        device_event dev_event =
+            grp.async_work_group_copy(gptr, lptr, nElemsToCopy, stride);
         grp.wait_for(dev_event);
       });
 

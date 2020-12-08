@@ -173,6 +173,9 @@ private:
   SPIRVInstruction *transLifetimeIntrinsicInst(Op OC, IntrinsicInst *Intrinsic,
                                                SPIRVBasicBlock *BB);
 
+  SPIRVValue *transAtomicStore(StoreInst *ST, SPIRVBasicBlock *BB);
+  SPIRVValue *transAtomicLoad(LoadInst *LD, SPIRVBasicBlock *BB);
+
   void dumpUsers(Value *V);
 
   template <class ExtInstKind>

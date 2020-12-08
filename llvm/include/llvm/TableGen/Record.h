@@ -24,6 +24,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/SMLoc.h"
+#include "llvm/Support/Timer.h"
 #include "llvm/Support/TrailingObjects.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
@@ -596,7 +597,13 @@ public:
 
 /// "foo" - Represent an initialization by a string value.
 class StringInit : public TypedInit {
+////  enum StringFormat {
+////    SF_String,  // Format as "text"
+////    SF_Code,    // Format as [{text}]
+////  };
+
   StringRef Value;
+////  StringFormat Format;
 
   explicit StringInit(StringRef V)
       : TypedInit(IK_StringInit, StringRecTy::get()), Value(V) {}
@@ -629,11 +636,10 @@ public:
 
 class CodeInit : public TypedInit {
   StringRef Value;
-  SMLoc Loc;
 
-  explicit CodeInit(StringRef V, const SMLoc &Loc)
+  explicit CodeInit(StringRef V)
       : TypedInit(IK_CodeInit, static_cast<RecTy *>(CodeRecTy::get())),
-        Value(V), Loc(Loc) {}
+        Value(V) {}
 
 public:
   CodeInit(const StringInit &) = delete;
@@ -643,10 +649,9 @@ public:
     return I->getKind() == IK_CodeInit;
   }
 
-  static CodeInit *get(StringRef, const SMLoc &Loc);
+  static CodeInit *get(StringRef);
 
   StringRef getValue() const { return Value; }
-  const SMLoc &getLoc() const { return Loc; }
 
   Init *convertInitializerTo(RecTy *Ty) const override;
 
@@ -865,7 +870,7 @@ public:
 /// !op (X, Y, Z) - Combine two inits.
 class TernOpInit : public OpInit, public FoldingSetNode {
 public:
-  enum TernaryOp : uint8_t { SUBST, FOREACH, IF, DAG };
+  enum TernaryOp : uint8_t { SUBST, FOREACH, FILTER, IF, DAG };
 
 private:
   Init *LHS, *MHS, *RHS;
@@ -1648,6 +1653,9 @@ public:
   // High-level methods useful to tablegen back-ends
   //
 
+  ///Return the source location for the named field.
+  SMLoc getFieldLoc(StringRef FieldName) const;
+
   /// Return the initializer for a value with the specified name,
   /// or throw an exception if the field does not exist.
   Init *getValueInit(StringRef FieldName) const;
@@ -1743,6 +1751,13 @@ class RecordKeeper {
   std::map<std::string, Init *, std::less<>> ExtraGlobals;
   unsigned AnonCounter = 0;
 
+  // These members are for the phase timing feature. We need a timer group,
+  // the last timer started, and a flag to say whether the last timer
+  // is the special "backend overall timer."
+  TimerGroup *TimingGroup = nullptr;
+  Timer *LastTimer = nullptr;
+  bool BackendTimer = false;
+
 public:
   /// Get the main TableGen input file's name.
   const std::string getInputFilename() const { return InputFilename; }
@@ -1802,6 +1817,30 @@ public:
   }
 
   Init *getNewAnonymousName();
+
+  /// Start phase timing; called if the --time-phases option is specified.
+  void startPhaseTiming() {
+    TimingGroup = new TimerGroup("TableGen", "TableGen Phase Timing");
+  }
+
+  /// Start timing a phase. Automatically stops any previous phase timer.
+  void startTimer(StringRef Name);
+
+  /// Stop timing a phase.
+  void stopTimer();
+
+  /// Start timing the overall backend. If the backend starts a timer,
+  /// then this timer is cleared.
+  void startBackendTimer(StringRef Name);
+
+  /// Stop timing the overall backend.
+  void stopBackendTimer();
+
+  /// Stop phase timing and print the report.
+  void stopPhaseTiming() {
+    if (TimingGroup)
+      delete TimingGroup;
+  }
 
   //===--------------------------------------------------------------------===//
   // High-level helper methods, useful for tablegen backends.

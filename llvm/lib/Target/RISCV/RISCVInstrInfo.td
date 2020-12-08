@@ -44,8 +44,7 @@ def riscv_sret_flag : SDNode<"RISCVISD::SRET_FLAG", SDTNone,
                              [SDNPHasChain, SDNPOptInGlue]>;
 def riscv_mret_flag : SDNode<"RISCVISD::MRET_FLAG", SDTNone,
                              [SDNPHasChain, SDNPOptInGlue]>;
-def riscv_selectcc  : SDNode<"RISCVISD::SELECT_CC", SDT_RISCVSelectCC,
-                             [SDNPInGlue]>;
+def riscv_selectcc  : SDNode<"RISCVISD::SELECT_CC", SDT_RISCVSelectCC>;
 def riscv_tail      : SDNode<"RISCVISD::TAIL", SDT_RISCVCall,
                              [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue,
                               SDNPVariadic]>;
@@ -1120,12 +1119,14 @@ def ADJCALLSTACKUP   : Pseudo<(outs), (ins i32imm:$amt1, i32imm:$amt2),
 
 /// RV64 patterns
 
+let Predicates = [IsRV64, NotHasStdExtZbbOrZbp] in
+def : Pat<(and GPR:$rs1, 0xffffffff), (SRLI (SLLI GPR:$rs1, 32), 32)>;
+
 let Predicates = [IsRV64] in {
 
 /// sext and zext
 
 def : Pat<(sext_inreg GPR:$rs1, i32), (ADDIW GPR:$rs1, 0)>;
-def : Pat<(and GPR:$rs1, 0xffffffff), (SRLI (SLLI GPR:$rs1, 32), 32)>;
 
 /// ALU operations
 
@@ -1143,6 +1144,8 @@ def : Pat<(srl (shl GPR:$rs1, (i64 32)), uimm6gt32:$shamt),
           (SRLIW GPR:$rs1, (ImmSub32 uimm6gt32:$shamt))>;
 def : Pat<(sra (sext_inreg GPR:$rs1, i32), uimm5:$shamt),
           (SRAIW GPR:$rs1, uimm5:$shamt)>;
+def : Pat<(sra (shl GPR:$rs1, (i64 32)), uimm6gt32:$shamt),
+          (SRAIW GPR:$rs1, (ImmSub32 uimm6gt32:$shamt))>;
 
 def : PatGprGpr<riscv_sllw, SLLW>;
 def : PatGprGpr<riscv_srlw, SRLW>;

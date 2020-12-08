@@ -389,6 +389,9 @@ def TargetELF : TargetSpec {
   let ObjectFormats = ["ELF"];
 }
 
+def TargetSupportsInitPriority : TargetSpec {
+  let CustomCode = [{ !Target.getTriple().isOSzOS() }];
+}
 // Attribute subject match rules that are used for #pragma clang attribute.
 //
 // A instance of AttrSubjectMatcherRule represents an individual match rule.
@@ -751,6 +754,16 @@ def Annotate : InheritableParamAttr {
   let Args = [StringArgument<"Annotation">, VariadicExprArgument<"Args">];
   // Ensure that the annotate attribute can be used with
   // '#pragma clang attribute' even though it has no subject list.
+  let AdditionalMembers = [{
+  static AnnotateAttr *Create(ASTContext &Ctx, llvm::StringRef Annotation, \
+              const AttributeCommonInfo &CommonInfo) {
+    return AnnotateAttr::Create(Ctx, Annotation, nullptr, 0, CommonInfo);
+  }
+  static AnnotateAttr *CreateImplicit(ASTContext &Ctx, llvm::StringRef Annotation, \
+              const AttributeCommonInfo &CommonInfo = {SourceRange{}}) {
+    return AnnotateAttr::CreateImplicit(Ctx, Annotation, nullptr, 0, CommonInfo);
+  }
+  }];
   let PragmaAttributeSupport = 1;
   let Documentation = [Undocumented];
 }
@@ -1283,7 +1296,7 @@ def SYCLIntelMaxWorkGroupSize : InheritableAttr {
 def SYCLIntelMaxGlobalWorkDim : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","max_global_work_dim">,
                    CXX11<"intel","max_global_work_dim">];
-  let Args = [UnsignedArgument<"Number">];
+  let Args = [ExprArgument<"Value">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelMaxGlobalWorkDimAttrDocs];
@@ -2822,7 +2835,7 @@ def WorkGroupSizeHint :  InheritableAttr {
   let Documentation = [Undocumented];
 }
 
-def InitPriority : InheritableAttr {
+def InitPriority : InheritableAttr, TargetSpecificAttr<TargetSupportsInitPriority> {
   let Spellings = [GCC<"init_priority", /*AllowInC*/0>];
   let Args = [UnsignedArgument<"Priority">];
   let Subjects = SubjectList<[Var], ErrorDiag>;

@@ -3396,21 +3396,30 @@ static SDValue simplifySetCCWithCTPOP(const TargetLowering &TLI, EVT VT,
   EVT CTVT = CTPOP.getValueType();
   SDValue CTOp = CTPOP.getOperand(0);
 
+  // If this is a vector CTPOP, keep the CTPOP if it is legal.
+  // TODO: Should we check if CTPOP is legal(or custom) for scalars?
+  if (VT.isVector() && TLI.isOperationLegal(ISD::CTPOP, CTVT))
+    return SDValue();
+
   // (ctpop x) u< 2 -> (x & x-1) == 0
   // (ctpop x) u> 1 -> (x & x-1) != 0
-  if ((Cond == ISD::SETULT && C1 == 2) || (Cond == ISD::SETUGT && C1 == 1)) {
-    // If this is a vector CTPOP, keep the CTPOP if it is legal.
-    // This based on X86's custom lowering for vector CTPOP which produces more
-    // instructions than the expansion here.
-    // TODO: Should we check if CTPOP is legal(or custom) for scalars?
-    if (VT.isVector() && TLI.isOperationLegal(ISD::CTPOP, CTVT))
+  if (Cond == ISD::SETULT || Cond == ISD::SETUGT) {
+    unsigned CostLimit = TLI.getCustomCtpopCost(CTVT, Cond);
+    if (C1.ugt(CostLimit + (Cond == ISD::SETULT)))
       return SDValue();
+    if (C1 == 0 && (Cond == ISD::SETULT))
+      return SDValue(); // This is handled elsewhere.
+
+    unsigned Passes = C1.getLimitedValue() - (Cond == ISD::SETULT);
 
     SDValue NegOne = DAG.getAllOnesConstant(dl, CTVT);
-    SDValue Add = DAG.getNode(ISD::ADD, dl, CTVT, CTOp, NegOne);
-    SDValue And = DAG.getNode(ISD::AND, dl, CTVT, CTOp, Add);
+    SDValue Result = CTOp;
+    for (unsigned i = 0; i < Passes; i++) {
+      SDValue Add = DAG.getNode(ISD::ADD, dl, CTVT, Result, NegOne);
+      Result = DAG.getNode(ISD::AND, dl, CTVT, Result, Add);
+    }
     ISD::CondCode CC = Cond == ISD::SETULT ? ISD::SETEQ : ISD::SETNE;
-    return DAG.getSetCC(dl, VT, And, DAG.getConstant(0, dl, CTVT), CC);
+    return DAG.getSetCC(dl, VT, Result, DAG.getConstant(0, dl, CTVT), CC);
   }
 
   // If ctpop is not supported, expand a power-of-2 comparison based on it.
@@ -3418,11 +3427,8 @@ static SDValue simplifySetCCWithCTPOP(const TargetLowering &TLI, EVT VT,
     // For scalars, keep CTPOP if it is legal or custom.
     if (!VT.isVector() && TLI.isOperationLegalOrCustom(ISD::CTPOP, CTVT))
       return SDValue();
-    // For vectors, keep CTPOP only if it is legal.
     // This is based on X86's custom lowering for CTPOP which produces more
     // instructions than the expansion here.
-    if (VT.isVector() && TLI.isOperationLegal(ISD::CTPOP, CTVT))
-      return SDValue();
 
     // (ctpop x) == 1 --> (x != 0) && ((x & x-1) == 0)
     // (ctpop x) != 1 --> (x == 0) || ((x & x-1) != 0)
@@ -3470,8 +3476,8 @@ SDValue TargetLowering::SimplifySetCC(EVT VT, SDValue N0, SDValue N1,
   if (!isConstOrConstSplat(N0) && !isConstOrConstSplat(N1) &&
       (DCI.isBeforeLegalizeOps() ||
        isCondCodeLegal(SwappedCC, N0.getSimpleValueType())) &&
-      DAG.getNodeIfExists(ISD::SUB, DAG.getVTList(OpVT), { N1, N0 } ) &&
-      !DAG.getNodeIfExists(ISD::SUB, DAG.getVTList(OpVT), { N0, N1 } ))
+      DAG.doesNodeExist(ISD::SUB, DAG.getVTList(OpVT), {N1, N0}) &&
+      !DAG.doesNodeExist(ISD::SUB, DAG.getVTList(OpVT), {N0, N1}))
     return DAG.getSetCC(dl, VT, N1, N0, SwappedCC);
 
   if (auto *N1C = isConstOrConstSplat(N1)) {
@@ -6816,6 +6822,22 @@ bool TargetLowering::expandABS(SDNode *N, SDValue &Result,
   EVT ShVT = getShiftAmountTy(VT, DAG.getDataLayout());
   SDValue Op = N->getOperand(0);
 
+  // abs(x) -> smax(x,sub(0,x))
+  if (isOperationLegal(ISD::SUB, VT) && isOperationLegal(ISD::SMAX, VT)) {
+    SDValue Zero = DAG.getConstant(0, dl, VT);
+    Result = DAG.getNode(ISD::SMAX, dl, VT, Op,
+                         DAG.getNode(ISD::SUB, dl, VT, Zero, Op));
+    return true;
+  }
+
+  // abs(x) -> umin(x,sub(0,x))
+  if (isOperationLegal(ISD::SUB, VT) && isOperationLegal(ISD::UMIN, VT)) {
+    SDValue Zero = DAG.getConstant(0, dl, VT);
+    Result = DAG.getNode(ISD::UMIN, dl, VT, Op,
+                         DAG.getNode(ISD::SUB, dl, VT, Zero, Op));
+    return true;
+  }
+
   // Only expand vector types if we have the appropriate vector operations.
   if (VT.isVector() && (!isOperationLegalOrCustom(ISD::SRA, VT) ||
                         !isOperationLegalOrCustom(ISD::ADD, VT) ||
@@ -7431,6 +7453,65 @@ SDValue TargetLowering::lowerCmpEqZeroToCtlzSrl(SDValue Op,
     }
   }
   return SDValue();
+}
+
+// Convert redundant addressing modes (e.g. scaling is redundant
+// when accessing bytes).
+ISD::MemIndexType
+TargetLowering::getCanonicalIndexType(ISD::MemIndexType IndexType, EVT MemVT,
+                                      SDValue Offsets) const {
+  bool IsScaledIndex =
+      (IndexType == ISD::SIGNED_SCALED) || (IndexType == ISD::UNSIGNED_SCALED);
+  bool IsSignedIndex =
+      (IndexType == ISD::SIGNED_SCALED) || (IndexType == ISD::SIGNED_UNSCALED);
+
+  // Scaling is unimportant for bytes, canonicalize to unscaled.
+  if (IsScaledIndex && MemVT.getScalarType() == MVT::i8) {
+    IsScaledIndex = false;
+    IndexType = IsSignedIndex ? ISD::SIGNED_UNSCALED : ISD::UNSIGNED_UNSCALED;
+  }
+
+  return IndexType;
+}
+
+SDValue TargetLowering::expandIntMINMAX(SDNode *Node, SelectionDAG &DAG) const {
+  SDValue Op0 = Node->getOperand(0);
+  SDValue Op1 = Node->getOperand(1);
+  EVT VT = Op0.getValueType();
+  unsigned Opcode = Node->getOpcode();
+  SDLoc DL(Node);
+
+  // umin(x,y) -> sub(x,usubsat(x,y))
+  if (Opcode == ISD::UMIN && isOperationLegal(ISD::SUB, VT) &&
+      isOperationLegal(ISD::USUBSAT, VT)) {
+    return DAG.getNode(ISD::SUB, DL, VT, Op0,
+                       DAG.getNode(ISD::USUBSAT, DL, VT, Op0, Op1));
+  }
+
+  // umax(x,y) -> add(x,usubsat(y,x))
+  if (Opcode == ISD::UMAX && isOperationLegal(ISD::ADD, VT) &&
+      isOperationLegal(ISD::USUBSAT, VT)) {
+    return DAG.getNode(ISD::ADD, DL, VT, Op0,
+                       DAG.getNode(ISD::USUBSAT, DL, VT, Op1, Op0));
+  }
+
+  // Expand Y = MAX(A, B) -> Y = (A > B) ? A : B
+  ISD::CondCode CC;
+  switch (Opcode) {
+  default: llvm_unreachable("How did we get here?");
+  case ISD::SMAX: CC = ISD::SETGT; break;
+  case ISD::SMIN: CC = ISD::SETLT; break;
+  case ISD::UMAX: CC = ISD::SETUGT; break;
+  case ISD::UMIN: CC = ISD::SETULT; break;
+  }
+
+  // FIXME: Should really try to split the vector in case it's legal on a
+  // subvector.
+  if (VT.isVector() && !isOperationLegalOrCustom(ISD::VSELECT, VT))
+    return DAG.UnrollVectorOp(Node);
+
+  SDValue Cond = DAG.getSetCC(DL, VT, Op0, Op1, CC);
+  return DAG.getSelect(DL, VT, Cond, Op0, Op1);
 }
 
 SDValue TargetLowering::expandAddSubSat(SDNode *Node, SelectionDAG &DAG) const {

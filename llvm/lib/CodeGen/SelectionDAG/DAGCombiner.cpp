@@ -3209,6 +3209,19 @@ SDValue DAGCombiner::visitSUB(SDNode *N) {
       // 0 - X --> X if X is 0 or the minimum signed value.
       return N1;
     }
+
+    // Convert 0 - abs(x) -> Y = sra (X, size(X)-1); sub (Y, xor (X, Y)).
+    if (N1->getOpcode() == ISD::ABS &&
+        !TLI.isOperationLegalOrCustom(ISD::ABS, VT)) {
+      SDValue X = N1->getOperand(0);
+      SDValue Shift =
+          DAG.getNode(ISD::SRA, DL, VT, X,
+                      DAG.getConstant(BitWidth - 1, DL, getShiftAmountTy(VT)));
+      SDValue Xor = DAG.getNode(ISD::XOR, DL, VT, X, Shift);
+      AddToWorklist(Shift.getNode());
+      AddToWorklist(Xor.getNode());
+      return DAG.getNode(ISD::SUB, DL, VT, Shift, Xor);
+    }
   }
 
   // Canonicalize (sub -1, x) -> ~x, i.e. (xor x, -1)
@@ -5727,6 +5740,31 @@ SDValue DAGCombiner::visitAND(SDNode *N) {
   if (TLI.hasBitTest(N0, N1))
     if (SDValue V = combineShiftAnd1ToBitTest(N, DAG))
       return V;
+
+  // Recognize the following pattern:
+  //
+  // AndVT = (and (sign_extend NarrowVT to AndVT) #bitmask)
+  //
+  // where bitmask is a mask that clears the upper bits of AndVT. The
+  // number of bits in bitmask must be a power of two.
+  auto IsAndZeroExtMask = [](SDValue LHS, SDValue RHS) {
+    if (LHS->getOpcode() != ISD::SIGN_EXTEND)
+      return false;
+
+    auto *C = dyn_cast<ConstantSDNode>(RHS);
+    if (!C)
+      return false;
+
+    if (!C->getAPIntValue().isMask(
+            LHS.getOperand(0).getValueType().getFixedSizeInBits()))
+      return false;
+
+    return true;
+  };
+
+  // Replace (and (sign_extend ...) #bitmask) with (zero_extend ...).
+  if (IsAndZeroExtMask(N0, N1))
+    return DAG.getNode(ISD::ZERO_EXTEND, SDLoc(N), VT, N0.getOperand(0));
 
   return SDValue();
 }
@@ -9374,15 +9412,73 @@ static SDValue ConvertSelectToConcatVector(SDNode *N, SelectionDAG &DAG) {
       TopHalf->isNullValue() ? RHS->getOperand(1) : LHS->getOperand(1));
 }
 
+bool refineUniformBase(SDValue &BasePtr, SDValue &Index, SelectionDAG &DAG) {
+  if (!isNullConstant(BasePtr) || Index.getOpcode() != ISD::ADD)
+    return false;
+
+  // For now we check only the LHS of the add.
+  SDValue LHS = Index.getOperand(0);
+  SDValue SplatVal = DAG.getSplatValue(LHS);
+  if (!SplatVal)
+    return false;
+
+  BasePtr = SplatVal;
+  Index = Index.getOperand(1);
+  return true;
+}
+
+// Fold sext/zext of index into index type.
+bool refineIndexType(MaskedScatterSDNode *MSC, SDValue &Index, bool Scaled,
+                     SelectionDAG &DAG) {
+  const TargetLowering &TLI = DAG.getTargetLoweringInfo();
+  SDValue Op = Index.getOperand(0);
+
+  if (Index.getOpcode() == ISD::ZERO_EXTEND) {
+    MSC->setIndexType(Scaled ? ISD::UNSIGNED_SCALED : ISD::UNSIGNED_UNSCALED);
+    if (TLI.shouldRemoveExtendFromGSIndex(Op.getValueType())) {
+      Index = Op;
+      return true;
+    }
+  }
+
+  if (Index.getOpcode() == ISD::SIGN_EXTEND) {
+    MSC->setIndexType(Scaled ? ISD::SIGNED_SCALED : ISD::SIGNED_UNSCALED);
+    if (TLI.shouldRemoveExtendFromGSIndex(Op.getValueType())) {
+      Index = Op;
+      return true;
+    }
+  }
+
+  return false;
+}
+
 SDValue DAGCombiner::visitMSCATTER(SDNode *N) {
   MaskedScatterSDNode *MSC = cast<MaskedScatterSDNode>(N);
   SDValue Mask = MSC->getMask();
   SDValue Chain = MSC->getChain();
+  SDValue Index = MSC->getIndex();
+  SDValue Scale = MSC->getScale();
+  SDValue StoreVal = MSC->getValue();
+  SDValue BasePtr = MSC->getBasePtr();
   SDLoc DL(N);
 
   // Zap scatters with a zero mask.
   if (ISD::isBuildVectorAllZeros(Mask.getNode()))
     return Chain;
+
+  if (refineUniformBase(BasePtr, Index, DAG)) {
+    SDValue Ops[] = {Chain, StoreVal, Mask, BasePtr, Index, Scale};
+    return DAG.getMaskedScatter(
+        DAG.getVTList(MVT::Other), StoreVal.getValueType(), DL, Ops,
+        MSC->getMemOperand(), MSC->getIndexType(), MSC->isTruncatingStore());
+  }
+
+  if (refineIndexType(MSC, Index, MSC->isIndexScaled(), DAG)) {
+    SDValue Ops[] = {Chain, StoreVal, Mask, BasePtr, Index, Scale};
+    return DAG.getMaskedScatter(
+        DAG.getVTList(MVT::Other), StoreVal.getValueType(), DL, Ops,
+        MSC->getMemOperand(), MSC->getIndexType(), MSC->isTruncatingStore());
+  }
 
   return SDValue();
 }
@@ -21956,30 +22052,36 @@ SDValue DAGCombiner::buildSqrtEstimateImpl(SDValue Op, SDNodeFlags Flags,
             : buildSqrtNRTwoConst(Op, Est, Iterations, Flags, Reciprocal);
 
       if (!Reciprocal) {
-        // The estimate is now completely wrong if the input was exactly 0.0 or
-        // possibly a denormal. Force the answer to 0.0 for those cases.
         SDLoc DL(Op);
         EVT CCVT = getSetCCResultType(VT);
-        ISD::NodeType SelOpcode = VT.isVector() ? ISD::VSELECT : ISD::SELECT;
+        SDValue FPZero = DAG.getConstantFP(0.0, DL, VT);
         DenormalMode DenormMode = DAG.getDenormalMode(VT);
-        if (DenormMode.Input == DenormalMode::IEEE) {
-          // This is specifically a check for the handling of denormal inputs,
-          // not the result.
+        // Try the target specific test first.
+        SDValue Test = TLI.getSqrtInputTest(Op, DAG, DenormMode);
+        if (!Test) {
+          // If no test provided by target, testing it with denormal inputs to
+          // avoid wrong estimate.
+          if (DenormMode.Input == DenormalMode::IEEE) {
+            // This is specifically a check for the handling of denormal inputs,
+            // not the result.
 
-          // fabs(X) < SmallestNormal ? 0.0 : Est
-          const fltSemantics &FltSem = DAG.EVTToAPFloatSemantics(VT);
-          APFloat SmallestNorm = APFloat::getSmallestNormalized(FltSem);
-          SDValue NormC = DAG.getConstantFP(SmallestNorm, DL, VT);
-          SDValue FPZero = DAG.getConstantFP(0.0, DL, VT);
-          SDValue Fabs = DAG.getNode(ISD::FABS, DL, VT, Op);
-          SDValue IsDenorm = DAG.getSetCC(DL, CCVT, Fabs, NormC, ISD::SETLT);
-          Est = DAG.getNode(SelOpcode, DL, VT, IsDenorm, FPZero, Est);
-        } else {
-          // X == 0.0 ? 0.0 : Est
-          SDValue FPZero = DAG.getConstantFP(0.0, DL, VT);
-          SDValue IsZero = DAG.getSetCC(DL, CCVT, Op, FPZero, ISD::SETEQ);
-          Est = DAG.getNode(SelOpcode, DL, VT, IsZero, FPZero, Est);
+            // Test = fabs(X) < SmallestNormal
+            const fltSemantics &FltSem = DAG.EVTToAPFloatSemantics(VT);
+            APFloat SmallestNorm = APFloat::getSmallestNormalized(FltSem);
+            SDValue NormC = DAG.getConstantFP(SmallestNorm, DL, VT);
+            SDValue Fabs = DAG.getNode(ISD::FABS, DL, VT, Op);
+            Test = DAG.getSetCC(DL, CCVT, Fabs, NormC, ISD::SETLT);
+          } else
+            // Test = X == 0.0
+            Test = DAG.getSetCC(DL, CCVT, Op, FPZero, ISD::SETEQ);
         }
+
+        // The estimate is now completely wrong if the input was exactly 0.0 or
+        // possibly a denormal. Force the answer to 0.0 or value provided by
+        // target for those cases.
+        Est = DAG.getNode(
+            Test.getValueType().isVector() ? ISD::VSELECT : ISD::SELECT, DL, VT,
+            Test, TLI.getSqrtResultForDenormInput(Op, DAG), Est);
       }
     }
     return Est;

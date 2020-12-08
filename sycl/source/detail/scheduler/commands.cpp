@@ -485,7 +485,7 @@ void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
 
   // 1. Async work is not supported for host device.
   // 2. The event handle can be null in case of, for example, alloca command,
-  //    which is currently synchrounious, so don't generate OpenCL event.
+  //    which is currently synchronous, so don't generate OpenCL event.
   //    Though, this event isn't host one as it's context isn't host one.
   if (DepEvent->is_host() || DepEvent->getHandleRef() == nullptr) {
     // call to waitInternal() is in waitForPreparedHostEvents() as it's called
@@ -1141,21 +1141,12 @@ cl_int MemCpyCommand::enqueueImp() {
 
   auto RawEvents = getPiEvents(EventImpls);
 
-  // Omit copying if mode is discard one.
-  // TODO: Handle this at the graph building time by, for example, creating
-  // empty node instead of memcpy.
-  if (MDstReq.MAccessMode == access::mode::discard_read_write ||
-      MDstReq.MAccessMode == access::mode::discard_write ||
-      MSrcAllocaCmd->getMemAllocation() == MDstAllocaCmd->getMemAllocation()) {
-    Command::waitForEvents(Queue, EventImpls, Event);
-  } else {
-    MemoryManager::copy(
-        MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(),
-        MSrcQueue, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
-        MSrcReq.MOffset, MSrcReq.MElemSize, MDstAllocaCmd->getMemAllocation(),
-        MQueue, MDstReq.MDims, MDstReq.MMemoryRange, MDstReq.MAccessRange,
-        MDstReq.MOffset, MDstReq.MElemSize, std::move(RawEvents), Event);
-  }
+  MemoryManager::copy(
+      MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(),
+      MSrcQueue, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
+      MSrcReq.MOffset, MSrcReq.MElemSize, MDstAllocaCmd->getMemAllocation(),
+      MQueue, MDstReq.MDims, MDstReq.MMemoryRange, MDstReq.MAccessRange,
+      MDstReq.MOffset, MDstReq.MElemSize, std::move(RawEvents), Event);
 
   return CL_SUCCESS;
 }
@@ -2039,7 +2030,8 @@ cl_int ExecCGCommand::enqueueImp() {
             Req->MSYCLMemObj->MRecord->MAllocaCommands;
 
         for (AllocaCommandBase *AllocaCmd : AllocaCmds)
-          if (HostTask->MQueue == AllocaCmd->getQueue()) {
+          if (HostTask->MQueue->getContextImplPtr() ==
+              AllocaCmd->getQueue()->getContextImplPtr()) {
             auto MemArg =
                 reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
             ReqToMem.emplace_back(std::make_pair(Req, MemArg));

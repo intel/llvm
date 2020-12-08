@@ -42,7 +42,6 @@
 using namespace llvm;
 
 using string_vector = std::vector<std::string>;
-using SpecIDMapTy = std::map<StringRef, unsigned>;
 
 cl::OptionCategory PostLinkCat{"sycl-post-link options"};
 
@@ -509,14 +508,19 @@ static string_vector saveDeviceImageProperty(
                   RMEntry);
     }
     if (ImgPSInfo.DoSpecConst && ImgPSInfo.SetSpecConstAtRT) {
-      // extract spec constant maps per each module
-      SpecIDMapTy TmpSpecIDMap;
-      if (ImgPSInfo.SpecConstsMet)
-        SpecConstantsPass::collectSpecConstantMetadata(*ResultModules[I].get(),
-                                                       TmpSpecIDMap);
-      PropSet.add(
-          llvm::util::PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS,
-          TmpSpecIDMap);
+      if (ImgPSInfo.SpecConstsMet) {
+        // extract spec constant maps per each module
+        ScalarSpecIDMapTy TmpScalarSpecIDMap;
+        CompositeSpecIDMapTy TmpCompositeSpecIDMap;
+        SpecConstantsPass::collectSpecConstantMetadata(
+            *ResultModules[I].get(), TmpScalarSpecIDMap, TmpCompositeSpecIDMap);
+        PropSet.add(
+            llvm::util::PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS,
+            TmpScalarSpecIDMap);
+        PropSet.add(llvm::util::PropertySetRegistry::
+                        SYCL_COMPOSITE_SPECIALIZATION_CONSTANTS,
+                    TmpCompositeSpecIDMap);
+      }
     }
     if (ImgPSInfo.EmitKernelParamInfo) {
       // extract kernel parameter optimization info per module

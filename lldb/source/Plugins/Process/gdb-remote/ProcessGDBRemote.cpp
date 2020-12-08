@@ -205,7 +205,8 @@ void ProcessGDBRemote::Terminate() {
 lldb::ProcessSP
 ProcessGDBRemote::CreateInstance(lldb::TargetSP target_sp,
                                  ListenerSP listener_sp,
-                                 const FileSpec *crash_file_path) {
+                                 const FileSpec *crash_file_path,
+                                 bool can_connect) {
   lldb::ProcessSP process_sp;
   if (crash_file_path == nullptr)
     process_sp = std::make_shared<ProcessGDBRemote>(target_sp, listener_sp);
@@ -1222,6 +1223,10 @@ Status ProcessGDBRemote::GetMetaData(lldb::user_id_t uid, lldb::tid_t thread_id,
 Status ProcessGDBRemote::GetTraceConfig(lldb::user_id_t uid,
                                         TraceOptions &options) {
   return m_gdb_comm.SendGetTraceConfigPacket(uid, options);
+}
+
+llvm::Expected<TraceTypeInfo> ProcessGDBRemote::GetSupportedTraceType() {
+  return m_gdb_comm.SendGetSupportedTraceType();
 }
 
 void ProcessGDBRemote::DidExit() {

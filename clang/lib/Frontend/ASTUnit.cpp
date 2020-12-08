@@ -759,7 +759,7 @@ std::unique_ptr<ASTUnit> ASTUnit::LoadFromASTFile(
     WhatToLoad ToLoad, IntrusiveRefCntPtr<DiagnosticsEngine> Diags,
     const FileSystemOptions &FileSystemOpts, bool UseDebugInfo,
     bool OnlyLocalDecls, ArrayRef<RemappedFile> RemappedFiles,
-    CaptureDiagsKind CaptureDiagnostics, bool AllowPCHWithCompilerErrors,
+    CaptureDiagsKind CaptureDiagnostics, bool AllowASTWithCompilerErrors,
     bool UserFilesAreVolatile) {
   std::unique_ptr<ASTUnit> AST(new ASTUnit(true));
 
@@ -819,7 +819,7 @@ std::unique_ptr<ASTUnit> ASTUnit::LoadFromASTFile(
   AST->Reader = new ASTReader(
       PP, *AST->ModuleCache, AST->Ctx.get(), PCHContainerRdr, {},
       /*isysroot=*/"",
-      /*DisableValidation=*/disableValid, AllowPCHWithCompilerErrors);
+      /*DisableValidation=*/disableValid, AllowASTWithCompilerErrors);
 
   AST->Reader->setListener(std::make_unique<ASTInfoCollector>(
       *AST->PP, AST->Ctx.get(), *AST->HSOpts, *AST->PPOpts, *AST->LangOpts,
@@ -1317,9 +1317,8 @@ ASTUnit::getMainBufferWithPrecompiledPreamble(
   if (!MainFileBuffer)
     return nullptr;
 
-  PreambleBounds Bounds =
-      ComputePreambleBounds(*PreambleInvocationIn.getLangOpts(),
-                            MainFileBuffer.get(), MaxLines);
+  PreambleBounds Bounds = ComputePreambleBounds(
+      *PreambleInvocationIn.getLangOpts(), *MainFileBuffer, MaxLines);
   if (!Bounds.Size)
     return nullptr;
 
@@ -1521,8 +1520,7 @@ ASTUnit *ASTUnit::LoadFromCompilerInvocationAction(
     ASTUnit *Unit, bool Persistent, StringRef ResourceFilesPath,
     bool OnlyLocalDecls, CaptureDiagsKind CaptureDiagnostics,
     unsigned PrecompilePreambleAfterNParses, bool CacheCodeCompletionResults,
-    bool IncludeBriefCommentsInCodeCompletion, bool UserFilesAreVolatile,
-    std::unique_ptr<ASTUnit> *ErrAST) {
+    bool UserFilesAreVolatile, std::unique_ptr<ASTUnit> *ErrAST) {
   assert(CI && "A CompilerInvocation is required");
 
   std::unique_ptr<ASTUnit> OwnAST;
@@ -1545,8 +1543,7 @@ ASTUnit *ASTUnit::LoadFromCompilerInvocationAction(
     AST->PreambleRebuildCountdown = PrecompilePreambleAfterNParses;
   AST->TUKind = Action ? Action->getTranslationUnitKind() : TU_Complete;
   AST->ShouldCacheCodeCompletionResults = CacheCodeCompletionResults;
-  AST->IncludeBriefCommentsInCodeCompletion
-    = IncludeBriefCommentsInCodeCompletion;
+  AST->IncludeBriefCommentsInCodeCompletion = false;
 
   // Recover resources if we crash before exiting this method.
   llvm::CrashRecoveryContextCleanupRegistrar<ASTUnit>

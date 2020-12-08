@@ -79,7 +79,7 @@ relative ordering of values is important. For example:
 initialization being the opposite.
 
 This attribute is only supported for C++ and Objective-C++ and is ignored in
-other language modes.
+other language modes. Currently, this attribute is not implemented on z/OS.
   }];
 }
 
@@ -4303,9 +4303,10 @@ def NSErrorDomainDocs : Documentation {
 In Cocoa frameworks in Objective-C, one can group related error codes in enums
 and categorize these enums with error domains.
 
-The ``ns_error_domain`` attribute indicates a global ``NSString`` constant
-representing the error domain that an error code belongs to. For pointer
-uniqueness and code size this is a constant symbol, not a literal.
+The ``ns_error_domain`` attribute indicates a global ``NSString`` or
+``CFString`` constant representing the error domain that an error code belongs
+to. For pointer uniqueness and code size this is a constant symbol, not a
+literal.
 
 The domain and error code need to be used together. The ``ns_error_domain``
 attribute links error codes to their domain at the source level.
@@ -4645,10 +4646,6 @@ option.
     foo (int x); // stack protection will be disabled for foo.
 
     int bar(int y); // bar can be built with the stack protector.
-
-A callee that has a stack protector will not be inlined into a
-``__attribute__((no_stack_protector))`` caller, and vice-versa, even if the
-callee is marked ``__attribute__((always_inline))``.
 
     }];
 }

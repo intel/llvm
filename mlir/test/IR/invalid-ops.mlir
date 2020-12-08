@@ -87,7 +87,8 @@ func @bad_alloc_wrong_dynamic_dim_count() {
 ^bb0:
   %0 = constant 7 : index
   // Test alloc with wrong number of dynamic dimensions.
-  %1 = alloc(%0)[%1] : memref<2x4xf32, affine_map<(d0, d1)[s0] -> ((d0 + s0), d1)>, 1> // expected-error {{op 'std.alloc' dimension operand count does not equal memref dynamic dimension count}}
+  // expected-error@+1 {{dimension operand count does not equal memref dynamic dimension count}}
+  %1 = alloc(%0)[%0] : memref<2x4xf32, affine_map<(d0, d1)[s0] -> ((d0 + s0), d1)>, 1>
   return
 }
 
@@ -97,7 +98,8 @@ func @bad_alloc_wrong_symbol_count() {
 ^bb0:
   %0 = constant 7 : index
   // Test alloc with wrong number of symbols
-  %1 = alloc(%0) : memref<2x?xf32, affine_map<(d0, d1)[s0] -> ((d0 + s0), d1)>, 1> // expected-error {{operand count does not equal dimension plus symbol operand count}}
+  // expected-error@+1 {{symbol operand count does not equal memref symbol count}}
+  %1 = alloc(%0) : memref<2x?xf32, affine_map<(d0, d1)[s0] -> ((d0 + s0), d1)>, 1>
   return
 }
 
@@ -234,7 +236,7 @@ func @func_with_ops(i32, i32) {
 func @func_with_ops() {
 ^bb0:
   %c = constant dense<0> : vector<42 x i32>
-  // expected-error@+1 {{op requires the same shape for all operands and results}}
+  // expected-error@+1 {{all non-scalar operands/results must have the same shape and base type: found 'vector<41xi1>' and 'vector<42xi32>'}}
   %r = "std.cmpi"(%c, %c) {predicate = 0} : (vector<42 x i32>, vector<42 x i32>) -> vector<41 x i1>
 }
 
@@ -267,7 +269,7 @@ func @func_with_ops(i1, i32, i64) {
 
 func @func_with_ops(vector<12xi1>, vector<42xi32>, vector<42xi32>) {
 ^bb0(%cond : vector<12xi1>, %t : vector<42xi32>, %f : vector<42xi32>):
-  // expected-error@+1 {{expected condition type to have the same shape as the result type, expected 'vector<42xi1>', but got 'vector<12xi1>'}}
+  // expected-error@+1 {{all non-scalar operands/results must have the same shape and base type: found 'vector<42xi32>' and 'vector<12xi1>'}}
   %r = "std.select"(%cond, %t, %f) : (vector<12xi1>, vector<42xi32>, vector<42xi32>) -> vector<42xi32>
 }
 
@@ -275,7 +277,7 @@ func @func_with_ops(vector<12xi1>, vector<42xi32>, vector<42xi32>) {
 
 func @func_with_ops(tensor<12xi1>, tensor<42xi32>, tensor<42xi32>) {
 ^bb0(%cond : tensor<12xi1>, %t : tensor<42xi32>, %f : tensor<42xi32>):
-  // expected-error@+1 {{expected condition type to have the same shape as the result type, expected 'tensor<42xi1>', but got 'tensor<12xi1>'}}
+  // expected-error@+1 {{all non-scalar operands/results must have the same shape and base type: found 'tensor<42xi32>' and 'tensor<12xi1>'}}
   %r = "std.select"(%cond, %t, %f) : (tensor<12xi1>, tensor<42xi32>, tensor<42xi32>) -> tensor<42xi32>
 }
 
@@ -512,7 +514,7 @@ func @cmpf_canonical_wrong_result_type(%a : f32, %b : f32) -> f32 {
 // -----
 
 func @cmpf_result_shape_mismatch(%a : vector<42xf32>) {
-  // expected-error@+1 {{op requires the same shape for all operands and results}}
+  // expected-error@+1 {{all non-scalar operands/results must have the same shape and base type: found 'vector<41xi1>' and 'vector<42xf32>'}}
   %r = "std.cmpf"(%a, %a) {predicate = 0} : (vector<42 x f32>, vector<42 x f32>) -> vector<41 x i1>
 }
 
@@ -685,7 +687,7 @@ func @fpext_f32_to_i32(%arg0 : f32) {
 // -----
 
 func @fpext_vec(%arg0 : vector<2xf16>) {
-  // expected-error@+1 {{requires the same shape for all operands and results}}
+  // expected-error@+1 {{all non-scalar operands/results must have the same shape and base type: found 'vector<3xf32>' and 'vector<2xf16>'}}
   %0 = fpext %arg0 : vector<2xf16> to vector<3xf32>
   return
 }
@@ -757,7 +759,7 @@ func @fptrunc_f32_to_i32(%arg0 : f32) {
 // -----
 
 func @fptrunc_vec(%arg0 : vector<2xf16>) {
-  // expected-error@+1 {{requires the same shape for all operands and results}}
+  // expected-error@+1 {{all non-scalar operands/results must have the same shape and base type: found 'vector<3xf32>' and 'vector<2xf16>'}}
   %0 = fptrunc %arg0 : vector<2xf16> to vector<3xf32>
   return
 }
@@ -979,7 +981,7 @@ func @invalid_view(%arg0 : index, %arg1 : index, %arg2 : index) {
 func @invalid_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
   %0 = alloc() : memref<8x16x4xf32, offset: 0, strides: [64, 4, 1], 2>
   // expected-error@+1 {{different memory spaces}}
-  %1 = subview %0[0, 0, 0][%arg2][1, 1, 1]
+  %1 = subview %0[0, 0, 0][%arg2, %arg2, %arg2][1, 1, 1]
     : memref<8x16x4xf32, offset: 0, strides: [64, 4, 1], 2> to
       memref<8x?x4xf32, affine_map<(d0, d1, d2)[s0] -> (d0 * s0 + d1 * 4 + d2)>>
   return
@@ -990,7 +992,7 @@ func @invalid_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
 func @invalid_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
   %0 = alloc() : memref<8x16x4xf32, affine_map<(d0, d1, d2) -> (d0 + d1, d1 + d2, d2)>>
   // expected-error@+1 {{is not strided}}
-  %1 = subview %0[0, 0, 0][%arg2][1, 1, 1]
+  %1 = subview %0[0, 0, 0][%arg2, %arg2, %arg2][1, 1, 1]
     : memref<8x16x4xf32, affine_map<(d0, d1, d2) -> (d0 + d1, d1 + d2, d2)>> to
       memref<8x?x4xf32, offset: 0, strides: [?, 4, 1]>
   return

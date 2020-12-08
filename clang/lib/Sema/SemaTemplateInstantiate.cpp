@@ -141,7 +141,12 @@ Sema::getTemplateInstantiationArgs(NamedDecl *D,
               TSK_ExplicitSpecialization)
         break;
 
-      if (const TemplateArgumentList *TemplateArgs
+      if (!RelativeToPrimary && Function->getTemplateSpecializationKind() ==
+                                    TSK_ExplicitSpecialization) {
+        // This is an implicit instantiation of an explicit specialization. We
+        // don't get any template arguments from this function but might get
+        // some from an enclosing template.
+      } else if (const TemplateArgumentList *TemplateArgs
             = Function->getTemplateSpecializationArgs()) {
         // Add the template arguments for this specialization.
         Result.addOuterTemplateArguments(TemplateArgs);
@@ -579,7 +584,7 @@ void Sema::PrintInstantiationStack() {
 
     case CodeSynthesisContext::DefaultTemplateArgumentInstantiation: {
       TemplateDecl *Template = cast<TemplateDecl>(Active->Template);
-      SmallVector<char, 128> TemplateArgsStr;
+      SmallString<128> TemplateArgsStr;
       llvm::raw_svector_ostream OS(TemplateArgsStr);
       Template->printName(OS);
       printTemplateArgumentList(OS, Active->template_arguments(),
@@ -645,7 +650,7 @@ void Sema::PrintInstantiationStack() {
       ParmVarDecl *Param = cast<ParmVarDecl>(Active->Entity);
       FunctionDecl *FD = cast<FunctionDecl>(Param->getDeclContext());
 
-      SmallVector<char, 128> TemplateArgsStr;
+      SmallString<128> TemplateArgsStr;
       llvm::raw_svector_ostream OS(TemplateArgsStr);
       FD->printName(OS);
       printTemplateArgumentList(OS, Active->template_arguments(),
@@ -797,7 +802,7 @@ void Sema::PrintInstantiationStack() {
         assert(isa<FunctionDecl>(Active->Entity));
         DiagID = diag::note_checking_constraints_for_function_here;
       }
-      SmallVector<char, 128> TemplateArgsStr;
+      SmallString<128> TemplateArgsStr;
       llvm::raw_svector_ostream OS(TemplateArgsStr);
       cast<NamedDecl>(Active->Entity)->printName(OS);
       if (!isa<FunctionDecl>(Active->Entity))

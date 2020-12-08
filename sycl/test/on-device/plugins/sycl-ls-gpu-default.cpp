@@ -1,6 +1,6 @@
 // REQUIRES: gpu
 
-// RUN: env --unset=SYCL_BE sycl-ls --verbose >%t.default.out
+// RUN: env --unset=SYCL_DEVICE_FILTER sycl-ls --verbose >%t.default.out
 // RUN: FileCheck %s --check-prefixes=CHECK-GPU-BUILTIN,CHECK-GPU-CUSTOM --input-file %t.default.out
 
 // CHECK-GPU-BUILTIN: gpu_selector(){{.*}}GPU : {{.*}}Level-Zero

@@ -10,8 +10,7 @@
 #include "mlir/IR/Block.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/Function.h"
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Rewrite/PatternApplicator.h"
 #include "mlir/Transforms/Utils.h"
 #include "llvm/ADT/SetVector.h"
@@ -365,11 +364,6 @@ void ArgConverter::applyRewrites(ConversionValueMapping &mapping) {
       // If the argument is still used, replace it with the generated cast.
       if (!origArg.use_empty())
         origArg.replaceAllUsesWith(mapping.lookupOrDefault(castValue));
-
-      // If all users of the cast were removed, we can drop it. Otherwise, keep
-      // the operation alive and let the user handle any remaining usages.
-      if (castValue.use_empty() && castValue.getDefiningOp())
-        castValue.getDefiningOp()->erase();
     }
   }
 }
@@ -989,7 +983,7 @@ void ConversionPatternRewriterImpl::undoBlockActions(
       Block *insertAfterBlock = action.originalPosition.insertAfterBlock;
       blockList.insert((insertAfterBlock
                             ? std::next(Region::iterator(insertAfterBlock))
-                            : blockList.end()),
+                            : blockList.begin()),
                        action.block);
       break;
     }
@@ -1211,13 +1205,15 @@ void ConversionPatternRewriterImpl::notifyBlocksBeingMerged(Block *block,
 
 void ConversionPatternRewriterImpl::notifyRegionIsBeingInlinedBefore(
     Region &region, Region &parent, Region::iterator before) {
-  Block *origPrevBlock = nullptr;
-  for (auto &pair : llvm::enumerate(region)) {
-    Block &block = pair.value();
+  if (region.empty())
+    return;
+  Block *laterBlock = &region.back();
+  for (auto &earlierBlock : llvm::drop_begin(llvm::reverse(region), 1)) {
     blockActions.push_back(
-        BlockAction::getMove(&block, {&region, origPrevBlock}));
-    origPrevBlock = &block;
+        BlockAction::getMove(laterBlock, {&region, &earlierBlock}));
+    laterBlock = &earlierBlock;
   }
+  blockActions.push_back(BlockAction::getMove(laterBlock, {&region, nullptr}));
 }
 
 void ConversionPatternRewriterImpl::notifyRegionWasClonedBefore(

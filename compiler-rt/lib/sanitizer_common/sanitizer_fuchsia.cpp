@@ -505,6 +505,8 @@ u32 GetNumberOfCPUs() {
 
 uptr GetRSS() { UNIMPLEMENTED(); }
 
+void InitializePlatformCommonFlags(CommonFlags *cf) {}
+
 }  // namespace __sanitizer
 
 using namespace __sanitizer;
@@ -525,6 +527,10 @@ void __sanitizer_set_report_path(const char *path) {
 }
 
 void __sanitizer_set_report_fd(void *fd) {
+  UNREACHABLE("not available on Fuchsia");
+}
+
+const char *__sanitizer_get_report_path() {
   UNREACHABLE("not available on Fuchsia");
 }
 }  // extern "C"

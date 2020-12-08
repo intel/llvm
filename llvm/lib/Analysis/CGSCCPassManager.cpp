@@ -20,6 +20,7 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PassManagerImpl.h"
+#include "llvm/IR/ValueHandle.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -476,9 +477,9 @@ static LazyCallGraph::SCC &updateCGAndAnalysisManagerForPass(
   // First walk the function and handle all called functions. We do this first
   // because if there is a single call edge, whether there are ref edges is
   // irrelevant.
-  for (Instruction &I : instructions(F))
-    if (auto *CB = dyn_cast<CallBase>(&I))
-      if (Function *Callee = CB->getCalledFunction())
+  for (Instruction &I : instructions(F)) {
+    if (auto *CB = dyn_cast<CallBase>(&I)) {
+      if (Function *Callee = CB->getCalledFunction()) {
         if (Visited.insert(Callee).second && !Callee->isDeclaration()) {
           Node *CalleeN = G.lookup(*Callee);
           if (!CalleeN) {
@@ -498,13 +499,24 @@ static LazyCallGraph::SCC &updateCGAndAnalysisManagerForPass(
           else if (!E->isCall())
             PromotedRefTargets.insert(CalleeN);
         }
+      } else {
+        // We can miss devirtualization if an indirect call is created then
+        // promoted before updateCGAndAnalysisManagerForPass runs.
+        auto *Entry = UR.IndirectVHs.find(CB);
+        if (Entry == UR.IndirectVHs.end())
+          UR.IndirectVHs.insert({CB, WeakTrackingVH(CB)});
+        else if (!Entry->second)
+          Entry->second = WeakTrackingVH(CB);
+      }
+    }
+  }
 
   // Now walk all references.
   for (Instruction &I : instructions(F))
     for (Value *Op : I.operand_values())
-      if (auto *C = dyn_cast<Constant>(Op))
-        if (Visited.insert(C).second)
-          Worklist.push_back(C);
+      if (auto *OpC = dyn_cast<Constant>(Op))
+        if (Visited.insert(OpC).second)
+          Worklist.push_back(OpC);
 
   auto VisitRef = [&](Function &Referee) {
     Node *RefereeN = G.lookup(Referee);
@@ -549,15 +561,17 @@ static LazyCallGraph::SCC &updateCGAndAnalysisManagerForPass(
     // TODO: This only allows trivial edges to be added for now.
     assert((RC == &TargetRC ||
            RC->isAncestorOf(TargetRC)) && "New call edge is not trivial!");
-    RC->insertTrivialCallEdge(N, *CallTarget);
+    // Add a trivial ref edge to be promoted later on alongside
+    // PromotedRefTargets.
+    RC->insertTrivialRefEdge(N, *CallTarget);
   }
 
   // Include synthetic reference edges to known, defined lib functions.
-  for (auto *F : G.getLibFunctions())
+  for (auto *LibFn : G.getLibFunctions())
     // While the list of lib functions doesn't have repeats, don't re-visit
     // anything handled above.
-    if (!Visited.count(F))
-      VisitRef(*F);
+    if (!Visited.count(LibFn))
+      VisitRef(*LibFn);
 
   // First remove all of the edges that are no longer present in this function.
   // The first step makes these edges uniformly ref edges and accumulates them
@@ -663,6 +677,11 @@ static LazyCallGraph::SCC &updateCGAndAnalysisManagerForPass(
     C = incorporateNewSCCRange(RC->switchInternalEdgeToRef(N, *RefTarget), G, N,
                                C, AM, UR);
   }
+
+  // We added a ref edge earlier for new call edges, promote those to call edges
+  // alongside PromotedRefTargets.
+  for (Node *E : NewCallEdges)
+    PromotedRefTargets.insert(E);
 
   // Now promote ref edges into call edges.
   for (Node *CallTarget : PromotedRefTargets) {

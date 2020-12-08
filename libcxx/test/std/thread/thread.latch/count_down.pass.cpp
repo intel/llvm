@@ -9,7 +9,9 @@
 // UNSUPPORTED: libcpp-has-no-threads
 // UNSUPPORTED: c++03, c++11
 
-// This test requires the dylib support introduced in D68480
+// This test requires the dylib support introduced in D68480,
+// which hasn't shipped yet.
+// XFAIL: with_system_cxx_lib=macosx
 // XFAIL: with_system_cxx_lib=macosx10.15
 // XFAIL: with_system_cxx_lib=macosx10.14
 // XFAIL: with_system_cxx_lib=macosx10.13
@@ -23,6 +25,7 @@
 #include <latch>
 #include <thread>
 
+#include "make_test_thread.h"
 #include "test_macros.h"
 
 int main(int, char**)
@@ -30,7 +33,7 @@ int main(int, char**)
   std::latch l(2);
 
   l.count_down();
-  std::thread t([&](){
+  std::thread t = support::make_test_thread([&](){
     l.count_down();
   });
   l.wait();

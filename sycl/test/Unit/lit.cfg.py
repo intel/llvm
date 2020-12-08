@@ -73,5 +73,5 @@ else:
     lit_config.warning("unable to inject shared library path on '{}'"
                        .format(platform.system()))
 
-config.environment['SYCL_BE'] = lit_config.params.get('SYCL_BE', "PI_OPENCL")
-lit_config.note("Backend (SYCL_BE): {}".format(config.environment['SYCL_BE']))
+config.environment['SYCL_DEVICE_FILTER'] = lit_config.params.get('SYCL_PLUGIN', "opencl")
+lit_config.note("Backend: {}".format(config.environment['SYCL_DEVICE_FILTER']))

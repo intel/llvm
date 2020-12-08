@@ -74,6 +74,9 @@ def SDT_PPCcondbr : SDTypeProfile<0, 3, [
   SDTCisVT<0, i32>, SDTCisVT<2, OtherVT>
 ]>;
 
+def SDT_PPCFtsqrt : SDTypeProfile<1, 1, [
+  SDTCisVT<0, i32>]>;
+
 def SDT_PPClbrx : SDTypeProfile<1, 2, [
   SDTCisInt<0>, SDTCisPtrTy<1>, SDTCisVT<2, OtherVT>
 ]>;
@@ -124,6 +127,8 @@ def SDT_PPCFPMinMax : SDTypeProfile<1, 2, [
 
 def PPCfre    : SDNode<"PPCISD::FRE",     SDTFPUnaryOp, []>;
 def PPCfrsqrte: SDNode<"PPCISD::FRSQRTE", SDTFPUnaryOp, []>;
+def PPCfsqrt  : SDNode<"PPCISD::FSQRT",   SDTFPUnaryOp, []>;
+def PPCftsqrt : SDNode<"PPCISD::FTSQRT",  SDT_PPCFtsqrt,[]>;
 
 def PPCfcfid  : SDNode<"PPCISD::FCFID",   SDTFPUnaryOp, []>;
 def PPCfcfidu : SDNode<"PPCISD::FCFIDU",  SDTFPUnaryOp, []>;
@@ -1031,11 +1036,13 @@ def pred : Operand<OtherVT> {
 // Define PowerPC specific addressing mode.
 
 // d-form
-def iaddr    : ComplexPattern<iPTR, 2, "SelectAddrImm",     [], []>;  // "stb"
+def iaddr    : ComplexPattern<iPTR, 2, "SelectAddrImm",     [], []>; // "stb"
 // ds-form
-def iaddrX4  : ComplexPattern<iPTR, 2, "SelectAddrImmX4",   [], []>;  // "std"
+def iaddrX4  : ComplexPattern<iPTR, 2, "SelectAddrImmX4",   [], []>; // "std"
 // dq-form
-def iaddrX16 : ComplexPattern<iPTR, 2, "SelectAddrImmX16",  [], []>;  // "stxv"
+def iaddrX16 : ComplexPattern<iPTR, 2, "SelectAddrImmX16",  [], []>; // "stxv"
+// 8LS:d-form
+def iaddrX34 : ComplexPattern<iPTR, 2, "SelectAddrImmX34",  [], []>; // "pstxvp"
 
 // Below forms are all x-form addressing mode, use three different ones so we
 // can make a accurate check for x-form instructions in ISEL.
@@ -2641,7 +2648,8 @@ let isCompare = 1, mayRaiseFPException = 1, hasSideEffects = 0 in {
 def FTDIV: XForm_17<63, 128, (outs crrc:$crD), (ins f8rc:$fA, f8rc:$fB),
                       "ftdiv $crD, $fA, $fB", IIC_FPCompare>;
 def FTSQRT: XForm_17a<63, 160, (outs crrc:$crD), (ins f8rc:$fB),
-                      "ftsqrt $crD, $fB", IIC_FPCompare>;
+                      "ftsqrt $crD, $fB", IIC_FPCompare,
+                      [(set i32:$crD, (PPCftsqrt f64:$fB))]>;
 
 let mayRaiseFPException = 1, hasSideEffects = 0 in {
   let Interpretation64Bit = 1, isCodeGenOnly = 1 in
@@ -2698,6 +2706,8 @@ let Uses = [RM], mayRaiseFPException = 1, hasSideEffects = 0 in {
                           [(set f32:$frD, (any_fsqrt f32:$frB))]>;
 }
 }
+
+def : Pat<(PPCfsqrt f64:$frA), (FSQRT $frA)>;
 
 /// Note that FMR is defined as pseudo-ops on the PPC970 because they are
 /// often coalesced away and we don't want the dispatch group builder to think

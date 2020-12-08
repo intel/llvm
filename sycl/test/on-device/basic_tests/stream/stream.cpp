@@ -1,6 +1,5 @@
-
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out | FileCheck %s
+// RUN: %RUN_ON_HOST %t.out | FileCheck %s
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 // RUN: %GPU_RUN_ON_LINUX_PLACEHOLDER %t.out %GPU_CHECK_ON_LINUX_PLACEHOLDER
 // RUN: %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER
@@ -249,11 +248,12 @@ int main() {
                 [&](h_item<3> Item) { Out << Item << endl; });
           });
     });
-// CHECK-NEXT: h_item(
-// CHECK-NEXT:   global item(range: {1, 1, 1}, id: {0, 0, 0})
-// CHECK-NEXT:   logical local item(range: {1, 1, 1}, id: {0, 0, 0})
-// CHECK-NEXT:   physical local item(range: {1, 1, 1}, id: {0, 0, 0})
-// CHECK-NEXT: )
+    Queue.wait();
+    // CHECK-NEXT: h_item(
+    // CHECK-NEXT:   global item(range: {1, 1, 1}, id: {0, 0, 0})
+    // CHECK-NEXT:   logical local item(range: {1, 1, 1}, id: {0, 0, 0})
+    // CHECK-NEXT:   physical local item(range: {1, 1, 1}, id: {0, 0, 0})
+    // CHECK-NEXT: )
 
     // Multiple streams in command group
     Queue.submit([&](handler &CGH) {

@@ -188,14 +188,12 @@ public:
     if (context().HasError(symbol)) {
       return std::nullopt;
     }
-    auto maybeExpr{AnalyzeExpr(*context_, expr)};
-    if (!maybeExpr) {
-      return std::nullopt;
-    }
-    auto exprType{maybeExpr->GetType()};
-    auto converted{evaluate::ConvertToType(symbol, std::move(*maybeExpr))};
-    if (!converted) {
-      if (exprType) {
+    if (auto maybeExpr{AnalyzeExpr(*context_, expr)}) {
+      if (auto converted{
+              evaluate::ConvertToType(symbol, std::move(*maybeExpr))}) {
+        return FoldExpr(std::move(*converted));
+      }
+      if (auto exprType{maybeExpr->GetType()}) {
         Say(source,
             "Initialization expression could not be converted to declared type of '%s' from %s"_err_en_US,
             symbol.name(), exprType->AsFortran());
@@ -204,9 +202,8 @@ public:
             "Initialization expression could not be converted to declared type of '%s'"_err_en_US,
             symbol.name());
       }
-      return std::nullopt;
     }
-    return FoldExpr(std::move(*converted));
+    return std::nullopt;
   }
 
   template <typename T> MaybeIntExpr EvaluateIntExpr(const T &expr) {
@@ -594,7 +591,7 @@ public:
 protected:
   // Apply the implicit type rules to this symbol.
   void ApplyImplicitRules(Symbol &);
-  const DeclTypeSpec *GetImplicitType(Symbol &);
+  const DeclTypeSpec *GetImplicitType(Symbol &, const Scope &);
   bool ConvertToObjectEntity(Symbol &);
   bool ConvertToProcEntity(Symbol &);
 
@@ -2111,7 +2108,12 @@ static bool NeedsType(const Symbol &symbol) {
 
 void ScopeHandler::ApplyImplicitRules(Symbol &symbol) {
   if (NeedsType(symbol)) {
-    if (const DeclTypeSpec * type{GetImplicitType(symbol)}) {
+    const Scope *scope{&symbol.owner()};
+    if (scope->IsGlobal()) {
+      scope = &currScope();
+    }
+    if (const DeclTypeSpec *
+        type{GetImplicitType(symbol, GetInclusiveScope(*scope))}) {
       symbol.set(Symbol::Flag::Implicit);
       symbol.SetType(*type);
       return;
@@ -2137,9 +2139,9 @@ void ScopeHandler::ApplyImplicitRules(Symbol &symbol) {
   }
 }
 
-const DeclTypeSpec *ScopeHandler::GetImplicitType(Symbol &symbol) {
-  const auto *type{implicitRulesMap_->at(&GetInclusiveScope(symbol.owner()))
-                       .GetType(symbol.name())};
+const DeclTypeSpec *ScopeHandler::GetImplicitType(
+    Symbol &symbol, const Scope &scope) {
+  const auto *type{implicitRulesMap_->at(&scope).GetType(symbol.name())};
   if (type) {
     if (const DerivedTypeSpec * derived{type->AsDerived()}) {
       // Resolve any forward-referenced derived type; a quick no-op else.
@@ -3340,6 +3342,10 @@ bool DeclarationVisitor::Pre(const parser::ExternalStmt &x) {
     if (!ConvertToProcEntity(*symbol)) {
       SayWithDecl(
           name, *symbol, "EXTERNAL attribute not allowed on '%s'"_err_en_US);
+    } else if (symbol->attrs().test(Attr::INTRINSIC)) { // C840
+      Say(symbol->name(),
+          "Symbol '%s' cannot have both INTRINSIC and EXTERNAL attributes"_err_en_US,
+          symbol->name());
     }
   }
   return false;
@@ -4990,14 +4996,18 @@ bool ConstructVisitor::Pre(const parser::AcSpec &x) {
   return false;
 }
 
+// Section 19.4, paragraph 5 says that each ac-do-variable has the scope of the
+// enclosing ac-implied-do
 bool ConstructVisitor::Pre(const parser::AcImpliedDo &x) {
   auto &values{std::get<std::list<parser::AcValue>>(x.t)};
   auto &control{std::get<parser::AcImpliedDoControl>(x.t)};
   auto &type{std::get<std::optional<parser::IntegerTypeSpec>>(control.t)};
   auto &bounds{std::get<parser::AcImpliedDoControl::Bounds>(control.t)};
+  PushScope(Scope::Kind::ImpliedDos, nullptr);
   DeclareStatementEntity(bounds.name.thing.thing, type);
   Walk(bounds);
   Walk(values);
+  PopScope();
   return false;
 }
 
@@ -5721,18 +5731,27 @@ void DeclarationVisitor::Initialization(const parser::Name &name,
     // derived types may still need more attention.
     return;
   }
-  if (auto *details{ultimate.detailsIf<ObjectEntityDetails>()}) {
+  if (auto *object{ultimate.detailsIf<ObjectEntityDetails>()}) {
     // TODO: check C762 - all bounds and type parameters of component
     // are colons or constant expressions if component is initialized
-    bool isNullPointer{false};
     std::visit(
         common::visitors{
             [&](const parser::ConstantExpr &expr) {
               NonPointerInitialization(name, expr, inComponentDecl);
             },
-            [&](const parser::NullInit &) {
-              isNullPointer = true;
-              details->set_init(SomeExpr{evaluate::NullPointer{}});
+            [&](const parser::NullInit &null) {
+              Walk(null);
+              if (auto nullInit{EvaluateExpr(null)}) {
+                if (!evaluate::IsNullPointer(*nullInit)) {
+                  Say(name,
+                      "Pointer initializer must be intrinsic NULL()"_err_en_US); // C813
+                } else if (IsPointer(ultimate)) {
+                  object->set_init(std::move(*nullInit));
+                } else {
+                  Say(name,
+                      "Non-pointer component '%s' initialized with null pointer"_err_en_US);
+                }
+              }
             },
             [&](const parser::InitialDataTarget &) {
               DIE("InitialDataTarget can't appear here");
@@ -5748,15 +5767,6 @@ void DeclarationVisitor::Initialization(const parser::Name &name,
             },
         },
         init.u);
-    if (isNullPointer) {
-      if (!IsPointer(ultimate)) {
-        Say(name,
-            "Non-pointer component '%s' initialized with null pointer"_err_en_US);
-      }
-    } else if (IsPointer(ultimate)) {
-      Say(name,
-          "Object pointer component '%s' initialized with non-pointer expression"_err_en_US);
-    }
   }
 }
 
@@ -5876,8 +5886,6 @@ void ResolveNamesVisitor::HandleProcedureName(
     }
     ConvertToProcEntity(*symbol);
     SetProcFlag(name, *symbol, flag);
-  } else if (symbol->has<UnknownDetails>()) {
-    DIE("unexpected UnknownDetails");
   } else if (CheckUseError(name)) {
     // error was reported
   } else {

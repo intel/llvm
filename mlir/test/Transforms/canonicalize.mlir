@@ -334,6 +334,29 @@ func @memref_cast_folding(%arg0: memref<4 x f32>, %arg1: f32) -> (f32, f32) {
   return %1, %2 : f32, f32
 }
 
+// CHECK-LABEL: @fold_memref_cast_in_memref_cast
+// CHECK-SAME: (%[[ARG0:.*]]: memref<42x42xf64>)
+func @fold_memref_cast_in_memref_cast(%0: memref<42x42xf64>) {
+  // CHECK: %[[folded:.*]] = memref_cast %[[ARG0]] : memref<42x42xf64> to memref<?x?xf64>
+  %4 = memref_cast %0 : memref<42x42xf64> to memref<?x42xf64>
+  // CHECK-NOT: memref_cast
+  %5 = memref_cast %4 : memref<?x42xf64> to memref<?x?xf64>
+  // CHECK: "test.user"(%[[folded]])
+  "test.user"(%5) : (memref<?x?xf64>) -> ()
+  return
+}
+
+// CHECK-LABEL: @fold_memref_cast_chain
+// CHECK-SAME: (%[[ARG0:.*]]: memref<42x42xf64>)
+func @fold_memref_cast_chain(%0: memref<42x42xf64>) {
+  // CHECK-NOT: memref_cast
+  %4 = memref_cast %0 : memref<42x42xf64> to memref<?x42xf64>
+  %5 = memref_cast %4 : memref<?x42xf64> to memref<42x42xf64>
+  // CHECK: "test.user"(%[[ARG0]])
+  "test.user"(%5) : (memref<42x42xf64>) -> ()
+  return
+}
+
 // CHECK-LABEL: func @alloc_const_fold
 func @alloc_const_fold() -> memref<?xf32> {
   // CHECK-NEXT: %0 = alloc() : memref<4xf32>
@@ -1178,4 +1201,18 @@ func @subtensor(%t: tensor<8x16x4xf32>, %arg0 : index, %arg1 : index)
     : tensor<?x?x?xf32> to tensor<?x?x?xf32>
 
   return %2 : tensor<?x?x?xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func @extract_element_from_tensor_cast
+// CHECK-SAME: %[[TENSOR:.*]]: tensor<*xf32>
+func @extract_element_from_tensor_cast(%tensor: tensor<*xf32>) -> f32 {
+  // CHECK-NEXT: %[[C0:.*]] = constant 0 : index
+  %c0 = constant 0 : index
+  // CHECK-NOT: tensor_cast
+  %casted = tensor_cast %tensor : tensor<*xf32> to tensor<?xf32>
+  // CHECK-NEXT: extract_element %[[TENSOR]][%[[C0]]]
+  %result = extract_element %casted[%c0] : tensor<?xf32>
+  return %result : f32
 }

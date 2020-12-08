@@ -89,6 +89,8 @@ public:
 
   bool isNoopAddrSpaceCast(unsigned, unsigned) const { return false; }
 
+  unsigned getAssumedAddrSpace(const Value *V) const { return -1; }
+
   Value *rewriteIntrinsicWithAddressSpace(IntrinsicInst *II, Value *OldV,
                                           Value *NewV) const {
     return nullptr;
@@ -258,6 +260,8 @@ public:
   bool useAA() { return false; }
 
   bool isTypeLegal(Type *Ty) { return false; }
+
+  unsigned getRegUsageForType(Type *Ty) { return 1; }
 
   bool shouldBuildLookupTables() { return true; }
   bool shouldBuildLookupTablesForConstant(Constant *C) { return true; }
@@ -522,6 +526,7 @@ public:
     case Intrinsic::annotation:
     case Intrinsic::assume:
     case Intrinsic::sideeffect:
+    case Intrinsic::pseudoprobe:
     case Intrinsic::dbg_declare:
     case Intrinsic::dbg_value:
     case Intrinsic::dbg_label:

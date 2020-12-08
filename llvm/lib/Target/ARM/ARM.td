@@ -601,6 +601,9 @@ def ProcA78     : SubtargetFeature<"cortex-a78", "ARMProcFamily", "CortexA78",
 def ProcX1      : SubtargetFeature<"cortex-x1", "ARMProcFamily", "CortexX1",
                                    "Cortex-X1 ARM processors", []>;
 
+def ProcV1      : SubtargetFeature<"neoverse-v1", "ARMProcFamily",
+                                   "NeoverseV1", "Neoverse-V1 ARM processors", []>;
+
 def ProcKrait   : SubtargetFeature<"krait", "ARMProcFamily", "Krait",
                                    "Qualcomm Krait processors", []>;
 def ProcKryo    : SubtargetFeature<"kryo", "ARMProcFamily", "Kryo",
@@ -882,14 +885,6 @@ def ARMv6j   : Architecture<"armv6j",      "ARMv7a",   [ARMv6]>;
 def ARMv7k   : Architecture<"armv7k",      "ARMv7a",   [ARMv7a]>;
 def ARMv7s   : Architecture<"armv7s",      "ARMv7a",   [ARMv7a]>;
 
-
-//===----------------------------------------------------------------------===//
-// ARM schedules.
-//===----------------------------------------------------------------------===//
-//
-include "ARMPredicates.td"
-include "ARMSchedule.td"
-
 //===----------------------------------------------------------------------===//
 // Register File Description
 //===----------------------------------------------------------------------===//
@@ -897,6 +892,13 @@ include "ARMSchedule.td"
 include "ARMRegisterInfo.td"
 include "ARMRegisterBanks.td"
 include "ARMCallingConv.td"
+
+//===----------------------------------------------------------------------===//
+// ARM schedules.
+//===----------------------------------------------------------------------===//
+//
+include "ARMPredicates.td"
+include "ARMSchedule.td"
 
 //===----------------------------------------------------------------------===//
 // Instruction Descriptions
@@ -915,6 +917,7 @@ include "ARMScheduleSwift.td"
 include "ARMScheduleR52.td"
 include "ARMScheduleA57.td"
 include "ARMScheduleM4.td"
+include "ARMScheduleM7.td"
 
 //===----------------------------------------------------------------------===//
 // ARM processors
@@ -1156,8 +1159,9 @@ def : ProcessorModel<"cortex-m4", CortexM4Model,        [ARMv7em,
                                                          FeatureUseMISched,
                                                          FeatureHasNoBranchPredictor]>;
 
-def : ProcNoItin<"cortex-m7",                           [ARMv7em,
-                                                         FeatureFPARMv8_D16]>;
+def : ProcessorModel<"cortex-m7", CortexM7Model,        [ARMv7em,
+                                                         FeatureFPARMv8_D16,
+                                                         FeatureUseMISched]>;
 
 def : ProcNoItin<"cortex-m23",                          [ARMv8mBaseline,
                                                          FeatureNoMovt]>;
@@ -1279,12 +1283,26 @@ def : ProcNoItin<"cortex-x1",                           [ARMv82a, ProcX1,
                                                          FeatureFullFP16,
                                                          FeatureDotProd]>;
 
+def : ProcNoItin<"neoverse-v1",                         [ARMv84a,
+                                                         FeatureHWDivThumb,
+                                                         FeatureHWDivARM,
+                                                         FeatureCrypto,
+                                                         FeatureCRC,
+                                                         FeatureFullFP16,
+                                                         FeatureBF16,
+                                                         FeatureMatMulInt8]>;
+
 def : ProcNoItin<"neoverse-n1",                         [ARMv82a,
                                                          FeatureHWDivThumb,
                                                          FeatureHWDivARM,
                                                          FeatureCrypto,
                                                          FeatureCRC,
                                                          FeatureDotProd]>;
+
+def : ProcNoItin<"neoverse-n2",                         [ARMv85a,
+                                                         FeatureBF16,
+                                                         FeatureMatMulInt8,
+                                                         FeaturePerfMon]>;
 
 def : ProcessorModel<"cyclone",     SwiftModel,         [ARMv8a, ProcSwift,
                                                          FeatureHasRetAddrStack,

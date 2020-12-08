@@ -465,9 +465,12 @@ supported for the ``amdgcn`` target.
 
   Using the constant address space indicates that the data will not change
   during the execution of the kernel. This allows scalar read instructions to
-  be used. The vector and scalar L1 caches are invalidated of volatile data
-  before each kernel dispatch execution to allow constant memory to change
-  values between kernel dispatches.
+  be used. As the constant address space could only be modified on the host
+  side, a generic pointer loaded from the constant address space is safe to be
+  assumed as a global pointer since only the device global memory is visible
+  and managed on the host side. The vector and scalar L1 caches are invalidated
+  of volatile data before each kernel dispatch execution to allow constant
+  memory to change values between kernel dispatches.
 
 **Region**
   The region address space uses the hardware Global Data Store (GDS). All
@@ -3141,14 +3144,17 @@ A kernel descriptor consists of the information needed by CP to initiate the
 execution of a kernel, including the entry point address of the machine code
 that implements the kernel.
 
-Kernel Descriptor for GFX6-GFX10
-++++++++++++++++++++++++++++++++
+Code Object V3 Kernel Descriptor for GFX6-GFX10 (--amdhsa-code-object-version=3)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++=+++++++++
 
 CP microcode requires the Kernel descriptor to be allocated on 64-byte
 alignment.
 
-  .. table:: Kernel Descriptor for GFX6-GFX10
-     :name: amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table
+The fields used by CP for code objects before V3 also match those specified in
+:ref:`amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table-v3`.
+
+  .. table:: Code Object V3 Kernel Descriptor for GFX6-GFX10
+     :name: amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table-v3
 
      ======= ======= =============================== ============================
      Bits    Size    Field Name                      Description
@@ -3232,8 +3238,12 @@ alignment.
                                                        - If 1 execute in
                                                          native wavefront size
                                                          32 mode.
-     463:459 5 bits                                  Reserved, must be 0.
-     511:464 6 bytes                                 Reserved, must be 0.
+     463:459 1 bit                                   Reserved, must be 0.
+     464     1 bit   RESERVED_464                    Deprecated, must be 0.
+     467:465 3 bits                                  Reserved, must be 0.
+     468     1 bit   RESERVED_468                    Deprecated, must be 0.
+     469:471 3 bits                                  Reserved, must be 0.
+     511:472 5 bytes                                 Reserved, must be 0.
      512     **Total size 64 bytes.**
      ======= ====================================================================
 
@@ -8116,6 +8126,25 @@ The following table illustrates the required format:
   the top 32 bits of the pipeline, so the shader may use the program
   counter's top 32 bits.
 
+.. _pal_call-convention:
+
+Call Convention
+~~~~~~~~~~~~~~~
+
+For graphics use cases, the calling convention is `amdgpu_gfx`.
+
+.. note::
+
+  `amdgpu_gfx` Function calls are currently in development and are
+  subject to major changes.
+
+This calling convention shares most properties with calling non-kernel
+functions (see
+:ref:`amdgpu-amdhsa-function-call-convention-non-kernel-functions`).
+Differences are:
+
+ - Currently there are none, differences will be listed here
+
 Unspecified OS
 --------------
 
@@ -8724,25 +8753,25 @@ terminated by an ``.end_amdhsa_kernel`` directive.
      Directive                                                Default             Supported On Description
      ======================================================== =================== ============ ===================
      ``.amdhsa_group_segment_fixed_size``                     0                   GFX6-GFX10   Controls GROUP_SEGMENT_FIXED_SIZE in
-                                                                                               :ref:`amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table`.
+                                                                                               :ref:`amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table-v3`.
      ``.amdhsa_private_segment_fixed_size``                   0                   GFX6-GFX10   Controls PRIVATE_SEGMENT_FIXED_SIZE in
-                                                                                               :ref:`amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table`.
+                                                                                               :ref:`amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table-v3`.
      ``.amdhsa_user_sgpr_private_segment_buffer``             0                   GFX6-GFX10   Controls ENABLE_SGPR_PRIVATE_SEGMENT_BUFFER in
-                                                                                               :ref:`amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table`.
+                                                                                               :ref:`amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table-v3`.
      ``.amdhsa_user_sgpr_dispatch_ptr``                       0                   GFX6-GFX10   Controls ENABLE_SGPR_DISPATCH_PTR in
-                                                                                               :ref:`amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table`.
+                                                                                               :ref:`amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table-v3`.
      ``.amdhsa_user_sgpr_queue_ptr``                          0                   GFX6-GFX10   Controls ENABLE_SGPR_QUEUE_PTR in
-                                                                                               :ref:`amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table`.
+                                                                                               :ref:`amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table-v3`.
      ``.amdhsa_user_sgpr_kernarg_segment_ptr``                0                   GFX6-GFX10   Controls ENABLE_SGPR_KERNARG_SEGMENT_PTR in
-                                                                                               :ref:`amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table`.
+                                                                                               :ref:`amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table-v3`.
      ``.amdhsa_user_sgpr_dispatch_id``                        0                   GFX6-GFX10   Controls ENABLE_SGPR_DISPATCH_ID in
-                                                                                               :ref:`amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table`.
+                                                                                               :ref:`amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table-v3`.
      ``.amdhsa_user_sgpr_flat_scratch_init``                  0                   GFX6-GFX10   Controls ENABLE_SGPR_FLAT_SCRATCH_INIT in
-                                                                                               :ref:`amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table`.
+                                                                                               :ref:`amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table-v3`.
      ``.amdhsa_user_sgpr_private_segment_size``               0                   GFX6-GFX10   Controls ENABLE_SGPR_PRIVATE_SEGMENT_SIZE in
-                                                                                               :ref:`amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table`.
+                                                                                               :ref:`amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table-v3`.
      ``.amdhsa_wavefront_size32``                             Target              GFX10        Controls ENABLE_WAVEFRONT_SIZE32 in
-                                                              Feature                          :ref:`amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table`.
+                                                              Feature                          :ref:`amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table-v3`.
                                                               Specific
                                                               (-wavefrontsize64)
      ``.amdhsa_system_sgpr_private_segment_wavefront_offset`` 0                   GFX6-GFX10   Controls ENABLE_SGPR_PRIVATE_SEGMENT_WAVEFRONT_OFFSET in
@@ -8799,7 +8828,7 @@ terminated by an ``.end_amdhsa_kernel`` directive.
      ``.amdhsa_fp16_overflow``                                0                   GFX9-GFX10   Controls FP16_OVFL in
                                                                                                :ref:`amdgpu-amdhsa-compute_pgm_rsrc1-gfx6-gfx10-table`.
      ``.amdhsa_workgroup_processor_mode``                     Target              GFX10        Controls ENABLE_WGP_MODE in
-                                                              Feature                          :ref:`amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table`.
+                                                              Feature                          :ref:`amdgpu-amdhsa-kernel-descriptor-gfx6-gfx10-table-v3`.
                                                               Specific
                                                               (-cumode)
      ``.amdhsa_memory_ordered``                               1                   GFX10        Controls MEM_ORDERED in
