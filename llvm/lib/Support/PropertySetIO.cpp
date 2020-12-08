@@ -182,8 +182,7 @@ PropertyValue &PropertyValue::operator=(PropertyValue &&P) {
 
 PropertyValue &PropertyValue::operator=(const PropertyValue &P) {
   if (P.getType() == BYTE_ARRAY)
-    *this =
-        std::move(PropertyValue(P.asByteArray(), P.getByteArraySizeInBits()));
+    *this = PropertyValue(P.asByteArray(), P.getByteArraySizeInBits());
   else
     copy(P);
   return *this;

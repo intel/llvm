@@ -4905,7 +4905,8 @@ static void TryReferenceInitializationCore(Sema &S,
     // Add addr space conversion if required.
     if (T1Quals.getAddressSpace() != T2Quals.getAddressSpace()) {
       auto T4Quals = cv1T4.getQualifiers();
-      T4Quals.addAddressSpace(T1Quals.getAddressSpace());
+      T4Quals.addAddressSpace(T1Quals.getAddressSpace(),
+                              S.getLangOpts().SYCLIsDevice);
       QualType cv1T4WithAS = S.Context.getQualifiedType(T2, T4Quals);
       Sequence.AddQualificationConversionStep(cv1T4WithAS, ValueKind);
       cv1T4 = cv1T4WithAS;
