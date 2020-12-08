@@ -318,6 +318,19 @@ static bool checkAttrMutualExclusion(Sema &S, Decl *D, const Attr &AL) {
   return false;
 }
 
+/// Give a warning for duplicate attributes, return true if duplicate.
+template <typename AttrType>
+static bool checkForDuplicateAttribute(Sema &S, Decl *D,
+                                       const ParsedAttr &Attr) {
+  // Give a warning for duplicates but not if it's one we've implicitly added.
+  auto *A = D->getAttr<AttrType>();
+  if (A && !A->isImplicit()) {
+    S.Diag(Attr.getLoc(), diag::warn_duplicate_attribute_exact) << A;
+    return true;
+  }
+  return false;
+}
+
 static bool checkDeprecatedSYCLAttributeSpelling(Sema &S,
                                                  const ParsedAttr &Attr) {
   if (Attr.getScopeName()->isStr("intelfpga"))
@@ -3116,6 +3129,58 @@ static void handleMaxGlobalWorkDimAttr(Sema &S, Decl *D,
         S.Context, Attr, MaxGlobalWorkDim));
 }
 
+SYCLIntelLoopFuseAttr *
+Sema::mergeSYCLIntelLoopFuseAttr(Decl *D, const SYCLIntelLoopFuseAttr &Attr,
+                                 Expr *E) {
+  if (checkAttrMutualExclusion<SYCLIntelLoopFuseIndependentAttr>(*this, D,
+                                                                 Attr))
+    return nullptr;
+
+  if (D->hasAttr<SYCLIntelLoopFuseAttr>())
+    return nullptr;
+
+  return ::new (Context) SYCLIntelLoopFuseAttr(Context, Attr, E);
+}
+
+SYCLIntelLoopFuseIndependentAttr *Sema::mergeSYCLIntelLoopFuseIndependentAttr(
+    Decl *D, const SYCLIntelLoopFuseIndependentAttr &Attr, Expr *E) {
+  if (checkAttrMutualExclusion<SYCLIntelLoopFuseAttr>(*this, D, Attr))
+    return nullptr;
+
+  if (D->hasAttr<SYCLIntelLoopFuseIndependentAttr>())
+    return nullptr;
+
+  return ::new (Context) SYCLIntelLoopFuseIndependentAttr(Context, Attr, E);
+}
+
+// Handles loop_fuse and loop_fuse_independent.
+// These attributes are incompatible with eachother.
+template <typename AttrType, typename ConflictingAttrType>
+static void handleLoopFusionAttr(Sema &S, Decl *D, const ParsedAttr &Attr) {
+  if (D->isInvalidDecl())
+    return;
+
+  if (checkForDuplicateAttribute<AttrType>(S, D, Attr))
+    return;
+
+  if (checkAttrMutualExclusion<ConflictingAttrType>(S, D, Attr))
+    return;
+
+  unsigned NumArgs = Attr.getNumArgs();
+  if (NumArgs > 1) {
+    S.Diag(Attr.getLoc(), diag::warn_attribute_too_many_arguments) << Attr << 0;
+    return;
+  }
+
+  // Handle optional attribute argument.
+  if (Attr.isArgExpr(0))
+    // Attribute argument specified.
+    S.AddOneConstantValueAttr<AttrType>(D, Attr, Attr.getArgAsExpr(0));
+  else
+    // Attribute argument not specified.
+    D->addAttr(::new (S.Context) AttrType(S.Context, Attr));
+}
+
 static void handleVecTypeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!AL.hasParsedType()) {
     S.Diag(AL.getLoc(), diag::err_attribute_wrong_number_arguments) << AL << 1;
@@ -5279,19 +5344,6 @@ static void handleTypeTagForDatatypeAttr(Sema &S, Decl *D,
   D->addAttr(::new (S.Context) TypeTagForDatatypeAttr(
       S.Context, AL, PointerKind, MatchingCTypeLoc, AL.getLayoutCompatible(),
       AL.getMustBeNull()));
-}
-
-/// Give a warning for duplicate attributes, return true if duplicate.
-template <typename AttrType>
-static bool checkForDuplicateAttribute(Sema &S, Decl *D,
-                                       const ParsedAttr &Attr) {
-  // Give a warning for duplicates but not if it's one we've implicitly added.
-  auto *A = D->getAttr<AttrType>();
-  if (A && !A->isImplicit()) {
-    S.Diag(Attr.getLoc(), diag::warn_duplicate_attribute_exact) << A;
-    return true;
-  }
-  return false;
 }
 
 static void handleNoGlobalWorkOffsetAttr(Sema &S, Decl *D,
@@ -8418,6 +8470,14 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_SYCLIntelUseStallEnableClusters:
     handleUseStallEnableClustersAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLIntelLoopFuse:
+    handleLoopFusionAttr<SYCLIntelLoopFuseAttr,
+                         SYCLIntelLoopFuseIndependentAttr>(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLIntelLoopFuseIndependent:
+    handleLoopFusionAttr<SYCLIntelLoopFuseIndependentAttr,
+                         SYCLIntelLoopFuseAttr>(S, D, AL);
     break;
   case ParsedAttr::AT_VecTypeHint:
     handleVecTypeHint(S, D, AL);

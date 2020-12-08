@@ -566,6 +566,23 @@ public:
           (KernelBody != FD) && !FD->hasAttr<SYCLSimdAttr>())
         FD->addAttr(SYCLSimdAttr::CreateImplicit(SemaRef.getASTContext()));
 
+      // Attribute "loop_fuse" can be applied explicitly on kernel function.
+      // Attribute should not be propagated from device functions to kernel
+      if (auto *A = FD->getAttr<SYCLIntelLoopFuseAttr>()) {
+        if (ParentFD == SYCLKernel) {
+          Attrs.insert(A);
+        }
+      }
+
+      // Attribute "loop_fuse_independent" can be applied explicitly on kernel
+      // function. Attribute should not be propagated from device functions to
+      // kernel
+      if (auto *A = FD->getAttr<SYCLIntelLoopFuseIndependentAttr>()) {
+        if (ParentFD == SYCLKernel) {
+          Attrs.insert(A);
+        }
+      }
+
       // TODO: vec_len_hint should be handled here
 
       CallGraphNode *N = SYCLCG.getNode(FD);
@@ -3282,6 +3299,8 @@ void Sema::MarkDevice(void) {
         case attr::Kind::SYCLIntelMaxGlobalWorkDim:
         case attr::Kind::SYCLIntelNoGlobalWorkOffset:
         case attr::Kind::SYCLIntelUseStallEnableClusters:
+        case attr::Kind::SYCLIntelLoopFuse:
+        case attr::Kind::SYCLIntelLoopFuseIndependent:
         case attr::Kind::SYCLSimd: {
           if ((A->getKind() == attr::Kind::SYCLSimd) && KernelBody &&
               !KernelBody->getAttr<SYCLSimdAttr>()) {
