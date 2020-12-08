@@ -448,12 +448,6 @@ pi_result _pi_context::finalize() {
 
   // Destroy the command list used for initializations
   ZE_CALL(zeCommandListDestroy(ZeCommandListInit));
-
-  // Destruction of some members of pi_context uses L0 context
-  // and therefore it must be valid at that point.
-  // Technically it should be placed to the destructor of pi_context
-  // but this makes API error handling more complex.
-  ZE_CALL(zeContextDestroy(ZeContext));
   return PI_SUCCESS;
 }
 
@@ -1830,9 +1824,22 @@ pi_result piContextRelease(pi_context Context) {
 
   assert(Context);
   if (--(Context->RefCount) == 0) {
+    auto ZeContext = Context->ZeContext;
+
     // Clean up any live memory associated with Context
     pi_result Result = Context->finalize();
+
+    // We must delete Context first and then destroy zeContext because
+    // Context deallocation requires ZeContext in some member deallocation of
+    // pi_context.
     delete Context;
+
+    // Destruction of some members of pi_context uses L0 context
+    // and therefore it must be valid at that point.
+    // Technically it should be placed to the destructor of pi_context
+    // but this makes API error handling more complex.
+    ZE_CALL(zeContextDestroy(ZeContext));
+
     return Result;
   }
   return PI_SUCCESS;
