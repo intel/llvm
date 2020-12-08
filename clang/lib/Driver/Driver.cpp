@@ -2791,7 +2791,7 @@ bool Driver::checkForOffloadStaticLib(Compilation &C,
   if (Args.hasArg(options::OPT_offload_lib_Group))
     return true;
   SmallVector<const char *, 16> OffloadLibArgs(getLinkerArgs(C, Args));
-  for (const StringRef &OLArg : OffloadLibArgs)
+  for (StringRef OLArg : OffloadLibArgs)
     if (isStaticArchiveFile(OLArg) && hasOffloadSections(C, OLArg, Args)) {
       // FPGA binaries with AOCX or AOCR sections are not considered fat
       // static archives.
@@ -4443,7 +4443,7 @@ class OffloadingActionBuilder final {
       // incorporated into the aoc compilation
       if (SYCLfpgaTriple) {
         SmallVector<const char *, 16> LinkArgs(getLinkerArgs(C, Args));
-        for (const StringRef &LA : LinkArgs) {
+        for (StringRef LA : LinkArgs) {
           if (isStaticArchiveFile(LA) && hasOffloadSections(C, LA, Args)) {
             const llvm::opt::OptTable &Opts = C.getDriver().getOpts();
             Arg *InputArg = MakeInputArg(Args, Opts, Args.MakeArgString(LA));
@@ -5124,7 +5124,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       UnbundlerInputs.push_back(Current);
     };
     bool IsWholeArchive = false;
-    for (const StringRef &LA : LinkArgs) {
+    for (StringRef LA : LinkArgs) {
       if (isStaticArchiveFile(LA)) {
         addUnbundlerInput(
             IsWholeArchive ? types::TY_WholeArchive : types::TY_Archive, LA);
@@ -6961,7 +6961,11 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
         break;
       case llvm::Triple::riscv32:
       case llvm::Triple::riscv64:
-        TC = std::make_unique<toolchains::RISCVToolChain>(*this, Target, Args);
+        if (toolchains::RISCVToolChain::hasGCCToolchain(*this, Args))
+          TC =
+              std::make_unique<toolchains::RISCVToolChain>(*this, Target, Args);
+        else
+          TC = std::make_unique<toolchains::BareMetal>(*this, Target, Args);
         break;
       case llvm::Triple::ve:
         TC = std::make_unique<toolchains::VEToolChain>(*this, Target, Args);

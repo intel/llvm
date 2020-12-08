@@ -437,6 +437,26 @@ pi_result _pi_context::initialize() {
   return PI_SUCCESS;
 }
 
+pi_result _pi_context::finalize() {
+  // This function is called when pi_context is deallocated, piContextRelase.
+  // There could be some memory that may have not been deallocated.
+  // For example, zeEventPool could be still alive.
+  std::lock_guard<std::mutex> NumEventsLiveInEventPoolGuard(
+      NumEventsLiveInEventPoolMutex, std::adopt_lock);
+  if (ZeEventPool && NumEventsLiveInEventPool[ZeEventPool])
+    zeEventPoolDestroy(ZeEventPool);
+
+  // Destroy the command list used for initializations
+  ZE_CALL(zeCommandListDestroy(ZeCommandListInit));
+
+  // Destruction of some members of pi_context uses L0 context
+  // and therefore it must be valid at that point.
+  // Technically it should be placed to the destructor of pi_context
+  // but this makes API error handling more complex.
+  ZE_CALL(zeContextDestroy(ZeContext));
+  return PI_SUCCESS;
+}
+
 pi_result
 _pi_queue::resetCommandListFenceEntry(ze_command_list_handle_t ZeCommandList,
                                       bool MakeAvailable) {
@@ -1810,16 +1830,10 @@ pi_result piContextRelease(pi_context Context) {
 
   assert(Context);
   if (--(Context->RefCount) == 0) {
-    auto ZeContext = Context->ZeContext;
-    // Destroy the command list used for initializations
-    ZE_CALL(zeCommandListDestroy(Context->ZeCommandListInit));
+    // Clean up any live memory associated with Context
+    pi_result Result = Context->finalize();
     delete Context;
-
-    // Destruction of some members of pi_context uses L0 context
-    // and therefore it must be valid at that point.
-    // Technically it should be placed to the destructor of pi_context
-    // but this makes API error handling more complex.
-    ZE_CALL(zeContextDestroy(ZeContext));
+    return Result;
   }
   return PI_SUCCESS;
 }
@@ -4196,7 +4210,8 @@ piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer, pi_bool BlockingMap,
     piEventsWait(NumEventsInWaitList, EventWaitList);
     if (Buffer->MapHostPtr) {
       *RetMap = Buffer->MapHostPtr + Offset;
-      memcpy(*RetMap, pi_cast<char *>(Buffer->getZeHandle()) + Offset, Size);
+      if (!(MapFlags & CL_MAP_WRITE_INVALIDATE_REGION))
+        memcpy(*RetMap, pi_cast<char *>(Buffer->getZeHandle()) + Offset, Size);
     } else {
       *RetMap = pi_cast<char *>(Buffer->getZeHandle()) + Offset;
     }
@@ -4674,6 +4689,8 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
   ZE_CALL(
       zeMemAllocHost(Context->ZeContext, &ZeDesc, Size, Alignment, ResultPtr));
 
+  assert(Alignment == 0 ||
+         reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0);
   return PI_SUCCESS;
 }
 
@@ -4700,6 +4717,8 @@ pi_result USMDeviceAllocImpl(void **ResultPtr, pi_context Context,
   ZE_CALL(zeMemAllocDevice(Context->ZeContext, &ZeDesc, Size, Alignment,
                            Device->ZeDevice, ResultPtr));
 
+  assert(Alignment == 0 ||
+         reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0);
   return PI_SUCCESS;
 }
 
@@ -4721,6 +4740,8 @@ pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
   ZE_CALL(zeMemAllocShared(Context->ZeContext, &ZeDevDesc, &ZeHostDesc, Size,
                            Alignment, Device->ZeDevice, ResultPtr));
 
+  assert(Alignment == 0 ||
+         reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0);
   return PI_SUCCESS;
 }
 

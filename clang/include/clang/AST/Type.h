@@ -384,8 +384,8 @@ public:
          | (((uint32_t) space) << AddressSpaceShift);
   }
   void removeAddressSpace() { setAddressSpace(LangAS::Default); }
-  void addAddressSpace(LangAS space) {
-    assert(space != LangAS::Default);
+  void addAddressSpace(LangAS space, bool AllowDefaultAddrSpace = false) {
+    assert(space != LangAS::Default || AllowDefaultAddrSpace);
     setAddressSpace(space);
   }
 

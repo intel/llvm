@@ -80,6 +80,10 @@ public:
 
   PropertyValue(uint32_t Val) : Ty(UINT32), Val({Val}) {}
   PropertyValue(const byte *Data, SizeTy DataBitSize);
+  template <typename T>
+  PropertyValue(const std::vector<T> &Data)
+      : PropertyValue(reinterpret_cast<const byte *>(Data.data()),
+                      Data.size() * sizeof(T) * /* bits in one byte */ 8) {}
   PropertyValue(const PropertyValue &P);
   PropertyValue(PropertyValue &&P);
 
@@ -179,6 +183,8 @@ public:
   // Specific property category names used by tools.
   static constexpr char SYCL_SPECIALIZATION_CONSTANTS[] =
       "SYCL/specialization constants";
+  static constexpr char SYCL_COMPOSITE_SPECIALIZATION_CONSTANTS[] =
+      "SYCL/composite specialization constants";
   static constexpr char SYCL_DEVICELIB_REQ_MASK[] = "SYCL/devicelib req mask";
   static constexpr char SYCL_KERNEL_PARAM_OPT_INFO[] = "SYCL/kernel param opt";
 

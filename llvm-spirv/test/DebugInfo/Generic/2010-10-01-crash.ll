@@ -7,7 +7,7 @@
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
 
-define void @CGRectStandardize(i32* sret %agg.result, i32* byval %rect) nounwind ssp !dbg !0 {
+define void @CGRectStandardize(i32* sret(i32*) %agg.result, i32* byval(i32) %rect) nounwind ssp !dbg !0 {
 entry:
   call void @llvm.dbg.declare(metadata i32* %rect, metadata !23, metadata !DIExpression()), !dbg !24
   ret void
