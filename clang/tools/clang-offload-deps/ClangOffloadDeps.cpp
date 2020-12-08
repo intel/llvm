@@ -12,8 +12,8 @@
 /// It takes linked host image as input and produces bitcode files, one per
 /// offload target, containing references to symbols that must be defined in the
 /// target images. Dependence bitcode file is then expected to be compiled to an
-/// object by the driver using the appropriate offload target toolchain, and
-/// dependence object added to the target linker as input together with the
+/// object by the driver using the appropriate offload target toolchain. This
+/// dependence object is added to the target linker as input together with the
 /// other inputs. References to the symbols in dependence object should ensure
 /// that target linker pulls in necessary symbol definitions from the input
 /// static libraries.
@@ -202,7 +202,7 @@ int main(int argc, const char **argv) {
     if (!Used.empty()) {
       ArrayType *ArrayTy = ArrayType::get(Int8PtrTy, Used.size());
 
-      // For SPIRV linking is done on LLVM IR inputs, so we can use special
+      // SPIRV linking is done on LLVM IR inputs, so we can use special
       // global variable llvm.used to represent a reference to a symbol. But for
       // other targets we have to create a real reference since llvm.used may
       // not be representable in the object file.
