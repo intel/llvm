@@ -109,16 +109,15 @@ int main(int argc, const char **argv) {
     StringRef Kind;
     std::tie(Kind, Triples[I]) = StringRef(Targets[I]).split('-');
 
-    bool KindIsValid = !Kind.empty() && StringSwitch<bool>(Kind)
-                                            .Case("host", true)
-                                            .Case("openmp", true)
-                                            .Case("hip", true)
-                                            .Case("sycl", true)
-                                            .Case("fpga", true)
-                                            .Default(false);
+    bool KindIsValid = StringSwitch<bool>(Kind)
+                           .Case("host", true)
+                           .Case("openmp", true)
+                           .Case("hip", true)
+                           .Case("sycl", true)
+                           .Case("fpga", true)
+                           .Default(false);
 
-    bool TripleIsValid = !Triples[I].empty() &&
-                         Triple(Triples[I]).getArch() != Triple::UnknownArch;
+    bool TripleIsValid = Triple(Triples[I]).getArch() != Triple::UnknownArch;
 
     if (!KindIsValid || !TripleIsValid) {
       SmallVector<char, 128u> Buf;

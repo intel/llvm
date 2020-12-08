@@ -91,3 +91,4 @@ llvm/tools/sycl-post-link/ @kbobrovs @AlexeySachkov
 
 clang/tools/clang-offload-bundler/ @kbobrovs @sndmitriev
 clang/tools/clang-offload-wrapper/ @sndmitriev @kbobrovs
+clang/tools/clang-offload-deps/ @sndmitriev
