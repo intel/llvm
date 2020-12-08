@@ -147,6 +147,7 @@ static void diagnoseBadTypeAttribute(Sema &S, const ParsedAttr &attr,
 #define NULLABILITY_TYPE_ATTRS_CASELIST                                        \
   case ParsedAttr::AT_TypeNonNull:                                             \
   case ParsedAttr::AT_TypeNullable:                                            \
+  case ParsedAttr::AT_TypeNullableResult:                                      \
   case ParsedAttr::AT_TypeNullUnspecified
 
 namespace {
@@ -3904,6 +3905,11 @@ IdentifierInfo *Sema::getNullabilityKeyword(NullabilityKind nullability) {
       Ident__Nullable = PP.getIdentifierInfo("_Nullable");
     return Ident__Nullable;
 
+  case NullabilityKind::NullableResult:
+    if (!Ident__Nullable_result)
+      Ident__Nullable_result = PP.getIdentifierInfo("_Nullable_result");
+    return Ident__Nullable_result;
+
   case NullabilityKind::Unspecified:
     if (!Ident__Null_unspecified)
       Ident__Null_unspecified = PP.getIdentifierInfo("_Null_unspecified");
@@ -3926,6 +3932,7 @@ static bool hasNullabilityAttr(const ParsedAttributesView &attrs) {
   for (const ParsedAttr &AL : attrs) {
     if (AL.getKind() == ParsedAttr::AT_TypeNonNull ||
         AL.getKind() == ParsedAttr::AT_TypeNullable ||
+        AL.getKind() == ParsedAttr::AT_TypeNullableResult ||
         AL.getKind() == ParsedAttr::AT_TypeNullUnspecified)
       return true;
   }
@@ -4343,6 +4350,9 @@ static Attr *createNullabilityAttr(ASTContext &Ctx, ParsedAttr &Attr,
 
   case NullabilityKind::Nullable:
     return createSimpleAttr<TypeNullableAttr>(Ctx, Attr);
+
+  case NullabilityKind::NullableResult:
+    return createSimpleAttr<TypeNullableResultAttr>(Ctx, Attr);
 
   case NullabilityKind::Unspecified:
     return createSimpleAttr<TypeNullUnspecifiedAttr>(Ctx, Attr);
@@ -7089,6 +7099,9 @@ static NullabilityKind mapNullabilityAttrKind(ParsedAttr::Kind kind) {
 
   case ParsedAttr::AT_TypeNullable:
     return NullabilityKind::Nullable;
+
+  case ParsedAttr::AT_TypeNullableResult:
+    return NullabilityKind::NullableResult;
 
   case ParsedAttr::AT_TypeNullUnspecified:
     return NullabilityKind::Unspecified;
