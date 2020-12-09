@@ -3132,6 +3132,9 @@ SYCLIntelLoopFuseIndependentAttr *Sema::mergeSYCLIntelLoopFuseIndependentAttr(
 // These attributes are incompatible with eachother.
 template <typename AttrType, typename ConflictingAttrType>
 static void handleLoopFusionAttr(Sema &S, Decl *D, const ParsedAttr &Attr) {
+  if (S.LangOpts.SYCLIsHost)
+    return;
+
   if (D->isInvalidDecl())
     return;
 

@@ -950,7 +950,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   if (getLangOpts().SYCLIsHost && D && D->hasAttr<SYCLKernelAttr>())
     Fn->addFnAttr("sycl_kernel");
 
-  if (getLangOpts().SYCL && D && (D->hasAttr<SYCLIntelLoopFuseAttr>())) {
+  if (getLangOpts().SYCLIsDevice && D &&
+      (D->hasAttr<SYCLIntelLoopFuseAttr>())) {
     auto *A = D->getAttr<SYCLIntelLoopFuseAttr>();
     Expr *E = A->getValue();
 
@@ -969,7 +970,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
                     llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
   }
 
-  if (getLangOpts().SYCL && D &&
+  if (getLangOpts().SYCLIsDevice && D &&
       (D->hasAttr<SYCLIntelLoopFuseIndependentAttr>())) {
     auto *A = D->getAttr<SYCLIntelLoopFuseIndependentAttr>();
     Expr *E = A->getValue();
