@@ -118,6 +118,8 @@ public:
   }
 
   ~queue_impl() {
+    // Wait for all tasks, submitted to this queue. This prevents unexpected
+    // things to happen when queue is destroyed before tasks have finished.
     wait_and_throw();
     if (!MHostQueue) {
       getPlugin().call<PiApiKind::piQueueRelease>(MQueues[0]);
