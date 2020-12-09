@@ -2126,30 +2126,54 @@ static SPIRVWord getBuiltinIdForIntrinsic(Intrinsic::ID IID) {
   //       and assume that the operations have no side effects (FP status flags
   //       aren't maintained), so the OpenCL builtin behavior should be
   //       acceptable.
-  case Intrinsic::ceil: return OpenCLLIB::Ceil;
-  case Intrinsic::copysign: return OpenCLLIB::Copysign;
-  case Intrinsic::cos: return OpenCLLIB::Cos;
-  case Intrinsic::exp: return OpenCLLIB::Exp;
-  case Intrinsic::exp2: return OpenCLLIB::Exp2;
-  case Intrinsic::fabs: return OpenCLLIB::Fabs;
-  case Intrinsic::floor: return OpenCLLIB::Floor;
-  case Intrinsic::fma: return OpenCLLIB::Fma;
-  case Intrinsic::log: return OpenCLLIB::Log;
-  case Intrinsic::log10: return OpenCLLIB::Log10;
-  case Intrinsic::log2: return OpenCLLIB::Log2;
-  case Intrinsic::maximum: return OpenCLLIB::Fmax;
-  case Intrinsic::maxnum: return OpenCLLIB::Fmax;
-  case Intrinsic::minimum: return OpenCLLIB::Fmin;
-  case Intrinsic::minnum: return OpenCLLIB::Fmin;
-  case Intrinsic::nearbyint: return OpenCLLIB::Rint;
-  case Intrinsic::pow: return OpenCLLIB::Pow;
-  case Intrinsic::powi: return OpenCLLIB::Pown;
-  case Intrinsic::rint: return OpenCLLIB::Rint;
-  case Intrinsic::round: return OpenCLLIB::Round;
-  case Intrinsic::roundeven: return OpenCLLIB::Rint;
-  case Intrinsic::sin: return OpenCLLIB::Sin;
-  case Intrinsic::sqrt: return OpenCLLIB::Sqrt;
-  case Intrinsic::trunc: return OpenCLLIB::Trunc;
+  case Intrinsic::ceil:
+    return OpenCLLIB::Ceil;
+  case Intrinsic::copysign:
+    return OpenCLLIB::Copysign;
+  case Intrinsic::cos:
+    return OpenCLLIB::Cos;
+  case Intrinsic::exp:
+    return OpenCLLIB::Exp;
+  case Intrinsic::exp2:
+    return OpenCLLIB::Exp2;
+  case Intrinsic::fabs:
+    return OpenCLLIB::Fabs;
+  case Intrinsic::floor:
+    return OpenCLLIB::Floor;
+  case Intrinsic::fma:
+    return OpenCLLIB::Fma;
+  case Intrinsic::log:
+    return OpenCLLIB::Log;
+  case Intrinsic::log10:
+    return OpenCLLIB::Log10;
+  case Intrinsic::log2:
+    return OpenCLLIB::Log2;
+  case Intrinsic::maximum:
+    return OpenCLLIB::Fmax;
+  case Intrinsic::maxnum:
+    return OpenCLLIB::Fmax;
+  case Intrinsic::minimum:
+    return OpenCLLIB::Fmin;
+  case Intrinsic::minnum:
+    return OpenCLLIB::Fmin;
+  case Intrinsic::nearbyint:
+    return OpenCLLIB::Rint;
+  case Intrinsic::pow:
+    return OpenCLLIB::Pow;
+  case Intrinsic::powi:
+    return OpenCLLIB::Pown;
+  case Intrinsic::rint:
+    return OpenCLLIB::Rint;
+  case Intrinsic::round:
+    return OpenCLLIB::Round;
+  case Intrinsic::roundeven:
+    return OpenCLLIB::Rint;
+  case Intrinsic::sin:
+    return OpenCLLIB::Sin;
+  case Intrinsic::sqrt:
+    return OpenCLLIB::Sqrt;
+  case Intrinsic::trunc:
+    return OpenCLLIB::Trunc;
   default:
     assert(false && "Builtin ID requested for Unhandled intrinsic!");
     return 0;
