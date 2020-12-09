@@ -21,10 +21,10 @@
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L/dummy/dir %t_lib.lo -### %t_obj.o 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB
-// STATIC_LIB: ld{{(.exe)?}}" "-r" "-o" "[[INPUTLD:[^ ]+\.o]]" {{.*}} "-L/dummy/dir"{{.*}} "{{.*}}_obj.o" "{{.*}}_lib.{{(a|lo)}}"
-// STATIC_LIB: clang-offload-bundler{{.*}} "-type=oo" {{.*}} "-inputs=[[INPUTLD]]" "-outputs=[[LISTFILE:.+\.txt]]"
+// STATIC_LIB: clang-offload-bundler{{.*}} "-type=o" {{.*}} "-inputs=[[INPUTO:.+\.o]]" "-outputs=[[HOSTOBJ:.+\.o]],{{.+\.o}}"
+// STATIC_LIB: clang-offload-bundler{{.*}} "-type=aoo" {{.*}} "-inputs={{.*}}" "-outputs=[[LISTFILE:.+\.txt]]"
 // STATIC_LIB: llvm-link{{.*}} "@[[LISTFILE]]"
-// STATIC_LIB: ld{{.*}} "{{.*}}_lib.{{(a|lo)}}" "{{.*}}_obj.o"
+// STATIC_LIB: ld{{.*}} "{{.*}}_lib.{{(a|lo)}}" "[[HOSTOBJ]]"
 
 /// ###########################################################################
 
@@ -35,37 +35,56 @@
 // RUN: touch %t-3.o
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl %t_lib.a -### %t-1.o %t-2.o %t-3.o 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_MULTI_O
-// STATIC_LIB_MULTI_O: ld{{(.exe)?}}" "-r" "-o" {{.*}} "[[INPUT:.+\-1.o]]" "[[INPUT:.+\-2.o]]" "[[INPUT:.+\-3.o]]" "[[INPUT:.+\.a]]"
-// STATIC_LIB_MULTI_O: clang-offload-bundler{{.*}} "-type=oo"
+// STATIC_LIB_MULTI_O: clang-offload-bundler{{.*}} "-type=o" {{.*}} "-inputs={{.+}}-1.o"
+// STATIC_LIB_MULTI_O: clang-offload-bundler{{.*}} "-type=o" {{.*}} "-inputs={{.+}}-2.o"
+// STATIC_LIB_MULTI_O: clang-offload-bundler{{.*}} "-type=o" {{.*}} "-inputs={{.+}}-3.o"
+// STATIC_LIB_MULTI_O: clang-offload-bundler{{.*}} "-type=aoo"
 // STATIC_LIB_MULTI_O: llvm-link{{.*}} "@{{.*}}"
 
 /// ###########################################################################
 
 /// test behaviors of fat static lib from source
 // RUN: touch %t_lib.a
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl %t_lib.a -### %s 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fno-sycl-device-lib=all -fsycl %t_lib.a -ccc-print-phases -### %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_SRC
-// STATIC_LIB_SRC: ld{{(.exe)?}}" "-r" "-o" {{.*}} "[[INPUT:.+\.a]]"
-// STATIC_LIB_SRC: clang-offload-bundler{{.*}} "-type=oo"
-// STATIC_LIB_SRC: llvm-link{{.*}} "@{{.*}}"
+// STATIC_LIB_SRC: 0: input, "[[INPUTA:.+\.a]]", object, (host-sycl)
+// STATIC_LIB_SRC: 1: input, "[[INPUTC:.+\.cpp]]", c++, (host-sycl)
+// STATIC_LIB_SRC: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
+// STATIC_LIB_SRC: 3: input, "[[INPUTC]]", c++, (device-sycl)
+// STATIC_LIB_SRC: 4: preprocessor, {3}, c++-cpp-output, (device-sycl)
+// STATIC_LIB_SRC: 5: compiler, {4}, sycl-header, (device-sycl)
+// STATIC_LIB_SRC: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (spir64-unknown-unknown-sycldevice)" {5}, c++-cpp-output
+// STATIC_LIB_SRC: 7: compiler, {6}, ir, (host-sycl)
+// STATIC_LIB_SRC: 8: backend, {7}, assembler, (host-sycl)
+// STATIC_LIB_SRC: 9: assembler, {8}, object, (host-sycl)
+// STATIC_LIB_SRC: 10: linker, {0, 9}, image, (host-sycl)
+// STATIC_LIB_SRC: 11: compiler, {4}, ir, (device-sycl)
+// STATIC_LIB_SRC: 12: input, "[[INPUTA]]", archive
+// STATIC_LIB_SRC: 13: clang-offload-unbundler, {12}, archive
+// STATIC_LIB_SRC: 14: linker, {11, 13}, ir, (device-sycl)
+// STATIC_LIB_SRC: 15: sycl-post-link, {14}, tempfiletable, (device-sycl)
+// STATIC_LIB_SRC: 16: file-table-tform, {15}, tempfilelist, (device-sycl)
+// STATIC_LIB_SRC: 17: llvm-spirv, {16}, tempfilelist, (device-sycl)
+// STATIC_LIB_SRC: 18: file-table-tform, {15, 17}, tempfiletable, (device-sycl)
+// STATIC_LIB_SRC: 19: clang-offload-wrapper, {18}, object, (device-sycl)
+// STATIC_LIB_SRC: 20: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64-unknown-unknown-sycldevice)" {19}, image
 
 /// ###########################################################################
 
 // RUN: touch %t_lib.a
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl %t_lib.a -o output_name -lOpenCL -### %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_SRC2
-// STATIC_LIB_SRC2: ld{{(.exe)?}}" "-r" "-o" {{.*}} "[[INPUT:.+\.a]]"
-// STATIC_LIB_SRC2: clang-offload-bundler{{.*}} "-type=oo"
+// STATIC_LIB_SRC2: clang-offload-bundler{{.*}} "-type=aoo"
 // STATIC_LIB_SRC2: llvm-link{{.*}} "@{{.*}}"
-// STATIC_LIB_SRC2: ld{{(.exe)?}}" {{.*}} "-o" "output_name" {{.*}} "-lOpenCL"
+// STATIC_LIB_SRC2: clang{{.*}} "-emit-obj" {{.*}} "-o" "[[HOSTOBJ:.+\.o]]"
+// STATIC_LIB_SRC2: ld{{(.exe)?}}" {{.*}} "[[HOSTOBJ]]"
 
 /// ###########################################################################
 
 // RUN: touch %t_lib.a
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl %t_lib.a -o output_name -lstdc++ -z relro -### %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_SRC3
-// STATIC_LIB_SRC3: ld{{(.exe)?}}" "-r" "-o" {{.*}} "[[INPUT:.+\.a]]"
-// STATIC_LIB_SRC3: clang-offload-bundler{{.*}} "-type=oo"
+// STATIC_LIB_SRC3: clang-offload-bundler{{.*}} "-type=aoo"
 // STATIC_LIB_SRC3: llvm-link{{.*}} "@{{.*}}"
 // STATIC_LIB_SRC3: ld{{(.exe)?}}" {{.*}} "-o" "output_name" {{.*}} "-lstdc++" "-z" "relro"
 
@@ -80,20 +99,21 @@
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L/dummy/dir %t_obj.o -Wl,--whole-archive %t_lib.a %t_lib_2.a -Wl,--no-whole-archive -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefixes=WHOLE_STATIC_LIB,WHOLE_STATIC_LIB_1
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L/dummy/dir %t_obj.o -Wl,@%/t_arg.arg -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefixes=WHOLE_STATIC_LIB,WHOLE_STATIC_LIB_2
-// WHOLE_STATIC_LIB: ld{{(.exe)?}}" "-r" "-o" "[[INPUT:.+\.o]]" "{{.*}}crt1.o" "{{.*}}crti.o" "-L/dummy/dir" {{.*}} "[[INPUTO:.+\.o]]" "--whole-archive" "[[INPUTA:.+\.a]]" "[[INPUTB:.+\.a]]" "--no-whole-archive" "{{.*}}crtn.o"
-// WHOLE_STATIC_LIB: clang-offload-bundler{{.*}} "-type=oo" {{.*}} "-inputs=[[INPUT]]"
+// RUN:   | FileCheck %s -check-prefix=WHOLE_STATIC_LIB
+// WHOLE_STATIC_LIB: clang-offload-bundler{{.*}} "-type=o" {{.*}}
+// WHOLE_STATIC_LIB: clang-offload-bundler{{.*}} "-type=aoo" {{.*}} "-inputs=[[INPUTA:.+\.a]]"
+// WHOLE_STATIC_LIB: clang-offload-bundler{{.*}} "-type=aoo" {{.*}} "-inputs=[[INPUTB:.+\.a]]"
 // WHOLE_STATIC_LIB: llvm-link{{.*}} "@{{.*}}"
 // WHOLE_STATIC_LIB: llvm-spirv{{.*}}
 // WHOLE_STATIC_LIB: clang-offload-wrapper{{.*}}
 // WHOLE_STATIC_LIB: llc{{.*}}
-// WHOLE_STATIC_LIB_1: ld{{.*}} "[[INPUTO]]" "--whole-archive" "[[INPUTA]]" "[[INPUTB]]" "--no-whole-archive"
-// WHOLE_STATIC_LIB_2: ld{{.*}} "[[INPUTO]]" "@{{.*}}_arg.arg"
+// WHOLE_STATIC_LIB_1: ld{{.*}} "--whole-archive" "[[INPUTA]]" "[[INPUTB]]" "--no-whole-archive"
 
 /// test behaviors for special case handling of -z and -rpath
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -z anystring -L/dummy/dir %t_obj.o -Wl,-rpath,nopass -Wl,-z,nopass %t_lib.a %t_lib_2.a -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefixes=WL_CHECK
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -z anystring -L/dummy/dir %t_obj.o -Wl,-rpath -Wl,nopass -Xlinker -z -Xlinker nopass %t_lib.a %t_lib_2.a -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefixes=WL_CHECK
 // WL_CHECK-NOT: ld{{.*}} "-r" {{.*}} "anystring" {{.*}} "nopass"
 // WL_CHECK: ld{{.*}} "-z" "anystring" {{.*}} "-rpath" "nopass" "-z" "nopass"
 
@@ -104,9 +124,7 @@
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_NOSRC
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -L/dummy/dir %t_lib.lo -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_NOSRC
-// STATIC_LIB_NOSRC: clang-offload-bundler{{.*}} "-type=ao" "-targets=host-x86_64-unknown-linux-gnu" "-inputs={{.*}}_lib.{{(a|lo)}}" "-check-section"
-// STATIC_LIB_NOSRC: ld{{.*}} "-r" "-o" "[[PARTIALOBJ:.+\.o]]" "{{.*}}crt1.o" {{.*}} "-L/dummy/dir" {{.*}} "{{.*}}_lib.{{(a|lo)}}"
-// STATIC_LIB_NOSRC: clang-offload-bundler{{.*}} "-type=oo" "-targets=sycl-spir64-unknown-unknown-sycldevice" "-inputs=[[PARTIALOBJ]]" "-outputs=[[DEVICELIST:.+\.txt]]" "-unbundle"
+// STATIC_LIB_NOSRC: clang-offload-bundler{{.*}} "-type=aoo" "-targets=sycl-spir64-unknown-unknown-sycldevice" "-inputs={{.*}}_lib.{{(a|lo)}}" "-outputs=[[DEVICELIST:.+\.txt]]" "-unbundle"
 // STATIC_LIB_NOSRC: llvm-link{{.*}} "@[[DEVICELIST]]" "-o" "[[BCFILE:.+\.bc]]"
 // STATIC_LIB_NOSRC: sycl-post-link{{.*}} "-o" "[[TABLE:.+\.table]]" "[[BCFILE]]"
 // STATIC_LIB_NOSRC: file-table-tform{{.*}} "-o" "[[LIST:.+\.txt]]" "[[TABLE]]"
