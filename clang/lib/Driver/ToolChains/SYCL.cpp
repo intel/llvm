@@ -106,7 +106,6 @@ const char *SYCL::Linker::constructLLVMLinkCommand(Compilation &C,
   // an actual object/archive.  Take that list and pass those to the linker
   // instead of the original object.
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
-    bool LinkSYCLDeviceLibs = false;
     auto SYCLDeviceLibIter =
         std::find_if(InputFiles.begin(), InputFiles.end(), [](const auto &II) {
           StringRef InputFilename =
@@ -114,10 +113,9 @@ const char *SYCL::Linker::constructLLVMLinkCommand(Compilation &C,
           if (InputFilename.startswith("libsycl-") &&
               InputFilename.endswith(".o"))
             return true;
-          else
-            return false;
+          return false;
         });
-    LinkSYCLDeviceLibs = (SYCLDeviceLibIter != InputFiles.end());
+    bool LinkSYCLDeviceLibs = (SYCLDeviceLibIter != InputFiles.end());
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
     if (LinkSYCLDeviceLibs)
