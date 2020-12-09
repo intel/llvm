@@ -1,0 +1,133 @@
+SPV_INTEL_fast_composite
+========================
+
+Name Strings
+------------
+
+SPV_INTEL_fast_composite
+
+Contact
+-------
+
+To report problems or to provide input on this extension, please open a new issue at:
+https://github.com/intel/llvm/issues
+
+Contributors
+------------
+
+- Gang Chen, Intel
+- Aleksandr Bezzubikov, Intel
+- Aleksander Us, Intel
+- Nikita Rudenko, Intel
+- Konstantin Vladimirov, Intel
+- Alexey Sachkov, Intel
+- Mariusz Merecki, Intel
+
+
+Notice
+------
+
+Copyright (c) 2020 Intel Corporation. All rights reserved.
+
+Status
+------
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products. If you are interested in using this feature in your software product, please let us know!
+
+
+Version
+-------
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2020-12-08
+| Revision           | 1
+|========================================
+
+Dependencies
+------------
+
+This extension is written against the SPIR-V Specification,
+Version 1.5, Revision 2, Unified
+
+This extension requires SPIR-V 1.0.
+
+Overview
+--------
+
+This extension adds a new capability, an execution mode and a decoration to support
+fast composite functionality. Fast composite pipelines are sequences of
+independently compiled kernels that execute in order known at runtime. Control
+flow proceeds directly from one kernel to the other on the GPU.
+
+Extension Name
+--------------
+
+To use this extension within a SPIR-V module, the following
+*OpExtension* must be present in the module:
+
+----
+OpExtension "SPV_INTEL_fast_composite"
+----
+
+Modifications to the SPIR-V Specification, Version 1.5, Revision 2, Unified
+---------------------------------------------------------------------------
+
+Modify Section 3.6, Execution Mode, add the following rows to the Execution Mode table:
+
+--
+[cols="1,20,10,10",options="header",width = "80%"]
+|====
+  2+^| Execution Mode  | Enabling Capabilities | Extra Operands
+| 6088 | *FastCompositeKernelINTEL* +
+Specifies that kernel is a fast composite pipeline entry point.
+
+See the client API specification for more detail.
+| *FastCompositeINTEL* |
+|====
+--
+
+Modify Section 3.20, Decoration, add the following rows to the Decoration table:
+
+--
+[cols="1,20,10,10",options="header",width = "80%"]
+|====
+2+^| Decoration  | Enabling Capabilities | Extra Operands
+| 6087 | *CallableFunctionINTEL* +
+Apply to a function definition to specify that the function is a subject to fast
+composite call pipelining.
+
+See the client API specification for more detail.
+| *FastCompositeINTEL* |
+|====
+--
+
+Modify Section 3.31, Capability, add the following rows the 'Capability' table:
+--
+[cols="1,20,10,10",options="header",width = "80%"]
+|====
+  2+^| Capability      |     Implicitly Declares    | Enabled by Extension
+| 6093 | *FastCompositeINTEL* +
+Enables the use of *FastCompositeKernelINTEL* execution mode and *CallableFunctionINTEL* decoration.
+|| *SPV_INTEL_fast_composite*
+|====
+--
+
+Issues
+------
+
+
+Revision History
+----------------
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2020-12-08|Mariusz Merecki|Initial revision
+|========================================
