@@ -100,24 +100,24 @@ const char *SYCL::Linker::constructLLVMLinkCommand(Compilation &C,
     StringRef SubArchName, StringRef OutputFilePrefix,
     const InputInfoList &InputFiles) const {
   ArgStringList CmdArgs;
-
-  bool LinkSYCLDeviceLibs = false;
-  for (const auto &II : InputFiles) {
-    StringRef InputFilename =
-        llvm::sys::path::filename(StringRef(II.getFilename()));
-    StringRef InputSuffix = ".o";
-    if (InputFilename.startswith("libsycl-") &&
-        InputFilename.endswith(InputSuffix)) {
-      LinkSYCLDeviceLibs = true;
-      break;
-    }
-  }
   // Add the input bc's created by compile step.
   // When offloading, the input file(s) could be from unbundled partially
   // linked archives.  The unbundled information is a list of files and not
   // an actual object/archive.  Take that list and pass those to the linker
   // instead of the original object.
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
+    bool LinkSYCLDeviceLibs = false;
+    auto SYCLDeviceLibIter =
+        std::find_if(InputFiles.begin(), InputFiles.end(), [](const auto &II) {
+          StringRef InputFilename =
+              llvm::sys::path::filename(StringRef(II.getFilename()));
+          if (InputFilename.startswith("libsycl-") &&
+              InputFilename.endswith(".o"))
+            return true;
+          else
+            return false;
+        });
+    LinkSYCLDeviceLibs = (SYCLDeviceLibIter != InputFiles.end());
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
     if (LinkSYCLDeviceLibs)
