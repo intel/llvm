@@ -667,7 +667,7 @@ pi_result piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
 }
 
 pi_result piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
-                                pi_bool blocking_map, pi_mem_flags map_flags,
+                                pi_bool blocking_map, pi_map_flags map_flags,
                                 size_t offset, size_t size,
                                 pi_uint32 num_events_in_wait_list,
                                 const pi_event *event_wait_list,

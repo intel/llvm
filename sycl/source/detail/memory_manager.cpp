@@ -595,7 +595,7 @@ void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
                         PI_INVALID_OPERATION);
   }
 
-  pi_mem_flags Flags = 0;
+  pi_map_flags Flags = 0;
 
   switch (AccessMode) {
   case access::mode::read:

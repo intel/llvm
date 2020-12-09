@@ -4170,7 +4170,7 @@ pi_result piEnqueueMemBufferFill(pi_queue Queue, pi_mem Buffer,
 }
 
 pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
-                                pi_bool BlockingMap, pi_mem_flags MapFlags,
+                                pi_bool BlockingMap, pi_map_flags MapFlags,
                                 size_t Offset, size_t Size,
                                 pi_uint32 NumEventsInWaitList,
                                 const pi_event *EventWaitList, pi_event *Event,
