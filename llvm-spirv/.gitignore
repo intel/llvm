@@ -18,7 +18,7 @@ build/
 # Byte compiled python modules.
 *.pyc
 # vim swap files
-.*.swp
+.*.sw?
 .sw?
 #OS X specific files.
 .DS_store
