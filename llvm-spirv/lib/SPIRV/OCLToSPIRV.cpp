@@ -1701,7 +1701,7 @@ static const char *getSubgroupAVCIntelTyKind(Type *Ty) {
 }
 
 static Type *getSubgroupAVCIntelMCEType(Module *M, std::string &TName) {
-  auto Ty = M->getTypeByName(TName);
+  auto Ty = StructType::getTypeByName(M->getContext(), TName);
   if (Ty)
     return Ty;
 

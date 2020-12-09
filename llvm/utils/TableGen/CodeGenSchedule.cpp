@@ -1420,7 +1420,7 @@ static bool hasAliasedVariants(const CodeGenSchedRW &RW,
 
   for (Record *Alias : RW.Aliases) {
     const CodeGenSchedRW &AliasRW =
-      SchedModels.getSchedRW(Alias->getValueAsDef("AliasRW"));
+        SchedModels.getSchedRW(Alias->getValueAsDef("AliasRW"));
     if (AliasRW.HasVariants)
       return true;
     if (AliasRW.IsSequence) {
