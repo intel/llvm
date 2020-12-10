@@ -2317,7 +2317,7 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
                           BB);
   }
- // Binary FP intrinsics
+  // Binary FP intrinsics
   case Intrinsic::copysign:
   case Intrinsic::pow:
   case Intrinsic::powi:
