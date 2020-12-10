@@ -1,6 +1,6 @@
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
 
-// Test that checkes template parameter support for 'no_global_work_offset' attribute on sycl device.
+// Test that checks template parameter support for 'no_global_work_offset' attribute on sycl device.
 
 template <int SIZE>
 class KernelFunctor {

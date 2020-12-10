@@ -5297,18 +5297,18 @@ static void handleNoGlobalWorkOffsetAttr(Sema &S, Decl *D,
   if (Attr.getKind() == ParsedAttr::AT_SYCLIntelNoGlobalWorkOffset &&
       checkDeprecatedSYCLAttributeSpelling(S, Attr))
     S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)
-	<< "'intel::no_global_work_offset'";
+        << "'intel::no_global_work_offset'";
 
   // If no attribute argument is specified, set to default value '1'.
   if (!Attr.isArgExpr(0)) {
     Expr *E = IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
                                      S.Context.IntTy, Attr.getLoc());
-    D->addAttr(::new (S.Context) SYCLIntelNoGlobalWorkOffsetAttr(S.Context,
-			                                         Attr, E));
+    D->addAttr(::new (S.Context)
+                   SYCLIntelNoGlobalWorkOffsetAttr(S.Context, Attr, E));
   } else {
     Expr *E = Attr.getArgAsExpr(0);
-    S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelNoGlobalWorkOffsetAttr>(D, Attr,
-		                                                         E);
+    S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelNoGlobalWorkOffsetAttr>(
+        D, Attr, E);
   }
 }
 

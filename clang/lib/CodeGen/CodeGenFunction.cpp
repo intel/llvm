@@ -693,7 +693,7 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
   }
 
   if (const SYCLIntelNoGlobalWorkOffsetAttr *A =
-      FD->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {
+          FD->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {
     if (A->getValue())
       Fn->setMetadata("no_global_work_offset", llvm::MDNode::get(Context, {}));
   }
