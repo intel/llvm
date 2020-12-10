@@ -100,9 +100,12 @@ llvm/tools/llvm-foreach/ @AlexeySachkov  @Fznamznon
 llvm/tools/llvm-no-spir-kernel/ @AGindinson @AlexeySachkov
 llvm/tools/sycl-post-link/ @kbobrovs @AlexeySachkov
 
-# Explicit SIMD pass
-SYCLLowerIR/ @kbobrovs
-
 # Clang offload tools
 clang/tools/clang-offload-bundler/ @kbobrovs @sndmitriev
 clang/tools/clang-offload-wrapper/ @sndmitriev @kbobrovs
+
+# Explicit SIMD
+SYCLLowerIR/ @kbobrovs
+esimd/ @kbobrovs
+sycl/include/CL/sycl/INTEL/esimd.hpp @kbobrovs
+sycl/doc/extensions/ExplicitSIMD/ @kbobrovs
