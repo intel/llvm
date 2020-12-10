@@ -13,3 +13,4 @@
 // RUN: %clangxx %t_fp64_host.o %t_fp64_device.o -o %t_fp64.out -lsycl
 // RUN: %CPU_RUN_PLACEHOLDER %t_fp64.out
 // RUN: %ACC_RUN_PLACEHOLDER %t_fp64.out
+// UNSUPPORTED: cl_options

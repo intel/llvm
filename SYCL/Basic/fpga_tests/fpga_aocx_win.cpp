@@ -7,20 +7,20 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: aoc, accelerator
-// REQUIRES: system-windows
+// REQUIRES: system-windows, cl_options
 
 /// E2E test for AOCX creation/use/run for FPGA
 // Produce an archive with device (AOCX) image. To avoid appending objects to
 // leftover archives, remove one if exists.
 // RUN: rm %t_image.a || true
-// RUN: %clang_cl -fsycl -fintelfpga -fsycl-link=image %S/Inputs/fpga_device.cpp -o %t_image.lib
+// RUN: %clangxx -fsycl -fintelfpga -fsycl-link=image %S/Inputs/fpga_device.cpp -o %t_image.lib
 // Produce a host object
-// RUN: %clang_cl -fsycl -fintelfpga -DHOST_PART %S/Inputs/fpga_host.cpp -c -o %t.obj
+// RUN: %clangxx -fsycl -fintelfpga -DHOST_PART %S/Inputs/fpga_host.cpp -c -o %t.obj
 
 // AOCX with source
-// RUN: %clang_cl -fsycl -fintelfpga -DHOST_PART %S/Inputs/fpga_host.cpp %t_image.lib -o %t_aocx_src.out
+// RUN: %clangxx -fsycl -fintelfpga -DHOST_PART %S/Inputs/fpga_host.cpp %t_image.lib -o %t_aocx_src.out
 // AOCX with object
-// RUN: %clang_cl -fsycl -fintelfpga %t.obj %t_image.lib -o %t_aocx_obj.out
+// RUN: %clangxx -fsycl -fintelfpga %t.obj %t_image.lib -o %t_aocx_obj.out
 //
 // RUN: env SYCL_DEVICE_TYPE=ACC %t_aocx_src.out
 // RUN: env SYCL_DEVICE_TYPE=ACC %t_aocx_obj.out

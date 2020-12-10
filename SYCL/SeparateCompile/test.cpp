@@ -1,4 +1,4 @@
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda,cl_options
 // CUDA does not support SPIR-V.
 //
 // >> ---- compile src1

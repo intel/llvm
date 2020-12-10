@@ -2,6 +2,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 // REQUIRES: level_zero
+// UNSUPPORTED: cl_options
 
 #include <algorithm>
 #include <level_zero/ze_api.h>

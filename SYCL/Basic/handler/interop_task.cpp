@@ -1,5 +1,5 @@
-// REQUIRES: opencl
-// RUN: %clangxx -fsycl %s -o %t.out -L %opencl_libs_dir -lOpenCL
+// REQUIRES: opencl, opencl_icd
+// RUN: %clangxx -fsycl %s -o %t.out %opencl_lib
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 

@@ -1,14 +1,14 @@
-// RUN: %clang_cl -fsycl /MD -o %t1.exe %s
+// RUN: %clangxx -fsycl /MD -o %t1.exe %s
 // RUN: %HOST_RUN_PLACEHOLDER %t1.exe
 // RUN: %CPU_RUN_PLACEHOLDER %t1.exe
 // RUN: %GPU_RUN_PLACEHOLDER %t1.exe
 // RUN: %ACC_RUN_PLACEHOLDER %t1.exe
-// RUN: %clang_cl -fsycl /MDd -o %t2.exe %s
+// RUN: %clangxx -fsycl /MDd -o %t2.exe %s
 // RUN: %HOST_RUN_PLACEHOLDER %t2.exe
 // RUN: %CPU_RUN_PLACEHOLDER %t2.exe
 // RUN: %GPU_RUN_PLACEHOLDER %t2.exe
 // RUN: %ACC_RUN_PLACEHOLDER %t2.exe
-// REQUIRES: system-windows
+// REQUIRES: system-windows, cl_options
 //==-------------- msvc_crt.cpp - SYCL MSVC CRT test -----------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
