@@ -5,7 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
 #include "SYCL.h"
 #include "CommonArgs.h"
 #include "InputInfo.h"
@@ -107,8 +106,20 @@ const char *SYCL::Linker::constructLLVMLinkCommand(Compilation &C,
   // an actual object/archive.  Take that list and pass those to the linker
   // instead of the original object.
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
+    auto SYCLDeviceLibIter =
+        std::find_if(InputFiles.begin(), InputFiles.end(), [](const auto &II) {
+          StringRef InputFilename =
+              llvm::sys::path::filename(StringRef(II.getFilename()));
+          if (InputFilename.startswith("libsycl-") &&
+              InputFilename.endswith(".o"))
+            return true;
+          return false;
+        });
+    bool LinkSYCLDeviceLibs = (SYCLDeviceLibIter != InputFiles.end());
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
+    if (LinkSYCLDeviceLibs)
+      CmdArgs.push_back("-only-needed");
     for (const auto &II : InputFiles) {
       if (II.getType() == types::TY_Tempfilelist) {
         // Pass the unbundled list with '@' to be processed.

@@ -4039,7 +4039,7 @@ pi_result cuda_piEnqueueMemImageFill(pi_queue command_queue, pi_mem image,
 ///
 pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
                                      pi_bool blocking_map,
-                                     cl_map_flags map_flags, size_t offset,
+                                     pi_map_flags map_flags, size_t offset,
                                      size_t size,
                                      pi_uint32 num_events_in_wait_list,
                                      const pi_event *event_wait_list,
@@ -4065,7 +4065,7 @@ pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
     ret_err = PI_SUCCESS;
   }
 
-  if (!is_pinned && ((map_flags & CL_MAP_READ) || (map_flags & CL_MAP_WRITE))) {
+  if (!is_pinned && ((map_flags & PI_MAP_READ) || (map_flags & PI_MAP_WRITE))) {
     // Pinned host memory is already on host so it doesn't need to be read.
     ret_err = cuda_piEnqueueMemBufferRead(
         command_queue, buffer, blocking_map, offset, size, hostPtr,
@@ -4115,9 +4115,9 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
                          _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr;
 
   if (!is_pinned &&
-      ((memobj->mem_.buffer_mem_.get_map_flags() & CL_MAP_WRITE) ||
+      ((memobj->mem_.buffer_mem_.get_map_flags() & PI_MAP_WRITE) ||
        (memobj->mem_.buffer_mem_.get_map_flags() &
-        CL_MAP_WRITE_INVALIDATE_REGION))) {
+        PI_MAP_WRITE_INVALIDATE_REGION))) {
     // Pinned host memory is only on host so it doesn't need to be written to.
     ret_err = cuda_piEnqueueMemBufferWrite(
         command_queue, memobj, true,

@@ -72,7 +72,10 @@ SPIRVEntry *SPIRVEntry::create(Op OpCode) {
 
   static TableEntry Table[] = {
 #define _SPIRV_OP(x, ...) {Op##x, &SPIRV::create<SPIRV##x>},
+#define _SPIRV_OP_INTERNAL(x, ...) {internal::Op##x, &SPIRV::create<SPIRV##x>},
 #include "SPIRVOpCodeEnum.h"
+#include "SPIRVOpCodeEnumInternal.h"
+#undef _SPIRV_OP_INTERNAL
 #undef _SPIRV_OP
   };
 
@@ -508,6 +511,7 @@ void SPIRVExecutionMode::decode(std::istream &I) {
   case ExecutionModeSubgroupSize:
   case ExecutionModeMaxWorkDimINTEL:
   case ExecutionModeNumSIMDWorkitemsINTEL:
+  case ExecutionModeSchedulerTargetFmaxMhzINTEL:
     WordLiterals.resize(1);
     break;
   default:
