@@ -765,15 +765,14 @@ private:
     constexpr size_t GoodLocalSizeX = 32;
 
     // Disable the rounding-up optimizations under these conditions:
-    // 1. The device is not a GPU. Only GPUs benefit from rounding.
-    // 2. The env var SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING is set.
-    // 3. The string SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING is in
+    // 1. The env var SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING is set.
+    // 2. The string SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING is in
     //    the kernel name.
-    // 4. The kernel is provided via an interoperability method.
-    // 5. The API "this_item" is used inside the kernel.
-    // 6. The range is already a multiple of the rounding factor.
+    // 3. The kernel is provided via an interoperability method.
+    // 4. The API "this_item" is used inside the kernel.
+    // 5. The range is already a multiple of the rounding factor.
     //
-    // Cases 4 and 5 could be supported with extra effort.
+    // Cases 3 and 4 could be supported with extra effort.
     // As an optimization for the common case it is an
     // implementation choice to not support those scenarios.
     // Note that "this_item" is a free function, i.e. not tied to any
@@ -787,7 +786,6 @@ private:
     std::string KName = typeid(NameT *).name();
     using KI = detail::KernelInfo<KernelName>;
     bool DisableRounding =
-        !is_gpu(MQueue) ||
         (getenv("SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING") != nullptr) ||
         (KName.find("SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING") !=
          std::string::npos) ||
@@ -898,12 +896,6 @@ private:
   }
 
 #endif
-
-  /// Check if the queue being used is for a GPU device
-  ///
-  /// \param Queue is the queue for this handler.
-  /// \return Whether the device is a GPU.
-  bool is_gpu(const shared_ptr_class<sycl::detail::queue_impl> Queue);
 
 public:
   handler(const handler &) = delete;
