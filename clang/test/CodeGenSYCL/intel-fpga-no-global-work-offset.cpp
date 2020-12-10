@@ -22,7 +22,7 @@ int main() {
     h.single_task<class kernel_name1>(boo);
 
     h.single_task<class kernel_name2>(
-        []() [[intel::no_global_work_offset(1)]]{});
+        []() [[intel::no_global_work_offset]]{});
 
     h.single_task<class kernel_name3>(
         []() [[intel::no_global_work_offset(0)]]{});
@@ -38,4 +38,4 @@ int main() {
 // CHECK: define spir_kernel void @{{.*}}kernel_name3"() #0 {{.*}} ![[NUM4:[0-9]+]]
 // CHECK: define spir_kernel void @{{.*}}kernel_name4"() #0 {{.*}} !no_global_work_offset ![[NUM5]]
 // CHECK-NOT: ![[NUM4]]  = !{i32 0}
-// CHECK: ![[NUM5]] = !{i32 1}
+// CHECK: ![[NUM5]] = !{}

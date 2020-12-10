@@ -8,7 +8,7 @@ queue q;
 struct FuncObj {
   //expected-warning@+2 {{attribute 'intelfpga::no_global_work_offset' is deprecated}}
   //expected-note@+1 {{did you mean to use 'intel::no_global_work_offset' instead?}}
-  [[intelfpga::no_global_work_offset(1)]] void operator()() const {}
+  [[intelfpga::no_global_work_offset]] void operator()() const {}
 };
 
 int main() {

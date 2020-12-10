@@ -9,7 +9,7 @@ queue q;
 
 #ifndef TRIGGER_ERROR
 //first case - good case
-[[intel::no_global_work_offset(1)]] // expected-no-diagnostics
+[[intel::no_global_work_offset]] // expected-no-diagnostics
 void
 func1();
 

@@ -693,15 +693,9 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
   }
 
   if (const SYCLIntelNoGlobalWorkOffsetAttr *A =
-          FD->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {
-    llvm::LLVMContext &Context = getLLVMContext();
-    Optional<llvm::APSInt> ArgVal =
-        A->getValue()->getIntegerConstantExpr(FD->getASTContext());
-    assert(ArgVal.hasValue() && "Not an integer constant expression");
-    llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
-        Builder.getInt32(ArgVal->getSExtValue()))};
-    Fn->setMetadata("no_global_work_offset",
-                    llvm::MDNode::get(Context, AttrMDArgs));
+      FD->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {
+    if (A->getValue())
+      Fn->setMetadata("no_global_work_offset", llvm::MDNode::get(Context, {}));
   }
 
   if (FD->hasAttr<SYCLIntelUseStallEnableClustersAttr>()) {

@@ -3,9 +3,9 @@
 // RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl -fsycl-is-device -triple spir64 | FileCheck %s
 
 #ifndef TRIGGER_ERROR
-[[intel::no_global_work_offset(1)]] void not_direct_one() {} // expected-no-diagnostics
+[[intel::no_global_work_offset]] void not_direct_one() {} // expected-no-diagnostics
 
-[[intel::reqd_sub_group_size(1)]] void func_one() {
+[[intel::reqd_sub_group_size(2)]] void func_one() {
   not_direct_one();
 }
 
