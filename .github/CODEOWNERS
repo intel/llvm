@@ -96,7 +96,7 @@ xptifw/ @tovinkere  @andykaylor
 
 # DPC++ tools
 llvm/tools/file-table-tform/ @kbobrovs @AlexeySachkov
-llvm/tools/llvm-foreach/ @Fznamznon @AlexeySachkov
+llvm/tools/llvm-foreach/ @AlexeySachkov  @Fznamznon
 llvm/tools/llvm-no-spir-kernel/ @AGindinson @AlexeySachkov
 llvm/tools/sycl-post-link/ @kbobrovs @AlexeySachkov
 
