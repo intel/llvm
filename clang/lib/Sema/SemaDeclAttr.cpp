@@ -5300,16 +5300,11 @@ static void handleNoGlobalWorkOffsetAttr(Sema &S, Decl *D,
         << "'intel::no_global_work_offset'";
 
   // If no attribute argument is specified, set to default value '1'.
-  if (!Attr.isArgExpr(0)) {
-    Expr *E = IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
-                                     S.Context.IntTy, Attr.getLoc());
-    D->addAttr(::new (S.Context)
-                   SYCLIntelNoGlobalWorkOffsetAttr(S.Context, Attr, E));
-  } else {
-    Expr *E = Attr.getArgAsExpr(0);
-    S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelNoGlobalWorkOffsetAttr>(
-        D, Attr, E);
-  }
+  Expr *E = Attr.isArgExpr(0) ? Attr.getArgAsExpr(0)
+	                      : IntegerLiteral::Create(S.Context,
+			        llvm::APInt(32, 1), S.Context.IntTy, Attr.getLoc());
+  S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelNoGlobalWorkOffsetAttr>(D, Attr,
+                                                                       E);
 }
 
 /// Handle the [[intelfpga::doublepump]] and [[intelfpga::singlepump]] attributes.
