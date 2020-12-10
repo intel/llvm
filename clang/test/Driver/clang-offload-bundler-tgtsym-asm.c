@@ -1,4 +1,5 @@
 // REQUIRES: x86-registered-target
+// UNSUPPORTED: system-windows
 
 // This test check that clang-offload-bundler correctly handles embedded
 //  bitcode objects with module-level inline assembly when generating
