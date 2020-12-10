@@ -3772,16 +3772,6 @@ class OffloadingActionBuilder final {
           for (auto SDA : SYCLDeviceActions)
             SYCLLinkBinaryList.push_back(SDA);
           if (WrapDeviceOnlyBinary) {
-            // If used without -fintelfpga, -fsycl-link is used to wrap device
-            // objects for future host link. Device libraries should be linked
-            // by default to resolve any undefined reference.
-            if (!Args.hasArg(options::OPT_fintelfpga)) {
-              const auto *TC = ToolChains.front();
-              addSYCLDeviceLibs(TC, SYCLLinkBinaryList, true,
-                                C.getDefaultToolChain()
-                                    .getTriple()
-                                    .isWindowsMSVCEnvironment());
-            }
             // -fsycl-link behavior does the following to the unbundled device
             // binaries:
             //   1) Link them together using llvm-link
@@ -3791,8 +3781,29 @@ class OffloadingActionBuilder final {
             //      by any compilation link step.
             auto *DeviceLinkAction = C.MakeAction<LinkJobAction>(
                 SYCLLinkBinaryList, types::TY_Image);
+            ActionList FullSYCLLinkBinaryList;
+            bool SYCLDeviceLibLinked = false;
+            FullSYCLLinkBinaryList.push_back(DeviceLinkAction);
+            // If used without -fintelfpga, -fsycl-link is used to wrap device
+            // objects for future host link. Device libraries should be linked
+            // by default to resolve any undefined reference.
+            if (!Args.hasArg(options::OPT_fintelfpga)) {
+              const auto *TC = ToolChains.front();
+              SYCLDeviceLibLinked =
+                  addSYCLDeviceLibs(TC, FullSYCLLinkBinaryList, true,
+                                    C.getDefaultToolChain()
+                                        .getTriple()
+                                        .isWindowsMSVCEnvironment());
+            }
+
+            Action *FullDeviceLinkAction = nullptr;
+            if (SYCLDeviceLibLinked)
+              FullDeviceLinkAction = C.MakeAction<LinkJobAction>(
+                  FullSYCLLinkBinaryList, types::TY_LLVM_BC);
+            else
+              FullDeviceLinkAction = DeviceLinkAction;
             auto *PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
-                DeviceLinkAction, types::TY_LLVM_BC);
+                FullDeviceLinkAction, types::TY_LLVM_BC);
             auto *TranslateAction = C.MakeAction<SPIRVTranslatorJobAction>(
                 PostLinkAction, types::TY_Image);
             SYCLLinkBinary = C.MakeAction<OffloadWrapperJobAction>(
@@ -3948,7 +3959,7 @@ class OffloadingActionBuilder final {
       SYCLDeviceActions.clear();
     }
 
-    void addSYCLDeviceLibs(const ToolChain *TC, ActionList &DeviceLinkObjects,
+    bool addSYCLDeviceLibs(const ToolChain *TC, ActionList &DeviceLinkObjects,
                            bool isSpirvAOT, bool isMSVCEnv) {
       enum SYCLDeviceLibType {
         sycl_devicelib_wrapper,
@@ -3960,6 +3971,7 @@ class OffloadingActionBuilder final {
       };
 
       bool NoDeviceLibs = false;
+      int NumOfDeviceLibLinked = 0;
       // Currently, libc, libm-fp32 will be linked in by default. In order
       // to use libm-fp64, -fsycl-device-lib=libm-fp64/all should be used.
       llvm::StringMap<bool> devicelib_link_info = {
@@ -4017,6 +4029,7 @@ class OffloadingActionBuilder final {
           llvm::sys::path::append(LibName, Lib.devicelib_name);
           llvm::sys::path::replace_extension(LibName, LibSuffix);
           if (llvm::sys::fs::exists(LibName)) {
+            ++NumOfDeviceLibLinked;
             Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
                                          Args.MakeArgString(LibName));
             auto *SYCLDeviceLibsInputAction =
@@ -4032,6 +4045,7 @@ class OffloadingActionBuilder final {
       addInputs(sycl_devicelib_wrapper);
       if (isSpirvAOT)
         addInputs(sycl_devicelib_fallback);
+      return NumOfDeviceLibLinked != 0;
     }
 
     void appendLinkDependences(OffloadAction::DeviceDependences &DA) override {
@@ -4125,15 +4139,6 @@ class OffloadingActionBuilder final {
           else
             LinkObjects.push_back(Input);
         }
-        // FIXME: Link all wrapper and fallback device libraries as default,
-        // When spv online link is supported by all backends, the fallback
-        // device libraries are only needed when current toolchain is using
-        // AOT compilation.
-        if (!isNVPTX) {
-          addSYCLDeviceLibs(
-              *TC, LinkObjects, true,
-              C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment());
-        }
         // The linkage actions subgraph leading to the offload wrapper.
         // [cond] Means incoming/outgoing dependence is created only when cond
         //        is true. A function of:
@@ -4187,6 +4192,26 @@ class OffloadingActionBuilder final {
         //
         Action *DeviceLinkAction =
             C.MakeAction<LinkJobAction>(LinkObjects, types::TY_LLVM_BC);
+        ActionList FullLinkObjects;
+        bool SYCLDeviceLibLinked = false;
+        FullLinkObjects.push_back(DeviceLinkAction);
+
+        // FIXME: Link all wrapper and fallback device libraries as default,
+        // When spv online link is supported by all backends, the fallback
+        // device libraries are only needed when current toolchain is using
+        // AOT compilation.
+        if (!isNVPTX) {
+          SYCLDeviceLibLinked = addSYCLDeviceLibs(
+              *TC, FullLinkObjects, true,
+              C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment());
+        }
+
+        Action *FullDeviceLinkAction = nullptr;
+        if (SYCLDeviceLibLinked)
+          FullDeviceLinkAction =
+              C.MakeAction<LinkJobAction>(FullLinkObjects, types::TY_LLVM_BC);
+        else
+          FullDeviceLinkAction = DeviceLinkAction;
         // setup some flags upfront
 
         if (isNVPTX && DeviceCodeSplit) {
@@ -4212,7 +4237,7 @@ class OffloadingActionBuilder final {
                                         ? types::TY_LLVM_BC
                                         : types::TY_Tempfiletable;
         auto *PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
-            DeviceLinkAction, PostLinkOutType);
+            FullDeviceLinkAction, PostLinkOutType);
         PostLinkAction->setRTSetsSpecConstants(!isAOT);
 
         if (isNVPTX) {
