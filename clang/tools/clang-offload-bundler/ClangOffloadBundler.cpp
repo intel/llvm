@@ -40,6 +40,7 @@
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/StringSaver.h"
+#include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
@@ -1526,6 +1527,11 @@ int main(int argc, const char **argv) {
     cl::PrintHelpMessage();
     return 0;
   }
+
+  // These calls are needed so that we can read bitcode correctly.
+  InitializeAllTargetInfos();
+  InitializeAllTargetMCs();
+  InitializeAllAsmParsers();
 
   auto reportError = [argv](Error E) {
     logAllUnhandledErrors(std::move(E), WithColor::error(errs(), argv[0]));
