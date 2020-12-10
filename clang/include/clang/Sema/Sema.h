@@ -12973,8 +12973,9 @@ void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
     }
     if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelNoGlobalWorkOffset) {
       if (ArgInt > 1) {
-        Diag(E->getExprLoc(),
-             diag::warn_boolean_attribute_argument_is_not_valid) << CI;
+	Diag(E->getExprLoc(),
+             diag::warn_boolean_attribute_argument_is_not_valid)
+            << CI;
         return;
       }
     }

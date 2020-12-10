@@ -5300,9 +5300,10 @@ static void handleNoGlobalWorkOffsetAttr(Sema &S, Decl *D,
         << "'intel::no_global_work_offset'";
 
   // If no attribute argument is specified, set to default value '1'.
-  Expr *E = Attr.isArgExpr(0) ? Attr.getArgAsExpr(0)
-	                      : IntegerLiteral::Create(S.Context,
-			        llvm::APInt(32, 1), S.Context.IntTy, Attr.getLoc());
+  Expr *E = Attr.isArgExpr(0)
+                ? Attr.getArgAsExpr(0)
+                : IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
+                                         S.Context.IntTy, Attr.getLoc());
   S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelNoGlobalWorkOffsetAttr>(D, Attr,
                                                                        E);
 }
