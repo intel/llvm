@@ -46,7 +46,7 @@ int main() {
     });
     uint32_t Res = 0;
 
-    /* sub_group_sizes can be queried only of cl_intel_required_subgroup_size
+    /* sub_group_sizes can be queried only if cl_intel_required_subgroup_size
      * extension is supported by device*/
     if (Device.has_extension("cl_intel_required_subgroup_size")) {
       auto sg_sizes = Device.get_info<info::device::sub_group_sizes>();
