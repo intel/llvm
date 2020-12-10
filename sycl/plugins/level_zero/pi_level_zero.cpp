@@ -4176,16 +4176,16 @@ pi_result piEnqueueMemBufferFill(pi_queue Queue, pi_mem Buffer,
                               EventWaitList, Event);
 }
 
-pi_result
-piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer, pi_bool BlockingMap,
-                      cl_map_flags MapFlags, // TODO: untie from OpenCL
-                      size_t Offset, size_t Size, pi_uint32 NumEventsInWaitList,
-                      const pi_event *EventWaitList, pi_event *Event,
-                      void **RetMap) {
+pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
+                                pi_bool BlockingMap, pi_map_flags MapFlags,
+                                size_t Offset, size_t Size,
+                                pi_uint32 NumEventsInWaitList,
+                                const pi_event *EventWaitList, pi_event *Event,
+                                void **RetMap) {
 
   // TODO: we don't implement read-only or write-only, always read-write.
-  // assert((map_flags & CL_MAP_READ) != 0);
-  // assert((map_flags & CL_MAP_WRITE) != 0);
+  // assert((map_flags & PI_MAP_READ) != 0);
+  // assert((map_flags & PI_MAP_WRITE) != 0);
   assert(Buffer);
   assert(Queue);
 
@@ -4224,7 +4224,7 @@ piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer, pi_bool BlockingMap,
     piEventsWait(NumEventsInWaitList, EventWaitList);
     if (Buffer->MapHostPtr) {
       *RetMap = Buffer->MapHostPtr + Offset;
-      if (!(MapFlags & CL_MAP_WRITE_INVALIDATE_REGION))
+      if (!(MapFlags & PI_MAP_WRITE_INVALIDATE_REGION))
         memcpy(*RetMap, pi_cast<char *>(Buffer->getZeHandle()) + Offset, Size);
     } else {
       *RetMap = pi_cast<char *>(Buffer->getZeHandle()) + Offset;
