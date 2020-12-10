@@ -106,7 +106,7 @@ static constexpr char PFWI_MD[] = "parallel_for_work_item";
 static cl::opt<int> Debug("sycl-lower-wg-debug", llvm::cl::Optional,
                           llvm::cl::Hidden,
                           llvm::cl::desc("Debug SYCL work group code lowering"),
-                          llvm::cl::init(10));
+                          llvm::cl::init(1));
 
 namespace {
 class SYCLLowerWGScopeLegacyPass : public FunctionPass {
