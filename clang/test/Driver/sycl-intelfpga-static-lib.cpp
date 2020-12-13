@@ -15,16 +15,15 @@
 // CHECK_PHASES: 0: input, "[[INPUT:.+\.a]]", object, (host-sycl)
 // CHECK_PHASES: 1: linker, {0}, image, (host-sycl)
 // CHECK_PHASES: 2: input, "[[INPUT]]", archive
-// CHECK_PHASES: 3: partial-link, {2}, object
-// CHECK_PHASES: 4: clang-offload-unbundler, {3}, object
-// CHECK_PHASES: 5: linker, {4}, ir, (device-sycl)
-// CHECK_PHASES: 6: sycl-post-link, {5}, ir, (device-sycl)
-// CHECK_PHASES: 7: llvm-spirv, {6}, spirv, (device-sycl)
-// CHECK_PHASES: 8: input, "[[INPUT]]", archive
-// CHECK_PHASES: 9: clang-offload-unbundler, {8}, fpga_dependencies_list
-// CHECK_PHASES: 10: backend-compiler, {7, 9}, fpga_aocx, (device-sycl)
-// CHECK_PHASES: 11: clang-offload-wrapper, {10}, object, (device-sycl)
-// CHECK_PHASES: 12: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {11}, image
+// CHECK_PHASES: 3: clang-offload-unbundler, {2}, archive
+// CHECK_PHASES: 4: linker, {3}, ir, (device-sycl)
+// CHECK_PHASES: 5: sycl-post-link, {4}, ir, (device-sycl)
+// CHECK_PHASES: 6: llvm-spirv, {5}, spirv, (device-sycl)
+// CHECK_PHASES: 7: input, "[[INPUT]]", archive
+// CHECK_PHASES: 8: clang-offload-unbundler, {7}, fpga_dependencies_list
+// CHECK_PHASES: 9: backend-compiler, {6, 8}, fpga_aocx, (device-sycl)
+// CHECK_PHASES: 10: clang-offload-wrapper, {9}, object, (device-sycl)
+// CHECK_PHASES: 11: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {10}, image
 
 /// Check for unbundle and use of deps in static lib
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fintelfpga %t.a -### 2>&1 \

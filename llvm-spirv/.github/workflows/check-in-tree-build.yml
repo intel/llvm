@@ -11,16 +11,20 @@ on:
     branches:
       - master
       - llvm_release_*
-    paths-ignore: # no need to check build for documentation changes
-      - 'docs/**'
-      - '**.md'
+    paths-ignore: # no need to check build for:
+      - 'docs/**' # documentation
+      - '**.md'   # README
+      - '**/check-code-style.xml' # check-code-style workflow
+      - '**/check-out-of-tree-build.xml' # check-out-of-tree-build workflow
   pull_request:
     branches:
       - master
       - llvm_release_*
-    paths-ignore: # no need to check build for documentation changes
-      - 'docs/**'
-      - '**.md'
+    paths-ignore: # no need to check build for:
+      - 'docs/**' # documentation
+      - '**.md'   # README
+      - '**/check-code-style.xml' # check-code-style workflow
+      - '**/check-out-of-tree-build.xml' # check-out-of-tree-build workflow
   schedule:
     # Ideally, we might want to simplify our regular nightly build as we
     # probably don't need every configuration to be built every day: most of
