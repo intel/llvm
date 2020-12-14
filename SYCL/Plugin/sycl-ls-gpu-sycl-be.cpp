@@ -3,13 +3,13 @@
 // RUN: sycl-ls --verbose >%t.default.out
 // RUN: FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-OPENCL,CHECK-CUSTOM-GPU-OPENCL --input-file %t.default.out
 
-// RUN: env SYCL_BE=PI_OPENCL sycl-ls --verbose >%t.opencl.out
+// RUN: env SYCL_DEVICE_FILTER=opencl sycl-ls --verbose >%t.opencl.out
 // RUN: FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-OPENCL,CHECK-CUSTOM-GPU-OPENCL --input-file %t.opencl.out
 
 // CHECK-BUILTIN-GPU-OPENCL: gpu_selector(){{.*}}GPU : OpenCL
 // CHECK-CUSTOM-GPU-OPENCL: custom_selector(gpu){{.*}}GPU : OpenCL
 
-// RUN: env SYCL_BE=PI_CUDA sycl-ls --verbose >%t.cuda.out
+// RUN: env SYCL_DEVICE_FILTER=cuda sycl-ls --verbose >%t.cuda.out
 // RUN: FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-CUDA,CHECK-CUSTOM-GPU-CUDA --input-file %t.cuda.out
 
 // CHECK-BUILTIN-GPU-CUDA: gpu_selector(){{.*}}GPU : CUDA

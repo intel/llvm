@@ -1,12 +1,7 @@
-// REQUIRES: cpu, accelerator, aoc
+// REQUIRES: accelerator, aoc
 
-// UNSUPPORTED: cuda, level_zero
-
-// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %s -o %t1.out
-// RUN: %CPU_RUN_PLACEHOLDER CL_CONFIG_CPU_EMULATE_DEVICES=2 %t1.out
-// RUN: %CPU_RUN_PLACEHOLDER CL_CONFIG_CPU_EMULATE_DEVICES=4 %t1.out
 // RUN: %clangxx -fsycl -fintelfpga -fsycl-unnamed-lambda %s -o %t2.out
-// RUN: %ACC_RUN_PLACEHOLDER CL_CONFIG_CPU_EMULATE_DEVICES=2 %t2.out
+// RUN: env CL_CONFIG_CPU_EMULATE_DEVICES=2 %t2.out
 
 #include <CL/sycl.hpp>
 
@@ -22,7 +17,8 @@ void exceptionHandler(sycl::exception_list exceptions) {
 }
 
 int main() {
-  auto DeviceList = sycl::device::get_devices();
+  auto DeviceList =
+      sycl::device::get_devices(sycl::info::device_type::accelerator);
 
   // remove host device from the list
   DeviceList.erase(std::remove_if(DeviceList.begin(), DeviceList.end(),

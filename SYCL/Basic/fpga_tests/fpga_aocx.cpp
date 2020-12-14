@@ -21,5 +21,5 @@
 // AOCX with object
 // RUN: %clangxx -fsycl -fintelfpga %t.o %t_image.a -o %t_aocx_obj.out
 //
-// RUN: env SYCL_DEVICE_TYPE=ACC %t_aocx_src.out
-// RUN: env SYCL_DEVICE_TYPE=ACC %t_aocx_obj.out
+// RUN: %ACC_RUN_PLACEHOLDER %t_aocx_src.out
+// RUN: %ACC_RUN_PLACEHOLDER %t_aocx_obj.out

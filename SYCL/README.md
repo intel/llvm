@@ -24,7 +24,7 @@ cd build
 cmake -G Ninja \
         -DTEST_SUITE_SUBDIRS=SYCL \
         -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> \
-        -DCHECK_SYCL_ALL="PI_OPENCL:cpu,acc,gpu,host;PI_OPENCL:cpu;PI_OPENCL:gpu;PI_OPENCL:acc;PI_OPENCL:host;PI_LEVEL_ZERO:gpu,host;PI_LEVEL_ZERO:gpu;PI_LEVEL_ZERO:host" \
+        -DCHECK_SYCL_ALL="opencl:cpu,acc,gpu,host;opencl:cpu;opencl:gpu;opencl:acc;opencl:host;opencl:gpu,host;level_zero:gpu;level_zero:host" \
         -DSYCL_EXTERNAL_TESTS="RSBench" \
         ..
 # Build and run full list of tests for all supported combinations of target
@@ -35,7 +35,7 @@ llvm-lit . --show-tests
 # Run specific test
 llvm-lit <path_to_test>
 # Run tests with parameters
-llvm-lit --param target_devices=host,gpu --param sycl_be=PI_LEVEL_ZERO \
+llvm-lit --param target_devices=host,gpu --param sycl_be=level_zero \
         --param dpcpp_compiler=path/to/clang++ --param dump_ir=True .
 ```
 
@@ -62,21 +62,23 @@ value is cpu,gpu,acc,host). Supported target_devices values are:
  - **acc**  - FPGA emulator device available in OpenCL backend only;
  - **host** - SYCL Host device availabel with all backends.
 
-***SYCL_BE*** defined SYCL backend to be used for testing (default is
-PI_OPENCL).
-Supported sycl_be values:
- - PI_OPENCL - for OpenCL backend;
- - PI_CUDA - for CUDA backend;
- - PI_LEVEL_ZERO - Level Zero backend.
+***SYCL_BE*** defined SYCL backend to be used for testing.
+Supported sycl_be values are:
+ - opencl - for OpenCL backend;
+ - cuda - for CUDA backend;
+ - level_zero - Level Zero backend.
 
 ***CHECK_SYCL_ALL*** allows selection of multiple SYCL backends with set of
 target devices per each to be tested iteratively. Value may contain semicolon-
 separated list of configurations. Each configuration includes backend separated
 from comma-separated list of target devices with colon (e.g.
--DCHECK_SYCL_ALL="PI_OPENCL:cpu,host;PI_LEVEL_ZERO:gpu,host"). The testing is
+-DCHECK_SYCL_ALL="opencl:cpu,host;level_zero:gpu,host"). The testing is
 done using check-sycl-all target. It is recommended to pass -k0 parameter to
 build command line to avoid break execution on test failures for the first
 backend.
+
+Note: for compatibility reasons old values for SYCL backend selections are
+supported temporarely (PI_OPENCL, PI_CUDA, PI_LEVEL_ZERO).
 
 ***SYCL_EXTERNAL_TESTS*** semicolon-separate names of external SYCL applications
 which are built and run as part of the testing. Name is equal to subdirectory in
@@ -98,37 +100,37 @@ compilers, etc) are available in the system.
 See examples below for configuring tests targeting different devices:
  - Multiple backends iterative mode
 ```
-cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DCHECK_SYCL_ALL="PI_OPENCL:acc,gpu,cpu,host;PI_LEVEL_ZERO:gpu,host;PI_CUDA:gpu,host" -C../cmake/caches/clang_fsycl.cmake  ..
+cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DCHECK_SYCL_ALL="opencl:acc,gpu,cpu,host;level_zero:gpu,host;cuda:gpu,host" -C../cmake/caches/clang_fsycl.cmake  ..
 ninja -k0 check-sycl-all
 ```
  - SYCL host:
 ```
-cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DSYCL_BE=PI_OPENCL -DSYCL_TARGET_DEVICES="host" -C../cmake/caches/clang_fsycl.cmake  ..
+cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DSYCL_BE=opencl -DSYCL_TARGET_DEVICES="host" -C../cmake/caches/clang_fsycl.cmake  ..
 ninja check
 ```
  - OpenCL GPU
 ```
-cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DSYCL_BE=PI_OPENCL -DSYCL_TARGET_DEVICES="gpu" -C../cmake/caches/clang_fsycl.cmake  ..
+cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DSYCL_BE=opencl -DSYCL_TARGET_DEVICES="gpu" -C../cmake/caches/clang_fsycl.cmake  ..
 ninja check
 ```
  - OpenCL CPU
 ```
-cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DSYCL_BE=PI_OPENCL -DSYCL_TARGET_DEVICES="gpu" -C../cmake/caches/clang_fsycl.cmake  ..
+cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DSYCL_BE=opencl -DSYCL_TARGET_DEVICES="gpu" -C../cmake/caches/clang_fsycl.cmake  ..
 ninja check
 ```
  - OpenCL FPGA emulator
 ```
-cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DSYCL_BE=PI_OPENCL -DSYCL_TARGET_DEVICES="gpu" -C../cmake/caches/clang_fsycl.cmake  ..
+cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DSYCL_BE=opencl -DSYCL_TARGET_DEVICES="gpu" -C../cmake/caches/clang_fsycl.cmake  ..
 ninja check
 ```
  - CUDA GPU
 ```
-cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DSYCL_BE=PI_CUDA -DSYCL_TARGET_DEVICES="gpu" -C../cmake/caches/clang_fsycl_cuda.cmake  ..
+cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DSYCL_BE=cuda -DSYCL_TARGET_DEVICES="gpu" -C../cmake/caches/clang_fsycl_cuda.cmake  ..
 ninja check
 ```
  - Level Zero GPU
 ```
-cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DSYCL_BE=PI_LEVEL_ZERO -DSYCL_TARGET_DEVICES="gpu" -C../cmake/caches/clang_fsycl.cmake  ..
+cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DSYCL_BE=level_zero -DSYCL_TARGET_DEVICES="gpu" -C../cmake/caches/clang_fsycl.cmake  ..
 ninja check
 ```
 
@@ -136,7 +138,7 @@ ninja check
  * **dpcpp_compiler** - full path to dpcpp compiler;
  * **target_device** - comma-separated list of target devices (cpu, gpu, acc,
    host);
- * **sycl_be** - SYCL backend to be used (PI_OPENCL, PI_LEVEL_ZERO, PI_CUDA);
+ * **sycl_be** - SYCL backend to be used (opencl, level_zero, cuda);
  * **dump_ir** - if IR dumping is supported for compiler (True, False);
  * **extra_environment** - comma-separated list of variables with values to be
    added to test environment. Can be also set by LIT_EXTRA_ENVIRONMENT variable

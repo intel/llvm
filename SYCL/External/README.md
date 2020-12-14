@@ -22,7 +22,7 @@ cd build
 cmake -G Ninja \
         -DTEST_SUITE_SUBDIRS=SYCL \
         -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> \
-        -DCHECK_SYCL_ALL="PI_OPENCL:cpu,acc,gpu,host;PI_LEVEL_ZERO:gpu,host" \
+        -DCHECK_SYCL_ALL="opencl:cpu,acc,gpu,host;level_zero:gpu,host" \
         -DCMAKE_CXX_COMPILER=<PATH_TO_sycl_compiler> \
         -DSYCL_EXTERNAL_TESTS="RSBench" \
         ..
@@ -37,7 +37,7 @@ llvm-lit . --show-tests
 # Run specific test (e.g. RSBench only)
 llvm-lit SYCL/External/RSBench
 # Run tests with parameters
-llvm-lit --param target_devices=host,gpu --param sycl_be=PI_LEVEL_ZERO \
+llvm-lit --param target_devices=host,gpu --param sycl_be=level_zero \
         --param dpcpp_compiler=path/to/clang++ --param dump_ir=True SYCL/External/RSBench
 ```
 

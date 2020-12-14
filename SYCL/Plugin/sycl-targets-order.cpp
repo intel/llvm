@@ -1,9 +1,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice,nvptx64-unknown-unknown-sycldevice %s -o %t-spir64-nvptx64.out
-// RUN: env SYCL_BE=PI_OPENCL %t-spir64-nvptx64.out
-// RUN: env SYCL_BE=PI_CUDA   %t-spir64-nvptx64.out
+// RUN: env SYCL_DEVICE_FILTER=opencl %t-spir64-nvptx64.out
+// RUN: env SYCL_DEVICE_FILTER=cuda   %t-spir64-nvptx64.out
 // RUN: %clangxx -fsycl -fsycl-targets=nvptx64-unknown-unknown-sycldevice,spir64-unknown-unknown-sycldevice %s -o %t-nvptx64-spir64.out
-// RUN: env SYCL_BE=PI_OPENCL %t-nvptx64-spir64.out
-// RUN: env SYCL_BE=PI_CUDA   %t-nvptx64-spir64.out
+// RUN: env SYCL_DEVICE_FILTER=opencl %t-nvptx64-spir64.out
+// RUN: env SYCL_DEVICE_FILTER=cuda   %t-nvptx64-spir64.out
 
 // REQUIRES: opencl, cuda
 

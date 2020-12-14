@@ -13,8 +13,8 @@
 // explicitly. Since the test is going to crash, we'll have to follow a similar
 // approach as on Linux - call the test in a subprocess.
 //
-// RUN: env SYCL_PI_TRACE=1 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False SYCL_DEVICE_TYPE=CPU %t.out >%t.stdout.pi.fallback
-// RUN: env SHOULD_CRASH=1 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False SYCL_DEVICE_TYPE=CPU %t.out >%t.stdout.msg.fallback
+// RUN: %CPU_RUN_PLACEHOLDER env SYCL_PI_TRACE=1 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False %t.out >%t.stdout.pi.fallback
+// RUN: %CPU_RUN_PLACEHOLDER env SHOULD_CRASH=1 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False %t.out >%t.stdout.msg.fallback
 //
 // RUN: FileCheck %s --check-prefix=CHECK-MESSAGE --input-file %t.stdout.msg.fallback
 // CHECK-MESSAGE: {{.*}}assert-windows.cpp:{{[0-9]+}}: (null): global id:

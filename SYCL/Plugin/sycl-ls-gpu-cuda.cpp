@@ -1,6 +1,6 @@
 // REQUIRES: gpu, cuda
 
-// RUN: env SYCL_BE=PI_CUDA sycl-ls --verbose >%t.cuda.out
+// RUN: env SYCL_DEVICE_FILTER=cuda sycl-ls --verbose >%t.cuda.out
 // RUN: FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-CUDA,CHECK-CUSTOM-GPU-CUDA --input-file %t.cuda.out
 
 // CHECK-BUILTIN-GPU-CUDA: gpu_selector(){{.*}}GPU :{{.*}}CUDA
