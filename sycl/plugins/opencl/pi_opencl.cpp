@@ -73,25 +73,24 @@ CONSTFIX char clSetProgramSpecializationConstantName[] =
 // Helper to get extensions that are common for all devices within a context
 pi_result getSupportedExtensionsWithinContext(pi_context context) {
   size_t deviceCount;
-  cl_int ret_err =
-      clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_DEVICES, 0,
-                       nullptr, &deviceCount);
+  cl_int ret_err = clGetContextInfo(
+      cast<cl_context>(context), CL_CONTEXT_DEVICES, 0, nullptr, &deviceCount);
   if (ret_err != CL_SUCCESS || deviceCount < 1)
     return PI_INVALID_CONTEXT;
   std::vector<cl_device_id> devicesInCtx(deviceCount);
-  ret_err = clGetContextInfo(
-      cast<cl_context>(context), CL_CONTEXT_DEVICES,
-      deviceCount * sizeof(cl_device_id), devicesInCtx.data(), nullptr);
+  ret_err = clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_DEVICES,
+                             deviceCount * sizeof(cl_device_id),
+                             devicesInCtx.data(), nullptr);
 
   size_t retSize;
   for (size_t i = 0; i != deviceCount; ++i) {
-    ret_err = clGetDeviceInfo(devicesInCtx[i], CL_DEVICE_EXTENSIONS, 0,
-                              nullptr, &retSize);
+    ret_err = clGetDeviceInfo(devicesInCtx[i], CL_DEVICE_EXTENSIONS, 0, nullptr,
+                              &retSize);
     if (ret_err != CL_SUCCESS)
       return PI_INVALID_DEVICE;
     std::string extensions(retSize, '\0');
-    ret_err = clGetDeviceInfo(devicesInCtx[i], CL_DEVICE_EXTENSIONS,
-                              retSize, &extensions[0], nullptr);
+    ret_err = clGetDeviceInfo(devicesInCtx[i], CL_DEVICE_EXTENSIONS, retSize,
+                              &extensions[0], nullptr);
     if (ret_err != CL_SUCCESS)
       return PI_INVALID_DEVICE;
     std::string extension;
@@ -101,7 +100,6 @@ pi_result getSupportedExtensionsWithinContext(pi_context context) {
   }
   return cast<pi_result>(ret_err);
 }
-
 
 // USM helper function to get an extension function pointer
 template <const char *FuncName, typename T>
