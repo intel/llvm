@@ -17,11 +17,14 @@
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/pi.h>
 
+#include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <iostream>
 #include <limits>
 #include <map>
+#include <set>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -33,6 +36,7 @@
   }
 
 const char SupportedVersion[] = _PI_H_VERSION_STRING;
+std::set<std::string> SupportedExtensions;
 
 // Want all the needed casts be explicit, do not define conversion operators.
 template <class To, class From> To cast(From value) {
@@ -65,6 +69,39 @@ CONSTFIX char clSetProgramSpecializationConstantName[] =
     "clSetProgramSpecializationConstant";
 
 #undef CONSTFIX
+
+// Helper to get extensions that are common for all devices within a context
+pi_result getSupportedExtensionsWithinContext(pi_context context) {
+  size_t deviceCount;
+  cl_int ret_err =
+      clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_DEVICES, 0,
+                       nullptr, &deviceCount);
+  if (ret_err != CL_SUCCESS || deviceCount < 1)
+    return PI_INVALID_CONTEXT;
+  std::vector<cl_device_id> devicesInCtx(deviceCount);
+  ret_err = clGetContextInfo(
+      cast<cl_context>(context), CL_CONTEXT_DEVICES,
+      deviceCount * sizeof(cl_device_id), devicesInCtx.data(), nullptr);
+
+  size_t retSize;
+  for (size_t i = 0; i != deviceCount; ++i) {
+    ret_err = clGetDeviceInfo(devicesInCtx[i], CL_DEVICE_EXTENSIONS, 0,
+                              nullptr, &retSize);
+    if (ret_err != CL_SUCCESS)
+      return PI_INVALID_DEVICE;
+    std::string extensions(retSize, '\0');
+    ret_err = clGetDeviceInfo(devicesInCtx[i], CL_DEVICE_EXTENSIONS,
+                              retSize, &extensions[0], nullptr);
+    if (ret_err != CL_SUCCESS)
+      return PI_INVALID_DEVICE;
+    std::string extension;
+    std::stringstream ss(extensions);
+    while (getline(ss, extension, ' '))
+      SupportedExtensions.insert(extension);
+  }
+  return cast<pi_result>(ret_err);
+}
+
 
 // USM helper function to get an extension function pointer
 template <const char *FuncName, typename T>
@@ -535,36 +572,18 @@ pi_result piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
                                                properties + propSize);
       // Go through buffer properties. If there is one, that shall be propagated
       // to an OpenCL runtime - check if this property is being supported.
-      for (auto prop = supported.begin(); prop != supported.end(); ++prop) {
-        // Check if PI_MEM_CHANNEL_INTEL property is supported. If it's not -
-        // just ignore it, as it's an optimization hint.
-        if (*prop == PI_MEM_CHANNEL_INTEL) {
-          size_t deviceCount;
-          cl_int ret_err =
-              clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_DEVICES, 0,
-                               nullptr, &deviceCount);
-          if (ret_err != CL_SUCCESS || deviceCount < 1)
-            return PI_INVALID_CONTEXT;
-          std::vector<cl_device_id> devicesInCtx(deviceCount);
-          ret_err = clGetContextInfo(
-              cast<cl_context>(context), CL_CONTEXT_DEVICES,
-              deviceCount * sizeof(cl_device_id), devicesInCtx.data(), nullptr);
-
-          size_t retSize;
-          ret_err = clGetDeviceInfo(devicesInCtx[0], CL_DEVICE_EXTENSIONS, 0,
-                                    nullptr, &retSize);
-          if (ret_err != CL_SUCCESS)
-            return PI_INVALID_DEVICE;
-          std::string extensions(retSize, '\0');
-          ret_err = clGetDeviceInfo(devicesInCtx[0], CL_DEVICE_EXTENSIONS,
-                                    retSize, &extensions[0], nullptr);
-          if (ret_err != CL_SUCCESS)
-            return PI_INVALID_DEVICE;
-
-          size_t pos = extensions.find("cl_intel_mem_channel_property");
-          if (pos == std::string::npos)
+      for (const auto &prop = supported.begin(); prop != supported.end();
+           ++(*prop)) {
+        if (!SupportedExtensions.empty())
+          ret_err = getSupportedExtensionsWithinContext(context);
+        // Check if PI_MEM_PROPERTIES_CHANNEL property is supported. If it's
+        // not - just ignore it, as it's an optimization hint.
+        if (*prop == PI_MEM_PROPERTIES_CHANNEL) {
+          if (SupportedExtensions.find("cl_intel_mem_channel_property") !=
+              SupportedExtensions.end())
             supported.erase(prop);
-        }
+        } else
+          assert("Unsupported property found");
       }
       if (!supported.empty()) {
         *ret_mem =

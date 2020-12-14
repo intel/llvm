@@ -132,7 +132,7 @@ enum class device : cl_device_info {
   usm_restricted_shared_allocations = PI_USM_CROSS_SHARED_SUPPORT,
   usm_system_allocator = PI_USM_SYSTEM_SHARED_SUPPORT,
 
-  ext_intel_mem_channel = PI_MEM_CHANNEL_INTEL
+  ext_intel_mem_channel = PI_MEM_PROPERTIES_CHANNEL
 };
 
 enum class device_type : pi_uint64 {

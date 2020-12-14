@@ -1015,7 +1015,7 @@ template <> struct get_device_info<bool, info::device::ext_intel_mem_channel> {
     pi_result Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
         dev, pi::cast<RT::PiDeviceInfo>(info::device::ext_intel_mem_channel),
         sizeof(pi_mem_properties), &caps, nullptr);
-    return (Err != PI_SUCCESS) ? false : (caps & PI_MEM_CHANNEL_INTEL);
+    return (Err != PI_SUCCESS) ? false : (caps & PI_MEM_PROPERTIES_CHANNEL);
   }
 };
 
