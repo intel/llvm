@@ -1,13 +1,25 @@
 # December'20 release notes
 
-Release notes for commit range 5d7e0925..7c80f4491b31
+Release notes for commit range 5d7e0925..9d0e3525ba04
 
 ## New features
+### SYCL Compiler
+ - Allow for multiple build options for opencl-aot [5e5703f58449]
+### SYCL Library
+### Documentation
+ - Proposal for new device descriptors was added [1ad813ba133e]
 
 ## Improvements
 ### SYCL Compiler
  - Remove wrapping of buffer objects into images which caused problems like
    incorrect work of scatter/gather of 1- and 2-byte values [d2d20d6c4556]
+ - Rename FPGA kernel attribute `[[intel::stall_enable]]` to
+   `[[intel::use_stall_enable_clusters]]` [dab9debebe70]
+ - Add template parameter support for `[[intel::max_global_work_dim]]`
+   attribute [bd8fcc7dee34]
+ - Remove partial-link path when dealing with fat static archives [f1aa7f4d8b79]
+ - Remove unused device library function definitions from linked program
+   [e9423ffdec92]
 ### SYCL Library
  - Eliminate performance overhead on devies without host unified memory support
    [a4f092417ef9]
@@ -16,15 +28,20 @@ Release notes for commit range 5d7e0925..7c80f4491b31
  - Optimize `discard_write` access mode for host accessor [6733c8b0efde]
  - Add support for composite specialization constants [c62860fd6b86]
  - Enhance PI tracing with printing output arguments [19f5ad67f30a]
+ - Introduce `pi_map_flags` in lieu of `cl_map_flags` [f0e7606a6198]
 ### Documentation
  - Add information on AOT to GetStartedGuide [71942fbb3655]
  - Add notice on alignemnt checks in ABI policy [4326b9563575]
  - Updated design of specialization contants on using of POD types
    [81963d1ec055]
  - Document linked allocation commands [929a764a5ec4]
+ - Improve ESIMD documentation rendering [079597d28f1f]
 
 ## Bug fixes
 ### SYCL Compiler
+ - Do not customize optimizations for non-SPIR targets [cb069fed6712]
+ - Fix address space assertion with templates [8905a8cec9a9]
+ - Don't dump IR and dot files by default in the LowerWGScope [9d0e3525ba04]
 ### SYCL Library
  - Add missing interoperability API to construct SYCL classes with Level-Zero
    handles [10b4e8a6fc19]
@@ -34,7 +51,7 @@ Release notes for commit range 5d7e0925..7c80f4491b31
  - Fix build issue on Windows [c6b9973cceba]
  - Fix failure when employing interoperability host task on queue constructed
    with reused context [9cff6c9b6127]
- - Fix build warnings of "instantiation after specialization"
+ - Fix "instantiation after specialization" warnings
    [56b9a1dfb92f, eadce94f8ad0]
  - Support passing of stream by value to kernel function without loss of
    output information [8d37cbacc9b8]
