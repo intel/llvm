@@ -23,7 +23,6 @@ int main() {
         []() [[intel::no_global_work_offset(0)]]{});
 
     // CHECK: SYCLIntelNoGlobalWorkOffsetAttr{{.*}}
-    // expected-warning@+2{{'no_global_work_offset' attribute should be 0 or 1. Adjusted to 1}}
     h.single_task<class test_kernel3>(
         []() [[intel::no_global_work_offset(42)]]{});
 
@@ -40,10 +39,6 @@ int main() {
       [[intel::no_global_work_offset(1)]] int a;
     });
 
-    // CHECK: SYCLIntelNoGlobalWorkOffsetAttr{{.*}}
-    // CHECK-NEXT: IntegerLiteral {{.*}} 'int' 1
-    // CHECK: SYCLIntelNoGlobalWorkOffsetAttr{{.*}}
-    // CHECK-NEXT: IntegerLiteral {{.*}} 'int' 0
     // expected-warning@+2{{attribute 'no_global_work_offset' is already applied}}
     h.single_task<class test_kernel7>(
         []() [[intel::no_global_work_offset(0), intel::no_global_work_offset(1)]]{});
