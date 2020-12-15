@@ -35,6 +35,11 @@ using namespace llvm;
 
 #define DEBUG_TYPE "arm-mve-vpt-opts"
 
+static cl::opt<bool>
+MergeEndDec("arm-enable-merge-loopenddec", cl::Hidden,
+    cl::desc("Enable merging Loop End and Dec instructions."),
+    cl::init(true));
+
 namespace {
 class MVEVPTOptimisations : public MachineFunctionPass {
 public:
@@ -59,7 +64,7 @@ public:
   }
 
 private:
-  bool RevertLoopWithCall(MachineLoop *ML);
+  bool MergeLoopEnd(MachineLoop *ML);
   bool ConvertTailPredLoop(MachineLoop *ML, MachineDominatorTree *DT);
   MachineInstr &ReplaceRegisterUseWithVPNOT(MachineBasicBlock &MBB,
                                             MachineInstr &Instr,
@@ -111,6 +116,11 @@ static bool findLoopComponents(MachineLoop *ML, MachineRegisterInfo *MRI,
       LoopEnd = &T;
       break;
     }
+    if (T.getOpcode() == ARM::t2LoopEndDec &&
+        T.getOperand(2).getMBB() == Header) {
+      LoopEnd = &T;
+      break;
+    }
   }
   if (!LoopEnd) {
     LLVM_DEBUG(dbgs() << "  no LoopEnd\n");
@@ -127,11 +137,15 @@ static bool findLoopComponents(MachineLoop *ML, MachineRegisterInfo *MRI,
   //   $vd = t2LoopDec $vp
   //   ...
   //   t2LoopEnd $vd, loop
-  LoopDec =
-      LookThroughCOPY(MRI->getVRegDef(LoopEnd->getOperand(0).getReg()), MRI);
-  if (!LoopDec || LoopDec->getOpcode() != ARM::t2LoopDec) {
-    LLVM_DEBUG(dbgs() << "  didn't find LoopDec where we expected!\n");
-    return false;
+  if (LoopEnd->getOpcode() == ARM::t2LoopEndDec)
+    LoopDec = LoopEnd;
+  else {
+    LoopDec =
+        LookThroughCOPY(MRI->getVRegDef(LoopEnd->getOperand(0).getReg()), MRI);
+    if (!LoopDec || LoopDec->getOpcode() != ARM::t2LoopDec) {
+      LLVM_DEBUG(dbgs() << "  didn't find LoopDec where we expected!\n");
+      return false;
+    }
   }
   LLVM_DEBUG(dbgs() << "  found loop dec: " << *LoopDec);
 
@@ -159,8 +173,18 @@ static bool findLoopComponents(MachineLoop *ML, MachineRegisterInfo *MRI,
   return true;
 }
 
-bool MVEVPTOptimisations::RevertLoopWithCall(MachineLoop *ML) {
-  LLVM_DEBUG(dbgs() << "RevertLoopWithCall on loop " << ML->getHeader()->getName()
+// This function converts loops with t2LoopEnd and t2LoopEnd instructions into
+// a single t2LoopEndDec instruction. To do that it needs to make sure that LR
+// will be valid to be used for the low overhead loop, which means nothing else
+// is using LR (especially calls) and there are no superfluous copies in the
+// loop. The t2LoopEndDec is a branching terminator that produces a value (the
+// decrement) around the loop edge, which means we need to be careful that they
+// will be valid to allocate without any spilling.
+bool MVEVPTOptimisations::MergeLoopEnd(MachineLoop *ML) {
+  if (!MergeEndDec)
+    return false;
+
+  LLVM_DEBUG(dbgs() << "MergeLoopEnd on loop " << ML->getHeader()->getName()
                     << "\n");
 
   MachineInstr *LoopEnd, *LoopPhi, *LoopStart, *LoopDec;
@@ -181,7 +205,66 @@ bool MVEVPTOptimisations::RevertLoopWithCall(MachineLoop *ML) {
     }
   }
 
-  return false;
+  // Remove any copies from the loop, to ensure the phi that remains is both
+  // simpler and contains no extra uses. Because t2LoopEndDec is a terminator
+  // that cannot spill, we need to be careful what remains in the loop.
+  Register PhiReg = LoopPhi->getOperand(0).getReg();
+  Register DecReg = LoopDec->getOperand(0).getReg();
+  Register StartReg = LoopStart->getOperand(0).getReg();
+  // Ensure the uses are expected, and collect any copies we want to remove.
+  SmallVector<MachineInstr *, 4> Copies;
+  auto CheckUsers = [&Copies](Register BaseReg,
+                              ArrayRef<MachineInstr *> ExpectedUsers,
+                              MachineRegisterInfo *MRI) {
+    SmallVector<Register, 4> Worklist;
+    Worklist.push_back(BaseReg);
+    while (!Worklist.empty()) {
+      Register Reg = Worklist.pop_back_val();
+      for (MachineInstr &MI : MRI->use_nodbg_instructions(Reg)) {
+        if (count(ExpectedUsers, &MI))
+          continue;
+        if (MI.getOpcode() != TargetOpcode::COPY ||
+            !MI.getOperand(0).getReg().isVirtual()) {
+          LLVM_DEBUG(dbgs() << "Extra users of register found: " << MI);
+          return false;
+        }
+        Worklist.push_back(MI.getOperand(0).getReg());
+        Copies.push_back(&MI);
+      }
+    }
+    return true;
+  };
+  if (!CheckUsers(PhiReg, {LoopDec}, MRI) ||
+      !CheckUsers(DecReg, {LoopPhi, LoopEnd}, MRI) ||
+      !CheckUsers(StartReg, {LoopPhi}, MRI))
+    return false;
+
+  MRI->constrainRegClass(StartReg, &ARM::GPRlrRegClass);
+  MRI->constrainRegClass(PhiReg, &ARM::GPRlrRegClass);
+  MRI->constrainRegClass(DecReg, &ARM::GPRlrRegClass);
+
+  if (LoopPhi->getOperand(2).getMBB() == ML->getLoopLatch()) {
+    LoopPhi->getOperand(3).setReg(StartReg);
+    LoopPhi->getOperand(1).setReg(DecReg);
+  } else {
+    LoopPhi->getOperand(1).setReg(StartReg);
+    LoopPhi->getOperand(3).setReg(DecReg);
+  }
+
+  // Replace the loop dec and loop end as a single instruction.
+  MachineInstrBuilder MI =
+      BuildMI(*LoopEnd->getParent(), *LoopEnd, LoopEnd->getDebugLoc(),
+              TII->get(ARM::t2LoopEndDec), DecReg)
+          .addReg(PhiReg)
+          .add(LoopEnd->getOperand(1));
+  (void)MI;
+  LLVM_DEBUG(dbgs() << "Merged LoopDec and End into: " << *MI.getInstr());
+
+  LoopDec->eraseFromParent();
+  LoopEnd->eraseFromParent();
+  for (auto *MI : Copies)
+    MI->eraseFromParent();
+  return true;
 }
 
 // Convert t2DoLoopStart to t2DoLoopStartTP if the loop contains VCTP
@@ -197,6 +280,8 @@ bool MVEVPTOptimisations::ConvertTailPredLoop(MachineLoop *ML,
   // in the loop.
   MachineInstr *LoopEnd, *LoopPhi, *LoopStart, *LoopDec;
   if (!findLoopComponents(ML, MRI, LoopStart, LoopPhi, LoopDec, LoopEnd))
+    return false;
+  if (LoopDec != LoopEnd)
     return false;
 
   SmallVector<MachineInstr *, 4> VCTPs;
@@ -256,13 +341,10 @@ bool MVEVPTOptimisations::ConvertTailPredLoop(MachineLoop *ML,
   for (MachineInstr &Use :
        MRI->use_instructions(LoopStart->getOperand(0).getReg()))
     if ((InsertPt != MBB->end() && !DT->dominates(&*InsertPt, &Use)) ||
-        !DT->dominates(ML->getHeader(), Use.getParent()))
-      InsertPt = &Use;
-  if (InsertPt != MBB->end() &&
-      !DT->dominates(MRI->getVRegDef(CountReg), &*InsertPt)) {
-    LLVM_DEBUG(dbgs() << "  InsertPt does not dominate CountReg!\n");
-    return false;
-  }
+        !DT->dominates(ML->getHeader(), Use.getParent())) {
+      LLVM_DEBUG(dbgs() << "  InsertPt could not be a terminator!\n");
+      return false;
+    }
 
   MachineInstrBuilder MI = BuildMI(*MBB, InsertPt, LoopStart->getDebugLoc(),
                                    TII->get(ARM::t2DoLoopStartTP))
@@ -787,7 +869,7 @@ bool MVEVPTOptimisations::runOnMachineFunction(MachineFunction &Fn) {
 
   bool Modified = false;
   for (MachineLoop *ML : MLI->getBase().getLoopsInPreorder()) {
-    Modified |= RevertLoopWithCall(ML);
+    Modified |= MergeLoopEnd(ML);
     Modified |= ConvertTailPredLoop(ML, DT);
   }
 
