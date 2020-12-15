@@ -494,6 +494,13 @@ constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_USE = CL_MEM_USE_HOST_PTR;
 constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_COPY = CL_MEM_COPY_HOST_PTR;
 constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_ALLOC = CL_MEM_ALLOC_HOST_PTR;
 
+// flags passed to Map operations
+using pi_map_flags = pi_bitfield;
+constexpr pi_map_flags PI_MAP_READ = CL_MAP_READ;
+constexpr pi_map_flags PI_MAP_WRITE = CL_MAP_WRITE;
+constexpr pi_map_flags PI_MAP_WRITE_INVALIDATE_REGION =
+    CL_MAP_WRITE_INVALIDATE_REGION;
+
 // NOTE: this is made 64-bit to match the size of cl_mem_properties_intel to
 // make the translation to OpenCL transparent.
 // TODO: populate
@@ -1378,9 +1385,9 @@ piEnqueueMemImageFill(pi_queue command_queue, pi_mem image,
 
 __SYCL_EXPORT pi_result piEnqueueMemBufferMap(
     pi_queue command_queue, pi_mem buffer, pi_bool blocking_map,
-    cl_map_flags map_flags, // TODO: untie from OpenCL
-    size_t offset, size_t size, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event, void **ret_map);
+    pi_map_flags map_flags, size_t offset, size_t size,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event, void **ret_map);
 
 __SYCL_EXPORT pi_result piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
                                           void *mapped_ptr,
