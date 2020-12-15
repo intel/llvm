@@ -3753,9 +3753,9 @@ enum class DwarfFissionKind { None, Split, Single };
 
 static DwarfFissionKind getDebugFissionKind(const Driver &D,
                                             const ArgList &Args, Arg *&Arg) {
-  Arg =
-      Args.getLastArg(options::OPT_gsplit_dwarf, options::OPT_gsplit_dwarf_EQ);
-  if (!Arg)
+  Arg = Args.getLastArg(options::OPT_gsplit_dwarf, options::OPT_gsplit_dwarf_EQ,
+                        options::OPT_gno_split_dwarf);
+  if (!Arg || Arg->getOption().matches(options::OPT_gno_split_dwarf))
     return DwarfFissionKind::None;
 
   if (Arg->getOption().matches(options::OPT_gsplit_dwarf))
@@ -3798,20 +3798,15 @@ static void RenderDebugOptions(const ToolChain &TC, const Driver &D,
       Args.hasFlag(options::OPT_fsplit_dwarf_inlining,
                    options::OPT_fno_split_dwarf_inlining, false);
 
-  Args.ClaimAllArgs(options::OPT_g_Group);
+  if (const Arg *A = Args.getLastArg(options::OPT_g_Group)) {
+    Arg *SplitDWARFArg;
+    DwarfFission = getDebugFissionKind(D, Args, SplitDWARFArg);
+    if (DwarfFission != DwarfFissionKind::None &&
+        !checkDebugInfoOption(SplitDWARFArg, Args, D, TC)) {
+      DwarfFission = DwarfFissionKind::None;
+      SplitDWARFInlining = false;
+    }
 
-  Arg* SplitDWARFArg;
-  DwarfFission = getDebugFissionKind(D, Args, SplitDWARFArg);
-
-  if (DwarfFission != DwarfFissionKind::None &&
-      !checkDebugInfoOption(SplitDWARFArg, Args, D, TC)) {
-    DwarfFission = DwarfFissionKind::None;
-    SplitDWARFInlining = false;
-  }
-
-  if (const Arg *A =
-          Args.getLastArg(options::OPT_g_Group, options::OPT_gsplit_dwarf,
-                          options::OPT_gsplit_dwarf_EQ)) {
     DebugInfoKind = codegenoptions::LimitedDebugInfo;
 
     // If the last option explicitly specified a debug-info level, use it.
@@ -5057,7 +5052,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (D.IsCLMode())
     AddClangCLArgs(Args, InputType, CmdArgs, &DebugInfoKind, &EmitCodeView);
 
-  DwarfFissionKind DwarfFission;
+  DwarfFissionKind DwarfFission = DwarfFissionKind::None;
   RenderDebugOptions(TC, D, RawTriple, Args, EmitCodeView, CmdArgs,
                      DebugInfoKind, DwarfFission);
 
@@ -5681,6 +5676,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddLastArg(CmdArgs, options::OPT_fdiagnostics_print_source_range_info);
   Args.AddLastArg(CmdArgs, options::OPT_fdiagnostics_parseable_fixits);
   Args.AddLastArg(CmdArgs, options::OPT_ftime_report);
+  Args.AddLastArg(CmdArgs, options::OPT_ftime_report_EQ);
   Args.AddLastArg(CmdArgs, options::OPT_ftime_trace);
   Args.AddLastArg(CmdArgs, options::OPT_ftime_trace_granularity_EQ);
   Args.AddLastArg(CmdArgs, options::OPT_ftrapv);

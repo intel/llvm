@@ -1130,6 +1130,8 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
       setOperationAction(ISD::FADD, VT, Custom);
       setOperationAction(ISD::FDIV, VT, Custom);
       setOperationAction(ISD::FMA, VT, Custom);
+      setOperationAction(ISD::FMAXNUM, VT, Custom);
+      setOperationAction(ISD::FMINNUM, VT, Custom);
       setOperationAction(ISD::FMUL, VT, Custom);
       setOperationAction(ISD::FNEG, VT, Custom);
       setOperationAction(ISD::FSUB, VT, Custom);
@@ -3834,6 +3836,26 @@ unsigned getScatterVecOpcode(bool IsScaled, bool IsSigned, bool NeedsExtend) {
   return AddrModes.find(Key)->second;
 }
 
+unsigned getSignExtendedGatherOpcode(unsigned Opcode) {
+  switch (Opcode) {
+  default:
+    llvm_unreachable("unimplemented opcode");
+    return Opcode;
+  case AArch64ISD::GLD1_MERGE_ZERO:
+    return AArch64ISD::GLD1S_MERGE_ZERO;
+  case AArch64ISD::GLD1_UXTW_MERGE_ZERO:
+    return AArch64ISD::GLD1S_UXTW_MERGE_ZERO;
+  case AArch64ISD::GLD1_SXTW_MERGE_ZERO:
+    return AArch64ISD::GLD1S_SXTW_MERGE_ZERO;
+  case AArch64ISD::GLD1_SCALED_MERGE_ZERO:
+    return AArch64ISD::GLD1S_SCALED_MERGE_ZERO;
+  case AArch64ISD::GLD1_UXTW_SCALED_MERGE_ZERO:
+    return AArch64ISD::GLD1S_UXTW_SCALED_MERGE_ZERO;
+  case AArch64ISD::GLD1_SXTW_SCALED_MERGE_ZERO:
+    return AArch64ISD::GLD1S_SXTW_SCALED_MERGE_ZERO;
+  }
+}
+
 bool getGatherScatterIndexIsExtended(SDValue Index) {
   unsigned Opcode = Index.getOpcode();
   if (Opcode == ISD::SIGN_EXTEND_INREG)
@@ -3863,6 +3885,7 @@ SDValue AArch64TargetLowering::LowerMGATHER(SDValue Op,
   SDValue PassThru = MGT->getPassThru();
   SDValue Mask = MGT->getMask();
   SDValue BasePtr = MGT->getBasePtr();
+  ISD::LoadExtType ExtTy = MGT->getExtensionType();
 
   ISD::MemIndexType IndexType = MGT->getIndexType();
   bool IsScaled =
@@ -3872,6 +3895,7 @@ SDValue AArch64TargetLowering::LowerMGATHER(SDValue Op,
   bool IdxNeedsExtend =
       getGatherScatterIndexIsExtended(Index) ||
       Index.getSimpleValueType().getVectorElementType() == MVT::i32;
+  bool ResNeedsSignExtend = ExtTy == ISD::EXTLOAD || ExtTy == ISD::SEXTLOAD;
 
   EVT VT = PassThru.getSimpleValueType();
   EVT MemVT = MGT->getMemoryVT();
@@ -3898,9 +3922,12 @@ SDValue AArch64TargetLowering::LowerMGATHER(SDValue Op,
   if (getGatherScatterIndexIsExtended(Index))
     Index = Index.getOperand(0);
 
+  unsigned Opcode = getGatherVecOpcode(IsScaled, IsSigned, IdxNeedsExtend);
+  if (ResNeedsSignExtend)
+    Opcode = getSignExtendedGatherOpcode(Opcode);
+
   SDValue Ops[] = {Chain, Mask, BasePtr, Index, InputVT, PassThru};
-  return DAG.getNode(getGatherVecOpcode(IsScaled, IsSigned, IdxNeedsExtend), DL,
-                     VTs, Ops);
+  return DAG.getNode(Opcode, DL, VTs, Ops);
 }
 
 SDValue AArch64TargetLowering::LowerMSCATTER(SDValue Op,
@@ -7511,23 +7538,30 @@ AArch64TargetLowering::getRegForInlineAsmConstraint(
   if (Constraint.size() == 1) {
     switch (Constraint[0]) {
     case 'r':
-      if (VT.getSizeInBits() == 64)
+      if (VT.isScalableVector())
+        return std::make_pair(0U, nullptr);
+      if (VT.getFixedSizeInBits() == 64)
         return std::make_pair(0U, &AArch64::GPR64commonRegClass);
       return std::make_pair(0U, &AArch64::GPR32commonRegClass);
-    case 'w':
+    case 'w': {
       if (!Subtarget->hasFPARMv8())
         break;
-      if (VT.isScalableVector())
-        return std::make_pair(0U, &AArch64::ZPRRegClass);
-      if (VT.getSizeInBits() == 16)
+      if (VT.isScalableVector()) {
+        if (VT.getVectorElementType() != MVT::i1)
+          return std::make_pair(0U, &AArch64::ZPRRegClass);
+        return std::make_pair(0U, nullptr);
+      }
+      uint64_t VTSize = VT.getFixedSizeInBits();
+      if (VTSize == 16)
         return std::make_pair(0U, &AArch64::FPR16RegClass);
-      if (VT.getSizeInBits() == 32)
+      if (VTSize == 32)
         return std::make_pair(0U, &AArch64::FPR32RegClass);
-      if (VT.getSizeInBits() == 64)
+      if (VTSize == 64)
         return std::make_pair(0U, &AArch64::FPR64RegClass);
-      if (VT.getSizeInBits() == 128)
+      if (VTSize == 128)
         return std::make_pair(0U, &AArch64::FPR128RegClass);
       break;
+    }
     // The instructions that this constraint is designed for can
     // only take 128-bit registers so just use that regclass.
     case 'x':
@@ -7548,10 +7582,11 @@ AArch64TargetLowering::getRegForInlineAsmConstraint(
   } else {
     PredicateConstraint PC = parsePredicateConstraint(Constraint);
     if (PC != PredicateConstraint::Invalid) {
-      assert(VT.isScalableVector());
+      if (!VT.isScalableVector() || VT.getVectorElementType() != MVT::i1)
+        return std::make_pair(0U, nullptr);
       bool restricted = (PC == PredicateConstraint::Upl);
       return restricted ? std::make_pair(0U, &AArch64::PPR_3bRegClass)
-                          : std::make_pair(0U, &AArch64::PPRRegClass);
+                        : std::make_pair(0U, &AArch64::PPRRegClass);
     }
   }
   if (StringRef("{cc}").equals_lower(Constraint))

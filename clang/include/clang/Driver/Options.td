@@ -273,7 +273,7 @@ multiclass OptOutFFlag<string name, string pos_prefix, string neg_prefix,
 multiclass BooleanMarshalledFFlag<string name, code keypath, code default_value, string pos_help = "", string neg_help=""> {
   def fno_#NAME : Flag<["-"], "fno-"#name>, HelpText<neg_help>;
   def f#NAME : Flag<["-"], "f"#name>, HelpText<pos_help>,
-    MarshallingInfoBooleanFlag<keypath, default_value, !cast<Option>("fno_"#NAME)>;
+    MarshallingInfoBooleanFlag<keypath, default_value, "fno_"#NAME, "-fno-"#name>;
 }
 
 /////////
@@ -2071,7 +2071,12 @@ def Wframe_larger_than_EQ : Joined<["-"], "Wframe-larger-than=">, Group<f_Group>
 def : Flag<["-"], "fterminated-vtables">, Alias<fapple_kext>;
 def fthreadsafe_statics : Flag<["-"], "fthreadsafe-statics">, Group<f_Group>;
 def ftime_report : Flag<["-"], "ftime-report">, Group<f_Group>, Flags<[CC1Option]>,
-  MarshallingInfoFlag<"FrontendOpts.ShowTimers">;
+  MarshallingInfoFlag<"CodeGenOpts.TimePasses">;
+def ftime_report_EQ: Joined<["-"], "ftime-report=">, Group<f_Group>,
+  Flags<[CC1Option]>, Values<"per-pass,per-pass-run">,
+  MarshallingInfoFlag<"CodeGenOpts.TimePassesPerRun">,
+  HelpText<"(For new pass manager) \"per-pass\": one report for each pass; "
+           "\"per-pass-run\": one report for each pass invocation">;
 def ftime_trace : Flag<["-"], "ftime-trace">, Group<f_Group>,
   HelpText<"Turn on time profiler. Generates JSON file based on output filename.">,
   DocBrief<[{
@@ -2274,6 +2279,7 @@ def gsplit_dwarf : Flag<["-"], "gsplit-dwarf">, Group<g_flags_Group>;
 def gsplit_dwarf_EQ : Joined<["-"], "gsplit-dwarf=">, Group<g_flags_Group>,
   HelpText<"Set DWARF fission mode to either 'split' or 'single'">,
   Values<"split,single">;
+def gno_split_dwarf : Flag<["-"], "gno-split-dwarf">, Group<g_flags_Group>;
 def ggnu_pubnames : Flag<["-"], "ggnu-pubnames">, Group<g_flags_Group>, Flags<[CC1Option]>;
 def gno_gnu_pubnames : Flag<["-"], "gno-gnu-pubnames">, Group<g_flags_Group>;
 def gpubnames : Flag<["-"], "gpubnames">, Group<g_flags_Group>, Flags<[CC1Option]>;

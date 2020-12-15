@@ -19142,9 +19142,8 @@ LowerToTLSGeneralDynamicModelX32(GlobalAddressSDNode *GA, SelectionDAG &DAG,
 }
 
 static SDValue LowerToTLSLocalDynamicModel(GlobalAddressSDNode *GA,
-                                           SelectionDAG &DAG,
-                                           const EVT PtrVT,
-                                           bool is64Bit) {
+                                           SelectionDAG &DAG, const EVT PtrVT,
+                                           bool Is64Bit, bool Is64BitLP64) {
   SDLoc dl(GA);
 
   // Get the start address of the TLS block for this module.
@@ -19153,8 +19152,9 @@ static SDValue LowerToTLSLocalDynamicModel(GlobalAddressSDNode *GA,
   MFI->incNumLocalDynamicTLSAccesses();
 
   SDValue Base;
-  if (is64Bit) {
-    Base = GetTLSADDR(DAG, DAG.getEntryNode(), GA, nullptr, PtrVT, X86::RAX,
+  if (Is64Bit) {
+    unsigned ReturnReg = Is64BitLP64 ? X86::RAX : X86::EAX;
+    Base = GetTLSADDR(DAG, DAG.getEntryNode(), GA, nullptr, PtrVT, ReturnReg,
                       X86II::MO_TLSLD, /*LocalDynamic=*/true);
   } else {
     SDValue InFlag;
@@ -19258,8 +19258,8 @@ X86TargetLowering::LowerGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const {
         }
         return LowerToTLSGeneralDynamicModel32(GA, DAG, PtrVT);
       case TLSModel::LocalDynamic:
-        return LowerToTLSLocalDynamicModel(GA, DAG, PtrVT,
-                                           Subtarget.is64Bit());
+        return LowerToTLSLocalDynamicModel(GA, DAG, PtrVT, Subtarget.is64Bit(),
+                                           Subtarget.isTarget64BitLP64());
       case TLSModel::InitialExec:
       case TLSModel::LocalExec:
         return LowerToTLSExecModel(GA, DAG, PtrVT, model, Subtarget.is64Bit(),
@@ -47438,7 +47438,8 @@ static SDValue rebuildGatherScatter(MaskedGatherScatterSDNode *GorS,
     return DAG.getMaskedGather(Gather->getVTList(),
                                Gather->getMemoryVT(), DL, Ops,
                                Gather->getMemOperand(),
-                               Gather->getIndexType());
+                               Gather->getIndexType(),
+                               Gather->getExtensionType());
   }
   auto *Scatter = cast<MaskedScatterSDNode>(GorS);
   SDValue Ops[] = { Scatter->getChain(), Scatter->getValue(),
@@ -48810,6 +48811,38 @@ static SDValue combineConcatVectorOps(const SDLoc &DL, MVT VT,
         Res = DAG.getNode(X86ISD::VPERMILPI, DL, MVT::v8f32, Res,
                           Op0.getOperand(1));
         return DAG.getBitcast(VT, Res);
+      }
+      break;
+    case X86ISD::VPERMV3:
+      if (!IsSplat && NumOps == 2 && VT.is512BitVector()) {
+        MVT OpVT = Op0.getSimpleValueType();
+        int NumSrcElts = OpVT.getVectorNumElements();
+        SmallVector<int, 64> ConcatMask;
+        for (unsigned i = 0; i != NumOps; ++i) {
+          bool IsUnary;
+          SmallVector<int, 64> SubMask;
+          SmallVector<SDValue, 2> SubOps;
+          if (!getTargetShuffleMask(Ops[i].getNode(), OpVT, false, SubOps,
+                                    SubMask, IsUnary))
+            break;
+          for (int M : SubMask) {
+            if (0 <= M) {
+              M += M < NumSrcElts ? 0 : NumSrcElts;
+              M += i * NumSrcElts;
+            }
+            ConcatMask.push_back(M);
+          }
+        }
+        if (ConcatMask.size() == (NumOps * NumSrcElts)) {
+          SDValue Src0 = concatSubVectors(Ops[0].getOperand(0),
+                                          Ops[1].getOperand(0), DAG, DL);
+          SDValue Src1 = concatSubVectors(Ops[0].getOperand(2),
+                                          Ops[1].getOperand(2), DAG, DL);
+          MVT IntMaskSVT = MVT::getIntegerVT(VT.getScalarSizeInBits());
+          MVT IntMaskVT = MVT::getVectorVT(IntMaskSVT, NumOps * NumSrcElts);
+          SDValue Mask = getConstVector(ConcatMask, IntMaskVT, DAG, DL, true);
+          return DAG.getNode(X86ISD::VPERMV3, DL, VT, Src0, Mask, Src1);
+        }
       }
       break;
     case X86ISD::VSHLI:
