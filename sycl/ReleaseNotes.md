@@ -20,6 +20,7 @@ Release notes for commit range 5d7e0925..9d0e3525ba04
  - Remove partial-link path when dealing with fat static archives [f1aa7f4d8b79]
  - Remove unused device library function definitions from linked program
    [e9423ffdec92]
+ - Don't dump IR and dot files by default in the LowerWGScope [9d0e3525ba04]
 ### SYCL Library
  - Eliminate performance overhead on devices without host unified memory support
    [a4f092417ef9]
@@ -41,14 +42,12 @@ Release notes for commit range 5d7e0925..9d0e3525ba04
 ### SYCL Compiler
  - Do not customize optimizations for non-SPIR targets [cb069fed6712]
  - Fix address space assertion with templates [8905a8cec9a9]
- - Don't dump IR and dot files by default in the LowerWGScope [9d0e3525ba04]
 ### SYCL Library
  - Add missing interoperability API to construct SYCL classes with Level-Zero
    handles [10b4e8a6fc19]
  - Fix several builtins implementation for host device
    [8b82c671ab12, 786708914fd4]
  - Fix possible hang upon application finish if streams were used [bd5893ae01b1]
- - Fix build issue on Windows [c6b9973cceba]
  - Fix failure when employing interoperability host task on queue constructed
    with reused context [9cff6c9b6127]
  - Fix "instantiation after specialization" warnings
@@ -90,10 +89,6 @@ Release notes for commit range 5d7e0925..9d0e3525ba04
     versions of C++ RT used on app and sycl[d].dll sides.
   - The format of the object files produced by the compiler can change between
     versions. The workaround is to rebuild the application.
-  - The SYCL library doesn't guarantee stable API/ABI, so applications compiled
-    with older version of the SYCL library may not work with new one.
-    The workaround is to rebuild the application.
-    [ABI policy guide](doc/ABIPolicyGuide.md)
   - Using `cl::sycl::program` API to refer to a kernel defined in another
     translation unit leads to undefined behavior
   - Linkage errors with the following message:
