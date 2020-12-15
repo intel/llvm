@@ -21,9 +21,9 @@ Release notes for commit range 5d7e0925..9d0e3525ba04
  - Remove unused device library function definitions from linked program
    [e9423ffdec92]
 ### SYCL Library
- - Eliminate performance overhead on devies without host unified memory support
+ - Eliminate performance overhead on devices without host unified memory support
    [a4f092417ef9]
- - Implement dynamic batch suze adjusting when using Level-Zero plugin
+ - Implement dynamic batch size adjusting when using Level-Zero plugin
    [c70b0477aa8a, cf0d0538d162]
  - Optimize `discard_write` access mode for host accessor [6733c8b0efde]
  - Add support for composite specialization constants [c62860fd6b86]
@@ -53,8 +53,8 @@ Release notes for commit range 5d7e0925..9d0e3525ba04
    with reused context [9cff6c9b6127]
  - Fix "instantiation after specialization" warnings
    [56b9a1dfb92f, eadce94f8ad0]
- - Support passing of stream by value to kernel function without loss of
-   output information [8d37cbacc9b8]
+ - Support copying of stream by value within a kernel without loss of output
+   information [8d37cbacc9b8]
  - Fix handling of big and/or non-uniform work-groups in reduction kernels. The
    solution may change when reduction kernels precompilation/query approach is
    implemented [78e2599bc499]
