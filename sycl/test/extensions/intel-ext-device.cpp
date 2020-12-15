@@ -44,12 +44,16 @@ int main(int argc, char **argv) {
           std::cout << "Device #" << devCount++ << ": "
                     << dev.get_info<info::device::name>() << ":" << std::endl;
 
-          std::cout << "Backend: "
-                    << ((plt.get_backend() == backend::level_zero)
-                            ? "Level Zero"
-                        : plt.get_backend() == backend::opencl ? "OpenCL"
-                                                               : "CUDA")
-                    << std::endl;
+          std::cout << "Backend: ";
+          if (plt.get_backend() == backend::level_zero) {
+            std::cout << "Level Zero" << std::endl;
+          } else if (plt.get_backend() == backend::opencl) {
+            std::cout << "OpenCL" << std::endl;
+          } else if (plt.get_backend() == backend::cuda) {
+            std::cout << "CUDA" << std::endl;
+          } else {
+            std::cout << "Unknown" << std::endl;
+          }
 
           // Use Feature Test macro to see if extensions are supported.
           if (SYCL_EXT_INTEL_DEVICE_INFO >= 1) {
