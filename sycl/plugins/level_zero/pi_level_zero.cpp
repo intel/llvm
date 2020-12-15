@@ -17,10 +17,12 @@
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <utility>
 
+#include <level_zero/zes_api.h>
 #include <level_zero/zet_api.h>
 
 #include "usm_allocator.hpp"
@@ -1565,6 +1567,42 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     }
     return ReturnValue(Supported);
   }
+
+    // intel extensions for GPU information
+  case PI_DEVICE_INFO_PCI_ADDRESS: {
+    if (getenv("ZES_ENABLE_SYSMAN") == nullptr) {
+      zePrint("Set ZES_ENABLE_SYSMAN=1 to obtain PCI data.\n");
+      return PI_INVALID_VALUE;
+    }
+    zes_pci_properties_t ZeDevicePciProperties = {};
+    ZE_CALL(zesDevicePciGetProperties(ZeDevice, &ZeDevicePciProperties));
+    std::stringstream ss;
+    ss << ZeDevicePciProperties.address.domain << ":"
+       << ZeDevicePciProperties.address.bus << ":"
+       << ZeDevicePciProperties.address.device << "."
+       << ZeDevicePciProperties.address.function;
+    return ReturnValue(ss.str().c_str());
+  }
+  case PI_DEVICE_INFO_GPU_EU_COUNT: {
+    pi_uint32 count = Device->ZeDeviceProperties.numEUsPerSubslice *
+                      Device->ZeDeviceProperties.numSubslicesPerSlice *
+                      Device->ZeDeviceProperties.numSlices;
+    return ReturnValue(pi_uint32{count});
+  }
+  case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
+    return ReturnValue(
+        pi_uint32{Device->ZeDeviceProperties.physicalEUSimdWidth});
+  case PI_DEVICE_INFO_GPU_SLICES:
+    return ReturnValue(pi_uint32{Device->ZeDeviceProperties.numSlices});
+  case PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
+    return ReturnValue(
+        pi_uint32{Device->ZeDeviceProperties.numSubslicesPerSlice});
+  case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
+    return ReturnValue(pi_uint32{Device->ZeDeviceProperties.numEUsPerSubslice});
+  case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
+    // currently not supported in level zero runtime
+    return PI_INVALID_VALUE;
+
   default:
     zePrint("Unsupported ParamName in piGetDeviceInfo\n");
     zePrint("ParamName=%d(0x%x)\n", ParamName, ParamName);

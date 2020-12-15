@@ -253,6 +253,21 @@ bool device_impl::has(aspect Aspect) const {
     return get_info<info::device::usm_restricted_shared_allocations>();
   case aspect::usm_system_allocator:
     return get_info<info::device::usm_system_allocator>();
+  case aspect::ext_intel_pci_address:
+  case aspect::ext_intel_gpu_eu_count:
+  case aspect::ext_intel_gpu_eu_simd_width:
+  case aspect::ext_intel_gpu_slices:
+  case aspect::ext_intel_gpu_subslices_per_slice:
+  case aspect::ext_intel_gpu_eu_count_per_subslice:
+    if (getPlugin().getBackend() == backend::level_zero) {
+      return true;
+    } else {
+      return false;
+    }
+  case aspect::ext_intel_max_mem_bandwidth:
+    // currently not supported in the level zero runtime
+    return false;
+
   default:
     throw runtime_error("This device aspect has not been implemented yet.",
                         PI_INVALID_DEVICE);
