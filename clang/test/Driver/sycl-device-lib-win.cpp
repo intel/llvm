@@ -1,5 +1,5 @@
 ///
-/// Perform several driver tests for SYCL device libraries on Linux
+/// Perform several driver tests for SYCL device libraries on Windows
 ///
 
 // REQUIRES: clang-driver, windows
