@@ -7,6 +7,7 @@
 # REQUIRES: linux
 
 piContextCreate
+piDeviceGetInfo
 piDevicesGet
 piEnqueueMemBufferMap
 piEventCreate

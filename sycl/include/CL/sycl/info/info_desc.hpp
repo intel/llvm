@@ -132,13 +132,14 @@ enum class device : cl_device_info {
   usm_restricted_shared_allocations = PI_USM_CROSS_SHARED_SUPPORT,
   usm_system_allocator = PI_USM_SYSTEM_SHARED_SUPPORT,
   // intel extensions
-  ext_intel_pci_address = EXT_INTEL_PCI_ADDRESS,
-  ext_intel_gpu_eu_count = EXT_INTEL_GPU_EU_COUNT,
-  ext_intel_gpu_eu_simd_width = EXT_INTEL_GPU_EU_SIMD_WIDTH,
-  ext_intel_gpu_slices = EXT_INTEL_GPU_SLICES,
-  ext_intel_gpu_subslices_per_slice = EXT_INTEL_GPU_SUBSLICES_PER_SLICE,
-  ext_intel_gpu_eu_count_per_subslice = EXT_INTEL_GPU_EU_COUNT_PER_SUBSLICE,
-  ext_intel_max_mem_bandwidth = EXT_INTEL_MAX_MEM_BANDWIDTH
+  ext_intel_pci_address = PI_DEVICE_INFO_PCI_ADDRESS,
+  ext_intel_gpu_eu_count = PI_DEVICE_INFO_GPU_EU_COUNT,
+  ext_intel_gpu_eu_simd_width = PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH,
+  ext_intel_gpu_slices = PI_DEVICE_INFO_GPU_SLICES,
+  ext_intel_gpu_subslices_per_slice = PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE,
+  ext_intel_gpu_eu_count_per_subslice =
+      PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
+  ext_intel_max_mem_bandwidth = PI_DEVICE_INFO_MAX_MEM_BANDWIDTH
 };
 
 enum class device_type : pi_uint64 {
