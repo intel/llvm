@@ -3965,32 +3965,72 @@ class OffloadingActionBuilder final {
         sycl_devicelib_wrapper,
         sycl_devicelib_fallback
       };
+      struct DeviceLibOptInfo {
+        StringRef devicelib_name;
+        StringRef devicelib_option;
+      };
 
-      if (Args.hasArg(options::OPT_fno_sycl_device_lib))
-        return false;
+      bool NoDeviceLibs = false;
+      int NumOfDeviceLibLinked = 0;
+      // Currently, all SYCL device libraries will be linked by default
+      llvm::StringMap<bool> devicelib_link_info = {
+          {"libc", true}, {"libm-fp32", true}, {"libm-fp64", true}};
+      if (Arg *A = Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
+                                   options::OPT_fno_sycl_device_lib_EQ)) {
+        if (A->getValues().size() == 0)
+          C.getDriver().Diag(diag::warn_drv_empty_joined_argument)
+              << A->getAsString(Args);
+        else {
+          if (A->getOption().matches(options::OPT_fno_sycl_device_lib_EQ))
+            NoDeviceLibs = true;
+
+          for (StringRef Val : A->getValues()) {
+            if (Val == "all") {
+              for (auto &K : devicelib_link_info.keys())
+                devicelib_link_info[K] = true && !NoDeviceLibs;
+              break;
+            }
+            auto LinkInfoIter = devicelib_link_info.find(Val);
+            if (LinkInfoIter == devicelib_link_info.end()) {
+              C.getDriver().Diag(diag::err_drv_unsupported_option_argument)
+                  << A->getOption().getName() << Val;
+            }
+            devicelib_link_info[Val] = true && !NoDeviceLibs;
+          }
+        }
+      }
+
       SmallString<128> LibLoc(TC->getDriver().Dir);
       llvm::sys::path::append(LibLoc, "/../lib");
       StringRef LibSuffix = isMSVCEnv ? ".obj" : ".o";
-      SmallVector<StringRef, 5> sycl_device_wrapper_libs = {
-          "libsycl-crt", "libsycl-complex", "libsycl-complex-fp64",
-          "libsycl-cmath", "libsycl-cmath-fp64"};
+      SmallVector<DeviceLibOptInfo, 5> sycl_device_wrapper_libs = {
+          {"libsycl-crt", "libc"},
+          {"libsycl-complex", "libm-fp32"},
+          {"libsycl-complex-fp64", "libm-fp64"},
+          {"libsycl-cmath", "libm-fp32"},
+          {"libsycl-cmath-fp64", "libm-fp64"}};
       // For AOT compilation, we need to link sycl_device_fallback_libs as
       // default too.
-      SmallVector<StringRef, 5> sycl_device_fallback_libs = {
-          "libsycl-fallback-cassert", "libsycl-fallback-complex",
-          "libsycl-fallback-complex-fp64", "libsycl-fallback-cmath",
-          "libsycl-fallback-cmath-fp64"};
+      SmallVector<DeviceLibOptInfo, 5> sycl_device_fallback_libs = {
+          {"libsycl-fallback-cassert", "libc"},
+          {"libsycl-fallback-complex", "libm-fp32"},
+          {"libsycl-fallback-complex-fp64", "libm-fp64"},
+          {"libsycl-fallback-cmath", "libm-fp32"},
+          {"libsycl-fallback-cmath-fp64", "libm-fp64"}};
       auto addInputs = [&](SYCLDeviceLibType t) {
         auto sycl_libs = (t == sycl_devicelib_wrapper)
                              ? sycl_device_wrapper_libs
                              : sycl_device_fallback_libs;
-        for (const StringRef &LibName : sycl_libs) {
-          SmallString<128> LibFullPath(LibLoc);
-          llvm::sys::path::append(LibFullPath, LibName);
-          llvm::sys::path::replace_extension(LibFullPath, LibSuffix);
-          if (llvm::sys::fs::exists(LibFullPath)) {
+        for (const DeviceLibOptInfo &Lib : sycl_libs) {
+          if (!devicelib_link_info[Lib.devicelib_option])
+            continue;
+          SmallString<128> LibName(LibLoc);
+          llvm::sys::path::append(LibName, Lib.devicelib_name);
+          llvm::sys::path::replace_extension(LibName, LibSuffix);
+          if (llvm::sys::fs::exists(LibName)) {
+            ++NumOfDeviceLibLinked;
             Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
-                                         Args.MakeArgString(LibFullPath));
+                                         Args.MakeArgString(LibName));
             auto *SYCLDeviceLibsInputAction =
                 C.MakeAction<InputAction>(*InputArg, types::TY_Object);
             auto *SYCLDeviceLibsUnbundleAction =
@@ -4004,7 +4044,7 @@ class OffloadingActionBuilder final {
       addInputs(sycl_devicelib_wrapper);
       if (isSpirvAOT)
         addInputs(sycl_devicelib_fallback);
-      return true;
+      return NumOfDeviceLibLinked != 0;
     }
 
     void appendLinkDependences(OffloadAction::DeviceDependences &DA) override {
