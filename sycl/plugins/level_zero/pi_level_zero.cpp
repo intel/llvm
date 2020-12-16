@@ -1931,8 +1931,7 @@ pi_result piQueueRetain(pi_queue Queue) {
 
 pi_result piQueueRelease(pi_queue Queue) {
   assert(Queue);
-  // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+  Queue->PiQueueMutex.lock();
 
   if (--(Queue->RefCount) == 0) {
     // It is possible to get to here and still have an open command list
@@ -1951,6 +1950,10 @@ pi_result piQueueRelease(pi_queue Queue) {
 
     zePrint("piQueueRelease NumTimesClosedFull %d, NumTimesClosedEarly %d\n",
             Queue->NumTimesClosedFull, Queue->NumTimesClosedEarly);
+    Queue->PiQueueMutex.unlock();
+    delete Queue;
+  } else {
+    Queue->PiQueueMutex.unlock();
   }
   return PI_SUCCESS;
 }
@@ -3497,24 +3500,25 @@ static void cleanupAfterEvent(pi_event Event) {
   // any of the Event's data members that need to be read/reset as
   // part of the cleanup operations.
   auto Queue = Event->Queue;
+  if (Queue) {
+    // Lock automatically releases when this goes out of scope.
+    std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-  // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+    // Cleanup the command list associated with the event if it hasn't
+    // been cleaned up already.
+    auto EventCommandList = Event->ZeCommandList;
 
-  // Cleanup the command list associated with the event if it hasn't
-  // been cleaned up already.
-  auto EventCommandList = Event->ZeCommandList;
-
-  if (EventCommandList) {
-    // Event has been signalled: If the fence for the associated command list
-    // is signalled, then reset the fence and command list and add them to the
-    // available list for reuse in PI calls.
-    if (Queue->RefCount > 0) {
-      ze_result_t ZeResult = ZE_CALL_NOCHECK(
-          zeFenceQueryStatus(Queue->ZeCommandListFenceMap[EventCommandList]));
-      if (ZeResult == ZE_RESULT_SUCCESS) {
-        Queue->resetCommandListFenceEntry(EventCommandList, true);
-        Event->ZeCommandList = nullptr;
+    if (EventCommandList) {
+      // Event has been signalled: If the fence for the associated command list
+      // is signalled, then reset the fence and command list and add them to the
+      // available list for reuse in PI calls.
+      if (Queue->RefCount > 0) {
+        ze_result_t ZeResult = ZE_CALL_NOCHECK(
+            zeFenceQueryStatus(Queue->ZeCommandListFenceMap[EventCommandList]));
+        if (ZeResult == ZE_RESULT_SUCCESS) {
+          Queue->resetCommandListFenceEntry(EventCommandList, true);
+          Event->ZeCommandList = nullptr;
+        }
       }
     }
   }
@@ -3580,17 +3584,24 @@ pi_result piEventRetain(pi_event Event) {
 pi_result piEventRelease(pi_event Event) {
   assert(Event);
   if (--(Event->RefCount) == 0) {
+    // By default, cleanupAfterEvent will reuse the fence and the commandList
+    // associated with event. This is a good idea if the event will be alive.
+    // But, we are deallocating event in this function, so reusing the
+    // associated fence and commandList will cause memory leak.
+    // Note that we still need to release the kernel associated with the event.
+    // So, before calling cleanupAfterEvent, we have to indicate that the event
+    // is being removed by setting the Queue member to nullptr.
+    Event->Queue = nullptr;
     cleanupAfterEvent(Event);
 
+    auto Context = Event->Context;
     if (Event->CommandType == PI_COMMAND_TYPE_MEM_BUFFER_UNMAP &&
         Event->CommandData) {
       // Free the memory allocated in the piEnqueueMemBufferMap.
-      ZE_CALL(zeMemFree(Event->Queue->Context->ZeContext, Event->CommandData));
+      ZE_CALL(zeMemFree(Context->ZeContext, Event->CommandData));
       Event->CommandData = nullptr;
     }
     ZE_CALL(zeEventDestroy(Event->ZeEvent));
-
-    auto Context = Event->Context;
     ZE_CALL(Context->decrementAliveEventsInPool(Event->ZeEventPool));
 
     delete Event;
