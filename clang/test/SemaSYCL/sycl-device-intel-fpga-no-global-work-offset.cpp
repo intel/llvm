@@ -2,14 +2,17 @@
 
 // Test that checks template parameter support for 'no_global_work_offset' attribute on sycl device.
 
-// Test that checks wrong template instantiation.
+// Test that checks wrong function template instantiation and ensures that the type
+// is checked properly when instantiating from the template definition.
 template <typename Ty>
+// expected-error@+1{{'no_global_work_offset' attribute requires an integer constant}}
 [[intel::no_global_work_offset(Ty{})]] void func() {}
 
 struct S {};
-// expected-error@+2{{template specialization requires 'template<>'}}
-// expected-error@+1{{C++ requires a type specifier for all declarations}}
-func<S>();
+void var() {
+  //expected-note@+1{{in instantiation of function template specialization 'func<S>' requested here}}
+  func<S>();
+}
 
 // Test that checks expression is not a constant expression.
 int foo();
@@ -24,14 +27,10 @@ constexpr int bar() { return 0; }
 template <int SIZE>
 class KernelFunctor {
 public:
-  // expected-error@+1{{'no_global_work_offset' attribute requires a non-negative integral compile time constant expression}}
   [[intel::no_global_work_offset(SIZE)]] void operator()() {}
 };
 
 int main() {
-  //expected-note@+1{{in instantiation of template class 'KernelFunctor<-1>' requested here}}
-  KernelFunctor<-1>();
-  // no error expected
   KernelFunctor<1>();
 }
 

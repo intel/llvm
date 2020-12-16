@@ -699,7 +699,7 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
     Optional<llvm::APSInt> ArgVal =
         Arg->getIntegerConstantExpr(FD->getASTContext());
     assert(ArgVal.hasValue() && "Not an integer constant expression");
-    if (ArgVal)
+    if (ArgVal->getBoolValue())
       Fn->setMetadata("no_global_work_offset", llvm::MDNode::get(Context, {}));
   }
 

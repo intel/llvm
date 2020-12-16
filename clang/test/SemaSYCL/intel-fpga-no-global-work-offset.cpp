@@ -26,7 +26,7 @@ int main() {
     h.single_task<class test_kernel3>(
         []() [[intel::no_global_work_offset(42)]]{});
 
-    // expected-error@+2{{'no_global_work_offset' attribute requires a non-negative integral compile time constant expression}}
+    // CHECK: SYCLIntelNoGlobalWorkOffsetAttr{{.*}}
     h.single_task<class test_kernel4>(
         []() [[intel::no_global_work_offset(-1)]]{});
 
