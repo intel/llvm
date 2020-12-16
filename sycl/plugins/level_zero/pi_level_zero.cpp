@@ -2502,11 +2502,11 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
         // case, but there is no corresponding PI error code.
         return PI_INVALID_OPERATION;
       } else {
-          // The OpenCL spec actually says this should return
-          // CL_INVALID_PROGRAM_EXECUTABLE, but there is no
-          // corresponding PI error code.
+        // The OpenCL spec actually says this should return
+        // CL_INVALID_PROGRAM_EXECUTABLE, but there is no
+        // corresponding PI error code.
         PI_ASSERT(Program->State == _pi_program::Exe ||
-                    Program->State == _pi_program::LinkedExe,
+                      Program->State == _pi_program::LinkedExe,
                   PI_INVALID_OPERATION);
 
         bool First = true;
@@ -4431,7 +4431,7 @@ pi_result piMemImageGetInfo(pi_mem Image, pi_image_info ParamName,
 
 static pi_result getImageRegionHelper(pi_mem Mem, pi_image_offset Origin,
                                       pi_image_region Region,
-                                      ze_image_region_t& ZeRegion) {
+                                      ze_image_region_t &ZeRegion) {
 
   PI_ASSERT(Mem && Mem->isImage(), PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Origin, PI_INVALID_VALUE);
@@ -4441,11 +4441,11 @@ static pi_result getImageRegionHelper(pi_mem Mem, pi_image_offset Origin,
 #endif // !NDEBUG
 
   PI_ASSERT((ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Origin->y == 0 &&
-            Origin->z == 0) ||
-               (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Origin->z == 0) ||
-               (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Origin->z == 0) ||
-               (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
-               PI_INVALID_VALUE);
+             Origin->z == 0) ||
+                (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Origin->z == 0) ||
+                (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Origin->z == 0) ||
+                (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
+            PI_INVALID_VALUE);
 
   uint32_t OriginX = pi_cast<uint32_t>(Origin->x);
   uint32_t OriginY = pi_cast<uint32_t>(Origin->y);
@@ -4454,10 +4454,10 @@ static pi_result getImageRegionHelper(pi_mem Mem, pi_image_offset Origin,
   PI_ASSERT(Region->width && Region->height && Region->depth, PI_INVALID_VALUE);
   PI_ASSERT(
       (ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Region->height == 1 &&
-      Region->depth == 1) ||
-        (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Region->depth == 1) ||
-        (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Region->depth == 1) ||
-        (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
+       Region->depth == 1) ||
+         (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Region->depth == 1) ||
+         (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Region->depth == 1) ||
+         (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
       PI_INVALID_VALUE);
 
   uint32_t Width = pi_cast<uint32_t>(Region->width);
@@ -4526,11 +4526,11 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
         RowPitch == 0 ||
             // special case RGBA image pitch equal to region's width
             (ZeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_32_32_32_32 &&
-            RowPitch == 4 * 4 * ZeSrcRegion.width) ||
+             RowPitch == 4 * 4 * ZeSrcRegion.width) ||
             (ZeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_16_16_16_16 &&
-            RowPitch == 4 * 2 * ZeSrcRegion.width) ||
+             RowPitch == 4 * 2 * ZeSrcRegion.width) ||
             (ZeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_8_8_8_8 &&
-            RowPitch == 4 * ZeSrcRegion.width),
+             RowPitch == 4 * ZeSrcRegion.width),
         PI_INVALID_IMAGE_SIZE);
     PI_ASSERT(SlicePitch == 0 || SlicePitch == RowPitch * ZeSrcRegion.height,
               PI_INVALID_IMAGE_SIZE);
@@ -4557,11 +4557,11 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
         RowPitch == 0 ||
             // special case RGBA image pitch equal to region's width
             (ZeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_32_32_32_32 &&
-            RowPitch == 4 * 4 * ZeDstRegion.width) ||
+             RowPitch == 4 * 4 * ZeDstRegion.width) ||
             (ZeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_16_16_16_16 &&
-            RowPitch == 4 * 2 * ZeDstRegion.width) ||
+             RowPitch == 4 * 2 * ZeDstRegion.width) ||
             (ZeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_8_8_8_8 &&
-            RowPitch == 4 * ZeDstRegion.width),
+             RowPitch == 4 * ZeDstRegion.width),
         PI_INVALID_IMAGE_SIZE);
     PI_ASSERT(SlicePitch == 0 || SlicePitch == RowPitch * ZeDstRegion.height,
               PI_INVALID_IMAGE_SIZE);
