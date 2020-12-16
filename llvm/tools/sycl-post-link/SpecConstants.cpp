@@ -437,8 +437,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
 
         //  3. Transform to spirv intrinsic _Z*__spirv_SpecConstant* or
         //  _Z*__spirv_SpecConstantComposite
-        auto *SPIRVCall =
-            emitSpecConstantRecursive(SCTy, CI, IDs);
+        auto *SPIRVCall = emitSpecConstantRecursive(SCTy, CI, IDs);
         if (IsNewSpecConstant) {
           // emitSpecConstantRecursive might emit more than one spec constant
           // (because of composite types) and therefore, we need to ajudst
