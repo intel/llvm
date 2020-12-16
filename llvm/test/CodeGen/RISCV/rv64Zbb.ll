@@ -166,7 +166,6 @@ define signext i32 @sroi_i32(i32 signext %a) nounwind {
 ; This is similar to the type legalized version of sroiw but the mask is 0 in
 ; the upper bits instead of 1 so the result is not sign extended. Make sure we
 ; don't match it to sroiw.
-; FIXME: We're matching it to sroiw.
 define i64 @sroiw_bug(i64 %a) nounwind {
 ; RV64I-LABEL: sroiw_bug:
 ; RV64I:       # %bb.0:
@@ -178,12 +177,18 @@ define i64 @sroiw_bug(i64 %a) nounwind {
 ;
 ; RV64IB-LABEL: sroiw_bug:
 ; RV64IB:       # %bb.0:
-; RV64IB-NEXT:    sroiw a0, a0, 1
+; RV64IB-NEXT:    srli a0, a0, 1
+; RV64IB-NEXT:    addi a1, zero, 1
+; RV64IB-NEXT:    slli a1, a1, 31
+; RV64IB-NEXT:    or a0, a0, a1
 ; RV64IB-NEXT:    ret
 ;
 ; RV64IBB-LABEL: sroiw_bug:
 ; RV64IBB:       # %bb.0:
-; RV64IBB-NEXT:    sroiw a0, a0, 1
+; RV64IBB-NEXT:    srli a0, a0, 1
+; RV64IBB-NEXT:    addi a1, zero, 1
+; RV64IBB-NEXT:    slli a1, a1, 31
+; RV64IBB-NEXT:    or a0, a0, a1
 ; RV64IBB-NEXT:    ret
   %neg = lshr i64 %a, 1
   %neg12 = or i64 %neg, 2147483648
@@ -930,6 +935,59 @@ define i64 @maxu_i64(i64 %a, i64 %b) nounwind {
   %cmp = icmp ugt i64 %a, %b
   %cond = select i1 %cmp, i64 %a, i64 %b
   ret i64 %cond
+}
+
+declare i32 @llvm.abs.i32(i32, i1 immarg)
+
+define i32 @abs_i32(i32 %x) {
+; RV64I-LABEL: abs_i32:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    sext.w a0, a0
+; RV64I-NEXT:    srai a1, a0, 63
+; RV64I-NEXT:    add a0, a0, a1
+; RV64I-NEXT:    xor a0, a0, a1
+; RV64I-NEXT:    ret
+;
+; RV64IB-LABEL: abs_i32:
+; RV64IB:       # %bb.0:
+; RV64IB-NEXT:    sext.w a0, a0
+; RV64IB-NEXT:    neg a1, a0
+; RV64IB-NEXT:    max a0, a0, a1
+; RV64IB-NEXT:    ret
+;
+; RV64IBB-LABEL: abs_i32:
+; RV64IBB:       # %bb.0:
+; RV64IBB-NEXT:    sext.w a0, a0
+; RV64IBB-NEXT:    neg a1, a0
+; RV64IBB-NEXT:    max a0, a0, a1
+; RV64IBB-NEXT:    ret
+  %abs = tail call i32 @llvm.abs.i32(i32 %x, i1 true)
+  ret i32 %abs
+}
+
+declare i64 @llvm.abs.i64(i64, i1 immarg)
+
+define i64 @abs_i64(i64 %x) {
+; RV64I-LABEL: abs_i64:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    srai a1, a0, 63
+; RV64I-NEXT:    add a0, a0, a1
+; RV64I-NEXT:    xor a0, a0, a1
+; RV64I-NEXT:    ret
+;
+; RV64IB-LABEL: abs_i64:
+; RV64IB:       # %bb.0:
+; RV64IB-NEXT:    neg a1, a0
+; RV64IB-NEXT:    max a0, a0, a1
+; RV64IB-NEXT:    ret
+;
+; RV64IBB-LABEL: abs_i64:
+; RV64IBB:       # %bb.0:
+; RV64IBB-NEXT:    neg a1, a0
+; RV64IBB-NEXT:    max a0, a0, a1
+; RV64IBB-NEXT:    ret
+  %abs = tail call i64 @llvm.abs.i64(i64 %x, i1 true)
+  ret i64 %abs
 }
 
 ; We select a i32 addi that zero-extends the result on RV64 as addiwu

@@ -14,25 +14,12 @@
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/StandardOps/Transforms/Passes.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
-#include "mlir/IR/Function.h"
+#include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Pass/Pass.h"
 
 using namespace ::mlir;
 using namespace ::mlir::linalg;
-
-static SmallVector<Range, 4> computeLoopRanges(Location loc, LinalgOp linalgOp,
-                                               OpBuilder &b) {
-  auto indexingMaps = llvm::to_vector<4>(
-      linalgOp.indexing_maps().getAsValueRange<AffineMapAttr>());
-  auto inputIndexingMaps =
-      llvm::makeArrayRef(indexingMaps).take_front(linalgOp.getNumInputs());
-
-  mlir::edsc::ScopedContext scope(b, loc);
-  return emitLoopRanges(scope.getBuilderRef(), loc,
-                        concatAffineMaps(inputIndexingMaps),
-                        getShape(b, linalgOp));
-}
 
 static Value maybeConvertToIndex(Location loc, Value val, OpBuilder &b) {
   if (val.getType().isIndex())
@@ -61,7 +48,7 @@ allocateBuffersForResults(Location loc, LinalgOp linalgOp,
   SmallVector<Range, 4> loopRanges;
 
   // Allocate a buffer for every tensor result.
-  for (auto en : llvm::enumerate(linalgOp.getOperation()->getResultTypes())) {
+  for (auto en : llvm::enumerate(linalgOp->getResultTypes())) {
     size_t resultIndex = en.index();
     Type resultType = en.value();
 
@@ -97,11 +84,9 @@ allocateBuffersForResults(Location loc, LinalgOp linalgOp,
     auto resultIndexingMap = linalgOp.getOutputIndexingMap(resultIndex);
     for (auto shapeElement : llvm::enumerate(tensorType.getShape())) {
       if (loopRanges.empty())
-        loopRanges = computeLoopRanges(loc, linalgOp, b);
-
+        loopRanges = linalgOp.createLoopRanges(b, loc);
       if (shapeElement.value() != ShapedType::kDynamicSize)
         continue;
-
       AffineExpr expr = resultIndexingMap.getResult(shapeElement.index());
       switch (expr.getKind()) {
       case AffineExprKind::DimId: {
@@ -119,24 +104,25 @@ allocateBuffersForResults(Location loc, LinalgOp linalgOp,
   return success();
 }
 
-// Specialization for `linalg::GenericOp`.
+/// Specialization for `linalg::GenericOp` and `linalg::IndexedGenericOp`.
 /// A pattern to convert Generic Linalg operations which work on tensors to
 /// use buffers. BufferPlacement pass should be later used to move
 /// Alloc operations to the correct positions and insert the missing Dealloc
 /// operations in the correct places.
-static void finalizeBufferAllocation(ConversionPatternRewriter &rewriter,
-                                     linalg::GenericOp genericOp,
-                                     ValueRange inputs, ValueRange outputs) {
+template <typename GenericOpTy>
+static void
+finalizeBufferAllocationForGenericOp(ConversionPatternRewriter &rewriter,
+                                     GenericOpTy genericOp, ValueRange inputs,
+                                     ValueRange outputs) {
   // Generate a new linalg operation that works on buffers.
-  auto newGenericOp = rewriter.create<linalg::GenericOp>(
+  auto newGenericOp = rewriter.create<GenericOpTy>(
       genericOp.getLoc(),
       /*resultTensorTypes=*/llvm::None,
       /*inputs=*/inputs,
       /*outputBuffers=*/outputs,
       /*initTensors=*/llvm::None, genericOp.indexing_maps(),
       genericOp.iterator_types(), genericOp.docAttr(),
-      genericOp.library_callAttr(), genericOp.sparseAttr(),
-      genericOp.symbol_sourceAttr());
+      genericOp.library_callAttr(), genericOp.sparseAttr());
 
   // Create a new block in the region of the new Generic Op.
   Block *oldBlock = genericOp.getBody();
@@ -163,9 +149,7 @@ static void finalizeBufferAllocation(ConversionPatternRewriter &rewriter,
   rewriter.replaceOp(genericOp, outputs);
 }
 
-// TODO: Specialization for `linalg::IndexedGenericOp`.
-
-// Specialization for all other `linalg::LinalgOp`.
+/// Specialization for all other `linalg::LinalgOp`.
 static void finalizeBufferAllocation(ConversionPatternRewriter &rewriter,
                                      linalg::LinalgOp linalgOp,
                                      ValueRange inputs, ValueRange outputs) {
@@ -223,8 +207,15 @@ public:
 
     // Delegate to the linalg generic pattern.
     if (auto genericOp = dyn_cast<linalg::GenericOp>(op)) {
-      finalizeBufferAllocation(rewriter, genericOp, adaptor.inputs(),
-                               newOutputBuffers);
+      finalizeBufferAllocationForGenericOp<GenericOp>(
+          rewriter, genericOp, adaptor.inputs(), newOutputBuffers);
+      return success();
+    }
+
+    // Delegate to the linalg indexed generic pattern.
+    if (auto genericOp = dyn_cast<linalg::IndexedGenericOp>(op)) {
+      finalizeBufferAllocationForGenericOp<IndexedGenericOp>(
+          rewriter, genericOp, adaptor.inputs(), newOutputBuffers);
       return success();
     }
 
@@ -259,8 +250,7 @@ public:
   LogicalResult
   matchAndRewrite(SubTensorOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
-    SubTensorOpAdaptor adaptor(operands,
-                               op.getOperation()->getAttrDictionary());
+    SubTensorOpAdaptor adaptor(operands, op->getAttrDictionary());
     Value sourceMemref = adaptor.source();
     assert(sourceMemref.getType().isa<MemRefType>());
 
@@ -284,7 +274,7 @@ public:
 
 /// Convert `subtensor_insert %source into %dest [offsets][sizes][strides] ->
 /// %t` to an tensor_to_memref + subview + copy + tensor_load pattern.
-/// tensor_to_memref and tensor_load are inserted automatically by the 
+/// tensor_to_memref and tensor_load are inserted automatically by the
 /// conversion infra:
 /// ```
 ///   %sv = subview %dest [offsets][sizes][strides]
@@ -302,8 +292,7 @@ public:
   LogicalResult
   matchAndRewrite(SubTensorInsertOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
-    SubTensorInsertOpAdaptor adaptor(operands,
-                                     op.getOperation()->getAttrDictionary());
+    SubTensorInsertOpAdaptor adaptor(operands, op->getAttrDictionary());
     Value sourceMemRef = adaptor.source();
     assert(sourceMemRef.getType().isa<MemRefType>());
 
@@ -337,7 +326,7 @@ struct LinalgBufferizePass : public LinalgBufferizeBase<LinalgBufferizePass> {
     BufferizeTypeConverter typeConverter;
 
     // Mark all Standard operations legal.
-    target.addLegalDialect<StandardOpsDialect>();
+    target.addLegalDialect<AffineDialect, StandardOpsDialect>();
     target.addIllegalOp<SubTensorOp, SubTensorInsertOp>();
 
     // Mark all Linalg operations illegal as long as they work on tensors.

@@ -33,6 +33,11 @@ BareMetal::BareMetal(const Driver &D, const llvm::Triple &Triple,
   getProgramPaths().push_back(getDriver().getInstalledDir());
   if (getDriver().getInstalledDir() != getDriver().Dir)
     getProgramPaths().push_back(getDriver().Dir);
+  SmallString<128> SysRoot(getDriver().SysRoot);
+  if (!SysRoot.empty()) {
+    llvm::sys::path::append(SysRoot, "lib");
+    getFilePaths().push_back(std::string(SysRoot));
+  }
 }
 
 /// Is the triple {arm,thumb}-none-none-{eabi,eabihf} ?
@@ -54,8 +59,22 @@ static bool isARMBareMetal(const llvm::Triple &Triple) {
   return true;
 }
 
+static bool isRISCVBareMetal(const llvm::Triple &Triple) {
+  if (Triple.getArch() != llvm::Triple::riscv32 &&
+      Triple.getArch() != llvm::Triple::riscv64)
+    return false;
+
+  if (Triple.getVendor() != llvm::Triple::UnknownVendor)
+    return false;
+
+  if (Triple.getOS() != llvm::Triple::UnknownOS)
+    return false;
+
+  return Triple.getEnvironmentName() == "elf";
+}
+
 bool BareMetal::handlesTarget(const llvm::Triple &Triple) {
-  return isARMBareMetal(Triple);
+  return isARMBareMetal(Triple) || isRISCVBareMetal(Triple);
 }
 
 Tool *BareMetal::buildLinker() const {
@@ -189,6 +208,7 @@ void baremetal::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   CmdArgs.push_back(Args.MakeArgString("-L" + TC.getRuntimesDir()));
 
+  TC.AddFilePathLibArgs(Args, CmdArgs);
   Args.AddAllArgs(CmdArgs, {options::OPT_L, options::OPT_T_Group,
                             options::OPT_e, options::OPT_s, options::OPT_t,
                             options::OPT_Z_Flag, options::OPT_r});

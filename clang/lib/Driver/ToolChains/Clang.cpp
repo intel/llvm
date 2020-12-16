@@ -3238,13 +3238,13 @@ static void RenderARCMigrateToolOptions(const Driver &D, const ArgList &Args,
       switch (A->getOption().getID()) {
       default: llvm_unreachable("missed a case");
       case options::OPT_ccc_arcmt_check:
-        CmdArgs.push_back("-arcmt-check");
+        CmdArgs.push_back("-arcmt-action=check");
         break;
       case options::OPT_ccc_arcmt_modify:
-        CmdArgs.push_back("-arcmt-modify");
+        CmdArgs.push_back("-arcmt-action=modify");
         break;
       case options::OPT_ccc_arcmt_migrate:
-        CmdArgs.push_back("-arcmt-migrate");
+        CmdArgs.push_back("-arcmt-action=migrate");
         CmdArgs.push_back("-mt-migrate-directory");
         CmdArgs.push_back(A->getValue());
 
@@ -4249,7 +4249,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                       options::OPT_fno_sycl_early_optimizations,
                       Triple.getSubArch() != llvm::Triple::SPIRSubArch_fpga))
       CmdArgs.push_back("-fno-sycl-early-optimizations");
-    else if (IsSYCLDevice) {
+    else if (RawTriple.isSPIR()) {
       // Set `sycl-opt` option to configure LLVM passes for SPIR target
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-sycl-opt");
@@ -4770,6 +4770,23 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         A->claim();
       }
     }
+  }
+
+  if (Triple.isOSAIX() && Args.hasArg(options::OPT_maltivec)) {
+    if (Args.hasArg(options::OPT_mabi_EQ_vec_extabi)) {
+      CmdArgs.push_back("-mabi=vec-extabi");
+    } else {
+      D.Diag(diag::err_aix_default_altivec_abi);
+    }
+  }
+
+  if (Arg *A = Args.getLastArg(options::OPT_mabi_EQ_vec_extabi,
+                               options::OPT_mabi_EQ_vec_default)) {
+    if (!Triple.isOSAIX())
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << A->getSpelling() << RawTriple.str();
+    if (!Args.hasArg(options::OPT_maltivec))
+      D.Diag(diag::err_aix_altivec);
   }
 
   if (Arg *A = Args.getLastArg(options::OPT_Wframe_larger_than_EQ)) {
@@ -5776,6 +5793,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (Args.hasFlag(options::OPT_fgpu_defer_diag,
                      options::OPT_fno_gpu_defer_diag, false))
       CmdArgs.push_back("-fgpu-defer-diag");
+    if (Args.hasFlag(options::OPT_fgpu_exclude_wrong_side_overloads,
+                     options::OPT_fno_gpu_exclude_wrong_side_overloads,
+                     false)) {
+      CmdArgs.push_back("-fgpu-exclude-wrong-side-overloads");
+      CmdArgs.push_back("-fgpu-defer-diag");
+    }
   }
 
   if (Arg *A = Args.getLastArg(options::OPT_fcf_protection_EQ)) {
@@ -5801,6 +5824,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       A->render(Args, CmdArgs);
   }
   Args.AddLastArg(CmdArgs, options::OPT_fprofile_remapping_file_EQ);
+
+  if (Args.hasFlag(options::OPT_fpseudo_probe_for_profiling,
+                   options::OPT_fno_pseudo_probe_for_profiling, false))
+    CmdArgs.push_back("-fpseudo-probe-for-profiling");
 
   RenderBuiltinOptions(TC, RawTriple, Args, CmdArgs);
 
@@ -6184,7 +6211,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // selected. For optimization levels that want vectorization we use the alias
   // option to simplify the hasFlag logic.
   bool EnableVec = shouldEnableVectorizerAtOLevel(Args, false);
-  if (UseSYCLTriple && EnableSYCLEarlyOptimizations)
+  if (UseSYCLTriple && RawTriple.isSPIR() && EnableSYCLEarlyOptimizations)
     EnableVec = false; // But disable vectorization for SYCL device code
   OptSpecifier VectorizeAliasOption =
       EnableVec ? options::OPT_O_Group : options::OPT_fvectorize;
@@ -6194,7 +6221,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   // -fslp-vectorize is enabled based on the optimization level selected.
   bool EnableSLPVec = shouldEnableVectorizerAtOLevel(Args, true);
-  if (UseSYCLTriple && EnableSYCLEarlyOptimizations)
+  if (UseSYCLTriple && RawTriple.isSPIR() && EnableSYCLEarlyOptimizations)
     EnableSLPVec = false; // But disable vectorization for SYCL device code
   OptSpecifier SLPVectAliasOption =
       EnableSLPVec ? options::OPT_O_Group : options::OPT_fslp_vectorize;
@@ -6460,6 +6487,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   HandleAmdgcnLegacyOptions(D, Args, CmdArgs);
+  if (Triple.isAMDGPU()) {
+    if (Args.hasFlag(options::OPT_munsafe_fp_atomics,
+                     options::OPT_mno_unsafe_fp_atomics))
+      CmdArgs.push_back("-munsafe-fp-atomics");
+  }
 
   // For all the host OpenMP offloading compile jobs we need to pass the targets
   // information using -fopenmp-targets= option.
@@ -6622,6 +6654,23 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // Disable all outlining behaviour.
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-enable-machine-outliner=never");
+    }
+  }
+
+  if (Arg *A = Args.getLastArg(options::OPT_moutline_atomics,
+                               options::OPT_mno_outline_atomics)) {
+    if (A->getOption().matches(options::OPT_moutline_atomics)) {
+      // Option -moutline-atomics supported for AArch64 target only.
+      if (!Triple.isAArch64()) {
+        D.Diag(diag::warn_drv_moutline_atomics_unsupported_opt)
+            << Triple.getArchName();
+      } else {
+        CmdArgs.push_back("-target-feature");
+        CmdArgs.push_back("+outline-atomics");
+      }
+    } else {
+      CmdArgs.push_back("-target-feature");
+      CmdArgs.push_back("-outline-atomics");
     }
   }
 
@@ -7618,19 +7667,11 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   InputInfo Input = Inputs.front();
   const char *TypeArg = types::getTypeTempSuffix(Input.getType());
   const char *InputFileName = Input.getFilename();
-  bool IsMSVCEnv =
-      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
   types::ID InputType(Input.getType());
   bool IsFPGADepUnbundle = JA.getType() == types::TY_FPGA_Dependencies;
   bool IsFPGADepLibUnbundle = JA.getType() == types::TY_FPGA_Dependencies_List;
-  bool IsArchiveUnbundle =
-      (!IsMSVCEnv && C.getDriver().getOffloadStaticLibSeen() &&
-       (types::isArchive(InputType) || InputType == types::TY_Object));
 
-  if (IsArchiveUnbundle)
-    TypeArg = "oo";
-  else if (InputType == types::TY_FPGA_AOCX ||
-           InputType == types::TY_FPGA_AOCR) {
+  if (InputType == types::TY_FPGA_AOCX || InputType == types::TY_FPGA_AOCR) {
     // Override type with archive object
     if (getToolChain().getTriple().getSubArch() ==
         llvm::Triple::SPIRSubArch_fpga)
@@ -7638,8 +7679,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     else
       TypeArg = "aoo";
   }
-  if (InputType == types::TY_FPGA_AOCO || IsFPGADepLibUnbundle ||
-      (IsMSVCEnv && types::isArchive(InputType)))
+  if (InputType == types::TY_FPGA_AOCO || IsFPGADepLibUnbundle)
     TypeArg = "aoo";
   if (IsFPGADepUnbundle)
     TypeArg = "o";
@@ -7675,7 +7715,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
         Triples += Dep.DependentToolChain->getTriple().normalize();
       }
       continue;
-    } else if (InputType == types::TY_Archive || IsArchiveUnbundle ||
+    } else if (InputType == types::TY_Archive ||
                (TCArgs.hasArg(options::OPT_fintelfpga) &&
                 TCArgs.hasArg(options::OPT_fsycl_link_EQ))) {
       // Do not extract host part if we are unbundling archive on Windows

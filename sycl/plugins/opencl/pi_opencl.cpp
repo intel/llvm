@@ -511,6 +511,8 @@ pi_result piContextCreate(const pi_context_properties *properties,
 }
 
 pi_result piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                             pi_uint32 num_devices,
+                                             const pi_device *devices,
                                              pi_context *piContext) {
   assert(piContext != nullptr);
   *piContext = reinterpret_cast<pi_context>(nativeHandle);
@@ -664,11 +666,12 @@ pi_result piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
   return PI_SUCCESS;
 }
 
-pi_result piEnqueueMemBufferMap(
-    pi_queue command_queue, pi_mem buffer, pi_bool blocking_map,
-    cl_map_flags map_flags, // TODO: untie from OpenCL
-    size_t offset, size_t size, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event, void **ret_map) {
+pi_result piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
+                                pi_bool blocking_map, pi_map_flags map_flags,
+                                size_t offset, size_t size,
+                                pi_uint32 num_events_in_wait_list,
+                                const pi_event *event_wait_list,
+                                pi_event *event, void **ret_map) {
 
   pi_result ret_err = PI_INVALID_OPERATION;
   *ret_map = cast<void *>(clEnqueueMapBuffer(
@@ -711,6 +714,9 @@ pi_result piextUSMHostAlloc(void **result_ptr, pi_context context,
 
   *result_ptr = Ptr;
 
+  assert(alignment == 0 ||
+         (RetVal == PI_SUCCESS &&
+          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
   return RetVal;
 }
 
@@ -744,6 +750,9 @@ pi_result piextUSMDeviceAlloc(void **result_ptr, pi_context context,
 
   *result_ptr = Ptr;
 
+  assert(alignment == 0 ||
+         (RetVal == PI_SUCCESS &&
+          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
   return RetVal;
 }
 
@@ -777,6 +786,9 @@ pi_result piextUSMSharedAlloc(void **result_ptr, pi_context context,
 
   *result_ptr = Ptr;
 
+  assert(alignment == 0 ||
+         (RetVal == PI_SUCCESS &&
+          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
   return RetVal;
 }
 

@@ -2812,6 +2812,7 @@ public:
                                 SkipBodyInfo *SkipBody = nullptr);
   void ActOnStartTrailingRequiresClause(Scope *S, Declarator &D);
   ExprResult ActOnFinishTrailingRequiresClause(ExprResult ConstraintExpr);
+  ExprResult ActOnRequiresClause(ExprResult ConstraintExpr);
   void ActOnStartOfObjCMethodDef(Scope *S, Decl *D);
   bool isObjCMethodDecl(Decl *D) {
     return D && isa<ObjCMethodDecl>(D);
@@ -3814,6 +3815,9 @@ public:
                                    ArrayRef<Expr *> Args,
                                    OverloadCandidateSet &CandidateSet,
                                    bool PartialOverloading = false);
+  void AddOverloadedCallCandidates(
+      LookupResult &R, TemplateArgumentListInfo *ExplicitTemplateArgs,
+      ArrayRef<Expr *> Args, OverloadCandidateSet &CandidateSet);
 
   // An enum used to represent the different possible results of building a
   // range-based for loop.
@@ -5096,6 +5100,8 @@ public:
                               TemplateArgumentListInfo &Buffer,
                               DeclarationNameInfo &NameInfo,
                               const TemplateArgumentListInfo *&TemplateArgs);
+
+  bool DiagnoseDependentMemberLookup(LookupResult &R);
 
   bool
   DiagnoseEmptyLookup(Scope *S, CXXScopeSpec &SS, LookupResult &R,
@@ -6693,7 +6699,8 @@ public:
   /// on a lambda (if it exists) in C++2a.
   void ActOnLambdaExplicitTemplateParameterList(SourceLocation LAngleLoc,
                                                 ArrayRef<NamedDecl *> TParams,
-                                                SourceLocation RAngleLoc);
+                                                SourceLocation RAngleLoc,
+                                                ExprResult RequiresClause);
 
   /// Introduce the lambda parameters into scope.
   void addLambdaParameters(
@@ -7416,9 +7423,9 @@ public:
   ///        considered valid results.
   /// \param AllowDependent Whether unresolved using declarations (that might
   ///        name templates) should be considered valid results.
-  NamedDecl *getAsTemplateNameDecl(NamedDecl *D,
-                                   bool AllowFunctionTemplates = true,
-                                   bool AllowDependent = true);
+  static NamedDecl *getAsTemplateNameDecl(NamedDecl *D,
+                                          bool AllowFunctionTemplates = true,
+                                          bool AllowDependent = true);
 
   enum TemplateNameIsRequiredTag { TemplateNameIsRequired };
   /// Whether and why a template name is required in this lookup.
@@ -8070,6 +8077,9 @@ public:
 
     // A requirement in a requires-expression.
     UPPC_Requirement,
+
+    // A requires-clause.
+    UPPC_RequiresClause,
   };
 
   /// Diagnose unexpanded parameter packs.
@@ -10193,11 +10203,6 @@ public:
   bool checkAllowedSYCLInitializer(VarDecl *VD,
                                    bool CheckValueDependent = false);
 
-  // Adds a scheduler_target_fmax_mhz attribute to a particular declaration.
-  void addSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
-                                              const AttributeCommonInfo &CI,
-                                              Expr *E);
-
   //===--------------------------------------------------------------------===//
   // C++ Coroutines TS
   //
@@ -11673,6 +11678,8 @@ public:
   QualType CheckMatrixMultiplyOperands(ExprResult &LHS, ExprResult &RHS,
                                        SourceLocation Loc, bool IsCompAssign);
 
+  bool isValidSveBitcast(QualType srcType, QualType destType);
+
   bool areLaxCompatibleVectorTypes(QualType srcType, QualType destType);
   bool isLaxVectorConversion(QualType srcType, QualType destType);
 
@@ -12961,10 +12968,25 @@ void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
       return;
     }
     int32_t ArgInt = ArgVal->getSExtValue();
-    if (ArgInt <= 0) {
-      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << CI.getAttrName() << /*positive*/ 0;
-      return;
+    if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelNumSimdWorkItems ||
+        CI.getParsedKind() == ParsedAttr::AT_IntelReqdSubGroupSize) {
+      if (ArgInt <= 0) {
+        Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+            << CI.getAttrName() << /*positive*/ 0;
+        return;
+      }
+    }
+    if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
+      if (ArgInt < 0) {
+        Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+            << CI.getAttrName() << /*non-negative*/ 1;
+        return;
+      }
+      if (ArgInt > 3) {
+        Diag(E->getBeginLoc(), diag::err_attribute_argument_out_of_range)
+            << CI.getAttrName() << 0 << 3 << E->getSourceRange();
+        return;
+      }
     }
   }
 

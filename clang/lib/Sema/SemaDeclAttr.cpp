@@ -2925,10 +2925,13 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &Attr,
     return Result;
   }
 
-  if (const auto *A = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>())
-    if (A->getNumber() == 0)
+  if (const auto *A = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
+    int64_t AttrValue =
+        A->getValue()->getIntegerConstantExpr(S.Context)->getSExtValue();
+    if (AttrValue == 0)
       Result &= checkZeroDim(A, WGSize[0], WGSize[1], WGSize[2],
                              /*ReverseAttrs=*/true);
+  }
 
   if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
     if (!(WGSize[0] <= A->getXDim() && WGSize[1] <= A->getYDim() &&
@@ -3045,24 +3048,6 @@ static void handleUseStallEnableClustersAttr(Sema &S, Decl *D,
   handleSimpleAttribute<SYCLIntelUseStallEnableClustersAttr>(S, D, Attr);
 }
 
-// Add scheduler_target_fmax_mhz
-void Sema::addSYCLIntelSchedulerTargetFmaxMhzAttr(
-    Decl *D, const AttributeCommonInfo &Attr, Expr *E) {
-  assert(E && "Attribute must have an argument.");
-
-  SYCLIntelSchedulerTargetFmaxMhzAttr TmpAttr(Context, Attr, E);
-  if (!E->isValueDependent()) {
-    ExprResult ResultExpr;
-    if (checkRangedIntegralArgument<SYCLIntelSchedulerTargetFmaxMhzAttr>(
-            E, &TmpAttr, ResultExpr))
-      return;
-    E = ResultExpr.get();
-  }
-
-  D->addAttr(::new (Context)
-                 SYCLIntelSchedulerTargetFmaxMhzAttr(Context, Attr, E));
-}
-
 // Handle scheduler_target_fmax_mhz
 static void handleSchedulerTargetFmaxMhzAttr(Sema &S, Decl *D,
                                              const ParsedAttr &AL) {
@@ -3078,7 +3063,7 @@ static void handleSchedulerTargetFmaxMhzAttr(Sema &S, Decl *D,
     S.Diag(AL.getLoc(), diag::note_spelling_suggestion)
         << "'intel::scheduler_target_fmax_mhz'";
 
-  S.addSYCLIntelSchedulerTargetFmaxMhzAttr(D, AL, E);
+  S.AddOneConstantValueAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>(D, AL, E);
 }
 
 // Handles max_global_work_dim.
@@ -3087,25 +3072,14 @@ static void handleMaxGlobalWorkDimAttr(Sema &S, Decl *D,
   if (D->isInvalidDecl())
     return;
 
-  uint32_t MaxGlobalWorkDim;
-  const Expr *E = Attr.getArgAsExpr(0);
-  if (!checkUInt32Argument(S, Attr, E, MaxGlobalWorkDim, 0,
-                           /*StrictlyUnsigned=*/true))
-    return;
+  Expr *E = Attr.getArgAsExpr(0);
 
-  if (MaxGlobalWorkDim > 3) {
-    S.Diag(Attr.getLoc(), diag::err_intel_attribute_argument_is_not_in_range)
-      << Attr;
+  uint32_t WGSize[3] = {1, 1, 1};
+  if (!checkWorkGroupSizeValues(S, D, Attr, WGSize)) {
+    D->setInvalidDecl();
     return;
   }
 
-  if (MaxGlobalWorkDim == 0) {
-    uint32_t WGSize[3] = {1, 1, 1};
-    if (!checkWorkGroupSizeValues(S, D, Attr, WGSize)) {
-      D->setInvalidDecl();
-      return;
-    }
-  }
   if (D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>())
     S.Diag(Attr.getLoc(), diag::warn_duplicate_attribute) << Attr;
 
@@ -3113,8 +3087,8 @@ static void handleMaxGlobalWorkDimAttr(Sema &S, Decl *D,
     S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)
         << "'intel::max_global_work_dim'";
 
-  D->addAttr(::new (S.Context) SYCLIntelMaxGlobalWorkDimAttr(
-        S.Context, Attr, MaxGlobalWorkDim));
+  S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelMaxGlobalWorkDimAttr>(D, Attr,
+                                                                     E);
 }
 
 static void handleVecTypeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -7478,16 +7452,14 @@ DLLExportAttr *Sema::mergeDLLExportAttr(Decl *D,
 
 static void handleDLLAttr(Sema &S, Decl *D, const ParsedAttr &A) {
   if (isa<ClassTemplatePartialSpecializationDecl>(D) &&
-      (S.Context.getTargetInfo().getCXXABI().isMicrosoft() ||
-       S.Context.getTargetInfo().getTriple().isWindowsItaniumEnvironment())) {
+      (S.Context.getTargetInfo().shouldDLLImportComdatSymbols())) {
     S.Diag(A.getRange().getBegin(), diag::warn_attribute_ignored) << A;
     return;
   }
 
   if (const auto *FD = dyn_cast<FunctionDecl>(D)) {
     if (FD->isInlined() && A.getKind() == ParsedAttr::AT_DLLImport &&
-        !(S.Context.getTargetInfo().getCXXABI().isMicrosoft() ||
-          S.Context.getTargetInfo().getTriple().isWindowsItaniumEnvironment())) {
+        !(S.Context.getTargetInfo().shouldDLLImportComdatSymbols())) {
       // MinGW doesn't allow dllimport on inline functions.
       S.Diag(A.getRange().getBegin(), diag::warn_attribute_ignored_on_inline)
           << A;
@@ -7496,8 +7468,7 @@ static void handleDLLAttr(Sema &S, Decl *D, const ParsedAttr &A) {
   }
 
   if (const auto *MD = dyn_cast<CXXMethodDecl>(D)) {
-    if ((S.Context.getTargetInfo().getCXXABI().isMicrosoft() ||
-         S.Context.getTargetInfo().getTriple().isWindowsItaniumEnvironment()) &&
+    if ((S.Context.getTargetInfo().shouldDLLImportComdatSymbols()) &&
         MD->getParent()->isLambda()) {
       S.Diag(A.getRange().getBegin(), diag::err_attribute_dll_lambda) << A;
       return;
@@ -8186,19 +8157,12 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     handlePassObjectSizeAttr(S, D, AL);
     break;
   case ParsedAttr::AT_Constructor:
-    if (S.Context.getTargetInfo().getTriple().isOSAIX())
-      llvm::report_fatal_error(
-          "'constructor' attribute is not yet supported on AIX");
-    else
       handleConstructorAttr(S, D, AL);
     break;
   case ParsedAttr::AT_Deprecated:
     handleDeprecatedAttr(S, D, AL);
     break;
   case ParsedAttr::AT_Destructor:
-    if (S.Context.getTargetInfo().getTriple().isOSAIX())
-      llvm::report_fatal_error("'destructor' attribute is not yet supported on AIX");
-    else
       handleDestructorAttr(S, D, AL);
     break;
   case ParsedAttr::AT_EnableIf:
@@ -8955,8 +8919,8 @@ NamedDecl * Sema::DeclClonePragmaWeak(NamedDecl *ND, IdentifierInfo *II,
     NewFD = FunctionDecl::Create(
         FD->getASTContext(), FD->getDeclContext(), Loc, Loc,
         DeclarationName(II), FD->getType(), FD->getTypeSourceInfo(), SC_None,
-        false /*isInlineSpecified*/, FD->hasPrototype(), CSK_unspecified,
-        FD->getTrailingRequiresClause());
+        false /*isInlineSpecified*/, FD->hasPrototype(),
+        ConstexprSpecKind::Unspecified, FD->getTrailingRequiresClause());
     NewD = NewFD;
 
     if (FD->getQualifier())

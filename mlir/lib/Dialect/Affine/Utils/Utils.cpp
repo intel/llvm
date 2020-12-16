@@ -14,7 +14,7 @@
 #include "mlir/Dialect/Affine/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/IR/BlockAndValueMapping.h"
-#include "mlir/IR/Function.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/Support/Debug.h"
@@ -29,7 +29,7 @@ static void promoteIfBlock(AffineIfOp ifOp, bool elseBlock) {
   if (elseBlock)
     assert(ifOp.hasElse() && "else block expected");
 
-  Block *destBlock = ifOp.getOperation()->getBlock();
+  Block *destBlock = ifOp->getBlock();
   Block *srcBlock = elseBlock ? ifOp.getElseBlock() : ifOp.getThenBlock();
   destBlock->getOperations().splice(
       Block::iterator(ifOp), srcBlock->getOperations(), srcBlock->begin(),

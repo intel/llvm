@@ -539,6 +539,25 @@ void Writer::populateTargetFeatures() {
   }
 }
 
+static bool shouldImport(Symbol *sym) {
+  // We don't generate imports for data symbols. They however can be imported
+  // as GOT entries.
+  if (isa<DataSymbol>(sym))
+    return false;
+
+  if (config->relocatable ||
+      config->unresolvedSymbols == UnresolvedPolicy::ImportFuncs)
+    return true;
+  if (config->allowUndefinedSymbols.count(sym->getName()) != 0)
+    return true;
+  if (auto *g = dyn_cast<UndefinedGlobal>(sym))
+    return g->importName.hasValue();
+  if (auto *f = dyn_cast<UndefinedFunction>(sym))
+    return f->importName.hasValue();
+
+  return false;
+}
+
 void Writer::calculateImports() {
   for (Symbol *sym : symtab->getSymbols()) {
     if (!sym->isUndefined())
@@ -549,13 +568,10 @@ void Writer::calculateImports() {
       continue;
     if (!sym->isUsedInRegularObj)
       continue;
-    // We don't generate imports for data symbols. They however can be imported
-    // as GOT entries.
-    if (isa<DataSymbol>(sym))
-      continue;
-
-    LLVM_DEBUG(dbgs() << "import: " << sym->getName() << "\n");
-    out.importSec->addImport(sym);
+    if (shouldImport(sym)) {
+      LLVM_DEBUG(dbgs() << "import: " << sym->getName() << "\n");
+      out.importSec->addImport(sym);
+    }
   }
 }
 
@@ -841,7 +857,7 @@ bool Writer::hasPassiveInitializedSegments() {
 void Writer::createInitMemoryFunction() {
   LLVM_DEBUG(dbgs() << "createInitMemoryFunction\n");
   assert(WasmSym::initMemoryFlag);
-  uint32_t flagAddress = WasmSym::initMemoryFlag->getVirtualAddress();
+  uint64_t flagAddress = WasmSym::initMemoryFlag->getVirtualAddress();
   std::string bodyContent;
   {
     raw_string_ostream os(bodyContent);
@@ -890,8 +906,10 @@ void Writer::createInitMemoryFunction() {
       //  ( ... drop data segments ... )
       // )
 
+      bool is64 = config->is64.getValueOr(false);
+
       // Atomically check whether this is the main thread.
-      writeI32Const(os, flagAddress, "flag address");
+      writePtrConst(os, flagAddress, is64, "flag address");
       writeI32Const(os, 0, "expected flag value");
       writeI32Const(os, 1, "flag value");
       writeU8(os, WASM_OPCODE_ATOMICS_PREFIX, "atomics prefix");
@@ -901,9 +919,10 @@ void Writer::createInitMemoryFunction() {
       writeU8(os, WASM_TYPE_NORESULT, "blocktype");
 
       // Did not increment 0, so wait for main thread to initialize memory
-      writeI32Const(os, flagAddress, "flag address");
+      writePtrConst(os, flagAddress, is64, "flag address");
       writeI32Const(os, 1, "expected flag value");
       writeI64Const(os, -1, "timeout");
+
       writeU8(os, WASM_OPCODE_ATOMICS_PREFIX, "atomics prefix");
       writeUleb128(os, WASM_OPCODE_I32_ATOMIC_WAIT, "i32.atomic.wait");
       writeMemArg(os, 2, 0);
@@ -915,12 +934,7 @@ void Writer::createInitMemoryFunction() {
       for (const OutputSegment *s : segments) {
         if (needsPassiveInitialization(s)) {
           // destination address
-          if (config->is64.getValueOr(false)) {
-            writeI64Const(os, s->startVA, "destination address");
-          } else {
-            writeI32Const(os, static_cast<int32_t>(s->startVA),
-                          "destination address");
-          }
+          writePtrConst(os, s->startVA, is64, "destination address");
           // source segment offset
           writeI32Const(os, 0, "segment offset");
           // memory region size
@@ -934,14 +948,14 @@ void Writer::createInitMemoryFunction() {
       }
 
       // Set flag to 2 to mark end of initialization
-      writeI32Const(os, flagAddress, "flag address");
+      writePtrConst(os, flagAddress, is64, "flag address");
       writeI32Const(os, 2, "flag value");
       writeU8(os, WASM_OPCODE_ATOMICS_PREFIX, "atomics prefix");
       writeUleb128(os, WASM_OPCODE_I32_ATOMIC_STORE, "i32.atomic.store");
       writeMemArg(os, 2, 0);
 
       // Notify any waiters that memory initialization is complete
-      writeI32Const(os, flagAddress, "flag address");
+      writePtrConst(os, flagAddress, is64, "flag address");
       writeI32Const(os, -1, "number of waiters");
       writeU8(os, WASM_OPCODE_ATOMICS_PREFIX, "atomics prefix");
       writeUleb128(os, WASM_OPCODE_ATOMIC_NOTIFY, "atomic.notify");
@@ -1198,11 +1212,12 @@ void Writer::run() {
   calculateInitFunctions();
 
   if (!config->relocatable) {
-    // Create linker synthesized functions
-    if (config->isPic)
+    if (WasmSym::applyRelocs)
       createApplyRelocationsFunction();
-    else if (config->sharedMemory)
+    if (WasmSym::initMemory)
       createInitMemoryFunction();
+
+    // Create linker synthesized functions
     createCallCtorsFunction();
 
     // Create export wrappers for commands if needed.

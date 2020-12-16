@@ -49,6 +49,7 @@ CODEGENOPT(UniqueSectionNames, 1, 1) ///< Set for -funique-section-names.
 CODEGENOPT(UniqueBasicBlockSectionNames, 1, 1) ///< Set for -funique-basic-block-section-names,
                                                ///< Produce unique section names with
                                                ///< basic block sections.
+CODEGENOPT(EnableAIXExtendedAltivecABI, 1, 0) ///< Set for -mabi=vec-extabi. Enables the extended Altivec ABI on AIX.
 ENUM_CODEGENOPT(FramePointer, FramePointerKind, 2, FramePointerKind::None) /// frame-pointer: all,non-leaf,none
 
 CODEGENOPT(DisableFree       , 1, 0) ///< Don't free memory.
@@ -365,10 +366,6 @@ VALUE_CODEGENOPT(EmitCheckPathComponentsToStrip, 32, 0)
 /// Whether to report the hotness of the code region for optimization remarks.
 CODEGENOPT(DiagnosticsWithHotness, 1, 0)
 
-/// The minimum hotness value a diagnostic needs in order to be included in
-/// optimization diagnostics.
-VALUE_CODEGENOPT(DiagnosticsHotnessThreshold, 32, 0)
-
 /// Whether copy relocations support is available when building as PIE.
 CODEGENOPT(PIECopyRelocations, 1, 0)
 
@@ -378,6 +375,9 @@ CODEGENOPT(StrictReturn, 1, 1)
 
 /// Whether emit extra debug info for sample pgo profile collection.
 CODEGENOPT(DebugInfoForProfiling, 1, 0)
+
+/// Whether emit pseudo probes for sample pgo profile collection.
+CODEGENOPT(PseudoProbeForProfiling, 1, 0)
 
 /// Whether 3-component vector type is preserved.
 CODEGENOPT(PreserveVec3Type, 1, 0)

@@ -192,10 +192,11 @@ struct _pi_device : _pi_object {
 };
 
 struct _pi_context : _pi_object {
-  _pi_context(pi_uint32 NumDevices, const pi_device *Devs)
-      : Devices{Devs, Devs + NumDevices}, ZeCommandListInit{nullptr},
-        ZeEventPool{nullptr}, NumEventsAvailableInEventPool{},
-        NumEventsLiveInEventPool{} {
+  _pi_context(ze_context_handle_t ZeContext, pi_uint32 NumDevices,
+              const pi_device *Devs)
+      : ZeContext{ZeContext}, Devices{Devs, Devs + NumDevices},
+        ZeCommandListInit{nullptr}, ZeEventPool{nullptr},
+        NumEventsAvailableInEventPool{}, NumEventsLiveInEventPool{} {
     // Create USM allocator context for each pair (device, context).
     for (uint32_t I = 0; I < NumDevices; I++) {
       pi_device Device = Devs[I];
@@ -207,8 +208,16 @@ struct _pi_context : _pi_object {
           std::piecewise_construct, std::make_tuple(Device),
           std::make_tuple(std::unique_ptr<SystemMemory>(
               new USMDeviceMemoryAlloc(this, Device))));
+      // NOTE: one must additionally call initialize() to complete
+      // PI context creation.
     }
   }
+
+  // Initialize the PI context.
+  pi_result initialize();
+
+  // Finalize the PI context
+  pi_result finalize();
 
   // A L0 context handle is primarily used during creation and management of
   // resources that may be used by multiple devices.
@@ -271,8 +280,8 @@ private:
   std::mutex NumEventsLiveInEventPoolMutex;
 };
 
-// If doing dynamic batching, start batch size at 2.
-const pi_uint32 DynamicBatchStartSize = 2;
+// If doing dynamic batching, start batch size at 4.
+const pi_uint32 DynamicBatchStartSize = 4;
 
 struct _pi_queue : _pi_object {
   _pi_queue(ze_command_queue_handle_t Queue, pi_context Context,
@@ -686,18 +695,14 @@ struct _pi_program : _pi_object {
 };
 
 struct _pi_kernel : _pi_object {
-  _pi_kernel(ze_kernel_handle_t Kernel, pi_program Program,
-             const char *KernelName)
-      : ZeKernel{Kernel}, Program{Program}, KernelName(KernelName) {}
+  _pi_kernel(ze_kernel_handle_t Kernel, pi_program Program)
+      : ZeKernel{Kernel}, Program{Program} {}
 
   // Level Zero function handle.
   ze_kernel_handle_t ZeKernel;
 
   // Keep the program of the kernel.
   pi_program Program;
-
-  // TODO: remove when bug in the Level Zero runtime will be fixed.
-  std::string KernelName;
 };
 
 struct _pi_sampler : _pi_object {

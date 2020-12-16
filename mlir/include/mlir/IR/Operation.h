@@ -69,6 +69,9 @@ public:
   /// Remove this operation from its parent block and delete it.
   void erase();
 
+  /// Remove the operation from its parent block, but don't delete it.
+  void remove();
+
   /// Create a deep copy of this operation, remapping any operands that use
   /// values outside of the operation using the map that is provided (leaving
   /// them alone if no entry is present).  Replaces references to cloned
@@ -147,9 +150,9 @@ public:
   void replaceUsesOfWith(Value from, Value to);
 
   /// Replace all uses of results of this operation with the provided 'values'.
-  template <typename ValuesT,
-            typename = decltype(std::declval<ValuesT>().begin())>
-  void replaceAllUsesWith(ValuesT &&values) {
+  template <typename ValuesT>
+  std::enable_if_t<!std::is_convertible<ValuesT, Operation *>::value>
+  replaceAllUsesWith(ValuesT &&values) {
     assert(std::distance(values.begin(), values.end()) == getNumResults() &&
            "expected 'values' to correspond 1-1 with the number of results");
 

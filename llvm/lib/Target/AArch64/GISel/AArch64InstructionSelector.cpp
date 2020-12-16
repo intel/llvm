@@ -257,6 +257,11 @@ private:
                             MachineBasicBlock *DstMBB,
                             MachineIRBuilder &MIB) const;
 
+  /// Emit a CB(N)Z instruction which branches to \p DestMBB.
+  MachineInstr *emitCBZ(Register CompareReg, bool IsNegative,
+                        MachineBasicBlock *DestMBB,
+                        MachineIRBuilder &MIB) const;
+
   // Equivalent to the i32shift_a and friends from AArch64InstrInfo.td.
   // We use these manually instead of using the importer since it doesn't
   // support SDNodeXForm.
@@ -1011,7 +1016,7 @@ AArch64InstructionSelector::emitSelect(Register Dst, Register True,
   // By default, we'll try and emit a CSEL.
   unsigned Opc = Is32Bit ? AArch64::CSELWr : AArch64::CSELXr;
   bool Optimized = false;
-  auto TryOptNegIntoSelect = [&Opc, &False, Is32Bit, &MRI]() {
+  auto TryFoldBinOpIntoSelect = [&Opc, &False, Is32Bit, &MRI]() {
     // Attempt to fold:
     //
     // sub = G_SUB 0, x
@@ -1019,10 +1024,27 @@ AArch64InstructionSelector::emitSelect(Register Dst, Register True,
     //
     // Into:
     // select = CSNEG true, x, cc
-    if (!mi_match(False, MRI, m_Neg(m_Reg(False))))
-      return false;
-    Opc = Is32Bit ? AArch64::CSNEGWr : AArch64::CSNEGXr;
-    return true;
+    Register MatchReg;
+    if (mi_match(False, MRI, m_Neg(m_Reg(MatchReg)))) {
+      Opc = Is32Bit ? AArch64::CSNEGWr : AArch64::CSNEGXr;
+      False = MatchReg;
+      return true;
+    }
+
+    // Attempt to fold:
+    //
+    // xor = G_XOR x, -1
+    // select = G_SELECT cc, true, xor
+    //
+    // Into:
+    // select = CSINV true, x, cc
+    if (mi_match(False, MRI, m_Not(m_Reg(MatchReg)))) {
+      Opc = Is32Bit ? AArch64::CSINVWr : AArch64::CSINVXr;
+      False = MatchReg;
+      return true;
+    }
+
+    return false;
   };
 
   // Helper lambda which tries to use CSINC/CSINV for the instruction when its
@@ -1100,7 +1122,7 @@ AArch64InstructionSelector::emitSelect(Register Dst, Register True,
     return false;
   };
 
-  Optimized |= TryOptNegIntoSelect();
+  Optimized |= TryFoldBinOpIntoSelect();
   Optimized |= TryOptSelectCst();
   auto SelectInst = MIB.buildInstr(Opc, {Dst}, {True, False}).addImm(CC);
   constrainSelectedInstRegOperands(*SelectInst, TII, TRI, RBI);
@@ -1377,9 +1399,7 @@ bool AArch64InstructionSelector::tryOptAndIntoCompareBranch(
   // Only support EQ and NE. If we have LT, then it *is* possible to fold, but
   // we don't want to do this. When we have an AND and LT, we need a TST/ANDS,
   // so folding would be redundant.
-  if (Pred != CmpInst::Predicate::ICMP_EQ &&
-      Pred != CmpInst::Predicate::ICMP_NE)
-    return false;
+  assert(ICmpInst::isEquality(Pred) && "Expected only eq/ne?");
 
   // Check if the AND has a constant on its RHS which we can use as a mask.
   // If it's a power of 2, then it's the same as checking a specific bit.
@@ -1396,6 +1416,27 @@ bool AArch64InstructionSelector::tryOptAndIntoCompareBranch(
   // Emit a TB(N)Z.
   emitTestBit(TestReg, Bit, Invert, DstMBB, MIB);
   return true;
+}
+
+MachineInstr *AArch64InstructionSelector::emitCBZ(Register CompareReg,
+                                                  bool IsNegative,
+                                                  MachineBasicBlock *DestMBB,
+                                                  MachineIRBuilder &MIB) const {
+  assert(ProduceNonFlagSettingCondBr && "CBZ does not set flags!");
+  MachineRegisterInfo &MRI = *MIB.getMRI();
+  assert(RBI.getRegBank(CompareReg, MRI, TRI)->getID() ==
+             AArch64::GPRRegBankID &&
+         "Expected GPRs only?");
+  auto Ty = MRI.getType(CompareReg);
+  unsigned Width = Ty.getSizeInBits();
+  assert(!Ty.isVector() && "Expected scalar only?");
+  assert(Width <= 64 && "Expected width to be at most 64?");
+  static const unsigned OpcTable[2][2] = {{AArch64::CBZW, AArch64::CBZX},
+                                          {AArch64::CBNZW, AArch64::CBNZX}};
+  unsigned Opc = OpcTable[IsNegative][Width == 64];
+  auto BranchMI = MIB.buildInstr(Opc, {}, {CompareReg}).addMBB(DestMBB);
+  constrainSelectedInstRegOperands(*BranchMI, TII, TRI, RBI);
+  return &*BranchMI;
 }
 
 bool AArch64InstructionSelector::selectCompareBranch(
@@ -1460,51 +1501,39 @@ bool AArch64InstructionSelector::selectCompareBranch(
     }
   }
 
-  if (!VRegAndVal) {
-    std::swap(RHS, LHS);
-    VRegAndVal = getConstantVRegValWithLookThrough(RHS, MRI);
-    LHSMI = getDefIgnoringCopies(LHS, MRI);
+  // Attempt to handle commutative condition codes. Right now, that's only
+  // eq/ne.
+  if (ICmpInst::isEquality(Pred)) {
+    if (!VRegAndVal) {
+      std::swap(RHS, LHS);
+      VRegAndVal = getConstantVRegValWithLookThrough(RHS, MRI);
+      LHSMI = getDefIgnoringCopies(LHS, MRI);
+    }
+
+    if (VRegAndVal && VRegAndVal->Value == 0) {
+      // If there's a G_AND feeding into this branch, try to fold it away by
+      // emitting a TB(N)Z instead.
+      if (tryOptAndIntoCompareBranch(LHSMI, VRegAndVal->Value, Pred, DestMBB,
+                                     MIB)) {
+        I.eraseFromParent();
+        return true;
+      }
+
+      // Otherwise, try to emit a CB(N)Z instead.
+      auto LHSTy = MRI.getType(LHS);
+      if (!LHSTy.isVector() && LHSTy.getSizeInBits() <= 64) {
+        emitCBZ(LHS, /*IsNegative = */ Pred == CmpInst::ICMP_NE, DestMBB, MIB);
+        I.eraseFromParent();
+        return true;
+      }
+    }
   }
 
-  if (!VRegAndVal || VRegAndVal->Value != 0) {
-    // If we can't select a CBZ then emit a cmp + Bcc.
-    auto Pred =
-        static_cast<CmpInst::Predicate>(CCMI->getOperand(1).getPredicate());
-    emitIntegerCompare(CCMI->getOperand(2), CCMI->getOperand(3),
-                       CCMI->getOperand(1), MIB);
-    const AArch64CC::CondCode CC = changeICMPPredToAArch64CC(Pred);
-    MIB.buildInstr(AArch64::Bcc, {}, {}).addImm(CC).addMBB(DestMBB);
-    I.eraseFromParent();
-    return true;
-  }
-
-  // Try to emit a TB(N)Z for an eq or ne condition.
-  if (tryOptAndIntoCompareBranch(LHSMI, VRegAndVal->Value, Pred, DestMBB,
-                                 MIB)) {
-    I.eraseFromParent();
-    return true;
-  }
-
-  const RegisterBank &RB = *RBI.getRegBank(LHS, MRI, TRI);
-  if (RB.getID() != AArch64::GPRRegBankID)
-    return false;
-  if (Pred != CmpInst::ICMP_NE && Pred != CmpInst::ICMP_EQ)
-    return false;
-
-  const unsigned CmpWidth = MRI.getType(LHS).getSizeInBits();
-  unsigned CBOpc = 0;
-  if (CmpWidth <= 32)
-    CBOpc = (Pred == CmpInst::ICMP_EQ ? AArch64::CBZW : AArch64::CBNZW);
-  else if (CmpWidth == 64)
-    CBOpc = (Pred == CmpInst::ICMP_EQ ? AArch64::CBZX : AArch64::CBNZX);
-  else
-    return false;
-
-  BuildMI(*I.getParent(), I, I.getDebugLoc(), TII.get(CBOpc))
-      .addUse(LHS)
-      .addMBB(DestMBB)
-      .constrainAllUses(TII, TRI, RBI);
-
+  // Couldn't optimize. Emit a compare + bcc.
+  emitIntegerCompare(CCMI->getOperand(2), CCMI->getOperand(3),
+                     CCMI->getOperand(1), MIB);
+  const AArch64CC::CondCode CC = changeICMPPredToAArch64CC(Pred);
+  MIB.buildInstr(AArch64::Bcc, {}, {}).addImm(CC).addMBB(DestMBB);
   I.eraseFromParent();
   return true;
 }
@@ -1798,6 +1827,19 @@ bool AArch64InstructionSelector::preISelLower(MachineInstr &I) {
     MRI.setType(DstReg, LLT::scalar(64));
     return true;
   }
+  case AArch64::G_DUP: {
+    // Convert the type from p0 to s64 to help selection.
+    LLT DstTy = MRI.getType(I.getOperand(0).getReg());
+    if (!DstTy.getElementType().isPointer())
+      return false;
+    MachineIRBuilder MIB(I);
+    auto NewSrc = MIB.buildCopy(LLT::scalar(64), I.getOperand(1).getReg());
+    MRI.setType(I.getOperand(0).getReg(),
+                DstTy.changeElementType(LLT::scalar(64)));
+    MRI.setRegBank(NewSrc.getReg(0), RBI.getRegBank(AArch64::GPRRegBankID));
+    I.getOperand(1).setReg(NewSrc.getReg(0));
+    return true;
+  }
   default:
     return false;
   }
@@ -2081,16 +2123,11 @@ bool AArch64InstructionSelector::select(MachineInstr &I) {
       I.eraseFromParent();
       return constrainSelectedInstRegOperands(*TestBit, TII, TRI, RBI);
     } else {
-      auto CMP = BuildMI(MBB, I, I.getDebugLoc(), TII.get(AArch64::ANDSWri))
-                     .addDef(AArch64::WZR)
-                     .addUse(CondReg)
+      auto CMP = MIB.buildInstr(AArch64::ANDSWri, {LLT::scalar(32)}, {CondReg})
                      .addImm(1);
-      constrainSelectedInstRegOperands(*CMP.getInstr(), TII, TRI, RBI);
+      constrainSelectedInstRegOperands(*CMP, TII, TRI, RBI);
       auto Bcc =
-          BuildMI(MBB, I, I.getDebugLoc(), TII.get(AArch64::Bcc))
-              .addImm(AArch64CC::EQ)
-              .addMBB(DestMBB);
-
+          MIB.buildInstr(AArch64::Bcc).addImm(AArch64CC::EQ).addMBB(DestMBB);
       I.eraseFromParent();
       return constrainSelectedInstRegOperands(*Bcc.getInstr(), TII, TRI, RBI);
     }
@@ -3634,7 +3671,7 @@ bool AArch64InstructionSelector::selectExtractElt(
   (void)WideTy;
   assert(WideTy.getSizeInBits() >= NarrowTy.getSizeInBits() &&
          "source register size too small!");
-  assert(NarrowTy.isScalar() && "cannot extract vector into vector!");
+  assert(!NarrowTy.isVector() && "cannot extract vector into vector!");
 
   // Need the lane index to determine the correct copy opcode.
   MachineOperand &LaneIdxOp = I.getOperand(2);
@@ -5035,9 +5072,19 @@ AArch64InstructionSelector::selectExtendedSHL(
     return None;
 
   unsigned OffsetOpc = OffsetInst->getOpcode();
-  if (OffsetOpc != TargetOpcode::G_SHL && OffsetOpc != TargetOpcode::G_MUL)
-    return None;
+  bool LookedThroughZExt = false;
+  if (OffsetOpc != TargetOpcode::G_SHL && OffsetOpc != TargetOpcode::G_MUL) {
+    // Try to look through a ZEXT.
+    if (OffsetOpc != TargetOpcode::G_ZEXT || !WantsExt)
+      return None;
 
+    OffsetInst = MRI.getVRegDef(OffsetInst->getOperand(1).getReg());
+    OffsetOpc = OffsetInst->getOpcode();
+    LookedThroughZExt = true;
+
+    if (OffsetOpc != TargetOpcode::G_SHL && OffsetOpc != TargetOpcode::G_MUL)
+      return None;
+  }
   // Make sure that the memory op is a valid size.
   int64_t LegalShiftVal = Log2_32(SizeInBytes);
   if (LegalShiftVal == 0)
@@ -5088,20 +5135,23 @@ AArch64InstructionSelector::selectExtendedSHL(
 
   unsigned SignExtend = 0;
   if (WantsExt) {
-    // Check if the offset is defined by an extend.
-    MachineInstr *ExtInst = getDefIgnoringCopies(OffsetReg, MRI);
-    auto Ext = getExtendTypeForInst(*ExtInst, MRI, true);
-    if (Ext == AArch64_AM::InvalidShiftExtend)
-      return None;
+    // Check if the offset is defined by an extend, unless we looked through a
+    // G_ZEXT earlier.
+    if (!LookedThroughZExt) {
+      MachineInstr *ExtInst = getDefIgnoringCopies(OffsetReg, MRI);
+      auto Ext = getExtendTypeForInst(*ExtInst, MRI, true);
+      if (Ext == AArch64_AM::InvalidShiftExtend)
+        return None;
 
-    SignExtend = isSignExtendShiftType(Ext) ? 1 : 0;
-    // We only support SXTW for signed extension here.
-    if (SignExtend && Ext != AArch64_AM::SXTW)
-      return None;
+      SignExtend = isSignExtendShiftType(Ext) ? 1 : 0;
+      // We only support SXTW for signed extension here.
+      if (SignExtend && Ext != AArch64_AM::SXTW)
+        return None;
+      OffsetReg = ExtInst->getOperand(1).getReg();
+    }
 
     // Need a 32-bit wide register here.
     MachineIRBuilder MIB(*MRI.getVRegDef(Root.getReg()));
-    OffsetReg = ExtInst->getOperand(1).getReg();
     OffsetReg = narrowExtendRegIfNeeded(OffsetReg, MIB);
   }
 

@@ -13,12 +13,10 @@
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/Matchers.h"
-#include "mlir/IR/Module.h"
 #include "mlir/IR/StandardTypes.h"
-#include "llvm/Support/raw_ostream.h"
-using namespace mlir;
+#include "mlir/IR/SymbolTable.h"
 
-Builder::Builder(ModuleOp module) : context(module.getContext()) {}
+using namespace mlir;
 
 Identifier Builder::getIdentifier(StringRef str) {
   return Identifier::get(str, context);

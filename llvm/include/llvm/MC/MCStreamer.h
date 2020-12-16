@@ -206,6 +206,7 @@ class MCStreamer {
   std::vector<std::unique_ptr<WinEH::FrameInfo>> WinFrameInfos;
 
   WinEH::FrameInfo *CurrentWinFrameInfo;
+  size_t CurrentProcWinFrameInfoStartIndex;
 
   /// Tracks an index to represent the order a symbol was emitted in.
   /// Zero means we did not emit that symbol.
@@ -243,6 +244,8 @@ protected:
   WinEH::FrameInfo *getCurrentWinFrameInfo() {
     return CurrentWinFrameInfo;
   }
+
+  virtual void EmitWindowsUnwindTables(WinEH::FrameInfo *Frame);
 
   virtual void EmitWindowsUnwindTables();
 
@@ -451,6 +454,10 @@ public:
   /// Each emitted symbol will be tracked in the ordering table,
   /// so we can sort on them later.
   void AssignFragment(MCSymbol *Symbol, MCFragment *Fragment);
+
+  /// Returns the mnemonic for \p MI, if the streamer has access to a
+  /// instruction printer and returns an empty string otherwise.
+  virtual StringRef getMnemonic(MCInst &MI) { return ""; }
 
   /// Emit a label for \p Symbol into the current section.
   ///

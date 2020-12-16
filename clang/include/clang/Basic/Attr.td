@@ -389,6 +389,9 @@ def TargetELF : TargetSpec {
   let ObjectFormats = ["ELF"];
 }
 
+def TargetSupportsInitPriority : TargetSpec {
+  let CustomCode = [{ !Target.getTriple().isOSzOS() }];
+}
 // Attribute subject match rules that are used for #pragma clang attribute.
 //
 // A instance of AttrSubjectMatcherRule represents an individual match rule.
@@ -1293,7 +1296,7 @@ def SYCLIntelMaxWorkGroupSize : InheritableAttr {
 def SYCLIntelMaxGlobalWorkDim : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","max_global_work_dim">,
                    CXX11<"intel","max_global_work_dim">];
-  let Args = [UnsignedArgument<"Number">];
+  let Args = [ExprArgument<"Value">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelMaxGlobalWorkDimAttrDocs];
@@ -2798,7 +2801,7 @@ def WorkGroupSizeHint :  InheritableAttr {
   let Documentation = [Undocumented];
 }
 
-def InitPriority : InheritableAttr {
+def InitPriority : InheritableAttr, TargetSpecificAttr<TargetSupportsInitPriority> {
   let Spellings = [GCC<"init_priority", /*AllowInC*/0>];
   let Args = [UnsignedArgument<"Priority">];
   let Subjects = SubjectList<[Var], ErrorDiag>;

@@ -232,6 +232,43 @@ bool ELFDumper<ELFT>::shouldPrintSection(const ELFYAML::Section &S,
   return true;
 }
 
+template <class ELFT>
+static void dumpSectionOffsets(const typename ELFT::Ehdr &Header,
+                               ArrayRef<ELFYAML::ProgramHeader> Phdrs,
+                               std::vector<std::unique_ptr<ELFYAML::Chunk>> &V,
+                               ArrayRef<typename ELFT::Shdr> S) {
+  if (V.empty())
+    return;
+
+  uint64_t ExpectedOffset;
+  if (Header.e_phoff > 0)
+    ExpectedOffset = Header.e_phoff + Header.e_phentsize * Header.e_phnum;
+  else
+    ExpectedOffset = sizeof(typename ELFT::Ehdr);
+
+  for (const std::unique_ptr<ELFYAML::Chunk> &C :
+       makeArrayRef(V).drop_front()) {
+    ELFYAML::Section &Sec = *cast<ELFYAML::Section>(C.get());
+    const typename ELFT::Shdr &SecHdr = S[Sec.OriginalSecNdx];
+
+    ExpectedOffset = alignTo(ExpectedOffset,
+                             SecHdr.sh_addralign ? SecHdr.sh_addralign : 1uLL);
+
+    // We only set the "Offset" field when it can't be naturally derived
+    // from the offset and size of the previous section. This reduces
+    // the noise in the YAML output.
+    if (SecHdr.sh_offset != ExpectedOffset)
+      Sec.Offset = (yaml::Hex64)SecHdr.sh_offset;
+
+    if (Sec.Type == ELF::SHT_NOBITS &&
+        !ELFYAML::shouldAllocateFileSpace(Phdrs,
+                                          *cast<ELFYAML::NoBitsSection>(&Sec)))
+      ExpectedOffset = SecHdr.sh_offset;
+    else
+      ExpectedOffset = SecHdr.sh_offset + SecHdr.sh_size;
+  }
+}
+
 template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
   auto Y = std::make_unique<ELFYAML::Object>();
 
@@ -254,6 +291,14 @@ template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
     return SectionsOrErr.takeError();
   Sections = *SectionsOrErr;
   SectionNames.resize(Sections.size());
+
+  // Normally an object that does not have sections has e_shnum == 0.
+  // Also, e_shnum might be 0, when the the number of entries in the section
+  // header table is larger than or equal to SHN_LORESERVE (0xff00). In this
+  // case the real number of entries is held in the sh_size member of the
+  // initial entry. We have a section header table when `e_shoff` is not 0.
+  if (Obj.getHeader().e_shoff != 0 && Obj.getHeader().e_shnum == 0)
+    Y->Header.EShNum = 0;
 
   // Dump symbols. We need to do this early because other sections might want
   // to access the deduplicated symbol names that we also create here.
@@ -314,6 +359,20 @@ template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
     return ChunksOrErr.takeError();
   std::vector<std::unique_ptr<ELFYAML::Chunk>> Chunks = std::move(*ChunksOrErr);
 
+  std::vector<ELFYAML::Section *> OriginalOrder;
+  if (!Chunks.empty())
+    for (const std::unique_ptr<ELFYAML::Chunk> &C :
+         makeArrayRef(Chunks).drop_front())
+      OriginalOrder.push_back(cast<ELFYAML::Section>(C.get()));
+
+  // Sometimes the order of sections in the section header table does not match
+  // their actual order. Here we sort sections by the file offset.
+  llvm::stable_sort(Chunks, [&](const std::unique_ptr<ELFYAML::Chunk> &A,
+                                const std::unique_ptr<ELFYAML::Chunk> &B) {
+    return Sections[cast<ELFYAML::Section>(A.get())->OriginalSecNdx].sh_offset <
+           Sections[cast<ELFYAML::Section>(B.get())->OriginalSecNdx].sh_offset;
+  });
+
   // Dump program headers.
   Expected<std::vector<ELFYAML::ProgramHeader>> PhdrsOrErr =
       dumpProgramHeaders(Chunks);
@@ -321,8 +380,26 @@ template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
     return PhdrsOrErr.takeError();
   Y->ProgramHeaders = std::move(*PhdrsOrErr);
 
+  dumpSectionOffsets<ELFT>(Obj.getHeader(), Y->ProgramHeaders, Chunks,
+                           Sections);
+
   // Dump DWARF sections.
   Y->DWARF = dumpDWARFSections(Chunks);
+
+  // We emit the "SectionHeaderTable" key when the order of sections in the
+  // sections header table doesn't match the file order.
+  const bool SectionsSorted =
+      llvm::is_sorted(Chunks, [&](const std::unique_ptr<ELFYAML::Chunk> &A,
+                                  const std::unique_ptr<ELFYAML::Chunk> &B) {
+        return cast<ELFYAML::Section>(A.get())->OriginalSecNdx <
+               cast<ELFYAML::Section>(B.get())->OriginalSecNdx;
+      });
+  if (!SectionsSorted) {
+    Y->SectionHeaders.emplace();
+    Y->SectionHeaders->Sections.emplace();
+    for (ELFYAML::Section *S : OriginalOrder)
+      Y->SectionHeaders->Sections->push_back({S->Name});
+  }
 
   llvm::erase_if(Chunks, [this, &Y](const std::unique_ptr<ELFYAML::Chunk> &C) {
     const ELFYAML::Section &S = cast<ELFYAML::Section>(*C.get());
@@ -397,6 +474,7 @@ ELFDumper<ELFT>::dumpProgramHeaders(
         if (!PH.FirstSec)
           PH.FirstSec = S.Name;
         PH.LastSec = S.Name;
+        PH.Chunks.push_back(C.get());
       }
     }
 

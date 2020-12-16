@@ -297,8 +297,8 @@ void __kmpc_fork_call(ident_t *loc, kmp_int32 argc, kmpc_micro microtask, ...) {
             parent_team->t.t_implicit_task_taskdata[tid].ompt_task_info.frame);
       }
       ompt_frame->enter_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
-      OMPT_STORE_RETURN_ADDRESS(gtid);
     }
+    OMPT_STORE_RETURN_ADDRESS(gtid);
 #endif
 
 #if INCLUDE_SSC_MARKS
@@ -324,6 +324,7 @@ void __kmpc_fork_call(ident_t *loc, kmp_int32 argc, kmpc_micro microtask, ...) {
 #if KMP_STATS_ENABLED
   if (previous_state == stats_state_e::SERIAL_REGION) {
     KMP_EXCHANGE_PARTITIONED_TIMER(OMP_serial);
+    KMP_SET_THREAD_STATE(previous_state);
   } else {
     KMP_POP_PARTITIONED_TIMER();
   }
@@ -436,6 +437,7 @@ void __kmpc_fork_teams(ident_t *loc, kmp_int32 argc, kmpc_micro microtask,
 #if KMP_STATS_ENABLED
   if (previous_state == stats_state_e::SERIAL_REGION) {
     KMP_EXCHANGE_PARTITIONED_TIMER(OMP_serial);
+    KMP_SET_THREAD_STATE(previous_state);
   } else {
     KMP_POP_PARTITIONED_TIMER();
   }
@@ -711,8 +713,8 @@ void __kmpc_barrier(ident_t *loc, kmp_int32 global_tid) {
     __ompt_get_task_info_internal(0, NULL, NULL, &ompt_frame, NULL, NULL);
     if (ompt_frame->enter_frame.ptr == NULL)
       ompt_frame->enter_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
-    OMPT_STORE_RETURN_ADDRESS(global_tid);
   }
+  OMPT_STORE_RETURN_ADDRESS(global_tid);
 #endif
   __kmp_threads[global_tid]->th.th_ident = loc;
   // TODO: explicit barrier_wait_id:
@@ -849,8 +851,8 @@ void __kmpc_ordered(ident_t *loc, kmp_int32 gtid) {
   kmp_team_t *team;
   ompt_wait_id_t lck;
   void *codeptr_ra;
+  OMPT_STORE_RETURN_ADDRESS(gtid);
   if (ompt_enabled.enabled) {
-    OMPT_STORE_RETURN_ADDRESS(gtid);
     team = __kmp_team_from_gtid(gtid);
     lck = (ompt_wait_id_t)(uintptr_t)&team->t.t_ordered.dt.t_value;
     /* OMPT state update */
@@ -1605,8 +1607,8 @@ kmp_int32 __kmpc_barrier_master(ident_t *loc, kmp_int32 global_tid) {
     __ompt_get_task_info_internal(0, NULL, NULL, &ompt_frame, NULL, NULL);
     if (ompt_frame->enter_frame.ptr == NULL)
       ompt_frame->enter_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
-    OMPT_STORE_RETURN_ADDRESS(global_tid);
   }
+  OMPT_STORE_RETURN_ADDRESS(global_tid);
 #endif
 #if USE_ITT_NOTIFY
   __kmp_threads[global_tid]->th.th_ident = loc;
@@ -1669,8 +1671,8 @@ kmp_int32 __kmpc_barrier_master_nowait(ident_t *loc, kmp_int32 global_tid) {
     __ompt_get_task_info_internal(0, NULL, NULL, &ompt_frame, NULL, NULL);
     if (ompt_frame->enter_frame.ptr == NULL)
       ompt_frame->enter_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
-    OMPT_STORE_RETURN_ADDRESS(global_tid);
   }
+  OMPT_STORE_RETURN_ADDRESS(global_tid);
 #endif
 #if USE_ITT_NOTIFY
   __kmp_threads[global_tid]->th.th_ident = loc;
@@ -2067,8 +2069,8 @@ void __kmpc_copyprivate(ident_t *loc, kmp_int32 gtid, size_t cpy_size,
     __ompt_get_task_info_internal(0, NULL, NULL, &ompt_frame, NULL, NULL);
     if (ompt_frame->enter_frame.ptr == NULL)
       ompt_frame->enter_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
-    OMPT_STORE_RETURN_ADDRESS(gtid);
   }
+  OMPT_STORE_RETURN_ADDRESS(gtid);
 #endif
 /* This barrier is not a barrier region boundary */
 #if USE_ITT_NOTIFY
@@ -2081,11 +2083,9 @@ void __kmpc_copyprivate(ident_t *loc, kmp_int32 gtid, size_t cpy_size,
 
 // Consider next barrier a user-visible barrier for barrier region boundaries
 // Nesting checks are already handled by the single construct checks
-
+  {
 #if OMPT_SUPPORT
-  if (ompt_enabled.enabled) {
     OMPT_STORE_RETURN_ADDRESS(gtid);
-  }
 #endif
 #if USE_ITT_NOTIFY
   __kmp_threads[gtid]->th.th_ident = loc; // TODO: check if it is needed (e.g.
@@ -2097,6 +2097,7 @@ void __kmpc_copyprivate(ident_t *loc, kmp_int32 gtid, size_t cpy_size,
     ompt_frame->enter_frame = ompt_data_none;
   }
 #endif
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -3460,8 +3461,8 @@ __kmpc_reduce_nowait(ident_t *loc, kmp_int32 global_tid, kmp_int32 num_vars,
       __ompt_get_task_info_internal(0, NULL, NULL, &ompt_frame, NULL, NULL);
       if (ompt_frame->enter_frame.ptr == NULL)
         ompt_frame->enter_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
-      OMPT_STORE_RETURN_ADDRESS(global_tid);
     }
+    OMPT_STORE_RETURN_ADDRESS(global_tid);
 #endif
 #if USE_ITT_NOTIFY
     __kmp_threads[global_tid]->th.th_ident = loc;
@@ -3649,8 +3650,8 @@ kmp_int32 __kmpc_reduce(ident_t *loc, kmp_int32 global_tid, kmp_int32 num_vars,
       __ompt_get_task_info_internal(0, NULL, NULL, &ompt_frame, NULL, NULL);
       if (ompt_frame->enter_frame.ptr == NULL)
         ompt_frame->enter_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
-      OMPT_STORE_RETURN_ADDRESS(global_tid);
     }
+    OMPT_STORE_RETURN_ADDRESS(global_tid);
 #endif
 #if USE_ITT_NOTIFY
     __kmp_threads[global_tid]->th.th_ident =
@@ -3731,8 +3732,8 @@ void __kmpc_end_reduce(ident_t *loc, kmp_int32 global_tid,
       __ompt_get_task_info_internal(0, NULL, NULL, &ompt_frame, NULL, NULL);
       if (ompt_frame->enter_frame.ptr == NULL)
         ompt_frame->enter_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
-      OMPT_STORE_RETURN_ADDRESS(global_tid);
     }
+    OMPT_STORE_RETURN_ADDRESS(global_tid);
 #endif
 #if USE_ITT_NOTIFY
     __kmp_threads[global_tid]->th.th_ident = loc;
@@ -3757,8 +3758,8 @@ void __kmpc_end_reduce(ident_t *loc, kmp_int32 global_tid,
       __ompt_get_task_info_internal(0, NULL, NULL, &ompt_frame, NULL, NULL);
       if (ompt_frame->enter_frame.ptr == NULL)
         ompt_frame->enter_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
-      OMPT_STORE_RETURN_ADDRESS(global_tid);
     }
+    OMPT_STORE_RETURN_ADDRESS(global_tid);
 #endif
 #if USE_ITT_NOTIFY
     __kmp_threads[global_tid]->th.th_ident = loc;
@@ -3778,8 +3779,8 @@ void __kmpc_end_reduce(ident_t *loc, kmp_int32 global_tid,
       __ompt_get_task_info_internal(0, NULL, NULL, &ompt_frame, NULL, NULL);
       if (ompt_frame->enter_frame.ptr == NULL)
         ompt_frame->enter_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
-      OMPT_STORE_RETURN_ADDRESS(global_tid);
     }
+    OMPT_STORE_RETURN_ADDRESS(global_tid);
 #endif
 // TODO: implicit barrier: should be exposed
 #if USE_ITT_NOTIFY
@@ -4209,6 +4210,12 @@ void *omp_alloc(size_t size, omp_allocator_handle_t allocator) {
 
 void *omp_calloc(size_t nmemb, size_t size, omp_allocator_handle_t allocator) {
   return __kmpc_calloc(__kmp_entry_gtid(), nmemb, size, allocator);
+}
+
+void *omp_realloc(void *ptr, size_t size, omp_allocator_handle_t allocator,
+                  omp_allocator_handle_t free_allocator) {
+  return __kmpc_realloc(__kmp_entry_gtid(), ptr, size, allocator,
+                        free_allocator);
 }
 
 void omp_free(void *ptr, omp_allocator_handle_t allocator) {

@@ -55,7 +55,8 @@ public:
 
   static lldb::ProcessSP CreateInstance(lldb::TargetSP target_sp,
                                         lldb::ListenerSP listener_sp,
-                                        const FileSpec *crash_file_path);
+                                        const FileSpec *crash_file_path,
+                                        bool can_connect);
 
   static void Initialize();
 
@@ -390,8 +391,8 @@ protected:
 
   bool GetGDBServerRegisterInfoXMLAndProcess(ArchSpec &arch_to_use,
                                              std::string xml_filename,
-                                             uint32_t &cur_reg_num,
-                                             uint32_t &reg_offset);
+                                             uint32_t &cur_reg_remote,
+                                             uint32_t &cur_reg_local);
 
   // Query remote GDBServer for register information
   bool GetGDBServerRegisterInfo(ArchSpec &arch);

@@ -381,6 +381,9 @@ public:
   void setGC(std::string Str);
   void clearGC();
 
+  /// Returns true if the function has ssp, sspstrong, or sspreq fn attrs.
+  bool hasStackProtectorFnAttr() const;
+
   /// adds the attribute to the list of attributes.
   void addAttribute(unsigned i, Attribute::AttrKind Kind);
 
@@ -472,14 +475,12 @@ public:
 
   /// Extract the byval type for a parameter.
   Type *getParamByValType(unsigned ArgNo) const {
-    Type *Ty = AttributeSets.getParamByValType(ArgNo);
-    return Ty ? Ty : (arg_begin() + ArgNo)->getType()->getPointerElementType();
+    return AttributeSets.getParamByValType(ArgNo);
   }
 
   /// Extract the sret type for a parameter.
   Type *getParamStructRetType(unsigned ArgNo) const {
-    Type *Ty = AttributeSets.getParamStructRetType(ArgNo);
-    return Ty ? Ty : (arg_begin() + ArgNo)->getType()->getPointerElementType();
+    return AttributeSets.getParamStructRetType(ArgNo);
   }
 
   /// Extract the byref type for a parameter.

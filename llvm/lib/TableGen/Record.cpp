@@ -43,15 +43,11 @@ using namespace llvm;
 
 static BumpPtrAllocator Allocator;
 
-STATISTIC(CodeInitsConstructed,
-          "The total number of unique CodeInits constructed");
-
 //===----------------------------------------------------------------------===//
 //    Type implementations
 //===----------------------------------------------------------------------===//
 
 BitRecTy BitRecTy::Shared;
-CodeRecTy CodeRecTy::Shared;
 IntRecTy IntRecTy::Shared;
 StringRecTy StringRecTy::Shared;
 DagRecTy DagRecTy::Shared;
@@ -113,18 +109,13 @@ bool IntRecTy::typeIsConvertibleTo(const RecTy *RHS) const {
   return kind==BitRecTyKind || kind==BitsRecTyKind || kind==IntRecTyKind;
 }
 
-bool CodeRecTy::typeIsConvertibleTo(const RecTy *RHS) const {
-  RecTyKind Kind = RHS->getRecTyKind();
-  return Kind == CodeRecTyKind || Kind == StringRecTyKind;
-}
-
 std::string StringRecTy::getAsString() const {
   return "string";
 }
 
 bool StringRecTy::typeIsConvertibleTo(const RecTy *RHS) const {
   RecTyKind Kind = RHS->getRecTyKind();
-  return Kind == StringRecTyKind || Kind == CodeRecTyKind;
+  return Kind == StringRecTyKind;
 }
 
 std::string ListRecTy::getAsString() const {
@@ -514,45 +505,26 @@ IntInit::convertInitializerBitRange(ArrayRef<unsigned> Bits) const {
   return BitsInit::get(NewBits);
 }
 
-CodeInit *CodeInit::get(StringRef V, const SMLoc &Loc) {
-  static StringSet<BumpPtrAllocator &> ThePool(Allocator);
+StringInit *StringInit::get(StringRef V, StringFormat Fmt) {
+  static StringMap<StringInit*, BumpPtrAllocator &> StringPool(Allocator);
+  static StringMap<StringInit*, BumpPtrAllocator &> CodePool(Allocator);
 
-  CodeInitsConstructed++;
-
-  // Unlike StringMap, StringSet doesn't accept empty keys.
-  if (V.empty())
-    return new (Allocator) CodeInit("", Loc);
-
-  // Location tracking prevents us from de-duping CodeInits as we're never
-  // called with the same string and same location twice. However, we can at
-  // least de-dupe the strings for a modest saving.
-  auto &Entry = *ThePool.insert(V).first;
-  return new(Allocator) CodeInit(Entry.getKey(), Loc);
-}
-
-StringInit *StringInit::get(StringRef V) {
-  static StringMap<StringInit*, BumpPtrAllocator &> ThePool(Allocator);
-
-  auto &Entry = *ThePool.insert(std::make_pair(V, nullptr)).first;
-  if (!Entry.second)
-    Entry.second = new(Allocator) StringInit(Entry.getKey());
-  return Entry.second;
+  if (Fmt == SF_String) {
+    auto &Entry = *StringPool.insert(std::make_pair(V, nullptr)).first;
+    if (!Entry.second)
+      Entry.second = new (Allocator) StringInit(Entry.getKey(), Fmt);
+    return Entry.second;
+  } else {
+    auto &Entry = *CodePool.insert(std::make_pair(V, nullptr)).first;
+    if (!Entry.second)
+      Entry.second = new (Allocator) StringInit(Entry.getKey(), Fmt);
+    return Entry.second;
+  }
 }
 
 Init *StringInit::convertInitializerTo(RecTy *Ty) const {
   if (isa<StringRecTy>(Ty))
     return const_cast<StringInit *>(this);
-  if (isa<CodeRecTy>(Ty))
-    return CodeInit::get(getValue(), SMLoc());
-
-  return nullptr;
-}
-
-Init *CodeInit::convertInitializerTo(RecTy *Ty) const {
-  if (isa<CodeRecTy>(Ty))
-    return const_cast<CodeInit *>(this);
-  if (isa<StringRecTy>(Ty))
-    return StringInit::get(getValue());
 
   return nullptr;
 }
@@ -875,7 +847,9 @@ static StringInit *ConcatStringInits(const StringInit *I0,
                                      const StringInit *I1) {
   SmallString<80> Concat(I0->getValue());
   Concat.append(I1->getValue());
-  return StringInit::get(Concat);
+  return StringInit::get(Concat, 
+                         StringInit::determineFormat(I0->getFormat(),
+                                                     I1->getFormat()));
 }
 
 static StringInit *interleaveStringList(const ListInit *List,
@@ -883,12 +857,15 @@ static StringInit *interleaveStringList(const ListInit *List,
   if (List->size() == 0)
     return StringInit::get("");
   SmallString<80> Result(dyn_cast<StringInit>(List->getElement(0))->getValue());
+  StringInit::StringFormat Fmt = StringInit::SF_String;
   
   for (unsigned I = 1, E = List->size(); I < E; ++I) {
     Result.append(Delim->getValue());
-    Result.append(dyn_cast<StringInit>(List->getElement(I))->getValue());
+    auto *StrInit = dyn_cast<StringInit>(List->getElement(I));
+    Result.append(StrInit->getValue());
+    Fmt = StringInit::determineFormat(Fmt, StrInit->getFormat());
   }
-  return StringInit::get(Result);
+  return StringInit::get(Result, Fmt);
 }
 
 static StringInit *interleaveIntList(const ListInit *List,
@@ -1046,8 +1023,6 @@ Init *BinOpInit::Fold(Record *CurRec) const {
       default: llvm_unreachable("unhandled comparison");
       }
       return BitInit::get(Result);
-////      bool Equal = LHSs->getValue() == RHSs->getValue();
-////      return BitInit::get(getOpcode() == EQ ? Equal : !Equal);
     }
 
     // Finally, !eq and !ne can be used with records.
@@ -2148,6 +2123,21 @@ StringRef RecordVal::getName() const {
   return cast<StringInit>(getNameInit())->getValue();
 }
 
+std::string RecordVal::getPrintType() const {
+  if (getType() == StringRecTy::get()) {
+    if (auto *StrInit = dyn_cast<StringInit>(Value)) {
+      if (StrInit->hasCodeFormat())
+        return "code";
+      else
+        return "string";
+    } else {
+      return "string";
+    }
+  } else {
+    return TyAndPrefix.getPointer()->getAsString();
+  }
+}
+
 bool RecordVal::setValue(Init *V) {
   if (V) {
     Value = V->getCastTo(getType());
@@ -2170,7 +2160,7 @@ bool RecordVal::setValue(Init *V) {
   return false;
 }
 
-// This version of setValue takes an source location and resets the
+// This version of setValue takes a source location and resets the
 // location in the RecordVal.
 bool RecordVal::setValue(Init *V, SMLoc NewLoc) {
   Loc = NewLoc;
@@ -2202,7 +2192,7 @@ LLVM_DUMP_METHOD void RecordVal::dump() const { errs() << *this; }
 
 void RecordVal::print(raw_ostream &OS, bool PrintSem) const {
   if (getPrefix()) OS << "field ";
-  OS << *getType() << " " << getNameInitAsString();
+  OS << getPrintType() << " " << getNameInitAsString();
 
   if (getValue())
     OS << " = " << *getValue();
@@ -2351,6 +2341,14 @@ raw_ostream &llvm::operator<<(raw_ostream &OS, const Record &R) {
   return OS << "}\n";
 }
 
+SMLoc Record::getFieldLoc(StringRef FieldName) const {
+  const RecordVal *R = getValue(FieldName);
+  if (!R)
+    PrintFatalError(getLoc(), "Record `" + getName() +
+      "' does not have a field named `" + FieldName + "'!\n");
+  return R->getLoc();
+}
+
 Init *Record::getValueInit(StringRef FieldName) const {
   const RecordVal *R = getValue(FieldName);
   if (!R || !R->getValue())
@@ -2366,6 +2364,7 @@ StringRef Record::getValueAsString(StringRef FieldName) const {
       "' does not have a field named `" + FieldName + "'!\n");
   return S.getValue();
 }
+
 llvm::Optional<StringRef>
 Record::getValueAsOptionalString(StringRef FieldName) const {
   const RecordVal *R = getValue(FieldName);
@@ -2376,27 +2375,10 @@ Record::getValueAsOptionalString(StringRef FieldName) const {
 
   if (StringInit *SI = dyn_cast<StringInit>(R->getValue()))
     return SI->getValue();
-  if (CodeInit *CI = dyn_cast<CodeInit>(R->getValue()))
-    return CI->getValue();
 
   PrintFatalError(getLoc(),
                   "Record `" + getName() + "', ` field `" + FieldName +
                       "' exists but does not have a string initializer!");
-}
-llvm::Optional<StringRef>
-Record::getValueAsOptionalCode(StringRef FieldName) const {
-  const RecordVal *R = getValue(FieldName);
-  if (!R || !R->getValue())
-    return llvm::Optional<StringRef>();
-  if (isa<UnsetInit>(R->getValue()))
-    return llvm::Optional<StringRef>();
-
-  if (CodeInit *CI = dyn_cast<CodeInit>(R->getValue()))
-    return CI->getValue();
-
-  PrintFatalError(getLoc(),
-                  "Record `" + getName() + "', field `" + FieldName +
-                      "' exists but does not have a code initializer!");
 }
 
 BitsInit *Record::getValueAsBitsInit(StringRef FieldName) const {
@@ -2474,8 +2456,6 @@ Record::getValueAsListOfStrings(StringRef FieldName) const {
   for (Init *I : List->getValues()) {
     if (StringInit *SI = dyn_cast<StringInit>(I))
       Strings.push_back(SI->getValue());
-    else if (CodeInit *CI = dyn_cast<CodeInit>(I))
-      Strings.push_back(CI->getValue());
     else
       PrintFatalError(getLoc(),
                       Twine("Record `") + getName() + "', field `" + FieldName +
@@ -2608,9 +2588,10 @@ void RecordKeeper::startBackendTimer(StringRef Name) {
 
 void RecordKeeper::stopBackendTimer() {
   if (TimingGroup) {
-    if (BackendTimer)
+    if (BackendTimer) {
       stopTimer();
       BackendTimer = false;
+    }
   }
 }
 

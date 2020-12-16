@@ -423,6 +423,34 @@ pi_result _pi_device::initialize() {
   return PI_SUCCESS;
 }
 
+pi_result _pi_context::initialize() {
+  // Create the immediate command list to be used for initializations
+  // Created as synchronous so level-zero performs implicit synchronization and
+  // there is no need to query for completion in the plugin
+  ze_command_queue_desc_t ZeCommandQueueDesc = {};
+  ZeCommandQueueDesc.ordinal = Devices[0]->ZeComputeQueueGroupIndex;
+  ZeCommandQueueDesc.index = 0;
+  ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS;
+  ZE_CALL(zeCommandListCreateImmediate(ZeContext, Devices[0]->ZeDevice,
+                                       &ZeCommandQueueDesc,
+                                       &ZeCommandListInit));
+  return PI_SUCCESS;
+}
+
+pi_result _pi_context::finalize() {
+  // This function is called when pi_context is deallocated, piContextRelase.
+  // There could be some memory that may have not been deallocated.
+  // For example, zeEventPool could be still alive.
+  std::lock_guard<std::mutex> NumEventsLiveInEventPoolGuard(
+      NumEventsLiveInEventPoolMutex, std::adopt_lock);
+  if (ZeEventPool && NumEventsLiveInEventPool[ZeEventPool])
+    zeEventPoolDestroy(ZeEventPool);
+
+  // Destroy the command list used for initializations
+  ZE_CALL(zeCommandListDestroy(ZeCommandListInit));
+  return PI_SUCCESS;
+}
+
 pi_result
 _pi_queue::resetCommandListFenceEntry(ze_command_list_handle_t ZeCommandList,
                                       bool MakeAvailable) {
@@ -1703,28 +1731,18 @@ pi_result piContextCreate(const pi_context_properties *Properties,
 
   assert(RetContext);
 
+  ze_context_desc_t ContextDesc = {ZE_STRUCTURE_TYPE_CONTEXT_DESC, nullptr, 0};
+  ze_context_handle_t ZeContext;
+  ZE_CALL(zeContextCreate((*Devices)->Platform->ZeDriver, &ContextDesc,
+                          &ZeContext));
   try {
-    *RetContext = new _pi_context(NumDevices, Devices);
+    *RetContext = new _pi_context(ZeContext, NumDevices, Devices);
+    (*RetContext)->initialize();
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
-
-  ze_context_desc_t ContextDesc = {ZE_STRUCTURE_TYPE_CONTEXT_DESC, nullptr, 0};
-  ZE_CALL(zeContextCreate((*Devices)->Platform->ZeDriver, &ContextDesc,
-                          &((*RetContext)->ZeContext)));
-
-  // Create the immediate command list to be used for initializations
-  // Created as synchronous so level-zero performs implicit synchronization and
-  // there is no need to query for completion in the plugin
-  ze_command_queue_desc_t ZeCommandQueueDesc = {};
-  ZeCommandQueueDesc.ordinal = (*Devices)->ZeComputeQueueGroupIndex;
-  ZeCommandQueueDesc.index = 0;
-  ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS;
-  ZE_CALL(zeCommandListCreateImmediate(
-      (*RetContext)->ZeContext, (*Devices)->ZeDevice, &ZeCommandQueueDesc,
-      (&(*RetContext)->ZeCommandListInit)));
 
   return PI_SUCCESS;
 }
@@ -1772,8 +1790,26 @@ pi_result piextContextGetNativeHandle(pi_context Context,
 }
 
 pi_result piextContextCreateWithNativeHandle(pi_native_handle NativeHandle,
-                                             pi_context *Context) {
-  die("piextContextCreateWithNativeHandle: not supported");
+                                             pi_uint32 NumDevices,
+                                             const pi_device *Devices,
+                                             pi_context *RetContext) {
+  assert(NativeHandle);
+  assert(RetContext);
+
+  if (!Devices || !NumDevices) {
+    return PI_INVALID_VALUE;
+  }
+
+  try {
+    *RetContext = new _pi_context(pi_cast<ze_context_handle_t>(NativeHandle),
+                                  NumDevices, Devices);
+    (*RetContext)->initialize();
+  } catch (const std::bad_alloc &) {
+    return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+
   return PI_SUCCESS;
 }
 
@@ -1789,8 +1825,13 @@ pi_result piContextRelease(pi_context Context) {
   assert(Context);
   if (--(Context->RefCount) == 0) {
     auto ZeContext = Context->ZeContext;
-    // Destroy the command list used for initializations
-    ZE_CALL(zeCommandListDestroy(Context->ZeCommandListInit));
+
+    // Clean up any live memory associated with Context
+    pi_result Result = Context->finalize();
+
+    // We must delete Context first and then destroy zeContext because
+    // Context deallocation requires ZeContext in some member deallocation of
+    // pi_context.
     delete Context;
 
     // Destruction of some members of pi_context uses L0 context
@@ -1798,6 +1839,8 @@ pi_result piContextRelease(pi_context Context) {
     // Technically it should be placed to the destructor of pi_context
     // but this makes API error handling more complex.
     ZE_CALL(zeContextDestroy(ZeContext));
+
+    return Result;
   }
   return PI_SUCCESS;
 }
@@ -2951,7 +2994,7 @@ pi_result piKernelCreate(pi_program Program, const char *KernelName,
     return mapError(ZeResult);
 
   try {
-    *RetKernel = new _pi_kernel(ZeKernel, Program, KernelName);
+    *RetKernel = new _pi_kernel(ZeKernel, Program);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -3030,12 +3073,19 @@ pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
   case PI_KERNEL_INFO_PROGRAM:
     return ReturnValue(pi_program{Kernel->Program});
   case PI_KERNEL_INFO_FUNCTION_NAME:
-    // TODO: Replace with the line in the comment once bug in the Level Zero
-    // driver will be fixed. Problem is that currently Level Zero driver
-    // truncates name of the returned kernel if it is longer than 256 symbols.
-    //
-    // return ReturnValue(ZeKernelProperties.name);
-    return ReturnValue(Kernel->KernelName.c_str());
+    try {
+      size_t Size = 0;
+      ZE_CALL(zeKernelGetName(Kernel->ZeKernel, &Size, nullptr));
+      char *KernelName = new char[Size];
+      ZE_CALL(zeKernelGetName(Kernel->ZeKernel, &Size, KernelName));
+      pi_result Res = ReturnValue(static_cast<const char *>(KernelName));
+      delete[] KernelName;
+      return Res;
+    } catch (const std::bad_alloc &) {
+      return PI_OUT_OF_HOST_MEMORY;
+    } catch (...) {
+      return PI_ERROR_UNKNOWN;
+    }
   case PI_KERNEL_INFO_NUM_ARGS:
     return ReturnValue(pi_uint32{ZeKernelProperties.numKernelArgs});
   case PI_KERNEL_INFO_REFERENCE_COUNT:
@@ -4126,16 +4176,16 @@ pi_result piEnqueueMemBufferFill(pi_queue Queue, pi_mem Buffer,
                               EventWaitList, Event);
 }
 
-pi_result
-piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer, pi_bool BlockingMap,
-                      cl_map_flags MapFlags, // TODO: untie from OpenCL
-                      size_t Offset, size_t Size, pi_uint32 NumEventsInWaitList,
-                      const pi_event *EventWaitList, pi_event *Event,
-                      void **RetMap) {
+pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
+                                pi_bool BlockingMap, pi_map_flags MapFlags,
+                                size_t Offset, size_t Size,
+                                pi_uint32 NumEventsInWaitList,
+                                const pi_event *EventWaitList, pi_event *Event,
+                                void **RetMap) {
 
   // TODO: we don't implement read-only or write-only, always read-write.
-  // assert((map_flags & CL_MAP_READ) != 0);
-  // assert((map_flags & CL_MAP_WRITE) != 0);
+  // assert((map_flags & PI_MAP_READ) != 0);
+  // assert((map_flags & PI_MAP_WRITE) != 0);
   assert(Buffer);
   assert(Queue);
 
@@ -4174,7 +4224,8 @@ piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer, pi_bool BlockingMap,
     piEventsWait(NumEventsInWaitList, EventWaitList);
     if (Buffer->MapHostPtr) {
       *RetMap = Buffer->MapHostPtr + Offset;
-      memcpy(*RetMap, pi_cast<char *>(Buffer->getZeHandle()) + Offset, Size);
+      if (!(MapFlags & PI_MAP_WRITE_INVALIDATE_REGION))
+        memcpy(*RetMap, pi_cast<char *>(Buffer->getZeHandle()) + Offset, Size);
     } else {
       *RetMap = pi_cast<char *>(Buffer->getZeHandle()) + Offset;
     }
@@ -4652,6 +4703,8 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
   ZE_CALL(
       zeMemAllocHost(Context->ZeContext, &ZeDesc, Size, Alignment, ResultPtr));
 
+  assert(Alignment == 0 ||
+         reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0);
   return PI_SUCCESS;
 }
 
@@ -4678,6 +4731,8 @@ pi_result USMDeviceAllocImpl(void **ResultPtr, pi_context Context,
   ZE_CALL(zeMemAllocDevice(Context->ZeContext, &ZeDesc, Size, Alignment,
                            Device->ZeDevice, ResultPtr));
 
+  assert(Alignment == 0 ||
+         reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0);
   return PI_SUCCESS;
 }
 
@@ -4699,6 +4754,8 @@ pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
   ZE_CALL(zeMemAllocShared(Context->ZeContext, &ZeDevDesc, &ZeHostDesc, Size,
                            Alignment, Device->ZeDevice, ResultPtr));
 
+  assert(Alignment == 0 ||
+         reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0);
   return PI_SUCCESS;
 }
 
@@ -4831,7 +4888,7 @@ pi_result piextUSMFree(pi_context Context, void *Ptr) {
     assert(Device);
 
     auto DeallocationHelper =
-        [Context, Device,
+        [Device,
          Ptr](std::unordered_map<pi_device, USMAllocContext> &AllocContextMap) {
           try {
             auto It = AllocContextMap.find(Device);

@@ -3687,7 +3687,8 @@ public:
       // Skip analysis of arguments of implicitly defined map clause for target
       // directives.
       if (C && !((isa<OMPFirstprivateClause>(C) || isa<OMPMapClause>(C)) &&
-                 C->isImplicit())) {
+                 C->isImplicit() &&
+                 !isOpenMPTaskingDirective(Stack->getCurrentDirective()))) {
         for (Stmt *CC : C->children()) {
           if (CC)
             Visit(CC);
@@ -5902,8 +5903,10 @@ void Sema::ActOnStartOfFunctionDefinitionInOpenMPDeclareVariantScope(
   TypeSourceInfo *TInfo = GetTypeForDeclarator(D, S);
   QualType FType = TInfo->getType();
 
-  bool IsConstexpr = D.getDeclSpec().getConstexprSpecifier() == CSK_constexpr;
-  bool IsConsteval = D.getDeclSpec().getConstexprSpecifier() == CSK_consteval;
+  bool IsConstexpr =
+      D.getDeclSpec().getConstexprSpecifier() == ConstexprSpecKind::Constexpr;
+  bool IsConsteval =
+      D.getDeclSpec().getConstexprSpecifier() == ConstexprSpecKind::Consteval;
 
   for (auto *Candidate : Lookup) {
     auto *CandidateDecl = Candidate->getUnderlyingDecl();
@@ -5939,7 +5942,7 @@ void Sema::ActOnStartOfFunctionDefinitionInOpenMPDeclareVariantScope(
       llvm::omp::TraitProperty::implementation_extension_disable_implicit_base);
   // If no base was found we create a declaration that we use as base.
   if (Bases.empty() && UseImplicitBase) {
-    D.setFunctionDefinitionKind(FDK_Declaration);
+    D.setFunctionDefinitionKind(FunctionDefinitionKind::Declaration);
     Decl *BaseD = HandleDeclarator(S, D, TemplateParamLists);
     BaseD->setImplicit(true);
     if (auto *BaseTemplD = dyn_cast<FunctionTemplateDecl>(BaseD))
@@ -17546,6 +17549,7 @@ static void checkMappableExpressionList(
     auto &DeclNames = SemaRef.getASTContext().DeclarationNames;
     MapperId.setName(DeclNames.getIdentifier(
         &SemaRef.getASTContext().Idents.get("default")));
+    MapperId.setLoc(StartLoc);
   }
 
   // Iterators to find the current unresolved mapper expression.

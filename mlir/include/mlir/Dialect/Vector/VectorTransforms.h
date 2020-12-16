@@ -11,7 +11,7 @@
 
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/Dialect/Vector/VectorUtils.h"
-#include "mlir/IR/Function.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
 
 namespace mlir {
@@ -150,7 +150,7 @@ struct UnrollVectorPattern : public OpRewritePattern<OpTy> {
       rewriter.eraseOp(op);
       return success();
     }
-    if (op.getOperation()->getNumResults() != 1)
+    if (op->getNumResults() != 1)
       return failure();
     auto resultVector = unrollSingleResultVectorOp(rewriter, op, *targetShape);
     if (resultVector.size() != 1)
@@ -267,6 +267,10 @@ struct PointwiseExtractPattern : public OpRewritePattern<ExtractMapOp> {
 private:
   FilterConstraintType filter;
 };
+
+/// Implements transfer op write to read forwarding and dead transfer write
+/// optimizations.
+void transferOpflowOpt(FuncOp func);
 
 } // namespace vector
 

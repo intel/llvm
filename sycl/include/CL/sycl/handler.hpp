@@ -65,6 +65,9 @@ template <typename T_Src, int Dims_Src, cl::sycl::access::mode AccessMode_Src,
           cl::sycl::access::placeholder IsPlaceholder_Dst>
 class __copyAcc2Acc;
 
+// For unit testing purposes
+class MockHandler;
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
@@ -1190,7 +1193,9 @@ public:
     size_t MaxWGSize = ONEAPI::detail::reduGetMaxWGSize(MQueue, OneElemSize);
     if (Range.get_local_range().size() > MaxWGSize)
       throw sycl::runtime_error("The implementation handling parallel_for with"
-                                " reduction requires smaller work group size.",
+                                " reduction requires work group size not bigger"
+                                " than " +
+                                    std::to_string(MaxWGSize),
                                 PI_INVALID_WORK_GROUP_SIZE);
 
     // 1. Call the kernel that includes user's lambda function.
@@ -1951,6 +1956,8 @@ private:
   friend void detail::associateWithHandler(handler &,
                                            detail::AccessorBaseHost *,
                                            access::target);
+
+  friend class ::MockHandler;
 };
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -1144,6 +1144,8 @@ def : Pat<(srl (shl GPR:$rs1, (i64 32)), uimm6gt32:$shamt),
           (SRLIW GPR:$rs1, (ImmSub32 uimm6gt32:$shamt))>;
 def : Pat<(sra (sext_inreg GPR:$rs1, i32), uimm5:$shamt),
           (SRAIW GPR:$rs1, uimm5:$shamt)>;
+def : Pat<(sra (shl GPR:$rs1, (i64 32)), uimm6gt32:$shamt),
+          (SRAIW GPR:$rs1, (ImmSub32 uimm6gt32:$shamt))>;
 
 def : PatGprGpr<riscv_sllw, SLLW>;
 def : PatGprGpr<riscv_srlw, SRLW>;
@@ -1193,3 +1195,4 @@ include "RISCVInstrInfoD.td"
 include "RISCVInstrInfoC.td"
 include "RISCVInstrInfoB.td"
 include "RISCVInstrInfoV.td"
+include "RISCVInstrInfoZfh.td"

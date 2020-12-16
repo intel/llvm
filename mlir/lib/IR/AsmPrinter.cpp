@@ -17,10 +17,8 @@
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/DialectImplementation.h"
-#include "mlir/IR/Function.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/Module.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/StandardTypes.h"
@@ -159,7 +157,8 @@ OpPrintingFlags &OpPrintingFlags::useLocalScope() {
 /// Return if the given ElementsAttr should be elided.
 bool OpPrintingFlags::shouldElideElementsAttr(ElementsAttr attr) const {
   return elementsAttrElementLimit.hasValue() &&
-         *elementsAttrElementLimit < int64_t(attr.getNumElements());
+         *elementsAttrElementLimit < int64_t(attr.getNumElements()) &&
+         !attr.isa<SplatElementsAttr>();
 }
 
 /// Return the size limit for printing large ElementsAttr.
@@ -2189,8 +2188,9 @@ public:
                             AsmStateImpl &state)
       : ModulePrinter(os, flags, &state) {}
 
-  /// Print the given top-level module.
-  void print(ModuleOp op);
+  /// Print the given top-level operation.
+  void printTopLevelOperation(Operation *op);
+
   /// Print the given operation with its indent and location.
   void print(Operation *op);
   /// Print the bare location, not including indentation/location/etc.
@@ -2289,12 +2289,12 @@ private:
 };
 } // end anonymous namespace
 
-void OperationPrinter::print(ModuleOp op) {
+void OperationPrinter::printTopLevelOperation(Operation *op) {
   // Output the aliases at the top level that can't be deferred.
   state->getAliasState().printNonDeferredAliases(os, newLine);
 
   // Print the module.
-  print(op.getOperation());
+  print(op);
   os << newLine;
 
   // Output the aliases at the top level that can be deferred.
@@ -2588,6 +2588,14 @@ void Value::printAsOperand(raw_ostream &os, AsmState &state) {
 }
 
 void Operation::print(raw_ostream &os, OpPrintingFlags flags) {
+  // If this is a top level operation, we also print aliases.
+  if (!getParent() && !flags.shouldUseLocalScope()) {
+    AsmState state(this);
+    state.getImpl().initializeAliases(this, flags);
+    print(os, state, flags);
+    return;
+  }
+
   // Find the operation to number from based upon the provided flags.
   Operation *printedOp = this;
   bool shouldUseLocalScope = flags.shouldUseLocalScope();
@@ -2608,7 +2616,11 @@ void Operation::print(raw_ostream &os, OpPrintingFlags flags) {
   print(os, state, flags);
 }
 void Operation::print(raw_ostream &os, AsmState &state, OpPrintingFlags flags) {
-  OperationPrinter(os, flags, state.getImpl()).print(this);
+  OperationPrinter printer(os, flags, state.getImpl());
+  if (!getParent() && !flags.shouldUseLocalScope())
+    printer.printTopLevelOperation(this);
+  else
+    printer.print(this);
 }
 
 void Operation::dump() {
@@ -2649,17 +2661,3 @@ void Block::printAsOperand(raw_ostream &os, AsmState &state) {
   OperationPrinter printer(os, /*flags=*/llvm::None, state.getImpl());
   printer.printBlockName(this);
 }
-
-void ModuleOp::print(raw_ostream &os, OpPrintingFlags flags) {
-  AsmState state(*this);
-
-  // Don't populate aliases when printing at local scope.
-  if (!flags.shouldUseLocalScope())
-    state.getImpl().initializeAliases(*this, flags);
-  print(os, state, flags);
-}
-void ModuleOp::print(raw_ostream &os, AsmState &state, OpPrintingFlags flags) {
-  OperationPrinter(os, flags, state.getImpl()).print(*this);
-}
-
-void ModuleOp::dump() { print(llvm::errs()); }

@@ -120,6 +120,8 @@ def err_drv_command_failure : Error<
   "unable to execute command: %0">;
 def err_drv_invalid_darwin_version : Error<
   "invalid Darwin version number: %0">;
+def err_drv_invalid_diagnotics_hotness_threshold : Error<
+  "invalid argument in '%0', only integer or 'auto' is supported">;
 def err_drv_missing_argument : Error<
   "argument to '%0' is missing (expected %1 value%s1)">;
 def err_drv_invalid_Xarch_argument_with_args : Error<
@@ -514,6 +516,10 @@ def warn_drv_moutline_unsupported_opt : Warning<
   "The '%0' architecture does not support -moutline; flag ignored">,
   InGroup<OptionIgnored>;
 
+def warn_drv_moutline_atomics_unsupported_opt : Warning<
+  "The '%0' architecture does not support -moutline-atomics; flag ignored">,
+  InGroup<OptionIgnored>;
+
 def warn_drv_darwin_sdk_invalid_settings : Warning<
   "SDK settings were ignored as 'SDKSettings.json' could not be parsed">,
   InGroup<DiagGroup<"darwin-sdk-settings">>;
@@ -550,4 +556,9 @@ def err_drv_invalid_object_mode : Error<"OBJECT_MODE setting %0 is not recognize
 
 def err_drv_invalid_sve_vector_bits : Error<
   "'-msve-vector-bits' is not supported without SVE enabled">;
+
+def err_aix_default_altivec_abi : Error<
+  "The default Altivec ABI on AIX is not yet supported, use '-mabi=vec-extabi' for the extended Altivec ABI">;
+
+def err_aix_altivec : Error<"'-mabi=vec-extabi' and '-mabi=vec-default' require '-maltivec'">;
 }

@@ -148,10 +148,11 @@ void addOverridesForMethod(clang::CXXMethodDecl *decl) {
     return;
 
   clang::CXXBasePaths paths;
+  llvm::SmallVector<clang::NamedDecl *, 4> decls;
 
   auto find_overridden_methods =
-      [decl](const clang::CXXBaseSpecifier *specifier,
-             clang::CXXBasePath &path) {
+      [&decls, decl](const clang::CXXBaseSpecifier *specifier,
+                     clang::CXXBasePath &path) {
         if (auto *base_record = llvm::dyn_cast<clang::CXXRecordDecl>(
                 specifier->getType()->getAs<clang::RecordType>()->getDecl())) {
 
@@ -163,6 +164,7 @@ void addOverridesForMethod(clang::CXXMethodDecl *decl) {
             if (auto *baseDtorDecl = base_record->getDestructor()) {
               if (baseDtorDecl->isVirtual()) {
                 path.Decls = baseDtorDecl;
+                decls.push_back(baseDtorDecl);
                 return true;
               } else
                 return false;
@@ -175,6 +177,7 @@ void addOverridesForMethod(clang::CXXMethodDecl *decl) {
                     llvm::dyn_cast<clang::CXXMethodDecl>(path.Decls.front()))
               if (method_decl->isVirtual() && !isOverload(decl, method_decl)) {
                 path.Decls = method_decl;
+                decls.push_back(method_decl);
                 return true;
               }
           }
@@ -184,7 +187,7 @@ void addOverridesForMethod(clang::CXXMethodDecl *decl) {
       };
 
   if (decl->getParent()->lookupInBases(find_overridden_methods, paths)) {
-    for (auto *overridden_decl : paths.found_decls())
+    for (auto *overridden_decl : decls)
       decl->addOverriddenMethod(
           llvm::cast<clang::CXXMethodDecl>(overridden_decl));
   }
@@ -1998,6 +2001,18 @@ PrintingPolicy TypeSystemClang::GetTypePrintingPolicy() {
   // and libstdc++ are differentiated by their inline namespaces).
   printing_policy.SuppressInlineNamespace = false;
   printing_policy.SuppressUnwrittenScope = false;
+  // Default arguments are also always important for type formatters. Otherwise
+  // we would need to always specify two type names for the setups where we do
+  // know the default arguments and where we don't know default arguments.
+  //
+  // For example, without this we would need to have formatters for both:
+  //   std::basic_string<char>
+  // and
+  //   std::basic_string<char, std::char_traits<char>, std::allocator<char> >
+  // to support setups where LLDB was able to reconstruct default arguments
+  // (and we then would have suppressed them from the type name) and also setups
+  // where LLDB wasn't able to reconstruct the default arguments.
+  printing_policy.SuppressDefaultTemplateArgs = false;
   return printing_policy;
 }
 
@@ -2030,8 +2045,9 @@ FunctionDecl *TypeSystemClang::CreateFunctionDeclaration(
   func_decl->setStorageClass(storage);
   func_decl->setInlineSpecified(is_inline);
   func_decl->setHasWrittenPrototype(hasWrittenPrototype);
-  func_decl->setConstexprKind(isConstexprSpecified ? CSK_constexpr
-                                                   : CSK_unspecified);
+  func_decl->setConstexprKind(isConstexprSpecified
+                                  ? ConstexprSpecKind::Constexpr
+                                  : ConstexprSpecKind::Unspecified);
   SetOwningModule(func_decl, owning_module);
   if (func_decl)
     decl_ctx->addDecl(func_decl);
@@ -6540,8 +6556,10 @@ size_t TypeSystemClang::GetIndexOfChildMemberWithName(
           if (cxx_record_decl->lookupInBases(
                   [decl_name](const clang::CXXBaseSpecifier *specifier,
                               clang::CXXBasePath &path) {
-                    return clang::CXXRecordDecl::FindOrdinaryMember(
-                        specifier, path, decl_name);
+                    path.Decls =
+                        specifier->getType()->getAsCXXRecordDecl()->lookup(
+                            decl_name);
+                    return !path.Decls.empty();
                   },
                   paths)) {
             clang::CXXBasePaths::const_paths_iterator path,
@@ -7425,7 +7443,7 @@ clang::CXXMethodDecl *TypeSystemClang::AddMethodToCXXRecordType(
     cxx_dtor_decl->setType(method_qual_type);
     cxx_dtor_decl->setImplicit(is_artificial);
     cxx_dtor_decl->setInlineSpecified(is_inline);
-    cxx_dtor_decl->setConstexprKind(CSK_unspecified);
+    cxx_dtor_decl->setConstexprKind(ConstexprSpecKind::Unspecified);
     cxx_method_decl = cxx_dtor_decl;
   } else if (decl_name == cxx_record_decl->getDeclName()) {
     cxx_ctor_decl = clang::CXXConstructorDecl::CreateDeserialized(
@@ -7437,7 +7455,7 @@ clang::CXXMethodDecl *TypeSystemClang::AddMethodToCXXRecordType(
     cxx_ctor_decl->setType(method_qual_type);
     cxx_ctor_decl->setImplicit(is_artificial);
     cxx_ctor_decl->setInlineSpecified(is_inline);
-    cxx_ctor_decl->setConstexprKind(CSK_unspecified);
+    cxx_ctor_decl->setConstexprKind(ConstexprSpecKind::Unspecified);
     cxx_ctor_decl->setNumCtorInitializers(0);
     cxx_ctor_decl->setExplicitSpecifier(explicit_spec);
     cxx_method_decl = cxx_ctor_decl;
@@ -7463,7 +7481,7 @@ clang::CXXMethodDecl *TypeSystemClang::AddMethodToCXXRecordType(
         cxx_method_decl->setType(method_qual_type);
         cxx_method_decl->setStorageClass(SC);
         cxx_method_decl->setInlineSpecified(is_inline);
-        cxx_method_decl->setConstexprKind(CSK_unspecified);
+        cxx_method_decl->setConstexprKind(ConstexprSpecKind::Unspecified);
       } else if (num_params == 0) {
         // Conversion operators don't take params...
         auto *cxx_conversion_decl =
@@ -7476,7 +7494,7 @@ clang::CXXMethodDecl *TypeSystemClang::AddMethodToCXXRecordType(
         cxx_conversion_decl->setType(method_qual_type);
         cxx_conversion_decl->setInlineSpecified(is_inline);
         cxx_conversion_decl->setExplicitSpecifier(explicit_spec);
-        cxx_conversion_decl->setConstexprKind(CSK_unspecified);
+        cxx_conversion_decl->setConstexprKind(ConstexprSpecKind::Unspecified);
         cxx_method_decl = cxx_conversion_decl;
       }
     }
@@ -7489,7 +7507,7 @@ clang::CXXMethodDecl *TypeSystemClang::AddMethodToCXXRecordType(
       cxx_method_decl->setType(method_qual_type);
       cxx_method_decl->setInlineSpecified(is_inline);
       cxx_method_decl->setStorageClass(SC);
-      cxx_method_decl->setConstexprKind(CSK_unspecified);
+      cxx_method_decl->setConstexprKind(ConstexprSpecKind::Unspecified);
     }
   }
   SetMemberOwningModule(cxx_method_decl, cxx_record_decl);

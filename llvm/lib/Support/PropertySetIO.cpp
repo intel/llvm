@@ -182,8 +182,7 @@ PropertyValue &PropertyValue::operator=(PropertyValue &&P) {
 
 PropertyValue &PropertyValue::operator=(const PropertyValue &P) {
   if (P.getType() == BYTE_ARRAY)
-    *this =
-        std::move(PropertyValue(P.asByteArray(), P.getByteArraySizeInBits()));
+    *this = PropertyValue(P.asByteArray(), P.getByteArraySizeInBits());
   else
     copy(P);
   return *this;
@@ -197,6 +196,7 @@ void PropertyValue::copy(const PropertyValue &P) {
 constexpr char PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS[];
 constexpr char PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK[];
 constexpr char PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO[];
+constexpr char PropertySetRegistry::SYCL_COMPOSITE_SPECIALIZATION_CONSTANTS[];
 
 } // namespace util
 } // namespace llvm

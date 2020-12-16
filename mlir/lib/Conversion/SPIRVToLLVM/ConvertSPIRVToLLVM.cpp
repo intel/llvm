@@ -18,7 +18,7 @@
 #include "mlir/Dialect/SPIRV/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/SPIRVOps.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -712,8 +712,8 @@ public:
 
 /// Converts `spv.globalVariable` to `llvm.mlir.global`. Note that SPIR-V global
 /// returns a pointer, whereas in LLVM dialect the global holds an actual value.
-/// This difference is handled by `spv._address_of` and `llvm.mlir.addressof`ops
-/// that both return a pointer.
+/// This difference is handled by `spv.mlir.addressof` and
+/// `llvm.mlir.addressof`ops that both return a pointer.
 class GlobalVariablePattern
     : public SPIRVToLLVMConversion<spirv::GlobalVariableOp> {
 public:

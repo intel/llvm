@@ -816,7 +816,7 @@ class KernelObjVisitor {
   template <typename... Tn>
   bool handleField(FieldDecl *FD, QualType FDTy, Tn &&... tn) {
     bool result = true;
-    std::initializer_list<int>{(result = result && tn(FD, FDTy), 0)...};
+    (void)std::initializer_list<int>{(result = result && tn(FD, FDTy), 0)...};
     return result;
   }
   template <typename... Tn>
@@ -3013,6 +3013,7 @@ public:
 
   void VisitTemplateTemplateArgument(const TemplateArgument &TA) {
     TemplateDecl *TD = TA.getAsTemplate().getAsTemplateDecl();
+    assert(TD && "template declaration must be available");
     TemplateParameterList *TemplateParams = TD->getTemplateParameters();
     for (NamedDecl *P : *TemplateParams) {
       if (NonTypeTemplateParmDecl *TemplateParam =
@@ -3594,6 +3595,7 @@ public:
     // template class Foo specialized by class Baz<Bar>, not a template
     // class template <template <typename> class> class T as it should.
     TemplateDecl *TD = TA.getAsTemplate().getAsTemplateDecl();
+    assert(TD && "template declaration must be available");
     TemplateParameterList *TemplateParams = TD->getTemplateParameters();
     for (NamedDecl *P : *TemplateParams) {
       // If template template parameter type has an enum value template
@@ -3755,8 +3757,14 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   PrintingPolicy Policy(LO);
   Policy.SuppressTypedefs = true;
   Policy.SuppressUnwrittenScope = true;
+  SYCLFwdDeclEmitter FwdDeclEmitter(O, S.getLangOpts());
 
   if (SpecConsts.size() > 0) {
+    O << "// Forward declarations of templated spec constant types:\n";
+    for (const auto &SC : SpecConsts)
+      FwdDeclEmitter.Visit(SC.first);
+    O << "\n";
+
     // Remove duplicates.
     std::sort(SpecConsts.begin(), SpecConsts.end(),
               [](const SpecConstID &SC1, const SpecConstID &SC2) {
@@ -3770,10 +3778,12 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
                       // Here can do faster comparison of types.
                       return SC1.first == SC2.first;
                     });
+
     O << "// Specialization constants IDs:\n";
     for (const auto &P : llvm::make_range(SpecConsts.begin(), End)) {
       O << "template <> struct sycl::detail::SpecConstantInfo<";
-      O << P.first.getAsString(Policy);
+      SYCLKernelNameTypePrinter Printer(O, Policy);
+      Printer.Visit(P.first);
       O << "> {\n";
       O << "  static constexpr const char* getName() {\n";
       O << "    return \"" << P.second << "\";\n";
@@ -3784,8 +3794,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   if (!UnnamedLambdaSupport) {
     O << "// Forward declarations of templated kernel function types:\n";
-
-    SYCLFwdDeclEmitter FwdDeclEmitter(O, S.getLangOpts());
     for (const KernelDesc &K : KernelDescs)
       FwdDeclEmitter.Visit(K.NameType);
   }

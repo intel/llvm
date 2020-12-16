@@ -49,13 +49,14 @@ using namespace llvm;
 //                            AllocaInst Class
 //===----------------------------------------------------------------------===//
 
-Optional<uint64_t>
+Optional<TypeSize>
 AllocaInst::getAllocationSizeInBits(const DataLayout &DL) const {
-  uint64_t Size = DL.getTypeAllocSizeInBits(getAllocatedType());
+  TypeSize Size = DL.getTypeAllocSizeInBits(getAllocatedType());
   if (isArrayAllocation()) {
     auto *C = dyn_cast<ConstantInt>(getArraySize());
     if (!C)
       return None;
+    assert(!Size.isScalable() && "Array elements cannot have a scalable size");
     Size *= C->getZExtValue();
   }
   return Size;
@@ -560,8 +561,9 @@ void CallInst::updateProfWeight(uint64_t S, uint64_t T) {
                        ->getValue()
                        .getZExtValue());
     Val *= APS;
-    Vals.push_back(MDB.createConstant(ConstantInt::get(
-        Type::getInt64Ty(getContext()), Val.udiv(APT).getLimitedValue())));
+    Vals.push_back(MDB.createConstant(
+        ConstantInt::get(Type::getInt32Ty(getContext()),
+                         Val.udiv(APT).getLimitedValue(UINT32_MAX))));
   } else if (ProfDataName->getString().equals("VP"))
     for (unsigned i = 1; i < ProfileData->getNumOperands(); i += 2) {
       // The first value is the key of the value profile, which will not change.
@@ -2225,6 +2227,12 @@ bool ShuffleVectorInst::isExtractSubvectorMask(ArrayRef<int> Mask,
 bool ShuffleVectorInst::isIdentityWithPadding() const {
   if (isa<UndefValue>(Op<2>()))
     return false;
+
+  // FIXME: Not currently possible to express a shuffle mask for a scalable
+  // vector for this case.
+  if (isa<ScalableVectorType>(getType()))
+    return false;
+
   int NumOpElts = cast<FixedVectorType>(Op<0>()->getType())->getNumElements();
   int NumMaskElts = cast<FixedVectorType>(getType())->getNumElements();
   if (NumMaskElts <= NumOpElts)
@@ -2248,7 +2256,7 @@ bool ShuffleVectorInst::isIdentityWithExtract() const {
     return false;
 
   // FIXME: Not currently possible to express a shuffle mask for a scalable
-  // vector for this case
+  // vector for this case.
   if (isa<ScalableVectorType>(getType()))
     return false;
 

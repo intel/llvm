@@ -61,8 +61,9 @@ const AbstractOperation *OperationName::getAbstractOperation() const {
   return representation.dyn_cast<const AbstractOperation *>();
 }
 
-OperationName OperationName::getFromOpaquePointer(void *pointer) {
-  return OperationName(RepresentationUnion::getFromOpaqueValue(pointer));
+OperationName OperationName::getFromOpaquePointer(const void *pointer) {
+  return OperationName(
+      RepresentationUnion::getFromOpaqueValue(const_cast<void *>(pointer)));
 }
 
 //===----------------------------------------------------------------------===//
@@ -167,6 +168,8 @@ Operation::Operation(Location location, OperationName name,
     : location(location), numSuccs(numSuccessors), numRegions(numRegions),
       hasOperandStorage(hasOperandStorage), hasSingleResult(false), name(name),
       attrs(attributes) {
+  assert(llvm::all_of(resultTypes, [](Type t) { return t; }) &&
+         "unexpected null result type");
   if (!resultTypes.empty()) {
     // If there is a single result it is stored in-place, otherwise use a tuple.
     hasSingleResult = resultTypes.size() == 1;
@@ -480,6 +483,12 @@ void Operation::erase() {
     parent->getOperations().erase(this);
   else
     destroy();
+}
+
+/// Remove the operation from its parent block, but don't delete it.
+void Operation::remove() {
+  if (Block *parent = getBlock())
+    parent->getOperations().remove(this);
 }
 
 /// Unlink this operation from its current block and insert it right before

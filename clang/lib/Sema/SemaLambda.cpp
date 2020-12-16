@@ -233,7 +233,7 @@ getGenericLambdaTemplateParameterList(LambdaScopeInfo *LSI, Sema &SemaRef) {
         /*L angle loc*/ LSI->ExplicitTemplateParamsRange.getBegin(),
         LSI->TemplateParams,
         /*R angle loc*/LSI->ExplicitTemplateParamsRange.getEnd(),
-        nullptr);
+        LSI->RequiresClause.get());
   }
   return LSI->GLTemplateParameterList;
 }
@@ -520,7 +520,8 @@ void Sema::finishLambdaExplicitCaptures(LambdaScopeInfo *LSI) {
 
 void Sema::ActOnLambdaExplicitTemplateParameterList(SourceLocation LAngleLoc,
                                                     ArrayRef<NamedDecl *> TParams,
-                                                    SourceLocation RAngleLoc) {
+                                                    SourceLocation RAngleLoc,
+                                                    ExprResult RequiresClause) {
   LambdaScopeInfo *LSI = getCurLambda();
   assert(LSI && "Expected a lambda scope");
   assert(LSI->NumExplicitTemplateParams == 0 &&
@@ -533,6 +534,7 @@ void Sema::ActOnLambdaExplicitTemplateParameterList(SourceLocation LAngleLoc,
   LSI->TemplateParams.append(TParams.begin(), TParams.end());
   LSI->NumExplicitTemplateParams = TParams.size();
   LSI->ExplicitTemplateParamsRange = {LAngleLoc, RAngleLoc};
+  LSI->RequiresClause = RequiresClause;
 }
 
 void Sema::addLambdaParameters(
@@ -1439,7 +1441,8 @@ static void addFunctionPointerConversion(Sema &S, SourceRange IntroducerRange,
       S.Context, Class, Loc,
       DeclarationNameInfo(ConversionName, Loc, ConvNameLoc), ConvTy, ConvTSI,
       /*isInline=*/true, ExplicitSpecifier(),
-      S.getLangOpts().CPlusPlus17 ? CSK_constexpr : CSK_unspecified,
+      S.getLangOpts().CPlusPlus17 ? ConstexprSpecKind::Constexpr
+                                  : ConstexprSpecKind::Unspecified,
       CallOperator->getBody()->getEndLoc());
   Conversion->setAccess(AS_public);
   Conversion->setImplicit(true);
@@ -1478,7 +1481,8 @@ static void addFunctionPointerConversion(Sema &S, SourceRange IntroducerRange,
   CXXMethodDecl *Invoke = CXXMethodDecl::Create(
       S.Context, Class, Loc, DeclarationNameInfo(InvokerName, Loc),
       InvokerFunctionTy, CallOperator->getTypeSourceInfo(), SC_Static,
-      /*isInline=*/true, CSK_unspecified, CallOperator->getBody()->getEndLoc());
+      /*isInline=*/true, ConstexprSpecKind::Unspecified,
+      CallOperator->getBody()->getEndLoc());
   for (unsigned I = 0, N = CallOperator->getNumParams(); I != N; ++I)
     InvokerParams[I]->setOwningFunction(Invoke);
   Invoke->setParams(InvokerParams);
@@ -1545,7 +1549,7 @@ static void addBlockPointerConversion(Sema &S,
   CXXConversionDecl *Conversion = CXXConversionDecl::Create(
       S.Context, Class, Loc, DeclarationNameInfo(Name, Loc, NameLoc), ConvTy,
       S.Context.getTrivialTypeSourceInfo(ConvTy, Loc),
-      /*isInline=*/true, ExplicitSpecifier(), CSK_unspecified,
+      /*isInline=*/true, ExplicitSpecifier(), ConstexprSpecKind::Unspecified,
       CallOperator->getBody()->getEndLoc());
   Conversion->setAccess(AS_public);
   Conversion->setImplicit(true);
@@ -1909,8 +1913,8 @@ ExprResult Sema::BuildLambdaExpr(SourceLocation StartLoc, SourceLocation EndLoc,
     CallOperator->setConstexprKind(
         CheckConstexprFunctionDefinition(CallOperator,
                                          CheckConstexprKind::CheckValid)
-            ? CSK_constexpr
-            : CSK_unspecified);
+            ? ConstexprSpecKind::Constexpr
+            : ConstexprSpecKind::Unspecified);
   }
 
   // Emit delayed shadowing warnings now that the full capture list is known.

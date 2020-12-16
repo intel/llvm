@@ -42,8 +42,6 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/MemoryLocation.h"
-#include "llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
@@ -59,6 +57,7 @@ class AnalysisUsage;
 class BasicAAResult;
 class BasicBlock;
 class DominatorTree;
+class Function;
 class Value;
 
 /// The possible results of an alias query.
@@ -407,7 +406,8 @@ public:
 
   /// A convenience wrapper around the primary \c alias interface.
   AliasResult alias(const Value *V1, const Value *V2) {
-    return alias(V1, LocationSize::unknown(), V2, LocationSize::unknown());
+    return alias(MemoryLocation::getBeforeOrAfter(V1),
+                 MemoryLocation::getBeforeOrAfter(V2));
   }
 
   /// A trivial helper function to check to see if the specified pointers are
@@ -424,7 +424,8 @@ public:
 
   /// A convenience wrapper around the \c isNoAlias helper interface.
   bool isNoAlias(const Value *V1, const Value *V2) {
-    return isNoAlias(MemoryLocation(V1), MemoryLocation(V2));
+    return isNoAlias(MemoryLocation::getBeforeOrAfter(V1),
+                     MemoryLocation::getBeforeOrAfter(V2));
   }
 
   /// A trivial helper function to check to see if the specified pointers are
@@ -446,7 +447,7 @@ public:
   /// A convenience wrapper around the primary \c pointsToConstantMemory
   /// interface.
   bool pointsToConstantMemory(const Value *P, bool OrLocal = false) {
-    return pointsToConstantMemory(MemoryLocation(P), OrLocal);
+    return pointsToConstantMemory(MemoryLocation::getBeforeOrAfter(P), OrLocal);
   }
 
   /// @}
@@ -1170,12 +1171,7 @@ public:
     ResultGetters.push_back(&getModuleAAResultImpl<AnalysisT>);
   }
 
-  Result run(Function &F, FunctionAnalysisManager &AM) {
-    Result R(AM.getResult<TargetLibraryAnalysis>(F));
-    for (auto &Getter : ResultGetters)
-      (*Getter)(F, AM, R);
-    return R;
-  }
+  Result run(Function &F, FunctionAnalysisManager &AM);
 
 private:
   friend AnalysisInfoMixin<AAManager>;

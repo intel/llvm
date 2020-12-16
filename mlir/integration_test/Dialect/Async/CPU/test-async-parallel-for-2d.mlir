@@ -1,4 +1,5 @@
 // RUN:   mlir-opt %s -async-parallel-for                                      \
+// RUN:               -async-ref-counting                                      \
 // RUN:               -convert-async-to-llvm                                   \
 // RUN:               -convert-scf-to-std                                      \
 // RUN:               -convert-std-to-llvm                                     \
@@ -90,4 +91,4 @@ func @entry() {
   return
 }
 
-func @print_memref_f32(memref<*xf32>) attributes { llvm.emit_c_interface }
+func private @print_memref_f32(memref<*xf32>) attributes { llvm.emit_c_interface }

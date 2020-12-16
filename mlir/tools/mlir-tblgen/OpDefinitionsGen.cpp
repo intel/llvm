@@ -137,7 +137,7 @@ static std::string replaceAllSubstrs(std::string str, const std::string &match,
 static inline bool hasStringAttribute(const Record &record,
                                       StringRef fieldName) {
   auto valueInit = record.getValueInit(fieldName);
-  return isa<CodeInit, StringInit>(valueInit);
+  return isa<StringInit>(valueInit);
 }
 
 static std::string getArgumentName(const Operator &op, int index) {
@@ -453,10 +453,10 @@ OpEmitter::OpEmitter(const Operator &op)
   genVerifier();
   genCanonicalizerDecls();
   genFolderDecls();
+  genTypeInterfaceMethods();
   genOpInterfaceMethods();
   generateOpFormat(op, opClass);
   genSideEffectInterfaceMethods();
-  genTypeInterfaceMethods();
 }
 
 void OpEmitter::emitDecl(const Operator &op, raw_ostream &os) {
@@ -1627,12 +1627,12 @@ void OpEmitter::genOpInterfaceMethods() {
 }
 
 void OpEmitter::genSideEffectInterfaceMethods() {
-  enum EffectKind { Operand, Result, Static };
+  enum EffectKind { Operand, Result, Symbol, Static };
   struct EffectLocation {
     /// The effect applied.
     SideEffect effect;
 
-    /// The index if the kind is either operand or result.
+    /// The index if the kind is not static.
     unsigned index : 30;
 
     /// The kind of the location.
@@ -1661,16 +1661,28 @@ void OpEmitter::genSideEffectInterfaceMethods() {
       effects.push_back(EffectLocation{cast<SideEffect>(decorator),
                                        /*index=*/0, EffectKind::Static});
   }
-  /// Operands.
+  /// Attributes and Operands.
   for (unsigned i = 0, operandIt = 0, e = op.getNumArgs(); i != e; ++i) {
-    if (op.getArg(i).is<NamedTypeConstraint *>()) {
+    Argument arg = op.getArg(i);
+    if (arg.is<NamedTypeConstraint *>()) {
       resolveDecorators(op.getArgDecorators(i), operandIt, EffectKind::Operand);
       ++operandIt;
+      continue;
     }
+    const NamedAttribute *attr = arg.get<NamedAttribute *>();
+    if (attr->attr.getBaseAttr().isSymbolRefAttr())
+      resolveDecorators(op.getArgDecorators(i), i, EffectKind::Symbol);
   }
   /// Results.
   for (unsigned i = 0, e = op.getNumResults(); i != e; ++i)
     resolveDecorators(op.getResultDecorators(i), i, EffectKind::Result);
+
+  // The code used to add an effect instance.
+  // {0}: The effect class.
+  // {1}: Optional value or symbol reference.
+  // {1}: The resource class.
+  const char *addEffectCode =
+      "  effects.emplace_back({0}::get(), {1}{2}::get());\n";
 
   for (auto &it : interfaceEffects) {
     // Generate the 'getEffects' method.
@@ -1684,19 +1696,30 @@ void OpEmitter::genSideEffectInterfaceMethods() {
 
     // Add effect instances for each of the locations marked on the operation.
     for (auto &location : it.second) {
-      if (location.kind != EffectKind::Static) {
+      StringRef effect = location.effect.getName();
+      StringRef resource = location.effect.getResource();
+      if (location.kind == EffectKind::Static) {
+        // A static instance has no attached value.
+        body << llvm::formatv(addEffectCode, effect, "", resource).str();
+      } else if (location.kind == EffectKind::Symbol) {
+        // A symbol reference requires adding the proper attribute.
+        const auto *attr = op.getArg(location.index).get<NamedAttribute *>();
+        if (attr->attr.isOptional()) {
+          body << "  if (auto symbolRef = " << attr->name << "Attr())\n  "
+               << llvm::formatv(addEffectCode, effect, "symbolRef, ", resource)
+                      .str();
+        } else {
+          body << llvm::formatv(addEffectCode, effect, attr->name + "(), ",
+                                resource)
+                      .str();
+        }
+      } else {
+        // Otherwise this is an operand/result, so we need to attach the Value.
         body << "  for (::mlir::Value value : getODS"
              << (location.kind == EffectKind::Operand ? "Operands" : "Results")
-             << "(" << location.index << "))\n  ";
+             << "(" << location.index << "))\n  "
+             << llvm::formatv(addEffectCode, effect, "value, ", resource).str();
       }
-
-      body << "  effects.emplace_back(" << location.effect.getName()
-           << "::get()";
-
-      // If the effect isn't static, it has a specific value attached to it.
-      if (location.kind != EffectKind::Static)
-        body << ", value";
-      body << ", " << location.effect.getResource() << "::get());\n";
     }
   }
 }
@@ -1716,7 +1739,6 @@ void OpEmitter::genTypeInterfaceMethods() {
   auto *method =
       opClass.addMethodAndPrune("::mlir::LogicalResult", "inferReturnTypes",
                                 OpMethod::MP_Static, std::move(paramList));
-
   auto &body = method->body();
   body << "  inferredReturnTypes.resize(" << op.getNumResults() << ");\n";
 
@@ -1774,15 +1796,15 @@ void OpEmitter::genPrinter() {
     return;
 
   auto valueInit = def.getValueInit("printer");
-  CodeInit *codeInit = dyn_cast<CodeInit>(valueInit);
-  if (!codeInit)
+  StringInit *stringInit = dyn_cast<StringInit>(valueInit);
+  if (!stringInit)
     return;
 
   auto *method =
       opClass.addMethodAndPrune("void", "print", "::mlir::OpAsmPrinter &", "p");
   FmtContext fctx;
   fctx.addSubst("cppClass", opClass.getClassName());
-  auto printer = codeInit->getValue().ltrim().rtrim(" \t\v\f\r");
+  auto printer = stringInit->getValue().ltrim().rtrim(" \t\v\f\r");
   method->body() << "  " << tgfmt(printer, &fctx);
 }
 
@@ -1794,8 +1816,8 @@ void OpEmitter::genVerifier() {
        << "return ::mlir::failure();\n";
 
   auto *valueInit = def.getValueInit("verifier");
-  CodeInit *codeInit = dyn_cast<CodeInit>(valueInit);
-  bool hasCustomVerify = codeInit && !codeInit->getValue().empty();
+  StringInit *stringInit = dyn_cast<StringInit>(valueInit);
+  bool hasCustomVerify = stringInit && !stringInit->getValue().empty();
   populateSubstitutions(op, "this->getAttr", "this->getODSOperands",
                         "this->getODSResults", verifyCtx);
 
@@ -1819,7 +1841,7 @@ void OpEmitter::genVerifier() {
   if (hasCustomVerify) {
     FmtContext fctx;
     fctx.addSubst("cppClass", opClass.getClassName());
-    auto printer = codeInit->getValue().ltrim().rtrim(" \t\v\f\r");
+    auto printer = stringInit->getValue().ltrim().rtrim(" \t\v\f\r");
     body << "  " << tgfmt(printer, &fctx);
   } else {
     body << "  return ::mlir::success();\n";
@@ -2116,10 +2138,8 @@ OpOperandAdaptorEmitter::OpOperandAdaptorEmitter(const Operator &op)
   {
     auto *constructor = adaptor.addConstructorAndPrune(
         llvm::formatv("{0}&", op.getCppClassName()).str(), "op");
-    constructor->addMemberInitializer("odsOperands",
-                                      "op.getOperation()->getOperands()");
-    constructor->addMemberInitializer("odsAttrs",
-                                      "op.getOperation()->getAttrDictionary()");
+    constructor->addMemberInitializer("odsOperands", "op->getOperands()");
+    constructor->addMemberInitializer("odsAttrs", "op->getAttrDictionary()");
   }
 
   std::string sizeAttrInit =

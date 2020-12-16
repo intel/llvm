@@ -259,6 +259,9 @@ public:
                                              SPIRVBasicBlock *) override;
   SPIRVValue *addCompositeConstant(SPIRVType *,
                                    const std::vector<SPIRVValue *> &) override;
+  SPIRVValue *
+  addSpecConstantComposite(SPIRVType *Ty,
+                           const std::vector<SPIRVValue *> &Elements) override;
   SPIRVValue *addConstFunctionPointerINTEL(SPIRVType *Ty,
                                            SPIRVFunction *F) override;
   SPIRVValue *addConstant(SPIRVValue *) override;
@@ -1069,6 +1072,12 @@ SPIRVValue *SPIRVModuleImpl::addCompositeConstant(
   return addConstant(new SPIRVConstantComposite(this, Ty, getId(), Elements));
 }
 
+SPIRVValue *SPIRVModuleImpl::addSpecConstantComposite(
+    SPIRVType *Ty, const std::vector<SPIRVValue *> &Elements) {
+  return addConstant(
+      new SPIRVSpecConstantComposite(this, Ty, getId(), Elements));
+}
+
 SPIRVValue *SPIRVModuleImpl::addConstFunctionPointerINTEL(SPIRVType *Ty,
                                                           SPIRVFunction *F) {
   return addConstant(new SPIRVConstFunctionPointerINTEL(getId(), Ty, F, this));
@@ -1516,7 +1525,7 @@ SPIRVInstruction *SPIRVModuleImpl::addExpectINTELInst(SPIRVType *ResultTy,
                                                       SPIRVValue *ExpectedValue,
                                                       SPIRVBasicBlock *BB) {
   return addInstruction(SPIRVInstTemplateBase::create(
-                            OpExpectINTEL, ResultTy, getId(),
+                            internal::OpExpectINTEL, ResultTy, getId(),
                             getVec(Value->getId(), ExpectedValue->getId()), BB,
                             this),
                         BB);

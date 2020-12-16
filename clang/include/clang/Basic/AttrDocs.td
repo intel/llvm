@@ -79,7 +79,7 @@ relative ordering of values is important. For example:
 initialization being the opposite.
 
 This attribute is only supported for C++ and Objective-C++ and is ignored in
-other language modes.
+other language modes. Currently, this attribute is not implemented on z/OS.
   }];
 }
 
@@ -4595,10 +4595,6 @@ option.
     foo (int x); // stack protection will be disabled for foo.
 
     int bar(int y); // bar can be built with the stack protector.
-
-A callee that has a stack protector will not be inlined into a
-``__attribute__((no_stack_protector))`` caller, and vice-versa, even if the
-callee is marked ``__attribute__((always_inline))``.
 
     }];
 }
