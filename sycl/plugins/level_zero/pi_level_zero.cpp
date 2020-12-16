@@ -384,8 +384,8 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *CallStr,
   return ZeResult;
 }
 
-#define PI_ASSERT(condition, error)       \
-  if (!(condition))                         \
+#define PI_ASSERT(condition, error)                                            \
+  if (!(condition))                                                            \
     return error;
 #define ZE_CALL(Call)                                                          \
   if (auto Result = ZeCall().doCall(Call, #Call, true))                        \
@@ -1861,8 +1861,9 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
 
   // Check that unexpected bits are not set.
   PI_ASSERT(!(Properties & ~(PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
-                          PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_ON_DEVICE |
-                          PI_QUEUE_ON_DEVICE_DEFAULT)), PI_INVALID_VALUE);
+                             PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_ON_DEVICE |
+                             PI_QUEUE_ON_DEVICE_DEFAULT)),
+            PI_INVALID_VALUE);
 
   ze_device_handle_t ZeDevice;
   ze_command_queue_handle_t ZeCommandQueue;
@@ -2130,7 +2131,7 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
                            pi_mem *RetImage) {
 
   // TODO: implement read-only, write-only
-  if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) { 
+  if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
     die("piMemImageCreate: Level-Zero implements only read-write buffer,"
         "no read-only or write-only yet.");
   }
@@ -2411,8 +2412,8 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
       SzBinary = Program->CodeLength;
     } else {
       PI_ASSERT(Program->State == _pi_program::Object ||
-                Program->State == _pi_program::Exe ||
-                Program->State == _pi_program::LinkedExe,
+                    Program->State == _pi_program::Exe ||
+                    Program->State == _pi_program::LinkedExe,
                 PI_INVALID_OPERATION);
 
       // If the program is in LinkedExe state it may contain several modules.
@@ -2426,7 +2427,7 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
       if (ModIt.Done()) {
         return PI_INVALID_VALUE;
       }
-  
+
       if (ModIt.Count() > 1) {
         die("piProgramGetInfo: PI_PROGRAM_INFO_BINARY_SIZES not implemented "
             "for linked programs");
@@ -2449,15 +2450,15 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
       std::memcpy(PBinary[0], Program->Code.get(), Program->CodeLength);
     } else {
       PI_ASSERT(Program->State == _pi_program::Object ||
-                Program->State == _pi_program::Exe ||
-                Program->State == _pi_program::LinkedExe,
+                    Program->State == _pi_program::Exe ||
+                    Program->State == _pi_program::LinkedExe,
                 PI_INVALID_OPERATION);
 
       _pi_program::ModuleIterator ModIt(Program);
       if (ModIt.Done()) {
         return PI_INVALID_VALUE;
       }
-  
+
       if (ModIt.Count() > 1) {
         die("piProgramGetInfo: PI_PROGRAM_INFO_BINARIES not implemented for "
             "linked programs");
@@ -2477,7 +2478,7 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
       return PI_INVALID_OPERATION;
     } else {
       PI_ASSERT(Program->State == _pi_program::Exe ||
-                Program->State == _pi_program::LinkedExe,
+                    Program->State == _pi_program::LinkedExe,
                 PI_INVALID_OPERATION);
 
       NumKernels = 0;
@@ -2505,7 +2506,7 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
           // CL_INVALID_PROGRAM_EXECUTABLE, but there is no
           // corresponding PI error code.
         PI_ASSERT(Program->State == _pi_program::Exe ||
-                  Program->State == _pi_program::LinkedExe,
+                    Program->State == _pi_program::LinkedExe,
                   PI_INVALID_OPERATION);
 
         bool First = true;
@@ -4178,7 +4179,8 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
                                           ZeEventWaitList));
 
   // Pattern size must be a power of two
-  PI_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0), PI_INVALID_VALUE);
+  PI_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
+            PI_INVALID_VALUE);
 
   ZE_CALL(zeCommandListAppendMemoryFill(
       ZeCommandList, Ptr, Pattern, PatternSize, Size, ZeEvent, 0, nullptr));
@@ -4231,8 +4233,8 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
                                 void **RetMap) {
 
   // TODO: we don't implement read-only or write-only, always read-write.
-  //assert((map_flags & CL_MAP_READ) != 0);
-  //assert((map_flags & CL_MAP_WRITE) != 0);
+  // assert((map_flags & CL_MAP_READ) != 0);
+  // assert((map_flags & CL_MAP_WRITE) != 0);
   PI_ASSERT(Buffer, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
@@ -4427,10 +4429,9 @@ pi_result piMemImageGetInfo(pi_mem Image, pi_image_info ParamName,
 
 } // extern "C"
 
-static pi_result getImageRegionHelper(pi_mem Mem,
-                                              pi_image_offset Origin,
-                                              pi_image_region Region,
-                                              ze_image_region_t& ZeRegion) {
+static pi_result getImageRegionHelper(pi_mem Mem, pi_image_offset Origin,
+                                      pi_image_region Region,
+                                      ze_image_region_t& ZeRegion) {
 
   PI_ASSERT(Mem && Mem->isImage(), PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Origin, PI_INVALID_VALUE);
@@ -4441,26 +4442,29 @@ static pi_result getImageRegionHelper(pi_mem Mem,
 
   PI_ASSERT((ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Origin->y == 0 &&
             Origin->z == 0) ||
-            (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Origin->z == 0) ||
-            (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Origin->z == 0) ||
-            (ZeImageDesc.type == ZE_IMAGE_TYPE_3D), PI_INVALID_VALUE);
+               (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Origin->z == 0) ||
+               (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Origin->z == 0) ||
+               (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
+               PI_INVALID_VALUE);
 
   uint32_t OriginX = pi_cast<uint32_t>(Origin->x);
   uint32_t OriginY = pi_cast<uint32_t>(Origin->y);
   uint32_t OriginZ = pi_cast<uint32_t>(Origin->z);
 
   PI_ASSERT(Region->width && Region->height && Region->depth, PI_INVALID_VALUE);
-  PI_ASSERT((ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Region->height == 1 &&
-            Region->depth == 1) ||
-            (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Region->depth == 1) ||
-            (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Region->depth == 1) ||
-            (ZeImageDesc.type == ZE_IMAGE_TYPE_3D), PI_INVALID_VALUE);
+  PI_ASSERT(
+      (ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Region->height == 1 &&
+      Region->depth == 1) ||
+        (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Region->depth == 1) ||
+        (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Region->depth == 1) ||
+        (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
+      PI_INVALID_VALUE);
 
   uint32_t Width = pi_cast<uint32_t>(Region->width);
   uint32_t Height = pi_cast<uint32_t>(Region->height);
   uint32_t Depth = pi_cast<uint32_t>(Region->depth);
 
-  ZeRegion = {OriginX, OriginY, OriginZ, Width, Height,  Depth};
+  ZeRegion = {OriginX, OriginY, OriginZ, Width, Height, Depth};
 
   return PI_SUCCESS;
 }
@@ -4511,21 +4515,23 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
     if (Result != PI_SUCCESS)
       return Result;
 
-    // TODO: Level Zero does not support row_pitch/slice_pitch for images yet.
-    // Check that SYCL RT did not want pitch larger than default.
+      // TODO: Level Zero does not support row_pitch/slice_pitch for images yet.
+      // Check that SYCL RT did not want pitch larger than default.
 #ifndef NDEBUG
     PI_ASSERT(SrcMem->isImage(), PI_INVALID_MEM_OBJECT);
 
     auto SrcImage = static_cast<_pi_image *>(SrcMem);
     const ze_image_desc_t &ZeImageDesc = SrcImage->ZeImageDesc;
-    PI_ASSERT(RowPitch == 0 ||
-              // special case RGBA image pitch equal to region's width
-              (ZeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_32_32_32_32 &&
-              RowPitch == 4 * 4 * ZeSrcRegion.width) ||
-              (ZeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_16_16_16_16 &&
-              RowPitch == 4 * 2 * ZeSrcRegion.width) ||
-              (ZeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_8_8_8_8 &&
-              RowPitch == 4 * ZeSrcRegion.width), PI_INVALID_IMAGE_SIZE);
+    PI_ASSERT(
+        RowPitch == 0 ||
+            // special case RGBA image pitch equal to region's width
+            (ZeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_32_32_32_32 &&
+            RowPitch == 4 * 4 * ZeSrcRegion.width) ||
+            (ZeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_16_16_16_16 &&
+            RowPitch == 4 * 2 * ZeSrcRegion.width) ||
+            (ZeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_8_8_8_8 &&
+            RowPitch == 4 * ZeSrcRegion.width),
+        PI_INVALID_IMAGE_SIZE);
     PI_ASSERT(SlicePitch == 0 || SlicePitch == RowPitch * ZeSrcRegion.height,
               PI_INVALID_IMAGE_SIZE);
 #endif // !NDEBUG
@@ -4540,21 +4546,23 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
     if (Result != PI_SUCCESS)
       return Result;
 
-    // TODO: Level Zero does not support row_pitch/slice_pitch for images yet.
-    // Check that SYCL RT did not want pitch larger than default.
+      // TODO: Level Zero does not support row_pitch/slice_pitch for images yet.
+      // Check that SYCL RT did not want pitch larger than default.
 #ifndef NDEBUG
     PI_ASSERT(DstMem->isImage(), PI_INVALID_MEM_OBJECT);
 
     auto DstImage = static_cast<_pi_image *>(DstMem);
     const ze_image_desc_t &ZeImageDesc = DstImage->ZeImageDesc;
-    PI_ASSERT(RowPitch == 0 ||
-              // special case RGBA image pitch equal to region's width
-              (ZeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_32_32_32_32 &&
-              RowPitch == 4 * 4 * ZeDstRegion.width) ||
-              (ZeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_16_16_16_16 &&
-              RowPitch == 4 * 2 * ZeDstRegion.width) ||
-              (ZeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_8_8_8_8 &&
-              RowPitch == 4 * ZeDstRegion.width), PI_INVALID_IMAGE_SIZE);
+    PI_ASSERT(
+        RowPitch == 0 ||
+            // special case RGBA image pitch equal to region's width
+            (ZeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_32_32_32_32 &&
+            RowPitch == 4 * 4 * ZeDstRegion.width) ||
+            (ZeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_16_16_16_16 &&
+            RowPitch == 4 * 2 * ZeDstRegion.width) ||
+            (ZeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_8_8_8_8 &&
+            RowPitch == 4 * ZeDstRegion.width),
+        PI_INVALID_IMAGE_SIZE);
     PI_ASSERT(SlicePitch == 0 || SlicePitch == RowPitch * ZeDstRegion.height,
               PI_INVALID_IMAGE_SIZE);
 #endif // !NDEBUG
@@ -4567,7 +4575,8 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
     pi_mem DstImage = pi_cast<pi_mem>(Dst);
 
     ze_image_region_t ZeSrcRegion;
-    auto Result = getImageRegionHelper(SrcImage, SrcOrigin, Region, ZeSrcRegion);
+    auto Result =
+        getImageRegionHelper(SrcImage, SrcOrigin, Region, ZeSrcRegion);
     if (Result != PI_SUCCESS)
       return Result;
     ze_image_region_t ZeDstRegion;
@@ -4681,13 +4690,14 @@ pi_result piMemBufferPartition(pi_mem Buffer, pi_mem_flags Flags,
                                void *BufferCreateInfo, pi_mem *RetMem) {
 
   PI_ASSERT(Buffer && !Buffer->isImage() &&
-            !(static_cast<_pi_buffer *>(Buffer))->isSubBuffer(),
+                !(static_cast<_pi_buffer *>(Buffer))->isSubBuffer(),
             PI_INVALID_MEM_OBJECT);
 
   PI_ASSERT(BufferCreateType == PI_BUFFER_CREATE_TYPE_REGION &&
-            BufferCreateInfo && RetMem, PI_INVALID_VALUE);
+                BufferCreateInfo && RetMem,
+            PI_INVALID_VALUE);
 
-  if (Flags != PI_MEM_FLAGS_ACCESS_RW) { 
+  if (Flags != PI_MEM_FLAGS_ACCESS_RW) {
     die("piMemBufferPartition: Level-Zero implements only read-write buffer,"
         "no read-only or write-only yet.");
   }
@@ -4773,7 +4783,7 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
       zeMemAllocHost(Context->ZeContext, &ZeDesc, Size, Alignment, ResultPtr));
 
   PI_ASSERT(Alignment == 0 ||
-            reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
+                reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             PI_INVALID_VALUE);
 
   return PI_SUCCESS;
@@ -4805,7 +4815,7 @@ pi_result USMDeviceAllocImpl(void **ResultPtr, pi_context Context,
                            Device->ZeDevice, ResultPtr));
 
   PI_ASSERT(Alignment == 0 ||
-            reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
+                reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             PI_INVALID_VALUE);
 
   return PI_SUCCESS;
@@ -4832,7 +4842,7 @@ pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
                            Alignment, Device->ZeDevice, ResultPtr));
 
   PI_ASSERT(Alignment == 0 ||
-            reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
+                reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             PI_INVALID_VALUE);
 
   return PI_SUCCESS;
