@@ -19,7 +19,7 @@ class MyFloatConst;
 class MyDoubleConst;
 
 namespace test {
-  class MySpecConstantWithinANamespace;
+class MySpecConstantWithinANamespace;
 };
 
 int main() {
@@ -80,11 +80,11 @@ int main() {
            // CHECK-DAG: return "_ZTS13MyUInt32Const";
            f32.get() +
            // CHECK-DAG: return "_ZTS12MyFloatConst";
-           f64.get();
+           f64.get() +
            // CHECK-DAG: return "_ZTS13MyDoubleConst";
-           spec1.get();
+           spec1.get() +
            // CHECK-DAG: return "_ZTS17SpecializedKernel"
            spec2.get();
-           // CHECK-DAG: return "_ZTSN4test30MySpecConstantWithinANamespaceE"
+    // CHECK-DAG: return "_ZTSN4test30MySpecConstantWithinANamespaceE"
   });
 }

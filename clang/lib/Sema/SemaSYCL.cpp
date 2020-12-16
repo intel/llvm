@@ -3757,10 +3757,10 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   PrintingPolicy Policy(LO);
   Policy.SuppressTypedefs = true;
   Policy.SuppressUnwrittenScope = true;
+  SYCLFwdDeclEmitter FwdDeclEmitter(O, S.getLangOpts());
 
   if (SpecConsts.size() > 0) {
     O << "// Forward declarations of templated spec constant types:\n";
-    SYCLFwdDeclEmitter FwdDeclEmitter(O, S.getLangOpts());
     for (const auto &SC : SpecConsts)
       FwdDeclEmitter.Visit(SC.first);
     O << "\n";
@@ -3794,8 +3794,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   if (!UnnamedLambdaSupport) {
     O << "// Forward declarations of templated kernel function types:\n";
-
-    SYCLFwdDeclEmitter FwdDeclEmitter(O, S.getLangOpts());
     for (const KernelDesc &K : KernelDescs)
       FwdDeclEmitter.Visit(K.NameType);
   }
