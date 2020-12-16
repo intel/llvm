@@ -44,8 +44,8 @@ Version
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2020-12-03
-| Revision           | 11
+| Last Modified Date | 2020-12-16
+| Revision           | 12
 |========================================
 
 Dependencies
@@ -91,11 +91,6 @@ Specifies the size of shared memory required by kernel, in bytes.
 
 See the client API specification for more detail.
 | *VectorComputeINTEL* | <<Literal, 'Literal'>> _Size_
-| 6088 | *VectorComputeFastCompositeKernelINTEL* +
-Specifies that kernel is a fast composite pipeline entry point.
-
-See the client API specification for more detail.
-| *VectorComputeINTEL* |
 |====
 --
 Modify Section 3.7, Storage Class: +
@@ -150,11 +145,6 @@ Only valid on *OpFunction* or *OpFunctionParameter* whose type is <<Scalar,scala
 
 See the client API specification for more detail.
 | *VectorComputeINTEL* |
-| 6087 | *VectorComputeCallableFunctionINTEL* +
-Apply to a function definition to specify that the function is a subject to fast composite call pipelining.
-
-See the client API specification for more detail.
-| *VectorComputeINTEL* |
 |====
 
 Modify the description of *Volatile* decoration, add the following text: +
@@ -171,7 +161,7 @@ Modify Section 3.31, Capability, add the following rows the 'Capability' table:
 |====
   2+^| Capability      |     Implicitly Declares    | Enabled by Extension
 | 5617 | *VectorComputeINTEL* +
-Enables the use of *Private* storage class, *SharedLocalMemorySizeINTEL* and *VectorComputeFastCompositeKernelINTEL* execution modes and *VectorComputeFunctionINTEL*, *VectorComputeCallableFunctionINTEL*, *VectorComputeVariableINTEL*, *StackCallINTEL*, *SIMTCallINTEL*, *FuncParamIOKindINTEL*, *GlobalVariableOffsetINTEL*
+Enables the use of *Private* storage class, *SharedLocalMemorySizeINTEL* execution mode and *VectorComputeFunctionINTEL*, *VectorComputeVariableINTEL*, *StackCallINTEL*, *SIMTCallINTEL*, *FuncParamIOKindINTEL*, *GlobalVariableOffsetINTEL*
 *SingleElementVectorINTEL* decorations and *OpTypeBufferSurfaceINTEL* type.
 |*VectorAnyINTEL* | *SPV_INTEL_vector_compute*
 | 5619 | *VectorAnyINTEL* +
@@ -218,4 +208,5 @@ Revision History
 |9|2020-10-07|Mariusz Merecki|Added Change the description of *SingleElementVectorINTEL* to allow the decoration to be applied to function and function parameters of scalar or pointer type only.
 |10|2020-11-24|Mariusz Merecki|Added *VectorComputeFastCompositeKernelINTEL*, execution mode. Decorations sorted wrt their assigned token.
 |11|2020-12-03|Mariusz Merecki|Fix token number of *VectorComputeFastCompositeKernelINTEL*
+|12|2020-12-16|Mariusz Merecki|Remove *VectorComputeFastCompositeKernelINTEL* and *VectorComputeCallableFunctionINTEL*, moved to SPV_INTEL_fast_composition
 |========================================
