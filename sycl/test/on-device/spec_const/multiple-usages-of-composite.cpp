@@ -6,7 +6,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
 //
 // The test checks that multiple usages of the same specialization constant
-// works correctly with: toolchain processes them correctly and runtime can
+// works correctly: toolchain processes them correctly and runtime can
 // correctly execute the program.
 //
 // CHECK: --------> 1
@@ -62,7 +62,8 @@ public:
 
 template class kernel_driver_t<float>;
 
-// Uncomment this to trigger the bug.
+// The line below instantiates the second use of the spec constant named
+// `sc_kernel_t`, which used to corrupt the spec constant content
 template class kernel_driver_t<int>;
 } // namespace test
 
