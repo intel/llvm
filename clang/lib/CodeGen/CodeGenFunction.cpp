@@ -693,11 +693,11 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
   }
 
   if (const SYCLIntelNoGlobalWorkOffsetAttr *A =
-      FD->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {
+          FD->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {
     const Expr *Arg = A->getValue();
     assert(Arg && "Got an unexpected null argument");
     Optional<llvm::APSInt> ArgVal =
-	Arg->getIntegerConstantExpr(FD->getASTContext());
+        Arg->getIntegerConstantExpr(FD->getASTContext());
     assert(ArgVal.hasValue() && "Not an integer constant expression");
     if (ArgVal)
       Fn->setMetadata("no_global_work_offset", llvm::MDNode::get(Context, {}));

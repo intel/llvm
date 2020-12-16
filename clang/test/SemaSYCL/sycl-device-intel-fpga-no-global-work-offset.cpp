@@ -7,9 +7,9 @@ template <typename Ty>
 [[intel::no_global_work_offset(Ty{})]] void func() {}
 
 struct S {};
-  // expected-error@+2{{template specialization requires 'template<>'}}
-  // expected-error@+1{{C++ requires a type specifier for all declarations}}
-  func<S>();
+// expected-error@+2{{template specialization requires 'template<>'}}
+// expected-error@+1{{C++ requires a type specifier for all declarations}}
+func<S>();
 
 // Test that checks expression is not a constant expression.
 int foo();
