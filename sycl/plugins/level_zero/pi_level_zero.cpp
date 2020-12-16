@@ -1593,8 +1593,7 @@ pi_result piDevicePartition(pi_device Device,
   // Other partitioning ways are not supported by Level Zero
   if (Properties[0] != PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN ||
       Properties[1] != PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE) {
-    return PI_INVALID_VALUE;
-    // RS TODO: should it be die?
+    die("piDevicePartition: unsupported partitioning property requested");
   }
 
   PI_ASSERT(Device, PI_INVALID_DEVICE);
@@ -2473,9 +2472,7 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
     if (Program->State == _pi_program::IL ||
         Program->State == _pi_program::Native ||
         Program->State == _pi_program::Object) {
-      // The OpenCL spec says to return CL_INVALID_PROGRAM_EXECUTABLE in this
-      // case, but there is no corresponding PI error code.
-      return PI_INVALID_OPERATION;
+      return PI_INVALID_PROGRAM_EXECUTABLE;
     } else {
       PI_ASSERT(Program->State == _pi_program::Exe ||
                     Program->State == _pi_program::LinkedExe,
@@ -2498,16 +2495,11 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
       if (Program->State == _pi_program::IL ||
           Program->State == _pi_program::Native ||
           Program->State == _pi_program::Object) {
-        // The OpenCL spec says to return CL_INVALID_PROGRAM_EXECUTABLE in this
-        // case, but there is no corresponding PI error code.
-        return PI_INVALID_OPERATION;
+        return PI_INVALID_PROGRAM_EXECUTABLE;
       } else {
-        // The OpenCL spec actually says this should return
-        // CL_INVALID_PROGRAM_EXECUTABLE, but there is no
-        // corresponding PI error code.
         PI_ASSERT(Program->State == _pi_program::Exe ||
                       Program->State == _pi_program::LinkedExe,
-                  PI_INVALID_OPERATION);
+                  PI_INVALID_PROGRAM_EXECUTABLE);
 
         bool First = true;
         _pi_program::ModuleIterator ModIt(Program);
@@ -2721,6 +2713,7 @@ static pi_result compileOrBuild(pi_program Program, pi_uint32 NumDevices,
   // devices in the context.
   if (NumDevices != 1)
     die("compileOrBuild: level_zero supports only one device.");
+
   PI_ASSERT(DeviceList, PI_INVALID_DEVICE);
 
   // We should have either IL or native device code.
@@ -3003,12 +2996,9 @@ pi_result piKernelCreate(pi_program Program, const char *KernelName,
   PI_ASSERT(RetKernel, PI_INVALID_VALUE);
   PI_ASSERT(KernelName, PI_INVALID_VALUE);
 
-  // The OpenCL spec actually says this should return
-  // CL_INVALID_PROGRAM_EXECUTABLE, but there is no
-  // corresponding PI error code.
   if (Program->State != _pi_program::Exe &&
       Program->State != _pi_program::LinkedExe) {
-    return PI_INVALID_OPERATION;
+    return PI_INVALID_PROGRAM_EXECUTABLE;
   }
 
   ze_kernel_desc_t ZeKernelDesc = {};
@@ -4455,9 +4445,9 @@ static pi_result getImageRegionHelper(pi_mem Mem, pi_image_offset Origin,
   PI_ASSERT(
       (ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Region->height == 1 &&
        Region->depth == 1) ||
-         (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Region->depth == 1) ||
-         (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Region->depth == 1) ||
-         (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
+          (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Region->depth == 1) ||
+          (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Region->depth == 1) ||
+          (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
       PI_INVALID_VALUE);
 
   uint32_t Width = pi_cast<uint32_t>(Region->width);
@@ -4750,7 +4740,7 @@ pi_result piextGetDeviceFunctionPointer(pi_device Device, pi_program Program,
 
   if (Program->State != _pi_program::Exe &&
       Program->State != _pi_program::LinkedExe) {
-    return PI_INVALID_OPERATION;
+    return PI_INVALID_PROGRAM_EXECUTABLE;
   }
 
   // Search for the function name in each module.
