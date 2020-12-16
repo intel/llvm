@@ -1130,7 +1130,7 @@ static void applyFPFastMathModeDecorations(const SPIRVValue *BV,
       FMF.setNoSignedZeros();
     if (V & FPFastMathModeAllowRecipMask)
       FMF.setAllowReciprocal();
-    if (V & FPFastMathModeAllowContractINTELMask)
+    if (V & FPFastMathModeAllowContractFastINTELMask)
       FMF.setAllowContract();
     if (V & FPFastMathModeAllowReassocINTELMask)
       FMF.setAllowReassoc();
@@ -4081,7 +4081,7 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
     auto ArgNo = I->getArgNo();
     SPIRVFunctionParameter *BA = BF->getArgument(ArgNo);
     SPIRVWord Kind;
-    if (BA->hasDecorate(DecorationFuncParamIOKind, 0, &Kind)) {
+    if (BA->hasDecorate(DecorationFuncParamIOKindINTEL, 0, &Kind)) {
       Attribute Attr = Attribute::get(*Context, kVCMetadata::VCArgumentIOKind,
                                       std::to_string(Kind));
       F->addAttribute(ArgNo + 1, Attr);

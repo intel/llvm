@@ -674,7 +674,7 @@ void LLVMToSPIRV::transVectorComputeMetadata(Function *F) {
       Attrs.getAttribute(ArgNo + 1, kVCMetadata::VCArgumentIOKind)
           .getValueAsString()
           .getAsInteger(0, Kind);
-      BA->addDecorate(DecorationFuncParamIOKind, Kind);
+      BA->addDecorate(DecorationFuncParamIOKindINTEL, Kind);
     }
     if (Attrs.hasAttribute(ArgNo + 1, kVCMetadata::VCSingleElementVector)) {
       auto *AT = BA->getType();
@@ -1778,7 +1778,7 @@ bool LLVMToSPIRV::transDecoration(Value *V, SPIRVValue *BV) {
         if (BM->isAllowedToUseExtension(
                 ExtensionID::SPV_INTEL_fp_fast_math_mode)) {
           if (FMF.allowContract()) {
-            M |= FPFastMathModeAllowContractINTELMask;
+            M |= FPFastMathModeAllowContractFastINTELMask;
             BM->addCapability(CapabilityFPFastMathModeINTEL);
           }
           if (FMF.allowReassoc()) {
@@ -2874,7 +2874,7 @@ void LLVMToSPIRV::transGlobalIOPipeStorage(GlobalVariable *V, MDNode *IO) {
   SPIRVValue *SV = transValue(V, nullptr);
   assert(SV && "Failed to process OCL PipeStorage object");
   if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_io_pipes)) {
-    BM->addCapability(CapabilityIOPipeINTEL);
+    BM->addCapability(CapabilityIOPipesINTEL);
     unsigned ID = getMDOperandAsInt(IO, 0);
     SV->addDecorate(DecorationIOPipeStorageINTEL, ID);
   }

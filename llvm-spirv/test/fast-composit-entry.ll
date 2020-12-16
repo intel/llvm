@@ -11,8 +11,8 @@ target triple = "spir64-unknown-unknown"
 
 ; CHECK-SPIRV: {{[0-9]+}} EntryPoint {{[0-9]+}} [[#FOO_ID:]] "foo"
 ; CHECK-SPIRV: {{[0-9]+}} EntryPoint {{[0-9]+}} [[#BAR_ID:]] "bar"
-; CHECK-SPIRV: 3 ExecutionMode [[#FOO_ID]] 8088
-; CHECK-SPIRV-NOT: 3 ExecutionMode [[#BAR_ID]] 8088
+; CHECK-SPIRV: 3 ExecutionMode [[#FOO_ID]] 6088
+; CHECK-SPIRV-NOT: 3 ExecutionMode [[#BAR_ID]] 6088
 
 ; CHECK-LLVM: define spir_kernel void @foo
 ; CHECK-LLVM-SAME: #[[#FOO_ATTR_ID:]]
