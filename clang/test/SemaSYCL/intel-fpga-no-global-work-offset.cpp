@@ -23,10 +23,13 @@ int main() {
         []() [[intel::no_global_work_offset(0)]]{});
 
     // CHECK: SYCLIntelNoGlobalWorkOffsetAttr{{.*}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}42{{$}}
     h.single_task<class test_kernel3>(
         []() [[intel::no_global_work_offset(42)]]{});
 
     // CHECK: SYCLIntelNoGlobalWorkOffsetAttr{{.*}}
+    // CHECK-NEXT: UnaryOperator{{.*}} 'int' prefix '-'
+    // CHECK-NEXT-NEXT: IntegerLiteral{{.*}}1{{$}}
     h.single_task<class test_kernel4>(
         []() [[intel::no_global_work_offset(-1)]]{});
 
