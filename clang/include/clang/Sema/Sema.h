@@ -346,6 +346,9 @@ public:
   /// Registers a specialization constant to emit info for it into the header.
   void addSpecConstant(StringRef IDName, QualType IDType);
 
+  /// Notes that this_item is called within the kernel.
+  void setCallsThisItem(bool B);
+
 private:
   // Kernel actual parameter descriptor.
   struct KernelParamDesc {
@@ -381,6 +384,9 @@ private:
 
     /// Descriptor of kernel actual parameters.
     SmallVector<KernelParamDesc, 8> Params;
+
+    // Whether kernel calls this_item()
+    bool CallsThisItem;
 
     KernelDesc() = default;
   };
@@ -2812,6 +2818,7 @@ public:
                                 SkipBodyInfo *SkipBody = nullptr);
   void ActOnStartTrailingRequiresClause(Scope *S, Declarator &D);
   ExprResult ActOnFinishTrailingRequiresClause(ExprResult ConstraintExpr);
+  ExprResult ActOnRequiresClause(ExprResult ConstraintExpr);
   void ActOnStartOfObjCMethodDef(Scope *S, Decl *D);
   bool isObjCMethodDecl(Decl *D) {
     return D && isa<ObjCMethodDecl>(D);
@@ -3816,6 +3823,9 @@ public:
                                    ArrayRef<Expr *> Args,
                                    OverloadCandidateSet &CandidateSet,
                                    bool PartialOverloading = false);
+  void AddOverloadedCallCandidates(
+      LookupResult &R, TemplateArgumentListInfo *ExplicitTemplateArgs,
+      ArrayRef<Expr *> Args, OverloadCandidateSet &CandidateSet);
 
   // An enum used to represent the different possible results of building a
   // range-based for loop.
@@ -5098,6 +5108,8 @@ public:
                               TemplateArgumentListInfo &Buffer,
                               DeclarationNameInfo &NameInfo,
                               const TemplateArgumentListInfo *&TemplateArgs);
+
+  bool DiagnoseDependentMemberLookup(LookupResult &R);
 
   bool
   DiagnoseEmptyLookup(Scope *S, CXXScopeSpec &SS, LookupResult &R,
@@ -6695,7 +6707,8 @@ public:
   /// on a lambda (if it exists) in C++2a.
   void ActOnLambdaExplicitTemplateParameterList(SourceLocation LAngleLoc,
                                                 ArrayRef<NamedDecl *> TParams,
-                                                SourceLocation RAngleLoc);
+                                                SourceLocation RAngleLoc,
+                                                ExprResult RequiresClause);
 
   /// Introduce the lambda parameters into scope.
   void addLambdaParameters(
@@ -8072,6 +8085,9 @@ public:
 
     // A requirement in a requires-expression.
     UPPC_Requirement,
+
+    // A requires-clause.
+    UPPC_RequiresClause,
   };
 
   /// Diagnose unexpanded parameter packs.

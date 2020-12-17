@@ -3772,16 +3772,6 @@ class OffloadingActionBuilder final {
           for (auto SDA : SYCLDeviceActions)
             SYCLLinkBinaryList.push_back(SDA);
           if (WrapDeviceOnlyBinary) {
-            // If used without -fintelfpga, -fsycl-link is used to wrap device
-            // objects for future host link. Device libraries should be linked
-            // by default to resolve any undefined reference.
-            if (!Args.hasArg(options::OPT_fintelfpga)) {
-              const auto *TC = ToolChains.front();
-              addSYCLDeviceLibs(TC, SYCLLinkBinaryList, true,
-                                C.getDefaultToolChain()
-                                    .getTriple()
-                                    .isWindowsMSVCEnvironment());
-            }
             // -fsycl-link behavior does the following to the unbundled device
             // binaries:
             //   1) Link them together using llvm-link
@@ -3791,8 +3781,29 @@ class OffloadingActionBuilder final {
             //      by any compilation link step.
             auto *DeviceLinkAction = C.MakeAction<LinkJobAction>(
                 SYCLLinkBinaryList, types::TY_Image);
+            ActionList FullSYCLLinkBinaryList;
+            bool SYCLDeviceLibLinked = false;
+            FullSYCLLinkBinaryList.push_back(DeviceLinkAction);
+            // If used without -fintelfpga, -fsycl-link is used to wrap device
+            // objects for future host link. Device libraries should be linked
+            // by default to resolve any undefined reference.
+            if (!Args.hasArg(options::OPT_fintelfpga)) {
+              const auto *TC = ToolChains.front();
+              SYCLDeviceLibLinked =
+                  addSYCLDeviceLibs(TC, FullSYCLLinkBinaryList, true,
+                                    C.getDefaultToolChain()
+                                        .getTriple()
+                                        .isWindowsMSVCEnvironment());
+            }
+
+            Action *FullDeviceLinkAction = nullptr;
+            if (SYCLDeviceLibLinked)
+              FullDeviceLinkAction = C.MakeAction<LinkJobAction>(
+                  FullSYCLLinkBinaryList, types::TY_LLVM_BC);
+            else
+              FullDeviceLinkAction = DeviceLinkAction;
             auto *PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
-                DeviceLinkAction, types::TY_LLVM_BC);
+                FullDeviceLinkAction, types::TY_LLVM_BC);
             auto *TranslateAction = C.MakeAction<SPIRVTranslatorJobAction>(
                 PostLinkAction, types::TY_Image);
             SYCLLinkBinary = C.MakeAction<OffloadWrapperJobAction>(
@@ -3948,7 +3959,7 @@ class OffloadingActionBuilder final {
       SYCLDeviceActions.clear();
     }
 
-    void addSYCLDeviceLibs(const ToolChain *TC, ActionList &DeviceLinkObjects,
+    bool addSYCLDeviceLibs(const ToolChain *TC, ActionList &DeviceLinkObjects,
                            bool isSpirvAOT, bool isMSVCEnv) {
       enum SYCLDeviceLibType {
         sycl_devicelib_wrapper,
@@ -3960,10 +3971,10 @@ class OffloadingActionBuilder final {
       };
 
       bool NoDeviceLibs = false;
-      // Currently, libc, libm-fp32 will be linked in by default. In order
-      // to use libm-fp64, -fsycl-device-lib=libm-fp64/all should be used.
+      int NumOfDeviceLibLinked = 0;
+      // Currently, all SYCL device libraries will be linked by default
       llvm::StringMap<bool> devicelib_link_info = {
-          {"libc", true}, {"libm-fp32", true}, {"libm-fp64", false}};
+          {"libc", true}, {"libm-fp32", true}, {"libm-fp64", true}};
       if (Arg *A = Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
                                    options::OPT_fno_sycl_device_lib_EQ)) {
         if (A->getValues().size() == 0)
@@ -4017,6 +4028,7 @@ class OffloadingActionBuilder final {
           llvm::sys::path::append(LibName, Lib.devicelib_name);
           llvm::sys::path::replace_extension(LibName, LibSuffix);
           if (llvm::sys::fs::exists(LibName)) {
+            ++NumOfDeviceLibLinked;
             Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
                                          Args.MakeArgString(LibName));
             auto *SYCLDeviceLibsInputAction =
@@ -4032,6 +4044,7 @@ class OffloadingActionBuilder final {
       addInputs(sycl_devicelib_wrapper);
       if (isSpirvAOT)
         addInputs(sycl_devicelib_fallback);
+      return NumOfDeviceLibLinked != 0;
     }
 
     void appendLinkDependences(OffloadAction::DeviceDependences &DA) override {
@@ -4125,15 +4138,6 @@ class OffloadingActionBuilder final {
           else
             LinkObjects.push_back(Input);
         }
-        // FIXME: Link all wrapper and fallback device libraries as default,
-        // When spv online link is supported by all backends, the fallback
-        // device libraries are only needed when current toolchain is using
-        // AOT compilation.
-        if (!isNVPTX) {
-          addSYCLDeviceLibs(
-              *TC, LinkObjects, true,
-              C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment());
-        }
         // The linkage actions subgraph leading to the offload wrapper.
         // [cond] Means incoming/outgoing dependence is created only when cond
         //        is true. A function of:
@@ -4187,6 +4191,26 @@ class OffloadingActionBuilder final {
         //
         Action *DeviceLinkAction =
             C.MakeAction<LinkJobAction>(LinkObjects, types::TY_LLVM_BC);
+        ActionList FullLinkObjects;
+        bool SYCLDeviceLibLinked = false;
+        FullLinkObjects.push_back(DeviceLinkAction);
+
+        // FIXME: Link all wrapper and fallback device libraries as default,
+        // When spv online link is supported by all backends, the fallback
+        // device libraries are only needed when current toolchain is using
+        // AOT compilation.
+        if (!isNVPTX) {
+          SYCLDeviceLibLinked = addSYCLDeviceLibs(
+              *TC, FullLinkObjects, true,
+              C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment());
+        }
+
+        Action *FullDeviceLinkAction = nullptr;
+        if (SYCLDeviceLibLinked)
+          FullDeviceLinkAction =
+              C.MakeAction<LinkJobAction>(FullLinkObjects, types::TY_LLVM_BC);
+        else
+          FullDeviceLinkAction = DeviceLinkAction;
         // setup some flags upfront
 
         if (isNVPTX && DeviceCodeSplit) {
@@ -4212,7 +4236,7 @@ class OffloadingActionBuilder final {
                                         ? types::TY_LLVM_BC
                                         : types::TY_Tempfiletable;
         auto *PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
-            DeviceLinkAction, PostLinkOutType);
+            FullDeviceLinkAction, PostLinkOutType);
         PostLinkAction->setRTSetsSpecConstants(!isAOT);
 
         if (isNVPTX) {
@@ -4605,41 +4629,27 @@ public:
         !InputArg->getOption().hasFlag(options::LinkerInput) &&
         !types::isSrcFile(HostAction->getType())) {
       std::string InputName = InputArg->getAsString(Args);
-      // Do not create an unbundling action for an object when we know a fat
-      // static library is being used.  A separate unbundling action is created
-      // for all objects and the fat static library.
-      // But in MSVC environment static offload archives are handled differently
-      // due to absence of partial linking support in the linker. Instead of
-      // partially linking input objects and static archives and then unbundling
-      // result we are unbundling all objects and offload archives to extract
-      // device parts. Therefore, in case on MSVC environment unbundling action
-      // for objects is still needed.
-      if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() ||
+      ActionList HostActionList;
+      Action *A(HostAction);
+      // Only check for FPGA device information when using fpga SubArch.
+      if (Args.hasArg(options::OPT_fintelfpga) &&
           !(HostAction->getType() == types::TY_Object &&
-            isObjectFile(InputName) &&
-            C.getDriver().getOffloadStaticLibSeen())) {
-        ActionList HostActionList;
-        Action *A(HostAction);
-        // Only check for FPGA device information when using fpga SubArch.
-        if (Args.hasArg(options::OPT_fintelfpga) &&
-            !(HostAction->getType() == types::TY_Object &&
-              isObjectFile(InputName))) {
-          // Type FPGA aoco is a special case for -foffload-static-lib.
-          if (HostAction->getType() == types::TY_FPGA_AOCO) {
-            if (!hasFPGABinary(C, InputName, types::TY_FPGA_AOCO))
-              return false;
-            A = C.MakeAction<InputAction>(*InputArg, types::TY_FPGA_AOCO);
-          } else if (hasFPGABinary(C, InputName, types::TY_FPGA_AOCX))
-            A = C.MakeAction<InputAction>(*InputArg, types::TY_FPGA_AOCX);
-          else if (hasFPGABinary(C, InputName, types::TY_FPGA_AOCR))
-            A = C.MakeAction<InputAction>(*InputArg, types::TY_FPGA_AOCR);
-        }
-        auto UnbundlingHostAction = C.MakeAction<OffloadUnbundlingJobAction>(A);
-        UnbundlingHostAction->registerDependentActionInfo(
-            C.getSingleOffloadToolChain<Action::OFK_Host>(),
-            /*BoundArch=*/StringRef(), Action::OFK_Host);
-        HostAction = UnbundlingHostAction;
+            isObjectFile(InputName))) {
+        // Type FPGA aoco is a special case for -foffload-static-lib.
+        if (HostAction->getType() == types::TY_FPGA_AOCO) {
+          if (!hasFPGABinary(C, InputName, types::TY_FPGA_AOCO))
+            return false;
+          A = C.MakeAction<InputAction>(*InputArg, types::TY_FPGA_AOCO);
+        } else if (hasFPGABinary(C, InputName, types::TY_FPGA_AOCX))
+          A = C.MakeAction<InputAction>(*InputArg, types::TY_FPGA_AOCX);
+        else if (hasFPGABinary(C, InputName, types::TY_FPGA_AOCR))
+          A = C.MakeAction<InputAction>(*InputArg, types::TY_FPGA_AOCR);
       }
+      auto UnbundlingHostAction = C.MakeAction<OffloadUnbundlingJobAction>(A);
+      UnbundlingHostAction->registerDependentActionInfo(
+          C.getSingleOffloadToolChain<Action::OFK_Host>(),
+          /*BoundArch=*/StringRef(), Action::OFK_Host);
+      HostAction = UnbundlingHostAction;
     }
 
     assert(HostAction && "Invalid host action!");
@@ -5096,84 +5106,9 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   OffloadBuilder.appendTopLevelLinkAction(Actions);
 
   // Go through all of the args, and create a Linker specific argument list.
-  // When dealing with fat static archives, this is fed into the partial link
-  // step on Linux or each archive is individually addressed on Windows.
+  // When dealing with fat static archives each archive is individually
+  // unbundled.
   SmallVector<const char *, 16> LinkArgs(getLinkerArgs(C, Args));
-  // When a static fat archive is provided, create a new unbundling step
-  // for all of the objects.
-  if (!C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() &&
-      C.getDriver().getOffloadStaticLibSeen()) {
-    ActionList UnbundlerInputs;
-    for (const auto &LI : LinkerInputs) {
-      // Unbundler only handles objects.
-      if (auto *IA = dyn_cast<InputAction>(LI)) {
-        std::string FileName = IA->getInputArg().getAsString(Args);
-        if ((IA->getType() == types::TY_Object && !isObjectFile(FileName)) ||
-            IA->getInputArg().getOption().hasFlag(options::LinkerInput))
-          // Pass the Input along to linker only.
-          continue;
-      }
-      UnbundlerInputs.push_back(LI);
-    }
-    const Arg *LastArg = nullptr;
-    auto addUnbundlerInput = [&](types::ID T, const StringRef &A) {
-      const llvm::opt::OptTable &Opts = getOpts();
-      Arg *InputArg = MakeInputArg(Args, Opts, C.getArgs().MakeArgString(A));
-      LastArg = InputArg;
-      Action *Current = C.MakeAction<InputAction>(*InputArg, T);
-      UnbundlerInputs.push_back(Current);
-    };
-    bool IsWholeArchive = false;
-    for (StringRef LA : LinkArgs) {
-      if (isStaticArchiveFile(LA)) {
-        addUnbundlerInput(
-            IsWholeArchive ? types::TY_WholeArchive : types::TY_Archive, LA);
-        continue;
-      }
-      if (optionMatches("-no-whole-archive", LA.str())) {
-        IsWholeArchive = false;
-        continue;
-      }
-      if (optionMatches("-whole-archive", LA.str())) {
-        IsWholeArchive = true;
-        continue;
-      }
-      if (isObjectFile(LA.str())) {
-        // Add any objects to the unbundler step.  These objects are passed
-        // directly to the linker, so the driver does not know about them.
-        // FIXME - Better process objects passed to the linker.  We are only
-        // adding these objects to the unbundler step, but these objects can
-        // potentially be fat objects that should be processed by the driver.
-        addUnbundlerInput(types::TY_Object, LA);
-        continue;
-      }
-    }
-
-    if (!UnbundlerInputs.empty() && !PL.empty()) {
-      Action *PartialLink =
-          C.MakeAction<PartialLinkJobAction>(UnbundlerInputs, types::TY_Object);
-      if (!LastArg) {
-        auto *TA = dyn_cast<Action>(UnbundlerInputs.back());
-        assert(TA->getKind() == Action::InputClass ||
-               TA->getKind() == Action::OffloadClass);
-
-        // If the Action is of OffloadAction type, use the HostAction of the
-        // specific Offload Action to set LastArg
-        if (auto *OA = dyn_cast<OffloadAction>(UnbundlerInputs.back()))
-          LastArg =
-              &(dyn_cast<InputAction>(OA->getHostDependence())->getInputArg());
-        else if (auto *IA = dyn_cast<InputAction>(UnbundlerInputs.back()))
-          // else set the LastArg based on Last InputAction
-          LastArg = &(IA->getInputArg());
-      }
-      Action *Current = C.MakeAction<InputAction>(*LastArg, types::TY_Object);
-      ActionList AL;
-      AL.push_back(PartialLink);
-      OffloadBuilder.addHostDependenceToUnbundlingAction(Current, AL, LastArg);
-      Current = OffloadBuilder.addDeviceDependencesToHostAction(Current,
-          LastArg, phases::Link, PL.back(), PL);
-    }
-  }
   const llvm::opt::OptTable &Opts = getOpts();
   auto unbundleStaticLib = [&](types::ID T, const StringRef &A) {
     Arg *InputArg = MakeInputArg(Args, Opts, Args.MakeArgString(A));
@@ -5191,14 +5126,12 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     // as they have already been unbundled and processed for linking.
     if (hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCX))
       continue;
-    // In MSVC environment offload-static-libs are handled slightly different
-    // because of missing support for partial linking in the linker. We add an
-    // unbundling action for each static archive which produces list files with
-    // extracted objects. Device lists are then added to the appropriate device
-    // link actions and host list is ignored since we are adding
-    // offload-static-libs as normal libraries to the host link command.
-    if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() &&
-        hasOffloadSections(C, LA, Args))
+    // For offload-static-libs we add an unbundling action for each static
+    // archive which produces list files with extracted objects. Device lists
+    // are then added to the appropriate device link actions and host list is
+    // ignored since we are adding offload-static-libs as normal libraries to
+    // the host link command.
+    if (hasOffloadSections(C, LA, Args))
       unbundleStaticLib(types::TY_Archive, LA);
     // Pass along the static libraries to check if we need to add them for
     // unbundling for FPGA AOT static lib usage.  Uses FPGA aoco type to
@@ -6160,14 +6093,11 @@ InputInfo Driver::BuildJobsForActionNoCache(
       // unbundling action does not change the type of the output which can
       // cause a overwrite.
       InputInfo CurI;
-      bool IsMSVCEnv =
-          C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
       bool IsFPGAObjLink = (JA->getType() == types::TY_Object &&
           C.getInputArgs().hasArg(options::OPT_fintelfpga) &&
           C.getInputArgs().hasArg(options::OPT_fsycl_link_EQ));
       if (C.getDriver().getOffloadStaticLibSeen() &&
-          (JA->getType() == types::TY_Archive ||
-           (JA->getType() == types::TY_Object && !IsMSVCEnv))) {
+          JA->getType() == types::TY_Archive) {
         // Host part of the unbundled static archive is not used.
         if (UI.DependentOffloadKind == Action::OFK_Host)
           continue;
@@ -6175,13 +6105,11 @@ InputInfo Driver::BuildJobsForActionNoCache(
         // enabled is not used
         if (UI.DependentOffloadKind == Action::OFK_Host && IsFPGAObjLink)
           continue;
-        std::string TmpFileName =
-           C.getDriver().GetTemporaryPath(llvm::sys::path::stem(BaseInput),
-                                          "txt");
+        std::string TmpFileName = C.getDriver().GetTemporaryPath(
+            llvm::sys::path::stem(BaseInput), "a");
         const char *TmpFile =
-                        C.addTempFile(C.getArgs().MakeArgString(TmpFileName),
-                                      types::TY_Tempfilelist);
-        CurI = InputInfo(types::TY_Tempfilelist, TmpFile, TmpFile);
+            C.addTempFile(C.getArgs().MakeArgString(TmpFileName));
+        CurI = InputInfo(types::TY_Archive, TmpFile, TmpFile);
       } else if (types::isFPGA(JA->getType())) {
         std::string Ext(types::getTypeTempSuffix(JA->getType()));
         types::ID TI = types::TY_Object;

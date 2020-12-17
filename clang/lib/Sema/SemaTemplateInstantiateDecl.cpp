@@ -789,6 +789,10 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
             dyn_cast<SYCLIntelLoopFuseAttr>(TmplAttr)) {
       instantiateSYCLIntelLoopFuseAttr(*this, TemplateArgs, SYCLIntelLoopFuse,
                                        New);
+    if (const auto *SYCLIntelNoGlobalWorkOffset =
+            dyn_cast<SYCLIntelNoGlobalWorkOffsetAttr>(TmplAttr)) {
+      instantiateIntelSYCLFunctionAttr<SYCLIntelNoGlobalWorkOffsetAttr>(
+          *this, TemplateArgs, SYCLIntelNoGlobalWorkOffset, New);
       continue;
     }
     // Existing DLL attribute on the instantiation takes precedence.

@@ -2994,7 +2994,7 @@ pi_result piKernelCreate(pi_program Program, const char *KernelName,
     return mapError(ZeResult);
 
   try {
-    *RetKernel = new _pi_kernel(ZeKernel, Program, KernelName);
+    *RetKernel = new _pi_kernel(ZeKernel, Program);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -3073,12 +3073,19 @@ pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
   case PI_KERNEL_INFO_PROGRAM:
     return ReturnValue(pi_program{Kernel->Program});
   case PI_KERNEL_INFO_FUNCTION_NAME:
-    // TODO: Replace with the line in the comment once bug in the Level Zero
-    // driver will be fixed. Problem is that currently Level Zero driver
-    // truncates name of the returned kernel if it is longer than 256 symbols.
-    //
-    // return ReturnValue(ZeKernelProperties.name);
-    return ReturnValue(Kernel->KernelName.c_str());
+    try {
+      size_t Size = 0;
+      ZE_CALL(zeKernelGetName(Kernel->ZeKernel, &Size, nullptr));
+      char *KernelName = new char[Size];
+      ZE_CALL(zeKernelGetName(Kernel->ZeKernel, &Size, KernelName));
+      pi_result Res = ReturnValue(static_cast<const char *>(KernelName));
+      delete[] KernelName;
+      return Res;
+    } catch (const std::bad_alloc &) {
+      return PI_OUT_OF_HOST_MEMORY;
+    } catch (...) {
+      return PI_ERROR_UNKNOWN;
+    }
   case PI_KERNEL_INFO_NUM_ARGS:
     return ReturnValue(pi_uint32{ZeKernelProperties.numKernelArgs});
   case PI_KERNEL_INFO_REFERENCE_COUNT:
@@ -4169,16 +4176,16 @@ pi_result piEnqueueMemBufferFill(pi_queue Queue, pi_mem Buffer,
                               EventWaitList, Event);
 }
 
-pi_result
-piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer, pi_bool BlockingMap,
-                      cl_map_flags MapFlags, // TODO: untie from OpenCL
-                      size_t Offset, size_t Size, pi_uint32 NumEventsInWaitList,
-                      const pi_event *EventWaitList, pi_event *Event,
-                      void **RetMap) {
+pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
+                                pi_bool BlockingMap, pi_map_flags MapFlags,
+                                size_t Offset, size_t Size,
+                                pi_uint32 NumEventsInWaitList,
+                                const pi_event *EventWaitList, pi_event *Event,
+                                void **RetMap) {
 
   // TODO: we don't implement read-only or write-only, always read-write.
-  // assert((map_flags & CL_MAP_READ) != 0);
-  // assert((map_flags & CL_MAP_WRITE) != 0);
+  // assert((map_flags & PI_MAP_READ) != 0);
+  // assert((map_flags & PI_MAP_WRITE) != 0);
   assert(Buffer);
   assert(Queue);
 
@@ -4217,7 +4224,7 @@ piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer, pi_bool BlockingMap,
     piEventsWait(NumEventsInWaitList, EventWaitList);
     if (Buffer->MapHostPtr) {
       *RetMap = Buffer->MapHostPtr + Offset;
-      if (!(MapFlags & CL_MAP_WRITE_INVALIDATE_REGION))
+      if (!(MapFlags & PI_MAP_WRITE_INVALIDATE_REGION))
         memcpy(*RetMap, pi_cast<char *>(Buffer->getZeHandle()) + Offset, Size);
     } else {
       *RetMap = pi_cast<char *>(Buffer->getZeHandle()) + Offset;
@@ -4881,7 +4888,7 @@ pi_result piextUSMFree(pi_context Context, void *Ptr) {
     assert(Device);
 
     auto DeallocationHelper =
-        [Context, Device,
+        [Device,
          Ptr](std::unordered_map<pi_device, USMAllocContext> &AllocContextMap) {
           try {
             auto It = AllocContextMap.find(Device);

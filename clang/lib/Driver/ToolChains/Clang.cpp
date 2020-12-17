@@ -5793,6 +5793,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (Args.hasFlag(options::OPT_fgpu_defer_diag,
                      options::OPT_fno_gpu_defer_diag, false))
       CmdArgs.push_back("-fgpu-defer-diag");
+    if (Args.hasFlag(options::OPT_fgpu_exclude_wrong_side_overloads,
+                     options::OPT_fno_gpu_exclude_wrong_side_overloads,
+                     false)) {
+      CmdArgs.push_back("-fgpu-exclude-wrong-side-overloads");
+      CmdArgs.push_back("-fgpu-defer-diag");
+    }
   }
 
   if (Arg *A = Args.getLastArg(options::OPT_fcf_protection_EQ)) {
@@ -5818,6 +5824,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       A->render(Args, CmdArgs);
   }
   Args.AddLastArg(CmdArgs, options::OPT_fprofile_remapping_file_EQ);
+
+  if (Args.hasFlag(options::OPT_fpseudo_probe_for_profiling,
+                   options::OPT_fno_pseudo_probe_for_profiling, false))
+    CmdArgs.push_back("-fpseudo-probe-for-profiling");
 
   RenderBuiltinOptions(TC, RawTriple, Args, CmdArgs);
 
@@ -7657,19 +7667,11 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   InputInfo Input = Inputs.front();
   const char *TypeArg = types::getTypeTempSuffix(Input.getType());
   const char *InputFileName = Input.getFilename();
-  bool IsMSVCEnv =
-      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
   types::ID InputType(Input.getType());
   bool IsFPGADepUnbundle = JA.getType() == types::TY_FPGA_Dependencies;
   bool IsFPGADepLibUnbundle = JA.getType() == types::TY_FPGA_Dependencies_List;
-  bool IsArchiveUnbundle =
-      (!IsMSVCEnv && C.getDriver().getOffloadStaticLibSeen() &&
-       (types::isArchive(InputType) || InputType == types::TY_Object));
 
-  if (IsArchiveUnbundle)
-    TypeArg = "oo";
-  else if (InputType == types::TY_FPGA_AOCX ||
-           InputType == types::TY_FPGA_AOCR) {
+  if (InputType == types::TY_FPGA_AOCX || InputType == types::TY_FPGA_AOCR) {
     // Override type with archive object
     if (getToolChain().getTriple().getSubArch() ==
         llvm::Triple::SPIRSubArch_fpga)
@@ -7677,8 +7679,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     else
       TypeArg = "aoo";
   }
-  if (InputType == types::TY_FPGA_AOCO || IsFPGADepLibUnbundle ||
-      (IsMSVCEnv && types::isArchive(InputType)))
+  if (InputType == types::TY_FPGA_AOCO || IsFPGADepLibUnbundle)
     TypeArg = "aoo";
   if (IsFPGADepUnbundle)
     TypeArg = "o";
@@ -7714,7 +7715,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
         Triples += Dep.DependentToolChain->getTriple().normalize();
       }
       continue;
-    } else if (InputType == types::TY_Archive || IsArchiveUnbundle ||
+    } else if (InputType == types::TY_Archive ||
                (TCArgs.hasArg(options::OPT_fintelfpga) &&
                 TCArgs.hasArg(options::OPT_fsycl_link_EQ))) {
       // Do not extract host part if we are unbundling archive on Windows
