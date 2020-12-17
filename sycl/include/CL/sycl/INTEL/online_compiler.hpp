@@ -6,8 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/defines_elementary.hpp> // for __SYCL_INLINE_NAMESPACE
+#pragma once
+
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/detail/defines_elementary.hpp> // for __SYCL_INLINE_NAMESPACE
 #include <CL/sycl/device.hpp>
 
 #include <memory>
@@ -95,7 +97,7 @@ public:
   /// can be different for different languages.
   /// Throws online_compile_error if compilation is not successful.
   template <typename... Tys>
-  std::vector<byte> compile(const std::string &src, const Tys&... args);
+  std::vector<byte> compile(const std::string &src, const Tys &... args);
 
   /// Sets the compiled code format of the compilation target and returns *this.
   online_compiler<Lang> &setOutputFormat(compiled_code_format fmt);
@@ -150,8 +152,8 @@ private:
 /// @param src - contents of the source
 template <>
 template <>
-std::vector<byte> online_compiler<source_language::OpenCL_C>::compile(
-  const std::string &src) {
+std::vector<byte>
+online_compiler<source_language::OpenCL_C>::compile(const std::string &src) {
   // real implementation will call some non-templated impl function here
   return std::vector<byte>{};
 }
@@ -171,8 +173,8 @@ std::vector<byte> online_compiler<source_language::OpenCL_C>::compile(
 /// Compiles given CM source.
 template <>
 template <>
-std::vector<byte> online_compiler<source_language::CM>::compile(
-    const std::string &src) {
+std::vector<byte>
+online_compiler<source_language::CM>::compile(const std::string &src) {
   // real implementation will call some non-templated impl function here
   return std::vector<byte>{};
 }
@@ -187,6 +189,6 @@ std::vector<byte> online_compiler<source_language::CM>::compile(
   return std::vector<byte>{};
 }
 
-} // namespace sycl
 } // namespace INTEL
+} // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
