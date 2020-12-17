@@ -1,102 +1,59 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -ast-dump -verify %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -verify %s
 
-#include "sycl.hpp"
+[[intel::loop_fuse(5)]] int a; // expected-error{{'loop_fuse' attribute only applies to functions}}
 
-using namespace cl::sycl;
-queue q;
+[[intel::loop_fuse("foo")]] void func() {} // expected-error{{'loop_fuse' attribute requires an integer constant}}
 
-// CHECK: FunctionDecl {{.*}} func1 'void ()'
-// CHECK-NEXT: CompoundStmt
-// CHECK-NEXT: SYCLIntelLoopFuseAttr
-// CHECK-NEXT: NULL
-[[intel::loop_fuse]] void func1() {}
+[[intel::loop_fuse(1048577)]] void func1() {}        // expected-error{{'loop_fuse' attribute requires integer constant between 0 and 1048576 inclusive}}
+[[intel::loop_fuse_independent(-1)]] void func2() {} // expected-error{{'loop_fuse_independent' attribute requires integer constant between 0 and 1048576 inclusive}}
 
-// CHECK: FunctionDecl {{.*}} func2 'void ()'
-// CHECK-NEXT: CompoundStmt
-// CHECK-NEXT: SYCLIntelLoopFuseAttr
-// CHECK-NEXT: ConstantExpr
-// CHECK-NEXT: value: Int 0
-[[intel::loop_fuse(0)]] void func2() {}
+[[intel::loop_fuse(0, 1)]] void func3() {}             // expected-error{{'loop_fuse' attribute takes no more than 1 argument}}
+[[intel::loop_fuse_independent(2, 3)]] void func4() {} // expected-error{{'loop_fuse_independent' attribute takes no more than 1 argument}}
 
-// CHECK: FunctionDecl {{.*}} func3 'void ()'
-// CHECK-NEXT: CompoundStmt
-// CHECK-NEXT: SYCLIntelLoopFuseIndependentAttr
-// CHECK-NEXT: NULL
-[[intel::loop_fuse_independent]] void func3() {}
+// No diagnostic is thrown since arguments match. Duplicate attribute is silently ignored.
+[[intel::loop_fuse]] [[intel::loop_fuse]] void func5() {}
+[[intel::loop_fuse_independent(10)]] [[intel::loop_fuse_independent(10)]] void func6() {}
 
-// CHECK: FunctionDecl {{.*}} func4 'void ()'
-// CHECK-NEXT: CompoundStmt
-// CHECK-NEXT: SYCLIntelLoopFuseIndependentAttr
-// CHECK-NEXT: ConstantExpr
-// CHECK-NEXT: value: Int 3
-[[intel::loop_fuse_independent(3)]] void func4() {}
+[[intel::loop_fuse]] [[intel::loop_fuse(10)]] void func7() {}                            // expected-warning {{attribute 'loop_fuse' is already applied with different parameters}}
+[[intel::loop_fuse_independent(5)]] [[intel::loop_fuse_independent(10)]] void func8() {} // expected-warning {{attribute 'loop_fuse_independent' is already applied with different parameters}}
 
-class KernelFunctor {
-public:
-  void operator()() const {
-    func1();
-    func3();
-  }
-};
+[[intel::loop_fuse]] void func9();
+[[intel::loop_fuse]] void func9();
+
+[[intel::loop_fuse_independent(10)]] void func10();
+[[intel::loop_fuse_independent(10)]] void func10();
+
+[[intel::loop_fuse(1)]] void func11();
+[[intel::loop_fuse(3)]] void func11(); // expected-warning {{attribute 'loop_fuse' is already applied with different parameters}}
+
+[[intel::loop_fuse_independent(1)]] void func12();
+[[intel::loop_fuse_independent(3)]] void func12(); // expected-warning {{attribute 'loop_fuse_independent' is already applied with different parameters}}
+
+// expected-error@+2 {{'loop_fuse_independent' and 'loop_fuse' attributes are not compatible}}
+// expected-note@+1 {{conflicting attribute is here}}
+[[intel::loop_fuse]] [[intel::loop_fuse_independent]] void func13();
+
+// expected-error@+2 {{'loop_fuse' and 'loop_fuse_independent' attributes are not compatible}}
+// expected-note@+1 {{conflicting attribute is here}}
+[[intel::loop_fuse_independent]] [[intel::loop_fuse]] void func14();
+
+// expected-error@+2 {{'loop_fuse' and 'loop_fuse_independent' attributes are not compatible}}
+// expected-note@+2 {{conflicting attribute is here}}
+[[intel::loop_fuse]] void func15();
+[[intel::loop_fuse_independent]] void func15();
+
+// expected-error@+2 {{'loop_fuse_independent' and 'loop_fuse' attributes are not compatible}}
+// expected-note@+2 {{conflicting attribute is here}}
+[[intel::loop_fuse_independent]] void func16();
+[[intel::loop_fuse]] void func16();
 
 template <int N>
-class KernelFunctor2 {
-public:
-  [[intel::loop_fuse(N)]] void operator()() const {
-  }
-};
+[[intel::loop_fuse(N)]] void func17(); // expected-error{{'loop_fuse' attribute requires integer constant between 0 and 1048576 inclusive}}
 
-void foo() {
-  q.submit([&](handler &h) {
-    // CHECK: FunctionDecl {{.*}}kernel_name_1 'void ()'
-    // CHECK-NOT: SYCLIntelLoopFuseAttr
-    // CHECK-NOT: SYCLIntelLoopFuseIndependentAttr
-    KernelFunctor f1;
-    h.single_task<class kernel_name_1>(f1);
+template <typename Ty>
+[[intel::loop_fuse(Ty{})]] void func18() {} // expected-error{{'loop_fuse' attribute requires an integer constant}}
 
-    // CHECK: FunctionDecl {{.*}}kernel_name_2 'void ()'
-    // CHECK: SYCLIntelLoopFuseAttr
-    // CHECK-NEXT: SubstNonTypeTemplateParmExpr
-    // CHECK-NEXT: NonTypeTemplateParmDecl
-    // CHECK-NEXT: IntegerLiteral {{.*}} 'int' 3
-    KernelFunctor2<3> f2;
-    h.single_task<class kernel_name_2>(f2);
-
-    // CHECK: FunctionDecl {{.*}}kernel_name_3 'void ()'
-    // CHECK: SYCLIntelLoopFuseIndependentAttr
-    h.single_task<class kernel_name_3>(
-        []() [[intel::loop_fuse_independent]]{});
-  });
-
-  [[intel::loop_fuse]] int testVar = 0; // expected-error{{'loop_fuse' attribute only applies to functions}}
+void checkTemplates() {
+  func17<-1>();    // expected-note{{in instantiation of}}
+  func18<float>(); // expected-note{{in instantiation of}}
 }
-
-[[intel::loop_fuse(1048577)]] void func5() {}        // expected-error{{'loop_fuse' attribute requires integer constant between 0 and 1048576 inclusive}}
-[[intel::loop_fuse_independent(-1)]] void func6() {} // expected-error{{'loop_fuse_independent' attribute requires integer constant between 0 and 1048576 inclusive}}
-
-[[intel::loop_fuse]] [[intel::loop_fuse(10)]] void func7() {}                     // expected-warning {{attribute 'loop_fuse' is already applied}}
-[[intel::loop_fuse_independent]] [[intel::loop_fuse_independent]] void func8() {} // // expected-warning {{attribute 'loop_fuse_independent' is already applied}}
-
-// expected-error@+2 {{'loop_fuse_independent' and 'loop_fuse' attributes are not compatible}}
-// expected-note@+1 {{conflicting attribute is here}}
-[[intel::loop_fuse]] [[intel::loop_fuse_independent]] void func9();
-
-// expected-error@+2 {{'loop_fuse' and 'loop_fuse_independent' attributes are not compatible}}
-// expected-note@+1 {{conflicting attribute is here}}
-[[intel::loop_fuse_independent]] [[intel::loop_fuse]] void func10();
-
-// expected-error@+2 {{'loop_fuse' and 'loop_fuse_independent' attributes are not compatible}}
-// expected-note@+2 {{conflicting attribute is here}}
-[[intel::loop_fuse]] void func11();
-[[intel::loop_fuse_independent]] void func11() {}
-
-// expected-error@+2 {{'loop_fuse_independent' and 'loop_fuse' attributes are not compatible}}
-// expected-note@+2 {{conflicting attribute is here}}
-[[intel::loop_fuse_independent]] void func12();
-[[intel::loop_fuse]] void func12() {}
-
-[[intel::loop_fuse]] void func13();
-[[intel::loop_fuse]] void func13() {}
-
-[[intel::loop_fuse_independent]] void func14();
-[[intel::loop_fuse_independent]] void func14() {}

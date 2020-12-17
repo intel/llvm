@@ -2616,9 +2616,6 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.mergeImportNameAttr(D, *INA);
   else if (const auto *LFA = dyn_cast<SYCLIntelLoopFuseAttr>(Attr))
     NewAttr = S.mergeSYCLIntelLoopFuseAttr(D, *LFA, LFA->getValue());
-  else if (const auto *LFIA = dyn_cast<SYCLIntelLoopFuseIndependentAttr>(Attr))
-    NewAttr =
-        S.mergeSYCLIntelLoopFuseIndependentAttr(D, *LFIA, LFIA->getValue());
   else if (Attr->shouldInheritEvenIfAlreadyPresent() || !DeclHasAttr(D, Attr))
     NewAttr = cast<InheritableAttr>(Attr->clone(S.Context));
 

@@ -950,44 +950,17 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   if (getLangOpts().SYCLIsHost && D && D->hasAttr<SYCLKernelAttr>())
     Fn->addFnAttr("sycl_kernel");
 
-  if (getLangOpts().SYCLIsDevice && D &&
-      (D->hasAttr<SYCLIntelLoopFuseAttr>())) {
-    auto *A = D->getAttr<SYCLIntelLoopFuseAttr>();
-    Expr *E = A->getValue();
-
-    // Emit '1' if optional argument is omitted.
-    llvm::ConstantInt *Value = Builder.getInt32(1);
-
-    // Emit argument if specified.
-    if (E)
-      Value = Builder.getInt32(
-          E->getIntegerConstantExpr(D->getASTContext())->getSExtValue());
-
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Value),
-        llvm::ConstantAsMetadata::get(Builder.getInt32(0))};
-    Fn->setMetadata("loop_fuse",
-                    llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
-  }
-
-  if (getLangOpts().SYCLIsDevice && D &&
-      (D->hasAttr<SYCLIntelLoopFuseIndependentAttr>())) {
-    auto *A = D->getAttr<SYCLIntelLoopFuseIndependentAttr>();
-    Expr *E = A->getValue();
-
-    // Emit '1' if optional argument is omitted.
-    llvm::ConstantInt *Value = Builder.getInt32(1);
-
-    // Emit argument if specified.
-    if (E)
-      Value = Builder.getInt32(
-          E->getIntegerConstantExpr(D->getASTContext())->getSExtValue());
-
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Value),
-        llvm::ConstantAsMetadata::get(Builder.getInt32(1))};
-    Fn->setMetadata("loop_fuse",
-                    llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
+  if (getLangOpts().SYCLIsDevice && D) {
+    if (const auto *A = D->getAttr<SYCLIntelLoopFuseAttr>()) {
+      Expr *E = A->getValue();
+      llvm::Metadata *AttrMDArgs[] = {
+          llvm::ConstantAsMetadata::get(Builder.getInt32(
+              E->getIntegerConstantExpr(D->getASTContext())->getExtValue())),
+          llvm::ConstantAsMetadata::get(
+              A->isIndependent() ? Builder.getInt32(1) : Builder.getInt32(0))};
+      Fn->setMetadata("loop_fuse",
+                      llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
+    }
   }
 
   if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) {

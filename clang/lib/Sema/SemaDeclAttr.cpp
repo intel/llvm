@@ -3105,58 +3105,86 @@ static void handleMaxGlobalWorkDimAttr(Sema &S, Decl *D,
 }
 
 SYCLIntelLoopFuseAttr *
-Sema::mergeSYCLIntelLoopFuseAttr(Decl *D, const SYCLIntelLoopFuseAttr &Attr,
+Sema::mergeSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
                                  Expr *E) {
-  if (checkAttrMutualExclusion<SYCLIntelLoopFuseIndependentAttr>(*this, D,
-                                                                 Attr))
-    return nullptr;
 
-  if (D->hasAttr<SYCLIntelLoopFuseAttr>())
-    return nullptr;
+  if (const auto ExistingAttr = D->getAttr<SYCLIntelLoopFuseAttr>()) {
+    // [[intel::loop_fuse]] and [[intel::loop_fuse_independent]] are
+    // incompatible
+    if (ExistingAttr->getAttributeSpellingListIndex() !=
+        CI.getAttributeSpellingListIndex()) {
+      Diag(CI.getLoc(), diag::err_attributes_are_not_compatible)
+          << CI.getAttrName() << ExistingAttr;
+      Diag(ExistingAttr->getLocation(), diag::note_conflicting_attribute);
+      return nullptr;
+    }
 
-  return ::new (Context) SYCLIntelLoopFuseAttr(Context, Attr, E);
+    if (!E->isValueDependent()) {
+      Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(Context);
+      Optional<llvm::APSInt> ExistingArgVal =
+          ExistingAttr->getValue()->getIntegerConstantExpr(Context);
+
+      // Compare attribute argument value and warn if there is a mismatch
+      if (ArgVal->getExtValue() != ExistingArgVal->getExtValue())
+        Diag(ExistingAttr->getLoc(), diag::warn_duplicate_attribute)
+            << ExistingAttr;
+    }
+
+    // If there is no mismatch, silently ignore duplicate attribute
+    return nullptr;
+  }
+  return ::new (Context) SYCLIntelLoopFuseAttr(Context, CI, E);
 }
 
-SYCLIntelLoopFuseIndependentAttr *Sema::mergeSYCLIntelLoopFuseIndependentAttr(
-    Decl *D, const SYCLIntelLoopFuseIndependentAttr &Attr, Expr *E) {
-  if (checkAttrMutualExclusion<SYCLIntelLoopFuseAttr>(*this, D, Attr))
-    return nullptr;
+static bool checkSYCLIntelLoopFuseArgument(Sema &S,
+                                           const AttributeCommonInfo &CI,
+                                           Expr *E) {
+  // Dependent expressions are checked when instantiated.
+  if (E->isValueDependent())
+    return false;
 
-  if (D->hasAttr<SYCLIntelLoopFuseIndependentAttr>())
-    return nullptr;
+  Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(S.Context);
+  if (!ArgVal) {
+    S.Diag(E->getExprLoc(), diag::err_attribute_argument_type)
+        << CI.getAttrName() << AANT_ArgumentIntegerConstant
+        << E->getSourceRange();
+    return true;
+  }
 
-  return ::new (Context) SYCLIntelLoopFuseIndependentAttr(Context, Attr, E);
+  SYCLIntelLoopFuseAttr TmpAttr(S.Context, CI, E);
+  ExprResult ICE;
+  if (S.checkRangedIntegralArgument<SYCLIntelLoopFuseAttr>(E, &TmpAttr, ICE))
+    return true;
+
+  return false;
 }
 
-// Handles loop_fuse and loop_fuse_independent.
-// These attributes are incompatible with eachother.
-template <typename AttrType, typename ConflictingAttrType>
-static void handleLoopFusionAttr(Sema &S, Decl *D, const ParsedAttr &Attr) {
+void Sema::addSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
+                                    Expr *E) {
+  assert(E && "argument has unexpected null value");
+
+  if (checkSYCLIntelLoopFuseArgument(*this, CI, E))
+    return;
+
+  SYCLIntelLoopFuseAttr *NewAttr = mergeSYCLIntelLoopFuseAttr(D, CI, E);
+
+  if (NewAttr)
+    D->addAttr(NewAttr);
+}
+
+// Handles [[intel::loop_fuse]] and [[intel::loop_fuse_independent]].
+static void handleLoopFuseAttr(Sema &S, Decl *D, const ParsedAttr &Attr) {
+  // Attribute should not be processed during host compilation.
   if (S.LangOpts.SYCLIsHost)
     return;
 
-  if (D->isInvalidDecl())
-    return;
+  // Default argument value is set to 1
+  Expr *E = Attr.isArgExpr(0)
+                ? Attr.getArgAsExpr(0)
+                : IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
+                                         S.Context.IntTy, Attr.getLoc());
 
-  if (checkForDuplicateAttribute<AttrType>(S, D, Attr))
-    return;
-
-  if (checkAttrMutualExclusion<ConflictingAttrType>(S, D, Attr))
-    return;
-
-  unsigned NumArgs = Attr.getNumArgs();
-  if (NumArgs > 1) {
-    S.Diag(Attr.getLoc(), diag::warn_attribute_too_many_arguments) << Attr << 0;
-    return;
-  }
-
-  // Handle optional attribute argument.
-  if (Attr.isArgExpr(0))
-    // Attribute argument specified.
-    S.AddOneConstantValueAttr<AttrType>(D, Attr, Attr.getArgAsExpr(0));
-  else
-    // Attribute argument not specified.
-    D->addAttr(::new (S.Context) AttrType(S.Context, Attr));
+  S.addSYCLIntelLoopFuseAttr(D, Attr, E);
 }
 
 static void handleVecTypeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -8444,12 +8472,7 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     handleUseStallEnableClustersAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLIntelLoopFuse:
-    handleLoopFusionAttr<SYCLIntelLoopFuseAttr,
-                         SYCLIntelLoopFuseIndependentAttr>(S, D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelLoopFuseIndependent:
-    handleLoopFusionAttr<SYCLIntelLoopFuseIndependentAttr,
-                         SYCLIntelLoopFuseAttr>(S, D, AL);
+    handleLoopFuseAttr(S, D, AL);
     break;
   case ParsedAttr::AT_VecTypeHint:
     handleVecTypeHint(S, D, AL);

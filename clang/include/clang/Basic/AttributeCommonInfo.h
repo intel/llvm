@@ -167,8 +167,7 @@ public:
         ParsedAttr == AT_SYCLIntelMaxGlobalWorkDim ||
         ParsedAttr == AT_SYCLIntelNoGlobalWorkOffset ||
         ParsedAttr == AT_SYCLIntelUseStallEnableClusters ||
-        ParsedAttr == AT_SYCLIntelLoopFuse ||
-        ParsedAttr == AT_SYCLIntelLoopFuseIndependent)
+        ParsedAttr == AT_SYCLIntelLoopFuse)
       return true;
 
     return false;

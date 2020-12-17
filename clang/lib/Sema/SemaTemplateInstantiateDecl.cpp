@@ -592,6 +592,16 @@ static void instantiateSYCLIntelPipeIOAttr(
     S.addSYCLIntelPipeIOAttr(New, *Attr, Result.getAs<Expr>());
 }
 
+static void instantiateSYCLIntelLoopFuseAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLIntelLoopFuseAttr *Attr, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.addSYCLIntelLoopFuseAttr(New, *Attr, Result.getAs<Expr>());
+}
+
 template <typename AttrName>
 static void instantiateIntelSYCLFunctionAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
@@ -777,14 +787,8 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     }
     if (const auto *SYCLIntelLoopFuse =
             dyn_cast<SYCLIntelLoopFuseAttr>(TmplAttr)) {
-      instantiateIntelSYCLFunctionAttr<SYCLIntelLoopFuseAttr>(
-          *this, TemplateArgs, SYCLIntelLoopFuse, New);
-      continue;
-    }
-    if (const auto *SYCLIntelLoopFuseIndependent =
-            dyn_cast<SYCLIntelLoopFuseIndependentAttr>(TmplAttr)) {
-      instantiateIntelSYCLFunctionAttr<SYCLIntelLoopFuseIndependentAttr>(
-          *this, TemplateArgs, SYCLIntelLoopFuseIndependent, New);
+      instantiateSYCLIntelLoopFuseAttr(*this, TemplateArgs, SYCLIntelLoopFuse,
+                                       New);
       continue;
     }
     // Existing DLL attribute on the instantiation takes precedence.
