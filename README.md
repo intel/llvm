@@ -26,6 +26,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ## DPC++ extensions
 
+
+
+
 DPC++ is an open, cross-architecture language built upon the ISO C++ and Khronos
 SYCL\* standards. DPC++ extends these standards with a number of extensions,
 which can be found in [sycl/doc/extensions](sycl/doc/extensions) directory.
