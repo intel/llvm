@@ -1314,11 +1314,13 @@ def SYCLIntelNoGlobalWorkOffset : InheritableAttr {
 }
 
 def SYCLIntelLoopFuse : InheritableAttr {
-  let Spellings = [CXX11<"intel", "loop_fuse">, CXX11<"intel", "loop_fuse_independent">];
+  let Spellings = [CXX11<"intel", "loop_fuse">,
+                   CXX11<"intel", "loop_fuse_independent">];
   let Args = [ExprArgument<"Value", /*optional=*/ 1>];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
-  let Accessors = [Accessor<"isIndependent", [CXX11<"intel", "loop_fuse_independent">]>];
+  let Accessors = [Accessor<"isIndependent",
+                  [CXX11<"intel", "loop_fuse_independent">]>];
   let Documentation = [SYCLIntelLoopFuseDocs];
   let AdditionalMembers = [{
     static unsigned getMinValue() {

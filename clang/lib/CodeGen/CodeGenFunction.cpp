@@ -960,7 +960,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       Expr *E = A->getValue();
       llvm::Metadata *AttrMDArgs[] = {
           llvm::ConstantAsMetadata::get(Builder.getInt32(
-              E->getIntegerConstantExpr(D->getASTContext())->getExtValue())),
+              E->getIntegerConstantExpr(D->getASTContext())->getZExtValue())),
           llvm::ConstantAsMetadata::get(
               A->isIndependent() ? Builder.getInt32(1) : Builder.getInt32(0))};
       Fn->setMetadata("loop_fuse",

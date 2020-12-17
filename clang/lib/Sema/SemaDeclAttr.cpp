@@ -3097,11 +3097,13 @@ Sema::mergeSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
 
   if (const auto ExistingAttr = D->getAttr<SYCLIntelLoopFuseAttr>()) {
     // [[intel::loop_fuse]] and [[intel::loop_fuse_independent]] are
-    // incompatible
+    // incompatible.
+    // FIXME: If additional spellings are provided for this attribute,
+    // this code will do the wrong thing.
     if (ExistingAttr->getAttributeSpellingListIndex() !=
         CI.getAttributeSpellingListIndex()) {
       Diag(CI.getLoc(), diag::err_attributes_are_not_compatible)
-          << CI.getAttrName() << ExistingAttr;
+          << CI << ExistingAttr;
       Diag(ExistingAttr->getLocation(), diag::note_conflicting_attribute);
       return nullptr;
     }
@@ -3111,6 +3113,8 @@ Sema::mergeSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
       Optional<llvm::APSInt> ExistingArgVal =
           ExistingAttr->getValue()->getIntegerConstantExpr(Context);
 
+      assert(ArgVal && ExistingArgVal &&
+             "Argument should be an integer constant expression");
       // Compare attribute argument value and warn if there is a mismatch
       if (ArgVal->getExtValue() != ExistingArgVal->getExtValue())
         Diag(ExistingAttr->getLoc(), diag::warn_duplicate_attribute)
@@ -3133,17 +3137,14 @@ static bool checkSYCLIntelLoopFuseArgument(Sema &S,
   Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(S.Context);
   if (!ArgVal) {
     S.Diag(E->getExprLoc(), diag::err_attribute_argument_type)
-        << CI.getAttrName() << AANT_ArgumentIntegerConstant
-        << E->getSourceRange();
+        << CI << AANT_ArgumentIntegerConstant << E->getSourceRange();
     return true;
   }
 
   SYCLIntelLoopFuseAttr TmpAttr(S.Context, CI, E);
   ExprResult ICE;
-  if (S.checkRangedIntegralArgument<SYCLIntelLoopFuseAttr>(E, &TmpAttr, ICE))
-    return true;
 
-  return false;
+  return S.checkRangedIntegralArgument<SYCLIntelLoopFuseAttr>(E, &TmpAttr, ICE);
 }
 
 void Sema::addSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
