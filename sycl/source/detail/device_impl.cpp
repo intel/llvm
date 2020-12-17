@@ -254,18 +254,38 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::usm_system_allocator:
     return get_info<info::device::usm_system_allocator>();
   case aspect::ext_intel_pci_address:
+    if (getPlugin().getBackend() == backend::level_zero) {
+      if (!get_info<info::device::ext_intel_pci_address>().empty())
+        return true;
+    }
+    return false;
   case aspect::ext_intel_gpu_eu_count:
+    if (getPlugin().getBackend() == backend::level_zero) {
+      return get_info<info::device::ext_intel_gpu_eu_count>();
+    }
+    return false;
   case aspect::ext_intel_gpu_eu_simd_width:
+    if (getPlugin().getBackend() == backend::level_zero) {
+      return get_info<info::device::ext_intel_gpu_eu_simd_width>();
+    }
+    return false;
   case aspect::ext_intel_gpu_slices:
+    if (getPlugin().getBackend() == backend::level_zero) {
+      return get_info<info::device::ext_intel_gpu_slices>();
+    }
+    return false;
   case aspect::ext_intel_gpu_subslices_per_slice:
+    if (getPlugin().getBackend() == backend::level_zero) {
+      return get_info<info::device::ext_intel_gpu_subslices_per_slice>();
+    }
+    return false;
   case aspect::ext_intel_gpu_eu_count_per_subslice:
     if (getPlugin().getBackend() == backend::level_zero) {
-      return true;
-    } else {
-      return false;
+      return get_info<info::device::ext_intel_gpu_eu_count_per_subslice>();
     }
+    return false;
   case aspect::ext_intel_max_mem_bandwidth:
-    // currently not supported in the level zero runtime
+    // currently not supported
     return false;
 
   default:

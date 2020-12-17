@@ -783,6 +783,10 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     setEnvVar("ZE_ENABLE_PARAMETER_VALIDATION", "1");
   }
 
+  // Enable SYSMAN support for obtaining the PCI address
+  // and memory bandwidth.
+  setEnvVar("ZES_ENABLE_SYSMAN", "1");
+
   // TODO: We can still safely recover if something goes wrong during the init.
   // Implement handling segfault using sigaction.
 

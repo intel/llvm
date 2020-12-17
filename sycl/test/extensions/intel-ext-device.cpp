@@ -21,14 +21,7 @@
 
 using namespace cl::sycl;
 
-#ifdef _WIN32
-#define setenv(name, value, overwrite) _putenv_s(name, value)
-#endif
-
 int main(int argc, char **argv) {
-  // Required by Level Zero to obtain the PCI address
-  setenv("ZES_ENABLE_SYSMAN", "1", 0);
-
   int pltCount = 1;
   for (const auto &plt : platform::get_platforms()) {
     if (!plt.has(aspect::host)) {
