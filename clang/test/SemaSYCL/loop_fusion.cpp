@@ -57,3 +57,6 @@ void checkTemplates() {
   func17<-1>();    // expected-note{{in instantiation of}}
   func18<float>(); // expected-note{{in instantiation of}}
 }
+
+int baz();
+[[intel::loop_fuse(baz())]] void func19(); // expected-error{{'loop_fuse' attribute requires an integer constant}}

@@ -3154,6 +3154,10 @@ void Sema::addSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
   if (checkSYCLIntelLoopFuseArgument(*this, CI, E))
     return;
 
+  // Attribute should not be added during host compilation.
+  if (getLangOpts().SYCLIsHost)
+    return;
+
   SYCLIntelLoopFuseAttr *NewAttr = mergeSYCLIntelLoopFuseAttr(D, CI, E);
 
   if (NewAttr)
@@ -3162,10 +3166,6 @@ void Sema::addSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
 
 // Handles [[intel::loop_fuse]] and [[intel::loop_fuse_independent]].
 static void handleLoopFuseAttr(Sema &S, Decl *D, const ParsedAttr &Attr) {
-  // Attribute should not be processed during host compilation.
-  if (S.LangOpts.SYCLIsHost)
-    return;
-
   // Default argument value is set to 1
   Expr *E = Attr.isArgExpr(0)
                 ? Attr.getArgAsExpr(0)
