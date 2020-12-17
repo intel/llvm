@@ -318,19 +318,6 @@ static bool checkAttrMutualExclusion(Sema &S, Decl *D, const Attr &AL) {
   return false;
 }
 
-/// Give a warning for duplicate attributes, return true if duplicate.
-template <typename AttrType>
-static bool checkForDuplicateAttribute(Sema &S, Decl *D,
-                                       const ParsedAttr &Attr) {
-  // Give a warning for duplicates but not if it's one we've implicitly added.
-  auto *A = D->getAttr<AttrType>();
-  if (A && !A->isImplicit()) {
-    S.Diag(Attr.getLoc(), diag::warn_duplicate_attribute_exact) << A;
-    return true;
-  }
-  return false;
-}
-
 static bool checkDeprecatedSYCLAttributeSpelling(Sema &S,
                                                  const ParsedAttr &Attr) {
   if (Attr.getScopeName()->isStr("intelfpga"))
@@ -5350,6 +5337,19 @@ static void handleTypeTagForDatatypeAttr(Sema &S, Decl *D,
   D->addAttr(::new (S.Context) TypeTagForDatatypeAttr(
       S.Context, AL, PointerKind, MatchingCTypeLoc, AL.getLayoutCompatible(),
       AL.getMustBeNull()));
+}
+
+/// Give a warning for duplicate attributes, return true if duplicate.
+template <typename AttrType>
+static bool checkForDuplicateAttribute(Sema &S, Decl *D,
+                                       const ParsedAttr &Attr) {
+  // Give a warning for duplicates but not if it's one we've implicitly added.
+  auto *A = D->getAttr<AttrType>();
+  if (A && !A->isImplicit()) {
+    S.Diag(Attr.getLoc(), diag::warn_duplicate_attribute_exact) << A;
+    return true;
+  }
+  return false;
 }
 
 static void handleNoGlobalWorkOffsetAttr(Sema &S, Decl *D,
