@@ -814,9 +814,10 @@ namespace llvm {
     /// specifies the type to store as.
     FST,
 
-    /// This instruction grabs the address of the next argument
+    /// These instructions grab the address of the next argument
     /// from a va_list. (reads and modifies the va_list in memory)
     VAARG_64,
+    VAARG_X32,
 
     // Vector truncating store with unsigned/signed saturation
     VTRUNCSTOREUS,
@@ -1581,8 +1582,7 @@ namespace llvm {
 
     // Utility function to emit the low-level va_arg code for X86-64.
     MachineBasicBlock *
-    EmitVAARG64WithCustomInserter(MachineInstr &MI,
-                                  MachineBasicBlock *MBB) const;
+    EmitVAARGWithCustomInserter(MachineInstr &MI, MachineBasicBlock *MBB) const;
 
     /// Utility function to emit the xmm reg save portion of va_start.
     MachineBasicBlock *
@@ -1698,7 +1698,7 @@ namespace llvm {
   };
 
   /// Generate unpacklo/unpackhi shuffle mask.
-  void createUnpackShuffleMask(MVT VT, SmallVectorImpl<int> &Mask, bool Lo,
+  void createUnpackShuffleMask(EVT VT, SmallVectorImpl<int> &Mask, bool Lo,
                                bool Unary);
 
   /// Similar to unpacklo/unpackhi, but without the 128-bit lane limitation

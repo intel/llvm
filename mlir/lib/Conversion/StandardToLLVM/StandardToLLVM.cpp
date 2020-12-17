@@ -1681,6 +1681,7 @@ using MulFOpLowering = VectorConvertToLLVMPattern<MulFOp, LLVM::FMulOp>;
 using MulIOpLowering = VectorConvertToLLVMPattern<MulIOp, LLVM::MulOp>;
 using NegFOpLowering = VectorConvertToLLVMPattern<NegFOp, LLVM::FNegOp>;
 using OrOpLowering = VectorConvertToLLVMPattern<OrOp, LLVM::OrOp>;
+using PowFOpLowering = VectorConvertToLLVMPattern<PowFOp, LLVM::PowOp>;
 using RemFOpLowering = VectorConvertToLLVMPattern<RemFOp, LLVM::FRemOp>;
 using SelectOpLowering = OneToOneConvertToLLVMPattern<SelectOp, LLVM::SelectOp>;
 using ShiftLeftOpLowering =
@@ -3963,6 +3964,7 @@ void mlir::populateStdToLLVMNonMemoryConversionPatterns(
       MulIOpLowering,
       NegFOpLowering,
       OrOpLowering,
+      PowFOpLowering,
       PrefetchOpLowering,
       ReOpLowering,
       RemFOpLowering,
@@ -4154,8 +4156,8 @@ struct LLVMLoweringPass : public ConvertStandardToLLVMBase<LLVMLoweringPass> {
     LLVMConversionTarget target(getContext());
     if (failed(applyPartialConversion(m, target, std::move(patterns))))
       signalPassFailure();
-    m.setAttr(LLVM::LLVMDialect::getDataLayoutAttrName(),
-              StringAttr::get(this->dataLayout, m.getContext()));
+    m->setAttr(LLVM::LLVMDialect::getDataLayoutAttrName(),
+               StringAttr::get(this->dataLayout, m.getContext()));
   }
 };
 } // end namespace

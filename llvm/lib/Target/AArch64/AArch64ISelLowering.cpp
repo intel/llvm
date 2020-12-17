@@ -147,7 +147,7 @@ static inline EVT getPackedSVEVectorVT(EVT VT) {
   }
 }
 
-static inline MVT getPromotedVTForPredicate(MVT VT) {
+static inline EVT getPromotedVTForPredicate(EVT VT) {
   assert(VT.isScalableVector() && (VT.getVectorElementType() == MVT::i1) &&
          "Expected scalable predicate vector type!");
   switch (VT.getVectorMinNumElements()) {
@@ -1113,10 +1113,8 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
 
       // There are no legal MVT::nxv16f## based types.
       if (VT != MVT::nxv16i1) {
-        setOperationAction(ISD::SINT_TO_FP, VT, Promote);
-        AddPromotedToType(ISD::SINT_TO_FP, VT, getPromotedVTForPredicate(VT));
-        setOperationAction(ISD::UINT_TO_FP, VT, Promote);
-        AddPromotedToType(ISD::UINT_TO_FP, VT, getPromotedVTForPredicate(VT));
+        setOperationAction(ISD::SINT_TO_FP, VT, Custom);
+        setOperationAction(ISD::UINT_TO_FP, VT, Custom);
       }
     }
 
@@ -1147,6 +1145,10 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
       setOperationAction(ISD::FABS, VT, Custom);
       setOperationAction(ISD::FP_EXTEND, VT, Custom);
       setOperationAction(ISD::FP_ROUND, VT, Custom);
+      setOperationAction(ISD::VECREDUCE_FADD, VT, Custom);
+      setOperationAction(ISD::VECREDUCE_FMAX, VT, Custom);
+      setOperationAction(ISD::VECREDUCE_FMIN, VT, Custom);
+      setOperationAction(ISD::VECREDUCE_SEQ_FADD, VT, Custom);
     }
 
     for (auto VT : {MVT::nxv2bf16, MVT::nxv4bf16, MVT::nxv8bf16})
@@ -1934,6 +1936,7 @@ const char *AArch64TargetLowering::getTargetNodeName(unsigned Opcode) const {
     MAKE_CASE(AArch64ISD::INDEX_VECTOR)
     MAKE_CASE(AArch64ISD::UABD)
     MAKE_CASE(AArch64ISD::SABD)
+    MAKE_CASE(AArch64ISD::CALL_RVMARKER)
   }
 #undef MAKE_CASE
   return nullptr;
@@ -3174,11 +3177,20 @@ SDValue AArch64TargetLowering::LowerVectorINT_TO_FP(SDValue Op,
   SDLoc dl(Op);
   SDValue In = Op.getOperand(0);
   EVT InVT = In.getValueType();
+  unsigned Opc = Op.getOpcode();
+  bool IsSigned = Opc == ISD::SINT_TO_FP || Opc == ISD::STRICT_SINT_TO_FP;
 
   if (VT.isScalableVector()) {
-    unsigned Opcode = Op.getOpcode() == ISD::UINT_TO_FP
-                          ? AArch64ISD::UINT_TO_FP_MERGE_PASSTHRU
-                          : AArch64ISD::SINT_TO_FP_MERGE_PASSTHRU;
+    if (InVT.getVectorElementType() == MVT::i1) {
+      // We can't directly extend an SVE predicate; extend it first.
+      unsigned CastOpc = IsSigned ? ISD::SIGN_EXTEND : ISD::ZERO_EXTEND;
+      EVT CastVT = getPromotedVTForPredicate(InVT);
+      In = DAG.getNode(CastOpc, dl, CastVT, In);
+      return DAG.getNode(Opc, dl, VT, In);
+    }
+
+    unsigned Opcode = IsSigned ? AArch64ISD::SINT_TO_FP_MERGE_PASSTHRU
+                               : AArch64ISD::UINT_TO_FP_MERGE_PASSTHRU;
     return LowerToPredicatedOp(Op, DAG, Opcode);
   }
 
@@ -3188,16 +3200,15 @@ SDValue AArch64TargetLowering::LowerVectorINT_TO_FP(SDValue Op,
     MVT CastVT =
         MVT::getVectorVT(MVT::getFloatingPointVT(InVT.getScalarSizeInBits()),
                          InVT.getVectorNumElements());
-    In = DAG.getNode(Op.getOpcode(), dl, CastVT, In);
+    In = DAG.getNode(Opc, dl, CastVT, In);
     return DAG.getNode(ISD::FP_ROUND, dl, VT, In, DAG.getIntPtrConstant(0, dl));
   }
 
   if (VTSize > InVTSize) {
-    unsigned CastOpc =
-        Op.getOpcode() == ISD::SINT_TO_FP ? ISD::SIGN_EXTEND : ISD::ZERO_EXTEND;
+    unsigned CastOpc = IsSigned ? ISD::SIGN_EXTEND : ISD::ZERO_EXTEND;
     EVT CastVT = VT.changeVectorElementTypeToInteger();
     In = DAG.getNode(CastOpc, dl, CastVT, In);
-    return DAG.getNode(Op.getOpcode(), dl, VT, In);
+    return DAG.getNode(Opc, dl, VT, In);
   }
 
   return Op;
@@ -5539,8 +5550,17 @@ AArch64TargetLowering::LowerCall(CallLoweringInfo &CLI,
     return Ret;
   }
 
+  unsigned CallOpc = AArch64ISD::CALL;
+  // Calls marked with "rv_marker" are special. They should be expanded to the
+  // call, directly followed by a special marker sequence. Use the CALL_RVMARKER
+  // to do that.
+  if (CLI.CB && CLI.CB->hasRetAttr("rv_marker")) {
+    assert(!IsTailCall && "tail calls cannot be marked with rv_marker");
+    CallOpc = AArch64ISD::CALL_RVMARKER;
+  }
+
   // Returns a chain and a flag for retval copy to use.
-  Chain = DAG.getNode(AArch64ISD::CALL, DL, NodeTys, Ops);
+  Chain = DAG.getNode(CallOpc, DL, NodeTys, Ops);
   DAG.addNoMergeSiteInfo(Chain.getNode(), CLI.NoMerge);
   InFlag = Chain.getValue(1);
   DAG.addCallSiteInfo(Chain.getNode(), std::move(CSInfo));
@@ -16755,18 +16775,18 @@ SDValue AArch64TargetLowering::LowerVECREDUCE_SEQ_FADD(SDValue ScalarOp,
   EVT SrcVT = VecOp.getValueType();
   EVT ResVT = SrcVT.getVectorElementType();
 
-  // Only fixed length FADDA handled for now.
-  if (!useSVEForFixedLengthVectorVT(SrcVT, /*OverrideNEON=*/true))
-    return SDValue();
+  EVT ContainerVT = SrcVT;
+  if (SrcVT.isFixedLengthVector()) {
+    ContainerVT = getContainerForFixedLengthVector(DAG, SrcVT);
+    VecOp = convertToScalableVector(DAG, ContainerVT, VecOp);
+  }
 
   SDValue Pg = getPredicateForVector(DAG, DL, SrcVT);
-  EVT ContainerVT = getContainerForFixedLengthVector(DAG, SrcVT);
   SDValue Zero = DAG.getConstant(0, DL, MVT::i64);
 
   // Convert operands to Scalable.
   AccOp = DAG.getNode(ISD::INSERT_VECTOR_ELT, DL, ContainerVT,
                       DAG.getUNDEF(ContainerVT), AccOp, Zero);
-  VecOp = convertToScalableVector(DAG, ContainerVT, VecOp);
 
   // Perform reduction.
   SDValue Rdx = DAG.getNode(AArch64ISD::FADDA_PRED, DL, ContainerVT,
@@ -16823,9 +16843,12 @@ SDValue AArch64TargetLowering::LowerReductionToSVE(unsigned Opcode,
   // UADDV always returns an i64 result.
   EVT ResVT = (Opcode == AArch64ISD::UADDV_PRED) ? MVT::i64 :
                                                    SrcVT.getVectorElementType();
+  EVT RdxVT = SrcVT;
+  if (SrcVT.isFixedLengthVector() || Opcode == AArch64ISD::UADDV_PRED)
+    RdxVT = getPackedSVEVectorVT(ResVT);
 
   SDValue Pg = getPredicateForVector(DAG, DL, SrcVT);
-  SDValue Rdx = DAG.getNode(Opcode, DL, getPackedSVEVectorVT(ResVT), Pg, VecOp);
+  SDValue Rdx = DAG.getNode(Opcode, DL, RdxVT, Pg, VecOp);
   SDValue Res = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, DL, ResVT,
                             Rdx, DAG.getConstant(0, DL, MVT::i64));
 

@@ -272,6 +272,15 @@ static void denormalizeSimpleEnumJoined(SmallVectorImpl<const char *> &Args,
                      "the tablegen option description");
 }
 
+static Optional<std::string> normalizeString(OptSpecifier Opt, int TableIndex,
+                                             const ArgList &Args,
+                                             DiagnosticsEngine &Diags) {
+  auto *Arg = Args.getLastArg(Opt);
+  if (!Arg)
+    return None;
+  return std::string(Arg->getValue());
+}
+
 static void denormalizeString(SmallVectorImpl<const char *> &Args,
                               const char *Spelling,
                               CompilerInvocation::StringAllocator SA,
@@ -291,7 +300,7 @@ static Optional<std::string> normalizeTriple(OptSpecifier Opt, int TableIndex,
 
 template <typename T, typename U>
 static T mergeForwardValue(T KeyPath, U Value) {
-  return Value;
+  return static_cast<T>(Value);
 }
 
 template <typename T, typename U> static T mergeMaskValue(T KeyPath, U Value) {
@@ -307,10 +316,12 @@ static T extractMaskValue(T KeyPath) {
   return KeyPath & Value;
 }
 
-static void FixupInvocation(CompilerInvocation &Invocation) {
+static void FixupInvocation(CompilerInvocation &Invocation,
+                            DiagnosticsEngine &Diags) {
   LangOptions &LangOpts = *Invocation.getLangOpts();
   DiagnosticOptions &DiagOpts = Invocation.getDiagnosticOpts();
   CodeGenOptions &CodeGenOpts = Invocation.getCodeGenOpts();
+  TargetOptions &TargetOpts = Invocation.getTargetOpts();
   FrontendOptions &FrontendOpts = Invocation.getFrontendOpts();
   CodeGenOpts.XRayInstrumentFunctions = LangOpts.XRayInstrument;
   CodeGenOpts.XRayAlwaysEmitCustomEvents = LangOpts.XRayAlwaysEmitCustomEvents;
@@ -318,6 +329,13 @@ static void FixupInvocation(CompilerInvocation &Invocation) {
   FrontendOpts.GenerateGlobalModuleIndex = FrontendOpts.UseGlobalModuleIndex;
 
   llvm::sys::Process::UseANSIEscapeCodes(DiagOpts.UseANSIEscapeCodes);
+
+  llvm::Triple T(TargetOpts.Triple);
+
+  if (LangOpts.getExceptionHandling() != llvm::ExceptionHandling::None &&
+      T.isWindowsMSVCEnvironment())
+    Diags.Report(diag::err_fe_invalid_exception_model)
+        << static_cast<unsigned>(LangOpts.getExceptionHandling()) << T.str();
 }
 
 //===----------------------------------------------------------------------===//
@@ -499,8 +517,6 @@ static bool ParseAnalyzerArgs(AnalyzerOptions &Opts, ArgList &Args,
         .Case("false", false)
         .Default(false);
 
-  Opts.DumpExplodedGraphTo =
-      std::string(Args.getLastArgValue(OPT_analyzer_dump_egraph));
   Opts.AnalyzeSpecificFunction =
       std::string(Args.getLastArgValue(OPT_analyze_function));
   Opts.maxBlockVisitOnPath =
@@ -1875,10 +1891,6 @@ bool clang::ParseDiagnosticArgs(DiagnosticOptions &Opts, ArgList &Args,
   return Success;
 }
 
-static void ParseFileSystemArgs(FileSystemOptions &Opts, ArgList &Args) {
-  Opts.WorkingDir = std::string(Args.getLastArgValue(OPT_working_directory));
-}
-
 /// Parse the argument to the -ftest-module-file-extension
 /// command-line argument.
 ///
@@ -2990,23 +3002,6 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
                    /*Default=*/false) &&
       Opts.FixedPoint;
 
-  // Handle exception personalities
-  Arg *A = Args.getLastArg(
-      options::OPT_fsjlj_exceptions, options::OPT_fseh_exceptions,
-      options::OPT_fdwarf_exceptions, options::OPT_fwasm_exceptions);
-  if (A) {
-    const Option &Opt = A->getOption();
-    llvm::Triple T(TargetOpts.Triple);
-    if (T.isWindowsMSVCEnvironment())
-      Diags.Report(diag::err_fe_invalid_exception_model)
-          << Opt.getName() << T.str();
-
-    Opts.SjLjExceptions = Opt.matches(options::OPT_fsjlj_exceptions);
-    Opts.SEHExceptions = Opt.matches(options::OPT_fseh_exceptions);
-    Opts.DWARFExceptions = Opt.matches(options::OPT_fdwarf_exceptions);
-    Opts.WasmExceptions = Opt.matches(options::OPT_fwasm_exceptions);
-  }
-
   Opts.ExternCNoUnwind = Args.hasArg(OPT_fexternc_nounwind);
   Opts.TraditionalCPP = Args.hasArg(OPT_traditional_cpp);
 
@@ -3650,16 +3645,11 @@ static void ParsePreprocessorArgs(PreprocessorOptions &Opts, ArgList &Args,
   Opts.ImplicitPCHInclude = std::string(Args.getLastArgValue(OPT_include_pch));
   Opts.PCHWithHdrStop = Args.hasArg(OPT_pch_through_hdrstop_create) ||
                         Args.hasArg(OPT_pch_through_hdrstop_use);
-  Opts.PCHWithHdrStopCreate = Args.hasArg(OPT_pch_through_hdrstop_create);
   Opts.PCHThroughHeader =
       std::string(Args.getLastArgValue(OPT_pch_through_header_EQ));
-  Opts.UsePredefines = !Args.hasArg(OPT_undef);
-  Opts.DetailedRecord = Args.hasArg(OPT_detailed_preprocessing_record);
-  Opts.DisablePCHValidation = Args.hasArg(OPT_fno_validate_pch);
   Opts.AllowPCHWithCompilerErrors =
       Args.hasArg(OPT_fallow_pch_with_errors, OPT_fallow_pcm_with_errors);
 
-  Opts.DumpDeserializedPCHDecls = Args.hasArg(OPT_dump_deserialized_pch_decls);
   for (const auto *A : Args.filtered(OPT_error_on_deserialized_pch_decl))
     Opts.DeserializedPCHDeclsToErrorOn.insert(A->getValue());
 
@@ -3742,9 +3732,6 @@ static void ParsePreprocessorArgs(PreprocessorOptions &Opts, ArgList &Args,
   // "editor placeholder in source file" error in PP only mode.
   if (isStrictlyPreprocessorAction(Action))
     Opts.LexEditorPlaceholders = false;
-
-  Opts.SetUpStaticAnalyzer = Args.hasArg(OPT_setup_static_analyzer);
-  Opts.DisablePragmaDebugCrash = Args.hasArg(OPT_disable_pragma_debug_crash);
 }
 
 static void ParsePreprocessorOutputArgs(PreprocessorOutputOptions &Opts,
@@ -3755,14 +3742,7 @@ static void ParsePreprocessorOutputArgs(PreprocessorOutputOptions &Opts,
   else
     Opts.ShowCPP = 0;
 
-  Opts.ShowComments = Args.hasArg(OPT_C);
-  Opts.ShowLineMarkers = !Args.hasArg(OPT_P);
-  Opts.ShowMacroComments = Args.hasArg(OPT_CC);
   Opts.ShowMacros = Args.hasArg(OPT_dM) || Args.hasArg(OPT_dD);
-  Opts.ShowIncludeDirectives = Args.hasArg(OPT_dI);
-  Opts.RewriteIncludes = Args.hasArg(OPT_frewrite_includes);
-  Opts.RewriteImports = Args.hasArg(OPT_frewrite_imports);
-  Opts.UseLineDirectives = Args.hasArg(OPT_fuse_line_directives);
 }
 
 static void ParseTargetArgs(TargetOptions &Opts, ArgList &Args,
@@ -3858,7 +3838,6 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Res,
   }
 
   Success &= Res.parseSimpleArgs(Args, Diags);
-  FixupInvocation(Res);
 
   Success &= ParseAnalyzerArgs(*Res.getAnalyzerOpts(), Args, Diags);
   ParseDependencyOutputArgs(Res.getDependencyOutputOpts(), Args);
@@ -3870,7 +3849,6 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Res,
   Success &= ParseDiagnosticArgs(Res.getDiagnosticOpts(), Args, &Diags,
                                  /*DefaultDiagColor=*/false);
   ParseCommentArgs(LangOpts.CommentOpts, Args);
-  ParseFileSystemArgs(Res.getFileSystemOpts(), Args);
   // FIXME: We shouldn't have to pass the DashX option around here
   InputKind DashX = ParseFrontendArgs(Res.getFrontendOpts(), Args, Diags,
                                       LangOpts.IsHeaderFile);
@@ -3954,6 +3932,8 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Res,
   // Store the command-line for using in the CodeView backend.
   Res.getCodeGenOpts().Argv0 = Argv0;
   Res.getCodeGenOpts().CommandLineArgs = CommandLineArgs;
+
+  FixupInvocation(Res, Diags);
 
   return Success;
 }
@@ -4082,8 +4062,10 @@ void CompilerInvocation::generateCC1CommandLine(
     TABLE_INDEX)                                                               \
   if ((FLAGS)&options::CC1Option) {                                            \
     [&](const auto &Extracted) {                                               \
-      if (ALWAYS_EMIT || (Extracted != ((IMPLIED_CHECK) ? (IMPLIED_VALUE)      \
-                                                        : (DEFAULT_VALUE))))   \
+      if (ALWAYS_EMIT ||                                                       \
+          (Extracted !=                                                        \
+           static_cast<decltype(this->KEYPATH)>(                               \
+               (IMPLIED_CHECK) ? (IMPLIED_VALUE) : (DEFAULT_VALUE))))          \
         DENORMALIZER(Args, SPELLING, SA, TABLE_INDEX, Extracted);              \
     }(EXTRACTOR(this->KEYPATH));                                               \
   }

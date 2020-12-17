@@ -31,6 +31,7 @@
 #include "clang/CodeGen/SwiftCallingConv.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Analysis/ValueTracking.h"
+#include "llvm/IR/Assumptions.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/DataLayout.h"
@@ -1995,6 +1996,8 @@ void CodeGenModule::ConstructAttributeList(
       FuncAttrs.addAttribute("no_caller_saved_registers");
     if (TargetDecl->hasAttr<AnyX86NoCfCheckAttr>())
       FuncAttrs.addAttribute(llvm::Attribute::NoCfCheck);
+    if (TargetDecl->hasAttr<LeafAttr>())
+      FuncAttrs.addAttribute(llvm::Attribute::NoCallback);
 
     HasOptnone = TargetDecl->hasAttr<OptimizeNoneAttr>();
     if (auto *AllocSize = TargetDecl->getAttr<AllocSizeAttr>()) {
@@ -2019,6 +2022,18 @@ void CodeGenModule::ConstructAttributeList(
                                llvm::toStringRef(CodeGenOpts.UniformWGSize));
       }
     }
+
+    std::string AssumptionValueStr;
+    for (AssumptionAttr *AssumptionA :
+         TargetDecl->specific_attrs<AssumptionAttr>()) {
+      std::string AS = AssumptionA->getAssumption().str();
+      if (!AS.empty() && !AssumptionValueStr.empty())
+        AssumptionValueStr += ",";
+      AssumptionValueStr += AS;
+    }
+
+    if (!AssumptionValueStr.empty())
+      FuncAttrs.addAttribute(llvm::AssumptionAttrKey, AssumptionValueStr);
   }
 
   // Attach "no-builtins" attributes to:

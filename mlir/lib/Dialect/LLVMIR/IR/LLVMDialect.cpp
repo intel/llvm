@@ -1511,18 +1511,6 @@ static LogicalResult verify(LLVMFuncOp op) {
 }
 
 //===----------------------------------------------------------------------===//
-// Verification for LLVM::NullOp.
-//===----------------------------------------------------------------------===//
-
-// Only LLVM pointer types are supported.
-static LogicalResult verify(LLVM::NullOp op) {
-  auto llvmType = op.getType().dyn_cast<LLVM::LLVMType>();
-  if (!llvmType || !llvmType.isPointerTy())
-    return op.emitOpError("expected LLVM IR pointer type");
-  return success();
-}
-
-//===----------------------------------------------------------------------===//
 // Verification for LLVM::ConstantOp.
 //===----------------------------------------------------------------------===//
 
@@ -1738,8 +1726,8 @@ static ParseResult parseFenceOp(OpAsmParser &parser, OperationState &result) {
 static void printFenceOp(OpAsmPrinter &p, FenceOp &op) {
   StringRef syncscopeKeyword = "syncscope";
   p << op.getOperationName() << ' ';
-  if (!op.getAttr(syncscopeKeyword).cast<StringAttr>().getValue().empty())
-    p << "syncscope(" << op.getAttr(syncscopeKeyword) << ") ";
+  if (!op->getAttr(syncscopeKeyword).cast<StringAttr>().getValue().empty())
+    p << "syncscope(" << op->getAttr(syncscopeKeyword) << ") ";
   p << stringifyAtomicOrdering(op.ordering());
 }
 

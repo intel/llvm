@@ -1090,6 +1090,7 @@ def CUDADeviceBuiltinSurfaceType : InheritableAttr {
   let LangOpts = [CUDA];
   let Subjects = SubjectList<[CXXRecord]>;
   let Documentation = [CUDADeviceBuiltinSurfaceTypeDocs];
+  let MeaningfulToClassTemplateDefinition = 1;
 }
 
 def CUDADeviceBuiltinTextureType : InheritableAttr {
@@ -1098,6 +1099,7 @@ def CUDADeviceBuiltinTextureType : InheritableAttr {
   let LangOpts = [CUDA];
   let Subjects = SubjectList<[CXXRecord]>;
   let Documentation = [CUDADeviceBuiltinTextureTypeDocs];
+  let MeaningfulToClassTemplateDefinition = 1;
 }
 
 def CUDAGlobal : InheritableAttr {
@@ -1651,6 +1653,13 @@ def LayoutVersion : InheritableAttr, TargetSpecificAttr<TargetMicrosoftCXXABI> {
   let Args = [UnsignedArgument<"Version">];
   let Subjects = SubjectList<[CXXRecord]>;
   let Documentation = [LayoutVersionDocs];
+}
+
+def Leaf : InheritableAttr {
+  let Spellings = [GCC<"leaf">];
+  let Subjects = SubjectList<[Function]>;
+  let Documentation = [LeafDocs];
+  let SimpleHandler = 1;
 }
 
 def LifetimeBound : DeclOrTypeAttr {
@@ -4093,6 +4102,14 @@ def OMPDeclareVariant : InheritableAttr {
     void printPrettyPragma(raw_ostream & OS, const PrintingPolicy &Policy)
         const;
   }];
+}
+
+def Assumption : InheritableAttr {
+  let Spellings = [Clang<"assume">];
+  let Subjects = SubjectList<[Function, ObjCMethod]>;
+  let InheritEvenIfAlreadyPresent = 1;
+  let Documentation = [AssumptionDocs];
+  let Args = [StringArgument<"Assumption">];
 }
 
 def InternalLinkage : InheritableAttr {
