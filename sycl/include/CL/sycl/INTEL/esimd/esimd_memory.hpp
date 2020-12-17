@@ -605,6 +605,7 @@ enum EsimdFenceMask {
 
 /// esimd_fence sets the memory read/write order.
 /// \ingroup sycl_esimd
+template <typename T = void>
 ESIMD_INLINE ESIMD_NODEBUG void esimd_fence(uint8_t cntl) {
   __esimd_slm_fence(cntl);
 }
@@ -614,7 +615,7 @@ ESIMD_INLINE ESIMD_NODEBUG void esimd_fence(uint8_t cntl) {
 /// @{
 
 /// Declare per-work-group slm size.
-SYCL_EXTERNAL void slm_init(uint32_t size);
+template <typename T = void> SYCL_EXTERNAL void slm_init(uint32_t size);
 
 /// SLM gather.
 ///
@@ -806,7 +807,7 @@ media_block_store(AccessorTy acc, unsigned x, unsigned y, simd<T, m * n> vals) {
 
 #ifndef __SYCL_DEVICE_ONLY__
 
-SYCL_EXTERNAL void slm_init(uint32_t size) {}
+template <typename T> SYCL_EXTERNAL void slm_init(uint32_t size) {}
 
 #endif
 

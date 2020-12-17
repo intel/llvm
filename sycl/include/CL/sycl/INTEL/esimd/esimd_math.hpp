@@ -1066,6 +1066,7 @@ ESIMD_INTRINSIC_DEF(double, sqrt_ieee)
     simd<ftype, SZ> Src0 = src0;                                               \
     return esimd_##name(Src0, src1, flag);                                     \
   }                                                                            \
+  template <typename T = void>                                                 \
   ESIMD_NODEBUG ESIMD_INLINE ftype esimd_##name(ftype src0, ftype src1,        \
                                                 int flag = GENX_NOSAT) {       \
     simd<ftype, 1> Src0 = src0;                                                \
@@ -1499,7 +1500,7 @@ ESIMD_INLINE simd<float, N> esimd_atan2_fast(simd<float, N> y, simd<float, N> x,
 }
 
 //   For Scalar Input
-template <>
+template <typename T = void>
 ESIMD_INLINE float esimd_atan2_fast(float y, float x, const uint flags) {
   simd<float, 1> vy = y;
   simd<float, 1> vx = x;
@@ -1529,7 +1530,8 @@ ESIMD_INLINE simd<float, N> esimd_atan2(simd<float, N> y, simd<float, N> x,
 }
 
 // For Scalar Input
-template <> ESIMD_INLINE float esimd_atan2(float y, float x, const uint flags) {
+template <typename T = void>
+ESIMD_INLINE float esimd_atan2(float y, float x, const uint flags) {
   float v_distance;
   float v_y0;
   simd<float, 1> atan2;
@@ -1563,7 +1565,8 @@ ESIMD_INLINE simd<float, N> esimd_fmod(simd<float, N> y, simd<float, N> x,
 }
 
 //     For Scalar Input
-template <> ESIMD_INLINE float esimd_fmod(float y, float x, const uint flags) {
+template <typename T = void>
+ESIMD_INLINE float esimd_fmod(float y, float x, const uint flags) {
   int v_quot;
   simd<float, 1> fmod;
 
@@ -1811,7 +1814,7 @@ template <int N> ESIMD_INLINE simd<float, N> esimd_tanh_impl(simd<float, N> x) {
 
 /* esimd_tanh_cody_waite - Cody-Waite implementation for tanh(x) */
 /* float input */
-ESIMD_INLINE float esimd_tanh_cody_waite(float x) {
+template <typename T = void> ESIMD_INLINE float esimd_tanh_cody_waite(float x) {
   return detail::esimd_tanh_cody_waite_impl(simd<float, 1>(x))[0];
 }
 /* vector input */
@@ -1822,7 +1825,7 @@ ESIMD_INLINE simd<float, N> esimd_tanh_cody_waite(simd<float, N> x) {
 
 /* esimd_tanh - opencl like implementation for tanh(x) */
 /* float input */
-ESIMD_INLINE float esimd_tanh(float x) {
+template <typename T = void> ESIMD_INLINE float esimd_tanh(float x) {
   return detail::esimd_tanh_impl(simd<float, 1>(x))[0];
 }
 /* vector input */

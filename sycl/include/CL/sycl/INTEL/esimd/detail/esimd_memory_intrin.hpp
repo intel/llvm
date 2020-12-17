@@ -194,13 +194,14 @@ __esimd_flat_atomic2(sycl::INTEL::gpu::vector_type_t<uint64_t, N> addrs,
                      sycl::INTEL::gpu::vector_type_t<uint16_t, N> pred);
 
 // esimd_barrier, generic group barrier
-SYCL_EXTERNAL void __esimd_barrier();
+template <typename T = void> SYCL_EXTERNAL void __esimd_barrier();
 
 // generic work-group split barrier
+template <typename T = void>
 SYCL_EXTERNAL void __esimd_sbarrier(sycl::INTEL::gpu::EsimdSbarrierType flag);
 
 // slm_fence sets the SLM read/write order
-SYCL_EXTERNAL void __esimd_slm_fence(uint8_t cntl);
+template <typename T = void> SYCL_EXTERNAL void __esimd_slm_fence(uint8_t cntl);
 
 // slm_read does SLM gather
 template <typename Ty, int N>
@@ -773,11 +774,12 @@ __esimd_dp4(sycl::INTEL::gpu::vector_type_t<Ty, N> v1,
 }
 
 /// TODO
-SYCL_EXTERNAL void __esimd_barrier() {}
+template <typename T> SYCL_EXTERNAL void __esimd_barrier() {}
 
+template <typename T>
 SYCL_EXTERNAL void __esimd_sbarrier(sycl::INTEL::gpu::EsimdSbarrierType flag) {}
 
-SYCL_EXTERNAL void __esimd_slm_fence(uint8_t cntl) {}
+template <typename T> SYCL_EXTERNAL void __esimd_slm_fence(uint8_t cntl) {}
 
 template <typename Ty, int N>
 SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<Ty, N>
