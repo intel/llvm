@@ -165,38 +165,14 @@ static bool IsSyclMathFunc(unsigned BuiltinID) {
   case Builtin::BI__builtin_truncl:
   case Builtin::BIlroundl:
   case Builtin::BI__builtin_lroundl:
-  case Builtin::BIcopysign:
-  case Builtin::BI__builtin_copysign:
-  case Builtin::BIfloor:
-  case Builtin::BI__builtin_floor:
   case Builtin::BIfmax:
   case Builtin::BI__builtin_fmax:
   case Builtin::BIfmin:
   case Builtin::BI__builtin_fmin:
-  case Builtin::BInearbyint:
-  case Builtin::BI__builtin_nearbyint:
-  case Builtin::BIrint:
-  case Builtin::BI__builtin_rint:
-  case Builtin::BIround:
-  case Builtin::BI__builtin_round:
-  case Builtin::BItrunc:
-  case Builtin::BI__builtin_trunc:
-  case Builtin::BIcopysignf:
-  case Builtin::BI__builtin_copysignf:
-  case Builtin::BIfloorf:
-  case Builtin::BI__builtin_floorf:
   case Builtin::BIfmaxf:
   case Builtin::BI__builtin_fmaxf:
   case Builtin::BIfminf:
   case Builtin::BI__builtin_fminf:
-  case Builtin::BInearbyintf:
-  case Builtin::BI__builtin_nearbyintf:
-  case Builtin::BIrintf:
-  case Builtin::BI__builtin_rintf:
-  case Builtin::BIroundf:
-  case Builtin::BI__builtin_roundf:
-  case Builtin::BItruncf:
-  case Builtin::BI__builtin_truncf:
   case Builtin::BIlroundf:
   case Builtin::BI__builtin_lroundf:
   case Builtin::BI__builtin_fpclassify:
