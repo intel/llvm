@@ -619,6 +619,11 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
     BF->addDecorate(DecorationReferencedIndirectlyINTEL);
   }
 
+  if (Attrs.hasFnAttribute(kVCMetadata::VCCallable) &&
+      BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fast_composite)) {
+    BF->addDecorate(DecorationCallableFunctionINTEL);
+  }
+
   if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
     transVectorComputeMetadata(F);
 
@@ -650,10 +655,6 @@ void LLVMToSPIRV::transVectorComputeMetadata(Function *F) {
         .getValueAsString()
         .getAsInteger(0, SIMTMode);
     BF->addDecorate(DecorationSIMTCallINTEL, SIMTMode);
-  }
-
-  if (Attrs.hasFnAttribute(kVCMetadata::VCCallable)) {
-    BF->addDecorate(DecorationVectorComputeCallableFunctionINTEL);
   }
 
   if (Attrs.hasAttribute(AttributeList::ReturnIndex,
@@ -3403,8 +3404,8 @@ bool LLVMToSPIRV::transExecutionMode() {
         BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
             BF, static_cast<ExecutionMode>(EMode), TargetWidth)));
       } break;
-      case spv::ExecutionModeVectorComputeFastCompositeKernelINTEL: {
-        if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
+      case spv::ExecutionModeFastCompositeKernelINTEL: {
+        if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fast_composite))
           BF->addExecutionMode(BM->add(
               new SPIRVExecutionMode(BF, static_cast<ExecutionMode>(EMode))));
       } break;
