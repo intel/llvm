@@ -525,8 +525,10 @@ pi_result _pi_device::getAvailableCommandList(
 
     if (Queue->Device->ZeCommandListCache.size() > 0) {
       *ZeCommandList = Queue->Device->ZeCommandListCache.front();
-      *ZeFence = Queue->ZeCommandListFenceMap[*ZeCommandList];
-      if (*ZeFence == nullptr) {
+      auto it = Queue->ZeCommandListFenceMap.find(*ZeCommandList);
+      if (it != Queue->ZeCommandListFenceMap.end()) {
+        *ZeFence = it->second;
+      } else {
         // If there is a command list available on this device, but no
         // fence yet associated, then we must create a fence/list
         // reference for this Queue. This can happen if two Queues reuse
