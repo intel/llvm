@@ -318,12 +318,7 @@ Instruction *emitSpecConstantComposite(Type *Ty,
 /// first ID. If  \c IsNewSpecConstant is false, this vector is expected to
 /// contain enough elements to assign ID to each scalar element encountered in
 /// the specified composite type.
-/// @param IsNewSpecConstant [in] Flag to specify whether \c IDs vector should
-/// be filled with new IDs or it should be used as-is to replicate an existing
-/// spec constant
-/// @param [in,out] IsFirstElement Flag indicating whether this function is
-/// handling the first scalar element encountered in the specified composite
-/// type \c Ty or not.
+/// @param [in,out] Index Index of scalar element within a composite type
 ///
 /// @returns Instruction* representing specialization constant in LLVM IR, which
 /// is in SPIR-V friendly LLVM IR form.
@@ -335,22 +330,20 @@ Instruction *emitSpecConstantComposite(Type *Ty,
 /// encountered scalars and assigns them IDs (or re-uses existing ones).
 Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
                                            SmallVectorImpl<unsigned> &IDs,
-                                           bool IsNewSpecConstant,
-                                           bool &IsFirstElement) {
+                                           unsigned &Index) {
   if (!Ty->isArrayTy() && !Ty->isStructTy() && !Ty->isVectorTy()) { // Scalar
-    if (IsNewSpecConstant && !IsFirstElement) {
+    if (Index >= IDs.size()) {
       // If it is a new specialization constant, we need to generate IDs for
       // scalar elements, starting with the second one.
       IDs.push_back(IDs.back() + 1);
     }
-    IsFirstElement = false;
-    return emitSpecConstant(IDs.back(), Ty, InsertBefore);
+    return emitSpecConstant(IDs[Index++], Ty, InsertBefore);
   }
 
   SmallVector<Instruction *, 8> Elements;
   auto LoopIteration = [&](Type *Ty) {
-    Elements.push_back(emitSpecConstantRecursiveImpl(
-        Ty, InsertBefore, IDs, IsNewSpecConstant, IsFirstElement));
+    Elements.push_back(
+        emitSpecConstantRecursiveImpl(Ty, InsertBefore, IDs, Index));
   };
 
   if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
@@ -374,11 +367,9 @@ Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
 
 /// Wrapper intended to hide IsFirstElement argument from the caller
 Instruction *emitSpecConstantRecursive(Type *Ty, Instruction *InsertBefore,
-                                       SmallVectorImpl<unsigned> &IDs,
-                                       bool IsNewSpecConstant) {
-  bool IsFirstElement = true;
-  return emitSpecConstantRecursiveImpl(Ty, InsertBefore, IDs, IsNewSpecConstant,
-                                       IsFirstElement);
+                                       SmallVectorImpl<unsigned> &IDs) {
+  unsigned Index = 0;
+  return emitSpecConstantRecursiveImpl(Ty, InsertBefore, IDs, Index);
 }
 
 } // namespace
@@ -446,8 +437,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
 
         //  3. Transform to spirv intrinsic _Z*__spirv_SpecConstant* or
         //  _Z*__spirv_SpecConstantComposite
-        auto *SPIRVCall =
-            emitSpecConstantRecursive(SCTy, CI, IDs, IsNewSpecConstant);
+        auto *SPIRVCall = emitSpecConstantRecursive(SCTy, CI, IDs);
         if (IsNewSpecConstant) {
           // emitSpecConstantRecursive might emit more than one spec constant
           // (because of composite types) and therefore, we need to ajudst
