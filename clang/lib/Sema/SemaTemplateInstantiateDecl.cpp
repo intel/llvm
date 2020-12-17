@@ -775,6 +775,12 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
           *this, TemplateArgs, SYCLIntelMaxGlobalWorkDim, New);
       continue;
     }
+    if (const auto *SYCLIntelNoGlobalWorkOffset =
+            dyn_cast<SYCLIntelNoGlobalWorkOffsetAttr>(TmplAttr)) {
+      instantiateIntelSYCLFunctionAttr<SYCLIntelNoGlobalWorkOffsetAttr>(
+          *this, TemplateArgs, SYCLIntelNoGlobalWorkOffset, New);
+      continue;
+    }
     // Existing DLL attribute on the instantiation takes precedence.
     if (TmplAttr->getKind() == attr::DLLExport ||
         TmplAttr->getKind() == attr::DLLImport) {

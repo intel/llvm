@@ -351,13 +351,13 @@ MAKE_1V_FUNC(IsNormal, __vIsNormal, s::cl_short, s::cl_half)
 
 // (Ordered)              // isordered
 __SYCL_EXPORT s::cl_int Ordered(s::cl_float x, s::cl_float y) __NOEXC {
-  return __vOrdered(x, y);
+  return __sOrdered(x, y);
 }
 __SYCL_EXPORT s::cl_int Ordered(s::cl_double x, s::cl_double y) __NOEXC {
-  return __vOrdered(x, y);
+  return __sOrdered(x, y);
 }
 __SYCL_EXPORT s::cl_int Ordered(s::cl_half x, s::cl_half y) __NOEXC {
-  return __vOrdered(x, y);
+  return __sOrdered(x, y);
 }
 MAKE_1V_2V_FUNC(Ordered, __vOrdered, s::cl_int, s::cl_float, s::cl_float)
 MAKE_1V_2V_FUNC(Ordered, __vOrdered, s::cl_long, s::cl_double, s::cl_double)

@@ -165,38 +165,14 @@ static bool IsSyclMathFunc(unsigned BuiltinID) {
   case Builtin::BI__builtin_truncl:
   case Builtin::BIlroundl:
   case Builtin::BI__builtin_lroundl:
-  case Builtin::BIcopysign:
-  case Builtin::BI__builtin_copysign:
-  case Builtin::BIfloor:
-  case Builtin::BI__builtin_floor:
   case Builtin::BIfmax:
   case Builtin::BI__builtin_fmax:
   case Builtin::BIfmin:
   case Builtin::BI__builtin_fmin:
-  case Builtin::BInearbyint:
-  case Builtin::BI__builtin_nearbyint:
-  case Builtin::BIrint:
-  case Builtin::BI__builtin_rint:
-  case Builtin::BIround:
-  case Builtin::BI__builtin_round:
-  case Builtin::BItrunc:
-  case Builtin::BI__builtin_trunc:
-  case Builtin::BIcopysignf:
-  case Builtin::BI__builtin_copysignf:
-  case Builtin::BIfloorf:
-  case Builtin::BI__builtin_floorf:
   case Builtin::BIfmaxf:
   case Builtin::BI__builtin_fmaxf:
   case Builtin::BIfminf:
   case Builtin::BI__builtin_fminf:
-  case Builtin::BInearbyintf:
-  case Builtin::BI__builtin_nearbyintf:
-  case Builtin::BIrintf:
-  case Builtin::BI__builtin_rintf:
-  case Builtin::BIroundf:
-  case Builtin::BI__builtin_roundf:
-  case Builtin::BItruncf:
-  case Builtin::BI__builtin_truncf:
   case Builtin::BIlroundf:
   case Builtin::BI__builtin_lroundf:
   case Builtin::BI__builtin_fpclassify:
@@ -3757,8 +3733,14 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   PrintingPolicy Policy(LO);
   Policy.SuppressTypedefs = true;
   Policy.SuppressUnwrittenScope = true;
+  SYCLFwdDeclEmitter FwdDeclEmitter(O, S.getLangOpts());
 
   if (SpecConsts.size() > 0) {
+    O << "// Forward declarations of templated spec constant types:\n";
+    for (const auto &SC : SpecConsts)
+      FwdDeclEmitter.Visit(SC.first);
+    O << "\n";
+
     // Remove duplicates.
     std::sort(SpecConsts.begin(), SpecConsts.end(),
               [](const SpecConstID &SC1, const SpecConstID &SC2) {
@@ -3772,10 +3754,12 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
                       // Here can do faster comparison of types.
                       return SC1.first == SC2.first;
                     });
+
     O << "// Specialization constants IDs:\n";
     for (const auto &P : llvm::make_range(SpecConsts.begin(), End)) {
       O << "template <> struct sycl::detail::SpecConstantInfo<";
-      O << P.first.getAsString(Policy);
+      SYCLKernelNameTypePrinter Printer(O, Policy);
+      Printer.Visit(P.first);
       O << "> {\n";
       O << "  static constexpr const char* getName() {\n";
       O << "    return \"" << P.second << "\";\n";
@@ -3786,8 +3770,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   if (!UnnamedLambdaSupport) {
     O << "// Forward declarations of templated kernel function types:\n";
-
-    SYCLFwdDeclEmitter FwdDeclEmitter(O, S.getLangOpts());
     for (const KernelDesc &K : KernelDescs)
       FwdDeclEmitter.Visit(K.NameType);
   }

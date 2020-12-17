@@ -137,7 +137,7 @@ static std::string replaceAllSubstrs(std::string str, const std::string &match,
 static inline bool hasStringAttribute(const Record &record,
                                       StringRef fieldName) {
   auto valueInit = record.getValueInit(fieldName);
-  return isa<CodeInit, StringInit>(valueInit);
+  return isa<StringInit>(valueInit);
 }
 
 static std::string getArgumentName(const Operator &op, int index) {
@@ -453,10 +453,10 @@ OpEmitter::OpEmitter(const Operator &op)
   genVerifier();
   genCanonicalizerDecls();
   genFolderDecls();
+  genTypeInterfaceMethods();
   genOpInterfaceMethods();
   generateOpFormat(op, opClass);
   genSideEffectInterfaceMethods();
-  genTypeInterfaceMethods();
 }
 
 void OpEmitter::emitDecl(const Operator &op, raw_ostream &os) {
@@ -1739,7 +1739,6 @@ void OpEmitter::genTypeInterfaceMethods() {
   auto *method =
       opClass.addMethodAndPrune("::mlir::LogicalResult", "inferReturnTypes",
                                 OpMethod::MP_Static, std::move(paramList));
-
   auto &body = method->body();
   body << "  inferredReturnTypes.resize(" << op.getNumResults() << ");\n";
 
@@ -1797,15 +1796,15 @@ void OpEmitter::genPrinter() {
     return;
 
   auto valueInit = def.getValueInit("printer");
-  CodeInit *codeInit = dyn_cast<CodeInit>(valueInit);
-  if (!codeInit)
+  StringInit *stringInit = dyn_cast<StringInit>(valueInit);
+  if (!stringInit)
     return;
 
   auto *method =
       opClass.addMethodAndPrune("void", "print", "::mlir::OpAsmPrinter &", "p");
   FmtContext fctx;
   fctx.addSubst("cppClass", opClass.getClassName());
-  auto printer = codeInit->getValue().ltrim().rtrim(" \t\v\f\r");
+  auto printer = stringInit->getValue().ltrim().rtrim(" \t\v\f\r");
   method->body() << "  " << tgfmt(printer, &fctx);
 }
 
@@ -1817,8 +1816,8 @@ void OpEmitter::genVerifier() {
        << "return ::mlir::failure();\n";
 
   auto *valueInit = def.getValueInit("verifier");
-  CodeInit *codeInit = dyn_cast<CodeInit>(valueInit);
-  bool hasCustomVerify = codeInit && !codeInit->getValue().empty();
+  StringInit *stringInit = dyn_cast<StringInit>(valueInit);
+  bool hasCustomVerify = stringInit && !stringInit->getValue().empty();
   populateSubstitutions(op, "this->getAttr", "this->getODSOperands",
                         "this->getODSResults", verifyCtx);
 
@@ -1842,7 +1841,7 @@ void OpEmitter::genVerifier() {
   if (hasCustomVerify) {
     FmtContext fctx;
     fctx.addSubst("cppClass", opClass.getClassName());
-    auto printer = codeInit->getValue().ltrim().rtrim(" \t\v\f\r");
+    auto printer = stringInit->getValue().ltrim().rtrim(" \t\v\f\r");
     body << "  " << tgfmt(printer, &fctx);
   } else {
     body << "  return ::mlir::success();\n";
@@ -2139,10 +2138,8 @@ OpOperandAdaptorEmitter::OpOperandAdaptorEmitter(const Operator &op)
   {
     auto *constructor = adaptor.addConstructorAndPrune(
         llvm::formatv("{0}&", op.getCppClassName()).str(), "op");
-    constructor->addMemberInitializer("odsOperands",
-                                      "op.getOperation()->getOperands()");
-    constructor->addMemberInitializer("odsAttrs",
-                                      "op.getOperation()->getAttrDictionary()");
+    constructor->addMemberInitializer("odsOperands", "op->getOperands()");
+    constructor->addMemberInitializer("odsAttrs", "op->getAttrDictionary()");
   }
 
   std::string sizeAttrInit =

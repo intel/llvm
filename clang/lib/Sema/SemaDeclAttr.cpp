@@ -5276,24 +5276,18 @@ static void handleNoGlobalWorkOffsetAttr(Sema &S, Decl *D,
 
   checkForDuplicateAttribute<SYCLIntelNoGlobalWorkOffsetAttr>(S, D, Attr);
 
-  uint32_t Enabled = 1;
-  if (Attr.getNumArgs()) {
-    const Expr *E = Attr.getArgAsExpr(0);
-    if (!checkUInt32Argument(S, Attr, E, Enabled, 0,
-                             /*StrictlyUnsigned=*/true))
-      return;
-  }
-  if (Enabled > 1)
-    S.Diag(Attr.getLoc(), diag::warn_boolean_attribute_argument_is_not_valid)
-        << Attr;
-
   if (Attr.getKind() == ParsedAttr::AT_SYCLIntelNoGlobalWorkOffset &&
       checkDeprecatedSYCLAttributeSpelling(S, Attr))
     S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)
         << "'intel::no_global_work_offset'";
 
-  D->addAttr(::new (S.Context)
-                 SYCLIntelNoGlobalWorkOffsetAttr(S.Context, Attr, Enabled));
+  // If no attribute argument is specified, set to default value '1'.
+  Expr *E = Attr.isArgExpr(0)
+                ? Attr.getArgAsExpr(0)
+                : IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
+                                         S.Context.IntTy, Attr.getLoc());
+  S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelNoGlobalWorkOffsetAttr>(D, Attr,
+                                                                       E);
 }
 
 /// Handle the [[intelfpga::doublepump]] and [[intelfpga::singlepump]] attributes.
@@ -7452,16 +7446,14 @@ DLLExportAttr *Sema::mergeDLLExportAttr(Decl *D,
 
 static void handleDLLAttr(Sema &S, Decl *D, const ParsedAttr &A) {
   if (isa<ClassTemplatePartialSpecializationDecl>(D) &&
-      (S.Context.getTargetInfo().getCXXABI().isMicrosoft() ||
-       S.Context.getTargetInfo().getTriple().isWindowsItaniumEnvironment())) {
+      (S.Context.getTargetInfo().shouldDLLImportComdatSymbols())) {
     S.Diag(A.getRange().getBegin(), diag::warn_attribute_ignored) << A;
     return;
   }
 
   if (const auto *FD = dyn_cast<FunctionDecl>(D)) {
     if (FD->isInlined() && A.getKind() == ParsedAttr::AT_DLLImport &&
-        !(S.Context.getTargetInfo().getCXXABI().isMicrosoft() ||
-          S.Context.getTargetInfo().getTriple().isWindowsItaniumEnvironment())) {
+        !(S.Context.getTargetInfo().shouldDLLImportComdatSymbols())) {
       // MinGW doesn't allow dllimport on inline functions.
       S.Diag(A.getRange().getBegin(), diag::warn_attribute_ignored_on_inline)
           << A;
@@ -7470,8 +7462,7 @@ static void handleDLLAttr(Sema &S, Decl *D, const ParsedAttr &A) {
   }
 
   if (const auto *MD = dyn_cast<CXXMethodDecl>(D)) {
-    if ((S.Context.getTargetInfo().getCXXABI().isMicrosoft() ||
-         S.Context.getTargetInfo().getTriple().isWindowsItaniumEnvironment()) &&
+    if ((S.Context.getTargetInfo().shouldDLLImportComdatSymbols()) &&
         MD->getParent()->isLambda()) {
       S.Diag(A.getRange().getBegin(), diag::err_attribute_dll_lambda) << A;
       return;
