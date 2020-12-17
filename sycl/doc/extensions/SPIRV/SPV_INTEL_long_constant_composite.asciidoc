@@ -75,7 +75,7 @@ Modify Section 3.31, "Capability", adding these rows to the Capability table:
 --
 [options="header"]
 |====
-2+^| Capability ^| Depends On
+2+^| Capability ^| Implicitly Declares
 | 6089 | *CapabilityLongConstantCompositeINTEL* +
 Allow to use *OpTypeStructContinuedINTEL*, *OpConstantCompositeContinuedINTEL*
 and *OpSpecConstantCompositeContinuedINTEL* instructions |
@@ -179,7 +179,7 @@ In case _Base_ is an *OpConstantComposite* instruction followed by one or
 more *OpConstantCompositeContinuedINTEL* instructions, the bounds must be bounds
 of *OpConstantComposite* and the following *OpConstantCompositeContinuedINTEL*
 instructions together. Same is applicable in case _Base_ is an
-*OpSpecConstantComposite* instruction followed be one or more
+*OpSpecConstantComposite* instruction followed by one or more
 *OpSpecConstantCompositeContinuedINTEL* instructions.
 
 Issues
