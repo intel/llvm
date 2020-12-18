@@ -1,13 +1,11 @@
-name: automatic sync main branch from llvm-project to llvm test on sycl
+name: automatic sync main branch from llvm-project to llvm
 
 on:
-  workflow_dispatch:
   schedule:
   - cron: '*/10 * * * *'
 jobs:
   check:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v2
         with:
