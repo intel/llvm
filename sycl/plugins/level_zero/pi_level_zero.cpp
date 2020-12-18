@@ -4888,7 +4888,7 @@ pi_result piextUSMFree(pi_context Context, void *Ptr) {
     assert(Device);
 
     auto DeallocationHelper =
-        [Context, Device,
+        [Device,
          Ptr](std::unordered_map<pi_device, USMAllocContext> &AllocContextMap) {
           try {
             auto It = AllocContextMap.find(Device);
