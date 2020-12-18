@@ -1111,7 +1111,6 @@ pi_result piDeviceRelease(pi_device Device) {
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
   // Check if the device is already released
-  //PI_ASSERT(Device->RefCount > 0, PI_INVALID_VALUE);
   if (Device->RefCount <= 0)
     die("piDeviceRelease: the device has been already released");
 
@@ -2450,8 +2449,8 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
       std::memcpy(PBinary[0], Program->Code.get(), Program->CodeLength);
     } else {
       PI_ASSERT(Program->State == _pi_program::Object ||
-                Program->State == _pi_program::Exe ||
-                Program->State == _pi_program::LinkedExe,
+                    Program->State == _pi_program::Exe ||
+                    Program->State == _pi_program::LinkedExe,
                 PI_INVALID_OPERATION);
 
       _pi_program::ModuleIterator ModIt(Program);
