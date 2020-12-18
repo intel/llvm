@@ -5,21 +5,20 @@ v0.1
 :icons: font
 == Introduction
 This document describes an interface for online compilation from high-level languages, such as
-OpenCL, to a binary format, such as SPIRV, loadable by SYCL backends. Unlike SYCL'2020 OpenCL Back
-End's online comilation interface, this interface is not bound to any particular Back End and does
+OpenCL, to a binary format, such as SPIR-V, loadable by SYCL backends. Unlike SYCL 2020 provisional's OpenCL backend online compilation interface, this interface is not bound to any particular backend and does
 not require available SYCL context for online compilation.
 
-This gives a flexibility to "cross-compile" to SPIRV or other supported formats without any SYCL
+This gives a flexibility to "cross-compile" to SPIR-V or other supported formats without any SYCL
 device or context available. The online compilation API uses the `online_compiler` class to access
 compilation services. Instances of the class are constructed based on a specification of the desired
 compilation target passed to the constructors - such as compiled code format, target architecture,
-etc. All the settings are optional, and by default the target is generic SPIRV.
+etc. All the settings are optional, and by default the target is generic SPIR-V.
 
 This API is an Intel SYCL extension.
 
 == Online compilation API
 
-All online compilation API elements reside in the `sycl::INTEL` namepace.
+All online compilation API elements reside in the `sycl::INTEL` namespace.
 
 === Source language specification
 
@@ -99,7 +98,7 @@ template <source_language Lang> class online_compiler;
 
 Online compiler construction or source compilation may be unsuccessful, in which case an instance
 of `sycl::INTEL::online_compile_error` is thrown. For example, when some of the compilation
-target specification elements are not supported by the implementaiton, or there is a syntax error
+target specification elements are not supported by the implementation, or there is a syntax error
 in the source program.
 
 
@@ -110,7 +109,7 @@ in the source program.
 
 |`online_compiler(compiled_code_format fmt = compiled_code_format::SPIRV)`
 | Constructs online compiler which can target any device and produces
-  given compiled code format. Produces device code is 64-bit. OutputFormatVersion is
+  given compiled code format. Produced device code is 64-bit. OutputFormatVersion is
   implementation defined. The created compiler is "optimistic" - it assumes all applicable SYCL
   device capabilities are supported by the target device(s).
 
