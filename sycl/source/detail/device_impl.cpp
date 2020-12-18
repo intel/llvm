@@ -216,6 +216,9 @@ pi_native_handle device_impl::getNative() const {
 }
 
 bool device_impl::has(aspect Aspect) const {
+  size_t return_size = 0;
+  pi_device_type device_type;
+
   switch (Aspect) {
   case aspect::host:
     return is_host();
@@ -254,36 +257,53 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::usm_system_allocator:
     return get_info<info::device::usm_system_allocator>();
   case aspect::ext_intel_pci_address:
-    if (getPlugin().getBackend() == backend::level_zero) {
-      if (!get_info<info::device::ext_intel_pci_address>().empty())
-        return true;
+    if (getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_DEVICE_INFO_PCI_ADDRESS, sizeof(pi_device_type),
+            &device_type, &return_size) == PI_SUCCESS) {
+      return true;
+    } else {
+      return false;
     }
-    return false;
   case aspect::ext_intel_gpu_eu_count:
-    if (getPlugin().getBackend() == backend::level_zero) {
-      return get_info<info::device::ext_intel_gpu_eu_count>();
+    if (getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_DEVICE_INFO_GPU_EU_COUNT, sizeof(pi_device_type),
+            &device_type, &return_size) == PI_SUCCESS) {
+      return true;
+    } else {
+      return false;
     }
-    return false;
   case aspect::ext_intel_gpu_eu_simd_width:
-    if (getPlugin().getBackend() == backend::level_zero) {
-      return get_info<info::device::ext_intel_gpu_eu_simd_width>();
+    if (getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH, sizeof(pi_device_type),
+            &device_type, &return_size) == PI_SUCCESS) {
+      return true;
+    } else {
+      return false;
     }
-    return false;
   case aspect::ext_intel_gpu_slices:
-    if (getPlugin().getBackend() == backend::level_zero) {
-      return get_info<info::device::ext_intel_gpu_slices>();
+    if (getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_DEVICE_INFO_GPU_SLICES, sizeof(pi_device_type),
+            &device_type, &return_size) == PI_SUCCESS) {
+      return true;
+    } else {
+      return false;
     }
-    return false;
   case aspect::ext_intel_gpu_subslices_per_slice:
-    if (getPlugin().getBackend() == backend::level_zero) {
-      return get_info<info::device::ext_intel_gpu_subslices_per_slice>();
+    if (getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE,
+            sizeof(pi_device_type), &device_type, &return_size) == PI_SUCCESS) {
+      return true;
+    } else {
+      return false;
     }
-    return false;
   case aspect::ext_intel_gpu_eu_count_per_subslice:
-    if (getPlugin().getBackend() == backend::level_zero) {
-      return get_info<info::device::ext_intel_gpu_eu_count_per_subslice>();
+    if (getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
+            sizeof(pi_device_type), &device_type, &return_size) == PI_SUCCESS) {
+      return true;
+    } else {
+      return false;
     }
-    return false;
   case aspect::ext_intel_max_mem_bandwidth:
     // currently not supported
     return false;

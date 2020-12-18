@@ -784,8 +784,10 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   }
 
   // Enable SYSMAN support for obtaining the PCI address
-  // and memory bandwidth.
-  setEnvVar("ZES_ENABLE_SYSMAN", "1");
+  // and maximum memory bandwidth.
+  if (getenv("SYCL_ENABLE_PCI") != nullptr) {
+    setEnvVar("ZES_ENABLE_SYSMAN", "1");
+  }
 
   // TODO: We can still safely recover if something goes wrong during the init.
   // Implement handling segfault using sigaction.
@@ -1575,7 +1577,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // intel extensions for GPU information
   case PI_DEVICE_INFO_PCI_ADDRESS: {
     if (getenv("ZES_ENABLE_SYSMAN") == nullptr) {
-      zePrint("Set ZES_ENABLE_SYSMAN=1 to obtain PCI data.\n");
+      zePrint("Set SYCL_ENABLE_PCI=1 to obtain PCI data.\n");
       return PI_INVALID_VALUE;
     }
     zes_pci_properties_t ZeDevicePciProperties = {};

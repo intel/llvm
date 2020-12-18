@@ -21,7 +21,15 @@
 
 using namespace cl::sycl;
 
+#ifdef _WIN32
+#define setenv(name, value, overwrite) _putenv_s(name, value)
+#endif
+
 int main(int argc, char **argv) {
+  // Must be enabled at the beginning of the application
+  // to obtain the PCI address
+  setenv("SYCL_ENABLE_PCI", "1", 0);
+
   int pltCount = 1;
   for (const auto &plt : platform::get_platforms()) {
     if (!plt.has(aspect::host)) {
