@@ -3115,13 +3115,13 @@ Sema::mergeSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
 
       assert(ArgVal && ExistingArgVal &&
              "Argument should be an integer constant expression");
-      // Compare attribute argument value and warn if there is a mismatch
+      // Compare attribute argument value and warn if there is a mismatch.
       if (ArgVal->getExtValue() != ExistingArgVal->getExtValue())
         Diag(ExistingAttr->getLoc(), diag::warn_duplicate_attribute)
             << ExistingAttr;
     }
 
-    // If there is no mismatch, silently ignore duplicate attribute
+    // If there is no mismatch, silently ignore duplicate attribute.
     return nullptr;
   }
   return ::new (Context) SYCLIntelLoopFuseAttr(Context, CI, E);
@@ -3166,7 +3166,7 @@ void Sema::addSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
 
 // Handles [[intel::loop_fuse]] and [[intel::loop_fuse_independent]].
 static void handleLoopFuseAttr(Sema &S, Decl *D, const ParsedAttr &Attr) {
-  // Default argument value is set to 1
+  // Default argument value is set to 1.
   Expr *E = Attr.isArgExpr(0)
                 ? Attr.getArgAsExpr(0)
                 : IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),

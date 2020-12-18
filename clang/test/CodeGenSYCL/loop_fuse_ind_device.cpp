@@ -16,7 +16,7 @@ public:
 void bar() {
 
   q.submit([&](handler &h) {
-    // Test template argument
+    // Test template argument.
     KernelFunctor5<5> f5;
     h.single_task<class kernel_name_1>(f5);
 

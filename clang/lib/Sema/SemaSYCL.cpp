@@ -571,7 +571,7 @@ public:
         FD->addAttr(SYCLSimdAttr::CreateImplicit(SemaRef.getASTContext()));
 
       // Attribute "loop_fuse" can be applied explicitly on kernel function.
-      // Attribute should not be propagated from device functions to kernel
+      // Attribute should not be propagated from device functions to kernel.
       if (auto *A = FD->getAttr<SYCLIntelLoopFuseAttr>()) {
         if (ParentFD == SYCLKernel) {
           Attrs.insert(A);
