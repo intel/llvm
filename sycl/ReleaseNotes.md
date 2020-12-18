@@ -1,6 +1,6 @@
 # December'20 release notes
 
-Release notes for commit range 5d7e0925..9d0e3525ba04
+Release notes for commit range 5d7e0925..d4251e3c55e7
 
 ## New features
 ### SYCL Compiler
@@ -15,19 +15,23 @@ Release notes for commit range 5d7e0925..9d0e3525ba04
    incorrect work of scatter/gather of 1- and 2-byte values [d2d20d6c4556]
  - Rename FPGA kernel attribute `[[intel::stall_enable]]` to
    `[[intel::use_stall_enable_clusters]]` [dab9debebe70]
- - Add template parameter support for `[[intel::max_global_work_dim]]`
-   attribute [bd8fcc7dee34]
+ - Add template parameter support for `[[intel::max_global_work_dim]]` and
+   `[[intel::no_global_work_offset]]` attributes [bd8fcc7dee34, a5fde5a924ac]
  - Remove partial-link path when dealing with fat static archives [f1aa7f4d8b79]
  - Remove unused device library function definitions from linked program
    [e9423ffdec92]
  - Don't dump IR and dot files by default in the LowerWGScope [9d0e3525ba04]
+ - Support LLVM FP intrinsics in llvm-spirv and in frontend [a5065ab85101]
+ - Improve group size selection by adjusting parallel-for global range size
+   [74a68b7da4e7]
 ### SYCL Library
  - Eliminate performance overhead on devices without host unified memory support
    [a4f092417ef9]
  - Implement dynamic batch size adjusting when using Level-Zero plugin
    [c70b0477aa8a, cf0d0538d162]
  - Optimize `discard_write` access mode for host accessor [6733c8b0efde]
- - Add support for composite specialization constants [c62860fd6b86]
+ - Add support for composite specialization constants
+   [c62860fd6b86, d4251e3c55e7]
  - Enhance PI tracing with printing output arguments [19f5ad67f30a]
  - Introduce `pi_map_flags` in lieu of `cl_map_flags` [f0e7606a6198]
 ### Documentation
@@ -42,6 +46,9 @@ Release notes for commit range 5d7e0925..9d0e3525ba04
 ### SYCL Compiler
  - Do not customize optimizations for non-SPIR targets [cb069fed6712]
  - Fix address space assertion with templates [8905a8cec9a9]
+ - Fixed support of specialization constant types declared in namespaces
+   [f64f835b4313]
+ - Link libm FP6 device library by default [ac93d6fe3d9d]
 ### SYCL Library
  - Add missing interoperability API to construct SYCL classes with Level-Zero
    handles [10b4e8a6fc19]
@@ -59,6 +66,7 @@ Release notes for commit range 5d7e0925..9d0e3525ba04
    implemented [78e2599bc499]
  - Fix memory leak in event pool in Level Zero plugin [68fc7808a50e]
  - Fixed issue with finalizing context of Level Zero plugin [6cfa921856f5]
+ - Fix backend selection for `SYCL_DEVICE_FILTER=*` [c54da157f5d5]
 ### Documentation
  - Updated source checkout instruction for Windows in GetStartedGuide
    [9cde15210d70]
