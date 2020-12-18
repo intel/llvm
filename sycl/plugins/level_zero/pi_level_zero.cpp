@@ -1951,6 +1951,7 @@ pi_result piQueueRelease(pi_queue Queue) {
 
     zePrint("piQueueRelease NumTimesClosedFull %d, NumTimesClosedEarly %d\n",
             Queue->NumTimesClosedFull, Queue->NumTimesClosedEarly);
+    delete Queue;
   }
   return PI_SUCCESS;
 }
@@ -3592,7 +3593,7 @@ pi_result piEventRelease(pi_event Event) {
 
     auto Context = Event->Context;
     ZE_CALL(Context->decrementAliveEventsInPool(Event->ZeEventPool));
-
+    piQueueRelease(Event->Queue);
     delete Event;
   }
   return PI_SUCCESS;
@@ -3789,6 +3790,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     (*Event)->ZeCommandList = ZeCommandList;
 
     ZeEvent = (*Event)->ZeEvent;
+    piQueueRetain(Queue);
   }
 
   // TODO: use unique_ptr with custom deleter in the whole Level Zero plugin for
@@ -3873,6 +3875,7 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
     (*Event)->ZeCommandList = ZeCommandList;
 
     ZeEvent = (*Event)->ZeEvent;
+    piQueueRetain(Queue);
   }
 
   ze_event_handle_t *ZeEventWaitList =
@@ -3936,6 +3939,7 @@ static pi_result enqueueMemCopyRectHelper(
     (*Event)->ZeCommandList = ZeCommandList;
 
     ZeEvent = (*Event)->ZeEvent;
+    piQueueRetain(Queue);
   }
 
   ze_event_handle_t *ZeEventWaitList =
@@ -4120,6 +4124,7 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
     (*Event)->ZeCommandList = ZeCommandList;
 
     ZeEvent = (*Event)->ZeEvent;
+    piQueueRetain(Queue);
   }
 
   ze_event_handle_t *ZeEventWaitList =
@@ -4204,6 +4209,7 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
     (*Event)->ZeCommandList = ZeCommandList;
 
     ZeEvent = (*Event)->ZeEvent;
+    piQueueRetain(Queue);
   }
 
   // TODO: Level Zero is missing the memory "mapping" capabilities, so we are
@@ -4302,6 +4308,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
     (*Event)->ZeCommandList = ZeCommandList;
 
     ZeEvent = (*Event)->ZeEvent;
+    piQueueRetain(Queue);
   }
 
   _pi_mem::Mapping MapInfo = {};
@@ -4447,6 +4454,7 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
     (*Event)->ZeCommandList = ZeCommandList;
 
     ZeEvent = (*Event)->ZeEvent;
+    piQueueRetain(Queue);
   }
 
   ze_event_handle_t *ZeEventWaitList =
@@ -5016,6 +5024,7 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
     (*Event)->ZeCommandList = ZeCommandList;
 
     ZeEvent = (*Event)->ZeEvent;
+    piQueueRetain(Queue);
   }
 
   ze_event_handle_t *ZeEventWaitList =
@@ -5076,6 +5085,7 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
     (*Event)->ZeCommandList = ZeCommandList;
 
     ZeEvent = (*Event)->ZeEvent;
+    piQueueRetain(Queue);
   }
 
   ZE_CALL(zeCommandListAppendMemAdvise(ZeCommandList, Queue->Device->ZeDevice,
