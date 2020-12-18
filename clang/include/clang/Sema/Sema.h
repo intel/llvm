@@ -410,9 +410,6 @@ private:
   /// integration header emission time.
   llvm::SmallVector<SpecConstID, 4> SpecConsts;
 
-  /// Used for emitting diagnostics.
-  DiagnosticsEngine &Diag;
-
   /// Whether header is generated with unnamed lambda support
   bool UnnamedLambdaSupport;
 
