@@ -10154,7 +10154,7 @@ public:
   template <typename AttrType>
   void addIntelSYCLTripleArgFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
                                          Expr *XDimExpr, Expr *YDimExpr,
-					 Expr *ZDimExpr);
+                                         Expr *ZDimExpr);
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
                       bool IsPackExpansion);

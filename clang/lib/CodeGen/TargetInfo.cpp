@@ -8142,24 +8142,21 @@ void TCETargetCodeGenInfo::setTargetAttributes(
         SmallVector<llvm::Metadata *, 5> Operands;
         Operands.push_back(llvm::ConstantAsMetadata::get(F));
         unsigned XDim = Attr->getXDim()
-                        ->EvaluateKnownConstInt(M.getContext())
-                        .getExtValue();
+                            ->EvaluateKnownConstInt(M.getContext())
+                            .getExtValue();
         unsigned YDim = Attr->getYDim()
-                       ->EvaluateKnownConstInt(M.getContext())
-                       .getExtValue();
+                            ->EvaluateKnownConstInt(M.getContext())
+                            .getExtValue();
         unsigned ZDim = Attr->getZDim()
-                        ->EvaluateKnownConstInt(M.getContext())
-                         .getExtValue();
+                            ->EvaluateKnownConstInt(M.getContext())
+			    .getExtValue();
 
-        Operands.push_back(
-            llvm::ConstantAsMetadata::get(llvm::Constant::getIntegerValue(
-                M.Int32Ty, llvm::APInt(32, XDim))));
-        Operands.push_back(
-            llvm::ConstantAsMetadata::get(llvm::Constant::getIntegerValue(
-                M.Int32Ty, llvm::APInt(32, YDim))));
-        Operands.push_back(
-            llvm::ConstantAsMetadata::get(llvm::Constant::getIntegerValue(
-                M.Int32Ty, llvm::APInt(32, ZDim))));
+	Operands.push_back(llvm::ConstantAsMetadata::get(
+            llvm::Constant::getIntegerValue(M.Int32Ty, llvm::APInt(32, XDim))));
+        Operands.push_back(llvm::ConstantAsMetadata::get(
+            llvm::Constant::getIntegerValue(M.Int32Ty, llvm::APInt(32, YDim))));
+        Operands.push_back(llvm::ConstantAsMetadata::get(
+            llvm::Constant::getIntegerValue(M.Int32Ty, llvm::APInt(32, ZDim))));
 
         // Add a boolean constant operand for "required" (true) or "hint"
         // (false) for implementing the work_group_size_hint attr later.
@@ -9052,14 +9049,14 @@ void AMDGPUTargetCodeGenInfo::setTargetAttributes(
     }
     if (ReqdWGS) {
       XDim = ReqdWGS->getXDim()
-                ->EvaluateKnownConstInt(M.getContext())
-                .getExtValue();
+                 ->EvaluateKnownConstInt(M.getContext())
+                 .getExtValue();
       YDim = ReqdWGS->getYDim()
-                ->EvaluateKnownConstInt(M.getContext())
-                .getExtValue();
+                 ->EvaluateKnownConstInt(M.getContext())
+                 .getExtValue();
       ZDim = ReqdWGS->getZDim()
-                ->EvaluateKnownConstInt(M.getContext())
-                .getExtValue();
+                 ->EvaluateKnownConstInt(M.getContext())
+                 .getExtValue();
     }
     if (ReqdWGS && Min == 0 && Max == 0)
       Min = Max = XDim * YDim * ZDim;

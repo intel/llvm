@@ -6,4 +6,3 @@
 struct FuncObj {
   [[intel::max_work_group_size(4, 4, 4)]] void operator()() const {}
 };
-

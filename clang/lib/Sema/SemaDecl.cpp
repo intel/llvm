@@ -3213,10 +3213,10 @@ static void checkDimensionsAndSetDiagnostics(Sema &S, FunctionDecl *New,
 
   if ((getIntExprValue(NewDeclAttr->getXDim(), S.getASTContext()) !=
        getIntExprValue(OldDeclAttr->getXDim(), S.getASTContext())) ||
-       (getIntExprValue(NewDeclAttr->getYDim(), S.getASTContext()) !=
-        getIntExprValue(OldDeclAttr->getYDim(), S.getASTContext())) ||
-       (getIntExprValue(NewDeclAttr->getZDim(), S.getASTContext()) !=
-        getIntExprValue(OldDeclAttr->getZDim(), S.getASTContext()))) {
+      (getIntExprValue(NewDeclAttr->getYDim(), S.getASTContext()) !=
+       getIntExprValue(OldDeclAttr->getYDim(), S.getASTContext())) ||
+      (getIntExprValue(NewDeclAttr->getZDim(), S.getASTContext()) !=
+       getIntExprValue(OldDeclAttr->getZDim(), S.getASTContext()))) {
     S.Diag(New->getLocation(), diag::err_conflicting_sycl_function_attributes)
         << OldDeclAttr << NewDeclAttr;
     S.Diag(New->getLocation(), diag::warn_duplicate_attribute) << OldDeclAttr;

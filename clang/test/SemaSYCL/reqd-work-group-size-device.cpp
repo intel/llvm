@@ -128,4 +128,3 @@ int main() {
 // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
 // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
 // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
-

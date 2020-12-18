@@ -3283,7 +3283,7 @@ void Sema::MarkDevice(void) {
         case attr::Kind::ReqdWorkGroupSize: {
           auto *Attr = cast<ReqdWorkGroupSizeAttr>(A);
           if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
-	    if ((getIntExprValue(Existing->getXDim(), getASTContext()) !=
+            if ((getIntExprValue(Existing->getXDim(), getASTContext()) !=
                  getIntExprValue(Attr->getXDim(), getASTContext())) ||
                 (getIntExprValue(Existing->getYDim(), getASTContext()) !=
                  getIntExprValue(Attr->getYDim(), getASTContext())) ||
@@ -3297,7 +3297,7 @@ void Sema::MarkDevice(void) {
             }
           } else if (auto *Existing =
                          SYCLKernel->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-	    if ((getIntExprValue(Existing->getXDim(), getASTContext()) <
+            if ((getIntExprValue(Existing->getXDim(), getASTContext()) <
                  getIntExprValue(Attr->getXDim(), getASTContext())) ||
                 (getIntExprValue(Existing->getYDim(), getASTContext()) <
                  getIntExprValue(Attr->getYDim(), getASTContext())) ||
@@ -3319,7 +3319,7 @@ void Sema::MarkDevice(void) {
         case attr::Kind::SYCLIntelMaxWorkGroupSize: {
           auto *Attr = cast<SYCLIntelMaxWorkGroupSizeAttr>(A);
           if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
-	    if ((getIntExprValue(Existing->getXDim(), getASTContext()) >
+            if ((getIntExprValue(Existing->getXDim(), getASTContext()) >
                  getIntExprValue(Attr->getXDim(), getASTContext())) ||
                 (getIntExprValue(Existing->getYDim(), getASTContext()) >
                  getIntExprValue(Attr->getYDim(), getASTContext())) ||
