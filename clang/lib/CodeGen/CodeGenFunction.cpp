@@ -631,7 +631,7 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
         A->getZDim()->getIntegerConstantExpr(FD->getASTContext());
     assert(ZDimVal.hasValue() && "Not an integer constant expression");
     llvm::Metadata *AttrMDArgs[] = {
-	llvm::ConstantAsMetadata::get(
+        llvm::ConstantAsMetadata::get(
             Builder.getInt32(XDimVal->getSExtValue())),
         llvm::ConstantAsMetadata::get(
             Builder.getInt32(YDimVal->getSExtValue())),
@@ -709,7 +709,7 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
         A->getZDim()->getIntegerConstantExpr(FD->getASTContext());
     assert(ZDimVal.hasValue() && "Not an integer constant expression");
     llvm::Metadata *AttrMDArgs[] = {
-	llvm::ConstantAsMetadata::get(
+        llvm::ConstantAsMetadata::get(
             Builder.getInt32(XDimVal->getSExtValue())),
         llvm::ConstantAsMetadata::get(
             Builder.getInt32(YDimVal->getSExtValue())),

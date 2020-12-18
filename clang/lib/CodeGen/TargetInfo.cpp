@@ -8149,9 +8149,9 @@ void TCETargetCodeGenInfo::setTargetAttributes(
                             .getExtValue();
         unsigned ZDim = Attr->getZDim()
                             ->EvaluateKnownConstInt(M.getContext())
-			    .getExtValue();
+                            .getExtValue();
 
-	Operands.push_back(llvm::ConstantAsMetadata::get(
+        Operands.push_back(llvm::ConstantAsMetadata::get(
             llvm::Constant::getIntegerValue(M.Int32Ty, llvm::APInt(32, XDim))));
         Operands.push_back(llvm::ConstantAsMetadata::get(
             llvm::Constant::getIntegerValue(M.Int32Ty, llvm::APInt(32, YDim))));

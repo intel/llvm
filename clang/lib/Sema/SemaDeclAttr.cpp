@@ -3081,7 +3081,7 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   if ((AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize &&
        AL.getAttributeSpellingListIndex() ==
-          ReqdWorkGroupSizeAttr::CXX11_cl_reqd_work_group_size) ||
+           ReqdWorkGroupSizeAttr::CXX11_cl_reqd_work_group_size) ||
       (AL.getKind() == ParsedAttr::AT_SYCLIntelMaxWorkGroupSize)) {
     if (!checkAttributeNumArgs(S, AL, 3))
       return;
@@ -3098,11 +3098,11 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
         YDimExpr->getIntegerConstantExpr(S.getASTContext());
     Optional<llvm::APSInt> ZDimVal =
         ZDimExpr->getIntegerConstantExpr(S.getASTContext());
-     Optional<llvm::APSInt> ExistingXDimVal =
+    Optional<llvm::APSInt> ExistingXDimVal =
         ExistingAttr->getXDim()->getIntegerConstantExpr(S.getASTContext());
-     Optional<llvm::APSInt> ExistingYDimVal =
+    Optional<llvm::APSInt> ExistingYDimVal =
         ExistingAttr->getYDim()->getIntegerConstantExpr(S.getASTContext());
-     Optional<llvm::APSInt> ExistingZDimVal =
+    Optional<llvm::APSInt> ExistingZDimVal =
         ExistingAttr->getZDim()->getIntegerConstantExpr(S.getASTContext());
 
     // Compare attribute arguments value and warn for a mismatch.
@@ -3135,7 +3135,7 @@ static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
 
     if (WGSize[i] == 0) {
       S.Diag(AL.getLoc(), diag::err_attribute_argument_is_zero)
-            << AL << AL.getArgAsExpr(i)->getSourceRange();
+          << AL << AL.getArgAsExpr(i)->getSourceRange();
       return;
     }
   }
