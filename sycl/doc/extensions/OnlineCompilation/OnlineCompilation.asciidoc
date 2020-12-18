@@ -5,7 +5,8 @@ v0.1
 :icons: font
 == Introduction
 This document describes an interface for online compilation from high-level languages, such as
-OpenCL, to a binary format, such as SPIR-V, loadable by SYCL backends. Unlike SYCL 2020 provisional's OpenCL backend online compilation interface, this interface is not bound to any particular backend and does
+OpenCL, to a binary format, such as SPIR-V, loadable by SYCL backends. Unlike SYCL 2020 provisional's
+OpenCL backend online compilation interface, this interface is not bound to any particular backend and does
 not require available SYCL context for online compilation.
 
 This gives a flexibility to "cross-compile" to SPIR-V or other supported formats without any SYCL
@@ -26,8 +27,8 @@ Elements of the enum designate the source language:
 [source,c++]
 -----------------
 enum class source_language {
-  OpenCL_C, // OpenCL C language
-  CM        // Intel's C-for-Media language
+  opencl_c, // OpenCL C language
+  cm        // Intel's C-for-Media language
 };
 -----------------
 
@@ -93,7 +94,6 @@ template <source_language Lang> class online_compiler;
 
 |`std::string` DeviceStepping
 |Target device stepping (implementation defined).
-
 |===
 
 Online compiler construction or source compilation may be unsuccessful, in which case an instance
@@ -143,20 +143,20 @@ Instantiations of the compilation function:
 ///   OpenCL JIT compiler options must be supported
 template <>
 template <>
-std::vector<byte> online_compiler<source_language::OpenCL_C>::compile(
+std::vector<byte> online_compiler<source_language::opencl_c>::compile(
     const std::string &src, const std::vector<std::string> &options);
 
 /// Compiles given CM source.
 template <>
 template <>
-std::vector<byte> online_compiler<source_language::CM>::compile(
+std::vector<byte> online_compiler<source_language::cm>::compile(
     const std::string &src);
 
 /// Compiles given CM source.
 /// @param options - compilation options (implementation defined)
 template <>
 template <>
-std::vector<byte> online_compiler<source_language::CM>::compile(
+std::vector<byte> online_compiler<source_language::cm>::compile(
     const std::string &src, const std::vector<std::string> &options);
 -----------------
 
@@ -179,7 +179,7 @@ __kernel void my_kernel(__global int *in, __global int *out) {
 using namespace sycl::INTEL;
 
 int main(int argc, char **argv) {
-  online_compiler<source_language::OpenCL_C> compiler;
+  online_compiler<source_language::opencl_c> compiler;
   std::vector<byte> blob;
 
   try {
