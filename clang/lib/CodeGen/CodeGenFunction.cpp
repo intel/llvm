@@ -619,12 +619,24 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
     Fn->setMetadata("work_group_size_hint", llvm::MDNode::get(Context, AttrMDArgs));
   }
 
-  if (const ReqdWorkGroupSizeAttr *A = FD->getAttr<ReqdWorkGroupSizeAttr>()) {
+  if (const ReqdWorkGroupSizeAttr *A =
+          FD->getAttr<ReqdWorkGroupSizeAttr>()) {
+    llvm::LLVMContext &Context = getLLVMContext();
+    Optional<llvm::APSInt> XDimVal =
+        A->getXDim()->getIntegerConstantExpr(FD->getASTContext());
+    assert(XDimVal.hasValue() && "Not an integer constant expression");
+    Optional<llvm::APSInt> YDimVal =
+        A->getYDim()->getIntegerConstantExpr(FD->getASTContext());
+    assert(YDimVal.hasValue() && "Not an integer constant expression");
+    Optional<llvm::APSInt> ZDimVal =
+        A->getZDim()->getIntegerConstantExpr(FD->getASTContext());
+    assert(ZDimVal.hasValue() && "Not an integer constant expression");
     llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getXDim())),
-        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getYDim())),
-        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getZDim()))};
-    Fn->setMetadata("reqd_work_group_size", llvm::MDNode::get(Context, AttrMDArgs));
+        llvm::ConstantAsMetadata::get(Builder.getInt32(XDimVal->getSExtValue())),
+        llvm::ConstantAsMetadata::get(Builder.getInt32(YDimVal->getSExtValue())),
+        llvm::ConstantAsMetadata::get(Builder.getInt32(ZDimVal->getSExtValue()))};
+    Fn->setMetadata("reqd_work_group_size",
+                    llvm::MDNode::get(Context, AttrMDArgs));
   }
 
   if (const IntelReqdSubGroupSizeAttr *A =
@@ -670,16 +682,6 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
 
-  if (const SYCLIntelMaxWorkGroupSizeAttr *A =
-      FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getXDim())),
-        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getYDim())),
-        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getZDim()))};
-    Fn->setMetadata("max_work_group_size",
-                    llvm::MDNode::get(Context, AttrMDArgs));
-  }
-
   if (const SYCLIntelMaxGlobalWorkDimAttr *A =
       FD->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
     llvm::LLVMContext &Context = getLLVMContext();
@@ -689,6 +691,26 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
         Builder.getInt32(ArgVal->getSExtValue()))};
     Fn->setMetadata("max_global_work_dim",
+                    llvm::MDNode::get(Context, AttrMDArgs));
+  }
+
+  if (const SYCLIntelMaxWorkGroupSizeAttr *A =
+          FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
+    llvm::LLVMContext &Context = getLLVMContext();
+    Optional<llvm::APSInt> XDimVal =
+        A->getXDim()->getIntegerConstantExpr(FD->getASTContext());
+    assert(XDimVal.hasValue() && "Not an integer constant expression");
+    Optional<llvm::APSInt> YDimVal =
+        A->getYDim()->getIntegerConstantExpr(FD->getASTContext());
+    assert(YDimVal.hasValue() && "Not an integer constant expression");
+    Optional<llvm::APSInt> ZDimVal =
+        A->getZDim()->getIntegerConstantExpr(FD->getASTContext());
+    assert(ZDimVal.hasValue() && "Not an integer constant expression");
+    llvm::Metadata *AttrMDArgs[] = {
+        llvm::ConstantAsMetadata::get(Builder.getInt32(XDimVal->getSExtValue())),
+        llvm::ConstantAsMetadata::get(Builder.getInt32(YDimVal->getSExtValue())),
+        llvm::ConstantAsMetadata::get(Builder.getInt32(ZDimVal->getSExtValue()))};
+    Fn->setMetadata("max_work_group_size",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
 

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -Wno-sycl-2017-compat -verify -DTRIGGER_ERROR %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -fsyntax-only -verify -DTRIGGER_ERROR %s
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
 
 #include "sycl.hpp"
@@ -6,37 +6,60 @@
 using namespace cl::sycl;
 queue q;
 
-[[cl::reqd_work_group_size(4, 1, 1)]] void f4x1x1() {} // expected-note {{conflicting attribute is here}}
-// expected-note@-1 {{conflicting attribute is here}}
-[[cl::reqd_work_group_size(32, 1, 1)]] void f32x1x1() {} // expected-note {{conflicting attribute is here}}
-
-[[cl::reqd_work_group_size(16, 1, 1)]] void f16x1x1() {}   // expected-note {{conflicting attribute is here}}
-[[cl::reqd_work_group_size(16, 16, 1)]] void f16x16x1() {} // expected-note {{conflicting attribute is here}}
-
-[[cl::reqd_work_group_size(32, 32, 1)]] void f32x32x1() {}   // expected-note {{conflicting attribute is here}}
-[[cl::reqd_work_group_size(32, 32, 32)]] void f32x32x32() {} // expected-note {{conflicting attribute is here}}
-
-class Functor16 {
+#ifndef __SYCL_DEVICE_ONLY__
+// expected-no-diagnostics
+class Functor {
 public:
-  [[cl::reqd_work_group_size(16, 1, 1)]] [[cl::reqd_work_group_size(16, 1, 1)]] void operator()() const {}
+  [[intel::reqd_work_group_size(4)]] void operator()() const {}
 };
+
+void bar() {
+  q.submit([&](handler &h) {
+    Functor f;
+    h.single_task<class kernel_name>(f);
+  });
+}
+
+#else
+[[intel::reqd_work_group_size(4)]] void f4x1x1() {} // expected-note {{conflicting attribute is here}}
+// expected-note@-1 {{conflicting attribute is here}}
+[[intel::reqd_work_group_size(32)]] void f32x1x1() {} // expected-note {{conflicting attribute is here}}
+
+[[intel::reqd_work_group_size(16)]] void f16x1x1() {}      // expected-note {{conflicting attribute is here}}
+[[intel::reqd_work_group_size(16, 16)]] void f16x16x1() {} // expected-note {{conflicting attribute is here}}
+
+[[intel::reqd_work_group_size(32, 32)]] void f32x32x1() {}      // expected-note {{conflicting attribute is here}}
+[[intel::reqd_work_group_size(32, 32, 32)]] void f32x32x32() {} // expected-note {{conflicting attribute is here}}
 
 #ifdef TRIGGER_ERROR
 class Functor32 {
 public:
-  //expected-warning@+2{{attribute 'reqd_work_group_size' is already applied with different parameters}}
-  // expected-error@+1{{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
-  [[cl::reqd_work_group_size(32, 1, 1)]] [[cl::reqd_work_group_size(1, 1, 32)]] void operator()() const {}
+  [[cl::reqd_work_group_size(32)]] void operator()() const {} // expected-error {{'reqd_work_group_size' attribute requires exactly 3 arguments}}
 };
-#endif
+class Functor33 {
+public:
+  [[intel::reqd_work_group_size(32, -4)]] void operator()() const {} // expected-error {{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
+};
+#endif // TRIGGER_ERROR
+
+class Functor16 {
+public:
+  [[intel::reqd_work_group_size(16)]] void operator()() const {}
+};
+
+class Functor64 {
+public:
+  [[intel::reqd_work_group_size(64, 64)]] void operator()() const {}
+};
+
 class Functor16x16x16 {
 public:
-  [[cl::reqd_work_group_size(16, 16, 16)]] void operator()() const {}
+  [[intel::reqd_work_group_size(16, 16, 16)]] void operator()() const {}
 };
 
 class Functor8 { // expected-error {{conflicting attributes applied to a SYCL kernel}}
 public:
-  [[cl::reqd_work_group_size(1, 1, 8)]] void operator()() const { // expected-note {{conflicting attribute is here}}
+  [[intel::reqd_work_group_size(8)]] void operator()() const { // expected-note {{conflicting attribute is here}}
     f4x1x1();
   }
 };
@@ -67,16 +90,13 @@ int main() {
     FunctorAttr fattr;
     h.single_task<class kernel_name4>(fattr);
 
-    h.single_task<class kernel_name5>([]() [[cl::reqd_work_group_size(32, 32, 32), cl::reqd_work_group_size(32, 32, 32)]] {
+    h.single_task<class kernel_name5>([]() [[intel::reqd_work_group_size(32, 32, 32)]] {
       f32x32x32();
     });
 
 #ifdef TRIGGER_ERROR
     Functor8 f8;
     h.single_task<class kernel_name6>(f8);
-
-    Functor32 f32;
-    h.single_task<class kernel_name1>(f32);
 
     h.single_task<class kernel_name7>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
       f4x1x1();
@@ -94,11 +114,11 @@ int main() {
     });
 
     // expected-error@+1 {{expected variable name or 'this' in lambda capture list}}
-    h.single_task<class kernel_name10>([[cl::reqd_work_group_size(32, 32, 32)]][]() {
+    h.single_task<class kernel_name10>([[intel::reqd_work_group_size(32, 32, 32)]][]() {
       f32x32x32();
     });
 
-#endif
+#endif // TRIGGER_ERROR
   });
   return 0;
 }
@@ -128,4 +148,4 @@ int main() {
 // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
 // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
 // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
-
+#endif // __SYCL_DEVICE_ONLY__

@@ -604,6 +604,32 @@ static void instantiateIntelSYCLFunctionAttr(
                                                   Result.getAs<Expr>());
 }
 
+template <typename AttrName>
+static void instantiateIntelSYCTripleLFunctionAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const AttrName *Attr, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+
+  ExprResult Result = S.SubstExpr(Attr->getXDim(), TemplateArgs);
+  if (Result.isInvalid())
+    return;
+  Expr *XDimExpr = Result.getAs<Expr>();
+
+  Result = S.SubstExpr(Attr->getYDim(), TemplateArgs);
+  if (Result.isInvalid())
+    return;
+  Expr *YDimExpr = Result.getAs<Expr>();
+
+  Result = S.SubstExpr(Attr->getZDim(), TemplateArgs);
+  if (Result.isInvalid())
+    return;
+  Expr *ZDimExpr = Result.getAs<Expr>();
+
+  S.addIntelSYCLTripleArgFunctionAttr<AttrName>(New, *Attr, XDimExpr,
+		                                YDimExpr, ZDimExpr);
+}
+
 void Sema::InstantiateAttrsForDecl(
     const MultiLevelTemplateArgumentList &TemplateArgs, const Decl *Tmpl,
     Decl *New, LateInstantiatedAttrVec *LateAttrs,
@@ -779,6 +805,18 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
             dyn_cast<SYCLIntelNoGlobalWorkOffsetAttr>(TmplAttr)) {
       instantiateIntelSYCLFunctionAttr<SYCLIntelNoGlobalWorkOffsetAttr>(
           *this, TemplateArgs, SYCLIntelNoGlobalWorkOffset, New);
+      continue;
+    }
+    if (const auto *ReqdWorkGroupSize =
+            dyn_cast<ReqdWorkGroupSizeAttr>(TmplAttr)) {
+      instantiateIntelSYCTripleLFunctionAttr<ReqdWorkGroupSizeAttr>(
+          *this, TemplateArgs, ReqdWorkGroupSize, New);
+      continue;
+    }
+    if (const auto *SYCLIntelMaxWorkGroupSize =
+            dyn_cast<SYCLIntelMaxWorkGroupSizeAttr>(TmplAttr)) {
+      instantiateIntelSYCTripleLFunctionAttr<SYCLIntelMaxWorkGroupSizeAttr>(
+          *this, TemplateArgs, SYCLIntelMaxWorkGroupSize, New);
       continue;
     }
     // Existing DLL attribute on the instantiation takes precedence.
