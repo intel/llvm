@@ -1111,7 +1111,9 @@ pi_result piDeviceRelease(pi_device Device) {
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
   // Check if the device is already released
-  PI_ASSERT(Device->RefCount > 0, PI_INVALID_VALUE);
+  //PI_ASSERT(Device->RefCount > 0, PI_INVALID_VALUE);
+  if (Device->RefCount <= 0)
+    die("piDeviceRelease: the device has been already released");
 
   // TODO: OpenCL says root-device ref-count remains unchanged (1),
   // but when would we free the device's data?
@@ -1593,7 +1595,7 @@ pi_result piDevicePartition(pi_device Device,
   // Other partitioning ways are not supported by Level Zero
   if (Properties[0] != PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN ||
       Properties[1] != PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE) {
-    die("piDevicePartition: unsupported partitioning property requested");
+    return PI_INVALID_VALUE;
   }
 
   PI_ASSERT(Device, PI_INVALID_DEVICE);
@@ -2423,9 +2425,8 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
       // in Level Zero.  Therefore, this API is unimplemented when the Program
       // has more than one module.
       _pi_program::ModuleIterator ModIt(Program);
-      if (ModIt.Done()) {
-        return PI_INVALID_VALUE;
-      }
+
+      PI_ASSERT(!ModIt.Done(), PI_INVALID_VALUE);
 
       if (ModIt.Count() > 1) {
         die("piProgramGetInfo: PI_PROGRAM_INFO_BINARY_SIZES not implemented "
@@ -2449,14 +2450,13 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
       std::memcpy(PBinary[0], Program->Code.get(), Program->CodeLength);
     } else {
       PI_ASSERT(Program->State == _pi_program::Object ||
-                    Program->State == _pi_program::Exe ||
-                    Program->State == _pi_program::LinkedExe,
+                Program->State == _pi_program::Exe ||
+                Program->State == _pi_program::LinkedExe,
                 PI_INVALID_OPERATION);
 
       _pi_program::ModuleIterator ModIt(Program);
-      if (ModIt.Done()) {
-        return PI_INVALID_VALUE;
-      }
+
+      PI_ASSERT(!ModIt.Done(), PI_INVALID_VALUE);
 
       if (ModIt.Count() > 1) {
         die("piProgramGetInfo: PI_PROGRAM_INFO_BINARIES not implemented for "
