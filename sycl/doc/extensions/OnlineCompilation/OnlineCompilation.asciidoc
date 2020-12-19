@@ -38,7 +38,7 @@ The desired format of the compiled code:
 [source,c++]
 -----------------
 enum class compiled_code_format {
-  SPIRV
+  spirv
 };
 -----------------
 
@@ -107,7 +107,7 @@ in the source program.
 |===
 |Constructor |Description
 
-|`online_compiler(compiled_code_format fmt = compiled_code_format::SPIRV)`
+|`online_compiler(compiled_code_format fmt = compiled_code_format::spirv)`
 | Constructs online compiler which can target any device and produces
   given compiled code format. Produced device code is 64-bit. OutputFormatVersion is
   implementation defined. The created compiler is "optimistic" - it assumes all applicable SYCL
@@ -116,7 +116,7 @@ in the source program.
 |`online_compiler(
     sycl::info::device_type dev_type,
     device_arch arch,
-    compiled_code_format fmt = compiled_code_format::SPIRV)`
+    compiled_code_format fmt = compiled_code_format::spirv)`
 | Constructor version which allows to specify target device type and architecture.
 
 |`online_compiler(const sycl::device &dev)`
@@ -161,7 +161,7 @@ std::vector<byte> online_compiler<source_language::cm>::compile(
 -----------------
 
 == API usage example
-This example compiles an OpenCL source to a generic SPIRV.
+This example compiles an OpenCL source to a generic SPIR-V.
 [source,c++]
 -----------------
 #include "CL/sycl/INTEL/online_compiler.hpp"
