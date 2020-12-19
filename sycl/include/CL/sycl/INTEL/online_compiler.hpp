@@ -22,7 +22,7 @@ namespace INTEL {
 using byte = unsigned char;
 
 enum class compiled_code_format {
-  SPIRV // the only format supported for now
+  spir_v // the only format supported for now
 };
 
 class device_arch {
@@ -63,7 +63,7 @@ class online_compile_error : public sycl::exception {
 };
 
 /// Designates a source language for the online compiler.
-enum class source_language { OpenCL_C, CM };
+enum class source_language { opencl_c, cm };
 
 /// Represents an online compiler for the language given as template
 /// parameter.
@@ -73,7 +73,7 @@ public:
   /// given compiled code format. Produces device code is 64-bit.
   /// The created compiler is "optimistic" - it assumes all applicable SYCL
   /// device capabilities are supported by the target device(s).
-  online_compiler(compiled_code_format fmt = compiled_code_format::SPIRV)
+  online_compiler(compiled_code_format fmt = compiled_code_format::spir_v)
       : OutputFormat(fmt), OutputFormatVersion({0, 0}),
         DeviceArch(device_arch::any), Is64Bit(true), DeviceStepping("") {}
 
@@ -83,7 +83,7 @@ public:
   /// contradictory or not supported - e.g. if the source language is not
   /// supported for given device type.
   online_compiler(sycl::info::device_type dev_type, device_arch arch,
-                  compiled_code_format fmt = compiled_code_format::SPIRV)
+                  compiled_code_format fmt = compiled_code_format::spir_v)
       : OutputFormat(fmt), OutputFormatVersion({0, 0}), DeviceArch(arch),
         Is64Bit(true), DeviceStepping("") {}
 
@@ -153,7 +153,7 @@ private:
 template <>
 template <>
 std::vector<byte>
-online_compiler<source_language::OpenCL_C>::compile(const std::string &src) {
+online_compiler<source_language::opencl_c>::compile(const std::string &src) {
   // real implementation will call some non-templated impl function here
   return std::vector<byte>{};
 }
@@ -164,7 +164,7 @@ online_compiler<source_language::OpenCL_C>::compile(const std::string &src) {
 ///   OpenCL JIT compiler options must be supported
 template <>
 template <>
-std::vector<byte> online_compiler<source_language::OpenCL_C>::compile(
+std::vector<byte> online_compiler<source_language::opencl_c>::compile(
     const std::string &src, const std::vector<std::string> &options) {
   // real implementation will call some non-templated impl function here
   return std::vector<byte>{};
@@ -174,7 +174,7 @@ std::vector<byte> online_compiler<source_language::OpenCL_C>::compile(
 template <>
 template <>
 std::vector<byte>
-online_compiler<source_language::CM>::compile(const std::string &src) {
+online_compiler<source_language::cm>::compile(const std::string &src) {
   // real implementation will call some non-templated impl function here
   return std::vector<byte>{};
 }
@@ -183,7 +183,7 @@ online_compiler<source_language::CM>::compile(const std::string &src) {
 /// @param options - compilation options (implementation defined)
 template <>
 template <>
-std::vector<byte> online_compiler<source_language::CM>::compile(
+std::vector<byte> online_compiler<source_language::cm>::compile(
     const std::string &src, const std::vector<std::string> &options) {
   // real implementation will call some non-templated impl function here
   return std::vector<byte>{};
