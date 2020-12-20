@@ -105,12 +105,12 @@ enum class CacheHint : uint8_t {
 };
 
 enum class EsimdSbarrierType : uint8_t {
-  ESIMD_SBARRIER_WAIT = 0,  // split barrier wait
-  ESIMD_SBARRIER_SIGNAL = 1 // split barrier signal
+  WAIT = 0,  // split barrier wait
+  SIGNAL = 1 // split barrier signal
 };
 
-#define ESIMD_SBARRIER_WAIT EsimdSbarrierType::ESIMD_SBARRIER_WAIT
-#define ESIMD_SBARRIER_SIGNAL EsimdSbarrierType::ESIMD_SBARRIER_SIGNAL
+#define ESIMD_SBARRIER_WAIT EsimdSbarrierType::WAIT
+#define ESIMD_SBARRIER_SIGNAL EsimdSbarrierType::SIGNAL
 
 } // namespace gpu
 
