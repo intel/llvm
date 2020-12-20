@@ -1319,9 +1319,13 @@ CreateObjectFileHandler(MemoryBuffer &FirstInput) {
       std::unique_ptr<ObjectFile>(cast<ObjectFile>(BinaryOrErr->release())));
 }
 
+static bool FilesTypeIsArchiveToList(void) {
+  return FilesType == "ao" || FilesType == "aoo" || FilesType == "aocr" ||
+         FilesType == "aocx";
+}
+
 static bool FilesTypeIsArchive(void) {
-  return (FilesType == "a" || FilesType == "ao" || FilesType == "aoo" ||
-          FilesType == "aocr" || FilesType == "aocx");
+  return FilesType == "a" || FilesTypeIsArchiveToList();
 }
 
 /// Return an appropriate handler given the input files and options.
@@ -1510,7 +1514,7 @@ static Error UnbundleFiles() {
 
       // If this entry has a host kind, copy the input file to the output file
       // except for the archive unbundling where output is a list file.
-      if (hasHostKind(E.first()) && !FilesTypeIsArchive())
+      if (hasHostKind(E.first()) && !FilesTypeIsArchiveToList())
         OutputFile.write(Input.getBufferStart(), Input.getBufferSize());
     }
     return Error::success();
