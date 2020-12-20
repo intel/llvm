@@ -2952,9 +2952,9 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &Attr,
       Optional<llvm::APSInt> AttrZDim =
           Attr.getArgAsExpr(0)->getIntegerConstantExpr(S.getASTContext());
       Result &= checkZeroDim(A, AttrXDim->getZExtValue(),
-		             AttrYDim->getZExtValue(), AttrZDim->getZExtValue(),
+                             AttrYDim->getZExtValue(), AttrZDim->getZExtValue(),
                              /*ReverseAttrs=*/true);
-   }
+    }
   }
 
   if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
@@ -2985,7 +2985,7 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &Attr,
         << "'intel::max_work_group_size'";
 
   if (const auto *A = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    Optional<llvm::APSInt> AttrXDimVal=
+    Optional<llvm::APSInt> AttrXDimVal =
         Attr.getArgAsExpr(2)->getIntegerConstantExpr(S.getASTContext());
     Optional<llvm::APSInt> AttrYDimVal =
         Attr.getArgAsExpr(1)->getIntegerConstantExpr(S.getASTContext());
@@ -3056,6 +3056,7 @@ static bool checkMaxWorkSizeAttrArguments(Sema &S, Expr *XDimExpr,
   unsigned ZDim = 0;
   if (ZDimExpr && !handleMaxWorkSizeAttrExpr(S, Attr, ZDimExpr, ZDim, 2))
     return true;
+
   return false;
 
 }
