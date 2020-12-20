@@ -623,20 +623,17 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
     llvm::LLVMContext &Context = getLLVMContext();
     Optional<llvm::APSInt> XDimVal =
         A->getXDim()->getIntegerConstantExpr(FD->getASTContext());
-    assert(XDimVal.hasValue() && "Not an integer constant expression");
     Optional<llvm::APSInt> YDimVal =
         A->getYDim()->getIntegerConstantExpr(FD->getASTContext());
-    assert(YDimVal.hasValue() && "Not an integer constant expression");
     Optional<llvm::APSInt> ZDimVal =
         A->getZDim()->getIntegerConstantExpr(FD->getASTContext());
-    assert(ZDimVal.hasValue() && "Not an integer constant expression");
     llvm::Metadata *AttrMDArgs[] = {
         llvm::ConstantAsMetadata::get(
-            Builder.getInt32(XDimVal->getSExtValue())),
+            Builder.getInt32(XDimVal->getZExtValue())),
         llvm::ConstantAsMetadata::get(
-            Builder.getInt32(YDimVal->getSExtValue())),
+            Builder.getInt32(YDimVal->getZExtValue())),
         llvm::ConstantAsMetadata::get(
-            Builder.getInt32(ZDimVal->getSExtValue()))};
+            Builder.getInt32(ZDimVal->getZExtValue()))};
     Fn->setMetadata("reqd_work_group_size",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
@@ -701,20 +698,17 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
     llvm::LLVMContext &Context = getLLVMContext();
     Optional<llvm::APSInt> XDimVal =
         A->getXDim()->getIntegerConstantExpr(FD->getASTContext());
-    assert(XDimVal.hasValue() && "Not an integer constant expression");
     Optional<llvm::APSInt> YDimVal =
         A->getYDim()->getIntegerConstantExpr(FD->getASTContext());
-    assert(YDimVal.hasValue() && "Not an integer constant expression");
     Optional<llvm::APSInt> ZDimVal =
         A->getZDim()->getIntegerConstantExpr(FD->getASTContext());
-    assert(ZDimVal.hasValue() && "Not an integer constant expression");
     llvm::Metadata *AttrMDArgs[] = {
         llvm::ConstantAsMetadata::get(
-            Builder.getInt32(XDimVal->getSExtValue())),
+            Builder.getInt32(XDimVal->getZExtValue())),
         llvm::ConstantAsMetadata::get(
-            Builder.getInt32(YDimVal->getSExtValue())),
+            Builder.getInt32(YDimVal->getZExtValue())),
         llvm::ConstantAsMetadata::get(
-            Builder.getInt32(ZDimVal->getSExtValue()))};
+            Builder.getInt32(ZDimVal->getZExtValue()))};
     Fn->setMetadata("max_work_group_size",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }

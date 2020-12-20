@@ -3866,6 +3866,7 @@ def err_mismatched_visibility: Error<"visibility does not match previous declara
 def note_previous_attribute : Note<"previous attribute is here">;
 def note_conflicting_attribute : Note<"conflicting attribute is here">;
 def note_attribute : Note<"attribute is here">;
+def note_duplicating_attribute : Note<"duplicating attribute is here">;
 def err_mismatched_ms_inheritance : Error<
   "inheritance model does not match %select{definition|previous declaration}0">;
 def warn_ignored_ms_inheritance : Warning<

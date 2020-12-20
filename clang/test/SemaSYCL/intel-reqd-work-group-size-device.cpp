@@ -36,11 +36,12 @@ class Functor32 {
 public:
   [[cl::reqd_work_group_size(32)]] void operator()() const {} // expected-error {{'reqd_work_group_size' attribute requires exactly 3 arguments}}
 };
+#endif // TRIGGER_ERROR
+
 class Functor33 {
 public:
-  [[intel::reqd_work_group_size(32, -4)]] void operator()() const {} // expected-error {{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
+  [[intel::reqd_work_group_size(32, -4)]] void operator()() const {}
 };
-#endif // TRIGGER_ERROR
 
 class Functor16 {
 public:
@@ -90,25 +91,27 @@ int main() {
     FunctorAttr fattr;
     h.single_task<class kernel_name4>(fattr);
 
-    h.single_task<class kernel_name5>([]() [[intel::reqd_work_group_size(32, 32, 32)]] {
+    Functor33 f33;
+    h.single_task<class kernel_name5>(f33);
+
+    h.single_task<class kernel_name6>([]() [[intel::reqd_work_group_size(32, 32, 32)]] {
       f32x32x32();
     });
-
 #ifdef TRIGGER_ERROR
     Functor8 f8;
-    h.single_task<class kernel_name6>(f8);
+    h.single_task<class kernel_name7>(f8);
 
-    h.single_task<class kernel_name7>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
+    h.single_task<class kernel_name8>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
       f4x1x1();
       f32x1x1();
     });
 
-    h.single_task<class kernel_name8>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
+    h.single_task<class kernel_name9>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
       f16x1x1();
       f16x16x1();
     });
 
-    h.single_task<class kernel_name9>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
+    h.single_task<class kernel_name10>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
       f32x32x32();
       f32x32x1();
     });
@@ -144,6 +147,12 @@ int main() {
 // CHECK-NEXT:  IntegerLiteral{{.*}}128{{$}}
 // CHECK-NEXT:  IntegerLiteral{{.*}}128{{$}}
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
+// CHECK: ReqdWorkGroupSizeAttr {{.*}}
+// CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+// CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
+// CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+// CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
+// CHECK: FunctionDecl {{.*}} {{.*}}kernel_name6
 // CHECK: ReqdWorkGroupSizeAttr {{.*}}
 // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
 // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}

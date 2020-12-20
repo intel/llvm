@@ -3198,10 +3198,6 @@ static void adjustDeclContextForDeclaratorDecl(DeclaratorDecl *NewD,
     FixSemaDC(VD->getDescribedVarTemplate());
 }
 
-static int64_t getIntExprValue(const Expr *E, ASTContext &Ctx) {
-  return E->getIntegerConstantExpr(Ctx)->getSExtValue();
-}
-
 template <typename AttributeType>
 static void checkDimensionsAndSetDiagnostics(Sema &S, FunctionDecl *New,
                                              FunctionDecl *Old) {
@@ -3211,12 +3207,22 @@ static void checkDimensionsAndSetDiagnostics(Sema &S, FunctionDecl *New,
   if (!NewDeclAttr || !OldDeclAttr)
     return;
 
-  if ((getIntExprValue(NewDeclAttr->getXDim(), S.getASTContext()) !=
-       getIntExprValue(OldDeclAttr->getXDim(), S.getASTContext())) ||
-      (getIntExprValue(NewDeclAttr->getYDim(), S.getASTContext()) !=
-       getIntExprValue(OldDeclAttr->getYDim(), S.getASTContext())) ||
-      (getIntExprValue(NewDeclAttr->getZDim(), S.getASTContext()) !=
-       getIntExprValue(OldDeclAttr->getZDim(), S.getASTContext()))) {
+  int64_t NewXDimVal =
+      NewDeclAttr->getXDim()->getIntegerConstantExpr(S.Context)->getSExtValue();
+  int64_t NewYDimVal =
+      NewDeclAttr->getYDim()->getIntegerConstantExpr(S.Context)->getSExtValue();
+  int64_t NewZDimVal =
+      NewDeclAttr->getZDim()->getIntegerConstantExpr(S.Context)->getSExtValue();
+  int64_t OldXDimVal =
+      OldDeclAttr->getXDim()->getIntegerConstantExpr(S.Context)->getSExtValue();
+  int64_t OldYDimVal =
+      OldDeclAttr->getYDim()->getIntegerConstantExpr(S.Context)->getSExtValue();
+  int64_t OldZDimVal =
+      OldDeclAttr->getZDim()->getIntegerConstantExpr(S.Context)->getSExtValue();
+
+  if ((NewXDimVal != OldXDimVal) ||
+      (NewYDimVal != OldYDimVal) ||
+      (NewZDimVal != OldZDimVal)) {
     S.Diag(New->getLocation(), diag::err_conflicting_sycl_function_attributes)
         << OldDeclAttr << NewDeclAttr;
     S.Diag(New->getLocation(), diag::warn_duplicate_attribute) << OldDeclAttr;

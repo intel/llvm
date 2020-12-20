@@ -24,7 +24,8 @@ public:
 #ifdef TRIGGER_ERROR
 class Functor32 {
 public:
-  //expected-warning@+2{{attribute 'reqd_work_group_size' is already applied with different parameters}}
+  // expected-note@+3{{duplicating attribute is here}}
+  // expected-warning@+2{{attribute 'reqd_work_group_size' is already applied with different parameters}}
   // expected-error@+1{{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
   [[cl::reqd_work_group_size(32, 1, 1)]] [[cl::reqd_work_group_size(1, 1, 32)]] void operator()() const {}
 };
