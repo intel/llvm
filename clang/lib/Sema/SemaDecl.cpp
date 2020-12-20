@@ -3220,8 +3220,7 @@ static void checkDimensionsAndSetDiagnostics(Sema &S, FunctionDecl *New,
   int64_t OldZDimVal =
       OldDeclAttr->getZDim()->getIntegerConstantExpr(S.Context)->getSExtValue();
 
-  if ((NewXDimVal != OldXDimVal) ||
-      (NewYDimVal != OldYDimVal) ||
+  if ((NewXDimVal != OldXDimVal) || (NewYDimVal != OldYDimVal) ||
       (NewZDimVal != OldZDimVal)) {
     S.Diag(New->getLocation(), diag::err_conflicting_sycl_function_attributes)
         << OldDeclAttr << NewDeclAttr;
