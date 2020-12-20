@@ -3058,7 +3058,6 @@ static bool checkMaxWorkSizeAttrArguments(Sema &S, Expr *XDimExpr,
     return true;
 
   return false;
-
 }
 
 template <typename WorkGroupAttrType>
