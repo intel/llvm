@@ -507,10 +507,6 @@ struct _pi_event : _pi_object {
 
   // Opaque data to hold any data needed for CommandType.
   void *CommandData;
-
-  // Methods for translating PI events list into Level Zero events list
-  static ze_event_handle_t *createZeEventList(pi_uint32, const pi_event *);
-  static void deleteZeEventList(ze_event_handle_t *);
 };
 
 struct _pi_program : _pi_object {
