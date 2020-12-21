@@ -10,12 +10,13 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/StandardOps/Transforms/FuncConversions.h"
 #include "mlir/IR/Matchers.h"
-#include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/FoldUtils.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 using namespace mlir;
+using namespace mlir::test;
 
 // Native function for testing NativeCodeCall
 static Value chooseOperand(Value input1, Value input2, BoolAttr choice) {
@@ -83,7 +84,7 @@ struct TestPatternDriver : public PassWrapper<TestPatternDriver, FunctionPass> {
     // Verify named pattern is generated with expected name.
     patterns.insert<FoldingPattern, TestNamedPatternRule>(&getContext());
 
-    applyPatternsAndFoldGreedily(getFunction(), patterns);
+    applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
   }
 };
 } // end anonymous namespace
@@ -202,12 +203,16 @@ struct TestRegionRewriteBlockMovement : public ConversionPattern {
                   ConversionPatternRewriter &rewriter) const final {
     // Inline this region into the parent region.
     auto &parentRegion = *op->getParentRegion();
+    auto &opRegion = op->getRegion(0);
     if (op->getAttr("legalizer.should_clone"))
-      rewriter.cloneRegionBefore(op->getRegion(0), parentRegion,
-                                 parentRegion.end());
+      rewriter.cloneRegionBefore(opRegion, parentRegion, parentRegion.end());
     else
-      rewriter.inlineRegionBefore(op->getRegion(0), parentRegion,
-                                  parentRegion.end());
+      rewriter.inlineRegionBefore(opRegion, parentRegion, parentRegion.end());
+
+    if (op->getAttr("legalizer.erase_old_blocks")) {
+      while (!opRegion.empty())
+        rewriter.eraseBlock(&opRegion.front());
+    }
 
     // Drop this operation.
     rewriter.eraseOp(op);
@@ -452,7 +457,11 @@ struct TestNonRootReplacement : public RewritePattern {
 /// bounded recursion.
 struct TestBoundedRecursiveRewrite
     : public OpRewritePattern<TestRecursiveRewriteOp> {
-  using OpRewritePattern<TestRecursiveRewriteOp>::OpRewritePattern;
+  TestBoundedRecursiveRewrite(MLIRContext *ctx)
+      : OpRewritePattern<TestRecursiveRewriteOp>(ctx) {
+    // The conversion target handles bounding the recursion of this pattern.
+    setHasBoundedRewriteRecursion();
+  }
 
   LogicalResult matchAndRewrite(TestRecursiveRewriteOp op,
                                 PatternRewriter &rewriter) const final {
@@ -462,9 +471,6 @@ struct TestBoundedRecursiveRewrite
     });
     return success();
   }
-
-  /// The conversion target handles bounding the recursion of this pattern.
-  bool hasBoundedRewriteRecursion() const final { return true; }
 };
 
 struct TestNestedOpCreationUndoRewrite
@@ -600,7 +606,7 @@ struct TestLegalizePatternDriver
     // Handle a partial conversion.
     if (mode == ConversionMode::Partial) {
       DenseSet<Operation *> unlegalizedOps;
-      (void)applyPartialConversion(getOperation(), target, patterns,
+      (void)applyPartialConversion(getOperation(), target, std::move(patterns),
                                    &unlegalizedOps);
       // Emit remarks for each legalizable operation.
       for (auto *op : unlegalizedOps)
@@ -615,7 +621,7 @@ struct TestLegalizePatternDriver
         return (bool)op->getAttrOfType<UnitAttr>("test.dynamically_legal");
       });
 
-      (void)applyFullConversion(getOperation(), target, patterns);
+      (void)applyFullConversion(getOperation(), target, std::move(patterns));
       return;
     }
 
@@ -624,8 +630,8 @@ struct TestLegalizePatternDriver
 
     // Analyze the convertible operations.
     DenseSet<Operation *> legalizedOps;
-    if (failed(applyAnalysisConversion(getOperation(), target, patterns,
-                                       legalizedOps)))
+    if (failed(applyAnalysisConversion(getOperation(), target,
+                                       std::move(patterns), legalizedOps)))
       return signalPassFailure();
 
     // Emit remarks for each legalizable operation.
@@ -703,7 +709,8 @@ struct TestRemappedValue
           return std::distance(op->operand_begin(), op->operand_end()) > 1;
         });
 
-    if (failed(mlir::applyFullConversion(getFunction(), target, patterns))) {
+    if (failed(mlir::applyFullConversion(getFunction(), target,
+                                         std::move(patterns)))) {
       signalPassFailure();
     }
   }
@@ -736,7 +743,8 @@ struct TestUnknownRootOpDriver
 
     mlir::ConversionTarget target(getContext());
     target.addIllegalDialect<TestDialect>();
-    if (failed(applyPartialConversion(getFunction(), target, patterns)))
+    if (failed(
+            applyPartialConversion(getFunction(), target, std::move(patterns))))
       signalPassFailure();
   }
 };
@@ -832,7 +840,8 @@ struct TestTypeConversionDriver
     mlir::populateFuncOpTypeConversionPattern(patterns, &getContext(),
                                               converter);
 
-    if (failed(applyPartialConversion(getOperation(), target, patterns)))
+    if (failed(applyPartialConversion(getOperation(), target,
+                                      std::move(patterns))))
       signalPassFailure();
   }
 };
@@ -938,7 +947,7 @@ struct TestMergeBlocksPatternDriver
         });
 
     DenseSet<Operation *> unlegalizedOps;
-    (void)applyPartialConversion(getOperation(), target, patterns,
+    (void)applyPartialConversion(getOperation(), target, std::move(patterns),
                                  &unlegalizedOps);
     for (auto *op : unlegalizedOps)
       op->emitRemark() << "op '" << op->getName() << "' is not legalizable";
@@ -951,6 +960,7 @@ struct TestMergeBlocksPatternDriver
 //===----------------------------------------------------------------------===//
 
 namespace mlir {
+namespace test {
 void registerPatternsTestPass() {
   PassRegistration<TestReturnTypeDriver>("test-return-type",
                                          "Run return type functions");
@@ -983,4 +993,5 @@ void registerPatternsTestPass() {
       "test-merge-blocks",
       "Test Merging operation in ConversionPatternRewriter"};
 }
+} // namespace test
 } // namespace mlir

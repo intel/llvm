@@ -194,6 +194,33 @@ TEST(DecisionForestRankingModel, ReferencesAffectRanking) {
       ElementsAre(Named("clangA"), Named("clangD")));
 }
 
+TEST(DecisionForestRankingModel, DecisionForestScorerCallbackTest) {
+  clangd::CodeCompleteOptions Opts;
+  constexpr float MagicNumber = 1234.5678f;
+  Opts.RankingModel = CodeCompleteOptions::DecisionForest;
+  Opts.DecisionForestScorer = [&](const SymbolQualitySignals &,
+                                  const SymbolRelevanceSignals &, float Base) {
+    DecisionForestScores Scores;
+    Scores.Total = MagicNumber;
+    Scores.ExcludingName = MagicNumber;
+    return Scores;
+  };
+  llvm::StringRef Code = "int func() { int xyz; xy^ }";
+  auto Results = completions(Code,
+                             /*IndexSymbols=*/{}, Opts);
+  ASSERT_EQ(Results.Completions.size(), 1u);
+  EXPECT_EQ(Results.Completions[0].Score.Total, MagicNumber);
+  EXPECT_EQ(Results.Completions[0].Score.ExcludingName, MagicNumber);
+
+  // Do not use DecisionForestScorer for heuristics model.
+  Opts.RankingModel = CodeCompleteOptions::Heuristics;
+  Results = completions(Code,
+                        /*IndexSymbols=*/{}, Opts);
+  ASSERT_EQ(Results.Completions.size(), 1u);
+  EXPECT_NE(Results.Completions[0].Score.Total, MagicNumber);
+  EXPECT_NE(Results.Completions[0].Score.ExcludingName, MagicNumber);
+}
+
 TEST(CompletionTest, Limit) {
   clangd::CodeCompleteOptions Opts;
   Opts.Limit = 2;
@@ -1599,6 +1626,29 @@ TEST(CompletionTest, OverloadBundling) {
       A.Documentation->asPlainText(),
       AnyOf(HasSubstr("Overload with int"), HasSubstr("Overload with bool")));
   EXPECT_EQ(A.SnippetSuffix, "($0)");
+}
+
+TEST(CompletionTest, OverloadBundlingSameFileDifferentURI) {
+  clangd::CodeCompleteOptions Opts;
+  Opts.BundleOverloads = true;
+
+  Symbol SymX = sym("ns::X", index::SymbolKind::Function, "@F@\\0#");
+  Symbol SymY = sym("ns::X", index::SymbolKind::Function, "@F@\\0#I#");
+  std::string BarHeader = testPath("bar.h");
+  auto BarURI = URI::create(BarHeader).toString();
+  SymX.CanonicalDeclaration.FileURI = BarURI.c_str();
+  SymY.CanonicalDeclaration.FileURI = BarURI.c_str();
+  // The include header is different, but really it's the same file.
+  SymX.IncludeHeaders.emplace_back("\"bar.h\"", 1);
+  SymY.IncludeHeaders.emplace_back(BarURI.c_str(), 1);
+
+  auto Results = completions("void f() { ::ns::^ }", {SymX, SymY}, Opts);
+  // Expect both results are bundled, despite the different-but-same
+  // IncludeHeader.
+  ASSERT_EQ(1u, Results.Completions.size());
+  const auto &R = Results.Completions.front();
+  EXPECT_EQ("X", R.Name);
+  EXPECT_EQ(2u, R.BundleSize);
 }
 
 TEST(CompletionTest, DocumentationFromChangedFileCrash) {

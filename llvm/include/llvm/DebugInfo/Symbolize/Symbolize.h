@@ -43,13 +43,12 @@ public:
     bool Demangle = true;
     bool RelativeAddresses = false;
     bool UntagAddresses = false;
-    bool UseNativePDBReader = false;
+    bool UseDIA = false;
     std::string DefaultArch;
     std::vector<std::string> DsymHints;
     std::string FallbackDebugPath;
     std::string DWPName;
     std::vector<std::string> DebugFileDirectory;
-    std::function<void(Error)> RecoverableErrorHandler = WithColor::defaultErrorHandler;
   };
 
   LLVMSymbolizer() = default;

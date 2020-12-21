@@ -14,9 +14,9 @@
 #include "mlir/Dialect/Affine/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/IR/BlockAndValueMapping.h"
-#include "mlir/IR/Function.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/IntegerSet.h"
-#include "mlir/IR/PatternMatch.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -29,7 +29,7 @@ static void promoteIfBlock(AffineIfOp ifOp, bool elseBlock) {
   if (elseBlock)
     assert(ifOp.hasElse() && "else block expected");
 
-  Block *destBlock = ifOp.getOperation()->getBlock();
+  Block *destBlock = ifOp->getBlock();
   Block *srcBlock = elseBlock ? ifOp.getElseBlock() : ifOp.getThenBlock();
   destBlock->getOperations().splice(
       Block::iterator(ifOp), srcBlock->getOperations(), srcBlock->begin(),
@@ -159,7 +159,8 @@ LogicalResult mlir::hoistAffineIfOp(AffineIfOp ifOp, bool *folded) {
   OwningRewritePatternList patterns;
   AffineIfOp::getCanonicalizationPatterns(patterns, ifOp.getContext());
   bool erased;
-  applyOpPatternsAndFold(ifOp, patterns, &erased);
+  FrozenRewritePatternList frozenPatterns(std::move(patterns));
+  applyOpPatternsAndFold(ifOp, frozenPatterns, &erased);
   if (erased) {
     if (folded)
       *folded = true;
@@ -189,7 +190,7 @@ LogicalResult mlir::hoistAffineIfOp(AffineIfOp ifOp, bool *folded) {
   // a sequence of affine.fors that are all perfectly nested).
   applyPatternsAndFoldGreedily(
       hoistedIfOp.getParentWithTrait<OpTrait::IsIsolatedFromAbove>(),
-      std::move(patterns));
+      frozenPatterns);
 
   return success();
 }

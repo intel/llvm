@@ -46,9 +46,6 @@ def HasComplxNum      : Predicate<"Subtarget->hasComplxNum()">,
 def HasNV            : Predicate<"Subtarget->hasNV()">,
                        AssemblerPredicate<(all_of FeatureNV), "nv">;
 
-def HasRASv8_4       : Predicate<"Subtarget->hasRASv8_4()">,
-                       AssemblerPredicate<(all_of FeatureRASv8_4), "rasv8_4">;
-
 def HasMPAM          : Predicate<"Subtarget->hasMPAM()">,
                        AssemblerPredicate<(all_of FeatureMPAM), "mpam">;
 
@@ -484,7 +481,6 @@ def AArch64urshri : SDNode<"AArch64ISD::URSHR_I", SDT_AArch64vshift>;
 def AArch64vsli : SDNode<"AArch64ISD::VSLI", SDT_AArch64vshiftinsert>;
 def AArch64vsri : SDNode<"AArch64ISD::VSRI", SDT_AArch64vshiftinsert>;
 
-def AArch64not: SDNode<"AArch64ISD::NOT", SDT_AArch64unvec>;
 def AArch64bit: SDNode<"AArch64ISD::BIT", SDT_AArch64trivec>;
 def AArch64bsp: SDNode<"AArch64ISD::BSP", SDT_AArch64trivec>;
 
@@ -504,7 +500,7 @@ def AArch64cmgtz: SDNode<"AArch64ISD::CMGTz", SDT_AArch64unvec>;
 def AArch64cmlez: SDNode<"AArch64ISD::CMLEz", SDT_AArch64unvec>;
 def AArch64cmltz: SDNode<"AArch64ISD::CMLTz", SDT_AArch64unvec>;
 def AArch64cmtst : PatFrag<(ops node:$LHS, node:$RHS),
-                        (AArch64not (AArch64cmeqz (and node:$LHS, node:$RHS)))>;
+                        (vnot (AArch64cmeqz (and node:$LHS, node:$RHS)))>;
 
 def AArch64fcmeqz: SDNode<"AArch64ISD::FCMEQz", SDT_AArch64fcmpz>;
 def AArch64fcmgez: SDNode<"AArch64ISD::FCMGEz", SDT_AArch64fcmpz>;
@@ -1124,9 +1120,12 @@ def HWASAN_CHECK_MEMACCESS : Pseudo<
   (outs), (ins GPR64noip:$ptr, i32imm:$accessinfo),
   [(int_hwasan_check_memaccess X9, GPR64noip:$ptr, (i32 timm:$accessinfo))]>,
   Sched<[]>;
+}
+
+let Uses = [ X20 ], Defs = [ X16, X17, LR, NZCV ] in {
 def HWASAN_CHECK_MEMACCESS_SHORTGRANULES : Pseudo<
   (outs), (ins GPR64noip:$ptr, i32imm:$accessinfo),
-  [(int_hwasan_check_memaccess_shortgranules X9, GPR64noip:$ptr, (i32 timm:$accessinfo))]>,
+  [(int_hwasan_check_memaccess_shortgranules X20, GPR64noip:$ptr, (i32 timm:$accessinfo))]>,
   Sched<[]>;
 }
 
@@ -1473,8 +1472,16 @@ def SMSUBLrrr : WideMulAccum<1, 0b001, "smsubl", sub, sext>;
 def UMADDLrrr : WideMulAccum<0, 0b101, "umaddl", add, zext>;
 def UMSUBLrrr : WideMulAccum<1, 0b101, "umsubl", sub, zext>;
 
+def : Pat<(i64 (mul (sext_inreg GPR64:$Rn, i32), (sext_inreg GPR64:$Rm, i32))),
+          (SMADDLrrr (EXTRACT_SUBREG $Rn, sub_32), (EXTRACT_SUBREG $Rm, sub_32), XZR)>;
+def : Pat<(i64 (mul (sext_inreg GPR64:$Rn, i32), (sext GPR32:$Rm))),
+          (SMADDLrrr (EXTRACT_SUBREG $Rn, sub_32), $Rm, XZR)>;
 def : Pat<(i64 (mul (sext GPR32:$Rn), (sext GPR32:$Rm))),
           (SMADDLrrr GPR32:$Rn, GPR32:$Rm, XZR)>;
+def : Pat<(i64 (mul (and GPR64:$Rn, 0xFFFFFFFF), (and GPR64:$Rm, 0xFFFFFFFF))),
+          (UMADDLrrr (EXTRACT_SUBREG $Rn, sub_32), (EXTRACT_SUBREG $Rm, sub_32), XZR)>;
+def : Pat<(i64 (mul (and GPR64:$Rn, 0xFFFFFFFF), (zext GPR32:$Rm))),
+          (UMADDLrrr (EXTRACT_SUBREG $Rn, sub_32), $Rm, XZR)>;
 def : Pat<(i64 (mul (zext GPR32:$Rn), (zext GPR32:$Rm))),
           (UMADDLrrr GPR32:$Rn, GPR32:$Rm, XZR)>;
 
@@ -3731,18 +3738,6 @@ def : Pat<(f32 (fma (fneg FPR32:$Rn), FPR32:$Rm, (fneg FPR32:$Ra))),
 def : Pat<(f64 (fma (fneg FPR64:$Rn), FPR64:$Rm, (fneg FPR64:$Ra))),
           (FNMADDDrrr FPR64:$Rn, FPR64:$Rm, FPR64:$Ra)>;
 
-// And here "(-a) + b*(-c)"
-
-let Predicates = [HasNEON, HasFullFP16] in
-def : Pat<(f16 (fma FPR16:$Rn, (fneg FPR16:$Rm), (fneg FPR16:$Ra))),
-          (FNMADDHrrr FPR16:$Rn, FPR16:$Rm, FPR16:$Ra)>;
-
-def : Pat<(f32 (fma FPR32:$Rn, (fneg FPR32:$Rm), (fneg FPR32:$Ra))),
-          (FNMADDSrrr FPR32:$Rn, FPR32:$Rm, FPR32:$Ra)>;
-
-def : Pat<(f64 (fma FPR64:$Rn, (fneg FPR64:$Rm), (fneg FPR64:$Ra))),
-          (FNMADDDrrr FPR64:$Rn, FPR64:$Rm, FPR64:$Ra)>;
-
 //===----------------------------------------------------------------------===//
 // Floating point comparison instructions.
 //===----------------------------------------------------------------------===//
@@ -3950,19 +3945,11 @@ def : Pat<(AArch64neg (v2i32 V64:$Rn)),  (NEGv2i32 V64:$Rn)>;
 def : Pat<(AArch64neg (v4i32 V128:$Rn)), (NEGv4i32 V128:$Rn)>;
 def : Pat<(AArch64neg (v2i64 V128:$Rn)), (NEGv2i64 V128:$Rn)>;
 
-def : Pat<(AArch64not (v8i8 V64:$Rn)),   (NOTv8i8  V64:$Rn)>;
-def : Pat<(AArch64not (v16i8 V128:$Rn)), (NOTv16i8 V128:$Rn)>;
-def : Pat<(AArch64not (v4i16 V64:$Rn)),  (NOTv8i8  V64:$Rn)>;
-def : Pat<(AArch64not (v8i16 V128:$Rn)), (NOTv16i8 V128:$Rn)>;
-def : Pat<(AArch64not (v2i32 V64:$Rn)),  (NOTv8i8  V64:$Rn)>;
-def : Pat<(AArch64not (v1i64 V64:$Rn)),  (NOTv8i8  V64:$Rn)>;
-def : Pat<(AArch64not (v4i32 V128:$Rn)), (NOTv16i8 V128:$Rn)>;
-def : Pat<(AArch64not (v2i64 V128:$Rn)), (NOTv16i8 V128:$Rn)>;
-
 def : Pat<(vnot (v4i16 V64:$Rn)),  (NOTv8i8  V64:$Rn)>;
 def : Pat<(vnot (v8i16 V128:$Rn)), (NOTv16i8 V128:$Rn)>;
 def : Pat<(vnot (v2i32 V64:$Rn)),  (NOTv8i8  V64:$Rn)>;
 def : Pat<(vnot (v4i32 V128:$Rn)), (NOTv16i8 V128:$Rn)>;
+def : Pat<(vnot (v1i64 V64:$Rn)),  (NOTv8i8  V64:$Rn)>;
 def : Pat<(vnot (v2i64 V128:$Rn)), (NOTv16i8 V128:$Rn)>;
 
 defm RBIT   : SIMDTwoVectorB<1, 0b01, 0b00101, "rbit", int_aarch64_neon_rbit>;
@@ -4067,17 +4054,6 @@ defm FMLA     : SIMDThreeSameVectorFPTied<0, 0, 0b001, "fmla",
             TriOpFrag<(fma node:$RHS, node:$MHS, node:$LHS)> >;
 defm FMLS     : SIMDThreeSameVectorFPTied<0, 1, 0b001, "fmls",
             TriOpFrag<(fma node:$MHS, (fneg node:$RHS), node:$LHS)> >;
-
-// The following def pats catch the case where the LHS of an FMA is negated.
-// The TriOpFrag above catches the case where the middle operand is negated.
-def : Pat<(v2f32 (fma (fneg V64:$Rn), V64:$Rm, V64:$Rd)),
-          (FMLSv2f32 V64:$Rd, V64:$Rn, V64:$Rm)>;
-
-def : Pat<(v4f32 (fma (fneg V128:$Rn), V128:$Rm, V128:$Rd)),
-          (FMLSv4f32 V128:$Rd, V128:$Rn, V128:$Rm)>;
-
-def : Pat<(v2f64 (fma (fneg V128:$Rn), V128:$Rm, V128:$Rd)),
-          (FMLSv2f64 V128:$Rd, V128:$Rn, V128:$Rm)>;
 
 defm FMULX    : SIMDThreeSameVectorFP<0,0,0b011,"fmulx", int_aarch64_neon_fmulx>;
 defm FMUL     : SIMDThreeSameVectorFP<1,0,0b011,"fmul", fmul>;
@@ -5185,6 +5161,16 @@ def : Pat<(v4f16 (vector_insert (v4f16 V64:$Rn),
               (v8f16 (INSERT_SUBREG (v8f16 (IMPLICIT_DEF)), FPR16:$Rm, hsub)),
               (i64 0)),
             dsub)>;
+
+def : Pat<(vector_insert (v8f16 v8f16:$Rn), (f16 fpimm0),
+            (i64 VectorIndexH:$imm)),
+          (INSvi16gpr V128:$Rn, VectorIndexH:$imm, WZR)>;
+def : Pat<(vector_insert v4f32:$Rn, (f32 fpimm0),
+            (i64 VectorIndexS:$imm)),
+          (INSvi32gpr V128:$Rn, VectorIndexS:$imm, WZR)>;
+def : Pat<(vector_insert v2f64:$Rn, (f64 fpimm0),
+            (i64 VectorIndexD:$imm)),
+          (INSvi64gpr V128:$Rn, VectorIndexS:$imm, XZR)>;
 
 def : Pat<(v8f16 (vector_insert (v8f16 V128:$Rn),
             (f16 FPR16:$Rm), (i64 VectorIndexH:$imm))),

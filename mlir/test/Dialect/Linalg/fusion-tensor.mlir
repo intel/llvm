@@ -251,7 +251,7 @@ func @indexed_generic_op_zero_dim_constant_fusion
 
 #map0 = affine_map<(d0, d1) -> (d0, d1)>
 func @generic_op_indexed_generic_op_fusion(%arg0: tensor<?x?xi32>,
-                                           %arg1: tensor<?x?xi32>) {
+                                           %arg1: tensor<?x?xi32>) -> tensor<?x?xi32> {
     %0 = linalg.generic {
       indexing_maps = [#map0, #map0, #map0],
       iterator_types = ["parallel", "parallel"] }
@@ -271,7 +271,7 @@ func @generic_op_indexed_generic_op_fusion(%arg0: tensor<?x?xi32>,
       %5 = subi %4, %3 : i32
       linalg.yield %5 : i32
     } -> tensor<?x?xi32>
-  return
+  return %1 : tensor<?x?xi32>
 }
 //   CHECK-DAG: #[[$MAP0:.*]] = affine_map<(d0, d1) -> (d0, d1)>
 // CHECK-LABEL: func @generic_op_indexed_generic_op_fusion
@@ -294,7 +294,7 @@ func @generic_op_indexed_generic_op_fusion(%arg0: tensor<?x?xi32>,
 
 #map0 = affine_map<(d0, d1) -> (d0, d1)>
 func @indexed_generic_op_generic_op_fusion(%arg0: tensor<?x?xi32>,
-                                           %arg1: tensor<?x?xi32>) {
+                                           %arg1: tensor<?x?xi32>) -> tensor<?x?xi32> {
   %0 = linalg.indexed_generic {
     indexing_maps = [#map0, #map0],
     iterator_types = ["parallel", "parallel"] }
@@ -314,7 +314,7 @@ func @indexed_generic_op_generic_op_fusion(%arg0: tensor<?x?xi32>,
     %10 = addi %arg2, %arg3 : i32
     linalg.yield %10 : i32
   } -> tensor<?x?xi32>
-  return
+  return %1 : tensor<?x?xi32>
 }
 //   CHECK-DAG: #[[$MAP0:.*]] = affine_map<(d0, d1) -> (d0, d1)>
 // CHECK-LABEL: func @indexed_generic_op_generic_op_fusion
@@ -338,7 +338,7 @@ func @indexed_generic_op_generic_op_fusion(%arg0: tensor<?x?xi32>,
 // The indices of the first indexed_generic op are swapped after fusion.
 #map0 = affine_map<(d0, d1) -> (d1, d0)>
 #map1 = affine_map<(d0, d1) -> (d0, d1)>
-func @indexed_generic_op_fusion(%arg0: tensor<?x?xi32>) {
+func @indexed_generic_op_fusion(%arg0: tensor<?x?xi32>) -> tensor<?x?xi32> {
     %0 = linalg.indexed_generic {
       indexing_maps = [#map0, #map0],
       iterator_types = ["parallel", "parallel"] }
@@ -361,7 +361,7 @@ func @indexed_generic_op_fusion(%arg0: tensor<?x?xi32>) {
       %5 = subi %4, %3 : i32
       linalg.yield %5 : i32
     } -> tensor<?x?xi32>
-  return
+  return %1 : tensor<?x?xi32>
 }
 //   CHECK-DAG: #[[$MAP0:.*]] = affine_map<(d0, d1) -> (d0, d1)>
 // CHECK-LABEL: func @indexed_generic_op_fusion
@@ -381,3 +381,43 @@ func @indexed_generic_op_fusion(%arg0: tensor<?x?xi32>) {
 //      CHECK:   %[[VAL4:.+]] = subi %[[VAL3]], %[[SUB_OPERAND2]] : i32
 //      CHECK:   linalg.yield %[[VAL4]] : i32
 //   CHECK-NOT: linalg.indexed_generic
+
+// -----
+
+func @scalar_indexed_generic_fusion
+  (%arg0: tensor<5x1x1xf32>, %arg1 : tensor<i32>) -> tensor<10xf32>
+{
+  %c0 = constant 0 : index  
+  %cst = constant dense<1.000000e+00> : tensor<10xf32>
+  %0 = linalg.indexed_generic
+    {indexing_maps = [affine_map<() -> ()>, affine_map<() -> ()>],
+     iterator_types = []}
+    ins(%arg1 : tensor<i32>) {
+    ^bb0(%arg2: i32):  // no predecessors
+      %3 = index_cast %arg2 : i32 to index
+      %4 = extract_element %arg0[%3, %c0, %c0] : tensor<5x1x1xf32>
+      linalg.yield %4 : f32
+    } -> tensor<f32>
+  %1 = linalg.generic
+   {indexing_maps = [affine_map<(d0) -> ()>, affine_map<(d0) -> (d0)>,
+                     affine_map<(d0) -> (d0)>],
+    iterator_types = ["parallel"]}
+    ins(%0, %cst : tensor<f32>, tensor<10xf32>) {
+    ^bb0(%arg2: f32, %arg3: f32):  // no predecessors
+      %3 = mulf %arg2, %arg3 : f32
+      linalg.yield %3 : f32
+    } -> tensor<10xf32>
+  return %1 : tensor<10xf32>
+}
+//   CHECK-DAG: #[[MAP0:.+]] = affine_map<(d0) -> ()>
+//   CHECK-DAG: #[[MAP1:.+]] = affine_map<(d0) -> (d0)>
+//       CHECK: func @scalar_indexed_generic_fusion
+//  CHECK-SAME:   %[[ARG0:[a-zA-Z0-9]+]]: tensor<5x1x1xf32>
+//  CHECK-SAME:   %[[ARG1:[a-zA-Z0-9]+]]: tensor<i32>
+//       CHECK:   %[[T0:.+]] = linalg.indexed_generic
+//  CHECK-SAME:     indexing_maps = [#[[MAP0]], #[[MAP1]]]
+//  CHECK-SAME:     iterator_types = ["parallel"]
+//  CHECK-SAME:     ins(%[[ARG1]] : tensor<i32>)
+//       CHECK:     extract_element %[[ARG0]]
+//       CHECK:     linalg.yield
+//       CHECK   return %[[T0]]

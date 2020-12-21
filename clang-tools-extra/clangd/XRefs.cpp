@@ -47,6 +47,7 @@
 #include "clang/Index/USRGeneration.h"
 #include "clang/Tooling/Syntax/Tokens.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
@@ -171,22 +172,33 @@ SymbolLocation getPreferredLocation(const Location &ASTLoc,
   return Merged.CanonicalDeclaration;
 }
 
+std::vector<std::pair<const NamedDecl *, DeclRelationSet>>
+getDeclAtPositionWithRelations(ParsedAST &AST, SourceLocation Pos,
+                               DeclRelationSet Relations,
+                               ASTNodeKind *NodeKind = nullptr) {
+  unsigned Offset = AST.getSourceManager().getDecomposedSpellingLoc(Pos).second;
+  std::vector<std::pair<const NamedDecl *, DeclRelationSet>> Result;
+  auto ResultFromTree = [&](SelectionTree ST) {
+    if (const SelectionTree::Node *N = ST.commonAncestor()) {
+      if (NodeKind)
+        *NodeKind = N->ASTNode.getNodeKind();
+      llvm::copy_if(allTargetDecls(N->ASTNode), std::back_inserter(Result),
+                    [&](auto &Entry) { return !(Entry.second & ~Relations); });
+    }
+    return !Result.empty();
+  };
+  SelectionTree::createEach(AST.getASTContext(), AST.getTokens(), Offset,
+                            Offset, ResultFromTree);
+  return Result;
+}
+
 std::vector<const NamedDecl *>
 getDeclAtPosition(ParsedAST &AST, SourceLocation Pos, DeclRelationSet Relations,
                   ASTNodeKind *NodeKind = nullptr) {
-  unsigned Offset = AST.getSourceManager().getDecomposedSpellingLoc(Pos).second;
   std::vector<const NamedDecl *> Result;
-  SelectionTree::createEach(AST.getASTContext(), AST.getTokens(), Offset,
-                            Offset, [&](SelectionTree ST) {
-                              if (const SelectionTree::Node *N =
-                                      ST.commonAncestor()) {
-                                if (NodeKind)
-                                  *NodeKind = N->ASTNode.getNodeKind();
-                                llvm::copy(targetDecl(N->ASTNode, Relations),
-                                           std::back_inserter(Result));
-                              }
-                              return !Result.empty();
-                            });
+  for (auto &Entry :
+       getDeclAtPositionWithRelations(AST, Pos, Relations, NodeKind))
+    Result.push_back(Entry.first);
   return Result;
 }
 
@@ -310,14 +322,16 @@ locateASTReferent(SourceLocation CurLoc, const syntax::Token *TouchedIdentifier,
 
     // Record SymbolID for index lookup later.
     if (auto ID = getSymbolID(D))
-      ResultIndex[*ID] = Result.size() - 1;
+      ResultIndex[ID] = Result.size() - 1;
   };
 
   // Emit all symbol locations (declaration or definition) from AST.
   DeclRelationSet Relations =
       DeclRelation::TemplatePattern | DeclRelation::Alias;
-  for (const NamedDecl *D :
-       getDeclAtPosition(AST, CurLoc, Relations, NodeKind)) {
+  auto Candidates =
+      getDeclAtPositionWithRelations(AST, CurLoc, Relations, NodeKind);
+  for (const auto &E : Candidates) {
+    const NamedDecl *D = E.first;
     // Special case: void foo() ^override: jump to the overridden method.
     if (const auto *CMD = llvm::dyn_cast<CXXMethodDecl>(D)) {
       const InheritableAttr *Attr = D->getAttr<OverrideAttr>();
@@ -332,6 +346,18 @@ locateASTReferent(SourceLocation CurLoc, const syntax::Token *TouchedIdentifier,
         continue;
       }
     }
+
+    // Special case: the cursor is on an alias, prefer other results.
+    // This targets "using ns::^Foo", where the target is more interesting.
+    // This does not trigger on renaming aliases:
+    //   `using Foo = ^Bar` already targets Bar via a TypeLoc
+    //   `using ^Foo = Bar` has no other results, as Underlying is filtered.
+    if (E.second & DeclRelation::Alias && Candidates.size() > 1 &&
+        // beginLoc/endLoc are a token range, so rewind the identifier we're in.
+        SM.isPointWithin(TouchedIdentifier ? TouchedIdentifier->location()
+                                           : CurLoc,
+                         D->getBeginLoc(), D->getEndLoc()))
+      continue;
 
     // Special case: the point of declaration of a template specialization,
     // it's more useful to navigate to the template declaration.
@@ -488,8 +514,8 @@ locateSymbolTextually(const SpelledWord &Word, ParsedAST &AST,
       Located.Definition = *MaybeDefLoc;
     }
 
-    if (ScoredResults.size() >= 3) {
-      // If we have more than 3 results, don't return anything,
+    if (ScoredResults.size() >= 5) {
+      // If we have more than 5 results, don't return anything,
       // as confidence is too low.
       // FIXME: Alternatively, try a stricter query?
       TooMany = true;
@@ -1099,6 +1125,58 @@ std::vector<DocumentHighlight> findDocumentHighlights(ParsedAST &AST,
   return Result;
 }
 
+std::vector<LocatedSymbol> findImplementations(ParsedAST &AST, Position Pos,
+                                               const SymbolIndex *Index) {
+  // We rely on index to find the implementations in subclasses.
+  // FIXME: Index can be stale, so we may loose some latest results from the
+  // main file.
+  if (!Index)
+    return {};
+  const SourceManager &SM = AST.getSourceManager();
+  auto MainFilePath =
+      getCanonicalPath(SM.getFileEntryForID(SM.getMainFileID()), SM);
+  if (!MainFilePath) {
+    elog("Failed to get a path for the main file, so no implementations.");
+    return {};
+  }
+  auto CurLoc = sourceLocationInMainFile(SM, Pos);
+  if (!CurLoc) {
+    elog("Failed to convert position to source location: {0}",
+         CurLoc.takeError());
+    return {};
+  }
+  std::vector<LocatedSymbol> Results;
+  DeclRelationSet Relations =
+      DeclRelation::TemplatePattern | DeclRelation::Alias;
+  RelationsRequest Req;
+  Req.Predicate = RelationKind::OverriddenBy;
+  for (const NamedDecl *ND : getDeclAtPosition(AST, *CurLoc, Relations))
+    if (const CXXMethodDecl *CXXMD = llvm::dyn_cast<CXXMethodDecl>(ND))
+      if (CXXMD->isVirtual())
+        Req.Subjects.insert(getSymbolID(ND));
+
+  if (Req.Subjects.empty())
+    return Results;
+  Index->relations(Req, [&](const SymbolID &Subject, const Symbol &Object) {
+    auto DeclLoc =
+        indexToLSPLocation(Object.CanonicalDeclaration, *MainFilePath);
+    if (!DeclLoc) {
+      elog("Find implementation: {0}", DeclLoc.takeError());
+      return;
+    }
+    LocatedSymbol Loc;
+    Loc.Name = Object.Name.str();
+    Loc.PreferredDeclaration = *DeclLoc;
+    auto DefLoc = indexToLSPLocation(Object.Definition, *MainFilePath);
+    if (DefLoc)
+      Loc.Definition = *DefLoc;
+    else
+      llvm::consumeError(DefLoc.takeError());
+    Results.push_back(Loc);
+  });
+  return Results;
+}
+
 ReferencesResult findReferences(ParsedAST &AST, Position Pos, uint32_t Limit,
                                 const SymbolIndex *Index) {
   if (!Limit)
@@ -1129,7 +1207,7 @@ ReferencesResult findReferences(ParsedAST &AST, Position Pos, uint32_t Limit,
     if (auto MacroSID = getSymbolID(Macro->Name, Macro->Info, SM)) {
       // Collect macro references from main file.
       const auto &IDToRefs = AST.getMacros().MacroRefs;
-      auto Refs = IDToRefs.find(*MacroSID);
+      auto Refs = IDToRefs.find(MacroSID);
       if (Refs != IDToRefs.end()) {
         for (const auto &Ref : Refs->second) {
           Location Result;
@@ -1138,7 +1216,7 @@ ReferencesResult findReferences(ParsedAST &AST, Position Pos, uint32_t Limit,
           Results.References.push_back(std::move(Result));
         }
       }
-      Req.IDs.insert(*MacroSID);
+      Req.IDs.insert(MacroSID);
     }
   } else {
     // Handle references to Decls.
@@ -1175,7 +1253,7 @@ ReferencesResult findReferences(ParsedAST &AST, Position Pos, uint32_t Limit,
         if (D->getParentFunctionOrMethod())
           continue;
         if (auto ID = getSymbolID(D))
-          Req.IDs.insert(*ID);
+          Req.IDs.insert(ID);
       }
     }
   }
@@ -1262,9 +1340,9 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const LocatedSymbol &S) {
   return OS;
 }
 
-// FIXME(nridge): Reduce duplication between this function and declToSym().
-static llvm::Optional<TypeHierarchyItem>
-declToTypeHierarchyItem(ASTContext &Ctx, const NamedDecl &ND) {
+template <typename HierarchyItem>
+static llvm::Optional<HierarchyItem> declToHierarchyItem(const NamedDecl &ND) {
+  ASTContext &Ctx = ND.getASTContext();
   auto &SM = Ctx.getSourceManager();
   SourceLocation NameLoc = nameLocation(ND, Ctx.getSourceManager());
   SourceLocation BeginLoc = SM.getSpellingLoc(SM.getFileLoc(ND.getBeginLoc()));
@@ -1284,59 +1362,88 @@ declToTypeHierarchyItem(ASTContext &Ctx, const NamedDecl &ND) {
       SM, Lexer::getLocForEndOfToken(NameLoc, 0, SM, Ctx.getLangOpts()));
 
   index::SymbolInfo SymInfo = index::getSymbolInfo(&ND);
-  // FIXME: this is not classifying constructors, destructors and operators
-  //        correctly (they're all "methods").
+  // FIXME: This is not classifying constructors, destructors and operators
+  // correctly.
   SymbolKind SK = indexSymbolKindToSymbolKind(SymInfo.Kind);
 
-  TypeHierarchyItem THI;
-  THI.name = printName(Ctx, ND);
-  THI.kind = SK;
-  THI.deprecated = ND.isDeprecated();
-  THI.range = Range{sourceLocToPosition(SM, DeclRange->getBegin()),
-                    sourceLocToPosition(SM, DeclRange->getEnd())};
-  THI.selectionRange = Range{NameBegin, NameEnd};
-  if (!THI.range.contains(THI.selectionRange)) {
+  HierarchyItem HI;
+  HI.name = printName(Ctx, ND);
+  HI.kind = SK;
+  HI.range = Range{sourceLocToPosition(SM, DeclRange->getBegin()),
+                   sourceLocToPosition(SM, DeclRange->getEnd())};
+  HI.selectionRange = Range{NameBegin, NameEnd};
+  if (!HI.range.contains(HI.selectionRange)) {
     // 'selectionRange' must be contained in 'range', so in cases where clang
     // reports unrelated ranges we need to reconcile somehow.
-    THI.range = THI.selectionRange;
+    HI.range = HI.selectionRange;
   }
 
-  THI.uri = URIForFile::canonicalize(*FilePath, *TUPath);
+  HI.uri = URIForFile::canonicalize(*FilePath, *TUPath);
 
   // Compute the SymbolID and store it in the 'data' field.
   // This allows typeHierarchy/resolve to be used to
   // resolve children of items returned in a previous request
   // for parents.
-  if (auto ID = getSymbolID(&ND)) {
-    THI.data = ID->str();
-  }
+  if (auto ID = getSymbolID(&ND))
+    HI.data = ID.str();
 
-  return THI;
+  return HI;
 }
 
-static Optional<TypeHierarchyItem>
-symbolToTypeHierarchyItem(const Symbol &S, const SymbolIndex *Index,
-                          PathRef TUPath) {
+static llvm::Optional<TypeHierarchyItem>
+declToTypeHierarchyItem(const NamedDecl &ND) {
+  auto Result = declToHierarchyItem<TypeHierarchyItem>(ND);
+  if (Result)
+    Result->deprecated = ND.isDeprecated();
+  return Result;
+}
+
+static llvm::Optional<CallHierarchyItem>
+declToCallHierarchyItem(const NamedDecl &ND) {
+  auto Result = declToHierarchyItem<CallHierarchyItem>(ND);
+  if (Result && ND.isDeprecated())
+    Result->tags.push_back(SymbolTag::Deprecated);
+  return Result;
+}
+
+template <typename HierarchyItem>
+static llvm::Optional<HierarchyItem> symbolToHierarchyItem(const Symbol &S,
+                                                           PathRef TUPath) {
   auto Loc = symbolToLocation(S, TUPath);
   if (!Loc) {
-    log("Type hierarchy: {0}", Loc.takeError());
+    elog("Failed to convert symbol to hierarchy item: {0}", Loc.takeError());
     return llvm::None;
   }
-  TypeHierarchyItem THI;
-  THI.name = std::string(S.Name);
-  THI.kind = indexSymbolKindToSymbolKind(S.SymInfo.Kind);
-  THI.deprecated = (S.Flags & Symbol::Deprecated);
-  THI.selectionRange = Loc->range;
+  HierarchyItem HI;
+  HI.name = std::string(S.Name);
+  HI.kind = indexSymbolKindToSymbolKind(S.SymInfo.Kind);
+  HI.selectionRange = Loc->range;
   // FIXME: Populate 'range' correctly
   // (https://github.com/clangd/clangd/issues/59).
-  THI.range = THI.selectionRange;
-  THI.uri = Loc->uri;
+  HI.range = HI.selectionRange;
+  HI.uri = Loc->uri;
   // Store the SymbolID in the 'data' field. The client will
-  // send this back in typeHierarchy/resolve, allowing us to
-  // continue resolving additional levels of the type hierarchy.
-  THI.data = S.ID.str();
+  // send this back in requests to resolve additional levels
+  // of the hierarchy.
+  HI.data = S.ID.str();
 
-  return std::move(THI);
+  return HI;
+}
+
+static llvm::Optional<TypeHierarchyItem>
+symbolToTypeHierarchyItem(const Symbol &S, PathRef TUPath) {
+  auto Result = symbolToHierarchyItem<TypeHierarchyItem>(S, TUPath);
+  if (Result)
+    Result->deprecated = (S.Flags & Symbol::Deprecated);
+  return Result;
+}
+
+static llvm::Optional<CallHierarchyItem>
+symbolToCallHierarchyItem(const Symbol &S, PathRef TUPath) {
+  auto Result = symbolToHierarchyItem<CallHierarchyItem>(S, TUPath);
+  if (Result && (S.Flags & Symbol::Deprecated))
+    Result->tags.push_back(SymbolTag::Deprecated);
+  return Result;
 }
 
 static void fillSubTypes(const SymbolID &ID,
@@ -1347,7 +1454,7 @@ static void fillSubTypes(const SymbolID &ID,
   Req.Predicate = RelationKind::BaseOf;
   Index->relations(Req, [&](const SymbolID &Subject, const Symbol &Object) {
     if (Optional<TypeHierarchyItem> ChildSym =
-            symbolToTypeHierarchyItem(Object, Index, TUPath)) {
+            symbolToTypeHierarchyItem(Object, TUPath)) {
       if (Levels > 1) {
         ChildSym->children.emplace();
         fillSubTypes(Object.ID, *ChildSym->children, Index, Levels - 1, TUPath);
@@ -1376,7 +1483,7 @@ static void fillSuperTypes(const CXXRecordDecl &CXXRD, ASTContext &ASTCtx,
 
   for (const CXXRecordDecl *ParentDecl : typeParents(&CXXRD)) {
     if (Optional<TypeHierarchyItem> ParentSym =
-            declToTypeHierarchyItem(ASTCtx, *ParentDecl)) {
+            declToTypeHierarchyItem(*ParentDecl)) {
       ParentSym->parents.emplace();
       fillSuperTypes(*ParentDecl, ASTCtx, *ParentSym->parents, RPSet);
       SuperTypes.emplace_back(std::move(*ParentSym));
@@ -1446,6 +1553,10 @@ std::vector<const CXXRecordDecl *> typeParents(const CXXRecordDecl *CXXRD) {
       CXXRD = CTSD->getSpecializedTemplate()->getTemplatedDecl();
   }
 
+  // Can't query bases without a definition.
+  if (!CXXRD->hasDefinition())
+    return Result;
+
   for (auto Base : CXXRD->bases()) {
     const CXXRecordDecl *ParentDecl = nullptr;
 
@@ -1498,8 +1609,7 @@ getTypeHierarchy(ParsedAST &AST, Position Pos, int ResolveLevels,
       CXXRD = CTSD->getTemplateInstantiationPattern();
   }
 
-  Optional<TypeHierarchyItem> Result =
-      declToTypeHierarchyItem(AST.getASTContext(), *CXXRD);
+  Optional<TypeHierarchyItem> Result = declToTypeHierarchyItem(*CXXRD);
   if (!Result)
     return Result;
 
@@ -1514,8 +1624,8 @@ getTypeHierarchy(ParsedAST &AST, Position Pos, int ResolveLevels,
     Result->children.emplace();
 
     if (Index) {
-      if (Optional<SymbolID> ID = getSymbolID(CXXRD))
-        fillSubTypes(*ID, *Result->children, Index, ResolveLevels, TUPath);
+      if (auto ID = getSymbolID(CXXRD))
+        fillSubTypes(ID, *Result->children, Index, ResolveLevels, TUPath);
     }
   }
 
@@ -1539,6 +1649,83 @@ void resolveTypeHierarchy(TypeHierarchyItem &Item, int ResolveLevels,
       fillSubTypes(*ID, *Item.children, Index, ResolveLevels, Item.uri.file());
     }
   }
+}
+
+std::vector<CallHierarchyItem>
+prepareCallHierarchy(ParsedAST &AST, Position Pos, PathRef TUPath) {
+  std::vector<CallHierarchyItem> Result;
+  const auto &SM = AST.getSourceManager();
+  auto Loc = sourceLocationInMainFile(SM, Pos);
+  if (!Loc) {
+    elog("prepareCallHierarchy failed to convert position to source location: "
+         "{0}",
+         Loc.takeError());
+    return Result;
+  }
+  for (const NamedDecl *Decl : getDeclAtPosition(AST, *Loc, {})) {
+    if (!Decl->isFunctionOrFunctionTemplate())
+      continue;
+    if (auto CHI = declToCallHierarchyItem(*Decl))
+      Result.emplace_back(std::move(*CHI));
+  }
+  return Result;
+}
+
+std::vector<CallHierarchyIncomingCall>
+incomingCalls(const CallHierarchyItem &Item, const SymbolIndex *Index) {
+  std::vector<CallHierarchyIncomingCall> Results;
+  if (!Index || Item.data.empty())
+    return Results;
+  auto ID = SymbolID::fromStr(Item.data);
+  if (!ID) {
+    elog("incomingCalls failed to find symbol: {0}", ID.takeError());
+    return Results;
+  }
+  // In this function, we find incoming calls based on the index only.
+  // In principle, the AST could have more up-to-date information about
+  // occurrences within the current file. However, going from a SymbolID
+  // to an AST node isn't cheap, particularly when the declaration isn't
+  // in the main file.
+  // FIXME: Consider also using AST information when feasible.
+  RefsRequest Request;
+  Request.IDs.insert(*ID);
+  // We could restrict more specifically to calls by introducing a new RefKind,
+  // but non-call references (such as address-of-function) can still be
+  // interesting as they can indicate indirect calls.
+  Request.Filter = RefKind::Reference;
+  // Initially store the ranges in a map keyed by SymbolID of the caller.
+  // This allows us to group different calls with the same caller
+  // into the same CallHierarchyIncomingCall.
+  llvm::DenseMap<SymbolID, std::vector<Range>> CallsIn;
+  // We can populate the ranges based on a refs request only. As we do so, we
+  // also accumulate the container IDs into a lookup request.
+  LookupRequest ContainerLookup;
+  Index->refs(Request, [&](const Ref &R) {
+    auto Loc = indexToLSPLocation(R.Location, Item.uri.file());
+    if (!Loc) {
+      elog("incomingCalls failed to convert location: {0}", Loc.takeError());
+      return;
+    }
+    auto It = CallsIn.try_emplace(R.Container, std::vector<Range>{}).first;
+    It->second.push_back(Loc->range);
+
+    ContainerLookup.IDs.insert(R.Container);
+  });
+  // Perform the lookup request and combine its results with CallsIn to
+  // get complete CallHierarchyIncomingCall objects.
+  Index->lookup(ContainerLookup, [&](const Symbol &Caller) {
+    auto It = CallsIn.find(Caller.ID);
+    assert(It != CallsIn.end());
+    if (auto CHI = symbolToCallHierarchyItem(Caller, Item.uri.file()))
+      Results.push_back(
+          CallHierarchyIncomingCall{std::move(*CHI), std::move(It->second)});
+  });
+  // Sort results by name of container.
+  llvm::sort(Results, [](const CallHierarchyIncomingCall &A,
+                         const CallHierarchyIncomingCall &B) {
+    return A.from.name < B.from.name;
+  });
+  return Results;
 }
 
 llvm::DenseSet<const Decl *> getNonLocalDeclRefs(ParsedAST &AST,

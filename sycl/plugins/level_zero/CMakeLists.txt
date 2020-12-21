@@ -23,7 +23,7 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
   endif()
   ExternalProject_Add(level-zero-loader
     GIT_REPOSITORY    https://github.com/oneapi-src/level-zero.git
-    GIT_TAG           v1.0
+    GIT_TAG           v1.0.16
     UPDATE_DISCONNECTED ${SYCL_EP_LEVEL_ZERO_LOADER_SKIP_AUTO_UPDATE}
     SOURCE_DIR        ${LEVEL_ZERO_LOADER_SOURCE_DIR}
     BINARY_DIR        "${CMAKE_CURRENT_BINARY_DIR}/level_zero_loader_build"
@@ -44,7 +44,8 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
     BUILD_BYPRODUCTS ${LEVEL_ZERO_LOADER}
   )
   ExternalProject_Add_Step(level-zero-loader llvminstall
-    COMMAND ${CMAKE_COMMAND} -E copy_directory <INSTALL_DIR>/ ${LLVM_BINARY_DIR}
+    COMMAND ${CMAKE_COMMAND} -E copy_directory <INSTALL_DIR>/lib/ ${LLVM_BINARY_DIR}/lib
+    COMMAND ${CMAKE_COMMAND} -E copy_directory <INSTALL_DIR>/include/ ${LLVM_BINARY_DIR}/include/sycl
     COMMENT "Installing level-zero-loader into the LLVM binary directory"
     DEPENDEES install
   )
@@ -54,13 +55,34 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
     COMPONENT level-zero-loader
   )
 
-  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS level-zero-loader)
+  set(LEVEL_ZERO_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/level_zero_loader_install/include/)
 else()
-  include_directories("${LEVEL_ZERO_INCLUDE_DIR}")
   file(GLOB LEVEL_ZERO_LIBRARY_SRC "${LEVEL_ZERO_LIBRARY}*")
-  file(COPY ${LEVEL_ZERO_LIBRARY_SRC} DESTINATION ${LLVM_LIBRARY_OUTPUT_INTDIR})
-  add_custom_target(level-zero-loader DEPENDS ${LEVEL_ZERO_LIBRARY} COMMENT "Copying Level Zero Loader ...")
+  get_filename_component(LEVEL_ZERO_LIB_NAME ${LEVEL_ZERO_LIBRARY} NAME)
+  add_custom_target(level-zero-loader
+      DEPENDS
+	  ${LLVM_LIBRARY_OUTPUT_INTDIR}/${LEVEL_ZERO_LIB_NAME}
+	  ${LLVM_BINARY_DIR}/include/sycl/level_zero
+  )
+  add_custom_command(
+      OUTPUT
+	  ${LLVM_LIBRARY_OUTPUT_INTDIR}/${LEVEL_ZERO_LIB_NAME}
+	  ${LLVM_BINARY_DIR}/include/sycl/level_zero
+      COMMENT
+	  "Copying Level Zero loader and headers"
+      COMMAND
+	  ${CMAKE_COMMAND} -E copy ${LEVEL_ZERO_LIBRARY_SRC} ${LLVM_LIBRARY_OUTPUT_INTDIR}
+      COMMAND
+	  ${CMAKE_COMMAND} -E copy_directory ${LEVEL_ZERO_INCLUDE_DIR} ${LLVM_BINARY_DIR}/include/sycl
+      DEPENDS
+	  ${LEVEL_ZERO_LIBRARY}
+          ${LEVEL_ZERO_INCLUDE_DIR}
+  )
 endif()
+
+list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS level-zero-loader level-zero-headers)
+
+include_directories("${LEVEL_ZERO_INCLUDE_DIR}")
 
 add_library (LevelZeroLoader-Headers INTERFACE)
 add_library (LevelZeroLoader::Headers ALIAS LevelZeroLoader-Headers)

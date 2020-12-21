@@ -205,14 +205,8 @@ define <2 x i64> @fshr_sub_mask_vector(<2 x i64> %x, <2 x i64> %y, <2 x i64> %a)
 
 define i16 @fshl_16bit(i16 %x, i16 %y, i32 %shift) {
 ; CHECK-LABEL: @fshl_16bit(
-; CHECK-NEXT:    [[AND:%.*]] = and i32 [[SHIFT:%.*]], 15
-; CHECK-NEXT:    [[CONVX:%.*]] = zext i16 [[X:%.*]] to i32
-; CHECK-NEXT:    [[SHL:%.*]] = shl i32 [[CONVX]], [[AND]]
-; CHECK-NEXT:    [[SUB:%.*]] = sub nuw nsw i32 16, [[AND]]
-; CHECK-NEXT:    [[CONVY:%.*]] = zext i16 [[Y:%.*]] to i32
-; CHECK-NEXT:    [[SHR:%.*]] = lshr i32 [[CONVY]], [[SUB]]
-; CHECK-NEXT:    [[OR:%.*]] = or i32 [[SHR]], [[SHL]]
-; CHECK-NEXT:    [[CONV2:%.*]] = trunc i32 [[OR]] to i16
+; CHECK-NEXT:    [[TMP1:%.*]] = trunc i32 [[SHIFT:%.*]] to i16
+; CHECK-NEXT:    [[CONV2:%.*]] = call i16 @llvm.fshl.i16(i16 [[X:%.*]], i16 [[Y:%.*]], i16 [[TMP1]])
 ; CHECK-NEXT:    ret i16 [[CONV2]]
 ;
   %and = and i32 %shift, 15
@@ -230,14 +224,8 @@ define i16 @fshl_16bit(i16 %x, i16 %y, i32 %shift) {
 
 define <2 x i16> @fshl_commute_16bit_vec(<2 x i16> %x, <2 x i16> %y, <2 x i32> %shift) {
 ; CHECK-LABEL: @fshl_commute_16bit_vec(
-; CHECK-NEXT:    [[AND:%.*]] = and <2 x i32> [[SHIFT:%.*]], <i32 15, i32 15>
-; CHECK-NEXT:    [[CONVX:%.*]] = zext <2 x i16> [[X:%.*]] to <2 x i32>
-; CHECK-NEXT:    [[SHL:%.*]] = shl <2 x i32> [[CONVX]], [[AND]]
-; CHECK-NEXT:    [[SUB:%.*]] = sub nuw nsw <2 x i32> <i32 16, i32 16>, [[AND]]
-; CHECK-NEXT:    [[CONVY:%.*]] = zext <2 x i16> [[Y:%.*]] to <2 x i32>
-; CHECK-NEXT:    [[SHR:%.*]] = lshr <2 x i32> [[CONVY]], [[SUB]]
-; CHECK-NEXT:    [[OR:%.*]] = or <2 x i32> [[SHL]], [[SHR]]
-; CHECK-NEXT:    [[CONV2:%.*]] = trunc <2 x i32> [[OR]] to <2 x i16>
+; CHECK-NEXT:    [[TMP1:%.*]] = trunc <2 x i32> [[SHIFT:%.*]] to <2 x i16>
+; CHECK-NEXT:    [[CONV2:%.*]] = call <2 x i16> @llvm.fshl.v2i16(<2 x i16> [[X:%.*]], <2 x i16> [[Y:%.*]], <2 x i16> [[TMP1]])
 ; CHECK-NEXT:    ret <2 x i16> [[CONV2]]
 ;
   %and = and <2 x i32> %shift, <i32 15, i32 15>
@@ -255,14 +243,8 @@ define <2 x i16> @fshl_commute_16bit_vec(<2 x i16> %x, <2 x i16> %y, <2 x i32> %
 
 define i8 @fshr_8bit(i8 %x, i8 %y, i3 %shift) {
 ; CHECK-LABEL: @fshr_8bit(
-; CHECK-NEXT:    [[AND:%.*]] = zext i3 [[SHIFT:%.*]] to i32
-; CHECK-NEXT:    [[CONVX:%.*]] = zext i8 [[X:%.*]] to i32
-; CHECK-NEXT:    [[SHR:%.*]] = lshr i32 [[CONVX]], [[AND]]
-; CHECK-NEXT:    [[SUB:%.*]] = sub nuw nsw i32 8, [[AND]]
-; CHECK-NEXT:    [[CONVY:%.*]] = zext i8 [[Y:%.*]] to i32
-; CHECK-NEXT:    [[SHL:%.*]] = shl i32 [[CONVY]], [[SUB]]
-; CHECK-NEXT:    [[OR:%.*]] = or i32 [[SHL]], [[SHR]]
-; CHECK-NEXT:    [[CONV2:%.*]] = trunc i32 [[OR]] to i8
+; CHECK-NEXT:    [[TMP1:%.*]] = zext i3 [[SHIFT:%.*]] to i8
+; CHECK-NEXT:    [[CONV2:%.*]] = call i8 @llvm.fshr.i8(i8 [[Y:%.*]], i8 [[X:%.*]], i8 [[TMP1]])
 ; CHECK-NEXT:    ret i8 [[CONV2]]
 ;
   %and = zext i3 %shift to i32
@@ -281,14 +263,11 @@ define i8 @fshr_8bit(i8 %x, i8 %y, i3 %shift) {
 
 define i8 @fshr_commute_8bit(i32 %x, i32 %y, i32 %shift) {
 ; CHECK-LABEL: @fshr_commute_8bit(
-; CHECK-NEXT:    [[AND:%.*]] = and i32 [[SHIFT:%.*]], 3
-; CHECK-NEXT:    [[CONVX:%.*]] = and i32 [[X:%.*]], 255
-; CHECK-NEXT:    [[SHR:%.*]] = lshr i32 [[CONVX]], [[AND]]
-; CHECK-NEXT:    [[SUB:%.*]] = sub nuw nsw i32 8, [[AND]]
-; CHECK-NEXT:    [[CONVY:%.*]] = and i32 [[Y:%.*]], 255
-; CHECK-NEXT:    [[SHL:%.*]] = shl i32 [[CONVY]], [[SUB]]
-; CHECK-NEXT:    [[OR:%.*]] = or i32 [[SHR]], [[SHL]]
-; CHECK-NEXT:    [[CONV2:%.*]] = trunc i32 [[OR]] to i8
+; CHECK-NEXT:    [[TMP1:%.*]] = trunc i32 [[SHIFT:%.*]] to i8
+; CHECK-NEXT:    [[TMP2:%.*]] = and i8 [[TMP1]], 3
+; CHECK-NEXT:    [[TMP3:%.*]] = trunc i32 [[Y:%.*]] to i8
+; CHECK-NEXT:    [[TMP4:%.*]] = trunc i32 [[X:%.*]] to i8
+; CHECK-NEXT:    [[CONV2:%.*]] = call i8 @llvm.fshr.i8(i8 [[TMP3]], i8 [[TMP4]], i8 [[TMP2]])
 ; CHECK-NEXT:    ret i8 [[CONV2]]
 ;
   %and = and i32 %shift, 3
@@ -300,4 +279,55 @@ define i8 @fshr_commute_8bit(i32 %x, i32 %y, i32 %shift) {
   %or = or i32 %shr, %shl
   %conv2 = trunc i32 %or to i8
   ret i8 %conv2
+}
+
+; Convert select pattern to funnel shift that ends in 'or'.
+
+define i8 @fshr_select(i8 %x, i8 %y, i8 %shamt) {
+; CHECK-LABEL: @fshr_select(
+; CHECK-NEXT:    [[TMP1:%.*]] = freeze i8 [[X:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = call i8 @llvm.fshr.i8(i8 [[TMP1]], i8 [[Y:%.*]], i8 [[SHAMT:%.*]])
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %cmp = icmp eq i8 %shamt, 0
+  %sub = sub i8 8, %shamt
+  %shr = lshr i8 %y, %shamt
+  %shl = shl i8 %x, %sub
+  %or = or i8 %shl, %shr
+  %r = select i1 %cmp, i8 %y, i8 %or
+  ret i8 %r
+}
+
+; Convert select pattern to funnel shift that ends in 'or'.
+
+define i16 @fshl_select(i16 %x, i16 %y, i16 %shamt) {
+; CHECK-LABEL: @fshl_select(
+; CHECK-NEXT:    [[TMP1:%.*]] = freeze i16 [[Y:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = call i16 @llvm.fshl.i16(i16 [[X:%.*]], i16 [[TMP1]], i16 [[SHAMT:%.*]])
+; CHECK-NEXT:    ret i16 [[R]]
+;
+  %cmp = icmp eq i16 %shamt, 0
+  %sub = sub i16 16, %shamt
+  %shr = lshr i16 %y, %sub
+  %shl = shl i16 %x, %shamt
+  %or = or i16 %shr, %shl
+  %r = select i1 %cmp, i16 %x, i16 %or
+  ret i16 %r
+}
+
+; Convert select pattern to funnel shift that ends in 'or'.
+
+define <2 x i64> @fshl_select_vector(<2 x i64> %x, <2 x i64> %y, <2 x i64> %shamt) {
+; CHECK-LABEL: @fshl_select_vector(
+; CHECK-NEXT:    [[TMP1:%.*]] = freeze <2 x i64> [[X:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = call <2 x i64> @llvm.fshl.v2i64(<2 x i64> [[Y:%.*]], <2 x i64> [[TMP1]], <2 x i64> [[SHAMT:%.*]])
+; CHECK-NEXT:    ret <2 x i64> [[R]]
+;
+  %cmp = icmp eq <2 x i64> %shamt, zeroinitializer
+  %sub = sub <2 x i64> <i64 64, i64 64>, %shamt
+  %shr = lshr <2 x i64> %x, %sub
+  %shl = shl <2 x i64> %y, %shamt
+  %or = or <2 x i64> %shl, %shr
+  %r = select <2 x i1> %cmp, <2 x i64> %y, <2 x i64> %or
+  ret <2 x i64> %r
 }

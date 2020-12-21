@@ -8,6 +8,7 @@
 
 #pragma once
 #include <CL/sycl/detail/array.hpp>
+#include <CL/sycl/detail/helpers.hpp>
 
 #include <stdexcept>
 #include <type_traits>
@@ -31,18 +32,18 @@ public:
   /* The following constructor is only available in the range class
   specialization where: dimensions==1 */
   template <int N = dimensions>
-  range(typename std::enable_if<(N == 1), size_t>::type dim0) : base(dim0) {}
+  range(typename detail::enable_if_t<(N == 1), size_t> dim0) : base(dim0) {}
 
   /* The following constructor is only available in the range class
   specialization where: dimensions==2 */
   template <int N = dimensions>
-  range(typename std::enable_if<(N == 2), size_t>::type dim0, size_t dim1)
+  range(typename detail::enable_if_t<(N == 2), size_t> dim0, size_t dim1)
       : base(dim0, dim1) {}
 
   /* The following constructor is only available in the range class
   specialization where: dimensions==3 */
   template <int N = dimensions>
-  range(typename std::enable_if<(N == 3), size_t>::type dim0, size_t dim1,
+  range(typename detail::enable_if_t<(N == 3), size_t> dim0, size_t dim1,
         size_t dim2)
       : base(dim0, dim1, dim2) {}
 
@@ -141,6 +142,13 @@ public:
   __SYCL_GEN_OPT(^=)
 
 #undef __SYCL_GEN_OPT
+
+private:
+  friend class handler;
+  friend class detail::Builder;
+
+  // Adjust the first dim of the range
+  void set_range_dim0(const size_t dim0) { this->common_array[0] = dim0; }
 };
 
 #ifdef __cpp_deduction_guides

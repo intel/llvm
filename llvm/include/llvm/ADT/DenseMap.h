@@ -426,8 +426,8 @@ protected:
     setNumEntries(other.getNumEntries());
     setNumTombstones(other.getNumTombstones());
 
-    if (is_trivially_copyable<KeyT>::value &&
-        is_trivially_copyable<ValueT>::value)
+    if (std::is_trivially_copyable<KeyT>::value &&
+        std::is_trivially_copyable<ValueT>::value)
       memcpy(reinterpret_cast<void *>(getBuckets()), other.getBuckets(),
              getNumBuckets() * sizeof(BucketT));
     else
@@ -954,7 +954,7 @@ public:
           std::swap(*LHSB, *RHSB);
           continue;
         }
-        // Swap separately and handle any assymetry.
+        // Swap separately and handle any asymmetry.
         std::swap(LHSB->getFirst(), RHSB->getFirst());
         if (hasLHSValue) {
           ::new (&RHSB->getSecond()) ValueT(std::move(LHSB->getSecond()));

@@ -289,8 +289,8 @@ class ASTContext : public RefCountedBase<ASTContext> {
   /// Mapping from GUIDs to the corresponding MSGuidDecl.
   mutable llvm::FoldingSet<MSGuidDecl> MSGuidDecls;
 
-  /// Used to cleanups APValues stored in the AST.
-  mutable llvm::SmallVector<APValue *, 0> APValueCleanups;
+  /// Mapping from APValues to the corresponding TemplateParamObjects.
+  mutable llvm::FoldingSet<TemplateParamObjectDecl> TemplateParamObjectDecls;
 
   /// A cache mapping a string value to a StringLiteral object with the same
   /// value.
@@ -1012,6 +1012,9 @@ public:
 #define SVE_TYPE(Name, Id, SingletonId) \
   CanQualType SingletonId;
 #include "clang/Basic/AArch64SVEACLETypes.def"
+#define PPC_MMA_VECTOR_TYPE(Name, Id, Size) \
+  CanQualType Id##Ty;
+#include "clang/Basic/PPCTypes.def"
 
   // Types for deductions in C++0x [stmt.ranged]'s desugaring. Built on demand.
   mutable QualType AutoDeductTy;     // Deduction against 'auto'.
@@ -2049,6 +2052,10 @@ public:
     GE_Missing_ucontext
   };
 
+  QualType DecodeTypeStr(const char *&Str, const ASTContext &Context,
+                         ASTContext::GetBuiltinTypeError &Error,
+                         bool &RequireICE, bool AllowTypeModifiers) const;
+
   /// Return the type for the specified builtin.
   ///
   /// If \p IntegerConstantArgs is non-null, it is filled in with a bitmask of
@@ -2085,6 +2092,10 @@ public:
   /// is a fixed-length representation of the SVE builtin for a specific
   /// vector-length.
   bool areCompatibleSveTypes(QualType FirstType, QualType SecondType);
+
+  /// Return true if the given vector types are lax-compatible SVE vector types,
+  /// false otherwise.
+  bool areLaxCompatibleSveTypes(QualType FirstType, QualType SecondType);
 
   /// Return true if the type has been explicitly qualified with ObjC ownership.
   /// A type may be implicitly qualified with ownership under ObjC ARC, and in
@@ -2295,6 +2306,10 @@ public:
   uint64_t lookupFieldBitOffset(const ObjCInterfaceDecl *OID,
                                 const ObjCImplementationDecl *ID,
                                 const ObjCIvarDecl *Ivar) const;
+
+  /// Find the 'this' offset for the member path in a pointer-to-member
+  /// APValue.
+  CharUnits getMemberPointerPathAdjustment(const APValue &MP) const;
 
   bool isNearlyEmpty(const CXXRecordDecl *RD) const;
 
@@ -2875,6 +2890,11 @@ public:
   /// Return a declaration for the global GUID object representing the given
   /// GUID value.
   MSGuidDecl *getMSGuidDecl(MSGuidDeclParts Parts) const;
+
+  /// Return the template parameter object of the given type with the given
+  /// value.
+  TemplateParamObjectDecl *getTemplateParamObjectDecl(QualType T,
+                                                      const APValue &V) const;
 
   /// Parses the target attributes passed in, and returns only the ones that are
   /// valid feature names.

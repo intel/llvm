@@ -18,29 +18,30 @@ namespace sycl {
 namespace INTEL {
 namespace gpu {
 
-//
-// The simd vector class.
-//
-// This is a wrapper class for llvm vector values. Additionally this class
-// supports region operations that map to Intel GPU regions. The type of
-// a region select or format operation is of simd_view type, which models
-// read-update-write semantics.
-//
+/// The simd vector class.
+///
+/// This is a wrapper class for llvm vector values. Additionally this class
+/// supports region operations that map to Intel GPU regions. The type of
+/// a region select or format operation is of simd_view type, which models
+/// read-update-write semantics.
+///
+/// \ingroup sycl_esimd
 template <typename Ty, int N> class simd {
 public:
-  // The underlying builtin data type.
+  /// The underlying builtin data type.
   using vector_type = vector_type_t<Ty, N>;
 
-  // The element type of this simd object.
+  /// The element type of this simd object.
   using element_type = Ty;
 
-  // The number of elements in this simd object.
+  /// The number of elements in this simd object.
   static constexpr int length = N;
 
   // TODO @rolandschulz
   // Provide examples why constexpr is needed here.
   //
-  // Constructors.
+  /// @{
+  /// Constructors.
   constexpr simd() = default;
   constexpr simd(const simd &other) { set(other.data()); }
   constexpr simd(simd &&other) { set(other.data()); }
@@ -72,7 +73,7 @@ public:
     }
   }
 
-  // Initialize a simd with an initial value and step.
+  /// Initialize a simd with an initial value and step.
   constexpr simd(Ty Val, Ty Step = Ty()) noexcept {
     if (Step == Ty())
       M_data = Val;
@@ -84,6 +85,7 @@ public:
       }
     }
   }
+  /// @}
 
   operator const vector_type &() const & { return M_data; }
   operator vector_type &() & { return M_data; }
@@ -96,14 +98,16 @@ public:
 #endif
   }
 
-  // Whole region read and write.
+  /// Whole region read.
   simd read() const { return data(); }
+
+  /// Whole region write.
   simd &write(const simd &Val) {
     set(Val.data());
     return *this;
   }
 
-  // whole region update with predicates
+  /// Whole region update with predicates.
   void merge(const simd &Val, const mask_type_t<N> &Mask) {
     set(__esimd_wrregion<element_type, N, N, 0 /*VS*/, N, 1, N>(
         data(), Val.data(), 0, Mask));
@@ -113,11 +117,13 @@ public:
     set(Val2.data());
   }
 
-  // Assignment operators.
+  /// {@
+  /// Assignment operators.
   constexpr simd &operator=(const simd &) & = default;
   constexpr simd &operator=(simd &&) & = default;
+  /// @}
 
-  // View this simd object in a different element type.
+  /// View this simd object in a different element type.
   template <typename EltTy> auto format() & {
     using TopRegionTy = compute_format_type_t<simd, EltTy>;
     using RetTy = simd_view<simd, TopRegionTy>;
@@ -127,7 +133,7 @@ public:
 
   // TODO @Ruyk, @iburyl - should renamed to bit_cast similar to std::bit_cast.
   //
-  // View as a 2-dimensional simd_view.
+  /// View as a 2-dimensional simd_view.
   template <typename EltTy, int Height, int Width> auto format() & {
     using TopRegionTy = compute_format_type_2d_t<simd, EltTy, Height, Width>;
     using RetTy = simd_view<simd, TopRegionTy>;
@@ -135,32 +141,24 @@ public:
     return RetTy{*this, R};
   }
 
-  // \brief 1D region select, apply a region on top of this LValue object.
-  //
-  // @param Size the number of elements to be selected.
-  //
-  // @param Stride the element distance between two consecutive elements.
-  //
-  // @param Offset the starting element offset.
-  //
-  // @return the representing region object.
-  //
+  /// 1D region select, apply a region on top of this LValue object.
+  ///
+  /// \tparam Size is the number of elements to be selected.
+  /// \tparam Stride is the element distance between two consecutive elements.
+  /// \param Offset is the starting element offset.
+  /// \return the representing region object.
   template <int Size, int Stride>
   simd_view<simd, region1d_t<Ty, Size, Stride>> select(uint16_t Offset = 0) & {
     region1d_t<Ty, Size, Stride> Reg(Offset);
     return {*this, Reg};
   }
 
-  // \brief 1D region select, apply a region on top of this RValue object.
-  //
-  // @param Size the number of elements to be selected.
-  //
-  // @param Stride the element distance between two consecutive elements.
-  //
-  // @param Offset the starting element offset.
-  //
-  // @return the value this region object refers to.
-  //
+  /// 1D region select, apply a region on top of this RValue object.
+  ///
+  /// \tparam Size is the number of elements to be selected.
+  /// \tparam Stride is the element distance between two consecutive elements.
+  /// \param Offset is the starting element offset.
+  /// \return the value this region object refers to.
   template <int Size, int Stride>
   simd<Ty, Size> select(uint16_t Offset = 0) && {
     simd<Ty, N> &&Val = *this;
@@ -176,7 +174,7 @@ public:
   //   This would allow you to use the subscript operator to write to an
   //   element.
   // {/quote}
-  // Read a single element, by value only.
+  /// Read a single element, by value only.
   Ty operator[](int i) const { return data()[i]; }
 
   // TODO
@@ -278,28 +276,30 @@ public:
     return Ret;
   }
 
-  // \brief replicate operation, replicate simd instance given a region
-  //
-  // @param Rep number of times region has to be replicated
-  //
-  // @param Offset offset in number of elements in src region
-  //
-  // @param VS vertical stride of src region to replicate
-  //
-  // @param W width of src region to replicate
-  //
-  // @param HS horizontal stride of src region to replicate
-  //
-  // @return replicated simd instance
+  /// \name Replicate
+  /// Replicate simd instance given a region.
+  /// @{
+  ///
 
+  /// \tparam Rep is number of times region has to be replicated.
+  /// \return replicated simd instance.
   template <int Rep> simd<Ty, Rep * N> replicate() {
     return replicate<Rep, N>(0);
   }
 
+  /// \tparam Rep is number of times region has to be replicated.
+  /// \tparam W is width of src region to replicate.
+  /// \param Offset is offset in number of elements in src region.
+  /// \return replicated simd instance.
   template <int Rep, int W> simd<Ty, Rep * W> replicate(uint16_t Offset) {
     return replicate<Rep, W, W, 1>(Offset);
   }
 
+  /// \tparam Rep is number of times region has to be replicated.
+  /// \tparam VS vertical stride of src region to replicate.
+  /// \tparam W is width of src region to replicate.
+  /// \param Offset is offset in number of elements in src region.
+  /// \return replicated simd instance.
   template <int Rep, int VS, int W>
   simd<Ty, Rep * W> replicate(uint16_t Offset) {
     return replicate<Rep, VS, W, 1>(Offset);
@@ -318,33 +318,40 @@ public:
   //   s.replicate<R>(i).width<W>().vstride<VS>().hstride<HS>()
   // {/quote}
   // @jasonsewall-intel +1 for this
+  /// \tparam Rep is number of times region has to be replicated.
+  /// \tparam VS vertical stride of src region to replicate.
+  /// \tparam W is width of src region to replicate.
+  /// \tparam HS horizontal stride of src region to replicate.
+  /// \param Offset is offset in number of elements in src region.
+  /// \return replicated simd instance.
   template <int Rep, int VS, int W, int HS>
   simd<Ty, Rep * W> replicate(uint16_t Offset) {
     return __esimd_rdregion<element_type, N, Rep * W, VS, W, HS, N>(
         data(), Offset * sizeof(Ty));
   }
+  ///@}
 
-  // \brief any operation
-  //
-  // @return 1 if any element is set, 0 otherwise
-
-  template <typename T1 = element_type, typename T2 = Ty,
-            typename = std::enable_if_t<std::is_integral<T1>::value, T2>>
+  /// Any operation.
+  ///
+  /// \return 1 if any element is set, 0 otherwise.
+  template <
+      typename T1 = element_type, typename T2 = Ty,
+      typename = sycl::detail::enable_if_t<std::is_integral<T1>::value, T2>>
   uint16_t any() {
     return __esimd_any<Ty, N>(data());
   }
 
-  // \brief all operation
-  //
-  // @return 1 if all elements are set, 0 otherwise
-
-  template <typename T1 = element_type, typename T2 = Ty,
-            typename = std::enable_if_t<std::is_integral<T1>::value, T2>>
+  /// All operation.
+  ///
+  /// \return 1 if all elements are set, 0 otherwise.
+  template <
+      typename T1 = element_type, typename T2 = Ty,
+      typename = sycl::detail::enable_if_t<std::is_integral<T1>::value, T2>>
   uint16_t all() {
     return __esimd_all<Ty, N>(data());
   }
 
-  // \brief write a simd-vector into a basic region of a simd object
+  /// Write a simd-vector into a basic region of a simd object.
   template <typename RTy>
   ESIMD_INLINE void writeRegion(
       RTy Region,
@@ -371,7 +378,7 @@ public:
     }
   }
 
-  // \brief write a simd-vector into a nested region of a simd object
+  /// Write a simd-vector into a nested region of a simd object.
   template <typename TR, typename UR>
   ESIMD_INLINE void
   writeRegion(std::pair<TR, UR> Region,

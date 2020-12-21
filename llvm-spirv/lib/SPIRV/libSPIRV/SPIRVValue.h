@@ -290,13 +290,12 @@ public:
   // Complete constructor for composite constant
   SPIRVConstantCompositeBase(SPIRVModule *M, SPIRVType *TheType, SPIRVId TheId,
                              const std::vector<SPIRVValue *> TheElements)
-      : SPIRVValue(M, TheElements.size() + 3, OpConstantComposite, TheType,
-                   TheId) {
+      : SPIRVValue(M, TheElements.size() + 3, OC, TheType, TheId) {
     Elements = getIds(TheElements);
     validate();
   }
   // Incomplete constructor
-  SPIRVConstantCompositeBase() : SPIRVValue(OpConstantComposite) {}
+  SPIRVConstantCompositeBase() : SPIRVValue(OC) {}
   std::vector<SPIRVValue *> getElements() const { return getValues(Elements); }
   std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
     std::vector<SPIRVValue *> Elements = getElements();
@@ -401,7 +400,7 @@ protected:
 
 class SPIRVForward : public SPIRVValue, public SPIRVComponentExecutionModes {
 public:
-  const static Op OC = OpForward;
+  const static Op OC = internal::OpForward;
   // Complete constructor
   SPIRVForward(SPIRVModule *TheModule, SPIRVType *TheTy, SPIRVId TheId)
       : SPIRVValue(TheModule, 0, OC, TheId) {

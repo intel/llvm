@@ -399,6 +399,7 @@ static void PrintCallingConv(unsigned cc, raw_ostream &Out) {
   case CallingConv::AMDGPU_PS:     Out << "amdgpu_ps"; break;
   case CallingConv::AMDGPU_CS:     Out << "amdgpu_cs"; break;
   case CallingConv::AMDGPU_KERNEL: Out << "amdgpu_kernel"; break;
+  case CallingConv::AMDGPU_Gfx:    Out << "amdgpu_gfx"; break;
   }
 }
 
@@ -1454,6 +1455,13 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
     return;
   }
 
+  if (const auto *Equiv = dyn_cast<DSOLocalEquivalent>(CV)) {
+    Out << "dso_local_equivalent ";
+    WriteAsOperandInternal(Out, Equiv->getGlobalValue(), &TypePrinter, Machine,
+                           Context);
+    return;
+  }
+
   if (const ConstantArray *CA = dyn_cast<ConstantArray>(CV)) {
     Type *ETy = CA->getType()->getElementType();
     Out << '[';
@@ -1557,6 +1565,11 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
 
   if (isa<ConstantTokenNone>(CV)) {
     Out << "none";
+    return;
+  }
+
+  if (isa<PoisonValue>(CV)) {
+    Out << "poison";
     return;
   }
 
@@ -1905,6 +1918,57 @@ static void writeDISubrange(raw_ostream &Out, const DISubrange *N,
     auto *SV = cast<ConstantInt>(SE->getValue());
     Printer.printInt("stride", SV->getSExtValue(), /* ShouldSkipZero */ false);
   } else
+    Printer.printMetadata("stride", Stride, /*ShouldSkipNull */ true);
+
+  Out << ")";
+}
+
+static void writeDIGenericSubrange(raw_ostream &Out, const DIGenericSubrange *N,
+                                   TypePrinting *TypePrinter,
+                                   SlotTracker *Machine,
+                                   const Module *Context) {
+  Out << "!DIGenericSubrange(";
+  MDFieldPrinter Printer(Out, TypePrinter, Machine, Context);
+
+  auto IsConstant = [&](Metadata *Bound) -> bool {
+    if (auto *BE = dyn_cast_or_null<DIExpression>(Bound)) {
+      return BE->isSignedConstant();
+    }
+    return false;
+  };
+
+  auto GetConstant = [&](Metadata *Bound) -> int64_t {
+    assert(IsConstant(Bound) && "Expected constant");
+    auto *BE = dyn_cast_or_null<DIExpression>(Bound);
+    return static_cast<int64_t>(BE->getElement(1));
+  };
+
+  auto *Count = N->getRawCountNode();
+  if (IsConstant(Count))
+    Printer.printInt("count", GetConstant(Count),
+                     /* ShouldSkipZero */ false);
+  else
+    Printer.printMetadata("count", Count, /*ShouldSkipNull */ true);
+
+  auto *LBound = N->getRawLowerBound();
+  if (IsConstant(LBound))
+    Printer.printInt("lowerBound", GetConstant(LBound),
+                     /* ShouldSkipZero */ false);
+  else
+    Printer.printMetadata("lowerBound", LBound, /*ShouldSkipNull */ true);
+
+  auto *UBound = N->getRawUpperBound();
+  if (IsConstant(UBound))
+    Printer.printInt("upperBound", GetConstant(UBound),
+                     /* ShouldSkipZero */ false);
+  else
+    Printer.printMetadata("upperBound", UBound, /*ShouldSkipNull */ true);
+
+  auto *Stride = N->getRawStride();
+  if (IsConstant(Stride))
+    Printer.printInt("stride", GetConstant(Stride),
+                     /* ShouldSkipZero */ false);
+  else
     Printer.printMetadata("stride", Stride, /*ShouldSkipNull */ true);
 
   Out << ")";

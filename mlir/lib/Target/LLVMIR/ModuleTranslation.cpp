@@ -17,7 +17,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/IR/Attributes.h"
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/RegionGraphTraits.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Support/LLVM.h"
@@ -32,6 +32,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Module.h"
@@ -432,7 +433,7 @@ ModuleTranslation::convertOmpParallel(Operation &opInst,
   // attribute (shared, private, firstprivate, ...) of variables.
   // Currently defaults to shared.
   auto privCB = [&](InsertPointTy allocaIP, InsertPointTy codeGenIP,
-                    llvm::Value &vPtr,
+                    llvm::Value &, llvm::Value &vPtr,
                     llvm::Value *&replacementValue) -> InsertPointTy {
     replacementValue = &vPtr;
 
@@ -459,7 +460,7 @@ ModuleTranslation::convertOmpParallel(Operation &opInst,
   // above.
   llvm::OpenMPIRBuilder::InsertPointTy allocaIP(builder.saveIP());
   builder.restoreIP(
-      ompBuilder->CreateParallel(builder, allocaIP, bodyGenCB, privCB, finiCB,
+      ompBuilder->createParallel(builder, allocaIP, bodyGenCB, privCB, finiCB,
                                  ifCond, numThreads, pbKind, isCancellable));
   return success();
 }
@@ -475,19 +476,19 @@ ModuleTranslation::convertOmpOperation(Operation &opInst,
   }
   return llvm::TypeSwitch<Operation *, LogicalResult>(&opInst)
       .Case([&](omp::BarrierOp) {
-        ompBuilder->CreateBarrier(builder.saveIP(), llvm::omp::OMPD_barrier);
+        ompBuilder->createBarrier(builder.saveIP(), llvm::omp::OMPD_barrier);
         return success();
       })
       .Case([&](omp::TaskwaitOp) {
-        ompBuilder->CreateTaskwait(builder.saveIP());
+        ompBuilder->createTaskwait(builder.saveIP());
         return success();
       })
       .Case([&](omp::TaskyieldOp) {
-        ompBuilder->CreateTaskyield(builder.saveIP());
+        ompBuilder->createTaskyield(builder.saveIP());
         return success();
       })
       .Case([&](omp::FlushOp) {
-        // No support in Openmp runtime funciton (__kmpc_flush) to accept
+        // No support in Openmp runtime function (__kmpc_flush) to accept
         // the argument list.
         // OpenMP standard states the following:
         //  "An implementation may implement a flush with a list by ignoring
@@ -495,7 +496,7 @@ ModuleTranslation::convertOmpOperation(Operation &opInst,
         //
         // The argument list is discarded so that, flush with a list is treated
         // same as a flush without a list.
-        ompBuilder->CreateFlush(builder.saveIP());
+        ompBuilder->createFlush(builder.saveIP());
         return success();
       })
       .Case([&](omp::TerminatorOp) {
@@ -557,6 +558,41 @@ LogicalResult ModuleTranslation::convertOperation(Operation &opInst,
     }
     // Check that LLVM call returns void for 0-result functions.
     return success(result->getType()->isVoidTy());
+  }
+
+  if (auto inlineAsmOp = dyn_cast<LLVM::InlineAsmOp>(opInst)) {
+    // TODO: refactor function type creation which usually occurs in std-LLVM
+    // conversion.
+    SmallVector<LLVM::LLVMType, 8> operandTypes;
+    operandTypes.reserve(inlineAsmOp.operands().size());
+    for (auto t : inlineAsmOp.operands().getTypes())
+      operandTypes.push_back(t.cast<LLVM::LLVMType>());
+
+    LLVM::LLVMType resultType;
+    if (inlineAsmOp.getNumResults() == 0) {
+      resultType = LLVM::LLVMType::getVoidTy(mlirModule->getContext());
+    } else {
+      assert(inlineAsmOp.getNumResults() == 1);
+      resultType = inlineAsmOp.getResultTypes()[0].cast<LLVM::LLVMType>();
+    }
+    auto ft = LLVM::LLVMType::getFunctionTy(resultType, operandTypes,
+                                            /*isVarArg=*/false);
+    llvm::InlineAsm *inlineAsmInst =
+        inlineAsmOp.asm_dialect().hasValue()
+            ? llvm::InlineAsm::get(
+                  static_cast<llvm::FunctionType *>(convertType(ft)),
+                  inlineAsmOp.asm_string(), inlineAsmOp.constraints(),
+                  inlineAsmOp.has_side_effects(), inlineAsmOp.is_align_stack(),
+                  convertAsmDialectToLLVM(*inlineAsmOp.asm_dialect()))
+            : llvm::InlineAsm::get(
+                  static_cast<llvm::FunctionType *>(convertType(ft)),
+                  inlineAsmOp.asm_string(), inlineAsmOp.constraints(),
+                  inlineAsmOp.has_side_effects(), inlineAsmOp.is_align_stack());
+    llvm::Value *result =
+        builder.CreateCall(inlineAsmInst, lookupValues(inlineAsmOp.operands()));
+    if (opInst.getNumResults() != 0)
+      valueMapping[opInst.getResult(0)] = result;
+    return success();
   }
 
   if (auto invOp = dyn_cast<LLVM::InvokeOp>(opInst)) {
@@ -823,7 +859,8 @@ LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
     llvm::Argument &llvmArg = std::get<1>(kvp);
     BlockArgument mlirArg = std::get<0>(kvp);
 
-    if (auto attr = func.getArgAttrOfType<BoolAttr>(argIdx, "llvm.noalias")) {
+    if (auto attr = func.getArgAttrOfType<BoolAttr>(
+            argIdx, LLVMDialect::getNoAliasAttrName())) {
       // NB: Attribute already verified to be boolean, so check if we can indeed
       // attach the attribute to this argument, based on its type.
       auto argTy = mlirArg.getType().dyn_cast<LLVM::LLVMType>();
@@ -834,7 +871,8 @@ LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
         llvmArg.addAttr(llvm::Attribute::AttrKind::NoAlias);
     }
 
-    if (auto attr = func.getArgAttrOfType<IntegerAttr>(argIdx, "llvm.align")) {
+    if (auto attr = func.getArgAttrOfType<IntegerAttr>(
+            argIdx, LLVMDialect::getAlignAttrName())) {
       // NB: Attribute already verified to be int, so check if we can indeed
       // attach the attribute to this argument, based on its type.
       auto argTy = mlirArg.getType().dyn_cast<LLVM::LLVMType>();
@@ -944,6 +982,9 @@ std::unique_ptr<llvm::Module> ModuleTranslation::prepareLLVMModule(
   if (auto dataLayoutAttr =
           m->getAttr(LLVM::LLVMDialect::getDataLayoutAttrName()))
     llvmModule->setDataLayout(dataLayoutAttr.cast<StringAttr>().getValue());
+  if (auto targetTripleAttr =
+          m->getAttr(LLVM::LLVMDialect::getTargetTripleAttrName()))
+    llvmModule->setTargetTriple(targetTripleAttr.cast<StringAttr>().getValue());
 
   // Inject declarations for `malloc` and `free` functions that can be used in
   // memref allocation/deallocation coming from standard ops lowering.

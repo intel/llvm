@@ -6,6 +6,7 @@
 #include <sys/stat.h> // for stat, mkdir, mkfifo
 #ifndef _WIN32
 #include <unistd.h> // for ftruncate, link, symlink, getcwd, chdir
+#include <sys/statvfs.h>
 #else
 #include <io.h>
 #include <direct.h>
@@ -17,7 +18,6 @@
 #include <string>
 #include <chrono>
 #include <vector>
-#include <regex>
 
 #include "test_macros.h"
 #include "rapid-cxx-test.h"
@@ -52,16 +52,48 @@ namespace utils {
     inline int unsetenv(const char *var) {
         return ::_putenv((std::string(var) + "=").c_str());
     }
+    inline bool space(std::string path, std::uintmax_t &capacity,
+                      std::uintmax_t &free, std::uintmax_t &avail) {
+        ULARGE_INTEGER FreeBytesAvailableToCaller, TotalNumberOfBytes,
+                       TotalNumberOfFreeBytes;
+        if (!GetDiskFreeSpaceExA(path.c_str(), &FreeBytesAvailableToCaller,
+                                 &TotalNumberOfBytes, &TotalNumberOfFreeBytes))
+          return false;
+        capacity = TotalNumberOfBytes.QuadPart;
+        free = TotalNumberOfFreeBytes.QuadPart;
+        avail = FreeBytesAvailableToCaller.QuadPart;
+        assert(capacity > 0);
+        assert(free > 0);
+        assert(avail > 0);
+        return true;
+    }
 #else
     using ::mkdir;
     using ::ftruncate;
     inline int symlink(const char* oldname, const char* newname, bool is_dir) { (void)is_dir; return ::symlink(oldname, newname); }
     using ::link;
-    inline int setenv(const char *var, const char *val, int overwrite) {
-        return ::setenv(var, val, overwrite);
-    }
-    inline int unsetenv(const char *var) {
-        return ::unsetenv(var);
+    using ::setenv;
+    using ::unsetenv;
+    inline bool space(std::string path, std::uintmax_t &capacity,
+                      std::uintmax_t &free, std::uintmax_t &avail) {
+        struct statvfs expect;
+        if (::statvfs(path.c_str(), &expect) == -1)
+          return false;
+        assert(expect.f_bavail > 0);
+        assert(expect.f_bfree > 0);
+        assert(expect.f_bsize > 0);
+        assert(expect.f_blocks > 0);
+        assert(expect.f_frsize > 0);
+        auto do_mult = [&](std::uintmax_t val) {
+            std::uintmax_t fsize = expect.f_frsize;
+            std::uintmax_t new_val = val * fsize;
+            assert(new_val / fsize == val); // Test for overflow
+            return new_val;
+        };
+        capacity = do_mult(expect.f_blocks);
+        free = do_mult(expect.f_bfree);
+        avail = do_mult(expect.f_bavail);
+        return true;
     }
 #endif
 
@@ -103,16 +135,17 @@ struct scoped_test_env
     ~scoped_test_env() {
 #ifdef _WIN32
         std::string cmd = "rmdir /s /q " + test_root.string();
-        int ret;
+        int ret = std::system(cmd.c_str());
+        assert(ret == 0);
 #else
         std::string cmd = "chmod -R 777 " + test_root.string();
         int ret = std::system(cmd.c_str());
         assert(ret == 0);
 
         cmd = "rm -r " + test_root.string();
-#endif
         ret = std::system(cmd.c_str());
         assert(ret == 0);
+#endif
     }
 
     scoped_test_env(scoped_test_env const &) = delete;
@@ -151,7 +184,9 @@ struct scoped_test_env
 
         filename = sanitize_path(std::move(filename));
 
-        if (size > std::numeric_limits<large_file_offset_t>::max()) {
+        if (size >
+            static_cast<typename std::make_unsigned<large_file_offset_t>::type>(
+                std::numeric_limits<large_file_offset_t>::max())) {
             fprintf(stderr, "create_file(%s, %ju) too large\n",
                     filename.c_str(), size);
             abort();
@@ -189,10 +224,10 @@ struct scoped_test_env
         return filename;
     }
 
-    std::string create_symlink(fs::path source_path,
-                               fs::path to_path,
-                               bool sanitize_source = true,
-                               bool is_dir = false) {
+    std::string create_file_dir_symlink(fs::path source_path,
+                                        fs::path to_path,
+                                        bool sanitize_source = true,
+                                        bool is_dir = false) {
         std::string source = source_path.string();
         std::string to = to_path.string();
         if (sanitize_source)
@@ -201,6 +236,20 @@ struct scoped_test_env
         int ret = utils::symlink(source.c_str(), to.c_str(), is_dir);
         assert(ret == 0);
         return to;
+    }
+
+    std::string create_symlink(fs::path source_path,
+                               fs::path to_path,
+                               bool sanitize_source = true) {
+        return create_file_dir_symlink(source_path, to_path, sanitize_source,
+                                       false);
+    }
+
+    std::string create_directory_symlink(fs::path source_path,
+                                         fs::path to_path,
+                                         bool sanitize_source = true) {
+        return create_file_dir_symlink(source_path, to_path, sanitize_source,
+                                       true);
     }
 
     std::string create_hardlink(fs::path source_path, fs::path to_path) {
@@ -288,12 +337,12 @@ public:
         env_.create_dir("dir1/dir2/dir3");
         env_.create_file("dir1/dir2/dir3/file5");
         env_.create_file("dir1/dir2/file4");
-        env_.create_symlink("dir3", "dir1/dir2/symlink_to_dir3", false, true);
+        env_.create_directory_symlink("dir3", "dir1/dir2/symlink_to_dir3", false);
         env_.create_file("dir1/file1");
         env_.create_file("dir1/file2", 42);
         env_.create_file("empty_file");
         env_.create_file("non_empty_file", 42);
-        env_.create_symlink("dir1", "symlink_to_dir", false);
+        env_.create_directory_symlink("dir1", "symlink_to_dir", false);
         env_.create_symlink("empty_file", "symlink_to_empty_file", false);
     }
 
@@ -523,8 +572,9 @@ inline std::error_code GetTestEC(unsigned Idx = 0) {
 
 inline bool ErrorIsImp(const std::error_code& ec,
                        std::vector<std::errc> const& errors) {
+  std::error_condition cond = ec.default_error_condition();
   for (auto errc : errors) {
-    if (ec == std::make_error_code(errc))
+    if (cond.value() == static_cast<int>(errc))
       return true;
   }
   return false;
@@ -562,19 +612,19 @@ struct ExceptionChecker {
   const char* func_name;
   std::string opt_message;
 
-  explicit ExceptionChecker(std::errc first_err, const char* func_name,
+  explicit ExceptionChecker(std::errc first_err, const char* fun_name,
                             std::string opt_msg = {})
-      : expected_err{first_err}, num_paths(0), func_name(func_name),
+      : expected_err{first_err}, num_paths(0), func_name(fun_name),
         opt_message(opt_msg) {}
   explicit ExceptionChecker(fs::path p, std::errc first_err,
-                            const char* func_name, std::string opt_msg = {})
+                            const char* fun_name, std::string opt_msg = {})
       : expected_err(first_err), expected_path1(p), num_paths(1),
-        func_name(func_name), opt_message(opt_msg) {}
+        func_name(fun_name), opt_message(opt_msg) {}
 
   explicit ExceptionChecker(fs::path p1, fs::path p2, std::errc first_err,
-                            const char* func_name, std::string opt_msg = {})
+                            const char* fun_name, std::string opt_msg = {})
       : expected_err(first_err), expected_path1(p1), expected_path2(p2),
-        num_paths(2), func_name(func_name), opt_message(opt_msg) {}
+        num_paths(2), func_name(fun_name), opt_message(opt_msg) {}
 
   void operator()(fs::filesystem_error const& Err) {
     TEST_CHECK(ErrorIsImp(Err.code(), {expected_err}));

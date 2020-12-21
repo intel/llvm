@@ -759,6 +759,13 @@ llvm::DIType *CGDebugInfo::CreateType(const BuiltinType *BT) {
       return DBuilder.createVectorType(/*Size*/ 0, Align, ElemTy,
                                        SubscriptArray);
     }
+  // It doesn't make sense to generate debug info for PowerPC MMA vector types.
+  // So we return a safe type here to avoid generating an error.
+#define PPC_MMA_VECTOR_TYPE(Name, Id, size) \
+  case BuiltinType::Id:
+#include "clang/Basic/PPCTypes.def"
+    return CreateType(cast<const BuiltinType>(CGM.getContext().IntTy));
+
   case BuiltinType::UChar:
   case BuiltinType::Char_U:
     Encoding = llvm::dwarf::DW_ATE_unsigned_char;
@@ -1920,6 +1927,12 @@ CGDebugInfo::CollectTemplateParams(const TemplateParameterList *TPList,
           V = CGM.getCXXABI().EmitMemberDataPointer(MPT, chars);
         } else if (const auto *GD = dyn_cast<MSGuidDecl>(D)) {
           V = CGM.GetAddrOfMSGuidDecl(GD).getPointer();
+        } else if (const auto *TPO = dyn_cast<TemplateParamObjectDecl>(D)) {
+          if (T->isRecordType())
+            V = ConstantEmitter(CGM).emitAbstract(
+                SourceLocation(), TPO->getValue(), TPO->getType());
+          else
+            V = CGM.GetAddrOfTemplateParamObject(TPO).getPointer();
         }
         assert(V && "Failed to find template parameter pointer");
         V = V->stripPointerCasts();
@@ -4736,13 +4749,10 @@ void CGDebugInfo::EmitGlobalVariable(const ValueDecl *VD, const APValue &Init) {
     }
   }
 
-  llvm::DIScope *DContext = nullptr;
-
   // Do not emit separate definitions for function local consts.
   if (isa<FunctionDecl>(VD->getDeclContext()))
     return;
 
-  // Emit definition for static members in CodeView.
   VD = cast<ValueDecl>(VD->getCanonicalDecl());
   auto *VarD = dyn_cast<VarDecl>(VD);
   if (VarD && VarD->isStaticDataMember()) {
@@ -4755,15 +4765,9 @@ void CGDebugInfo::EmitGlobalVariable(const ValueDecl *VD, const APValue &Init) {
     RetainedTypes.push_back(
         CGM.getContext().getRecordType(RD).getAsOpaquePtr());
 
-    if (!CGM.getCodeGenOpts().EmitCodeView)
-      return;
-
-    // Use the global scope for static members.
-    DContext = getContextDescriptor(
-        cast<Decl>(CGM.getContext().getTranslationUnitDecl()), TheCU);
-  } else {
-    DContext = getDeclContextDescriptor(VD);
+    return;
   }
+  llvm::DIScope *DContext = getDeclContextDescriptor(VD);
 
   auto &GV = DeclCache[VD];
   if (GV)

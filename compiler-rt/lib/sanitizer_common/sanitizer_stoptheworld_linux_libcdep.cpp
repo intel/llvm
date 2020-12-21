@@ -85,7 +85,7 @@
 
 namespace __sanitizer {
 
-class SuspendedThreadsListLinux : public SuspendedThreadsList {
+class SuspendedThreadsListLinux final : public SuspendedThreadsList {
  public:
   SuspendedThreadsListLinux() { thread_ids_.reserve(1024); }
 
@@ -513,6 +513,8 @@ static constexpr uptr kExtraRegs[] = {0};
 
 #elif SANITIZER_RISCV64
 typedef struct user_regs_struct regs_struct;
+// sys/ucontext.h already defines REG_SP as 2. Undefine it first.
+#undef REG_SP
 #define REG_SP sp
 static constexpr uptr kExtraRegs[] = {0};
 #define ARCH_IOVEC_FOR_GETREGSET

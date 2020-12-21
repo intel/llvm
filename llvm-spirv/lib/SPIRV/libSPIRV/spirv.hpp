@@ -172,6 +172,8 @@ enum ExecutionMode {
     ExecutionModeMaxWorkDimINTEL = 5894,
     ExecutionModeNoGlobalOffsetINTEL = 5895,
     ExecutionModeNumSIMDWorkitemsINTEL = 5896,
+    ExecutionModeSchedulerTargetFmaxMhzINTEL = 5903,
+    ExecutionModeVectorComputeFastCompositeKernelINTEL = 8088,
     ExecutionModeMax = 0x7fffffff,
 };
 
@@ -376,6 +378,8 @@ enum FPFastMathModeMask {
     FPFastMathModeNotInfMask = 0x00000002,
     FPFastMathModeNSZMask = 0x00000004,
     FPFastMathModeAllowRecipMask = 0x00000008,
+    FPFastMathModeAllowContractINTELMask = 0x00010000,
+    FPFastMathModeAllowReassocINTELMask = 0x00020000,
     FPFastMathModeFastMask = 0x00000010,
 };
 
@@ -400,7 +404,6 @@ enum FPOperationMode {
 enum LinkageType {
     LinkageTypeExport = 0,
     LinkageTypeImport = 1,
-    LinkageTypeInternal = 2, /* internal use only */
     LinkageTypeMax = 0x7fffffff,
 };
 
@@ -521,9 +524,12 @@ enum Decoration {
   DecorationCacheSizeINTEL = 5900,
   DecorationDontStaticallyCoalesceINTEL = 5901,
   DecorationPrefetchINTEL = 5902,
+  DecorationStallEnableINTEL = 5905,
+  DecorationFuseLoopsInFunctionINTEL = 5907,
   DecorationBufferLocationINTEL = 5921,
   DecorationIOPipeStorageINTEL = 5944,
   DecorationFunctionFloatingPointModeINTEL = 6080,
+  DecorationSingleElementVectorINTEL = 6085,
   DecorationVectorComputeCallableFunctionINTEL = 6087,
   DecorationMax = 0x7fffffff,
 };
@@ -677,6 +683,7 @@ enum LoopControlMask {
     LoopControlLoopCoalesceINTELMask = 0x100000,
     LoopControlMaxInterleavingINTELMask = 0x200000,
     LoopControlSpeculatedIterationsINTELMask = 0x400000,
+    LoopControlNoFusionINTELMask = 0x800000,
 };
 
 enum FunctionControlShift {
@@ -966,26 +973,30 @@ enum Capability {
   CapabilityAsmINTEL = 5606,
   CapabilityVectorComputeINTEL = 5617,
   CapabilityVectorAnyINTEL = 5619,
-  CapabilityOptimizationHintsINTEL = 5629,
   CapabilitySubgroupAvcMotionEstimationINTEL = 5696,
   CapabilitySubgroupAvcMotionEstimationIntraINTEL = 5697,
   CapabilitySubgroupAvcMotionEstimationChromaINTEL = 5698,
   CapabilityVariableLengthArrayINTEL = 5817,
   CapabilityFunctionFloatControlINTEL = 5821,
   CapabilityFPGAMemoryAttributesINTEL = 5824,
+  CapabilityFPFastMathModeINTEL = 5837,
   CapabilityArbitraryPrecisionIntegersINTEL = 5844,
   CapabilityArbitraryPrecisionFloatingPointINTEL = 5845,
   CapabilityUnstructuredLoopControlsINTEL = 5886,
   CapabilityFPGALoopControlsINTEL = 5888,
-  CapabilityBlockingPipesINTEL = 5945,
-  CapabilityFPGARegINTEL = 5948,
   CapabilityKernelAttributesINTEL = 5892,
+  CapabilityFPGAMemoryAccessesINTEL = 5898,
   CapabilityFPGAKernelAttributesINTEL = 5897,
+  CapabilityFPGAClusterAttributesINTEL = 5904,
+  CapabilityLoopFuseINTEL = 5906,
   CapabilityFPGABufferLocationINTEL = 5920,
   CapabilityArbitraryPrecisionFixedPointINTEL = 5922,
   CapabilityUSMStorageClassesINTEL = 5935,
-  CapabilityFPGAMemoryAccessesINTEL = 5898,
   CapabilityIOPipeINTEL = 5943,
+  CapabilityBlockingPipesINTEL = 5945,
+  CapabilityFPGARegINTEL = 5948,
+  CapabilityAtomicFloat32AddEXT = 6033,
+  CapabilityAtomicFloat64AddEXT = 6034,
   CapabilityMax = 0x7fffffff,
 };
 
@@ -1334,7 +1345,6 @@ enum Op {
   OpPtrEqual = 401,
   OpPtrNotEqual = 402,
   OpPtrDiff = 403,
-  OpForward = 1024, /* internal use only */
   OpSubgroupBallotKHR = 4421,
   OpSubgroupFirstInvocationKHR = 4422,
   OpSubgroupAllKHR = 4428,
@@ -1399,8 +1409,6 @@ enum Op {
   OpAsmTargetINTEL = 5609,
   OpAsmINTEL = 5610,
   OpAsmCallINTEL = 5611,
-  OpAssumeTrueINTEL = 5630,
-  OpExpectINTEL = 5631,
   OpDecorateString = 5632,
   OpDecorateStringGOOGLE = 5632,
   OpMemberDecorateString = 5633,
@@ -1585,6 +1593,7 @@ enum Op {
   OpReadPipeBlockingINTEL = 5946,
   OpWritePipeBlockingINTEL = 5947,
   OpFPGARegINTEL = 5949,
+  OpAtomicFAddEXT = 6035,
   OpTypeBufferSurfaceINTEL = 6086,
   OpMax = 0x7fffffff,
 };
@@ -1985,6 +1994,7 @@ inline void HasResultAndType(Op opcode, bool *hasResult, bool *hasResultType) {
     case OpSubgroupImageMediaBlockWriteINTEL: *hasResult = false; *hasResultType = false; break;
     case OpUCountLeadingZerosINTEL: *hasResult = true; *hasResultType = true; break;
     case OpUCountTrailingZerosINTEL: *hasResult = true; *hasResultType = true; break;
+    case OpAtomicFAddEXT: *hasResult = true; *hasResultType = true; break;
     case OpAbsISubINTEL: *hasResult = true; *hasResultType = true; break;
     case OpAbsUSubINTEL: *hasResult = true; *hasResultType = true; break;
     case OpIAddSatINTEL: *hasResult = true; *hasResultType = true; break;

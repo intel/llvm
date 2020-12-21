@@ -747,6 +747,51 @@ Current limitations
    translated from debug annotations. That translation can be lossy,
    which results in some remarks having no location information.
 
+Options to Emit Resource Consumption Reports
+--------------------------------------------
+
+These are options that report execution time and consumed memory of different
+compilations steps.
+
+.. option:: -fproc-stat-report=
+
+  This option requests driver to print used memory and execution time of each
+  compilation step. The ``clang`` driver during execution calls different tools,
+  like compiler, assembler, linker etc. With this option the driver reports
+  total execution time, the execution time spent in user mode and peak memory
+  usage of each the called tool. Value of the option specifies where the report
+  is sent to. If it specifies a regular file, the data are saved to this file in
+  CSV format:
+
+.. code-block:: console
+
+   $ clang -fproc-stat-report=abc foo.c
+   $ cat abc
+   clang-11,"/tmp/foo-123456.o",92000,84000,87536
+   ld,"a.out",900,8000,53568
+
+  The data on each row represent:
+  
+  * file name of the tool executable,
+  * output file name in quotes,
+  * total execution time in microseconds,
+  * execution time in user mode in microseconds,
+  * peak memory usage in Kb.
+  
+  It is possible to specify this option without any value. In this case statistics
+  is printed on standard output in human readable format:
+  
+.. code-block:: console
+
+  $ clang -fproc-stat-report foo.c
+  clang-11: output=/tmp/foo-855a8e.o, total=68.000 ms, user=60.000 ms, mem=86920 Kb
+  ld: output=a.out, total=8.000 ms, user=4.000 ms, mem=52320 Kb
+  
+  The report file specified in the option is locked for write, so this option
+  can be used to collect statistics in parallel builds. The report file is not
+  cleared, new data is appended to it, thus making posible to accumulate build
+  statistics.
+
 Other Options
 -------------
 Clang options that don't fit neatly into other categories.
@@ -1291,15 +1336,16 @@ are listed below.
    The C standard permits intermediate floating-point results within an
    expression to be computed with more precision than their type would
    normally allow. This permits operation fusing, and Clang takes advantage
-   of this by default. This behavior can be controlled with the
-   ``FP_CONTRACT`` pragma. Please refer to the pragma documentation for a
-   description of how the pragma interacts with this option.
+   of this by default. This behavior can be controlled with the ``FP_CONTRACT``
+   and ``clang fp contract`` pragmas. Please refer to the pragma documentation
+   for a description of how the pragmas interact with this option.
 
    Valid values are:
 
-   * ``fast`` (everywhere)
-   * ``on`` (according to FP_CONTRACT pragma, default)
+   * ``fast`` (fuse across statements disregarding pragmas, default for CUDA)
+   * ``on`` (fuse in the same statement unless dictated by pragmas, default for languages other than CUDA/HIP)
    * ``off`` (never fuse)
+   * ``fast-honor-pragmas`` (fuse across statements unless dictated by pragmas, default for HIP)
 
 .. _opt_fhonor-infinities:
 
@@ -1386,7 +1432,7 @@ Note that floating-point operations performed as part of constant initialization
    Details:
 
    * ``precise`` Disables optimizations that are not value-safe on floating-point data, although FP contraction (FMA) is enabled (``-ffp-contract=fast``).  This is the default behavior.
-   * ``strict`` Enables ``-frounding-math`` and ``-ffp-exception-behavior=strict``, and disables contractions (FMA).  All of the ``-ffast-math`` enablements are disabled.
+   * ``strict`` Enables ``-frounding-math`` and ``-ffp-exception-behavior=strict``, and disables contractions (FMA).  All of the ``-ffast-math`` enablements are disabled. Enables ``STDC FENV_ACCESS``: by default ``FENV_ACCESS`` is disabled. This option setting behaves as though ``#pragma STDC FENV_ACESS ON`` appeared at the top of the source file.
    * ``fast`` Behaves identically to specifying both ``-ffast-math`` and ``ffp-contract=fast``
 
    Note: If your command line specifies multiple instances
@@ -1408,6 +1454,44 @@ Note that floating-point operations performed as part of constant initialization
    * ``strict`` The compiler ensures that all transformations strictly preserve the floating point exception semantics of the original code.
 
 
+.. _fp-constant-eval:
+
+A note about Floating Point Constant Evaluation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+In C, the only place floating point operations are guaranteed to be evaluated
+during translation is in the initializers of variables of static storage
+duration, which are all notionally initialized before the program begins
+executing (and thus before a non-default floating point environment can be
+entered).  But C++ has many more contexts where floating point constant
+evaluation occurs.  Specifically: for static/thread-local variables,
+first try evaluating the initializer in a constant context, including in the
+constant floating point environment (just like in C), and then, if that fails,
+fall back to emitting runtime code to perform the initialization (which might
+in general be in a different floating point environment).
+
+Consider this example when compiled with ``-frounding-math``
+
+   .. code-block:: console
+
+     constexpr float func_01(float x, float y) {
+       return x + y;
+     }
+     float V1 = func_01(1.0F, 0x0.000001p0F);
+
+The C++ rule is that initializers for static storage duration variables are
+first evaluated during translation (therefore, in the default rounding mode),
+and only evaluated at runtime (and therefore in the runtime rounding mode) if
+the compile-time evaluation fails. This is in line with the C rules;
+C11 F.8.5 says: *All computation for automatic initialization is done (as if)
+at execution time; thus, it is affected by any operative modes and raises
+floating-point exceptions as required by IEC 60559 (provided the state for the
+FENV_ACCESS pragma is ‘‘on’’). All computation for initialization of objects
+that have static or thread storage duration is done (as if) at translation
+time.* C++ generalizes this by adding another phase of initialization
+(at runtime) if the translation-time initialization fails, but the
+translation-time evaluation of the initializer of succeeds, it will be
+treated as a constant initializer.
 
 
 .. _controlling-code-generation:
@@ -2514,8 +2598,7 @@ Differences between ``*94`` and ``*99`` modes:
    This can be overridden for individual functions with the ``__gnu_inline__``
    attribute.
 -  The scope of names defined inside a ``for``, ``if``, ``switch``, ``while``,
-  or ``do`` statement is different. (example: ``if ((struct x {int x;}*)0)
-  {}``.)
+   or ``do`` statement is different. (example: ``if ((struct x {int x;}*)0) {}``.)
 -  ``__STDC_VERSION__`` is not defined in ``*89`` modes.
 -  ``inline`` is not recognized as a keyword in ``c89`` mode.
 -  ``restrict`` is not recognized as a keyword in ``*89`` modes.

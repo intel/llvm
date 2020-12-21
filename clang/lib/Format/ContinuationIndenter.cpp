@@ -400,7 +400,9 @@ bool ContinuationIndenter::mustBreak(const LineState &State) {
     return true;
   if (Current.is(TT_SelectorName) && !Previous.is(tok::at) &&
       State.Stack.back().ObjCSelectorNameFound &&
-      State.Stack.back().BreakBeforeParameter)
+      State.Stack.back().BreakBeforeParameter &&
+      (Style.ObjCBreakBeforeNestedBlockParam ||
+       !Current.startsSequence(TT_SelectorName, tok::colon, tok::caret)))
     return true;
 
   unsigned NewLineColumn = getNewLineColumn(State);
@@ -782,6 +784,22 @@ unsigned ContinuationIndenter::addTokenOnNewLine(LineState &State,
     Penalty += Style.PenaltyBreakFirstLessLess;
 
   State.Column = getNewLineColumn(State);
+
+  // Add Penalty proportional to amount of whitespace away from FirstColumn
+  // This tends to penalize several lines that are far-right indented,
+  // and prefers a line-break prior to such a block, e.g:
+  //
+  // Constructor() :
+  //   member(value), looooooooooooooooong_member(
+  //                      looooooooooong_call(param_1, param_2, param_3))
+  // would then become
+  // Constructor() :
+  //   member(value),
+  //   looooooooooooooooong_member(
+  //       looooooooooong_call(param_1, param_2, param_3))
+  if (State.Column > State.FirstIndent)
+    Penalty +=
+        Style.PenaltyIndentedWhitespace * (State.Column - State.FirstIndent);
 
   // Indent nested blocks relative to this column, unless in a very specific
   // JavaScript special case where:

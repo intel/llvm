@@ -274,7 +274,6 @@ static const CallInst *findStackProtectorIntrinsic(Function &F) {
 bool StackProtector::RequiresStackProtector() {
   bool Strong = false;
   bool NeedsProtector = false;
-  HasPrologue = findStackProtectorIntrinsic(*F);
 
   if (F->hasFnAttribute(Attribute::SafeStack))
     return false;
@@ -295,8 +294,6 @@ bool StackProtector::RequiresStackProtector() {
     Strong = true; // Use the same heuristic as strong to determine SSPLayout
   } else if (F->hasFnAttribute(Attribute::StackProtectStrong))
     Strong = true;
-  else if (HasPrologue)
-    NeedsProtector = true;
   else if (!F->hasFnAttribute(Attribute::StackProtect))
     return false;
 
@@ -381,7 +378,10 @@ bool StackProtector::RequiresStackProtector() {
 static Value *getStackGuard(const TargetLoweringBase *TLI, Module *M,
                             IRBuilder<> &B,
                             bool *SupportsSelectionDAGSP = nullptr) {
-  if (Value *Guard = TLI->getIRStackGuard(B))
+  Value *Guard = TLI->getIRStackGuard(B);
+  auto GuardMode = TLI->getTargetMachine().Options.StackProtectorGuard;
+  if ((GuardMode == llvm::StackProtectorGuards::TLS ||
+       GuardMode == llvm::StackProtectorGuards::None) && Guard)
     return B.CreateLoad(B.getInt8PtrTy(), Guard, true, "StackGuard");
 
   // Use SelectionDAG SSP handling, since there isn't an IR guard.

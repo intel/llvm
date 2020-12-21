@@ -130,11 +130,13 @@ class LLVM_LIBRARY_VISIBILITY X86TargetInfo : public TargetInfo {
   bool HasKL = false;      // For key locker
   bool HasWIDEKL = false; // For wide key locker
   bool HasHRESET = false;
+  bool HasAVXVNNI = false;
   bool HasAMXTILE = false;
   bool HasAMXINT8 = false;
   bool HasAMXBF16 = false;
   bool HasSERIALIZE = false;
   bool HasTSXLDTRK = false;
+  bool HasUINTR = false;
 
 protected:
   llvm::X86::CPUKind CPU = llvm::X86::CK_None;

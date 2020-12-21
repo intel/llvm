@@ -449,10 +449,6 @@ class MachineBlockPlacement : public MachineFunctionPass {
       const MachineBasicBlock *BB, const BlockChain &Chain,
       const BlockFilterSet *BlockFilter,
       SmallVector<MachineBasicBlock *, 4> &Successors);
-  bool shouldPredBlockBeOutlined(
-      const MachineBasicBlock *BB, const MachineBasicBlock *Succ,
-      const BlockChain &Chain, const BlockFilterSet *BlockFilter,
-      BranchProbability SuccProb, BranchProbability HotProb);
   bool isBestSuccessor(MachineBasicBlock *BB, MachineBasicBlock *Pred,
                        BlockFilterSet *BlockFilter);
   void findDuplicateCandidates(SmallVectorImpl<MachineBasicBlock *> &Candidates,
@@ -2541,14 +2537,10 @@ MachineBlockPlacement::collectLoopBlockSet(const MachineLoop &L) {
                     MBPI->getEdgeProbability(LoopPred, L.getHeader());
 
     for (MachineBasicBlock *LoopBB : L.getBlocks()) {
-      if (LoopBlockSet.count(LoopBB))
-        continue;
       auto Freq = MBFI->getBlockFreq(LoopBB).getFrequency();
       if (Freq == 0 || LoopFreq.getFrequency() / Freq > LoopToColdBlockRatio)
         continue;
-      BlockChain *Chain = BlockToChain[LoopBB];
-      for (MachineBasicBlock *ChainBB : *Chain)
-        LoopBlockSet.insert(ChainBB);
+      LoopBlockSet.insert(LoopBB);
     }
   } else
     LoopBlockSet.insert(L.block_begin(), L.block_end());

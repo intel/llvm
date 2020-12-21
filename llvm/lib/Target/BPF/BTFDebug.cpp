@@ -1076,6 +1076,9 @@ void BTFDebug::beginInstruction(const MachineInstr *MI) {
     }
   }
 
+  if (!CurMI) // no debug info
+    return;
+
   // Skip this instruction if no DebugLoc or the DebugLoc
   // is the same as the previous instruction.
   const DebugLoc &DL = MI->getDebugLoc();
@@ -1221,7 +1224,9 @@ bool BTFDebug::InstLower(const MachineInstr *MI, MCInst &OutMI) {
         }
 
         if (Reloc == BPFCoreSharedInfo::ENUM_VALUE_EXISTENCE ||
-            Reloc == BPFCoreSharedInfo::ENUM_VALUE)
+            Reloc == BPFCoreSharedInfo::ENUM_VALUE ||
+            Reloc == BPFCoreSharedInfo::BTF_TYPE_ID_LOCAL ||
+            Reloc == BPFCoreSharedInfo::BTF_TYPE_ID_REMOTE)
           OutMI.setOpcode(BPF::LD_imm64);
         else
           OutMI.setOpcode(BPF::MOV_ri);

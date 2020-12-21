@@ -115,6 +115,7 @@ public:
   SPIRVWord transFunctionControlMask(Function *);
   SPIRVFunction *transFunctionDecl(Function *F);
   void transVectorComputeMetadata(Function *F);
+  void transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F);
   bool transGlobalVariables();
 
   Op transBoolOpCode(SPIRVValue *Opn, Op OC);
@@ -172,6 +173,9 @@ private:
   SPIRVInstruction *transCmpInst(CmpInst *Cmp, SPIRVBasicBlock *BB);
   SPIRVInstruction *transLifetimeIntrinsicInst(Op OC, IntrinsicInst *Intrinsic,
                                                SPIRVBasicBlock *BB);
+
+  SPIRVValue *transAtomicStore(StoreInst *ST, SPIRVBasicBlock *BB);
+  SPIRVValue *transAtomicLoad(LoadInst *LD, SPIRVBasicBlock *BB);
 
   void dumpUsers(Value *V);
 

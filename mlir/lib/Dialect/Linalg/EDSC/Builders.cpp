@@ -69,7 +69,7 @@ Operation *mlir::edsc::makeGenericLinalgOp(
               builder.getStrArrayAttr(iteratorStrTypes),
               StringAttr() /*doc*/,
               StringAttr() /*library_call*/,
-              IntegerAttr() /*symbol_source*/
+              ArrayAttr() /*sparse*/
               /* TODO: other attributes in op */
               )
           .getOperation();
@@ -114,7 +114,7 @@ Operation *mlir::edsc::ops::linalg_generic_pointwise(
   SmallVector<IteratorType, 4> iterTypes(O.getExprs().size(),
                                          IteratorType::Parallel);
   auto fun = [&unaryOp](ValueRange args) {
-    assert(!args.empty() >= 1 && "expected >= 1 block arguments");
+    assert(!args.empty() && "expected >= 1 block arguments");
     Value a(args[0]);
     linalg_yield(unaryOp(a));
   };

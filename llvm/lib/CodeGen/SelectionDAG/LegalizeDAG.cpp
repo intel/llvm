@@ -1165,6 +1165,10 @@ void SelectionDAGLegalize::LegalizeOp(SDNode *Node) {
     Action = TLI.getOperationAction(
         Node->getOpcode(), Node->getOperand(0).getValueType());
     break;
+  case ISD::VECREDUCE_SEQ_FADD:
+    Action = TLI.getOperationAction(
+        Node->getOpcode(), Node->getOperand(1).getValueType());
+    break;
   default:
     if (Node->getOpcode() >= ISD::BUILTIN_OP_END) {
       Action = TargetLowering::Legal;
@@ -1616,7 +1620,7 @@ SDValue SelectionDAGLegalize::ExpandFABS(SDNode *Node) const {
 
 void SelectionDAGLegalize::ExpandDYNAMIC_STACKALLOC(SDNode* Node,
                                            SmallVectorImpl<SDValue> &Results) {
-  unsigned SPReg = TLI.getStackPointerRegisterToSaveRestore();
+  Register SPReg = TLI.getStackPointerRegisterToSaveRestore();
   assert(SPReg && "Target cannot require DYNAMIC_STACKALLOC expansion and"
           " not tell us which reg is the stack pointer!");
   SDLoc dl(Node);
@@ -1811,7 +1815,7 @@ SDValue SelectionDAGLegalize::EmitStackConvert(SDValue SrcOp, EVT SlotVT,
   // later than DestVT.
   SDValue Store;
 
-  if (SrcSize > SlotSize) 
+  if (SrcSize > SlotSize)
     Store = DAG.getTruncStore(Chain, dl, SrcOp, FIPtr, PtrInfo,
                               SlotVT, SrcAlign);
   else {
@@ -2460,11 +2464,18 @@ SDValue SelectionDAGLegalize::ExpandLegalINT_TO_FP(SDNode *Node,
   assert(!isSigned && "Legalize cannot Expand SINT_TO_FP for i64 yet");
 
   // TODO: Generalize this for use with other types.
-  if ((SrcVT == MVT::i32 || SrcVT == MVT::i64) && DestVT == MVT::f32) {
-    LLVM_DEBUG(dbgs() << "Converting unsigned i32/i64 to f32\n");
+  if (((SrcVT == MVT::i32 || SrcVT == MVT::i64) && DestVT == MVT::f32) ||
+      (SrcVT == MVT::i64 && DestVT == MVT::f64)) {
+    LLVM_DEBUG(dbgs() << "Converting unsigned i32/i64 to f32/f64\n");
     // For unsigned conversions, convert them to signed conversions using the
     // algorithm from the x86_64 __floatundisf in compiler_rt. That method
     // should be valid for i32->f32 as well.
+
+    // More generally this transform should be valid if there are 3 more bits
+    // in the integer type than the significand. Rounding uses the first bit
+    // after the width of the significand and the OR of all bits after that. So
+    // we need to be able to OR the shifted out bit into one of the bits that
+    // participate in the OR.
 
     // TODO: This really should be implemented using a branch rather than a
     // select.  We happen to get lucky and machinesink does the right
@@ -3006,16 +3017,14 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
       break;
     // We fall back to use stack operation when the FP_ROUND operation
     // isn't available.
-    Tmp1 = EmitStackConvert(Node->getOperand(1), 
-                            Node->getValueType(0),
+    Tmp1 = EmitStackConvert(Node->getOperand(1), Node->getValueType(0),
                             Node->getValueType(0), dl, Node->getOperand(0));
     ReplaceNode(Node, Tmp1.getNode());
     LLVM_DEBUG(dbgs() << "Successfully expanded STRICT_FP_ROUND node\n");
     return true;
   case ISD::FP_ROUND:
   case ISD::BITCAST:
-    Tmp1 = EmitStackConvert(Node->getOperand(0), 
-                            Node->getValueType(0),
+    Tmp1 = EmitStackConvert(Node->getOperand(0), Node->getValueType(0),
                             Node->getValueType(0), dl);
     Results.push_back(Tmp1);
     break;
@@ -3245,7 +3254,7 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
   case ISD::STACKSAVE:
     // Expand to CopyFromReg if the target set
     // StackPointerRegisterToSaveRestore.
-    if (unsigned SP = TLI.getStackPointerRegisterToSaveRestore()) {
+    if (Register SP = TLI.getStackPointerRegisterToSaveRestore()) {
       Results.push_back(DAG.getCopyFromReg(Node->getOperand(0), dl, SP,
                                            Node->getValueType(0)));
       Results.push_back(Results[0].getValue(1));
@@ -3257,7 +3266,7 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
   case ISD::STACKRESTORE:
     // Expand to CopyToReg if the target set
     // StackPointerRegisterToSaveRestore.
-    if (unsigned SP = TLI.getStackPointerRegisterToSaveRestore()) {
+    if (Register SP = TLI.getStackPointerRegisterToSaveRestore()) {
       Results.push_back(DAG.getCopyToReg(Node->getOperand(0), dl, SP,
                                          Node->getOperand(1)));
     } else {
@@ -3516,7 +3525,7 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
     break;
   case ISD::ROTL:
   case ISD::ROTR:
-    if (TLI.expandROT(Node, Tmp1, DAG))
+    if (TLI.expandROT(Node, true /*AllowVectorOps*/, Tmp1, DAG))
       Results.push_back(Tmp1);
     break;
   case ISD::SADDSAT:
@@ -4043,12 +4052,23 @@ void SelectionDAGLegalize::ConvertNodeToLibcall(SDNode *Node) {
   case ISD::ATOMIC_LOAD_UMAX:
   case ISD::ATOMIC_CMP_SWAP: {
     MVT VT = cast<AtomicSDNode>(Node)->getMemoryVT().getSimpleVT();
-    RTLIB::Libcall LC = RTLIB::getSYNC(Opc, VT);
-    assert(LC != RTLIB::UNKNOWN_LIBCALL && "Unexpected atomic op or value type!");
-
+    AtomicOrdering Order = cast<AtomicSDNode>(Node)->getOrdering();
+    RTLIB::Libcall LC = RTLIB::getOUTLINE_ATOMIC(Opc, Order, VT);
     EVT RetVT = Node->getValueType(0);
-    SmallVector<SDValue, 4> Ops(Node->op_begin() + 1, Node->op_end());
     TargetLowering::MakeLibCallOptions CallOptions;
+    SmallVector<SDValue, 4> Ops;
+    if (TLI.getLibcallName(LC)) {
+      // If outline atomic available, prepare its arguments and expand.
+      Ops.append(Node->op_begin() + 2, Node->op_end());
+      Ops.push_back(Node->getOperand(1));
+
+    } else {
+      LC = RTLIB::getSYNC(Opc, VT);
+      assert(LC != RTLIB::UNKNOWN_LIBCALL &&
+             "Unexpected atomic op or value type!");
+      // Arguments for expansion to sync libcall
+      Ops.append(Node->op_begin() + 1, Node->op_end());
+    }
     std::pair<SDValue, SDValue> Tmp = TLI.makeLibCall(DAG, LC, RetVT,
                                                       Ops, CallOptions,
                                                       SDLoc(Node),
@@ -4397,7 +4417,9 @@ void SelectionDAGLegalize::PromoteNode(SDNode *Node) {
     OVT = Node->getOperand(0).getSimpleValueType();
   }
   if (Node->getOpcode() == ISD::STRICT_UINT_TO_FP ||
-      Node->getOpcode() == ISD::STRICT_SINT_TO_FP)
+      Node->getOpcode() == ISD::STRICT_SINT_TO_FP ||
+      Node->getOpcode() == ISD::STRICT_FSETCC ||
+      Node->getOpcode() == ISD::STRICT_FSETCCS)
     OVT = Node->getOperand(1).getSimpleValueType();
   if (Node->getOpcode() == ISD::BR_CC)
     OVT = Node->getOperand(2).getSimpleValueType();
@@ -4591,12 +4613,28 @@ void SelectionDAGLegalize::PromoteNode(SDNode *Node) {
     Results.push_back(Tmp1);
     break;
   }
-  case ISD::SETCC: {
+  case ISD::SETCC:
+  case ISD::STRICT_FSETCC:
+  case ISD::STRICT_FSETCCS: {
     unsigned ExtOp = ISD::FP_EXTEND;
     if (NVT.isInteger()) {
-      ISD::CondCode CCCode =
-        cast<CondCodeSDNode>(Node->getOperand(2))->get();
+      ISD::CondCode CCCode = cast<CondCodeSDNode>(Node->getOperand(2))->get();
       ExtOp = isSignedIntSetCC(CCCode) ? ISD::SIGN_EXTEND : ISD::ZERO_EXTEND;
+    }
+    if (Node->isStrictFPOpcode()) {
+      SDValue InChain = Node->getOperand(0);
+      std::tie(Tmp1, std::ignore) =
+          DAG.getStrictFPExtendOrRound(Node->getOperand(1), InChain, dl, NVT);
+      std::tie(Tmp2, std::ignore) =
+          DAG.getStrictFPExtendOrRound(Node->getOperand(2), InChain, dl, NVT);
+      SmallVector<SDValue, 2> TmpChains = {Tmp1.getValue(1), Tmp2.getValue(1)};
+      SDValue OutChain = DAG.getTokenFactor(dl, TmpChains);
+      SDVTList VTs = DAG.getVTList(Node->getValueType(0), MVT::Other);
+      Results.push_back(DAG.getNode(Node->getOpcode(), dl, VTs,
+                                    {OutChain, Tmp1, Tmp2, Node->getOperand(3)},
+                                    Node->getFlags()));
+      Results.push_back(Results.back().getValue(1));
+      break;
     }
     Tmp1 = DAG.getNode(ExtOp, dl, NVT, Node->getOperand(0));
     Tmp2 = DAG.getNode(ExtOp, dl, NVT, Node->getOperand(1));

@@ -3206,7 +3206,7 @@ The pragma can take two values: ``on`` and ``off``.
   float f(float x, float y, float z)
   {
     // Enable floating point reassociation across statements
-    #pragma fp reassociate(on)
+    #pragma clang fp reassociate(on)
     float t = x + y;
     float v = t + z;
   }
@@ -3233,7 +3233,33 @@ statements in C).
 
 The pragma can also be used with ``off`` which turns FP contraction off for a
 section of the code. This can be useful when fast contraction is otherwise
-enabled for the translation unit with the ``-ffp-contract=fast`` flag.
+enabled for the translation unit with the ``-ffp-contract=fast-honor-pragmas`` flag.
+Note that ``-ffp-contract=fast`` will override pragmas to fuse multiply and
+addition across statements regardless of any controlling pragmas.
+
+``#pragma clang fp exceptions`` specifies floating point exception behavior. It
+may take one the the values: ``ignore``, ``maytrap`` or ``strict``. Meaning of
+these values is same as for `constrained floating point intrinsics <http://llvm.org/docs/LangRef.html#constrained-floating-point-intrinsics>`_.
+
+.. code-block:: c++
+
+  {
+    // Preserve floating point exceptions
+    #pragma clang fp exceptions(strict)
+    z = x + y;
+    if (fetestexcept(FE_OVERFLOW))
+	  ...
+  }
+
+A ``#pragma clang fp`` pragma may contain any number of options:
+
+.. code-block:: c++
+
+  void func(float *dest, float a, float b) {
+    #pragma clang fp exceptions(maytrap) contract(fast) reassociate(on)
+    ...
+  }
+
 
 The ``#pragma float_control`` pragma allows precise floating-point
 semantics and floating-point exception behavior to be specified

@@ -519,7 +519,6 @@ void Sema::checkAllowedCUDAInitializer(VarDecl *VD) {
       VD->hasAttr<CUDASharedAttr>()) {
     if (LangOpts.GPUAllowDeviceInit)
       return;
-    assert(!VD->isStaticLocal() || VD->hasAttr<CUDASharedAttr>());
     bool AllowedInit = false;
     if (const CXXConstructExpr *CE = dyn_cast<CXXConstructExpr>(Init))
       AllowedInit =
@@ -744,7 +743,8 @@ bool Sema::CheckCUDACall(SourceLocation Loc, FunctionDecl *Callee) {
     return true;
 
   SemaDiagnosticBuilder(DiagKind, Loc, diag::err_ref_bad_target, Caller, *this)
-      << IdentifyCUDATarget(Callee) << Callee << IdentifyCUDATarget(Caller);
+      << IdentifyCUDATarget(Callee) << /*function*/ 0 << Callee
+      << IdentifyCUDATarget(Caller);
   if (!Callee->getBuiltinID())
     SemaDiagnosticBuilder(DiagKind, Callee->getLocation(),
                           diag::note_previous_decl, Caller, *this)

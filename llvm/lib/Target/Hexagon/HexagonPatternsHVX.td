@@ -172,16 +172,19 @@ let Predicates = [UseHVX] in {
 }
 
 let Predicates = [UseHVX] in {
-  def: Pat<(VecI8   vzero), (V6_vd0)>;
-  def: Pat<(VecI16  vzero), (V6_vd0)>;
-  def: Pat<(VecI32  vzero), (V6_vd0)>;
-  def: Pat<(VecPI8  vzero), (PS_vdd0)>;
-  def: Pat<(VecPI16 vzero), (PS_vdd0)>;
-  def: Pat<(VecPI32 vzero), (PS_vdd0)>;
+  let AddedComplexity = 100 in {
+    // These should be preferred over a vsplat of 0.
+    def: Pat<(VecI8   vzero), (V6_vd0)>;
+    def: Pat<(VecI16  vzero), (V6_vd0)>;
+    def: Pat<(VecI32  vzero), (V6_vd0)>;
+    def: Pat<(VecPI8  vzero), (PS_vdd0)>;
+    def: Pat<(VecPI16 vzero), (PS_vdd0)>;
+    def: Pat<(VecPI32 vzero), (PS_vdd0)>;
 
-  def: Pat<(concat_vectors  (VecI8 vzero),  (VecI8 vzero)), (PS_vdd0)>;
-  def: Pat<(concat_vectors (VecI16 vzero), (VecI16 vzero)), (PS_vdd0)>;
-  def: Pat<(concat_vectors (VecI32 vzero), (VecI32 vzero)), (PS_vdd0)>;
+    def: Pat<(concat_vectors  (VecI8 vzero),  (VecI8 vzero)), (PS_vdd0)>;
+    def: Pat<(concat_vectors (VecI16 vzero), (VecI16 vzero)), (PS_vdd0)>;
+    def: Pat<(concat_vectors (VecI32 vzero), (VecI32 vzero)), (PS_vdd0)>;
+  }
 
   def: Pat<(VecPI8 (concat_vectors HVI8:$Vs, HVI8:$Vt)),
            (Combinev HvxVR:$Vt, HvxVR:$Vs)>;
@@ -272,21 +275,6 @@ class Vnot<ValueType VecTy>
   : PatFrag<(ops node:$Vs), (xor $Vs, Vneg1<VecTy>)>;
 
 let Predicates = [UseHVX] in {
-  let AddedComplexity = 220 in {
-    defm: MinMax_pats<V6_vminb,  V6_vmaxb,  vselect,  setgt,  VecQ8,  HVI8>;
-    defm: MinMax_pats<V6_vminb,  V6_vmaxb,  vselect,  setge,  VecQ8,  HVI8>;
-    defm: MinMax_pats<V6_vminub, V6_vmaxub, vselect, setugt,  VecQ8,  HVI8>;
-    defm: MinMax_pats<V6_vminub, V6_vmaxub, vselect, setuge,  VecQ8,  HVI8>;
-    defm: MinMax_pats<V6_vminh,  V6_vmaxh,  vselect,  setgt, VecQ16, HVI16>;
-    defm: MinMax_pats<V6_vminh,  V6_vmaxh,  vselect,  setge, VecQ16, HVI16>;
-    defm: MinMax_pats<V6_vminuh, V6_vmaxuh, vselect, setugt, VecQ16, HVI16>;
-    defm: MinMax_pats<V6_vminuh, V6_vmaxuh, vselect, setuge, VecQ16, HVI16>;
-    defm: MinMax_pats<V6_vminw,  V6_vmaxw,  vselect,  setgt, VecQ32, HVI32>;
-    defm: MinMax_pats<V6_vminw,  V6_vmaxw,  vselect,  setge, VecQ32, HVI32>;
-  }
-}
-
-let Predicates = [UseHVX] in {
   let AddedComplexity = 200 in {
     def: Pat<(Vnot<VecI8>   HVI8:$Vs), (V6_vnot HvxVR:$Vs)>;
     def: Pat<(Vnot<VecI16> HVI16:$Vs), (V6_vnot HvxVR:$Vs)>;
@@ -314,6 +302,17 @@ let Predicates = [UseHVX] in {
   def: OpR_RR_pat<V6_vxor,     Xor,   VecI8,  HVI8>;
   def: OpR_RR_pat<V6_vxor,     Xor,  VecI16, HVI16>;
   def: OpR_RR_pat<V6_vxor,     Xor,  VecI32, HVI32>;
+
+  def: OpR_RR_pat<V6_vminb,   Smin,   VecI8,  HVI8>;
+  def: OpR_RR_pat<V6_vmaxb,   Smax,   VecI8,  HVI8>;
+  def: OpR_RR_pat<V6_vminub,  Umin,   VecI8,  HVI8>;
+  def: OpR_RR_pat<V6_vmaxub,  Umax,   VecI8,  HVI8>;
+  def: OpR_RR_pat<V6_vminh,   Smin,  VecI16, HVI16>;
+  def: OpR_RR_pat<V6_vmaxh,   Smax,  VecI16, HVI16>;
+  def: OpR_RR_pat<V6_vminuh,  Umin,  VecI16, HVI16>;
+  def: OpR_RR_pat<V6_vmaxuh,  Umax,  VecI16, HVI16>;
+  def: OpR_RR_pat<V6_vminw,   Smin,  VecI32, HVI32>;
+  def: OpR_RR_pat<V6_vmaxw,   Smax,  VecI32, HVI32>;
 
   def: Pat<(vselect HQ8:$Qu, HVI8:$Vs, HVI8:$Vt),
            (V6_vmux HvxQR:$Qu, HvxVR:$Vs, HvxVR:$Vt)>;

@@ -184,6 +184,8 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAArch64Target() {
   initializeAArch64SIMDInstrOptPass(*PR);
   initializeAArch64PreLegalizerCombinerPass(*PR);
   initializeAArch64PostLegalizerCombinerPass(*PR);
+  initializeAArch64PostLegalizerLoweringPass(*PR);
+  initializeAArch64PostSelectOptimizePass(*PR);
   initializeAArch64PromoteConstantPass(*PR);
   initializeAArch64RedundantCopyEliminationPass(*PR);
   initializeAArch64StorePairSuppressPass(*PR);
@@ -225,6 +227,12 @@ static std::string computeDataLayout(const Triple &TT,
   if (LittleEndian)
     return "e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128";
   return "E-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128";
+}
+
+static StringRef computeDefaultCPU(const Triple &TT, StringRef CPU) {
+  if (CPU.empty() && TT.isArm64e())
+    return "apple-a12";
+  return CPU;
 }
 
 static Reloc::Model getEffectiveRelocModel(const Triple &TT,
@@ -274,7 +282,8 @@ AArch64TargetMachine::AArch64TargetMachine(const Target &T, const Triple &TT,
                                            bool LittleEndian)
     : LLVMTargetMachine(T,
                         computeDataLayout(TT, Options.MCOptions, LittleEndian),
-                        TT, CPU, FS, Options, getEffectiveRelocModel(TT, RM),
+                        TT, computeDefaultCPU(TT, CPU), FS, Options,
+                        getEffectiveRelocModel(TT, RM),
                         getEffectiveAArch64CodeModel(TT, CM, JIT), OL),
       TLOF(createTLOF(getTargetTriple())), isLittle(LittleEndian) {
   initAsmInfo();
@@ -550,7 +559,7 @@ bool AArch64PassConfig::addIRTranslator() {
 
 void AArch64PassConfig::addPreLegalizeMachineIR() {
   bool IsOptNone = getOptLevel() == CodeGenOpt::None;
-  addPass(createAArch64PreLegalizeCombiner(IsOptNone));
+  addPass(createAArch64PreLegalizerCombiner(IsOptNone));
 }
 
 bool AArch64PassConfig::addLegalizeMachineIR() {
@@ -559,11 +568,10 @@ bool AArch64PassConfig::addLegalizeMachineIR() {
 }
 
 void AArch64PassConfig::addPreRegBankSelect() {
-  // For now we don't add this to the pipeline for -O0. We could do in future
-  // if we split the combines into separate O0/opt groupings.
   bool IsOptNone = getOptLevel() == CodeGenOpt::None;
   if (!IsOptNone)
-    addPass(createAArch64PostLegalizeCombiner(IsOptNone));
+    addPass(createAArch64PostLegalizerCombiner(IsOptNone));
+  addPass(createAArch64PostLegalizerLowering());
 }
 
 bool AArch64PassConfig::addRegBankSelect() {
@@ -577,6 +585,8 @@ void AArch64PassConfig::addPreGlobalInstructionSelect() {
 
 bool AArch64PassConfig::addGlobalInstructionSelect() {
   addPass(new InstructionSelect());
+  if (getOptLevel() != CodeGenOpt::None)
+    addPass(createAArch64PostSelectOptimize());
   return false;
 }
 

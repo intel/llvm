@@ -211,7 +211,7 @@ static std::vector<DevDescT> getAllowListDesc() {
   return DecDescs;
 }
 
-enum MatchState { UNKNOWN, MATCH, NOMATCH };
+enum class FilterState { DENIED, ALLOWED };
 
 static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
                             RT::PiPlatform PiPlatform, const plugin &Plugin) {
@@ -219,10 +219,10 @@ static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
   if (AllowList.empty())
     return;
 
-  MatchState DevNameState = UNKNOWN;
-  MatchState DevVerState = UNKNOWN;
-  MatchState PlatNameState = UNKNOWN;
-  MatchState PlatVerState = UNKNOWN;
+  FilterState DevNameState = FilterState::ALLOWED;
+  FilterState DevVerState = FilterState::ALLOWED;
+  FilterState PlatNameState = FilterState::ALLOWED;
+  FilterState PlatVerState = FilterState::ALLOWED;
 
   const string_class PlatformName =
       sycl::detail::get_platform_info<string_class, info::platform::name>::get(
@@ -245,52 +245,39 @@ static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
     for (const DevDescT &Desc : AllowList) {
       if (!Desc.PlatName.empty()) {
         if (!std::regex_match(PlatformName, std::regex(Desc.PlatName))) {
-          PlatNameState = MatchState::NOMATCH;
+          PlatNameState = FilterState::DENIED;
           continue;
-        } else {
-          PlatNameState = MatchState::MATCH;
         }
       }
 
       if (!Desc.PlatVer.empty()) {
         if (!std::regex_match(PlatformVer, std::regex(Desc.PlatVer))) {
-          PlatVerState = MatchState::NOMATCH;
+          PlatVerState = FilterState::DENIED;
           continue;
-        } else {
-          PlatVerState = MatchState::MATCH;
         }
       }
 
       if (!Desc.DevName.empty()) {
         if (!std::regex_match(DeviceName, std::regex(Desc.DevName))) {
-          DevNameState = MatchState::NOMATCH;
+          DevNameState = FilterState::DENIED;
           continue;
-        } else {
-          DevNameState = MatchState::MATCH;
         }
       }
 
       if (!Desc.DevDriverVer.empty()) {
         if (!std::regex_match(DeviceDriverVer, std::regex(Desc.DevDriverVer))) {
-          DevVerState = MatchState::NOMATCH;
+          DevVerState = FilterState::DENIED;
           continue;
-        } else {
-          DevVerState = MatchState::MATCH;
         }
       }
 
-      PiDevices[InsertIDx++] = Device;
+      if (DevNameState == FilterState::ALLOWED &&
+          DevVerState == FilterState::ALLOWED &&
+          PlatNameState == FilterState::ALLOWED &&
+          PlatVerState == FilterState::ALLOWED)
+        PiDevices[InsertIDx++] = Device;
       break;
     }
-  }
-  if (DevNameState == MatchState::MATCH && DevVerState == MatchState::NOMATCH) {
-    throw sycl::runtime_error("Requested SYCL device not found",
-                              PI_DEVICE_NOT_FOUND);
-  }
-  if (PlatNameState == MatchState::MATCH &&
-      PlatVerState == MatchState::NOMATCH) {
-    throw sycl::runtime_error("Requested SYCL platform not found",
-                              PI_DEVICE_NOT_FOUND);
   }
   PiDevices.resize(InsertIDx);
 }
@@ -350,7 +337,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   PlatformImplPtr PlatformImpl = getOrMakePlatformImpl(MPlatform, *MPlugin);
   std::transform(
       PiDevices.begin(), PiDevices.end(), std::back_inserter(Res),
-      [this, PlatformImpl](const RT::PiDevice &PiDevice) -> device {
+      [PlatformImpl](const RT::PiDevice &PiDevice) -> device {
         return detail::createSyclObjFromImpl<device>(
             PlatformImpl->getOrMakeDeviceImpl(PiDevice, PlatformImpl));
       });

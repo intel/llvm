@@ -26,15 +26,25 @@ define i8 @read_dest_between_call_and_memcpy() {
 }
 
 define i8 @read_src_between_call_and_memcpy() {
-; CHECK-LABEL: @read_src_between_call_and_memcpy(
-; CHECK-NEXT:    [[DEST:%.*]] = alloca [16 x i8], align 1
-; CHECK-NEXT:    [[SRC:%.*]] = alloca [16 x i8], align 1
-; CHECK-NEXT:    [[DEST_I8:%.*]] = bitcast [16 x i8]* [[DEST]] to i8*
-; CHECK-NEXT:    [[SRC_I8:%.*]] = bitcast [16 x i8]* [[SRC]] to i8*
-; CHECK-NEXT:    call void @llvm.memset.p0i8.i64(i8* [[SRC_I8]], i8 0, i64 16, i1 false)
-; CHECK-NEXT:    [[X:%.*]] = load i8, i8* [[SRC_I8]], align 1
-; CHECK-NEXT:    call void @llvm.memcpy.p0i8.p0i8.i64(i8* [[DEST_I8]], i8* [[SRC_I8]], i64 16, i1 false)
-; CHECK-NEXT:    ret i8 [[X]]
+; NO_MSSA-LABEL: @read_src_between_call_and_memcpy(
+; NO_MSSA-NEXT:    [[DEST:%.*]] = alloca [16 x i8], align 1
+; NO_MSSA-NEXT:    [[SRC:%.*]] = alloca [16 x i8], align 1
+; NO_MSSA-NEXT:    [[DEST_I8:%.*]] = bitcast [16 x i8]* [[DEST]] to i8*
+; NO_MSSA-NEXT:    [[SRC_I8:%.*]] = bitcast [16 x i8]* [[SRC]] to i8*
+; NO_MSSA-NEXT:    call void @llvm.memset.p0i8.i64(i8* [[SRC_I8]], i8 0, i64 16, i1 false)
+; NO_MSSA-NEXT:    [[X:%.*]] = load i8, i8* [[SRC_I8]], align 1
+; NO_MSSA-NEXT:    call void @llvm.memcpy.p0i8.p0i8.i64(i8* [[DEST_I8]], i8* [[SRC_I8]], i64 16, i1 false)
+; NO_MSSA-NEXT:    ret i8 [[X]]
+;
+; MSSA-LABEL: @read_src_between_call_and_memcpy(
+; MSSA-NEXT:    [[DEST:%.*]] = alloca [16 x i8], align 1
+; MSSA-NEXT:    [[SRC:%.*]] = alloca [16 x i8], align 1
+; MSSA-NEXT:    [[DEST_I8:%.*]] = bitcast [16 x i8]* [[DEST]] to i8*
+; MSSA-NEXT:    [[SRC_I8:%.*]] = bitcast [16 x i8]* [[SRC]] to i8*
+; MSSA-NEXT:    call void @llvm.memset.p0i8.i64(i8* [[SRC_I8]], i8 0, i64 16, i1 false)
+; MSSA-NEXT:    [[X:%.*]] = load i8, i8* [[SRC_I8]], align 1
+; MSSA-NEXT:    call void @llvm.memset.p0i8.i64(i8* [[DEST_I8]], i8 0, i64 16, i1 false)
+; MSSA-NEXT:    ret i8 [[X]]
 ;
   %dest = alloca [16 x i8]
   %src = alloca [16 x i8]
@@ -150,9 +160,10 @@ define void @dest_is_gep_requires_movement() {
 ; CHECK-NEXT:    [[DEST:%.*]] = alloca [16 x i8], align 1
 ; CHECK-NEXT:    [[SRC:%.*]] = alloca [8 x i8], align 1
 ; CHECK-NEXT:    [[SRC_I8:%.*]] = bitcast [8 x i8]* [[SRC]] to i8*
-; CHECK-NEXT:    call void @accept_ptr(i8* [[SRC_I8]]) [[ATTR3]]
 ; CHECK-NEXT:    [[DEST_I8:%.*]] = getelementptr [16 x i8], [16 x i8]* [[DEST]], i64 0, i64 8
-; CHECK-NEXT:    call void @llvm.memcpy.p0i8.p0i8.i64(i8* [[DEST_I8]], i8* [[SRC_I8]], i64 8, i1 false)
+; CHECK-NEXT:    [[DEST_I81:%.*]] = bitcast i8* [[DEST_I8]] to [8 x i8]*
+; CHECK-NEXT:    [[DEST_I812:%.*]] = bitcast [8 x i8]* [[DEST_I81]] to i8*
+; CHECK-NEXT:    call void @accept_ptr(i8* [[DEST_I812]]) [[ATTR3]]
 ; CHECK-NEXT:    ret void
 ;
   %dest = alloca [16 x i8]

@@ -342,7 +342,14 @@ public:
 
   /// Returns the linker path, respecting the -fuse-ld= argument to determine
   /// the linker suffix or name.
-  std::string GetLinkerPath() const;
+  /// If LinkerIsLLD is non-nullptr, it is set to true if the returned linker
+  /// is LLD. If it's set, it can be assumed that the linker is LLD built
+  /// at the same revision as clang, and clang can make assumptions about
+  /// LLD's supported flags, error output, etc.
+  /// If LinkerIsLLDDarwinNew is non-nullptr, it's set if the linker is
+  /// the new version in lld/MachO.
+  std::string GetLinkerPath(bool *LinkerIsLLD = nullptr,
+                            bool *LinkerIsLLDDarwinNew = nullptr) const;
 
   /// Returns the linker path for emitting a static library.
   std::string GetStaticLibToolPath() const;
@@ -397,9 +404,10 @@ public:
   virtual bool useRelaxRelocations() const;
 
   /// GetDefaultStackProtectorLevel - Get the default stack protector level for
-  /// this tool chain (0=off, 1=on, 2=strong, 3=all).
-  virtual unsigned GetDefaultStackProtectorLevel(bool KernelOrKext) const {
-    return 0;
+  /// this tool chain.
+  virtual LangOptions::StackProtectorMode
+  GetDefaultStackProtectorLevel(bool KernelOrKext) const {
+    return LangOptions::SSPOff;
   }
 
   /// Get the default trivial automatic variable initialization.

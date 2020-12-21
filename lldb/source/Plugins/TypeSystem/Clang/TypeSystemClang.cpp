@@ -148,10 +148,11 @@ void addOverridesForMethod(clang::CXXMethodDecl *decl) {
     return;
 
   clang::CXXBasePaths paths;
+  llvm::SmallVector<clang::NamedDecl *, 4> decls;
 
   auto find_overridden_methods =
-      [decl](const clang::CXXBaseSpecifier *specifier,
-             clang::CXXBasePath &path) {
+      [&decls, decl](const clang::CXXBaseSpecifier *specifier,
+                     clang::CXXBasePath &path) {
         if (auto *base_record = llvm::dyn_cast<clang::CXXRecordDecl>(
                 specifier->getType()->getAs<clang::RecordType>()->getDecl())) {
 
@@ -163,6 +164,7 @@ void addOverridesForMethod(clang::CXXMethodDecl *decl) {
             if (auto *baseDtorDecl = base_record->getDestructor()) {
               if (baseDtorDecl->isVirtual()) {
                 path.Decls = baseDtorDecl;
+                decls.push_back(baseDtorDecl);
                 return true;
               } else
                 return false;
@@ -175,6 +177,7 @@ void addOverridesForMethod(clang::CXXMethodDecl *decl) {
                     llvm::dyn_cast<clang::CXXMethodDecl>(path.Decls.front()))
               if (method_decl->isVirtual() && !isOverload(decl, method_decl)) {
                 path.Decls = method_decl;
+                decls.push_back(method_decl);
                 return true;
               }
           }
@@ -184,7 +187,7 @@ void addOverridesForMethod(clang::CXXMethodDecl *decl) {
       };
 
   if (decl->getParent()->lookupInBases(find_overridden_methods, paths)) {
-    for (auto *overridden_decl : paths.found_decls())
+    for (auto *overridden_decl : decls)
       decl->addOverriddenMethod(
           llvm::cast<clang::CXXMethodDecl>(overridden_decl));
   }
@@ -1991,6 +1994,36 @@ TypeSystemClang::GetDeclarationName(llvm::StringRef name,
   return getASTContext().DeclarationNames.getCXXOperatorName(op_kind);
 }
 
+PrintingPolicy TypeSystemClang::GetTypePrintingPolicy() {
+  clang::PrintingPolicy printing_policy(getASTContext().getPrintingPolicy());
+  printing_policy.SuppressTagKeyword = true;
+  // Inline namespaces are important for some type formatters (e.g., libc++
+  // and libstdc++ are differentiated by their inline namespaces).
+  printing_policy.SuppressInlineNamespace = false;
+  printing_policy.SuppressUnwrittenScope = false;
+  // Default arguments are also always important for type formatters. Otherwise
+  // we would need to always specify two type names for the setups where we do
+  // know the default arguments and where we don't know default arguments.
+  //
+  // For example, without this we would need to have formatters for both:
+  //   std::basic_string<char>
+  // and
+  //   std::basic_string<char, std::char_traits<char>, std::allocator<char> >
+  // to support setups where LLDB was able to reconstruct default arguments
+  // (and we then would have suppressed them from the type name) and also setups
+  // where LLDB wasn't able to reconstruct the default arguments.
+  printing_policy.SuppressDefaultTemplateArgs = false;
+  return printing_policy;
+}
+
+std::string TypeSystemClang::GetTypeNameForDecl(const NamedDecl *named_decl) {
+  clang::PrintingPolicy printing_policy = GetTypePrintingPolicy();
+  std::string result;
+  llvm::raw_string_ostream os(result);
+  named_decl->printQualifiedName(os, printing_policy);
+  return result;
+}
+
 FunctionDecl *TypeSystemClang::CreateFunctionDeclaration(
     clang::DeclContext *decl_ctx, OptionalClangModuleID owning_module,
     llvm::StringRef name, const CompilerType &function_clang_type,
@@ -2012,8 +2045,9 @@ FunctionDecl *TypeSystemClang::CreateFunctionDeclaration(
   func_decl->setStorageClass(storage);
   func_decl->setInlineSpecified(is_inline);
   func_decl->setHasWrittenPrototype(hasWrittenPrototype);
-  func_decl->setConstexprKind(isConstexprSpecified ? CSK_constexpr
-                                                   : CSK_unspecified);
+  func_decl->setConstexprKind(isConstexprSpecified
+                                  ? ConstexprSpecKind::Constexpr
+                                  : ConstexprSpecKind::Unspecified);
   SetOwningModule(func_decl, owning_module);
   if (func_decl)
     decl_ctx->addDecl(func_decl);
@@ -3652,12 +3686,10 @@ ConstString TypeSystemClang::GetTypeName(lldb::opaque_compiler_type_t type) {
   // For a typedef just return the qualified name.
   if (const auto *typedef_type = qual_type->getAs<clang::TypedefType>()) {
     const clang::TypedefNameDecl *typedef_decl = typedef_type->getDecl();
-    return ConstString(typedef_decl->getQualifiedNameAsString());
+    return ConstString(GetTypeNameForDecl(typedef_decl));
   }
 
-  clang::PrintingPolicy printing_policy(getASTContext().getPrintingPolicy());
-  printing_policy.SuppressTagKeyword = true;
-  return ConstString(qual_type.getAsString(printing_policy));
+  return ConstString(qual_type.getAsString(GetTypePrintingPolicy()));
 }
 
 ConstString
@@ -3670,6 +3702,7 @@ TypeSystemClang::GetDisplayTypeName(lldb::opaque_compiler_type_t type) {
   printing_policy.SuppressTagKeyword = true;
   printing_policy.SuppressScope = false;
   printing_policy.SuppressUnwrittenScope = true;
+  printing_policy.SuppressInlineNamespace = true;
   return ConstString(qual_type.getAsString(printing_policy));
 }
 
@@ -4819,6 +4852,12 @@ lldb::Encoding TypeSystemClang::GetEncoding(lldb::opaque_compiler_type_t type,
     case clang::BuiltinType::OCLIntelSubgroupAVCImeDualRefStreamin:
       break;
 
+    // PowerPC -- Matrix Multiply Assist
+    case clang::BuiltinType::VectorPair:
+    case clang::BuiltinType::VectorQuad:
+      break;
+
+    // ARM -- Scalable Vector Extension
     case clang::BuiltinType::SveBool:
     case clang::BuiltinType::SveInt8:
     case clang::BuiltinType::SveInt8x2:
@@ -6517,8 +6556,10 @@ size_t TypeSystemClang::GetIndexOfChildMemberWithName(
           if (cxx_record_decl->lookupInBases(
                   [decl_name](const clang::CXXBaseSpecifier *specifier,
                               clang::CXXBasePath &path) {
-                    return clang::CXXRecordDecl::FindOrdinaryMember(
-                        specifier, path, decl_name);
+                    path.Decls =
+                        specifier->getType()->getAsCXXRecordDecl()->lookup(
+                            decl_name);
+                    return !path.Decls.empty();
                   },
                   paths)) {
             clang::CXXBasePaths::const_paths_iterator path,
@@ -7402,7 +7443,7 @@ clang::CXXMethodDecl *TypeSystemClang::AddMethodToCXXRecordType(
     cxx_dtor_decl->setType(method_qual_type);
     cxx_dtor_decl->setImplicit(is_artificial);
     cxx_dtor_decl->setInlineSpecified(is_inline);
-    cxx_dtor_decl->setConstexprKind(CSK_unspecified);
+    cxx_dtor_decl->setConstexprKind(ConstexprSpecKind::Unspecified);
     cxx_method_decl = cxx_dtor_decl;
   } else if (decl_name == cxx_record_decl->getDeclName()) {
     cxx_ctor_decl = clang::CXXConstructorDecl::CreateDeserialized(
@@ -7414,7 +7455,7 @@ clang::CXXMethodDecl *TypeSystemClang::AddMethodToCXXRecordType(
     cxx_ctor_decl->setType(method_qual_type);
     cxx_ctor_decl->setImplicit(is_artificial);
     cxx_ctor_decl->setInlineSpecified(is_inline);
-    cxx_ctor_decl->setConstexprKind(CSK_unspecified);
+    cxx_ctor_decl->setConstexprKind(ConstexprSpecKind::Unspecified);
     cxx_ctor_decl->setNumCtorInitializers(0);
     cxx_ctor_decl->setExplicitSpecifier(explicit_spec);
     cxx_method_decl = cxx_ctor_decl;
@@ -7440,7 +7481,7 @@ clang::CXXMethodDecl *TypeSystemClang::AddMethodToCXXRecordType(
         cxx_method_decl->setType(method_qual_type);
         cxx_method_decl->setStorageClass(SC);
         cxx_method_decl->setInlineSpecified(is_inline);
-        cxx_method_decl->setConstexprKind(CSK_unspecified);
+        cxx_method_decl->setConstexprKind(ConstexprSpecKind::Unspecified);
       } else if (num_params == 0) {
         // Conversion operators don't take params...
         auto *cxx_conversion_decl =
@@ -7453,7 +7494,7 @@ clang::CXXMethodDecl *TypeSystemClang::AddMethodToCXXRecordType(
         cxx_conversion_decl->setType(method_qual_type);
         cxx_conversion_decl->setInlineSpecified(is_inline);
         cxx_conversion_decl->setExplicitSpecifier(explicit_spec);
-        cxx_conversion_decl->setConstexprKind(CSK_unspecified);
+        cxx_conversion_decl->setConstexprKind(ConstexprSpecKind::Unspecified);
         cxx_method_decl = cxx_conversion_decl;
       }
     }
@@ -7466,7 +7507,7 @@ clang::CXXMethodDecl *TypeSystemClang::AddMethodToCXXRecordType(
       cxx_method_decl->setType(method_qual_type);
       cxx_method_decl->setInlineSpecified(is_inline);
       cxx_method_decl->setStorageClass(SC);
-      cxx_method_decl->setConstexprKind(CSK_unspecified);
+      cxx_method_decl->setConstexprKind(ConstexprSpecKind::Unspecified);
     }
   }
   SetMemberOwningModule(cxx_method_decl, cxx_record_decl);
@@ -8928,8 +8969,7 @@ void TypeSystemClang::DumpTypeDescription(lldb::opaque_compiler_type_t type,
       if (level == eDescriptionLevelVerbose)
         typedef_decl->dump(llvm_ostrm);
       else {
-        std::string clang_typedef_name(
-            typedef_decl->getQualifiedNameAsString());
+        std::string clang_typedef_name(GetTypeNameForDecl(typedef_decl));
         if (!clang_typedef_name.empty()) {
           s->PutCString("typedef ");
           s->PutCString(clang_typedef_name);
@@ -9406,8 +9446,7 @@ TypeSystemClang::DeclContextGetScopeQualifiedName(void *opaque_decl_ctx) {
     clang::NamedDecl *named_decl =
         llvm::dyn_cast<clang::NamedDecl>((clang::DeclContext *)opaque_decl_ctx);
     if (named_decl)
-      return ConstString(
-          llvm::StringRef(named_decl->getQualifiedNameAsString()));
+      return ConstString(GetTypeNameForDecl(named_decl));
   }
   return ConstString();
 }
@@ -9574,14 +9613,15 @@ FunctionCaller *TypeSystemClangForExpressions::GetFunctionCaller(
                                  arg_value_list, name);
 }
 
-UtilityFunction *
-TypeSystemClangForExpressions::GetUtilityFunction(const char *text,
-                                                  const char *name) {
+std::unique_ptr<UtilityFunction>
+TypeSystemClangForExpressions::CreateUtilityFunction(std::string text,
+                                                     std::string name) {
   TargetSP target_sp = m_target_wp.lock();
   if (!target_sp)
-    return nullptr;
+    return {};
 
-  return new ClangUtilityFunction(*target_sp.get(), text, name);
+  return std::make_unique<ClangUtilityFunction>(
+      *target_sp.get(), std::move(text), std::move(name));
 }
 
 PersistentExpressionState *

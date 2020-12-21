@@ -212,7 +212,7 @@ public:
   bool GetInjectLocalVariables(ExecutionContext *exe_ctx) const;
 
   void SetInjectLocalVariables(ExecutionContext *exe_ctx, bool b);
-  
+
   void SetRequireHardwareBreakpoints(bool b);
 
   bool GetRequireHardwareBreakpoints() const;
@@ -220,7 +220,6 @@ public:
   bool GetAutoInstallMainExecutable() const;
 
   void UpdateLaunchInfoFromProperties();
-
 
 private:
   // Callbacks for m_launch_info.
@@ -442,6 +441,7 @@ class Target : public std::enable_shared_from_this<Target>,
                public ModuleList::Notifier {
 public:
   friend class TargetList;
+  friend class Debugger;
 
   /// Broadcaster event bits definitions.
   enum {
@@ -573,7 +573,8 @@ public:
   // used.
   const lldb::ProcessSP &CreateProcess(lldb::ListenerSP listener_sp,
                                        llvm::StringRef plugin_name,
-                                       const FileSpec *crash_file);
+                                       const FileSpec *crash_file,
+                                       bool can_connect);
 
   const lldb::ProcessSP &GetProcessSP() const;
 
@@ -1074,14 +1075,10 @@ public:
                                                const ValueList &arg_value_list,
                                                const char *name, Status &error);
 
-  // Creates a UtilityFunction for the given language, the rest of the
-  // parameters have the same meaning as for the UtilityFunction constructor.
-  // Returns a new-ed object which the caller owns.
-
-  UtilityFunction *GetUtilityFunctionForLanguage(const char *expr,
-                                                 lldb::LanguageType language,
-                                                 const char *name,
-                                                 Status &error);
+  /// Creates and installs a UtilityFunction for the given language.
+  llvm::Expected<std::unique_ptr<UtilityFunction>>
+  CreateUtilityFunction(std::string expression, std::string name,
+                        lldb::LanguageType language, ExecutionContext &exe_ctx);
 
   // Install any files through the platform that need be to installed prior to
   // launching or attaching.
@@ -1256,7 +1253,7 @@ public:
     StructuredDataImpl *m_extra_args; // We own this structured data,
                                       // but the SD itself manages the UP.
     /// This holds the python callback object.
-    StructuredData::GenericSP m_implementation_sp; 
+    StructuredData::GenericSP m_implementation_sp;
 
     /// Use CreateStopHook to make a new empty stop hook. The GetCommandPointer
     /// and fill it with commands, and SetSpecifier to set the specifier shared
@@ -1378,12 +1375,12 @@ protected:
   lldb::PlatformSP m_platform_sp; ///< The platform for this target.
   std::recursive_mutex m_mutex; ///< An API mutex that is used by the lldb::SB*
                                 /// classes make the SB interface thread safe
-  /// When the private state thread calls SB API's - usually because it is 
+  /// When the private state thread calls SB API's - usually because it is
   /// running OS plugin or Python ThreadPlan code - it should not block on the
   /// API mutex that is held by the code that kicked off the sequence of events
-  /// that led us to run the code.  We hand out this mutex instead when we 
+  /// that led us to run the code.  We hand out this mutex instead when we
   /// detect that code is running on the private state thread.
-  std::recursive_mutex m_private_mutex; 
+  std::recursive_mutex m_private_mutex;
   Arch m_arch;
   ModuleList m_images; ///< The list of images for this process (shared
                        /// libraries and anything dynamically loaded).
@@ -1462,7 +1459,7 @@ private:
   bool ProcessIsValid();
 
   // Copy breakpoints, stop hooks and so forth from the dummy target:
-  void PrimeFromDummyTarget(Target *dummy_target);
+  void PrimeFromDummyTarget(Target &target);
 
   void AddBreakpoint(lldb::BreakpointSP breakpoint_sp, bool internal);
 

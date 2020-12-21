@@ -397,6 +397,13 @@ void Sema::Initialize() {
 #include "clang/Basic/AArch64SVEACLETypes.def"
   }
 
+  if (Context.getTargetInfo().getTriple().isPPC64() &&
+      Context.getTargetInfo().hasFeature("mma")) {
+#define PPC_MMA_VECTOR_TYPE(Name, Id, Size) \
+    addImplicitTypedef(#Name, Context.Id##Ty);
+#include "clang/Basic/PPCTypes.def"
+  }
+
   if (Context.getTargetInfo().hasBuiltinMSVaList()) {
     DeclarationName MSVaList = &Context.Idents.get("__builtin_ms_va_list");
     if (IdResolver.begin(MSVaList) == IdResolver.end())
@@ -1852,7 +1859,7 @@ bool Sema::findMacroSpelling(SourceLocation &locref, StringRef name) {
   loc = getSourceManager().getExpansionLoc(loc);
 
   // If that's written with the name, stop here.
-  SmallVector<char, 16> buffer;
+  SmallString<16> buffer;
   if (getPreprocessor().getSpelling(loc, buffer) == name) {
     locref = loc;
     return true;

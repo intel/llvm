@@ -452,7 +452,7 @@ struct LoopInterchange {
   bool isComputableLoopNest(LoopVector LoopList) {
     for (Loop *L : LoopList) {
       const SCEV *ExitCountOuter = SE->getBackedgeTakenCount(L);
-      if (ExitCountOuter == SE->getCouldNotCompute()) {
+      if (isa<SCEVCouldNotCompute>(ExitCountOuter)) {
         LLVM_DEBUG(dbgs() << "Couldn't compute backedge count\n");
         return false;
       }
@@ -701,8 +701,7 @@ bool LoopInterchangeLegality::findInductionAndReductions(
         Value *V = followLCSSA(PHI.getIncomingValueForBlock(L->getLoopLatch()));
         PHINode *InnerRedPhi = findInnerReductionPhi(InnerLoop, V);
         if (!InnerRedPhi ||
-            !llvm::any_of(InnerRedPhi->incoming_values(),
-                          [&PHI](Value *V) { return V == &PHI; })) {
+            !llvm::is_contained(InnerRedPhi->incoming_values(), &PHI)) {
           LLVM_DEBUG(
               dbgs()
               << "Failed to recognize PHI as an induction or reduction.\n");
@@ -1039,6 +1038,10 @@ int LoopInterchangeProfitability::getInstrOrderCost() {
         bool FoundInnerInduction = false;
         bool FoundOuterInduction = false;
         for (unsigned i = 0; i < NumOp; ++i) {
+          // Skip operands that are not SCEV-able.
+          if (!SE->isSCEVable(GEP->getOperand(i)->getType()))
+            continue;
+
           const SCEV *OperandVal = SE->getSCEV(GEP->getOperand(i));
           const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(OperandVal);
           if (!AR)

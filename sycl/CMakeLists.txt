@@ -282,6 +282,10 @@ if (NOT WIN32)
       COMPONENT sycl-headers-extras)
 endif()
 
+if (SYCL_ENABLE_XPTI_TRACING)
+  set(XPTIFW_LIBS xptifw)
+endif()
+
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
 add_custom_target( sycl-toolchain
   DEPENDS ${SYCL_RT_LIBS}
@@ -298,6 +302,7 @@ add_custom_target( sycl-toolchain
           llvm-objcopy
           sycl-post-link
           sycl-ls
+          ${XPTIFW_LIBS}
   COMMENT "Building SYCL compiler toolchain..."
 )
 
@@ -340,6 +345,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      clang-offload-bundler
      file-table-tform
      level-zero-loader
+     level-zero-headers
      llc
      llvm-ar
      llvm-foreach
@@ -357,6 +363,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      pi_opencl
      pi_level_zero
      libsycldevice
+     ${XPTIFW_LIBS}
 )
 if(OpenCL_INSTALL_KHRONOS_ICD_LOADER AND TARGET ocl-icd)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS opencl-icd)

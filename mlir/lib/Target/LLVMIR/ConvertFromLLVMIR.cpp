@@ -12,8 +12,8 @@
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/Module.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Target/LLVMIR.h"
 #include "mlir/Target/LLVMIR/TypeTranslation.h"
@@ -22,6 +22,7 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IRReader/IRReader.h"

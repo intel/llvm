@@ -25,6 +25,9 @@
 #ifndef _LIBCPP_HAS_NO_THREADS
 #include <atomic>
 #endif
+#ifndef _LIBCPP_HAS_NO_THREADS
+#include <barrier>
+#endif
 #include <bit>
 #include <bitset>
 #include <ccomplex>
@@ -37,12 +40,11 @@
 #include <cinttypes>
 #include <ciso646>
 #include <climits>
-#include <clocale>
 #include <cmath>
-#include <codecvt>
 #include <compare>
 #include <complex>
 #include <complex.h>
+#include <concepts>
 #include <condition_variable>
 #include <csetjmp>
 #include <csignal>
@@ -66,24 +68,20 @@
 #include <filesystem>
 #include <float.h>
 #include <forward_list>
-#include <fstream>
 #include <functional>
 #ifndef _LIBCPP_HAS_NO_THREADS
 #include <future>
 #endif
 #include <initializer_list>
 #include <inttypes.h>
-#include <iomanip>
-#include <ios>
 #include <iosfwd>
-#include <iostream>
-#include <istream>
 #include <iterator>
+#ifndef _LIBCPP_HAS_NO_THREADS
+#include <latch>
+#endif
 #include <limits>
 #include <limits.h>
 #include <list>
-#include <locale>
-#include <locale.h>
 #include <map>
 #include <math.h>
 #include <memory>
@@ -91,21 +89,22 @@
 #include <mutex>
 #endif
 #include <new>
+#include <numbers>
 #include <numeric>
 #include <optional>
-#include <ostream>
 #include <queue>
 #include <random>
 #include <ratio>
-#include <regex>
 #include <scoped_allocator>
+#ifndef _LIBCPP_HAS_NO_THREADS
+#include <semaphore>
+#endif
 #include <set>
 #include <setjmp.h>
 #ifndef _LIBCPP_HAS_NO_THREADS
 #include <shared_mutex>
 #endif
 #include <span>
-#include <sstream>
 #include <stack>
 #include <stdbool.h>
 #include <stddef.h>
@@ -113,11 +112,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <streambuf>
 #include <string>
 #include <string.h>
 #include <string_view>
-#include <strstream>
 #include <system_error>
 #include <tgmath.h>
 #ifndef _LIBCPP_HAS_NO_THREADS
@@ -137,6 +134,26 @@
 #include <wchar.h>
 #include <wctype.h>
 
+#ifndef _LIBCPP_HAS_NO_LOCALIZATION
+#   include <clocale>
+#   include <codecvt>
+#   include <fstream>
+#   include <iomanip>
+#   include <ios>
+#   include <iostream>
+#   include <istream>
+#   include <locale>
+#   include <locale.h>
+#   include <ostream>
+#   include <regex>
+#   include <sstream>
+#   include <streambuf>
+#   include <strstream>
+#   if __cplusplus >= 201103L
+#       include <experimental/regex>
+#   endif
+#endif
+
 // experimental headers
 #if __cplusplus >= 201103L
 #include <experimental/algorithm>
@@ -152,9 +169,8 @@
 #include <experimental/map>
 #include <experimental/memory_resource>
 #include <experimental/propagate_const>
-#include <experimental/regex>
-#include <experimental/simd>
 #include <experimental/set>
+#include <experimental/simd>
 #include <experimental/string>
 #include <experimental/type_traits>
 #include <experimental/unordered_map>

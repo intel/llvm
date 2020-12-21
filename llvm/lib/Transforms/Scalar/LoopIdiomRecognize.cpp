@@ -844,7 +844,7 @@ mayLoopAccessLocation(Value *Ptr, ModRefInfo Access, Loop *L,
   // Get the location that may be stored across the loop.  Since the access is
   // strided positively through memory, we say that the modified location starts
   // at the pointer and has infinite size.
-  LocationSize AccessSize = LocationSize::unknown();
+  LocationSize AccessSize = LocationSize::afterPointer();
 
   // If the loop iterates a fixed number of times, we can refine the access size
   // to be exactly the size of the memset, which is (BECount+1)*StoreSize
@@ -896,8 +896,8 @@ static const SCEV *getNumBytes(const SCEV *BECount, Type *IntPtr,
   // If we're going to need to zero extend the BE count, check if we can add
   // one to it prior to zero extending without overflow. Provided this is safe,
   // it allows better simplification of the +1.
-  if (DL->getTypeSizeInBits(BECount->getType()) <
-          DL->getTypeSizeInBits(IntPtr) &&
+  if (DL->getTypeSizeInBits(BECount->getType()).getFixedSize() <
+          DL->getTypeSizeInBits(IntPtr).getFixedSize() &&
       SE->isLoopEntryGuardedByCond(
           CurLoop, ICmpInst::ICMP_NE, BECount,
           SE->getNegativeSCEV(SE->getOne(BECount->getType())))) {

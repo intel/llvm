@@ -9,7 +9,7 @@
 // This transformation pass performs a sparse conditional constant propagation
 // in MLIR. It identifies values known to be constant, propagates that
 // information throughout the IR, and replaces them. This is done with an
-// optimisitic dataflow analysis that assumes that all values are constant until
+// optimistic dataflow analysis that assumes that all values are constant until
 // proven otherwise.
 //
 //===----------------------------------------------------------------------===//
@@ -27,7 +27,7 @@ using namespace mlir;
 
 namespace {
 /// This class represents a single lattice value. A lattive value corresponds to
-/// the various different states that a value in the SCCP dataflow anaylsis can
+/// the various different states that a value in the SCCP dataflow analysis can
 /// take. See 'Kind' below for more details on the different states a value can
 /// take.
 class LatticeValue {
@@ -435,7 +435,7 @@ void SCCPSolver::initializeSymbolCallables(Operation *op) {
 
           // We only need to record the call in the lattice if it produces any
           // values.
-          if (callOp.getOperation()->getNumResults())
+          if (callOp->getNumResults())
             callableLatticeIt->second.addSymbolCall(callOp);
         }
         continue;
@@ -572,7 +572,7 @@ void SCCPSolver::visitCallableOperation(Operation *op) {
 }
 
 void SCCPSolver::visitCallOperation(CallOpInterface op) {
-  ResultRange callResults = op.getOperation()->getResults();
+  ResultRange callResults = op->getResults();
 
   // Resolve the callable operation for this call.
   Operation *callableOp = nullptr;

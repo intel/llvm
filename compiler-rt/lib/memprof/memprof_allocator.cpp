@@ -27,9 +27,9 @@
 #include "sanitizer_common/sanitizer_list.h"
 #include "sanitizer_common/sanitizer_stackdepot.h"
 
-#include <ctime>
 #include <sched.h>
 #include <stdlib.h>
+#include <time.h>
 
 namespace __memprof {
 
@@ -895,4 +895,11 @@ int __sanitizer_get_ownership(const void *p) {
 
 uptr __sanitizer_get_allocated_size(const void *p) {
   return memprof_malloc_usable_size(p, 0, 0);
+}
+
+int __memprof_profile_dump() {
+  instance.FinishAndPrint();
+  // In the future we may want to return non-zero if there are any errors
+  // detected during the dumping process.
+  return 0;
 }

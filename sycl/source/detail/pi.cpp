@@ -16,6 +16,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/device_filter.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/stl_type_traits.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/plugin.hpp>
@@ -233,13 +234,14 @@ bool findPlugins(vector_class<std::pair<std::string, backend>> &PluginNames) {
           (Backend == backend::opencl || Backend == backend::all)) {
         PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
         OpenCLFound = true;
-      } else if (!LevelZeroFound &&
-                 (Backend == backend::level_zero || Backend == backend::all)) {
+      }
+      if (!LevelZeroFound &&
+          (Backend == backend::level_zero || Backend == backend::all)) {
         PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
                                  backend::level_zero);
         LevelZeroFound = true;
-      } else if (!CudaFound &&
-                 (Backend == backend::cuda || Backend == backend::all)) {
+      }
+      if (!CudaFound && (Backend == backend::cuda || Backend == backend::all)) {
         PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::cuda);
         CudaFound = true;
       }
@@ -302,8 +304,9 @@ static void initializePlugins(vector_class<plugin> *Plugins) {
     std::cerr << "SYCL_PI_TRACE[all]: "
               << "No Plugins Found." << std::endl;
 
-  PiPlugin PluginInformation{_PI_H_VERSION_STRING, _PI_H_VERSION_STRING,
-                             nullptr};
+  PiPlugin PluginInformation{
+      _PI_H_VERSION_STRING, _PI_H_VERSION_STRING, nullptr, {}};
+  PluginInformation.PiFunctionTable = {};
 
   for (unsigned int I = 0; I < PluginNames.size(); I++) {
     void *Library = loadPlugin(PluginNames[I].first);
@@ -566,7 +569,7 @@ RT::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
               {PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE, 0xDEC04342}};
 
   if (ImgSize >= sizeof(Fmts[0].Magic)) {
-    std::remove_const<decltype(Fmts[0].Magic)>::type Hdr = 0;
+    detail::remove_const_t<decltype(Fmts[0].Magic)> Hdr = 0;
     std::copy(ImgData, ImgData + sizeof(Hdr), reinterpret_cast<char *>(&Hdr));
 
     for (const auto &Fmt : Fmts) {
@@ -590,7 +593,9 @@ void DeviceBinaryImage::init(pi_device_binary Bin) {
     // try to determine the format; may remain "NONE"
     Format = getBinaryImageFormat(Bin->BinaryStart, getSize());
 
-  SpecConstIDMap.init(Bin, __SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP);
+  ScalarSpecConstIDMap.init(Bin, __SYCL_PI_PROPERTY_SET_SCALAR_SPEC_CONST_MAP);
+  CompositeSpecConstIDMap.init(Bin,
+                               __SYCL_PI_PROPERTY_SET_COMPOSITE_SPEC_CONST_MAP);
   DeviceLibReqMask.init(Bin, __SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK);
   KernelParamOptInfo.init(Bin, __SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
 }

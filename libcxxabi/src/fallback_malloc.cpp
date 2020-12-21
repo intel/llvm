@@ -6,9 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// Define _LIBCPP_BUILDING_LIBRARY to ensure _LIBCPP_HAS_NO_LIBRARY_ALIGNED_ALLOCATION
-// is only defined when libc aligned allocation is not available.
-#define _LIBCPP_BUILDING_LIBRARY
 #include "fallback_malloc.h"
 
 #include <__threading_support>
@@ -20,6 +17,7 @@
 
 #include <stdlib.h> // for malloc, calloc, free
 #include <string.h> // for memset
+#include <new> // for std::__libcpp_aligned_{alloc,free}
 
 //  A small, simple heap manager based (loosely) on
 //  the startup heap manager from FreeBSD, optimized for space.
@@ -207,7 +205,7 @@ struct __attribute__((aligned)) __aligned_type {};
 
 void* __aligned_malloc_with_fallback(size_t size) {
 #if defined(_WIN32)
-  if (void* dest = _aligned_malloc(size, alignof(__aligned_type)))
+  if (void* dest = std::__libcpp_aligned_alloc(alignof(__aligned_type), size))
     return dest;
 #elif defined(_LIBCPP_HAS_NO_LIBRARY_ALIGNED_ALLOCATION)
   if (void* dest = ::malloc(size))
@@ -215,8 +213,7 @@ void* __aligned_malloc_with_fallback(size_t size) {
 #else
   if (size == 0)
     size = 1;
-  void* dest;
-  if (::posix_memalign(&dest, __alignof(__aligned_type), size) == 0)
+  if (void* dest = std::__libcpp_aligned_alloc(__alignof(__aligned_type), size))
     return dest;
 #endif
   return fallback_malloc(size);
@@ -237,10 +234,10 @@ void __aligned_free_with_fallback(void* ptr) {
   if (is_fallback_ptr(ptr))
     fallback_free(ptr);
   else {
-#if defined(_WIN32)
-    ::_aligned_free(ptr);
-#else
+#if defined(_LIBCPP_HAS_NO_LIBRARY_ALIGNED_ALLOCATION)
     ::free(ptr);
+#else
+    std::__libcpp_aligned_free(ptr);
 #endif
   }
 }

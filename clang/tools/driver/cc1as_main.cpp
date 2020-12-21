@@ -428,8 +428,11 @@ static bool ExecuteAssembler(AssemblerInvocation &Opts,
   std::unique_ptr<MCStreamer> Str;
 
   std::unique_ptr<MCInstrInfo> MCII(TheTarget->createMCInstrInfo());
+  assert(MCII && "Unable to create instruction info!");
+
   std::unique_ptr<MCSubtargetInfo> STI(
       TheTarget->createMCSubtargetInfo(Opts.Triple, Opts.CPU, FS));
+  assert(STI && "Unable to create subtarget info!");
 
   raw_pwrite_stream *Out = FDOS.get();
   std::unique_ptr<buffer_ostream> BOS;
@@ -468,6 +471,8 @@ static bool ExecuteAssembler(AssemblerInvocation &Opts,
         TheTarget->createMCCodeEmitter(*MCII, *MRI, Ctx));
     std::unique_ptr<MCAsmBackend> MAB(
         TheTarget->createMCAsmBackend(*STI, *MRI, MCOptions));
+    assert(MAB && "Unable to create asm backend!");
+
     std::unique_ptr<MCObjectWriter> OW =
         DwoOS ? MAB->createDwoObjectWriter(*Out, *DwoOS)
               : MAB->createObjectWriter(*Out);
@@ -520,8 +525,8 @@ static bool ExecuteAssembler(AssemblerInvocation &Opts,
     Failed = Parser->Run(Opts.NoInitialTextSection);
   }
 
-  // Close Streamer first.
-  // It might have a reference to the output stream.
+  // Parser has a reference to the output stream (Str), so close Parser first.
+  Parser.reset();
   Str.reset();
   // Close the output stream early.
   BOS.reset();

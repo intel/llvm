@@ -106,7 +106,7 @@ public:
 
   /// Get allocation size in bits. Returns None if size can't be determined,
   /// e.g. in case of a VLA.
-  Optional<uint64_t> getAllocationSizeInBits(const DataLayout &DL) const;
+  Optional<TypeSize> getAllocationSizeInBits(const DataLayout &DL) const;
 
   /// Return the type that is being allocated by the instruction.
   Type *getAllocatedType() const { return AllocatedType; }
@@ -1288,6 +1288,30 @@ public:
   ///
   static bool isRelational(Predicate P) {
     return !isEquality(P);
+  }
+
+  /// Return true if the predicate is SGT or UGT.
+  ///
+  static bool isGT(Predicate P) {
+    return P == ICMP_SGT || P == ICMP_UGT;
+  }
+
+  /// Return true if the predicate is SLT or ULT.
+  ///
+  static bool isLT(Predicate P) {
+    return P == ICMP_SLT || P == ICMP_ULT;
+  }
+
+  /// Return true if the predicate is SGE or UGE.
+  ///
+  static bool isGE(Predicate P) {
+    return P == ICMP_SGE || P == ICMP_UGE;
+  }
+
+  /// Return true if the predicate is SLE or ULE.
+  ///
+  static bool isLE(Predicate P) {
+    return P == ICMP_SLE || P == ICMP_ULE;
   }
 
   /// Exchange the two operands to this instruction in such a way that it does

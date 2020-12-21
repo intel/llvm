@@ -64,14 +64,16 @@ public:
     Kryo,
     NeoverseE1,
     NeoverseN1,
+    NeoverseN2,
+    NeoverseV1,
     Saphira,
     ThunderX2T99,
     ThunderX,
     ThunderXT81,
     ThunderXT83,
     ThunderXT88,
-    TSV110,
-    ThunderX3T110
+    ThunderX3T110,
+    TSV110
   };
 
 protected:
@@ -129,7 +131,6 @@ protected:
 
   // ARMv8.4 extensions
   bool HasNV = false;
-  bool HasRASv8_4 = false;
   bool HasMPAM = false;
   bool HasDIT = false;
   bool HasTRACEV8_4 = false;
@@ -195,6 +196,7 @@ protected:
   // Enable 64-bit vectorization in SLP.
   unsigned MinVectorRegisterBitWidth = 64;
 
+  bool OutlineAtomics = false;
   bool UseAA = false;
   bool PredictableSelectIsExpensive = false;
   bool BalanceFPOps = false;
@@ -471,6 +473,8 @@ public:
 
   bool useAA() const override { return UseAA; }
 
+  bool outlineAtomics() const { return OutlineAtomics; }
+
   bool hasVH() const { return HasVH; }
   bool hasPAN() const { return HasPAN; }
   bool hasLOR() const { return HasLOR; }
@@ -485,7 +489,6 @@ public:
   bool hasComplxNum() const { return HasComplxNum; }
 
   bool hasNV() const { return HasNV; }
-  bool hasRASv8_4() const { return HasRASv8_4; }
   bool hasMPAM() const { return HasMPAM; }
   bool hasDIT() const { return HasDIT; }
   bool hasTRACEV8_4() const { return HasTRACEV8_4; }
@@ -556,6 +559,7 @@ public:
   // implied by the architecture.
   unsigned getMaxSVEVectorSizeInBits() const;
   unsigned getMinSVEVectorSizeInBits() const;
+  bool useSVEForFixedLengthVectors() const;
 };
 } // End llvm namespace
 

@@ -84,7 +84,7 @@ extractBeneficiaryOps(Operation *op,
     return false;
 
   for (Value operand : op->getOperands()) {
-    // It is already visisble in the kernel, keep going.
+    // It is already visible in the kernel, keep going.
     if (availableValues.count(operand))
       continue;
     // Else check whether it can be made available via sinking or already is a
@@ -239,7 +239,7 @@ public:
     bool modified = false;
     for (auto func : getOperation().getOps<FuncOp>()) {
       // Insert just after the function.
-      Block::iterator insertPt(func.getOperation()->getNextNode());
+      Block::iterator insertPt(func->getNextNode());
       auto funcWalkResult = func.walk([&](gpu::LaunchOp op) {
         llvm::SetVector<Value> operands;
         std::string kernelFnName =

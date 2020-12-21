@@ -111,6 +111,8 @@ const static char VCSIMTCall[] = "VCSIMTCall";
 const static char VCArgumentKind[] = "VCArgumentKind";
 const static char VCArgumentDesc[] = "VCArgumentDesc";
 const static char VCCallable[] = "VCCallable";
+const static char VCSingleElementVector[] = "VCSingleElementVector";
+const static char VCFCEntry[] = "VCFCEntry";
 } // namespace kVCMetadata
 
 namespace kVCType {

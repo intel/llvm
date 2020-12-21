@@ -6,11 +6,11 @@
 //
 //===---------------------------------------------------------------------===//
 
-#include "include/math.h"
 #include "src/math/sqrtf.h"
 #include "utils/FPUtil/FPBits.h"
 #include "utils/FPUtil/TestHelpers.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
+#include <math.h>
 
 using FPBits = __llvm_libc::fputil::FPBits<float>;
 using UIntType = typename FPBits::UIntType;
@@ -20,9 +20,7 @@ namespace mpfr = __llvm_libc::testing::mpfr;
 constexpr UIntType HiddenBit =
     UIntType(1) << __llvm_libc::fputil::MantissaWidth<float>::value;
 
-float nan = FPBits::buildNaN(1);
-float inf = FPBits::inf();
-float negInf = FPBits::negInf();
+DECLARE_SPECIAL_CONSTANTS(float)
 
 TEST(SqrtfTest, SpecialValues) {
   ASSERT_FP_EQ(nan, __llvm_libc::sqrtf(nan));

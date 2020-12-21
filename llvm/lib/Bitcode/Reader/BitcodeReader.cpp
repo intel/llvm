@@ -676,7 +676,7 @@ private:
   /// Read a value out of the specified record from slot 'Slot'. Increment Slot
   /// past the number of slots used by the value in the record. Return true if
   /// there is an error.
-  bool popValue(SmallVectorImpl<uint64_t> &Record, unsigned &Slot,
+  bool popValue(const SmallVectorImpl<uint64_t> &Record, unsigned &Slot,
                 unsigned InstNum, Type *Ty, Value *&ResVal) {
     if (getValue(Record, Slot, InstNum, Ty, ResVal))
       return true;
@@ -2409,6 +2409,9 @@ Error BitcodeReader::parseConstants() {
     default:  // Default behavior: unknown constant
     case bitc::CST_CODE_UNDEF:     // UNDEF
       V = UndefValue::get(CurTy);
+      break;
+    case bitc::CST_CODE_POISON:    // POISON
+      V = PoisonValue::get(CurTy);
       break;
     case bitc::CST_CODE_SETTYPE:   // SETTYPE: [typeid]
       if (Record.empty())

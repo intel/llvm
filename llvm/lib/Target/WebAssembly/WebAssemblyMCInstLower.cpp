@@ -139,6 +139,9 @@ MCOperand WebAssemblyMCInstLower::lowerSymbolOperand(const MachineOperand &MO,
     case WebAssemblyII::MO_MEMORY_BASE_REL:
       Kind = MCSymbolRefExpr::VK_WASM_MBREL;
       break;
+    case WebAssemblyII::MO_TLS_BASE_REL:
+      Kind = MCSymbolRefExpr::VK_WASM_TLSREL;
+      break;
     case WebAssemblyII::MO_TABLE_BASE_REL:
       Kind = MCSymbolRefExpr::VK_WASM_TBREL;
       break;
@@ -271,6 +274,11 @@ void WebAssemblyMCInstLower::lower(const MachineInstr *MI,
                                          SmallVector<wasm::ValType, 4>());
             break;
           }
+        } else if (Info.OperandType == WebAssembly::OPERAND_HEAPTYPE) {
+          assert(static_cast<WebAssembly::HeapType>(MO.getImm()) !=
+                 WebAssembly::HeapType::Invalid);
+          // With typed function references, this will need a case for type
+          // index operands.  Otherwise, fall through.
         }
       }
       MCOp = MCOperand::createImm(MO.getImm());

@@ -64,6 +64,14 @@ if [ "`uname -a | grep Linux`" != "" ]; then
 	elif [ "`uname -a | grep aarch64`" != "" ]; then
 		SUFFIX="linux_arm64"
 		ARCHCFLAGS=""
+	elif [ "`uname -a | grep -i mips64`" != "" ]; then
+		if [ "`lscpu | grep -i Little`" != "" ]; then
+			SUFFIX="linux_mips64le"
+			ARCHCFLAGS="-mips64 -EL"
+		else
+			SUFFIX="linux_mips64"
+			ARCHCFLAGS="-mips64 -EB"
+		fi
 	fi
 elif [ "`uname -a | grep FreeBSD`" != "" ]; then
 	# The resulting object still depends on libc.
@@ -109,9 +117,7 @@ elif [ "`uname -a | grep NetBSD`" != "" ]; then
 		../../sanitizer_common/sanitizer_stoptheworld_netbsd_libcdep.cpp
 	"
 elif [ "`uname -a | grep Darwin`" != "" ]; then
-	SUFFIX="darwin_amd64"
 	OSCFLAGS="-fPIC -Wno-unused-const-variable -Wno-unknown-warning-option -mmacosx-version-min=10.7"
-	ARCHCFLAGS="-m64"
 	OSLDFLAGS="-lpthread -fPIC -fpie -mmacosx-version-min=10.7"
 	SRCS="
 		$SRCS
@@ -122,6 +128,13 @@ elif [ "`uname -a | grep Darwin`" != "" ]; then
 		../../sanitizer_common/sanitizer_posix_libcdep.cpp
 		../../sanitizer_common/sanitizer_procmaps_mac.cpp
 	"
+	if [ "`uname -a | grep x86_64`" != "" ]; then
+		SUFFIX="darwin_amd64"
+		ARCHCFLAGS="-m64"
+	elif [ "`uname -a | grep arm64`" != "" ]; then
+		SUFFIX="darwin_arm64"
+		ARCHCFLAGS=""
+	fi
 elif [ "`uname -a | grep MINGW`" != "" ]; then
 	SUFFIX="windows_amd64"
 	OSCFLAGS="-Wno-error=attributes -Wno-attributes -Wno-unused-const-variable -Wno-unknown-warning-option"

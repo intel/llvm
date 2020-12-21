@@ -37,6 +37,8 @@
 
 // CLSTDALL: cl
 // CLSTDALL-NEXT: CL
+// CLSTDALL-NEXT: cl1.0
+// CLSTDALL-NEXT: CL1.0
 // CLSTDALL-NEXT: cl1.1
 // CLSTDALL-NEXT: CL1.1
 // CLSTDALL-NEXT: cl1.2
@@ -66,6 +68,7 @@
 // FNOSANICOVERALL-NEXT: trace-pc-guard
 // RUN: %clang --autocomplete=-ffp-contract= | FileCheck %s -check-prefix=FFPALL
 // FFPALL: fast
+// FFPALL-NEXT: fast-honor-pragmas 
 // FFPALL-NEXT: off
 // FFPALL-NEXT: on
 // RUN: %clang --autocomplete=-flto= | FileCheck %s -check-prefix=FLTOALL
@@ -73,6 +76,7 @@
 // FLTOALL-NEXT: thin
 // RUN: %clang --autocomplete=-fveclib= | FileCheck %s -check-prefix=FVECLIBALL
 // FVECLIBALL: Accelerate
+// FVECLIBALL-NEXT: libmvec
 // FVECLIBALL-NEXT: MASSV
 // FVECLIBALL-NEXT: none
 // FVECLIBALL-NEXT: SVML

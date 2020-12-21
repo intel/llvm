@@ -1106,6 +1106,10 @@ enum NodeType {
   /// known nonzero constant. The only operand here is the chain.
   GET_DYNAMIC_AREA_OFFSET,
 
+  /// Pseudo probe for AutoFDO, as a place holder in a basic block to improve
+  /// the sample counts quality.
+  PSEUDO_PROBE,
+
   /// VSCALE(IMM) - Returns the runtime scaling factor used to calculate the
   /// number of elements within a scalable vector. IMM is a constant integer
   /// multiplier that is applied to the runtime value.
@@ -1165,6 +1169,10 @@ static const int FIRST_TARGET_STRICTFP_OPCODE = BUILTIN_OP_END + 400;
 /// this value. Those that do must not be less than this value, and can
 /// be used with SelectionDAG::getMemIntrinsicNode.
 static const int FIRST_TARGET_MEMORY_OPCODE = BUILTIN_OP_END + 500;
+
+/// Get underlying scalar opcode for VECREDUCE opcode.
+/// For example ISD::AND for ISD::VECREDUCE_AND.
+NodeType getVecReduceBaseOpcode(unsigned VecReduceOpcode);
 
 //===--------------------------------------------------------------------===//
 /// MemIndexedMode enum - This enum defines the load / store indexed

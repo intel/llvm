@@ -139,6 +139,23 @@ public:
   using GOTEquivUsePair = std::pair<const GlobalVariable *, unsigned>;
   MapVector<const MCSymbol *, GOTEquivUsePair> GlobalGOTEquivs;
 
+  /// struct HandlerInfo and Handlers permit users or target extended
+  /// AsmPrinter to add their own handlers.
+  struct HandlerInfo {
+    std::unique_ptr<AsmPrinterHandler> Handler;
+    const char *TimerName;
+    const char *TimerDescription;
+    const char *TimerGroupName;
+    const char *TimerGroupDescription;
+
+    HandlerInfo(std::unique_ptr<AsmPrinterHandler> Handler,
+                const char *TimerName, const char *TimerDescription,
+                const char *TimerGroupName, const char *TimerGroupDescription)
+        : Handler(std::move(Handler)), TimerName(TimerName),
+          TimerDescription(TimerDescription), TimerGroupName(TimerGroupName),
+          TimerGroupDescription(TimerGroupDescription) {}
+  };
+
 private:
   MCSymbol *CurrentFnEnd = nullptr;
 
@@ -162,26 +179,10 @@ private:
 protected:
   MCSymbol *CurrentFnBegin = nullptr;
 
-  /// Protected struct HandlerInfo and Handlers permit target extended
-  /// AsmPrinter adds their own handlers.
-  struct HandlerInfo {
-    std::unique_ptr<AsmPrinterHandler> Handler;
-    const char *TimerName;
-    const char *TimerDescription;
-    const char *TimerGroupName;
-    const char *TimerGroupDescription;
-
-    HandlerInfo(std::unique_ptr<AsmPrinterHandler> Handler,
-                const char *TimerName, const char *TimerDescription,
-                const char *TimerGroupName, const char *TimerGroupDescription)
-        : Handler(std::move(Handler)), TimerName(TimerName),
-          TimerDescription(TimerDescription), TimerGroupName(TimerGroupName),
-          TimerGroupDescription(TimerGroupDescription) {}
-  };
-
   /// A vector of all debug/EH info emitters we should use. This vector
   /// maintains ownership of the emitters.
-  SmallVector<HandlerInfo, 1> Handlers;
+  std::vector<HandlerInfo> Handlers;
+  size_t NumUserHandlers = 0;
 
 public:
   struct SrcMgrDiagInfo {
@@ -446,6 +447,11 @@ public:
   // Overridable Hooks
   //===------------------------------------------------------------------===//
 
+  void addAsmPrinterHandler(HandlerInfo Handler) {
+    Handlers.insert(Handlers.begin(), std::move(Handler));
+    NumUserHandlers++;
+  }
+
   // Targets can, or in the case of EmitInstruction, must implement these to
   // customize output.
 
@@ -597,7 +603,7 @@ public:
   unsigned GetSizeOfEncodedValue(unsigned Encoding) const;
 
   /// Emit reference to a ttype global with a specified encoding.
-  void emitTTypeReference(const GlobalValue *GV, unsigned Encoding) const;
+  virtual void emitTTypeReference(const GlobalValue *GV, unsigned Encoding);
 
   /// Emit a reference to a symbol for use in dwarf. Different object formats
   /// represent this in different ways. Some use a relocation others encode
@@ -778,6 +784,9 @@ private:
   GCMetadataPrinter *GetOrCreateGCPrinter(GCStrategy &S);
   /// Emit GlobalAlias or GlobalIFunc.
   void emitGlobalIndirectSymbol(Module &M, const GlobalIndirectSymbol &GIS);
+
+  /// This method decides whether the specified basic block requires a label.
+  bool shouldEmitLabelForBasicBlock(const MachineBasicBlock &MBB) const;
 };
 
 } // end namespace llvm

@@ -33,6 +33,7 @@
 #include "mlir/Dialect/SPIRV/SPIRVDialect.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/IR/Dialect.h"
 
@@ -60,17 +61,11 @@ inline void registerAllDialects(DialectRegistry &registry) {
                   NVVM::NVVMDialect,
                   ROCDL::ROCDLDialect,
                   SDBMDialect,
-                  shape::ShapeDialect>();
+                  shape::ShapeDialect,
+                  tosa::TosaDialect>();
   // clang-format on
 }
 
-// This function should be called before creating any MLIRContext if one expect
-// all the possible dialects to be made available to the context automatically.
-inline void registerAllDialects() {
-  static bool initOnce =
-      ([]() { registerAllDialects(getGlobalDialectRegistry()); }(), true);
-  (void)initOnce;
-}
 } // namespace mlir
 
 #endif // MLIR_INITALLDIALECTS_H_

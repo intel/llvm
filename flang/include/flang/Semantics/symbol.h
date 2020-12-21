@@ -155,6 +155,7 @@ private:
   MaybeExpr expr_;
   std::optional<int> rank_;
 };
+llvm::raw_ostream &operator<<(llvm::raw_ostream &, const AssocEntityDetails &);
 
 // An entity known to be an object.
 class ObjectEntityDetails : public EntityDetails {
@@ -270,6 +271,8 @@ public:
       return componentNames_.front();
     }
   }
+
+  const Symbol *GetFinalForRank(int) const;
 
 private:
   // These are (1) the names of the derived type parameters in the order
@@ -430,6 +433,7 @@ public:
   const SymbolVector &specificProcs() const { return specificProcs_; }
   const std::vector<SourceName> &bindingNames() const { return bindingNames_; }
   void AddSpecificProc(const Symbol &, SourceName bindingName);
+  const SymbolVector &uses() const { return uses_; }
 
   // specific and derivedType indicate a specific procedure or derived type
   // with the same name as this generic. Only one of them may be set.
@@ -439,6 +443,7 @@ public:
   Symbol *derivedType() { return derivedType_; }
   const Symbol *derivedType() const { return derivedType_; }
   void set_derivedType(Symbol &derivedType);
+  void AddUse(const Symbol &);
 
   // Copy in specificProcs, specific, and derivedType from another generic
   void CopyFrom(const GenericDetails &);
@@ -448,22 +453,19 @@ public:
   const Symbol *CheckSpecific() const;
   Symbol *CheckSpecific();
 
-  const std::optional<UseDetails> &useDetails() const { return useDetails_; }
-  void set_useDetails(const UseDetails &details) { useDetails_ = details; }
-
 private:
   GenericKind kind_;
   // all of the specific procedures for this generic
   SymbolVector specificProcs_;
   std::vector<SourceName> bindingNames_;
+  // Symbols used from other modules merged into this one
+  SymbolVector uses_;
   // a specific procedure with the same name as this generic, if any
   Symbol *specific_{nullptr};
   // a derived type with the same name as this generic, if any
   Symbol *derivedType_{nullptr};
-  // If two USEs of generics were merged to form this one, this is the
-  // UseDetails for one of them. Used for reporting USE errors.
-  std::optional<UseDetails> useDetails_;
 };
+llvm::raw_ostream &operator<<(llvm::raw_ostream &, const GenericDetails &);
 
 class UnknownDetails {};
 
@@ -491,6 +493,7 @@ public:
       LocalityLocalInit, // named in LOCAL_INIT locality-spec
       LocalityShared, // named in SHARED locality-spec
       InDataStmt, // initialized in a DATA statement
+      InNamelist, // flag is set if the symbol is in Namelist statement
       // OpenACC data-sharing attribute
       AccPrivate, AccFirstPrivate, AccShared,
       // OpenACC data-mapping attribute
@@ -501,10 +504,12 @@ public:
       OmpShared, OmpPrivate, OmpLinear, OmpFirstPrivate, OmpLastPrivate,
       // OpenMP data-mapping attribute
       OmpMapTo, OmpMapFrom, OmpMapAlloc, OmpMapRelease, OmpMapDelete,
+      // OpenMP data-copying attribute
+      OmpCopyIn,
       // OpenMP miscellaneous flags
       OmpCommonBlock, OmpReduction, OmpAllocate, OmpDeclareSimd,
       OmpDeclareTarget, OmpThreadprivate, OmpDeclareReduction, OmpFlushed,
-      OmpCriticalLock, OmpIfSpecified, OmpNone, OmpPreDetermined);
+      OmpCriticalLock, OmpIfSpecified, OmpNone, OmpPreDetermined, OmpAligned);
   using Flags = common::EnumSet<Flag, Flag_enumSize>;
 
   const Scope &owner() const { return *owner_; }

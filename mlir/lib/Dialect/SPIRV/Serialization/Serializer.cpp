@@ -103,7 +103,7 @@ static Block *getPhiIncomingBlock(Block *block) {
           return incomingBlock;
       // Or the enclosing block itself if no structured control flow ops
       // exists before this loop.
-      return loopOp.getOperation()->getBlock();
+      return loopOp->getBlock();
     }
   }
 
@@ -751,12 +751,15 @@ LogicalResult Serializer::processDecoration(Location loc, uint32_t resultID,
              << attrName << " attribute " << strAttr.getValue();
     }
     return emitError(loc, "expected string attribute for ") << attrName;
+  case spirv::Decoration::Aliased:
   case spirv::Decoration::Flat:
+  case spirv::Decoration::NonReadable:
+  case spirv::Decoration::NonWritable:
   case spirv::Decoration::NoPerspective:
-    if (auto unitAttr = attr.second.dyn_cast<UnitAttr>()) {
-      // For unit attributes, the args list has no values so we do nothing
+  case spirv::Decoration::Restrict:
+    // For unit attributes, the args list has no values so we do nothing
+    if (auto unitAttr = attr.second.dyn_cast<UnitAttr>())
       break;
-    }
     return emitError(loc, "expected unit attribute for ") << attrName;
   default:
     return emitError(loc, "unhandled decoration ") << decorationName;
@@ -1033,7 +1036,7 @@ bool Serializer::isInterfaceStructPtrType(Type type) const {
 LogicalResult Serializer::processType(Location loc, Type type,
                                       uint32_t &typeID) {
   // Maintains a set of names for nested identified struct types. This is used
-  // to properly seialize resursive references.
+  // to properly serialize resursive references.
   llvm::SetVector<StringRef> serializationCtx;
   return processTypeImpl(loc, type, typeID, serializationCtx);
 }
@@ -1170,7 +1173,7 @@ LogicalResult Serializer::prepareBasicType(
                             spirv::Opcode::OpTypeForwardPointer,
                             forwardPtrOperands);
 
-      // 2. Find the the pointee (enclosing) struct.
+      // 2. Find the pointee (enclosing) struct.
       auto structType = spirv::StructType::getIdentified(
           module.getContext(), pointeeStruct.getIdentifier());
 
@@ -1745,7 +1748,7 @@ LogicalResult Serializer::processSelectionOp(spirv::SelectionOp selectionOp) {
     return failure();
 
   // There is nothing to do for the merge block in the selection, which just
-  // contains a spv._merge op, itself. But we need to have an OpLabel
+  // contains a spv.mlir.merge op, itself. But we need to have an OpLabel
   // instruction to start a new SPIR-V block for ops following this SelectionOp.
   // The block should use the <id> for the merge block.
   return encodeInstructionInto(functionBody, spirv::Opcode::OpLabel, {mergeID});
@@ -1805,7 +1808,7 @@ LogicalResult Serializer::processLoopOp(spirv::LoopOp loopOp) {
     return failure();
 
   // There is nothing to do for the merge block in the loop, which just contains
-  // a spv._merge op, itself. But we need to have an OpLabel instruction to
+  // a spv.mlir.merge op, itself. But we need to have an OpLabel instruction to
   // start a new SPIR-V block for ops following this LoopOp. The block should
   // use the <id> for the merge block.
   return encodeInstructionInto(functionBody, spirv::Opcode::OpLabel, {mergeID});
@@ -2062,7 +2065,7 @@ Serializer::processOp<spirv::CopyMemoryOp>(spirv::CopyMemoryOp op) {
   SmallVector<uint32_t, 4> operands;
   SmallVector<StringRef, 2> elidedAttrs;
 
-  for (Value operand : op.getOperation()->getOperands()) {
+  for (Value operand : op->getOperands()) {
     auto id = getValueID(operand);
     assert(id && "use before def!");
     operands.push_back(id);

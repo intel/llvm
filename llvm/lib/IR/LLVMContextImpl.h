@@ -346,6 +346,36 @@ template <> struct MDNodeKeyImpl<DISubrange> {
   }
 };
 
+template <> struct MDNodeKeyImpl<DIGenericSubrange> {
+  Metadata *CountNode;
+  Metadata *LowerBound;
+  Metadata *UpperBound;
+  Metadata *Stride;
+
+  MDNodeKeyImpl(Metadata *CountNode, Metadata *LowerBound, Metadata *UpperBound,
+                Metadata *Stride)
+      : CountNode(CountNode), LowerBound(LowerBound), UpperBound(UpperBound),
+        Stride(Stride) {}
+  MDNodeKeyImpl(const DIGenericSubrange *N)
+      : CountNode(N->getRawCountNode()), LowerBound(N->getRawLowerBound()),
+        UpperBound(N->getRawUpperBound()), Stride(N->getRawStride()) {}
+
+  bool isKeyOf(const DIGenericSubrange *RHS) const {
+    return (CountNode == RHS->getRawCountNode()) &&
+           (LowerBound == RHS->getRawLowerBound()) &&
+           (UpperBound == RHS->getRawUpperBound()) &&
+           (Stride == RHS->getRawStride());
+  }
+
+  unsigned getHashValue() const {
+    auto *MD = dyn_cast_or_null<ConstantAsMetadata>(CountNode);
+    if (CountNode && MD)
+      return hash_combine(cast<ConstantInt>(MD->getValue())->getSExtValue(),
+                          LowerBound, UpperBound, Stride);
+    return hash_combine(CountNode, LowerBound, UpperBound, Stride);
+  }
+};
+
 template <> struct MDNodeKeyImpl<DIEnumerator> {
   APInt Value;
   MDString *Name;
@@ -1224,33 +1254,48 @@ template <class NodeTy> struct MDNodeInfo {
 #define HANDLE_MDNODE_LEAF(CLASS) using CLASS##Info = MDNodeInfo<CLASS>;
 #include "llvm/IR/Metadata.def"
 
-/// Map-like storage for metadata attachments.
-class MDAttachmentMap {
-  SmallVector<std::pair<unsigned, TrackingMDNodeRef>, 2> Attachments;
+/// Multimap-like storage for metadata attachments.
+class MDAttachments {
+public:
+  struct Attachment {
+    unsigned MDKind;
+    TrackingMDNodeRef Node;
+  };
+
+private:
+  SmallVector<Attachment, 1> Attachments;
 
 public:
   bool empty() const { return Attachments.empty(); }
   size_t size() const { return Attachments.size(); }
 
-  /// Get a particular attachment (if any).
+  /// Returns the first attachment with the given ID or nullptr if no such
+  /// attachment exists.
   MDNode *lookup(unsigned ID) const;
+
+  /// Appends all attachments with the given ID to \c Result in insertion order.
+  /// If the global has no attachments with the given ID, or if ID is invalid,
+  /// leaves Result unchanged.
+  void get(unsigned ID, SmallVectorImpl<MDNode *> &Result) const;
+
+  /// Appends all attachments for the global to \c Result, sorting by attachment
+  /// ID. Attachments with the same ID appear in insertion order. This function
+  /// does \em not clear \c Result.
+  void getAll(SmallVectorImpl<std::pair<unsigned, MDNode *>> &Result) const;
 
   /// Set an attachment to a particular node.
   ///
-  /// Set the \c ID attachment to \c MD, replacing the current attachment at \c
+  /// Set the \c ID attachment to \c MD, replacing the current attachments at \c
   /// ID (if anyway).
-  void set(unsigned ID, MDNode &MD);
+  void set(unsigned ID, MDNode *MD);
 
-  /// Remove an attachment.
+  /// Adds an attachment to a particular node.
+  void insert(unsigned ID, MDNode &MD);
+
+  /// Remove attachments with the given ID.
   ///
-  /// Remove the attachment at \c ID, if any.
+  /// Remove the attachments at \c ID, if any.
   bool erase(unsigned ID);
-
-  /// Copy out all the attachments.
-  ///
-  /// Copies all the current attachments into \c Result, sorting by attachment
-  /// ID.  This function does \em not clear \c Result.
-  void getAll(SmallVectorImpl<std::pair<unsigned, MDNode *>> &Result) const;
 
   /// Erase matching attachments.
   ///
@@ -1259,37 +1304,6 @@ public:
     Attachments.erase(llvm::remove_if(Attachments, shouldRemove),
                       Attachments.end());
   }
-};
-
-/// Multimap-like storage for metadata attachments for globals. This differs
-/// from MDAttachmentMap in that it allows multiple attachments per metadata
-/// kind.
-class MDGlobalAttachmentMap {
-  struct Attachment {
-    unsigned MDKind;
-    TrackingMDNodeRef Node;
-  };
-  SmallVector<Attachment, 1> Attachments;
-
-public:
-  bool empty() const { return Attachments.empty(); }
-
-  /// Appends all attachments with the given ID to \c Result in insertion order.
-  /// If the global has no attachments with the given ID, or if ID is invalid,
-  /// leaves Result unchanged.
-  void get(unsigned ID, SmallVectorImpl<MDNode *> &Result) const;
-
-  /// Returns the first attachment with the given ID or nullptr if no such
-  /// attachment exists.
-  MDNode *lookup(unsigned ID) const;
-
-  void insert(unsigned ID, MDNode &MD);
-  bool erase(unsigned ID);
-
-  /// Appends all attachments for the global to \c Result, sorting by attachment
-  /// ID. Attachments with the same ID appear in insertion order. This function
-  /// does \em not clear \c Result.
-  void getAll(SmallVectorImpl<std::pair<unsigned, MDNode *>> &Result) const;
 };
 
 class LLVMContextImpl {
@@ -1309,7 +1323,26 @@ public:
   std::unique_ptr<DiagnosticHandler> DiagHandler;
   bool RespectDiagnosticFilters = false;
   bool DiagnosticsHotnessRequested = false;
-  uint64_t DiagnosticsHotnessThreshold = 0;
+  /// The minimum hotness value a diagnostic needs in order to be included in
+  /// optimization diagnostics.
+  ///
+  /// The threshold is an Optional value, which maps to one of the 3 states:
+  /// 1). 0            => threshold disabled. All emarks will be printed.
+  /// 2). positive int => manual threshold by user. Remarks with hotness exceed
+  ///                     threshold will be printed.
+  /// 3). None         => 'auto' threshold by user. The actual value is not
+  ///                     available at command line, but will be synced with
+  ///                     hotness threhold from profile summary during
+  ///                     compilation.
+  ///
+  /// State 1 and 2 are considered as terminal states. State transition is
+  /// only allowed from 3 to 2, when the threshold is first synced with profile
+  /// summary. This ensures that the threshold is set only once and stays
+  /// constant.
+  ///
+  /// If threshold option is not specified, it is disabled (0) by default.
+  Optional<uint64_t> DiagnosticsHotnessThreshold = 0;
+
   /// The specialized remark streamer used by LLVM's OptimizationRemarkEmitter.
   std::unique_ptr<LLVMRemarkStreamer> LLVMRS;
 
@@ -1362,10 +1395,15 @@ public:
 
   DenseMap<Type *, std::unique_ptr<UndefValue>> UVConstants;
 
-  StringMap<ConstantDataSequential*> CDSConstants;
+  DenseMap<Type *, std::unique_ptr<PoisonValue>> PVConstants;
+
+  StringMap<std::unique_ptr<ConstantDataSequential>> CDSConstants;
 
   DenseMap<std::pair<const Function *, const BasicBlock *>, BlockAddress *>
     BlockAddresses;
+
+  DenseMap<const GlobalValue *, DSOLocalEquivalent *> DSOLocalEquivalents;
+
   ConstantUniqueMap<ConstantExpr> ExprConstants;
 
   ConstantUniqueMap<InlineAsm> InlineAsms;
@@ -1407,11 +1445,8 @@ public:
   /// CustomMDKindNames - Map to hold the metadata string to ID mapping.
   StringMap<unsigned> CustomMDKindNames;
 
-  /// Collection of per-instruction metadata used in this context.
-  DenseMap<const Instruction *, MDAttachmentMap> InstructionMetadata;
-
-  /// Collection of per-GlobalObject metadata used in this context.
-  DenseMap<const GlobalObject *, MDGlobalAttachmentMap> GlobalObjectMetadata;
+  /// Collection of metadata used in this context.
+  DenseMap<const Value *, MDAttachments> ValueMetadata;
 
   /// Collection of per-GlobalObject sections used in this context.
   DenseMap<const GlobalObject *, StringRef> GlobalObjectSections;

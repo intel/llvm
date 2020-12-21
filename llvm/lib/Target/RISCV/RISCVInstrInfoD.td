@@ -361,6 +361,7 @@ let Predicates = [HasStdExtD, IsRV64] in {
 /// Float constants
 def : Pat<(f64 (fpimm0)), (FMV_D_X X0)>;
 
+// Moves (no conversion)
 def : Pat<(bitconvert GPR:$rs1), (FMV_D_X GPR:$rs1)>;
 def : Pat<(bitconvert FPR64:$rs1), (FMV_X_D FPR64:$rs1)>;
 
@@ -368,7 +369,7 @@ def : Pat<(bitconvert FPR64:$rs1), (FMV_X_D FPR64:$rs1)>;
 // because fpto[u|s]i produce poison if the value can't fit into the target.
 // We match the single case below because fcvt.wu.d sign-extends its result so
 // is cheaper than fcvt.lu.d+sext.w.
-def : Pat<(sext_inreg (zexti32 (fp_to_uint FPR64:$rs1)), i32),
+def : Pat<(sext_inreg (assertzexti32 (fp_to_uint FPR64:$rs1)), i32),
           (FCVT_WU_D $rs1, 0b001)>;
 
 // [u]int32->fp

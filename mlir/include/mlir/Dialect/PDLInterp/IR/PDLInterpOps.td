@@ -36,6 +36,16 @@ def PDLInterp_Dialect : Dialect {
   let name = "pdl_interp";
   let cppNamespace = "::mlir::pdl_interp";
   let dependentDialects = ["pdl::PDLDialect"];
+  let extraClassDeclaration = [{
+    /// Returns the name of the function containing the matcher code. This
+    /// function is called by the interpreter when matching an operation.
+    static StringRef getMatcherFunctionName() { return "matcher"; }
+
+    /// Returns the name of the module containing the rewrite functions. These
+    /// functions are invoked by distinct patterns within the matcher function
+    /// to rewrite the IR after a successful match.
+    static StringRef getRewriterModuleName() { return "rewriters"; }
+  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -98,7 +108,7 @@ def PDLInterp_ApplyConstraintOp : PDLInterp_PredicateOp<"apply_constraint"> {
     ```mlir
     // Apply `myConstraint` to the entities defined by `input`, `attr`, and
     // `op`.
-    pdl_interp.apply_constraint "myConstraint"[42, "abc", i32](%input, %attr, %op : !pdl.value, !pdl.attribute, !pdl.operation)
+    pdl_interp.apply_constraint "myConstraint"[42, "abc", i32](%input, %attr, %op : !pdl.value, !pdl.attribute, !pdl.operation) -> ^matchDest, ^failureDest
     ```
   }];
 
@@ -306,7 +316,7 @@ def PDLInterp_CheckTypeOp
     Example:
 
     ```mlir
-    pdl_interp.check_type %type is 0 -> ^matchDest, ^failureDest
+    pdl_interp.check_type %type is i32 -> ^matchDest, ^failureDest
     ```
   }];
 
@@ -328,7 +338,7 @@ def PDLInterp_CreateAttributeOp
     Example:
 
     ```mlir
-    pdl_interp.create_attribute 10 : i64
+    %attr = pdl_interp.create_attribute 10 : i64
     ```
   }];
 
@@ -337,9 +347,9 @@ def PDLInterp_CreateAttributeOp
   let assemblyFormat = "$value attr-dict";
 
   let builders = [
-    OpBuilder<"Attribute value", [{
-    build($_builder, $_state, $_builder.getType<pdl::AttributeType>(), value);
-  }]>];
+    OpBuilderDAG<(ins "Attribute":$value), [{
+      build($_builder, $_state, $_builder.getType<pdl::AttributeType>(), value);
+    }]>];
 }
 
 //===----------------------------------------------------------------------===//
@@ -359,7 +369,7 @@ def PDLInterp_CreateNativeOp : PDLInterp_Op<"create_native"> {
     Example:
 
     ```mlir
-    %ret = pdl_interp.create_native "myNativeFunc"[42, "gt"](%arg0, %arg1) : !pdl.attribute
+    %ret = pdl_interp.create_native "myNativeFunc"[42, "gt"](%arg0, %arg1 : !pdl.value, !pdl.value) : !pdl.attribute
     ```
   }];
 
@@ -401,11 +411,12 @@ def PDLInterp_CreateOperationOp
   let results = (outs PDL_Operation:$operation);
 
   let builders = [
-    OpBuilder<"StringRef name, ValueRange types, ValueRange operands, "
-              "ValueRange attributes, ArrayAttr attributeNames", [{
-    build($_builder, $_state, $_builder.getType<pdl::OperationType>(), name,
-          operands, attributes, attributeNames, types);
-  }]>];
+    OpBuilderDAG<(ins "StringRef":$name, "ValueRange":$types,
+      "ValueRange":$operands, "ValueRange":$attributes,
+      "ArrayAttr":$attributeNames), [{
+      build($_builder, $_state, $_builder.getType<pdl::OperationType>(), name,
+            operands, attributes, attributeNames, types);
+    }]>];
   let parser = [{ return ::parseCreateOperationOp(parser, result); }];
   let printer = [{ ::print(p, *this); }];
 }
@@ -432,7 +443,7 @@ def PDLInterp_CreateTypeOp : PDLInterp_Op<"create_type", [NoSideEffect]> {
   let assemblyFormat = "$value attr-dict";
 
   let builders = [
-    OpBuilder<"TypeAttr type", [{
+    OpBuilderDAG<(ins "TypeAttr":$type), [{
       build($_builder, $_state, $_builder.getType<pdl::TypeType>(), type);
     }]>
   ];
@@ -527,7 +538,7 @@ def PDLInterp_GetAttributeTypeOp
   let assemblyFormat = "`of` $value attr-dict";
 
   let builders = [
-    OpBuilder<"Value value", [{
+    OpBuilderDAG<(ins "Value":$value), [{
       build($_builder, $_state, $_builder.getType<pdl::TypeType>(), value);
     }]>
   ];
@@ -628,7 +639,7 @@ def PDLInterp_GetValueTypeOp : PDLInterp_Op<"get_value_type", [NoSideEffect]> {
   let assemblyFormat = "`of` $value attr-dict";
 
   let builders = [
-    OpBuilder<"Value value", [{
+    OpBuilderDAG<(ins "Value":$value), [{
       build($_builder, $_state, $_builder.getType<pdl::TypeType>(), value);
     }]>
   ];
@@ -655,7 +666,7 @@ def PDLInterp_InferredTypeOp : PDLInterp_Op<"inferred_type"> {
   let assemblyFormat = "attr-dict";
 
   let builders = [
-    OpBuilder<"", [{
+    OpBuilderDAG<(ins), [{
       build($_builder, $_state, $_builder.getType<pdl::TypeType>());
     }]>,
   ];
@@ -761,7 +772,7 @@ def PDLInterp_SwitchAttributeOp
     Example:
 
     ```mlir
-    pdl_interp.switch_attribute %attr to [10, true] -> ^10Dest, ^trueDest, ^defaultDest
+    pdl_interp.switch_attribute %attr to [10, true](^10Dest, ^trueDest) -> ^defaultDest
     ```
   }];
   let arguments = (ins PDL_Attribute:$attribute, ArrayAttr:$caseValues);
@@ -770,8 +781,8 @@ def PDLInterp_SwitchAttributeOp
   }];
 
   let builders = [
-    OpBuilder<"Value attribute, ArrayRef<Attribute> caseValues,"
-              "Block *defaultDest, BlockRange dests", [{
+    OpBuilderDAG<(ins "Value":$attribute, "ArrayRef<Attribute>":$caseValues,
+      "Block *":$defaultDest, "BlockRange":$dests), [{
     build($_builder, $_state, attribute, $_builder.getArrayAttr(caseValues),
           defaultDest, dests);
   }]>];
@@ -803,8 +814,8 @@ def PDLInterp_SwitchOperandCountOp
   }];
 
   let builders = [
-    OpBuilder<"Value operation, ArrayRef<int32_t> counts, "
-              "Block *defaultDest, BlockRange dests", [{
+    OpBuilderDAG<(ins "Value":$operation, "ArrayRef<int32_t>":$counts,
+      "Block *":$defaultDest, "BlockRange":$dests), [{
     build($_builder, $_state, operation, $_builder.getI32VectorAttr(counts),
           defaultDest, dests);
   }]>];
@@ -826,7 +837,7 @@ def PDLInterp_SwitchOperationNameOp
     Example:
 
     ```mlir
-    pdl_interp.switch_operation_name of %op to ["foo.op", "bar.op"] -> ^fooDest, ^barDest, ^defaultDest
+    pdl_interp.switch_operation_name of %op to ["foo.op", "bar.op"](^fooDest, ^barDest) -> ^defaultDest
     ```
   }];
 
@@ -837,8 +848,8 @@ def PDLInterp_SwitchOperationNameOp
   }];
 
   let builders = [
-    OpBuilder<"Value operation, ArrayRef<OperationName> names, "
-              "Block *defaultDest, BlockRange dests", [{
+    OpBuilderDAG<(ins "Value":$operation, "ArrayRef<OperationName>":$names,
+      "Block *":$defaultDest, "BlockRange":$dests), [{
       auto stringNames = llvm::to_vector<8>(llvm::map_range(names,
           [](OperationName name) { return name.getStringRef(); }));
       build($_builder, $_state, operation, $_builder.getStrArrayAttr(stringNames),
@@ -863,7 +874,7 @@ def PDLInterp_SwitchResultCountOp
     Example:
 
     ```mlir
-    pdl_interp.switch_result_count of %op to [0, 2] -> ^0Dest, ^2Dest, ^defaultDest
+    pdl_interp.switch_result_count of %op to [0, 2](^0Dest, ^2Dest) -> ^defaultDest
     ```
   }];
 
@@ -873,8 +884,8 @@ def PDLInterp_SwitchResultCountOp
   }];
 
   let builders = [
-    OpBuilder<"Value operation, ArrayRef<int32_t> counts, Block *defaultDest, "
-              "BlockRange dests", [{
+    OpBuilderDAG<(ins "Value":$operation, "ArrayRef<int32_t>":$counts,
+      "Block *":$defaultDest, "BlockRange":$dests), [{
     build($_builder, $_state, operation, $_builder.getI32VectorAttr(counts),
           defaultDest, dests);
   }]>];
@@ -905,8 +916,8 @@ def PDLInterp_SwitchTypeOp : PDLInterp_SwitchOp<"switch_type", [NoSideEffect]> {
   }];
 
   let builders = [
-    OpBuilder<"Value edge, TypeRange types, Block *defaultDest, "
-              "BlockRange dests", [{
+    OpBuilderDAG<(ins "Value":$edge, "TypeRange":$types, "Block *":$defaultDest,
+      "BlockRange":$dests), [{
       build($_builder, $_state, edge, $_builder.getTypeArrayAttr(types),
             defaultDest, dests);
     }]>,

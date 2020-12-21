@@ -73,6 +73,12 @@ namespace llvm {
     None    // Do not use Basic Block Sections.
   };
 
+  enum class StackProtectorGuards {
+    None,
+    TLS,
+    Global
+  };
+
   enum class EABI {
     Unknown,
     Default, // Default means not specified
@@ -118,6 +124,7 @@ namespace llvm {
     TargetOptions()
         : UnsafeFPMath(false), NoInfsFPMath(false), NoNaNsFPMath(false),
           NoTrappingFPMath(true), NoSignedZerosFPMath(false),
+          EnableAIXExtendedAltivecABI(false),
           HonorSignDependentRoundingFPMathOption(false), NoZerosInBSS(false),
           GuaranteedTailCallOpt(false), StackSymbolOrdering(true),
           EnableFastISel(false), EnableGlobalISel(false), UseInitArray(false),
@@ -131,8 +138,8 @@ namespace llvm {
           EnableMachineFunctionSplitter(false), SupportsDefaultOutlining(false),
           EmitAddrsig(false), EmitCallSiteInfo(false),
           SupportsDebugEntryValues(false), EnableDebugEntryValues(false),
-          ValueTrackingVariableLocations(false), ForceDwarfFrameSection(false),
-          XRayOmitFunctionIndex(false),
+          PseudoProbeForProfiling(false), ValueTrackingVariableLocations(false),
+          ForceDwarfFrameSection(false), XRayOmitFunctionIndex(false),
           FPDenormalMode(DenormalMode::IEEE, DenormalMode::IEEE) {}
 
     /// DisableFramePointerElim - This returns true if frame pointer elimination
@@ -168,6 +175,12 @@ namespace llvm {
     /// specifies that optimizations are allowed to treat the sign of a zero
     /// argument or result as insignificant.
     unsigned NoSignedZerosFPMath : 1;
+
+    /// EnableAIXExtendedAltivecABI - This flag returns true when -vec-extabi is
+    /// specified. The code generator is then able to use both volatile and
+    /// nonvolitle vector regisers. When false, the code generator only uses
+    /// volatile vector registers which is the default setting on AIX.
+    unsigned EnableAIXExtendedAltivecABI : 1;
 
     /// HonorSignDependentRoundingFPMath - This returns true when the
     /// -enable-sign-dependent-rounding-fp-math is specified.  If this returns
@@ -296,6 +309,9 @@ namespace llvm {
     /// production.
     bool ShouldEmitDebugEntryValues() const;
 
+    /// Emit pseudo probes into the binary for sample profiling
+    unsigned PseudoProbeForProfiling : 1;
+
     // When set to true, use experimental new debug variable location tracking,
     // which seeks to follow the values of variables rather than their location,
     // post isel.
@@ -306,6 +322,16 @@ namespace llvm {
 
     /// Emit XRay Function Index section
     unsigned XRayOmitFunctionIndex : 1;
+
+    /// Stack protector guard offset to use.
+    unsigned StackProtectorGuardOffset : 32;
+
+    /// Stack protector guard mode to use, e.g. tls, global.
+    StackProtectorGuards StackProtectorGuard =
+                                         StackProtectorGuards::None;
+
+    /// Stack protector guard reg to use, e.g. usually fs or gs in X86.
+    std::string StackProtectorGuardReg = "None";
 
     /// FloatABIType - This setting is set by -float-abi=xxx option is specfied
     /// on the command line. This setting may either be Default, Soft, or Hard.

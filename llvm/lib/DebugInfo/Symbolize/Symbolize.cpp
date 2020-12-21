@@ -68,8 +68,7 @@ LLVMSymbolizer::symbolizeCode(const ObjectFile &Obj,
   if (I != Modules.end())
     return symbolizeCodeCommon(I->second.get(), ModuleOffset);
 
-  std::unique_ptr<DIContext> Context =
-      DWARFContext::create(Obj, nullptr, "", Opts.RecoverableErrorHandler);
+  std::unique_ptr<DIContext> Context = DWARFContext::create(Obj);
   Expected<SymbolizableModule *> InfoOrErr =
                      createModuleInfo(&Obj, std::move(Context), ModuleName);
   if (!InfoOrErr)
@@ -558,11 +557,8 @@ LLVMSymbolizer::getOrCreateModuleInfo(const std::string &ModuleName) {
       using namespace pdb;
       std::unique_ptr<IPDBSession> Session;
 
-      PDB_ReaderType ReaderType = PDB_ReaderType::Native;
-#if LLVM_ENABLE_DIA_SDK
-      if (!Opts.UseNativePDBReader)
-        ReaderType = PDB_ReaderType::DIA;
-#endif
+      PDB_ReaderType ReaderType =
+          Opts.UseDIA ? PDB_ReaderType::DIA : PDB_ReaderType::Native;
       if (auto Err = loadDataForEXE(ReaderType, Objects.first->getFileName(),
                                     Session)) {
         Modules.emplace(ModuleName, std::unique_ptr<SymbolizableModule>());
@@ -573,8 +569,7 @@ LLVMSymbolizer::getOrCreateModuleInfo(const std::string &ModuleName) {
     }
   }
   if (!Context)
-    Context = DWARFContext::create(*Objects.second, nullptr, Opts.DWPName,
-                                   Opts.RecoverableErrorHandler);
+    Context = DWARFContext::create(*Objects.second, nullptr, Opts.DWPName);
   return createModuleInfo(Objects.first, std::move(Context), ModuleName);
 }
 

@@ -38,14 +38,15 @@ class StrFunc<string r> {
   string result = r;
 }
 
+// TODO: Use !interleave() directly rather than through StrJoin/StrJoinInt.
+
 // Concatenates a list of strings with a separator (default ", ")
 class StrJoin<list<string> strings, string sep = ", "> :
-    StrFunc<!if(!empty(strings), "",
-         !foldl(!head(strings), !tail(strings), prev, cur, prev # sep # cur))>;
+    StrFunc<!interleave(strings, sep)>;
 
 // Concatenates a list of integers into a string with a separator (default ", ")
 class StrJoinInt<list<int> integers, string sep = ", "> :
-    StrJoin<!foreach(i, integers, !cast<string>(i)), sep>;
+    StrFunc<!interleave(integers, sep)>;
 
 //===----------------------------------------------------------------------===//
 // Predicate definitions
@@ -913,7 +914,7 @@ class SignlessIntegerAttrBase<I attrValType, string descr> :
   let returnType = [{ ::llvm::APInt }];
 }
 // Base class for signless integer attributes of fixed width that have a
-// correpsonding C++ type.
+// corresponding C++ type.
 class TypedSignlessIntegerAttrBase<I attrValType, string retType, string descr>
     : SignlessIntegerAttrBase<attrValType, descr> {
   let returnType = retType;
@@ -942,7 +943,7 @@ class SignedIntegerAttrBase<SI attrValType, string descr> :
   let returnType = [{ ::llvm::APInt }];
 }
 // Base class for signed integer attributes of fixed width that have a
-// correpsonding C++ type.
+// corresponding C++ type.
 class TypedSignedIntegerAttrBase<SI attrValType, string retType, string descr>
     : SignedIntegerAttrBase<attrValType, descr> {
   let returnType = retType;
@@ -971,7 +972,7 @@ class UnsignedIntegerAttrBase<UI attrValType, string descr> :
   let returnType = [{ ::llvm::APInt }];
 }
 // Base class for unsigned integer attributes of fixed width that have a
-// correpsonding C++ type.
+// corresponding C++ type.
 class TypedUnsignedIntegerAttrBase<UI attrValType, string retType, string descr>
     : UnsignedIntegerAttrBase<attrValType, descr> {
   let returnType = retType;
@@ -1585,8 +1586,7 @@ class Confined<Attr attr, list<AttrConstraint> constraints> : Attr<
 class AllAttrConstraintsOf<list<AttrConstraint> constraints> : AttrConstraint<
     And<!listconcat([!head(constraints).predicate],
                       !foreach(pred, !tail(constraints), pred.predicate))>,
-    !foldl(/*init*/!head(constraints).description, /*list*/!tail(constraints),
-           prev, cur, prev # " and " # cur.description)> {
+    !interleave(!foreach(con, constraints, con.description), " and ")> {
 }
 
 class IntMinValue<int n> : AttrConstraint<
@@ -1750,6 +1750,9 @@ def Terminator : NativeOpTrait<"IsTerminator">;
 // Op can be safely normalized in the presence of MemRefs with
 // non-identity maps.
 def MemRefsNormalizable : NativeOpTrait<"MemRefsNormalizable">;
+// Op can be systematically interconverted between scalar and vector/tensor
+// form by mapping elementwise based on the type.
+def ElementwiseMappable : NativeOpTrait<"ElementwiseMappable">;
 
 // Op's regions have a single block with the specified terminator.
 class SingleBlockImplicitTerminator<string op>
@@ -1803,6 +1806,13 @@ def NoRegionArguments : NativeOpTrait<"NoRegionArguments">;
 
 // Marker used to identify the argument list for an op or interface method.
 def ins;
+
+// This class represents a typed argument with optional default value for C
+// function signatures, e.g. builders or methods.
+class CArg<string ty, string value = ""> {
+  string type = ty;
+  string defaultValue = value;
+}
 
 // OpInterfaceTrait corresponds to a specific 'OpInterface' class defined in
 // C++. The purpose to wrap around C++ symbol string with this class is to make
@@ -1923,6 +1933,15 @@ def region;
 // Marker used to identify the successor list for an op.
 def successor;
 
+// Base class for custom builders. This is a transient class that will go away
+// when the transition to the DAG form of builder declaration is complete.
+// Should not be used directly.
+class OpBuilderBase<dag dp, code b> {
+  string params = ?;
+  dag dagParams = dp;
+  code body = b;
+}
+
 // Class for defining a custom builder.
 //
 // TableGen generates several generic builders for each op by default (see
@@ -1932,22 +1951,40 @@ def successor;
 // The signature of the builder is always
 //
 // ```c++
-// static void build(OpBuilder &builder, OperationState &state,
+// static void build(::mlir::OpBuilder &builder, ::mlir::OperationState &state,
 //                   <other-parameters>...) {
 //   <body>...
 // }
 // ```
 //
-// To define a custom builder, the parameter list (*excluding* the `Builder
-// *builder, OperationState &state` part) and body should be passed in
-// as separate template arguments to this class. This is because we generate
-// op declaration and definition into separate files. If an empty string is
-// passed in for `body`, then *only* the builder declaration will be
-// generated; this provides a way to define complicated builders entirely
-// in C++.
-class OpBuilder<string p, code b = ""> {
-  string params = p;
-  code body = b;
+// To define a custom builder, the parameter list (*excluding* the
+// `OpBuilder &builder, OperationState &state` part) and body should be passed
+// in as separate template arguments to this class. The parameter list is a
+// TableGen DAG with `ins` operation with named arguments, which has either:
+//   - string initializers ("Type":$name) to represent a typed parameter, or
+//   - CArg-typed initializers (CArg<"Type", "default">:$name) to represent a
+//     typed parameter that may have a default value.
+// The type string is used verbatim to produce code and, therefore, must be a
+// valid C++ type. It is used inside the C++ namespace of the parent Op's
+// dialect; explicit namespace qualification like `::mlir` may be necessary if
+// Ops are not placed inside the `mlir` namespace. The default value string is
+// used verbatim to produce code and must be a valid C++ initializer the given
+// type. For example, the following signature specification
+//
+// ```
+// OpBuilderDAG<(ins "int":$integerArg, CArg<"float", "3.0f">:$floatArg)>
+// ```
+//
+// has an integer parameter and a float parameter with a default value.
+//
+// If an empty string is passed in for `body`, then *only* the builder
+// declaration will be generated; this provides a way to define complicated
+// builders entirely in C++.
+class OpBuilderDAG<dag p, code b = ""> : OpBuilderBase<p, b>;
+
+// Deprecated version of OpBuilder that takes the builder signature as string.
+class OpBuilder<string p, code b = ""> : OpBuilderBase<(ins), b> {
+  let params = p;
 }
 
 // A base decorator class that may optionally be added to OpVariables.
@@ -2025,7 +2062,7 @@ class Op<Dialect dialect, string mnemonic, list<OpTrait> props = []> {
   //                   ValueRange operands,
   //                   ArrayRef<NamedAttribute> attributes);
   // ```
-  list<OpBuilder> builders = ?;
+  list<OpBuilderBase> builders = ?;
 
   // Avoid generating default build functions.  Custom builders must be
   // provided.
@@ -2258,8 +2295,11 @@ def addBenefit;
 //
 // In the source pattern, `argN` can be used to specify matchers (e.g., using
 // type/attribute type constraints, etc.) and bound to a name for later use.
-// We can also bound names to op instances to reference them later in
-// multi-entity constraints.
+// We can also bind names to op instances to reference them later in
+// multi-entity constraints. Operands in the source pattern can have
+// the same name. This bounds one operand to the name while verifying
+// the rest are all equal.
+//
 //
 // In the result pattern, `argN` can be used to refer to a previously bound
 // name, with potential transformations (e.g., using tAttr, etc.). `argN` can
@@ -2269,16 +2309,18 @@ def addBenefit;
 // For example,
 //
 // ```
-// def : Pattern<(OneResultOp1:$op1 $arg0, $arg1),
+// def : Pattern<(OneResultOp1:$op1 $arg0, $arg1, $arg0),
 //               [(OneResultOp2:$op2 $arg0, $arg1),
 //                (OneResultOp3 $op2 (OneResultOp4))],
 //               [(HasStaticShapePred $op1)]>;
 // ```
 //
-// `$argN` is bound to the `OneResultOp1`'s N-th argument and used later to
-// build `OneResultOp2`. `$op1` is bound to `OneResultOp1` and used to
-// check whether the result's shape is static. `$op2` is bound to
-// `OneResultOp2` and used to build `OneResultOp3`.
+// First `$arg0` and '$arg1' are bound to the `OneResultOp1`'s first
+// and second arguments and used later to build `OneResultOp2`. Second '$arg0'
+// is verified to be equal to the first '$arg0' operand.
+// `$op1` is bound to `OneResultOp1` and used to check whether the result's
+// shape is static. `$op2` is bound to `OneResultOp2` and used to
+// build `OneResultOp3`.
 //
 // ## Multi-result op
 //

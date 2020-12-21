@@ -11,6 +11,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/plugin_printers.hpp>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting traces using the trace framework
@@ -81,6 +82,8 @@ public:
     if (pi::trace(pi::TraceLevel::PI_TRACE_CALLS)) {
       std::cout << ") ---> ";
       RT::printArgs(R);
+      RT::printOuts(Args...);
+      std::cout << std::endl;
     }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     // Close the function begin with a call to function end

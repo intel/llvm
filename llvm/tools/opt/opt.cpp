@@ -38,6 +38,7 @@
 #include "llvm/LinkAllIR.h"
 #include "llvm/LinkAllPasses.h"
 #include "llvm/MC/SubtargetFeature.h"
+#include "llvm/Remarks/HotnessThresholdParser.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Host.h"
@@ -209,16 +210,6 @@ static cl::opt<bool> EnableDebugify(
     cl::desc(
         "Start the pipeline with debugify and end it with check-debugify"));
 
-static cl::opt<bool> DebugifyEach(
-    "debugify-each",
-    cl::desc(
-        "Start each pass with debugify and end it with check-debugify"));
-
-static cl::opt<std::string>
-    DebugifyExport("debugify-export",
-                   cl::desc("Export per-pass debugify statistics to this file"),
-                   cl::value_desc("filename"), cl::init(""));
-
 static cl::opt<bool>
 PrintBreakpoints("print-breakpoints-for-testing",
                  cl::desc("Print select breakpoints location for testing"));
@@ -272,11 +263,13 @@ static cl::opt<bool> RemarksWithHotness(
     cl::desc("With PGO, include profile count in optimization remarks"),
     cl::Hidden);
 
-static cl::opt<unsigned>
-    RemarksHotnessThreshold("pass-remarks-hotness-threshold",
-                            cl::desc("Minimum profile count required for "
-                                     "an optimization remark to be output"),
-                            cl::Hidden);
+static cl::opt<Optional<uint64_t>, false, remarks::HotnessThresholdParser>
+    RemarksHotnessThreshold(
+        "pass-remarks-hotness-threshold",
+        cl::desc("Minimum profile count required for "
+                 "an optimization remark to be output. "
+                 "Use 'auto' to apply the threshold from profile summary."),
+        cl::value_desc("N or 'auto'"), cl::init(0), cl::Hidden);
 
 static cl::opt<std::string>
     RemarksFilename("pass-remarks-output",
@@ -445,28 +438,6 @@ static TargetMachine* GetTargetMachine(Triple TheTriple, StringRef CPUStr,
 #ifdef BUILD_EXAMPLES
 void initializeExampleIRTransforms(llvm::PassRegistry &Registry);
 #endif
-
-static void exportDebugifyStats(llvm::StringRef Path,
-                                const DebugifyStatsMap &Map) {
-  std::error_code EC;
-  raw_fd_ostream OS{Path, EC};
-  if (EC) {
-    errs() << "Could not open file: " << EC.message() << ", " << Path << '\n';
-    return;
-  }
-
-  OS << "Pass Name" << ',' << "# of missing debug values" << ','
-     << "# of missing locations" << ',' << "Missing/Expected value ratio" << ','
-     << "Missing/Expected location ratio" << '\n';
-  for (const auto &Entry : Map) {
-    StringRef Pass = Entry.first;
-    DebugifyStatistics Stats = Entry.second;
-
-    OS << Pass << ',' << Stats.NumDbgValuesMissing << ','
-       << Stats.NumDbgLocsMissing << ',' << Stats.getMissingValueRatio() << ','
-       << Stats.getEmptyLocationRatio() << '\n';
-  }
-}
 
 struct TimeTracerRAII {
   TimeTracerRAII(StringRef ProgramName) {
@@ -757,9 +728,13 @@ int main(int argc, char **argv) {
   // but `-enable-new-pm -codegenprepare` will still revert to legacy PM.
   if ((EnableNewPassManager && !CodegenPassSpecifiedInPassList()) ||
       PassPipeline.getNumOccurrences() > 0) {
+    if (AnalyzeOnly) {
+      errs() << "Cannot specify -analyze under new pass manager\n";
+      return 1;
+    }
     if (PassPipeline.getNumOccurrences() > 0 && PassList.size() > 0) {
       errs()
-          << "Cannot specify passes via both -foo-pass and --passes=foo-pass";
+          << "Cannot specify passes via both -foo-pass and --passes=foo-pass\n";
       return 1;
     }
     SmallVector<StringRef, 4> Passes;

@@ -106,7 +106,7 @@ static constexpr char PFWI_MD[] = "parallel_for_work_item";
 static cl::opt<int> Debug("sycl-lower-wg-debug", llvm::cl::Optional,
                           llvm::cl::Hidden,
                           llvm::cl::desc("Debug SYCL work group code lowering"),
-                          llvm::cl::init(10));
+                          llvm::cl::init(1));
 
 namespace {
 class SYCLLowerWGScopeLegacyPass : public FunctionPass {
@@ -375,6 +375,7 @@ using LocalsSet = SmallPtrSet<AllocaInst *, 4>;
 
 static void copyBetweenPrivateAndShadow(Value *L, GlobalVariable *Shadow,
                                         IRBuilder<> &Builder, bool Loc2Shadow) {
+  assert(isa<PointerType>(L->getType()));
   Type *T = nullptr;
   MaybeAlign LocAlign(0);
 
@@ -382,17 +383,20 @@ static void copyBetweenPrivateAndShadow(Value *L, GlobalVariable *Shadow,
     T = AI->getAllocatedType();
     LocAlign = MaybeAlign(AI->getAlignment());
   } else {
-    if (cast<Argument>(L)->hasByValAttr()) {
-      T = cast<Argument>(L)->getParamByValType();
-      LocAlign = MaybeAlign(cast<Argument>(L)->getParamAlignment());
+    auto Arg = cast<Argument>(L);
+    if (Arg->hasByValAttr()) {
+      T = Arg->getParamByValType();
+      LocAlign = MaybeAlign(Arg->getParamAlignment());
     } else {
-      Type *Ty = cast<Argument>(L)->getType();
+      Type *Ty = Arg->getType();
       Module &M = *Shadow->getParent();
       LocAlign = M.getDataLayout().getValueOrABITypeAlignment(
-          MaybeAlign(cast<Argument>(L)->getParamAlignment()), Ty);
-      T = cast<Argument>(L)->getType()->getPointerElementType();
+          MaybeAlign(Arg->getParamAlignment()), Ty);
+      T = Arg->getType()->getPointerElementType();
     }
   }
+
+  assert(T && "Unexpected type");
 
   if (T->isAggregateType()) {
     // TODO: we should use methods which directly return MaybeAlign once such

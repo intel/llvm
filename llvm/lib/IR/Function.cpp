@@ -43,6 +43,7 @@
 #include "llvm/IR/IntrinsicsR600.h"
 #include "llvm/IR/IntrinsicsRISCV.h"
 #include "llvm/IR/IntrinsicsS390.h"
+#include "llvm/IR/IntrinsicsVE.h"
 #include "llvm/IR/IntrinsicsWebAssembly.h"
 #include "llvm/IR/IntrinsicsX86.h"
 #include "llvm/IR/IntrinsicsXCore.h"
@@ -609,6 +610,12 @@ void Function::clearGC() {
   setValueSubclassDataBit(14, false);
 }
 
+bool Function::hasStackProtectorFnAttr() const {
+  return hasFnAttribute(Attribute::StackProtect) ||
+         hasFnAttribute(Attribute::StackProtectStrong) ||
+         hasFnAttribute(Attribute::StackProtectReq);
+}
+
 /// Copy all additional attributes (those not needed to create a Function) from
 /// the Function Src to this one.
 void Function::copyAttributesFrom(const Function *Src) {
@@ -640,8 +647,12 @@ static const char * const IntrinsicNameTable[] = {
 #include "llvm/IR/IntrinsicImpl.inc"
 #undef GET_INTRINSIC_TARGET_DATA
 
+bool Function::isTargetIntrinsic(Intrinsic::ID IID) {
+  return IID > TargetInfos[0].Count;
+}
+
 bool Function::isTargetIntrinsic() const {
-  return IntID > TargetInfos[0].Count;
+  return isTargetIntrinsic(IntID);
 }
 
 /// Find the segment of \c IntrinsicNameTable for intrinsics with the same
@@ -770,6 +781,8 @@ StringRef Intrinsic::getName(ID id) {
 
 std::string Intrinsic::getName(ID id, ArrayRef<Type*> Tys) {
   assert(id < num_intrinsics && "Invalid intrinsic ID!");
+  assert((Tys.empty() || Intrinsic::isOverloaded(id)) &&
+         "This version of getName is for overloaded intrinsics only");
   std::string Result(IntrinsicNameTable[id]);
   for (Type *Ty : Tys) {
     Result += "." + getMangledTypeStr(Ty);
@@ -1232,7 +1245,7 @@ Function *Intrinsic::getDeclaration(Module *M, ID id, ArrayRef<Type*> Tys) {
   // There can never be multiple globals with the same name of different types,
   // because intrinsics must be a specific type.
   return cast<Function>(
-      M->getOrInsertFunction(getName(id, Tys),
+      M->getOrInsertFunction(Tys.empty() ? getName(id) : getName(id, Tys),
                              getType(M->getContext(), id, Tys))
           .getCallee());
 }

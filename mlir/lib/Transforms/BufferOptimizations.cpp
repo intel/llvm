@@ -6,18 +6,93 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements logic for two optimization passes. These passes try to
-// hoist alloc nodes to reduce the number of allocations and copies during
-// buffer deallocation.
+// This file implements logic for three optimization passes. The first two
+// passes try to move alloc nodes out of blocks to reduce the number of
+// allocations and copies during buffer deallocation. The third pass tries to
+// convert heap-based allocations to stack-based allocations, if possible.
 
 #include "PassDetail.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Transforms/Bufferize.h"
+#include "mlir/Transforms/BufferUtils.h"
 #include "mlir/Transforms/Passes.h"
 
 using namespace mlir;
+
+/// Returns true if the given operation implements a known high-level region-
+/// based control-flow interface.
+static bool isKnownControlFlowInterface(Operation *op) {
+  return isa<LoopLikeOpInterface, RegionBranchOpInterface>(op);
+}
+
+/// Check if the size of the allocation is less than the given size. The
+/// transformation is only applied to small buffers since large buffers could
+/// exceed the stack space.
+static bool isSmallAlloc(Value alloc, unsigned maximumSizeInBytes,
+                         unsigned bitwidthOfIndexType,
+                         unsigned maxRankOfAllocatedMemRef) {
+  auto type = alloc.getType().dyn_cast<ShapedType>();
+  if (!type || !alloc.getDefiningOp<AllocOp>())
+    return false;
+  if (!type.hasStaticShape()) {
+    // Check if the dynamic shape dimension of the alloc is produced by RankOp.
+    // If this is the case, it is likely to be small. Furthermore, the dimension
+    // is limited to the maximum rank of the allocated memref to avoid large
+    // values by multiplying several small values.
+    if (type.getRank() <= maxRankOfAllocatedMemRef) {
+      return llvm::all_of(
+          alloc.getDefiningOp()->getOperands(),
+          [&](Value operand) { return operand.getDefiningOp<RankOp>(); });
+    }
+    return false;
+  }
+  // For index types, use the provided size, as the type does not know.
+  unsigned int bitwidth = type.getElementType().isIndex()
+                              ? bitwidthOfIndexType
+                              : type.getElementTypeBitWidth();
+  return type.getNumElements() * bitwidth <= maximumSizeInBytes * 8;
+}
+
+/// Checks whether the given aliases leave the allocation scope.
+static bool
+leavesAllocationScope(Region *parentRegion,
+                      const BufferAliasAnalysis::ValueSetT &aliases) {
+  for (Value alias : aliases) {
+    for (auto *use : alias.getUsers()) {
+      // If there is at least one alias that leaves the parent region, we know
+      // that this alias escapes the whole region and hence the associated
+      // allocation leaves allocation scope.
+      if (use->hasTrait<OpTrait::ReturnLike>() &&
+          use->getParentRegion() == parentRegion)
+        return true;
+    }
+  }
+  return false;
+}
+
+/// Checks, if an automated allocation scope for a given alloc value exists.
+static bool hasAllocationScope(Value alloc,
+                               const BufferAliasAnalysis &aliasAnalysis) {
+  Region *region = alloc.getParentRegion();
+  do {
+    if (Operation *parentOp = region->getParentOp()) {
+      // Check if the operation is an automatic allocation scope and whether an
+      // alias leaves the scope. This means, an allocation yields out of
+      // this scope and can not be transformed in a stack-based allocation.
+      if (parentOp->hasTrait<OpTrait::AutomaticAllocationScope>() &&
+          !leavesAllocationScope(region, aliasAnalysis.resolve(alloc)))
+        return true;
+      // Check if the operation is a known control flow interface and break the
+      // loop to avoid transformation in loops. Furthermore skip transformation
+      // if the operation does not implement a RegionBeanchOpInterface.
+      if (BufferPlacementTransformationBase::isLoop(parentOp) ||
+          !isKnownControlFlowInterface(parentOp))
+        break;
+    }
+  } while ((region = region->getParentRegion()));
+  return false;
+}
 
 namespace {
 
@@ -46,13 +121,6 @@ struct BufferAllocationHoistingStateBase {
 /// Implements the actual hoisting logic for allocation nodes.
 template <typename StateT>
 class BufferAllocationHoisting : public BufferPlacementTransformationBase {
-private:
-  /// Returns true if the given operation implements a known high-level region-
-  /// based control-flow interface.
-  static bool isKnownControlFlowInterface(Operation *op) {
-    return isa<LoopLikeOpInterface, RegionBranchOpInterface>(op);
-  }
-
 public:
   BufferAllocationHoisting(Operation *op)
       : BufferPlacementTransformationBase(op), dominators(op),
@@ -221,6 +289,48 @@ struct BufferAllocationLoopHoistingState : BufferAllocationHoistingStateBase {
 };
 
 //===----------------------------------------------------------------------===//
+// BufferPlacementPromotion
+//===----------------------------------------------------------------------===//
+
+/// Promotes heap-based allocations to stack-based allocations (if possible).
+class BufferPlacementPromotion : BufferPlacementTransformationBase {
+public:
+  BufferPlacementPromotion(Operation *op)
+      : BufferPlacementTransformationBase(op) {}
+
+  /// Promote buffers to stack-based allocations.
+  void promote(unsigned maximumSize, unsigned bitwidthOfIndexType,
+               unsigned maxRankOfAllocatedMemRef) {
+    for (BufferPlacementAllocs::AllocEntry &entry : allocs) {
+      Value alloc = std::get<0>(entry);
+      Operation *dealloc = std::get<1>(entry);
+      // Checking several requirements to transform an AllocOp into an AllocaOp.
+      // The transformation is done if the allocation is limited to a given
+      // size. Furthermore, a deallocation must not be defined for this
+      // allocation entry and a parent allocation scope must exist.
+      if (!isSmallAlloc(alloc, maximumSize, bitwidthOfIndexType,
+                        maxRankOfAllocatedMemRef) ||
+          dealloc || !hasAllocationScope(alloc, aliases))
+        continue;
+
+      Operation *startOperation = BufferPlacementAllocs::getStartOperation(
+          alloc, alloc.getParentBlock(), liveness);
+      // Build a new alloca that is associated with its parent
+      // `AutomaticAllocationScope` determined during the initialization phase.
+      OpBuilder builder(startOperation);
+      Operation *allocOp = alloc.getDefiningOp();
+      Operation *alloca = builder.create<AllocaOp>(
+          alloc.getLoc(), alloc.getType().cast<MemRefType>(),
+          allocOp->getOperands());
+
+      // Replace the original alloc by a newly created alloca.
+      allocOp->replaceAllUsesWith(alloca);
+      allocOp->erase();
+    }
+  }
+};
+
+//===----------------------------------------------------------------------===//
 // BufferOptimizationPasses
 //===----------------------------------------------------------------------===//
 
@@ -247,6 +357,27 @@ struct BufferLoopHoistingPass : BufferLoopHoistingBase<BufferLoopHoistingPass> {
   }
 };
 
+/// The promote buffer to stack pass that tries to convert alloc nodes into
+/// alloca nodes.
+struct PromoteBuffersToStackPass
+    : PromoteBuffersToStackBase<PromoteBuffersToStackPass> {
+
+  PromoteBuffersToStackPass(unsigned maxAllocSizeInBytes,
+                            unsigned bitwidthOfIndexType,
+                            unsigned maxRankOfAllocatedMemRef) {
+    this->maxAllocSizeInBytes = maxAllocSizeInBytes;
+    this->bitwidthOfIndexType = bitwidthOfIndexType;
+    this->maxRankOfAllocatedMemRef = maxRankOfAllocatedMemRef;
+  }
+
+  void runOnFunction() override {
+    // Move all allocation nodes and convert candidates into allocas.
+    BufferPlacementPromotion optimizer(getFunction());
+    optimizer.promote(this->maxAllocSizeInBytes, this->bitwidthOfIndexType,
+                      this->maxRankOfAllocatedMemRef);
+  }
+};
+
 } // end anonymous namespace
 
 std::unique_ptr<Pass> mlir::createBufferHoistingPass() {
@@ -255,4 +386,12 @@ std::unique_ptr<Pass> mlir::createBufferHoistingPass() {
 
 std::unique_ptr<Pass> mlir::createBufferLoopHoistingPass() {
   return std::make_unique<BufferLoopHoistingPass>();
+}
+
+std::unique_ptr<Pass>
+mlir::createPromoteBuffersToStackPass(unsigned maxAllocSizeInBytes,
+                                      unsigned bitwidthOfIndexType,
+                                      unsigned maxRankOfAllocatedMemRef) {
+  return std::make_unique<PromoteBuffersToStackPass>(
+      maxAllocSizeInBytes, bitwidthOfIndexType, maxRankOfAllocatedMemRef);
 }

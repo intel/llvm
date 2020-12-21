@@ -100,10 +100,6 @@ struct SectionHeaderTable {
   Optional<bool> NoHeaders;
 };
 
-struct SectionName {
-  StringRef Section;
-};
-
 struct Symbol {
   StringRef Name;
   ELF_STT Type;
@@ -124,6 +120,16 @@ struct SectionOrType {
 struct DynamicEntry {
   ELF_DYNTAG Tag;
   llvm::yaml::Hex64 Val;
+};
+
+struct BBAddrMapEntry {
+  struct BBEntry {
+    llvm::yaml::Hex32 AddressOffset;
+    llvm::yaml::Hex32 Size;
+    llvm::yaml::Hex32 Metadata;
+  };
+  llvm::yaml::Hex64 Address;
+  Optional<std::vector<BBEntry>> BBEntries;
 };
 
 struct StackSizeEntry {
@@ -159,7 +165,8 @@ struct Chunk {
     Fill,
     LinkerOptions,
     DependentLibraries,
-    CallGraphProfile
+    CallGraphProfile,
+    BBAddrMap
   };
 
   ChunkKind Kind;
@@ -174,7 +181,7 @@ struct Section : public Chunk {
   ELF_SHT Type;
   Optional<ELF_SHF> Flags;
   Optional<llvm::yaml::Hex64> Address;
-  StringRef Link;
+  Optional<StringRef> Link;
   llvm::yaml::Hex64 AddressAlign;
   Optional<llvm::yaml::Hex64> EntSize;
 
@@ -202,6 +209,9 @@ struct Section : public Chunk {
 
   // The following members are used to override section fields which is
   // useful for creating invalid objects.
+
+  // This can be used to override the sh_addralign field.
+  Optional<llvm::yaml::Hex64> ShAddrAlign;
 
   // This can be used to override the offset stored in the sh_name field.
   // It does not affect the name stored in the string table.
@@ -235,6 +245,20 @@ struct Fill : Chunk {
   Fill() : Chunk(ChunkKind::Fill) {}
 
   static bool classof(const Chunk *S) { return S->Kind == ChunkKind::Fill; }
+};
+
+struct BBAddrMapSection : Section {
+  Optional<std::vector<BBAddrMapEntry>> Entries;
+
+  BBAddrMapSection() : Section(ChunkKind::BBAddrMap) {}
+
+  std::vector<std::pair<StringRef, bool>> getEntries() const override {
+    return {{"Entries", Entries.hasValue()}};
+  };
+
+  static bool classof(const Chunk *S) {
+    return S->Kind == ChunkKind::BBAddrMap;
+  }
 };
 
 struct StackSizesSection : Section {
@@ -599,9 +623,10 @@ struct ProgramHeader {
   Optional<llvm::yaml::Hex64> FileSize;
   Optional<llvm::yaml::Hex64> MemSize;
   Optional<llvm::yaml::Hex64> Offset;
+  Optional<StringRef> FirstSec;
+  Optional<StringRef> LastSec;
 
-  std::vector<SectionName> Sections;
-  // This vector is parallel to Sections and contains corresponding chunks.
+  // This vector contains all chunks from [FirstSec, LastSec].
   std::vector<Chunk *> Chunks;
 };
 
@@ -633,10 +658,15 @@ struct Object {
   unsigned getMachine() const;
 };
 
+bool shouldAllocateFileSpace(ArrayRef<ProgramHeader> Phdrs,
+                             const NoBitsSection &S);
+
 } // end namespace ELFYAML
 } // end namespace llvm
 
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::StackSizeEntry)
+LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::BBAddrMapEntry)
+LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::BBAddrMapEntry::BBEntry)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::DynamicEntry)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::LinkerOption)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::CallGraphEntry)
@@ -650,7 +680,6 @@ LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::VernauxEntry)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::VerneedEntry)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::Relocation)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::SectionOrType)
-LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::SectionName)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::ELFYAML::ARMIndexTableEntry)
 
 namespace llvm {
@@ -786,6 +815,7 @@ template <> struct MappingTraits<ELFYAML::SectionHeader> {
 
 template <> struct MappingTraits<ELFYAML::ProgramHeader> {
   static void mapping(IO &IO, ELFYAML::ProgramHeader &FileHdr);
+  static std::string validate(IO &IO, ELFYAML::ProgramHeader &FileHdr);
 };
 
 template <>
@@ -796,6 +826,14 @@ struct MappingTraits<ELFYAML::Symbol> {
 
 template <> struct MappingTraits<ELFYAML::StackSizeEntry> {
   static void mapping(IO &IO, ELFYAML::StackSizeEntry &Rel);
+};
+
+template <> struct MappingTraits<ELFYAML::BBAddrMapEntry> {
+  static void mapping(IO &IO, ELFYAML::BBAddrMapEntry &Rel);
+};
+
+template <> struct MappingTraits<ELFYAML::BBAddrMapEntry::BBEntry> {
+  static void mapping(IO &IO, ELFYAML::BBAddrMapEntry::BBEntry &Rel);
 };
 
 template <> struct MappingTraits<ELFYAML::GnuHashHeader> {
@@ -850,10 +888,6 @@ struct MappingTraits<ELFYAML::Object> {
 
 template <> struct MappingTraits<ELFYAML::SectionOrType> {
   static void mapping(IO &IO, ELFYAML::SectionOrType &sectionOrType);
-};
-
-template <> struct MappingTraits<ELFYAML::SectionName> {
-  static void mapping(IO &IO, ELFYAML::SectionName &sectionName);
 };
 
 } // end namespace yaml

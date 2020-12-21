@@ -32,14 +32,26 @@ enum NodeType : unsigned {
   GETSTACKTOP, // retrieve address of stack top (first address of
                // locals and temporaries)
 
+  MEMBARRIER, // Compiler barrier only; generate a no-op.
+
+  VEC_BROADCAST,    // 0: scalar value, 1: VL
+
   CALL,            // A call instruction.
   RET_FLAG,        // Return with a flag operand.
   GLOBAL_BASE_REG, // Global base reg for PIC.
+
+  // VVP_* nodes.
+#define ADD_VVP_OP(VVP_NAME, ...) VVP_NAME,
+#include "VVPNodes.def"
 };
 }
 
 class VETargetLowering : public TargetLowering {
   const VESubtarget *Subtarget;
+
+  void initRegisterClasses();
+  void initSPUActions();
+  void initVPUActions();
 
 public:
   VETargetLowering(const TargetMachine &TM, const VESubtarget &STI);
@@ -74,20 +86,47 @@ public:
                       const SmallVectorImpl<SDValue> &OutVals, const SDLoc &dl,
                       SelectionDAG &DAG) const override;
 
+  /// Helper functions for atomic operations.
+  bool shouldInsertFencesForAtomic(const Instruction *I) const override {
+    // VE uses release consistency, so need fence for each atomics.
+    return true;
+  }
+  Instruction *emitLeadingFence(IRBuilder<> &Builder, Instruction *Inst,
+                                AtomicOrdering Ord) const override;
+  Instruction *emitTrailingFence(IRBuilder<> &Builder, Instruction *Inst,
+                                 AtomicOrdering Ord) const override;
+
   /// Custom Lower {
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
+  unsigned getJumpTableEncoding() const override;
+  const MCExpr *LowerCustomJumpTableEntry(const MachineJumpTableInfo *MJTI,
+                                          const MachineBasicBlock *MBB,
+                                          unsigned Uid,
+                                          MCContext &Ctx) const override;
+  SDValue getPICJumpTableRelocBase(SDValue Table,
+                                   SelectionDAG &DAG) const override;
+  // VE doesn't need getPICJumpTableRelocBaseExpr since it is used for only
+  // EK_LabelDifference32.
 
+  SDValue lowerATOMIC_FENCE(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerBlockAddress(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerConstantPool(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerDYNAMIC_STACKALLOC(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerJumpTable(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerLOAD(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerSTORE(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerToTLSGeneralDynamicModel(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerVASTART(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerVAARG(SDValue Op, SelectionDAG &DAG) const;
+
+  SDValue lowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG) const;
   /// } Custom Lower
+
+  /// VVP Lowering {
+  SDValue lowerToVVP(SDValue Op, SelectionDAG &DAG) const;
+  /// } VVPLowering
 
   /// Custom DAGCombine {
   SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
@@ -109,7 +148,19 @@ public:
                                       MachineMemOperand::Flags Flags,
                                       bool *Fast) const override;
 
+  /// Inline Assembly {
+
+  ConstraintType getConstraintType(StringRef Constraint) const override;
+  std::pair<unsigned, const TargetRegisterClass *>
+  getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
+                               StringRef Constraint, MVT VT) const override;
+
+  /// } Inline Assembly
+
   /// Target Optimization {
+
+  // Return lower limit for number of blocks in a jump table.
+  unsigned getMinimumJumpTableEntries() const override;
 
   // SX-Aurora VE's s/udiv is 5-9 times slower than multiply.
   bool isIntDivCheap(EVT, AttributeList) const override { return false; }

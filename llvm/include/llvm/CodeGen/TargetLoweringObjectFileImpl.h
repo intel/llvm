@@ -38,7 +38,7 @@ protected:
   const TargetMachine *TM = nullptr;
 
 public:
-  TargetLoweringObjectFileELF() = default;
+  TargetLoweringObjectFileELF();
   ~TargetLoweringObjectFileELF() override = default;
 
   void Initialize(MCContext &Ctx, const TargetMachine &TM) override;
@@ -63,6 +63,8 @@ public:
 
   MCSection *getSectionForJumpTable(const Function &F,
                                     const TargetMachine &TM) const override;
+  MCSection *getSectionForLSDA(const Function &F,
+                               const TargetMachine &TM) const override;
 
   MCSection *
   getSectionForMachineBasicBlock(const Function &F,
@@ -94,6 +96,9 @@ public:
   const MCExpr *lowerRelativeReference(const GlobalValue *LHS,
                                        const GlobalValue *RHS,
                                        const TargetMachine &TM) const override;
+
+  const MCExpr *lowerDSOLocalEquivalent(const DSOLocalEquivalent *Equiv,
+                                        const TargetMachine &TM) const override;
 
   MCSection *getSectionForCommandLines() const override;
 };

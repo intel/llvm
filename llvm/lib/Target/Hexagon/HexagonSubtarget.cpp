@@ -125,6 +125,76 @@ HexagonSubtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS) {
   return *this;
 }
 
+bool HexagonSubtarget::isHVXElementType(MVT Ty, bool IncludeBool) const {
+  if (!useHVXOps())
+    return false;
+  if (Ty.isVector())
+    Ty = Ty.getVectorElementType();
+  if (IncludeBool && Ty == MVT::i1)
+    return true;
+  ArrayRef<MVT> ElemTypes = getHVXElementTypes();
+  return llvm::find(ElemTypes, Ty) != ElemTypes.end();
+}
+
+bool HexagonSubtarget::isHVXVectorType(MVT VecTy, bool IncludeBool) const {
+  if (!VecTy.isVector() || !useHVXOps() || VecTy.isScalableVector())
+    return false;
+  MVT ElemTy = VecTy.getVectorElementType();
+  if (!IncludeBool && ElemTy == MVT::i1)
+    return false;
+
+  unsigned HwLen = getVectorLength();
+  unsigned NumElems = VecTy.getVectorNumElements();
+  ArrayRef<MVT> ElemTypes = getHVXElementTypes();
+
+  if (IncludeBool && ElemTy == MVT::i1) {
+    // Boolean HVX vector types are formed from regular HVX vector types
+    // by replacing the element type with i1.
+    for (MVT T : ElemTypes)
+      if (NumElems * T.getSizeInBits() == 8 * HwLen)
+        return true;
+    return false;
+  }
+
+  unsigned VecWidth = VecTy.getSizeInBits();
+  if (VecWidth != 8 * HwLen && VecWidth != 16 * HwLen)
+    return false;
+  return llvm::find(ElemTypes, ElemTy) != ElemTypes.end();
+}
+
+bool HexagonSubtarget::isTypeForHVX(Type *VecTy, bool IncludeBool) const {
+  if (!VecTy->isVectorTy() || isa<ScalableVectorType>(VecTy))
+    return false;
+  // Avoid types like <2 x i32*>.
+  if (!cast<VectorType>(VecTy)->getElementType()->isIntegerTy())
+    return false;
+  // The given type may be something like <17 x i32>, which is not MVT,
+  // but can be represented as (non-simple) EVT.
+  EVT Ty = EVT::getEVT(VecTy, /*HandleUnknown*/false);
+  if (Ty.getSizeInBits() <= 64 || !Ty.getVectorElementType().isSimple())
+    return false;
+
+  auto isHvxTy = [this, IncludeBool](MVT SimpleTy) {
+    if (isHVXVectorType(SimpleTy, IncludeBool))
+      return true;
+    auto Action = getTargetLowering()->getPreferredVectorAction(SimpleTy);
+    return Action == TargetLoweringBase::TypeWidenVector;
+  };
+
+  // Round up EVT to have power-of-2 elements, and keep checking if it
+  // qualifies for HVX, dividing it in half after each step.
+  MVT ElemTy = Ty.getVectorElementType().getSimpleVT();
+  unsigned VecLen = PowerOf2Ceil(Ty.getVectorNumElements());
+  while (ElemTy.getSizeInBits() * VecLen > 64) {
+    MVT SimpleTy = MVT::getVectorVT(ElemTy, VecLen);
+    if (SimpleTy.isValid() && isHvxTy(SimpleTy))
+      return true;
+    VecLen /= 2;
+  }
+
+  return false;
+}
+
 void HexagonSubtarget::UsrOverflowMutation::apply(ScheduleDAGInstrs *DAG) {
   for (SUnit &SU : DAG->SUnits) {
     if (!SU.isInstr())
@@ -421,14 +491,14 @@ void HexagonSubtarget::restoreLatency(SUnit *Src, SUnit *Dst) const {
   for (auto &I : Src->Succs) {
     if (!I.isAssignedRegDep() || I.getSUnit() != Dst)
       continue;
-    unsigned DepR = I.getReg();
+    Register DepR = I.getReg();
     int DefIdx = -1;
     for (unsigned OpNum = 0; OpNum < SrcI->getNumOperands(); OpNum++) {
       const MachineOperand &MO = SrcI->getOperand(OpNum);
       bool IsSameOrSubReg = false;
       if (MO.isReg()) {
-        unsigned MOReg = MO.getReg();
-        if (Register::isVirtualRegister(DepR)) {
+        Register MOReg = MO.getReg();
+        if (DepR.isVirtual()) {
           IsSameOrSubReg = (MOReg == DepR);
         } else {
           IsSameOrSubReg = getRegisterInfo()->isSubRegisterEq(DepR, MOReg);

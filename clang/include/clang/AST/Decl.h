@@ -1979,7 +1979,7 @@ public:
          SourceLocation NLoc, DeclarationName N, QualType T,
          TypeSourceInfo *TInfo, StorageClass SC, bool isInlineSpecified = false,
          bool hasWrittenPrototype = true,
-         ConstexprSpecKind ConstexprKind = CSK_unspecified,
+         ConstexprSpecKind ConstexprKind = ConstexprSpecKind::Unspecified,
          Expr *TrailingRequiresClause = nullptr) {
     DeclarationNameInfo NameInfo(N, NLoc);
     return FunctionDecl::Create(C, DC, StartLoc, NameInfo, T, TInfo, SC,
@@ -2051,7 +2051,14 @@ public:
   ///
   /// The variant that accepts a FunctionDecl pointer will set that function
   /// declaration to the declaration that is a definition (if there is one).
-  bool isDefined(const FunctionDecl *&Definition) const;
+  ///
+  /// \param CheckForPendingFriendDefinition If \c true, also check for friend
+  ///        declarations that were instantiataed from function definitions.
+  ///        Such a declaration behaves as if it is a definition for the
+  ///        purpose of redefinition checking, but isn't actually a "real"
+  ///        definition until its body is instantiated.
+  bool isDefined(const FunctionDecl *&Definition,
+                 bool CheckForPendingFriendDefinition = false) const;
 
   bool isDefined() const {
     const FunctionDecl* Definition;
@@ -2096,6 +2103,11 @@ public:
            doesThisDeclarationHaveABody() || hasSkippedBody() ||
            willHaveBody() || hasDefiningAttr();
   }
+
+  /// Determine whether this specific declaration of the function is a friend
+  /// declaration that was instantiated from a function definition. Such
+  /// declarations behave like definitions in some contexts.
+  bool isThisDeclarationInstantiatedFromAFriendDefinition() const;
 
   /// Returns whether this specific declaration of the function has a body.
   bool doesThisDeclarationHaveABody() const {
@@ -2219,19 +2231,19 @@ public:
 
   /// Whether this is a (C++11) constexpr function or constexpr constructor.
   bool isConstexpr() const {
-    return FunctionDeclBits.ConstexprKind != CSK_unspecified;
+    return getConstexprKind() != ConstexprSpecKind::Unspecified;
   }
   void setConstexprKind(ConstexprSpecKind CSK) {
-    FunctionDeclBits.ConstexprKind = CSK;
+    FunctionDeclBits.ConstexprKind = static_cast<uint64_t>(CSK);
   }
   ConstexprSpecKind getConstexprKind() const {
     return static_cast<ConstexprSpecKind>(FunctionDeclBits.ConstexprKind);
   }
   bool isConstexprSpecified() const {
-    return FunctionDeclBits.ConstexprKind == CSK_constexpr;
+    return getConstexprKind() == ConstexprSpecKind::Constexpr;
   }
   bool isConsteval() const {
-    return FunctionDeclBits.ConstexprKind == CSK_consteval;
+    return getConstexprKind() == ConstexprSpecKind::Consteval;
   }
 
   /// Whether the instantiation of this function is pending.
@@ -2253,10 +2265,6 @@ public:
   /// Indicates the function uses __try.
   bool usesSEHTry() const { return FunctionDeclBits.UsesSEHTry; }
   void setUsesSEHTry(bool UST) { FunctionDeclBits.UsesSEHTry = UST; }
-
-  /// Indicates the function uses Floating Point constrained intrinsics
-  bool usesFPIntrin() const { return FunctionDeclBits.UsesFPIntrin; }
-  void setUsesFPIntrin(bool Val) { FunctionDeclBits.UsesFPIntrin = Val; }
 
   /// Whether this function has been deleted.
   ///

@@ -61,8 +61,9 @@ const AbstractOperation *OperationName::getAbstractOperation() const {
   return representation.dyn_cast<const AbstractOperation *>();
 }
 
-OperationName OperationName::getFromOpaquePointer(void *pointer) {
-  return OperationName(RepresentationUnion::getFromOpaqueValue(pointer));
+OperationName OperationName::getFromOpaquePointer(const void *pointer) {
+  return OperationName(
+      RepresentationUnion::getFromOpaqueValue(const_cast<void *>(pointer)));
 }
 
 //===----------------------------------------------------------------------===//
@@ -167,6 +168,8 @@ Operation::Operation(Location location, OperationName name,
     : location(location), numSuccs(numSuccessors), numRegions(numRegions),
       hasOperandStorage(hasOperandStorage), hasSingleResult(false), name(name),
       attrs(attributes) {
+  assert(llvm::all_of(resultTypes, [](Type t) { return t; }) &&
+         "unexpected null result type");
   if (!resultTypes.empty()) {
     // If there is a single result it is stored in-place, otherwise use a tuple.
     hasSingleResult = resultTypes.size() == 1;
@@ -482,6 +485,12 @@ void Operation::erase() {
     destroy();
 }
 
+/// Remove the operation from its parent block, but don't delete it.
+void Operation::remove() {
+  if (Block *parent = getBlock())
+    parent->getOperations().remove(this);
+}
+
 /// Unlink this operation from its current block and insert it right before
 /// `existingOp` which may be in the same or another block in the same
 /// function.
@@ -649,7 +658,7 @@ ParseResult OpState::parse(OpAsmParser &parser, OperationState &result) {
 }
 
 // The fallback for the printer is to print in the generic assembly form.
-void OpState::print(OpAsmPrinter &p) { p.printGenericOp(getOperation()); }
+void OpState::print(Operation *op, OpAsmPrinter &p) { p.printGenericOp(op); }
 
 /// Emit an error about fatal conditions with this operation, reporting up to
 /// any diagnostic handlers that may be listening.
@@ -1065,6 +1074,57 @@ LogicalResult OpTrait::impl::verifyNoRegionArguments(Operation *op) {
         return op->emitOpError("region should have no arguments");
     }
   }
+  return success();
+}
+
+/// Checks if two ShapedTypes are the same, ignoring the element type.
+static bool areSameShapedTypeIgnoringElementType(ShapedType a, ShapedType b) {
+  if (a.getTypeID() != b.getTypeID())
+    return false;
+  if (!a.hasRank())
+    return !b.hasRank();
+  return a.getShape() == b.getShape();
+}
+
+LogicalResult OpTrait::impl::verifyElementwiseMappable(Operation *op) {
+  auto isMappableType = [](Type type) {
+    return type.isa<VectorType, TensorType>();
+  };
+  auto resultMappableTypes = llvm::to_vector<1>(
+      llvm::make_filter_range(op->getResultTypes(), isMappableType));
+  auto operandMappableTypes = llvm::to_vector<2>(
+      llvm::make_filter_range(op->getOperandTypes(), isMappableType));
+
+  // If the op only has scalar operand/result types, then we have nothing to
+  // check.
+  if (resultMappableTypes.empty() && operandMappableTypes.empty())
+    return success();
+
+  if (!resultMappableTypes.empty() && operandMappableTypes.empty())
+    return op->emitOpError("if a result is non-scalar, then at least one "
+                           "operand must be non-scalar");
+
+  assert(!operandMappableTypes.empty());
+
+  if (resultMappableTypes.empty())
+    return op->emitOpError("if an operand is non-scalar, then there must be at "
+                           "least one non-scalar result");
+
+  if (resultMappableTypes.size() != op->getNumResults())
+    return op->emitOpError(
+        "if an operand is non-scalar, then all results must be non-scalar");
+
+  auto mustMatchType = operandMappableTypes[0].cast<ShapedType>();
+  for (auto type :
+       llvm::concat<Type>(resultMappableTypes, operandMappableTypes)) {
+    if (!areSameShapedTypeIgnoringElementType(type.cast<ShapedType>(),
+                                              mustMatchType)) {
+      return op->emitOpError() << "all non-scalar operands/results must have "
+                                  "the same shape and base type: found "
+                               << type << " and " << mustMatchType;
+    }
+  }
+
   return success();
 }
 

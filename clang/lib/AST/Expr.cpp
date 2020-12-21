@@ -360,7 +360,6 @@ llvm::APSInt ConstantExpr::getResultAsAPSInt() const {
 }
 
 APValue ConstantExpr::getAPValueResult() const {
-  assert(hasAPValueResult());
 
   switch (ConstantExprBits.ResultKind) {
   case ConstantExpr::RSK_APValue:
@@ -370,6 +369,8 @@ APValue ConstantExpr::getAPValueResult() const {
         llvm::APSInt(llvm::APInt(ConstantExprBits.BitWidth, Int64Result()),
                      ConstantExprBits.IsUnsigned));
   case ConstantExpr::RSK_None:
+    if (ConstantExprBits.APValueKind == APValue::Indeterminate)
+      return APValue::IndeterminateValue();
     return APValue();
   }
   llvm_unreachable("invalid ResultKind");
@@ -2888,13 +2889,18 @@ Expr *Expr::IgnoreParenNoopCasts(const ASTContext &Ctx) {
 
 Expr *Expr::IgnoreUnlessSpelledInSource() {
   auto IgnoreImplicitConstructorSingleStep = [](Expr *E) {
+    if (auto *Cast = dyn_cast<CXXFunctionalCastExpr>(E)) {
+      auto *SE = Cast->getSubExpr();
+      if (SE->getSourceRange() == E->getSourceRange())
+        return SE;
+    }
+
     if (auto *C = dyn_cast<CXXConstructExpr>(E)) {
       auto NumArgs = C->getNumArgs();
       if (NumArgs == 1 ||
           (NumArgs > 1 && isa<CXXDefaultArgExpr>(C->getArg(1)))) {
         Expr *A = C->getArg(0);
-        if (A->getSourceRange() == E->getSourceRange() ||
-            !isa<CXXTemporaryObjectExpr>(C))
+        if (A->getSourceRange() == E->getSourceRange() || C->isElidable())
           return A;
       }
     }

@@ -40,8 +40,19 @@ std::string aarch64::getAArch64TargetCPU(const ArgList &Args,
   // Handle CPU name is 'native'.
   if (CPU == "native")
     return std::string(llvm::sys::getHostCPUName());
-  else if (CPU.size())
+
+  // arm64e requires v8.3a and only runs on apple-a12 and later CPUs.
+  if (Triple.isArm64e())
+    return "apple-a12";
+
+  if (CPU.size())
     return CPU;
+
+  if (Triple.isTargetMachineMac() &&
+      Triple.getArch() == llvm::Triple::aarch64) {
+    // Apple Silicon macs default to A12 CPUs.
+    return "apple-a12";
+  }
 
   // Make sure we pick the appropriate Apple CPU if -arch is used or when
   // targetting a Darwin OS.

@@ -266,6 +266,10 @@ bool MachineBasicBlock::hasEHPadSuccessor() const {
   return false;
 }
 
+bool MachineBasicBlock::isEntryBlock() const {
+  return getParent()->begin() == getIterator();
+}
+
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
 LLVM_DUMP_METHOD void MachineBasicBlock::dump() const {
   print(dbgs());
@@ -749,7 +753,7 @@ void MachineBasicBlock::splitSuccessor(MachineBasicBlock *Old,
                                        bool NormalizeSuccProbs) {
   succ_iterator OldI = llvm::find(successors(), Old);
   assert(OldI != succ_end() && "Old is not a successor of this block!");
-  assert(llvm::find(successors(), New) == succ_end() &&
+  assert(!llvm::is_contained(successors(), New) &&
          "New is already a successor of this block!");
 
   // Add a new successor with equal probability as the original one. Note

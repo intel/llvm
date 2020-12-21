@@ -531,6 +531,7 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(undef);
   KEYWORD(null);
   KEYWORD(none);
+  KEYWORD(poison);
   KEYWORD(to);
   KEYWORD(caller);
   KEYWORD(within);
@@ -624,6 +625,7 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(amdgpu_ps);
   KEYWORD(amdgpu_cs);
   KEYWORD(amdgpu_kernel);
+  KEYWORD(amdgpu_gfx);
   KEYWORD(tailcc);
 
   KEYWORD(cc);
@@ -723,6 +725,7 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(vscale);
   KEYWORD(x);
   KEYWORD(blockaddress);
+  KEYWORD(dso_local_equivalent);
 
   // Metadata types.
   KEYWORD(distinct);

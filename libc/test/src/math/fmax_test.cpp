@@ -6,17 +6,15 @@
 //
 //===---------------------------------------------------------------------===//
 
-#include "include/math.h"
 #include "src/math/fmax.h"
 #include "utils/FPUtil/FPBits.h"
 #include "utils/FPUtil/TestHelpers.h"
 #include "utils/UnitTest/Test.h"
+#include <math.h>
 
 using FPBits = __llvm_libc::fputil::FPBits<double>;
 
-double nan = FPBits::buildNaN(1);
-double inf = FPBits::inf();
-double negInf = FPBits::negInf();
+DECLARE_SPECIAL_CONSTANTS(double)
 
 TEST(FmaxTest, NaNArg) {
   EXPECT_FP_EQ(inf, __llvm_libc::fmax(nan, inf));

@@ -259,6 +259,9 @@ public:
                                              SPIRVBasicBlock *) override;
   SPIRVValue *addCompositeConstant(SPIRVType *,
                                    const std::vector<SPIRVValue *> &) override;
+  SPIRVValue *
+  addSpecConstantComposite(SPIRVType *Ty,
+                           const std::vector<SPIRVValue *> &Elements) override;
   SPIRVValue *addConstFunctionPointerINTEL(SPIRVType *Ty,
                                            SPIRVFunction *F) override;
   SPIRVValue *addConstant(SPIRVValue *) override;
@@ -653,7 +656,7 @@ SPIRVEntry *SPIRVModuleImpl::addEntry(SPIRVEntry *Entry) {
     assert(Entry->getId() != SPIRVID_INVALID && "Invalid id");
     SPIRVEntry *Mapped = nullptr;
     if (exist(Id, &Mapped)) {
-      if (Mapped->getOpCode() == OpForward) {
+      if (Mapped->getOpCode() == internal::OpForward) {
         replaceForward(static_cast<SPIRVForward *>(Mapped), Entry);
       } else {
         assert(Mapped == Entry && "Id used twice");
@@ -1067,6 +1070,12 @@ SPIRVValue *SPIRVModuleImpl::addNullConstant(SPIRVType *Ty) {
 SPIRVValue *SPIRVModuleImpl::addCompositeConstant(
     SPIRVType *Ty, const std::vector<SPIRVValue *> &Elements) {
   return addConstant(new SPIRVConstantComposite(this, Ty, getId(), Elements));
+}
+
+SPIRVValue *SPIRVModuleImpl::addSpecConstantComposite(
+    SPIRVType *Ty, const std::vector<SPIRVValue *> &Elements) {
+  return addConstant(
+      new SPIRVSpecConstantComposite(this, Ty, getId(), Elements));
 }
 
 SPIRVValue *SPIRVModuleImpl::addConstFunctionPointerINTEL(SPIRVType *Ty,
@@ -1516,14 +1525,14 @@ SPIRVInstruction *SPIRVModuleImpl::addExpectINTELInst(SPIRVType *ResultTy,
                                                       SPIRVValue *ExpectedValue,
                                                       SPIRVBasicBlock *BB) {
   return addInstruction(SPIRVInstTemplateBase::create(
-                            OpExpectINTEL, ResultTy, getId(),
+                            internal::OpExpectINTEL, ResultTy, getId(),
                             getVec(Value->getId(), ExpectedValue->getId()), BB,
                             this),
                         BB);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addVariable(
-    SPIRVType *Type, bool IsConstant, SPIRVLinkageTypeKind LinkageType,
+    SPIRVType *Type, bool IsConstant, SPIRVLinkageTypeKind LinkageTy,
     SPIRVValue *Initializer, const std::string &Name,
     SPIRVStorageClassKind StorageClass, SPIRVBasicBlock *BB) {
   SPIRVVariable *Variable = new SPIRVVariable(Type, getId(), Initializer, Name,
@@ -1532,8 +1541,8 @@ SPIRVInstruction *SPIRVModuleImpl::addVariable(
     return addInstruction(Variable, BB);
 
   add(Variable);
-  if (LinkageType != LinkageTypeInternal)
-    Variable->setLinkageType(LinkageType);
+  if (LinkageTy != internal::LinkageTypeInternal)
+    Variable->setLinkageType(LinkageTy);
   Variable->setIsConstant(IsConstant);
   return Variable;
 }

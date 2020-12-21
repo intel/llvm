@@ -568,6 +568,9 @@ LLVM_READNONE
 bool isShader(CallingConv::ID CC);
 
 LLVM_READNONE
+bool isGraphics(CallingConv::ID CC);
+
+LLVM_READNONE
 bool isCompute(CallingConv::ID CC);
 
 LLVM_READNONE
@@ -598,6 +601,7 @@ bool isVI(const MCSubtargetInfo &STI);
 bool isGFX9(const MCSubtargetInfo &STI);
 bool isGFX9Plus(const MCSubtargetInfo &STI);
 bool isGFX10(const MCSubtargetInfo &STI);
+bool isGFX10Plus(const MCSubtargetInfo &STI);
 bool isGCN3Encoding(const MCSubtargetInfo &STI);
 bool isGFX10_BEncoding(const MCSubtargetInfo &STI);
 bool hasGFX10_3Insts(const MCSubtargetInfo &STI);
@@ -774,10 +778,8 @@ struct SIModeRegisterDefaults {
   SIModeRegisterDefaults(const Function &F);
 
   static SIModeRegisterDefaults getDefaultForCallingConv(CallingConv::ID CC) {
-    const bool IsCompute = AMDGPU::isCompute(CC);
-
     SIModeRegisterDefaults Mode;
-    Mode.IEEE = IsCompute;
+    Mode.IEEE = !AMDGPU::isShader(CC);
     return Mode;
   }
 

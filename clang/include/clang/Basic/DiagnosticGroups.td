@@ -667,10 +667,8 @@ def NSReturnsMismatch : DiagGroup<"nsreturns-mismatch">;
 def IndependentClassAttribute : DiagGroup<"IndependentClass-attribute">;
 def UnknownAttributes : DiagGroup<"unknown-attributes">;
 def IgnoredAttributes : DiagGroup<"ignored-attributes">;
-def AdjustedAttributes : DiagGroup<"adjusted-attributes">;
 def Attributes : DiagGroup<"attributes", [UnknownAttributes,
-                                          IgnoredAttributes,
-                                          AdjustedAttributes]>;
+                                          IgnoredAttributes]>;
 def UnknownSanitizers : DiagGroup<"unknown-sanitizers">;
 def UnnamedTypeTemplateArgs : DiagGroup<"unnamed-type-template-args",
                                         [CXX98CompatUnnamedTypeTemplateArgs]>;
@@ -1164,7 +1162,6 @@ def BackendOptimizationFailure : DiagGroup<"pass-failed">;
 def ProfileInstrMissing : DiagGroup<"profile-instr-missing">;
 def ProfileInstrOutOfDate : DiagGroup<"profile-instr-out-of-date">;
 def ProfileInstrUnprofiled : DiagGroup<"profile-instr-unprofiled">;
-def MisExpect : DiagGroup<"misexpect">;
 
 // AddressSanitizer frontend instrumentation remarks.
 def SanitizeAddressRemarks : DiagGroup<"sanitize-address">;

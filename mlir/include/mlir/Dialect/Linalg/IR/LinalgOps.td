@@ -14,6 +14,7 @@
 #define LINALG_OPS
 
 include "mlir/Dialect/Linalg/IR/LinalgBase.td"
+include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/ViewLikeInterface.td"
 
@@ -47,8 +48,8 @@ def Linalg_RangeOp :
     %3 = linalg.range %0:%1:%2 : !linalg.range
     ````
   }];
-  let builders = [OpBuilder<
-    "Value min, Value max, Value step",
+  let builders = [
+    OpBuilderDAG<(ins "Value":$min, "Value":$max, "Value":$step),
     [{
       auto rangeType = RangeType::get($_builder.getContext());
       build($_builder, $_state, rangeType, min, max, step);
@@ -64,12 +65,13 @@ class Linalg_ReshapeLikeOp<string mnemonic, list<OpTrait> traits = []> :
   let builders = [
     // Builders for a contracting reshape whose result type is computed from
     // `src` and `reassociation`.
-    OpBuilder<"Value src, "
-              "ArrayRef<ReassociationExprs> reassociation, "
-              "ArrayRef<NamedAttribute> attrs = {}">,
-    OpBuilder<"Value src, "
-              "ArrayRef<ReassociationIndices> reassociation, "
-              "ArrayRef<NamedAttribute> attrs = {}", [{
+    OpBuilderDAG<(ins "Value":$src,
+      "ArrayRef<ReassociationExprs>":$reassociation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
+    OpBuilderDAG<(ins "Value":$src,
+      "ArrayRef<ReassociationIndices>":$reassociation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
+    [{
       auto reassociationMaps =
           convertReassociationIndicesToMaps($_builder, reassociation);
       build($_builder, $_state, src, reassociationMaps, attrs);
@@ -77,12 +79,13 @@ class Linalg_ReshapeLikeOp<string mnemonic, list<OpTrait> traits = []> :
 
     // Builders for a reshape whose result type is passed explicitly. This may
     // be either a contracting or expanding reshape.
-    OpBuilder<"Type resultType, Value src, "
-              "ArrayRef<ReassociationExprs> reassociation, "
-              "ArrayRef<NamedAttribute> attrs = {}">,
-    OpBuilder<"Type resultType, Value src, "
-              "ArrayRef<ReassociationIndices> reassociation, "
-              "ArrayRef<NamedAttribute> attrs = {}", [{
+    OpBuilderDAG<(ins "Type":$resultType, "Value":$src,
+      "ArrayRef<ReassociationExprs>":$reassociation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
+    OpBuilderDAG<(ins "Type":$resultType, "Value":$src,
+      "ArrayRef<ReassociationIndices>":$reassociation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
+    [{
       auto reassociationMaps =
           convertReassociationIndicesToMaps($_builder, reassociation);
       build($_builder, $_state, resultType, src, reassociationMaps, attrs);
@@ -258,7 +261,7 @@ def Linalg_SliceOp : Linalg_Op<"slice", [
       ```
   }];
 
-  let builders = [OpBuilder<"Value base, ValueRange indexings">];
+  let builders = [OpBuilderDAG<(ins "Value":$base, "ValueRange":$indexings)>];
 
   let extraClassDeclaration = [{
     enum { FirstIndexingOperand = 1 };
@@ -284,7 +287,7 @@ def Linalg_SliceOp : Linalg_Op<"slice", [
   let hasFolder = 1;
 }
 
-def Linalg_YieldOp : Linalg_Op<"yield", [NoSideEffect, Terminator]>,
+def Linalg_YieldOp : Linalg_Op<"yield", [NoSideEffect, ReturnLike, Terminator]>,
     Arguments<(ins Variadic<AnyType>:$values)> {
   let summary = "Linalg yield operation";
   let description = [{

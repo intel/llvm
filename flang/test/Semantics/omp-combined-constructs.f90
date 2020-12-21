@@ -53,6 +53,7 @@ program main
   !$omp end target parallel
 
   !ERROR: COPYIN clause is not allowed on the TARGET PARALLEL directive
+  !ERROR: Non-THREADPRIVATE object 'a' in COPYIN clause
   !$omp target parallel copyin(a)
   do i = 1, N
      a(i) = 3.14
@@ -98,6 +99,7 @@ program main
   enddo
   !$omp end target parallel do
 
+  !ERROR: Non-THREADPRIVATE object 'a' in COPYIN clause
   !$omp target parallel do copyin(a)
   do i = 1, N
      a(i) = 3.14
@@ -203,7 +205,7 @@ program main
   enddo
   !$omp end target teams
 
-  !ERROR: Only the TO, FROM, TOFROM, or ALLOC map types are permitted for MAP clauses on the TARGET TEAMS directive
+  !ERROR: Only the TO, FROM, TOFROM, ALLOC map types are permitted for MAP clauses on the TARGET TEAMS directive
   !$omp target teams map(delete:a)
   do i = 1, N
      a(i) = 3.14
@@ -303,7 +305,7 @@ program main
   enddo
   !$omp end target teams distribute
 
-  !ERROR: Only the TO, FROM, TOFROM, or ALLOC map types are permitted for MAP clauses on the TARGET TEAMS DISTRIBUTE directive
+  !ERROR: Only the TO, FROM, TOFROM, ALLOC map types are permitted for MAP clauses on the TARGET TEAMS DISTRIBUTE directive
   !$omp target teams distribute map(delete:a)
   do i = 1, N
      a(i) = 3.14
@@ -396,7 +398,7 @@ program main
   enddo
   !$omp end target teams distribute parallel do
 
-  !ERROR: Only the TO, FROM, TOFROM, or ALLOC map types are permitted for MAP clauses on the TARGET TEAMS DISTRIBUTE PARALLEL DO directive
+  !ERROR: Only the TO, FROM, TOFROM, ALLOC map types are permitted for MAP clauses on the TARGET TEAMS DISTRIBUTE PARALLEL DO directive
   !$omp target teams distribute parallel do map(delete:a)
   do i = 1, N
      a(i) = 3.14
@@ -496,7 +498,7 @@ program main
   enddo
   !$omp end target teams distribute parallel do simd
 
-  !ERROR: Only the TO, FROM, TOFROM, or ALLOC map types are permitted for MAP clauses on the TARGET TEAMS DISTRIBUTE PARALLEL DO SIMD directive
+  !ERROR: Only the TO, FROM, TOFROM, ALLOC map types are permitted for MAP clauses on the TARGET TEAMS DISTRIBUTE PARALLEL DO SIMD directive
   !$omp target teams distribute parallel do simd map(delete:a)
   do i = 1, N
      a(i) = 3.14

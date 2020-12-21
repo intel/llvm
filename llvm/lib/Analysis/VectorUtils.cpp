@@ -125,7 +125,7 @@ Intrinsic::ID llvm::getVectorIntrinsicIDForCall(const CallInst *CI,
 
   if (isTriviallyVectorizable(ID) || ID == Intrinsic::lifetime_start ||
       ID == Intrinsic::lifetime_end || ID == Intrinsic::assume ||
-      ID == Intrinsic::sideeffect)
+      ID == Intrinsic::sideeffect || ID == Intrinsic::pseudoprobe)
     return ID;
   return Intrinsic::not_intrinsic;
 }
@@ -136,7 +136,7 @@ Intrinsic::ID llvm::getVectorIntrinsicIDForCall(const CallInst *CI,
 unsigned llvm::getGEPInductionOperand(const GetElementPtrInst *Gep) {
   const DataLayout &DL = Gep->getModule()->getDataLayout();
   unsigned LastOperand = Gep->getNumOperands() - 1;
-  unsigned GEPAllocSize = DL.getTypeAllocSize(Gep->getResultElementType());
+  TypeSize GEPAllocSize = DL.getTypeAllocSize(Gep->getResultElementType());
 
   // Walk backwards and try to peel off zeros.
   while (LastOperand > 1 && match(Gep->getOperand(LastOperand), m_Zero())) {
@@ -289,6 +289,10 @@ Value *llvm::findScalarElement(Value *V, unsigned EltNo) {
     // inserted value.
     if (EltNo == IIElt)
       return III->getOperand(1);
+
+    // Guard against infinite loop on malformed, unreachable IR.
+    if (III == III->getOperand(0))
+      return nullptr;
 
     // Otherwise, the insertelement doesn't modify the value, recurse on its
     // vector input.

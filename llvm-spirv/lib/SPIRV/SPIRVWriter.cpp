@@ -593,6 +593,8 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
   if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
     transVectorComputeMetadata(F);
 
+  transFPGAFunctionMetadata(BF, F);
+
   SPIRVDBG(dbgs() << "[transFunction] " << *F << " => ";
            spvdbgs() << *BF << '\n';)
   return BF;
@@ -625,6 +627,15 @@ void LLVMToSPIRV::transVectorComputeMetadata(Function *F) {
     BF->addDecorate(DecorationVectorComputeCallableFunctionINTEL);
   }
 
+  if (Attrs.hasAttribute(AttributeList::ReturnIndex,
+                         kVCMetadata::VCSingleElementVector)) {
+    auto *RT = BF->getType();
+    assert((RT->isTypeBool() || RT->isTypeFloat() || RT->isTypeInt() ||
+            RT->isTypePointer()) &&
+           "This decoration is valid only for Scalar or Pointer types");
+    BF->addDecorate(DecorationSingleElementVectorINTEL);
+  }
+
   for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
        ++I) {
     auto ArgNo = I->getArgNo();
@@ -635,6 +646,13 @@ void LLVMToSPIRV::transVectorComputeMetadata(Function *F) {
           .getValueAsString()
           .getAsInteger(0, Kind);
       BA->addDecorate(DecorationFuncParamIOKind, Kind);
+    }
+    if (Attrs.hasAttribute(ArgNo + 1, kVCMetadata::VCSingleElementVector)) {
+      auto *AT = BA->getType();
+      assert((AT->isTypeBool() || AT->isTypeFloat() || AT->isTypeInt() ||
+              AT->isTypePointer()) &&
+             "This decoration is valid only for Scalar or Pointer types");
+      BA->addDecorate(DecorationSingleElementVectorINTEL);
     }
     if (Attrs.hasAttribute(ArgNo + 1, kVCMetadata::VCArgumentKind)) {
       SPIRVWord Kind;
@@ -670,6 +688,27 @@ void LLVMToSPIRV::transVectorComputeMetadata(Function *F) {
           BF->addDecorate(new SPIRVDecorateFunctionFloatingPointModeINTEL(
               BF, TargetWidth, getFPOperationMode(Mode)));
         });
+  }
+}
+
+void LLVMToSPIRV::transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F) {
+  if (MDNode *StallEnable = F->getMetadata(kSPIR2MD::StallEnable)) {
+    if (BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_fpga_cluster_attributes)) {
+      if (getMDOperandAsInt(StallEnable, 0)) {
+        BM->addCapability(CapabilityFPGAClusterAttributesINTEL);
+        BF->addDecorate(new SPIRVDecorateStallEnableINTEL(BF));
+      }
+    }
+  }
+  if (MDNode *LoopFuse = F->getMetadata(kSPIR2MD::LoopFuse)) {
+    if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_loop_fuse)) {
+      size_t Depth = getMDOperandAsInt(LoopFuse, 0);
+      size_t Independent = getMDOperandAsInt(LoopFuse, 1);
+      BM->addCapability(CapabilityLoopFuseINTEL);
+      BF->addDecorate(
+          new SPIRVDecorateFuseLoopsInFunctionINTEL(BF, Depth, Independent));
+    }
   }
 }
 
@@ -859,18 +898,22 @@ SPIRV::SPIRVInstruction *LLVMToSPIRV::transUnaryInst(UnaryInstruction *U,
     const auto SrcAddrSpace = Cast->getSrcTy()->getPointerAddressSpace();
     const auto DestAddrSpace = Cast->getDestTy()->getPointerAddressSpace();
     if (DestAddrSpace == SPIRAS_Generic) {
-      assert(SrcAddrSpace != SPIRAS_Constant &&
-             "Casts from constant address space to generic are illegal");
+      getErrorLog().checkError(
+          SrcAddrSpace != SPIRAS_Constant, SPIRVEC_InvalidModule,
+          "Casts from constant address space to generic are illegal\n" +
+              toString(U));
       BOC = OpPtrCastToGeneric;
       // In SPIR-V only casts to/from generic are allowed. But with
       // SPV_INTEL_usm_storage_classes we can also have casts from global_device
       // and global_host to global addr space and vice versa.
     } else if (SrcAddrSpace == SPIRAS_GlobalDevice ||
                SrcAddrSpace == SPIRAS_GlobalHost) {
-      assert(
-          (DestAddrSpace == SPIRAS_Global || DestAddrSpace == SPIRAS_Generic) &&
-          "Casts from global_device/global_host only allowed to \
-             global/generic");
+      getErrorLog().checkError(DestAddrSpace == SPIRAS_Global ||
+                                   DestAddrSpace == SPIRAS_Generic,
+                               SPIRVEC_InvalidModule,
+                               "Casts from global_device/global_host only "
+                               "allowed to global/generic\n" +
+                                   toString(U));
       if (!BM->isAllowedToUseExtension(
               ExtensionID::SPV_INTEL_usm_storage_classes)) {
         if (DestAddrSpace == SPIRAS_Global)
@@ -881,10 +924,12 @@ SPIRV::SPIRVInstruction *LLVMToSPIRV::transUnaryInst(UnaryInstruction *U,
       }
     } else if (DestAddrSpace == SPIRAS_GlobalDevice ||
                DestAddrSpace == SPIRAS_GlobalHost) {
-      assert(
-          (SrcAddrSpace == SPIRAS_Global || SrcAddrSpace == SPIRAS_Generic) &&
-          "Casts to global_device/global_host only allowed from \
-             global/generic");
+      getErrorLog().checkError(SrcAddrSpace == SPIRAS_Global ||
+                                   SrcAddrSpace == SPIRAS_Generic,
+                               SPIRVEC_InvalidModule,
+                               "Casts to global_device/global_host only "
+                               "allowed from global/generic\n" +
+                                   toString(U));
       if (!BM->isAllowedToUseExtension(
               ExtensionID::SPV_INTEL_usm_storage_classes)) {
         if (SrcAddrSpace == SPIRAS_Global)
@@ -894,9 +939,15 @@ SPIRV::SPIRVInstruction *LLVMToSPIRV::transUnaryInst(UnaryInstruction *U,
         BOC = OpCrossWorkgroupCastToPtrINTEL;
       }
     } else {
-      assert(DestAddrSpace != SPIRAS_Constant &&
-             "Casts from generic address space to constant are illegal");
-      assert(SrcAddrSpace == SPIRAS_Generic);
+      getErrorLog().checkError(
+          SrcAddrSpace == SPIRAS_Generic, SPIRVEC_InvalidModule,
+          "Casts from private/local/global address space are allowed only to "
+          "generic\n" +
+              toString(U));
+      getErrorLog().checkError(
+          DestAddrSpace != SPIRAS_Constant, SPIRVEC_InvalidModule,
+          "Casts from generic address space to constant are illegal\n" +
+              toString(U));
       BOC = OpGenericCastToPtr;
     }
   } else {
@@ -1061,6 +1112,8 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
         } else if (S == "llvm.loop.coalesce.enable") {
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
+          ParametersToSort.emplace_back(spv::LoopControlLoopCoalesceINTELMask,
+                                        0);
           LoopControl |= spv::LoopControlLoopCoalesceINTELMask;
         } else if (S == "llvm.loop.coalesce.count") {
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
@@ -1083,6 +1136,10 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
           ParametersToSort.emplace_back(
               spv::LoopControlSpeculatedIterationsINTELMask, I);
           LoopControl |= spv::LoopControlSpeculatedIterationsINTELMask;
+        } else if (S == "llvm.loop.fusion.disable") {
+          BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
+          BM->addCapability(CapabilityFPGALoopControlsINTEL);
+          LoopControl |= spv::LoopControlNoFusionINTELMask;
         }
       }
     }
@@ -1115,6 +1172,32 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
     Parameters.push_back(Param.second);
 
   return static_cast<spv::LoopControlMask>(LoopControl);
+}
+
+static int transAtomicOrdering(llvm::AtomicOrdering Ordering) {
+  return OCLMemOrderMap::map(
+      static_cast<OCLMemOrderKind>(llvm::toCABI(Ordering)));
+}
+
+SPIRVValue *LLVMToSPIRV::transAtomicStore(StoreInst *ST, SPIRVBasicBlock *BB) {
+  std::vector<Value *> Ops{ST->getPointerOperand(),
+                           getUInt32(M, spv::ScopeDevice),
+                           getUInt32(M, transAtomicOrdering(ST->getOrdering())),
+                           ST->getValueOperand()};
+  std::vector<SPIRVValue *> SPIRVOps = transValue(Ops, BB);
+
+  return mapValue(ST, BM->addInstTemplate(OpAtomicStore, BM->getIds(SPIRVOps),
+                                          BB, nullptr));
+}
+
+SPIRVValue *LLVMToSPIRV::transAtomicLoad(LoadInst *LD, SPIRVBasicBlock *BB) {
+  std::vector<Value *> Ops{
+      LD->getPointerOperand(), getUInt32(M, spv::ScopeDevice),
+      getUInt32(M, transAtomicOrdering(LD->getOrdering()))};
+  std::vector<SPIRVValue *> SPIRVOps = transValue(Ops, BB);
+
+  return mapValue(LD, BM->addInstTemplate(OpAtomicLoad, BM->getIds(SPIRVOps),
+                                          BB, transType(LD->getType())));
 }
 
 /// An instruction may use an instruction from another BB which has not been
@@ -1261,6 +1344,9 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     return mapValue(V, BM->addForward(transType(V->getType())));
 
   if (StoreInst *ST = dyn_cast<StoreInst>(V)) {
+    if (ST->isAtomic())
+      return transAtomicStore(ST, BB);
+
     std::vector<SPIRVWord> MemoryAccess(1, 0);
     if (ST->isVolatile())
       MemoryAccess[0] |= MemoryAccessVolatileMask;
@@ -1281,6 +1367,9 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
   }
 
   if (LoadInst *LD = dyn_cast<LoadInst>(V)) {
+    if (LD->isAtomic())
+      return transAtomicLoad(LD, BB);
+
     std::vector<SPIRVWord> MemoryAccess(1, 0);
     if (LD->isVolatile())
       MemoryAccess[0] |= MemoryAccessVolatileMask;
@@ -1339,10 +1428,10 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
                                              {Length->getId()}, BB,
                                              transType(Alc->getType())));
     }
-    return mapValue(
-        V, BM->addVariable(transType(Alc->getType()), false,
-                           SPIRVLinkageTypeKind::LinkageTypeInternal, nullptr,
-                           Alc->getName().str(), StorageClassFunction, BB));
+    return mapValue(V, BM->addVariable(transType(Alc->getType()), false,
+                                       spv::internal::LinkageTypeInternal,
+                                       nullptr, Alc->getName().str(),
+                                       StorageClassFunction, BB));
   }
 
   if (auto *Switch = dyn_cast<SwitchInst>(V)) {
@@ -1462,14 +1551,19 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     std::vector<SPIRVValue *> Indices;
     for (unsigned I = 0, E = GEP->getNumIndices(); I != E; ++I)
       Indices.push_back(transValue(GEP->getOperand(I + 1), BB));
-    auto *TransPointerOperand = transValue(GEP->getPointerOperand(), BB);
+    auto *PointerOperand = GEP->getPointerOperand();
+    auto *TransPointerOperand = transValue(PointerOperand, BB);
 
     // Certain array-related optimization hints can be expressed via
     // LLVM metadata. For the purpose of linking this metadata with
     // the accessed array variables, our GEP may have been marked into
     // a so-called index group, an MDNode by itself.
     if (MDNode *IndexGroup = GEP->getMetadata("llvm.index.group")) {
-      SPIRVId AccessedArrayId = TransPointerOperand->getId();
+      SPIRVValue *ActualMemoryPtr = TransPointerOperand;
+      if (auto *Load = dyn_cast<LoadInst>(PointerOperand)) {
+        ActualMemoryPtr = transValue(Load->getPointerOperand(), BB);
+      }
+      SPIRVId AccessedArrayId = ActualMemoryPtr->getId();
       unsigned NumOperands = IndexGroup->getNumOperands();
       // When we're working with embedded loops, it's natural that
       // the outer loop's hints apply to all code contained within.
@@ -1647,6 +1741,17 @@ bool LLVMToSPIRV::transDecoration(Value *V, SPIRVValue *BV) {
           M |= FPFastMathModeNSZMask;
         if (FMF.allowReciprocal())
           M |= FPFastMathModeAllowRecipMask;
+        if (BM->isAllowedToUseExtension(
+                ExtensionID::SPV_INTEL_fp_fast_math_mode)) {
+          if (FMF.allowContract()) {
+            M |= FPFastMathModeAllowContractINTELMask;
+            BM->addCapability(CapabilityFPFastMathModeINTEL);
+          }
+          if (FMF.allowReassoc()) {
+            M |= FPFastMathModeAllowReassocINTELMask;
+            BM->addCapability(CapabilityFPFastMathModeINTEL);
+          }
+        }
       }
       if (M != 0)
         BV->setFPFastMathMode(M);
@@ -2296,9 +2401,9 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
       Init = BM->addCompositeConstant(CompositeTy, Elts);
     }
     SPIRVType *VarTy = transType(PointerType::get(AT, SPIRV::SPIRAS_Constant));
-    SPIRVValue *Var =
-        BM->addVariable(VarTy, /*isConstant*/ true, spv::LinkageTypeInternal,
-                        Init, "", StorageClassUniformConstant, nullptr);
+    SPIRVValue *Var = BM->addVariable(VarTy, /*isConstant*/ true,
+                                      spv::internal::LinkageTypeInternal, Init,
+                                      "", StorageClassUniformConstant, nullptr);
     SPIRVType *SourceTy =
         transType(PointerType::get(Val->getType(), SPIRV::SPIRAS_Constant));
     SPIRVValue *Source = BM->addUnaryInst(OpBitcast, SourceTy, Var, BB);
@@ -2988,6 +3093,10 @@ SPIRVValue *LLVMToSPIRV::transBuiltinToConstant(StringRef DemangledName,
   Op OC = getSPIRVFuncOC(DemangledName);
   if (!isSpecConstantOpCode(OC))
     return nullptr;
+  if (OC == spv::OpSpecConstantComposite) {
+    return BM->addSpecConstantComposite(transType(CI->getType()),
+                                        transValue(getArguments(CI), nullptr));
+  }
   Value *V = CI->getArgOperand(1);
   Type *Ty = V->getType();
   assert(Ty == CI->getType() && "Type mismatch!");
@@ -3105,16 +3214,8 @@ bool LLVMToSPIRV::transExecutionMode() {
         BF->addExecutionMode(BM->add(
             new SPIRVExecutionMode(BF, static_cast<ExecutionMode>(EMode), X)));
       } break;
-      case spv::ExecutionModeNumSIMDWorkitemsINTEL: {
-        if (BM->isAllowedToUseExtension(
-                ExtensionID::SPV_INTEL_kernel_attributes)) {
-          unsigned X;
-          N.get(X);
-          BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
-              BF, static_cast<ExecutionMode>(EMode), X)));
-          BM->addCapability(CapabilityFPGAKernelAttributesINTEL);
-        }
-      } break;
+      case spv::ExecutionModeNumSIMDWorkitemsINTEL:
+      case spv::ExecutionModeSchedulerTargetFmaxMhzINTEL:
       case spv::ExecutionModeMaxWorkDimINTEL: {
         if (BM->isAllowedToUseExtension(
                 ExtensionID::SPV_INTEL_kernel_attributes)) {
@@ -3157,6 +3258,11 @@ bool LLVMToSPIRV::transExecutionMode() {
         N.get(TargetWidth);
         BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
             BF, static_cast<ExecutionMode>(EMode), TargetWidth)));
+      } break;
+      case spv::ExecutionModeVectorComputeFastCompositeKernelINTEL: {
+        if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
+          BF->addExecutionMode(BM->add(
+              new SPIRVExecutionMode(BF, static_cast<ExecutionMode>(EMode))));
       } break;
       default:
         llvm_unreachable("invalid execution mode");
@@ -3594,7 +3700,7 @@ LLVMToSPIRV::transLinkageType(const GlobalValue *GV) {
   if (GV->isDeclarationForLinker())
     return SPIRVLinkageTypeKind::LinkageTypeImport;
   if (GV->hasInternalLinkage() || GV->hasPrivateLinkage())
-    return SPIRVLinkageTypeKind::LinkageTypeInternal;
+    return spv::internal::LinkageTypeInternal;
   return SPIRVLinkageTypeKind::LinkageTypeExport;
 }
 

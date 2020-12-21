@@ -239,6 +239,20 @@ This trait requires that the operands are either vector or tensor types.
 This trait adds the property that the operation is commutative, i.e. `X op Y ==
 Y op X`
 
+### ElementwiseMappable
+
+* `OpTrait::ElementwiseMappable` -- `ElementwiseMappable`
+
+This trait tags scalar ops that also can be applied to vectors/tensors, with
+their semantics on vectors/tensors being elementwise application. This trait
+establishes a set of properties that allow reasoning about / converting between
+scalar/vector/tensor code. These same properties allow blanket implementations
+of various analyses/transformations for all `ElementwiseMappable` ops.
+
+Note: Not all ops that are "elementwise" in some abstract sense satisfy this
+trait. In particular, broadcasting behavior is not allowed. See the comments on
+`OpTrait::ElementwiseMappable` for the precise requirements.
+
 ### Function-Like
 
 *   `OpTrait::FunctionLike`
@@ -249,21 +263,28 @@ particular:
 -   Ops must be symbols, i.e. also have the `Symbol` trait;
 -   Ops have a single region with multiple blocks that corresponds to the body
     of the function;
--   the absence of a region corresponds to an external function;
+-   An op with a single empty region corresponds to an external function;
 -   arguments of the first block of the region are treated as function
     arguments;
 -   they can have argument and result attributes that are stored in dictionary
     attributes on the operation itself.
 
-This trait does *NOT* provide type support for the functions, meaning that
-concrete Ops must handle the type of the declared or defined function.
-`getTypeAttrName()` is a convenience function that returns the name of the
-attribute that can be used to store the function type, but the trait makes no
-assumption based on it.
+This trait provides limited type support for the declared or defined functions.
+The convenience function `getTypeAttrName()` returns the name of an attribute
+that can be used to store the function type. In addition, this trait provides
+`getType` and `setType` helpers to store a `FunctionType` in the attribute named
+by `getTypeAttrName()`.
+
+In general, this trait assumes concrete ops use `FunctionType` under the hood.
+If this is not the case, in order to use the function type support, concrete ops
+must define the following methods, using the same name, to hide the ones defined
+for `FunctionType`: `addBodyBlock`, `getType`, `getTypeWithoutArgsAndResults`
+and `setType`.
 
 ### HasParent
 
-*   `OpTrait::HasParent<typename ParentOpType>` -- `HasParent<string op>`
+*   `OpTrait::HasParent<typename ParentOpType>` -- `HasParent<string op>` or
+    `ParentOneOf<list<string> opList>`
 
 This trait provides APIs and verifiers for operations that can only be nested
 within regions that are attached to operations of `ParentOpType`.

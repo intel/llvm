@@ -219,6 +219,17 @@ void PreprocessMetadata::visit(Module *M) {
           .add(getMDOperandAsInt(NumSIMDWorkitemsINTEL, 0))
           .done();
     }
+
+    // !{void (i32 addrspace(1)*)* @kernel, i32 scheduler_target_fmax_mhz,
+    //   i32 num}
+    if (MDNode *SchedulerTargetFmaxMhzINTEL =
+            Kernel.getMetadata(kSPIR2MD::FmaxMhz)) {
+      EM.addOp()
+          .add(&Kernel)
+          .add(spv::ExecutionModeSchedulerTargetFmaxMhzINTEL)
+          .add(getMDOperandAsInt(SchedulerTargetFmaxMhzINTEL, 0))
+          .done();
+    }
   }
 }
 
@@ -314,6 +325,12 @@ void PreprocessMetadata::preprocessVectorComputeMetadata(Module *M,
           .add(&F)
           .add(spv::ExecutionModeSharedLocalMemorySizeINTEL)
           .add(SLMSize)
+          .done();
+    }
+    if (Attrs.hasFnAttribute(kVCMetadata::VCFCEntry)) {
+      EM.addOp()
+          .add(&F)
+          .add(spv::ExecutionModeVectorComputeFastCompositeKernelINTEL)
           .done();
     }
   }

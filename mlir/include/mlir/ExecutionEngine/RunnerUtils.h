@@ -19,10 +19,10 @@
 #ifdef _WIN32
 #ifndef MLIR_RUNNERUTILS_EXPORT
 #ifdef mlir_runner_utils_EXPORTS
-/* We are building this library */
+// We are building this library
 #define MLIR_RUNNERUTILS_EXPORT __declspec(dllexport)
 #else
-/* We are using this library */
+// We are using this library
 #define MLIR_RUNNERUTILS_EXPORT __declspec(dllimport)
 #endif // mlir_runner_utils_EXPORTS
 #endif // MLIR_RUNNERUTILS_EXPORT
@@ -224,6 +224,8 @@ extern "C" MLIR_RUNNERUTILS_EXPORT void
 _mlir_ciface_print_memref_f64(UnrankedMemRefType<double> *M);
 
 extern "C" MLIR_RUNNERUTILS_EXPORT void print_memref_i32(int64_t rank,
+                                                         void *ptr);
+extern "C" MLIR_RUNNERUTILS_EXPORT void print_memref_i64(int64_t rank,
                                                          void *ptr);
 extern "C" MLIR_RUNNERUTILS_EXPORT void print_memref_f32(int64_t rank,
                                                          void *ptr);

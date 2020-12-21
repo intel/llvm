@@ -18,9 +18,11 @@
 #include "clang/AST/Attr.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Basic/Builtins.h"
+#include "clang/Basic/DiagnosticSema.h"
 #include "clang/Basic/PrettyStackTrace.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TargetInfo.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/InlineAsm.h"
@@ -763,11 +765,6 @@ void CodeGenFunction::EmitWhileStmt(const WhileStmt &S,
   JumpDest LoopHeader = getJumpDestInCurrentScope("while.cond");
   EmitBlock(LoopHeader.getBlock());
 
-  const SourceRange &R = S.getSourceRange();
-  LoopStack.push(LoopHeader.getBlock(), CGM.getContext(), CGM.getCodeGenOpts(),
-                 WhileAttrs, SourceLocToDebugLoc(R.getBegin()),
-                 SourceLocToDebugLoc(R.getEnd()));
-
   // Create an exit block for when the condition fails, which will
   // also become the break target.
   JumpDest LoopExit = getJumpDestInCurrentScope("while.end");
@@ -795,9 +792,19 @@ void CodeGenFunction::EmitWhileStmt(const WhileStmt &S,
   // while(1) is common, avoid extra exit blocks.  Be sure
   // to correctly handle break/continue though.
   bool EmitBoolCondBranch = true;
-  if (llvm::ConstantInt *C = dyn_cast<llvm::ConstantInt>(BoolCondVal))
-    if (C->isOne())
+  bool LoopMustProgress = false;
+  if (llvm::ConstantInt *C = dyn_cast<llvm::ConstantInt>(BoolCondVal)) {
+    if (C->isOne()) {
       EmitBoolCondBranch = false;
+      FnIsMustProgress = false;
+    }
+  } else if (LanguageRequiresProgress())
+    LoopMustProgress = true;
+
+  const SourceRange &R = S.getSourceRange();
+  LoopStack.push(LoopHeader.getBlock(), CGM.getContext(), CGM.getCodeGenOpts(),
+                 WhileAttrs, SourceLocToDebugLoc(R.getBegin()),
+                 SourceLocToDebugLoc(R.getEnd()), LoopMustProgress);
 
   // As long as the condition is true, go to the loop body.
   llvm::BasicBlock *LoopBody = createBasicBlock("while.body");
@@ -805,14 +812,22 @@ void CodeGenFunction::EmitWhileStmt(const WhileStmt &S,
     llvm::BasicBlock *ExitBlock = LoopExit.getBlock();
     if (ConditionScope.requiresCleanups())
       ExitBlock = createBasicBlock("while.exit");
-    Builder.CreateCondBr(
-        BoolCondVal, LoopBody, ExitBlock,
-        createProfileWeightsForLoop(S.getCond(), getProfileCount(S.getBody())));
+    llvm::MDNode *Weights = createProfileOrBranchWeightsForLoop(
+        S.getCond(), getProfileCount(S.getBody()), S.getBody());
+    Builder.CreateCondBr(BoolCondVal, LoopBody, ExitBlock, Weights);
 
     if (ExitBlock != LoopExit.getBlock()) {
       EmitBlock(ExitBlock);
       EmitBranchThroughCleanup(LoopExit);
     }
+  } else if (const Attr *A = Stmt::getLikelihoodAttr(S.getBody())) {
+    CGM.getDiags().Report(A->getLocation(),
+                          diag::warn_attribute_has_no_effect_on_infinite_loop)
+        << A << A->getRange();
+    CGM.getDiags().Report(
+        S.getWhileLoc(),
+        diag::note_attribute_has_no_effect_on_infinite_loop_here)
+        << SourceRange(S.getWhileLoc(), S.getRParenLoc());
   }
 
   // Emit the loop body.  We have to emit this in a cleanup scope
@@ -865,11 +880,6 @@ void CodeGenFunction::EmitDoStmt(const DoStmt &S,
 
   EmitBlock(LoopCond.getBlock());
 
-  const SourceRange &R = S.getSourceRange();
-  LoopStack.push(LoopBody, CGM.getContext(), CGM.getCodeGenOpts(), DoAttrs,
-                 SourceLocToDebugLoc(R.getBegin()),
-                 SourceLocToDebugLoc(R.getEnd()));
-
   // C99 6.8.5.2: "The evaluation of the controlling expression takes place
   // after each execution of the loop body."
 
@@ -883,9 +893,19 @@ void CodeGenFunction::EmitDoStmt(const DoStmt &S,
   // "do {} while (0)" is common in macros, avoid extra blocks.  Be sure
   // to correctly handle break/continue though.
   bool EmitBoolCondBranch = true;
-  if (llvm::ConstantInt *C = dyn_cast<llvm::ConstantInt>(BoolCondVal))
+  bool LoopMustProgress = false;
+  if (llvm::ConstantInt *C = dyn_cast<llvm::ConstantInt>(BoolCondVal)) {
     if (C->isZero())
       EmitBoolCondBranch = false;
+    else if (C->isOne())
+      FnIsMustProgress = false;
+  } else if (LanguageRequiresProgress())
+    LoopMustProgress = true;
+
+  const SourceRange &R = S.getSourceRange();
+  LoopStack.push(LoopBody, CGM.getContext(), CGM.getCodeGenOpts(), DoAttrs,
+                 SourceLocToDebugLoc(R.getBegin()),
+                 SourceLocToDebugLoc(R.getEnd()), LoopMustProgress);
 
   // As long as the condition is true, iterate the loop.
   if (EmitBoolCondBranch) {
@@ -923,10 +943,20 @@ void CodeGenFunction::EmitForStmt(const ForStmt &S,
   llvm::BasicBlock *CondBlock = Continue.getBlock();
   EmitBlock(CondBlock);
 
+  bool LoopMustProgress = false;
+  Expr::EvalResult Result;
+  if (LanguageRequiresProgress()) {
+    if (!S.getCond()) {
+      FnIsMustProgress = false;
+    } else if (!S.getCond()->EvaluateAsInt(Result, getContext())) {
+      LoopMustProgress = true;
+    }
+  }
+
   const SourceRange &R = S.getSourceRange();
   LoopStack.push(CondBlock, CGM.getContext(), CGM.getCodeGenOpts(), ForAttrs,
                  SourceLocToDebugLoc(R.getBegin()),
-                 SourceLocToDebugLoc(R.getEnd()));
+                 SourceLocToDebugLoc(R.getEnd()), LoopMustProgress);
 
   // If the for loop doesn't have an increment we can just use the
   // condition as the continue block.  Otherwise we'll need to create
@@ -960,9 +990,14 @@ void CodeGenFunction::EmitForStmt(const ForStmt &S,
     // C99 6.8.5p2/p4: The first substatement is executed if the expression
     // compares unequal to 0.  The condition must be a scalar type.
     llvm::Value *BoolCondVal = EvaluateExprAsBool(S.getCond());
-    Builder.CreateCondBr(
-        BoolCondVal, ForBody, ExitBlock,
-        createProfileWeightsForLoop(S.getCond(), getProfileCount(S.getBody())));
+    llvm::MDNode *Weights = createProfileOrBranchWeightsForLoop(
+        S.getCond(), getProfileCount(S.getBody()), S.getBody());
+
+    if (llvm::ConstantInt *C = dyn_cast<llvm::ConstantInt>(BoolCondVal))
+      if (C->isOne())
+        FnIsMustProgress = false;
+
+    Builder.CreateCondBr(BoolCondVal, ForBody, ExitBlock, Weights);
 
     if (ExitBlock != LoopExit.getBlock()) {
       EmitBlock(ExitBlock);
@@ -1041,9 +1076,9 @@ CodeGenFunction::EmitCXXForRangeStmt(const CXXForRangeStmt &S,
   // The body is executed if the expression, contextually converted
   // to bool, is true.
   llvm::Value *BoolCondVal = EvaluateExprAsBool(S.getCond());
-  Builder.CreateCondBr(
-      BoolCondVal, ForBody, ExitBlock,
-      createProfileWeightsForLoop(S.getCond(), getProfileCount(S.getBody())));
+  llvm::MDNode *Weights = createProfileOrBranchWeightsForLoop(
+      S.getCond(), getProfileCount(S.getBody()), S.getBody());
+  Builder.CreateCondBr(BoolCondVal, ForBody, ExitBlock, Weights);
 
   if (ExitBlock != LoopExit.getBlock()) {
     EmitBlock(ExitBlock);
@@ -1976,7 +2011,8 @@ SimplifyConstraint(const char *Constraint, const TargetInfo &Target,
 static std::string
 AddVariableConstraints(const std::string &Constraint, const Expr &AsmExpr,
                        const TargetInfo &Target, CodeGenModule &CGM,
-                       const AsmStmt &Stmt, const bool EarlyClobber) {
+                       const AsmStmt &Stmt, const bool EarlyClobber,
+                       std::string *GCCReg = nullptr) {
   const DeclRefExpr *AsmDeclRef = dyn_cast<DeclRefExpr>(&AsmExpr);
   if (!AsmDeclRef)
     return Constraint;
@@ -2001,6 +2037,8 @@ AddVariableConstraints(const std::string &Constraint, const Expr &AsmExpr,
   }
   // Canonicalize the register here before returning it.
   Register = Target.getNormalizedGCCRegisterName(Register);
+  if (GCCReg != nullptr)
+    *GCCReg = Register.str();
   return (EarlyClobber ? "&{" : "{") + Register.str() + "}";
 }
 
@@ -2199,6 +2237,9 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
   // Keep track of out constraints for tied input operand.
   std::vector<std::string> OutputConstraints;
 
+  // Keep track of defined physregs.
+  llvm::SmallSet<std::string, 8> PhysRegOutputs;
+
   // An inline asm can be marked readonly if it meets the following conditions:
   //  - it doesn't have any sideeffects
   //  - it doesn't clobber memory
@@ -2218,9 +2259,15 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
     const Expr *OutExpr = S.getOutputExpr(i);
     OutExpr = OutExpr->IgnoreParenNoopCasts(getContext());
 
+    std::string GCCReg;
     OutputConstraint = AddVariableConstraints(OutputConstraint, *OutExpr,
                                               getTarget(), CGM, S,
-                                              Info.earlyClobber());
+                                              Info.earlyClobber(),
+                                              &GCCReg);
+    // Give an error on multiple outputs to same physreg.
+    if (!GCCReg.empty() && !PhysRegOutputs.insert(GCCReg).second)
+      CGM.Error(S.getAsmLoc(), "multiple outputs to hard register: " + GCCReg);
+
     OutputConstraints.push_back(OutputConstraint);
     LValue Dest = EmitLValue(OutExpr);
     if (!Constraints.empty())
@@ -2282,8 +2329,21 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
             std::max((uint64_t)LargestVectorWidth,
                      VT->getPrimitiveSizeInBits().getKnownMinSize());
     } else {
-      ArgTypes.push_back(Dest.getAddress(*this).getType());
-      Args.push_back(Dest.getPointer(*this));
+      llvm::Type *DestAddrTy = Dest.getAddress(*this).getType();
+      llvm::Value *DestPtr = Dest.getPointer(*this);
+      // Matrix types in memory are represented by arrays, but accessed through
+      // vector pointers, with the alignment specified on the access operation.
+      // For inline assembly, update pointer arguments to use vector pointers.
+      // Otherwise there will be a mis-match if the matrix is also an
+      // input-argument which is represented as vector.
+      if (isa<MatrixType>(OutExpr->getType().getCanonicalType())) {
+        DestAddrTy = llvm::PointerType::get(
+            ConvertType(OutExpr->getType()),
+            cast<llvm::PointerType>(DestAddrTy)->getAddressSpace());
+        DestPtr = Builder.CreateBitCast(DestPtr, DestAddrTy);
+      }
+      ArgTypes.push_back(DestAddrTy);
+      Args.push_back(DestPtr);
       Constraints += "=*";
       Constraints += OutputConstraint;
       ReadOnly = ReadNone = false;
@@ -2307,7 +2367,8 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
         LargestVectorWidth =
             std::max((uint64_t)LargestVectorWidth,
                      VT->getPrimitiveSizeInBits().getKnownMinSize());
-      if (Info.allowsRegister())
+      // Only tie earlyclobber physregs.
+      if (Info.allowsRegister() && (GCCReg.empty() || Info.earlyClobber()))
         InOutConstraints += llvm::utostr(i);
       else
         InOutConstraints += OutputConstraint;

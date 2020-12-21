@@ -26,19 +26,41 @@
 #include "CompileCommands.h"
 #include "Config.h"
 #include "ConfigFragment.h"
+#include "ConfigProvider.h"
+#include "Features.inc"
 #include "support/Logger.h"
 #include "support/Trace.h"
+#include "llvm/ADT/None.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/Support/Error.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Format.h"
+#include "llvm/Support/FormatVariadic.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/SMLoc.h"
 #include "llvm/Support/SourceMgr.h"
+#include <string>
 
 namespace clang {
 namespace clangd {
 namespace config {
 namespace {
+
+// Returns an empty stringref if Path is not under FragmentDir. Returns Path
+// as-is when FragmentDir is empty.
+llvm::StringRef configRelative(llvm::StringRef Path,
+                               llvm::StringRef FragmentDir) {
+  if (FragmentDir.empty())
+    return Path;
+  if (!Path.consume_front(FragmentDir))
+    return llvm::StringRef();
+  return Path.empty() ? "." : Path;
+}
 
 struct CompiledFragmentImpl {
   // The independent conditions to check before using settings from this config.
@@ -49,7 +71,8 @@ struct CompiledFragmentImpl {
   std::vector<llvm::unique_function<bool(const Params &) const>> Conditions;
   // Mutations that this fragment will apply to the configuration.
   // These are invoked only if the conditions are satisfied.
-  std::vector<llvm::unique_function<void(Config &) const>> Apply;
+  std::vector<llvm::unique_function<void(const Params &, Config &) const>>
+      Apply;
 
   bool operator()(const Params &P, Config &C) const {
     for (const auto &C : Conditions) {
@@ -60,16 +83,21 @@ struct CompiledFragmentImpl {
     }
     dlog("Config fragment {0}: applying {1} rules", this, Apply.size());
     for (const auto &A : Apply)
-      A(C);
+      A(P, C);
     return true;
   }
 };
 
 // Wrapper around condition compile() functions to reduce arg-passing.
 struct FragmentCompiler {
+  FragmentCompiler(CompiledFragmentImpl &Out, DiagnosticCallback D,
+                   llvm::SourceMgr *SM)
+      : Out(Out), Diagnostic(D), SourceMgr(SM) {}
   CompiledFragmentImpl &Out;
   DiagnosticCallback Diagnostic;
   llvm::SourceMgr *SourceMgr;
+  // Normalized Fragment::SourceInfo::Directory.
+  std::string FragmentDirectory;
 
   llvm::Optional<llvm::Regex> compileRegex(const Located<std::string> &Text) {
     std::string Anchored = "^(" + *Text + ")$";
@@ -80,6 +108,27 @@ struct FragmentCompiler {
       return llvm::None;
     }
     return Result;
+  }
+
+  llvm::Optional<std::string> makeAbsolute(Located<std::string> Path,
+                                           llvm::StringLiteral Description,
+                                           llvm::sys::path::Style Style) {
+    if (llvm::sys::path::is_absolute(*Path))
+      return *Path;
+    if (FragmentDirectory.empty()) {
+      diag(Error,
+           llvm::formatv(
+               "{0} must be an absolute path, because this fragment is not "
+               "associated with any directory.",
+               Description)
+               .str(),
+           Path.Range);
+      return llvm::None;
+    }
+    llvm::SmallString<256> AbsPath = llvm::StringRef(*Path);
+    llvm::sys::fs::make_absolute(FragmentDirectory, AbsPath);
+    llvm::sys::path::native(AbsPath, Style);
+    return AbsPath.str().str();
   }
 
   // Helper with similar API to StringSwitch, for parsing enum values.
@@ -129,9 +178,15 @@ struct FragmentCompiler {
   }
 
   void compile(Fragment &&F) {
+    if (!F.Source.Directory.empty()) {
+      FragmentDirectory = llvm::sys::path::convert_to_slash(F.Source.Directory);
+      if (FragmentDirectory.back() != '/')
+        FragmentDirectory += '/';
+    }
     compile(std::move(F.If));
     compile(std::move(F.CompileFlags));
     compile(std::move(F.Index));
+    compile(std::move(F.ClangTidy));
   }
 
   void compile(Fragment::IfBlock &&F) {
@@ -145,11 +200,16 @@ struct FragmentCompiler {
     }
     if (!PathMatch->empty()) {
       Out.Conditions.push_back(
-          [PathMatch(std::move(PathMatch))](const Params &P) {
+          [PathMatch(std::move(PathMatch)),
+           FragmentDir(FragmentDirectory)](const Params &P) {
             if (P.Path.empty())
               return false;
+            llvm::StringRef Path = configRelative(P.Path, FragmentDir);
+            // Ignore the file if it is not nested under Fragment.
+            if (Path.empty())
+              return false;
             return llvm::any_of(*PathMatch, [&](const llvm::Regex &RE) {
-              return RE.match(P.Path);
+              return RE.match(Path);
             });
           });
     }
@@ -161,11 +221,16 @@ struct FragmentCompiler {
     }
     if (!PathExclude->empty()) {
       Out.Conditions.push_back(
-          [PathExclude(std::move(PathExclude))](const Params &P) {
+          [PathExclude(std::move(PathExclude)),
+           FragmentDir(FragmentDirectory)](const Params &P) {
             if (P.Path.empty())
               return false;
+            llvm::StringRef Path = configRelative(P.Path, FragmentDir);
+            // Ignore the file if it is not nested under Fragment.
+            if (Path.empty())
+              return true;
             return llvm::none_of(*PathExclude, [&](const llvm::Regex &RE) {
-              return RE.match(P.Path);
+              return RE.match(Path);
             });
           });
     }
@@ -177,7 +242,7 @@ struct FragmentCompiler {
       for (auto &A : F.Remove)
         Remove->strip(*A);
       Out.Apply.push_back([Remove(std::shared_ptr<const ArgStripper>(
-                              std::move(Remove)))](Config &C) {
+                              std::move(Remove)))](const Params &, Config &C) {
         C.CompileFlags.Edits.push_back(
             [Remove](std::vector<std::string> &Args) {
               Remove->process(Args);
@@ -189,7 +254,7 @@ struct FragmentCompiler {
       std::vector<std::string> Add;
       for (auto &A : F.Add)
         Add.push_back(std::move(*A));
-      Out.Apply.push_back([Add(std::move(Add))](Config &C) {
+      Out.Apply.push_back([Add(std::move(Add))](const Params &, Config &C) {
         C.CompileFlags.Edits.push_back([Add](std::vector<std::string> &Args) {
           Args.insert(Args.end(), Add.begin(), Add.end());
         });
@@ -204,8 +269,62 @@ struct FragmentCompiler {
                          .map("Build", Config::BackgroundPolicy::Build)
                          .map("Skip", Config::BackgroundPolicy::Skip)
                          .value())
-        Out.Apply.push_back([Val](Config &C) { C.Index.Background = *Val; });
+        Out.Apply.push_back(
+            [Val](const Params &, Config &C) { C.Index.Background = *Val; });
     }
+    if (F.External)
+      compile(std::move(**F.External), F.External->Range);
+  }
+
+  void compile(Fragment::IndexBlock::ExternalBlock &&External,
+               llvm::SMRange BlockRange) {
+#ifndef CLANGD_ENABLE_REMOTE
+    if (External.Server) {
+      diag(Error, "Clangd isn't compiled with remote index support, ignoring "
+                  "Server." External.Server->Range);
+      External.Server.reset();
+    }
+#endif
+    // Make sure exactly one of the Sources is set.
+    unsigned SourceCount =
+        External.File.hasValue() + External.Server.hasValue();
+    if (SourceCount != 1) {
+      diag(Error, "Exactly one of File or Server must be set.", BlockRange);
+      return;
+    }
+    Config::ExternalIndexSpec Spec;
+    if (External.Server) {
+      Spec.Kind = Config::ExternalIndexSpec::Server;
+      Spec.Location = std::move(**External.Server);
+    } else if (External.File) {
+      Spec.Kind = Config::ExternalIndexSpec::File;
+      auto AbsPath = makeAbsolute(std::move(*External.File), "File",
+                                  llvm::sys::path::Style::native);
+      if (!AbsPath)
+        return;
+      Spec.Location = std::move(*AbsPath);
+    }
+    // Make sure MountPoint is an absolute path with forward slashes.
+    if (!External.MountPoint)
+      External.MountPoint.emplace(FragmentDirectory);
+    if ((**External.MountPoint).empty()) {
+      diag(Error, "A mountpoint is required.", BlockRange);
+      return;
+    }
+    auto AbsPath = makeAbsolute(std::move(*External.MountPoint), "MountPoint",
+                                llvm::sys::path::Style::posix);
+    if (!AbsPath)
+      return;
+    Spec.MountPoint = std::move(*AbsPath);
+    Out.Apply.push_back([Spec(std::move(Spec))](const Params &P, Config &C) {
+      if (!P.Path.startswith(Spec.MountPoint))
+        return;
+      C.Index.External = Spec;
+      // Disable background indexing for the files under the mountpoint.
+      // Note that this will overwrite statements in any previous fragments
+      // (including the current one).
+      C.Index.Background = Config::BackgroundPolicy::Skip;
+    });
   }
 
   void compile(Fragment::StyleBlock &&F) {
@@ -219,11 +338,56 @@ struct FragmentCompiler {
         FullyQualifiedNamespaces.push_back(Namespace.str());
       }
       Out.Apply.push_back([FullyQualifiedNamespaces(
-                              std::move(FullyQualifiedNamespaces))](Config &C) {
+                              std::move(FullyQualifiedNamespaces))](
+                              const Params &, Config &C) {
         C.Style.FullyQualifiedNamespaces.insert(
             C.Style.FullyQualifiedNamespaces.begin(),
             FullyQualifiedNamespaces.begin(), FullyQualifiedNamespaces.end());
       });
+    }
+  }
+
+  void appendTidyCheckSpec(std::string &CurSpec,
+                           const Located<std::string> &Arg, bool IsPositive) {
+    StringRef Str = *Arg;
+    // Don't support negating here, its handled if the item is in the Add or
+    // Remove list.
+    if (Str.startswith("-") || Str.contains(',')) {
+      diag(Error, "Invalid clang-tidy check name", Arg.Range);
+      return;
+    }
+    CurSpec += ',';
+    if (!IsPositive)
+      CurSpec += '-';
+    CurSpec += Str;
+  }
+
+  void compile(Fragment::ClangTidyBlock &&F) {
+    std::string Checks;
+    for (auto &CheckGlob : F.Add)
+      appendTidyCheckSpec(Checks, CheckGlob, true);
+
+    for (auto &CheckGlob : F.Remove)
+      appendTidyCheckSpec(Checks, CheckGlob, false);
+
+    if (!Checks.empty())
+      Out.Apply.push_back(
+          [Checks = std::move(Checks)](const Params &, Config &C) {
+            C.ClangTidy.Checks.append(
+                Checks, C.ClangTidy.Checks.empty() ? /*skip comma*/ 1 : 0,
+                std::string::npos);
+          });
+    if (!F.CheckOptions.empty()) {
+      std::vector<std::pair<std::string, std::string>> CheckOptions;
+      for (auto &Opt : F.CheckOptions)
+        CheckOptions.emplace_back(std::move(*Opt.first),
+                                  std::move(*Opt.second));
+      Out.Apply.push_back(
+          [CheckOptions = std::move(CheckOptions)](const Params &, Config &C) {
+            for (auto &StringPair : CheckOptions)
+              C.ClangTidy.CheckOptions.insert_or_assign(StringPair.first,
+                                                        StringPair.second);
+          });
     }
   }
 

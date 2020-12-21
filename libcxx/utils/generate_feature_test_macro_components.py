@@ -375,6 +375,10 @@ feature_test_macros = sorted([ add_version_header(x) for x in [
     "headers": ["array", "functional", "iterator", "string_view", "tuple", "utility"],
     "unimplemented": True,
    }, {
+    "name": "__cpp_lib_constexpr_numeric",
+    "values": { "c++2a": int(201911) },
+    "headers": ["numeric"],
+   }, {
     "name": "__cpp_lib_bind_front",
     "values": { "c++2a": int(201811) },
     "headers": ["functional"],
@@ -393,7 +397,6 @@ feature_test_macros = sorted([ add_version_header(x) for x in [
     "name": "__cpp_lib_generic_unordered_lookup",
     "values": { "c++2a": int(201811) },
     "headers": ["unordered_map", "unordered_set"],
-    "unimplemented": True,
    }, {
     "name": "__cpp_lib_ranges",
     "values": { "c++2a": int(201811) },
@@ -411,6 +414,10 @@ feature_test_macros = sorted([ add_version_header(x) for x in [
     "unimplemented": True,
     "depends": "!defined(_LIBCPP_HAS_NO_THREADS)",
     "internal_depends": "!defined(_LIBCPP_HAS_NO_THREADS)",
+   }, {
+    "name": "__cpp_lib_int_pow2",
+    "values": { "c++2a": int(202002) },
+    "headers": ["bit"],
    }, {
     "name": "__cpp_lib_interpolate",
     "values": { "c++2a": int(201902) },
@@ -493,6 +500,11 @@ lit_markup = {
   "atomic": ["UNSUPPORTED: libcpp-has-no-threads"],
   "shared_mutex": ["UNSUPPORTED: libcpp-has-no-threads"],
   "thread": ["UNSUPPORTED: libcpp-has-no-threads"],
+  "iomanip": ["UNSUPPORTED: libcpp-has-no-localization"],
+  "istream": ["UNSUPPORTED: libcpp-has-no-localization"],
+  "locale": ["UNSUPPORTED: libcpp-has-no-localization"],
+  "ostream": ["UNSUPPORTED: libcpp-has-no-localization"],
+  "regex": ["UNSUPPORTED: libcpp-has-no-localization"],
 }
 
 def get_std_dialects():

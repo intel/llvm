@@ -6,12 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
+// XFAIL: gcc-7, gcc-8, gcc-9
+
 #include <cassert>
 
 // This test explicitly tests dynamic cast with types that have inaccessible
 // bases.
 #if defined(__clang__)
-#pragma clang diagnostic ignored "-Winaccessible-base"
+#   pragma clang diagnostic ignored "-Winaccessible-base"
+#elif defined(__GNUC__) && (__GNUC__ >= 10)
+#   pragma GCC diagnostic ignored "-Winaccessible-base"
 #endif
 
 typedef char Pad1[43981];

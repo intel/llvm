@@ -18,13 +18,21 @@ declare {}* @llvm.invariant.start.p0i8(i64, i8* nocapture) nounwind readonly
 ; The intermediate alloca and one of the memcpy's should be eliminated, the
 ; other should be transformed to a memmove.
 define void @test1(i8* %P, i8* %Q) nounwind  {
-; CHECK-LABEL: @test1(
-; CHECK-NEXT:    [[MEMTMP:%.*]] = alloca [[TMP0:%.*]], align 16
-; CHECK-NEXT:    [[R:%.*]] = bitcast %0* [[MEMTMP]] to i8*
-; CHECK-NEXT:    call void @llvm.memcpy.p0i8.p0i8.i32(i8* align 16 [[R]], i8* align 16 [[P:%.*]], i32 32, i1 false)
-; CHECK-NEXT:    [[I:%.*]] = call {}* @llvm.invariant.start.p0i8(i64 32, i8* [[P]])
-; CHECK-NEXT:    call void @llvm.memcpy.p0i8.p0i8.i32(i8* align 16 [[Q:%.*]], i8* align 16 [[R]], i32 32, i1 false)
-; CHECK-NEXT:    ret void
+; NO_MSSA-LABEL: @test1(
+; NO_MSSA-NEXT:    [[MEMTMP:%.*]] = alloca [[TMP0:%.*]], align 16
+; NO_MSSA-NEXT:    [[R:%.*]] = bitcast %0* [[MEMTMP]] to i8*
+; NO_MSSA-NEXT:    call void @llvm.memcpy.p0i8.p0i8.i32(i8* align 16 [[R]], i8* align 16 [[P:%.*]], i32 32, i1 false)
+; NO_MSSA-NEXT:    [[I:%.*]] = call {}* @llvm.invariant.start.p0i8(i64 32, i8* [[P]])
+; NO_MSSA-NEXT:    call void @llvm.memcpy.p0i8.p0i8.i32(i8* align 16 [[Q:%.*]], i8* align 16 [[R]], i32 32, i1 false)
+; NO_MSSA-NEXT:    ret void
+;
+; MSSA-LABEL: @test1(
+; MSSA-NEXT:    [[MEMTMP:%.*]] = alloca [[TMP0:%.*]], align 16
+; MSSA-NEXT:    [[R:%.*]] = bitcast %0* [[MEMTMP]] to i8*
+; MSSA-NEXT:    call void @llvm.memcpy.p0i8.p0i8.i32(i8* align 16 [[R]], i8* align 16 [[P:%.*]], i32 32, i1 false)
+; MSSA-NEXT:    [[I:%.*]] = call {}* @llvm.invariant.start.p0i8(i64 32, i8* [[P]])
+; MSSA-NEXT:    call void @llvm.memmove.p0i8.p0i8.i32(i8* align 16 [[Q:%.*]], i8* align 16 [[P]], i32 32, i1 false)
+; MSSA-NEXT:    ret void
 ;
   %memtmp = alloca %0, align 16
   %R = bitcast %0* %memtmp to i8*

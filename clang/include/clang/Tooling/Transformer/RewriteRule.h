@@ -107,7 +107,7 @@ struct ASTEdit {
   TextGenerator Replacement;
   TextGenerator Note;
   // Not all transformations will want or need to attach metadata and therefore
-  // should not be requierd to do so.
+  // should not be required to do so.
   AnyGenerator Metadata = [](const ast_matchers::MatchFinder::MatchResult &)
       -> llvm::Expected<llvm::Any> {
     return llvm::Expected<llvm::Any>(llvm::Any());
@@ -130,6 +130,11 @@ EditGenerator editList(llvm::SmallVector<ASTEdit, 1> Edits);
 
 /// Generates no edits.
 inline EditGenerator noEdits() { return editList({}); }
+
+/// Generates a single, no-op edit anchored at the start location of the
+/// specified range. A `noopEdit` may be preferred over `noEdits` to associate a
+/// diagnostic `Explanation` with the rule.
+EditGenerator noopEdit(RangeSelector Anchor);
 
 /// Version of `ifBound` specialized to `ASTEdit`.
 inline EditGenerator ifBound(std::string ID, ASTEdit TrueEdit,
@@ -441,28 +446,6 @@ findSelectedCase(const ast_matchers::MatchFinder::MatchResult &Result,
                  const RewriteRule &Rule);
 } // namespace detail
 } // namespace transformer
-
-namespace tooling {
-// DEPRECATED: These are temporary aliases supporting client migration to the
-// `transformer` namespace.
-/// Wraps a string as a TextGenerator.
-using TextGenerator = transformer::TextGenerator;
-
-TextGenerator text(std::string M);
-
-using transformer::addInclude;
-using transformer::applyFirst;
-using transformer::change;
-using transformer::insertAfter;
-using transformer::insertBefore;
-using transformer::makeRule;
-using transformer::remove;
-using transformer::RewriteRule;
-using transformer::IncludeFormat;
-namespace detail {
-using namespace transformer::detail;
-} // namespace detail
-} // namespace tooling
 } // namespace clang
 
 #endif // LLVM_CLANG_TOOLING_TRANSFORMER_REWRITE_RULE_H_

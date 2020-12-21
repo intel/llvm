@@ -72,7 +72,10 @@ SPIRVEntry *SPIRVEntry::create(Op OpCode) {
 
   static TableEntry Table[] = {
 #define _SPIRV_OP(x, ...) {Op##x, &SPIRV::create<SPIRV##x>},
+#define _SPIRV_OP_INTERNAL(x, ...) {internal::Op##x, &SPIRV::create<SPIRV##x>},
 #include "SPIRVOpCodeEnum.h"
+#include "SPIRVOpCodeEnumInternal.h"
+#undef _SPIRV_OP_INTERNAL
 #undef _SPIRV_OP
   };
 
@@ -432,7 +435,7 @@ SPIRVLinkageTypeKind SPIRVEntry::getLinkageType() const {
   DecorateMapType::const_iterator Loc =
       Decorates.find(DecorationLinkageAttributes);
   if (Loc == Decorates.end())
-    return LinkageTypeInternal;
+    return internal::LinkageTypeInternal;
   return static_cast<const SPIRVDecorateLinkageAttr *>(Loc->second)
       ->getLinkageType();
 }
@@ -508,6 +511,7 @@ void SPIRVExecutionMode::decode(std::istream &I) {
   case ExecutionModeSubgroupSize:
   case ExecutionModeMaxWorkDimINTEL:
   case ExecutionModeNumSIMDWorkitemsINTEL:
+  case ExecutionModeSchedulerTargetFmaxMhzINTEL:
     WordLiterals.resize(1);
     break;
   default:
@@ -521,7 +525,7 @@ void SPIRVExecutionMode::decode(std::istream &I) {
 SPIRVForward *SPIRVAnnotationGeneric::getOrCreateTarget() const {
   SPIRVEntry *Entry = nullptr;
   bool Found = Module->exist(Target, &Entry);
-  assert((!Found || Entry->getOpCode() == OpForward) &&
+  assert((!Found || Entry->getOpCode() == internal::OpForward) &&
          "Annotations only allowed on forward");
   if (!Found)
     Entry = Module->addForward(Target, nullptr);

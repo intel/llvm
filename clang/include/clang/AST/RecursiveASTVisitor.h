@@ -461,6 +461,13 @@ public:
 
   bool canIgnoreChildDeclWhileTraversingDeclContext(const Decl *Child);
 
+#define DEF_TRAVERSE_TMPL_INST(TMPLDECLKIND)                                   \
+  bool TraverseTemplateInstantiations(TMPLDECLKIND##TemplateDecl *D);
+  DEF_TRAVERSE_TMPL_INST(Class)
+  DEF_TRAVERSE_TMPL_INST(Var)
+  DEF_TRAVERSE_TMPL_INST(Function)
+#undef DEF_TRAVERSE_TMPL_INST
+
 private:
   // These are helper methods used by more than one Traverse* method.
   bool TraverseTemplateParameterListHelper(TemplateParameterList *TPL);
@@ -469,12 +476,6 @@ private:
   template <typename T>
   bool TraverseDeclTemplateParameterLists(T *D);
 
-#define DEF_TRAVERSE_TMPL_INST(TMPLDECLKIND)                                   \
-  bool TraverseTemplateInstantiations(TMPLDECLKIND##TemplateDecl *D);
-  DEF_TRAVERSE_TMPL_INST(Class)
-  DEF_TRAVERSE_TMPL_INST(Var)
-  DEF_TRAVERSE_TMPL_INST(Function)
-#undef DEF_TRAVERSE_TMPL_INST
   bool TraverseTemplateArgumentLocsHelper(const TemplateArgumentLoc *TAL,
                                           unsigned Count);
   bool TraverseArrayTypeLocHelper(ArrayTypeLoc TL);
@@ -1970,6 +1971,8 @@ DEF_TRAVERSE_DECL(MSPropertyDecl, { TRY_TO(TraverseDeclaratorHelper(D)); })
 
 DEF_TRAVERSE_DECL(MSGuidDecl, {})
 
+DEF_TRAVERSE_DECL(TemplateParamObjectDecl, {})
+
 DEF_TRAVERSE_DECL(FieldDecl, {
   TRY_TO(TraverseDeclaratorHelper(D));
   if (D->isBitField())
@@ -2500,17 +2503,12 @@ DEF_TRAVERSE_STMT(LambdaExpr, {
     TypeLoc TL = S->getCallOperator()->getTypeSourceInfo()->getTypeLoc();
     FunctionProtoTypeLoc Proto = TL.getAsAdjusted<FunctionProtoTypeLoc>();
 
-    for (Decl *D : S->getExplicitTemplateParameters()) {
-      // Visit explicit template parameters.
-      TRY_TO(TraverseDecl(D));
-    }
+    TRY_TO(TraverseTemplateParameterListHelper(S->getTemplateParameterList()));
     if (S->hasExplicitParameters()) {
       // Visit parameters.
       for (unsigned I = 0, N = Proto.getNumParams(); I != N; ++I)
         TRY_TO(TraverseDecl(Proto.getParam(I)));
     }
-    if (S->hasExplicitResultType())
-      TRY_TO(TraverseTypeLoc(Proto.getReturnLoc()));
 
     auto *T = Proto.getTypePtr();
     for (const auto &E : T->exceptions())
@@ -2518,6 +2516,10 @@ DEF_TRAVERSE_STMT(LambdaExpr, {
 
     if (Expr *NE = T->getNoexceptExpr())
       TRY_TO_TRAVERSE_OR_ENQUEUE_STMT(NE);
+
+    if (S->hasExplicitResultType())
+      TRY_TO(TraverseTypeLoc(Proto.getReturnLoc()));
+    TRY_TO_TRAVERSE_OR_ENQUEUE_STMT(S->getTrailingRequiresClause());
 
     TRY_TO_TRAVERSE_OR_ENQUEUE_STMT(S->getBody());
   }

@@ -6,19 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "include/math.h"
 #include "src/math/copysignf.h"
 #include "utils/FPUtil/FPBits.h"
 #include "utils/FPUtil/TestHelpers.h"
 #include "utils/UnitTest/Test.h"
+#include <math.h>
 
 using FPBits = __llvm_libc::fputil::FPBits<float>;
 
-static const float zero = FPBits::zero();
-static const float negZero = FPBits::negZero();
-static const float nan = FPBits::buildNaN(1);
-static const float inf = FPBits::inf();
-static const float negInf = FPBits::negInf();
+DECLARE_SPECIAL_CONSTANTS(float)
 
 TEST(CopySinfTest, SpecialNumbers) {
   EXPECT_FP_EQ(nan, __llvm_libc::copysignf(nan, -1.0));

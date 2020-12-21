@@ -201,17 +201,17 @@ public:
 #ifdef __ENABLE_USM_ADDR_SPACE__
   // Create atomic in global_space with one from global_device_space
   template <access::address_space _Space = addressSpace,
-            typename = typename std::enable_if<
+            typename = typename detail::enable_if_t<
                 _Space == addressSpace &&
-                addressSpace == access::address_space::global_space>::type>
+                addressSpace == access::address_space::global_space>>
   atomic(const atomic<T, access::address_space::global_device_space> &RHS) {
     Ptr = RHS.Ptr;
   }
 
   template <access::address_space _Space = addressSpace,
-            typename = typename std::enable_if<
+            typename = typename detail::enable_if_t<
                 _Space == addressSpace &&
-                addressSpace == access::address_space::global_space>::type>
+                addressSpace == access::address_space::global_space>>
   atomic(atomic<T, access::address_space::global_device_space> &&RHS) {
     Ptr = RHS.Ptr;
   }
@@ -237,8 +237,7 @@ public:
             Ptr);
     cl_int TmpVal = __spirv_AtomicLoad(
         TmpPtr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order));
-    cl_float ResVal;
-    detail::memcpy(&ResVal, &TmpVal, sizeof(TmpVal));
+    cl_float ResVal = detail::bit_cast<cl_float>(TmpVal);
     return ResVal;
   }
 #else

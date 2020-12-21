@@ -7,13 +7,22 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Transforms/Bufferize.h"
+#include "PassDetail.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/Transforms/Passes.h"
 
 using namespace mlir;
 
 //===----------------------------------------------------------------------===//
 // BufferizeTypeConverter
 //===----------------------------------------------------------------------===//
+
+static Value materializeTensorLoad(OpBuilder &builder, TensorType type,
+                                   ValueRange inputs, Location loc) {
+  assert(inputs.size() == 1);
+  assert(inputs[0].getType().isa<BaseMemRefType>());
+  return builder.create<TensorLoadOp>(loc, type, inputs[0]);
+}
 
 /// Registers conversions into BufferizeTypeConverter
 BufferizeTypeConverter::BufferizeTypeConverter() {
@@ -27,13 +36,9 @@ BufferizeTypeConverter::BufferizeTypeConverter() {
   addConversion([](UnrankedTensorType type) -> Type {
     return UnrankedMemRefType::get(type.getElementType(), 0);
   });
-  addSourceMaterialization([](OpBuilder &builder, RankedTensorType type,
-                              ValueRange inputs, Location loc) -> Value {
-    assert(inputs.size() == 1);
-    assert(inputs[0].getType().isa<BaseMemRefType>());
-    return builder.create<TensorLoadOp>(loc, type, inputs[0]);
-  });
-  addTargetMaterialization([](OpBuilder &builder, MemRefType type,
+  addArgumentMaterialization(materializeTensorLoad);
+  addSourceMaterialization(materializeTensorLoad);
+  addTargetMaterialization([](OpBuilder &builder, BaseMemRefType type,
                               ValueRange inputs, Location loc) -> Value {
     assert(inputs.size() == 1);
     assert(inputs[0].getType().isa<TensorType>());
@@ -41,219 +46,83 @@ BufferizeTypeConverter::BufferizeTypeConverter() {
   });
 }
 
-/// This method tries to decompose a value of a certain type using provided
-/// decompose callback functions. If it is unable to do so, the original value
-/// is returned.
-void BufferizeTypeConverter::tryDecomposeValue(
-    OpBuilder &builder, Location loc, Type type, Value value,
-    SmallVectorImpl<Value> &results) {
-  for (auto &conversion : decomposeValueConversions)
-    if (conversion(builder, loc, type, value, results))
-      return;
-  results.push_back(value);
+void mlir::populateBufferizeMaterializationLegality(ConversionTarget &target) {
+  target.addLegalOp<TensorLoadOp, TensorToMemrefOp>();
 }
-
-/// This method tries to decompose a type using provided decompose callback
-/// functions. If it is unable to do so, the original type is returned.
-void BufferizeTypeConverter::tryDecomposeType(Type type,
-                                              SmallVectorImpl<Type> &types) {
-  for (auto &conversion : decomposeTypeConversions)
-    if (conversion(type, types))
-      return;
-  types.push_back(type);
-}
-
-/// This method returns ResultConversionKind for the input type.
-BufferizeTypeConverter::ResultConversionKind
-BufferizeTypeConverter::getResultConversionKind(Type origin, Type converted) {
-  for (auto &conversion : resultTypeConversions)
-    if (auto res = conversion(origin, converted))
-      return res.getValue();
-  return KeepAsFunctionResult;
-}
-
-//===----------------------------------------------------------------------===//
-// BufferizeFuncOpConverter
-//===----------------------------------------------------------------------===//
-
-/// Performs the actual function signature rewriting step.
-LogicalResult BufferizeFuncOpConverter::matchAndRewrite(
-    mlir::FuncOp funcOp, ArrayRef<Value> operands,
-    ConversionPatternRewriter &rewriter) const {
-  auto funcType = funcOp.getType();
-
-  // Convert function arguments using the provided TypeConverter.
-  TypeConverter::SignatureConversion conversion(funcType.getNumInputs());
-  for (auto argType : llvm::enumerate(funcType.getInputs())) {
-    SmallVector<Type, 2> decomposedTypes, convertedTypes;
-    converter.tryDecomposeType(argType.value(), decomposedTypes);
-    converter.convertTypes(decomposedTypes, convertedTypes);
-    conversion.addInputs(argType.index(), convertedTypes);
-  }
-
-  // Convert the result types of the function.
-  SmallVector<Type, 2> newResultTypes;
-  newResultTypes.reserve(funcOp.getNumResults());
-  for (Type resultType : funcType.getResults()) {
-    SmallVector<Type, 2> originTypes;
-    converter.tryDecomposeType(resultType, originTypes);
-    for (auto origin : originTypes) {
-      Type converted = converter.convertType(origin);
-      auto kind = converter.getResultConversionKind(origin, converted);
-      if (kind == BufferizeTypeConverter::AppendToArgumentsList) {
-        conversion.addInputs(converted);
-      } else {
-        assert(kind == BufferizeTypeConverter::KeepAsFunctionResult);
-        newResultTypes.push_back(converted);
-      }
-    }
-  }
-
-  if (failed(rewriter.convertRegionTypes(&funcOp.getBody(), converter,
-                                         &conversion)))
-    return failure();
-
-  // Update the signature of the function.
-  rewriter.updateRootInPlace(funcOp, [&] {
-    funcOp.setType(rewriter.getFunctionType(conversion.getConvertedTypes(),
-                                            newResultTypes));
-  });
-  return success();
-}
-
-//===----------------------------------------------------------------------===//
-// BufferizeCallOpConverter
-//===----------------------------------------------------------------------===//
 
 namespace {
-// This class represents a mapping from a result to a list of values and some
-// results that have not yet constructed. Instead, the indices of these
-// results in the operation that will be constructed are known. They will be
-// replaced with the actual values when they are available. The order of
-// adding to this mapping is important.
-class CallOpResultMapping {
+// In a finalizing bufferize conversion, we know that all tensors have been
+// converted to memrefs, thus, this op becomes an identity.
+class BufferizeTensorLoadOp : public OpConversionPattern<TensorLoadOp> {
 public:
-  CallOpResultMapping() { order = 0; };
-
-  /// Add an available value to the mapping.
-  void addMapping(Value value) { toValuesMapping.push_back({order++, value}); }
-
-  /// Add the index of unavailble result value to the mapping.
-  void addMapping(unsigned index) {
-    toIndicesMapping.push_back({order++, index});
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(TensorLoadOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    TensorLoadOp::Adaptor adaptor(operands);
+    rewriter.replaceOp(op, adaptor.memref());
+    return success();
   }
-
-  /// This method returns the mapping values list. The unknown result values
-  /// that only their indicies are available are replaced with their values.
-  void getMappingValues(ValueRange valuesToReplaceIndices,
-                        SmallVectorImpl<Value> &values) {
-    // Append available values to the list.
-    SmallVector<std::pair<unsigned, Value>, 2> res(toValuesMapping.begin(),
-                                                   toValuesMapping.end());
-    // Replace the indices with the actual values.
-    for (const std::pair<unsigned, unsigned> &entry : toIndicesMapping) {
-      assert(entry.second < valuesToReplaceIndices.size() &&
-             "The value index is out of range.");
-      res.push_back({entry.first, valuesToReplaceIndices[entry.second]});
-    }
-    // Sort the values based on their adding orders.
-    llvm::sort(res, [](const std::pair<unsigned, Value> &v1,
-                       const std::pair<unsigned, Value> &v2) {
-      return v1.first < v2.first;
-    });
-    // Fill the values.
-    for (const std::pair<unsigned, Value> &entry : res)
-      values.push_back(entry.second);
-  }
-
-private:
-  /// Keeping the inserting order of mapping values.
-  int order;
-
-  /// Containing the mapping values with their inserting orders.
-  SmallVector<std::pair<unsigned, Value>, 2> toValuesMapping;
-
-  /// Containing the indices of result values with their inserting orders.
-  SmallVector<std::pair<unsigned, unsigned>, 2> toIndicesMapping;
 };
 } // namespace
 
-/// Performs the actual rewriting step.
-LogicalResult BufferizeCallOpConverter::matchAndRewrite(
-    CallOp callOp, ArrayRef<Value> operands,
-    ConversionPatternRewriter &rewriter) const {
-
-  Location loc = callOp.getLoc();
-  OpBuilder builder(callOp);
-  SmallVector<Value, 2> newOperands;
-
-  // TODO: if the CallOp references a FuncOp that only has a declaration (e.g.
-  // to an externally defined symbol like an external library calls), only
-  // convert if some special attribute is set.
-  // This will allow more control of interop across ABI boundaries.
-
-  // Create the operands list of the new `CallOp`. It unpacks the decomposable
-  // values if a decompose callback function has been provided by the user.
-  for (auto operand : operands) {
-    SmallVector<Value, 2> values;
-    converter.tryDecomposeValue(builder, loc, operand.getType(), operand,
-                                values);
-    newOperands.append(values.begin(), values.end());
+namespace {
+// In a finalizing bufferize conversion, we know that all tensors have been
+// converted to memrefs, thus, this op becomes an identity.
+class BufferizeTensorToMemrefOp : public OpConversionPattern<TensorToMemrefOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(TensorToMemrefOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    TensorToMemrefOp::Adaptor adaptor(operands);
+    rewriter.replaceOp(op, adaptor.tensor());
+    return success();
   }
+};
+} // namespace
 
-  // Create the new result types for the new `CallOp` and a mapping from the old
-  // result to new value(s).
-  SmallVector<Type, 2> newResultTypes;
-  SmallVector<CallOpResultMapping, 4> mappings;
-  mappings.resize(callOp.getNumResults());
-  for (auto result : llvm::enumerate(callOp.getResults())) {
-    SmallVector<Type, 2> originTypes;
-    converter.tryDecomposeType(result.value().getType(), originTypes);
-    auto &resultMapping = mappings[result.index()];
-    for (Type origin : originTypes) {
-      Type converted = converter.convertType(origin);
-      auto kind = converter.getResultConversionKind(origin, converted);
-      if (kind == BufferizeTypeConverter::KeepAsFunctionResult) {
-        newResultTypes.push_back(converted);
-        // The result value is not yet available. Its index is kept and it is
-        // replaced with the actual value of the new `CallOp` later.
-        resultMapping.addMapping(newResultTypes.size() - 1);
-      } else {
-        // kind = BufferizeTypeConverter::AppendToArgumentsList
-        MemRefType memref = converted.dyn_cast<MemRefType>();
-        if (!memref)
-          return callOp.emitError("Cannot allocate for a non-Memref type");
-        Value alloc = rewriter.create<AllocOp>(loc, memref);
-        newOperands.push_back(alloc);
-        resultMapping.addMapping(alloc);
-      }
-    }
+void mlir::populateEliminateBufferizeMaterializationsPatterns(
+    MLIRContext *context, BufferizeTypeConverter &typeConverter,
+    OwningRewritePatternList &patterns) {
+  patterns.insert<BufferizeTensorLoadOp, BufferizeTensorToMemrefOp>(
+      typeConverter, context);
+}
+
+namespace {
+struct FinalizingBufferizePass
+    : public FinalizingBufferizeBase<FinalizingBufferizePass> {
+  using FinalizingBufferizeBase<
+      FinalizingBufferizePass>::FinalizingBufferizeBase;
+
+  void runOnFunction() override {
+    auto func = getFunction();
+    auto *context = &getContext();
+
+    BufferizeTypeConverter typeConverter;
+    OwningRewritePatternList patterns;
+    ConversionTarget target(*context);
+
+    populateEliminateBufferizeMaterializationsPatterns(context, typeConverter,
+                                                       patterns);
+
+    // If all result types are legal, and all block arguments are legal (ensured
+    // by func conversion above), then all types in the program are legal.
+    //
+    // We also check that the operand types are legal to avoid creating invalid
+    // IR. For example, this prevents
+    // populateEliminateBufferizeMaterializationsPatterns from updating the
+    // types of the operands to a return op without updating the enclosing
+    // function.
+    target.markUnknownOpDynamicallyLegal(
+        [&](Operation *op) { return typeConverter.isLegal(op); });
+
+    if (failed(applyFullConversion(func, target, std::move(patterns))))
+      signalPassFailure();
   }
+};
+} // namespace
 
-  CallOp newCallOp = rewriter.create<CallOp>(loc, callOp.getCallee(),
-                                             newResultTypes, newOperands);
-
-  // Build a replacing value for each result to replace its uses. If a result
-  // has multiple mapping values, it needs to be packed to a single value.
-  OpBuilder nextBuilder(callOp.getOperation()->getNextNode());
-  SmallVector<Value, 2> replacedValues;
-  replacedValues.reserve(callOp.getNumResults());
-  for (unsigned i = 0, e = callOp.getNumResults(); i < e; ++i) {
-    SmallVector<Value, 2> valuesToPack;
-    mappings[i].getMappingValues(newCallOp.getResults(), valuesToPack);
-    if (valuesToPack.empty()) {
-      // No replacement is required.
-      replacedValues.push_back(nullptr);
-    } else if (valuesToPack.size() == 1) {
-      replacedValues.push_back(valuesToPack.front());
-    } else {
-      // Values need to be packed using callback function. The same callback
-      // that is used for materializeArgumentConversion is used for packing.
-      Value packed = converter.materializeArgumentConversion(
-          nextBuilder, loc, callOp.getType(i), valuesToPack);
-      replacedValues.push_back(packed);
-    }
-  }
-  rewriter.replaceOp(callOp, replacedValues);
-  return success();
+std::unique_ptr<FunctionPass> mlir::createFinalizingBufferizePass() {
+  return std::make_unique<FinalizingBufferizePass>();
 }

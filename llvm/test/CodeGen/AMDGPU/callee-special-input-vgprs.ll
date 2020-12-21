@@ -560,7 +560,7 @@ define void @too_many_args_use_workitem_id_x_byval(
   i32 %arg0, i32 %arg1, i32 %arg2, i32 %arg3, i32 %arg4, i32 %arg5, i32 %arg6, i32 %arg7,
   i32 %arg8, i32 %arg9, i32 %arg10, i32 %arg11, i32 %arg12, i32 %arg13, i32 %arg14, i32 %arg15,
   i32 %arg16, i32 %arg17, i32 %arg18, i32 %arg19, i32 %arg20, i32 %arg21, i32 %arg22, i32 %arg23,
-  i32 %arg24, i32 %arg25, i32 %arg26, i32 %arg27, i32 %arg28, i32 %arg29, i32 %arg30, i32 %arg31, i32 addrspace(5)* byval %arg32) #1 {
+  i32 %arg24, i32 %arg25, i32 %arg26, i32 %arg27, i32 %arg28, i32 %arg29, i32 %arg30, i32 %arg31, i32 addrspace(5)* byval(i32) %arg32) #1 {
   %val = call i32 @llvm.amdgcn.workitem.id.x()
   store volatile i32 %val, i32 addrspace(1)* undef
 
@@ -611,12 +611,10 @@ define void @too_many_args_use_workitem_id_x_byval(
 ; GCN-LABEL: {{^}}kern_call_too_many_args_use_workitem_id_x_byval:
 ; VARABI: enable_vgpr_workitem_id = 0
 ; VARABI: v_mov_b32_e32 [[K:v[0-9]+]], 0x3e7{{$}}
-; VARABI: buffer_store_dword [[K]], off, s[0:3], 0 offset:4
-; VARABI: buffer_load_dword [[RELOAD_BYVAL:v[0-9]+]], off, s[0:3], 0 offset:4
 ; VARABI: s_movk_i32 s32, 0x400{{$}}
-
-; VARABI-NOT: s32
+; VARABI: buffer_store_dword [[K]], off, s[0:3], 0 offset:4
 ; VARABI: buffer_store_dword v0, off, s[0:3], s32 offset:4
+; VARABI: buffer_load_dword [[RELOAD_BYVAL:v[0-9]+]], off, s[0:3], 0 offset:4
 
 ; VARABI: buffer_store_dword [[RELOAD_BYVAL]], off, s[0:3], s32{{$}}
 ; VARABI: v_mov_b32_e32 [[RELOAD_BYVAL]],
@@ -660,8 +658,8 @@ define amdgpu_kernel void @kern_call_too_many_args_use_workitem_id_x_byval() #1 
 ; GCN-LABEL: {{^}}func_call_too_many_args_use_workitem_id_x_byval:
 ; VARABI: v_mov_b32_e32 [[K:v[0-9]+]], 0x3e7{{$}}
 ; VARABI: buffer_store_dword [[K]], off, s[0:3], s33{{$}}
-; VARABI: buffer_load_dword [[RELOAD_BYVAL:v[0-9]+]], off, s[0:3], s33{{$}}
 ; VARABI: buffer_store_dword v0, off, s[0:3], s32 offset:4
+; VARABI: buffer_load_dword [[RELOAD_BYVAL:v[0-9]+]], off, s[0:3], s33{{$}}
 ; VARABI: buffer_store_dword [[RELOAD_BYVAL]], off, s[0:3], s32{{$}}
 ; VARABI: v_mov_b32_e32 [[RELOAD_BYVAL]],
 ; VARABI: s_swappc_b64

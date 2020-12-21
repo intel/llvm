@@ -77,6 +77,7 @@ static FlatSymbolRefAttr getLibraryCallSymbolRef(Operation *op,
   // corresponding `_mlir_ciface_xxx` interface so that external libraries see
   // a normalized ABI. This interface is added during std to llvm conversion.
   funcOp.setAttr("llvm.emit_c_interface", UnitAttr::get(op->getContext()));
+  funcOp.setPrivate();
   return fnNameAttr;
 }
 
@@ -211,7 +212,7 @@ void ConvertLinalgToStandardPass::runOnOperation() {
   target.addLegalOp<linalg::ReshapeOp, linalg::RangeOp>();
   OwningRewritePatternList patterns;
   populateLinalgToStandardConversionPatterns(patterns, &getContext());
-  if (failed(applyFullConversion(module, target, patterns)))
+  if (failed(applyFullConversion(module, target, std::move(patterns))))
     signalPassFailure();
 }
 

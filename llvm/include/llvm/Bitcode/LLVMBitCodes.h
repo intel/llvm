@@ -341,7 +341,8 @@ enum MetadataCodes {
   METADATA_STRING_TYPE = 41,            // [distinct, name, size, align,...]
   // Codes 42 and 43 are reserved for support for Fortran array specific debug
   // info.
-  METADATA_COMMON_BLOCK = 44 // [distinct, scope, name, variable,...]
+  METADATA_COMMON_BLOCK = 44,    // [distinct, scope, name, variable,...]
+  METADATA_GENERIC_SUBRANGE = 45 // [distinct, count, lo, up, stride]
 };
 
 // The constants block (CONSTANTS_BLOCK_ID) describes emission for each
@@ -374,6 +375,7 @@ enum ConstantsCodes {
                                  //                 asmdialect,asmstr,conststr]
   CST_CODE_CE_GEP_WITH_INRANGE_INDEX = 24, //      [opty, flags, n x operands]
   CST_CODE_CE_UNOP = 25,         // CE_UNOP:      [opcode, opval]
+  CST_CODE_POISON = 26,          // POISON
 };
 
 /// CastOpcodes - These are values used in the bitcode files to encode which

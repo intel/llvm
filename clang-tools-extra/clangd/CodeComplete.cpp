@@ -173,9 +173,22 @@ struct CompletionCandidate {
 
   // Returns a token identifying the overload set this is part of.
   // 0 indicates it's not part of any overload set.
-  size_t overloadSet(const CodeCompleteOptions &Opts) const {
+  size_t overloadSet(const CodeCompleteOptions &Opts, llvm::StringRef FileName,
+                     IncludeInserter *Inserter) const {
     if (!Opts.BundleOverloads.getValueOr(false))
       return 0;
+
+    // Depending on the index implementation, we can see different header
+    // strings (literal or URI) mapping to the same file. We still want to
+    // bundle those, so we must resolve the header to be included here.
+    std::string HeaderForHash;
+    if (Inserter)
+      if (auto Header = headerToInsertIfAllowed(Opts))
+        if (auto HeaderFile = toHeaderFile(*Header, FileName))
+          if (auto Spelled =
+                  Inserter->calculateIncludePath(*HeaderFile, FileName))
+            HeaderForHash = *Spelled;
+
     llvm::SmallString<256> Scratch;
     if (IndexResult) {
       switch (IndexResult->SymInfo.Kind) {
@@ -192,7 +205,7 @@ struct CompletionCandidate {
         // This could break #include insertion.
         return llvm::hash_combine(
             (IndexResult->Scope + IndexResult->Name).toStringRef(Scratch),
-            headerToInsertIfAllowed(Opts).getValueOr(""));
+            HeaderForHash);
       default:
         return 0;
       }
@@ -206,8 +219,7 @@ struct CompletionCandidate {
         llvm::raw_svector_ostream OS(Scratch);
         D->printQualifiedName(OS);
       }
-      return llvm::hash_combine(Scratch,
-                                headerToInsertIfAllowed(Opts).getValueOr(""));
+      return llvm::hash_combine(Scratch, HeaderForHash);
     }
     assert(IdentifierResult);
     return 0;
@@ -503,20 +515,19 @@ private:
 };
 
 // Determine the symbol ID for a Sema code completion result, if possible.
-llvm::Optional<SymbolID> getSymbolID(const CodeCompletionResult &R,
-                                     const SourceManager &SM) {
+SymbolID getSymbolID(const CodeCompletionResult &R, const SourceManager &SM) {
   switch (R.Kind) {
   case CodeCompletionResult::RK_Declaration:
   case CodeCompletionResult::RK_Pattern: {
     // Computing USR caches linkage, which may change after code completion.
     if (hasUnstableLinkage(R.Declaration))
-      return llvm::None;
+      return {};
     return clang::clangd::getSymbolID(R.Declaration);
   }
   case CodeCompletionResult::RK_Macro:
     return clang::clangd::getSymbolID(R.Macro->getName(), R.MacroDefInfo, SM);
   case CodeCompletionResult::RK_Keyword:
-    return None;
+    return {};
   }
   llvm_unreachable("unknown CodeCompletionResult kind");
 }
@@ -1105,7 +1116,7 @@ bool semaCodeComplete(std::unique_ptr<CodeCompleteConsumer> Consumer,
   // overriding the preamble will break sema completion. Fortunately we can just
   // skip all includes in this case; these completions are really simple.
   PreambleBounds PreambleRegion =
-      ComputePreambleBounds(*CI->getLangOpts(), ContentsBuffer.get(), 0);
+      ComputePreambleBounds(*CI->getLangOpts(), *ContentsBuffer, 0);
   bool CompletingInPreamble = PreambleRegion.Size > Input.Offset;
   if (Input.Patch)
     Input.Patch->apply(*CI);
@@ -1571,7 +1582,8 @@ private:
         assert(IdentifierResult);
         C.Name = IdentifierResult->Name;
       }
-      if (auto OverloadSet = C.overloadSet(Opts)) {
+      if (auto OverloadSet = C.overloadSet(
+              Opts, FileName, Inserter ? Inserter.getPointer() : nullptr)) {
         auto Ret = BundleLookup.try_emplace(OverloadSet, Bundles.size());
         if (Ret.second)
           Bundles.emplace_back();
@@ -1586,7 +1598,7 @@ private:
         [&](const CodeCompletionResult &SemaResult) -> const Symbol * {
       if (auto SymID =
               getSymbolID(SemaResult, Recorder->CCSema->getSourceManager())) {
-        auto I = IndexResults.find(*SymID);
+        auto I = IndexResults.find(SymID);
         if (I != IndexResults.end()) {
           UsedIndexResults.insert(&*I);
           return &*I;
@@ -1644,19 +1656,10 @@ private:
       return Scores;
 
     case RM::DecisionForest:
-      Scores.Quality = 0;
-      Scores.Relevance = 0;
-      // Exponentiating DecisionForest prediction makes the score of each tree a
-      // multiplciative boost (like NameMatch). This allows us to weigh the
-      // prediciton score and NameMatch appropriately.
-      Scores.ExcludingName = pow(Opts.DecisionForestBase,
-                                 evaluateDecisionForest(Quality, Relevance));
-      // NeedsFixIts is not part of the DecisionForest as generating training
-      // data that needs fixits is not-feasible.
-      if (Relevance.NeedsFixIts)
-        Scores.ExcludingName *= 0.5;
-      // NameMatch should be a multiplier on total score to support rescoring.
-      Scores.Total = Relevance.NameMatch * Scores.ExcludingName;
+      DecisionForestScores DFScores = Opts.DecisionForestScorer(
+          Quality, Relevance, Opts.DecisionForestBase);
+      Scores.ExcludingName = DFScores.ExcludingName;
+      Scores.Total = DFScores.Total;
       return Scores;
     }
     llvm_unreachable("Unhandled CodeCompletion ranking model.");

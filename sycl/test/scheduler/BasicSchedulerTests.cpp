@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -I %sycl_source_dir %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %RUN_ON_HOST %t.out
 //==------------------- BasicSchedulerTests.cpp ----------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

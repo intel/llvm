@@ -82,7 +82,7 @@ void DAGTypeLegalizer::PromoteIntegerResult(SDNode *N, unsigned ResNo) {
   case ISD::SMIN:
   case ISD::SMAX:        Res = PromoteIntRes_SExtIntBinOp(N); break;
   case ISD::UMIN:
-  case ISD::UMAX:        Res = PromoteIntRes_ZExtIntBinOp(N); break;
+  case ISD::UMAX:        Res = PromoteIntRes_UMINUMAX(N); break;
 
   case ISD::SHL:         Res = PromoteIntRes_SHL(N); break;
   case ISD::SIGN_EXTEND_INREG:
@@ -575,8 +575,8 @@ SDValue DAGTypeLegalizer::PromoteIntRes_FP_TO_XINT(SDNode *N) {
 
   SDValue Res;
   if (N->isStrictFPOpcode()) {
-    Res = DAG.getNode(NewOpc, dl, { NVT, MVT::Other }, 
-                      { N->getOperand(0), N->getOperand(1) });
+    Res = DAG.getNode(NewOpc, dl, {NVT, MVT::Other},
+                      {N->getOperand(0), N->getOperand(1)});
     // Legalize the chain result - switch anything that used the old chain to
     // use the new one.
     ReplaceValueWith(SDValue(N, 1), Res.getValue(1));
@@ -1101,6 +1101,15 @@ SDValue DAGTypeLegalizer::PromoteIntRes_ZExtIntBinOp(SDNode *N) {
                      LHS.getValueType(), LHS, RHS);
 }
 
+SDValue DAGTypeLegalizer::PromoteIntRes_UMINUMAX(SDNode *N) {
+  // It doesn't matter if we sign extend or zero extend in the inputs. So do
+  // whatever is best for the target.
+  SDValue LHS = SExtOrZExtPromotedInteger(N->getOperand(0));
+  SDValue RHS = SExtOrZExtPromotedInteger(N->getOperand(1));
+  return DAG.getNode(N->getOpcode(), SDLoc(N),
+                     LHS.getValueType(), LHS, RHS);
+}
+
 SDValue DAGTypeLegalizer::PromoteIntRes_SRA(SDNode *N) {
   // The input value must be properly sign extended.
   SDValue LHS = SExtPromotedInteger(N->getOperand(0));
@@ -1122,7 +1131,7 @@ SDValue DAGTypeLegalizer::PromoteIntRes_SRL(SDNode *N) {
 SDValue DAGTypeLegalizer::PromoteIntRes_Rotate(SDNode *N) {
   // Lower the rotate to shifts and ORs which can be promoted.
   SDValue Res;
-  TLI.expandROT(N, Res, DAG);
+  TLI.expandROT(N, true /*AllowVectorOps*/, Res, DAG);
   ReplaceValueWith(SDValue(N, 0), Res);
   return SDValue();
 }
@@ -1260,7 +1269,7 @@ SDValue DAGTypeLegalizer::PromoteIntRes_UADDSUBO(SDNode *N, unsigned ResNo) {
 }
 
 // Handle promotion for the ADDE/SUBE/ADDCARRY/SUBCARRY nodes. Notice that
-// the third operand of ADDE/SUBE nodes is carry flag, which differs from 
+// the third operand of ADDE/SUBE nodes is carry flag, which differs from
 // the ADDCARRY/SUBCARRY nodes in that the third operand is carry Boolean.
 SDValue DAGTypeLegalizer::PromoteIntRes_ADDSUBCARRY(SDNode *N, unsigned ResNo) {
   if (ResNo == 1)
@@ -1851,6 +1860,7 @@ SDValue DAGTypeLegalizer::PromoteIntOp_MGATHER(MaskedGatherSDNode *N,
 
 SDValue DAGTypeLegalizer::PromoteIntOp_MSCATTER(MaskedScatterSDNode *N,
                                                 unsigned OpNo) {
+  bool TruncateStore = N->isTruncatingStore();
   SmallVector<SDValue, 5> NewOps(N->op_begin(), N->op_end());
   if (OpNo == 2) {
     // The Mask
@@ -1863,9 +1873,17 @@ SDValue DAGTypeLegalizer::PromoteIntOp_MSCATTER(MaskedScatterSDNode *N,
       NewOps[OpNo] = SExtPromotedInteger(N->getOperand(OpNo));
     else
       NewOps[OpNo] = ZExtPromotedInteger(N->getOperand(OpNo));
-  } else
+
+    N->setIndexType(TLI.getCanonicalIndexType(N->getIndexType(),
+                                              N->getMemoryVT(), NewOps[OpNo]));
+  } else {
     NewOps[OpNo] = GetPromotedInteger(N->getOperand(OpNo));
-  return SDValue(DAG.UpdateNodeOperands(N, NewOps), 0);
+    TruncateStore = true;
+  }
+
+  return DAG.getMaskedScatter(DAG.getVTList(MVT::Other), N->getMemoryVT(),
+                              SDLoc(N), NewOps, N->getMemOperand(),
+                              N->getIndexType(), TruncateStore);
 }
 
 SDValue DAGTypeLegalizer::PromoteIntOp_TRUNCATE(SDNode *N) {
@@ -2160,12 +2178,22 @@ void DAGTypeLegalizer::ExpandIntegerResult(SDNode *N, unsigned ResNo) {
 std::pair <SDValue, SDValue> DAGTypeLegalizer::ExpandAtomic(SDNode *Node) {
   unsigned Opc = Node->getOpcode();
   MVT VT = cast<AtomicSDNode>(Node)->getMemoryVT().getSimpleVT();
-  RTLIB::Libcall LC = RTLIB::getSYNC(Opc, VT);
-  assert(LC != RTLIB::UNKNOWN_LIBCALL && "Unexpected atomic op or value type!");
-
+  AtomicOrdering order = cast<AtomicSDNode>(Node)->getOrdering();
+  // Lower to outline atomic libcall if outline atomics enabled,
+  // or to sync libcall otherwise
+  RTLIB::Libcall LC = RTLIB::getOUTLINE_ATOMIC(Opc, order, VT);
   EVT RetVT = Node->getValueType(0);
-  SmallVector<SDValue, 4> Ops(Node->op_begin() + 1, Node->op_end());
   TargetLowering::MakeLibCallOptions CallOptions;
+  SmallVector<SDValue, 4> Ops;
+  if (TLI.getLibcallName(LC)) {
+    Ops.append(Node->op_begin() + 2, Node->op_end());
+    Ops.push_back(Node->getOperand(1));
+  } else {
+    LC = RTLIB::getSYNC(Opc, VT);
+    assert(LC != RTLIB::UNKNOWN_LIBCALL &&
+           "Unexpected atomic op or value type!");
+    Ops.append(Node->op_begin() + 1, Node->op_end());
+  }
   return TLI.makeLibCall(DAG, LC, RetVT, Ops, CallOptions, SDLoc(Node),
                          Node->getOperand(0));
 }
@@ -3087,7 +3115,7 @@ void DAGTypeLegalizer::ExpandIntRes_LOAD(LoadSDNode *N,
     ReplaceValueWith(SDValue(N, 1), Swap.getValue(2));
     return;
   }
-  
+
   if (ISD::isNormalLoad(N)) {
     ExpandRes_NormalLoad(N, Lo, Hi);
     return;
@@ -4068,7 +4096,7 @@ void DAGTypeLegalizer::ExpandIntRes_Rotate(SDNode *N,
                                            SDValue &Lo, SDValue &Hi) {
   // Lower the rotate to shifts and ORs which can be expanded.
   SDValue Res;
-  TLI.expandROT(N, Res, DAG);
+  TLI.expandROT(N, true /*AllowVectorOps*/, Res, DAG);
   SplitInteger(Res, Lo, Hi);
 }
 

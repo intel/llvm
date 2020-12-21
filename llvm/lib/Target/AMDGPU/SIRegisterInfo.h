@@ -68,6 +68,7 @@ public:
   const MCPhysReg *getCalleeSavedRegsViaCopy(const MachineFunction *MF) const;
   const uint32_t *getCallPreservedMask(const MachineFunction &MF,
                                        CallingConv::ID) const override;
+  const uint32_t *getNoPreservedMask() const override;
 
   // Stack access is very expensive. CSRs are also the high registers, and we
   // want to minimize the number of used registers.
@@ -88,7 +89,7 @@ public:
     const MachineFunction &MF) const override;
   bool requiresVirtualBaseRegisters(const MachineFunction &Fn) const override;
 
-  int64_t getMUBUFInstrOffset(const MachineInstr *MI) const;
+  int64_t getScratchInstrOffset(const MachineInstr *MI) const;
 
   int64_t getFrameIndexInstrOffset(const MachineInstr *MI,
                                    int Idx) const override;
@@ -131,6 +132,7 @@ public:
 
   StringRef getRegAsmName(MCRegister Reg) const override;
 
+  // Pseudo regs are not allowed
   unsigned getHWRegIndex(MCRegister Reg) const {
     return getEncodingValue(Reg) & 0xff;
   }
@@ -322,6 +324,10 @@ public:
   /// of the subtarget.
   ArrayRef<MCPhysReg> getAllSGPR128(const MachineFunction &MF) const;
 
+  /// Return all SGPR64 which satisfy the waves per execution unit requirement
+  /// of the subtarget.
+  ArrayRef<MCPhysReg> getAllSGPR64(const MachineFunction &MF) const;
+
   /// Return all SGPR32 which satisfy the waves per execution unit requirement
   /// of the subtarget.
   ArrayRef<MCPhysReg> getAllSGPR32(const MachineFunction &MF) const;
@@ -332,7 +338,6 @@ private:
                            int Index,
                            Register ValueReg,
                            bool ValueIsKill,
-                           MCRegister ScratchRsrcReg,
                            MCRegister ScratchOffsetReg,
                            int64_t InstrOffset,
                            MachineMemOperand *MMO,

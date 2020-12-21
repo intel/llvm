@@ -89,6 +89,8 @@ public:
 
   bool isNoopAddrSpaceCast(unsigned, unsigned) const { return false; }
 
+  unsigned getAssumedAddrSpace(const Value *V) const { return -1; }
+
   Value *rewriteIntrinsicWithAddressSpace(IntrinsicInst *II, Value *OldV,
                                           Value *NewV) const {
     return nullptr;
@@ -192,6 +194,8 @@ public:
                     C2.ScaleCost, C2.ImmCost, C2.SetupCost);
   }
 
+  bool isNumRegsMajorCostOfLSR() { return true; }
+
   bool isProfitableLSRChainElement(Instruction *I) { return false; }
 
   bool canMacroFuseCmp() { return false; }
@@ -256,6 +260,8 @@ public:
   bool useAA() { return false; }
 
   bool isTypeLegal(Type *Ty) { return false; }
+
+  unsigned getRegUsageForType(Type *Ty) { return 1; }
 
   bool shouldBuildLookupTables() { return true; }
   bool shouldBuildLookupTablesForConstant(Constant *C) { return true; }
@@ -476,6 +482,7 @@ public:
   }
 
   unsigned getCmpSelInstrCost(unsigned Opcode, Type *ValTy, Type *CondTy,
+                              CmpInst::Predicate VecPred,
                               TTI::TargetCostKind CostKind,
                               const Instruction *I) const {
     return 1;
@@ -519,6 +526,7 @@ public:
     case Intrinsic::annotation:
     case Intrinsic::assume:
     case Intrinsic::sideeffect:
+    case Intrinsic::pseudoprobe:
     case Intrinsic::dbg_declare:
     case Intrinsic::dbg_value:
     case Intrinsic::dbg_label:
@@ -809,7 +817,12 @@ public:
         uint64_t Field = ConstIdx->getZExtValue();
         BaseOffset += DL.getStructLayout(STy)->getElementOffset(Field);
       } else {
-        int64_t ElementSize = DL.getTypeAllocSize(GTI.getIndexedType());
+        // If this operand is a scalable type, bail out early.
+        // TODO: handle scalable vectors
+        if (isa<ScalableVectorType>(TargetType))
+          return TTI::TCC_Basic;
+        int64_t ElementSize =
+            DL.getTypeAllocSize(GTI.getIndexedType()).getFixedSize();
         if (ConstIdx) {
           BaseOffset +=
               ConstIdx->getValue().sextOrTrunc(PtrSizeBits) * ElementSize;
@@ -940,12 +953,16 @@ public:
     case Instruction::Select: {
       Type *CondTy = U->getOperand(0)->getType();
       return TargetTTI->getCmpSelInstrCost(Opcode, U->getType(), CondTy,
+                                           CmpInst::BAD_ICMP_PREDICATE,
                                            CostKind, I);
     }
     case Instruction::ICmp:
     case Instruction::FCmp: {
       Type *ValTy = U->getOperand(0)->getType();
+      // TODO: Also handle ICmp/FCmp constant expressions.
       return TargetTTI->getCmpSelInstrCost(Opcode, ValTy, U->getType(),
+                                           I ? cast<CmpInst>(I)->getPredicate()
+                                             : CmpInst::BAD_ICMP_PREDICATE,
                                            CostKind, I);
     }
     case Instruction::InsertElement: {

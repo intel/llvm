@@ -41,6 +41,15 @@
 
 #include "tsan_annotations.h"
 
+#if KMP_OS_WINDOWS
+// windows does not need include files as it doesn't use shared memory
+#else
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#define SHM_SIZE 1024
+#endif
+
 #if defined(KMP_GOMP_COMPAT)
 char const __kmp_version_alt_comp[] =
     KMP_VERSION_PREFIX "alternative compiler support: yes";
@@ -89,7 +98,6 @@ static int __kmp_expand_threads(int nNeed);
 #if KMP_OS_WINDOWS
 static int __kmp_unregister_root_other_thread(int gtid);
 #endif
-static void __kmp_unregister_library(void); // called by __kmp_internal_end()
 static void __kmp_reap_thread(kmp_info_t *thread, int is_root);
 kmp_info_t *__kmp_thread_pool_insert_pt = NULL;
 
@@ -432,6 +440,7 @@ void __kmp_abort_process() {
     raise(SIGABRT);
     _exit(3); // Just in case, if signal ignored, exit anyway.
   } else {
+    __kmp_unregister_library();
     abort();
   }
 
@@ -3976,12 +3985,6 @@ void __kmp_unregister_root_current_thread(int gtid) {
 
   __kmp_reset_root(gtid, root);
 
-  /* free up this thread slot */
-  __kmp_gtid_set_specific(KMP_GTID_DNE);
-#ifdef KMP_TDATA_GTID
-  __kmp_gtid = KMP_GTID_DNE;
-#endif
-
   KMP_MB();
   KC_TRACE(10,
            ("__kmp_unregister_root_current_thread: T#%d unregistered\n", gtid));
@@ -5454,7 +5457,7 @@ void __kmp_free_team(kmp_root_t *root,
           }
 #endif
           // first check if thread is sleeping
-          kmp_flag_64 fl(&th->th.th_bar[bs_forkjoin_barrier].bb.b_go, th);
+          kmp_flag_64<> fl(&th->th.th_bar[bs_forkjoin_barrier].bb.b_go, th);
           if (fl.is_sleeping())
             fl.resume(__kmp_gtid_from_thread(th));
           KMP_CPU_PAUSE();
@@ -5819,20 +5822,6 @@ void __kmp_internal_end_dest(void *specific_gtid) {
   /* NOTE: the gtid is stored as gitd+1 in the thread-local-storage
    * this is because 0 is reserved for the nothing-stored case */
 
-  /* josh: One reason for setting the gtid specific data even when it is being
-     destroyed by pthread is to allow gtid lookup through thread specific data
-     (__kmp_gtid_get_specific).  Some of the code, especially stat code,
-     that gets executed in the call to __kmp_internal_end_thread, actually
-     gets the gtid through the thread specific data.  Setting it here seems
-     rather inelegant and perhaps wrong, but allows __kmp_internal_end_thread
-     to run smoothly.
-     todo: get rid of this after we remove the dependence on
-     __kmp_gtid_get_specific  */
-  if (gtid >= 0 && KMP_UBER_GTID(gtid))
-    __kmp_gtid_set_specific(gtid);
-#ifdef KMP_TDATA_GTID
-  __kmp_gtid = gtid;
-#endif
   __kmp_internal_end_thread(gtid);
 }
 
@@ -5895,7 +5884,8 @@ static void __kmp_reap_thread(kmp_info_t *thread, int is_root) {
       /* Need release fence here to prevent seg faults for tree forkjoin barrier
        * (GEH) */
       ANNOTATE_HAPPENS_BEFORE(thread);
-      kmp_flag_64 flag(&thread->th.th_bar[bs_forkjoin_barrier].bb.b_go, thread);
+      kmp_flag_64<> flag(&thread->th.th_bar[bs_forkjoin_barrier].bb.b_go,
+                         thread);
       __kmp_release_64(&flag);
     }
 
@@ -6139,7 +6129,6 @@ void __kmp_internal_end_library(int gtid_req) {
   }
 
   KMP_MB(); /* Flush all pending memory write invalidates.  */
-
   /* find out who we are and what we should do */
   {
     int gtid = (gtid_req >= 0) ? gtid_req : __kmp_gtid_get_specific();
@@ -6162,6 +6151,7 @@ void __kmp_internal_end_library(int gtid_req) {
       if (__kmp_root[gtid]->r.r_active) {
         __kmp_global.g.g_abort = -1;
         TCW_SYNC_4(__kmp_global.g.g_done, TRUE);
+        __kmp_unregister_library();
         KA_TRACE(10,
                  ("__kmp_internal_end_library: root still active, abort T#%d\n",
                   gtid));
@@ -6181,6 +6171,10 @@ void __kmp_internal_end_library(int gtid_req) {
       if (__kmp_debug_buf)
         __kmp_dump_debug_buffer();
 #endif
+      // added unregister library call here when we switch to shm linux
+      // if we don't, it will leave lots of files in /dev/shm
+      // cleanup shared memory file before exiting.
+      __kmp_unregister_library();
       return;
     }
   }
@@ -6366,7 +6360,12 @@ static inline char *__kmp_reg_status_name() {
      each thread. If registration and unregistration go in different threads
      (omp_misc_other_root_exit.cpp test case), the name of registered_lib_env
      env var can not be found, because the name will contain different pid. */
+#if KMP_OS_UNIX && KMP_DYNAMIC_LIB // shared memory is with dynamic library
+  return __kmp_str_format("__KMP_REGISTERED_LIB_%d_%d", (int)getpid(),
+                          (int)getuid());
+#else
   return __kmp_str_format("__KMP_REGISTERED_LIB_%d", (int)getpid());
+#endif
 } // __kmp_reg_status_get
 
 void __kmp_register_library_startup(void) {
@@ -6393,16 +6392,61 @@ void __kmp_register_library_startup(void) {
 
     char *value = NULL; // Actual value of the environment variable.
 
+#if KMP_OS_UNIX && KMP_DYNAMIC_LIB // shared memory is with dynamic library
+    char *shm_name = __kmp_str_format("/%s", name);
+    int shm_preexist = 0;
+    char *data1;
+    int fd1 = shm_open(shm_name, O_CREAT | O_EXCL | O_RDWR, 0666);
+    if ((fd1 == -1) && (errno == EEXIST)) {
+      // file didn't open because it already exists.
+      // try opening existing file
+      fd1 = shm_open(shm_name, O_RDWR, 0666);
+      if (fd1 == -1) { // file didn't open
+        // error out here
+        __kmp_fatal(KMP_MSG(FunctionError, "Can't open SHM"), KMP_ERR(0),
+                    __kmp_msg_null);
+      } else {
+        // able to open existing file
+        shm_preexist = 1;
+      }
+    } else if (fd1 == -1) { // SHM didn't open; it was due to error other than
+      // already exists.
+      // error out here.
+      __kmp_fatal(KMP_MSG(FunctionError, "Can't open SHM2"), KMP_ERR(errno),
+                  __kmp_msg_null);
+    }
+    if (shm_preexist == 0) {
+      // we created SHM now set size
+      if (ftruncate(fd1, SHM_SIZE) == -1) {
+        // error occured setting size;
+        __kmp_fatal(KMP_MSG(FunctionError, "Can't set size of SHM"),
+                    KMP_ERR(errno), __kmp_msg_null);
+      }
+    }
+    data1 =
+        (char *)mmap(0, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd1, 0);
+    if (data1 == MAP_FAILED) {
+      // failed to map shared memory
+      __kmp_fatal(KMP_MSG(FunctionError, "Can't map SHM"), KMP_ERR(errno),
+                  __kmp_msg_null);
+    }
+    if (shm_preexist == 0) { // set data to SHM, set value
+      KMP_STRCPY_S(data1, SHM_SIZE, __kmp_registration_str);
+    }
+    // Read value from either what we just wrote or existing file.
+    value = __kmp_str_format("%s", data1); // read value from SHM
+    munmap(data1, SHM_SIZE);
+    close(fd1);
+#else // Windows and unix with static library
     // Set environment variable, but do not overwrite if it is exist.
     __kmp_env_set(name, __kmp_registration_str, 0);
-    // Check the variable is written.
+    // read value to see if it got set
     value = __kmp_env_get(name);
+#endif
+
     if (value != NULL && strcmp(value, __kmp_registration_str) == 0) {
-
       done = 1; // Ok, environment variable set successfully, exit the loop.
-
     } else {
-
       // Oops. Write failed. Another copy of OpenMP RTL is in memory.
       // Check whether it alive or dead.
       int neighbor = 0; // 0 -- unknown status, 1 -- alive, 2 -- dead.
@@ -6452,14 +6496,23 @@ void __kmp_register_library_startup(void) {
         done = 1; // Exit the loop.
       } break;
       case 2: { // Neighbor is dead.
+
+#if KMP_OS_UNIX && KMP_DYNAMIC_LIB // shared memory is with dynamic library
+        // close shared memory.
+        shm_unlink(shm_name); // this removes file in /dev/shm
+#else
         // Clear the variable and try to register library again.
         __kmp_env_unset(name);
+#endif
       } break;
       default: { KMP_DEBUG_ASSERT(0); } break;
       }
     }
     KMP_INTERNAL_FREE((void *)value);
-  }
+#if KMP_OS_UNIX && KMP_DYNAMIC_LIB // shared memory is with dynamic library
+    KMP_INTERNAL_FREE((void *)shm_name);
+#endif
+  } // while
   KMP_INTERNAL_FREE((void *)name);
 
 } // func __kmp_register_library_startup
@@ -6467,14 +6520,39 @@ void __kmp_register_library_startup(void) {
 void __kmp_unregister_library(void) {
 
   char *name = __kmp_reg_status_name();
-  char *value = __kmp_env_get(name);
+  char *value = NULL;
+
+#if KMP_OS_UNIX && KMP_DYNAMIC_LIB // shared memory is with dynamic library
+  char *shm_name = __kmp_str_format("/%s", name);
+  int fd1 = shm_open(shm_name, O_RDONLY, 0666);
+  if (fd1 == -1) {
+    // file did not open. return.
+    return;
+  }
+  char *data1 = (char *)mmap(0, SHM_SIZE, PROT_READ, MAP_SHARED, fd1, 0);
+  if (data1 != MAP_FAILED) {
+    value = __kmp_str_format("%s", data1); // read value from SHM
+    munmap(data1, SHM_SIZE);
+  }
+  close(fd1);
+#else
+  value = __kmp_env_get(name);
+#endif
 
   KMP_DEBUG_ASSERT(__kmp_registration_flag != 0);
   KMP_DEBUG_ASSERT(__kmp_registration_str != NULL);
   if (value != NULL && strcmp(value, __kmp_registration_str) == 0) {
-    // Ok, this is our variable. Delete it.
+//  Ok, this is our variable. Delete it.
+#if KMP_OS_UNIX && KMP_DYNAMIC_LIB // shared memory is with dynamic library
+    shm_unlink(shm_name); // this removes file in /dev/shm
+#else
     __kmp_env_unset(name);
+#endif
   }
+
+#if KMP_OS_UNIX && KMP_DYNAMIC_LIB // shared memory is with dynamic library
+  KMP_INTERNAL_FREE(shm_name);
+#endif
 
   KMP_INTERNAL_FREE(__kmp_registration_str);
   KMP_INTERNAL_FREE(value);
@@ -6505,6 +6583,48 @@ static void __kmp_check_mic_type() {
 }
 
 #endif /* KMP_MIC_SUPPORTED */
+
+#if KMP_HAVE_UMWAIT
+static void __kmp_user_level_mwait_init() {
+  struct kmp_cpuid buf;
+  __kmp_x86_cpuid(7, 0, &buf);
+  __kmp_umwait_enabled = ((buf.ecx >> 5) & 1) && __kmp_user_level_mwait;
+  KF_TRACE(30, ("__kmp_user_level_mwait_init: __kmp_umwait_enabled = %d\n",
+                __kmp_umwait_enabled));
+}
+#elif KMP_HAVE_MWAIT
+#ifndef AT_INTELPHIUSERMWAIT
+// Spurious, non-existent value that should always fail to return anything.
+// Will be replaced with the correct value when we know that.
+#define AT_INTELPHIUSERMWAIT 10000
+#endif
+// getauxval() function is available in RHEL7 and SLES12. If a system with an
+// earlier OS is used to build the RTL, we'll use the following internal
+// function when the entry is not found.
+unsigned long getauxval(unsigned long) KMP_WEAK_ATTRIBUTE_EXTERNAL;
+unsigned long getauxval(unsigned long) { return 0; }
+
+static void __kmp_user_level_mwait_init() {
+  // When getauxval() and correct value of AT_INTELPHIUSERMWAIT are available
+  // use them to find if the user-level mwait is enabled. Otherwise, forcibly
+  // set __kmp_mwait_enabled=TRUE on Intel MIC if the environment variable
+  // KMP_USER_LEVEL_MWAIT was set to TRUE.
+  if (__kmp_mic_type == mic3) {
+    unsigned long res = getauxval(AT_INTELPHIUSERMWAIT);
+    if ((res & 0x1) || __kmp_user_level_mwait) {
+      __kmp_mwait_enabled = TRUE;
+      if (__kmp_user_level_mwait) {
+        KMP_INFORM(EnvMwaitWarn);
+      }
+    } else {
+      __kmp_mwait_enabled = FALSE;
+    }
+  }
+  KF_TRACE(30, ("__kmp_user_level_mwait_init: __kmp_mic_type = %d, "
+                "__kmp_mwait_enabled = %d\n",
+                __kmp_mic_type, __kmp_mwait_enabled));
+}
+#endif /* KMP_HAVE_UMWAIT */
 
 static void __kmp_do_serial_initialize(void) {
   int i, gtid;
@@ -6680,6 +6800,9 @@ static void __kmp_do_serial_initialize(void) {
 
   __kmp_env_initialize(NULL);
 
+#if KMP_HAVE_MWAIT || KMP_HAVE_UMWAIT
+  __kmp_user_level_mwait_init();
+#endif
 // Print all messages in message catalog for testing purposes.
 #ifdef KMP_DEBUG
   char const *val = __kmp_env_get("KMP_DUMP_CATALOG");
@@ -8280,7 +8403,8 @@ void __kmp_resume_if_soft_paused() {
     for (int gtid = 1; gtid < __kmp_threads_capacity; ++gtid) {
       kmp_info_t *thread = __kmp_threads[gtid];
       if (thread) { // Wake it if sleeping
-        kmp_flag_64 fl(&thread->th.th_bar[bs_forkjoin_barrier].bb.b_go, thread);
+        kmp_flag_64<> fl(&thread->th.th_bar[bs_forkjoin_barrier].bb.b_go,
+                         thread);
         if (fl.is_sleeping())
           fl.resume(gtid);
         else if (__kmp_try_suspend_mx(thread)) { // got suspend lock

@@ -420,6 +420,9 @@ MachineFunction::CreateMachineBasicBlock(const BasicBlock *bb) {
 void
 MachineFunction::DeleteMachineBasicBlock(MachineBasicBlock *MBB) {
   assert(MBB->getParent() == this && "MBB parent mismatch!");
+  // Clean up any references to MBB in jump tables before deleting it.
+  if (JumpTableInfo)
+    JumpTableInfo->RemoveMBBFromJumpTables(MBB);
   MBB->~MachineBasicBlock();
   BasicBlockRecycler.Deallocate(Allocator, MBB);
 }
@@ -955,7 +958,8 @@ void MachineFunction::makeDebugValueSubstitution(DebugInstrOperandPair A,
 }
 
 void MachineFunction::substituteDebugValuesForInst(const MachineInstr &Old,
-                                                   MachineInstr &New) {
+                                                   MachineInstr &New,
+                                                   unsigned MaxOperand) {
   // If the Old instruction wasn't tracked at all, there is no work to do.
   unsigned OldInstrNum = Old.peekDebugInstrNum();
   if (!OldInstrNum)
@@ -965,12 +969,16 @@ void MachineFunction::substituteDebugValuesForInst(const MachineInstr &Old,
   // Avoid creating new instr numbers unless we create a new substitution.
   // While this has no functional effect, it risks confusing someone reading
   // MIR output.
+  // Examine all the operands, or the first N specified by the caller.
+  MaxOperand = std::min(MaxOperand, Old.getNumOperands());
   for (unsigned int I = 0; I < Old.getNumOperands(); ++I) {
     const auto &OldMO = Old.getOperand(I);
+    auto &NewMO = New.getOperand(I);
+    (void)NewMO;
 
     if (!OldMO.isReg() || !OldMO.isDef())
       continue;
-    assert(Old.getOperand(I).isDef());
+    assert(NewMO.isDef());
 
     unsigned NewInstrNum = New.getDebugInstrNum();
     makeDebugValueSubstitution(std::make_pair(OldInstrNum, I),
@@ -1039,6 +1047,17 @@ bool MachineJumpTableInfo::ReplaceMBBInJumpTables(MachineBasicBlock *Old,
   bool MadeChange = false;
   for (size_t i = 0, e = JumpTables.size(); i != e; ++i)
     ReplaceMBBInJumpTable(i, Old, New);
+  return MadeChange;
+}
+
+/// If MBB is present in any jump tables, remove it.
+bool MachineJumpTableInfo::RemoveMBBFromJumpTables(MachineBasicBlock *MBB) {
+  bool MadeChange = false;
+  for (MachineJumpTableEntry &JTE : JumpTables) {
+    auto removeBeginItr = std::remove(JTE.MBBs.begin(), JTE.MBBs.end(), MBB);
+    MadeChange |= (removeBeginItr != JTE.MBBs.end());
+    JTE.MBBs.erase(removeBeginItr, JTE.MBBs.end());
+  }
   return MadeChange;
 }
 

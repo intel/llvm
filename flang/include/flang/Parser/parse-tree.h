@@ -974,9 +974,8 @@ struct ComponentAttrSpec {
       u;
 };
 
-// R806 null-init -> function-reference
-// TODO replace with semantic check on expression
-EMPTY_CLASS(NullInit);
+// R806 null-init -> function-reference   ... which must be NULL()
+WRAPPER_CLASS(NullInit, common::Indirection<Expr>);
 
 // R744 initial-data-target -> designator
 using InitialDataTarget = common::Indirection<Designator>;
@@ -1412,7 +1411,7 @@ using TypedExpr = common::ForwardOwningPointer<evaluate::GenericExprWrapper>;
 //        scalar-constant | scalar-constant-subobject |
 //        signed-int-literal-constant | signed-real-literal-constant |
 //        null-init | initial-data-target |
-//        constant-structure-constructor    <- added "constant-"
+//        structure-constructor
 struct DataStmtConstant {
   UNION_CLASS_BOILERPLATE(DataStmtConstant);
   CharBlock source;
@@ -3375,6 +3374,7 @@ struct OmpIfClause {
 // 2.8.1 aligned-clause -> ALIGNED (variable-name-list[ : scalar-constant])
 struct OmpAlignedClause {
   TUPLE_CLASS_BOILERPLATE(OmpAlignedClause);
+  CharBlock source;
   std::tuple<std::list<Name>, std::optional<ScalarIntConstantExpr>> t;
 };
 
@@ -3701,8 +3701,8 @@ struct OpenMPCancelConstruct {
 // memory-order-clause -> acq_rel
 //                        release
 //                        acquire
-struct OmpFlushMemoryClause {
-  WRAPPER_CLASS_BOILERPLATE(OmpFlushMemoryClause, llvm::omp::Clause);
+struct OmpMemoryOrderClause {
+  WRAPPER_CLASS_BOILERPLATE(OmpMemoryOrderClause, OmpClause);
   CharBlock source;
 };
 
@@ -3710,7 +3710,7 @@ struct OmpFlushMemoryClause {
 struct OpenMPFlushConstruct {
   TUPLE_CLASS_BOILERPLATE(OpenMPFlushConstruct);
   CharBlock source;
-  std::tuple<Verbatim, std::optional<OmpFlushMemoryClause>,
+  std::tuple<Verbatim, std::optional<OmpMemoryOrderClause>,
       std::optional<OmpObjectList>>
       t;
 };
@@ -3970,6 +3970,7 @@ struct OpenACCAtomicConstruct {
   UNION_CLASS_BOILERPLATE(OpenACCAtomicConstruct);
   std::variant<AccAtomicRead, AccAtomicWrite, AccAtomicCapture, AccAtomicUpdate>
       u;
+  CharBlock source;
 };
 
 struct OpenACCBlockConstruct {

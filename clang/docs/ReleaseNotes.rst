@@ -114,6 +114,9 @@ Modified Compiler Flags
   It produces ``SHF_COMPRESSED`` style compression of debug information. GNU
   binutils 2.26 or newer, or lld is required to link produced object files. Use
   ``-gz=zlib-gnu`` to get the old behavior.
+- Now that `this` pointers are tagged with `nonnull` and `dereferenceable(N)`,
+  `-fno-delete-null-pointer-checks` has gained the power to remove the
+  `nonnull` attribute on `this` for configurations that need it to be nullable.
 
 New Pragmas in Clang
 --------------------
@@ -190,7 +193,8 @@ X86 Support in Clang
 - The x86 intrinsics ``__rorb``, ``__rorw``, ``__rord``, ``__rorq`, ``_rotr``,
   ``_rotwr`` and ``_lrotr`` may now be used within constant expressions.
 
-- Support for ``-march=sapphirerapids`` was added.
+- Support for ``-march=alderlake``, ``-march=sapphirerapids`` and
+  ``-march=znver3`` was added.
 
 - Support for ``-march=x86-64-v[234]`` has been added.
   See :doc:`UsersManual` for details about these micro-architecture levels.
@@ -199,6 +203,12 @@ X86 Support in Clang
   to request microarchitectural optimizations independent on -march. -march=<cpu>
   implies -mtune=<cpu>. -mtune=generic is the default with no -march or -mtune
   specified.
+
+- Support for ``HRESET`` instructions has been added.
+
+- Support for ``UINTR`` instructions has been added.
+
+- Support for ``AVXVNNI`` instructions has been added.
 
 Internal API Changes
 --------------------
@@ -220,7 +230,15 @@ release of Clang. Users of the build system should adjust accordingly.
 AST Matchers
 ------------
 
-- ...
+- The behavior of TK_IgnoreUnlessSpelledInSource with the traverse() matcher
+  has been changed to no longer match on template instantiations or on
+  implicit nodes which are not spelled in the source.
+
+- The TK_IgnoreImplicitCastsAndParentheses traversal kind was removed. It
+  is recommended to use TK_IgnoreUnlessSpelledInSource instead.
+
+- The behavior of the forEach() matcher was changed to not internally ignore
+  implicit and parenthesis nodes.
 
 clang-format
 ------------

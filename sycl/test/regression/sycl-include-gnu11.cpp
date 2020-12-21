@@ -1,5 +1,5 @@
 // RUN: %clangxx -std=gnu++11 -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %RUN_ON_HOST %t.out
 
 // UNSUPPORTED: system-windows
 

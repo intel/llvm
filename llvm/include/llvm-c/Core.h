@@ -269,6 +269,7 @@ typedef enum {
   LLVMConstantVectorValueKind,
 
   LLVMUndefValueValueKind,
+  LLVMPoisonValueValueKind,
   LLVMConstantAggregateZeroValueKind,
   LLVMConstantDataArrayValueKind,
   LLVMConstantDataVectorValueKind,
@@ -626,6 +627,11 @@ LLVMBool LLVMIsEnumAttribute(LLVMAttributeRef A);
 LLVMBool LLVMIsStringAttribute(LLVMAttributeRef A);
 
 /**
+ * Obtain a Type from a context by its registered name.
+ */
+LLVMTypeRef LLVMGetTypeByName2(LLVMContextRef C, const char *Name);
+
+/**
  * @}
  */
 
@@ -866,9 +872,7 @@ LLVMValueRef LLVMGetInlineAsm(LLVMTypeRef Ty,
  */
 LLVMContextRef LLVMGetModuleContext(LLVMModuleRef M);
 
-/**
- * Obtain a Type from a module by its registered name.
- */
+/** Deprecated: Use LLVMGetTypeByName2 instead. */
 LLVMTypeRef LLVMGetTypeByName(LLVMModuleRef M, const char *Name);
 
 /**
@@ -1444,9 +1448,21 @@ unsigned LLVMGetPointerAddressSpace(LLVMTypeRef PointerTy);
 LLVMTypeRef LLVMVectorType(LLVMTypeRef ElementType, unsigned ElementCount);
 
 /**
- * Obtain the number of elements in a vector type.
+ * Create a vector type that contains a defined type and has a scalable
+ * number of elements.
  *
- * This only works on types that represent vectors.
+ * The created type will exist in the context thats its element type
+ * exists in.
+ *
+ * @see llvm::ScalableVectorType::get()
+ */
+LLVMTypeRef LLVMScalableVectorType(LLVMTypeRef ElementType,
+                                   unsigned ElementCount);
+
+/**
+ * Obtain the (possibly scalable) number of elements in a vector type.
+ *
+ * This only works on types that represent vectors (fixed or scalable).
  *
  * @see llvm::VectorType::getNumElements()
  */
@@ -1550,6 +1566,7 @@ LLVMTypeRef LLVMX86MMXType(void);
           macro(Function)                   \
           macro(GlobalVariable)             \
       macro(UndefValue)                     \
+      macro(PoisonValue)                    \
     macro(Instruction)                      \
       macro(UnaryOperator)                  \
       macro(BinaryOperator)                 \
@@ -1682,6 +1699,11 @@ LLVMBool LLVMIsConstant(LLVMValueRef Val);
  * Determine whether a value instance is undefined.
  */
 LLVMBool LLVMIsUndef(LLVMValueRef Val);
+
+/**
+ * Determine whether a value instance is poisonous.
+ */
+LLVMBool LLVMIsPoison(LLVMValueRef Val);
 
 /**
  * Convert value instances between types.
@@ -1840,6 +1862,13 @@ LLVMValueRef LLVMConstAllOnes(LLVMTypeRef Ty);
  * @see llvm::UndefValue::get()
  */
 LLVMValueRef LLVMGetUndef(LLVMTypeRef Ty);
+
+/**
+ * Obtain a constant value referring to a poison value of a type.
+ *
+ * @see llvm::PoisonValue::get()
+ */
+LLVMValueRef LLVMGetPoison(LLVMTypeRef Ty);
 
 /**
  * Determine whether a value instance is null.

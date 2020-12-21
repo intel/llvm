@@ -38,6 +38,7 @@ class Module;
 class SectionKind;
 class StringRef;
 class TargetMachine;
+class DSOLocalEquivalent;
 
 class TargetLoweringObjectFile : public MCObjectFileInfo {
   /// Name-mangler for global names.
@@ -47,6 +48,7 @@ protected:
   bool SupportIndirectSymViaGOTPCRel = false;
   bool SupportGOTPCRelWithOffset = true;
   bool SupportDebugThreadLocalLocation = true;
+  bool SupportDSOLocalEquivalentLowering = false;
 
   /// PersonalityEncoding, LSDAEncoding, TTypeEncoding - Some encoding values
   /// for EH.
@@ -118,6 +120,10 @@ public:
 
   virtual MCSection *getSectionForJumpTable(const Function &F,
                                             const TargetMachine &TM) const;
+  virtual MCSection *getSectionForLSDA(const Function &F,
+                                       const TargetMachine &TM) const {
+    return LSDASection;
+  }
 
   virtual bool shouldPutJumpTableInFunctionSection(bool UsesLabelDifference,
                                                    const Function &F) const;
@@ -151,7 +157,7 @@ public:
   unsigned getPersonalityEncoding() const { return PersonalityEncoding; }
   unsigned getLSDAEncoding() const { return LSDAEncoding; }
   unsigned getTTypeEncoding() const { return TTypeEncoding; }
-  unsigned getCallSiteEncoding() const { return CallSiteEncoding; }
+  unsigned getCallSiteEncoding() const;
 
   const MCExpr *getTTypeReference(const MCSymbolRefExpr *Sym, unsigned Encoding,
                                   MCStreamer &Streamer) const;
@@ -173,6 +179,17 @@ public:
   virtual const MCExpr *lowerRelativeReference(const GlobalValue *LHS,
                                                const GlobalValue *RHS,
                                                const TargetMachine &TM) const {
+    return nullptr;
+  }
+
+  /// Target supports a native lowering of a dso_local_equivalent constant
+  /// without needing to replace it with equivalent IR.
+  bool supportDSOLocalEquivalentLowering() const {
+    return SupportDSOLocalEquivalentLowering;
+  }
+
+  virtual const MCExpr *lowerDSOLocalEquivalent(const DSOLocalEquivalent *Equiv,
+                                                const TargetMachine &TM) const {
     return nullptr;
   }
 

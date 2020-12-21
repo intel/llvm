@@ -17,8 +17,8 @@
 #include "mlir/Dialect/SPIRV/SPIRVDialect.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
-#include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/StandardTypes.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 using namespace mlir;
 
@@ -67,7 +67,8 @@ void LoadOpOfSubViewFolder<vector::TransferReadOp>::replaceOp(
     vector::TransferReadOp loadOp, SubViewOp subViewOp,
     ArrayRef<Value> sourceIndices, PatternRewriter &rewriter) const {
   rewriter.replaceOpWithNewOp<vector::TransferReadOp>(
-      loadOp, loadOp.getVectorType(), subViewOp.source(), sourceIndices);
+      loadOp, loadOp.getVectorType(), subViewOp.source(), sourceIndices,
+      loadOp.permutation_map(), loadOp.padding(), loadOp.maskedAttr());
 }
 
 template <>
@@ -84,7 +85,8 @@ void StoreOpOfSubViewFolder<vector::TransferWriteOp>::replaceOp(
     ArrayRef<Value> sourceIndices, PatternRewriter &rewriter) const {
   rewriter.replaceOpWithNewOp<vector::TransferWriteOp>(
       tranferWriteOp, tranferWriteOp.vector(), subViewOp.source(),
-      sourceIndices);
+      sourceIndices, tranferWriteOp.permutation_map(),
+      tranferWriteOp.maskedAttr());
 }
 } // namespace
 
@@ -112,19 +114,18 @@ resolveSourceIndices(Location loc, PatternRewriter &rewriter,
   // TODO: Aborting when the offsets are static. There might be a way to fold
   // the subview op with load even if the offsets have been canonicalized
   // away.
-  SmallVector<Value, 4> opOffsets = subViewOp.getOrCreateOffsets(rewriter, loc);
-  SmallVector<Value, 4> opStrides = subViewOp.getOrCreateStrides(rewriter, loc);
-  assert(opOffsets.size() == indices.size() &&
-         "expected as many indices as rank of subview op result type");
-  assert(opStrides.size() == indices.size() &&
+  SmallVector<Range, 4> opRanges = subViewOp.getOrCreateRanges(rewriter, loc);
+  auto opOffsets = llvm::map_range(opRanges, [](Range r) { return r.offset; });
+  auto opStrides = llvm::map_range(opRanges, [](Range r) { return r.stride; });
+  assert(opRanges.size() == indices.size() &&
          "expected as many indices as rank of subview op result type");
 
   // New indices for the load are the current indices * subview_stride +
   // subview_offset.
   sourceIndices.resize(indices.size());
   for (auto index : llvm::enumerate(indices)) {
-    auto offset = opOffsets[index.index()];
-    auto stride = opStrides[index.index()];
+    auto offset = *(opOffsets.begin() + index.index());
+    auto stride = *(opStrides.begin() + index.index());
     auto mul = rewriter.create<MulIOp>(loc, index.value(), stride);
     sourceIndices[index.index()] =
         rewriter.create<AddIOp>(loc, offset, mul).getResult();
@@ -201,7 +202,8 @@ void SPIRVLegalization::runOnOperation() {
   OwningRewritePatternList patterns;
   auto *context = &getContext();
   populateStdLegalizationPatternsForSPIRVLowering(context, patterns);
-  applyPatternsAndFoldGreedily(getOperation()->getRegions(), patterns);
+  applyPatternsAndFoldGreedily(getOperation()->getRegions(),
+                               std::move(patterns));
 }
 
 std::unique_ptr<Pass> mlir::createLegalizeStdOpsForSPIRVLoweringPass() {

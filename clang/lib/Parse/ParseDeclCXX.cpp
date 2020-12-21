@@ -624,8 +624,7 @@ bool Parser::ParseUsingDeclarator(DeclaratorContext Context,
   //   or the simple-template-id's template-name in the last component of the
   //   nested-name-specifier, the name is [...] considered to name the
   //   constructor.
-  if (getLangOpts().CPlusPlus11 &&
-      Context == DeclaratorContext::MemberContext &&
+  if (getLangOpts().CPlusPlus11 && Context == DeclaratorContext::Member &&
       Tok.is(tok::identifier) &&
       (NextToken().is(tok::semi) || NextToken().is(tok::comma) ||
        NextToken().is(tok::ellipsis)) &&
@@ -834,11 +833,11 @@ Decl *Parser::ParseAliasDeclarationAfterDeclarator(
       << FixItHint::CreateRemoval(SourceRange(D.EllipsisLoc));
 
   Decl *DeclFromDeclSpec = nullptr;
-  TypeResult TypeAlias = ParseTypeName(
-      nullptr,
-      TemplateInfo.Kind ? DeclaratorContext::AliasTemplateContext
-                        : DeclaratorContext::AliasDeclContext,
-      AS, &DeclFromDeclSpec, &Attrs);
+  TypeResult TypeAlias =
+      ParseTypeName(nullptr,
+                    TemplateInfo.Kind ? DeclaratorContext::AliasTemplate
+                                      : DeclaratorContext::AliasDecl,
+                    AS, &DeclFromDeclSpec, &Attrs);
   if (OwnedType)
     *OwnedType = DeclFromDeclSpec;
 
@@ -1046,8 +1045,16 @@ void Parser::AnnotateExistingDecltypeSpecifier(const DeclSpec& DS,
                                                SourceLocation StartLoc,
                                                SourceLocation EndLoc) {
   // make sure we have a token we can turn into an annotation token
-  if (PP.isBacktrackEnabled())
+  if (PP.isBacktrackEnabled()) {
     PP.RevertCachedTokens(1);
+    if (DS.getTypeSpecType() == TST_error) {
+      // We encountered an error in parsing 'decltype(...)' so lets annotate all
+      // the tokens in the backtracking cache - that we likely had to skip over
+      // to get to a token that allows us to resume parsing, such as a
+      // semi-colon.
+      EndLoc = PP.getLastCachedTokenLocation();
+    }
+  }
   else
     PP.EnterToken(Tok, /*IsReinject*/true);
 
@@ -1140,7 +1147,7 @@ TypeResult Parser::ParseBaseTypeSpecifier(SourceLocation &BaseLoc,
 
     EndLocation = ParseDecltypeSpecifier(DS);
 
-    Declarator DeclaratorInfo(DS, DeclaratorContext::TypeNameContext);
+    Declarator DeclaratorInfo(DS, DeclaratorContext::TypeName);
     return Actions.ActOnTypeName(getCurScope(), DeclaratorInfo);
   }
 
@@ -1232,7 +1239,7 @@ TypeResult Parser::ParseBaseTypeSpecifier(SourceLocation &BaseLoc,
   DS.SetTypeSpecType(TST_typename, IdLoc, PrevSpec, DiagID, Type,
                      Actions.getASTContext().getPrintingPolicy());
 
-  Declarator DeclaratorInfo(DS, DeclaratorContext::TypeNameContext);
+  Declarator DeclaratorInfo(DS, DeclaratorContext::TypeName);
   return Actions.ActOnTypeName(getCurScope(), DeclaratorInfo);
 }
 
@@ -2566,7 +2573,7 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
     SourceLocation DeclEnd;
     return DeclGroupPtrTy::make(
         DeclGroupRef(ParseTemplateDeclarationOrSpecialization(
-            DeclaratorContext::MemberContext, DeclEnd, AccessAttrs, AS)));
+            DeclaratorContext::Member, DeclEnd, AccessAttrs, AS)));
   }
 
   // Handle:  member-declaration ::= '__extension__' member-declaration
@@ -2609,7 +2616,7 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
     }
     SourceLocation DeclEnd;
     // Otherwise, it must be a using-declaration or an alias-declaration.
-    return ParseUsingDeclaration(DeclaratorContext::MemberContext, TemplateInfo,
+    return ParseUsingDeclaration(DeclaratorContext::Member, TemplateInfo,
                                  UsingLoc, DeclEnd, AS);
   }
 
@@ -2657,7 +2664,7 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
     return Actions.ConvertDeclToDeclGroup(TheDecl);
   }
 
-  ParsingDeclarator DeclaratorInfo(*this, DS, DeclaratorContext::MemberContext);
+  ParsingDeclarator DeclaratorInfo(*this, DS, DeclaratorContext::Member);
   if (TemplateInfo.TemplateParams)
     DeclaratorInfo.setTemplateParameterLists(TemplateParams);
   VirtSpecifiers VS;
@@ -2708,23 +2715,23 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
     if (getLangOpts().MicrosoftExt && DeclaratorInfo.isDeclarationOfFunction())
       TryConsumePureSpecifier(/*AllowDefinition*/ true);
 
-    FunctionDefinitionKind DefinitionKind = FDK_Declaration;
+    FunctionDefinitionKind DefinitionKind = FunctionDefinitionKind::Declaration;
     // function-definition:
     //
     // In C++11, a non-function declarator followed by an open brace is a
     // braced-init-list for an in-class member initialization, not an
     // erroneous function definition.
     if (Tok.is(tok::l_brace) && !getLangOpts().CPlusPlus11) {
-      DefinitionKind = FDK_Definition;
+      DefinitionKind = FunctionDefinitionKind::Definition;
     } else if (DeclaratorInfo.isFunctionDeclarator()) {
       if (Tok.isOneOf(tok::l_brace, tok::colon, tok::kw_try)) {
-        DefinitionKind = FDK_Definition;
+        DefinitionKind = FunctionDefinitionKind::Definition;
       } else if (Tok.is(tok::equal)) {
         const Token &KW = NextToken();
         if (KW.is(tok::kw_default))
-          DefinitionKind = FDK_Defaulted;
+          DefinitionKind = FunctionDefinitionKind::Defaulted;
         else if (KW.is(tok::kw_delete))
-          DefinitionKind = FDK_Deleted;
+          DefinitionKind = FunctionDefinitionKind::Deleted;
         else if (KW.is(tok::code_completion)) {
           Actions.CodeCompleteAfterFunctionEquals(DeclaratorInfo);
           cutOffParsing();
@@ -2737,13 +2744,14 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
     // C++11 [dcl.attr.grammar] p4: If an attribute-specifier-seq appertains
     // to a friend declaration, that declaration shall be a definition.
     if (DeclaratorInfo.isFunctionDeclarator() &&
-        DefinitionKind == FDK_Declaration && DS.isFriendSpecified()) {
+        DefinitionKind == FunctionDefinitionKind::Declaration &&
+        DS.isFriendSpecified()) {
       // Diagnose attributes that appear before decl specifier:
       // [[]] friend int foo();
       ProhibitAttributes(FnAttrs);
     }
 
-    if (DefinitionKind != FDK_Declaration) {
+    if (DefinitionKind != FunctionDefinitionKind::Declaration) {
       if (!DeclaratorInfo.isFunctionDeclarator()) {
         Diag(DeclaratorInfo.getIdentifierLoc(), diag::err_func_def_no_params);
         ConsumeBrace();
@@ -2929,7 +2937,7 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
       break;
 
     if (Tok.isAtStartOfLine() &&
-        !MightBeDeclarator(DeclaratorContext::MemberContext)) {
+        !MightBeDeclarator(DeclaratorContext::Member)) {
       // This comma was followed by a line-break and something which can't be
       // the start of a declarator. The comma was probably a typo for a
       // semicolon.
@@ -3844,8 +3852,8 @@ TypeResult Parser::ParseTrailingReturnType(SourceRange &Range,
   ConsumeToken();
 
   return ParseTypeName(&Range, MayBeFollowedByDirectInit
-                                   ? DeclaratorContext::TrailingReturnVarContext
-                                   : DeclaratorContext::TrailingReturnContext);
+                                   ? DeclaratorContext::TrailingReturnVar
+                                   : DeclaratorContext::TrailingReturn);
 }
 
 /// Parse a requires-clause as part of a function declaration.
@@ -3898,6 +3906,7 @@ void Parser::ParseTrailingRequiresClause(Declarator &D) {
       auto &FunctionChunk = D.getFunctionTypeInfo();
       FunctionChunk.HasTrailingReturnType = TrailingReturnType.isUsable();
       FunctionChunk.TrailingReturnType = TrailingReturnType.get();
+      FunctionChunk.TrailingReturnTypeLoc = Range.getBegin().getRawEncoding();
     } else
       SkipUntil({tok::equal, tok::l_brace, tok::arrow, tok::kw_try, tok::comma},
                 StopAtSemi | StopBeforeMatch);

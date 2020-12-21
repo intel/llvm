@@ -439,12 +439,14 @@ void ScalarBitSetTraits<ELFYAML::ELF_EF>::bitset(IO &IO,
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX906, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX908, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX909, EF_AMDGPU_MACH);
+    BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX90C, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1010, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1011, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1012, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1030, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1031, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1032, EF_AMDGPU_MACH);
+    BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1033, EF_AMDGPU_MACH);
     BCase(EF_AMDGPU_XNACK);
     BCase(EF_AMDGPU_SRAM_ECC);
     break;
@@ -490,6 +492,7 @@ void ScalarEnumerationTraits<ELFYAML::ELF_SHT>::enumeration(
   ECase(SHT_LLVM_SYMPART);
   ECase(SHT_LLVM_PART_EHDR);
   ECase(SHT_LLVM_PART_PHDR);
+  ECase(SHT_LLVM_BB_ADDR_MAP);
   ECase(SHT_GNU_ATTRIBUTES);
   ECase(SHT_GNU_HASH);
   ECase(SHT_GNU_verdef);
@@ -901,13 +904,23 @@ void MappingTraits<ELFYAML::ProgramHeader>::mapping(
     IO &IO, ELFYAML::ProgramHeader &Phdr) {
   IO.mapRequired("Type", Phdr.Type);
   IO.mapOptional("Flags", Phdr.Flags, ELFYAML::ELF_PF(0));
-  IO.mapOptional("Sections", Phdr.Sections);
+  IO.mapOptional("FirstSec", Phdr.FirstSec);
+  IO.mapOptional("LastSec", Phdr.LastSec);
   IO.mapOptional("VAddr", Phdr.VAddr, Hex64(0));
   IO.mapOptional("PAddr", Phdr.PAddr, Phdr.VAddr);
   IO.mapOptional("Align", Phdr.Align);
   IO.mapOptional("FileSize", Phdr.FileSize);
   IO.mapOptional("MemSize", Phdr.MemSize);
   IO.mapOptional("Offset", Phdr.Offset);
+}
+
+std::string MappingTraits<ELFYAML::ProgramHeader>::validate(
+    IO &IO, ELFYAML::ProgramHeader &FileHdr) {
+  if (!FileHdr.FirstSec && FileHdr.LastSec)
+    return "the \"LastSec\" key can't be used without the \"FirstSec\" key";
+  if (FileHdr.FirstSec && !FileHdr.LastSec)
+    return "the \"FirstSec\" key can't be used without the \"LastSec\" key";
+  return "";
 }
 
 LLVM_YAML_STRONG_TYPEDEF(StringRef, StOtherPiece)
@@ -1101,7 +1114,7 @@ static void commonSectionMapping(IO &IO, ELFYAML::Section &Section) {
   IO.mapRequired("Type", Section.Type);
   IO.mapOptional("Flags", Section.Flags);
   IO.mapOptional("Address", Section.Address);
-  IO.mapOptional("Link", Section.Link, StringRef());
+  IO.mapOptional("Link", Section.Link);
   IO.mapOptional("AddressAlign", Section.AddressAlign, Hex64(0));
   IO.mapOptional("EntSize", Section.EntSize);
   IO.mapOptional("Offset", Section.Offset);
@@ -1113,9 +1126,9 @@ static void commonSectionMapping(IO &IO, ELFYAML::Section &Section) {
   // are producing YAML, because yaml2obj sets appropriate values for them
   // automatically when they are not explicitly defined.
   assert(!IO.outputting() ||
-         (!Section.ShOffset.hasValue() && !Section.ShSize.hasValue() &&
-          !Section.ShName.hasValue() && !Section.ShFlags.hasValue() &&
-          !Section.ShType.hasValue()));
+         (!Section.ShOffset && !Section.ShSize && !Section.ShName &&
+          !Section.ShFlags && !Section.ShType && !Section.ShAddrAlign));
+  IO.mapOptional("ShAddrAlign", Section.ShAddrAlign);
   IO.mapOptional("ShName", Section.ShName);
   IO.mapOptional("ShOffset", Section.ShOffset);
   IO.mapOptional("ShSize", Section.ShSize);
@@ -1142,6 +1155,12 @@ static void sectionMapping(IO &IO, ELFYAML::RawContentSection &Section) {
   }
 
   IO.mapOptional("Info", Section.Info);
+}
+
+static void sectionMapping(IO &IO, ELFYAML::BBAddrMapSection &Section) {
+  commonSectionMapping(IO, Section);
+  IO.mapOptional("Content", Section.Content);
+  IO.mapOptional("Entries", Section.Entries);
 }
 
 static void sectionMapping(IO &IO, ELFYAML::StackSizesSection &Section) {
@@ -1249,11 +1268,6 @@ static void sectionMapping(IO &IO, ELFYAML::CallGraphProfileSection &Section) {
 void MappingTraits<ELFYAML::SectionOrType>::mapping(
     IO &IO, ELFYAML::SectionOrType &sectionOrType) {
   IO.mapRequired("SectionOrType", sectionOrType.sectionNameOrType);
-}
-
-void MappingTraits<ELFYAML::SectionName>::mapping(
-    IO &IO, ELFYAML::SectionName &sectionName) {
-  IO.mapRequired("Section", sectionName.Section);
 }
 
 static void sectionMapping(IO &IO, ELFYAML::ARMIndexTableSection &Section) {
@@ -1403,6 +1417,11 @@ void MappingTraits<std::unique_ptr<ELFYAML::Chunk>>::mapping(
       Section.reset(new ELFYAML::CallGraphProfileSection());
     sectionMapping(IO, *cast<ELFYAML::CallGraphProfileSection>(Section.get()));
     break;
+  case ELF::SHT_LLVM_BB_ADDR_MAP:
+    if (!IO.outputting())
+      Section.reset(new ELFYAML::BBAddrMapSection());
+    sectionMapping(IO, *cast<ELFYAML::BBAddrMapSection>(Section.get()));
+    break;
   default:
     if (!IO.outputting()) {
       StringRef Name;
@@ -1518,6 +1537,21 @@ void MappingTraits<ELFYAML::StackSizeEntry>::mapping(
   IO.mapRequired("Size", E.Size);
 }
 
+void MappingTraits<ELFYAML::BBAddrMapEntry>::mapping(
+    IO &IO, ELFYAML::BBAddrMapEntry &E) {
+  assert(IO.getContext() && "The IO context is not initialized");
+  IO.mapOptional("Address", E.Address, Hex64(0));
+  IO.mapOptional("BBEntries", E.BBEntries);
+}
+
+void MappingTraits<ELFYAML::BBAddrMapEntry::BBEntry>::mapping(
+    IO &IO, ELFYAML::BBAddrMapEntry::BBEntry &E) {
+  assert(IO.getContext() && "The IO context is not initialized");
+  IO.mapRequired("AddressOffset", E.AddressOffset);
+  IO.mapRequired("Size", E.Size);
+  IO.mapRequired("Metadata", E.Metadata);
+}
+
 void MappingTraits<ELFYAML::GnuHashHeader>::mapping(IO &IO,
                                                     ELFYAML::GnuHashHeader &E) {
   assert(IO.getContext() && "The IO context is not initialized");
@@ -1614,12 +1648,12 @@ void MappingTraits<ELFYAML::Object>::mapping(IO &IO, ELFYAML::Object &Object) {
   IO.setContext(&Object);
   IO.mapTag("!ELF", true);
   IO.mapRequired("FileHeader", Object.Header);
-  IO.mapOptional("SectionHeaderTable", Object.SectionHeaders);
   IO.mapOptional("ProgramHeaders", Object.ProgramHeaders);
   IO.mapOptional("Sections", Object.Chunks);
   IO.mapOptional("Symbols", Object.Symbols);
   IO.mapOptional("DynamicSymbols", Object.DynamicSymbols);
   IO.mapOptional("DWARF", Object.DWARF);
+  IO.mapOptional("SectionHeaderTable", Object.SectionHeaders);
   if (Object.DWARF) {
     Object.DWARF->IsLittleEndian =
         Object.Header.Data == ELFYAML::ELF_ELFDATA(ELF::ELFDATA2LSB);

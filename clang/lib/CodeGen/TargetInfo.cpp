@@ -4514,7 +4514,7 @@ ABIArgInfo AIXABIInfo::classifyReturnType(QualType RetTy) const {
     return ABIArgInfo::getDirect();
 
   if (RetTy->isVectorType())
-    llvm::report_fatal_error("vector type is not supported on AIX yet");
+    return ABIArgInfo::getDirect();
 
   if (RetTy->isVoidType())
     return ABIArgInfo::getIgnore();
@@ -4533,7 +4533,7 @@ ABIArgInfo AIXABIInfo::classifyArgumentType(QualType Ty) const {
     return ABIArgInfo::getDirect();
 
   if (Ty->isVectorType())
-    llvm::report_fatal_error("vector type is not supported on AIX yet");
+    return ABIArgInfo::getDirect();
 
   if (isAggregateTypeForABI(Ty)) {
     // Records with non-trivial destructors/copy-constructors should not be
@@ -4558,7 +4558,7 @@ CharUnits AIXABIInfo::getParamTypeAlignment(QualType Ty) const {
     Ty = CTy->getElementType();
 
   if (Ty->isVectorType())
-    llvm::report_fatal_error("vector type is not supported on AIX yet");
+    return CharUnits::fromQuantity(16);
 
   // If the structure contains a vector type, the alignment is 16.
   if (isRecordWithSIMDVectorType(getContext(), Ty))
@@ -4573,7 +4573,8 @@ Address AIXABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
     llvm::report_fatal_error("complex type is not supported on AIX yet");
 
   if (Ty->isVectorType())
-    llvm::report_fatal_error("vector type is not supported on AIX yet");
+    llvm::report_fatal_error(
+        "vector types are not yet supported for variadic functions on AIX");
 
   auto TypeInfo = getContext().getTypeInfoInChars(Ty);
   TypeInfo.Align = getParamTypeAlignment(Ty);
@@ -5051,6 +5052,13 @@ CharUnits PPC64_SVR4_ABIInfo::getParamTypeAlignment(QualType Ty) const {
     return CharUnits::fromQuantity(16);
   } else if (Ty->isVectorType()) {
     return CharUnits::fromQuantity(getContext().getTypeSize(Ty) == 128 ? 16 : 8);
+  } else if (Ty->isRealFloatingType() &&
+             &getContext().getFloatTypeSemantics(Ty) ==
+                 &llvm::APFloat::IEEEquad()) {
+    // According to ABI document section 'Optional Save Areas': If extended
+    // precision floating-point values in IEEE BINARY 128 QUADRUPLE PRECISION
+    // format are supported, map them to a single quadword, quadword aligned.
+    return CharUnits::fromQuantity(16);
   }
 
   // For single-element float/vector structs, we consider the whole type
@@ -5480,6 +5488,11 @@ private:
 
   Address EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
                     QualType Ty) const override {
+    llvm::Type *BaseTy = CGF.ConvertType(Ty);
+    if (isa<llvm::ScalableVectorType>(BaseTy))
+      llvm::report_fatal_error("Passing SVE types to variadic functions is "
+                               "currently not supported");
+
     return Kind == Win64 ? EmitMSVAArg(CGF, VAListAddr, Ty)
                          : isDarwinPCS() ? EmitDarwinVAArg(VAListAddr, Ty, CGF)
                                          : EmitAAPCSVAArg(VAListAddr, Ty, CGF);
@@ -8707,35 +8720,9 @@ private:
   bool isHomogeneousAggregateSmallEnough(const Type *Base,
                                          uint64_t Members) const override;
 
-  // Coerce HIP pointer arguments from generic pointers to global ones.
+  // Coerce HIP scalar pointer arguments from generic pointers to global ones.
   llvm::Type *coerceKernelArgumentType(llvm::Type *Ty, unsigned FromAS,
                                        unsigned ToAS) const {
-    // Structure types.
-    if (auto STy = dyn_cast<llvm::StructType>(Ty)) {
-      SmallVector<llvm::Type *, 8> EltTys;
-      bool Changed = false;
-      for (auto T : STy->elements()) {
-        auto NT = coerceKernelArgumentType(T, FromAS, ToAS);
-        EltTys.push_back(NT);
-        Changed |= (NT != T);
-      }
-      // Skip if there is no change in element types.
-      if (!Changed)
-        return STy;
-      if (STy->hasName())
-        return llvm::StructType::create(
-            EltTys, (STy->getName() + ".coerce").str(), STy->isPacked());
-      return llvm::StructType::get(getVMContext(), EltTys, STy->isPacked());
-    }
-    // Array types.
-    if (auto ATy = dyn_cast<llvm::ArrayType>(Ty)) {
-      auto T = ATy->getElementType();
-      auto NT = coerceKernelArgumentType(T, FromAS, ToAS);
-      // Skip if there is no change in that element type.
-      if (NT == T)
-        return ATy;
-      return llvm::ArrayType::get(NT, ATy->getNumElements());
-    }
     // Single value types.
     if (Ty->isPointerTy() && Ty->getPointerAddressSpace() == FromAS)
       return llvm::PointerType::get(
@@ -9101,6 +9088,9 @@ void AMDGPUTargetCodeGenInfo::setTargetAttributes(
     if (NumVGPR != 0)
       F->addFnAttr("amdgpu-num-vgpr", llvm::utostr(NumVGPR));
   }
+
+  if (M.getContext().getTargetInfo().allowAMDGPUUnsafeFPAtomics())
+    F->addFnAttr("amdgpu-unsafe-fp-atomics", "true");
 }
 
 unsigned AMDGPUTargetCodeGenInfo::getOpenCLKernelCallingConv() const {
@@ -10407,7 +10397,7 @@ void RISCVABIInfo::computeInfo(CGFunctionInfo &FI) const {
   if (!IsRetIndirect && RetTy->isScalarType() &&
       getContext().getTypeSize(RetTy) > (2 * XLen)) {
     if (RetTy->isComplexType() && FLen) {
-      QualType EltTy = RetTy->getAs<ComplexType>()->getElementType();
+      QualType EltTy = RetTy->castAs<ComplexType>()->getElementType();
       IsRetIndirect = getContext().getTypeSize(EltTy) > FLen;
     } else {
       // This is a normal scalar > 2*XLen, such as fp128 on RV32.

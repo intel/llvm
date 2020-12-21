@@ -203,6 +203,11 @@ namespace {
           MachineFunctionProperties::Property::NoVRegs);
     }
 
+    MachineFunctionProperties getClearedProperties() const override {
+      return MachineFunctionProperties().set(
+        MachineFunctionProperties::Property::IsSSA);
+    }
+
   private:
     bool runOnMachineFunction(MachineFunction &MF) override;
 
@@ -213,9 +218,6 @@ namespace {
 
     void allocateInstruction(MachineInstr &MI);
     void handleDebugValue(MachineInstr &MI);
-#ifndef NDEBUG
-    bool verifyRegStateMapping(const LiveReg &LR) const;
-#endif
     bool usePhysReg(MachineInstr &MI, MCPhysReg PhysReg);
     bool definePhysReg(MachineInstr &MI, MCPhysReg PhysReg);
     bool displacePhysReg(MachineInstr &MI, MCPhysReg PhysReg);
@@ -493,7 +495,7 @@ void RegAllocFast::reloadAtBegin(MachineBasicBlock &MBB) {
     if (PhysReg == 0)
       continue;
 
-    unsigned FirstUnit = *MCRegUnitIterator(PhysReg, TRI);
+    MCRegister FirstUnit = *MCRegUnitIterator(PhysReg, TRI);
     if (RegUnitStates[FirstUnit] == regLiveIn)
       continue;
 
@@ -564,7 +566,7 @@ bool RegAllocFast::displacePhysReg(MachineInstr &MI, MCPhysReg PhysReg) {
 void RegAllocFast::freePhysReg(MCPhysReg PhysReg) {
   LLVM_DEBUG(dbgs() << "Freeing " << printReg(PhysReg, TRI) << ':');
 
-  unsigned FirstUnit = *MCRegUnitIterator(PhysReg, TRI);
+  MCRegister FirstUnit = *MCRegUnitIterator(PhysReg, TRI);
   switch (unsigned VirtReg = RegUnitStates[FirstUnit]) {
   case regFree:
     LLVM_DEBUG(dbgs() << '\n');
@@ -948,7 +950,7 @@ void RegAllocFast::setPhysReg(MachineInstr &MI, MachineOperand &MO,
   }
 
   // Handle subregister index.
-  MO.setReg(PhysReg ? TRI->getSubReg(PhysReg, MO.getSubReg()) : Register());
+  MO.setReg(PhysReg ? TRI->getSubReg(PhysReg, MO.getSubReg()) : MCRegister());
   MO.setIsRenamable(true);
   // Note: We leave the subreg number around a little longer in case of defs.
   // This is so that the register freeing logic in allocateInstruction can still
@@ -1379,17 +1381,6 @@ void RegAllocFast::handleDebugValue(MachineInstr &MI) {
   // that future spills of Reg will have DBG_VALUEs.
   LiveDbgValueMap[Reg].push_back(&MI);
 }
-
-#ifndef NDEBUG
-bool RegAllocFast::verifyRegStateMapping(const LiveReg &LR) const {
-  for (MCRegUnitIterator UI(LR.PhysReg, TRI); UI.isValid(); ++UI) {
-    if (RegUnitStates[*UI] != LR.VirtReg)
-      return false;
-  }
-
-  return true;
-}
-#endif
 
 void RegAllocFast::allocateBasicBlock(MachineBasicBlock &MBB) {
   this->MBB = &MBB;

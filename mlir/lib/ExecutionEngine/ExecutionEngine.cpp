@@ -12,8 +12,7 @@
 //===----------------------------------------------------------------------===//
 #include "mlir/ExecutionEngine/ExecutionEngine.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/IR/Function.h"
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Target/LLVMIR.h"
 
@@ -131,6 +130,10 @@ bool ExecutionEngine::setupTargetTriple(Module *llvmModule) {
 
   std::unique_ptr<llvm::TargetMachine> machine(target->createTargetMachine(
       targetTriple, cpu, features.getString(), {}, {}));
+  if (!machine) {
+    errs() << "Unable to create target machine\n";
+    return true;
+  }
   llvmModule->setDataLayout(machine->createDataLayout());
   llvmModule->setTargetTriple(targetTriple);
   return false;
@@ -214,7 +217,11 @@ ExecutionEngine::ExecutionEngine(bool enableObjectCache,
                        : nullptr) {}
 
 Expected<std::unique_ptr<ExecutionEngine>> ExecutionEngine::create(
-    ModuleOp m, llvm::function_ref<Error(llvm::Module *)> transformer,
+    ModuleOp m,
+    llvm::function_ref<std::unique_ptr<llvm::Module>(ModuleOp,
+                                                     llvm::LLVMContext &)>
+        llvmModuleBuilder,
+    llvm::function_ref<Error(llvm::Module *)> transformer,
     Optional<llvm::CodeGenOpt::Level> jitCodeGenOptLevel,
     ArrayRef<StringRef> sharedLibPaths, bool enableObjectCache,
     bool enableGDBNotificationListener, bool enablePerfNotificationListener) {
@@ -223,7 +230,8 @@ Expected<std::unique_ptr<ExecutionEngine>> ExecutionEngine::create(
       enablePerfNotificationListener);
 
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext);
-  auto llvmModule = translateModuleToLLVMIR(m, *ctx);
+  auto llvmModule = llvmModuleBuilder ? llvmModuleBuilder(m, *ctx)
+                                      : translateModuleToLLVMIR(m, *ctx);
   if (!llvmModule)
     return make_string_error("could not convert to LLVM IR");
   // FIXME: the triple should be passed to the translation or dialect conversion

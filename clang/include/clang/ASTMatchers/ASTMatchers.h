@@ -145,6 +145,7 @@ using TypeLocMatcher = internal::Matcher<TypeLoc>;
 using NestedNameSpecifierMatcher = internal::Matcher<NestedNameSpecifier>;
 using NestedNameSpecifierLocMatcher = internal::Matcher<NestedNameSpecifierLoc>;
 using CXXCtorInitializerMatcher = internal::Matcher<CXXCtorInitializer>;
+using TemplateArgumentMatcher = internal::Matcher<TemplateArgument>;
 using TemplateArgumentLocMatcher = internal::Matcher<TemplateArgumentLoc>;
 /// @}
 
@@ -307,10 +308,9 @@ AST_POLYMORPHIC_MATCHER_REGEX(isExpansionInFileMatching,
 /// Does not match if only part of the statement is expanded from that macro or
 /// if different parts of the the statement are expanded from different
 /// appearances of the macro.
-///
-/// FIXME: Change to be a polymorphic matcher that works on any syntactic
-/// node. There's nothing `Stmt`-specific about it.
-AST_MATCHER_P(Stmt, isExpandedFromMacro, llvm::StringRef, MacroName) {
+AST_POLYMORPHIC_MATCHER_P(isExpandedFromMacro,
+                          AST_POLYMORPHIC_SUPPORTED_TYPES(Decl, Stmt, TypeLoc),
+                          std::string, MacroName) {
   // Verifies that the statement' beginning and ending are both expanded from
   // the same instance of the given macro.
   auto& Context = Finder->getASTContext();
@@ -768,7 +768,7 @@ AST_POLYMORPHIC_MATCHER_P(
   ArrayRef<TemplateArgument> List =
       internal::getTemplateSpecializationArgs(Node);
   return matchesFirstInRange(InnerMatcher, List.begin(), List.end(), Finder,
-                             Builder);
+                             Builder) != List.end();
 }
 
 /// Causes all nested matchers to be matched with the specified traversal kind.
@@ -782,7 +782,7 @@ AST_POLYMORPHIC_MATCHER_P(
 /// \endcode
 /// The matcher
 /// \code
-///   traverse(TK_IgnoreImplicitCastsAndParentheses,
+///   traverse(TK_IgnoreUnlessSpelledInSource,
 ///     varDecl(hasInitializer(floatLiteral().bind("init")))
 ///   )
 /// \endcode
@@ -2825,7 +2825,7 @@ hasOverloadedOperatorName(StringRef Name) {
 /// Matches overloaded operator names specified in strings without the
 /// "operator" prefix: e.g. "<<".
 ///
-///   hasAnyOverloadesOperatorName("+", "-")
+///   hasAnyOverloadedOperatorName("+", "-")
 /// Is equivalent to
 ///   anyOf(hasOverloadedOperatorName("+"), hasOverloadedOperatorName("-"))
 extern const internal::VariadicFunction<
@@ -2834,6 +2834,80 @@ extern const internal::VariadicFunction<
         AST_POLYMORPHIC_SUPPORTED_TYPES(CXXOperatorCallExpr, FunctionDecl)>,
     StringRef, internal::hasAnyOverloadedOperatorNameFunc>
     hasAnyOverloadedOperatorName;
+
+/// Matches template-dependent, but known, member names.
+///
+/// In template declarations, dependent members are not resolved and so can
+/// not be matched to particular named declarations.
+///
+/// This matcher allows to match on the known name of members.
+///
+/// Given
+/// \code
+///   template <typename T>
+///   struct S {
+///       void mem();
+///   };
+///   template <typename T>
+///   void x() {
+///       S<T> s;
+///       s.mem();
+///   }
+/// \endcode
+/// \c cxxDependentScopeMemberExpr(hasMemberName("mem")) matches `s.mem()`
+AST_MATCHER_P(CXXDependentScopeMemberExpr, hasMemberName, std::string, N) {
+  return Node.getMember().getAsString() == N;
+}
+
+/// Matches template-dependent, but known, member names against an already-bound
+/// node
+///
+/// In template declarations, dependent members are not resolved and so can
+/// not be matched to particular named declarations.
+///
+/// This matcher allows to match on the name of already-bound VarDecl, FieldDecl
+/// and CXXMethodDecl nodes.
+///
+/// Given
+/// \code
+///   template <typename T>
+///   struct S {
+///       void mem();
+///   };
+///   template <typename T>
+///   void x() {
+///       S<T> s;
+///       s.mem();
+///   }
+/// \endcode
+/// The matcher
+/// @code
+/// \c cxxDependentScopeMemberExpr(
+///   hasObjectExpression(declRefExpr(hasType(templateSpecializationType(
+///       hasDeclaration(classTemplateDecl(has(cxxRecordDecl(has(
+///           cxxMethodDecl(hasName("mem")).bind("templMem")
+///           )))))
+///       )))),
+///   memberHasSameNameAsBoundNode("templMem")
+///   )
+/// @endcode
+/// first matches and binds the @c mem member of the @c S template, then
+/// compares its name to the usage in @c s.mem() in the @c x function template
+AST_MATCHER_P(CXXDependentScopeMemberExpr, memberHasSameNameAsBoundNode,
+              std::string, BindingID) {
+  auto MemberName = Node.getMember().getAsString();
+
+  return Builder->removeBindings(
+      [this, MemberName](const BoundNodesMap &Nodes) {
+        const auto &BN = Nodes.getNode(this->BindingID);
+        if (const auto *ND = BN.get<NamedDecl>()) {
+          if (!isa<FieldDecl, CXXMethodDecl, VarDecl>(ND))
+            return true;
+          return ND->getName() != MemberName;
+        }
+        return true;
+      });
+}
 
 /// Matches C++ classes that are directly or indirectly derived from a class
 /// matching \c Base, or Objective-C classes that directly or indirectly
@@ -3032,8 +3106,16 @@ AST_POLYMORPHIC_MATCHER_P_OVERLOAD(
 /// \c A but not \c B.
 AST_MATCHER_P(CXXRecordDecl, hasMethod, internal::Matcher<CXXMethodDecl>,
               InnerMatcher) {
-  return matchesFirstInPointerRange(InnerMatcher, Node.method_begin(),
-                                    Node.method_end(), Finder, Builder);
+  BoundNodesTreeBuilder Result(*Builder);
+  auto MatchIt = matchesFirstInPointerRange(InnerMatcher, Node.method_begin(),
+                                            Node.method_end(), Finder, &Result);
+  if (MatchIt == Node.method_end())
+    return false;
+
+  if (Finder->isTraversalIgnoringImplicitNodes() && (*MatchIt)->isImplicit())
+    return false;
+  *Builder = std::move(Result);
+  return true;
 }
 
 /// Matches the generated class of lambda expressions.
@@ -3809,7 +3891,8 @@ AST_MATCHER_P(DeclRefExpr, throughUsingDecl,
 AST_MATCHER_P(OverloadExpr, hasAnyDeclaration, internal::Matcher<Decl>,
               InnerMatcher) {
   return matchesFirstInPointerRange(InnerMatcher, Node.decls_begin(),
-                                    Node.decls_end(), Finder, Builder);
+                                    Node.decls_end(), Finder,
+                                    Builder) != Node.decls_end();
 }
 
 /// Matches the Decl of a DeclStmt which has a single declaration.
@@ -3964,11 +4047,19 @@ AST_MATCHER(VarDecl, isExceptionVariable) {
 ///   f(0, 0);
 /// \endcode
 AST_POLYMORPHIC_MATCHER_P(argumentCountIs,
-                          AST_POLYMORPHIC_SUPPORTED_TYPES(CallExpr,
-                                                          CXXConstructExpr,
-                                                          ObjCMessageExpr),
+                          AST_POLYMORPHIC_SUPPORTED_TYPES(
+                              CallExpr, CXXConstructExpr,
+                              CXXUnresolvedConstructExpr, ObjCMessageExpr),
                           unsigned, N) {
-  return Node.getNumArgs() == N;
+  unsigned NumArgs = Node.getNumArgs();
+  if (!Finder->isTraversalIgnoringImplicitNodes())
+    return NumArgs == N;
+  while (NumArgs) {
+    if (!isa<CXXDefaultArgExpr>(Node.getArg(NumArgs - 1)))
+      break;
+    --NumArgs;
+  }
+  return NumArgs == N;
 }
 
 /// Matches the n'th argument of a call expression or a constructor
@@ -3980,13 +4071,16 @@ AST_POLYMORPHIC_MATCHER_P(argumentCountIs,
 ///   void x(int) { int y; x(y); }
 /// \endcode
 AST_POLYMORPHIC_MATCHER_P2(hasArgument,
-                           AST_POLYMORPHIC_SUPPORTED_TYPES(CallExpr,
-                                                           CXXConstructExpr,
-                                                           ObjCMessageExpr),
+                           AST_POLYMORPHIC_SUPPORTED_TYPES(
+                               CallExpr, CXXConstructExpr,
+                               CXXUnresolvedConstructExpr, ObjCMessageExpr),
                            unsigned, N, internal::Matcher<Expr>, InnerMatcher) {
-  return (N < Node.getNumArgs() &&
-          InnerMatcher.matches(
-              *Node.getArg(N)->IgnoreParenImpCasts(), Finder, Builder));
+  if (N >= Node.getNumArgs())
+    return false;
+  const Expr *Arg = Node.getArg(N);
+  if (Finder->isTraversalIgnoringImplicitNodes() && isa<CXXDefaultArgExpr>(Arg))
+    return false;
+  return InnerMatcher.matches(*Arg->IgnoreParenImpCasts(), Finder, Builder);
 }
 
 /// Matches the n'th item of an initializer list expression.
@@ -4078,8 +4172,11 @@ AST_MATCHER(CXXCatchStmt, isCatchAll) {
 ///   record matches Foo, hasAnyConstructorInitializer matches foo_(1)
 AST_MATCHER_P(CXXConstructorDecl, hasAnyConstructorInitializer,
               internal::Matcher<CXXCtorInitializer>, InnerMatcher) {
-  return matchesFirstInPointerRange(InnerMatcher, Node.init_begin(),
-                                    Node.init_end(), Finder, Builder);
+  auto MatchIt = matchesFirstInPointerRange(InnerMatcher, Node.init_begin(),
+                                            Node.init_end(), Finder, Builder);
+  if (MatchIt == Node.init_end())
+    return false;
+  return (*MatchIt)->isWritten() || !Finder->isTraversalIgnoringImplicitNodes();
 }
 
 /// Matches the field declaration of a constructor initializer.
@@ -4204,6 +4301,9 @@ AST_POLYMORPHIC_MATCHER_P(hasAnyArgument,
                               CXXUnresolvedConstructExpr, ObjCMessageExpr),
                           internal::Matcher<Expr>, InnerMatcher) {
   for (const Expr *Arg : Node.arguments()) {
+    if (Finder->isTraversalIgnoringImplicitNodes() &&
+        isa<CXXDefaultArgExpr>(Arg))
+      break;
     BoundNodesTreeBuilder Result(*Builder);
     if (InnerMatcher.matches(*Arg, Finder, &Result)) {
       *Builder = std::move(Result);
@@ -4525,7 +4625,8 @@ AST_POLYMORPHIC_MATCHER_P(hasAnyParameter,
                           internal::Matcher<ParmVarDecl>,
                           InnerMatcher) {
   return matchesFirstInPointerRange(InnerMatcher, Node.param_begin(),
-                                    Node.param_end(), Finder, Builder);
+                                    Node.param_end(), Finder,
+                                    Builder) != Node.param_end();
 }
 
 /// Matches \c FunctionDecls and \c FunctionProtoTypes that have a
@@ -4920,6 +5021,8 @@ AST_POLYMORPHIC_MATCHER_P(hasBody,
                                                           CXXForRangeStmt,
                                                           FunctionDecl),
                           internal::Matcher<Stmt>, InnerMatcher) {
+  if (Finder->isTraversalIgnoringImplicitNodes() && isDefaultedHelper(&Node))
+    return false;
   const Stmt *const Statement = internal::GetBodyMatcher<NodeType>::get(Node);
   return (Statement != nullptr &&
           InnerMatcher.matches(*Statement, Finder, Builder));
@@ -4966,7 +5069,8 @@ AST_POLYMORPHIC_MATCHER_P(hasAnySubstatement,
                           internal::Matcher<Stmt>, InnerMatcher) {
   const CompoundStmt *CS = CompoundStmtMatcher<NodeType>::get(Node);
   return CS && matchesFirstInPointerRange(InnerMatcher, CS->body_begin(),
-                                          CS->body_end(), Finder, Builder);
+                                          CS->body_end(), Finder,
+                                          Builder) != CS->body_end();
 }
 
 /// Checks that a compound statement contains a specific number of
@@ -5808,7 +5912,8 @@ AST_POLYMORPHIC_MATCHER_P(
 AST_MATCHER_P(UsingDecl, hasAnyUsingShadowDecl,
               internal::Matcher<UsingShadowDecl>, InnerMatcher) {
   return matchesFirstInPointerRange(InnerMatcher, Node.shadow_begin(),
-                                    Node.shadow_end(), Finder, Builder);
+                                    Node.shadow_end(), Finder,
+                                    Builder) != Node.shadow_end();
 }
 
 /// Matches a using shadow declaration where the target declaration is
@@ -6800,6 +6905,8 @@ AST_MATCHER_P(CXXConstructorDecl, forEachConstructorInitializer,
   BoundNodesTreeBuilder Result;
   bool Matched = false;
   for (const auto *I : Node.inits()) {
+    if (Finder->isTraversalIgnoringImplicitNodes() && !I->isWritten())
+      continue;
     BoundNodesTreeBuilder InitBuilder(*Builder);
     if (InnerMatcher.matches(*I, Finder, &InitBuilder)) {
       Matched = true;
@@ -7364,7 +7471,8 @@ AST_MATCHER_P(OMPExecutableDirective, hasAnyClause,
               internal::Matcher<OMPClause>, InnerMatcher) {
   ArrayRef<OMPClause *> Clauses = Node.clauses();
   return matchesFirstInPointerRange(InnerMatcher, Clauses.begin(),
-                                    Clauses.end(), Finder, Builder);
+                                    Clauses.end(), Finder,
+                                    Builder) != Clauses.end();
 }
 
 /// Matches OpenMP ``default`` clause.

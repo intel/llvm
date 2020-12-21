@@ -199,6 +199,10 @@ public:
   /// returns Intrinsic::not_intrinsic!
   bool isIntrinsic() const { return HasLLVMReservedName; }
 
+  /// isTargetIntrinsic - Returns true if IID is an intrinsic specific to a
+  /// certain target. If it is a generic intrinsic false is returned.
+  static bool isTargetIntrinsic(Intrinsic::ID IID);
+
   /// isTargetIntrinsic - Returns true if this function is an intrinsic and the
   /// intrinsic is specific to a certain target. If this is not an intrinsic
   /// or a generic intrinsic, false is returned.
@@ -377,6 +381,9 @@ public:
   void setGC(std::string Str);
   void clearGC();
 
+  /// Returns true if the function has ssp, sspstrong, or sspreq fn attrs.
+  bool hasStackProtectorFnAttr() const;
+
   /// adds the attribute to the list of attributes.
   void addAttribute(unsigned i, Attribute::AttrKind Kind);
 
@@ -468,14 +475,12 @@ public:
 
   /// Extract the byval type for a parameter.
   Type *getParamByValType(unsigned ArgNo) const {
-    Type *Ty = AttributeSets.getParamByValType(ArgNo);
-    return Ty ? Ty : (arg_begin() + ArgNo)->getType()->getPointerElementType();
+    return AttributeSets.getParamByValType(ArgNo);
   }
 
   /// Extract the sret type for a parameter.
   Type *getParamStructRetType(unsigned ArgNo) const {
-    Type *Ty = AttributeSets.getParamStructRetType(ArgNo);
-    return Ty ? Ty : (arg_begin() + ArgNo)->getType()->getPointerElementType();
+    return AttributeSets.getParamStructRetType(ArgNo);
   }
 
   /// Extract the byref type for a parameter.

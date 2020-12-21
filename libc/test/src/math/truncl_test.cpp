@@ -6,22 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "include/math.h"
 #include "src/math/truncl.h"
 #include "utils/FPUtil/FPBits.h"
 #include "utils/FPUtil/TestHelpers.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
 #include "utils/UnitTest/Test.h"
+#include <math.h>
 
 using FPBits = __llvm_libc::fputil::FPBits<long double>;
 
 namespace mpfr = __llvm_libc::testing::mpfr;
 
-static const long double zero = FPBits::zero();
-static const long double negZero = FPBits::negZero();
-static const long double nan = FPBits::buildNaN(1);
-static const long double inf = FPBits::inf();
-static const long double negInf = FPBits::negInf();
+DECLARE_SPECIAL_CONSTANTS(long double)
 
 TEST(TrunclTest, SpecialNumbers) {
   EXPECT_FP_EQ(zero, __llvm_libc::truncl(zero));

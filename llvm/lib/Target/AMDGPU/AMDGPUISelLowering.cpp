@@ -397,6 +397,9 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::ROTL, MVT::i64, Expand);
   setOperationAction(ISD::ROTR, MVT::i64, Expand);
 
+  setOperationAction(ISD::MULHU, MVT::i16, Expand);
+  setOperationAction(ISD::MULHS, MVT::i16, Expand);
+
   setOperationAction(ISD::MUL, MVT::i64, Expand);
   setOperationAction(ISD::MULHU, MVT::i64, Expand);
   setOperationAction(ISD::MULHS, MVT::i64, Expand);
@@ -939,6 +942,8 @@ CCAssignFn *AMDGPUCallLowering::CCAssignFnForCall(CallingConv::ID CC,
   case CallingConv::Fast:
   case CallingConv::Cold:
     return CC_AMDGPU_Func;
+  case CallingConv::AMDGPU_Gfx:
+    return CC_SI_Gfx;
   case CallingConv::AMDGPU_KERNEL:
   case CallingConv::SPIR_KERNEL:
   default:
@@ -960,6 +965,8 @@ CCAssignFn *AMDGPUCallLowering::CCAssignFnForReturn(CallingConv::ID CC,
   case CallingConv::AMDGPU_ES:
   case CallingConv::AMDGPU_LS:
     return RetCC_SI_Shader;
+  case CallingConv::AMDGPU_Gfx:
+    return RetCC_SI_Gfx;
   case CallingConv::C:
   case CallingConv::Fast:
   case CallingConv::Cold:
@@ -1563,17 +1570,25 @@ SDValue AMDGPUTargetLowering::SplitVectorLoad(const SDValue Op,
   return DAG.getMergeValues(Ops, SL);
 }
 
-// Widen a vector load from vec3 to vec4.
-SDValue AMDGPUTargetLowering::WidenVectorLoad(SDValue Op,
-                                              SelectionDAG &DAG) const {
+SDValue AMDGPUTargetLowering::WidenOrSplitVectorLoad(SDValue Op,
+                                                     SelectionDAG &DAG) const {
   LoadSDNode *Load = cast<LoadSDNode>(Op);
   EVT VT = Op.getValueType();
-  assert(VT.getVectorNumElements() == 3);
   SDValue BasePtr = Load->getBasePtr();
   EVT MemVT = Load->getMemoryVT();
   SDLoc SL(Op);
   const MachinePointerInfo &SrcValue = Load->getMemOperand()->getPointerInfo();
   unsigned BaseAlign = Load->getAlignment();
+  unsigned NumElements = MemVT.getVectorNumElements();
+
+  // Widen from vec3 to vec4 when the load is at least 8-byte aligned
+  // or 16-byte fully dereferenceable. Otherwise, split the vector load.
+  if (NumElements != 3 ||
+      (BaseAlign < 8 &&
+       !SrcValue.isDereferenceable(16, *DAG.getContext(), DAG.getDataLayout())))
+    return SplitVectorLoad(Op, DAG);
+
+  assert(NumElements == 3);
 
   EVT WideVT =
       EVT::getVectorVT(*DAG.getContext(), VT.getVectorElementType(), 4);

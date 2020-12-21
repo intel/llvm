@@ -252,6 +252,9 @@ public:
   // Constants creation functions
   virtual SPIRVValue *
   addCompositeConstant(SPIRVType *, const std::vector<SPIRVValue *> &) = 0;
+  virtual SPIRVValue *
+  addSpecConstantComposite(SPIRVType *Ty,
+                           const std::vector<SPIRVValue *> &Elements) = 0;
   virtual SPIRVValue *addConstFunctionPointerINTEL(SPIRVType *Ty,
                                                    SPIRVFunction *F) = 0;
   virtual SPIRVValue *addConstant(SPIRVValue *) = 0;

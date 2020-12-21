@@ -6,30 +6,43 @@
 !   2.5.2 Kernels
 !   2.5.3 Serial
 !   2.9 Loop
+!   2.12 Atomic
 !   2.13 Declare
 !   2.14.3 Set
 !   2.14.4 Update
 !   2.15.1 Routine
+!   2.10 Cache
 !   2.11 Parallel Loop
 !   2.11 Kernels Loop
 !   2.11 Serial Loop
+!   2.14.3 Set
+!   2.16.13 Wait
 
 program openacc_clause_validity
 
   implicit none
 
+  type atype
+    real(8), dimension(10) :: arr
+    real(8) :: s
+  end type atype
+
   integer :: i, j, b, gang_size, vector_size, worker_size
   integer, parameter :: N = 256
   integer, dimension(N) :: c
   logical, dimension(N) :: d, e
+  integer :: async1
+  integer :: wait1, wait2
   real :: reduction_r
   logical :: reduction_l
-  real(8), dimension(N, N) :: aa
+  real(8), dimension(N, N) :: aa, bb, cc
   logical :: ifCondition = .TRUE.
+  type(atype) :: t
+  type(atype), dimension(10) :: ta
 
   !ERROR: At least one clause is required on the DECLARE directive
   !$acc declare
-  real(8), dimension(N) :: a
+  real(8), dimension(N) :: a, f, g, h
 
   !$acc init
   !$acc init if(.TRUE.)
@@ -40,11 +53,40 @@ program openacc_clause_validity
   !$acc init device_type(2, i, j)
   !$acc init device_num(i) device_type(i, j) if(ifCondition)
 
+  !ERROR: At least one of DEFAULT_ASYNC, DEVICE_NUM, DEVICE_TYPE clause must appear on the SET directive
+  !$acc set
+
+  !ERROR: At least one of DEFAULT_ASYNC, DEVICE_NUM, DEVICE_TYPE clause must appear on the SET directive
+  !$acc set if(.TRUE.)
+
+  !ERROR: At most one DEFAULT_ASYNC clause can appear on the SET directive
+  !$acc set default_async(2) default_async(1)
+
+  !ERROR: At most one DEFAULT_ASYNC clause can appear on the SET directive
+  !$acc set default_async(2) default_async(1)
+
+  !ERROR: At most one DEVICE_NUM clause can appear on the SET directive
+  !$acc set device_num(1) device_num(i)
+
+  !ERROR: At most one DEVICE_TYPE clause can appear on the SET directive
+  !$acc set device_type(i) device_type(2, i, j)
+
+  !$acc set default_async(2)
+  !$acc set default_async(i)
+  !$acc set device_num(1)
+  !$acc set device_num(i)
+  !$acc set device_type(i)
+  !$acc set device_type(2, i, j)
+  !$acc set device_num(1) default_async(2) device_type(2, i, j)
+
   !ERROR: At least one of ATTACH, COPYIN, CREATE clause must appear on the ENTER DATA directive
   !$acc enter data
 
-  !ERROR: Only the READONLY modifier is allowed for the COPYIN clause on the ENTER DATA directive
+  !ERROR: Modifier is not allowed for the COPYIN clause on the ENTER DATA directive
   !$acc enter data copyin(zero: i)
+
+  !ERROR: Modifier is not allowed for the COPYOUT clause on the EXIT DATA directive
+  !$acc exit data copyout(zero: i)
 
   !ERROR: Only the ZERO modifier is allowed for the CREATE clause on the ENTER DATA directive
   !$acc enter data create(readonly: i)
@@ -67,6 +109,21 @@ program openacc_clause_validity
   !$acc host_data
   !$acc end host_data
 
+  !$acc host_data use_device(aa)
+  !$acc end host_data
+
+  !$acc host_data use_device(aa) if(.true.)
+  !$acc end host_data
+
+  !$acc host_data use_device(aa) if(ifCondition)
+  !$acc end host_data
+
+  !$acc host_data use_device(aa, bb) if_present
+  !$acc end host_data
+
+  !$acc host_data use_device(aa, bb) if(.true.) if_present
+  !$acc end host_data
+
   !ERROR: At least one of DEFAULT_ASYNC, DEVICE_NUM, DEVICE_TYPE clause must appear on the SET directive
   !$acc set
 
@@ -80,6 +137,8 @@ program openacc_clause_validity
   !$acc data copyin(i)
   !ERROR: Unmatched PARALLEL directive
   !$acc end parallel
+
+  !$acc update self(a, f) host(g) device(h)
 
   !$acc update device(i) device_type(*) async
 
@@ -102,6 +161,21 @@ program openacc_clause_validity
   !$acc end parallel
 
   !$acc parallel loop tile(2)
+  do i = 1, N
+    a(i) = 3.14
+  end do
+
+  !$acc parallel loop self
+  do i = 1, N
+    a(i) = 3.14
+  end do
+
+  !$acc parallel loop self(.true.)
+  do i = 1, N
+    a(i) = 3.14
+  end do
+
+  !$acc parallel loop self(ifCondition)
   do i = 1, N
     a(i) = 3.14
   end do
@@ -253,6 +327,107 @@ program openacc_clause_validity
       a(i) = b
     end do
   end do
+  !$acc end parallel
+
+  !$acc parallel async
+  !$acc end parallel
+
+  !$acc parallel async(1)
+  !$acc end parallel
+
+  !$acc parallel async(async1)
+  !$acc end parallel
+
+  !$acc parallel wait
+  !$acc end parallel
+
+  !$acc parallel wait(1)
+  !$acc end parallel
+
+  !$acc parallel wait(wait1)
+  !$acc end parallel
+
+  !$acc parallel wait(1,2)
+  !$acc end parallel
+
+  !$acc parallel wait(wait1, wait2)
+  !$acc end parallel
+
+  !$acc parallel num_gangs(8)
+  !$acc end parallel
+
+  !$acc parallel num_workers(8)
+  !$acc end parallel
+
+  !$acc parallel vector_length(128)
+  !$acc end parallel
+
+  !$acc parallel if(.true.)
+  !$acc end parallel
+
+  !$acc parallel if(ifCondition)
+  !$acc end parallel
+
+  !$acc parallel self
+  !$acc end parallel
+
+  !$acc parallel self(.true.)
+  !$acc end parallel
+
+  !$acc parallel self(ifCondition)
+  !$acc end parallel
+
+  !$acc parallel copy(aa) copyin(bb) copyout(cc)
+  !$acc end parallel
+
+  !$acc parallel copy(aa, bb) copyout(zero: cc)
+  !$acc end parallel
+
+  !$acc parallel present(aa, bb) create(cc)
+  !$acc end parallel
+
+  !$acc parallel copyin(readonly: aa, bb) create(zero: cc)
+  !$acc end parallel
+
+  !$acc parallel deviceptr(aa, bb) no_create(cc)
+  !$acc end parallel
+
+  !$acc parallel attach(aa, bb, cc)
+  !$acc end parallel
+
+  !$acc parallel private(aa) firstprivate(bb, cc)
+  !$acc end parallel
+
+  !$acc parallel default(none)
+  !$acc end parallel
+
+  !$acc parallel default(present)
+  !$acc end parallel
+
+  !$acc parallel device_type(*)
+  !$acc end parallel
+
+  !$acc parallel device_type(1)
+  !$acc end parallel
+
+  !$acc parallel device_type(1, 3)
+  !$acc end parallel
+
+  !ERROR: Clause PRIVATE is not allowed after clause DEVICE_TYPE on the PARALLEL directive
+  !ERROR: Clause FIRSTPRIVATE is not allowed after clause DEVICE_TYPE on the PARALLEL directive
+  !$acc parallel device_type(*) private(aa) firstprivate(bb)
+  !$acc end parallel
+
+  !$acc parallel device_type(*) async
+  !$acc end parallel
+
+  !$acc parallel device_type(*) wait
+  !$acc end parallel
+
+  !$acc parallel device_type(*) num_gangs(8)
+  !$acc end parallel
+
+  !$acc parallel device_type(1) async device_type(2) wait
   !$acc end parallel
 
   !$acc parallel
@@ -424,6 +599,10 @@ program openacc_clause_validity
   !$acc kernels wait(devnum: 1: queues: 1, 2) async(3)
   !$acc end kernels
 
+  !$acc wait
+
+  !$acc wait async
+
   !$acc wait(1)
   !$acc wait(1, 2)
 
@@ -435,6 +614,68 @@ program openacc_clause_validity
 
   !$acc wait(devnum: 1: queues: 3)
   !$acc wait(devnum: 1: queues: 3, 4)
+
+  !$acc wait(1) if(.true.)
+
+  !ERROR: At most one IF clause can appear on the WAIT directive
+  !$acc wait(1) if(.true.) if(.false.)
+
+  !$acc wait(1) if(.true.) async
+
+  !$acc wait(1) if(.true.) async(1)
+
+  !ERROR: At most one ASYNC clause can appear on the WAIT directive
+  !$acc wait(1) if(.true.) async(1) async
+
+  !$acc parallel
+  !$acc atomic update
+  c(i) = c(i) + 1
+
+  !$acc atomic update
+  c(i) = c(i) + 1
+  !$acc end atomic
+
+  !$acc atomic write
+  c(i) = 10
+
+  !$acc atomic write
+  c(i) = 10
+  !$acc end atomic
+
+  !$acc atomic read
+  i = c(i)
+
+  !$acc atomic read
+  i = c(i)
+  !$acc end atomic
+
+  !$acc atomic capture
+  c(i) = i
+  i = i + 1
+  !$acc end atomic
+  !$acc end parallel
+  t%arr(i) = 2.0
+
+  !$acc cache(a(i))
+  !$acc cache(a(1:2,3:4))
+  !$acc cache(a)
+  !$acc cache(readonly: a, aa)
+  !$acc cache(readonly: a(i), aa(i, i))
+  !$acc cache(t%arr)
+  !$acc cache(ta(1:2)%arr)
+  !$acc cache(ta(1:2)%arr(1:4))
+
+  !ERROR: Only array element or subarray are allowed in CACHE directive
+  !$acc cache(ta(1:2)%s)
+
+  !ERROR: Only array element or subarray are allowed in CACHE directive
+  !$acc cache(i)
+
+  !ERROR: Only array element or subarray are allowed in CACHE directive
+  !$acc cache(t%s)
+
+  !ERROR: Only array element or subarray are allowed in CACHE directive
+  !$acc cache(/i/)
 
  contains
 

@@ -242,9 +242,6 @@ set(ENABLE_LINKER_BUILD_ID OFF CACHE BOOL "pass --build-id to ld")
 set(ENABLE_X86_RELAX_RELOCATIONS ON CACHE BOOL
     "enable x86 relax relocations by default")
 
-set(ENABLE_EXPERIMENTAL_NEW_PASS_MANAGER FALSE CACHE BOOL
-  "Enable the experimental new pass manager by default.")
-
 set(CLANG_SPAWN_CC1 OFF CACHE BOOL
     "Whether clang should use a new process for the CC1 invocation")
 
@@ -331,10 +328,6 @@ set(CLANG_SYSTEMZ_DEFAULT_ARCH "z10" CACHE STRING "SystemZ Default Arch")
 
 set(CLANG_VENDOR ${PACKAGE_VENDOR} CACHE STRING
   "Vendor-specific text for showing with version information.")
-
-if( CLANG_VENDOR )
-  add_definitions( -DCLANG_VENDOR="${CLANG_VENDOR} " )
-endif()
 
 set(CLANG_REPOSITORY_STRING "" CACHE STRING
   "Vendor-specific text for showing the repository the source is taken from.")
@@ -449,7 +442,6 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
     PATTERN "*.def"
     PATTERN "*.h"
     PATTERN "config.h" EXCLUDE
-    PATTERN ".svn" EXCLUDE
     )
 
   install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/clang

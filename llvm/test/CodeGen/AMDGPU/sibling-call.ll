@@ -91,7 +91,7 @@ entry:
 ; GFX9-NEXT: v_add_u32_e32 v0, v0, v1
 
 ; GCN-NEXT: s_setpc_b64 s[30:31]
-define hidden fastcc i32 @i32_fastcc_i32_byval_i32(i32 %arg0, i32 addrspace(5)* byval align 4 %arg1) #1 {
+define hidden fastcc i32 @i32_fastcc_i32_byval_i32(i32 %arg0, i32 addrspace(5)* byval(i32) align 4 %arg1) #1 {
   %arg1.load = load i32, i32 addrspace(5)* %arg1, align 4
   %add0 = add i32 %arg0, %arg1.load
   ret i32 %add0
@@ -104,9 +104,9 @@ define hidden fastcc i32 @i32_fastcc_i32_byval_i32(i32 %arg0, i32 addrspace(5)* 
 ; GCN: s_swappc_b64
 ; GCN-NOT: v_readlane_b32 s32
 ; GCN: s_setpc_b64
-define fastcc i32 @sibling_call_i32_fastcc_i32_byval_i32_byval_parent(i32 %a, i32 addrspace(5)* byval %b.byval, i32 %c) #1 {
+define fastcc i32 @sibling_call_i32_fastcc_i32_byval_i32_byval_parent(i32 %a, i32 addrspace(5)* byval(i32) %b.byval, i32 %c) #1 {
 entry:
-  %ret = tail call fastcc i32 @i32_fastcc_i32_byval_i32(i32 %a, i32 addrspace(5)* %b.byval)
+  %ret = tail call fastcc i32 @i32_fastcc_i32_byval_i32(i32 %a, i32 addrspace(5)* byval(i32) %b.byval)
   ret i32 %ret
 }
 
@@ -122,7 +122,7 @@ entry:
 ; GCN-NEXT: s_setpc_b64
 define fastcc i32 @sibling_call_i32_fastcc_i32_byval_i32(i32 %a, [32 x i32] %large) #1 {
 entry:
-  %ret = tail call fastcc i32 @i32_fastcc_i32_byval_i32(i32 %a, i32 addrspace(5)* inttoptr (i32 16 to i32 addrspace(5)*))
+  %ret = tail call fastcc i32 @i32_fastcc_i32_byval_i32(i32 %a, i32 addrspace(5)* byval(i32) inttoptr (i32 16 to i32 addrspace(5)*))
   ret i32 %ret
 }
 
@@ -214,15 +214,15 @@ entry:
 
 ; GCN: s_swappc_b64
 
-; GCN-DAG: v_readlane_b32 s34, v42, 0
-; GCN-DAG: v_readlane_b32 s35, v42, 1
-
-; GCN: buffer_load_dword v41, off, s[0:3], s33 ; 4-byte Folded Reload
-; GCN: buffer_load_dword v40, off, s[0:3], s33 offset:4 ; 4-byte Folded Reload
+; GCN-DAG: buffer_load_dword v41, off, s[0:3], s33 ; 4-byte Folded Reload
+; GCN-DAG: buffer_load_dword v40, off, s[0:3], s33 offset:4 ; 4-byte Folded Reload
 
 ; GCN: s_getpc_b64 s[4:5]
 ; GCN-NEXT: s_add_u32 s4, s4, sibling_call_i32_fastcc_i32_i32@rel32@lo+4
 ; GCN-NEXT: s_addc_u32 s5, s5, sibling_call_i32_fastcc_i32_i32@rel32@hi+12
+
+; GCN-DAG: v_readlane_b32 s34, v42, 0
+; GCN-DAG: v_readlane_b32 s35, v42, 1
 
 ; GCN: s_sub_u32 s32, s32, 0x400
 ; GCN-NEXT: v_readlane_b32 s33,

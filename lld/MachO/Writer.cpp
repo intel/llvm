@@ -24,6 +24,7 @@
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Support/LEB128.h"
+#include "llvm/Support/MD5.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Path.h"
 
@@ -35,9 +36,7 @@ using namespace lld;
 using namespace lld::macho;
 
 namespace {
-class LCLinkEdit;
-class LCDyldInfo;
-class LCSymtab;
+class LCUuid;
 
 class Writer {
 public:
@@ -51,6 +50,7 @@ public:
 
   void openFile();
   void writeSections();
+  void writeUuid();
 
   void run();
 
@@ -62,6 +62,7 @@ public:
   SymtabSection *symtabSection = nullptr;
   IndirectSymtabSection *indirectSymtabSection = nullptr;
   UnwindInfoSection *unwindInfoSection = nullptr;
+  LCUuid *uuidCommand = nullptr;
 };
 
 // LC_DYLD_INFO_ONLY stores the offsets of symbol import/export information.
@@ -112,8 +113,10 @@ public:
 
 class LCDysymtab : public LoadCommand {
 public:
-  LCDysymtab(IndirectSymtabSection *indirectSymtabSection)
-      : indirectSymtabSection(indirectSymtabSection) {}
+  LCDysymtab(SymtabSection *symtabSection,
+             IndirectSymtabSection *indirectSymtabSection)
+      : symtabSection(symtabSection),
+        indirectSymtabSection(indirectSymtabSection) {}
 
   uint32_t getSize() const override { return sizeof(dysymtab_command); }
 
@@ -121,11 +124,19 @@ public:
     auto *c = reinterpret_cast<dysymtab_command *>(buf);
     c->cmd = LC_DYSYMTAB;
     c->cmdsize = getSize();
+
+    c->ilocalsym = 0;
+    c->iextdefsym = c->nlocalsym = symtabSection->getNumLocalSymbols();
+    c->nextdefsym = symtabSection->getNumExternalSymbols();
+    c->iundefsym = c->iextdefsym + c->nextdefsym;
+    c->nundefsym = symtabSection->getNumUndefinedSymbols();
+
     c->indirectsymoff = indirectSymtabSection->fileOff;
     c->nindirectsyms = indirectSymtabSection->getNumSymbols();
   }
 
-  IndirectSymtabSection *indirectSymtabSection = nullptr;
+  SymtabSection *symtabSection;
+  IndirectSymtabSection *indirectSymtabSection;
 };
 
 class LCSegment : public LoadCommand {
@@ -341,6 +352,30 @@ public:
   const PlatformInfo &platform;
 };
 
+// Stores a unique identifier for the output file based on an MD5 hash of its
+// contents. In order to hash the contents, we must first write them, but
+// LC_UUID itself must be part of the written contents in order for all the
+// offsets to be calculated correctly. We resolve this circular paradox by
+// first writing an LC_UUID with an all-zero UUID, then updating the UUID with
+// its real value later.
+class LCUuid : public LoadCommand {
+public:
+  uint32_t getSize() const override { return sizeof(uuid_command); }
+
+  void writeTo(uint8_t *buf) const override {
+    auto *c = reinterpret_cast<uuid_command *>(buf);
+    c->cmd = LC_UUID;
+    c->cmdsize = getSize();
+    uuidBuf = c->uuid;
+  }
+
+  void writeUuid(const std::array<uint8_t, 16> &uuid) const {
+    memcpy(uuidBuf, uuid.data(), uuid.size());
+  }
+
+  mutable uint8_t *uuidBuf;
+};
+
 } // namespace
 
 void Writer::scanRelocations() {
@@ -354,8 +389,8 @@ void Writer::scanRelocations() {
     for (Reloc &r : isec->relocs) {
       if (auto *s = r.referent.dyn_cast<lld::macho::Symbol *>()) {
         if (isa<Undefined>(s))
-          error("undefined symbol " + s->getName() + ", referenced from " +
-                sys::path::filename(isec->file->getName()));
+          error("undefined symbol " + toString(*s) + ", referenced from " +
+                toString(isec->file));
         else
           target->prepareSymbolRelocation(s, isec, r);
       } else {
@@ -371,7 +406,8 @@ void Writer::createLoadCommands() {
   in.header->addLoadCommand(make<LCDyldInfo>(
       in.rebase, in.binding, in.weakBinding, in.lazyBinding, in.exports));
   in.header->addLoadCommand(make<LCSymtab>(symtabSection, stringTableSection));
-  in.header->addLoadCommand(make<LCDysymtab>(indirectSymtabSection));
+  in.header->addLoadCommand(
+      make<LCDysymtab>(symtabSection, indirectSymtabSection));
   for (StringRef path : config->runtimePaths)
     in.header->addLoadCommand(make<LCRPath>(path));
 
@@ -390,6 +426,9 @@ void Writer::createLoadCommands() {
   }
 
   in.header->addLoadCommand(make<LCBuildVersion>(config->platform));
+
+  uuidCommand = make<LCUuid>();
+  in.header->addLoadCommand(uuidCommand);
 
   uint8_t segIndex = 0;
   for (OutputSegment *seg : outputSegments) {
@@ -550,6 +589,10 @@ void Writer::createOutputSections() {
   MapVector<std::pair<StringRef, StringRef>, MergedOutputSection *>
       mergedOutputSections;
   for (InputSection *isec : inputSections) {
+    // Instead of emitting DWARF sections, we emit STABS symbols to the object
+    // files that contain them.
+    if (isDebugSection(isec->flags) && isec->segname == segment_names::dwarf)
+      continue;
     MergedOutputSection *&osec =
         mergedOutputSections[{isec->segname, isec->name}];
     if (osec == nullptr)
@@ -563,8 +606,9 @@ void Writer::createOutputSections() {
     if (unwindInfoSection && segname == segment_names::ld) {
       assert(osec->name == section_names::compactUnwind);
       unwindInfoSection->setCompactUnwindSection(osec);
-    } else
+    } else {
       getOrCreateOutputSegment(segname)->addOutputSection(osec);
+    }
   }
 
   for (SyntheticSection *ssec : syntheticSections) {
@@ -573,7 +617,7 @@ void Writer::createOutputSections() {
       if (ssec->isNeeded())
         getOrCreateOutputSegment(ssec->segname)->addOutputSection(ssec);
     } else {
-      error("section from " + it->second->firstSection()->file->getName() +
+      error("section from " + toString(it->second->firstSection()->file) +
             " conflicts with synthetic section " + ssec->segname + "," +
             ssec->name);
     }
@@ -616,6 +660,21 @@ void Writer::writeSections() {
   for (OutputSegment *seg : outputSegments)
     for (OutputSection *osec : seg->getSections())
       osec->writeTo(buf + osec->fileOff);
+}
+
+void Writer::writeUuid() {
+  MD5 hash;
+  const auto *bufStart = reinterpret_cast<char *>(buffer->getBufferStart());
+  const auto *bufEnd = reinterpret_cast<char *>(buffer->getBufferEnd());
+  hash.update(StringRef(bufStart, bufEnd - bufStart));
+  MD5::MD5Result result;
+  hash.final(result);
+  // Conform to UUID version 4 & 5 as specified in RFC 4122:
+  // 1. Set the version field to indicate that this is an MD5-based UUID.
+  result.Bytes[6] = (result.Bytes[6] & 0xf) | 0x30;
+  // 2. Set the two MSBs of uuid_t::clock_seq_hi_and_reserved to zero and one.
+  result.Bytes[8] = (result.Bytes[8] & 0x3f) | 0x80;
+  uuidCommand->writeUuid(result.Bytes);
 }
 
 void Writer::run() {
@@ -668,6 +727,7 @@ void Writer::run() {
     return;
 
   writeSections();
+  writeUuid();
 
   if (auto e = buffer->commit())
     error("failed to write to the output file: " + toString(std::move(e)));

@@ -31,12 +31,12 @@ namespace targets {
 
 static const char *const DataLayoutStringR600 =
     "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128"
-    "-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5";
+    "-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5-G1";
 
 static const char *const DataLayoutStringAMDGCN =
     "e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:32-p6:32:32"
     "-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128"
-    "-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5"
+    "-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5-G1"
     "-ni:7";
 
 const LangASMap AMDGPUTargetInfo::AMDGPUDefIsGenMap = {
@@ -173,6 +173,7 @@ bool AMDGPUTargetInfo::initFeatureMap(
   // XXX - What does the member GPU mean if device name string passed here?
   if (isAMDGCN(getTriple())) {
     switch (llvm::AMDGPU::parseArchAMDGCN(CPU)) {
+    case GK_GFX1033:
     case GK_GFX1032:
     case GK_GFX1031:
     case GK_GFX1030:
@@ -221,6 +222,7 @@ bool AMDGPUTargetInfo::initFeatureMap(
       Features["dot1-insts"] = true;
       Features["dot2-insts"] = true;
       LLVM_FALLTHROUGH;
+    case GK_GFX90C:
     case GK_GFX909:
     case GK_GFX904:
     case GK_GFX902:
@@ -320,6 +322,7 @@ AMDGPUTargetInfo::AMDGPUTargetInfo(const llvm::Triple &Triple,
   HasLegalHalfType = true;
   HasFloat16 = true;
   WavefrontSize = GPUFeatures & llvm::AMDGPU::FEATURE_WAVE32 ? 32 : 64;
+  AllowAMDGPUUnsafeFPAtomics = Opts.AllowAMDGPUUnsafeFPAtomics;
 
   // Set pointer width and alignment for target address space 0.
   PointerWidth = PointerAlign = DataLayout->getPointerSizeInBits();

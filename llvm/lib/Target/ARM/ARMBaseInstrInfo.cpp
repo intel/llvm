@@ -35,6 +35,8 @@
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/MachineScheduler.h"
+#include "llvm/CodeGen/MultiHazardRecognizer.h"
 #include "llvm/CodeGen/ScoreboardHazardRecognizer.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
@@ -134,9 +136,15 @@ ARMBaseInstrInfo::CreateTargetHazardRecognizer(const TargetSubtargetInfo *STI,
 ScheduleHazardRecognizer *ARMBaseInstrInfo::
 CreateTargetPostRAHazardRecognizer(const InstrItineraryData *II,
                                    const ScheduleDAG *DAG) const {
+  MultiHazardRecognizer *MHR = new MultiHazardRecognizer();
+
   if (Subtarget.isThumb2() || Subtarget.hasVFP2Base())
-    return new ARMHazardRecognizer(II, DAG);
-  return TargetInstrInfo::CreateTargetPostRAHazardRecognizer(II, DAG);
+    MHR->AddHazardRecognizer(std::make_unique<ARMHazardRecognizerFPMLx>());
+
+  auto BHR = TargetInstrInfo::CreateTargetPostRAHazardRecognizer(II, DAG);
+  if (BHR)
+    MHR->AddHazardRecognizer(std::unique_ptr<ScheduleHazardRecognizer>(BHR));
+  return MHR;
 }
 
 MachineInstr *ARMBaseInstrInfo::convertToThreeAddress(
@@ -589,13 +597,23 @@ bool ARMBaseInstrInfo::SubsumesPredicate(ArrayRef<MachineOperand> Pred1,
   }
 }
 
-bool ARMBaseInstrInfo::DefinesPredicate(
-    MachineInstr &MI, std::vector<MachineOperand> &Pred) const {
+bool ARMBaseInstrInfo::ClobbersPredicate(MachineInstr &MI,
+                                         std::vector<MachineOperand> &Pred,
+                                         bool SkipDead) const {
   bool Found = false;
   for (unsigned i = 0, e = MI.getNumOperands(); i != e; ++i) {
     const MachineOperand &MO = MI.getOperand(i);
-    if ((MO.isRegMask() && MO.clobbersPhysReg(ARM::CPSR)) ||
-        (MO.isReg() && MO.isDef() && MO.getReg() == ARM::CPSR)) {
+    bool ClobbersCPSR = MO.isRegMask() && MO.clobbersPhysReg(ARM::CPSR);
+    bool IsCPSR = MO.isReg() && MO.isDef() && MO.getReg() == ARM::CPSR;
+    if (ClobbersCPSR || IsCPSR) {
+
+      // Filter out T1 instructions that have a dead CPSR,
+      // allowing IT blocks to be generated containing T1 instructions
+      const MCInstrDesc &MCID = MI.getDesc();
+      if (MCID.TSFlags & ARMII::ThumbArithFlagSetting && MO.isDead() &&
+          SkipDead)
+        continue;
+
       Pred.push_back(MO);
       Found = true;
     }
@@ -609,61 +627,6 @@ bool ARMBaseInstrInfo::isCPSRDefined(const MachineInstr &MI) {
     if (MO.isReg() && MO.getReg() == ARM::CPSR && MO.isDef() && !MO.isDead())
       return true;
   return false;
-}
-
-bool ARMBaseInstrInfo::isAddrMode3OpImm(const MachineInstr &MI,
-                                        unsigned Op) const {
-  const MachineOperand &Offset = MI.getOperand(Op + 1);
-  return Offset.getReg() != 0;
-}
-
-// Load with negative register offset requires additional 1cyc and +I unit
-// for Cortex A57
-bool ARMBaseInstrInfo::isAddrMode3OpMinusReg(const MachineInstr &MI,
-                                             unsigned Op) const {
-  const MachineOperand &Offset = MI.getOperand(Op + 1);
-  const MachineOperand &Opc = MI.getOperand(Op + 2);
-  assert(Opc.isImm());
-  assert(Offset.isReg());
-  int64_t OpcImm = Opc.getImm();
-
-  bool isSub = ARM_AM::getAM3Op(OpcImm) == ARM_AM::sub;
-  return (isSub && Offset.getReg() != 0);
-}
-
-bool ARMBaseInstrInfo::isLdstScaledReg(const MachineInstr &MI,
-                                       unsigned Op) const {
-  const MachineOperand &Opc = MI.getOperand(Op + 2);
-  unsigned OffImm = Opc.getImm();
-  return ARM_AM::getAM2ShiftOpc(OffImm) != ARM_AM::no_shift;
-}
-
-// Load, scaled register offset, not plus LSL2
-bool ARMBaseInstrInfo::isLdstScaledRegNotPlusLsl2(const MachineInstr &MI,
-                                                  unsigned Op) const {
-  const MachineOperand &Opc = MI.getOperand(Op + 2);
-  unsigned OffImm = Opc.getImm();
-
-  bool isAdd = ARM_AM::getAM2Op(OffImm) == ARM_AM::add;
-  unsigned Amt = ARM_AM::getAM2Offset(OffImm);
-  ARM_AM::ShiftOpc ShiftOpc = ARM_AM::getAM2ShiftOpc(OffImm);
-  if (ShiftOpc == ARM_AM::no_shift) return false; // not scaled
-  bool SimpleScaled = (isAdd && ShiftOpc == ARM_AM::lsl && Amt == 2);
-  return !SimpleScaled;
-}
-
-// Minus reg for ldstso addr mode
-bool ARMBaseInstrInfo::isLdstSoMinusReg(const MachineInstr &MI,
-                                        unsigned Op) const {
-  unsigned OffImm = MI.getOperand(Op + 2).getImm();
-  return ARM_AM::getAM2Op(OffImm) == ARM_AM::sub;
-}
-
-// Load, scaled register offset
-bool ARMBaseInstrInfo::isAm2ScaledReg(const MachineInstr &MI,
-                                      unsigned Op) const {
-  unsigned OffImm = MI.getOperand(Op + 2).getImm();
-  return ARM_AM::getAM2ShiftOpc(OffImm) != ARM_AM::no_shift;
 }
 
 static bool isEligibleForITBlock(const MachineInstr *MI) {
@@ -3405,7 +3368,7 @@ bool ARMBaseInstrInfo::FoldImmediate(MachineInstr &UseMI, MachineInstr &DefMI,
     case ARM::t2SUBspImm:
     case ARM::t2ADDri:
     case ARM::t2SUBri:
-      MRI->setRegClass(UseMI.getOperand(0).getReg(), TRC);
+      MRI->constrainRegClass(UseMI.getOperand(0).getReg(), TRC);
   }
   return true;
 }
@@ -3864,22 +3827,6 @@ ARMBaseInstrInfo::getVLDMDefCycle(const InstrItineraryData *ItinData,
   }
 
   return DefCycle;
-}
-
-bool ARMBaseInstrInfo::isLDMBaseRegInList(const MachineInstr &MI) const {
-  Register BaseReg = MI.getOperand(0).getReg();
-  for (unsigned i = 1, sz = MI.getNumOperands(); i < sz; ++i) {
-    const auto &Op = MI.getOperand(i);
-    if (Op.isReg() && Op.getReg() == BaseReg)
-      return true;
-  }
-  return false;
-}
-unsigned
-ARMBaseInstrInfo::getLDMVariableDefsSize(const MachineInstr &MI) const {
-  // ins GPR:$Rn, $p (2xOp), reglist:$regs, variable_ops
-  // (outs GPR:$wb), (ins GPR:$Rn, $p (2xOp), reglist:$regs, variable_ops)
-  return MI.getNumOperands() + 1 - MI.getDesc().getNumOperands();
 }
 
 int
@@ -5716,6 +5663,37 @@ ARMBaseInstrInfo::findRegisterToSaveLRTo(const outliner::Candidate &C) const {
   return 0u;
 }
 
+// Compute liveness of LR at the point after the interval [I, E), which
+// denotes a *backward* iteration through instructions. Used only for return
+// basic blocks, which do not end with a tail call.
+static bool isLRAvailable(const TargetRegisterInfo &TRI,
+                          MachineBasicBlock::reverse_iterator I,
+                          MachineBasicBlock::reverse_iterator E) {
+  // At the end of the function LR dead.
+  bool Live = false;
+  for (; I != E; ++I) {
+    const MachineInstr &MI = *I;
+
+    // Check defs of LR.
+    if (MI.modifiesRegister(ARM::LR, &TRI))
+      Live = false;
+
+    // Check uses of LR.
+    unsigned Opcode = MI.getOpcode();
+    if (Opcode == ARM::BX_RET || Opcode == ARM::MOVPCLR ||
+        Opcode == ARM::SUBS_PC_LR || Opcode == ARM::tBX_RET ||
+        Opcode == ARM::tBXNS_RET) {
+      // These instructions use LR, but it's not an (explicit or implicit)
+      // operand.
+      Live = true;
+      continue;
+    }
+    if (MI.readsRegister(ARM::LR, &TRI))
+      Live = true;
+  }
+  return !Live;
+}
+
 outliner::OutlinedFunction ARMBaseInstrInfo::getOutliningCandidateInfo(
     std::vector<outliner::Candidate> &RepeatedSequenceLocs) const {
   outliner::Candidate &FirstCand = RepeatedSequenceLocs[0];
@@ -5808,8 +5786,15 @@ outliner::OutlinedFunction ARMBaseInstrInfo::getOutliningCandidateInfo(
 
     for (outliner::Candidate &C : RepeatedSequenceLocs) {
       C.initLRU(TRI);
-      // Is LR available? If so, we don't need a save.
-      if (C.LRU.available(ARM::LR)) {
+      // LR liveness is overestimated in return blocks, unless they end with a
+      // tail call.
+      const auto Last = C.getMBB()->rbegin();
+      const bool LRIsAvailable =
+          C.getMBB()->isReturnBlock() && !Last->isCall()
+              ? isLRAvailable(TRI, Last,
+                              (MachineBasicBlock::reverse_iterator)C.front())
+              : C.LRU.available(ARM::LR);
+      if (LRIsAvailable) {
         FrameID = MachineOutlinerNoLRSave;
         NumBytesNoStackCalls += Costs.CallNoLRSave;
         C.setCallInfo(MachineOutlinerNoLRSave, Costs.CallNoLRSave);
@@ -5920,7 +5905,13 @@ bool ARMBaseInstrInfo::isMBBSafeToOutlineFrom(MachineBasicBlock &MBB,
   if (any_of(MBB, [](MachineInstr &MI) { return MI.isCall(); }))
     Flags |= MachineOutlinerMBBFlags::HasCalls;
 
-  if (!LRU.available(ARM::LR))
+  // LR liveness is overestimated in return blocks.
+
+  bool LRIsAvailable =
+      MBB.isReturnBlock() && !MBB.back().isCall()
+          ? isLRAvailable(getRegisterInfo(), MBB.rbegin(), MBB.rend())
+          : LRU.available(ARM::LR);
+  if (!LRIsAvailable)
     Flags |= MachineOutlinerMBBFlags::LRUnavailableSomewhere;
 
   return true;
@@ -5958,8 +5949,8 @@ ARMBaseInstrInfo::getOutliningType(MachineBasicBlock::iterator &MIT,
 
   // Be conservative with ARMv8.1 MVE instructions.
   if (Opc == ARM::t2BF_LabelPseudo || Opc == ARM::t2DoLoopStart ||
-      Opc == ARM::t2WhileLoopStart || Opc == ARM::t2LoopDec ||
-      Opc == ARM::t2LoopEnd)
+      Opc == ARM::t2DoLoopStartTP || Opc == ARM::t2WhileLoopStart ||
+      Opc == ARM::t2LoopDec || Opc == ARM::t2LoopEnd)
     return outliner::InstrType::Illegal;
 
   const MCInstrDesc &MCID = MI.getDesc();
@@ -6080,7 +6071,7 @@ ARMBaseInstrInfo::getOutliningType(MachineBasicBlock::iterator &MIT,
 }
 
 void ARMBaseInstrInfo::saveLROnStack(MachineBasicBlock &MBB,
-                                     MachineBasicBlock::iterator &It) const {
+                                     MachineBasicBlock::iterator It) const {
   unsigned Opc = Subtarget.isThumb() ? ARM::t2STR_PRE : ARM::STR_PRE_IMM;
   int Align = -Subtarget.getStackAlignment().value();
   BuildMI(MBB, It, DebugLoc(), get(Opc), ARM::SP)
@@ -6090,8 +6081,45 @@ void ARMBaseInstrInfo::saveLROnStack(MachineBasicBlock &MBB,
     .add(predOps(ARMCC::AL));
 }
 
+void ARMBaseInstrInfo::emitCFIForLRSaveOnStack(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator It) const {
+  MachineFunction &MF = *MBB.getParent();
+  const MCRegisterInfo *MRI = Subtarget.getRegisterInfo();
+  unsigned DwarfLR = MRI->getDwarfRegNum(ARM::LR, true);
+  int Align = Subtarget.getStackAlignment().value();
+  // Add a CFI saying the stack was moved down.
+  int64_t StackPosEntry =
+      MF.addFrameInst(MCCFIInstruction::cfiDefCfaOffset(nullptr, Align));
+  BuildMI(MBB, It, DebugLoc(), get(ARM::CFI_INSTRUCTION))
+      .addCFIIndex(StackPosEntry)
+      .setMIFlags(MachineInstr::FrameSetup);
+
+  // Add a CFI saying that the LR that we want to find is now higher than
+  // before.
+  int64_t LRPosEntry =
+      MF.addFrameInst(MCCFIInstruction::createOffset(nullptr, DwarfLR, -Align));
+  BuildMI(MBB, It, DebugLoc(), get(ARM::CFI_INSTRUCTION))
+      .addCFIIndex(LRPosEntry)
+      .setMIFlags(MachineInstr::FrameSetup);
+}
+
+void ARMBaseInstrInfo::emitCFIForLRSaveToReg(MachineBasicBlock &MBB,
+                                             MachineBasicBlock::iterator It,
+                                             Register Reg) const {
+  MachineFunction &MF = *MBB.getParent();
+  const MCRegisterInfo *MRI = Subtarget.getRegisterInfo();
+  unsigned DwarfLR = MRI->getDwarfRegNum(ARM::LR, true);
+  unsigned DwarfReg = MRI->getDwarfRegNum(Reg, true);
+
+  int64_t LRPosEntry = MF.addFrameInst(
+      MCCFIInstruction::createRegister(nullptr, DwarfLR, DwarfReg));
+  BuildMI(MBB, It, DebugLoc(), get(ARM::CFI_INSTRUCTION))
+      .addCFIIndex(LRPosEntry)
+      .setMIFlags(MachineInstr::FrameSetup);
+}
+
 void ARMBaseInstrInfo::restoreLRFromStack(
-  MachineBasicBlock &MBB, MachineBasicBlock::iterator &It) const {
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator It) const {
   unsigned Opc = Subtarget.isThumb() ? ARM::t2LDR_POST : ARM::LDR_POST_IMM;
   MachineInstrBuilder MIB = BuildMI(MBB, It, DebugLoc(), get(Opc), ARM::LR)
     .addReg(ARM::SP, RegState::Define)
@@ -6099,6 +6127,39 @@ void ARMBaseInstrInfo::restoreLRFromStack(
   if (!Subtarget.isThumb())
     MIB.addReg(0);
   MIB.addImm(Subtarget.getStackAlignment().value()).add(predOps(ARMCC::AL));
+}
+
+void ARMBaseInstrInfo::emitCFIForLRRestoreFromStack(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator It) const {
+  // Now stack has moved back up...
+  MachineFunction &MF = *MBB.getParent();
+  const MCRegisterInfo *MRI = Subtarget.getRegisterInfo();
+  unsigned DwarfLR = MRI->getDwarfRegNum(ARM::LR, true);
+  int64_t StackPosEntry =
+      MF.addFrameInst(MCCFIInstruction::cfiDefCfaOffset(nullptr, 0));
+  BuildMI(MBB, It, DebugLoc(), get(ARM::CFI_INSTRUCTION))
+      .addCFIIndex(StackPosEntry)
+      .setMIFlags(MachineInstr::FrameDestroy);
+
+  // ... and we have restored LR.
+  int64_t LRPosEntry =
+      MF.addFrameInst(MCCFIInstruction::createRestore(nullptr, DwarfLR));
+  BuildMI(MBB, It, DebugLoc(), get(ARM::CFI_INSTRUCTION))
+      .addCFIIndex(LRPosEntry)
+      .setMIFlags(MachineInstr::FrameDestroy);
+}
+
+void ARMBaseInstrInfo::emitCFIForLRRestoreFromReg(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator It) const {
+  MachineFunction &MF = *MBB.getParent();
+  const MCRegisterInfo *MRI = Subtarget.getRegisterInfo();
+  unsigned DwarfLR = MRI->getDwarfRegNum(ARM::LR, true);
+
+  int64_t LRPosEntry =
+      MF.addFrameInst(MCCFIInstruction::createRestore(nullptr, DwarfLR));
+  BuildMI(MBB, It, DebugLoc(), get(ARM::CFI_INSTRUCTION))
+      .addCFIIndex(LRPosEntry)
+      .setMIFlags(MachineInstr::FrameDestroy);
 }
 
 void ARMBaseInstrInfo::buildOutlinedFrame(
@@ -6142,28 +6203,11 @@ void ARMBaseInstrInfo::buildOutlinedFrame(
 
     // Insert a save before the outlined region
     saveLROnStack(MBB, It);
-
-    unsigned StackAlignment = Subtarget.getStackAlignment().value();
-    const TargetSubtargetInfo &STI = MF.getSubtarget();
-    const MCRegisterInfo *MRI = STI.getRegisterInfo();
-    unsigned DwarfReg = MRI->getDwarfRegNum(ARM::LR, true);
-    // Add a CFI saying the stack was moved down.
-    int64_t StackPosEntry = MF.addFrameInst(
-        MCCFIInstruction::cfiDefCfaOffset(nullptr, StackAlignment));
-    BuildMI(MBB, It, DebugLoc(), get(ARM::CFI_INSTRUCTION))
-        .addCFIIndex(StackPosEntry)
-        .setMIFlags(MachineInstr::FrameSetup);
-
-    // Add a CFI saying that the LR that we want to find is now higher than
-    // before.
-    int64_t LRPosEntry = MF.addFrameInst(
-        MCCFIInstruction::createOffset(nullptr, DwarfReg, StackAlignment));
-    BuildMI(MBB, It, DebugLoc(), get(ARM::CFI_INSTRUCTION))
-        .addCFIIndex(LRPosEntry)
-        .setMIFlags(MachineInstr::FrameSetup);
+    emitCFIForLRSaveOnStack(MBB, It);
 
     // Insert a restore before the terminator for the function.  Restore LR.
     restoreLRFromStack(MBB, Et);
+    emitCFIForLRRestoreFromStack(MBB, Et);
   }
 
   // If this is a tail call outlined function, then there's already a return.
@@ -6213,6 +6257,7 @@ MachineBasicBlock::iterator ARMBaseInstrInfo::insertOutlinedCall(
     return It;
   }
 
+  const ARMFunctionInfo &AFI = *C.getMF()->getInfo<ARMFunctionInfo>();
   // Can we save to a register?
   if (C.CallConstructionID == MachineOutlinerRegSave) {
     unsigned Reg = findRegisterToSaveLRTo(C);
@@ -6220,15 +6265,23 @@ MachineBasicBlock::iterator ARMBaseInstrInfo::insertOutlinedCall(
 
     // Save and restore LR from that register.
     copyPhysReg(MBB, It, DebugLoc(), Reg, ARM::LR, true);
+    if (!AFI.isLRSpilled())
+      emitCFIForLRSaveToReg(MBB, It, Reg);
     CallPt = MBB.insert(It, CallMIB);
     copyPhysReg(MBB, It, DebugLoc(), ARM::LR, Reg, true);
+    if (!AFI.isLRSpilled())
+      emitCFIForLRRestoreFromReg(MBB, It);
     It--;
     return CallPt;
   }
   // We have the default case. Save and restore from SP.
   saveLROnStack(MBB, It);
+  if (!AFI.isLRSpilled())
+    emitCFIForLRSaveOnStack(MBB, It);
   CallPt = MBB.insert(It, CallMIB);
   restoreLRFromStack(MBB, It);
+  if (!AFI.isLRSpilled())
+    emitCFIForLRRestoreFromStack(MBB, It);
   It--;
   return CallPt;
 }
