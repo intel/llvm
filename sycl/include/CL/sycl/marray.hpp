@@ -66,7 +66,7 @@ public:
   template <
       typename... argTN, typename = EnableIfSuitableTypes<argTN...>,
       typename = typename std::enable_if<sizeof...(argTN) == NumElements>::type>
-  marray(const argTN &...args) : m_Data{args...} {}
+  marray(const argTN &... args) : m_Data{args...} {}
 
   marray(const marray<Type, NumElements> &Rhs) {
     for (int i = 0; i < NumElements; i++) {

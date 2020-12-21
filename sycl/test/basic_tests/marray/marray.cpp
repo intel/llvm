@@ -56,7 +56,7 @@ int main() {
   assert(tcpy[0] == 1 && tcpy[1] == 2 && tcpy[2] == 3);
 
   // test iterators
-  for(auto& a : t___) {
+  for (auto &a : t___) {
     a = 9;
   }
   assert(t___[0] == 9 && t___[1] == 9 && t___[2] == 9);
