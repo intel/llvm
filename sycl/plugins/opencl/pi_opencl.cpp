@@ -166,7 +166,8 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
                           size_t paramValueSize, void *paramValue,
                           size_t *paramValueSizeRet) {
   switch (paramName) {
-    // Intel GPU EU device-specific information extensions
+    // Intel GPU EU device-specific information extensions.
+    // TODO: Check regularly to see if support in enabled in OpenCL.
   case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:
   case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
