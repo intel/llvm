@@ -346,6 +346,9 @@ public:
   /// Registers a specialization constant to emit info for it into the header.
   void addSpecConstant(StringRef IDName, QualType IDType);
 
+  /// Notes that this_item is called within the kernel.
+  void setCallsThisItem(bool B);
+
 private:
   // Kernel actual parameter descriptor.
   struct KernelParamDesc {
@@ -382,6 +385,9 @@ private:
     /// Descriptor of kernel actual parameters.
     SmallVector<KernelParamDesc, 8> Params;
 
+    // Whether kernel calls this_item()
+    bool CallsThisItem;
+
     KernelDesc() = default;
   };
 
@@ -403,9 +409,6 @@ private:
   /// constant's ID type to generated unique name. Duplicates are removed at
   /// integration header emission time.
   llvm::SmallVector<SpecConstID, 4> SpecConsts;
-
-  /// Used for emitting diagnostics.
-  DiagnosticsEngine &Diag;
 
   /// Whether header is generated with unnamed lambda support
   bool UnnamedLambdaSupport;
