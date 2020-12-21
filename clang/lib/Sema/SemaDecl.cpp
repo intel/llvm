@@ -3207,18 +3207,18 @@ static void checkDimensionsAndSetDiagnostics(Sema &S, FunctionDecl *New,
   if (!NewDeclAttr || !OldDeclAttr)
     return;
 
-  int64_t NewXDimVal =
-      NewDeclAttr->getXDim()->getIntegerConstantExpr(S.Context)->getSExtValue();
-  int64_t NewYDimVal =
-      NewDeclAttr->getYDim()->getIntegerConstantExpr(S.Context)->getSExtValue();
-  int64_t NewZDimVal =
-      NewDeclAttr->getZDim()->getIntegerConstantExpr(S.Context)->getSExtValue();
-  int64_t OldXDimVal =
-      OldDeclAttr->getXDim()->getIntegerConstantExpr(S.Context)->getSExtValue();
-  int64_t OldYDimVal =
-      OldDeclAttr->getYDim()->getIntegerConstantExpr(S.Context)->getSExtValue();
-  int64_t OldZDimVal =
-      OldDeclAttr->getZDim()->getIntegerConstantExpr(S.Context)->getSExtValue();
+  unsigned NewXDimVal =
+      NewDeclAttr->getXDim()->getIntegerConstantExpr(S.Context)->getZExtValue();
+  unsigned NewYDimVal =
+      NewDeclAttr->getYDim()->getIntegerConstantExpr(S.Context)->getZExtValue();
+  unsigned NewZDimVal =
+      NewDeclAttr->getZDim()->getIntegerConstantExpr(S.Context)->getZExtValue();
+  unsigned OldXDimVal =
+      OldDeclAttr->getXDim()->getIntegerConstantExpr(S.Context)->getZExtValue();
+  unsigned OldYDimVal =
+      OldDeclAttr->getYDim()->getIntegerConstantExpr(S.Context)->getZExtValue();
+  unsigned OldZDimVal =
+      OldDeclAttr->getZDim()->getIntegerConstantExpr(S.Context)->getZExtValue();
 
   if ((NewXDimVal != OldXDimVal) || (NewYDimVal != OldYDimVal) ||
       (NewZDimVal != OldZDimVal)) {

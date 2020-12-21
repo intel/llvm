@@ -2893,7 +2893,6 @@ static void handleWeakImportAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   D->addAttr(::new (S.Context) WeakImportAttr(S.Context, AL));
 }
 
-// Handles reqd_work_group_size and max_work_group_size
 // Checks correctness of mutual usage of different work_group_size attributes:
 // reqd_work_group_size, max_work_group_size and max_global_work_dim.
 // Values of reqd_work_group_size arguments shall be equal or less than values
@@ -3075,6 +3074,7 @@ void Sema::addIntelSYCLTripleArgFunctionAttr(Decl *D,
                  WorkGroupAttrType(Context, CI, XDimExpr, YDimExpr, ZDimExpr));
 }
 
+// Handles reqd_work_group_size and max_work_group_size.
 template <typename WorkGroupAttr>
 static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (D->isInvalidDecl())
@@ -3091,14 +3091,12 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     Expr *E;
     if (AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize &&
         AL.getAttributeSpellingListIndex() ==
-            ReqdWorkGroupSizeAttr::CXX11_intel_reqd_work_group_size) {
+            ReqdWorkGroupSizeAttr::CXX11_intel_reqd_work_group_size)
       E = IntegerLiteral::Create(S.Context, llvm::APInt(32, 1), S.Context.IntTy,
                                  AL.getLoc());
-      return E;
-    } else {
+    else
       E = nullptr;
-      return E;
-    }
+    return E;
   };
 
   Expr *YDimExpr = AL.isArgExpr(1) ? AL.getArgAsExpr(1)
@@ -3137,7 +3135,7 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
           (ExistingYDimVal->getZExtValue() == YDimVal->getZExtValue()) &&
           (ExistingZDimVal->getZExtValue() == ZDimVal->getZExtValue()))) {
       S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
-      S.Diag(ExistingAttr->getLocation(), diag::note_duplicating_attribute);
+      S.Diag(ExistingAttr->getLocation(), diag::note_duplicate_attribute);
     }
   }
 
