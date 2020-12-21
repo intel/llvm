@@ -11,16 +11,20 @@ on:
     branches:
       - master
       - llvm_release_*
-    paths-ignore: # no need to check build for documentation changes
-      - 'docs/**'
-      - '**.md'
+    paths-ignore: # no need to check build for:
+      - 'docs/**' # documentation
+      - '**.md'   # README
+      - '**/check-code-style.xml' # check-code-style workflow
+      - '**/check-in-tree-build.xml' # check-in-tree-build workflow
   pull_request:
     branches:
       - master
       - llvm_release_*
-    paths-ignore: # no need to check build for documentation changes
-      - 'docs/**'
-      - '**.md'
+    paths-ignore: # no need to check build for:
+      - 'docs/**' # documentation
+      - '**.md'   # README
+      - '**/check-code-style.xml' # check-code-style workflow
+      - '**/check-in-tree-build.xml' # check-in-tree-build workflow
   schedule:
     - cron: 0 0 * * *
 

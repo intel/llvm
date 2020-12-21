@@ -13,9 +13,12 @@ on:
     branches:
       - master
       - llvm_release_*
-    paths-ignore: # no need to check formatting for documentation and tests
-      - 'docs/**'
-      - 'test/**'
+    paths-ignore: # no need to check formatting for:
+      - 'docs/**' # documentation
+      - 'test/**' # tests
+      - '**.md'   # README
+      - '**.txt'  # CMakeLists.txt
+      - '**/check-**-build.xml' # Other workflows
 
 env:
   # We need compile command database in order to perform clang-tidy check. So,

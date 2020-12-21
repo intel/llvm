@@ -82,6 +82,9 @@ typedef enum {
   PI_INVALID_QUEUE = CL_INVALID_COMMAND_QUEUE,
   PI_OUT_OF_HOST_MEMORY = CL_OUT_OF_HOST_MEMORY,
   PI_INVALID_PROGRAM = CL_INVALID_PROGRAM,
+  PI_INVALID_PROGRAM_EXECUTABLE = CL_INVALID_PROGRAM_EXECUTABLE,
+  PI_INVALID_SAMPLER = CL_INVALID_SAMPLER,
+  PI_INVALID_BUFFER_SIZE = CL_INVALID_BUFFER_SIZE,
   PI_INVALID_MEM_OBJECT = CL_INVALID_MEM_OBJECT,
   PI_OUT_OF_RESOURCES = CL_OUT_OF_RESOURCES,
   PI_INVALID_EVENT = CL_INVALID_EVENT,
@@ -93,8 +96,10 @@ typedef enum {
   PI_PROFILING_INFO_NOT_AVAILABLE = CL_PROFILING_INFO_NOT_AVAILABLE,
   PI_DEVICE_NOT_FOUND = CL_DEVICE_NOT_FOUND,
   PI_INVALID_WORK_ITEM_SIZE = CL_INVALID_WORK_ITEM_SIZE,
+  PI_INVALID_WORK_DIMENSION = CL_INVALID_WORK_DIMENSION,
   PI_INVALID_KERNEL_ARGS = CL_INVALID_KERNEL_ARGS,
   PI_INVALID_IMAGE_SIZE = CL_INVALID_IMAGE_SIZE,
+  PI_INVALID_IMAGE_FORMAT_DESCRIPTOR = CL_INVALID_IMAGE_FORMAT_DESCRIPTOR,
   PI_IMAGE_FORMAT_NOT_SUPPORTED = CL_IMAGE_FORMAT_NOT_SUPPORTED,
   PI_MEM_OBJECT_ALLOCATION_FAILURE = CL_MEM_OBJECT_ALLOCATION_FAILURE,
   PI_ERROR_UNKNOWN = -999
@@ -494,6 +499,13 @@ constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_USE = CL_MEM_USE_HOST_PTR;
 constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_COPY = CL_MEM_COPY_HOST_PTR;
 constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_ALLOC = CL_MEM_ALLOC_HOST_PTR;
 
+// flags passed to Map operations
+using pi_map_flags = pi_bitfield;
+constexpr pi_map_flags PI_MAP_READ = CL_MAP_READ;
+constexpr pi_map_flags PI_MAP_WRITE = CL_MAP_WRITE;
+constexpr pi_map_flags PI_MAP_WRITE_INVALIDATE_REGION =
+    CL_MAP_WRITE_INVALIDATE_REGION;
+
 // NOTE: this is made 64-bit to match the size of cl_mem_properties_intel to
 // make the translation to OpenCL transparent.
 // TODO: populate
@@ -640,7 +652,12 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 /// Name must be consistent with
 /// PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS defined in
 /// PropertySetIO.h
-#define __SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP "SYCL/specialization constants"
+#define __SYCL_PI_PROPERTY_SET_SCALAR_SPEC_CONST_MAP                           \
+  "SYCL/specialization constants"
+/// PropertySetRegistry::SYCL_COMPOSITE_SPECIALIZATION_CONSTANTS defined in
+/// PropertySetIO.h
+#define __SYCL_PI_PROPERTY_SET_COMPOSITE_SPEC_CONST_MAP                        \
+  "SYCL/composite specialization constants"
 /// PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK "SYCL/devicelib req mask"
 /// PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO defined in PropertySetIO.h
@@ -1373,9 +1390,9 @@ piEnqueueMemImageFill(pi_queue command_queue, pi_mem image,
 
 __SYCL_EXPORT pi_result piEnqueueMemBufferMap(
     pi_queue command_queue, pi_mem buffer, pi_bool blocking_map,
-    cl_map_flags map_flags, // TODO: untie from OpenCL
-    size_t offset, size_t size, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event, void **ret_map);
+    pi_map_flags map_flags, size_t offset, size_t size,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event, void **ret_map);
 
 __SYCL_EXPORT pi_result piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
                                           void *mapped_ptr,

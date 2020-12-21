@@ -22,7 +22,8 @@ void *loadOsLibrary(const std::string &PluginPath) {
 }
 
 void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
-  return GetProcAddress((HMODULE)Library, FunctionName.c_str());
+  return reinterpret_cast<void *>(
+      GetProcAddress((HMODULE)Library, FunctionName.c_str()));
 }
 
 } // namespace pi

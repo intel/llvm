@@ -595,22 +595,22 @@ void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
                         PI_INVALID_OPERATION);
   }
 
-  cl_map_flags Flags = 0;
+  pi_map_flags Flags = 0;
 
   switch (AccessMode) {
   case access::mode::read:
-    Flags |= CL_MAP_READ;
+    Flags |= PI_MAP_READ;
     break;
   case access::mode::write:
-    Flags |= CL_MAP_WRITE;
+    Flags |= PI_MAP_WRITE;
     break;
   case access::mode::read_write:
   case access::mode::atomic:
-    Flags = CL_MAP_WRITE | CL_MAP_READ;
+    Flags = PI_MAP_WRITE | PI_MAP_READ;
     break;
   case access::mode::discard_write:
   case access::mode::discard_read_write:
-    Flags |= CL_MAP_WRITE_INVALIDATE_REGION;
+    Flags |= PI_MAP_WRITE_INVALIDATE_REGION;
     break;
   }
 

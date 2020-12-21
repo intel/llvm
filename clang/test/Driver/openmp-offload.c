@@ -661,13 +661,14 @@
 /// ###########################################################################
 
 /// test behaviors of -foffload-static-lib=<lib>
-// RUN: touch %t.a
+// RUN: echo "void foo(void) {}" > %t1.cpp
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fopenmp -fopenmp-targets=x86_64-pc-linux-gnu  %t1.cpp -c -o %t1_bundle.o
+// RUN: llvm-ar cr %t-fatlib.a %t1_bundle.o
 // RUN: touch %t.o
-// RUN: %clang -fopenmp -fopenmp-targets=x86_64-pc-linux-gnu -foffload-static-lib=%t.a -### %t.o 2>&1 \
+// RUN: %clang -fopenmp -fopenmp-targets=x86_64-pc-linux-gnu -foffload-static-lib=%t-fatlib.a -### %t.o 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB
-// FOFFLOAD_STATIC_LIB: ld{{(.exe)?}}" "-r" "-o" {{.*}} "[[INPUT:.+\.o]]"
-// FOFFLOAD_STATIC_LIB: clang-offload-bundler{{.*}} "-type=oo"
-// FOFFLOAD_STATIC_LIB: ld{{.*}} "@{{.*}}"
+// FOFFLOAD_STATIC_LIB: clang-offload-bundler{{.*}} "-type=a"
+// FOFFLOAD_STATIC_LIB: ld{{.*}} "{{.+}}-fatlib.a"
 
 // TODO: SYCL specific fail - analyze and enable
 // XFAIL: windows-msvc
