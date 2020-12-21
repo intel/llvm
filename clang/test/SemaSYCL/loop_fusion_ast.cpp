@@ -76,12 +76,12 @@ public:
 
 void foo() {
   q.submit([&](handler &h) {
-    // CHECK: FunctionDecl {{.*}}kernel_name_1 'void ()'
+    // CHECK: FunctionDecl {{.*}}kernel_name_1
     // CHECK-NOT: SYCLIntelLoopFuseAttr
     KernelFunctor f1;
     h.single_task<class kernel_name_1>(f1);
 
-    // CHECK: FunctionDecl {{.*}}kernel_name_2 'void ()'
+    // CHECK: FunctionDecl {{.*}}kernel_name_2
     // CHECK: SYCLIntelLoopFuseAttr {{.*}} loop_fuse
     // CHECK-NEXT: SubstNonTypeTemplateParmExpr
     // CHECK-NEXT: NonTypeTemplateParmDecl
@@ -89,7 +89,7 @@ void foo() {
     KernelFunctor2<3> f2;
     h.single_task<class kernel_name_2>(f2);
 
-    // CHECK: FunctionDecl {{.*}}kernel_name_3 'void ()'
+    // CHECK: FunctionDecl {{.*}}kernel_name_3
     // CHECK: SYCLIntelLoopFuseAttr {{.*}} loop_fuse_independent
     // CHECK-NEXT: IntegerLiteral {{.*}} 'int' 1
     h.single_task<class kernel_name_3>(
