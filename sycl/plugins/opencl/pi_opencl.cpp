@@ -36,7 +36,7 @@
   }
 
 const char SupportedVersion[] = _PI_H_VERSION_STRING;
-std::set<std::string> SupportedExtensions;
+std::map<pi_context, std::set<std::string>> SupportedExtensions;
 
 // Want all the needed casts be explicit, do not define conversion operators.
 template <class To, class From> To cast(From value) {
@@ -83,6 +83,7 @@ pi_result getSupportedExtensionsWithinContext(pi_context context) {
                              devicesInCtx.data(), nullptr);
 
   size_t retSize;
+  std::set<std::string> commonExtensions;
   for (size_t i = 0; i != deviceCount; ++i) {
     ret_err = clGetDeviceInfo(devicesInCtx[i], CL_DEVICE_EXTENSIONS, 0, nullptr,
                               &retSize);
@@ -96,8 +97,9 @@ pi_result getSupportedExtensionsWithinContext(pi_context context) {
     std::string extension;
     std::stringstream ss(extensions);
     while (getline(ss, extension, ' '))
-      SupportedExtensions.insert(extension);
+      commonExtensions.insert(extension);
   }
+  SupportedExtensions.emplace(context, commonExtensions);
   return cast<pi_result>(ret_err);
 }
 
@@ -572,13 +574,14 @@ pi_result piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
       // to an OpenCL runtime - check if this property is being supported.
       for (const auto &prop = supported.begin(); prop != supported.end();
            ++(*prop)) {
-        if (!SupportedExtensions.empty())
+        if (SupportedExtensions.find(context) == SupportedExtensions.end())
           ret_err = getSupportedExtensionsWithinContext(context);
         // Check if PI_MEM_PROPERTIES_CHANNEL property is supported. If it's
         // not - just ignore it, as it's an optimization hint.
         if (*prop == PI_MEM_PROPERTIES_CHANNEL) {
-          if (SupportedExtensions.find("cl_intel_mem_channel_property") !=
-              SupportedExtensions.end())
+          if (SupportedExtensions[context].find(
+                  "cl_intel_mem_channel_property") !=
+              SupportedExtensions[context].end())
             supported.erase(prop);
         } else
           assert("Unsupported property found");
