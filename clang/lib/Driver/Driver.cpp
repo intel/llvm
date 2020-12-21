@@ -5116,7 +5116,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     OffloadBuilder.addDeviceDependencesToHostAction(
         Current, InputArg, phases::Link, PL.back(), PL);
   };
-  for (const StringRef &LA : LinkArgs) {
+  for (StringRef LA : LinkArgs) {
     // At this point, we will process the archives for FPGA AOCO and individual
     // archive unbundling for Windows.
     if (!isStaticArchiveFile(LA))

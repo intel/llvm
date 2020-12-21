@@ -3988,7 +3988,7 @@ void SYCLIntegrationHeader::setCallsThisItem(bool B) {
 SYCLIntegrationHeader::SYCLIntegrationHeader(DiagnosticsEngine &_Diag,
                                              bool _UnnamedLambdaSupport,
                                              Sema &_S)
-    : Diag(_Diag), UnnamedLambdaSupport(_UnnamedLambdaSupport), S(_S) {}
+    : UnnamedLambdaSupport(_UnnamedLambdaSupport), S(_S) {}
 
 // -----------------------------------------------------------------------------
 // Utility class methods
