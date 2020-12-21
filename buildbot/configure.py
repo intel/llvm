@@ -13,6 +13,10 @@ def do_configure(args):
     if not os.path.isdir(abs_obj_dir):
       os.makedirs(abs_obj_dir)
 
+    llvm_external_projects = 'sycl;llvm-spirv;opencl-aot;libdevice'
+    if not args.use_libcxx:
+        llvm_external_projects += ';xpti;xptifw'
+
     llvm_dir = os.path.join(abs_src_dir, "llvm")
     sycl_dir = os.path.join(abs_src_dir, "sycl")
     spirv_dir = os.path.join(abs_src_dir, "llvm-spirv")
@@ -22,8 +26,7 @@ def do_configure(args):
     ocl_header_dir = os.path.join(abs_obj_dir, "OpenCL-Headers")
     icd_loader_lib = os.path.join(abs_obj_dir, "OpenCL-ICD-Loader", "build")
     llvm_targets_to_build = 'X86'
-    llvm_external_projects = 'sycl;llvm-spirv;opencl-aot;libdevice'
-    llvm_enable_projects = 'clang;llvm-spirv;sycl;opencl-aot;libdevice'
+    llvm_enable_projects = 'clang;' + llvm_external_projects
     libclc_targets_to_build = ''
     sycl_build_pi_cuda = 'OFF'
     sycl_werror = 'ON'
@@ -31,15 +34,9 @@ def do_configure(args):
     llvm_enable_doxygen = 'OFF'
     llvm_enable_sphinx = 'OFF'
     llvm_build_shared_libs = 'OFF'
-    sycl_enable_xpti_tracing = 'ON'
+    sycl_enable_xpti_tracing = 'OFF' if args.use_libcxx else 'ON'
 
     icd_loader_lib = os.path.join(icd_loader_lib, "libOpenCL.so" if platform.system() == 'Linux' else "OpenCL.lib")
-
-    if not args.use_libcxx:
-        llvm_enable_projects += ';xpti;xptifw'
-        llvm_external_projects += ';xpti;xptifw'
-    else:
-        sycl_enable_xpti_tracing = 'OFF'
 
     # replace not append, so ARM ^ X86
     if args.arm:
