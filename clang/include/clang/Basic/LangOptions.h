@@ -125,6 +125,12 @@ public:
     MSVC2019 = 1920,
   };
 
+  enum SYCLMajorVersion {
+    SYCL_None,
+    SYCL_2017,
+    SYCL_2020,
+  };
+
   enum class SYCLVersionList {
     sycl_1_2_1,
     undefined
