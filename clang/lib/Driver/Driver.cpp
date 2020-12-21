@@ -4780,7 +4780,7 @@ public:
     return false;
   }
 
-  Action* makeHostLinkAction() {
+  void makeHostLinkAction(ActionList &LinkerInputs) {
     // Build a list of device linking actions.
     ActionList DeviceAL;
     for (DeviceActionBuilder *SB : SpecializedBuilders) {
@@ -4790,16 +4790,15 @@ public:
     }
 
     if (DeviceAL.empty())
-      return nullptr;
+      return;
 
     // Let builders add host linking actions.
-    Action* HA;
     for (DeviceActionBuilder *SB : SpecializedBuilders) {
       if (!SB->isValid())
         continue;
-      HA = SB->appendLinkHostActions(DeviceAL);
+      if (Action *HA = SB->appendLinkHostActions(DeviceAL))
+        LinkerInputs.push_back(HA);
     }
-    return HA;
   }
 
   /// Processes the host linker action. This currently consists of replacing it
@@ -5184,8 +5183,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
   // Add a link action if necessary.
   if (!LinkerInputs.empty()) {
-    if (Action *Wrapper = OffloadBuilder.makeHostLinkAction())
-      LinkerInputs.push_back(Wrapper);
+    OffloadBuilder.makeHostLinkAction(LinkerInputs);
     types::ID LinkType(types::TY_Image);
     if (Args.hasArg(options::OPT_fsycl_link_EQ))
       LinkType = types::TY_Archive;
