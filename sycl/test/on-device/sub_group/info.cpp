@@ -21,6 +21,12 @@ int main() {
   queue Queue;
   device Device = Queue.get_device();
 
+  /* Basic sub-group functionality is supported as part of cl_khr_subgroups
+   * extension or as core OpenCL 2.1 feature. */
+  if (!core_sg_supported(Device)) {
+    std::cout << "Skipping test\n";
+    return 0;
+  }
   /* Check info::device parameters. */
   Device.get_info<info::device::sub_group_independent_forward_progress>();
   Device.get_info<info::device::max_num_sub_groups>();
