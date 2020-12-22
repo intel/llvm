@@ -42,6 +42,7 @@
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
 #define _PI_H_VERSION_STRING                                                   \
   _PI_CONCAT(_PI_H_VERSION_MAJOR, _PI_H_VERSION_MINOR)
+
 // TODO: we need a mapping of PI to OpenCL somewhere, and this can be done
 // elsewhere, e.g. in the pi_opencl, but constants/enums mapping is now
 // done here, for efficiency and simplicity.
@@ -264,7 +265,15 @@ typedef enum {
   PI_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT =
       CL_DEVICE_CROSS_DEVICE_SHARED_MEM_CAPABILITIES_INTEL,
   PI_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT =
-      CL_DEVICE_SHARED_SYSTEM_MEM_CAPABILITIES_INTEL
+      CL_DEVICE_SHARED_SYSTEM_MEM_CAPABILITIES_INTEL,
+  // These are Intel-specific extensions.
+  PI_DEVICE_INFO_PCI_ADDRESS = 0x10020,
+  PI_DEVICE_INFO_GPU_EU_COUNT = 0x10021,
+  PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH = 0x10022,
+  PI_DEVICE_INFO_GPU_SLICES = 0x10023,
+  PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE = 0x10024,
+  PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE = 0x10025,
+  PI_DEVICE_INFO_MAX_MEM_BANDWIDTH = 0x10026
 } _pi_device_info;
 
 typedef enum {

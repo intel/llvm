@@ -162,6 +162,29 @@ static pi_result USMSetIndirectAccess(pi_kernel kernel) {
 
 extern "C" {
 
+pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
+                          size_t paramValueSize, void *paramValue,
+                          size_t *paramValueSizeRet) {
+  switch (paramName) {
+    // Intel GPU EU device-specific information extensions.
+    // TODO: Check regularly to see if support in enabled in OpenCL.
+  case PI_DEVICE_INFO_PCI_ADDRESS:
+  case PI_DEVICE_INFO_GPU_EU_COUNT:
+  case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
+  case PI_DEVICE_INFO_GPU_SLICES:
+  case PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
+  case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
+  case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
+    return PI_INVALID_VALUE;
+
+  default:
+    cl_int result = clGetDeviceInfo(
+        cast<cl_device_id>(device), cast<cl_device_info>(paramName),
+        paramValueSize, paramValue, paramValueSizeRet);
+    return static_cast<pi_result>(result);
+  }
+}
+
 pi_result piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
                          pi_uint32 *num_platforms) {
   cl_int result = clGetPlatformIDs(cast<cl_uint>(num_entries),
@@ -1164,7 +1187,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
          piextPlatformCreateWithNativeHandle)
   // Device
   _PI_CL(piDevicesGet, piDevicesGet)
-  _PI_CL(piDeviceGetInfo, clGetDeviceInfo)
+  _PI_CL(piDeviceGetInfo, piDeviceGetInfo)
   _PI_CL(piDevicePartition, clCreateSubDevices)
   _PI_CL(piDeviceRetain, clRetainDevice)
   _PI_CL(piDeviceRelease, clReleaseDevice)
