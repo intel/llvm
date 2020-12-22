@@ -17,11 +17,13 @@
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/pi.h>
 
+#include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <iostream>
 #include <limits>
 #include <map>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -546,22 +548,25 @@ pi_result piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
                             void *host_ptr, pi_mem *ret_mem,
                             const pi_mem_properties *properties) {
   pi_result ret_err = PI_INVALID_OPERATION;
-  clCreateBufferWithPropertiesINTEL_fn FuncPtr = nullptr;
-
-  if (properties)
+  if (properties) {
+    // TODO: need to check if all properties are supported by OpenCL RT and
+    // ignore unsupported
+    clCreateBufferWithPropertiesINTEL_fn FuncPtr = nullptr;
     // First we need to look up the function pointer
     ret_err = getExtFuncFromContext<clCreateBufferWithPropertiesName,
                                     clCreateBufferWithPropertiesINTEL_fn>(
         context, &FuncPtr);
+    if (FuncPtr) {
+      *ret_mem = cast<pi_mem>(FuncPtr(cast<cl_context>(context), properties,
+                                      cast<cl_mem_flags>(flags), size, host_ptr,
+                                      cast<cl_int *>(&ret_err)));
+      return ret_err;
+    }
+  }
 
-  if (FuncPtr)
-    *ret_mem = cast<pi_mem>(FuncPtr(cast<cl_context>(context), properties,
-                                    cast<cl_mem_flags>(flags), size, host_ptr,
-                                    cast<cl_int *>(&ret_err)));
-  else
-    *ret_mem = cast<pi_mem>(clCreateBuffer(cast<cl_context>(context),
-                                           cast<cl_mem_flags>(flags), size,
-                                           host_ptr, cast<cl_int *>(&ret_err)));
+  *ret_mem = cast<pi_mem>(clCreateBuffer(cast<cl_context>(context),
+                                         cast<cl_mem_flags>(flags), size,
+                                         host_ptr, cast<cl_int *>(&ret_err)));
   return ret_err;
 }
 

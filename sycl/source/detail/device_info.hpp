@@ -936,6 +936,11 @@ inline bool get_device_info_host<info::device::usm_system_allocator>() {
   return true;
 }
 
+template <>
+inline bool get_device_info_host<info::device::ext_intel_mem_channel>() {
+  return false;
+}
+
 cl_uint get_native_vector_width(size_t idx);
 
 // USM
@@ -1000,6 +1005,17 @@ template <> struct get_device_info<bool, info::device::usm_system_allocator> {
         dev, pi::cast<RT::PiDeviceInfo>(info::device::usm_system_allocator),
         sizeof(pi_usm_capabilities), &caps, nullptr);
     return (Err != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
+  }
+};
+
+// Specialization for memory channel query
+template <> struct get_device_info<bool, info::device::ext_intel_mem_channel> {
+  static bool get(RT::PiDevice dev, const plugin &Plugin) {
+    pi_mem_properties caps;
+    pi_result Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
+        dev, pi::cast<RT::PiDeviceInfo>(info::device::ext_intel_mem_channel),
+        sizeof(pi_mem_properties), &caps, nullptr);
+    return (Err != PI_SUCCESS) ? false : (caps & PI_MEM_PROPERTIES_CHANNEL);
   }
 };
 

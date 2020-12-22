@@ -37,7 +37,8 @@ enum class aspect {
   ext_intel_gpu_slices,
   ext_intel_gpu_subslices_per_slice,
   ext_intel_gpu_eu_count_per_subslice,
-  ext_intel_max_mem_bandwidth
+  ext_intel_max_mem_bandwidth,
+  ext_intel_mem_channel
 };
 
 } // namespace sycl
