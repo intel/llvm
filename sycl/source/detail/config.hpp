@@ -135,8 +135,9 @@ public:
             return element.first == ValStr;
           });
       if (It == SyclBeMap.end())
-        pi::die("Invalid backend. "
-                "Valid values are PI_OPENCL/PI_LEVEL_ZERO/PI_CUDA/PI_ESIMD_CPU");
+        pi::die(
+            "Invalid backend. "
+            "Valid values are PI_OPENCL/PI_LEVEL_ZERO/PI_CUDA/PI_ESIMD_CPU");
       static backend Backend = It->second;
       BackendPtr = &Backend;
     }

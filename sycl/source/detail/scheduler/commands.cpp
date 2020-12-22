@@ -1891,10 +1891,10 @@ cl_int ExecCGCommand::enqueueImp() {
       } else {
         assert(MQueue->getPlugin().getBackend() == backend::esimd_cpu);
         MQueue->getPlugin().call<PiApiKind::piEnqueueHostKernelLaunch>(
-          MQueue->getHandleRef(), ExecKernel->MHostKernel->getKernel(),
-          ExecKernel->MHostKernel->getArgType(), NDRDesc.Dims,
-          &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
-          &NDRDesc.LocalSize[0], 0, nullptr, nullptr);
+            MQueue->getHandleRef(), ExecKernel->MHostKernel->getKernel(),
+            ExecKernel->MHostKernel->getArgType(), NDRDesc.Dims,
+            &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
+            &NDRDesc.LocalSize[0], 0, nullptr, nullptr);
       }
 #endif
       return CL_SUCCESS;
