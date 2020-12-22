@@ -516,7 +516,6 @@ ContextImplPtr Command::getContext() const {
 QueueImplPtr Command::getWorkerQueue() const { return MQueue; }
 
 void Command::addDep(DepDesc NewDep) {
-  QueueImplPtr WorkerQueue = getWorkerQueue();
   if (NewDep.MDepCommand) {
     processDepEvent(NewDep.MDepCommand->getEvent(), NewDep);
   }
@@ -1137,7 +1136,7 @@ void MemCpyCommand::emitInstrumentationData() {
 }
 
 ContextImplPtr MemCpyCommand::getContext() const {
-  const QueueImplPtr &Queue = MQueue->is_host() ? MSrcQueue : MQueue;
+  const QueueImplPtr &Queue = getWorkerQueue();
   return detail::getSyclObjImpl(Queue->get_context());
 }
 
@@ -1146,7 +1145,7 @@ QueueImplPtr MemCpyCommand::getWorkerQueue() const {
 }
 
 cl_int MemCpyCommand::enqueueImp() {
-  QueueImplPtr Queue = MQueue->is_host() ? MSrcQueue : MQueue;
+  const QueueImplPtr &Queue = getWorkerQueue();
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
 
@@ -1279,7 +1278,7 @@ void MemCpyCommandHost::emitInstrumentationData() {
 }
 
 ContextImplPtr MemCpyCommandHost::getContext() const {
-  const QueueImplPtr &Queue = MQueue->is_host() ? MSrcQueue : MQueue;
+  const QueueImplPtr &Queue = getWorkerQueue();
   return detail::getSyclObjImpl(Queue->get_context());
 }
 
@@ -1288,7 +1287,7 @@ QueueImplPtr MemCpyCommandHost::getWorkerQueue() const {
 }
 
 cl_int MemCpyCommandHost::enqueueImp() {
-  QueueImplPtr Queue = MQueue->is_host() ? MSrcQueue : MQueue;
+  const QueueImplPtr &Queue = getWorkerQueue();
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
