@@ -1093,6 +1093,10 @@ def warn_objc_direct_property_ignored : Warning<
   InGroup<IgnoredAttributes>;
 def err_objc_direct_dynamic_property : Error<
   "direct property cannot be @dynamic">;
+def err_objc_direct_protocol_conformance : Error<
+  "%select{category %1|class extension}0 cannot conform to protocol %2 because "
+  "of direct members declared in interface %3">;
+def note_direct_member_here : Note<"direct member declared here">;
 
 def warn_conflicting_overriding_ret_types : Warning<
   "conflicting return type in "
@@ -2479,7 +2483,7 @@ def err_for_range_decl_must_be_var : Error<
   "for range declaration must declare a variable">;
 def err_for_range_storage_class : Error<
   "loop variable %0 may not be declared %select{'extern'|'static'|"
-  "'__private_extern__'|'auto'|'register'|'constexpr'}1">;
+  "'__private_extern__'|'auto'|'register'|'constexpr'|'thread_local'}1">;
 def err_type_defined_in_for_range : Error<
   "types may not be defined in a for range declaration">;
 def err_for_range_deduction_failure : Error<
@@ -2880,7 +2884,8 @@ def warn_unsupported_target_attribute
               "attribute ignored">,
       InGroup<IgnoredAttributes>;
 def err_attribute_unsupported
-    : Error<"%0 attribute is not supported for this target">;
+    : Error<"%0 attribute is not supported on targets missing %1;"
+            " specify an appropriate -march= or -mcpu=">;
 // The err_*_attribute_argument_not_int are separate because they're used by
 // VerifyIntegerConstantExpression.
 def err_aligned_attribute_argument_not_int : Error<
@@ -3978,6 +3983,9 @@ def note_protocol_decl : Note<
   "protocol is declared here">;
 def note_protocol_decl_undefined : Note<
   "protocol %0 has no definition">;
+def err_attribute_preferred_name_arg_invalid : Error<
+  "argument %0 to 'preferred_name' attribute is not a typedef for "
+  "a specialization of %1">;
 
 // objc_designated_initializer attribute diagnostics.
 def warn_objc_designated_init_missing_super_call : Warning<
@@ -4069,7 +4077,12 @@ def warn_attr_swift_name_subscript_getter_newValue
   : Warning<"%0 attribute for 'subscript' getter cannot have a 'newValue:' parameter">,
     InGroup<SwiftNameAttribute>;
 def warn_attr_swift_name_num_params
-  : Warning<"too %select{few|many}0 parameters in %1 attribute (expected %2; got %3)">,
+  : Warning<"too %select{few|many}0 parameters in the signature specified by "
+            "the %1 attribute (expected %2; got %3)">,
+    InGroup<SwiftNameAttribute>;
+def warn_attr_swift_name_decl_missing_params
+  : Warning<"%0 attribute cannot be applied to a %select{function|method}1 "
+            "with no parameters">,
     InGroup<SwiftNameAttribute>;
 
 def err_attr_swift_error_no_error_parameter : Error<
@@ -4078,6 +4091,13 @@ def err_attr_swift_error_no_error_parameter : Error<
 def err_attr_swift_error_return_type : Error<
   "%0 attribute with '%1' convention can only be applied to a "
   "%select{function|method}2 returning %select{an integral type|a pointer}3">;
+
+def err_swift_async_no_access : Error<
+  "first argument to 'swift_async' must be either 'none', 'swift_private', or "
+  "'not_swift_private'">;
+def err_swift_async_bad_block_type : Error<
+  "'swift_async' completion handler parameter must have block type returning"
+  " 'void', type here is %0">;
 
 def warn_ignored_objc_externally_retained : Warning<
   "'objc_externally_retained' can only be applied to local variables "
