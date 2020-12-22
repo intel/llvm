@@ -662,6 +662,7 @@ public:
 // Provides a check of the given input file for the existence of SPIR kernel
 // code.  This is currently only used for FPGA specific tool chains and can
 // be expanded to perform other SPIR checks if needed.
+// TODO: No longer being used for FPGA (or elsewhere), cleanup needed.
 class SPIRCheckJobAction : public JobAction {
   void anchor() override;
 
