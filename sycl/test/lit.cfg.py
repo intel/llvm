@@ -77,8 +77,6 @@ llvm_config.add_tool_substitutions(['llvm-spirv'], [config.sycl_tools_dir])
 
 config.substitutions.append( ('%RUN_ON_HOST', "env SYCL_DEVICE_FILTER=host ") )
 
-get_device_count_by_type_path = os.path.join(config.llvm_tools_dir, "get_device_count_by_type")
-
 # Every SYCL implementation provides a host implementation.
 config.available_features.add('host')
 triple=lit_config.params.get('SYCL_TRIPLE', 'spir64-unknown-linux-sycldevice')
