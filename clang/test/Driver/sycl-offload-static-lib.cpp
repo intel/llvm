@@ -18,8 +18,8 @@
 // RUN: touch %t.o
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L/dummy/dir -foffload-static-lib=%t.a -### %t.o 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB
-// FOFFLOAD_STATIC_LIB: clang-offload-bundler{{.*}} "-type=aoo"
-// FOFFLOAD_STATIC_LIB: llvm-link{{.*}} "@{{.*}}"
+// FOFFLOAD_STATIC_LIB: clang-offload-bundler{{.*}} "-type=a" {{.*}} "-outputs=[[OUTLIB:.+\.a]]"
+// FOFFLOAD_STATIC_LIB: llvm-link{{.*}} "[[OUTLIB]]"
 
 /// Use of -foffload-static-lib and -foffload-whole-static-lib are deprecated
 // RUN: touch dummy.a
@@ -41,8 +41,8 @@
 // FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{.*}} "-type=o" {{.*}} "-inputs={{.+}}-1.o"
 // FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{.*}} "-type=o" {{.*}} "-inputs={{.+}}-2.o"
 // FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{.*}} "-type=o" {{.*}} "-inputs={{.+}}-3.o"
-// FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{.*}} "-type=aoo"
-// FOFFLOAD_STATIC_LIB_MULTI_O: llvm-link{{.*}} "@{{.*}}"
+// FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{.*}} "-type=a" {{.*}} "-outputs=[[OUTLIB:.+\.a]]"
+// FOFFLOAD_STATIC_LIB_MULTI_O: llvm-link{{.*}} "[[OUTLIB]]"
 
 /// ###########################################################################
 
@@ -78,8 +78,8 @@
 // RUN: touch %t.a
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -foffload-static-lib=%t.a -### %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC2
-// FOFFLOAD_STATIC_LIB_SRC2: clang-offload-bundler{{.*}} "-type=aoo"
-// FOFFLOAD_STATIC_LIB_SRC2: llvm-link{{.*}} "@{{.*}}"
+// FOFFLOAD_STATIC_LIB_SRC2: clang-offload-bundler{{.*}} "-type=a" {{.*}} "-outputs=[[OUTLIB:.+\.a]]"
+// FOFFLOAD_STATIC_LIB_SRC2: llvm-link{{.*}} "[[OUTLIB]]"
 // FOFFLOAD_STATIC_LIB_SRC2: clang{{.*}} "-emit-obj" {{.*}} "-o" "[[HOSTOBJ:.+\.o]]"
 // FOFFLOAD_STATIC_LIB_SRC2: ld{{(.exe)?}}" {{.*}} "[[HOSTOBJ]]"
 
@@ -88,8 +88,8 @@
 // RUN: touch %t.a
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -foffload-static-lib=%t.a -o output_name -lOpenCL -### %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC3
-// FOFFLOAD_STATIC_LIB_SRC3: clang-offload-bundler{{.*}} "-type=aoo"
-// FOFFLOAD_STATIC_LIB_SRC3: llvm-link{{.*}} "@{{.*}}"
+// FOFFLOAD_STATIC_LIB_SRC3: clang-offload-bundler{{.*}} "-type=a" {{.*}} "-outputs=[[OUTLIB:.+\.a]]"
+// FOFFLOAD_STATIC_LIB_SRC3: llvm-link{{.*}} "[[OUTLIB]]"
 // FOFFLOAD_STATIC_LIB_SRC3: ld{{(.exe)?}}" {{.*}} "-o" "output_name" {{.*}} "-lOpenCL"
 
 /// ###########################################################################
@@ -97,8 +97,8 @@
 // RUN: touch %t.a
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -foffload-static-lib=%t.a -o output_name -lstdc++ -z relro -### %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC4
-// FOFFLOAD_STATIC_LIB_SRC4: clang-offload-bundler{{.*}} "-type=aoo"
-// FOFFLOAD_STATIC_LIB_SRC4: llvm-link{{.*}} "@{{.*}}"
+// FOFFLOAD_STATIC_LIB_SRC4: clang-offload-bundler{{.*}} "-type=a" {{.*}} "-outputs=[[OUTLIB:.+\.a]]"
+// FOFFLOAD_STATIC_LIB_SRC4: llvm-link{{.*}} "[[OUTLIB]]"
 // FOFFLOAD_STATIC_LIB_SRC4: ld{{(.exe)?}}" {{.*}} "-o" "output_name" {{.*}} "-lstdc++" "-z" "relro"
 
 /// ###########################################################################
@@ -110,9 +110,9 @@
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L/dummy/dir -foffload-whole-static-lib=%t.a -foffload-whole-static-lib=%t_2.a -### %t.o 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_WHOLE_STATIC_LIB
 // FOFFLOAD_WHOLE_STATIC_LIB: clang-offload-bundler{{.*}} "-type=o" {{.*}}
-// FOFFLOAD_WHOLE_STATIC_LIB: clang-offload-bundler{{.*}} "-type=aoo" {{.*}} "-inputs=[[INPUTA:.+\.a]]"
-// FOFFLOAD_WHOLE_STATIC_LIB: clang-offload-bundler{{.*}} "-type=aoo" {{.*}} "-inputs=[[INPUTB:.+\.a]]"
-// FOFFLOAD_WHOLE_STATIC_LIB: llvm-link{{.*}} "@{{.*}}"
+// FOFFLOAD_WHOLE_STATIC_LIB: clang-offload-bundler{{.*}} "-type=a" {{.*}} "-inputs=[[INPUTA:.+\.a]]" "-outputs=[[OUTLIBA:.+\.a]]"
+// FOFFLOAD_WHOLE_STATIC_LIB: clang-offload-bundler{{.*}} "-type=a" {{.*}} "-inputs=[[INPUTB:.+\.a]]" "-outputs=[[OUTLIBB:.+\.a]]"
+// FOFFLOAD_WHOLE_STATIC_LIB: llvm-link{{.*}} "[[OUTLIBA]]" "[[OUTLIBB]]"
 // FOFFLOAD_WHOLE_STATIC_LIB: llvm-spirv{{.*}}
 // FOFFLOAD_WHOLE_STATIC_LIB: clang-offload-wrapper{{.*}}
 // FOFFLOAD_WHOLE_STATIC_LIB: llc{{.*}}

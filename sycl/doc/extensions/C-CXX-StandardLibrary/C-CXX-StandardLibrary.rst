@@ -107,29 +107,15 @@ underlying device may not support double precision.
 double precision version, they can be used only when double precision is
 supported by underlying device.
 
-All device libraries without double precision usage are linked by default and
-in order to use double precision device library, please add
-'-fsycl-device-lib=libm-fp64' or '-fsycl-device-lib=all'.
-
-For example, no options need to be added to use `assert` or float precision
-math functions:
+All device libraries are linked by default. For example, no options need to be
+added to use `assert` or math functions:
 .. code:
    clang++ -fsycl main.cpp -o main.o
 
-To use double precision math functions:
-.. code:
-   clang++ -fsycl -fsycl-device-lib=libm-fp64 main.cpp -o main.o
-
 For Ahead-Of-Time compilation (AOT), the steps to use device libraries is
-same, no options need to be added to use `assert` or float precision math
-functions:
+same, no options need to be added to use `assert` or math functions:
 .. code:
    clang++ -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice \
-       main.cpp -o main.o
-
-To use double precision math functions in AOT:
-.. code:
-   clang++ -fsycl -fsycl-device-lib=libm-fp64 -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice \
        main.cpp -o main.o
 
 Example of usage

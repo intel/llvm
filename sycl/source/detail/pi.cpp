@@ -234,13 +234,14 @@ bool findPlugins(vector_class<std::pair<std::string, backend>> &PluginNames) {
           (Backend == backend::opencl || Backend == backend::all)) {
         PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
         OpenCLFound = true;
-      } else if (!LevelZeroFound &&
-                 (Backend == backend::level_zero || Backend == backend::all)) {
+      }
+      if (!LevelZeroFound &&
+          (Backend == backend::level_zero || Backend == backend::all)) {
         PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
                                  backend::level_zero);
         LevelZeroFound = true;
-      } else if (!CudaFound &&
-                 (Backend == backend::cuda || Backend == backend::all)) {
+      }
+      if (!CudaFound && (Backend == backend::cuda || Backend == backend::all)) {
         PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::cuda);
         CudaFound = true;
       }

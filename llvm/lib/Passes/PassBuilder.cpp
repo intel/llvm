@@ -70,10 +70,12 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/IR/PrintPasses.h"
 #include "llvm/IR/SafepointIRVerifier.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Target/TargetMachine.h"
@@ -192,6 +194,7 @@
 #include "llvm/Transforms/Scalar/RewriteStatepointsForGC.h"
 #include "llvm/Transforms/Scalar/SCCP.h"
 #include "llvm/Transforms/Scalar/SROA.h"
+#include "llvm/Transforms/Scalar/ScalarizeMaskedMemIntrin.h"
 #include "llvm/Transforms/Scalar/Scalarizer.h"
 #include "llvm/Transforms/Scalar/SeparateConstOffsetFromGEP.h"
 #include "llvm/Transforms/Scalar/SimpleLoopUnswitch.h"
@@ -279,6 +282,7 @@ PipelineTuningOptions::PipelineTuningOptions() {
   LicmMssaOptCap = SetLicmMssaOptCap;
   LicmMssaNoAccForPromotionCap = SetLicmMssaNoAccForPromotionCap;
   CallGraphProfile = true;
+  MergeFunctions = false;
 }
 
 extern cl::opt<bool> EnableConstraintElimination;
@@ -415,6 +419,16 @@ AnalysisKey NoOpCGSCCAnalysis::Key;
 AnalysisKey NoOpFunctionAnalysis::Key;
 AnalysisKey NoOpLoopAnalysis::Key;
 
+/// Whether or not we should populate a PassInstrumentationCallbacks's class to
+/// pass name map.
+///
+/// This is for optimization purposes so we don't populate it if we never use
+/// it. This should be updated if new pass instrumentation wants to use the map.
+/// We currently only use this for --print-before/after.
+bool shouldPopulateClassToPassNames() {
+  return !printBeforePasses().empty() || !printAfterPasses().empty();
+}
+
 } // namespace
 
 PassBuilder::PassBuilder(bool DebugLogging, TargetMachine *TM,
@@ -423,6 +437,33 @@ PassBuilder::PassBuilder(bool DebugLogging, TargetMachine *TM,
     : DebugLogging(DebugLogging), TM(TM), PTO(PTO), PGOOpt(PGOOpt), PIC(PIC) {
   if (TM)
     TM->registerPassBuilderCallbacks(*this, DebugLogging);
+  if (PIC && shouldPopulateClassToPassNames()) {
+#define MODULE_PASS(NAME, CREATE_PASS)                                         \
+  PIC->addClassToPassName(decltype(CREATE_PASS)::name(), NAME);
+#define MODULE_ANALYSIS(NAME, CREATE_PASS)                                     \
+  PIC->addClassToPassName(decltype(CREATE_PASS)::name(), NAME);
+#define FUNCTION_PASS(NAME, CREATE_PASS)                                       \
+  PIC->addClassToPassName(decltype(CREATE_PASS)::name(), NAME);
+#define FUNCTION_ANALYSIS(NAME, CREATE_PASS)                                   \
+  PIC->addClassToPassName(decltype(CREATE_PASS)::name(), NAME);
+#define LOOP_PASS(NAME, CREATE_PASS)                                           \
+  PIC->addClassToPassName(decltype(CREATE_PASS)::name(), NAME);
+#define LOOP_ANALYSIS(NAME, CREATE_PASS)                                       \
+  PIC->addClassToPassName(decltype(CREATE_PASS)::name(), NAME);
+#define CGSCC_PASS(NAME, CREATE_PASS)                                          \
+  PIC->addClassToPassName(decltype(CREATE_PASS)::name(), NAME);
+#define CGSCC_ANALYSIS(NAME, CREATE_PASS)                                      \
+  PIC->addClassToPassName(decltype(CREATE_PASS)::name(), NAME);
+#include "PassRegistry.def"
+    for (const auto &P : printBeforePasses()) {
+      if (!PIC->hasPassName(P))
+        report_fatal_error("unrecognized pass name: " + P);
+    }
+    for (const auto &P : printAfterPasses()) {
+      if (!PIC->hasPassName(P))
+        report_fatal_error("unrecognized pass name: " + P);
+    }
+  }
 }
 
 void PassBuilder::invokePeepholeEPCallbacks(
@@ -797,20 +838,16 @@ void PassBuilder::addPGOInstrPasses(ModulePassManager &MPM,
                                     std::string ProfileFile,
                                     std::string ProfileRemappingFile) {
   assert(Level != OptimizationLevel::O0 && "Not expecting O0 here!");
-  // Generally running simplification passes and the inliner with an high
-  // threshold results in smaller executables, but there may be cases where
-  // the size grows, so let's be conservative here and skip this simplification
-  // at -Os/Oz. We will not do this  inline for context sensistive PGO (when
-  // IsCS is true).
-  if (!Level.isOptimizingForSize() && !IsCS && !DisablePreInliner) {
+  if (!IsCS && !DisablePreInliner) {
     InlineParams IP;
 
     IP.DefaultThreshold = PreInlineThreshold;
 
-    // FIXME: The hint threshold has the same value used by the regular inliner.
-    // This should probably be lowered after performance testing.
+    // FIXME: The hint threshold has the same value used by the regular inliner
+    // when not optimzing for size. This should probably be lowered after
+    // performance testing.
     // FIXME: this comment is cargo culted from the old pass manager, revisit).
-    IP.HintThreshold = 325;
+    IP.HintThreshold = Level.isOptimizingForSize() ? PreInlineThreshold : 325;
     ModuleInlinerWrapperPass MIWP(IP, DebugLogging);
     CGSCCPassManager &CGPipeline = MIWP.getPM();
 
@@ -1276,6 +1313,10 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
   if (EnableHotColdSplit && !LTOPreLink)
     MPM.addPass(HotColdSplittingPass());
 
+  // Merge functions if requested.
+  if (PTO.MergeFunctions)
+    MPM.addPass(MergeFunctionsPass());
+
   // LoopSink pass sinks instructions hoisted by LICM, which serves as a
   // canonicalization pass that enables other optimizations. As a result,
   // LoopSink pass needs to be a very late IR pass to avoid undoing LICM
@@ -1706,10 +1747,12 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   // Now that we have optimized the program, discard unreachable functions.
   MPM.addPass(GlobalDCEPass());
 
+  if (PTO.MergeFunctions)
+    MPM.addPass(MergeFunctionsPass());
+
   // Emit annotation remarks.
   addAnnotationRemarksPass(MPM);
 
-  // FIXME: Maybe enable MergeFuncs conditionally after it's ported.
   return MPM;
 }
 
@@ -1740,6 +1783,9 @@ ModulePassManager PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
   // caused by multithreaded coroutines.
   MPM.addPass(AlwaysInlinerPass(
       /*InsertLifetimeIntrinsics=*/PTO.Coroutines));
+
+  if (PTO.MergeFunctions)
+    MPM.addPass(MergeFunctionsPass());
 
   if (EnableMatrix)
     MPM.addPass(
