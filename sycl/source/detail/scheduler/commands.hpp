@@ -181,6 +181,10 @@ public:
 
   virtual ContextImplPtr getContext() const;
 
+  /// Get the queue this command will be submitted to. Could differ from MQueue
+  /// for memory copy commands.
+  virtual QueueImplPtr getWorkerQueue() const;
+
 protected:
   EventImplPtr MEvent;
   QueueImplPtr MQueue;
@@ -443,6 +447,7 @@ public:
   const Requirement *getRequirement() const final override { return &MDstReq; }
   void emitInstrumentationData() final override;
   ContextImplPtr getContext() const final override;
+  QueueImplPtr getWorkerQueue() const final override;
 
 private:
   cl_int enqueueImp() final override;
@@ -466,6 +471,7 @@ public:
   const Requirement *getRequirement() const final override { return &MDstReq; }
   void emitInstrumentationData() final override;
   ContextImplPtr getContext() const final override;
+  QueueImplPtr getWorkerQueue() const final override;
 
 private:
   cl_int enqueueImp() final override;
