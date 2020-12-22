@@ -4062,21 +4062,21 @@ class OffloadingActionBuilder final {
           if (Input->getType() == types::TY_FPGA_AOCO)
             DeviceLibObjects.push_back(Input);
           // FPGA aocr/aocx does not go through the link and is passed
-          // directly to the backend compilation step (aocr) or wrapped (aocx)
+          // directly to the backend compilation step (aocr) or wrapper (aocx)
           else if (types::isFPGA(Input->getType())) {
-            Action *AOCAction;
+            Action *FPGAAOTAction;
             constexpr char COL_CODE[] = "Code";
             constexpr char COL_ZERO[] = "0";
             if (Input->getType() == types::TY_FPGA_AOCR)
               // Generate AOCX/AOCR
-              AOCAction =
+              FPGAAOTAction =
                   C.MakeAction<BackendCompileJobAction>(Input, FPGAOutType);
             else if (Input->getType() == types::TY_FPGA_AOCX)
-              AOCAction = Input;
+              FPGAAOTAction = Input;
             else
               llvm_unreachable("Unexpected FPGA input type.");
             auto *RenameAction = C.MakeAction<FileTableTformJobAction>(
-                AOCAction, types::TY_Tempfilelist);
+                FPGAAOTAction, types::TY_Tempfilelist);
             RenameAction->addRenameColumnTform(COL_ZERO, COL_CODE);
             auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
                 RenameAction, types::TY_Object);
