@@ -320,6 +320,15 @@ public:
     auto NvvmMetadata = M.getNamedMetadata("nvvm.annotations");
     assert(NvvmMetadata && "IR compiled to PTX must have nvvm.annotations");
 
+    SmallPtrSet<GlobalValue *, 8u> Used;
+    collectUsedGlobalVariables(M, Used, /*CompilerUsed=*/false);
+    collectUsedGlobalVariables(M, Used, /*CompilerUsed=*/true);
+    auto HasUseOtherThanLLVMUsed = [&Used](GlobalValue *GV) {
+      if (GV->use_empty())
+        return false;
+      return !GV->hasOneUse() || !Used.count(GV);
+    };
+
     llvm::DenseMap<Function *, MDNode *> NvvmEntryPointMetadata;
     for (auto MetadataNode : NvvmMetadata->operands()) {
       if (MetadataNode->getNumOperands() != 3)
@@ -341,7 +350,7 @@ public:
       if (!Func)
         continue;
 
-      assert(Func->use_empty() && "Kernel entry point with uses");
+      assert(!HasUseOtherThanLLVMUsed(Func) && "Kernel entry point with uses");
       NvvmEntryPointMetadata[Func] = MetadataNode;
     }
     return NvvmEntryPointMetadata;
