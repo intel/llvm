@@ -2084,8 +2084,7 @@ public:
       TypeLocBuilder InnerTLB;
       QualType Transformed =
           TransformType(InnerTLB, OrigDecl->getTypeSourceInfo()->getTypeLoc());
-      TypeSourceInfo *TSI =
-          TransformType(InnerTLB.getTypeSourceInfo(Context, Transformed));
+      TypeSourceInfo *TSI = InnerTLB.getTypeSourceInfo(Context, Transformed);
       if (isa<TypeAliasDecl>(OrigDecl))
         Decl = TypeAliasDecl::Create(
             Context, Context.getTranslationUnitDecl(), OrigDecl->getBeginLoc(),
@@ -3793,11 +3792,15 @@ QualType Sema::CheckTemplateIdType(TemplateName Name,
         Decl->setLexicalDeclContext(ClassTemplate->getLexicalDeclContext());
     }
 
-    if (Decl->getSpecializationKind() == TSK_Undeclared) {
-      MultiLevelTemplateArgumentList TemplateArgLists;
-      TemplateArgLists.addOuterTemplateArguments(Converted);
-      InstantiateAttrsForDecl(TemplateArgLists, ClassTemplate->getTemplatedDecl(),
-                              Decl);
+    if (Decl->getSpecializationKind() == TSK_Undeclared &&
+        ClassTemplate->getTemplatedDecl()->hasAttrs()) {
+      InstantiatingTemplate Inst(*this, TemplateLoc, Decl);
+      if (!Inst.isInvalid()) {
+        MultiLevelTemplateArgumentList TemplateArgLists;
+        TemplateArgLists.addOuterTemplateArguments(Converted);
+        InstantiateAttrsForDecl(TemplateArgLists,
+                                ClassTemplate->getTemplatedDecl(), Decl);
+      }
     }
 
     // Diagnose uses of this specialization.
@@ -11113,15 +11116,4 @@ void Sema::checkSpecializationVisibility(SourceLocation Loc, NamedDecl *Spec) {
     return;
 
   ExplicitSpecializationVisibilityChecker(*this, Loc).check(Spec);
-}
-
-/// Check whether a template partial specialization that we've discovered
-/// is hidden, and produce suitable diagnostics if so.
-void Sema::checkPartialSpecializationVisibility(SourceLocation Loc,
-                                                NamedDecl *Spec) {
-  llvm::SmallVector<Module *, 8> Modules;
-  if (!hasVisibleDeclaration(Spec, &Modules))
-    diagnoseMissingImport(Loc, Spec, Spec->getLocation(), Modules,
-                          MissingImportKind::PartialSpecialization,
-                          /*Recover*/true);
 }

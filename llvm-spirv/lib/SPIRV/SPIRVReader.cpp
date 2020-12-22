@@ -529,6 +529,9 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
     SmallVector<Type *, 4> MT;
     for (size_t I = 0, E = ST->getMemberCount(); I != E; ++I)
       MT.push_back(transType(ST->getMemberType(I), true));
+    for (auto &CI : ST->getContinuedInstructions())
+      for (size_t I = 0, E = CI->getNumElements(); I != E; ++I)
+        MT.push_back(transType(CI->getMemberType(I), true));
     StructTy->setBody(MT, ST->isPacked());
     return StructTy;
   }
@@ -1618,6 +1621,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     std::vector<Constant *> CV;
     for (auto &I : BCC->getElements())
       CV.push_back(dyn_cast<Constant>(transValue(I, F, BB)));
+    for (auto &CI : BCC->getContinuedInstructions()) {
+      for (auto &I : CI->getElements())
+        CV.push_back(dyn_cast<Constant>(transValue(I, F, BB)));
+    }
     switch (BV->getType()->getOpCode()) {
     case OpTypeVector:
       return mapValue(BV, ConstantVector::get(CV));

@@ -202,6 +202,12 @@ static cl::opt<SPIRV::DebugInfoEIS> DebugEIS(
                    "extended instruction set. This version of SPIR-V debug "
                    "info format is compatible with the SPIRV-Tools")));
 
+static cl::opt<bool> SPIRVReplaceLLVMFmulAddWithOpenCLMad(
+    "spirv-replace-fmuladd-with-ocl-mad",
+    cl::desc("Allow replacement of llvm.fmuladd.* intrinsic with OpenCL mad "
+             "instruction from OpenCL extended instruction set"),
+    cl::init(true));
+
 static std::string removeExt(const std::string &FileName) {
   size_t Pos = FileName.find_last_of(".");
   if (Pos != std::string::npos)
@@ -584,6 +590,16 @@ int main(int Ac, char **Av) {
              "affects translation from LLVM IR to SPIR-V";
     } else {
       Opts.setSPIRVAllowUnknownIntrinsicsEnabled(SPIRVAllowUnknownIntrinsics);
+    }
+  }
+
+  if (SPIRVReplaceLLVMFmulAddWithOpenCLMad.getNumOccurrences() != 0) {
+    if (IsReverse) {
+      errs() << "Note: --spirv-replace-fmuladd-with-ocl-mad option ignored as "
+                "it only affects translation from LLVM IR to SPIR-V";
+    } else {
+      Opts.setReplaceLLVMFmulAddWithOpenCLMad(
+          SPIRVReplaceLLVMFmulAddWithOpenCLMad);
     }
   }
 

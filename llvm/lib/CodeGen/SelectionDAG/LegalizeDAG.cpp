@@ -1107,6 +1107,18 @@ void SelectionDAGLegalize::LegalizeOp(SDNode *Node) {
     // They'll be converted to Copy(To/From)Reg.
     Action = TargetLowering::Legal;
     break;
+  case ISD::UBSANTRAP:
+    Action = TLI.getOperationAction(Node->getOpcode(), Node->getValueType(0));
+    if (Action == TargetLowering::Expand) {
+      // replace ISD::UBSANTRAP with ISD::TRAP
+      SDValue NewVal;
+      NewVal = DAG.getNode(ISD::TRAP, SDLoc(Node), Node->getVTList(),
+                           Node->getOperand(0));
+      ReplaceNode(Node, NewVal.getNode());
+      LegalizeOp(NewVal.getNode());
+      return;
+    }
+    break;
   case ISD::DEBUGTRAP:
     Action = TLI.getOperationAction(Node->getOpcode(), Node->getValueType(0));
     if (Action == TargetLowering::Expand) {
@@ -1714,14 +1726,19 @@ bool SelectionDAGLegalize::LegalizeSetCCCondCode(
     unsigned Opc = 0;
     switch (CCCode) {
     default: llvm_unreachable("Don't know how to expand this condition!");
+    case ISD::SETUO:
+        if (TLI.isCondCodeLegal(ISD::SETUNE, OpVT)) {
+          CC1 = ISD::SETUNE; CC2 = ISD::SETUNE; Opc = ISD::OR;
+          break;
+        }
+        assert(TLI.isCondCodeLegal(ISD::SETOEQ, OpVT) &&
+               "If SETUE is expanded, SETOEQ or SETUNE must be legal!");
+        NeedInvert = true;
+        LLVM_FALLTHROUGH;
     case ISD::SETO:
         assert(TLI.isCondCodeLegal(ISD::SETOEQ, OpVT)
             && "If SETO is expanded, SETOEQ must be legal!");
         CC1 = ISD::SETOEQ; CC2 = ISD::SETOEQ; Opc = ISD::AND; break;
-    case ISD::SETUO:
-        assert(TLI.isCondCodeLegal(ISD::SETUNE, OpVT)
-            && "If SETUO is expanded, SETUNE must be legal!");
-        CC1 = ISD::SETUNE; CC2 = ISD::SETUNE; Opc = ISD::OR;  break;
     case ISD::SETOEQ:
     case ISD::SETOGT:
     case ISD::SETOGE:

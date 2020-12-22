@@ -16,6 +16,7 @@
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/CodeGen/CommandFlags.h"
 #include "llvm/Config/config.h" // plugin-api.h requires HAVE_STDINT_H
+#include "llvm/Config/llvm-config.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/LTO/Caching.h"
@@ -200,7 +201,7 @@ namespace options {
   // Sample profile file path
   static std::string sample_profile;
   // New pass manager
-  static bool new_pass_manager = false;
+  static bool new_pass_manager = LLVM_ENABLE_NEW_PASS_MANAGER;
   // Debug new pass manager
   static bool debug_pass_manager = false;
   // Directory to store the .dwo files.
@@ -287,6 +288,8 @@ namespace options {
       cs_profile_path = std::string(opt);
     } else if (opt == "new-pass-manager") {
       new_pass_manager = true;
+    } else if (opt == "legacy-pass-manager") {
+      new_pass_manager = false;
     } else if (opt == "debug-pass-manager") {
       debug_pass_manager = true;
     } else if (opt == "whole-program-visibility") {

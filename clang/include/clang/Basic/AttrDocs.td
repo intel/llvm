@@ -4166,6 +4166,29 @@ a caller of ``fetch_or_zero`` can provide null.
   }];
 }
 
+def TypeNullableResultDocs : Documentation {
+  let Category = NullabilityDocs;
+  let Content = [{
+The ``_Nullable_result`` nullability qualifier means that a value of the
+``_Nullable_result`` pointer can be ``nil``, just like ``_Nullable``. Where this
+attribute differs from ``_Nullable`` is when it's used on a parameter to a
+completion handler in a Swift async method. For instance, here:
+
+  .. code-block:: objc
+
+    -(void)fetchSomeDataWithID:(int)identifier
+             completionHandler:(void (^)(Data *_Nullable_result result, NSError *error))completionHandler;
+
+This method asynchronously calls ``completionHandler`` when the data is
+available, or calls it with an error. ``_Nullable_result`` indicates to the
+Swift importer that this is the uncommon case where ``result`` can get ``nil``
+even if no error has occured, and will therefore import it as a Swift optional
+type. Otherwise, if ``result`` was annotated with ``_Nullable``, the Swift
+importer will assume that ``result`` will always be non-nil unless an error
+occured.
+}];
+}
+
 def TypeNullUnspecifiedDocs : Documentation {
   let Category = NullabilityDocs;
   let Content = [{
@@ -4284,6 +4307,40 @@ def SwiftDocs : DocumentationCategory<"Customizing Swift Import"> {
 Clang supports additional attributes for customizing how APIs are imported into
 Swift.
   }];
+}
+
+def SwiftAsyncNameDocs : Documentation {
+  let Category = SwiftDocs;
+  let Heading = "swift_async_name";
+  let Content = [{
+The ``swift_async_name`` attribute provides the name of the ``async`` overload for
+the given declaration in Swift. If this attribute is absent, the name is
+transformed according to the algorithm built into the Swift compiler.
+
+The argument is a string literal that contains the Swift name of the function or
+method. The name may be a compound Swift name. The function or method with such
+an attribute must have more than zero parameters, as its last parameter is
+assumed to be a callback that's eliminated in the Swift ``async`` name.
+
+  .. code-block:: objc
+
+    @interface URL
+    + (void) loadContentsFrom:(URL *)url callback:(void (^)(NSData *))data __attribute__((__swift_async_name__("URL.loadContentsFrom(_:)")))
+    @end
+  }];
+}
+
+def SwiftAttrDocs : Documentation {
+  let Category = SwiftDocs;
+  let Heading = "swift_attr";
+  let Content = [{
+The ``swift_attr`` provides a Swift-specific annotation for the declaration
+to which the attribute appertains to. It can be used on any declaration
+in Clang. This kind of annotation is ignored by Clang as it doesn't have any
+semantic meaning in languages supported by Clang. The Swift compiler can
+interpret these annotations according to its own rules when importing C or
+Objective-C declarations.
+}];
 }
 
 def SwiftBridgeDocs : Documentation {
@@ -5001,6 +5058,37 @@ optimizations like C++'s named return value optimization (NRVO).
   }];
 }
 
+def SwiftAsyncDocs : Documentation {
+  let Category = SwiftDocs;
+  let Heading = "swift_async";
+  let Content = [{
+The ``swift_async`` attribute specifies if and how a particular function or
+Objective-C method is imported into a swift async method. For instance:
+
+.. code-block:: objc
+
+  @interface MyClass : NSObject
+  -(void)notActuallyAsync:(int)p1 withCompletionHandler:(void (^)())handler
+      __attribute__((swift_async(none)));
+
+  -(void)actuallyAsync:(int)p1 callThisAsync:(void (^)())fun
+      __attribute__((swift_async(swift_private, 1)));
+  @end
+
+Here, ``notActuallyAsync:withCompletionHandler`` would have been imported as
+``async`` (because it's last parameter's selector piece is
+``withCompletionHandler``) if not for the ``swift_async(none)`` attribute.
+Conversely, ``actuallyAsync:callThisAsync`` wouldn't have been imported as
+``async`` if not for the ``swift_async`` attribute because it doesn't match the
+naming convention.
+
+When using ``swift_async`` to enable importing, the first argument to the
+attribute is either ``swift_private`` or ``not_swift_private`` to indicate
+whether the function/method is private to the current framework, and the second
+argument is the index of the completion handler parameter.
+  }];
+}
+
 def SuppressDocs : Documentation {
   let Category = DocCatStmt;
   let Content = [{
@@ -5038,6 +5126,30 @@ could have a different set of data members and thus have a different size. Using
 the ``abi_tag`` attribute, it is possible to have different mangled names for
 a global variable of the class type. Therefore, the old code could keep using
 the old mangled name and the new code will use the new mangled name with tags.
+  }];
+}
+
+def PreferredNameDocs : Documentation {
+  let Category = DocCatDecl;
+  let Content = [{
+The ``preferred_name`` attribute can be applied to a class template, and
+specifies a preferred way of naming a specialization of the template. The
+preferred name will be used whenever the corresponding template specialization
+would otherwise be printed in a diagnostic or similar context.
+
+The preferred name must be a typedef or type alias declaration that refers to a
+specialization of the class template (not including any type qualifiers). In
+general this requires the template to be declared at least twice. For example:
+
+.. code-block:: c++
+
+  template<typename T> struct basic_string;
+  using string = basic_string<char>;
+  using wstring = basic_string<wchar_t>;
+  template<typename T> struct [[clang::preferred_name(string),
+                                clang::preferred_name(wstring)]] basic_string {
+    // ...
+  };
   }];
 }
 

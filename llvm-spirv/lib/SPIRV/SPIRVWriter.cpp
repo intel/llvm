@@ -418,8 +418,37 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
     if (Name == getSPIRVTypeName(kSPIRVTypeName::ConstantPipeStorage))
       return transType(getPipeStorageType(M));
 
-    auto *Struct = BM->openStructType(T->getStructNumElements(), Name.str());
+    constexpr size_t MaxNumElements = MaxWordCount - SPIRVTypeStruct::FixedWC;
+    const size_t NumElements = ST->getNumElements();
+    size_t SPIRVStructNumElements = NumElements;
+    // In case number of elements is greater than maximum WordCount and
+    // SPV_INTEL_long_constant_composite is not enabled, the error will be
+    // emitted by validate functionality of SPIRVTypeStruct class.
+    if (NumElements > MaxNumElements &&
+        BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_long_constant_composite)) {
+      SPIRVStructNumElements = MaxNumElements;
+    }
+
+    auto *Struct = BM->openStructType(SPIRVStructNumElements, Name.str());
     mapType(T, Struct);
+
+    if (NumElements > MaxNumElements &&
+        BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_long_constant_composite)) {
+      uint64_t NumOfContinuedInstructions = NumElements / MaxNumElements - 1;
+      for (uint64_t J = 0; J < NumOfContinuedInstructions; J++) {
+        auto *Continued = BM->addTypeStructContinuedINTEL(MaxNumElements);
+        Struct->addContinuedInstruction(
+            static_cast<SPIRVTypeStruct::ContinuedInstType>(Continued));
+      }
+      uint64_t Remains = NumElements % MaxNumElements;
+      if (Remains) {
+        auto *Continued = BM->addTypeStructContinuedINTEL(Remains);
+        Struct->addContinuedInstruction(
+            static_cast<SPIRVTypeStruct::ContinuedInstType>(Continued));
+      }
+    }
 
     SmallVector<unsigned, 4> ForwardRefs;
 
@@ -1263,19 +1292,24 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
       } else
         BVarInit = I->second;
     } else if (Init && !isa<UndefValue>(Init)) {
-      if (auto ArrTy = dyn_cast_or_null<ArrayType>(Init->getType())) {
-        // First 3 words of OpConstantComposite encode: 1) word count & opcode,
-        // 2) Result Type and 3) Result Id.
-        // Max length of SPIRV instruction = 65535 words.
-        const int MaxNumElements = 65535 - 3;
-        if (ArrTy->getNumElements() > MaxNumElements &&
-            !isa<ConstantAggregateZero>(Init)) {
-          std::stringstream SS;
-          SS << "Global variable has a constant array initializer with a number"
-             << " of elements greater than OpConstantComposite can have "
-             << "(65532). Should the array be split?\n Original LLVM value:\n"
-             << toString(GV);
-          getErrorLog().checkError(false, SPIRVEC_InvalidWordCount, SS.str());
+      if (!BM->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_long_constant_composite)) {
+        if (auto ArrTy = dyn_cast_or_null<ArrayType>(Init->getType())) {
+          // First 3 words of OpConstantComposite encode: 1) word count &
+          // opcode, 2) Result Type and 3) Result Id. Max length of SPIRV
+          // instruction = 65535 words.
+          constexpr int MaxNumElements =
+              MaxWordCount - SPIRVSpecConstantComposite::FixedWC;
+          if (ArrTy->getNumElements() > MaxNumElements &&
+              !isa<ConstantAggregateZero>(Init)) {
+            std::stringstream SS;
+            SS << "Global variable has a constant array initializer with a "
+               << "number of elements greater than OpConstantComposite can "
+               << "have (" << MaxNumElements << "). Should the array be "
+               << "split?\n Original LLVM value:\n"
+               << toString(GV);
+            getErrorLog().checkError(false, SPIRVEC_InvalidWordCount, SS.str());
+          }
         }
       }
       BVarInit = transValue(Init, nullptr);
@@ -2337,6 +2371,19 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     // For llvm.fmuladd.* fusion is not guaranteed. If a fused multiply-add
     // is required the corresponding llvm.fma.* intrinsic function should be
     // used instead.
+    // If allowed, let's replace llvm.fmuladd.* with mad from OpenCL extended
+    // instruction set, as it has the same semantic for FULL_PROFILE OpenCL
+    // devices (implementation-defined for EMBEDDED_PROFILE).
+    if (BM->shouldReplaceLLVMFmulAddWithOpenCLMad()) {
+      std::vector<SPIRVValue *> Ops{transValue(II->getArgOperand(0), BB),
+                                    transValue(II->getArgOperand(1), BB),
+                                    transValue(II->getArgOperand(2), BB)};
+      return BM->addExtInst(transType(II->getType()),
+                            BM->getExtInstSetId(SPIRVEIS_OpenCL),
+                            OpenCLLIB::Mad, Ops, BB);
+    }
+
+    // Otherwise, just break llvm.fmuladd.* into a pair of fmul + fadd
     SPIRVType *Ty = transType(II->getType());
     SPIRVValue *Mul =
         BM->addBinaryInst(OpFMul, Ty, transValue(II->getArgOperand(0), BB),
@@ -2608,7 +2655,7 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::dbg_label:
   case Intrinsic::trap:
     // llvm.trap intrinsic is not implemented. But for now don't crash. This
-    // change is pending the trap/abort intrisinc implementation.
+    // change is pending the trap/abort intrinsic implementation.
     return nullptr;
   default:
     if (BM->isSPIRVAllowUnknownIntrinsicsEnabled())
