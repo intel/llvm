@@ -41,8 +41,7 @@ using namespace cl::sycl;
 // CHECK-NEXT: 32 |       struct std::_Vector_base<char, class std::allocator<char> >::_Vector_impl _M_impl
 // CHECK-NEXT: 32 |         class std::allocator<char> (base) (empty)
 // CHECK-NEXT: 32 |           class __gnu_cxx::new_allocator<char> (base) (empty)
-// CHECK-NEXT: 32 |         struct std::_Vector_base<char, class std::allocator<char> >::_Vector_impl_data (base)
-// CHECK-NEXT: 32 |           std::_Vector_base<char, class std::allocator<char> >::pointer _M_start
+// CHECK:      32 |           std::_Vector_base<char, class std::allocator<char> >::pointer _M_start
 // CHECK-NEXT: 40 |           std::_Vector_base<char, class std::allocator<char> >::pointer _M_finish
 // CHECK-NEXT: 48 |           std::_Vector_base<char, class std::allocator<char> >::pointer _M_end_of_storage
 // CHECK-NEXT:    | [sizeof=56, dsize=56, align=8,
