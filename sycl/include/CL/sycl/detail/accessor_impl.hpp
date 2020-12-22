@@ -75,11 +75,11 @@ public:
   AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, detail::SYCLMemObjI *SYCLMemObject,
                    int Dims, int ElemSize, int OffsetInBytes = 0,
-                   bool IsSubBuffer = false)
+                   bool IsSubBuffer = false, bool IsESIMDAcc = false)
       : MOffset(Offset), MAccessRange(AccessRange), MMemoryRange(MemoryRange),
         MAccessMode(AccessMode), MSYCLMemObj(SYCLMemObject), MDims(Dims),
         MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes),
-        MIsSubBuffer(IsSubBuffer) {}
+        MIsSubBuffer(IsSubBuffer), MIsESIMDAcc(IsESIMDAcc) {}
 
   ~AccessorImplHost();
 
@@ -88,7 +88,7 @@ public:
         MMemoryRange(Other.MMemoryRange), MAccessMode(Other.MAccessMode),
         MSYCLMemObj(Other.MSYCLMemObj), MDims(Other.MDims),
         MElemSize(Other.MElemSize), MOffsetInBytes(Other.MOffsetInBytes),
-        MIsSubBuffer(Other.MIsSubBuffer) {}
+        MIsSubBuffer(Other.MIsSubBuffer), MIsESIMDAcc(Other.MIsESIMDAcc) {}
 
   // The resize method provides a way to change the size of the
   // allocated memory and corresponding properties for the accessor.
@@ -120,6 +120,10 @@ public:
   Command *MBlockedCmd = nullptr;
 
   bool PerWI = false;
+
+  // Outdated, leaving to preserve ABI.
+  // TODO: Remove during next major release.
+  bool MIsESIMDAcc;
 };
 
 using AccessorImplPtr = shared_ptr_class<AccessorImplHost>;
