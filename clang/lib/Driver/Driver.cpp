@@ -4688,43 +4688,6 @@ public:
     return false;
   }
 
-  /// Generate an action that adds a host dependence to an unbundling action.
-  /// The results will be kept in this action builder. Return true if an error
-  /// was found.
-  bool addHostDependenceToUnbundlingAction(Action *&HostAction,
-                                           ActionList &InputActionList,
-                                           const Arg *InputArg) {
-    if (!IsValid || InputActionList.empty())
-      return true;
-
-    auto *DeviceUnbundlingAction = C.MakeAction<OffloadUnbundlingJobAction>(
-        InputActionList, types::TY_Object);
-    DeviceUnbundlingAction->registerDependentActionInfo(
-        C.getSingleOffloadToolChain<Action::OFK_Host>(),
-        /*BoundArch=*/StringRef(), Action::OFK_Host);
-    HostAction = DeviceUnbundlingAction;
-
-    // Register the offload kinds that are used.
-    auto &OffloadKind = InputArgToOffloadKindMap[InputArg];
-    for (auto *SB : SpecializedBuilders) {
-      if (!SB->isValid())
-        continue;
-
-      auto RetCode = SB->addDeviceDepences(HostAction);
-
-      // Host dependences for device actions are not compatible with that same
-      // action being ignored.
-      assert(RetCode != DeviceActionBuilder::ABRT_Ignore_Host &&
-             "Host dependence not expected to be ignored.!");
-
-      // Unless the builder was inactive for this action, we have to record the
-      // offload kind because the host will have to use it.
-      if (RetCode != DeviceActionBuilder::ABRT_Inactive)
-        OffloadKind |= SB->getAssociatedOffloadKind();
-    }
-    return false;
-  }
-
   /// Add the offloading top level actions that are specific for unique
   /// linking situations where objects are used at only the device link
   /// with no intermedate steps.

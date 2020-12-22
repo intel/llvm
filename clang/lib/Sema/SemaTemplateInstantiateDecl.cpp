@@ -592,6 +592,16 @@ static void instantiateSYCLIntelPipeIOAttr(
     S.addSYCLIntelPipeIOAttr(New, *Attr, Result.getAs<Expr>());
 }
 
+static void instantiateSYCLIntelLoopFuseAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLIntelLoopFuseAttr *Attr, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.addSYCLIntelLoopFuseAttr(New, *Attr, Result.getAs<Expr>());
+}
+
 template <typename AttrName>
 static void instantiateIntelSYCLFunctionAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
@@ -804,6 +814,12 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
             dyn_cast<SYCLIntelMaxGlobalWorkDimAttr>(TmplAttr)) {
       instantiateIntelSYCLFunctionAttr<SYCLIntelMaxGlobalWorkDimAttr>(
           *this, TemplateArgs, SYCLIntelMaxGlobalWorkDim, New);
+      continue;
+    }
+    if (const auto *SYCLIntelLoopFuse =
+            dyn_cast<SYCLIntelLoopFuseAttr>(TmplAttr)) {
+      instantiateSYCLIntelLoopFuseAttr(*this, TemplateArgs, SYCLIntelLoopFuse,
+                                       New);
       continue;
     }
     if (const auto *SYCLIntelNoGlobalWorkOffset =
@@ -6239,7 +6255,10 @@ static void processSYCLKernel(Sema &S, FunctionDecl *FD, MangleContext &MC) {
   if (S.LangOpts.SYCLIsDevice) {
     S.ConstructOpenCLKernel(FD, MC);
   } else if (S.LangOpts.SYCLIsHost) {
-    CXXRecordDecl *CRD = (*FD->param_begin())->getType()->getAsCXXRecordDecl();
+    QualType KernelParamTy = (*FD->param_begin())->getType();
+    const CXXRecordDecl *CRD = (KernelParamTy->isReferenceType()
+                                    ? KernelParamTy->getPointeeCXXRecordDecl()
+                                    : KernelParamTy->getAsCXXRecordDecl());
     for (auto *Method : CRD->methods())
       if (Method->getOverloadedOperator() == OO_Call &&
           !Method->hasAttr<AlwaysInlineAttr>())

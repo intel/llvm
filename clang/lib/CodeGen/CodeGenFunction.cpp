@@ -955,6 +955,19 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   if (getLangOpts().SYCLIsHost && D && D->hasAttr<SYCLKernelAttr>())
     Fn->addFnAttr("sycl_kernel");
 
+  if (getLangOpts().SYCLIsDevice && D) {
+    if (const auto *A = D->getAttr<SYCLIntelLoopFuseAttr>()) {
+      Expr *E = A->getValue();
+      llvm::Metadata *AttrMDArgs[] = {
+          llvm::ConstantAsMetadata::get(Builder.getInt32(
+              E->getIntegerConstantExpr(D->getASTContext())->getZExtValue())),
+          llvm::ConstantAsMetadata::get(
+              A->isIndependent() ? Builder.getInt32(1) : Builder.getInt32(0))};
+      Fn->setMetadata("loop_fuse",
+                      llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
+    }
+  }
+
   if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) {
     // Add metadata for a kernel function.
     if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D)) {

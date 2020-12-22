@@ -1316,6 +1316,25 @@ def SYCLIntelNoGlobalWorkOffset : InheritableAttr {
   let PragmaAttributeSupport = 0;
 }
 
+def SYCLIntelLoopFuse : InheritableAttr {
+  let Spellings = [CXX11<"intel", "loop_fuse">,
+                   CXX11<"intel", "loop_fuse_independent">];
+  let Args = [ExprArgument<"Value", /*optional=*/ 1>];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Accessors = [Accessor<"isIndependent",
+                  [CXX11<"intel", "loop_fuse_independent">]>];
+  let Documentation = [SYCLIntelLoopFuseDocs];
+  let AdditionalMembers = [{
+    static unsigned getMinValue() {
+      return 0;
+    }
+    static unsigned getMaxValue() {
+      return 1024*1024;
+    }
+  }];
+}
+
 def C11NoReturn : InheritableAttr {
   let Spellings = [Keyword<"_Noreturn">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
