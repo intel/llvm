@@ -2985,12 +2985,11 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &Attr,
     int64_t AttrValue =
         A->getValue()->getIntegerConstantExpr(S.Context)->getSExtValue();
     if (AttrValue == 0) {
-      Result &= checkZeroDim(
-          A,
-          getExprValue(Attr.getArgAsExpr(2), S.getASTContext()),
-          getExprValue(Attr.getArgAsExpr(1), S.getASTContext()),
-          getExprValue(Attr.getArgAsExpr(0), S.getASTContext()),
-          /*ReverseAttrs=*/true);
+       Result &=
+           checkZeroDim(A, getExprValue(Attr.getArgAsExpr(2), S.getASTContext()),
+                        getExprValue(Attr.getArgAsExpr(1), S.getASTContext()),
+                        getExprValue(Attr.getArgAsExpr(0), S.getASTContext()),
+                        /*ReverseAttrs=*/true);
     }
   }
 
