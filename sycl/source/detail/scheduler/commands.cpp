@@ -1145,7 +1145,6 @@ QueueImplPtr MemCpyCommand::getWorkerQueue() const {
 }
 
 cl_int MemCpyCommand::enqueueImp() {
-  const QueueImplPtr &Queue = getWorkerQueue();
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
 
