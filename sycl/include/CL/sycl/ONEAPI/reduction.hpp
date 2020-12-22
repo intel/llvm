@@ -12,6 +12,7 @@
 #include <CL/sycl/ONEAPI/group_algorithm.hpp>
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/handler.hpp>
+#include <CL/sycl/kernel.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

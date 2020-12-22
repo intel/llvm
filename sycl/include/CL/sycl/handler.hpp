@@ -78,9 +78,10 @@ template <typename T, int Dimensions, typename AllocatorT, typename Enable>
 class buffer;
 namespace detail {
 
+//CP
 /// This class is the default KernelName template parameter type for kernel
 /// invocation APIs such as single_task.
-class auto_name {};
+//class auto_name {};
 
 class kernel_impl;
 class queue_impl;
@@ -111,12 +112,13 @@ SuggestedArgType argument_helper(...);
 template <typename F, typename SuggestedArgType>
 using lambda_arg_type = decltype(argument_helper<F, SuggestedArgType>(0));
 
+//CP
 /// Helper struct to get a kernel name type based on given \c Name and \c Type
 /// types: if \c Name is undefined (is a \c auto_name) then \c Type becomes
 /// the \c Name.
-template <typename Name, typename Type> struct get_kernel_name_t {
-  using name = Name;
-};
+// template <typename Name, typename Type> struct get_kernel_name_t {
+//   using name = Name;
+// };
 
 /// Specialization for the case when \c Name is undefined.
 template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
@@ -508,7 +510,7 @@ private:
             typename LambdaArgType>
   void StoreLambda(KernelType KernelFunc) {
     MHostKernel.reset(
-        new detail::HostKernel<KernelType, LambdaArgType, Dims>(KernelFunc));
+        new detail::HostKernel<KernelType, LambdaArgType, Dims, KernelName>(KernelFunc));
 
     using KI = sycl::detail::KernelInfo<KernelName>;
     // Empty name indicates that the compilation happens without integration
@@ -1055,7 +1057,7 @@ public:
     MNDRDesc.set(range<1>{1});
 
     MArgs = std::move(MAssociatedAccesors);
-    MHostKernel.reset(new detail::HostKernel<FuncT, void, 1>(std::move(Func)));
+    MHostKernel.reset(new detail::HostKernel<FuncT, void, 1, void>(std::move(Func)));
     MCGType = detail::CG::RUN_ON_HOST_INTEL;
   }
 

@@ -22,7 +22,21 @@ class program;
 class context;
 namespace detail {
 class kernel_impl;
-}
+
+
+//CP
+/// This class is the default KernelName template parameter type for kernel
+/// invocation APIs such as single_task.
+class auto_name {};
+
+/// Helper struct to get a kernel name type based on given \c Name and \c Type
+/// types: if \c Name is undefined (is a \c auto_name) then \c Type becomes
+/// the \c Name.
+template <typename Name, typename Type> struct get_kernel_name_t {
+  using name = Name;
+};
+
+} //detail namespace
 
 /// Provides an abstraction of a SYCL kernel.
 ///

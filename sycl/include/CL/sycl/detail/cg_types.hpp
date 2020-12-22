@@ -11,6 +11,7 @@
 #include <CL/sycl/detail/host_profiling_info.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/group.hpp>
+//#include <CL/sycl/handler.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/interop_handle.hpp>
 #include <CL/sycl/interop_handler.hpp>
@@ -158,7 +159,7 @@ public:
 };
 
 // Class which stores specific lambda object.
-template <class KernelType, class KernelArgType, int Dims>
+template <class KernelType, class KernelArgType, int Dims, typename KernelName>
 class HostKernel : public HostKernelBase {
   using IDBuilder = sycl::detail::Builder;
   KernelType MKernel;
@@ -203,6 +204,12 @@ public:
   template <class ArgT = KernelArgType>
   typename detail::enable_if_t<std::is_same<ArgT, sycl::id<Dims>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
+    //CP
+    using NameT = typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    std::string KName = typeid(NameT *).name();
+    using KI = detail::KernelInfo<KernelName>;
+    constexpr bool StoreLocation = KI::callsThisItem(); //TO callsThisID or ThisItem?
+
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
     sycl::id<Dims> Offset;
     for (int I = 0; I < Dims; ++I) {
@@ -213,8 +220,11 @@ public:
     detail::NDLoop<Dims>::iterate(Range, [&](const sycl::id<Dims> &ID) {
       sycl::item<Dims, /*Offset=*/true> Item =
           IDBuilder::createItem<Dims, true>(Range, ID, Offset);
-      store_id(&ID);
-      store_item(&Item);
+      //CP
+      if(StoreLocation){
+        store_id(&ID);  // <--
+        store_item(&Item);
+      }
       MKernel(ID);
     });
   }
@@ -223,6 +233,12 @@ public:
   typename detail::enable_if_t<
       std::is_same<ArgT, item<Dims, /*Offset=*/false>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
+    //CP
+    using NameT = typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    std::string KName = typeid(NameT *).name();
+    using KI = detail::KernelInfo<KernelName>;
+    constexpr bool StoreLocation = KI::callsThisItem(); //TO callsThisID or ThisItem?
+
     sycl::id<Dims> ID;
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I)
@@ -232,8 +248,11 @@ public:
       sycl::item<Dims, /*Offset=*/false> Item =
           IDBuilder::createItem<Dims, false>(Range, ID);
       sycl::item<Dims, /*Offset=*/true> ItemWithOffset = Item;
-      store_id(&ID);
-      store_item(&ItemWithOffset);
+      //CP
+      if(StoreLocation){
+        store_id(&ID);
+        store_item(&ItemWithOffset);
+      }
       MKernel(Item);
     });
   }
@@ -242,6 +261,12 @@ public:
   typename detail::enable_if_t<
       std::is_same<ArgT, item<Dims, /*Offset=*/true>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
+    //CP
+    using NameT = typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    std::string KName = typeid(NameT *).name();
+    using KI = detail::KernelInfo<KernelName>;
+    constexpr bool StoreLocation = KI::callsThisItem(); //TO callsThisID or ThisItem?
+
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
     sycl::id<Dims> Offset;
     for (int I = 0; I < Dims; ++I) {
@@ -253,8 +278,11 @@ public:
       sycl::id<Dims> OffsetID = ID + Offset;
       sycl::item<Dims, /*Offset=*/true> Item =
           IDBuilder::createItem<Dims, true>(Range, OffsetID, Offset);
-      store_id(&OffsetID);
-      store_item(&Item);
+      //CP
+      if(StoreLocation){
+        store_id(&OffsetID);
+        store_item(&Item);
+      }
       MKernel(Item);
     });
   }
@@ -262,6 +290,12 @@ public:
   template <class ArgT = KernelArgType>
   typename detail::enable_if_t<std::is_same<ArgT, nd_item<Dims>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
+    //CP
+    using NameT = typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    std::string KName = typeid(NameT *).name();
+    using KI = detail::KernelInfo<KernelName>;
+    constexpr bool StoreLocation = KI::callsThisItem(); //TO callsThisID or ThisItem?
+
     sycl::range<Dims> GroupSize(InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I) {
       if (NDRDesc.LocalSize[I] == 0 ||
@@ -294,11 +328,14 @@ public:
             IDBuilder::createItem<Dims, false>(LocalSize, LocalID);
         const sycl::nd_item<Dims> NDItem =
             IDBuilder::createNDItem<Dims>(GlobalItem, LocalItem, Group);
-        store_id(&GlobalID);
-        store_item(&GlobalItem);
-        store_nd_item(&NDItem);
-        auto g = NDItem.get_group();
-        store_group(&g);
+        //CP    
+        if(StoreLocation){
+          store_id(&GlobalID);
+          store_item(&GlobalItem);
+          store_nd_item(&NDItem);
+          auto g = NDItem.get_group();
+          store_group(&g);
+        }
         MKernel(NDItem);
       });
     });
