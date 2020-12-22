@@ -755,9 +755,6 @@ static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI) {
   Type *NITy = NewI->getType();
   Type *OITy = OldI->getType();
   if (OITy != NITy) {
-    assert(
-        CastInst::isCastable(OITy, NITy) &&
-        "Cannot add cast instruction while translating ESIMD intrinsic call");
     auto CastOpcode = CastInst::getCastOpcode(NewI, false, OITy, false);
     NewI = CastInst::Create(CastOpcode, NewI, OITy,
                             NewI->getName() + ".cast.ty", OldI);

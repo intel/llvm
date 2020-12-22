@@ -1388,6 +1388,43 @@ static void handlePackedAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     S.Diag(AL.getLoc(), diag::warn_attribute_ignored) << AL;
 }
 
+static void handlePreferredName(Sema &S, Decl *D, const ParsedAttr &AL) {
+  auto *RD = cast<CXXRecordDecl>(D);
+  ClassTemplateDecl *CTD = RD->getDescribedClassTemplate();
+  assert(CTD && "attribute does not appertain to this declaration");
+
+  ParsedType PT = AL.getTypeArg();
+  TypeSourceInfo *TSI = nullptr;
+  QualType T = S.GetTypeFromParser(PT, &TSI);
+  if (!TSI)
+    TSI = S.Context.getTrivialTypeSourceInfo(T, AL.getLoc());
+
+  if (!T.hasQualifiers() && T->getAs<TypedefType>()) {
+    // Find the template name, if this type names a template specialization.
+    const TemplateDecl *Template = nullptr;
+    if (const auto *CTSD = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
+            T->getAsCXXRecordDecl())) {
+      Template = CTSD->getSpecializedTemplate();
+    } else if (const auto *TST = T->getAs<TemplateSpecializationType>()) {
+      while (TST && TST->isTypeAlias())
+        TST = TST->getAliasedType()->getAs<TemplateSpecializationType>();
+      if (TST)
+        Template = TST->getTemplateName().getAsTemplateDecl();
+    }
+
+    if (Template && declaresSameEntity(Template, CTD)) {
+      D->addAttr(::new (S.Context) PreferredNameAttr(S.Context, AL, TSI));
+      return;
+    }
+  }
+
+  S.Diag(AL.getLoc(), diag::err_attribute_preferred_name_arg_invalid)
+      << T << CTD;
+  if (const auto *TT = T->getAs<TypedefType>())
+    S.Diag(TT->getDecl()->getLocation(), diag::note_entity_declared_at)
+        << TT->getDecl();
+}
+
 static bool checkIBOutletCommon(Sema &S, Decl *D, const ParsedAttr &AL) {
   // The IBOutlet/IBOutletCollection attributes only apply to instance
   // variables or properties of Objective-C classes.  The outlet must also
@@ -5276,24 +5313,18 @@ static void handleNoGlobalWorkOffsetAttr(Sema &S, Decl *D,
 
   checkForDuplicateAttribute<SYCLIntelNoGlobalWorkOffsetAttr>(S, D, Attr);
 
-  uint32_t Enabled = 1;
-  if (Attr.getNumArgs()) {
-    const Expr *E = Attr.getArgAsExpr(0);
-    if (!checkUInt32Argument(S, Attr, E, Enabled, 0,
-                             /*StrictlyUnsigned=*/true))
-      return;
-  }
-  if (Enabled > 1)
-    S.Diag(Attr.getLoc(), diag::warn_boolean_attribute_argument_is_not_valid)
-        << Attr;
-
   if (Attr.getKind() == ParsedAttr::AT_SYCLIntelNoGlobalWorkOffset &&
       checkDeprecatedSYCLAttributeSpelling(S, Attr))
     S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)
         << "'intel::no_global_work_offset'";
 
-  D->addAttr(::new (S.Context)
-                 SYCLIntelNoGlobalWorkOffsetAttr(S.Context, Attr, Enabled));
+  // If no attribute argument is specified, set to default value '1'.
+  Expr *E = Attr.isArgExpr(0)
+                ? Attr.getArgAsExpr(0)
+                : IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
+                                         S.Context.IntTy, Attr.getLoc());
+  S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelNoGlobalWorkOffsetAttr>(D, Attr,
+                                                                       E);
 }
 
 /// Handle the [[intelfpga::doublepump]] and [[intelfpga::singlepump]] attributes.
@@ -6268,6 +6299,16 @@ static void handleObjCPreciseLifetimeAttr(Sema &S, Decl *D,
   D->addAttr(::new (S.Context) ObjCPreciseLifetimeAttr(S.Context, AL));
 }
 
+static void handleSwiftAttrAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  // Make sure that there is a string literal as the annotation's single
+  // argument.
+  StringRef Str;
+  if (!S.checkStringLiteralArgumentAttr(AL, 0, Str))
+    return;
+
+  D->addAttr(::new (S.Context) SwiftAttrAttr(S.Context, AL, Str));
+}
+
 static void handleSwiftBridge(Sema &S, Decl *D, const ParsedAttr &AL) {
   // Make sure that there is a string literal as the annotation's single
   // argument.
@@ -6573,7 +6614,7 @@ validateSwiftFunctionName(Sema &S, const ParsedAttr &AL, SourceLocation Loc,
 }
 
 bool Sema::DiagnoseSwiftName(Decl *D, StringRef Name, SourceLocation Loc,
-                             const ParsedAttr &AL) {
+                             const ParsedAttr &AL, bool IsAsync) {
   if (isa<ObjCMethodDecl>(D) || isa<FunctionDecl>(D)) {
     ArrayRef<ParmVarDecl*> Params;
     unsigned ParamCount;
@@ -6592,6 +6633,16 @@ bool Sema::DiagnoseSwiftName(Decl *D, StringRef Name, SourceLocation Loc,
             << ExpectedFunctionWithProtoType;
         return false;
       }
+    }
+
+    // The async name drops the last callback parameter.
+    if (IsAsync) {
+      if (ParamCount == 0) {
+        Diag(Loc, diag::warn_attr_swift_name_decl_missing_params)
+            << AL << isa<ObjCMethodDecl>(D);
+        return false;
+      }
+      ParamCount -= 1;
     }
 
     unsigned SwiftParamCount;
@@ -6627,10 +6678,11 @@ bool Sema::DiagnoseSwiftName(Decl *D, StringRef Name, SourceLocation Loc,
           << SwiftParamCount;
       return false;
     }
-  } else if (isa<EnumConstantDecl>(D) || isa<ObjCProtocolDecl>(D) ||
-             isa<ObjCInterfaceDecl>(D) || isa<ObjCPropertyDecl>(D) ||
-             isa<VarDecl>(D) || isa<TypedefNameDecl>(D) || isa<TagDecl>(D) ||
-             isa<IndirectFieldDecl>(D) || isa<FieldDecl>(D)) {
+  } else if ((isa<EnumConstantDecl>(D) || isa<ObjCProtocolDecl>(D) ||
+              isa<ObjCInterfaceDecl>(D) || isa<ObjCPropertyDecl>(D) ||
+              isa<VarDecl>(D) || isa<TypedefNameDecl>(D) || isa<TagDecl>(D) ||
+              isa<IndirectFieldDecl>(D) || isa<FieldDecl>(D)) &&
+             !IsAsync) {
     StringRef ContextName, BaseName;
 
     std::tie(ContextName, BaseName) = Name.split('.');
@@ -6661,10 +6713,22 @@ static void handleSwiftName(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!S.checkStringLiteralArgumentAttr(AL, 0, Name, &Loc))
     return;
 
-  if (!S.DiagnoseSwiftName(D, Name, Loc, AL))
+  if (!S.DiagnoseSwiftName(D, Name, Loc, AL, /*IsAsync=*/false))
     return;
 
   D->addAttr(::new (S.Context) SwiftNameAttr(S.Context, AL, Name));
+}
+
+static void handleSwiftAsyncName(Sema &S, Decl *D, const ParsedAttr &AL) {
+  StringRef Name;
+  SourceLocation Loc;
+  if (!S.checkStringLiteralArgumentAttr(AL, 0, Name, &Loc))
+    return;
+
+  if (!S.DiagnoseSwiftName(D, Name, Loc, AL, /*IsAsync=*/true))
+    return;
+
+  D->addAttr(::new (S.Context) SwiftAsyncNameAttr(S.Context, AL, Name));
 }
 
 static void handleSwiftNewType(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -6692,6 +6756,56 @@ static void handleSwiftNewType(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 
   D->addAttr(::new (S.Context) SwiftNewTypeAttr(S.Context, AL, Kind));
+}
+
+static void handleSwiftAsyncAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (!AL.isArgIdent(0)) {
+    S.Diag(AL.getLoc(), diag::err_attribute_argument_n_type)
+        << AL << 1 << AANT_ArgumentIdentifier;
+    return;
+  }
+
+  SwiftAsyncAttr::Kind Kind;
+  IdentifierInfo *II = AL.getArgAsIdent(0)->Ident;
+  if (!SwiftAsyncAttr::ConvertStrToKind(II->getName(), Kind)) {
+    S.Diag(AL.getLoc(), diag::err_swift_async_no_access) << AL << II;
+    return;
+  }
+
+  ParamIdx Idx;
+  if (Kind == SwiftAsyncAttr::None) {
+    // If this is 'none', then there shouldn't be any additional arguments.
+    if (!checkAttributeNumArgs(S, AL, 1))
+      return;
+  } else {
+    // Non-none swift_async requires a completion handler index argument.
+    if (!checkAttributeNumArgs(S, AL, 2))
+      return;
+
+    Expr *HandlerIdx = AL.getArgAsExpr(1);
+    if (!checkFunctionOrMethodParameterIndex(S, D, AL, 2, HandlerIdx, Idx))
+      return;
+
+    const ParmVarDecl *CompletionBlock =
+        getFunctionOrMethodParam(D, Idx.getASTIndex());
+    QualType CompletionBlockType = CompletionBlock->getType();
+    if (!CompletionBlockType->isBlockPointerType()) {
+      S.Diag(CompletionBlock->getLocation(),
+             diag::err_swift_async_bad_block_type)
+          << CompletionBlock->getType();
+      return;
+    }
+    QualType BlockTy =
+        CompletionBlockType->getAs<BlockPointerType>()->getPointeeType();
+    if (!BlockTy->getAs<FunctionType>()->getReturnType()->isVoidType()) {
+      S.Diag(CompletionBlock->getLocation(),
+             diag::err_swift_async_bad_block_type)
+          << CompletionBlock->getType();
+      return;
+    }
+  }
+
+  D->addAttr(::new (S.Context) SwiftAsyncAttr(S.Context, AL, Kind, Idx));
 }
 
 //===----------------------------------------------------------------------===//
@@ -8398,6 +8512,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_Packed:
     handlePackedAttr(S, D, AL);
     break;
+  case ParsedAttr::AT_PreferredName:
+    handlePreferredName(S, D, AL);
+    break;
   case ParsedAttr::AT_Section:
     handleSectionAttr(S, D, AL);
     break;
@@ -8687,6 +8804,12 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
 
   // Swift attributes.
+  case ParsedAttr::AT_SwiftAsyncName:
+    handleSwiftAsyncName(S, D, AL);
+    break;
+  case ParsedAttr::AT_SwiftAttr:
+    handleSwiftAttrAttr(S, D, AL);
+    break;
   case ParsedAttr::AT_SwiftBridge:
     handleSwiftBridge(S, D, AL);
     break;
@@ -8707,6 +8830,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_SwiftPrivate:
     handleSimpleAttribute<SwiftPrivateAttr>(S, D, AL);
+    break;
+  case ParsedAttr::AT_SwiftAsync:
+    handleSwiftAsyncAttr(S, D, AL);
     break;
 
   // XRay attributes.

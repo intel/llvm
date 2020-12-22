@@ -6398,7 +6398,8 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
                                MultiExprArg ArgExprs, SourceLocation RParenLoc,
                                Expr *ExecConfig) {
   ExprResult Call =
-      BuildCallExpr(Scope, Fn, LParenLoc, ArgExprs, RParenLoc, ExecConfig);
+      BuildCallExpr(Scope, Fn, LParenLoc, ArgExprs, RParenLoc, ExecConfig,
+                    /*IsExecConfig=*/false, /*AllowRecovery=*/true);
   if (Call.isInvalid())
     return Call;
 
@@ -6426,7 +6427,8 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
 /// locations.
 ExprResult Sema::BuildCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
                                MultiExprArg ArgExprs, SourceLocation RParenLoc,
-                               Expr *ExecConfig, bool IsExecConfig) {
+                               Expr *ExecConfig, bool IsExecConfig,
+                               bool AllowRecovery) {
   // Since this might be a postfix expression, get rid of ParenListExprs.
   ExprResult Result = MaybeConvertParenListExprToParenExpr(Scope, Fn);
   if (Result.isInvalid()) return ExprError();
@@ -6486,7 +6488,7 @@ ExprResult Sema::BuildCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
 
     if (Fn->getType() == Context.BoundMemberTy) {
       return BuildCallToMemberFunction(Scope, Fn, LParenLoc, ArgExprs,
-                                       RParenLoc);
+                                       RParenLoc, AllowRecovery);
     }
   }
 
@@ -6505,7 +6507,7 @@ ExprResult Sema::BuildCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
             Scope, Fn, ULE, LParenLoc, ArgExprs, RParenLoc, ExecConfig,
             /*AllowTypoCorrection=*/true, find.IsAddressOfOperand);
       return BuildCallToMemberFunction(Scope, Fn, LParenLoc, ArgExprs,
-                                       RParenLoc);
+                                       RParenLoc, AllowRecovery);
     }
   }
 
@@ -8651,8 +8653,12 @@ static QualType computeConditionalNullability(QualType ResTy, bool IsBin,
 
   auto GetNullability = [&Ctx](QualType Ty) {
     Optional<NullabilityKind> Kind = Ty->getNullability(Ctx);
-    if (Kind)
+    if (Kind) {
+      // For our purposes, treat _Nullable_result as _Nullable.
+      if (*Kind == NullabilityKind::NullableResult)
+        return NullabilityKind::Nullable;
       return *Kind;
+    }
     return NullabilityKind::Unspecified;
   };
 
@@ -18239,6 +18245,13 @@ static void DoMarkVarDeclReferenced(Sema &SemaRef, SourceLocation Loc,
         SemaRef.runWithSufficientStackSpace(PointOfInstantiation, [&] {
           SemaRef.InstantiateVariableDefinition(PointOfInstantiation, Var);
         });
+
+        // Re-set the member to trigger a recomputation of the dependence bits
+        // for the expression.
+        if (auto *DRE = dyn_cast_or_null<DeclRefExpr>(E))
+          DRE->setDecl(DRE->getDecl());
+        else if (auto *ME = dyn_cast_or_null<MemberExpr>(E))
+          ME->setMemberDecl(ME->getMemberDecl());
       } else if (FirstInstantiation ||
                  isa<VarTemplateSpecializationDecl>(Var)) {
         // FIXME: For a specialization of a variable template, we don't
@@ -18373,6 +18386,9 @@ static void MarkExprReferenced(Sema &SemaRef, SourceLocation Loc,
 }
 
 /// Perform reference-marking and odr-use handling for a DeclRefExpr.
+///
+/// Note, this may change the dependence of the DeclRefExpr, and so needs to be
+/// handled with care if the DeclRefExpr is not newly-created.
 void Sema::MarkDeclRefReferenced(DeclRefExpr *E, const Expr *Base) {
   // TODO: update this with DR# once a defect report is filed.
   // C++11 defect. The address of a pure member should not be an ODR use, even
@@ -18499,6 +18515,10 @@ public:
         if (VD->hasLocalStorage())
           return;
     }
+
+    // FIXME: This can trigger the instantiation of the initializer of a
+    // variable, which can cause the expression to become value-dependent
+    // or error-dependent. Do we need to propagate the new dependence bits?
     S.MarkDeclRefReferenced(E);
   }
 

@@ -716,7 +716,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     C.addOffloadDeviceToolChain(CudaTC, OFK);
   } else if (IsHIP) {
     const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-    const llvm::Triple &HostTriple = HostTC->getTriple();
     auto OFK = Action::OFK_HIP;
     llvm::Triple HIPTriple = getHIPOffloadTargetTriple();
     // Use the HIP and host triples as the key into
@@ -3972,10 +3971,9 @@ class OffloadingActionBuilder final {
 
       bool NoDeviceLibs = false;
       int NumOfDeviceLibLinked = 0;
-      // Currently, libc, libm-fp32 will be linked in by default. In order
-      // to use libm-fp64, -fsycl-device-lib=libm-fp64/all should be used.
+      // Currently, all SYCL device libraries will be linked by default
       llvm::StringMap<bool> devicelib_link_info = {
-          {"libc", true}, {"libm-fp32", true}, {"libm-fp64", false}};
+          {"libc", true}, {"libm-fp32", true}, {"libm-fp64", true}};
       if (Arg *A = Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
                                    options::OPT_fno_sycl_device_lib_EQ)) {
         if (A->getValues().size() == 0)
@@ -4781,7 +4779,7 @@ public:
     return false;
   }
 
-  Action* makeHostLinkAction() {
+  void makeHostLinkAction(ActionList &LinkerInputs) {
     // Build a list of device linking actions.
     ActionList DeviceAL;
     for (DeviceActionBuilder *SB : SpecializedBuilders) {
@@ -4791,16 +4789,15 @@ public:
     }
 
     if (DeviceAL.empty())
-      return nullptr;
+      return;
 
     // Let builders add host linking actions.
-    Action* HA;
     for (DeviceActionBuilder *SB : SpecializedBuilders) {
       if (!SB->isValid())
         continue;
-      HA = SB->appendLinkHostActions(DeviceAL);
+      if (Action *HA = SB->appendLinkHostActions(DeviceAL))
+        LinkerInputs.push_back(HA);
     }
-    return HA;
   }
 
   /// Processes the host linker action. This currently consists of replacing it
@@ -5118,7 +5115,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     OffloadBuilder.addDeviceDependencesToHostAction(
         Current, InputArg, phases::Link, PL.back(), PL);
   };
-  for (const StringRef &LA : LinkArgs) {
+  for (StringRef LA : LinkArgs) {
     // At this point, we will process the archives for FPGA AOCO and individual
     // archive unbundling for Windows.
     if (!isStaticArchiveFile(LA))
@@ -5185,8 +5182,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
   // Add a link action if necessary.
   if (!LinkerInputs.empty()) {
-    if (Action *Wrapper = OffloadBuilder.makeHostLinkAction())
-      LinkerInputs.push_back(Wrapper);
+    OffloadBuilder.makeHostLinkAction(LinkerInputs);
     types::ID LinkType(types::TY_Image);
     if (Args.hasArg(options::OPT_fsycl_link_EQ))
       LinkType = types::TY_Archive;
@@ -6106,13 +6102,11 @@ InputInfo Driver::BuildJobsForActionNoCache(
         // enabled is not used
         if (UI.DependentOffloadKind == Action::OFK_Host && IsFPGAObjLink)
           continue;
-        std::string TmpFileName =
-           C.getDriver().GetTemporaryPath(llvm::sys::path::stem(BaseInput),
-                                          "txt");
+        std::string TmpFileName = C.getDriver().GetTemporaryPath(
+            llvm::sys::path::stem(BaseInput), "a");
         const char *TmpFile =
-                        C.addTempFile(C.getArgs().MakeArgString(TmpFileName),
-                                      types::TY_Tempfilelist);
-        CurI = InputInfo(types::TY_Tempfilelist, TmpFile, TmpFile);
+            C.addTempFile(C.getArgs().MakeArgString(TmpFileName));
+        CurI = InputInfo(types::TY_Archive, TmpFile, TmpFile);
       } else if (types::isFPGA(JA->getType())) {
         std::string Ext(types::getTypeTempSuffix(JA->getType()));
         types::ID TI = types::TY_Object;

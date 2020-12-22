@@ -246,6 +246,10 @@ public:
     return SectionRef(toDRI(Sec), this);
   }
 
+  ELFSymbolRef toSymbolRef(const Elf_Shdr *SymTable, unsigned SymbolNum) const {
+    return ELFSymbolRef({toDRI(SymTable, SymbolNum), this});
+  }
+
   bool IsContentValid() const { return ContentValid; }
 
 private:
@@ -441,7 +445,7 @@ public:
 
   unsigned getPlatformFlags() const override { return EF.getHeader().e_flags; }
 
-  const ELFFile<ELFT> *getELFFile() const { return &EF; }
+  const ELFFile<ELFT> &getELFFile() const { return EF; }
 
   bool isDyldType() const { return isDyldELFObject; }
   static bool classof(const Binary *v) {

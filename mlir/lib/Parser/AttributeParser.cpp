@@ -12,9 +12,9 @@
 
 #include "Parser.h"
 #include "mlir/IR/AffineMap.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/IntegerSet.h"
-#include "mlir/IR/StandardTypes.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Endian.h"
 
@@ -528,6 +528,13 @@ DenseElementsAttr TensorLiteralParser::getAttr(llvm::SMLoc loc,
   if (!shape.empty() && getShape() != type.getShape()) {
     p.emitError(loc) << "inferred shape of elements literal ([" << getShape()
                      << "]) does not match type ([" << type.getShape() << "])";
+    return nullptr;
+  }
+
+  // Handle the case where no elements were parsed.
+  if (!hexStorage.hasValue() && storage.empty() && type.getNumElements()) {
+    p.emitError(loc) << "parsed zero elements, but type (" << type
+                     << ") expected at least 1";
     return nullptr;
   }
 
