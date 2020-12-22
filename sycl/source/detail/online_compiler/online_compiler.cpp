@@ -101,15 +101,21 @@ compileToSPIRV(const std::string &Source, sycl::info::device_type DeviceType,
           reinterpret_cast<decltype(::oclocVersion) *>(OclocVersionHandle);
       LoadedVersion = OclocVersionFunc();
     }
+    // The loaded library with version (A.B) is compatible with expected API/ABI
+    // version (X.Y) used here if A == B and B >= Y.
     int LoadedVersionMajor = LoadedVersion >> 16;
+    int LoadedVersionMinor = LoadedVersion & 0xffff;
     int CurrentVersionMajor = (ocloc_version_t::OCLOC_VERSION_CURRENT) >> 16;
-    if (LoadedVersionMajor != CurrentVersionMajor)
+    int CurrentVersionMinor = (ocloc_version_t::OCLOC_VERSION_CURRENT) & 0xffff;
+    if (LoadedVersionMajor != CurrentVersionMajor ||
+        LoadedVersionMinor < CurrentVersionMinor)
       throw online_compile_error(
           std::string("Found incompatible version of ocloc library: (") +
-          std::to_string(LoadedVersionMajor) + ", " +
-          std::to_string(LoadedVersion & 0xffff) +
+          std::to_string(LoadedVersionMajor) + "." +
+          std::to_string(LoadedVersionMinor) +
           "). The supported versions are (" +
-          std::to_string(CurrentVersionMajor) + ", *).");
+          std::to_string(CurrentVersionMajor) + ". N), where (N >= " +
+          std::to_string(CurrentVersionMinor) + ").");
 
     CompileToSPIRVHandle =
         sycl::detail::pi::getOsLibraryFuncAddress(OclocLibrary, "oclocInvoke");

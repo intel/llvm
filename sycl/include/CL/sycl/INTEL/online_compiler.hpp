@@ -111,7 +111,7 @@ public:
   /// can be different for different languages.
   /// Throws online_compile_error if compilation is not successful.
   template <typename... Tys>
-  std::vector<byte> compile(const std::string &src, const Tys &...args);
+  std::vector<byte> compile(const std::string &src, const Tys &... args);
 
   /// Sets the compiled code format of the compilation target and returns *this.
   online_compiler<Lang> &setOutputFormat(compiled_code_format fmt) {
