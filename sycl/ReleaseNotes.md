@@ -1,6 +1,6 @@
 # December'20 release notes
 
-Release notes for commit range 5d7e0925..eb89f5eaab37
+Release notes for commit range 5d7e0925..50b81c3cd6e9
 
 ## New features
 ### SYCL Compiler
@@ -28,6 +28,8 @@ Release notes for commit range 5d7e0925..eb89f5eaab37
    attribute [a5fde5a924ac]
  - Improve group size selection by adjusting `parallel_for` execution range
    global size [74a68b7da4e7]
+ - Add clang support for FPGA loop fusion function attributes [23926b0645ad]
+ - Reword some compiler diagnostics [50b81c3cd6e9]
 ### SYCL Library
  - Eliminate performance overhead on devices without host unified memory support
    [a4f092417ef9]
@@ -35,7 +37,7 @@ Release notes for commit range 5d7e0925..eb89f5eaab37
    [c70b0477aa8a, cf0d0538d162]
  - Optimize `discard_write` access mode for host accessor [6733c8b0efde]
  - Add support for composite specialization constants
-   [c62860fd6b86, d4251e3c55e7]
+   [c62860fd6b86, d4251e3c55e7, 3ec4594a5a06]
  - Enhance PI tracing with printing output arguments [19f5ad67f30a]
  - Introduce `pi_map_flags` in lieu of `cl_map_flags` [f0e7606a6198]
  - Implement robust error nadling in LevelZero plugin [65c719ddfc23]
@@ -76,6 +78,7 @@ Release notes for commit range 5d7e0925..eb89f5eaab37
  - Fix memory leak in event pool in Level Zero plugin [68fc7808a50e]
  - Fixed issue with finalizing context of Level Zero plugin [6cfa921856f5]
  - Fix backend selection for `SYCL_DEVICE_FILTER=*` case [c54da157f5d5]
+ - Restore AccessorImplHost layout [a08eeb475679]
 ### Documentation
  - Updated source checkout instruction for Windows in GetStartedGuide
    [9cde15210d70]
