@@ -1,8 +1,10 @@
 // REQUIRES: level_zero
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -I %sycl_source_dir -lze_loader %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -I %sycl_source_dir -DRUN_KERNELS -lze_loader %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -I %sycl_source_dir -lze_loader %s -o %th.out
+// RUN: %RUN_ON_HOST %th.out
 
 // This test checks INTEL feature class online_compiler for Level-Zero.
 // All Level-Zero specific code is kept here and the common part that can be
@@ -20,6 +22,7 @@
 
 using byte = unsigned char;
 
+#ifdef RUN_KERNELS
 sycl::kernel getSYCLKernelWithIL(sycl::context &Context,
                                  const std::vector<byte> &IL) {
 
@@ -45,5 +48,6 @@ sycl::kernel getSYCLKernelWithIL(sycl::context &Context,
       sycl::level_zero::make<sycl::program>(Context, ZeModule);
   return SyclProgram.get_kernel("my_kernel");
 }
+#endif // RUN_KERNELS
 
 #include "online_compiler_common.hpp"

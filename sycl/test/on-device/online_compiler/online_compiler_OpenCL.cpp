@@ -1,8 +1,10 @@
 // REQUIRES: opencl
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -lOpenCL -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -DRUN_KERNELS -lOpenCL -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -lOpenCL -o %th.out
+// RUN: %RUN_ON_HOST %th.out
 
 // This test checks INTEL feature class online_compiler for OpenCL.
 // All OpenCL specific code is kept here and the common part that can be
@@ -15,6 +17,7 @@
 
 using byte = unsigned char;
 
+#ifdef RUN_KERNELS
 sycl::kernel getSYCLKernelWithIL(sycl::context &Context,
                                  const std::vector<byte> &IL) {
   cl_int Err;
@@ -33,5 +36,6 @@ sycl::kernel getSYCLKernelWithIL(sycl::context &Context,
 
   return sycl::kernel(ClKernel, Context);
 }
+#endif // RUN_KERNELS
 
 #include "online_compiler_common.hpp"

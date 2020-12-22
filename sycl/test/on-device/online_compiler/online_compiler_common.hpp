@@ -27,6 +27,7 @@ void cm_kernel() {
 
 using namespace sycl::INTEL;
 
+#ifdef RUN_KERNELS
 void testSyclKernel(sycl::queue &Q, sycl::kernel Kernel) {
   std::cout << "Run the kernel now:\n";
   const int N = 4;
@@ -46,6 +47,7 @@ void testSyclKernel(sycl::queue &Q, sycl::kernel Kernel) {
   for (int I = 0; I < N; I++)
     std::cout << I << "*2 + 100 = " << Out[I] << "\n";
 }
+#endif // RUN_KERNELS
 
 int main(int argc, char **argv) {
   cl::sycl::queue Q;
@@ -69,7 +71,9 @@ int main(int argc, char **argv) {
                 << "\n";
       return 1;
     }
+#ifdef RUN_KERNELS
     testSyclKernel(Q, getSYCLKernelWithIL(Context, IL));
+#endif // RUN_KERNELS
   }
 
   { // Compile and run a trivial OpenCL kernel using online_compiler()
@@ -86,9 +90,14 @@ int main(int argc, char **argv) {
                 << "\n";
       return 1;
     }
+#ifdef RUN_KERNELS
     testSyclKernel(Q, getSYCLKernelWithIL(Context, IL));
+#endif // RUN_KERNELS
   }
 
+#ifdef COMPILE_CM_KERNEL
+  // TODO: this test is temporarily turned off because CI buildbots do not set
+  // PATHs to clangFEWrapper library properly.
   { // Compile a trivial CM kernel.
     std::cout << "Test case3\n";
     online_compiler<source_language::cm> Compiler;
@@ -103,6 +112,7 @@ int main(int argc, char **argv) {
       return 1;
     }
   }
+#endif // COMPILE_CM_KERNEL
 
   { // Compile a source with syntax errors.
     std::cout << "Test case4\n";
