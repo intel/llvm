@@ -1304,6 +1304,35 @@ __SYCL_EXPORT pi_result piSamplerRelease(pi_sampler sampler);
 //
 // Queue Commands
 //
+
+// pi_host_kernel_arg_type specifies the prototype of lambda function,
+// i.e. std::function(void(const argtype&)) in calls to
+// piEnqueueHostKernelLaunch. The argument can be id, item w/o offset, item w/
+// offset or nd_item.
+//
+typedef enum {
+  PI_HOST_KERNEL_ARG_TYPE_INVALID,
+  PI_HOST_KERNEL_ARG_TYPE_ID,
+  PI_HOST_KERNEL_ARG_TYPE_ITEM,
+  PI_HOST_KERNEL_ARG_TYPE_ITEM_OFFSET,
+  PI_HOST_KERNEL_ARG_TYPE_ND_ITEM
+} pi_host_kernel_arg_type;
+
+// Executes a kernel on host.
+//
+// \param kernel is the lambda to call.
+// \param argtype specifies the prototype, i.e. std::function(void(const
+// argtype&))
+//
+// All other arguments have the same semantics as piEnqueueKernelLaunch.
+
+__SYCL_EXPORT pi_result piEnqueueHostKernelLaunch(
+    pi_queue queue, void *kernel, pi_host_kernel_arg_type argtype,
+    pi_uint32 work_dim, const size_t *global_work_offset,
+    const size_t *global_work_size, const size_t *local_work_size,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event);
+
 __SYCL_EXPORT pi_result piEnqueueKernelLaunch(
     pi_queue queue, pi_kernel kernel, pi_uint32 work_dim,
     const size_t *global_work_offset, const size_t *global_work_size,

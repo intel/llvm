@@ -24,6 +24,8 @@ def do_configure(args):
     llvm_enable_projects = 'clang;llvm-spirv;sycl;opencl-aot;xpti;libdevice'
     libclc_targets_to_build = ''
     sycl_build_pi_cuda = 'OFF'
+    sycl_build_pi_esimd_cpu = 'ON'
+    sycl_build_pi_esimd_cpu_deprecated = 'OFF'
     sycl_werror = 'ON'
     llvm_enable_assertions = 'ON'
     llvm_enable_doxygen = 'OFF'
@@ -41,6 +43,11 @@ def do_configure(args):
         llvm_enable_projects += ';libclc'
         libclc_targets_to_build = 'nvptx64--;nvptx64--nvidiacl'
         sycl_build_pi_cuda = 'ON'
+
+    if args.disable_esimd_cpu:
+        sycl_build_pi_esimd_cpu = 'OFF'
+    elif args.esimd_cpu_deprecated:
+        sycl_build_pi_esimd_cpu_deprecated = 'ON'
 
     if args.no_werror:
         sycl_werror = 'OFF'
@@ -78,6 +85,8 @@ def do_configure(args):
         "-DLLVM_ENABLE_DOXYGEN={}".format(llvm_enable_doxygen),
         "-DLLVM_ENABLE_SPHINX={}".format(llvm_enable_sphinx),
         "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
+        "-DSYCL_BUILD_PI_ESIMD_CPU={}".format(sycl_build_pi_esimd_cpu),
+        "-DSYCL_BUILD_PI_ESIMD_CPU_DEPRECATED={}".format(sycl_build_pi_esimd_cpu_deprecated),
         "-DSYCL_ENABLE_XPTI_TRACING=ON" # Explicitly turn on XPTI tracing
     ]
 
@@ -133,6 +142,8 @@ def main():
                         metavar="BUILD_TYPE", default="Release", help="build type: Debug, Release")
     parser.add_argument("--cuda", action='store_true', help="switch from OpenCL to CUDA")
     parser.add_argument("--arm", action='store_true', help="build ARM support rather than x86")
+    parser.add_argument("--disable-esimd-cpu", action='store_true', help="build without ESIMD_CPU support")
+    parser.add_argument("--esimd-cpu-deprecated", action='store_true', help="build with deprecated ESIMD_CPU support")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
     parser.add_argument("--system-ocl", action='store_true', help="use OpenCL deps from system (no download)")

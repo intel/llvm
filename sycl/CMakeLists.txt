@@ -351,6 +351,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      pi_opencl
      pi_level_zero
      libsycldevice
+     pi_esimd_cpu
 )
 if(OpenCL_INSTALL_KHRONOS_ICD_LOADER AND TARGET ocl-icd)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS opencl-icd)
@@ -366,6 +367,15 @@ if(SYCL_BUILD_PI_CUDA)
 
   add_dependencies(sycl-toolchain libspirv-builtins pi_cuda)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_cuda)
+endif()
+
+if (SYCL_BUILD_PI_ESIMD_CPU)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-headers)
+  if (MSVC)
+    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-libs libcmrt-dlls)
+  else()
+    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-sos)
+  endif()
 endif()
 
 # Use it as fake dependency in order to force another command(s) to execute.

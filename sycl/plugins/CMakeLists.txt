@@ -6,3 +6,4 @@ endif()
 
 add_subdirectory(opencl)
 add_subdirectory(level_zero)
+add_subdirectory(esimd_cpu)

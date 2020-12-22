@@ -18,6 +18,10 @@
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/range.hpp>
 
+#ifdef __SYCL_EXPLICIT_SIMD_PLUGIN_DEPRECATED__
+#include <CL/sycl/INTEL/esimd/esimd_libcm.hpp>
+#endif // __SYCL_EXPLICIT_SIMD_PLUGIN_DEPRECATED__
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -131,6 +135,8 @@ public:
   // Used to extract captured variables.
   virtual char *getPtr() = 0;
   virtual ~HostKernelBase() = default;
+  virtual void *getKernel() = 0;
+  virtual pi_host_kernel_arg_type getArgType() = 0;
 };
 
 class InteropTask {
@@ -162,9 +168,28 @@ template <class KernelType, class KernelArgType, int Dims>
 class HostKernel : public HostKernelBase {
   using IDBuilder = sycl::detail::Builder;
   KernelType MKernel;
+  std::function<void(KernelArgType &)> kernel;
 
 public:
-  HostKernel(KernelType Kernel) : MKernel(Kernel) {}
+  void *getKernel() { return &kernel; }
+
+  pi_host_kernel_arg_type getArgType() {
+    pi_host_kernel_arg_type ty =
+        std::is_same<KernelArgType, cl::sycl::id<Dims>>::value
+            ? PI_HOST_KERNEL_ARG_TYPE_ID
+            : std::is_same<KernelArgType, cl::sycl::item<Dims, false>>::value
+                  ? PI_HOST_KERNEL_ARG_TYPE_ITEM
+                  : std::is_same<KernelArgType,
+                                 cl::sycl::item<Dims, true>>::value
+                        ? PI_HOST_KERNEL_ARG_TYPE_ITEM_OFFSET
+                        : std::is_same<KernelArgType,
+                                       cl::sycl::nd_item<Dims>>::value
+                              ? PI_HOST_KERNEL_ARG_TYPE_ND_ITEM
+                              : PI_HOST_KERNEL_ARG_TYPE_INVALID;
+    return ty;
+  }
+
+  HostKernel(KernelType Kernel) : MKernel(Kernel), kernel(Kernel) {}
   void call(const NDRDescT &NDRDesc, HostProfilingInfo *HPI) override {
     // adjust ND range for serial host:
     NDRDescT AdjustedRange = NDRDesc;
@@ -210,6 +235,17 @@ public:
       Offset[I] = NDRDesc.GlobalOffset[I];
     }
 
+#ifdef __SYCL_EXPLICIT_SIMD_PLUGIN_DEPRECATED__
+    /// LibCM class provides generic multi-threading for kernels with
+    /// in work-group. Software multi-threading under host mode is
+    /// required for parallellism support such as barrier intrinsics
+    /// in ESIMD.
+    /// TODO : Use runtime check instead of compilation time check
+    /// (ifdef) or Remove ESIMD-specific handling
+    libCMBatch<KernelType, KernelArgType, sycl::id<Dims>, Dims> cmThreading(
+        MKernel);
+    cmThreading.runIterationSpace(Range);
+#else  // __SYCL_EXPLICIT_SIMD_PLUGIN_DEPRECATED__
     detail::NDLoop<Dims>::iterate(Range, [&](const sycl::id<Dims> &ID) {
       sycl::item<Dims, /*Offset=*/true> Item =
           IDBuilder::createItem<Dims, true>(Range, ID, Offset);
@@ -217,6 +253,7 @@ public:
       store_item(&Item);
       MKernel(ID);
     });
+#endif // __SYCL_EXPLICIT_SIMD_PLUGIN_DEPRECATED__
   }
 
   template <class ArgT = KernelArgType>
@@ -228,6 +265,18 @@ public:
     for (int I = 0; I < Dims; ++I)
       Range[I] = NDRDesc.GlobalSize[I];
 
+#ifdef __SYCL_EXPLICIT_SIMD_PLUGIN_DEPRECATED__
+    /// LibCM class provides generic multi-threading for kernels with
+    /// in work-group. Software multi-threading under host mode is
+    /// required for parallellism support such as barrier intrinsics
+    /// in ESIMD.
+    /// TODO : Use runtime check instead of compilation time check
+    /// (ifdef) or Remove ESIMD-specific handling
+    libCMBatch<KernelType, KernelArgType, sycl::item<Dims, /*Offset=*/false>,
+               Dims>
+        cmThreading(MKernel);
+    cmThreading.runIterationSpace(Range);
+#else  // __SYCL_EXPLICIT_SIMD_PLUGIN_DEPRECATED__
     detail::NDLoop<Dims>::iterate(Range, [&](const sycl::id<Dims> ID) {
       sycl::item<Dims, /*Offset=*/false> Item =
           IDBuilder::createItem<Dims, false>(Range, ID);
@@ -236,6 +285,7 @@ public:
       store_item(&ItemWithOffset);
       MKernel(Item);
     });
+#endif // __SYCL_EXPLICIT_SIMD_PLUGIN_DEPRECATED__
   }
 
   template <class ArgT = KernelArgType>
@@ -249,6 +299,18 @@ public:
       Offset[I] = NDRDesc.GlobalOffset[I];
     }
 
+#ifdef __SYCL_EXPLICIT_SIMD_PLUGIN_DEPRECATED__
+    /// LibCM class provides generic multi-threading for kernels with
+    /// in work-group. Software multi-threading under host mode is
+    /// required for parallellism support such as barrier intrinsics
+    /// in ESIMD.
+    /// TODO : Use runtime check instead of compilation time check
+    /// (ifdef) or Remove ESIMD-specific handling
+    libCMBatch<KernelType, KernelArgType, sycl::item<Dims, /*Offset=*/true>,
+               Dims>
+        cmThreading(MKernel);
+    cmThreading.runIterationSpace(Range, Offset);
+#else  // __SYCL_EXPLICIT_SIMD_PLUGIN_DEPRECATED__
     detail::NDLoop<Dims>::iterate(Range, [&](const sycl::id<Dims> &ID) {
       sycl::id<Dims> OffsetID = ID + Offset;
       sycl::item<Dims, /*Offset=*/true> Item =
@@ -257,6 +319,7 @@ public:
       store_item(&Item);
       MKernel(Item);
     });
+#endif // __SYCL_EXPLICIT_SIMD_PLUGIN_DEPRECATED__
   }
 
   template <class ArgT = KernelArgType>
@@ -281,6 +344,23 @@ public:
       GlobalSize[I] = NDRDesc.GlobalSize[I];
     }
 
+#ifdef __SYCL_EXPLICIT_SIMD_PLUGIN_DEPRECATED__
+    /// LibCM class provides generic multi-threading for kernels with
+    /// in work-group. Software multi-threading under host mode is
+    /// required for parallellism support such as barrier intrinsics
+    /// in ESIMD.
+    /// TODO : Use runtime check instead of compilation time check
+    /// (ifdef) or Remove ESIMD-specific handling
+    libCMBatch<KernelType, KernelArgType, sycl::nd_item<Dims>, Dims>
+        cmThreading(MKernel);
+
+    detail::NDLoop<Dims>::iterate(GroupSize, [&](const id<Dims> &GroupID) {
+      sycl::group<Dims> Group = IDBuilder::createGroup<Dims>(
+          GlobalSize, LocalSize, GroupSize, GroupID);
+      cmThreading.runIterationSpace(GroupID, Group, LocalSize, GlobalSize,
+                                    GlobalOffset);
+    });
+#else  // __SYCL_EXPLICIT_SIMD_PLUGIN_DEPRECATED__
     detail::NDLoop<Dims>::iterate(GroupSize, [&](const id<Dims> &GroupID) {
       sycl::group<Dims> Group = IDBuilder::createGroup<Dims>(
           GlobalSize, LocalSize, GroupSize, GroupID);
@@ -302,6 +382,7 @@ public:
         MKernel(NDItem);
       });
     });
+#endif // __SYCL_EXPLICIT_SIMD_PLUGIN_DEPRECATED__
   }
 
   template <typename ArgT = KernelArgType>

@@ -77,7 +77,7 @@ llvm_config.add_tool_substitutions(['llvm-spirv'], [config.sycl_tools_dir])
 
 backend=lit_config.params.get('SYCL_PLUGIN', "opencl")
 lit_config.note("Backend: {}".format(backend))
-config.substitutions.append( ('%sycl_be', { 'opencl': 'PI_OPENCL',  'cuda': 'PI_CUDA', 'level_zero': 'PI_LEVEL_ZERO'}[backend]) )
+config.substitutions.append( ('%sycl_be', { 'opencl': 'PI_OPENCL',  'cuda': 'PI_CUDA', 'level_zero': 'PI_LEVEL_ZERO', 'esimd_cpu': 'PI_ESIMD_CPU'}[backend]) )
 config.substitutions.append( ('%BE_RUN_PLACEHOLDER', "env SYCL_DEVICE_FILTER={SYCL_PLUGIN} ".format(SYCL_PLUGIN=backend)) )
 config.substitutions.append( ('%RUN_ON_HOST', "env SYCL_DEVICE_FILTER=host ") )
 
@@ -86,6 +86,7 @@ get_device_count_by_type_path = os.path.join(config.llvm_tools_dir, "get_device_
 def getDeviceCount(device_type):
     is_cuda = False;
     is_level_zero = False;
+    is_esimd_cpu = False;
     process = subprocess.Popen([get_device_count_by_type_path, device_type, backend],
         stdout=subprocess.PIPE)
     (output, err) = process.communicate()
@@ -111,11 +112,12 @@ def getDeviceCount(device_type):
             is_cuda = True;
         if re.match(r".*level zero", result[1]):
             is_level_zero = True;
-
+        if re.match(r".*esimd cpu", result[1]):
+            is_esimd_cpu = True;
     if err:
         lit_config.warning("getDeviceCount {TYPE} {BACKEND} stderr:{ERR}".format(
             TYPE=device_type, BACKEND=backend, ERR=err))
-    return [value,is_cuda,is_level_zero]
+    return [value,is_cuda,is_level_zero,is_esimd_cpu]
 
 # Every SYCL implementation provides a host implementation.
 config.available_features.add('host')
@@ -154,7 +156,8 @@ gpu_check_on_linux_substitute = ""
 
 cuda = False
 level_zero = False
-[gpu_count, cuda, level_zero] = getDeviceCount("gpu")
+esimd_cpu = False
+[gpu_count, cuda, level_zero, esimd_cpu] = getDeviceCount("gpu")
 
 if gpu_count > 0:
     found_at_least_one_device = True
@@ -166,14 +169,18 @@ if gpu_count > 0:
        config.available_features.add('cuda')
     elif level_zero:
        config.available_features.add('level_zero')
+    elif esimd_cpu:
+       config.available_features.add('esimd_cpu')
 
     if platform.system() == "Linux":
         gpu_run_on_linux_substitute = "env SYCL_DEVICE_FILTER={SYCL_PLUGIN}:gpu ".format(SYCL_PLUGIN=backend)
         gpu_check_on_linux_substitute = "| FileCheck %s"
     # ESIMD-specific setup. Requires OpenCL for now.
     esimd_run_substitute = " env SYCL_DEVICE_FILTER=opencl:gpu SYCL_PROGRAM_COMPILE_OPTIONS=-vc-codegen"
+    esimd_cpu_emu_run_substitute = " env SYCL_DEVICE_FILTER=esimd_cpu:gpu CM_RT_PLATFORM=skl"
     config.substitutions.append( ('%ESIMD_RUN_PLACEHOLDER',  esimd_run_substitute) )
-    config.substitutions.append( ('%clangxx-esimd',  "clang++ -fsycl-explicit-simd" ) )
+    config.substitutions.append( ('%clangxx-esimd',  "clang++ -fsycl-explicit-simd -lcm" ) )
+    config.substitutions.append( ('%ESIMD_CPU_EMU_RUN_PLACEHOLDER',  esimd_cpu_emu_run_substitute) )
 else:
     lit_config.warning("GPU device not found")
 

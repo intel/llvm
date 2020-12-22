@@ -18,7 +18,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-enum class backend : char { host, opencl, level_zero, cuda, all };
+enum class backend : char { host, opencl, level_zero, cuda, esimd_cpu, all };
 
 template <backend name, typename SYCLObjectT> struct interop;
 
@@ -35,6 +35,9 @@ inline std::ostream &operator<<(std::ostream &Out, backend be) {
     break;
   case backend::cuda:
     Out << "cuda";
+    break;
+  case backend::esimd_cpu:
+    Out << "esimd_cpu";
     break;
   case backend::all:
     Out << "all";

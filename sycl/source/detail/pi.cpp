@@ -223,11 +223,13 @@ bool findPlugins(vector_class<std::pair<std::string, backend>> &PluginNames) {
     PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
                              backend::level_zero);
     PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::cuda);
+    PluginNames.emplace_back(__SYCL_ESIMD_CPU_PLUGIN_NAME, backend::esimd_cpu);
   } else {
     std::vector<device_filter> Filters = FilterList->get();
     bool OpenCLFound = false;
     bool LevelZeroFound = false;
     bool CudaFound = false;
+    bool ESimdCPUFound = false;
     for (const device_filter &Filter : Filters) {
       backend Backend = Filter.Backend;
       if (!OpenCLFound &&
@@ -244,6 +246,12 @@ bool findPlugins(vector_class<std::pair<std::string, backend>> &PluginNames) {
       if (!CudaFound && (Backend == backend::cuda || Backend == backend::all)) {
         PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::cuda);
         CudaFound = true;
+      }
+      if (!ESimdCPUFound &&
+          (Backend == backend::esimd_cpu || Backend == backend::all)) {
+        PluginNames.emplace_back(__SYCL_ESIMD_CPU_PLUGIN_NAME,
+                                 backend::esimd_cpu);
+        ESimdCPUFound = true;
       }
     }
   }

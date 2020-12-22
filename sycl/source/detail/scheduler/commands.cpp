@@ -1867,7 +1867,8 @@ cl_int ExecCGCommand::enqueueImp() {
 
     NDRDescT &NDRDesc = ExecKernel->MNDRDesc;
 
-    if (MQueue->is_host()) {
+    if (MQueue->is_host() ||
+        (MQueue->getPlugin().getBackend() == backend::esimd_cpu)) {
       for (ArgDesc &Arg : ExecKernel->MArgs)
         if (kernel_param_kind_t::kind_accessor == Arg.MType) {
           Requirement *Req = (Requirement *)(Arg.MPtr);
@@ -1879,9 +1880,23 @@ cl_int ExecCGCommand::enqueueImp() {
         const detail::plugin &Plugin = EventImpls[0]->getPlugin();
         Plugin.call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
       }
-      ExecKernel->MHostKernel->call(NDRDesc,
-                                    getEvent()->getHostProfilingInfo());
-
+// TODO: remove __SYCL_EXPLICIT_SIMD_PLUGIN_DEPRECATED__ once PI
+// piEnqueueHostKernelLaunch is stable.
+#ifndef __SYCL_EXPLICIT_SIMD_PLUGIN_DEPRECATED__
+      if (MQueue->is_host()) {
+#endif
+	ExecKernel->MHostKernel->call(NDRDesc,
+				      getEvent()->getHostProfilingInfo());
+#ifndef __SYCL_EXPLICIT_SIMD_PLUGIN_DEPRECATED__
+      } else {
+	assert(MQueue->getPlugin().getBackend() == backend::esimd_cpu);
+	MQueue->getPlugin().call<PiApiKind::piEnqueueHostKernelLaunch>(
+          MQueue->getHandleRef(), ExecKernel->MHostKernel->getKernel(),
+          ExecKernel->MHostKernel->getArgType(), NDRDesc.Dims,
+          &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
+          &NDRDesc.LocalSize[0], 0, nullptr, nullptr);
+      }
+#endif
       return CL_SUCCESS;
     }
 

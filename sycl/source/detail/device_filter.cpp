@@ -24,11 +24,12 @@ device_filter::device_filter(const std::string &FilterString) {
                             {"gpu", info::device_type::gpu},
                             {"acc", info::device_type::accelerator},
                             {"*", info::device_type::all}}};
-  const std::array<std::pair<std::string, backend>, 5> SyclBeMap = {
+  const std::array<std::pair<std::string, backend>, 6> SyclBeMap = {
       {{"host", backend::host},
        {"opencl", backend::opencl},
        {"level_zero", backend::level_zero},
        {"cuda", backend::cuda},
+       {"esimd_cpu", backend::esimd_cpu},
        {"*", backend::all}}};
 
   size_t Cursor = 0;
@@ -88,7 +89,8 @@ device_filter::device_filter(const std::string &FilterString) {
     } catch (...) {
       std::string Message =
           std::string("Invalid device filter: ") + FilterString +
-          "\nPossible backend values are {host,opencl,level_zero,cuda,*}.\n"
+          "\nPossible backend values are "
+          "{host,opencl,level_zero,cuda,esimd_cpu,*}.\n"
           "Possible device types are {host,cpu,gpu,acc,*}.\n"
           "Device number should be an non-negative integer.\n";
       throw cl::sycl::invalid_parameter_error(Message, PI_INVALID_VALUE);

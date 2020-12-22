@@ -3297,6 +3297,16 @@ pi_result piKernelRelease(pi_kernel Kernel) {
   return PI_SUCCESS;
 }
 
+pi_result piEnqueueHostKernelLaunch(
+    pi_queue Queue, void *Kernel, pi_host_kernel_arg_type ArgType,
+    pi_uint32 WorkDim, const size_t *GlobalWorkOffset,
+    const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+    pi_uint32 NumEventsInWaitList, const pi_event *EventWaitList,
+    pi_event *Event) {
+  die("piEnqueueHostKernel: not implemented");
+  return {};
+}
+
 pi_result
 piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
                       const size_t *GlobalWorkOffset,
