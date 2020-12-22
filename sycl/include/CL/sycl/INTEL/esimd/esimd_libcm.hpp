@@ -138,7 +138,6 @@ public:
   }
 
 private:
-
   template <class ArgT = KernelArgType>
   typename std::enable_if<std::is_same<ArgT, sycl::id<1>>::value>::type run() {
     struct LambdaWrapper_ID_1DIM *wrappedLambda_ID_1DIM =
