@@ -8143,13 +8143,13 @@ void TCETargetCodeGenInfo::setTargetAttributes(
         Operands.push_back(llvm::ConstantAsMetadata::get(F));
         unsigned XDim = Attr->getXDim()
                             ->EvaluateKnownConstInt(M.getContext())
-                            .getExtValue();
+                            .getZExtValue();
         unsigned YDim = Attr->getYDim()
                             ->EvaluateKnownConstInt(M.getContext())
-                            .getExtValue();
+                            .getZExtValue();
         unsigned ZDim = Attr->getZDim()
                             ->EvaluateKnownConstInt(M.getContext())
-                            .getExtValue();
+                            .getZExtValue();
 
         Operands.push_back(llvm::ConstantAsMetadata::get(
             llvm::Constant::getIntegerValue(M.Int32Ty, llvm::APInt(32, XDim))));
@@ -9050,13 +9050,13 @@ void AMDGPUTargetCodeGenInfo::setTargetAttributes(
     if (ReqdWGS) {
       XDim = ReqdWGS->getXDim()
                  ->EvaluateKnownConstInt(M.getContext())
-                 .getExtValue();
+                 .getZExtValue();
       YDim = ReqdWGS->getYDim()
                  ->EvaluateKnownConstInt(M.getContext())
-                 .getExtValue();
+                 .getZExtValue();
       ZDim = ReqdWGS->getZDim()
                  ->EvaluateKnownConstInt(M.getContext())
-                 .getExtValue();
+                 .getZExtValue();
     }
     if (ReqdWGS && Min == 0 && Max == 0)
       Min = Max = XDim * YDim * ZDim;

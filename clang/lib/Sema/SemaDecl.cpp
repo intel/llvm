@@ -3207,21 +3207,17 @@ static void checkDimensionsAndSetDiagnostics(Sema &S, FunctionDecl *New,
   if (!NewDeclAttr || !OldDeclAttr)
     return;
 
-  unsigned NewXDimVal =
-      NewDeclAttr->getXDim()->getIntegerConstantExpr(S.Context)->getZExtValue();
-  unsigned NewYDimVal =
-      NewDeclAttr->getYDim()->getIntegerConstantExpr(S.Context)->getZExtValue();
-  unsigned NewZDimVal =
-      NewDeclAttr->getZDim()->getIntegerConstantExpr(S.Context)->getZExtValue();
-  unsigned OldXDimVal =
-      OldDeclAttr->getXDim()->getIntegerConstantExpr(S.Context)->getZExtValue();
-  unsigned OldYDimVal =
-      OldDeclAttr->getYDim()->getIntegerConstantExpr(S.Context)->getZExtValue();
-  unsigned OldZDimVal =
-      OldDeclAttr->getZDim()->getIntegerConstantExpr(S.Context)->getZExtValue();
+  /// Returns the usigned constant integer value represented by given expression.
+  auto getExprValue = [](const Expr *E, ASTContext &Ctx) {
+    return E->getIntegerConstantExpr(Ctx)->getZExtValue();
+  };
 
-  if ((NewXDimVal != OldXDimVal) || (NewYDimVal != OldYDimVal) ||
-      (NewZDimVal != OldZDimVal)) {
+  if ((getExprValue(NewDeclAttr->getXDim(), S.getASTContext()) !=
+       getExprValue(OldDeclAttr->getXDim(), S.getASTContext())) ||
+      (getExprValue(NewDeclAttr->getYDim(), S.getASTContext()) !=
+       getExprValue(OldDeclAttr->getYDim(), S.getASTContext())) ||
+      (getExprValue(NewDeclAttr->getZDim(), S.getASTContext()) !=
+       getExprValue(OldDeclAttr->getZDim(), S.getASTContext()))) {
     S.Diag(New->getLocation(), diag::err_conflicting_sycl_function_attributes)
         << OldDeclAttr << NewDeclAttr;
     S.Diag(New->getLocation(), diag::warn_duplicate_attribute) << OldDeclAttr;
