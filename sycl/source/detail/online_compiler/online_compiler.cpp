@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/INTEL/online_compiler.hpp>
-#include <CL/sycl/detail/defines_elementary.hpp> // for __SYCL_INLINE_NAMESPACE
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
 
@@ -40,6 +39,8 @@ prepareOclocArgs(sycl::info::device_type DeviceType, device_arch DeviceArch,
       Args.push_back("skl");
     }
   } else {
+    // TODO: change that to generic device when ocloc adds support for it.
+    // For now "skl" is used as the lowest arch with GEN9 arch.
     Args.push_back("skl");
   }
 
@@ -58,6 +59,20 @@ prepareOclocArgs(sycl::info::device_type DeviceType, device_arch DeviceArch,
   return Args;
 }
 
+/// Compiles the given source \p Source to SPIR-V IL and returns IL as a vector
+/// of bytes.
+/// @param Source - Either OpenCL or CM source code.
+/// @param DeviceType - SYCL device type, e.g. cpu, gpu, accelerator, etc.
+/// @param DeviceArch - More detailed info on the target device architecture.
+/// @param Is64Bit - If set to true, specifies the 64-bit architecture.
+///                  Otherwise, 32-bit is assumed.
+/// @param DeviceStepping - implementation specific target device stepping.
+/// @param CompileToSPIRVHandle - Output parameter. It is set to the address
+///                               of the library function doing the compilation.
+/// @param FreeSPIRVOutputsHandle - Output parameter. It is set to the address
+///                                 of the library function freeing memory
+///                                 allocated during the compilation.
+/// @param UserArgs - User's options to ocloc compiler.
 static std::vector<byte>
 compileToSPIRV(const std::string &Source, sycl::info::device_type DeviceType,
                device_arch DeviceArch, bool Is64Bit,
@@ -67,14 +82,14 @@ compileToSPIRV(const std::string &Source, sycl::info::device_type DeviceType,
 
   if (!CompileToSPIRVHandle) {
 #ifdef __SYCL_RT_OS_WINDOWS
-    std::string OclocLibraryName = "ocloc64.dll";
+    static const std::string OclocLibraryName = "ocloc64.dll";
 #else
-    std::string OclocLibraryName = "libocloc.so";
+    static const std::string OclocLibraryName = "libocloc.so";
 #endif
     void *OclocLibrary = sycl::detail::pi::loadOsLibrary(OclocLibraryName);
     if (!OclocLibrary)
-      throw online_compile_error("Cannot load ocloc library");
-
+      throw online_compile_error("Cannot load ocloc library: " +
+                                 OclocLibraryName);
     void *OclocVersionHandle =
         sycl::detail::pi::getOsLibraryFuncAddress(OclocLibrary, "oclocVersion");
     // The initial versions of ocloc library did not have the oclocVersion()
@@ -132,7 +147,7 @@ compileToSPIRV(const std::string &Source, sycl::info::device_type DeviceType,
 
   decltype(::oclocInvoke) *OclocInvokeFunc =
       reinterpret_cast<decltype(::oclocInvoke) *>(CompileToSPIRVHandle);
-  int Error =
+  int CompileError =
       OclocInvokeFunc(Args.size(), Args.data(), 1, Sources, SourceLengths,
                       &SourceName, 0, nullptr, nullptr, nullptr, &NumOutputs,
                       &Outputs, &OutputLengths, &OutputNames);
@@ -142,7 +157,8 @@ compileToSPIRV(const std::string &Source, sycl::info::device_type DeviceType,
   size_t SpirVSize = 0;
   for (uint32_t I = 0; I < NumOutputs; I++) {
     size_t NameLen = strlen(OutputNames[I]);
-    if (NameLen >= 4 && strstr(OutputNames[I], ".spv") != nullptr) {
+    if (NameLen >= 4 && strstr(OutputNames[I], ".spv") != nullptr &&
+        Outputs[I] != nullptr) {
       SpirVSize = OutputLengths[I];
       SpirV = new byte[SpirVSize];
       std::memcpy(SpirV, Outputs[I], SpirVSize);
@@ -151,16 +167,19 @@ compileToSPIRV(const std::string &Source, sycl::info::device_type DeviceType,
     }
   }
 
-  if (Error)
-    throw online_compile_error("ocloc reported compilation errors {" +
-                               CompileLog + "}");
-
+  // Try to free memory before reporting possible error.
   decltype(::oclocFreeOutput) *OclocFreeOutputFunc =
       reinterpret_cast<decltype(::oclocFreeOutput) *>(FreeSPIRVOutputsHandle);
-  Error =
+  int MemFreeError =
       OclocFreeOutputFunc(&NumOutputs, &Outputs, &OutputLengths, &OutputNames);
 
-  if (Error)
+  if (CompileError)
+    throw online_compile_error("ocloc reported compilation errors: {\n" +
+                               CompileLog + "\n}");
+  if (!SpirV)
+    throw online_compile_error(
+        "Unexpected output: ocloc did not return SPIR-V");
+  if (MemFreeError)
     throw online_compile_error("ocloc cannot safely free resources");
 
   return std::vector<byte>(SpirV, SpirV + SpirVSize);

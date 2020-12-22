@@ -4,6 +4,10 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
+// This test checks INTEL feature class online_compiler for Level-Zero.
+// All Level-Zero specific code is kept here and the common part that can be
+// re-used by other backends is kept in online_compiler_common.hpp file.
+
 #include <CL/sycl.hpp>
 #include <CL/sycl/INTEL/online_compiler.hpp>
 
@@ -36,8 +40,7 @@ sycl::kernel getSYCLKernelWithIL(sycl::context &Context,
   ze_result_t ZeResult = zeModuleCreate(ZeContext, ZeDevice, &ZeModuleDesc,
                                         &ZeModule, &ZeBuildLog);
   if (ZeResult != ZE_RESULT_SUCCESS)
-    throw sycl::INTEL::online_compile_error(std::string("ZeResult = ") +
-                                            std::to_string(ZeResult));
+    throw sycl::runtime_error();
   sycl::program SyclProgram =
       sycl::level_zero::make<sycl::program>(Context, ZeModule);
   return SyclProgram.get_kernel("my_kernel");

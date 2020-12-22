@@ -82,8 +82,8 @@ public:
   /// device capabilities are supported by the target device(s).
   online_compiler(compiled_code_format fmt = compiled_code_format::spir_v)
       : OutputFormat(fmt), OutputFormatVersion({0, 0}),
-        DeviceType(sycl::info::device_type::all),
-        DeviceArch(device_arch::any), Is64Bit(true), DeviceStepping("") {}
+        DeviceType(sycl::info::device_type::all), DeviceArch(device_arch::any),
+        Is64Bit(true), DeviceStepping("") {}
 
   /// Constructs online compiler which targets given architecture and produces
   /// given compiled code format. Produces 64-bit device code.
@@ -111,7 +111,7 @@ public:
   /// can be different for different languages.
   /// Throws online_compile_error if compilation is not successful.
   template <typename... Tys>
-  std::vector<byte> compile(const std::string &src, const Tys &... args);
+  std::vector<byte> compile(const std::string &src, const Tys &...args);
 
   /// Sets the compiled code format of the compilation target and returns *this.
   online_compiler<Lang> &setOutputFormat(compiled_code_format fmt) {

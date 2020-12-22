@@ -43,14 +43,8 @@ void testSyclKernel(sycl::queue &Q, sycl::kernel Kernel) {
    }).wait();
 
   auto Out = OutputBuf.get_access<sycl::access::mode::read>();
-  for (int I = 0; I < N; I++) {
+  for (int I = 0; I < N; I++)
     std::cout << I << "*2 + 100 = " << Out[I] << "\n";
-  }
-}
-
-template <cl::sycl::INTEL::source_language Lang>
-void doCompileAndRunTest(const std::string &Source) {
-  online_compiler<Lang> Compiler;
 }
 
 int main(int argc, char **argv) {
@@ -65,9 +59,9 @@ int main(int argc, char **argv) {
     try {
       IL = Compiler.compile(
           std::string(CLSource),
-          // Intentionally use one option twice.
+          // Pass two options to check that more than one is accepted.
           std::vector<std::string>{std::string("-cl-fast-relaxed-math"),
-                                   std::string("-cl-fast-relaxed-math")});
+                                   std::string("-cl-finite-math-only")});
       std::cout << "IL size = " << IL.size() << "\n";
       assert(IL.size() > 0 && "Unexpected IL size");
     } catch (sycl::exception &e) {
@@ -125,6 +119,8 @@ int main(int argc, char **argv) {
         std::cerr << "Unexpected exception: " << Msg << "\n";
     }
     assert(TestPassed && "Failed to throw an exception for syntax error");
+    if (!TestPassed)
+      return 1;
   }
 
   { // Compile a good CL source using unrecognized compilation options.
@@ -146,6 +142,8 @@ int main(int argc, char **argv) {
     }
     assert(TestPassed &&
            "Failed to throw an exception for unrecognized option");
+    if (!TestPassed)
+      return 1;
   }
 
   { // Try compiling CM source with OpenCL compiler.
@@ -164,8 +162,10 @@ int main(int argc, char **argv) {
         std::cerr << "Unexpected exception: " << Msg << "\n";
     }
     assert(TestPassed && "Failed to throw an exception for wrong program");
+    if (!TestPassed)
+      return 1;
   }
 
-  std::cout << "\nTest passed.\n";
+  std::cout << "\nAll test cases passed.\n";
   return 0;
 }
