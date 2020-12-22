@@ -324,7 +324,7 @@ RelExpr X86_64::getRelExpr(RelType type, const Symbol &s,
   case R_X86_64_DTPOFF64:
     return R_DTPREL;
   case R_X86_64_TPOFF32:
-    return R_TLS;
+    return R_TPREL;
   case R_X86_64_TLSDESC_CALL:
     return R_TLSDESC_CALL;
   case R_X86_64_TLSLD:
@@ -828,7 +828,8 @@ static void relaxGotNoPic(uint8_t *loc, uint64_t val, uint8_t op,
   write32le(loc, val);
 }
 
-void X86_64::relaxGot(uint8_t *loc, const Relocation &, uint64_t val) const {
+void X86_64::relaxGot(uint8_t *loc, const Relocation &rel, uint64_t val) const {
+  checkInt(loc, val, 32, rel);
   const uint8_t op = loc[-2];
   const uint8_t modRm = loc[-1];
 

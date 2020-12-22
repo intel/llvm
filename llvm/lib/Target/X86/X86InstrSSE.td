@@ -1242,7 +1242,8 @@ def : InstAlias<"cvtsd2si{q}\t{$src, $dst|$dst, $src}",
 /// SSE 2 Only
 
 // Convert scalar double to scalar single
-let isCodeGenOnly = 1, hasSideEffects = 0, Predicates = [UseAVX] in {
+let isCodeGenOnly = 1, hasSideEffects = 0, Predicates = [UseAVX],
+    ExeDomain = SSEPackedSingle in {
 def VCVTSD2SSrr  : VSDI<0x5A, MRMSrcReg, (outs FR32:$dst),
                         (ins FR32:$src1, FR64:$src2),
                         "cvtsd2ss\t{$src2, $src1, $dst|$dst, $src1, $src2}", []>,
@@ -1260,7 +1261,7 @@ def : Pat<(f32 (any_fpround FR64:$src)),
             (VCVTSD2SSrr (f32 (IMPLICIT_DEF)), FR64:$src)>,
           Requires<[UseAVX]>;
 
-let isCodeGenOnly = 1 in {
+let isCodeGenOnly = 1, ExeDomain = SSEPackedSingle in {
 def CVTSD2SSrr  : SDI<0x5A, MRMSrcReg, (outs FR32:$dst), (ins FR64:$src),
                       "cvtsd2ss\t{$src, $dst|$dst, $src}",
                       [(set FR32:$dst, (any_fpround FR64:$src))]>,
@@ -1272,7 +1273,7 @@ def CVTSD2SSrm  : I<0x5A, MRMSrcMem, (outs FR32:$dst), (ins f64mem:$src),
                     Sched<[WriteCvtSD2SS.Folded]>, SIMD_EXC;
 }
 
-let Uses = [MXCSR], mayRaiseFPException = 1 in {
+let Uses = [MXCSR], mayRaiseFPException = 1, ExeDomain = SSEPackedSingle in {
 def VCVTSD2SSrr_Int: I<0x5A, MRMSrcReg,
                        (outs VR128:$dst), (ins VR128:$src1, VR128:$src2),
                        "vcvtsd2ss\t{$src2, $src1, $dst|$dst, $src1, $src2}",
@@ -1306,7 +1307,7 @@ def CVTSD2SSrm_Int: I<0x5A, MRMSrcMem,
 
 // Convert scalar single to scalar double
 // SSE2 instructions with XS prefix
-let isCodeGenOnly = 1, hasSideEffects = 0 in {
+let isCodeGenOnly = 1, hasSideEffects = 0, ExeDomain = SSEPackedSingle in {
 def VCVTSS2SDrr : I<0x5A, MRMSrcReg, (outs FR64:$dst),
                     (ins FR64:$src1, FR32:$src2),
                     "vcvtss2sd\t{$src2, $src1, $dst|$dst, $src1, $src2}", []>,
@@ -1326,7 +1327,7 @@ def : Pat<(f64 (any_fpextend FR32:$src)),
 def : Pat<(any_fpextend (loadf32 addr:$src)),
     (VCVTSS2SDrm (f64 (IMPLICIT_DEF)), addr:$src)>, Requires<[UseAVX, OptForSize]>;
 
-let isCodeGenOnly = 1 in {
+let isCodeGenOnly = 1, ExeDomain = SSEPackedSingle in {
 def CVTSS2SDrr : I<0x5A, MRMSrcReg, (outs FR64:$dst), (ins FR32:$src),
                    "cvtss2sd\t{$src, $dst|$dst, $src}",
                    [(set FR64:$dst, (any_fpextend FR32:$src))]>,
@@ -1338,7 +1339,8 @@ def CVTSS2SDrm : I<0x5A, MRMSrcMem, (outs FR64:$dst), (ins f32mem:$src),
                    Sched<[WriteCvtSS2SD.Folded]>, SIMD_EXC;
 } // isCodeGenOnly = 1
 
-let hasSideEffects = 0, Uses = [MXCSR], mayRaiseFPException = 1 in {
+let hasSideEffects = 0, Uses = [MXCSR], mayRaiseFPException = 1,
+    ExeDomain = SSEPackedSingle in {
 def VCVTSS2SDrr_Int: I<0x5A, MRMSrcReg,
                       (outs VR128:$dst), (ins VR128:$src1, VR128:$src2),
                     "vcvtss2sd\t{$src2, $src1, $dst|$dst, $src1, $src2}",
@@ -7014,22 +7016,19 @@ def VBROADCASTF128 : AVX8I<0x1A, MRMSrcMem, (outs VR256:$dst),
                            Sched<[SchedWriteFShuffle.XMM.Folded]>, VEX, VEX_L;
 
 let Predicates = [HasAVX, NoVLX] in {
-def : Pat<(v4f64 (X86SubVBroadcast (loadv2f64 addr:$src))),
+def : Pat<(v4f64 (X86SubVBroadcastld128 addr:$src)),
           (VBROADCASTF128 addr:$src)>;
-def : Pat<(v8f32 (X86SubVBroadcast (loadv4f32 addr:$src))),
+def : Pat<(v8f32 (X86SubVBroadcastld128 addr:$src)),
           (VBROADCASTF128 addr:$src)>;
-}
-
 // NOTE: We're using FP instructions here, but execution domain fixing can
 // convert to integer when profitable.
-let Predicates = [HasAVX, NoVLX] in {
-def : Pat<(v4i64 (X86SubVBroadcast (loadv2i64 addr:$src))),
+def : Pat<(v4i64 (X86SubVBroadcastld128 addr:$src)),
           (VBROADCASTF128 addr:$src)>;
-def : Pat<(v8i32 (X86SubVBroadcast (loadv4i32 addr:$src))),
+def : Pat<(v8i32 (X86SubVBroadcastld128 addr:$src)),
           (VBROADCASTF128 addr:$src)>;
-def : Pat<(v16i16 (X86SubVBroadcast (loadv8i16 addr:$src))),
+def : Pat<(v16i16 (X86SubVBroadcastld128 addr:$src)),
           (VBROADCASTF128 addr:$src)>;
-def : Pat<(v32i8 (X86SubVBroadcast (loadv16i8 addr:$src))),
+def : Pat<(v32i8 (X86SubVBroadcastld128 addr:$src)),
           (VBROADCASTF128 addr:$src)>;
 }
 
@@ -7205,6 +7204,26 @@ defm VPDPBUSD   : avx_vnni_rm<0x50, "vpdpbusd", X86Vpdpbusd, 0>, ExplicitVEXPref
 defm VPDPBUSDS  : avx_vnni_rm<0x51, "vpdpbusds", X86Vpdpbusds, 0>, ExplicitVEXPrefix;
 defm VPDPWSSD   : avx_vnni_rm<0x52, "vpdpwssd",  X86Vpdpwssd, 1>, ExplicitVEXPrefix;
 defm VPDPWSSDS  : avx_vnni_rm<0x53, "vpdpwssds", X86Vpdpwssds, 1>, ExplicitVEXPrefix;
+
+def X86vpmaddwd_su : PatFrag<(ops node:$lhs, node:$rhs),
+                             (X86vpmaddwd node:$lhs, node:$rhs), [{
+  return N->hasOneUse();
+}]>;
+
+let Predicates = [HasAVXVNNI, NoVLX_Or_NoVNNI] in {
+  def : Pat<(v8i32 (add VR256:$src1,
+                        (X86vpmaddwd_su VR256:$src2, VR256:$src3))),
+            (VPDPWSSDYrr VR256:$src1, VR256:$src2, VR256:$src3)>;
+  def : Pat<(v8i32 (add VR256:$src1,
+                        (X86vpmaddwd_su VR256:$src2, (load addr:$src3)))),
+            (VPDPWSSDYrm VR256:$src1, VR256:$src2, addr:$src3)>;
+  def : Pat<(v4i32 (add VR128:$src1,
+                        (X86vpmaddwd_su VR128:$src2, VR128:$src3))),
+            (VPDPWSSDrr VR128:$src1, VR128:$src2, VR128:$src3)>;
+  def : Pat<(v4i32 (add VR128:$src1,
+                        (X86vpmaddwd_su VR128:$src2, (load addr:$src3)))),
+            (VPDPWSSDrm VR128:$src1, VR128:$src2, addr:$src3)>;
+}
 
 //===----------------------------------------------------------------------===//
 // VPERMIL - Permute Single and Double Floating-Point Values
@@ -7807,37 +7826,6 @@ let Predicates = [HasAVX2] in {
   defm : maskmov_lowering<"VPMASKMOVQY", VR256, v4i64, v4i64>;
   defm : maskmov_lowering<"VPMASKMOVD", VR128, v4i32, v4i32>;
   defm : maskmov_lowering<"VPMASKMOVQ", VR128, v2i64, v2i64>;
-}
-
-//===----------------------------------------------------------------------===//
-// SubVector Broadcasts
-// Provide fallback in case the load node that is used in the patterns above
-// is used by additional users, which prevents the pattern selection.
-
-let Predicates = [HasAVX, NoVLX] in {
-def : Pat<(v4f64 (X86SubVBroadcast (v2f64 VR128:$src))),
-          (VINSERTF128rr (INSERT_SUBREG (v4f64 (IMPLICIT_DEF)), VR128:$src, sub_xmm),
-                         (v2f64 VR128:$src), 1)>;
-def : Pat<(v8f32 (X86SubVBroadcast (v4f32 VR128:$src))),
-          (VINSERTF128rr (INSERT_SUBREG (v8f32 (IMPLICIT_DEF)), VR128:$src, sub_xmm),
-                         (v4f32 VR128:$src), 1)>;
-}
-
-// NOTE: We're using FP instructions here, but execution domain fixing can
-// convert to integer when profitable.
-let Predicates = [HasAVX, NoVLX] in {
-def : Pat<(v4i64 (X86SubVBroadcast (v2i64 VR128:$src))),
-          (VINSERTF128rr (INSERT_SUBREG (v4i64 (IMPLICIT_DEF)), VR128:$src, sub_xmm),
-                         (v2i64 VR128:$src), 1)>;
-def : Pat<(v8i32 (X86SubVBroadcast (v4i32 VR128:$src))),
-          (VINSERTF128rr (INSERT_SUBREG (v8i32 (IMPLICIT_DEF)), VR128:$src, sub_xmm),
-                         (v4i32 VR128:$src), 1)>;
-def : Pat<(v16i16 (X86SubVBroadcast (v8i16 VR128:$src))),
-          (VINSERTF128rr (INSERT_SUBREG (v16i16 (IMPLICIT_DEF)), VR128:$src, sub_xmm),
-                         (v8i16 VR128:$src), 1)>;
-def : Pat<(v32i8 (X86SubVBroadcast (v16i8 VR128:$src))),
-          (VINSERTF128rr (INSERT_SUBREG (v32i8 (IMPLICIT_DEF)), VR128:$src, sub_xmm),
-                         (v16i8 VR128:$src), 1)>;
 }
 
 //===----------------------------------------------------------------------===//

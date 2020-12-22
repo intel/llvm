@@ -1575,6 +1575,17 @@ void MicrosoftCXXNameMangler::mangleTemplateArg(const TemplateDecl *TD,
                          cast<NonTypeTemplateParmDecl>(Parm), T);
     break;
   }
+  case TemplateArgument::UncommonValue:
+    Out << "$";
+    if (cast<NonTypeTemplateParmDecl>(Parm)
+            ->getType()
+            ->getContainedDeducedType()) {
+      Out << "M";
+      mangleType(TA.getNonTypeTemplateArgumentType(), SourceRange(), QMM_Drop);
+    }
+    mangleTemplateArgValue(TA.getUncommonValueType(), TA.getAsUncommonValue(),
+                           /*WithScalarType=*/false);
+    break;
   case TemplateArgument::Expression:
     mangleExpression(TA.getAsExpr(), cast<NonTypeTemplateParmDecl>(Parm));
     break;
@@ -2402,7 +2413,7 @@ void MicrosoftCXXNameMangler::mangleType(const BuiltinType *T, Qualifiers,
 #define SVE_TYPE(Name, Id, SingletonId) \
   case BuiltinType::Id:
 #include "clang/Basic/AArch64SVEACLETypes.def"
-#define PPC_MMA_VECTOR_TYPE(Name, Id, Size) \
+#define PPC_VECTOR_TYPE(Name, Id, Size) \
   case BuiltinType::Id:
 #include "clang/Basic/PPCTypes.def"
   case BuiltinType::ShortAccum:

@@ -771,6 +771,13 @@ def note_strncat_wrong_size : Note<
 def warn_assume_side_effects : Warning<
   "the argument to %0 has side effects that will be discarded">,
   InGroup<DiagGroup<"assume">>;
+def warn_assume_attribute_string_unknown : Warning<
+  "unknown assumption string '%0'; attribute is potentially ignored">,
+  InGroup<UnknownAssumption>;
+def warn_assume_attribute_string_unknown_suggested : Warning<
+  "unknown assumption string '%0' may be misspelled; attribute is potentially "
+  "ignored, did you mean '%1'?">,
+  InGroup<MisspelledAssumption>;
 
 def warn_builtin_chk_overflow : Warning<
   "'%0' will always overflow; destination buffer has size %1,"
@@ -4690,8 +4697,6 @@ def err_non_type_template_arg_subobject : Error<
   "non-type template argument refers to subobject '%0'">;
 def err_non_type_template_arg_addr_label_diff : Error<
   "template argument / label address difference / what did you expect?">;
-def err_non_type_template_arg_unsupported : Error<
-  "sorry, non-type template argument of type %0 is not yet supported">;
 def err_template_arg_not_convertible : Error<
   "non-type template argument of type %0 cannot be converted to a value "
   "of type %1">;
@@ -4743,9 +4748,6 @@ def err_template_arg_not_object_or_func : Error<
   "non-type template argument does not refer to an object or function">;
 def err_template_arg_not_pointer_to_member_form : Error<
   "non-type template argument is not a pointer to member constant">;
-def err_template_arg_member_ptr_base_derived_not_supported : Error<
-  "sorry, non-type template argument of pointer-to-member type %1 that refers "
-  "to member %q0 of a different class is not supported yet">;
 def ext_template_arg_extra_parens : ExtWarn<
   "address non-type template argument cannot be surrounded by parentheses">;
 def warn_cxx98_compat_template_arg_extra_parens : Warning<

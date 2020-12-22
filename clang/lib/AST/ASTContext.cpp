@@ -1428,8 +1428,14 @@ void ASTContext::InitBuiltinTypes(const TargetInfo &Target,
 #include "clang/Basic/AArch64SVEACLETypes.def"
   }
 
-  if (Target.getTriple().isPPC64() && Target.hasFeature("mma")) {
-#define PPC_MMA_VECTOR_TYPE(Name, Id, Size) \
+  if (Target.getTriple().isPPC64() &&
+      Target.hasFeature("paired-vector-memops")) {
+    if (Target.hasFeature("mma")) {
+#define PPC_VECTOR_MMA_TYPE(Name, Id, Size) \
+      InitBuiltinType(Id##Ty, BuiltinType::Id);
+#include "clang/Basic/PPCTypes.def"
+    }
+#define PPC_VECTOR_VSX_TYPE(Name, Id, Size) \
     InitBuiltinType(Id##Ty, BuiltinType::Id);
 #include "clang/Basic/PPCTypes.def"
   }
@@ -2166,11 +2172,11 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     Align = 16;                                                                \
     break;
 #include "clang/Basic/AArch64SVEACLETypes.def"
-#define PPC_MMA_VECTOR_TYPE(Name, Id, Size)                                    \
+#define PPC_VECTOR_TYPE(Name, Id, Size)                                        \
   case BuiltinType::Id:                                                        \
-      Width = Size;                                                            \
-      Align = Size;                                                            \
-      break;
+    Width = Size;                                                              \
+    Align = Size;                                                              \
+    break;
 #include "clang/Basic/PPCTypes.def"
     }
     break;
@@ -5389,10 +5395,10 @@ QualType ASTContext::getDecltypeType(Expr *e, QualType UnderlyingType) const {
   DecltypeType *dt;
 
   // C++11 [temp.type]p2:
-  //   If an expression e involves a template parameter, decltype(e) denotes a
-  //   unique dependent type. Two such decltype-specifiers refer to the same
-  //   type only if their expressions are equivalent (14.5.6.1).
-  if (e->isInstantiationDependent()) {
+  //   If an expression e is type-dependent, decltype(e) denotes a unique
+  //   dependent type. Two such decltype-specifiers refer to the same type only
+  //   if their expressions are equivalent (14.5.6.1).
+  if (e->isTypeDependent()) {
     llvm::FoldingSetNodeID ID;
     DependentDecltypeType::Profile(ID, *this, e);
 
@@ -5946,6 +5952,11 @@ ASTContext::getCanonicalTemplateArgument(const TemplateArgument &Arg) const {
 
     case TemplateArgument::Integral:
       return TemplateArgument(Arg, getCanonicalType(Arg.getIntegralType()));
+
+    case TemplateArgument::UncommonValue:
+      return TemplateArgument(*this,
+                              getCanonicalType(Arg.getUncommonValueType()),
+                              Arg.getAsUncommonValue());
 
     case TemplateArgument::Type:
       return TemplateArgument(getCanonicalType(Arg.getAsType()));
@@ -7255,7 +7266,7 @@ static char getObjCEncodingForPrimitiveType(const ASTContext *C,
     case BuiltinType::OCLReserveID:
     case BuiltinType::OCLSampler:
     case BuiltinType::Dependent:
-#define PPC_MMA_VECTOR_TYPE(Name, Id, Size) \
+#define PPC_VECTOR_TYPE(Name, Id, Size) \
     case BuiltinType::Id:
 #include "clang/Basic/PPCTypes.def"
 #define BUILTIN_TYPE(KIND, ID)

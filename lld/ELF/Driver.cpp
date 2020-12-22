@@ -119,7 +119,7 @@ bool elf::link(ArrayRef<const char *> args, bool canExitEarly,
 
   config->progName = args[0];
 
-  driver->main(args);
+  driver->linkerMain(args);
 
   // Exit immediately if we don't need to return to the caller.
   // This saves time because the overhead of calling destructors
@@ -161,10 +161,13 @@ static std::tuple<ELFKind, uint16_t, uint8_t> parseEmulation(StringRef emul) {
           .Case("elf_i386", {ELF32LEKind, EM_386})
           .Case("elf_iamcu", {ELF32LEKind, EM_IAMCU})
           .Case("elf64_sparc", {ELF64BEKind, EM_SPARCV9})
+          .Case("msp430elf", {ELF32LEKind, EM_MSP430})
           .Default({ELFNoneKind, EM_NONE});
 
   if (ret.first == ELFNoneKind)
     error("unknown emulation: " + emul);
+  if (ret.second == EM_MSP430)
+    osabi = ELFOSABI_STANDALONE;
   return std::make_tuple(ret.first, ret.second, osabi);
 }
 
@@ -467,7 +470,7 @@ static void checkZOptions(opt::InputArgList &args) {
       error("unknown -z value: " + StringRef(arg->getValue()));
 }
 
-void LinkerDriver::main(ArrayRef<const char *> argsArr) {
+void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   ELFOptTable parser;
   opt::InputArgList args = parser.parse(argsArr.slice(1));
 

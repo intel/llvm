@@ -62,7 +62,7 @@ class CastOp<string mnemonic, list<OpTrait> traits = []> :
   let printer = [{
     return printStandardCastOp(this->getOperation(), p);
   }];
-  let verifier = [{ return ::verifyCastOp(*this); }];
+  let verifier = [{ return impl::verifyCastOp(*this, areCastCompatible); }];
 
   let hasFolder = 1;
 }
@@ -1388,7 +1388,7 @@ def ConstantOp : Std_Op<"constant",
     [{ build($_builder, $_state, value.getType(), value); }]>];
 
   let extraClassDeclaration = [{
-    Attribute getValue() { return getAttr("value"); }
+    Attribute getValue() { return (*this)->getAttr("value"); }
 
     /// Returns true if a constant operation can be built with the given value
     /// and result type.
@@ -2350,6 +2350,39 @@ def OrOp : IntArithmeticOp<"or", [Commutative]> {
     ```
   }];
   let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// PowFOp
+//===----------------------------------------------------------------------===//
+
+def PowFOp : FloatArithmeticOp<"powf"> {
+  let summary = "floating point raised to the power of operation";
+  let description = [{
+    Syntax:
+
+    ```
+    operation ::= ssa-id `=` `std.powf` ssa-use `,` ssa-use `:` type
+    ```
+
+    The `powf` operation takes two operands and returns one result, each of
+    these is required to be the same type. This type may be a floating point
+    scalar type, a vector whose element type is a floating point type, or a
+    floating point tensor.
+
+    Example:
+
+    ```mlir
+    // Scalar exponentiation.
+    %a = powf %b, %c : f64
+
+    // SIMD pointwise vector exponentiation
+    %f = powf %g, %h : vector<4xf32>
+
+    // Tensor pointwise exponentiation.
+    %x = powf %y, %z : tensor<4x?xbf16>
+    ```
+  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -3393,56 +3426,6 @@ def TanhOp : FloatUnaryOp<"tanh"> {
     %x = tanh %y : tensor<4x?xf8>
     ```
   }];
-}
-
-//===----------------------------------------------------------------------===//
-// TensorCastOp
-//===----------------------------------------------------------------------===//
-
-def TensorCastOp : CastOp<"tensor_cast"> {
-  let summary = "tensor cast operation";
-  let description = [{
-    Syntax:
-
-    ```
-    operation ::= ssa-id `=` `std.tensor_cast` ssa-use `:` type `to` type
-    ```
-
-    Convert a tensor from one type to an equivalent type without changing any
-    data elements. The source and destination types must both be tensor types
-    with the same element type. If both are ranked, then the rank should be the
-    same and static dimensions should match. The operation is invalid if
-    converting to a mismatching constant dimension.
-
-    Example:
-
-    ```mlir
-    // Convert from unknown rank to rank 2 with unknown dimension sizes.
-    %2 = "std.tensor_cast"(%1) : (tensor<*xf32>) -> tensor<?x?xf32>
-    %2 = tensor_cast %1 : tensor<*xf32> to tensor<?x?xf32>
-
-    // Convert to a type with more known dimensions.
-    %3 = "std.tensor_cast"(%2) : (tensor<?x?xf32>) -> tensor<4x?xf32>
-
-    // Discard static dimension and rank information.
-    %4 = "std.tensor_cast"(%3) : (tensor<4x?xf32>) -> tensor<?x?xf32>
-    %5 = "std.tensor_cast"(%4) : (tensor<?x?xf32>) -> tensor<*xf32>
-    ```
-  }];
-
-  let arguments = (ins AnyTensor:$source);
-  let results = (outs AnyTensor);
-
-  let extraClassDeclaration = [{
-    /// Return true if `a` and `b` are valid operand and result pairs for
-    /// the operation.
-    static bool areCastCompatible(Type a, Type b);
-
-    /// The result of a tensor_cast is always a tensor.
-    TensorType getType() { return getResult().getType().cast<TensorType>(); }
-  }];
-
-  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//

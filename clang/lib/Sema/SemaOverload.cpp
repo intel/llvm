@@ -5619,7 +5619,8 @@ static ExprResult CheckConvertedConstantExpression(Sema &S, Expr *From,
                                                    QualType T, APValue &Value,
                                                    Sema::CCEKind CCE,
                                                    bool RequireInt,
-                                                   NamedDecl *Dest) {
+                                                   NamedDecl *Dest,
+                                                   bool *ValueDependent) {
   assert(S.getLangOpts().CPlusPlus11 &&
          "converted constant expression outside C++11");
 
@@ -5743,6 +5744,8 @@ static ExprResult CheckConvertedConstantExpression(Sema &S, Expr *From,
 
   if (Result.get()->isValueDependent()) {
     Value = APValue();
+    if (ValueDependent)
+      *ValueDependent = true;
     return Result;
   }
 
@@ -5766,10 +5769,14 @@ static ExprResult CheckConvertedConstantExpression(Sema &S, Expr *From,
     Result = ExprError();
   } else {
     Value = Eval.Val;
+    if (ValueDependent)
+      *ValueDependent = Eval.Dependent;
 
     if (Notes.empty()) {
       // It's a constant expression.
-      Expr *E = ConstantExpr::Create(S.Context, Result.get(), Value);
+      Expr *E = Result.get();
+      if (!isa<ConstantExpr>(E))
+        E = ConstantExpr::Create(S.Context, Result.get(), Value);
       if (ReturnPreNarrowingValue)
         Value = std::move(PreNarrowingValue);
       return E;
@@ -5796,9 +5803,10 @@ static ExprResult CheckConvertedConstantExpression(Sema &S, Expr *From,
 
 ExprResult Sema::CheckConvertedConstantExpression(Expr *From, QualType T,
                                                   APValue &Value, CCEKind CCE,
-                                                  NamedDecl *Dest) {
+                                                  NamedDecl *Dest,
+                                                  bool *ValueDependent) {
   return ::CheckConvertedConstantExpression(*this, From, T, Value, CCE, false,
-                                            Dest);
+                                            Dest, ValueDependent);
 }
 
 ExprResult Sema::CheckConvertedConstantExpression(Expr *From, QualType T,
@@ -5808,7 +5816,8 @@ ExprResult Sema::CheckConvertedConstantExpression(Expr *From, QualType T,
 
   APValue V;
   auto R = ::CheckConvertedConstantExpression(*this, From, T, V, CCE, true,
-                                              /*Dest=*/nullptr);
+                                              /*Dest=*/nullptr,
+                                              /*ValueDependent=*/nullptr);
   if (!R.isInvalid() && !R.get()->isValueDependent())
     Value = V.getInt();
   return R;
@@ -14300,6 +14309,7 @@ ExprResult Sema::BuildCallToMemberFunction(Scope *S, Expr *MemExprE,
     UnbridgedCasts.restore();
 
     OverloadCandidateSet::iterator Best;
+    bool Succeeded = false;
     switch (CandidateSet.BestViableFunction(*this, UnresExpr->getBeginLoc(),
                                             Best)) {
     case OR_Success:
@@ -14307,7 +14317,7 @@ ExprResult Sema::BuildCallToMemberFunction(Scope *S, Expr *MemExprE,
       FoundDecl = Best->FoundDecl;
       CheckUnresolvedMemberAccess(UnresExpr, Best->FoundDecl);
       if (DiagnoseUseOfDecl(Best->FoundDecl, UnresExpr->getNameLoc()))
-        return ExprError();
+        break;
       // If FoundDecl is different from Method (such as if one is a template
       // and the other a specialization), make sure DiagnoseUseOfDecl is
       // called on both.
@@ -14316,7 +14326,8 @@ ExprResult Sema::BuildCallToMemberFunction(Scope *S, Expr *MemExprE,
       // being used.
       if (Method != FoundDecl.getDecl() &&
                       DiagnoseUseOfDecl(Method, UnresExpr->getNameLoc()))
-        return ExprError();
+        break;
+      Succeeded = true;
       break;
 
     case OR_No_Viable_Function:
@@ -14326,27 +14337,25 @@ ExprResult Sema::BuildCallToMemberFunction(Scope *S, Expr *MemExprE,
               PDiag(diag::err_ovl_no_viable_member_function_in_call)
                   << DeclName << MemExprE->getSourceRange()),
           *this, OCD_AllCandidates, Args);
-      // FIXME: Leaking incoming expressions!
-      return ExprError();
-
+      break;
     case OR_Ambiguous:
       CandidateSet.NoteCandidates(
           PartialDiagnosticAt(UnresExpr->getMemberLoc(),
                               PDiag(diag::err_ovl_ambiguous_member_call)
                                   << DeclName << MemExprE->getSourceRange()),
           *this, OCD_AmbiguousCandidates, Args);
-      // FIXME: Leaking incoming expressions!
-      return ExprError();
-
+      break;
     case OR_Deleted:
       CandidateSet.NoteCandidates(
           PartialDiagnosticAt(UnresExpr->getMemberLoc(),
                               PDiag(diag::err_ovl_deleted_member_call)
                                   << DeclName << MemExprE->getSourceRange()),
           *this, OCD_AllCandidates, Args);
-      // FIXME: Leaking incoming expressions!
-      return ExprError();
+      break;
     }
+    // Overload resolution fails, try to recover.
+    if (!Succeeded)
+      return BuildRecoveryExpr(chooseRecoveryType(CandidateSet, &Best));
 
     MemExprE = FixOverloadedFunctionReference(MemExprE, FoundDecl, Method);
 

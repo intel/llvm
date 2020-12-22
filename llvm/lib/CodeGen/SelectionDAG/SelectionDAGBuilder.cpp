@@ -6183,6 +6183,20 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
                              DAG.getNode(ISD::BITCAST, sdl, MVT::f16,
                                          getValue(I.getArgOperand(0)))));
     return;
+  case Intrinsic::fptosi_sat: {
+    EVT Type = TLI.getValueType(DAG.getDataLayout(), I.getType());
+    SDValue SatW = DAG.getConstant(Type.getScalarSizeInBits(), sdl, MVT::i32);
+    setValue(&I, DAG.getNode(ISD::FP_TO_SINT_SAT, sdl, Type,
+                             getValue(I.getArgOperand(0)), SatW));
+    return;
+  }
+  case Intrinsic::fptoui_sat: {
+    EVT Type = TLI.getValueType(DAG.getDataLayout(), I.getType());
+    SDValue SatW = DAG.getConstant(Type.getScalarSizeInBits(), sdl, MVT::i32);
+    setValue(&I, DAG.getNode(ISD::FP_TO_UINT_SAT, sdl, Type,
+                             getValue(I.getArgOperand(0)), SatW));
+    return;
+  }
   case Intrinsic::pcmarker: {
     SDValue Tmp = getValue(I.getArgOperand(0));
     DAG.setRoot(DAG.getNode(ISD::PCMARKER, sdl, MVT::Other, getRoot(), Tmp));
@@ -9846,14 +9860,6 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
       }
 
       Type *ArgMemTy = nullptr;
-      if (F.getCallingConv() == CallingConv::X86_INTR) {
-        // IA Interrupt passes frame (1st parameter) by value in the stack.
-        if (ArgNo == 0) {
-          Flags.setByVal();
-          // FIXME: Dependence on pointee element type. See bug 46672.
-          ArgMemTy = Arg.getType()->getPointerElementType();
-        }
-      }
       if (Flags.isByVal() || Flags.isInAlloca() || Flags.isPreallocated() ||
           Flags.isByRef()) {
         if (!ArgMemTy)

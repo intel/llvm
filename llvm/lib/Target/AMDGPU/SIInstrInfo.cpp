@@ -25,7 +25,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
-#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/CodeGen/LiveVariables.h"
@@ -70,6 +69,9 @@ using namespace llvm;
 #include "AMDGPUGenInstrInfo.inc"
 
 namespace llvm {
+
+class AAResults;
+
 namespace AMDGPU {
 #define GET_D16ImageDimIntrinsics_IMPL
 #define GET_ImageDimIntrinsicTable_IMPL
@@ -137,7 +139,7 @@ static bool nodesHaveSameOperandValue(SDNode *N0, SDNode* N1, unsigned OpName) {
 }
 
 bool SIInstrInfo::isReallyTriviallyReMaterializable(const MachineInstr &MI,
-                                                    AliasAnalysis *AA) const {
+                                                    AAResults *AA) const {
   // TODO: The generic check fails for VALU instructions that should be
   // rematerializable due to implicit reads of exec. We really want all of the
   // generic logic for this except for this.
@@ -7053,13 +7055,6 @@ bool SIInstrInfo::isBufferSMRD(const MachineInstr &MI) const {
   return RI.getRegClass(RCID)->hasSubClassEq(&AMDGPU::SGPR_128RegClass);
 }
 
-unsigned SIInstrInfo::getNumFlatOffsetBits(bool Signed) const {
-  if (ST.getGeneration() >= AMDGPUSubtarget::GFX10)
-    return Signed ? 12 : 11;
-
-  return Signed ? 13 : 12;
-}
-
 bool SIInstrInfo::isLegalFLATOffset(int64_t Offset, unsigned AddrSpace,
                                     bool Signed) const {
   // TODO: Should 0 be special cased?
@@ -7069,10 +7064,8 @@ bool SIInstrInfo::isLegalFLATOffset(int64_t Offset, unsigned AddrSpace,
   if (ST.hasFlatSegmentOffsetBug() && AddrSpace == AMDGPUAS::FLAT_ADDRESS)
     return false;
 
-  if (ST.getGeneration() >= AMDGPUSubtarget::GFX10)
-    return Signed ? isInt<12>(Offset) : isUInt<11>(Offset);
-
-  return Signed ? isInt<13>(Offset) :isUInt<12>(Offset);
+  unsigned N = AMDGPU::getNumFlatOffsetBits(ST, Signed);
+  return Signed ? isIntN(N, Offset) : isUIntN(N, Offset);
 }
 
 std::pair<int64_t, int64_t> SIInstrInfo::splitFlatOffset(int64_t COffsetVal,
@@ -7080,7 +7073,7 @@ std::pair<int64_t, int64_t> SIInstrInfo::splitFlatOffset(int64_t COffsetVal,
                                                          bool IsSigned) const {
   int64_t RemainderOffset = COffsetVal;
   int64_t ImmField = 0;
-  const unsigned NumBits = getNumFlatOffsetBits(IsSigned);
+  const unsigned NumBits = AMDGPU::getNumFlatOffsetBits(ST, IsSigned);
   if (IsSigned) {
     // Use signed division by a power of two to truncate towards 0.
     int64_t D = 1LL << (NumBits - 1);

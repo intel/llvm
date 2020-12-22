@@ -283,10 +283,9 @@ Instruction *InstCombinerImpl::foldSelectOpOp(SelectInst &SI, Instruction *TI,
     // The select condition may be a vector. We may only change the operand
     // type if the vector width remains the same (and matches the condition).
     if (auto *CondVTy = dyn_cast<VectorType>(CondTy)) {
-      if (!FIOpndTy->isVectorTy())
-        return nullptr;
-      if (cast<FixedVectorType>(CondVTy)->getNumElements() !=
-          cast<FixedVectorType>(FIOpndTy)->getNumElements())
+      if (!FIOpndTy->isVectorTy() ||
+          CondVTy->getElementCount() !=
+              cast<VectorType>(FIOpndTy)->getElementCount())
         return nullptr;
 
       // TODO: If the backend knew how to deal with casts better, we could
@@ -1048,89 +1047,28 @@ static Instruction *canonicalizeMinMaxWithConstant(SelectInst &Sel,
   return &Sel;
 }
 
-/// There are many select variants for each of ABS/NABS.
-/// In matchSelectPattern(), there are different compare constants, compare
-/// predicates/operands and select operands.
-/// In isKnownNegation(), there are different formats of negated operands.
-/// Canonicalize all these variants to 1 pattern.
-/// This makes CSE more likely.
 static Instruction *canonicalizeAbsNabs(SelectInst &Sel, ICmpInst &Cmp,
                                         InstCombinerImpl &IC) {
   if (!Cmp.hasOneUse() || !isa<Constant>(Cmp.getOperand(1)))
     return nullptr;
 
-  // Choose a sign-bit check for the compare (likely simpler for codegen).
-  // ABS:  (X <s 0) ? -X : X
-  // NABS: (X <s 0) ? X : -X
   Value *LHS, *RHS;
   SelectPatternFlavor SPF = matchSelectPattern(&Sel, LHS, RHS).Flavor;
   if (SPF != SelectPatternFlavor::SPF_ABS &&
       SPF != SelectPatternFlavor::SPF_NABS)
     return nullptr;
 
-  Value *TVal = Sel.getTrueValue();
-  Value *FVal = Sel.getFalseValue();
-  assert(isKnownNegation(TVal, FVal) &&
-         "Unexpected result from matchSelectPattern");
+  bool IntMinIsPoison = match(RHS, m_NSWNeg(m_Specific(LHS)));
+  Constant *IntMinIsPoisonC =
+      ConstantInt::get(Type::getInt1Ty(Sel.getContext()), IntMinIsPoison);
+  Instruction *Abs =
+      IC.Builder.CreateBinaryIntrinsic(Intrinsic::abs, LHS, IntMinIsPoisonC);
 
-  // The compare may use the negated abs()/nabs() operand, or it may use
-  // negation in non-canonical form such as: sub A, B.
-  bool CmpUsesNegatedOp = match(Cmp.getOperand(0), m_Neg(m_Specific(TVal))) ||
-                          match(Cmp.getOperand(0), m_Neg(m_Specific(FVal)));
+  if (SPF == SelectPatternFlavor::SPF_NABS)
+    return IntMinIsPoison ? BinaryOperator::CreateNSWNeg(Abs)
+                          : BinaryOperator::CreateNeg(Abs);
 
-  bool CmpCanonicalized = !CmpUsesNegatedOp &&
-                          match(Cmp.getOperand(1), m_ZeroInt()) &&
-                          Cmp.getPredicate() == ICmpInst::ICMP_SLT;
-  bool RHSCanonicalized = match(RHS, m_Neg(m_Specific(LHS)));
-
-  // Is this already canonical?
-  if (CmpCanonicalized && RHSCanonicalized)
-    return nullptr;
-
-  // If RHS is not canonical but is used by other instructions, don't
-  // canonicalize it and potentially increase the instruction count.
-  if (!RHSCanonicalized)
-    if (!(RHS->hasOneUse() || (RHS->hasNUses(2) && CmpUsesNegatedOp)))
-      return nullptr;
-
-  // Create the canonical compare: icmp slt LHS 0.
-  if (!CmpCanonicalized) {
-    Cmp.setPredicate(ICmpInst::ICMP_SLT);
-    Cmp.setOperand(1, ConstantInt::getNullValue(Cmp.getOperand(0)->getType()));
-    if (CmpUsesNegatedOp)
-      Cmp.setOperand(0, LHS);
-  }
-
-  // Create the canonical RHS: RHS = sub (0, LHS).
-  if (!RHSCanonicalized) {
-    assert(RHS->hasOneUse() && "RHS use number is not right");
-    RHS = IC.Builder.CreateNeg(LHS);
-    if (TVal == LHS) {
-      // Replace false value.
-      IC.replaceOperand(Sel, 2, RHS);
-      FVal = RHS;
-    } else {
-      // Replace true value.
-      IC.replaceOperand(Sel, 1, RHS);
-      TVal = RHS;
-    }
-  }
-
-  // If the select operands do not change, we're done.
-  if (SPF == SelectPatternFlavor::SPF_NABS) {
-    if (TVal == LHS)
-      return &Sel;
-    assert(FVal == LHS && "Unexpected results from matchSelectPattern");
-  } else {
-    if (FVal == LHS)
-      return &Sel;
-    assert(TVal == LHS && "Unexpected results from matchSelectPattern");
-  }
-
-  // We are swapping the select operands, so swap the metadata too.
-  Sel.swapValues();
-  Sel.swapProfMetadata();
-  return &Sel;
+  return IC.replaceInstUsesWith(Sel, Abs);
 }
 
 /// If we have a select with an equality comparison, then we know the value in
@@ -1986,11 +1924,11 @@ Instruction *InstCombinerImpl::foldSelectExtConst(SelectInst &Sel) {
 static Instruction *canonicalizeSelectToShuffle(SelectInst &SI) {
   Value *CondVal = SI.getCondition();
   Constant *CondC;
-  if (!CondVal->getType()->isVectorTy() || !match(CondVal, m_Constant(CondC)))
+  auto *CondValTy = dyn_cast<FixedVectorType>(CondVal->getType());
+  if (!CondValTy || !match(CondVal, m_Constant(CondC)))
     return nullptr;
 
-  unsigned NumElts =
-      cast<FixedVectorType>(CondVal->getType())->getNumElements();
+  unsigned NumElts = CondValTy->getNumElements();
   SmallVector<int, 16> Mask;
   Mask.reserve(NumElts);
   for (unsigned i = 0; i != NumElts; ++i) {
