@@ -1885,12 +1885,12 @@ cl_int ExecCGCommand::enqueueImp() {
 #ifndef __SYCL_EXPLICIT_SIMD_PLUGIN_DEPRECATED__
       if (MQueue->is_host()) {
 #endif
-	ExecKernel->MHostKernel->call(NDRDesc,
-				      getEvent()->getHostProfilingInfo());
+        ExecKernel->MHostKernel->call(NDRDesc,
+                                      getEvent()->getHostProfilingInfo());
 #ifndef __SYCL_EXPLICIT_SIMD_PLUGIN_DEPRECATED__
       } else {
-	assert(MQueue->getPlugin().getBackend() == backend::esimd_cpu);
-	MQueue->getPlugin().call<PiApiKind::piEnqueueHostKernelLaunch>(
+        assert(MQueue->getPlugin().getBackend() == backend::esimd_cpu);
+        MQueue->getPlugin().call<PiApiKind::piEnqueueHostKernelLaunch>(
           MQueue->getHandleRef(), ExecKernel->MHostKernel->getKernel(),
           ExecKernel->MHostKernel->getArgType(), NDRDesc.Dims,
           &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
