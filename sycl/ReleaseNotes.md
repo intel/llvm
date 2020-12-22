@@ -15,13 +15,12 @@ Release notes for commit range 5d7e0925..50b81c3cd6e9
    incorrect work of scatter/gather of 1- and 2-byte values [d2d20d6c4556]
  - Rename FPGA kernel attribute `[[intel::stall_enable]]` to
    `[[intel::use_stall_enable_clusters]]` [dab9debebe70]
- - Add template parameter support for `[[intel::max_global_work_dim]]`
-   attribute [bd8fcc7dee34]
+ - Add template parameter support for `[[intel::max_global_work_dim]]` and
+   `[[intel::no_global_work_offset]]` attributes [bd8fcc7dee34, a5fde5a924ac]
  - Remove partial-link path when dealing with fat static archives [f1aa7f4d8b79]
  - Remove unused device library function definitions from linked program
    [e9423ffdec92]
  - Don't dump IR and dot files by default in the LowerWGScope [9d0e3525ba04]
- - Link libm-fp64 device library by default [ac93d6fe3d9d]
  - Support LLVM floating-point intrinsics in llvm-spirv and frontend
    [a5065ab85101]
  - Add template parameter support for `[[intel::no_global_work_offset()]]`
@@ -56,6 +55,7 @@ Release notes for commit range 5d7e0925..50b81c3cd6e9
 ### SYCL Compiler
  - Do not customize optimizations for non-SPIR targets [cb069fed6712]
  - Fix address space assertion with templates [8905a8cec9a9]
+ - Link libm-fp64 device library by default [ac93d6fe3d9d]
  - Add support for specialization constants' typenames declared in namespaces
    [f64f835b4313]
  - Fix loosing OpenMP device binary when program uses both OpenMP and SYCL
