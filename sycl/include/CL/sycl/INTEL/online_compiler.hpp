@@ -74,7 +74,7 @@ enum class source_language { opencl_c, cm };
 
 /// Represents an online compiler for the language given as template
 /// parameter.
-template <source_language Lang> class __SYCL_EXPORT online_compiler {
+template <source_language Lang> class online_compiler {
 public:
   /// Constructs online compiler which can target any device and produces
   /// given compiled code format. Produces 64-bit device code.
@@ -190,7 +190,8 @@ private:
 ///   OpenCL JIT compiler options must be supported.
 template <>
 template <>
-std::vector<byte> online_compiler<source_language::opencl_c>::compile(
+__SYCL_EXPORT std::vector<byte>
+online_compiler<source_language::opencl_c>::compile(
     const std::string &src, const std::vector<std::string> &options);
 
 /// Compiles the given OpenCL source. May throw \c online_compile_error.
@@ -207,7 +208,7 @@ online_compiler<source_language::opencl_c>::compile(const std::string &src) {
 /// @param options - compilation options (implementation defined).
 template <>
 template <>
-std::vector<byte> online_compiler<source_language::cm>::compile(
+__SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
     const std::string &src, const std::vector<std::string> &options);
 
 /// Compiles the given CM source \p src.
