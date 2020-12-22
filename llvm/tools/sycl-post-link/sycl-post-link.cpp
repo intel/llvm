@@ -295,10 +295,13 @@ static KernelMapEntryScope selectDeviceCodeSplitScopeAutomatically(Module &M) {
   // Here we can employ various heuristics to decide which way to split kernels
   // is the best in each particular situation.
   // At the moment, we assume that per-kernel split is the best way of splitting
-  // device code and it can be always selected unless there are functions marked
-  // with [[intel::device_indirectly_callable]] attribute, because it instructs
-  // us to make this function available to the whole program as it was compiled
-  // as a single module.
+  // device code and it can be always selected unless:
+  // - there are functions marked with [[intel::device_indirectly_callable]]
+  //   attribute, because it instructs us to make this function available to the
+  //   whole program as it was compiled as a single module.
+  // - there are indirect calls in the module, which means that we don't know
+  //   how to group functions so both caller and callee of indirect call are in
+  //   the same module.
   if (IROutputOnly) {
     // We allow enabling auto split mode even in presence of -ir-output-only
     // flag, but in this case we are limited by it so we can't do any split at
@@ -306,9 +309,19 @@ static KernelMapEntryScope selectDeviceCodeSplitScopeAutomatically(Module &M) {
     return Scope_Global;
   }
 
-  for (auto &F : M.functions()) {
+  for (const auto &F : M.functions()) {
     if (F.hasFnAttribute("referenced-indirectly"))
       return Scope_Global;
+    if (F.isDeclaration())
+      continue;
+    for (const auto &BB: F) {
+      for (const auto &I : BB) {
+        if (auto *CI = dyn_cast<CallInst>(&I)) {
+          if (!CI->getCalledFunction())
+            return Scope_Global;
+        }
+      }
+    }
   }
 
   return Scope_PerModule;
