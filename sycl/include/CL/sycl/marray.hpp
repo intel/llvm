@@ -27,7 +27,7 @@ namespace sycl {
 /// SYCL devices as well as in host C++ code.
 ///
 /// \ingroup sycl_api
-template <typename Type, int NumElements> class marray {
+template <typename Type, std::size_t NumElements> class marray {
   using DataT = Type;
 
 public:
@@ -38,7 +38,7 @@ public:
   using const_iterator = const Type *;
 
 private:
-  value_type m_Data[NumElements];
+  value_type MData[NumElements];
 
   template <class...> struct conjunction : std::true_type {};
   template <class B1, class... tail>
@@ -55,68 +55,68 @@ private:
       conjunction<TypeChecker<argTN, DataT>...>::value>::type;
 
 public:
-  marray() : m_Data{} {}
+  marray() : MData{} {}
 
   explicit marray(const Type &arg) {
-    for (int i = 0; i < NumElements; i++) {
-      m_Data[i] = arg;
+    for (std::size_t i = 0; i < NumElements; i++) {
+      MData[i] = arg;
     }
   }
 
   template <
       typename... argTN, typename = EnableIfSuitableTypes<argTN...>,
       typename = typename std::enable_if<sizeof...(argTN) == NumElements>::type>
-  marray(const argTN &... args) : m_Data{args...} {}
+  marray(const argTN &... args) : MData{args...} {}
 
   marray(const marray<Type, NumElements> &Rhs) {
-    for (int i = 0; i < NumElements; i++) {
-      m_Data[i] = Rhs.m_Data[i];
+    for (std::size_t i = 0; i < NumElements; i++) {
+      MData[i] = Rhs.MData[i];
     }
   }
 
   marray(marray<Type, NumElements> &&Rhs) {
-    for (int i = 0; i < NumElements; i++) {
-      m_Data[i] = Rhs.m_Data[i];
+    for (std::size_t i = 0; i < NumElements; i++) {
+      MData[i] = Rhs.MData[i];
     }
   }
 
   // Available only when: NumElements == 1
-  template <int Size = NumElements,
+  template <std::size_t Size = NumElements,
             typename = typename std::enable_if<Size == 1>>
   operator Type() const {
-    return m_Data[0];
+    return MData[0];
   }
 
   static constexpr std::size_t size() noexcept { return NumElements; }
 
   // subscript operator
-  reference operator[](std::size_t index) { return m_Data[index]; }
+  reference operator[](std::size_t index) { return MData[index]; }
 
-  const_reference operator[](std::size_t index) const { return m_Data[index]; }
+  const_reference operator[](std::size_t index) const { return MData[index]; }
 
   marray &operator=(const marray<Type, NumElements> &Rhs) {
-    for (int i = 0; i < NumElements; i++) {
-      m_Data[i] = Rhs.m_Data[i];
+    for (std::size_t i = 0; i < NumElements; i++) {
+      MData[i] = Rhs.MData[i];
     }
     return *this;
   }
 
   // broadcasting operator
   marray &operator=(const Type &Rhs) {
-    for (int i = 0; i < NumElements; i++) {
-      m_Data[i] = Rhs;
+    for (std::size_t i = 0; i < NumElements; i++) {
+      MData[i] = Rhs;
     }
     return *this;
   }
 
   // iterator functions
-  iterator begin() { return m_Data; }
+  iterator begin() { return MData; }
 
-  const_iterator begin() const { return m_Data; }
+  const_iterator begin() const { return MData; }
 
-  iterator end() { return m_Data + NumElements; }
+  iterator end() { return MData + NumElements; }
 
-  const_iterator end() const { return m_Data + NumElements; }
+  const_iterator end() const { return MData + NumElements; }
 
 #ifdef __SYCL_BINOP
 #error "Undefine __SYCL_BINOP macro"
@@ -147,7 +147,7 @@ public:
     Lhs = Lhs BINOP Rhs;                                                       \
     return Lhs;                                                                \
   }                                                                            \
-  template <int Num = NumElements>                                             \
+  template <std::size_t Num = NumElements>                                     \
   friend typename std::enable_if<Num != 1, marray &>::type operator OPASSIGN(  \
       marray &Lhs, const DataT &Rhs) {                                         \
     Lhs = Lhs BINOP marray(Rhs);                                               \
@@ -178,7 +178,7 @@ public:
     Lhs = Lhs BINOP Rhs;                                                       \
     return Lhs;                                                                \
   }                                                                            \
-  template <int Num = NumElements, typename T = DataT>                         \
+  template <std::size_t Num = NumElements, typename T = DataT>                 \
   friend typename std::enable_if<Num != 1 && std::is_integral<T>::value,       \
                                  marray &>::type                               \
   operator OPASSIGN(marray &Lhs, const DataT &Rhs) {                           \
