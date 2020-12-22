@@ -1,12 +1,10 @@
-//==----------------- marray.hpp --- SYCL types ----------------------------==//
+//==----------------- marray.hpp --- Implements marray classes -------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
-// Implements marray classes.
 
 #pragma once
 
@@ -15,10 +13,6 @@
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/half_type.hpp>
-
-#include <array>
-#include <cmath>
-#include <cstring>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -45,38 +39,38 @@ private:
   struct conjunction<B1, tail...>
       : std::conditional<bool(B1::value), conjunction<tail...>, B1>::type {};
 
-  // TypeChecker is needed for (const argTN &... args) ctor to validate args.
+  // TypeChecker is needed for (const ArgTN &... Args) ctor to validate Args.
   template <typename T, typename DataT_>
   struct TypeChecker : std::is_convertible<T, DataT_> {};
 
-  // Shortcuts for args validation in (const argTN &... args) ctor.
-  template <typename... argTN>
+  // Shortcuts for Args validation in (const ArgTN &... Args) ctor.
+  template <typename... ArgTN>
   using EnableIfSuitableTypes = typename std::enable_if<
-      conjunction<TypeChecker<argTN, DataT>...>::value>::type;
+      conjunction<TypeChecker<ArgTN, DataT>...>::value>::type;
 
 public:
   marray() : MData{} {}
 
-  explicit marray(const Type &arg) {
-    for (std::size_t i = 0; i < NumElements; i++) {
-      MData[i] = arg;
+  explicit marray(const Type &Arg) {
+    for (std::size_t I = 0; I < NumElements; ++I) {
+      MData[I] = Arg;
     }
   }
 
   template <
-      typename... argTN, typename = EnableIfSuitableTypes<argTN...>,
-      typename = typename std::enable_if<sizeof...(argTN) == NumElements>::type>
-  marray(const argTN &... args) : MData{args...} {}
+      typename... ArgTN, typename = EnableIfSuitableTypes<ArgTN...>,
+      typename = typename std::enable_if<sizeof...(ArgTN) == NumElements>::type>
+  marray(const ArgTN &... Args) : MData{Args...} {}
 
   marray(const marray<Type, NumElements> &Rhs) {
-    for (std::size_t i = 0; i < NumElements; i++) {
-      MData[i] = Rhs.MData[i];
+    for (std::size_t I = 0; I < NumElements; ++I) {
+      MData[I] = Rhs.MData[I];
     }
   }
 
   marray(marray<Type, NumElements> &&Rhs) {
-    for (std::size_t i = 0; i < NumElements; i++) {
-      MData[i] = Rhs.MData[i];
+    for (std::size_t I = 0; I < NumElements; ++I) {
+      MData[I] = Rhs.MData[I];
     }
   }
 
@@ -95,16 +89,16 @@ public:
   const_reference operator[](std::size_t index) const { return MData[index]; }
 
   marray &operator=(const marray<Type, NumElements> &Rhs) {
-    for (std::size_t i = 0; i < NumElements; i++) {
-      MData[i] = Rhs.MData[i];
+    for (std::size_t I = 0; I < NumElements; ++I) {
+      MData[I] = Rhs.MData[I];
     }
     return *this;
   }
 
   // broadcasting operator
   marray &operator=(const Type &Rhs) {
-    for (std::size_t i = 0; i < NumElements; i++) {
-      MData[i] = Rhs;
+    for (std::size_t I = 0; I < NumElements; ++I) {
+      MData[I] = Rhs;
     }
     return *this;
   }
