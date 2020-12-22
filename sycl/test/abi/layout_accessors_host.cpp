@@ -27,8 +27,8 @@ using namespace cl::sycl;
 // CHECK-NEXT: 112 |   class sycl::detail::Command * MBlockedCmd
 // CHECK-NEXT: 120 |   _Bool PerWI
 // CHECK-NEXT: 121 |   _Bool MIsESIMDAcc
-// CHECK-NEXT:     | [sizeof=128, dsize=121, align=8,
-// CHECK-NEXT:     |  nvsize=121, nvalign=8]
+// CHECK-NEXT:     | [sizeof=128, dsize=122, align=8,
+// CHECK-NEXT:     |  nvsize=122, nvalign=8]
 
 // CHECK:       0 | class sycl::detail::LocalAccessorImplHost
 // CHECK-NEXT:  0 |   class sycl::range<3> MSize
