@@ -571,8 +571,8 @@ static void instantiateIntelSYCTripleLFunctionAttr(
     return;
   Expr *ZDimExpr = Result.getAs<Expr>();
 
-  S.addIntelSYCLTripleArgFunctionAttr<AttrName>(New, *Attr, XDimExpr,
-                                                YDimExpr, ZDimExpr);
+  S.addIntelSYCLTripleArgFunctionAttr<AttrName>(New, *Attr, XDimExpr, YDimExpr,
+                                                ZDimExpr);
 }
 
 template <typename AttrName>

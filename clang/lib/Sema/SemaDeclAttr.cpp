@@ -2963,12 +2963,12 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &Attr,
   if (Attr.getKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
     if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
       Result &= checkZeroDim(A, getExprValue(A->getXDim(), S.getASTContext()),
-		                getExprValue(A->getYDim(), S.getASTContext()),
-				getExprValue(A->getZDim(), S.getASTContext()));
+                             getExprValue(A->getYDim(), S.getASTContext()),
+                             getExprValue(A->getZDim(), S.getASTContext()));
     } else if (const auto *A = D->getAttr<ReqdWorkGroupSizeAttr>()) {
       Result &= checkZeroDim(A, getExprValue(A->getXDim(), S.getASTContext()),
-                                getExprValue(A->getYDim(), S.getASTContext()),
-                                getExprValue(A->getZDim(), S.getASTContext()));
+                             getExprValue(A->getYDim(), S.getASTContext()),
+                             getExprValue(A->getZDim(), S.getASTContext()));
     }
     return Result;
   }
@@ -2985,18 +2985,19 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &Attr,
     int64_t AttrValue =
         A->getValue()->getIntegerConstantExpr(S.Context)->getSExtValue();
     if (AttrValue == 0) {
-      Result &= checkZeroDim(A, S.getLangOpts().SYCLIsDevice &&
-		             getExprValue(Attr.getArgAsExpr(2), S.getASTContext()),
-			     getExprValue(Attr.getArgAsExpr(1), S.getASTContext()),
-			     getExprValue(Attr.getArgAsExpr(0), S.getASTContext()),
-                             /*ReverseAttrs=*/true);
+      Result &= checkZeroDim(
+          A,
+          getExprValue(Attr.getArgAsExpr(2), S.getASTContext()),
+          getExprValue(Attr.getArgAsExpr(1), S.getASTContext()),
+          getExprValue(Attr.getArgAsExpr(0), S.getASTContext()),
+          /*ReverseAttrs=*/true);
     }
   }
 
   if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
     if (!((getExprValue(Attr.getArgAsExpr(2), S.getASTContext()) <=
            getExprValue(A->getXDim(), S.getASTContext())) &&
-	  (getExprValue(Attr.getArgAsExpr(1), S.getASTContext()) <=
+          (getExprValue(Attr.getArgAsExpr(1), S.getASTContext()) <=
            getExprValue(A->getYDim(), S.getASTContext())) &&
           (getExprValue(Attr.getArgAsExpr(0), S.getASTContext()) <=
            getExprValue(A->getZDim(), S.getASTContext())))) {
@@ -3106,7 +3107,7 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
         AL.getAttributeSpellingListIndex() ==
             ReqdWorkGroupSizeAttr::CXX11_intel_reqd_work_group_size)
       return IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
-		                    S.Context.IntTy, AL.getLoc());
+                                    S.Context.IntTy, AL.getLoc());
   };
 
   Expr *YDimExpr = AL.isArgExpr(1) ? AL.getArgAsExpr(1)
