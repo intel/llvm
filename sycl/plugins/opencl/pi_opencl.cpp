@@ -572,19 +572,18 @@ pi_result piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
                                                properties + propSize);
       // Go through buffer properties. If there is one, that shall be propagated
       // to an OpenCL runtime - check if this property is being supported.
-      for (const auto &prop = supported.begin(); prop != supported.end();
-           ++(*prop)) {
+      for (auto prop = supported.begin(); prop != supported.end(); ++prop) {
         if (SupportedExtensions.find(context) == SupportedExtensions.end())
           ret_err = getSupportedExtensionsWithinContext(context);
         // Check if PI_MEM_PROPERTIES_CHANNEL property is supported. If it's
         // not - just ignore it, as it's an optimization hint.
         if (*prop == PI_MEM_PROPERTIES_CHANNEL) {
           if (SupportedExtensions[context].find(
-                  "cl_intel_mem_channel_property") !=
+                  "cl_intel_mem_channel_property") ==
               SupportedExtensions[context].end())
-            supported.erase(prop);
+            prop = supported.erase(prop);
         } else
-          assert("Unsupported property found");
+          assert(!"Unsupported property found");
       }
       if (!supported.empty()) {
         *ret_mem =

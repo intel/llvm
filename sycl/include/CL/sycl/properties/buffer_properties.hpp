@@ -43,11 +43,11 @@ private:
 class mem_channel : public detail::PropertyWithData<
                         detail::PropWithDataKind::BufferMemChannel> {
 public:
-  mem_channel(uint32_t Channel) : m_Channel(Channel) {}
-  uint32_t get_channel() const { return m_Channel; }
+  mem_channel(uint32_t Channel) : MChannel(Channel) {}
+  uint32_t get_channel() const { return MChannel; }
 
 private:
-  uint32_t m_Channel;
+  uint32_t MChannel;
 };
 
 } // namespace buffer
