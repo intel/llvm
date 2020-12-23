@@ -2088,21 +2088,25 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                             Context->Devices[0]->ZeDeviceProperties.flags &
                                 ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
 
-  // PI_MEM_FLAGS_HOST_PTR_ALLOC flag indicates allocation of pinned
-  // host memory which is accessible from device.
+  // Having PI_MEM_FLAGS_HOST_PTR_ALLOC for buffer requires allocation of
+  // pinned host memory which then becomes automatically accessible from
+  // discrete devices through PCI. This property ensures that the memory
+  // map/unmap operations are free of cost and the buffer is optimized for
+  // frequent accesses from the host giving improved performance.
+  // see:
+  // https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/UsePinnedMemoryProperty/UsePinnedMemoryPropery.adoc
   bool AllocHostPtr = Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC;
 
   if (AllocHostPtr) {
-    assert(HostPtr == nullptr &&
-           "PI_MEM_FLAGS_HOST_PTR_ALLOC cannot be used with host pointer");
+    PI_ASSERT(HostPtr == nullptr, PI_INVALID_VALUE);
 
     ze_host_mem_alloc_desc_t ZeDesc = {};
     ZeDesc.flags = 0;
 
     ZE_CALL(zeMemAllocHost(Context->ZeContext, &ZeDesc, Size, 1, &Ptr));
-  }
 
-  if (DeviceIsIntegrated) {
+  } else if (DeviceIsIntegrated) {
+
     ze_host_mem_alloc_desc_t ZeDesc = {};
     ZeDesc.flags = 0;
 
@@ -2144,7 +2148,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     *RetMem = new _pi_buffer(
         Context, pi_cast<char *>(Ptr) /* Level Zero Memory Handle */,
         HostPtrOrNull, nullptr, 0, 0,
-        DeviceIsIntegrated /* Flag indicating allocation in host memory */);
+        AllocHostPtr || DeviceIsIntegrated /* allocation in host memory */);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -4283,8 +4287,8 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
                                 void **RetMap) {
 
   // TODO: we don't implement read-only or write-only, always read-write.
-  // assert((map_flags & CL_MAP_READ) != 0);
-  // assert((map_flags & CL_MAP_WRITE) != 0);
+  // assert((map_flags & PI_MAP_READ) != 0);
+  // assert((map_flags & PI_MAP_WRITE) != 0);
   PI_ASSERT(Buffer, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
@@ -4307,17 +4311,18 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
 
   // TODO: Level Zero is missing the memory "mapping" capabilities, so we are
   // left to doing new memory allocation and a copy (read) on discrete devices.
-  // On integrated devices  we have allocated the buffer in host memory
-  // so no actions are needed here except for synchronizing on incoming events
-  // and doing a host-to-host copy if a host pointer had been supplied
-  // during buffer creation.
+  // For pinned host memory and integrated devices, we have allocated the
+  // buffer in host memory so no actions are needed here except for
+  // synchronizing on incoming events. A host-to-host copy is done if a host
+  // pointer had been supplied during buffer creation on integrated devices.
   //
   // TODO: for discrete, check if the input buffer is already allocated
   // in shared memory and thus is accessible from the host as is.
   // Can we get SYCL RT to predict/allocate in shared memory
   // from the beginning?
-  //
-  // On integrated devices the buffer has been allocated in host memory.
+
+  // For pinned host memory and integrated devices the buffer has been
+  // allocated in host memory.
   if (Buffer->OnHost) {
     // Wait on incoming events before doing the copy
     piEventsWait(NumEventsInWaitList, EventWaitList);
@@ -4417,7 +4422,8 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
     (*Event)->CommandData =
         (MemObj->OnHost ? nullptr : (MemObj->MapHostPtr ? nullptr : MappedPtr));
 
-  // On integrated devices the buffer is allocated in host memory.
+  // For pinned host memory and integrated devices the buffer is allocated
+  // in host memory.
   if (MemObj->OnHost) {
     // Wait on incoming events before doing the copy
     piEventsWait(NumEventsInWaitList, EventWaitList);
