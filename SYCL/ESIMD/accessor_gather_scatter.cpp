@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // TODO enable on Windows
-// REQUIRES: linux && gpu && opencl
+// REQUIRES: linux && gpu
 // RUN: %clangxx-esimd -fsycl %s -o %t.out
 // RUN: %ESIMD_RUN_PLACEHOLDER %t.out
 //
