@@ -118,24 +118,27 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
   // an actual object/archive.  Take that list and pass those to the linker
   // instead of the original object.
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
-    auto SYCLDeviceLibIter =
-        std::find_if(InputFiles.begin(), InputFiles.end(), [](const auto &II) {
-          StringRef InputFilename =
-              llvm::sys::path::filename(StringRef(II.getFilename()));
-          if (!InputFilename.startswith("libsycl-") ||
-              !InputFilename.endswith(".o") || (InputFilename.count('-') < 2))
-            return false;
-          size_t PureLibNameLen = InputFilename.find_last_of('-');
-          // Skip the prefix "libsycl-"
-          StringRef PureLibName = InputFilename.substr(8, PureLibNameLen - 8);
-          for (const auto &L : SYCLDeviceLibList) {
-            if (PureLibName.compare(L) == 0)
-              return true;
-          }
-          return false;
-        });
-    bool LinkSYCLDeviceLibs =
-        (SYCLDeviceLibIter != InputFiles.end()) && (InputFiles.size() > 1);
+    auto isSYCLDeviceLib = [](const InputInfo &II) {
+      StringRef InputFilename =
+          llvm::sys::path::filename(StringRef(II.getFilename()));
+      if (!InputFilename.startswith("libsycl-") ||
+          !InputFilename.endswith(".o") || (InputFilename.count('-') < 2))
+        return false;
+      size_t PureLibNameLen = InputFilename.find_last_of('-');
+      // Skip the prefix "libsycl-"
+      StringRef PureLibName = InputFilename.substr(8, PureLibNameLen - 8);
+      for (const auto &L : SYCLDeviceLibList) {
+        if (PureLibName.compare(L) == 0)
+          return true;
+      }
+      return false;
+    };
+    size_t InputFileNum = InputFiles.size();
+    bool LinkSYCLDeviceLibs = (InputFileNum >= 2);
+    LinkSYCLDeviceLibs = LinkSYCLDeviceLibs && !isSYCLDeviceLib(InputFiles[0]);
+    for (size_t Idx = 1; Idx < InputFileNum; ++Idx)
+      LinkSYCLDeviceLibs =
+          LinkSYCLDeviceLibs && isSYCLDeviceLib(InputFiles[Idx]);
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
     if (LinkSYCLDeviceLibs)
