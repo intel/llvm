@@ -12,11 +12,11 @@
 /// \ingroup sycl_pi_level_zero
 
 #include "pi_level_zero.hpp"
+#include <CL/sycl/detail/spinlock.hpp>
 #include <algorithm>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
-#include <detail/spinlock.hpp>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -180,9 +180,10 @@ private:
 // The heap memory allocated for these global variableare reclaimed only when
 // Sycl RT calls piTearDown().
 static std::vector<pi_platform> *PiPlatformsCache =
-    new std::vector static sycl::detail::SpinLock *PiPlatformsCacheLock =
-        new sycl::detail::SpinLock;
-static bool PiPlatforCachePopulated = false;
+    new std::vector<pi_platform>;
+static sycl::detail::SpinLock *PiPlatformsCacheMutex =
+    new sycl::detail::SpinLock;
+static bool PiPlatformCachePopulated = false;
 
 // TODO:: In the following 4 methods we may want to distinguish read access vs.
 // write (as it is OK for multiple threads to read the map without locking it).
@@ -5357,7 +5358,7 @@ pi_result piTearDown() {
     PiPlatformsCache->pop_back();
   }
   delete PiPlatformsCache;
-  delete PiPlatformsCacheLock;
+  delete PiPlatformsCacheMutex;
 
   return PI_SUCCESS;
 }

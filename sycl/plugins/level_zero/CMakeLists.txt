@@ -91,7 +91,6 @@ target_include_directories(LevelZeroLoader-Headers
 )
 
 include_directories("${sycl_inc_dir}")
-include_directories("${sycl_src_dir}")
 include_directories(${OPENCL_INCLUDE})
 
 add_library(pi_level_zero SHARED
