@@ -481,7 +481,8 @@ void Command::makeTraceEventEpilog() {
 }
 
 void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
-  const ContextImplPtr &Context = getContext();
+  const QueueImplPtr &WorkerQueue = getWorkerQueue();
+  const ContextImplPtr &WorkerContext = WorkerQueue->getContextImplPtr();
 
   // 1. Async work is not supported for host device.
   // 2. The event handle can be null in case of, for example, alloca command,
@@ -495,25 +496,24 @@ void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
   }
 
   // Do not add redundant event dependencies for in-order queues.
-  const QueueImplPtr &WorkerQueue = getWorkerQueue();
   if (Dep.MDepCommand && Dep.MDepCommand->getWorkerQueue() == WorkerQueue &&
       WorkerQueue->has_property<property::queue::in_order>())
     return;
 
   ContextImplPtr DepEventContext = DepEvent->getContextImpl();
   // If contexts don't match we'll connect them using host task
-  if (DepEventContext != Context && !Context->is_host()) {
+  if (DepEventContext != WorkerContext && !WorkerContext->is_host()) {
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
     GB.connectDepEvent(this, DepEvent, Dep);
   } else
     MPreparedDepsEvents.push_back(std::move(DepEvent));
 }
 
-ContextImplPtr Command::getContext() const {
-  return detail::getSyclObjImpl(MQueue->get_context());
+const ContextImplPtr &Command::getWorkerContext() const {
+  return MQueue->getContextImplPtr();
 }
 
-QueueImplPtr Command::getWorkerQueue() const { return MQueue; }
+const QueueImplPtr &Command::getWorkerQueue() const { return MQueue; }
 
 void Command::addDep(DepDesc NewDep) {
   if (NewDep.MDepCommand) {
@@ -1135,12 +1135,11 @@ void MemCpyCommand::emitInstrumentationData() {
 #endif
 }
 
-ContextImplPtr MemCpyCommand::getContext() const {
-  const QueueImplPtr &Queue = getWorkerQueue();
-  return detail::getSyclObjImpl(Queue->get_context());
+const ContextImplPtr &MemCpyCommand::getWorkerContext() const {
+  return getWorkerQueue()->getContextImplPtr();
 }
 
-QueueImplPtr MemCpyCommand::getWorkerQueue() const {
+const QueueImplPtr &MemCpyCommand::getWorkerQueue() const {
   return MQueue->is_host() ? MSrcQueue : MQueue;
 }
 
@@ -1276,12 +1275,11 @@ void MemCpyCommandHost::emitInstrumentationData() {
 #endif
 }
 
-ContextImplPtr MemCpyCommandHost::getContext() const {
-  const QueueImplPtr &Queue = getWorkerQueue();
-  return detail::getSyclObjImpl(Queue->get_context());
+const ContextImplPtr &MemCpyCommandHost::getWorkerContext() const {
+  return getWorkerQueue()->getContextImplPtr();
 }
 
-QueueImplPtr MemCpyCommandHost::getWorkerQueue() const {
+const QueueImplPtr &MemCpyCommandHost::getWorkerQueue() const {
   return MQueue->is_host() ? MSrcQueue : MQueue;
 }
 
