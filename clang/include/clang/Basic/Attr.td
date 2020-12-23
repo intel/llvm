@@ -1292,8 +1292,13 @@ def SYCLIntelMaxWorkGroupSize : InheritableAttr {
               ExprArgument<"ZDim">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
-  let Documentation = [SYCLIntelMaxWorkGroupSizeAttrDocs];
   let PragmaAttributeSupport = 0;
+  let AdditionalMembers = [{
+    ArrayRef<const Expr *> dimensions() const {
+      return {getXDim(), getYDim(), getZDim()};
+    }
+  }];
+  let Documentation = [SYCLIntelMaxWorkGroupSizeAttrDocs];
 }
 
 def SYCLIntelMaxGlobalWorkDim : InheritableAttr {
@@ -2810,6 +2815,11 @@ def ReqdWorkGroupSize : InheritableAttr {
               ExprArgument<"YDim", /*optional*/1>,
               ExprArgument<"ZDim", /*optional*/1>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
+  let AdditionalMembers = [{
+    ArrayRef<const Expr *> dimensions() const {
+      return {getXDim(), getYDim(), getZDim()};
+    }
+  }];
   let Documentation = [ReqdWorkGroupSizeAttrDocs];
 }
 

@@ -3208,7 +3208,7 @@ static void checkDimensionsAndSetDiagnostics(Sema &S, FunctionDecl *New,
     return;
 
   /// Returns the usigned constant integer value represented by
-  //  given expression.
+  /// given expression.
   auto getExprValue = [](const Expr *E, ASTContext &Ctx) {
     return E->getIntegerConstantExpr(Ctx)->getZExtValue();
   };
