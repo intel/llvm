@@ -1,6 +1,6 @@
 # December'20 release notes
 
-Release notes for commit range 5d7e0925..50b81c3cd6e9
+Release notes for commit range 5d7e0925..5eebd1e4bfce
 
 ## New features
 ### SYCL Compiler
@@ -11,8 +11,9 @@ Release notes for commit range 5d7e0925..50b81c3cd6e9
 
 ## Improvements
 ### SYCL Compiler
- - Remove wrapping of buffer objects into images which caused problems like
-   incorrect work of scatter/gather of 1- and 2-byte values [d2d20d6c4556]
+ - (ESIMD only) Remove wrapping of buffer objects into images which caused
+   problems like incorrect work of scatter/gather of 1- and 2-byte values
+   [d2d20d6c4556]
  - Rename FPGA kernel attribute `[[intel::stall_enable]]` to
    `[[intel::use_stall_enable_clusters]]` [dab9debebe70]
  - Add template parameter support for `[[intel::max_global_work_dim]]` and
@@ -41,6 +42,11 @@ Release notes for commit range 5d7e0925..50b81c3cd6e9
  - Introduce `pi_map_flags` in lieu of `cl_map_flags` [f0e7606a6198]
  - Implement robust error nadling in LevelZero plugin [65c719ddfc23]
  - Add online compilation API interface [70ac47d23264]
+ - Add new device descriptors as SYCL extensions [51ac08c35294]
+ - Implement [`SYCL_INTEL_mem_channel_property`](doc/extensions/MemChannel/SYCL_INTEL_mem_channel_property.asciidoc)
+   extension [2f1f3167b7c6]
+ - Remove redundant dependencies for in-order queues [632722165db2]
+ - Add `marray` class as defined by SYCL 2020 provisional [5eebd1e4bfce]
 ### Documentation
  - Add information on AOT to GetStartedGuide [71942fbb3655]
  - Add notice on alignemnt checks in ABI policy [4326b9563575]
