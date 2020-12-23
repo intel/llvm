@@ -4,14 +4,14 @@
 #include <iostream>
 #include <vector>
 
-static constexpr char *CLSource = R"===(
+auto constexpr CLSource = R"===(
 __kernel void my_kernel(__global int *in, __global int *out) {
   size_t i = get_global_id(0);
   out[i] = in[i]*2 + 100;
 }
 )===";
 
-static constexpr char *CLSourceSyntaxError = R"===(
+auto constexpr CLSourceSyntaxError = R"===(
 __kernel void my_kernel(__global int *in, __global int *out) {
   syntax error here
   size_t i = get_global_id(0);
@@ -19,7 +19,7 @@ __kernel void my_kernel(__global int *in, __global int *out) {
 }
 )===";
 
-static constexpr char *CMSource = R"===(
+auto constexpr CMSource = R"===(
 extern "C"
 void cm_kernel() {
 }
@@ -67,8 +67,7 @@ int main(int argc, char **argv) {
       std::cout << "IL size = " << IL.size() << "\n";
       assert(IL.size() > 0 && "Unexpected IL size");
     } catch (sycl::exception &e) {
-      std::cout << "Compilation to IL failed: " << std::string(e.what())
-                << "\n";
+      std::cout << "Compilation to IL failed: " << e.what() << "\n";
       return 1;
     }
 #ifdef RUN_KERNELS
@@ -86,8 +85,7 @@ int main(int argc, char **argv) {
       std::cout << "IL size = " << IL.size() << "\n";
       assert(IL.size() > 0 && "Unexpected IL size");
     } catch (sycl::exception &e) {
-      std::cout << "Compilation to IL failed: " << std::string(e.what())
-                << "\n";
+      std::cout << "Compilation to IL failed: " << e.what() << "\n";
       return 1;
     }
 #ifdef RUN_KERNELS
@@ -107,8 +105,7 @@ int main(int argc, char **argv) {
       std::cout << "IL size = " << IL.size() << "\n";
       assert(IL.size() > 0 && "Unexpected IL size");
     } catch (sycl::exception &e) {
-      std::cout << "Compilation to IL failed: " << std::string(e.what())
-                << "\n";
+      std::cout << "Compilation to IL failed: " << e.what() << "\n";
       return 1;
     }
   }
