@@ -88,7 +88,10 @@ constructor and destructor.
 
 ## Plugins
 
-TBD
+Plugin lifetime is managed by utilizing initializePlugins() and piTearDown(). GlobalHandler::shutdown() will tear down all registered globals at the end of the Sycl program execution. It will invoke piTearDown() and unload() for each plugin. unload() is going to eventually invoke OS-specific system call to remove the plugin dynamic library from memory. piTearDown() is going to perform any necessary tear-down process at the plugin PI level. Currently, it is doing global memory deallocation to avoid memory leaks. But, in the future, it can include any other jobs that need to be done before we unload the plugin from memory. This enables on-deman plugin lifetime management. Sycl RT can control the beginning and the end of the plugin. 
+![](images/plugin-lifetime.png)
+
+Each plugin should not create global variables that require non-trivial destructor. Pointer variables with heap memory allocation is a good example to be created at the global scope. A std::vector object is not. piTearDown will take care of deallocation of these global variable safely. In the future, we can add a notification of the plugin unloading to lower-level plugins so that they can clean up their own memory [TBD].
 
 ## Low-level runtimes
 
