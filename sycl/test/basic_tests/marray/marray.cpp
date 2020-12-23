@@ -84,13 +84,13 @@ int main() {
   assert(b___[0] == true && b___[1] == false && b___[2] == false);
 
   // test const operator forms
-  t___ = -mint3{1,2,3};
+  t___ = -mint3{1, 2, 3};
   assert(t___[0] == -1 && t___[1] == -2 && t___[2] == -3);
-  t___ = +mint3{1,2,3};
+  t___ = +mint3{1, 2, 3};
   assert(t___[0] == +1 && t___[1] == +2 && t___[2] == +3);
-  t___ = ~mint3{1,2,3};
+  t___ = ~mint3{1, 2, 3};
   assert(t___[0] == ~1 && t___[1] == ~2 && t___[2] == ~3);
-  b___ = !mint3{0,1,2};
+  b___ = !mint3{0, 1, 2};
   assert(b___[0] == true && b___[1] == false && b___[2] == false);
 
   return 0;
