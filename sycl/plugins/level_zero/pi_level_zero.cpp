@@ -4466,12 +4466,13 @@ static pi_result getImageRegionHelper(pi_mem Mem, pi_image_offset Origin,
                                       pi_image_region Region,
                                       ze_image_region_t &ZeRegion) {
 
-  PI_ASSERT(Mem && Mem->isImage(), PI_INVALID_MEM_OBJECT);
+  PI_ASSERT(Mem, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Origin, PI_INVALID_VALUE);
+
 #ifndef NDEBUG
+  PI_ASSERT(Mem->isImage(), PI_INVALID_MEM_OBJECT);
   auto Image = static_cast<_pi_image *>(Mem);
-  ze_image_desc_t ZeImageDesc = Image->ZeImageDesc;
-#endif // !NDEBUG
+  ze_image_desc_t &ZeImageDesc = Image->ZeImageDesc;
 
   PI_ASSERT((ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Origin->y == 0 &&
              Origin->z == 0) ||
@@ -4479,10 +4480,6 @@ static pi_result getImageRegionHelper(pi_mem Mem, pi_image_offset Origin,
                 (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Origin->z == 0) ||
                 (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
             PI_INVALID_VALUE);
-
-  uint32_t OriginX = pi_cast<uint32_t>(Origin->x);
-  uint32_t OriginY = pi_cast<uint32_t>(Origin->y);
-  uint32_t OriginZ = pi_cast<uint32_t>(Origin->z);
 
   PI_ASSERT(Region->width && Region->height && Region->depth, PI_INVALID_VALUE);
   PI_ASSERT(
@@ -4492,6 +4489,11 @@ static pi_result getImageRegionHelper(pi_mem Mem, pi_image_offset Origin,
           (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Region->depth == 1) ||
           (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
       PI_INVALID_VALUE);
+#endif // !NDEBUG
+
+  uint32_t OriginX = pi_cast<uint32_t>(Origin->x);
+  uint32_t OriginY = pi_cast<uint32_t>(Origin->y);
+  uint32_t OriginZ = pi_cast<uint32_t>(Origin->z);
 
   uint32_t Width = pi_cast<uint32_t>(Region->width);
   uint32_t Height = pi_cast<uint32_t>(Region->height);
