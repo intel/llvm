@@ -21,7 +21,9 @@ void *loadOsLibrary(const std::string &PluginPath) {
   return (void *)LoadLibraryA(PluginPath.c_str());
 }
 
-int unloadOsLibrary(void *Library) { return (int)FreeLibrary(Library); }
+int unloadOsLibrary(void *Library) {
+  return (int)FreeLibrary((HMODULE)Library);
+}
 
 void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
   return reinterpret_cast<void *>(
