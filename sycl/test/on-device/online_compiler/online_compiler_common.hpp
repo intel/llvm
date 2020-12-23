@@ -4,14 +4,14 @@
 #include <iostream>
 #include <vector>
 
-static const char *CLSource = R"===(
+static constexpr char *CLSource = R"===(
 __kernel void my_kernel(__global int *in, __global int *out) {
   size_t i = get_global_id(0);
   out[i] = in[i]*2 + 100;
 }
 )===";
 
-static const char *CLSourceSyntaxError = R"===(
+static constexpr char *CLSourceSyntaxError = R"===(
 __kernel void my_kernel(__global int *in, __global int *out) {
   syntax error here
   size_t i = get_global_id(0);
@@ -19,7 +19,7 @@ __kernel void my_kernel(__global int *in, __global int *out) {
 }
 )===";
 
-static const char *CMSource = R"===(
+static constexpr char *CMSource = R"===(
 extern "C"
 void cm_kernel() {
 }
@@ -30,7 +30,7 @@ using namespace sycl::INTEL;
 #ifdef RUN_KERNELS
 void testSyclKernel(sycl::queue &Q, sycl::kernel Kernel) {
   std::cout << "Run the kernel now:\n";
-  const int N = 4;
+  constexpr int N = 4;
   int InputArray[N] = {0, 1, 2, 3};
   int OutputArray[N] = {};
 
@@ -38,10 +38,10 @@ void testSyclKernel(sycl::queue &Q, sycl::kernel Kernel) {
   sycl::buffer<int, 1> OutputBuf(OutputArray, sycl::range<1>(N));
 
   Q.submit([&](sycl::handler &CGH) {
-     CGH.set_arg(0, InputBuf.get_access<sycl::access::mode::read>(CGH));
-     CGH.set_arg(1, OutputBuf.get_access<sycl::access::mode::write>(CGH));
-     CGH.parallel_for(sycl::range<1>{N}, Kernel);
-   }).wait();
+    CGH.set_arg(0, InputBuf.get_access<sycl::access::mode::read>(CGH));
+    CGH.set_arg(1, OutputBuf.get_access<sycl::access::mode::write>(CGH));
+    CGH.parallel_for(sycl::range<1>{N}, Kernel);
+  });
 
   auto Out = OutputBuf.get_access<sycl::access::mode::read>();
   for (int I = 0; I < N; I++)
@@ -60,10 +60,10 @@ int main(int argc, char **argv) {
     std::vector<byte> IL;
     try {
       IL = Compiler.compile(
-          std::string(CLSource),
+          CLSource,
           // Pass two options to check that more than one is accepted.
-          std::vector<std::string>{std::string("-cl-fast-relaxed-math"),
-                                   std::string("-cl-finite-math-only")});
+          std::vector<std::string>{"-cl-fast-relaxed-math",
+                                   "-cl-finite-math-only"});
       std::cout << "IL size = " << IL.size() << "\n";
       assert(IL.size() > 0 && "Unexpected IL size");
     } catch (sycl::exception &e) {
@@ -82,7 +82,7 @@ int main(int argc, char **argv) {
     online_compiler<source_language::opencl_c> Compiler(Device);
     std::vector<byte> IL;
     try {
-      IL = Compiler.compile(std::string(CLSource));
+      IL = Compiler.compile(CLSource);
       std::cout << "IL size = " << IL.size() << "\n";
       assert(IL.size() > 0 && "Unexpected IL size");
     } catch (sycl::exception &e) {
@@ -102,7 +102,7 @@ int main(int argc, char **argv) {
     std::cout << "Test case3\n";
     online_compiler<source_language::cm> Compiler;
     try {
-      std::vector<byte> IL = Compiler.compile(std::string(CMSource));
+      std::vector<byte> IL = Compiler.compile(CMSource);
 
       std::cout << "IL size = " << IL.size() << "\n";
       assert(IL.size() > 0 && "Unexpected IL size");
@@ -120,7 +120,7 @@ int main(int argc, char **argv) {
     std::vector<byte> IL;
     bool TestPassed = false;
     try {
-      IL = Compiler.compile(std::string(CLSourceSyntaxError));
+      IL = Compiler.compile(CLSourceSyntaxError);
     } catch (sycl::exception &e) {
       std::string Msg = e.what();
       if (Msg.find("syntax error here") != std::string::npos)
@@ -139,10 +139,9 @@ int main(int argc, char **argv) {
     std::vector<byte> IL;
     bool TestPassed = false;
     try {
-      IL = Compiler.compile(
-          std::string(CLSource),
-          // Intentionally use incorrect option.
-          std::vector<std::string>{std::string("WRONG_OPTION")});
+      IL = Compiler.compile(CLSource,
+                            // Intentionally use incorrect option.
+                            std::vector<std::string>{"WRONG_OPTION"});
     } catch (sycl::exception &e) {
       std::string Msg = e.what();
       if (Msg.find("WRONG_OPTION") != std::string::npos)
@@ -163,7 +162,7 @@ int main(int argc, char **argv) {
     bool TestPassed = false;
     try {
       // Intentionally pass CMSource instead of CLSource.
-      IL = Compiler.compile(std::string(CMSource));
+      IL = Compiler.compile(CMSource);
     } catch (sycl::exception &e) {
       std::string Msg = e.what();
       if (Msg.find("error: expected identifier or '('") != std::string::npos)
