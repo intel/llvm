@@ -4472,7 +4472,7 @@ static pi_result getImageRegionHelper(pi_mem Mem, pi_image_offset Origin,
 #ifndef NDEBUG
   PI_ASSERT(Mem->isImage(), PI_INVALID_MEM_OBJECT);
   auto Image = static_cast<_pi_image *>(Mem);
-  ze_image_desc_t ZeImageDesc = Image->ZeImageDesc;
+  ze_image_desc_t &ZeImageDesc = Image->ZeImageDesc;
 
   PI_ASSERT((ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Origin->y == 0 &&
              Origin->z == 0) ||
