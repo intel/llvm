@@ -95,6 +95,18 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
                                          Foreach, ForeachArgs, None));
 }
 
+static llvm::SmallVector<StringRef, 10> SYCLDeviceLibList{
+    "crt",
+    "cmath",
+    "cmath-fp64",
+    "complex",
+    "complex-fp64",
+    "fallback-cassert",
+    "fallback-cmath",
+    "fallback-cmath-fp64",
+    "fallback-complex",
+    "fallback-complex-fp64"};
+
 const char *SYCL::Linker::constructLLVMLinkCommand(
     Compilation &C, const JobAction &JA, const InputInfo &Output,
     const ArgList &Args, StringRef SubArchName, StringRef OutputFilePrefix,
@@ -110,12 +122,20 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
         std::find_if(InputFiles.begin(), InputFiles.end(), [](const auto &II) {
           StringRef InputFilename =
               llvm::sys::path::filename(StringRef(II.getFilename()));
-          if (InputFilename.startswith("libsycl-") &&
-              InputFilename.endswith(".o"))
-            return true;
+          if (!InputFilename.startswith("libsycl-") ||
+              !InputFilename.endswith(".o") || (InputFilename.count('-') < 2))
+            return false;
+          size_t PureLibNameLen = InputFilename.find_last_of('-');
+          // Skip the prefix "libsycl-"
+          StringRef PureLibName = InputFilename.substr(8, PureLibNameLen - 8);
+          for (const auto &L : SYCLDeviceLibList) {
+            if (PureLibName.compare(L) == 0)
+              return true;
+          }
           return false;
         });
-    bool LinkSYCLDeviceLibs = (SYCLDeviceLibIter != InputFiles.end());
+    bool LinkSYCLDeviceLibs =
+        (SYCLDeviceLibIter != InputFiles.end()) && (InputFiles.size() > 1);
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
     if (LinkSYCLDeviceLibs)
