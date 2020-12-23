@@ -6,8 +6,17 @@ Release notes for commit range 5d7e0925..5eebd1e4bfce
 ### SYCL Compiler
  - Allow for multiple build options for opencl-aot [5e5703f58449]
 ### SYCL Library
+ - Implement [`SYCL_INTEL_mem_channel_property`](doc/extensions/MemChannel/SYCL_INTEL_mem_channel_property.asciidoc)
+   extension [2f1f3167b7c6]
+ - Add `marray` class as defined by SYCL 2020 provisional [5eebd1e4bfce]
+ - Implement dynamic batch size adjusting when using Level-Zero plugin
+   [c70b0477aa8a, cf0d0538d162]
+ - Add online compilation API interface [70ac47d23264]
 ### Documentation
- - Proposal for new device descriptors was added [1ad813ba133e]
+ - Proposal for [new device descriptors extension](doc/extensions/IntelGPU/IntelGPUDeviceInfo.md)
+   was added [1ad813ba133e]
+ - Added [online compilation extension](doc/extensions/OnlineCompilation/OnlineCompilation.asciidoc)
+   specification [e05a19c8d303]
 
 ## Improvements
 ### SYCL Compiler
@@ -33,20 +42,14 @@ Release notes for commit range 5d7e0925..5eebd1e4bfce
 ### SYCL Library
  - Eliminate performance overhead on devices without host unified memory support
    [a4f092417ef9]
- - Implement dynamic batch size adjusting when using Level-Zero plugin
-   [c70b0477aa8a, cf0d0538d162]
  - Optimize `discard_write` access mode for host accessor [6733c8b0efde]
  - Add support for composite specialization constants
    [c62860fd6b86, d4251e3c55e7, 3ec4594a5a06]
  - Enhance PI tracing with printing output arguments [19f5ad67f30a]
  - Introduce `pi_map_flags` in lieu of `cl_map_flags` [f0e7606a6198]
- - Implement robust error nadling in LevelZero plugin [65c719ddfc23]
- - Add online compilation API interface [70ac47d23264]
+ - Implement robust error handling in LevelZero plugin [65c719ddfc23]
  - Add new device descriptors as SYCL extensions [51ac08c35294]
- - Implement [`SYCL_INTEL_mem_channel_property`](doc/extensions/MemChannel/SYCL_INTEL_mem_channel_property.asciidoc)
-   extension [2f1f3167b7c6]
  - Remove redundant dependencies for in-order queues [632722165db2]
- - Add `marray` class as defined by SYCL 2020 provisional [5eebd1e4bfce]
 ### Documentation
  - Add information on AOT to GetStartedGuide [71942fbb3655]
  - Add notice on alignemnt checks in ABI policy [4326b9563575]
@@ -55,7 +58,6 @@ Release notes for commit range 5d7e0925..5eebd1e4bfce
  - Document linked allocation commands [929a764a5ec4]
  - Improve ESIMD documentation rendering [079597d28f1f]
  - Improved device library documentation [f24e2a9ce464]
- - Add online compilation specification [e05a19c8d303]
 
 ## Bug fixes
 ### SYCL Compiler
