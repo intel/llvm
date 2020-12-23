@@ -346,8 +346,17 @@ public:
   /// Registers a specialization constant to emit info for it into the header.
   void addSpecConstant(StringRef IDName, QualType IDType);
 
+  // CP
   /// Notes that this_item is called within the kernel.
+  // void setCallsThisItem(bool B);
+
+  // CP
+  /// Note which free functions (this_id, this_item, etc) are called within the
+  /// kernel
+  void setCallsThisId(bool B);
   void setCallsThisItem(bool B);
+  void setCallsThisNDItem(bool B);
+  void setCallsThisGroup(bool B);
 
 private:
   // Kernel actual parameter descriptor.
@@ -364,6 +373,15 @@ private:
     unsigned Offset = 0;
 
     KernelParamDesc() = default;
+  };
+
+  // there are four free function the kernel may call (this_id, this_item,
+  // this_nd_item, this_group)
+  struct KernelCallsSYCLFreeFunction {
+    bool CallsThisId;
+    bool CallsThisItem;
+    bool CallsThisNDItem;
+    bool CallsThisGroup;
   };
 
   // Kernel invocation descriptor
@@ -386,7 +404,8 @@ private:
     SmallVector<KernelParamDesc, 8> Params;
 
     // Whether kernel calls this_item()
-    bool CallsThisItem;
+    // bool CallsThisItem;
+    KernelCallsSYCLFreeFunction FreeFunctionCalls;
 
     KernelDesc() = default;
   };

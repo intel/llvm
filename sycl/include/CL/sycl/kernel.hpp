@@ -24,7 +24,6 @@ namespace detail {
 class kernel_impl;
 
 
-//CP
 /// This class is the default KernelName template parameter type for kernel
 /// invocation APIs such as single_task.
 class auto_name {};
