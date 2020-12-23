@@ -28,10 +28,14 @@ constexpr int bar() { return 0; }
 template <int SIZE, int SIZE1, int SIZE2>
 class KernelFunctor {
 public:
+  // expected-warning@+1{{'reqd_work_group_size' attribute requires a non-negative integral compile time constant expression - attribute ignored}}
   [[cl::reqd_work_group_size(SIZE, SIZE1, SIZE2)]] void operator()() {}
 };
 
 int main() {
+  //expected-note@+1{{in instantiation of template class 'KernelFunctor<-1, -1, -1>' requested here}}
+  KernelFunctor<-1, -1, -1>();
+  // no error expected
   KernelFunctor<16, 1, 1>();
 }
 
@@ -60,6 +64,8 @@ int check() {
 
 // CHECK: FunctionTemplateDecl {{.*}} {{.*}} func3
 // CHECK: NonTypeTemplateParmDecl {{.*}} {{.*}} referenced 'int' depth 0 index 0 N
+// CHECK: NonTypeTemplateParmDecl {{.*}} {{.*}} referenced 'int' depth 0 index 1 N1
+// CHECK: NonTypeTemplateParmDecl {{.*}} {{.*}} referenced 'int' depth 0 index 2 N2
 // CHECK: FunctionDecl {{.*}} {{.*}} func3 'void ()'
 // CHECK: ReqdWorkGroupSizeAttr {{.*}}
 // CHECK: SubstNonTypeTemplateParmExpr {{.*}}

@@ -28,10 +28,14 @@ constexpr int bar() { return 0; }
 template <int SIZE, int SIZE1, int SIZE2>
 class KernelFunctor {
 public:
+  // expected-warning@+1{{'max_work_group_size' attribute requires a non-negative integral compile time constant expression - attribute ignored}}
   [[intel::max_work_group_size(SIZE, SIZE1, SIZE2)]] void operator()() {}
 };
 
 int main() {
+  //expected-note@+1{{in instantiation of template class 'KernelFunctor<-1, -1, -1>' requested here}}
+  KernelFunctor<-1, -1, -1>();
+  // no error expected
   KernelFunctor<4, 4, 4>();
 }
 
