@@ -14,6 +14,7 @@
 #include <CL/sycl/INTEL/esimd/detail/esimd_types.hpp>
 #include <CL/sycl/INTEL/esimd/detail/esimd_util.hpp>
 #include <CL/sycl/INTEL/esimd/esimd_enum.hpp>
+#include <CL/sycl/types.hpp>
 #include <cstdint>
 
 // flat_read does flat-address gather
