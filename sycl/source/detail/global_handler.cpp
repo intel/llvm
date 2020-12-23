@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/device_filter.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/spinlock.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
@@ -113,7 +114,14 @@ GlobalHandler::getDeviceFilterList(const std::string &InitValue) {
   return *MDeviceFilterList;
 }
 
-void shutdown() { delete &GlobalHandler::instance(); }
+void shutdown() {
+  for (plugin plgn : GlobalHandler::instance().getPlugins()) {
+    plgn.call_nocheck<PiApiKind::piTearDown>();
+    plgn.unload();
+  }
+
+  delete &GlobalHandler::instance();
+}
 
 #ifdef _WIN32
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {

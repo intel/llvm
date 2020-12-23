@@ -32,8 +32,8 @@ class plugin {
 public:
   plugin() = delete;
 
-  plugin(RT::PiPlugin Plugin, backend UseBackend)
-      : MPlugin(Plugin), MBackend(UseBackend) {}
+  plugin(RT::PiPlugin Plugin, backend UseBackend, void *LibraryHandle)
+      : MPlugin(Plugin), MBackend(UseBackend), MLibraryHandle(LibraryHandle) {}
 
   plugin &operator=(const plugin &) = default;
   plugin(const plugin &) = default;
@@ -102,11 +102,15 @@ public:
   }
 
   backend getBackend(void) const { return MBackend; }
+  void *getLibraryHandle() const { return MLibraryHandle; }
+  void *getLibraryHandle() { return MLibraryHandle; }
+  int unload() { return RT::unloadPlugin(MLibraryHandle); }
 
 private:
   RT::PiPlugin MPlugin;
   backend MBackend;
-}; // class plugin
+  void *MLibraryHandle; // the handle returned from dlopen
+};                      // class plugin
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
