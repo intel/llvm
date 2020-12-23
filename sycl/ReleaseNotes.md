@@ -96,8 +96,6 @@ Release notes for commit range 5d7e0925..5eebd1e4bfce
 ## Known issues
   - GlobalWorkOffset is not supported by Level Zero backend [6f9e9a76]
   - The code with function pointer is hanging on Level Zero [d384295e]
-  - If an application uses `std::*` math function in the kernel code the
-    `-fsycl-device-lib=libm-fp64` option should be passed to the compiler.
   - User-defined functions with the same name and signature (exact match of
     arguments, return type doesn't matter) as of an OpenCL C built-in
     function, can lead to Undefined Behavior.
