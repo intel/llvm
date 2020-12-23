@@ -69,15 +69,21 @@ int main() {
     h.single_task<class test_kernel3>(
         []() { func_do_not_ignore(); });
 
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4
+    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
+    // CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
+    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
+    // expected-warning@+2{{'max_work_group_size' attribute requires a non-negative integral compile time constant expression}}
+    h.single_task<class test_kernel4>(
+        []() [[intel::max_work_group_size(-8, 8, 1)]]{});
+
 #ifdef TRIGGER_ERROR
     [[intel::max_work_group_size(1, 1, 1)]] int Var = 0; // expected-error{{'max_work_group_size' attribute only applies to functions}}
 
-    h.single_task<class test_kernel4>(
-        []() [[intel::max_work_group_size(0, 1, 3)]]{}); // expected-error{{'max_work_group_size' attribute must be greater than 0}}
-
-    // expected-warning@+2{{'max_work_group_size' attribute requires a non-negative integral compile time constant expression - attribute ignored}}
     h.single_task<class test_kernel5>(
-        []() [[intel::max_work_group_size(-8, 8, 1)]]{});
+        []() [[intel::max_work_group_size(0, 1, 3)]]{}); // expected-error{{'max_work_group_size' attribute must be greater than 0}}
 
     h.single_task<class test_kernel6>(
         []() [[intel::max_work_group_size(1.2f, 1, 3)]]{}); // expected-error{{'max_work_group_size' attribute requires an integer constant}}

@@ -11207,6 +11207,9 @@ def warn_attribute_spelling_deprecated : Warning<
   InGroup<DeprecatedAttributes>;
 def note_spelling_suggestion : Note<
   "did you mean to use %0 instead?">;
+def warn_attribute_requires_non_negative_integer_argument : Warning<
+  "%0 attribute requires a non-negative integral compile time constant expression">,
+ InGroup<AcceptedAttributes>;
 
 // errors of expect.with.probability
 def err_probability_not_constant_float : Error<
