@@ -1,10 +1,9 @@
-// REQUIRES: opencl
+// See https://github.com/intel/llvm/issues/2922 for more info
+// UNSUPPORTED: cuda
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %RUN_ON_HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 //==------------- info.cpp - SYCL sub_group parameters test ----*- C++ -*---==//
 //
@@ -36,24 +35,26 @@ int main() {
   try {
     size_t max_wg_size = Device.get_info<info::device::max_work_group_size>();
     program Prog(Queue.get_context());
-    /* TODO: replace with pure SYCL code when fixed problem with consumption
-     * kernels defined using program objects on GPU device
     Prog.build_with_kernel_type<kernel_sg>();
     kernel Kernel = Prog.get_kernel<kernel_sg>();
+    range<2> GlobalRange{50, 40};
+
+    buffer<double, 2> ABuf{GlobalRange}, BBuf{GlobalRange}, CBuf{GlobalRange};
 
     Queue.submit([&](cl::sycl::handler &cgh) {
+      auto A = ABuf.get_access<access::mode::read_write>(cgh);
+      auto B = BBuf.get_access<access::mode::read>(cgh);
+      auto C = CBuf.get_access<access::mode::read>(cgh);
       cgh.parallel_for<kernel_sg>(
-          nd_range<2>(range<2>(50, 40), range<2>(10, 20)), Kernel,
-          [=](nd_item<2> index) {});
-    });*/
-    Prog.build_with_source("kernel void "
-                           "kernel_sg(global double* a, global double* b, "
-                           "global double* c) {*a=*b+*c; }\n");
-    kernel Kernel = Prog.get_kernel("kernel_sg");
+          nd_range<2>(GlobalRange, range<2>(10, 20)), [=](nd_item<2> index) {
+            const id<2> GlobalID = index.get_global_id();
+            A[GlobalID] = B[GlobalID] * C[GlobalID];
+          });
+    });
     uint32_t Res = 0;
 
-    /* sub_group_sizes can be quared only of cl_intel_required_subgroup_size
-     * extention is supported by device*/
+    /* sub_group_sizes can be queried only if cl_intel_required_subgroup_size
+     * extension is supported by device*/
     if (Device.has_extension("cl_intel_required_subgroup_size")) {
       auto sg_sizes = Device.get_info<info::device::sub_group_sizes>();
       for (auto r : {range<3>(3, 4, 5), range<3>(1, 1, 1), range<3>(4, 2, 1),

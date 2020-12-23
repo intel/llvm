@@ -41,6 +41,25 @@ int main() {
   }
 
   {
+    int data1[10] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+    {
+      buffer<int, 1> b(data1, range<1>(10), {property::buffer::mem_channel{3}});
+      queue myQueue;
+      myQueue.submit([&](handler &cgh) {
+        auto B = b.get_access<access::mode::read_write>(cgh);
+        cgh.parallel_for<class init_a_2>(range<1>{10},
+                                         [=](id<1> index) { B[index] = 0; });
+      });
+      assert(b.has_property<property::buffer::mem_channel>());
+      auto prop = b.get_property<property::buffer::mem_channel>();
+      assert(prop.get_channel() == 3 && "oops it's not 3");
+
+    } // Data is copied back because there is a user side shared_ptr
+    for (int i = 0; i < 10; i++)
+      assert(data1[i] == 0);
+  }
+
+  {
     std::vector<int> data1(10, -1);
     {
       buffer<int, 1> b(data1.data(), range<1>(10));

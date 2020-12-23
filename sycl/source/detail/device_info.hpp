@@ -936,6 +936,11 @@ inline bool get_device_info_host<info::device::usm_system_allocator>() {
   return true;
 }
 
+template <>
+inline bool get_device_info_host<info::device::ext_intel_mem_channel>() {
+  return false;
+}
+
 cl_uint get_native_vector_width(size_t idx);
 
 // USM
@@ -1002,6 +1007,66 @@ template <> struct get_device_info<bool, info::device::usm_system_allocator> {
     return (Err != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
   }
 };
+
+// Specialization for memory channel query
+template <> struct get_device_info<bool, info::device::ext_intel_mem_channel> {
+  static bool get(RT::PiDevice dev, const plugin &Plugin) {
+    pi_mem_properties caps;
+    pi_result Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
+        dev, pi::cast<RT::PiDeviceInfo>(info::device::ext_intel_mem_channel),
+        sizeof(pi_mem_properties), &caps, nullptr);
+    return (Err != PI_SUCCESS) ? false : (caps & PI_MEM_PROPERTIES_CHANNEL);
+  }
+};
+
+// Specializations for intel extensions for Level Zero low-level
+// detail device descriptors (not support on host).
+template <>
+inline string_class
+get_device_info_host<info::device::ext_intel_pci_address>() {
+  throw runtime_error(
+      "Obtaining the PCI address is not supported on HOST device",
+      PI_INVALID_DEVICE);
+}
+template <>
+inline cl_uint get_device_info_host<info::device::ext_intel_gpu_eu_count>() {
+  throw runtime_error("Obtaining the EU count is not supported on HOST device",
+                      PI_INVALID_DEVICE);
+}
+template <>
+inline cl_uint
+get_device_info_host<info::device::ext_intel_gpu_eu_simd_width>() {
+  throw runtime_error(
+      "Obtaining the EU SIMD width is not supported on HOST device",
+      PI_INVALID_DEVICE);
+}
+template <>
+inline cl_uint get_device_info_host<info::device::ext_intel_gpu_slices>() {
+  throw runtime_error(
+      "Obtaining the number of slices is not supported on HOST device",
+      PI_INVALID_DEVICE);
+}
+template <>
+inline cl_uint
+get_device_info_host<info::device::ext_intel_gpu_subslices_per_slice>() {
+  throw runtime_error("Obtaining the number of subslices per slice is not "
+                      "supported on HOST device",
+                      PI_INVALID_DEVICE);
+}
+template <>
+inline cl_uint
+get_device_info_host<info::device::ext_intel_gpu_eu_count_per_subslice>() {
+  throw runtime_error(
+      "Obtaining the EU count per subslice is not supported on HOST device",
+      PI_INVALID_DEVICE);
+}
+template <>
+inline cl_ulong
+get_device_info_host<info::device::ext_intel_max_mem_bandwidth>() {
+  throw runtime_error(
+      "Obtaining the maximum memory bandwidth is not supported on HOST device",
+      PI_INVALID_DEVICE);
+}
 
 } // namespace detail
 } // namespace sycl
