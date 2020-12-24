@@ -760,9 +760,11 @@ private:
         typename std::conditional<std::is_integral<LambdaArgType>::value &&
                                       Dims == 1,
                                   item<Dims>, LambdaArgType>::type;
+
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
+#ifndef __SYCL_EXPLICIT_SIMD__
     // The work group size preferred by this device.
     // A reasonable choice for rounding up the range is 32.
     constexpr size_t GoodLocalSizeX = 32;
@@ -774,7 +776,6 @@ private:
     // 3. The kernel is provided via an interoperability method.
     // 4. The API "this_item" is used inside the kernel.
     // 5. The range is already a multiple of the rounding factor.
-    // 6. We have an ESIMD kernel
     //
     // Cases 3 and 4 could be supported with extra effort.
     // As an optimization for the common case it is an
@@ -794,8 +795,7 @@ private:
         (KName.find("SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING") !=
          std::string::npos) ||
         (KI::getName() == nullptr || KI::getName()[0] == '\0') ||
-        (KI::callsThisItem()) ||
-        (KI::isESIMD());
+        (KI::callsThisItem());
 
     // Perform range rounding if rounding-up is enabled
     // and the user-specified range is not a multiple of a "good" value.
@@ -829,7 +829,9 @@ private:
           std::move(Wrapper));
       MCGType = detail::CG::KERNEL;
 #endif
-    } else {
+    } else
+#endif // __SYCL_EXPLICIT_SIMD__
+    {
 #ifdef __SYCL_DEVICE_ONLY__
       (void)NumWorkItems;
       kernel_parallel_for<NameT, TransformedArgType>(KernelFunc);
