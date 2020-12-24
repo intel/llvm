@@ -89,14 +89,14 @@ static cl::opt<bool> OutputAssembly{"S",
                                     cl::Hidden, cl::cat(PostLinkCat)};
 
 enum IRSplitMode {
-  SPLIT_PER_TU,    // one module per translation unit
+  SPLIT_PER_TU,     // one module per translation unit
   SPLIT_PER_KERNEL, // one module per kernel
-  SPLIT_AUTO // automatically select split mode
+  SPLIT_AUTO        // automatically select split mode
 };
 
 static cl::opt<IRSplitMode> SplitMode(
     "split", cl::desc("split input module"), cl::Optional,
-    cl::init(SPLIT_PER_TU),
+    cl::init(SPLIT_AUTO),
     cl::values(
         clEnumValN(SPLIT_PER_TU, "source",
                    "1 output module per source (translation unit)"),
@@ -292,16 +292,6 @@ enum KernelMapEntryScope {
 };
 
 static KernelMapEntryScope selectDeviceCodeSplitScopeAutomatically(Module &M) {
-  // Here we can employ various heuristics to decide which way to split kernels
-  // is the best in each particular situation.
-  // At the moment, we assume that per-kernel split is the best way of splitting
-  // device code and it can be always selected unless:
-  // - there are functions marked with [[intel::device_indirectly_callable]]
-  //   attribute, because it instructs us to make this function available to the
-  //   whole program as it was compiled as a single module.
-  // - there are indirect calls in the module, which means that we don't know
-  //   how to group functions so both caller and callee of indirect call are in
-  //   the same module.
   if (IROutputOnly) {
     // We allow enabling auto split mode even in presence of -ir-output-only
     // flag, but in this case we are limited by it so we can't do any split at
@@ -310,11 +300,17 @@ static KernelMapEntryScope selectDeviceCodeSplitScopeAutomatically(Module &M) {
   }
 
   for (const auto &F : M.functions()) {
+    // There are functions marked with [[intel::device_indirectly_callable]]
+    // attribute, because it instructs us to make this function available to the
+    // whole program as it was compiled as a single module.
     if (F.hasFnAttribute("referenced-indirectly"))
       return Scope_Global;
     if (F.isDeclaration())
       continue;
-    for (const auto &BB: F) {
+    // There are indirect calls in the module, which means that we don't know
+    // how to group functions so both caller and callee of indirect call are in
+    // the same module.
+    for (const auto &BB : F) {
       for (const auto &I : BB) {
         if (auto *CI = dyn_cast<CallInst>(&I)) {
           if (!CI->getCalledFunction())
@@ -324,6 +320,8 @@ static KernelMapEntryScope selectDeviceCodeSplitScopeAutomatically(Module &M) {
     }
   }
 
+  // At the moment, we assume that per-source split is the best way of splitting
+  // device code and can always be used execpt for cases handled above.
   return Scope_PerModule;
 }
 
@@ -633,6 +631,8 @@ int main(int argc, char **argv) {
       "  kernels with the same values of the 'sycl-module-id' attribute will\n"
       "  be put into the same module. If -split=kernel option is specified,\n"
       "  one module per kernel will be emitted.\n"
+      "  '-split=auto' mode automatically selects the best way of splitting\n"
+      "  kernels into modules based on some heuristic.\n"
       "- If -symbols options is also specified, then for each produced module\n"
       "  a text file containing names of all spir kernels in it is generated.\n"
       "- Specialization constant intrinsic transformer. Replaces symbolic\n"
@@ -652,7 +652,9 @@ int main(int argc, char **argv) {
       "  $ sycl-post-link --ir-output-only --spec-const=default \\\n"
       "    -o example_p.bc example.bc\n"
       "will produce single output file example_p.bc suitable for SPIRV\n"
-      "translation.\n");
+      "translation.\n"
+      "--ir-output-only option is not not compatible with split modes other\n"
+      "than 'auto'.\n");
 
   bool DoSplit = SplitMode.getNumOccurrences() > 0;
   bool DoSpecConst = SpecConstLower.getNumOccurrences() > 0;
