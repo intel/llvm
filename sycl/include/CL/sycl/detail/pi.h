@@ -1602,7 +1602,7 @@ __SYCL_EXPORT pi_result piextUSMGetMemAllocInfo(
 
 ///   API to notify that the plugin should clean up its resources.
 ///   No PI calls should be made until the next piPluginInit call.
-__SYCL_EXPORT pi_result piTearDown();
+__SYCL_EXPORT pi_result piTearDown(void *);
 
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin
