@@ -116,8 +116,8 @@ GlobalHandler::getDeviceFilterList(const std::string &InitValue) {
 
 void shutdown() {
   for (plugin &Plugin : GlobalHandler::instance().getPlugins()) {
-    plgn.call_nocheck<PiApiKind::piTearDown>();
-    plgn.unload();
+    Plugin.call_nocheck<PiApiKind::piTearDown>();
+    Plugin.unload();
   }
 
   delete &GlobalHandler::instance();
