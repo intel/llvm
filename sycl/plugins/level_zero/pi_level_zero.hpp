@@ -390,7 +390,6 @@ struct _pi_mem : _pi_object {
   char *MapHostPtr;
 
   // Flag to indicate that this memory is allocated in host memory
-  // if created with PI_MEM_FLAGS_HOST_PTR_ALLOC and/or integrated devices.
   bool OnHost;
 
   // Supplementary data to keep track of the mappings of this memory
