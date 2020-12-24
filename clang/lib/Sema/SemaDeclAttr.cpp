@@ -3040,9 +3040,9 @@ static bool handleMaxWorkSizeAttrExpr(Sema &S, const AttrInfo &AI,
     }
 
     if (ArgVal->isNegative()) {
-      S.Diag(getAttrLoc(AI),
+      S.Diag(Expr->getExprLoc(),
              diag::warn_attribute_requires_non_negative_integer_argument)
-          << &AI;
+          << &AI << Idx << Expr->getSourceRange();
       return true;
     }
 

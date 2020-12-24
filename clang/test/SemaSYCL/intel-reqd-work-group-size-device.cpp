@@ -40,7 +40,7 @@ public:
 
 class Functor33 {
 public:
-  // expected-warning@+1{{'reqd_work_group_size' attribute requires a non-negative integral compile time constant expression}}
+  // expected-warning@+1{{the resulting value of the 'reqd_work_group_size' attribute parameter 1 is always non-negative after implicit conversion}}
   [[intel::reqd_work_group_size(32, -4)]] void operator()() const {}
 };
 
