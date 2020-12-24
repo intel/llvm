@@ -2099,13 +2099,9 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
 
   if (AllocHostPtr) {
     PI_ASSERT(HostPtr == nullptr, PI_INVALID_VALUE);
+  }
 
-    ze_host_mem_alloc_desc_t ZeDesc = {};
-    ZeDesc.flags = 0;
-
-    ZE_CALL(zeMemAllocHost(Context->ZeContext, &ZeDesc, Size, 1, &Ptr));
-
-  } else if (DeviceIsIntegrated) {
+  if (AllocHostPtr || DeviceIsIntegrated) {
     ze_host_mem_alloc_desc_t ZeDesc = {};
     ZeDesc.flags = 0;
 
