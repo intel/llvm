@@ -89,6 +89,53 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   if (Subtarget.hasStdExtD())
     addRegisterClass(MVT::f64, &RISCV::FPR64RegClass);
 
+  if (Subtarget.hasStdExtV()) {
+    addRegisterClass(RISCVVMVTs::vbool64_t, &RISCV::VRRegClass);
+    addRegisterClass(RISCVVMVTs::vbool32_t, &RISCV::VRRegClass);
+    addRegisterClass(RISCVVMVTs::vbool16_t, &RISCV::VRRegClass);
+    addRegisterClass(RISCVVMVTs::vbool8_t, &RISCV::VRRegClass);
+    addRegisterClass(RISCVVMVTs::vbool4_t, &RISCV::VRRegClass);
+    addRegisterClass(RISCVVMVTs::vbool2_t, &RISCV::VRRegClass);
+    addRegisterClass(RISCVVMVTs::vbool1_t, &RISCV::VRRegClass);
+
+    addRegisterClass(RISCVVMVTs::vint8mf8_t, &RISCV::VRRegClass);
+    addRegisterClass(RISCVVMVTs::vint8mf4_t, &RISCV::VRRegClass);
+    addRegisterClass(RISCVVMVTs::vint8mf2_t, &RISCV::VRRegClass);
+    addRegisterClass(RISCVVMVTs::vint8m1_t, &RISCV::VRRegClass);
+    addRegisterClass(RISCVVMVTs::vint8m2_t, &RISCV::VRM2RegClass);
+    addRegisterClass(RISCVVMVTs::vint8m4_t, &RISCV::VRM4RegClass);
+    addRegisterClass(RISCVVMVTs::vint8m8_t, &RISCV::VRM8RegClass);
+
+    addRegisterClass(RISCVVMVTs::vint16mf4_t, &RISCV::VRRegClass);
+    addRegisterClass(RISCVVMVTs::vint16mf2_t, &RISCV::VRRegClass);
+    addRegisterClass(RISCVVMVTs::vint16m1_t, &RISCV::VRRegClass);
+    addRegisterClass(RISCVVMVTs::vint16m2_t, &RISCV::VRM2RegClass);
+    addRegisterClass(RISCVVMVTs::vint16m4_t, &RISCV::VRM4RegClass);
+    addRegisterClass(RISCVVMVTs::vint16m8_t, &RISCV::VRM8RegClass);
+
+    addRegisterClass(RISCVVMVTs::vint32mf2_t, &RISCV::VRRegClass);
+    addRegisterClass(RISCVVMVTs::vint32m1_t, &RISCV::VRRegClass);
+    addRegisterClass(RISCVVMVTs::vint32m2_t, &RISCV::VRM2RegClass);
+    addRegisterClass(RISCVVMVTs::vint32m4_t, &RISCV::VRM4RegClass);
+    addRegisterClass(RISCVVMVTs::vint32m8_t, &RISCV::VRM8RegClass);
+
+    addRegisterClass(RISCVVMVTs::vint64m1_t, &RISCV::VRRegClass);
+    addRegisterClass(RISCVVMVTs::vint64m2_t, &RISCV::VRM2RegClass);
+    addRegisterClass(RISCVVMVTs::vint64m4_t, &RISCV::VRM4RegClass);
+    addRegisterClass(RISCVVMVTs::vint64m8_t, &RISCV::VRM8RegClass);
+
+    addRegisterClass(RISCVVMVTs::vfloat32mf2_t, &RISCV::VRRegClass);
+    addRegisterClass(RISCVVMVTs::vfloat32m1_t, &RISCV::VRRegClass);
+    addRegisterClass(RISCVVMVTs::vfloat32m2_t, &RISCV::VRM2RegClass);
+    addRegisterClass(RISCVVMVTs::vfloat32m4_t, &RISCV::VRM4RegClass);
+    addRegisterClass(RISCVVMVTs::vfloat32m8_t, &RISCV::VRM8RegClass);
+
+    addRegisterClass(RISCVVMVTs::vfloat64m1_t, &RISCV::VRRegClass);
+    addRegisterClass(RISCVVMVTs::vfloat64m2_t, &RISCV::VRM2RegClass);
+    addRegisterClass(RISCVVMVTs::vfloat64m4_t, &RISCV::VRM4RegClass);
+    addRegisterClass(RISCVVMVTs::vfloat64m8_t, &RISCV::VRM8RegClass);
+  }
+
   // Compute derived properties from the register classes.
   computeRegisterProperties(STI.getRegisterInfo());
 
@@ -199,7 +246,7 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   ISD::CondCode FPCCToExpand[] = {
       ISD::SETOGT, ISD::SETOGE, ISD::SETONE, ISD::SETUEQ, ISD::SETUGT,
       ISD::SETUGE, ISD::SETULT, ISD::SETULE, ISD::SETUNE, ISD::SETGT,
-      ISD::SETGE,  ISD::SETNE};
+      ISD::SETGE,  ISD::SETNE,  ISD::SETO,   ISD::SETUO};
 
   ISD::NodeType FPOpToExpand[] = {
       ISD::FSIN, ISD::FCOS, ISD::FSINCOS, ISD::FPOW, ISD::FREM, ISD::FP16_TO_FP,
@@ -283,6 +330,9 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   }
 
   setBooleanContents(ZeroOrOneBooleanContent);
+
+  if (Subtarget.hasStdExtV())
+    setBooleanVectorContents(ZeroOrOneBooleanContent);
 
   // Function alignments.
   const Align FunctionAlignment(Subtarget.hasStdExtC() ? 2 : 4);
@@ -1304,6 +1354,7 @@ static SDValue combineORToGREV(SDValue Op, SelectionDAG &DAG,
 //     (or (or (BITMANIP_SHL x), (BITMANIP_SRL x)), x)
 // the inner pattern will first be matched as GREVI and then the outer
 // pattern will be matched to GORC via the first rule above.
+// 4.  (or (rotl/rotr x, bitwidth/2), x)
 static SDValue combineORToGORC(SDValue Op, SelectionDAG &DAG,
                                const RISCVSubtarget &Subtarget) {
   EVT VT = Op.getValueType();
@@ -1313,15 +1364,29 @@ static SDValue combineORToGORC(SDValue Op, SelectionDAG &DAG,
     SDValue Op0 = Op.getOperand(0);
     SDValue Op1 = Op.getOperand(1);
 
+    auto MatchOROfReverse = [&](SDValue Reverse, SDValue X) {
+      if (Reverse.getOpcode() == RISCVISD::GREVI && Reverse.getOperand(0) == X &&
+          isPowerOf2_32(Reverse.getConstantOperandVal(1)))
+        return DAG.getNode(RISCVISD::GORCI, DL, VT, X, Reverse.getOperand(1));
+      // We can also form GORCI from ROTL/ROTR by half the bitwidth.
+      if ((Reverse.getOpcode() == ISD::ROTL ||
+           Reverse.getOpcode() == ISD::ROTR) &&
+          Reverse.getOperand(0) == X &&
+          isa<ConstantSDNode>(Reverse.getOperand(1))) {
+        uint64_t RotAmt = Reverse.getConstantOperandVal(1);
+        if (RotAmt == (VT.getSizeInBits() / 2))
+          return DAG.getNode(
+              RISCVISD::GORCI, DL, VT, X,
+              DAG.getTargetConstant(RotAmt, DL, Subtarget.getXLenVT()));
+      }
+      return SDValue();
+    };
+
     // Check for either commutable permutation of (or (GREVI x, shamt), x)
-    for (const auto &OpPair :
-         {std::make_pair(Op0, Op1), std::make_pair(Op1, Op0)}) {
-      if (OpPair.first.getOpcode() == RISCVISD::GREVI &&
-          OpPair.first.getOperand(0) == OpPair.second &&
-          isPowerOf2_32(OpPair.first.getConstantOperandVal(1)))
-        return DAG.getNode(RISCVISD::GORCI, DL, VT, OpPair.second,
-                           OpPair.first.getOperand(1));
-    }
+    if (SDValue V = MatchOROfReverse(Op0, Op1))
+      return V;
+    if (SDValue V = MatchOROfReverse(Op1, Op0))
+      return V;
 
     // OR is commutable so canonicalize its OR operand to the left
     if (Op0.getOpcode() != ISD::OR && Op1.getOpcode() == ISD::OR)
@@ -1856,9 +1921,63 @@ static MachineBasicBlock *emitSelectPseudo(MachineInstr &MI,
   return TailMBB;
 }
 
+static MachineBasicBlock *addVSetVL(MachineInstr &MI, MachineBasicBlock *BB,
+                                    int VLIndex, unsigned SEWIndex,
+                                    unsigned VLMul) {
+  MachineFunction &MF = *BB->getParent();
+  DebugLoc DL = MI.getDebugLoc();
+  const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
+
+  unsigned SEW = MI.getOperand(SEWIndex).getImm();
+  assert(RISCVVType::isValidSEW(SEW) && "Unexpected SEW");
+  RISCVVSEW ElementWidth = static_cast<RISCVVSEW>(Log2_32(SEW / 8));
+
+  // LMUL should already be encoded correctly.
+  RISCVVLMUL Multiplier = static_cast<RISCVVLMUL>(VLMul);
+
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+
+  // VL and VTYPE are alive here.
+  MachineInstrBuilder MIB = BuildMI(*BB, MI, DL, TII.get(RISCV::PseudoVSETVLI));
+
+  if (VLIndex >= 0) {
+    // Set VL (rs1 != X0).
+    Register DestReg = MRI.createVirtualRegister(&RISCV::GPRRegClass);
+    MIB.addReg(DestReg, RegState::Define | RegState::Dead)
+        .addReg(MI.getOperand(VLIndex).getReg());
+  } else
+    // With no VL operator in the pseudo, do not modify VL (rd = X0, rs1 = X0).
+    MIB.addReg(RISCV::X0, RegState::Define | RegState::Dead)
+        .addReg(RISCV::X0, RegState::Kill);
+
+  // For simplicity we reuse the vtype representation here.
+  MIB.addImm(RISCVVType::encodeVTYPE(Multiplier, ElementWidth,
+                                     /*TailAgnostic*/ true,
+                                     /*MaskAgnostic*/ false));
+
+  // Remove (now) redundant operands from pseudo
+  MI.getOperand(SEWIndex).setImm(-1);
+  if (VLIndex >= 0) {
+    MI.getOperand(VLIndex).setReg(RISCV::NoRegister);
+    MI.getOperand(VLIndex).setIsKill(false);
+  }
+
+  return BB;
+}
+
 MachineBasicBlock *
 RISCVTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
                                                  MachineBasicBlock *BB) const {
+
+  if (const RISCVVPseudosTable::PseudoInfo *RVV =
+          RISCVVPseudosTable::getPseudoInfo(MI.getOpcode())) {
+    int VLIndex = RVV->getVLIndex();
+    int SEWIndex = RVV->getSEWIndex();
+
+    assert(SEWIndex >= 0 && "SEWIndex must be >= 0");
+    return addVSetVL(MI, BB, VLIndex, SEWIndex, RVV->VLMul);
+  }
+
   switch (MI.getOpcode()) {
   default:
     llvm_unreachable("Unexpected instr type to insert");

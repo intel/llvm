@@ -23,7 +23,10 @@
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/Bitcode/BitcodeReader.h"
+#include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/IRReader/IRReader.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/ArchiveWriter.h"
 #include "llvm/Object/Binary.h"
@@ -40,6 +43,7 @@
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/StringSaver.h"
+#include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
@@ -144,6 +148,13 @@ static bool hasHostKind(StringRef Target) {
   StringRef Triple;
   getOffloadKindAndTriple(Target, OffloadKind, Triple);
   return OffloadKind == "host";
+}
+
+static Triple getTargetTriple(StringRef Target) {
+  StringRef OffloadKind;
+  StringRef TargetTriple;
+  getOffloadKindAndTriple(Target, OffloadKind, TargetTriple);
+  return Triple(TargetTriple);
 }
 
 /// Generic file handler interface.
@@ -557,6 +568,7 @@ class ObjectFileHandler final : public FileHandler {
   Expected<SmallVector<char, 0>> makeTargetSymbolTable() {
     SmallVector<char, 0> SymbolsBuf;
     raw_svector_ostream SymbolsOS(SymbolsBuf);
+    LLVMContext Context;
 
     for (unsigned I = 0; I < NumberOfInputs; ++I) {
       if (I == HostInputIndex)
@@ -569,9 +581,36 @@ class ObjectFileHandler final : public FileHandler {
       if (!BufOrErr)
         return createFileError(InputFileNames[I], BufOrErr.getError());
 
-      LLVMContext Context;
+      std::unique_ptr<MemoryBuffer> Buf = std::move(*BufOrErr);
+
+      // Workaround for the absence of assembly parser for spir target. If this
+      // input is a bitcode for spir target we need to remove module-level
+      // inline asm from it, if there is one, and recreate the buffer with new
+      // contents.
+      // TODO: remove this workaround once spir target gets asm parser.
+      if (isBitcode((const unsigned char *)Buf->getBufferStart(),
+                    (const unsigned char *)Buf->getBufferEnd()))
+        if (getTargetTriple(TargetNames[I]).isSPIR()) {
+          SMDiagnostic Err;
+          std::unique_ptr<Module> Mod = parseIR(*Buf, Err, Context);
+          if (!Mod)
+            return createStringError(inconvertibleErrorCode(),
+                                     Err.getMessage());
+
+          if (!Mod->getModuleInlineAsm().empty()) {
+            Mod->setModuleInlineAsm("");
+
+            SmallVector<char, 0> ModuleBuf;
+            raw_svector_ostream ModuleOS(ModuleBuf);
+            WriteBitcodeToFile(*Mod, ModuleOS);
+
+            Buf = MemoryBuffer::getMemBufferCopy(ModuleOS.str(),
+                                                 Buf->getBufferIdentifier());
+          }
+        }
+
       Expected<std::unique_ptr<Binary>> BinOrErr =
-          createBinary(BufOrErr.get()->getMemBufferRef(), &Context);
+          createBinary(Buf->getMemBufferRef(), &Context);
 
       // If it is not a symbolic file just ignore it since we cannot do anything
       // with it.
@@ -1213,11 +1252,9 @@ public:
 
     if (Mode == OutputType::Archive) {
       // Determine archive kind for the offload target.
-      StringRef TargetKind;
-      StringRef TargetTriple;
-      getOffloadKindAndTriple(CurrBundle->first(), TargetKind, TargetTriple);
-      auto ArKind = Triple(TargetTriple).isOSDarwin() ? Archive::K_DARWIN
-                                                      : Archive::K_GNU;
+      auto ArKind = getTargetTriple(CurrBundle->first()).isOSDarwin()
+                        ? Archive::K_DARWIN
+                        : Archive::K_GNU;
 
       // And write archive to the output.
       Expected<std::unique_ptr<MemoryBuffer>> NewAr =
@@ -1526,6 +1563,11 @@ int main(int argc, const char **argv) {
     cl::PrintHelpMessage();
     return 0;
   }
+
+  // These calls are needed so that we can read bitcode correctly.
+  InitializeAllTargetInfos();
+  InitializeAllTargetMCs();
+  InitializeAllAsmParsers();
 
   auto reportError = [argv](Error E) {
     logAllUnhandledErrors(std::move(E), WithColor::error(errs(), argv[0]));

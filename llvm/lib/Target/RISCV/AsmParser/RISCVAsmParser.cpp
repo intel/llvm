@@ -124,6 +124,10 @@ class RISCVAsmParser : public MCTargetAsmParser {
   void emitLoadStoreSymbol(MCInst &Inst, unsigned Opcode, SMLoc IDLoc,
                            MCStreamer &Out, bool HasTmpReg);
 
+  // Helper to emit pseudo sign/zero extend instruction.
+  void emitPseudoExtend(MCInst &Inst, bool SignExtend, int64_t Width,
+                        SMLoc IDLoc, MCStreamer &Out);
+
   // Checks that a PseudoAddTPRel is using x4/tp in its second input operand.
   // Enforcing this using a restricted register class for the second input
   // operand of PseudoAddTPRel results in a poor diagnostic due to the fact
@@ -275,33 +279,11 @@ struct RISCVOperand : public MCParsedAsmOperand {
     // e.g.: read/write or user/supervisor/machine privileges.
   };
 
-  enum class VSEW {
-    SEW_8 = 0,
-    SEW_16,
-    SEW_32,
-    SEW_64,
-    SEW_128,
-    SEW_256,
-    SEW_512,
-    SEW_1024,
-  };
-
-  enum class VLMUL {
-    LMUL_1 = 0,
-    LMUL_2,
-    LMUL_4,
-    LMUL_8,
-    LMUL_F8 = 5,
-    LMUL_F4,
-    LMUL_F2
-  };
-
   struct VTypeOp {
-    VSEW Sew;
-    VLMUL Lmul;
+    RISCVVSEW Sew;
+    RISCVVLMUL Lmul;
     bool TailAgnostic;
-    bool MaskedoffAgnostic;
-    unsigned Encoding;
+    bool MaskAgnostic;
   };
 
   SMLoc StartLoc, EndLoc;
@@ -752,43 +734,43 @@ public:
     return Tok;
   }
 
-  static StringRef getSEWStr(VSEW Sew) {
+  static StringRef getSEWStr(RISCVVSEW Sew) {
     switch (Sew) {
-    case VSEW::SEW_8:
+    case RISCVVSEW::SEW_8:
       return "e8";
-    case VSEW::SEW_16:
+    case RISCVVSEW::SEW_16:
       return "e16";
-    case VSEW::SEW_32:
+    case RISCVVSEW::SEW_32:
       return "e32";
-    case VSEW::SEW_64:
+    case RISCVVSEW::SEW_64:
       return "e64";
-    case VSEW::SEW_128:
+    case RISCVVSEW::SEW_128:
       return "e128";
-    case VSEW::SEW_256:
+    case RISCVVSEW::SEW_256:
       return "e256";
-    case VSEW::SEW_512:
+    case RISCVVSEW::SEW_512:
       return "e512";
-    case VSEW::SEW_1024:
+    case RISCVVSEW::SEW_1024:
       return "e1024";
     }
     llvm_unreachable("Unknown SEW.");
   }
 
-  static StringRef getLMULStr(VLMUL Lmul) {
+  static StringRef getLMULStr(RISCVVLMUL Lmul) {
     switch (Lmul) {
-    case VLMUL::LMUL_1:
+    case RISCVVLMUL::LMUL_1:
       return "m1";
-    case VLMUL::LMUL_2:
+    case RISCVVLMUL::LMUL_2:
       return "m2";
-    case VLMUL::LMUL_4:
+    case RISCVVLMUL::LMUL_4:
       return "m4";
-    case VLMUL::LMUL_8:
+    case RISCVVLMUL::LMUL_8:
       return "m8";
-    case VLMUL::LMUL_F2:
+    case RISCVVLMUL::LMUL_F2:
       return "mf2";
-    case VLMUL::LMUL_F4:
+    case RISCVVLMUL::LMUL_F4:
       return "mf4";
-    case VLMUL::LMUL_F8:
+    case RISCVVLMUL::LMUL_F8:
       return "mf8";
     }
     llvm_unreachable("Unknown LMUL.");
@@ -867,30 +849,20 @@ public:
   }
 
   static std::unique_ptr<RISCVOperand>
-  createVType(APInt Sew, APInt Lmul, bool Fractional, bool TailAgnostic,
-              bool MaskedoffAgnostic, SMLoc S, bool IsRV64) {
+  createVType(unsigned Sew, unsigned Lmul, bool Fractional, bool TailAgnostic,
+              bool MaskAgnostic, SMLoc S, bool IsRV64) {
     auto Op = std::make_unique<RISCVOperand>(KindTy::VType);
-    Sew.ashrInPlace(3);
-    unsigned SewLog2 = Sew.logBase2();
-    unsigned LmulLog2 = Lmul.logBase2();
-    Op->VType.Sew = static_cast<VSEW>(SewLog2);
+    unsigned SewLog2 = Log2_32(Sew / 8);
+    unsigned LmulLog2 = Log2_32(Lmul);
+    Op->VType.Sew = static_cast<RISCVVSEW>(SewLog2);
     if (Fractional) {
       unsigned Flmul = 8 - LmulLog2;
-      Op->VType.Lmul = static_cast<VLMUL>(Flmul);
-      Op->VType.Encoding =
-          ((Flmul & 0x4) << 3) | ((SewLog2 & 0x7) << 2) | (Flmul & 0x3);
+      Op->VType.Lmul = static_cast<RISCVVLMUL>(Flmul);
     } else {
-      Op->VType.Lmul = static_cast<VLMUL>(LmulLog2);
-      Op->VType.Encoding = (SewLog2 << 2) | LmulLog2;
-    }
-    if (TailAgnostic) {
-      Op->VType.Encoding |= 0x40;
-    }
-    if (MaskedoffAgnostic) {
-      Op->VType.Encoding |= 0x80;
+      Op->VType.Lmul = static_cast<RISCVVLMUL>(LmulLog2);
     }
     Op->VType.TailAgnostic = TailAgnostic;
-    Op->VType.MaskedoffAgnostic = MaskedoffAgnostic;
+    Op->VType.MaskAgnostic = MaskAgnostic;
     Op->StartLoc = S;
     Op->IsRV64 = IsRV64;
     return Op;
@@ -955,7 +927,9 @@ public:
 
   void addVTypeIOperands(MCInst &Inst, unsigned N) const {
     assert(N == 1 && "Invalid number of operands!");
-    Inst.addOperand(MCOperand::createImm(VType.Encoding));
+    unsigned VTypeI = RISCVVType::encodeVTYPE(
+        VType.Lmul, VType.Sew, VType.TailAgnostic, VType.MaskAgnostic);
+    Inst.addOperand(MCOperand::createImm(VTypeI));
   }
 
   // Returns the rounding mode represented by this RISCVOperand. Should only
@@ -1598,9 +1572,10 @@ OperandMatchResultTy RISCVAsmParser::parseVTypeI(OperandVector &Operands) {
   StringRef Name = getLexer().getTok().getIdentifier();
   if (!Name.consume_front("e"))
     return MatchOperand_NoMatch;
-  APInt Sew(16, Name, 10);
-  if (Sew != 8 && Sew != 16 && Sew != 32 && Sew != 64 && Sew != 128 &&
-      Sew != 256 && Sew != 512 && Sew != 1024)
+  unsigned Sew;
+  if (Name.getAsInteger(10, Sew))
+    return MatchOperand_NoMatch;
+  if (!RISCVVType::isValidSEW(Sew))
     return MatchOperand_NoMatch;
   getLexer().Lex();
 
@@ -1612,12 +1587,11 @@ OperandMatchResultTy RISCVAsmParser::parseVTypeI(OperandVector &Operands) {
   if (!Name.consume_front("m"))
     return MatchOperand_NoMatch;
   // "m" or "mf"
-  bool Fractional = false;
-  if (Name.consume_front("f")) {
-    Fractional = true;
-  }
-  APInt Lmul(16, Name, 10);
-  if (Lmul != 1 && Lmul != 2 && Lmul != 4 && Lmul != 8)
+  bool Fractional = Name.consume_front("f");
+  unsigned Lmul;
+  if (Name.getAsInteger(10, Lmul))
+    return MatchOperand_NoMatch;
+  if (!RISCVVType::isValidLMUL(Lmul, Fractional))
     return MatchOperand_NoMatch;
   getLexer().Lex();
 
@@ -1628,9 +1602,9 @@ OperandMatchResultTy RISCVAsmParser::parseVTypeI(OperandVector &Operands) {
   Name = getLexer().getTok().getIdentifier();
   // ta or tu
   bool TailAgnostic;
-  if (Name.consume_front("ta"))
+  if (Name == "ta")
     TailAgnostic = true;
-  else if (Name.consume_front("tu"))
+  else if (Name == "tu")
     TailAgnostic = false;
   else
     return MatchOperand_NoMatch;
@@ -1642,11 +1616,11 @@ OperandMatchResultTy RISCVAsmParser::parseVTypeI(OperandVector &Operands) {
 
   Name = getLexer().getTok().getIdentifier();
   // ma or mu
-  bool MaskedoffAgnostic;
-  if (Name.consume_front("ma"))
-    MaskedoffAgnostic = true;
-  else if (Name.consume_front("mu"))
-    MaskedoffAgnostic = false;
+  bool MaskAgnostic;
+  if (Name == "ma")
+    MaskAgnostic = true;
+  else if (Name == "mu")
+    MaskAgnostic = false;
   else
     return MatchOperand_NoMatch;
   getLexer().Lex();
@@ -1655,7 +1629,7 @@ OperandMatchResultTy RISCVAsmParser::parseVTypeI(OperandVector &Operands) {
     return MatchOperand_NoMatch;
 
   Operands.push_back(RISCVOperand::createVType(
-      Sew, Lmul, Fractional, TailAgnostic, MaskedoffAgnostic, S, isRV64()));
+      Sew, Lmul, Fractional, TailAgnostic, MaskAgnostic, S, isRV64()));
 
   return MatchOperand_Success;
 }
@@ -2299,6 +2273,35 @@ void RISCVAsmParser::emitLoadStoreSymbol(MCInst &Inst, unsigned Opcode,
                     Opcode, IDLoc, Out);
 }
 
+void RISCVAsmParser::emitPseudoExtend(MCInst &Inst, bool SignExtend,
+                                      int64_t Width, SMLoc IDLoc,
+                                      MCStreamer &Out) {
+  // The sign/zero extend pseudo-instruction does two shifts, with the shift
+  // amounts dependent on the XLEN.
+  //
+  // The expansion looks like this
+  //
+  //    SLLI rd, rs, XLEN - Width
+  //    SR[A|R]I rd, rd, XLEN - Width
+  MCOperand DestReg = Inst.getOperand(0);
+  MCOperand SourceReg = Inst.getOperand(1);
+
+  unsigned SecondOpcode = SignExtend ? RISCV::SRAI : RISCV::SRLI;
+  int64_t ShAmt = (isRV64() ? 64 : 32) - Width;
+
+  assert(ShAmt > 0 && "Shift amount must be non-zero.");
+
+  emitToStreamer(Out, MCInstBuilder(RISCV::SLLI)
+                          .addOperand(DestReg)
+                          .addOperand(SourceReg)
+                          .addImm(ShAmt));
+
+  emitToStreamer(Out, MCInstBuilder(SecondOpcode)
+                          .addOperand(DestReg)
+                          .addOperand(DestReg)
+                          .addImm(ShAmt));
+}
+
 bool RISCVAsmParser::checkPseudoAddTPRel(MCInst &Inst,
                                          OperandVector &Operands) {
   assert(Inst.getOpcode() == RISCV::PseudoAddTPRel && "Invalid instruction");
@@ -2461,6 +2464,18 @@ bool RISCVAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
     if (checkPseudoAddTPRel(Inst, Operands))
       return true;
     break;
+  case RISCV::PseudoSEXT_B:
+    emitPseudoExtend(Inst, /*SignExtend=*/true, /*Width=*/8, IDLoc, Out);
+    return false;
+  case RISCV::PseudoSEXT_H:
+    emitPseudoExtend(Inst, /*SignExtend=*/true, /*Width=*/16, IDLoc, Out);
+    return false;
+  case RISCV::PseudoZEXT_H:
+    emitPseudoExtend(Inst, /*SignExtend=*/false, /*Width=*/16, IDLoc, Out);
+    return false;
+  case RISCV::PseudoZEXT_W:
+    emitPseudoExtend(Inst, /*SignExtend=*/false, /*Width=*/32, IDLoc, Out);
+    return false;
   }
 
   emitToStreamer(Out, Inst);

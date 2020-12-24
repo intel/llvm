@@ -40,6 +40,7 @@
 #include "llvm/IR/Mangler.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PseudoProbe.h"
 #include "llvm/IR/Type.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
@@ -313,6 +314,29 @@ void TargetLoweringObjectFileELF::emitModuleMetadata(MCStreamer &Streamer,
       Streamer.emitBytes(
           cast<MDString>(cast<MDNode>(Operand)->getOperand(0))->getString());
       Streamer.emitInt8(0);
+    }
+  }
+
+  if (NamedMDNode *FuncInfo = M.getNamedMetadata(PseudoProbeDescMetadataName)) {
+    // Emit a descriptor for every function including functions that have an
+    // available external linkage. We may not want this for imported functions
+    // that has code in another thinLTO module but we don't have a good way to
+    // tell them apart from inline functions defined in header files. Therefore
+    // we put each descriptor in a separate comdat section and rely on the
+    // linker to deduplicate.
+    for (const auto *Operand : FuncInfo->operands()) {
+      const auto *MD = cast<MDNode>(Operand);
+      auto *GUID = mdconst::dyn_extract<ConstantInt>(MD->getOperand(0));
+      auto *Hash = mdconst::dyn_extract<ConstantInt>(MD->getOperand(1));
+      auto *Name = cast<MDString>(MD->getOperand(2));
+      auto *S = C.getObjectFileInfo()->getPseudoProbeDescSection(
+          TM->getFunctionSections() ? Name->getString() : StringRef());
+
+      Streamer.SwitchSection(S);
+      Streamer.emitInt64(GUID->getZExtValue());
+      Streamer.emitInt64(Hash->getZExtValue());
+      Streamer.emitULEB128IntValue(Name->getString().size());
+      Streamer.emitBytes(Name->getString());
     }
   }
 
@@ -621,7 +645,7 @@ getELFSectionNameForGlobal(const GlobalObject *GO, SectionKind Kind,
   bool HasPrefix = false;
   if (const auto *F = dyn_cast<Function>(GO)) {
     if (Optional<StringRef> Prefix = F->getSectionPrefix()) {
-      Name += *Prefix;
+      raw_svector_ostream(Name) << '.' << *Prefix;
       HasPrefix = true;
     }
   }
@@ -1573,6 +1597,10 @@ MCSection *TargetLoweringObjectFileCOFF::SelectSectionForGlobal(
       MCSymbol *Sym = TM.getSymbol(ComdatGV);
       StringRef COMDATSymName = Sym->getName();
 
+      if (const auto *F = dyn_cast<Function>(GO))
+        if (Optional<StringRef> Prefix = F->getSectionPrefix())
+          raw_svector_ostream(Name) << '$' << *Prefix;
+
       // Append "$symbol" to the section name *before* IR-level mangling is
       // applied when targetting mingw. This is what GCC does, and the ld.bfd
       // COFF linker will not properly handle comdats otherwise.
@@ -2020,7 +2048,7 @@ static MCSectionWasm *selectWasmSectionForGlobal(
   if (const auto *F = dyn_cast<Function>(GO)) {
     const auto &OptionalPrefix = F->getSectionPrefix();
     if (OptionalPrefix)
-      Name += *OptionalPrefix;
+      raw_svector_ostream(Name) << '.' << *OptionalPrefix;
   }
 
   if (EmitUniqueSection && UniqueSectionNames) {

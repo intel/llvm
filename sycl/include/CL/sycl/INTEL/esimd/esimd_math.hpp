@@ -1314,6 +1314,18 @@ esimd_fbh(T src) {
 
 template <typename T = void> simd<uint, 4> esimd_rdtsc();
 
+/// \brief DP4A.
+///
+/// @param src0 the first source operand of dp4a operation.
+///
+/// @param src1 the second source operand of dp4a operation.
+///
+/// @param src2 the third source operand of dp4a operation.
+///
+/// @param flag saturation flag, which has default value of GENX_NOSAT.
+///
+/// Returns simd vector of the dp4a operation result.
+///
 template <typename T1, typename T2, typename T3, typename T4, int N>
 ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_dword_type<T1>::value && detail::is_dword_type<T2>::value &&
@@ -1324,10 +1336,57 @@ esimd_dp4a(simd<T2, N> src0, simd<T3, N> src1, simd<T4, N> src2,
   simd<T2, N> Src0 = src0;
   simd<T3, N> Src1 = src1;
   simd<T4, N> Src2 = src2;
-  simd<T1, N> Result = __esimd_dp4a<T1>(Src0.data(), Src1.data(), Src2.data());
-  if (flag != GENX_SAT)
-    return Result;
-  return esimd_sat<T1>(Result);
+  simd<T1, N> Result;
+
+#if defined(__SYCL_DEVICE_ONLY__)
+  if (flag == GENX_NOSAT) {
+    if constexpr (std::is_unsigned<T1>::value) {
+      if constexpr (std::is_unsigned<T2>::value) {
+        Result = __esimd_uudp4a<T1, T2, T3, T4, N>(Src0.data(), Src1.data(),
+                                                   Src2.data());
+      } else {
+        Result = __esimd_usdp4a<T1, T2, T3, T4, N>(Src0.data(), Src1.data(),
+                                                   Src2.data());
+      }
+    } else {
+      if constexpr (std::is_unsigned<T2>::value) {
+        Result = __esimd_sudp4a<T1, T2, T3, T4, N>(Src0.data(), Src1.data(),
+                                                   Src2.data());
+      } else {
+        Result = __esimd_ssdp4a<T1, T2, T3, T4, N>(Src0.data(), Src1.data(),
+                                                   Src2.data());
+      }
+    }
+  } else {
+    if constexpr (std::is_unsigned<T1>::value) {
+      if constexpr (std::is_unsigned<T2>::value) {
+        Result = __esimd_uudp4a_sat<T1, T2, T3, T4, N>(Src0.data(), Src1.data(),
+                                                       Src2.data());
+      } else {
+        Result = __esimd_usdp4a_sat<T1, T2, T3, T4, N>(Src0.data(), Src1.data(),
+                                                       Src2.data());
+      }
+    } else {
+      if constexpr (std::is_unsigned<T2>::value) {
+        Result = __esimd_sudp4a_sat<T1, T2, T3, T4, N>(Src0.data(), Src1.data(),
+                                                       Src2.data());
+      } else {
+        Result = __esimd_ssdp4a_sat<T1, T2, T3, T4, N>(Src0.data(), Src1.data(),
+                                                       Src2.data());
+      }
+    }
+  }
+#else
+  simd<T2, N> tmp =
+      __esimd_dp4a<T1, T2, T3, T4, N>(Src0.data(), Src1.data(), Src2.data());
+
+  if (flag == GENX_SAT)
+    Result = esimd_sat<T1>(tmp);
+  else
+    Result = convert<T1>(tmp);
+#endif // __SYCL_DEVICE_ONLY__
+
+  return Result;
 }
 
 static auto constexpr ESIMD_CONST_E = 2.71828f;

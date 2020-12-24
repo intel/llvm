@@ -886,6 +886,8 @@ void TargetLoweringBase::initActions() {
   // On most systems, DEBUGTRAP and TRAP have no difference. The "Expand"
   // here is to inform DAG Legalizer to replace DEBUGTRAP with TRAP.
   setOperationAction(ISD::DEBUGTRAP, MVT::Other, Expand);
+
+  setOperationAction(ISD::UBSANTRAP, MVT::Other, Expand);
 }
 
 MVT TargetLoweringBase::getScalarShiftAmountTy(const DataLayout &DL,
@@ -1969,10 +1971,14 @@ Value *TargetLoweringBase::getIRStackGuard(IRBuilder<> &IRB) const {
 // Currently only support "standard" __stack_chk_guard.
 // TODO: add LOAD_STACK_GUARD support.
 void TargetLoweringBase::insertSSPDeclarations(Module &M) const {
-  if (!M.getNamedValue("__stack_chk_guard"))
-    new GlobalVariable(M, Type::getInt8PtrTy(M.getContext()), false,
-                       GlobalVariable::ExternalLinkage,
-                       nullptr, "__stack_chk_guard");
+  if (!M.getNamedValue("__stack_chk_guard")) {
+    auto *GV = new GlobalVariable(M, Type::getInt8PtrTy(M.getContext()), false,
+                                  GlobalVariable::ExternalLinkage, nullptr,
+                                  "__stack_chk_guard");
+    if (TM.getRelocationModel() == Reloc::Static &&
+        !TM.getTargetTriple().isWindowsGNUEnvironment())
+      GV->setDSOLocal(true);
+  }
 }
 
 // Currently only support "standard" __stack_chk_guard.

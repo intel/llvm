@@ -118,6 +118,18 @@ private:
   int Data;
 };
 
+template <int dim> struct item {
+  template <typename... T>
+  item(T... args) {} // fake constructor
+private:
+  // Some fake field added to see using of item arguments in the
+  // kernel wrapper
+  int Data;
+};
+
+template <int Dims> item<Dims>
+this_item() { return item<Dims>{}; }
+
 template <int dim>
 struct range {
   template <typename... T>

@@ -185,25 +185,25 @@ static FlagToValueNormalizer<T> makeFlagToValueNormalizer(T Value) {
   return FlagToValueNormalizer<T>{std::move(Value)};
 }
 
-static Optional<bool> normalizeBooleanFlag(OptSpecifier PosOpt,
-                                           OptSpecifier NegOpt,
-                                           unsigned TableIndex,
-                                           const ArgList &Args,
-                                           DiagnosticsEngine &Diags) {
-  if (const Arg *A = Args.getLastArg(PosOpt, NegOpt))
-    return A->getOption().matches(PosOpt);
-  return None;
+static auto makeBooleanOptionNormalizer(bool Value, bool OtherValue,
+                                        OptSpecifier OtherOpt) {
+  return [Value, OtherValue, OtherOpt](OptSpecifier Opt, unsigned,
+                                       const ArgList &Args,
+                                       DiagnosticsEngine &) -> Optional<bool> {
+    if (const Arg *A = Args.getLastArg(Opt, OtherOpt)) {
+      return A->getOption().matches(Opt) ? Value : OtherValue;
+    }
+    return None;
+  };
 }
 
-static void denormalizeBooleanFlag(SmallVectorImpl<const char *> &Args,
-                                   const char *Spelling,
-                                   const char *NegSpelling,
-                                   CompilerInvocation::StringAllocator SA,
-                                   unsigned TableIndex, unsigned Value) {
-  if (Value)
-    Args.push_back(Spelling);
-  else
-    Args.push_back(NegSpelling);
+static auto makeBooleanOptionDenormalizer(bool Value,
+                                          const char *OtherSpelling) {
+  return [Value, OtherSpelling](
+             SmallVectorImpl<const char *> &Args, const char *Spelling,
+             CompilerInvocation::StringAllocator, unsigned, bool KeyPath) {
+    Args.push_back(KeyPath == Value ? Spelling : OtherSpelling);
+  };
 }
 
 static Optional<SimpleEnumValue>
@@ -911,7 +911,6 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
   Opts.DwarfVersion = getLastArgIntValue(Args, OPT_dwarf_version_EQ, 0, Diags);
   Opts.DebugColumnInfo = !Args.hasArg(OPT_gno_column_info);
   Opts.EmitCodeView = Args.hasArg(OPT_gcodeview);
-  Opts.CodeViewGHash = Args.hasArg(OPT_gcodeview_ghash);
   Opts.MacroDebugInfo = Args.hasArg(OPT_debug_info_macro);
   Opts.WholeProgramVTables = Args.hasArg(OPT_fwhole_program_vtables);
   Opts.VirtualFunctionElimination =
@@ -975,7 +974,6 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
       std::string(Args.getLastArgValue(OPT_record_command_line));
   Opts.MergeAllConstants = Args.hasArg(OPT_fmerge_all_constants);
   Opts.NoCommon = !Args.hasArg(OPT_fcommon);
-  Opts.NoInlineLineTables = Args.hasArg(OPT_gno_inline_line_tables);
   Opts.NoImplicitFloat = Args.hasArg(OPT_no_implicit_float);
   Opts.OptimizeSize = getOptimizationLevelSize(Args);
   Opts.SimplifyLibCalls = !(Args.hasArg(OPT_fno_builtin) ||
@@ -988,7 +986,6 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
   Opts.RerollLoops = Args.hasArg(OPT_freroll_loops);
 
   Opts.DisableIntegratedAS = Args.hasArg(OPT_fno_integrated_as);
-  Opts.Autolink = !Args.hasArg(OPT_fno_autolink);
   Opts.SampleProfileFile =
       std::string(Args.getLastArgValue(OPT_fprofile_sample_use_EQ));
   Opts.DebugInfoForProfiling = Args.hasFlag(
@@ -1014,10 +1011,10 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
     setPGOUseInstrumentor(Opts, Opts.ProfileInstrumentUsePath);
   Opts.ProfileRemappingFile =
       std::string(Args.getLastArgValue(OPT_fprofile_remapping_file_EQ));
-  if (!Opts.ProfileRemappingFile.empty() && !Opts.ExperimentalNewPassManager) {
+  if (!Opts.ProfileRemappingFile.empty() && Opts.LegacyPassManager) {
     Diags.Report(diag::err_drv_argument_only_allowed_with)
-      << Args.getLastArg(OPT_fprofile_remapping_file_EQ)->getAsString(Args)
-      << "-fexperimental-new-pass-manager";
+        << Args.getLastArg(OPT_fprofile_remapping_file_EQ)->getAsString(Args)
+        << "-fno-legacy-pass-manager";
   }
 
   Opts.CoverageMapping =
@@ -1052,6 +1049,26 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
     }
     if (ValidFP)
       Opts.setFramePointer(FP);
+  }
+
+  if (const Arg *A = Args.getLastArg(OPT_ftime_report, OPT_ftime_report_EQ)) {
+    Opts.TimePasses = true;
+
+    // -ftime-report= is only for new pass manager.
+    if (A->getOption().getID() == OPT_ftime_report_EQ) {
+      if (Opts.LegacyPassManager)
+        Diags.Report(diag::err_drv_argument_only_allowed_with)
+            << A->getAsString(Args) << "-fno-legacy-pass-manager";
+
+      StringRef Val = A->getValue();
+      if (Val == "per-pass")
+        Opts.TimePassesPerRun = false;
+      else if (Val == "per-pass-run")
+        Opts.TimePassesPerRun = true;
+      else
+        Diags.Report(diag::err_drv_invalid_value)
+            << A->getAsString(Args) << A->getValue();
+    }
   }
 
   Opts.DisableFree = Args.hasArg(OPT_disable_free);
@@ -3802,23 +3819,7 @@ bool CompilerInvocation::parseSimpleArgs(const ArgList &Args,
           this->KEYPATH, static_cast<decltype(this->KEYPATH)>(*MaybeValue));   \
   }
 
-#define OPTION_WITH_MARSHALLING_BOOLEAN(                                       \
-    PREFIX_TYPE, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,        \
-    HELPTEXT, METAVAR, VALUES, SPELLING, ALWAYS_EMIT, KEYPATH, DEFAULT_VALUE,  \
-    IMPLIED_CHECK, IMPLIED_VALUE, NORMALIZER, DENORMALIZER, MERGER, EXTRACTOR, \
-    TABLE_INDEX, NEG_ID, NEG_SPELLING)                                         \
-  {                                                                            \
-    this->KEYPATH = MERGER(this->KEYPATH, DEFAULT_VALUE);                      \
-    if (IMPLIED_CHECK)                                                         \
-      this->KEYPATH = MERGER(this->KEYPATH, IMPLIED_VALUE);                    \
-    if (auto MaybeValue =                                                      \
-            NORMALIZER(OPT_##ID, OPT_##NEG_ID, TABLE_INDEX, Args, Diags))      \
-      this->KEYPATH = MERGER(                                                  \
-          this->KEYPATH, static_cast<decltype(this->KEYPATH)>(*MaybeValue));   \
-  }
-
 #include "clang/Driver/Options.inc"
-#undef OPTION_WITH_MARSHALLING_BOOLEAN
 #undef OPTION_WITH_MARSHALLING
   return true;
 }
@@ -4087,20 +4088,7 @@ void CompilerInvocation::generateCC1CommandLine(
     }(EXTRACTOR(this->KEYPATH));                                               \
   }
 
-#define OPTION_WITH_MARSHALLING_BOOLEAN(                                       \
-    PREFIX_TYPE, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,        \
-    HELPTEXT, METAVAR, VALUES, SPELLING, ALWAYS_EMIT, KEYPATH, DEFAULT_VALUE,  \
-    IMPLIED_CHECK, IMPLIED_VALUE, NORMALIZER, DENORMALIZER, MERGER, EXTRACTOR, \
-    TABLE_INDEX, NEG_ID, NEG_SPELLING)                                         \
-  if ((FLAGS)&options::CC1Option) {                                            \
-    bool Extracted = EXTRACTOR(this->KEYPATH);                                 \
-    if (ALWAYS_EMIT ||                                                         \
-        (Extracted != ((IMPLIED_CHECK) ? (IMPLIED_VALUE) : (DEFAULT_VALUE))))  \
-      DENORMALIZER(Args, SPELLING, NEG_SPELLING, SA, TABLE_INDEX, Extracted);  \
-  }
-
 #include "clang/Driver/Options.inc"
-#undef OPTION_WITH_MARSHALLING_BOOLEAN
 #undef OPTION_WITH_MARSHALLING
 }
 
