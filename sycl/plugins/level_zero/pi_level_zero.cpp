@@ -3324,7 +3324,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   // Save the kernel in the event, so that when the event is signalled
   // the code can do a piKernelRelease on this kernel.
   (*Event)->CommandData = (void *)Kernel;
-
+  Queue->RefCount++;
   // Use piKernelRetain to increment the reference count and indicate
   // that the Kernel is in use. Once the event has been signalled, the
   // code in cleanupAfterEvent will do a piReleaseKernel to update
@@ -3790,7 +3790,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     (*Event)->ZeCommandList = ZeCommandList;
 
     ZeEvent = (*Event)->ZeEvent;
-    piQueueRetain(Queue);
+    Queue->RefCount++;
   }
 
   // TODO: use unique_ptr with custom deleter in the whole Level Zero plugin for
@@ -3856,7 +3856,7 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
                      pi_bool BlockingWrite, size_t Size, const void *Src,
                      pi_uint32 NumEventsInWaitList,
                      const pi_event *EventWaitList, pi_event *Event) {
-
+  assert(Queue);
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
@@ -3875,7 +3875,7 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
     (*Event)->ZeCommandList = ZeCommandList;
 
     ZeEvent = (*Event)->ZeEvent;
-    piQueueRetain(Queue);
+    Queue->RefCount++;
   }
 
   ze_event_handle_t *ZeEventWaitList =
@@ -3920,7 +3920,7 @@ static pi_result enqueueMemCopyRectHelper(
   assert(Region);
   assert(SrcOrigin);
   assert(DstOrigin);
-
+  assert(Queue);
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
@@ -3939,7 +3939,7 @@ static pi_result enqueueMemCopyRectHelper(
     (*Event)->ZeCommandList = ZeCommandList;
 
     ZeEvent = (*Event)->ZeEvent;
-    piQueueRetain(Queue);
+    Queue->RefCount++;
   }
 
   ze_event_handle_t *ZeEventWaitList =
@@ -4105,7 +4105,7 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
                      const void *Pattern, size_t PatternSize, size_t Size,
                      pi_uint32 NumEventsInWaitList,
                      const pi_event *EventWaitList, pi_event *Event) {
-
+  assert(Queue);
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
@@ -4124,7 +4124,7 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
     (*Event)->ZeCommandList = ZeCommandList;
 
     ZeEvent = (*Event)->ZeEvent;
-    piQueueRetain(Queue);
+    Queue->RefCount++;
   }
 
   ze_event_handle_t *ZeEventWaitList =
@@ -4435,7 +4435,7 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
                              size_t RowPitch, size_t SlicePitch,
                              pi_uint32 NumEventsInWaitList,
                              const pi_event *EventWaitList, pi_event *Event) {
-
+  assert(Queue);
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
@@ -5024,7 +5024,7 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
     (*Event)->ZeCommandList = ZeCommandList;
 
     ZeEvent = (*Event)->ZeEvent;
-    piQueueRetain(Queue);
+    Queue->RefCount++;
   }
 
   ze_event_handle_t *ZeEventWaitList =
@@ -5085,7 +5085,7 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
     (*Event)->ZeCommandList = ZeCommandList;
 
     ZeEvent = (*Event)->ZeEvent;
-    piQueueRetain(Queue);
+    Queue->RefCount++;
   }
 
   ZE_CALL(zeCommandListAppendMemAdvise(ZeCommandList, Queue->Device->ZeDevice,
