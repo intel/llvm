@@ -95,8 +95,7 @@ enum IRSplitMode {
 };
 
 static cl::opt<IRSplitMode> SplitMode(
-    "split", cl::desc("split input module"), cl::Optional,
-    cl::init(SPLIT_AUTO),
+    "split", cl::desc("split input module"), cl::Optional, cl::init(SPLIT_AUTO),
     cl::values(
         clEnumValN(SPLIT_PER_TU, "source",
                    "1 output module per source (translation unit)"),
