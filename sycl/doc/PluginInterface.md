@@ -121,9 +121,18 @@ The trace shows the PI API calls made when using SYCL_PI_TRACE=-1.
 bound.)
 
 ### Plugin Unloading
-The plugins not chosen to be connected to should be unloaded.
-
-TBD - Unloading a bound plugin.
+The plugins not chosen to be connected to should be unloaded. When the
+environment variable SYCL_DEVICE_FILTER is set, SYCL RT will filter out plugins
+that do not satisfy and will not load them at the beginning. SYCL RT calls
+piInitializePlugins() to load and bound the necessary plugins. In addition, SYCL
+RT can call piTearDown() when it does not need plugins any more and notify each
+plugin to start performing its own tear-down process such as global memory
+deallocation. In the future, piTearDown() can include any other jobs that need to
+be done before the plugin is unloaded from memory. In the future, we can add a
+notification of the plugin unloading to lower-level plugins so that they can
+clean up their own memory [TBD].
+SYCL RT also calls unload() to actually remove plugin. Eventually, unload() is
+going to invoke OS-specific system calls to remove the dynamic library from memory.
 
 ## PI API Specification
 
