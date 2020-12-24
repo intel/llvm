@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 // TODO enable on Windows
 // REQUIRES: linux && gpu
+// UNSUPPORTED: cuda
 // RUN: %clangxx-esimd -fsycl -D_CRT_SECURE_NO_WARNINGS=1 %s -o %t.out
 // RUN: %ESIMD_RUN_PLACEHOLDER %t.out
 
