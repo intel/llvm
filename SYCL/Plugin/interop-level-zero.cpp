@@ -1,4 +1,4 @@
-// REQUIRES: level_zero
+// REQUIRES: level_zero,level_zero_headers
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -I %sycl_source_dir %s -o %t.out
 // RUN: env SYCL_BE=PI_LEVEL_ZERO %GPU_RUN_PLACEHOLDER %t.out
 

@@ -101,6 +101,14 @@ if sp[0] == 0:
     cl_options=True
     config.available_features.add('cl_options')
 
+check_l0_file='l0_include.cpp'
+with open(check_l0_file, 'w') as fp:
+    fp.write("#include<level_zero/ze_api.h>")
+
+sp = subprocess.getstatusoutput(config.dpcpp_compiler+' -fsycl -c '+check_l0_file)
+if sp[0] == 0:
+    config.available_features.add('level_zero_headers')
+
 if config.opencl_libs_dir:
     if cl_options:
         config.substitutions.append( ('%opencl_lib',  ' '+config.opencl_libs_dir+'/OpenCL.lib') )
