@@ -774,6 +774,7 @@ private:
     // 3. The kernel is provided via an interoperability method.
     // 4. The API "this_item" is used inside the kernel.
     // 5. The range is already a multiple of the rounding factor.
+    // 6. We have an ESIMD kernel
     //
     // Cases 3 and 4 could be supported with extra effort.
     // As an optimization for the common case it is an
@@ -793,7 +794,8 @@ private:
         (KName.find("SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING") !=
          std::string::npos) ||
         (KI::getName() == nullptr || KI::getName()[0] == '\0') ||
-        (KI::callsThisItem());
+        (KI::callsThisItem()) ||
+        (KI::isESIMD());
 
     // Perform range rounding if rounding-up is enabled
     // and the user-specified range is not a multiple of a "good" value.
