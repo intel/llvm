@@ -117,7 +117,11 @@ GlobalHandler::getDeviceFilterList(const std::string &InitValue) {
 void shutdown() {
   for (plugin &Plugin : GlobalHandler::instance().getPlugins()) {
     Plugin.call_nocheck<PiApiKind::piTearDown>();
-    Plugin.unload();
+    // PluginParameter is reserved for future use that can control
+    // some parameters in the plugin tear-down process.
+    // Currently, it is not used.
+    void* PluginParameter = nullptr;
+    Plugin.unload(PluginParameter);
   }
 
   delete &GlobalHandler::instance();
