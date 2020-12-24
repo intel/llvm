@@ -33,7 +33,7 @@ def do_check(args):
     print("[Cmake Command]: {}".format(" ".join(cmake_cmd)))
 
     env_tmp=os.environ
-    env_tmp["LIT_ARGS"]="\"{}\"".format("-v")
+    env_tmp["LIT_ARGS"]="\"{}\"".format("-a --time-tests")
 
     subprocess.check_call(cmake_cmd, cwd=abs_obj_dir, env=env_tmp)
 
