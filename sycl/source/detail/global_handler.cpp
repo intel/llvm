@@ -120,7 +120,7 @@ void shutdown() {
     // PluginParameter is reserved for future use that can control
     // some parameters in the plugin tear-down process.
     // Currently, it is not used.
-    void* PluginParameter = nullptr;
+    void *PluginParameter = nullptr;
     Plugin.unload(PluginParameter);
   }
 
