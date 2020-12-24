@@ -53,9 +53,16 @@ int main() {
 #ifndef TRIGGER_ERROR
     // CHECK-LABEL:  FunctionDecl {{.*}} main 'int ()'
     // CHECK:  `-FunctionDecl {{.*}}test_kernel1 'void ()'
-    // CHECK:  -SYCLIntelMaxWorkGroupSizeAttr {{.*}} Inherited 4 4 4
+    // CHECK:  -SYCLIntelMaxWorkGroupSizeAttr {{.*}} Inherited
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
     // CHECK:  -SYCLIntelNoGlobalWorkOffsetAttr {{.*}}
-    // CHECK:  `-ReqdWorkGroupSizeAttr {{.*}} 2 2 2
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK:  `-ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
     h.single_task<class test_kernel1>(
         []() { func1(); });
 

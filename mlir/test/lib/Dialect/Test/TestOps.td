@@ -23,6 +23,7 @@ include "TestInterfaces.td"
 def Test_Dialect : Dialect {
   let name = "test";
   let cppNamespace = "::mlir::test";
+  let hasConstantMaterializer = 1;
   let hasOperationAttrVerify = 1;
   let hasRegionArgAttrVerify = 1;
   let hasRegionResultAttrVerify = 1;
@@ -321,7 +322,7 @@ def ConversionCallOp : TEST_Op<"conversion_call_op",
 
     /// Return the callee of this operation.
     CallInterfaceCallable getCallableForCallee() {
-      return getAttrOfType<SymbolRefAttr>("callee");
+      return (*this)->getAttrOfType<SymbolRefAttr>("callee");
     }
   }];
 }
@@ -1590,6 +1591,11 @@ def FormatOptionalUnitAttrNoElide
     : TEST_Op<"format_optional_unit_attribute_no_elide"> {
   let arguments = (ins UnitAttr:$is_optional);
   let assemblyFormat = "($is_optional^)? attr-dict";
+}
+
+def FormatOptionalEnumAttr : TEST_Op<"format_optional_enum_attr"> {
+  let arguments = (ins OptionalAttr<SomeI64Enum>:$attr);
+  let assemblyFormat = "($attr^)? attr-dict";
 }
 
 //===----------------------------------------------------------------------===//

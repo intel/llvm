@@ -17,10 +17,12 @@
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <utility>
 
+#include <level_zero/zes_api.h>
 #include <level_zero/zet_api.h>
 
 #include "usm_allocator.hpp"
@@ -528,8 +530,10 @@ pi_result _pi_device::getAvailableCommandList(
 
     if (Queue->Device->ZeCommandListCache.size() > 0) {
       *ZeCommandList = Queue->Device->ZeCommandListCache.front();
-      *ZeFence = Queue->ZeCommandListFenceMap[*ZeCommandList];
-      if (*ZeFence == nullptr) {
+      auto it = Queue->ZeCommandListFenceMap.find(*ZeCommandList);
+      if (it != Queue->ZeCommandListFenceMap.end()) {
+        *ZeFence = it->second;
+      } else {
         // If there is a command list available on this device, but no
         // fence yet associated, then we must create a fence/list
         // reference for this Queue. This can happen if two Queues reuse
@@ -784,6 +788,12 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   if (ZeValidationLayer) {
     setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
     setEnvVar("ZE_ENABLE_PARAMETER_VALIDATION", "1");
+  }
+
+  // Enable SYSMAN support for obtaining the PCI address
+  // and maximum memory bandwidth.
+  if (getenv("SYCL_ENABLE_PCI") != nullptr) {
+    setEnvVar("ZES_ENABLE_SYSMAN", "1");
   }
 
   // TODO: We can still safely recover if something goes wrong during the init.
@@ -1578,6 +1588,42 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     }
     return ReturnValue(Supported);
   }
+
+    // intel extensions for GPU information
+  case PI_DEVICE_INFO_PCI_ADDRESS: {
+    if (getenv("ZES_ENABLE_SYSMAN") == nullptr) {
+      zePrint("Set SYCL_ENABLE_PCI=1 to obtain PCI data.\n");
+      return PI_INVALID_VALUE;
+    }
+    zes_pci_properties_t ZeDevicePciProperties = {};
+    ZE_CALL(zesDevicePciGetProperties(ZeDevice, &ZeDevicePciProperties));
+    std::stringstream ss;
+    ss << ZeDevicePciProperties.address.domain << ":"
+       << ZeDevicePciProperties.address.bus << ":"
+       << ZeDevicePciProperties.address.device << "."
+       << ZeDevicePciProperties.address.function;
+    return ReturnValue(ss.str().c_str());
+  }
+  case PI_DEVICE_INFO_GPU_EU_COUNT: {
+    pi_uint32 count = Device->ZeDeviceProperties.numEUsPerSubslice *
+                      Device->ZeDeviceProperties.numSubslicesPerSlice *
+                      Device->ZeDeviceProperties.numSlices;
+    return ReturnValue(pi_uint32{count});
+  }
+  case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
+    return ReturnValue(
+        pi_uint32{Device->ZeDeviceProperties.physicalEUSimdWidth});
+  case PI_DEVICE_INFO_GPU_SLICES:
+    return ReturnValue(pi_uint32{Device->ZeDeviceProperties.numSlices});
+  case PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
+    return ReturnValue(
+        pi_uint32{Device->ZeDeviceProperties.numSubslicesPerSlice});
+  case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
+    return ReturnValue(pi_uint32{Device->ZeDeviceProperties.numEUsPerSubslice});
+  case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
+    // currently not supported in level zero runtime
+    return PI_INVALID_VALUE;
+
   default:
     zePrint("Unsupported ParamName in piGetDeviceInfo\n");
     zePrint("ParamName=%d(0x%x)\n", ParamName, ParamName);
@@ -4422,12 +4468,13 @@ static pi_result getImageRegionHelper(pi_mem Mem, pi_image_offset Origin,
                                       pi_image_region Region,
                                       ze_image_region_t &ZeRegion) {
 
-  PI_ASSERT(Mem && Mem->isImage(), PI_INVALID_MEM_OBJECT);
+  PI_ASSERT(Mem, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Origin, PI_INVALID_VALUE);
+
 #ifndef NDEBUG
+  PI_ASSERT(Mem->isImage(), PI_INVALID_MEM_OBJECT);
   auto Image = static_cast<_pi_image *>(Mem);
-  ze_image_desc_t ZeImageDesc = Image->ZeImageDesc;
-#endif // !NDEBUG
+  ze_image_desc_t &ZeImageDesc = Image->ZeImageDesc;
 
   PI_ASSERT((ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Origin->y == 0 &&
              Origin->z == 0) ||
@@ -4435,10 +4482,6 @@ static pi_result getImageRegionHelper(pi_mem Mem, pi_image_offset Origin,
                 (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Origin->z == 0) ||
                 (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
             PI_INVALID_VALUE);
-
-  uint32_t OriginX = pi_cast<uint32_t>(Origin->x);
-  uint32_t OriginY = pi_cast<uint32_t>(Origin->y);
-  uint32_t OriginZ = pi_cast<uint32_t>(Origin->z);
 
   PI_ASSERT(Region->width && Region->height && Region->depth, PI_INVALID_VALUE);
   PI_ASSERT(
@@ -4448,6 +4491,11 @@ static pi_result getImageRegionHelper(pi_mem Mem, pi_image_offset Origin,
           (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Region->depth == 1) ||
           (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
       PI_INVALID_VALUE);
+#endif // !NDEBUG
+
+  uint32_t OriginX = pi_cast<uint32_t>(Origin->x);
+  uint32_t OriginY = pi_cast<uint32_t>(Origin->y);
+  uint32_t OriginZ = pi_cast<uint32_t>(Origin->z);
 
   uint32_t Width = pi_cast<uint32_t>(Region->width);
   uint32_t Height = pi_cast<uint32_t>(Region->height);

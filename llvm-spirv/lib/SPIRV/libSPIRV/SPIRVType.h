@@ -484,7 +484,7 @@ inline bool operator<(const SPIRVTypeImageDescriptor &A,
 class SPIRVTypeImage : public SPIRVType {
 public:
   const static Op OC = OpTypeImage;
-  const static SPIRVWord FixedWC = 9;
+  constexpr static SPIRVWord FixedWC = 9;
   SPIRVTypeImage(SPIRVModule *M, SPIRVId TheId, SPIRVId TheSampledType,
                  const SPIRVTypeImageDescriptor &TheDesc)
       : SPIRVType(M, FixedWC, OC, TheId), SampledType(TheSampledType),
@@ -619,11 +619,17 @@ protected:
 
 class SPIRVTypeStruct : public SPIRVType {
 public:
+  const static Op OC = OpTypeStruct;
+  // There are always 2 words in this instruction except member types:
+  // 1) WordCount + OpCode
+  // 2) Result Id
+  constexpr static SPIRVWord FixedWC = 2;
+  using ContinuedInstType = typename InstToContinued<OC>::Type;
   // Complete constructor
   SPIRVTypeStruct(SPIRVModule *M, SPIRVId TheId,
                   const std::vector<SPIRVType *> &TheMemberTypes,
                   const std::string &TheName)
-      : SPIRVType(M, 2 + TheMemberTypes.size(), OpTypeStruct, TheId) {
+      : SPIRVType(M, FixedWC + TheMemberTypes.size(), OC, TheId) {
     MemberTypeIdVec.resize(TheMemberTypes.size());
     for (auto &T : TheMemberTypes)
       MemberTypeIdVec.push_back(T->getId());
@@ -632,20 +638,27 @@ public:
   }
   SPIRVTypeStruct(SPIRVModule *M, SPIRVId TheId, unsigned NumMembers,
                   const std::string &TheName)
-      : SPIRVType(M, 2 + NumMembers, OpTypeStruct, TheId) {
+      : SPIRVType(M, FixedWC + NumMembers, OC, TheId) {
     Name = TheName;
     validate();
     MemberTypeIdVec.resize(NumMembers);
   }
   // Incomplete constructor
-  SPIRVTypeStruct() : SPIRVType(OpTypeStruct) {}
+  SPIRVTypeStruct() : SPIRVType(OC) {}
 
   SPIRVWord getMemberCount() const { return MemberTypeIdVec.size(); }
   SPIRVType *getMemberType(size_t I) const {
     return static_cast<SPIRVType *>(getEntry(MemberTypeIdVec[I]));
   }
   void setMemberType(size_t I, SPIRVType *Ty) {
-    MemberTypeIdVec[I] = Ty->getId();
+    if (I >= MemberTypeIdVec.size() && !ContinuedInstructions.empty()) {
+      const size_t MaxNumElements = MaxWordCount - FixedWC;
+      I -= MaxNumElements; // Remove operands that included into OpTypeStruct
+      ContinuedInstructions[I / MaxNumElements]->setElementId(
+          I % MaxNumElements, Ty->getId());
+    } else {
+      MemberTypeIdVec[I] = Ty->getId();
+    }
   }
 
   bool isPacked() const;
@@ -653,23 +666,61 @@ public:
 
   void setWordCount(SPIRVWord WordCount) override {
     SPIRVType::setWordCount(WordCount);
-    MemberTypeIdVec.resize(WordCount - 2);
+    MemberTypeIdVec.resize(WordCount - FixedWC);
   }
 
+  // TODO: Should we attach operands of continued instructions as well?
   std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
     std::vector<SPIRVEntry *> Operands(MemberTypeIdVec.size());
     for (size_t I = 0, E = MemberTypeIdVec.size(); I < E; ++I)
       Operands[I] = getEntry(MemberTypeIdVec[I]);
     return Operands;
   }
+  void addContinuedInstruction(ContinuedInstType Inst) {
+    ContinuedInstructions.push_back(Inst);
+  }
+
+  void encodeChildren(spv_ostream &O) const override {
+    O << SPIRVNL();
+    for (auto &I : ContinuedInstructions)
+      O << *I;
+  }
+
+  std::vector<ContinuedInstType> getContinuedInstructions() {
+    return ContinuedInstructions;
+  }
 
 protected:
-  _SPIRV_DEF_ENCDEC2(Id, MemberTypeIdVec)
+  void encode(spv_ostream &O) const override {
+    getEncoder(O) << Id << MemberTypeIdVec;
+  }
+
+  void decode(std::istream &I) override {
+    SPIRVDecoder Decoder = getDecoder(I);
+    Decoder >> Id >> MemberTypeIdVec;
+    Module->add(this);
+
+    Decoder.getWordCountAndOpCode();
+    while (!I.eof()) {
+      SPIRVEntry *Entry = Decoder.getEntry();
+      if (Entry != nullptr)
+        Module->add(Entry);
+      if (Entry && Decoder.OpCode == ContinuedOpCode) {
+        auto ContinuedInst = static_cast<ContinuedInstType>(Entry);
+        addContinuedInstruction(ContinuedInst);
+        Decoder.getWordCountAndOpCode();
+      } else {
+        break;
+      }
+    }
+  }
 
   void validate() const override { SPIRVEntry::validate(); }
 
 private:
   std::vector<SPIRVId> MemberTypeIdVec; // Member Type Ids
+  std::vector<ContinuedInstType> ContinuedInstructions;
+  const spv::Op ContinuedOpCode = InstToContinued<OC>::OpCode;
 };
 
 class SPIRVTypeFunction : public SPIRVType {
