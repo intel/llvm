@@ -262,6 +262,6 @@ for aot_tool in aot_tools:
 # Set timeout for test 1 min
 try:
     import psutil
-    lit_config.maxIndividualTestTime = 60
+    lit_config.maxIndividualTestTime = 600
 except ImportError:
     pass
