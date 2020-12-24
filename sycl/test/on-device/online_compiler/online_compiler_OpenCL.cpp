@@ -10,6 +10,13 @@
 // All OpenCL specific code is kept here and the common part that can be
 // re-used by other backends is kept in online_compiler_common.hpp file.
 
+// TODO: The testing of CM compilation is temporarily turned OFF on Linux
+// due to problems with dependencies on libclangFEWrapper.so which is not
+// currently included into NEO package on Linux.
+#ifdef _WIN32
+#define COMPILE_CM_KERNEL 1
+#endif
+
 #include <CL/sycl.hpp>
 #include <CL/sycl/INTEL/online_compiler.hpp>
 

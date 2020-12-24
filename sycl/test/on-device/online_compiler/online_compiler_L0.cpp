@@ -15,6 +15,13 @@
 
 #include <vector>
 
+// TODO: The testing of CM compilation is temporarily turned OFF on Linux
+// due to problems with dependencies on libclangFEWrapper.so which is not
+// currently included into NEO package on Linux.
+#ifdef _WIN32
+#define COMPILE_CM_KERNEL 1
+#endif
+
 // clang-format off
 #include <level_zero/ze_api.h>
 #include <CL/sycl/backend/level_zero.hpp>
