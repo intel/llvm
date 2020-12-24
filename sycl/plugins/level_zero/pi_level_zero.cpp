@@ -1931,8 +1931,7 @@ pi_result piQueueRetain(pi_queue Queue) {
 
 pi_result piQueueRelease(pi_queue Queue) {
   assert(Queue);
-  // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+  Queue->PiQueueMutex.lock();
 
   if (--(Queue->RefCount) == 0) {
     // It is possible to get to here and still have an open command list
@@ -1951,7 +1950,10 @@ pi_result piQueueRelease(pi_queue Queue) {
 
     zePrint("piQueueRelease NumTimesClosedFull %d, NumTimesClosedEarly %d\n",
             Queue->NumTimesClosedFull, Queue->NumTimesClosedEarly);
+    Queue->PiQueueMutex.unlock();
     delete Queue;
+  } else {
+    Queue->PiQueueMutex.unlock();
   }
   return PI_SUCCESS;
 }
