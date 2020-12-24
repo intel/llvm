@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 // TODO enable on Windows
 // REQUIRES: linux && gpu
+// UNSUPPORTED: cuda
 // RUN: %clangxx-esimd -fsycl %s -I%S/.. -o %t.out
 // RUN: %ESIMD_RUN_PLACEHOLDER %t.out %T/output.ppm %S/golden_hw.ppm
 

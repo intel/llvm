@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 // TODO enable on Windows
 // REQUIRES: linux && gpu
+// UNSUPPORTED: cuda
 // RUN: %clangxx-esimd -fsycl %s -I%S/.. -o %t.out
 // RUN: %HOST_RUN_PLACEHOLDER %t.out %S/points.big.json
 // RUN: %ESIMD_RUN_PLACEHOLDER %t.out %S/points.big.json
