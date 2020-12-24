@@ -4478,7 +4478,7 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
-pi_result cuda_piTearDown(void* PluginParameter) { return PI_SUCCESS; }
+pi_result cuda_piTearDown(void *PluginParameter) { return PI_SUCCESS; }
 
 const char SupportedVersion[] = _PI_H_VERSION_STRING;
 
