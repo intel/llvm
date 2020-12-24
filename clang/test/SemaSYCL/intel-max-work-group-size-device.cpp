@@ -71,13 +71,13 @@ int main() {
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4
     // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
     // CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
-    // expected-warning@+2{{the resulting value of the 'max_work_group_size' attribute parameter 2 is always non-negative after implicit conversion}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
+    // expected-warning@+2{{the resulting value of the 'max_work_group_size' attribute first parameter is always non-negative after implicit conversion}}
     h.single_task<class test_kernel4>(
-        []() [[intel::max_work_group_size(-8, 8, 8)]]{});
+        []() [[intel::max_work_group_size(8, 8, -8)]]{});
 
 #ifdef TRIGGER_ERROR
     [[intel::max_work_group_size(1, 1, 1)]] int Var = 0; // expected-error{{'max_work_group_size' attribute only applies to functions}}

@@ -11208,8 +11208,8 @@ def warn_attribute_spelling_deprecated : Warning<
 def note_spelling_suggestion : Note<
   "did you mean to use %0 instead?">;
 def warn_attribute_requires_non_negative_integer_argument : Warning<
-  "the resulting value of the %0 attribute parameter %1 is always non-negative"
-  " after implicit conversion">,
+  "the resulting value of the %0 attribute %select{first|second|third}1"
+  " parameter is always non-negative after implicit conversion">,
  InGroup<AcceptedAttributes>;
 
 // errors of expect.with.probability
