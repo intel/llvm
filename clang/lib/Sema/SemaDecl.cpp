@@ -3209,9 +3209,18 @@ static void checkDimensionsAndSetDiagnostics(Sema &S, FunctionDecl *New,
   if (!NewDeclAttr || !OldDeclAttr)
     return;
 
-  if ((NewDeclAttr->getXDim() != OldDeclAttr->getXDim()) ||
-      (NewDeclAttr->getYDim() != OldDeclAttr->getYDim()) ||
-      (NewDeclAttr->getZDim() != OldDeclAttr->getZDim())) {
+  /// Returns the usigned constant integer value represented by
+  /// given expression.
+  auto getExprValue = [](const Expr *E, ASTContext &Ctx) {
+    return E->getIntegerConstantExpr(Ctx)->getZExtValue();
+  };
+
+  if ((getExprValue(NewDeclAttr->getXDim(), S.getASTContext()) !=
+       getExprValue(OldDeclAttr->getXDim(), S.getASTContext())) ||
+      (getExprValue(NewDeclAttr->getYDim(), S.getASTContext()) !=
+       getExprValue(OldDeclAttr->getYDim(), S.getASTContext())) ||
+      (getExprValue(NewDeclAttr->getZDim(), S.getASTContext()) !=
+       getExprValue(OldDeclAttr->getZDim(), S.getASTContext()))) {
     S.Diag(New->getLocation(), diag::err_conflicting_sycl_function_attributes)
         << OldDeclAttr << NewDeclAttr;
     S.Diag(New->getLocation(), diag::warn_duplicate_attribute) << OldDeclAttr;
