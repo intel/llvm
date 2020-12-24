@@ -1600,10 +1600,8 @@ __SYCL_EXPORT pi_result piextUSMGetMemAllocInfo(
     pi_context context, const void *ptr, pi_mem_info param_name,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret);
 
-/// API to notify the end of lifetime of the plugin
-///   Sycl RT calls this API as the last pi call
-///   PI can safely assume no more pi calls will be made until
-///   the next initializePlugins() call.
+///   API to notify that the plugin should clean up its resources.
+///   No PI calls should be made until the next piPluginInit call.
 __SYCL_EXPORT pi_result piTearDown();
 
 struct _pi_plugin {
