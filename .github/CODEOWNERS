@@ -103,6 +103,7 @@ llvm/tools/sycl-post-link/ @kbobrovs @AlexeySachkov
 # Clang offload tools
 clang/tools/clang-offload-bundler/ @kbobrovs @sndmitriev
 clang/tools/clang-offload-wrapper/ @sndmitriev @kbobrovs
+clang/tools/clang-offload-deps/ @sndmitriev
 
 # Explicit SIMD
 SYCLLowerIR/ @kbobrovs

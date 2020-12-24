@@ -377,7 +377,6 @@ lldb::ProcessSP PlatformPOSIX::Attach(ProcessAttachInfo &attach_info,
     }
 
     if (target && error.Success()) {
-      debugger.GetTargetList().SetSelectedTarget(target);
       if (log) {
         ModuleSP exe_module_sp = target->GetExecutableModule();
         LLDB_LOGF(log, "PlatformPOSIX::%s set selected target to %p %s",
@@ -388,8 +387,7 @@ lldb::ProcessSP PlatformPOSIX::Attach(ProcessAttachInfo &attach_info,
 
       process_sp =
           target->CreateProcess(attach_info.GetListenerForProcess(debugger),
-                                attach_info.GetProcessPluginName(), nullptr,
-                                false);
+                                "gdb-remote", nullptr, true);
 
       if (process_sp) {
         ListenerSP listener_sp = attach_info.GetHijackListener();
@@ -462,9 +460,6 @@ PlatformPOSIX::DebugProcess(ProcessLaunchInfo &launch_info, Debugger &debugger,
       return process_sp;
     }
   }
-
-  // Mark target as currently selected target.
-  debugger.GetTargetList().SetSelectedTarget(target);
 
   // Now create the gdb-remote process.
   LLDB_LOG(log, "having target create process with gdb-remote plugin");
@@ -651,7 +646,8 @@ PlatformPOSIX::MakeLoadImageUtilityFunction(ExecutionContext &exe_ctx,
   FunctionCaller *do_dlopen_function = nullptr;
 
   // Fetch the clang types we will need:
-  TypeSystemClang *ast = TypeSystemClang::GetScratch(process->GetTarget());
+  TypeSystemClang *ast =
+      ScratchTypeSystemClang::GetForTarget(process->GetTarget());
   if (!ast)
     return nullptr;
 
@@ -895,7 +891,8 @@ uint32_t PlatformPOSIX::DoLoadImage(lldb_private::Process *process,
 
   Value return_value;
   // Fetch the clang types we will need:
-  TypeSystemClang *ast = TypeSystemClang::GetScratch(process->GetTarget());
+  TypeSystemClang *ast =
+      ScratchTypeSystemClang::GetForTarget(process->GetTarget());
   if (!ast) {
     error.SetErrorString("dlopen error: Unable to get TypeSystemClang");
     return LLDB_INVALID_IMAGE_TOKEN;

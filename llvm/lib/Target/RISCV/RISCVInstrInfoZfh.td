@@ -313,23 +313,6 @@ def : PatFpr16Fpr16<setolt, FLT_H>;
 def : PatFpr16Fpr16<setle, FLE_H>;
 def : PatFpr16Fpr16<setole, FLE_H>;
 
-// Define pattern expansions for setcc operations which aren't directly
-// handled by a RISC-V instruction and aren't expanded in the SelectionDAG
-// Legalizer.
-
-def : Pat<(seto FPR16:$rs1, FPR16:$rs2),
-          (AND (FEQ_H FPR16:$rs1, FPR16:$rs1),
-               (FEQ_H FPR16:$rs2, FPR16:$rs2))>;
-def : Pat<(seto FPR16:$rs1, FPR16:$rs1),
-          (FEQ_H $rs1, $rs1)>;
-
-def : Pat<(setuo FPR16:$rs1, FPR16:$rs2),
-          (SLTIU (AND (FEQ_H FPR16:$rs1, FPR16:$rs1),
-                      (FEQ_H FPR16:$rs2, FPR16:$rs2)),
-                 1)>;
-def : Pat<(setuo FPR16:$rs1, FPR16:$rs1),
-          (SLTIU (FEQ_H $rs1, $rs1), 1)>;
-
 def Select_FPR16_Using_CC_GPR : SelectCC_rrirr<FPR16, GPR>;
 
 /// Loads
@@ -374,7 +357,7 @@ def : Pat<(fp_to_sint FPR16:$rs1), (FCVT_L_H $rs1, 0b001)>;
 def : Pat<(fp_to_uint FPR16:$rs1), (FCVT_LU_H $rs1, 0b001)>;
 
 // [u]int->fp. Match GCC and default to using dynamic rounding mode.
-def : Pat<(sint_to_fp (sext_inreg GPR:$rs1, i32)), (FCVT_H_W $rs1, 0b111)>;
+def : Pat<(sint_to_fp (sexti32 GPR:$rs1)), (FCVT_H_W $rs1, 0b111)>;
 def : Pat<(uint_to_fp (zexti32 GPR:$rs1)), (FCVT_H_WU $rs1, 0b111)>;
 def : Pat<(sint_to_fp GPR:$rs1), (FCVT_H_L $rs1, 0b111)>;
 def : Pat<(uint_to_fp GPR:$rs1), (FCVT_H_LU $rs1, 0b111)>;

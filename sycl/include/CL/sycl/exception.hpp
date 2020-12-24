@@ -30,7 +30,7 @@ class __SYCL_EXPORT exception : public std::exception {
 public:
   exception() = default;
 
-  const char *what() const noexcept final override;
+  const char *what() const noexcept final;
 
   bool has_context() const;
 

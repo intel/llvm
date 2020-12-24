@@ -38,7 +38,6 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Operator.h"
-#include "llvm/Support/AlignOf.h"
 #include "llvm/Support/AtomicOrdering.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -513,6 +512,7 @@ BEGIN_TWO_BYTE_PACK()
   class LoadSDNodeBitfields {
     friend class LoadSDNode;
     friend class MaskedLoadSDNode;
+    friend class MaskedGatherSDNode;
 
     uint16_t : NumLSBaseSDNodeBits;
 
@@ -2452,11 +2452,17 @@ public:
 
   MaskedGatherSDNode(unsigned Order, const DebugLoc &dl, SDVTList VTs,
                      EVT MemVT, MachineMemOperand *MMO,
-                     ISD::MemIndexType IndexType)
+                     ISD::MemIndexType IndexType, ISD::LoadExtType ETy)
       : MaskedGatherScatterSDNode(ISD::MGATHER, Order, dl, VTs, MemVT, MMO,
-                                  IndexType) {}
+                                  IndexType) {
+    LoadSDNodeBits.ExtTy = ETy;
+  }
 
   const SDValue &getPassThru() const { return getOperand(1); }
+
+  ISD::LoadExtType getExtensionType() const {
+    return ISD::LoadExtType(LoadSDNodeBits.ExtTy);
+  }
 
   static bool classof(const SDNode *N) {
     return N->getOpcode() == ISD::MGATHER;
@@ -2628,10 +2634,9 @@ template <> struct GraphTraits<SDNode*> {
 ///
 /// This needs to be a union because the largest node differs on 32 bit systems
 /// with 4 and 8 byte pointer alignment, respectively.
-using LargestSDNode = AlignedCharArrayUnion<AtomicSDNode, TargetIndexSDNode,
-                                            BlockAddressSDNode,
-                                            GlobalAddressSDNode,
-                                            PseudoProbeSDNode>;
+using LargestSDNode =
+    std::aligned_union_t<1, AtomicSDNode, TargetIndexSDNode, BlockAddressSDNode,
+                         GlobalAddressSDNode, PseudoProbeSDNode>;
 
 /// The SDNode class with the greatest alignment requirement.
 using MostAlignedSDNode = GlobalAddressSDNode;
