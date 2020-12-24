@@ -104,6 +104,14 @@ enum class CacheHint : uint8_t {
   ReadInvalidate = 5
 };
 
+enum class EsimdSbarrierType : uint8_t {
+  WAIT = 0,  // split barrier wait
+  SIGNAL = 1 // split barrier signal
+};
+
+#define ESIMD_SBARRIER_WAIT EsimdSbarrierType::WAIT
+#define ESIMD_SBARRIER_SIGNAL EsimdSbarrierType::SIGNAL
+
 } // namespace gpu
 
 } // namespace INTEL

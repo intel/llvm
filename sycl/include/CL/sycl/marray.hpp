@@ -276,7 +276,7 @@ public:
   // && dataT != cl_half
   template <typename T = DataT>
   friend typename std::enable_if<std::is_integral<T>::value, marray>::type
-  operator~(marray &Lhs) {
+  operator~(const marray &Lhs) {
     marray Ret;
     for (size_t I = 0; I < NumElements; ++I) {
       Ret[I] = ~Lhs[I];
@@ -284,7 +284,7 @@ public:
     return Ret;
   }
 
-  friend marray<bool, NumElements> operator!(marray &Lhs) {
+  friend marray<bool, NumElements> operator!(const marray &Lhs) {
     marray<bool, NumElements> Ret;
     for (size_t I = 0; I < NumElements; ++I) {
       Ret[I] = !Lhs[I];
@@ -292,7 +292,7 @@ public:
     return Ret;
   }
 
-  friend marray operator+(marray &Lhs) {
+  friend marray operator+(const marray &Lhs) {
     marray Ret;
     for (size_t I = 0; I < NumElements; ++I) {
       Ret[I] = +Lhs[I];
@@ -300,7 +300,7 @@ public:
     return Ret;
   }
 
-  friend marray operator-(marray &Lhs) {
+  friend marray operator-(const marray &Lhs) {
     marray Ret;
     for (size_t I = 0; I < NumElements; ++I) {
       Ret[I] = -Lhs[I];
