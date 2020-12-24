@@ -61,12 +61,7 @@ private:
 class online_compile_error : public sycl::exception {
 public:
   online_compile_error() = default;
-  online_compile_error(const string_class &Msg) : Msg(Msg) {}
-
-  const char *what() const noexcept override { return Msg.c_str(); };
-
-private:
-  string_class Msg;
+  online_compile_error(const string_class &Msg) : sycl::exception(Msg) {}
 };
 
 /// Designates a source language for the online compiler.
