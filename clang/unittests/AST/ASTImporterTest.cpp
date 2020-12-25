@@ -279,6 +279,15 @@ TEST_P(ImportExpr, ImportGNUNullExpr) {
              functionDecl(hasDescendant(gnuNullExpr(hasType(isInteger())))));
 }
 
+TEST_P(ImportExpr, ImportGenericSelectionExpr) {
+  MatchVerifier<Decl> Verifier;
+
+  testImport(
+      "void declToImport() { int x; (void)_Generic(x, int: 0, float: 1); }",
+      Lang_C99, "", Lang_C99, Verifier,
+      functionDecl(hasDescendant(genericSelectionExpr())));
+}
+
 TEST_P(ImportExpr, ImportCXXNullPtrLiteralExpr) {
   MatchVerifier<Decl> Verifier;
   testImport(
@@ -1085,6 +1094,36 @@ TEST_P(ASTImporterOptionSpecificTestBase, ImportChooseExpr) {
   EXPECT_EQ(FromChooseExpr->isConditionTrue(), ToChooseExpr->isConditionTrue());
   EXPECT_EQ(FromChooseExpr->isConditionDependent(),
             ToChooseExpr->isConditionDependent());
+}
+
+TEST_P(ASTImporterOptionSpecificTestBase, ImportGenericSelectionExpr) {
+  Decl *From, *To;
+  std::tie(From, To) = getImportedDecl(
+      R"(
+      int declToImport() {
+        int x;
+        return _Generic(x, int: 0, default: 1);
+      }
+      )",
+      Lang_C99, "", Lang_C99);
+
+  auto ToResults =
+      match(genericSelectionExpr().bind("expr"), To->getASTContext());
+  auto FromResults =
+      match(genericSelectionExpr().bind("expr"), From->getASTContext());
+
+  const GenericSelectionExpr *FromGenericSelectionExpr =
+      selectFirst<GenericSelectionExpr>("expr", FromResults);
+  ASSERT_TRUE(FromGenericSelectionExpr);
+
+  const GenericSelectionExpr *ToGenericSelectionExpr =
+      selectFirst<GenericSelectionExpr>("expr", ToResults);
+  ASSERT_TRUE(ToGenericSelectionExpr);
+
+  EXPECT_EQ(FromGenericSelectionExpr->isResultDependent(),
+            ToGenericSelectionExpr->isResultDependent());
+  EXPECT_EQ(FromGenericSelectionExpr->getResultIndex(),
+            ToGenericSelectionExpr->getResultIndex());
 }
 
 TEST_P(ASTImporterOptionSpecificTestBase,
@@ -6083,6 +6122,24 @@ TEST_P(CTAD, DeductionGuideShouldCopyALocalTypedef) {
 
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, CTAD,
                         DefaultTestValuesForRunOptions, );
+
+TEST_P(ASTImporterOptionSpecificTestBase, TypedefWithAttribute) {
+  Decl *TU = getTuDecl(
+      R"(
+      namespace N {
+        typedef int X __attribute__((annotate("A")));
+      }
+      )",
+      Lang_CXX17, "input.cc");
+  auto *FromD =
+      FirstDeclMatcher<TypedefDecl>().match(TU, typedefDecl(hasName("X")));
+  auto *ToD = Import(FromD, Lang_CXX17);
+  ASSERT_TRUE(ToD);
+  ASSERT_EQ(ToD->getAttrs().size(), 1U);
+  auto *ToAttr = dyn_cast<AnnotateAttr>(ToD->getAttrs()[0]);
+  ASSERT_TRUE(ToAttr);
+  EXPECT_EQ(ToAttr->getAnnotation(), "A");
+}
 
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, ASTImporterLookupTableTest,
                         DefaultTestValuesForRunOptions, );

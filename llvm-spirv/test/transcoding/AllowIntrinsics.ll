@@ -7,25 +7,24 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
-; CHECK-LLVM: declare float @llvm.fma.f32(float, float, float)
-; CHECK-SPIRV: LinkageAttributes "llvm.fma.f32" Import
+; Note: This test used to call llvm.fma, but that is now traslated correctly.
+
+; CHECK-LLVM: declare i64 @llvm.readcyclecounter()
+; CHECK-SPIRV: LinkageAttributes "llvm.readcyclecounter" Import
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64"
 
 ; Function Attrs: nounwind
-define spir_func void @foo(float %a, float %b, float %c) #0 {
+define spir_func void @foo() #0 {
 entry:
-  %0 = call float @llvm.fma.f32(float %a, float %b, float %c)
+  %0 = call i64 @llvm.readcyclecounter()
   ret void
 }
 
-; Function Attrs: nounwind readnone
-declare float @llvm.fma.f32(float, float, float) #1
+declare i64 @llvm.readcyclecounter()
 
 attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { nounwind readnone }
 
-!opencl.enable.FP_CONTRACT = !{}
 !opencl.spir.version = !{!0}
 !opencl.ocl.version = !{!1}
 !opencl.used.extensions = !{!2}

@@ -15,6 +15,7 @@
 
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/EpochTracker.h"
+#include "llvm/Support/AlignOf.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemAlloc.h"
@@ -900,7 +901,7 @@ class SmallDenseMap
 
   /// A "union" of an inline bucket array and the struct representing
   /// a large bucket. This union will be discriminated by the 'Small' bit.
-  std::aligned_union_t<1, BucketT[InlineBuckets], LargeRep> storage;
+  AlignedCharArrayUnion<BucketT[InlineBuckets], LargeRep> storage;
 
 public:
   explicit SmallDenseMap(unsigned NumInitBuckets = 0) {
@@ -1040,7 +1041,7 @@ public:
 
     if (Small) {
       // First move the inline buckets into a temporary storage.
-      std::aligned_union_t<1, BucketT[InlineBuckets]> TmpStorage;
+      AlignedCharArrayUnion<BucketT[InlineBuckets]> TmpStorage;
       BucketT *TmpBegin = reinterpret_cast<BucketT *>(&TmpStorage);
       BucketT *TmpEnd = TmpBegin;
 
@@ -1241,22 +1242,18 @@ public:
     return Ptr;
   }
 
-  template <typename T>
-  bool operator==(const T &RHS) const {
-    assert((!Ptr || isHandleInSync()) && "handle not in sync!");
+  friend bool operator==(const DenseMapIterator &LHS,
+                         const DenseMapIterator &RHS) {
+    assert((!LHS.Ptr || LHS.isHandleInSync()) && "handle not in sync!");
     assert((!RHS.Ptr || RHS.isHandleInSync()) && "handle not in sync!");
-    assert(getEpochAddress() == RHS.getEpochAddress() &&
+    assert(LHS.getEpochAddress() == RHS.getEpochAddress() &&
            "comparing incomparable iterators!");
-    return Ptr == RHS.Ptr;
+    return LHS.Ptr == RHS.Ptr;
   }
 
-  template <typename T>
-  bool operator!=(const T &RHS) const {
-    assert((!Ptr || isHandleInSync()) && "handle not in sync!");
-    assert((!RHS.Ptr || RHS.isHandleInSync()) && "handle not in sync!");
-    assert(getEpochAddress() == RHS.getEpochAddress() &&
-           "comparing incomparable iterators!");
-    return Ptr != RHS.Ptr;
+  friend bool operator!=(const DenseMapIterator &LHS,
+                         const DenseMapIterator &RHS) {
+    return !(LHS == RHS);
   }
 
   inline DenseMapIterator& operator++() {  // Preincrement

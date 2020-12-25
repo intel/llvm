@@ -236,7 +236,7 @@ Type Importer::getStdTypeForAttr(LLVMType type) {
 Attribute Importer::getConstantAsAttr(llvm::Constant *value) {
   if (auto *ci = dyn_cast<llvm::ConstantInt>(value))
     return b.getIntegerAttr(
-        IntegerType::get(ci->getType()->getBitWidth(), context),
+        IntegerType::get(context, ci->getType()->getBitWidth()),
         ci->getValue());
   if (auto *c = dyn_cast<llvm::ConstantDataArray>(value))
     if (c->isString())
@@ -787,7 +787,7 @@ LogicalResult Importer::processFunction(llvm::Function *f) {
                            convertLinkageFromLLVM(f->getLinkage()));
 
   if (FlatSymbolRefAttr personality = getPersonalityAsAttr(f))
-    fop.setAttr(b.getIdentifier("personality"), personality);
+    fop->setAttr(b.getIdentifier("personality"), personality);
   else if (f->hasPersonalityFn())
     emitWarning(UnknownLoc::get(context),
                 "could not deduce personality, skipping it");

@@ -346,7 +346,8 @@ enum class RISCVVLMUL {
   LMUL_2,
   LMUL_4,
   LMUL_8,
-  LMUL_F8 = 5,
+  LMUL_RESERVED,
+  LMUL_F8,
   LMUL_F4,
   LMUL_F2
 };
@@ -387,9 +388,31 @@ inline static unsigned encodeVTYPE(RISCVVLMUL VLMUL, RISCVVSEW VSEW,
 
   return VTypeI;
 }
+
+// TODO: This format will change for the V extensions spec v1.0.
+inline static RISCVVLMUL getVLMUL(unsigned VType) {
+  unsigned VLMUL = (VType & 0x3) | ((VType & 0x20) >> 3);
+  return static_cast<RISCVVLMUL>(VLMUL);
+}
+
+inline static RISCVVSEW getVSEW(unsigned VType) {
+  unsigned VSEW = (VType >> 2) & 0x7;
+  return static_cast<RISCVVSEW>(VSEW);
+}
+
+inline static bool isTailAgnostic(unsigned VType) { return VType & 0x40; }
+
+inline static bool isMaskAgnostic(unsigned VType) { return VType & 0x80; }
+
+void printVType(unsigned VType, raw_ostream &OS);
+
 } // namespace RISCVVType
 
 namespace RISCVVPseudosTable {
+
+// The definition should be consistent with `class RISCVVPseudo` in
+// RISCVInstrInfoVPseudos.td.
+static const uint8_t InvalidIndex = 0x80;
 
 struct PseudoInfo {
   unsigned int Pseudo;
@@ -398,12 +421,15 @@ struct PseudoInfo {
   uint8_t SEWIndex;
   uint8_t MergeOpIndex;
   uint8_t VLMul;
+  bool HasDummyMask;
 
   int getVLIndex() const { return static_cast<int8_t>(VLIndex); }
 
   int getSEWIndex() const { return static_cast<int8_t>(SEWIndex); }
 
   int getMergeOpIndex() const { return static_cast<int8_t>(MergeOpIndex); }
+
+  bool hasDummyMask() const { return HasDummyMask; }
 };
 
 using namespace RISCV;

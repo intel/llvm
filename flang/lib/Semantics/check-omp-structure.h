@@ -27,7 +27,7 @@ using OmpClauseSet =
     Fortran::common::EnumSet<llvm::omp::Clause, llvm::omp::Clause_enumSize>;
 
 #define GEN_FLANG_DIRECTIVE_CLAUSE_SETS
-#include "llvm/Frontend/OpenMP/OMP.cpp.inc"
+#include "llvm/Frontend/OpenMP/OMP.inc"
 
 namespace llvm {
 namespace omp {
@@ -85,7 +85,7 @@ public:
   OmpStructureChecker(SemanticsContext &context)
       : DirectiveStructureChecker(context,
 #define GEN_FLANG_DIRECTIVE_CLAUSE_MAP
-#include "llvm/Frontend/OpenMP/OMP.cpp.inc"
+#include "llvm/Frontend/OpenMP/OMP.inc"
         ) {
   }
 
@@ -121,6 +121,8 @@ public:
   void Leave(const parser::OpenMPCancellationPointConstruct &);
   void Enter(const parser::OpenMPCriticalConstruct &);
   void Leave(const parser::OpenMPCriticalConstruct &);
+  void Enter(const parser::OpenMPAtomicConstruct &);
+  void Leave(const parser::OpenMPAtomicConstruct &);
 
   void Leave(const parser::OmpClauseList &);
   void Enter(const parser::OmpClause &);
@@ -161,7 +163,16 @@ public:
   void Enter(const parser::OmpClause::Release &);
   void Enter(const parser::OmpClause::Acquire &);
   void Enter(const parser::OmpClause::Relaxed &);
+  void Enter(const parser::OmpClause::Hint &);
 
+  void Enter(const parser::OmpAtomicRead &);
+  void Leave(const parser::OmpAtomicRead &);
+  void Enter(const parser::OmpAtomicWrite &);
+  void Leave(const parser::OmpAtomicWrite &);
+  void Enter(const parser::OmpAtomicUpdate &);
+  void Leave(const parser::OmpAtomicUpdate &);
+  void Enter(const parser::OmpAtomicCapture &);
+  void Leave(const parser::OmpAtomic &);
   void Enter(const parser::OmpAlignedClause &);
   void Enter(const parser::OmpAllocateClause &);
   void Enter(const parser::OmpDefaultClause &);

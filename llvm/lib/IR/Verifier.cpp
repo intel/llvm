@@ -1597,6 +1597,7 @@ static bool isFuncOnlyAttr(Attribute::AttrKind Kind) {
   case Attribute::NoReturn:
   case Attribute::NoSync:
   case Attribute::WillReturn:
+  case Attribute::NoCallback:
   case Attribute::NoCfCheck:
   case Attribute::NoUnwind:
   case Attribute::NoInline:
@@ -1625,6 +1626,7 @@ static bool isFuncOnlyAttr(Attribute::AttrKind Kind) {
   case Attribute::Builtin:
   case Attribute::NoBuiltin:
   case Attribute::Cold:
+  case Attribute::Hot:
   case Attribute::OptForFuzzing:
   case Attribute::OptimizeNone:
   case Attribute::JumpTable:
@@ -2327,6 +2329,11 @@ void Verifier::visitFunction(const Function &F) {
   default:
   case CallingConv::C:
     break;
+  case CallingConv::X86_INTR: {
+    Assert(F.arg_empty() || Attrs.hasParamAttribute(0, Attribute::ByVal),
+           "Calling convention parameter requires byval", &F);
+    break;
+  }
   case CallingConv::AMDGPU_KERNEL:
   case CallingConv::SPIR_KERNEL:
     Assert(F.getReturnType()->isVoidTy(),
@@ -2955,8 +2962,8 @@ void Verifier::visitAddrSpaceCastInst(AddrSpaceCastInst &I) {
   Assert(SrcTy->getPointerAddressSpace() != DestTy->getPointerAddressSpace(),
          "AddrSpaceCast must be between different address spaces", &I);
   if (auto *SrcVTy = dyn_cast<VectorType>(SrcTy))
-    Assert(cast<FixedVectorType>(SrcVTy)->getNumElements() ==
-               cast<FixedVectorType>(DestTy)->getNumElements(),
+    Assert(SrcVTy->getElementCount() ==
+               cast<VectorType>(DestTy)->getElementCount(),
            "AddrSpaceCast vector pointer number of elements mismatch", &I);
   visitInstruction(I);
 }

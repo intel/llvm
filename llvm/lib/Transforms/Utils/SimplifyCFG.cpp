@@ -68,6 +68,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Local.h"
+#include "llvm/Transforms/Utils/SSAUpdater.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include <algorithm>
 #include <cassert>
@@ -85,6 +86,12 @@ using namespace llvm;
 using namespace PatternMatch;
 
 #define DEBUG_TYPE "simplifycfg"
+
+cl::opt<bool> llvm::RequireAndPreserveDomTree(
+    "simplifycfg-require-and-preserve-domtree", cl::Hidden, cl::ZeroOrMore,
+    cl::init(false),
+    cl::desc("Temorary development switch used to gradually uplift SimplifyCFG "
+             "into preserving DomTree,"));
 
 // Chosen as 2 so as to be cheap, but still to have enough power to fold
 // a select, so the "clamp" idiom (of a min followed by a max) will be caught.
@@ -207,6 +214,7 @@ struct ValueEqualityComparisonCase {
 
 class SimplifyCFGOpt {
   const TargetTransformInfo &TTI;
+  DomTreeUpdater *DTU;
   const DataLayout &DL;
   SmallPtrSetImpl<BasicBlock *> *LoopHeaders;
   const SimplifyCFGOptions &Options;
@@ -250,13 +258,15 @@ class SimplifyCFGOpt {
   bool TurnSwitchRangeIntoICmp(SwitchInst *SI, IRBuilder<> &Builder);
 
 public:
-  SimplifyCFGOpt(const TargetTransformInfo &TTI, const DataLayout &DL,
+  SimplifyCFGOpt(const TargetTransformInfo &TTI, DomTreeUpdater *DTU,
+                 const DataLayout &DL,
                  SmallPtrSetImpl<BasicBlock *> *LoopHeaders,
                  const SimplifyCFGOptions &Opts)
-      : TTI(TTI), DL(DL), LoopHeaders(LoopHeaders), Options(Opts) {}
+      : TTI(TTI), DTU(DTU), DL(DL), LoopHeaders(LoopHeaders), Options(Opts) {}
 
-  bool run(BasicBlock *BB);
   bool simplifyOnce(BasicBlock *BB);
+  bool simplifyOnceImpl(BasicBlock *BB);
+  bool run(BasicBlock *BB);
 
   // Helper to set Resimplify and return change indication.
   bool requestResimplify() {
@@ -790,7 +800,7 @@ BasicBlock *SimplifyCFGOpt::GetValueEqualityComparisonCases(
 static void
 EliminateBlockCases(BasicBlock *BB,
                     std::vector<ValueEqualityComparisonCase> &Cases) {
-  Cases.erase(std::remove(Cases.begin(), Cases.end(), BB), Cases.end());
+  llvm::erase_value(Cases, BB);
 }
 
 /// Return true if there are any keys in C1 that exist in C2 as well.
@@ -2427,7 +2437,7 @@ static bool FoldCondBranchOnPHI(BranchInst *BI, const DataLayout &DL,
 /// Given a BB that starts with the specified two-entry PHI node,
 /// see if we can eliminate it.
 static bool FoldTwoEntryPHINode(PHINode *PN, const TargetTransformInfo &TTI,
-                                const DataLayout &DL) {
+                                DomTreeUpdater *DTU, const DataLayout &DL) {
   // Ok, this is a two entry PHI node.  Check to see if this is a simple "if
   // statement", which has a very simple dominance structure.  Basically, we
   // are trying to find the condition that is being branched on, which
@@ -2577,7 +2587,18 @@ static bool FoldTwoEntryPHINode(PHINode *PN, const TargetTransformInfo &TTI,
   Instruction *OldTI = DomBlock->getTerminator();
   Builder.SetInsertPoint(OldTI);
   Builder.CreateBr(BB);
+
+  SmallVector<DominatorTree::UpdateType, 3> Updates;
+  if (DTU) {
+    for (auto *Successor : successors(DomBlock))
+      Updates.push_back({DominatorTree::Delete, DomBlock, Successor});
+    Updates.push_back({DominatorTree::Insert, DomBlock, BB});
+  }
+
   OldTI->eraseFromParent();
+  if (DTU)
+    DTU->applyUpdatesPermissive(Updates);
+
   return true;
 }
 
@@ -2586,6 +2607,7 @@ static bool FoldTwoEntryPHINode(PHINode *PN, const TargetTransformInfo &TTI,
 /// introducing a select if the return values disagree.
 bool SimplifyCFGOpt::SimplifyCondBranchToTwoReturns(BranchInst *BI,
                                                     IRBuilder<> &Builder) {
+  auto *BB = BI->getParent();
   assert(BI->isConditional() && "Must be a conditional branch");
   BasicBlock *TrueSucc = BI->getSuccessor(0);
   BasicBlock *FalseSucc = BI->getSuccessor(1);
@@ -2605,10 +2627,14 @@ bool SimplifyCFGOpt::SimplifyCondBranchToTwoReturns(BranchInst *BI,
   // there is no return value for this function, just change the
   // branch into a return.
   if (FalseRet->getNumOperands() == 0) {
-    TrueSucc->removePredecessor(BI->getParent());
-    FalseSucc->removePredecessor(BI->getParent());
+    TrueSucc->removePredecessor(BB);
+    FalseSucc->removePredecessor(BB);
     Builder.CreateRetVoid();
     EraseTerminatorAndDCECond(BI);
+    if (DTU) {
+      DTU->applyUpdatesPermissive({{DominatorTree::Delete, BB, TrueSucc},
+                                   {DominatorTree::Delete, BB, FalseSucc}});
+    }
     return true;
   }
 
@@ -2620,10 +2646,10 @@ bool SimplifyCFGOpt::SimplifyCondBranchToTwoReturns(BranchInst *BI,
   // Unwrap any PHI nodes in the return blocks.
   if (PHINode *TVPN = dyn_cast_or_null<PHINode>(TrueValue))
     if (TVPN->getParent() == TrueSucc)
-      TrueValue = TVPN->getIncomingValueForBlock(BI->getParent());
+      TrueValue = TVPN->getIncomingValueForBlock(BB);
   if (PHINode *FVPN = dyn_cast_or_null<PHINode>(FalseValue))
     if (FVPN->getParent() == FalseSucc)
-      FalseValue = FVPN->getIncomingValueForBlock(BI->getParent());
+      FalseValue = FVPN->getIncomingValueForBlock(BB);
 
   // In order for this transformation to be safe, we must be able to
   // unconditionally execute both operands to the return.  This is
@@ -2639,8 +2665,8 @@ bool SimplifyCFGOpt::SimplifyCondBranchToTwoReturns(BranchInst *BI,
 
   // Okay, we collected all the mapped values and checked them for sanity, and
   // defined to really do this transformation.  First, update the CFG.
-  TrueSucc->removePredecessor(BI->getParent());
-  FalseSucc->removePredecessor(BI->getParent());
+  TrueSucc->removePredecessor(BB);
+  FalseSucc->removePredecessor(BB);
 
   // Insert select instructions where needed.
   Value *BrCond = BI->getCondition();
@@ -2665,6 +2691,11 @@ bool SimplifyCFGOpt::SimplifyCondBranchToTwoReturns(BranchInst *BI,
                     << *TrueSucc << "\nFALSEBLOCK: " << *FalseSucc);
 
   EraseTerminatorAndDCECond(BI);
+
+  if (DTU) {
+    DTU->applyUpdatesPermissive({{DominatorTree::Delete, BB, TrueSucc},
+                                 {DominatorTree::Delete, BB, FalseSucc}});
+  }
 
   return true;
 }
@@ -2712,7 +2743,8 @@ static bool extractPredSuccWeights(BranchInst *PBI, BranchInst *BI,
 /// If this basic block is simple enough, and if a predecessor branches to us
 /// and one of our successors, fold the block into the predecessor and use
 /// logical operations to pick the right destination.
-bool llvm::FoldBranchToCommonDest(BranchInst *BI, MemorySSAUpdater *MSSAU,
+bool llvm::FoldBranchToCommonDest(BranchInst *BI, DomTreeUpdater *DTU,
+                                  MemorySSAUpdater *MSSAU,
                                   const TargetTransformInfo *TTI,
                                   unsigned BonusInstThreshold) {
   BasicBlock *BB = BI->getParent();
@@ -2792,6 +2824,22 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, MemorySSAUpdater *MSSAU,
       return Changed;
   }
 
+  // Also, for now, all liveout uses of bonus instructions must be in PHI nodes
+  // in successor blocks as incoming values from the bonus instructions's block,
+  // otherwise we'll fail to update them.
+  // FIXME: We could lift this restriction, but we need to form PHI nodes and
+  // rewrite offending uses, but we can't do that without having a domtree.
+  if (any_of(*BB, [BB](Instruction &I) {
+        return any_of(I.uses(), [BB](Use &U) {
+          auto *User = cast<Instruction>(U.getUser());
+          if (User->getParent() == BB)
+            return false; // Not an external use.
+          auto *PN = dyn_cast<PHINode>(User);
+          return !PN || PN->getIncomingBlock(U) != BB;
+        });
+      }))
+    return Changed;
+
   // Cond is known to be a compare or binary operator.  Check to make sure that
   // neither operand is a potentially-trapping constant expression.
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(Cond->getOperand(0)))
@@ -2860,12 +2908,18 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, MemorySSAUpdater *MSSAU,
     LLVM_DEBUG(dbgs() << "FOLDING BRANCH TO COMMON DEST:\n" << *PBI << *BB);
     Changed = true;
 
+    SmallVector<DominatorTree::UpdateType, 3> Updates;
+
     IRBuilder<> Builder(PBI);
+    // The builder is used to create instructions to eliminate the branch in BB.
+    // If BB's terminator has !annotation metadata, add it to the new
+    // instructions.
+    Builder.CollectMetadataToCopy(BB->getTerminator(),
+                                  {LLVMContext::MD_annotation});
 
     // If we need to invert the condition in the pred block to match, do so now.
     if (InvertPredCond) {
       Value *NewCond = PBI->getCondition();
-
       if (NewCond->hasOneUse() && isa<CmpInst>(NewCond)) {
         CmpInst *CI = cast<CmpInst>(NewCond);
         CI->setPredicate(CI->getInversePredicate());
@@ -2878,12 +2932,16 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, MemorySSAUpdater *MSSAU,
       PBI->swapSuccessors();
     }
 
+    BasicBlock *UniqueSucc =
+        BI->isConditional()
+            ? (PBI->getSuccessor(0) == BB ? TrueDest : FalseDest)
+            : TrueDest;
+
     // Before cloning instructions, notify the successor basic block that it
     // is about to have a new predecessor. This will update PHI nodes,
     // which will allow us to update live-out uses of bonus instructions.
     if (BI->isConditional())
-      AddPredecessorToBlock(PBI->getSuccessor(0) == BB ? TrueDest : FalseDest,
-                            PredBlock, BB, MSSAU);
+      AddPredecessorToBlock(UniqueSucc, PredBlock, BB, MSSAU);
 
     // If we have bonus instructions, clone them into the predecessor block.
     // Note that there may be multiple predecessor blocks, so we cannot move
@@ -2912,24 +2970,40 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, MemorySSAUpdater *MSSAU,
       // its potential value. The previous information might have been valid
       // only given the branch precondition.
       // For an analogous reason, we must also drop all the metadata whose
-      // semantics we don't understand.
-      NewBonusInst->dropUnknownNonDebugMetadata();
+      // semantics we don't understand. We *can* preserve !annotation, because
+      // it is tied to the instruction itself, not the value or position.
+      NewBonusInst->dropUnknownNonDebugMetadata(LLVMContext::MD_annotation);
 
       PredBlock->getInstList().insert(PBI->getIterator(), NewBonusInst);
       NewBonusInst->takeName(&BonusInst);
       BonusInst.setName(BonusInst.getName() + ".old");
-      BonusInst.replaceUsesWithIf(NewBonusInst, [BB](Use &U) {
-        auto *User = cast<Instruction>(U.getUser());
-        // Ignore uses in the same block as the bonus instruction itself.
-        if (User->getParent() == BB)
-          return false;
-        // We can safely update external non-PHI uses.
-        if (!isa<PHINode>(User))
-          return true;
-        // For PHI nodes, don't touch incoming values for same block
-        // as the bonus instruction itself.
-        return cast<PHINode>(User)->getIncomingBlock(U) != BB;
-      });
+      BonusInst.replaceUsesWithIf(
+          NewBonusInst, [BB, BI, UniqueSucc, PredBlock](Use &U) {
+            auto *User = cast<Instruction>(U.getUser());
+            // Ignore non-external uses of bonus instructions.
+            if (User->getParent() == BB) {
+              assert(!isa<PHINode>(User) &&
+                     "Non-external users are never PHI instructions.");
+              return false;
+            }
+            (void)BI;
+            assert(isa<PHINode>(User) && "All external users must be PHI's.");
+            auto *PN = cast<PHINode>(User);
+            assert(is_contained(successors(BB), User->getParent()) &&
+                   "All external users must be in successors of BB.");
+            assert((PN->getIncomingBlock(U) == BB ||
+                    PN->getIncomingBlock(U) == PredBlock) &&
+                   "The incoming block for that incoming value external use "
+                   "must be either the original block with bonus instructions, "
+                   "or the new predecessor block.");
+            // UniqueSucc is the block for which we change it's predecessors,
+            // so it is the only block in which we'll need to update PHI nodes.
+            if (User->getParent() != UniqueSucc)
+              return false;
+            // Update the incoming value for the new predecessor.
+            return PN->getIncomingBlock(U) ==
+                   (BI->isConditional() ? PredBlock : BB);
+          });
     }
 
     // Now that the Cond was cloned into the predecessor basic block,
@@ -2948,7 +3022,7 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, MemorySSAUpdater *MSSAU,
       if (PBI->getSuccessor(0) == BB) {
         if (HasWeights) {
           // PBI: br i1 %x, BB, FalseDest
-          // BI:  br i1 %y, TrueDest, FalseDest
+          // BI:  br i1 %y, UniqueSucc, FalseDest
           // TrueWeight is TrueWeight for PBI * TrueWeight for BI.
           NewWeights.push_back(PredTrueWeight * SuccTrueWeight);
           // FalseWeight is FalseWeight for PBI * TotalWeight for BI +
@@ -2959,12 +3033,12 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, MemorySSAUpdater *MSSAU,
                                    (SuccFalseWeight + SuccTrueWeight) +
                                PredTrueWeight * SuccFalseWeight);
         }
-        PBI->setSuccessor(0, TrueDest);
+        PBI->setSuccessor(0, UniqueSucc);
       }
       if (PBI->getSuccessor(1) == BB) {
         if (HasWeights) {
           // PBI: br i1 %x, TrueDest, BB
-          // BI:  br i1 %y, TrueDest, FalseDest
+          // BI:  br i1 %y, TrueDest, UniqueSucc
           // TrueWeight is TrueWeight for PBI * TotalWeight for BI +
           //              FalseWeight for PBI * TrueWeight for BI.
           NewWeights.push_back(PredTrueWeight *
@@ -2973,7 +3047,7 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, MemorySSAUpdater *MSSAU,
           // FalseWeight is FalseWeight for PBI * FalseWeight for BI.
           NewWeights.push_back(PredFalseWeight * SuccFalseWeight);
         }
-        PBI->setSuccessor(1, FalseDest);
+        PBI->setSuccessor(1, UniqueSucc);
       }
       if (NewWeights.size() == 2) {
         // Halve the weights if any of them cannot fit in an uint32_t
@@ -2984,6 +3058,9 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, MemorySSAUpdater *MSSAU,
         setBranchWeights(PBI, MDWeights[0], MDWeights[1]);
       } else
         PBI->setMetadata(LLVMContext::MD_prof, nullptr);
+
+      Updates.push_back({DominatorTree::Delete, PredBlock, BB});
+      Updates.push_back({DominatorTree::Insert, PredBlock, UniqueSucc});
     } else {
       // Update PHI nodes in the common successors.
       for (unsigned i = 0, e = PHIs.size(); i != e; ++i) {
@@ -2991,7 +3068,7 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, MemorySSAUpdater *MSSAU,
             PHIs[i]->getIncomingValueForBlock(PBI->getParent()));
         assert(PBI_C->getType()->isIntegerTy(1));
         Instruction *MergedCond = nullptr;
-        if (PBI->getSuccessor(0) == TrueDest) {
+        if (PBI->getSuccessor(0) == UniqueSucc) {
           // Create (PBI_Cond and PBI_C) or (!PBI_Cond and BI_Value)
           // PBI_C is true: PBI_Cond or (!PBI_Cond and BI_Value)
           //       is false: !PBI_Cond and BI_Value
@@ -3020,16 +3097,19 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, MemorySSAUpdater *MSSAU,
 	PHIs[i]->setIncomingValueForBlock(PBI->getParent(), MergedCond);
       }
 
-      // PBI is changed to branch to TrueDest below. Remove itself from
+      // PBI is changed to branch to UniqueSucc below. Remove itself from
       // potential phis from all other successors.
       if (MSSAU)
-        MSSAU->changeCondBranchToUnconditionalTo(PBI, TrueDest);
+        MSSAU->changeCondBranchToUnconditionalTo(PBI, UniqueSucc);
 
       // Change PBI from Conditional to Unconditional.
-      BranchInst *New_PBI = BranchInst::Create(TrueDest, PBI);
+      BranchInst *New_PBI = BranchInst::Create(UniqueSucc, PBI);
       EraseTerminatorAndDCECond(PBI, MSSAU);
       PBI = New_PBI;
     }
+
+    if (DTU)
+      DTU->applyUpdatesPermissive(Updates);
 
     // If BI was a loop latch, it may have had associated loop metadata.
     // We need to copy it to the new latch, that is, PBI.
@@ -4098,7 +4178,7 @@ bool SimplifyCFGOpt::simplifyCommonResume(ResumeInst *RI) {
     for (pred_iterator PI = pred_begin(TrivialBB), PE = pred_end(TrivialBB);
          PI != PE;) {
       BasicBlock *Pred = *PI++;
-      removeUnwindEdge(Pred);
+      removeUnwindEdge(Pred, DTU);
       ++NumInvokes;
     }
 
@@ -4109,11 +4189,17 @@ bool SimplifyCFGOpt::simplifyCommonResume(ResumeInst *RI) {
     // predecessors.
     TrivialBB->getTerminator()->eraseFromParent();
     new UnreachableInst(RI->getContext(), TrivialBB);
+    if (DTU)
+      DTU->applyUpdatesPermissive({{DominatorTree::Delete, TrivialBB, BB}});
   }
 
   // Delete the resume block if all its predecessors have been removed.
-  if (pred_empty(BB))
-    BB->eraseFromParent();
+  if (pred_empty(BB)) {
+    if (DTU)
+      DTU->deleteBB(BB);
+    else
+      BB->eraseFromParent();
+  }
 
   return !TrivialUnwindBlocks.empty();
 }
@@ -4133,18 +4219,21 @@ bool SimplifyCFGOpt::simplifySingleResume(ResumeInst *RI) {
   // Turn all invokes that unwind here into calls and delete the basic block.
   for (pred_iterator PI = pred_begin(BB), PE = pred_end(BB); PI != PE;) {
     BasicBlock *Pred = *PI++;
-    removeUnwindEdge(Pred);
+    removeUnwindEdge(Pred, DTU);
     ++NumInvokes;
   }
 
   // The landingpad is now unreachable.  Zap it.
   if (LoopHeaders)
     LoopHeaders->erase(BB);
-  BB->eraseFromParent();
+  if (DTU)
+    DTU->deleteBB(BB);
+  else
+    BB->eraseFromParent();
   return true;
 }
 
-static bool removeEmptyCleanup(CleanupReturnInst *RI) {
+static bool removeEmptyCleanup(CleanupReturnInst *RI, DomTreeUpdater *DTU) {
   // If this is a trivial cleanup pad that executes no instructions, it can be
   // eliminated.  If the cleanup pad continues to the caller, any predecessor
   // that is an EH pad will be updated to continue to the caller and any
@@ -4251,20 +4340,32 @@ static bool removeEmptyCleanup(CleanupReturnInst *RI) {
     }
   }
 
+  std::vector<DominatorTree::UpdateType> Updates;
+
   for (pred_iterator PI = pred_begin(BB), PE = pred_end(BB); PI != PE;) {
     // The iterator must be updated here because we are removing this pred.
     BasicBlock *PredBB = *PI++;
     if (UnwindDest == nullptr) {
-      removeUnwindEdge(PredBB);
+      if (DTU)
+        DTU->applyUpdatesPermissive(Updates);
+      Updates.clear();
+      removeUnwindEdge(PredBB, DTU);
       ++NumInvokes;
     } else {
       Instruction *TI = PredBB->getTerminator();
       TI->replaceUsesOfWith(BB, UnwindDest);
+      Updates.push_back({DominatorTree::Delete, PredBB, BB});
+      Updates.push_back({DominatorTree::Insert, PredBB, UnwindDest});
     }
   }
 
-  // The cleanup pad is now unreachable.  Zap it.
-  BB->eraseFromParent();
+  if (DTU) {
+    DTU->applyUpdatesPermissive(Updates);
+    DTU->deleteBB(BB);
+  } else
+    // The cleanup pad is now unreachable.  Zap it.
+    BB->eraseFromParent();
+
   return true;
 }
 
@@ -4311,7 +4412,7 @@ bool SimplifyCFGOpt::simplifyCleanupReturn(CleanupReturnInst *RI) {
   if (mergeCleanupPad(RI))
     return true;
 
-  if (removeEmptyCleanup(RI))
+  if (removeEmptyCleanup(RI, DTU))
     return true;
 
   return false;
@@ -4342,7 +4443,7 @@ bool SimplifyCFGOpt::simplifyReturn(ReturnInst *RI, IRBuilder<> &Builder) {
       BasicBlock *Pred = UncondBranchPreds.pop_back_val();
       LLVM_DEBUG(dbgs() << "FOLDING: " << *BB
                         << "INTO UNCOND BRANCH PRED: " << *Pred);
-      (void)FoldReturnIntoUncondBranch(RI, BB, Pred);
+      (void)FoldReturnIntoUncondBranch(RI, BB, Pred, DTU);
     }
 
     // If we eliminated all predecessors of the block, delete the block now.
@@ -4350,7 +4451,10 @@ bool SimplifyCFGOpt::simplifyReturn(ReturnInst *RI, IRBuilder<> &Builder) {
       // We know there are no successors, so just nuke the block.
       if (LoopHeaders)
         LoopHeaders->erase(BB);
-      BB->eraseFromParent();
+      if (DTU)
+        DTU->deleteBB(BB);
+      else
+        BB->eraseFromParent();
     }
 
     return true;
@@ -4430,9 +4534,12 @@ bool SimplifyCFGOpt::simplifyUnreachable(UnreachableInst *UI) {
   if (&BB->front() != UI)
     return Changed;
 
+  std::vector<DominatorTree::UpdateType> Updates;
+
   SmallVector<BasicBlock *, 8> Preds(pred_begin(BB), pred_end(BB));
   for (unsigned i = 0, e = Preds.size(); i != e; ++i) {
-    Instruction *TI = Preds[i]->getTerminator();
+    auto *Predecessor = Preds[i];
+    Instruction *TI = Predecessor->getTerminator();
     IRBuilder<> Builder(TI);
     if (auto *BI = dyn_cast<BranchInst>(TI)) {
       if (BI->isUnconditional()) {
@@ -4442,6 +4549,9 @@ bool SimplifyCFGOpt::simplifyUnreachable(UnreachableInst *UI) {
         Changed = true;
       } else {
         Value* Cond = BI->getCondition();
+        assert(BI->getSuccessor(0) != BI->getSuccessor(1) &&
+               "Same-destination conditional branch instruction was "
+               "already canonicalized into an unconditional branch.");
         if (BI->getSuccessor(0) == BB) {
           Builder.CreateAssumption(Builder.CreateNot(Cond));
           Builder.CreateBr(BI->getSuccessor(1));
@@ -4453,6 +4563,7 @@ bool SimplifyCFGOpt::simplifyUnreachable(UnreachableInst *UI) {
         EraseTerminatorAndDCECond(BI);
         Changed = true;
       }
+      Updates.push_back({DominatorTree::Delete, Predecessor, BB});
     } else if (auto *SI = dyn_cast<SwitchInst>(TI)) {
       SwitchInstProfUpdateWrapper SU(*SI);
       for (auto i = SU->case_begin(), e = SU->case_end(); i != e;) {
@@ -4465,14 +4576,21 @@ bool SimplifyCFGOpt::simplifyUnreachable(UnreachableInst *UI) {
         e = SU->case_end();
         Changed = true;
       }
+      Updates.push_back({DominatorTree::Delete, Predecessor, BB});
     } else if (auto *II = dyn_cast<InvokeInst>(TI)) {
       if (II->getUnwindDest() == BB) {
-        removeUnwindEdge(TI->getParent());
+        if (DTU)
+          DTU->applyUpdatesPermissive(Updates);
+        Updates.clear();
+        removeUnwindEdge(TI->getParent(), DTU);
         Changed = true;
       }
     } else if (auto *CSI = dyn_cast<CatchSwitchInst>(TI)) {
       if (CSI->getUnwindDest() == BB) {
-        removeUnwindEdge(TI->getParent());
+        if (DTU)
+          DTU->applyUpdatesPermissive(Updates);
+        Updates.clear();
+        removeUnwindEdge(TI->getParent(), DTU);
         Changed = true;
         continue;
       }
@@ -4487,35 +4605,54 @@ bool SimplifyCFGOpt::simplifyUnreachable(UnreachableInst *UI) {
           Changed = true;
         }
       }
+      Updates.push_back({DominatorTree::Delete, Predecessor, BB});
       if (CSI->getNumHandlers() == 0) {
-        BasicBlock *CatchSwitchBB = CSI->getParent();
         if (CSI->hasUnwindDest()) {
-          // Redirect preds to the unwind dest
-          CatchSwitchBB->replaceAllUsesWith(CSI->getUnwindDest());
+          // Redirect all predecessors of the block containing CatchSwitchInst
+          // to instead branch to the CatchSwitchInst's unwind destination.
+          for (auto *PredecessorOfPredecessor : predecessors(Predecessor)) {
+            Updates.push_back(
+                {DominatorTree::Delete, PredecessorOfPredecessor, Predecessor});
+            Updates.push_back({DominatorTree::Insert, PredecessorOfPredecessor,
+                               CSI->getUnwindDest()});
+          }
+          Predecessor->replaceAllUsesWith(CSI->getUnwindDest());
         } else {
           // Rewrite all preds to unwind to caller (or from invoke to call).
-          SmallVector<BasicBlock *, 8> EHPreds(predecessors(CatchSwitchBB));
+          if (DTU)
+            DTU->applyUpdatesPermissive(Updates);
+          Updates.clear();
+          SmallVector<BasicBlock *, 8> EHPreds(predecessors(Predecessor));
           for (BasicBlock *EHPred : EHPreds)
-            removeUnwindEdge(EHPred);
+            removeUnwindEdge(EHPred, DTU);
         }
         // The catchswitch is no longer reachable.
         new UnreachableInst(CSI->getContext(), CSI);
         CSI->eraseFromParent();
         Changed = true;
       }
-    } else if (isa<CleanupReturnInst>(TI)) {
+    } else if (auto *CRI = dyn_cast<CleanupReturnInst>(TI)) {
+      assert(CRI->hasUnwindDest() && CRI->getUnwindDest() == BB &&
+             "Expected to always have an unwind to BB.");
+      Updates.push_back({DominatorTree::Delete, Predecessor, BB});
       new UnreachableInst(TI->getContext(), TI);
       TI->eraseFromParent();
       Changed = true;
     }
   }
 
+  if (DTU)
+    DTU->applyUpdatesPermissive(Updates);
+
   // If this block is now dead, remove it.
   if (pred_empty(BB) && BB != &BB->getParent()->getEntryBlock()) {
     // We know there are no successors, so just nuke the block.
     if (LoopHeaders)
       LoopHeaders->erase(BB);
-    BB->eraseFromParent();
+    if (DTU)
+      DTU->deleteBB(BB);
+    else
+      BB->eraseFromParent();
     return true;
   }
 
@@ -5954,7 +6091,7 @@ bool SimplifyCFGOpt::simplifyIndirectBr(IndirectBrInst *IBI) {
 /// block when the inputs in the phi are the same for the two blocks being
 /// merged.  In some cases, this could result in removal of the PHI entirely.
 static bool TryToMergeLandingPad(LandingPadInst *LPad, BranchInst *BI,
-                                 BasicBlock *BB) {
+                                 BasicBlock *BB, DomTreeUpdater *DTU) {
   auto Succ = BB->getUniqueSuccessor();
   assert(Succ);
   // If there's a phi in the successor block, we'd likely have to introduce
@@ -5975,6 +6112,8 @@ static bool TryToMergeLandingPad(LandingPadInst *LPad, BranchInst *BI,
     if (!BI2 || !BI2->isIdenticalTo(BI))
       continue;
 
+    std::vector<DominatorTree::UpdateType> Updates;
+
     // We've found an identical block.  Update our predecessors to take that
     // path instead and make ourselves dead.
     SmallPtrSet<BasicBlock *, 16> Preds;
@@ -5984,6 +6123,8 @@ static bool TryToMergeLandingPad(LandingPadInst *LPad, BranchInst *BI,
       assert(II->getNormalDest() != BB && II->getUnwindDest() == BB &&
              "unexpected successor");
       II->setUnwindDest(OtherPred);
+      Updates.push_back({DominatorTree::Delete, Pred, BB});
+      Updates.push_back({DominatorTree::Insert, Pred, OtherPred});
     }
 
     // The debug info in OtherPred doesn't cover the merged control flow that
@@ -5999,11 +6140,14 @@ static bool TryToMergeLandingPad(LandingPadInst *LPad, BranchInst *BI,
     Succs.insert(succ_begin(BB), succ_end(BB));
     for (BasicBlock *Succ : Succs) {
       Succ->removePredecessor(BB);
+      Updates.push_back({DominatorTree::Delete, BB, Succ});
     }
 
     IRBuilder<> Builder(BI);
     Builder.CreateUnreachable();
     BI->eraseFromParent();
+    if (DTU)
+      DTU->applyUpdatesPermissive(Updates);
     return true;
   }
   return false;
@@ -6032,7 +6176,7 @@ bool SimplifyCFGOpt::simplifyUncondBranch(BranchInst *BI,
        (LoopHeaders->count(BB) || LoopHeaders->count(Succ)));
   BasicBlock::iterator I = BB->getFirstNonPHIOrDbg()->getIterator();
   if (I->isTerminator() && BB != &BB->getParent()->getEntryBlock() &&
-      !NeedCanonicalLoop && TryToSimplifyUncondBranchFromEmptyBlock(BB))
+      !NeedCanonicalLoop && TryToSimplifyUncondBranchFromEmptyBlock(BB, DTU))
     return true;
 
   // If the only instruction in the block is a seteq/setne comparison against a
@@ -6051,7 +6195,7 @@ bool SimplifyCFGOpt::simplifyUncondBranch(BranchInst *BI,
   if (LandingPadInst *LPad = dyn_cast<LandingPadInst>(I)) {
     for (++I; isa<DbgInfoIntrinsic>(I); ++I)
       ;
-    if (I->isTerminator() && TryToMergeLandingPad(LPad, BI, BB))
+    if (I->isTerminator() && TryToMergeLandingPad(LPad, BI, BB, DTU))
       return true;
   }
 
@@ -6059,7 +6203,8 @@ bool SimplifyCFGOpt::simplifyUncondBranch(BranchInst *BI,
   // branches to us and our successor, fold the comparison into the
   // predecessor and use logical operations to update the incoming value
   // for PHI nodes in common successor.
-  if (FoldBranchToCommonDest(BI, nullptr, &TTI, Options.BonusInstThreshold))
+  if (FoldBranchToCommonDest(BI, DTU, /*MSSAU=*/nullptr, &TTI,
+                             Options.BonusInstThreshold))
     return requestResimplify();
   return false;
 }
@@ -6122,7 +6267,8 @@ bool SimplifyCFGOpt::simplifyCondBranch(BranchInst *BI, IRBuilder<> &Builder) {
   // If this basic block is ONLY a compare and a branch, and if a predecessor
   // branches to us and one of our successors, fold the comparison into the
   // predecessor and use logical operations to pick the right destination.
-  if (FoldBranchToCommonDest(BI, nullptr, &TTI, Options.BonusInstThreshold))
+  if (FoldBranchToCommonDest(BI, DTU, /*MSSAU=*/nullptr, &TTI,
+                             Options.BonusInstThreshold))
     return requestResimplify();
 
   // We have a conditional branch to two blocks that are only reachable
@@ -6256,7 +6402,7 @@ static bool removeUndefIntroducingPredecessor(BasicBlock *BB) {
   return false;
 }
 
-bool SimplifyCFGOpt::simplifyOnce(BasicBlock *BB) {
+bool SimplifyCFGOpt::simplifyOnceImpl(BasicBlock *BB) {
   bool Changed = false;
 
   assert(BB && BB->getParent() && "Block not embedded in function!");
@@ -6267,13 +6413,14 @@ bool SimplifyCFGOpt::simplifyOnce(BasicBlock *BB) {
   if ((pred_empty(BB) && BB != &BB->getParent()->getEntryBlock()) ||
       BB->getSinglePredecessor() == BB) {
     LLVM_DEBUG(dbgs() << "Removing BB: \n" << *BB);
-    DeleteDeadBlock(BB);
+    DeleteDeadBlock(BB, DTU);
     return true;
   }
 
   // Check to see if we can constant propagate this terminator instruction
   // away...
-  Changed |= ConstantFoldTerminator(BB, true);
+  Changed |= ConstantFoldTerminator(BB, /*DeleteDeadConditions=*/true,
+                                    /*TLI=*/nullptr, DTU);
 
   // Check for and eliminate duplicate PHI nodes in this block.
   Changed |= EliminateDuplicatePHINodes(BB);
@@ -6284,7 +6431,7 @@ bool SimplifyCFGOpt::simplifyOnce(BasicBlock *BB) {
   // Merge basic blocks into their predecessor if there is only one distinct
   // pred, and if there is only one distinct successor of the predecessor, and
   // if there are no PHI nodes.
-  if (MergeBlockIntoPredecessor(BB))
+  if (MergeBlockIntoPredecessor(BB, DTU))
     return true;
 
   if (SinkCommon && Options.SinkCommonInsts)
@@ -6297,7 +6444,7 @@ bool SimplifyCFGOpt::simplifyOnce(BasicBlock *BB) {
     // eliminate it, do so now.
     if (auto *PN = dyn_cast<PHINode>(BB->begin()))
       if (PN->getNumIncomingValues() == 2)
-        Changed |= FoldTwoEntryPHINode(PN, TTI, DL);
+        Changed |= FoldTwoEntryPHINode(PN, TTI, DTU, DL);
   }
 
   Instruction *Terminator = BB->getTerminator();
@@ -6329,6 +6476,22 @@ bool SimplifyCFGOpt::simplifyOnce(BasicBlock *BB) {
   return Changed;
 }
 
+bool SimplifyCFGOpt::simplifyOnce(BasicBlock *BB) {
+  assert((!RequireAndPreserveDomTree ||
+          (DTU &&
+           DTU->getDomTree().verify(DominatorTree::VerificationLevel::Full))) &&
+         "Original domtree is invalid?");
+
+  bool Changed = simplifyOnceImpl(BB);
+
+  assert((!RequireAndPreserveDomTree ||
+          (DTU &&
+           DTU->getDomTree().verify(DominatorTree::VerificationLevel::Full))) &&
+         "Failed to maintain validity of domtree!");
+
+  return Changed;
+}
+
 bool SimplifyCFGOpt::run(BasicBlock *BB) {
   bool Changed = false;
 
@@ -6345,9 +6508,9 @@ bool SimplifyCFGOpt::run(BasicBlock *BB) {
 }
 
 bool llvm::simplifyCFG(BasicBlock *BB, const TargetTransformInfo &TTI,
-                       const SimplifyCFGOptions &Options,
+                       DomTreeUpdater *DTU, const SimplifyCFGOptions &Options,
                        SmallPtrSetImpl<BasicBlock *> *LoopHeaders) {
-  return SimplifyCFGOpt(TTI, BB->getModule()->getDataLayout(), LoopHeaders,
+  return SimplifyCFGOpt(TTI, DTU, BB->getModule()->getDataLayout(), LoopHeaders,
                         Options)
       .run(BB);
 }
