@@ -9,6 +9,7 @@
 
 #include <cassert>
 #include <cstdio>
+#include <iostream>
 #include <map>
 #include <mutex>
 #include <sstream>
@@ -113,10 +114,10 @@ public:
       // xptiTraceInit() and xptiTraceFinish() functions. If these are not
       // present, then the plugin will be ruled an invalid plugin and unloaded
       // from the process.
-      xpti::plugin_init_t InitFunc =
-          (xpti::plugin_init_t)g_helper.findFunction(Handle, "xptiTraceInit");
-      xpti::plugin_fini_t FiniFunc =
-          (xpti::plugin_fini_t)g_helper.findFunction(Handle, "xptiTraceFinish");
+      xpti::plugin_init_t InitFunc = reinterpret_cast<xpti::plugin_init_t>(
+          g_helper.findFunction(Handle, "xptiTraceInit"));
+      xpti::plugin_fini_t FiniFunc = reinterpret_cast<xpti::plugin_fini_t>(
+          g_helper.findFunction(Handle, "xptiTraceFinish"));
       if (InitFunc && FiniFunc) {
         //  We appear to have loaded a valid plugin, so we will insert the
         //  plugin information into the two maps guarded by a lock
@@ -142,7 +143,7 @@ public:
     } else {
       //  Get error from errno
       if (!Error.empty())
-        printf("[%s]: %s\n", Path, Error.c_str());
+        std::cout << '[' << Path << "]: " << Error << '\n';
     }
     return Handle;
   }
@@ -215,7 +216,7 @@ public:
         auto SubscriberHandle = loadPlugin(Path.c_str());
         if (!SubscriberHandle) {
           ValidSubscribers--;
-          printf("Failed to load %s successfully...\n", Path.c_str());
+          std::cout << "Failed to load " << Path << " successfully\n";
         }
       }
     }
@@ -265,7 +266,7 @@ public:
 #endif
 
   Tracepoints(xpti::StringTable &st)
-      : MUId(1), MInsertions(0), MRetrievals(0), MStringTableRef(st) {
+      : MUId(1), MStringTableRef(st), MInsertions(0), MRetrievals(0) {
     // Nothing requires to be done at construction time
   }
 
@@ -381,9 +382,9 @@ public:
   //
   void printStatistics() {
 #ifdef XPTI_STATISTICS
-    printf("Tracepoint inserts : [%lu] \n", MInsertions.load());
-    printf("Tracepoint lookups : [%lu]\n", MRetrievals.load());
-    printf("Tracepoint Hashmap :\n");
+    std::cout << "Tracepoint inserts : " << MInsertions.load() << '\n';
+    std::cout << "Tracepoint lookups : " << MRetrievals.load() << '\n';
+    std::cout << "Tracepoint Hashmap :\n";
     MPayloadLUT.printStatistics();
 #endif
   }
@@ -404,17 +405,19 @@ private:
     if (Payload->flags == 0)
       return HashValue;
     // If the hash value has been cached, return and bail early
-    if (Payload->flags & (uint64_t)payload_flag_t::HashAvailable)
+    if (Payload->flags & static_cast<uint64_t>(payload_flag_t::HashAvailable))
       return Payload->internal;
 
     //  Add the string information to the string table and use the string IDs
     //  (in addition to any unique addresses) to create a hash value
-    if ((Payload->flags & (uint64_t)payload_flag_t::NameAvailable)) {
+    if ((Payload->flags &
+         static_cast<uint64_t>(payload_flag_t::NameAvailable))) {
       // Add the kernel name to the string table; if the add() returns the
       // address to the string in the string table, we can avoid a query [TBD]
       Payload->name_sid = MStringTableRef.add(Payload->name, &Payload->name);
       // Payload->name = MStringTableRef.query(Payload->name_sid);
-      if (Payload->flags & (uint64_t)payload_flag_t::SourceFileAvailable) {
+      if (Payload->flags &
+          static_cast<uint64_t>(payload_flag_t::SourceFileAvailable)) {
         // Add source file information ot string table
         Payload->source_file_sid =
             MStringTableRef.add(Payload->source_file, &Payload->source_file);
@@ -435,15 +438,20 @@ private:
           // them. However, if we use the address, which would be the object
           // address, they both will have different addresses even if they
           // happen to be on the same line.
-          uint16_t NamePack = (uint16_t)(Payload->name_sid & 0x0000ffff);
+          // TODO think of a more portable way to do the same thing.
+          uint16_t NamePack =
+              static_cast<uint16_t>(Payload->name_sid & 0x0000ffff);
           uint16_t SrcFileNamePack =
-              (uint16_t)(Payload->source_file_sid & 0x0000ffff);
+              static_cast<uint16_t>(Payload->source_file_sid & 0x0000ffff);
           uint32_t KernelIDPack = XPTI_PACK16_RET32(SrcFileNamePack, NamePack);
-          uint32_t Address = (uint32_t)(
-              ((uint64_t)Payload->code_ptr_va & 0x0000000ffffffff0) >> 4);
+          uint32_t Address = static_cast<uint32_t>(
+              (reinterpret_cast<uint64_t>(Payload->code_ptr_va) &
+               0x0000000ffffffff0) >>
+              4);
           HashValue = XPTI_PACK32_RET64(Address, KernelIDPack);
           // Cache the hash once it is computed
-          Payload->flags |= (uint64_t)payload_flag_t::HashAvailable;
+          Payload->flags |=
+              static_cast<uint64_t>(payload_flag_t::HashAvailable);
           Payload->internal = HashValue;
           return HashValue;
         } else {
@@ -454,10 +462,11 @@ private:
           // will use 22 bits of the source file and kernel name ids and form a
           // 64-bit value with the middle 22-bits being zero representing the
           // line number.
-          uint64_t LeftPart = 0, MiddlePart = 0, RightPart = 0,
-                   Mask22Bits = 0x00000000003fffff;
+          uint64_t LeftPart = 0, MiddlePart = 0, RightPart = 0;
+          constexpr uint64_t Mask22Bits = 0x00000000003fffff;
           // If line number info is available, extract 22-bits of it
-          if (Payload->flags & (uint64_t)payload_flag_t::LineInfoAvailable) {
+          if (Payload->flags &
+              static_cast<uint64_t>(payload_flag_t::LineInfoAvailable)) {
             MiddlePart = Payload->line_no & Mask22Bits;
             MiddlePart = MiddlePart << 22;
           }
@@ -467,18 +476,21 @@ private:
           // The rightmost 22-bits will represent the kernel name string id
           RightPart = Payload->name_sid & Mask22Bits;
           HashValue = LeftPart | MiddlePart | RightPart;
-          Payload->flags |= (uint64_t)payload_flag_t::HashAvailable;
+          Payload->flags |=
+              static_cast<uint64_t>(payload_flag_t::HashAvailable);
           Payload->internal = HashValue;
           return HashValue;
         }
       } else if (Payload->flags &
-                 (uint64_t)payload_flag_t::CodePointerAvailable) {
+                 static_cast<uint64_t>(payload_flag_t::CodePointerAvailable)) {
         // We have both kernel name and kernel address; we use bits 5-36 from
         // the address and combine it with the kernel name string ID
-        uint32_t Address = (uint32_t)(
-            ((uint64_t)Payload->code_ptr_va & 0x0000000ffffffff0) >> 4);
+        uint32_t Address = static_cast<uint32_t>(
+            (reinterpret_cast<uint64_t>(Payload->code_ptr_va) &
+             0x0000000ffffffff0) >>
+            4);
         HashValue = XPTI_PACK32_RET64(Address, Payload->name_sid);
-        Payload->flags |= (uint64_t)payload_flag_t::HashAvailable;
+        Payload->flags |= static_cast<uint64_t>(payload_flag_t::HashAvailable);
         Payload->internal = HashValue;
         return HashValue;
       } else {
@@ -486,17 +498,18 @@ private:
         // not unique and will replace any previously stored payload information
         if (Payload->name_sid != xpti::invalid_id) {
           HashValue = XPTI_PACK32_RET64(0, Payload->name_sid);
-          Payload->flags |= (uint64_t)payload_flag_t::HashAvailable;
+          Payload->flags |=
+              static_cast<uint64_t>(payload_flag_t::HashAvailable);
           Payload->internal = HashValue;
           return HashValue;
         }
       }
     } else if (Payload->flags &
-               (uint64_t)payload_flag_t::CodePointerAvailable) {
+               static_cast<uint64_t>(payload_flag_t::CodePointerAvailable)) {
       // We are only going to look at Kernel address when kernel name is not
       // available.
-      HashValue = (uint64_t)Payload->code_ptr_va;
-      Payload->flags |= (uint64_t)payload_flag_t::HashAvailable;
+      HashValue = reinterpret_cast<uint64_t>(Payload->code_ptr_va);
+      Payload->flags |= static_cast<uint64_t>(payload_flag_t::HashAvailable);
       Payload->internal = HashValue;
       return HashValue;
     }
@@ -575,7 +588,7 @@ private:
 #ifndef XPTI_USE_TBB
         std::lock_guard<std::mutex> Lock(MCodePtrMutex);
 #endif
-        MCodePtrLUT[(uint64_t)TempPayload.code_ptr_va] = UId;
+        MCodePtrLUT[reinterpret_cast<uint64_t>(TempPayload.code_ptr_va)] = UId;
       }
       // We also want to query the payload by universal ID that has been
       // generated
@@ -888,7 +901,7 @@ private:
 class Framework {
 public:
   Framework()
-      : MTracepoints(MStringTableRef), MUniversalIDs(0), MTraceEnabled(false) {
+      : MUniversalIDs(0), MTracepoints(MStringTableRef), MTraceEnabled(false) {
     //  Load all subscribers on construction
     MSubscribers.loadFromEnvironmentVariable();
     MTraceEnabled =
