@@ -5355,7 +5355,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 //   the plugin is unloaded from memory.
 pi_result piTearDown(void *PluginParameter) {
   // reclaim pi_platform objects here since we don't have piPlatformRelease.
-  while (!PiPlatformsCache->empty()) {
+  for(pi_platform &Platform: *PiPlatformsCache) {
+    delete Platform;
+  }
+  PiPlatformsCache->clear();
     pi_platform Platform = PiPlatformsCache->back();
     delete Platform;
     PiPlatformsCache->pop_back();
