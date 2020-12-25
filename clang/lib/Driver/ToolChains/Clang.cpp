@@ -8143,12 +8143,17 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
       addArgs(CmdArgs, TCArgs, {"-split=kernel"});
     else if (StringRef(A->getValue()) == "per_source")
       addArgs(CmdArgs, TCArgs, {"-split=source"});
+    else if (StringRef(A->getValue()) == "auto")
+      addArgs(CmdArgs, TCArgs, {"-split=auto"});
     else
       // split must be off
       assert(StringRef(A->getValue()) == "off");
+  } else {
+    // auto is the default split mode
+    addArgs(CmdArgs, TCArgs, {"-split=auto"});
   }
   // OPT_fsycl_device_code_split is not checked as it is an alias to
-  // -fsycl-device-code-split=per_source
+  // -fsycl-device-code-split=auto
 
   // Turn on Dead Parameter Elimination Optimization with early optimizations
   if (!getToolChain().getTriple().isNVPTX() &&
