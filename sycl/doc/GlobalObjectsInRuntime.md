@@ -96,11 +96,6 @@ plugin PI level. These two APIs allow on-demand plugin lifetime management. SYCL
 RT can control the beginning and the end of the plugin. 
 ![](images/plugin-lifetime.png)
 
-Each plugin should not create global variables that require non-trivial
-destructor. Pointer variables with heap memory allocation is a good example
-to be created at the global scope. A std::vector object is not. piTearDown
-will take care of deallocation of these global variables safely.
-
 ## Low-level runtimes
 
 Generally, DPC++ runtime has no control over its dependencies. Such libraries
