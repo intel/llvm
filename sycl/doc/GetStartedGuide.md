@@ -100,7 +100,7 @@ flags can be found by launching the script with `--help`):
 * `-o` -> Path to build directory
 * `--cmake-gen` -> Set build system type (e.g. `--cmake-gen "Unix Makefiles"`)
 
-Please note that no data about flags is being shared between `configure.py` and
+**Please note** that no data about flags is being shared between `configure.py` and
 `compile.py` scripts, which means that if you configured your build to be
 placed in non-default directory using `-o` flag, you must also specify this flag
 and the same path in `compile.py` options. This allows you, for example, to
