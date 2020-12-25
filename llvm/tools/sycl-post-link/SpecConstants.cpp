@@ -198,23 +198,28 @@ void setSpecConstSymIDMetadata(Instruction *I, StringRef SymID,
   I->setMetadata(SPEC_CONST_SYM_ID_MD_STRING, Entry);
 }
 
-std::pair<StringRef, unsigned>
+std::pair<StringRef, std::vector<SpecConstantDescriptor>>
 getScalarSpecConstMetadata(const Instruction *I) {
   const MDNode *N = I->getMetadata(SPEC_CONST_SYM_ID_MD_STRING);
   if (!N)
-    return std::make_pair("", 0);
+    return std::make_pair("",
+                          std::vector<SpecConstantDescriptor>{});
   const auto *MDSym = cast<MDString>(N->getOperand(0));
   const auto *MDInt = cast<ConstantAsMetadata>(N->getOperand(1));
   unsigned ID = static_cast<unsigned>(
       cast<ConstantInt>(MDInt->getValue())->getValue().getZExtValue());
-  return std::make_pair(MDSym->getString(), ID);
+  std::vector<SpecConstantDescriptor> Res(1);
+  Res[0].ID = ID;
+  Res[0].Size = I->getType()->getPrimitiveSizeInBits() / /* bits in byte */8;
+  Res[0].Offset = 0;
+  return std::make_pair(MDSym->getString(), Res);
 }
 
 /// Recursively iterates over a composite type in order to collect information
 /// about its scalar elements.
 void collectCompositeElementsInfoRecursive(
     const Module *M, Type *Ty, unsigned &Index, unsigned &Offset,
-    std::vector<CompositeSpecConstElementDescriptor> &Result) {
+    std::vector<SpecConstantDescriptor> &Result) {
   if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
     for (size_t I = 0; I < ArrTy->getNumElements(); ++I) {
       // TODO: this is a spot for potential optimization: for arrays we could
@@ -248,7 +253,7 @@ void collectCompositeElementsInfoRecursive(
                                             Offset, Result);
     }
   } else { // Assume that we encountered some scalar element
-    CompositeSpecConstElementDescriptor Desc;
+    SpecConstantDescriptor Desc;
     Desc.ID = 0; // To be filled later
     Desc.Offset = Offset;
     Desc.Size = Ty->getPrimitiveSizeInBits() / 8;
@@ -257,15 +262,15 @@ void collectCompositeElementsInfoRecursive(
   }
 }
 
-std::pair<StringRef, std::vector<CompositeSpecConstElementDescriptor>>
+std::pair<StringRef, std::vector<SpecConstantDescriptor>>
 getCompositeSpecConstMetadata(const Instruction *I) {
   const MDNode *N = I->getMetadata(SPEC_CONST_SYM_ID_MD_STRING);
   if (!N)
     return std::make_pair("",
-                          std::vector<CompositeSpecConstElementDescriptor>{});
+                          std::vector<SpecConstantDescriptor>{});
   const auto *MDSym = cast<MDString>(N->getOperand(0));
 
-  std::vector<CompositeSpecConstElementDescriptor> Result(N->getNumOperands() -
+  std::vector<SpecConstantDescriptor> Result(N->getNumOperands() -
                                                           1);
   unsigned Index = 0, Offset = 0;
   collectCompositeElementsInfoRecursive(I->getModule(), I->getType(), Index,
@@ -505,9 +510,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   return IRModified ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
 
-bool SpecConstantsPass::collectSpecConstantMetadata(
-    Module &M, ScalarSpecIDMapTy &ScalarIDMap,
-    CompositeSpecIDMapTy &CompositeIDMap) {
+bool SpecConstantsPass::collectSpecConstantMetadata(Module &M,
+                                                    SpecIDMapTy &IDMap) {
   bool Met = false;
 
   for (Function &F : M) {
@@ -521,18 +525,16 @@ bool SpecConstantsPass::collectSpecConstantMetadata(
       if (!CI || CI->isIndirectCall() || !(Callee = CI->getCalledFunction()))
         continue;
 
+      std::pair<StringRef, std::vector<SpecConstantDescriptor>> Res;
       if (Callee->getName().contains(SPIRV_GET_SPEC_CONST_COMPOSITE)) {
-        auto Res = getCompositeSpecConstMetadata(CI);
-        if (!Res.first.empty()) {
-          CompositeIDMap[Res.first] = Res.second;
-          Met = true;
-        }
+        Res = getCompositeSpecConstMetadata(CI);
       } else if (Callee->getName().contains(SPIRV_GET_SPEC_CONST_VAL)) {
-        auto Res = getScalarSpecConstMetadata(CI);
-        if (!Res.first.empty()) {
-          ScalarIDMap[Res.first] = Res.second;
-          Met = true;
-        }
+        Res = getScalarSpecConstMetadata(CI);
+      }
+
+      if (!Res.first.empty()) {
+        IDMap[Res.first] = Res.second;
+        Met = true;
       }
     }
   }
