@@ -12,16 +12,16 @@ target triple = "spir64-unknown-unknown-sycldevice"
 @SCSymID = private unnamed_addr constant [10 x i8] c"SpecConst\00", align 1
 ; CHECK-NOT: @SCSymID
 
-declare dso_local spir_func float @_Z27__sycl_getSpecConstantValueIfET_PKc(i8 addrspace(4)*)
+declare dso_local spir_func float @_Z33__sycl_getScalarSpecConstantValueIfET_PKc(i8 addrspace(4)*)
 
 ; Function Attrs: norecurse
 define weak_odr dso_local spir_kernel void @Kernel() {
-  %1 = call spir_func float @_Z27__sycl_getSpecConstantValueIfET_PKc(i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([10 x i8], [10 x i8]* @SCSymID, i64 0, i64 0) to i8 addrspace(4)*))
+  %1 = call spir_func float @_Z33__sycl_getScalarSpecConstantValueIfET_PKc(i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([10 x i8], [10 x i8]* @SCSymID, i64 0, i64 0) to i8 addrspace(4)*))
   ret void
 }
 
 ; Function Attrs: norecurse
 define dso_local spir_func float @foo_float(%"spec_constant" addrspace(4)* nocapture readnone dereferenceable(1) %0) local_unnamed_addr #3 {
-  %2 = tail call spir_func float @_Z27__sycl_getSpecConstantValueIfET_PKc(i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([10 x i8], [10 x i8]* @SCSymID, i64 0, i64 0) to i8 addrspace(4)*))
+  %2 = tail call spir_func float @_Z33__sycl_getScalarSpecConstantValueIfET_PKc(i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([10 x i8], [10 x i8]* @SCSymID, i64 0, i64 0) to i8 addrspace(4)*))
   ret float %2
 }

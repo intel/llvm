@@ -10,9 +10,7 @@
 // https://github.com/codeplaysoftware/standards-proposals/blob/master/spec-constant/index.md
 // TODO:
 // 1) implement the SPIR-V interop part of the proposal
-// 2) support arbitrary spec constant type; only primitive types are
-//    supported currently
-// 3) move to the new upcoming spec constant specification (then 1 above is not
+// 2) move to the new upcoming spec constant specification (then 1 above is not
 //    needed)
 
 #pragma once
@@ -53,7 +51,7 @@ public:
   get() const { // explicit access.
 #ifdef __SYCL_DEVICE_ONLY__
     const char *TName = __builtin_unique_stable_name(ID);
-    return __sycl_getSpecConstantValue<T>(TName);
+    return __sycl_getScalarSpecConstantValue<T>(TName);
 #else
     return Val;
 #endif // __SYCL_DEVICE_ONLY__

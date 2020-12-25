@@ -25,7 +25,7 @@ namespace {
 // __sycl* intrinsic names are Itanium ABI-mangled; this is common prefix for
 // all mangled names of __sycl_getSpecConstantValue intrinsics, which differ by
 // the template type parameter and the specialization constant value type.
-constexpr char SYCL_GET_SPEC_CONST_VAL[] = "_Z27__sycl_getSpecConstantValue";
+constexpr char SYCL_GET_SPEC_CONST_VAL[] = "_Z33__sycl_getScalarSpecConstantValue";
 constexpr char SYCL_GET_COMPOSITE_SPEC_CONST_VAL[] =
     "_Z36__sycl_getCompositeSpecConstantValue";
 
@@ -63,7 +63,7 @@ StringRef getStringLiteralArg(const CallInst *CI, unsigned ArgNo,
     //    to i8 addrspace(4)*), i8 addrspace(4)** %TName, align 8, !tbaa !10
     // %1 = load i8 addrspace(4)*, i8 addrspace(4)** %TName, align 8, !tbaa !10
     // %call = call spir_func zeroext
-    //   i1 @_Z27__sycl_getSpecConstantValueIbET_PKc(i8 addrspace(4)* %1)
+    //   i1 @_Z33__sycl_getScalarSpecConstantValueIbET_PKc(i8 addrspace(4)* %1)
     // ^^^^^^^^^^^^^^^^^^^^
     // sequence, w/o any intervening stores and calls between the store and load
     // so that %1 is trivially known to be the address of the @.str literal.
