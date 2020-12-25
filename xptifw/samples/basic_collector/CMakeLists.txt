@@ -1,6 +1,3 @@
-cmake_minimum_required(VERSION 2.8.9)
-project (basic_collector)
-
 file(GLOB SOURCES *.cpp)
 include_directories(${XPTIFW_DIR}/include)
 include_directories(${XPTI_DIR}/include)
