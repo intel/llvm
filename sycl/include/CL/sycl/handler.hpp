@@ -760,10 +760,11 @@ private:
         typename std::conditional<std::is_integral<LambdaArgType>::value &&
                                       Dims == 1,
                                   item<Dims>, LambdaArgType>::type;
-
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
+    // FIXME Remove this ifndef once rounding of execution range works well with
+    // ESIMD compilation flow.
 #ifndef __SYCL_EXPLICIT_SIMD__
     // The work group size preferred by this device.
     // A reasonable choice for rounding up the range is 32.
