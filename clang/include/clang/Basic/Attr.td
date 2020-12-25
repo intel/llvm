@@ -1278,7 +1278,7 @@ def SYCLIntelSchedulerTargetFmaxMhz : InheritableAttr {
       return 0;
     }
     static unsigned getMaxValue() {
-      return 1048576;
+      return 1024*1024;
     }
   }];
 
