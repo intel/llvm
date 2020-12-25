@@ -81,9 +81,10 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
     return PI_SUCCESS;
   }
 
-  size_t deviceCount;
-  cl_int ret_err = clGetContextInfo(
-      cast<cl_context>(context), CL_CONTEXT_DEVICES, 0, nullptr, &deviceCount);
+  cl_uint deviceCount;
+  cl_int ret_err =
+      clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_NUM_DEVICES,
+                       sizeof(cl_uint), &deviceCount, nullptr);
 
   if (ret_err != CL_SUCCESS || deviceCount < 1) {
     return PI_INVALID_CONTEXT;
@@ -354,11 +355,10 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
 
 pi_result piProgramCreate(pi_context context, const void *il, size_t length,
                           pi_program *res_program) {
-
-  size_t deviceCount;
-
-  cl_int ret_err = clGetContextInfo(
-      cast<cl_context>(context), CL_CONTEXT_DEVICES, 0, nullptr, &deviceCount);
+  cl_uint deviceCount;
+  cl_int ret_err =
+      clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_NUM_DEVICES,
+                       sizeof(cl_uint), &deviceCount, nullptr);
 
   std::vector<cl_device_id> devicesInCtx(deviceCount);
 
