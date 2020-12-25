@@ -272,6 +272,18 @@ struct get_device_info<vector_class<string_class>, info::device::extensions> {
   }
 };
 
+static bool is_sycl_partition_property(info::partition_property PP) {
+  switch (PP) {
+  case info::partition_property::no_partition:
+  case info::partition_property::partition_equally:
+  case info::partition_property::partition_by_counts:
+  case info::partition_property::partition_by_affinity_domain:
+    return true;
+  default:
+    return false;
+  }
+}
+
 // Specialization for partition properties, variable OpenCL return size
 template <>
 struct get_device_info<vector_class<info::partition_property>,
@@ -296,7 +308,12 @@ struct get_device_info<vector_class<info::partition_property>,
 
     vector_class<info::partition_property> result;
     for (size_t i = 0; i < arrayLength; ++i) {
-      result.push_back(info::partition_property(arrayResult[i]));
+      // OpenCL extensions may have partition_properties that
+      // are not yet defined for SYCL (eg. CL_DEVICE_PARTITION_BY_NAMES_INTEL)
+      info::partition_property pp(
+          static_cast<info::partition_property>(arrayResult[i]));
+      if (is_sycl_partition_property(pp))
+        result.push_back(pp);
     }
     return result;
   }

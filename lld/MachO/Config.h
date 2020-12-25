@@ -30,6 +30,14 @@ struct PlatformInfo {
   llvm::VersionTuple sdk;
 };
 
+enum class UndefinedSymbolTreatment {
+  unknown,
+  error,
+  warning,
+  suppress,
+  dynamic_lookup,
+};
+
 struct Configuration {
   Symbol *entry;
   bool hasReexports = false;
@@ -44,12 +52,16 @@ struct Configuration {
   bool searchDylibsFirst = false;
   bool saveTemps = false;
   uint32_t headerPad;
+  uint32_t dylibCompatibilityVersion = 0;
+  uint32_t dylibCurrentVersion = 0;
   llvm::StringRef installName;
   llvm::StringRef outputFile;
   llvm::StringRef ltoObjPath;
   bool demangle = false;
   llvm::MachO::Architecture arch;
   PlatformInfo platform;
+  UndefinedSymbolTreatment undefinedSymbolTreatment =
+      UndefinedSymbolTreatment::error;
   llvm::MachO::HeaderFileType outputType;
   std::vector<llvm::StringRef> systemLibraryRoots;
   std::vector<llvm::StringRef> librarySearchPaths;

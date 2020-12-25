@@ -32,6 +32,7 @@
 
 using namespace llvm;
 using namespace llvm::MachO;
+using namespace llvm::sys;
 using namespace lld;
 using namespace lld::macho;
 
@@ -43,6 +44,7 @@ public:
   Writer() : buffer(errorHandler().outputBuffer) {}
 
   void scanRelocations();
+  void scanSymbols();
   void createOutputSections();
   void createLoadCommands();
   void assignAddresses(OutputSegment *);
@@ -242,7 +244,10 @@ public:
 //   * LC_REEXPORT_DYLIB
 class LCDylib : public LoadCommand {
 public:
-  LCDylib(LoadCommandType type, StringRef path) : type(type), path(path) {
+  LCDylib(LoadCommandType type, StringRef path,
+          uint32_t compatibilityVersion = 0, uint32_t currentVersion = 0)
+      : type(type), path(path), compatibilityVersion(compatibilityVersion),
+        currentVersion(currentVersion) {
     instanceCount++;
   }
 
@@ -257,6 +262,9 @@ public:
     c->cmd = type;
     c->cmdsize = getSize();
     c->dylib.name = sizeof(dylib_command);
+    c->dylib.timestamp = 0;
+    c->dylib.compatibility_version = compatibilityVersion;
+    c->dylib.current_version = currentVersion;
 
     memcpy(buf, path.data(), path.size());
     buf[path.size()] = '\0';
@@ -267,6 +275,8 @@ public:
 private:
   LoadCommandType type;
   StringRef path;
+  uint32_t compatibilityVersion;
+  uint32_t currentVersion;
   static uint32_t instanceCount;
 };
 
@@ -403,8 +413,7 @@ void Writer::scanRelocations() {
     for (Reloc &r : isec->relocs) {
       if (auto *s = r.referent.dyn_cast<lld::macho::Symbol *>()) {
         if (isa<Undefined>(s))
-          error("undefined symbol " + toString(*s) + ", referenced from " +
-                toString(isec->file));
+          treatUndefinedSymbol(toString(*s), toString(isec->file));
         else
           target->prepareSymbolRelocation(s, isec, r);
       } else {
@@ -412,6 +421,17 @@ void Writer::scanRelocations() {
         if (!r.pcrel)
           in.rebase->addEntry(isec, r.offset);
       }
+    }
+  }
+}
+
+void Writer::scanSymbols() {
+  for (const macho::Symbol *sym : symtab->getSymbols()) {
+    if (const auto *defined = dyn_cast<Defined>(sym)) {
+      if (defined->overridesWeakDef)
+        in.weakBinding->addNonWeakDefinition(defined);
+    } else if (const auto *dysym = dyn_cast<DylibSymbol>(sym)) {
+      dysym->file->refState = std::max(dysym->file->refState, dysym->refState);
     }
   }
 }
@@ -431,7 +451,9 @@ void Writer::createLoadCommands() {
     in.header->addLoadCommand(make<LCLoadDylinker>());
     break;
   case MH_DYLIB:
-    in.header->addLoadCommand(make<LCDylib>(LC_ID_DYLIB, config->installName));
+    in.header->addLoadCommand(make<LCDylib>(LC_ID_DYLIB, config->installName,
+                                            config->dylibCompatibilityVersion,
+                                            config->dylibCurrentVersion));
     break;
   case MH_BUNDLE:
     break;
@@ -453,11 +475,13 @@ void Writer::createLoadCommands() {
   uint64_t dylibOrdinal = 1;
   for (InputFile *file : inputFiles) {
     if (auto *dylibFile = dyn_cast<DylibFile>(file)) {
-      // TODO: dylibs that are only referenced by weak refs should also be
-      // loaded via LC_LOAD_WEAK_DYLIB.
       LoadCommandType lcType =
-          dylibFile->forceWeakImport ? LC_LOAD_WEAK_DYLIB : LC_LOAD_DYLIB;
-      in.header->addLoadCommand(make<LCDylib>(lcType, dylibFile->dylibName));
+          dylibFile->forceWeakImport || dylibFile->refState == RefState::Weak
+              ? LC_LOAD_WEAK_DYLIB
+              : LC_LOAD_DYLIB;
+      in.header->addLoadCommand(make<LCDylib>(lcType, dylibFile->dylibName,
+                                              dylibFile->compatibilityVersion,
+                                              dylibFile->currentVersion));
       dylibFile->ordinal = dylibOrdinal++;
 
       if (dylibFile->reexport)
@@ -474,9 +498,16 @@ void Writer::createLoadCommands() {
 }
 
 static size_t getSymbolPriority(const SymbolPriorityEntry &entry,
-                                const InputFile &file) {
-  return std::max(entry.objectFiles.lookup(sys::path::filename(file.getName())),
-                  entry.anyObjectFile);
+                                const InputFile *f) {
+  // We don't use toString(InputFile *) here because it returns the full path
+  // for object files, and we only want the basename.
+  StringRef filename;
+  if (f->archiveName.empty())
+    filename = path::filename(f->getName());
+  else
+    filename = saver.save(path::filename(f->archiveName) + "(" +
+                          path::filename(f->getName()) + ")");
+  return std::max(entry.objectFiles.lookup(filename), entry.anyObjectFile);
 }
 
 // Each section gets assigned the priority of the highest-priority symbol it
@@ -494,12 +525,12 @@ static DenseMap<const InputSection *, size_t> buildInputSectionPriorities() {
 
     SymbolPriorityEntry &entry = it->second;
     size_t &priority = sectionPriorities[sym.isec];
-    priority = std::max(priority, getSymbolPriority(entry, *sym.isec->file));
+    priority = std::max(priority, getSymbolPriority(entry, sym.isec->file));
   };
 
   // TODO: Make sure this handles weak symbols correctly.
   for (InputFile *file : inputFiles)
-    if (isa<ObjFile>(file) || isa<ArchiveFile>(file))
+    if (isa<ObjFile>(file))
       for (lld::macho::Symbol *sym : file->symbols)
         if (auto *d = dyn_cast<Defined>(sym))
           addSym(*d);
@@ -687,11 +718,7 @@ void Writer::run() {
   scanRelocations();
   if (in.stubHelper->isNeeded())
     in.stubHelper->setup();
-
-  for (const macho::Symbol *sym : symtab->getSymbols())
-    if (const auto *defined = dyn_cast<Defined>(sym))
-      if (defined->overridesWeakDef)
-        in.weakBinding->addNonWeakDefinition(defined);
+  scanSymbols();
 
   // Sort and assign sections to their respective segments. No more sections nor
   // segments may be created after these methods run.

@@ -886,7 +886,8 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
                                         BasicBlock *BB) {
   auto GetLocalVar = [&](SPIRVId Id) -> std::pair<DILocalVariable *, DebugLoc> {
     auto *LV = transDebugInst<DILocalVariable>(BM->get<SPIRVExtInst>(Id));
-    DebugLoc DL = DebugLoc::get(LV->getLine(), 0, LV->getScope());
+    DebugLoc DL = DILocation::get(M->getContext(), LV->getLine(),
+                                  /*Column=*/0, LV->getScope());
     return std::make_pair(LV, DL);
   };
   auto GetValue = [&](SPIRVId Id) -> Value * {
@@ -951,8 +952,9 @@ DebugLoc SPIRVToLLVMDbgTran::transDebugScope(const SPIRVInstruction *Inst) {
     Scope = getScope(BM->getEntry(Ops[ScopeIdx]));
     if (Ops.size() > InlinedAtIdx)
       InlinedAt = transDebugInst(BM->get<SPIRVExtInst>(Ops[InlinedAtIdx]));
+    return DILocation::get(M->getContext(), Line, Col, Scope, InlinedAt);
   }
-  return DebugLoc::get(Line, Col, Scope, InlinedAt);
+  return DebugLoc();
 }
 
 MDNode *SPIRVToLLVMDbgTran::transDebugInlined(const SPIRVExtInst *Inst) {

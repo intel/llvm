@@ -21,6 +21,7 @@
 #include "lld/Common/Strings.h"
 #include "lld/Common/Version.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/Config/llvm-config.h"
 #include "llvm/Object/Wasm.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
@@ -66,7 +67,7 @@ static void initLLVM() {
 
 class LinkerDriver {
 public:
-  void link(ArrayRef<const char *> argsArr);
+  void linkerMain(ArrayRef<const char *> argsArr);
 
 private:
   void createFiles(opt::InputArgList &args);
@@ -97,7 +98,7 @@ bool link(ArrayRef<const char *> args, bool canExitEarly, raw_ostream &stdoutOS,
   symtab = make<SymbolTable>();
 
   initLLVM();
-  LinkerDriver().link(args);
+  LinkerDriver().linkerMain(args);
 
   // Exit immediately if we don't need to return to the caller.
   // This saves time because the overhead of calling destructors
@@ -379,8 +380,9 @@ static void readConfigs(opt::InputArgList &args) {
   config->importTable = args.hasArg(OPT_import_table);
   config->ltoo = args::getInteger(args, OPT_lto_O, 2);
   config->ltoPartitions = args::getInteger(args, OPT_lto_partitions, 1);
-  config->ltoNewPassManager = args.hasFlag(OPT_lto_new_pass_manager,
-                                           OPT_no_lto_new_pass_manager, false);
+  config->ltoNewPassManager =
+      args.hasFlag(OPT_lto_new_pass_manager, OPT_no_lto_new_pass_manager,
+                   LLVM_ENABLE_NEW_PASS_MANAGER);
   config->ltoDebugPassManager = args.hasArg(OPT_lto_debug_pass_manager);
   config->mapFile = args.getLastArgValue(OPT_Map);
   config->optimize = args::getInteger(args, OPT_O, 0);
@@ -785,7 +787,7 @@ static void wrapSymbols(ArrayRef<WrappedSymbol> wrapped) {
     symtab->wrap(w.sym, w.real, w.wrap);
 }
 
-void LinkerDriver::link(ArrayRef<const char *> argsArr) {
+void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   WasmOptTable parser;
   opt::InputArgList args = parser.parse(argsArr.slice(1));
 

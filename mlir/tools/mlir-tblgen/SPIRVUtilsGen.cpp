@@ -491,7 +491,7 @@ static void emitAttributeSerialization(const Attribute &attr,
                                        StringRef opVar, StringRef operandList,
                                        StringRef attrName, raw_ostream &os) {
   os << tabs
-     << formatv("if (auto attr = {0}.getAttr(\"{1}\")) {{\n", opVar, attrName);
+     << formatv("if (auto attr = {0}->getAttr(\"{1}\")) {{\n", opVar, attrName);
   if (attr.getAttrDefName() == "SPV_ScopeAttr" ||
       attr.getAttrDefName() == "SPV_MemorySemanticsAttr") {
     os << tabs
@@ -645,7 +645,7 @@ static void emitDecorationSerialization(const Operator &op, StringRef tabs,
                                         StringRef resultID, raw_ostream &os) {
   if (op.getNumResults() == 1) {
     // All non-argument attributes translated into OpDecorate instruction
-    os << tabs << formatv("for (auto attr : {0}.getAttrs()) {{\n", opVar);
+    os << tabs << formatv("for (auto attr : {0}->getAttrs()) {{\n", opVar);
     os << tabs
        << formatv("  if (llvm::any_of({0}, [&](StringRef elided)", elidedAttrs);
     os << " {return attr.first == elided;})) {\n";
@@ -1155,18 +1155,18 @@ static void emitEnumGetAttrNameFnDefn(const EnumAttr &enumAttr,
   os << "}\n";
 }
 
-static bool emitOpUtils(const RecordKeeper &recordKeeper, raw_ostream &os) {
-  llvm::emitSourceFileHeader("SPIR-V Op Utilities", os);
+static bool emitAttrUtils(const RecordKeeper &recordKeeper, raw_ostream &os) {
+  llvm::emitSourceFileHeader("SPIR-V Attribute Utilities", os);
 
   auto defs = recordKeeper.getAllDerivedDefinitions("EnumAttrInfo");
-  os << "#ifndef SPIRV_OP_UTILS_H_\n";
-  os << "#define SPIRV_OP_UTILS_H_\n";
+  os << "#ifndef MLIR_DIALECT_SPIRV_IR_ATTR_UTILS_H_\n";
+  os << "#define MLIR_DIALECT_SPIRV_IR_ATTR_UTILS_H_\n";
   emitEnumGetAttrNameFnDecl(os);
   for (const auto *def : defs) {
     EnumAttr enumAttr(*def);
     emitEnumGetAttrNameFnDefn(enumAttr, os);
   }
-  os << "#endif // SPIRV_OP_UTILS_H\n";
+  os << "#endif // MLIR_DIALECT_SPIRV_IR_ATTR_UTILS_H\n";
   return false;
 }
 
@@ -1175,10 +1175,10 @@ static bool emitOpUtils(const RecordKeeper &recordKeeper, raw_ostream &os) {
 //===----------------------------------------------------------------------===//
 
 static mlir::GenRegistration
-    genOpUtils("gen-spirv-op-utils",
-               "Generate SPIR-V operation utility definitions",
+    genOpUtils("gen-spirv-attr-utils",
+               "Generate SPIR-V attribute utility definitions",
                [](const RecordKeeper &records, raw_ostream &os) {
-                 return emitOpUtils(records, os);
+                 return emitAttrUtils(records, os);
                });
 
 //===----------------------------------------------------------------------===//
@@ -1330,8 +1330,8 @@ static bool emitCapabilityImplication(const RecordKeeper &recordKeeper,
 
   EnumAttr enumAttr(recordKeeper.getDef("SPV_CapabilityAttr"));
 
-  os << "ArrayRef<Capability> "
-        "spirv::getDirectImpliedCapabilities(Capability cap) {\n"
+  os << "ArrayRef<spirv::Capability> "
+        "spirv::getDirectImpliedCapabilities(spirv::Capability cap) {\n"
      << "  switch (cap) {\n"
      << "  default: return {};\n";
   for (const EnumAttrCase &enumerant : enumAttr.getAllCases()) {
@@ -1340,14 +1340,14 @@ static bool emitCapabilityImplication(const RecordKeeper &recordKeeper,
       continue;
 
     std::vector<Record *> impliedCapsDefs = def.getValueAsListOfDefs("implies");
-    os << "  case Capability::" << enumerant.getSymbol()
-       << ": {static const Capability implies[" << impliedCapsDefs.size()
+    os << "  case spirv::Capability::" << enumerant.getSymbol()
+       << ": {static const spirv::Capability implies[" << impliedCapsDefs.size()
        << "] = {";
     llvm::interleaveComma(impliedCapsDefs, os, [&](const Record *capDef) {
-      os << "Capability::" << EnumAttrCase(capDef).getSymbol();
+      os << "spirv::Capability::" << EnumAttrCase(capDef).getSymbol();
     });
-    os << "}; return ArrayRef<Capability>(implies, " << impliedCapsDefs.size()
-       << "); }\n";
+    os << "}; return ArrayRef<spirv::Capability>(implies, "
+       << impliedCapsDefs.size() << "); }\n";
   }
   os << "  }\n";
   os << "}\n";

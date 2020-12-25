@@ -422,7 +422,11 @@ location of certain calls. For example, it will prevent tail merging otherwise
 identical code sequences that raise an exception or terminate the program. Tail
 merging normally reduces the precision of source location information, making
 stack traces less useful for debugging. This attribute gives the user control
-over the tradeoff between code size and debug information precision.
+over the tradeoff between code size and debug information precision. 
+
+``nomerge`` attribute can also be used as function attribute to prevent all 
+calls to the specified function from merging. It has no effect on indirect 
+calls.
   }];
 }
 
@@ -4032,7 +4036,7 @@ As ``global_device`` and ``global_host`` are a subset of
 ``__global/opencl_global`` address spaces it is allowed to convert
 ``global_device`` and ``global_host`` address spaces to
 ``__global/opencl_global`` address spaces (following ISO/IEC TR 18037 5.1.3
-"Address space nesting and rules for pointers).
+"Address space nesting and rules for pointers").
   }];
 }
 
@@ -4660,6 +4664,57 @@ declarations with the same name. The template parameters for the base functions
 are used to instantiate the specialization.
 
   }];
+}
+
+def LeafDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+
+The ``leaf`` attribute is used as a compiler hint to improve dataflow analysis
+in library functions. Functions marked with the ``leaf`` attribute are not allowed
+to jump back into the caller's translation unit, whether through invoking a
+callback function, an external function call, use of ``longjmp``, or other means.
+Therefore, they cannot use or modify any data that does not escape the caller function's
+compilation unit.
+
+For more information see
+`gcc documentation <https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html>`
+}];
+}
+
+def AssumptionDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "assume";
+  let Content = [{
+Clang supports the ``__attribute__((assume("assumption")))`` attribute to
+provide additional information to the optimizer. The string-literal, here
+"assumption", will be attached to the function declaration such that later
+analysis and optimization passes can assume the "assumption" to hold.
+This is similar to :ref:`__builtin_assume <langext-__builtin_assume>` but
+instead of an expression that can be assumed to be non-zero, the assumption is
+expressed as a string and it holds for the entire function.
+
+A function can have multiple assume attributes and they propagate from prior
+declarations to later definitions. Multiple assumptions are aggregated into a
+single comma separated string. Thus, one can provide multiple assumptions via
+a comma separated string, i.a.,
+``__attribute__((assume("assumption1,assumption2")))``.
+
+While LLVM plugins might provide more assumption strings, the default LLVM
+optimization passes are aware of the following assumptions:
+
+  .. code-block:: none
+
+    "omp_no_openmp"
+    "omp_no_openmp_routines"
+    "omp_no_parallelism"
+
+The OpenMP standard defines the meaning of OpenMP assumptions ("omp_XYZ" is
+spelled "XYZ" in the `OpenMP 5.1 Standard`_).
+
+.. _`OpenMP 5.1 Standard`: https://www.openmp.org/spec-html/5.1/openmpsu37.html#x56-560002.5.2
+
+}];
 }
 
 def NoStackProtectorDocs : Documentation {
@@ -6283,4 +6338,23 @@ to non-secure state, except via return values. See `ARMv8-M Security Extensions:
 Requirements on Development Tools - Engineering Specification Documentation
 <https://developer.arm.com/docs/ecm0359818/latest/>`_ for more information.
   }];
+}
+
+def AlwaysInlineDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+Inlining heuristics are disabled and inlining is always attempted regardless of
+optimization level.
+
+Does not guarantee that inline substitution actually occurs.
+
+See also `the Microsoft Docs on Inline Functions`_, `the GCC Common Function
+Attribute docs`_, and `the GCC Inline docs`_.
+
+.. _the Microsoft Docs on Inline Functions: https://docs.microsoft.com/en-us/cpp/cpp/inline-functions-cpp
+.. _the GCC Common Function Attribute docs: https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html
+.. _the GCC Inline docs: https://gcc.gnu.org/onlinedocs/gcc/Inline.html
+
+}];
+  let Heading = "always_inline, __force_inline";
 }

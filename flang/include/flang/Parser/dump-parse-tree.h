@@ -66,6 +66,7 @@ public:
   NODE(parser, AccClause)
 #define GEN_FLANG_DUMP_PARSE_TREE_CLAUSES
 #include "llvm/Frontend/OpenACC/ACC.cpp.inc"
+  NODE(parser, AccBindClause)
   NODE(parser, AccDefaultClause)
   NODE_ENUM(parser::AccDefaultClause, Arg)
   NODE(parser, AccClauseList)
@@ -200,7 +201,6 @@ public:
   NODE_ENUM(ConnectSpec::CharExpr, Kind)
   NODE(ConnectSpec, Newunit)
   NODE(ConnectSpec, Recl)
-  NODE(parser, ConstantValue)
   NODE(parser, ContainsStmt)
   NODE(parser, Contiguous)
   NODE(parser, ContiguousStmt)
@@ -462,7 +462,7 @@ public:
   NODE_ENUM(OmpCancelType, Type)
   NODE(parser, OmpClause)
 #define GEN_FLANG_DUMP_PARSE_TREE_CLAUSES
-#include "llvm/Frontend/OpenMP/OMP.cpp.inc"
+#include "llvm/Frontend/OpenMP/OMP.inc"
   NODE(parser, OmpClauseList)
   NODE(parser, OmpCriticalDirective)
   NODE(parser, OmpDeclareTargetSpecifier)
@@ -551,6 +551,8 @@ public:
   NODE(parser, OpenMPDeclareSimdConstruct)
   NODE(parser, OpenMPDeclareTargetConstruct)
   NODE(parser, OmpMemoryOrderClause)
+  NODE(parser, OmpAtomicClause)
+  NODE(parser, OmpAtomicClauseList)
   NODE(parser, OpenMPFlushConstruct)
   NODE(parser, OpenMPLoopConstruct)
   NODE(parser, OpenMPExecutableAllocate)
