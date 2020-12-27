@@ -5048,7 +5048,8 @@ void CodeGenModule::EmitAliasDefinition(GlobalDecl GD) {
     LT = getFunctionLinkage(GD);
     AS = Aliasee->getType()->getPointerAddressSpace();
   } else {
-    AS = ArgInfoAddressSpace(GetGlobalVarAddressSpace(/*D=*/nullptr));
+    const auto *VarD = cast<VarDecl>(GD.getDecl());
+    AS = ArgInfoAddressSpace(GetGlobalVarAddressSpace(VarD));
     Aliasee = GetOrCreateLLVMGlobal(AA->getAliasee(), DeclTy->getPointerTo(AS),
                                     /*D=*/nullptr);
     if (const auto *VD = dyn_cast<VarDecl>(GD.getDecl()))
